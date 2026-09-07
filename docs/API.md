@@ -56,7 +56,7 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" https://www.emoji.tw/api/state
 
 ### GET /api/events/:slug
 支援同樣的 `?lang=zh|en|ja`；回傳包含 `translations`。
-活動詳情。公開、私人與會員限定活動皆可由直接連結讀取；私人活動不列入清單，會員限定活動只列入有效會員的清單。帶有效 Bearer token 時一併回自己的報名、付款與簽到狀態，以及只屬於目前帳號的 `viewer: {name,email}`，供報名表預填。
+活動詳情。公開、私人與會員限定活動皆可由直接連結讀取；私人活動不列入清單，會員限定活動只列入有效會員的清單。帶有效 Bearer token 時一併回自己的報名、付款與簽到狀態，以及只屬於目前帳號的 `viewer: {name,email}`，供報名表預填。公開活動的有效報名另回 `referral_token`；帶有效 `ref` 查詢參數時回 `referred_by`，前台可顯示邀請人。私人與會員限定活動不啟用個人轉介追蹤。
 
 ### GET /api/points/packs
 點數方案定價表。回 `{ price_twd, packs }`。

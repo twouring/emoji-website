@@ -2462,7 +2462,7 @@ app.get('/api/admin/events/:id/insights',auth,requireDb,eventEditor,wrap(async(r
  const views=(await q(`SELECT day::text AS day,source,campaign,views FROM event_views WHERE event_id=$1 AND day>=(now() AT TIME ZONE 'Asia/Taipei')::date-$2::int ORDER BY day DESC,views DESC`,[req.params.id,days-1])).rows;
  const guests=(await q(`SELECT status,COALESCE(SUM(quantity),0)::int AS count,COALESCE(SUM(CASE WHEN quantity>1 THEN (SELECT COUNT(*) FROM event_attendees a WHERE a.registration_id=event_regs.id AND a.checked_in_at IS NOT NULL) ELSE (checked_in_at IS NOT NULL)::int END),0)::int AS checked_in FROM event_regs WHERE event_id=$1 GROUP BY status`,[req.params.id])).rows;
  const visitors=(await q(`SELECT COUNT(DISTINCT visitor_hash)::int AS unique_sessions,COUNT(DISTINCT visitor_hash) FILTER(WHERE last_seen>now()-interval '5 minutes')::int AS active_sessions FROM event_visitors WHERE event_id=$1 AND day>=(now() AT TIME ZONE 'Asia/Taipei')::date-$2::int`,[req.params.id,days-1])).rows[0];
- const attribution=(await q(`SELECT COALESCE(NULLIF(attribution->>'source',''),'direct') AS source,COALESCE(attribution->>'campaign','') AS campaign,COALESCE(attribution->>'referral','') AS referral,COUNT(*)::int AS bookings,COALESCE(SUM(quantity) FILTER(WHERE status='registered'),0)::int AS registered FROM event_regs WHERE event_id=$1 AND created_at>=((now() AT TIME ZONE 'Asia/Taipei')::date-$2::int) AT TIME ZONE 'Asia/Taipei' GROUP BY 1,2,3 ORDER BY bookings DESC`,[req.params.id,days-1])).rows;
+ const attribution=(await q(`SELECT COALESCE(NULLIF(r.attribution->>'source',''),'direct') AS source,COALESCE(r.attribution->>'campaign','') AS campaign,COALESCE(inviter.name,r.attribution->>'referral','') AS referral,COUNT(*)::int AS bookings,COALESCE(SUM(r.quantity) FILTER(WHERE r.status='registered'),0)::int AS registered FROM event_regs r LEFT JOIN event_regs source ON 'guest:'||source.id=r.attribution->>'referral' LEFT JOIN users inviter ON inviter.id=source.user_id WHERE r.event_id=$1 AND r.created_at>=((now() AT TIME ZONE 'Asia/Taipei')::date-$2::int) AT TIME ZONE 'Asia/Taipei' GROUP BY 1,2,3 ORDER BY bookings DESC`,[req.params.id,days-1])).rows;
  const online=(await q('SELECT COUNT(*)::int AS participants,COALESCE(SUM(clicks),0)::int AS clicks FROM event_online_joins WHERE event_id=$1',[req.params.id])).rows[0];
  const registrations=(await q(`SELECT (created_at AT TIME ZONE 'Asia/Taipei')::date::text AS day,
    COUNT(*)::int AS bookings,
@@ -3191,6 +3191,10 @@ app.get('/api/admin/ig/status', auth, adminOnly, requireDb, wrap(async (_req, re
 }));
 
 /* ---- 活動前台：公開列表、私人連結、報名付款與票券 ---- */
+function eventReferralToken(registrationId,event){
+ const end=event.ends_at||event.starts_at,ttlSec=end?Math.max(86400,Math.floor((+new Date(end)-Date.now())/1000)+30*86400):366*86400;
+ return signAccessToken({sub:'event-referral',ent:registrationId,plan:'event-referral',event:event.id},SECRET,{ttlSec});
+}
 app.get('/api/events', optionalAuth, requireDb, wrap(async (req, res) => {
   const member = req.auth?.sub ? (await memberAccessFor(req.auth.sub)).active : false;
   const events = (await q(
@@ -3216,9 +3220,9 @@ app.post('/api/events/checkout/verify', optionalAuth, requireDb, wrap(async (req
     return res.status(403).json({ error: '付款資料不屬於目前帳號。' });
   await fulfillEventCheckout(session);
   await fulfillAdditionalCheckout(session);
-  const reg = (await q(`SELECT id,status,event_id FROM event_regs WHERE id=$1`, [session.metadata.registration_id])).rows[0];
+  const reg = (await q(`SELECT r.id,r.status,r.event_id,e.visibility,e.starts_at,e.ends_at FROM event_regs r JOIN events e ON e.id=r.event_id WHERE r.id=$1`, [session.metadata.registration_id])).rows[0];
   const additional=session.metadata.kind==='event-additional-tickets'?(await q('SELECT status FROM event_ticket_orders WHERE id=$1 AND registration_id=$2',[session.metadata.order_id,reg?.id])).rows[0]:null;
-  res.json({ paid: session.payment_status==='paid'&&reg?.status === 'registered'&&(session.metadata.kind!=='event-additional-tickets'||additional?.status==='registered'), registration_id: reg?.id, event_id: reg?.event_id, status:reg?.status, order_status:additional?.status });
+  res.json({ paid: session.payment_status==='paid'&&reg?.status === 'registered'&&(session.metadata.kind!=='event-additional-tickets'||additional?.status==='registered'), registration_id: reg?.id, event_id: reg?.event_id, status:reg?.status, order_status:additional?.status,referral_token:reg?.status==='registered'&&reg.visibility==='public'?eventReferralToken(reg.id,reg):undefined });
 }));
 
 app.get('/api/events/:id/orders',auth,requireDb,wrap(async(req,res)=>{
@@ -3376,6 +3380,9 @@ app.get('/api/events/:slug', optionalAuth, requireDb, wrap(async (req, res) => {
   if(!ev.registered&&req.auth?.email){const recipient=(await q(`SELECT 1 FROM event_attendees a JOIN event_regs r ON r.id=a.registration_id LEFT JOIN event_ticket_orders o ON o.id=a.order_id WHERE r.event_id=$1 AND r.status='registered' AND a.email=lower($2) AND (a.order_id IS NULL OR o.status='registered') LIMIT 1`,[ev.id,req.auth.email])).rowCount;
    if(recipient){ev.registered=true;ev.recipient_only=true;}}
   if(userId)ev.viewer=(await q('SELECT name,email FROM users WHERE id=$1',[userId])).rows[0]||null;
+  if(ev.visibility==='public'&&ev.registration_id&&ev.registration_status==='registered')ev.referral_token=eventReferralToken(ev.registration_id,ev);
+  const referral=ev.visibility==='public'?verifyAccessToken(String(req.query.ref||''),SECRET):null;
+  if(referral?.plan==='event-referral'&&referral.event===ev.id){const inviter=(await q("SELECT u.name FROM event_regs r JOIN users u ON u.id=r.user_id WHERE r.id=$1 AND r.event_id=$2 AND r.status='registered'",[referral.ent,ev.id])).rows[0];if(inviter)ev.referred_by=inviter.name;}
   res.json({ event: localizeEvent(ev, req.query.lang) });
 }));
 
@@ -3410,7 +3417,7 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
     let waitlisted=false;
     if (mine?.status === 'registered') {
       await client.query('COMMIT');
-      return res.json({ ok: true, already: true, status:'registered', guest });
+      return res.json({ ok: true, already: true, status:'registered', guest,referral_token:ev.visibility==='public'?eventReferralToken(mine.id,ev):undefined });
     }
     if(mine?.status==='pending_payment'&&mine.stripe_session_id){
       if(!stripe){await client.query('ROLLBACK');return res.status(503).json({error:'付款服務暫時無法核對，請稍後再試。'});}
@@ -3474,8 +3481,13 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
     }
     const regId = mine?.id || uid('r_');
     const note = String(req.body?.note || '').trim();
+    const savedAttribution=approved?mine.attribution:normalizeAttribution(req.body?.attribution);
+    if(!approved&&ev.visibility==='public'){
+      const referral=verifyAccessToken(savedAttribution.referral,SECRET);
+      if(referral?.plan==='event-referral'&&referral.event===ev.id&&referral.ent!==regId&&(await client.query("SELECT 1 FROM event_regs WHERE id=$1 AND event_id=$2 AND status='registered'",[referral.ent,ev.id])).rowCount)savedAttribution.referral='guest:'+referral.ent;
+    }
     async function saveDetails(){
-      await client.query("UPDATE event_regs SET answers=$2,ticket_snapshot=$3,coupon_snapshot=$4,quantity=$5,confirmation_queued=false,language=$6,attribution=$7,capture_required=$8,authorization_expires_at=NULL,entry_source='self_service' WHERE id=$1",[regId,JSON.stringify(answerSnapshot),selectedTicket?JSON.stringify(selectedTicket):null,couponSnapshot?JSON.stringify(couponSnapshot):null,quantity,['en','ja'].includes(req.body?.lang)?req.body.lang:'zh',JSON.stringify(approved?mine.attribution:normalizeAttribution(req.body?.attribution)),captureRequired]);
+      await client.query("UPDATE event_regs SET answers=$2,ticket_snapshot=$3,coupon_snapshot=$4,quantity=$5,confirmation_queued=false,language=$6,attribution=$7,capture_required=$8,authorization_expires_at=NULL,entry_source='self_service' WHERE id=$1",[regId,JSON.stringify(answerSnapshot),selectedTicket?JSON.stringify(selectedTicket):null,couponSnapshot?JSON.stringify(couponSnapshot):null,quantity,['en','ja'].includes(req.body?.lang)?req.body.lang:'zh',JSON.stringify(savedAttribution),captureRequired]);
       if(!approved){await client.query('DELETE FROM event_attendees WHERE registration_id=$1',[regId]);for(const [i,a] of attendees.entries())await client.query('INSERT INTO event_attendees(id,registration_id,name,email,ordinal) VALUES($1,$2,$3,$4,$5)',[uid('att_'),regId,a.name,a.email,i]);}
     }
 
@@ -3500,7 +3512,7 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
       await saveDetails();
       await client.query('COMMIT');
       notifyRegistration(userId, ev.id);
-      return res.json({ ok: true, registration_id: regId, status:'registered', guest });
+      return res.json({ ok: true, registration_id: regId, status:'registered', guest,referral_token:ev.visibility==='public'?eventReferralToken(regId,ev):undefined });
     }
 
     if (price > 0 && (!stripe || !STRIPE_WEBHOOK_SECRET)) {

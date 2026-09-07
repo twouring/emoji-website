@@ -329,8 +329,12 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   assert.equal((await call('/events/'+largeGroupEvent.slug,{as:guest})).event.reg_count,11);
   const largeGroupNames=(await pool.query('SELECT name,COUNT(*)::int AS n FROM event_attendees WHERE registration_id=(SELECT id FROM event_regs WHERE event_id=$1 AND user_id=$2) GROUP BY name',[largeGroupEvent.id,'guest_a'])).rows;
   assert.deepEqual(largeGroupNames,[{name:'Guest A',n:11}]);
+  const referralToken=(await call('/events/'+largeGroupEvent.slug,{as:guest})).event.referral_token;
+  assert.equal((await call('/events/'+largeGroupEvent.slug+'?ref='+encodeURIComponent(referralToken),{as:guest2})).event.referred_by,'Guest A');
+  await call('/events/'+largeGroupEvent.id+'/register',{as:guest2,method:'POST',body:{attribution:{referral:referralToken}}});
+  assert.ok((await call('/admin/events/'+largeGroupEvent.id+'/insights',{as:a})).attribution.some(row=>row.referral==='Guest A'&&row.registered===1));
   await call('/events/'+largeGroupEvent.id+'/additional-tickets',{as:guest,method:'POST',body:{quantity:11}});
-  assert.equal((await call('/events/'+largeGroupEvent.slug,{as:guest})).event.reg_count,22);
+  assert.equal((await call('/events/'+largeGroupEvent.slug,{as:guest})).event.reg_count,23);
   const reminderEvent=await call('/admin/events',{as:a,method:'POST',body:{title:'Reminder test',status:'報名中',capacity:10,price_twd:0}});
   await pool.query("UPDATE events SET starts_at=now()+interval '23 hours',registration_settings='{\"reminders\":[24]}'::jsonb WHERE id=$1",[reminderEvent.id]);
   await pool.query("INSERT INTO event_regs(id,event_id,user_id,status,created_at,language) VALUES('r_reminder',$1,'guest_a','registered',now()-interval '2 hours','en')",[reminderEvent.id]);

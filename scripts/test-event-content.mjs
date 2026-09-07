@@ -93,6 +93,13 @@ test('group ticket quantity uses remaining capacity instead of a fixed ten-ticke
  assert.match(html,/type="number"/);assert.match(html,/max="23"/);assert.match(html,/transferred individually after registration/);assert.doesNotMatch(html,/<select/);
 });
 
+test('public event referrals expose one copyable personal link only after registration',async()=>{
+ const {runInNewContext}=await import('node:vm'),source=fs.readFileSync(new URL('../public/events.html',import.meta.url),'utf8'),context={lang:'en',base:'/en',location:{origin:'https://emoji.test'},encodeURIComponent,esc:String};
+ runInNewContext(source.slice(source.indexOf('function referralAction('),source.indexOf('function actionFor(')),context);
+ assert.equal(context.referralAction({slug:'demo'}),'');
+ const html=context.referralAction({slug:'demo',referral_token:'signed.token'});assert.match(html,/Copy personal invite link/);assert.match(html,/demo\?ref=signed.token/);
+});
+
 test('registration identity fields allow new guests and prefill signed-in guests',async()=>{
  const {runInNewContext}=await import('node:vm'),source=fs.readFileSync(new URL('../public/events.html',import.meta.url),'utf8'),context={token:'',embedded:false,lang:'en',location:{href:'https://example.test/en/events/demo'},esc:value=>String(value).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;')};
  runInNewContext(source.slice(source.indexOf('function identityFields('),source.indexOf('function questionFields(')),context);
