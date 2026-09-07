@@ -349,6 +349,16 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 ### GET /api/events/:id/ticket
 取得自己的活動票券簽章 token。只對已成立且未退款的報名簽發；簽到時仍會查資料庫狀態。
 
+現場／混合活動在對應憑證完整時另回傳 `wallet.google`／`wallet.apple=true`，前台才顯示加入錢包操作。
+
+### GET /api/events/:id/wallet/google
+
+有效報名者將自己的現場／混合活動票券加入 Google Wallet。可用 `attendee` 指定本人可存取的逐張票券，`lang` 選擇活動語言；回傳由服務帳號 RS256 簽署的 Google Save URL。票券包含活動、日期、地點、姓名、票種及與站內驗票規則相同的 QR token。缺 issuer／服務帳號時回 503，線上活動或無效票不產生票券。
+
+### GET /api/events/:id/wallet/apple
+
+有效報名者下載簽署的 Apple Wallet `.pkpass`。可用 `attendee` 與 `lang` 指定逐張票券與語言；內容與 Google Wallet 相同，回應 MIME 為 `application/vnd.apple.pkpass`。缺 Pass Type ID、Team ID、WWDR、簽署憑證或私鑰時回 503，簽署失敗回 502，不回傳未簽署檔案。
+
 ## 門禁端點
 
 ### POST /api/access/scan

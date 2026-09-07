@@ -163,7 +163,8 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   assert.deepEqual(results.map(r=>r.status).sort(),[200,409]);const winner=results[0].status===200?guest:guest2;
   const duplicate=await call('/events/'+first.id+'/register',{as:winner,method:'POST'});assert.equal(duplicate.already,true);
   const regs=await call('/admin/events/'+first.id+'/regs',{as:a});assert.equal(regs.regs.length,1);assert.ok(regs.regs[0].checkin_token);assert.ok(regs.regs[0].attendees[0].checkin_token);
-  const originalQr=(await call('/events/'+first.id+'/ticket',{as:winner})).token;assert.ok(originalQr);
+  const ticketResponse=await call('/events/'+first.id+'/ticket',{as:winner}),originalQr=ticketResponse.token;assert.ok(originalQr);assert.deepEqual(ticketResponse.wallet,{google:false,apple:false});
+  await call('/events/'+first.id+'/wallet/google',{as:winner,status:503});await call('/events/'+first.id+'/wallet/apple',{as:winner,status:503});await call('/events/'+first.id+'/wallet/google',{as:winner===guest?guest2:guest,status:404});
   assert.deepEqual((await call('/admin/events/'+first.id+'/webhooks',{as:a})).webhooks,[]);
   await call('/admin/events/'+first.id+'/webhooks',{as:b,status:404});
   await call('/admin/events/'+first.id+'/webhooks',{as:a,method:'POST',body:{url:'http://10.0.0.1/hook',events:['event.updated']},status:400});

@@ -28,6 +28,7 @@ const {eventCalendar,googleCalendarUrl} = require('./lib/event-calendar');
 const {refundTotals}=require('./lib/event-refunds');
 const {EVENT_TYPES:EVENT_WEBHOOK_TYPES,normalizeWebhook,sendWebhook}=require('./lib/event-webhooks');
 const {oauthUrl,meetingRequest,meetingResult}=require('./lib/event-meetings');
+const eventWallets=require('./lib/event-wallets');
 const eventQuestions = require('./lib/event-questions');
 const { eventSlug, normalizeEventInput, localizeEvent, normalizeAttribution } = require('./lib/events');
 const { normalizeEventApplication } = require('./lib/event-applications');
@@ -3568,14 +3569,29 @@ app.get('/api/events/:id/receipt',auth,requireDb,wrap(async(req,res)=>{
 app.get('/api/events/:id/ticket',auth,requireDb,wrap(async(req,res)=>{
  if(!EVENT_QR_SECRET)return res.status(503).json({error:'活動票券 QR 尚未開通。'});
  if(!req.auth.sub)return res.status(403).json({error:'請以會員身分登入。'});
- const rows=(await q(`SELECT r.id,r.user_id,r.ticket_version,r.checked_in_at AS booking_checked_in,e.id AS event_id,e.starts_at,e.ends_at,
+ const rows=(await q(`SELECT r.id,r.user_id,r.ticket_version,r.checked_in_at AS booking_checked_in,e.id AS event_id,e.starts_at,e.ends_at,e.event_details,
  a.id AS attendee_id,a.name,a.email,a.show_name,a.checked_in_at FROM event_regs r JOIN events e ON e.id=r.event_id LEFT JOIN event_attendees a ON a.registration_id=r.id LEFT JOIN event_ticket_orders o ON o.id=a.order_id
  WHERE (a.order_id IS NULL OR o.status='registered') AND e.id=$1 AND r.status='registered' AND e.status<>'已取消' AND (r.user_id=$2 OR a.email=lower($3)) ORDER BY r.created_at,a.ordinal`,[req.params.id,req.auth.sub,req.auth.email||''])).rows;
  if(!rows.length)return res.status(404).json({error:'找不到有效活動票券。'});
  const tickets=rows.map(a=>{const end=a.ends_at||a.starts_at,ttlSec=end?Math.max(3600,Math.floor((+new Date(end)-Date.now())/1000)+7*86400):366*86400;
  return {name:a.name,email:a.email,attendee_id:a.attendee_id,can_edit:a.user_id===req.auth.sub,can_share:a.email===String(req.auth.email||'').toLowerCase(),show_name:a.show_name,checked_in_at:a.checked_in_at||a.booking_checked_in,
  token:signAccessToken({sub:req.auth.sub,ent:a.id,plan:'event-ticket',event:a.event_id,version:a.ticket_version,...(a.attendee_id?{attendee:a.attendee_id}:{})},EVENT_QR_SECRET,{ttlSec})};});
- res.json({token:tickets[0].token,tickets,registration_id:rows[0].id,checked_in_at:rows[0].booking_checked_in});
+ const wallet=rows[0].event_details?.mode==='online'?{google:false,apple:false}:{google:!!eventWallets.googleConfig(),apple:!!eventWallets.appleConfig()};res.json({token:tickets[0].token,tickets,wallet,registration_id:rows[0].id,checked_in_at:rows[0].booking_checked_in});
+}));
+
+async function eventWalletTicket(req){
+ if(!EVENT_QR_SECRET)throw Object.assign(Error('活動票券 QR 尚未開通。'),{status:503});if(!req.auth.sub)throw Object.assign(Error('請以會員身分登入。'),{status:403});
+ const attendee=String(req.query.attendee||''),row=(await q(`SELECT e.id,e.slug,e.title,e.location,e.starts_at,e.ends_at,e.translations,e.event_details,r.id AS registration_id,r.user_id,r.ticket_version,r.ticket_snapshot,
+  a.id AS attendee_id,a.name,a.email,o.ticket_snapshot AS order_ticket FROM event_regs r JOIN events e ON e.id=r.event_id LEFT JOIN event_attendees a ON a.registration_id=r.id LEFT JOIN event_ticket_orders o ON o.id=a.order_id
+  WHERE e.id=$1 AND r.status='registered' AND e.status<>'已取消' AND COALESCE(e.event_details->>'mode','offline')<>'online' AND (r.user_id=$2 OR a.email=lower($3)) AND ($4='' OR a.id=$4) AND (a.order_id IS NULL OR o.status='registered') ORDER BY r.created_at,a.ordinal LIMIT 1`,[req.params.id,req.auth.sub,req.auth.email||'',attendee])).rows[0];
+ if(!row)throw Object.assign(Error('找不到可加入錢包的現場活動票券。'),{status:404});const end=row.ends_at||row.starts_at,ttlSec=end?Math.max(3600,Math.floor((+new Date(end)-Date.now())/1000)+7*86400):366*86400,localized=localizeEvent(row,req.query.lang),serial=row.attendee_id||row.registration_id;
+ return {event:{...localized,id:row.id,slug:row.slug,starts_at:row.starts_at,ends_at:row.ends_at,accent:row.event_details?.accent},ticket:{serial,name:row.name,ticket_name:row.order_ticket?.name||row.ticket_snapshot?.name||localized.title,token:signAccessToken({sub:req.auth.sub,ent:row.registration_id,plan:'event-ticket',event:row.id,version:row.ticket_version,...(row.attendee_id?{attendee:row.attendee_id}:{})},EVENT_QR_SECRET,{ttlSec})}};
+}
+app.get('/api/events/:id/wallet/google',auth,requireDb,wrap(async(req,res)=>{
+ let data;try{data=await eventWalletTicket(req);}catch(error){return res.status(error.status||500).json({error:error.message});}const config=eventWallets.googleConfig();if(!config)return res.status(503).json({error:'Google Wallet 尚未設定。'});res.set('Cache-Control','no-store');res.json({url:eventWallets.googleWalletUrl(config,{...data,origin:SITE_BASE})});
+}));
+app.get('/api/events/:id/wallet/apple',auth,requireDb,wrap(async(req,res)=>{
+ let data;try{data=await eventWalletTicket(req);}catch(error){return res.status(error.status||500).json({error:error.message});}const config=eventWallets.appleConfig();if(!config)return res.status(503).json({error:'Apple Wallet 尚未設定。'});let pass;try{pass=await eventWallets.appleWalletPass(config,{...data,origin:SITE_BASE,secret:EVENT_QR_SECRET});}catch(error){console.warn('[event-wallet] Apple pass 建立失敗：',error.message);return res.status(502).json({error:'Apple Wallet 票券建立失敗，請稍後再試。'});}res.set({'Cache-Control':'no-store','Content-Type':'application/vnd.apple.pkpass','Content-Disposition':`attachment; filename="${data.ticket.serial}.pkpass"`}).send(pass);
 }));
 
 // Changing the attendee id revokes that person's old QR without invalidating the other tickets.
