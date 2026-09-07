@@ -91,9 +91,30 @@ test('changing group quantity preserves attendee drafts without inserting execut
  const container={querySelectorAll:()=>inputs,innerHTML:''};const context={e:{registration_settings:{split_name:false}},lang:'en',esc:value=>String(value).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;'),document:{getElementById:id=>id==='ticket-attendees'?container:{addEventListener:(name,handler)=>{change=handler;}}}};
  runInNewContext(source.slice(source.indexOf('  const attendeeDraft={}'),source.indexOf("  document.getElementById('ev-registration-form').addEventListener('input'")),context);
  change({target:{value:'2'}});assert.match(container.innerHTML,/Name \(required\)/);
- inputs=[{name:'attendee_name_0',value:'A "guest"'},{name:'attendee_email_0',value:'one@example.test'},{name:'attendee_name_1',value:'Second'}];change({target:{value:'3'}});
+ inputs=[{name:'attendee_name_1',value:'A "guest"'},{name:'attendee_email_1',value:'one@example.test'},{name:'attendee_name_2',value:'Second'}];change({target:{value:'3'}});
  assert.match(container.innerHTML,/value="A &quot;guest&quot;"/);assert.match(container.innerHTML,/value="one@example.test"/);assert.match(container.innerHTML,/value="Second"/);
- inputs=[];change({target:{value:'1'}});assert.equal(container.innerHTML,'');change({target:{value:'2'}});assert.match(container.innerHTML,/value="Second"/);
+ inputs=[];change({target:{value:'1'}});assert.equal(container.innerHTML,'');change({target:{value:'2'}});assert.match(container.innerHTML,/value="A &quot;guest&quot;"/);
+});
+
+test('registration identity fields allow new guests and prefill signed-in guests',async()=>{
+ const {runInNewContext}=await import('node:vm'),source=fs.readFileSync(new URL('../public/events.html',import.meta.url),'utf8'),context={token:'',embedded:false,lang:'en',location:{href:'https://example.test/en/events/demo'},esc:value=>String(value).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;')};
+ runInNewContext(source.slice(source.indexOf('function identityFields('),source.indexOf('function questionFields(')),context);
+ const event={status:'報名中',registered:false,registration_settings:{}};
+ assert.match(context.identityFields(event),/name="name"/);assert.match(context.identityFields(event),/name="email"/);assert.match(context.identityFields(event),/Already registered\?/);
+ context.token='member-token';const signedIn=context.identityFields({...event,viewer:{name:'Member Name',email:'member@example.test'}});assert.match(signedIn,/value="Member Name"/);assert.match(signedIn,/value="member@example.test" readonly/);assert.doesNotMatch(signedIn,/Already registered/);
+ assert.match(context.identityFields({...event,registration_settings:{split_name:true}}),/name="first_name"/);assert.match(context.identityFields({...event,registration_settings:{split_name:true}}),/name="last_name"/);
+ assert.match(source,/if\(token&&!event\.viewer&&!event\.registration_id&&!event\.recipient_only\)/);assert.match(source,/if\(token&&e\.registered&&!e\.recipient_only\)showAdditional\(e\)/);
+});
+
+test('checkout verification binds members to their session and guests to guest registration sessions',async()=>{
+ const {runInNewContext}=await import('node:vm'),source=fs.readFileSync(new URL('../server.js',import.meta.url),'utf8'),context={};
+ runInNewContext(source.slice(source.indexOf('function ownsEventCheckout('),source.indexOf("app.post('/api/events/checkout/verify'")),context);
+ const session=metadata=>({metadata});
+ assert.equal(context.ownsEventCheckout(session({kind:'event-registration',user_id:'member-a'}),{sub:'member-a'}),true);
+ assert.equal(context.ownsEventCheckout(session({kind:'event-registration',user_id:'member-a'}),{sub:'member-b'}),false);
+ assert.equal(context.ownsEventCheckout(session({kind:'event-registration',guest_registration:'true'}),null),true);
+ assert.equal(context.ownsEventCheckout(session({kind:'event-registration',guest_registration:'false'}),null),false);
+ assert.equal(context.ownsEventCheckout(session({kind:'event-additional-tickets',guest_registration:'true'}),null),false);
 });
 
 test('cancelled and unpublished events do not expose online meeting URLs even to registered accounts',()=>{

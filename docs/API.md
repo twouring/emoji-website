@@ -56,7 +56,7 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" https://www.emoji.tw/api/state
 
 ### GET /api/events/:slug
 支援同樣的 `?lang=zh|en|ja`；回傳包含 `translations`。
-活動詳情。公開、私人與會員限定活動皆可由直接連結讀取；私人活動不列入清單，會員限定活動只列入有效會員的清單。帶有效 Bearer token 時一併回自己的報名、付款與簽到狀態。
+活動詳情。公開、私人與會員限定活動皆可由直接連結讀取；私人活動不列入清單，會員限定活動只列入有效會員的清單。帶有效 Bearer token 時一併回自己的報名、付款與簽到狀態，以及只屬於目前帳號的 `viewer: {name,email}`，供報名表預填。
 
 ### GET /api/points/packs
 點數方案定價表。回 `{ price_twd, packs }`。
@@ -282,13 +282,13 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 讀取登入帳號自己的申請，回 `{ applications }`，包含申請內容、`id`、`status`（`pending`／`approved`／`rejected`）、`review_note`、`created_at` 與 `reviewed_at`。不接受指定其他使用者，agent 金鑰回 403；不在公開 API 提供申請或聯絡資料。
 
 ### POST /api/events/:id/register
-報名活動。body：`{ note?, lang? }`。免費票立即成立；付費票建立或沿用未過期的 Stripe Checkout，回 `{ url }`。付費活動未設定 `STRIPE_WEBHOOK_SECRET` 時 fail closed 回 503。
+報名活動。新來賓不需先登入，body 需傳 `{ name,email,lang? }`；啟用姓名拆分時改傳 `{ first_name,last_name,email,lang? }`。有效 Bearer token 會綁定目前帳號並忽略 body 的 Email。團體報名可傳 `quantity` 與 `additional_attendees`（不含第一位購買者）；舊版等長 `attendees` 仍相容。免費票立即成立；付費票建立或沿用未過期的 Stripe Checkout，回 `{ url }`。付費活動未設定 `STRIPE_WEBHOOK_SECRET` 時 fail closed 回 503。
 
 ### DELETE /api/events/:id/register
 取消免費且尚未簽到的報名。付費票須由後台退款，不可直接取消。
 
 ### POST /api/events/checkout/verify
-會員付款回站補查。body：`{ session_id }`；驗證 Stripe Session 屬於目前帳號後呼叫同一個冪等核銷流程。webhook 仍是可靠核銷主路徑。
+付款回站補查。body：`{ session_id }`；登入結帳須符合目前帳號，免登入結帳須由 Stripe Session metadata 明確標記為訪客報名，才會呼叫同一個冪等核銷流程。webhook 仍是可靠核銷主路徑。
 
 ### GET /api/events/:id/ticket
 取得自己的活動票券簽章 token。只對已成立且未退款的報名簽發；簽到時仍會查資料庫狀態。
@@ -442,7 +442,7 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 
 活動管理者查看評分與文字回饋；不向公眾提供來賓回饋。
 
-多人購票：報名可傳 quantity（1–10）及等長 attendees 陣列（name、email），所有票屬同一票種。容量依票數扣除；優惠碼固定折抵以整筆報名計算。每位參加者有獨立 QR，ticket API 同時回傳 tickets 陣列，購買者可查看各人票券。簽到可傳 attendee_id 或掃描個人 QR；取消簽到以 attendee_id 查詢參數指定。部分人已簽到時不能自行取消整筆報名。
+多人購票：報名可傳 quantity（1–10）及 `additional_attendees` 陣列（name、email，數量為 quantity−1），第一張票使用報名人的姓名與 Email；舊版等長 attendees 仍相容。所有票屬同一票種，容量依票數扣除；優惠碼固定折抵以整筆報名計算。每位參加者有獨立 QR，ticket API 同時回傳 tickets 陣列，購買者可查看各人票券。簽到可傳 attendee_id 或掃描個人 QR；取消簽到以 attendee_id 查詢參數指定。部分人已簽到時不能自行取消整筆報名。
 
 ### PATCH /api/events/:id/attendees/:attendeeId
 
@@ -562,7 +562,7 @@ body `{visible:boolean}`，已登入者僅能修改符合自己已驗證 Email �
 
 以現有 Bearer session 驗證登入，回傳 `{authenticated:true,user_id}`，不回傳 session token 或完整帳號資料。供嵌入登入分頁與 iframe 驗證回傳的登入狀態。
 
-活動／加購付費報名回應新增 `session_id`，加購另回傳 `order_id`。`POST /api/events/checkout/verify` 額外回傳 `status` 與 `order_status`，仍限定 Checkout 所屬會員。嵌入頁在付款連結建立後，每 15 秒確認一次、最多 10 分鐘，並保留手動更新；不因外部網站 postMessage 就宣告付款成功。
+活動／加購付費報名回應新增 `session_id`，加購另回傳 `order_id`。`POST /api/events/checkout/verify` 額外回傳 `status` 與 `order_status`；登入付款限定 Checkout 所屬帳號，免登入付款限定該 Stripe Session 自己的不可猜識別碼與訪客 metadata。嵌入頁在付款連結建立後，每 15 秒確認一次、最多 10 分鐘，並保留手動更新；不因外部網站 postMessage 就宣告付款成功。
 
 活動公開姓名名單：`GET /api/events/:id/guests?after=<上一頁 next>` 回傳 `{guests:[{name}],next:string|null}`，每頁最多 100 個不同公開姓名。僅活動已開啟名單、有效報名且票券選擇公開姓名才列出；不提供 Email 或票券識別碼。`next:null` 表示沒有下一頁。
 

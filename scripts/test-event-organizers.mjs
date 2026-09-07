@@ -47,6 +47,16 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   assert.equal((await pool.query('SELECT name FROM event_attendees WHERE registration_id=(SELECT id FROM event_regs WHERE event_id=$1 AND user_id=$2)',[memberEvent.id,'guest_b'])).rows[0].name,'TwoGuest');
   assert.equal((await call('/admin/events/'+memberEvent.id+'/regs',{as:a})).regs[0].name,'TwoGuest');
   assert.equal((await call('/admin/events/'+memberEvent.id+'/check-in',{as:a})).guests[0].name,'TwoGuest');
+  const anonymousRegister=async(body,status=200)=>{const response=await fetch(origin+'/api/events/'+memberEvent.id+'/register',{method:'POST',headers:{'X-Forwarded-For':'192.0.2.200','Content-Type':'application/json'},body:JSON.stringify(body)}),data=await response.json();assert.equal(response.status,status,JSON.stringify(data));return data;};
+  await anonymousRegister({lang:'en',email:'anonymous@example.test'},400);
+  const anonymous=await anonymousRegister({lang:'en',first_name:'Anonymous',last_name:'Guest',email:'anonymous@example.test'});assert.equal(anonymous.guest,true);assert.equal(anonymous.status,'registered');
+  const anonymousUser=(await pool.query("SELECT id,name FROM users WHERE email='anonymous@example.test'")).rows[0];assert.equal(anonymousUser.name,'Anonymous Guest');
+  assert.equal((await pool.query('SELECT name FROM event_attendees WHERE registration_id=(SELECT id FROM event_regs WHERE event_id=$1 AND user_id=$2)',[memberEvent.id,anonymousUser.id])).rows[0].name,'Anonymous Guest');
+  assert.equal((await anonymousRegister({lang:'en',first_name:'Changed',last_name:'Name',email:'anonymous@example.test'})).already,true);
+  await anonymousRegister({lang:'en',first_name:'Submitted',last_name:'Name',email:'g@example.test'});
+  assert.equal((await pool.query("SELECT name FROM users WHERE id='guest_a'")).rows[0].name,'Guest A');
+  const viewer=(await call('/events/'+memberEvent.slug,{as:guest})).event.viewer;assert.deepEqual(viewer,{name:'Guest A',email:'g@example.test'});
+  assert.equal((await (await fetch(origin+'/api/events/'+memberEvent.slug)).json()).event.viewer,undefined);
   await pool.query("INSERT INTO entitlements(id,user_id,plan,source,source_id,activated_at,starts_at,ends_at) VALUES('member_access','guest_a','month','test','member_access',now()-interval '1 day',now()-interval '1 day',now()+interval '1 month')");
   assert.ok((await call('/events',{as:guest})).events.some(e=>e.id===memberEvent.id));
   assert.equal((await call('/events/'+memberEvent.slug,{as:guest})).event.visibility,'members');
@@ -267,7 +277,7 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   assert.equal((await fetch(origin+'/api/events/'+first.slug+'/calendar/google',{redirect:'manual'})).status,409);
   await call('/events/'+first.id+'/register',{as:guest,method:'POST',body:{ticket_id:ticket.id},status:400});
   const groupEvent=await call('/admin/events',{as:a,method:'POST',body:{title:'Group registration',status:'報名中',capacity:3,price_twd:0}});
-  const groupBody={attribution:{source:'instagram',campaign:'group-qa',referral:'partner',medium:'social',content:'hero',term:'community',gclid:'test-ad-click',fbclid:'test-fb',li_fat_id:'test-linkedin'},quantity:2,attendees:[{name:'Guest A',email:'g@example.test'},{name:'Friend',email:'friend@example.test'}]};
+  const groupBody={attribution:{source:'instagram',campaign:'group-qa',referral:'partner',medium:'social',content:'hero',term:'community',gclid:'test-ad-click',fbclid:'test-fb',li_fat_id:'test-linkedin'},quantity:2,additional_attendees:[{name:'Friend',email:'friend@example.test'}]};
   const group=await call('/events/'+groupEvent.id+'/register',{as:guest,method:'POST',body:groupBody});
   assert.equal((await call('/events/'+groupEvent.slug,{as:guest})).event.reg_count,2);
   const attributionSaved=(await pool.query('SELECT attribution FROM event_regs WHERE event_id=$1 AND user_id=$2',[groupEvent.id,'guest_a'])).rows[0].attribution;
