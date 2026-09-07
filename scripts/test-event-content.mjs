@@ -46,7 +46,7 @@ test('check-in workspace localizes controls and exposes staff modes without a pa
   runInNewContext(init,{document,location:{search:'?lang='+lang},URLSearchParams});
   assert.equal(document.title,title+'｜言文字');assert.equal(button.textContent,label);assert.ok(input.placeholder);assert.ok(recent.dataset.empty);assert.equal(document.documentElement.lang,lang==='zh'?'zh-Hant':lang);
  }
- assert.match(source,/name="mode" value="standard"/);assert.match(source,/name="mode" value="express"/);assert.match(source,/id="guest-search"/);
+ assert.match(source,/name="mode" value="standard"/);assert.match(source,/name="mode" value="express"/);assert.match(source,/id="guest-search"/);assert.match(source,/answerValue\(answer\.value\)/);
 });
 
 test('check-in camera ignores repeated starts and stops a stream granted after leaving the page',async()=>{
@@ -80,7 +80,7 @@ test('feedback and coupon actions prevent repeats and restore controls with pers
 test('changing quote inputs invalidates an in-flight price or error',async()=>{
  const {runInNewContext}=await import('node:vm'),source=fs.readFileSync(new URL('../public/events.html',import.meta.url),'utf8');
  const result={},button={textContent:'Check',setAttribute(){}};let invalidate,finish;
- const context={lang:'en',document:{getElementById:id=>id==='coupon-result'?result:{addEventListener:(name,handler)=>{invalidate=handler;}}}};
+ const context={lang:'en',document:{querySelectorAll:()=>[],getElementById:id=>id==='coupon-result'?result:{addEventListener:(name,handler)=>{invalidate=handler;}}}};
  runInNewContext(source.slice(source.indexOf("  document.getElementById('ev-registration-form').addEventListener('input'"),source.indexOf('  const ticketSelect=')),context);
  runInNewContext(source.slice(source.indexOf('async function feedbackAction('),source.indexOf('async function register(')),context);
  for(const fail of [false,true]){const pending=context.feedbackAction(button,result,()=>new Promise((resolve,reject)=>{finish=fail?reject:resolve;}));invalidate({target:{name:'ticket_id'}});finish(fail?Error('Old error'):'Old price');await pending;assert.equal(result.textContent,'');assert.equal(button.disabled,false);}
@@ -129,12 +129,21 @@ test('event management opens one task-based panel instead of expanding every act
  assert.equal((list.match(/data-ev-manage=/g)||[]).length,1);assert.match(list,/href="\/admin\/events\/event-1"/);assert.doesNotMatch(list,/<summary>管理活動/);assert.match(list,/id="ev-manager"/);
  assert.match(list,/id="event-editor-title">建立新活動/);assert.match(list,/建立活動後，再設定票種、報名表與公開頁內容/);
  assert.match(source,/id="rg-ticket"/);assert.match(source,/<option value="">全部<\/option><option value="registered">已報名<\/option>/);assert.match(source,/data-guest-tickets=/);
+ assert.match(source,/data-guest-ticket-edit=/);assert.match(source,/id="guest-update-existing"/);assert.match(source,/update_existing:updateExisting/);assert.match(source,/eventAnswer\(a\.value\)/);assert.match(source,/id="rg-status-selected"/);assert.match(source,/value="checkedAt">簽到時間/);
  context.BASE='/organizer';assert.match(context.tabEvents({events:[{id:'event-1',title:'Example',status:'草稿'}],organizer:true}),/href="\/organizer\/events\/event-1"/);context.BASE='/admin';
  const manager={hidden:true,innerHTML:'',querySelector:()=>({}),querySelectorAll:()=>[],scrollIntoView(){}},listView={hidden:false};
  context.document={title:'',getElementById:id=>id==='ev-manager'?manager:id==='event-list-view'?listView:{hidden:false,style:{}}};
  runInNewContext(source.slice(source.indexOf('function showEventManager('),source.indexOf('function tabApplications(')),context);
  context.showEventManager('event-1',{events:[{id:'event-1',slug:'event-one',title:'Example',status:'報名中',capacity:10,reg_count:2,checkin_count:1}],can_create_events:true});
  assert.equal(manager.hidden,false);assert.equal(listView.hidden,true);assert.match(manager.innerHTML,/返回活動清單/);assert.match(manager.innerHTML,/報名與來賓/);assert.match(manager.innerHTML,/票券與報名流程/);assert.match(manager.innerHTML,/活動頁與分享/);assert.match(manager.innerHTML,/成效與紀錄/);assert.equal((manager.innerHTML.match(/ui-button--accent/g)||[]).length,1);
+});
+
+test('enhanced event terms render a review gate, localized content and optional signature',async()=>{
+ const {runInNewContext}=await import('node:vm'),source=fs.readFileSync(new URL('../public/events.html',import.meta.url),'utf8');
+ const context={token:'member-token',lang:'en',esc:value=>String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))};
+ runInNewContext(source.slice(source.indexOf('function questionFields('),source.indexOf('function actionFor(')),context);
+ const html=context.questionFields({status:'報名中',registered:false,registration_settings:{questions:[{id:'q_terms',label:'活動條款',translations:{en:'Event Terms'},type:'terms',required:true,terms:{kind:'text',show_before_accept:true,require_signature:true,content:{zh:'<p>中文</p>',en:'<p>English terms</p>',ja:''}}}]}});
+ assert.match(html,/data-terms-open="q_terms"/);assert.match(html,/<p>English terms<\/p>/);assert.match(html,/data-terms-locked="true"/);assert.match(html,/name="q_terms__reviewed"/);assert.match(html,/name="q_terms__signature"/);assert.doesNotMatch(html,/checked/);
 });
 
 test('online join waits for authorization and retains a retryable error without navigating',async()=>{
@@ -164,6 +173,14 @@ test('event cancellation checks provider status and skips already closed checkou
  const context={open:['open','expired','complete'].map(status=>({stripe_session_id:status})),stripe:{checkout:{sessions:{retrieve:async id=>{retrieved.push(id);return {id,status:id};},expire:async id=>{expired.push(id);}}}}};
  const code=source.slice(source.indexOf(' for(const row of open){'),source.indexOf(' const held=',source.indexOf(' for(const row of open){')));
  await runInNewContext('(async()=>{'+code+'})()',context);assert.deepEqual(retrieved,['open','expired','complete']);assert.deepEqual(expired,['open']);
+});
+
+test('event cancellation refunds original and additional ticket balances through the shared ledger',async()=>{
+ const {runInNewContext}=await import('node:vm'),source=fs.readFileSync(new URL('../server.js',import.meta.url),'utf8'),created=[],saved=[];
+ const client={query:async sql=>sql.includes('FROM event_regs WHERE')?{rows:[{id:'reg',stripe_payment_intent_id:'pi_reg',amount_paid:300}]}:sql.includes('FROM event_ticket_orders')?{rows:[{id:'order',stripe_payment_intent_id:'pi_order',amount_paid:200}]}:{rows:[]}};
+ const context={req:{body:{refund_paid:true}},client,event:{id:'event'},refunds:0,refundTotals:paid=>({remaining:paid}),stripe:{refunds:{create:async input=>{created.push(input);return {id:'refund',amount:input.amount,status:'succeeded'};}}},saveEventRefund:async()=>saved.push('registration'),saveAdditionalRefund:async()=>saved.push('additional')};
+ const start=source.indexOf(' let refunds=0;',source.indexOf("app.post('/api/admin/events/:id/cancel'")),end=source.indexOf(' await client.query("UPDATE events SET status=',start),code=source.slice(start,end);
+ const count=await runInNewContext('(async()=>{'+code+';return refunds})()',context);assert.equal(count,2);assert.deepEqual(created.map(item=>item.amount),[30000,20000]);assert.deepEqual(saved,['registration','additional']);
 });
 
 test('cancellation form retains failures, prevents duplicate submits and validates the reason before confirming',async()=>{

@@ -361,7 +361,7 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 
 ### POST /api/admin/events/:id/questions
 
-活動管理者設定 `questions` 陣列（最多 30 題）。問題含 id、type、label、required、options（選擇題）、translations（en/ja 題目）。報名送出 `answers` 物件，以問題 id 為鍵；後端驗證必填與選項並保存題目快照，名單 API 的 answers 可讀取歷史答案。
+活動管理者設定 `questions` 陣列（最多 30 題）。問題含 id、type、label、required、options（選擇題）、translations（en/ja 題目）。`terms` 類型可設定內嵌三語安全富文字或 HTTPS 外部連結、閱讀後才能同意，以及同意時要求文字簽名。報名送出 `answers` 物件，以問題 id 為鍵；後端驗證必填、選項、條款閱讀及簽名並保存題目快照，名單 API 的 answers 可讀取歷史答案。
 
 ### POST /api/admin/events/:id/tickets
 
@@ -411,7 +411,7 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 
 ### POST /api/admin/events/:id/cancel
 
-傳入公開 reason，關閉 Stripe 待付款結帳後取消活動。取消後禁止報名與票券簽到；已付款票款及來賓通知需另行處理。
+傳入公開 reason，關閉 Stripe 待付款結帳並解除預授權後取消活動；可傳 `notify` 排入取消通知。平台管理員可傳 `refund_paid: true`，從言文字統一收款帳戶將原始票與加購票的剩餘可退款金額逐筆原路退回，沿用退款台帳與冪等鍵；外部活動主無權啟動統一收款退款。取消後禁止報名與票券簽到。
 
 ### POST /api/events/:id/ticket-options
 
@@ -419,7 +419,11 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 
 ### POST /api/admin/events/:id/guests/import
 
-匯入 guests（name、email），每批 1–500 位；status 可為 invited、registered（僅免費票）、pending_approval、waitlisted。可指定 ticket_id 及 unlock_code。使用交易鎖檢查名額，不足時整批回滾；重複報名跳過，不覆寫帳號姓名、票款與報名。未寄送通知。
+匯入 guests（name、email），每批 1–500 位；status 可為 invited、registered（僅免費票）、pending_approval、waitlisted。可指定 ticket_id 及 unlock_code。使用交易鎖檢查名額，不足時整批回滾；重複報名預設跳過。傳入 `update_existing: true` 且指定票種時，只更新既有報名的原始票種，不覆寫姓名、報名狀態、票款、退款或加購／贈票。未寄送通知。
+
+### PATCH /api/admin/events/:id/regs/:registrationId/ticket
+
+傳入 `ticket_id` 變更一筆報名的原始票種；原始團體票一起變更，加購／贈票不變。已收／已退金額與付款紀錄不變，不觸發收款；變更後提升票券版本，使舊 QR 失效。活動取消、報名失效、已簽到、票款／退款處理中或目標票種名額不足時拒絕變更。
 
 ### GET /api/admin/events/:id/coupons
 ### POST /api/admin/events/:id/coupons

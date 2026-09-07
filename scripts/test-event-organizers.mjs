@@ -95,6 +95,7 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   assert.equal((await call('/admin/events/'+first.id+'/messages',{as:a})).messages[0].state,'draft');
   await call('/admin/events/'+first.id+'/messages/'+message.id+'/cancel',{as:b,method:'POST',status:404});
   await call('/admin/events/'+other.id+'/guests/import',{as:a,method:'POST',body:{guests:[{name:'Import',email:'import@example.test'}]},status:404});
+  await call('/admin/events/'+other.id+'/guests/import',{as:b,method:'POST',body:{guests:[{name:'Import',email:'import@example.test'}],update_existing:'yes'},status:400});
   const imported=await call('/admin/events/'+other.id+'/guests/import',{as:b,method:'POST',body:{guests:[{name:'Import',email:'import@example.test'}]}});assert.equal(imported.added,1);
   const repeated=await call('/admin/events/'+other.id+'/guests/import',{as:b,method:'POST',body:{guests:[{name:'Overwrite attack',email:'import@example.test'}]}});assert.equal(repeated.skipped,1);assert.equal((await pool.query("SELECT name FROM users WHERE email='import@example.test'")).rows[0].name,'Import');
   const state=await call('/organizer/state',{as:a});assert.deepEqual(state.events.map(e=>e.id),[first.id]);assert.equal(state.events[0].owner_id,'org_a');assert.deepEqual(state.users,[]);assert.deepEqual(state.commitments,[]);
@@ -238,6 +239,8 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   const privateCalendar=await fetch(origin+'/api/events/'+first.slug+'/calendar/google?lang=en',{redirect:'manual'});assert.equal(privateCalendar.status,302);assert.equal(new URL(privateCalendar.headers.get('location')).searchParams.get('location'),'');assert.ok(!privateCalendar.headers.get('location').includes('private-meeting'));
   await call('/admin/events/'+first.id+'/details',{as:b,method:'POST',body:details,status:404});
   await call('/admin/events/'+first.id+'/cancel',{as:b,method:'POST',body:{reason:'Cancelled'},status:404});
+  await call('/admin/events/'+first.id+'/cancel',{as:a,method:'POST',body:{reason:'天候因素',refund_paid:true},status:403});
+  await call('/admin/events/'+first.id+'/cancel',{method:'POST',body:{reason:'天候因素',refund_paid:true},status:503});
   await call('/admin/events/'+first.id+'/cancel',{as:a,method:'POST',body:{reason:'天候因素',notify:true},status:503});
   assert.notEqual((await call('/events/'+first.slug,{as:guest})).event.status,'已取消');
   await call('/admin/events/'+first.id+'/cancel',{as:a,method:'POST',body:{reason:'天候因素',reason_translations:{en:'Bad weather',ja:'悪天候'}}});
@@ -332,6 +335,13 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await call('/admin/events/'+extraEvent.id+'/tickets',{as:a,method:'POST',body:{tickets:[{id:'t_base',name:'Base',price_twd:0,capacity:1,active:true},{id:'t_extra',name:'Extra',price_twd:0,capacity:2,active:true},{id:'t_paid',name:'Paid',price_twd:100,capacity:2,active:true}]}});
   await call('/events/'+extraEvent.id+'/register',{as:guest,method:'POST',body:{ticket_id:'t_base'}});
   const baseTicket=(await call('/events/'+extraEvent.id+'/ticket',{as:guest})).tickets[0];
+  const extraReg=(await pool.query('SELECT id FROM event_regs WHERE event_id=$1 AND user_id=$2',[extraEvent.id,'guest_a'])).rows[0];
+  await call('/admin/events/'+extraEvent.id+'/regs/'+extraReg.id+'/ticket',{as:b,method:'PATCH',body:{ticket_id:'t_extra'},status:404});
+  await call('/admin/events/'+extraEvent.id+'/regs/'+extraReg.id+'/ticket',{as:a,method:'PATCH',body:{ticket_id:'t_extra'}});
+  assert.equal((await call('/admin/events/'+extraEvent.id+'/regs',{as:a})).regs[0].ticket_snapshot.id,'t_extra');
+  await call('/admin/events/'+extraEvent.id+'/check-in',{as:a,method:'POST',body:{token:baseTicket.token},status:409});
+  const importUpdate=await call('/admin/events/'+extraEvent.id+'/guests/import',{as:a,method:'POST',body:{guests:[{name:'Do not overwrite',email:'g@example.test'}],status:'registered',ticket_id:'t_base',update_existing:true}});assert.equal(importUpdate.updated,1);assert.equal(importUpdate.added,0);
+  baseTicket.token=(await call('/events/'+extraEvent.id+'/ticket',{as:guest})).tickets[0].token;
   await call('/events/'+extraEvent.id+'/additional-tickets',{as:guest,method:'POST',body:{ticket_id:'t_extra',quantity:2}});
   const extraTickets=(await call('/events/'+extraEvent.id+'/ticket',{as:guest})).tickets;assert.equal(extraTickets.length,3);assert.ok(extraTickets.some(t=>t.attendee_id===baseTicket.attendee_id));
   assert.equal((await call('/events/'+extraEvent.id+'/orders',{as:guest})).orders[0].quantity,2);
@@ -341,7 +351,6 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   assert.equal((await call('/events/'+extraEvent.id+'/orders',{as:guest})).orders.length,1);
   await call('/events/'+extraEvent.id+'/additional-tickets',{as:guest2,method:'POST',body:{ticket_id:'t_extra'},status:409});
   await call('/events/'+extraEvent.id+'/additional-tickets',{as:guest,method:'POST',body:{ticket_id:'t_extra',coupon_code:'DISCOUNT'},status:400});
-  const extraReg=(await pool.query('SELECT id FROM event_regs WHERE event_id=$1 AND user_id=$2',[extraEvent.id,'guest_a'])).rows[0];
   const extraOrder=(await call('/events/'+extraEvent.id+'/orders',{as:guest})).orders[0];
   await call('/events/'+extraEvent.id+'/orders/'+extraOrder.id,{as:guest2,method:'DELETE',status:404});
   await call('/events/'+extraEvent.id+'/orders/'+extraOrder.id,{as:guest,method:'DELETE'});
@@ -392,13 +401,14 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   assert.deepEqual((await call(preferencePath,{as:guest})).settings,{blasts:false,reminders:false,feedback:false});
   assert.equal((await call(editBlast+'/preview',{as:a})).count,0,'Preview excludes guests who disabled announcement emails');
   const {queueEventMail,deliverDue}=require('../lib/event-mailer');
+  const currentTicketVersion=(await pool.query('SELECT ticket_version FROM event_regs WHERE id=$1',[extraReg.id])).rows[0].ticket_version;
   for(const id of ['pref_blast','reminder_pref_24','feedback_pref']){
-   await queueEventMail(reminderQ,{id,eventId:extraEvent.id,email:'g@example.test',subject:'Preference test',body:'No real delivery',registrationId:id==='pref_blast'?null:extraReg.id,ticketVersion:1});
+   await queueEventMail(reminderQ,{id,eventId:extraEvent.id,email:'g@example.test',subject:'Preference test',body:'No real delivery',registrationId:id==='pref_blast'?null:extraReg.id,ticketVersion:currentTicketVersion});
    await pool.query("UPDATE event_deliveries SET next_attempt_at=now()-interval '10 days' WHERE id=$1",[id]);
    await deliverDue(reminderQ,async()=>assert.fail('Opted-out notification must not be sent'),origin);
    const delivery=(await pool.query('SELECT state,last_error FROM event_deliveries WHERE id=$1',[id])).rows[0];assert.equal(delivery.state,'cancelled');assert.equal(delivery.last_error,'來賓已停用此類通知');
   }
-  await queueEventMail(reminderQ,{id:'confirmation_pref',eventId:extraEvent.id,email:'g@example.test',subject:'Ticket confirmation',body:'Receipt',registrationId:extraReg.id,ticketVersion:1});
+  await queueEventMail(reminderQ,{id:'confirmation_pref',eventId:extraEvent.id,email:'g@example.test',subject:'Ticket confirmation',body:'Receipt',registrationId:extraReg.id,ticketVersion:currentTicketVersion});
   await pool.query("UPDATE event_deliveries SET next_attempt_at=now()-interval '10 days' WHERE id='confirmation_pref'");
   let confirmationSent=false;await deliverDue(reminderQ,async()=>{confirmationSent=true;return {id:'fake_provider_confirmation'};},origin);assert.equal(confirmationSent,true);
   await call(preferencePath,{as:guest,method:'PUT',body:{blasts:true,reminders:true,feedback:false}});

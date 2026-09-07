@@ -2142,6 +2142,18 @@ async function reservedEventSeats(client,eventId,ticketId=null,excludeUser=null)
  COALESCE((SELECT SUM(quantity) FROM extras WHERE ($2::text IS NULL AND status='pending_payment') OR ($2::text IS NOT NULL AND ticket_snapshot->>'id'=$2)),0))::int AS n`,[eventId,ticketId,excludeUser]);return result.rows[0].n;
 }
 
+async function changeRegistrationTicket(client,event,reg,ticket){
+ if(event.status==='已取消')return {error:'活動已取消，不能變更票種。'};
+ if(['cancelled','refunded','expired'].includes(reg.status))return {error:'此報名已失效，不能變更票種。'};
+ if(['pending_payment','capture_pending','refund_pending','approved'].includes(reg.status))return {error:'票款仍在處理中，請完成付款、退款或審核後再變更票種。'};
+ if(reg.checked_in_at||(await client.query('SELECT 1 FROM event_attendees WHERE registration_id=$1 AND checked_in_at IS NOT NULL LIMIT 1',[reg.id])).rowCount)return {error:'請先撤銷簽到，再變更票種。'};
+ if(reg.ticket_snapshot?.id===ticket.id)return {changed:false};
+ const baseCount=(await client.query('SELECT COUNT(*)::int AS n FROM event_attendees WHERE registration_id=$1 AND order_id IS NULL',[reg.id])).rows[0].n||reg.quantity;
+ if(reg.status==='registered'&&ticket.capacity>0&&(await reservedEventSeats(client,event.id,ticket.id))+baseCount>ticket.capacity)return {error:'目標票種的剩餘名額不足。'};
+ await client.query('UPDATE event_regs SET ticket_snapshot=$2,ticket_version=ticket_version+1 WHERE id=$1',[reg.id,JSON.stringify({...ticket,administrative_change:true,previous_ticket_id:reg.ticket_snapshot?.id||null})]);
+ return {changed:true,base_count:baseCount};
+}
+
 async function eventMutation(req,eventId,action,sql,args){
  const client=await pool.connect();try{await client.query('BEGIN');
  const result=await client.query(sql,args);
@@ -2323,7 +2335,10 @@ app.post('/api/admin/events/:id/details',auth,requireDb,eventEditor,wrap(async(r
 }));
 app.post('/api/admin/events/:id/cancel',auth,requireDb,eventEditor,wrap(async(req,res)=>{
  if(req.body?.notify!==undefined&&typeof req.body.notify!=='boolean')return res.status(400).json({error:'通知選項格式不正確。'});
+ if(req.body?.refund_paid!==undefined&&typeof req.body.refund_paid!=='boolean')return res.status(400).json({error:'退款選項格式不正確。'});
  if(req.body?.notify&&!process.env.RESEND_API_KEY)return res.status(503).json({error:'寄信服務尚未設定；取消勾選通知後可取消活動。'});
+ if(req.body?.refund_paid&&req.auth.role!=='admin')return res.status(403).json({error:'僅言文字平台管理員可從統一收款帳戶退款。'});
+ if(req.body?.refund_paid&&!stripe)return res.status(503).json({error:'Stripe 尚未設定，不能自動退款。'});
  const reason=String(req.body?.reason||'').trim();if(!reason||reason.length>1000)return res.status(400).json({error:'請填寫取消原因（最多 1000 字）。'});
  const translations=req.body?.reason_translations??{};if(typeof translations!=='object'||Array.isArray(translations)||Object.keys(translations).some(lang=>!['en','ja'].includes(lang)||typeof translations[lang]!=='string'||translations[lang].length>1000))return res.status(400).json({error:'取消原因翻譯僅支援 en／ja，各最多 1000 字。'});
  const client=await pool.connect();try{await client.query('BEGIN');
@@ -2337,10 +2352,17 @@ app.post('/api/admin/events/:id/cancel',auth,requireDb,eventEditor,wrap(async(re
  if(held.length&&!stripe){await client.query('ROLLBACK');return res.status(503).json({error:'須連線 Stripe 解除預授權，再取消活動。'});}
  for(const r of held){const intent=await stripe.paymentIntents.retrieve(r.stripe_payment_intent_id);if(intent.status==='requires_capture')await stripe.paymentIntents.cancel(intent.id);}
 
+ const queued=req.body?.notify?await require('./lib/event-mailer').queueCancellation((sql,args)=>client.query(sql,args),event,reason,SITE_BASE,translations):0;
+ let refunds=0;
+ if(req.body?.refund_paid){
+  const regs=(await client.query('SELECT * FROM event_regs WHERE event_id=$1 AND stripe_payment_intent_id IS NOT NULL AND amount_paid>0 FOR UPDATE',[event.id])).rows;
+  for(const reg of regs){const previous=(await client.query('SELECT * FROM event_refunds WHERE payment_intent=$1',[reg.stripe_payment_intent_id])).rows,amount=refundTotals(reg.amount_paid*100,previous).remaining;if(amount<=0)continue;const key=reg.stripe_payment_intent_id+':cancel-'+event.id,refund=await stripe.refunds.create({payment_intent:reg.stripe_payment_intent_id,amount,metadata:{kind:'event-registration',registration_id:reg.id,event_cancelled:'true'}},{idempotencyKey:'event-refund-'+key});await saveEventRefund(client,reg,refund,key);refunds++;}
+  const orders=(await client.query('SELECT o.* FROM event_ticket_orders o JOIN event_regs r ON r.id=o.registration_id WHERE r.event_id=$1 AND o.stripe_payment_intent_id IS NOT NULL AND o.amount_paid>0 FOR UPDATE OF o',[event.id])).rows;
+  for(const order of orders){const previous=(await client.query('SELECT * FROM event_refunds WHERE payment_intent=$1',[order.stripe_payment_intent_id])).rows,amount=refundTotals(order.amount_paid*100,previous).remaining;if(amount<=0)continue;const key=order.stripe_payment_intent_id+':cancel-'+event.id,refund=await stripe.refunds.create({payment_intent:order.stripe_payment_intent_id,amount,metadata:{kind:'event-additional-tickets',order_id:order.id,event_cancelled:'true'}},{idempotencyKey:'event-refund-'+key});await saveAdditionalRefund(client,order,refund,key);refunds++;}
+ }
  await client.query("UPDATE events SET status='已取消',event_details=event_details || jsonb_build_object('cancellation_reason',$2::text,'cancelled_at',now(),'cancellation_translations',$3::jsonb) WHERE id=$1",[event.id,reason,JSON.stringify(translations)]);
  await client.query('INSERT INTO event_activity(event_id,actor_id,action) VALUES($1,$2,$3)',[event.id,req.auth.sub||null,'event_cancelled']);
- const queued=req.body?.notify?await require('./lib/event-mailer').queueCancellation((sql,args)=>client.query(sql,args),event,reason,SITE_BASE,translations):0;
- await client.query('COMMIT');res.json({ok:true,notifications_queued:queued,notice:'活動已取消。已付款票款不會自動退款，請由言文字平台辦理。'+(req.body?.notify?'取消通知已排入佇列 '+queued+' 封，寄送狀態請見來賓通知。':'本次未發送取消通知。')});
+ await client.query('COMMIT');res.json({ok:true,notifications_queued:queued,refunds_requested:refunds,notice:'活動已取消。'+(req.body?.refund_paid?'已送出 '+refunds+' 筆可退款餘額；請在票款紀錄確認最終狀態。':'已付款票款尚未退款，請由言文字平台辦理。')+(req.body?.notify?'取消通知已排入佇列 '+queued+' 封，寄送狀態請見來賓通知。':'本次未發送取消通知。')});
  }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
 }));
 
@@ -2601,6 +2623,7 @@ app.delete('/api/admin/events/:id', auth, requireDb, eventEditor, wrap(async (re
 app.post('/api/admin/events/:id/guests/import',auth,requireDb,eventEditor,wrap(async(req,res)=>{
  const b=req.body||{},status=b.status||'invited';
  if(!['invited','registered','pending_approval','waitlisted'].includes(status)||!Array.isArray(b.guests)||!b.guests.length||b.guests.length>500)return res.status(400).json({error:'每次可匯入 1–500 位來賓，請選擇有效狀態。'});
+ if(b.update_existing!==undefined&&typeof b.update_existing!=='boolean')return res.status(400).json({error:'更新既有來賓設定格式不正確。'});
  const seen=new Set(),guests=[];
  for(const g of b.guests){const email=String(g?.email||'').trim().toLowerCase(),name=String(g?.name||'').trim();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254||!name||name.length>120)return res.status(400).json({error:'每位來賓都需有效姓名與 Email。'});if(!seen.has(email)){seen.add(email);guests.push({email,name});}}
  const client=await pool.connect();try{await client.query('BEGIN');
@@ -2610,11 +2633,11 @@ app.post('/api/admin/events/:id/guests/import',auth,requireDb,eventEditor,wrap(a
  let ticket=null;try{if(event.tickets.length&&status!=='invited')ticket=selectTicket(event.tickets,b.ticket_id,Date.now(),b.unlock_code);}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}
  const price=ticket?.price_twd??event.price_twd;
  if(status==='registered'&&price>0){await client.query('ROLLBACK');return res.status(409).json({error:'付費票不能以匯入標記為已付款；請先邀請來賓自行付款。'});}
- let added=0,skipped=0;
+ let added=0,updated=0,skipped=0;
  for(const guest of guests.sort((a,b)=>a.email.localeCompare(b.email))){
   const user=await accountByEmail(client,guest.email,guest.name);
-  const existing=(await client.query('SELECT id FROM event_regs WHERE event_id=$1 AND user_id=$2',[event.id,user.id])).rows[0];
-  if(existing){skipped++;continue;}
+  const existing=(await client.query('SELECT * FROM event_regs WHERE event_id=$1 AND user_id=$2 FOR UPDATE',[event.id,user.id])).rows[0];
+  if(existing){if(b.update_existing&&ticket){const changed=await changeRegistrationTicket(client,event,existing,ticket);if(changed.error){await client.query('ROLLBACK');return res.status(409).json({error:changed.error});}if(changed.changed){await client.query('INSERT INTO event_activity(event_id,registration_id,actor_id,action) VALUES($1,$2,$3,$4)',[event.id,existing.id,req.auth.sub||null,'guest_ticket_updated']);updated++;continue;}}skipped++;continue;}
   if(status==='registered'){
    const used=await reservedEventSeats(client,event.id);
    if(event.capacity>0&&used>=event.capacity){await client.query('ROLLBACK');return res.status(409).json({error:'名額不足，整批未匯入。'});}
@@ -2623,8 +2646,19 @@ app.post('/api/admin/events/:id/guests/import',auth,requireDb,eventEditor,wrap(a
   const regId=uid('r_');await client.query("INSERT INTO event_regs(id,event_id,user_id,status,amount_due,amount_paid,ticket_snapshot,note,entry_source) VALUES($1,$2,$3,$4,$5,0,$6,$7,'imported')",[regId,event.id,user.id,status,status==='invited'?0:price,ticket?JSON.stringify(ticket):null,'主辦人手動匯入']);
   await client.query('INSERT INTO event_activity(event_id,registration_id,actor_id,action) VALUES($1,$2,$3,$4)',[event.id,regId,req.auth.sub||null,'guest_imported:'+status]);added++;
  }
- await client.query('COMMIT');res.json({ok:true,added,skipped,notice:'已匯入，未寄送任何通知。'});
+ await client.query('COMMIT');res.json({ok:true,added,updated,skipped,notice:'已匯入，未寄送任何通知。'});
  }catch(e){await client.query('ROLLBACK');if(e.code==='AMBIGUOUS_EMAIL')return res.status(409).json({error:e.message});throw e;}finally{client.release();}
+}));
+
+app.patch('/api/admin/events/:id/regs/:registrationId/ticket',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ const client=await pool.connect();try{await client.query('BEGIN');
+ const event=(await client.query('SELECT * FROM events WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0],reg=(await client.query('SELECT * FROM event_regs WHERE id=$1 AND event_id=$2 FOR UPDATE',[req.params.registrationId,req.params.id])).rows[0];
+ if(!event||!reg){await client.query('ROLLBACK');return res.status(404).json({error:'找不到報名。'});}
+ const ticket=event.tickets.find(item=>item.id===req.body?.ticket_id&&item.active);if(!ticket){await client.query('ROLLBACK');return res.status(400).json({error:'請選擇有效票種。'});}
+ const changed=await changeRegistrationTicket(client,event,reg,ticket);if(changed.error){await client.query('ROLLBACK');return res.status(409).json({error:changed.error});}
+ if(changed.changed)await client.query("INSERT INTO event_activity(event_id,registration_id,actor_id,action) VALUES($1,$2,$3,'guest_ticket_updated')",[event.id,reg.id,req.auth.sub||null]);
+ await client.query('COMMIT');res.json({ok:true,changed:changed.changed,ticket_id:ticket.id,notice:'票種已更新；原票款與退款紀錄不變。'});
+ }finally{await client.query('ROLLBACK');client.release();}
 }));
 
 app.get('/api/admin/events/:id/regs/:registrationId/history',auth,requireDb,eventEditor,wrap(async(req,res)=>{
