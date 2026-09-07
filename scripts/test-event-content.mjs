@@ -157,6 +157,7 @@ test('event management opens one task-based panel instead of expanding every act
  assert.match(source,/id="rg-ticket"/);assert.match(source,/<option value="">全部<\/option><option value="registered">已報名<\/option>/);assert.match(source,/data-guest-tickets=/);
  assert.match(source,/data-guest-ticket-edit=/);assert.match(source,/id="guest-update-existing"/);assert.match(source,/update_existing:updateExisting/);assert.match(source,/id="guest-send-invites"/);assert.match(source,/id="guest-language"/);assert.match(source,/send_invites:sendInvites/);assert.match(source,/重複來賓不重寄/);assert.match(source,/eventAnswer\(a\.value\)/);assert.match(source,/id="rg-status-selected"/);assert.match(source,/value="checkedAt">簽到時間/);
  assert.match(source,/id="rs-tax-enabled"/);assert.match(source,/由言文字統一收款/);assert.match(source,/rate_bps:Math\.round/);assert.match(source,/p\.tax_snapshot\.tax_twd/);assert.match(source,/稅額 TWD/);
+ assert.match(source,/id="rs-email-confirmation-subject"/);assert.match(source,/id="rs-email-pending-body"/);assert.match(source,/email_templates:Object\.fromEntries/);assert.match(source,/toast\(out\.notice/);
  assert.match(source,/id="share-qr-image"/);assert.match(source,/QRCode\.toDataURL\(host\.querySelector\('#share-url'\)\.value/);
  assert.match(source,/a\.dataset\.reload!==undefined/);assert.match(source,/data-reload href=.*管理第/);
  context.BASE='/organizer';assert.match(context.tabEvents({events:[{id:'event-1',title:'Example',status:'草稿'}],organizer:true}),/href="\/organizer\/events\/event-1"/);context.BASE='/admin';

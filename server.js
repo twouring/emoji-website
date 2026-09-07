@@ -1094,12 +1094,18 @@ async function notifyRegistration(userId,eventId){
  const row=(await q(`SELECT r.id AS booking_id,r.ticket_version,r.language,r.confirmation_queued,u.email,u.name,e.* FROM event_regs r JOIN users u ON u.id=r.user_id JOIN events e ON e.id=r.event_id WHERE r.user_id=$1 AND r.event_id=$2 AND r.status='registered' AND e.status<>'已取消'`,[userId,eventId])).rows[0];
  if(!row||row.confirmation_queued)return;
  const reg={id:row.booking_id,ticket_version:row.ticket_version};
- const lang=['en','ja'].includes(row.language)?row.language:'zh',event=localizeEvent({...row,registered:true},lang),url=SITE_BASE+(lang==='zh'?'':'/'+lang)+'/events/'+encodeURIComponent(event.slug);
- const text={zh:['報名成功','請登入活動頁查看個人票券與活動資訊。'],en:['Registration confirmed','Sign in to the event page for your tickets and event details.'],ja:['申込完了','イベントページにログインしてチケットと詳細をご確認ください。']}[lang];
+ const lang=['en','ja'].includes(row.language)?row.language:'zh',event=localizeEvent({...row,registered:true},lang);
+ const mail=require('./lib/event-mailer').registrationMail({event,settings:row.registration_settings,lang,status:'registered',name:row.name,origin:SITE_BASE});
  const attachments=event.starts_at?[{filename:'event.ics',content:Buffer.from(eventCalendar(event,SITE_BASE)).toString('base64')}]:[];
- await require('./lib/event-mailer').queueEventMail(q,{id:'confirmation_'+reg.id+'_'+reg.ticket_version,eventId,registrationId:reg.id,ticketVersion:reg.ticket_version,email:row.email,subject:text[0]+' · '+event.title,body:(row.name||'')+'\n\n'+event.title+'\n'+text[1]+'\n'+url,attachments});
+ await require('./lib/event-mailer').queueEventMail(q,{id:'confirmation_'+reg.id+'_'+reg.ticket_version,eventId,registrationId:reg.id,ticketVersion:reg.ticket_version,email:row.email,...mail,attachments});
  await q('UPDATE event_regs SET confirmation_queued=true WHERE id=$1 AND ticket_version=$2',[reg.id,reg.ticket_version]);
  }catch(e){console.error('[event-confirmation]',e.message);}
+}
+async function notifyRegistrationStatus(userId,eventId,status){
+ try{const row=(await q(`SELECT r.id AS booking_id,r.ticket_version,r.language,u.email,u.name,e.* FROM event_regs r JOIN users u ON u.id=r.user_id JOIN events e ON e.id=r.event_id WHERE r.user_id=$1 AND r.event_id=$2 AND r.status=$3 AND e.status<>'已取消'`,[userId,eventId,status])).rows[0];if(!row)return;
+  const lang=['en','ja'].includes(row.language)?row.language:'zh',event=localizeEvent(row,lang),mail=require('./lib/event-mailer').registrationMail({event,settings:row.registration_settings,lang,status,name:row.name,origin:SITE_BASE});
+  await require('./lib/event-mailer').queueEventMail(q,{id:'status_initial_'+row.booking_id+'_'+row.ticket_version+'_'+status,eventId,registrationId:row.booking_id,ticketVersion:row.ticket_version,expectedStatus:status,email:row.email,...mail});
+ }catch(e){console.error('[event-status-mail]',e.message);}
 }
 async function notifyPlanPurchased(userId, plan) {
   try {
@@ -2619,6 +2625,7 @@ app.post('/api/admin/events/:id/registration-settings', auth, requireDb, eventEd
   if(b.tax!==undefined){if(req.auth.role!=='admin')return res.status(403).json({error:'稅金由言文字統一收款帳戶設定。'});try{settings.tax=normalizeTax(b.tax);}catch(error){return res.status(400).json({error:error.message});}}
   if(b.payment_approval!==undefined){if(!['after_approval','authorize'].includes(b.payment_approval))return res.status(400).json({error:'付費審核方式無效。'});settings.payment_approval=b.payment_approval;}
   if(b.feedback!==undefined){const f=b.feedback;if(!f||typeof f.enabled!=='boolean'||!Number.isInteger(f.delay_hours)||f.delay_hours<0||f.delay_hours>168||typeof f.subject!=='string'||f.subject.length>160||typeof f.body!=='string'||f.body.length>5000)return res.status(400).json({error:'回饋邀請需設定開關、活動結束後 0–168 小時、有效主旨與內容。'});settings.feedback={enabled:f.enabled,delay_hours:f.delay_hours,subject:f.subject.trim(),body:f.body.trim()};}
+  if(b.email_templates!==undefined){try{settings.email_templates=require('./lib/event-mailer').normalizeRegistrationEmails(b.email_templates);}catch(error){return res.status(400).json({error:error.message});}}
   if(b.reminders!==undefined){if(!Array.isArray(b.reminders)||b.reminders.some(h=>![1,24].includes(h)))return res.status(400).json({error:'提醒時間只可選活動前 24 小時或 1 小時。'});settings.reminders=[...new Set(b.reminders)];}
   for(const key of ['opens_at','closes_at']){
     if(b[key] && (typeof b[key]!=='string'||!Number.isFinite(Date.parse(b[key]))))return res.status(400).json({error:'報名時間格式不正確。'});
@@ -2681,11 +2688,9 @@ app.post('/api/admin/events/:id/regs/:registrationId/status',auth,requireDb,even
     await client.query("UPDATE event_regs SET status=$2,checkout_expires_at=CASE WHEN $2='approved' THEN now()+interval '24 hours' ELSE NULL END WHERE id=$1",[reg.id,status]);
     await recordEventActivity(client,ev.id,reg.id,req.auth.sub||null,status);
     if(req.body?.notify){
-      const user=(await client.query('SELECT email FROM users WHERE id=$1',[reg.user_id])).rows[0];
-      const lang=['en','ja'].includes(reg.language)?reg.language:'zh',title=ev.translations?.[lang]?.title||ev.title;
-      const labels={registered:['已核准','Approved','承認済み'],approved:['已核准，請於 24 小時內付款','Approved — pay within 24 hours','承認済み：24時間以内にお支払いください'],declined:['未獲核准','Not approved','承認されませんでした'],waitlisted:['候補中','Waitlisted','キャンセル待ち'],pending_approval:['待審核','Pending approval','承認待ち'],capture_pending:['請款處理中','Payment processing','決済処理中']};
-      const label=labels[status]?.[['zh','en','ja'].indexOf(lang)]||status;
-      await require('./lib/event-mailer').queueEventMail((sql,args)=>client.query(sql,args),{id:uid('status_'),eventId:ev.id,registrationId:reg.id,ticketVersion:reg.ticket_version,expectedStatus:status,email:user.email,subject:title+' · '+label,body:label+'\n\n'+(req.body.message||'')+'\n\n'+SITE_BASE+(lang==='zh'?'':'/'+lang)+'/events/'+encodeURIComponent(ev.slug)});
+      const user=(await client.query('SELECT email,name FROM users WHERE id=$1',[reg.user_id])).rows[0];
+      const lang=['en','ja'].includes(reg.language)?reg.language:'zh',localized={...ev,title:ev.translations?.[lang]?.title||ev.title},mail=require('./lib/event-mailer').registrationMail({event:localized,settings:ev.registration_settings,lang,status,name:user.name,message:req.body.message,origin:SITE_BASE});
+      await require('./lib/event-mailer').queueEventMail((sql,args)=>client.query(sql,args),{id:uid('status_'),eventId:ev.id,registrationId:reg.id,ticketVersion:reg.ticket_version,expectedStatus:status,email:user.email,...mail});
     }
     await client.query('COMMIT');res.json({ok:true,status});
   }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
@@ -2723,9 +2728,16 @@ app.post('/api/admin/events/:id/hosts', auth, requireDb, eventEditor, wrap(async
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length>254 || !name || name.length>120 || typeof b.is_visible!=='boolean' || typeof b.can_manage!=='boolean' || (b.can_checkin!==undefined&&typeof b.can_checkin!=='boolean')) return res.status(400).json({error:'請填寫姓名、有效 Email 與權限。'});
   const tickets=(await q('SELECT tickets FROM events WHERE id=$1',[req.params.id])).rows[0]?.tickets||[],validIds=new Set(tickets.map(ticket=>ticket.id));
   if(ticketIds.length>30||ticketIds.some(id=>!validIds.has(id)))return res.status(400).json({error:'簽到票種範圍不正確。'});
-  await eventMutation(req,req.params.id,'host_updated',`INSERT INTO event_hosts(event_id,email,name,is_visible,can_manage,can_checkin,checkin_ticket_ids) VALUES($1,$2,$3,$4,$5,$6,$7)
+  const client=await pool.connect();let exists,invitation_queued=false;try{await client.query('BEGIN');
+   const event=(await client.query('SELECT * FROM events WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+   exists=(await client.query('SELECT 1 FROM event_hosts WHERE event_id=$1 AND email=$2',[req.params.id,email])).rowCount;
+   await client.query(`INSERT INTO event_hosts(event_id,email,name,is_visible,can_manage,can_checkin,checkin_ticket_ids) VALUES($1,$2,$3,$4,$5,$6,$7)
     ON CONFLICT(event_id,email) DO UPDATE SET name=$3,is_visible=$4,can_manage=$5,can_checkin=$6,checkin_ticket_ids=$7`,[req.params.id,email,name,b.is_visible,b.can_manage,b.can_checkin===true,JSON.stringify(b.can_checkin===true&&!b.can_manage?ticketIds:[])]);
-  res.json({ok:true});
+   await recordEventActivity(client,req.params.id,null,req.auth.sub||null,'host_updated');
+   if(!exists&&process.env.RESEND_API_KEY){const role=b.can_manage?'manager':b.can_checkin?'checkin':'host';await require('./lib/event-mailer').queueHostInvitation((sql,args)=>client.query(sql,args),{event,email,name,role,origin:SITE_BASE,ics:eventCalendar(event,SITE_BASE)});invitation_queued=true;}
+   await client.query('COMMIT');
+  }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
+  res.json({ok:true,invitation_queued,notice:exists?'已更新主辦團隊。':invitation_queued?'已新增主辦人，邀請與行事曆附件已排入寄送。':'已新增主辦人；寄信服務未設定，尚未寄出邀請，請分享活動主入口。'});
 }));
 app.post('/api/admin/events/:id/check-in/settings',auth,requireDb,eventEditor,wrap(async(req,res)=>{
  const mode=req.body?.mode,locked=req.body?.locked;if(!['standard','express'].includes(mode)||typeof locked!=='boolean')return res.status(400).json({error:'簽到模式設定不正確。'});
@@ -3656,7 +3668,7 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
         ON CONFLICT(event_id,user_id) DO UPDATE SET note=EXCLUDED.note,status=EXCLUDED.status,amount_due=EXCLUDED.amount_due,amount_paid=0,checked_in_at=NULL,checked_in_by=NULL`,[regId,ev.id,userId,note,status,price]);
       await recordEventActivity(client,ev.id,regId,guest?null:userId,status);
       await saveDetails();
-      await client.query('COMMIT');return res.json({ok:true,registration_id:regId,status,guest});
+      await client.query('COMMIT');notifyRegistrationStatus(userId,ev.id,status);return res.json({ok:true,registration_id:regId,status,guest});
     }
     if (price === 0) {
       await client.query(

@@ -21,6 +21,21 @@ test('event invitations use the selected event language and stay bound to invite
  await queueEventInvitation(async(sql,args)=>(call={sql,args},{rows:[{id:args[0]}]}),{event:{id:'event_1',slug:'demo',title:'中文活動',translations:{en:{title:'English event'}}},registrationId:'registration_1',email:'guest@example.test',name:'Guest',language:'en',origin:'https://emoji.test'});
  assert.match(call.sql,/expected_status/);assert.equal(call.args[0],'invite_registration_1');assert.equal(call.args[3],"You're invited · English event");assert.match(call.args[4],/https:\/\/emoji\.test\/en\/events\/demo$/);assert.equal(call.args[8],'invited');
 });
+test('registration messages validate custom templates and retain localized defaults',()=>{
+ const {normalizeRegistrationEmails,registrationMail}=createRequire(import.meta.url)('../lib/event-mailer');
+ const email_templates=normalizeRegistrationEmails({confirmation:{subject:' Welcome ',body:' Your ticket is ready. '},pending:{subject:'',body:''},declined:{subject:'',body:''}});assert.equal(email_templates.confirmation.subject,'Welcome');
+ const event={title:'English event',slug:'demo'};assert.equal(registrationMail({event,settings:{email_templates},lang:'en',status:'registered',name:'Guest',origin:'https://emoji.test'}).subject,'Welcome');
+ assert.match(registrationMail({event,settings:{email_templates},lang:'ja',status:'pending_approval',origin:'https://emoji.test'}).subject,/承認待ち/);
+ for(const bad of [null,{confirmation:{subject:3,body:''}},{confirmation:{subject:'x'.repeat(161),body:''}}])assert.throws(()=>normalizeRegistrationEmails(bad));
+});
+test('host invitations include the management link and calendar attachment',async()=>{
+ const {queueHostInvitation}=createRequire(import.meta.url)('../lib/event-mailer');let call;await queueHostInvitation(async(sql,args)=>(call={sql,args},{rows:[{id:args[0]}]}),{event:{id:'event_1',title:'Test event'},email:'host@example.test',name:'Host',role:'manager',origin:'https://emoji.test',ics:'BEGIN:VCALENDAR'});
+ assert.match(call.args[0],/^host_invite_/);assert.match(call.args[4],/https:\/\/emoji\.test\/organizer\/events\/event_1/);assert.equal(JSON.parse(call.args[5])[0].filename,'event.ics');
+});
+test('visible-only hosts receive the public event link',async()=>{
+ const {queueHostInvitation}=createRequire(import.meta.url)('../lib/event-mailer');let call;await queueHostInvitation(async(sql,args)=>(call={sql,args},{rows:[{id:args[0]}]}),{event:{id:'event_1',slug:'demo',title:'Test event'},email:'host@example.test',name:'Host',role:'host',origin:'https://emoji.test'});
+ assert.match(call.args[4],/https:\/\/emoji\.test\/events\/demo$/);assert.doesNotMatch(call.args[4],/organizer/);
+});
 test('Svix official signature vector, tampering, expiry and unknown versions',()=>{
  const {verifyMailWebhook}=createRequire(import.meta.url)('../lib/mail');
  const raw=Buffer.from('{"event_type":"ping","data":{"success":true}}'),secret='whsec_plJ3nmyCDGBKInavdOK15jsl',headers={'svix-id':'msg_loFOjxBNrRLzqYUf','svix-timestamp':'1731705121','svix-signature':'v1,rAvfW3dJ/X/qxhsaXPOyyCGmRKsaKWcsNccKXlIktD0='};
@@ -52,7 +67,7 @@ test('provider payload contains safe HTML plus unchanged plain text without any 
 });
 
 test('cancellation is an essential event notice and does not inherit blast opt-outs',async()=>{
- const {notificationCategory}=await import('../lib/event-mailer.js');assert.equal(notificationCategory({id:'cancellation_test',context:{registration_id:null}}),null);
+ const {notificationCategory}=await import('../lib/event-mailer.js');assert.equal(notificationCategory({id:'cancellation_test',context:{registration_id:null}}),null);assert.equal(notificationCategory({id:'host_invite_test',context:{registration_id:null}}),null);
 });
 
 test('worker suppresses cancellation mail when the event has reopened',async()=>{

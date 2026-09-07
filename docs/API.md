@@ -377,7 +377,7 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 平台管理員／本活動負責人／共同管理者可讀主辦團隊。回 `{ owner, hosts, tickets, checkin }`；owner 為平台指定的主要負責人；hosts 有 `name,email,is_visible,can_manage,can_checkin,checkin_ticket_ids`，checkin 為預設掃描模式與鎖定狀態。
 
 ### POST /api/admin/events/:id/hosts
-同上權限。body `{ name,email,is_visible,can_manage,can_checkin,checkin_ticket_ids? }`，依 Email 新增或更新；姓名最多 120 字，Email 最多 254 字。公開列名、共同管理與僅簽到權限分開設定；`checkin_ticket_ids` 只能引用本活動票種，空陣列代表全部票種。可預先加入尚未登入者，對方使用相同 Google 已驗證 Email 登入後取得權限。此操作不寄信、不建立會員、不授予建立其他活動的資格。
+同上權限。body `{ name,email,is_visible,can_manage,can_checkin,checkin_ticket_ids? }`，依 Email 新增或更新；姓名最多 120 字，Email 最多 254 字。公開列名、共同管理與僅簽到權限分開設定；`checkin_ticket_ids` 只能引用本活動票種，空陣列代表全部票種。可預先加入尚未登入者，對方使用相同 Google 已驗證 Email 登入後取得權限。首次新增且已設定 Resend 時會排入三語邀請與 ICS 行事曆附件；未設定時仍保存權限，回應以 `invitation_queued` 與 `notice` 明示未寄出。不建立會員，也不授予建立其他活動的資格。
 
 ### POST /api/admin/events/:id/check-in/settings
 活動管理者設定現場預設模式。body `{ mode: "standard"|"express", locked: boolean }`；locked 僅限制簽到人員切換模式，活動負責人與共同管理者仍可切換自己的工作台模式。
@@ -396,6 +396,8 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 ### POST /api/admin/events/:id/registration-settings
 
 活動管理者設定 `requires_approval`、`waitlist`、`group_registration`、`split_name` 布林值、`payment_approval`（`after_approval`／`authorize`）及可空白的 `opens_at`、`closes_at` ISO 時間。`split_name=true` 時，單人報名必須分開填寫名與姓，並以來賓語系的姓名順序保存於該場票券。免費及付費票支援待審核與候補；付費票可選核准後 24 小時內付款，或先做信用卡預授權、核准後才請款。
+
+`email_templates` 可設定 `confirmation`、`pending`、`declined` 三類通知，各含最多 160 字的 `subject` 與最多 5000 字的 `body`。留白時依收件人的中／英／日語系使用系統預設；初次待審核或候補會自動建立狀態通知，核准與拒絕沿用同一組模板。
 
 平台管理員可一併設定 `tax: {enabled,name,rate_bps}`；`rate_bps` 為整數基點（500 代表 5%）。因活動款項由言文字統一收取，外部活動主不可修改稅金。稅額於優惠折抵後以 TWD 四捨五入，報名與加購訂單各自保存當次稅名、稅率、未稅金額、稅額與含稅總額快照。
 

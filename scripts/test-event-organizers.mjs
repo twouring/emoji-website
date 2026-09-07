@@ -136,7 +136,7 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await call('/admin/users/org_a/admin',{as:a,method:'POST',body:{admin:true},status:403});
   await call('/admin/users/org_a/organizer',{as:a,method:'POST',body:{organizer:true},status:403});
   await call('/admin/events/'+first.id+'/regs/x/refund',{as:a,method:'POST',status:403});
-  await call('/admin/events/'+first.id+'/hosts',{as:a,method:'POST',body:{name:'Guest Host',email:'h@example.test',is_visible:true,can_manage:true}});
+  const addedHost=await call('/admin/events/'+first.id+'/hosts',{as:a,method:'POST',body:{name:'Guest Host',email:'h@example.test',is_visible:true,can_manage:true}});assert.equal(addedHost.invitation_queued,false);assert.match(addedHost.notice,/尚未寄出邀請/);
   const shared=await call('/organizer/state',{as:guest2});assert.equal(shared.can_create_events,false);assert.equal(shared.events[0].id,first.id);
   await call('/admin/events',{as:guest2,method:'POST',body:payload,status:403});
   await call('/admin/events',{as:guest2,method:'POST',body:{...payload,id:first.id,title:'共管更新',owner_id:'guest_b'}});
@@ -228,12 +228,14 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
    assert.equal((await call('/admin/events/'+item.id+'/regs',{as:a})).regs.length,0);assert.equal((await call('/admin/events/'+item.id+'/hosts',{as:a})).hosts[0].email,'clone@example.test');await call('/events/'+item.slug,{as:guest,status:404});
   }
   await call('/admin/events/'+other.id+'/registration-settings',{as:a,method:'POST',body:{requires_approval:true,waitlist:true},status:404});
-  await call('/admin/events/'+first.id+'/registration-settings',{as:a,method:'POST',body:{requires_approval:true,waitlist:true}});
+  await call('/admin/events/'+first.id+'/registration-settings',{as:a,method:'POST',body:{requires_approval:true,waitlist:true,email_templates:{confirmation:{subject:'Registration ready',body:'Your ticket is ready.'},pending:{subject:'Application received',body:'We will review your application.'},declined:{subject:'Application update',body:'We cannot confirm this registration.'}}}});
+  await call('/admin/events/'+first.id+'/registration-settings',{as:a,method:'POST',body:{requires_approval:true,waitlist:true,email_templates:{confirmation:{subject:3,body:''},pending:{subject:'',body:''},declined:{subject:'',body:''}}},status:400});
   await call('/admin/events/'+first.id+'/guests/import',{as:a,method:'POST',body:{guests:[{name:'Invitee',email:'invitee@example.test'}],status:'invited'}});
   const invitedRegistration=await call('/events/'+first.id+'/register',{as:invitee,method:'POST'});assert.equal(invitedRegistration.status,'registered');
   assert.equal((await pool.query("SELECT entry_source FROM event_regs WHERE event_id=$1 AND user_id='invitee'",[first.id])).rows[0].entry_source,'invited');
   await call('/events/'+first.id+'/register',{as:invitee,method:'DELETE'});
   const request=await call('/events/'+first.id+'/register',{as:guest,method:'POST'});assert.equal(request.status,'pending_approval');
+  let initialMail;for(let i=0;i<20;i++){initialMail=(await pool.query("SELECT subject,body FROM event_deliveries WHERE id LIKE 'status_initial_%pending_approval' ORDER BY id DESC LIMIT 1")).rows[0];if(initialMail)break;await delay(50);}assert.equal(initialMail.subject,'Application received');assert.match(initialMail.body,/We will review your application\./);
   await call('/events/'+first.id+'/ticket',{as:guest,status:404});
   await call('/admin/events/'+first.id+'/regs/'+request.registration_id+'/status',{as:b,method:'POST',body:{status:'registered'},status:404});
   await call('/admin/events/'+first.id+'/regs/'+request.registration_id+'/status',{as:a,method:'POST',body:{status:'registered'}});
