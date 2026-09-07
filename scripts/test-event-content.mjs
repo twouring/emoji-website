@@ -154,14 +154,23 @@ test('event management opens one task-based panel instead of expanding every act
  assert.equal((list.match(/data-ev-manage=/g)||[]).length,1);assert.match(list,/href="\/admin\/events\/event-1"/);assert.doesNotMatch(list,/<summary>管理活動/);assert.match(list,/id="ev-manager"/);
  assert.match(list,/id="event-editor-title">建立新活動/);assert.match(list,/建立活動後，再設定票種、報名表與公開頁內容/);
  assert.match(source,/id="rg-ticket"/);assert.match(source,/<option value="">全部<\/option><option value="registered">已報名<\/option>/);assert.match(source,/data-guest-tickets=/);
- assert.match(source,/data-guest-ticket-edit=/);assert.match(source,/id="guest-update-existing"/);assert.match(source,/update_existing:updateExisting/);assert.match(source,/eventAnswer\(a\.value\)/);assert.match(source,/id="rg-status-selected"/);assert.match(source,/value="checkedAt">簽到時間/);
+ assert.match(source,/data-guest-ticket-edit=/);assert.match(source,/id="guest-update-existing"/);assert.match(source,/update_existing:updateExisting/);assert.match(source,/id="guest-send-invites"/);assert.match(source,/id="guest-language"/);assert.match(source,/send_invites:sendInvites/);assert.match(source,/重複來賓不重寄/);assert.match(source,/eventAnswer\(a\.value\)/);assert.match(source,/id="rg-status-selected"/);assert.match(source,/value="checkedAt">簽到時間/);
  assert.match(source,/id="share-qr-image"/);assert.match(source,/QRCode\.toDataURL\(host\.querySelector\('#share-url'\)\.value/);
+ assert.match(source,/a\.dataset\.reload!==undefined/);assert.match(source,/data-reload href=.*管理第/);
  context.BASE='/organizer';assert.match(context.tabEvents({events:[{id:'event-1',title:'Example',status:'草稿'}],organizer:true}),/href="\/organizer\/events\/event-1"/);context.BASE='/admin';
  const manager={hidden:true,innerHTML:'',querySelector:()=>({}),querySelectorAll:()=>[],scrollIntoView(){}},listView={hidden:false};
  context.document={title:'',getElementById:id=>id==='ev-manager'?manager:id==='event-list-view'?listView:{hidden:false,style:{}}};
  runInNewContext(source.slice(source.indexOf('function showEventManager('),source.indexOf('function tabApplications(')),context);
  context.showEventManager('event-1',{events:[{id:'event-1',slug:'event-one',title:'Example',status:'報名中',capacity:10,reg_count:2,checkin_count:1}],can_create_events:true});
  assert.equal(manager.hidden,false);assert.equal(listView.hidden,true);assert.match(manager.innerHTML,/返回活動清單/);assert.match(manager.innerHTML,/報名與來賓/);assert.match(manager.innerHTML,/票券與報名流程/);assert.match(manager.innerHTML,/活動頁與分享/);assert.match(manager.innerHTML,/成效與紀錄/);assert.equal((manager.innerHTML.match(/ui-button--accent/g)||[]).length,1);
+});
+
+test('recurring event clones keep local time and clamp month ends',()=>{
+ const {runInNewContext}=require('node:vm'),source=fs.readFileSync(new URL('../public/admin.html',import.meta.url),'utf8'),context={};
+ runInNewContext(source.slice(source.indexOf('function eventCloneTime('),source.indexOf('function showEventDuplicate(')),context);
+ assert.equal(context.eventCloneTime('2027-01-31T18:30','month',1),'2027-02-28T18:30');
+ assert.equal(context.eventCloneTime('2028-01-31T18:30','month',1),'2028-02-29T18:30');
+ assert.equal(context.eventCloneTime('2027-01-31T18:30','week',1),'2027-02-07T18:30');
 });
 
 test('enhanced event terms render a review gate, localized content and optional signature',async()=>{

@@ -22,14 +22,14 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   const token=sub=>{const iat=Date.now(),b=Buffer.from(JSON.stringify({sub,role:'invited',purpose:'session',iat,exp:iat+600000})).toString('base64url');return b+'.'+createHmac('sha256',secret).update(b).digest('base64url');};
   const clientIps=new Map(); // Model distinct users behind the configured trusted local proxy; keep production limits unchanged.
   const call=async(path,{as=admin,method='GET',body,status=200}={})=>{if(!clientIps.has(as))clientIps.set(as,'192.0.2.'+(clientIps.size+1));const res=await fetch(origin+'/api'+path,{method,headers:{'X-Forwarded-For':clientIps.get(as),Authorization:'Bearer '+as,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});const data=await res.json();assert.equal(res.status,status,JSON.stringify({path,data}));return data;};
-  await pool.query(`INSERT INTO users(id,name,email,status) VALUES('org_a','Organizer A','a@example.test','active'),('org_b','Organizer B','b@example.test','active'),('guest_a','Guest A','g@example.test','active'),('guest_b','Guest B','h@example.test','active')`);
+  await pool.query(`INSERT INTO users(id,name,email,status) VALUES('org_a','Organizer A','a@example.test','active'),('org_b','Organizer B','b@example.test','active'),('guest_a','Guest A','g@example.test','active'),('guest_b','Guest B','h@example.test','active'),('invitee','Invitee','invitee@example.test','active')`);
   await call('/auth/email/start',{method:'POST',body:{name:'Email User',email:'email@example.test'},status:503});
   const loginCode=randomBytes(32).toString('hex'),loginHash=createHash('sha256').update(loginCode).digest('hex');
   await pool.query("INSERT INTO email_login_tokens(token_hash,email,name,redirect,expires_at) VALUES($1,'email@example.test','Email User',$2,now()+interval '20 minutes')",[loginHash,origin+'/events']);
   const login=await call('/auth/email/verify',{method:'POST',body:{code:loginCode}});assert.ok(login.token);assert.equal(login.redirect,origin+'/events');
   await call('/auth/email/verify',{method:'POST',body:{code:loginCode},status:400});
   const emailState=await call('/state',{as:login.token});assert.ok(!emailState.is_admin);await call('/organizer/state',{as:login.token,status:403});
-  const a=token('org_a'),b=token('org_b'),guest=token('guest_a'),guest2=token('guest_b');
+  const a=token('org_a'),b=token('org_b'),guest=token('guest_a'),guest2=token('guest_b'),invitee=token('invitee');
   assert.equal((await call('/auth/session',{as:guest})).user_id,'guest_a');await call('/auth/session',{as:'invalid-session',status:401});
   await call('/organizer/state',{as:a,status:403});
   for(const id of ['org_a','org_b'])await call('/admin/users/'+id+'/organizer',{method:'POST',body:{organizer:true}});
@@ -120,6 +120,8 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await call('/admin/events/'+first.id+'/messages/'+message.id+'/cancel',{as:b,method:'POST',status:404});
   await call('/admin/events/'+other.id+'/guests/import',{as:a,method:'POST',body:{guests:[{name:'Import',email:'import@example.test'}]},status:404});
   await call('/admin/events/'+other.id+'/guests/import',{as:b,method:'POST',body:{guests:[{name:'Import',email:'import@example.test'}],update_existing:'yes'},status:400});
+  await call('/admin/events/'+other.id+'/guests/import',{as:b,method:'POST',body:{guests:[{name:'No fake send',email:'no-send@example.test'}],send_invites:true,language:'en'},status:503});
+  assert.equal((await pool.query("SELECT COUNT(*)::int AS n FROM users WHERE email='no-send@example.test'")).rows[0].n,0);
   const imported=await call('/admin/events/'+other.id+'/guests/import',{as:b,method:'POST',body:{guests:[{name:'Import',email:'import@example.test'}]}});assert.equal(imported.added,1);
   const repeated=await call('/admin/events/'+other.id+'/guests/import',{as:b,method:'POST',body:{guests:[{name:'Overwrite attack',email:'import@example.test'}]}});assert.equal(repeated.skipped,1);assert.equal((await pool.query("SELECT name FROM users WHERE email='import@example.test'")).rows[0].name,'Import');
   const state=await call('/organizer/state',{as:a});assert.deepEqual(new Set(state.events.map(e=>e.id)),new Set([first.id,memberEvent.id]));assert.ok(state.events.every(e=>e.owner_id==='org_a'));assert.deepEqual(state.users,[]);assert.deepEqual(state.commitments,[]);
@@ -180,14 +182,22 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await call('/admin/events/'+first.id+'/check-in/'+regs.regs[0].id,{as:a,method:'DELETE'});
   await call('/events/'+first.id+'/register',{as:winner,method:'DELETE'});
   await call('/admin/events/'+other.id+'/duplicate',{as:a,method:'POST',status:404});
-  const cloned=await call('/admin/events/'+first.id+'/duplicate',{as:a,method:'POST'});
-  const clone=(await pool.query('SELECT * FROM events WHERE id=$1',[cloned.id])).rows[0];
-  assert.equal(clone.rich_content.en,'<h2>English copy</h2>');assert.equal(clone.status,'草稿');assert.equal(clone.owner_id,'org_a');assert.notEqual(clone.slug,first.slug);
-  assert.equal((await call('/admin/events/'+cloned.id+'/regs',{as:a})).regs.length,0);
-  assert.equal((await call('/admin/events/'+cloned.id+'/hosts',{as:a})).hosts.length,0);
-  await call('/events/'+cloned.slug,{as:guest,status:404});
+  await call('/admin/events/'+first.id+'/duplicate',{as:a,method:'POST',body:{times:[]},status:400});
+  await call('/admin/events/'+first.id+'/duplicate',{as:a,method:'POST',body:{times:[{starts_at:'bad',ends_at:'bad'}]},status:400});
+  await call('/admin/events/'+first.id+'/hosts',{as:a,method:'POST',body:{name:'Clone manager',email:'clone@example.test',is_visible:true,can_manage:true,can_checkin:true}});
+  await call('/admin/events/'+first.id+'/coupons',{as:a,method:'POST',body:{coupons:[{code:'NEXT',type:'percent',value:10,max_uses:50,active:true,expires_at:'2026-10-30T00:00:00Z'}]}});
+  const cloned=await call('/admin/events/'+first.id+'/duplicate',{as:a,method:'POST',body:{visibility:'private',times:[{starts_at:'2026-11-07T10:00:00Z',ends_at:'2026-11-07T16:00:00Z'},{starts_at:'2026-11-14T10:00:00Z',ends_at:'2026-11-14T16:00:00Z'}]}});
+  assert.equal(cloned.events.length,2);
+  for(const item of cloned.events){const clone=(await pool.query('SELECT * FROM events WHERE id=$1',[item.id])).rows[0];
+   assert.equal(clone.rich_content.en,'<h2>English copy</h2>');assert.equal(clone.status,'草稿');assert.equal(clone.visibility,'private');assert.equal(clone.owner_id,'org_a');assert.equal(clone.checkin_mode,'express');assert.equal(clone.checkin_mode_locked,true);assert.equal(clone.coupons[0].expires_at,null);assert.notEqual(clone.slug,first.slug);
+   assert.equal((await call('/admin/events/'+item.id+'/regs',{as:a})).regs.length,0);assert.equal((await call('/admin/events/'+item.id+'/hosts',{as:a})).hosts[0].email,'clone@example.test');await call('/events/'+item.slug,{as:guest,status:404});
+  }
   await call('/admin/events/'+other.id+'/registration-settings',{as:a,method:'POST',body:{requires_approval:true,waitlist:true},status:404});
   await call('/admin/events/'+first.id+'/registration-settings',{as:a,method:'POST',body:{requires_approval:true,waitlist:true}});
+  await call('/admin/events/'+first.id+'/guests/import',{as:a,method:'POST',body:{guests:[{name:'Invitee',email:'invitee@example.test'}],status:'invited'}});
+  const invitedRegistration=await call('/events/'+first.id+'/register',{as:invitee,method:'POST'});assert.equal(invitedRegistration.status,'registered');
+  assert.equal((await pool.query("SELECT entry_source FROM event_regs WHERE event_id=$1 AND user_id='invitee'",[first.id])).rows[0].entry_source,'invited');
+  await call('/events/'+first.id+'/register',{as:invitee,method:'DELETE'});
   const request=await call('/events/'+first.id+'/register',{as:guest,method:'POST'});assert.equal(request.status,'pending_approval');
   await call('/events/'+first.id+'/ticket',{as:guest,status:404});
   await call('/admin/events/'+first.id+'/regs/'+request.registration_id+'/status',{as:b,method:'POST',body:{status:'registered'},status:404});
@@ -255,7 +265,7 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await call('/admin/events/'+other.id+'/insights',{as:a,status:404});
   const daily=(await call('/admin/events/'+other.id+'/insights?days=1',{as:b})).registrations;assert.equal(daily.length,1);assert.equal(daily[0].day,taiwanDate);assert.equal(daily[0].bookings,2);
   assert.equal(daily[0].self_service_bookings,1);assert.equal(daily[0].registered,1);assert.equal(daily[0].self_service_registered,1);assert.equal(daily[0].self_service_checked_in,0);
-  assert.deepEqual((await pool.query('SELECT entry_source FROM event_regs WHERE event_id=$1 ORDER BY entry_source',[other.id])).rows.map(row=>row.entry_source),['imported','self_service']);
+  assert.deepEqual((await pool.query('SELECT entry_source FROM event_regs WHERE event_id=$1 ORDER BY entry_source',[other.id])).rows.map(row=>row.entry_source),['invited','self_service']);
   const details={mode:'hybrid',hide_location:true,online_url:'https://example.test/private-meeting',cover_url:'https://example.test/cover.jpg',contact_email:'host@example.test'};
   await call('/admin/events/'+first.id+'/details',{as:a,method:'POST',body:details});
   const privateDetails=await call('/events/'+first.slug,{as:guest});assert.equal(privateDetails.event.location,'');assert.ok(!JSON.stringify(privateDetails).includes('private-meeting'));

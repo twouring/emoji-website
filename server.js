@@ -2568,12 +2568,22 @@ app.post('/api/admin/events/:id/regs/:registrationId/status',auth,requireDb,even
 
 app.post('/api/admin/events/:id/duplicate', auth, requireDb, eventEditor, wrap(async (req,res) => {
   if(req.auth.role !== 'admin' && !req.auth.can_create_events) return res.status(403).json({error:'建立活動需要平台授權。'});
-  const id=uid('e_'), slug='event-'+crypto.randomBytes(8).toString('hex');
-  const result=await eventMutation(req,id,'event_duplicated',`INSERT INTO events(id,slug,title,description,location,starts_at,ends_at,capacity,price_twd,visibility,status,translations,owner_id,registration_settings,tickets,event_details,coupons,rich_content)
-    SELECT $2,$3,title || '（副本）',description,location,starts_at,ends_at,capacity,price_twd,visibility,'草稿',translations,$4,registration_settings,tickets,event_details-'cancellation_reason',coupons,rich_content
-    FROM events WHERE id=$1 RETURNING id`,[req.params.id,id,slug,req.auth.sub || null]);
-  if(!result.rowCount)return res.status(404).json({error:'找不到活動。'});
-  res.json({ok:true,id,slug});
+  const requested=req.body?.times,visibility=req.body?.visibility;
+  if(requested!==undefined&&(!Array.isArray(requested)||!requested.length||requested.length>30)||visibility!==undefined&&!['public','private','members'].includes(visibility))return res.status(400).json({error:'請提供 1–30 組有效時間與可見性。'});
+  const client=await pool.connect();try{await client.query('BEGIN');
+   const source=(await client.query('SELECT * FROM events WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];if(!source){await client.query('ROLLBACK');return res.status(404).json({error:'找不到活動。'});}
+   const times=requested===undefined?[{starts_at:source.starts_at,ends_at:source.ends_at}]:requested.map(item=>({starts_at:new Date(item?.starts_at),ends_at:new Date(item?.ends_at)}));
+   if(requested!==undefined&&times.some(item=>!Number.isFinite(+item.starts_at)||!Number.isFinite(+item.ends_at)||item.ends_at<=item.starts_at)){await client.query('ROLLBACK');return res.status(400).json({error:'每一場都需要有效的開始與結束時間。'});}
+   const details={...(source.event_details||{})};for(const key of ['cancellation_reason','cancellation_translations','cancelled_at'])delete details[key];
+   const coupons=(source.coupons||[]).map(coupon=>({...coupon,expires_at:null})),events=[];
+   for(const time of times){const id=uid('e_'),slug=(eventSlug(source.slug)||'event')+'-'+crypto.randomBytes(4).toString('hex');
+    await client.query(`INSERT INTO events(id,slug,title,description,location,starts_at,ends_at,capacity,price_twd,visibility,status,translations,owner_id,registration_settings,tickets,event_details,coupons,rich_content,checkin_mode,checkin_mode_locked)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'草稿',$11,$12,$13,$14,$15,$16,$17,$18,$19)`,[id,slug,requested===undefined?source.title+'（副本）':source.title,source.description,source.location,time.starts_at,time.ends_at,source.capacity,source.price_twd,visibility||source.visibility,JSON.stringify(source.translations||{}),source.owner_id,JSON.stringify(source.registration_settings||{}),JSON.stringify(source.tickets||[]),JSON.stringify(details),JSON.stringify(coupons),JSON.stringify(source.rich_content||{}),source.checkin_mode,source.checkin_mode_locked]);
+    await client.query(`INSERT INTO event_hosts(event_id,email,name,is_visible,can_manage,can_checkin,checkin_ticket_ids) SELECT $1,email,name,is_visible,can_manage,can_checkin,checkin_ticket_ids FROM event_hosts WHERE event_id=$2`,[id,source.id]);
+    await client.query("INSERT INTO event_activity(event_id,actor_id,action) VALUES($1,$2,'event_cloned')",[id,req.auth.sub||null]);events.push({id,slug,starts_at:time.starts_at,ends_at:time.ends_at});
+   }
+   await client.query("INSERT INTO event_activity(event_id,actor_id,action) VALUES($1,$2,'event_duplicated')",[source.id,req.auth.sub||null]);await client.query('COMMIT');res.json({ok:true,id:events[0].id,slug:events[0].slug,events});
+  }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
 }));
 
 app.get('/api/admin/events/:id/hosts', auth, requireDb, eventEditor, wrap(async (req,res) => {
@@ -2624,9 +2634,11 @@ app.delete('/api/admin/events/:id', auth, requireDb, eventEditor, wrap(async (re
 }));
 
 app.post('/api/admin/events/:id/guests/import',auth,requireDb,eventEditor,wrap(async(req,res)=>{
- const b=req.body||{},status=b.status||'invited';
+ const b=req.body||{},status=b.status||'invited',sendInvites=b.send_invites===true,language=['en','ja'].includes(b.language)?b.language:'zh';
  if(!['invited','registered','pending_approval','waitlisted'].includes(status)||!Array.isArray(b.guests)||!b.guests.length||b.guests.length>500)return res.status(400).json({error:'每次可匯入 1–500 位來賓，請選擇有效狀態。'});
  if(b.update_existing!==undefined&&typeof b.update_existing!=='boolean')return res.status(400).json({error:'更新既有來賓設定格式不正確。'});
+ if(b.send_invites!==undefined&&typeof b.send_invites!=='boolean'||b.language!==undefined&&!['zh','en','ja'].includes(b.language)||sendInvites&&status!=='invited')return res.status(400).json({error:'邀請寄送設定格式不正確。'});
+ if(sendInvites&&!process.env.RESEND_API_KEY)return res.status(503).json({error:'寄信服務尚未設定，未新增來賓或排入邀請。'});
  const seen=new Set(),guests=[];
  for(const g of b.guests){const email=String(g?.email||'').trim().toLowerCase(),name=String(g?.name||'').trim();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254||!name||name.length>120)return res.status(400).json({error:'每位來賓都需有效姓名與 Email。'});if(!seen.has(email)){seen.add(email);guests.push({email,name});}}
  const client=await pool.connect();try{await client.query('BEGIN');
@@ -2636,7 +2648,7 @@ app.post('/api/admin/events/:id/guests/import',auth,requireDb,eventEditor,wrap(a
  let ticket=null;try{if(event.tickets.length&&status!=='invited')ticket=selectTicket(event.tickets,b.ticket_id,Date.now(),b.unlock_code);}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}
  const price=ticket?.price_twd??event.price_twd;
  if(status==='registered'&&price>0){await client.query('ROLLBACK');return res.status(409).json({error:'付費票不能以匯入標記為已付款；請先邀請來賓自行付款。'});}
- let added=0,updated=0,skipped=0;
+ let added=0,updated=0,skipped=0,queued=0;
  for(const guest of guests.sort((a,b)=>a.email.localeCompare(b.email))){
   const user=await accountByEmail(client,guest.email,guest.name);
   const existing=(await client.query('SELECT * FROM event_regs WHERE event_id=$1 AND user_id=$2 FOR UPDATE',[event.id,user.id])).rows[0];
@@ -2646,10 +2658,11 @@ app.post('/api/admin/events/:id/guests/import',auth,requireDb,eventEditor,wrap(a
    if(event.capacity>0&&used>=event.capacity){await client.query('ROLLBACK');return res.status(409).json({error:'名額不足，整批未匯入。'});}
    if(ticket?.capacity>0){const count=await reservedEventSeats(client,event.id,ticket.id);if(count>=ticket.capacity){await client.query('ROLLBACK');return res.status(409).json({error:'票種名額不足，整批未匯入。'});}}
   }
-  const regId=uid('r_');await client.query("INSERT INTO event_regs(id,event_id,user_id,status,amount_due,amount_paid,ticket_snapshot,note,entry_source) VALUES($1,$2,$3,$4,$5,0,$6,$7,'imported')",[regId,event.id,user.id,status,status==='invited'?0:price,ticket?JSON.stringify(ticket):null,'主辦人手動匯入']);
+  const regId=uid('r_');await client.query("INSERT INTO event_regs(id,event_id,user_id,status,amount_due,amount_paid,ticket_snapshot,note,entry_source,language) VALUES($1,$2,$3,$4,$5,0,$6,$7,$8,$9)",[regId,event.id,user.id,status,status==='invited'?0:price,ticket?JSON.stringify(ticket):null,'主辦人手動匯入',status==='invited'?'invited':'imported',language]);
   await client.query('INSERT INTO event_activity(event_id,registration_id,actor_id,action) VALUES($1,$2,$3,$4)',[event.id,regId,req.auth.sub||null,'guest_imported:'+status]);added++;
+  if(sendInvites){await require('./lib/event-mailer').queueEventInvitation((sql,args)=>client.query(sql,args),{event,registrationId:regId,email:user.email,name:guest.name,language,origin:SITE_BASE});queued++;}
  }
- await client.query('COMMIT');res.json({ok:true,added,updated,skipped,notice:'已匯入，未寄送任何通知。'});
+ await client.query('COMMIT');res.json({ok:true,added,updated,skipped,queued,notice:sendInvites?`已新增並排入 ${queued} 封邀請；重複來賓不會重寄。`:'已匯入，未寄送任何通知。'});
  }catch(e){await client.query('ROLLBACK');if(e.code==='AMBIGUOUS_EMAIL')return res.status(409).json({error:e.message});throw e;}finally{client.release();}
 }));
 
@@ -3428,7 +3441,7 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
       if(session.status==='complete'){await client.query('ROLLBACK');return res.status(409).json({error:'付款仍在核對中，請稍後重新整理。'});}
     }
 
-    const approved=mine?.status==='approved'&&mine.checkout_expires_at>new Date();
+    const invited=mine?.status==='invited',approved=mine?.status==='approved'&&mine.checkout_expires_at>new Date();
     if(mine?.status==='approved'&&!approved){await client.query("UPDATE event_regs SET status='pending_approval',checkout_expires_at=NULL WHERE id=$1",[mine.id]);await client.query('COMMIT');return res.status(409).json({error:'付款保留時間已到期，已轉回待審核，請聯絡主辦人。'});}
     const quantity=approved?mine.quantity:Number(req.body?.quantity??1);
     if(!Number.isInteger(quantity)||quantity<1||quantity>MAX_EVENT_TICKETS_PER_ORDER){await client.query('ROLLBACK');return res.status(400).json({error:`每筆報名可購買 1–${MAX_EVENT_TICKETS_PER_ORDER} 張票。`});}
@@ -3453,7 +3466,7 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
       }
     }
     const settings=registrationSettings;
-    const requiresApproval=settings.requires_approval||selectedTicket?.requires_approval;
+    const requiresApproval=!invited&&(settings.requires_approval||selectedTicket?.requires_approval);
     let captureRequired=!approved&&price>0&&requiresApproval&&settings.payment_approval==='authorize';
     if((settings.opens_at&&Date.now()<Date.parse(settings.opens_at))||(settings.closes_at&&Date.now()>=Date.parse(settings.closes_at))){
       await client.query('ROLLBACK');return res.status(409).json({error:'目前不在報名期間。'});
@@ -3487,7 +3500,7 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
       if(referral?.plan==='event-referral'&&referral.event===ev.id&&referral.ent!==regId&&(await client.query("SELECT 1 FROM event_regs WHERE id=$1 AND event_id=$2 AND status='registered'",[referral.ent,ev.id])).rowCount)savedAttribution.referral='guest:'+referral.ent;
     }
     async function saveDetails(){
-      await client.query("UPDATE event_regs SET answers=$2,ticket_snapshot=$3,coupon_snapshot=$4,quantity=$5,confirmation_queued=false,language=$6,attribution=$7,capture_required=$8,authorization_expires_at=NULL,entry_source='self_service' WHERE id=$1",[regId,JSON.stringify(answerSnapshot),selectedTicket?JSON.stringify(selectedTicket):null,couponSnapshot?JSON.stringify(couponSnapshot):null,quantity,['en','ja'].includes(req.body?.lang)?req.body.lang:'zh',JSON.stringify(savedAttribution),captureRequired]);
+      await client.query("UPDATE event_regs SET answers=$2,ticket_snapshot=$3,coupon_snapshot=$4,quantity=$5,confirmation_queued=false,language=$6,attribution=$7,capture_required=$8,authorization_expires_at=NULL,entry_source=$9 WHERE id=$1",[regId,JSON.stringify(answerSnapshot),selectedTicket?JSON.stringify(selectedTicket):null,couponSnapshot?JSON.stringify(couponSnapshot):null,quantity,['en','ja'].includes(req.body?.lang)?req.body.lang:'zh',JSON.stringify(savedAttribution),captureRequired,invited?'invited':'self_service']);
       if(!approved){await client.query('DELETE FROM event_attendees WHERE registration_id=$1',[regId]);for(const [i,a] of attendees.entries())await client.query('INSERT INTO event_attendees(id,registration_id,name,email,ordinal) VALUES($1,$2,$3,$4,$5)',[uid('att_'),regId,a.name,a.email,i]);}
     }
 

@@ -16,6 +16,11 @@ test('notification worker records provider acceptance, reuses a delivery key and
  updates=[];await deliverDue(q,async()=>{throw new Error('timeout');});assert.match(updates[0].sql,/retry/);
  row.first_attempt_at=new Date(Date.now()-24*3600000);updates=[];await deliverDue(q,async()=>{assert.fail('must not resend after provider idempotency expires');});assert.match(updates[0].sql,/review_required/);
 });
+test('event invitations use the selected event language and stay bound to invited status',async()=>{
+ const {queueEventInvitation}=createRequire(import.meta.url)('../lib/event-mailer');let call;
+ await queueEventInvitation(async(sql,args)=>(call={sql,args},{rows:[{id:args[0]}]}),{event:{id:'event_1',slug:'demo',title:'中文活動',translations:{en:{title:'English event'}}},registrationId:'registration_1',email:'guest@example.test',name:'Guest',language:'en',origin:'https://emoji.test'});
+ assert.match(call.sql,/expected_status/);assert.equal(call.args[0],'invite_registration_1');assert.equal(call.args[3],"You're invited · English event");assert.match(call.args[4],/https:\/\/emoji\.test\/en\/events\/demo$/);assert.equal(call.args[8],'invited');
+});
 test('Svix official signature vector, tampering, expiry and unknown versions',()=>{
  const {verifyMailWebhook}=createRequire(import.meta.url)('../lib/mail');
  const raw=Buffer.from('{"event_type":"ping","data":{"success":true}}'),secret='whsec_plJ3nmyCDGBKInavdOK15jsl',headers={'svix-id':'msg_loFOjxBNrRLzqYUf','svix-timestamp':'1731705121','svix-signature':'v1,rAvfW3dJ/X/qxhsaXPOyyCGmRKsaKWcsNccKXlIktD0='};

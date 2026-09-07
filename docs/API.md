@@ -333,7 +333,9 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 
 ### POST /api/admin/events/:id/duplicate
 
-活動管理者且具建立權限可將可管理活動複製為草稿。回傳 `{ok,id,slug}`；新的負責人為操作者，不複製報名、付款或團隊權限。
+活動管理者且具建立權限可將可管理活動複製為草稿。可傳 `visibility: public|private|members` 與 `times: [{starts_at,ends_at}]`，一次建立 1–30 場；省略 `times` 時保留單場舊介面。回傳 `{ok,id,slug,events}`。
+
+活動名稱、多語內容、票種及售票期間、報名表、頁面、主辦團隊、簽到模式與設定都會複製；新活動一律為草稿，優惠碼到期日會清空。來賓、付款、通知及操作紀錄不複製。
 
 ### POST /api/admin/events/:id/registration-settings
 
@@ -419,7 +421,9 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 
 ### POST /api/admin/events/:id/guests/import
 
-匯入 guests（name、email），每批 1–500 位；status 可為 invited、registered（僅免費票）、pending_approval、waitlisted。可指定 ticket_id 及 unlock_code。使用交易鎖檢查名額，不足時整批回滾；重複報名預設跳過。傳入 `update_existing: true` 且指定票種時，只更新既有報名的原始票種，不覆寫姓名、報名狀態、票款、退款或加購／贈票。未寄送通知。
+匯入 guests（name、email），每批 1–500 位；status 可為 invited、registered（僅免費票）、pending_approval、waitlisted。可指定 ticket_id 及 unlock_code。使用交易鎖檢查名額，不足時整批回滾；重複報名預設跳過。傳入 `update_existing: true` 且指定票種時，只更新既有報名的原始票種，不覆寫姓名、報名狀態、票款、退款或加購／贈票。
+
+新增受邀來賓時可傳 `send_invites: true` 與 `language: zh|en|ja`。邀請只排給本次新增者；重複 Email 會略過且不重寄。受邀者自行報名時免除活動或票種審核，但仍須完成必填問題、名額檢查與付費。寄信服務未設定時整批回傳 503，且不新增來賓或建立寄送佇列。
 
 ### PATCH /api/admin/events/:id/regs/:registrationId/ticket
 
