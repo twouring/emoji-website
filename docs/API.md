@@ -138,6 +138,38 @@ Google 授權回呼，簽發會員 token 並導回。
 
 活動負責人、共同管理者、平台管理員或已授權的簽到人員以 query `token=<QR 票券內容>` 唯讀查驗一張票，回傳來賓、票種、報名狀態與簽到時間，不會完成簽到。簽章、活動、票券版本、加購狀態及簽到人員票種範圍均由後端驗證；無效票回 400，舊票或未成立票回 409。活動管理名單另可匯出逐票驗票 CSV，每列含同一種 token，供外部驗票系統與預印識別證使用。
 
+### GET /api/admin/events/:id/integration
+
+活動管理者讀取 API 整合啟用狀態、金鑰前綴與可用端點，不回傳完整金鑰。
+
+### POST /api/admin/events/:id/integration/key
+
+建立或更換本活動金鑰。完整 `evk_…` 金鑰只在這次回應出現；資料庫只保存 SHA-256。更換後舊金鑰立即失效。
+
+### DELETE /api/admin/events/:id/integration/key
+
+立即停用本活動金鑰。
+
+### GET /api/integrations/events/:id
+
+以 `Authorization: Bearer evk_…` 讀取金鑰所屬活動的內容、設定、有效報名與簽到人數。
+
+### GET /api/integrations/events/:id/check-in
+
+以活動金鑰讀取本活動驗票名單；回應與活動簽到工作台相同，但不提供管理頁連結。
+
+### GET /api/integrations/events/:id/check-in/lookup
+
+以 query `token=<QR 票券內容>` 查票，不變更簽到狀態。活動、票券版本、報名與加購狀態仍由後端核對。
+
+### POST /api/integrations/events/:id/check-in
+
+以活動金鑰及 body `{ token }` 或 `{ registration_id, attendee_id? }` 完成簽到，沿用既有冪等與票券驗證。
+
+### DELETE /api/integrations/events/:id/check-in/:registrationId
+
+以活動金鑰撤銷簽到；可用 query `attendee_id` 只撤銷團體報名中的一張票。金鑰只能操作其所屬活動。
+
 ### POST /api/admin/events/:id/check-in
 掃描或人工簽到。body 擇一：`{ token }`（活動票 QR 內容）或 `{ registration_id, attendee_id? }`。只接受已成立且未退款的票券；重掃回 `duplicate: true`。簽到人員若被限制票種，其他票種回 403。
 

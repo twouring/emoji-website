@@ -164,7 +164,8 @@ test('event management opens one task-based panel instead of expanding every act
  context.document={title:'',getElementById:id=>id==='ev-manager'?manager:id==='event-list-view'?listView:{hidden:false,style:{}}};
  runInNewContext(source.slice(source.indexOf('function showEventManager('),source.indexOf('function tabApplications(')),context);
  context.showEventManager('event-1',{events:[{id:'event-1',slug:'event-one',title:'Example',status:'報名中',capacity:10,reg_count:2,checkin_count:1}],can_create_events:true});
- assert.equal(manager.hidden,false);assert.equal(listView.hidden,true);assert.match(manager.innerHTML,/返回活動清單/);assert.match(manager.innerHTML,/報名與來賓/);assert.match(manager.innerHTML,/票券與報名流程/);assert.match(manager.innerHTML,/活動頁與分享/);assert.match(manager.innerHTML,/成效與紀錄/);assert.equal((manager.innerHTML.match(/ui-button--accent/g)||[]).length,1);
+ assert.equal(manager.hidden,false);assert.equal(listView.hidden,true);assert.match(manager.innerHTML,/返回活動清單/);assert.match(manager.innerHTML,/報名與來賓/);assert.match(manager.innerHTML,/票券與報名流程/);assert.match(manager.innerHTML,/活動頁與分享/);assert.match(manager.innerHTML,/成效與紀錄/);assert.match(manager.innerHTML,/API 整合/);assert.equal((manager.innerHTML.match(/ui-button--accent/g)||[]).length,1);
+ assert.match(source,/function showEventIntegration\(id\)/);assert.match(source,/Authorization: Bearer 活動金鑰/);assert.match(source,/離開後無法再次查看完整金鑰/);
 });
 
 test('public event pricing shows tax-inclusive totals and quote breakdowns',()=>{

@@ -509,6 +509,9 @@ async function migrate() {
   await q(`CREATE TABLE IF NOT EXISTS event_activity (
     id BIGSERIAL PRIMARY KEY,event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     registration_id TEXT,actor_id TEXT,action TEXT NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE TABLE IF NOT EXISTS event_api_keys (
+    event_id TEXT PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,key_hash TEXT UNIQUE NOT NULL,key_prefix TEXT NOT NULL,
+    created_by TEXT,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS entry_source TEXT NOT NULL DEFAULT 'self_service'`);
   await q(`UPDATE event_regs r SET entry_source='imported'
     WHERE entry_source='self_service' AND COALESCE((SELECT a.action LIKE 'guest_imported:%'
@@ -1249,6 +1252,17 @@ async function auth(req, res, next) {
     req.auth = p; next();
   } catch (e) { next(e); }
 }
+async function eventSessionOrKey(req,res,next){
+ const h=req.headers.authorization||'',token=h.startsWith('Bearer ')?h.slice(7):'';
+ if(!token.startsWith('evk_'))return auth(req,res,next);
+ if(!pool||!dbReady)return requireDb(req,res,next);
+ if(!/^evk_[A-Za-z0-9_-]{43}$/.test(token))return res.status(401).json({error:'活動 API 金鑰無效。'});
+ try{
+  const row=(await q('SELECT event_id,key_prefix FROM event_api_keys WHERE key_hash=$1',[crypto.createHash('sha256').update(token).digest('hex')])).rows[0];
+  if(!row||row.event_id!==req.params.id)return res.status(401).json({error:'活動 API 金鑰無效。'});
+  req.auth={role:'event_api',event_id:row.event_id,key_prefix:row.key_prefix,sub:null};next();
+ }catch(error){next(error);}
+}
 async function optionalAuth(req, _res, next) {
   const h = req.headers.authorization || '';
   const t = h.startsWith('Bearer ') ? h.slice(7) : '';
@@ -1279,6 +1293,7 @@ async function eventEditor(req, res, next) {
 
 async function eventCheckinAccess(req,res,next){
  if(req.auth.role==='admin'){req.eventCheckin={can_manage:true,ticket_ids:[]};return next();}
+ if(req.auth.role==='event_api'&&req.auth.event_id===req.params.id){req.eventCheckin={can_manage:false,ticket_ids:[]};return next();}
  try{
   const row=(await q(`SELECT e.owner_id,h.can_manage,h.can_checkin,h.checkin_ticket_ids FROM events e LEFT JOIN event_hosts h ON h.event_id=e.id AND h.email=lower($2) WHERE e.id=$1`,[req.params.id,req.auth.email])).rows[0];
   if(!row||row.owner_id!==req.auth.sub&&!row.can_manage&&!row.can_checkin)return res.status(404).json({error:'找不到可簽到的活動。'});
@@ -2166,6 +2181,34 @@ async function eventMutation(req,eventId,action,sql,args){
  }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
 }
 
+app.get('/api/admin/events/:id/integration',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ const row=(await q('SELECT k.key_prefix,k.created_at FROM events e LEFT JOIN event_api_keys k ON k.event_id=e.id WHERE e.id=$1',[req.params.id])).rows[0];
+ if(!row)return res.status(404).json({error:'找不到活動。'});const key=row.key_prefix?row:null;
+ res.json({enabled:!!key,key,endpoints:{event:`/api/integrations/events/${req.params.id}`,checkin:`/api/integrations/events/${req.params.id}/check-in`,lookup:`/api/integrations/events/${req.params.id}/check-in/lookup`}});
+}));
+
+app.post('/api/admin/events/:id/integration/key',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ const key='evk_'+crypto.randomBytes(32).toString('base64url'),hash=crypto.createHash('sha256').update(key).digest('hex'),prefix=key.slice(0,12);
+ const result=await eventMutation(req,req.params.id,'integration_key_rotated',`INSERT INTO event_api_keys(event_id,key_hash,key_prefix,created_by)
+   SELECT $1,$2,$3,$4 FROM events WHERE id=$1 ON CONFLICT(event_id) DO UPDATE SET key_hash=EXCLUDED.key_hash,key_prefix=EXCLUDED.key_prefix,created_by=EXCLUDED.created_by,created_at=now()`,[req.params.id,hash,prefix,req.auth.sub||null]);
+ if(!result.rowCount)return res.status(404).json({error:'找不到活動。'});
+ res.status(201).json({key,prefix,created_at:new Date().toISOString()});
+}));
+
+app.delete('/api/admin/events/:id/integration/key',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ if(!(await q('SELECT 1 FROM events WHERE id=$1',[req.params.id])).rowCount)return res.status(404).json({error:'找不到活動。'});
+ const result=await eventMutation(req,req.params.id,'integration_key_revoked','DELETE FROM event_api_keys WHERE event_id=$1',[req.params.id]);
+ res.json({ok:true,revoked:result.rowCount>0});
+}));
+
+app.get('/api/integrations/events/:id',eventSessionOrKey,requireDb,wrap(async(req,res)=>{
+ const event=(await q(`SELECT e.id,e.slug,e.title,e.description,e.location,e.starts_at,e.ends_at,e.capacity,e.visibility,e.status,e.translations,e.event_details,e.tickets,e.registration_settings,
+   COALESCE((SELECT COUNT(*) FROM event_attendees a JOIN event_regs r ON r.id=a.registration_id LEFT JOIN event_ticket_orders o ON o.id=a.order_id WHERE r.event_id=e.id AND r.status='registered' AND (a.order_id IS NULL OR o.status='registered')),0)::int AS registered,
+   COALESCE((SELECT COUNT(*) FROM event_attendees a JOIN event_regs r ON r.id=a.registration_id LEFT JOIN event_ticket_orders o ON o.id=a.order_id WHERE r.event_id=e.id AND r.status='registered' AND (a.order_id IS NULL OR o.status='registered') AND a.checked_in_at IS NOT NULL),0)::int AS checked_in
+   FROM events e WHERE e.id=$1`,[req.params.id])).rows[0];
+ if(!event)return res.status(404).json({error:'找不到活動。'});res.json({event});
+}));
+
 app.post('/api/admin/events', auth, requireDb, eventEditor, wrap(async (req, res) => {
   const b = req.body || {};
   if(!b.id && req.auth.role !== 'admin' && !req.auth.can_create_events) return res.status(403).json({error:'你只能管理受邀活動；建立新活動需要平台授權。'});
@@ -2740,7 +2783,7 @@ app.get('/api/admin/events/:id/regs', auth, requireDb, eventEditor, wrap(async (
   res.json({ regs: rows });
 }));
 
-app.get('/api/admin/events/:id/check-in',auth,requireDb,eventCheckinAccess,wrap(async(req,res)=>{
+app.get(['/api/admin/events/:id/check-in','/api/integrations/events/:id/check-in'],eventSessionOrKey,requireDb,eventCheckinAccess,wrap(async(req,res)=>{
  const event=(await q('SELECT title,status,tickets,checkin_mode,checkin_mode_locked FROM events WHERE id=$1',[req.params.id])).rows[0];
  if(!event)return res.status(404).json({error:'找不到活動。'});
  const rows=(await q(`SELECT r.id AS registration_id,NULL::text AS attendee_id,COALESCE(primary_attendee.name,u.name) AS name,COALESCE(primary_attendee.email,u.email) AS email,u.phone,u.name AS buyer_name,u.email AS buyer_email,
@@ -2758,7 +2801,7 @@ app.get('/api/admin/events/:id/check-in',auth,requireDb,eventCheckinAccess,wrap(
    guests:rows.map(row=>({...row,can_checkin:allowed.length===0||allowed.includes(row.ticket_id)}))});
 }));
 
-app.get('/api/admin/events/:id/check-in/lookup',auth,requireDb,eventCheckinAccess,wrap(async(req,res)=>{
+app.get(['/api/admin/events/:id/check-in/lookup','/api/integrations/events/:id/check-in/lookup'],eventSessionOrKey,requireDb,eventCheckinAccess,wrap(async(req,res)=>{
  if(!EVENT_QR_SECRET)return res.status(503).json({error:'活動票券 QR 尚未開通。'});
  const ticket=verifyAccessToken(String(req.query.token||''),EVENT_QR_SECRET);
  if(!ticket||ticket.plan!=='event-ticket'||ticket.event!==req.params.id)return res.status(400).json({error:'活動票券無效或已過期。'});
@@ -2773,7 +2816,7 @@ app.get('/api/admin/events/:id/check-in/lookup',auth,requireDb,eventCheckinAcces
  res.set('Cache-Control','no-store');res.json({guest:{...row,can_checkin:true}});
 }));
 
-app.post('/api/admin/events/:id/check-in', auth, requireDb, eventCheckinAccess, wrap(async (req, res) => {
+app.post(['/api/admin/events/:id/check-in','/api/integrations/events/:id/check-in'],eventSessionOrKey,requireDb,eventCheckinAccess,wrap(async (req, res) => {
   const client=await pool.connect();try{await client.query('BEGIN');const q=(sql,args)=>client.query(sql,args);await q('SELECT id FROM events WHERE id=$1 FOR UPDATE',[req.params.id]);
   const b = req.body || {};
   let registrationId = String(b.registration_id || ''),ticketVersion,attendeeId=b.attendee_id;
@@ -2808,7 +2851,7 @@ app.post('/api/admin/events/:id/check-in', auth, requireDb, eventCheckinAccess, 
   }finally{await client.query('ROLLBACK');client.release();}
 }));
 
-app.delete('/api/admin/events/:id/check-in/:registrationId', auth, requireDb, eventCheckinAccess, wrap(async (req, res) => {
+app.delete(['/api/admin/events/:id/check-in/:registrationId','/api/integrations/events/:id/check-in/:registrationId'],eventSessionOrKey,requireDb,eventCheckinAccess,wrap(async (req, res) => {
   const client=await pool.connect();try{await client.query('BEGIN');const q=(sql,args)=>client.query(sql,args);await q('SELECT id FROM events WHERE id=$1 FOR UPDATE',[req.params.id]);
   const reg=(await q("SELECT id,quantity,ticket_snapshot->>'id' AS ticket_id FROM event_regs WHERE id=$1 AND event_id=$2",[req.params.registrationId,req.params.id])).rows[0];
   if(!reg)return res.status(404).json({error:'找不到這張活動票。'});
