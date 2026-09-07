@@ -2547,6 +2547,15 @@ app.post('/api/events/:id/join-online',auth,requireDb,wrap(async(req,res)=>{
  await q(`INSERT INTO event_online_joins(event_id,user_id) VALUES($1,$2) ON CONFLICT(event_id,user_id) DO UPDATE SET last_joined_at=now(),clicks=event_online_joins.clicks+1`,[req.params.id,req.auth.sub]);
  res.json({url:url.href});
 }));
+app.post('/api/events/:id/contact-host',auth,requireDb,rateLimit({max:5,windowMs:3600000}),wrap(async(req,res)=>{
+ if(!process.env.RESEND_API_KEY)return res.status(503).json({error:'聯絡主辦人的寄信服務尚未設定。'});
+ let message;try{message=require('./lib/event-contact').normalizeHostMessage(req.body?.message);}catch(error){return res.status(400).json({error:error.message});}
+ const event=(await q(`SELECT e.id,e.slug,e.title,COALESCE(u.email,NULLIF(e.event_details->>'contact_email','')) AS contact_email FROM events e LEFT JOIN users u ON u.id=e.owner_id WHERE e.id=$1 AND e.status<>'草稿'`,[req.params.id])).rows[0];
+ if(!event)return res.status(404).json({error:'找不到活動。'});if(!event.contact_email)return res.status(409).json({error:'此活動尚未設定可聯絡的主辦人。'});
+ const sender=(await q('SELECT id,name,email FROM users WHERE id=$1',[req.auth.sub])).rows[0];if(!sender)return res.status(401).json({error:'請重新登入。'});
+ const mail=require('./lib/event-contact').hostContactMail({event,sender,message,origin:SITE_BASE}),sent=await sendMail(mail);if(!sent?.id)return res.status(502).json({error:'訊息尚未送達寄信服務，請稍後再試。'});
+ await q("INSERT INTO event_activity(event_id,actor_id,action) VALUES($1,$2,'host_contacted')",[event.id,sender.id]);res.json({ok:true});
+}));
 app.get('/api/events/:id/notification-settings',auth,requireDb,eventParticipant,wrap(async(req,res)=>{
  const settings=(await q('SELECT blasts,reminders,feedback FROM event_notification_preferences WHERE event_id=$1 AND user_id=$2',[req.params.id,req.auth.sub])).rows[0]||{blasts:true,reminders:true,feedback:true};res.json({settings});
 }));
@@ -3359,6 +3368,9 @@ app.get('/api/admin/ig/status', auth, adminOnly, requireDb, wrap(async (_req, re
 }));
 
 /* ---- 活動前台：公開列表、私人連結、報名付款與票券 ---- */
+function publicEvent(event,lang){
+ const out=localizeEvent(event,lang);out.can_contact_host=!!(event.owner_id||event.event_details?.contact_email);delete out.owner_id;if(out.event_details)delete out.event_details.contact_email;return out;
+}
 function eventReferralToken(registrationId,event){
  const end=event.ends_at||event.starts_at,ttlSec=end?Math.max(86400,Math.floor((+new Date(end)-Date.now())/1000)+30*86400):366*86400;
  return signAccessToken({sub:'event-referral',ent:registrationId,plan:'event-referral',event:event.id},SECRET,{ttlSec});
@@ -3371,7 +3383,7 @@ app.get('/api/events', optionalAuth, requireDb, wrap(async (req, res) => {
      FROM events e WHERE status IN ('預告','報名中') AND (visibility='public' OR (visibility='members' AND $1))
      ORDER BY starts_at ASC NULLS LAST`, [member]
   )).rows;
-  res.json({ events: events.map(e => localizeEvent(e, req.query.lang)) });
+  res.json({ events: events.map(e => publicEvent(e, req.query.lang)) });
 }));
 
 function ownsEventCheckout(session,auth){
@@ -3553,7 +3565,7 @@ app.get('/api/events/:slug', optionalAuth, requireDb, wrap(async (req, res) => {
   if(ev.visibility==='public'&&ev.registration_id&&ev.registration_status==='registered')ev.referral_token=eventReferralToken(ev.registration_id,ev);
   const referral=ev.visibility==='public'?verifyAccessToken(String(req.query.ref||''),SECRET):null;
   if(referral?.plan==='event-referral'&&referral.event===ev.id){const inviter=(await q("SELECT u.name FROM event_regs r JOIN users u ON u.id=r.user_id WHERE r.id=$1 AND r.event_id=$2 AND r.status='registered'",[referral.ent,ev.id])).rows[0];if(inviter)ev.referred_by=inviter.name;}
-  res.json({ event: localizeEvent(ev, req.query.lang) });
+  res.json({ event: publicEvent(ev, req.query.lang) });
 }));
 
 app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, res) => {

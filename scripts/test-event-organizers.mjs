@@ -137,11 +137,12 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await call('/admin/users/org_a/organizer',{as:a,method:'POST',body:{organizer:true},status:403});
   await call('/admin/events/'+first.id+'/regs/x/refund',{as:a,method:'POST',status:403});
   const addedHost=await call('/admin/events/'+first.id+'/hosts',{as:a,method:'POST',body:{name:'Guest Host',email:'h@example.test',is_visible:true,can_manage:true}});assert.equal(addedHost.invitation_queued,false);assert.match(addedHost.notice,/尚未寄出邀請/);
+  await call('/events/'+first.id+'/contact-host',{as:guest,method:'POST',body:{message:'Question'},status:503});
   const shared=await call('/organizer/state',{as:guest2});assert.equal(shared.can_create_events,false);assert.equal(shared.events[0].id,first.id);
   await call('/admin/events',{as:guest2,method:'POST',body:payload,status:403});
   await call('/admin/events',{as:guest2,method:'POST',body:{...payload,id:first.id,title:'共管更新',owner_id:'guest_b'}});
   assert.equal((await pool.query('SELECT owner_id FROM events WHERE id=$1',[first.id])).rows[0].owner_id,'org_a');
-  const pub=await call('/events/'+first.slug+'?lang=en');assert.equal(pub.event.title,'English event');assert.deepEqual(pub.event.host_names,['Guest Host']);assert.ok(!JSON.stringify(pub).includes('h@example.test'));
+  const pub=await call('/events/'+first.slug+'?lang=en');assert.equal(pub.event.title,'English event');assert.deepEqual(pub.event.host_names,['Guest Host']);assert.equal(pub.event.can_contact_host,true);assert.equal(pub.event.owner_id,undefined);assert.equal(pub.event.event_details.contact_email,undefined);assert.ok(!JSON.stringify(pub).includes('h@example.test'));
   const translated=await fetch(origin+'/en/events/'+first.slug);assert.ok((await translated.text()).includes('English event'));
   await call('/admin/events/'+first.id+'/hosts',{as:a,method:'DELETE',body:{email:'h@example.test'}});
   await call('/organizer/state',{as:guest2,status:403});await call('/admin/events/'+first.id+'/regs',{as:guest2,status:403});

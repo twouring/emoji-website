@@ -100,6 +100,18 @@ test('public event referrals expose one copyable personal link only after regist
  const html=context.referralAction({slug:'demo',referral_token:'signed.token'});assert.match(html,/Copy personal invite link/);assert.match(html,/demo\?ref=signed.token/);
 });
 
+test('contact-host UI requires sign-in and never exposes the recipient email',()=>{
+ const source=fs.readFileSync(new URL('../public/events.html',import.meta.url),'utf8');assert.match(source,/function contactHost\(/);assert.match(source,/event-contact-form/);assert.match(source,/contact-host/);assert.doesNotMatch(source,/mailto:\$\{esc\(e\.event_details\.contact_email\)\}/);
+ const server=fs.readFileSync(new URL('../server.js',import.meta.url),'utf8');assert.match(server,/delete out\.event_details\.contact_email/);assert.match(server,/rateLimit\(\{max:5,windowMs:3600000\}\)/);
+});
+
+test('contact-host form localizes failures, preserves input, and clears only after provider acceptance',async()=>{
+ const {runInNewContext}=await import('node:vm'),source=fs.readFileSync(new URL('../public/events.html',import.meta.url),'utf8'),button={},status={};let submit,resets=0,fail=true;
+ const form={querySelector:s=>s==='button'?button:status,reset:()=>resets++,addEventListener:(name,handler)=>submit=handler},context={lang:'en',e:{id:'event_1'},document:{getElementById:id=>id==='event-contact-form'?form:null},FormData:class{get(){return 'Question';}},feedbackAction:async(_button,result,action)=>{try{result.textContent=await action();}catch(error){result.textContent=error.message;}},api:async(path,options)=>{assert.equal(path,'/events/event_1/contact-host');assert.equal(options.method,'POST');assert.equal(options.body.message,'Question');if(fail)throw Error('聯絡主辦人的寄信服務尚未設定。');}};
+ runInNewContext(source.slice(source.indexOf('function contactError('),source.indexOf('function meta(')),context);runInNewContext(source.slice(source.indexOf("  document.getElementById('event-contact-form')?.addEventListener"),source.indexOf("  document.getElementById('event-feedback')?.addEventListener")),context);
+ await submit({preventDefault(){},currentTarget:form});assert.equal(status.textContent,'The host contact email service is not configured.');assert.equal(resets,0);fail=false;await submit({preventDefault(){},currentTarget:form});assert.equal(status.textContent,'Your message was sent to the event creator.');assert.equal(resets,1);
+});
+
 test('registration identity fields allow new guests and prefill signed-in guests',async()=>{
  const {runInNewContext}=await import('node:vm'),source=fs.readFileSync(new URL('../public/events.html',import.meta.url),'utf8'),context={token:'',embedded:false,lang:'en',location:{href:'https://example.test/en/events/demo'},esc:value=>String(value).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;')};
  runInNewContext(source.slice(source.indexOf('function identityFields('),source.indexOf('function questionFields(')),context);
@@ -206,7 +218,7 @@ test('online join waits for authorization and retains a retryable error without 
   let click,resolve,reject,navigated,calls=0;const button={textContent:'Join',setAttribute(k,v){this[k]=v;}},result={};
   const context={lang,embedded:false,e:{id:'local-event'},document:{getElementById:id=>id==='event-online-open'?{removeAttribute(){}}:id==='event-online-status'?result:{addEventListener:(name,handler)=>{click=handler;}}},api:(path,options)=>{assert.equal(path,'/events/local-event/join-online');assert.equal(options.method,'POST');calls++;return new Promise((ok,no)=>{resolve=ok;reject=no;});},location:{assign:url=>{navigated=url;}}};
   runInNewContext(source.slice(source.indexOf('async function feedbackAction('),source.indexOf('async function register(')),context);
-  runInNewContext(source.slice(source.indexOf("  document.getElementById('event-online-join')?.addEventListener"),source.indexOf("  document.getElementById('event-feedback')?.addEventListener")),context);
+  runInNewContext(source.slice(source.indexOf("  document.getElementById('event-online-join')?.addEventListener"),source.indexOf("  document.getElementById('event-contact-form')?.addEventListener")),context);
   const pending=click({currentTarget:button});assert.equal(button.disabled,true);assert.equal(navigated,undefined);await click({currentTarget:button});assert.equal(calls,1);reject(Error('Registration is no longer valid'));await pending;assert.equal(navigated,undefined);assert.equal(result.textContent,'Registration is no longer valid');assert.equal(button.disabled,false);
   const retry=click({currentTarget:button});resolve({url:'https://example.test/meeting'});await retry;assert.equal(navigated,'https://example.test/meeting');assert.equal(button['aria-busy'],'false');
  }
@@ -217,7 +229,7 @@ test('embedded online join exposes a separate-tab link only after successful aut
  const button={textContent:'Join',setAttribute(){}},result={},link={hidden:false,href:'https://example.test/old',removeAttribute(name){delete this[name];}};
  const context={lang:'en',embedded:true,e:{id:'test'},document:{getElementById:id=>id==='event-online-open'?link:id==='event-online-status'?result:{addEventListener:(name,handler)=>{click=handler;}}},api:()=>new Promise((yes,no)=>{resolve=yes;reject=no;}),location:{assign(){assert.fail('must not navigate the iframe');}}};
  runInNewContext(source.slice(source.indexOf('async function feedbackAction('),source.indexOf('async function register(')),context);
- runInNewContext(source.slice(source.indexOf("  document.getElementById('event-online-join')?.addEventListener"),source.indexOf("  document.getElementById('event-feedback')?.addEventListener")),context);
+ runInNewContext(source.slice(source.indexOf("  document.getElementById('event-online-join')?.addEventListener"),source.indexOf("  document.getElementById('event-contact-form')?.addEventListener")),context);
  let pending=click({currentTarget:button});assert.equal(link.hidden,true);assert.equal(link.href,undefined);resolve({url:'https://example.test/meeting'});await pending;assert.equal(link.hidden,false);assert.equal(link.href,'https://example.test/meeting');assert.match(result.textContent,/verified/);
  pending=click({currentTarget:button});reject(Error('No longer registered'));await pending;assert.equal(link.hidden,true);assert.equal(link.href,undefined);
 });

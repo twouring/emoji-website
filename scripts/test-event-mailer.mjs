@@ -36,6 +36,12 @@ test('visible-only hosts receive the public event link',async()=>{
  const {queueHostInvitation}=createRequire(import.meta.url)('../lib/event-mailer');let call;await queueHostInvitation(async(sql,args)=>(call={sql,args},{rows:[{id:args[0]}]}),{event:{id:'event_1',slug:'demo',title:'Test event'},email:'host@example.test',name:'Host',role:'host',origin:'https://emoji.test'});
  assert.match(call.args[4],/https:\/\/emoji\.test\/events\/demo$/);assert.doesNotMatch(call.args[4],/organizer/);
 });
+test('contact-host messages validate content, hide recipients and keep retries idempotent',()=>{
+ const {normalizeHostMessage,hostContactMail}=createRequire(import.meta.url)('../lib/event-contact');
+ assert.equal(normalizeHostMessage('  Can I transfer my ticket?  '),'Can I transfer my ticket?');for(const bad of ['',null,{},'x'.repeat(5001)])assert.throws(()=>normalizeHostMessage(bad));
+ const input={event:{id:'event_1',slug:'demo',title:'Demo event',contact_email:'creator@example.test'},sender:{id:'guest_1',name:'Guest',email:'guest@example.test'},message:'Can I transfer my ticket?',origin:'https://emoji.test'},mail=hostContactMail(input);
+ assert.equal(mail.to,'creator@example.test');assert.equal(mail.replyTo,'guest@example.test');assert.match(mail.text,/https:\/\/emoji\.test\/events\/demo$/);assert.equal(mail.idempotencyKey,hostContactMail(input).idempotencyKey);assert.notEqual(mail.idempotencyKey,hostContactMail({...input,message:'Different'}).idempotencyKey);
+});
 test('Svix official signature vector, tampering, expiry and unknown versions',()=>{
  const {verifyMailWebhook}=createRequire(import.meta.url)('../lib/mail');
  const raw=Buffer.from('{"event_type":"ping","data":{"success":true}}'),secret='whsec_plJ3nmyCDGBKInavdOK15jsl',headers={'svix-id':'msg_loFOjxBNrRLzqYUf','svix-timestamp':'1731705121','svix-signature':'v1,rAvfW3dJ/X/qxhsaXPOyyCGmRKsaKWcsNccKXlIktD0='};

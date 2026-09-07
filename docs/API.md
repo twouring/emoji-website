@@ -636,6 +636,10 @@ body `{visible:boolean}`，已登入者僅能修改符合自己已驗證 Email �
 
 活動數據 `GET /api/admin/events/:id/insights` 新增 `online: {participants, clicks}`，為全活動累計點擊連結的帳號數與次數，不受瀏覽期間篩選，不代表實際會議出席。
 
+### POST /api/events/:id/contact-host
+
+登入使用者透過活動專屬入口聯絡活動建立者。body：`{ message }`，訊息 1–5000 字；收件 Email 不回傳前端，寄信的 Reply-To 為來賓帳號 Email，方便建立者直接回覆。同一使用者、活動與內容使用固定 idempotency key，每個 IP 每小時最多 5 次；寄信服務未設定或未接受訊息時不顯示成功。
+
 取消活動端點另接受 `notify: boolean`，預設 false。選擇通知但未設定寄信服務時回傳 503，不更動活動。啟用時，取消與取消通知佇列在同一筆交易提交，收件人為已報名／待付款／待審核／核准待付款／候補／請款處理中的購買者，以及有效已報名票券受讓人；依 Email 去重。回傳 `notifications_queued` 不代表已送達。取消通知屬必要狀態通知，不受公告退訂影響；不會自動退款。
 
 取消活動可附 `reason_translations: {en, ja}`，兩欄選填、各最多 1000 字。活動頁與取消郵件依語系套用，空白翻譯沿用 `reason`。
