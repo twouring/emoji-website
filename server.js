@@ -199,7 +199,7 @@ CREATE TABLE IF NOT EXISTS events (
   starts_at TIMESTAMPTZ, ends_at TIMESTAMPTZ,
   capacity INT DEFAULT 0,               -- 0 = 不限名額
   price_twd INT NOT NULL DEFAULT 0,
-  visibility TEXT NOT NULL DEFAULT 'public', -- public / private（private = 不列出、持連結可看）
+  visibility TEXT NOT NULL DEFAULT 'public', -- public / private / members
   status TEXT DEFAULT '報名中',          -- 草稿 / 報名中 / 已結束
   checkin_mode TEXT NOT NULL DEFAULT 'standard',
   checkin_mode_locked BOOLEAN NOT NULL DEFAULT false,
@@ -1467,8 +1467,8 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
        (mine.status='registered') AS registered
      FROM events e
      LEFT JOIN event_regs mine ON mine.event_id=e.id AND mine.user_id=$1
-     WHERE e.status='報名中' AND (e.visibility='public' OR mine.id IS NOT NULL)
-     ORDER BY e.starts_at ASC NULLS LAST`, [me.id])).rows;
+     WHERE e.status='報名中' AND (e.visibility='public' OR mine.id IS NOT NULL OR (e.visibility='members' AND $2))
+     ORDER BY e.starts_at ASC NULLS LAST`, [me.id, access.active])).rows;
   res.json({
     role: commitments.length ? 'participant' : 'invited',
     me, bond, users: [me], commitments, events:events.map(e=>localizeEvent(e,'zh')), updates,
@@ -2489,6 +2489,7 @@ app.post('/api/admin/events/:id/registration-settings', auth, requireDb, eventEd
   if(typeof b.requires_approval!=='boolean'||typeof b.waitlist!=='boolean')return res.status(400).json({error:'審核與候補設定格式不正確。'});
   const settings={requires_approval:b.requires_approval,waitlist:b.waitlist};
   if(b.group_registration!==undefined){if(typeof b.group_registration!=='boolean')return res.status(400).json({error:'團體報名設定格式不正確。'});settings.group_registration=b.group_registration;}
+  if(b.split_name!==undefined){if(typeof b.split_name!=='boolean')return res.status(400).json({error:'姓名拆分設定格式不正確。'});settings.split_name=b.split_name;}
   if(b.payment_approval!==undefined){if(!['after_approval','authorize'].includes(b.payment_approval))return res.status(400).json({error:'付費審核方式無效。'});settings.payment_approval=b.payment_approval;}
   if(b.feedback!==undefined){const f=b.feedback;if(!f||typeof f.enabled!=='boolean'||!Number.isInteger(f.delay_hours)||f.delay_hours<0||f.delay_hours>168||typeof f.subject!=='string'||f.subject.length>160||typeof f.body!=='string'||f.body.length>5000)return res.status(400).json({error:'回饋邀請需設定開關、活動結束後 0–168 小時、有效主旨與內容。'});settings.feedback={enabled:f.enabled,delay_hours:f.delay_hours,subject:f.subject.trim(),body:f.body.trim()};}
   if(b.reminders!==undefined){if(!Array.isArray(b.reminders)||b.reminders.some(h=>![1,24].includes(h)))return res.status(400).json({error:'提醒時間只可選活動前 24 小時或 1 小時。'});settings.reminders=[...new Set(b.reminders)];}
@@ -2708,11 +2709,12 @@ app.delete('/api/admin/events/:id/regs/:registrationId/tickets/:attendeeId',auth
 
 app.get('/api/admin/events/:id/regs', auth, requireDb, eventEditor, wrap(async (req, res) => {
   const rows = (await q(
-    `SELECT r.id,u.name,u.email,u.phone,r.note,r.answers,r.capture_required,r.authorization_expires_at,r.ticket_snapshot,(SELECT COALESCE(SUM(f.amount),0)/100.0 FROM event_refunds f WHERE f.payment_intent=r.stripe_payment_intent_id AND f.status NOT IN ('failed','canceled')) AS amount_refunded,r.quantity,COALESCE((SELECT jsonb_agg(to_jsonb(a)||jsonb_build_object('ticket_id',COALESCE(o.ticket_snapshot->>'id',r.ticket_snapshot->>'id'),'ticket_name',COALESCE(o.ticket_snapshot->>'name',r.ticket_snapshot->>'name'),'is_additional',a.order_id IS NOT NULL) ORDER BY a.ordinal,a.id) FROM event_attendees a LEFT JOIN event_ticket_orders o ON o.id=a.order_id WHERE a.registration_id=r.id),'[]') AS attendees,r.status,r.amount_due,r.amount_paid,
+    `SELECT r.id,COALESCE(primary_attendee.name,u.name) AS name,COALESCE(primary_attendee.email,u.email) AS email,u.phone,r.note,r.answers,r.capture_required,r.authorization_expires_at,r.ticket_snapshot,(SELECT COALESCE(SUM(f.amount),0)/100.0 FROM event_refunds f WHERE f.payment_intent=r.stripe_payment_intent_id AND f.status NOT IN ('failed','canceled')) AS amount_refunded,r.quantity,COALESCE((SELECT jsonb_agg(to_jsonb(a)||jsonb_build_object('ticket_id',COALESCE(o.ticket_snapshot->>'id',r.ticket_snapshot->>'id'),'ticket_name',COALESCE(o.ticket_snapshot->>'name',r.ticket_snapshot->>'name'),'is_additional',a.order_id IS NOT NULL) ORDER BY a.ordinal,a.id) FROM event_attendees a LEFT JOIN event_ticket_orders o ON o.id=a.order_id WHERE a.registration_id=r.id),'[]') AS attendees,r.status,r.amount_due,r.amount_paid,
        to_char(r.created_at,'YYYY/MM/DD HH24:MI') AS created_at,
        to_char(r.paid_at,'YYYY/MM/DD HH24:MI') AS paid_at,
        to_char(r.checked_in_at,'YYYY/MM/DD HH24:MI') AS checked_in_at
      FROM event_regs r JOIN users u ON u.id=r.user_id
+     LEFT JOIN LATERAL (SELECT name,email FROM event_attendees WHERE registration_id=r.id ORDER BY ordinal,id LIMIT 1) primary_attendee ON true
      WHERE r.event_id=$1 ORDER BY r.created_at`, [req.params.id])).rows;
   res.json({ regs: rows });
 }));
@@ -2720,9 +2722,9 @@ app.get('/api/admin/events/:id/regs', auth, requireDb, eventEditor, wrap(async (
 app.get('/api/admin/events/:id/check-in',auth,requireDb,eventCheckinAccess,wrap(async(req,res)=>{
  const event=(await q('SELECT title,status,tickets,checkin_mode,checkin_mode_locked FROM events WHERE id=$1',[req.params.id])).rows[0];
  if(!event)return res.status(404).json({error:'找不到活動。'});
- const rows=(await q(`SELECT r.id AS registration_id,NULL::text AS attendee_id,u.name,u.email,u.phone,u.name AS buyer_name,u.email AS buyer_email,
+ const rows=(await q(`SELECT r.id AS registration_id,NULL::text AS attendee_id,COALESCE(primary_attendee.name,u.name) AS name,COALESCE(primary_attendee.email,u.email) AS email,u.phone,u.name AS buyer_name,u.email AS buyer_email,
    r.status,r.checked_in_at,r.created_at,r.amount_due,r.amount_paid,r.answers,r.coupon_snapshot->>'code' AS coupon_code,r.ticket_snapshot->>'id' AS ticket_id,r.ticket_snapshot->>'name' AS ticket_name
-   FROM event_regs r JOIN users u ON u.id=r.user_id WHERE r.event_id=$1 AND r.quantity=1
+   FROM event_regs r JOIN users u ON u.id=r.user_id LEFT JOIN LATERAL (SELECT name,email FROM event_attendees WHERE registration_id=r.id ORDER BY ordinal,id LIMIT 1) primary_attendee ON true WHERE r.event_id=$1 AND r.quantity=1
    UNION ALL
    SELECT r.id,a.id,a.name,a.email,u.phone,u.name,u.email,r.status,a.checked_in_at,r.created_at,r.amount_due,r.amount_paid,r.answers,r.coupon_snapshot->>'code',
    COALESCE(o.ticket_snapshot->>'id',r.ticket_snapshot->>'id'),COALESCE(o.ticket_snapshot->>'name',r.ticket_snapshot->>'name')
@@ -3187,12 +3189,13 @@ app.get('/api/admin/ig/status', auth, adminOnly, requireDb, wrap(async (_req, re
 }));
 
 /* ---- 活動前台：公開列表、私人連結、報名付款與票券 ---- */
-app.get('/api/events', requireDb, wrap(async (req, res) => {
+app.get('/api/events', optionalAuth, requireDb, wrap(async (req, res) => {
+  const member = req.auth?.sub ? (await memberAccessFor(req.auth.sub)).active : false;
   const events = (await q(
     `SELECT ${SEL_EVENT},
        (SELECT COALESCE(SUM(r.quantity),0)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS reg_count
-     FROM events e WHERE status IN ('預告','報名中') AND visibility='public'
-     ORDER BY starts_at ASC NULLS LAST`
+     FROM events e WHERE status IN ('預告','報名中') AND (visibility='public' OR (visibility='members' AND $1))
+     ORDER BY starts_at ASC NULLS LAST`, [member]
   )).rows;
   res.json({ events: events.map(e => localizeEvent(e, req.query.lang)) });
 }));
@@ -3403,13 +3406,18 @@ app.post('/api/events/:id/register', auth, requireDb, wrap(async (req, res) => {
 
     const approved=mine?.status==='approved'&&mine.checkout_expires_at>new Date();
     if(mine?.status==='approved'&&!approved){await client.query("UPDATE event_regs SET status='pending_approval',checkout_expires_at=NULL WHERE id=$1",[mine.id]);await client.query('COMMIT');return res.status(409).json({error:'付款保留時間已到期，已轉回待審核，請聯絡主辦人。'});}
+    const registrationSettings=ev.registration_settings || {};
     const quantity=approved?mine.quantity:Number(req.body?.quantity??1);
     if(!Number.isInteger(quantity)||quantity<1||quantity>10){await client.query('ROLLBACK');return res.status(400).json({error:'每筆報名可購買 1–10 張票。'});}
     if(!approved&&quantity>1&&ev.registration_settings?.group_registration===false){await client.query('ROLLBACK');return res.status(400).json({error:'此活動僅開放單人報名。'});}
     let attendees;
     if(!approved){
       const buyer=(await client.query('SELECT name,email FROM users WHERE id=$1',[req.auth.sub])).rows[0];
-      attendees=req.body?.attendees??(quantity===1?[buyer]:null);
+      if(registrationSettings.split_name&&quantity===1){
+        const first=String(req.body?.first_name||'').trim(),last=String(req.body?.last_name||'').trim();
+        if(!first||!last||first.length>60||last.length>60){await client.query('ROLLBACK');return res.status(400).json({error:'請填寫姓與名，每欄最多 60 字。'});}
+        attendees=[{name:['en'].includes(req.body?.lang)?first+' '+last:last+first,email:buyer.email}];
+      }else attendees=req.body?.attendees??(quantity===1?[buyer]:null);
       if(!Array.isArray(attendees)||attendees.length!==quantity||attendees.some(a=>!a||typeof a.name!=='string'||!a.name.trim()||a.name.length>120||typeof a.email!=='string'||a.email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a.email))){await client.query('ROLLBACK');return res.status(400).json({error:'請填寫每位參加者的姓名與 Email，票數需與參加者人數一致。'});}
       attendees=attendees.map(a=>({name:a.name.trim(),email:a.email.trim().toLowerCase()}));
     }
@@ -3423,7 +3431,7 @@ app.post('/api/events/:id/register', auth, requireDb, wrap(async (req, res) => {
         if(usage>=couponSnapshot.max_uses){await client.query('ROLLBACK');return res.status(409).json({error:'優惠碼使用次數已達上限。'});}
       }
     }
-    const settings=ev.registration_settings || {};
+    const settings=registrationSettings;
     const requiresApproval=settings.requires_approval||selectedTicket?.requires_approval;
     let captureRequired=!approved&&price>0&&requiresApproval&&settings.payment_approval==='authorize';
     if((settings.opens_at&&Date.now()<Date.parse(settings.opens_at))||(settings.closes_at&&Date.now()>=Date.parse(settings.closes_at))){

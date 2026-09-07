@@ -88,7 +88,7 @@ test('changing quote inputs invalidates an in-flight price or error',async()=>{
 
 test('changing group quantity preserves attendee drafts without inserting executable attributes',async()=>{
  const {runInNewContext}=await import('node:vm'),source=fs.readFileSync(new URL('../public/events.html',import.meta.url),'utf8');let change,inputs=[];
- const container={querySelectorAll:()=>inputs,innerHTML:''};const context={lang:'en',esc:value=>String(value).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;'),document:{getElementById:id=>id==='ticket-attendees'?container:{addEventListener:(name,handler)=>{change=handler;}}}};
+ const container={querySelectorAll:()=>inputs,innerHTML:''};const context={e:{registration_settings:{split_name:false}},lang:'en',esc:value=>String(value).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;'),document:{getElementById:id=>id==='ticket-attendees'?container:{addEventListener:(name,handler)=>{change=handler;}}}};
  runInNewContext(source.slice(source.indexOf('  const attendeeDraft={}'),source.indexOf("  document.getElementById('ev-registration-form').addEventListener('input'")),context);
  change({target:{value:'2'}});assert.match(container.innerHTML,/Name \(required\)/);
  inputs=[{name:'attendee_name_0',value:'A "guest"'},{name:'attendee_email_0',value:'one@example.test'},{name:'attendee_name_1',value:'Second'}];change({target:{value:'3'}});
@@ -130,6 +130,7 @@ test('event management opens one task-based panel instead of expanding every act
  assert.match(list,/id="event-editor-title">建立新活動/);assert.match(list,/建立活動後，再設定票種、報名表與公開頁內容/);
  assert.match(source,/id="rg-ticket"/);assert.match(source,/<option value="">全部<\/option><option value="registered">已報名<\/option>/);assert.match(source,/data-guest-tickets=/);
  assert.match(source,/data-guest-ticket-edit=/);assert.match(source,/id="guest-update-existing"/);assert.match(source,/update_existing:updateExisting/);assert.match(source,/eventAnswer\(a\.value\)/);assert.match(source,/id="rg-status-selected"/);assert.match(source,/value="checkedAt">簽到時間/);
+ assert.match(source,/id="share-qr-image"/);assert.match(source,/QRCode\.toDataURL\(host\.querySelector\('#share-url'\)\.value/);
  context.BASE='/organizer';assert.match(context.tabEvents({events:[{id:'event-1',title:'Example',status:'草稿'}],organizer:true}),/href="\/organizer\/events\/event-1"/);context.BASE='/admin';
  const manager={hidden:true,innerHTML:'',querySelector:()=>({}),querySelectorAll:()=>[],scrollIntoView(){}},listView={hidden:false};
  context.document={title:'',getElementById:id=>id==='ev-manager'?manager:id==='event-list-view'?listView:{hidden:false,style:{}}};

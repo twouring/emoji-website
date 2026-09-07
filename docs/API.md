@@ -52,11 +52,11 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" https://www.emoji.tw/api/state
 
 ### GET /api/events
 可用 `?lang=zh|en|ja` 取得名稱、說明與地點的對應語系；未填翻譯沿用中文。公開列表包含預告與報名中。
-公開活動列表。只回 `visibility=public` 且「預告／報名中」的活動與已成立報名數。
+公開活動列表。未登入只回 `visibility=public`；有效會員帶 Bearer token 時另回 `visibility=members`，皆限「預告／報名中」並包含已成立報名數。
 
 ### GET /api/events/:slug
 支援同樣的 `?lang=zh|en|ja`；回傳包含 `translations`。
-活動詳情。公開活動與私人活動皆可由直接連結讀取；私人活動不會出現在列表。帶有效會員 Bearer token 時一併回自己的報名、付款與簽到狀態。
+活動詳情。公開、私人與會員限定活動皆可由直接連結讀取；私人活動不列入清單，會員限定活動只列入有效會員的清單。帶有效 Bearer token 時一併回自己的報名、付款與簽到狀態。
 
 ### GET /api/points/packs
 點數方案定價表。回 `{ price_twd, packs }`。
@@ -121,7 +121,7 @@ Google 授權回呼，簽發會員 token 並導回。
 
 ### POST /api/admin/events
 新增或更新活動。body：`{ id?, slug?, title, description, location, starts_at, ends_at, capacity, price_twd, visibility, status, translations? }`。
-`visibility` 限 `public`｜`private`；`status` 限 `草稿`｜`預告`｜`報名中`｜`已結束`；票價與名額為 0 以上整數。帶 `id` 為更新，回 `{ ok, id, slug }`。
+`visibility` 限 `public`｜`private`｜`members`；`status` 限 `草稿`｜`預告`｜`報名中`｜`已結束`；票價與名額為 0 以上整數。帶 `id` 為更新，回 `{ ok, id, slug }`。
 
 `translations` 為 `zh/en/ja` 物件；一般欄位為 `title/description/location`，專屬頁純文字欄位見 `public/event-fields.js`。每欄最多 10000 字，不接受 HTML 執行；未傳 translations 的舊 API 更新會保留既有翻譯。中文基本欄位以頂層值為準。預告可公開但不能報名；百鬼夜行首次 migration 以預告建立，後續啟動不覆寫後台編輯。
 
@@ -337,7 +337,7 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 
 ### POST /api/admin/events/:id/registration-settings
 
-活動管理者設定 `requires_approval`、`waitlist` 布林值與可空白的 `opens_at`、`closes_at` ISO 時間。免費及付費票支援待審核與候補；付費票核准後為 approved，保留名額 24 小時，參加者付款後才成立票券。此流程為核准後付款，不是信用卡預授權。
+活動管理者設定 `requires_approval`、`waitlist`、`group_registration`、`split_name` 布林值、`payment_approval`（`after_approval`／`authorize`）及可空白的 `opens_at`、`closes_at` ISO 時間。`split_name=true` 時，單人報名必須分開填寫名與姓，並以來賓語系的姓名順序保存於該場票券。免費及付費票支援待審核與候補；付費票可選核准後 24 小時內付款，或先做信用卡預授權、核准後才請款。
 
 ### POST /api/admin/events/:id/regs/:registrationId/status
 
