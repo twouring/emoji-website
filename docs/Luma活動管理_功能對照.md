@@ -4,7 +4,7 @@
 
 ## 最新回歸狀態（2026-09-08）
 
-含隔離 PostgreSQL 與三語本機路由的全套 `npm test`：348 項全數通過、0 跳過、0 失敗。Stylebook 於 320／390／768／1180／1440px、100%／200% 文字及離線字型檢查通過。API 文件檢查現已涵蓋 Express 路徑陣列。下方舊測試數字為歷次紀錄，不代表目前測試數；此結果不證明正式部署完成。
+含隔離 PostgreSQL 的全套 `npm test`：350 項中 349 通過、0 失敗；唯一略過的三語本機路由另跑 2 項並全數通過。Stylebook 於 320／390／768／1180／1440px、100%／200% 文字及離線字型檢查通過。API 文件檢查現已涵蓋 Express 路徑陣列。下方舊測試數字為歷次紀錄，不代表目前測試數；此結果不證明正式部署完成。
 
 ## 已納入本次修改
 
@@ -52,16 +52,23 @@
 | 團隊 | 外部活動主、公開共同主辦、共同管理與僅簽到人員、掃描模式和票種範圍均已實作 |
 | 收款 | 言文字統一收款、逐活動稅金、審核後收款／預授權、原始票與加購票退款、票券失效、收據、退款台帳與主辦人結算均已實作；實際交易需設定 Stripe |
 | 數據 | 瀏覽／報名／到場漏斗、日／週／月區間、來源／UTM／轉介、即時工作階段及線上入口點擊均已實作；不蒐集 IP，因此不提供城市推算 |
-| 整合邊界 | 單場活動已支援三語頁、Google Calendar／ICS、受保護線上入口、第三方網站嵌入、UTM／廣告點擊參數及活動專屬 API；Zapier 可透過其 Webhooks 動作呼叫。Google Meet、Zoom Meeting／Webinar，以及 Apple／Google Wallet 票券簽發已實作，仍待正式帳號驗證；錢包自動更新、加密貨幣 token gate，以及 Blast 的 SMS／原生推播仍缺正式實作或帳號驗證，尚不可宣告全部完成 |
+| 整合邊界 | 單場活動已支援三語頁、Google Calendar／ICS、受保護線上入口、第三方網站嵌入、UTM／廣告點擊參數及活動專屬 API；Zapier 可透過其 Webhooks 動作呼叫。Google Meet、Zoom Meeting／Webinar、Apple／Google Wallet 票券簽發、Ethereum／Solana 地址收集及 ERC-20／ERC-721 持有驗證已實作。正式帳號、錢包自動更新、Blast SMS／WhatsApp 與原生推播仍需供應商憑證或原生 App，尚不可宣告外部送達驗收完成 |
 | 即時 Webhook | 每場活動最多 10 個 HTTPS 公網端點，可訂閱活動建立／更新／取消及來賓報名／更新／退款；密鑰只顯示一次並加密保存，投遞有 HMAC 簽章、暫停／恢復、測試、最近紀錄、1／2／4 分鐘重試與 HTTP 410 自動暫停 |
 
 後台分享工具會依語言、票種、優惠與追蹤參數即時產生現場報名 QR 圖片，可直接下載列印；掃碼後由新來賓在自己的裝置填姓名與 Email 報名，付費票由言文字統一收款。
 
 第三方整合須逐一確認實際帳號、服務權限、金流歸屬及測試環境；尚未連線時介面會明確顯示未設定。前台不顯示假成功；自動驗收不執行實際群發、扣款或金融交易。
 
+## 2026-09-08 錢包地址與 Token 票種
+
+- 活動管理者可要求報名者以限時簽名驗證 Ethereum／Solana 地址；前台依中／英／日顯示狀態，後台名單與 CSV 保留驗證後地址。同一鏈上地址每場活動由資料庫限制只能使用一次。
+- 票種可設定 ERC-20 合約、顯示名稱、最低持有量與小數位，或設定 ERC-721 合約。ERC-20 以 `balanceOf(address)` 驗證；ERC-721 要求 Token ID 並以 `ownerOf(tokenId)` 驗證，同一 NFT 每場活動只能使用一次。RPC 無法確認時停止報名，不核發票券。
+- 側邊瀏覽器由活動工作區建立 ERC-721 驗收票，確認前台選票後才顯示 Ethereum 簽名與 NFT Token ID，ERC-20 專用欄位正確隱藏；完成後刪除測試票並還原設定。另以免費活動實際報名，前台人數由 2／6 變為 3／6、顯示完成與登入管理入口，後台同場名單立即讀到新來賓；驗收資料刪除後回到 2／6。
+- 活動清單每列仍只有一個「管理」連結。側邊瀏覽器點擊指定活動後，網址直接成為 `/admin/events/e_ea4e0466e79d4e2c`，標題、名額與名單均屬同一場活動，沒有列內下拉。
+
 ## 2026-09-08 官方索引復核與聯絡主辦人
 
-- 重新逐項檢查 [Luma Events 官方索引](https://help.luma.com/t/events)。[Zoom](https://help.luma.com/p/zoom-integration)、Google Meet 與[行動錢包票券](https://help.luma.com/p/mobile-wallet-passes)簽發已完成程式與本機驗收，但未連接正式供應商帳號；錢包自動更新、加密貨幣 token gate 與 Blast 外部通知通道仍列為缺口。
+- 重新逐項檢查 [Luma Events 官方索引](https://help.luma.com/t/events)。[Zoom](https://help.luma.com/p/zoom-integration)、Google Meet、[行動錢包票券](https://help.luma.com/p/mobile-wallet-passes)簽發與加密貨幣票種已完成程式及本機驗收；正式供應商帳號、錢包自動更新與 Blast 外部通知通道仍列為外部驗收缺口。
 - 依 [Luma 聯絡主辦人](https://help.luma.com/p/contacting-event-hosts) 將公開 mailto 改為登入後的三語站內表單。收件地址不進公開 API；訊息只寄給活動建立者，建立者可直接回覆來賓 Email。
 - 送出採每小時限流與內容冪等鍵；寄信失敗保留表單，只有供應商接受郵件後才清空並顯示成功。備用收件 Email 只用於沒有建立者帳號的舊活動，後台明示不公開。
 - 側邊瀏覽器驗證登出時只有登入入口；登入後英文與日文表單皆可操作，缺 Resend 時依語系顯示明確錯誤並保留原訊息。公開 API 回讀 `can_contact_host=true`，且不包含 `owner_id` 或備用收件 Email。隔離 PostgreSQL 與全套 343 項測試通過。

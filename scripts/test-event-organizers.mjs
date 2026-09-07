@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {randomBytes,createHmac,createHash} from 'node:crypto';
+import {randomBytes,createHmac,createHash,generateKeyPairSync,sign} from 'node:crypto';
 import {unlink} from 'node:fs/promises';
 import {spawn} from 'node:child_process';
 import {createServer} from 'node:net';
 import {createServer as createHttpServer} from 'node:http';
 import {setTimeout as delay} from 'node:timers/promises';
 import {createRequire} from 'node:module';
-const require=createRequire(import.meta.url),{Pool}=require('pg');
+const require=createRequire(import.meta.url),{Pool}=require('pg'),{Wallet}=require('ethers');
+const base58=bytes=>{const alphabet='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';let n=BigInt('0x'+Buffer.from(bytes).toString('hex')),out='';while(n){out=alphabet[Number(n%58n)]+out;n/=58n;}for(const byte of bytes){if(byte)break;out='1'+out;}return out||'1';};
 const dbUrl=process.env.EVENT_APPLICATION_TEST_DATABASE_URL;
 test('organizer isolation, scoped cohosts, translations, publication and registration persist in PostgreSQL',{skip:!dbUrl,timeout:60000},async()=>{
  const url=new URL(dbUrl);assert.ok(['localhost','127.0.0.1'].includes(url.hostname));assert.match(url.pathname,/_test/,'Use an explicitly named local test database');
@@ -17,9 +18,9 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await control.query(`CREATE SCHEMA ${schema}`);url.searchParams.set('options',`-c search_path=${schema}`);pool=new Pool({connectionString:url.href});
   const listener=createServer();await new Promise(resolve=>listener.listen(0,'127.0.0.1',resolve));const port=listener.address().port;await new Promise(resolve=>listener.close(resolve));
   const origin='http://127.0.0.1:'+port,secret=randomBytes(24).toString('hex'),admin=randomBytes(24).toString('hex'),webhookRequests=[];
-  receiver=createHttpServer((req,res)=>{let body='';req.on('data',chunk=>body+=chunk);req.on('end',()=>{webhookRequests.push({url:req.url,headers:req.headers,body});res.writeHead(req.url==='/gone'?410:204).end();});});await new Promise(resolve=>receiver.listen(0,'127.0.0.1',resolve));
+  receiver=createHttpServer((req,res)=>{let body='';req.on('data',chunk=>body+=chunk);req.on('end',()=>{if(req.url==='/rpc')return res.writeHead(200,{'content-type':'application/json'}).end(JSON.stringify({jsonrpc:'2.0',id:1,result:'0xde0b6b3a7640000'}));webhookRequests.push({url:req.url,headers:req.headers,body});res.writeHead(req.url==='/gone'?410:204).end();});});await new Promise(resolve=>receiver.listen(0,'127.0.0.1',resolve));
   const webhookOrigin='http://127.0.0.1:'+receiver.address().port;
-  child=spawn(process.execPath,['server.js'],{cwd:new URL('..',import.meta.url),env:{PORT:String(port),DATABASE_URL:url.href,APP_SECRET:secret,ADMIN_API_KEY:admin,EVENT_QR_SECRET:secret,EVENT_WEBHOOK_ALLOW_LOOPBACK:'1',EVENT_WEBHOOK_POLL_MS:'100',IG_AUTOPUBLISH:'0',PUBLIC_ORIGIN:origin,WEB_ORIGINS:origin,SUPER_ADMIN_EMAIL:'admin@example.test'},stdio:['ignore','pipe','pipe']});
+  child=spawn(process.execPath,['server.js'],{cwd:new URL('..',import.meta.url),env:{PORT:String(port),DATABASE_URL:url.href,APP_SECRET:secret,ADMIN_API_KEY:admin,EVENT_QR_SECRET:secret,ETHEREUM_RPC_URL:webhookOrigin+'/rpc',EVENT_WEBHOOK_ALLOW_LOOPBACK:'1',EVENT_WEBHOOK_POLL_MS:'100',IG_AUTOPUBLISH:'0',PUBLIC_ORIGIN:origin,WEB_ORIGINS:origin,SUPER_ADMIN_EMAIL:'admin@example.test'},stdio:['ignore','pipe','pipe']});
   child.stdout.on('data',c=>logs+=c);child.stderr.on('data',c=>logs+=c);
   let ready=false;for(let i=0;i<150;i++){try{if((await fetch(origin+'/api/events')).ok){ready=true;break;}}catch{}await delay(100);}assert.ok(ready,logs);
   const token=sub=>{const iat=Date.now(),b=Buffer.from(JSON.stringify({sub,role:'invited',purpose:'session',iat,exp:iat+600000})).toString('base64url');return b+'.'+createHmac('sha256',secret).update(b).digest('base64url');};
@@ -39,6 +40,12 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   const payload={title:'中文活動',description:'內容',location:'Taipei',status:'報名中',starts_at:'2026-10-31T18:00',ends_at:'2026-11-01T00:00',capacity:1,price_twd:0,translations:{en:{title:'English event',description:'English copy',location:'Taipei'},ja:{title:'日本語イベント'}}};
   const first=await call('/admin/events',{as:a,method:'POST',body:{...payload,owner_id:'org_b'}});
   const other=await call('/admin/events',{as:b,method:'POST',body:payload});
+  const cryptoEvent=await call('/admin/events',{as:a,method:'POST',body:{...payload,title:'Token holders',capacity:10}}),wallet=Wallet.createRandom(),gatedTicket={id:'t_token',name:'Token pass',price_twd:0,capacity:10,active:true,token_gate:{enabled:true,type:'erc20',contract:'0x0000000000000000000000000000000000000001',name:'Community Token',minimum:'1',decimals:18}};
+  await call('/admin/events/'+cryptoEvent.id+'/tickets',{as:a,method:'POST',body:{tickets:[gatedTicket]}});await call('/admin/events/'+cryptoEvent.id+'/registration-settings',{as:a,method:'POST',body:{requires_approval:false,waitlist:false,wallet_collection:{ethereum:true,solana:true}}});
+  const challenge=await call('/events/'+cryptoEvent.id+'/crypto/challenge',{as:guest,method:'POST',body:{chain:'ethereum',address:wallet.address}}),walletProof={token:challenge.token,signature:await wallet.signMessage(challenge.message)},solanaKeys=generateKeyPairSync('ed25519'),solanaAddress=base58(solanaKeys.publicKey.export({format:'der',type:'spki'}).subarray(-32)),solanaChallenge=await call('/events/'+cryptoEvent.id+'/crypto/challenge',{as:guest,method:'POST',body:{chain:'solana',address:solanaAddress}}),solanaProof={token:solanaChallenge.token,signature:sign(null,Buffer.from(solanaChallenge.message),solanaKeys.privateKey).toString('base64')};
+  await call('/events/'+cryptoEvent.id+'/register',{as:guest,method:'POST',body:{ticket_id:gatedTicket.id,ethereum_wallet_proof:walletProof,solana_wallet_proof:solanaProof}});
+  await call('/events/'+cryptoEvent.id+'/register',{as:guest2,method:'POST',body:{ticket_id:gatedTicket.id,ethereum_wallet_proof:walletProof,solana_wallet_proof:solanaProof},status:409});
+  const cryptoRegistration=(await call('/admin/events/'+cryptoEvent.id+'/regs',{as:a})).regs[0];assert.equal(cryptoRegistration.wallet_address,wallet.address);assert.equal(cryptoRegistration.solana_wallet_address,solanaAddress);
   const meeting=await call('/admin/events/'+first.id+'/meeting',{as:a});assert.equal(meeting.google_meet.configured,false);assert.equal(meeting.google_meet.connected,false);assert.equal(meeting.zoom.configured,false);assert.equal(meeting.zoom.connected,false);
   await call('/admin/events/'+first.id+'/meeting/connect',{as:a,method:'POST',body:{redirect:'/organizer/events/'+first.id},status:503});await call('/admin/events/'+first.id+'/meeting/connect',{as:a,method:'POST',body:{provider:'zoom'},status:503});await call('/admin/events/'+first.id+'/meeting/create',{as:a,method:'POST',body:{provider:'zoom',kind:'webinar'},status:409});await call('/admin/events/'+first.id+'/meeting/create',{as:a,method:'POST',body:{provider:'zoom',kind:'invalid'},status:400});await call('/admin/events/'+first.id+'/meeting',{as:b,status:404});
   await pool.query("UPDATE events SET event_details=jsonb_build_object('meeting_provider','google-meet','meeting_id','calendar-test') WHERE id=$1",[first.id]);
@@ -132,7 +139,7 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   assert.equal((await pool.query("SELECT COUNT(*)::int AS n FROM users WHERE email='no-send@example.test'")).rows[0].n,0);
   const imported=await call('/admin/events/'+other.id+'/guests/import',{as:b,method:'POST',body:{guests:[{name:'Import',email:'import@example.test'}]}});assert.equal(imported.added,1);
   const repeated=await call('/admin/events/'+other.id+'/guests/import',{as:b,method:'POST',body:{guests:[{name:'Overwrite attack',email:'import@example.test'}]}});assert.equal(repeated.skipped,1);assert.equal((await pool.query("SELECT name FROM users WHERE email='import@example.test'")).rows[0].name,'Import');
-  const state=await call('/organizer/state',{as:a});assert.deepEqual(new Set(state.events.map(e=>e.id)),new Set([first.id,memberEvent.id]));assert.ok(state.events.every(e=>e.owner_id==='org_a'));assert.deepEqual(state.users,[]);assert.deepEqual(state.commitments,[]);
+  const state=await call('/organizer/state',{as:a});assert.deepEqual(new Set(state.events.map(e=>e.id)),new Set([first.id,memberEvent.id,cryptoEvent.id]));assert.ok(state.events.every(e=>e.owner_id==='org_a'));assert.deepEqual(state.users,[]);assert.deepEqual(state.commitments,[]);
   for(const suffix of ['regs','hosts','payments','insights','messages'])await call('/admin/events/'+other.id+'/'+suffix,{as:a,status:404});
   await call('/admin/events',{as:a,method:'POST',body:{...payload,id:other.id},status:404});
   await call('/admin/events/'+other.id,{as:a,method:'DELETE',status:404});

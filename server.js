@@ -29,6 +29,7 @@ const {refundTotals}=require('./lib/event-refunds');
 const {EVENT_TYPES:EVENT_WEBHOOK_TYPES,normalizeWebhook,sendWebhook}=require('./lib/event-webhooks');
 const {oauthUrl,meetingRequest,meetingResult}=require('./lib/event-meetings');
 const eventWallets=require('./lib/event-wallets');
+const eventCrypto=require('./lib/event-crypto');
 const eventQuestions = require('./lib/event-questions');
 const { eventSlug, normalizeEventInput, localizeEvent, normalizeAttribution } = require('./lib/events');
 const { normalizeEventApplication } = require('./lib/event-applications');
@@ -516,6 +517,14 @@ async function migrate() {
     registration_id TEXT NOT NULL,user_id TEXT NOT NULL,snapshot JSONB NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS ticket_snapshot JSONB`);
   await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS answers JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS wallet_chain TEXT`);
+  await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS wallet_address TEXT`);
+  await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS solana_wallet_address TEXT`);
+  await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS nft_contract TEXT`);
+  await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS nft_token_id TEXT`);
+  await q(`CREATE UNIQUE INDEX IF NOT EXISTS event_regs_wallet_unique ON event_regs(event_id,wallet_chain,wallet_address) WHERE wallet_address IS NOT NULL`);
+  await q(`CREATE UNIQUE INDEX IF NOT EXISTS event_regs_solana_wallet_unique ON event_regs(event_id,solana_wallet_address) WHERE solana_wallet_address IS NOT NULL`);
+  await q(`CREATE UNIQUE INDEX IF NOT EXISTS event_regs_nft_unique ON event_regs(event_id,nft_contract,nft_token_id) WHERE nft_token_id IS NOT NULL`);
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS registration_settings JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await q(`CREATE TABLE IF NOT EXISTS event_activity (
     id BIGSERIAL PRIMARY KEY,event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
@@ -2721,6 +2730,7 @@ app.post('/api/admin/events/:id/registration-settings', auth, requireDb, eventEd
   const settings={requires_approval:b.requires_approval,waitlist:b.waitlist};
   if(b.group_registration!==undefined){if(typeof b.group_registration!=='boolean')return res.status(400).json({error:'團體報名設定格式不正確。'});settings.group_registration=b.group_registration;}
   if(b.split_name!==undefined){if(typeof b.split_name!=='boolean')return res.status(400).json({error:'姓名拆分設定格式不正確。'});settings.split_name=b.split_name;}
+  if(b.wallet_collection!==undefined){const wallets=b.wallet_collection;if(!wallets||typeof wallets.ethereum!=='boolean'||typeof wallets.solana!=='boolean')return res.status(400).json({error:'錢包地址收集設定格式不正確。'});settings.wallet_collection={ethereum:wallets.ethereum,solana:wallets.solana};}
   if(b.tax!==undefined){if(req.auth.role!=='admin')return res.status(403).json({error:'稅金由言文字統一收款帳戶設定。'});try{settings.tax=normalizeTax(b.tax);}catch(error){return res.status(400).json({error:error.message});}}
   if(b.payment_approval!==undefined){if(!['after_approval','authorize'].includes(b.payment_approval))return res.status(400).json({error:'付費審核方式無效。'});settings.payment_approval=b.payment_approval;}
   if(b.feedback!==undefined){const f=b.feedback;if(!f||typeof f.enabled!=='boolean'||!Number.isInteger(f.delay_hours)||f.delay_hours<0||f.delay_hours>168||typeof f.subject!=='string'||f.subject.length>160||typeof f.body!=='string'||f.body.length>5000)return res.status(400).json({error:'回饋邀請需設定開關、活動結束後 0–168 小時、有效主旨與內容。'});settings.feedback={enabled:f.enabled,delay_hours:f.delay_hours,subject:f.subject.trim(),body:f.body.trim()};}
@@ -2962,7 +2972,7 @@ app.get('/api/admin/events/:id/regs', auth, requireDb, eventEditor, wrap(async (
   const event=(await q('SELECT starts_at,ends_at FROM events WHERE id=$1',[req.params.id])).rows[0];
   if(!event)return res.status(404).json({error:'找不到活動。'});
   const rows = (await q(
-    `SELECT r.id,r.ticket_version,COALESCE(primary_attendee.name,u.name) AS name,COALESCE(primary_attendee.email,u.email) AS email,u.phone,r.note,r.answers,r.capture_required,r.authorization_expires_at,r.ticket_snapshot,(SELECT COALESCE(SUM(f.amount),0)/100.0 FROM event_refunds f WHERE f.payment_intent=r.stripe_payment_intent_id AND f.status NOT IN ('failed','canceled')) AS amount_refunded,r.quantity,COALESCE((SELECT jsonb_agg(to_jsonb(a)||jsonb_build_object('ticket_id',COALESCE(o.ticket_snapshot->>'id',r.ticket_snapshot->>'id'),'ticket_name',COALESCE(o.ticket_snapshot->>'name',r.ticket_snapshot->>'name'),'is_additional',a.order_id IS NOT NULL) ORDER BY a.ordinal,a.id) FROM event_attendees a LEFT JOIN event_ticket_orders o ON o.id=a.order_id WHERE a.registration_id=r.id),'[]') AS attendees,r.status,r.amount_due,r.amount_paid,
+    `SELECT r.id,r.ticket_version,COALESCE(primary_attendee.name,u.name) AS name,COALESCE(primary_attendee.email,u.email) AS email,u.phone,r.note,r.answers,r.capture_required,r.authorization_expires_at,r.ticket_snapshot,r.wallet_chain,r.wallet_address,r.solana_wallet_address,r.nft_contract,r.nft_token_id,(SELECT COALESCE(SUM(f.amount),0)/100.0 FROM event_refunds f WHERE f.payment_intent=r.stripe_payment_intent_id AND f.status NOT IN ('failed','canceled')) AS amount_refunded,r.quantity,COALESCE((SELECT jsonb_agg(to_jsonb(a)||jsonb_build_object('ticket_id',COALESCE(o.ticket_snapshot->>'id',r.ticket_snapshot->>'id'),'ticket_name',COALESCE(o.ticket_snapshot->>'name',r.ticket_snapshot->>'name'),'is_additional',a.order_id IS NOT NULL) ORDER BY a.ordinal,a.id) FROM event_attendees a LEFT JOIN event_ticket_orders o ON o.id=a.order_id WHERE a.registration_id=r.id),'[]') AS attendees,r.status,r.amount_due,r.amount_paid,
        to_char(r.created_at,'YYYY/MM/DD HH24:MI') AS created_at,
        to_char(r.paid_at,'YYYY/MM/DD HH24:MI') AS paid_at,
        to_char(r.checked_in_at,'YYYY/MM/DD HH24:MI') AS checked_in_at
@@ -3673,6 +3683,10 @@ app.get('/api/events/:slug', optionalAuth, requireDb, wrap(async (req, res) => {
   res.json({ event: publicEvent(ev, req.query.lang) });
 }));
 
+app.post('/api/events/:id/crypto/challenge',requireDb,wrap(async(req,res)=>{
+ const chain=req.body?.chain==='solana'?'solana':'ethereum',event=(await q("SELECT id FROM events WHERE id=$1 AND status='報名中' AND (registration_settings->'wallet_collection'->>$2='true' OR ($2='ethereum' AND EXISTS(SELECT 1 FROM jsonb_array_elements(tickets) ticket WHERE ticket->'token_gate'->>'enabled'='true')))",[req.params.id,chain])).rows[0];if(!event)return res.status(404).json({error:'找不到可使用錢包驗證的活動。'});let address;try{address=chain==='solana'?eventCrypto.solanaAddress(req.body?.address):eventCrypto.ethereumAddress(req.body?.address);}catch(error){return res.status(400).json({error:error.message});}const proof={p:'event-crypto',e:event.id,c:chain,a:address,n:crypto.randomBytes(24).toString('hex')},token=signToken(proof,{purpose:'oauth'});res.json({token,message:eventCrypto.challengeMessage({event:event.id,chain,address,nonce:proof.n})});
+}));
+
 app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, res) => {
   const client = await pool.connect();
   try {
@@ -3731,6 +3745,9 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
     }
     let selectedTicket=approved?mine.ticket_snapshot:null;
     if(!approved&&ev.tickets?.length){try{selectedTicket=selectTicket(ev.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code);}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}}
+    const walletCollection=registrationSettings.wallet_collection||{};let walletSnapshot=approved&&mine.wallet_address?{chain:'ethereum',address:mine.wallet_address}:null,solanaWallet=approved?mine.solana_wallet_address:null,nft=approved&&mine.nft_token_id?{contract:mine.nft_contract,token_id:mine.nft_token_id}:null;
+    if(!approved&&(walletCollection.ethereum||selectedTicket?.token_gate?.enabled)){try{walletSnapshot=eventCrypto.verifyEthereum(req.body?.ethereum_wallet_proof||req.body?.wallet_proof||{},ev.id,verifyToken);if(selectedTicket?.token_gate?.enabled){const balance=await eventCrypto.tokenBalance(selectedTicket.token_gate,walletSnapshot.address,process.env.ETHEREUM_RPC_URL,String(req.body?.nft_token_id??''));if(!balance.eligible){await client.query('ROLLBACK');return res.status(403).json({error:'此錢包未持有票種要求的 Token。'});}if(selectedTicket.token_gate.type==='erc721'){nft={contract:selectedTicket.token_gate.contract,token_id:balance.token_id};if((await client.query('SELECT 1 FROM event_regs WHERE event_id=$1 AND nft_contract=$2 AND nft_token_id=$3 AND user_id<>$4',[ev.id,nft.contract,nft.token_id,userId])).rowCount){await client.query('ROLLBACK');return res.status(409).json({error:'此 NFT 已用於本活動報名。'});}}}if((await client.query('SELECT 1 FROM event_regs WHERE event_id=$1 AND wallet_address=$2 AND user_id<>$3',[ev.id,walletSnapshot.address,userId])).rowCount){await client.query('ROLLBACK');return res.status(409).json({error:'此 Ethereum 錢包已用於本活動報名。'});}}catch(error){await client.query('ROLLBACK');return res.status(error.status||400).json({error:error.message});}}
+    if(!approved&&walletCollection.solana){try{solanaWallet=eventCrypto.verifySolana(req.body?.solana_wallet_proof||{},ev.id,verifyToken).address;if((await client.query('SELECT 1 FROM event_regs WHERE event_id=$1 AND solana_wallet_address=$2 AND user_id<>$3',[ev.id,solanaWallet,userId])).rowCount){await client.query('ROLLBACK');return res.status(409).json({error:'此 Solana 錢包已用於本活動報名。'});}}catch(error){await client.query('ROLLBACK');return res.status(error.status||400).json({error:error.message});}}
     let price,taxSnapshot=approved?mine.tax_snapshot:null;try{price=approved?Number(mine.amount_due):(selectedTicket?ticketPrice(selectedTicket,req.body?.amount_twd):Number(ev.price_twd))*quantity;}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}
     let couponSnapshot=approved?mine.coupon_snapshot:null;
     if(!approved){try{const discounted=discountPrice(ev.coupons||[],req.body?.coupon_code,price),taxed=taxPrice(registrationSettings.tax,discounted.price);price=taxed.price;couponSnapshot=discounted.coupon;taxSnapshot=taxed.tax;}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}
@@ -3774,7 +3791,7 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
       if(referral?.plan==='event-referral'&&referral.event===ev.id&&referral.ent!==regId&&(await client.query("SELECT 1 FROM event_regs WHERE id=$1 AND event_id=$2 AND status='registered'",[referral.ent,ev.id])).rowCount)savedAttribution.referral='guest:'+referral.ent;
     }
     async function saveDetails(){
-      await client.query("UPDATE event_regs SET answers=$2,ticket_snapshot=$3,coupon_snapshot=$4,quantity=$5,confirmation_queued=false,language=$6,attribution=$7,capture_required=$8,authorization_expires_at=NULL,entry_source=$9,tax_snapshot=$10 WHERE id=$1",[regId,JSON.stringify(answerSnapshot),selectedTicket?JSON.stringify(selectedTicket):null,couponSnapshot?JSON.stringify(couponSnapshot):null,quantity,['en','ja'].includes(req.body?.lang)?req.body.lang:'zh',JSON.stringify(savedAttribution),captureRequired,invited?'invited':'self_service',taxSnapshot?JSON.stringify(taxSnapshot):null]);
+      await client.query("UPDATE event_regs SET answers=$2,ticket_snapshot=$3,coupon_snapshot=$4,quantity=$5,confirmation_queued=false,language=$6,attribution=$7,capture_required=$8,authorization_expires_at=NULL,entry_source=$9,tax_snapshot=$10,wallet_chain=$11,wallet_address=$12,solana_wallet_address=$13,nft_contract=$14,nft_token_id=$15 WHERE id=$1",[regId,JSON.stringify(answerSnapshot),selectedTicket?JSON.stringify(selectedTicket):null,couponSnapshot?JSON.stringify(couponSnapshot):null,quantity,['en','ja'].includes(req.body?.lang)?req.body.lang:'zh',JSON.stringify(savedAttribution),captureRequired,invited?'invited':'self_service',taxSnapshot?JSON.stringify(taxSnapshot):null,walletSnapshot?.chain||null,walletSnapshot?.address||null,solanaWallet||null,nft?.contract||null,nft?.token_id||null]);
       if(!approved){await client.query('DELETE FROM event_attendees WHERE registration_id=$1',[regId]);for(const [i,a] of attendees.entries())await client.query('INSERT INTO event_attendees(id,registration_id,name,email,ordinal) VALUES($1,$2,$3,$4,$5)',[uid('att_'),regId,a.name,a.email,i]);}
     }
 
@@ -3844,7 +3861,7 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
     res.json({ ok: true, pending: true, registration_id: regId, url: session.url, session_id:session.id, guest });
   } catch (e) {
     await client.query('ROLLBACK');
-    if(e.code==='AMBIGUOUS_EMAIL')return res.status(409).json({error:e.message});
+    if(e.code==='AMBIGUOUS_EMAIL')return res.status(409).json({error:e.message});if(e.code==='23505'&&['event_regs_wallet_unique','event_regs_solana_wallet_unique','event_regs_nft_unique'].includes(e.constraint))return res.status(409).json({error:e.constraint==='event_regs_nft_unique'?'此 NFT 已用於本活動報名。':'此錢包已用於本活動報名。'});
     throw e;
   } finally {
     client.release();

@@ -338,7 +338,7 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 讀取登入帳號自己的申請，回 `{ applications }`，包含申請內容、`id`、`status`（`pending`／`approved`／`rejected`）、`review_note`、`created_at` 與 `reviewed_at`。不接受指定其他使用者，agent 金鑰回 403；不在公開 API 提供申請或聯絡資料。
 
 ### POST /api/events/:id/register
-報名活動。新來賓不需先登入，body 需傳 `{ name,email,lang? }`；啟用姓名拆分時改傳 `{ first_name,last_name,email,lang? }`。有效 Bearer token 會綁定目前帳號並忽略 body 的 Email。團體報名可傳 `quantity`（1–1000，且不得超過活動／票種剩餘名額）與 `additional_attendees`（不含第一位購買者）；未提供的參加者先沿用購買者資料，之後可逐張轉票。舊版等長 `attendees` 仍相容。免費票立即成立；付費票建立或沿用未過期的 Stripe Checkout，回 `{ url }`。付費活動未設定 `STRIPE_WEBHOOK_SECRET` 時 fail closed 回 503。
+報名活動。新來賓不需先登入，body 需傳 `{ name,email,lang? }`；啟用姓名拆分時改傳 `{ first_name,last_name,email,lang? }`。有效 Bearer token 會綁定目前帳號並忽略 body 的 Email。團體報名可傳 `quantity`（1–1000，且不得超過活動／票種剩餘名額）與 `additional_attendees`（不含第一位購買者）；未提供的參加者先沿用購買者資料，之後可逐張轉票。舊版等長 `attendees` 仍相容。啟用錢包收集時另傳 `ethereum_wallet_proof`／`solana_wallet_proof`；ERC-721 票種另傳十進位 `nft_token_id`。免費票立即成立；付費票建立或沿用未過期的 Stripe Checkout，回 `{ url }`。付費活動未設定 `STRIPE_WEBHOOK_SECRET` 時 fail closed 回 503。
 
 ### DELETE /api/events/:id/register
 取消免費且尚未簽到的報名。付費票須由後台退款，不可直接取消。
@@ -358,6 +358,10 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 ### GET /api/events/:id/wallet/apple
 
 有效報名者下載簽署的 Apple Wallet `.pkpass`。可用 `attendee` 與 `lang` 指定逐張票券與語言；內容與 Google Wallet 相同，回應 MIME 為 `application/vnd.apple.pkpass`。缺 Pass Type ID、Team ID、WWDR、簽署憑證或私鑰時回 503，簽署失敗回 502，不回傳未簽署檔案。
+
+### POST /api/events/:id/crypto/challenge
+
+已開放且啟用錢包地址收集或 Token 持有驗證時，傳入 `{chain:"ethereum"|"solana",address}` 取得 10 分鐘有效的限時簽名訊息與 token。Ethereum 使用 EIP-191 `personal_sign`；Solana 使用 Ed25519 `signMessage`。報名 body 以 `ethereum_wallet_proof`／`solana_wallet_proof` 傳入 `{token,signature}`，後端驗證後才保存公開地址。Token 票種另以 `ETHEREUM_RPC_URL` 呼叫 ERC-20 `balanceOf(address)` 或 ERC-721 `ownerOf(tokenId)`；未達門檻回 403，RPC 無法確認時停止報名。同一鏈上地址及同一 NFT 每場活動只能建立一筆報名。
 
 ## 門禁端點
 
@@ -405,7 +409,7 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 
 ### POST /api/admin/events/:id/registration-settings
 
-活動管理者設定 `requires_approval`、`waitlist`、`group_registration`、`split_name` 布林值、`payment_approval`（`after_approval`／`authorize`）及可空白的 `opens_at`、`closes_at` ISO 時間。`split_name=true` 時，單人報名必須分開填寫名與姓，並以來賓語系的姓名順序保存於該場票券。免費及付費票支援待審核與候補；付費票可選核准後 24 小時內付款，或先做信用卡預授權、核准後才請款。
+活動管理者設定 `requires_approval`、`waitlist`、`group_registration`、`split_name` 布林值、`payment_approval`（`after_approval`／`authorize`）、`wallet_collection:{ethereum,solana}` 及可空白的 `opens_at`、`closes_at` ISO 時間。`split_name=true` 時，單人報名必須分開填寫名與姓，並以來賓語系的姓名順序保存於該場票券。錢包收集要求參加者簽署限時訊息，驗證後的公開地址可在活動名單及 CSV 查看。免費及付費票支援待審核與候補；付費票可選核准後 24 小時內付款，或先做信用卡預授權、核准後才請款。
 
 `email_templates` 可設定 `confirmation`、`pending`、`declined` 三類通知，各含最多 160 字的 `subject` 與最多 5000 字的 `body`。留白時依收件人的中／英／日語系使用系統預設；初次待審核或候補會自動建立狀態通知，核准與拒絕沿用同一組模板。
 
@@ -437,7 +441,7 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 
 ### POST /api/admin/events/:id/tickets
 
-活動管理者設定 tickets 陣列（最多 30 種）：id、name、description、price_twd、capacity、active、opens_at、closes_at。自訂票種活動報名須送 ticket_id；後端依票種計價並鎖定活動驗證票種及全場名額，報名保存票種快照。
+活動管理者設定 tickets 陣列（最多 30 種）：id、name、description、price_twd、capacity、active、opens_at、closes_at。可選的 `token_gate` 支援 ERC-20 `{enabled,type,contract,name,minimum,decimals}` 與 ERC-721 `{enabled,type,contract,name}`。自訂票種活動報名須送 ticket_id；後端依票種計價並鎖定活動驗證票種、Token 資格及全場名額，報名保存票種快照與已驗證錢包地址。
 
 現場簽到權限：主辦團隊可設定 `can_checkin`，不授予名單、金流或活動編輯權。簽到人員使用 `/event-checkin.html?event=<活動 id>`；驗票與取消簽到端點每次查驗該活動權限，移除後立即失效。
 
