@@ -4,6 +4,7 @@ import {randomBytes,createHmac,createHash} from 'node:crypto';
 import {unlink} from 'node:fs/promises';
 import {spawn} from 'node:child_process';
 import {createServer} from 'node:net';
+import {createServer as createHttpServer} from 'node:http';
 import {setTimeout as delay} from 'node:timers/promises';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url),{Pool}=require('pg');
@@ -11,12 +12,14 @@ const dbUrl=process.env.EVENT_APPLICATION_TEST_DATABASE_URL;
 test('organizer isolation, scoped cohosts, translations, publication and registration persist in PostgreSQL',{skip:!dbUrl,timeout:60000},async()=>{
  const url=new URL(dbUrl);assert.ok(['localhost','127.0.0.1'].includes(url.hostname));assert.match(url.pathname,/_test/,'Use an explicitly named local test database');
  const schema='event_hosts_test_'+randomBytes(6).toString('hex'), control=new Pool({connectionString:url.href});
- let child,pool,logs='';
+ let child,pool,receiver,logs='';
  try{
   await control.query(`CREATE SCHEMA ${schema}`);url.searchParams.set('options',`-c search_path=${schema}`);pool=new Pool({connectionString:url.href});
   const listener=createServer();await new Promise(resolve=>listener.listen(0,'127.0.0.1',resolve));const port=listener.address().port;await new Promise(resolve=>listener.close(resolve));
-  const origin='http://127.0.0.1:'+port,secret=randomBytes(24).toString('hex'),admin=randomBytes(24).toString('hex');
-  child=spawn(process.execPath,['server.js'],{cwd:new URL('..',import.meta.url),env:{PORT:String(port),DATABASE_URL:url.href,APP_SECRET:secret,ADMIN_API_KEY:admin,EVENT_QR_SECRET:secret,IG_AUTOPUBLISH:'0',PUBLIC_ORIGIN:origin,WEB_ORIGINS:origin,SUPER_ADMIN_EMAIL:'admin@example.test'},stdio:['ignore','pipe','pipe']});
+  const origin='http://127.0.0.1:'+port,secret=randomBytes(24).toString('hex'),admin=randomBytes(24).toString('hex'),webhookRequests=[];
+  receiver=createHttpServer((req,res)=>{let body='';req.on('data',chunk=>body+=chunk);req.on('end',()=>{webhookRequests.push({url:req.url,headers:req.headers,body});res.writeHead(req.url==='/gone'?410:204).end();});});await new Promise(resolve=>receiver.listen(0,'127.0.0.1',resolve));
+  const webhookOrigin='http://127.0.0.1:'+receiver.address().port;
+  child=spawn(process.execPath,['server.js'],{cwd:new URL('..',import.meta.url),env:{PORT:String(port),DATABASE_URL:url.href,APP_SECRET:secret,ADMIN_API_KEY:admin,EVENT_QR_SECRET:secret,EVENT_WEBHOOK_ALLOW_LOOPBACK:'1',EVENT_WEBHOOK_POLL_MS:'100',IG_AUTOPUBLISH:'0',PUBLIC_ORIGIN:origin,WEB_ORIGINS:origin,SUPER_ADMIN_EMAIL:'admin@example.test'},stdio:['ignore','pipe','pipe']});
   child.stdout.on('data',c=>logs+=c);child.stderr.on('data',c=>logs+=c);
   let ready=false;for(let i=0;i<150;i++){try{if((await fetch(origin+'/api/events')).ok){ready=true;break;}}catch{}await delay(100);}assert.ok(ready,logs);
   const token=sub=>{const iat=Date.now(),b=Buffer.from(JSON.stringify({sub,role:'invited',purpose:'session',iat,exp:iat+600000})).toString('base64url');return b+'.'+createHmac('sha256',secret).update(b).digest('base64url');};
@@ -155,6 +158,19 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   const duplicate=await call('/events/'+first.id+'/register',{as:winner,method:'POST'});assert.equal(duplicate.already,true);
   const regs=await call('/admin/events/'+first.id+'/regs',{as:a});assert.equal(regs.regs.length,1);assert.ok(regs.regs[0].checkin_token);assert.ok(regs.regs[0].attendees[0].checkin_token);
   const originalQr=(await call('/events/'+first.id+'/ticket',{as:winner})).token;assert.ok(originalQr);
+  assert.deepEqual((await call('/admin/events/'+first.id+'/webhooks',{as:a})).webhooks,[]);
+  await call('/admin/events/'+first.id+'/webhooks',{as:b,status:404});
+  await call('/admin/events/'+first.id+'/webhooks',{as:a,method:'POST',body:{url:'http://10.0.0.1/hook',events:['event.updated']},status:400});
+  const webhook=await call('/admin/events/'+first.id+'/webhooks',{as:a,method:'POST',body:{url:webhookOrigin+'/hook',events:['event.updated','guest.updated']},status:201});assert.match(webhook.secret,/^whsec_[A-Za-z0-9_-]{43}$/);
+  const storedWebhook=(await pool.query('SELECT secret FROM event_webhooks WHERE id=$1',[webhook.id])).rows[0];assert.match(storedWebhook.secret,/^enc:/);assert.notEqual(storedWebhook.secret,webhook.secret);
+  assert.equal('secret' in (await call('/admin/events/'+first.id+'/webhooks',{as:a})).webhooks[0],false);
+  await call('/admin/events/'+first.id+'/details',{as:a,method:'POST',body:{mode:'offline',hide_location:false,theme:'minimal',appearance:'light',accent:'#FFDE34',show_guest_list:false}});
+  for(let i=0;i<30&&!webhookRequests.length;i++)await delay(100);assert.equal(webhookRequests.length,1,logs);
+  const delivered=webhookRequests[0],timestamp=delivered.headers['webhook-timestamp'];assert.equal(delivered.headers['webhook-signature'],`t=${timestamp},v1=${createHmac('sha256',webhook.secret).update(timestamp+'.'+delivered.body).digest('hex')}`);assert.equal(JSON.parse(delivered.body).type,'event.updated');
+  await call('/admin/events/'+first.id+'/webhooks/'+webhook.id,{as:a,method:'PATCH',body:{state:'paused'}});await call('/admin/events/'+first.id+'/details',{as:a,method:'POST',body:{mode:'offline',hide_location:true,theme:'minimal',appearance:'light',accent:'#FFDE34',show_guest_list:false}});await delay(300);assert.equal(webhookRequests.length,1);
+  await call('/admin/events/'+first.id+'/webhooks/'+webhook.id,{as:a,method:'PATCH',body:{state:'active'}});await call('/admin/events/'+first.id+'/webhooks/'+webhook.id+'/test',{as:a,method:'POST',status:202});for(let i=0;i<30&&webhookRequests.length<2;i++)await delay(100);assert.equal(JSON.parse(webhookRequests.at(-1).body).type,'webhook.test');
+  const gone=await call('/admin/events/'+first.id+'/webhooks',{as:a,method:'POST',body:{url:webhookOrigin+'/gone',events:['event.updated']},status:201});await call('/admin/events/'+first.id+'/webhooks/'+gone.id+'/test',{as:a,method:'POST',status:202});let goneState;for(let i=0;i<30;i++){goneState=(await call('/admin/events/'+first.id+'/webhooks',{as:a})).webhooks.find(row=>row.id===gone.id)?.state;if(goneState==='paused')break;await delay(100);}assert.equal(goneState,'paused');
+  await call('/admin/events/'+first.id+'/webhooks/'+gone.id,{as:a,method:'DELETE'});
   assert.equal((await call('/admin/events/'+first.id+'/integration',{as:a})).enabled,false);
   for(const method of ['GET','DELETE'])await call('/admin/events/missing/integration'+(method==='DELETE'?'/key':''),{method,status:404});
   await call('/admin/events/missing/integration/key',{method:'POST',status:404});
@@ -227,7 +243,7 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await call('/admin/events/'+first.id+'/regs/'+waitlisted.registration_id+'/status',{as:a,method:'POST',body:{status:'registered'}});
   assert.ok((await call('/events/'+first.id+'/ticket',{as:guest2})).token);
   const activity=(await call('/admin/events/'+first.id+'/activity',{as:a})).activity;
-  assert.equal(activity.filter(x=>['pending_approval','waitlisted','registered'].includes(x.action)).length,4);
+  assert.equal(activity.filter(x=>['pending_approval','waitlisted','registered'].includes(x.action)).length,6);
   assert.ok(activity.some(x=>x.action==='event_updated'&&x.actor_id==='org_a'));
   await call('/admin/events/'+first.id+'/activity',{as:b,status:404});
   await call('/admin/events/'+first.id+'/registration-settings',{as:a,method:'POST',body:{requires_approval:false,waitlist:false,opens_at:'2100-01-01T00:00:00Z'}});
@@ -515,6 +531,7 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await call('/admin/events/'+first.id+'/regs',{as:a,status:403});
  }finally{
   if(child && child.exitCode===null){child.kill('SIGTERM');await new Promise(resolve=>child.once('exit',resolve));}
+  if(receiver)await new Promise(resolve=>receiver.close(resolve));
   if(pool)await pool.end();await control.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);await control.end();
  }
 });

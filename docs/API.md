@@ -150,6 +150,26 @@ Google 授權回呼，簽發會員 token 並導回。
 
 立即停用本活動金鑰。
 
+### GET /api/admin/events/:id/webhooks
+
+活動管理者讀取最多 10 個 Webhook 端點與最近 50 筆投遞結果。簽章密鑰不會回傳。
+
+### POST /api/admin/events/:id/webhooks
+
+新增活動 Webhook。body：`{ url, events }`；正式環境只接受 HTTPS 公開網址，事件可選 `event.created`、`event.updated`、`event.canceled`、`guest.registered`、`guest.updated`、`guest.refunded`。回應只會顯示一次 `whsec_...` 簽章密鑰。
+
+### PATCH /api/admin/events/:id/webhooks/:webhookId
+
+更新 Webhook URL、事件或 `active`／`paused` 狀態。接收端回覆 HTTP 410 時也會自動暫停。
+
+### DELETE /api/admin/events/:id/webhooks/:webhookId
+
+刪除活動 Webhook 與其投遞紀錄。
+
+### POST /api/admin/events/:id/webhooks/:webhookId/test
+
+排入一筆 `webhook.test` 測試投遞。每次請求帶 `Webhook-Id`、`Webhook-Timestamp` 及 `Webhook-Signature: t=時間戳,v1=HMAC-SHA256`；接收端應驗證 `時間戳.JSON原文` 並在 5 秒內回覆 2xx。非 2xx 會在 1、2、4 分鐘後重試，最多四次投遞。
+
 ### GET /api/integrations/events/:id
 
 以 `Authorization: Bearer evk_…` 讀取金鑰所屬活動的內容、設定、有效報名與簽到人數。
