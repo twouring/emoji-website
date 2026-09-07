@@ -101,6 +101,9 @@ const GOOGLE_REDIRECT_URI = SITE_BASE + '/auth/google/callback';
 const GOOGLE_MEET_CLIENT_ID = process.env.GOOGLE_MEET_CLIENT_ID || '';
 const GOOGLE_MEET_CLIENT_SECRET = process.env.GOOGLE_MEET_CLIENT_SECRET || '';
 const GOOGLE_MEET_REDIRECT_URI = SITE_BASE + '/integrations/google-meet/callback';
+const ZOOM_CLIENT_ID = process.env.ZOOM_CLIENT_ID || '';
+const ZOOM_CLIENT_SECRET = process.env.ZOOM_CLIENT_SECRET || '';
+const ZOOM_REDIRECT_URI = SITE_BASE + '/integrations/zoom/callback';
 if (!GOOGLE_CLIENT_ID) console.warn('[warn] GOOGLE_CLIENT_ID 未設定，Google 登入停用（/auth/google 回 503）。');
 // 允許的登入完成導回目標與 CORS 來源（官網子網域），防 open redirect；逗號分隔可覆寫
 const WEB_ORIGINS = (process.env.WEB_ORIGINS ||
@@ -1454,6 +1457,14 @@ async function googleMeetAccessToken(userId){
  const token=await response.json().catch(()=>({}));if(!response.ok||!token.access_token)throw Object.assign(Error('Google Meet 授權更新失敗，請重新連接。'),{status:502});
  await q("UPDATE event_meeting_connections SET access_token=$3,expires_at=now()+($4::int*interval '1 second'),updated_at=now() WHERE user_id=$1 AND provider=$2",[userId,'google-meet',encSecret(token.access_token),Number(token.expires_in)||3600]);return token.access_token;
 }
+async function zoomAccessToken(userId){
+ const row=(await q("SELECT access_token,refresh_token,expires_at FROM event_meeting_connections WHERE user_id=$1 AND provider='zoom'",[userId])).rows[0];if(!row)throw Object.assign(Error('請先連接 Zoom。'),{status:409});
+ const access=decPII(row.access_token);if(access!=='***'&&+new Date(row.expires_at)>Date.now()+60000)return access;
+ const refresh=decPII(row.refresh_token);if(!refresh||refresh==='***')throw Object.assign(Error('Zoom 授權已失效，請重新連接。'),{status:409});
+ const response=await fetch('https://zoom.us/oauth/token',{signal:AbortSignal.timeout(10000),method:'POST',headers:{authorization:'Basic '+Buffer.from(ZOOM_CLIENT_ID+':'+ZOOM_CLIENT_SECRET).toString('base64'),'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({refresh_token:refresh,grant_type:'refresh_token'})});
+ const token=await response.json().catch(()=>({}));if(!response.ok||!token.access_token)throw Object.assign(Error('Zoom 授權更新失敗，請重新連接。'),{status:502});
+ await q("UPDATE event_meeting_connections SET access_token=$3,refresh_token=$4,expires_at=now()+($5::int*interval '1 second'),updated_at=now() WHERE user_id=$1 AND provider=$2",[userId,'zoom',encSecret(token.access_token),encSecret(token.refresh_token||refresh),Number(token.expires_in)||3600]);return token.access_token;
+}
 
 app.get('/integrations/google-meet/callback',wrap(async(req,res)=>{
  const state=String(req.query.state||''),st=verifyToken(state,{purpose:'oauth'}),cookie=(req.headers.cookie||'').split(';').map(value=>value.trim()).find(value=>value.startsWith('meeting_oauth_state='))?.slice(20);
@@ -1463,6 +1474,17 @@ app.get('/integrations/google-meet/callback',wrap(async(req,res)=>{
  const response=await fetch('https://oauth2.googleapis.com/token',{signal:AbortSignal.timeout(10000),method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({code:String(req.query.code),client_id:GOOGLE_MEET_CLIENT_ID,client_secret:GOOGLE_MEET_CLIENT_SECRET,redirect_uri:GOOGLE_MEET_REDIRECT_URI,grant_type:'authorization_code'})});
  const token=await response.json().catch(()=>({}));if(!response.ok||!token.access_token||!token.refresh_token)return res.status(400).send('Google Meet 授權失敗，請重新連接並允許離線存取。');
  await q(`INSERT INTO event_meeting_connections(user_id,provider,access_token,refresh_token,expires_at) VALUES($1,'google-meet',$2,$3,now()+($4::int*interval '1 second'))
+  ON CONFLICT(user_id,provider) DO UPDATE SET access_token=$2,refresh_token=$3,expires_at=EXCLUDED.expires_at,updated_at=now()`,[st.sub,encSecret(token.access_token),encSecret(token.refresh_token),Number(token.expires_in)||3600]);
+ const path=st.r===`/organizer/events/${encodeURIComponent(st.e)}`?st.r:`/admin/events/${encodeURIComponent(st.e)}`;res.redirect(path+'?task=details&meeting=connected');
+}));
+app.get('/integrations/zoom/callback',wrap(async(req,res)=>{
+ const state=String(req.query.state||''),st=verifyToken(state,{purpose:'oauth'}),cookie=(req.headers.cookie||'').split(';').map(value=>value.trim()).find(value=>value.startsWith('meeting_oauth_state='))?.slice(20);
+ res.clearCookie('meeting_oauth_state',{path:'/integrations',httpOnly:true,sameSite:'lax',secure:SITE_BASE.startsWith('https://')});
+ if(!st||st.p!=='zoom'||!st.sub||!st.e||!safeEqual(state,cookie))return res.status(400).send('Zoom 連接已失效，請重新操作。');
+ if(!req.query.code)return res.status(400).send('Zoom 連接未完成。');if(!ZOOM_CLIENT_ID||!ZOOM_CLIENT_SECRET||!pool||!dbReady)return res.status(503).send('Zoom 整合尚未設定。');
+ const response=await fetch('https://zoom.us/oauth/token',{signal:AbortSignal.timeout(10000),method:'POST',headers:{authorization:'Basic '+Buffer.from(ZOOM_CLIENT_ID+':'+ZOOM_CLIENT_SECRET).toString('base64'),'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({code:String(req.query.code),redirect_uri:ZOOM_REDIRECT_URI,grant_type:'authorization_code'})});
+ const token=await response.json().catch(()=>({}));if(!response.ok||!token.access_token||!token.refresh_token)return res.status(400).send('Zoom 授權失敗，請重新連接。');
+ await q(`INSERT INTO event_meeting_connections(user_id,provider,access_token,refresh_token,expires_at) VALUES($1,'zoom',$2,$3,now()+($4::int*interval '1 second'))
   ON CONFLICT(user_id,provider) DO UPDATE SET access_token=$2,refresh_token=$3,expires_at=EXCLUDED.expires_at,updated_at=now()`,[st.sub,encSecret(token.access_token),encSecret(token.refresh_token),Number(token.expires_in)||3600]);
  const path=st.r===`/organizer/events/${encodeURIComponent(st.e)}`?st.r:`/admin/events/${encodeURIComponent(st.e)}`;res.redirect(path+'?task=details&meeting=connected');
 }));
@@ -2497,23 +2519,32 @@ app.post('/api/admin/events/:id/details',auth,requireDb,eventEditor,wrap(async(r
 }));
 app.get('/api/admin/events/:id/meeting',auth,requireDb,eventEditor,wrap(async(req,res)=>{
  const event=(await q('SELECT event_details FROM events WHERE id=$1',[req.params.id])).rows[0];if(!event)return res.status(404).json({error:'找不到活動。'});
- const connected=req.auth.sub&&(await q("SELECT 1 FROM event_meeting_connections WHERE user_id=$1 AND provider='google-meet'",[req.auth.sub])).rowCount>0;
- res.json({google_meet:{configured:!!(GOOGLE_MEET_CLIENT_ID&&GOOGLE_MEET_CLIENT_SECRET),connected},meeting:{provider:event.event_details?.meeting_provider||'',id:event.event_details?.meeting_id||'',pending:event.event_details?.meeting_pending===true,url:event.event_details?.online_url||''}});
+ const connected=req.auth.sub?(await q('SELECT provider FROM event_meeting_connections WHERE user_id=$1',[req.auth.sub])).rows.map(row=>row.provider):[];
+ res.json({google_meet:{configured:!!(GOOGLE_MEET_CLIENT_ID&&GOOGLE_MEET_CLIENT_SECRET),connected:connected.includes('google-meet')},zoom:{configured:!!(ZOOM_CLIENT_ID&&ZOOM_CLIENT_SECRET),connected:connected.includes('zoom')},meeting:{provider:event.event_details?.meeting_provider||'',kind:event.event_details?.meeting_kind||'',id:event.event_details?.meeting_id||'',pending:event.event_details?.meeting_pending===true,url:event.event_details?.online_url||''}});
 }));
 app.post('/api/admin/events/:id/meeting/connect',auth,requireDb,eventEditor,wrap(async(req,res)=>{
- if(!req.auth.sub)return res.status(403).json({error:'請先使用個人帳號登入。'});if(!GOOGLE_MEET_CLIENT_ID||!GOOGLE_MEET_CLIENT_SECRET)return res.status(503).json({error:'Google Meet 整合尚未設定。'});
- const state=signToken({sub:req.auth.sub,p:'google-meet',e:req.params.id,r:String(req.body?.redirect||''),n:crypto.randomBytes(24).toString('hex')},{purpose:'oauth'});
+ if(!req.auth.sub)return res.status(403).json({error:'請先使用個人帳號登入。'});const provider=req.body?.provider||'google-meet';if(!['google-meet','zoom'].includes(provider))return res.status(400).json({error:'線上會議服務不正確。'});
+ const configured=provider==='google-meet'?GOOGLE_MEET_CLIENT_ID&&GOOGLE_MEET_CLIENT_SECRET:ZOOM_CLIENT_ID&&ZOOM_CLIENT_SECRET;if(!configured)return res.status(503).json({error:(provider==='zoom'?'Zoom':'Google Meet')+' 整合尚未設定。'});
+ const state=signToken({sub:req.auth.sub,p:provider,e:req.params.id,r:String(req.body?.redirect||''),n:crypto.randomBytes(24).toString('hex')},{purpose:'oauth'});
  res.cookie('meeting_oauth_state',state,{httpOnly:true,sameSite:'lax',secure:SITE_BASE.startsWith('https://'),path:'/integrations',maxAge:10*60*1000});
- res.json({url:oauthUrl('google-meet',{clientId:GOOGLE_MEET_CLIENT_ID,redirectUri:GOOGLE_MEET_REDIRECT_URI,state})});
+ res.json({url:oauthUrl(provider,{clientId:provider==='zoom'?ZOOM_CLIENT_ID:GOOGLE_MEET_CLIENT_ID,redirectUri:provider==='zoom'?ZOOM_REDIRECT_URI:GOOGLE_MEET_REDIRECT_URI,state})});
 }));
 app.delete('/api/admin/events/:id/meeting/connection',auth,requireDb,eventEditor,wrap(async(req,res)=>{
- if(!req.auth.sub)return res.status(403).json({error:'請先使用個人帳號登入。'});await q("DELETE FROM event_meeting_connections WHERE user_id=$1 AND provider='google-meet'",[req.auth.sub]);res.json({ok:true});
+ if(!req.auth.sub)return res.status(403).json({error:'請先使用個人帳號登入。'});const provider=req.query.provider||'google-meet';if(!['google-meet','zoom'].includes(provider))return res.status(400).json({error:'線上會議服務不正確。'});await q('DELETE FROM event_meeting_connections WHERE user_id=$1 AND provider=$2',[req.auth.sub,provider]);res.json({ok:true});
 }));
 app.post('/api/admin/events/:id/meeting/create',auth,requireDb,eventEditor,wrap(async(req,res)=>{
  if(!req.auth.sub)return res.status(403).json({error:'請先使用個人帳號登入。'});
  const event=(await q('SELECT id,title,description,location,starts_at,ends_at,event_details FROM events WHERE id=$1',[req.params.id])).rows[0];if(!event)return res.status(404).json({error:'找不到活動。'});
- let access;try{access=await googleMeetAccessToken(req.auth.sub);}catch(error){return res.status(error.status||502).json({error:error.message});}
- const request=meetingRequest('google-meet',event),calendarId=event.event_details?.meeting_provider==='google-meet'&&event.event_details?.meeting_id||request.body.id;
+ const provider=req.body?.provider||'google-meet',requestedKind=req.body?.kind||'meeting';if(!['google-meet','zoom'].includes(provider))return res.status(400).json({error:'線上會議服務不正確。'});if(provider==='zoom'&&!['meeting','webinar'].includes(requestedKind))return res.status(400).json({error:'Zoom 類型不正確。'});
+ let access;try{access=await (provider==='zoom'?zoomAccessToken(req.auth.sub):googleMeetAccessToken(req.auth.sub));}catch(error){return res.status(error.status||502).json({error:error.message});}
+ const kind=provider==='zoom'&&event.event_details?.meeting_provider==='zoom'&&event.event_details?.meeting_id?(event.event_details.meeting_kind||'meeting'):requestedKind,request=meetingRequest(provider,event,kind),calendarId=event.event_details?.meeting_provider==='google-meet'&&event.event_details?.meeting_id||request.body.id;
+ if(provider==='zoom'){
+  let response;try{response=event.event_details?.meeting_provider==='zoom'&&event.event_details?.meeting_id
+   ?await fetch(`https://api.zoom.us/v2/${event.event_details.meeting_kind==='webinar'?'webinars':'meetings'}/${encodeURIComponent(event.event_details.meeting_id)}`,{signal:AbortSignal.timeout(10000),headers:{authorization:'Bearer '+access}})
+   :await fetch(request.url,{signal:AbortSignal.timeout(10000),method:'POST',headers:{authorization:'Bearer '+access,'content-type':'application/json'},body:JSON.stringify(request.body)});}catch{return res.status(502).json({error:'無法確認 Zoom 是否已建立，請先到 Zoom 檢查再重試。'});}
+  const data=await response.json().catch(()=>({}));if(!response.ok)return res.status(502).json({error:'Zoom 建立失敗，請確認 Meeting／Webinar 權限與方案後重試。'});const result=meetingResult('zoom',data);if(!result.id||!result.url)return res.status(502).json({error:'Zoom 未回傳可用的加入連結。'});
+  const details={...event.event_details,meeting_provider:'zoom',meeting_kind:kind,meeting_id:result.id,meeting_pending:false,online_url:result.url};await eventMutation(req,req.params.id,'zoom_created','UPDATE events SET event_details=$2 WHERE id=$1',[req.params.id,JSON.stringify(details)]);return res.json({ok:true,pending:false,url:result.url});
+ }
  let response;if(event.event_details?.meeting_provider==='google-meet'&&event.event_details?.meeting_id){response=await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(calendarId)}`,{signal:AbortSignal.timeout(10000),headers:{authorization:'Bearer '+access}});}else{
   response=await fetch(request.url,{signal:AbortSignal.timeout(10000),method:'POST',headers:{authorization:'Bearer '+access,'content-type':'application/json'},body:JSON.stringify(request.body)});
   if(response.status===409)response=await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(calendarId)}`,{signal:AbortSignal.timeout(10000),headers:{authorization:'Bearer '+access}});

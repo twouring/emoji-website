@@ -473,19 +473,19 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 
 ### GET /api/admin/events/:id/meeting
 
-活動管理者查看自己的 Google Meet 連接狀態，以及本活動是否已有會議、建立中狀態與受保護加入網址；不回傳 OAuth token。
+活動管理者查看自己的 Google Meet／Zoom 連接狀態，以及本活動是否已有會議、類型、建立中狀態與受保護加入網址；不回傳 OAuth token。
 
 ### POST /api/admin/events/:id/meeting/connect
 
-以個人管理帳號取得 Google Calendar OAuth 授權網址。伺服器以 HttpOnly、SameSite cookie 與限時簽章 state 保護 callback；要求 `calendar.events` 與離線更新授權。須設定 `GOOGLE_MEET_CLIENT_ID`、`GOOGLE_MEET_CLIENT_SECRET`，並在 OAuth client 登記 `${PUBLIC_ORIGIN}/integrations/google-meet/callback`；缺設定時回 503。
+以個人管理帳號取得 Google Calendar 或 Zoom OAuth 授權網址。`provider` 可為 `google-meet` 或 `zoom`，預設 Google Meet。伺服器以 HttpOnly、SameSite cookie 與限時簽章 state 保護 callback，access／refresh token 加密保存。Google 要求 `calendar.events` 與離線更新授權；Zoom scope 由 OAuth app 設定。須設定對應的 `GOOGLE_MEET_CLIENT_ID`／`GOOGLE_MEET_CLIENT_SECRET` 或 `ZOOM_CLIENT_ID`／`ZOOM_CLIENT_SECRET`，callback 分別為 `${PUBLIC_ORIGIN}/integrations/google-meet/callback` 與 `${PUBLIC_ORIGIN}/integrations/zoom/callback`；缺設定時回 503。
 
 ### POST /api/admin/events/:id/meeting/create
 
-在目前管理者的 Google 主要行事曆建立本活動與專屬 Google Meet。以活動 ID 衍生 Google Calendar event ID，重試時讀回同一筆，不建立重複會議。建立仍在處理時回 `pending: true`，再次呼叫會同步狀態；完成後將加入網址寫入受保護 `online_url`。
+建立或同步本活動的線上會議。`provider=google-meet` 時在目前管理者的 Google 主要行事曆建立專屬 Meet；以活動 ID 衍生 Calendar event ID，重試時讀回同一筆，非同步建立時回 `pending: true`。`provider=zoom` 時另傳 `kind=meeting|webinar`，建立後重試會讀回已保存的同一筆；Webinar 需 Zoom 方案與權限。完成後都將加入網址寫入受保護 `online_url`。
 
 ### DELETE /api/admin/events/:id/meeting/connection
 
-刪除目前管理者保存的 Google Meet OAuth token；不刪除既有 Google Calendar 活動或本活動已保存的加入網址。
+刪除目前管理者保存的 OAuth token；query `provider` 可為 `google-meet` 或 `zoom`，預設 Google Meet。不刪除供應商端既有會議或本活動已保存的加入網址。
 
 ### POST /api/admin/events/:id/cancel
 

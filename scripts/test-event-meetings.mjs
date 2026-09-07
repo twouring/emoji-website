@@ -5,6 +5,7 @@ import meetings from '../lib/event-meetings.js';
 test('meeting providers create scoped OAuth URLs and provider-native events',()=>{
  const google=new URL(meetings.oauthUrl('google-meet',{clientId:'client',redirectUri:'https://emoji.test/integrations/google-meet/callback',state:'signed'}));
  assert.equal(google.origin,'https://accounts.google.com');assert.equal(google.searchParams.get('scope'),'https://www.googleapis.com/auth/calendar.events');assert.equal(google.searchParams.get('access_type'),'offline');
+ const zoomOAuth=new URL(meetings.oauthUrl('zoom',{clientId:'zoom-client',redirectUri:'https://emoji.test/integrations/zoom/callback',state:'zoom-state'}));assert.equal(zoomOAuth.origin,'https://zoom.us');assert.equal(zoomOAuth.searchParams.get('client_id'),'zoom-client');assert.equal(zoomOAuth.searchParams.get('state'),'zoom-state');
  const event={title:'Demo',description:'Details',location:'Taipei',starts_at:'2026-10-20T11:00:00.000Z',ends_at:'2026-10-20T13:00:00.000Z'};
  const meet=meetings.meetingRequest('google-meet',event);assert.match(meet.url,/conferenceDataVersion=1/);assert.equal(meet.body.conferenceData.createRequest.conferenceSolutionKey.type,'hangoutsMeet');
  const zoom=meetings.meetingRequest('zoom',event,'webinar');assert.match(zoom.url,/\/webinars$/);assert.equal(zoom.body.duration,120);

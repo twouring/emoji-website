@@ -52,7 +52,7 @@
 | 團隊 | 外部活動主、公開共同主辦、共同管理與僅簽到人員、掃描模式和票種範圍均已實作 |
 | 收款 | 言文字統一收款、逐活動稅金、審核後收款／預授權、原始票與加購票退款、票券失效、收據、退款台帳與主辦人結算均已實作；實際交易需設定 Stripe |
 | 數據 | 瀏覽／報名／到場漏斗、日／週／月區間、來源／UTM／轉介、即時工作階段及線上入口點擊均已實作；不蒐集 IP，因此不提供城市推算 |
-| 整合邊界 | 單場活動已支援三語頁、Google Calendar／ICS、受保護線上入口、第三方網站嵌入、UTM／廣告點擊參數及活動專屬 API；Zapier 可透過其 Webhooks 動作呼叫。Google Meet 的 OAuth 與自動建立流程已實作，仍待正式 OAuth 帳號驗證；Zoom 自動建立、Apple／Google Wallet、加密貨幣 token gate，以及 Blast 的 SMS／原生推播仍缺正式實作或帳號驗證，尚不可宣告全部完成 |
+| 整合邊界 | 單場活動已支援三語頁、Google Calendar／ICS、受保護線上入口、第三方網站嵌入、UTM／廣告點擊參數及活動專屬 API；Zapier 可透過其 Webhooks 動作呼叫。Google Meet 與 Zoom Meeting／Webinar 的 OAuth、自動建立及同步流程已實作，仍待正式帳號驗證；Apple／Google Wallet、加密貨幣 token gate，以及 Blast 的 SMS／原生推播仍缺正式實作或帳號驗證，尚不可宣告全部完成 |
 | 即時 Webhook | 每場活動最多 10 個 HTTPS 公網端點，可訂閱活動建立／更新／取消及來賓報名／更新／退款；密鑰只顯示一次並加密保存，投遞有 HMAC 簽章、暫停／恢復、測試、最近紀錄、1／2／4 分鐘重試與 HTTP 410 自動暫停 |
 
 後台分享工具會依語言、票種、優惠與追蹤參數即時產生現場報名 QR 圖片，可直接下載列印；掃碼後由新來賓在自己的裝置填姓名與 Email 報名，付費票由言文字統一收款。
@@ -61,7 +61,7 @@
 
 ## 2026-09-08 官方索引復核與聯絡主辦人
 
-- 重新逐項檢查 [Luma Events 官方索引](https://help.luma.com/t/events)。自動建立 [Zoom](https://help.luma.com/p/zoom-integration)、[行動錢包票券](https://help.luma.com/p/mobile-wallet-passes)、加密貨幣 token gate 與 Blast 外部通知通道仍列為缺口；Google Meet 已完成程式與本機驗收，但未連接正式 OAuth 帳號，因此仍保留外部驗證缺口。
+- 重新逐項檢查 [Luma Events 官方索引](https://help.luma.com/t/events)。[Zoom](https://help.luma.com/p/zoom-integration) 與 Google Meet 已完成程式與本機驗收，但未連接正式 OAuth 帳號；[行動錢包票券](https://help.luma.com/p/mobile-wallet-passes)、加密貨幣 token gate 與 Blast 外部通知通道仍列為缺口。
 - 依 [Luma 聯絡主辦人](https://help.luma.com/p/contacting-event-hosts) 將公開 mailto 改為登入後的三語站內表單。收件地址不進公開 API；訊息只寄給活動建立者，建立者可直接回覆來賓 Email。
 - 送出採每小時限流與內容冪等鍵；寄信失敗保留表單，只有供應商接受郵件後才清空並顯示成功。備用收件 Email 只用於沒有建立者帳號的舊活動，後台明示不公開。
 - 側邊瀏覽器驗證登出時只有登入入口；登入後英文與日文表單皆可操作，缺 Resend 時依語系顯示明確錯誤並保留原訊息。公開 API 回讀 `can_contact_host=true`，且不包含 `owner_id` 或備用收件 Email。隔離 PostgreSQL 與全套 343 項測試通過。
@@ -72,6 +72,12 @@
 - OAuth access／refresh token 使用現有 AES-256-GCM 個資金鑰加密保存，限目前管理者帳號使用；callback 以限時簽章 state、HttpOnly SameSite cookie 驗證。過期 access token 自動更新，中斷連接不刪除既有行事曆活動。
 - Google Calendar event ID 由本活動 ID 決定；供應商已建立但本機尚未保存時，重試會讀回同一筆，不重複建立。Google 非同步產生 Meet 時顯示處理中，再次操作只同步既有狀態；一般頁面設定保存會保留整合識別碼。
 - 隔離 PostgreSQL 驗證外部活動主權限、他場拒絕、缺 OAuth 設定與頁面欄位合併保存。側邊瀏覽器確認單場管理深連結直接展開「頁面與地點」，Stylebook Google Meet 區塊在未設定時只顯示明確狀態。全套 344 項通過；尚未以正式 Google OAuth 帳號建立外部會議。
+
+## 2026-09-08 Zoom 整合
+
+- 依 [Luma Zoom 整合](https://help.luma.com/p/zoom-integration) 與 [Zoom API](https://developers.zoom.us/docs/api/) 實作個人管理者 OAuth、token 更新、Meeting／Webinar 建立及既有會議同步；加入網址沿用受保護線上入口。
+- OAuth token 與 Google Meet 共用加密儲存及 callback 防護。既有 Zoom 會議重試時只讀回已保存的 provider ID；Webinar 在介面明示需要 Zoom 方案與 scope，供應商拒絕時不顯示成功。
+- 隔離 PostgreSQL 驗證外部活動主權限、他場拒絕、缺憑證與非法類型。側邊瀏覽器由單場網址直接展開「頁面與地點」，確認 Stylebook 卡片、無水平溢位，且未設定 Zoom 時不提供建立按鈕。全套 344 項通過；尚未以正式 Zoom 帳號完成 OAuth 與供應商端建立驗證。
 
 ## 2026-09-08 外部驗票整合驗收
 
