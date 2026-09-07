@@ -16,6 +16,12 @@ test('notification worker records provider acceptance, reuses a delivery key and
  updates=[];await deliverDue(q,async()=>{throw new Error('timeout');});assert.match(updates[0].sql,/retry/);
  row.first_attempt_at=new Date(Date.now()-24*3600000);updates=[];await deliverDue(q,async()=>{assert.fail('must not resend after provider idempotency expires');});assert.match(updates[0].sql,/review_required/);
 });
+test('notification worker routes verified text and push deliveries without exposing email content rules',async()=>{
+ for(const channel of ['text','push']){const row={id:channel+'_1',channel,provider_channel:'whatsapp',recipient:channel==='text'?'+886912345678':'https://push.example.test/1',email:'test@example.test',subject:'Update',body:'Details',push_subscription:{endpoint:'https://push.example.test/1',keys:{auth:'a',p256dh:'b'}},first_attempt_at:new Date(),context:{event_id:'event',slug:'demo'}},writes=[];let delivered;
+  const q=async(sql,args)=>{if(sql.includes('RETURNING *'))return {rows:[row]};if(sql.startsWith('SELECT channels'))return {rows:[]};writes.push({sql,args});return {rows:[]};};
+  const providers={text:async message=>(delivered=message,{sid:'SMprovider'}),push:async(subscription,payload)=>(delivered={subscription,payload},{statusCode:201})};await deliverDue(q,providers,'https://emoji.test','secret');assert.match(writes.at(-1).sql,/accepted/);if(channel==='text'){assert.equal(delivered.channel,'whatsapp');assert.match(delivered.body,/https:\/\/emoji\.test\/events\/demo/);}else assert.equal(delivered.payload.url,'/events/demo');
+ }
+});
 test('event invitations use the selected event language and stay bound to invited status',async()=>{
  const {queueEventInvitation}=createRequire(import.meta.url)('../lib/event-mailer');let call;
  await queueEventInvitation(async(sql,args)=>(call={sql,args},{rows:[{id:args[0]}]}),{event:{id:'event_1',slug:'demo',title:'中文活動',translations:{en:{title:'English event'}}},registrationId:'registration_1',email:'guest@example.test',name:'Guest',language:'en',origin:'https://emoji.test'});

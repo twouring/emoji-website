@@ -412,12 +412,13 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await pool.query("UPDATE events SET starts_at=now()+interval '23 hours',registration_settings='{\"reminders\":[24]}'::jsonb WHERE id=$1",[reminderEvent.id]);
   await pool.query("INSERT INTO event_regs(id,event_id,user_id,status,created_at,language) VALUES('r_reminder',$1,'guest_a','registered',now()-interval '2 hours','en')",[reminderEvent.id]);
   const {queueReminders}=require('../lib/event-mailer');const reminderQ=(sql,args)=>pool.query(sql,args);
-  assert.equal(await queueReminders(reminderQ,origin),1);assert.equal(await queueReminders(reminderQ,origin),0);
+  process.env.RESEND_API_KEY='local-test';assert.equal(await queueReminders(reminderQ,origin),1);assert.equal(await queueReminders(reminderQ,origin),0);delete process.env.RESEND_API_KEY;
   const queued=(await pool.query("SELECT * FROM event_deliveries WHERE id='reminder_r_reminder_1_24'")).rows[0];assert.equal(queued.email,'g@example.test');assert.match(queued.subject,/Event reminder/);assert.equal(queued.state,'queued');
   await pool.query("UPDATE event_regs SET status='cancelled' WHERE id='r_reminder'");
   await pool.query("UPDATE event_deliveries SET next_attempt_at=now()-interval '1 day' WHERE id='reminder_r_reminder_1_24'");
   await require('../lib/event-mailer').deliverDue(reminderQ,async()=>assert.fail('Cancelled booking must not receive an automatic reminder'));
   assert.equal((await pool.query("SELECT state FROM event_deliveries WHERE id='reminder_r_reminder_1_24'")).rows[0].state,'cancelled');
+  const channelEvent=await call('/admin/events',{as:a,method:'POST',body:{title:'Channel reminder',status:'報名中',capacity:10,price_twd:0}});await pool.query("UPDATE events SET starts_at=now()+interval '23 hours',registration_settings='{\"reminders\":[24]}'::jsonb WHERE id=$1",[channelEvent.id]);await pool.query("INSERT INTO event_regs(id,event_id,user_id,status,created_at) VALUES('r_channels',$1,'guest_a','registered',now()-interval '2 hours')",[channelEvent.id]);await pool.query("UPDATE users SET phone='+886912345678',phone_verified_at=now(),message_channel='whatsapp' WHERE id='guest_a'");await pool.query("INSERT INTO event_push_subscriptions(id,user_id,endpoint,subscription) VALUES('push_test','guest_a','https://push.example.test/1',$1)",[JSON.stringify({endpoint:'https://push.example.test/1',keys:{auth:'a',p256dh:'b'}})]);Object.assign(process.env,{TWILIO_ACCOUNT_SID:'ACtest',TWILIO_AUTH_TOKEN:'secret',TWILIO_VERIFY_SERVICE_SID:'VAtest',TWILIO_MESSAGING_SERVICE_SID:'MGtest',WEB_PUSH_VAPID_PUBLIC_KEY:'public',WEB_PUSH_VAPID_PRIVATE_KEY:'private',WEB_PUSH_SUBJECT:'mailto:test@example.test'});assert.equal(await queueReminders(reminderQ,origin),1);const channelRows=(await pool.query("SELECT channel,provider_channel FROM event_deliveries WHERE message_id='reminder_r_channels_1_24' ORDER BY channel")).rows;assert.deepEqual(channelRows,[{channel:'push',provider_channel:null},{channel:'text',provider_channel:'whatsapp'}]);for(const key of ['TWILIO_ACCOUNT_SID','TWILIO_AUTH_TOKEN','TWILIO_VERIFY_SERVICE_SID','TWILIO_MESSAGING_SERVICE_SID','WEB_PUSH_VAPID_PUBLIC_KEY','WEB_PUSH_VAPID_PRIVATE_KEY','WEB_PUSH_SUBJECT'])delete process.env[key];
   await call('/admin/events/'+reminderEvent.id+'/registration-settings',{as:a,method:'POST',body:{requires_approval:false,waitlist:false,feedback:{enabled:true,delay_hours:0,subject:'',body:''}}});
   await pool.query("UPDATE events SET ends_at=now()-interval '1 hour' WHERE id=$1",[reminderEvent.id]);
   await pool.query("UPDATE event_regs SET status='registered' WHERE id='r_reminder'");
@@ -504,11 +505,15 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await call(editBlast+'/cancel',{as:a,method:'POST'});
   assert.deepEqual((await call('/events/'+extraEvent.id+'/messages',{as:guest})).messages,[]);
   const preferencePath='/events/'+extraEvent.id+'/notification-settings';
-  assert.deepEqual((await call(preferencePath,{as:guest})).settings,{blasts:true,reminders:true,feedback:true});
+  const defaultPreferences=(await call(preferencePath,{as:guest})).settings;assert.deepEqual({blasts:defaultPreferences.blasts,reminders:defaultPreferences.reminders,feedback:defaultPreferences.feedback},{blasts:true,reminders:true,feedback:true});assert.deepEqual(defaultPreferences.channels.blasts,{email:true,text:true,push:true});
+  await pool.query("DELETE FROM event_push_subscriptions WHERE user_id='guest_a'");
+  await pool.query(`INSERT INTO event_push_subscriptions(id,user_id,endpoint,subscription) VALUES('push_a','guest_a','https://push.example.test/a','{}'),('push_b','guest_a','https://push.example.test/b','{}')`);
+  await call('/me/push-subscriptions',{as:guest,method:'DELETE',body:{endpoint:'https://push.example.test/a'}});assert.equal((await pool.query("SELECT count(*)::int AS n FROM event_push_subscriptions WHERE user_id='guest_a'")).rows[0].n,1);
+  await call('/me/push-subscriptions',{as:guest,method:'DELETE',body:{}});assert.equal((await pool.query("SELECT count(*)::int AS n FROM event_push_subscriptions WHERE user_id='guest_a'")).rows[0].n,0);
   await call(preferencePath,{as:b,method:'PUT',body:{blasts:false,reminders:false,feedback:false},status:404});
   await call(preferencePath,{as:guest,method:'PUT',body:{blasts:false,reminders:false,feedback:false}});
-  assert.deepEqual((await call(preferencePath,{as:guest})).settings,{blasts:false,reminders:false,feedback:false});
-  assert.equal((await call(editBlast+'/preview',{as:a})).count,0,'Preview excludes guests who disabled announcement emails');
+  const disabledPreferences=(await call(preferencePath,{as:guest})).settings;assert.deepEqual({blasts:disabledPreferences.blasts,reminders:disabledPreferences.reminders,feedback:disabledPreferences.feedback},{blasts:false,reminders:false,feedback:false});
+  assert.equal((await call(editBlast+'/preview',{as:a})).count,0,'Preview excludes guests who disabled announcements');
   const {queueEventMail,deliverDue}=require('../lib/event-mailer');
   const currentTicketVersion=(await pool.query('SELECT ticket_version FROM event_regs WHERE id=$1',[extraReg.id])).rows[0].ticket_version;
   for(const id of ['pref_blast','reminder_pref_24','feedback_pref']){
@@ -526,7 +531,7 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await call('/events/unsubscribe',{as:'',method:'POST',body:{token:unsubscribeToken+'x',action:'unsubscribe'},status:400});
   await call('/events/unsubscribe',{as:'',method:'POST',body:{token:signUnsubscribe('confirmation_pref',secret),action:'unsubscribe'},status:400});
   for(let n=0;n<2;n++)await call('/events/unsubscribe',{as:'',method:'POST',body:{token:unsubscribeToken,action:'unsubscribe'}});
-  assert.deepEqual((await call(preferencePath,{as:guest})).settings,{blasts:false,reminders:true,feedback:false});
+  {const settings=(await call(preferencePath,{as:guest})).settings;assert.deepEqual({blasts:settings.blasts,reminders:settings.reminders,feedback:settings.feedback},{blasts:false,reminders:true,feedback:false});}
   const settlementEvent=await call('/admin/events',{as:a,method:'POST',body:{title:'Settlement ledger',status:'報名中',capacity:10,price_twd:0}}),settlementPath='/admin/events/'+settlementEvent.id+'/settlements';
   await pool.query("INSERT INTO event_regs(id,event_id,user_id,status,amount_due,amount_paid,stripe_payment_intent_id,paid_at) VALUES('settlement_reg',$1,'guest_a','registered',1000,1000,'pi_settlement_test',now())",[settlementEvent.id]);
   let finance=await call('/admin/events/'+settlementEvent.id+'/payments',{as:a});assert.equal(finance.can_manage_settlement,false);assert.deepEqual(finance.settlement_summary,{gross_twd:1000,refunded_twd:0,scheduled_twd:0,settled_twd:0,net_collected_twd:1000,available_twd:1000});

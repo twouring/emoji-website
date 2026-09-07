@@ -30,6 +30,7 @@ const {EVENT_TYPES:EVENT_WEBHOOK_TYPES,normalizeWebhook,sendWebhook}=require('./
 const {oauthUrl,meetingRequest,meetingResult}=require('./lib/event-meetings');
 const eventWallets=require('./lib/event-wallets');
 const eventCrypto=require('./lib/event-crypto');
+const eventChannels=require('./lib/event-channels');
 const eventQuestions = require('./lib/event-questions');
 const { eventSlug, normalizeEventInput, localizeEvent, normalizeAttribution } = require('./lib/events');
 const { normalizeEventApplication } = require('./lib/event-applications');
@@ -419,6 +420,10 @@ async function migrate() {
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),expires_at TIMESTAMPTZ NOT NULL,used_at TIMESTAMPTZ)`);
   await q(`CREATE INDEX IF NOT EXISTS email_login_recent ON email_login_tokens(email,created_at)`);
   await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_event_organizer BOOLEAN NOT NULL DEFAULT false`);
+  await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified_at TIMESTAMPTZ`);
+  await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS message_channel TEXT NOT NULL DEFAULT 'sms'`);
+  await q(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_message_channel_check`);
+  await q(`ALTER TABLE users ADD CONSTRAINT users_message_channel_check CHECK(message_channel IN ('sms','whatsapp'))`);
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS owner_id TEXT REFERENCES users(id) ON DELETE SET NULL`);
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS checkin_mode TEXT NOT NULL DEFAULT 'standard'`);
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS checkin_mode_locked BOOLEAN NOT NULL DEFAULT false`);
@@ -436,6 +441,7 @@ async function migrate() {
  event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
  blasts BOOLEAN NOT NULL DEFAULT true,reminders BOOLEAN NOT NULL DEFAULT true,feedback BOOLEAN NOT NULL DEFAULT true,
  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),PRIMARY KEY(event_id,user_id))`);
+  await q(`ALTER TABLE event_notification_preferences ADD COLUMN IF NOT EXISTS channels JSONB NOT NULL DEFAULT '{"blasts":{"email":true,"text":true,"push":true},"reminders":{"email":true,"text":true,"push":true},"feedback":{"email":true,"text":false,"push":false}}'::jsonb`);
   await q(`CREATE TABLE IF NOT EXISTS event_feedback (
     event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,user_id TEXT NOT NULL REFERENCES users(id),
     rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),comment TEXT NOT NULL DEFAULT '',updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),PRIMARY KEY(event_id,user_id))`);
@@ -481,6 +487,17 @@ async function migrate() {
   await q(`ALTER TABLE event_messages ADD COLUMN IF NOT EXISTS expected_status TEXT`);
   await q(`ALTER TABLE event_messages ADD COLUMN IF NOT EXISTS body_html TEXT NOT NULL DEFAULT ''`);
   await q(`ALTER TABLE event_deliveries ADD COLUMN IF NOT EXISTS body_html TEXT NOT NULL DEFAULT ''`);
+  await q(`ALTER TABLE event_deliveries ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'email'`);
+  await q(`ALTER TABLE event_deliveries ADD COLUMN IF NOT EXISTS provider_channel TEXT`);
+  await q(`ALTER TABLE event_deliveries ADD COLUMN IF NOT EXISTS recipient TEXT`);
+  await q(`ALTER TABLE event_deliveries ADD COLUMN IF NOT EXISTS push_subscription JSONB`);
+  await q(`UPDATE event_deliveries SET recipient=email WHERE recipient IS NULL`);
+  await q(`ALTER TABLE event_deliveries ALTER COLUMN recipient SET NOT NULL`);
+  await q(`ALTER TABLE event_deliveries DROP CONSTRAINT IF EXISTS event_deliveries_message_id_email_key`);
+  await q(`CREATE UNIQUE INDEX IF NOT EXISTS event_deliveries_message_recipient_channel ON event_deliveries(message_id,recipient,channel)`);
+  await q(`CREATE TABLE IF NOT EXISTS event_push_subscriptions (
+    id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,endpoint TEXT NOT NULL UNIQUE,subscription JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),last_used_at TIMESTAMPTZ)`);
   await q(`ALTER TABLE event_messages ADD COLUMN IF NOT EXISTS audiences JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await q(`ALTER TABLE event_messages ADD COLUMN IF NOT EXISTS ticket_ids JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await q(`CREATE TABLE IF NOT EXISTS event_attendees (
@@ -529,6 +546,14 @@ async function migrate() {
   await q(`CREATE TABLE IF NOT EXISTS event_activity (
     id BIGSERIAL PRIMARY KEY,event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     registration_id TEXT,actor_id TEXT,action TEXT NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE TABLE IF NOT EXISTS event_wallet_issues (
+    provider TEXT NOT NULL CHECK(provider IN ('apple','google')),serial TEXT NOT NULL,event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    language TEXT NOT NULL DEFAULT 'zh',updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),last_sync_at TIMESTAMPTZ,last_error TEXT,
+    PRIMARY KEY(provider,serial))`);
+  await q(`CREATE TABLE IF NOT EXISTS event_apple_devices (
+    device_id TEXT NOT NULL,provider TEXT NOT NULL DEFAULT 'apple' CHECK(provider='apple'),serial TEXT NOT NULL,push_token TEXT NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT now(),last_notified_at TIMESTAMPTZ,
+    PRIMARY KEY(device_id,serial),FOREIGN KEY(provider,serial) REFERENCES event_wallet_issues(provider,serial) ON DELETE CASCADE)`);
+  await q(`CREATE INDEX IF NOT EXISTS event_apple_devices_serial_idx ON event_apple_devices(serial)`);
   await q(`CREATE TABLE IF NOT EXISTS event_api_keys (
     event_id TEXT PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,key_hash TEXT UNIQUE NOT NULL,key_prefix TEXT NOT NULL,
     created_by TEXT,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
@@ -1255,7 +1280,7 @@ app.use((req, res, next) => {
     res.set('Access-Control-Allow-Origin', o);
     res.vary('Origin');
     res.set('Access-Control-Allow-Headers', 'authorization, content-type');
-    res.set('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+    res.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   }
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
@@ -1358,6 +1383,7 @@ const wrap = fn => (req, res) => fn(req, res).catch(e => {
     ? { error: '付款服務暫時無法使用，請稍後再試。', code: 'PAYMENT_UNAVAILABLE' }
     : { error: '伺服器處理失敗。' });
 });
+app.post('/api/twilio/events/status',express.urlencoded({extended:false,limit:'32kb'}),wrap(async(req,res)=>{const config=eventChannels.twilioConfig();if(!config)return res.sendStatus(503);const url=SITE_BASE+req.originalUrl;if(!eventChannels.verifyTwilioSignature(config.authToken,url,req.body,req.get('x-twilio-signature')))return res.sendStatus(401);const sid=String(req.body.MessageSid||''),status=String(req.body.MessageStatus||'');if(!/^SM[A-Za-z0-9]{20,64}$/.test(sid)||!['accepted','queued','sending','sent','delivered','undelivered','failed','read'].includes(status))return res.sendStatus(400);const state=['delivered','read'].includes(status)?'delivered':['undelivered','failed'].includes(status)?'failed':'accepted';await q('UPDATE event_deliveries SET state=$2,last_error=CASE WHEN $2=\'failed\' THEN $3 ELSE NULL END WHERE provider_id=$1',[sid,state,String(req.body.ErrorMessage||req.body.ErrorCode||'').slice(0,500)]);await q('INSERT INTO event_delivery_events(id,provider_id,event_type,occurred_at) VALUES($1,$2,$3,now()) ON CONFLICT DO NOTHING',['twilio_'+sid+'_'+status,sid,'text.'+status]);res.sendStatus(204);}));
 
 app.get('/api/health', (req, res) =>
   res.json({ ok: true, db: dbReady, dbConfigured: !!pool }));
@@ -2278,6 +2304,7 @@ async function queueEventWebhook(client,eventId,registrationId,action){
 
 async function recordEventActivity(client,eventId,registrationId,actorId,action){
  await client.query('INSERT INTO event_activity(event_id,registration_id,actor_id,action) VALUES($1,$2,$3,$4)',[eventId,registrationId||null,actorId||null,action]);
+ await client.query('UPDATE event_wallet_issues SET updated_at=now() WHERE event_id=$1',[eventId]);
  await queueEventWebhook(client,eventId,registrationId,action);
 }
 
@@ -2598,9 +2625,9 @@ app.post('/api/admin/events/:id/cancel',auth,requireDb,eventEditor,wrap(async(re
 }));
 
 app.get('/api/admin/events/:id/messages',auth,requireDb,eventEditor,wrap(async(req,res)=>{
- const messages=(await q(`SELECT m.*,COALESCE((SELECT jsonb_agg(jsonb_build_object('state',d.state,'email',d.email,'error',d.last_error,'events',COALESCE((SELECT jsonb_agg(jsonb_build_object('type',x.event_type,'at',x.occurred_at) ORDER BY x.occurred_at) FROM event_delivery_events x WHERE x.provider_id=d.provider_id),'[]'::jsonb))) FROM event_deliveries d WHERE d.message_id=m.id),'[]') AS deliveries FROM event_messages m WHERE event_id=$1 ORDER BY created_at DESC`,[req.params.id])).rows;
+ const messages=(await q(`SELECT m.*,COALESCE((SELECT jsonb_agg(jsonb_build_object('state',d.state,'email',d.email,'recipient',d.recipient,'channel',d.channel,'error',d.last_error,'events',COALESCE((SELECT jsonb_agg(jsonb_build_object('type',x.event_type,'at',x.occurred_at) ORDER BY x.occurred_at) FROM event_delivery_events x WHERE x.provider_id=d.provider_id),'[]'::jsonb))) FROM event_deliveries d WHERE d.message_id=m.id),'[]') AS deliveries FROM event_messages m WHERE event_id=$1 ORDER BY created_at DESC`,[req.params.id])).rows;
  const tickets=(await q('SELECT tickets FROM events WHERE id=$1',[req.params.id])).rows[0]?.tickets||[];
- res.json({messages,tickets:tickets.map(t=>({id:t.id,name:t.name})),configured:!!process.env.RESEND_API_KEY});
+ res.json({messages,tickets:tickets.map(t=>({id:t.id,name:t.name})),configured:deliveryChannels()});
 }));
 app.post('/api/admin/events/:id/messages',auth,requireDb,eventEditor,wrap(async(req,res)=>{
  let value;try{value=normalizeBlast(req.body);}catch(e){return res.status(400).json({error:e.message});}
@@ -2614,8 +2641,8 @@ app.patch('/api/admin/events/:id/messages/:messageId',auth,requireDb,eventEditor
 app.get('/api/admin/events/:id/messages/:messageId/preview',auth,requireDb,eventEditor,wrap(async(req,res)=>{
  const message=(await q('SELECT id,subject,body,body_html,audiences,ticket_ids,state FROM event_messages WHERE id=$1 AND event_id=$2',[req.params.messageId,req.params.id])).rows[0];
  if(!message)return res.status(404).json({error:'找不到訊息。'});
- const recipients=(await q(`SELECT DISTINCT u.email FROM event_regs r JOIN users u ON u.id=r.user_id JOIN event_messages m ON m.event_id=r.event_id WHERE r.event_id=$1 AND m.id=$2 AND ${blastAudienceSQL} AND NOT EXISTS(SELECT 1 FROM event_notification_preferences p WHERE p.event_id=r.event_id AND p.user_id=r.user_id AND NOT p.blasts) ORDER BY u.email`,[req.params.id,message.id])).rows;
- res.json({message,count:recipients.length,recipients});
+ const recipients=(await q(`SELECT DISTINCT u.id,u.email,u.phone,u.phone_verified_at IS NOT NULL AS phone_verified,u.message_channel,COALESCE(p.channels,$3::jsonb) AS channels,EXISTS(SELECT 1 FROM event_push_subscriptions s WHERE s.user_id=u.id) AS push_subscribed FROM event_regs r JOIN users u ON u.id=r.user_id JOIN event_messages m ON m.event_id=r.event_id LEFT JOIN event_notification_preferences p ON p.event_id=r.event_id AND p.user_id=r.user_id WHERE r.event_id=$1 AND m.id=$2 AND ${blastAudienceSQL} AND COALESCE(p.blasts,true) ORDER BY u.email`,[req.params.id,message.id,JSON.stringify(defaultNotificationChannels)])).rows,available=deliveryChannels(),channel_counts={email:0,text:0,push:0};for(const row of recipients){const channels=notificationChannels(row.channels).blasts;if(available.email&&channels.email)channel_counts.email++;if(available.text&&channels.text&&row.phone_verified)channel_counts.text++;if(available.push&&channels.push&&row.push_subscribed)channel_counts.push++;}
+ res.json({message,count:recipients.length,recipients:recipients.map(({email})=>({email})),channel_counts,configured:available});
 }));
 app.post('/api/admin/events/:id/messages/:messageId/publish',auth,requireDb,eventEditor,wrap(async(req,res)=>{
  const result=await eventMutation(req,req.params.id,'message_published',"UPDATE event_messages SET state='published',send_at=now() WHERE id=$1 AND event_id=$2 AND state='draft' AND registration_id IS NULL RETURNING id",[req.params.messageId,req.params.id]);
@@ -2633,6 +2660,16 @@ app.post('/api/events/unsubscribe',rateLimit({max:30,windowMs:60000}),requireDb,
  ON CONFLICT(event_id,user_id) DO UPDATE SET blasts=CASE WHEN $3='blasts' THEN false ELSE event_notification_preferences.blasts END,reminders=CASE WHEN $3='reminders' THEN false ELSE event_notification_preferences.reminders END,feedback=CASE WHEN $3='feedback' THEN false ELSE event_notification_preferences.feedback END,updated_at=now()`,[row.event_id,row.email,category]);
  res.json({ok:true,category});
 }));
+
+const defaultNotificationChannels={blasts:{email:true,text:true,push:true},reminders:{email:true,text:true,push:true},feedback:{email:true,text:false,push:false}};
+function notificationChannels(value){if(value==null)return defaultNotificationChannels;if(!value||typeof value!=='object'||Array.isArray(value))throw Error('通知通路格式不正確。');const out={};for(const category of ['blasts','reminders','feedback']){const row=value[category];if(!row||typeof row!=='object'||Array.isArray(row))throw Error('通知通路格式不正確。');out[category]={};for(const channel of ['email','text','push']){if(typeof row[channel]!=='boolean')throw Error('通知通路必須為開啟或關閉。');out[category][channel]=row[channel];}}out.feedback.text=false;out.feedback.push=false;return out;}
+const deliveryChannels=()=>({email:!!process.env.RESEND_API_KEY,text:!!eventChannels.twilioConfig(),push:!!eventChannels.pushConfig()});
+
+app.post('/api/me/phone/verify/start',auth,requireDb,rateLimit({max:5,windowMs:3600000}),wrap(async(req,res)=>{if(!req.auth.sub)return res.status(403).json({error:'請以會員身分登入。'});const config=eventChannels.twilioConfig(),phone=eventChannels.normalizePhone(req.body?.phone),channel=String(req.body?.channel||'sms');if(!config)return res.status(503).json({error:'簡訊／WhatsApp 驗證尚未設定。'});if(!phone||!['sms','whatsapp'].includes(channel))return res.status(400).json({error:'請輸入含國碼的電話，例如 +886912345678，並選擇有效通路。'});await eventChannels.startPhoneVerification(config,{phone,channel});res.json({ok:true});}));
+app.post('/api/me/phone/verify/confirm',auth,requireDb,rateLimit({max:10,windowMs:3600000}),wrap(async(req,res)=>{if(!req.auth.sub)return res.status(403).json({error:'請以會員身分登入。'});const config=eventChannels.twilioConfig(),phone=eventChannels.normalizePhone(req.body?.phone),channel=String(req.body?.channel||'sms');if(!config)return res.status(503).json({error:'簡訊／WhatsApp 驗證尚未設定。'});if(!phone||!['sms','whatsapp'].includes(channel))return res.status(400).json({error:'電話或通路格式不正確。'});if(!await eventChannels.checkPhoneVerification(config,{phone,code:req.body?.code}))return res.status(400).json({error:'驗證碼不正確或已過期。'});await q('UPDATE users SET phone=$2,phone_verified_at=now(),message_channel=$3 WHERE id=$1',[req.auth.sub,phone,channel]);res.json({ok:true,phone,channel});}));
+app.delete('/api/me/phone',auth,requireDb,wrap(async(req,res)=>{if(!req.auth.sub)return res.status(403).json({error:'請以會員身分登入。'});await q("UPDATE users SET phone='',phone_verified_at=NULL WHERE id=$1",[req.auth.sub]);res.json({ok:true});}));
+app.post('/api/me/push-subscriptions',auth,requireDb,wrap(async(req,res)=>{if(!req.auth.sub)return res.status(403).json({error:'請以會員身分登入。'});if(!eventChannels.pushConfig())return res.status(503).json({error:'瀏覽器推播尚未設定。'});const subscription=req.body?.subscription,endpoint=String(subscription?.endpoint||''),authKey=subscription?.keys?.auth,p256dh=subscription?.keys?.p256dh;let url;try{url=new URL(endpoint);}catch{}if(!url||url.protocol!=='https:'||endpoint.length>2048||typeof authKey!=='string'||!authKey||authKey.length>1024||typeof p256dh!=='string'||!p256dh||p256dh.length>1024)return res.status(400).json({error:'推播訂閱格式不正確。'});await q(`INSERT INTO event_push_subscriptions(id,user_id,endpoint,subscription) VALUES($1,$2,$3,$4) ON CONFLICT(endpoint) DO UPDATE SET user_id=$2,subscription=$4`,[uid('push_'),req.auth.sub,endpoint,JSON.stringify({endpoint,expirationTime:subscription.expirationTime||null,keys:{auth:authKey,p256dh}})]);res.json({ok:true});}));
+app.delete('/api/me/push-subscriptions',auth,requireDb,wrap(async(req,res)=>{if(!req.auth.sub)return res.status(403).json({error:'請以會員身分登入。'});const endpoint=String(req.body?.endpoint||'');if(endpoint.length>2048)return res.status(400).json({error:'推播訂閱格式不正確。'});await q("DELETE FROM event_push_subscriptions WHERE user_id=$1 AND ($2='' OR endpoint=$2)",[req.auth.sub,endpoint]);res.json({ok:true});}));
 
 async function eventParticipant(req,res,next){
  try{const found=await q(`SELECT 1 FROM events e JOIN event_regs r ON r.event_id=e.id WHERE e.id=$1 AND e.status<>'草稿' AND (r.user_id=$2 OR EXISTS(SELECT 1 FROM event_attendees a WHERE a.registration_id=r.id AND a.email=lower($3))) LIMIT 1`,[req.params.id,req.auth.sub,req.auth.email||'']);if(!found.rowCount)return res.status(404).json({error:'找不到你的活動報名。'});next();}catch(e){next(e);}
@@ -2656,11 +2693,11 @@ app.post('/api/events/:id/contact-host',auth,requireDb,rateLimit({max:5,windowMs
  await q("INSERT INTO event_activity(event_id,actor_id,action) VALUES($1,$2,'host_contacted')",[event.id,sender.id]);res.json({ok:true});
 }));
 app.get('/api/events/:id/notification-settings',auth,requireDb,eventParticipant,wrap(async(req,res)=>{
- const settings=(await q('SELECT blasts,reminders,feedback FROM event_notification_preferences WHERE event_id=$1 AND user_id=$2',[req.params.id,req.auth.sub])).rows[0]||{blasts:true,reminders:true,feedback:true};res.json({settings});
+ const settings=(await q('SELECT blasts,reminders,feedback,channels FROM event_notification_preferences WHERE event_id=$1 AND user_id=$2',[req.params.id,req.auth.sub])).rows[0]||{blasts:true,reminders:true,feedback:true,channels:defaultNotificationChannels},account=(await q(`SELECT phone,phone_verified_at IS NOT NULL AS phone_verified,message_channel,EXISTS(SELECT 1 FROM event_push_subscriptions s WHERE s.user_id=users.id) AS push_subscribed FROM users WHERE id=$1`,[req.auth.sub])).rows[0],push=eventChannels.pushConfig();res.json({settings:{...settings,channels:notificationChannels(settings.channels)},account,providers:deliveryChannels(),vapid_public_key:push?.publicKey||null});
 }));
 app.put('/api/events/:id/notification-settings',auth,requireDb,eventParticipant,wrap(async(req,res)=>{
  const b=req.body||{};if(['blasts','reminders','feedback'].some(k=>typeof b[k]!=='boolean'))return res.status(400).json({error:'通知設定必須為開啟或關閉。'});
- await q(`INSERT INTO event_notification_preferences(event_id,user_id,blasts,reminders,feedback) VALUES($1,$2,$3,$4,$5) ON CONFLICT(event_id,user_id) DO UPDATE SET blasts=$3,reminders=$4,feedback=$5,updated_at=now()`,[req.params.id,req.auth.sub,b.blasts,b.reminders,b.feedback]);res.json({ok:true});
+ let channels;try{channels=notificationChannels(b.channels);}catch(error){return res.status(400).json({error:error.message});}await q(`INSERT INTO event_notification_preferences(event_id,user_id,blasts,reminders,feedback,channels) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(event_id,user_id) DO UPDATE SET blasts=$3,reminders=$4,feedback=$5,channels=$6,updated_at=now()`,[req.params.id,req.auth.sub,b.blasts,b.reminders,b.feedback,JSON.stringify(channels)]);res.json({ok:true});
 }));
 app.get('/api/events/:id/messages',auth,requireDb,wrap(async(req,res)=>{
  const messages=(await q(`SELECT DISTINCT m.id,m.subject,m.body,m.body_html,m.send_at FROM event_messages m JOIN events e ON e.id=m.event_id JOIN event_regs r ON r.event_id=m.event_id
@@ -2673,17 +2710,18 @@ app.get('/api/events/:id/messages',auth,requireDb,wrap(async(req,res)=>{
  res.json({messages});
 }));
 app.post('/api/admin/events/:id/messages/:messageId/schedule',auth,requireDb,eventEditor,wrap(async(req,res)=>{
- if(!process.env.RESEND_API_KEY)return res.status(503).json({error:'寄信服務尚未設定，草稿已保留，未寄送。'});
+ const available=deliveryChannels();if(!Object.values(available).some(Boolean))return res.status(503).json({error:'通知服務尚未設定，草稿已保留，未寄送。'});
  const sendAt=req.body?.send_at?new Date(req.body.send_at):new Date();
  if(!Number.isFinite(+sendAt)||+sendAt<Date.now()-60000)return res.status(400).json({error:'請選擇有效的未來時間。'});
  const client=await pool.connect();try{await client.query('BEGIN');
  const message=(await client.query('SELECT * FROM event_messages WHERE id=$1 AND event_id=$2 FOR UPDATE',[req.params.messageId,req.params.id])).rows[0];
  if(!message){await client.query('ROLLBACK');return res.status(404).json({error:'找不到訊息。'});}
  if(message.state!=='draft'){await client.query('ROLLBACK');return res.status(409).json({error:'訊息已排程或取消，請勿重複寄送。'});}
- const recipients=(await client.query(`SELECT DISTINCT u.email FROM event_regs r JOIN users u ON u.id=r.user_id JOIN event_messages m ON m.event_id=r.event_id WHERE r.event_id=$1 AND m.id=$2 AND ${blastAudienceSQL} AND NOT EXISTS(SELECT 1 FROM event_notification_preferences p WHERE p.event_id=r.event_id AND p.user_id=r.user_id AND NOT p.blasts)`,[req.params.id,message.id])).rows;
+ const recipients=(await client.query(`SELECT DISTINCT u.id,u.email,u.phone,u.phone_verified_at IS NOT NULL AS phone_verified,u.message_channel,COALESCE(p.channels,$3::jsonb) AS channels,COALESCE((SELECT jsonb_agg(s.subscription) FROM event_push_subscriptions s WHERE s.user_id=u.id),'[]'::jsonb) AS subscriptions FROM event_regs r JOIN users u ON u.id=r.user_id JOIN event_messages m ON m.event_id=r.event_id LEFT JOIN event_notification_preferences p ON p.event_id=r.event_id AND p.user_id=r.user_id WHERE r.event_id=$1 AND m.id=$2 AND ${blastAudienceSQL} AND COALESCE(p.blasts,true)`,[req.params.id,message.id,JSON.stringify(defaultNotificationChannels)])).rows;
  if(!recipients.length){await client.query('ROLLBACK');return res.status(409).json({error:'此分眾目前沒有收件人。'});}
- for(const r of recipients)await client.query('INSERT INTO event_deliveries(id,message_id,email,subject,body,next_attempt_at,body_html) VALUES($1,$2,$3,$4,$5,$6,$7)',[uid('mail_'),message.id,r.email,message.subject,message.body,sendAt,message.body_html]);
- await client.query("UPDATE event_messages SET state='scheduled',send_at=$2 WHERE id=$1",[message.id,sendAt]);await client.query('COMMIT');res.json({ok:true,recipients:recipients.length,send_at:sendAt});
+ const counts={email:0,text:0,push:0};for(const r of recipients){const channels=notificationChannels(r.channels).blasts;if(available.email&&channels.email){await client.query('INSERT INTO event_deliveries(id,message_id,email,recipient,channel,subject,body,next_attempt_at,body_html) VALUES($1,$2,$3,$3,\'email\',$4,$5,$6,$7)',[uid('mail_'),message.id,r.email,message.subject,message.body,sendAt,message.body_html]);counts.email++;}if(available.text&&channels.text&&r.phone_verified){await client.query('INSERT INTO event_deliveries(id,message_id,email,recipient,channel,provider_channel,subject,body,next_attempt_at) VALUES($1,$2,$3,$4,\'text\',$5,$6,$7,$8)',[uid('text_'),message.id,r.email,r.phone,r.message_channel,message.subject,message.body,sendAt]);counts.text++;}if(available.push&&channels.push)for(const subscription of r.subscriptions){await client.query('INSERT INTO event_deliveries(id,message_id,email,recipient,channel,subject,body,next_attempt_at,push_subscription) VALUES($1,$2,$3,$4,\'push\',$5,$6,$7,$8)',[uid('push_'),message.id,r.email,subscription.endpoint,message.subject,message.body,sendAt,JSON.stringify(subscription)]);counts.push++;}}
+ if(!Object.values(counts).some(Boolean)){await client.query('ROLLBACK');return res.status(409).json({error:'符合條件的來賓都未啟用可用通知通路。'});}
+ await client.query("UPDATE event_messages SET state='scheduled',send_at=$2 WHERE id=$1",[message.id,sendAt]);await client.query('COMMIT');res.json({ok:true,recipients:recipients.length,channel_counts:counts,send_at:sendAt});
  }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
 }));
 app.post('/api/admin/events/:id/messages/:messageId/cancel',auth,requireDb,eventEditor,wrap(async(req,res)=>{
@@ -3597,12 +3635,27 @@ async function eventWalletTicket(req){
  if(!row)throw Object.assign(Error('找不到可加入錢包的現場活動票券。'),{status:404});const end=row.ends_at||row.starts_at,ttlSec=end?Math.max(3600,Math.floor((+new Date(end)-Date.now())/1000)+7*86400):366*86400,localized=localizeEvent(row,req.query.lang),serial=row.attendee_id||row.registration_id;
  return {event:{...localized,id:row.id,slug:row.slug,starts_at:row.starts_at,ends_at:row.ends_at,accent:row.event_details?.accent},ticket:{serial,name:row.name,ticket_name:row.order_ticket?.name||row.ticket_snapshot?.name||localized.title,token:signAccessToken({sub:req.auth.sub,ent:row.registration_id,plan:'event-ticket',event:row.id,version:row.ticket_version,...(row.attendee_id?{attendee:row.attendee_id}:{})},EVENT_QR_SECRET,{ttlSec})}};
 }
+async function eventWalletTicketBySerial(serial,lang='zh'){
+ const row=(await q(`SELECT e.id,e.slug,e.title,e.location,e.starts_at,e.ends_at,e.translations,e.event_details,r.id AS registration_id,r.user_id,r.ticket_version,r.ticket_snapshot,
+  a.id AS attendee_id,a.name,a.email,o.ticket_snapshot AS order_ticket FROM event_regs r JOIN events e ON e.id=r.event_id LEFT JOIN event_attendees a ON a.registration_id=r.id LEFT JOIN event_ticket_orders o ON o.id=a.order_id
+  WHERE (a.id=$1 OR (a.id IS NULL AND r.id=$1)) AND r.status='registered' AND e.status<>'已取消' AND COALESCE(e.event_details->>'mode','offline')<>'online' AND (a.order_id IS NULL OR o.status='registered') LIMIT 1`,[serial])).rows[0];
+ if(!row)return null;const end=row.ends_at||row.starts_at,ttlSec=end?Math.max(3600,Math.floor((+new Date(end)-Date.now())/1000)+7*86400):366*86400,localized=localizeEvent(row,lang);
+ return {event:{...localized,id:row.id,slug:row.slug,starts_at:row.starts_at,ends_at:row.ends_at,accent:row.event_details?.accent},ticket:{serial,name:row.name,ticket_name:row.order_ticket?.name||row.ticket_snapshot?.name||localized.title,token:signAccessToken({sub:row.user_id,ent:row.registration_id,plan:'event-ticket',event:row.id,version:row.ticket_version,...(row.attendee_id?{attendee:row.attendee_id}:{})},EVENT_QR_SECRET,{ttlSec})}};
+}
+async function rememberWalletIssue(provider,data,lang){await q(`INSERT INTO event_wallet_issues(provider,serial,event_id,language) VALUES($1,$2,$3,$4) ON CONFLICT(provider,serial) DO UPDATE SET event_id=$3,language=$4,updated_at=now(),last_error=NULL`,[provider,data.ticket.serial,data.event.id,['en','ja'].includes(lang)?lang:'zh']);}
 app.get('/api/events/:id/wallet/google',auth,requireDb,wrap(async(req,res)=>{
- let data;try{data=await eventWalletTicket(req);}catch(error){return res.status(error.status||500).json({error:error.message});}const config=eventWallets.googleConfig();if(!config)return res.status(503).json({error:'Google Wallet 尚未設定。'});res.set('Cache-Control','no-store');res.json({url:eventWallets.googleWalletUrl(config,{...data,origin:SITE_BASE})});
+ let data;try{data=await eventWalletTicket(req);}catch(error){return res.status(error.status||500).json({error:error.message});}const config=eventWallets.googleConfig();if(!config)return res.status(503).json({error:'Google Wallet 尚未設定。'});await rememberWalletIssue('google',data,req.query.lang);res.set('Cache-Control','no-store');res.json({url:eventWallets.googleWalletUrl(config,{...data,origin:SITE_BASE})});
 }));
 app.get('/api/events/:id/wallet/apple',auth,requireDb,wrap(async(req,res)=>{
- let data;try{data=await eventWalletTicket(req);}catch(error){return res.status(error.status||500).json({error:error.message});}const config=eventWallets.appleConfig();if(!config)return res.status(503).json({error:'Apple Wallet 尚未設定。'});let pass;try{pass=await eventWallets.appleWalletPass(config,{...data,origin:SITE_BASE,secret:EVENT_QR_SECRET});}catch(error){console.warn('[event-wallet] Apple pass 建立失敗：',error.message);return res.status(502).json({error:'Apple Wallet 票券建立失敗，請稍後再試。'});}res.set({'Cache-Control':'no-store','Content-Type':'application/vnd.apple.pkpass','Content-Disposition':`attachment; filename="${data.ticket.serial}.pkpass"`}).send(pass);
+ let data;try{data=await eventWalletTicket(req);}catch(error){return res.status(error.status||500).json({error:error.message});}const config=eventWallets.appleConfig();if(!config)return res.status(503).json({error:'Apple Wallet 尚未設定。'});let pass;try{await rememberWalletIssue('apple',data,req.query.lang);pass=await eventWallets.appleWalletPass(config,{...data,origin:SITE_BASE,secret:EVENT_QR_SECRET});}catch(error){console.warn('[event-wallet] Apple pass 建立失敗：',error.message);return res.status(502).json({error:'Apple Wallet 票券建立失敗，請稍後再試。'});}res.set({'Cache-Control':'no-store','Content-Type':'application/vnd.apple.pkpass','Content-Disposition':`attachment; filename="${data.ticket.serial}.pkpass"`}).send(pass);
 }));
+
+function appleWalletRequest(req,res){const config=eventWallets.appleConfig(),safe=value=>/^[A-Za-z0-9_-]{1,200}$/.test(String(value||''));if(!config||req.params.passTypeIdentifier!==config.passTypeIdentifier||req.params.deviceId&&!safe(req.params.deviceId)||req.params.serial&&!safe(req.params.serial)){res.sendStatus(404);return null;}return config;}
+app.post('/api/wallet/apple/v1/devices/:deviceId/registrations/:passTypeIdentifier/:serial',requireDb,wrap(async(req,res)=>{const config=appleWalletRequest(req,res);if(!config)return;const serial=String(req.params.serial),issue=(await q("SELECT 1 FROM event_wallet_issues WHERE provider='apple' AND serial=$1",[serial])).rows[0];if(!issue||!eventWallets.verifyAppleToken(EVENT_QR_SECRET,serial,req.get('authorization')))return res.sendStatus(401);const token=String(req.body?.pushToken||'');if(!/^[A-Fa-f0-9]{32,256}$/.test(token)||String(req.params.deviceId).length>200)return res.sendStatus(400);const result=await q(`INSERT INTO event_apple_devices(device_id,serial,push_token) VALUES($1,$2,$3) ON CONFLICT(device_id,serial) DO UPDATE SET push_token=$3 RETURNING (xmax=0) AS inserted`,[req.params.deviceId,serial,token]);res.sendStatus(result.rows[0].inserted?201:200);}));
+app.delete('/api/wallet/apple/v1/devices/:deviceId/registrations/:passTypeIdentifier/:serial',requireDb,wrap(async(req,res)=>{const config=appleWalletRequest(req,res);if(!config)return;const serial=String(req.params.serial);if(!eventWallets.verifyAppleToken(EVENT_QR_SECRET,serial,req.get('authorization')))return res.sendStatus(401);await q('DELETE FROM event_apple_devices WHERE device_id=$1 AND serial=$2',[req.params.deviceId,serial]);res.sendStatus(200);}));
+app.get('/api/wallet/apple/v1/devices/:deviceId/registrations/:passTypeIdentifier',requireDb,wrap(async(req,res)=>{const config=appleWalletRequest(req,res);if(!config)return;const since=Number(req.query.passesUpdatedSince||0);if(!Number.isFinite(since)||since<0)return res.sendStatus(400);const rows=(await q(`SELECT i.serial,extract(epoch FROM i.updated_at)*1000 AS tag FROM event_apple_devices d JOIN event_wallet_issues i ON i.provider='apple' AND i.serial=d.serial WHERE d.device_id=$1 AND extract(epoch FROM i.updated_at)*1000>$2 ORDER BY i.updated_at`,[req.params.deviceId,since])).rows;if(!rows.length)return res.sendStatus(204);res.json({serialNumbers:rows.map(row=>row.serial),lastUpdated:String(Math.floor(Math.max(...rows.map(row=>Number(row.tag)))))});}));
+app.get('/api/wallet/apple/v1/passes/:passTypeIdentifier/:serial',requireDb,wrap(async(req,res)=>{const config=appleWalletRequest(req,res);if(!config)return;const serial=String(req.params.serial),issue=(await q("SELECT language,updated_at FROM event_wallet_issues WHERE provider='apple' AND serial=$1",[serial])).rows[0];if(!issue||!eventWallets.verifyAppleToken(EVENT_QR_SECRET,serial,req.get('authorization')))return res.sendStatus(401);const data=await eventWalletTicketBySerial(serial,issue.language);if(!data)return res.sendStatus(410);const modified=new Date(issue.updated_at),since=new Date(req.get('if-modified-since')||0);if(Number.isFinite(+since)&&Math.floor(+since/1000)>=Math.floor(+modified/1000))return res.sendStatus(304);const pass=await eventWallets.appleWalletPass(config,{...data,origin:SITE_BASE,secret:EVENT_QR_SECRET});res.set({'Last-Modified':modified.toUTCString(),'Content-Type':'application/vnd.apple.pkpass'}).send(pass);}));
+app.post('/api/wallet/apple/v1/log',rateLimit({max:30,windowMs:60000}),wrap(async(req,res)=>{for(const line of Array.isArray(req.body?.logs)?req.body.logs.slice(0,20):[])console.warn('[apple-wallet]',String(line).slice(0,500));res.sendStatus(200);}));
 
 // Changing the attendee id revokes that person's old QR without invalidating the other tickets.
 app.patch('/api/events/:id/attendees/:attendeeId',auth,requireDb,wrap(async(req,res)=>{
@@ -3967,7 +4020,7 @@ app.post('/api/me/profile', auth, requireDb, wrap(async (req, res) => {
   const phone = String(req.body?.phone ?? '').trim();
   if (!name || name.length > 80 || name.includes('\0')) return res.status(400).json({ error: '請填寫姓名（80 字以內）。' });
   if (phone.length > 40 || phone.includes('\0')) return res.status(400).json({ error: '電話格式不正確（40 字以內）。' });
-  const row = (await q(`UPDATE users SET name=$2, phone=$3 WHERE id=$1 RETURNING id,name,email,phone`, [req.auth.sub, name, phone])).rows[0];
+  const row = (await q(`UPDATE users SET name=$2,phone=$3,phone_verified_at=CASE WHEN phone=$3 THEN phone_verified_at ELSE NULL END WHERE id=$1 RETURNING id,name,email,phone`, [req.auth.sub, name, phone])).rows[0];
   if (!row) return res.status(404).json({ error: '找不到帳號。' });
   res.json({ ok: true, me: row });
 }));
@@ -4150,6 +4203,12 @@ async function deliverEventWebhookOnce(){
  await q(`UPDATE event_webhook_deliveries SET state=$2,response_status=$3,last_error=$4,next_attempt_at=CASE WHEN $2='retry' THEN now()+($5||' seconds')::interval ELSE next_attempt_at END,updated_at=now() WHERE id=$1`,[delivery.id,retry?'retry':'failed',status||null,error,delay]);return true;
 }
 
+async function syncIssuedWalletPasses(){
+ let did=false,retryBlocked=false;const google=eventWallets.googleConfig(),apple=eventWallets.appleConfig();
+ if(google){const issue=(await q("SELECT * FROM event_wallet_issues WHERE provider='google' AND updated_at>COALESCE(last_sync_at,'epoch') ORDER BY updated_at LIMIT 1")).rows[0];if(issue){did=true;try{const data=await eventWalletTicketBySerial(issue.serial,issue.language);if(data)await eventWallets.updateGoogleWallet(google,{...data,origin:SITE_BASE});else await eventWallets.expireGoogleWallet(google,issue.serial);await q('UPDATE event_wallet_issues SET last_sync_at=updated_at,last_error=NULL WHERE provider=$1 AND serial=$2',['google',issue.serial]);}catch(error){retryBlocked=true;await q('UPDATE event_wallet_issues SET last_error=$3 WHERE provider=$1 AND serial=$2',['google',issue.serial,String(error.message).slice(0,500)]);}}}
+ if(apple){const issue=(await q(`SELECT i.serial,array_agg(DISTINCT d.push_token) AS tokens FROM event_wallet_issues i JOIN event_apple_devices d ON d.serial=i.serial WHERE i.provider='apple' AND i.updated_at>COALESCE(d.last_notified_at,'epoch') GROUP BY i.serial,i.updated_at ORDER BY i.updated_at LIMIT 1`)).rows[0];if(issue){did=true;try{const result=await eventWallets.notifyAppleDevices(apple,issue.tokens);if(result.sent)await q(`UPDATE event_apple_devices SET last_notified_at=i.updated_at FROM event_wallet_issues i WHERE i.provider='apple' AND i.serial=$1 AND event_apple_devices.serial=i.serial AND NOT (push_token=ANY($2::text[]))`,[issue.serial,result.failed]);if(result.failed.length){retryBlocked=true;await q("UPDATE event_wallet_issues SET last_error=$2 WHERE provider='apple' AND serial=$1",[issue.serial,'APNs 未接受 '+result.failed.length+' 個裝置']);}else await q("UPDATE event_wallet_issues SET last_error=NULL WHERE provider='apple' AND serial=$1",[issue.serial]);}catch(error){retryBlocked=true;await q("UPDATE event_wallet_issues SET last_error=$2 WHERE provider='apple' AND serial=$1",[issue.serial,String(error.message).slice(0,500)]);}}}return did&&!retryBlocked;
+}
+
 async function boot() {
   if (pool) {
     try { await migrate(); dbReady = true; console.log('[db] 連線並完成 migrate'); }
@@ -4162,12 +4221,13 @@ async function boot() {
   // 會籍到期前 7 天提醒：每日 09:00（台北）
   if (dbReady) {
     let webhookRunning=false;const webhookTimer=setInterval(async()=>{if(webhookRunning)return;webhookRunning=true;try{for(let i=0;i<20&&await deliverEventWebhookOnce();i++);}catch(e){console.error('[event-webhook]',e.message);}finally{webhookRunning=false;}},Math.max(EVENT_WEBHOOK_ALLOW_LOOPBACK?100:1000,Number(process.env.EVENT_WEBHOOK_POLL_MS)||10000));webhookTimer.unref();
+    if(eventWallets.googleConfig()||eventWallets.appleConfig()){let walletsRunning=false;require('node-cron').schedule('* * * * *',async()=>{if(walletsRunning)return;walletsRunning=true;try{for(let i=0;i<20&&await syncIssuedWalletPasses();i++);}catch(e){console.error('[event-wallet-sync]',e.message);}finally{walletsRunning=false;}});}
     if(stripe){let expiring=false;require('node-cron').schedule('* * * * *',async()=>{if(expiring)return;expiring=true;try{await expireEventAuthorizations();await reconcileExpiredEventCheckouts();}catch(e){console.error('[authorization-expiry]',e.message);}finally{expiring=false;}});}
-    if(process.env.RESEND_API_KEY){
+    if(process.env.RESEND_API_KEY||eventChannels.twilioConfig()||eventChannels.pushConfig()){
       let running=false;
       require('node-cron').schedule('* * * * *',async()=>{
         if(running)return;running=true;
-        try{const pending=(await q("SELECT r.user_id,r.event_id FROM event_regs r JOIN events e ON e.id=r.event_id WHERE r.status='registered' AND e.status<>'已取消' AND r.confirmation_queued=false LIMIT 100")).rows;for(const r of pending)await notifyRegistration(r.user_id,r.event_id);await require('./lib/event-mailer').queueReminders(q,SITE_BASE);await require('./lib/event-mailer').queueFeedbackRequests(q,SITE_BASE);for(let i=0;i<30;i++){if(!await require('./lib/event-mailer').deliverDue(q,sendMail,SITE_BASE,SECRET))break;}}
+        try{const pending=(await q("SELECT r.user_id,r.event_id FROM event_regs r JOIN events e ON e.id=r.event_id WHERE r.status='registered' AND e.status<>'已取消' AND r.confirmation_queued=false LIMIT 100")).rows;if(process.env.RESEND_API_KEY){for(const r of pending)await notifyRegistration(r.user_id,r.event_id);await require('./lib/event-mailer').queueFeedbackRequests(q,SITE_BASE);}await require('./lib/event-mailer').queueReminders(q,SITE_BASE);const twilio=eventChannels.twilioConfig(),push=eventChannels.pushConfig(),providers={email:process.env.RESEND_API_KEY?sendMail:null,text:twilio?options=>eventChannels.sendText(twilio,options):null,push:push?(subscription,payload)=>eventChannels.sendPush(push,subscription,payload):null};for(let i=0;i<30;i++){if(!await require('./lib/event-mailer').deliverDue(q,providers,SITE_BASE,SECRET))break;}}
         catch(e){console.error('[event-mail]',e.message);}finally{running=false;}
       });
     }

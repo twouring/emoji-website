@@ -47,8 +47,10 @@ DB 未設定時伺服器優雅降級：靜態頁照常，`/api/*` 回 503。
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 會員專區 Google 登入 |
 | `GOOGLE_MEET_CLIENT_ID` / `GOOGLE_MEET_CLIENT_SECRET` | 活動主連接 Google Calendar 並建立 Meet；OAuth callback 為 `${PUBLIC_ORIGIN}/integrations/google-meet/callback` |
 | `ZOOM_CLIENT_ID` / `ZOOM_CLIENT_SECRET` | 活動主連接 Zoom 並建立 Meeting／Webinar；OAuth callback 為 `${PUBLIC_ORIGIN}/integrations/zoom/callback` |
-| `GOOGLE_WALLET_ISSUER_ID` / `GOOGLE_WALLET_SERVICE_ACCOUNT_B64` | Google Wallet issuer 與 base64 服務帳號 JSON；缺任一項不顯示按鈕 |
-| `APPLE_WALLET_*` | Apple Pass Type ID、Team ID，以及 base64 的 WWDR／簽署憑證／私鑰；缺任一項不顯示按鈕 |
+| `GOOGLE_WALLET_ISSUER_ID` / `GOOGLE_WALLET_SERVICE_ACCOUNT_B64` | Google Wallet issuer 與 base64 服務帳號 JSON；簽發後由 Wallet Objects API 同步活動異動，缺任一項不顯示按鈕 |
+| `APPLE_WALLET_*` | Apple Pass Type ID、Team ID，以及 base64 的 WWDR／簽署憑證／私鑰；同一 Pass 憑證用於 APNs 更新，缺任一項不顯示按鈕 |
+| `TWILIO_*` | Twilio Verify 與 Messaging 設定；電話驗證後可依來賓偏好發送 SMS／WhatsApp，狀態 callback 為 `${PUBLIC_ORIGIN}/api/twilio/events/status` |
+| `WEB_PUSH_*` | 瀏覽器 Push API 的 VAPID 公私鑰與 subject；缺任一項不顯示啟用操作 |
 | `ETHEREUM_RPC_URL` | ERC-20／ERC-721 票種的 Ethereum JSON-RPC HTTPS 端點；未設定時驗證失敗並停止報名 |
 | `PUBLIC_ORIGIN` | 站台對外網址（正式：`https://www.emoji.tw`），供 Stripe 導回與 Google callback |
 | `WEB_ORIGINS` | 允許的 CORS／導回白名單（逗號分隔） |

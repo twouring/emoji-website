@@ -1,0 +1,3 @@
+'use strict';
+self.addEventListener('push',event=>{let message={};try{message=event.data?.json()||{};}catch{}event.waitUntil(self.registration.showNotification(String(message.title||'言文字活動通知'),{body:String(message.body||''),icon:'/logo.png',badge:'/logo.png',data:{url:String(message.url||'/events')}}));});
+self.addEventListener('notificationclick',event=>{event.notification.close();const url=new URL(event.notification.data?.url||'/events',self.location.origin).href;event.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(windows=>{const existing=windows.find(window=>window.url===url);return existing?existing.focus():clients.openWindow(url);}));});

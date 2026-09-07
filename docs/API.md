@@ -353,11 +353,55 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 
 ### GET /api/events/:id/wallet/google
 
-有效報名者將自己的現場／混合活動票券加入 Google Wallet。可用 `attendee` 指定本人可存取的逐張票券，`lang` 選擇活動語言；回傳由服務帳號 RS256 簽署的 Google Save URL。票券包含活動、日期、地點、姓名、票種及與站內驗票規則相同的 QR token。缺 issuer／服務帳號時回 503，線上活動或無效票不產生票券。
+有效報名者將自己的現場／混合活動票券加入 Google Wallet。可用 `attendee` 指定本人可存取的逐張票券，`lang` 選擇活動語言；回傳由服務帳號 RS256 簽署的 Google Save URL。票券包含活動、日期、地點、姓名、票種及與站內驗票規則相同的 QR token。簽發後會記錄票券；活動、票種、參加者或報名狀態異動時，背景工作以 Wallet Objects API 更新或停用已加入的票券。缺 issuer／服務帳號時回 503，線上活動或無效票不產生票券。
 
 ### GET /api/events/:id/wallet/apple
 
-有效報名者下載簽署的 Apple Wallet `.pkpass`。可用 `attendee` 與 `lang` 指定逐張票券與語言；內容與 Google Wallet 相同，回應 MIME 為 `application/vnd.apple.pkpass`。缺 Pass Type ID、Team ID、WWDR、簽署憑證或私鑰時回 503，簽署失敗回 502，不回傳未簽署檔案。
+有效報名者下載簽署的 Apple Wallet `.pkpass`。可用 `attendee` 與 `lang` 指定逐張票券與語言；內容與 Google Wallet 相同，回應 MIME 為 `application/vnd.apple.pkpass`。票券含 Apple 更新服務 URL 與每張票的 HMAC 認證 token。缺 Pass Type ID、Team ID、WWDR、簽署憑證或私鑰時回 503，簽署失敗回 502，不回傳未簽署檔案。
+
+### POST /api/wallet/apple/v1/devices/:deviceId/registrations/:passTypeIdentifier/:serial
+
+Apple Wallet 裝置登錄票券更新。以票券內的 `ApplePass {authenticationToken}` 認證，body 傳 `{ pushToken }`；首次登錄回 201，重複登錄回 200。
+
+### DELETE /api/wallet/apple/v1/devices/:deviceId/registrations/:passTypeIdentifier/:serial
+
+Apple Wallet 裝置取消票券更新登錄。使用同一個 `ApplePass` 認證，成功回 200。
+
+### GET /api/wallet/apple/v1/devices/:deviceId/registrations/:passTypeIdentifier
+
+Apple Wallet 裝置查詢 `passesUpdatedSince` 之後異動的票券序號。無異動回 204；有異動回 `{ serialNumbers, lastUpdated }`。裝置識別碼只用於查詢該裝置自行登錄的票券。
+
+### GET /api/wallet/apple/v1/passes/:passTypeIdentifier/:serial
+
+Apple Wallet 以 `ApplePass` 認證下載重新簽署的最新票券。支援 `If-Modified-Since`；未變更回 304，報名失效或活動取消回 410。活動異動後，背景工作以 APNs 靜默通知已登錄裝置回來取票。
+
+### POST /api/wallet/apple/v1/log
+
+接收 Apple Wallet 裝置診斷訊息，每分鐘最多 30 次；單次最多記錄 20 行、每行 500 字。
+
+### POST /api/me/phone/verify/start
+
+登入會員以 E.164 電話（例如 `+886912345678`）與 `sms`／`whatsapp` 通路向 Twilio Verify 申請驗證碼。每小時最多 5 次；未設定 Twilio 時回 503。
+
+### POST /api/me/phone/verify/confirm
+
+登入會員傳入同一組 `phone`、`channel` 與 4–10 位數 `code`。Twilio Verify 確認後才將電話標為已驗證並可接收活動通知。
+
+### DELETE /api/me/phone
+
+登入會員移除已綁定電話與驗證狀態；後續不再排入簡訊或 WhatsApp 活動通知。
+
+### POST /api/me/push-subscriptions
+
+登入會員登錄瀏覽器 Push API subscription。只接受 HTTPS endpoint 與完整 `auth`／`p256dh` 金鑰；未設定 VAPID 時回 503。
+
+### DELETE /api/me/push-subscriptions
+
+登入會員移除自己的瀏覽器推播訂閱；傳入 `{ endpoint }` 時只移除該瀏覽器，未帶 endpoint 時清除帳號的全部瀏覽器訂閱。
+
+### POST /api/twilio/events/status
+
+Twilio 訊息狀態 callback。以 `X-Twilio-Signature` 驗證請求，將 accepted、delivered、read、failed 或 undelivered 狀態寫回活動通知紀錄；不接受前台會員或活動主直接呼叫。
 
 ### POST /api/events/:id/crypto/challenge
 
@@ -463,7 +507,7 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 
 ### GET /api/admin/events/:id/messages
 
-查看本活動通知草稿與逐收件人處理紀錄，configured 指示寄信服務設定。
+查看本活動通知草稿與逐收件人、逐通路處理紀錄。`configured` 分別指出 Email、簡訊／WhatsApp 與瀏覽器推播是否已設定。
 
 ### POST /api/admin/events/:id/messages
 
@@ -471,7 +515,7 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 
 ### POST /api/admin/events/:id/messages/:messageId/schedule
 
-確認寄送：可傳 send_at，未傳為立即。須已設定 Resend；快照當下分眾收件人，背景工作每分鐘發送。寄信服務接受不等於送達，重試超過 23 小時轉人工核對。
+確認寄送：可傳 send_at，未傳為立即。至少須設定 Resend、Twilio 或 Web Push 之一；快照當下分眾與每位來賓已驗證、已啟用的通路，背景工作每分鐘發送。服務接受不等於送達，重試超過 23 小時轉人工核對。
 
 ### POST /api/admin/events/:id/messages/:messageId/cancel
 
@@ -617,10 +661,10 @@ body `{visible:boolean}`，已登入者僅能修改符合自己已驗證 Email �
 報名設定另支援 `feedback: {enabled, delay_hours, subject, body}`。delay_hours 為活動結束後 0–168 小時；自訂主旨或內容留白時使用來賓中／英／日語系預設。需有結束時間與寄信服務。每筆有效報名最多建立一封邀請；寄送前再次檢查啟用狀態、報名及是否已填回饋。活動提醒停用後，尚未送出的提醒也會取消。
 
 ### GET /api/events/:id/notification-settings
-登入參加者或轉票受讓人讀取自己對此活動的通知偏好。返回 settings: blasts、reminders、feedback，預設皆開啟。不允許其他主辦人代查。
+登入參加者或轉票受讓人讀取自己對此活動的通知偏好。返回 `settings` 的 blasts、reminders、feedback，以及各類型的 email、text、push 通路；另回已驗證電話、推播訂閱及目前可用供應商。不允許其他主辦人代查。
 
 ### PUT /api/events/:id/notification-settings
-儲存自己的活動公告郵件、活動前提醒及活動後回饋邀請開關，三個欄位皆須布林值。寄送 worker 在每次發送前重新檢查偏好；尚未寄出的通知會取消。報名／付款／票券狀態通知不受影響，已寄出郵件無法撤回，前台公告保持可讀。
+儲存自己的活動公告、活動前提醒及活動後回饋邀請開關；`channels` 可分別控制 Email、簡訊／WhatsApp、瀏覽器推播。回饋邀請依 Luma 現行範圍只使用 Email。寄送 worker 在發送前重新檢查偏好；尚未寄出的通知會取消。報名／付款／票券狀態通知不受影響，已送交供應商的訊息無法撤回，前台公告保持可讀。
 
 ### POST /api/events/unsubscribe
 免登入退訂單一活動的單一非必要通知類型。body: token、action（preview 或 unsubscribe）。token 以服務端 HMAC 綁定既有郵件識別碼，不含明文 Email，不接受任意活動／帳號指定；preview 僅回傳活動名與類型，不修改偏好。unsubscribe 只關閉該類型，重試冪等，不允許重新訂閱或取消必要票券通知。網頁連結把 token 放在 fragment，開啟後移除，需使用者明確按下確認才寫入，避免郵件掃描預覽誤退訂。
