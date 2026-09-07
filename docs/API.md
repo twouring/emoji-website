@@ -341,6 +341,8 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 
 活動管理者設定 `requires_approval`、`waitlist`、`group_registration`、`split_name` 布林值、`payment_approval`（`after_approval`／`authorize`）及可空白的 `opens_at`、`closes_at` ISO 時間。`split_name=true` 時，單人報名必須分開填寫名與姓，並以來賓語系的姓名順序保存於該場票券。免費及付費票支援待審核與候補；付費票可選核准後 24 小時內付款，或先做信用卡預授權、核准後才請款。
 
+平台管理員可一併設定 `tax: {enabled,name,rate_bps}`；`rate_bps` 為整數基點（500 代表 5%）。因活動款項由言文字統一收取，外部活動主不可修改稅金。稅額於優惠折抵後以 TWD 四捨五入，報名與加購訂單各自保存當次稅名、稅率、未稅金額、稅額與含稅總額快照。
+
 ### POST /api/admin/events/:id/regs/:registrationId/status
 
 活動管理者核准或拒絕待審核／候補報名，`status` 為 `registered` 或 `declined`。核准時交易鎖定活動並重新驗證名額，未核准不能取得票券。
@@ -351,7 +353,7 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 
 ### GET /api/admin/events/:id/payments
 
-平台管理員或該活動管理者可取得該活動付費報名、已收款、Stripe 付款與退款識別碼，以及結算摘要與結算台帳。`collector` 為言文字；`settlement_summary` 分開列出累計已收、成功退款、待結算、已結算、淨收與尚可安排金額。系統不自行推算分潤、手續費或稅額。
+平台管理員或該活動管理者可取得該活動付費報名、已收款、Stripe 付款與退款識別碼，以及結算摘要與結算台帳。`collector` 為言文字；每筆含稅交易回傳成交當下的 `tax_snapshot`，`settlement_summary` 分開列出累計已收、成功退款、待結算、已結算、淨收與尚可安排金額。系統不自行推算分潤或手續費，也不代替法定報稅或發票流程。
 
 ### POST /api/admin/events/:id/settlements
 
@@ -436,7 +438,7 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 
 ### POST /api/events/:id/quote
 
-依 ticket_id、unlock_code、amount_twd、coupon_code 試算。報價不保留名額；實際報名重新鎖定活動驗證優惠次數，保存折扣快照，核准後付款沿用已核准金額。
+依 `ticket_id`、`unlock_code`、`amount_twd`、`coupon_code`、`quantity` 試算。回傳 `base_twd`、`discount_twd`、`tax_twd`、`tax_name` 與含稅 `price_twd`；稅額在優惠折抵後計算。報價不保留名額；實際報名重新鎖定活動驗證優惠次數，保存折扣與稅金快照，核准後付款沿用已核准金額。
 
 ### POST /api/events/:id/feedback
 
@@ -486,11 +488,11 @@ body `{visible:boolean}`，已登入者僅能修改符合自己已驗證 Email �
 
 ### GET /api/events/:id/orders
 
-購買者讀取目前報名版本的加購訂單，不含解鎖碼。每筆保留自己的票種、數量、價格與付款狀態。
+購買者讀取目前報名版本的加購訂單，不含解鎖碼。每筆保留自己的票種、數量、含稅價格、`tax_snapshot` 與付款狀態。
 
 ### POST /api/events/:id/additional-tickets
 
-有效報名購買者加購 1–1000 張票，且不得超過活動／票種剩餘名額；body `{ticket_id,quantity,unlock_code,amount_twd,lang}`。不接受需審核票種或優惠碼。原始票與加購訂單分開保存，容量同時包含有效票與保留中的加購。免費直接成立，付費由 Stripe 回站／webhook 冪等核銷後才新增個人 QR。未完成加購可續付，不會覆蓋原票。
+有效報名購買者加購 1–1000 張票，且不得超過活動／票種剩餘名額；body `{ticket_id,quantity,unlock_code,amount_twd,lang}`。不接受需審核票種或優惠碼。原始票與加購訂單分開保存，容量同時包含有效票與保留中的加購；若活動已設定稅金，加購總額與訂單稅金快照使用相同稅率。免費直接成立，付費由 Stripe 回站／webhook 冪等核銷後才新增個人 QR。未完成加購可續付，不會覆蓋原票。
 
 ### POST /api/admin/events/:id/orders/:orderId/refund
 

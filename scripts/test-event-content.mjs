@@ -147,7 +147,8 @@ test('insights CSV uses the loaded scope and keeps views and registrations disti
 });
 
 test('event management opens one task-based panel instead of expanding every action in the table',async()=>{
- const {runInNewContext}=await import('node:vm'),source=fs.readFileSync(new URL('../public/admin.html',import.meta.url),'utf8');
+ const {runInNewContext,Script}=await import('node:vm'),source=fs.readFileSync(new URL('../public/admin.html',import.meta.url),'utf8');
+ new Script([...source.matchAll(/<script(?: [^>]*)?>([\s\S]*?)<\/script>/g)].at(-1)[1]);
  const context={EVENT_FIELDS:[],BASE:'/admin',esc:v=>String(v),NT:v=>'NT$'+v};
  runInNewContext(source.slice(source.indexOf('function tabEvents('),source.indexOf('function openEventEditor(')),context);
  const list=context.tabEvents({events:[{id:'event-1',slug:'event-one',title:'Example',status:'報名中',visibility:'public',capacity:10,reg_count:2,checkin_count:1,price_twd:0}],users:[]});
@@ -155,6 +156,7 @@ test('event management opens one task-based panel instead of expanding every act
  assert.match(list,/id="event-editor-title">建立新活動/);assert.match(list,/建立活動後，再設定票種、報名表與公開頁內容/);
  assert.match(source,/id="rg-ticket"/);assert.match(source,/<option value="">全部<\/option><option value="registered">已報名<\/option>/);assert.match(source,/data-guest-tickets=/);
  assert.match(source,/data-guest-ticket-edit=/);assert.match(source,/id="guest-update-existing"/);assert.match(source,/update_existing:updateExisting/);assert.match(source,/id="guest-send-invites"/);assert.match(source,/id="guest-language"/);assert.match(source,/send_invites:sendInvites/);assert.match(source,/重複來賓不重寄/);assert.match(source,/eventAnswer\(a\.value\)/);assert.match(source,/id="rg-status-selected"/);assert.match(source,/value="checkedAt">簽到時間/);
+ assert.match(source,/id="rs-tax-enabled"/);assert.match(source,/由言文字統一收款/);assert.match(source,/rate_bps:Math\.round/);assert.match(source,/p\.tax_snapshot\.tax_twd/);assert.match(source,/稅額 TWD/);
  assert.match(source,/id="share-qr-image"/);assert.match(source,/QRCode\.toDataURL\(host\.querySelector\('#share-url'\)\.value/);
  assert.match(source,/a\.dataset\.reload!==undefined/);assert.match(source,/data-reload href=.*管理第/);
  context.BASE='/organizer';assert.match(context.tabEvents({events:[{id:'event-1',title:'Example',status:'草稿'}],organizer:true}),/href="\/organizer\/events\/event-1"/);context.BASE='/admin';
@@ -163,6 +165,11 @@ test('event management opens one task-based panel instead of expanding every act
  runInNewContext(source.slice(source.indexOf('function showEventManager('),source.indexOf('function tabApplications(')),context);
  context.showEventManager('event-1',{events:[{id:'event-1',slug:'event-one',title:'Example',status:'報名中',capacity:10,reg_count:2,checkin_count:1}],can_create_events:true});
  assert.equal(manager.hidden,false);assert.equal(listView.hidden,true);assert.match(manager.innerHTML,/返回活動清單/);assert.match(manager.innerHTML,/報名與來賓/);assert.match(manager.innerHTML,/票券與報名流程/);assert.match(manager.innerHTML,/活動頁與分享/);assert.match(manager.innerHTML,/成效與紀錄/);assert.equal((manager.innerHTML.match(/ui-button--accent/g)||[]).length,1);
+});
+
+test('public event pricing shows tax-inclusive totals and quote breakdowns',()=>{
+ const source=fs.readFileSync(new URL('../public/events.html',import.meta.url),'utf8');
+ assert.match(source,/const taxedPrice=/);assert.match(source,/taxedPrice\(e,t\.price_twd\)/);assert.match(source,/out\.tax_twd/);assert.match(source,/付款總額已含稅/);
 });
 
 test('recurring event clones keep local time and clamp month ends',()=>{

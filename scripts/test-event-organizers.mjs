@@ -246,6 +246,15 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await call('/events/'+first.id+'/register',{as:guest,method:'POST',status:409});
   assert.equal((await pool.query('SELECT status FROM event_regs WHERE id=$1',[paidRequest.registration_id])).rows[0].status,'pending_approval');
   const coupon={code:'ONE',type:'percent',value:50,max_uses:1,active:true};
+  const taxEvent=await call('/admin/events',{as:a,method:'POST',body:{...payload,title:'含稅活動',capacity:10,price_twd:1000}});
+  await call('/admin/events/'+taxEvent.id+'/registration-settings',{as:a,method:'POST',body:{requires_approval:false,waitlist:false,tax:{enabled:true,name:'營業稅',rate_bps:500}},status:403});
+  await call('/admin/events/'+taxEvent.id+'/registration-settings',{method:'POST',body:{requires_approval:false,waitlist:false,tax:{enabled:true,name:'營業稅',rate_bps:500}}});
+  await call('/admin/events/'+taxEvent.id+'/coupons',{as:a,method:'POST',body:{coupons:[{code:'SAVE',type:'fixed',value:100,max_uses:0,active:true}]}});
+  const taxQuote=await call('/events/'+taxEvent.id+'/quote',{method:'POST',body:{coupon_code:'SAVE'}});assert.deepEqual({price:taxQuote.price_twd,base:taxQuote.base_twd,discount:taxQuote.discount_twd,tax:taxQuote.tax_twd,name:taxQuote.tax_name},{price:945,base:1000,discount:100,tax:45,name:'營業稅'});
+  await call('/events/'+taxEvent.id+'/register',{as:guest2,method:'POST',body:{coupon_code:'SAVE'},status:503});assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM event_regs WHERE event_id=$1',[taxEvent.id])).rows[0].n,0);
+  await call('/admin/events/'+taxEvent.id+'/registration-settings',{method:'POST',body:{requires_approval:true,waitlist:false,tax:{enabled:true,name:'營業稅',rate_bps:500}}});
+  const taxedRequest=await call('/events/'+taxEvent.id+'/register',{as:guest2,method:'POST',body:{coupon_code:'SAVE'}});assert.equal(taxedRequest.status,'pending_approval');
+  const taxedReg=(await pool.query('SELECT amount_due,tax_snapshot FROM event_regs WHERE id=$1',[taxedRequest.registration_id])).rows[0];assert.equal(taxedReg.amount_due,945);assert.equal(taxedReg.tax_snapshot.tax_twd,45);
   await call('/admin/events/'+other.id+'/coupons',{as:a,method:'GET',status:404});
   await call('/admin/events/'+other.id+'/coupons',{as:b,method:'POST',body:{coupons:[coupon]}});
   const quote=await call('/events/'+other.id+'/quote',{as:guest,method:'POST',body:{coupon_code:'ONE'}});assert.equal(quote.price_twd,0);

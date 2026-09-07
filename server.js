@@ -23,7 +23,7 @@ const { safeEqual, signToken: signSession, verifyToken: verifySession, matchesPo
 const {embedOrigins}=require('./lib/event-embed');
 const {richText,contentFileType}=require('./lib/event-rich-text');
 const {normalizeBlast,blastAudienceSQL}=require('./lib/event-mailer');
-const {normalizeTickets,selectTicket,ticketPrice,publicTickets,normalizeCoupons,discountPrice} = require('./lib/event-tickets');
+const {normalizeTickets,selectTicket,ticketPrice,publicTickets,normalizeCoupons,discountPrice,normalizeTax,taxPrice} = require('./lib/event-tickets');
 const {eventCalendar,googleCalendarUrl} = require('./lib/event-calendar');
 const {refundTotals}=require('./lib/event-refunds');
 const eventQuestions = require('./lib/event-questions');
@@ -445,6 +445,7 @@ async function migrate() {
     PRIMARY KEY(event_id,day,source,campaign))`);
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS coupons JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS coupon_snapshot JSONB`);
+  await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS tax_snapshot JSONB`);
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS event_details JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS tickets JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS quantity INTEGER NOT NULL DEFAULT 1`);
@@ -482,6 +483,7 @@ async function migrate() {
     stripe_session_id TEXT,stripe_payment_intent_id TEXT,expires_at TIMESTAMPTZ,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`ALTER TABLE event_attendees ADD COLUMN IF NOT EXISTS order_id TEXT REFERENCES event_ticket_orders(id)`);
   await q(`ALTER TABLE event_ticket_orders ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ`);
+  await q(`ALTER TABLE event_ticket_orders ADD COLUMN IF NOT EXISTS tax_snapshot JSONB`);
 
   await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS refund_status TEXT`);
   await q(`CREATE TABLE IF NOT EXISTS event_refunds (
@@ -2222,13 +2224,13 @@ async function eventSettlementSummary(client,eventId){
 }
 
 app.get('/api/admin/events/:id/payments',auth,requireDb,eventEditor,wrap(async(req,res)=>{
-  const payments=(await q(`SELECT r.id AS registration_id,u.name,u.email,r.status,r.amount_due,r.amount_paid,
+  const payments=(await q(`SELECT r.id AS registration_id,u.name,u.email,r.status,r.amount_due,r.amount_paid,r.tax_snapshot,
     r.stripe_payment_intent_id,r.stripe_refund_id,r.refund_status,r.paid_at,r.refunded_at,COALESCE((SELECT jsonb_agg(f ORDER BY f.created_at) FROM event_refunds f WHERE f.payment_intent=r.stripe_payment_intent_id),'[]') AS refunds
     FROM event_regs r JOIN users u ON u.id=r.user_id
     WHERE r.event_id=$1 AND (r.amount_due>0 OR r.amount_paid>0)
     ORDER BY r.created_at DESC`,[req.params.id])).rows;
   const historical=(await q(`SELECT h.snapshot,u.name,u.email,COALESCE((SELECT jsonb_agg(f ORDER BY f.created_at) FROM event_refunds f WHERE f.payment_intent=h.snapshot->>'stripe_payment_intent_id'),'[]') AS refunds FROM event_registration_history h JOIN users u ON u.id=h.user_id WHERE h.event_id=$1 AND ((h.snapshot->>'amount_paid')::integer>0 OR (h.snapshot->>'amount_due')::integer>0) ORDER BY h.id DESC`,[req.params.id])).rows.map(h=>({...h.snapshot,registration_id:h.snapshot.id,name:h.name,email:h.email,refunds:h.refunds,historical:true}));
-  const additional=(await q(`SELECT r.id AS registration_id,o.id AS order_id,u.name,u.email,o.status,o.amount_due,o.amount_paid,o.stripe_payment_intent_id,o.paid_at,COALESCE((SELECT jsonb_agg(f ORDER BY f.created_at) FROM event_refunds f WHERE f.payment_intent=o.stripe_payment_intent_id),'[]') AS refunds FROM event_ticket_orders o JOIN event_regs r ON r.id=o.registration_id JOIN users u ON u.id=r.user_id WHERE r.event_id=$1 ORDER BY o.created_at DESC`,[req.params.id])).rows;
+  const additional=(await q(`SELECT r.id AS registration_id,o.id AS order_id,u.name,u.email,o.status,o.amount_due,o.amount_paid,o.tax_snapshot,o.stripe_payment_intent_id,o.paid_at,COALESCE((SELECT jsonb_agg(f ORDER BY f.created_at) FROM event_refunds f WHERE f.payment_intent=o.stripe_payment_intent_id),'[]') AS refunds FROM event_ticket_orders o JOIN event_regs r ON r.id=o.registration_id JOIN users u ON u.id=r.user_id WHERE r.event_id=$1 ORDER BY o.created_at DESC`,[req.params.id])).rows;
   const settlements=(await q(`SELECT id,amount_twd,status,due_on::text AS due_on,reference,note,paid_at,created_at,updated_at FROM event_settlements WHERE event_id=$1 ORDER BY created_at DESC`,[req.params.id])).rows;
   const settlement_summary=await eventSettlementSummary({query:q},req.params.id);
   res.json({collector:'言文字',currency:'TWD',can_refund:req.auth.role==='admin',can_manage_settlement:req.auth.role==='admin',settlement_status:settlements.some(row=>row.status==='scheduled')?'scheduled':settlements.some(row=>row.status==='paid')?'paid':'none',settlement_summary,settlements,payments:[...payments,...historical,...additional]});
@@ -2492,6 +2494,7 @@ app.post('/api/admin/events/:id/registration-settings', auth, requireDb, eventEd
   const settings={requires_approval:b.requires_approval,waitlist:b.waitlist};
   if(b.group_registration!==undefined){if(typeof b.group_registration!=='boolean')return res.status(400).json({error:'團體報名設定格式不正確。'});settings.group_registration=b.group_registration;}
   if(b.split_name!==undefined){if(typeof b.split_name!=='boolean')return res.status(400).json({error:'姓名拆分設定格式不正確。'});settings.split_name=b.split_name;}
+  if(b.tax!==undefined){if(req.auth.role!=='admin')return res.status(403).json({error:'稅金由言文字統一收款帳戶設定。'});try{settings.tax=normalizeTax(b.tax);}catch(error){return res.status(400).json({error:error.message});}}
   if(b.payment_approval!==undefined){if(!['after_approval','authorize'].includes(b.payment_approval))return res.status(400).json({error:'付費審核方式無效。'});settings.payment_approval=b.payment_approval;}
   if(b.feedback!==undefined){const f=b.feedback;if(!f||typeof f.enabled!=='boolean'||!Number.isInteger(f.delay_hours)||f.delay_hours<0||f.delay_hours>168||typeof f.subject!=='string'||f.subject.length>160||typeof f.body!=='string'||f.body.length>5000)return res.status(400).json({error:'回饋邀請需設定開關、活動結束後 0–168 小時、有效主旨與內容。'});settings.feedback={enabled:f.enabled,delay_hours:f.delay_hours,subject:f.subject.trim(),body:f.body.trim()};}
   if(b.reminders!==undefined){if(!Array.isArray(b.reminders)||b.reminders.some(h=>![1,24].includes(h)))return res.status(400).json({error:'提醒時間只可選活動前 24 小時或 1 小時。'});settings.reminders=[...new Set(b.reminders)];}
@@ -3239,7 +3242,7 @@ app.post('/api/events/checkout/verify', optionalAuth, requireDb, wrap(async (req
 }));
 
 app.get('/api/events/:id/orders',auth,requireDb,wrap(async(req,res)=>{
- const orders=(await q(`SELECT o.id,o.quantity,o.amount_due,o.amount_paid,o.status,o.ticket_snapshot-'unlock_code' AS ticket_snapshot FROM event_ticket_orders o JOIN event_regs r ON r.id=o.registration_id AND r.ticket_version=o.ticket_version WHERE r.event_id=$1 AND r.user_id=$2 ORDER BY o.created_at`,[req.params.id,req.auth.sub])).rows;res.json({orders});
+ const orders=(await q(`SELECT o.id,o.quantity,o.amount_due,o.amount_paid,o.status,o.ticket_snapshot-'unlock_code' AS ticket_snapshot,o.tax_snapshot FROM event_ticket_orders o JOIN event_regs r ON r.id=o.registration_id AND r.ticket_version=o.ticket_version WHERE r.event_id=$1 AND r.user_id=$2 ORDER BY o.created_at`,[req.params.id,req.auth.sub])).rows;res.json({orders});
 }));
 app.delete('/api/events/:id/orders/:orderId',auth,requireDb,wrap(async(req,res)=>{
  const client=await pool.connect();try{await client.query('BEGIN');
@@ -3271,12 +3274,12 @@ app.post('/api/events/:id/additional-tickets',auth,requireDb,wrap(async(req,res)
   if(session.status!=='expired')return res.status(409).json({error:'上一筆付款仍在處理中。'});
   await client.query("UPDATE event_ticket_orders SET status='expired' WHERE id=$1",[pending.id]);
  }
- let ticket=null,price;try{ticket=event.tickets.length?selectTicket(event.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code):null;if(ticket?.requires_approval)throw Error('需審核票种不可自行加購，請聯絡主辦人。');price=(ticket?ticketPrice(ticket,req.body?.amount_twd):event.price_twd)*quantity;}catch(e){return res.status(400).json({error:e.message});}
+ let ticket=null,price,taxSnapshot;try{ticket=event.tickets.length?selectTicket(event.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code):null;if(ticket?.requires_approval)throw Error('需審核票種不可自行加購，請聯絡主辦人。');const priced=taxPrice(event.registration_settings?.tax,(ticket?ticketPrice(ticket,req.body?.amount_twd):event.price_twd)*quantity);price=priced.price;taxSnapshot=priced.tax;}catch(e){return res.status(400).json({error:e.message});}
  if(event.capacity>0&&(await reservedEventSeats(client,event.id))+quantity>event.capacity)return res.status(409).json({error:'剩餘名額不足。'});
  if(ticket?.capacity>0&&(await reservedEventSeats(client,event.id,ticket.id))+quantity>ticket.capacity)return res.status(409).json({error:'此票種剩餘名額不足。'});
  if(price>0&&(!stripe||!STRIPE_WEBHOOK_SECRET))return res.status(503).json({error:'付款服務尚未設定。'});
  const id=uid('order_'),attendees=Array.from({length:quantity},()=>({name:reg.name,email:reg.email}));
- await client.query('INSERT INTO event_ticket_orders(id,registration_id,ticket_version,ticket_snapshot,quantity,attendees,amount_due,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[id,reg.id,reg.ticket_version,ticket?JSON.stringify(ticket):null,quantity,JSON.stringify(attendees),price,price?'pending_payment':'registered']);
+ await client.query('INSERT INTO event_ticket_orders(id,registration_id,ticket_version,ticket_snapshot,quantity,attendees,amount_due,status,tax_snapshot) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[id,reg.id,reg.ticket_version,ticket?JSON.stringify(ticket):null,quantity,JSON.stringify(attendees),price,price?'pending_payment':'registered',taxSnapshot?JSON.stringify(taxSnapshot):null]);
  if(!price){await activateAdditionalOrder(client,{id,quantity,attendees},reg);await client.query('COMMIT');return res.json({ok:true});}
  const lang=['en','ja'].includes(req.body?.lang)?'/'+req.body.lang:'',url=SITE_BASE+lang+'/events/'+encodeURIComponent(event.slug);
  const session=await stripe.checkout.sessions.create({mode:'payment',payment_method_types:['card'],customer_email:reg.email,expires_at:Math.floor(Date.now()/1000)+1800,
@@ -3348,8 +3351,8 @@ app.post('/api/events/:id/feedback',auth,requireDb,wrap(async(req,res)=>{
 
 app.post('/api/events/:id/quote',requireDb,wrap(async(req,res)=>{
  const event=(await q("SELECT * FROM events WHERE id=$1 AND status='報名中'",[req.params.id])).rows[0];if(!event)return res.status(404).json({error:'找不到開放報名的活動。'});
- try{const quantity=Number(req.body?.quantity??1);if(!Number.isInteger(quantity)||quantity<1||quantity>MAX_EVENT_TICKETS_PER_ORDER)throw new Error(`每筆可購買 1–${MAX_EVENT_TICKETS_PER_ORDER} 張票`);const ticket=event.tickets.length?selectTicket(event.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code):null,price=(ticket?ticketPrice(ticket,req.body?.amount_twd):event.price_twd)*quantity;
- const result=discountPrice(event.coupons,req.body?.coupon_code,price);res.json({price_twd:result.price,discount_twd:result.coupon?.discount_twd||0,notice:'此報價不保留名額，實際報名仍會檢查優惠碼使用上限。'});}catch(e){res.status(400).json({error:e.message});}
+ try{const quantity=Number(req.body?.quantity??1);if(!Number.isInteger(quantity)||quantity<1||quantity>MAX_EVENT_TICKETS_PER_ORDER)throw new Error(`每筆可購買 1–${MAX_EVENT_TICKETS_PER_ORDER} 張票`);const ticket=event.tickets.length?selectTicket(event.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code):null,base=(ticket?ticketPrice(ticket,req.body?.amount_twd):event.price_twd)*quantity;
+ const discounted=discountPrice(event.coupons,req.body?.coupon_code,base),result=taxPrice(event.registration_settings?.tax,discounted.price);res.json({price_twd:result.price,base_twd:base,discount_twd:discounted.coupon?.discount_twd||0,tax_twd:result.tax?.tax_twd||0,tax_name:result.tax?.name||'',notice:'此報價不保留名額，實際報名仍會檢查優惠碼使用上限。'});}catch(e){res.status(400).json({error:e.message});}
 }));
 
 app.post('/api/events/:id/ticket-options',requireDb,wrap(async(req,res)=>{
@@ -3382,7 +3385,7 @@ app.get('/api/events/:slug', optionalAuth, requireDb, wrap(async (req, res) => {
   const ev = (await q(
     `SELECT ${SEL_EVENT},
        (SELECT COALESCE(SUM(r.quantity),0)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS reg_count,
-       mine.id AS registration_id,mine.status AS registration_status,mine.quantity,mine.amount_due,mine.amount_paid,mine.checkout_expires_at,mine.ticket_snapshot,mine.checked_in_at,mine.capture_required,mine.authorization_expires_at,
+       mine.id AS registration_id,mine.status AS registration_status,mine.quantity,mine.amount_due,mine.amount_paid,mine.checkout_expires_at,mine.ticket_snapshot,mine.tax_snapshot,mine.checked_in_at,mine.capture_required,mine.authorization_expires_at,
        (mine.status='registered') AS registered
      FROM events e
      LEFT JOIN event_regs mine ON mine.event_id=e.id AND mine.user_id=$2
@@ -3457,9 +3460,9 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
     }
     let selectedTicket=approved?mine.ticket_snapshot:null;
     if(!approved&&ev.tickets?.length){try{selectedTicket=selectTicket(ev.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code);}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}}
-    let price;try{price=approved?Number(mine.amount_due):(selectedTicket?ticketPrice(selectedTicket,req.body?.amount_twd):Number(ev.price_twd))*quantity;}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}
+    let price,taxSnapshot=approved?mine.tax_snapshot:null;try{price=approved?Number(mine.amount_due):(selectedTicket?ticketPrice(selectedTicket,req.body?.amount_twd):Number(ev.price_twd))*quantity;}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}
     let couponSnapshot=approved?mine.coupon_snapshot:null;
-    if(!approved){try{const discounted=discountPrice(ev.coupons||[],req.body?.coupon_code,price);price=discounted.price;couponSnapshot=discounted.coupon;}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}
+    if(!approved){try{const discounted=discountPrice(ev.coupons||[],req.body?.coupon_code,price),taxed=taxPrice(registrationSettings.tax,discounted.price);price=taxed.price;couponSnapshot=discounted.coupon;taxSnapshot=taxed.tax;}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}
       if(couponSnapshot?.max_uses>0){
         const usage=(await client.query(`SELECT ((SELECT COUNT(*) FROM event_regs WHERE event_id=$1 AND coupon_snapshot->>'code'=$2 AND (status IN ('registered','refunded','refund_pending','pending_approval','waitlisted') OR (status IN ('approved','pending_payment') AND checkout_expires_at>now())))+(SELECT COUNT(*) FROM event_registration_history WHERE event_id=$1 AND snapshot->'coupon_snapshot'->>'code'=$2 AND snapshot->>'status' IN ('registered','refunded','refund_pending')))::int AS n`,[ev.id,couponSnapshot.code])).rows[0].n;
         if(usage>=couponSnapshot.max_uses){await client.query('ROLLBACK');return res.status(409).json({error:'優惠碼使用次數已達上限。'});}
@@ -3500,7 +3503,7 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
       if(referral?.plan==='event-referral'&&referral.event===ev.id&&referral.ent!==regId&&(await client.query("SELECT 1 FROM event_regs WHERE id=$1 AND event_id=$2 AND status='registered'",[referral.ent,ev.id])).rowCount)savedAttribution.referral='guest:'+referral.ent;
     }
     async function saveDetails(){
-      await client.query("UPDATE event_regs SET answers=$2,ticket_snapshot=$3,coupon_snapshot=$4,quantity=$5,confirmation_queued=false,language=$6,attribution=$7,capture_required=$8,authorization_expires_at=NULL,entry_source=$9 WHERE id=$1",[regId,JSON.stringify(answerSnapshot),selectedTicket?JSON.stringify(selectedTicket):null,couponSnapshot?JSON.stringify(couponSnapshot):null,quantity,['en','ja'].includes(req.body?.lang)?req.body.lang:'zh',JSON.stringify(savedAttribution),captureRequired,invited?'invited':'self_service']);
+      await client.query("UPDATE event_regs SET answers=$2,ticket_snapshot=$3,coupon_snapshot=$4,quantity=$5,confirmation_queued=false,language=$6,attribution=$7,capture_required=$8,authorization_expires_at=NULL,entry_source=$9,tax_snapshot=$10 WHERE id=$1",[regId,JSON.stringify(answerSnapshot),selectedTicket?JSON.stringify(selectedTicket):null,couponSnapshot?JSON.stringify(couponSnapshot):null,quantity,['en','ja'].includes(req.body?.lang)?req.body.lang:'zh',JSON.stringify(savedAttribution),captureRequired,invited?'invited':'self_service',taxSnapshot?JSON.stringify(taxSnapshot):null]);
       if(!approved){await client.query('DELETE FROM event_attendees WHERE registration_id=$1',[regId]);for(const [i,a] of attendees.entries())await client.query('INSERT INTO event_attendees(id,registration_id,name,email,ordinal) VALUES($1,$2,$3,$4,$5)',[uid('att_'),regId,a.name,a.email,i]);}
     }
 
