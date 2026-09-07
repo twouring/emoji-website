@@ -472,7 +472,7 @@ Resend／Svix 簽章端點，需 `RESEND_WEBHOOK_SECRET`。以原始 body、`svi
 
 ### GET /api/events/:id/receipt
 
-僅付款購買者取得自己目前報名的 Stripe 付款收據網址，後端向 Stripe 讀取 PaymentIntent 的 latest_charge.receipt_url。無付款或尚未產生回 404；受讓者無法取得購買者收據。此為付款收據，不代表台灣統一發票或已開立稅務憑證。
+僅付款購買者取得自己目前報名的付款明細。query `lang=zh|en|ja` 會依活動翻譯回傳名稱與地點。回傳 `receipt`，包含活動、購買者、票種、數量、未稅金額、成交稅金快照、含稅總額、付款時間與言文字收款方；若 Stripe 可取得服務商收據，另回 `url`，否則為 `null`，不阻擋本機列印或另存 PDF。無付款回 404，受讓者無法取得購買者收據。購買者可在前台補上帳單抬頭、地址、稅務資料與備註後列印；此付款明細不代表台灣統一發票或已開立稅務憑證。
 
 ### GET /api/events/:id/guests
 
@@ -498,7 +498,7 @@ body `{visible:boolean}`，已登入者僅能修改符合自己已驗證 Email �
 
 僅平台管理員退款加購訂單，body `{amount_twd,request_id}`；支援部分／分次及冪等重試。全額成功只刪除這筆加購的有效票並釋出相同人數，原始票保留。原票退款前須先處理付費加購，避免付款仍有效卻失去整組票。
 
-`GET /api/events/:id/receipt?order=<orderId>` 可取得自己特定加購訂單的 Stripe 收據。
+`GET /api/events/:id/receipt?order=<orderId>` 可取得自己特定加購訂單的相同付款明細與選配 Stripe 收據網址。
 
 ### DELETE /api/events/:id/orders/:orderId
 購買者取消自己的免費加購訂單。交易內鎖定活動、報名與訂單；拒絕已簽到或付費票。僅撤銷該加購 QR、釋出該筆人數，原票券保留。重複取消回傳成功，不重複扣人數。

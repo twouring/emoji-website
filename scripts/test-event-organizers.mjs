@@ -255,6 +255,9 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await call('/admin/events/'+taxEvent.id+'/registration-settings',{method:'POST',body:{requires_approval:true,waitlist:false,tax:{enabled:true,name:'營業稅',rate_bps:500}}});
   const taxedRequest=await call('/events/'+taxEvent.id+'/register',{as:guest2,method:'POST',body:{coupon_code:'SAVE'}});assert.equal(taxedRequest.status,'pending_approval');
   const taxedReg=(await pool.query('SELECT amount_due,tax_snapshot FROM event_regs WHERE id=$1',[taxedRequest.registration_id])).rows[0];assert.equal(taxedReg.amount_due,945);assert.equal(taxedReg.tax_snapshot.tax_twd,45);
+  await pool.query("UPDATE event_regs SET status='registered',amount_paid=945,paid_at=now(),stripe_payment_intent_id='pi_receipt_tax' WHERE id=$1",[taxedRequest.registration_id]);
+  const receipt=await call('/events/'+taxEvent.id+'/receipt',{as:guest2});assert.equal(receipt.url,null);assert.deepEqual({number:receipt.receipt.number,subtotal:receipt.receipt.subtotal_twd,tax:receipt.receipt.tax.tax_twd,total:receipt.receipt.total_twd,collector:receipt.receipt.collector},{number:taxedRequest.registration_id,subtotal:900,tax:45,total:945,collector:'言文字'});
+  const englishReceipt=await call('/events/'+taxEvent.id+'/receipt?lang=en',{as:guest2});assert.equal(englishReceipt.receipt.event_title,'English event');assert.equal(englishReceipt.receipt.location,'Taipei');
   await call('/admin/events/'+other.id+'/coupons',{as:a,method:'GET',status:404});
   await call('/admin/events/'+other.id+'/coupons',{as:b,method:'POST',body:{coupons:[coupon]}});
   const quote=await call('/events/'+other.id+'/quote',{as:guest,method:'POST',body:{coupon_code:'ONE'}});assert.equal(quote.price_twd,0);

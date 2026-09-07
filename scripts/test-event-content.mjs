@@ -172,6 +172,11 @@ test('public event pricing shows tax-inclusive totals and quote breakdowns',()=>
  assert.match(source,/const taxedPrice=/);assert.match(source,/taxedPrice\(e,t\.price_twd\)/);assert.match(source,/out\.tax_twd/);assert.match(source,/付款總額已含稅/);
 });
 
+test('paid attendees can print a local receipt with optional billing details',()=>{
+ const source=fs.readFileSync(new URL('../public/events.html',import.meta.url),'utf8');
+ assert.match(source,/function showReceipt\(receipt,providerUrl\)/);assert.match(source,/帳單抬頭/);assert.match(source,/帳單地址/);assert.match(source,/稅務資料/);assert.match(source,/insertAdjacentHTML\('beforeend'/);assert.match(source,/addEventListener\('close',\(\)=>dialog\.remove\(\)/);assert.match(source,/window\.print\(\)/);assert.match(source,/afterprint/);
+});
+
 test('recurring event clones keep local time and clamp month ends',()=>{
  const {runInNewContext}=require('node:vm'),source=fs.readFileSync(new URL('../public/admin.html',import.meta.url),'utf8'),context={};
  runInNewContext(source.slice(source.indexOf('function eventCloneTime('),source.indexOf('function showEventDuplicate(')),context);

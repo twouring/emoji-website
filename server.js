@@ -3302,12 +3302,14 @@ app.patch('/api/events/:id/profile',auth,requireDb,wrap(async(req,res)=>{
 }));
 
 app.get('/api/events/:id/receipt',auth,requireDb,wrap(async(req,res)=>{
- if(!stripe)return res.status(503).json({error:'收據服務尚未開通。'});
- const reg=req.query.order?(await q('SELECT o.stripe_payment_intent_id FROM event_ticket_orders o JOIN event_regs r ON r.id=o.registration_id WHERE r.event_id=$1 AND r.user_id=$2 AND o.id=$3 AND o.amount_paid>0',[req.params.id,req.auth.sub,req.query.order])).rows[0]:(await q('SELECT stripe_payment_intent_id FROM event_regs WHERE event_id=$1 AND user_id=$2 AND amount_paid>0',[req.params.id,req.auth.sub])).rows[0];
- if(!reg?.stripe_payment_intent_id)return res.status(404).json({error:'找不到付款收據。'});
- const intent=await stripe.paymentIntents.retrieve(reg.stripe_payment_intent_id,{expand:['latest_charge']}),url=intent.latest_charge?.receipt_url;
- if(!url||!url.startsWith('https://'))return res.status(404).json({error:'收據尚未產生，請稍後再試。'});
- res.set('Cache-Control','no-store');res.json({url});
+ const row=req.query.order?(await q(`SELECT o.id AS number,o.amount_due,o.amount_paid,o.paid_at,o.tax_snapshot,o.ticket_snapshot,o.quantity,o.stripe_payment_intent_id,u.name,u.email,e.title,e.starts_at,e.location,e.translations
+   FROM event_ticket_orders o JOIN event_regs r ON r.id=o.registration_id JOIN users u ON u.id=r.user_id JOIN events e ON e.id=r.event_id
+   WHERE r.event_id=$1 AND r.user_id=$2 AND o.id=$3 AND o.amount_paid>0`,[req.params.id,req.auth.sub,req.query.order])).rows[0]:(await q(`SELECT r.id AS number,r.amount_due,r.amount_paid,r.paid_at,r.tax_snapshot,r.ticket_snapshot,r.quantity,r.stripe_payment_intent_id,u.name,u.email,e.title,e.starts_at,e.location,e.translations
+   FROM event_regs r JOIN users u ON u.id=r.user_id JOIN events e ON e.id=r.event_id WHERE r.event_id=$1 AND r.user_id=$2 AND r.amount_paid>0`,[req.params.id,req.auth.sub])).rows[0];
+ if(!row)return res.status(404).json({error:'找不到付款收據。'});
+ const localized=localizeEvent(row,req.query.lang);
+ let url=null;if(stripe&&row.stripe_payment_intent_id){try{const intent=await stripe.paymentIntents.retrieve(row.stripe_payment_intent_id,{expand:['latest_charge']}),providerUrl=intent.latest_charge?.receipt_url;if(providerUrl?.startsWith('https://'))url=providerUrl;}catch(error){console.warn('[event-receipt] Stripe 收據讀取失敗：',error.message);}}
+ res.set('Cache-Control','no-store');res.json({url,receipt:{number:row.number,issued_at:row.paid_at,event_title:localized.title,starts_at:row.starts_at,location:localized.location,buyer_name:row.name,buyer_email:row.email,ticket_name:row.ticket_snapshot?.name||localized.title,quantity:row.quantity,subtotal_twd:row.tax_snapshot?.taxable_twd??row.amount_due,tax:row.tax_snapshot||null,total_twd:row.amount_paid,currency:'TWD',collector:'言文字'}});
 }));
 
 app.get('/api/events/:id/ticket',auth,requireDb,wrap(async(req,res)=>{
