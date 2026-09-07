@@ -123,7 +123,7 @@ Google 授權回呼，簽發會員 token 並導回。
 新增或更新活動。body：`{ id?, slug?, title, description, location, starts_at, ends_at, capacity, price_twd, visibility, status, translations? }`。
 `visibility` 限 `public`｜`private`｜`members`；`status` 限 `草稿`｜`預告`｜`報名中`｜`已結束`；票價與名額為 0 以上整數。帶 `id` 為更新；若活動名稱、開始／結束時間或地點有變更，只為目前 `registered` 的來賓排入三語 Email 與瀏覽器推播，Email 附更新後 ICS。回應另含 `notice`、`critical_changes`、`notification_recipients` 與 `notification_deliveries`，未設定任何通知服務時明示尚未寄出。
 
-網址代稱變更時保存舊網址；開啟舊 `/events/:slug` 會以 302 導向同語言的新網址並保留 query。若舊代稱日後被其他活動正式使用，當前活動網址優先。
+網址代稱變更時保存舊網址；舊活動頁、行事曆與嵌入網址都會以 302 導向新網址並保留語言及 query。若舊代稱日後被其他活動正式使用，當前活動網址優先。
 
 `translations` 為 `zh/en/ja` 物件；一般欄位為 `title/description/location`，專屬頁純文字欄位見 `public/event-fields.js`。每欄最多 10000 字，不接受 HTML 執行；未傳 translations 的舊 API 更新會保留既有翻譯。中文基本欄位以頂層值為準。預告可公開但不能報名；百鬼夜行首次 migration 以預告建立，後續啟動不覆寫後台編輯。
 

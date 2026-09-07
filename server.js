@@ -3712,8 +3712,9 @@ app.post('/api/events/:id/ticket-options',requireDb,wrap(async(req,res)=>{
 }));
 
 app.get(['/api/events/:slug/calendar.ics','/api/events/:slug/calendar/google'],requireDb,wrap(async(req,res)=>{
- const event=(await q("SELECT * FROM events WHERE slug=$1 AND status<>'草稿'",[req.params.slug])).rows[0];
+ const event=(await q(`SELECT e.* FROM events e WHERE (e.slug=$1 OR (e.id=(SELECT event_id FROM event_slug_redirects WHERE old_slug=$1) AND NOT EXISTS(SELECT 1 FROM events current WHERE current.slug=$1))) AND e.status<>'草稿' ORDER BY (e.slug=$1) DESC LIMIT 1`,[req.params.slug])).rows[0];
  if(!event)return res.status(404).json({error:'找不到活動。'});
+ if(event.slug!==req.params.slug){const query=req.originalUrl.includes('?')?req.originalUrl.slice(req.originalUrl.indexOf('?')):'';return res.redirect(302,'/api/events/'+encodeURIComponent(event.slug)+(req.path.endsWith('/google')?'/calendar/google':'/calendar.ics')+query);}
  const localized=localizeEvent(event,['en','ja'].includes(req.query.lang)?req.query.lang:'zh');
  if(req.path.endsWith('/google')){try{return res.redirect(googleCalendarUrl(localized,SITE_BASE));}catch(e){return res.status(409).json({error:e.message});}}
  let calendar;try{calendar=eventCalendar(localized,SITE_BASE);}catch(e){return res.status(409).json({error:e.message});}
@@ -4166,7 +4167,8 @@ app.get(['/', '/en', '/ja', '/en/', '/ja/', '/events', '/en/events', '/ja/events
   sendPage(res,file,req.path,html => featuredEvent(html,event,req.path));
 }));
 app.get(['/embed/events/:slug','/en/embed/events/:slug','/ja/embed/events/:slug'],requireDb,wrap(async(req,res)=>{
- const event=(await q("SELECT embed_origins FROM events WHERE slug=$1 AND status<>'草稿'",[req.params.slug])).rows[0];
+ const event=(await q(`SELECT e.slug,e.embed_origins FROM events e WHERE (e.slug=$1 OR (e.id=(SELECT event_id FROM event_slug_redirects WHERE old_slug=$1) AND NOT EXISTS(SELECT 1 FROM events current WHERE current.slug=$1))) AND e.status<>'草稿' ORDER BY (e.slug=$1) DESC LIMIT 1`,[req.params.slug])).rows[0];
+ if(event&&event.slug!==req.params.slug){const lang=/^\/(en|ja)\//.exec(req.path)?.[1],query=req.originalUrl.includes('?')?req.originalUrl.slice(req.originalUrl.indexOf('?')):'';return res.redirect(302,(lang?'/'+lang:'')+'/embed/events/'+encodeURIComponent(event.slug)+query);}
  if(!event||!event.embed_origins?.length)return res.status(404).send('此活動尚未開放嵌入 / Event embedding is not enabled / 埋め込みは無効です');
  const origins=embedOrigins(event.embed_origins,/^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(SITE_BASE));
  res.removeHeader('X-Frame-Options');res.set({'Cache-Control':'no-store','X-Robots-Tag':'noindex','Content-Security-Policy':"object-src 'none'; base-uri 'self'; frame-ancestors 'self' "+origins.join(' ')+"; form-action 'self' https://checkout.stripe.com"});
