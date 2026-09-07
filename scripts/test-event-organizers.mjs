@@ -7,7 +7,7 @@ import {createServer} from 'node:net';
 import {createServer as createHttpServer} from 'node:http';
 import {setTimeout as delay} from 'node:timers/promises';
 import {createRequire} from 'node:module';
-const require=createRequire(import.meta.url),{Pool}=require('pg'),{Wallet}=require('ethers');
+const require=createRequire(import.meta.url),{Pool}=require('pg'),{Wallet}=require('ethers'),{signAccessToken}=require('../lib/access-token');
 const base58=bytes=>{const alphabet='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';let n=BigInt('0x'+Buffer.from(bytes).toString('hex')),out='';while(n){out=alphabet[Number(n%58n)]+out;n/=58n;}for(const byte of bytes){if(byte)break;out='1'+out;}return out||'1';};
 const dbUrl=process.env.EVENT_APPLICATION_TEST_DATABASE_URL;
 test('organizer isolation, scoped cohosts, translations, publication and registration persist in PostgreSQL',{skip:!dbUrl,timeout:60000},async()=>{
@@ -245,9 +245,17 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await call('/admin/events/'+first.id+'/registration-settings',{as:a,method:'POST',body:{requires_approval:true,waitlist:true,email_templates:{confirmation:{subject:'Registration ready',body:'Your ticket is ready.'},pending:{subject:'Application received',body:'We will review your application.'},declined:{subject:'Application update',body:'We cannot confirm this registration.'}}}});
   await call('/admin/events/'+first.id+'/registration-settings',{as:a,method:'POST',body:{requires_approval:true,waitlist:true,email_templates:{confirmation:{subject:3,body:''},pending:{subject:'',body:''},declined:{subject:'',body:''}}},status:400});
   await call('/admin/events/'+first.id+'/guests/import',{as:a,method:'POST',body:{guests:[{name:'Invitee',email:'invitee@example.test'}],status:'invited'}});
-  const invitedRegistration=await call('/events/'+first.id+'/register',{as:invitee,method:'POST'});assert.equal(invitedRegistration.status,'registered');
+  const invitedId=(await pool.query("SELECT id FROM event_regs WHERE event_id=$1 AND user_id='invitee'",[first.id])).rows[0].id,inviteToken=signAccessToken({sub:'event-invite',ent:invitedId,plan:'event-invite',event:first.id},secret,{ttlSec:3600});
+  const inviteCall=async(body,status=200)=>{const response=await fetch(origin+'/api/events/'+first.id+(body.action?'/invitation':'/register'),{method:'POST',headers:{'X-Forwarded-For':'192.0.2.201','Content-Type':'application/json'},body:JSON.stringify(body)}),data=await response.json();assert.equal(response.status,status,JSON.stringify(data));return data;};
+  const invitePreview=await inviteCall({token:inviteToken,action:'preview'});assert.deepEqual(invitePreview.viewer,{name:'Invitee',email:'invitee@example.test'});
+  await inviteCall({token:inviteToken+'x',action:'preview'},400);
+  const invitedRegistration=await inviteCall({invite_token:inviteToken});assert.equal(invitedRegistration.status,'registered');assert.equal(invitedRegistration.guest,true);
+  assert.equal((await inviteCall({token:inviteToken,action:'preview'})).status,'registered');
   assert.equal((await pool.query("SELECT entry_source FROM event_regs WHERE event_id=$1 AND user_id='invitee'",[first.id])).rows[0].entry_source,'invited');
   await call('/events/'+first.id+'/register',{as:invitee,method:'DELETE'});
+  await call('/admin/events/'+first.id+'/guests/import',{as:a,method:'POST',body:{guests:[{name:'Declinee',email:'declinee@example.test'}],status:'invited'}});
+  const declineId=(await pool.query("SELECT r.id FROM event_regs r JOIN users u ON u.id=r.user_id WHERE r.event_id=$1 AND u.email='declinee@example.test'",[first.id])).rows[0].id,declineToken=signAccessToken({sub:'event-invite',ent:declineId,plan:'event-invite',event:first.id},secret,{ttlSec:3600});
+  assert.equal((await inviteCall({token:declineToken,action:'decline'})).status,'declined');assert.equal((await inviteCall({token:declineToken,action:'decline'})).status,'declined');await inviteCall({invite_token:declineToken},400);
   const request=await call('/events/'+first.id+'/register',{as:guest,method:'POST'});assert.equal(request.status,'pending_approval');
   let initialMail;for(let i=0;i<20;i++){initialMail=(await pool.query("SELECT subject,body FROM event_deliveries WHERE id LIKE 'status_initial_%pending_approval' ORDER BY id DESC LIMIT 1")).rows[0];if(initialMail)break;await delay(50);}assert.equal(initialMail.subject,'Application received');assert.match(initialMail.body,/We will review your application\./);
   await call('/events/'+first.id+'/ticket',{as:guest,status:404});

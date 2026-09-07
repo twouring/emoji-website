@@ -22,10 +22,15 @@ test('notification worker routes verified text and push deliveries without expos
   const providers={text:async message=>(delivered=message,{sid:'SMprovider'}),push:async(subscription,payload)=>(delivered={subscription,payload},{statusCode:201})};await deliverDue(q,providers,'https://emoji.test','secret');assert.match(writes.at(-1).sql,/accepted/);if(channel==='text'){assert.equal(delivered.channel,'whatsapp');assert.match(delivered.body,/https:\/\/emoji\.test\/events\/demo/);}else assert.equal(delivered.payload.url,'/events/demo');
  }
 });
+test('text and push invitations retain the signed reply link',async()=>{
+ for(const channel of ['text','push']){let delivered;const row={id:'invite_1_'+channel,channel,provider_channel:'sms',recipient:channel==='text'?'+886912345678':'https://push.example.test/1',email:'guest@example.test',subject:'Invitation',body:'Guest\n\nJoin us\n\nhttps://emoji.test/en/events/demo#invite=signed-token\n\nA'.repeat(500),push_subscription:{endpoint:'https://push.example.test/1',keys:{}},first_attempt_at:new Date(),context:{registration_id:'reg_1',ticket_version:1,expected_status:'invited',event_id:'event',slug:'demo'}};
+  const q=async sql=>sql.includes('RETURNING *')?{rows:[row]}:sql.includes('SELECT 1 FROM event_regs')?{rows:[{ok:true}],rowCount:1}:{rows:[],rowCount:0};await deliverDue(q,{text:async message=>(delivered=message,{sid:'SM1'}),push:async(subscription,payload)=>(delivered=payload,{statusCode:201})},'https://emoji.test');if(channel==='text')assert.match(delivered.body,/#invite=signed-token/);else assert.equal(delivered.url,'/en/events/demo#invite=signed-token');
+ }
+});
 test('event invitations use the selected event language and stay bound to invited status',async()=>{
  const {queueEventInvitation}=createRequire(import.meta.url)('../lib/event-mailer');let call;
- await queueEventInvitation(async(sql,args)=>(call={sql,args},{rows:[{id:args[0]}]}),{event:{id:'event_1',slug:'demo',title:'中文活動',translations:{en:{title:'English event'}}},registrationId:'registration_1',email:'guest@example.test',name:'Guest',language:'en',origin:'https://emoji.test'});
- assert.match(call.sql,/expected_status/);assert.equal(call.args[0],'invite_registration_1');assert.equal(call.args[3],"You're invited · English event");assert.match(call.args[4],/https:\/\/emoji\.test\/en\/events\/demo$/);assert.equal(call.args[8],'invited');
+ const count=await queueEventInvitation(async(sql,args)=>(call={sql,args},{rows:[{id:args[0]}]}),{event:{id:'event_1',slug:'demo',title:'中文活動',translations:{en:{title:'English event'}}},registrationId:'registration_1',email:'guest@example.test',name:'Guest',language:'en',origin:'https://emoji.test',token:'signed-token',message:'Bring a friend'});
+ assert.equal(count,1);assert.match(call.sql,/expected_status/);assert.equal(call.args[0],'invite_registration_1');assert.equal(call.args[3],"You're invited · English event");assert.match(call.args[4],/Bring a friend/);assert.match(call.args[4],/https:\/\/emoji\.test\/en\/events\/demo#invite=signed-token$/);assert.equal(call.args[8],'invited');
 });
 test('registration messages validate custom templates and retain localized defaults',()=>{
  const {normalizeRegistrationEmails,registrationMail}=createRequire(import.meta.url)('../lib/event-mailer');

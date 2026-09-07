@@ -338,7 +338,10 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 讀取登入帳號自己的申請，回 `{ applications }`，包含申請內容、`id`、`status`（`pending`／`approved`／`rejected`）、`review_note`、`created_at` 與 `reviewed_at`。不接受指定其他使用者，agent 金鑰回 403；不在公開 API 提供申請或聯絡資料。
 
 ### POST /api/events/:id/register
-報名活動。新來賓不需先登入，body 需傳 `{ name,email,lang? }`；啟用姓名拆分時改傳 `{ first_name,last_name,email,lang? }`。有效 Bearer token 會綁定目前帳號並忽略 body 的 Email。團體報名可傳 `quantity`（1–1000，且不得超過活動／票種剩餘名額）與 `additional_attendees`（不含第一位購買者）；未提供的參加者先沿用購買者資料，之後可逐張轉票。舊版等長 `attendees` 仍相容。啟用錢包收集時另傳 `ethereum_wallet_proof`／`solana_wallet_proof`；ERC-721 票種另傳十進位 `nft_token_id`。免費票立即成立；付費票建立或沿用未過期的 Stripe Checkout，回 `{ url }`。付費活動未設定 `STRIPE_WEBHOOK_SECRET` 時 fail closed 回 503。
+報名活動。新來賓不需先登入，body 需傳 `{ name,email,lang? }`；啟用姓名拆分時改傳 `{ first_name,last_name,email,lang? }`。有效 Bearer token 會綁定目前帳號並忽略 body 的 Email。受邀者可改傳邀請連結中的 `invite_token`，後端從已鎖定的受邀紀錄取得身分、略過活動／票種審核，並在成功回覆後使同一連結失效；仍須通過問題、名額、票價、錢包與付款檢查。團體報名可傳 `quantity`（1–1000，且不得超過活動／票種剩餘名額）與 `additional_attendees`（不含第一位購買者）；未提供的參加者先沿用購買者資料，之後可逐張轉票。舊版等長 `attendees` 仍相容。啟用錢包收集時另傳 `ethereum_wallet_proof`／`solana_wallet_proof`；ERC-721 票種另傳十進位 `nft_token_id`。免費票立即成立；付費票建立或沿用未過期的 Stripe Checkout，回 `{ url }`。付費活動未設定 `STRIPE_WEBHOOK_SECRET` 時 fail closed 回 503。
+
+### POST /api/events/:id/invitation
+使用邀請連結中的短期簽章 token 預覽受邀姓名與 Email，body 為 `{ token,action:'preview' }`；婉拒時傳 `action:'decline'`。只接受綁定本活動及受邀紀錄的 token，不接受草稿或已取消活動。婉拒可安全重試，其他已完成回覆的邀請不能再次改寫。
 
 ### DELETE /api/events/:id/register
 取消免費且尚未簽到的報名。付費票須由後台退款，不可直接取消。
@@ -557,7 +560,7 @@ Twilio 訊息狀態 callback。以 `X-Twilio-Signature` 驗證請求，將 accep
 
 匯入 guests（name、email），每批 1–500 位；status 可為 invited、registered（僅免費票）、pending_approval、waitlisted。可指定 ticket_id 及 unlock_code。使用交易鎖檢查名額，不足時整批回滾；重複報名預設跳過。傳入 `update_existing: true` 且指定票種時，只更新既有報名的原始票種，不覆寫姓名、報名狀態、票款、退款或加購／贈票。
 
-新增受邀來賓時可傳 `send_invites: true` 與 `language: zh|en|ja`。邀請只排給本次新增者；重複 Email 會略過且不重寄。受邀者自行報名時免除活動或票種審核，但仍須完成必填問題、名額檢查與付費。寄信服務未設定時整批回傳 503，且不新增來賓或建立寄送佇列。
+新增受邀來賓時可傳 `send_invites: true`、`language: zh|en|ja` 與最多 1000 字的 `message`。邀請只排給本次新增者；重複 Email 會略過且不重寄。通知依已設定的 Email、收件者已驗證的 SMS／WhatsApp 與瀏覽器推播通路排入；每則都包含不放在伺服器查詢紀錄中的簽章 fragment 連結。沒有任何可用通路時整批回滾。受邀者可由連結直接確認身分、婉拒或完成報名；報名免除活動或票種審核，但仍須完成必填問題、名額檢查與付費。
 
 ### PATCH /api/admin/events/:id/regs/:registrationId/ticket
 

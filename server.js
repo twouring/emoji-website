@@ -2918,11 +2918,11 @@ app.delete('/api/admin/events/:id', auth, requireDb, eventEditor, wrap(async (re
 }));
 
 app.post('/api/admin/events/:id/guests/import',auth,requireDb,eventEditor,wrap(async(req,res)=>{
- const b=req.body||{},status=b.status||'invited',sendInvites=b.send_invites===true,language=['en','ja'].includes(b.language)?b.language:'zh';
+ const b=req.body||{},status=b.status||'invited',sendInvites=b.send_invites===true,language=['en','ja'].includes(b.language)?b.language:'zh',inviteMessage=String(b.message||'').trim();
  if(!['invited','registered','pending_approval','waitlisted'].includes(status)||!Array.isArray(b.guests)||!b.guests.length||b.guests.length>500)return res.status(400).json({error:'每次可匯入 1–500 位來賓，請選擇有效狀態。'});
  if(b.update_existing!==undefined&&typeof b.update_existing!=='boolean')return res.status(400).json({error:'更新既有來賓設定格式不正確。'});
- if(b.send_invites!==undefined&&typeof b.send_invites!=='boolean'||b.language!==undefined&&!['zh','en','ja'].includes(b.language)||sendInvites&&status!=='invited')return res.status(400).json({error:'邀請寄送設定格式不正確。'});
- if(sendInvites&&!process.env.RESEND_API_KEY)return res.status(503).json({error:'寄信服務尚未設定，未新增來賓或排入邀請。'});
+ if(b.send_invites!==undefined&&typeof b.send_invites!=='boolean'||b.language!==undefined&&!['zh','en','ja'].includes(b.language)||sendInvites&&status!=='invited'||inviteMessage.length>1000)return res.status(400).json({error:'邀請寄送設定格式不正確。'});
+ const invitationProviders=deliveryChannels();if(sendInvites&&!Object.values(invitationProviders).some(Boolean))return res.status(503).json({error:'邀請通知服務尚未設定，未新增來賓或排入邀請。'});
  const seen=new Set(),guests=[];
  for(const g of b.guests){const email=String(g?.email||'').trim().toLowerCase(),name=String(g?.name||'').trim();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254||!name||name.length>120)return res.status(400).json({error:'每位來賓都需有效姓名與 Email。'});if(!seen.has(email)){seen.add(email);guests.push({email,name});}}
  const client=await pool.connect();try{await client.query('BEGIN');
@@ -2932,7 +2932,7 @@ app.post('/api/admin/events/:id/guests/import',auth,requireDb,eventEditor,wrap(a
  let ticket=null;try{if(event.tickets.length&&status!=='invited')ticket=selectTicket(event.tickets,b.ticket_id,Date.now(),b.unlock_code);}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}
  const price=ticket?.price_twd??event.price_twd;
  if(status==='registered'&&price>0){await client.query('ROLLBACK');return res.status(409).json({error:'付費票不能以匯入標記為已付款；請先邀請來賓自行付款。'});}
- let added=0,updated=0,skipped=0,queued=0;
+ let added=0,updated=0,skipped=0,queued=0,deliveries=0;
  for(const guest of guests.sort((a,b)=>a.email.localeCompare(b.email))){
   const user=await accountByEmail(client,guest.email,guest.name);
   const existing=(await client.query('SELECT * FROM event_regs WHERE event_id=$1 AND user_id=$2 FOR UPDATE',[event.id,user.id])).rows[0];
@@ -2944,9 +2944,9 @@ app.post('/api/admin/events/:id/guests/import',auth,requireDb,eventEditor,wrap(a
   }
   const regId=uid('r_');await client.query("INSERT INTO event_regs(id,event_id,user_id,status,amount_due,amount_paid,ticket_snapshot,note,entry_source,language) VALUES($1,$2,$3,$4,$5,0,$6,$7,$8,$9)",[regId,event.id,user.id,status,status==='invited'?0:price,ticket?JSON.stringify(ticket):null,'主辦人手動匯入',status==='invited'?'invited':'imported',language]);
   await recordEventActivity(client,event.id,regId,req.auth.sub||null,'guest_imported:'+status);added++;
-  if(sendInvites){await require('./lib/event-mailer').queueEventInvitation((sql,args)=>client.query(sql,args),{event,registrationId:regId,email:user.email,name:guest.name,language,origin:SITE_BASE});queued++;}
+  if(sendInvites){const count=await require('./lib/event-mailer').queueEventInvitation((sql,args)=>client.query(sql,args),{event,registrationId:regId,email:user.email,name:guest.name,language,origin:SITE_BASE,token:eventInviteToken(regId,event),message:inviteMessage,emailEnabled:invitationProviders.email});if(!count){await client.query('ROLLBACK');return res.status(409).json({error:`${guest.email} 沒有目前可用的邀請通知通路，整批未匯入。`});}queued++;deliveries+=count;}
  }
- await client.query('COMMIT');res.json({ok:true,added,updated,skipped,queued,notice:sendInvites?`已新增並排入 ${queued} 封邀請；重複來賓不會重寄。`:'已匯入，未寄送任何通知。'});
+ await client.query('COMMIT');res.json({ok:true,added,updated,skipped,queued,deliveries,notice:sendInvites?`已新增並排入 ${queued} 位來賓、${deliveries} 則通知；重複來賓不會重寄。`:'已匯入，未寄送任何通知。'});
  }catch(e){await client.query('ROLLBACK');if(e.code==='AMBIGUOUS_EMAIL')return res.status(409).json({error:e.message});throw e;}finally{client.release();}
 }));
 
@@ -3513,6 +3513,11 @@ function eventReferralToken(registrationId,event){
  const end=event.ends_at||event.starts_at,ttlSec=end?Math.max(86400,Math.floor((+new Date(end)-Date.now())/1000)+30*86400):366*86400;
  return signAccessToken({sub:'event-referral',ent:registrationId,plan:'event-referral',event:event.id},SECRET,{ttlSec});
 }
+function eventInviteToken(registrationId,event){
+ const end=event.ends_at||event.starts_at,ttlSec=end?Math.max(3600,Math.floor((+new Date(end)-Date.now())/1000)+7*86400):366*86400;
+ return signAccessToken({sub:'event-invite',ent:registrationId,plan:'event-invite',event:event.id},SECRET,{ttlSec});
+}
+function eventInviteClaims(token,eventId){const value=verifyAccessToken(String(token||''),SECRET);return value?.plan==='event-invite'&&value.event===eventId?value:null;}
 app.get('/api/events', optionalAuth, requireDb, wrap(async (req, res) => {
   const member = req.auth?.sub ? (await memberAccessFor(req.auth.sub)).active : false;
   const events = (await q(
@@ -3736,6 +3741,18 @@ app.get('/api/events/:slug', optionalAuth, requireDb, wrap(async (req, res) => {
   res.json({ event: publicEvent(ev, req.query.lang) });
 }));
 
+app.post('/api/events/:id/invitation',requireDb,rateLimit({max:60,windowMs:60000}),wrap(async(req,res)=>{
+ const action=String(req.body?.action||'preview'),claims=eventInviteClaims(req.body?.token,req.params.id);if(!claims||!['preview','decline'].includes(action))return res.status(400).json({error:'邀請連結無效或已過期。'});
+ const client=await pool.connect();try{await client.query('BEGIN');const row=(await client.query(`SELECT r.id,r.status,r.user_id,u.name,u.email,e.status AS event_status FROM event_regs r JOIN users u ON u.id=r.user_id JOIN events e ON e.id=r.event_id WHERE r.id=$1 AND r.event_id=$2 FOR UPDATE OF r`,[claims.ent,req.params.id])).rows[0];
+  if(!row||row.event_status==='草稿'||row.event_status==='已取消'){await client.query('ROLLBACK');return res.status(404).json({error:'找不到可回覆的活動邀請。'});}
+  if(action==='decline'){
+   if(row.status==='invited'){await client.query("UPDATE event_regs SET status='declined' WHERE id=$1",[row.id]);await recordEventActivity(client,req.params.id,row.id,row.user_id,'invitation_declined');}
+   else if(row.status!=='declined'){await client.query('ROLLBACK');return res.status(409).json({error:'此邀請已完成回覆。'});}
+  }
+  await client.query('COMMIT');res.json({ok:true,status:action==='decline'?'declined':row.status,viewer:{name:row.name,email:row.email}});
+ }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
+}));
+
 app.post('/api/events/:id/crypto/challenge',requireDb,wrap(async(req,res)=>{
  const chain=req.body?.chain==='solana'?'solana':'ethereum',event=(await q("SELECT id FROM events WHERE id=$1 AND status='報名中' AND (registration_settings->'wallet_collection'->>$2='true' OR ($2='ethereum' AND EXISTS(SELECT 1 FROM jsonb_array_elements(tickets) ticket WHERE ticket->'token_gate'->>'enabled'='true')))",[req.params.id,chain])).rows[0];if(!event)return res.status(404).json({error:'找不到可使用錢包驗證的活動。'});let address;try{address=chain==='solana'?eventCrypto.solanaAddress(req.body?.address):eventCrypto.ethereumAddress(req.body?.address);}catch(error){return res.status(400).json({error:error.message});}const proof={p:'event-crypto',e:event.id,c:chain,a:address,n:crypto.randomBytes(24).toString('hex')},token=signToken(proof,{purpose:'oauth'});res.json({token,message:eventCrypto.challengeMessage({event:event.id,chain,address,nonce:proof.n})});
 }));
@@ -3751,8 +3768,9 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
     const registrationSettings=ev.registration_settings || {},guest=!req.auth?.sub,requestLang=['en','ja'].includes(req.body?.lang)?req.body.lang:'zh';
     const first=String(req.body?.first_name||'').trim(),last=String(req.body?.last_name||'').trim();
     const submittedName=registrationSettings.split_name?(requestLang==='en'?first+' '+last:last+first).trim():String(req.body?.name||'').trim();
-    let userId=req.auth?.sub||null,buyer;
-    if(userId)buyer=(await client.query('SELECT name,email FROM users WHERE id=$1',[userId])).rows[0];
+    let userId=req.auth?.sub||null,buyer,invitation=null;
+    if(req.body?.invite_token){const claims=eventInviteClaims(req.body.invite_token,ev.id);if(claims)invitation=(await client.query("SELECT r.user_id,r.status,u.name,u.email FROM event_regs r JOIN users u ON u.id=r.user_id WHERE r.id=$1 AND r.event_id=$2 AND r.status IN ('invited','pending_payment')",[claims.ent,ev.id])).rows[0];if(!invitation){await client.query('ROLLBACK');return res.status(400).json({error:'邀請連結無效、已過期或已回覆。'});}if(userId&&userId!==invitation.user_id){await client.query('ROLLBACK');return res.status(409).json({error:'請先登出目前帳號，再使用受邀 Email 回覆。'});}userId=invitation.user_id;buyer={name:invitation.name,email:invitation.email};}
+    else if(userId)buyer=(await client.query('SELECT name,email FROM users WHERE id=$1',[userId])).rows[0];
     else{
       const email=String(req.body?.email||'').trim().toLowerCase();
       if(!submittedName||submittedName.length>120||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254){await client.query('ROLLBACK');return res.status(400).json({error:'請填寫姓名與有效 Email。'});}
@@ -3782,14 +3800,14 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
       if(session.status==='complete'){await client.query('ROLLBACK');return res.status(409).json({error:'付款仍在核對中，請稍後重新整理。'});}
     }
 
-    const invited=mine?.status==='invited',approved=mine?.status==='approved'&&mine.checkout_expires_at>new Date();
+    const invited=mine?.status==='invited'||invitation?.status==='pending_payment',approved=mine?.status==='approved'&&mine.checkout_expires_at>new Date();
     if(mine?.status==='approved'&&!approved){await client.query("UPDATE event_regs SET status='pending_approval',checkout_expires_at=NULL WHERE id=$1",[mine.id]);await client.query('COMMIT');return res.status(409).json({error:'付款保留時間已到期，已轉回待審核，請聯絡主辦人。'});}
     const quantity=approved?mine.quantity:Number(req.body?.quantity??1);
     if(!Number.isInteger(quantity)||quantity<1||quantity>MAX_EVENT_TICKETS_PER_ORDER){await client.query('ROLLBACK');return res.status(400).json({error:`每筆報名可購買 1–${MAX_EVENT_TICKETS_PER_ORDER} 張票。`});}
     if(!approved&&quantity>1&&ev.registration_settings?.group_registration===false){await client.query('ROLLBACK');return res.status(400).json({error:'此活動僅開放單人報名。'});}
     let attendees;
     if(!approved){
-      if(registrationSettings.split_name&&(!first||!last||first.length>60||last.length>60)){await client.query('ROLLBACK');return res.status(400).json({error:'請填寫姓與名，每欄最多 60 字。'});}
+      if(registrationSettings.split_name&&!invitation&&(!first||!last||first.length>60||last.length>60)){await client.query('ROLLBACK');return res.status(400).json({error:'請填寫姓與名，每欄最多 60 字。'});}
       const primary={name:submittedName||buyer.name,email:buyer.email};
       if(Array.isArray(req.body?.additional_attendees)&&req.body.additional_attendees.length<=quantity-1)attendees=[primary,...req.body.additional_attendees,...Array.from({length:quantity-1-req.body.additional_attendees.length},()=>primary)];
       else attendees=req.body?.attendees??Array.from({length:quantity},()=>primary);

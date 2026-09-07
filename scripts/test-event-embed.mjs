@@ -53,7 +53,7 @@ test('registration failure preserves the form, exposes a persistent error and re
  const {readFileSync}=await import('node:fs'),{runInNewContext}=await import('node:vm');
  const source=readFileSync(new URL('../public/events.html',import.meta.url),'utf8'),button={textContent:'Register',disabled:false,setAttribute(k,v){this[k]=v;}},form={append(node){this.feedback=node;}},feedback={setAttribute(){}};
  let calls=0;
- const context={lang:'en',attribution:{},document:{getElementById:id=>id==='ev-register'?button:id==='ev-registration-form'?form:null,createElement:()=>feedback},FormData:class {get(){return null;}},api:async()=>{calls++;assert.equal(button['aria-busy'],'true');assert.equal(button.textContent,'Processing…');throw Error('Sold out. Choose another ticket.');}};
+ const context={lang:'en',inviteToken:'',attribution:{},document:{getElementById:id=>id==='ev-register'?button:id==='ev-registration-form'?form:null,createElement:()=>feedback},FormData:class {get(){return null;}},api:async()=>{calls++;assert.equal(button['aria-busy'],'true');assert.equal(button.textContent,'Processing…');throw Error('Sold out. Choose another ticket.');}};
  runInNewContext(source.slice(source.indexOf('async function register('),source.indexOf('function watchEmbedCheckout(')),context);
  await context.register({id:'test',registration_settings:{}});assert.equal(calls,1);assert.equal(button.disabled,false);assert.equal(button['aria-busy'],'false');assert.equal(button.textContent,'Register');assert.equal(form.feedback.hidden,false);assert.equal(form.feedback.textContent,'Sold out. Choose another ticket.');
  button.disabled=true;await context.register({id:'test'});assert.equal(calls,1);

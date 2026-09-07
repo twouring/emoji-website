@@ -119,6 +119,10 @@ test('registration identity fields allow new guests and prefill signed-in guests
  assert.match(context.identityFields(event),/name="name"/);assert.match(context.identityFields(event),/name="email"/);assert.match(context.identityFields(event),/Already registered\?/);
  context.token='member-token';const signedIn=context.identityFields({...event,viewer:{name:'Member Name',email:'member@example.test'}});assert.match(signedIn,/value="Member Name"/);assert.match(signedIn,/value="member@example.test" readonly/);assert.doesNotMatch(signedIn,/Already registered/);
  assert.match(context.identityFields({...event,registration_settings:{split_name:true}}),/name="first_name"/);assert.match(context.identityFields({...event,registration_settings:{split_name:true}}),/name="last_name"/);
+ const invited=context.identityFields({...event,invited_via_link:true,viewer:{name:'Invited Guest',email:'invite@example.test'}});assert.match(invited,/Invited Guest/);assert.match(invited,/invite@example\.test/);assert.match(invited,/id="invite-decline"/);assert.doesNotMatch(invited,/name="email"/);
+ assert.match(source,/callbackHash\.get\('invite'\)/);assert.match(source,/invite_token:inviteToken/);assert.match(source,/action:'decline'/);
+ assert.match(source,/This invitation link is invalid, expired, or already answered\./);assert.match(source,/この招待リンクは無効、期限切れ、または回答済みです。/);
+ assert.match(source,/\['invited','pending_payment'\]\.includes\(invitation\.status\)/);assert.match(source,/invitation\.status==='registered'/);
  assert.match(source,/if\(token&&!event\.viewer&&!event\.registration_id&&!event\.recipient_only\)/);assert.match(source,/if\(token&&e\.registered&&!e\.recipient_only\)showAdditional\(e\)/);
 });
 
@@ -167,7 +171,7 @@ test('event management opens one task-based panel instead of expanding every act
  assert.equal((list.match(/data-ev-manage=/g)||[]).length,1);assert.match(list,/href="\/admin\/events\/event-1"/);assert.doesNotMatch(list,/<summary>管理活動/);assert.match(list,/id="ev-manager"/);
  assert.match(list,/id="event-editor-title">建立新活動/);assert.match(list,/建立活動後，再設定票種、報名表與公開頁內容/);
  assert.match(source,/id="rg-ticket"/);assert.match(source,/<option value="">全部<\/option><option value="registered">已報名<\/option>/);assert.match(source,/data-guest-tickets=/);
- assert.match(source,/data-guest-ticket-edit=/);assert.match(source,/id="guest-update-existing"/);assert.match(source,/update_existing:updateExisting/);assert.match(source,/id="guest-send-invites"/);assert.match(source,/id="guest-language"/);assert.match(source,/send_invites:sendInvites/);assert.match(source,/重複來賓不重寄/);assert.match(source,/eventAnswer\(a\.value\)/);assert.match(source,/id="rg-status-selected"/);assert.match(source,/value="checkedAt">簽到時間/);
+ assert.match(source,/data-guest-ticket-edit=/);assert.match(source,/id="guest-update-existing"/);assert.match(source,/update_existing:updateExisting/);assert.match(source,/id="guest-send-invites"/);assert.match(source,/id="guest-language"/);assert.match(source,/id="guest-message"/);assert.match(source,/send_invites:sendInvites,language,message/);assert.match(source,/重複來賓不重寄/);assert.match(source,/eventAnswer\(a\.value\)/);assert.match(source,/id="rg-status-selected"/);assert.match(source,/value="checkedAt">簽到時間/);
  assert.match(source,/id="rs-tax-enabled"/);assert.match(source,/由言文字統一收款/);assert.match(source,/rate_bps:Math\.round/);assert.match(source,/p\.tax_snapshot\.tax_twd/);assert.match(source,/稅額 TWD/);
  assert.match(source,/id="rs-email-confirmation-subject"/);assert.match(source,/id="rs-email-pending-body"/);assert.match(source,/email_templates:Object\.fromEntries/);assert.match(source,/toast\(out\.notice/);
  assert.match(source,/id="share-qr-image"/);assert.match(source,/QRCode\.toDataURL\(host\.querySelector\('#share-url'\)\.value/);
