@@ -27,6 +27,7 @@ const {normalizeTickets,selectTicket,ticketPrice,publicTickets,normalizeCoupons,
 const {eventCalendar,googleCalendarUrl} = require('./lib/event-calendar');
 const {refundTotals}=require('./lib/event-refunds');
 const {EVENT_TYPES:EVENT_WEBHOOK_TYPES,normalizeWebhook,sendWebhook}=require('./lib/event-webhooks');
+const {oauthUrl,meetingRequest,meetingResult}=require('./lib/event-meetings');
 const eventQuestions = require('./lib/event-questions');
 const { eventSlug, normalizeEventInput, localizeEvent, normalizeAttribution } = require('./lib/events');
 const { normalizeEventApplication } = require('./lib/event-applications');
@@ -97,6 +98,9 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 // 站台對外網址，供 Google 導回 callback；本地測試設 PUBLIC_ORIGIN=http://localhost:8080
 const SITE_BASE = (process.env.PUBLIC_ORIGIN || 'https://www.emoji.tw').replace(/\/$/, '');
 const GOOGLE_REDIRECT_URI = SITE_BASE + '/auth/google/callback';
+const GOOGLE_MEET_CLIENT_ID = process.env.GOOGLE_MEET_CLIENT_ID || '';
+const GOOGLE_MEET_CLIENT_SECRET = process.env.GOOGLE_MEET_CLIENT_SECRET || '';
+const GOOGLE_MEET_REDIRECT_URI = SITE_BASE + '/integrations/google-meet/callback';
 if (!GOOGLE_CLIENT_ID) console.warn('[warn] GOOGLE_CLIENT_ID 未設定，Google 登入停用（/auth/google 回 503）。');
 // 允許的登入完成導回目標與 CORS 來源（官網子網域），防 open redirect；逗號分隔可覆寫
 const WEB_ORIGINS = (process.env.WEB_ORIGINS ||
@@ -526,6 +530,10 @@ async function migrate() {
     attempts INTEGER NOT NULL DEFAULT 0,next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),response_status INTEGER,last_error TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),delivered_at TIMESTAMPTZ)`);
   await q(`CREATE INDEX IF NOT EXISTS event_webhook_due_idx ON event_webhook_deliveries(state,next_attempt_at)`);
+  await q(`CREATE TABLE IF NOT EXISTS event_meeting_connections (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,provider TEXT NOT NULL CHECK(provider IN ('google-meet','zoom')),
+    access_token TEXT NOT NULL,refresh_token TEXT NOT NULL DEFAULT '',expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),PRIMARY KEY(user_id,provider))`);
   await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS entry_source TEXT NOT NULL DEFAULT 'self_service'`);
   await q(`UPDATE event_regs r SET entry_source='imported'
     WHERE entry_source='self_service' AND COALESCE((SELECT a.action LIKE 'guest_imported:%'
@@ -1435,6 +1443,28 @@ app.get('/auth/google/callback', wrap(async (req, res) => {
   // token 以 URL fragment 帶回官網（不進伺服器存取記錄）；官網讀取後即從網址移除
   const sep = redirect.includes('#') ? '&' : '#';
   res.redirect(redirect + sep + 'token=' + encodeURIComponent(token));
+}));
+
+async function googleMeetAccessToken(userId){
+ const row=(await q("SELECT access_token,refresh_token,expires_at FROM event_meeting_connections WHERE user_id=$1 AND provider='google-meet'",[userId])).rows[0];
+ if(!row)throw Object.assign(Error('請先連接 Google Meet。'),{status:409});
+ const access=decPII(row.access_token);if(access!=='***'&&+new Date(row.expires_at)>Date.now()+60000)return access;
+ const refresh=decPII(row.refresh_token);if(!refresh||refresh==='***')throw Object.assign(Error('Google Meet 授權已失效，請重新連接。'),{status:409});
+ const response=await fetch('https://oauth2.googleapis.com/token',{signal:AbortSignal.timeout(10000),method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:GOOGLE_MEET_CLIENT_ID,client_secret:GOOGLE_MEET_CLIENT_SECRET,refresh_token:refresh,grant_type:'refresh_token'})});
+ const token=await response.json().catch(()=>({}));if(!response.ok||!token.access_token)throw Object.assign(Error('Google Meet 授權更新失敗，請重新連接。'),{status:502});
+ await q("UPDATE event_meeting_connections SET access_token=$3,expires_at=now()+($4::int*interval '1 second'),updated_at=now() WHERE user_id=$1 AND provider=$2",[userId,'google-meet',encSecret(token.access_token),Number(token.expires_in)||3600]);return token.access_token;
+}
+
+app.get('/integrations/google-meet/callback',wrap(async(req,res)=>{
+ const state=String(req.query.state||''),st=verifyToken(state,{purpose:'oauth'}),cookie=(req.headers.cookie||'').split(';').map(value=>value.trim()).find(value=>value.startsWith('meeting_oauth_state='))?.slice(20);
+ res.clearCookie('meeting_oauth_state',{path:'/integrations',httpOnly:true,sameSite:'lax',secure:SITE_BASE.startsWith('https://')});
+ if(!st||st.p!=='google-meet'||!st.sub||!st.e||!safeEqual(state,cookie))return res.status(400).send('Google Meet 連接已失效，請重新操作。');
+ if(!req.query.code)return res.status(400).send('Google Meet 連接未完成。');if(!GOOGLE_MEET_CLIENT_ID||!GOOGLE_MEET_CLIENT_SECRET||!pool||!dbReady)return res.status(503).send('Google Meet 整合尚未設定。');
+ const response=await fetch('https://oauth2.googleapis.com/token',{signal:AbortSignal.timeout(10000),method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({code:String(req.query.code),client_id:GOOGLE_MEET_CLIENT_ID,client_secret:GOOGLE_MEET_CLIENT_SECRET,redirect_uri:GOOGLE_MEET_REDIRECT_URI,grant_type:'authorization_code'})});
+ const token=await response.json().catch(()=>({}));if(!response.ok||!token.access_token||!token.refresh_token)return res.status(400).send('Google Meet 授權失敗，請重新連接並允許離線存取。');
+ await q(`INSERT INTO event_meeting_connections(user_id,provider,access_token,refresh_token,expires_at) VALUES($1,'google-meet',$2,$3,now()+($4::int*interval '1 second'))
+  ON CONFLICT(user_id,provider) DO UPDATE SET access_token=$2,refresh_token=$3,expires_at=EXCLUDED.expires_at,updated_at=now()`,[st.sub,encSecret(token.access_token),encSecret(token.refresh_token),Number(token.expires_in)||3600]);
+ const path=st.r===`/organizer/events/${encodeURIComponent(st.e)}`?st.r:`/admin/events/${encodeURIComponent(st.e)}`;res.redirect(path+'?task=details&meeting=connected');
 }));
 
 // 網站內容（首頁公告等）：讀成 { key: value } 物件
@@ -2463,7 +2493,35 @@ app.post('/api/admin/events/:id/details',auth,requireDb,eventEditor,wrap(async(r
   details[key]=value;
  }
  const email=String(b.contact_email||'').trim();if(email&&(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254))return res.status(400).json({error:'聯絡 Email 格式不正確。'});details.contact_email=email;
- await eventMutation(req,req.params.id,'details_updated','UPDATE events SET event_details=$2 WHERE id=$1',[req.params.id,JSON.stringify(details)]);res.json({ok:true,details});
+ const saved=await eventMutation(req,req.params.id,'details_updated','UPDATE events SET event_details=event_details || $2::jsonb WHERE id=$1 RETURNING event_details',[req.params.id,JSON.stringify(details)]);if(!saved.rowCount)return res.status(404).json({error:'找不到活動。'});res.json({ok:true,details:saved.rows[0].event_details});
+}));
+app.get('/api/admin/events/:id/meeting',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ const event=(await q('SELECT event_details FROM events WHERE id=$1',[req.params.id])).rows[0];if(!event)return res.status(404).json({error:'找不到活動。'});
+ const connected=req.auth.sub&&(await q("SELECT 1 FROM event_meeting_connections WHERE user_id=$1 AND provider='google-meet'",[req.auth.sub])).rowCount>0;
+ res.json({google_meet:{configured:!!(GOOGLE_MEET_CLIENT_ID&&GOOGLE_MEET_CLIENT_SECRET),connected},meeting:{provider:event.event_details?.meeting_provider||'',id:event.event_details?.meeting_id||'',pending:event.event_details?.meeting_pending===true,url:event.event_details?.online_url||''}});
+}));
+app.post('/api/admin/events/:id/meeting/connect',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ if(!req.auth.sub)return res.status(403).json({error:'請先使用個人帳號登入。'});if(!GOOGLE_MEET_CLIENT_ID||!GOOGLE_MEET_CLIENT_SECRET)return res.status(503).json({error:'Google Meet 整合尚未設定。'});
+ const state=signToken({sub:req.auth.sub,p:'google-meet',e:req.params.id,r:String(req.body?.redirect||''),n:crypto.randomBytes(24).toString('hex')},{purpose:'oauth'});
+ res.cookie('meeting_oauth_state',state,{httpOnly:true,sameSite:'lax',secure:SITE_BASE.startsWith('https://'),path:'/integrations',maxAge:10*60*1000});
+ res.json({url:oauthUrl('google-meet',{clientId:GOOGLE_MEET_CLIENT_ID,redirectUri:GOOGLE_MEET_REDIRECT_URI,state})});
+}));
+app.delete('/api/admin/events/:id/meeting/connection',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ if(!req.auth.sub)return res.status(403).json({error:'請先使用個人帳號登入。'});await q("DELETE FROM event_meeting_connections WHERE user_id=$1 AND provider='google-meet'",[req.auth.sub]);res.json({ok:true});
+}));
+app.post('/api/admin/events/:id/meeting/create',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ if(!req.auth.sub)return res.status(403).json({error:'請先使用個人帳號登入。'});
+ const event=(await q('SELECT id,title,description,location,starts_at,ends_at,event_details FROM events WHERE id=$1',[req.params.id])).rows[0];if(!event)return res.status(404).json({error:'找不到活動。'});
+ let access;try{access=await googleMeetAccessToken(req.auth.sub);}catch(error){return res.status(error.status||502).json({error:error.message});}
+ const request=meetingRequest('google-meet',event),calendarId=event.event_details?.meeting_provider==='google-meet'&&event.event_details?.meeting_id||request.body.id;
+ let response;if(event.event_details?.meeting_provider==='google-meet'&&event.event_details?.meeting_id){response=await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(calendarId)}`,{signal:AbortSignal.timeout(10000),headers:{authorization:'Bearer '+access}});}else{
+  response=await fetch(request.url,{signal:AbortSignal.timeout(10000),method:'POST',headers:{authorization:'Bearer '+access,'content-type':'application/json'},body:JSON.stringify(request.body)});
+  if(response.status===409)response=await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(calendarId)}`,{signal:AbortSignal.timeout(10000),headers:{authorization:'Bearer '+access}});
+ }
+ const data=await response.json().catch(()=>({}));if(!response.ok)return res.status(502).json({error:'Google Meet 建立失敗，請確認行事曆權限後重試。'});
+ const result=meetingResult('google-meet',data);if(!result.id)return res.status(502).json({error:'Google Meet 未回傳活動識別碼。'});
+ const details={...event.event_details,meeting_provider:'google-meet',meeting_id:result.id,meeting_pending:!result.url};if(result.url)details.online_url=result.url;
+ await eventMutation(req,req.params.id,result.url?'google_meet_created':'google_meet_pending','UPDATE events SET event_details=$2 WHERE id=$1',[req.params.id,JSON.stringify(details)]);res.json({ok:true,pending:!result.url,url:result.url||''});
 }));
 app.post('/api/admin/events/:id/cancel',auth,requireDb,eventEditor,wrap(async(req,res)=>{
  if(req.body?.notify!==undefined&&typeof req.body.notify!=='boolean')return res.status(400).json({error:'通知選項格式不正確。'});

@@ -45,6 +45,7 @@ DB 未設定時伺服器優雅降級：靜態頁照常，`/api/*` 回 503。
 | `STRIPE_WEBHOOK_SECRET` | 同帳號送至 `/api/stripe/webhook` 的簽章；未設時付費活動 fail closed |
 | `EVENT_QR_SECRET` | 活動票券 QR 簽章；留空時沿用 `ACCESS_QR_SECRET` |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 會員專區 Google 登入 |
+| `GOOGLE_MEET_CLIENT_ID` / `GOOGLE_MEET_CLIENT_SECRET` | 活動主連接 Google Calendar 並建立 Meet；OAuth callback 為 `${PUBLIC_ORIGIN}/integrations/google-meet/callback` |
 | `PUBLIC_ORIGIN` | 站台對外網址（正式：`https://www.emoji.tw`），供 Stripe 導回與 Google callback |
 | `WEB_ORIGINS` | 允許的 CORS／導回白名單（逗號分隔） |
 
@@ -58,6 +59,7 @@ DB 未設定時伺服器優雅降級：靜態頁照常，`/api/*` 回 503。
 - 社群場地申請沿用 Google 登入及 Postgres，無需付費會籍；啟動時自動建立 `event_applications`。後台「場地申請」分頁處理通過／未通過，回覆供申請人登入查看。送出與審核通過都不代表完成檔期預訂，亦不會自動發布活動或寄信。
 
 - Google OAuth：Console 的授權導回 URI 需設為 `https://www.emoji.tw/auth/google/callback`。
+- Google Meet OAuth：另設可要求 `calendar.events` 的 OAuth client，授權導回 URI 為 `https://www.emoji.tw/integrations/google-meet/callback`。
 - Stripe 結帳成功／取消導回同站的會籍或活動詳情頁。
 - Stripe Dashboard 需將 `checkout.session.completed`、`checkout.session.async_payment_succeeded`、`checkout.session.expired` 送至 `https://www.emoji.tw/api/stripe/webhook`。
 

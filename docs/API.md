@@ -469,7 +469,23 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 
 ### POST /api/admin/events/:id/details
 
-設定 mode（offline／online／hybrid）、cover_url、online_url、contact_email、hide_location。公開 API、HTML metadata 與 ICS 不提供受保護地點／會議網址；有效報名者才可取得。
+設定 mode（offline／online／hybrid）、cover_url、online_url、contact_email、hide_location。只更新這些頁面欄位，保留已建立的外部會議識別碼。公開 API、HTML metadata 與 ICS 不提供受保護地點／會議網址；有效報名者才可取得。
+
+### GET /api/admin/events/:id/meeting
+
+活動管理者查看自己的 Google Meet 連接狀態，以及本活動是否已有會議、建立中狀態與受保護加入網址；不回傳 OAuth token。
+
+### POST /api/admin/events/:id/meeting/connect
+
+以個人管理帳號取得 Google Calendar OAuth 授權網址。伺服器以 HttpOnly、SameSite cookie 與限時簽章 state 保護 callback；要求 `calendar.events` 與離線更新授權。須設定 `GOOGLE_MEET_CLIENT_ID`、`GOOGLE_MEET_CLIENT_SECRET`，並在 OAuth client 登記 `${PUBLIC_ORIGIN}/integrations/google-meet/callback`；缺設定時回 503。
+
+### POST /api/admin/events/:id/meeting/create
+
+在目前管理者的 Google 主要行事曆建立本活動與專屬 Google Meet。以活動 ID 衍生 Google Calendar event ID，重試時讀回同一筆，不建立重複會議。建立仍在處理時回 `pending: true`，再次呼叫會同步狀態；完成後將加入網址寫入受保護 `online_url`。
+
+### DELETE /api/admin/events/:id/meeting/connection
+
+刪除目前管理者保存的 Google Meet OAuth token；不刪除既有 Google Calendar 活動或本活動已保存的加入網址。
 
 ### POST /api/admin/events/:id/cancel
 
