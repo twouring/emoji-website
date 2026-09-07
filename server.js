@@ -64,6 +64,8 @@ const EVENT_QR_SECRET = process.env.EVENT_QR_SECRET || ACCESS_QR_SECRET;
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY || '';
 // 會籍預售：限量 100 名，售罄不補
 const MAX_PARTICIPANTS = Number(process.env.MAX_PARTICIPANTS || 100);
+// ponytail: 未限活動名額仍需擋單筆資源耗盡；真有千人團體訂單再改批次寫入。
+const MAX_EVENT_TICKETS_PER_ORDER = 1000;
 // 個資加密金鑰（身分證字號等敏感欄位 at-rest 加密）；建議獨立設 PII_KEY，預設沿用 APP_SECRET 衍生
 const PII_KEY = require('crypto').createHash('sha256').update(process.env.PII_KEY || SECRET).digest();
 
@@ -3239,7 +3241,7 @@ app.delete('/api/events/:id/orders/:orderId',auth,requireDb,wrap(async(req,res)=
  }finally{await client.query('ROLLBACK');client.release();}
 }));
 app.post('/api/events/:id/additional-tickets',auth,requireDb,wrap(async(req,res)=>{
- const quantity=Number(req.body?.quantity||1);if(!Number.isInteger(quantity)||quantity<1||quantity>10||req.body?.coupon_code)return res.status(400).json({error:'每次加購 1–10 張票，加購不適用優惠碼。'});
+ const quantity=Number(req.body?.quantity||1);if(!Number.isInteger(quantity)||quantity<1||quantity>MAX_EVENT_TICKETS_PER_ORDER||req.body?.coupon_code)return res.status(400).json({error:`每次可加購 1–${MAX_EVENT_TICKETS_PER_ORDER} 張票，且不適用優惠碼。`});
  const client=await pool.connect();try{await client.query('BEGIN');const event=(await client.query('SELECT * FROM events WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
  const reg=(await client.query('SELECT r.*,u.name,u.email FROM event_regs r JOIN users u ON u.id=r.user_id WHERE event_id=$1 AND user_id=$2 FOR UPDATE OF r',[req.params.id,req.auth.sub])).rows[0];
  if(!event||event.status!=='報名中'||!reg||reg.status!=='registered')return res.status(409).json({error:'僅有效報名的購買者可加購開放中的活動。'});
@@ -3329,7 +3331,7 @@ app.post('/api/events/:id/feedback',auth,requireDb,wrap(async(req,res)=>{
 
 app.post('/api/events/:id/quote',requireDb,wrap(async(req,res)=>{
  const event=(await q("SELECT * FROM events WHERE id=$1 AND status='報名中'",[req.params.id])).rows[0];if(!event)return res.status(404).json({error:'找不到開放報名的活動。'});
- try{const quantity=Number(req.body?.quantity??1);if(!Number.isInteger(quantity)||quantity<1||quantity>10)throw new Error('每筆可購買 1–10 張票');const ticket=event.tickets.length?selectTicket(event.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code):null,price=(ticket?ticketPrice(ticket,req.body?.amount_twd):event.price_twd)*quantity;
+ try{const quantity=Number(req.body?.quantity??1);if(!Number.isInteger(quantity)||quantity<1||quantity>MAX_EVENT_TICKETS_PER_ORDER)throw new Error(`每筆可購買 1–${MAX_EVENT_TICKETS_PER_ORDER} 張票`);const ticket=event.tickets.length?selectTicket(event.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code):null,price=(ticket?ticketPrice(ticket,req.body?.amount_twd):event.price_twd)*quantity;
  const result=discountPrice(event.coupons,req.body?.coupon_code,price);res.json({price_twd:result.price,discount_twd:result.coupon?.discount_twd||0,notice:'此報價不保留名額，實際報名仍會檢查優惠碼使用上限。'});}catch(e){res.status(400).json({error:e.message});}
 }));
 
@@ -3422,13 +3424,13 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
     const approved=mine?.status==='approved'&&mine.checkout_expires_at>new Date();
     if(mine?.status==='approved'&&!approved){await client.query("UPDATE event_regs SET status='pending_approval',checkout_expires_at=NULL WHERE id=$1",[mine.id]);await client.query('COMMIT');return res.status(409).json({error:'付款保留時間已到期，已轉回待審核，請聯絡主辦人。'});}
     const quantity=approved?mine.quantity:Number(req.body?.quantity??1);
-    if(!Number.isInteger(quantity)||quantity<1||quantity>10){await client.query('ROLLBACK');return res.status(400).json({error:'每筆報名可購買 1–10 張票。'});}
+    if(!Number.isInteger(quantity)||quantity<1||quantity>MAX_EVENT_TICKETS_PER_ORDER){await client.query('ROLLBACK');return res.status(400).json({error:`每筆報名可購買 1–${MAX_EVENT_TICKETS_PER_ORDER} 張票。`});}
     if(!approved&&quantity>1&&ev.registration_settings?.group_registration===false){await client.query('ROLLBACK');return res.status(400).json({error:'此活動僅開放單人報名。'});}
     let attendees;
     if(!approved){
       if(registrationSettings.split_name&&(!first||!last||first.length>60||last.length>60)){await client.query('ROLLBACK');return res.status(400).json({error:'請填寫姓與名，每欄最多 60 字。'});}
       const primary={name:submittedName||buyer.name,email:buyer.email};
-      if(Array.isArray(req.body?.additional_attendees))attendees=[primary,...req.body.additional_attendees];
+      if(Array.isArray(req.body?.additional_attendees)&&req.body.additional_attendees.length<=quantity-1)attendees=[primary,...req.body.additional_attendees,...Array.from({length:quantity-1-req.body.additional_attendees.length},()=>primary)];
       else attendees=req.body?.attendees??Array.from({length:quantity},()=>primary);
       if(!Array.isArray(attendees)||attendees.length!==quantity||attendees.some(a=>!a||typeof a.name!=='string'||!a.name.trim()||a.name.length>120||typeof a.email!=='string'||a.email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a.email))){await client.query('ROLLBACK');return res.status(400).json({error:'請填寫每位參加者的姓名與 Email，票數需與參加者人數一致。'});}
       attendees=attendees.map(a=>({name:a.name.trim(),email:a.email.trim().toLowerCase()}));

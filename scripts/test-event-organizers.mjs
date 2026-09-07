@@ -323,6 +323,14 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await call('/events/'+groupEvent.id+'/profile',{as:b,method:'PATCH',body:{visible:true},status:404});
   await call('/admin/events/'+groupEvent.id+'/check-in',{as:a,method:'POST',body:{token:transferred[0].token}});
   await call('/events/'+groupEvent.id+'/attendees/'+transferred[0].attendee_id,{as:guest,method:'PATCH',body:{name:'Again',email:'again@example.test'},status:409});
+  const largeGroupEvent=await call('/admin/events',{as:a,method:'POST',body:{title:'Large group registration',status:'報名中',capacity:30,price_twd:0}});
+  assert.equal((await call('/events/'+largeGroupEvent.id+'/quote',{method:'POST',body:{quantity:11}})).price_twd,0);
+  await call('/events/'+largeGroupEvent.id+'/register',{as:guest,method:'POST',body:{quantity:11}});
+  assert.equal((await call('/events/'+largeGroupEvent.slug,{as:guest})).event.reg_count,11);
+  const largeGroupNames=(await pool.query('SELECT name,COUNT(*)::int AS n FROM event_attendees WHERE registration_id=(SELECT id FROM event_regs WHERE event_id=$1 AND user_id=$2) GROUP BY name',[largeGroupEvent.id,'guest_a'])).rows;
+  assert.deepEqual(largeGroupNames,[{name:'Guest A',n:11}]);
+  await call('/events/'+largeGroupEvent.id+'/additional-tickets',{as:guest,method:'POST',body:{quantity:11}});
+  assert.equal((await call('/events/'+largeGroupEvent.slug,{as:guest})).event.reg_count,22);
   const reminderEvent=await call('/admin/events',{as:a,method:'POST',body:{title:'Reminder test',status:'報名中',capacity:10,price_twd:0}});
   await pool.query("UPDATE events SET starts_at=now()+interval '23 hours',registration_settings='{\"reminders\":[24]}'::jsonb WHERE id=$1",[reminderEvent.id]);
   await pool.query("INSERT INTO event_regs(id,event_id,user_id,status,created_at,language) VALUES('r_reminder',$1,'guest_a','registered',now()-interval '2 hours','en')",[reminderEvent.id]);

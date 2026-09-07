@@ -282,7 +282,7 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 讀取登入帳號自己的申請，回 `{ applications }`，包含申請內容、`id`、`status`（`pending`／`approved`／`rejected`）、`review_note`、`created_at` 與 `reviewed_at`。不接受指定其他使用者，agent 金鑰回 403；不在公開 API 提供申請或聯絡資料。
 
 ### POST /api/events/:id/register
-報名活動。新來賓不需先登入，body 需傳 `{ name,email,lang? }`；啟用姓名拆分時改傳 `{ first_name,last_name,email,lang? }`。有效 Bearer token 會綁定目前帳號並忽略 body 的 Email。團體報名可傳 `quantity` 與 `additional_attendees`（不含第一位購買者）；舊版等長 `attendees` 仍相容。免費票立即成立；付費票建立或沿用未過期的 Stripe Checkout，回 `{ url }`。付費活動未設定 `STRIPE_WEBHOOK_SECRET` 時 fail closed 回 503。
+報名活動。新來賓不需先登入，body 需傳 `{ name,email,lang? }`；啟用姓名拆分時改傳 `{ first_name,last_name,email,lang? }`。有效 Bearer token 會綁定目前帳號並忽略 body 的 Email。團體報名可傳 `quantity`（1–1000，且不得超過活動／票種剩餘名額）與 `additional_attendees`（不含第一位購買者）；未提供的參加者先沿用購買者資料，之後可逐張轉票。舊版等長 `attendees` 仍相容。免費票立即成立；付費票建立或沿用未過期的 Stripe Checkout，回 `{ url }`。付費活動未設定 `STRIPE_WEBHOOK_SECRET` 時 fail closed 回 503。
 
 ### DELETE /api/events/:id/register
 取消免費且尚未簽到的報名。付費票須由後台退款，不可直接取消。
@@ -442,7 +442,7 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 
 活動管理者查看評分與文字回饋；不向公眾提供來賓回饋。
 
-多人購票：報名可傳 quantity（1–10）及 `additional_attendees` 陣列（name、email，數量為 quantity−1），第一張票使用報名人的姓名與 Email；舊版等長 attendees 仍相容。所有票屬同一票種，容量依票數扣除；優惠碼固定折抵以整筆報名計算。每位參加者有獨立 QR，ticket API 同時回傳 tickets 陣列，購買者可查看各人票券。簽到可傳 attendee_id 或掃描個人 QR；取消簽到以 attendee_id 查詢參數指定。部分人已簽到時不能自行取消整筆報名。
+多人購票：報名可傳 quantity（1–1000，且不得超過活動／票種剩餘名額）及 `additional_attendees` 陣列（name、email，不含第一位購買者），第一張票使用報名人的姓名與 Email；未提供的參加者先沿用購買者資料，之後可逐張轉票。舊版等長 attendees 仍相容。所有票屬同一票種，容量依票數扣除；優惠碼固定折抵以整筆報名計算。每位參加者有獨立 QR，ticket API 同時回傳 tickets 陣列，購買者可查看各人票券。簽到可傳 attendee_id 或掃描個人 QR；取消簽到以 attendee_id 查詢參數指定。部分人已簽到時不能自行取消整筆報名。
 
 ### PATCH /api/events/:id/attendees/:attendeeId
 
@@ -486,7 +486,7 @@ body `{visible:boolean}`，已登入者僅能修改符合自己已驗證 Email �
 
 ### POST /api/events/:id/additional-tickets
 
-有效報名購買者加購 1–10 張票；body `{ticket_id,quantity,unlock_code,amount_twd,lang}`。不接受需審核票種或優惠碼。原始票與加購訂單分開保存，容量同時包含有效票與保留中的加購。免費直接成立，付費由 Stripe 回站／webhook 冪等核銷後才新增個人 QR。未完成加購可續付，不會覆蓋原票。
+有效報名購買者加購 1–1000 張票，且不得超過活動／票種剩餘名額；body `{ticket_id,quantity,unlock_code,amount_twd,lang}`。不接受需審核票種或優惠碼。原始票與加購訂單分開保存，容量同時包含有效票與保留中的加購。免費直接成立，付費由 Stripe 回站／webhook 冪等核銷後才新增個人 QR。未完成加購可續付，不會覆蓋原票。
 
 ### POST /api/admin/events/:id/orders/:orderId/refund
 

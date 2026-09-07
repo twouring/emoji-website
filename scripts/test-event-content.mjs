@@ -86,14 +86,11 @@ test('changing quote inputs invalidates an in-flight price or error',async()=>{
  for(const fail of [false,true]){const pending=context.feedbackAction(button,result,()=>new Promise((resolve,reject)=>{finish=fail?reject:resolve;}));invalidate({target:{name:'ticket_id'}});finish(fail?Error('Old error'):'Old price');await pending;assert.equal(result.textContent,'');assert.equal(button.disabled,false);}
 });
 
-test('changing group quantity preserves attendee drafts without inserting executable attributes',async()=>{
- const {runInNewContext}=await import('node:vm'),source=fs.readFileSync(new URL('../public/events.html',import.meta.url),'utf8');let change,inputs=[];
- const container={querySelectorAll:()=>inputs,innerHTML:''};const context={e:{registration_settings:{split_name:false}},lang:'en',esc:value=>String(value).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;'),document:{getElementById:id=>id==='ticket-attendees'?container:{addEventListener:(name,handler)=>{change=handler;}}}};
- runInNewContext(source.slice(source.indexOf('  const attendeeDraft={}'),source.indexOf("  document.getElementById('ev-registration-form').addEventListener('input'")),context);
- change({target:{value:'2'}});assert.match(container.innerHTML,/Name \(required\)/);
- inputs=[{name:'attendee_name_1',value:'A "guest"'},{name:'attendee_email_1',value:'one@example.test'},{name:'attendee_name_2',value:'Second'}];change({target:{value:'3'}});
- assert.match(container.innerHTML,/value="A &quot;guest&quot;"/);assert.match(container.innerHTML,/value="one@example.test"/);assert.match(container.innerHTML,/value="Second"/);
- inputs=[];change({target:{value:'1'}});assert.equal(container.innerHTML,'');change({target:{value:'2'}});assert.match(container.innerHTML,/value="A &quot;guest&quot;"/);
+test('group ticket quantity uses remaining capacity instead of a fixed ten-ticket menu',async()=>{
+ const {runInNewContext}=await import('node:vm'),source=fs.readFileSync(new URL('../public/events.html',import.meta.url),'utf8'),context={lang:'en'};
+ runInNewContext(source.slice(source.indexOf('function groupFields('),source.indexOf('function ticketFields(')),context);
+ const html=context.groupFields({capacity:30,reg_count:7,status:'報名中',registered:false,registration_settings:{}});
+ assert.match(html,/type="number"/);assert.match(html,/max="23"/);assert.match(html,/transferred individually after registration/);assert.doesNotMatch(html,/<select/);
 });
 
 test('registration identity fields allow new guests and prefill signed-in guests',async()=>{

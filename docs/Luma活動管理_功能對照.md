@@ -27,6 +27,7 @@
 | 報名歷史與舊 QR | 重報前保存歷史答案與付款快照，QR 版本更新，舊 QR 拒絕使用；整合測試通過 |
 | 自訂報名表 | 文字、選項、勾選、網站、公司、電話及社群欄位；條款支援三語安全富文字或 HTTPS 連結、閱讀後同意及可選文字簽名；必填／多語題目、答案快照；驗證層與前台渲染測試通過 |
 | 姓名拆分 | Luma Plus 設定已加入報名設定；單人與團體票可分開收集姓、名，依中英日姓名順序保存於活動票券 |
+| 團體報名與加購 | 依 [Luma 團體報名](https://help.luma.com/p/group-registration) 改為直接輸入票數，有限名額活動以剩餘名額為上限；票券先使用購買者資料，之後可逐張轉票。無限名額活動保留單筆 1,000 張技術上限，活動與票種容量仍由交易鎖檢查；11 張初次報名與 11 張再加購的隔離 PostgreSQL 驗證通過 |
 | 多票種 | 票價、個別容量、啟停、銷售期間與票價快照；後端整合測試及英文前台側邊瀏覽器驗收通過 |
 | 取消與批次退款 | 取消原因與三語內容、待付款關閉、預授權解除、可選通知；平台管理員可由言文字統一收款帳戶退回原始票與加購票全部剩餘可退款金額，外部活動主不可操作 |
 | 付費審核後付款 | 核准後保留 24 小時、付款完成才核票；也可先做信用卡預授權並於核准後請款；本機資料庫、Stripe Sandbox 與側邊瀏覽器驗證通過 |
@@ -64,6 +65,7 @@
 ## 主要來源
 
 - [Luma 活動說明索引](https://help.luma.com/t/events)
+- [Luma 團體報名](https://help.luma.com/p/group-registration)
 - [主辦人與管理權](https://help.luma.com/p/adding-hosts-and-managers-to-your-event)
 - [票種](https://help.luma.com/p/setting-up-ticket-types)
 - [報名問題](https://help.luma.com/p/collect-registration-questions)
