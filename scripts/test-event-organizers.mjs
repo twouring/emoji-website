@@ -153,8 +153,11 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   const results=await Promise.all([guest,guest2].map(as=>fetch(origin+'/api/events/'+first.id+'/register',{method:'POST',headers:{Authorization:'Bearer '+as,'Content-Type':'application/json'},body:'{}'})));
   assert.deepEqual(results.map(r=>r.status).sort(),[200,409]);const winner=results[0].status===200?guest:guest2;
   const duplicate=await call('/events/'+first.id+'/register',{as:winner,method:'POST'});assert.equal(duplicate.already,true);
-  const regs=await call('/admin/events/'+first.id+'/regs',{as:a});assert.equal(regs.regs.length,1);
+  const regs=await call('/admin/events/'+first.id+'/regs',{as:a});assert.equal(regs.regs.length,1);assert.ok(regs.regs[0].checkin_token);assert.ok(regs.regs[0].attendees[0].checkin_token);
   const originalQr=(await call('/events/'+first.id+'/ticket',{as:winner})).token;assert.ok(originalQr);
+  const lookup=await call('/admin/events/'+first.id+'/check-in/lookup?token='+encodeURIComponent(regs.regs[0].attendees[0].checkin_token),{as:a});assert.equal(lookup.guest.registration_id,regs.regs[0].id);assert.equal(lookup.guest.can_checkin,true);
+  await call('/admin/events/'+first.id+'/check-in/lookup?token='+encodeURIComponent(regs.regs[0].attendees[0].checkin_token+'x'),{as:a,status:400});
+  await call('/admin/events/'+first.id+'/check-in/lookup?token='+encodeURIComponent(regs.regs[0].attendees[0].checkin_token),{as:b,status:404});
   const staff=winner===guest?guest2:guest,staffEmail=winner===guest?'h@example.test':'g@example.test';
   await call('/admin/events/'+first.id+'/check-in/settings',{as:a,method:'POST',body:{mode:'express',locked:true}});
   await call('/admin/events/'+first.id+'/check-in/settings',{as:a,method:'POST',body:{mode:'instant',locked:true},status:400});
@@ -169,6 +172,7 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await call('/admin/events/'+first.id+'/hosts',{as:a,method:'POST',body:{name:'Check-in staff',email:staffEmail,is_visible:false,can_manage:false,can_checkin:true,checkin_ticket_ids:['t_missing']},status:400});
   await call('/admin/events/'+first.id+'/hosts',{as:a,method:'POST',body:{name:'Check-in staff',email:staffEmail,is_visible:false,can_manage:false,can_checkin:true,checkin_ticket_ids:['t_door']}});
   assert.equal((await call('/admin/events/'+first.id+'/check-in',{as:staff})).guests[0].can_checkin,false);
+  await call('/admin/events/'+first.id+'/check-in/lookup?token='+encodeURIComponent(regs.regs[0].attendees[0].checkin_token),{as:staff,status:403});
   await call('/admin/events/'+first.id+'/check-in',{as:staff,method:'POST',body:{registration_id:regs.regs[0].id},status:403});
   await call('/admin/events/'+first.id+'/hosts',{as:a,method:'POST',body:{name:'Check-in staff',email:staffEmail,is_visible:false,can_manage:false,can_checkin:true,checkin_ticket_ids:[]}});
   await call('/admin/events/'+first.id+'/check-in',{as:staff,method:'POST',body:{registration_id:regs.regs[0].id}});

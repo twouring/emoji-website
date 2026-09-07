@@ -1607,7 +1607,7 @@ async function showRegs(eventId, d){
       || '<tr><td colspan="8" class="a-empty">尚無報名</td></tr>';
     host.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;flex-wrap:wrap">
         <b>「${esc(ev.title||'')}」名單（${regs.length} 筆／${regs.reduce((n,r)=>n+(r.quantity||1),0)} 人）</b>
-        <span><button class="btn btn--ghost btn-sm" id="rg-select-visible">選取目前篩選</button><button class="btn btn--ghost btn-sm" id="rg-approve-selected">批次核准</button><button class="btn btn--ghost btn-sm" id="rg-decline-selected">批次拒絕</button><button class="btn btn--ghost btn-sm" id="rg-status-selected">批次變更狀態</button><button class="btn btn--ghost btn-sm" id="rg-csv">匯出選取／篩選 CSV</button>
+        <span><button class="btn btn--ghost btn-sm" id="rg-select-visible">選取目前篩選</button><button class="btn btn--ghost btn-sm" id="rg-approve-selected">批次核准</button><button class="btn btn--ghost btn-sm" id="rg-decline-selected">批次拒絕</button><button class="btn btn--ghost btn-sm" id="rg-status-selected">批次變更狀態</button><button class="btn btn--ghost btn-sm" id="rg-csv">匯出選取／篩選 CSV</button><button class="btn btn--ghost btn-sm" id="rg-checkin-csv">匯出驗票 CSV</button>
         <button class="btn btn--ghost btn-sm" id="rg-close">關閉</button></span>
       </div>
       <div class="a-form" style="align-items:end">
@@ -1677,6 +1677,11 @@ async function showRegs(eventId, d){
       const rows=[['姓名','Email','電話','票數','參加者','票種','票券狀態','應付','已付','簽到時間','備註','報名時間',...questions.values()]];
       chosen.forEach(r=>{const answers=new Map((r.answers||[]).map(a=>[a.question.id+':'+a.question.label,eventAnswer(a.value)]));rows.push([r.name||'',r.email||'',r.phone||'',r.quantity||1,(r.attendees||[]).map(a=>a.name+' <'+a.email+'>').join('；'),r.ticket_snapshot?.name||'',r.status||'',r.amount_due||0,r.amount_paid||0,r.checked_in_at||'',r.note||'',r.created_at||'',...Array.from(questions.keys(),key=>answers.get(key)||'')]);});
       downloadCSV('活動名單_'+(ev.title||'活動')+'.csv',rows);
+    };
+    document.getElementById('rg-checkin-csv').onclick=()=>{
+      const ids=selectedOrVisible(),chosen=regs.filter(r=>ids.has(r.id)),rows=[['報名編號','票券編號','姓名','Email','票種','票券狀態','簽到時間','QR 票券內容']];
+      chosen.forEach(r=>((r.attendees||[]).length?r.attendees:[{id:r.id,name:r.name,email:r.email,ticket_name:r.ticket_snapshot?.name,checked_in_at:r.checked_in_at,checkin_token:r.checkin_token}]).forEach(ticket=>rows.push([r.id,ticket.id||r.id,ticket.name||r.name||'',ticket.email||r.email||'',ticket.ticket_name||r.ticket_snapshot?.name||'',r.status||'',ticket.checked_in_at||'',ticket.checkin_token||''])));
+      if(rows.length===1)return toast('目前沒有可匯出的票券');if(!rows.slice(1).some(row=>row[7]))return toast('活動票券 QR 尚未開通');downloadCSV('活動驗票_'+(ev.title||'活動')+'.csv',rows);
     };
     document.getElementById('rg-scan').onclick=()=>{ const token=document.getElementById('rg-token').value.trim(); if(token) checkIn({token}); else toast('請先掃描或貼上票券'); };
     document.getElementById('rg-token').onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); document.getElementById('rg-scan').click(); } };

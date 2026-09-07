@@ -177,6 +177,11 @@ test('paid attendees can print a local receipt with optional billing details',()
  assert.match(source,/function showReceipt\(receipt,providerUrl\)/);assert.match(source,/帳單抬頭/);assert.match(source,/帳單地址/);assert.match(source,/稅務資料/);assert.match(source,/insertAdjacentHTML\('beforeend'/);assert.match(source,/addEventListener\('close',\(\)=>dialog\.remove\(\)/);assert.match(source,/window\.print\(\)/);assert.match(source,/afterprint/);
 });
 
+test('guest management exports one external check-in token per ticket',()=>{
+ const source=fs.readFileSync(new URL('../public/admin.html',import.meta.url),'utf8');
+ assert.match(source,/id="rg-checkin-csv"/);assert.match(source,/活動驗票_/);assert.match(source,/QR 票券內容/);assert.match(source,/ticket\.checkin_token/);
+});
+
 test('recurring event clones keep local time and clamp month ends',()=>{
  const {runInNewContext}=require('node:vm'),source=fs.readFileSync(new URL('../public/admin.html',import.meta.url),'utf8'),context={};
  runInNewContext(source.slice(source.indexOf('function eventCloneTime('),source.indexOf('function showEventDuplicate(')),context);

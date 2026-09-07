@@ -2726,14 +2726,17 @@ app.delete('/api/admin/events/:id/regs/:registrationId/tickets/:attendeeId',auth
 }));
 
 app.get('/api/admin/events/:id/regs', auth, requireDb, eventEditor, wrap(async (req, res) => {
+  const event=(await q('SELECT starts_at,ends_at FROM events WHERE id=$1',[req.params.id])).rows[0];
+  if(!event)return res.status(404).json({error:'找不到活動。'});
   const rows = (await q(
-    `SELECT r.id,COALESCE(primary_attendee.name,u.name) AS name,COALESCE(primary_attendee.email,u.email) AS email,u.phone,r.note,r.answers,r.capture_required,r.authorization_expires_at,r.ticket_snapshot,(SELECT COALESCE(SUM(f.amount),0)/100.0 FROM event_refunds f WHERE f.payment_intent=r.stripe_payment_intent_id AND f.status NOT IN ('failed','canceled')) AS amount_refunded,r.quantity,COALESCE((SELECT jsonb_agg(to_jsonb(a)||jsonb_build_object('ticket_id',COALESCE(o.ticket_snapshot->>'id',r.ticket_snapshot->>'id'),'ticket_name',COALESCE(o.ticket_snapshot->>'name',r.ticket_snapshot->>'name'),'is_additional',a.order_id IS NOT NULL) ORDER BY a.ordinal,a.id) FROM event_attendees a LEFT JOIN event_ticket_orders o ON o.id=a.order_id WHERE a.registration_id=r.id),'[]') AS attendees,r.status,r.amount_due,r.amount_paid,
+    `SELECT r.id,r.ticket_version,COALESCE(primary_attendee.name,u.name) AS name,COALESCE(primary_attendee.email,u.email) AS email,u.phone,r.note,r.answers,r.capture_required,r.authorization_expires_at,r.ticket_snapshot,(SELECT COALESCE(SUM(f.amount),0)/100.0 FROM event_refunds f WHERE f.payment_intent=r.stripe_payment_intent_id AND f.status NOT IN ('failed','canceled')) AS amount_refunded,r.quantity,COALESCE((SELECT jsonb_agg(to_jsonb(a)||jsonb_build_object('ticket_id',COALESCE(o.ticket_snapshot->>'id',r.ticket_snapshot->>'id'),'ticket_name',COALESCE(o.ticket_snapshot->>'name',r.ticket_snapshot->>'name'),'is_additional',a.order_id IS NOT NULL) ORDER BY a.ordinal,a.id) FROM event_attendees a LEFT JOIN event_ticket_orders o ON o.id=a.order_id WHERE a.registration_id=r.id),'[]') AS attendees,r.status,r.amount_due,r.amount_paid,
        to_char(r.created_at,'YYYY/MM/DD HH24:MI') AS created_at,
        to_char(r.paid_at,'YYYY/MM/DD HH24:MI') AS paid_at,
        to_char(r.checked_in_at,'YYYY/MM/DD HH24:MI') AS checked_in_at
      FROM event_regs r JOIN users u ON u.id=r.user_id
      LEFT JOIN LATERAL (SELECT name,email FROM event_attendees WHERE registration_id=r.id ORDER BY ordinal,id LIMIT 1) primary_attendee ON true
      WHERE r.event_id=$1 ORDER BY r.created_at`, [req.params.id])).rows;
+  if(EVENT_QR_SECRET){const end=event.ends_at||event.starts_at,ttlSec=end?Math.max(3600,Math.floor((+new Date(end)-Date.now())/1000)+7*86400):366*86400;for(const row of rows){const sign=attendee=>signAccessToken({sub:'event-export',ent:row.id,plan:'event-ticket',event:req.params.id,version:row.ticket_version,...(attendee?{attendee}: {})},EVENT_QR_SECRET,{ttlSec});row.checkin_token=row.quantity===1?sign():null;row.attendees=(row.attendees||[]).map(attendee=>({...attendee,checkin_token:sign(attendee.id)}));}}
   res.json({ regs: rows });
 }));
 
@@ -2753,6 +2756,21 @@ app.get('/api/admin/events/:id/check-in',auth,requireDb,eventCheckinAccess,wrap(
    management_url:req.eventCheckin.can_manage?(req.auth.role==='admin'?'/admin/events/':'/organizer/events/')+encodeURIComponent(req.params.id):null,
    tickets:(event.tickets||[]).map(ticket=>({id:ticket.id,name:ticket.name})),allowed_ticket_ids:allowed,
    guests:rows.map(row=>({...row,can_checkin:allowed.length===0||allowed.includes(row.ticket_id)}))});
+}));
+
+app.get('/api/admin/events/:id/check-in/lookup',auth,requireDb,eventCheckinAccess,wrap(async(req,res)=>{
+ if(!EVENT_QR_SECRET)return res.status(503).json({error:'活動票券 QR 尚未開通。'});
+ const ticket=verifyAccessToken(String(req.query.token||''),EVENT_QR_SECRET);
+ if(!ticket||ticket.plan!=='event-ticket'||ticket.event!==req.params.id)return res.status(400).json({error:'活動票券無效或已過期。'});
+ const row=(await q(`SELECT r.id AS registration_id,r.status,r.ticket_version,e.status AS event_status,a.id AS attendee_id,COALESCE(a.name,u.name) AS name,COALESCE(a.email,u.email) AS email,
+   COALESCE(o.ticket_snapshot->>'id',r.ticket_snapshot->>'id') AS ticket_id,COALESCE(o.ticket_snapshot->>'name',r.ticket_snapshot->>'name') AS ticket_name,COALESCE(a.checked_in_at,r.checked_in_at) AS checked_in_at,o.status AS order_status
+   FROM event_regs r JOIN users u ON u.id=r.user_id JOIN events e ON e.id=r.event_id LEFT JOIN event_attendees a ON a.registration_id=r.id LEFT JOIN event_ticket_orders o ON o.id=a.order_id
+   WHERE r.id=$1 AND r.event_id=$2 AND ($3::text IS NULL OR a.id=$3) ORDER BY a.ordinal LIMIT 1`,[ticket.ent,req.params.id,ticket.attendee||null])).rows[0];
+ if(!row)return res.status(404).json({error:'找不到這張活動票。'});
+ if(row.ticket_version!==(ticket.version??1))return res.status(409).json({error:'這是已失效的舊票券，請使用最新票券。'});
+ if(row.event_status==='已取消'||row.status!=='registered'||(row.order_status&&row.order_status!=='registered'))return res.status(409).json({error:'票券尚未成立、已取消或已退款。'});
+ if(req.eventCheckin.ticket_ids.length&&!req.eventCheckin.ticket_ids.includes(row.ticket_id))return res.status(403).json({error:'此簽到入口不接受這個票種。'});
+ res.set('Cache-Control','no-store');res.json({guest:{...row,can_checkin:true}});
 }));
 
 app.post('/api/admin/events/:id/check-in', auth, requireDb, eventCheckinAccess, wrap(async (req, res) => {
