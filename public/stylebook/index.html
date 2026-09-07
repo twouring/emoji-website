@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>前端 Stylebook｜言文字</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/stylebook/components.css">
+<script src="/stylebook/demo.js" defer></script>
+</head>
+<body class="ui-scope">
+<a class="skip-link" href="#main">略過導覽</a>
+<header class="ui-shell"><nav class="ui-nav" aria-label="文件導覽"><a href="/cis/">言文字 CIS ↗</a><a href="#foundations">基礎</a><a href="#actions">操作</a><a href="#forms">表單</a><a href="#content">內容</a><a href="#feedback">回饋</a><a href="#patterns">互動</a><a href="#rules">實作規則</a></nav></header>
+<main id="main" class="ui-shell">
+<section class="ui-section ui-stack">
+<p class="ui-muted">EMOJI · FRONTEND STYLEBOOK　／　01　／　2026.09.07</p>
+<h1 class="ui-title">讓每個元件，<br>都留有余白。</h1>
+<p class="ui-reading">從 CIS 到前端的共同規則。墨與紙的層次、清楚的操作、容得下真實內容的版型。這裡的元件引用官網 token，可直接使用，不另造一套品牌。</p>
+<div class="ui-row"><span class="ui-badge">版本 1.0</span><span class="ui-badge">原生 HTML + CSS</span><span class="ui-badge">中・英・日長文</span></div>
+<p class="ui-muted">本頁是介面示例；既有業務頁尚未全部接軌。完整開發規範位於專案 docs/design/stylebook.md。</p>
+</section>
+<section id="foundations" class="ui-section"><h2>01 ／ 墨、紙與字</h2>
+<div class="ui-grid">
+<article class="ui-card"><div class="ui-swatch" style="background:var(--ink)"></div><h3>Ink ／ 主墨</h3><code>--ink · #1B1A17</code><p>標題、主要操作、焦點。溫暖的近黑。</p></article>
+<article class="ui-card"><div class="ui-swatch" style="background:var(--paper)"></div><h3>Paper ／ 紙</h3><code>--paper · #FBFAF6</code><p>以紙階和細線建立層次，不靠陰影。</p></article>
+<article class="ui-card"><div class="ui-swatch" style="background:var(--accent)"></div><h3>Accent ／ 一點黃</h3><code>--accent · #FFDE34</code><p>只當底色，墨字壓上；每畫面至多一擊。</p></article>
+</div>
+<div class="ui-grid" style="margin-top:32px"><article class="ui-card"><h3>明體，給重要的句子。</h3><p>Noto Serif TC · 標題 500</p><p class="ui-latin" lang="en">A place to belong.</p><p>Cormorant Garamond · 拉丁展示</p><p>Noto Sans TC · 內文與介面至少 16px；長文自然換行，不為排版犧牲內容。</p></article><article class="ui-dark ui-stack"><h3>深色面也保持清楚</h3><p>正文使用 on-ink，次要資訊使用 on-ink-soft。</p><p class="ui-muted">這是深色面的次要說明文字。</p><a href="#rules" class="ui-link">閱讀實作規則</a></article></div>
+</section>
+<section id="actions" class="ui-section ui-stack"><h2>02 ／ 操作與狀態</h2><p>主要操作用墨；次要操作留白。按鈕最小 44px，高度隨文字增長。</p>
+<div class="ui-row"><button type="button" class="ui-button" data-notice="已完成示例操作。">主要操作</button><button type="button" class="ui-button ui-button--secondary" data-notice="已選擇次要操作。">次要操作</button><button type="button" class="ui-button" disabled>目前無法操作</button><button type="button" class="ui-button" aria-busy="true" disabled>處理中…</button><a class="ui-link" href="#forms">前往表單</a></div>
+<p class="ui-notice" id="action-status" role="status">點擊按鈕可查看回饋；按 Tab 可檢查焦點。</p>
+<details class="ui-details"><summary>取得按鈕標記</summary><code class="ui-code">&lt;button type="button" class="ui-button"&gt;主要操作&lt;/button&gt;</code></details>
+</section>
+<section id="forms" class="ui-section"><h2>03 ／ 表單，先說清楚</h2>
+<form id="demo-form" class="ui-grid">
+<div class="ui-card"><h3>欄位與原生控制</h3>
+<label class="ui-field" for="name">稱呼（必填）<input id="name" name="name" required autocomplete="name" aria-describedby="name-help"><span id="name-help" class="ui-muted">示例資料只留在本頁，不會送出。</span></label>
+<label class="ui-field" for="email">電子郵件（必填）<input id="email" name="email" type="email" required autocomplete="email"></label>
+<label class="ui-field" for="topic">主題<select id="topic" name="topic"><option>請選擇</option>很長的活動主題名稱，也應在行動裝置維持欄位寬度</option></select></label>
+<label class="ui-field" for="date">日期<input id="date" name="date" type="date"></label>
+<label class="ui-field" for="file">附件<input id="file" type="file" name="file"></label>
+<label class="ui-field" for="notes">補充說明<textarea id="notes" name="notes" placeholder="可以輸入多行文字"></textarea></label>
+<div class="ui-card__actions"><button class="ui-button" type="submit">驗證示例表單</button><button class="ui-button ui-button--secondary" type="reset">重填</button></div><p id="form-status" role="status">尚未驗證。</p></div>
+<div class="ui-card"><h3>選擇、錯誤與停用</h3><fieldset class="ui-fieldset"><legend>通知方式</legend><label class="ui-check"><input type="radio" name="notification" value="email" checked>電子郵件</label><label class="ui-check"><input type="radio" name="notification" value="none">不接收通知</label></fieldset>
+<label class="ui-check"><input type="checkbox" name="understood">我了解這是介面示例</label>
+<label class="ui-field" for="invalid">錯誤狀態範例<input id="invalid" value="格式不正確" aria-invalid="true" aria-describedby="invalid-help"><span id="invalid-help">錯誤：請輸入完整電子郵件，例如 name@example.com。</span></label>
+<label class="ui-field" for="disabled">停用欄位<input id="disabled" value="完成前一步後開放" disabled></label>
+<label class="ui-field" for="readonly">唯讀欄位<input id="readonly" value="可選取複製，不能修改" readonly></label>
+<p class="ui-notice">表單保留原生驗證；錯誤描述必須指出如何修正，不只畫一條色線。</p></div></form>
+</section>
+<section id="content" class="ui-section"><h2>04 ／ 容得下真實內容</h2>
+<div class="ui-grid">
+<article class="ui-card"><img class="ui-media" src="/cis/assets/moji/moji-meet.svg" width="320" height="240" alt="moji 相聚插畫"><span class="ui-badge">內容示例</span><h3>短標題</h3><p>圖片預留比例，按鈕落在卡片底部。</p><div class="ui-card__actions"><a class="ui-button ui-button--secondary" href="#patterns">查看互動</a></div></article>
+<article class="ui-card"><h3>即使活動標題長了許多，卡片也應自然增高並完整呈現內容</h3><p lang="en">An exceptionally long title for an international community gathering with participants from many different backgrounds.</p><p lang="ja">さまざまな背景を持つ人が集まり、交流する場所。長い文章も省略せずに表示します。</p><p>長識別字串：<span>ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789</span></p><div class="ui-card__actions"><button class="ui-button ui-button--secondary" type="button" data-notice="長文字操作仍可使用。">這是一個需要完整顯示而且可以換行的操作名稱</button></div></article>
+</div>
+<div class="ui-table-wrap" tabindex="0" role="region" aria-label="示例資料表，可橫向捲動" style="margin-top:24px"><table class="ui-table"><caption>資料表示例／數值不代表實際方案</caption><thead><tr><th scope="col">項目</th><th scope="col">狀態</th><th scope="col">說明</th><th scope="col">示例筆數</th></tr></thead><tbody><tr><th scope="row">示例 A</th><td>已完成</td><td>文字完整保留，不擠壓欄位。</td><td class="ui-number">1,234</td></tr><tr><th scope="row">示例 B</th><td>待確認</td><td>小螢幕在表格內捲動，整個頁面不位移。</td><td class="ui-number">56</td></tr></tbody></table></div>
+<nav class="ui-nav" aria-label="示例頁碼"><a href="#content" aria-current="page">第 1 頁</a><span>只有一頁示例資料</span></nav>
+</section>
+<section id="feedback" class="ui-section"><h2>05 ／ 每個結果，都有下一步</h2>
+<div class="ui-grid"><div class="ui-notice ui-stack"><strong>載入中</strong><label for="progress">正在讀取示例內容…</label><progress id="progress" class="ui-progress">載入中</progress></div><div class="ui-notice ui-stack"><strong>目前沒有項目</strong><p>尚未建立內容。先新增第一筆。</p><button class="ui-button ui-button--secondary" type="button" data-notice="這裡示範新增入口，未建立實際資料。">新增示例</button></div><div class="ui-notice ui-stack"><strong>讀取失敗</strong><p>請保留目前輸入，稍後重試。</p><button class="ui-button ui-button--secondary" type="button" data-notice="重試示例完成。">重試</button></div><div class="ui-notice"><strong>完成：</strong>內容已驗證，可進行下一步。</div></div>
+</section>
+<section id="patterns" class="ui-section ui-stack"><h2>06 ／ 原生互動</h2>
+<nav aria-label="麵包屑"><a class="ui-link" href="/cis/">CIS</a><span aria-hidden="true"> ／ </span><span aria-current="page">Stylebook</span></nav>
+<details class="ui-details"><summary>Accordion 如何使用？</summary><p>使用 details／summary。Enter 或空白鍵即可開合，長內容自然展開。</p></details>
+<details class="ui-details"><summary>小螢幕會隱藏內容嗎？</summary><p>不隱藏重要文字。卡片折欄、按鈕換行；寬表格只在自己的區域捲動。</p></details>
+<div><button class="ui-button" id="open-dialog" type="button">開啟對話框</button></div>
+<dialog id="demo-dialog" class="ui-dialog" aria-labelledby="dialog-title"><form method="dialog" class="ui-stack"><h2 id="dialog-title">確認示例操作</h2><p>這是原生 dialog。支援 Escape、焦點圈限與關閉後回到原按鈕；內容增加時可垂直捲動。</p><div class="ui-row"><button class="ui-button ui-button--secondary" value="cancel" autofocus>取消</button><button class="ui-button" value="confirm">確認示例</button></div></form></dialog>
+</section>
+<section id="rules" class="ui-section ui-stack"><h2>07 ／ 交付前的共同門檻</h2>
+<div class="ui-grid"><article class="ui-card"><h3>固定規則，可變內容</h3><p>容器上限 1180px；側邊 24px，小螢幕 18px。格線最小欄寬 280px，自動折欄；卡片 12px 圓角，控制元件 4px。</p><p>間距：4 / 8 / 12 / 16 / 24 / 32 / 48 / 64px。</p></article><article class="ui-card"><h3>不以遮住換取整齊</h3><p>Grid／Flex 子項 min-width:0。長字串 overflow-wrap:anywhere；不設固定文字高度，不用全頁 overflow-x:hidden 掩蓋溢位。</p></article><article class="ui-card"><h3>有測試，才算接軌</h3><p>320、390、768、1180、1440px；兩倍文字、離線字體、長中英日文、Tab、Escape 與表單狀態。</p><p>舊後台、會員與活動主題仍需逐頁驗收。</p></article></div>
+<code class="ui-code">&lt;link rel="stylesheet" href="/style.css"&gt;
+&lt;link rel="stylesheet" href="/stylebook/components.css"&gt;
+&lt;main class="ui-scope"&gt;
+  &lt;div class="ui-shell ui-grid"&gt;
+    &lt;article class="ui-card"&gt;…&lt;/article&gt;
+  &lt;/div&gt;
+&lt;/main&gt;</code>
+<p>CSS 直接引用現有品牌 token。完整元件合約、來源及接軌清單：<code>docs/design/stylebook.md</code>。</p>
+</section></main>
+<footer class="ui-shell ui-section"><p>言文字｜台灣人才聚落 · Stylebook 1.0</p><p class="ui-muted">CIS 定義品牌，stylebook 定義前端如何保持一致。</p></footer>
+</body></html>

@@ -76,3 +76,10 @@ DB 未設定時伺服器優雅降級：靜態頁照常，`/api/*` 回 503。
 - 會籍贈點：月會員 1,000 點、季會員 3,000 點、年會員 10,000 點、創始會員 20,000 點。
 - 兌換（須持有效會籍）：淋浴 70 點／次、膠囊休憩席／交誼廳各 100 點／小時；包場現金。
 - 規格：`docs/superpowers/specs/2026-07-12-member-points-design.md`（點值以本節與 `lib/points.js` 為準）
+
+## 前端 Stylebook
+
+- 視覺與互動展示：`/stylebook/`。
+- [完整規範與既有元件接軌表](docs/design/stylebook.md)。新元件以此為準；既有頁面尚未全部遷移。
+- 在 `/style.css` 後載入 `/stylebook/components.css`，以 `.ui-scope` 包住 `ui-*` 元件。
+- 檢查：`node scripts/check-stylebook.mjs`、`node --test scripts/test-public-typography.mjs`。
