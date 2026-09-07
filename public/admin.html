@@ -512,6 +512,7 @@ function tabEvents(d){
       <label>票價 NT$（0＝免費）<input id="ev-price" type="number" min="0" step="1" value="0" style="width:140px"></label>
       <label>可見性<select id="ev-visibility"><option value="public">公開</option><option value="private">私人連結</option><option value="members">會員限定</option></select></label>
       <label>狀態<select id="ev-status"><option>草稿</option><option>預告</option><option>報名中</option><option>已結束</option></select></label>
+      <p id="ev-critical-update-note" class="ui-notice" role="status" style="width:100%" hidden>活動名稱、時間或地點有變更；儲存後會通知已報名來賓，並附上更新後的行事曆。</p>
     </div>
     <div class="a-form"><label style="width:100%">中文活動說明<textarea id="ev-desc" placeholder="活動說明（可換行）"></textarea></label></div>
     <h3>活動介紹與多語內容</h3><div id="ev-translations">${['zh','en','ja'].map(lang=>`<details class="a-sec"><summary>${{zh:'中文專屬頁內容',en:'English 活動內容',ja:'日本語 活動內容'}[lang]}</summary><p class="hint">純文字，可換行；英日文空白時沿用中文。專屬頁欄位只用於百鬼夜行頁面。</p><div class="a-form">${(lang==='zh'?[]:[['title','活動名稱'],['description','活動說明'],['location','地點']]).concat(EVENT_FIELDS).map(([key,label])=>`<label style="width:100%">${label}<textarea data-event-lang="${lang}" data-event-field="${key}" aria-label="${lang} ${label}" maxlength="10000" rows="2"></textarea></label>`).join('')}</div></details>`).join('')}</div>
@@ -546,11 +547,18 @@ function openEventEditor(e,d){
   document.getElementById('ev-visibility').value=e.visibility||'public';
   document.getElementById('ev-status').value=e.status||'報名中';
   document.getElementById('ev-desc').value=e.description||'';
+  ['ev-title','ev-when','ev-end','ev-loc'].forEach(id=>{const el=document.getElementById(id);el.dataset.saved=el.value;});
   document.querySelectorAll('[data-event-lang]').forEach(el=>{el.value=e.translations?.[el.dataset.eventLang]?.[el.dataset.eventField]||'';});
   document.getElementById('ev-save').textContent='更新活動';
   document.getElementById('ev-save').disabled=false;
   document.getElementById('ev-reset').style.display='';
+  syncCriticalEventUpdateNote();
   document.getElementById('event-editor').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function syncCriticalEventUpdateNote(){
+  const note=document.getElementById('ev-critical-update-note'),editing=!!document.getElementById('ev-id')?.value;if(!note)return;
+  note.hidden=!editing||!['ev-title','ev-when','ev-end','ev-loc'].some(id=>{const el=document.getElementById(id);return el.value!==(el.dataset.saved||'');});
 }
 
 function showEventList(){
@@ -1088,7 +1096,7 @@ window.addEventListener('popstate', applyRoute);
 
 function bind(d, x){
   const on = (sel,ev,fn)=>{ const el=document.getElementById(sel); if(el) el.addEventListener(ev,fn); };
-  const doThen = async (fn,msg)=>{ try{ await fn(); toast(msg); await refresh(); }catch(e){ toast(e.message); } };
+  const doThen = async (fn,msg)=>{ try{ const out=await fn(); toast(typeof msg==='function'?msg(out):msg); await refresh(); }catch(e){ toast(e.message); } };
 
   // 會員：搜尋 + CSV
   on('m-search','input',e=>{ const qv=e.target.value.trim().toLowerCase();
@@ -1130,7 +1138,8 @@ function bind(d, x){
       status: document.getElementById('ev-status').value,
       description: document.getElementById('ev-desc').value.trim(),
       translations: Object.fromEntries(['zh','en','ja'].map(lang=>[lang,Object.fromEntries([...document.querySelectorAll(`[data-event-lang="${lang}"]`)].map(el=>[el.dataset.eventField,el.value.trim()]))])),
-    }}), editing?'已更新活動':'已建立活動'); });
+    }}), editing?out=>out.notice||'已更新活動':'已建立活動'); });
+  ['ev-title','ev-when','ev-end','ev-loc'].forEach(id=>on(id,'input',syncCriticalEventUpdateNote));
   on('ev-reset','click',()=>resetEventForm());
   const filterEvents=()=>{const query=document.getElementById('ev-search').value.trim().toLowerCase(),status=document.getElementById('ev-list-status').value,rows=[...document.querySelectorAll('[data-event-row]')];let visible=0;for(const row of rows){row.hidden=!!((query&&!row.dataset.eventSearch.includes(query))||(status&&row.dataset.eventStatus!==status));if(!row.hidden)visible++;}document.getElementById('ev-list-count').textContent='顯示 '+visible+'／'+rows.length+' 場';document.getElementById('ev-list-empty').hidden=visible>0;};
   on('ev-search','input',filterEvents);on('ev-list-status','change',filterEvents);filterEvents();
@@ -1354,6 +1363,7 @@ function resetEventForm(){
   if(manager&&!manager.hidden){const list=document.getElementById('event-list-view');if(list){list.classList.remove('event-list-view--editing');list.hidden=true;}manager.querySelectorAll('[data-event-task]').forEach(button=>button.removeAttribute('aria-pressed'));manager.scrollIntoView({behavior:'smooth',block:'start'});}
   document.querySelectorAll('[data-event-lang]').forEach(el=>{el.value='';});
   ['ev-owner','ev-id','ev-title','ev-slug','ev-when','ev-end','ev-loc','ev-desc'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  ['ev-title','ev-when','ev-end','ev-loc'].forEach(id=>{const el=document.getElementById(id);if(el)delete el.dataset.saved;});
   document.getElementById('ev-cap').value=0;
   document.getElementById('ev-price').value=0;
   document.getElementById('ev-visibility').value='public';
@@ -1361,6 +1371,7 @@ function resetEventForm(){
   document.getElementById('ev-save').textContent='建立活動';
   document.getElementById('ev-save').disabled=!!DATA?.organizer&&!DATA?.can_create_events;
   document.getElementById('ev-reset').style.display='none';
+  syncCriticalEventUpdateNote();
 }
 
 function showGuestImport(id,d){

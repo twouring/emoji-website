@@ -591,6 +591,8 @@ async function migrate() {
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'public'`);
   await q(`UPDATE events SET slug=id WHERE slug IS NULL OR slug=''`);
   await q(`CREATE UNIQUE INDEX IF NOT EXISTS events_slug_uidx ON events(slug)`);
+  await q(`CREATE TABLE IF NOT EXISTS event_slug_redirects (
+    old_slug TEXT PRIMARY KEY,event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'registered'`);
   const halloween = require('./lib/halloween-seed.json');
   await q(`INSERT INTO events (id,slug,title,description,location,starts_at,ends_at,status,translations)
@@ -2303,9 +2305,10 @@ async function queueEventWebhook(client,eventId,registrationId,action){
 }
 
 async function recordEventActivity(client,eventId,registrationId,actorId,action){
- await client.query('INSERT INTO event_activity(event_id,registration_id,actor_id,action) VALUES($1,$2,$3,$4)',[eventId,registrationId||null,actorId||null,action]);
+ const activity=(await client.query('INSERT INTO event_activity(event_id,registration_id,actor_id,action) VALUES($1,$2,$3,$4) RETURNING id',[eventId,registrationId||null,actorId||null,action])).rows[0];
  await client.query('UPDATE event_wallet_issues SET updated_at=now() WHERE event_id=$1',[eventId]);
  await queueEventWebhook(client,eventId,registrationId,action);
+ return activity?.id;
 }
 
 async function eventMutation(req,eventId,action,sql,args){
@@ -2397,17 +2400,25 @@ app.post('/api/admin/events', auth, requireDb, eventEditor, wrap(async (req, res
   }
   try {
     if (b.id) {
-      const old = (await q(`SELECT slug FROM events WHERE id=$1`, [b.id])).rows[0];
-      if (!old) return res.status(404).json({ error: '找不到活動。' });
-      const slug = v.slug || old.slug;
-      const updated = await eventMutation(req,b.id,'event_updated',
+      const client=await pool.connect();
+      try{await client.query('BEGIN');
+      const old=(await client.query('SELECT * FROM events WHERE id=$1 FOR UPDATE',[b.id])).rows[0];
+      if(!old){await client.query('ROLLBACK');return res.status(404).json({error:'找不到活動。'});}
+      const slug=v.slug||old.slug;
+      const updated=await client.query(
         `UPDATE events SET slug=$2,title=$3,description=$4,location=$5,starts_at=$6,ends_at=$7,
            capacity=$8,price_twd=$9,visibility=$10,status=$11,rich_content=COALESCE((SELECT jsonb_object_agg(key,value) FROM jsonb_each(rich_content) WHERE CASE WHEN key='zh' THEN description IS NOT DISTINCT FROM $4 ELSE $12::jsonb IS NULL OR translations->key->>'description' IS NOT DISTINCT FROM $12::jsonb->key->>'description' END),'{}'::jsonb),translations=COALESCE($12::jsonb,translations),owner_id=CASE WHEN $13 THEN $14::text ELSE owner_id END WHERE id=$1 AND ($15::text IS NULL OR owner_id=$15 OR EXISTS(SELECT 1 FROM event_hosts h WHERE h.event_id=events.id AND h.email=lower($16) AND h.can_manage=true))`,
         [b.id, slug, v.title, v.description, v.location, v.startsAt, v.endsAt,
           v.capacity, v.priceTwd, v.visibility, v.status, v.translations ? JSON.stringify(v.translations) : null, owner !== undefined, owner ?? null, req.auth.role === 'organizer' ? req.auth.sub : null, req.auth.email || null]
       );
-      if(!updated.rowCount) return res.status(404).json({error:'找不到可管理的活動。'});
-      return res.json({ ok: true, id: b.id, slug });
+      if(!updated.rowCount){await client.query('ROLLBACK');return res.status(404).json({error:'找不到可管理的活動。'});}
+      if(old.slug!==slug)await client.query(`INSERT INTO event_slug_redirects(old_slug,event_id) VALUES($1,$2) ON CONFLICT(old_slug) DO UPDATE SET event_id=EXCLUDED.event_id,created_at=now()`,[old.slug,b.id]);
+      const updateId=await recordEventActivity(client,b.id,null,req.auth.sub||null,'event_updated');
+      const event=(await client.query('SELECT * FROM events WHERE id=$1',[b.id])).rows[0],notification=await require('./lib/event-mailer').queueEventUpdate((sql,args)=>client.query(sql,args),{previous:old,event,origin:SITE_BASE,emailEnabled:!!process.env.RESEND_API_KEY,updateId});
+      await client.query('COMMIT');
+      const notice=!notification.changes.length?'已更新活動。':notification.recipients===0?'已更新活動；目前沒有已報名來賓需要通知。':notification.deliveries>0?`已更新活動；已為 ${notification.recipients} 位來賓排入活動更新與行事曆通知。`:`已更新活動；通知服務尚未設定或來賓沒有可用通路，${notification.recipients} 位已報名來賓尚未收到更新。`;
+      return res.json({ok:true,id:b.id,slug,notice,notification_recipients:notification.recipients,notification_deliveries:notification.deliveries,critical_changes:notification.changes,redirected_from:old.slug!==slug?old.slug:null});
+      }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
     }
     const id = uid('e_');
     const slug = v.slug || `${eventSlug(v.title) || 'event'}-${crypto.randomBytes(3).toString('hex')}`;
@@ -3728,7 +3739,8 @@ app.get('/api/events/:slug', optionalAuth, requireDb, wrap(async (req, res) => {
        (mine.status='registered') AS registered
      FROM events e
      LEFT JOIN event_regs mine ON mine.event_id=e.id AND mine.user_id=$2
-     WHERE e.slug=$1 AND (e.status<>'草稿' OR $3='admin')`,
+     WHERE (e.slug=$1 OR (e.id=(SELECT event_id FROM event_slug_redirects WHERE old_slug=$1) AND NOT EXISTS(SELECT 1 FROM events current WHERE current.slug=$1))) AND (e.status<>'草稿' OR $3='admin')
+     ORDER BY (e.slug=$1) DESC LIMIT 1`,
     [req.params.slug, userId, req.auth?.role || null]
   )).rows[0];
   if (!ev) return res.status(404).json({ error: '找不到活動。' });
@@ -4165,13 +4177,14 @@ app.get(['/events/:slug', '/en/events/:slug', '/ja/events/:slug'], async (req, r
   if (dbReady) {
     try {
       event = (await q(
-        `SELECT ${SEL_EVENT} FROM events e WHERE e.slug=$1 AND e.status<>'草稿' LIMIT 1`,
+        `SELECT ${SEL_EVENT} FROM events e WHERE (e.slug=$1 OR (e.id=(SELECT event_id FROM event_slug_redirects WHERE old_slug=$1) AND NOT EXISTS(SELECT 1 FROM events current WHERE current.slug=$1))) AND e.status<>'草稿' ORDER BY (e.slug=$1) DESC LIMIT 1`,
         [req.params.slug]
       )).rows[0] || null;
     } catch (error) {
       console.warn('[event-meta] 無法讀取活動公開狀態：', error?.message || 'unknown error');
     }
   }
+  if(event&&event.slug!==req.params.slug){const lang=/^\/(en|ja)\//.exec(req.path)?.[1],query=req.originalUrl.includes('?')?req.originalUrl.slice(req.originalUrl.indexOf('?')):'';return res.redirect(302,(lang?'/'+lang:'')+'/events/'+encodeURIComponent(event.slug)+query);}
   if (!event || event.visibility !== 'public') res.set('X-Robots-Tag', 'noindex');
   sendPage(res, EVENTS_PAGE, req.path, event ? html => composeEventMeta(html, localizeEvent(event, req.path.split('/')[1]), req.path) : null);
 });
