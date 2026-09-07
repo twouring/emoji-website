@@ -12,10 +12,12 @@ const server = readFileSync(join(ROOT, 'server.js'), 'utf8');
 const docs = readFileSync(join(ROOT, 'docs/API.md'), 'utf8');
 
 // server.js：app.get('/api/…')、app.post('/auth/…') → "GET /api/…"
-function routesInServer() {
-  const re = /app\.(get|post|put|patch|delete)\(\s*'((?:\/api|\/auth)[^']*)'/g;
+function routesInServer(source = server) {
+  const re = /app\.(get|post|put|patch|delete)\(\s*('[^']*'|\[[^\]]*\])/g;
   const out = new Set();
-  for (const m of server.matchAll(re)) out.add(`${m[1].toUpperCase()} ${m[2]}`);
+  for (const m of source.matchAll(re)) {
+    for (const path of m[2].matchAll(/'((?:\/api|\/auth)[^']*)'/g)) out.add(`${m[1].toUpperCase()} ${path[1]}`);
+  }
   return out;
 }
 
@@ -47,4 +49,9 @@ test('docs/API.md 不得記錄不存在的端點', () => {
 
 test('AI agent 認證方式有寫進文件', () => {
   assert.match(docs, /ADMIN_API_KEY/, 'docs/API.md 必須說明 agent 如何認證');
+});
+
+test('Express 路徑陣列的每個 API 都納入文件對照',()=>{
+ const routes=routesInServer("app.get(['/api/one','/api/two'],handler);app.post('/auth/login',handler);app.get('/page',handler);");
+ assert.deepEqual([...routes],['GET /api/one','GET /api/two','POST /auth/login']);
 });

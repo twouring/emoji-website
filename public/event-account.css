@@ -1,0 +1,5 @@
+/* Event account pages use the shared stylebook; this file only sets their reading layout. */
+.event-account{max-width:520px;margin:8vh auto;padding-block:var(--ui-space-8)}
+.event-account__logo{display:block;width:180px;max-width:100%;height:auto}
+.event-account [role=status]{white-space:pre-wrap}
+.event-account [role=status]:empty{display:none}

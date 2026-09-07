@@ -26,7 +26,8 @@ async function server(t, { query, stripe = {}, env = {} } = {}) {
     log.push({ sql, args });
     const result = await query?.(sql, args);
     if (result) return result;
-    if (/SELECT id,email,is_admin FROM users/.test(sql)) return { rows: [{ ...user }], rowCount: 1 };
+    if (/SELECT EXISTS\(SELECT 1 FROM event_hosts/.test(sql)) return {rows:[{allowed:false}]};
+    if (/SELECT id,email,is_admin,is_event_organizer FROM users/.test(sql)) return { rows: [{ ...user }], rowCount: 1 };
     if (/SUM\(amount\)/.test(sql)) return { rows: [{ s: 0, p: 0 }], rowCount: 1 };
     return { rows: [], rowCount: 0 };
   };

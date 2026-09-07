@@ -25,3 +25,6 @@ uploads/space/*
 !uploads/space/.gitkeep
 uploads/social/*
 !uploads/social/.gitkeep
+
+# 活動主上傳封面
+uploads/events/*

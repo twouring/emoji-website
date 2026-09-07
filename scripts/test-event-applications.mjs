@@ -143,6 +143,9 @@ test('application API persists private submissions and serializes retry/review r
       });
       return { status: response.status, body: await response.json() };
     };
+    const publicContexts=[['/api/events', undefined], ['/api/state', memberA], ['/api/state', memberB], ['/api/state', adminKey]];
+    const baselineEvents=await Promise.all(publicContexts.map(async([path,auth])=>(await api(path,auth)).body.events));
+    const baselineEventCount=(await pool.query('SELECT COUNT(*)::int AS n FROM events')).rows[0].n;
     const submit = (auth, body) => api('/api/event-applications', auth, body);
     const input = { ...valid, request_id: randomUUID() };
     let applicationId, reviewResult;
@@ -207,14 +210,14 @@ test('application API persists private submissions and serializes retry/review r
     });
 
     await t.test('applications and review replies never become public events or member state', async () => {
-      for (const [path, auth] of [['/api/events', undefined], ['/api/state', memberA], ['/api/state', memberB], ['/api/state', adminKey]]) {
+      for (const [index,[path,auth]] of publicContexts.entries()) {
         const result = await api(path, auth);
         assert.equal(result.status, 200);
-        assert.deepEqual(result.body.events, []);
+        assert.deepEqual(result.body.events, baselineEvents[index]);
         assert.ok(!JSON.stringify(result.body).includes(applicationId));
         assert.ok(!JSON.stringify(result.body).includes(reviewResult.review_note));
       }
-      assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM events')).rows[0].n, 0);
+      assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM events')).rows[0].n, baselineEventCount);
     });
 
     await t.test('stored submissions and consent survive server shutdown', async () => {

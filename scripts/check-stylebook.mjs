@@ -88,7 +88,8 @@ try {
   assert.equal(await page.$eval('#demo-dialog', el => el.open), false);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'open-dialog');
   await page.click('#open-dialog');
-  await page.click('#demo-dialog [value=confirm]');
+  await page.$eval('#demo-dialog [value=confirm]', button => button.click());
+  await page.waitForFunction(() => document.getElementById('action-status').textContent.includes('已確認'));
   assert.match(await page.$eval('#action-status', el => el.textContent), /已確認/);
   await page.focus('#patterns summary');
   await page.keyboard.press('Enter');

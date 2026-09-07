@@ -20,13 +20,21 @@ const { signAccessToken, verifyAccessToken } = require('./lib/access-token');
 const { isAdminApiKey, ADMIN_API_KEY_MIN } = require('./lib/admin-key');
 const { safeEqual, signToken: signSession, verifyToken: verifySession, matchesPointCheckout,
   PUBLIC_CONTENT_KEYS, rateLimit } = require('./lib/security');
-const { eventSlug, normalizeEventInput } = require('./lib/events');
+const {embedOrigins}=require('./lib/event-embed');
+const {richText,contentFileType}=require('./lib/event-rich-text');
+const {normalizeBlast,blastAudienceSQL}=require('./lib/event-mailer');
+const {normalizeTickets,selectTicket,ticketPrice,publicTickets,normalizeCoupons,discountPrice} = require('./lib/event-tickets');
+const {eventCalendar,googleCalendarUrl} = require('./lib/event-calendar');
+const {refundTotals}=require('./lib/event-refunds');
+const eventQuestions = require('./lib/event-questions');
+const { eventSlug, normalizeEventInput, localizeEvent, normalizeAttribution } = require('./lib/events');
 const { normalizeEventApplication } = require('./lib/event-applications');
-const { sendMailQuietly, NOTIFY_EMAIL } = require('./lib/mail');
+const { sendMail, sendMailQuietly, NOTIFY_EMAIL } = require('./lib/mail');
 const {
   POINT_PRICE_TWD, PACKS, MEMBERSHIP_GIFT_POINTS, PLAN_PRICE_TWD,
   addYears, isLotAvailable, availableBalance, planDebit, planRefund, redeemPointsFor,
 } = require('./lib/points');
+const { FEATURED_ID, eventPage, featuredEvent } = require('./lib/event-page');
 const { sendPage, layoutMiddleware, composeEventMeta } = require('./lib/layout');
 const { SPACE_SEED, missingSpaceSeedKeys } = require('./lib/space-content');
 const { assertSpaceImageFile, buildSafeSpaceFilename } = require('./lib/space-upload');
@@ -193,6 +201,8 @@ CREATE TABLE IF NOT EXISTS events (
   price_twd INT NOT NULL DEFAULT 0,
   visibility TEXT NOT NULL DEFAULT 'public', -- public / private（private = 不列出、持連結可看）
   status TEXT DEFAULT '報名中',          -- 草稿 / 報名中 / 已結束
+  checkin_mode TEXT NOT NULL DEFAULT 'standard',
+  checkin_mode_locked BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS event_applications (
@@ -236,6 +246,7 @@ CREATE TABLE IF NOT EXISTS event_regs (
   event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
   user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
   note TEXT,
+  entry_source TEXT NOT NULL DEFAULT 'self_service',
   status TEXT NOT NULL DEFAULT 'registered', -- pending_payment / registered / refunded / cancelled / expired
   amount_due INT NOT NULL DEFAULT 0,
   amount_paid INT NOT NULL DEFAULT 0,
@@ -389,10 +400,124 @@ async function migrate() {
   await q(SCHEMA_SQL);
   // 既有 DB 補欄位：管理員旗標（超管以 Google email 認定，其餘管理員存此旗標）
   await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false`);
+  await q(`CREATE TABLE IF NOT EXISTS email_login_tokens (
+    token_hash TEXT PRIMARY KEY,email TEXT NOT NULL,name TEXT NOT NULL,redirect TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),expires_at TIMESTAMPTZ NOT NULL,used_at TIMESTAMPTZ)`);
+  await q(`CREATE INDEX IF NOT EXISTS email_login_recent ON email_login_tokens(email,created_at)`);
+  await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_event_organizer BOOLEAN NOT NULL DEFAULT false`);
+  await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS owner_id TEXT REFERENCES users(id) ON DELETE SET NULL`);
+  await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS checkin_mode TEXT NOT NULL DEFAULT 'standard'`);
+  await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS checkin_mode_locked BOOLEAN NOT NULL DEFAULT false`);
+  await q(`ALTER TABLE events DROP CONSTRAINT IF EXISTS events_checkin_mode_check`);
+  await q(`ALTER TABLE events ADD CONSTRAINT events_checkin_mode_check CHECK(checkin_mode IN ('standard','express'))`);
+  await q(`CREATE TABLE IF NOT EXISTS event_hosts (
+    event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    email TEXT NOT NULL, name TEXT NOT NULL DEFAULT '',
+    is_visible BOOLEAN NOT NULL DEFAULT false, can_manage BOOLEAN NOT NULL DEFAULT false,
+    PRIMARY KEY(event_id,email))`);
+  await q(`ALTER TABLE event_hosts ADD COLUMN IF NOT EXISTS can_checkin BOOLEAN NOT NULL DEFAULT false`);
+  await q(`ALTER TABLE event_hosts ADD COLUMN IF NOT EXISTS checkin_ticket_ids JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  await q(`CREATE INDEX IF NOT EXISTS event_hosts_email_idx ON event_hosts(email) WHERE can_manage=true`);
+  await q(`CREATE TABLE IF NOT EXISTS event_notification_preferences (
+ event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ blasts BOOLEAN NOT NULL DEFAULT true,reminders BOOLEAN NOT NULL DEFAULT true,feedback BOOLEAN NOT NULL DEFAULT true,
+ updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),PRIMARY KEY(event_id,user_id))`);
+  await q(`CREATE TABLE IF NOT EXISTS event_feedback (
+    event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,user_id TEXT NOT NULL REFERENCES users(id),
+    rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),comment TEXT NOT NULL DEFAULT '',updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),PRIMARY KEY(event_id,user_id))`);
+  await q(`CREATE TABLE IF NOT EXISTS event_messages (
+    id TEXT PRIMARY KEY,event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    subject TEXT NOT NULL,body TEXT NOT NULL,audience TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'draft',
+    send_at TIMESTAMPTZ,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE TABLE IF NOT EXISTS event_deliveries (
+    id TEXT PRIMARY KEY,message_id TEXT NOT NULL REFERENCES event_messages(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,subject TEXT NOT NULL,body TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'queued',
+    provider_id TEXT,next_attempt_at TIMESTAMPTZ NOT NULL,first_attempt_at TIMESTAMPTZ,last_error TEXT,
+    UNIQUE(message_id,email))`);
+  await q(`CREATE TABLE IF NOT EXISTS event_delivery_events (
+    id TEXT PRIMARY KEY,provider_id TEXT NOT NULL,event_type TEXT NOT NULL,occurred_at TIMESTAMPTZ NOT NULL)`);
+  await q(`CREATE INDEX IF NOT EXISTS event_delivery_events_provider ON event_delivery_events(provider_id,occurred_at)`);
+  await q(`CREATE TABLE IF NOT EXISTS event_views (
+    event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,day DATE NOT NULL,
+    source TEXT NOT NULL DEFAULT '',campaign TEXT NOT NULL DEFAULT '',views INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY(event_id,day,source,campaign))`);
+  await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS coupons JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS coupon_snapshot JSONB`);
+  await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS event_details JSONB NOT NULL DEFAULT '{}'::jsonb`);
+  await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS tickets JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS quantity INTEGER NOT NULL DEFAULT 1`);
+  // Existing bookings must not receive surprise confirmation emails after deployment.
+  await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS confirmation_queued BOOLEAN NOT NULL DEFAULT true`);
+  await q(`ALTER TABLE event_regs ALTER COLUMN confirmation_queued SET DEFAULT false`);
+  await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'zh'`);
+  await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS attribution JSONB NOT NULL DEFAULT '{}'::jsonb`);
+  await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS capture_required BOOLEAN NOT NULL DEFAULT false`);
+  await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS authorization_expires_at TIMESTAMPTZ`);
+  await q(`CREATE TABLE IF NOT EXISTS event_online_joins (
+    event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    first_joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),last_joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),clicks INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY(event_id,user_id))`);
+  await q(`CREATE TABLE IF NOT EXISTS event_visitors (
+    event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,visitor_hash TEXT NOT NULL,day DATE NOT NULL,
+    first_seen TIMESTAMPTZ NOT NULL DEFAULT now(),last_seen TIMESTAMPTZ NOT NULL DEFAULT now(),PRIMARY KEY(event_id,visitor_hash,day))`);
+  await q(`ALTER TABLE event_deliveries ADD COLUMN IF NOT EXISTS attachments JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  await q(`ALTER TABLE event_messages ADD COLUMN IF NOT EXISTS registration_id TEXT`);
+  await q(`ALTER TABLE event_messages ADD COLUMN IF NOT EXISTS ticket_version INTEGER`);
+  await q(`ALTER TABLE event_messages ADD COLUMN IF NOT EXISTS expected_status TEXT`);
+  await q(`ALTER TABLE event_messages ADD COLUMN IF NOT EXISTS body_html TEXT NOT NULL DEFAULT ''`);
+  await q(`ALTER TABLE event_deliveries ADD COLUMN IF NOT EXISTS body_html TEXT NOT NULL DEFAULT ''`);
+  await q(`ALTER TABLE event_messages ADD COLUMN IF NOT EXISTS audiences JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  await q(`ALTER TABLE event_messages ADD COLUMN IF NOT EXISTS ticket_ids JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  await q(`CREATE TABLE IF NOT EXISTS event_attendees (
+    id TEXT PRIMARY KEY,registration_id TEXT NOT NULL REFERENCES event_regs(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,email TEXT NOT NULL,ordinal INTEGER NOT NULL DEFAULT 0,
+    checked_in_at TIMESTAMPTZ,checked_in_by TEXT)`);
+  await q(`ALTER TABLE event_attendees ADD COLUMN IF NOT EXISTS show_name BOOLEAN NOT NULL DEFAULT false`);
+  await q(`CREATE TABLE IF NOT EXISTS event_ticket_orders (
+    id TEXT PRIMARY KEY,registration_id TEXT NOT NULL REFERENCES event_regs(id),ticket_version INTEGER NOT NULL,
+    ticket_snapshot JSONB,quantity INTEGER NOT NULL,attendees JSONB NOT NULL DEFAULT '[]'::jsonb,
+    amount_due INTEGER NOT NULL,amount_paid INTEGER NOT NULL DEFAULT 0,status TEXT NOT NULL,
+    stripe_session_id TEXT,stripe_payment_intent_id TEXT,expires_at TIMESTAMPTZ,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`ALTER TABLE event_attendees ADD COLUMN IF NOT EXISTS order_id TEXT REFERENCES event_ticket_orders(id)`);
+  await q(`ALTER TABLE event_ticket_orders ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ`);
+
+  await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS refund_status TEXT`);
+  await q(`CREATE TABLE IF NOT EXISTS event_refunds (
+    id TEXT PRIMARY KEY,registration_id TEXT NOT NULL REFERENCES event_regs(id),payment_intent TEXT NOT NULL,
+    amount INTEGER NOT NULL CHECK(amount>0),status TEXT NOT NULL,request_id TEXT UNIQUE,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE TABLE IF NOT EXISTS event_settlements (
+    id TEXT PRIMARY KEY,event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    amount_twd INTEGER NOT NULL CHECK(amount_twd>0),status TEXT NOT NULL DEFAULT 'scheduled' CHECK(status IN ('scheduled','paid','cancelled')),
+    due_on DATE NOT NULL,reference TEXT NOT NULL DEFAULT '',note TEXT NOT NULL DEFAULT '',created_by TEXT,
+    paid_at TIMESTAMPTZ,created_at TIMESTAMPTZ NOT NULL DEFAULT now(),updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE INDEX IF NOT EXISTS event_settlements_event_idx ON event_settlements(event_id,created_at DESC)`);
+  await q(`INSERT INTO event_refunds(id,registration_id,payment_intent,amount,status)
+    SELECT stripe_refund_id,id,stripe_payment_intent_id,amount_paid*100,COALESCE(refund_status,'succeeded') FROM event_regs
+    WHERE stripe_refund_id IS NOT NULL AND stripe_payment_intent_id IS NOT NULL AND amount_paid>0
+    AND NOT EXISTS(SELECT 1 FROM event_refunds f WHERE f.payment_intent=event_regs.stripe_payment_intent_id) ON CONFLICT DO NOTHING`);
+  await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS ticket_version INTEGER NOT NULL DEFAULT 1`);
+  await q(`CREATE TABLE IF NOT EXISTS event_registration_history (
+    id BIGSERIAL PRIMARY KEY,event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    registration_id TEXT NOT NULL,user_id TEXT NOT NULL,snapshot JSONB NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS ticket_snapshot JSONB`);
+  await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS answers JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS registration_settings JSONB NOT NULL DEFAULT '{}'::jsonb`);
+  await q(`CREATE TABLE IF NOT EXISTS event_activity (
+    id BIGSERIAL PRIMARY KEY,event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    registration_id TEXT,actor_id TEXT,action TEXT NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS entry_source TEXT NOT NULL DEFAULT 'self_service'`);
+  await q(`UPDATE event_regs r SET entry_source='imported'
+    WHERE entry_source='self_service' AND COALESCE((SELECT a.action LIKE 'guest_imported:%'
+      FROM event_activity a WHERE a.registration_id=r.id AND
+      (a.action LIKE 'guest_imported:%' OR (a.actor_id=r.user_id AND a.action IN ('registered','pending_approval','waitlisted','capture_pending')))
+      ORDER BY a.id DESC LIMIT 1),false)`);
   // 活動模組：由既有免費報名原地升級；舊活動網址先沿用 id，避免資料遺失。
   await q(`ALTER TABLE event_applications ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'community'`);
   await q(`ALTER TABLE entitlements ADD COLUMN IF NOT EXISTS reminded_at TIMESTAMPTZ`);
   await q(`ALTER TABLE event_applications ADD COLUMN IF NOT EXISTS venue TEXT NOT NULL DEFAULT '3F'`);
+  await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS translations JSONB NOT NULL DEFAULT '{}'::jsonb`);
+  await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS embed_origins JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS rich_content JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS slug TEXT`);
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS ends_at TIMESTAMPTZ`);
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS price_twd INT NOT NULL DEFAULT 0`);
@@ -400,6 +525,11 @@ async function migrate() {
   await q(`UPDATE events SET slug=id WHERE slug IS NULL OR slug=''`);
   await q(`CREATE UNIQUE INDEX IF NOT EXISTS events_slug_uidx ON events(slug)`);
   await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'registered'`);
+  const halloween = require('./lib/halloween-seed.json');
+  await q(`INSERT INTO events (id,slug,title,description,location,starts_at,ends_at,status,translations)
+    VALUES ($1,'halloween-2026',$2,$3,$4,'2026-10-31T18:00:00+08:00','2026-11-01T00:00:00+08:00','預告',$5)
+    ON CONFLICT DO NOTHING`, [FEATURED_ID,halloween.zh.title,halloween.zh.description,halloween.zh.location,JSON.stringify(halloween)]);
+
   await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS amount_due INT NOT NULL DEFAULT 0`);
   await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS amount_paid INT NOT NULL DEFAULT 0`);
   await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS stripe_session_id TEXT`);
@@ -560,13 +690,13 @@ const signToken = (payload, options) => signSession(payload, SECRET, options);
 const verifyToken = (token, options) => verifySession(token, SECRET, options);
 
 /* ---------- SELECT 片段（日期格式化成 YYYY/MM/DD） ---------- */
-const SEL_USER = `id,name,email,phone,invite_code,id_no,address,bank,status,can_view,is_admin,to_char(created_at,'YYYY/MM/DD') AS created_at`;
+const SEL_USER = `id,name,email,phone,invite_code,id_no,address,bank,status,can_view,is_admin,is_event_organizer,to_char(created_at,'YYYY/MM/DD') AS created_at`;
 const SEL_C = `id,user_id,amount::bigint,interest_rate,term_years,
   to_char(start_date,'YYYY/MM/DD') AS start_date,
   to_char(maturity_date,'YYYY/MM/DD') AS maturity_date,
   contract_status,payment_status,membership_status,cert_no`;
 const SEL_UPD = `id,title,content,type,to_char(published_at,'YYYY/MM/DD') AS published_at`;
-const SEL_EVENT = `e.id,e.slug,e.title,e.description,e.location,e.capacity,e.price_twd,e.visibility,e.status,
+const SEL_EVENT = `e.id,e.slug,e.title,e.description,e.location,e.translations,e.rich_content,e.event_details,e.tickets,e.registration_settings,e.owner_id,(SELECT name FROM users WHERE id=e.owner_id) AS organizer_name,COALESCE((SELECT jsonb_agg(h.name ORDER BY h.name) FROM event_hosts h WHERE h.event_id=e.id AND h.is_visible=true),'[]'::jsonb) AS host_names,e.capacity,e.price_twd,e.visibility,e.status,
   to_char(e.starts_at AT TIME ZONE 'Asia/Taipei','YYYY/MM/DD HH24:MI') AS starts_at,
   to_char(e.starts_at AT TIME ZONE 'Asia/Taipei','YYYY-MM-DD"T"HH24:MI') AS starts_at_iso,
   to_char(e.ends_at AT TIME ZONE 'Asia/Taipei','YYYY/MM/DD HH24:MI') AS ends_at,
@@ -793,9 +923,33 @@ async function pointsSummaryFor(userId) {
 }
 
 /* ---------- 活動付款核銷（webhook 與成功頁共用；冪等） ---------- */
+async function activateAdditionalOrder(client,order,reg){
+ if(!(await client.query('SELECT 1 FROM event_attendees WHERE registration_id=$1 LIMIT 1',[reg.id])).rowCount){const buyer=(await client.query('SELECT name,email FROM users WHERE id=$1',[reg.user_id])).rows[0];for(let i=0;i<reg.quantity;i++)await client.query('INSERT INTO event_attendees(id,registration_id,name,email,ordinal) VALUES($1,$2,$3,$4,$5)',[uid('att_'),reg.id,buyer.name,buyer.email,i]);}
+
+ for(const [i,a] of order.attendees.entries())await client.query('INSERT INTO event_attendees(id,registration_id,name,email,ordinal,order_id) VALUES($1,$2,$3,$4,$5,$6)',[uid('att_'),reg.id,a.name,a.email,reg.quantity+i,order.id]);
+ await client.query("UPDATE event_ticket_orders SET status='registered',amount_paid=amount_due,paid_at=CASE WHEN amount_due>0 THEN now() ELSE NULL END WHERE id=$1",[order.id]);
+ await client.query('UPDATE event_regs SET quantity=quantity+$2,checked_in_at=NULL WHERE id=$1',[reg.id,order.quantity]);
+ await client.query("INSERT INTO event_activity(event_id,registration_id,actor_id,action) VALUES($1,$2,$3,'additional_registered')",[reg.event_id,reg.id,reg.user_id]);
+}
+async function fulfillAdditionalCheckout(session){
+ const meta=session?.metadata;if(meta?.kind!=='event-additional-tickets'||session.payment_status!=='paid')return {ignored:true};
+ const client=await pool.connect();try{await client.query('BEGIN');await client.query('SELECT id FROM events WHERE id=$1 FOR UPDATE',[meta.event_id]);
+ const reg=(await client.query('SELECT * FROM event_regs WHERE id=$1 FOR UPDATE',[meta.registration_id])).rows[0];
+ const order=(await client.query('SELECT * FROM event_ticket_orders WHERE id=$1 FOR UPDATE',[meta.order_id])).rows[0];
+ if(!reg||!order||reg.user_id!==meta.user_id||reg.event_id!==meta.event_id||order.registration_id!==reg.id||order.ticket_version!==reg.ticket_version||order.stripe_session_id!==session.id)return {ignored:true};
+ if(order.status==='registered'){await client.query('COMMIT');return {already:true};}
+ if(order.status!=='pending_payment'||reg.status!=='registered')return {ignored:true};
+ if(session.currency!=='twd'||session.amount_total!==order.amount_due*100)throw new Error('加購付款金額與訂單不符');
+ await client.query('UPDATE event_ticket_orders SET stripe_payment_intent_id=$2 WHERE id=$1',[order.id,typeof session.payment_intent==='string'?session.payment_intent:session.payment_intent?.id]);
+ await activateAdditionalOrder(client,order,reg);await client.query('COMMIT');return {paid:true};
+ }finally{await client.query('ROLLBACK');client.release();}
+}
+
 async function fulfillEventCheckout(session) {
   const meta = session && session.metadata;
-  if (!meta || meta.kind !== 'event-registration' || session.payment_status !== 'paid') return { ignored: true };
+  if(!meta||meta.kind!=='event-registration')return {ignored:true};
+  const authorization=meta.capture_required==='true'&&session.payment_status!=='paid';
+  if(!authorization&&session.payment_status!=='paid')return {ignored:true};
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -814,6 +968,14 @@ async function fulfillEventCheckout(session) {
     }
     if (session.currency !== 'twd' || !Number.isSafeInteger(session.amount_total) || session.amount_total !== Number(reg.amount_due) * 100)
       throw new Error('活動付款金額或幣別與報名快照不符');
+    if(authorization){
+      const intent=await stripe.paymentIntents.retrieve(typeof session.payment_intent==='string'?session.payment_intent:session.payment_intent?.id,{expand:['latest_charge']});
+      if(intent.status!=='requires_capture'||intent.amount!==reg.amount_due*100||intent.currency!=='twd'){await client.query('ROLLBACK');return {ignored:true};}
+      const deadline=intent.latest_charge?.payment_method_details?.card?.capture_before;
+      const expires=new Date(Math.min(deadline?deadline*1000:Infinity,Date.now()+24*3600000));
+      await client.query("UPDATE event_regs SET status='pending_approval',stripe_payment_intent_id=$2,authorization_expires_at=$3,checkout_expires_at=NULL WHERE id=$1",[reg.id,intent.id,expires]);
+      await client.query('COMMIT');return {authorized:true,registrationId:reg.id};
+    }
     const paidTwd = session.amount_total / 100;
     const paymentIntent = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id;
     await client.query(
@@ -898,13 +1060,25 @@ function notifyApplicationReviewed(a) {
   const text = `${a.contact_name} 您好，\n\n您的${appKind(a)}申請「${a.title}」審核結果：${result}\n\n回覆：\n${a.review_note}\n\n${a.status === 'approved' ? '初步通過不代表場地已保留，我們會再與您確認檔期、費用與使用條件並完成書面確認。' : '如有疑問可直接回覆此信。'}\n\n言文字｜台灣人才聚落\nus@emoji.tw · +886 921 102 067`;
   sendMailQuietly({ to: a.contact_email, subject: `[言文字] ${appKind(a)}申請審核結果：${result} · ${a.title}`, text, replyTo: NOTIFY_EMAIL });
 }
-async function notifyRegistration(userId, eventId) {
-  try {
-    const u = await userContact(userId); if (!u || !u.email) return;
-    const ev = (await q(`SELECT title,slug,location,starts_at,ends_at FROM events WHERE id=$1`, [eventId])).rows[0]; if (!ev) return;
-    const text = `${u.name || ''} 您好，\n\n已為您完成活動報名：${ev.title}\n時間：${fmtTaipei(ev.starts_at)}${ev.ends_at ? ' – ' + fmtTaipei(ev.ends_at) : ''}（台灣時間）\n地點：${ev.location || '言文字｜台灣人才聚落（台北車站 Z10 出口斜對面）'}\n\n活動當天請登入會員專區出示票券：${SITE_BASE}/member\n活動頁：${SITE_BASE}/events/${encodeURIComponent(ev.slug)}\n\n言文字｜台灣人才聚落`;
-    await sendMailQuietly({ to: u.email, subject: `[言文字] 活動報名成功：${ev.title}`, text, replyTo: NOTIFY_EMAIL });
-  } catch (e) { console.error('[mail] 報名通知失敗：', e.message); }
+async function expireEventAuthorizations(){
+ const expired=(await q("SELECT id FROM event_regs WHERE capture_required=true AND status='pending_approval' AND authorization_expires_at<=now() AND stripe_payment_intent_id IS NOT NULL LIMIT 50")).rows;
+ for(const row of expired){const client=await pool.connect();try{await client.query('BEGIN');const reg=(await client.query("SELECT * FROM event_regs WHERE id=$1 AND status='pending_approval' FOR UPDATE",[row.id])).rows[0];
+  if(reg){let intent=await stripe.paymentIntents.retrieve(reg.stripe_payment_intent_id);if(intent.status==='requires_capture')intent=await stripe.paymentIntents.cancel(intent.id);
+   if(intent.status==='canceled')await client.query("UPDATE event_regs SET status='expired' WHERE id=$1",[reg.id]);
+  }await client.query('COMMIT');
+ }finally{await client.query('ROLLBACK');client.release();}}
+}
+async function notifyRegistration(userId,eventId){
+ try{
+ const row=(await q(`SELECT r.id AS booking_id,r.ticket_version,r.language,r.confirmation_queued,u.email,u.name,e.* FROM event_regs r JOIN users u ON u.id=r.user_id JOIN events e ON e.id=r.event_id WHERE r.user_id=$1 AND r.event_id=$2 AND r.status='registered' AND e.status<>'已取消'`,[userId,eventId])).rows[0];
+ if(!row||row.confirmation_queued)return;
+ const reg={id:row.booking_id,ticket_version:row.ticket_version};
+ const lang=['en','ja'].includes(row.language)?row.language:'zh',event=localizeEvent({...row,registered:true},lang),url=SITE_BASE+(lang==='zh'?'':'/'+lang)+'/events/'+encodeURIComponent(event.slug);
+ const text={zh:['報名成功','請登入活動頁查看個人票券與活動資訊。'],en:['Registration confirmed','Sign in to the event page for your tickets and event details.'],ja:['申込完了','イベントページにログインしてチケットと詳細をご確認ください。']}[lang];
+ const attachments=event.starts_at?[{filename:'event.ics',content:Buffer.from(eventCalendar(event,SITE_BASE)).toString('base64')}]:[];
+ await require('./lib/event-mailer').queueEventMail(q,{id:'confirmation_'+reg.id+'_'+reg.ticket_version,eventId,registrationId:reg.id,ticketVersion:reg.ticket_version,email:row.email,subject:text[0]+' · '+event.title,body:(row.name||'')+'\n\n'+event.title+'\n'+text[1]+'\n'+url,attachments});
+ await q('UPDATE event_regs SET confirmation_queued=true WHERE id=$1 AND ticket_version=$2',[reg.id,reg.ticket_version]);
+ }catch(e){console.error('[event-confirmation]',e.message);}
 }
 async function notifyPlanPurchased(userId, plan) {
   try {
@@ -950,6 +1124,16 @@ app.use('/api', (req, res, next) => req.path === '/stripe/webhook' ? next() : ap
 const apiLimit = rateLimit({ max: 240 });
 app.use('/api/checkout', rateLimit({ max: 20 }));
 // Stripe 簽章必須驗證原始 body；此路由需在 express.json() 之前。
+app.post('/api/email/webhook',express.raw({type:'application/json',limit:'256kb'}),async(req,res)=>{
+ if(!process.env.RESEND_WEBHOOK_SECRET)return res.status(503).send('webhook not configured');
+ if(!pool||!dbReady)return res.status(503).send('database not ready');
+ let event;try{event=require('./lib/mail').verifyMailWebhook(req.body,req.headers,process.env.RESEND_WEBHOOK_SECRET);}catch{return res.status(400).send('invalid webhook');}
+ if(!['email.sent','email.delivered','email.delivery_delayed','email.bounced','email.complained','email.failed','email.opened','email.clicked'].includes(event.type))return res.json({received:true});
+ const providerId=event.data?.email_id,at=new Date(event.created_at);
+ if(typeof providerId!=='string'||providerId.length>200||!Number.isFinite(+at))return res.status(400).send('invalid event');
+ try{await q('INSERT INTO event_delivery_events(id,provider_id,event_type,occurred_at) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING',[req.headers['svix-id'],providerId,event.type,at]);res.json({received:true});}
+ catch(e){console.error('[email-webhook]',e.message);res.status(503).send('retry later');}
+});
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json', limit: '256kb' }), async (req, res) => {
   if (!stripe || !STRIPE_WEBHOOK_SECRET) return res.status(503).send('webhook not configured');
   let event;
@@ -958,11 +1142,37 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json', limit: '
     if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
       if (!pool || !dbReady) return res.status(503).send('database not ready');
       await fulfillEventCheckout(event.data.object);
+      await fulfillAdditionalCheckout(event.data.object);
       await fulfillPointsCheckout(event.data.object);
       await fulfillPlanCheckout(event.data.object);
+    } else if (['refund.created','refund.updated','refund.failed'].includes(event.type)) {
+      if(!pool||!dbReady)return res.status(503).send('database not ready');
+      // Read the current provider state: webhook events may arrive out of order.
+      const refund=await stripe.refunds.retrieve(event.data.object.id),intent=typeof refund.payment_intent==='string'?refund.payment_intent:refund.payment_intent?.id;
+      const client=await pool.connect();try{await client.query('BEGIN');
+       const reg=(await client.query('SELECT * FROM event_regs WHERE stripe_payment_intent_id=$1 FOR UPDATE',[intent])).rows[0];
+       if(reg&&refund.currency==='twd')await saveEventRefund(client,reg,refund);
+       else{
+        const parent=(await client.query('SELECT r.id FROM event_regs r JOIN event_ticket_orders o ON o.registration_id=r.id WHERE o.stripe_payment_intent_id=$1 FOR UPDATE OF r',[intent])).rows[0];
+        const order=parent&&(await client.query('SELECT * FROM event_ticket_orders WHERE stripe_payment_intent_id=$1 FOR UPDATE',[intent])).rows[0];
+        if(order&&refund.currency==='twd')await saveAdditionalRefund(client,order,refund);
+        else await client.query('UPDATE event_refunds SET status=$2 WHERE id=$1 AND payment_intent=$3',[refund.id,refund.status,intent]);
+       }
+       await client.query('COMMIT');
+      }finally{await client.query('ROLLBACK');client.release();}
+    } else if(['payment_intent.succeeded','payment_intent.canceled','payment_intent.payment_failed'].includes(event.type)){
+      if(!pool||!dbReady)return res.status(503).send('database not ready');
+      const intent=await stripe.paymentIntents.retrieve(event.data.object.id),client=await pool.connect();
+      try{await client.query('BEGIN');const reg=(await client.query('SELECT * FROM event_regs WHERE stripe_payment_intent_id=$1 AND capture_required=true FOR UPDATE',[intent.id])).rows[0];
+       if(reg&&['capture_pending','pending_approval'].includes(reg.status)){
+        if(intent.status==='succeeded'&&intent.currency==='twd'&&intent.amount_received===reg.amount_due*100)await client.query("UPDATE event_regs SET amount_paid=amount_due,paid_at=now(),status=CASE WHEN status='capture_pending' THEN 'registered' ELSE status END WHERE id=$1",[reg.id]);
+        else if(['canceled','requires_payment_method'].includes(intent.status))await client.query("UPDATE event_regs SET status='expired' WHERE id=$1",[reg.id]);
+       }await client.query('COMMIT');if(reg)notifyRegistration(reg.user_id,reg.event_id);
+      }finally{await client.query('ROLLBACK');client.release();}
     } else if (event.type === 'checkout.session.expired') {
       if (!pool || !dbReady) return res.status(503).send('database not ready');
       await expireEventCheckout(event.data.object);
+      if(event.data.object.metadata?.kind==='event-additional-tickets')await q("UPDATE event_ticket_orders SET status='expired' WHERE id=$1 AND stripe_session_id=$2 AND status='pending_payment'",[event.data.object.metadata.order_id,event.data.object.id]);
     }
     res.json({ received: true });
   } catch (e) {
@@ -1012,11 +1222,13 @@ function requireDb(req, res, next) {
 async function sessionAuth(t) {
   const p = verifyToken(t);
   if (!p || !pool || !dbReady) return p;
-  const user = (await q(`SELECT id,email,is_admin FROM users WHERE id=$1`, [p.sub])).rows[0];
+  const user = (await q(`SELECT id,email,is_admin,is_event_organizer FROM users WHERE id=$1`, [p.sub])).rows[0];
   if (!user) return null;
   const isSuper = String(user.email || '').toLowerCase() === SUPER_ADMIN_EMAIL;
-  return { ...p, email: user.email, super: isSuper,
-    role: isSuper || user.is_admin === true ? 'admin' : p.role === 'admin' ? 'invited' : p.role };
+  const host = !isSuper && !user.is_admin && !user.is_event_organizer
+    ? (await q(`SELECT EXISTS(SELECT 1 FROM event_hosts WHERE email=lower($1) AND can_manage=true) AS allowed`,[user.email])).rows[0]?.allowed : false;
+  return { ...p, email: user.email, super: isSuper, can_create_events:isSuper || user.is_admin === true || user.is_event_organizer === true,
+    role: isSuper || user.is_admin === true ? 'admin' : (user.is_event_organizer === true || host) ? 'organizer' : ['admin','organizer'].includes(p.role) ? 'invited' : p.role };
 }
 async function auth(req, res, next) {
   const h = req.headers.authorization || '';
@@ -1049,6 +1261,29 @@ function adminOnly(req, res, next) {
   if (req.auth.role !== 'admin') return res.status(403).json({ error: '需要後台權限。' });
   next();
 }
+async function eventEditor(req, res, next) {
+  if (req.auth.role === 'admin') return next();
+  if (req.auth.role !== 'organizer' || !req.auth.sub) return res.status(403).json({error:'需要活動主權限，請聯絡言文字授權。'});
+  const id = req.params.id || req.body?.id;
+  if (!id) return next();
+  try {
+    const row = (await q(`SELECT owner_id,EXISTS(SELECT 1 FROM event_hosts h WHERE h.event_id=events.id AND h.email=lower($2) AND h.can_manage=true) AS shared FROM events WHERE id=$1`,[id,req.auth.email])).rows[0];
+    if(!row || row.owner_id !== req.auth.sub && !row.shared) return res.status(404).json({error:'找不到可管理的活動。'});
+    next();
+  } catch(error) { next(error); }
+}
+
+async function eventCheckinAccess(req,res,next){
+ if(req.auth.role==='admin'){req.eventCheckin={can_manage:true,ticket_ids:[]};return next();}
+ try{
+  const row=(await q(`SELECT e.owner_id,h.can_manage,h.can_checkin,h.checkin_ticket_ids FROM events e LEFT JOIN event_hosts h ON h.event_id=e.id AND h.email=lower($2) WHERE e.id=$1`,[req.params.id,req.auth.email])).rows[0];
+  if(!row||row.owner_id!==req.auth.sub&&!row.can_manage&&!row.can_checkin)return res.status(404).json({error:'找不到可簽到的活動。'});
+  const canManage=row.owner_id===req.auth.sub||row.can_manage===true;
+  req.eventCheckin={can_manage:canManage,ticket_ids:canManage?[]:(Array.isArray(row.checkin_ticket_ids)?row.checkin_ticket_ids.filter(id=>typeof id==='string'):[])};
+  next();
+ }catch(e){next(e);}
+}
+
 function superOnly(req, res, next) {
   if (req.auth.super !== true) return res.status(403).json({ error: '需要超級管理員權限。' });
   next();
@@ -1066,6 +1301,42 @@ const wrap = fn => (req, res) => fn(req, res).catch(e => {
 
 app.get('/api/health', (req, res) =>
   res.json({ ok: true, db: dbReady, dbConfigured: !!pool }));
+
+async function accountByEmail(client,email,name,fillName=false){
+  await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[email]);
+  const accounts=(await client.query('SELECT id, name FROM users WHERE lower(email)=$1 LIMIT 2',[email])).rows;
+  if(accounts.length>1){const error=new Error('此信箱存在重複帳號，請聯絡管理員確認身分。');error.code='AMBIGUOUS_EMAIL';throw error;}
+  let user=accounts[0];
+  if(!user){user={id:uid('u_'),name};await client.query("INSERT INTO users(id,name,email,status) VALUES($1,$2,$3,'已查看')",[user.id,name,email]);}
+  else if(fillName&&!user.name){await client.query("UPDATE users SET name=$2 WHERE id=$1 AND (name IS NULL OR name='')",[user.id,name]);user.name=name;}
+  return user;
+}
+
+app.post('/api/auth/email/start',rateLimit({max:10}),requireDb,wrap(async(req,res)=>{
+ if(!process.env.RESEND_API_KEY)return res.status(503).json({error:'Email 登入尚未開通，請使用 Google 登入。'});
+ const email=String(req.body?.email||'').trim().toLowerCase(),name=String(req.body?.name||'').trim();
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254||!name||name.length>120)return res.status(400).json({error:'請填寫姓名與有效 Email。'});
+ const redirect=safeRedirect(req.body?.redirect)||DEFAULT_MEMBER_URL,code=crypto.randomBytes(32).toString('hex'),hash=crypto.createHash('sha256').update(code).digest('hex');
+ const client=await pool.connect();try{await client.query('BEGIN');await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[email]);
+ const recent=(await client.query("SELECT COUNT(*)::int AS n,MAX(created_at) AS latest FROM email_login_tokens WHERE email=$1 AND created_at>now()-interval '1 hour'",[email])).rows[0];
+ if(recent.n>=6||recent.latest&&Date.now()-+new Date(recent.latest)<60000)return res.status(429).json({error:'寄送過於頻繁，請稍後再試。'});
+ await client.query("INSERT INTO email_login_tokens(token_hash,email,name,redirect,expires_at) VALUES($1,$2,$3,$4,now()+interval '20 minutes')",[hash,email,name,redirect]);await client.query('COMMIT');
+ }finally{await client.query('ROLLBACK');client.release();}
+ const lang=['en','ja'].includes(req.body?.lang)?req.body.lang:'zh',url=SITE_BASE+'/event-login.html?lang='+lang+'#code='+code;
+ const copy={zh:['言文字登入連結','請開啟以下連結並按「確認登入」。連結 20 分鐘內有效，僅可使用一次。若不是您提出的請求，請忽略此信。'],en:['Sign in to emoji','Open the link and select Confirm sign-in. It expires in 20 minutes and can be used once. Ignore this email if you did not request it.'],ja:['言文字へのログイン','リンクを開き「ログインを確認」を押してください。有効期限は20分、1回限り使用できます。心当たりがなければ無視してください。']}[lang];
+ await sendMail({to:email,subject:copy[0],text:copy[1]+'\n\n'+url,idempotencyKey:'email-login/'+hash});res.json({ok:true});
+}));
+app.get('/api/auth/session',auth,requireDb,(req,res)=>req.auth.sub?res.json({authenticated:true,user_id:req.auth.sub}):res.status(403).json({error:'請以會員身分登入。'}));
+
+app.post('/api/auth/email/verify',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
+ const code=req.body?.code;if(typeof code!=='string'||!/^[a-f0-9]{64}$/.test(code))return res.status(400).json({error:'登入連結無效或已過期。'});
+ const hash=crypto.createHash('sha256').update(code).digest('hex'),client=await pool.connect();
+ try{await client.query('BEGIN');const login=(await client.query('SELECT * FROM email_login_tokens WHERE token_hash=$1 FOR UPDATE',[hash])).rows[0];
+ if(!login||login.used_at||+new Date(login.expires_at)<=Date.now())return res.status(400).json({error:'登入連結無效或已過期。'});
+ const user=await accountByEmail(client,login.email,login.name,true);await client.query('UPDATE email_login_tokens SET used_at=now() WHERE token_hash=$1',[hash]);await client.query('COMMIT');
+ res.set('Cache-Control','no-store');res.json({token:signToken({role:'invited',sub:user.id,name:user.name}),redirect:safeRedirect(login.redirect)||DEFAULT_MEMBER_URL});
+ }catch(e){if(e.code==='AMBIGUOUS_EMAIL')return res.status(409).json({error:e.message});throw e;}finally{await client.query('ROLLBACK');client.release();}
+}));
 
 /* ---- Google 登入（OAuth 2.0 授權碼流程；重用既有 signToken 與 users 表） ---- */
 app.get('/auth/google', (req, res) => {
@@ -1112,19 +1383,10 @@ app.get('/auth/google/callback', wrap(async (req, res) => {
   if (!pool || !dbReady) return res.status(503).send('資料庫尚未就緒，請稍後再試。');
   // upsert：以已驗證 email 為鍵（Google 保證 email_verified 時為本人所有）
   const email = String(info.email).toLowerCase();
-  const accounts = (await q(`SELECT id, name FROM users WHERE lower(email)=$1 LIMIT 2`, [email])).rows;
-  if (accounts.length > 1) return res.status(409).send('此信箱存在重複帳號，請聯絡管理員確認身分。');
-  let u = accounts[0];
-  if (!u) {
-    const id = uid('u_');
-    const name = info.name || info.email;
-    await q(`INSERT INTO users (id,name,email,status,created_at) VALUES ($1,$2,$3,'已查看',now())`,
-      [id, name, info.email]);
-    u = { id, name };
-  } else if (info.name) {
-    await q(`UPDATE users SET name=$2 WHERE id=$1 AND (name IS NULL OR name='')`, [u.id, info.name]);
-    if (!u.name) u.name = info.name;
-  }
+  const accountClient=await pool.connect();let u;
+  try{await accountClient.query('BEGIN');u=await accountByEmail(accountClient,email,info.name||info.email,true);await accountClient.query('COMMIT');}
+  catch(e){await accountClient.query('ROLLBACK');if(e.code==='AMBIGUOUS_EMAIL')return res.status(409).send(e.message);throw e;}
+  finally{accountClient.release();}
   // 管理權限：超管以 email 認定；其餘管理員讀 users.is_admin（由超管指派）
   const isSuper = email === SUPER_ADMIN_EMAIL;
   const isAdmin = isSuper || (await q(`SELECT is_admin FROM users WHERE id=$1`, [u.id])).rows[0]?.is_admin === true;
@@ -1169,8 +1431,8 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
     // 活動 + 每場報名人數（後台總覽用）
     const events = (await q(
       `SELECT ${SEL_EVENT},
-         (SELECT COUNT(*)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS reg_count,
-         (SELECT COUNT(*)::int FROM event_regs r WHERE r.event_id=e.id AND r.checked_in_at IS NOT NULL) AS checkin_count
+         (SELECT COALESCE(SUM(r.quantity),0)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS reg_count,
+         (SELECT COALESCE(SUM(CASE WHEN r.quantity>1 THEN (SELECT COUNT(*) FROM event_attendees a WHERE a.registration_id=r.id AND a.checked_in_at IS NOT NULL) ELSE (r.checked_in_at IS NOT NULL)::int END),0)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS checkin_count
        FROM events e ORDER BY starts_at DESC NULLS LAST, created_at DESC`)).rows;
     const content = await readContent();
     const me = users.find(u => u.id === req.auth.sub) || null;  // 管理員自己：供會員頁顯示姓名
@@ -1199,7 +1461,7 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
   // 會員專區：報名中的活動 + 我是否已報名（供報名/取消按鈕）
   const events = (await q(
     `SELECT ${SEL_EVENT},
-       (SELECT COUNT(*)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS reg_count,
+       (SELECT COALESCE(SUM(r.quantity),0)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS reg_count,
        mine.id AS registration_id, mine.status AS registration_status,
        mine.checked_in_at, mine.amount_paid,
        (mine.status='registered') AS registered
@@ -1209,7 +1471,7 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
      ORDER BY e.starts_at ASC NULLS LAST`, [me.id])).rows;
   res.json({
     role: commitments.length ? 'participant' : 'invited',
-    me, bond, users: [me], commitments, events, updates,
+    me, bond, users: [me], commitments, events:events.map(e=>localizeEvent(e,'zh')), updates,
     access: {
       active: access.active,
       entitlements: access.entitlements,
@@ -1305,8 +1567,8 @@ app.get('/api/public', requireDb, wrap(async (req, res) => {
   const updates = numify((await q(`SELECT ${SEL_UPD} FROM updates ORDER BY published_at DESC`)).rows);
   const events = (await q(
     `SELECT ${SEL_EVENT},
-       (SELECT COUNT(*)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS reg_count
-     FROM events e WHERE status='報名中' AND visibility='public' ORDER BY starts_at ASC NULLS LAST`)).rows;
+       (SELECT COALESCE(SUM(r.quantity),0)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS reg_count
+     FROM events e WHERE status IN ('預告','報名中') AND visibility='public' ORDER BY starts_at ASC NULLS LAST`)).rows;
   const content = await readContent();
   res.json({ raised, updates, events, content });
 }));
@@ -1350,6 +1612,21 @@ app.post('/api/commitments', auth, requireDb, wrap(async (req, res) => {
 
   const row = numify((await q(`SELECT ${SEL_C} FROM commitments WHERE id=$1`, [id])).rows)[0];
   res.json({ commitment: row });
+}));
+
+app.get('/api/organizer/state', auth, requireDb, eventEditor, wrap(async (req,res) => {
+  const me = (await q(`SELECT id,name,email FROM users WHERE id=$1`,[req.auth.sub])).rows[0] || null;
+  const events = (await q(`SELECT ${SEL_EVENT},
+    (SELECT COALESCE(SUM(r.quantity),0)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS reg_count,
+    (SELECT COALESCE(SUM(CASE WHEN r.quantity>1 THEN (SELECT COUNT(*) FROM event_attendees a WHERE a.registration_id=r.id AND a.checked_in_at IS NOT NULL) ELSE (r.checked_in_at IS NOT NULL)::int END),0)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS checkin_count
+    FROM events e WHERE e.owner_id=$1 OR EXISTS(SELECT 1 FROM event_hosts h WHERE h.event_id=e.id AND h.email=lower($2) AND h.can_manage=true) ORDER BY e.created_at DESC`,[req.auth.sub,req.auth.email])).rows;
+  res.json({role:req.auth.role,organizer:true,can_create_events:req.auth.can_create_events,me,events,users:[],commitments:[],updates:[],content:{}});
+}));
+app.post('/api/admin/users/:id/organizer', auth, adminOnly, requireDb, wrap(async (req,res) => {
+  if(typeof req.body.organizer !== 'boolean') return res.status(400).json({error:'請指定活動主權限。'});
+  const result = await q(`UPDATE users SET is_event_organizer=$2 WHERE id=$1 RETURNING id,is_event_organizer`,[req.params.id,req.body.organizer]);
+  if(!result.rows[0]) return res.status(404).json({error:'找不到使用者。'});
+  res.json({ok:true,...result.rows[0]});
 }));
 
 /* ---- 超管：指派／取消其他管理員（以 user id；對象需已於系統有帳號，通常先以 Google 登入過） ---- */
@@ -1773,6 +2050,7 @@ app.post('/api/event-applications', auth, requireDb, wrap(async (req, res) => {
   const parsed = normalizeEventApplication(req.body);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
   const v = parsed.value;
+  if(v.status==='已取消')return res.status(400).json({error:'請使用取消活動功能，以關閉待付款結帳。'});
   const hash = crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex');
   const client = await pool.connect();
   try {
@@ -1848,31 +2126,63 @@ app.post('/api/admin/event-applications/:id/review', auth, adminOnly, requireDb,
 }));
 
 /* ---- 活動管理：建/改/刪、名單、退款與簽到 ---- */
-app.post('/api/admin/events', auth, adminOnly, requireDb, wrap(async (req, res) => {
+async function reconcileExpiredEventCheckouts(){
+ // Release inventory only after Stripe confirms expiry; delayed paid webhooks must not cause overselling.
+ const rows=(await q("SELECT stripe_session_id FROM event_regs WHERE status='pending_payment' AND checkout_expires_at<=now() AND stripe_session_id IS NOT NULL UNION ALL SELECT stripe_session_id FROM event_ticket_orders WHERE status='pending_payment' AND expires_at<=now() AND stripe_session_id IS NOT NULL LIMIT 100")).rows;
+ for(const row of rows){try{const session=await stripe.checkout.sessions.retrieve(row.stripe_session_id);if(session.payment_status==='paid'||session.status==='complete'){await fulfillEventCheckout(session);await fulfillAdditionalCheckout(session);}else if(session.status==='expired'){await q("UPDATE event_regs SET status='expired' WHERE stripe_session_id=$1 AND status='pending_payment'",[session.id]);await q("UPDATE event_ticket_orders SET status='expired' WHERE stripe_session_id=$1 AND status='pending_payment'",[session.id]);}}catch(e){console.error('[event-checkout-reconcile]',e.message);}}
+}
+
+async function reservedEventSeats(client,eventId,ticketId=null,excludeUser=null){
+ const result=await client.query(`WITH active AS (
+ SELECT * FROM event_regs WHERE event_id=$1 AND ($3::text IS NULL OR user_id<>$3) AND
+ (status IN ('registered','capture_pending','pending_payment','refund_pending') OR (status='approved' AND checkout_expires_at>now()))),
+ extras AS (SELECT o.* FROM event_ticket_orders o JOIN active r ON r.id=o.registration_id AND r.ticket_version=o.ticket_version
+ WHERE o.status IN ('registered','refund_pending') OR o.status='pending_payment')
+ SELECT (COALESCE((SELECT SUM(CASE WHEN $2::text IS NULL THEN r.quantity WHEN r.ticket_snapshot->>'id'=$2 THEN r.quantity-COALESCE((SELECT SUM(o.quantity) FROM extras o WHERE o.registration_id=r.id AND o.status IN ('registered','refund_pending')),0) ELSE 0 END) FROM active r),0)+
+ COALESCE((SELECT SUM(quantity) FROM extras WHERE ($2::text IS NULL AND status='pending_payment') OR ($2::text IS NOT NULL AND ticket_snapshot->>'id'=$2)),0))::int AS n`,[eventId,ticketId,excludeUser]);return result.rows[0].n;
+}
+
+async function eventMutation(req,eventId,action,sql,args){
+ const client=await pool.connect();try{await client.query('BEGIN');
+ const result=await client.query(sql,args);
+ if(result.rowCount)await client.query('INSERT INTO event_activity(event_id,actor_id,action) VALUES($1,$2,$3)',[eventId,req.auth.sub||null,action]);
+ await client.query('COMMIT');return result;
+ }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
+}
+
+app.post('/api/admin/events', auth, requireDb, eventEditor, wrap(async (req, res) => {
   const b = req.body || {};
+  if(!b.id && req.auth.role !== 'admin' && !req.auth.can_create_events) return res.status(403).json({error:'你只能管理受邀活動；建立新活動需要平台授權。'});
   const parsed = normalizeEventInput(b);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
   const v = parsed.value;
+  // Ownership is assigned by the platform, never trusted from an organizer payload.
+  let owner = req.auth.role === 'organizer' ? (b.id ? undefined : req.auth.sub) : (b.owner_id === undefined ? undefined : b.owner_id || null);
+  if (req.auth.role === 'admin' && owner) {
+    const user = (await q(`SELECT id FROM users WHERE id=$1 AND is_event_organizer=true`,[owner])).rows[0];
+    if(!user) return res.status(400).json({error:'活動負責人必須是已授權活動主。'});
+  }
   try {
     if (b.id) {
       const old = (await q(`SELECT slug FROM events WHERE id=$1`, [b.id])).rows[0];
       if (!old) return res.status(404).json({ error: '找不到活動。' });
       const slug = v.slug || old.slug;
-      await q(
+      const updated = await eventMutation(req,b.id,'event_updated',
         `UPDATE events SET slug=$2,title=$3,description=$4,location=$5,starts_at=$6,ends_at=$7,
-           capacity=$8,price_twd=$9,visibility=$10,status=$11 WHERE id=$1`,
+           capacity=$8,price_twd=$9,visibility=$10,status=$11,rich_content=COALESCE((SELECT jsonb_object_agg(key,value) FROM jsonb_each(rich_content) WHERE CASE WHEN key='zh' THEN description IS NOT DISTINCT FROM $4 ELSE $12::jsonb IS NULL OR translations->key->>'description' IS NOT DISTINCT FROM $12::jsonb->key->>'description' END),'{}'::jsonb),translations=COALESCE($12::jsonb,translations),owner_id=CASE WHEN $13 THEN $14::text ELSE owner_id END WHERE id=$1 AND ($15::text IS NULL OR owner_id=$15 OR EXISTS(SELECT 1 FROM event_hosts h WHERE h.event_id=events.id AND h.email=lower($16) AND h.can_manage=true))`,
         [b.id, slug, v.title, v.description, v.location, v.startsAt, v.endsAt,
-          v.capacity, v.priceTwd, v.visibility, v.status]
+          v.capacity, v.priceTwd, v.visibility, v.status, v.translations ? JSON.stringify(v.translations) : null, owner !== undefined, owner ?? null, req.auth.role === 'organizer' ? req.auth.sub : null, req.auth.email || null]
       );
+      if(!updated.rowCount) return res.status(404).json({error:'找不到可管理的活動。'});
       return res.json({ ok: true, id: b.id, slug });
     }
     const id = uid('e_');
     const slug = v.slug || `${eventSlug(v.title) || 'event'}-${crypto.randomBytes(3).toString('hex')}`;
-    await q(
-      `INSERT INTO events (id,slug,title,description,location,starts_at,ends_at,capacity,price_twd,visibility,status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+    await eventMutation(req,id,'event_created',
+      `INSERT INTO events (id,slug,title,description,location,starts_at,ends_at,capacity,price_twd,visibility,status,translations,owner_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
       [id, slug, v.title, v.description, v.location, v.startsAt, v.endsAt,
-        v.capacity, v.priceTwd, v.visibility, v.status]
+        v.capacity, v.priceTwd, v.visibility, v.status, JSON.stringify(v.translations || {}), owner === undefined ? req.auth.sub : owner]
     );
     res.json({ ok: true, id, slug });
   } catch (e) {
@@ -1881,12 +2191,402 @@ app.post('/api/admin/events', auth, adminOnly, requireDb, wrap(async (req, res) 
   }
 }));
 
-app.delete('/api/admin/events/:id', auth, adminOnly, requireDb, wrap(async (req, res) => {
+async function eventSettlementSummary(client,eventId){
+ const row=(await client.query(`WITH payment_rows AS (
+   SELECT stripe_payment_intent_id AS payment_intent,amount_paid FROM event_regs WHERE event_id=$1 AND amount_paid>0
+   UNION ALL SELECT snapshot->>'stripe_payment_intent_id',CASE WHEN snapshot->>'amount_paid' ~ '^[0-9]+$' THEN (snapshot->>'amount_paid')::integer ELSE 0 END FROM event_registration_history WHERE event_id=$1
+   UNION ALL SELECT o.stripe_payment_intent_id,o.amount_paid FROM event_ticket_orders o JOIN event_regs r ON r.id=o.registration_id WHERE r.event_id=$1 AND o.amount_paid>0
+  ),paid AS (SELECT payment_intent,MAX(amount_paid)::integer AS amount_paid FROM payment_rows WHERE payment_intent IS NOT NULL GROUP BY payment_intent)
+  SELECT COALESCE((SELECT SUM(amount_paid) FROM paid),0)::bigint AS gross_twd,
+   COALESCE((SELECT SUM(f.amount)/100 FROM event_refunds f JOIN paid p ON p.payment_intent=f.payment_intent WHERE f.status='succeeded'),0)::bigint AS refunded_twd,
+   COALESCE((SELECT SUM(amount_twd) FROM event_settlements WHERE event_id=$1 AND status='scheduled'),0)::bigint AS scheduled_twd,
+   COALESCE((SELECT SUM(amount_twd) FROM event_settlements WHERE event_id=$1 AND status='paid'),0)::bigint AS settled_twd`,[eventId])).rows[0];
+ const summary=Object.fromEntries(Object.entries(row).map(([key,value])=>[key,Number(value)]));
+ summary.net_collected_twd=summary.gross_twd-summary.refunded_twd;
+ summary.available_twd=summary.net_collected_twd-summary.scheduled_twd-summary.settled_twd;
+ return summary;
+}
+
+app.get('/api/admin/events/:id/payments',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+  const payments=(await q(`SELECT r.id AS registration_id,u.name,u.email,r.status,r.amount_due,r.amount_paid,
+    r.stripe_payment_intent_id,r.stripe_refund_id,r.refund_status,r.paid_at,r.refunded_at,COALESCE((SELECT jsonb_agg(f ORDER BY f.created_at) FROM event_refunds f WHERE f.payment_intent=r.stripe_payment_intent_id),'[]') AS refunds
+    FROM event_regs r JOIN users u ON u.id=r.user_id
+    WHERE r.event_id=$1 AND (r.amount_due>0 OR r.amount_paid>0)
+    ORDER BY r.created_at DESC`,[req.params.id])).rows;
+  const historical=(await q(`SELECT h.snapshot,u.name,u.email,COALESCE((SELECT jsonb_agg(f ORDER BY f.created_at) FROM event_refunds f WHERE f.payment_intent=h.snapshot->>'stripe_payment_intent_id'),'[]') AS refunds FROM event_registration_history h JOIN users u ON u.id=h.user_id WHERE h.event_id=$1 AND ((h.snapshot->>'amount_paid')::integer>0 OR (h.snapshot->>'amount_due')::integer>0) ORDER BY h.id DESC`,[req.params.id])).rows.map(h=>({...h.snapshot,registration_id:h.snapshot.id,name:h.name,email:h.email,refunds:h.refunds,historical:true}));
+  const additional=(await q(`SELECT r.id AS registration_id,o.id AS order_id,u.name,u.email,o.status,o.amount_due,o.amount_paid,o.stripe_payment_intent_id,o.paid_at,COALESCE((SELECT jsonb_agg(f ORDER BY f.created_at) FROM event_refunds f WHERE f.payment_intent=o.stripe_payment_intent_id),'[]') AS refunds FROM event_ticket_orders o JOIN event_regs r ON r.id=o.registration_id JOIN users u ON u.id=r.user_id WHERE r.event_id=$1 ORDER BY o.created_at DESC`,[req.params.id])).rows;
+  const settlements=(await q(`SELECT id,amount_twd,status,due_on::text AS due_on,reference,note,paid_at,created_at,updated_at FROM event_settlements WHERE event_id=$1 ORDER BY created_at DESC`,[req.params.id])).rows;
+  const settlement_summary=await eventSettlementSummary({query:q},req.params.id);
+  res.json({collector:'言文字',currency:'TWD',can_refund:req.auth.role==='admin',can_manage_settlement:req.auth.role==='admin',settlement_status:settlements.some(row=>row.status==='scheduled')?'scheduled':settlements.some(row=>row.status==='paid')?'paid':'none',settlement_summary,settlements,payments:[...payments,...historical,...additional]});
+}));
+
+app.post('/api/admin/events/:id/settlements',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+ const amount=Number(req.body?.amount_twd),due=String(req.body?.due_on||''),note=String(req.body?.note||'').trim();
+ const dueDate=new Date(due+'T00:00:00Z');if(!Number.isSafeInteger(amount)||amount<=0||!/^\d{4}-\d{2}-\d{2}$/.test(due)||!Number.isFinite(+dueDate)||dueDate.toISOString().slice(0,10)!==due||note.length>1000)return res.status(400).json({error:'請填寫正整數結算金額、有效日期與 1000 字內備註。'});
+ const client=await pool.connect();try{await client.query('BEGIN');
+  if(!(await client.query('SELECT id FROM events WHERE id=$1 FOR UPDATE',[req.params.id])).rowCount){await client.query('ROLLBACK');return res.status(404).json({error:'找不到活動。'});}
+  const summary=await eventSettlementSummary(client,req.params.id);if(amount>summary.available_twd){await client.query('ROLLBACK');return res.status(409).json({error:'結算金額超過目前可結算票款。',available_twd:summary.available_twd});}
+  const id=uid('settlement_');await client.query("INSERT INTO event_settlements(id,event_id,amount_twd,due_on,note,created_by) VALUES($1,$2,$3,$4,$5,$6)",[id,req.params.id,amount,due,note,req.auth.sub||null]);
+  await client.query("INSERT INTO event_activity(event_id,actor_id,action) VALUES($1,$2,'settlement_scheduled')",[req.params.id,req.auth.sub||null]);await client.query('COMMIT');res.json({ok:true,id,status:'scheduled'});
+ }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
+}));
+
+app.patch('/api/admin/events/:id/settlements/:settlementId',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+ const status=req.body?.status,reference=String(req.body?.reference||'').trim();if(!['paid','cancelled'].includes(status)||reference.length>200||status==='paid'&&!reference)return res.status(400).json({error:'結算只能標記為已撥款或取消；已撥款須填交易參考。'});
+ const client=await pool.connect();try{await client.query('BEGIN');await client.query('SELECT id FROM events WHERE id=$1 FOR UPDATE',[req.params.id]);
+  const current=(await client.query('SELECT * FROM event_settlements WHERE id=$1 AND event_id=$2 FOR UPDATE',[req.params.settlementId,req.params.id])).rows[0];if(!current){await client.query('ROLLBACK');return res.status(404).json({error:'找不到結算紀錄。'});}
+  if(current.status!== 'scheduled'){await client.query('ROLLBACK');return res.status(409).json({error:'只有待結算紀錄可以核銷或取消。'});}
+  await client.query("UPDATE event_settlements SET status=$3,reference=$4,paid_at=CASE WHEN $3='paid' THEN now() ELSE NULL END,updated_at=now() WHERE id=$1 AND event_id=$2",[current.id,req.params.id,status,reference]);
+  await client.query('INSERT INTO event_activity(event_id,actor_id,action) VALUES($1,$2,$3)',[req.params.id,req.auth.sub||null,'settlement_'+status]);await client.query('COMMIT');res.json({ok:true,status});
+ }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
+}));
+
+app.get('/api/admin/events/:id/feedback',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ const feedback=(await q(`SELECT f.rating,f.comment,f.updated_at,u.name,u.email FROM event_feedback f JOIN users u ON u.id=f.user_id WHERE f.event_id=$1 ORDER BY f.updated_at DESC`,[req.params.id])).rows;
+ res.json({feedback});
+}));
+
+app.get('/api/admin/events/:id/coupons',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ const event=(await q('SELECT coupons FROM events WHERE id=$1',[req.params.id])).rows[0];if(!event)return res.status(404).json({error:'找不到活動。'});res.json({coupons:event.coupons});
+}));
+app.post('/api/admin/events/:id/coupons',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ let coupons;try{coupons=normalizeCoupons(req.body?.coupons);}catch(e){return res.status(400).json({error:e.message});}
+ await eventMutation(req,req.params.id,'coupons_updated','UPDATE events SET coupons=$2 WHERE id=$1',[req.params.id,JSON.stringify(coupons)]);res.json({ok:true,coupons});
+}));
+
+const UPLOAD_EVENT_DIR=path.join(__dirname,'uploads','events');fs.mkdirSync(UPLOAD_EVENT_DIR,{recursive:true});
+const eventCoverUpload=multer({storage:multer.memoryStorage(),limits:{fileSize:5*1024*1024,files:1,fields:0,parts:2}});
+app.post('/api/admin/events/:id/cover',auth,requireDb,eventEditor,(req,res)=>{
+ eventCoverUpload.single('file')(req,res,async err=>{
+  if(err)return res.status(400).json({error:err.message});
+  try{
+   if(!(await q('SELECT id FROM events WHERE id=$1',[req.params.id])).rowCount)return res.status(404).json({error:'找不到活動。'});
+   const file=req.file,invalid=file?assertSocialImageFile({mimetype:file.mimetype,size:file.size}):'請選擇圖片。';
+   if(invalid||sniffImageType(file.buffer.subarray(0,12))!==file.mimetype)return res.status(400).json({error:invalid||'圖片內容與格式不符。'});
+   const filename='event-'+buildSafeSocialFilename(file.originalname,file.mimetype);let url=await igPublisher.uploadAsset(file.buffer,filename,file.mimetype);
+   if(!url){fs.writeFileSync(path.join(UPLOAD_EVENT_DIR,filename),file.buffer);url='/uploads/events/'+filename;}
+   await eventMutation(req,req.params.id,'cover_updated',"UPDATE events SET event_details=event_details || jsonb_build_object('cover_url',$2::text) WHERE id=$1",[req.params.id,url]);res.json({url});
+  }catch(e){console.error('[event-cover]',e.message);res.status(500).json({error:'封面上傳失敗，請稍後再試。'});}
+ });
+});
+
+const eventContentUpload=multer({storage:multer.memoryStorage(),limits:{fileSize:10*1024*1024,files:1,fields:0,parts:2}});
+app.post('/api/admin/events/:id/content/upload',auth,requireDb,eventEditor,(req,res)=>{
+ eventContentUpload.single('file')(req,res,async err=>{
+  if(err)return res.status(400).json({error:err.code==='LIMIT_FILE_SIZE'?'檔案上限為 10 MB。':'請選擇一個圖片或 PDF 檔案。'});
+  let fileType;try{fileType=contentFileType(req.file);}catch(e){return res.status(400).json({error:e.message});}
+  try{
+   if(!(await q('SELECT id FROM events WHERE id=$1',[req.params.id])).rowCount)return res.status(404).json({error:'找不到活動。'});
+   const filename='content-'+crypto.randomBytes(16).toString('hex')+fileType.extension;
+   let url=await igPublisher.uploadAsset(req.file.buffer,filename,fileType.contentType);
+   if(!url){await fs.promises.writeFile(path.join(UPLOAD_EVENT_DIR,filename),req.file.buffer,{flag:'wx'});url='/uploads/events/'+filename;}
+   res.json({url,type:fileType.type,name:String(req.file.originalname||'附件').slice(0,200),size:req.file.size});
+  }catch(e){console.error('[event-content-upload]',e.message);res.status(500).json({error:'附件上傳失敗，請稍後再試。'});}
+ });
+});
+
+app.get('/api/admin/events/:id/embed',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ const event=(await q('SELECT embed_origins FROM events WHERE id=$1',[req.params.id])).rows[0];if(!event)return res.status(404).json({error:'找不到活動。'});res.json({origins:event.embed_origins});
+}));
+app.put('/api/admin/events/:id/embed',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ let origins;try{origins=embedOrigins(req.body?.origins,/^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(SITE_BASE));}catch(e){return res.status(400).json({error:e.message});}
+ const result=await eventMutation(req,req.params.id,'embed_updated','UPDATE events SET embed_origins=$2 WHERE id=$1',[req.params.id,JSON.stringify(origins)]);if(!result.rowCount)return res.status(404).json({error:'找不到活動。'});res.json({ok:true,origins});
+}));
+
+app.get('/api/admin/events/:id/content',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ const event=(await q('SELECT rich_content,description,translations FROM events WHERE id=$1',[req.params.id])).rows[0];if(!event)return res.status(404).json({error:'找不到活動。'});res.json(event);
+}));
+app.post('/api/admin/events/:id/content/preview',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ try{res.json({html:richText(req.body?.html,req.body?.pasted_text)});}catch(e){res.status(400).json({error:e.message});}
+}));
+app.put('/api/admin/events/:id/content',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ const lang=req.body?.lang,text=req.body?.text;if(!['zh','en','ja'].includes(lang)||typeof text!=='string'||text.length>10000)return res.status(400).json({error:'請選擇語系，純文字摘要最多 10000 字。'});
+ let html;try{html=richText(req.body?.html);}catch(e){return res.status(400).json({error:e.message});}
+ await eventMutation(req,req.params.id,'rich_content_updated',`UPDATE events SET rich_content=rich_content || jsonb_build_object($2::text,$3::text),description=CASE WHEN $2='zh' THEN $4 ELSE description END,translations=translations || jsonb_build_object($2::text,COALESCE(translations->$2,'{}'::jsonb)||jsonb_build_object('description',$4::text)) WHERE id=$1`,[req.params.id,lang,html,text.trim()]);res.json({ok:true,html});
+}));
+app.post('/api/admin/events/:id/details',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ const b=req.body||{},details={};
+ if(!['offline','online','hybrid'].includes(b.mode)||typeof b.hide_location!=='boolean')return res.status(400).json({error:'活動形式或地點設定不正確。'});
+ details.mode=b.mode;details.hide_location=b.hide_location;
+ const theme=b.theme||'minimal',appearance=b.appearance||'light',accent=b.accent||'#FFDE34';
+ if(!['minimal','gradient','dots','grid','confetti','emoji','seasonal','polaroid'].includes(theme)||!['light','dark'].includes(appearance)||!/^#[0-9a-fA-F]{6}$/.test(accent))return res.status(400).json({error:'主題或色彩格式不正確。'});
+ if(b.show_guest_list!==undefined&&typeof b.show_guest_list!=='boolean')return res.status(400).json({error:'來賓名單開關格式錯誤。'});
+ Object.assign(details,{theme,appearance,accent,show_guest_list:b.show_guest_list===true});
+
+ for(const key of ['cover_url','online_url']){
+  const value=String(b[key]||'').trim();if(value.length>2000)return res.status(400).json({error:'網址過長。'});
+  if(value){let url;try{url=new URL(value,SITE_BASE);}catch{}if(!url||url.protocol!=='https:'&&!(key==='cover_url'&&value.startsWith('/uploads/')))return res.status(400).json({error:'請使用有效 https 網址，或已上傳的封面圖片。'});}
+  details[key]=value;
+ }
+ const email=String(b.contact_email||'').trim();if(email&&(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254))return res.status(400).json({error:'聯絡 Email 格式不正確。'});details.contact_email=email;
+ await eventMutation(req,req.params.id,'details_updated','UPDATE events SET event_details=$2 WHERE id=$1',[req.params.id,JSON.stringify(details)]);res.json({ok:true,details});
+}));
+app.post('/api/admin/events/:id/cancel',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ if(req.body?.notify!==undefined&&typeof req.body.notify!=='boolean')return res.status(400).json({error:'通知選項格式不正確。'});
+ if(req.body?.notify&&!process.env.RESEND_API_KEY)return res.status(503).json({error:'寄信服務尚未設定；取消勾選通知後可取消活動。'});
+ const reason=String(req.body?.reason||'').trim();if(!reason||reason.length>1000)return res.status(400).json({error:'請填寫取消原因（最多 1000 字）。'});
+ const translations=req.body?.reason_translations??{};if(typeof translations!=='object'||Array.isArray(translations)||Object.keys(translations).some(lang=>!['en','ja'].includes(lang)||typeof translations[lang]!=='string'||translations[lang].length>1000))return res.status(400).json({error:'取消原因翻譯僅支援 en／ja，各最多 1000 字。'});
+ const client=await pool.connect();try{await client.query('BEGIN');
+ const event=(await client.query('SELECT * FROM events WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+ if(!event){await client.query('ROLLBACK');return res.status(404).json({error:'找不到活動。'});}
+ if(event.status==='已取消'){await client.query('COMMIT');return res.json({ok:true,already:true});}
+ const open=(await client.query("SELECT stripe_session_id FROM event_regs WHERE event_id=$1 AND status='pending_payment' AND stripe_session_id IS NOT NULL UNION ALL SELECT o.stripe_session_id FROM event_ticket_orders o JOIN event_regs r ON r.id=o.registration_id WHERE r.event_id=$1 AND o.status='pending_payment' AND o.stripe_session_id IS NOT NULL",[event.id])).rows;
+ if(open.length&&!stripe){await client.query('ROLLBACK');return res.status(503).json({error:'須先連線 Stripe 關閉待付款結帳，再取消活動。'});}
+ for(const row of open){const session=await stripe.checkout.sessions.retrieve(row.stripe_session_id);if(session.status==='open')await stripe.checkout.sessions.expire(session.id);}
+ const held=(await client.query("SELECT stripe_payment_intent_id FROM event_regs WHERE event_id=$1 AND capture_required=true AND status='pending_approval' AND stripe_payment_intent_id IS NOT NULL FOR UPDATE",[event.id])).rows;
+ if(held.length&&!stripe){await client.query('ROLLBACK');return res.status(503).json({error:'須連線 Stripe 解除預授權，再取消活動。'});}
+ for(const r of held){const intent=await stripe.paymentIntents.retrieve(r.stripe_payment_intent_id);if(intent.status==='requires_capture')await stripe.paymentIntents.cancel(intent.id);}
+
+ await client.query("UPDATE events SET status='已取消',event_details=event_details || jsonb_build_object('cancellation_reason',$2::text,'cancelled_at',now(),'cancellation_translations',$3::jsonb) WHERE id=$1",[event.id,reason,JSON.stringify(translations)]);
+ await client.query('INSERT INTO event_activity(event_id,actor_id,action) VALUES($1,$2,$3)',[event.id,req.auth.sub||null,'event_cancelled']);
+ const queued=req.body?.notify?await require('./lib/event-mailer').queueCancellation((sql,args)=>client.query(sql,args),event,reason,SITE_BASE,translations):0;
+ await client.query('COMMIT');res.json({ok:true,notifications_queued:queued,notice:'活動已取消。已付款票款不會自動退款，請由言文字平台辦理。'+(req.body?.notify?'取消通知已排入佇列 '+queued+' 封，寄送狀態請見來賓通知。':'本次未發送取消通知。')});
+ }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
+}));
+
+app.get('/api/admin/events/:id/messages',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ const messages=(await q(`SELECT m.*,COALESCE((SELECT jsonb_agg(jsonb_build_object('state',d.state,'email',d.email,'error',d.last_error,'events',COALESCE((SELECT jsonb_agg(jsonb_build_object('type',x.event_type,'at',x.occurred_at) ORDER BY x.occurred_at) FROM event_delivery_events x WHERE x.provider_id=d.provider_id),'[]'::jsonb))) FROM event_deliveries d WHERE d.message_id=m.id),'[]') AS deliveries FROM event_messages m WHERE event_id=$1 ORDER BY created_at DESC`,[req.params.id])).rows;
+ const tickets=(await q('SELECT tickets FROM events WHERE id=$1',[req.params.id])).rows[0]?.tickets||[];
+ res.json({messages,tickets:tickets.map(t=>({id:t.id,name:t.name})),configured:!!process.env.RESEND_API_KEY});
+}));
+app.post('/api/admin/events/:id/messages',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ let value;try{value=normalizeBlast(req.body);}catch(e){return res.status(400).json({error:e.message});}
+ const id=uid('msg_');await eventMutation(req,req.params.id,'message_drafted','INSERT INTO event_messages(id,event_id,subject,body,audience,audiences,ticket_ids,body_html) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[id,req.params.id,value.subject,value.body,value.audiences[0],JSON.stringify(value.audiences),JSON.stringify(value.ticketIds),value.bodyHtml||'']);res.json({ok:true,id});
+}));
+app.patch('/api/admin/events/:id/messages/:messageId',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ let value;try{value=normalizeBlast(req.body);}catch(e){return res.status(400).json({error:e.message});}
+ const result=await eventMutation(req,req.params.id,'message_edited',"UPDATE event_messages SET subject=$3,body=$4,audience=$5,audiences=$6,ticket_ids=$7,body_html=CASE WHEN $8::text IS NOT NULL THEN $8 WHEN body=$4 THEN body_html ELSE '' END WHERE id=$1 AND event_id=$2 AND state='draft' AND registration_id IS NULL RETURNING id",[req.params.messageId,req.params.id,value.subject,value.body,value.audiences[0],JSON.stringify(value.audiences),JSON.stringify(value.ticketIds),value.bodyHtml??null]);
+ if(!result.rowCount)return res.status(409).json({error:'僅能編輯此活動尚未發布的草稿。'});res.json({ok:true,html:value.bodyHtml||''});
+}));
+app.get('/api/admin/events/:id/messages/:messageId/preview',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ const message=(await q('SELECT id,subject,body,body_html,audiences,ticket_ids,state FROM event_messages WHERE id=$1 AND event_id=$2',[req.params.messageId,req.params.id])).rows[0];
+ if(!message)return res.status(404).json({error:'找不到訊息。'});
+ const recipients=(await q(`SELECT DISTINCT u.email FROM event_regs r JOIN users u ON u.id=r.user_id JOIN event_messages m ON m.event_id=r.event_id WHERE r.event_id=$1 AND m.id=$2 AND ${blastAudienceSQL} AND NOT EXISTS(SELECT 1 FROM event_notification_preferences p WHERE p.event_id=r.event_id AND p.user_id=r.user_id AND NOT p.blasts) ORDER BY u.email`,[req.params.id,message.id])).rows;
+ res.json({message,count:recipients.length,recipients});
+}));
+app.post('/api/admin/events/:id/messages/:messageId/publish',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ const result=await eventMutation(req,req.params.id,'message_published',"UPDATE event_messages SET state='published',send_at=now() WHERE id=$1 AND event_id=$2 AND state='draft' AND registration_id IS NULL RETURNING id",[req.params.messageId,req.params.id]);
+ if(!result.rowCount)return res.status(409).json({error:'此草稿已發布或取消。'});res.json({ok:true,email_sent:false});
+}));
+app.post('/api/events/unsubscribe',rateLimit({max:30,windowMs:60000}),requireDb,wrap(async(req,res)=>{
+ const {verifyUnsubscribe,notificationCategory}=require('./lib/event-mailer'),id=verifyUnsubscribe(req.body?.token,SECRET);
+ if(!id)return res.status(400).json({error:'退訂連結無效。'});
+ const row=(await q(`SELECT d.id,d.email,m.event_id,e.title,jsonb_build_object('registration_id',m.registration_id) AS context FROM event_deliveries d JOIN event_messages m ON m.id=d.message_id JOIN events e ON e.id=m.event_id WHERE d.id=$1`,[id])).rows[0];
+ const category=row&&notificationCategory(row);if(!category)return res.status(400).json({error:'此連結不能用於退訂。'});
+ if(req.body.action==='preview')return res.json({event:row.title,category});
+ if(req.body.action!=='unsubscribe')return res.status(400).json({error:'請確認是否退訂。'});
+ await q(`INSERT INTO event_notification_preferences(event_id,user_id,blasts,reminders,feedback)
+ SELECT $1,id,$3<>'blasts',$3<>'reminders',$3<>'feedback' FROM users WHERE lower(email)=lower($2)
+ ON CONFLICT(event_id,user_id) DO UPDATE SET blasts=CASE WHEN $3='blasts' THEN false ELSE event_notification_preferences.blasts END,reminders=CASE WHEN $3='reminders' THEN false ELSE event_notification_preferences.reminders END,feedback=CASE WHEN $3='feedback' THEN false ELSE event_notification_preferences.feedback END,updated_at=now()`,[row.event_id,row.email,category]);
+ res.json({ok:true,category});
+}));
+
+async function eventParticipant(req,res,next){
+ try{const found=await q(`SELECT 1 FROM events e JOIN event_regs r ON r.event_id=e.id WHERE e.id=$1 AND e.status<>'草稿' AND (r.user_id=$2 OR EXISTS(SELECT 1 FROM event_attendees a WHERE a.registration_id=r.id AND a.email=lower($3))) LIMIT 1`,[req.params.id,req.auth.sub,req.auth.email||'']);if(!found.rowCount)return res.status(404).json({error:'找不到你的活動報名。'});next();}catch(e){next(e);}
+}
+app.post('/api/events/:id/join-online',auth,requireDb,wrap(async(req,res)=>{
+ const event=(await q(`SELECT e.event_details FROM events e WHERE e.id=$1 AND e.status NOT IN ('草稿','預告','已取消') AND EXISTS(
+ SELECT 1 FROM event_regs r WHERE r.event_id=e.id AND r.status='registered' AND (r.user_id=$2 OR EXISTS(
+ SELECT 1 FROM event_attendees a LEFT JOIN event_ticket_orders o ON o.id=a.order_id WHERE a.registration_id=r.id AND a.email=lower($3) AND (a.order_id IS NULL OR o.status='registered'))))`,[req.params.id,req.auth.sub,req.auth.email||''])).rows[0];
+ if(!event)return res.status(404).json({error:'找不到有效的活動報名。'});
+ let url;try{url=new URL(event.event_details?.online_url);if(url.protocol!=='https:'||url.username||url.password)throw Error();}catch{return res.status(409).json({error:'主辦人尚未提供有效的線上活動連結。'});}
+ await q(`INSERT INTO event_online_joins(event_id,user_id) VALUES($1,$2) ON CONFLICT(event_id,user_id) DO UPDATE SET last_joined_at=now(),clicks=event_online_joins.clicks+1`,[req.params.id,req.auth.sub]);
+ res.json({url:url.href});
+}));
+app.get('/api/events/:id/notification-settings',auth,requireDb,eventParticipant,wrap(async(req,res)=>{
+ const settings=(await q('SELECT blasts,reminders,feedback FROM event_notification_preferences WHERE event_id=$1 AND user_id=$2',[req.params.id,req.auth.sub])).rows[0]||{blasts:true,reminders:true,feedback:true};res.json({settings});
+}));
+app.put('/api/events/:id/notification-settings',auth,requireDb,eventParticipant,wrap(async(req,res)=>{
+ const b=req.body||{};if(['blasts','reminders','feedback'].some(k=>typeof b[k]!=='boolean'))return res.status(400).json({error:'通知設定必須為開啟或關閉。'});
+ await q(`INSERT INTO event_notification_preferences(event_id,user_id,blasts,reminders,feedback) VALUES($1,$2,$3,$4,$5) ON CONFLICT(event_id,user_id) DO UPDATE SET blasts=$3,reminders=$4,feedback=$5,updated_at=now()`,[req.params.id,req.auth.sub,b.blasts,b.reminders,b.feedback]);res.json({ok:true});
+}));
+app.get('/api/events/:id/messages',auth,requireDb,wrap(async(req,res)=>{
+ const messages=(await q(`SELECT DISTINCT m.id,m.subject,m.body,m.body_html,m.send_at FROM event_messages m JOIN events e ON e.id=m.event_id JOIN event_regs r ON r.event_id=m.event_id
+ WHERE m.event_id=$1 AND e.status<>'草稿' AND m.registration_id IS NULL AND m.state IN ('published','scheduled') AND m.send_at<=now()
+ AND (r.user_id=$2 OR EXISTS(SELECT 1 FROM event_attendees a LEFT JOIN event_ticket_orders o ON o.id=a.order_id WHERE a.registration_id=r.id AND a.email=lower($3)
+ AND (a.order_id IS NULL OR o.status='registered')
+ AND (jsonb_array_length(m.ticket_ids)=0 OR m.ticket_ids ? (CASE WHEN a.order_id IS NULL THEN r.ticket_snapshot->>'id' ELSE o.ticket_snapshot->>'id' END))
+ AND ((CASE WHEN jsonb_array_length(m.audiences)>0 THEN m.audiences ELSE jsonb_build_array(m.audience) END) ? r.status OR a.checked_in_at IS NOT NULL))) AND ${blastAudienceSQL}
+ ORDER BY m.send_at DESC,m.id DESC LIMIT 100`,[req.params.id,req.auth.sub,req.auth.email||''])).rows;
+ res.json({messages});
+}));
+app.post('/api/admin/events/:id/messages/:messageId/schedule',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ if(!process.env.RESEND_API_KEY)return res.status(503).json({error:'寄信服務尚未設定，草稿已保留，未寄送。'});
+ const sendAt=req.body?.send_at?new Date(req.body.send_at):new Date();
+ if(!Number.isFinite(+sendAt)||+sendAt<Date.now()-60000)return res.status(400).json({error:'請選擇有效的未來時間。'});
+ const client=await pool.connect();try{await client.query('BEGIN');
+ const message=(await client.query('SELECT * FROM event_messages WHERE id=$1 AND event_id=$2 FOR UPDATE',[req.params.messageId,req.params.id])).rows[0];
+ if(!message){await client.query('ROLLBACK');return res.status(404).json({error:'找不到訊息。'});}
+ if(message.state!=='draft'){await client.query('ROLLBACK');return res.status(409).json({error:'訊息已排程或取消，請勿重複寄送。'});}
+ const recipients=(await client.query(`SELECT DISTINCT u.email FROM event_regs r JOIN users u ON u.id=r.user_id JOIN event_messages m ON m.event_id=r.event_id WHERE r.event_id=$1 AND m.id=$2 AND ${blastAudienceSQL} AND NOT EXISTS(SELECT 1 FROM event_notification_preferences p WHERE p.event_id=r.event_id AND p.user_id=r.user_id AND NOT p.blasts)`,[req.params.id,message.id])).rows;
+ if(!recipients.length){await client.query('ROLLBACK');return res.status(409).json({error:'此分眾目前沒有收件人。'});}
+ for(const r of recipients)await client.query('INSERT INTO event_deliveries(id,message_id,email,subject,body,next_attempt_at,body_html) VALUES($1,$2,$3,$4,$5,$6,$7)',[uid('mail_'),message.id,r.email,message.subject,message.body,sendAt,message.body_html]);
+ await client.query("UPDATE event_messages SET state='scheduled',send_at=$2 WHERE id=$1",[message.id,sendAt]);await client.query('COMMIT');res.json({ok:true,recipients:recipients.length,send_at:sendAt});
+ }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
+}));
+app.post('/api/admin/events/:id/messages/:messageId/cancel',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ const client=await pool.connect();try{await client.query('BEGIN');
+ const m=(await client.query('SELECT * FROM event_messages WHERE id=$1 AND event_id=$2 FOR UPDATE',[req.params.messageId,req.params.id])).rows[0];
+ if(!m){await client.query('ROLLBACK');return res.status(404).json({error:'找不到訊息。'});}
+ const cancelled=await client.query("UPDATE event_deliveries SET state='cancelled' WHERE message_id=$1 AND state='queued' AND first_attempt_at IS NULL RETURNING id",[m.id]);
+ await client.query("UPDATE event_messages SET state='cancelled' WHERE id=$1",[m.id]);await client.query('COMMIT');res.json({ok:true,cancelled:cancelled.rowCount});
+ }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
+}));
+
+app.get('/api/admin/events/:id/insights',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ const days=Number(req.query.days||30);if(![1,7,30,90].includes(days))return res.status(400).json({error:'可查詢 1、7、30 或 90 天。'});
+ const views=(await q(`SELECT day::text AS day,source,campaign,views FROM event_views WHERE event_id=$1 AND day>=(now() AT TIME ZONE 'Asia/Taipei')::date-$2::int ORDER BY day DESC,views DESC`,[req.params.id,days-1])).rows;
+ const guests=(await q(`SELECT status,COALESCE(SUM(quantity),0)::int AS count,COALESCE(SUM(CASE WHEN quantity>1 THEN (SELECT COUNT(*) FROM event_attendees a WHERE a.registration_id=event_regs.id AND a.checked_in_at IS NOT NULL) ELSE (checked_in_at IS NOT NULL)::int END),0)::int AS checked_in FROM event_regs WHERE event_id=$1 GROUP BY status`,[req.params.id])).rows;
+ const visitors=(await q(`SELECT COUNT(DISTINCT visitor_hash)::int AS unique_sessions,COUNT(DISTINCT visitor_hash) FILTER(WHERE last_seen>now()-interval '5 minutes')::int AS active_sessions FROM event_visitors WHERE event_id=$1 AND day>=(now() AT TIME ZONE 'Asia/Taipei')::date-$2::int`,[req.params.id,days-1])).rows[0];
+ const attribution=(await q(`SELECT COALESCE(NULLIF(attribution->>'source',''),'direct') AS source,COALESCE(attribution->>'campaign','') AS campaign,COALESCE(attribution->>'referral','') AS referral,COUNT(*)::int AS bookings,COALESCE(SUM(quantity) FILTER(WHERE status='registered'),0)::int AS registered FROM event_regs WHERE event_id=$1 AND created_at>=((now() AT TIME ZONE 'Asia/Taipei')::date-$2::int) AT TIME ZONE 'Asia/Taipei' GROUP BY 1,2,3 ORDER BY bookings DESC`,[req.params.id,days-1])).rows;
+ const online=(await q('SELECT COUNT(*)::int AS participants,COALESCE(SUM(clicks),0)::int AS clicks FROM event_online_joins WHERE event_id=$1',[req.params.id])).rows[0];
+ const registrations=(await q(`SELECT (created_at AT TIME ZONE 'Asia/Taipei')::date::text AS day,
+   COUNT(*)::int AS bookings,
+   COUNT(*) FILTER(WHERE entry_source='self_service')::int AS self_service_bookings,
+   COALESCE(SUM(quantity) FILTER(WHERE status='registered'),0)::int AS registered,
+   COALESCE(SUM(quantity) FILTER(WHERE entry_source='self_service' AND status='registered'),0)::int AS self_service_registered,
+   COALESCE(SUM(CASE WHEN entry_source='self_service' AND status='registered' THEN CASE WHEN quantity>1 THEN (SELECT COUNT(*) FROM event_attendees a WHERE a.registration_id=event_regs.id AND a.checked_in_at IS NOT NULL) ELSE (checked_in_at IS NOT NULL)::int END ELSE 0 END),0)::int AS self_service_checked_in
+   FROM event_regs WHERE event_id=$1 AND created_at>=((now() AT TIME ZONE 'Asia/Taipei')::date-$2::int) AT TIME ZONE 'Asia/Taipei' GROUP BY 1 ORDER BY 1 DESC`,[req.params.id,days-1])).rows;
+ res.json({days,views,guests,visitors,attribution,online,registrations});
+}));
+
+app.post('/api/admin/events/:id/tickets',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ let tickets;try{tickets=normalizeTickets(req.body?.tickets);}catch(e){return res.status(400).json({error:e.message});}
+ await eventMutation(req,req.params.id,'tickets_updated','UPDATE events SET tickets=$2 WHERE id=$1',[req.params.id,JSON.stringify(tickets)]);
+ res.json({ok:true,tickets});
+}));
+
+app.post('/api/admin/events/:id/questions',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+  let questions;try{questions=eventQuestions.questions(req.body?.questions);}catch(e){return res.status(400).json({error:e.message});}
+  await eventMutation(req,req.params.id,'questions_updated',`UPDATE events SET registration_settings=jsonb_set(registration_settings,'{questions}',$2::jsonb) WHERE id=$1`,[req.params.id,JSON.stringify(questions)]);
+  res.json({ok:true,questions});
+}));
+
+app.post('/api/admin/events/:id/registration-settings', auth, requireDb, eventEditor, wrap(async(req,res)=>{
+  const b=req.body || {};
+  if(typeof b.requires_approval!=='boolean'||typeof b.waitlist!=='boolean')return res.status(400).json({error:'審核與候補設定格式不正確。'});
+  const settings={requires_approval:b.requires_approval,waitlist:b.waitlist};
+  if(b.group_registration!==undefined){if(typeof b.group_registration!=='boolean')return res.status(400).json({error:'團體報名設定格式不正確。'});settings.group_registration=b.group_registration;}
+  if(b.payment_approval!==undefined){if(!['after_approval','authorize'].includes(b.payment_approval))return res.status(400).json({error:'付費審核方式無效。'});settings.payment_approval=b.payment_approval;}
+  if(b.feedback!==undefined){const f=b.feedback;if(!f||typeof f.enabled!=='boolean'||!Number.isInteger(f.delay_hours)||f.delay_hours<0||f.delay_hours>168||typeof f.subject!=='string'||f.subject.length>160||typeof f.body!=='string'||f.body.length>5000)return res.status(400).json({error:'回饋邀請需設定開關、活動結束後 0–168 小時、有效主旨與內容。'});settings.feedback={enabled:f.enabled,delay_hours:f.delay_hours,subject:f.subject.trim(),body:f.body.trim()};}
+  if(b.reminders!==undefined){if(!Array.isArray(b.reminders)||b.reminders.some(h=>![1,24].includes(h)))return res.status(400).json({error:'提醒時間只可選活動前 24 小時或 1 小時。'});settings.reminders=[...new Set(b.reminders)];}
+  for(const key of ['opens_at','closes_at']){
+    if(b[key] && (typeof b[key]!=='string'||!Number.isFinite(Date.parse(b[key]))))return res.status(400).json({error:'報名時間格式不正確。'});
+    settings[key]=b[key]?new Date(b[key]).toISOString():null;
+  }
+  if(settings.opens_at&&settings.closes_at&&settings.opens_at>=settings.closes_at)return res.status(400).json({error:'截止時間必須晚於開放時間。'});
+  await eventMutation(req,req.params.id,'registration_settings_updated','UPDATE events SET registration_settings=registration_settings || $2::jsonb WHERE id=$1',[req.params.id,JSON.stringify(settings)]);
+  res.json({ok:true,settings});
+}));
+app.get('/api/admin/events/:id/activity',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+  const activity=(await q(`SELECT a.id,a.registration_id,a.actor_id,u.name AS actor_name,a.action,a.created_at FROM event_activity a LEFT JOIN users u ON u.id=a.actor_id WHERE a.event_id=$1 AND ($2::bigint IS NULL OR a.id<$2) ORDER BY a.id DESC LIMIT 100`,[req.params.id,/^[0-9]{1,18}$/.test(req.query.before||'')?req.query.before:null])).rows;
+  res.json({activity,next:activity.length===100?activity.at(-1).id:null});
+}));
+app.post('/api/admin/events/:id/regs/:registrationId/status',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+  let status=req.body?.status;
+  if(!['registered','declined','pending_approval','waitlisted'].includes(status))return res.status(400).json({error:'請選擇有效報名狀態。'});
+  if(req.body?.notify!==undefined&&typeof req.body.notify!=='boolean'||req.body?.message!==undefined&&(typeof req.body.message!=='string'||req.body.message.length>5000))return res.status(400).json({error:'通知設定格式不正確。'});
+  if(req.body?.notify&&!process.env.RESEND_API_KEY)return res.status(503).json({error:'寄信服務尚未設定；可取消通知後更新狀態。'});
+  const client=await pool.connect();
+  try{
+    await client.query('BEGIN');
+    const ev=(await client.query('SELECT * FROM events WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+    const reg=(await client.query('SELECT * FROM event_regs WHERE event_id=$1 AND id=$2 FOR UPDATE',[req.params.id,req.params.registrationId])).rows[0];
+    if(!reg){await client.query('ROLLBACK');return res.status(404).json({error:'找不到報名。'});}
+    if(reg.status===status){await client.query('COMMIT');return res.json({ok:true,status});}
+    if(!['registered','pending_approval','waitlisted','declined','cancelled'].includes(reg.status)){await client.query('ROLLBACK');return res.status(409).json({error:'這筆報名目前有付款處理中或已退款，請先完成款項處理。'});}
+    if(reg.checked_in_at||(await client.query('SELECT 1 FROM event_attendees WHERE registration_id=$1 AND checked_in_at IS NOT NULL LIMIT 1',[reg.id])).rowCount){await client.query('ROLLBACK');return res.status(409).json({error:'請先撤銷簽到，再變更報名狀態。'});}
+    if(status!=='registered'&&(reg.amount_paid>0||(await client.query("SELECT 1 FROM event_ticket_orders WHERE registration_id=$1 AND ticket_version=$2 AND status IN ('registered','pending_payment','refund_pending') AND amount_due>0 LIMIT 1",[reg.id,reg.ticket_version])).rowCount)){await client.query('ROLLBACK');return res.status(409).json({error:'此報名尚有票款，請先由言文字處理退款。'});}
+    if(['pending_approval','waitlisted'].includes(status)&&reg.capture_required&&reg.stripe_payment_intent_id){await client.query('ROLLBACK');return res.status(409).json({error:'預授權報名請先完成核准請款或拒絕解除。'});}
+    if(status==='registered'){
+      if(ev.status!=='報名中'){await client.query('ROLLBACK');return res.status(409).json({error:'活動目前未開放報名。'});}
+      const count=await reservedEventSeats(client,ev.id);
+      if(ev.capacity>0&&count+reg.quantity>ev.capacity){await client.query('ROLLBACK');return res.status(409).json({error:'名額已滿，請先釋出名額。'});}
+      const additional=(await client.query("SELECT quantity,ticket_snapshot FROM event_ticket_orders WHERE registration_id=$1 AND ticket_version=$2 AND status IN ('registered','refund_pending')",[reg.id,reg.ticket_version])).rows;
+      const quantities=new Map();if(reg.ticket_snapshot?.id)quantities.set(reg.ticket_snapshot.id,reg.quantity-additional.reduce((n,o)=>n+o.quantity,0));
+      for(const order of additional)if(order.ticket_snapshot?.id)quantities.set(order.ticket_snapshot.id,(quantities.get(order.ticket_snapshot.id)||0)+order.quantity);
+      for(const [ticketId,quantity] of quantities){if(quantity<=0)continue;
+        const ticket=(ev.tickets||[]).find(t=>t.id===ticketId);
+        if(!ticket||!ticket.active){await client.query('ROLLBACK');return res.status(409).json({error:'此報名包含已停用票種。'});}
+        const used=await reservedEventSeats(client,ev.id,ticket.id);
+        if(ticket.capacity>0&&used+quantity>ticket.capacity){await client.query('ROLLBACK');return res.status(409).json({error:'此票種名額已滿。'});}
+      }
+      if(reg.amount_due>reg.amount_paid&&!reg.capture_required)status='approved';
+    }
+    if(reg.capture_required&&reg.stripe_payment_intent_id){
+      if(!stripe){await client.query('ROLLBACK');return res.status(503).json({error:'須連線 Stripe 核對預授權。'});}
+      let intent=await stripe.paymentIntents.retrieve(reg.stripe_payment_intent_id);
+      if(status==='declined'){
+        if(intent.status==='requires_capture')intent=await stripe.paymentIntents.cancel(intent.id);
+        if(intent.status!=='canceled'){await client.query('ROLLBACK');return res.status(409).json({error:'此款項已請款或處理中，請由言文字核對並退款。'});}
+      }else{
+        if(intent.status==='requires_capture'&&reg.authorization_expires_at&&+new Date(reg.authorization_expires_at)<=Date.now())intent=await stripe.paymentIntents.cancel(intent.id);
+        if(intent.status==='canceled'){await client.query("UPDATE event_regs SET status='expired' WHERE id=$1",[reg.id]);await client.query('COMMIT');return res.status(409).json({error:'信用卡預授權已失效，請參加者重新報名。'});}
+        if(intent.status==='requires_capture')intent=await stripe.paymentIntents.capture(intent.id,{amount_to_capture:reg.amount_due*100},{idempotencyKey:'event-capture-'+intent.id});
+        if(intent.status==='succeeded'&&intent.currency==='twd'&&intent.amount_received===reg.amount_due*100){status='registered';await client.query('UPDATE event_regs SET amount_paid=amount_due,paid_at=now() WHERE id=$1',[reg.id]);}
+        else if(intent.status==='processing')status='capture_pending';
+        else throw new Error('信用卡請款結果與報名資料不符，請在 Stripe 核對');
+      }
+    }
+    await client.query("UPDATE event_regs SET status=$2,checkout_expires_at=CASE WHEN $2='approved' THEN now()+interval '24 hours' ELSE NULL END WHERE id=$1",[reg.id,status]);
+    await client.query('INSERT INTO event_activity(event_id,registration_id,actor_id,action) VALUES($1,$2,$3,$4)',[ev.id,reg.id,req.auth.sub||null,status]);
+    if(req.body?.notify){
+      const user=(await client.query('SELECT email FROM users WHERE id=$1',[reg.user_id])).rows[0];
+      const lang=['en','ja'].includes(reg.language)?reg.language:'zh',title=ev.translations?.[lang]?.title||ev.title;
+      const labels={registered:['已核准','Approved','承認済み'],approved:['已核准，請於 24 小時內付款','Approved — pay within 24 hours','承認済み：24時間以内にお支払いください'],declined:['未獲核准','Not approved','承認されませんでした'],waitlisted:['候補中','Waitlisted','キャンセル待ち'],pending_approval:['待審核','Pending approval','承認待ち'],capture_pending:['請款處理中','Payment processing','決済処理中']};
+      const label=labels[status]?.[['zh','en','ja'].indexOf(lang)]||status;
+      await require('./lib/event-mailer').queueEventMail((sql,args)=>client.query(sql,args),{id:uid('status_'),eventId:ev.id,registrationId:reg.id,ticketVersion:reg.ticket_version,expectedStatus:status,email:user.email,subject:title+' · '+label,body:label+'\n\n'+(req.body.message||'')+'\n\n'+SITE_BASE+(lang==='zh'?'':'/'+lang)+'/events/'+encodeURIComponent(ev.slug)});
+    }
+    await client.query('COMMIT');res.json({ok:true,status});
+  }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
+}));
+
+app.post('/api/admin/events/:id/duplicate', auth, requireDb, eventEditor, wrap(async (req,res) => {
+  if(req.auth.role !== 'admin' && !req.auth.can_create_events) return res.status(403).json({error:'建立活動需要平台授權。'});
+  const id=uid('e_'), slug='event-'+crypto.randomBytes(8).toString('hex');
+  const result=await eventMutation(req,id,'event_duplicated',`INSERT INTO events(id,slug,title,description,location,starts_at,ends_at,capacity,price_twd,visibility,status,translations,owner_id,registration_settings,tickets,event_details,coupons,rich_content)
+    SELECT $2,$3,title || '（副本）',description,location,starts_at,ends_at,capacity,price_twd,visibility,'草稿',translations,$4,registration_settings,tickets,event_details-'cancellation_reason',coupons,rich_content
+    FROM events WHERE id=$1 RETURNING id`,[req.params.id,id,slug,req.auth.sub || null]);
+  if(!result.rowCount)return res.status(404).json({error:'找不到活動。'});
+  res.json({ok:true,id,slug});
+}));
+
+app.get('/api/admin/events/:id/hosts', auth, requireDb, eventEditor, wrap(async (req,res) => {
+  const owner = (await q(`SELECT u.name,u.email FROM events e JOIN users u ON u.id=e.owner_id WHERE e.id=$1`,[req.params.id])).rows[0] || null;
+  const event = (await q(`SELECT title,tickets,checkin_mode,checkin_mode_locked FROM events WHERE id=$1`,[req.params.id])).rows[0];
+  const hosts = (await q(`SELECT email,name,is_visible,can_manage,can_checkin,checkin_ticket_ids FROM event_hosts WHERE event_id=$1 ORDER BY name,email`,[req.params.id])).rows;
+  res.json({owner,hosts,tickets:event?.tickets||[],checkin:{mode:event?.checkin_mode||'standard',locked:event?.checkin_mode_locked===true}});
+}));
+app.post('/api/admin/events/:id/hosts', auth, requireDb, eventEditor, wrap(async (req,res) => {
+  const b=req.body || {}, email=String(b.email || '').trim().toLowerCase(), name=String(b.name || '').trim();
+  const ticketIds=Array.isArray(b.checkin_ticket_ids)?[...new Set(b.checkin_ticket_ids.map(String))]:[];
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length>254 || !name || name.length>120 || typeof b.is_visible!=='boolean' || typeof b.can_manage!=='boolean' || (b.can_checkin!==undefined&&typeof b.can_checkin!=='boolean')) return res.status(400).json({error:'請填寫姓名、有效 Email 與權限。'});
+  const tickets=(await q('SELECT tickets FROM events WHERE id=$1',[req.params.id])).rows[0]?.tickets||[],validIds=new Set(tickets.map(ticket=>ticket.id));
+  if(ticketIds.length>30||ticketIds.some(id=>!validIds.has(id)))return res.status(400).json({error:'簽到票種範圍不正確。'});
+  await eventMutation(req,req.params.id,'host_updated',`INSERT INTO event_hosts(event_id,email,name,is_visible,can_manage,can_checkin,checkin_ticket_ids) VALUES($1,$2,$3,$4,$5,$6,$7)
+    ON CONFLICT(event_id,email) DO UPDATE SET name=$3,is_visible=$4,can_manage=$5,can_checkin=$6,checkin_ticket_ids=$7`,[req.params.id,email,name,b.is_visible,b.can_manage,b.can_checkin===true,JSON.stringify(b.can_checkin===true&&!b.can_manage?ticketIds:[])]);
+  res.json({ok:true});
+}));
+app.post('/api/admin/events/:id/check-in/settings',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ const mode=req.body?.mode,locked=req.body?.locked;if(!['standard','express'].includes(mode)||typeof locked!=='boolean')return res.status(400).json({error:'簽到模式設定不正確。'});
+ await eventMutation(req,req.params.id,'checkin_settings_updated','UPDATE events SET checkin_mode=$2,checkin_mode_locked=$3 WHERE id=$1',[req.params.id,mode,locked]);
+ res.json({ok:true,mode,locked});
+}));
+app.delete('/api/admin/events/:id/hosts', auth, requireDb, eventEditor, wrap(async (req,res) => {
+  const email=String(req.body?.email || '').trim().toLowerCase();
+  const owner=(await q(`SELECT u.email FROM events e JOIN users u ON u.id=e.owner_id WHERE e.id=$1`,[req.params.id])).rows[0];
+  if(owner?.email.toLowerCase()===email) return res.status(409).json({error:'建立者的管理權限不可移除；活動負責人只能由平台調整。'});
+  await eventMutation(req,req.params.id,'host_removed',`DELETE FROM event_hosts WHERE event_id=$1 AND email=$2`,[req.params.id,email]);
+  res.json({ok:true});
+}));
+
+app.delete('/api/admin/events/:id', auth, requireDb, eventEditor, wrap(async (req, res) => {
+  if(req.params.id === FEATURED_ID) return res.status(409).json({error:'專屬活動請設為草稿以取消公開，或設為已結束以保留紀錄。'});
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     await client.query(`SELECT id FROM events WHERE id=$1 FOR UPDATE`, [req.params.id]);
-    const n = (await client.query(`SELECT COUNT(*)::int AS n FROM event_regs WHERE event_id=$1`, [req.params.id])).rows[0].n;
+    const n = (await client.query(`SELECT COALESCE(SUM(quantity),0)::int AS n FROM event_regs WHERE event_id=$1`, [req.params.id])).rows[0].n;
     if (n) {
       await client.query('ROLLBACK');
       return res.status(409).json({ error: '已有報名紀錄，請改為「已結束」以保留付款與簽到稽核。' });
@@ -1898,9 +2598,83 @@ app.delete('/api/admin/events/:id', auth, adminOnly, requireDb, wrap(async (req,
   finally { client.release(); }
 }));
 
-app.get('/api/admin/events/:id/regs', auth, adminOnly, requireDb, wrap(async (req, res) => {
+app.post('/api/admin/events/:id/guests/import',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ const b=req.body||{},status=b.status||'invited';
+ if(!['invited','registered','pending_approval','waitlisted'].includes(status)||!Array.isArray(b.guests)||!b.guests.length||b.guests.length>500)return res.status(400).json({error:'每次可匯入 1–500 位來賓，請選擇有效狀態。'});
+ const seen=new Set(),guests=[];
+ for(const g of b.guests){const email=String(g?.email||'').trim().toLowerCase(),name=String(g?.name||'').trim();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254||!name||name.length>120)return res.status(400).json({error:'每位來賓都需有效姓名與 Email。'});if(!seen.has(email)){seen.add(email);guests.push({email,name});}}
+ const client=await pool.connect();try{await client.query('BEGIN');
+ const event=(await client.query('SELECT * FROM events WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+ if(!event){await client.query('ROLLBACK');return res.status(404).json({error:'找不到活動。'});}
+ if(event.status==='已取消'||status==='registered'&&event.status!=='報名中'){await client.query('ROLLBACK');return res.status(409).json({error:'活動未開放報名或已取消。'});}
+ let ticket=null;try{if(event.tickets.length&&status!=='invited')ticket=selectTicket(event.tickets,b.ticket_id,Date.now(),b.unlock_code);}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}
+ const price=ticket?.price_twd??event.price_twd;
+ if(status==='registered'&&price>0){await client.query('ROLLBACK');return res.status(409).json({error:'付費票不能以匯入標記為已付款；請先邀請來賓自行付款。'});}
+ let added=0,skipped=0;
+ for(const guest of guests.sort((a,b)=>a.email.localeCompare(b.email))){
+  const user=await accountByEmail(client,guest.email,guest.name);
+  const existing=(await client.query('SELECT id FROM event_regs WHERE event_id=$1 AND user_id=$2',[event.id,user.id])).rows[0];
+  if(existing){skipped++;continue;}
+  if(status==='registered'){
+   const used=await reservedEventSeats(client,event.id);
+   if(event.capacity>0&&used>=event.capacity){await client.query('ROLLBACK');return res.status(409).json({error:'名額不足，整批未匯入。'});}
+   if(ticket?.capacity>0){const count=await reservedEventSeats(client,event.id,ticket.id);if(count>=ticket.capacity){await client.query('ROLLBACK');return res.status(409).json({error:'票種名額不足，整批未匯入。'});}}
+  }
+  const regId=uid('r_');await client.query("INSERT INTO event_regs(id,event_id,user_id,status,amount_due,amount_paid,ticket_snapshot,note,entry_source) VALUES($1,$2,$3,$4,$5,0,$6,$7,'imported')",[regId,event.id,user.id,status,status==='invited'?0:price,ticket?JSON.stringify(ticket):null,'主辦人手動匯入']);
+  await client.query('INSERT INTO event_activity(event_id,registration_id,actor_id,action) VALUES($1,$2,$3,$4)',[event.id,regId,req.auth.sub||null,'guest_imported:'+status]);added++;
+ }
+ await client.query('COMMIT');res.json({ok:true,added,skipped,notice:'已匯入，未寄送任何通知。'});
+ }catch(e){await client.query('ROLLBACK');if(e.code==='AMBIGUOUS_EMAIL')return res.status(409).json({error:e.message});throw e;}finally{client.release();}
+}));
+
+app.get('/api/admin/events/:id/regs/:registrationId/history',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ const history=(await q('SELECT snapshot,created_at FROM event_registration_history WHERE event_id=$1 AND registration_id=$2 ORDER BY id DESC',[req.params.id,req.params.registrationId])).rows;
+ res.json({history});
+}));
+app.get('/api/admin/events/:id/regs/:registrationId/timeline',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ const reg=(await q('SELECT id,created_at,status,ticket_version FROM event_regs WHERE event_id=$1 AND id=$2',[req.params.id,req.params.registrationId])).rows[0];
+ if(!reg)return res.status(404).json({error:'找不到報名。'});
+ const activity=(await q(`SELECT a.id,a.action,a.created_at,u.name AS actor_name FROM event_activity a LEFT JOIN users u ON u.id=a.actor_id WHERE a.event_id=$1 AND a.registration_id=$2 ORDER BY a.id DESC LIMIT 200`,[req.params.id,reg.id])).rows;
+ const mail=(await q(`SELECT d.id,d.subject,d.state,m.created_at,d.provider_id,COALESCE((SELECT jsonb_agg(jsonb_build_object('type',x.event_type,'created_at',x.occurred_at) ORDER BY x.occurred_at) FROM event_delivery_events x WHERE x.provider_id=d.provider_id),'[]') AS events FROM event_deliveries d JOIN event_messages m ON m.id=d.message_id WHERE m.event_id=$1 AND m.registration_id=$2 ORDER BY m.created_at DESC LIMIT 100`,[req.params.id,reg.id])).rows;
+ res.json({registration:reg,activity,mail});
+}));
+app.post('/api/admin/events/:id/regs/:registrationId/tickets',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ const quantity=Number(req.body?.quantity);if(!Number.isInteger(quantity)||quantity<1||quantity>10)return res.status(400).json({error:'每次可贈送 1–10 張票。'});
+ const client=await pool.connect();try{await client.query('BEGIN');
+ const event=(await client.query('SELECT * FROM events WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+ const reg=(await client.query('SELECT r.*,u.name,u.email FROM event_regs r JOIN users u ON u.id=r.user_id WHERE r.id=$1 AND r.event_id=$2 FOR UPDATE OF r',[req.params.registrationId,req.params.id])).rows[0];
+ if(!event||!reg)return res.status(404).json({error:'找不到報名。'});
+ if(event.status!=='報名中'||reg.status!=='registered')return res.status(409).json({error:'僅可調整開放中活動的有效報名；請先處理審核與款項。'});
+ const ticket=event.tickets.length?event.tickets.find(t=>t.id===req.body?.ticket_id&&t.active):null;
+ if(event.tickets.length&&!ticket)return res.status(400).json({error:'請選擇有效票種。'});
+ if(event.capacity>0&&(await reservedEventSeats(client,event.id))+quantity>event.capacity||ticket?.capacity>0&&(await reservedEventSeats(client,event.id,ticket.id))+quantity>ticket.capacity)return res.status(409).json({error:'剩餘名額不足。'});
+ const order={id:uid('order_'),quantity,attendees:Array.from({length:quantity},()=>({name:reg.name,email:reg.email}))};
+ await client.query("INSERT INTO event_ticket_orders(id,registration_id,ticket_version,ticket_snapshot,quantity,attendees,amount_due,status) VALUES($1,$2,$3,$4,$5,$6,0,'registered')",[order.id,reg.id,reg.ticket_version,JSON.stringify({...ticket,administrative_grant:true}),quantity,JSON.stringify(order.attendees)]);
+ await activateAdditionalOrder(client,order,reg);
+ await client.query("INSERT INTO event_activity(event_id,registration_id,actor_id,action) VALUES($1,$2,$3,'tickets_granted')",[event.id,reg.id,req.auth.sub||null]);
+ await client.query('COMMIT');res.json({ok:true,order_id:order.id});
+ }finally{await client.query('ROLLBACK');client.release();}
+}));
+app.delete('/api/admin/events/:id/regs/:registrationId/tickets/:attendeeId',auth,requireDb,eventEditor,wrap(async(req,res)=>{
+ const client=await pool.connect();try{await client.query('BEGIN');
+ await client.query('SELECT id FROM events WHERE id=$1 FOR UPDATE',[req.params.id]);
+ const reg=(await client.query('SELECT * FROM event_regs WHERE id=$1 AND event_id=$2 FOR UPDATE',[req.params.registrationId,req.params.id])).rows[0];
+ if(!reg)return res.status(404).json({error:'找不到報名。'});
+ if(reg.status!=='registered'||reg.quantity<=1)return res.status(409).json({error:'僅可調整有效報名，且至少需保留一張票。'});
+ const attendee=(await client.query('SELECT * FROM event_attendees WHERE id=$1 AND registration_id=$2 FOR UPDATE',[req.params.attendeeId,reg.id])).rows[0];
+ if(!attendee)return res.status(404).json({error:'找不到票券。'});
+ if(attendee.checked_in_at)return res.status(409).json({error:'已簽到的票券須先撤銷簽到。'});
+ if(attendee.order_id){const order=(await client.query('SELECT * FROM event_ticket_orders WHERE id=$1 FOR UPDATE',[attendee.order_id])).rows[0];if(order.status!=='registered')return res.status(409).json({error:'此票款仍在處理中。'});await client.query('UPDATE event_ticket_orders SET quantity=quantity-1 WHERE id=$1',[order.id]);}
+ await client.query('DELETE FROM event_attendees WHERE id=$1',[attendee.id]);
+ await client.query('UPDATE event_regs SET quantity=quantity-1 WHERE id=$1',[reg.id]);
+ await client.query("INSERT INTO event_activity(event_id,registration_id,actor_id,action) VALUES($1,$2,$3,'ticket_removed_without_refund')",[req.params.id,reg.id,req.auth.sub||null]);
+ await client.query('COMMIT');res.json({ok:true,refunded:false});
+ }finally{await client.query('ROLLBACK');client.release();}
+}));
+
+app.get('/api/admin/events/:id/regs', auth, requireDb, eventEditor, wrap(async (req, res) => {
   const rows = (await q(
-    `SELECT r.id,u.name,u.email,u.phone,r.note,r.status,r.amount_due,r.amount_paid,
+    `SELECT r.id,u.name,u.email,u.phone,r.note,r.answers,r.capture_required,r.authorization_expires_at,r.ticket_snapshot,(SELECT COALESCE(SUM(f.amount),0)/100.0 FROM event_refunds f WHERE f.payment_intent=r.stripe_payment_intent_id AND f.status NOT IN ('failed','canceled')) AS amount_refunded,r.quantity,COALESCE((SELECT jsonb_agg(to_jsonb(a)||jsonb_build_object('ticket_id',COALESCE(o.ticket_snapshot->>'id',r.ticket_snapshot->>'id'),'ticket_name',COALESCE(o.ticket_snapshot->>'name',r.ticket_snapshot->>'name'),'is_additional',a.order_id IS NOT NULL) ORDER BY a.ordinal,a.id) FROM event_attendees a LEFT JOIN event_ticket_orders o ON o.id=a.order_id WHERE a.registration_id=r.id),'[]') AS attendees,r.status,r.amount_due,r.amount_paid,
        to_char(r.created_at,'YYYY/MM/DD HH24:MI') AS created_at,
        to_char(r.paid_at,'YYYY/MM/DD HH24:MI') AS paid_at,
        to_char(r.checked_in_at,'YYYY/MM/DD HH24:MI') AS checked_in_at
@@ -1909,60 +2683,130 @@ app.get('/api/admin/events/:id/regs', auth, adminOnly, requireDb, wrap(async (re
   res.json({ regs: rows });
 }));
 
-app.post('/api/admin/events/:id/check-in', auth, adminOnly, requireDb, wrap(async (req, res) => {
+app.get('/api/admin/events/:id/check-in',auth,requireDb,eventCheckinAccess,wrap(async(req,res)=>{
+ const event=(await q('SELECT title,status,tickets,checkin_mode,checkin_mode_locked FROM events WHERE id=$1',[req.params.id])).rows[0];
+ if(!event)return res.status(404).json({error:'找不到活動。'});
+ const rows=(await q(`SELECT r.id AS registration_id,NULL::text AS attendee_id,u.name,u.email,u.phone,u.name AS buyer_name,u.email AS buyer_email,
+   r.status,r.checked_in_at,r.created_at,r.amount_due,r.amount_paid,r.answers,r.coupon_snapshot->>'code' AS coupon_code,r.ticket_snapshot->>'id' AS ticket_id,r.ticket_snapshot->>'name' AS ticket_name
+   FROM event_regs r JOIN users u ON u.id=r.user_id WHERE r.event_id=$1 AND r.quantity=1
+   UNION ALL
+   SELECT r.id,a.id,a.name,a.email,u.phone,u.name,u.email,r.status,a.checked_in_at,r.created_at,r.amount_due,r.amount_paid,r.answers,r.coupon_snapshot->>'code',
+   COALESCE(o.ticket_snapshot->>'id',r.ticket_snapshot->>'id'),COALESCE(o.ticket_snapshot->>'name',r.ticket_snapshot->>'name')
+   FROM event_regs r JOIN users u ON u.id=r.user_id JOIN event_attendees a ON a.registration_id=r.id LEFT JOIN event_ticket_orders o ON o.id=a.order_id
+   WHERE r.event_id=$1 AND r.quantity>1 ORDER BY created_at DESC,name`,[req.params.id])).rows;
+ const allowed=req.eventCheckin.ticket_ids;
+ res.json({event:{title:event.title,status:event.status},mode:event.checkin_mode,locked:event.checkin_mode_locked,can_manage:req.eventCheckin.can_manage,
+   management_url:req.eventCheckin.can_manage?(req.auth.role==='admin'?'/admin/events/':'/organizer/events/')+encodeURIComponent(req.params.id):null,
+   tickets:(event.tickets||[]).map(ticket=>({id:ticket.id,name:ticket.name})),allowed_ticket_ids:allowed,
+   guests:rows.map(row=>({...row,can_checkin:allowed.length===0||allowed.includes(row.ticket_id)}))});
+}));
+
+app.post('/api/admin/events/:id/check-in', auth, requireDb, eventCheckinAccess, wrap(async (req, res) => {
+  const client=await pool.connect();try{await client.query('BEGIN');const q=(sql,args)=>client.query(sql,args);await q('SELECT id FROM events WHERE id=$1 FOR UPDATE',[req.params.id]);
   const b = req.body || {};
-  let registrationId = String(b.registration_id || '');
+  let registrationId = String(b.registration_id || ''),ticketVersion,attendeeId=b.attendee_id;
   if (b.token) {
     const ticket = verifyAccessToken(String(b.token), EVENT_QR_SECRET);
     if (!ticket || ticket.plan !== 'event-ticket' || ticket.event !== req.params.id)
       return res.status(400).json({ error: '活動票券無效或已過期。' });
-    registrationId = ticket.ent;
+    registrationId = ticket.ent;ticketVersion=ticket.version??1;attendeeId=ticket.attendee;
   }
   if (!registrationId) return res.status(400).json({ error: '請掃描票券或選擇報名者。' });
   const reg = (await q(
-    `SELECT r.id,r.status,r.checked_in_at,u.name,u.email
-     FROM event_regs r JOIN users u ON u.id=r.user_id
-     WHERE r.id=$1 AND r.event_id=$2`,
+    `SELECT r.id,r.status,r.quantity,r.ticket_version,r.checked_in_at,r.ticket_snapshot->>'id' AS ticket_id,u.name,u.email,e.status AS event_status
+     FROM event_regs r JOIN users u ON u.id=r.user_id JOIN events e ON e.id=r.event_id
+     WHERE r.id=$1 AND r.event_id=$2 FOR UPDATE OF r`,
     [registrationId, req.params.id]
   )).rows[0];
   if (!reg) return res.status(404).json({ error: '找不到這張活動票。' });
+  if(reg.event_status==='已取消')return res.status(409).json({error:'活動已取消，票券無法使用。'});
   if (reg.status !== 'registered') return res.status(409).json({ error: '票券尚未成立、已取消或已退款。' });
-  const duplicate = !!reg.checked_in_at;
-  if (!duplicate) await q(`UPDATE event_regs SET checked_in_at=now(),checked_in_by=$2 WHERE id=$1`,
-    [reg.id, req.auth.sub || 'agent']);
-  res.json({ ok: true, duplicate, guest: { id: reg.id, name: reg.name, email: reg.email } });
+  if(ticketVersion!==undefined&&ticketVersion!==reg.ticket_version)return res.status(409).json({error:'這是已失效的舊票券，請使用最新票券。'});
+  if(reg.quantity>1&&!attendeeId)return res.status(400).json({error:'請選擇一位參加者或掃描個人票券。'});
+  const attendee=(await q(`SELECT a.*,COALESCE(o.ticket_snapshot->>'id',r.ticket_snapshot->>'id') AS ticket_id FROM event_attendees a JOIN event_regs r ON r.id=a.registration_id LEFT JOIN event_ticket_orders o ON o.id=a.order_id WHERE a.registration_id=$1 AND ($2::text IS NULL OR a.id=$2) ORDER BY a.ordinal LIMIT 1`,[reg.id,attendeeId||null])).rows[0];
+  if(attendeeId&&!attendee)return res.status(404).json({error:'找不到此參加者的票券。'});
+  if(req.eventCheckin.ticket_ids.length&&!req.eventCheckin.ticket_ids.includes(attendee?.ticket_id||reg.ticket_id))return res.status(403).json({error:'此簽到入口不接受這個票種。'});
+  if(attendee?.order_id&&!(await q("SELECT 1 FROM event_ticket_orders WHERE id=$1 AND status='registered'",[attendee.order_id])).rowCount)return res.status(409).json({error:'此加購票尚未成立或已退款。'});
+  let duplicate;
+  if(attendee){
+    const changed=await q('UPDATE event_attendees SET checked_in_at=now(),checked_in_by=$2 WHERE id=$1 AND checked_in_at IS NULL RETURNING id',[attendee.id,req.auth.sub||'agent']);duplicate=!changed.rowCount;
+    await q(`UPDATE event_regs SET checked_in_at=CASE WHEN NOT EXISTS(SELECT 1 FROM event_attendees WHERE registration_id=$1 AND checked_in_at IS NULL) THEN now() ELSE NULL END,checked_in_by=$2 WHERE id=$1`,[reg.id,req.auth.sub||'agent']);
+  }else{const changed=await q('UPDATE event_regs SET checked_in_at=now(),checked_in_by=$2 WHERE id=$1 AND checked_in_at IS NULL RETURNING id',[reg.id,req.auth.sub||'agent']);duplicate=!changed.rowCount;}
+  await q('INSERT INTO event_activity(event_id,registration_id,actor_id,action) VALUES($1,$2,$3,$4)',[req.params.id,reg.id,req.auth.sub||null,duplicate?'checkin_repeated':'checked_in']);await client.query('COMMIT');res.json({ok:true,duplicate,guest:{id:reg.id,attendee_id:attendee?.id,name:attendee?.name||reg.name,email:attendee?.email||reg.email}});
+  }finally{await client.query('ROLLBACK');client.release();}
 }));
 
-app.delete('/api/admin/events/:id/check-in/:registrationId', auth, adminOnly, requireDb, wrap(async (req, res) => {
-  const r = await q(
-    `UPDATE event_regs SET checked_in_at=NULL,checked_in_by=NULL
-     WHERE id=$1 AND event_id=$2 RETURNING id`,
-    [req.params.registrationId, req.params.id]
-  );
-  if (!r.rows[0]) return res.status(404).json({ error: '找不到這張活動票。' });
-  res.json({ ok: true });
+app.delete('/api/admin/events/:id/check-in/:registrationId', auth, requireDb, eventCheckinAccess, wrap(async (req, res) => {
+  const client=await pool.connect();try{await client.query('BEGIN');const q=(sql,args)=>client.query(sql,args);await q('SELECT id FROM events WHERE id=$1 FOR UPDATE',[req.params.id]);
+  const reg=(await q("SELECT id,quantity,ticket_snapshot->>'id' AS ticket_id FROM event_regs WHERE id=$1 AND event_id=$2",[req.params.registrationId,req.params.id])).rows[0];
+  if(!reg)return res.status(404).json({error:'找不到這張活動票。'});
+  const attendeeId=req.query.attendee_id;
+  if(reg.quantity>1&&!attendeeId)return res.status(400).json({error:'請選擇一位參加者。'});
+  const attendee=attendeeId?(await q(`SELECT COALESCE(o.ticket_snapshot->>'id',r.ticket_snapshot->>'id') AS ticket_id FROM event_attendees a JOIN event_regs r ON r.id=a.registration_id LEFT JOIN event_ticket_orders o ON o.id=a.order_id WHERE a.registration_id=$1 AND a.id=$2`,[reg.id,attendeeId])).rows[0]:null;
+  if(attendeeId&&!attendee)return res.status(404).json({error:'找不到此參加者。'});
+  if(req.eventCheckin.ticket_ids.length&&!req.eventCheckin.ticket_ids.includes(attendee?.ticket_id||reg.ticket_id))return res.status(403).json({error:'此簽到入口不接受這個票種。'});
+  const result=await q('UPDATE event_attendees SET checked_in_at=NULL,checked_in_by=NULL WHERE registration_id=$1 AND ($2::text IS NULL OR id=$2) RETURNING id',[reg.id,attendeeId||null]);
+  if(attendeeId&&!result.rowCount)return res.status(404).json({error:'找不到此參加者。'});
+  await q('UPDATE event_regs SET checked_in_at=NULL,checked_in_by=NULL WHERE id=$1',[reg.id]);await q('INSERT INTO event_activity(event_id,registration_id,actor_id,action) VALUES($1,$2,$3,$4)',[req.params.id,reg.id,req.auth.sub||null,'checkin_undone']);await client.query('COMMIT');res.json({ok:true});
+  }finally{await client.query('ROLLBACK');client.release();}
 }));
 
-app.post('/api/admin/events/:id/regs/:registrationId/refund', auth, adminOnly, requireDb, wrap(async (req, res) => {
-  if (!stripe) return res.status(503).json({ error: 'Stripe 尚未設定。' });
-  const reg = (await q(
-    `SELECT * FROM event_regs WHERE id=$1 AND event_id=$2`,
-    [req.params.registrationId, req.params.id]
-  )).rows[0];
-  if (!reg) return res.status(404).json({ error: '找不到報名紀錄。' });
-  if (reg.stripe_refund_id) return res.json({ ok: true, already: true, refund_id: reg.stripe_refund_id });
-  if (reg.status !== 'registered' || !reg.stripe_payment_intent_id || Number(reg.amount_paid) <= 0)
-    return res.status(409).json({ error: '這筆報名沒有可退款的已付款票券。' });
-  const refund = await stripe.refunds.create(
-    { payment_intent: reg.stripe_payment_intent_id, metadata: { kind: 'event-registration', registration_id: reg.id } },
-    { idempotencyKey: `event-refund-${reg.id}-${reg.stripe_payment_intent_id}` }
-  );
-  await q(
-    `UPDATE event_regs SET status='refunded',refunded_at=now(),stripe_refund_id=$2,
-       checked_in_at=NULL,checked_in_by=NULL WHERE id=$1 AND stripe_payment_intent_id=$3`,
-    [reg.id, refund.id, reg.stripe_payment_intent_id]
-  );
-  res.json({ ok: true, refund_id: refund.id });
+async function saveAdditionalRefund(client,order,refund,requestId=null){
+ await client.query(`INSERT INTO event_refunds(id,registration_id,payment_intent,amount,status,request_id) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(id) DO UPDATE SET status=EXCLUDED.status,request_id=COALESCE(event_refunds.request_id,EXCLUDED.request_id)`,[refund.id,order.registration_id,order.stripe_payment_intent_id,refund.amount,refund.status,requestId]);
+ const totals=refundTotals(order.amount_paid*100,(await client.query('SELECT amount,status FROM event_refunds WHERE payment_intent=$1',[order.stripe_payment_intent_id])).rows);
+ if(totals.status==='refunded'&&order.status!=='refunded'){
+  await client.query('DELETE FROM event_attendees WHERE order_id=$1',[order.id]);
+  await client.query('UPDATE event_regs SET quantity=quantity-$2 WHERE id=$1 AND ticket_version=$3',[order.registration_id,order.quantity,order.ticket_version]);
+ }
+ await client.query('UPDATE event_ticket_orders SET status=$2 WHERE id=$1',[order.id,totals.status]);return totals;
+}
+app.post('/api/admin/events/:id/orders/:orderId/refund',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+ if(!stripe)return res.status(503).json({error:'Stripe 尚未設定。'});
+ const requestId=req.body?.request_id;if(typeof requestId!=='string'||!/^[a-zA-Z0-9_-]{16,80}$/.test(requestId))return res.status(400).json({error:'請提供有效退款識別碼。'});
+ const client=await pool.connect();try{await client.query('BEGIN');await client.query('SELECT id FROM events WHERE id=$1 FOR UPDATE',[req.params.id]);
+ const reg=(await client.query('SELECT r.* FROM event_regs r JOIN event_ticket_orders o ON o.registration_id=r.id WHERE o.id=$1 AND r.event_id=$2 FOR UPDATE OF r',[req.params.orderId,req.params.id])).rows[0];
+ if(!reg)return res.status(404).json({error:'找不到加購訂單。'});
+ const order=(await client.query('SELECT * FROM event_ticket_orders WHERE id=$1 FOR UPDATE',[req.params.orderId])).rows[0];
+ if(!order.stripe_payment_intent_id||order.amount_paid<=0)return res.status(409).json({error:'這筆加購沒有可退票款。'});
+ const key=order.stripe_payment_intent_id+':'+requestId,previous=(await client.query('SELECT * FROM event_refunds WHERE payment_intent=$1',[order.stripe_payment_intent_id])).rows,existing=previous.find(r=>r.request_id===key),amount=Number(req.body.amount_twd);
+ if(existing){if(amount*100!==existing.amount)return res.status(409).json({error:'同一退款請求不可變更金額。'});await client.query('COMMIT');return res.json({ok:existing.status==='succeeded',already:true,status:existing.status,amount_twd:amount});}
+ const totals=refundTotals(order.amount_paid*100,previous);if(!Number.isSafeInteger(amount)||amount<=0||amount*100>totals.remaining)return res.status(409).json({error:'退款金額超過剩餘可退額度或格式不正確。'});
+ const refund=await stripe.refunds.create({payment_intent:order.stripe_payment_intent_id,amount:amount*100,metadata:{kind:'event-additional-tickets',order_id:order.id}},{idempotencyKey:'event-refund-'+key});
+ const out=await saveAdditionalRefund(client,order,refund,key);await client.query('INSERT INTO event_activity(event_id,registration_id,actor_id,action) VALUES($1,$2,$3,$4)',[req.params.id,reg.id,req.auth.sub||null,'additional_refund_'+refund.status]);await client.query('COMMIT');res.json({ok:refund.status==='succeeded',status:refund.status,amount_twd:amount,remaining_twd:out.remaining/100});
+ }finally{await client.query('ROLLBACK');client.release();}
+}));
+
+async function saveEventRefund(client,reg,refund,requestId=null){
+ await client.query(`INSERT INTO event_refunds(id,registration_id,payment_intent,amount,status,request_id) VALUES($1,$2,$3,$4,$5,$6)
+ ON CONFLICT(id) DO UPDATE SET status=EXCLUDED.status,request_id=COALESCE(event_refunds.request_id,EXCLUDED.request_id)`,[refund.id,reg.id,reg.stripe_payment_intent_id,refund.amount,refund.status,requestId]);
+ const rows=(await client.query('SELECT amount,status FROM event_refunds WHERE payment_intent=$1',[reg.stripe_payment_intent_id])).rows;
+ const totals=refundTotals(reg.amount_paid*100,rows);
+ if(totals.status==='registered'&&!['registered','refund_pending','refunded'].includes(reg.status))totals.status=reg.status;
+ await client.query('UPDATE event_regs SET status=$2,refunded_at=now(),stripe_refund_id=$3,refund_status=$4 WHERE id=$1 AND stripe_payment_intent_id=$5',[reg.id,totals.status,refund.id,refund.status,reg.stripe_payment_intent_id]);
+ return totals;
+}
+app.post('/api/admin/events/:id/regs/:registrationId/refund',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+ if(!stripe)return res.status(503).json({error:'Stripe 尚未設定。'});
+ const requestId=req.body?.request_id;
+ if(requestId!==undefined&&(typeof requestId!=='string'||!/^[a-zA-Z0-9_-]{16,80}$/.test(requestId)))return res.status(400).json({error:'退款請求識別碼無效。'});
+ const client=await pool.connect();try{await client.query('BEGIN');await client.query('SELECT id FROM events WHERE id=$1 FOR UPDATE',[req.params.id]);
+ const reg=(await client.query('SELECT * FROM event_regs WHERE id=$1 AND event_id=$2 FOR UPDATE',[req.params.registrationId,req.params.id])).rows[0];
+ if(!reg)return res.status(404).json({error:'找不到報名紀錄。'});
+ if(!reg.stripe_payment_intent_id||reg.amount_paid<=0||!['registered','refund_pending','refunded','pending_approval'].includes(reg.status))return res.status(409).json({error:'沒有可退款的已付款票券。'});
+ if((await client.query("SELECT 1 FROM event_ticket_orders WHERE registration_id=$1 AND ticket_version=$2 AND status IN ('registered','pending_payment','refund_pending') AND amount_due>0 LIMIT 1",[reg.id,reg.ticket_version])).rowCount)return res.status(409).json({error:'請先處理加購票退款，再退回原始票款。'});
+ const previous=(await client.query('SELECT * FROM event_refunds WHERE payment_intent=$1',[reg.stripe_payment_intent_id])).rows;
+ const existing=requestId&&previous.find(r=>r.request_id===reg.stripe_payment_intent_id+':'+requestId);
+ if(existing){if(req.body.amount_twd!==undefined&&Number(req.body.amount_twd)*100!==existing.amount)return res.status(409).json({error:'同一退款識別碼不可變更金額。'});await client.query('COMMIT');return res.json({ok:existing.status==='succeeded',already:true,refund_id:existing.id,status:existing.status,amount_twd:existing.amount/100});}
+ const totals=refundTotals(reg.amount_paid*100,previous),amount=req.body?.amount_twd===undefined?totals.remaining:Number(req.body.amount_twd)*100;
+ if(req.body.amount_twd!==undefined&&!Number.isSafeInteger(Number(req.body.amount_twd)))return res.status(400).json({error:'請輸入整數新台幣金額。'});
+ if(!Number.isSafeInteger(amount)||amount<=0||amount>totals.remaining)return res.status(409).json({error:'退款金額須大於 0，且不可超過目前可退金額。',remaining_twd:totals.remaining/100});
+ if(req.body.amount_twd!==undefined&&!requestId)return res.status(400).json({error:'部分退款需提供請求識別碼以防重複。'});
+ const key=reg.stripe_payment_intent_id+':'+(requestId||`full-${previous.length}`);
+ const refund=await stripe.refunds.create({payment_intent:reg.stripe_payment_intent_id,amount,metadata:{kind:'event-registration',registration_id:reg.id}},{idempotencyKey:'event-refund-'+key});
+ const updated=await saveEventRefund(client,reg,refund,key);
+ await client.query('INSERT INTO event_activity(event_id,registration_id,actor_id,action) VALUES($1,$2,$3,$4)',[req.params.id,reg.id,req.auth.sub||null,'refund_'+refund.status+':'+amount]);
+ await client.query('COMMIT');res.json({ok:refund.status==='succeeded',refund_id:refund.id,status:refund.status,amount_twd:amount/100,remaining_twd:updated.remaining/100,ticket_status:updated.status});
+ }finally{await client.query('ROLLBACK');client.release();}
 }));
 
 /* ---- 前台管理：空間介紹圖片上傳（menu 頁四樓照片） ---- */
@@ -2309,14 +3153,14 @@ app.get('/api/admin/ig/status', auth, adminOnly, requireDb, wrap(async (_req, re
 }));
 
 /* ---- 活動前台：公開列表、私人連結、報名付款與票券 ---- */
-app.get('/api/events', requireDb, wrap(async (_req, res) => {
+app.get('/api/events', requireDb, wrap(async (req, res) => {
   const events = (await q(
     `SELECT ${SEL_EVENT},
-       (SELECT COUNT(*)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS reg_count
-     FROM events e WHERE status='報名中' AND visibility='public'
+       (SELECT COALESCE(SUM(r.quantity),0)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS reg_count
+     FROM events e WHERE status IN ('預告','報名中') AND visibility='public'
      ORDER BY starts_at ASC NULLS LAST`
   )).rows;
-  res.json({ events });
+  res.json({ events: events.map(e => localizeEvent(e, req.query.lang)) });
 }));
 
 app.post('/api/events/checkout/verify', auth, requireDb, wrap(async (req, res) => {
@@ -2325,37 +3169,160 @@ app.post('/api/events/checkout/verify', auth, requireDb, wrap(async (req, res) =
   const id = String(req.body?.session_id || '');
   if (!/^cs_[A-Za-z0-9_]+$/.test(id)) return res.status(400).json({ error: '付款識別碼格式不正確。' });
   const session = await stripe.checkout.sessions.retrieve(id);
-  if (session.metadata?.kind !== 'event-registration' || session.metadata.user_id !== req.auth.sub)
+  if (!['event-registration','event-additional-tickets'].includes(session.metadata?.kind) || session.metadata.user_id !== req.auth.sub)
     return res.status(403).json({ error: '付款資料不屬於目前帳號。' });
   await fulfillEventCheckout(session);
+  await fulfillAdditionalCheckout(session);
   const reg = (await q(`SELECT id,status,event_id FROM event_regs WHERE id=$1`, [session.metadata.registration_id])).rows[0];
-  res.json({ paid: reg?.status === 'registered', registration_id: reg?.id, event_id: reg?.event_id });
+  const additional=session.metadata.kind==='event-additional-tickets'?(await q('SELECT status FROM event_ticket_orders WHERE id=$1 AND registration_id=$2',[session.metadata.order_id,reg?.id])).rows[0]:null;
+  res.json({ paid: session.payment_status==='paid'&&reg?.status === 'registered'&&(session.metadata.kind!=='event-additional-tickets'||additional?.status==='registered'), registration_id: reg?.id, event_id: reg?.event_id, status:reg?.status, order_status:additional?.status });
 }));
 
-app.get('/api/events/:id/ticket', auth, requireDb, wrap(async (req, res) => {
-  if (!EVENT_QR_SECRET) return res.status(503).json({ error: '活動票券 QR 尚未開通。' });
-  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
-  const reg = (await q(
-    `SELECT r.id,r.status,r.checked_in_at,e.id AS event_id,e.starts_at,e.ends_at
-     FROM event_regs r JOIN events e ON e.id=r.event_id
-     WHERE r.event_id=$1 AND r.user_id=$2`,
-    [req.params.id, req.auth.sub]
-  )).rows[0];
-  if (!reg || reg.status !== 'registered') return res.status(404).json({ error: '找不到有效活動票券。' });
-  const end = reg.ends_at || reg.starts_at;
-  const ttlSec = end ? Math.max(3600, Math.floor((+new Date(end) - Date.now()) / 1000) + 7 * 86400) : 366 * 86400;
-  const token = signAccessToken({
-    sub: req.auth.sub, ent: reg.id, plan: 'event-ticket', event: reg.event_id,
-  }, EVENT_QR_SECRET, { ttlSec });
-  res.json({ token, registration_id: reg.id, checked_in_at: reg.checked_in_at });
+app.get('/api/events/:id/orders',auth,requireDb,wrap(async(req,res)=>{
+ const orders=(await q(`SELECT o.id,o.quantity,o.amount_due,o.amount_paid,o.status,o.ticket_snapshot-'unlock_code' AS ticket_snapshot FROM event_ticket_orders o JOIN event_regs r ON r.id=o.registration_id AND r.ticket_version=o.ticket_version WHERE r.event_id=$1 AND r.user_id=$2 ORDER BY o.created_at`,[req.params.id,req.auth.sub])).rows;res.json({orders});
+}));
+app.delete('/api/events/:id/orders/:orderId',auth,requireDb,wrap(async(req,res)=>{
+ const client=await pool.connect();try{await client.query('BEGIN');
+ await client.query('SELECT id FROM events WHERE id=$1 FOR UPDATE',[req.params.id]);
+ const reg=(await client.query('SELECT * FROM event_regs WHERE event_id=$1 AND user_id=$2 FOR UPDATE',[req.params.id,req.auth.sub])).rows[0];
+ const order=reg&&(await client.query('SELECT * FROM event_ticket_orders WHERE id=$1 AND registration_id=$2 AND ticket_version=$3 FOR UPDATE',[req.params.orderId,reg.id,reg.ticket_version])).rows[0];
+ if(!order)return res.status(404).json({error:'找不到此加購訂單。'});
+ if(order.status==='cancelled')return res.json({ok:true});
+ if(reg.status!=='registered'||order.status!=='registered'||order.amount_due>0)return res.status(409).json({error:'僅可自行取消已成立的免費加購，付費票請聯絡言文字退款。'});
+ if((await client.query('SELECT 1 FROM event_attendees WHERE order_id=$1 AND checked_in_at IS NOT NULL',[order.id])).rowCount)return res.status(409).json({error:'已使用的票券不可取消。'});
+ await client.query('DELETE FROM event_attendees WHERE order_id=$1',[order.id]);
+ await client.query('UPDATE event_regs SET quantity=quantity-$2 WHERE id=$1',[reg.id,order.quantity]);
+ await client.query("UPDATE event_ticket_orders SET status='cancelled' WHERE id=$1",[order.id]);
+ await client.query("INSERT INTO event_activity(event_id,registration_id,actor_id,action) VALUES($1,$2,$3,'additional_cancelled')",[req.params.id,reg.id,req.auth.sub]);
+ await client.query('COMMIT');res.json({ok:true});
+ }finally{await client.query('ROLLBACK');client.release();}
+}));
+app.post('/api/events/:id/additional-tickets',auth,requireDb,wrap(async(req,res)=>{
+ const quantity=Number(req.body?.quantity||1);if(!Number.isInteger(quantity)||quantity<1||quantity>10||req.body?.coupon_code)return res.status(400).json({error:'每次加購 1–10 張票，加購不適用優惠碼。'});
+ const client=await pool.connect();try{await client.query('BEGIN');const event=(await client.query('SELECT * FROM events WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+ const reg=(await client.query('SELECT r.*,u.name,u.email FROM event_regs r JOIN users u ON u.id=r.user_id WHERE event_id=$1 AND user_id=$2 FOR UPDATE OF r',[req.params.id,req.auth.sub])).rows[0];
+ if(!event||event.status!=='報名中'||!reg||reg.status!=='registered')return res.status(409).json({error:'僅有效報名的購買者可加購開放中的活動。'});
+ const settings=event.registration_settings||{};
+ if(settings.group_registration===false||settings.requires_approval||settings.opens_at&&Date.parse(settings.opens_at)>Date.now()||settings.closes_at&&Date.parse(settings.closes_at)<=Date.now())return res.status(409).json({error:'目前不開放加購，審核制活動請聯絡主辦人。'});
+ const pending=(await client.query("SELECT * FROM event_ticket_orders WHERE registration_id=$1 AND ticket_version=$2 AND status='pending_payment' ORDER BY created_at DESC LIMIT 1",[reg.id,reg.ticket_version])).rows[0];
+ if(pending){if(!stripe)return res.status(503).json({error:'須先核對上一筆加購付款。'});const session=await stripe.checkout.sessions.retrieve(pending.stripe_session_id);
+  if(session.payment_status==='paid'){await client.query('COMMIT');await fulfillAdditionalCheckout(session);return res.json({ok:true,already:true});}
+  if(session.status==='open'&&session.expires_at>Date.now()/1000){await client.query('COMMIT');return res.json({url:session.url,pending:true,session_id:session.id,order_id:pending.id});}
+  if(session.status!=='expired')return res.status(409).json({error:'上一筆付款仍在處理中。'});
+  await client.query("UPDATE event_ticket_orders SET status='expired' WHERE id=$1",[pending.id]);
+ }
+ let ticket=null,price;try{ticket=event.tickets.length?selectTicket(event.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code):null;if(ticket?.requires_approval)throw Error('需審核票种不可自行加購，請聯絡主辦人。');price=(ticket?ticketPrice(ticket,req.body?.amount_twd):event.price_twd)*quantity;}catch(e){return res.status(400).json({error:e.message});}
+ if(event.capacity>0&&(await reservedEventSeats(client,event.id))+quantity>event.capacity)return res.status(409).json({error:'剩餘名額不足。'});
+ if(ticket?.capacity>0&&(await reservedEventSeats(client,event.id,ticket.id))+quantity>ticket.capacity)return res.status(409).json({error:'此票種剩餘名額不足。'});
+ if(price>0&&(!stripe||!STRIPE_WEBHOOK_SECRET))return res.status(503).json({error:'付款服務尚未設定。'});
+ const id=uid('order_'),attendees=Array.from({length:quantity},()=>({name:reg.name,email:reg.email}));
+ await client.query('INSERT INTO event_ticket_orders(id,registration_id,ticket_version,ticket_snapshot,quantity,attendees,amount_due,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[id,reg.id,reg.ticket_version,ticket?JSON.stringify(ticket):null,quantity,JSON.stringify(attendees),price,price?'pending_payment':'registered']);
+ if(!price){await activateAdditionalOrder(client,{id,quantity,attendees},reg);await client.query('COMMIT');return res.json({ok:true});}
+ const lang=['en','ja'].includes(req.body?.lang)?'/'+req.body.lang:'',url=SITE_BASE+lang+'/events/'+encodeURIComponent(event.slug);
+ const session=await stripe.checkout.sessions.create({mode:'payment',payment_method_types:['card'],customer_email:reg.email,expires_at:Math.floor(Date.now()/1000)+1800,
+ line_items:[{price_data:{currency:'twd',unit_amount:price*100,product_data:{name:event.title+' · 加購 '+quantity+' 張票'}},quantity:1}],success_url:url+'?paid=1&s={CHECKOUT_SESSION_ID}',cancel_url:url+'?canceled=1',metadata:{kind:'event-additional-tickets',order_id:id,registration_id:reg.id,event_id:event.id,user_id:req.auth.sub}});
+ await client.query('UPDATE event_ticket_orders SET stripe_session_id=$2,expires_at=to_timestamp($3) WHERE id=$1',[id,session.id,session.expires_at]);await client.query('COMMIT');res.json({url:session.url,session_id:session.id,order_id:id});
+ }finally{await client.query('ROLLBACK');client.release();}
+}));
+
+app.get('/api/events/:id/guests',requireDb,wrap(async(req,res)=>{
+ const event=(await q("SELECT id FROM events WHERE id=$1 AND status<>'草稿' AND event_details->>'show_guest_list'='true'",[req.params.id])).rows[0];
+ if(!event)return res.status(404).json({error:'此活動未公開來賓名單。'});
+ const after=req.query.after;if(after!==undefined&&(typeof after!=='string'||after.length>500))return res.status(400).json({error:'名單分頁格式錯誤。'});
+ const rows=(await q("SELECT DISTINCT a.name FROM event_attendees a JOIN event_regs r ON r.id=a.registration_id WHERE r.event_id=$1 AND r.status='registered' AND a.show_name=true AND ($2::text IS NULL OR a.name>$2) ORDER BY a.name LIMIT 101",[event.id,after??null])).rows;
+ const guests=rows.slice(0,100);res.json({guests,next:rows.length>100?guests[99].name:null});
+}));
+app.patch('/api/events/:id/profile',auth,requireDb,wrap(async(req,res)=>{
+ if(typeof req.body?.visible!=='boolean')return res.status(400).json({error:'公開設定格式錯誤。'});
+ const result=await q(`UPDATE event_attendees a SET show_name=$3 FROM event_regs r WHERE a.registration_id=r.id AND r.event_id=$1 AND r.status='registered' AND a.email=lower($2) RETURNING a.id`,[req.params.id,req.auth.email||'',req.body.visible]);
+ if(!result.rowCount)return res.status(404).json({error:'找不到自己的有效票券。'});res.json({ok:true});
+}));
+
+app.get('/api/events/:id/receipt',auth,requireDb,wrap(async(req,res)=>{
+ if(!stripe)return res.status(503).json({error:'收據服務尚未開通。'});
+ const reg=req.query.order?(await q('SELECT o.stripe_payment_intent_id FROM event_ticket_orders o JOIN event_regs r ON r.id=o.registration_id WHERE r.event_id=$1 AND r.user_id=$2 AND o.id=$3 AND o.amount_paid>0',[req.params.id,req.auth.sub,req.query.order])).rows[0]:(await q('SELECT stripe_payment_intent_id FROM event_regs WHERE event_id=$1 AND user_id=$2 AND amount_paid>0',[req.params.id,req.auth.sub])).rows[0];
+ if(!reg?.stripe_payment_intent_id)return res.status(404).json({error:'找不到付款收據。'});
+ const intent=await stripe.paymentIntents.retrieve(reg.stripe_payment_intent_id,{expand:['latest_charge']}),url=intent.latest_charge?.receipt_url;
+ if(!url||!url.startsWith('https://'))return res.status(404).json({error:'收據尚未產生，請稍後再試。'});
+ res.set('Cache-Control','no-store');res.json({url});
+}));
+
+app.get('/api/events/:id/ticket',auth,requireDb,wrap(async(req,res)=>{
+ if(!EVENT_QR_SECRET)return res.status(503).json({error:'活動票券 QR 尚未開通。'});
+ if(!req.auth.sub)return res.status(403).json({error:'請以會員身分登入。'});
+ const rows=(await q(`SELECT r.id,r.user_id,r.ticket_version,r.checked_in_at AS booking_checked_in,e.id AS event_id,e.starts_at,e.ends_at,
+ a.id AS attendee_id,a.name,a.email,a.show_name,a.checked_in_at FROM event_regs r JOIN events e ON e.id=r.event_id LEFT JOIN event_attendees a ON a.registration_id=r.id LEFT JOIN event_ticket_orders o ON o.id=a.order_id
+ WHERE (a.order_id IS NULL OR o.status='registered') AND e.id=$1 AND r.status='registered' AND e.status<>'已取消' AND (r.user_id=$2 OR a.email=lower($3)) ORDER BY r.created_at,a.ordinal`,[req.params.id,req.auth.sub,req.auth.email||''])).rows;
+ if(!rows.length)return res.status(404).json({error:'找不到有效活動票券。'});
+ const tickets=rows.map(a=>{const end=a.ends_at||a.starts_at,ttlSec=end?Math.max(3600,Math.floor((+new Date(end)-Date.now())/1000)+7*86400):366*86400;
+ return {name:a.name,email:a.email,attendee_id:a.attendee_id,can_edit:a.user_id===req.auth.sub,can_share:a.email===String(req.auth.email||'').toLowerCase(),show_name:a.show_name,checked_in_at:a.checked_in_at||a.booking_checked_in,
+ token:signAccessToken({sub:req.auth.sub,ent:a.id,plan:'event-ticket',event:a.event_id,version:a.ticket_version,...(a.attendee_id?{attendee:a.attendee_id}:{})},EVENT_QR_SECRET,{ttlSec})};});
+ res.json({token:tickets[0].token,tickets,registration_id:rows[0].id,checked_in_at:rows[0].booking_checked_in});
+}));
+
+// Changing the attendee id revokes that person's old QR without invalidating the other tickets.
+app.patch('/api/events/:id/attendees/:attendeeId',auth,requireDb,wrap(async(req,res)=>{
+ const name=String(req.body?.name||'').trim(),email=String(req.body?.email||'').trim().toLowerCase();
+ if(!name||name.length>120||email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return res.status(400).json({error:'請提供有效姓名與 Email。'});
+ const client=await pool.connect();try{await client.query('BEGIN');
+ const event=(await client.query('SELECT status,ends_at FROM events WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+ if(!event||event.status!=='報名中'||event.ends_at&&+new Date(event.ends_at)<=Date.now())return res.status(409).json({error:'活動已關閉，無法修改參加者。'});
+ const attendee=(await client.query(`SELECT a.*,r.status FROM event_attendees a JOIN event_regs r ON r.id=a.registration_id WHERE a.id=$1 AND r.event_id=$2 AND r.user_id=$3 FOR UPDATE OF r`,[req.params.attendeeId,req.params.id,req.auth.sub])).rows[0];
+ if(!attendee)return res.status(404).json({error:'找不到可修改的票券。'});
+ if(attendee.status!=='registered'||attendee.checked_in_at)return res.status(409).json({error:'僅可修改尚未簽到的有效票券。'});
+ const id=uid('ea_');await client.query('UPDATE event_attendees SET id=$2,name=$3,email=$4,show_name=false WHERE id=$1',[attendee.id,id,name,email]);
+ await client.query('INSERT INTO event_activity(event_id,registration_id,actor_id,action) VALUES($1,$2,$3,$4)',[req.params.id,attendee.registration_id,req.auth.sub,'attendee_updated']);
+ await client.query('COMMIT');res.json({ok:true,attendee_id:id});
+ }finally{await client.query('ROLLBACK');client.release();}
+}));
+
+app.post('/api/events/:id/feedback',auth,requireDb,wrap(async(req,res)=>{
+ const rating=req.body?.rating,comment=req.body?.comment||'';
+ if(!Number.isInteger(rating)||rating<1||rating>5||typeof comment!=='string'||comment.length>5000)return res.status(400).json({error:'請提供 1–5 分評分，文字最多 5000 字。'});
+ const result=await q(`INSERT INTO event_feedback(event_id,user_id,rating,comment)
+ SELECT DISTINCT e.id,$2::text,$3::int,$4::text FROM events e JOIN event_regs r ON r.event_id=e.id AND (r.user_id=$2 OR EXISTS(SELECT 1 FROM event_attendees a WHERE a.registration_id=r.id AND a.email=lower($5)))
+ WHERE e.id=$1 AND r.status='registered' AND e.status<>'已取消' AND COALESCE(e.ends_at,e.starts_at)<=now()
+ ON CONFLICT(event_id,user_id) DO UPDATE SET rating=$3,comment=$4,updated_at=now() RETURNING event_id`,[req.params.id,req.auth.sub,rating,comment.trim(),req.auth.email||'']);
+ if(!result.rowCount)return res.status(403).json({error:'活動結束後，有效報名者才可提交回饋。'});res.json({ok:true});
+}));
+
+app.post('/api/events/:id/quote',requireDb,wrap(async(req,res)=>{
+ const event=(await q("SELECT * FROM events WHERE id=$1 AND status='報名中'",[req.params.id])).rows[0];if(!event)return res.status(404).json({error:'找不到開放報名的活動。'});
+ try{const quantity=Number(req.body?.quantity??1);if(!Number.isInteger(quantity)||quantity<1||quantity>10)throw new Error('每筆可購買 1–10 張票');const ticket=event.tickets.length?selectTicket(event.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code):null,price=(ticket?ticketPrice(ticket,req.body?.amount_twd):event.price_twd)*quantity;
+ const result=discountPrice(event.coupons,req.body?.coupon_code,price);res.json({price_twd:result.price,discount_twd:result.coupon?.discount_twd||0,notice:'此報價不保留名額，實際報名仍會檢查優惠碼使用上限。'});}catch(e){res.status(400).json({error:e.message});}
+}));
+
+app.post('/api/events/:id/ticket-options',requireDb,wrap(async(req,res)=>{
+ const event=(await q("SELECT tickets FROM events WHERE id=$1 AND status<>'草稿'",[req.params.id])).rows[0];
+ if(!event)return res.status(404).json({error:'找不到活動。'});
+ res.json({tickets:publicTickets(event.tickets,req.body?.unlock_code)});
+}));
+
+app.get(['/api/events/:slug/calendar.ics','/api/events/:slug/calendar/google'],requireDb,wrap(async(req,res)=>{
+ const event=(await q("SELECT * FROM events WHERE slug=$1 AND status<>'草稿'",[req.params.slug])).rows[0];
+ if(!event)return res.status(404).json({error:'找不到活動。'});
+ const localized=localizeEvent(event,['en','ja'].includes(req.query.lang)?req.query.lang:'zh');
+ if(req.path.endsWith('/google')){try{return res.redirect(googleCalendarUrl(localized,SITE_BASE));}catch(e){return res.status(409).json({error:e.message});}}
+ let calendar;try{calendar=eventCalendar(localized,SITE_BASE);}catch(e){return res.status(409).json({error:e.message});}
+ res.set({'Content-Type':'text/calendar; charset=utf-8','Content-Disposition':'attachment; filename="event.ics"'}).send(calendar);
+}));
+app.post('/api/events/:id/view',requireDb,wrap(async(req,res)=>{
+ const event=(await q("SELECT id FROM events WHERE id=$1 AND status IN ('預告','報名中')",[req.params.id])).rows[0];
+ if(!event)return res.status(404).json({error:'找不到活動。'});
+ const visitor=req.body?.visitor_id;if(visitor!==undefined&&(typeof visitor!=='string'||!/^[a-f0-9-]{36}$/.test(visitor)))return res.status(400).json({error:'瀏覽識別碼格式錯誤。'});
+ const source=String(req.body?.source||'direct').slice(0,120),campaign=String(req.body?.campaign||'').slice(0,120);
+ await q(`INSERT INTO event_views(event_id,day,source,campaign,views) VALUES($1,(now() AT TIME ZONE 'Asia/Taipei')::date,$2,$3,1)
+ ON CONFLICT(event_id,day,source,campaign) DO UPDATE SET views=event_views.views+1`,[event.id,source,campaign]);
+ if(visitor)await q(`INSERT INTO event_visitors(event_id,visitor_hash,day) VALUES($1,$2,(now() AT TIME ZONE 'Asia/Taipei')::date) ON CONFLICT(event_id,visitor_hash,day) DO UPDATE SET last_seen=now()`,[event.id,crypto.createHash('sha256').update(event.id+':'+visitor).digest('hex')]);
+ res.json({ok:true});
 }));
 
 app.get('/api/events/:slug', optionalAuth, requireDb, wrap(async (req, res) => {
   const userId = req.auth?.sub || null;
   const ev = (await q(
     `SELECT ${SEL_EVENT},
-       (SELECT COUNT(*)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS reg_count,
-       mine.id AS registration_id,mine.status AS registration_status,mine.amount_paid,mine.checked_in_at,
+       (SELECT COALESCE(SUM(r.quantity),0)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS reg_count,
+       mine.id AS registration_id,mine.status AS registration_status,mine.quantity,mine.amount_due,mine.amount_paid,mine.checkout_expires_at,mine.ticket_snapshot,mine.checked_in_at,mine.capture_required,mine.authorization_expires_at,
        (mine.status='registered') AS registered
      FROM events e
      LEFT JOIN event_regs mine ON mine.event_id=e.id AND mine.user_id=$2
@@ -2363,7 +3330,9 @@ app.get('/api/events/:slug', optionalAuth, requireDb, wrap(async (req, res) => {
     [req.params.slug, userId, req.auth?.role || null]
   )).rows[0];
   if (!ev) return res.status(404).json({ error: '找不到活動。' });
-  res.json({ event: ev });
+  if(!ev.registered&&req.auth?.email){const recipient=(await q(`SELECT 1 FROM event_attendees a JOIN event_regs r ON r.id=a.registration_id LEFT JOIN event_ticket_orders o ON o.id=a.order_id WHERE r.event_id=$1 AND r.status='registered' AND a.email=lower($2) AND (a.order_id IS NULL OR o.status='registered') LIMIT 1`,[ev.id,req.auth.email])).rowCount;
+   if(recipient){ev.registered=true;ev.recipient_only=true;}}
+  res.json({ event: localizeEvent(ev, req.query.lang) });
 }));
 
 app.post('/api/events/:id/register', auth, requireDb, wrap(async (req, res) => {
@@ -2375,60 +3344,120 @@ app.post('/api/events/:id/register', auth, requireDb, wrap(async (req, res) => {
     const ev = (await client.query(`SELECT * FROM events WHERE id=$1 FOR UPDATE`, [req.params.id])).rows[0];
     if (!ev) { await client.query('ROLLBACK'); return res.status(404).json({ error: '找不到活動。' }); }
     if (ev.status !== '報名中') { await client.query('ROLLBACK'); return res.status(400).json({ error: '此活動目前不開放報名。' }); }
-    if (Number(ev.price_twd) > 0 && (!stripe || !STRIPE_WEBHOOK_SECRET)) {
-      await client.query('ROLLBACK');
-      return res.status(503).json({ error: '付費活動尚未完成 Stripe webhook 設定。' });
-    }
-
     const mine = (await client.query(
       `SELECT * FROM event_regs WHERE event_id=$1 AND user_id=$2 FOR UPDATE`,
       [ev.id, req.auth.sub]
     )).rows[0];
+    if(mine?.status==='capture_pending'){await client.query('ROLLBACK');return res.status(409).json({error:'信用卡請款處理中，請稍後再試。'});}
+    if(mine?.status==='refund_pending'){await client.query('ROLLBACK');return res.status(409).json({error:'退款處理中，請待退款結果確認後再報名。'});}
+    if(['pending_approval','waitlisted','declined'].includes(mine?.status)){
+      await client.query('COMMIT');return res.json({ok:true,already:true,status:mine.status});
+    }
+    let waitlisted=false;
     if (mine?.status === 'registered') {
       await client.query('COMMIT');
       return res.json({ ok: true, already: true });
     }
-    if (mine?.status === 'pending_payment' && mine.checkout_expires_at > new Date() && mine.stripe_session_id) {
-      const session = await stripe.checkout.sessions.retrieve(mine.stripe_session_id);
-      await client.query('COMMIT');
-      return res.json({ ok: true, pending: true, url: session.url });
+    if(mine?.status==='pending_payment'&&mine.stripe_session_id){
+      if(!stripe){await client.query('ROLLBACK');return res.status(503).json({error:'付款服務暫時無法核對，請稍後再試。'});}
+      const session=await stripe.checkout.sessions.retrieve(mine.stripe_session_id);
+      if(session.payment_status==='paid'){await client.query('COMMIT');await fulfillEventCheckout(session);return res.json({ok:true,already:true});}
+      if(session.status==='open'&&session.expires_at>Date.now()/1000){await client.query('COMMIT');return res.json({ok:true,pending:true,url:session.url,session_id:session.id});}
+      if(session.status==='complete'&&session.metadata?.capture_required==='true'){await client.query('COMMIT');await fulfillEventCheckout(session);return res.json({ok:true,status:'pending_approval'});}
+      if(session.status==='complete'){await client.query('ROLLBACK');return res.status(409).json({error:'付款仍在核對中，請稍後重新整理。'});}
+    }
+
+    const approved=mine?.status==='approved'&&mine.checkout_expires_at>new Date();
+    if(mine?.status==='approved'&&!approved){await client.query("UPDATE event_regs SET status='pending_approval',checkout_expires_at=NULL WHERE id=$1",[mine.id]);await client.query('COMMIT');return res.status(409).json({error:'付款保留時間已到期，已轉回待審核，請聯絡主辦人。'});}
+    const quantity=approved?mine.quantity:Number(req.body?.quantity??1);
+    if(!Number.isInteger(quantity)||quantity<1||quantity>10){await client.query('ROLLBACK');return res.status(400).json({error:'每筆報名可購買 1–10 張票。'});}
+    if(!approved&&quantity>1&&ev.registration_settings?.group_registration===false){await client.query('ROLLBACK');return res.status(400).json({error:'此活動僅開放單人報名。'});}
+    let attendees;
+    if(!approved){
+      const buyer=(await client.query('SELECT name,email FROM users WHERE id=$1',[req.auth.sub])).rows[0];
+      attendees=req.body?.attendees??(quantity===1?[buyer]:null);
+      if(!Array.isArray(attendees)||attendees.length!==quantity||attendees.some(a=>!a||typeof a.name!=='string'||!a.name.trim()||a.name.length>120||typeof a.email!=='string'||a.email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a.email))){await client.query('ROLLBACK');return res.status(400).json({error:'請填寫每位參加者的姓名與 Email，票數需與參加者人數一致。'});}
+      attendees=attendees.map(a=>({name:a.name.trim(),email:a.email.trim().toLowerCase()}));
+    }
+    let selectedTicket=approved?mine.ticket_snapshot:null;
+    if(!approved&&ev.tickets?.length){try{selectedTicket=selectTicket(ev.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code);}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}}
+    let price;try{price=approved?Number(mine.amount_due):(selectedTicket?ticketPrice(selectedTicket,req.body?.amount_twd):Number(ev.price_twd))*quantity;}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}
+    let couponSnapshot=approved?mine.coupon_snapshot:null;
+    if(!approved){try{const discounted=discountPrice(ev.coupons||[],req.body?.coupon_code,price);price=discounted.price;couponSnapshot=discounted.coupon;}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}
+      if(couponSnapshot?.max_uses>0){
+        const usage=(await client.query(`SELECT ((SELECT COUNT(*) FROM event_regs WHERE event_id=$1 AND coupon_snapshot->>'code'=$2 AND (status IN ('registered','refunded','refund_pending','pending_approval','waitlisted') OR (status IN ('approved','pending_payment') AND checkout_expires_at>now())))+(SELECT COUNT(*) FROM event_registration_history WHERE event_id=$1 AND snapshot->'coupon_snapshot'->>'code'=$2 AND snapshot->>'status' IN ('registered','refunded','refund_pending')))::int AS n`,[ev.id,couponSnapshot.code])).rows[0].n;
+        if(usage>=couponSnapshot.max_uses){await client.query('ROLLBACK');return res.status(409).json({error:'優惠碼使用次數已達上限。'});}
+      }
+    }
+    const settings=ev.registration_settings || {};
+    const requiresApproval=settings.requires_approval||selectedTicket?.requires_approval;
+    let captureRequired=!approved&&price>0&&requiresApproval&&settings.payment_approval==='authorize';
+    if((settings.opens_at&&Date.now()<Date.parse(settings.opens_at))||(settings.closes_at&&Date.now()>=Date.parse(settings.closes_at))){
+      await client.query('ROLLBACK');return res.status(409).json({error:'目前不在報名期間。'});
     }
 
     if (Number(ev.capacity) > 0) {
-      const n = (await client.query(
-        `SELECT COUNT(*)::int AS n FROM event_regs
-         WHERE event_id=$1 AND (status='registered' OR (status='pending_payment' AND checkout_expires_at>now()))`,
-        [ev.id]
-      )).rows[0].n;
-      if (n >= Number(ev.capacity)) {
+      const n=await reservedEventSeats(client,ev.id,null,req.auth.sub);
+      if (n+quantity > Number(ev.capacity) && (!settings.waitlist||approved)) {
         await client.query('ROLLBACK');
         return res.status(409).json({ error: '此活動名額已滿。' });
       }
+      waitlisted=n+quantity>Number(ev.capacity);
     }
 
+    let answerSnapshot;try{answerSnapshot=approved?mine.answers:eventQuestions.answers(settings.questions||[],req.body?.answers||{});}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}
+    const currentTicket=selectedTicket?(ev.tickets||[]).find(t=>t.id===selectedTicket.id):null;
+    if(approved&&selectedTicket&&!currentTicket?.active){await client.query('ROLLBACK');return res.status(409).json({error:'此票種已停售，請聯絡主辦人。'});}
+    if(currentTicket?.capacity>0){
+      const used=await reservedEventSeats(client,ev.id,selectedTicket.id,req.auth.sub);
+      if(used+quantity>currentTicket.capacity){if(settings.waitlist&&!approved)waitlisted=true;else{await client.query('ROLLBACK');return res.status(409).json({error:'這個票種已售完。'});}}
+    }
+    if(mine&&['cancelled','refunded','expired','pending_payment'].includes(mine.status)){
+      await client.query('INSERT INTO event_registration_history(event_id,registration_id,user_id,snapshot) VALUES($1,$2,$3,$4)',[ev.id,mine.id,req.auth.sub,JSON.stringify({...mine,attendees:(await client.query('SELECT * FROM event_attendees WHERE registration_id=$1 ORDER BY ordinal',[mine.id])).rows})]);
+      await client.query('UPDATE event_regs SET ticket_version=ticket_version+1,created_at=now(),stripe_session_id=NULL,stripe_payment_intent_id=NULL,stripe_refund_id=NULL,refund_status=NULL,paid_at=NULL,refunded_at=NULL,checkout_expires_at=NULL WHERE id=$1',[mine.id]);
+    }
     const regId = mine?.id || uid('r_');
     const note = String(req.body?.note || '').trim();
-    if (Number(ev.price_twd) === 0) {
+    async function saveDetails(){
+      await client.query("UPDATE event_regs SET answers=$2,ticket_snapshot=$3,coupon_snapshot=$4,quantity=$5,confirmation_queued=false,language=$6,attribution=$7,capture_required=$8,authorization_expires_at=NULL,entry_source='self_service' WHERE id=$1",[regId,JSON.stringify(answerSnapshot),selectedTicket?JSON.stringify(selectedTicket):null,couponSnapshot?JSON.stringify(couponSnapshot):null,quantity,['en','ja'].includes(req.body?.lang)?req.body.lang:'zh',JSON.stringify(approved?mine.attribution:normalizeAttribution(req.body?.attribution)),captureRequired]);
+      if(!approved){await client.query('DELETE FROM event_attendees WHERE registration_id=$1',[regId]);for(const [i,a] of attendees.entries())await client.query('INSERT INTO event_attendees(id,registration_id,name,email,ordinal) VALUES($1,$2,$3,$4,$5)',[uid('att_'),regId,a.name,a.email,i]);}
+    }
+
+    if(waitlisted)captureRequired=false;
+    if(!approved&&(waitlisted||requiresApproval&&!captureRequired||mine?.status==='approved')){
+      const status=waitlisted?'waitlisted':'pending_approval';
+      await client.query(`INSERT INTO event_regs(id,event_id,user_id,note,status,amount_due,amount_paid) VALUES($1,$2,$3,$4,$5,$6,0)
+        ON CONFLICT(event_id,user_id) DO UPDATE SET note=EXCLUDED.note,status=EXCLUDED.status,amount_due=EXCLUDED.amount_due,amount_paid=0,checked_in_at=NULL,checked_in_by=NULL`,[regId,ev.id,req.auth.sub,note,status,price]);
+      await client.query('INSERT INTO event_activity(event_id,registration_id,actor_id,action) VALUES($1,$2,$3,$4)',[ev.id,regId,req.auth.sub,status]);
+      await saveDetails();
+      await client.query('COMMIT');return res.json({ok:true,registration_id:regId,status});
+    }
+    if (price === 0) {
       await client.query(
         `INSERT INTO event_regs (id,event_id,user_id,note,status,amount_due,amount_paid)
          VALUES ($1,$2,$3,$4,'registered',0,0)
          ON CONFLICT (event_id,user_id) DO UPDATE SET note=EXCLUDED.note,status='registered',
            amount_due=0,amount_paid=0,stripe_session_id=NULL,stripe_payment_intent_id=NULL,
-           checkout_expires_at=NULL,paid_at=NULL,refunded_at=NULL,stripe_refund_id=NULL,checked_in_at=NULL,checked_in_by=NULL`,
+           checkout_expires_at=NULL,paid_at=NULL,refunded_at=NULL,stripe_refund_id=NULL,refund_status=NULL,checked_in_at=NULL,checked_in_by=NULL`,
         [regId, ev.id, req.auth.sub, note]
       );
+      await saveDetails();
       await client.query('COMMIT');
       notifyRegistration(req.auth.sub, ev.id);
       return res.json({ ok: true, registration_id: regId });
     }
 
+    if (price > 0 && (!stripe || !STRIPE_WEBHOOK_SECRET)) {
+      await client.query('ROLLBACK');
+      return res.status(503).json({ error: '付費活動尚未完成 Stripe webhook 設定。' });
+    }
     await client.query(
       `INSERT INTO event_regs (id,event_id,user_id,note,status,amount_due,amount_paid)
        VALUES ($1,$2,$3,$4,'pending_payment',$5,0)
        ON CONFLICT (event_id,user_id) DO UPDATE SET note=EXCLUDED.note,status='pending_payment',
          amount_due=EXCLUDED.amount_due,amount_paid=0,stripe_session_id=NULL,stripe_payment_intent_id=NULL,
-         checkout_expires_at=NULL,paid_at=NULL,refunded_at=NULL,stripe_refund_id=NULL,checked_in_at=NULL,checked_in_by=NULL`,
-      [regId, ev.id, req.auth.sub, note, Number(ev.price_twd)]
+         checkout_expires_at=NULL,paid_at=NULL,refunded_at=NULL,stripe_refund_id=NULL,refund_status=NULL,checked_in_at=NULL,checked_in_by=NULL`,
+      [regId, ev.id, req.auth.sub, note, price]
     );
     const user = (await client.query(`SELECT email FROM users WHERE id=$1`, [req.auth.sub])).rows[0];
     const langPrefix = ['en', 'ja'].includes(req.body?.lang) ? `/${req.body.lang}` : '';
@@ -2441,21 +3470,23 @@ app.post('/api/events/:id/register', auth, requireDb, wrap(async (req, res) => {
       line_items: [{
         price_data: {
           currency: 'twd',
-          product_data: { name: ev.title, description: ev.description || undefined },
-          unit_amount: Number(ev.price_twd) * 100,
+          product_data: { name: ev.title+(selectedTicket?' · '+selectedTicket.name:'')+(quantity>1?' · '+quantity+' 張票':''), description: ev.description || undefined },
+          unit_amount: price * 100,
         },
         quantity: 1,
       }],
       success_url: `${detailUrl}?paid=1&s={CHECKOUT_SESSION_ID}`,
       cancel_url: `${detailUrl}?canceled=1`,
-      metadata: { kind: 'event-registration', registration_id: regId, event_id: ev.id, user_id: req.auth.sub },
+      metadata: { kind: 'event-registration', registration_id: regId, event_id: ev.id, user_id: req.auth.sub,capture_required:String(captureRequired) },
+      ...(captureRequired?{custom_text:{submit:{message:'信用卡先預授權，主辦人核准後才請款。Card authorization only; charged after approval.'}},payment_intent_data:{capture_method:'manual',metadata:{kind:'event-registration',registration_id:regId,event_id:ev.id,user_id:req.auth.sub}}}:{}),
     });
     await client.query(
       `UPDATE event_regs SET stripe_session_id=$2,checkout_expires_at=to_timestamp($3) WHERE id=$1`,
       [regId, session.id, session.expires_at]
     );
-    await client.query('COMMIT');
-    res.json({ ok: true, pending: true, registration_id: regId, url: session.url });
+    await saveDetails();
+      await client.query('COMMIT');
+    res.json({ ok: true, pending: true, registration_id: regId, url: session.url, session_id:session.id });
   } catch (e) {
     await client.query('ROLLBACK');
     throw e;
@@ -2466,13 +3497,22 @@ app.post('/api/events/:id/register', auth, requireDb, wrap(async (req, res) => {
 
 app.delete('/api/events/:id/register', auth, requireDb, wrap(async (req, res) => {
   if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
-  const reg = (await q(`SELECT * FROM event_regs WHERE event_id=$1 AND user_id=$2`, [req.params.id, req.auth.sub])).rows[0];
+  const client=await pool.connect();try{await client.query('BEGIN');const q=(sql,args)=>client.query(sql,args);await q('SELECT id FROM events WHERE id=$1 FOR UPDATE',[req.params.id]);
+  const reg = (await q(`SELECT * FROM event_regs WHERE event_id=$1 AND user_id=$2 FOR UPDATE`, [req.params.id, req.auth.sub])).rows[0];
   if (!reg) return res.json({ ok: true, already: true });
-  if (reg.checked_in_at) return res.status(409).json({ error: '已完成簽到，請聯絡主辦單位處理。' });
-  if (Number(reg.amount_due) > 0 || Number(reg.amount_paid) > 0)
+  if((await q("SELECT 1 FROM event_ticket_orders WHERE registration_id=$1 AND ticket_version=$2 AND (status IN ('pending_payment','refund_pending') OR (status='registered' AND amount_paid>0)) LIMIT 1",[reg.id,reg.ticket_version])).rowCount)return res.status(409).json({error:'尚有加購付款或付費票，請先由言文字處理加購退款。'});
+  if (reg.status==='declined') return res.status(409).json({error:'此報名未獲核准，請聯絡主辦人。'});
+  if (reg.checked_in_at||(await q('SELECT 1 FROM event_attendees WHERE registration_id=$1 AND checked_in_at IS NOT NULL LIMIT 1',[reg.id])).rowCount) return res.status(409).json({ error: '已有參加者完成簽到，請聯絡主辦單位處理。' });
+  if (Number(reg.amount_paid) > 0 || (Number(reg.amount_due) > 0 && !['pending_approval','waitlisted','approved'].includes(reg.status)))
     return res.status(409).json({ error: '付費票請聯絡主辦單位辦理退款。' });
+  if(reg.capture_required&&reg.stripe_payment_intent_id){
+    if(!stripe)return res.status(503).json({error:'須連線 Stripe 解除預授權，請稍後再試。'});
+    let intent=await stripe.paymentIntents.retrieve(reg.stripe_payment_intent_id);if(intent.status==='requires_capture')intent=await stripe.paymentIntents.cancel(intent.id);
+    if(intent.status!=='canceled')return res.status(409).json({error:'款項已請款或處理中，請聯絡言文字辦理退款。'});
+  }
   await q(`UPDATE event_regs SET status='cancelled' WHERE id=$1`, [reg.id]);
-  res.json({ ok: true });
+  await client.query('COMMIT');res.json({ ok: true });
+  }finally{await client.query('ROLLBACK');client.release();}
 }));
 
 /* ---- Stripe Checkout（開放任何人購買，無需登入；Stripe 為訂單真相來源） ---- */
@@ -2648,7 +3688,34 @@ for (const pre of ['', 'en', 'ja']) {
 const EVENTS_PAGE = path.join(PUB, 'events.html');
 app.get(['/event-application', '/en/event-application', '/ja/event-application'], (req, res) =>
   sendPage(res, path.join(PUB, 'event-application.html'), req.path));
-app.get(['/events', '/en/events', '/ja/events'], (req, res) => sendPage(res, EVENTS_PAGE, req.path));
+async function featuredRow() {
+  if (!dbReady) return null;
+  return (await q(`SELECT ${SEL_EVENT} FROM events e WHERE e.id=$1`, [FEATURED_ID])).rows[0] || null;
+}
+app.get(['/halloween-2026','/en/halloween-2026','/ja/halloween-2026'], wrap(async (req,res) => {
+  res.set('Cache-Control','no-store');
+  if (!dbReady) return res.status(503).send('活動暫時無法載入 / Event temporarily unavailable / ただいま準備中');
+  const event = await featuredRow();
+  if (!event || event.status === '草稿') return res.status(404).send('活動尚未公開 / Event not published / 公開前のイベントです');
+  if(event.visibility !== 'public') res.set('X-Robots-Tag','noindex');
+  const pre = /^\/(en|ja)(?:\/|$)/.exec(req.path)?.[1];
+  sendPage(res,path.join(PUB,pre || '', 'halloween-2026.html'),req.path,html => eventPage(html,event,req.path));
+}));
+app.get(['/halloween-2026.html','/en/halloween-2026.html','/ja/halloween-2026.html'], (req,res) => res.redirect(301,req.path.replace(/\.html$/,'')));
+app.get(['/', '/en', '/ja', '/en/', '/ja/', '/events', '/en/events', '/ja/events'], wrap(async (req,res) => {
+  const event = await featuredRow();
+  const pre = /^\/(en|ja)(?:\/|$)/.exec(req.path)?.[1];
+  const file = req.path.endsWith('/events') ? EVENTS_PAGE : path.join(PUB,pre || '', 'index.html');
+  res.set('Cache-Control','no-store');
+  sendPage(res,file,req.path,html => featuredEvent(html,event,req.path));
+}));
+app.get(['/embed/events/:slug','/en/embed/events/:slug','/ja/embed/events/:slug'],requireDb,wrap(async(req,res)=>{
+ const event=(await q("SELECT embed_origins FROM events WHERE slug=$1 AND status<>'草稿'",[req.params.slug])).rows[0];
+ if(!event||!event.embed_origins?.length)return res.status(404).send('此活動尚未開放嵌入 / Event embedding is not enabled / 埋め込みは無効です');
+ const origins=embedOrigins(event.embed_origins,/^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(SITE_BASE));
+ res.removeHeader('X-Frame-Options');res.set({'Cache-Control':'no-store','X-Robots-Tag':'noindex','Content-Security-Policy':"object-src 'none'; base-uri 'self'; frame-ancestors 'self' "+origins.join(' ')+"; form-action 'self' https://checkout.stripe.com"});
+ sendPage(res,EVENTS_PAGE,req.path,html=>html.replace('<body','<body data-event-embed="true"').replace('</head>','<style>body[data-event-embed] #nav,body[data-event-embed] footer,body[data-event-embed] .ev-back{display:none!important}body[data-event-embed] main{padding-top:24px!important}body[data-event-embed] .ev-detail{gap:24px}</style></head>'));
+}));
 app.get(['/events/:slug', '/en/events/:slug', '/ja/events/:slug'], async (req, res) => {
   let event = null;
   if (dbReady) {
@@ -2662,7 +3729,7 @@ app.get(['/events/:slug', '/en/events/:slug', '/ja/events/:slug'], async (req, r
     }
   }
   if (!event || event.visibility !== 'public') res.set('X-Robots-Tag', 'noindex');
-  sendPage(res, EVENTS_PAGE, req.path, event ? html => composeEventMeta(html, event, req.path) : null);
+  sendPage(res, EVENTS_PAGE, req.path, event ? html => composeEventMeta(html, localizeEvent(event, req.path.split('/')[1]), req.path) : null);
 });
 app.get('/', (req, res) => sendPage(res, path.join(PUB, 'index.html'), '/'));
 // /menu 舊頁改版為空間介紹：301 導至 /space（保留語系前綴），需先於 static 攔截
@@ -2676,13 +3743,13 @@ app.get(['/menu', '/menu/', '/en/menu', '/en/menu/', '/ja/menu', '/ja/menu/'], m
 // 舊 /admin.html 轉 301 至 /admin（瀏覽器保留 #hash，前端再轉為路徑）
 const ADMIN_PAGE = path.join(PUB, 'admin.html');
 app.get('/admin.html', (_req, res) => res.redirect(301, '/admin'));
-app.get(['/admin', '/admin/*'], (_req, res) => { res.set('X-Robots-Tag', 'noindex'); res.sendFile(ADMIN_PAGE); });
+app.get(['/admin', '/admin/*', '/organizer', '/organizer/*'], (_req, res) => { res.set('X-Robots-Tag', 'noindex'); res.sendFile(ADMIN_PAGE); });
 // 含 <!--SITE_HEADER--> 的 HTML（member、menu、語系首頁…）在 static 前組裝
 app.use(layoutMiddleware(PUB));
 app.use('/fellow', express.static(path.join(PUB, 'fellow'), { extensions: ['html'] }));
 // 空間介紹圖片上傳檔（管理後台上傳，需先於 static 掛載）
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
-  setHeaders: (res) => res.set('X-Content-Type-Options', 'nosniff'),   // 上傳目錄防內容嗅探
+  setHeaders: (res,file) => {res.set('X-Content-Type-Options', 'nosniff');if(file.endsWith('.pdf'))res.set({'Content-Disposition':'attachment','Content-Security-Policy':"sandbox; default-src 'none'"});},   // 上傳目錄防內容嗅探
 }));
 // 靜態官網（無標記 HTML／資產）
 app.use(express.static(PUB, { extensions: ['html'] }));
@@ -2706,6 +3773,15 @@ async function boot() {
 
   // 會籍到期前 7 天提醒：每日 09:00（台北）
   if (dbReady) {
+    if(stripe){let expiring=false;require('node-cron').schedule('* * * * *',async()=>{if(expiring)return;expiring=true;try{await expireEventAuthorizations();await reconcileExpiredEventCheckouts();}catch(e){console.error('[authorization-expiry]',e.message);}finally{expiring=false;}});}
+    if(process.env.RESEND_API_KEY){
+      let running=false;
+      require('node-cron').schedule('* * * * *',async()=>{
+        if(running)return;running=true;
+        try{const pending=(await q("SELECT r.user_id,r.event_id FROM event_regs r JOIN events e ON e.id=r.event_id WHERE r.status='registered' AND e.status<>'已取消' AND r.confirmation_queued=false LIMIT 100")).rows;for(const r of pending)await notifyRegistration(r.user_id,r.event_id);await require('./lib/event-mailer').queueReminders(q,SITE_BASE);await require('./lib/event-mailer').queueFeedbackRequests(q,SITE_BASE);for(let i=0;i<30;i++){if(!await require('./lib/event-mailer').deliverDue(q,sendMail,SITE_BASE,SECRET))break;}}
+        catch(e){console.error('[event-mail]',e.message);}finally{running=false;}
+      });
+    }
     require('node-cron').schedule('0 9 * * *', () => remindExpiringMemberships()
       .catch(e => console.error('[remind] 失敗：', e.message)), { timezone: 'Asia/Taipei' });
   }

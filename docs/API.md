@@ -51,9 +51,11 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" https://www.emoji.tw/api/state
 `content` 僅回首頁公告、菜單及空間文案／圖片白名單；IG token 與內部排程資料不會傳至瀏覽器。
 
 ### GET /api/events
-公開活動列表。只回 `visibility=public` 且「報名中」的活動與已成立報名數。
+可用 `?lang=zh|en|ja` 取得名稱、說明與地點的對應語系；未填翻譯沿用中文。公開列表包含預告與報名中。
+公開活動列表。只回 `visibility=public` 且「預告／報名中」的活動與已成立報名數。
 
 ### GET /api/events/:slug
+支援同樣的 `?lang=zh|en|ja`；回傳包含 `translations`。
 活動詳情。公開活動與私人活動皆可由直接連結讀取；私人活動不會出現在列表。帶有效會員 Bearer token 時一併回自己的報名、付款與簽到狀態。
 
 ### GET /api/points/packs
@@ -118,17 +120,22 @@ Google 授權回呼，簽發會員 token 並導回。
 刪除最新消息。
 
 ### POST /api/admin/events
-新增或更新活動。body：`{ id?, slug?, title, description, location, starts_at, ends_at, capacity, price_twd, visibility, status }`。
-`visibility` 限 `public`｜`private`；`status` 限 `草稿`｜`報名中`｜`已結束`；票價與名額為 0 以上整數。帶 `id` 為更新，回 `{ ok, id, slug }`。
+新增或更新活動。body：`{ id?, slug?, title, description, location, starts_at, ends_at, capacity, price_twd, visibility, status, translations? }`。
+`visibility` 限 `public`｜`private`；`status` 限 `草稿`｜`預告`｜`報名中`｜`已結束`；票價與名額為 0 以上整數。帶 `id` 為更新，回 `{ ok, id, slug }`。
+
+`translations` 為 `zh/en/ja` 物件；一般欄位為 `title/description/location`，專屬頁純文字欄位見 `public/event-fields.js`。每欄最多 10000 字，不接受 HTML 執行；未傳 translations 的舊 API 更新會保留既有翻譯。中文基本欄位以頂層值為準。預告可公開但不能報名；百鬼夜行首次 migration 以預告建立，後續啟動不覆寫後台編輯。
 
 ### DELETE /api/admin/events/:id
-刪除沒有任何報名紀錄的活動。已有報名時回 409，應改為「已結束」以保留付款與簽到稽核。
+百鬼夜行專屬活動禁止刪除，請改為草稿或已結束。其他活動可刪除沒有任何報名紀錄的活動。已有報名時回 409，應改為「已結束」以保留付款與簽到稽核。
 
 ### GET /api/admin/events/:id/regs
 該場活動的報名名單，含聯絡、票券狀態、應付／已付、付款與簽到時間。回 `{ regs }`。
 
+### GET /api/admin/events/:id/check-in
+本活動負責人、共同管理者、平台管理員或已授權的簽到人員讀取現場工作台。回活動名稱與狀態、預設掃描模式、鎖定狀態、可接受票種及來賓資料；簽到人員不能以此端點下載 CSV、編輯活動、傳送通知或變更報名狀態。受限票種在每位來賓的 `can_checkin` 明示，實際寫入仍由後端再次驗證。
+
 ### POST /api/admin/events/:id/check-in
-掃描或人工簽到。body 擇一：`{ token }`（活動票 QR 內容）或 `{ registration_id }`。只接受已成立且未退款的票券；重掃回 `duplicate: true`。
+掃描或人工簽到。body 擇一：`{ token }`（活動票 QR 內容）或 `{ registration_id, attendee_id? }`。只接受已成立且未退款的票券；重掃回 `duplicate: true`。簽到人員若被限制票種，其他票種回 403。
 
 ### DELETE /api/admin/events/:id/check-in/:registrationId
 取消一筆活動簽到，保留報名與付款紀錄。
@@ -299,3 +306,270 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 - **改 `users.status` / `can_view`**：`status` 由 `/api/admin/commitments/:id/confirm` 流程驅動，手改會與 commitment 狀態不一致；`can_view` 目前沒有任何邏輯讀取。
 - **改／刪 entitlements**：後台 UI 也沒有，需要時再開。
 - **刪 users、刪 commitments**：涉及金流與權益，一律走人工。
+
+## 外部活動主與主辦團隊（2026-09-07）
+
+活動主入口 `/organizer/events` 沿用 Google 登入與活動編輯器。平台授權的活動主可建立活動；僅被加入共同管理者的帳號只可管理受邀活動。每次請求重新查核資料庫權限，不能靠舊 token 保留撤銷後的權限。
+
+### GET /api/organizer/state
+僅回自己的／受邀共同管理的活動、本人姓名與 Email，以及 `can_create_events`。不包含其他會員、金流、點數、設定或其他主辦人的活動。未授權回 403。
+
+### POST /api/admin/users/:id/organizer
+平台管理員授予或取消建立活動資格，body `{ organizer: boolean }`。對象須先使用 Google 登入本站；不授予平台管理權限。
+
+### GET /api/admin/events/:id/hosts
+平台管理員／本活動負責人／共同管理者可讀主辦團隊。回 `{ owner, hosts, tickets, checkin }`；owner 為平台指定的主要負責人；hosts 有 `name,email,is_visible,can_manage,can_checkin,checkin_ticket_ids`，checkin 為預設掃描模式與鎖定狀態。
+
+### POST /api/admin/events/:id/hosts
+同上權限。body `{ name,email,is_visible,can_manage,can_checkin,checkin_ticket_ids? }`，依 Email 新增或更新；姓名最多 120 字，Email 最多 254 字。公開列名、共同管理與僅簽到權限分開設定；`checkin_ticket_ids` 只能引用本活動票種，空陣列代表全部票種。可預先加入尚未登入者，對方使用相同 Google 已驗證 Email 登入後取得權限。此操作不寄信、不建立會員、不授予建立其他活動的資格。
+
+### POST /api/admin/events/:id/check-in/settings
+活動管理者設定現場預設模式。body `{ mode: "standard"|"express", locked: boolean }`；locked 僅限制簽到人員切換模式，活動負責人與共同管理者仍可切換自己的工作台模式。
+
+### DELETE /api/admin/events/:id/hosts
+同上權限。body `{ email }` 移除共同主辦人；不能藉此移除主要負責人。移除後同一個 token 下次請求即失去該場權限。
+
+既有建立／更新、刪除、讀名單、簽到及取消簽到端點，均允許本活動負責人／共同管理者；他場 ID 回 404。退款仍限平台管理員。管理員更新活動可傳 `owner_id` 指定已授權活動主，外部請求不能變更主要負責人。公開 API 僅含公開主辦人名稱 `host_names`，不包含團隊 Email 或管理權設定。
+
+### POST /api/admin/events/:id/duplicate
+
+活動管理者且具建立權限可將可管理活動複製為草稿。回傳 `{ok,id,slug}`；新的負責人為操作者，不複製報名、付款或團隊權限。
+
+### POST /api/admin/events/:id/registration-settings
+
+活動管理者設定 `requires_approval`、`waitlist` 布林值與可空白的 `opens_at`、`closes_at` ISO 時間。免費及付費票支援待審核與候補；付費票核准後為 approved，保留名額 24 小時，參加者付款後才成立票券。此流程為核准後付款，不是信用卡預授權。
+
+### POST /api/admin/events/:id/regs/:registrationId/status
+
+活動管理者核准或拒絕待審核／候補報名，`status` 為 `registered` 或 `declined`。核准時交易鎖定活動並重新驗證名額，未核准不能取得票券。
+
+### GET /api/admin/events/:id/activity
+
+活動管理者讀取最近 500 筆報名審核／候補操作紀錄。
+
+### GET /api/admin/events/:id/payments
+
+平台管理員或該活動管理者可取得該活動付費報名、已收款、Stripe 付款與退款識別碼，以及結算摘要與結算台帳。`collector` 為言文字；`settlement_summary` 分開列出累計已收、成功退款、待結算、已結算、淨收與尚可安排金額。系統不自行推算分潤、手續費或稅額。
+
+### POST /api/admin/events/:id/settlements
+
+僅平台管理員可建立待結算紀錄。body：`{ amount_twd, due_on, note? }`。金額為正整數 TWD，且不可超過扣除成功退款、待結算及已結算後的尚可安排金額；`due_on` 為有效的 `YYYY-MM-DD`。建立紀錄不代表款項已撥出。
+
+### PATCH /api/admin/events/:id/settlements/:settlementId
+
+僅平台管理員可將待結算紀錄更新為 `{ status: "paid", reference }` 或 `{ status: "cancelled" }`。已撥款必須填可追溯的交易參考；已撥款與已取消紀錄不可再次修改，並保留在活動操作紀錄中。
+
+### POST /api/admin/events/:id/questions
+
+活動管理者設定 `questions` 陣列（最多 30 題）。問題含 id、type、label、required、options（選擇題）、translations（en/ja 題目）。報名送出 `answers` 物件，以問題 id 為鍵；後端驗證必填與選項並保存題目快照，名單 API 的 answers 可讀取歷史答案。
+
+### POST /api/admin/events/:id/tickets
+
+活動管理者設定 tickets 陣列（最多 30 種）：id、name、description、price_twd、capacity、active、opens_at、closes_at。自訂票種活動報名須送 ticket_id；後端依票種計價並鎖定活動驗證票種及全場名額，報名保存票種快照。
+
+現場簽到權限：主辦團隊可設定 `can_checkin`，不授予名單、金流或活動編輯權。簽到人員使用 `/event-checkin.html?event=<活動 id>`；驗票與取消簽到端點每次查驗該活動權限，移除後立即失效。
+
+### GET /api/events/:slug/calendar.ics
+
+非草稿活動可下載 RFC 5545 行事曆；時間為 UTC，文字跳脫與 UTF-8 折行。可帶 `lang=zh|en|ja`，隱藏地點不寫入檔案。
+
+### GET /api/events/:slug/calendar/google
+
+非草稿且未取消、有有效起訖時間的活動，重新導向 Google Calendar 預填表單，由參加者自行確認儲存。支援 `lang=zh|en|ja`，使用 UTC 時間與台灣時區；隱藏地點與私密會議連結不公開。取消或無有效時間回傳 409。
+
+### POST /api/events/:id/view
+
+紀錄一次活動詳情頁瀏覽，body 可含 source、campaign，各最多 120 字；依台灣日期彙總，不收集 IP。
+
+### GET /api/admin/events/:id/insights
+
+活動管理者查詢 `days=1|7|30|90`（1 為台灣日期的今天，其餘包含今天） 的每日來源瀏覽次數與目前報名／簽到累計；不代表不重複訪客。
+
+### GET /api/admin/events/:id/messages
+
+查看本活動通知草稿與逐收件人處理紀錄，configured 指示寄信服務設定。
+
+### POST /api/admin/events/:id/messages
+
+儲存草稿：subject、body、audience（registered／pending_approval／waitlisted／approved／checked_in）。
+
+### POST /api/admin/events/:id/messages/:messageId/schedule
+
+確認寄送：可傳 send_at，未傳為立即。須已設定 Resend；快照當下分眾收件人，背景工作每分鐘發送。寄信服務接受不等於送達，重試超過 23 小時轉人工核對。
+
+### POST /api/admin/events/:id/messages/:messageId/cancel
+
+取消尚未處理的通知；已處理或服務已接受的郵件不能撤回。
+
+### GET /api/admin/events/:id/regs/:registrationId/history
+
+查閱取消／退款／逾期後重新報名之前的完整快照。票款查詢亦包含歷史付款，避免重新報名覆蓋帳務。重新報名會更換 QR 票券版本，舊 QR 永久失效。
+
+### POST /api/admin/events/:id/details
+
+設定 mode（offline／online／hybrid）、cover_url、online_url、contact_email、hide_location。公開 API、HTML metadata 與 ICS 不提供受保護地點／會議網址；有效報名者才可取得。
+
+### POST /api/admin/events/:id/cancel
+
+傳入公開 reason，關閉 Stripe 待付款結帳後取消活動。取消後禁止報名與票券簽到；已付款票款及來賓通知需另行處理。
+
+### POST /api/events/:id/ticket-options
+
+提供 unlock_code 取得可選票種。公開回應不含解鎖碼；隱藏票種報名需同時送 ticket_id、unlock_code。票種可設定 flexible_price 與 minimum_twd，報名送 amount_twd；後端驗證最低金額，固定票價忽略自訂金額。
+
+### POST /api/admin/events/:id/guests/import
+
+匯入 guests（name、email），每批 1–500 位；status 可為 invited、registered（僅免費票）、pending_approval、waitlisted。可指定 ticket_id 及 unlock_code。使用交易鎖檢查名額，不足時整批回滾；重複報名跳過，不覆寫帳號姓名、票款與報名。未寄送通知。
+
+### GET /api/admin/events/:id/coupons
+### POST /api/admin/events/:id/coupons
+
+活動管理者查看／儲存 coupons 陣列（最多 100）：code、type（percent／fixed）、value、max_uses（0 不限）、active、expires_at。
+
+### POST /api/events/:id/quote
+
+依 ticket_id、unlock_code、amount_twd、coupon_code 試算。報價不保留名額；實際報名重新鎖定活動驗證優惠次數，保存折扣快照，核准後付款沿用已核准金額。
+
+### POST /api/events/:id/feedback
+
+已結束活動的有效報名者可送出 rating（1–5）與 comment（最多 5000 字）；每人一份，可更新。
+
+### GET /api/admin/events/:id/feedback
+
+活動管理者查看評分與文字回饋；不向公眾提供來賓回饋。
+
+多人購票：報名可傳 quantity（1–10）及等長 attendees 陣列（name、email），所有票屬同一票種。容量依票數扣除；優惠碼固定折抵以整筆報名計算。每位參加者有獨立 QR，ticket API 同時回傳 tickets 陣列，購買者可查看各人票券。簽到可傳 attendee_id 或掃描個人 QR；取消簽到以 attendee_id 查詢參數指定。部分人已簽到時不能自行取消整筆報名。
+
+### PATCH /api/events/:id/attendees/:attendeeId
+
+已登入購買者修改自己有效報名、尚未簽到的個人票，body `{name,email}`。活動需仍開放。每次修改會更換該票識別碼，舊 QR 立即失效，其他同訂單票不變。付款與取消權仍屬購買者，不會自動寄信。不存在／他人票回 404，已簽到或活動關閉回 409。
+
+部分與分次退款：`POST /api/admin/events/:id/regs/:registrationId/refund` 可傳 `{amount_twd,request_id}`，金額為整數 TWD，request_id 為 16–80 字元唯一識別碼。同一次重試必須沿用識別碼及金額。僅平台管理員可執行，待處理退款也占用可退額度；部分退款保留票券，全額待處理暫停票券，全額成功後失效。逐筆 `event_refunds` 保存金額與服務商狀態，webhook 向 Stripe 回讀最新狀態以處理亂序通知。
+
+活動操作紀錄支援 `?before=<id>` 游標，每頁最多 100 筆，回傳 `next`。包含活動資訊、票種、優惠碼、報名設定、題目、團隊、簽到、轉票與退款異動；歷史未記錄的操作不會回填。
+
+### POST /api/auth/email/start
+
+一次性 Email 登入。body `{name,email,redirect,lang}`，redirect 限允許官網來源。驗證姓名／Email；每 IP 每分鐘 10 次、每信箱每分鐘 1 次及每小時 6 次。登入碼只有 SHA-256 雜湊存入資料庫，有效 20 分鐘。缺寄信服務回 503，絕不假裝已寄出。
+
+### POST /api/auth/email/verify
+
+body `{code}`，原子消耗一次性登入碼，回傳 `{token,redirect}`。已使用／過期／無效回 400。連結以 fragment 攜帶登入碼，確認按鈕才兌換，避免郵件預覽機器人消耗。帳號依已驗證信箱沿用，不接受請求指定角色；每次 API 授權仍以資料庫角色為準。測試以隔離資料庫建立一次性碼，未寄送真實郵件。
+
+### POST /api/email/webhook
+
+Resend／Svix 簽章端點，需 `RESEND_WEBHOOK_SECRET`。以原始 body、`svix-id`、`svix-timestamp` 驗證 HMAC-SHA256，時間容忍 5 分鐘，事件 ID 去重。保存寄出／送達／延遲／退信／申訴／失敗／開啟／點擊事件，透過寄信服務 ID 關聯活動通知，亂序到達不會被本機「已接受」狀態覆蓋。未設定回 503，簽章錯誤回 400。開啟／點擊追蹤仍須服務商啟用。
+
+### GET /api/events/:id/receipt
+
+僅付款購買者取得自己目前報名的 Stripe 付款收據網址，後端向 Stripe 讀取 PaymentIntent 的 latest_charge.receipt_url。無付款或尚未產生回 404；受讓者無法取得購買者收據。此為付款收據，不代表台灣統一發票或已開立稅務憑證。
+
+### GET /api/events/:id/guests
+
+主辦人啟用公開名單時，回傳最多 100 個已同意公開的有效參加者姓名，不含 Email 或票券。未開啟或草稿回 404。
+
+### PATCH /api/events/:id/profile
+
+body `{visible:boolean}`，已登入者僅能修改符合自己已驗證 Email 的有效票券公開姓名設定。轉票會重設為不公開，避免沿用原參加者同意。
+
+### POST /api/admin/events/:id/cover
+
+活動擁有者／共同管理者上傳封面，multipart `file`，PNG／JPEG／WebP，最多 5 MB；驗證檔頭及副檔名、使用伺服器生成檔名。沿用既有 S3 儲存，未設定時存 `uploads/events/`。成功後同步寫入 event_details.cover_url 與活動操作紀錄。跨活動拒絕，不開放一般參加者上傳。
+
+### GET /api/events/:id/orders
+
+購買者讀取目前報名版本的加購訂單，不含解鎖碼。每筆保留自己的票種、數量、價格與付款狀態。
+
+### POST /api/events/:id/additional-tickets
+
+有效報名購買者加購 1–10 張票；body `{ticket_id,quantity,unlock_code,amount_twd,lang}`。不接受需審核票種或優惠碼。原始票與加購訂單分開保存，容量同時包含有效票與保留中的加購。免費直接成立，付費由 Stripe 回站／webhook 冪等核銷後才新增個人 QR。未完成加購可續付，不會覆蓋原票。
+
+### POST /api/admin/events/:id/orders/:orderId/refund
+
+僅平台管理員退款加購訂單，body `{amount_twd,request_id}`；支援部分／分次及冪等重試。全額成功只刪除這筆加購的有效票並釋出相同人數，原始票保留。原票退款前須先處理付費加購，避免付款仍有效卻失去整組票。
+
+`GET /api/events/:id/receipt?order=<orderId>` 可取得自己特定加購訂單的 Stripe 收據。
+
+### DELETE /api/events/:id/orders/:orderId
+購買者取消自己的免費加購訂單。交易內鎖定活動、報名與訂單；拒絕已簽到或付費票。僅撤銷該加購 QR、釋出該筆人數，原票券保留。重複取消回傳成功，不重複扣人數。
+
+### GET /api/admin/events/:id/regs/:registrationId/timeline
+活動管理者查詢單一來賓操作及郵件歷程。返回 registration、最多 200 筆 activity 與 100 筆 mail（含服務商事件）；跨活動與跨主辦人隔離。不把 accepted 當作已送達。
+
+報名設定新增 `group_registration` 布林值，關閉後禁止多人初次報名與加購；既有票券保留。來賓 status 更新支援 registered、pending_approval、waitlisted、declined，並可設定 `notify` 與最多 5000 字的 `message`。通知與狀態寫入同一交易；未設定寄信服務時 notify=true 返回 503。已簽到、付款處理中或待退款的報名須先處理原流程。
+
+### POST /api/admin/events/:id/regs/:registrationId/tickets
+活動管理者免費贈票，body: ticket_id、quantity（1–10）。有效報名及剩餘名額檢查、鎖定容量、獨立 0 元贈票訂單與操作紀錄。不請款、不更改來賓帳號資料。
+
+### DELETE /api/admin/events/:id/regs/:registrationId/tickets/:attendeeId
+活動管理者移除單張未簽到的有效票券，至少保留一張。只減少有效票數及撤銷 QR，不退款；既有付款／退款紀錄保留。加購訂單保留原金額，quantity 表示剩餘有效張數。
+
+### PATCH /api/admin/events/:id/messages/:messageId
+編輯未發布的活動通知草稿。body: subject、body、audiences（registered、pending_approval、waitlisted、approved、checked_in、invited 可複選）、ticket_ids（空陣列表示全部票種）。受邀者不能限制票種。保留舊版 audience 單一狀態輸入相容性。
+
+### GET /api/admin/events/:id/messages/:messageId/preview
+預覽目前符合狀態與票種的購買者收件名單及總數，與排程使用同一篩選規則；不寄信。
+
+### POST /api/admin/events/:id/messages/:messageId/publish
+只發布草稿至活動頁，不寄信。僅符合目前狀態及票種的登入來賓可見，草稿／未到排程時間／取消的公告不可見。
+
+### GET /api/events/:id/messages
+登入來賓取得當前可見的最近 100 則活動公告。轉票受讓人只能讀取自己票種適用的公告；狀態切換後立即重新判斷，不沿用過往收件資格。
+
+報名設定另支援 `feedback: {enabled, delay_hours, subject, body}`。delay_hours 為活動結束後 0–168 小時；自訂主旨或內容留白時使用來賓中／英／日語系預設。需有結束時間與寄信服務。每筆有效報名最多建立一封邀請；寄送前再次檢查啟用狀態、報名及是否已填回饋。活動提醒停用後，尚未送出的提醒也會取消。
+
+### GET /api/events/:id/notification-settings
+登入參加者或轉票受讓人讀取自己對此活動的通知偏好。返回 settings: blasts、reminders、feedback，預設皆開啟。不允許其他主辦人代查。
+
+### PUT /api/events/:id/notification-settings
+儲存自己的活動公告郵件、活動前提醒及活動後回饋邀請開關，三個欄位皆須布林值。寄送 worker 在每次發送前重新檢查偏好；尚未寄出的通知會取消。報名／付款／票券狀態通知不受影響，已寄出郵件無法撤回，前台公告保持可讀。
+
+### POST /api/events/unsubscribe
+免登入退訂單一活動的單一非必要通知類型。body: token、action（preview 或 unsubscribe）。token 以服務端 HMAC 綁定既有郵件識別碼，不含明文 Email，不接受任意活動／帳號指定；preview 僅回傳活動名與類型，不修改偏好。unsubscribe 只關閉該類型，重試冪等，不允許重新訂閱或取消必要票券通知。網頁連結把 token 放在 fragment，開啟後移除，需使用者明確按下確認才寫入，避免郵件掃描預覽誤退訂。
+
+### 活動富文字內容
+### GET /api/admin/events/:id/content
+
+活動管理者讀取三語富文字與純文字內容。
+### POST /api/admin/events/:id/content/preview
+
+活動管理者傳入 `{html}`，取得伺服器清理後的 HTML，不儲存。貼上操作可另外傳入 `pasted_text`（字串、最多 100000 字）；若全文為單一支援的 HTTPS 影片網址，沿用影片白名單轉為嵌入。其他內容保留原 HTML 並清理，不會自動嵌入任意網站。
+### PUT /api/admin/events/:id/content
+
+活動管理者傳入 `{lang,html,text}`（zh/en/ja），儲存該語言並同步純文字摘要。HTML 上限 100000 字，純文字上限 10000 字；僅容許指定格式與 HTTPS 媒體，影片限 YouTube privacy-enhanced、Vimeo、Loom 嵌入網址。一般活動編輯若改變說明，會移除該語言舊富文字，避免內容不同步。
+
+### POST /api/admin/events/:id/content/upload
+
+活動管理者以 multipart `file` 上傳一個檔案。圖片限 PNG/JPEG/WebP 且最多 5 MB；PDF 最多 10 MB，驗證宣告格式與檔頭／結尾。回傳 `{url,type,name,size}`，主辦人插入內容並儲存後才會出現在活動頁。沿用 S3，未設定時使用本機 uploads/events；PDF 強制下載。檔案連結為公開素材，不可用於私密參加者文件。此格式檢查不是防毒掃描。
+
+活動通知新增／修改可傳入 `body_html`（最多 100000 字）。伺服器白名單清理後保存，預覽與活動公告 API 均回傳此欄位。省略 HTML 且純文字未變時保留原格式；純文字改變時清除舊 HTML，明確傳入空字串則改回純文字。排程將 HTML 一併複製至每份寄送紀錄，郵件將上傳相對路徑轉成網站絕對網址、影片轉成連結，並保留純文字替代內容與退訂連結。
+
+活動報名連結支援 `tt`（或 `ticket_id`）、`coupon`（或 `coupon_code`）、`unlock_code`：只預填與查價，不會自動送出報名。指定票種不存在或未開賣時選第一個可用票種，隱藏票仍須通過伺服器解鎖驗證。報名 `attribution` 支援 source/campaign/referral/medium/content/term/gclid/fbclid/li_fat_id，僅保存字串且各欄上限 256 字；核准後付款保留原報名來源。
+
+### GET /api/admin/events/:id/embed
+
+活動管理者讀取嵌入網站來源 `{origins:[]}`。
+
+### PUT /api/admin/events/:id/embed
+
+活動管理者傳入 `{origins:["https://example.com"]}`。最多 10 個精確來源，不接受萬用字元、路徑、帳密或非 HTTPS；本機測試站額外允許 HTTP loopback。空陣列停用嵌入。僅 `/embed/events/:slug` 與對應 en/ja 路徑以 CSP frame-ancestors 允許這些來源，其餘網站頁面保持 SAMEORIGIN。草稿與未啟用嵌入的活動回 404。
+
+### GET /api/auth/session
+
+以現有 Bearer session 驗證登入，回傳 `{authenticated:true,user_id}`，不回傳 session token 或完整帳號資料。供嵌入登入分頁與 iframe 驗證回傳的登入狀態。
+
+活動／加購付費報名回應新增 `session_id`，加購另回傳 `order_id`。`POST /api/events/checkout/verify` 額外回傳 `status` 與 `order_status`，仍限定 Checkout 所屬會員。嵌入頁在付款連結建立後，每 15 秒確認一次、最多 10 分鐘，並保留手動更新；不因外部網站 postMessage 就宣告付款成功。
+
+活動公開姓名名單：`GET /api/events/:id/guests?after=<上一頁 next>` 回傳 `{guests:[{name}],next:string|null}`，每頁最多 100 個不同公開姓名。僅活動已開啟名單、有效報名且票券選擇公開姓名才列出；不提供 Email 或票券識別碼。`next:null` 表示沒有下一頁。
+
+### POST /api/events/:id/join-online
+
+已登入且有效報名的購買者或有效票券受讓人取得主辦人設定的 HTTPS 線上活動連結，回傳 `{url}`。草稿、預告、取消或無有效報名回傳 404；無有效連結回傳 409。按使用者累計點擊次數與首次／最近點擊時間，不記錄 IP。
+
+活動數據 `GET /api/admin/events/:id/insights` 新增 `online: {participants, clicks}`，為全活動累計點擊連結的帳號數與次數，不受瀏覽期間篩選，不代表實際會議出席。
+
+取消活動端點另接受 `notify: boolean`，預設 false。選擇通知但未設定寄信服務時回傳 503，不更動活動。啟用時，取消與取消通知佇列在同一筆交易提交，收件人為已報名／待付款／待審核／核准待付款／候補／請款處理中的購買者，以及有效已報名票券受讓人；依 Email 去重。回傳 `notifications_queued` 不代表已送達。取消通知屬必要狀態通知，不受公告退訂影響；不會自動退款。
+
+取消活動可附 `reason_translations: {en, ja}`，兩欄選填、各最多 1000 字。活動頁與取消郵件依語系套用，空白翻譯沿用 `reason`。
+
+活動數據另回傳 `registrations: [{day, bookings, self_service_bookings, registered, self_service_registered, self_service_checked_in}]`：以台灣日期依目前報名紀錄建立日彙總。`bookings` 包含後台匯入，`self_service_*` 只計前台自行報名；有效與簽到人數採查詢當下狀態，不是當日歷史快照，也不另計獨立加購筆數。範圍沿用 `days`。

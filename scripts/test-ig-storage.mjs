@@ -132,3 +132,10 @@ test('uploadAsset: S3 puts under assets/ and returns public URL; null without S3
   assert.equal(remote.requests[0].body.equals(jpeg), true);
   assert.equal(await publisher(t, {}).uploadAsset(jpeg, 'x.jpg', 'image/jpeg'), null);
 });
+
+test('PDF assets use download disposition in object storage',async t=>{
+ const remote=await storage(t),app=publisher(t,remote.env);
+ await app.uploadAsset(Buffer.from('%PDF-1.7\n%%EOF'),'document.pdf','application/pdf');
+ assert.equal(remote.requests[0].headers['content-disposition'],'attachment');
+ assert.equal(remote.requests[0].headers['content-type'],'application/pdf');
+});

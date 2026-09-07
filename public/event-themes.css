@@ -1,0 +1,18 @@
+#ev-app[data-theme]{--event-accent:#FFDE34;--event-button-ink:#111;--event-paper:#FBFAF6;--event-ink:#1B1A17;--event-muted:#595750;--event-surface:#f1efe8}
+#ev-app[data-appearance=dark]{--event-paper:#22221f;--event-ink:#faf9f3;--event-muted:#c8c7c0;--event-surface:#30302b}
+#ev-app[data-theme] .ev-detail{background:var(--event-paper);color:var(--event-ink);position:relative;isolation:isolate}
+#ev-app[data-theme] .ev-side{background:var(--event-surface);color:var(--event-ink)}
+#ev-app[data-theme] :is(.ev-meta,.ev-desc,.ev-note,.ev-kicker){color:var(--event-muted)}
+#ev-app[data-theme] :is(input,select,textarea){background:var(--event-paper);color:var(--event-ink);border:1px solid var(--event-muted)}
+#ev-app[data-theme] .btn--solid{background:var(--event-accent);color:var(--event-button-ink);border-color:var(--event-accent)}
+#ev-app[data-theme] .btn--ghost{color:var(--event-ink);border-color:var(--event-muted);background:transparent}
+#ev-app[data-theme] :focus-visible{outline:3px solid var(--event-accent);outline-offset:3px}
+#ev-app[data-theme=gradient] .ev-detail{background:linear-gradient(145deg,color-mix(in srgb,var(--event-accent) 25%,var(--event-paper)),var(--event-paper) 65%)}
+#ev-app[data-theme=dots] .ev-detail{background-image:radial-gradient(color-mix(in srgb,var(--event-accent) 30%,transparent) 2px,transparent 2px);background-size:24px 24px}
+#ev-app[data-theme=grid] .ev-detail{background-image:linear-gradient(color-mix(in srgb,var(--event-accent) 18%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--event-accent) 18%,transparent) 1px,transparent 1px);background-size:32px 32px}
+#ev-app[data-theme=confetti] .ev-detail:before,#ev-app[data-theme=emoji] .ev-detail:before,#ev-app[data-theme=seasonal] .ev-detail:before{content:'✦　✧　✦　✧　✦';position:absolute;inset:0;z-index:-1;opacity:.13;color:var(--event-accent);font-size:64px;line-height:3;overflow:hidden;pointer-events:none;animation:event-drift 12s ease-in-out infinite alternate}
+#ev-app[data-theme=emoji] .ev-detail:before{content:'😊　🎉　✨　😊　🎉'}
+#ev-app[data-theme=seasonal] .ev-detail:before{content:'🍂　🌿　🍁　🌿　🍂'}
+#ev-app[data-theme=polaroid] .ev-detail img:first-child{border:12px solid white;border-bottom-width:40px;box-shadow:0 5px 16px #0002;transform:rotate(-1deg);box-sizing:border-box}
+@keyframes event-drift{to{transform:translateY(40px)}}
+@media(prefers-reduced-motion:reduce){#ev-app[data-theme] .ev-detail:before{animation:none}}
