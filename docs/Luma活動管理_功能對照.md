@@ -444,3 +444,9 @@
 - 結算台帳在隔離 PostgreSQL 驗證跨角色權限、非法日期、超額阻擋、撥款參考必填、終態不可重改、取消釋放餘額與退款後負餘額。側邊瀏覽器另驗證 NT$1,000 收款、NT$600 待結算、填入撥款參考並完成後尚可安排 NT$400；測試活動與使用者已清除，沒有真實匯款。
 - 最終前台驗收使用既有隔離 QA 活動與測試會員：英文免費報名後名額由 1／10 變為 2／10，顯示票券 QR 與轉票入口；取消後回到 1／10 且恢復報名按鈕。沒有扣款或寄信。
 - 最終含隔離 PostgreSQL 的全套 `npm test` 為 323 項，322 通過、1 項環境跳過、0 失敗；跳過的三語路由另跑 2 項並全數通過。Stylebook 多尺寸、200% 文字、離線字型、對比、焦點、原生驗證、對話框鍵盤與 reduced motion 檢查通過。需要真實 Google、Resend、Stripe、Zoom／Meet、Wallet、Webhook 或分析平台帳號的外部送達與供應商後台驗收，仍須在各服務憑證與測試環境就緒後執行。
+
+### 2026-09-07 正式部署驗收
+
+- Git commit `9f67dac` 已推送至 `twouring/emoji-website` 的 `main`，並由 Zeabur `emoji-tw` 專案的 `emoji-website` 服務重新部署；控制台顯示該版本為 Running、1／1。
+- 正式環境新增並輪替 `EVENT_QR_SECRET` 後重新啟動。最新啟動日誌不再出現活動票券 QR 停用警告；會員門禁使用的 `ACCESS_QR_SECRET`／`ACCESS_DOOR_SECRET` 為另一套既有功能設定。
+- 正式站 `https://www.emoji.tw/halloween-2026`、英文、日文活動頁及 `/admin/events` 均回 HTTP 200；側邊瀏覽器讀回三語主標與中文完整活動內容。活動仍為「預告」，因此未在正式資料庫建立測試報名或扣款。
