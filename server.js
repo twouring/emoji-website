@@ -3516,6 +3516,35 @@ app.get('/api/admin/ig/status', auth, adminOnly, requireDb, wrap(async (_req, re
   });
 }));
 
+// IG 成效回填：以 permalink 對應 /me/media，逐篇拉 insights 寫回 social_posts.metrics（週報／排程調整依據）
+app.get('/api/admin/ig/insights', auth, adminOnly, requireDb, wrap(async (_req, res) => {
+  const token = await igPublisher.getToken(igDeps());
+  if (!token) return res.status(502).json({ error: 'IG token 未設定。' });
+  const G = 'https://graph.instagram.com/v23.0';
+  const get = async (path, qs) => {
+    const r = await fetch(`${G}/${path}?${new URLSearchParams(Object.assign({}, qs, { access_token: token }))}`);
+    const j = await r.json(); if (!r.ok || j.error) throw new Error(JSON.stringify(j.error || j)); return j;
+  };
+  const account = await get('me', { fields: 'username,followers_count,follows_count,media_count' });
+  const media = (await get('me/media', { fields: 'id,permalink,timestamp,media_type,like_count,comments_count', limit: 50 })).data || [];
+  const posts = (await q(`SELECT id,title,external_url,metrics FROM social_posts WHERE platform='ig' AND status='published' AND external_url<>''`)).rows;
+  const norm = u => String(u || '').replace(/\/+$/, '').replace(/\?.*$/, '');
+  const out = [];
+  for (const post of posts) {
+    const m = media.find(x => norm(x.permalink) === norm(post.external_url));
+    if (!m) { out.push({ id: post.id, title: post.title, matched: false }); continue; }
+    const metrics = { media_id: m.id, media_type: m.media_type, likes: m.like_count || 0, comments: m.comments_count || 0 };
+    try {
+      const ins = (await get(`${m.id}/insights`, { metric: 'reach,saved,shares,views,total_interactions,follows,profile_visits' })).data || [];
+      for (const it of ins) metrics[it.name] = (it.values && it.values[0] && it.values[0].value) || 0;
+    } catch (e) { metrics.insights_error = e.message.slice(0, 200); }
+    metrics.fetched_at = new Date().toISOString();
+    await q(`UPDATE social_posts SET metrics=$2, updated_at=now() WHERE id=$1`, [post.id, JSON.stringify(metrics)]);
+    out.push({ id: post.id, title: post.title, matched: true, url: post.external_url, ...metrics });
+  }
+  res.json({ account, posts: out });
+}));
+
 /* ---- 活動前台：公開列表、私人連結、報名付款與票券 ---- */
 function publicEvent(event,lang){
  const out=localizeEvent(event,lang);out.can_contact_host=!!(event.owner_id||event.event_details?.contact_email);delete out.owner_id;if(out.event_details)delete out.event_details.contact_email;return out;
