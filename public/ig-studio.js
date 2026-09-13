@@ -146,7 +146,7 @@
     .igp-info-frame .igp-info-row:first-child{border-top:0;}
     .igp-quote{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;padding:96px;}
     .igp-quote .mk{font-family:var(--serif);font-size:150px;line-height:.6;color:var(--ig-yellow);}
-    .igp-quote .tx{font-family:var(--serif);font-weight:500;line-height:1.36;letter-spacing:.03em;}
+    .igp-quote .tx{font-family:var(--serif);font-weight:500;line-height:1.24;letter-spacing:.02em;text-wrap:balance;}
     .igp-quote .sb{font-family:var(--serif);font-size:48px;color:var(--muted);margin-top:26px;}
     .igp.dark .igp-quote .sb{color:#B7B0A2;}
     .igp-quote .by{font-size:22px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-top:40px;}
@@ -207,7 +207,7 @@
     .igp-opening-date{margin-top:44px;font-family:"Cormorant Garamond",var(--serif);font-size:80px;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums;}
     .igp.dark .igp-opening-date{color:#F4F1EA;}
     .igp-opening-desc{font-size:26px;line-height:1.7;color:var(--ink-soft);margin-top:26px;}
-    .igp-manifesto{font-family:var(--serif);font-weight:500;line-height:1.32;letter-spacing:.03em;margin-top:48px;white-space:pre-line;}
+    .igp-manifesto{font-family:var(--serif);font-weight:500;line-height:1.28;letter-spacing:.03em;white-space:pre-line;text-wrap:balance;}
     .igp-coming-title{font-family:"Cormorant Garamond",var(--serif);font-size:132px;line-height:1.02;letter-spacing:.01em;}
     .igp-coming-sub{font-family:var(--serif);font-size:42px;line-height:1.5;color:#B7B0A2;margin-top:40px;}
 
@@ -430,7 +430,7 @@
       <div class="igp-quote">
         <div class="igp-eyebrow">${H(eyebrow)}</div>
         <div style="margin:auto 0"><div class="mk">“</div>
-          <div class="tx" style="font-size:${fitSize(state.q_text, 88, sq)}px">${H(state.q_text)}</div>
+          <div class="tx" style="font-size:${fitWrap(state.q_text, 124, sq)}px">${H(state.q_text)}</div>
           ${state.q_sub ? `<div class="sb" style="font-size:${fitSize(state.q_sub, 46, sq)}px">${H(state.q_sub)}</div>` : ''}
           ${state.en ? `<div class="igp-en" style="font-size:${sq ? 26 : 30}px;margin-top:22px">${H(state.en)}</div>` : ''}
         </div>
@@ -446,7 +446,7 @@
         <div class="igp-eyebrow igp-eyebrow--plain">${H(state.q_by && state.q_by !== '言文字' ? state.q_by : 'A Note · 夜的字')}</div>
         <div style="margin:auto 0">
           <div class="mk">「</div>
-          <div class="tx" style="font-size:${fitSize(state.q_text, 78, sq)}px">${H(state.q_text)}</div>
+          <div class="tx" style="font-size:${fitWrap(state.q_text, 112, sq)}px">${H(state.q_text)}</div>
           ${state.q_sub ? `<div class="sb" style="font-size:${fitSize(state.q_sub, 44, sq)}px">— ${H(state.q_sub)} —</div>` : ''}
           ${state.en ? `<div class="igp-en" style="font-size:${sq ? 26 : 30}px;margin-top:22px">${H(state.en)}</div>` : ''}
         </div>
@@ -629,9 +629,10 @@
     return `<div class="igp-layout" data-layout="06b">
       <div class="igp-body">
         <div class="igp-eyebrow">Brand · 品牌理念</div>
-        <div class="igp-manifesto" style="font-size:${fitSize(state.manifesto, 76, sq)}px">${H(state.manifesto)}</div>
-        ${state.en ? `<p class="igp-en" style="font-size:${sq ? 28 : 32}px;margin-top:36px">${H(state.en)}</p>` : ''}
-        <div class="igp-spacer"></div>
+        <div style="margin:auto 0">
+          <div class="igp-manifesto" style="font-size:${fitWrap(state.manifesto, 104, sq)}px">${H(state.manifesto)}</div>
+          ${state.en ? `<p class="igp-en" style="font-size:${sq ? 28 : 32}px;margin-top:36px">${H(state.en)}</p>` : ''}
+        </div>
         ${foot()}
       </div>
     </div>`;
@@ -721,6 +722,15 @@
   const fitSize = (text, base, sq) => {
     const L = Math.max(...String(text || '').split('\n').map(l => l.trim().length), 1);
     const size = L > 13 ? base * 0.62 : L > 10 ? base * 0.78 : L > 8 ? base * 0.88 : base;
+    return Math.round(sq ? size * 0.86 : size);
+  };
+  // 03／06b 大字：允許自動折成兩行，字級由「兩行可容納的字數」反推（版面內寬 888px，襯線中文字寬≈1.05em）
+  // 有手動 \n：每行各自單行放下；沒有：整段最多兩行（CSS text-wrap:balance 讓兩行等長，避免孤字）
+  const fitWrap = (text, base, sq) => {
+    const t = String(text || '');
+    const L = Math.max(...t.split('\n').map(l => l.trim().length), 1);
+    const lines = t.includes('\n') ? 1 : 2;
+    const size = Math.min(base, Math.floor(888 * lines / (L * 1.05)));
     return Math.round(sq ? size * 0.86 : size);
   };
   const br = t => H(t).replace(/\n/g, '<br>');   // 大字欄位支援 \n 手動斷行
