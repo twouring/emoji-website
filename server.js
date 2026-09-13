@@ -246,6 +246,23 @@ CREATE TABLE IF NOT EXISTS event_applications (
   UNIQUE (user_id, request_id)
 );
 CREATE INDEX IF NOT EXISTS event_applications_created_idx ON event_applications(created_at DESC);
+CREATE TABLE IF NOT EXISTS event_application_updates (
+  id TEXT PRIMARY KEY,
+  application_id TEXT NOT NULL REFERENCES event_applications(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('submitted','approved','rejected','update')),
+  message TEXT NOT NULL DEFAULT '',
+  actor TEXT NOT NULL DEFAULT '',
+  mail_state TEXT NOT NULL DEFAULT 'queued' CHECK (mail_state IN ('queued','processing','retry','sent','failed')),
+  mail_attempts INT NOT NULL DEFAULT 0,
+  mail_resends INT NOT NULL DEFAULT 0,
+  mail_next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  mail_sent_at TIMESTAMPTZ,
+  mail_provider_id TEXT,
+  mail_error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS event_application_updates_app_idx ON event_application_updates(application_id, created_at);
+CREATE INDEX IF NOT EXISTS event_application_updates_due_idx ON event_application_updates(mail_next_attempt_at) WHERE mail_state IN ('queued','processing','retry');
 CREATE TABLE IF NOT EXISTS admin_logs (
   id TEXT PRIMARY KEY,
   actor TEXT NOT NULL,
@@ -1118,16 +1135,36 @@ const appVenue = a => a.venue === '2F' ? '二樓交誼廳' : '三樓共享空間
 async function userContact(userId) {
   return (await q(`SELECT name,email FROM users WHERE id=$1`, [userId])).rows[0] || null;
 }
-function notifyApplicationCreated(a) {
-  const text = `${a.contact_name} 您好，\n\n我們已收到您的${appKind(a)}申請「${a.title}」。\n場地：${appVenue(a)}\n時段：${fmtTaipei(a.starts_at)} – ${fmtTaipei(a.ends_at)}（台灣時間）\n申請編號：${a.id}\n\n送出申請不代表場地已保留；檔期、費用與使用條件將另行書面確認。審核結果會以 Email 通知，也可登入 ${SITE_BASE}/event-application 查看。\n\nWe have received your venue application. This does not reserve the venue; dates, fees and terms will be confirmed in writing.\n\n言文字｜台灣人才聚落\nus@emoji.tw · +886 921 102 067`;
-  sendMailQuietly({ to: a.contact_email, subject: `[言文字] ${appKind(a)}申請已收到 · ${a.title}`, text, replyTo: NOTIFY_EMAIL });
+/* 申請者通知一律寫入 event_application_updates 佇列（與狀態變更同一交易），由 drainApplicationMail 寄出並記錄；
+ * 後台收件通知仍即時寄出，失敗只記 log。 */
+function notifyAdminApplication(a) {
   sendMailQuietly({ to: NOTIFY_EMAIL, subject: `[後台] 新${appKind(a)}申請：${a.title}（${appVenue(a)}）`,
     text: `${appKind(a)}｜${appVenue(a)}\n單位：${a.community_name}\n聯絡：${a.contact_name} ${a.contact_email} ${a.contact_phone || ''}\n時段：${fmtTaipei(a.starts_at)} – ${fmtTaipei(a.ends_at)}\n人數：${a.attendees}\n\n${a.description}\n\n需求：${a.requirements || '—'}\n\n審核：${SITE_BASE}/admin/applications`, replyTo: a.contact_email });
 }
-function notifyApplicationReviewed(a) {
-  const result = a.status === 'approved' ? '初步通過（場地尚未保留）' : '未通過';
-  const text = `${a.contact_name} 您好，\n\n您的${appKind(a)}申請「${a.title}」審核結果：${result}\n\n回覆：\n${a.review_note}\n\n${a.status === 'approved' ? '初步通過不代表場地已保留，我們會再與您確認檔期、費用與使用條件並完成書面確認。' : '如有疑問可直接回覆此信。'}\n\n言文字｜台灣人才聚落\nus@emoji.tw · +886 921 102 067`;
-  sendMailQuietly({ to: a.contact_email, subject: `[言文字] ${appKind(a)}申請審核結果：${result} · ${a.title}`, text, replyTo: NOTIFY_EMAIL });
+const applicationMail = require('./lib/event-application-mail');
+let applicationMailDraining = false;
+/** 立即寄出佇列中到期的申請者通知；同時只跑一個迴圈，其餘由每分鐘排程接手。 */
+async function drainApplicationMail() {
+  if (applicationMailDraining || !dbReady || !process.env.RESEND_API_KEY) return;
+  applicationMailDraining = true;
+  try { for (let i = 0; i < 50 && await applicationMail.deliverApplicationMailOnce(q, sendMail, { origin: SITE_BASE, replyTo: NOTIFY_EMAIL }); i++); }
+  catch (e) { console.error('[application-mail]', e.message); }
+  finally { applicationMailDraining = false; }
+}
+async function queueApplicationUpdate(client, { application, kind, message = '', actor = '' }) {
+  return (await client.query(
+    `INSERT INTO event_application_updates (id,application_id,kind,message,actor) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+    [uid('eau_'), application.id, kind, message, actor])).rows[0];
+}
+/** 為申請列表附上進度紀錄（含每封通知信的寄送狀態）。 */
+async function attachApplicationUpdates(applications, { admin = false } = {}) {
+  if (!applications.length) return applications;
+  const rows = (await q(`SELECT * FROM event_application_updates WHERE application_id=ANY($1) ORDER BY created_at, id`,
+    [applications.map(a => a.id)])).rows;
+  const byApp = new Map();
+  for (const u of rows) { if (!byApp.has(u.application_id)) byApp.set(u.application_id, []); byApp.get(u.application_id).push(applicationMail.publicUpdate(u, { admin })); }
+  for (const a of applications) a.updates = byApp.get(a.id) || [];
+  return applications;
 }
 async function expireEventAuthorizations(){
  const expired=(await q("SELECT id FROM event_regs WHERE capture_required=true AND status='pending_approval' AND authorization_expires_at<=now() AND stripe_payment_intent_id IS NOT NULL LIMIT 50")).rows;
@@ -2194,6 +2231,7 @@ app.post('/api/event-applications', auth, requireDb, wrap(async (req, res) => {
       await client.query('COMMIT');
       if (old.request_hash !== hash) return res.status(409).json({ error: '這筆申請已送出，請重新整理查看原申請。' });
       delete old.request_hash;
+      await attachApplicationUpdates([old]);
       return res.json({ ok: true, application: old });
     }
     if (new Date(v.starts_at).getTime() <= Date.now()) {
@@ -2214,8 +2252,12 @@ app.post('/api/event-applications', auth, requireDb, wrap(async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING ${APPLICATION_FIELDS}`,
       [uid('ea_'),req.auth.sub,requestId,hash,v.community_name,v.contact_name,v.contact_email,v.contact_phone,
         v.title,v.description,v.starts_at,v.ends_at,v.attendees,v.requirements,v.kind,v.venue])).rows[0];
+    // 收件確認與狀態同一交易寫入佇列：申請成立就一定有對應通知，寄送由背景工作保證完成。
+    const update = await queueApplicationUpdate(client, { application, kind: 'submitted', actor: req.auth.sub });
     await client.query('COMMIT');
-    notifyApplicationCreated(application);
+    application.updates = [applicationMail.publicUpdate(update)];
+    notifyAdminApplication(application);
+    drainApplicationMail();
     res.status(201).json({ ok: true, application });
   } catch (err) { await client.query('ROLLBACK'); throw err; }
   finally { client.release(); }
@@ -2227,12 +2269,14 @@ app.get('/api/me/event-applications', auth, requireDb, wrap(async (req, res) => 
   const applications = (await q(
     `SELECT ${APPLICATION_FIELDS} FROM event_applications WHERE user_id=$1 ORDER BY created_at DESC`,
     [req.auth.sub])).rows;
+  await attachApplicationUpdates(applications);
   res.json({ applications });
 }));
 
 app.get('/api/admin/event-applications', auth, adminOnly, requireDb, wrap(async (_req, res) => {
   res.set('Cache-Control', 'no-store');
   const applications = (await q(`SELECT ${APPLICATION_FIELDS} FROM event_applications ORDER BY created_at DESC`)).rows;
+  await attachApplicationUpdates(applications, { admin: true });
   res.json({ applications });
 }));
 
@@ -2242,16 +2286,49 @@ app.post('/api/admin/event-applications/:id/review', auth, adminOnly, requireDb,
     return res.status(400).json({ error: '請選擇通過或未通過，且只可審核待審申請。' });
   if (typeof b.review_note !== 'string' || b.review_note.includes('\0') || !b.review_note.trim() || b.review_note.trim().length > 2000)
     return res.status(400).json({ error: '請填寫給申請人的審核回覆（2000 字以內）。' });
-  const application = (await q(
-    `UPDATE event_applications SET status=$2,review_note=$3,reviewed_at=now(),reviewed_by=$4
-     WHERE id=$1 AND status='pending' RETURNING ${APPLICATION_FIELDS}`,
-    [req.params.id,b.status,b.review_note.trim(),req.auth.agent ? 'admin-api-key' : req.auth.sub])).rows[0];
-  if (!application) {
-    const exists = (await q('SELECT id FROM event_applications WHERE id=$1', [req.params.id])).rows.length;
-    return res.status(exists ? 409 : 404).json({ error: exists ? '此申請已完成審核，請重新載入。' : '找不到這筆申請。' });
-  }
-  notifyApplicationReviewed(application);
+  const actor = req.auth.agent ? 'admin-api-key' : req.auth.sub;
+  const client = await pool.connect();
+  let application;
+  try {
+    await client.query('BEGIN');
+    application = (await client.query(
+      `UPDATE event_applications SET status=$2,review_note=$3,reviewed_at=now(),reviewed_by=$4
+       WHERE id=$1 AND status='pending' RETURNING ${APPLICATION_FIELDS}`,
+      [req.params.id,b.status,b.review_note.trim(),actor])).rows[0];
+    if (!application) {
+      await client.query('ROLLBACK');
+      const exists = (await q('SELECT id FROM event_applications WHERE id=$1', [req.params.id])).rows.length;
+      return res.status(exists ? 409 : 404).json({ error: exists ? '此申請已完成審核，請重新載入。' : '找不到這筆申請。' });
+    }
+    // 審核結果通知與審核狀態同一交易寫入佇列，不會有「已審核但沒通知」的申請。
+    await queueApplicationUpdate(client, { application, kind: b.status, message: application.review_note, actor });
+    await client.query('COMMIT');
+  } catch (err) { await client.query('ROLLBACK'); throw err; }
+  finally { client.release(); }
+  await attachApplicationUpdates([application], { admin: true });
+  drainApplicationMail();
   res.json({ ok: true, application });
+}));
+
+// 其他進度更新（補件、檔期／費用確認、場地安排…）：寫入紀錄並寄信通知申請者，任何狀態皆可。
+app.post('/api/admin/event-applications/:id/updates', auth, adminOnly, requireDb, wrap(async (req, res) => {
+  const message = typeof req.body?.message === 'string' && !req.body.message.includes('\0') ? req.body.message.trim() : '';
+  if (!message || message.length > 2000) return res.status(400).json({ error: '請填寫給申請人的進度更新內容（2000 字以內）。' });
+  const application = (await q(`SELECT ${APPLICATION_FIELDS} FROM event_applications WHERE id=$1`, [req.params.id])).rows[0];
+  if (!application) return res.status(404).json({ error: '找不到這筆申請。' });
+  const update = await queueApplicationUpdate(pool, { application, kind: 'update', message, actor: req.auth.agent ? 'admin-api-key' : req.auth.sub });
+  await attachApplicationUpdates([application], { admin: true });
+  drainApplicationMail();
+  res.status(201).json({ ok: true, update: applicationMail.publicUpdate(update, { admin: true }), application });
+}));
+
+// 重寄某一筆進度通知（寄送失敗，或申請者表示未收到）。
+app.post('/api/admin/event-applications/:id/updates/:updateId/resend', auth, adminOnly, requireDb, wrap(async (req, res) => {
+  const update = (await q(`UPDATE event_application_updates SET mail_state='queued',mail_attempts=0,mail_resends=mail_resends+1,mail_next_attempt_at=now(),mail_error=NULL
+    WHERE id=$1 AND application_id=$2 AND mail_state IN ('sent','failed','retry') RETURNING *`, [req.params.updateId, req.params.id])).rows[0];
+  if (!update) return res.status(404).json({ error: '找不到這筆通知，或它正在寄送中。' });
+  drainApplicationMail();
+  res.json({ ok: true, update: applicationMail.publicUpdate(update, { admin: true }) });
 }));
 
 /* ---- 活動管理：建/改/刪、名單、退款與簽到 ---- */
@@ -4295,7 +4372,7 @@ async function boot() {
       let running=false;
       require('node-cron').schedule('* * * * *',async()=>{
         if(running)return;running=true;
-        try{const pending=(await q("SELECT r.user_id,r.event_id FROM event_regs r JOIN events e ON e.id=r.event_id WHERE r.status='registered' AND e.status<>'已取消' AND r.confirmation_queued=false LIMIT 100")).rows;if(process.env.RESEND_API_KEY){for(const r of pending)await notifyRegistration(r.user_id,r.event_id);await require('./lib/event-mailer').queueFeedbackRequests(q,SITE_BASE);}await require('./lib/event-mailer').queueReminders(q,SITE_BASE);const twilio=eventChannels.twilioConfig(),push=eventChannels.pushConfig(),providers={email:process.env.RESEND_API_KEY?sendMail:null,text:twilio?options=>eventChannels.sendText(twilio,options):null,push:push?(subscription,payload)=>eventChannels.sendPush(push,subscription,payload):null};for(let i=0;i<30;i++){if(!await require('./lib/event-mailer').deliverDue(q,providers,SITE_BASE,SECRET))break;}}
+        try{await drainApplicationMail();const pending=(await q("SELECT r.user_id,r.event_id FROM event_regs r JOIN events e ON e.id=r.event_id WHERE r.status='registered' AND e.status<>'已取消' AND r.confirmation_queued=false LIMIT 100")).rows;if(process.env.RESEND_API_KEY){for(const r of pending)await notifyRegistration(r.user_id,r.event_id);await require('./lib/event-mailer').queueFeedbackRequests(q,SITE_BASE);}await require('./lib/event-mailer').queueReminders(q,SITE_BASE);const twilio=eventChannels.twilioConfig(),push=eventChannels.pushConfig(),providers={email:process.env.RESEND_API_KEY?sendMail:null,text:twilio?options=>eventChannels.sendText(twilio,options):null,push:push?(subscription,payload)=>eventChannels.sendPush(push,subscription,payload):null};for(let i=0;i<30;i++){if(!await require('./lib/event-mailer').deliverDue(q,providers,SITE_BASE,SECRET))break;}}
         catch(e){console.error('[event-mail]',e.message);}finally{running=false;}
       });
     }

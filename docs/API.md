@@ -104,9 +104,17 @@ Google 授權回呼，簽發會員 token 並導回。
 
 ### GET /api/admin/event-applications
 讀取場地申請（含 `kind` 社群／企業與 `venue` 二樓／三樓）及聯絡資料，回 `{ applications }`。僅管理員可讀，不會加入公開活動清單。
+每筆另含 `updates`：依時間排序的進度紀錄 `[{ id, kind, message, actor, created_at, mail_state, mail_sent_at, mail_attempts, mail_error }]`。`kind` 為 `submitted`（送出）／`approved`／`rejected`／`update`（其他進度）；`mail_state` 為 `queued`（待寄）／`retry`（寄失敗、排程重試）／`sent`／`failed`（重試 10 次仍失敗）。
 
 ### POST /api/admin/event-applications/:id/review
 審核待審申請。body：`{ status: "approved" | "rejected", review_note, expected_status: "pending" }`，回 `{ ok, application }`。回覆必填、最多 2000 字，申請人可見。不存在回 404；已審核或其他管理員先完成時回 409，不覆蓋既有結果。保存審核者與時間。審核通過不會自動保留場地、收費或建立／發布活動；檔期、費用與合作條件仍須書面確認。
+審核結果通知與狀態變更在同一交易寫入進度紀錄，之後立即寄給申請人；寄失敗自動退避重試，回應的 `application.updates` 可看寄送狀態。
+
+### POST /api/admin/event-applications/:id/updates
+對申請人寄送其他進度更新（補件、檔期／費用確認、場地安排等），任何審核狀態皆可。body：`{ message }`（必填、2000 字以內），回 `{ ok, update, application }`（201）。內容會記入該申請的 `updates`，申請人登入後可見並收到 Email；不存在回 404。
+
+### POST /api/admin/event-applications/:id/updates/:updateId/resend
+重寄某一筆進度通知（`mail_state` 為 `sent`、`failed` 或 `retry` 時）。回 `{ ok, update }`；找不到或正在寄送中回 404。重寄使用新的冪等金鑰，不會被寄信服務去重。
 
 ### GET /api/admin/logs
 後台操作紀錄，`?limit=`（預設 200、最多 500），回 `{ logs: [{ id, actor, method, path, summary, status, created_at }] }`。所有 `/api/admin/*` 的成功寫入（POST／DELETE）由中介層自動記錄，`summary` 為請求欄位摘要（略過含 token／secret／password／key 的欄位）。
@@ -340,10 +348,11 @@ body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email
 - `starts_at`／`ends_at`：台灣時間 `YYYY-MM-DDTHH:mm`，必須是真實日期、開始晚於現在、結束晚於開始。回應日期為 ISO 8601。
 - `attendees`：1–10000 整數，僅是預估人數，不代表場地容納量或核准人數。
 - 需明確同意須知，保存同意時間；伺服器固定初始狀態為 `pending`，忽略自訂審核與申請人欄位。
+- 申請成立時在同一交易寫入 `submitted` 進度紀錄並寄收件確認給 `contact_email`；同時通知後台 `NOTIFY_EMAIL`。之後審核結果與每次進度更新都會再寄信給申請人。
 - 每帳號每小時最多新增 10 筆，超過回 429；同筆重試不佔額度。資料庫未就緒回 503，不回報成功。
 
 ### GET /api/me/event-applications
-讀取登入帳號自己的申請，回 `{ applications }`，包含申請內容、`id`、`status`（`pending`／`approved`／`rejected`）、`review_note`、`created_at` 與 `reviewed_at`。不接受指定其他使用者，agent 金鑰回 403；不在公開 API 提供申請或聯絡資料。
+讀取登入帳號自己的申請，回 `{ applications }`，包含申請內容、`id`、`status`（`pending`／`approved`／`rejected`）、`review_note`、`created_at`、`reviewed_at`，以及進度紀錄 `updates: [{ id, kind, message, created_at, mail_state, mail_sent_at }]`（不含審核者與寄信錯誤細節）。不接受指定其他使用者，agent 金鑰回 403；不在公開 API 提供申請或聯絡資料。
 
 ### POST /api/events/:id/register
 報名活動。新來賓不需先登入，body 需傳 `{ name,email,lang? }`；啟用姓名拆分時改傳 `{ first_name,last_name,email,lang? }`。有效 Bearer token 會綁定目前帳號並忽略 body 的 Email。受邀者可改傳邀請連結中的 `invite_token`，後端從已鎖定的受邀紀錄取得身分、略過活動／票種審核，並在成功回覆後使同一連結失效；仍須通過問題、名額、票價、錢包與付款檢查。團體報名可傳 `quantity`（1–1000，且不得超過活動／票種剩餘名額）與 `additional_attendees`（不含第一位購買者）；未提供的參加者先沿用購買者資料，之後可逐張轉票。舊版等長 `attendees` 仍相容。啟用錢包收集時另傳 `ethereum_wallet_proof`／`solana_wallet_proof`；ERC-721 票種另傳十進位 `nft_token_id`。免費票立即成立；付費票建立或沿用未過期的 Stripe Checkout，回 `{ url }`。付費活動未設定 `STRIPE_WEBHOOK_SECRET` 時 fail closed 回 503。

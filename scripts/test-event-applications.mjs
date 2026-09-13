@@ -209,6 +209,46 @@ test('application API persists private submissions and serializes retry/review r
       assert.ok(!JSON.stringify(other.body).includes(review.review_note));
     });
 
+    await t.test('every stage queues an applicant notification; progress updates and resends are admin-only', async () => {
+      // Submission and review each wrote a queued notification in the same transaction as the state change.
+      const queued = (await pool.query('SELECT kind,message,mail_state,mail_attempts FROM event_application_updates WHERE application_id=$1 ORDER BY created_at', [applicationId])).rows;
+      assert.deepEqual(queued.map(u => [u.kind, u.mail_state, u.mail_attempts]), [['submitted', 'queued', 0], [reviewResult.status, 'queued', 0]]);
+      assert.equal(queued[1].message, reviewResult.review_note);
+      assert.deepEqual(reviewResult.updates.map(u => u.kind), ['submitted', reviewResult.status]);
+      const own = (await api('/api/me/event-applications', memberA)).body.applications[0];
+      assert.deepEqual(own.updates.map(u => u.kind), ['submitted', reviewResult.status]);
+      assert.ok(own.updates.every(u => u.mail_state === 'queued' && !('mail_error' in u) && !('actor' in u)));
+      const admin = (await api('/api/admin/event-applications', adminKey)).body.applications.find(a => a.id === applicationId);
+      assert.equal(admin.updates[1].actor, 'admin-api-key');
+      assert.equal(admin.updates[1].mail_state, 'queued');
+
+      const path = `/api/admin/event-applications/${applicationId}/updates`;
+      assert.equal((await api(path, memberA, { message: '偷看' })).status, 403);
+      assert.equal((await api(path, adminKey, { message: ' ' })).status, 400);
+      assert.equal((await api(path, adminKey, { message: 'x'.repeat(2001) })).status, 400);
+      assert.equal((await api('/api/admin/event-applications/missing/updates', adminKey, { message: '嗨' })).status, 404);
+      const update = await api(path, adminKey, { message: '檔期已確認，請於下週前匯訂金。' });
+      assert.equal(update.status, 201);
+      assert.equal(update.body.update.kind, 'update');
+      assert.equal(update.body.update.mail_state, 'queued');
+      assert.deepEqual(update.body.application.updates.map(u => u.kind), ['submitted', reviewResult.status, 'update']);
+      const seen = (await api('/api/me/event-applications', memberA)).body.applications[0].updates.at(-1);
+      assert.equal(seen.message, '檔期已確認，請於下週前匯訂金。');
+      assert.ok(!JSON.stringify((await api('/api/me/event-applications', memberB)).body).includes('匯訂金'));
+
+      // Only notifications the worker already finished (or gave up on) can be resent; a queued one cannot be duplicated.
+      const resend = `${path}/${update.body.update.id}/resend`;
+      assert.equal((await api(resend, memberA, {})).status, 403);
+      assert.equal((await api(resend, adminKey, {})).status, 404);
+      await pool.query(`UPDATE event_application_updates SET mail_state='failed',mail_attempts=10,mail_error='Resend 500' WHERE id=$1`, [update.body.update.id]);
+      const requeued = await api(resend, adminKey, {});
+      assert.equal(requeued.status, 200);
+      assert.equal(requeued.body.update.mail_state, 'queued');
+      assert.equal(requeued.body.update.mail_attempts, 0);
+      assert.equal((await pool.query('SELECT mail_resends FROM event_application_updates WHERE id=$1', [update.body.update.id])).rows[0].mail_resends, 1);
+      assert.equal((await api(`${path}/${update.body.update.id}/resend`, adminKey, {})).status, 404, 'a queued notification is not resent twice');
+    });
+
     await t.test('applications and review replies never become public events or member state', async () => {
       for (const [index,[path,auth]] of publicContexts.entries()) {
         const result = await api(path, auth);

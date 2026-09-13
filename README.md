@@ -66,7 +66,7 @@ DB 未設定時伺服器優雅降級：靜態頁照常，`/api/*` 回 503。
 
 ## 部署提醒
 
-- 社群場地申請沿用 Google 登入及 Postgres，無需付費會籍；啟動時自動建立 `event_applications`。後台「場地申請」分頁處理通過／未通過，回覆供申請人登入查看。送出與審核通過都不代表完成檔期預訂，亦不會自動發布活動或寄信。
+- 社群場地申請沿用 Google 登入及 Postgres，無需付費會籍；啟動時自動建立 `event_applications`。後台「場地申請」分頁處理通過／未通過，並可隨時寄送其他進度更新；送出、審核結果與每次進度更新都寫入 `event_application_updates` 並以 Email 通知申請人（寄失敗自動重試、可於後台重寄），申請人登入後可看完整進度紀錄。送出與審核通過都不代表完成檔期預訂，亦不會自動發布活動。
 
 - Google OAuth：Console 的授權導回 URI 需設為 `https://www.emoji.tw/auth/google/callback`。
 - Google Meet OAuth：另設可要求 `calendar.events` 的 OAuth client，授權導回 URI 為 `https://www.emoji.tw/integrations/google-meet/callback`。
