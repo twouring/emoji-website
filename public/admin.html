@@ -141,7 +141,7 @@
   .a-login-card .a-brand{width:auto;margin-bottom:20px}
 
   /* 場地申請卡 */
-  .application-card{border-top:1px solid var(--line);padding:16px 0;overflow-wrap:anywhere}
+  .application-card{border-top:1px solid var(--line);padding:16px 0;overflow-wrap:anywhere}.application-updates{margin:12px 0}.application-updates summary{cursor:pointer}.application-timeline{list-style:none;margin:8px 0 0;padding:0 0 0 14px;border-left:2px solid var(--line,#ddd)}.application-timeline li{padding:0 0 10px 10px;line-height:1.6}.application-timeline .btn{margin-left:6px}
   .application-card h3{font-size:1rem;margin:0 0 10px;display:flex;align-items:center;gap:8px}
   .application-details{display:grid;grid-template-columns:7em minmax(0,1fr);gap:6px 12px;font-size:1rem;margin:0 0 14px}
   .application-details dt{color:var(--muted)}
@@ -277,6 +277,7 @@ let CAL_MONTH = null;            // 行事曆月份 'YYYY-MM'；null=本月
 let COUNTER_UID = '';             // 櫃檯：選定的會員
 let LOGS = null;
 const APPLICATION_DRAFTS = new Map();
+const APPLICATION_UPDATE_DRAFTS = new Map();
 
 /* 社群經營分頁狀態（資料按需載入；編輯狀態存全域，refresh 重繪不遺失） */
 let SOCIAL_POSTS = null;          // null=未載入
@@ -611,6 +612,17 @@ function paintApplications(){
       <dt>申請時間</dt><dd>${esc(applicationTime(a.created_at))}（台灣時間）</dd>
       ${a.status!=='pending'?`<dt>審核時間</dt><dd>${esc(applicationTime(a.reviewed_at))}（台灣時間）</dd><dt>審核回覆</dt><dd>${esc(a.review_note || '—')}</dd>`:''}
     </dl>
+    <details class="application-updates" ${a.updates?.some(u=>u.mail_state!=='sent')?'open':''}><summary>進度與通知紀錄（${(a.updates||[]).length} 筆）</summary>
+      ${(a.updates||[]).length?`<ol class="application-timeline">${a.updates.map(u=>`<li><span class="hint">${esc(applicationTime(u.created_at))}</span> <b>${esc(UPDATE_KIND_LABEL[u.kind]||u.kind)}</b>${u.kind==='update'&&u.message?`<p style="white-space:pre-wrap;margin:4px 0">${esc(u.message)}</p>`:''}
+        <span class="pill ${u.mail_state==='sent'?'pill-ok':'pill-wait'}">${esc(MAIL_STATE_LABEL[u.mail_state]||u.mail_state)}</span>${u.mail_state==='sent'?` <span class="hint">${esc(applicationTime(u.mail_sent_at))}</span>`:''}${u.mail_error?` <span class="hint">${esc(u.mail_error)}</span>`:''}
+        ${['sent','failed','retry'].includes(u.mail_state)?`<button type="button" class="btn btn--ghost btn-sm" data-application-resend="${esc(u.id)}" data-application-id="${esc(a.id)}" ${busy?'disabled':''}>重寄</button>`:''}</li>`).join('')}</ol>`:'<p class="a-empty">尚無進度紀錄（此申請早於進度通知功能）。</p>'}
+    </details>
+    <form class="a-form application-update" data-application-update="${esc(a.id)}">
+      <label>寄送進度更新給申請者（補件、檔期／費用確認、場地安排…）
+        <textarea name="message" required maxlength="2000" ${APPLICATION_REVIEWING===a.id?'readonly':''} placeholder="內容會記入此申請的進度紀錄並以 Email 通知申請者">${esc(APPLICATION_UPDATE_DRAFTS.get(a.id) || '')}</textarea>
+      </label>
+      <button class="btn btn--ghost btn-sm" type="submit" ${busy?'disabled':''}>${APPLICATION_REVIEWING===a.id?'送出中…':'寄送進度更新'}</button>
+    </form>
     ${a.status==='pending'?`<form class="a-form application-review" data-application-review="${esc(a.id)}">
       <label>審核回覆（必填，申請者會看到）
         <textarea name="review_note" required maxlength="2000" ${APPLICATION_REVIEWING===a.id?'readonly':''} placeholder="請填寫給申請社群的審核理由與後續聯絡事項">${esc(APPLICATION_DRAFTS.get(a.id) || '')}</textarea>
@@ -643,6 +655,44 @@ function paintApplications(){
       reviewApplication(form, e.submitter?.dataset.status);
     };
   });
+  host.querySelectorAll('[data-application-update]').forEach(form=>{
+    form.elements.message.oninput = e=>APPLICATION_UPDATE_DRAFTS.set(form.dataset.applicationUpdate, e.target.value);
+    form.onsubmit = e=>{ e.preventDefault(); sendApplicationUpdate(form); };
+  });
+  host.querySelectorAll('[data-application-resend]').forEach(button=>{
+    button.onclick = ()=>resendApplicationUpdate(button.dataset.applicationId, button.dataset.applicationResend);
+  });
+}
+
+const UPDATE_KIND_LABEL = {submitted:'已送出申請（收件確認）', approved:'審核：通過', rejected:'審核：未通過', update:'進度更新'};
+const MAIL_STATE_LABEL = {queued:'待寄', retry:'寄失敗，排程重試', sent:'已寄出', failed:'寄送失敗'};
+
+async function sendApplicationUpdate(form){
+  if (APPLICATION_REVIEWING || APPLICATION_LOADING) return;
+  const id = form.dataset.applicationUpdate, field = form.elements.message, message = field.value.trim();
+  APPLICATION_UPDATE_DRAFTS.set(id, field.value);
+  if (!message || message.length>2000) { field.setCustomValidity('請填寫 1 至 2000 字的進度更新。'); field.reportValidity(); field.oninput = e=>{ field.setCustomValidity(''); APPLICATION_UPDATE_DRAFTS.set(id,e.target.value); }; return; }
+  APPLICATION_REVIEWING = id; APPLICATION_MESSAGE = ''; paintApplications();
+  try {
+    const data = await api('/admin/event-applications/'+encodeURIComponent(id)+'/updates', {method:'POST', body:{message}});
+    if (data.ok!==true || data.application?.id!==id) throw new Error('無法確認是否已記錄，請重新載入確認；草稿已保留。');
+    APPLICATIONS = APPLICATIONS.map(a=>a.id===id?data.application:a);
+    APPLICATION_UPDATE_DRAFTS.delete(id);
+    APPLICATION_MESSAGE = '已記錄進度更新並排入寄送；寄送狀態見「進度與通知紀錄」。';
+  } catch(e) {
+    APPLICATION_MESSAGE = '進度更新未送出：'+e.message+' 草稿已保留。';
+  } finally { APPLICATION_REVIEWING = ''; paintApplications(); }
+}
+
+async function resendApplicationUpdate(id, updateId){
+  if (APPLICATION_REVIEWING || APPLICATION_LOADING) return;
+  APPLICATION_REVIEWING = id; APPLICATION_MESSAGE = ''; paintApplications();
+  try {
+    const data = await api('/admin/event-applications/'+encodeURIComponent(id)+'/updates/'+encodeURIComponent(updateId)+'/resend', {method:'POST', body:{}});
+    if (data.ok!==true) throw new Error('無法確認重寄結果，請重新載入。');
+    APPLICATION_MESSAGE = '已重新排入寄送。';
+  } catch(e) { APPLICATION_MESSAGE = '重寄未完成：'+e.message; }
+  finally { APPLICATION_REVIEWING = ''; await loadApplications(APPLICATION_MESSAGE); }
 }
 
 async function loadApplications(message=''){
