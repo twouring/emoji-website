@@ -41,6 +41,10 @@ DB 未設定時伺服器優雅降級：靜態頁照常，`/api/*` 回 503。
 | `APP_SECRET` | token 簽章金鑰（務必設定） |
 | `SUPER_ADMIN_EMAIL` | 超級管理員 Google 帳號（預設 `us@twouring.com`），可於後台指派其他管理員 |
 | `ADMIN_API_KEY` | AI agent 管理 API 金鑰（`openssl rand -hex 32`）；等同超管權限，未設＝停用，詳見 [docs/API.md](docs/API.md) |
+| `RESEND_API_KEY` | Resend 交易通知信金鑰。設定後：場地活動申請送出時自動寄「[後台] 新申請」通知到 `NOTIFY_EMAIL`、寄收件確認給申請人，審核結果、會籍購買／到期、活動異動等信件亦由此寄出；未設時只記 log、不寄信，流程照常。寄件網域 `emoji.tw` 須先在 Resend 完成 DNS 驗證 |
+| `NOTIFY_EMAIL` | 後台通知信收件人（預設 `us@emoji.tw`），也是申請人回信的 Reply-To |
+| `MAIL_FROM` | 寄件人（預設 `言文字｜台灣人才聚落 <us@emoji.tw>`），網域須與 Resend 已驗證網域相同 |
+| `RESEND_WEBHOOK_SECRET` | Resend 送達／退信事件簽章（`whsec_...`），送至 `/api/email/webhook`；未設時該端點回 503 |
 | `STRIPE_SECRET_KEY` | Stripe 結帳；只使用 Emoji 言文字帳號 `acct_1Ts2y95NXMKDsl40`；未設時 `/api/checkout` 回 503 |
 | `STRIPE_WEBHOOK_SECRET` | 同帳號送至 `/api/stripe/webhook` 的簽章；未設時付費活動 fail closed |
 | `EVENT_QR_SECRET` | 活動票券 QR 簽章；留空時沿用 `ACCESS_QR_SECRET` |
