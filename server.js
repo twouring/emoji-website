@@ -3516,6 +3516,12 @@ app.get('/api/admin/ig/status', auth, adminOnly, requireDb, wrap(async (_req, re
   });
 }));
 
+// 物件儲存清單（MinIO）：找出未登記進 ig_assets 的原始素材
+app.get('/api/admin/ig/storage', auth, adminOnly, wrap(async (req, res) => {
+  const prefix = /^[\w./-]{0,80}$/.test(req.query.prefix || '') ? (req.query.prefix || 'assets/') : 'assets/';
+  res.json({ objects: await igPublisher.listAssets(prefix) });
+}));
+
 // IG 成效回填：以 permalink 對應 /me/media，逐篇拉 insights 寫回 social_posts.metrics（週報／排程調整依據）
 app.get('/api/admin/ig/insights', auth, adminOnly, requireDb, wrap(async (_req, res) => {
   const token = await igPublisher.getToken(igDeps());

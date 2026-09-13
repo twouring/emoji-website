@@ -228,6 +228,9 @@ Google 授權回呼，簽發會員 token 並導回。
 ### GET /api/admin/ig/status
 IG 自動發文系統狀態：token 有無、AI key 有無、未來排程、錯誤與逾期清單、素材庫統計。
 
+### GET /api/admin/ig/storage
+列 MinIO 物件（預設 `prefix=assets/`，可帶 `?prefix=posts/`）。回 `{ objects:[{key,size,lastModified,url}] }`，用來找未登記進 ig_assets 的原始素材。
+
 ### GET /api/admin/ig/insights
 拉 IG 帳號概況（追蹤數、貼文數）與每篇已發佈貼文的成效（likes/comments/reach/saved/shares/views/total_interactions/follows/profile_visits），並寫回 `social_posts.metrics`。回 `{ account, posts }`；`matched:false` 表示 permalink 對不到 IG 媒體。
 
