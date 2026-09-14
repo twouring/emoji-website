@@ -148,7 +148,7 @@ test('application API persists private submissions and serializes retry/review r
     const baselineEventCount=(await pool.query('SELECT COUNT(*)::int AS n FROM events')).rows[0].n;
     const submit = (auth, body) => api('/api/event-applications', auth, body);
     const input = { ...valid, request_id: randomUUID() };
-    let applicationId, reviewResult;
+    let applicationId, reviewResult, publishedEvent;
 
     await t.test('authentication and invalid input cannot write applications', async () => {
       assert.equal((await submit(null, input)).status, 401);
@@ -249,15 +249,33 @@ test('application API persists private submissions and serializes retry/review r
       assert.equal((await api(`${path}/${update.body.update.id}/resend`, adminKey, {})).status, 404, 'a queued notification is not resent twice');
     });
 
-    await t.test('applications and review replies never become public events or member state', async () => {
+    await t.test('an approved public application creates one public preview in the same request', async () => {
+      const second=(await pool.query('SELECT id FROM event_applications WHERE user_id=$1',[users[1]])).rows[0];
+      const reviewed=await api(`/api/admin/event-applications/${second.id}/review`,adminKey,{status:'approved',expected_status:'pending',review_note:'通過，後續另行確認場地。',publish_public:true});
+      assert.equal(reviewed.status,200);
+      assert.equal(reviewed.body.event.id,`e_${second.id}`);
+      publishedEvent=reviewed.body.event;
+      const event=(await pool.query('SELECT * FROM events WHERE id=$1',[publishedEvent.id])).rows[0];
+      assert.equal(event.visibility,'public');
+      assert.equal(event.status,'預告');
+      assert.equal(event.price_twd,0);
+      assert.equal(event.owner_id,users[1]);
+      assert.ok((await api('/api/events')).body.events.some(item=>item.id===publishedEvent.id));
+      const update=(await pool.query("SELECT message FROM event_application_updates WHERE application_id=$1 AND kind='approved'",[second.id])).rows[0];
+      assert.ok(update.message.includes(`/events/${publishedEvent.slug}`));
+    });
+
+    await t.test('private applications and review replies never leak into public or member state', async () => {
       for (const [index,[path,auth]] of publicContexts.entries()) {
         const result = await api(path, auth);
         assert.equal(result.status, 200);
-        assert.deepEqual(result.body.events, baselineEvents[index]);
+        const listsPreviews=path==='/api/events'||auth===adminKey;
+        assert.equal(result.body.events.length, baselineEvents[index].length+(listsPreviews?1:0));
+        assert.equal(result.body.events.some(event=>event.id===publishedEvent.id),listsPreviews);
         assert.ok(!JSON.stringify(result.body).includes(applicationId));
         assert.ok(!JSON.stringify(result.body).includes(reviewResult.review_note));
       }
-      assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM events')).rows[0].n, baselineEventCount);
+      assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM events')).rows[0].n, baselineEventCount+1);
     });
 
     await t.test('stored submissions and consent survive server shutdown', async () => {

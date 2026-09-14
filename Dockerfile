@@ -7,4 +7,4 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 COPY . .
 RUN npm ci --omit=dev
 EXPOSE 8080
-CMD ["node", "server.js"]
+CMD ["node", "bootstrap.js"]

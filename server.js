@@ -320,6 +320,12 @@ CREATE TABLE IF NOT EXISTS site_content (
   value TEXT,
   updated_at TIMESTAMPTZ DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS system_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 CREATE TABLE IF NOT EXISTS point_orders (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -1301,7 +1307,7 @@ app.use('/api/admin', (req, res, next) => {
     if (!pool || !dbReady || !req.auth || res.statusCode >= 400) return;
     const actor = req.auth.agent ? 'admin-api-key' : (req.auth.email || req.auth.sub || 'unknown');
     const body = req.body && typeof req.body === 'object' ? req.body : {};
-    const summary = Object.entries(body)
+    const summary = req.path === '/system-settings' ? `key=${String(body.key||'').slice(0,60)}` : Object.entries(body)
       .filter(([k]) => !/token|secret|password|key/i.test(k))
       .map(([k, v]) => `${k}=${typeof v === 'string' ? v.slice(0, 60) : JSON.stringify(v)?.slice(0, 60)}`)
       .join(' ').slice(0, 500);
@@ -2287,8 +2293,9 @@ app.post('/api/admin/event-applications/:id/review', auth, adminOnly, requireDb,
   if (typeof b.review_note !== 'string' || b.review_note.includes('\0') || !b.review_note.trim() || b.review_note.trim().length > 2000)
     return res.status(400).json({ error: '請填寫給申請人的審核回覆（2000 字以內）。' });
   const actor = req.auth.agent ? 'admin-api-key' : req.auth.sub;
+  const publishPublic = b.status === 'approved' && b.publish_public === true;
   const client = await pool.connect();
-  let application;
+  let application, event = null;
   try {
     await client.query('BEGIN');
     application = (await client.query(
@@ -2300,14 +2307,21 @@ app.post('/api/admin/event-applications/:id/review', auth, adminOnly, requireDb,
       const exists = (await q('SELECT id FROM event_applications WHERE id=$1', [req.params.id])).rows.length;
       return res.status(exists ? 409 : 404).json({ error: exists ? '此申請已完成審核，請重新載入。' : '找不到這筆申請。' });
     }
-    // 審核結果通知與審核狀態同一交易寫入佇列，不會有「已審核但沒通知」的申請。
-    await queueApplicationUpdate(client, { application, kind: b.status, message: application.review_note, actor });
+    if (publishPublic) {
+      const id=`e_${application.id}`,slug=`${eventSlug(application.title)||'event'}-${application.id.slice(-8)}`;
+      event=(await client.query(`INSERT INTO events(id,slug,title,description,location,starts_at,ends_at,capacity,price_twd,visibility,status,owner_id)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,0,'public','預告',$9) RETURNING id,slug`,
+        [id,slug,application.title,application.description,appVenue(application),application.starts_at,application.ends_at,application.attendees,application.user_id])).rows[0];
+    }
+    // 審核、公開預告與通知佇列同一交易完成，不會出現只有部分成功的狀態。
+    const publicLink=event?`\n\n公開活動預告：${SITE_BASE}/events/${encodeURIComponent(event.slug)}`:'';
+    await queueApplicationUpdate(client, { application, kind: b.status, message: application.review_note+publicLink, actor });
     await client.query('COMMIT');
   } catch (err) { await client.query('ROLLBACK'); throw err; }
   finally { client.release(); }
   await attachApplicationUpdates([application], { admin: true });
   drainApplicationMail();
-  res.json({ ok: true, application });
+  res.json({ ok: true, application, event });
 }));
 
 // 其他進度更新（補件、檔期／費用確認、場地安排…）：寫入紀錄並寄信通知申請者，任何狀態皆可。
@@ -3290,6 +3304,25 @@ app.post('/api/admin/content', auth, adminOnly, requireDb, wrap(async (req, res)
            ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,
     [key, String(req.body.value ?? '')]);
   res.json({ ok: true });
+}));
+
+/* ---- 系統設定：只有超管可管理；值以 APP_SECRET 衍生金鑰加密，機敏值永不讀回 ---- */
+const systemSettings = require('./lib/system-settings');
+app.get('/api/admin/system-settings', auth, adminOnly, superOnly, requireDb, wrap(async (_req,res)=>{
+  res.set('Cache-Control','no-store');
+  const rows=(await q('SELECT key,value FROM system_settings')).rows;
+  res.json({settings:systemSettings.describe(rows),blocked:systemSettings.blocked,restart_required:true});
+}));
+app.post('/api/admin/system-settings', auth, adminOnly, superOnly, requireDb, wrap(async (req,res)=>{
+  const key=String(req.body?.key||'');
+  if(!systemSettings.byKey.has(key))return res.status(400).json({error:'未知的系統設定。'});
+  if(req.body?.clear===true){await q('DELETE FROM system_settings WHERE key=$1',[key]);return res.json({ok:true,restart_required:true});}
+  const value=systemSettings.validate(key,req.body?.value);
+  if(!value)return res.status(400).json({error:'設定值不可空白；如要改回部署環境值，請使用清除覆寫。'});
+  await q(`INSERT INTO system_settings(key,value,updated_by,updated_at) VALUES($1,$2,$3,now())
+    ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_by=EXCLUDED.updated_by,updated_at=now()`,
+    [key,systemSettings.encrypt(key,value,SECRET),req.auth.agent?'admin-api-key':req.auth.email||req.auth.sub]);
+  res.json({ok:true,restart_required:true});
 }));
 
 /* ---- 前台管理：社群經營（IG/X 貼文規劃；不串接平台 API，僅供內容管理與排程） ---- */

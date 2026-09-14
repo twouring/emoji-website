@@ -5,8 +5,8 @@
   "description": "台灣人才聚落官網 — 靜態官網（/）＋創始會員站 fellow（/fellow）＋API，單一 Node/Express 伺服器",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --env-file=.env server.js",
+    "start": "node bootstrap.js",
+    "dev": "node --env-file=.env bootstrap.js",
     "test": "node --test scripts/test-*.mjs"
   },
   "engines": {

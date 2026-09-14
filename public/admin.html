@@ -275,7 +275,7 @@ let APPLICATION_REVIEWING = '', APPLICATION_MESSAGE = '';
 let APPLICATION_KIND = '';
 let CAL_MONTH = null;            // 行事曆月份 'YYYY-MM'；null=本月
 let COUNTER_UID = '';             // 櫃檯：選定的會員
-let LOGS = null;
+let LOGS = null, SYSTEM_SETTINGS = null;
 const APPLICATION_DRAFTS = new Map();
 const APPLICATION_UPDATE_DRAFTS = new Map();
 
@@ -999,6 +999,28 @@ function paintCounter(){
 }
 
 /* ===== 操作紀錄（超管） ===== */
+function tabSystem(d){ return `${d.super?'<div class="a-sec" id="system-settings-body"><h2>機敏資訊與系統參數</h2><p class="hint">載入中…</p></div>':'<div class="a-sec"><h2>機敏資訊與系統參數</h2><p class="hint">只有超級管理員可查看設定狀態與變更。</p></div>'}
+  ${tabContent(d)}<div class="a-sec"><h2>其他系統內容</h2><p class="hint">菜單、最新消息與社群內容沿用各自的工作流程。</p><div class="a-toolbar"><a class="btn btn--ghost btn-sm" href="/admin/menu">菜單</a><a class="btn btn--ghost btn-sm" href="/admin/updates">最新消息</a><a class="btn btn--ghost btn-sm" href="/admin/social">社群內容</a></div></div>`; }
+async function loadSystemSettings(){
+  const host=document.getElementById('system-settings-body');if(!host)return;
+  host.innerHTML='<h2>系統設定</h2><p class="hint">載入中…</p>';
+  try{SYSTEM_SETTINGS=await api('/admin/system-settings');paintSystemSettings();}catch(e){host.innerHTML=`<h2>系統設定</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`;}
+}
+function paintSystemSettings(){
+  const host=document.getElementById('system-settings-body');if(!host||!SYSTEM_SETTINGS)return;
+  const groups=SYSTEM_SETTINGS.settings.reduce((out,item)=>((out[item.group]||=[]).push(item),out),{});
+  host.innerHTML=`<h2>系統設定</h2><p class="hint">只有超級管理員可操作。機敏值不會顯示明文；儲存後須重新啟動服務才會套用。資料庫、APP_SECRET、PII_KEY、超管與管理 API 根金鑰只能在部署環境設定。</p>${Object.entries(groups).map(([group,items])=>`<fieldset class="a-sec"><legend><b>${esc(group)}</b></legend>${items.map(item=>`<div class="a-form" data-system-row="${esc(item.key)}"><label style="flex:1;min-width:280px">${esc(item.label)} <code>${esc(item.key)}</code><input ${item.secret?'type="password" autocomplete="new-password"':''} maxlength="100000" value="${item.secret?'':esc(item.value)}" placeholder="${item.secret&&item.configured?'已設定；輸入新值才會更換':'尚未設定'}"></label><span class="pill ${item.configured?'pill-ok':'pill-wait'}">${item.configured?(item.source==='database'?'後台設定':'部署環境'):'未設定'}</span><button class="btn btn--solid btn-sm" data-system-save="${esc(item.key)}">儲存</button><button class="btn btn--ghost btn-sm" data-system-clear="${esc(item.key)}" ${item.source==='database'?'':'disabled'}>清除覆寫</button></div>`).join('')}</fieldset>`).join('')}<p id="system-settings-message" role="status"></p>`;
+  host.querySelectorAll('[data-system-save]').forEach(button=>button.onclick=()=>saveSystemSetting(button.dataset.systemSave,false));
+  host.querySelectorAll('[data-system-clear]').forEach(button=>button.onclick=()=>saveSystemSetting(button.dataset.systemClear,true));
+}
+async function saveSystemSetting(key,clear){
+  const row=document.querySelector(`[data-system-row="${CSS.escape(key)}"]`),input=row.querySelector('input'),message=document.getElementById('system-settings-message');
+  if(!clear&&!input.value.trim()){message.textContent='請輸入新值；若要改回部署環境設定，請按「清除覆寫」。';input.focus();return;}
+  if(clear&&!confirm('清除此後台覆寫，改回部署環境的設定值？'))return;
+  row.querySelectorAll('button,input').forEach(el=>el.disabled=true);message.textContent='儲存中…';
+  try{await api('/admin/system-settings',{method:'POST',body:clear?{key,clear:true}:{key,value:input.value}});await loadSystemSettings();document.getElementById('system-settings-message').textContent='已儲存。重新啟動服務後生效。';}catch(e){message.textContent='儲存失敗：'+e.message;row.querySelectorAll('button,input').forEach(el=>el.disabled=false);}
+}
+
 function tabLogs(){ return '<div class="a-sec" id="logs-body"></div>'; }
 async function loadLogs(){
   const host = document.getElementById('logs-body'); if (!host) return;
@@ -1040,17 +1062,17 @@ const TABS = [
   { id:'counter',     label:'櫃檯',     render:tabCounter },
   { id:'updates',     label:'最新消息', render:tabUpdates },
   { id:'menu',        label:'菜單',     render:tabMenu },
-  { id:'content',     label:'網站內容', render:tabContent },
   { id:'social',      label:'社群經營', render:tabSocial },
   { id:'ads',         label:'廣告總覽', render:tabAds },
   { id:'admins',      label:'權限管理',   render:tabAdmins },
+  { id:'system',      label:'系統設定', render:tabSystem },
   { id:'logs',        label:'操作紀錄', render:tabLogs, super:true },
 ];
 const NAV_GROUPS = [
   ['營運', ['overview','members','commitments','events','applications','calendar','counter']],
-  ['內容', ['updates','menu','content']],
+  ['內容', ['updates','menu']],
   ['行銷', ['social','ads']],
-  ['系統', ['admins','logs']],
+  ['系統', ['admins','system','logs']],
 ];
 // 側欄 icon：線條 SVG（Lucide 風格），不用 emoji
 const ICONS = {
@@ -1061,6 +1083,7 @@ const ICONS = {
   calendar:     '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>',
   counter:      '<path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 9l2-5h14l2 5"/><path d="M12 13v4"/>',
   logs:         '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
+  system:       '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/>',
   applications: '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z"/>',
   updates:      '<path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
   menu:         '<path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z"/><path d="M6 2v2M10 2v2M14 2v2"/>',
@@ -1133,6 +1156,7 @@ function applyRoute(){
   let h = routePath();
   if (h === 'ig') h = 'social/igstudio';   // 舊網址相容：IG 產生器已併入社群經營
   if (h === 'social/ads') h = 'ads';       // 廣告總覽已獨立成分頁
+  if (h === 'content') h = 'system';         // 網站內容已集中至系統設定
   if (!document.querySelector('[data-panel]')) return;
   const parts = (h || (DATA?.organizer?'events':'overview')).split('/');
   const tab = parts[0];
@@ -1143,6 +1167,7 @@ function applyRoute(){
   if (tab === 'calendar') { if (APPLICATIONS===null) loadApplications().then(paintCalendar); paintCalendar(); return; }
   if (tab === 'counter') { paintCounter(); return; }
   if (tab === 'logs') { loadLogs(); return; }
+  if (tab === 'system') { if(DATA?.super)loadSystemSettings(); return; }
   if (tab === 'ads') { paintAds(); return; }
   if (tab === 'events') { if(parts[1]&&!showEventManager(parts[1],DATA)){toast('找不到這場活動');go('events',true);} else if(!parts[1])showEventList(); return; }
   if (tab !== 'social') return;

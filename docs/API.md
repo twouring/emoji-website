@@ -107,7 +107,7 @@ Google 授權回呼，簽發會員 token 並導回。
 每筆另含 `updates`：依時間排序的進度紀錄 `[{ id, kind, message, actor, created_at, mail_state, mail_sent_at, mail_attempts, mail_error }]`。`kind` 為 `submitted`（送出）／`approved`／`rejected`／`update`（其他進度）；`mail_state` 為 `queued`（待寄）／`retry`（寄失敗、排程重試）／`sent`／`failed`（重試 10 次仍失敗）。
 
 ### POST /api/admin/event-applications/:id/review
-審核待審申請。body：`{ status: "approved" | "rejected", review_note, expected_status: "pending" }`，回 `{ ok, application }`。回覆必填、最多 2000 字，申請人可見。不存在回 404；已審核或其他管理員先完成時回 409，不覆蓋既有結果。保存審核者與時間。審核通過不會自動保留場地、收費或建立／發布活動；檔期、費用與合作條件仍須書面確認。
+審核待審申請。body：`{ status: "approved" | "rejected", review_note, expected_status: "pending", publish_public? }`，回 `{ ok, application, event? }`。回覆必填、最多 2000 字，申請人可見。通過時 `publish_public: true` 會在同一交易建立公開「預告」活動並顯示於前台；未勾選則不建立。不存在回 404；已審核或其他管理員先完成時回 409，不覆蓋既有結果。保存審核者與時間。審核通過仍不代表場地已保留或完成收費；檔期、費用與合作條件仍須書面確認。
 審核結果通知與狀態變更在同一交易寫入進度紀錄，之後立即寄給申請人；寄失敗自動退避重試，回應的 `application.updates` 可看寄送狀態。
 
 ### POST /api/admin/event-applications/:id/updates
@@ -115,6 +115,12 @@ Google 授權回呼，簽發會員 token 並導回。
 
 ### POST /api/admin/event-applications/:id/updates/:updateId/resend
 重寄某一筆進度通知（`mail_state` 為 `sent`、`failed` 或 `retry` 時）。回 `{ ok, update }`；找不到或正在寄送中回 404。重寄使用新的冪等金鑰，不會被寄信服務去重。
+
+### GET /api/admin/system-settings
+僅超級管理員可讀。回傳可由後台管理的付款、寄信、登入／會議、訊息、電子票券、社群／AI、儲存與活動設定。機敏值只回「已設定／未設定」及來源，不回明文。另列出只能在部署環境管理的根設定。
+
+### POST /api/admin/system-settings
+僅超級管理員可寫。body：`{ key, value }` 儲存加密覆寫，或 `{ key, clear: true }` 清除覆寫並改回部署環境值。只接受白名單鍵值，機敏內容不寫入操作紀錄；變更於服務重新啟動後套用。
 
 ### GET /api/admin/logs
 後台操作紀錄，`?limit=`（預設 200、最多 500），回 `{ logs: [{ id, actor, method, path, summary, status, created_at }] }`。所有 `/api/admin/*` 的成功寫入（POST／DELETE）由中介層自動記錄，`summary` 為請求欄位摘要（略過含 token／secret／password／key 的欄位）。
