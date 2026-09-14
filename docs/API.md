@@ -684,7 +684,7 @@ body `{visible:boolean}`，已登入者僅能修改符合自己已驗證 Email �
 登入參加者或轉票受讓人讀取自己對此活動的通知偏好。返回 `settings` 的 blasts、reminders、feedback，以及各類型的 email、text、push 通路；另回已驗證電話、推播訂閱及目前可用供應商。不允許其他主辦人代查。
 
 ### PUT /api/events/:id/notification-settings
-儲存自己的活動公告、活動前提醒及活動後回饋邀請開關；`channels` 可分別控制 Email、簡訊／WhatsApp、瀏覽器推播。回饋邀請依 Luma 現行範圍只使用 Email。寄送 worker 在發送前重新檢查偏好；尚未寄出的通知會取消。報名／付款／票券狀態通知不受影響，已送交供應商的訊息無法撤回，前台公告保持可讀。
+儲存自己的活動公告、活動前提醒及活動後回饋邀請開關；`channels` 可分別控制 Email、簡訊／WhatsApp、瀏覽器推播。回饋邀請只使用 Email。寄送 worker 在發送前重新檢查偏好；尚未寄出的通知會取消。報名／付款／票券狀態通知不受影響，已送交供應商的訊息無法撤回，前台公告保持可讀。
 
 ### POST /api/events/unsubscribe
 免登入退訂單一活動的單一非必要通知類型。body: token、action（preview 或 unsubscribe）。token 以服務端 HMAC 綁定既有郵件識別碼，不含明文 Email，不接受任意活動／帳號指定；preview 僅回傳活動名與類型，不修改偏好。unsubscribe 只關閉該類型，重試冪等，不允許重新訂閱或取消必要票券通知。網頁連結把 token 放在 fragment，開啟後移除，需使用者明確按下確認才寫入，避免郵件掃描預覽誤退訂。
