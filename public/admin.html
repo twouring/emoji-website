@@ -231,7 +231,7 @@
     .a-wrap2 table.a-tbl{min-width:640px}
     .a-wrap2 table.a-tbl td{white-space:nowrap}
   }
-.ev-savebar{position:sticky;bottom:0;background:var(--paper);padding:16px 0;border-top:1px solid var(--line);z-index:5}#ev-translations summary{cursor:pointer;padding:12px 0;font-size:1rem}#ev-hosts[hidden]{display:none}#ev-hosts{scroll-margin-top:80px}
+.cal-item.cal-cancel{text-decoration:line-through;opacity:.6;border-left-color:var(--muted)}.a-todo{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:10px;margin-top:4px}.a-todo-item{display:block;padding:12px 14px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);text-decoration:none;transition:border-color .15s}.a-todo-item:hover{border-color:var(--ink)}.a-todo-item .n{display:block;font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.2}.a-todo-item .n.zero{color:var(--muted);font-weight:400}.a-todo-item .l{color:var(--muted)}.a-todo-list{margin:8px 0 0;padding:0;list-style:none}.a-todo-list li{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;padding:8px 0;border-top:1px solid var(--line)}.a-todo-list li:first-child{border-top:0}.a-todo-list a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}.a-todo-list a:hover{text-decoration-color:var(--ink)}.a-todo-list .meta{color:var(--muted);font-variant-numeric:tabular-nums}[data-panel="menu"] table.a-tbl td:nth-child(2),[data-panel="menu"] table.a-tbl th:nth-child(2){white-space:nowrap}#menu-save-server.is-dirty{background:var(--accent);color:var(--ink);border-color:var(--accent)}#ev-hosts label:has(>#share-url){display:block;width:100%}#share-url{width:100%;box-sizing:border-box;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92rem;line-height:1.45;padding:8px 10px;border:1px solid var(--muted);border-radius:6px;background:var(--card);color:var(--ink)}.ev-savebar{position:sticky;bottom:0;background:var(--paper);padding:16px 0;border-top:1px solid var(--line);z-index:5}#ev-translations summary{cursor:pointer;padding:12px 0;font-size:1rem}#ev-hosts[hidden]{display:none}#ev-hosts{scroll-margin-top:80px}
 </style>
 <script src="/event-csv.js"></script>
 <script src="/event-fields.js"></script>
@@ -293,6 +293,7 @@ let SOCIAL_CAL_MONTH = null;      // 日曆顯示月份 'YYYY-MM'；null=自動
 let ADS_CAMPS = null;             // 投放紀錄；null=未載入
 let ADS_EDIT = null;              // 編輯中的投放紀錄（複本；id='' 為新增）
 let ADS_LOADING = false;
+async function doThen(fn,msg){ try{ const out=await fn(); toast(typeof msg==='function'?msg(out):msg); await refresh(); }catch(e){ toast(e.message); } }
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2400); }
 
 // datetime-local 值 ↔ ISO
@@ -417,10 +418,30 @@ function tabOverview(d, x){
     <div class="a-kpi"><div class="kl">使用者</div><div class="kv">${(d.users||[]).length}<span class="u"> 人</span></div></div>
     <div class="a-kpi"><div class="kl">活動場次</div><div class="kv">${(d.events||[]).length}<span class="u"> 場</span></div></div>
   </div>
+  <div class="a-sec" id="overview-todo">${overviewTodoHTML(d, x)}</div>
   <div class="a-sec">
     <h2>快速指引</h2>
     <p class="hint">此後台管理創始會員計畫與官網前台內容。每個分頁有獨立網址（如 <code>/admin/members</code>），可直接分享或加入書籤。左側分頁：<b>會員</b>可搜尋與匯出名單；<b>參與紀錄</b>確認會費入帳；<b>活動</b>建立並查看報名；<b>場地申請</b>審核社群申請並聯絡確認；<b>最新消息</b>會公開顯示於官網首頁；<b>網站內容</b>可編輯首頁公告；<a href="/access-mock" target="_blank" rel="noopener">門禁 Mock</a> 可協助手動驗簽與掃碼啟用。</p>
   </div>`;
+}
+
+function overviewTodoHTML(d, x){
+  const now = Date.now(), week = now + 7*86400000;
+  const upcoming = (d.events||[]).map(e=>({e, t:Date.parse(e.starts_at_iso||e.starts_at)})).filter(({e,t})=>!isNaN(t) && t>=now-3*3600000 && t<=week && !['草稿','已取消','已結束'].includes(e.status)).sort((a,b)=>a.t-b.t);
+  const pendingPay = (d.commitments||[]).filter(c=>c.payment_status!=='已付款').length;
+  const apps = APPLICATIONS===null ? null : APPLICATIONS.filter(a=>a.status==='pending').length;
+  const item = (href, n, label) => `<a class="a-todo-item" href="${href}"><span class="n${n===0?' zero':''}">${n===null?'…':n}</span><span class="l">${label}</span></a>`;
+  return `<h2>今日待辦</h2>
+    <div class="a-todo">
+      ${d.organizer?'':item(BASE+'/applications', apps, '待審場地申請')}
+      ${d.organizer?'':item(BASE+'/commitments', pendingPay, '待入帳會費')}
+      ${item(BASE+'/events', upcoming.length, '7 天內活動')}
+    </div>
+    ${upcoming.length?`<ul class="a-todo-list">${upcoming.map(({e})=>`<li><a href="${BASE}/events/${encodeURIComponent(e.id)}">${esc(e.title)}</a><span class="meta">${esc(e.starts_at||'')} · ${esc(e.location||'')}</span><span class="meta">報名 ${e.reg_count||0}${e.capacity>0?'／'+e.capacity:''} · 已到 ${e.checkin_count||0}</span></li>`).join('')}</ul>`:'<p class="hint" style="margin:10px 0 0">未來 7 天沒有進行中的活動。</p>'}`;
+}
+function paintOverviewTodo(){
+  const host = document.getElementById('overview-todo'); if (!host || !DATA) return;
+  host.innerHTML = overviewTodoHTML(DATA, derived(DATA));
 }
 
 function tabMembers(d, x){
@@ -437,8 +458,9 @@ function tabMembers(d, x){
       <td>${c?'<span class="pill pill-ok">'+esc(status)+'</span>':'<span class="pill pill-wait">尚未加入</span>'}</td>
       <td class="a-mono">${esc(c?c.cert_no:'')}</td>
       <td class="num">${esc(u.created_at||'')}</td>
+      <td><button class="btn btn--ghost btn-sm" data-grant-uid="${esc(u.id)}" data-grant-name="${esc(u.name||u.email||'')}">發點</button></td>
     </tr>`;
-  }).join('') || '<tr><td colspan="9" class="a-empty">尚無使用者</td></tr>';
+  }).join('') || '<tr><td colspan="10" class="a-empty">尚無使用者</td></tr>';
   return `<div class="a-sec">
     <h2>會員名單</h2>
     <p class="hint">所有以 Google 登入或已建立的使用者；含門禁狀態、點數餘額、權益摘要、會籍狀態與會員編號。</p>
@@ -447,10 +469,10 @@ function tabMembers(d, x){
       <button class="btn btn--ghost btn-sm" id="m-csv">匯出 CSV</button>
     </div>
     <div class="a-wrap2"><table class="a-tbl">
-      <thead><tr><th>姓名</th><th>Email</th><th>電話</th><th>門禁狀態</th><th class="num">點數</th><th>權益摘要</th><th>創始狀態</th><th>會員編號</th><th class="num">加入日</th></tr></thead>
+      <thead><tr><th>姓名</th><th>Email</th><th>電話</th><th>門禁狀態</th><th class="num">點數</th><th>權益摘要</th><th>創始狀態</th><th>會員編號</th><th class="num">加入日</th><th>操作</th></tr></thead>
       <tbody id="m-body">${body}</tbody></table></div>
-    <h3 class="sp-h3">發放點數</h3>
-    <p class="hint">贈點預設一年效期；可自訂到期日。備註必填。</p>
+    <h3 class="sp-h3" id="pg-title">發放點數</h3>
+    <p class="hint">按名單列的「發點」會自動帶入會員；贈點預設一年效期，可自訂到期日。備註必填。</p>
     <div class="a-toolbar" style="flex-wrap:wrap;gap:8px">
       <input id="pg-uid" placeholder="會員 user id" style="min-width:180px">
       <input id="pg-amt" type="number" min="1" placeholder="點數" style="width:100px">
@@ -575,7 +597,7 @@ function showEventManager(id,d){
   const group=(label,items)=>`<div class="event-task-group"><span class="event-task-group__label">${label}</span><div class="event-task-group__items">${items}</div></div>`;
   manager.hidden=false;manager.innerHTML=`<div class="ui-scope ui-stack"><div class="event-manager-head"><div><p class="hint" style="margin:0">正在管理</p><h2>${esc(event.title)}</h2><p class="event-manager-meta"><span class="ui-badge">${esc(event.status)}</span><span>報名 <b id="ev-meta-count">${event.reg_count||0}${event.capacity>0?'／'+event.capacity:'／不限'}</b></span><span>已到 <b id="ev-meta-checkin">${event.checkin_count||0}</b></span><span>${esc(event.starts_at||'時間未定')}</span><span>${esc(event.location||'')}</span></p></div><div class="event-manager-head__actions"><a class="ui-button ui-button--secondary" href="${BASE}/events" data-event-manager-close>返回活動清單</a><a class="ui-button ui-button--secondary" href="${link}" target="_blank" rel="noopener">預覽活動頁 ↗</a></div></div><nav class="event-task-nav" aria-label="活動管理項目">${group('報名與來賓',task('regs','名單／簽到')+task('import','新增／匯入來賓')+task('messages','來賓通知')+task('hosts','主辦團隊'))}${group('票券與報名流程',task('tickets','票種管理')+task('coupons','優惠碼')+task('questions','報名表')+task('settings','報名設定'))}${group('活動頁與分享',task('edit','基本資料')+task('details','頁面與地點')+task('content','詳細內容')+task('links','分享連結'))}${group('成效與紀錄',task('insights','活動數據')+task('payments','票款紀錄')+task('feedback','活動回饋')+task('activity','操作紀錄')+task('integration','API 與 Webhook'))}<details class="event-task-more"><summary>更多</summary><div class="event-task-group__items">${(!d.organizer||d.can_create_events)?task('duplicate','複製為新草稿'):''}${task('delete','刪除活動',true)}</div></details></nav></div>`;
   const crumb=document.getElementById('a-crumb-cur');if(crumb)crumb.textContent='活動｜'+event.title;document.title=event.title+' · 活動管理 · 言文字';
-  const actions={edit:()=>openEventEditor(event,d),regs:()=>showRegs(id,d),import:()=>showGuestImport(id,d),messages:()=>showEventMessages(id),hosts:()=>showEventHosts(id),tickets:()=>showEventTickets(id,d),coupons:()=>showEventCoupons(id),questions:()=>showEventQuestions(id,d),settings:()=>showRegistrationSettings(id,d),details:()=>showEventDetails(id,d),content:()=>showEventRichContent(id,api,document.getElementById('ev-hosts'),async()=>Object.assign(event,await api('/admin/events/'+id+'/content'))).catch(e=>toast(e.message)),links:()=>showEventLinks(id,d),insights:()=>showEventInsights(id),payments:()=>showEventPayments(id),feedback:()=>showEventFeedback(id),activity:()=>showEventActivity(id),integration:()=>showEventIntegration(id),duplicate:()=>showEventDuplicate(id,d),delete:()=>{if(confirm('確定刪除此活動？已有報名紀錄的活動不能刪除。'))doThen(()=>api('/admin/events/'+id,{method:'DELETE'}),'已刪除活動');}};
+  const actions={edit:()=>openEventEditor(event,d),regs:()=>showRegs(id,d),import:()=>showGuestImport(id,d),messages:()=>showEventMessages(id),hosts:()=>showEventHosts(id),tickets:()=>showEventTickets(id,d),coupons:()=>showEventCoupons(id),questions:()=>showEventQuestions(id,d),settings:()=>showRegistrationSettings(id,d),details:()=>showEventDetails(id,d),content:()=>showEventRichContent(id,api,document.getElementById('ev-hosts'),async()=>Object.assign(event,await api('/admin/events/'+id+'/content'))).catch(e=>toast(e.message)),links:()=>showEventLinks(id,d),insights:()=>showEventInsights(id),payments:()=>showEventPayments(id),feedback:()=>showEventFeedback(id),activity:()=>showEventActivity(id),integration:()=>showEventIntegration(id),duplicate:()=>showEventDuplicate(id,d),delete:()=>{if(confirm('確定刪除此活動？已有報名紀錄的活動不能刪除。'))doThen(async()=>{const out=await api('/admin/events/'+id,{method:'DELETE'});go('events',true);return out;},'已刪除活動');}};
   manager.querySelectorAll('[data-event-task]').forEach(button=>button.onclick=()=>{manager.querySelectorAll('[data-event-task]').forEach(item=>item.removeAttribute('aria-pressed'));button.setAttribute('aria-pressed','true');document.getElementById('ev-hosts').hidden=true;document.getElementById('ev-regs').style.display='none';actions[button.dataset.eventTask]?.();});
   const requestedTask=typeof location!=='undefined'&&location.search?new URLSearchParams(location.search).get('task'):'';manager.querySelector(`[data-event-task="${actions[requestedTask]?requestedTask:'regs'}"]`)?.click?.();
   manager.scrollIntoView({behavior:'smooth',block:'start'});return true;
@@ -898,7 +920,7 @@ function paintCalendar(){
   ((DATA && DATA.events) || []).forEach(e=>{
     const t = new Date(e.starts_at_iso || e.starts_at); if (isNaN(t)) return;
     const end = e.ends_at_iso ? new Date(e.ends_at_iso) : null;
-    items.push({ date:t, end, cls:'cal-ev', href:'/admin/events', label:'活動 '+e.title });
+    items.push({ date:t, end, cls:'cal-ev'+(e.status==='已取消'?' cal-cancel':''), href:BASE+'/events/'+encodeURIComponent(e.id), label:(e.status==='已取消'?'已取消 ':'活動 ')+e.title });
   });
   const byDay = {};
   items.forEach(it=>{ if (it.date.getFullYear()!==y || it.date.getMonth()!==m-1) return; (byDay[it.date.getDate()] = byDay[it.date.getDate()] || []).push(it); });
@@ -985,10 +1007,12 @@ async function loadLogs(){
     const d = await api('/admin/logs?limit=300');
     LOGS = d.logs || [];
   } catch(e) { host.innerHTML = `<h2>操作紀錄</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`; return; }
-  const rows = LOGS.map(l=>`<tr><td class="a-mono">${esc(applicationTime(l.created_at))}</td><td>${esc(l.actor)}</td><td class="a-mono">${esc(l.method)} ${esc(l.path)}</td><td>${esc(l.summary||'')}</td><td class="num">${l.status}</td></tr>`).join('') || '<tr><td colspan="5" class="a-empty">尚無紀錄</td></tr>';
+  const rows = LOGS.map(l=>`<tr><td class="a-mono">${esc(applicationTime(l.created_at))}</td><td>${esc(l.actor)}</td><td class="a-mono">${esc(l.method)} ${esc(String(l.path||'').replace(/^\/api\/admin(?=\/api\/admin\/)/,''))}</td><td>${esc(l.summary||'')}</td><td class="num">${l.status}</td></tr>`).join('') || '<tr><td colspan="5" class="a-empty">尚無紀錄</td></tr>';
   host.innerHTML = `<h2>操作紀錄</h2>
     <p class="hint">後台所有成功的寫入操作（POST／DELETE），含 AI agent 金鑰。只讀不可改。</p>
-    <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>時間（台灣）</th><th>操作者</th><th>操作</th><th>內容摘要</th><th class="num">狀態</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    <div class="a-toolbar"><input type="search" id="logs-q" placeholder="篩選操作者、路徑或內容…" aria-label="篩選操作紀錄"><span id="logs-count" class="hint" style="margin:0">${LOGS.length} 筆</span></div>
+    <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>時間（台灣）</th><th>操作者</th><th>操作</th><th>內容摘要</th><th class="num">狀態</th></tr></thead><tbody id="logs-body-rows">${rows}</tbody></table></div>`;
+  const q=document.getElementById('logs-q');if(q)q.oninput=()=>{const kw=q.value.trim().toLowerCase();let n=0;document.querySelectorAll('#logs-body-rows tr').forEach(tr=>{const hit=!kw||tr.textContent.toLowerCase().includes(kw);tr.hidden=!hit;if(hit)n++;});document.getElementById('logs-count').textContent=(kw?`${n}／`:'')+LOGS.length+' 筆';};
 }
 
 function tabAdmins(d){
@@ -1114,7 +1138,8 @@ function applyRoute(){
   const tab = parts[0];
   if (!document.querySelector(`[data-panel="${CSS.escape(tab)}"]`)) { go('', true); return; }
   activateTab(tab);
-  if (tab === 'applications') { if (APPLICATIONS===null) loadApplications(); else paintApplications(); return; }
+  if (tab === 'overview') { if (APPLICATIONS===null && !DATA?.organizer) loadApplications().then(paintOverviewTodo); return; }
+  if (tab === 'applications') { paintApplications(); loadApplications(); return; }
   if (tab === 'calendar') { if (APPLICATIONS===null) loadApplications().then(paintCalendar); paintCalendar(); return; }
   if (tab === 'counter') { paintCounter(); return; }
   if (tab === 'logs') { loadLogs(); return; }
@@ -1148,7 +1173,6 @@ window.addEventListener('popstate', applyRoute);
 
 function bind(d, x){
   const on = (sel,ev,fn)=>{ const el=document.getElementById(sel); if(el) el.addEventListener(ev,fn); };
-  const doThen = async (fn,msg)=>{ try{ const out=await fn(); toast(typeof msg==='function'?msg(out):msg); await refresh(); }catch(e){ toast(e.message); } };
 
   // 會員：搜尋 + CSV
   on('m-search','input',e=>{ const qv=e.target.value.trim().toLowerCase();
@@ -1158,6 +1182,7 @@ function bind(d, x){
     (d.users||[]).forEach(u=>{ const c=x.cByUser[u.id];
       rows.push([u.name||'', u.email||'', u.phone||'', u.access_active?'有效':'', u.points_balance!=null?String(u.points_balance):'', u.access_summary||'—', c?(c.membership_status||''):'尚未加入', c?c.cert_no:'', u.created_at||'']); });
     downloadCSV('會員名單.csv', rows); });
+  document.querySelectorAll('[data-grant-uid]').forEach(b=>b.onclick=()=>{const uid=document.getElementById('pg-uid'),amt=document.getElementById('pg-amt');if(!uid||!amt)return;uid.value=b.dataset.grantUid;document.getElementById('pg-title').scrollIntoView({behavior:'smooth',block:'center'});amt.focus();toast('已帶入 '+b.dataset.grantName+'，請填點數與備註');});
   on('pg-go','click',()=>{
     const user_id=((document.getElementById('pg-uid')||{}).value||'').trim();
     const amount=Number((document.getElementById('pg-amt')||{}).value);
@@ -1171,7 +1196,7 @@ function bind(d, x){
   });
 
   // 參與紀錄：確認入帳
-  document.querySelectorAll('[data-confirm]').forEach(b=>b.onclick=()=>doThen(()=>api('/admin/commitments/'+b.dataset.confirm+'/confirm',{method:'POST'}),'已確認入帳'));
+  document.querySelectorAll('[data-confirm]').forEach(b=>b.onclick=()=>{const tr=b.closest('tr'),who=tr?.querySelector('td')?.textContent.trim().split('\n')[0]||'此會員',amount=tr?.querySelector('td.num')?.textContent.trim()||'';if(!confirm(`確認 ${who} 的會費 ${amount} 已入帳？確認後立即啟用會籍並贈點，無法復原。`))return;doThen(()=>api('/admin/commitments/'+b.dataset.confirm+'/confirm',{method:'POST'}),'已確認入帳');});
 
   // 活動：建立／更新、名單、付款與簽到
   on('ev-save','click',()=>{ const title=document.getElementById('ev-title').value.trim(); if(!title){toast('請輸入活動名稱');return;}
@@ -1193,7 +1218,7 @@ function bind(d, x){
     }}), editing?out=>out.notice||'已更新活動':'已建立活動'); });
   ['ev-title','ev-when','ev-end','ev-loc'].forEach(id=>on(id,'input',syncCriticalEventUpdateNote));
   on('ev-reset','click',()=>resetEventForm());
-  const filterEvents=()=>{const query=document.getElementById('ev-search').value.trim().toLowerCase(),status=document.getElementById('ev-list-status').value,rows=[...document.querySelectorAll('[data-event-row]')];let visible=0;for(const row of rows){row.hidden=!!((query&&!row.dataset.eventSearch.includes(query))||(status&&row.dataset.eventStatus!==status));if(!row.hidden)visible++;}document.getElementById('ev-list-count').textContent='顯示 '+visible+'／'+rows.length+' 場';document.getElementById('ev-list-empty').hidden=visible>0;};
+  const filterEvents=()=>{const query=document.getElementById('ev-search').value.trim().toLowerCase(),status=document.getElementById('ev-list-status').value,rows=[...document.querySelectorAll('[data-event-row]')];let visible=0;for(const row of rows){row.hidden=!!((query&&!row.dataset.eventSearch.includes(query))||(status&&row.dataset.eventStatus!==status));if(!row.hidden)visible++;}document.getElementById('ev-list-count').textContent='顯示 '+visible+'／'+rows.length+' 場';document.getElementById('ev-list-empty').hidden=visible>0||rows.length===0;};
   on('ev-search','input',filterEvents);on('ev-list-status','change',filterEvents);filterEvents();
   document.querySelectorAll('[data-ev-duplicate]').forEach(b=>b.onclick=()=>{
     if(!confirm('複製活動資訊為新草稿？不會複製來賓、付款或團隊權限。'))return;
@@ -1222,7 +1247,7 @@ function bind(d, x){
   // 最新消息
   on('u-add','click',()=>{ const title=document.getElementById('u-title').value.trim(); if(!title){toast('請輸入標題');return;}
     doThen(()=>api('/admin/updates',{method:'POST',body:{title,type:document.getElementById('u-type').value,content:document.getElementById('u-content').value.trim(),date:document.getElementById('u-date').value||undefined}}),'已發布'); });
-  document.querySelectorAll('[data-upd-del]').forEach(b=>b.onclick=()=>doThen(()=>api('/admin/updates/'+b.dataset.updDel,{method:'DELETE'}),'已刪除'));
+  document.querySelectorAll('[data-upd-del]').forEach(b=>b.onclick=()=>{if(!confirm('確定刪除這則最新消息？官網與會員專區會立即消失。'))return;doThen(()=>api('/admin/updates/'+b.dataset.updDel,{method:'DELETE'}),'已刪除');});
 
   // 網站內容
   on('ct-save','click',()=>doThen(()=>{
@@ -1270,8 +1295,8 @@ function bind(d, x){
   });
 
   // 管理員
-  document.querySelectorAll('[data-organizer]').forEach(b=>b.onclick=()=>doThen(()=>api('/admin/users/'+b.dataset.organizer+'/organizer',{method:'POST',body:{organizer:b.dataset.on==='1'}}),'已更新活動主權限'));
-  document.querySelectorAll('[data-admin]').forEach(b=>b.onclick=()=>doThen(()=>api('/admin/users/'+b.dataset.admin+'/admin',{method:'POST',body:{admin:b.dataset.on==='1'}}),'已更新管理權限'));
+  document.querySelectorAll('[data-organizer]').forEach(b=>b.onclick=()=>{if(!confirm(`確定${b.textContent.trim()}：${b.closest('tr')?.querySelector('td')?.textContent.trim()||''}？`))return;doThen(()=>api('/admin/users/'+b.dataset.organizer+'/organizer',{method:'POST',body:{organizer:b.dataset.on==='1'}}),'已更新活動主權限');});
+  document.querySelectorAll('[data-admin]').forEach(b=>b.onclick=()=>{if(!confirm(`確定${b.textContent.trim()}：${b.closest('tr')?.querySelector('td')?.textContent.trim()||''}？管理員可讀寫整個後台。`))return;doThen(()=>api('/admin/users/'+b.dataset.admin+'/admin',{method:'POST',body:{admin:b.dataset.on==='1'}}),'已更新管理權限');});
 
   // 菜單
   bindMenu();
@@ -1287,6 +1312,7 @@ function bind(d, x){
 }
 
 /* ---------- 菜單：局部重繪 + 綁定（不觸發整頁 refresh，避免遺失未存檔編輯） ---------- */
+function syncMenuDirty(){ const b=document.getElementById('menu-save-server'); if(!b) return; b.textContent = MENU_DIRTY ? '儲存至伺服器（有未儲存變更）' : '儲存至伺服器'; b.classList.toggle('is-dirty', MENU_DIRTY); }
 function applyMenuSearch(qv){
   const q = (qv ?? document.getElementById('mi-search')?.value ?? '').trim().toLowerCase();
   document.querySelectorAll('#mi-body tr').forEach(tr=>{
@@ -1307,6 +1333,7 @@ function paintMenu(){
     searchEl.value = savedSearch;
     applyMenuSearch(savedSearch);
   }
+  syncMenuDirty();
 }
 
 function resetMenuForm(){
@@ -1347,7 +1374,7 @@ function bindMenu(){
       published: document.getElementById('mi-published').checked,
       sort: Number(document.getElementById('mi-sort').value) || 0,
     });
-    MENU_DIRTY = true;
+    MENU_DIRTY = true; syncMenuDirty();
     toast(editing ? '已更新（尚未存檔）' : '已新增（尚未存檔）');
     paintMenu();
   });
@@ -1375,7 +1402,7 @@ function bindMenu(){
   document.querySelectorAll('[data-mi-del]').forEach(b=>b.onclick=()=>{
     if (!confirm('確定刪除此菜單項目？')) return;
     MENU_DOC = MenuLib.removeItem(MENU_DOC, b.dataset.miDel);
-    MENU_DIRTY = true;
+    MENU_DIRTY = true; syncMenuDirty();
     toast('已刪除（尚未存檔）');
     paintMenu();
   });
@@ -1387,7 +1414,7 @@ function bindMenu(){
     const doc = MenuLib.fromSeedRows(seed);
     doc.items = doc.items.map(it => ({ ...it, published: true }));
     MENU_DOC = doc;
-    MENU_DIRTY = true;
+    MENU_DIRTY = true; syncMenuDirty();
     toast('已載入預設菜單（尚未存檔）');
     paintMenu();
   });
@@ -1398,7 +1425,7 @@ function bindMenu(){
     (async () => {
       try {
         await api('/admin/content', { method:'POST', body:{ key:'menu', value: MenuLib.stringifyDoc(MENU_DOC) } });
-        MENU_DIRTY = false;
+        MENU_DIRTY = false; syncMenuDirty();
         MENU_DIRTY_TOASTED = false;
         toast('菜單已儲存至伺服器');
         await refresh();
@@ -1431,7 +1458,7 @@ function showGuestImport(id,d){
  host.innerHTML=`<h2>新增／匯入來賓</h2><p class="hint">CSV 第一列需有 name、email 或「姓名、Email」欄名。單人也可直接貼上。每次最多 500 位；付費票不可直接標成已付款。</p><label>選擇 CSV<input id="guest-file" type="file" accept=".csv,text/csv"></label><label style="display:block">CSV 內容<textarea id="guest-csv" rows="8" style="width:100%" placeholder="name,email"></textarea></label><div class="a-form"><label>加入狀態<select id="guest-status"><option value="invited">受邀（尚未報名）</option><option value="registered">有效報名（僅免費票）</option><option value="pending_approval">待審核</option><option value="waitlisted">候補</option></select></label><label>票種<select id="guest-ticket"><option value="">預設／邀請時不指定</option>${(event.tickets||[]).filter(t=>t.active).map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}</select></label><label>邀請語言<select id="guest-language"><option value="zh">中文</option><option value="en">English</option><option value="ja">日本語</option></select></label><label class="ui-check"><input id="guest-send-invites" type="checkbox">寄送邀請通知（Email／已驗證手機／瀏覽器推播）</label><label>邀請附言（選填）<textarea id="guest-message" maxlength="1000"></textarea></label><label class="ui-check"><input id="guest-update-existing" type="checkbox">重複 Email 時更新既有來賓票種</label><button class="btn btn--solid" id="guest-preview">預覽匯入</button></div><p class="hint">邀請只傳給本次新增者；既有來賓不重寄。連結可直接辨識受邀者、略過審核並可婉拒。受邀者仍須完成報名與付款，但不需再等主辦人審核。通知服務未設定時不會新增或假裝寄出。</p><p class="hint">更新既有來賓只變更原始票種；姓名、報名狀態、已收／已退金額與加購／贈票不變，舊 QR 會失效。請先選擇票種。</p><div id="guest-preview-result"></div>`;
  document.getElementById('guest-file').onchange=async e=>{const file=e.target.files[0];if(!file)return;if(file.size>1000000)return toast('CSV 不得超過 1 MB');document.getElementById('guest-csv').value=await file.text();};
  const syncInvite=()=>{const invited=document.getElementById('guest-status').value==='invited';document.getElementById('guest-send-invites').disabled=!invited;document.getElementById('guest-language').disabled=!invited;document.getElementById('guest-message').disabled=!invited;if(!invited)document.getElementById('guest-send-invites').checked=false;};document.getElementById('guest-status').onchange=syncInvite;syncInvite();
- document.getElementById('guest-preview').onclick=()=>{try{const rows=eventCSV.parseCSV(document.getElementById('guest-csv').value),headers=(rows.shift()||[]).map(v=>v.trim().toLowerCase()),name=headers.findIndex(v=>['name','姓名'].includes(v)),email=headers.findIndex(v=>['email','電子郵件'].includes(v));if(name<0||email<0)throw new Error('首列需包含 name 與 email');const guests=rows.map(r=>({name:r[name]||'',email:r[email]||''})),status=document.getElementById('guest-status').value,ticket=event.tickets?.find(t=>t.id===document.getElementById('guest-ticket').value),updateExisting=document.getElementById('guest-update-existing').checked,sendInvites=document.getElementById('guest-send-invites').checked,language=document.getElementById('guest-language').value,message=document.getElementById('guest-message').value;if(updateExisting&&!ticket)throw new Error('更新既有來賓前，請先選擇票種');const result=document.getElementById('guest-preview-result');result.innerHTML=`<h3>預覽 ${guests.length} 位來賓</h3><p>${guests.slice(0,20).map(g=>esc(g.name)+' · '+esc(g.email)).join('<br>')}${guests.length>20?'<br>其餘省略…':''}</p>${sendInvites?'<p><b>確認後會依可用通路寄送邀請；重複來賓不重寄。</b></p>':''}${updateExisting?`<p><b>重複 Email 將更新為「${esc(ticket.name)}」，不更動付款與報名狀態。</b></p>`:''}<button class="btn btn--solid" id="guest-confirm">確認匯入這份名單</button>`;document.getElementById('guest-confirm').onclick=async()=>{const button=document.getElementById('guest-confirm');button.disabled=true;try{const out=await api('/admin/events/'+id+'/guests/import',{method:'POST',body:{guests,status,ticket_id:ticket?.id,unlock_code:ticket?.unlock_code,update_existing:updateExisting,send_invites:sendInvites,language,message}});result.textContent=out.notice+` 更新票種 ${out.updated||0} 位，跳過 ${out.skipped} 位。`;}catch(e){toast(e.message);button.disabled=false;}};}catch(e){toast(e.message);}};
+ document.getElementById('guest-preview').onclick=()=>{try{const rows=eventCSV.parseCSV(document.getElementById('guest-csv').value),headers=(rows.shift()||[]).map(v=>v.trim().toLowerCase()),name=headers.findIndex(v=>['name','姓名'].includes(v)),email=headers.findIndex(v=>['email','電子郵件'].includes(v));if(name<0||email<0)throw new Error('首列需包含 name 與 email');const guests=rows.map(r=>({name:r[name]||'',email:r[email]||''})),status=document.getElementById('guest-status').value,ticket=event.tickets?.find(t=>t.id===document.getElementById('guest-ticket').value),updateExisting=document.getElementById('guest-update-existing').checked,sendInvites=document.getElementById('guest-send-invites').checked,language=document.getElementById('guest-language').value,message=document.getElementById('guest-message').value;if(updateExisting&&!ticket)throw new Error('更新既有來賓前，請先選擇票種');const result=document.getElementById('guest-preview-result');result.innerHTML=`<h3>預覽 ${guests.length} 位來賓</h3><p>${guests.slice(0,20).map(g=>esc(g.name)+' · '+esc(g.email)).join('<br>')}${guests.length>20?'<br>其餘省略…':''}</p>${sendInvites?'<p><b>確認後會依可用通路寄送邀請；重複來賓不重寄。</b></p>':''}${updateExisting?`<p><b>重複 Email 將更新為「${esc(ticket.name)}」，不更動付款與報名狀態。</b></p>`:''}<button class="btn btn--solid" id="guest-confirm">確認匯入這份名單</button>`;document.getElementById('guest-confirm').onclick=async()=>{const button=document.getElementById('guest-confirm');button.disabled=true;try{const out=await api('/admin/events/'+id+'/guests/import',{method:'POST',body:{guests,status,ticket_id:ticket?.id,unlock_code:ticket?.unlock_code,update_existing:updateExisting,send_invites:sendInvites,language,message}});result.textContent=`新增 ${out.added||0} 位、更新票種 ${out.updated||0} 位、跳過 ${out.skipped||0} 位。`+(out.notice?' '+out.notice:'');toast(`已匯入 ${out.added||0} 位來賓`);}catch(e){toast(e.message);button.disabled=false;}};}catch(e){toast(e.message);}};
  host.scrollIntoView({behavior:'smooth',block:'start'});
 }
 function eventCloneTime(value,frequency,n){
@@ -1479,7 +1506,7 @@ async function showEventDetails(id,d){
   if(!reason){message.textContent='請填寫公開取消原因。';document.getElementById('detail-cancel-reason').focus();return;}
   if(!confirm('確定取消活動？所有票券將無法簽到。'+(refundPaid?'系統會從言文字統一收款帳戶送出所有可退款餘額。':'已付款票款需由言文字平台另行處理。')+(notify?'取消通知會排入寄送佇列。':'本次不寄送取消通知。')))return;
   const label=button.textContent;button.disabled=true;button.setAttribute('aria-busy','true');button.textContent='處理中…';message.textContent='';
-  try{const out=await api('/admin/events/'+id+'/cancel',{method:'POST',body:{reason,notify,refund_paid:refundPaid,reason_translations:{en:document.getElementById('detail-cancel-en').value,ja:document.getElementById('detail-cancel-ja').value}}});event.status='已取消';message.textContent=out.notice||'活動已取消';}catch(error){message.textContent=error.message;}finally{button.disabled=false;button.setAttribute('aria-busy','false');button.textContent=label;}
+  try{const out=await api('/admin/events/'+id+'/cancel',{method:'POST',body:{reason,notify,refund_paid:refundPaid,reason_translations:{en:document.getElementById('detail-cancel-en').value,ja:document.getElementById('detail-cancel-ja').value}}});event.status='已取消';message.textContent=out.notice||'活動已取消';const badge=document.querySelector('.event-manager-meta .ui-badge');if(badge)badge.textContent='已取消';}catch(error){message.textContent=error.message;}finally{button.disabled=false;button.setAttribute('aria-busy','false');button.textContent=label;}
  };
 
  host.scrollIntoView({behavior:'smooth',block:'nearest'});
@@ -1563,7 +1590,9 @@ async function showEventIntegration(id){
  host.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
-const eventActionLabels={guest_ticket_updated:'變更來賓票種',event_created:'建立活動',event_updated:'更新活動資訊',event_duplicated:'複製活動',event_cancelled:'取消活動',coupons_updated:'更新優惠碼',details_updated:'更新頁面與地點',tickets_updated:'更新票種',questions_updated:'更新報名表',registration_settings_updated:'更新報名設定',host_updated:'新增／更新主辦團隊',host_removed:'移除主辦團隊',attendee_updated:'修改參加者／轉票',registered:'核准報名',additional_registered:'加購票券成立',additional_cancelled:'取消免費加購',tickets_granted:'主辦人免費贈票',ticket_removed_without_refund:'主辦人移除票券（未退款）',capture_pending:'信用卡請款處理中',approved:'核准待付款',declined:'拒絕報名',pending_approval:'提交待審核',waitlisted:'加入候補',checked_in:'簽到',checkin_repeated:'重複掃描',checkin_undone:'撤銷簽到',checkin_settings_updated:'更新簽到選項',integration_key_rotated:'建立／更換 API 金鑰',integration_key_revoked:'停用 API 金鑰',settlement_scheduled:'建立待結算',settlement_paid:'標記已撥款',settlement_cancelled:'取消待結算'};
+const eventActionLabels={guest_ticket_updated:'變更來賓票種',event_created:'建立活動',event_updated:'更新活動資訊',event_duplicated:'複製活動',event_cancelled:'取消活動',coupons_updated:'更新優惠碼',details_updated:'更新頁面與地點',tickets_updated:'更新票種',questions_updated:'更新報名表',registration_settings_updated:'更新報名設定',host_updated:'新增／更新主辦團隊',host_removed:'移除主辦團隊',attendee_updated:'修改參加者／轉票',registered:'核准報名',additional_registered:'加購票券成立',additional_cancelled:'取消免費加購',tickets_granted:'主辦人免費贈票',ticket_removed_without_refund:'主辦人移除票券（未退款）',capture_pending:'信用卡請款處理中',approved:'核准待付款',declined:'拒絕報名',pending_approval:'提交待審核',waitlisted:'加入候補',checked_in:'簽到',checkin_repeated:'重複掃描',checkin_undone:'撤銷簽到',checkin_settings_updated:'更新簽到選項',integration_key_rotated:'建立／更換 API 金鑰',integration_key_revoked:'停用 API 金鑰',settlement_scheduled:'建立待結算',settlement_paid:'標記已撥款',settlement_cancelled:'取消待結算',embed_updated:'更新嵌入網站',message_drafted:'建立通知草稿',message_updated:'更新通知草稿',message_scheduled:'排程通知',message_sent:'寄送通知',message_cancelled:'取消通知',guest_imported:'主辦人匯入來賓',feedback_settings_updated:'更新回饋設定',content_updated:'更新詳細內容',webhook_created:'新增 Webhook',webhook_updated:'更新 Webhook',webhook_deleted:'刪除 Webhook'};
+const guestStatusLabels={registered:'已報名',invited:'受邀未報名',approved:'已核准待付款',pending_payment:'待付款',capture_pending:'請款處理中',pending_approval:'待審核',waitlisted:'候補',declined:'已拒絕',cancelled:'已取消',refunded:'已退款',refund_pending:'退款處理中',expired:'已逾期'};
+function eventActionLabel(action){const [head,tail]=String(action||'').split(':');const base=eventActionLabels[head];if(!base)return action;return tail?base+'（'+(guestStatusLabels[tail]||tail)+'）':base;}
 async function showEventActivity(id,before=''){
  const host=document.getElementById('ev-hosts');host.hidden=false;
  try{const out=await api('/admin/events/'+id+'/activity'+(before?'?before='+before:''));
@@ -1598,7 +1627,7 @@ function showEventTickets(id,d){
   host.querySelectorAll('[data-ticket]').forEach(ticket=>{const sync=()=>{const enabled=ticket.querySelector('[data-token-enabled]').checked,type=ticket.querySelector('[data-token-type]').value;ticket.querySelectorAll('[data-token-fields] input:not([data-token-enabled]),[data-token-fields] select').forEach(field=>field.disabled=!enabled);ticket.querySelectorAll('[data-token-erc20]').forEach(field=>field.hidden=enabled&&type!=='erc20');};ticket.querySelector('[data-token-enabled]').onchange=sync;ticket.querySelector('[data-token-type]').onchange=sync;sync();});
   host.querySelectorAll('[data-ticket-remove]').forEach(button=>button.onclick=()=>{read();tickets.splice(Number(button.dataset.ticketRemove),1);render();});
   document.getElementById('ticket-add').onclick=()=>{read();if(tickets.length>=30)return toast('最多 30 種票');tickets.push({id:'t_'+crypto.randomUUID(),name:'',price_twd:0,capacity:0,active:true});render();};
-  document.getElementById('ticket-save').onclick=async()=>{read();const b=document.getElementById('ticket-save');b.disabled=true;try{const out=await api('/admin/events/'+id+'/tickets',{method:'POST',body:{tickets}});event.tickets=out.tickets;document.getElementById('ticket-message').textContent='已儲存票種';}catch(e){document.getElementById('ticket-message').textContent=e.message;}finally{b.disabled=false;}};
+  document.getElementById('ticket-save').onclick=async()=>{read();const b=document.getElementById('ticket-save');b.disabled=true;try{const out=await api('/admin/events/'+id+'/tickets',{method:'POST',body:{tickets}});event.tickets=out.tickets;tickets.splice(0,tickets.length,...structuredClone(out.tickets));render();document.getElementById('ticket-message').textContent='已儲存票種';}catch(e){document.getElementById('ticket-message').textContent=e.message;}finally{b.disabled=false;}};
  }
  render();host.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
@@ -1723,11 +1752,11 @@ async function showRegs(eventId, d){
         <thead><tr><th>選取</th><th>姓名／Email</th><th>票券狀態</th><th class="num">付款</th><th>簽到</th><th>備註</th><th class="num">報名時間</th><th>操作</th></tr></thead>
         <tbody>${body}</tbody></table></div><section id="rg-timeline" hidden></section>`;
 
-    host.querySelectorAll('[data-ticket-remove]').forEach(button=>button.onclick=async()=>{if(!confirm('移除此票後，該 QR 會失效。此操作不會退款，已收票款仍保留；如需退款請另由言文字處理。'))return;button.disabled=true;try{await api('/admin/events/'+eventId+'/regs/'+button.dataset.registration+'/tickets/'+button.dataset.ticketRemove,{method:'DELETE'});await showRegs(eventId,d);}catch(e){toast(e.message);button.disabled=false;}});
-    host.querySelectorAll('[data-guest-ticket-edit]').forEach(button=>button.onclick=()=>{const panel=document.getElementById('rg-timeline'),reg=regs.find(r=>r.id===button.dataset.guestTicketEdit);panel.hidden=false;panel.innerHTML='<h3>變更票種 · '+esc(reg.name||reg.email)+'</h3><p>變更此筆報名的原始票種；同筆原始團體票會一起變更，加購／贈票不變。已收／已退金額不變，也不會向來賓收款。儲存後舊 QR 會失效。</p><form id="rg-ticket-edit"><label>票種<select name="ticket_id">'+ev.tickets.filter(t=>t.active).map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>').join('')+'</select></label><button class="btn btn--solid">儲存票種</button></form>';const form=document.getElementById('rg-ticket-edit');if(reg.ticket_snapshot?.id)form.elements.ticket_id.value=reg.ticket_snapshot.id;form.onsubmit=async e=>{e.preventDefault();const submit=form.querySelector('button');submit.disabled=true;try{await api('/admin/events/'+eventId+'/regs/'+reg.id+'/ticket',{method:'PATCH',body:{ticket_id:form.elements.ticket_id.value}});await showRegs(eventId,d);}catch(err){toast(err.message);submit.disabled=false;}};panel.scrollIntoView({behavior:'smooth',block:'nearest'});});
-    host.querySelectorAll('[data-guest-grant]').forEach(button=>button.onclick=()=>{const panel=document.getElementById('rg-timeline');panel.hidden=false;panel.innerHTML='<h3>贈送票券</h3><p>免費授予票券，不會向來賓收款。須符合剩餘名額。</p><form id="rg-grant">'+((ev.tickets||[]).length?'<label>票種<select name="ticket_id">'+ev.tickets.filter(t=>t.active).map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>').join('')+'</select></label>':'')+'<label>張數<input name="quantity" type="number" min="1" max="10" value="1" required></label><button class="btn btn--solid">確認免費贈票</button></form>';const form=document.getElementById('rg-grant');form.onsubmit=async e=>{e.preventDefault();const submit=form.querySelector('button');submit.disabled=true;try{await api('/admin/events/'+eventId+'/regs/'+button.dataset.guestGrant+'/tickets',{method:'POST',body:Object.fromEntries(new FormData(form))});await showRegs(eventId,d);}catch(err){toast(err.message);submit.disabled=false;}};panel.scrollIntoView({behavior:'smooth',block:'nearest'});});
-    host.querySelectorAll('[data-guest-status-edit]').forEach(button=>button.onclick=()=>{const panel=document.getElementById('rg-timeline'),reg=regs.find(r=>r.id===button.dataset.guestStatusEdit);panel.hidden=false;panel.innerHTML='<h3>變更報名狀態 · '+esc(reg.name||reg.email)+'</h3><form id="rg-status-edit"><label>狀態<select name="status"><option value="registered">核准參加</option><option value="pending_approval">待審核</option><option value="waitlisted">候補</option><option value="declined">不參加／拒絕</option></select></label><label><input name="notify" type="checkbox" checked>寄信通知來賓</label><label>附加訊息<textarea name="message" maxlength="5000"></textarea></label><p>付費票須先由言文字退款。預授權核准會請款；拒絕會解除預授權。</p><button class="btn btn--solid">儲存狀態</button></form>';const form=document.getElementById('rg-status-edit');if(['registered','pending_approval','waitlisted','declined'].includes(reg.status))form.elements.status.value=reg.status;form.onsubmit=async e=>{e.preventDefault();const submit=form.querySelector('button');submit.disabled=true;try{await api('/admin/events/'+eventId+'/regs/'+reg.id+'/status',{method:'POST',body:{status:form.elements.status.value,notify:form.elements.notify.checked,message:form.elements.message.value}});await showRegs(eventId,d);}catch(err){toast(err.message);submit.disabled=false;}};panel.scrollIntoView({behavior:'smooth',block:'nearest'});});
-    host.querySelectorAll('[data-guest-timeline]').forEach(button=>button.onclick=async()=>{const panel=document.getElementById('rg-timeline');try{const out=await api('/admin/events/'+eventId+'/regs/'+button.dataset.guestTimeline+'/timeline');panel.hidden=false;panel.innerHTML='<h3>來賓操作與寄信紀錄</h3><p>首次報名：'+esc(applicationTime(out.registration.created_at))+'</p><ul>'+out.activity.map(x=>'<li>'+esc(applicationTime(x.created_at))+' · '+esc(eventActionLabels[x.action]||x.action)+' · '+esc(x.actor_name||'系統／本人')+'</li>').join('')+'</ul><h4>郵件紀錄</h4><p>accepted 代表寄信服務已接受；送達與開信以服務商回報為準。</p>'+out.mail.map(x=>'<p>'+esc(applicationTime(x.created_at))+' · '+esc(x.subject)+' · '+esc(({accepted:'寄信服務已接受',queued:'等待寄送',processing:'寄送中',retry:'等待重試',cancelled:'已取消',review_required:'需人工核對'})[x.state]||x.state)+(x.events||[]).map(y=>' · '+esc(y.type)+' '+esc(applicationTime(y.created_at))).join('')+'</p>').join('');panel.scrollIntoView({behavior:'smooth',block:'nearest'});}catch(e){toast(e.message);}});
+    host.querySelectorAll('[data-ticket-remove]').forEach(button=>button.onclick=async()=>{if(!confirm('移除此票後，該 QR 會失效。此操作不會退款，已收票款仍保留；如需退款請另由言文字處理。'))return;button.disabled=true;try{await api('/admin/events/'+eventId+'/regs/'+button.dataset.registration+'/tickets/'+button.dataset.ticketRemove,{method:'DELETE'});toast('已移除票券');await showRegs(eventId,d);}catch(e){toast(e.message);button.disabled=false;}});
+    host.querySelectorAll('[data-guest-ticket-edit]').forEach(button=>button.onclick=()=>{const panel=document.getElementById('rg-timeline'),reg=regs.find(r=>r.id===button.dataset.guestTicketEdit);panel.hidden=false;panel.innerHTML='<h3>變更票種 · '+esc(reg.name||reg.email)+'</h3><p>變更此筆報名的原始票種；同筆原始團體票會一起變更，加購／贈票不變。已收／已退金額不變，也不會向來賓收款。儲存後舊 QR 會失效。</p><form id="rg-ticket-edit"><label>票種<select name="ticket_id">'+ev.tickets.filter(t=>t.active).map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>').join('')+'</select></label><button class="btn btn--solid">儲存票種</button></form>';const form=document.getElementById('rg-ticket-edit');if(reg.ticket_snapshot?.id)form.elements.ticket_id.value=reg.ticket_snapshot.id;form.onsubmit=async e=>{e.preventDefault();const submit=form.querySelector('button');submit.disabled=true;try{await api('/admin/events/'+eventId+'/regs/'+reg.id+'/ticket',{method:'PATCH',body:{ticket_id:form.elements.ticket_id.value}});toast('已變更票種');await showRegs(eventId,d);}catch(err){toast(err.message);submit.disabled=false;}};panel.scrollIntoView({behavior:'smooth',block:'nearest'});});
+    host.querySelectorAll('[data-guest-grant]').forEach(button=>button.onclick=()=>{const panel=document.getElementById('rg-timeline');panel.hidden=false;panel.innerHTML='<h3>贈送票券</h3><p>免費授予票券，不會向來賓收款。須符合剩餘名額。</p><form id="rg-grant">'+((ev.tickets||[]).length?'<label>票種<select name="ticket_id">'+ev.tickets.filter(t=>t.active).map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>').join('')+'</select></label>':'')+'<label>張數<input name="quantity" type="number" min="1" max="10" value="1" required></label><button class="btn btn--solid">確認免費贈票</button></form>';const form=document.getElementById('rg-grant');form.onsubmit=async e=>{e.preventDefault();const submit=form.querySelector('button');submit.disabled=true;try{await api('/admin/events/'+eventId+'/regs/'+button.dataset.guestGrant+'/tickets',{method:'POST',body:Object.fromEntries(new FormData(form))});toast('已贈送票券');await showRegs(eventId,d);}catch(err){toast(err.message);submit.disabled=false;}};panel.scrollIntoView({behavior:'smooth',block:'nearest'});});
+    host.querySelectorAll('[data-guest-status-edit]').forEach(button=>button.onclick=()=>{const panel=document.getElementById('rg-timeline'),reg=regs.find(r=>r.id===button.dataset.guestStatusEdit);panel.hidden=false;panel.innerHTML='<h3>變更報名狀態 · '+esc(reg.name||reg.email)+'</h3><form id="rg-status-edit"><label>狀態<select name="status"><option value="registered">核准參加</option><option value="pending_approval">待審核</option><option value="waitlisted">候補</option><option value="declined">不參加／拒絕</option></select></label><label><input name="notify" type="checkbox" checked>寄信通知來賓</label><label>附加訊息<textarea name="message" maxlength="5000"></textarea></label><p>付費票須先由言文字退款。預授權核准會請款；拒絕會解除預授權。</p><button class="btn btn--solid">儲存狀態</button></form>';const form=document.getElementById('rg-status-edit');if(['registered','pending_approval','waitlisted','declined'].includes(reg.status))form.elements.status.value=reg.status;form.onsubmit=async e=>{e.preventDefault();const submit=form.querySelector('button');submit.disabled=true;try{await api('/admin/events/'+eventId+'/regs/'+reg.id+'/status',{method:'POST',body:{status:form.elements.status.value,notify:form.elements.notify.checked,message:form.elements.message.value}});toast('已更新報名狀態');await showRegs(eventId,d);}catch(err){toast(err.message);submit.disabled=false;}};panel.scrollIntoView({behavior:'smooth',block:'nearest'});});
+    host.querySelectorAll('[data-guest-timeline]').forEach(button=>button.onclick=async()=>{const panel=document.getElementById('rg-timeline');try{const out=await api('/admin/events/'+eventId+'/regs/'+button.dataset.guestTimeline+'/timeline');panel.hidden=false;panel.innerHTML='<h3>來賓操作與寄信紀錄</h3><p>首次報名：'+esc(applicationTime(out.registration.created_at))+'</p><ul>'+out.activity.map(x=>'<li>'+esc(applicationTime(x.created_at))+' · '+esc(eventActionLabel(x.action))+' · '+esc(x.actor_name||'系統／本人')+'</li>').join('')+'</ul><h4>郵件紀錄</h4><p>accepted 代表寄信服務已接受；送達與開信以服務商回報為準。</p>'+out.mail.map(x=>'<p>'+esc(applicationTime(x.created_at))+' · '+esc(x.subject)+' · '+esc(({accepted:'寄信服務已接受',queued:'等待寄送',processing:'寄送中',retry:'等待重試',cancelled:'已取消',review_required:'需人工核對'})[x.state]||x.state)+(x.events||[]).map(y=>' · '+esc(y.type)+' '+esc(applicationTime(y.created_at))).join('')+'</p>').join('');panel.scrollIntoView({behavior:'smooth',block:'nearest'});}catch(e){toast(e.message);}});
     const filterGuests = () => {
       const search=document.getElementById('rg-search').value.trim().toLowerCase();
       const ticket=document.getElementById('rg-ticket').value;
@@ -1787,7 +1816,7 @@ async function showRegs(eventId, d){
     for(const [attribute,status] of [['data-guest-approve','registered'],['data-guest-decline','declined']]){
       host.querySelectorAll('['+attribute+']').forEach(button=>button.onclick=async()=>{
         button.disabled=true;
-        try{await api('/admin/events/'+eventId+'/regs/'+button.getAttribute(attribute)+'/status',{method:'POST',body:{status}});await showRegs(eventId,d);}catch(e){toast(e.message);button.disabled=false;}
+        try{await api('/admin/events/'+eventId+'/regs/'+button.getAttribute(attribute)+'/status',{method:'POST',body:{status}});toast(status==='registered'?'已核准報名':'已拒絕報名');await showRegs(eventId,d);}catch(e){toast(e.message);button.disabled=false;}
       });
     }
     document.querySelectorAll('[data-refund]').forEach(b=>b.onclick=async()=>{
@@ -2487,6 +2516,9 @@ function bindAds(){
   on('ac-cancel','click',()=>{ ADS_EDIT=null; paintAds(); });
   on('ac-save','click',async()=>{
     const v = id => document.getElementById(id).value;
+    if(!v('ac-post')){ toast('請選擇關聯貼文'); document.getElementById('ac-post').focus(); return; }
+    if(!v('ac-start')||!v('ac-end')){ toast('請填寫投放開始與結束日期'); document.getElementById(v('ac-start')?'ac-end':'ac-start').focus(); return; }
+    if(v('ac-end')<v('ac-start')){ toast('結束日期不可早於開始日期'); document.getElementById('ac-end').focus(); return; }
     const metrics = {};
     if (Number(v('ac-reach'))) metrics.reach = Number(v('ac-reach'));
     if (Number(v('ac-clicks'))) metrics.clicks = Number(v('ac-clicks'));
@@ -2799,7 +2831,8 @@ async function main(){
     applyRoute();
   } catch(e){
     if (String(e.message).includes('登入') || String(e.message).includes('401')) { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); return renderLogin(); }
-    app.innerHTML = `<p class="a-center">暫時無法連線：${esc(e.message)}<br><button class="btn btn--ghost btn-sm" style="margin-top:1rem" onclick="location.reload()">重新整理</button></p>`;
+    const denied = /活動主權限|未授權|403/.test(String(e.message));
+    app.innerHTML = `<p class="a-center">${denied?'此帳號沒有活動主權限。若你是簽到人員，請改用主辦人提供的「現場簽到入口」連結；需要管理活動請聯絡言文字授權。':'暫時無法連線：'+esc(e.message)}<br><button class="btn btn--ghost btn-sm" style="margin-top:1rem" onclick="location.reload()">重新整理</button></p>`;
   }
 }
 main();

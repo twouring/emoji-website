@@ -1306,7 +1306,7 @@ app.use('/api/admin', (req, res, next) => {
       .map(([k, v]) => `${k}=${typeof v === 'string' ? v.slice(0, 60) : JSON.stringify(v)?.slice(0, 60)}`)
       .join(' ').slice(0, 500);
     q(`INSERT INTO admin_logs (id,actor,method,path,summary,status) VALUES ($1,$2,$3,$4,$5,$6)`,
-      [uid('log_'), actor, req.method, '/api/admin' + req.path, summary, res.statusCode])
+      [uid('log_'), actor, req.method, String(req.originalUrl||'').split('?')[0] || ('/api/admin' + req.path), summary, res.statusCode])
       .catch(e => console.error('[admin-log]', e.message));
   });
   next();
