@@ -10,6 +10,7 @@
 | `/api/*`、`/auth/google/*` | 後端 REST API 與 Google 登入；資料存 Postgres |
 | `/member` | 會員專區（進出 QR、點數錢包、購點／兌換／退款） |
 | `/admin`、`/admin/*` | 後台（會籍、發點、活動、內容、社群、廣告）；每個分頁為一般路徑（`/admin/members`、`/admin/social/edit/:id`…），伺服器對 `/admin/*` 皆回同一頁；舊 `/admin#tab` 書籤自動轉為路徑 |
+| `/ig-media/*` | 物件儲存（Railway bucket／MinIO，皆不公開）的同網域代理：社群素材、貼文圖、活動圖的公開網址一律是 `PUBLIC_ORIGIN/ig-media/<key>` |
 | `/order?t=桌號&k=簽章` | 桌邊 QR 點餐（不登入）：同桌共用購物車、TapPay 刷卡、取餐推播；QR 由後台「點餐出餐」分頁產生 |
 | `/events`、`/en/events`、`/ja/events` | 公開活動列表；私人活動以不列出的直接連結分享 |
 | `/event-application`、`/en/event-application`、`/ja/event-application` | 社群提出三樓場地活動申請、查詢自己的申請與審核回覆 |
@@ -58,6 +59,7 @@ DB 未設定時伺服器優雅降級：靜態頁照常，`/api/*` 回 503。
 | `TWILIO_*` | Twilio Verify 與 Messaging 設定；電話驗證後可依來賓偏好發送 SMS／WhatsApp，狀態 callback 為 `${PUBLIC_ORIGIN}/api/twilio/events/status` |
 | `WEB_PUSH_*` | 瀏覽器 Push API 的 VAPID 公私鑰與 subject；缺任一項不顯示啟用操作 |
 | `ETHEREUM_RPC_URL` | ERC-20／ERC-721 票種的 Ethereum JSON-RPC HTTPS 端點；未設定時驗證失敗並停止報名 |
+| `S3_ENDPOINT` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` / `S3_BUCKET` / `S3_REGION` | S3 相容物件儲存（正式：Railway bucket；舊為 Zeabur MinIO）。物件不公開，對外由 `/ig-media/*` 代理讀出；未設時素材落本機 `uploads/` |
 | `PUBLIC_ORIGIN` | 站台對外網址（正式：`https://www.emoji.tw`），供 Stripe 導回與 Google callback |
 | `WEB_ORIGINS` | 允許的 CORS／導回白名單（逗號分隔） |
 

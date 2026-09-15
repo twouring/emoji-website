@@ -120,7 +120,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     $('#alcohol-notice').hidden=!items.some(function(i){return i.alcohol;});
   }
   var unpaid=function(){return (S.items||[]).filter(function(l){return !l.order_id;});};
-  var mine=function(){return unpaid().filter(function(l){return l.guest===GUEST;});};
+  var mine=function(){return unpaid().filter(function(l){return l.mine;});};
   var sum=function(ls){return ls.reduce(function(a,l){return a+l.price*l.qty;},0);};
 
   function renderState(){
@@ -129,8 +129,8 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     $('#bar').hidden=false;$('#bar-total').textContent=money(sum(u));$('#bar-count').textContent=u.length?u.length+' 項未結帳':'尚未點餐';
     $('#open-pay').disabled=!u.length;$('#cart-pay').disabled=!u.length;
     // 購物車：依人分組
-    var groups={},order=[];u.forEach(function(l){if(!groups[l.by+l.guest]){groups[l.by+l.guest]={by:l.by,guest:l.guest,lines:[]};order.push(l.by+l.guest);}groups[l.by+l.guest].lines.push(l);});
-    $('#cart-lines').innerHTML=order.length?order.map(function(k){var g=groups[k];return '<div class="who"><span>'+esc(g.by)+(g.guest===GUEST?'（我）':'')+'</span><span>'+money(sum(g.lines))+'</span></div>'+g.lines.map(function(l){return '<div class="line"><span>'+esc(l.zh)+' ×'+l.qty+(l.note?' <span class="by">'+esc(l.note)+'</span>':'')+'</span><span>'+money(l.price*l.qty)+(l.guest===GUEST?' <button class="x" data-del="'+esc(l.line)+'" aria-label="移除">✕</button>':'')+'</span></div>';}).join('');}).join(''):'<p class="muted">還沒有人點餐。</p>';
+    var groups={},order=[];u.forEach(function(l){var k=l.by+(l.mine?'#me':'');if(!groups[k]){groups[k]={by:l.by,mine:l.mine,lines:[]};order.push(k);}groups[k].lines.push(l);});
+    $('#cart-lines').innerHTML=order.length?order.map(function(k){var g=groups[k];return '<div class="who"><span>'+esc(g.by)+(g.mine?'（我）':'')+'</span><span>'+money(sum(g.lines))+'</span></div>'+g.lines.map(function(l){return '<div class="line"><span>'+esc(l.zh)+' ×'+l.qty+(l.note?' <span class="by">'+esc(l.note)+'</span>':'')+'</span><span>'+money(l.price*l.qty)+(l.mine?' <button class="x" data-del="'+esc(l.line)+'" aria-label="移除">✕</button>':'')+'</span></div>';}).join('');}).join(''):'<p class="muted">還沒有人點餐。</p>';
     $('#cart-total').textContent=money(sum(u));
     // 出餐單
     var os=S.orders||[],byId={};(S.items||[]).forEach(function(l){byId[l.line]=l;});
@@ -140,8 +140,8 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   }
   function beep(){try{var c=new (window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.15;o.start();o.stop(c.currentTime+.4);}catch(e){}}
 
-  function load(){return api('/orders/table?t='+encodeURIComponent(T)+'&k='+encodeURIComponent(K)).then(function(s){S=s;renderState();});}
-  function poll(){clearTimeout(pollTimer);pollTimer=setTimeout(function(){if(document.hidden)return poll();api('/orders/'+S.id).then(function(s){if(s.status!=='open'){return load();}S=s;renderState();}).catch(function(){}).then(poll);},5000);}
+  function load(){return api('/orders/table?t='+encodeURIComponent(T)+'&k='+encodeURIComponent(K)+'&g='+GUEST).then(function(s){S=s;renderState();});}
+  function poll(){clearTimeout(pollTimer);pollTimer=setTimeout(function(){if(document.hidden)return poll();api('/orders/'+S.id+'?g='+GUEST).then(function(s){if(s.status!=='open'){return load();}S=s;renderState();}).catch(function(){}).then(poll);},5000);}
 
   document.addEventListener('click',function(e){
     var b=e.target.closest('[data-add]');if(b){NAME=$('#name-in').value.trim().slice(0,20)||NAME;if(!needName())return;try{localStorage.setItem('order_name',NAME);}catch(x){}b.disabled=true;api('/orders/'+S.id+'/items',{method:'POST',body:{item_id:b.dataset.add,qty:1,by:NAME,guest:GUEST}}).then(function(s){S=s;renderState();b.textContent='✓';setTimeout(function(){b.textContent='＋';},600);}).catch(function(err){toast(err.message);if(/已結束/.test(err.message))load();}).then(function(){b.disabled=false;});return;}
@@ -204,7 +204,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     MENU=content.menu?MenuLib.publishedOnly(MenuLib.parseMenuDoc(content.menu)):[];
     $('#boot').classList.add('hidden');$('#app').classList.remove('hidden');
     renderMenu();renderState();poll();
-    document.addEventListener('visibilitychange',function(){if(!document.hidden)api('/orders/'+S.id).then(function(s){S=s;renderState();}).catch(function(){});});
+    document.addEventListener('visibilitychange',function(){if(!document.hidden)api('/orders/'+S.id+'?g='+GUEST).then(function(s){S=s;renderState();}).catch(function(){});});
   }).catch(function(err){fail(err.message);});
 })();
 </script>

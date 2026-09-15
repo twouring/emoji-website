@@ -4355,7 +4355,8 @@ async function loadSession(id){
   const s=(await q('SELECT * FROM table_sessions WHERE id=$1',[id])).rows[0];if(!s)return null;
   s.orders=(await q('SELECT id,items,amount,status,paid_at,ready_at,done_at FROM table_orders WHERE session_id=$1 ORDER BY paid_at',[id])).rows;return s;
 }
-const publicSession=s=>({id:s.id,table:s.table_no,status:s.status,items:s.items,orders:s.orders.map(o=>({id:o.id,amount:o.amount,status:o.status,paid_at:o.paid_at,ready_at:o.ready_at,lines:o.items.map(l=>l.line)})),total_unpaid:tableOrders.sum(tableOrders.unpaid(s.items))});
+// 不外露各行的 guest 識別碼（否則同桌可互刪）；帶 ?g= 或 body.guest 時只標記 mine
+const publicSession=(s,guest)=>({id:s.id,table:s.table_no,status:s.status,items:s.items.map(({guest:g,...l})=>({...l,mine:!!guest&&g===guest})),orders:s.orders.map(o=>({id:o.id,amount:o.amount,status:o.status,paid_at:o.paid_at,ready_at:o.ready_at,lines:o.items.map(l=>l.line)})),total_unpaid:tableOrders.sum(tableOrders.unpaid(s.items))});
 async function currentMenu(){return tableOrders.menuIndex((await q("SELECT value FROM site_content WHERE key='menu'")).rows[0]?.value);}
 
 app.get('/api/orders/config',(req,res)=>{const tp=tableOrders.tappayConfig(),push=eventChannels.pushConfig();res.json({tappay:tp?{app_id:tp.appId,app_key:tp.appKey,env:tp.mode}:null,vapid_public_key:push?.publicKey||null});});
@@ -4371,10 +4372,10 @@ app.get('/api/orders/table',requireDb,wrap(async(req,res)=>{
       const stale=Date.now()-new Date(s.updated_at).getTime()>4*3600e3;
       if(tableOrders.sessionFinished(s.items,s.orders)||stale){await client.query("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=$1",[s.id]);s=null;}}
     if(!s){s=(await client.query('INSERT INTO table_sessions(id,table_no) VALUES($1,$2) RETURNING *',[uid('ts_'),table])).rows[0];s.orders=[];}
-    await client.query('COMMIT');res.json(publicSession(s));
+    await client.query('COMMIT');res.json(publicSession(s,String(req.query.g||'')));
   }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
 }));
-app.get('/api/orders/:id',requireDb,wrap(async(req,res)=>{const s=await loadSession(req.params.id);if(!s)return res.status(404).json({error:'找不到這桌的點餐。'});res.json(publicSession(s));}));
+app.get('/api/orders/:id',requireDb,wrap(async(req,res)=>{const s=await loadSession(req.params.id);if(!s)return res.status(404).json({error:'找不到這桌的點餐。'});res.json(publicSession(s,String(req.query.g||'')));}));
 
 // 共桌加菜／退菜：所有掃同一桌 QR 的人看同一份購物車，只能移除自己加的
 async function mutateItems(req,res,fn){
@@ -4384,7 +4385,7 @@ async function mutateItems(req,res,fn){
     if(!s||s.status!=='open'){await client.query('ROLLBACK');return res.status(s?409:404).json({error:s?'這桌已結束，請重新掃描 QR。':'找不到這桌的點餐。'});}
     const items=await fn(s.items);
     await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items)]);
-    await client.query('COMMIT');const out=await loadSession(s.id);res.json(publicSession(out));
+    await client.query('COMMIT');const out=await loadSession(s.id);res.json(publicSession(out,String(req.body?.guest||'')));
   }catch(e){await client.query('ROLLBACK');if(e.status)return res.status(e.status).json({error:e.message});throw e;}finally{client.release();}
 }
 app.post('/api/orders/:id/items',requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});const menu=await currentMenu();return mutateItems(req,res,items=>tableOrders.addLine(items,menu,req.body||{}));}));
@@ -4405,10 +4406,13 @@ app.post('/api/orders/:id/pay',rateLimit({max:10}),requireDb,wrap(async(req,res)
     let paid;try{paid=await tableOrders.payByPrime(tp,{prime:req.body?.prime,amount,orderNumber:orderId,details:`言文字 桌號 ${s.table_no} 點餐`,cardholder:who});}
     catch(e){await client.query('ROLLBACK');console.warn('[table-pay]',e.message);return res.status(e.status||502).json({error:e.status?e.message:'付款服務暫時無法使用，請稍後再試。'});}
     const set=new Set(lines.map(l=>l.line)),items=s.items.map(l=>set.has(l.line)?{...l,order_id:orderId}:l);
+    try{
     await client.query('INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,tappay) VALUES($1,$2,$3,$4,$5,$6,$7)',[orderId,s.id,s.table_no,JSON.stringify(lines.map(l=>({...l,order_id:orderId}))),amount,JSON.stringify(who),JSON.stringify({rec_trade_id:paid.rec_trade_id,bank_transaction_id:paid.bank_transaction_id,auth_code:paid.auth_code,last_four:paid.card_info?.last_four})]);
     await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items)]);
-    await client.query('COMMIT');res.json({ok:true,order_id:orderId,amount,session:publicSession(await loadSession(s.id))});
-  }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
+    await client.query('COMMIT');
+    }catch(e){console.error(`[table-pay] 已扣款但未入帳：rec_trade_id=${paid.rec_trade_id} order=${orderId} table=${s.table_no} amount=${amount}`,e.message);throw e;}
+    res.json({ok:true,order_id:orderId,amount,session:publicSession(await loadSession(s.id),String(req.body?.guest||''))});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 
 // 取餐通知：付款者訂閱瀏覽器推播，掛在出餐單上（不登入、不留帳號）
@@ -4466,6 +4470,16 @@ app.get(['/admin', '/admin/*', '/organizer', '/organizer/*'], (_req, res) => { r
 app.use(layoutMiddleware(PUB));
 app.use('/fellow', express.static(path.join(PUB, 'fellow'), { extensions: ['html'] }));
 // 空間介紹圖片上傳檔（管理後台上傳，需先於 static 掛載）
+// 媒體代理：物件儲存不公開，社群素材／貼文圖／活動圖皆由同網域 /ig-media/<key> 讀出（DB 網址即此形式）
+app.get('/ig-media/*', wrap(async (req, res) => {
+  const key = String(req.params[0] || '');
+  if (!/^(assets|posts)\/[A-Za-z0-9._-]{1,200}$/.test(key)) return res.status(404).json({ error: '找不到檔案。' });
+  const obj = await igPublisher.getAsset(key);
+  if (!obj) return res.status(404).json({ error: '找不到檔案。' });
+  res.set({ 'Content-Type': obj.contentType, 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff', ...(obj.contentLength ? { 'Content-Length': String(obj.contentLength) } : {}) });
+  if (key.endsWith('.pdf') || obj.contentType === 'application/pdf') res.set({ 'Content-Disposition': 'attachment', 'Content-Security-Policy': "sandbox; default-src 'none'" });
+  obj.body.on('error', () => res.destroy()).pipe(res);
+}));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   setHeaders: (res,file) => {res.set('X-Content-Type-Options', 'nosniff');if(file.endsWith('.pdf'))res.set({'Content-Disposition':'attachment','Content-Security-Policy':"sandbox; default-src 'none'"});},   // 上傳目錄防內容嗅探
 }));

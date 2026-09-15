@@ -52,6 +52,7 @@ function publisher(t, env = {}) {
   return {
     render: () => module.exports.renderPostImages(post, { port: 18081, uploadDir }),
     uploadAsset: (...a) => module.exports.uploadAsset(...a),
+    getAsset: (...a) => module.exports.getAsset(...a),
     uploadDir, screenshots, closes: () => closes,
   };
 }
@@ -71,7 +72,7 @@ async function storage(t, status = 200) {
   const endpoint = `http://127.0.0.1:${server.address().port}`;
   return { requests, endpoint, env: {
     S3_ENDPOINT: endpoint, S3_ACCESS_KEY: 'local-test-access', S3_SECRET_KEY: 'local-test-secret',
-    S3_PUBLIC_BASE: 'https://media.example.test/',
+    PUBLIC_ORIGIN: 'https://media.example.test/',
   } };
 }
 
@@ -83,7 +84,7 @@ for (const [label, options, bucket, region] of [
     const remote = await storage(t);
     const app = publisher(t, { ...remote.env, ...options });
     const urls = await app.render();
-    assert.deepEqual(Array.from(urls), [1, 2].map(n => `https://media.example.test/${bucket}/posts/ig-safeid01-p${n}.jpg`));
+    assert.deepEqual(Array.from(urls), [1, 2].map(n => `https://media.example.test/ig-media/posts/ig-safeid01-p${n}.jpg`));
     assert.equal(remote.requests.length, 2);
     for (const [index, req] of remote.requests.entries()) {
       assert.equal(req.method, 'PUT');
@@ -138,4 +139,19 @@ test('PDF assets use download disposition in object storage',async t=>{
  await app.uploadAsset(Buffer.from('%PDF-1.7\n%%EOF'),'document.pdf','application/pdf');
  assert.equal(remote.requests[0].headers['content-disposition'],'attachment');
  assert.equal(remote.requests[0].headers['content-type'],'application/pdf');
+});
+
+test('getAsset: /ig-media 代理讀物件，回 body 與 content-type；404 回 null', async t => {
+  const server = createServer((req, res) => {
+    if (req.method === 'GET' && new URL(req.url, 'http://x').pathname === '/ig-media/assets/site-01.jpg') { res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': String(jpeg.length) }); return res.end(jpeg); }
+    res.writeHead(404, { 'Content-Type': 'application/xml' }); res.end('<Error><Code>NoSuchKey</Code></Error>');
+  });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening'); t.after(() => server.close());
+  const env = { S3_ENDPOINT: `http://127.0.0.1:${server.address().port}`, S3_ACCESS_KEY: 'a', S3_SECRET_KEY: 'b', S3_BUCKET: 'ig-media' };
+  const app = publisher(t, env);
+  const hit = await app.getAsset('assets/site-01.jpg');
+  assert.equal(hit.contentType, 'image/jpeg'); assert.equal(hit.contentLength, jpeg.length);
+  const chunks = []; for await (const c of hit.body) chunks.push(c); assert.ok(Buffer.concat(chunks).equals(jpeg));
+  assert.equal(await app.getAsset('assets/missing.jpg'), null);
+  assert.equal(await publisher(t, {}).getAsset('assets/site-01.jpg'), null);
 });
