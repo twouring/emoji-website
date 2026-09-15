@@ -4476,8 +4476,11 @@ app.get('/ig-media/*', wrap(async (req, res) => {
   if (!/^(assets|posts)\/[A-Za-z0-9._-]{1,200}$/.test(key)) return res.status(404).json({ error: '找不到檔案。' });
   const obj = await igPublisher.getAsset(key);
   if (!obj) return res.status(404).json({ error: '找不到檔案。' });
-  res.set({ 'Content-Type': obj.contentType, 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff', ...(obj.contentLength ? { 'Content-Length': String(obj.contentLength) } : {}) });
-  if (key.endsWith('.pdf') || obj.contentType === 'application/pdf') res.set({ 'Content-Disposition': 'attachment', 'Content-Security-Policy': "sandbox; default-src 'none'" });
+  // 型別只信副檔名白名單，不信物件自帶的 Content-Type（同網域 XSS 防線）；其餘一律當附件下載
+  const IMG = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' };
+  const ext = key.slice(key.lastIndexOf('.') + 1).toLowerCase(), type = IMG[ext] || (ext === 'pdf' ? 'application/pdf' : 'application/octet-stream');
+  res.set({ 'Content-Type': type, 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "sandbox; default-src 'none'", ...(obj.contentLength ? { 'Content-Length': String(obj.contentLength) } : {}) });
+  if (!IMG[ext]) res.set('Content-Disposition', 'attachment');
   obj.body.on('error', () => res.destroy()).pipe(res);
 }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
