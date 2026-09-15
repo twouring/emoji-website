@@ -10,6 +10,7 @@
 | `/api/*`、`/auth/google/*` | 後端 REST API 與 Google 登入；資料存 Postgres |
 | `/member` | 會員專區（進出 QR、點數錢包、購點／兌換／退款） |
 | `/admin`、`/admin/*` | 後台（會籍、發點、活動、內容、社群、廣告）；每個分頁為一般路徑（`/admin/members`、`/admin/social/edit/:id`…），伺服器對 `/admin/*` 皆回同一頁；舊 `/admin#tab` 書籤自動轉為路徑 |
+| `/order?t=桌號&k=簽章` | 桌邊 QR 點餐（不登入）：同桌共用購物車、TapPay 刷卡、取餐推播；QR 由後台「點餐出餐」分頁產生 |
 | `/events`、`/en/events`、`/ja/events` | 公開活動列表；私人活動以不列出的直接連結分享 |
 | `/event-application`、`/en/event-application`、`/ja/event-application` | 社群提出三樓場地活動申請、查詢自己的申請與審核回覆 |
 
@@ -46,6 +47,7 @@ DB 未設定時伺服器優雅降級：靜態頁照常，`/api/*` 回 503。
 | `MAIL_FROM` | 寄件人（預設 `言文字｜台灣人才聚落 <us@emoji.tw>`），網域須與 Resend 已驗證網域相同 |
 | `RESEND_WEBHOOK_SECRET` | Resend 送達／退信事件簽章（`whsec_...`），送至 `/api/email/webhook`；未設時該端點回 503 |
 | `STRIPE_SECRET_KEY` | Stripe 結帳；只使用 Emoji 言文字帳號 `acct_1Ts2y95NXMKDsl40`；未設時 `/api/checkout` 回 503 |
+| `TAPPAY_APP_ID` / `TAPPAY_APP_KEY` / `TAPPAY_PARTNER_KEY` / `TAPPAY_MERCHANT_ID` / `TAPPAY_ENV` | 桌邊 QR 點餐刷卡（TapPay Pay by Prime）；`TAPPAY_ENV` 為 `sandbox`（預設）或 `production`。缺任一項時 `/order` 顯示「請至櫃檯結帳」 |
 | `STRIPE_WEBHOOK_SECRET` | 同帳號送至 `/api/stripe/webhook` 的簽章；未設時付費活動 fail closed |
 | `EVENT_QR_SECRET` | 活動票券 QR 簽章；留空時沿用 `ACCESS_QR_SECRET` |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 會員專區 Google 登入 |

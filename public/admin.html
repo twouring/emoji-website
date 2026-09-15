@@ -1037,6 +1037,41 @@ async function loadLogs(){
   const q=document.getElementById('logs-q');if(q)q.oninput=()=>{const kw=q.value.trim().toLowerCase();let n=0;document.querySelectorAll('#logs-body-rows tr').forEach(tr=>{const hit=!kw||tr.textContent.toLowerCase().includes(kw);tr.hidden=!hit;if(hit)n++;});document.getElementById('logs-count').textContent=(kw?`${n}／`:'')+LOGS.length+' 筆';};
 }
 
+
+/* ---- 點餐出餐：桌邊 QR 點餐的出餐看板、清桌、桌號 QR ---- */
+function tabOrders(){ return '<div class="a-sec" id="orders-body"></div>'; }
+let ORDERS_TIMER=null,ORDERS_SEEN=null;
+function ordersBeep(){try{const c=new (window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=660;g.gain.value=.2;o.start();o.stop(c.currentTime+.5);}catch(e){}}
+async function loadOrders(){
+  const host=document.getElementById('orders-body');if(!host)return;
+  clearTimeout(ORDERS_TIMER);
+  if(!host.dataset.init){host.dataset.init='1';host.innerHTML='<h2>點餐出餐</h2><p class="hint">載入中…</p>';}
+  let d;try{d=await api('/admin/orders');}catch(e){host.innerHTML=`<h2>點餐出餐</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`;return;}
+  const ids=new Set(d.orders.map(o=>o.id));if(ORDERS_SEEN&&[...ids].some(id=>!ORDERS_SEEN.has(id)))ordersBeep();ORDERS_SEEN=ids;
+  // 資料沒變就不重繪，避免自動更新時把正要按的按鈕換掉
+  const sig=JSON.stringify([d.orders.map(o=>[o.id,o.status,o.push_count]),d.sessions.map(x=>[x.id,x.unpaid])]);
+  if(host.dataset.sig===sig&&host.querySelector('#qr-tables')){ORDERS_TIMER=setTimeout(()=>{if(document.getElementById('orders-body')&&TAB==='orders')loadOrders();},10000);return;}
+  host.dataset.sig=sig;
+  const qrTables=host.querySelector('#qr-tables')?.value??'';
+  const rows=d.orders.map(o=>`<tr><td><b style="font-size:1.2em">${esc(o.table_no)}</b></td><td>${o.items.map(l=>`${esc(l.zh)} ×${l.qty}${l.note?` <span class="hint" style="margin:0">${esc(l.note)}</span>`:''}`).join('<br>')}</td><td class="a-mono">${esc(applicationTime(o.paid_at))}</td><td class="num">${Number(o.amount).toLocaleString('zh-TW')}</td><td>${o.status==='ready'?'<span class="pill pill-ok">可取餐</span>':'<span class="pill pill-wait">準備中</span>'}${o.push_count?' 🔔':''}</td><td>${o.status==='paid'?`<button class="btn btn--solid btn-sm" data-order="${esc(o.id)}" data-status="ready">出餐並通知</button> `:''}<button class="btn btn--ghost btn-sm" data-order="${esc(o.id)}" data-status="done">已取餐</button></td></tr>`).join('')||'<tr><td colspan="6" class="a-empty">目前沒有待出餐的訂單</td></tr>';
+  const sess=d.sessions.map(s=>`<tr><td><b>${esc(s.table)}</b></td><td class="num">${s.unpaid}</td><td class="a-mono">${esc(applicationTime(s.updated_at))}</td><td><button class="btn btn--ghost btn-sm" data-close-session="${esc(s.id)}">清桌</button></td></tr>`).join('')||'<tr><td colspan="4" class="a-empty">沒有使用中的桌</td></tr>';
+  host.innerHTML=`<h2>點餐出餐</h2>
+    <p class="hint">客人掃桌上 QR 點餐並線上刷卡（TapPay）後出現在這裡。按「出餐並通知」會推播給客人到櫃檯取餐；每 10 秒自動更新，有新單會響一聲。</p>
+    <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>桌號</th><th>品項</th><th>付款時間</th><th class="num">金額</th><th>狀態</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <h3 style="margin-top:28px">使用中的桌</h3>
+    <p class="hint">清桌＝這桌未付品項作廢、未取餐的單標記已取餐，下一組客人掃碼會開新的一桌。客人全部取餐完成後會自動結束。</p>
+    <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>桌號</th><th class="num">未結帳品項</th><th>最後動作</th><th></th></tr></thead><tbody>${sess}</tbody></table></div>
+    <h3 style="margin-top:28px">桌號 QR</h3>
+    <p class="hint">輸入桌號（逗號分隔）產生 QR，列印貼桌上。QR 內含簽章，更換 APP_SECRET 後須重印。</p>
+    <div class="a-toolbar"><input id="qr-tables" placeholder="例：A1,A2,A3,B1" style="min-width:260px" value="${esc(qrTables)}"><button class="btn btn--solid btn-sm" id="qr-make">產生</button><button class="btn btn--ghost btn-sm" id="qr-print" hidden>列印</button></div>
+    <div id="qr-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-top:12px"></div>`;
+  host.querySelectorAll('[data-order]').forEach(b=>b.onclick=()=>doThen(async()=>{const out=await api('/admin/orders/'+b.dataset.order+'/status',{method:'POST',body:{status:b.dataset.status}});await loadOrders();return out;},out=>out.status==='ready'?`已出餐，推播 ${out.notified} 台裝置`:'已標記取餐'));
+  host.querySelectorAll('[data-close-session]').forEach(b=>b.onclick=()=>{if(!confirm('確定清桌？未付款品項會作廢。'))return;doThen(async()=>{await api('/admin/orders/sessions/'+b.dataset.closeSession+'/close',{method:'POST',body:{}});await loadOrders();},'已清桌');});
+  host.querySelector('#qr-make').onclick=async()=>{const tables=host.querySelector('#qr-tables').value.trim();if(!tables)return;try{const out=await api('/admin/tables/qr?tables='+encodeURIComponent(tables));const grid=host.querySelector('#qr-grid');grid.innerHTML='';for(const t of out.tables){const url=await new Promise((ok,no)=>QRCode.toDataURL(t.url,{width:360,margin:1},(e,u)=>e?no(e):ok(u)));grid.insertAdjacentHTML('beforeend',`<div class="qr-card" style="text-align:center;border:1px solid #ddd;border-radius:10px;padding:12px;background:#fff"><img src="${url}" alt="桌號 ${esc(t.table)}" style="width:100%"><div style="font-size:1.6em;font-weight:700">桌號 ${esc(t.table)}</div><div class="hint" style="margin:0">掃碼點餐 · 言文字</div></div>`);}host.querySelector('#qr-print').hidden=false;}catch(e){toast(e.message);}};
+  host.querySelector('#qr-print').onclick=()=>{const w=window.open('','_blank');w.document.write('<title>桌號 QR</title><style>body{font-family:sans-serif;margin:0}.g{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px}.g>div{break-inside:avoid;text-align:center;border:1px solid #ccc;border-radius:10px;padding:12px}img{width:100%}</style><div class="g">'+host.querySelector('#qr-grid').innerHTML+'</div>');w.document.close();w.focus();w.print();};
+  ORDERS_TIMER=setTimeout(()=>{if(document.getElementById('orders-body')&&TAB==='orders')loadOrders();},10000);
+}
+
 function tabAdmins(d){
   const body = (d.users||[]).filter(u=>u.email).map(u=>`<tr>
     <td>${esc(u.name)}</td><td class="a-mono">${esc(u.email)}</td>
@@ -1060,6 +1095,7 @@ const TABS = [
   { id:'applications',label:'場地申請', render:tabApplications },
   { id:'calendar',    label:'行事曆',   render:tabCalendar },
   { id:'counter',     label:'櫃檯',     render:tabCounter },
+  { id:'orders',      label:'點餐出餐', render:tabOrders },
   { id:'updates',     label:'最新消息', render:tabUpdates },
   { id:'menu',        label:'菜單',     render:tabMenu },
   { id:'social',      label:'社群經營', render:tabSocial },
@@ -1069,7 +1105,7 @@ const TABS = [
   { id:'logs',        label:'操作紀錄', render:tabLogs, super:true },
 ];
 const NAV_GROUPS = [
-  ['營運', ['overview','members','commitments','events','applications','calendar','counter']],
+  ['營運', ['overview','members','commitments','events','applications','calendar','counter','orders']],
   ['內容', ['updates','menu']],
   ['行銷', ['social','ads']],
   ['系統', ['admins','system','logs']],
@@ -1082,6 +1118,7 @@ const ICONS = {
   events:       '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
   calendar:     '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>',
   counter:      '<path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 9l2-5h14l2 5"/><path d="M12 13v4"/>',
+  orders:       '<path d="M3 11h18"/><path d="M5 11a7 7 0 0 1 14 0"/><path d="M2 15h20"/><path d="M12 4v1"/>',
   logs:         '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
   system:       '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/>',
   applications: '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z"/>',
@@ -1166,6 +1203,7 @@ function applyRoute(){
   if (tab === 'applications') { paintApplications(); loadApplications(); return; }
   if (tab === 'calendar') { if (APPLICATIONS===null) loadApplications().then(paintCalendar); paintCalendar(); return; }
   if (tab === 'counter') { paintCounter(); return; }
+  if (tab === 'orders') { loadOrders(); return; }
   if (tab === 'logs') { loadLogs(); return; }
   if (tab === 'system') { if(DATA?.super)loadSystemSettings(); return; }
   if (tab === 'ads') { paintAds(); return; }

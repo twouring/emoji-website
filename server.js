@@ -31,6 +31,7 @@ const {oauthUrl,meetingRequest,meetingResult}=require('./lib/event-meetings');
 const eventWallets=require('./lib/event-wallets');
 const eventCrypto=require('./lib/event-crypto');
 const eventChannels=require('./lib/event-channels');
+const tableOrders=require('./lib/table-orders');
 const eventQuestions = require('./lib/event-questions');
 const { eventSlug, normalizeEventInput, localizeEvent, normalizeAttribution } = require('./lib/events');
 const { normalizeEventApplication } = require('./lib/event-applications');
@@ -663,6 +664,16 @@ async function migrate() {
   await seedSpaceContent();
   await seedMenuContent();
   await seedSocialPosts();
+  // 桌邊 QR 點餐：一桌一場（共桌購物車）＋每次付款一張出餐單
+  await q(`CREATE TABLE IF NOT EXISTS table_sessions (
+    id TEXT PRIMARY KEY, table_no TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', items JSONB NOT NULL DEFAULT '[]',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE INDEX IF NOT EXISTS table_sessions_open_idx ON table_sessions(table_no) WHERE status='open'`);
+  await q(`CREATE TABLE IF NOT EXISTS table_orders (
+    id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES table_sessions(id), table_no TEXT NOT NULL, items JSONB NOT NULL,
+    amount INT NOT NULL, payer JSONB NOT NULL DEFAULT '{}', tappay JSONB NOT NULL DEFAULT '{}', status TEXT NOT NULL DEFAULT 'paid',
+    push JSONB NOT NULL DEFAULT '[]', paid_at TIMESTAMPTZ NOT NULL DEFAULT now(), ready_at TIMESTAMPTZ, done_at TIMESTAMPTZ)`);
+  await q(`CREATE INDEX IF NOT EXISTS table_orders_status_idx ON table_orders(status,paid_at)`);
 }
 
 async function seedBond() {
@@ -4336,6 +4347,109 @@ app.get(['/events/:slug', '/en/events/:slug', '/ja/events/:slug'], async (req, r
   sendPage(res, EVENTS_PAGE, req.path, event ? html => composeEventMeta(html, localizeEvent(event, req.path.split('/')[1]), req.path) : null);
 });
 app.get('/', (req, res) => sendPage(res, path.join(PUB, 'index.html'), '/'));
+
+/* ---- 桌邊 QR 點餐（不登入）：t=桌號&k=簽章 → 共桌購物車 → TapPay 結帳 → 出餐推播 ---- */
+const ORDER_ID_RE=/^[a-z0-9_]{6,32}$/;
+async function loadSession(id){
+  if(!ORDER_ID_RE.test(String(id||'')))return null;
+  const s=(await q('SELECT * FROM table_sessions WHERE id=$1',[id])).rows[0];if(!s)return null;
+  s.orders=(await q('SELECT id,items,amount,status,paid_at,ready_at,done_at FROM table_orders WHERE session_id=$1 ORDER BY paid_at',[id])).rows;return s;
+}
+const publicSession=s=>({id:s.id,table:s.table_no,status:s.status,items:s.items,orders:s.orders.map(o=>({id:o.id,amount:o.amount,status:o.status,paid_at:o.paid_at,ready_at:o.ready_at,lines:o.items.map(l=>l.line)})),total_unpaid:tableOrders.sum(tableOrders.unpaid(s.items))});
+async function currentMenu(){return tableOrders.menuIndex((await q("SELECT value FROM site_content WHERE key='menu'")).rows[0]?.value);}
+
+app.get('/api/orders/config',(req,res)=>{const tp=tableOrders.tappayConfig(),push=eventChannels.pushConfig();res.json({tappay:tp?{app_id:tp.appId,app_key:tp.appKey,env:tp.mode}:null,vapid_public_key:push?.publicKey||null});});
+
+// 掃桌上 QR：回這桌目前的場（沒有、或上一組已全部取餐完成 → 開新場）
+app.get('/api/orders/table',requireDb,wrap(async(req,res)=>{
+  const table=tableOrders.verifyTable(req.query.t,req.query.k,SECRET);if(!table)return res.status(403).json({error:'QR 無效，請重新掃描桌上的 QR。'});
+  const client=await pool.connect();
+  try{await client.query('BEGIN');await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,['table:'+table]);
+    let s=(await client.query("SELECT * FROM table_sessions WHERE table_no=$1 AND status='open' ORDER BY created_at DESC LIMIT 1",[table])).rows[0];
+    if(s){s.orders=(await client.query('SELECT id,items,amount,status,paid_at,ready_at,done_at FROM table_orders WHERE session_id=$1 ORDER BY paid_at',[s.id])).rows;
+      // ponytail: 4 小時無動靜視同離席；未付品項直接作廢
+      const stale=Date.now()-new Date(s.updated_at).getTime()>4*3600e3;
+      if(tableOrders.sessionFinished(s.items,s.orders)||stale){await client.query("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=$1",[s.id]);s=null;}}
+    if(!s){s=(await client.query('INSERT INTO table_sessions(id,table_no) VALUES($1,$2) RETURNING *',[uid('ts_'),table])).rows[0];s.orders=[];}
+    await client.query('COMMIT');res.json(publicSession(s));
+  }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
+}));
+app.get('/api/orders/:id',requireDb,wrap(async(req,res)=>{const s=await loadSession(req.params.id);if(!s)return res.status(404).json({error:'找不到這桌的點餐。'});res.json(publicSession(s));}));
+
+// 共桌加菜／退菜：所有掃同一桌 QR 的人看同一份購物車，只能移除自己加的
+async function mutateItems(req,res,fn){
+  const client=await pool.connect();
+  try{await client.query('BEGIN');
+    const s=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+    if(!s||s.status!=='open'){await client.query('ROLLBACK');return res.status(s?409:404).json({error:s?'這桌已結束，請重新掃描 QR。':'找不到這桌的點餐。'});}
+    const items=await fn(s.items);
+    await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items)]);
+    await client.query('COMMIT');const out=await loadSession(s.id);res.json(publicSession(out));
+  }catch(e){await client.query('ROLLBACK');if(e.status)return res.status(e.status).json({error:e.message});throw e;}finally{client.release();}
+}
+app.post('/api/orders/:id/items',requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});const menu=await currentMenu();return mutateItems(req,res,items=>tableOrders.addLine(items,menu,req.body||{}));}));
+app.delete('/api/orders/:id/items/:line',requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});return mutateItems(req,res,items=>tableOrders.removeLine(items,String(req.params.line),String(req.body?.guest||'')));}));
+
+// 結帳：TapPay pay-by-prime；金額由伺服器重算；可付全桌或只付自己的（lines）
+app.post('/api/orders/:id/pay',rateLimit({max:10}),requireDb,wrap(async(req,res)=>{
+  const tp=tableOrders.tappayConfig();if(!tp)return res.status(503).json({error:'線上付款尚未開通，請至櫃檯結帳。'});
+  if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});
+  let who;try{who=tableOrders.payer(req.body);}catch(e){return res.status(e.status||400).json({error:e.message});}
+  const client=await pool.connect();
+  try{await client.query('BEGIN');
+    const s=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+    if(!s||s.status!=='open'){await client.query('ROLLBACK');return res.status(s?409:404).json({error:s?'這桌已結束，請重新掃描 QR。':'找不到這桌的點餐。'});}
+    let lines;try{lines=tableOrders.selectLines(s.items,req.body?.lines);}catch(e){await client.query('ROLLBACK');return res.status(e.status).json({error:e.message});}
+    const amount=tableOrders.sum(lines);if(!lines.length||amount<=0){await client.query('ROLLBACK');return res.status(400).json({error:'沒有可結帳的品項。'});}
+    const orderId=uid('to_');
+    let paid;try{paid=await tableOrders.payByPrime(tp,{prime:req.body?.prime,amount,orderNumber:orderId,details:`言文字 桌號 ${s.table_no} 點餐`,cardholder:who});}
+    catch(e){await client.query('ROLLBACK');console.warn('[table-pay]',e.message);return res.status(e.status||502).json({error:e.status?e.message:'付款服務暫時無法使用，請稍後再試。'});}
+    const set=new Set(lines.map(l=>l.line)),items=s.items.map(l=>set.has(l.line)?{...l,order_id:orderId}:l);
+    await client.query('INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,tappay) VALUES($1,$2,$3,$4,$5,$6,$7)',[orderId,s.id,s.table_no,JSON.stringify(lines.map(l=>({...l,order_id:orderId}))),amount,JSON.stringify(who),JSON.stringify({rec_trade_id:paid.rec_trade_id,bank_transaction_id:paid.bank_transaction_id,auth_code:paid.auth_code,last_four:paid.card_info?.last_four})]);
+    await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items)]);
+    await client.query('COMMIT');res.json({ok:true,order_id:orderId,amount,session:publicSession(await loadSession(s.id))});
+  }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
+}));
+
+// 取餐通知：付款者訂閱瀏覽器推播，掛在出餐單上（不登入、不留帳號）
+app.post('/api/orders/:id/push',requireDb,wrap(async(req,res)=>{
+  if(!eventChannels.pushConfig())return res.status(503).json({error:'瀏覽器推播尚未設定。'});
+  const orderId=String(req.body?.order_id||''),sub=req.body?.subscription,endpoint=String(sub?.endpoint||'');
+  let url;try{url=new URL(endpoint);}catch{}
+  if(!ORDER_ID_RE.test(req.params.id)||!ORDER_ID_RE.test(orderId)||!url||url.protocol!=='https:'||endpoint.length>2048||typeof sub?.keys?.auth!=='string'||typeof sub?.keys?.p256dh!=='string'||sub.keys.auth.length>1024||sub.keys.p256dh.length>1024)return res.status(400).json({error:'推播訂閱格式不正確。'});
+  const clean={endpoint,keys:{auth:sub.keys.auth,p256dh:sub.keys.p256dh}};
+  const r=await q(`UPDATE table_orders SET push=(SELECT COALESCE(jsonb_agg(x),'[]') FROM jsonb_array_elements(push) x WHERE x->>'endpoint'<>$3)||$4::jsonb WHERE id=$1 AND session_id=$2 AND status IN ('paid','ready') AND jsonb_array_length(push)<5`,[orderId,req.params.id,endpoint,JSON.stringify([clean])]);
+  if(!r.rowCount)return res.status(404).json({error:'找不到這筆出餐單。'});res.json({ok:true});
+}));
+
+/* 後台：出餐看板、清桌、桌號 QR */
+app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const all=req.query.all==='1';
+  const orders=(await q(all?"SELECT * FROM table_orders WHERE paid_at>now()-interval '1 day' ORDER BY paid_at DESC":"SELECT * FROM table_orders WHERE status IN ('paid','ready') ORDER BY paid_at")).rows.map(o=>({...o,push:undefined,push_count:o.push.length}));
+  const sessions=(await q("SELECT id,table_no,items,updated_at FROM table_sessions WHERE status='open' ORDER BY table_no")).rows.map(s=>({id:s.id,table:s.table_no,unpaid:tableOrders.unpaid(s.items).length,updated_at:s.updated_at}));
+  res.json({orders,sessions});
+}));
+app.post('/api/admin/orders/:id/status',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const status=String(req.body?.status||'');if(!['ready','done'].includes(status)||!ORDER_ID_RE.test(req.params.id))return res.status(400).json({error:'狀態無效。'});
+  const o=(await q(status==='ready'?"UPDATE table_orders SET status='ready',ready_at=now() WHERE id=$1 AND status='paid' RETURNING *":"UPDATE table_orders SET status='done',done_at=now() WHERE id=$1 AND status IN ('paid','ready') RETURNING *",[req.params.id])).rows[0];
+  if(!o)return res.status(409).json({error:'出餐單狀態已變更，請重新整理。'});
+  let notified=0;const push=eventChannels.pushConfig();
+  if(status==='ready'&&push){const payload={title:`桌號 ${o.table_no}｜餐點好了`,body:o.items.map(l=>l.zh+'×'+l.qty).join('、').slice(0,120)+'，請至櫃檯取餐。',url:tableOrders.tableUrl(SITE_BASE,o.table_no,SECRET)};
+    for(const sub of o.push){try{await eventChannels.sendPush(push,sub,payload);notified++;}catch(e){console.warn('[table-push]',e.statusCode||e.message);}}}
+  res.json({ok:true,status,notified});
+}));
+app.post('/api/admin/orders/sessions/:id/close',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
+  await q("UPDATE table_orders SET status='done',done_at=now() WHERE session_id=$1 AND status IN ('paid','ready')",[req.params.id]);
+  const r=await q("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=$1 AND status='open'",[req.params.id]);
+  res.json({ok:true,closed:r.rowCount>0});
+}));
+app.get('/api/admin/tables/qr',auth,adminOnly,wrap(async(req,res)=>{
+  const tables=[...new Set(String(req.query.tables||'').split(',').map(t=>t.trim().toUpperCase()).filter(Boolean))].slice(0,100);
+  const bad=tables.find(t=>!tableOrders.TABLE_RE.test(t));if(bad)return res.status(400).json({error:`桌號「${bad}」只能用英數字與 -，最長 8 字。`});
+  res.json({tables:tables.map(t=>({table:t,url:tableOrders.tableUrl(SITE_BASE,t,SECRET)}))});
+}));
+
 // /menu 舊頁改版為空間介紹：301 導至 /space（保留語系前綴），需先於 static 攔截
 function menuToSpace(req, res) {
   const lang = req.path.startsWith('/en/') ? 'en' : req.path.startsWith('/ja/') ? 'ja' : 'zh';
@@ -4431,4 +4545,4 @@ async function boot() {
   }
 }
 if (require.main === module) boot();
-module.exports = { app };
+module.exports = { app, boot };

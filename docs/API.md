@@ -50,6 +50,27 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" https://www.emoji.tw/api/state
 公開唯讀資料，無個資：`{ raised, updates, events, content }`。活動只含「報名中」且公開的項目。
 `content` 僅回首頁公告、菜單及空間文案／圖片白名單；IG token 與內部排程資料不會傳至瀏覽器。
 
+### GET /api/orders/config
+桌邊點餐前端設定：`{ tappay: { app_id, app_key, env } | null, vapid_public_key }`。TapPay 未設定時 `tappay` 為 null，前端顯示「請至櫃檯結帳」。
+
+### GET /api/orders/table
+掃桌上 QR 進入：query `t`（桌號）、`k`（簽章，由後台產生 QR 時附上）。回這桌目前的場 `{ id, table, status, items[], orders[], total_unpaid }`；沒有或上一組客人已全部取餐（或 4 小時無動靜）則自動開新的一桌。簽章錯誤回 403。
+
+### GET /api/orders/:id
+同桌購物車現況（供輪詢）。`items[]` 每行含 `line, zh, price, qty, by, guest, order_id`；`order_id` 非空＝已付款。`orders[]` 為出餐單 `{ id, amount, status: paid|ready|done, lines[] }`。
+
+### POST /api/orders/:id/items
+加菜。body：`{ item_id, qty(1–20), by(稱呼), guest(前端隨機識別碼), note? }`。價格以菜單當下售價快照，不信任前端金額。回更新後的場。
+
+### DELETE /api/orders/:id/items/:line
+移除自己加的未付款品項。body：`{ guest }`。他人品項回 403，已付款回 409。
+
+### POST /api/orders/:id/pay
+TapPay Pay by Prime 結帳。body：`{ prime, lines?[], name, phone?, email? }`。`lines` 空＝付全桌未付品項，指定＝只付那些（例如只付自己的）。伺服器重算金額；成功後建立出餐單並鎖定品項，回 `{ ok, order_id, amount, session }`。TapPay 拒絕回 402。每分鐘 10 次限流。
+
+### POST /api/orders/:id/push
+付款後訂閱取餐推播（不登入）。body：`{ order_id, subscription }`（Push API `PushSubscription.toJSON()`）。每張出餐單最多 5 個裝置。
+
 ### GET /api/events
 可用 `?lang=zh|en|ja` 取得名稱、說明與地點的對應語系；未填翻譯沿用中文。公開列表包含預告與報名中。
 公開活動列表。未登入只回 `visibility=public`；有效會員帶 Bearer token 時另回 `visibility=members`，皆限「預告／報名中」並包含已成立報名數。
@@ -214,6 +235,18 @@ Google 授權回呼，簽發會員 token 並導回。
 
 ### POST /api/admin/events/:id/regs/:registrationId/refund
 對已成立的付費票執行 Stripe 全額退款並立即使票券失效。以 registration id 作 Stripe idempotency key，重送不會重複退款。
+
+### GET /api/admin/orders
+出餐看板：`{ orders[], sessions[] }`。`orders` 預設只回 `paid`／`ready`；`?all=1` 回最近一天全部。`sessions` 為使用中的桌（含未結帳品項數）。
+
+### POST /api/admin/orders/:id/status
+body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請至櫃檯取餐」（回 `notified` 裝置數）；`done`＝已取餐。狀態不符回 409。
+
+### POST /api/admin/orders/sessions/:id/close
+清桌：未付款品項作廢、未取餐的單標記已取餐，這桌下一次掃碼開新場。
+
+### GET /api/admin/tables/qr
+query `tables=A1,A2`（最多 100 桌，英數字與 -，8 字內）。回 `{ tables: [{ table, url }] }`，`url` 即桌上 QR 內容（含簽章，換 `APP_SECRET` 後須重印）。
 
 ### POST /api/admin/content
 寫入網站內容（key-value，含菜單 `menu` 與空間文案）。body：`{ key, value }`。

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1B1A17">
+<meta name="robots" content="noindex,nofollow">
+<title>桌邊點餐｜言文字</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1B1A17;--soft:#3A362E;--muted:#6F6A60;--paper:#FAF8F3;--line:#E4E0D6;--yellow:#FFDE34;--ok:#1F7A4D;--bad:#B3261E}
+*{box-sizing:border-box}html,body{margin:0}
+body{font-family:"Noto Sans TC",system-ui,sans-serif;font-size:16px;line-height:1.6;color:var(--ink);background:var(--paper);padding-bottom:calc(88px + env(safe-area-inset-bottom))}
+button{font:inherit;cursor:pointer}input{font:inherit}
+.top{position:sticky;top:0;z-index:5;background:var(--ink);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.top b{font-size:1.15rem}.top .t{background:var(--yellow);color:var(--ink);padding:2px 10px;border-radius:999px;font-weight:700}
+.top small{color:#cfc9bb}
+.wrap{padding:16px;max-width:640px;margin:0 auto}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+h2{font-size:1rem;margin:22px 0 8px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+h3{font-size:1.05rem;margin:0 0 6px}
+.venue{font-size:1.3rem;margin:26px 0 4px;font-weight:700}.venue small{color:var(--muted);font-weight:400;margin-left:6px}
+.item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.item:last-child{border-bottom:0}
+.item img{width:56px;height:56px;border-radius:8px;object-fit:cover;flex:none;background:var(--line)}
+.item .n{flex:1;min-width:0}.item .n b{display:block}.item .n small{color:var(--muted);display:block}
+.item .p{font-weight:700;white-space:nowrap}
+.add{width:38px;height:38px;border-radius:50%;border:1.5px solid var(--ink);background:#fff;font-size:1.3rem;line-height:1;flex:none}
+.add:active{background:var(--ink);color:#fff}
+.bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:flex;gap:10px;align-items:center;z-index:5}
+.bar .s{flex:1}.bar .s small{display:block;color:var(--muted)}
+.btn{border:1.5px solid var(--ink);background:var(--ink);color:#fff;border-radius:999px;padding:10px 20px;font-weight:700}
+.btn:disabled{opacity:.45;cursor:default}.btn.ghost{background:#fff;color:var(--ink)}.btn.sm{padding:6px 14px}.btn.y{background:var(--yellow);color:var(--ink);border-color:var(--yellow)}
+.sheet{position:fixed;inset:0;background:rgba(27,26,23,.55);z-index:20;display:none;align-items:flex-end}
+.sheet.on{display:flex}
+.sheet .in{background:var(--paper);width:100%;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px 16px calc(24px + env(safe-area-inset-bottom))}
+.line{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px dashed var(--line)}
+.line:last-child{border-bottom:0}.line .by{color:var(--muted)}
+.line .x{border:0;background:none;color:var(--bad);padding:0 4px}
+.who{font-weight:700;margin:14px 0 4px;display:flex;justify-content:space-between}
+.tot{display:flex;justify-content:space-between;font-size:1.15rem;font-weight:700;margin:14px 0}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.tp{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;height:44px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.st{display:inline-block;padding:2px 10px;border-radius:999px;font-weight:700}
+.st.paid{background:#EEE9DA}.st.ready{background:var(--yellow)}.st.done{background:var(--line);color:var(--muted)}
+.ready-banner{position:fixed;top:0;left:0;right:0;z-index:30;background:var(--yellow);color:var(--ink);padding:calc(14px + env(safe-area-inset-top)) 16px 14px;font-weight:700;text-align:center;display:none;box-shadow:0 4px 20px rgba(0,0,0,.2)}
+.ready-banner.on{display:block}
+.err{color:var(--bad);min-height:1.2em}.muted{color:var(--muted)}
+.notice{color:var(--muted);margin:20px 0}
+.hidden{display:none!important}
+.toast{position:fixed;left:16px;right:16px;bottom:calc(96px + env(safe-area-inset-bottom));z-index:40;background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;text-align:center;display:none}.toast.on{display:block}
+</style>
+</head>
+<body>
+<div class="ready-banner" id="ready-banner"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<header class="top"><div><b>言文字</b> <small>桌邊點餐</small></div><span class="t" id="table-no">—</span></header>
+<main class="wrap">
+  <div class="card" id="boot"><p class="muted">載入中…</p></div>
+
+  <section id="app" class="hidden">
+    <div class="card" id="orders-card"></div>
+    <div class="card"><form id="name-form" class="row" style="margin:0 0 6px"><input class="f" id="name-in" placeholder="你的稱呼（讓同桌知道誰點了什麼）" maxlength="20" required style="flex:1;min-width:0"><button class="btn sm" type="submit">好</button></form><div class="muted">同桌的人掃同一個 QR 就能一起點；結帳時可付全桌或只付自己的。</div></div>
+    <div id="menu"></div>
+    <p class="notice" id="alcohol-notice" hidden>未滿十八歲禁止飲酒。禁止酒駕。</p>
+  </section>
+</main>
+
+<div class="bar" id="bar" hidden><div class="s"><b id="bar-total">NT$0</b><small id="bar-count"></small></div><button class="btn ghost" id="open-cart">購物車</button><button class="btn y" id="open-pay">結帳</button></div>
+
+<div class="sheet" id="cart"><div class="in"><h3>這桌的點餐</h3><div id="cart-lines"></div><div class="tot"><span>未結帳合計</span><span id="cart-total"></span></div><div class="row"><button class="btn ghost" data-close>繼續點</button><button class="btn y" id="cart-pay">去結帳</button></div></div></div>
+
+<div class="sheet" id="pay"><div class="in">
+  <h3>結帳</h3>
+  <div class="row" id="pay-scope"><label><input type="radio" name="scope" value="all" checked> 付全桌</label><label><input type="radio" name="scope" value="mine"> 只付我的</label></div>
+  <div class="tot"><span>付款金額</span><span id="pay-amount"></span></div>
+  <div id="pay-form">
+    <div class="grid"><input class="f" id="p-name" placeholder="持卡人姓名" autocomplete="cc-name"><input class="f" id="p-phone" placeholder="手機（選填）" autocomplete="tel"></div>
+    <input class="f" id="p-email" placeholder="Email（選填，收據）" autocomplete="email" style="margin-top:8px">
+    <div style="margin-top:10px"><div class="tp" id="card-number"></div><div class="grid" style="margin-top:8px"><div class="tp" id="card-exp"></div><div class="tp" id="card-ccv"></div></div></div>
+    <p class="err" id="pay-err"></p>
+    <div class="row"><button class="btn ghost" data-close>返回</button><button class="btn y" id="pay-go" disabled>付款</button></div>
+    <p class="muted">刷卡由 TapPay 處理，本站不保存卡號。</p>
+  </div>
+  <div id="pay-off" class="hidden"><p class="muted">線上付款尚未開通，請至櫃檯結帳。</p><div class="row"><button class="btn ghost" data-close>返回</button></div></div>
+</div></div>
+
+<script src="/menu-lib.js"></script>
+<script>
+(function(){
+  var $=function(s){return document.querySelector(s);};
+  var esc=function(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+  var toastT;var toast=function(m){var t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove('on');},4000);};
+  var money=function(n){return 'NT$'+Number(n||0).toLocaleString('zh-TW');};
+  var qs=new URLSearchParams(location.search),T=qs.get('t')||'',K=qs.get('k')||'';
+  var S=null,MENU=[],CFG={},GUEST,NAME,seenReady={},pollTimer;
+  try{GUEST=localStorage.getItem('order_guest');NAME=localStorage.getItem('order_name')||'';}catch(e){}
+  if(!GUEST){GUEST=Math.random().toString(36).slice(2,14)+Math.random().toString(36).slice(2,6);try{localStorage.setItem('order_guest',GUEST);}catch(e){}}
+  var api=function(path,opt){opt=opt||{};return fetch('/api'+path,{method:opt.method||'GET',headers:opt.body?{'Content-Type':'application/json'}:{},body:opt.body?JSON.stringify(opt.body):undefined}).then(function(r){return r.json().catch(function(){return {};}).then(function(d){if(!r.ok)throw Error(d.error||('伺服器錯誤 '+r.status));return d;});});};
+  var fail=function(msg){$('#boot').innerHTML='<p class="err">'+esc(msg)+'</p>';$('#boot').classList.remove('hidden');};
+
+  $('#name-in').value=NAME;
+  $('#name-form').onsubmit=function(e){e.preventDefault();NAME=$('#name-in').value.trim().slice(0,20);try{localStorage.setItem('order_name',NAME);}catch(x){}$('#name-in').blur();};
+  var needName=function(){if(NAME)return true;$('#name-in').focus();$('#name-in').reportValidity();return false;};
+
+  function renderMenu(){
+    var items=MenuLib.sortItems(MENU),html='',venue='',cat='';
+    items.forEach(function(it){
+      if(it.venue!==venue){if(venue)html+='</div>';venue=it.venue;cat='';var v=MenuLib.VENUE_LABEL[venue]||{zh:venue,en:''};html+='<div class="venue">'+esc(v.zh)+'<small>'+esc(v.en)+'</small></div><div>';}
+      if(it.cat!==cat){cat=it.cat;var c=MenuLib.CAT_LABEL[cat]||{zh:cat};html+='<h2>'+esc(c.zh)+'</h2>';}
+      html+='<div class="card" style="padding:0 14px"><div class="item">'+(it.image?'<img src="'+esc(it.image)+'" alt="" loading="lazy">':'')+'<div class="n"><b>'+esc(it.zh)+'</b><small>'+esc(it.en||'')+(it.note?' · '+esc(it.note):'')+'</small></div><span class="p">'+money(it.price)+'</span><button class="add" data-add="'+esc(it.id)+'" aria-label="加入 '+esc(it.zh)+'">＋</button></div></div>';
+    });
+    if(venue)html+='</div>';
+    $('#menu').innerHTML=html||'<p class="muted">目前尚未提供菜單。</p>';
+    $('#alcohol-notice').hidden=!items.some(function(i){return i.alcohol;});
+  }
+  var unpaid=function(){return (S.items||[]).filter(function(l){return !l.order_id;});};
+  var mine=function(){return unpaid().filter(function(l){return l.guest===GUEST;});};
+  var sum=function(ls){return ls.reduce(function(a,l){return a+l.price*l.qty;},0);};
+
+  function renderState(){
+    $('#table-no').textContent='桌號 '+S.table;
+    var u=unpaid();
+    $('#bar').hidden=false;$('#bar-total').textContent=money(sum(u));$('#bar-count').textContent=u.length?u.length+' 項未結帳':'尚未點餐';
+    $('#open-pay').disabled=!u.length;$('#cart-pay').disabled=!u.length;
+    // 購物車：依人分組
+    var groups={},order=[];u.forEach(function(l){if(!groups[l.by+l.guest]){groups[l.by+l.guest]={by:l.by,guest:l.guest,lines:[]};order.push(l.by+l.guest);}groups[l.by+l.guest].lines.push(l);});
+    $('#cart-lines').innerHTML=order.length?order.map(function(k){var g=groups[k];return '<div class="who"><span>'+esc(g.by)+(g.guest===GUEST?'（我）':'')+'</span><span>'+money(sum(g.lines))+'</span></div>'+g.lines.map(function(l){return '<div class="line"><span>'+esc(l.zh)+' ×'+l.qty+(l.note?' <span class="by">'+esc(l.note)+'</span>':'')+'</span><span>'+money(l.price*l.qty)+(l.guest===GUEST?' <button class="x" data-del="'+esc(l.line)+'" aria-label="移除">✕</button>':'')+'</span></div>';}).join('');}).join(''):'<p class="muted">還沒有人點餐。</p>';
+    $('#cart-total').textContent=money(sum(u));
+    // 出餐單
+    var os=S.orders||[],byId={};(S.items||[]).forEach(function(l){byId[l.line]=l;});
+    $('#orders-card').classList.toggle('hidden',!os.length);
+    $('#orders-card').innerHTML='<h3>已付款</h3>'+os.map(function(o){var st={paid:'準備中',ready:'可取餐',done:'已取餐'}[o.status]||o.status;return '<div class="line"><span><span class="st '+esc(o.status)+'">'+st+'</span> '+o.lines.map(function(id){var l=byId[id];return l?esc(l.zh)+'×'+l.qty:'';}).filter(Boolean).join('、')+'</span><span>'+money(o.amount)+'</span></div>'+(o.status==='paid'&&CFG.vapid_public_key&&!o._pushed?'<div class="row"><button class="btn ghost sm" data-push="'+esc(o.id)+'">餐點好了通知我</button></div>':'');}).join('');
+    os.forEach(function(o){if(o.status==='ready'&&!seenReady[o.id]){seenReady[o.id]=true;var b=$('#ready-banner');b.textContent='桌號 '+S.table+'｜餐點好了，請至櫃檯取餐';b.classList.add('on');try{navigator.vibrate&&navigator.vibrate([200,100,200]);}catch(e){}beep();setTimeout(function(){b.classList.remove('on');},15000);}});
+  }
+  function beep(){try{var c=new (window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.15;o.start();o.stop(c.currentTime+.4);}catch(e){}}
+
+  function load(){return api('/orders/table?t='+encodeURIComponent(T)+'&k='+encodeURIComponent(K)).then(function(s){S=s;renderState();});}
+  function poll(){clearTimeout(pollTimer);pollTimer=setTimeout(function(){if(document.hidden)return poll();api('/orders/'+S.id).then(function(s){if(s.status!=='open'){return load();}S=s;renderState();}).catch(function(){}).then(poll);},5000);}
+
+  document.addEventListener('click',function(e){
+    var b=e.target.closest('[data-add]');if(b){NAME=$('#name-in').value.trim().slice(0,20)||NAME;if(!needName())return;try{localStorage.setItem('order_name',NAME);}catch(x){}b.disabled=true;api('/orders/'+S.id+'/items',{method:'POST',body:{item_id:b.dataset.add,qty:1,by:NAME,guest:GUEST}}).then(function(s){S=s;renderState();b.textContent='✓';setTimeout(function(){b.textContent='＋';},600);}).catch(function(err){toast(err.message);if(/已結束/.test(err.message))load();}).then(function(){b.disabled=false;});return;}
+    var d=e.target.closest('[data-del]');if(d){api('/orders/'+S.id+'/items/'+d.dataset.del,{method:'DELETE',body:{guest:GUEST}}).then(function(s){S=s;renderState();}).catch(function(err){toast(err.message);});return;}
+    var p=e.target.closest('[data-push]');if(p){subscribePush(p.dataset.push,p);return;}
+    if(e.target.closest('[data-close]'))document.querySelectorAll('.sheet').forEach(function(s){s.classList.remove('on');});
+  });
+  $('#open-cart').onclick=function(){$('#cart').classList.add('on');};
+  $('#open-pay').onclick=$('#cart-pay').onclick=function(){$('#cart').classList.remove('on');openPay();};
+
+  /* ---- 結帳（TapPay） ---- */
+  var TP_READY=false,CAN_PRIME=false;
+  function payScopeLines(){var scope=document.querySelector('input[name=scope]:checked').value;return scope==='mine'?mine():unpaid();}
+  function refreshPayAmount(){var ls=payScopeLines();$('#pay-amount').textContent=money(sum(ls));$('#pay-go').disabled=!CAN_PRIME||!ls.length;}
+  document.querySelectorAll('input[name=scope]').forEach(function(r){r.onchange=refreshPayAmount;});
+  function openPay(){
+    $('#pay').classList.add('on');$('#pay-err').textContent='';
+    document.querySelector('input[name=scope][value=mine]').parentNode.style.display=mine().length&&mine().length<unpaid().length?'':'none';
+    if(!mine().length||mine().length===unpaid().length)document.querySelector('input[name=scope][value=all]').checked=true;
+    if(!CFG.tappay){$('#pay-form').classList.add('hidden');$('#pay-off').classList.remove('hidden');return;}
+    if(!$('#p-name').value)$('#p-name').value=NAME;
+    refreshPayAmount();
+    if(TP_READY)return;
+    var s=document.createElement('script');s.src='https://js.tappaysdk.com/sdk/tpdirect/v5.19.2';s.onload=setupTapPay;s.onerror=function(){$('#pay-err').textContent='付款元件載入失敗，請檢查網路後重試。';};document.head.appendChild(s);
+  }
+  function setupTapPay(){
+    TPDirect.setupSDK(Number(CFG.tappay.app_id),CFG.tappay.app_key,CFG.tappay.env);
+    TPDirect.card.setup({fields:{number:{element:'#card-number',placeholder:'卡號'},expirationDate:{element:'#card-exp',placeholder:'MM / YY'},ccv:{element:'#card-ccv',placeholder:'CCV'}},styles:{'input':{'font-size':'16px','color':'#1B1A17'},':focus':{'color':'#1B1A17'},'.valid':{'color':'#1F7A4D'},'.invalid':{'color':'#B3261E'}}});
+    TPDirect.card.onUpdate(function(u){CAN_PRIME=!!u.canGetPrime;refreshPayAmount();});
+    TP_READY=true;
+  }
+  $('#pay-go').onclick=function(){
+    var btn=this,ls=payScopeLines(),scope=document.querySelector('input[name=scope]:checked').value;
+    if(!$('#p-name').value.trim()){$('#pay-err').textContent='請填寫持卡人姓名。';return;}
+    btn.disabled=true;$('#pay-err').textContent='';
+    TPDirect.card.getPrime(function(r){
+      if(r.status!==0){btn.disabled=false;$('#pay-err').textContent='卡片資料有誤：'+(r.msg||'');return;}
+      api('/orders/'+S.id+'/pay',{method:'POST',body:{prime:r.card.prime,lines:scope==='mine'?ls.map(function(l){return l.line;}):[],name:$('#p-name').value,phone:$('#p-phone').value,email:$('#p-email').value,guest:GUEST}})
+        .then(function(d){S=d.session;renderState();$('#pay').classList.remove('on');toast('付款成功 '+money(d.amount)+'。餐點準備中，可按「餐點好了通知我」。');})
+        .catch(function(err){$('#pay-err').textContent=err.message;if(/重新整理|已結束/.test(err.message))load();})
+        .then(function(){btn.disabled=false;});
+    });
+  };
+
+  /* ---- 取餐推播（不登入） ---- */
+  function subscribePush(orderId,btn){
+    if(!('serviceWorker'in navigator)||!('PushManager'in window)){toast('此瀏覽器不支援通知；請留在這個頁面，餐點好了會在畫面上提示。');return;}
+    btn.disabled=true;
+    var vapid=CFG.vapid_public_key,key=Uint8Array.from(atob(vapid.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(vapid.length/4)*4,'=')),function(c){return c.charCodeAt(0);});
+    navigator.serviceWorker.register('/event-push-sw.js').then(function(reg){return reg.pushManager.getSubscription().then(function(s){return s||reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key});});})
+      .then(function(sub){return api('/orders/'+S.id+'/push',{method:'POST',body:{order_id:orderId,subscription:sub.toJSON()}});})
+      .then(function(){(S.orders||[]).forEach(function(o){if(o.id===orderId)o._pushed=true;});btn.textContent='已開啟通知';})
+      .catch(function(err){toast('無法開啟通知：'+err.message+'。請留在此頁，餐點好了會在畫面上提示。');btn.disabled=false;});
+  }
+
+  /* ---- 啟動 ---- */
+  if(!T||!K)return fail('請掃描桌上的 QR Code 進入點餐。');
+  Promise.all([api('/orders/config'),fetch('/api/public').then(function(r){return r.json();}),load()]).then(function(r){
+    CFG=r[0];var content=(r[1]&&r[1].content)||{};
+    MENU=content.menu?MenuLib.publishedOnly(MenuLib.parseMenuDoc(content.menu)):[];
+    $('#boot').classList.add('hidden');$('#app').classList.remove('hidden');
+    renderMenu();renderState();poll();
+    document.addEventListener('visibilitychange',function(){if(!document.hidden)api('/orders/'+S.id).then(function(s){S=s;renderState();}).catch(function(){});});
+  }).catch(function(err){fail(err.message);});
+})();
+</script>
+</body>
+</html>

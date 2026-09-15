@@ -28,3 +28,6 @@ uploads/social/*
 
 # 活動主上傳封面
 uploads/events/*
+
+# 暫存／驗證產物（.tmp 慣例）
+.tmp/
