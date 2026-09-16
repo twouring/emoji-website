@@ -1156,7 +1156,7 @@ async function userContact(userId) {
  * 後台收件通知仍即時寄出，失敗只記 log。 */
 function notifyAdminApplication(a) {
   sendMailQuietly({ to: NOTIFY_EMAIL, subject: `[後台] 新${appKind(a)}申請：${a.title}（${appVenue(a)}）`,
-    text: `${appKind(a)}｜${appVenue(a)}\n單位：${a.community_name}\n聯絡：${a.contact_name} ${a.contact_email} ${a.contact_phone || ''}\n時段：${fmtTaipei(a.starts_at)} – ${fmtTaipei(a.ends_at)}\n人數：${a.attendees}\n\n${a.description}\n\n需求：${a.requirements || '—'}\n\n審核：${SITE_BASE}/admin/applications`, replyTo: a.contact_email });
+    text: `${appKind(a)}｜${appVenue(a)}\n單位：${a.community_name}\n聯絡：${a.contact_name} ${a.contact_email} ${a.contact_phone || ''}\n時段：${fmtTaipei(a.starts_at)} – ${fmtTaipei(a.ends_at)}\n人數：${a.attendees}\n\n${a.description}\n\n需求：${a.requirements || '—'}\n\n審核：${SITE_BASE}/admin/events/applications`, replyTo: a.contact_email });
 }
 const applicationMail = require('./lib/event-application-mail');
 let applicationMailDraining = false;
