@@ -260,6 +260,11 @@ test('application API persists private submissions and serializes retry/review r
       assert.equal(event.status,'預告');
       assert.equal(event.price_twd,0);
       assert.equal(event.owner_id,users[1]);
+      // 申請人（無活動主旗標）能以主辦團隊身分進活動主入口管理這場活動
+      const organizerState=await api('/api/organizer/state',memberB);
+      assert.equal(organizerState.status,200);assert.equal(organizerState.body.role,'organizer');assert.equal(organizerState.body.can_create_events,false);
+      assert.deepEqual(organizerState.body.events.map(item=>item.id),[publishedEvent.id]);
+      assert.equal((await api('/api/organizer/state',memberA)).status,403);
       assert.ok((await api('/api/events')).body.events.some(item=>item.id===publishedEvent.id));
       const update=(await pool.query("SELECT message FROM event_application_updates WHERE application_id=$1 AND kind='approved'",[second.id])).rows[0];
       assert.ok(update.message.includes(`/events/${publishedEvent.slug}`));

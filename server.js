@@ -2326,6 +2326,10 @@ app.post('/api/admin/event-applications/:id/review', auth, adminOnly, requireDb,
       event=(await client.query(`INSERT INTO events(id,slug,title,description,location,starts_at,ends_at,capacity,price_twd,visibility,status,owner_id)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,0,'public','預告',$9) RETURNING id,slug`,
         [id,slug,application.title,application.description,appVenue(application),application.starts_at,application.ends_at,application.attendees,application.user_id])).rows[0];
+      // 申請人以登入 email 加入主辦團隊（可管理），才進得了 /organizer/events；撤銷走「主辦團隊」移除
+      const applicant=(await client.query('SELECT email,name FROM users WHERE id=$1',[application.user_id])).rows[0];
+      await client.query(`INSERT INTO event_hosts(event_id,email,name,is_visible,can_manage,can_checkin) VALUES($1,lower($2),$3,false,true,true) ON CONFLICT(event_id,email) DO UPDATE SET can_manage=true,can_checkin=true`,
+        [event.id,applicant?.email||application.contact_email,application.contact_name||applicant?.name||'']);
     }
     // 審核、公開預告與通知佇列同一交易完成，不會出現只有部分成功的狀態。
     const publicLink=event?`\n\n公開活動預告：${SITE_BASE}/events/${encodeURIComponent(event.slug)}`:'';
