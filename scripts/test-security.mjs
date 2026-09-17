@@ -5,6 +5,7 @@ import { readFileSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { once } from 'node:events';
+import { request as httpRequest } from 'node:http';
 
 const require = createRequire(import.meta.url);
 const root = path.resolve(import.meta.dirname || path.dirname(new URL(import.meta.url).pathname), '..');
@@ -57,6 +58,25 @@ async function server(t, { query, stripe = {}, env = {} } = {}) {
   });
   return { request, base, log, errors };
 }
+
+test('apex domain permanently redirects without losing path, query or method', async t => {
+  const { base } = await server(t);
+  const request = (host, method = 'GET') => new Promise((resolve, reject) => {
+    const req = httpRequest(base + '/en/events?source=test&next=%2Fmember', { method, headers: { host } }, res => {
+      res.resume();
+      res.on('end', () => resolve(res));
+    });
+    req.on('error', reject); req.end();
+  });
+  for (const method of ['GET', 'HEAD', 'POST']) {
+    const response = await request('emoji.tw', method);
+    assert.equal(response.statusCode, 308);
+    assert.equal(response.headers.location, 'https://www.emoji.tw/en/events?source=test&next=%2Fmember');
+  }
+  for (const host of ['www.emoji.tw', 'localhost', 'emoji.tw.evil.test']) {
+    assert.notEqual((await request(host)).statusCode, 308);
+  }
+});
 
 test('session is purpose-bound, expiring, strictly segmented and rejects non-ASCII signatures safely', () => {
   const token = signToken({ sub: user.id, role: 'admin' }, secret, { now: 100 });

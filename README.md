@@ -17,7 +17,7 @@
 
 前端靜態檔全部在 `public/`（`public/fellow/` 為 fellow 前端），伺服器源碼（`server.js`、`package.json`）不外露。
 
-正式標準網址唯一 `https://www.emoji.tw`；原 `fellow.emoji.tw` 子網域已退役。
+正式標準網址唯一 `https://www.emoji.tw`；`emoji.tw` 以 HTTP 308 永久跳轉至標準網址，保留路徑與查詢參數（2026-09-17）。原 `fellow.emoji.tw` 子網域已退役。
 
 ## 本地開發
 

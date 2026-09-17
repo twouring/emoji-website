@@ -1238,6 +1238,9 @@ const app = express();
 app.disable('x-powered-by');
 // 僅信任指定代理；預設信任一層部署 ingress，不採信攻擊者自填的 X-Forwarded-For 最左值。
 app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
+// 標準網址：保留路徑、查詢參數與 HTTP 方法，統一至 www。
+app.use((req, res, next) => /^emoji\.tw(?::\d+)?$/i.test(req.headers.host || '')
+  ? res.redirect(308, 'https://www.emoji.tw' + req.originalUrl) : next());
 app.use((req, res, next) => {
   res.set({
     'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'SAMEORIGIN',
