@@ -59,7 +59,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 <body>
 <div class="ready-banner" id="ready-banner"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<header class="top"><div><b>言文字</b> <small>桌邊點餐</small></div><span class="t" id="table-no">—</span></header>
+<header class="top"><div><b id="brand">言文字</b> <small>桌邊點餐</small></div><span class="t" id="table-no">—</span></header>
 <main class="wrap">
   <div class="card" id="boot"><p class="muted">載入中…</p></div>
 
@@ -98,7 +98,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   var toastT;var toast=function(m){var t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove('on');},4000);};
   var money=function(n){return 'NT$'+Number(n||0).toLocaleString('zh-TW');};
   var qs=new URLSearchParams(location.search),T=qs.get('t')||'',K=qs.get('k')||'';
-  var S=null,MENU=[],CFG={},GUEST,NAME,seenReady={},pollTimer;
+  var S=null,MENU=[],VENUE=null,CFG={},GUEST,NAME,seenReady={},pollTimer;
   try{GUEST=localStorage.getItem('order_guest');NAME=localStorage.getItem('order_name')||'';}catch(e){}
   if(!GUEST){GUEST=Math.random().toString(36).slice(2,14)+Math.random().toString(36).slice(2,6);try{localStorage.setItem('order_guest',GUEST);}catch(e){}}
   var api=function(path,opt){opt=opt||{};return fetch('/api'+path,{method:opt.method||'GET',headers:opt.body?{'Content-Type':'application/json'}:{},body:opt.body?JSON.stringify(opt.body):undefined}).then(function(r){return r.json().catch(function(){return {};}).then(function(d){if(!r.ok)throw Error(d.error||('伺服器錯誤 '+r.status));return d;});});};
@@ -109,14 +109,16 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   var needName=function(){if(NAME)return true;$('#name-in').focus();$('#name-in').reportValidity();return false;};
 
   function renderMenu(){
-    var items=MenuLib.sortItems(MENU),html='',venue='',cat='';
+    VENUE=MenuLib.activeVenue();
+    $('#brand').textContent=(MenuLib.VENUE_LABEL[VENUE]||{zh:'言文字'}).zh;
+    var items=MenuLib.sortItems(MENU.filter(function(it){return it.venue===VENUE;})),html='',venue='',cat='';
     items.forEach(function(it){
       if(it.venue!==venue){if(venue)html+='</div>';venue=it.venue;cat='';var v=MenuLib.VENUE_LABEL[venue]||{zh:venue,en:''};html+='<div class="venue">'+esc(v.zh)+'<small>'+esc(v.en)+'</small></div><div>';}
       if(it.cat!==cat){cat=it.cat;var c=MenuLib.CAT_LABEL[cat]||{zh:cat};html+='<h2>'+esc(c.zh)+'</h2>';}
       html+='<div class="card" style="padding:0 14px"><div class="item">'+(it.image?'<img src="'+esc(it.image)+'" alt="" loading="lazy">':'')+'<div class="n"><b>'+esc(it.zh)+'</b><small>'+esc(it.en||'')+(it.note?' · '+esc(it.note):'')+'</small></div><span class="p">'+money(it.price)+'</span><button class="add" data-add="'+esc(it.id)+'" aria-label="加入 '+esc(it.zh)+'">＋</button></div></div>';
     });
     if(venue)html+='</div>';
-    $('#menu').innerHTML=html||'<p class="muted">目前尚未提供菜單。</p>';
+    $('#menu').innerHTML=html||'<p class="muted">'+(VENUE?'目前尚未提供菜單。':'目前非營業時段。在咖啡 08:00–17:00、三點水 17:00–27:00。')+'</p>';
     $('#alcohol-notice').hidden=!items.some(function(i){return i.alcohol;});
   }
   var unpaid=function(){return (S.items||[]).filter(function(l){return !l.order_id;});};
@@ -204,6 +206,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     MENU=content.menu?MenuLib.publishedOnly(MenuLib.parseMenuDoc(content.menu)):[];
     $('#boot').classList.add('hidden');$('#app').classList.remove('hidden');
     renderMenu();renderState();poll();
+    setInterval(function(){if(MenuLib.activeVenue()!==VENUE)renderMenu();},60000); // 17:00／03:00／08:00 換品牌
     document.addEventListener('visibilitychange',function(){if(!document.hidden)api('/orders/'+S.id+'?g='+GUEST).then(function(s){S=s;renderState();}).catch(function(){});});
   }).catch(function(err){fail(err.message);});
 })();

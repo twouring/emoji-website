@@ -36,14 +36,14 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   const a=token('org_a'),b=token('org_b'),guest=token('guest_a'),guest2=token('guest_b'),invitee=token('invitee');
   assert.equal((await call('/auth/session',{as:guest})).user_id,'guest_a');await call('/auth/session',{as:'invalid-session',status:401});
   await call('/organizer/state',{as:a,status:403});
-  for(const id of ['org_a','org_b'])await call('/admin/users/'+id+'/organizer',{method:'POST',body:{organizer:true}});
+  // 沒有全域活動主旗標：平台建立活動並指定負責人，負責人才進得了活動主入口
   const payload={title:'中文活動',description:'內容',location:'Taipei',status:'報名中',starts_at:'2026-10-31T18:00',ends_at:'2026-11-01T00:00',capacity:1,price_twd:0,translations:{en:{title:'English event',description:'English copy',location:'Taipei'},ja:{title:'日本語イベント'}}};
-  const first=await call('/admin/events',{as:a,method:'POST',body:{...payload,owner_id:'org_b'}});
-  const other=await call('/admin/events',{as:b,method:'POST',body:payload});
+  const first=await call('/admin/events',{method:'POST',body:{...payload,owner_id:'org_a'}});
+  const other=await call('/admin/events',{method:'POST',body:{...payload,owner_id:'org_b'}});
   const oldFirstSlug=first.slug,renamed=await call('/admin/events',{as:a,method:'POST',body:{...payload,id:first.id,slug:'renamed-event'}});assert.equal(renamed.redirected_from,oldFirstSlug);assert.deepEqual(renamed.critical_changes,[]);first.slug=renamed.slug;
   const oldPage=await fetch(origin+'/en/events/'+oldFirstSlug+'?source=old-link',{redirect:'manual'});assert.equal(oldPage.status,302);assert.equal(oldPage.headers.get('location'),'/en/events/'+first.slug+'?source=old-link');assert.equal((await call('/events/'+oldFirstSlug+'?lang=en')).event.slug,first.slug);
   const oldCalendar=await fetch(origin+'/api/events/'+oldFirstSlug+'/calendar.ics?lang=en',{redirect:'manual'});assert.equal(oldCalendar.status,302);assert.equal(oldCalendar.headers.get('location'),'/api/events/'+first.slug+'/calendar.ics?lang=en');
-  const cryptoEvent=await call('/admin/events',{as:a,method:'POST',body:{...payload,title:'Token holders',capacity:10}}),wallet=Wallet.createRandom(),gatedTicket={id:'t_token',name:'Token pass',price_twd:0,capacity:10,active:true,token_gate:{enabled:true,type:'erc20',contract:'0x0000000000000000000000000000000000000001',name:'Community Token',minimum:'1',decimals:18}};
+  const cryptoEvent=await call('/admin/events',{method:'POST',body:{owner_id:'org_a',...payload,title:'Token holders',capacity:10}}),wallet=Wallet.createRandom(),gatedTicket={id:'t_token',name:'Token pass',price_twd:0,capacity:10,active:true,token_gate:{enabled:true,type:'erc20',contract:'0x0000000000000000000000000000000000000001',name:'Community Token',minimum:'1',decimals:18}};
   await call('/admin/events/'+cryptoEvent.id+'/tickets',{as:a,method:'POST',body:{tickets:[gatedTicket]}});await call('/admin/events/'+cryptoEvent.id+'/registration-settings',{as:a,method:'POST',body:{requires_approval:false,waitlist:false,wallet_collection:{ethereum:true,solana:true}}});
   const challenge=await call('/events/'+cryptoEvent.id+'/crypto/challenge',{as:guest,method:'POST',body:{chain:'ethereum',address:wallet.address}}),walletProof={token:challenge.token,signature:await wallet.signMessage(challenge.message)},solanaKeys=generateKeyPairSync('ed25519'),solanaAddress=base58(solanaKeys.publicKey.export({format:'der',type:'spki'}).subarray(-32)),solanaChallenge=await call('/events/'+cryptoEvent.id+'/crypto/challenge',{as:guest,method:'POST',body:{chain:'solana',address:solanaAddress}}),solanaProof={token:solanaChallenge.token,signature:sign(null,Buffer.from(solanaChallenge.message),solanaKeys.privateKey).toString('base64')};
   await call('/events/'+cryptoEvent.id+'/register',{as:guest,method:'POST',body:{ticket_id:gatedTicket.id,ethereum_wallet_proof:walletProof,solana_wallet_proof:solanaProof}});
@@ -54,7 +54,7 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await pool.query("UPDATE events SET event_details=jsonb_build_object('meeting_provider','google-meet','meeting_id','calendar-test') WHERE id=$1",[first.id]);
   await call('/admin/events/'+first.id+'/details',{as:a,method:'POST',body:{mode:'offline',hide_location:false,theme:'minimal',appearance:'light',accent:'#FFDE34',show_guest_list:false}});
   assert.deepEqual((await pool.query('SELECT event_details FROM events WHERE id=$1',[first.id])).rows[0].event_details,{meeting_id:'calendar-test',meeting_provider:'google-meet',mode:'offline',hide_location:false,theme:'minimal',appearance:'light',accent:'#FFDE34',show_guest_list:false,cover_url:'',online_url:'',contact_email:''});
-  const memberEvent=await call('/admin/events',{as:a,method:'POST',body:{...payload,title:'會員限定測試',capacity:10,visibility:'members'}});
+  const memberEvent=await call('/admin/events',{method:'POST',body:{owner_id:'org_a',...payload,title:'會員限定測試',capacity:10,visibility:'members'}});
   assert.ok(!(await (await fetch(origin+'/api/events')).json()).events.some(e=>e.id===memberEvent.id));
   assert.equal((await call('/events/'+memberEvent.slug,{as:guest2})).event.visibility,'members');
   assert.equal((await fetch(origin+'/events/'+memberEvent.slug)).headers.get('x-robots-tag'),'noindex');
@@ -150,7 +150,6 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await call('/admin/events/'+other.id+'/check-in',{as:a,method:'POST',body:{registration_id:'x'},status:404});
   await call('/admin/events/'+other.id+'/check-in/x',{as:a,method:'DELETE',status:404});
   await call('/admin/users/org_a/admin',{as:a,method:'POST',body:{admin:true},status:403});
-  await call('/admin/users/org_a/organizer',{as:a,method:'POST',body:{organizer:true},status:403});
   await call('/admin/events/'+first.id+'/regs/x/refund',{as:a,method:'POST',status:403});
   const addedHost=await call('/admin/events/'+first.id+'/hosts',{as:a,method:'POST',body:{name:'Guest Host',email:'h@example.test',is_visible:true,can_manage:true}});assert.equal(addedHost.invitation_queued,false);assert.match(addedHost.notice,/尚未寄出邀請/);
   await call('/events/'+first.id+'/contact-host',{as:guest,method:'POST',body:{message:'Question'},status:503});
@@ -310,7 +309,7 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await call('/events/'+first.id+'/register',{as:guest,method:'POST',status:409});
   assert.equal((await pool.query('SELECT status FROM event_regs WHERE id=$1',[paidRequest.registration_id])).rows[0].status,'pending_approval');
   const coupon={code:'ONE',type:'percent',value:50,max_uses:1,active:true};
-  const taxEvent=await call('/admin/events',{as:a,method:'POST',body:{...payload,title:'含稅活動',capacity:10,price_twd:1000}});
+  const taxEvent=await call('/admin/events',{method:'POST',body:{owner_id:'org_a',...payload,title:'含稅活動',capacity:10,price_twd:1000}});
   await call('/admin/events/'+taxEvent.id+'/registration-settings',{as:a,method:'POST',body:{requires_approval:false,waitlist:false,tax:{enabled:true,name:'營業稅',rate_bps:500}},status:403});
   await call('/admin/events/'+taxEvent.id+'/registration-settings',{method:'POST',body:{requires_approval:false,waitlist:false,tax:{enabled:true,name:'營業稅',rate_bps:500}}});
   await call('/admin/events/'+taxEvent.id+'/coupons',{as:a,method:'POST',body:{coupons:[{code:'SAVE',type:'fixed',value:100,max_uses:0,active:true}]}});
@@ -362,7 +361,7 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await call('/events/'+first.id+'/join-online',{as:guest,method:'POST',status:404});
   assert.equal((await fetch(origin+'/api/events/'+first.slug+'/calendar/google',{redirect:'manual'})).status,409);
   await call('/events/'+first.id+'/register',{as:guest,method:'POST',body:{ticket_id:ticket.id},status:400});
-  const groupEvent=await call('/admin/events',{as:a,method:'POST',body:{title:'Group registration',status:'報名中',capacity:3,price_twd:0}});
+  const groupEvent=await call('/admin/events',{method:'POST',body:{owner_id:'org_a',title:'Group registration',status:'報名中',capacity:3,price_twd:0}});
   const groupBody={attribution:{source:'instagram',campaign:'group-qa',referral:'partner',medium:'social',content:'hero',term:'community',gclid:'test-ad-click',fbclid:'test-fb',li_fat_id:'test-linkedin'},quantity:2,additional_attendees:[{name:'Friend',email:'friend@example.test'}]};
   const group=await call('/events/'+groupEvent.id+'/register',{as:guest,method:'POST',body:groupBody});
   assert.equal((await call('/events/'+groupEvent.slug,{as:guest})).event.reg_count,2);
@@ -409,7 +408,7 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await call('/events/'+groupEvent.id+'/profile',{as:b,method:'PATCH',body:{visible:true},status:404});
   await call('/admin/events/'+groupEvent.id+'/check-in',{as:a,method:'POST',body:{token:transferred[0].token}});
   await call('/events/'+groupEvent.id+'/attendees/'+transferred[0].attendee_id,{as:guest,method:'PATCH',body:{name:'Again',email:'again@example.test'},status:409});
-  const largeGroupEvent=await call('/admin/events',{as:a,method:'POST',body:{title:'Large group registration',status:'報名中',capacity:30,price_twd:0}});
+  const largeGroupEvent=await call('/admin/events',{method:'POST',body:{owner_id:'org_a',title:'Large group registration',status:'報名中',capacity:30,price_twd:0}});
   assert.equal((await call('/events/'+largeGroupEvent.id+'/quote',{method:'POST',body:{quantity:11}})).price_twd,0);
   await call('/events/'+largeGroupEvent.id+'/register',{as:guest,method:'POST',body:{quantity:11}});
   assert.equal((await call('/events/'+largeGroupEvent.slug,{as:guest})).event.reg_count,11);
@@ -421,7 +420,7 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   assert.ok((await call('/admin/events/'+largeGroupEvent.id+'/insights',{as:a})).attribution.some(row=>row.referral==='Guest A'&&row.registered===1));
   await call('/events/'+largeGroupEvent.id+'/additional-tickets',{as:guest,method:'POST',body:{quantity:11}});
   assert.equal((await call('/events/'+largeGroupEvent.slug,{as:guest})).event.reg_count,23);
-  const reminderEvent=await call('/admin/events',{as:a,method:'POST',body:{title:'Reminder test',status:'報名中',capacity:10,price_twd:0}});
+  const reminderEvent=await call('/admin/events',{method:'POST',body:{owner_id:'org_a',title:'Reminder test',status:'報名中',capacity:10,price_twd:0}});
   await pool.query("UPDATE events SET starts_at=now()+interval '23 hours',registration_settings='{\"reminders\":[24]}'::jsonb WHERE id=$1",[reminderEvent.id]);
   await pool.query("INSERT INTO event_regs(id,event_id,user_id,status,created_at,language) VALUES('r_reminder',$1,'guest_a','registered',now()-interval '2 hours','en')",[reminderEvent.id]);
   const {queueReminders}=require('../lib/event-mailer');const reminderQ=(sql,args)=>pool.query(sql,args);
@@ -431,7 +430,7 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await pool.query("UPDATE event_deliveries SET next_attempt_at=now()-interval '1 day' WHERE id='reminder_r_reminder_1_24'");
   await require('../lib/event-mailer').deliverDue(reminderQ,async()=>assert.fail('Cancelled booking must not receive an automatic reminder'));
   assert.equal((await pool.query("SELECT state FROM event_deliveries WHERE id='reminder_r_reminder_1_24'")).rows[0].state,'cancelled');
-  const channelEvent=await call('/admin/events',{as:a,method:'POST',body:{title:'Channel reminder',status:'報名中',capacity:10,price_twd:0}});await pool.query("UPDATE events SET starts_at=now()+interval '23 hours',registration_settings='{\"reminders\":[24]}'::jsonb WHERE id=$1",[channelEvent.id]);await pool.query("INSERT INTO event_regs(id,event_id,user_id,status,created_at) VALUES('r_channels',$1,'guest_a','registered',now()-interval '2 hours')",[channelEvent.id]);await pool.query("UPDATE users SET phone='+886912345678',phone_verified_at=now(),message_channel='whatsapp' WHERE id='guest_a'");await pool.query("INSERT INTO event_push_subscriptions(id,user_id,endpoint,subscription) VALUES('push_test','guest_a','https://push.example.test/1',$1)",[JSON.stringify({endpoint:'https://push.example.test/1',keys:{auth:'a',p256dh:'b'}})]);Object.assign(process.env,{TWILIO_ACCOUNT_SID:'ACtest',TWILIO_AUTH_TOKEN:'secret',TWILIO_VERIFY_SERVICE_SID:'VAtest',TWILIO_MESSAGING_SERVICE_SID:'MGtest',WEB_PUSH_VAPID_PUBLIC_KEY:'public',WEB_PUSH_VAPID_PRIVATE_KEY:'private',WEB_PUSH_SUBJECT:'mailto:test@example.test'});assert.equal(await queueReminders(reminderQ,origin),1);const channelRows=(await pool.query("SELECT channel,provider_channel FROM event_deliveries WHERE message_id='reminder_r_channels_1_24' ORDER BY channel")).rows;assert.deepEqual(channelRows,[{channel:'push',provider_channel:null},{channel:'text',provider_channel:'whatsapp'}]);for(const key of ['TWILIO_ACCOUNT_SID','TWILIO_AUTH_TOKEN','TWILIO_VERIFY_SERVICE_SID','TWILIO_MESSAGING_SERVICE_SID','WEB_PUSH_VAPID_PUBLIC_KEY','WEB_PUSH_VAPID_PRIVATE_KEY','WEB_PUSH_SUBJECT'])delete process.env[key];
+  const channelEvent=await call('/admin/events',{method:'POST',body:{owner_id:'org_a',title:'Channel reminder',status:'報名中',capacity:10,price_twd:0}});await pool.query("UPDATE events SET starts_at=now()+interval '23 hours',registration_settings='{\"reminders\":[24]}'::jsonb WHERE id=$1",[channelEvent.id]);await pool.query("INSERT INTO event_regs(id,event_id,user_id,status,created_at) VALUES('r_channels',$1,'guest_a','registered',now()-interval '2 hours')",[channelEvent.id]);await pool.query("UPDATE users SET phone='+886912345678',phone_verified_at=now(),message_channel='whatsapp' WHERE id='guest_a'");await pool.query("INSERT INTO event_push_subscriptions(id,user_id,endpoint,subscription) VALUES('push_test','guest_a','https://push.example.test/1',$1)",[JSON.stringify({endpoint:'https://push.example.test/1',keys:{auth:'a',p256dh:'b'}})]);Object.assign(process.env,{TWILIO_ACCOUNT_SID:'ACtest',TWILIO_AUTH_TOKEN:'secret',TWILIO_VERIFY_SERVICE_SID:'VAtest',TWILIO_MESSAGING_SERVICE_SID:'MGtest',WEB_PUSH_VAPID_PUBLIC_KEY:'public',WEB_PUSH_VAPID_PRIVATE_KEY:'private',WEB_PUSH_SUBJECT:'mailto:test@example.test'});assert.equal(await queueReminders(reminderQ,origin),1);const channelRows=(await pool.query("SELECT channel,provider_channel FROM event_deliveries WHERE message_id='reminder_r_channels_1_24' ORDER BY channel")).rows;assert.deepEqual(channelRows,[{channel:'push',provider_channel:null},{channel:'text',provider_channel:'whatsapp'}]);for(const key of ['TWILIO_ACCOUNT_SID','TWILIO_AUTH_TOKEN','TWILIO_VERIFY_SERVICE_SID','TWILIO_MESSAGING_SERVICE_SID','WEB_PUSH_VAPID_PUBLIC_KEY','WEB_PUSH_VAPID_PRIVATE_KEY','WEB_PUSH_SUBJECT'])delete process.env[key];
   await call('/admin/events/'+reminderEvent.id+'/registration-settings',{as:a,method:'POST',body:{requires_approval:false,waitlist:false,feedback:{enabled:true,delay_hours:0,subject:'',body:''}}});
   await pool.query("UPDATE events SET ends_at=now()-interval '1 hour' WHERE id=$1",[reminderEvent.id]);
   await pool.query("UPDATE event_regs SET status='registered' WHERE id='r_reminder'");
@@ -442,7 +441,7 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await pool.query("UPDATE event_deliveries SET next_attempt_at=now()-interval '1 day' WHERE id='feedback_r_reminder_1'");
   await require('../lib/event-mailer').deliverDue(reminderQ,async()=>assert.fail('Already submitted feedback must suppress queued invitation'));
   assert.equal((await pool.query("SELECT state FROM event_deliveries WHERE id='feedback_r_reminder_1'")).rows[0].state,'cancelled');
-  const authorizationEvent=await call('/admin/events',{as:a,method:'POST',body:{title:'Authorization safeguards',status:'報名中',price_twd:100,capacity:1}});
+  const authorizationEvent=await call('/admin/events',{method:'POST',body:{owner_id:'org_a',title:'Authorization safeguards',status:'報名中',price_twd:100,capacity:1}});
   await call('/admin/events/'+authorizationEvent.id+'/registration-settings',{as:a,method:'POST',body:{requires_approval:true,waitlist:true,payment_approval:'authorize'}});
   await call('/events/'+authorizationEvent.id+'/register',{as:guest,method:'POST',status:503});
   assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM event_regs WHERE event_id=$1',[authorizationEvent.id])).rows[0].n,0);
@@ -451,8 +450,8 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   assert.equal((await pool.query('SELECT capture_required FROM event_regs WHERE id=$1',[waitingAuthorization.registration_id])).rows[0].capture_required,false);
   await pool.query("UPDATE event_regs SET status='cancelled' WHERE id='r_capacity_fixture'");
   const waitingApproval=await call('/admin/events/'+authorizationEvent.id+'/regs/'+waitingAuthorization.registration_id+'/status',{as:a,method:'POST',body:{status:'registered'}});assert.equal(waitingApproval.status,'approved');
-  const extraEvent=await call('/admin/events',{as:a,method:'POST',body:{title:'Additional ticket capacity',status:'報名中',capacity:5,price_twd:0}});
-  const delayedEvent=await call('/admin/events',{as:a,method:'POST',body:{title:'Delayed checkout reconciliation',status:'報名中',capacity:1,price_twd:0}});
+  const extraEvent=await call('/admin/events',{method:'POST',body:{owner_id:'org_a',title:'Additional ticket capacity',status:'報名中',capacity:5,price_twd:0}});
+  const delayedEvent=await call('/admin/events',{method:'POST',body:{owner_id:'org_a',title:'Delayed checkout reconciliation',status:'報名中',capacity:1,price_twd:0}});
   await pool.query("INSERT INTO event_regs(id,event_id,user_id,status,checkout_expires_at,stripe_session_id) VALUES('delayed_checkout',$1,'guest_a','pending_payment',now()-interval '1 minute','cs_test_unverified')",[delayedEvent.id]);
   await call('/events/'+delayedEvent.id+'/register',{as:guest2,method:'POST',status:409});
   await call('/admin/events/'+extraEvent.id+'/tickets',{as:a,method:'POST',body:{tickets:[{id:'t_base',name:'Base',price_twd:0,capacity:1,active:true},{id:'t_extra',name:'Extra',price_twd:0,capacity:2,active:true},{id:'t_paid',name:'Paid',price_twd:100,capacity:2,active:true}]}});
@@ -545,7 +544,7 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await call('/events/unsubscribe',{as:'',method:'POST',body:{token:signUnsubscribe('confirmation_pref',secret),action:'unsubscribe'},status:400});
   for(let n=0;n<2;n++)await call('/events/unsubscribe',{as:'',method:'POST',body:{token:unsubscribeToken,action:'unsubscribe'}});
   {const settings=(await call(preferencePath,{as:guest})).settings;assert.deepEqual({blasts:settings.blasts,reminders:settings.reminders,feedback:settings.feedback},{blasts:false,reminders:true,feedback:false});}
-  const settlementEvent=await call('/admin/events',{as:a,method:'POST',body:{title:'Settlement ledger',status:'報名中',capacity:10,price_twd:0}}),settlementPath='/admin/events/'+settlementEvent.id+'/settlements';
+  const settlementEvent=await call('/admin/events',{method:'POST',body:{owner_id:'org_a',title:'Settlement ledger',status:'報名中',capacity:10,price_twd:0}}),settlementPath='/admin/events/'+settlementEvent.id+'/settlements';
   await pool.query("INSERT INTO event_regs(id,event_id,user_id,status,amount_due,amount_paid,stripe_payment_intent_id,paid_at) VALUES('settlement_reg',$1,'guest_a','registered',1000,1000,'pi_settlement_test',now())",[settlementEvent.id]);
   let finance=await call('/admin/events/'+settlementEvent.id+'/payments',{as:a});assert.equal(finance.can_manage_settlement,false);assert.deepEqual(finance.settlement_summary,{gross_twd:1000,refunded_twd:0,scheduled_twd:0,settled_twd:0,net_collected_twd:1000,available_twd:1000});
   await call(settlementPath,{as:a,method:'POST',body:{amount_twd:700,due_on:'2026-09-30'},status:403});
@@ -561,8 +560,10 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   const pendingSettlement=await call(settlementPath,{method:'POST',body:{amount_twd:300,due_on:'2026-10-15'}});await call(settlementPath+'/'+pendingSettlement.id,{method:'PATCH',body:{status:'cancelled'}});
   await pool.query("INSERT INTO event_refunds(id,registration_id,payment_intent,amount,status) VALUES('refund_settlement_test','settlement_reg','pi_settlement_test',40000,'succeeded')");
   finance=await call('/admin/events/'+settlementEvent.id+'/payments',{as:a});assert.equal(finance.settlement_status,'paid');assert.equal(finance.settlement_summary.refunded_twd,400);assert.equal(finance.settlement_summary.settled_twd,700);assert.equal(finance.settlement_summary.available_twd,-100);
-  await call('/admin/users/org_a/organizer',{method:'POST',body:{organizer:false}});
-  await call('/admin/events/'+first.id+'/regs',{as:a,status:403});
+  // 平台改派負責人後，原負責人立刻失去該場權限；活動主不能自建活動
+  await call('/admin/events',{as:a,method:'POST',body:payload,status:403});
+  await call('/admin/events',{method:'POST',body:{...payload,id:first.id,slug:first.slug,owner_id:'org_b'}});
+  await call('/admin/events/'+first.id+'/regs',{as:a,status:404});
  }finally{
   if(child && child.exitCode===null){child.kill('SIGTERM');await new Promise(resolve=>child.once('exit',resolve));}
   if(receiver)await new Promise(resolve=>receiver.close(resolve));

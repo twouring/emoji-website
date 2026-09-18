@@ -799,7 +799,7 @@ const signToken = (payload, options) => signSession(payload, SECRET, options);
 const verifyToken = (token, options) => verifySession(token, SECRET, options);
 
 /* ---------- SELECT 片段（日期格式化成 YYYY/MM/DD） ---------- */
-const SEL_USER = `id,name,email,phone,invite_code,id_no,address,bank,status,can_view,is_admin,is_event_organizer,to_char(created_at,'YYYY/MM/DD') AS created_at`;
+const SEL_USER = `id,name,email,phone,invite_code,id_no,address,bank,status,can_view,is_admin,to_char(created_at,'YYYY/MM/DD') AS created_at`;
 const SEL_C = `id,user_id,amount::bigint,interest_rate,term_years,
   to_char(start_date,'YYYY/MM/DD') AS start_date,
   to_char(maturity_date,'YYYY/MM/DD') AS maturity_date,
@@ -1360,13 +1360,14 @@ function requireDb(req, res, next) {
 async function sessionAuth(t) {
   const p = verifyToken(t);
   if (!p || !pool || !dbReady) return p;
-  const user = (await q(`SELECT id,email,is_admin,is_event_organizer FROM users WHERE id=$1`, [p.sub])).rows[0];
+  const user = (await q(`SELECT id,email,is_admin FROM users WHERE id=$1`, [p.sub])).rows[0];
   if (!user) return null;
   const isSuper = String(user.email || '').toLowerCase() === SUPER_ADMIN_EMAIL;
-  const host = !isSuper && !user.is_admin && !user.is_event_organizer
-    ? (await q(`SELECT EXISTS(SELECT 1 FROM event_hosts WHERE email=lower($1) AND can_manage=true) AS allowed`,[user.email])).rows[0]?.allowed : false;
-  return { ...p, email: user.email, super: isSuper, can_create_events:isSuper || user.is_admin === true || user.is_event_organizer === true,
-    role: isSuper || user.is_admin === true ? 'admin' : (user.is_event_organizer === true || host) ? 'organizer' : ['admin','organizer'].includes(p.role) ? 'invited' : p.role };
+  // 沒有全域「活動主」角色：活動負責人或該場可管理的主辦團隊成員才進得了活動主入口；新活動只由平台建立
+  const host = !isSuper && !user.is_admin
+    ? (await q(`SELECT EXISTS(SELECT 1 FROM events WHERE owner_id=$1) OR EXISTS(SELECT 1 FROM event_hosts WHERE email=lower($2) AND can_manage=true) AS allowed`,[user.id,user.email])).rows[0]?.allowed : false;
+  return { ...p, email: user.email, super: isSuper, can_create_events:isSuper || user.is_admin === true,
+    role: isSuper || user.is_admin === true ? 'admin' : host ? 'organizer' : ['admin','organizer'].includes(p.role) ? 'invited' : p.role };
 }
 async function auth(req, res, next) {
   const h = req.headers.authorization || '';
@@ -1813,12 +1814,6 @@ app.get('/api/organizer/state', auth, requireDb, eventEditor, wrap(async (req,re
     (SELECT COALESCE(SUM(CASE WHEN r.quantity>1 THEN (SELECT COUNT(*) FROM event_attendees a WHERE a.registration_id=r.id AND a.checked_in_at IS NOT NULL) ELSE (r.checked_in_at IS NOT NULL)::int END),0)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS checkin_count
     FROM events e WHERE e.owner_id=$1 OR EXISTS(SELECT 1 FROM event_hosts h WHERE h.event_id=e.id AND h.email=lower($2) AND h.can_manage=true) ORDER BY e.created_at DESC`,[req.auth.sub,req.auth.email])).rows;
   res.json({role:req.auth.role,organizer:true,can_create_events:req.auth.can_create_events,me,events,users:[],commitments:[],updates:[],content:{}});
-}));
-app.post('/api/admin/users/:id/organizer', auth, adminOnly, requireDb, wrap(async (req,res) => {
-  if(typeof req.body.organizer !== 'boolean') return res.status(400).json({error:'請指定活動主權限。'});
-  const result = await q(`UPDATE users SET is_event_organizer=$2 WHERE id=$1 RETURNING id,is_event_organizer`,[req.params.id,req.body.organizer]);
-  if(!result.rows[0]) return res.status(404).json({error:'找不到使用者。'});
-  res.json({ok:true,...result.rows[0]});
 }));
 
 /* ---- 超管：指派／取消其他管理員（以 user id；對象需已於系統有帳號，通常先以 Google 登入過） ---- */
@@ -2510,11 +2505,8 @@ app.post('/api/admin/events', auth, requireDb, eventEditor, wrap(async (req, res
   if (parsed.error) return res.status(400).json({ error: parsed.error });
   const v = parsed.value;
   // Ownership is assigned by the platform, never trusted from an organizer payload.
-  let owner = req.auth.role === 'organizer' ? (b.id ? undefined : req.auth.sub) : (b.owner_id === undefined ? undefined : b.owner_id || null);
-  if (req.auth.role === 'admin' && owner) {
-    const user = (await q(`SELECT id FROM users WHERE id=$1 AND is_event_organizer=true`,[owner])).rows[0];
-    if(!user) return res.status(400).json({error:'活動負責人必須是已授權活動主。'});
-  }
+  const owner = req.auth.role !== 'admin' || b.owner_id === undefined ? undefined : b.owner_id || null;
+  if (owner && !(await q(`SELECT 1 FROM users WHERE id=$1`,[owner])).rowCount) return res.status(400).json({error:'找不到指定的活動負責人。'});
   try {
     if (b.id) {
       const client=await pool.connect();
@@ -4374,7 +4366,7 @@ async function loadSession(id){
 }
 // 不外露各行的 guest 識別碼（否則同桌可互刪）；帶 ?g= 或 body.guest 時只標記 mine
 const publicSession=(s,guest)=>({id:s.id,table:s.table_no,status:s.status,items:s.items.map(({guest:g,...l})=>({...l,mine:!!guest&&g===guest})),orders:s.orders.map(o=>({id:o.id,amount:o.amount,status:o.status,paid_at:o.paid_at,ready_at:o.ready_at,lines:o.items.map(l=>l.line)})),total_unpaid:tableOrders.sum(tableOrders.unpaid(s.items))});
-async function currentMenu(){return tableOrders.menuIndex((await q("SELECT value FROM site_content WHERE key='menu'")).rows[0]?.value);}
+async function currentMenu(){return tableOrders.menuIndex((await q("SELECT value FROM site_content WHERE key='menu'")).rows[0]?.value,globalThis.MenuLib.activeVenue());}
 
 app.get('/api/orders/config',(req,res)=>{const tp=tableOrders.tappayConfig(),push=eventChannels.pushConfig();res.json({tappay:tp?{app_id:tp.appId,app_key:tp.appKey,env:tp.mode}:null,vapid_public_key:push?.publicKey||null});});
 

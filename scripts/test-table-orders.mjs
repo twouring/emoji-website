@@ -71,3 +71,13 @@ test('持卡人欄位：姓名必填、Email／電話格式', () => {
   assert.throws(() => T.payer({ name: 'A', email: 'x' }), /Email/);
   assert.deepEqual(T.payer({ name: ' KK ', phone: '0912345678', email: 'KK@EMOJI.TW' }), { name: 'KK', phone: '0912345678', email: 'kk@emoji.tw' });
 });
+
+test('menuIndex 給 venue 只留該品牌；null＝非營業時段無品項', () => {
+  const doc = JSON.stringify({ items: [
+    { id: 'm_cafe0001', venue: 'CAFE', cat: 'COFFEE', zh: '拿鐵', price: 150, published: true },
+    { id: 'm_bar00001', venue: 'BAR', cat: 'MAIN', zh: '炒麵', price: 220, published: true },
+  ] });
+  assert.deepEqual([...T.menuIndex(doc, 'BAR').keys()], ['m_bar00001']);
+  assert.equal(T.menuIndex(doc, null).size, 0);
+  assert.equal(T.menuIndex(doc).size, 2);
+});

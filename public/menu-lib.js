@@ -30,6 +30,12 @@
     FOOD: { zh: '餐點', en: 'Food', ja: 'フード' },
     SNACK: { zh: '點心', en: 'Snack', ja: 'おやつ' },
   };
+  /* 當下營業品牌（台北時間，UTC+8 無日光節約）：08:00–17:00 在咖啡、17:00–翌日 03:00 三點水、其餘 null。
+   * ponytail：只看整點時段，不處理最後加點（16:30／02:00）；要擋再加分鐘判斷。 */
+  function activeVenue(now) {
+    const h = (new Date(now ?? Date.now()).getUTCHours() + 8) % 24;
+    return h >= 8 && h < 17 ? 'CAFE' : (h >= 17 || h < 3) ? 'BAR' : null;
+  }
   const uid = () => 'm_' + Math.random().toString(36).slice(2, 10);
 
   function coerceAlcohol(item) {
@@ -183,7 +189,7 @@
   }
 
   global.MenuLib = {
-    CATS, VENUES, CAT_LABEL, VENUE_LABEL, uid, normalizeItem, parseMenuDoc, validateDoc,
+    CATS, VENUES, CAT_LABEL, VENUE_LABEL, activeVenue, uid, normalizeItem, parseMenuDoc, validateDoc,
     upsertItem, removeItem, publishedOnly, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

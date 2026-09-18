@@ -526,7 +526,6 @@ function tabEvents(d){
     <details id="event-editor"><summary id="event-editor-title">建立新活動</summary><p id="event-editor-context" class="hint">建立活動後，再設定票種、報名表與公開頁內容。</p><div class="a-form">
       <input type="hidden" id="ev-id">
       <h3 style="width:100%">活動資訊</h3>
-      ${!d.organizer?`<label>活動負責人<select id="ev-owner"><option value="">平台管理</option>${(d.users||[]).filter(u=>u.is_event_organizer).map(u=>`<option value="${esc(u.id)}">${esc(u.name)} · ${esc(u.email)}</option>`).join('')}</select></label>`:''}
       <label>活動名稱<input id="ev-title" placeholder="例：七月社群沙龍"></label>
       <label>網址代稱<input id="ev-slug" placeholder="留白自動產生"></label>
       <label>開始<input id="ev-when" type="datetime-local"></label>
@@ -562,7 +561,6 @@ function openEventEditor(e,d){
   document.getElementById('event-editor-context').textContent='正在編輯「'+e.title+'」。儲存後會回到更新後的活動清單。';
   document.getElementById('ev-id').value=e.id;
   document.getElementById('ev-title').value=e.title||'';
-  if(document.getElementById('ev-owner'))document.getElementById('ev-owner').value=e.owner_id||'';
   document.getElementById('ev-slug').value=e.slug||'';
   document.getElementById('ev-when').value=toLocalInput(e.starts_at_iso);
   document.getElementById('ev-end').value=toLocalInput(e.ends_at_iso);
@@ -1081,11 +1079,11 @@ function tabAdmins(d){
   const body = (d.users||[]).filter(u=>u.email).map(u=>`<tr>
     <td>${esc(u.name)}</td><td class="a-mono">${esc(u.email)}</td>
     <td>${u.is_admin?'<span class="pill pill-ok">管理員</span>':'<span class="pill pill-wait">一般</span>'}</td>
-    <td>${d.super?`<button class="btn btn--ghost btn-sm" data-admin="${u.id}" data-on="${u.is_admin?'0':'1'}">${u.is_admin?'取消管理員':'設為管理員'}</button>`:''}<button class="btn btn--ghost btn-sm" data-organizer="${u.id}" data-on="${u.is_event_organizer?'0':'1'}">${u.is_event_organizer?'取消活動主':'設為活動主'}</button></td>
+    <td>${d.super?`<button class="btn btn--ghost btn-sm" data-admin="${u.id}" data-on="${u.is_admin?'0':'1'}">${u.is_admin?'取消管理員':'設為管理員'}</button>`:''}</td>
   </tr>`).join('') || '<tr><td colspan="4" class="a-empty">尚無使用者</td></tr>';
   return `<div class="a-sec">
     <h2>權限管理</h2>
-    <p class="hint">對象須先使用 Google 登入本站。活動主只可管理自己的活動與名單，入口為 /organizer/events；收款使用平台 Stripe，退款與款項結算由平台處理。只有超管可授予管理員。</p>
+    <p class="hint">對象須先登入過本站。只有超管可授予管理員。外部主辦人不在這裡設定：到「活動」開啟該場活動的「主辦團隊」，加入對方 Email 並勾選「共同管理本活動」，對方即可從 /organizer/events 管理那一場。</p>
     <div class="a-wrap2"><table class="a-tbl">
       <thead><tr><th>姓名</th><th>Email</th><th>目前</th><th>操作</th></tr></thead>
       <tbody>${body}</tbody></table></div>
@@ -1271,7 +1269,6 @@ function bind(d, x){
     doThen(()=>api('/admin/events',{method:'POST',body:{
       id: document.getElementById('ev-id').value || undefined,
       title,
-      ...(!d.organizer?{owner_id:document.getElementById('ev-owner').value}:{}),
       slug: document.getElementById('ev-slug').value.trim() || undefined,
       starts_at: document.getElementById('ev-when').value || undefined,
       ends_at: document.getElementById('ev-end').value || undefined,
@@ -1362,7 +1359,6 @@ function bind(d, x){
   });
 
   // 管理員
-  document.querySelectorAll('[data-organizer]').forEach(b=>b.onclick=()=>{if(!confirm(`確定${b.textContent.trim()}：${b.closest('tr')?.querySelector('td')?.textContent.trim()||''}？`))return;doThen(()=>api('/admin/users/'+b.dataset.organizer+'/organizer',{method:'POST',body:{organizer:b.dataset.on==='1'}}),'已更新活動主權限');});
   document.querySelectorAll('[data-admin]').forEach(b=>b.onclick=()=>{if(!confirm(`確定${b.textContent.trim()}：${b.closest('tr')?.querySelector('td')?.textContent.trim()||''}？管理員可讀寫整個後台。`))return;doThen(()=>api('/admin/users/'+b.dataset.admin+'/admin',{method:'POST',body:{admin:b.dataset.on==='1'}}),'已更新管理權限');});
 
   // 菜單
@@ -1508,7 +1504,7 @@ function resetEventForm(){
   const manager=document.getElementById('ev-manager');
   if(manager&&!manager.hidden){const list=document.getElementById('event-list-view');if(list){list.classList.remove('event-list-view--editing');list.hidden=true;}manager.querySelectorAll('[data-event-task]').forEach(button=>button.removeAttribute('aria-pressed'));manager.scrollIntoView({behavior:'smooth',block:'start'});}
   document.querySelectorAll('[data-event-lang]').forEach(el=>{el.value='';});
-  ['ev-owner','ev-id','ev-title','ev-slug','ev-when','ev-end','ev-loc','ev-desc'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  ['ev-id','ev-title','ev-slug','ev-when','ev-end','ev-loc','ev-desc'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   ['ev-title','ev-when','ev-end','ev-loc'].forEach(id=>{const el=document.getElementById(id);if(el)delete el.dataset.saved;});
   document.getElementById('ev-cap').value=0;
   document.getElementById('ev-price').value=0;
