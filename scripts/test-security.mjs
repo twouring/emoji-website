@@ -359,4 +359,11 @@ test('brand sub-accounts only reach their own admin APIs and menu items', async 
   assert.equal((await request('/api/admin/orders', undefined, token)).status, 403);
   assert.equal((await request('/api/admin/event-applications', undefined, token)).status, 200);
   assert.equal((await request('/api/admin/users/u_x/admin', { admin: true }, token)).status, 403);
+  // 同一帳號可同時為多個品牌：兩邊 API 都通、兩店品項都能改，根帳號功能仍擋
+  brand = 'BAR,SPACE';
+  assert.equal((await request('/api/admin/orders', undefined, token)).status, 200);
+  assert.equal((await request('/api/admin/event-applications', undefined, token)).status, 200);
+  assert.equal((await request('/api/admin/content', { key: 'menu', value: edit('m_bar', 400) }, token)).status, 200);
+  assert.equal((await request('/api/admin/content', { key: 'menu', value: edit('m_cafe', 1) }, token)).status, 403);
+  assert.equal((await request('/api/admin/system-settings', undefined, token)).status, 403);
 });

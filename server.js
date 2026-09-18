@@ -444,8 +444,9 @@ async function migrate() {
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),expires_at TIMESTAMPTZ NOT NULL,used_at TIMESTAMPTZ)`);
   await q(`CREATE INDEX IF NOT EXISTS email_login_recent ON email_login_tokens(email,created_at)`);
   await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_event_organizer BOOLEAN NOT NULL DEFAULT false`);
-  // 後台品牌子帳號：NULL＝言文字根帳號（全部）；CAFE／BAR／SPACE 只看得到該品牌的分頁與資料
-  await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_brand TEXT CHECK (admin_brand IN ('CAFE','BAR','SPACE'))`);
+  // 後台品牌子帳號：NULL＝言文字根帳號（全部）；否則為逗號分隔的品牌清單（如 CAFE,BAR），只看得到這些品牌的後台
+  await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_brand TEXT`);
+  await q(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_admin_brand_check`);
   await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified_at TIMESTAMPTZ`);
   await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS message_channel TEXT NOT NULL DEFAULT 'sms'`);
   await q(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_message_channel_check`);
@@ -1393,7 +1394,7 @@ async function sessionAuth(t) {
   // 沒有全域「活動主」角色：活動負責人或該場可管理的主辦團隊成員才進得了活動主入口；新活動只由平台建立
   const host = !isSuper && !user.is_admin
     ? (await q(`SELECT EXISTS(SELECT 1 FROM events WHERE owner_id=$1) OR EXISTS(SELECT 1 FROM event_hosts WHERE email=lower($2) AND can_manage=true) AS allowed`,[user.id,user.email])).rows[0]?.allowed : false;
-  return { ...p, email: user.email, super: isSuper, brand: isSuper ? null : user.admin_brand || null, can_create_events:isSuper || user.is_admin === true,
+  return { ...p, email: user.email, super: isSuper, brands: isSuper ? null : parseBrands(user.admin_brand), can_create_events:isSuper || user.is_admin === true,
     role: isSuper || user.is_admin === true ? 'admin' : host ? 'organizer' : ['admin','organizer'].includes(p.role) ? 'invited' : p.role };
 }
 async function auth(req, res, next) {
@@ -1438,8 +1439,10 @@ function doorAuth(req, res, next) {
 const FOOD_API = /^\/api\/admin\/(orders|tables|content)(\/|$)/;
 const BRAND_API = { CAFE: FOOD_API, BAR: FOOD_API, SPACE: /^\/api\/admin\/(events|event-applications|entitlements|points|upload)(\/|$)/ };
 const ADMIN_BRANDS = Object.keys(BRAND_API);
-const brandDenied = req => !!req.auth.brand && !BRAND_API[req.auth.brand]?.test(req.path);
-const eventAdmin = req => req.auth.role === 'admin' && (!req.auth.brand || req.auth.brand === 'SPACE');
+// users.admin_brand（逗號分隔）→ 品牌陣列；空＝null＝根帳號
+const parseBrands = v => { const b = ADMIN_BRANDS.filter(x => String(v || '').split(',').includes(x)); return b.length ? b : null; };
+const brandDenied = req => !!req.auth.brands && !req.auth.brands.some(b => BRAND_API[b].test(req.path));
+const eventAdmin = req => req.auth.role === 'admin' && (!req.auth.brands || req.auth.brands.includes('SPACE'));
 function adminOnly(req, res, next) {
   if (req.auth.role !== 'admin') return res.status(403).json({ error: '需要後台權限。' });
   if (brandDenied(req)) return res.status(403).json({ error: '此功能由言文字根帳號管理。' });
@@ -1636,10 +1639,10 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
   const bond = { target_amount: TARGET, raised };
   const updates = numify((await q(`SELECT ${SEL_UPD} FROM updates ORDER BY published_at DESC`)).rows);
 
-  if (req.auth.role === 'admin' && req.auth.brand && req.auth.brand !== 'SPACE') {
+  if (req.auth.role === 'admin' && req.auth.brands && !req.auth.brands.includes('SPACE')) {
     // 餐飲子帳號：只需菜單內容，不帶會員、金流、活動資料
     const me = pubUser((await q(`SELECT ${SEL_USER} FROM users WHERE id=$1`, [req.auth.sub])).rows[0]);
-    return res.json({ role: 'admin', super: false, brand: req.auth.brand, me, bond, users: [], commitments: [], entitlements: [], events: [], content: await readContent(), updates: [] });
+    return res.json({ role: 'admin', super: false, brands: req.auth.brands, me, bond, users: [], commitments: [], entitlements: [], events: [], content: await readContent(), updates: [] });
   }
   if (req.auth.role === 'admin') {
     const users = (await q(`SELECT ${SEL_USER} FROM users ORDER BY created_at`)).rows.map(pubUser);
@@ -1677,7 +1680,7 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
       self.point_refunds = (await q(`SELECT id,point_order_id,principal_points,refund_twd,status,stripe_refund_id
         FROM point_refunds WHERE user_id=$1 AND status='pending' ORDER BY created_at`, [me.id])).rows;
     }
-    return res.json({ role: 'admin', super: req.auth.super === true, brand: req.auth.brand, me, bond, users, commitments: req.auth.brand ? [] : commitments, entitlements, events, content, updates, ...self });
+    return res.json({ role: 'admin', super: req.auth.super === true, brands: req.auth.brands, me, bond, users, commitments: req.auth.brands ? [] : commitments, entitlements, events, content, updates, ...self });
   }
   const me = pubUser((await q(`SELECT ${SEL_USER} FROM users WHERE id=$1`, [req.auth.sub])).rows[0]);
   if (!me) return res.status(401).json({ error: '帳號不存在，請重新登入。' });
@@ -1859,8 +1862,9 @@ app.get('/api/organizer/state', auth, requireDb, eventEditor, wrap(async (req,re
 
 /* ---- 超管：指派／取消其他管理員（以 user id；對象需已於系統有帳號，通常先以 Google 登入過） ---- */
 app.post('/api/admin/users/:id/admin', auth, adminOnly, superOnly, requireDb, wrap(async (req, res) => {
-  const makeAdmin = req.body.admin === true, brand = makeAdmin ? req.body.brand || null : null;
-  if (brand && !ADMIN_BRANDS.includes(brand)) return res.status(400).json({ error: '品牌無效。' });
+  const list = [].concat(req.body.brands ?? req.body.brand ?? []).filter(Boolean);
+  if (list.some(b => !ADMIN_BRANDS.includes(b))) return res.status(400).json({ error: '品牌無效。' });
+  const makeAdmin = req.body.admin === true, brand = makeAdmin ? parseBrands(list.join(','))?.join(',') || null : null;
   const r = await q(`UPDATE users SET is_admin=$2,admin_brand=$3 WHERE id=$1 RETURNING id,email`, [req.params.id, makeAdmin, brand]);
   if (!r.rows[0]) return res.status(404).json({ error: '找不到使用者。' });
   res.json({ ok: true, id: r.rows[0].id, is_admin: makeAdmin, admin_brand: brand });
@@ -3413,10 +3417,10 @@ app.post('/api/admin/upload/space', auth, adminOnly, (req, res) => {
 /* ---- 前台管理：網站內容（首頁公告等 key-value） ---- */
 app.post('/api/admin/content', auth, adminOnly, requireDb, wrap(async (req, res) => {
   const key = (req.body.key || '').trim();
-  if (req.auth.brand && key !== 'menu') return res.status(403).json({ error: '此內容由言文字根帳號管理。' });
+  if (req.auth.brands && key !== 'menu') return res.status(403).json({ error: '此內容由言文字根帳號管理。' });
   if (!PUBLIC_CONTENT_KEYS.includes(key)) return res.status(400).json({ error: '不允許的公開內容鍵值。' });
-  if (req.auth.brand) {
-    const others = v => JSON.stringify(tableOrders.MenuLib.parseMenuDoc(v).items.filter(it => it.venue !== req.auth.brand).sort((a, b) => a.id < b.id ? -1 : 1));
+  if (req.auth.brands) {
+    const others = v => JSON.stringify(tableOrders.MenuLib.parseMenuDoc(v).items.filter(it => !req.auth.brands.includes(it.venue)).sort((a, b) => a.id < b.id ? -1 : 1));
     const old = (await q("SELECT value FROM site_content WHERE key='menu'")).rows[0]?.value;
     if (others(old) !== others(String(req.body.value ?? ''))) return res.status(403).json({ error: '只能修改自己店別的品項。' });
   }
@@ -4541,7 +4545,9 @@ app.post('/api/orders/:id/push',requireDb,wrap(async(req,res)=>{
 /* 後台：出餐看板、清桌、桌號 QR */
 app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const all=req.query.all==='1';
-  const mine=items=>!req.auth.brand||items.some(l=>!l.venue||l.venue===req.auth.brand);
+  // 品牌後台用 ?venue= 只看單一店別；子帳號不得超出自己的品牌
+  const own=req.auth.brands,v=String(req.query.venue||''),venues=v&&(!own||own.includes(v))?[v]:own;
+  const mine=items=>!venues||items.some(l=>!l.venue||venues.includes(l.venue));
   const orders=(await q(all?"SELECT * FROM table_orders WHERE paid_at>now()-interval '1 day' ORDER BY paid_at DESC":"SELECT * FROM table_orders WHERE status IN ('paid','ready') ORDER BY paid_at")).rows.filter(o=>mine(o.items)).map(o=>({...o,push:undefined,push_count:o.push.length}));
   const sessions=(await q("SELECT id,table_no,items,updated_at FROM table_sessions WHERE status='open' ORDER BY table_no")).rows.map(s=>({id:s.id,table:s.table_no,unpaid:tableOrders.unpaid(s.items).length,updated_at:s.updated_at}));
   res.json({orders,sessions});

@@ -788,7 +788,7 @@ function tabUpdates(d){
 
 function tabMenu(d){
   const seeded = MENU_SEEDED;
-  const items = MenuLib.sortItems(MENU_DOC.items).filter(it => !d.brand || it.venue === d.brand);
+  const items = MenuLib.sortItems(MENU_DOC.items).filter(it => !SCOPE || it.venue === SCOPE);
   const body = items.map(it => `<tr data-q="${esc([it.venue, it.cat, it.zh, it.en, it.note].join(' ').toLowerCase())}">
       <td>${it.image ? `<img src="${esc(it.image)}" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:6px;display:block">` : ''}</td>
       <td>${esc(MenuLib.VENUE_LABEL[it.venue]?.zh || it.venue)}</td>
@@ -817,7 +817,7 @@ function tabMenu(d){
       <tbody id="mi-body">${body}</tbody></table></div>
     <div class="a-form" style="margin-top:16px;border-top:1px dashed var(--line);padding-top:16px">
       <input type="hidden" id="mi-id">
-      <label>店別<select id="mi-venue">${MenuLib.VENUES.filter(v => !d.brand || v === d.brand).map(v => `<option value="${v}">${MenuLib.VENUE_LABEL[v].zh}</option>`).join('')}</select></label>
+      <label>店別<select id="mi-venue">${MenuLib.VENUES.filter(v => !SCOPE || v === SCOPE).map(v => `<option value="${v}">${MenuLib.VENUE_LABEL[v].zh}</option>`).join('')}</select></label>
       <label>分類<select id="mi-cat">${MenuLib.CATS.map(c => `<option value="${c}">${MenuLib.CAT_LABEL[c].zh}（${c}）</option>`).join('')}</select></label>
       <label>中文<input id="mi-zh" placeholder="品名（中）"></label>
       <label>英文<input id="mi-en" placeholder="ITEM NAME"></label>
@@ -1044,7 +1044,7 @@ async function loadOrders(){
   const host=document.getElementById('orders-body');if(!host)return;
   clearTimeout(ORDERS_TIMER);
   if(!host.dataset.init){host.dataset.init='1';host.innerHTML='<h2>點餐出餐</h2><p class="hint">載入中…</p>';}
-  let d;try{d=await api('/admin/orders');}catch(e){host.innerHTML=`<h2>點餐出餐</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`;return;}
+  let d;try{d=await api('/admin/orders'+(SCOPE?'?venue='+SCOPE:''));}catch(e){host.innerHTML=`<h2>點餐出餐</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`;return;}
   const ids=new Set(d.orders.map(o=>o.id));if(ORDERS_SEEN&&[...ids].some(id=>!ORDERS_SEEN.has(id)))ordersBeep();ORDERS_SEEN=ids;
   // 資料沒變就不重繪，避免自動更新時把正要按的按鈕換掉
   const sig=JSON.stringify([d.orders.map(o=>[o.id,o.status,o.push_count]),d.sessions.map(x=>[x.id,x.unpaid])]);
@@ -1073,22 +1073,28 @@ async function loadOrders(){
 function tabAdmins(d){
   const body = (d.users||[]).filter(u=>u.email).map(u=>`<tr>
     <td>${esc(u.name)}</td><td class="a-mono">${esc(u.email)}</td>
-    <td>${u.is_admin?`<span class="pill pill-ok">${u.admin_brand?esc(BRAND_LABEL[u.admin_brand])+' 子帳號':'言文字 根帳號'}</span>`:'<span class="pill pill-wait">一般</span>'}</td>
-    <td>${d.super?`<select data-brand-for="${u.id}" aria-label="後台範圍"><option value="">言文字（全部）</option>${Object.entries(BRAND_LABEL).map(([v,l])=>`<option value="${v}" ${u.admin_brand===v?'selected':''}>${l}</option>`).join('')}</select> <button class="btn btn--ghost btn-sm" data-admin="${u.id}" data-on="1">${u.is_admin?'更新範圍':'設為管理員'}</button>${u.is_admin?` <button class="btn btn--ghost btn-sm" data-admin="${u.id}" data-on="0">取消管理員</button>`:''}`:''}</td>
+    <td>${u.is_admin?`<span class="pill pill-ok">${u.admin_brand?esc(u.admin_brand.split(',').map(b=>BRAND_LABEL[b]).join('＋'))+' 子帳號':'言文字 根帳號'}</span>`:'<span class="pill pill-wait">一般</span>'}</td>
+    <td>${d.super?`<span data-brand-for="${u.id}">${Object.entries(BRAND_LABEL).map(([v,l])=>`<label style="margin-right:8px;white-space:nowrap"><input type="checkbox" value="${v}" ${(u.admin_brand||'').split(',').includes(v)?'checked':''}> ${l}</label>`).join('')}</span> <button class="btn btn--ghost btn-sm" data-admin="${u.id}" data-on="1">${u.is_admin?'更新範圍':'設為管理員'}</button>${u.is_admin?` <button class="btn btn--ghost btn-sm" data-admin="${u.id}" data-on="0">取消管理員</button>`:''}`:''}</td>
   </tr>`).join('') || '<tr><td colspan="4" class="a-empty">尚無使用者</td></tr>';
   return `<div class="a-sec">
     <h2>權限管理</h2>
-    <p class="hint">對象須先登入過本站。只有超管可授予管理員。言文字是根帳號，可讀寫整個後台；在咖啡／三點水子帳號只有「點餐出餐」與「菜單」（限自己店別），等等空間子帳號只有「活動」「行事曆」「櫃檯」。外部主辦人不在這裡設定：到「活動」開啟該場活動的「主辦團隊」，加入對方 Email 並勾選「共同管理本活動」，對方即可從 /organizer/events 管理那一場。</p>
+    <p class="hint">對象須先登入過本站。只有超管可授予管理員。品牌全不勾＝言文字根帳號，可進根後台與所有品牌後台；勾選一個以上＝品牌子帳號，只能進勾選的品牌後台（可同時多個品牌）。在咖啡／三點水子帳號只有「點餐出餐」與「菜單」（限自己店別），等等空間子帳號只有「活動」「行事曆」「櫃檯」。外部主辦人不在這裡設定：到「活動」開啟該場活動的「主辦團隊」，加入對方 Email 並勾選「共同管理本活動」，對方即可從 /organizer/events 管理那一場。</p>
     <div class="a-wrap2"><table class="a-tbl">
       <thead><tr><th>姓名</th><th>Email</th><th>目前</th><th>操作</th></tr></thead>
       <tbody>${body}</tbody></table></div>
   </div>`;
 }
 
-/* 品牌子帳號：言文字＝根帳號（brand 為空）看全部；子帳號只看自己的分頁（伺服器端同步把關） */
+/* 後台分兩種：根後台（SCOPE 為空，言文字全域事務）與品牌後台（SCOPE＝品牌，只有該品牌的分頁與資料）。
+   根帳號（brands 為空）兩種都能進；品牌子帳號只能進自己的品牌後台（伺服器端同步把關） */
 const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水', SPACE:'等等空間' };
 const BRAND_TABS = { CAFE:['orders','menu'], BAR:['orders','menu'], SPACE:['events','calendar','counter'] };
-const homeTab = d => d?.organizer ? 'events' : d?.brand ? BRAND_TABS[d.brand][0] : 'overview';
+const BRAND_TAB_IDS = new Set(Object.values(BRAND_TABS).flat());
+let SCOPE = ''; try { SCOPE = localStorage.getItem('tth_scope') || ''; } catch (e) {}
+const scopesOf = d => d?.organizer ? [''] : d?.brands || ['', ...Object.keys(BRAND_LABEL)];
+const scopeTabs = () => SCOPE ? BRAND_TABS[SCOPE] : TABS.map(t => t.id).filter(id => !BRAND_TAB_IDS.has(id));
+function setScope(s){ SCOPE = s; try { localStorage.setItem('tth_scope', s); } catch (e) {} }
+const homeTab = d => d?.organizer ? 'events' : scopeTabs()[0];
 const TABS = [
   { id:'overview',    label:'總覽',     render:tabOverview },
   { id:'members',     label:'會員',     render:tabMembers },
@@ -1150,7 +1156,9 @@ function render(d){
   if (d.me && d.me.name) try { localStorage.setItem('tth_name', d.me.name); } catch (e) {}
   logoutBtn.style.display='';
   const x = derived(d);
-  const tabs = TABS.filter(t => d.organizer ? t.id==='events' : d.brand ? BRAND_TABS[d.brand].includes(t.id) : !t.super || d.super);
+  const scopes = scopesOf(d);
+  if (!scopes.includes(SCOPE)) setScope(scopes[0]);
+  const tabs = TABS.filter(t => d.organizer ? t.id==='events' : scopeTabs().includes(t.id) && (!t.super || d.super));
   if (!tabs.find(t=>t.id===TAB)) TAB=homeTab(d);
   const navBtn = t => {
     const badge = t.id==='events' ? ((d.events||[]).length ? `<span class="badge">${d.events.length}</span>` : '')+(d.organizer?'':'<span class="badge" data-application-count data-nav-badge hidden></span>') : '';
@@ -1163,13 +1171,14 @@ function render(d){
   const panels = tabs.map(t=>`<div class="a-tab ${t.id===TAB?'on':''}" data-panel="${t.id}">${t.render(d,x)}</div>`).join('');
   const me = d.me || {};
   app.innerHTML = `<div class="a-shell">
-    <nav class="a-nav" aria-label="後台分頁">${nav}
+    <nav class="a-nav" aria-label="後台分頁">${scopes.length>1?`<select id="a-scope" aria-label="切換後台" style="width:100%;margin-bottom:12px">${scopes.map(s=>`<option value="${s}" ${s===SCOPE?'selected':''}>${s?BRAND_LABEL[s]+' 品牌後台':'言文字 根後台'}</option>`).join('')}</select>`:''}${nav}
       <div class="a-nav-foot"><b>${esc(me.name||'')}</b>${esc(me.email||'')}</div>
     </nav>
     <div class="a-main">${panels}</div>
   </div>`;
   const crumb = document.getElementById('a-crumb');
-  if (crumb) { crumb.hidden = false; document.getElementById('a-role').textContent = d.organizer ? '活動主' : d.super ? '言文字 · 超級管理員' : d.brand ? BRAND_LABEL[d.brand]+' · 子帳號' : '言文字 · 管理員'; }
+  if (crumb) { crumb.hidden = false; document.getElementById('a-role').textContent = d.organizer ? '活動主' : d.super ? '言文字 · 超級管理員' : d.brands ? d.brands.map(b=>BRAND_LABEL[b]).join('＋')+' · 子帳號' : '言文字 · 管理員'; }
+  const sc = document.getElementById('a-scope'); if (sc) sc.onchange = () => { setScope(sc.value); TAB = ''; render(DATA); go('', true); };
   bindNav(); bind(d, x);
 }
 
@@ -1200,7 +1209,12 @@ function applyRoute(){
   if (!document.querySelector('[data-panel]')) return;
   const parts = (h || homeTab(DATA)).split('/');
   const tab = parts[0];
-  if (!document.querySelector(`[data-panel="${CSS.escape(tab)}"]`)) { go('', true); return; }
+  if (!document.querySelector(`[data-panel="${CSS.escape(tab)}"]`)) {
+    // 連結指到別的後台的分頁（如根後台點進 /admin/events/:id）：切到第一個有該分頁的後台
+    const s = DATA && !DATA.organizer && scopesOf(DATA).find(s => s !== SCOPE && (s ? BRAND_TABS[s].includes(tab) : TABS.some(t => t.id === tab && !BRAND_TAB_IDS.has(tab))));
+    if (s === undefined || s === false || s === null) { go('', true); return; }
+    setScope(s); TAB = tab; render(DATA); applyRoute(); return;
+  }
   activateTab(tab);
   if (tab === 'overview') { if (APPLICATIONS===null && !DATA?.organizer) loadApplications().then(paintOverviewTodo); return; }
   if (tab === 'calendar') { if (APPLICATIONS===null) loadApplications().then(paintCalendar); paintCalendar(); return; }
@@ -1360,7 +1374,7 @@ function bind(d, x){
   });
 
   // 管理員
-  document.querySelectorAll('[data-admin]').forEach(b=>b.onclick=()=>{if(!confirm(`確定${b.textContent.trim()}：${b.closest('tr')?.querySelector('td')?.textContent.trim()||''}？`))return;doThen(()=>api('/admin/users/'+b.dataset.admin+'/admin',{method:'POST',body:{admin:b.dataset.on==='1',brand:document.querySelector(`[data-brand-for="${b.dataset.admin}"]`)?.value||null}}),'已更新管理權限');});
+  document.querySelectorAll('[data-admin]').forEach(b=>b.onclick=()=>{if(!confirm(`確定${b.textContent.trim()}：${b.closest('tr')?.querySelector('td')?.textContent.trim()||''}？`))return;doThen(()=>api('/admin/users/'+b.dataset.admin+'/admin',{method:'POST',body:{admin:b.dataset.on==='1',brands:[...document.querySelectorAll(`[data-brand-for="${b.dataset.admin}"] input:checked`)].map(i=>i.value)}}),'已更新管理權限');});
 
   // 菜單
   bindMenu();
@@ -1402,7 +1416,7 @@ function paintMenu(){
 
 function resetMenuForm(){
   document.getElementById('mi-id').value = '';
-  document.getElementById('mi-venue').value = DATA?.brand || 'CAFE';
+  document.getElementById('mi-venue').value = SCOPE || 'CAFE';
   document.getElementById('mi-cat').value = 'FOOD';
   ['mi-zh','mi-en','mi-note','mi-image'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   const pv=document.getElementById('prev-mi-image'); if(pv){ pv.src=''; pv.style.display='none'; }

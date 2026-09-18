@@ -342,7 +342,7 @@ X 貼文 AI 起草：body `{ topic }`，回 `{ ok, draft: { title, caption, capt
 ### POST /api/admin/users/:id/admin
 指派或取消管理員，並設定後台範圍。body：`{ admin: boolean, brand?: 'CAFE'|'BAR'|'SPACE'|null }`。**限超級管理員或 agent 金鑰。**
 
-品牌子帳號（`users.admin_brand`）：`brand` 為空＝言文字根帳號，可用全部後台；`CAFE`（在咖啡）／`BAR`（三點水）只能呼叫 `/api/admin/orders*`、`/api/admin/tables/qr`、`/api/admin/content`（僅 `menu`，且只能變更自己店別的品項），出餐看板只回自己店別的單；`SPACE`（等等空間）只能呼叫 `/api/admin/events*`、`/api/admin/event-applications*`、`/api/admin/entitlements`、`/api/admin/points*`、`/api/admin/upload*`。其餘後台端點回 403「此功能由言文字根帳號管理。」。`GET /api/state` 會回 `brand`，餐飲子帳號不帶會員、參與紀錄與活動資料。超級管理員不受 `admin_brand` 限制。
+品牌子帳號（`users.admin_brand`，逗號分隔、可同時多個品牌，如 `CAFE,BAR`；`/api/admin/state` 回 `brands` 陣列；指派用 `POST /api/admin/users/:id/admin` 的 `brands` 陣列）：空＝言文字根帳號，可用全部後台；多品牌帳號的權限為各品牌聯集。後台前端分「根後台」與「品牌後台」（側欄上方切換）：根帳號兩種都能進，子帳號只能進自己的品牌後台；`GET /api/admin/orders?venue=CAFE` 只回該店別的單（子帳號不得超出自己的品牌）。`CAFE`（在咖啡）／`BAR`（三點水）只能呼叫 `/api/admin/orders*`、`/api/admin/tables/qr`、`/api/admin/content`（僅 `menu`，且只能變更自己店別的品項），出餐看板只回自己店別的單；`SPACE`（等等空間）只能呼叫 `/api/admin/events*`、`/api/admin/event-applications*`、`/api/admin/entitlements`、`/api/admin/points*`、`/api/admin/upload*`。其餘後台端點回 403「此功能由言文字根帳號管理。」。`GET /api/state` 會回 `brand`，餐飲子帳號不帶會員、參與紀錄與活動資料。超級管理員不受 `admin_brand` 限制。
 
 ## 會員端點（agent 一律 403）
 
