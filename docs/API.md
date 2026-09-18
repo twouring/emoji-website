@@ -128,7 +128,7 @@ Google 授權回呼，簽發會員 token 並導回。
 每筆另含 `updates`：依時間排序的進度紀錄 `[{ id, kind, message, actor, created_at, mail_state, mail_sent_at, mail_attempts, mail_error }]`。`kind` 為 `submitted`（送出）／`approved`／`rejected`／`update`（其他進度）；`mail_state` 為 `queued`（待寄）／`retry`（寄失敗、排程重試）／`sent`／`failed`（重試 10 次仍失敗）。
 
 ### POST /api/admin/event-applications/:id/review
-審核待審申請。body：`{ status: "approved" | "rejected", review_note, expected_status: "pending", publish_public? }`，回 `{ ok, application, event? }`。回覆必填、最多 2000 字，申請人可見。活動在送件時已建立；審核只更新該活動的 `review_status`，通過時依 `visibility`、`registration_mode` 同一交易把它由草稿翻成對外狀態：公開 `native` 為 `報名中`、`external` 為外部連結預告、私人 `closed` 僅顯示占用時段且 API 禁止報名。舊申請未填 `visibility` 時才使用 `publish_public`：true 公開為預告，false 維持草稿由主辦人自行發布。未通過一律維持草稿不公開。回應的 `event` 只在本次有公開時回傳。不存在回 404；已審核或其他管理員先完成時回 409，不覆蓋既有結果。保存審核者與時間。審核通過仍不代表場地已保留或完成收費；檔期、費用與合作條件仍須書面確認。
+審核待審申請。body：`{ status: "approved" | "rejected", review_note, expected_status: "pending", publish_public? }`，回 `{ ok, application, event? }`。回覆必填、最多 2000 字，申請人可見。活動在送件時已建立；審核只更新該活動的 `review_status`，通過時依 `visibility`、`registration_mode` 同一交易把它由草稿翻成對外狀態：公開 `native` 為 `報名中`、`external` 為外部連結預告、私人 `closed` 僅顯示占用時段且 API 禁止報名。舊申請未填 `visibility` 時才使用 `publish_public`：true 公開為預告，false 維持草稿由主辦人自行發布。未通過一律維持草稿不公開。回應的 `event` 只在本次有公開時回傳。私人活動訂金未付（`deposit_twd>0` 且無 `deposit_paid_at`）不可通過，回 409。不存在回 404；已審核或其他管理員先完成時回 409，不覆蓋既有結果。保存審核者與時間。審核通過仍不代表場地已保留或完成收費；檔期、費用與合作條件仍須書面確認。
 審核結果通知與狀態變更在同一交易寫入進度紀錄，之後立即寄給申請人；寄失敗自動退避重試，回應的 `application.updates` 可看寄送狀態。
 
 ### POST /api/admin/event-applications/:id/updates
@@ -382,7 +382,7 @@ X 貼文 AI 起草：body `{ topic }`，回 `{ ok, draft: { title, caption, capt
 
 body：`{ request_id, visibility, registration_mode, registration_url?, kind?, venue?, community_name, contact_name, contact_email, contact_phone?, title, description, starts_at, ends_at, attendees, requirements?, consent: true }`。
 
-- `visibility`：`public` 或 `private`。公開活動必填 `registration_mode: native | external`；外部報名須提供不含帳密的 HTTP(S) `registration_url`（最多 2000 字）。私人強制 `closed` 並清除外部連結。僅為重試舊草稿相容，允許省略 visibility。
+- `visibility`：`public` 或 `private`。公開活動必填不含帳密的 HTTP(S) `registration_url`（活動網址，最多 2000 字），伺服器固定 `registration_mode='external'`，忽略傳入的 `native`。私人強制 `closed`、清除連結，並記 `deposit_twd=1000`（訂金）。僅為重試舊草稿相容，允許省略 visibility。
 - `kind`：`community`（社群活動，預設）或 `business`（企業／團隊／客戶包場）。`venue`：`2F`（二樓交誼廳／交誼廳）或 `3F`（三樓共享空間）；社群活動固定為 `3F`，企業包場必填。
 
 - `request_id`：前端產生的 UUID；相同帳號與識別碼重試只會保存一次。同內容回原申請（200），不同內容回 409；新申請回 201。回應為 `{ ok, application }`。
@@ -392,6 +392,12 @@ body：`{ request_id, visibility, registration_mode, registration_url?, kind?, v
 - 需明確同意須知，保存同意時間；伺服器固定初始狀態為 `pending`，忽略自訂審核與申請人欄位。
 - 申請成立時在同一交易寫入 `submitted` 進度紀錄並寄收件確認給 `contact_email`；同時通知後台 `NOTIFY_EMAIL`。之後審核結果與每次進度更新都會再寄信給申請人。
 - 每帳號每小時最多新增 10 筆，超過回 429；同筆重試不佔額度。資料庫未就緒回 503，不回報成功。
+
+### POST /api/event-applications/:id/deposit/checkout
+私人活動訂金（NT$1,000）。申請人本人對尚未付訂金、未被退件的申請建立 Stripe Checkout，body：`{ lang? }`，回 `{ url }`。非本人 404；不需訂金、已付或已退件 409；未設定 Stripe 回 503。付款由 webhook（`metadata.kind='application-deposit'`）入帳，寫入 `deposit_paid_at`；金額、幣別與申請不符不入帳。退款於 Stripe 後台人工處理。
+
+### POST /api/event-applications/deposit/verify
+付款導回頁補入帳用。body：`{ session_id }`；session 須屬於目前帳號且已付款，與 webhook 同一個冪等入帳，回 `{ ok }`。未付款 402。
 
 ### GET /api/me/event-applications
 讀取登入帳號自己的申請，回 `{ applications }`，包含申請內容、`id`、`status`（`pending`／`approved`／`rejected`）、`review_note`、`created_at`、`reviewed_at`，以及進度紀錄 `updates: [{ id, kind, message, created_at, mail_state, mail_sent_at }]`（不含審核者與寄信錯誤細節）。不接受指定其他使用者，agent 金鑰回 403；不在公開 API 提供申請或聯絡資料。

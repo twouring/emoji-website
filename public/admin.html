@@ -656,7 +656,7 @@ function paintApplications(){
       <label>審核回覆（必填，申請者會看到）
         <textarea name="review_note" required maxlength="2000" ${APPLICATION_REVIEWING===a.id?'readonly':''} placeholder="請填寫給申請社群的審核理由與後續聯絡事項">${esc(APPLICATION_DRAFTS.get(a.id) || '')}</textarea>
       </label>
-      ${a.visibility?`<p>通過後同步建立${a.visibility==='private'?'私人活動（前台顯示不可預約）':a.registration_mode==='external'?'公開活動（外部報名）':'公開活動（站內報名）'}${a.registration_url?`：<a href="${esc(a.registration_url)}" target="_blank" rel="noopener noreferrer">${esc(a.registration_url)}</a>`:''}</p>`:`<label><input type="checkbox" name="publish_public" ${a.kind==='community'?'checked':''}> 通過後同步建立公開活動預告</label>`}
+      ${a.visibility?`<p>通過後同步建立${a.visibility==='private'?'私人活動（前台顯示不可預約）':a.registration_mode==='external'?'公開活動（外部報名）':'公開活動（站內報名）'}${a.registration_url?`：<a href="${esc(a.registration_url)}" target="_blank" rel="noopener noreferrer">${esc(a.registration_url)}</a>`:''}</p>${a.deposit_twd?`<p><b>訂金 NT$${a.deposit_twd.toLocaleString()}：${a.deposit_paid_at?'已付款':'未付款（付款後才可通過）'}</b></p>`:''}`:`<label><input type="checkbox" name="publish_public" ${a.kind==='community'?'checked':''}> 通過後同步建立公開活動預告</label>`}
       <button class="btn btn--solid btn-sm" type="submit" data-status="approved" ${busy?'disabled':''}>${APPLICATION_REVIEWING===a.id?'送出中…':'通過申請'}</button>
       <button class="btn btn--ghost btn-sm" type="submit" data-status="rejected" ${busy?'disabled':''}>不通過申請</button>
     </form>`:APPLICATION_DRAFTS.has(a.id)?`<details><summary>未送出的審核草稿</summary><p style="white-space:pre-wrap">${esc(APPLICATION_DRAFTS.get(a.id))}</p></details>`:''}

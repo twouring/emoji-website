@@ -8,7 +8,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import test from 'node:test';
 
 const require = createRequire(import.meta.url);
-const { normalizeEventApplication } = require('../lib/event-applications.js');
+const { normalizeEventApplication, applicationDeposit } = require('../lib/event-applications.js');
 const { Pool } = require('pg');
 const valid = {
   community_name: '測試社群', contact_name: '測試聯絡人', contact_email: 'organizer@example.test',
@@ -70,6 +70,11 @@ test('unified applications validate visibility and external links', () => {
   assert.ok(normalizeEventApplication({...valid,visibility:'secret'}).error);
   assert.ok(normalizeEventApplication({...valid,visibility:'public',registration_mode:'closed'}).error);
   assert.equal(normalizeEventApplication({...valid,visibility:'private',registration_mode:'external',registration_url:'https://example.com'}).value.registration_mode,'closed');
+  // 外部申請的公開活動一律附活動網址，不開站內報名；私人活動收訂金 1000。
+  assert.ok(normalizeEventApplication({...valid,visibility:'public',registration_mode:'native'}).error);
+  assert.equal(normalizeEventApplication({...valid,visibility:'public',registration_mode:'native',registration_url:'https://example.com/e'}).value.registration_mode,'external');
+  assert.equal(applicationDeposit({visibility:'private'}),1000);
+  assert.equal(applicationDeposit({visibility:'public'}),0);
 });
 
 const databaseUrl = process.env.EVENT_APPLICATION_TEST_DATABASE_URL;
@@ -320,6 +325,11 @@ test('application API persists private submissions and serializes retry/review r
         const created=await api('/api/event-applications',memberA,{...valid,request_id:randomUUID(),visibility:mode==='closed'?'private':'public',registration_mode:mode,registration_url:'https://example.com/register'});
         assert.equal(created.status,201,JSON.stringify(created.body));
         const appId=created.body.application.id;
+        if(mode==='closed'){
+          assert.equal(created.body.application.deposit_twd,1000);
+          assert.equal((await api(`/api/admin/event-applications/${appId}/review`,adminKey,{status:'approved',expected_status:'pending',review_note:'訂金未付'})).status,409);
+          await pool.query('UPDATE event_applications SET deposit_paid_at=now() WHERE id=$1',[appId]);
+        }
         const reviewed=await api(`/api/admin/event-applications/${appId}/review`,adminKey,{status:'approved',expected_status:'pending',review_note:'本機測試通過'});
         assert.equal(reviewed.status,200,JSON.stringify(reviewed.body));
         const event=reviewed.body.event;
@@ -327,18 +337,14 @@ test('application API persists private submissions and serializes retry/review r
         assert.equal((await api(`/api/admin/event-applications/${appId}/review`,adminKey,{status:'approved',expected_status:'pending',review_note:'重複'})).status,409);
         const listed=(await api('/api/events')).body.events.find(e=>e.id===event.id);
         assert.ok(listed);
-        assert.equal(listed.registration_mode,mode);
-        if(mode==='native'){
-          assert.equal(listed.status,'報名中');
-          const registered=await api(`/api/events/${event.id}/register`,memberB,{});
-          assert.equal(registered.status,200,JSON.stringify(registered.body));
-        }else{
+        assert.equal(listed.registration_mode,mode==='native'?'external':mode);
+        {
           assert.equal((await api(`/api/events/${event.id}/register`,memberB,{})).status,403);
           // Even changing lifecycle status cannot accidentally enable private/external registration.
           await pool.query("UPDATE events SET status='報名中' WHERE id=$1",[event.id]);
           assert.equal((await api(`/api/events/${event.id}/register`,null,{})).status,403);
         }
-        if(mode==='external')assert.equal(listed.registration_url,'https://example.com/register');
+        if(mode!=='closed')assert.equal(listed.registration_url,'https://example.com/register');
         if(mode==='closed'){
           assert.equal(listed.title,'私人活動');
           assert.equal(listed.description,undefined);

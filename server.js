@@ -34,7 +34,7 @@ const eventChannels=require('./lib/event-channels');
 const tableOrders=require('./lib/table-orders');
 const eventQuestions = require('./lib/event-questions');
 const { eventSlug, normalizeEventInput, localizeEvent, normalizeAttribution } = require('./lib/events');
-const { normalizeEventApplication } = require('./lib/event-applications');
+const { normalizeEventApplication, applicationDeposit } = require('./lib/event-applications');
 const { sendMail, sendMailQuietly, NOTIFY_EMAIL } = require('./lib/mail');
 const {
   POINT_PRICE_TWD, PACKS, MEMBERSHIP_GIFT_POINTS, PLAN_PRICE_TWD,
@@ -611,6 +611,9 @@ async function migrate() {
   await q(`ALTER TABLE event_applications ADD COLUMN IF NOT EXISTS visibility TEXT,
     ADD COLUMN IF NOT EXISTS registration_mode TEXT, ADD COLUMN IF NOT EXISTS registration_url TEXT NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS event_id TEXT REFERENCES events(id)`);
+  // 私人活動訂金：deposit_twd 在送件時定額（舊申請為 0＝免收），付款後記 deposit_paid_at；退款於 Stripe 後台人工處理。
+  await q(`ALTER TABLE event_applications ADD COLUMN IF NOT EXISTS deposit_twd INT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS deposit_paid_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS deposit_payment_intent TEXT`);
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS registration_mode TEXT NOT NULL DEFAULT 'native',
     ADD COLUMN IF NOT EXISTS registration_url TEXT NOT NULL DEFAULT ''`);
 
@@ -1306,6 +1309,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json', limit: '
       await fulfillAdditionalCheckout(event.data.object);
       await fulfillPointsCheckout(event.data.object);
       await fulfillPlanCheckout(event.data.object);
+      await fulfillApplicationDeposit(event.data.object);
     } else if (['refund.created','refund.updated','refund.failed'].includes(event.type)) {
       if(!pool||!dbReady)return res.status(503).send('database not ready');
       // Read the current provider state: webhook events may arrive out of order.
@@ -2265,7 +2269,7 @@ app.delete('/api/admin/updates/:id', auth, adminOnly, requireDb, wrap(async (req
 
 /* ---- 場地與活動統一申請，通過後建立對應活動 ---- */
 const APPLICATION_FIELDS = `id,user_id,kind,venue,visibility,registration_mode,registration_url,event_id,community_name,contact_name,contact_email,contact_phone,
-  title,description,starts_at,ends_at,attendees,requirements,status,review_note,created_at,reviewed_at`;
+  title,description,starts_at,ends_at,attendees,requirements,status,review_note,created_at,reviewed_at,deposit_twd,deposit_paid_at`;
 
 app.post('/api/event-applications', auth, requireDb, wrap(async (req, res) => {
   if (!req.auth.sub) return res.status(403).json({ error: '請使用個人帳號登入後申請。' });
@@ -2307,10 +2311,10 @@ app.post('/api/event-applications', auth, requireDb, wrap(async (req, res) => {
     const application = (await client.query(
       `INSERT INTO event_applications
        (id,user_id,request_id,request_hash,community_name,contact_name,contact_email,contact_phone,
-        title,description,starts_at,ends_at,attendees,requirements,kind,venue,visibility,registration_mode,registration_url)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING ${APPLICATION_FIELDS}`,
+        title,description,starts_at,ends_at,attendees,requirements,kind,venue,visibility,registration_mode,registration_url,deposit_twd)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING ${APPLICATION_FIELDS}`,
       [uid('ea_'),req.auth.sub,requestId,hash,v.community_name,v.contact_name,v.contact_email,v.contact_phone,
-        v.title,v.description,v.starts_at,v.ends_at,v.attendees,v.requirements,v.kind,v.venue,v.visibility||null,v.registration_mode||null,v.registration_url||''])).rows[0];
+        v.title,v.description,v.starts_at,v.ends_at,v.attendees,v.requirements,v.kind,v.venue,v.visibility||null,v.registration_mode||null,v.registration_url||'',applicationDeposit(v)])).rows[0];
     // 收件確認與狀態同一交易寫入佇列：申請成立就一定有對應通知，寄送由背景工作保證完成。
     await createApplicationEvent(client, application);
     const update = await queueApplicationUpdate(client, { application, kind: 'submitted', actor: req.auth.sub });
@@ -2321,6 +2325,46 @@ app.post('/api/event-applications', auth, requireDb, wrap(async (req, res) => {
     res.status(201).json({ ok: true, application });
   } catch (err) { await client.query('ROLLBACK'); throw err; }
   finally { client.release(); }
+}));
+
+// 私人活動訂金：Stripe Checkout；webhook 與 verify 皆走同一個冪等入帳。
+async function fulfillApplicationDeposit(session) {
+  const meta = session && session.metadata;
+  if (!meta || meta.kind !== 'application-deposit' || session.payment_status !== 'paid' || !meta.application_id) return { ignored: true };
+  const intent = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id || null;
+  const row = (await q(`UPDATE event_applications SET deposit_paid_at=now(),deposit_payment_intent=$3
+    WHERE id=$1 AND user_id=$2 AND deposit_paid_at IS NULL AND $4='twd' AND deposit_twd*100=$5 RETURNING id`,
+    [meta.application_id, meta.user_id, intent, session.currency, session.amount_total])).rows[0];
+  if (!row && !(await q('SELECT 1 FROM event_applications WHERE id=$1 AND deposit_paid_at IS NOT NULL', [meta.application_id])).rowCount)
+    throw new Error('訂金付款與申請不符');
+  return { ok: true, already: !row };
+}
+
+app.post('/api/event-applications/:id/deposit/checkout', auth, requireDb, wrap(async (req, res) => {
+  if (!stripe) return res.status(503).json({ error: '線上付款尚未開通，請來信 us@emoji.tw 安排訂金。' });
+  const a = (await q(`SELECT id,title,status,deposit_twd,deposit_paid_at,contact_email FROM event_applications WHERE id=$1 AND user_id=$2`, [req.params.id, req.auth.sub])).rows[0];
+  if (!a) return res.status(404).json({ error: '找不到這筆申請。' });
+  if (!a.deposit_twd || a.deposit_paid_at || a.status === 'rejected') return res.status(409).json({ error: '這筆申請目前不需要支付訂金。' });
+  const base = ['en','ja'].includes(req.body?.lang) ? '/' + req.body.lang : '';
+  const session = await stripe.checkout.sessions.create({
+    mode: 'payment', payment_method_types: ['card'], customer_email: a.contact_email,
+    line_items: [{ price_data: { currency: 'twd', product_data: { name: `言文字私人活動訂金｜${a.title}`.slice(0, 250) }, unit_amount: a.deposit_twd * 100 }, quantity: 1 }],
+    success_url: `${SITE_BASE}${base}/events?apply=1&deposit_paid={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${SITE_BASE}${base}/events?apply=1`,
+    metadata: { kind: 'application-deposit', application_id: a.id, user_id: req.auth.sub },
+  });
+  res.json({ url: session.url });
+}));
+
+app.post('/api/event-applications/deposit/verify', auth, requireDb, wrap(async (req, res) => {
+  if (!stripe) return res.status(503).json({ error: 'Stripe 尚未設定。' });
+  const id = String(req.body?.session_id || '');
+  if (!/^cs_[A-Za-z0-9_]+$/.test(id)) return res.status(400).json({ error: '付款識別碼格式不正確。' });
+  const session = await stripe.checkout.sessions.retrieve(id);
+  if (session.metadata?.kind !== 'application-deposit' || session.metadata.user_id !== req.auth.sub) return res.status(404).json({ error: '找不到這筆訂金付款。' });
+  if (session.payment_status !== 'paid') return res.status(402).json({ error: '尚未付款。' });
+  await fulfillApplicationDeposit(session);
+  res.json({ ok: true });
 }));
 
 app.get('/api/me/event-applications', auth, requireDb, wrap(async (req, res) => {
@@ -2347,6 +2391,8 @@ app.post('/api/admin/event-applications/:id/review', auth, adminOnly, requireDb,
   if (typeof b.review_note !== 'string' || b.review_note.includes('\0') || !b.review_note.trim() || b.review_note.trim().length > 2000)
     return res.status(400).json({ error: '請填寫給申請人的審核回覆（2000 字以內）。' });
   const actor = req.auth.agent ? 'admin-api-key' : req.auth.sub;
+  if (b.status === 'approved' && (await q('SELECT 1 FROM event_applications WHERE id=$1 AND deposit_twd>0 AND deposit_paid_at IS NULL', [req.params.id])).rowCount)
+    return res.status(409).json({ error: '私人活動訂金尚未付款，付款後才可通過。' });
   const publishPublic = b.status === 'approved' && b.publish_public === true;
   const client = await pool.connect();
   let application, event = null;
@@ -3013,9 +3059,9 @@ app.post('/api/admin/events/:id/duplicate', auth, requireDb, eventEditor, wrap(a
     await client.query(`INSERT INTO event_hosts(event_id,email,name,is_visible,can_manage,can_checkin,checkin_ticket_ids) SELECT $1,email,name,is_visible,can_manage,can_checkin,checkin_ticket_ids FROM event_hosts WHERE event_id=$2`,[id,source.id]);
     if(req.auth.role!=='admin'){
      const base=(await client.query('SELECT * FROM event_applications WHERE event_id=$1',[source.id])).rows[0]||{},me=(await client.query('SELECT name,email FROM users WHERE id=$1',[req.auth.sub])).rows[0]||{};
-     const application=(await client.query(`INSERT INTO event_applications(id,user_id,request_id,request_hash,community_name,contact_name,contact_email,contact_phone,title,description,starts_at,ends_at,attendees,requirements,kind,venue,visibility,registration_mode,registration_url,event_id)
-       VALUES($1,$2,$3,'duplicate',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *`,
-       [uid('ea_'),req.auth.sub,crypto.randomUUID(),base.community_name||me.name||me.email||'—',base.contact_name||me.name||'—',base.contact_email||me.email,base.contact_phone||'',source.title,source.description||source.title,time.starts_at,time.ends_at,Math.min(10000,Math.max(1,base.attendees||source.capacity||1)),base.requirements||'',base.kind||'community',base.venue||'3F',base.visibility||null,base.registration_mode||null,base.registration_url||'',id])).rows[0];
+     const application=(await client.query(`INSERT INTO event_applications(id,user_id,request_id,request_hash,community_name,contact_name,contact_email,contact_phone,title,description,starts_at,ends_at,attendees,requirements,kind,venue,visibility,registration_mode,registration_url,event_id,deposit_twd)
+       VALUES($1,$2,$3,'duplicate',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING *`,
+       [uid('ea_'),req.auth.sub,crypto.randomUUID(),base.community_name||me.name||me.email||'—',base.contact_name||me.name||'—',base.contact_email||me.email,base.contact_phone||'',source.title,source.description||source.title,time.starts_at,time.ends_at,Math.min(10000,Math.max(1,base.attendees||source.capacity||1)),base.requirements||'',base.kind||'community',base.venue||'3F',base.visibility||null,base.registration_mode||null,base.registration_url||'',id,applicationDeposit(base)])).rows[0];
      await client.query("UPDATE events SET review_status='pending' WHERE id=$1",[id]);
      await queueApplicationUpdate(client,{application,kind:'submitted',actor:req.auth.sub});submitted.push(application);
     }
