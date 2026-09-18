@@ -1297,7 +1297,7 @@ function bind(d, x){
     }}), editing?out=>out.notice||'已更新活動':'已建立活動'); });
   ['ev-title','ev-when','ev-end','ev-loc'].forEach(id=>on(id,'input',syncCriticalEventUpdateNote));
   on('ev-reset','click',()=>resetEventForm());
-  const filterEvents=()=>{const query=document.getElementById('ev-search').value.trim().toLowerCase(),status=document.getElementById('ev-list-status').value,rows=[...document.querySelectorAll('[data-event-row]')];let visible=0;for(const row of rows){row.hidden=!!((query&&!row.dataset.eventSearch.includes(query))||(status&&row.dataset.eventStatus!==status));if(!row.hidden)visible++;}document.getElementById('ev-list-count').textContent='顯示 '+visible+'／'+rows.length+' 場';document.getElementById('ev-list-empty').hidden=visible>0||rows.length===0;};
+  const filterEvents=()=>{if(!document.getElementById('ev-search'))return;const query=document.getElementById('ev-search').value.trim().toLowerCase(),status=document.getElementById('ev-list-status').value,rows=[...document.querySelectorAll('[data-event-row]')];let visible=0;for(const row of rows){row.hidden=!!((query&&!row.dataset.eventSearch.includes(query))||(status&&row.dataset.eventStatus!==status));if(!row.hidden)visible++;}document.getElementById('ev-list-count').textContent='顯示 '+visible+'／'+rows.length+' 場';document.getElementById('ev-list-empty').hidden=visible>0||rows.length===0;};
   on('ev-search','input',filterEvents);on('ev-list-status','change',filterEvents);filterEvents();
   document.querySelectorAll('[data-ev-duplicate]').forEach(b=>b.onclick=()=>{
     if(!confirm('複製活動資訊為新草稿？不會複製來賓、付款或團隊權限。'))return;
