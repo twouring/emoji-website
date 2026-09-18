@@ -8,7 +8,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import test from 'node:test';
 
 const require = createRequire(import.meta.url);
-const { normalizeEventApplication, applicationDeposit } = require('../lib/event-applications.js');
+const { normalizeEventApplication, applicationDeposit, venuesOfLocation } = require('../lib/event-applications.js');
 const { Pool } = require('pg');
 const valid = {
   community_name: '測試社群', contact_name: '測試聯絡人', contact_email: 'organizer@example.test',
@@ -47,13 +47,15 @@ test('application rejects impossible dates, reversed ranges and implicit timezon
   assert.ok(normalizeEventApplication({ ...valid, starts_at: '2096-02-29T10:00' }).value);
 });
 
-test('application kind defaults to community on 3F; business hire must pick 2F or 3F', () => {
+test('application kind defaults to community on 3F; business hire must pick one of the four venues', () => {
   assert.deepEqual([normalizeEventApplication(valid).value.kind, normalizeEventApplication(valid).value.venue], ['community', '3F']);
   assert.equal(normalizeEventApplication({ ...valid, kind: 'community', venue: '2F' }).value.venue, '3F');
   assert.ok(normalizeEventApplication({ ...valid, kind: 'business' }).error);
-  assert.ok(normalizeEventApplication({ ...valid, kind: 'business', venue: '4F' }).error);
+  assert.ok(normalizeEventApplication({ ...valid, kind: 'business', venue: '5F' }).error);
+  assert.ok(normalizeEventApplication({ ...valid, kind: 'business', venue: 'toString' }).error);
+  assert.deepEqual([venuesOfLocation('三樓共享空間'), venuesOfLocation('1F＋閣樓'), venuesOfLocation('台北市中正區重慶南路一段 11 號').length], [['3F'], ['1F', '4F'], 4]);
   assert.ok(normalizeEventApplication({ ...valid, kind: 'vip' }).error);
-  for (const venue of ['2F', '3F']) assert.equal(normalizeEventApplication({ ...valid, kind: 'business', venue }).value.venue, venue);
+  for (const venue of ['1F', '2F', '3F', '4F']) assert.equal(normalizeEventApplication({ ...valid, kind: 'business', venue }).value.venue, venue);
 });
 
 test('application requires explicit consent and bounded integer attendance', () => {

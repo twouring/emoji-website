@@ -34,7 +34,7 @@ const eventChannels=require('./lib/event-channels');
 const tableOrders=require('./lib/table-orders');
 const eventQuestions = require('./lib/event-questions');
 const { eventSlug, normalizeEventInput, localizeEvent, normalizeAttribution } = require('./lib/events');
-const { normalizeEventApplication, safeHttpUrl, applicationDeposit } = require('./lib/event-applications');
+const { normalizeEventApplication, safeHttpUrl, applicationDeposit, venueLabel, venuesOfLocation } = require('./lib/event-applications');
 const { sendMail, sendMailQuietly, NOTIFY_EMAIL } = require('./lib/mail');
 const {
   POINT_PRICE_TWD, PACKS, MEMBERSHIP_GIFT_POINTS, PLAN_PRICE_TWD,
@@ -237,7 +237,7 @@ CREATE TABLE IF NOT EXISTS event_applications (
   attendees INT NOT NULL CHECK (attendees BETWEEN 1 AND 10000),
   requirements TEXT NOT NULL DEFAULT '',
   kind TEXT NOT NULL DEFAULT 'community' CHECK (kind IN ('community','business')),
-  venue TEXT NOT NULL DEFAULT '3F' CHECK (venue IN ('2F','3F')),
+  venue TEXT NOT NULL DEFAULT '3F' CHECK (venue IN ('1F','2F','3F','4F')),
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
   review_note TEXT NOT NULL DEFAULT '',
   reviewed_at TIMESTAMPTZ,
@@ -609,6 +609,9 @@ async function migrate() {
   await q(`ALTER TABLE event_applications ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'community'`);
   await q(`ALTER TABLE entitlements ADD COLUMN IF NOT EXISTS reminded_at TIMESTAMPTZ`);
   await q(`ALTER TABLE event_applications ADD COLUMN IF NOT EXISTS venue TEXT NOT NULL DEFAULT '3F'`);
+  // 可申請空間擴為四個：重建舊的 ('2F','3F') 檢查
+  await q(`ALTER TABLE event_applications DROP CONSTRAINT IF EXISTS event_applications_venue_check`);
+  await q(`ALTER TABLE event_applications ADD CONSTRAINT event_applications_venue_check CHECK (venue IN ('1F','2F','3F','4F'))`);
   await q(`ALTER TABLE event_applications ADD COLUMN IF NOT EXISTS visibility TEXT,
     ADD COLUMN IF NOT EXISTS registration_mode TEXT, ADD COLUMN IF NOT EXISTS registration_url TEXT NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS event_id TEXT REFERENCES events(id)`);
@@ -1168,7 +1171,7 @@ const PLAN_LABEL = { day_4h: '單日 4 小時', day_12h: '單日 12 小時', mon
 const fmtTaipei = d => d ? new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(d)) : '';
 const fmtTaipeiDate = d => d ? new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(d)) : '';
 const appKind = a => a.kind === 'business' ? '企業包場' : '社群活動';
-const appVenue = a => a.venue === '2F' ? '二樓交誼廳' : '三樓共享空間';
+const appVenue = a => venueLabel(a.venue);
 async function userContact(userId) {
   return (await q(`SELECT name,email FROM users WHERE id=$1`, [userId])).rows[0] || null;
 }
@@ -4374,10 +4377,13 @@ app.get('/api/venue/schedule', requireDb, wrap(async (_req, res) => {
      WHERE status='approved' AND NOT EXISTS(SELECT 1 FROM events e WHERE e.id=event_id AND e.status IN ('預告','報名中')) AND ends_at > now() - interval '1 day' AND starts_at < now() + interval '90 days'
      ORDER BY starts_at`)).rows;
   const events = (await q(
-    `SELECT CASE WHEN registration_mode='closed' THEN '私人活動' ELSE title END AS title,slug,location,starts_at,ends_at FROM events
+    `SELECT CASE WHEN registration_mode='closed' THEN '私人活動' ELSE title END AS title,slug,location,starts_at,ends_at,
+       (SELECT a.venue FROM event_applications a WHERE a.event_id=events.id LIMIT 1) AS venue FROM events
      WHERE status IN ('預告','報名中') AND (visibility='public' OR registration_mode='closed') AND starts_at IS NOT NULL
        AND starts_at > now() - interval '1 day' AND starts_at < now() + interval '90 days'
      ORDER BY starts_at`)).rows;
+  // 每場活動佔用的空間：場地申請轉成的活動用申請的空間，其餘由地點文字推斷
+  for (const e of events) { e.venues = e.venue ? [e.venue] : venuesOfLocation(e.location); delete e.venue; }
   res.json({ bookings, events });
 }));
 

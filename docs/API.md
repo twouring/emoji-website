@@ -83,7 +83,7 @@ TapPay Pay by Prime 結帳。body：`{ prime, lines?[], name, phone?, email? }`�
 點數方案定價表。回 `{ price_twd, packs }`。
 
 ### GET /api/venue/schedule
-未來 90 天已排定的場地時段與公開活動，回 `{ bookings: [{ venue, kind, starts_at, ends_at }], events: [{ title, slug, location, starts_at, ends_at }] }`。`bookings` 只含審核通過的申請時段，不含申請人資料；供申請表與行事曆顯示「已排定」。快取 5 分鐘。
+未來 90 天已排定的場地時段與公開活動，回 `{ bookings: [{ venue, kind, starts_at, ends_at }], events: [{ title, slug, location, starts_at, ends_at, venues }] }`。`venues` 為該活動佔用的空間代碼（`1F`／`2F`／`3F`／`4F`）：由場地申請轉成的活動用申請的空間，其餘由 `location` 文字推斷，寫不出樓層視為全棟。`bookings` 只含審核通過的申請時段，不含申請人資料；供申請表與行事曆顯示「已排定」。快取 5 分鐘。
 
 ### POST /api/checkout
 所有結帳、活動付款、點數購買、退款與 webhook 都必須使用 Stripe「Emoji 言文字」帳號 `acct_1Ts2y95NXMKDsl40`。
@@ -384,7 +384,7 @@ X 貼文 AI 起草：body `{ topic }`，回 `{ ok, draft: { title, caption, capt
 body：`{ request_id, visibility, registration_mode, registration_url?, kind?, venue?, community_name, contact_name, contact_email, contact_phone?, title, description, starts_at, ends_at, attendees, requirements?, consent: true }`。
 
 - `visibility`：`public` 或 `private`。公開活動必填不含帳密的 HTTP(S) `registration_url`（活動網址，最多 2000 字），伺服器固定 `registration_mode='external'`，忽略傳入的 `native`。私人強制 `closed`、清除連結，並記 `deposit_twd=1000`（訂金）。僅為重試舊草稿相容，允許省略 visibility。
-- `kind`：`community`（社群活動，預設）或 `business`（企業／團隊／客戶包場）。`venue`：`2F`（二樓交誼廳／交誼廳）或 `3F`（三樓共享空間）；社群活動固定為 `3F`，企業包場必填。
+- `kind`：`community`（社群活動，預設）或 `business`（企業／團隊／客戶包場）。`venue`：`3F`（三樓共享空間）、`4F`（閣樓休憩空間）、`2F`（二樓交誼廳）或 `1F`（一樓咖啡餐酒館）；社群活動固定為 `3F`，企業包場必填。
 
 - `request_id`：前端產生的 UUID；相同帳號與識別碼重試只會保存一次。同內容回原申請（200），不同內容回 409；新申請回 201。回應為 `{ ok, application }`。
 - 名稱長度上限：社群 120、聯絡人 80、Email 254、電話 40、活動名稱 160；活動內容 5000、需求 2000 字。電話與需求可留空，其餘必填；Email 必須有效。

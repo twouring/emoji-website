@@ -630,7 +630,7 @@ function paintApplications(){
   const labels = {pending:'待審', approved:'通過', rejected:'未通過'};
   const rows = (APPLICATIONS || []).filter(a=>a.event_id===APPLICATION_EVENT);
   const cards = rows.map(a=>`<article class="application-card">
-    <h3>${esc(a.title)} <span class="pill ${a.status==='approved'?'pill-ok':'pill-wait'}">${esc(labels[a.status] || a.status)}</span> <span class="pill">${a.kind==='business'?'企業包場':'社群活動'} · ${a.venue==='2F'?'二樓交誼廳':'三樓共享空間'}</span></h3>
+    <h3>${esc(a.title)} <span class="pill ${a.status==='approved'?'pill-ok':'pill-wait'}">${esc(labels[a.status] || a.status)}</span> <span class="pill">${a.kind==='business'?'企業包場':'社群活動'} · ${({'1F':'一樓咖啡餐酒館','2F':'二樓交誼廳','4F':'閣樓休憩空間'})[a.venue]||'三樓共享空間'}</span></h3>
     <dl class="application-details">
       <dt>${a.kind==='business'?'公司／團隊':'申請社群'}</dt><dd>${esc(a.community_name)}</dd>
       <dt>聯絡人</dt><dd>${esc(a.contact_name)}</dd>
@@ -917,7 +917,7 @@ function paintCalendar(){
     if (e.review_status==='rejected') return;
     const t = new Date(e.starts_at_iso || e.starts_at); if (isNaN(t)) return;
     const end = e.ends_at_iso ? new Date(e.ends_at_iso) : null, a = appByEvent.get(e.id);
-    const kind = a ? (a.kind==='business'?'包場':'社群')+'·'+(a.venue==='2F'?'交誼廳':'3F')+' ' : '活動 ';
+    const kind = a ? (a.kind==='business'?'包場':'社群')+'·'+(a.venue==='2F'?'交誼廳':a.venue||'3F')+' ' : '活動 ';
     items.push({ date:t, end, cls:e.review_status==='pending'?'cal-wait':a&&e.status==='草稿'?'cal-ok':'cal-ev'+(e.status==='已取消'?' cal-cancel':''), href:BASE+'/events/'+encodeURIComponent(e.id), label:(e.status==='已取消'?'已取消 ':e.review_status==='pending'?'待審 ':'')+kind+e.title });
   });
   const byDay = {};
