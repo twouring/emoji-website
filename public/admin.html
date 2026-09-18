@@ -535,6 +535,7 @@ function tabEvents(d){
       <label>票價 NT$（0＝免費）<input id="ev-price" type="number" min="0" step="1" value="0" style="width:140px"></label>
       <label>可見性<select id="ev-visibility"><option value="public">公開</option><option value="private">私人連結</option><option value="members">會員限定</option></select></label>
       <label>狀態<select id="ev-status"><option>草稿</option><option>預告</option><option>報名中</option><option>已結束</option></select></label>
+      <label id="ev-reg-url-wrap" hidden>外部報名網址（留空＝站內報名）<input id="ev-reg-url" type="url" maxlength="2000" placeholder="https://" style="width:360px"></label>
       <p id="ev-critical-update-note" class="ui-notice" role="status" style="width:100%" hidden>活動名稱、時間或地點有變更；儲存後會通知已報名來賓，並附上更新後的行事曆。</p>
     </div>
     <div class="a-form"><label style="width:100%">中文活動說明<textarea id="ev-desc" placeholder="活動說明（可換行）"></textarea></label></div>
@@ -571,6 +572,7 @@ function openEventEditor(e,d){
   document.getElementById('ev-price').value=e.price_twd||0;
   document.getElementById('ev-visibility').value=e.visibility||'public';
   document.getElementById('ev-status').value=e.status||'報名中';
+  document.getElementById('ev-reg-url').value=e.registration_url||'';document.getElementById('ev-reg-url-wrap').hidden=e.registration_mode==='closed';
   document.getElementById('ev-desc').value=e.description||'';
   ['ev-title','ev-when','ev-end','ev-loc'].forEach(id=>{const el=document.getElementById(id);el.dataset.saved=el.value;});
   document.querySelectorAll('[data-event-lang]').forEach(el=>{el.value=e.translations?.[el.dataset.eventLang]?.[el.dataset.eventField]||'';});
@@ -1275,6 +1277,7 @@ function bind(d, x){
       price_twd: Number(document.getElementById('ev-price').value)||0,
       visibility: document.getElementById('ev-visibility').value,
       status: document.getElementById('ev-status').value,
+      registration_url: editing&&!document.getElementById('ev-reg-url-wrap').hidden?document.getElementById('ev-reg-url').value.trim():undefined,
       description: document.getElementById('ev-desc').value.trim(),
       translations: Object.fromEntries(['zh','en','ja'].map(lang=>[lang,Object.fromEntries([...document.querySelectorAll(`[data-event-lang="${lang}"]`)].map(el=>[el.dataset.eventField,el.value.trim()]))])),
     }}), editing?out=>out.notice||'已更新活動':'已建立活動'); });
@@ -1507,6 +1510,7 @@ function resetEventForm(){
   document.getElementById('ev-cap').value=0;
   document.getElementById('ev-price').value=0;
   document.getElementById('ev-visibility').value='public';
+  document.getElementById('ev-reg-url').value='';document.getElementById('ev-reg-url-wrap').hidden=true;
   document.getElementById('ev-status').value='草稿';
   document.getElementById('ev-save').textContent='建立活動';
   document.getElementById('ev-save').disabled=!!DATA?.organizer&&!DATA?.can_create_events;

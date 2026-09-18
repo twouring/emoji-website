@@ -34,7 +34,7 @@ const eventChannels=require('./lib/event-channels');
 const tableOrders=require('./lib/table-orders');
 const eventQuestions = require('./lib/event-questions');
 const { eventSlug, normalizeEventInput, localizeEvent, normalizeAttribution } = require('./lib/events');
-const { normalizeEventApplication, applicationDeposit } = require('./lib/event-applications');
+const { normalizeEventApplication, safeHttpUrl, applicationDeposit } = require('./lib/event-applications');
 const { sendMail, sendMailQuietly, NOTIFY_EMAIL } = require('./lib/mail');
 const {
   POINT_PRICE_TWD, PACKS, MEMBERSHIP_GIFT_POINTS, PLAN_PRICE_TWD,
@@ -2582,6 +2582,9 @@ app.post('/api/admin/events', auth, requireDb, eventEditor, wrap(async (req, res
   const parsed = normalizeEventInput(b);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
   const v = parsed.value;
+  // 外部報名網址只由平台管理員設定：空字串＝站內報名；私人（closed）活動不受影響。
+  const regUrl = req.auth.role === 'admin' && b.id && typeof b.registration_url === 'string' ? b.registration_url.trim() : undefined;
+  if (regUrl && !safeHttpUrl(regUrl)) return res.status(400).json({ error: '外部報名網址須為有效的 HTTP 或 HTTPS 網址。' });
   // Ownership is assigned by the platform, never trusted from an organizer payload.
   const owner = req.auth.role !== 'admin' || b.owner_id === undefined ? undefined : b.owner_id || null;
   if (owner && !(await q(`SELECT 1 FROM users WHERE id=$1`,[owner])).rowCount) return res.status(400).json({error:'找不到指定的活動負責人。'});
@@ -2601,6 +2604,7 @@ app.post('/api/admin/events', auth, requireDb, eventEditor, wrap(async (req, res
           v.capacity, v.priceTwd, v.visibility, v.status, v.translations ? JSON.stringify(v.translations) : null, owner !== undefined, owner ?? null, req.auth.role === 'organizer' ? req.auth.sub : null, req.auth.email || null]
       );
       if(!updated.rowCount){await client.query('ROLLBACK');return res.status(404).json({error:'找不到可管理的活動。'});}
+      if(regUrl!==undefined)await client.query(`UPDATE events SET registration_url=$2,registration_mode=CASE WHEN $2='' THEN 'native' ELSE 'external' END WHERE id=$1 AND registration_mode<>'closed'`,[b.id,safeHttpUrl(regUrl)]);
       if(old.slug!==slug)await client.query(`INSERT INTO event_slug_redirects(old_slug,event_id) VALUES($1,$2) ON CONFLICT(old_slug) DO UPDATE SET event_id=EXCLUDED.event_id,created_at=now()`,[old.slug,b.id]);
       const updateId=await recordEventActivity(client,b.id,null,req.auth.sub||null,'event_updated');
       const event=(await client.query('SELECT * FROM events WHERE id=$1',[b.id])).rows[0],notification=await require('./lib/event-mailer').queueEventUpdate((sql,args)=>client.query(sql,args),{previous:old,event,origin:SITE_BASE,emailEnabled:!!process.env.RESEND_API_KEY,updateId});

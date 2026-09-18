@@ -155,7 +155,8 @@ Google 授權回呼，簽發會員 token 並導回。
 刪除最新消息。
 
 ### POST /api/admin/events
-新增或更新活動。body：`{ id?, slug?, title, description, location, starts_at, ends_at, capacity, price_twd, visibility, status, translations? }`。
+新增或更新活動。body：`{ id?, slug?, title, description, location, starts_at, ends_at, capacity, price_twd, visibility, status, translations?, registration_url? }`。
+`registration_url`（僅平台管理員、更新時有效）：不含帳密的 HTTP(S) 網址＝改外部報名；空字串＝改回站內報名；私人 `closed` 活動不受影響；格式錯誤回 400。
 `visibility` 限 `public`｜`private`｜`members`；`status` 限 `草稿`｜`預告`｜`報名中`｜`已結束`；票價與名額為 0 以上整數。帶 `id` 為更新；若活動名稱、開始／結束時間或地點有變更，只為目前 `registered` 的來賓排入三語 Email 與瀏覽器推播，Email 附更新後 ICS。回應另含 `notice`、`critical_changes`、`notification_recipients` 與 `notification_deliveries`，未設定任何通知服務時明示尚未寄出。
 
 網址代稱變更時保存舊網址；舊活動頁、行事曆與嵌入網址都會以 302 導向新網址並保留語言及 query。若舊代稱日後被其他活動正式使用，當前活動網址優先。
