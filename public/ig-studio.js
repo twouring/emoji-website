@@ -34,10 +34,10 @@
     // quote
     q_text: '把日常，留一點空。', q_sub: '來坐坐。', q_by: '言文字',
     // hours (04)
-    hoursRows: '在咖啡｜08:00–17:30　三點水｜18:00–翌日 03:00',
+    hoursRows: '在咖啡｜08:00–17:00　三點水｜17:00–27:00',
     note: '白天在咖啡、晚上三點水，深夜食堂到凌晨三點。',
-    dayTitle: '日 · 咖啡', dayHours: '08:00 – 17:30', dayDesc: '手沖、甜點與一張安靜的桌。',
-    nightTitle: '夜 · 酒', nightHours: '18:00 – 翌日 03:00', nightDesc: '調酒、微醺與慢下來的對話。',
+    dayTitle: '日 · 咖啡', dayHours: '08:00 – 17:00', dayDesc: '手沖、甜點與一張安靜的桌。',
+    nightTitle: '夜 · 酒', nightHours: '17:00 – 27:00', nightDesc: '調酒、微醺與慢下來的對話。',
     address: '中正區重慶南路一段 11 號', mrt: '台北車站 · Z10 出口', booking: '私訊 @emoji0701',
     // menu (05)
     menuTitle: '菜單',
