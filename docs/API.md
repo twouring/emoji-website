@@ -128,7 +128,7 @@ Google 授權回呼，簽發會員 token 並導回。
 每筆另含 `updates`：依時間排序的進度紀錄 `[{ id, kind, message, actor, created_at, mail_state, mail_sent_at, mail_attempts, mail_error }]`。`kind` 為 `submitted`（送出）／`approved`／`rejected`／`update`（其他進度）；`mail_state` 為 `queued`（待寄）／`retry`（寄失敗、排程重試）／`sent`／`failed`（重試 10 次仍失敗）。
 
 ### POST /api/admin/event-applications/:id/review
-審核待審申請。body：`{ status: "approved" | "rejected", review_note, expected_status: "pending", publish_public? }`，回 `{ ok, application, event? }`。回覆必填、最多 2000 字，申請人可見。通過時 `publish_public: true` 會在同一交易建立公開「預告」活動並顯示於前台；未勾選則不建立。不存在回 404；已審核或其他管理員先完成時回 409，不覆蓋既有結果。保存審核者與時間。審核通過仍不代表場地已保留或完成收費；檔期、費用與合作條件仍須書面確認。
+審核待審申請。body：`{ status: "approved" | "rejected", review_note, expected_status: "pending", publish_public? }`，回 `{ ok, application, event? }`。回覆必填、最多 2000 字，申請人可見。新申請通過時依 `visibility`、`registration_mode` 同一交易建立活動並保存 `event_id`：公開 `native` 為站內報名、`external` 為外部連結、私人 `closed` 僅顯示占用時段且 API 禁止報名。舊申請未填 `visibility` 時才使用 `publish_public`：true 建立公開預告，false 不建立。不存在回 404；已審核或其他管理員先完成時回 409，不覆蓋既有結果。保存審核者與時間。審核通過仍不代表場地已保留或完成收費；檔期、費用與合作條件仍須書面確認。
 審核結果通知與狀態變更在同一交易寫入進度紀錄，之後立即寄給申請人；寄失敗自動退避重試，回應的 `application.updates` 可看寄送狀態。
 
 ### POST /api/admin/event-applications/:id/updates
@@ -378,8 +378,9 @@ X 貼文 AI 起草：body `{ topic }`，回 `{ ok, draft: { title, caption, capt
 ### POST /api/event-applications
 登入帳號提出場地申請（社群活動或企業包場），不需付費會籍；agent 金鑰沒有申請人身分，回 403。
 
-body：`{ request_id, kind?, venue?, community_name, contact_name, contact_email, contact_phone?, title, description, starts_at, ends_at, attendees, requirements?, consent: true }`。
+body：`{ request_id, visibility, registration_mode, registration_url?, kind?, venue?, community_name, contact_name, contact_email, contact_phone?, title, description, starts_at, ends_at, attendees, requirements?, consent: true }`。
 
+- `visibility`：`public` 或 `private`。公開活動必填 `registration_mode: native | external`；外部報名須提供不含帳密的 HTTP(S) `registration_url`（最多 2000 字）。私人強制 `closed` 並清除外部連結。僅為重試舊草稿相容，允許省略 visibility。
 - `kind`：`community`（社群活動，預設）或 `business`（企業／團隊／客戶包場）。`venue`：`2F`（二樓交誼廳／交誼廳）或 `3F`（三樓共享空間）；社群活動固定為 `3F`，企業包場必填。
 
 - `request_id`：前端產生的 UUID；相同帳號與識別碼重試只會保存一次。同內容回原申請（200），不同內容回 409；新申請回 201。回應為 `{ ok, application }`。

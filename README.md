@@ -72,7 +72,7 @@ DB 未設定時伺服器優雅降級：靜態頁照常，`/api/*` 回 503。
 
 - 超級管理員可於 `/admin/system` 管理第三方服務憑證與系統參數；機敏值以 `APP_SECRET` 衍生金鑰加密、後台不讀回明文，重新啟動服務後生效。`DATABASE_URL`、`APP_SECRET`、`PII_KEY`、`ADMIN_API_KEY`、`SUPER_ADMIN_EMAIL` 與網路信任邊界仍只可在部署環境設定。
 
-- 社群場地申請沿用 Google 登入及 Postgres，無需付費會籍；啟動時自動建立 `event_applications`。後台「場地申請」分頁處理通過／未通過，通過時可同步建立公開活動預告；並可隨時寄送其他進度更新。送出、審核結果與每次進度更新都寫入 `event_application_updates` 並以 Email 通知申請人（寄失敗自動重試、可於後台重寄），申請人登入後可看完整進度紀錄。送出或審核通過仍不代表完成檔期預訂。
+- 社群場地申請沿用 Google 登入及 Postgres，無需付費會籍；啟動時自動建立 `event_applications`。後台「場地申請」分頁處理通過／未通過，通過時依申請設定建立公開或私人活動（舊申請沿用選擇公開預告）；並可隨時寄送其他進度更新。送出、審核結果與每次進度更新都寫入 `event_application_updates` 並以 Email 通知申請人（寄失敗自動重試、可於後台重寄），申請人登入後可看完整進度紀錄。送出或審核通過仍不代表完成檔期預訂。
 
 - Google OAuth：Console 的授權導回 URI 需設為 `https://www.emoji.tw/auth/google/callback`。
 - Google Meet OAuth：另設可要求 `calendar.events` 的 OAuth client，授權導回 URI 為 `https://www.emoji.tw/integrations/google-meet/callback`。
@@ -111,3 +111,9 @@ DB 未設定時伺服器優雅降級：靜態頁照常，`/api/*` 回 503。
 - [完整規範與既有元件接軌表](docs/design/stylebook.md)。新元件以此為準；既有頁面尚未全部遷移。
 - 在 `/style.css` 後載入 `/stylebook/components.css`，以 `.ui-scope` 包住 `ui-*` 元件。
 - 檢查：`node scripts/check-stylebook.mjs`、`node --test scripts/test-public-typography.mjs`。
+
+### 場地與活動整併（2026-09-17，本地更新）
+
+申請時填活動資訊、公開／私人及報名方式。審核通過後以同一交易建立關聯活動：公開活動使用站內報名或外部連結；私人活動僅公開場地與時段，顯示不可預約。申請清單可直接管理活動，場地時段跟隨活動改期／取消，避免重複列出。舊申請保留原審核行為；新增欄位由啟動 migration 建立，無既有資料自動發布。API 規格見 docs/API.md。
+
+驗證：隔離 PostgreSQL 全套測試 377 通過、1 略過；Chrome 實測三種申請送件與審核、三語 390px／1440px、站內報名入口、外部連結及私人活動保護。母檔一致性 0 筆殘留。尚未部署。

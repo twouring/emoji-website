@@ -606,6 +606,12 @@ async function migrate() {
   await q(`ALTER TABLE event_applications ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'community'`);
   await q(`ALTER TABLE entitlements ADD COLUMN IF NOT EXISTS reminded_at TIMESTAMPTZ`);
   await q(`ALTER TABLE event_applications ADD COLUMN IF NOT EXISTS venue TEXT NOT NULL DEFAULT '3F'`);
+  await q(`ALTER TABLE event_applications ADD COLUMN IF NOT EXISTS visibility TEXT,
+    ADD COLUMN IF NOT EXISTS registration_mode TEXT, ADD COLUMN IF NOT EXISTS registration_url TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS event_id TEXT REFERENCES events(id)`);
+  await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS registration_mode TEXT NOT NULL DEFAULT 'native',
+    ADD COLUMN IF NOT EXISTS registration_url TEXT NOT NULL DEFAULT ''`);
+
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS translations JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS embed_origins JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS rich_content JSONB NOT NULL DEFAULT '{}'::jsonb`);
@@ -799,7 +805,7 @@ const SEL_C = `id,user_id,amount::bigint,interest_rate,term_years,
   to_char(maturity_date,'YYYY/MM/DD') AS maturity_date,
   contract_status,payment_status,membership_status,cert_no`;
 const SEL_UPD = `id,title,content,type,to_char(published_at,'YYYY/MM/DD') AS published_at`;
-const SEL_EVENT = `e.id,e.slug,e.title,e.description,e.location,e.translations,e.rich_content,e.event_details,e.tickets,e.registration_settings,e.owner_id,(SELECT name FROM users WHERE id=e.owner_id) AS organizer_name,COALESCE((SELECT jsonb_agg(h.name ORDER BY h.name) FROM event_hosts h WHERE h.event_id=e.id AND h.is_visible=true),'[]'::jsonb) AS host_names,e.capacity,e.price_twd,e.visibility,e.status,
+const SEL_EVENT = `e.id,e.slug,e.title,e.description,e.location,e.translations,e.rich_content,e.event_details,e.tickets,e.registration_settings,e.owner_id,(SELECT name FROM users WHERE id=e.owner_id) AS organizer_name,COALESCE((SELECT jsonb_agg(h.name ORDER BY h.name) FROM event_hosts h WHERE h.event_id=e.id AND h.is_visible=true),'[]'::jsonb) AS host_names,e.capacity,e.price_twd,e.visibility,e.registration_mode,e.registration_url,e.status,
   to_char(e.starts_at AT TIME ZONE 'Asia/Taipei','YYYY/MM/DD HH24:MI') AS starts_at,
   to_char(e.starts_at AT TIME ZONE 'Asia/Taipei','YYYY-MM-DD"T"HH24:MI') AS starts_at_iso,
   to_char(e.ends_at AT TIME ZONE 'Asia/Taipei','YYYY/MM/DD HH24:MI') AS ends_at,
@@ -2224,8 +2230,8 @@ app.delete('/api/admin/updates/:id', auth, adminOnly, requireDb, wrap(async (req
   res.json({ ok: true });
 }));
 
-/* ---- 社群場地申請：個案審核，不建立場地預訂或公開活動 ---- */
-const APPLICATION_FIELDS = `id,user_id,kind,venue,community_name,contact_name,contact_email,contact_phone,
+/* ---- 場地與活動統一申請，通過後建立對應活動 ---- */
+const APPLICATION_FIELDS = `id,user_id,kind,venue,visibility,registration_mode,registration_url,event_id,community_name,contact_name,contact_email,contact_phone,
   title,description,starts_at,ends_at,attendees,requirements,status,review_note,created_at,reviewed_at`;
 
 app.post('/api/event-applications', auth, requireDb, wrap(async (req, res) => {
@@ -2268,10 +2274,10 @@ app.post('/api/event-applications', auth, requireDb, wrap(async (req, res) => {
     const application = (await client.query(
       `INSERT INTO event_applications
        (id,user_id,request_id,request_hash,community_name,contact_name,contact_email,contact_phone,
-        title,description,starts_at,ends_at,attendees,requirements,kind,venue)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING ${APPLICATION_FIELDS}`,
+        title,description,starts_at,ends_at,attendees,requirements,kind,venue,visibility,registration_mode,registration_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING ${APPLICATION_FIELDS}`,
       [uid('ea_'),req.auth.sub,requestId,hash,v.community_name,v.contact_name,v.contact_email,v.contact_phone,
-        v.title,v.description,v.starts_at,v.ends_at,v.attendees,v.requirements,v.kind,v.venue])).rows[0];
+        v.title,v.description,v.starts_at,v.ends_at,v.attendees,v.requirements,v.kind,v.venue,v.visibility||null,v.registration_mode||null,v.registration_url||''])).rows[0];
     // 收件確認與狀態同一交易寫入佇列：申請成立就一定有對應通知，寄送由背景工作保證完成。
     const update = await queueApplicationUpdate(client, { application, kind: 'submitted', actor: req.auth.sub });
     await client.query('COMMIT');
@@ -2321,18 +2327,20 @@ app.post('/api/admin/event-applications/:id/review', auth, adminOnly, requireDb,
       const exists = (await q('SELECT id FROM event_applications WHERE id=$1', [req.params.id])).rows.length;
       return res.status(exists ? 409 : 404).json({ error: exists ? '此申請已完成審核，請重新載入。' : '找不到這筆申請。' });
     }
-    if (publishPublic) {
-      const id=`e_${application.id}`,slug=`${eventSlug(application.title)||'event'}-${application.id.slice(-8)}`;
-      event=(await client.query(`INSERT INTO events(id,slug,title,description,location,starts_at,ends_at,capacity,price_twd,visibility,status,owner_id)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,0,'public','預告',$9) RETURNING id,slug`,
-        [id,slug,application.title,application.description,appVenue(application),application.starts_at,application.ends_at,application.attendees,application.user_id])).rows[0];
+    if (b.status === 'approved' && (application.visibility || publishPublic)) {
+      const id=`e_${application.id}`,slug=`${application.visibility==='private'?'private-event':eventSlug(application.title)||'event'}-${application.id.slice(-8)}`;
+      event=(await client.query(`INSERT INTO events(id,slug,title,description,location,starts_at,ends_at,capacity,price_twd,visibility,status,owner_id,registration_mode,registration_url)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,0,$10,$11,$9,$12,$13) RETURNING id,slug`,
+        [id,slug,application.title,application.description,appVenue(application),application.starts_at,application.ends_at,application.attendees,application.user_id,application.visibility||'public',application.registration_mode==='native'?'報名中':'預告',application.registration_mode||'native',application.registration_url])).rows[0];
+      await client.query('UPDATE event_applications SET event_id=$2 WHERE id=$1',[application.id,event.id]);
+      application.event_id=event.id;
       // 申請人以登入 email 加入主辦團隊（可管理），才進得了 /organizer/events；撤銷走「主辦團隊」移除
       const applicant=(await client.query('SELECT email,name FROM users WHERE id=$1',[application.user_id])).rows[0];
       await client.query(`INSERT INTO event_hosts(event_id,email,name,is_visible,can_manage,can_checkin) VALUES($1,lower($2),$3,false,true,true) ON CONFLICT(event_id,email) DO UPDATE SET can_manage=true,can_checkin=true`,
         [event.id,applicant?.email||application.contact_email,application.contact_name||applicant?.name||'']);
     }
     // 審核、公開預告與通知佇列同一交易完成，不會出現只有部分成功的狀態。
-    const publicLink=event?`\n\n公開活動預告：${SITE_BASE}/events/${encodeURIComponent(event.slug)}`:'';
+    const publicLink=event?`\n\n活動資訊：${SITE_BASE}/events/${encodeURIComponent(event.slug)}`:'';
     await queueApplicationUpdate(client, { application, kind: b.status, message: application.review_note+publicLink, actor });
     await client.query('COMMIT');
   } catch (err) { await client.query('ROLLBACK'); throw err; }
@@ -3681,6 +3689,7 @@ app.get('/api/admin/ig/insights', auth, adminOnly, requireDb, wrap(async (_req, 
 
 /* ---- 活動前台：公開列表、私人連結、報名付款與票券 ---- */
 function publicEvent(event,lang){
+ if(event.registration_mode==='closed')return {id:event.id,slug:event.slug,title:{en:'Private event',ja:'非公開イベント'}[lang]||'私人活動',visibility:'private',registration_mode:'closed',status:event.status,location:event.location,starts_at:event.starts_at,ends_at:event.ends_at,starts_at_iso:event.starts_at_iso,ends_at_iso:event.ends_at_iso};
  const out=localizeEvent(event,lang);out.can_contact_host=!!(event.owner_id||event.event_details?.contact_email);delete out.owner_id;if(out.event_details)delete out.event_details.contact_email;return out;
 }
 function eventReferralToken(registrationId,event){
@@ -3697,7 +3706,7 @@ app.get('/api/events', optionalAuth, requireDb, wrap(async (req, res) => {
   const events = (await q(
     `SELECT ${SEL_EVENT},
        (SELECT COALESCE(SUM(r.quantity),0)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS reg_count
-     FROM events e WHERE status IN ('預告','報名中') AND (visibility='public' OR (visibility='members' AND $1))
+     FROM events e WHERE status IN ('預告','報名中') AND (visibility='public' OR registration_mode='closed' OR (visibility='members' AND $1))
      ORDER BY starts_at ASC NULLS LAST`, [member]
   )).rows;
   res.json({ events: events.map(e => publicEvent(e, req.query.lang)) });
@@ -3878,7 +3887,7 @@ app.get(['/api/events/:slug/calendar.ics','/api/events/:slug/calendar/google'],r
  const event=(await q(`SELECT e.* FROM events e WHERE (e.slug=$1 OR (e.id=(SELECT event_id FROM event_slug_redirects WHERE old_slug=$1) AND NOT EXISTS(SELECT 1 FROM events current WHERE current.slug=$1))) AND e.status<>'草稿' ORDER BY (e.slug=$1) DESC LIMIT 1`,[req.params.slug])).rows[0];
  if(!event)return res.status(404).json({error:'找不到活動。'});
  if(event.slug!==req.params.slug){const query=req.originalUrl.includes('?')?req.originalUrl.slice(req.originalUrl.indexOf('?')):'';return res.redirect(302,'/api/events/'+encodeURIComponent(event.slug)+(req.path.endsWith('/google')?'/calendar/google':'/calendar.ics')+query);}
- const localized=localizeEvent(event,['en','ja'].includes(req.query.lang)?req.query.lang:'zh');
+ const localized=publicEvent(event,['en','ja'].includes(req.query.lang)?req.query.lang:'zh');
  if(req.path.endsWith('/google')){try{return res.redirect(googleCalendarUrl(localized,SITE_BASE));}catch(e){return res.status(409).json({error:e.message});}}
  let calendar;try{calendar=eventCalendar(localized,SITE_BASE);}catch(e){return res.status(409).json({error:e.message});}
  res.set({'Content-Type':'text/calendar; charset=utf-8','Content-Disposition':'attachment; filename="event.ics"'}).send(calendar);
@@ -3940,6 +3949,7 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
     // ponytail: 每場活動用單列鎖防超賣；流量真的需要時再拆 ticket inventory／reservation table。
     const ev = (await client.query(`SELECT * FROM events WHERE id=$1 FOR UPDATE`, [req.params.id])).rows[0];
     if (!ev) { await client.query('ROLLBACK'); return res.status(404).json({ error: '找不到活動。' }); }
+    if (ev.registration_mode !== 'native') { await client.query('ROLLBACK'); return res.status(403).json({ error: '此活動不開放站內報名。' }); }
     if (ev.status !== '報名中') { await client.query('ROLLBACK'); return res.status(400).json({ error: '此活動目前不開放報名。' }); }
     const registrationSettings=ev.registration_settings || {},guest=!req.auth?.sub,requestLang=['en','ja'].includes(req.body?.lang)?req.body.lang:'zh';
     const first=String(req.body?.first_name||'').trim(),last=String(req.body?.last_name||'').trim();
@@ -4263,11 +4273,11 @@ app.get('/api/venue/schedule', requireDb, wrap(async (_req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
   const bookings = (await q(
     `SELECT venue,kind,starts_at,ends_at FROM event_applications
-     WHERE status='approved' AND ends_at > now() - interval '1 day' AND starts_at < now() + interval '90 days'
+     WHERE status='approved' AND event_id IS NULL AND ends_at > now() - interval '1 day' AND starts_at < now() + interval '90 days'
      ORDER BY starts_at`)).rows;
   const events = (await q(
-    `SELECT title,slug,location,starts_at,ends_at FROM events
-     WHERE status='報名中' AND visibility='public' AND starts_at IS NOT NULL
+    `SELECT CASE WHEN registration_mode='closed' THEN '私人活動' ELSE title END AS title,slug,location,starts_at,ends_at FROM events
+     WHERE status IN ('預告','報名中') AND (visibility='public' OR registration_mode='closed') AND starts_at IS NOT NULL
        AND starts_at > now() - interval '1 day' AND starts_at < now() + interval '90 days'
      ORDER BY starts_at`)).rows;
   res.json({ bookings, events });
@@ -4351,7 +4361,7 @@ app.get(['/events/:slug', '/en/events/:slug', '/ja/events/:slug'], async (req, r
   }
   if(event&&event.slug!==req.params.slug){const lang=/^\/(en|ja)\//.exec(req.path)?.[1],query=req.originalUrl.includes('?')?req.originalUrl.slice(req.originalUrl.indexOf('?')):'';return res.redirect(302,(lang?'/'+lang:'')+'/events/'+encodeURIComponent(event.slug)+query);}
   if (!event || event.visibility !== 'public') res.set('X-Robots-Tag', 'noindex');
-  sendPage(res, EVENTS_PAGE, req.path, event ? html => composeEventMeta(html, localizeEvent(event, req.path.split('/')[1]), req.path) : null);
+  sendPage(res, EVENTS_PAGE, req.path, event ? html => composeEventMeta(html, publicEvent(event, req.path.split('/')[1]), req.path) : null);
 });
 app.get('/', (req, res) => sendPage(res, path.join(PUB, 'index.html'), '/'));
 

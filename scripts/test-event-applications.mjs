@@ -64,6 +64,14 @@ test('application requires explicit consent and bounded integer attendance', () 
   for (const attendees of [1, 10000]) assert.ok(normalizeEventApplication({ ...valid, attendees }).value);
 });
 
+test('unified applications validate visibility and external links', () => {
+  for(const registration_url of ['javascript:alert(1)','data:text/html,test','https://user:pass@example.com',{}])
+    assert.ok(normalizeEventApplication({...valid,visibility:'public',registration_mode:'external',registration_url}).error);
+  assert.ok(normalizeEventApplication({...valid,visibility:'secret'}).error);
+  assert.ok(normalizeEventApplication({...valid,visibility:'public',registration_mode:'closed'}).error);
+  assert.equal(normalizeEventApplication({...valid,visibility:'private',registration_mode:'external',registration_url:'https://example.com'}).value.registration_mode,'closed');
+});
+
 const databaseUrl = process.env.EVENT_APPLICATION_TEST_DATABASE_URL;
 
 test('application API persists private submissions and serializes retry/review races in PostgreSQL', {
@@ -281,6 +289,52 @@ test('application API persists private submissions and serializes retry/review r
         assert.ok(!JSON.stringify(result.body).includes(reviewResult.review_note));
       }
       assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM events')).rows[0].n, baselineEventCount+1);
+    });
+
+    await t.test('unified approval supports native, external and private events without duplicate schedule or private leaks', async () => {
+      for(const mode of ['native','external','closed']){
+        const created=await api('/api/event-applications',memberA,{...valid,request_id:randomUUID(),visibility:mode==='closed'?'private':'public',registration_mode:mode,registration_url:'https://example.com/register'});
+        assert.equal(created.status,201,JSON.stringify(created.body));
+        const appId=created.body.application.id;
+        const reviewed=await api(`/api/admin/event-applications/${appId}/review`,adminKey,{status:'approved',expected_status:'pending',review_note:'本機測試通過'});
+        assert.equal(reviewed.status,200,JSON.stringify(reviewed.body));
+        const event=reviewed.body.event;
+        assert.equal(reviewed.body.application.event_id,event.id);
+        assert.equal((await api(`/api/admin/event-applications/${appId}/review`,adminKey,{status:'approved',expected_status:'pending',review_note:'重複'})).status,409);
+        const listed=(await api('/api/events')).body.events.find(e=>e.id===event.id);
+        assert.ok(listed);
+        assert.equal(listed.registration_mode,mode);
+        if(mode==='native'){
+          assert.equal(listed.status,'報名中');
+          const registered=await api(`/api/events/${event.id}/register`,memberB,{});
+          assert.equal(registered.status,200,JSON.stringify(registered.body));
+        }else{
+          assert.equal((await api(`/api/events/${event.id}/register`,memberB,{})).status,403);
+          // Even changing lifecycle status cannot accidentally enable private/external registration.
+          await pool.query("UPDATE events SET status='報名中' WHERE id=$1",[event.id]);
+          assert.equal((await api(`/api/events/${event.id}/register`,null,{})).status,403);
+        }
+        if(mode==='external')assert.equal(listed.registration_url,'https://example.com/register');
+        if(mode==='closed'){
+          assert.equal(listed.title,'私人活動');
+          assert.equal(listed.description,undefined);
+          assert.equal(listed.organizer_name,undefined);
+          const detail=await api('/api/events/'+event.slug);
+          assert.equal(detail.body.event.description,undefined);
+          for(const path of ['/events/'+event.slug,'/api/events/'+event.slug+'/calendar.ics']){
+            const body=await (await fetch(origin+path)).text();
+            assert.ok(!body.includes(valid.title),path);
+            assert.ok(!body.includes(valid.description),path);
+          }
+        }
+        await pool.query("UPDATE events SET starts_at=now()+interval '2 days',ends_at=now()+interval '2 days 2 hours' WHERE id=$1",[event.id]);
+        const schedule=(await api('/api/venue/schedule')).body;
+        assert.equal(schedule.events.filter(e=>e.slug===event.slug).length,1);
+        await pool.query("UPDATE events SET status='已取消' WHERE id=$1",[event.id]);
+        assert.ok(!(await api('/api/venue/schedule')).body.events.some(e=>e.slug===event.slug));
+        // Keep the original persistence assertions focused on the original two requests.
+        await pool.query('DELETE FROM event_applications WHERE id=$1',[appId]);
+      }
     });
 
     await t.test('stored submissions and consent survive server shutdown', async () => {

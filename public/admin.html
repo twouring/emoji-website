@@ -627,6 +627,7 @@ function paintApplications(){
   const rows = (APPLICATIONS || []).filter(a=>(!APPLICATION_FILTER || a.status===APPLICATION_FILTER) && (!APPLICATION_KIND || (a.kind||'community')===APPLICATION_KIND));
   const cards = rows.map(a=>`<article class="application-card">
     <h3>${esc(a.title)} <span class="pill ${a.status==='approved'?'pill-ok':'pill-wait'}">${esc(labels[a.status] || a.status)}</span> <span class="pill">${a.kind==='business'?'企業包場':'社群活動'} · ${a.venue==='2F'?'二樓交誼廳':'三樓共享空間'}</span></h3>
+    ${a.event_id?`<p><a data-reload href="${BASE}/events/${encodeURIComponent(a.event_id)}">管理活動 →</a></p>`:''}
     <dl class="application-details">
       <dt>${a.kind==='business'?'公司／團隊':'申請社群'}</dt><dd>${esc(a.community_name)}</dd>
       <dt>聯絡人</dt><dd>${esc(a.contact_name)}</dd>
@@ -654,7 +655,7 @@ function paintApplications(){
       <label>審核回覆（必填，申請者會看到）
         <textarea name="review_note" required maxlength="2000" ${APPLICATION_REVIEWING===a.id?'readonly':''} placeholder="請填寫給申請社群的審核理由與後續聯絡事項">${esc(APPLICATION_DRAFTS.get(a.id) || '')}</textarea>
       </label>
-      <label><input type="checkbox" name="publish_public" ${a.kind==='community'?'checked':''} ${APPLICATION_REVIEWING===a.id?'disabled':''}> 通過後同步建立公開活動預告，顯示於前台活動列表</label>
+      ${a.visibility?`<p>通過後同步建立${a.visibility==='private'?'私人活動（前台顯示不可預約）':a.registration_mode==='external'?'公開活動（外部報名）':'公開活動（站內報名）'}${a.registration_url?`：<a href="${esc(a.registration_url)}" target="_blank" rel="noopener noreferrer">${esc(a.registration_url)}</a>`:''}</p>`:`<label><input type="checkbox" name="publish_public" ${a.kind==='community'?'checked':''}> 通過後同步建立公開活動預告</label>`}
       <button class="btn btn--solid btn-sm" type="submit" data-status="approved" ${busy?'disabled':''}>${APPLICATION_REVIEWING===a.id?'送出中…':'通過申請'}</button>
       <button class="btn btn--ghost btn-sm" type="submit" data-status="rejected" ${busy?'disabled':''}>不通過申請</button>
     </form>`:APPLICATION_DRAFTS.has(a.id)?`<details><summary>未送出的審核草稿</summary><p style="white-space:pre-wrap">${esc(APPLICATION_DRAFTS.get(a.id))}</p></details>`:''}
@@ -756,7 +757,7 @@ async function reviewApplication(form, status){
   paintApplications();
   try {
     const data = await api('/admin/event-applications/'+encodeURIComponent(id)+'/review', {
-      method:'POST', body:{status, review_note:note.value.trim(), expected_status:'pending', publish_public:status==='approved'&&form.elements.publish_public.checked},
+      method:'POST', body:{status, review_note:note.value.trim(), expected_status:'pending', publish_public:status==='approved'&&form.elements.publish_public?.checked===true},
     });
     if (data.ok!==true || data.application?.id!==id || data.application.status!==status) throw new Error('無法確認審核結果，請重新載入確認；草稿已保留。');
     APPLICATIONS = APPLICATIONS.map(a=>a.id===id?data.application:a);
