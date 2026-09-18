@@ -28,7 +28,7 @@ async function server(t, { query, stripe = {}, env = {} } = {}) {
     const result = await query?.(sql, args);
     if (result) return result;
     if (/EXISTS\(SELECT 1 FROM event_hosts/.test(sql)) return {rows:[{allowed:false}]};
-    if (/SELECT id,email,is_admin FROM users/.test(sql)) return { rows: [{ ...user }], rowCount: 1 };
+    if (/SELECT id,email,is_admin,admin_brand FROM users/.test(sql)) return { rows: [{ ...user }], rowCount: 1 };
     if (/SUM\(amount\)/.test(sql)) return { rows: [{ s: 0, p: 0 }], rowCount: 1 };
     return { rows: [], rowCount: 0 };
   };
@@ -333,4 +333,30 @@ test('a confirmed failed Stripe refund restores reserved points exactly once and
   assert.equal(result.status, 409);
   assert.equal((await result.json()).refund_id, intent.id);
   assert.equal(intent.status, 'failed'); assert.equal(lot.remaining, 100); assert.equal(restores, 1);
+});
+
+test('brand sub-accounts only reach their own admin APIs and menu items', async t => {
+  const menu = JSON.stringify({ version: 1, items: [
+    { id: 'm_cafe', venue: 'CAFE', cat: 'COFFEE', zh: '手沖', price: 180, status: 'published' },
+    { id: 'm_bar', venue: 'BAR', cat: 'COFFEE', zh: '調酒', price: 380, status: 'published' }] });
+  let brand = 'CAFE', saved = null;
+  const { request } = await server(t, { query: async (sql, args) => {
+    if (/SELECT id,email,is_admin,admin_brand FROM users/.test(sql)) return { rows: [{ ...user, is_admin: true, admin_brand: brand }], rowCount: 1 };
+    if (/SELECT value FROM site_content WHERE key='menu'/.test(sql)) return { rows: [{ value: menu }], rowCount: 1 };
+    if (/INSERT INTO site_content/.test(sql)) { saved = args[1]; return { rows: [], rowCount: 1 }; }
+  } });
+  const token = signToken({ sub: user.id, role: 'admin' }, secret);
+  const edit = (id, price) => { const doc = JSON.parse(menu); doc.items.find(it => it.id === id).price = price; return JSON.stringify(doc); };
+  assert.equal((await request('/api/admin/orders', undefined, token)).status, 200);
+  for (const url of ['/api/admin/system-settings', '/api/admin/logs', '/api/admin/event-applications', '/api/admin/events/e_x/hosts'])
+    assert.equal((await request(url, undefined, token)).status, 403, url);
+  assert.equal((await request('/api/admin/content', { key: 'about', value: 'x' }, token)).status, 403);
+  assert.equal((await request('/api/admin/content', { key: 'menu', value: edit('m_bar', 1) }, token)).status, 403);
+  assert.equal(saved, null);
+  assert.equal((await request('/api/admin/content', { key: 'menu', value: edit('m_cafe', 200) }, token)).status, 200);
+  assert.equal(JSON.parse(saved).items.find(it => it.id === 'm_cafe').price, 200);
+  brand = 'SPACE';
+  assert.equal((await request('/api/admin/orders', undefined, token)).status, 403);
+  assert.equal((await request('/api/admin/event-applications', undefined, token)).status, 200);
+  assert.equal((await request('/api/admin/users/u_x/admin', { admin: true }, token)).status, 403);
 });
