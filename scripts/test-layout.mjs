@@ -110,10 +110,6 @@ test('shared event pages return localized metadata before JavaScript runs', () =
   assert.match(list, /hreflang="zh-Hant" href="https:\/\/www\.emoji\.tw\/events"/);
   assert.match(list, /property="og:title" content="Events/);
 
-  const application = composeLayout(raw, '/ja/event-application');
-  assert.match(application, /<html lang="ja">/);
-  assert.match(application, /<title>3Fコミュニティイベント会場の利用申請/);
-  assert.match(application, /canonical" href="https:\/\/www\.emoji\.tw\/ja\/event-application"/);
 });
 
 test('public event detail has event metadata and safe JSON-LD', () => {
@@ -274,9 +270,9 @@ test('system ja page structure', () => {
 
 test('plan choices, venue enquiries and account limits are explicit in all locales', () => {
   const pages = [
-    ['system.html', 'data-label="適合情境"', '現場辦理', '/event-application', '24 小時（條件式啟用）'],
-    [path.join('en', 'system.html'), 'data-label="Best for"', 'Available on site', '/en/event-application', '24-hour access (conditional)'],
-    [path.join('ja', 'system.html'), 'data-label="おすすめ"', '現地で利用開始', '/ja/event-application', '24時間利用（条件付き）'],
+    ['system.html', 'data-label="適合情境"', '現場辦理', '/events?apply=1#ev-apply', '24 小時（條件式啟用）'],
+    [path.join('en', 'system.html'), 'data-label="Best for"', 'Available on site', '/en/events?apply=1#ev-apply', '24-hour access (conditional)'],
+    [path.join('ja', 'system.html'), 'data-label="おすすめ"', '現地で利用開始', '/ja/events?apply=1#ev-apply', '24時間利用（条件付き）'],
   ];
   for (const [rel, situation, availability, application, conditionalAccess] of pages) {
     const html = fs.readFileSync(path.join(PUB, rel), 'utf8');
@@ -314,7 +310,8 @@ test('events page carries the venue guide in all three languages and routes both
   }
   assert.match(html, /id="venue"/);
   assert.match(html, /id="notes"/);
-  assert.match(html, /base\+'\/event-application'/);
+  assert.match(html, /base\+'\/events\?apply=1#ev-apply'/);
+  assert.match(html, /id="ea-root"/);
 });
 
 test('public hours copy carries no opening wording and Japanese membership terms match the customer flow', () => {

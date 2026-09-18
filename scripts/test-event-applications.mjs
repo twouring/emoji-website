@@ -186,6 +186,26 @@ test('application API persists private submissions and serializes retry/review r
       assert.equal((await submit(memberB, { ...input, title: 'Member B workshop' })).status, 201);
     });
 
+    await t.test('a submission is a hidden draft event the applicant owns but cannot publish, re-time or delete', async () => {
+      const event=(await pool.query('SELECT * FROM events WHERE id=$1',[`e_${applicationId}`])).rows[0];
+      assert.deepEqual([event.status,event.review_status,event.owner_id],['草稿','pending',users[0]]);
+      assert.equal((await pool.query('SELECT event_id FROM event_applications WHERE id=$1',[applicationId])).rows[0].event_id,event.id);
+      assert.ok(!(await api('/api/events')).body.events.some(item=>item.id===event.id));
+      assert.equal((await api('/api/events/'+event.slug)).status,404);
+      const state=await api('/api/organizer/state',memberA);
+      assert.equal(state.status,200);
+      assert.deepEqual(state.body.events.map(item=>[item.id,item.review_status]),[[event.id,'pending']]);
+      assert.deepEqual(state.body.applications.map(item=>item.id),[applicationId]);
+      const mine=state.body.events[0],edit={id:event.id,title:mine.title+'（補充）',description:mine.description,location:mine.location,starts_at:mine.starts_at_iso,ends_at:mine.ends_at_iso,capacity:mine.capacity,price_twd:0,visibility:'public',status:'草稿'};
+      assert.equal((await api('/api/admin/events',memberA,edit)).status,200,'content can be prepared while pending');
+      assert.equal((await api('/api/admin/events',memberA,{...edit,status:'報名中'})).status,409);
+      assert.equal((await api('/api/admin/events',memberA,{...edit,starts_at:'2099-06-21T19:00',ends_at:'2099-06-21T21:00'})).status,409);
+      assert.equal((await api('/api/admin/events',memberB,edit)).status,404);
+      const removed=await fetch(origin+'/api/admin/events/'+event.id,{method:'DELETE',headers:{Authorization:'Bearer '+memberA}});
+      assert.equal(removed.status,409);
+      assert.equal((await pool.query("SELECT status FROM events WHERE id=$1",[event.id])).rows[0].status,'草稿');
+    });
+
     await t.test('only the owner sees their submission; administrators see both', async () => {
       for (const [auth, user] of [[memberA, users[0]], [memberB, users[1]]]) {
         const list = await api('/api/me/event-applications?user_id=' + users[0], auth);
@@ -272,7 +292,10 @@ test('application API persists private submissions and serializes retry/review r
       const organizerState=await api('/api/organizer/state',memberB);
       assert.equal(organizerState.status,200);assert.equal(organizerState.body.role,'organizer');assert.equal(organizerState.body.can_create_events,false);
       assert.deepEqual(organizerState.body.events.map(item=>item.id),[publishedEvent.id]);
-      assert.equal((await api('/api/organizer/state',memberA)).status,403);
+      // 另一位申請人只看得到自己的活動；未公開的那場不出現在公開清單
+      assert.deepEqual((await api('/api/organizer/state',memberA)).body.events.map(item=>item.id),[`e_${applicationId}`]);
+      const decided=(await pool.query('SELECT status,review_status FROM events WHERE id=$1',[`e_${applicationId}`])).rows[0];
+      assert.deepEqual([decided.status,decided.review_status],['草稿',reviewResult.status]);
       assert.ok((await api('/api/events')).body.events.some(item=>item.id===publishedEvent.id));
       const update=(await pool.query("SELECT message FROM event_application_updates WHERE application_id=$1 AND kind='approved'",[second.id])).rows[0];
       assert.ok(update.message.includes(`/events/${publishedEvent.slug}`));
@@ -283,12 +306,13 @@ test('application API persists private submissions and serializes retry/review r
         const result = await api(path, auth);
         assert.equal(result.status, 200);
         const listsPreviews=path==='/api/events'||auth===adminKey;
-        assert.equal(result.body.events.length, baselineEvents[index].length+(listsPreviews?1:0));
+        // 後台看得到兩場（含未公開草稿）；公開清單只有已發布的那一場；會員狀態都看不到
+        assert.equal(result.body.events.length, baselineEvents[index].length+(auth===adminKey?2:listsPreviews?1:0));
         assert.equal(result.body.events.some(event=>event.id===publishedEvent.id),listsPreviews);
-        assert.ok(!JSON.stringify(result.body).includes(applicationId));
+        if(auth!==adminKey)assert.ok(!JSON.stringify(result.body).includes(applicationId));
         assert.ok(!JSON.stringify(result.body).includes(reviewResult.review_note));
       }
-      assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM events')).rows[0].n, baselineEventCount+1);
+      assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM events')).rows[0].n, baselineEventCount+2);
     });
 
     await t.test('unified approval supports native, external and private events without duplicate schedule or private leaks', async () => {
@@ -335,6 +359,16 @@ test('application API persists private submissions and serializes retry/review r
         // Keep the original persistence assertions focused on the original two requests.
         await pool.query('DELETE FROM event_applications WHERE id=$1',[appId]);
       }
+    });
+
+    await t.test('an organizer duplicate is a new pending application; an admin duplicate is not', async () => {
+      const copy=await api(`/api/admin/events/${publishedEvent.id}/duplicate`,memberB,{});
+      assert.equal(copy.status,200,JSON.stringify(copy.body));
+      const row=(await pool.query('SELECT e.status,e.review_status,a.status AS app_status,a.user_id FROM events e JOIN event_applications a ON a.event_id=e.id WHERE e.id=$1',[copy.body.id])).rows[0];
+      assert.deepEqual([row.status,row.review_status,row.app_status,row.user_id],['草稿','pending','pending',users[1]]);
+      const adminCopy=await api(`/api/admin/events/${publishedEvent.id}/duplicate`,adminKey,{});
+      assert.equal((await pool.query('SELECT review_status FROM events WHERE id=$1',[adminCopy.body.id])).rows[0].review_status,null);
+      await pool.query('DELETE FROM event_applications WHERE event_id=$1',[copy.body.id]);
     });
 
     await t.test('stored submissions and consent survive server shutdown', async () => {

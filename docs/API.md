@@ -128,7 +128,7 @@ Google 授權回呼，簽發會員 token 並導回。
 每筆另含 `updates`：依時間排序的進度紀錄 `[{ id, kind, message, actor, created_at, mail_state, mail_sent_at, mail_attempts, mail_error }]`。`kind` 為 `submitted`（送出）／`approved`／`rejected`／`update`（其他進度）；`mail_state` 為 `queued`（待寄）／`retry`（寄失敗、排程重試）／`sent`／`failed`（重試 10 次仍失敗）。
 
 ### POST /api/admin/event-applications/:id/review
-審核待審申請。body：`{ status: "approved" | "rejected", review_note, expected_status: "pending", publish_public? }`，回 `{ ok, application, event? }`。回覆必填、最多 2000 字，申請人可見。新申請通過時依 `visibility`、`registration_mode` 同一交易建立活動並保存 `event_id`：公開 `native` 為站內報名、`external` 為外部連結、私人 `closed` 僅顯示占用時段且 API 禁止報名。舊申請未填 `visibility` 時才使用 `publish_public`：true 建立公開預告，false 不建立。不存在回 404；已審核或其他管理員先完成時回 409，不覆蓋既有結果。保存審核者與時間。審核通過仍不代表場地已保留或完成收費；檔期、費用與合作條件仍須書面確認。
+審核待審申請。body：`{ status: "approved" | "rejected", review_note, expected_status: "pending", publish_public? }`，回 `{ ok, application, event? }`。回覆必填、最多 2000 字，申請人可見。活動在送件時已建立；審核只更新該活動的 `review_status`，通過時依 `visibility`、`registration_mode` 同一交易把它由草稿翻成對外狀態：公開 `native` 為 `報名中`、`external` 為外部連結預告、私人 `closed` 僅顯示占用時段且 API 禁止報名。舊申請未填 `visibility` 時才使用 `publish_public`：true 公開為預告，false 維持草稿由主辦人自行發布。未通過一律維持草稿不公開。回應的 `event` 只在本次有公開時回傳。不存在回 404；已審核或其他管理員先完成時回 409，不覆蓋既有結果。保存審核者與時間。審核通過仍不代表場地已保留或完成收費；檔期、費用與合作條件仍須書面確認。
 審核結果通知與狀態變更在同一交易寫入進度紀錄，之後立即寄給申請人；寄失敗自動退避重試，回應的 `application.updates` 可看寄送狀態。
 
 ### POST /api/admin/event-applications/:id/updates
@@ -339,7 +339,9 @@ X 貼文 AI 起草：body `{ topic }`，回 `{ ok, draft: { title, caption, capt
 手動完成點數訂單（Stripe webhook 失敗時的補救）。
 
 ### POST /api/admin/users/:id/admin
-指派或取消管理員。body：`{ admin: boolean }`。**限超級管理員或 agent 金鑰。**
+指派或取消管理員，並設定後台範圍。body：`{ admin: boolean, brand?: 'CAFE'|'BAR'|'SPACE'|null }`。**限超級管理員或 agent 金鑰。**
+
+品牌子帳號（`users.admin_brand`）：`brand` 為空＝言文字根帳號，可用全部後台；`CAFE`（在咖啡）／`BAR`（三點水）只能呼叫 `/api/admin/orders*`、`/api/admin/tables/qr`、`/api/admin/content`（僅 `menu`，且只能變更自己店別的品項），出餐看板只回自己店別的單；`SPACE`（等等空間）只能呼叫 `/api/admin/events*`、`/api/admin/event-applications*`、`/api/admin/entitlements`、`/api/admin/points*`、`/api/admin/upload*`。其餘後台端點回 403「此功能由言文字根帳號管理。」。`GET /api/state` 會回 `brand`，餐飲子帳號不帶會員、參與紀錄與活動資料。超級管理員不受 `admin_brand` 限制。
 
 ## 會員端點（agent 一律 403）
 
@@ -376,7 +378,7 @@ X 貼文 AI 起草：body `{ topic }`，回 `{ ok, draft: { title, caption, capt
 送出參與（創始會籍）申請。Email 必須為目前已驗證的 Google 登入信箱，此表單不會更動登入身分。
 
 ### POST /api/event-applications
-登入帳號提出場地申請（社群活動或企業包場），不需付費會籍；agent 金鑰沒有申請人身分，回 403。
+登入帳號提出場地申請（社群活動或企業包場），不需付費會籍；agent 金鑰沒有申請人身分，回 403。申請即活動：同一交易建立一場 `草稿` 活動（`events.review_status='pending'`、申請人為 `owner_id` 並加入主辦團隊），`application.event_id` 即該活動；申請人可立刻在 `/organizer/events` 準備內容，但審核通過前不能公開、改時間地點或刪除（409）。聯絡資料只存在 `event_applications`，不進 `events`。
 
 body：`{ request_id, visibility, registration_mode, registration_url?, kind?, venue?, community_name, contact_name, contact_email, contact_phone?, title, description, starts_at, ends_at, attendees, requirements?, consent: true }`。
 
@@ -483,13 +485,10 @@ Twilio 訊息狀態 callback。以 `X-Twilio-Signature` 驗證請求，將 accep
 
 ## 外部活動主與主辦團隊（2026-09-07）
 
-活動主入口 `/organizer/events` 沿用 Google 登入與活動編輯器。平台授權的活動主可建立活動；僅被加入共同管理者的帳號只可管理受邀活動。每次請求重新查核資料庫權限，不能靠舊 token 保留撤銷後的權限。
+活動主入口 `/organizer/events` 沿用 Google 登入與活動編輯器。沒有全域「活動主」角色：平台管理員在單場活動指定負責人（`owner_id`）或於「主辦團隊」加入可管理的 Email，該帳號即可進入並只管理那幾場；平台管理員可直接建立活動；其他人以場地申請建立（送件即建立待審草稿活動並成為負責人）。可管理者可複製自己管理的活動：非平台管理員的副本視為新的場地申請（`review_status='pending'`，同時寫入一筆申請與收件通知），須再審核才能公開。`GET /api/organizer/state` 另回本人 `applications`（含審核回覆與進度紀錄）。每次請求重新查核資料庫權限，不能靠舊 token 保留撤銷後的權限。
 
 ### GET /api/organizer/state
 僅回自己的／受邀共同管理的活動、本人姓名與 Email，以及 `can_create_events`。不包含其他會員、金流、點數、設定或其他主辦人的活動。未授權回 403。
-
-### POST /api/admin/users/:id/organizer
-平台管理員授予或取消建立活動資格，body `{ organizer: boolean }`。對象須先使用 Google 登入本站；不授予平台管理權限。
 
 ### GET /api/admin/events/:id/hosts
 平台管理員／本活動負責人／共同管理者可讀主辦團隊。回 `{ owner, hosts, tickets, checkin }`；owner 為平台指定的主要負責人；hosts 有 `name,email,is_visible,can_manage,can_checkin,checkin_ticket_ids`，checkin 為預設掃描模式與鎖定狀態。
@@ -503,7 +502,7 @@ Twilio 訊息狀態 callback。以 `X-Twilio-Signature` 驗證請求，將 accep
 ### DELETE /api/admin/events/:id/hosts
 同上權限。body `{ email }` 移除共同主辦人；不能藉此移除主要負責人。移除後同一個 token 下次請求即失去該場權限。
 
-既有建立／更新、刪除、讀名單、簽到及取消簽到端點，均允許本活動負責人／共同管理者；他場 ID 回 404。退款仍限平台管理員。管理員更新活動可傳 `owner_id` 指定已授權活動主，外部請求不能變更主要負責人。公開 API 僅含公開主辦人名稱 `host_names`，不包含團隊 Email 或管理權設定。
+既有建立／更新、刪除、讀名單、簽到及取消簽到端點，均允許本活動負責人／共同管理者；他場 ID 回 404。退款仍限平台管理員。管理員建立／更新活動可傳 `owner_id` 指定任一既有使用者為負責人，外部請求不能變更主要負責人。公開 API 僅含公開主辦人名稱 `host_names`，不包含團隊 Email 或管理權設定。
 
 ### POST /api/admin/events/:id/duplicate
 

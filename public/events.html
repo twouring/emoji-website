@@ -95,6 +95,7 @@
 <!--FEATURED_EVENT-->
   <div id="ev-app"><div class="ev-empty">載入活動中…</div></div>
   <section class="ev-apply" id="ev-apply"><div><h2 id="ev-apply-title">辦社群講座、工作坊或交流活動</h2><p id="ev-apply-copy">社群主辦人可提出 3F 場地申請；送出申請不代表場地已保留。</p></div><div class="ev-apply__actions"><a class="btn" id="ev-apply-link" href="/event-application">填寫 3F 社群活動申請 →</a><a class="btn btn--ghost" id="ev-business-link" href="/event-application?kind=business">企業／團隊包場請來信 →</a></div></section>
+  <div id="ea-root" class="ea-main" hidden></div>
 <p style="margin:24px 0"><a id="organizer-link" href="/organizer/events">活動主登入／管理自己的活動 →</a></p>
 <div id="venue"></div>
 <div class="ev-lang" data-lang="zh" lang="zh-Hant">
@@ -170,9 +171,21 @@ const applyText={zh:['辦社群講座、工作坊或交流活動','社群主辦�
 document.getElementById('ev-apply-title').textContent=applyText[0];
 document.getElementById('ev-apply-copy').textContent=applyText[1];
 document.getElementById('ev-apply-link').textContent=applyText[2]+' →';
-document.getElementById('ev-apply-link').href=base+'/event-application';
+document.getElementById('ev-apply-link').href=base+'/events?apply=1#ev-apply';
 document.getElementById('ev-business-link').textContent=applyText[3]+' →';
-document.getElementById('ev-business-link').href=base+'/event-application?kind=business';
+document.getElementById('ev-business-link').href=base+'/events?apply=1&kind=business#ev-apply';
+// 申請表與活動同頁：點按鈕、帶 ?apply／?kind、或有未送出的草稿時才載入表單模組
+function openApplication(kind){
+  const root=document.getElementById('ea-root');if(!root||detailSlug()||embedded)return;
+  if(root.dataset.loaded){const radio=kind&&root.querySelector('input[name="kind"][value="'+kind+'"]');if(radio&&!radio.checked&&!radio.closest('fieldset')?.disabled){radio.checked=true;radio.dispatchEvent(new Event('input',{bubbles:true}));}}
+  else{root.dataset.loaded='1';const query=new URLSearchParams(location.search);query.set('apply','1');if(kind)query.set('kind',kind);history.replaceState(null,'',location.pathname+'?'+query+location.hash);
+    const css=document.createElement('link');css.rel='stylesheet';css.href='/event-application.css';document.head.append(css);
+    const js=document.createElement('script');js.type='module';js.src='/event-application.js';document.head.append(js);}
+  root.hidden=false;document.getElementById('ev-apply').scrollIntoView({behavior:'smooth',block:'start'});
+}
+for(const [id,kind] of [['ev-apply-link','community'],['ev-business-link','business']])document.getElementById(id).onclick=event=>{event.preventDefault();openApplication(kind);};
+{const query=new URLSearchParams(location.search);let draft=false;try{draft=!!sessionStorage.getItem('tth_event_application_draft');}catch{}
+ if(query.has('apply')||query.has('kind')||draft&&location.hash==='#ev-apply')openApplication(query.get('kind')==='business'?'business':'');}
 document.getElementById('organizer-link').textContent={zh:'活動主登入／管理自己的活動 →',en:'Organizer login / Manage your events →',ja:'主催者ログイン・イベント管理 →'}[lang];
 document.getElementById('organizer-link').hidden=!!detailSlug();
 document.getElementById('ev-apply').hidden=!!detailSlug();

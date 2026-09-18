@@ -4,8 +4,8 @@ import vm from 'node:vm';
 import test from 'node:test';
 import { randomUUID } from 'node:crypto';
 
-const html = fs.readFileSync(new URL('../public/event-application.html', import.meta.url), 'utf8');
-const script = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].at(-1)[1];
+// 申請表是嵌在 /events 的 module；這裡直接以傳統腳本執行同一份原始碼
+const script = fs.readFileSync(new URL('../public/event-application.js', import.meta.url), 'utf8');
 const example = {
   community_name: '測試社群', contact_name: '測試聯絡人', contact_email: 'test@example.com',
   contact_phone: '', title: '測試活動', description: '社群交流', starts_at: '2099-09-20T18:00',
@@ -16,7 +16,7 @@ const storage = () => {
   return { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, String(value)), removeItem: key => data.delete(key) };
 };
 const tokenFor = (sub, nonce = 'original') => Buffer.from(JSON.stringify({ sub, nonce })).toString('base64url') + '.test-signature';
-function page({ hash = '#token=' + tokenFor('user-a'), path = '/event-application', draftStorage = storage() } = {}) {
+function page({ hash = '#token=' + tokenFor('user-a'), path = '/events', draftStorage = storage() } = {}) {
   const elements = new Map(), calls = [], localStorage = storage(), replaced = [];
   const node = id => {
     if (!elements.has(id)) elements.set(id, { value: '', textContent: '', hidden: false, disabled: false, handlers: {}, addEventListener(event, fn) { this.handlers[event] = fn; }, setCustomValidity(value) { this.validation = value; } });
@@ -52,7 +52,7 @@ function page({ hash = '#token=' + tokenFor('user-a'), path = '/event-applicatio
 
 test('application UI keeps the exact request across uncertain delivery and clears only on confirmed success', async () => {
   const p = page();
-  assert.deepEqual(p.replaced, ['/event-application?keep=1']);
+  assert.deepEqual(p.replaced, ['/events?keep=1']);
   assert.equal(p.localStorage.getItem('tth_token'), tokenFor('user-a'));
   p.fill();
   p.reply(new Error('network failure'));
@@ -97,9 +97,9 @@ test('validation failure permits correcting the same draft; expired login preser
 
 test('all three locales render the three application steps and display timestamps in Taiwan time', () => {
   for (const [prefix, heading, step] of [['', '申請社群活動', '聯絡資料'], ['/en', 'Apply for a community event', 'Contact details'], ['/ja', 'コミュニティ活動の会場利用申請', '連絡先']]) {
-    const p = page({ path: prefix + '/event-application', hash: '' });
-    assert.match(p.node('content').innerHTML, new RegExp(heading));
-    assert.match(p.node('content').innerHTML, new RegExp(step));
+    const p = page({ path: prefix + '/events', hash: '' });
+    assert.match(p.node('ea-root').innerHTML, new RegExp(heading));
+    assert.match(p.node('ea-root').innerHTML, new RegExp(step));
     assert.equal(p.node('ea-submit').disabled, true);
     assert.match(vm.runInContext("when('2099-09-20T10:00:00.000Z')", p.context), /18:00/);
     assert.equal(vm.runInContext("esc('<script>')", p.context), '&lt;script&gt;');

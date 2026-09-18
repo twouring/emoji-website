@@ -24,7 +24,7 @@ test('three-language pages, local assets, redirects and missing events', { skip:
   const prefixes = ['', '/en', '/ja'];
   const slugs = ['', 'about', 'system', 'space', 'events', 'member', 'access', 'fellow', 'startup', 'cis/'];
   const pages = prefixes.flatMap(pre => slugs.map(slug => `${pre}/${slug}`));
-  const extraPages = ['/admin', '/access-mock', '/ig-render', ...prefixes.map(pre => pre + '/event-application')];
+  const extraPages = ['/admin', '/access-mock', '/ig-render'];
   const assets = new Set();
   const checkedAssets = new Set();
   const summary = { pages: 0, extraPages: 0, missingEventPages: 0, missingEventApi: 0, redirects: 0, localAssets: 0, securityHeaders: 0, hstsHeaders: 0 };

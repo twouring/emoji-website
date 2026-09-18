@@ -270,9 +270,8 @@ let MENU_DIRTY = false;
 let MENU_DIRTY_TOASTED = false;
 let MENU_SEEDED = false;
 /* 場地申請按需載入；審核草稿跨分頁、refresh 保留。 */
-let APPLICATIONS = null, APPLICATION_FILTER = 'pending', APPLICATION_LOADING = false;
+let APPLICATIONS = null, APPLICATION_EVENT = '', APPLICATION_LOADING = false;
 let APPLICATION_REVIEWING = '', APPLICATION_MESSAGE = '';
-let APPLICATION_KIND = '';
 let CAL_MONTH = null;            // 行事曆月份 'YYYY-MM'；null=本月
 let COUNTER_UID = '';             // 櫃檯：選定的會員
 let LOGS = null, SYSTEM_SETTINGS = null;
@@ -421,7 +420,7 @@ function tabOverview(d, x){
   <div class="a-sec" id="overview-todo">${overviewTodoHTML(d, x)}</div>
   <div class="a-sec">
     <h2>快速指引</h2>
-    <p class="hint">此後台管理創始會員計畫與官網前台內容。每個分頁有獨立網址（如 <code>/admin/members</code>），可直接分享或加入書籤。左側分頁：<b>會員</b>可搜尋與匯出名單；<b>參與紀錄</b>確認會費入帳；<b>活動</b>建立活動、查看報名，其「場地申請」子頁審核社群與包場申請並寄送進度通知；<b>最新消息</b>會公開顯示於官網首頁；<b>網站內容</b>可編輯首頁公告；<a href="/access-mock" target="_blank" rel="noopener">門禁 Mock</a> 可協助手動驗簽與掃碼啟用。</p>
+    <p class="hint">此後台管理創始會員計畫與官網前台內容。每個分頁有獨立網址（如 <code>/admin/members</code>），可直接分享或加入書籤。左側分頁：<b>會員</b>可搜尋與匯出名單；<b>參與紀錄</b>確認會費入帳；<b>活動</b>建立活動、查看報名，場地申請會以「待審」活動出現在同一張清單，點進去審核並寄送進度通知；<b>最新消息</b>會公開顯示於官網首頁；<b>網站內容</b>可編輯首頁公告；<a href="/access-mock" target="_blank" rel="noopener">門禁 Mock</a> 可協助手動驗簽與掃碼啟用。</p>
   </div>`;
 }
 
@@ -505,25 +504,26 @@ function tabCommitments(d){
 function tabEvents(d){
   const evStatusPill = s => s==='報名中'?'pill-live':(s==='已結束'?'pill-done':'pill-draft');
   const body = (d.events||[]).map(e=>{
+    const shown = REVIEW_LABEL[e.review_status] || e.status;   // 場地申請＝待審的活動：未通過審核前以審核狀態為準
     const cap = e.capacity>0 ? `${e.reg_count}／${e.capacity}` : `${e.reg_count}／不限`;
     const link = e.id==='e_halloween_2026' ? '/halloween-2026' : '/events/' + encodeURIComponent(e.slug||e.id);
-    return `<tr data-event-row data-event-search="${esc(((e.title||'')+' '+(e.location||'')+' '+(e.slug||e.id||'')).toLowerCase())}" data-event-status="${esc(e.status)}">
+    return `<tr data-event-row data-event-search="${esc(((e.title||'')+' '+(e.location||'')+' '+(e.slug||e.id||'')).toLowerCase())}" data-event-status="${esc(shown)}">
       <td><b style="font-weight:500">${esc(e.title)}</b>
         <br><a href="${link}" target="_blank" rel="noopener" style="color:var(--muted);font-size:.82rem">${e.visibility==='private'?'私人連結':e.visibility==='members'?'會員限定':'公開頁'} ↗</a></td>
       <td class="a-mono">${esc(e.starts_at||'未定')}${e.ends_at?'<br>至 '+esc(e.ends_at):''}</td>
       <td>${esc(e.location||'')}</td>
       <td class="num" id="ev-cap-${e.id}">${cap}<br><span style="color:var(--muted)">已到 ${e.checkin_count||0}</span></td>
       <td class="num">${e.tickets?.length?'依票種':e.status==='預告'?'尚未開放':e.price_twd>0?NT(e.price_twd):'免費'}</td>
-      <td><span class="pill ${evStatusPill(e.status)}">${esc(e.status)}</span></td>
+      <td><span class="pill ${shown===e.status?evStatusPill(e.status):'pill-wait'}">${esc(shown)}</span></td>
       <td><a class="ui-button ui-button--secondary event-manage-button" href="${BASE}/events/${encodeURIComponent(e.id)}" data-ev-manage="${e.id}">管理</a></td>
     </tr>`;
   }).join('') || '<tr><td colspan="7" class="a-empty">尚無活動</td></tr>';
   return `<div class="a-sec">
-    ${d.organizer?'':`<nav id="ev-subnav" class="event-task-group__items" aria-label="活動分區"><a class="event-task" href="${BASE}/events" data-ev-sub="list" aria-pressed="true">活動清單</a><a class="event-task" href="${BASE}/events/applications" data-ev-sub="applications" aria-pressed="false">場地申請 <span class="badge" data-application-count hidden></span></a></nav>`}
     <div id="event-list-view">
     <div class="event-list-head"><div><h2>活動管理</h2>
-    <p class="hint">預告會公開顯示但不接受報名；草稿不公開。切換報名中後，0 元為免費票，付費票經 Stripe 確認後成立。請先確認票價與活動須知。</p></div>
-    <details id="event-editor"><summary id="event-editor-title">建立新活動</summary><p id="event-editor-context" class="hint">建立活動後，再設定票種、報名表與公開頁內容。</p><div class="a-form">
+    <p class="hint">場地申請送出後就是清單裡一場「待審」活動，點「管理」審核；通過後原地轉為公開活動。預告會公開顯示但不接受報名；草稿不公開。切換報名中後，0 元為免費票，付費票經 Stripe 確認後成立。請先確認票價與活動須知。</p></div>
+    ${d.organizer&&!d.can_create_events?'<a class="ui-button" href="/events?apply=1#ev-apply">申請新活動 →</a>':''}
+    <details id="event-editor" ${d.organizer&&!d.can_create_events?'hidden':''}><summary id="event-editor-title">建立新活動</summary><p id="event-editor-context" class="hint">建立活動後，再設定票種、報名表與公開頁內容。</p><div class="a-form">
       <input type="hidden" id="ev-id">
       <h3 style="width:100%">活動資訊</h3>
       <label>活動名稱<input id="ev-title" placeholder="例：七月社群沙龍"></label>
@@ -543,7 +543,7 @@ function tabEvents(d){
       <button class="btn btn--solid btn-sm" id="ev-save" ${d.organizer&&!d.can_create_events?'disabled':''}>建立活動</button>
       <button class="btn btn--ghost btn-sm" id="ev-reset" style="display:none">取消編輯</button>
     </div>
-    </details></div><div class="ui-scope ui-row event-list-tools"><label class="ui-field">搜尋活動<input id="ev-search" type="search" placeholder="名稱、地點或網址"></label><label class="ui-field">活動狀態<select id="ev-list-status"><option value="">全部狀態</option><option>草稿</option><option>預告</option><option>報名中</option><option>已結束</option><option>已取消</option></select></label><span id="ev-list-count" role="status" aria-live="polite"></span></div><p id="ev-list-empty" class="ui-scope ui-notice" hidden>沒有符合條件的活動，請調整搜尋或狀態。</p><div class="a-wrap2" tabindex="0" role="region" aria-label="活動清單，可橫向捲動"><table class="a-tbl a-events-table">
+    </details></div><div class="ui-scope ui-row event-list-tools"><label class="ui-field">搜尋活動<input id="ev-search" type="search" placeholder="名稱、地點或網址"></label><label class="ui-field">活動狀態<select id="ev-list-status"><option value="">全部狀態</option><option>待審</option><option>未通過</option><option>草稿</option><option>預告</option><option>報名中</option><option>已結束</option><option>已取消</option></select></label><span id="ev-list-count" role="status" aria-live="polite"></span></div><p id="ev-list-empty" class="ui-scope ui-notice" hidden>沒有符合條件的活動，請調整搜尋或狀態。</p><div class="a-wrap2" tabindex="0" role="region" aria-label="活動清單，可橫向捲動"><table class="a-tbl a-events-table">
       <caption>活動清單</caption><thead><tr><th scope="col">活動</th><th scope="col">時間</th><th scope="col">地點</th><th scope="col" class="num">報名／名額</th><th scope="col" class="num">票價</th><th scope="col">狀態</th><th scope="col">操作</th></tr></thead>
       <tbody>${body}</tbody></table></div></div>
     <section id="ev-manager" class="a-sec" aria-label="目前活動管理" hidden></section>
@@ -553,10 +553,12 @@ function tabEvents(d){
   </div>`;
 }
 
+const REVIEW_LABEL={pending:'待審',rejected:'未通過'};   // 場地審核未通過前，活動以審核狀態示人
+
 function openEventEditor(e,d){
   if(!e)return;
   const list=document.getElementById('event-list-view');if(list){list.hidden=false;list.classList.add('event-list-view--editing');}
-  document.getElementById('event-editor').open=true;
+  document.getElementById('event-editor').hidden=false;document.getElementById('event-editor').open=true;
   document.getElementById('event-editor-title').textContent='編輯活動｜'+e.title;
   document.getElementById('event-editor-context').textContent='正在編輯「'+e.title+'」。儲存後會回到更新後的活動清單。';
   document.getElementById('ev-id').value=e.id;
@@ -584,29 +586,31 @@ function syncCriticalEventUpdateNote(){
   note.hidden=!editing||!['ev-title','ev-when','ev-end','ev-loc'].some(id=>{const el=document.getElementById(id);return el.value!==(el.dataset.saved||'');});
 }
 
-function setEventSub(name){document.querySelectorAll('[data-ev-sub]').forEach(a=>a.setAttribute('aria-pressed',String(a.dataset.evSub===name)));const apps=document.getElementById('applications-body');if(apps)apps.hidden=name!=='applications';}
-function showApplications(){
-  const list=document.getElementById('event-list-view'),manager=document.getElementById('ev-manager'),hosts=document.getElementById('ev-hosts'),regs=document.getElementById('ev-regs');
-  if(list)list.hidden=true;if(manager)manager.hidden=true;if(hosts)hosts.hidden=true;if(regs)regs.style.display='none';
-  setEventSub('applications');paintApplications();loadApplications();
-  const crumb=document.getElementById('a-crumb-cur');if(crumb)crumb.textContent='活動｜場地申請';document.title='場地申請 · 活動管理 · 言文字';
+/* 場地申請＝這場活動的審核面板：平台管理員審核與寄進度；主辦人只讀自己的進度。 */
+function showEventApplication(id,d){
+  if(!d.organizer){APPLICATION_EVENT=id;document.getElementById('applications-body').hidden=false;paintApplications();if(APPLICATIONS===null)loadApplications();return;}
+  const a=(d.applications||[]).find(item=>item.event_id===id),host=document.getElementById('ev-hosts');host.hidden=false;
+  host.innerHTML=a?`<h2>場地申請 <span class="pill ${a.status==='approved'?'pill-ok':'pill-wait'}">${esc({pending:'審核中',approved:'已通過',rejected:'未通過'}[a.status]||a.status)}</span></h2>
+    <p class="hint">${a.status==='approved'?'場地申請已通過。檔期與費用仍以書面確認為準。':a.status==='pending'?'審核期間可以先準備票種、報名表與活動頁內容；通過前不能公開，也不能改時間與地點。':'這次申請未通過；可依回覆調整後，用「更多 → 複製並申請新場次」重新送件。'}</p>
+    ${a.review_note?`<p style="white-space:pre-wrap"><b>審核回覆</b><br>${esc(a.review_note)}</p>`:''}
+    <ol class="application-timeline">${(a.updates||[]).map(u=>`<li><span class="hint">${esc(applicationTime(u.created_at))}</span> <b>${esc(UPDATE_KIND_LABEL[u.kind]||u.kind)}</b>${u.kind==='update'&&u.message?`<p style="white-space:pre-wrap;margin:4px 0">${esc(u.message)}</p>`:''}</li>`).join('')}</ol>`:'<p class="a-empty">這場活動由平台建立，沒有場地申請紀錄。</p>';
 }
 function showEventList(){
   const list=document.getElementById('event-list-view'),manager=document.getElementById('ev-manager'),hosts=document.getElementById('ev-hosts'),regs=document.getElementById('ev-regs');
-  if(list){list.hidden=false;list.classList.remove('event-list-view--editing');}if(manager)manager.hidden=true;if(hosts)hosts.hidden=true;if(regs)regs.style.display='none';setEventSub('list');
+  if(list){list.hidden=false;list.classList.remove('event-list-view--editing');}if(manager)manager.hidden=true;if(hosts)hosts.hidden=true;if(regs)regs.style.display='none';APPLICATION_EVENT='';const apps=document.getElementById('applications-body');if(apps)apps.hidden=true;
   const crumb=document.getElementById('a-crumb-cur');if(crumb)crumb.textContent='活動';document.title='活動 · 後台管理 · 言文字';
 }
 
 function showEventManager(id,d){
-  const event=(d.events||[]).find(item=>item.id===id),manager=document.getElementById('ev-manager'),list=document.getElementById('event-list-view');if(!event||!manager)return false;if(list)list.hidden=true;setEventSub('list');
+  const event=(d.events||[]).find(item=>item.id===id),manager=document.getElementById('ev-manager'),list=document.getElementById('event-list-view');if(!event||!manager)return false;if(list)list.hidden=true;
   const link=event.id==='e_halloween_2026'?'/halloween-2026':'/events/'+encodeURIComponent(event.slug||event.id);
   const task=(name,label,danger=false)=>`<button type="button" class="event-task${danger?' event-task--danger':''}" data-event-task="${name}">${label}</button>`;
   const group=(label,items)=>`<div class="event-task-group"><span class="event-task-group__label">${label}</span><div class="event-task-group__items">${items}</div></div>`;
-  manager.hidden=false;manager.innerHTML=`<div class="ui-scope ui-stack"><div class="event-manager-head"><div><p class="hint" style="margin:0">正在管理</p><h2>${esc(event.title)}</h2><p class="event-manager-meta"><span class="ui-badge">${esc(event.status)}</span><span>報名 <b id="ev-meta-count">${event.reg_count||0}${event.capacity>0?'／'+event.capacity:'／不限'}</b></span><span>已到 <b id="ev-meta-checkin">${event.checkin_count||0}</b></span><span>${esc(event.starts_at||'時間未定')}</span><span>${esc(event.location||'')}</span></p></div><div class="event-manager-head__actions"><a class="ui-button ui-button--secondary" href="${BASE}/events" data-event-manager-close>返回活動清單</a><a class="ui-button ui-button--secondary" href="${link}" target="_blank" rel="noopener">預覽活動頁 ↗</a></div></div><nav class="event-task-nav" aria-label="活動管理項目">${group('報名與來賓',task('regs','名單／簽到')+task('import','新增／匯入來賓')+task('messages','來賓通知')+task('hosts','主辦團隊'))}${group('票券與報名流程',task('tickets','票種管理')+task('coupons','優惠碼')+task('questions','報名表')+task('settings','報名設定'))}${group('活動頁與分享',task('edit','基本資料')+task('details','頁面與地點')+task('content','詳細內容')+task('links','分享連結'))}${group('成效與紀錄',task('insights','活動數據')+task('payments','票款紀錄')+task('feedback','活動回饋')+task('activity','操作紀錄')+task('integration','API 與 Webhook'))}<details class="event-task-more"><summary>更多</summary><div class="event-task-group__items">${(!d.organizer||d.can_create_events)?task('duplicate','複製為新草稿'):''}${task('delete','刪除活動',true)}</div></details></nav></div>`;
+  manager.hidden=false;manager.innerHTML=`<div class="ui-scope ui-stack"><div class="event-manager-head"><div><p class="hint" style="margin:0">正在管理</p><h2>${esc(event.title)}</h2><p class="event-manager-meta"><span class="ui-badge">${esc(REVIEW_LABEL[event.review_status]||event.status)}</span><span>報名 <b id="ev-meta-count">${event.reg_count||0}${event.capacity>0?'／'+event.capacity:'／不限'}</b></span><span>已到 <b id="ev-meta-checkin">${event.checkin_count||0}</b></span><span>${esc(event.starts_at||'時間未定')}</span><span>${esc(event.location||'')}</span></p></div><div class="event-manager-head__actions"><a class="ui-button ui-button--secondary" href="${BASE}/events" data-event-manager-close>返回活動清單</a><a class="ui-button ui-button--secondary" href="${link}" target="_blank" rel="noopener">預覽活動頁 ↗</a></div></div><nav class="event-task-nav" aria-label="活動管理項目">${event.review_status?group('場地審核',task('application','場地申請'+(REVIEW_LABEL[event.review_status]?'｜'+REVIEW_LABEL[event.review_status]:''))):''}${group('報名與來賓',task('regs','名單／簽到')+task('import','新增／匯入來賓')+task('messages','來賓通知')+task('hosts','主辦團隊'))}${group('票券與報名流程',task('tickets','票種管理')+task('coupons','優惠碼')+task('questions','報名表')+task('settings','報名設定'))}${group('活動頁與分享',task('edit','基本資料')+task('details','頁面與地點')+task('content','詳細內容')+task('links','分享連結'))}${group('成效與紀錄',task('insights','活動數據')+task('payments','票款紀錄')+task('feedback','活動回饋')+task('activity','操作紀錄')+task('integration','API 與 Webhook'))}<details class="event-task-more"><summary>更多</summary><div class="event-task-group__items">${task('duplicate',d.organizer?'複製並申請新場次':'複製為新草稿')}${task('delete','刪除活動',true)}</div></details></nav></div>`;
   const crumb=document.getElementById('a-crumb-cur');if(crumb)crumb.textContent='活動｜'+event.title;document.title=event.title+' · 活動管理 · 言文字';
-  const actions={edit:()=>openEventEditor(event,d),regs:()=>showRegs(id,d),import:()=>showGuestImport(id,d),messages:()=>showEventMessages(id),hosts:()=>showEventHosts(id),tickets:()=>showEventTickets(id,d),coupons:()=>showEventCoupons(id),questions:()=>showEventQuestions(id,d),settings:()=>showRegistrationSettings(id,d),details:()=>showEventDetails(id,d),content:()=>showEventRichContent(id,api,document.getElementById('ev-hosts'),async()=>Object.assign(event,await api('/admin/events/'+id+'/content'))).catch(e=>toast(e.message)),links:()=>showEventLinks(id,d),insights:()=>showEventInsights(id),payments:()=>showEventPayments(id),feedback:()=>showEventFeedback(id),activity:()=>showEventActivity(id),integration:()=>showEventIntegration(id),duplicate:()=>showEventDuplicate(id,d),delete:()=>{if(confirm('確定刪除此活動？已有報名紀錄的活動不能刪除。'))doThen(async()=>{const out=await api('/admin/events/'+id,{method:'DELETE'});go('events',true);return out;},'已刪除活動');}};
-  manager.querySelectorAll('[data-event-task]').forEach(button=>button.onclick=()=>{manager.querySelectorAll('[data-event-task]').forEach(item=>item.removeAttribute('aria-pressed'));button.setAttribute('aria-pressed','true');document.getElementById('ev-hosts').hidden=true;document.getElementById('ev-regs').style.display='none';actions[button.dataset.eventTask]?.();});
-  const requestedTask=typeof location!=='undefined'&&location.search?new URLSearchParams(location.search).get('task'):'';manager.querySelector(`[data-event-task="${actions[requestedTask]?requestedTask:'regs'}"]`)?.click?.();
+  const actions={application:()=>showEventApplication(id,d),edit:()=>openEventEditor(event,d),regs:()=>showRegs(id,d),import:()=>showGuestImport(id,d),messages:()=>showEventMessages(id),hosts:()=>showEventHosts(id),tickets:()=>showEventTickets(id,d),coupons:()=>showEventCoupons(id),questions:()=>showEventQuestions(id,d),settings:()=>showRegistrationSettings(id,d),details:()=>showEventDetails(id,d),content:()=>showEventRichContent(id,api,document.getElementById('ev-hosts'),async()=>Object.assign(event,await api('/admin/events/'+id+'/content'))).catch(e=>toast(e.message)),links:()=>showEventLinks(id,d),insights:()=>showEventInsights(id),payments:()=>showEventPayments(id),feedback:()=>showEventFeedback(id),activity:()=>showEventActivity(id),integration:()=>showEventIntegration(id),duplicate:()=>showEventDuplicate(id,d),delete:()=>{if(confirm('確定刪除此活動？已有報名紀錄的活動不能刪除。'))doThen(async()=>{const out=await api('/admin/events/'+id,{method:'DELETE'});go('events',true);return out;},'已刪除活動');}};
+  manager.querySelectorAll('[data-event-task]').forEach(button=>button.onclick=()=>{manager.querySelectorAll('[data-event-task]').forEach(item=>item.removeAttribute('aria-pressed'));button.setAttribute('aria-pressed','true');document.getElementById('ev-hosts').hidden=true;document.getElementById('ev-regs').style.display='none';document.getElementById('applications-body').hidden=true;APPLICATION_EVENT='';actions[button.dataset.eventTask]?.();});
+  const requestedTask=typeof location!=='undefined'&&location.search?new URLSearchParams(location.search).get('task'):'';manager.querySelector(`[data-event-task="${actions[requestedTask]?requestedTask:event.review_status==='pending'?'application':'regs'}"]`)?.click?.();
   manager.scrollIntoView({behavior:'smooth',block:'start'});return true;
 }
 
@@ -616,16 +620,15 @@ function applicationTime(iso){
 }
 
 function paintApplications(){
-  const host = document.getElementById('applications-body');
-  if (!host) return;
   const pending = (APPLICATIONS || []).filter(a=>a.status==='pending').length;
   document.querySelectorAll('[data-application-count]').forEach(badge=>{ badge.hidden = APPLICATIONS === null || ('navBadge' in badge.dataset && !pending); badge.textContent = `待審 ${pending}`; });
+  const host = document.getElementById('applications-body');
+  if (!host || !APPLICATION_EVENT) return;
   const busy = APPLICATION_LOADING || !!APPLICATION_REVIEWING;
   const labels = {pending:'待審', approved:'通過', rejected:'未通過'};
-  const rows = (APPLICATIONS || []).filter(a=>(!APPLICATION_FILTER || a.status===APPLICATION_FILTER) && (!APPLICATION_KIND || (a.kind||'community')===APPLICATION_KIND));
+  const rows = (APPLICATIONS || []).filter(a=>a.event_id===APPLICATION_EVENT);
   const cards = rows.map(a=>`<article class="application-card">
     <h3>${esc(a.title)} <span class="pill ${a.status==='approved'?'pill-ok':'pill-wait'}">${esc(labels[a.status] || a.status)}</span> <span class="pill">${a.kind==='business'?'企業包場':'社群活動'} · ${a.venue==='2F'?'二樓交誼廳':'三樓共享空間'}</span></h3>
-    ${a.event_id?`<p><a data-reload href="${BASE}/events/${encodeURIComponent(a.event_id)}">管理活動 →</a></p>`:''}
     <dl class="application-details">
       <dt>${a.kind==='business'?'公司／團隊':'申請社群'}</dt><dd>${esc(a.community_name)}</dd>
       <dt>聯絡人</dt><dd>${esc(a.contact_name)}</dd>
@@ -659,22 +662,9 @@ function paintApplications(){
     </form>`:APPLICATION_DRAFTS.has(a.id)?`<details><summary>未送出的審核草稿</summary><p style="white-space:pre-wrap">${esc(APPLICATION_DRAFTS.get(a.id))}</p></details>`:''}
   </article>`).join('');
   host.setAttribute('aria-busy', String(busy));
-  host.innerHTML = `<h2>場地申請 <span class="pill pill-wait">${APPLICATIONS===null?'待審數尚未載入':`待審 ${pending} 件`}</span></h2>
-    <p class="hint">通過代表申請審核通過。勾選公開時會同步建立前台活動預告；檔期與費用仍須書面確認，不代表場地已保留。</p>
-    <div class="a-toolbar">
-      <label>審核狀態 <select id="application-filter" ${busy?'disabled':''}>
-        ${Object.entries({pending:'待審',approved:'通過',rejected:'未通過','':'全部'}).map(([value,label])=>`<option value="${value}" ${APPLICATION_FILTER===value?'selected':''}>${label}</option>`).join('')}
-      </select></label>
-      <label>類型 <select id="application-kind" ${busy?'disabled':''}>
-        ${Object.entries({'':'全部',community:'社群活動',business:'企業包場'}).map(([value,label])=>`<option value="${value}" ${APPLICATION_KIND===value?'selected':''}>${label}</option>`).join('')}
-      </select></label>
-      <button class="btn btn--ghost btn-sm" id="application-reload" ${busy?'disabled':''}>${APPLICATION_LOADING?'載入中…':'重新載入'}</button>
-    </div>
+  host.innerHTML = `<p class="hint">通過代表申請審核通過，這場活動會依申請的公開方式上線；檔期與費用仍須書面確認，不代表場地已保留。未通過則維持不公開。</p>
     <p class="application-message" role="status" aria-live="polite">${esc(APPLICATION_MESSAGE)}</p>
-    ${cards || `<p class="a-empty">${APPLICATION_LOADING?'載入申請中…':APPLICATIONS===null?'尚未取得申請資料，請重新載入。':'目前沒有符合篩選條件的申請。'}</p>`}`;
-  document.getElementById('application-filter').onchange = e=>{ APPLICATION_FILTER=e.target.value; paintApplications(); };
-  document.getElementById('application-kind').onchange = e=>{ APPLICATION_KIND=e.target.value; paintApplications(); };
-  document.getElementById('application-reload').onclick = ()=>loadApplications();
+    ${cards || `<p class="a-empty">${APPLICATION_LOADING?'載入申請中…':APPLICATIONS===null?'尚未取得申請資料，請重新整理。':'這場活動由平台建立，沒有場地申請紀錄。'}</p>`}`;
   host.querySelectorAll('[data-application-review]').forEach(form=>{
     form.elements.review_note.oninput = e=>APPLICATION_DRAFTS.set(form.dataset.applicationReview, e.target.value);
     form.onsubmit = e=>{
@@ -760,7 +750,10 @@ async function reviewApplication(form, status){
     if (data.ok!==true || data.application?.id!==id || data.application.status!==status) throw new Error('無法確認審核結果，請重新載入確認；草稿已保留。');
     APPLICATIONS = APPLICATIONS.map(a=>a.id===id?data.application:a);
     APPLICATION_DRAFTS.delete(id);
-    APPLICATION_MESSAGE = status==='approved'?(data.event?'已通過申請並建立公開活動預告。':'已通過申請；此活動不公開列出。'):'已將申請標記為未通過；請另行聯絡申請社群。';
+    APPLICATION_MESSAGE = status==='approved'?(data.event?'已通過申請，活動已公開。':'已通過申請；活動維持草稿，由主辦人自行發布。'):'已將申請標記為未通過；活動維持不公開。';
+    APPLICATION_REVIEWING = '';
+    toast(APPLICATION_MESSAGE);
+    await refresh();
   } catch(e) {
     APPLICATION_MESSAGE = '審核未完成：'+e.message+' 審核草稿已保留。';
     if (e.status===409) await loadApplications('此申請狀態已變更；未送出的審核草稿仍保留，可切換篩選查看。');
@@ -793,7 +786,7 @@ function tabUpdates(d){
 
 function tabMenu(d){
   const seeded = MENU_SEEDED;
-  const items = MenuLib.sortItems(MENU_DOC.items);
+  const items = MenuLib.sortItems(MENU_DOC.items).filter(it => !d.brand || it.venue === d.brand);
   const body = items.map(it => `<tr data-q="${esc([it.venue, it.cat, it.zh, it.en, it.note].join(' ').toLowerCase())}">
       <td>${it.image ? `<img src="${esc(it.image)}" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:6px;display:block">` : ''}</td>
       <td>${esc(MenuLib.VENUE_LABEL[it.venue]?.zh || it.venue)}</td>
@@ -822,7 +815,7 @@ function tabMenu(d){
       <tbody id="mi-body">${body}</tbody></table></div>
     <div class="a-form" style="margin-top:16px;border-top:1px dashed var(--line);padding-top:16px">
       <input type="hidden" id="mi-id">
-      <label>店別<select id="mi-venue">${MenuLib.VENUES.map(v => `<option value="${v}">${MenuLib.VENUE_LABEL[v].zh}</option>`).join('')}</select></label>
+      <label>店別<select id="mi-venue">${MenuLib.VENUES.filter(v => !d.brand || v === d.brand).map(v => `<option value="${v}">${MenuLib.VENUE_LABEL[v].zh}</option>`).join('')}</select></label>
       <label>分類<select id="mi-cat">${MenuLib.CATS.map(c => `<option value="${c}">${MenuLib.CAT_LABEL[c].zh}（${c}）</option>`).join('')}</select></label>
       <label>中文<input id="mi-zh" placeholder="品名（中）"></label>
       <label>英文<input id="mi-en" placeholder="ITEM NAME"></label>
@@ -916,14 +909,14 @@ function paintCalendar(){
   const days = new Date(y, m, 0).getDate();
   const lead = (new Date(y, m-1, 1).getDay() + 6) % 7;   // 週一起
   const items = [];
-  (APPLICATIONS || []).filter(a=>a.status!=='rejected').forEach(a=>{
-    items.push({ date:new Date(a.starts_at), end:new Date(a.ends_at), cls:a.status==='approved'?'cal-ok':'cal-wait', href:BASE+'/events/applications',
-      label:(a.kind==='business'?'包場':'社群')+'·'+(a.venue==='2F'?'交誼廳':'3F')+' '+a.title });
-  });
+  // 申請即活動：每筆申請都有對應活動，行事曆以活動為準（時間可能在通過後調整），申請只補上類型標籤
+  const appByEvent = new Map((APPLICATIONS || []).map(a=>[a.event_id, a]));
   ((DATA && DATA.events) || []).forEach(e=>{
+    if (e.review_status==='rejected') return;
     const t = new Date(e.starts_at_iso || e.starts_at); if (isNaN(t)) return;
-    const end = e.ends_at_iso ? new Date(e.ends_at_iso) : null;
-    items.push({ date:t, end, cls:'cal-ev'+(e.status==='已取消'?' cal-cancel':''), href:BASE+'/events/'+encodeURIComponent(e.id), label:(e.status==='已取消'?'已取消 ':'活動 ')+e.title });
+    const end = e.ends_at_iso ? new Date(e.ends_at_iso) : null, a = appByEvent.get(e.id);
+    const kind = a ? (a.kind==='business'?'包場':'社群')+'·'+(a.venue==='2F'?'交誼廳':'3F')+' ' : '活動 ';
+    items.push({ date:t, end, cls:e.review_status==='pending'?'cal-wait':a&&e.status==='草稿'?'cal-ok':'cal-ev'+(e.status==='已取消'?' cal-cancel':''), href:BASE+'/events/'+encodeURIComponent(e.id), label:(e.status==='已取消'?'已取消 ':e.review_status==='pending'?'待審 ':'')+kind+e.title });
   });
   const byDay = {};
   items.forEach(it=>{ if (it.date.getFullYear()!==y || it.date.getMonth()!==m-1) return; (byDay[it.date.getDate()] = byDay[it.date.getDate()] || []).push(it); });
@@ -1078,18 +1071,22 @@ async function loadOrders(){
 function tabAdmins(d){
   const body = (d.users||[]).filter(u=>u.email).map(u=>`<tr>
     <td>${esc(u.name)}</td><td class="a-mono">${esc(u.email)}</td>
-    <td>${u.is_admin?'<span class="pill pill-ok">管理員</span>':'<span class="pill pill-wait">一般</span>'}</td>
-    <td>${d.super?`<button class="btn btn--ghost btn-sm" data-admin="${u.id}" data-on="${u.is_admin?'0':'1'}">${u.is_admin?'取消管理員':'設為管理員'}</button>`:''}</td>
+    <td>${u.is_admin?`<span class="pill pill-ok">${u.admin_brand?esc(BRAND_LABEL[u.admin_brand])+' 子帳號':'言文字 根帳號'}</span>`:'<span class="pill pill-wait">一般</span>'}</td>
+    <td>${d.super?`<select data-brand-for="${u.id}" aria-label="後台範圍"><option value="">言文字（全部）</option>${Object.entries(BRAND_LABEL).map(([v,l])=>`<option value="${v}" ${u.admin_brand===v?'selected':''}>${l}</option>`).join('')}</select> <button class="btn btn--ghost btn-sm" data-admin="${u.id}" data-on="1">${u.is_admin?'更新範圍':'設為管理員'}</button>${u.is_admin?` <button class="btn btn--ghost btn-sm" data-admin="${u.id}" data-on="0">取消管理員</button>`:''}`:''}</td>
   </tr>`).join('') || '<tr><td colspan="4" class="a-empty">尚無使用者</td></tr>';
   return `<div class="a-sec">
     <h2>權限管理</h2>
-    <p class="hint">對象須先登入過本站。只有超管可授予管理員。外部主辦人不在這裡設定：到「活動」開啟該場活動的「主辦團隊」，加入對方 Email 並勾選「共同管理本活動」，對方即可從 /organizer/events 管理那一場。</p>
+    <p class="hint">對象須先登入過本站。只有超管可授予管理員。言文字是根帳號，可讀寫整個後台；在咖啡／三點水子帳號只有「點餐出餐」與「菜單」（限自己店別），等等空間子帳號只有「活動」「行事曆」「櫃檯」。外部主辦人不在這裡設定：到「活動」開啟該場活動的「主辦團隊」，加入對方 Email 並勾選「共同管理本活動」，對方即可從 /organizer/events 管理那一場。</p>
     <div class="a-wrap2"><table class="a-tbl">
       <thead><tr><th>姓名</th><th>Email</th><th>目前</th><th>操作</th></tr></thead>
       <tbody>${body}</tbody></table></div>
   </div>`;
 }
 
+/* 品牌子帳號：言文字＝根帳號（brand 為空）看全部；子帳號只看自己的分頁（伺服器端同步把關） */
+const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水', SPACE:'等等空間' };
+const BRAND_TABS = { CAFE:['orders','menu'], BAR:['orders','menu'], SPACE:['events','calendar','counter'] };
+const homeTab = d => d?.organizer ? 'events' : d?.brand ? BRAND_TABS[d.brand][0] : 'overview';
 const TABS = [
   { id:'overview',    label:'總覽',     render:tabOverview },
   { id:'members',     label:'會員',     render:tabMembers },
@@ -1151,8 +1148,8 @@ function render(d){
   if (d.me && d.me.name) try { localStorage.setItem('tth_name', d.me.name); } catch (e) {}
   logoutBtn.style.display='';
   const x = derived(d);
-  const tabs = TABS.filter(t => d.organizer ? t.id==='events' : !t.super || d.super);
-  if (!tabs.find(t=>t.id===TAB)) TAB=d.organizer?'events':'overview';
+  const tabs = TABS.filter(t => d.organizer ? t.id==='events' : d.brand ? BRAND_TABS[d.brand].includes(t.id) : !t.super || d.super);
+  if (!tabs.find(t=>t.id===TAB)) TAB=homeTab(d);
   const navBtn = t => {
     const badge = t.id==='events' ? ((d.events||[]).length ? `<span class="badge">${d.events.length}</span>` : '')+(d.organizer?'':'<span class="badge" data-application-count data-nav-badge hidden></span>') : '';
     return `<button data-tab="${t.id}" class="${t.id===TAB?'on':''}" aria-current="${t.id===TAB?'page':'false'}">${ico(t.id)}<span class="l">${t.label}</span>${badge}</button>`;
@@ -1170,7 +1167,7 @@ function render(d){
     <div class="a-main">${panels}</div>
   </div>`;
   const crumb = document.getElementById('a-crumb');
-  if (crumb) { crumb.hidden = false; document.getElementById('a-role').textContent = d.organizer ? '活動主' : d.super ? '超級管理員' : '管理員'; }
+  if (crumb) { crumb.hidden = false; document.getElementById('a-role').textContent = d.organizer ? '活動主' : d.super ? '言文字 · 超級管理員' : d.brand ? BRAND_LABEL[d.brand]+' · 子帳號' : '言文字 · 管理員'; }
   bindNav(); bind(d, x);
 }
 
@@ -1198,7 +1195,7 @@ function applyRoute(){
   if (h === 'content') h = 'system';         // 網站內容已集中至系統設定
   if (h === 'applications') { go('events/applications', true); return; }   // 場地申請已併入活動分頁，舊書籤改寫網址
   if (!document.querySelector('[data-panel]')) return;
-  const parts = (h || (DATA?.organizer?'events':'overview')).split('/');
+  const parts = (h || homeTab(DATA)).split('/');
   const tab = parts[0];
   if (!document.querySelector(`[data-panel="${CSS.escape(tab)}"]`)) { go('', true); return; }
   activateTab(tab);
@@ -1209,7 +1206,7 @@ function applyRoute(){
   if (tab === 'logs') { loadLogs(); return; }
   if (tab === 'system') { if(DATA?.super)loadSystemSettings(); return; }
   if (tab === 'ads') { paintAds(); return; }
-  if (tab === 'events') { if(APPLICATIONS===null&&!DATA?.organizer)loadApplications(); if(parts[1]==='applications'){if(DATA?.organizer){go('events',true);return;}showApplications();} else if(parts[1]&&!showEventManager(parts[1],DATA)){toast('找不到這場活動');go('events',true);} else if(!parts[1])showEventList(); return; }
+  if (tab === 'events') { if(APPLICATIONS===null&&!DATA?.organizer)loadApplications(); if(parts[1]==='applications'){go('events',true);const f=document.getElementById('ev-list-status');if(f&&!DATA?.organizer){f.value='待審';f.dispatchEvent(new Event('change'));}return;} else if(parts[1]&&!showEventManager(parts[1],DATA)){toast('找不到這場活動');go('events',true);} else if(!parts[1])showEventList(); return; }
   if (tab !== 'social') return;
   const v = parts[1] || SOCIAL_VIEW;
   if (['igstudio','xstudio'].includes(v)) {
@@ -1359,7 +1356,7 @@ function bind(d, x){
   });
 
   // 管理員
-  document.querySelectorAll('[data-admin]').forEach(b=>b.onclick=()=>{if(!confirm(`確定${b.textContent.trim()}：${b.closest('tr')?.querySelector('td')?.textContent.trim()||''}？管理員可讀寫整個後台。`))return;doThen(()=>api('/admin/users/'+b.dataset.admin+'/admin',{method:'POST',body:{admin:b.dataset.on==='1'}}),'已更新管理權限');});
+  document.querySelectorAll('[data-admin]').forEach(b=>b.onclick=()=>{if(!confirm(`確定${b.textContent.trim()}：${b.closest('tr')?.querySelector('td')?.textContent.trim()||''}？`))return;doThen(()=>api('/admin/users/'+b.dataset.admin+'/admin',{method:'POST',body:{admin:b.dataset.on==='1',brand:document.querySelector(`[data-brand-for="${b.dataset.admin}"]`)?.value||null}}),'已更新管理權限');});
 
   // 菜單
   bindMenu();
@@ -1401,7 +1398,7 @@ function paintMenu(){
 
 function resetMenuForm(){
   document.getElementById('mi-id').value = '';
-  document.getElementById('mi-venue').value = 'CAFE';
+  document.getElementById('mi-venue').value = DATA?.brand || 'CAFE';
   document.getElementById('mi-cat').value = 'FOOD';
   ['mi-zh','mi-en','mi-note','mi-image'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   const pv=document.getElementById('prev-mi-image'); if(pv){ pv.src=''; pv.style.display='none'; }

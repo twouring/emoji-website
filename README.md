@@ -13,7 +13,7 @@
 | `/ig-media/*` | 物件儲存（Railway bucket／MinIO，皆不公開）的同網域代理：社群素材、貼文圖、活動圖的公開網址一律是 `PUBLIC_ORIGIN/ig-media/<key>` |
 | `/order?t=桌號&k=簽章` | 桌邊 QR 點餐（不登入）：同桌共用購物車、TapPay 刷卡、取餐推播；QR 由後台「點餐出餐」分頁產生 |
 | `/events`、`/en/events`、`/ja/events` | 公開活動列表；私人活動以不列出的直接連結分享 |
-| `/event-application`、`/en/event-application`、`/ja/event-application` | 社群提出三樓場地活動申請、查詢自己的申請與審核回覆 |
+| `/events?apply=1#ev-apply`（三語同） | 場地／活動申請表嵌在活動頁（`event-application.js` module，按需載入）；查詢自己的申請與審核回覆。舊 `/event-application` 301 轉入 |
 
 前端靜態檔全部在 `public/`（`public/fellow/` 為 fellow 前端），伺服器源碼（`server.js`、`package.json`）不外露。
 
@@ -72,7 +72,7 @@ DB 未設定時伺服器優雅降級：靜態頁照常，`/api/*` 回 503。
 
 - 超級管理員可於 `/admin/system` 管理第三方服務憑證與系統參數；機敏值以 `APP_SECRET` 衍生金鑰加密、後台不讀回明文，重新啟動服務後生效。`DATABASE_URL`、`APP_SECRET`、`PII_KEY`、`ADMIN_API_KEY`、`SUPER_ADMIN_EMAIL` 與網路信任邊界仍只可在部署環境設定。
 
-- 社群場地申請沿用 Google 登入及 Postgres，無需付費會籍；啟動時自動建立 `event_applications`。後台「場地申請」分頁處理通過／未通過，通過時依申請設定建立公開或私人活動（舊申請沿用選擇公開預告）；並可隨時寄送其他進度更新。送出、審核結果與每次進度更新都寫入 `event_application_updates` 並以 Email 通知申請人（寄失敗自動重試、可於後台重寄），申請人登入後可看完整進度紀錄。送出或審核通過仍不代表完成檔期預訂。
+- 社群場地申請沿用 Google 登入及 Postgres，無需付費會籍；啟動時自動建立 `event_applications`。申請即活動：送件當下建立一場待審草稿活動（`events.review_status`），後台在同一張活動清單以「待審」顯示，點進該場的「場地申請」審核；通過時原地依申請設定公開（舊申請沿用選擇公開預告），啟動時會為舊申請補建活動；並可隨時寄送其他進度更新。送出、審核結果與每次進度更新都寫入 `event_application_updates` 並以 Email 通知申請人（寄失敗自動重試、可於後台重寄），申請人登入後可看完整進度紀錄。送出或審核通過仍不代表完成檔期預訂。
 
 - Google OAuth：Console 的授權導回 URI 需設為 `https://www.emoji.tw/auth/google/callback`。
 - Google Meet OAuth：另設可要求 `calendar.events` 的 OAuth client，授權導回 URI 為 `https://www.emoji.tw/integrations/google-meet/callback`。
