@@ -17,7 +17,7 @@ test('every progress kind produces a personal mail with the application id and p
     assert.match(subject, /年度聚會/);
     assert.match(text, /^王小明 您好，/);
     assert.match(text, /申請編號：ea_test/);
-    assert.match(text, /https:\/\/www\.emoji\.tw\/event-application/);
+    assert.ok(text.includes(`https://www.emoji.tw/events?apply=1&application=${application.id}#ev-apply`));
   }
   const submitted = mail.applicationUpdateMail({ application, update: { kind: 'submitted' } }).text;
   assert.match(submitted, /二樓交誼廳/);
