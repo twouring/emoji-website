@@ -2054,7 +2054,7 @@ function igStatusHTML(){
   const s = SOCIAL_IG_STATUS;
   if (!s) return '';
   const on = (ok, yes, no) => `<span class="pill ${ok?'pill-ok':'pill-draft'}">${ok?yes:no}</span>`;
-  const nextRows = (s.next||[]).map(n=>`<span class="a-mono" style="font-size:.78rem">${esc(n.at)}</span> <a href="#" data-sp-edit="${esc(n.id)}">${esc(n.title)}</a>`).join('<br>') || '<span style="color:var(--muted)">（無排程，AI 週日 20:00 自動補產）</span>';
+  const nextRows = (s.next||[]).map(n=>`<span class="a-mono" style="font-size:.78rem">${esc(n.at)}</span> <a href="#" data-sp-edit="${esc(n.id)}">${esc(n.title)}</a>`).join('<br>') || '<span style="color:var(--muted)">（無排程）</span>';
   const pubRows = (s.recentPublished||[]).map(p=>`<span class="a-mono" style="font-size:.78rem">${esc(p.at||'')}</span> ${p.external_url?`<a href="${esc(p.external_url)}" target="_blank" rel="noopener">${esc(p.title)}</a>`:esc(p.title)}`).join('<br>') || '<span style="color:var(--muted)">尚無</span>';
   const errRows = (s.errors||[]).map(e=>`<a href="#" data-sp-edit="${esc(e.id)}">${esc(e.title)}</a>`).join('<br>');
   const staleRows = (s.stale||[]).map(e=>`<span class="a-mono" style="font-size:.78rem">${esc(e.at)}</span> <a href="#" data-sp-edit="${esc(e.id)}">${esc(e.title)}</a>`).join('<br>');
@@ -2063,12 +2063,12 @@ function igStatusHTML(){
     <tr><td style="width:140px">系統</td><td>
       ${on(s.autopublish,'自動發佈運轉中','自動發佈停用')}
       ${on(s.hasToken,'IG 已連線','IG token 未設')}
-      ${on(s.hasAiKey,'AI 補產就緒','AI 補產未設 key')}
       ${on(s.s3,'圖存 MinIO','圖存本機（重建會遺失）')}
       <span class="pill pill-wait">素材 ${s.assets?s.assets.unused:0}/${s.assets?s.assets.total:0} 未用</span>
     </td></tr>
     <tr><td>排程佇列</td><td>${nextRows}</td></tr>
     <tr><td>最近發布</td><td>${pubRows}</td></tr>
+    <tr><td>官網導流（30 天）</td><td>${(s.utm||[]).map(u=>`${esc(u.source)}${u.medium?' / '+esc(u.medium):''}　${num(u.hits)}`).join('<br>')||'<span style="color:var(--muted)">尚無（IG 簡介連結帶 ?utm_source=instagram&amp;utm_medium=bio 才會計入）</span>'}</td></tr>
     ${errRows?`<tr><td><span class="pill pill-draft">發佈失敗</span></td><td>${errRows}<br><span style="color:var(--muted);font-size:.78rem">原因記於貼文備註；改回「已排程」即重試</span></td></tr>`:''}
     ${staleRows?`<tr><td><span class="pill pill-wait">過期未發</span></td><td>${staleRows}<br><span style="color:var(--muted);font-size:.78rem">逾 24 小時不自動補發，請改期</span></td></tr>`:''}
   </tbody></table></div>`;

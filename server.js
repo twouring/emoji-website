@@ -433,6 +433,14 @@ CREATE TABLE IF NOT EXISTS ad_campaigns (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS utm_hits (
+  day DATE NOT NULL,
+  source TEXT NOT NULL,
+  medium TEXT NOT NULL DEFAULT '',
+  campaign TEXT NOT NULL DEFAULT '',
+  hits INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, source, medium, campaign)
+);
 `;
 
 async function migrate() {
@@ -1287,6 +1295,21 @@ app.use((req, res, next) => {
   if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) res.set('Cache-Control', 'no-store');
   next();
 });
+// 導流歸因：帶 utm_source 的到訪按日計數，並記首次來源 cookie（只存來源字串、不追蹤個人），結帳時寫進 Stripe metadata
+const utmPart = v => String(v || '').toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 40);
+const srcOf = req => {
+  const v = (req.headers.cookie || '').split(';').map(s => s.trim()).find(s => s.startsWith('src='))?.slice(4) || '';
+  try { return decodeURIComponent(v).slice(0, 130); } catch { return ''; }
+};
+app.use((req, res, next) => {
+  const source = req.method === 'GET' ? utmPart(req.query.utm_source) : '';
+  if (!source) return next();
+  const medium = utmPart(req.query.utm_medium), campaign = utmPart(req.query.utm_campaign);
+  if (pool && dbReady) q(`INSERT INTO utm_hits (day,source,medium,campaign,hits) VALUES ((now() AT TIME ZONE 'Asia/Taipei')::date,$1,$2,$3,1)
+    ON CONFLICT (day,source,medium,campaign) DO UPDATE SET hits=utm_hits.hits+1`, [source, medium, campaign]).catch(e => console.error('[utm]', e.message));
+  if (!srcOf(req)) res.cookie('src', [source, medium, campaign].join('|'), { maxAge: 30 * 86400e3, httpOnly: true, sameSite: 'lax', secure: SITE_BASE.startsWith('https://'), path: '/' });
+  next();
+});
 app.use('/auth', rateLimit({ max: 30 }));
 app.use('/api', (req, res, next) => req.path === '/stripe/webhook' ? next() : apiLimit(req, res, next));
 const apiLimit = rateLimit({ max: 240 });
@@ -2082,7 +2105,7 @@ app.post('/api/me/points/orders', auth, requireDb, wrap(async (req, res) => {
     success_url: `${origin}${memberBase}?points_paid=1&oid=${id}&s={CHECKOUT_SESSION_ID}`,
     cancel_url: `${origin}${memberBase}?points_canceled=1`,
     client_reference_id: id,
-    metadata: { kind: 'point_pack', point_order_id: id, user_id: req.auth.sub, pack_id: pack.id },
+    metadata: { kind: 'point_pack', point_order_id: id, user_id: req.auth.sub, pack_id: pack.id, src: srcOf(req) || undefined },
   });
   await q(`UPDATE point_orders SET stripe_session_id=$2 WHERE id=$1`, [id, session.id]);
   res.json({ order_id: id, url: session.url });
@@ -3620,9 +3643,8 @@ app.post('/api/admin/social/:id/publish-ig', auth, adminOnly, requireDb, wrap(as
   if (post.status === 'published') return res.status(400).json({ error: '此貼文已發佈過。' });
   try {
     const r = await igPublisher.publishPost(post, igDeps());
-    await q(`UPDATE social_posts SET status='published', published_at=now(), external_url=$2, images=$3, updated_at=now() WHERE id=$1`,
-      [post.id, r.externalUrl, JSON.stringify(r.images)]);
-    res.json({ ok: true, url: r.externalUrl, images: r.images });
+    await igPublisher.markPublished(igDeps(), post.id, r);
+    res.json({ ok: true, url: r.externalUrl, images: r.images, duplicate: !!r.duplicate });
   } catch (e) {
     await q(`UPDATE social_posts SET status='error', notes=left(concat('[ig-publish] ', $2::text, E'\n', notes), 2000), updated_at=now() WHERE id=$1`,
       [post.id, e.message]);
@@ -3630,12 +3652,7 @@ app.post('/api/admin/social/:id/publish-ig', auth, adminOnly, requireDb, wrap(as
   }
 }));
 
-// AI 補產：手動觸發（測試／立即補檔）；正常由每週日 cron 執行
 const igComposer = require('./lib/ig-composer');
-app.post('/api/admin/ig/compose', auth, adminOnly, requireDb, wrap(async (_req, res) => {
-  try { res.json({ ok: true, made: await igComposer.composeWeek(igDeps()) }); }
-  catch (e) { res.status(502).json({ error: e.message }); }
-}));
 
 // X 貼文 AI 起草：主題 → 中日雙語推文草稿（沿用 IG 補產的品牌鐵律與禁用字守門；需 ANTHROPIC_API_KEY）
 app.post('/api/admin/x/compose', auth, adminOnly, wrap(async (req, res) => {
@@ -3741,6 +3758,8 @@ app.get('/api/admin/ig/status', auth, adminOnly, requireDb, wrap(async (_req, re
   const assetStats = (await q(`SELECT count(*)::int AS total, count(*) FILTER (WHERE used_by='')::int AS unused FROM ig_assets`)).rows[0];
   const recentPublished = (await q(`SELECT id,title,external_url,to_char(published_at AT TIME ZONE 'Asia/Taipei','MM-DD HH24:MI') AS at
     FROM social_posts WHERE platform='ig' AND status='published' ORDER BY published_at DESC NULLS LAST LIMIT 5`)).rows;
+  const utm = (await q(`SELECT source,medium,sum(hits)::int AS hits FROM utm_hits
+    WHERE day > (now() AT TIME ZONE 'Asia/Taipei')::date - 30 GROUP BY 1,2 ORDER BY 3 DESC LIMIT 10`)).rows;
   res.json({
     autopublish: process.env.IG_AUTOPUBLISH === '1',
     igUserId: process.env.IG_USER_ID || 'me',
@@ -3749,7 +3768,7 @@ app.get('/api/admin/ig/status', auth, adminOnly, requireDb, wrap(async (_req, re
     s3: !!(process.env.S3_ENDPOINT && process.env.S3_ACCESS_KEY && process.env.S3_SECRET_KEY),
     assets: assetStats,
     banned: igPublisher.bannedList(),
-    next: nextUp, errors, stale, recentPublished,
+    next: nextUp, errors, stale, recentPublished, utm,
   });
 }));
 
@@ -3770,11 +3789,14 @@ app.get('/api/admin/ig/insights', auth, adminOnly, requireDb, wrap(async (_req, 
   };
   const account = await get('me', { fields: 'username,followers_count,follows_count,media_count' });
   const media = (await get('me/media', { fields: 'id,permalink,timestamp,media_type,like_count,comments_count', limit: 50 })).data || [];
-  const posts = (await q(`SELECT id,title,external_url,metrics FROM social_posts WHERE platform='ig' AND status='published' AND external_url<>''`)).rows;
+  const posts = (await q(`SELECT id,title,external_url,metrics FROM social_posts WHERE platform='ig' AND status='published'
+    AND (external_url<>'' OR coalesce(metrics->>'media_id','')<>'')`)).rows;
   const norm = u => String(u || '').replace(/\/+$/, '').replace(/\?.*$/, '');
   const out = [];
   for (const post of posts) {
-    const m = media.find(x => norm(x.permalink) === norm(post.external_url));
+    let m = post.external_url ? media.find(x => norm(x.permalink) === norm(post.external_url)) : null;
+    // 有 media_id（發佈時即存）就直查，不受 /me/media 只回最新 50 則的限制
+    if (!m && post.metrics?.media_id) m = await get(post.metrics.media_id, { fields: 'id,permalink,media_type,like_count,comments_count' }).catch(() => null);
     if (!m) { out.push({ id: post.id, title: post.title, matched: false }); continue; }
     const metrics = { media_id: m.id, media_type: m.media_type, likes: m.like_count || 0, comments: m.comments_count || 0 };
     try {
@@ -4301,7 +4323,7 @@ app.post('/api/checkout', requireDb, wrap(async (req, res) => {
       cancel_url: `${origin}${langPrefix}/fellow?canceled=1`,
       billing_address_collection: 'required',
       phone_number_collection: { enabled: true },
-      metadata: { plan: 'founding-member', term_months: String(MAX_TERM), start_date: MEMBERSHIP_START, end_date: endMinus1 },
+      metadata: { plan: 'founding-member', term_months: String(MAX_TERM), start_date: MEMBERSHIP_START, end_date: endMinus1, src: srcOf(req) || undefined },
     });
     await client.query('COMMIT');
     res.json({ url: session.url });
@@ -4352,7 +4374,7 @@ app.post('/api/me/plans/checkout', auth, requireDb, wrap(async (req, res) => {
     }],
     success_url: `${SITE_BASE}${memberBase}?plan_paid=1&s={CHECKOUT_SESSION_ID}`,
     cancel_url: `${SITE_BASE}${memberBase}?plan_canceled=1`,
-    metadata: { kind: 'plan', plan, user_id: req.auth.sub },
+    metadata: { kind: 'plan', plan, user_id: req.auth.sub, src: srcOf(req) || undefined },
   });
   res.json({ url: session.url });
 }));
@@ -4672,16 +4694,17 @@ async function boot() {
   // IG 自動發佈 cron：env IG_AUTOPUBLISH=1 才啟用（本機開發預設不跑，避免誤發）
   if (process.env.IG_AUTOPUBLISH === '1' && dbReady) {
     const cron = require('node-cron');
+    // 失敗即寄信（2026-09-20 失敗篇躺 7 天沒人發現）；改回「已排程」即重試
+    const igAlert = (subject, text) => sendMailQuietly({ to: NOTIFY_EMAIL, subject: `[IG] ${subject}`, text });
     cron.schedule('*/5 * * * *', () => igPublisher.publishDue(igDeps())
+      .then(rs => rs.filter(r => !r.ok).forEach(r => igAlert(`發文失敗：${r.title}`,
+        `貼文「${r.title}」自動發佈失敗，已標為錯誤、不會自動重發。\n\n原因：${r.error}\n\n處理：${SITE_BASE}/admin/social/edit/${r.id}（修正後把狀態改回「已排程」並設定新時間即重發）`)))
       .catch(e => console.error('[ig-publish] cron 失敗：', e.message)));
-    // 長期 token 60 天效期，每日續期一次（台北 04:10 離峰）
+    // 長期 token 60 天效期，每日續期一次（台北 04:10 離峰）；失敗每天提醒，過期前須處理
     cron.schedule('10 4 * * *', () => igPublisher.refreshToken(igDeps())
       .then(sec => sec && console.log(`[ig-publish] token 已續期，效期 ${Math.round(sec / 86400)} 天`))
-      .catch(e => console.error('[ig-publish] token 續期失敗：', e.message)), { timezone: 'Asia/Taipei' });
-    // AI 補產：每週日 20:00 檢查未來 7 天排程，不足補滿（需 ANTHROPIC_API_KEY）
-    cron.schedule('0 20 * * 0', () => igComposer.composeWeek(igDeps())
-      .catch(e => console.error('[ig-compose] cron 失敗：', e.message)), { timezone: 'Asia/Taipei' });
-    console.log('[ig-publish] 自動發佈已啟用（每 5 分掃描；週日 20:00 AI 補產）');
+      .catch(e => { console.error('[ig-publish] token 續期失敗：', e.message); igAlert('token 續期失敗', `IG token 今日續期失敗，60 天效期到期後自動發文會全部停擺。\n\n原因：${e.message}`); }), { timezone: 'Asia/Taipei' });
+    console.log('[ig-publish] 自動發佈已啟用（每 5 分掃描；失敗寄信）');
   } else {
     console.log('[ig-publish] 自動發佈未啟用（IG_AUTOPUBLISH!=1 或無資料庫）');
   }

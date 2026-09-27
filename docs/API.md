@@ -271,19 +271,18 @@ query `tables=A1,A2`（最多 100 桌，英數字與 -，8 字內）。回 `{ ta
 刪除貼文。刪除種子貼文（`sp_seed_*`）會寫入墓碑，避免下次部署復活。
 
 ### POST /api/admin/social/:id/publish-ig
-立即發布單篇 IG 貼文（不等排程）。成功回 `{ ok, url, images }`；失敗把錯誤寫回貼文 `notes` 並回 502。
+立即發布單篇 IG 貼文（不等排程）。成功回 `{ ok, url, images, duplicate }`；IG 最近 5 則已有同文時不重發、直接標記已發（`duplicate:true`）；`media_id` 存進 `metrics`。失敗把錯誤寫回貼文 `notes` 並回 502。自動排程發佈失敗會寄信到 `NOTIFY_EMAIL`。
 
 ### GET /api/admin/ig/status
-IG 自動發文系統狀態：token 有無、AI key 有無、未來排程、錯誤與逾期清單、素材庫統計。
+IG 自動發文系統狀態：token 有無、AI key 有無、未來排程、錯誤與逾期清單、素材庫統計、近 30 天官網導流 `utm:[{source,medium,hits}]`。
+
+導流歸因：任何帶 `utm_source` 的 GET 到訪按日計入 `utm_hits`，並寫首次來源 cookie `src`（30 天，只存 `source|medium|campaign` 字串）；創始會員、會籍、點數結帳把它帶進 Stripe metadata `src`。
 
 ### GET /api/admin/ig/storage
 列 MinIO 物件（預設 `prefix=assets/`，可帶 `?prefix=posts/`）。回 `{ objects:[{key,size,lastModified,url}] }`，用來找未登記進 ig_assets 的原始素材。
 
 ### GET /api/admin/ig/insights
-拉 IG 帳號概況（追蹤數、貼文數）與每篇已發佈貼文的成效（likes/comments/reach/saved/shares/views/total_interactions/follows/profile_visits），並寫回 `social_posts.metrics`。回 `{ account, posts }`；`matched:false` 表示 permalink 對不到 IG 媒體。
-
-### POST /api/admin/ig/compose
-手動觸發 AI 補產（正常由每週日 cron 執行）。回 `{ ok, made }`；需 `ANTHROPIC_API_KEY`。
+拉 IG 帳號概況（追蹤數、貼文數）與每篇已發佈貼文的成效（likes/comments/reach/saved/shares/views/total_interactions/follows/profile_visits），並寫回 `social_posts.metrics`。回 `{ account, posts }`；有 `metrics.media_id` 的貼文直查，其餘以 permalink 比對 `/me/media` 最新 50 則；`matched:false` 表示兩者都對不到（多半已從 IG 下架）。
 
 ### GET /api/admin/ig/assets
 素材庫清單（最新 100 筆）。回 `{ assets }`。
