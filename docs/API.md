@@ -491,7 +491,7 @@ Twilio 訊息狀態 callback。以 `X-Twilio-Signature` 驗證請求，將 accep
 
 ## 外部活動主與主辦團隊（2026-09-07）
 
-活動主入口 `/organizer/events` 沿用 Google 登入與活動編輯器。沒有全域「活動主」角色：平台管理員在單場活動指定負責人（`owner_id`）或於「主辦團隊」加入可管理的 Email，該帳號即可進入並只管理那幾場；平台管理員可直接建立活動；其他人以場地申請建立（送件即建立待審草稿活動並成為負責人）。可管理者可複製自己管理的活動：非平台管理員的副本視為新的場地申請（`review_status='pending'`，同時寫入一筆申請與收件通知），須再審核才能公開。`GET /api/organizer/state` 另回本人 `applications`（含審核回覆與進度紀錄）。每次請求重新查核資料庫權限，不能靠舊 token 保留撤銷後的權限。
+活動主入口 `/organizer/events` 沿用活動編輯器，可用 Google 或 Email（`/event-login.html`）登入；主辦人若從 `/admin` 進入，前端確認 `GET /api/organizer/state` 可用後自動轉到 `/organizer` 同一路徑。沒有全域「活動主」角色：平台管理員在單場活動指定負責人（`owner_id`）或於「主辦團隊」加入可管理的 Email，該帳號即可進入並只管理那幾場；平台管理員可直接建立活動；其他人以場地申請建立（送件即建立待審草稿活動並成為負責人）。可管理者可複製自己管理的活動：非平台管理員的副本視為新的場地申請（`review_status='pending'`，同時寫入一筆申請與收件通知），須再審核才能公開。`GET /api/organizer/state` 另回本人 `applications`（含審核回覆與進度紀錄）。每次請求重新查核資料庫權限，不能靠舊 token 保留撤銷後的權限。
 
 ### GET /api/organizer/state
 僅回自己的／受邀共同管理的活動、本人姓名與 Email，以及 `can_create_events`。不包含其他會員、金流、點數、設定或其他主辦人的活動。未授權回 403。

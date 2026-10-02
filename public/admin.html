@@ -348,12 +348,13 @@ logoutBtn.onclick = () => { localStorage.removeItem(KEY); localStorage.removeIte
 function renderLogin(msg){
   logoutBtn.style.display='none';
   const crumb = document.getElementById('a-crumb'); if (crumb) crumb.hidden = true;
-  const redirect = encodeURIComponent(location.origin + BASE);
+  const redirect = encodeURIComponent(location.origin + location.pathname);   // 登入後回到原本那頁（主辦邀請信連到單場活動）
   app.innerHTML = `<div class="a-login"><div class="a-login-card">
     <div class="a-brand"><img src="/cis/assets/emoji-h.svg" alt="言文字 emoji" width="120" height="40" style="object-fit:contain"><span>後台管理</span></div>
     <h1 class="a-h1">登入後台</h1>
-    <p class="a-sub">${msg || '請以管理員 Google 帳號登入。'}</p>
+    <p class="a-sub">${msg || (ORGANIZER_PORTAL ? '請用主辦團隊登記的 Email 登入。' : '請以管理員 Google 帳號登入。')}</p>
     <a class="btn btn--solid" href="/auth/google?redirect=${redirect}">使用 Google 登入</a>
+    <a class="btn btn--ghost" href="/event-login.html?redirect=${redirect}">使用 Email 登入</a>
   </div></div>`;
 }
 
@@ -2904,14 +2905,20 @@ async function main(){
   if (!token) return renderLogin();
   try {
     const d = await api('/state');
-    if (!['admin','organizer'].includes(d.role)) return renderLogin('請使用已授權帳號登入；外部主辦人請使用活動主入口 /organizer/events。');
+    if (!['admin','organizer'].includes(d.role)) {
+      // 活動主辦人從 /admin 進來：轉到活動主入口（同一頁、同一組登入），不要卡在登入頁
+      if (!ORGANIZER_PORTAL && await api('/organizer/state').then(() => true, () => false))
+        return location.replace(location.pathname.replace(/^\/admin/, '/organizer') + location.search);
+      return renderLogin('此帳號沒有後台權限，請改用已授權的帳號登入；活動主辦人請用主辦團隊登記的 Email。');
+    }
     if(!d.organizer)await ensureIgScripts();
     render(d);
     applyRoute();
   } catch(e){
     if (String(e.message).includes('登入') || String(e.message).includes('401')) { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); return renderLogin(); }
-    const denied = /活動主權限|未授權|403/.test(String(e.message));
-    app.innerHTML = `<p class="a-center">${denied?'此帳號沒有活動主權限。若你是簽到人員，請改用主辦人提供的「現場簽到入口」連結；需要管理活動請聯絡言文字授權。':'暫時無法連線：'+esc(e.message)}<br><button class="btn btn--ghost btn-sm" style="margin-top:1rem" onclick="location.reload()">重新整理</button></p>`;
+    // 已登入但沒有可管理的活動（多半是登錯帳號）：給登入鈕換帳號
+    if (e.status === 403) return renderLogin('此帳號沒有活動管理權限，請改用主辦團隊登記的 Email 登入。簽到人員請改用主辦人提供的「現場簽到入口」連結。');
+    app.innerHTML = `<p class="a-center">暫時無法連線：${esc(e.message)}<br><button class="btn btn--ghost btn-sm" style="margin-top:1rem" onclick="location.reload()">重新整理</button></p>`;
   }
 }
 main();
