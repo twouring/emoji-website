@@ -209,6 +209,7 @@
       welcome: (n) => `歡迎，${n || '會員'}`,
       memberFallback: '會員',
       goAdmin: '前往後台管理 →',
+      goOrganizer: '管理我的活動 →',
       eventsTitle: '近期活動',
       updatesTitle: '會員動態',
       logout: '登出',
@@ -326,6 +327,7 @@
       welcome: (n) => `Welcome, ${n || 'member'}`,
       memberFallback: 'member',
       goAdmin: 'Open admin →',
+      goOrganizer: 'Manage my events →',
       eventsTitle: 'Upcoming events',
       updatesTitle: 'Member updates',
       logout: 'Sign out',
@@ -435,6 +437,7 @@
       welcome: (n) => `ようこそ、${n || '会員'}さん`,
       memberFallback: '会員',
       goAdmin: '管理画面へ →',
+      goOrganizer: 'イベントを管理 →',
       eventsTitle: '近日のイベント',
       updatesTitle: '会員向けお知らせ',
       logout: 'ログアウト',
@@ -850,7 +853,7 @@
         </label>
         <button type="button" class="btn btn--ghost" id="m-profile-save" style="margin-top:12px;padding:.45em 1em;font-size:1rem">${esc(T.saveName)}</button>
       </div>
-      ${data.role === 'admin' ? `<div style="margin:0 0 1.4rem"><a class="btn btn--solid" href="/admin">${T.goAdmin}</a></div>` : ''}
+      ${data.role === 'admin' ? `<div style="margin:0 0 1.4rem"><a class="btn btn--solid" href="/admin">${T.goAdmin}</a></div>` : data.organizer ? `<div style="margin:0 0 1.4rem"><a class="btn btn--solid" href="/organizer/events">${T.goOrganizer}</a></div>` : ''}
       ${renderNotice(data.events)}
       ${renderStatus(data)}
       ${renderPoints(data)}

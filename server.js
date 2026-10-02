@@ -1732,6 +1732,7 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
      ORDER BY e.starts_at ASC NULLS LAST`, [me.id, access.active])).rows;
   res.json({
     role: commitments.length ? 'participant' : 'invited',
+    organizer: req.auth.role === 'organizer',
     me, bond, users: [me], commitments, events:events.map(e=>localizeEvent(e,'zh')), updates,
     access: {
       active: access.active,
