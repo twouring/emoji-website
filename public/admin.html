@@ -45,6 +45,7 @@
   .a-nav .badge{font-size:1rem;line-height:1;background:var(--paper-deep);color:var(--ink);border-radius:999px;padding:3px 7px;font-weight:600;font-variant-numeric:tabular-nums}
   .a-nav-foot{margin-top:auto;padding:12px 10px 0;border-top:1px solid var(--line);font-size:1rem;color:var(--muted);line-height:1.45;overflow-wrap:anywhere}
   .a-nav-foot b{display:block;color:var(--ink-soft);font-weight:500}
+  .a-nav #a-scope{width:100%;margin-bottom:12px;min-height:36px;padding:4px 8px;font:inherit;font-size:1rem;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)}
 
   /* 內容區 */
   .a-main{margin-left:var(--a-side);padding:calc(var(--a-top) + 20px) 24px 60px;min-width:0;max-width:1480px}
@@ -82,7 +83,7 @@
 
   /* 表單／工具列 */
   .a-form{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:flex-end;margin-bottom:12px}
-  .a-form label,.sp-page-form label,.xs-form label{font-size:1rem;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+  .a-form label,.sp-page-form label,.xs-form label{font-size:1rem;color:var(--muted);display:flex;flex-direction:column;gap:4px;min-width:0;max-width:100%}
   [hidden]{display:none!important}
   .a-form input,.a-form select,.a-form textarea,.a-toolbar input,.a-toolbar select,
   .sp-page-form input,.sp-page-form select,.sp-page-form textarea,.xs-form input,.xs-form textarea,#social-body select{
@@ -91,8 +92,9 @@
   .sp-page-form input:focus,.sp-page-form select:focus,.sp-page-form textarea:focus,.xs-form input:focus,.xs-form textarea:focus,#social-body select:focus{
     outline:none;border-color:var(--ink);box-shadow:0 0 0 3px var(--accent-soft)}
   .a-form input[type=checkbox]{min-height:0;width:16px;height:16px;accent-color:var(--ink)}
-  .a-form textarea,.sp-page-form textarea,.xs-form textarea{width:100%;min-height:64px;resize:vertical;line-height:1.5}
-  .a-form fieldset{border:1px solid var(--line);border-radius:var(--a-r)}
+  .a-form textarea,.sp-page-form textarea,.xs-form textarea{width:100%;min-width:0;min-height:64px;resize:vertical;line-height:1.5}
+  /* fieldset 預設 min-inline-size:min-content，會被 textarea 的固有寬度撐出容器（系統設定→網站內容在手機整排溢出） */
+  .a-form fieldset{min-width:0;border:1px solid var(--line);border-radius:var(--a-r)}
   .a-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
   /* 行事曆 */
   .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line)}
@@ -220,16 +222,32 @@
     .a-brand{width:auto}
     .a-brand span,.a-crumb{display:none}
     .a-shell{padding-top:var(--a-top)}
-    .a-nav{position:sticky;top:var(--a-top);bottom:auto;width:auto;flex-direction:row;gap:4px;overflow-x:auto;padding:8px 12px;border-right:0;border-bottom:1px solid var(--line)}
-    .a-nav-g{flex-direction:row;gap:4px}
+    .a-nav{position:sticky;top:var(--a-top);bottom:auto;width:auto;flex-direction:row;align-items:center;gap:4px;overflow-x:auto;padding:8px 12px;border-right:0;border-bottom:1px solid var(--line);scrollbar-width:none;-webkit-overflow-scrolling:touch}
+    .a-nav::-webkit-scrollbar{display:none}
+    /* 右緣漸層提示分頁列可左滑；捲到底時它排在最後一顆之後，不會蓋到文字 */
+    .a-nav::after{content:"";position:sticky;right:0;flex:none;width:28px;align-self:stretch;background:linear-gradient(to right,transparent,var(--card));pointer-events:none}
+    .a-nav-g{flex-direction:row;gap:4px;flex:none}
     .a-nav-gl,.a-nav-foot{display:none}
-    .a-nav button{width:auto;height:32px;white-space:nowrap;border:1px solid var(--line);padding:0 10px}
+    .a-nav button{width:auto;height:32px;min-height:32px;white-space:nowrap;border:1px solid var(--line);padding:0 10px}
     .a-nav button.on{border-color:var(--ink)}
+    /* 切換後台（根／品牌）：側欄時全寬，橫列時改成固定寬的下拉，否則被 flex 壓成 2px 看不見 */
+    .a-nav #a-scope{flex:none;width:auto;max-width:11em;margin:0 6px 0 0;min-height:32px;padding:0 8px;border-color:var(--ink)}
     .a-main{margin-left:0;padding:12px 16px 40px}
     /* 窄螢幕：表格改為水平捲動，不再壓縮欄寬把中文擠成直排 */
     .a-wrap2{max-height:none}
     .a-wrap2 table.a-tbl{min-width:640px}
     .a-wrap2 table.a-tbl td{white-space:nowrap}
+  }
+  /* 手機：表單控制項一律撐滿一列，蓋掉桌面用的固定寬度（width:360px、min-width:260px…），不再超出畫面 */
+  @media(max-width:640px){
+    .a-form{gap:12px}
+    .a-form>label,.a-form>div,.a-form>fieldset,.a-form>p,.a-form>h3,.sp-page-form label,.xs-form label,.application-review label{width:100%!important;flex:1 1 100%!important;min-width:0!important;max-width:100%}
+    .a-form input:not([type=checkbox]):not([type=radio]),.a-form select,.a-form textarea,
+    .a-toolbar input,.a-toolbar select,.sp-page-form input,.sp-page-form select,.sp-page-form textarea,
+    .xs-form input,.xs-form select,.xs-form textarea,#social-body select,.application-review textarea,.application-update textarea{
+      width:100%!important;min-width:0!important;max-width:100%!important;display:block}
+    .a-toolbar>input,.a-toolbar>select{flex:1 1 100%}
+    .sp-page{grid-template-columns:1fr}
   }
 .cal-item.cal-cancel{text-decoration:line-through;opacity:.6;border-left-color:var(--muted)}.a-todo{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:10px;margin-top:4px}.a-todo-item{display:block;padding:12px 14px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);text-decoration:none;transition:border-color .15s}.a-todo-item:hover{border-color:var(--ink)}.a-todo-item .n{display:block;font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.2}.a-todo-item .n.zero{color:var(--muted);font-weight:400}.a-todo-item .l{color:var(--muted)}.a-todo-list{margin:8px 0 0;padding:0;list-style:none}.a-todo-list li{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;padding:8px 0;border-top:1px solid var(--line)}.a-todo-list li:first-child{border-top:0}.a-todo-list a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}.a-todo-list a:hover{text-decoration-color:var(--ink)}.a-todo-list .meta{color:var(--muted);font-variant-numeric:tabular-nums}[data-panel="menu"] table.a-tbl td:nth-child(2),[data-panel="menu"] table.a-tbl th:nth-child(2){white-space:nowrap}#menu-save-server.is-dirty{background:var(--accent);color:var(--ink);border-color:var(--accent)}#ev-hosts label:has(>#share-url){display:block;width:100%}#share-url{width:100%;box-sizing:border-box;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92rem;line-height:1.45;padding:8px 10px;border:1px solid var(--muted);border-radius:6px;background:var(--card);color:var(--ink)}.ev-savebar{position:sticky;bottom:0;background:var(--paper);padding:16px 0;border-top:1px solid var(--line);z-index:5}#ev-translations summary{cursor:pointer;padding:12px 0;font-size:1rem}#ev-hosts[hidden]{display:none}#ev-hosts{scroll-margin-top:80px}
 </style>
@@ -1172,7 +1190,7 @@ function render(d){
   const panels = tabs.map(t=>`<div class="a-tab ${t.id===TAB?'on':''}" data-panel="${t.id}">${t.render(d,x)}</div>`).join('');
   const me = d.me || {};
   app.innerHTML = `<div class="a-shell">
-    <nav class="a-nav" aria-label="後台分頁">${scopes.length>1?`<select id="a-scope" aria-label="切換後台" style="width:100%;margin-bottom:12px">${scopes.map(s=>`<option value="${s}" ${s===SCOPE?'selected':''}>${s?BRAND_LABEL[s]+' 品牌後台':'言文字 根後台'}</option>`).join('')}</select>`:''}${nav}
+    <nav class="a-nav" aria-label="後台分頁">${scopes.length>1?`<select id="a-scope" aria-label="切換後台">${scopes.map(s=>`<option value="${s}" ${s===SCOPE?'selected':''}>${s?BRAND_LABEL[s]+' 品牌後台':'言文字 根後台'}</option>`).join('')}</select>`:''}${nav}
       <div class="a-nav-foot"><b>${esc(me.name||'')}</b>${esc(me.email||'')}</div>
     </nav>
     <div class="a-main">${panels}</div>

@@ -80,7 +80,9 @@
     @media(max-width:900px){.ig-wrap{grid-template-columns:minmax(0,1fr)}}
     .ig-form{min-width:0}
     .ig-form label{font-size:.82rem;color:var(--muted);display:flex;flex-direction:column;gap:.3em;margin-bottom:12px}
-    .ig-form input,.ig-form select,.ig-form textarea{font:inherit;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink)}
+    .ig-form input,.ig-form select,.ig-form textarea{font:inherit;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);min-width:0;max-width:100%}
+    .ig-form .ig-pair{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+    .ig-form .ig-pair label{flex:1 1 140px;min-width:0;margin:0}
     .ig-form textarea{min-height:60px;resize:vertical}
     .ig-seg{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
     .ig-seg button{all:unset;cursor:pointer;padding:.5em .9em;border:1px solid var(--line);border-radius:8px;font-size:.85rem;color:var(--ink-soft)}
@@ -1224,9 +1226,9 @@
         <div id="ig-fields"></div>
         <div class="ig-drop" id="ig-drop"><span id="ig-drop-t">上傳照片 · 點此或拖曳</span>
           <input type="file" accept="image/jpeg,image/png,image/webp" id="ig-file" hidden></div>
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <label style="flex:1;margin:0">IG 帳號<input data-k2="handle" value="${H(state.handle)}"></label>
-          <label style="flex:1;margin:0">地點<input data-k2="place" value="${H(state.place)}"></label>
+        <div class="ig-pair">
+          <label>IG 帳號<input data-k2="handle" value="${H(state.handle)}"></label>
+          <label>地點<input data-k2="place" value="${H(state.place)}"></label>
         </div>
       </div>
       <div class="ig-previewbox">
