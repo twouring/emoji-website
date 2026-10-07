@@ -1,13 +1,15 @@
 'use strict';
 (function (global) {
   const VENUES = ['CAFE', 'BAR'];
-  // 順序＝前台分組順序；FOOD／SNACK 保留給舊資料相容
+  // 順序＝前台分組順序（餐點在前、飲品在後，依 2026-10-07 定稿菜單）；ALCOHOL／FOOD／SNACK 保留給舊資料相容
   const CATS = [
-    'COFFEE', 'TEA', 'BEVERAGE', 'ALCOHOL',
     'SALAD', 'BREAD', 'JAPANESE', 'DESSERT',
     'COLD_APP', 'HOT_APP', 'FRIED', 'GRILL', 'MAIN', 'SOUP',
+    'COFFEE', 'BEVERAGE', 'TEA', 'SPARKLING',
+    'SAKE', 'LIQUEUR', 'WINE', 'ALCOHOL',
     'FOOD', 'SNACK',
   ];
+  const ALCOHOL_CATS = ['ALCOHOL', 'SAKE', 'LIQUEUR', 'WINE'];
   const VENUE_LABEL = {
     CAFE: { zh: '在咖啡', en: 'at cafe', ja: '在咖啡' },
     BAR: { zh: '三點水', en: '3AM', ja: '三點水' },
@@ -15,7 +17,11 @@
   const CAT_LABEL = {
     COFFEE: { zh: '咖啡', en: 'Coffee', ja: 'コーヒー' },
     TEA: { zh: '茶', en: 'Tea', ja: 'お茶' },
-    BEVERAGE: { zh: '飲品', en: 'Beverage', ja: 'ドリンク' },
+    BEVERAGE: { zh: '非咖啡', en: 'Non-Coffee', ja: 'ノンコーヒー' },
+    SPARKLING: { zh: '氣泡飲', en: 'Sparkling', ja: 'スパークリング' },
+    SAKE: { zh: '清酒', en: 'Sake', ja: '日本酒' },
+    LIQUEUR: { zh: '果實酒', en: 'Fruit Liqueur', ja: '果実酒' },
+    WINE: { zh: '甜白葡萄酒', en: 'Sweet White Wine', ja: '甘口白ワイン' },
     ALCOHOL: { zh: '酒精飲品', en: 'Alcohol', ja: 'アルコール' },
     SALAD: { zh: '沙拉／優格', en: 'Salad & Yogurt', ja: 'サラダ・ヨーグルト' },
     BREAD: { zh: '麵包主食', en: 'Bread', ja: 'パン' },
@@ -39,7 +45,7 @@
   const uid = () => 'm_' + Math.random().toString(36).slice(2, 10);
 
   function coerceAlcohol(item) {
-    if (item.cat === 'ALCOHOL') return true;
+    if (ALCOHOL_CATS.includes(item.cat)) return true;
     if (item.note && String(item.note).includes('含酒精')) return true;
     return !!item.alcohol;
   }
@@ -115,7 +121,7 @@
       ...r,
       published: false,
       sort: (i + 1) * 10,
-      alcohol: r.alcohol === true || r.cat === 'ALCOHOL' || (r.note && String(r.note).includes('含酒精')),
+      alcohol: r.alcohol === true || ALCOHOL_CATS.includes(r.cat) || (r.note && String(r.note).includes('含酒精')),
     }));
     return touch({ version: 1, items });
   }

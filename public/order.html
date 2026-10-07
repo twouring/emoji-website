@@ -26,7 +26,7 @@ h3{font-size:1.05rem;margin:0 0 6px}
 .item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
 .item:last-child{border-bottom:0}
 .item img{width:56px;height:56px;border-radius:8px;object-fit:cover;flex:none;background:var(--line)}
-.item .n{flex:1;min-width:0}.item .n b{display:block}.item .n small{color:var(--muted);display:block}
+.item .n{flex:1;min-width:0}.item .n b{display:block}.item .n small{color:var(--muted);display:block}.item .n small.note{margin-top:2px;line-height:1.4}
 .item .p{font-weight:700;white-space:nowrap}
 .add{width:38px;height:38px;border-radius:50%;border:1.5px solid var(--ink);background:#fff;font-size:1.3rem;line-height:1;flex:none}
 .add:active{background:var(--ink);color:#fff}
@@ -115,7 +115,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     items.forEach(function(it){
       if(it.venue!==venue){if(venue)html+='</div>';venue=it.venue;cat='';var v=MenuLib.VENUE_LABEL[venue]||{zh:venue,en:''};html+='<div class="venue">'+esc(v.zh)+'<small>'+esc(v.en)+'</small></div><div>';}
       if(it.cat!==cat){cat=it.cat;var c=MenuLib.CAT_LABEL[cat]||{zh:cat};html+='<h2>'+esc(c.zh)+'</h2>';}
-      html+='<div class="card" style="padding:0 14px"><div class="item">'+(it.image?'<img src="'+esc(it.image)+'" alt="" loading="lazy">':'')+'<div class="n"><b>'+esc(it.zh)+'</b><small>'+esc(it.en||'')+(it.note?' · '+esc(it.note):'')+'</small></div><span class="p">'+money(it.price)+'</span><button class="add" data-add="'+esc(it.id)+'" aria-label="加入 '+esc(it.zh)+'">＋</button></div></div>';
+      html+='<div class="card" style="padding:0 14px"><div class="item">'+(it.image?'<img src="'+esc(it.image)+'" alt="" loading="lazy">':'')+'<div class="n"><b>'+esc(it.zh)+'</b>'+(it.en?'<small>'+esc(it.en)+'</small>':'')+(it.note?'<small class="note">'+esc(it.note)+'</small>':'')+'</div><span class="p">'+money(it.price)+'</span><button class="add" data-add="'+esc(it.id)+'" aria-label="加入 '+esc(it.zh)+'">＋</button></div></div>';
     });
     if(venue)html+='</div>';
     $('#menu').innerHTML=html||'<p class="muted">'+(VENUE?'目前尚未提供菜單。':'目前非營業時段。在咖啡 08:00–17:00、三點水 17:00–27:00。')+'</p>';

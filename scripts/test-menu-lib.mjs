@@ -58,6 +58,22 @@ test('image field: kept, validated, rendered', () => {
   assert.ok(!M.renderMenuHtml([{ ...it, image: '' }], 'zh', '').includes('menu-item__img'));
 });
 
+test('sortItems puts food before drinks, drinks before sake; new cats keep alcohol flag', () => {
+  const items = M.sortItems([
+    M.normalizeItem({ venue: 'BAR', cat: 'SAKE', zh: '清酒', price: 450, published: true }),
+    M.normalizeItem({ venue: 'BAR', cat: 'SPARKLING', zh: '柚子氣泡', price: 160, published: true }),
+    M.normalizeItem({ venue: 'BAR', cat: 'COLD_APP', zh: '冷盤', price: 320, published: true }),
+    M.normalizeItem({ venue: 'CAFE', cat: 'COFFEE', zh: '拿鐵', price: 180, published: true }),
+    M.normalizeItem({ venue: 'CAFE', cat: 'DESSERT', zh: '可麗露', price: 80, published: true }),
+  ]);
+  assert.deepEqual(items.map(x => x.zh), ['可麗露', '拿鐵', '冷盤', '柚子氣泡', '清酒']);
+  assert.equal(items[4].alcohol, true);
+  assert.equal(items[3].alcohol, false);
+  assert.equal(items[4].cat, 'SAKE');
+  const html = M.renderMenuHtml(items, 'zh', '');
+  assert.ok(html.includes('清酒') && html.includes('氣泡飲') && html.includes('menu-notice'));
+});
+
 test('normalizeItem forces alcohol for ALCOHOL cat', () => {
   const it = M.normalizeItem({ cat: 'ALCOHOL', zh: '啤酒', price: 200, emo: 150, alcohol: false });
   assert.equal(it.alcohol, true);
