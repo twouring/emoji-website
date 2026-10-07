@@ -81,7 +81,7 @@ test('changing quote inputs invalidates an in-flight price or error',async()=>{
  const {runInNewContext}=await import('node:vm'),source=fs.readFileSync(new URL('../public/events.html',import.meta.url),'utf8');
  const result={},button={textContent:'Check',setAttribute(){}};let invalidate,finish;
  const context={lang:'en',document:{querySelectorAll:()=>[],getElementById:id=>id==='coupon-result'?result:{addEventListener:(name,handler)=>{invalidate=handler;}}}};
- runInNewContext(source.slice(source.indexOf("  document.getElementById('ev-registration-form').addEventListener('input'"),source.indexOf('  const ticketSelect=')),context);
+ runInNewContext(source.slice(source.indexOf("  document.getElementById('ev-registration-form').addEventListener('input'"),source.indexOf('  const ticketForm=')),context);
  runInNewContext(source.slice(source.indexOf('async function feedbackAction('),source.indexOf('async function register(')),context);
  for(const fail of [false,true]){const pending=context.feedbackAction(button,result,()=>new Promise((resolve,reject)=>{finish=fail?reject:resolve;}));invalidate({target:{name:'ticket_id'}});finish(fail?Error('Old error'):'Old price');await pending;assert.equal(result.textContent,'');assert.equal(button.disabled,false);}
 });
