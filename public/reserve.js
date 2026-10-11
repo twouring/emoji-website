@@ -14,8 +14,8 @@
   function pad(n){return (n<10?'0':'')+n;}
   function slots(startMin,endMin){var out=[];for(var m=startMin;m<endMin;m+=30)out.push(pad(Math.floor(m/60))+':'+pad(m%60));return out;}
   var GROUPS=[
-    {name:'在咖啡 at cafe',hours:'08:00–17:00',brand:'在咖啡',times:slots(8*60,17*60)},
-    {name:'三點水 3AM',hours:'17:00–03:00',brand:'三點水',times:slots(17*60,24*60).concat(slots(0,3*60))}
+    {name:'在咖啡',hours:'08:00–17:00',brand:'在咖啡',times:slots(8*60,17*60)},
+    {name:'三點水',hours:'17:00–03:00',brand:'三點水',times:slots(17*60,24*60).concat(slots(0,3*60))}
   ];
 
   // 以台北時間判斷「今天」與「現在」，避免手機時區不同
@@ -73,12 +73,10 @@
       form.style.display='none';done.style.display='block';
       summary.textContent='';
       addLine('訂位編號：',body.request_id||'');
-      addLine('日期時段：',data.date+' '+data.time+'（'+(body.period||picked.dataset.brand)+'）');
+      addLine('時間：',data.date+' '+data.time+'（'+(body.period||picked.dataset.brand)+'）');
       addLine('人數：',data.party_size+' 位');
-      addLine('座位保留至：',(body.hold_until||holdUntil(data.time))+'（預約時間後 '+HOLD_MINUTES+' 分鐘）');
-      addLine('姓名：',data.name);
-      addLine('手機：',data.phone);
-      addLine('確認信寄到：',data.email);
+      addLine('座位保留至：',body.hold_until||holdUntil(data.time));
+      addLine('確認信：',data.email);
       window.scrollTo({top:0,behavior:'smooth'});
     }catch(error){msg(error.message||'送出失敗，請稍後再試。','err');submit.disabled=false;}
   });

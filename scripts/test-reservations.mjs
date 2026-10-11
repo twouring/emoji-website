@@ -23,8 +23,13 @@ test('reservation page is mobile-first: tap-only slots and party size, no free-t
   assert.match(html, /name="phone" type="tel" inputmode="tel" autocomplete="tel"/);
   assert.match(html, /name="email" type="email"/);
   assert.match(html, /保留至預約時間後 10 分鐘/);
-  assert.match(html, /送出即完成訂位/);
   assert.doesNotMatch(html, /訂位申請/, '送出即成立訂位，不再稱申請');
+  // 消費者視角：不放店家內部資訊與重複說明
+  assert.doesNotMatch(html, /RESERVATION|at cafe|3AM/, '不放英文內部標籤');
+  assert.doesNotMatch(html, /class="(notice|lead|quick|fine)"/, '表單前後不放長段說明');
+  assert.doesNotMatch(html, /class="required"/, '全部必填就不標星號，只標「備註（選填）」');
+  assert.match(html, /備註（選填）/);
+  assert.doesNotMatch(html, /身分證|信用卡|回官網首頁|再訂一筆/);
 });
 
 test('reservation frontend renders 30-minute slots per brand and posts JSON safely', () => {
