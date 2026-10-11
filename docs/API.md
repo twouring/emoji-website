@@ -47,7 +47,7 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" https://www.emoji.tw/api/state
 服務健康檢查。回 `{ ok, db, dbConfigured }`。
 
 ### POST /api/reservations
-1F 訂位（`/reserve`、`/en/reserve`、`/ja/reserve` 頁面送出；免登入，放 Google Maps／官方 LINE 連結）。body：`{ lang?: 'zh'|'en'|'ja', date: 'YYYY-MM-DD', time: 'HH:MM', party_size, name, phone, email, note?, source? }`；`lang` 決定錯誤訊息與客人確認信的語言（預設 `zh`；店家通知信一律中文）。`time` 只接受固定 30 分鐘時段：在咖啡 `08:00`–`16:30`、三點水 `17:00`–`23:30` 與 `00:00`–`02:30`（視為該日清晨），店別由時段推得、不由前端傳入。日期須為台北今天起 120 天內；當天已過（含 30 分鐘緩衝）的時段拒絕。`party_size` 1–50，`phone` 8–32 字元數字／符號，`email` 必填（確認信收件），`note` 截 500 字。送出即成立訂位：寫入 `dining_reservations`（狀態 `confirmed`，含 `lang`），寄確認信給訂位人（座位保留至預約時間後 10 分鐘，逾時釋出）並通知 `NOTIFY_EMAIL`；寄信失敗只記 log，不影響訂位成立。成功回 `201 { ok, request_id, period, hold_until, hold_minutes }`（`period` 為「在咖啡」或「三點水」）。每 IP 每小時 30 次。
+1F 訂位（`/reserve`、`/en/reserve`、`/ja/reserve` 頁面送出；免登入，放 Google Maps／官方 LINE 連結）。body：`{ lang?: 'zh'|'en'|'ja', date: 'YYYY-MM-DD', time: 'HH:MM', party_size, name, phone, email, note?, source? }`；`lang` 決定錯誤訊息與客人確認信的語言（預設 `zh`；店家通知信一律中文）。`time` 只接受固定 30 分鐘時段：在咖啡 `08:00`–`16:30`、三點水 `17:00`–`23:30` 與 `00:00`–`02:30`（視為該日清晨），店別由時段推得、不由前端傳入。日期須為台北今天起 120 天內；當天已過（含 30 分鐘緩衝）的時段拒絕。`party_size` 1–50，`phone` 8–32 字元數字／符號，`email` 必填（確認信收件），`note` 截 500 字。送出即成立訂位：寫入 `dining_reservations`（狀態 `confirmed`，含 `lang`），寄確認信給訂位人（座位保留至預約時間後 10 分鐘，逾時釋出）並通知 `NOTIFY_EMAIL`（信末附後台「訂位」分頁連結）；寄信失敗只記 log，不影響訂位成立。成功回 `201 { ok, request_id, period, hold_until, hold_minutes }`（`period` 為「在咖啡」或「三點水」）。每 IP 每小時 30 次。店內後續（排桌、取消並寄婉拒信、已到／未到）見 `GET/POST /api/admin/reservations`。
 
 ### GET /api/public
 公開唯讀資料，無個資：`{ raised, updates, events, content }`。活動只含「報名中」且公開的項目。
@@ -56,6 +56,9 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" https://www.emoji.tw/api/state
 ### GET /api/orders/config
 桌邊點餐前端設定：`{ tappay: { app_id, app_key, env } | null, vapid_public_key }`。TapPay 未設定時 `tappay` 為 null，前端顯示「請至櫃檯結帳」。
 
+### GET /api/orders/pause
+客人端輪詢用：`{ venue, paused }`。`paused` 為 null（可點）或店家在後台設定的暫停文案（例「今日最後點餐 22:30」）。設定存於 `site_content.ordering_pause`，依店別分開。
+
 ### GET /api/orders/table
 掃桌上 QR 進入：query `t`（桌號）、`k`（簽章，由後台產生 QR 時附上）。回這桌目前的場 `{ id, table, status, items[], orders[], total_unpaid }`；沒有或上一組客人已全部取餐（或 4 小時無動靜）則自動開新的一桌。簽章錯誤回 403。
 
@@ -63,7 +66,7 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" https://www.emoji.tw/api/state
 同桌購物車現況（供輪詢）。query `g`＝自己的 guest 識別碼，回應以 `mine` 標記自己的行（不外露他人識別碼）。`items[]` 每行含 `line, zh, price, qty, by, mine, order_id`；`order_id` 非空＝已付款。`orders[]` 為出餐單 `{ id, amount, status: paid|ready|done, lines[] }`。
 
 ### POST /api/orders/:id/items
-加菜。body：`{ item_id, qty(1–20), by(稱呼), guest(前端隨機識別碼), note? }`。價格以菜單當下售價快照，不信任前端金額。回更新後的場。
+加菜。body：`{ item_id, qty(1–20), by(稱呼), guest(前端隨機識別碼), note? }`。價格以菜單當下售價快照，不信任前端金額。回更新後的場。只接受目前營業品牌、已發布、未估清且在供應期間內的品項（否則 400）；店家暫停點餐時回 `423` 並帶暫停文案。
 
 ### DELETE /api/orders/:id/items/:line
 移除自己加的未付款品項。body：`{ guest }`。他人品項回 403，已付款回 409。
@@ -241,13 +244,40 @@ Google 授權回呼，簽發會員 token 並導回。
 對已成立的付費票執行 Stripe 全額退款並立即使票券失效。以 registration id 作 Stripe idempotency key，重送不會重複退款。
 
 ### GET /api/admin/orders
-出餐看板：`{ orders[], sessions[] }`。`orders` 預設只回 `paid`／`ready`；`?all=1` 回最近一天全部。`sessions` 為使用中的桌（含未結帳品項數）。
+出餐看板＋桌況：`{ orders[], sessions[], pause, active_venue }`。`orders` 預設只回 `paid`／`ready`；`?all=1` 回最近一天全部（含 `void`）；每張單附 `stations: { bar[], kitchen[] }`（飲品酒水／餐點分站）。`sessions` 為使用中的桌：`{ id, table, unpaid, unpaid_amount, lines[](未結帳品項明細，不含 guest), mixed(含其他品牌品項), state: open|preparing|ready|idle, updated_at }`。`pause` 為各店別暫停點餐設定。`?venue=` 只看單一店別；品牌子帳號只回自己品牌的單與品項。
 
 ### POST /api/admin/orders/:id/status
-body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請至櫃檯取餐」（回 `notified` 裝置數）；`done`＝已取餐。狀態不符回 409。
+body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請至櫃檯取餐」（回 `notified` 裝置數）；`done`＝已取餐。狀態不符回 409；已作廢的單回 409。
+
+### POST /api/admin/orders/:id/void
+作廢已結帳的出餐單。body `{ reason }`（必填）。只能作廢當個營業日的單；線上刷卡（TapPay）的單須先在 TapPay 後台退款。作廢後該單不計營收，品項退回這桌「未結帳」（可重結或清桌作廢）。記 `void_reason / voided_by / voided_at`。
+
+### POST /api/admin/orders/sessions/:id/items
+櫃檯代客加菜。body `{ item_id, qty, note? }`；`by` 固定「櫃檯」。可加任何已發布品項（含估清、非營業時段），但品牌子帳號不得加其他店別的品項（403）。回更新後的場。
+
+### DELETE /api/admin/orders/sessions/:id/items/:line
+櫃檯逐項作廢未結帳品項。body `{ reason }`（必填）。已結帳品項回 409（請改作廢整張單）。
+
+### POST /api/admin/orders/sessions/:id/checkout
+櫃檯收款（POS）。body `{ method: cash|card|linepay|transfer, member?: boolean, lines?: [] , name?, note? }`。`lines` 空＝全桌未結帳品項，指定＝只結那些（分帳）。`member: true` 以菜單會員價重算（只有設了會員價且較低的品項會變）。金額由伺服器重算；成功建立出餐單（進出餐看板）並鎖定品項，回 `{ ok, order_id, amount, method, member, remaining }`。品牌子帳號只能結自己店別的品項（403）。
 
 ### POST /api/admin/orders/sessions/:id/close
-清桌：未付款品項作廢、未取餐的單標記已取餐，這桌下一次掃碼開新場。
+清桌：未取餐的單標記已取餐、這桌下一次掃碼開新場。**有未結帳品項時回 409**（請先結帳或逐項作廢，避免漏收）；言文字管理員可帶 body `{ force: true }` 強制清桌並作廢未結品項。
+
+### POST /api/admin/orders/pause
+暫停點餐開關（依店別）。body `{ venue: CAFE|BAR, paused: boolean, message? }`（文案 80 字內，客人掃碼會看到）。存 `site_content.ordering_pause`。回 `{ ok, pause }`。
+
+### POST /api/admin/menu/sold-out
+估清快速鍵。body `{ item_id, sold_out: boolean }`。只改該品項的 `sold_out`（記營業日），不覆蓋其他欄位；當個營業日結束（翌日 03:00）自動恢復。品牌子帳號只能估清自己店別（403）。
+
+### GET /api/admin/sales
+日結報表。query `day=YYYY-MM-DD`（營業日，預設今天；03:00 起算 24 小時）、`venue=`。回 `{ day, orders, amount, by_method{}, by_hour{}, items[]{zh,venue,qty,amount}, voided, void_amount, csv[][] }`；`csv` 為每品項一列的明細（表頭：營業日、付款時間、桌號、品項、數量、單價、小計、付款方式、會員價、狀態、作廢原因）。作廢的單不計營收。
+
+### GET /api/admin/reservations
+訂位列表。query `from=YYYY-MM-DD`（預設台北今天）、`days`（1–60，預設 7）、`venue=`。回 `{ reservations[], from, days, pending, labels }`；每筆附 `venue`（08:00–16:59 歸 CAFE，其餘 BAR），品牌子帳號只看自己時段的。狀態：`new` 待確認、`confirmed` 已確認、`arrived` 已到、`no_show` 未到、`cancelled` 已取消。
+
+### POST /api/admin/reservations/:id/status
+改訂位狀態。body `{ status, table_no?, staff_note?, notify?: boolean }`。允許的轉換：new→confirmed/cancelled；confirmed→arrived/no_show/cancelled；arrived/no_show/cancelled→confirmed（其餘 409）。改成 `confirmed` 或 `cancelled` 且客人有留 Email 時寄回覆信（含桌號與店內留言；`notify:false` 不寄）。回 `{ ok, status, mailed }`。
 
 ### GET /api/admin/tables/qr
 query `tables=A1,A2`（最多 100 桌，英數字與 -，8 字內）。回 `{ tables: [{ table, url }] }`，`url` 即桌上 QR 內容（含簽章，換 `APP_SECRET` 後須重印）。

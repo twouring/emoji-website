@@ -42,6 +42,15 @@
     const h = (new Date(now ?? Date.now()).getUTCHours() + 8) % 24;
     return h >= 8 && h < 17 ? 'CAFE' : (h >= 17 || h < 3) ? 'BAR' : null;
   }
+  /* 營業日：三點水營業到翌日 03:00，凌晨的單算前一天；以台北時間減 3 小時取日期（估清、日結都用這個） */
+  function businessDay(now) {
+    return new Date((now == null ? Date.now() : +new Date(now)) + (8 - 3) * 3600e3).toISOString().slice(0, 10);
+  }
+  /* 出餐站：飲品／酒水在吧檯，其餘進廚房 */
+  const BAR_CATS = ['COFFEE', 'TEA', 'BEVERAGE', 'SPARKLING', 'SAKE', 'LIQUEUR', 'WINE', 'ALCOHOL'];
+  function stationOf(item) { return BAR_CATS.includes(item && item.cat) ? 'bar' : 'kitchen'; }
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const dateOrEmpty = v => (DATE_RE.test(String(v || '')) ? String(v) : '');
   const uid = () => 'm_' + Math.random().toString(36).slice(2, 10);
 
   function coerceAlcohol(item) {
@@ -67,8 +76,21 @@
       alcohol: coerceAlcohol({ ...raw, cat }),
       published: raw.published === true,
       sort: Number.isFinite(Number(raw.sort)) ? Number(raw.sort) : 0,
+      sold_out: dateOrEmpty(raw.sold_out),               // 估清：記營業日，隔天自動恢復
+      available_from: dateOrEmpty(raw.available_from),   // 特餐排程：只在這段營業日可點（含）
+      available_to: dateOrEmpty(raw.available_to),
     };
   }
+  /* 可點：已發布、今天沒估清、在供應期間內（給 /order 與櫃檯用；官網菜單仍用 publishedOnly） */
+  function soldOutToday(item, now) { return !!item.sold_out && item.sold_out === businessDay(now); }
+  function isOrderable(item, now) {
+    if (!item.published || soldOutToday(item, now)) return false;
+    const day = businessDay(now);
+    if (item.available_from && day < item.available_from) return false;
+    if (item.available_to && day > item.available_to) return false;
+    return true;
+  }
+  function orderableOnly(doc, now) { return (doc.items || []).filter(it => isOrderable(it, now)); }
 
   function parseMenuDoc(value) {
     if (!value || !String(value).trim()) return { version: 1, updated_at: null, items: [] };
@@ -195,7 +217,7 @@
   }
 
   global.MenuLib = {
-    CATS, VENUES, CAT_LABEL, VENUE_LABEL, activeVenue, uid, normalizeItem, parseMenuDoc, validateDoc,
-    upsertItem, removeItem, publishedOnly, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
+    CATS, VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, activeVenue, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
+    upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, soldOutToday, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

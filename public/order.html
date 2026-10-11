@@ -33,6 +33,7 @@ h3{font-size:1.05rem;margin:0 0 6px}
 .add{border:0;background:transparent;color:inherit;text-align:left}
 .menu-status{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:12px}
 .menu-status b{font-size:1.05rem}.menu-status small{display:block;color:var(--muted);line-height:1.4}
+.menu-status.paused{border-color:#b42318;background:#fff5f3}.menu-status.paused small{color:#b42318;font-weight:600}
 .bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 14px calc(10px + env(safe-area-inset-bottom));display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;z-index:5;box-shadow:0 -6px 22px rgba(0,0,0,.08)}
 .bar .s{min-width:0}.bar .s small{display:block;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .btn{border:1.5px solid var(--ink);background:var(--ink);color:#fff;border-radius:999px;padding:12px 18px;font-weight:700;min-height:48px}
@@ -122,7 +123,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   var toastT;var toast=function(m){var t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove('on');},4000);};
   var money=function(n){return 'NT$'+Number(n||0).toLocaleString('zh-TW');};
   var qs=new URLSearchParams(location.search),T=qs.get('t')||'',K=qs.get('k')||'';
-  var S=null,MENU=[],VENUE=null,CFG={},GUEST,NAME,seenReady={},pollTimer,LANG='zh',CURRENT_ITEM=null,CURRENT_QTY=1;
+  var S=null,MENU=[],MENU_DOC=null,VENUE=null,CFG={},GUEST,NAME,seenReady={},pollTimer,LANG='zh',CURRENT_ITEM=null,CURRENT_QTY=1,PAUSED=null;
   try{GUEST=localStorage.getItem('order_guest');NAME=localStorage.getItem('order_name')||'';LANG=localStorage.getItem('order_lang')||'';}catch(e){}
   if(!LANG){var ql=qs.get('lang'),nl=(navigator.language||'').toLowerCase();LANG=ql==='en'||ql==='ja'?ql:(!ql&&/^ja/.test(nl)?'ja':(!ql&&!/^zh/i.test(nl)?'en':'zh'));}
   var tr=function(key,vars){return OrderLib.text(LANG,key,vars);};
@@ -137,7 +138,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   $('#lang-toggle').onclick=function(){LANG=LANG==='zh'?'en':(LANG==='en'?'ja':'zh');try{localStorage.setItem('order_lang',LANG);}catch(e){}applyLanguage();};
   applyLanguage();
   if(!GUEST){GUEST=Math.random().toString(36).slice(2,14)+Math.random().toString(36).slice(2,6);try{localStorage.setItem('order_guest',GUEST);}catch(e){}}
-  var api=function(path,opt){opt=opt||{};return fetch('/api'+path,{method:opt.method||'GET',headers:opt.body?{'Content-Type':'application/json'}:{},body:opt.body?JSON.stringify(opt.body):undefined}).then(function(r){return r.json().catch(function(){return {};}).then(function(d){if(!r.ok)throw Error(d.error||('伺服器錯誤 '+r.status));return d;});});};
+  var api=function(path,opt){opt=opt||{};return fetch('/api'+path,{method:opt.method||'GET',headers:opt.body?{'Content-Type':'application/json'}:{},body:opt.body?JSON.stringify(opt.body):undefined}).then(function(r){return r.json().catch(function(){return {};}).then(function(d){if(!r.ok){var e=Error(d.error||('伺服器錯誤 '+r.status));e.status=r.status;throw e;}return d;});});};
   var fail=function(msg){$('#boot').innerHTML='<p class="err">'+esc(msg)+'</p>';$('#boot').classList.remove('hidden');};
 
   $('#name-in').value=NAME;
@@ -146,10 +147,13 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 
   function renderMenu(){
     VENUE=MenuLib.activeVenue();
+    // 估清／供應期間每次重繪都重算：店家按「今日估清」後，客人下一次更新菜單就點不到
+    MENU=MENU_DOC?MenuLib.orderableOnly(MENU_DOC):[];
     var hours=VENUE==='CAFE'?(LANG==='en'?'at cafe · Serving now':LANG==='ja'?'在咖啡・提供中':'在咖啡・供應中'):VENUE==='BAR'?(LANG==='en'?'3AM · Serving now':LANG==='ja'?'三點水・提供中':'三點水・供應中'):(LANG==='en'?'Kitchen currently closed':LANG==='ja'?'現在は提供時間外です':'目前非供餐時段');
     var venueLabel=MenuLib.VENUE_LABEL[VENUE]||{zh:'言文字',en:'Emoji',ja:'言文字'};
     $('#brand').textContent=label(venueLabel);
-    $('#menu-hours').textContent=hours;
+    $('#menu-hours').textContent=PAUSED?PAUSED:hours;   // 店家暫停點餐：文案由後台設定，直接顯示
+    $('#menu-shift').classList.toggle('paused',!!PAUSED);
     var items=MenuLib.sortItems(MENU.filter(function(it){return it.venue===VENUE;})),html='',venue='',cat='';
     items.forEach(function(it){
       if(it.venue!==venue){if(venue)html+='</div>';venue=it.venue;cat='';var v=MenuLib.VENUE_LABEL[venue]||{zh:venue,en:'',ja:venue};html+='<div class="venue">'+esc(label(v))+'<small>'+esc(LANG==='zh'?v.en:v.zh)+'</small></div><div>';}
@@ -171,8 +175,11 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     var html=(CURRENT_ITEM.image?'<img class="detail-img" src="'+esc(CURRENT_ITEM.image)+'" alt="'+esc(primary)+'">':'')+'<h3>'+esc(primary)+'</h3>'+(secondary?'<p class="muted" style="margin:0 0 6px">'+esc(secondary)+'</p>':'')+'<p class="detail-price">'+money(CURRENT_ITEM.price)+'</p>'+(CURRENT_ITEM.note?'<p class="detail-note">'+esc(CURRENT_ITEM.note)+'</p>':'')+'<div class="opt"><div class="opt-title"><span>'+esc(tr('quantity'))+'</span></div><div class="qty"><button type="button" data-qty="-1">−</button><b id="detail-qty">1</b><button type="button" data-qty="1">＋</button></div></div>';
     html+=groups.map(function(g){return '<div class="opt" data-opt="'+esc(g.key)+'"><div class="opt-title"><span>'+esc(g.label)+'</span><small class="muted">'+esc(tr('required'))+'</small></div><div class="choice-grid">'+g.choices.map(function(c,i){return '<label><input type="radio" name="opt_'+esc(g.key)+'" value="'+esc(c)+'" '+(i===0?'checked':'')+'><span>'+esc(c)+'</span></label>';}).join('')+'</div></div>';}).join('');
     html+='<label class="opt note-field"><div class="opt-title"><span>'+esc(tr('special_request'))+'</span><small class="muted">'+esc(tr('optional'))+'</small></div><textarea id="detail-note" maxlength="80" placeholder="'+esc(tr('special_placeholder'))+'"></textarea></label>';
-    $('#detail-body').innerHTML=html;$('#item-detail').classList.add('on');$('#detail-add').disabled=false;$('#detail-add').textContent=tr('add_to_cart');
+    $('#detail-body').innerHTML=html;$('#item-detail').classList.add('on');$('#detail-add').disabled=!!PAUSED;$('#detail-add').textContent=PAUSED?PAUSED:tr('add_to_cart');
   }
+  // 暫停點餐（公休、最後點餐、包場）：每 30 秒問一次；加菜被擋（423）時也同步狀態
+  function loadPause(){return api('/orders/pause').then(function(p){var was=PAUSED;PAUSED=p.paused||null;if(was!==PAUSED){renderMenu();if(PAUSED)toast(PAUSED);}}).catch(function(){});}
+  function loadMenuDoc(){return fetch('/api/public').then(function(r){return r.json();}).then(function(d){var raw=(d&&d.content&&d.content.menu)||'';if(raw!==(MENU_DOC&&MENU_DOC.__raw)){MENU_DOC=MenuLib.parseMenuDoc(raw);MENU_DOC.__raw=raw;renderMenu();}}).catch(function(){});}
   function optionNote(){
     var parts=[];optionGroups(CURRENT_ITEM).forEach(function(g){var r=document.querySelector('input[name="opt_'+g.key+'"]:checked');if(r)parts.push(g.label+'：'+r.value);});
     var extra=($('#detail-note')&&$('#detail-note').value.trim())||'';if(extra)parts.push(extra.slice(0,80));return parts.join('；');
@@ -209,7 +216,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     var p=e.target.closest('[data-push]');if(p){subscribePush(p.dataset.push,p);return;}
     if(e.target.closest('[data-close]'))document.querySelectorAll('.sheet').forEach(function(s){s.classList.remove('on');});
   });
-  $('#detail-add').onclick=function(){if(!CURRENT_ITEM)return;NAME=$('#name-in').value.trim().slice(0,20)||NAME;if(!needName())return;try{localStorage.setItem('order_name',NAME);}catch(x){}var btn=this;btn.disabled=true;api('/orders/'+S.id+'/items',{method:'POST',body:{item_id:CURRENT_ITEM.id,qty:CURRENT_QTY,by:NAME,guest:GUEST,note:optionNote()}}).then(function(s){S=s;renderState();btn.textContent='✓ '+tr('added');setTimeout(function(){$('#item-detail').classList.remove('on');btn.textContent=tr('add_to_cart');},450);}).catch(function(err){toast(err.message);if(/已結束/.test(err.message))load();}).then(function(){btn.disabled=false;});};
+  $('#detail-add').onclick=function(){if(!CURRENT_ITEM)return;NAME=$('#name-in').value.trim().slice(0,20)||NAME;if(!needName())return;try{localStorage.setItem('order_name',NAME);}catch(x){}var btn=this;btn.disabled=true;api('/orders/'+S.id+'/items',{method:'POST',body:{item_id:CURRENT_ITEM.id,qty:CURRENT_QTY,by:NAME,guest:GUEST,note:optionNote()}}).then(function(s){S=s;renderState();btn.textContent='✓ '+tr('added');setTimeout(function(){$('#item-detail').classList.remove('on');btn.textContent=tr('add_to_cart');},450);}).catch(function(err){toast(err.message);if(/已結束/.test(err.message))load();if(err.status===423){PAUSED=err.message;renderMenu();}if(/售完|下架/.test(err.message))loadMenuDoc();}).then(function(){btn.disabled=!!PAUSED;});};
   $('#open-cart').onclick=function(){$('#cart').classList.add('on');};
   $('#open-pay').onclick=$('#cart-pay').onclick=function(){$('#cart').classList.remove('on');openPay();};
 
@@ -250,12 +257,13 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 
   /* ---- 啟動 ---- */
   if(!T||!K)return fail('請掃描桌上的 QR Code 進入點餐。');
-  Promise.all([api('/orders/config'),fetch('/api/public').then(function(r){return r.json();}),load()]).then(function(r){
-    CFG=r[0];var content=(r[1]&&r[1].content)||{};
-    MENU=content.menu?MenuLib.publishedOnly(MenuLib.parseMenuDoc(content.menu)):[];
+  Promise.all([api('/orders/config'),fetch('/api/public').then(function(r){return r.json();}),load(),api('/orders/pause').catch(function(){return {};})]).then(function(r){
+    CFG=r[0];var content=(r[1]&&r[1].content)||{};PAUSED=(r[3]&&r[3].paused)||null;
+    MENU_DOC=MenuLib.parseMenuDoc(content.menu||'');MENU_DOC.__raw=content.menu||'';
     $('#boot').classList.add('hidden');$('#app').classList.remove('hidden');
     renderMenu();renderState();poll();
     setInterval(function(){if(MenuLib.activeVenue()!==VENUE)renderMenu();},60000); // 17:00／03:00／08:00 換品牌
+    setInterval(loadPause,30000);setInterval(loadMenuDoc,60000);   // 暫停點餐、估清／特餐隨店家設定更新
     document.addEventListener('visibilitychange',function(){if(!document.hidden)api('/orders/'+S.id+'?g='+GUEST).then(function(s){S=s;renderState();}).catch(function(){});});
   }).catch(function(err){fail(err.message);});
 })();
