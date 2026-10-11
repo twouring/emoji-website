@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import vm from 'node:vm';
 import { createRequire } from 'node:module';
 
 const root = path.resolve(new URL('..', import.meta.url).pathname);
@@ -61,6 +62,39 @@ test('reservation page ships in all three site locales with hreflang and the sam
   assert.match(htmlJa, /placeholder="\+81 90 1234 5678"/);
   assert.match(htmlEn, /For 7 or more, please call/);
   assert.match(htmlJa, /7名以上はお電話で/);
+  // 只有中文入口頁依瀏覽器語言自動導向；站內連過來或本次已導過不再跳
+  assert.match(html, /location\.pathname!=='\/reserve'/);
+  assert.match(html, /document\.referrer\.indexOf\(location\.origin\+'\/'\)===0\)return/);
+  assert.match(html, /sessionStorage\.getItem\('reserve_lang_auto'\)/);
+  assert.match(html, /\/\^ja\/\.test\(l\)\?'\/ja\/reserve':\(l&&!\/\^zh\/\.test\(l\)\?'\/en\/reserve':''\)/);
+  assert.match(html, /location\.replace\(to\+location\.search\+location\.hash\)/, '保留 utm 參數');
+  assert.doesNotMatch(htmlEn, /reserve_lang_auto/);
+  assert.doesNotMatch(htmlJa, /reserve_lang_auto/);
+  // 實際執行導向腳本：模擬各種瀏覽器語言與來源
+  const redirectScript = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]).find(s => s.includes('reserve_lang_auto'));
+  assert.ok(redirectScript, 'inline redirect script present');
+  const run = ({ languages, language, referrer = '', path = '/reserve', stored = null, search = '', hash = '' }) => {
+    const store = new Map(stored ? [['reserve_lang_auto', stored]] : []);
+    const replaced = [];
+    vm.runInNewContext(redirectScript, {
+      location: { pathname: path, origin: 'https://www.emoji.tw', search, hash, replace: to => replaced.push(to) },
+      document: { referrer },
+      navigator: { languages, language },
+      sessionStorage: { getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) },
+    });
+    return replaced[0] || null;
+  };
+  assert.equal(run({ languages: ['en-US', 'en'], language: 'en-US' }), '/en/reserve', '英文瀏覽器直接開 → 英文頁');
+  assert.equal(run({ languages: ['ja-JP'], language: 'ja-JP' }), '/ja/reserve', '日文瀏覽器 → 日文頁');
+  assert.equal(run({ languages: ['fr-FR'], language: 'fr-FR' }), '/en/reserve', '其他外語 → 英文頁');
+  assert.equal(run({ languages: ['zh-TW', 'en'], language: 'zh-TW' }), null, '中文瀏覽器不跳');
+  assert.equal(run({ languages: ['zh-Hant-TW'], language: 'zh-Hant-TW' }), null);
+  assert.equal(run({ languages: undefined, language: '' }), null, '沒語言資訊不跳');
+  assert.equal(run({ languages: ['en-US'], language: 'en-US', referrer: 'https://www.emoji.tw/about' }), null, '站內連過來不跳（使用者自己選的語系）');
+  assert.equal(run({ languages: ['en-US'], language: 'en-US', referrer: 'https://www.google.com/maps' }), '/en/reserve', 'Google Maps 來的照跳');
+  assert.equal(run({ languages: ['en-US'], language: 'en-US', stored: '1' }), null, '本次已導過（例如手動切回中文）不再跳');
+  assert.equal(run({ languages: ['en-US'], language: 'en-US', search: '?utm_source=line', hash: '#x' }), '/en/reserve?utm_source=line#x', '保留查詢參數');
+  assert.equal(run({ languages: ['en-US'], language: 'en-US', path: '/en/reserve' }), null, '只在中文入口頁作用');
   assert.match(fs.readFileSync(path.join(root, 'public/sitemap.xml'), 'utf8'), /https:\/\/www\.emoji\.tw\/en\/reserve[\s\S]*https:\/\/www\.emoji\.tw\/ja\/reserve/);
 });
 

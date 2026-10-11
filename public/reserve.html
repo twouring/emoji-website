@@ -2,6 +2,19 @@
 <html lang="zh-Hant">
 <head>
 <script>document.documentElement.className='js'</script>
+<script>
+/* 從 Google Maps／LINE 直接開 /reserve 的人，依瀏覽器語言導到 /en/reserve 或 /ja/reserve。
+   站內連過來（referrer 同網域）或本次瀏覽已自動導過一次就不再跳，使用者手動切回中文不會被踢回去。 */
+(function(){try{
+  if(location.pathname!=='/reserve')return;
+  if(document.referrer&&document.referrer.indexOf(location.origin+'/')===0)return;
+  if(sessionStorage.getItem('reserve_lang_auto'))return;
+  sessionStorage.setItem('reserve_lang_auto','1');
+  var l=String((navigator.languages&&navigator.languages[0])||navigator.language||'').toLowerCase();
+  var to=/^ja/.test(l)?'/ja/reserve':(l&&!/^zh/.test(l)?'/en/reserve':'');
+  if(to)location.replace(to+location.search+location.hash);
+}catch(e){}})();
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#1B1A17">
