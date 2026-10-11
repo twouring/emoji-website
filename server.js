@@ -102,6 +102,8 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 // 站台對外網址，供 Google 導回 callback；本地測試設 PUBLIC_ORIGIN=http://localhost:8080
 const SITE_BASE = (process.env.PUBLIC_ORIGIN || 'https://www.emoji.tw').replace(/\/$/, '');
+// 後台對外網址（給寄給員工/主辦的審核信連結用；登入 callback 仍綁在 SITE_BASE，見 AUTH_ORIGIN 說明）
+const ADMIN_BASE = (process.env.ADMIN_ORIGIN || 'https://admin.emoji.tw').replace(/\/$/, '');
 const GOOGLE_REDIRECT_URI = SITE_BASE + '/auth/google/callback';
 const GOOGLE_MEET_CLIENT_ID = process.env.GOOGLE_MEET_CLIENT_ID || '';
 const GOOGLE_MEET_CLIENT_SECRET = process.env.GOOGLE_MEET_CLIENT_SECRET || '';
@@ -112,11 +114,14 @@ const ZOOM_REDIRECT_URI = SITE_BASE + '/integrations/zoom/callback';
 if (!GOOGLE_CLIENT_ID) console.warn('[warn] GOOGLE_CLIENT_ID 未設定，Google 登入停用（/auth/google 回 503）。');
 // 允許的登入完成導回目標與 CORS 來源（官網子網域），防 open redirect；逗號分隔可覆寫
 const WEB_ORIGINS = (process.env.WEB_ORIGINS ||
-  'https://www.emoji.tw,https://emoji.tw,https://pos.emoji.tw,http://localhost:5500,http://127.0.0.1:5500')
+  'https://www.emoji.tw,https://emoji.tw,https://pos.emoji.tw,https://admin.emoji.tw,http://localhost:5500,http://127.0.0.1:5500')
   .split(',').map(s => s.trim()).filter(Boolean);
 // 平板 POS 子站（pos.emoji.tw）：同一支服務依 host 分流到 public/pos.html；逗號分隔可覆寫
 const POS_HOSTS = (process.env.POS_HOSTS || 'pos.emoji.tw').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 const isPosHost = req => POS_HOSTS.includes(String(req.hostname || '').toLowerCase());
+// 後台子網域（admin.emoji.tw）：同一支服務依 host 把首頁導到 /admin；逗號分隔可覆寫
+const ADMIN_HOSTS = (process.env.ADMIN_HOSTS || 'admin.emoji.tw').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+const isAdminHost = req => ADMIN_HOSTS.includes(String(req.hostname || '').toLowerCase());
 const DEFAULT_MEMBER_URL = (process.env.MEMBER_URL || WEB_ORIGINS[0] + '/member');
 function safeRedirect(u) {
   try { return WEB_ORIGINS.includes(new URL(u).origin) ? u : null; } catch { return null; }
@@ -1236,7 +1241,7 @@ async function userContact(userId) {
  * 後台收件通知仍即時寄出，失敗只記 log。 */
 function notifyAdminApplication(a) {
   sendMailQuietly({ to: NOTIFY_EMAIL, subject: `[後台] 新${appKind(a)}申請：${a.title}（${appVenue(a)}）`,
-    text: `${appKind(a)}｜${appVenue(a)}\n單位：${a.community_name}\n聯絡：${a.contact_name} ${a.contact_email} ${a.contact_phone || ''}\n時段：${fmtTaipei(a.starts_at)} – ${fmtTaipei(a.ends_at)}\n人數：${a.attendees}\n\n${a.description}\n\n需求：${a.requirements || '—'}\n\n審核：${SITE_BASE}/admin/events`, replyTo: a.contact_email });
+    text: `${appKind(a)}｜${appVenue(a)}\n單位：${a.community_name}\n聯絡：${a.contact_name} ${a.contact_email} ${a.contact_phone || ''}\n時段：${fmtTaipei(a.starts_at)} – ${fmtTaipei(a.ends_at)}\n人數：${a.attendees}\n\n${a.description}\n\n需求：${a.requirements || '—'}\n\n審核：${ADMIN_BASE}/admin/events`, replyTo: a.contact_email });
 }
 const applicationMail = require('./lib/event-application-mail');
 let applicationMailDraining = false;
@@ -1348,6 +1353,12 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   if (!isPosHost(req)) return next();
   if (req.path === '/' || req.path === '/index.html' || req.path === '/admin' || req.path === '/admin.html') return res.redirect(302, '/pos');
+  next();
+});
+// admin.emoji.tw 的首頁就是後台（/admin）；官網首頁不在這個子網域提供
+app.use((req, res, next) => {
+  if (!isAdminHost(req)) return next();
+  if (req.path === '/' || req.path === '/index.html') return res.redirect(302, '/admin');
   next();
 });
 // 導流歸因：帶 utm_source 的到訪按日計數，並記首次來源 cookie（只存來源字串、不追蹤個人），結帳時寫進 Stripe metadata
@@ -1575,7 +1586,7 @@ app.get('/api/health', (req, res) =>
 /* ---- 1F 訂位（/reserve；不登入）：驗證 → 存 dining_reservations（confirmed）→ 寄確認信給客人＋通知 NOTIFY_EMAIL ----
    後台「訂位」分頁（/api/admin/reservations）可排桌、取消（寄婉拒信）、標記已到／未到。 */
 const reservations = require('./lib/reservations');
-const reservationAdminUrl = r => `${SITE_BASE}/admin/${tableOrders.reservationVenue(r.time) === 'CAFE' ? 'cafe' : 'bar'}/reservations`;
+const reservationAdminUrl = r => `${ADMIN_BASE}/admin/${tableOrders.reservationVenue(r.time) === 'CAFE' ? 'cafe' : 'bar'}/reservations`;
 app.post('/api/reservations', rateLimit({ max: 30, windowMs: 3600000 }), requireDb, wrap(async (req, res) => {
   let r;
   try { r = reservations.normalizeReservation(req.body); }
@@ -4960,7 +4971,7 @@ async function boot() {
     const igAlert = (subject, text) => sendMailQuietly({ to: NOTIFY_EMAIL, subject: `[IG] ${subject}`, text });
     cron.schedule('*/5 * * * *', () => igPublisher.publishDue(igDeps())
       .then(rs => rs.filter(r => !r.ok).forEach(r => igAlert(`發文失敗：${r.title}`,
-        `貼文「${r.title}」自動發佈失敗，已標為錯誤、不會自動重發。\n\n原因：${r.error}\n\n處理：${SITE_BASE}/admin/social/edit/${r.id}（修正後把狀態改回「已排程」並設定新時間即重發）`)))
+        `貼文「${r.title}」自動發佈失敗，已標為錯誤、不會自動重發。\n\n原因：${r.error}\n\n處理：${ADMIN_BASE}/admin/social/edit/${r.id}（修正後把狀態改回「已排程」並設定新時間即重發）`)))
       .catch(e => console.error('[ig-publish] cron 失敗：', e.message)));
     // 長期 token 60 天效期，每日續期一次（台北 04:10 離峰）；失敗每天提醒，過期前須處理
     cron.schedule('10 4 * * *', () => igPublisher.refreshToken(igDeps())
