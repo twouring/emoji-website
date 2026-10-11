@@ -45,7 +45,18 @@
   .a-nav .badge{font-size:1rem;line-height:1;background:var(--paper-deep);color:var(--ink);border-radius:999px;padding:3px 7px;font-weight:600;font-variant-numeric:tabular-nums}
   .a-nav-foot{margin-top:auto;padding:12px 10px 0;border-top:1px solid var(--line);font-size:1rem;color:var(--muted);line-height:1.45;overflow-wrap:anywhere}
   .a-nav-foot b{display:block;color:var(--ink-soft);font-weight:500}
-  .a-nav #a-scope{width:100%;margin-bottom:12px;min-height:36px;padding:4px 8px;font:inherit;font-size:1rem;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)}
+  .a-tab-nav{display:flex;flex-direction:column;gap:16px}
+  /* 品牌切換：攤開在頂欄中央的膠囊按鈕（言文字／在咖啡／三點水／等等空間），一鍵切換不用展開選單 */
+  .a-workspaces{display:none;align-items:center;gap:6px;flex:none;max-width:50vw;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:4px 0}
+  .a-workspaces::-webkit-scrollbar{display:none}
+  .a-workspaces.on{display:flex}
+  .a-workspaces button.a-workspace{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:0 14px 0 8px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--ink-soft);font-size:1rem;line-height:1.2;white-space:nowrap;transition:background .15s,color .15s,border-color .15s}
+  .a-workspaces button.a-workspace:hover{background:var(--paper-alt);color:var(--ink)}
+  .a-workspaces button.a-workspace:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+  .a-workspace-mark{width:26px;height:26px;border-radius:999px;background:var(--paper-alt);display:grid;place-items:center;flex:none;font-weight:700;font-size:.95rem;line-height:1}
+  .a-workspace-copy b{font-weight:500}
+  .a-workspaces button.a-workspace.on{background:var(--ink);border-color:var(--ink);color:var(--paper);font-weight:500}
+  .a-workspaces button.a-workspace.on .a-workspace-mark{background:var(--accent);color:var(--ink)}
 
   /* 內容區 */
   .a-main{margin-left:var(--a-side);padding:calc(var(--a-top) + 20px) 24px 60px;min-width:0;max-width:1480px}
@@ -217,27 +228,48 @@
   .ads-bar{height:8px;border-radius:999px;background:var(--line);overflow:hidden;position:relative;margin:8px 0 4px}
   .ads-bar>i{position:absolute;top:0;left:0;height:100%}
 
-  @media(max-width:1020px){.xs-grid,.sp-edit{grid-template-columns:1fr}.sp-side{position:static}}
+  @media(max-width:1180px){
+    :root{--a-side:216px}
+    .a-main{padding-left:18px;padding-right:18px}
+    .a-sec{padding:16px}
+  }
+  @media(max-width:1020px){
+    .xs-grid,.sp-edit{grid-template-columns:1fr}.sp-side{position:static}
+    /* 平板：以手指操作為基準，點擊目標不低於 48px，表格明確可橫滑 */
+    .btn,.ui-button,.event-task,.a-nav button,.a-workspaces button.a-workspace{min-height:48px}
+    .a-form input,.a-form select,.a-form textarea,.a-toolbar input,.a-toolbar select,
+    .sp-page-form input,.sp-page-form select,.sp-page-form textarea,.xs-form input,.xs-form textarea,#social-body select{min-height:48px;font-size:16px}
+    table.a-tbl th,table.a-tbl td{padding:10px 12px}
+    .a-wrap2{max-height:none;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable both-edges}
+    .event-task-nav{gap:14px 18px}.event-task-group__items{gap:8px}
+  }
   @media(max-width:860px){
     .a-brand{width:auto}
     .a-brand span,.a-crumb{display:none}
+    /* 頂欄只剩 logo＋品牌切換＋操作鈕：品牌膠囊可左滑，吸附對齊 */
+    .a-workspaces{max-width:calc(100vw - 270px);gap:8px;scroll-snap-type:x proximity}
+    .a-workspaces button.a-workspace{scroll-snap-align:start}
     .a-shell{padding-top:var(--a-top)}
-    .a-nav{position:sticky;top:var(--a-top);bottom:auto;width:auto;flex-direction:row;align-items:center;gap:4px;overflow-x:auto;padding:8px 12px;border-right:0;border-bottom:1px solid var(--line);scrollbar-width:none;-webkit-overflow-scrolling:touch}
+    .a-nav{position:sticky;top:var(--a-top);bottom:auto;width:auto;display:flex;flex-direction:row;align-items:center;gap:8px;overflow-x:auto;padding:10px 12px;border-right:0;border-bottom:1px solid var(--line);scrollbar-width:none;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;z-index:20}
     .a-nav::-webkit-scrollbar{display:none}
     /* 右緣漸層提示分頁列可左滑；捲到底時它排在最後一顆之後，不會蓋到文字 */
     .a-nav::after{content:"";position:sticky;right:0;flex:none;width:28px;align-self:stretch;background:linear-gradient(to right,transparent,var(--card));pointer-events:none}
-    .a-nav-g{flex-direction:row;gap:4px;flex:none}
+    .a-tab-nav{display:contents}
+    .a-nav-g{flex-direction:row;gap:8px;flex:none}
     .a-nav-gl,.a-nav-foot{display:none}
-    .a-nav button{width:auto;height:32px;min-height:32px;white-space:nowrap;border:1px solid var(--line);padding:0 10px}
+    .a-nav button{width:auto;white-space:nowrap;border:1px solid var(--line);padding:0 14px;scroll-snap-align:start}
     .a-nav button.on{border-color:var(--ink)}
-    /* 切換後台（根／品牌）：側欄時全寬，橫列時改成固定寬的下拉，否則被 flex 壓成 2px 看不見 */
-    .a-nav #a-scope{flex:none;width:auto;max-width:11em;margin:0 6px 0 0;min-height:32px;padding:0 8px;border-color:var(--ink)}
-    .a-main{margin-left:0;padding:12px 16px 40px}
+    .a-main{margin-left:0;padding:16px 16px 40px}
+    .a-sec{border-radius:10px;margin-bottom:16px}
+    .a-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .a-toolbar{gap:10px}.a-form{gap:12px}.a-form label,.sp-page-form label,.xs-form label{width:100%;min-width:min(100%,260px)}
     /* 窄螢幕：表格改為水平捲動，不再壓縮欄寬把中文擠成直排 */
     .a-wrap2{max-height:none}
-    .a-wrap2 table.a-tbl{min-width:640px}
+    .a-wrap2 table.a-tbl{min-width:720px}
     .a-wrap2 table.a-tbl td{white-space:nowrap}
   }
+  /* 手機：logo 縮小、品牌列只留單字圓標並可左滑；品牌列用 flex 收縮，右側「回前台／登出」永遠留在畫面內 */
+  @media(max-width:560px){.a-kpis{grid-template-columns:1fr}.a-top{padding:0 12px;gap:8px}.a-brand img{width:88px!important;height:30px!important}.a-workspaces{flex:1 1 auto;min-width:0;max-width:none;gap:6px}.a-workspaces button.a-workspace{padding:0;min-height:40px;width:40px;justify-content:center}.a-workspace-mark{width:40px;height:40px;font-size:1rem}.a-workspace-copy{display:none}.a-top-act{flex:none;gap:6px}.a-top-act .btn{padding-left:10px;padding-right:10px;min-height:40px}.a-main{padding-left:12px;padding-right:12px}}
   /* 手機：表單控制項一律撐滿一列，蓋掉桌面用的固定寬度（width:360px、min-width:260px…），不再超出畫面 */
   @media(max-width:640px){
     .a-form{gap:12px}
@@ -261,7 +293,8 @@
 <body>
 <header class="a-top">
   <a class="a-brand" href="/admin" aria-label="後台首頁"><img src="/cis/assets/emoji-h.svg" alt="言文字 emoji" width="120" height="40" style="width:120px;height:40px;object-fit:contain"><span>後台管理</span></a>
-  <div class="a-crumb" id="a-crumb" hidden>後台 <span aria-hidden="true">/</span> <b id="a-crumb-cur">總覽</b> <span class="a-role" id="a-role"></span></div>
+  <div class="a-crumb" id="a-crumb" hidden><span id="a-crumb-workspace">言文字</span> <span aria-hidden="true">/</span> <b id="a-crumb-cur">總覽</b> <span class="a-role" id="a-role"></span></div>
+  <div class="a-workspaces" id="a-workspaces" role="group" aria-label="切換工作區"></div>
   <div class="a-top-act">
     <a class="btn btn--ghost btn-sm" href="/" target="_blank" rel="noopener">回前台</a>
     <button class="btn btn--ghost btn-sm" id="logout" style="display:none">登出</button>
@@ -337,8 +370,16 @@ function routePath(){
   if (p === '.html') p = '';
   return p.replace(/^\/+|\/+$/g, '').split('/').map(s => { try { return decodeURIComponent(s); } catch (_) { return s; } }).join('/');
 }
+function scopedRoute(route, scope=SCOPE){
+  const clean=String(route||'').replace(/^\/+|\/+$/g,'');
+  if (ORGANIZER_PORTAL) return clean;
+  if (clean && Object.prototype.hasOwnProperty.call(SCOPE_BY_SLUG, clean.split('/')[0])) return clean;
+  const slug=(WORKSPACES[scope]||WORKSPACES['']).slug;
+  return slug+(clean?'/'+clean:'');
+}
 function go(route, replace){
-  const url = BASE + (route ? '/' + route.split('/').map(encodeURIComponent).join('/') : '');
+  const target=scopedRoute(route);
+  const url = BASE + (target ? '/' + target.split('/').map(encodeURIComponent).join('/') : '');
   if (location.pathname !== url) history[replace ? 'replaceState' : 'pushState'](null, '', url);
   applyRoute();
 }
@@ -439,7 +480,7 @@ function tabOverview(d, x){
   <div class="a-sec" id="overview-todo">${overviewTodoHTML(d, x)}</div>
   <div class="a-sec">
     <h2>快速指引</h2>
-    <p class="hint">此後台管理創始會員計畫與官網前台內容。每個分頁有獨立網址（如 <code>/admin/members</code>），可直接分享或加入書籤。左側分頁：<b>會員</b>可搜尋與匯出名單；<b>參與紀錄</b>確認會費入帳；<b>活動</b>建立活動、查看報名，場地申請會以「待審」活動出現在同一張清單，點進去審核並寄送進度通知；<b>最新消息</b>會公開顯示於官網首頁；<b>網站內容</b>可編輯首頁公告；<a href="/access-mock" target="_blank" rel="noopener">門禁 Mock</a> 可協助手動驗簽與掃碼啟用。</p>
+    <p class="hint">這裡管理所有品牌共用的會員、會費、官網消息、社群與系統設定。品牌現場營運拆到上方品牌列，點一下即切換：<b>在咖啡</b>與<b>三點水</b>管理點餐出餐及各自菜單；<b>等等空間</b>管理活動、行事曆與櫃檯。每個工作區與分頁都有獨立網址，可直接加入書籤。<a href="/access-mock" target="_blank" rel="noopener">門禁 Mock</a> 可協助手動驗簽與掃碼啟用。</p>
   </div>`;
 }
 
@@ -451,11 +492,11 @@ function overviewTodoHTML(d, x){
   const item = (href, n, label) => `<a class="a-todo-item" href="${href}"><span class="n${n===0?' zero':''}">${n===null?'…':n}</span><span class="l">${label}</span></a>`;
   return `<h2>今日待辦</h2>
     <div class="a-todo">
-      ${d.organizer?'':item(BASE+'/events/applications', apps, '待審場地申請')}
-      ${d.organizer?'':item(BASE+'/commitments', pendingPay, '待入帳會費')}
-      ${item(BASE+'/events', upcoming.length, '7 天內活動')}
+      ${d.organizer?'':item(BASE+'/space/events/applications', apps, '待審場地申請')}
+      ${d.organizer?'':item(BASE+'/shared/commitments', pendingPay, '待入帳會費')}
+      ${item(BASE+'/space/events', upcoming.length, '7 天內活動')}
     </div>
-    ${upcoming.length?`<ul class="a-todo-list">${upcoming.map(({e})=>`<li><a href="${BASE}/events/${encodeURIComponent(e.id)}">${esc(e.title)}</a><span class="meta">${esc(e.starts_at||'')} · ${esc(e.location||'')}</span><span class="meta">報名 ${e.reg_count||0}${e.capacity>0?'／'+e.capacity:''} · 已到 ${e.checkin_count||0}</span></li>`).join('')}</ul>`:'<p class="hint" style="margin:10px 0 0">未來 7 天沒有進行中的活動。</p>'}`;
+    ${upcoming.length?`<ul class="a-todo-list">${upcoming.map(({e})=>`<li><a href="${BASE}/space/events/${encodeURIComponent(e.id)}">${esc(e.title)}</a><span class="meta">${esc(e.starts_at||'')} · ${esc(e.location||'')}</span><span class="meta">報名 ${e.reg_count||0}${e.capacity>0?'／'+e.capacity:''} · 已到 ${e.checkin_count||0}</span></li>`).join('')}</ul>`:'<p class="hint" style="margin:10px 0 0">未來 7 天沒有進行中的活動。</p>'}`;
 }
 function paintOverviewTodo(){
   const host = document.getElementById('overview-todo'); if (!host || !DATA) return;
@@ -1073,7 +1114,7 @@ async function loadOrders(){
   const rows=d.orders.map(o=>`<tr><td><b style="font-size:1.2em">${esc(o.table_no)}</b></td><td>${o.items.map(l=>`${esc(l.zh)} ×${l.qty}${l.note?` <span class="hint" style="margin:0">${esc(l.note)}</span>`:''}`).join('<br>')}</td><td class="a-mono">${esc(applicationTime(o.paid_at))}</td><td class="num">${Number(o.amount).toLocaleString('zh-TW')}</td><td>${o.status==='ready'?'<span class="pill pill-ok">可取餐</span>':'<span class="pill pill-wait">準備中</span>'}${o.push_count?' 🔔':''}</td><td>${o.status==='paid'?`<button class="btn btn--solid btn-sm" data-order="${esc(o.id)}" data-status="ready">出餐並通知</button> `:''}<button class="btn btn--ghost btn-sm" data-order="${esc(o.id)}" data-status="done">已取餐</button></td></tr>`).join('')||'<tr><td colspan="6" class="a-empty">目前沒有待出餐的訂單</td></tr>';
   const sess=d.sessions.map(s=>`<tr><td><b>${esc(s.table)}</b></td><td class="num">${s.unpaid}</td><td class="a-mono">${esc(applicationTime(s.updated_at))}</td><td><button class="btn btn--ghost btn-sm" data-close-session="${esc(s.id)}">清桌</button></td></tr>`).join('')||'<tr><td colspan="4" class="a-empty">沒有使用中的桌</td></tr>';
   host.innerHTML=`<h2>點餐出餐</h2>
-    <p class="hint">客人掃桌上 QR 點餐並線上刷卡（TapPay）後出現在這裡。按「出餐並通知」會推播給客人到櫃檯取餐；每 10 秒自動更新，有新單會響一聲。</p>
+    <p class="hint">客人掃桌上 QR 加菜，用餐完再到櫃檯結帳；完成付款的訂單會出現在這裡。按「出餐並通知」會推播給客人到櫃檯取餐；每 10 秒自動更新，有新單會響一聲。</p>
     <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>桌號</th><th>品項</th><th>付款時間</th><th class="num">金額</th><th>狀態</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <h3 style="margin-top:28px">使用中的桌</h3>
     <p class="hint">清桌＝這桌未付品項作廢、未取餐的單標記已取餐，下一組客人掃碼會開新的一桌。客人全部取餐完成後會自動結束。</p>
@@ -1092,26 +1133,33 @@ async function loadOrders(){
 function tabAdmins(d){
   const body = (d.users||[]).filter(u=>u.email).map(u=>`<tr>
     <td>${esc(u.name)}</td><td class="a-mono">${esc(u.email)}</td>
-    <td>${u.is_admin?`<span class="pill pill-ok">${u.admin_brand?esc(u.admin_brand.split(',').map(b=>BRAND_LABEL[b]).join('＋'))+' 子帳號':'言文字 根帳號'}</span>`:'<span class="pill pill-wait">一般</span>'}</td>
+    <td>${u.is_admin?`<span class="pill pill-ok">${u.admin_brand?esc(u.admin_brand.split(',').map(b=>BRAND_LABEL[b]).join('＋'))+' 子帳號':'言文字管理員'}</span>`:'<span class="pill pill-wait">一般</span>'}</td>
     <td>${d.super?`<span data-brand-for="${u.id}">${Object.entries(BRAND_LABEL).map(([v,l])=>`<label style="margin-right:8px;white-space:nowrap"><input type="checkbox" value="${v}" ${(u.admin_brand||'').split(',').includes(v)?'checked':''}> ${l}</label>`).join('')}</span> <button class="btn btn--ghost btn-sm" data-admin="${u.id}" data-on="1">${u.is_admin?'更新範圍':'設為管理員'}</button>${u.is_admin?` <button class="btn btn--ghost btn-sm" data-admin="${u.id}" data-on="0">取消管理員</button>`:''}`:''}</td>
   </tr>`).join('') || '<tr><td colspan="4" class="a-empty">尚無使用者</td></tr>';
   return `<div class="a-sec">
     <h2>權限管理</h2>
-    <p class="hint">對象須先登入過本站。只有超管可授予管理員。品牌全不勾＝言文字根帳號，可進根後台與所有品牌後台；勾選一個以上＝品牌子帳號，只能進勾選的品牌後台（可同時多個品牌）。在咖啡／三點水子帳號只有「點餐出餐」與「菜單」（限自己店別），等等空間子帳號只有「活動」「行事曆」「櫃檯」。外部主辦人不在這裡設定：到「活動」開啟該場活動的「主辦團隊」，加入對方 Email 並勾選「共同管理本活動」，對方即可從 /organizer/events 管理那一場。</p>
+    <p class="hint">對象須先登入過本站。只有超管可授予管理員。品牌全不勾＝言文字管理員，可從上方品牌列切換全部四個工作區；勾選一個以上＝品牌子帳號，只能進勾選的品牌工作區（可同時多個品牌）。在咖啡／三點水子帳號只有「點餐出餐」與「菜單」（限自己店別），等等空間子帳號只有「活動」「行事曆」「櫃檯」。外部主辦人不在這裡設定：到「等等空間 → 活動」開啟該場活動的「主辦團隊」，加入對方 Email 並勾選「共同管理本活動」，對方即可從 /organizer/events 管理那一場。</p>
     <div class="a-wrap2"><table class="a-tbl">
       <thead><tr><th>姓名</th><th>Email</th><th>目前</th><th>操作</th></tr></thead>
       <tbody>${body}</tbody></table></div>
   </div>`;
 }
 
-/* 後台分兩種：根後台（SCOPE 為空，言文字全域事務）與品牌後台（SCOPE＝品牌，只有該品牌的分頁與資料）。
-   根帳號（brands 為空）兩種都能進；品牌子帳號只能進自己的品牌後台（伺服器端同步把關） */
-const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水', SPACE:'等等空間' };
+/* 後台分成四個工作區：言文字管理所有品牌共用事務；三個品牌各自管理營運資料。
+   言文字管理員（brands 為空）可進全部工作區；品牌子帳號只看授權工作區（伺服器端同步把關）。 */
+const ROOT_TABS = ['overview','members','commitments','updates','social','ads','permissions','system','logs'];
 const BRAND_TABS = { CAFE:['orders','menu'], BAR:['orders','menu'], SPACE:['events','calendar','counter'] };
-const BRAND_TAB_IDS = new Set(Object.values(BRAND_TABS).flat());
+const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水', SPACE:'等等空間' };
+const WORKSPACES = {
+  '':{ slug:'shared', label:'言文字', note:'所有品牌共用', mark:'言', tabs:ROOT_TABS },
+  CAFE:{ slug:'cafe', label:'在咖啡', note:'餐飲營運', mark:'咖', tabs:BRAND_TABS.CAFE },
+  BAR:{ slug:'bar', label:'三點水', note:'餐飲營運', mark:'水', tabs:BRAND_TABS.BAR },
+  SPACE:{ slug:'space', label:'等等空間', note:'場地與活動', mark:'等', tabs:BRAND_TABS.SPACE },
+};
+const SCOPE_BY_SLUG = Object.fromEntries(Object.entries(WORKSPACES).map(([scope,w])=>[w.slug,scope]));
 let SCOPE = ''; try { SCOPE = localStorage.getItem('tth_scope') || ''; } catch (e) {}
 const scopesOf = d => d?.organizer ? [''] : d?.brands || ['', ...Object.keys(BRAND_LABEL)];
-const scopeTabs = () => SCOPE ? BRAND_TABS[SCOPE] : TABS.map(t => t.id).filter(id => !BRAND_TAB_IDS.has(id));
+const scopeTabs = () => WORKSPACES[SCOPE].tabs;
 function setScope(s){ SCOPE = s; try { localStorage.setItem('tth_scope', s); } catch (e) {} }
 const homeTab = d => d?.organizer ? 'events' : scopeTabs()[0];
 const TABS = [
@@ -1187,17 +1235,34 @@ function render(d){
     const btns = ids.map(id => tabs.find(t=>t.id===id)).filter(Boolean).map(navBtn).join('');
     return btns ? `<div class="a-nav-g"><div class="a-nav-gl">${g}</div>${btns}</div>` : '';
   }).join('');
+  // 品牌切換攤開在頂欄：只有一個工作區可進（品牌子帳號／活動主）時整排隱藏
+  // innerHTML 內容全部來自本檔的 WORKSPACES 常數（label／note／mark），不含任何使用者輸入
+  const workspaceHost = document.getElementById('a-workspaces');
+  if (workspaceHost) {
+    const show = !d.organizer && scopes.length > 1;
+    workspaceHost.classList.toggle('on', show);
+    workspaceHost.innerHTML = show ? scopes.map(s=>{
+      const w=WORKSPACES[s];
+      return `<button type="button" class="a-workspace ${s===SCOPE?'on':''}" data-scope="${s}" aria-pressed="${s===SCOPE?'true':'false'}" title="${w.label}｜${w.note}"><span class="a-workspace-mark" aria-hidden="true">${w.mark}</span><span class="a-workspace-copy"><b>${w.label}</b></span></button>`;
+    }).join('') : '';
+  }
   const panels = tabs.map(t=>`<div class="a-tab ${t.id===TAB?'on':''}" data-panel="${t.id}">${t.render(d,x)}</div>`).join('');
   const me = d.me || {};
   app.innerHTML = `<div class="a-shell">
-    <nav class="a-nav" aria-label="後台分頁">${scopes.length>1?`<select id="a-scope" aria-label="切換後台">${scopes.map(s=>`<option value="${s}" ${s===SCOPE?'selected':''}>${s?BRAND_LABEL[s]+' 品牌後台':'言文字 根後台'}</option>`).join('')}</select>`:''}${nav}
+    <nav class="a-nav" aria-label="後台分頁"><div class="a-tab-nav">${nav}</div>
       <div class="a-nav-foot"><b>${esc(me.name||'')}</b>${esc(me.email||'')}</div>
     </nav>
     <div class="a-main">${panels}</div>
   </div>`;
   const crumb = document.getElementById('a-crumb');
-  if (crumb) { crumb.hidden = false; document.getElementById('a-role').textContent = d.organizer ? '活動主' : d.super ? '言文字 · 超級管理員' : d.brands ? d.brands.map(b=>BRAND_LABEL[b]).join('＋')+' · 子帳號' : '言文字 · 管理員'; }
-  const sc = document.getElementById('a-scope'); if (sc) sc.onchange = () => { setScope(sc.value); TAB = ''; render(DATA); go('', true); };
+  if (crumb) {
+    crumb.hidden = false;
+    document.getElementById('a-crumb-workspace').textContent = d.organizer ? '活動主後台' : WORKSPACES[SCOPE].label;
+    document.getElementById('a-role').textContent = d.organizer ? '活動主' : d.super ? '言文字 · 超級管理員' : d.brands ? d.brands.map(b=>BRAND_LABEL[b]).join('＋')+' · 子帳號' : '言文字 · 管理員';
+  }
+  document.querySelectorAll('[data-scope]').forEach(button=>button.onclick=()=>{
+    setScope(button.dataset.scope); TAB=homeTab(d); render(DATA); go(TAB,true);
+  });
   bindNav(); bind(d, x);
 }
 
@@ -1214,12 +1279,30 @@ function activateTab(t){
   document.querySelectorAll('[data-tab]').forEach(n=>{ const on = n.dataset.tab===TAB; n.classList.toggle('on',on); n.setAttribute('aria-current', on?'page':'false'); });
   document.querySelectorAll('[data-panel]').forEach(p=>p.classList.toggle('on',p.dataset.panel===TAB));
   const label = (TABS.find(x=>x.id===TAB)||{}).label || '';
+  const workspace = ORGANIZER_PORTAL ? '活動主後台' : WORKSPACES[SCOPE].label;
   const cur = document.getElementById('a-crumb-cur'); if (cur) cur.textContent = label;
-  document.title = `${label} · 後台管理 · 言文字`;
+  const ws = document.getElementById('a-crumb-workspace'); if (ws) ws.textContent = workspace;
+  document.title = `${label} · ${workspace} · 後台管理`;
 }
 
 function applyRoute(){
   let h = routePath();
+  let explicitScope = false;
+  if (!ORGANIZER_PORTAL) {
+    const routeParts = h.split('/').filter(Boolean);
+    if (routeParts.length && Object.prototype.hasOwnProperty.call(SCOPE_BY_SLUG, routeParts[0])) {
+      explicitScope = true;
+      const requestedScope = SCOPE_BY_SLUG[routeParts.shift()];
+      const allowedScopes = DATA ? scopesOf(DATA) : [];
+      if (DATA && !allowedScopes.includes(requestedScope)) {
+        setScope(allowedScopes[0] || ''); TAB=homeTab(DATA); render(DATA); go(TAB,true); return;
+      }
+      if (requestedScope !== SCOPE) {
+        setScope(requestedScope); TAB=homeTab(DATA); render(DATA); applyRoute(); return;
+      }
+      h = routeParts.join('/');
+    }
+  }
   if (h === 'ig') h = 'social/igstudio';   // 舊網址相容：IG 產生器已併入社群經營
   if (h === 'social/ads') h = 'ads';       // 廣告總覽已獨立成分頁
   if (h === 'admins') { go('permissions', true); return; }   // 舊網址 /admin/admins 改為 /admin/permissions
@@ -1229,11 +1312,12 @@ function applyRoute(){
   const parts = (h || homeTab(DATA)).split('/');
   const tab = parts[0];
   if (!document.querySelector(`[data-panel="${CSS.escape(tab)}"]`)) {
-    // 連結指到別的後台的分頁（如根後台點進 /admin/events/:id）：切到第一個有該分頁的後台
-    const s = DATA && !DATA.organizer && scopesOf(DATA).find(s => s !== SCOPE && (s ? BRAND_TABS[s].includes(tab) : TABS.some(t => t.id === tab && !BRAND_TAB_IDS.has(tab))));
+    // 舊網址相容：未帶工作區或工作區不符時，切到第一個擁有該功能且有權限的工作區。
+    const s = DATA && !DATA.organizer && scopesOf(DATA).find(s => s !== SCOPE && WORKSPACES[s].tabs.includes(tab));
     if (s === undefined || s === false || s === null) { go('', true); return; }
-    setScope(s); TAB = tab; render(DATA); applyRoute(); return;
+    setScope(s); TAB = tab; render(DATA); go(h, true); return;
   }
+  if (!ORGANIZER_PORTAL && !explicitScope) { go(h || tab, true); return; }
   activateTab(tab);
   if (tab === 'overview') { if (APPLICATIONS===null && !DATA?.organizer) loadApplications().then(paintOverviewTodo); return; }
   if (tab === 'calendar') { if (APPLICATIONS===null) loadApplications().then(paintCalendar); paintCalendar(); return; }

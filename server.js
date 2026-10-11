@@ -4644,15 +4644,18 @@ app.post('/api/orders/:id/push',requireDb,wrap(async(req,res)=>{
 /* 後台：出餐看板、清桌、桌號 QR */
 app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const all=req.query.all==='1';
-  // 品牌後台用 ?venue= 只看單一店別；子帳號不得超出自己的品牌
-  const own=req.auth.brands,v=String(req.query.venue||''),venues=v&&(!own||own.includes(v))?[v]:own;
-  const mine=items=>!venues||items.some(l=>!l.venue||venues.includes(l.venue));
-  const orders=(await q(all?"SELECT * FROM table_orders WHERE paid_at>now()-interval '1 day' ORDER BY paid_at DESC":"SELECT * FROM table_orders WHERE status IN ('paid','ready') ORDER BY paid_at")).rows.filter(o=>mine(o.items)).map(o=>({...o,push:undefined,push_count:o.push.length}));
-  const sessions=(await q("SELECT id,table_no,items,updated_at FROM table_sessions WHERE status='open' ORDER BY table_no")).rows.map(s=>({id:s.id,table:s.table_no,unpaid:tableOrders.unpaid(s.items).length,updated_at:s.updated_at}));
+  // 品牌後台用 ?venue= 只看單一店別；子帳號不得超出自己的品牌（判斷集中在 lib/table-orders.js，可單測）
+  const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
+  const orders=(await q(all?"SELECT * FROM table_orders WHERE paid_at>now()-interval '1 day' ORDER BY paid_at DESC":"SELECT * FROM table_orders WHERE status IN ('paid','ready') ORDER BY paid_at")).rows.filter(o=>tableOrders.orderOwnedByVenues(o,venues)).map(o=>({...o,push:undefined,push_count:o.push.length}));
+  const sessions=(await q("SELECT id,table_no,items,updated_at FROM table_sessions WHERE status='open' ORDER BY table_no")).rows.filter(s=>tableOrders.orderVisibleToVenues(s,venues)).map(s=>({id:s.id,table:s.table_no,unpaid:tableOrders.unpaid(s.items).filter(line=>tableOrders.itemInVenues(line,venues)).length,updated_at:s.updated_at}));
   res.json({orders,sessions});
 }));
 app.post('/api/admin/orders/:id/status',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const status=String(req.body?.status||'');if(!['ready','done'].includes(status)||!ORDER_ID_RE.test(req.params.id))return res.status(400).json({error:'狀態無效。'});
+  // 子帳號只能按自己品牌的單；別的品牌或混牌單一律當作不存在
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const current=(await q("SELECT id,items,status FROM table_orders WHERE id=$1",[req.params.id])).rows[0];
+  if(!current||!tableOrders.orderOwnedByVenues(current,venues))return res.status(404).json({error:'找不到這筆出餐單。'});
   const o=(await q(status==='ready'?"UPDATE table_orders SET status='ready',ready_at=now() WHERE id=$1 AND status='paid' RETURNING *":"UPDATE table_orders SET status='done',done_at=now() WHERE id=$1 AND status IN ('paid','ready') RETURNING *",[req.params.id])).rows[0];
   if(!o)return res.status(409).json({error:'出餐單狀態已變更，請重新整理。'});
   let notified=0;const push=eventChannels.pushConfig();
@@ -4662,6 +4665,11 @@ app.post('/api/admin/orders/:id/status',auth,adminOnly,requireDb,wrap(async(req,
 }));
 app.post('/api/admin/orders/sessions/:id/close',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
+  // 混桌（同桌含別的品牌品項）不可由單一品牌子帳號清掉，否則會把另一品牌未出的單一起結束
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const session=(await q("SELECT id,items FROM table_sessions WHERE id=$1 AND status='open'",[req.params.id])).rows[0];
+  if(!session)return res.status(404).json({error:'找不到這桌。'});
+  if(!tableOrders.sessionClosableByVenues(session,venues))return res.status(403).json({error:'這桌含有其他品牌品項，請由言文字管理員清桌。'});
   await q("UPDATE table_orders SET status='done',done_at=now() WHERE session_id=$1 AND status IN ('paid','ready')",[req.params.id]);
   const r=await q("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=$1 AND status='open'",[req.params.id]);
   res.json({ok:true,closed:r.rowCount>0});

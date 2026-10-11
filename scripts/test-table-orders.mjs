@@ -72,6 +72,26 @@ test('持卡人欄位：姓名必填、Email／電話格式', () => {
   assert.deepEqual(T.payer({ name: ' KK ', phone: '0912345678', email: 'KK@EMOJI.TW' }), { name: 'KK', phone: '0912345678', email: 'kk@emoji.tw' });
 });
 
+test('品牌後台只看授權店別，清桌與出餐不可跨品牌或混桌', () => {
+  const cafeOrder = { items: [{ venue: 'CAFE', zh: '拿鐵', qty: 1 }] };
+  const barOrder = { items: [{ venue: 'BAR', zh: '調酒', qty: 1 }] };
+  const mixedOrder = { items: [{ venue: 'CAFE' }, { venue: 'BAR' }] };
+  const cafeVenues = T.visibleVenues(['CAFE'], 'BAR');   // 子帳號指定別家店：仍只回自己的
+  assert.deepEqual(cafeVenues, ['CAFE']);
+  assert.deepEqual(T.visibleVenues(null, 'BAR'), ['BAR']); // 言文字管理員可指定單店
+  assert.equal(T.visibleVenues([], ''), null);             // 不限制
+  assert.equal(T.orderVisibleToVenues(cafeOrder, cafeVenues), true);
+  assert.equal(T.orderVisibleToVenues(barOrder, cafeVenues), false);
+  assert.equal(T.orderVisibleToVenues(mixedOrder, cafeVenues), true);
+  assert.equal(T.orderOwnedByVenues(cafeOrder, cafeVenues), true);
+  assert.equal(T.orderOwnedByVenues(mixedOrder, cafeVenues), false);
+  assert.equal(T.orderOwnedByVenues({ items: [] }, cafeVenues), false);
+  assert.equal(T.itemInVenues({ venue: 'BAR' }, cafeVenues), false);
+  assert.equal(T.sessionClosableByVenues({ items: [{ venue: 'CAFE' }] }, cafeVenues), true);
+  assert.equal(T.sessionClosableByVenues(mixedOrder, cafeVenues), false);
+  assert.equal(T.sessionClosableByVenues(mixedOrder, null), true);
+});
+
 test('menuIndex 給 venue 只留該品牌；null＝非營業時段無品項', () => {
   const doc = JSON.stringify({ items: [
     { id: 'm_cafe0001', venue: 'CAFE', cat: 'COFFEE', zh: '拿鐵', price: 150, published: true },
