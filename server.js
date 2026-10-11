@@ -33,6 +33,7 @@ const eventCrypto=require('./lib/event-crypto');
 const eventChannels=require('./lib/event-channels');
 const tableOrders=require('./lib/table-orders');
 const ezpayInvoice=require('./lib/ezpay-invoice');
+const linepay=require('./lib/linepay');
 const eventQuestions = require('./lib/event-questions');
 const { eventSlug, normalizeEventInput, localizeEvent, normalizeAttribution } = require('./lib/events');
 const { normalizeEventApplication, safeHttpUrl, applicationDeposit, venueLabel, venuesOfLocation } = require('./lib/event-applications');
@@ -727,6 +728,11 @@ async function migrate() {
   // 櫃檯作廢：status='void' 另記原因與誰作廢（舊庫補欄位）
   await q(`ALTER TABLE table_orders ADD COLUMN IF NOT EXISTS invoice JSONB NOT NULL DEFAULT '{}'`);
   await q(`ALTER TABLE table_orders ADD COLUMN IF NOT EXISTS void_reason TEXT, ADD COLUMN IF NOT EXISTS voided_by TEXT, ADD COLUMN IF NOT EXISTS voided_at TIMESTAMPTZ`);
+  // LINE Pay 商家後台實收明細（每日同步），日結報表拿來與 POS 登記的 LINE Pay 對帳；退款金額為負
+  await q(`CREATE TABLE IF NOT EXISTS linepay_transactions (
+    id TEXT PRIMARY KEY, type TEXT NOT NULL, amount INT NOT NULL, paid_at TIMESTAMPTZ NOT NULL, method TEXT NOT NULL DEFAULT '', provider TEXT NOT NULL DEFAULT '',
+    origin_id TEXT NOT NULL DEFAULT '', order_no TEXT NOT NULL DEFAULT '', card_last4 TEXT NOT NULL DEFAULT '', confirm_no TEXT NOT NULL DEFAULT '', synced_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE INDEX IF NOT EXISTS linepay_transactions_paid_idx ON linepay_transactions(paid_at)`);
   // 1F 訂位申請（Google Maps／官方 LINE 連結 /reserve）：不登入、存 DB、寄通知；舊庫補建
   await q(`CREATE TABLE IF NOT EXISTS dining_reservations (
     id TEXT PRIMARY KEY,
@@ -4797,7 +4803,50 @@ app.get('/api/admin/sales',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   // 營業日 = 台北 03:00 起算 24 小時
   const from=new Date(day+'T03:00:00+08:00'),to=new Date(+from+86400e3);
   const orders=(await q('SELECT id,session_id,table_no,items,amount,payer,tappay,invoice,status,paid_at,void_reason,voided_by FROM table_orders WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[from,to])).rows;
-  res.json({...tableOrders.salesSummary(orders,{venues,now:from}),day,csv:tableOrders.salesCsvRows(orders,{venues})});
+  // LINE Pay 對帳：同一營業日 LINE Pay 後台實收 vs POS 登記為 LINE Pay 的單；LINE Pay 不分店別，所以子帳號看到的實收是全店的
+  const txs=(await q('SELECT id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no FROM linepay_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[from,to])).rows;
+  const last=(await q('SELECT max(synced_at) AS at FROM linepay_transactions')).rows[0].at;
+  const lp=linepay.reconcile(orders,txs,{venues});
+  res.json({...tableOrders.salesSummary(orders,{venues,now:from}),day,csv:tableOrders.salesCsvRows(orders,{venues}),linepay:{...lp,configured:linepay.configured(),synced_at:last,csv:linepay.csvRows(lp.rows)}});
+}));
+/* LINE Pay 同步：每日 04:30 自動抓最近 7 天（退款會回補），也可從日結頁手動按；歷史一年用 import 一次灌入 */
+let linepaySyncing=false;
+async function upsertLinepay(rows){
+  let n=0;
+  for(const t of rows){
+    await q(`INSERT INTO linepay_transactions(id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no,synced_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now())
+      ON CONFLICT (id) DO UPDATE SET type=EXCLUDED.type,amount=EXCLUDED.amount,paid_at=EXCLUDED.paid_at,method=EXCLUDED.method,provider=EXCLUDED.provider,origin_id=EXCLUDED.origin_id,order_no=EXCLUDED.order_no,card_last4=EXCLUDED.card_last4,confirm_no=EXCLUDED.confirm_no,synced_at=now()`,
+      [t.id,t.type,t.amount,t.paid_at,t.method,t.provider,t.origin_id,t.order_no,t.card_last4,t.confirm_no]);
+    n++;
+  }
+  return n;
+}
+async function syncLinepay(start,end){
+  const cfg=linepay.config();
+  if(!cfg)throw Object.assign(Error('尚未設定 LINEPAY_MERCHANT_ID / LINEPAY_MERCHANT_PW。'),{status:503});
+  if(linepaySyncing)throw Object.assign(Error('LINE Pay 同步正在進行中，請稍候。'),{status:409});
+  linepaySyncing=true;
+  try{
+    const rows=await linepay.fetchTransactions(cfg,start,end,{log:m=>console.log('[linepay]',m)});
+    const n=await upsertLinepay(rows);
+    console.log(`[linepay] 同步 ${start}~${end}：${n} 筆`);
+    return {start,end,count:n};
+  }finally{linepaySyncing=false;}
+}
+app.post('/api/admin/sales/linepay/sync',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const [defStart,defEnd]=linepay.syncWindow();
+  const ok=v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v||''));
+  const start=ok(req.body?.start)?String(req.body.start):defStart,end=ok(req.body?.end)?String(req.body.end):defEnd;
+  if(start>end||(new Date(end)-new Date(start))>400*86400e3)return res.status(400).json({error:'區間無效（最多 400 天）。'});
+  try{res.json({ok:true,...await syncLinepay(start,end)});}
+  catch(e){res.status(e.status||502).json({error:e.message});}
+}));
+// 歷史匯入：body { rows:[ LINE Pay 後台原始交易物件 或 normalize 後的列 ] }，分批 200 筆；給 AI agent 或管理員用
+app.post('/api/admin/sales/linepay/import',auth,adminOnly,superOnly,requireDb,wrap(async(req,res)=>{
+  const input=Array.isArray(req.body?.rows)?req.body.rows:[];
+  if(!input.length||input.length>500)return res.status(400).json({error:'rows 須為 1–500 筆。'});
+  const rows=input.map(t=>t.transactionSequence?linepay.normalize(t):(t.id&&t.paid_at?t:null)).filter(Boolean);
+  res.json({ok:true,count:await upsertLinepay(rows),skipped:input.length-rows.length});
 }));
 /* 訂位：依日期列出（餐飲子帳號只看自己時段的）、改狀態（確認／婉拒會寄信給留 Email 的客人）、排桌與店內備註 */
 app.get('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -4962,6 +5011,12 @@ async function boot() {
     }
     require('node-cron').schedule('0 9 * * *', () => remindExpiringMemberships()
       .catch(e => console.error('[remind] 失敗：', e.message)), { timezone: 'Asia/Taipei' });
+    // LINE Pay 對帳：每日 04:30（三點水 03:00 收班後）抓最近 7 天實收；失敗寄信提醒，日結頁也能手動重抓
+    if (linepay.configured()) {
+      require('node-cron').schedule('30 4 * * *', () => syncLinepay(...linepay.syncWindow())
+        .catch(e => { console.error('[linepay] 同步失敗：', e.message); sendMailQuietly({ to: NOTIFY_EMAIL, subject: '[POS] LINE Pay 對帳同步失敗', text: `今日 LINE Pay 實收明細同步失敗，日結報表的對帳區會停在上次同步。\n\n原因：${e.message}\n\n處理：到 ${SITE_BASE}/pos/sales 按「同步 LINE Pay」重試；若持續失敗請確認 LINE Pay 商家後台帳密或後台是否改版。` }); }), { timezone: 'Asia/Taipei' });
+      console.log('[linepay] 每日對帳同步已啟用（04:30）');
+    } else console.warn('[warn] LINEPAY_MERCHANT_ID / LINEPAY_MERCHANT_PW 未設定，LINE Pay 對帳同步停用。');
   }
 
   // IG 自動發佈 cron：env IG_AUTOPUBLISH=1 才啟用（本機開發預設不跑，避免誤發）

@@ -277,7 +277,14 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 估清快速鍵。body `{ item_id, sold_out: boolean }`。只改該品項的 `sold_out`（記營業日），不覆蓋其他欄位；當個營業日結束（翌日 03:00）自動恢復。品牌子帳號只能估清自己店別（403）。
 
 ### GET /api/admin/sales
-日結報表。query `day=YYYY-MM-DD`（營業日，預設今天；03:00 起算 24 小時）、`venue=`。回 `{ day, orders, amount, by_method{}, by_hour{}, items[]{zh,venue,qty,amount}, voided, void_amount, csv[][] }`；`csv` 為每品項一列的明細（表頭：營業日、付款時間、桌號、品項、數量、單價、小計、付款方式、會員價、發票狀態、發票號碼、狀態、作廢原因）。作廢的單不計營收。
+日結報表。query `day=YYYY-MM-DD`（營業日，預設今天；03:00 起算 24 小時）、`venue=`。回 `{ day, orders, amount, by_method{}, by_hour{}, items[]{zh,venue,qty,amount}, voided, void_amount, csv[][], linepay }`；`csv` 為每品項一列的明細（表頭：營業日、付款時間、桌號、品項、數量、單價、小計、付款方式、會員價、發票狀態、發票號碼、狀態、作廢原因）。作廢的單不計營收。
+`linepay` 為 LINE Pay 對帳：`{ configured, synced_at, pos:{count,amount}（POS 登記為 LINE Pay 的成立單）, linepay:{count,amount,refunds,refund_amount,by_method{}}（LINE Pay 商家後台同日實收，退款已扣）, diff（實收－POS 登記；>0 漏登或登成其他方式，<0 登了但沒收到）, rows[]（當日每筆實收：id,type,amount,paid_at,method,card_last4,confirm_no,order_no）, csv[][] }`。LINE Pay 不分店別，`?venue=` 只影響 POS 側。
+
+### POST /api/admin/sales/linepay/sync
+從 LINE Pay 商家後台抓實收明細寫入 `linepay_transactions`（以交易號碼 upsert）。body 可帶 `{ start, end }`（YYYY-MM-DD，最多 400 天），預設最近 7 天（退款會回補到幾天前的交易）。伺服器每日 04:30（台北）自動跑一次；未設定 `LINEPAY_MERCHANT_ID` / `LINEPAY_MERCHANT_PW` 回 503，正在同步中回 409。回 `{ ok, start, end, count }`。
+
+### POST /api/admin/sales/linepay/import
+歷史匯入（僅超級管理員／`ADMIN_API_KEY`）。body `{ rows: [] }`，1–500 筆，每筆為 LINE Pay 後台原始交易物件（含 `transactionSequence`）或已正規化的列（`{ id, type, amount, paid_at, method, ... }`）。回 `{ ok, count, skipped }`。
 
 ### GET /api/admin/reservations
 訂位列表。query `from=YYYY-MM-DD`（預設台北今天）、`days`（1–60，預設 7）、`venue=`。回 `{ reservations[], from, days, pending, labels }`；每筆附 `venue`（08:00–16:59 歸 CAFE，其餘 BAR），品牌子帳號只看自己時段的。狀態：`new` 待確認、`confirmed` 已確認、`arrived` 已到、`no_show` 未到、`cancelled` 已取消。

@@ -216,13 +216,30 @@ async function loadSales(){
   const hours=Object.entries(d.by_hour||{}).sort(),maxH=Math.max(1,...hours.map(h=>h[1]));
   const hourBars=hours.map(([h,v])=>`<div class="sales-bar"><span class="a-mono">${esc(h)}:00</span><i style="width:${Math.round(v/maxH*100)}%"></i><span class="num">${Number(v).toLocaleString('zh-TW')}</span></div>`).join('')||'<p class="a-empty">—</p>';
   const items=(d.items||[]).map(it=>`<tr><td>${esc(it.zh)}</td><td>${esc(BRAND_LABEL[it.venue]||'')}</td><td class="num">${it.qty}</td><td class="num">${Number(it.amount).toLocaleString('zh-TW')}</td></tr>`).join('')||'<tr><td colspan="4" class="a-empty">—</td></tr>';
+  // LINE Pay 對帳：LINE Pay 後台實收（每日 04:30 同步）vs POS 登記為 LINE Pay 的單；差額非 0 標紅
+  const lp=d.linepay||{},lpPos=lp.pos||{},lpLp=lp.linepay||{},diff=Number(lp.diff)||0;
+  const lpRows=(lp.rows||[]).map(t=>`<tr class="${t.amount<0?'lp-refund':''}"><td class="a-mono">${esc(clockText(t.paid_at))}</td><td>${esc(t.type_label||t.type)}</td><td class="num">${Number(t.amount).toLocaleString('zh-TW')}</td><td>${esc(t.method_label||t.method)}${t.card_last4?` <span class="a-mono">…${esc(t.card_last4)}</span>`:''}</td><td class="a-mono">${esc(t.confirm_no||'')}</td></tr>`).join('')||`<tr><td colspan="5" class="a-empty">${lp.configured===false?'尚未設定 LINE Pay 商家後台帳密（LINEPAY_MERCHANT_ID / LINEPAY_MERCHANT_PW）':'這天沒有 LINE Pay 實收'}</td></tr>`;
+  const lpStatus=diff===0?(lpLp.count||lpPos.count?'<span class="pill pill-ok">帳對了</span>':''):`<span class="pill pill-bad">差額 ${diff>0?'+':''}${num(diff)}</span>`;
+  const lpHint=diff>0?'LINE Pay 收到的比 POS 登記多：可能有單漏登、或登成現金／刷卡。':diff<0?'POS 登記的 LINE Pay 比實際收到多：可能客人未完成付款、或已在 LINE Pay 退款但 POS 沒作廢。':'';
+  const lpBlock=`<h3 style="margin-top:20px">LINE Pay 對帳 ${lpStatus}</h3>
+    <p class="hint">左邊是 POS 結帳時選「LINE Pay」的成立單，右邊是 LINE Pay 商家後台同一營業日的實收（退款已扣）。${lp.synced_at?`上次同步 ${esc(applicationTime(lp.synced_at))}。`:''}${esc(lpHint)}</p>
+    <div class="a-kpis lp-kpis"><div class="a-kpi"><div class="kl">POS 登記 LINE Pay</div><div class="kv"><span class="u">NT$</span>${num(lpPos.amount)}<span class="u"> · ${num(lpPos.count)} 單</span></div></div><div class="a-kpi"><div class="kl">LINE Pay 實收</div><div class="kv"><span class="u">NT$</span>${num(lpLp.amount)}<span class="u"> · ${num(lpLp.count)} 筆${lpLp.refunds?`，退 ${num(lpLp.refunds)} 筆 NT$${num(lpLp.refund_amount)}`:''}</span></div></div><div class="a-kpi ${diff?'lp-diff':''}"><div class="kl">差額</div><div class="kv"><span class="u">NT$</span>${diff>0?'+':''}${num(diff)}</div></div></div>
+    <div class="a-toolbar"><button class="btn btn--ghost btn-sm" id="lp-sync" ${lp.configured===false?'disabled':''}>同步 LINE Pay</button><button class="btn btn--ghost btn-sm" id="lp-csv">匯出 LINE Pay CSV</button></div>
+    <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>時間</th><th>類型</th><th class="num">金額</th><th>付款方式</th><th>驗證碼</th></tr></thead><tbody>${lpRows}</tbody></table></div>`;
   host.innerHTML=`<h2>日結報表</h2>
     <p class="hint">營業日從凌晨 03:00 起算到翌日 03:00（三點水深夜的單算前一天）。作廢的單不計營收、另列筆數。CSV 含每一筆品項明細與付款方式，可直接交會計。</p>
     <div class="a-toolbar"><label>營業日 <input type="date" id="sales-day" value="${esc(d.day)}"></label><button class="btn btn--ghost btn-sm" id="sales-prev">前一天</button><button class="btn btn--ghost btn-sm" id="sales-next">後一天</button><button class="btn btn--ghost btn-sm" id="sales-today">今天</button><button class="btn btn--solid btn-sm" id="sales-csv">匯出 CSV</button></div>
     <div class="a-kpis"><div class="a-kpi"><div class="kl">營收</div><div class="kv"><span class="u">NT$</span>${num(d.amount)}</div></div><div class="a-kpi"><div class="kl">成立單數</div><div class="kv">${num(d.orders)}<span class="u"> 單</span></div></div><div class="a-kpi"><div class="kl">平均每單</div><div class="kv"><span class="u">NT$</span>${num(d.orders?Math.round(d.amount/d.orders):0)}</div></div><div class="a-kpi"><div class="kl">作廢</div><div class="kv">${num(d.voided)}<span class="u"> 單 · NT$${num(d.void_amount)}</span></div></div></div>
     <div class="sales-cols"><div><h3>付款方式</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>方式</th><th class="num">金額</th><th class="num">占比</th></tr></thead><tbody>${methods}</tbody></table></div></div><div><h3>時段分布</h3><div class="sales-bars">${hourBars}</div></div></div>
-    <h3 style="margin-top:20px">品項銷量</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>品項</th><th>店別</th><th class="num">數量</th><th class="num">金額</th></tr></thead><tbody>${items}</tbody></table></div>`;
+    <h3 style="margin-top:20px">品項銷量</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>品項</th><th>店別</th><th class="num">數量</th><th class="num">金額</th></tr></thead><tbody>${items}</tbody></table></div>
+    ${lpBlock}`;
   const shift=n=>{const t=new Date(SALES_DAY+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);SALES_DAY=t.toISOString().slice(0,10);loadSales();};
+  // 同步：抓「這個營業日前後 3 天」，退款會回補到幾天前；按下去要等後台登入、約 20–60 秒
+  host.querySelector('#lp-sync').onclick=e=>{const b=e.currentTarget;b.disabled=true;b.textContent='同步中…（約 1 分鐘）';
+    const addDays=(day,n)=>{const t=new Date(day+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10);};
+    const start=addDays(d.day,-3),end=[addDays(d.day,1),todayTaipei()].sort()[0];
+    opsThen(()=>api('/admin/sales/linepay/sync',{method:'POST',body:{start,end}}),out=>`已同步 ${out.start} ～ ${out.end}，${out.count} 筆`,loadSales).finally(()=>{b.disabled=false;b.textContent='同步 LINE Pay';});};
+  host.querySelector('#lp-csv').onclick=()=>downloadCSV(`LINEPay_${d.day}.csv`,lp.csv||[]);
   host.querySelector('#sales-day').onchange=e=>{SALES_DAY=e.target.value||MenuLib.businessDay();loadSales();};
   host.querySelector('#sales-prev').onclick=()=>shift(-1);
   host.querySelector('#sales-next').onclick=()=>shift(1);

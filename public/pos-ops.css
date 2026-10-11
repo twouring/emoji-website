@@ -33,6 +33,9 @@
 tr.ops-ready td{background:#f2fbf4}
 .pill-bad{color:#b42318;border-color:#f3c6c0;background:#fff5f3}
 tr.resv-day td{background:var(--paper-alt);font-weight:600}tr.resv-off td{color:var(--muted)}
+/* LINE Pay 對帳：差額非 0 的 KPI 與退款列標紅 */
+.lp-kpis .a-kpi.lp-diff{border-color:#b42318;background:#fff5f3}.lp-kpis .a-kpi.lp-diff .kv{color:#b42318}
+tr.lp-refund td{color:#b42318}
 .sales-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px}
 .sales-bars{display:grid;gap:6px}.sales-bar{display:grid;grid-template-columns:6ch 1fr 9ch;gap:8px;align-items:center;font-size:1rem}.sales-bar i{display:block;height:18px;background:var(--ink);border-radius:3px;min-width:2px}
 /* 估清：品項大格，點一下切換 */
