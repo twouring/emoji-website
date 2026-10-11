@@ -13,36 +13,42 @@
 <style>
 :root{--ink:#1B1A17;--soft:#3A362E;--muted:#6F6A60;--paper:#FAF8F3;--line:#E4E0D6;--yellow:#FFDE34;--ok:#1F7A4D;--bad:#B3261E}
 *{box-sizing:border-box}html,body{margin:0}
-body{font-family:"Noto Sans TC",system-ui,sans-serif;font-size:16px;line-height:1.6;color:var(--ink);background:var(--paper);padding-bottom:calc(88px + env(safe-area-inset-bottom))}
-button{font:inherit;cursor:pointer}input{font:inherit}
+body{font-family:"Noto Sans TC",system-ui,sans-serif;font-size:16px;line-height:1.6;color:var(--ink);background:var(--paper);padding-bottom:calc(104px + env(safe-area-inset-bottom));-webkit-tap-highlight-color:transparent}
+button{font:inherit;cursor:pointer;touch-action:manipulation}input,textarea{font:inherit}
+.svg-sprite{position:absolute;width:0;height:0;overflow:hidden}.ico{width:1.15em;height:1.15em;display:inline-block;vertical-align:-.18em;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}.ico.lg{width:1.35em;height:1.35em}.with-icon{display:inline-flex;align-items:center;justify-content:center;gap:7px}.title-icon{display:inline-flex;align-items:center;gap:8px}
 .top{position:sticky;top:0;z-index:5;background:var(--ink);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;display:flex;justify-content:space-between;align-items:center;gap:12px}
-.top b{font-size:1.15rem}.top .t{background:var(--yellow);color:var(--ink);padding:2px 10px;border-radius:999px;font-weight:700}
+.top b{font-size:1.15rem}.top .actions{display:flex;align-items:center;gap:8px}.top .t{background:var(--yellow);color:var(--ink);padding:4px 12px;border-radius:999px;font-weight:700;white-space:nowrap}.lang{min-width:48px;min-height:38px;border:1px solid #777;background:transparent;color:#fff;border-radius:999px;padding:4px 10px;font-weight:700}
 .top small{color:#cfc9bb}
-.wrap{padding:16px;max-width:640px;margin:0 auto}
+.wrap{padding:14px;max-width:640px;margin:0 auto}
 .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
 h2{font-size:1rem;margin:22px 0 8px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
 h3{font-size:1.05rem;margin:0 0 6px}
 .venue{font-size:1.3rem;margin:26px 0 4px;font-weight:700}.venue small{color:var(--muted);font-weight:400;margin-left:6px}
-.item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
-.item:last-child{border-bottom:0}
-.item img{width:56px;height:56px;border-radius:8px;object-fit:cover;flex:none;background:var(--line)}
-.item .n{flex:1;min-width:0}.item .n b{display:block}.item .n small{color:var(--muted);display:block}.item .n small.note{margin-top:2px;line-height:1.4}
-.item .p{font-weight:700;white-space:nowrap}
-.add{width:38px;height:38px;border-radius:50%;border:1.5px solid var(--ink);background:#fff;font-size:1.3rem;line-height:1;flex:none}
-.add:active{background:var(--ink);color:#fff}
-.bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:flex;gap:10px;align-items:center;z-index:5}
-.bar .s{flex:1}.bar .s small{display:block;color:var(--muted)}
-.btn{border:1.5px solid var(--ink);background:var(--ink);color:#fff;border-radius:999px;padding:10px 20px;font-weight:700}
+.menu-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.item{display:flex;flex-direction:column;align-items:stretch;min-width:0;padding:0;overflow:hidden;border:1px solid var(--line);border-radius:14px;background:#fff;text-align:left}
+.item:active{transform:translateY(1px)}
+.item img,.item .ph{width:100%;aspect-ratio:4/3;object-fit:cover;flex:none;background:linear-gradient(135deg,#eee9da,#faf8f3);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:1.8rem}
+.item .n{padding:10px 10px 12px;min-width:0}.item .n b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.35}.item .n small{color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.item .n small.note{display:none}
+.item .meta{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px}.item .p{font-weight:800;white-space:nowrap}.item .tap{font-size:1rem;color:var(--muted)}
+.add{border:0;background:transparent;color:inherit;text-align:left}
+.menu-status{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:12px}
+.menu-status b{font-size:1.05rem}.menu-status small{display:block;color:var(--muted);line-height:1.4}
+.bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 14px calc(10px + env(safe-area-inset-bottom));display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;z-index:5;box-shadow:0 -6px 22px rgba(0,0,0,.08)}
+.bar .s{min-width:0}.bar .s small{display:block;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btn{border:1.5px solid var(--ink);background:var(--ink);color:#fff;border-radius:999px;padding:12px 18px;font-weight:700;min-height:48px}
 .btn:disabled{opacity:.45;cursor:default}.btn.ghost{background:#fff;color:var(--ink)}.btn.sm{padding:6px 14px}.btn.y{background:var(--yellow);color:var(--ink);border-color:var(--yellow)}
 .sheet{position:fixed;inset:0;background:rgba(27,26,23,.55);z-index:20;display:none;align-items:flex-end}
 .sheet.on{display:flex}
 .sheet .in{background:var(--paper);width:100%;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px 16px calc(24px + env(safe-area-inset-bottom))}
 .line{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px dashed var(--line)}
 .line:last-child{border-bottom:0}.line .by{color:var(--muted)}
+.detail-img{width:100%;max-height:260px;object-fit:cover;border-radius:14px;background:var(--line);margin:6px 0 12px}.detail-note{color:var(--muted);margin:0 0 10px}.detail-price{font-size:1.25rem;font-weight:800;margin:0 0 8px}.opt{margin:14px 0}.opt-title{display:flex;justify-content:space-between;gap:8px;font-weight:700;margin-bottom:8px}.choice-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.choice-grid label{display:flex;align-items:center;justify-content:center;min-height:44px;text-align:center;border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 10px;line-height:1.25}.choice-grid label:has(input:checked){border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);background:#fff8cf}.choice-grid input{position:absolute;opacity:0;pointer-events:none}.qty{display:flex;align-items:center;gap:10px}.qty button{width:44px;height:44px;border-radius:50%;border:1.5px solid var(--ink);background:#fff;font-size:1.2rem}.qty b{min-width:2ch;text-align:center}.note-field textarea{width:100%;min-height:74px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;resize:vertical}
 .line .x{border:0;background:none;color:var(--bad);padding:0 4px}
 .who{font-weight:700;margin:14px 0 4px;display:flex;justify-content:space-between}
 .tot{display:flex;justify-content:space-between;font-size:1.15rem;font-weight:700;margin:14px 0}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+#pay-scope{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}#pay-scope label{display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px;line-height:1.35}#pay-scope label:has(input:checked){border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.split-box{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}.split-box input{width:72px;min-height:44px;border:1px solid var(--line);border-radius:8px;padding:8px;text-align:center}.split-result{background:#fff8cf;border-radius:10px;padding:10px 12px;margin:8px 0}.split-result b{display:block;font-size:1.15rem}
 input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff}
 .tp{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;height:44px}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -53,53 +59,83 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 .err{color:var(--bad);min-height:1.2em}.muted{color:var(--muted)}
 .notice{color:var(--muted);margin:20px 0}
 .hidden{display:none!important}
-.toast{position:fixed;left:16px;right:16px;bottom:calc(96px + env(safe-area-inset-bottom));z-index:40;background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;text-align:center;display:none}.toast.on{display:block}
+.toast{position:fixed;left:16px;right:16px;bottom:calc(112px + env(safe-area-inset-bottom));z-index:40;background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;text-align:center;display:none}.toast.on{display:block}
+@media (max-width:380px){.wrap{padding:10px}.top{padding-left:12px;padding-right:12px}.bar{grid-template-columns:1fr 82px 104px;padding-left:8px;padding-right:8px;gap:6px}.btn{padding-left:9px;padding-right:9px}.btn.sm{min-height:42px}.menu-grid{grid-template-columns:1fr 1fr;gap:8px}.item .n{padding:8px}.item .tap{display:none}#pay-scope{grid-template-columns:1fr}.top .t{padding-left:8px;padding-right:8px}.choice-grid{grid-template-columns:1fr 1fr}.sheet .in{padding-left:12px;padding-right:12px}}
+@media (max-width:320px){.menu-grid{grid-template-columns:1fr}.bar{grid-template-columns:1fr 76px 96px}.top b{font-size:1rem}.top small{display:block}.lang{min-width:42px;padding:4px 8px}.choice-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
+<svg class="svg-sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-cart" viewBox="0 0 24 24"><path d="M3 4h2l2.2 10.2a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 1.9-1.4L21 8H6"/><circle cx="10" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></symbol>
+  <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.6-4 2.4-6 5.5-6s4.9 2 5.5 6"/><circle cx="17" cy="9" r="2.5"/><path d="M15 14c3.2-.6 5.1 1 5.5 4"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M5 21c.5-5.2 2.8-8 7-8s6.5 2.8 7 8"/></symbol>
+  <symbol id="i-split" viewBox="0 0 24 24"><path d="M5 4v4c0 2.2 1.8 4 4 4h6M5 20v-4c0-2.2 1.8-4 4-4M15 8l4 4-4 4"/></symbol>
+  <symbol id="i-counter" viewBox="0 0 24 24"><path d="M3 10h18M5 10v9h14v-9M8 6h8l2 4H6l2-4Z"/><path d="M9 14h6"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M5 17h14l-2-3v-4a5 5 0 0 0-10 0v4l-2 3Z"/><path d="M10 20h4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></symbol>
+</svg>
 <div class="ready-banner" id="ready-banner"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<header class="top"><div><b id="brand">言文字</b> <small>桌邊點餐</small></div><span class="t" id="table-no">—</span></header>
+<header class="top"><div><b id="brand">言文字</b> <small data-i18n="order">桌邊點餐</small></div><div class="actions"><button class="lang with-icon" id="lang-toggle" type="button" aria-label="Switch language"><svg class="ico" aria-hidden="true"><use href="#i-globe"></use></svg><span id="lang-label">EN</span></button><span class="t" id="table-no">—</span></div></header>
 <main class="wrap">
-  <div class="card" id="boot"><p class="muted">載入中…</p></div>
+  <div class="card" id="boot"><p class="muted" data-i18n="loading">載入中…</p></div>
 
   <section id="app" class="hidden">
     <div class="card" id="orders-card"></div>
-    <div class="card"><form id="name-form" class="row" style="margin:0 0 6px"><input class="f" id="name-in" placeholder="你的稱呼（讓同桌知道誰點了什麼）" maxlength="20" required style="flex:1;min-width:0"><button class="btn sm" type="submit">好</button></form><div class="muted">同桌的人掃同一個 QR 就能一起點；結帳時可付全桌或只付自己的。</div></div>
+    <div class="card"><form id="name-form" class="row" style="margin:0 0 6px"><input class="f" id="name-in" data-i18n-placeholder="name_placeholder" placeholder="你的稱呼（讓同桌知道誰點了什麼）" maxlength="20" required style="flex:1;min-width:0"><button class="btn sm" type="submit" data-i18n="confirm">好</button></form><div class="muted" data-i18n="shared_hint">同桌的人掃同一個 QR 就能一起點；用餐完再到櫃檯結帳，可付全桌、各付自己的，或平均分攤。</div></div>
+    <div class="menu-status" id="menu-shift"><div><b class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-clock"></use></svg><span data-i18n="current_menu">目前菜單</span></b><small id="menu-hours">依台北時間顯示目前供應品項</small></div></div>
     <div id="menu"></div>
-    <p class="notice" id="alcohol-notice" hidden>未滿十八歲禁止飲酒。禁止酒駕。</p>
+    <p class="notice" id="alcohol-notice" data-i18n="alcohol" hidden>未滿十八歲禁止飲酒。禁止酒駕。</p>
   </section>
 </main>
 
-<div class="bar" id="bar" hidden><div class="s"><b id="bar-total">NT$0</b><small id="bar-count"></small></div><button class="btn ghost" id="open-cart">購物車</button><button class="btn y" id="open-pay">結帳</button></div>
+<div class="bar" id="bar" hidden><div class="s"><b id="bar-total">NT$0</b><small id="bar-count"></small></div><button class="btn ghost with-icon" id="open-cart"><svg class="ico" aria-hidden="true"><use href="#i-cart"></use></svg><span data-i18n="cart">購物車</span></button><button class="btn y with-icon" id="open-pay"><svg class="ico" aria-hidden="true"><use href="#i-receipt"></use></svg><span data-i18n="checkout">用餐完結帳</span></button></div>
 
-<div class="sheet" id="cart"><div class="in"><h3>這桌的點餐</h3><div id="cart-lines"></div><div class="tot"><span>未結帳合計</span><span id="cart-total"></span></div><div class="row"><button class="btn ghost" data-close>繼續點</button><button class="btn y" id="cart-pay">去結帳</button></div></div></div>
+<div class="sheet" id="cart"><div class="in"><h3 class="title-icon"><svg class="ico lg" aria-hidden="true"><use href="#i-cart"></use></svg><span data-i18n="table_order">這桌的點餐</span></h3><div id="cart-lines"></div><div class="tot"><span data-i18n="unpaid_total">未結帳合計</span><span id="cart-total"></span></div><div class="row"><button class="btn ghost" data-close data-i18n="continue">繼續點</button><button class="btn y with-icon" id="cart-pay"><svg class="ico" aria-hidden="true"><use href="#i-receipt"></use></svg><span data-i18n="checkout">用餐完結帳</span></button></div></div></div>
+
+
+<div class="sheet" id="item-detail"><div class="in">
+  <div id="detail-body"></div>
+  <div class="row"><button class="btn ghost" data-close data-i18n="back_menu">返回菜單</button><button class="btn y" id="detail-add" type="button" data-i18n="add_to_cart">加入購物車</button></div>
+</div></div>
 
 <div class="sheet" id="pay"><div class="in">
-  <h3>結帳</h3>
-  <div class="row" id="pay-scope"><label><input type="radio" name="scope" value="all" checked> 付全桌</label><label><input type="radio" name="scope" value="mine"> 只付我的</label></div>
-  <div class="tot"><span>付款金額</span><span id="pay-amount"></span></div>
-  <div id="pay-form">
-    <div class="grid"><input class="f" id="p-name" placeholder="持卡人姓名" autocomplete="cc-name"><input class="f" id="p-phone" placeholder="手機（選填）" autocomplete="tel"></div>
-    <input class="f" id="p-email" placeholder="Email（選填，收據）" autocomplete="email" style="margin-top:8px">
-    <div style="margin-top:10px"><div class="tp" id="card-number"></div><div class="grid" style="margin-top:8px"><div class="tp" id="card-exp"></div><div class="tp" id="card-ccv"></div></div></div>
-    <p class="err" id="pay-err"></p>
-    <div class="row"><button class="btn ghost" data-close>返回</button><button class="btn y" id="pay-go" disabled>付款</button></div>
-    <p class="muted">刷卡由 TapPay 處理，本站不保存卡號。</p>
-  </div>
-  <div id="pay-off" class="hidden"><p class="muted">線上付款尚未開通，請至櫃檯結帳。</p><div class="row"><button class="btn ghost" data-close>返回</button></div></div>
+  <h3 class="title-icon"><svg class="ico lg" aria-hidden="true"><use href="#i-counter"></use></svg><span data-i18n="checkout_title">用餐完再到櫃檯結帳</span></h3>
+  <p class="muted" data-i18n="checkout_hint">請先享用餐點；離席前帶著手機到櫃檯，工作人員會依這桌點餐明細結帳。</p>
+  <div class="row" id="pay-scope"><label><input type="radio" name="scope" value="all" checked><svg class="ico" aria-hidden="true"><use href="#i-users"></use></svg><span data-i18n="whole_table">付全桌</span></label><label><input type="radio" name="scope" value="mine"><svg class="ico" aria-hidden="true"><use href="#i-user"></use></svg><span data-i18n="my_items">只付我的</span></label><label><input type="radio" name="scope" value="split"><svg class="ico" aria-hidden="true"><use href="#i-split"></use></svg><span data-i18n="split_evenly">平均分攤</span></label></div>
+  <label class="split-box hidden" id="split-box"><svg class="ico" aria-hidden="true"><use href="#i-users"></use></svg><span data-i18n="people">分攤人數</span><input id="split-people" type="number" inputmode="numeric" min="2" max="20" value="2"><span data-i18n="people_suffix">人</span></label>
+  <div class="tot"><span class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-counter"></use></svg><span data-i18n="counter_amount">櫃檯結帳金額</span></span><span id="pay-amount"></span></div>
+  <div class="split-result hidden" id="split-result"><div class="title-icon"><svg class="ico lg" aria-hidden="true"><use href="#i-split"></use></svg><b id="split-each"></b></div><span class="muted" id="split-note"></span></div>
+  <div id="pay-off"><p class="muted" data-i18n="keep_screen">畫面可先保留，結帳時出示給櫃檯確認。</p><div class="row"><button class="btn ghost" data-close data-i18n="back">返回繼續點</button></div></div>
 </div></div>
 
 <script src="/menu-lib.js"></script>
+<script src="/order-lib.js"></script>
 <script>
 (function(){
   var $=function(s){return document.querySelector(s);};
   var esc=function(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+  var icon=function(name){return '<svg class="ico" aria-hidden="true"><use href="#i-'+esc(name)+'"></use></svg>';};
   var toastT;var toast=function(m){var t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove('on');},4000);};
   var money=function(n){return 'NT$'+Number(n||0).toLocaleString('zh-TW');};
   var qs=new URLSearchParams(location.search),T=qs.get('t')||'',K=qs.get('k')||'';
-  var S=null,MENU=[],VENUE=null,CFG={},GUEST,NAME,seenReady={},pollTimer;
-  try{GUEST=localStorage.getItem('order_guest');NAME=localStorage.getItem('order_name')||'';}catch(e){}
+  var S=null,MENU=[],VENUE=null,CFG={},GUEST,NAME,seenReady={},pollTimer,LANG='zh',CURRENT_ITEM=null,CURRENT_QTY=1;
+  try{GUEST=localStorage.getItem('order_guest');NAME=localStorage.getItem('order_name')||'';LANG=localStorage.getItem('order_lang')||'';}catch(e){}
+  if(!LANG){var ql=qs.get('lang'),nl=(navigator.language||'').toLowerCase();LANG=ql==='en'||ql==='ja'?ql:(!ql&&/^ja/.test(nl)?'ja':(!ql&&!/^zh/i.test(nl)?'en':'zh'));}
+  var tr=function(key,vars){return OrderLib.text(LANG,key,vars);};
+  var label=function(obj){return LANG==='en'?(obj.en||obj.zh):LANG==='ja'?(obj.ja||obj.zh):obj.zh;};
+  function applyLanguage(){
+    document.documentElement.lang=LANG==='en'?'en':(LANG==='ja'?'ja':'zh-Hant');
+    document.querySelectorAll('[data-i18n]').forEach(function(el){el.textContent=tr(el.dataset.i18n);});
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el){el.placeholder=tr(el.dataset.i18nPlaceholder);});
+    $('#lang-label').textContent=LANG==='zh'?'EN':(LANG==='en'?'日本語':'中文');
+    if(S){renderMenu();renderState();refreshPayAmount();}
+  }
+  $('#lang-toggle').onclick=function(){LANG=LANG==='zh'?'en':(LANG==='en'?'ja':'zh');try{localStorage.setItem('order_lang',LANG);}catch(e){}applyLanguage();};
+  applyLanguage();
   if(!GUEST){GUEST=Math.random().toString(36).slice(2,14)+Math.random().toString(36).slice(2,6);try{localStorage.setItem('order_guest',GUEST);}catch(e){}}
   var api=function(path,opt){opt=opt||{};return fetch('/api'+path,{method:opt.method||'GET',headers:opt.body?{'Content-Type':'application/json'}:{},body:opt.body?JSON.stringify(opt.body):undefined}).then(function(r){return r.json().catch(function(){return {};}).then(function(d){if(!r.ok)throw Error(d.error||('伺服器錯誤 '+r.status));return d;});});};
   var fail=function(msg){$('#boot').innerHTML='<p class="err">'+esc(msg)+'</p>';$('#boot').classList.remove('hidden');};
@@ -110,35 +146,56 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 
   function renderMenu(){
     VENUE=MenuLib.activeVenue();
-    $('#brand').textContent=(MenuLib.VENUE_LABEL[VENUE]||{zh:'言文字'}).zh;
+    var hours=VENUE==='CAFE'?(LANG==='en'?'at cafe · Serving now':LANG==='ja'?'在咖啡・提供中':'在咖啡・供應中'):VENUE==='BAR'?(LANG==='en'?'3AM · Serving now':LANG==='ja'?'三點水・提供中':'三點水・供應中'):(LANG==='en'?'Kitchen currently closed':LANG==='ja'?'現在は提供時間外です':'目前非供餐時段');
+    var venueLabel=MenuLib.VENUE_LABEL[VENUE]||{zh:'言文字',en:'Emoji',ja:'言文字'};
+    $('#brand').textContent=label(venueLabel);
+    $('#menu-hours').textContent=hours;
     var items=MenuLib.sortItems(MENU.filter(function(it){return it.venue===VENUE;})),html='',venue='',cat='';
     items.forEach(function(it){
-      if(it.venue!==venue){if(venue)html+='</div>';venue=it.venue;cat='';var v=MenuLib.VENUE_LABEL[venue]||{zh:venue,en:''};html+='<div class="venue">'+esc(v.zh)+'<small>'+esc(v.en)+'</small></div><div>';}
-      if(it.cat!==cat){cat=it.cat;var c=MenuLib.CAT_LABEL[cat]||{zh:cat};html+='<h2>'+esc(c.zh)+'</h2>';}
-      html+='<div class="card" style="padding:0 14px"><div class="item">'+(it.image?'<img src="'+esc(it.image)+'" alt="" loading="lazy">':'')+'<div class="n"><b>'+esc(it.zh)+'</b>'+(it.en?'<small>'+esc(it.en)+'</small>':'')+(it.note?'<small class="note">'+esc(it.note)+'</small>':'')+'</div><span class="p">'+money(it.price)+'</span><button class="add" data-add="'+esc(it.id)+'" aria-label="加入 '+esc(it.zh)+'">＋</button></div></div>';
+      if(it.venue!==venue){if(venue)html+='</div>';venue=it.venue;cat='';var v=MenuLib.VENUE_LABEL[venue]||{zh:venue,en:'',ja:venue};html+='<div class="venue">'+esc(label(v))+'<small>'+esc(LANG==='zh'?v.en:v.zh)+'</small></div><div>';}
+      if(it.cat!==cat){cat=it.cat;var c=MenuLib.CAT_LABEL[cat]||{zh:cat,en:cat,ja:cat};html+='<h2>'+esc(label(c))+'</h2><div class="menu-grid">';}
+      var next=items[items.indexOf(it)+1];
+      var primary=label(it),secondary=LANG==='zh'?it.en:it.zh;
+      html+='<button class="item add" data-open-item="'+esc(it.id)+'" aria-label="'+esc(tr('view_detail'))+' '+esc(primary)+'">'+(it.image?'<img src="'+esc(it.image)+'" alt="'+esc(primary)+'" loading="lazy">':'<div class="ph" aria-hidden="true">🍽</div>')+'<div class="n"><b>'+esc(primary)+'</b>'+(secondary?'<small>'+esc(secondary)+'</small>':'')+(it.note?'<small class="note">'+esc(it.note)+'</small>':'')+'<div class="meta"><span class="p">'+money(it.price)+'</span><span class="tap">'+esc(tr('view_detail'))+'</span></div></div></button>';
+      if(!next||next.cat!==cat){html+='</div>';}
     });
     if(venue)html+='</div>';
-    $('#menu').innerHTML=html||'<p class="muted">'+(VENUE?'目前尚未提供菜單。':'目前非營業時段。在咖啡 08:00–17:00、三點水 17:00–27:00。')+'</p>';
+    $('#menu').innerHTML=html||'<p class="muted">'+esc(VENUE?tr('menu_unavailable'):tr('closed_message'))+'</p>';
     $('#alcohol-notice').hidden=!items.some(function(i){return i.alcohol;});
   }
+
+  function optionGroups(it){return OrderLib.optionGroups(it,LANG);}
+  function openItem(id){
+    CURRENT_ITEM=MENU.find(function(it){return it.id===id;});CURRENT_QTY=1;if(!CURRENT_ITEM)return;
+    var primary=label(CURRENT_ITEM),secondary=LANG==='zh'?CURRENT_ITEM.en:CURRENT_ITEM.zh,groups=optionGroups(CURRENT_ITEM);
+    var html=(CURRENT_ITEM.image?'<img class="detail-img" src="'+esc(CURRENT_ITEM.image)+'" alt="'+esc(primary)+'">':'')+'<h3>'+esc(primary)+'</h3>'+(secondary?'<p class="muted" style="margin:0 0 6px">'+esc(secondary)+'</p>':'')+'<p class="detail-price">'+money(CURRENT_ITEM.price)+'</p>'+(CURRENT_ITEM.note?'<p class="detail-note">'+esc(CURRENT_ITEM.note)+'</p>':'')+'<div class="opt"><div class="opt-title"><span>'+esc(tr('quantity'))+'</span></div><div class="qty"><button type="button" data-qty="-1">−</button><b id="detail-qty">1</b><button type="button" data-qty="1">＋</button></div></div>';
+    html+=groups.map(function(g){return '<div class="opt" data-opt="'+esc(g.key)+'"><div class="opt-title"><span>'+esc(g.label)+'</span><small class="muted">'+esc(tr('required'))+'</small></div><div class="choice-grid">'+g.choices.map(function(c,i){return '<label><input type="radio" name="opt_'+esc(g.key)+'" value="'+esc(c)+'" '+(i===0?'checked':'')+'><span>'+esc(c)+'</span></label>';}).join('')+'</div></div>';}).join('');
+    html+='<label class="opt note-field"><div class="opt-title"><span>'+esc(tr('special_request'))+'</span><small class="muted">'+esc(tr('optional'))+'</small></div><textarea id="detail-note" maxlength="80" placeholder="'+esc(tr('special_placeholder'))+'"></textarea></label>';
+    $('#detail-body').innerHTML=html;$('#item-detail').classList.add('on');$('#detail-add').disabled=false;$('#detail-add').textContent=tr('add_to_cart');
+  }
+  function optionNote(){
+    var parts=[];optionGroups(CURRENT_ITEM).forEach(function(g){var r=document.querySelector('input[name="opt_'+g.key+'"]:checked');if(r)parts.push(g.label+'：'+r.value);});
+    var extra=($('#detail-note')&&$('#detail-note').value.trim())||'';if(extra)parts.push(extra.slice(0,80));return parts.join('；');
+  }
+
   var unpaid=function(){return (S.items||[]).filter(function(l){return !l.order_id;});};
   var mine=function(){return unpaid().filter(function(l){return l.mine;});};
   var sum=function(ls){return ls.reduce(function(a,l){return a+l.price*l.qty;},0);};
 
   function renderState(){
-    $('#table-no').textContent='桌號 '+S.table;
+    $('#table-no').textContent=tr('table')+' '+S.table;
     var u=unpaid();
-    $('#bar').hidden=false;$('#bar-total').textContent=money(sum(u));$('#bar-count').textContent=u.length?u.length+' 項未結帳':'尚未點餐';
+    $('#bar').hidden=false;$('#bar-total').textContent=money(sum(u));$('#bar-count').textContent=u.length?tr('unpaid_items',{count:u.length}):tr('empty');
     $('#open-pay').disabled=!u.length;$('#cart-pay').disabled=!u.length;
     // 購物車：依人分組
     var groups={},order=[];u.forEach(function(l){var k=l.by+(l.mine?'#me':'');if(!groups[k]){groups[k]={by:l.by,mine:l.mine,lines:[]};order.push(k);}groups[k].lines.push(l);});
-    $('#cart-lines').innerHTML=order.length?order.map(function(k){var g=groups[k];return '<div class="who"><span>'+esc(g.by)+(g.mine?'（我）':'')+'</span><span>'+money(sum(g.lines))+'</span></div>'+g.lines.map(function(l){return '<div class="line"><span>'+esc(l.zh)+' ×'+l.qty+(l.note?' <span class="by">'+esc(l.note)+'</span>':'')+'</span><span>'+money(l.price*l.qty)+(l.mine?' <button class="x" data-del="'+esc(l.line)+'" aria-label="移除">✕</button>':'')+'</span></div>';}).join('');}).join(''):'<p class="muted">還沒有人點餐。</p>';
+    $('#cart-lines').innerHTML=order.length?order.map(function(k){var g=groups[k];return '<div class="who"><span>'+esc(g.by)+(g.mine?'（'+esc(tr('me'))+'）':'')+'</span><span>'+money(sum(g.lines))+'</span></div>'+g.lines.map(function(l){var itemName=LANG==='en'?(l.en||l.zh):LANG==='ja'?(l.ja||l.zh):l.zh;return '<div class="line"><span>'+esc(itemName)+' ×'+l.qty+(l.note?' <span class="by">'+esc(l.note)+'</span>':'')+'</span><span>'+money(l.price*l.qty)+(l.mine?' <button class="x" data-del="'+esc(l.line)+'" aria-label="'+esc(tr('remove'))+'">✕</button>':'')+'</span></div>';}).join('');}).join(''):'<p class="muted">'+esc(tr('no_orders'))+'</p>';
     $('#cart-total').textContent=money(sum(u));
     // 出餐單
     var os=S.orders||[],byId={};(S.items||[]).forEach(function(l){byId[l.line]=l;});
     $('#orders-card').classList.toggle('hidden',!os.length);
-    $('#orders-card').innerHTML='<h3>已付款</h3>'+os.map(function(o){var st={paid:'準備中',ready:'可取餐',done:'已取餐'}[o.status]||o.status;return '<div class="line"><span><span class="st '+esc(o.status)+'">'+st+'</span> '+o.lines.map(function(id){var l=byId[id];return l?esc(l.zh)+'×'+l.qty:'';}).filter(Boolean).join('、')+'</span><span>'+money(o.amount)+'</span></div>'+(o.status==='paid'&&CFG.vapid_public_key&&!o._pushed?'<div class="row"><button class="btn ghost sm" data-push="'+esc(o.id)+'">餐點好了通知我</button></div>':'');}).join('');
-    os.forEach(function(o){if(o.status==='ready'&&!seenReady[o.id]){seenReady[o.id]=true;var b=$('#ready-banner');b.textContent='桌號 '+S.table+'｜餐點好了，請至櫃檯取餐';b.classList.add('on');try{navigator.vibrate&&navigator.vibrate([200,100,200]);}catch(e){}beep();setTimeout(function(){b.classList.remove('on');},15000);}});
+    $('#orders-card').innerHTML='<h3 class="title-icon">'+icon('receipt')+'<span>'+esc(tr('paid'))+'</span></h3>'+os.map(function(o){var st={paid:tr('preparing'),ready:tr('ready'),done:tr('done')}[o.status]||o.status,statusIcon=o.status==='paid'?'bell':'check';return '<div class="line"><span><span class="st '+esc(o.status)+'">'+icon(statusIcon)+esc(st)+'</span> '+o.lines.map(function(id){var l=byId[id];return l?esc(LANG==='en'?(l.en||l.zh):LANG==='ja'?(l.ja||l.zh):l.zh)+'×'+l.qty:'';}).filter(Boolean).join(LANG==='en'?', ':'、')+'</span><span>'+money(o.amount)+'</span></div>'+(o.status==='paid'&&CFG.vapid_public_key&&!o._pushed?'<div class="row"><button class="btn ghost sm with-icon" data-push="'+esc(o.id)+'">'+icon('bell')+'<span>'+esc(tr('notification_prompt'))+'</span></button></div>':'');}).join('');
+    os.forEach(function(o){if(o.status==='ready'&&!seenReady[o.id]){seenReady[o.id]=true;var b=$('#ready-banner');b.textContent=tr('ready_banner',{table:S.table});b.classList.add('on');try{navigator.vibrate&&navigator.vibrate([200,100,200]);}catch(e){}beep();setTimeout(function(){b.classList.remove('on');},15000);}});
   }
   function beep(){try{var c=new (window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.15;o.start();o.stop(c.currentTime+.4);}catch(e){}}
 
@@ -146,57 +203,49 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   function poll(){clearTimeout(pollTimer);pollTimer=setTimeout(function(){if(document.hidden)return poll();api('/orders/'+S.id+'?g='+GUEST).then(function(s){if(s.status!=='open'){return load();}S=s;renderState();}).catch(function(){}).then(poll);},5000);}
 
   document.addEventListener('click',function(e){
-    var b=e.target.closest('[data-add]');if(b){NAME=$('#name-in').value.trim().slice(0,20)||NAME;if(!needName())return;try{localStorage.setItem('order_name',NAME);}catch(x){}b.disabled=true;api('/orders/'+S.id+'/items',{method:'POST',body:{item_id:b.dataset.add,qty:1,by:NAME,guest:GUEST}}).then(function(s){S=s;renderState();b.textContent='✓';setTimeout(function(){b.textContent='＋';},600);}).catch(function(err){toast(err.message);if(/已結束/.test(err.message))load();}).then(function(){b.disabled=false;});return;}
+    var oi=e.target.closest('[data-open-item]');if(oi){openItem(oi.dataset.openItem);return;}
+    var qb=e.target.closest('[data-qty]');if(qb){CURRENT_QTY=Math.max(1,Math.min(20,CURRENT_QTY+Number(qb.dataset.qty||0)));$('#detail-qty').textContent=CURRENT_QTY;return;}
     var d=e.target.closest('[data-del]');if(d){api('/orders/'+S.id+'/items/'+d.dataset.del,{method:'DELETE',body:{guest:GUEST}}).then(function(s){S=s;renderState();}).catch(function(err){toast(err.message);});return;}
     var p=e.target.closest('[data-push]');if(p){subscribePush(p.dataset.push,p);return;}
     if(e.target.closest('[data-close]'))document.querySelectorAll('.sheet').forEach(function(s){s.classList.remove('on');});
   });
+  $('#detail-add').onclick=function(){if(!CURRENT_ITEM)return;NAME=$('#name-in').value.trim().slice(0,20)||NAME;if(!needName())return;try{localStorage.setItem('order_name',NAME);}catch(x){}var btn=this;btn.disabled=true;api('/orders/'+S.id+'/items',{method:'POST',body:{item_id:CURRENT_ITEM.id,qty:CURRENT_QTY,by:NAME,guest:GUEST,note:optionNote()}}).then(function(s){S=s;renderState();btn.textContent='✓ '+tr('added');setTimeout(function(){$('#item-detail').classList.remove('on');btn.textContent=tr('add_to_cart');},450);}).catch(function(err){toast(err.message);if(/已結束/.test(err.message))load();}).then(function(){btn.disabled=false;});};
   $('#open-cart').onclick=function(){$('#cart').classList.add('on');};
   $('#open-pay').onclick=$('#cart-pay').onclick=function(){$('#cart').classList.remove('on');openPay();};
 
-  /* ---- 結帳（TapPay） ---- */
-  var TP_READY=false,CAN_PRIME=false;
+  /* ---- 用餐完櫃檯結帳提醒／AA 分帳 ---- */
   function payScopeLines(){var scope=document.querySelector('input[name=scope]:checked').value;return scope==='mine'?mine():unpaid();}
-  function refreshPayAmount(){var ls=payScopeLines();$('#pay-amount').textContent=money(sum(ls));$('#pay-go').disabled=!CAN_PRIME||!ls.length;}
+  function refreshPayAmount(){
+    if(!S)return;
+    var scope=document.querySelector('input[name=scope]:checked').value,ls=payScopeLines(),isSplit=scope==='split';
+    $('#pay-amount').textContent=money(sum(ls));
+    $('#split-box').classList.toggle('hidden',!isSplit);$('#split-result').classList.toggle('hidden',!isSplit);
+    if(isSplit){
+      var people=Math.max(2,Math.min(20,Number($('#split-people').value)||2));$('#split-people').value=people;
+      var split=OrderLib.splitBill(sum(ls),people);
+      $('#split-each').textContent=tr('split_each')+' '+money(split.base);
+      $('#split-note').textContent=split.remainder?tr('split_remainder',{count:split.remainder}):'';
+    }
+  }
   document.querySelectorAll('input[name=scope]').forEach(function(r){r.onchange=refreshPayAmount;});
+  $('#split-people').oninput=refreshPayAmount;
   function openPay(){
-    $('#pay').classList.add('on');$('#pay-err').textContent='';
-    document.querySelector('input[name=scope][value=mine]').parentNode.style.display=mine().length&&mine().length<unpaid().length?'':'none';
-    if(!mine().length||mine().length===unpaid().length)document.querySelector('input[name=scope][value=all]').checked=true;
-    if(!CFG.tappay){$('#pay-form').classList.add('hidden');$('#pay-off').classList.remove('hidden');return;}
-    if(!$('#p-name').value)$('#p-name').value=NAME;
+    $('#pay').classList.add('on');
+    var mineRadio=document.querySelector('input[name=scope][value=mine]'),hasSeparateMine=mine().length&&mine().length<unpaid().length;
+    mineRadio.parentNode.style.display=hasSeparateMine?'':'none';
+    if(mineRadio.checked&&!hasSeparateMine)document.querySelector('input[name=scope][value=all]').checked=true;
     refreshPayAmount();
-    if(TP_READY)return;
-    var s=document.createElement('script');s.src='https://js.tappaysdk.com/sdk/tpdirect/v5.19.2';s.onload=setupTapPay;s.onerror=function(){$('#pay-err').textContent='付款元件載入失敗，請檢查網路後重試。';};document.head.appendChild(s);
   }
-  function setupTapPay(){
-    TPDirect.setupSDK(Number(CFG.tappay.app_id),CFG.tappay.app_key,CFG.tappay.env);
-    TPDirect.card.setup({fields:{number:{element:'#card-number',placeholder:'卡號'},expirationDate:{element:'#card-exp',placeholder:'MM / YY'},ccv:{element:'#card-ccv',placeholder:'CCV'}},styles:{'input':{'font-size':'16px','color':'#1B1A17'},':focus':{'color':'#1B1A17'},'.valid':{'color':'#1F7A4D'},'.invalid':{'color':'#B3261E'}}});
-    TPDirect.card.onUpdate(function(u){CAN_PRIME=!!u.canGetPrime;refreshPayAmount();});
-    TP_READY=true;
-  }
-  $('#pay-go').onclick=function(){
-    var btn=this,ls=payScopeLines(),scope=document.querySelector('input[name=scope]:checked').value;
-    if(!$('#p-name').value.trim()){$('#pay-err').textContent='請填寫持卡人姓名。';return;}
-    btn.disabled=true;$('#pay-err').textContent='';
-    TPDirect.card.getPrime(function(r){
-      if(r.status!==0){btn.disabled=false;$('#pay-err').textContent='卡片資料有誤：'+(r.msg||'');return;}
-      api('/orders/'+S.id+'/pay',{method:'POST',body:{prime:r.card.prime,lines:scope==='mine'?ls.map(function(l){return l.line;}):[],name:$('#p-name').value,phone:$('#p-phone').value,email:$('#p-email').value,guest:GUEST}})
-        .then(function(d){S=d.session;renderState();$('#pay').classList.remove('on');toast('付款成功 '+money(d.amount)+'。餐點準備中，可按「餐點好了通知我」。');})
-        .catch(function(err){$('#pay-err').textContent=err.message;if(/重新整理|已結束/.test(err.message))load();})
-        .then(function(){btn.disabled=false;});
-    });
-  };
 
   /* ---- 取餐推播（不登入） ---- */
   function subscribePush(orderId,btn){
-    if(!('serviceWorker'in navigator)||!('PushManager'in window)){toast('此瀏覽器不支援通知；請留在這個頁面，餐點好了會在畫面上提示。');return;}
+    if(!('serviceWorker'in navigator)||!('PushManager'in window)){toast(tr('notification_unsupported'));return;}
     btn.disabled=true;
     var vapid=CFG.vapid_public_key,key=Uint8Array.from(atob(vapid.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(vapid.length/4)*4,'=')),function(c){return c.charCodeAt(0);});
     navigator.serviceWorker.register('/event-push-sw.js').then(function(reg){return reg.pushManager.getSubscription().then(function(s){return s||reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key});});})
       .then(function(sub){return api('/orders/'+S.id+'/push',{method:'POST',body:{order_id:orderId,subscription:sub.toJSON()}});})
-      .then(function(){(S.orders||[]).forEach(function(o){if(o.id===orderId)o._pushed=true;});btn.textContent='已開啟通知';})
-      .catch(function(err){toast('無法開啟通知：'+err.message+'。請留在此頁，餐點好了會在畫面上提示。');btn.disabled=false;});
+      .then(function(){(S.orders||[]).forEach(function(o){if(o.id===orderId)o._pushed=true;});btn.textContent=tr('notification_on');})
+      .catch(function(err){toast(tr('notification_error',{message:err.message}));btn.disabled=false;});
   }
 
   /* ---- 啟動 ---- */

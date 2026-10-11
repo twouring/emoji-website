@@ -33,6 +33,8 @@ test('共桌購物車：只加已發布品項、價格快照、只能刪自己�
   const merged = T.addLine(items, menu, { item_id: 'm_latte', qty: 1, by: 'KK', guest: 'guest0000001' });
   assert.equal(merged.length, 1); assert.equal(merged[0].qty, 3);
   assert.equal(T.addLine(items, menu, { item_id: 'm_latte', qty: 1, by: 'KK', guest: 'guest0000001', note: '去冰' }).length, 2);
+  const longNote = '糖度：正常糖；冰塊：正常冰；麵量：正常麵；飯量：正常飯；其他需求：不要蔥、醬另外放、餐具分開放';
+  assert.equal(T.addLine([], menu, { item_id: 'm_latte', qty: 1, by: 'KK', guest: 'guest0000001', note: longNote })[0].note, longNote);
 });
 
 test('結帳選行：空＝全桌未付；指定含已付或不存在的行回 409', () => {
