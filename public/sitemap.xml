@@ -176,6 +176,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://www.emoji.tw/reserve</loc>
+    <lastmod>2026-10-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.emoji.tw/en/access</loc>
     <lastmod>2026-09-06</lastmod>
     <changefreq>monthly</changefreq>

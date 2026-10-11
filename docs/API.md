@@ -46,6 +46,9 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" https://www.emoji.tw/api/state
 ### GET /api/health
 服務健康檢查。回 `{ ok, db, dbConfigured }`。
 
+### POST /api/reservations
+1F 訂位申請（`/reserve` 頁面送出；免登入，放 Google Maps／官方 LINE 連結）。body：`{ date: 'YYYY-MM-DD', time: 'HH:MM', period, party_size, name, phone, note?, source? }`；`period` 限「早餐／上午、午餐／下午、晚餐、深夜、都可以」，日期須為台北今天起 120 天內，`party_size` 1–50，`phone` 8–32 字元數字／符號，`note` 截 500 字。成功回 `201 { ok, request_id }`，寫入 `dining_reservations`（狀態 `new`）並寄通知到 `NOTIFY_EMAIL`；寄信失敗只記 log。送出只是申請，不代表訂位成立。每 IP 每小時 30 次。
+
 ### GET /api/public
 公開唯讀資料，無個資：`{ raised, updates, events, content }`。活動只含「報名中」且公開的項目。
 `content` 僅回首頁公告、菜單及空間文案／圖片白名單；IG token 與內部排程資料不會傳至瀏覽器。

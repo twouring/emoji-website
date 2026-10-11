@@ -274,6 +274,22 @@ CREATE TABLE IF NOT EXISTS admin_logs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS admin_logs_created_idx ON admin_logs(created_at DESC);
+CREATE TABLE IF NOT EXISTS dining_reservations (
+  id TEXT PRIMARY KEY,
+  request_id TEXT NOT NULL UNIQUE,
+  reserve_date DATE NOT NULL,
+  reserve_time TEXT NOT NULL,
+  period TEXT NOT NULL,
+  party_size INT NOT NULL CHECK (party_size BETWEEN 1 AND 50),
+  name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  source TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','confirmed','cancelled','no_show')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS dining_reservations_date_idx ON dining_reservations(reserve_date, reserve_time);
+CREATE INDEX IF NOT EXISTS dining_reservations_created_idx ON dining_reservations(created_at DESC);
 CREATE TABLE IF NOT EXISTS event_regs (
   id TEXT PRIMARY KEY,
   event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
@@ -697,6 +713,22 @@ async function migrate() {
     amount INT NOT NULL, payer JSONB NOT NULL DEFAULT '{}', tappay JSONB NOT NULL DEFAULT '{}', status TEXT NOT NULL DEFAULT 'paid',
     push JSONB NOT NULL DEFAULT '[]', paid_at TIMESTAMPTZ NOT NULL DEFAULT now(), ready_at TIMESTAMPTZ, done_at TIMESTAMPTZ)`);
   await q(`CREATE INDEX IF NOT EXISTS table_orders_status_idx ON table_orders(status,paid_at)`);
+  // 1F 訂位申請（Google Maps／官方 LINE 連結 /reserve）：不登入、存 DB、寄通知；舊庫補建
+  await q(`CREATE TABLE IF NOT EXISTS dining_reservations (
+    id TEXT PRIMARY KEY,
+    request_id TEXT NOT NULL UNIQUE,
+    reserve_date DATE NOT NULL,
+    reserve_time TEXT NOT NULL,
+    period TEXT NOT NULL,
+    party_size INT NOT NULL CHECK (party_size BETWEEN 1 AND 50),
+    name TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','confirmed','cancelled','no_show')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE INDEX IF NOT EXISTS dining_reservations_date_idx ON dining_reservations(reserve_date, reserve_time)`);
+  await q(`CREATE INDEX IF NOT EXISTS dining_reservations_created_idx ON dining_reservations(created_at DESC)`);
   // 場地申請＝待審的活動：申請送出即建立草稿活動，review_status 記審核結果（NULL＝平台自建）。舊申請補建。
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS review_status TEXT CHECK (review_status IN ('pending','approved','rejected'))`);
   await q(`UPDATE events e SET review_status=a.status FROM event_applications a WHERE a.event_id=e.id AND e.review_status IS NULL`);
@@ -1516,6 +1548,44 @@ app.post('/api/twilio/events/status',express.urlencoded({extended:false,limit:'3
 
 app.get('/api/health', (req, res) =>
   res.json({ ok: true, db: dbReady, dbConfigured: !!pool }));
+
+/* ---- 1F 訂位申請（/reserve；不登入）：驗證 → 存 dining_reservations → 寄 NOTIFY_EMAIL ---- */
+const RESERVATION_PERIODS = new Set(['早餐／上午','午餐／下午','晚餐','深夜','都可以']);
+function reservationInput(body = {}) {
+  const date = String(body.date || '').trim();
+  const time = String(body.time || '').trim();
+  const period = String(body.period || '').trim();
+  const partySize = Number(body.party_size);
+  const name = String(body.name || '').trim().replace(/\s+/g, ' ');
+  const phone = String(body.phone || '').trim().replace(/\s+/g, ' ');
+  const note = String(body.note || '').trim().slice(0, 500);
+  const source = String(body.source || '').trim().slice(0, 200);
+  const bad = message => Object.assign(new Error(message), { status: 400 });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw bad('請選擇訂位日期。');
+  const day = new Date(date + 'T00:00:00+08:00');
+  const todayTaipei = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' }) + 'T00:00:00+08:00');
+  if (!Number.isFinite(+day) || +day < +todayTaipei) throw bad('訂位日期不能早於今天。');
+  if (+day > Date.now() + 120 * 86400e3) throw bad('目前僅接受 120 天內的訂位申請。');
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw bad('請填寫希望時間。');
+  if (!RESERVATION_PERIODS.has(period)) throw bad('請選擇時段。');
+  if (!Number.isInteger(partySize) || partySize < 1 || partySize > 50) throw bad('請選擇正確人數。');
+  if (!name || name.length > 80) throw bad('請填寫姓名或稱呼。');
+  if (!/^[0-9+()\-\s]{8,32}$/.test(phone)) throw bad('請填寫可聯繫的手機號碼。');
+  return { date, time, period, partySize, name, phone, note, source };
+}
+function reservationMail(r, requestId) {
+  return `新訂位申請 ${requestId}\n\n日期：${r.date}\n時間：${r.time}（${r.period}）\n人數：${r.partySize}\n姓名：${r.name}\n手機：${r.phone}\n備註：${r.note || '—'}\n來源：${r.source || 'direct'}\n\n此信由 ${SITE_BASE}/reserve 送出。`;
+}
+app.post('/api/reservations', rateLimit({ max: 30, windowMs: 3600000 }), requireDb, wrap(async (req, res) => {
+  let r;
+  try { r = reservationInput(req.body); }
+  catch (error) { return res.status(error.status || 400).json({ error: error.message }); }
+  const id = uid('dr_'), requestId = 'R' + new Date().toISOString().slice(2,10).replace(/-/g,'') + '-' + crypto.randomBytes(2).toString('hex').toUpperCase();
+  await q(`INSERT INTO dining_reservations(id,request_id,reserve_date,reserve_time,period,party_size,name,phone,note,source)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, [id, requestId, r.date, r.time, r.period, r.partySize, r.name, r.phone, r.note, r.source]);
+  sendMailQuietly({ to: NOTIFY_EMAIL, subject: `[訂位] ${r.date} ${r.time}｜${r.partySize} 位｜${r.name}`, text: reservationMail(r, requestId) });
+  res.status(201).json({ ok: true, request_id: requestId });
+}));
 
 async function accountByEmail(client,email,name,fillName=false){
   await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[email]);
