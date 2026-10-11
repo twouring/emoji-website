@@ -1,0 +1,35 @@
+/* 餐飲營運（櫃檯結帳、出餐看板、訂位、估清、日結）共用樣式：/admin 與平板 POS（pos.emoji.tw）都載入。
+   依賴 /style.css 的 CIS token（--ink/--paper/--line…）與宿主頁的 .btn/.pill/.a-sec/.a-tbl 基礎樣式。 */
+.pos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.pos-table{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:6px;min-height:96px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--paper);font-size:1rem;color:var(--ink)}
+.pos-table b{font-size:22px;line-height:1.1}.pos-table small{font-size:1rem;color:var(--muted)}.pos-table.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.pos-table:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.pos-panel h2{flex-wrap:wrap}
+.pos-pay{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:center;margin-top:14px;padding-top:14px;border-top:1px dashed var(--line)}
+.pos-methods{display:flex;flex-wrap:wrap;gap:8px}
+.pos-method{position:relative}.pos-method input{position:absolute;opacity:0;inset:0;margin:0}.pos-method span{display:inline-flex;align-items:center;min-height:48px;padding:0 18px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem;cursor:pointer}
+.pos-method input:checked+span{background:var(--ink);color:var(--paper);border-color:var(--ink)}.pos-method input:focus-visible+span{outline:2px solid var(--ink);outline-offset:2px}
+.pos-member{display:inline-flex;align-items:center;gap:.5em;font-size:1rem}.pos-member input{width:22px;height:22px}
+.pos-total{display:flex;align-items:baseline;gap:12px;margin-left:auto;font-size:1rem}.pos-total b{font-size:26px;font-variant-numeric:tabular-nums}
+.pos-actions{display:flex;gap:10px;width:100%}.pos-actions .btn{min-height:52px;flex:1}
+.ops-pauses{display:grid;gap:8px;margin-bottom:14px}
+.ops-pause{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.ops-pause.on{border-color:#b42318;background:#fff5f3}.ops-pause label{display:inline-flex;align-items:center;gap:.5em;font-size:1rem}.ops-pause label input{width:22px;height:22px}.ops-pause input[data-pause-msg]{flex:1;min-width:220px;min-height:44px;font-size:1rem}.ops-pause .pill{flex-basis:100%}
+.pos-panel input[data-pick]{width:24px;height:24px;cursor:pointer}
+.a-tbl td.a-mono,.a-tbl .resv-id{white-space:nowrap}
+.ops-station{display:flex;gap:8px;align-items:flex-start;margin:2px 0}
+tr.ops-ready td{background:#f2fbf4}
+.pill-bad{color:#b42318;border-color:#f3c6c0;background:#fff5f3}
+tr.resv-day td{background:var(--paper-alt);font-weight:600}tr.resv-off td{color:var(--muted)}
+.sales-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px}
+.sales-bars{display:grid;gap:6px}.sales-bar{display:grid;grid-template-columns:6ch 1fr 9ch;gap:8px;align-items:center;font-size:1rem}.sales-bar i{display:block;height:18px;background:var(--ink);border-radius:3px;min-width:2px}
+/* 估清：品項大格，點一下切換 */
+.so-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:18px}
+.so-item{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:4px;min-height:92px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:1rem}
+.so-item b{font-weight:600;line-height:1.3}.so-item span{color:var(--muted);font-variant-numeric:tabular-nums}.so-item small{margin-top:auto;font-size:1rem;color:var(--muted)}
+.so-item.off{background:#fff5f3;border-color:#f3c6c0;color:#b42318}.so-item.off small{color:#b42318}
+.so-item:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.ops-tablet-hint{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:10px 12px;border:1px dashed var(--line);border-radius:8px;background:var(--paper-alt);margin-bottom:12px}
+/* 平板：操作欄按鈕直向堆疊，整排都看得到、不用橫滑才找得到「作廢」 */
+@media(max-width:1020px){.pos-table{min-height:110px}.pos-pay .btn{min-height:56px}.ops-pause input[data-pause-msg]{min-height:48px}.pos-panel input[data-pick]{width:28px;height:28px}
+  #orders-body td.ops-actions,#pos-body td.ops-actions,#resv-body td.ops-actions{white-space:normal}#orders-body td.ops-actions .btn,#pos-body td.ops-actions .btn,#resv-body td.ops-actions .btn{display:block;width:100%;margin:0 0 6px;text-align:center}}

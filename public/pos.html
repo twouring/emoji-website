@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>POS · 言文字</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#FBFAF6">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="POS">
+<link rel="manifest" href="/pos.webmanifest">
+<link rel="icon" href="/pos-icon-192.png">
+<link rel="apple-touch-icon" href="/pos-icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/pos-ops.css">
+<style>
+  /* 平板 POS：單欄、頂欄分頁、48px 以上觸控目標；沿用 CIS token（/style.css）與 /pos-ops.css 的餐飲營運樣式 */
+  :root{--p-top:60px}
+  html{background:var(--paper)}
+  body{font-family:var(--sans);font-size:1rem;line-height:1.6;color:var(--ink);background:var(--paper);min-height:100vh;padding-top:calc(var(--p-top) + env(safe-area-inset-top));-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
+  *,*::before,*::after{box-sizing:border-box}
+  :focus-visible{outline:3px solid var(--ink);outline-offset:2px;border-radius:4px}
+  [hidden]{display:none!important}
+  h1,h2,h3{font-family:var(--sans);letter-spacing:0}
+  .p-top{position:fixed;top:0;left:0;right:0;height:calc(var(--p-top) + env(safe-area-inset-top));padding-top:env(safe-area-inset-top);background:var(--card);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right));z-index:20}
+  .p-brand{display:flex;align-items:center;gap:8px;flex:none;color:var(--ink);text-decoration:none}
+  .p-brand i{width:32px;height:32px;border-radius:8px;background:var(--ink);color:var(--accent);display:grid;place-items:center;font-family:var(--serif);font-weight:900;font-style:normal;font-size:1rem}
+  .p-brand b{font-weight:600;font-size:1rem}
+  .p-scope{display:flex;gap:6px;flex:none}
+  .p-scope button,.p-nav button{all:unset;box-sizing:border-box;cursor:pointer;min-height:44px;padding:0 14px;border-radius:999px;font-size:1rem;line-height:1;white-space:nowrap;color:var(--ink-soft);border:1px solid transparent}
+  .p-scope button[aria-pressed=true]{background:var(--accent);color:var(--on-accent);font-weight:600}
+  .p-nav{display:flex;gap:4px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .p-nav::-webkit-scrollbar{display:none}
+  .p-nav button[aria-pressed=true]{background:var(--ink);color:var(--paper);font-weight:600}
+  .p-nav button .badge{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;margin-left:6px;border-radius:999px;background:#b42318;color:#fff;font-size:1rem;line-height:1;font-weight:600}
+  .p-nav button[aria-pressed=true] .badge{background:var(--accent);color:var(--on-accent)}
+  .p-tools{display:flex;align-items:center;gap:6px;flex:none;margin-left:auto}
+  .p-tools button{all:unset;box-sizing:border-box;cursor:pointer;min-width:44px;min-height:44px;padding:0 12px;border-radius:8px;font-size:1rem;color:var(--muted);display:inline-grid;place-items:center;border:1px solid var(--line);background:var(--card)}
+  .p-tools button:active{background:var(--paper-alt)}
+  .p-tools .p-net{min-width:0;padding:0 10px;border:0;background:transparent;color:#b42318;font-weight:600}
+  main{padding:16px max(16px,env(safe-area-inset-right)) calc(32px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));max-width:1280px;margin:0 auto}
+  /* 分頁容器：與 /admin 共用 #orders-body / #pos-body / #resv-body / #sales-body / #soldout-body 的 id，pos-ops.js 直接對這些容器繪製 */
+  .p-tab{display:none}.p-tab.on{display:block}
+  .a-sec{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
+  .a-sec h2{font-size:18px;font-weight:600;margin:0 0 .25rem;display:flex;align-items:center;gap:.5em}
+  .a-sec h3,h3{font-size:1rem;font-weight:600;margin:16px 0 8px}
+  .hint{color:var(--muted);font-size:1rem;margin:0 0 12px;line-height:1.5}
+  .a-empty{color:var(--muted);padding:14px 10px}
+  .a-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1rem}
+  .a-wrap2{overflow:auto;border:1px solid var(--line);border-radius:8px;-webkit-overflow-scrolling:touch}
+  table.a-tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:1rem}
+  table.a-tbl th{position:sticky;top:0;z-index:1;background:var(--paper-alt);text-align:left;color:var(--muted);font-weight:500;font-size:1rem;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+  table.a-tbl td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle;line-height:1.45}
+  table.a-tbl tbody tr:last-child td{border-bottom:0}
+  table.a-tbl td.num,table.a-tbl th.num{text-align:right;font-variant-numeric:tabular-nums}
+  table.a-tbl a{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+  .a-form{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:flex-end;margin-bottom:12px}
+  .a-form label{font-size:1rem;color:var(--muted);display:flex;flex-direction:column;gap:4px;min-width:0;max-width:100%}
+  .a-form input,.a-form select,.a-toolbar input,.a-toolbar select,.ops-pause input{font:inherit;font-size:1rem;padding:8px 12px;min-height:48px;border:1px solid var(--muted);border-radius:8px;background:var(--card);color:var(--ink)}
+  .a-form input:focus,.a-form select:focus,.a-toolbar input:focus,.a-toolbar select:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 3px var(--accent-soft)}
+  .a-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .a-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+  .a-kpi{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .a-kpi .kl{color:var(--muted);font-size:1rem}
+  .a-kpi .kv{font-size:24px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums;line-height:1.25}
+  .a-kpi .kv .u{font-size:1rem;color:var(--muted);font-weight:400;margin-right:.15em}
+  .badge{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--on-accent);font-size:1rem;line-height:1;font-weight:600}
+  .btn{display:inline-flex;align-items:center;justify-content:center;font:inherit;font-size:1rem;min-height:48px;min-width:48px;padding:10px 20px;border-radius:8px;font-weight:500;line-height:1.3;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;text-decoration:none;transition:background .15s,color .15s,border-color .15s}
+  .btn--ghost{border-color:var(--line);background:var(--card);color:var(--ink)}
+  .btn--ghost:active{background:var(--paper-alt)}
+  .btn--solid{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .btn--solid:active{background:#000}
+  .btn-sm{padding:10px 16px}
+  .btn[disabled]{opacity:.5;cursor:not-allowed}
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:1rem;line-height:1;padding:5px 9px;border-radius:999px;border:1px solid var(--line);white-space:nowrap;color:var(--ink-soft);background:var(--card);font-weight:500;vertical-align:middle}
+  .pill::before{content:"";width:6px;height:6px;border-radius:999px;background:currentColor;opacity:.5;flex:none}
+  .pill-ok{background:var(--paper-alt);border-color:var(--line);color:var(--ink)}.pill-ok::before{background:var(--ink);opacity:1}
+  .pill-wait,.pill-draft{color:var(--muted)}
+  /* 登入 */
+  .p-login{min-height:calc(100vh - var(--p-top));display:grid;place-items:center;padding:24px 16px 40px}
+  .p-login-card{width:min(100%,420px);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:28px;display:grid;gap:12px}
+  .p-login-card h1{font-size:22px;font-weight:600;margin:0}
+  .p-login-card p{color:var(--muted);margin:0 0 8px}
+  .p-login-card .btn{width:100%}
+  .p-center{text-align:center;padding:60px 0;color:var(--muted)}
+  /* 安裝提示（只在未安裝為 App 時顯示一次） */
+  .p-install{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;padding:12px 14px;border:1px dashed var(--line);border-radius:10px;background:var(--accent-soft);margin-bottom:14px}
+  .p-install p{margin:0;flex:1;min-width:220px}
+  .a-toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);opacity:0;background:var(--ink);color:var(--paper);padding:.8em 1.3em;border-radius:10px;font-size:1rem;transition:.2s;pointer-events:none;z-index:50;max-width:min(92vw,520px)}
+  .a-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  @media(max-width:720px){.p-brand b{display:none}.p-scope button,.p-nav button{padding:0 12px}}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header class="p-top">
+  <a class="p-brand" href="/" aria-label="言文字 POS"><i>言</i><b>POS</b></a>
+  <div class="p-scope" id="p-scope" role="group" aria-label="切換店別"></div>
+  <nav class="p-nav" id="p-nav" aria-label="功能"></nav>
+  <div class="p-tools">
+    <button type="button" class="p-net" id="p-net" hidden aria-live="polite">離線</button>
+    <button type="button" id="p-refresh" aria-label="重新整理">↻</button>
+    <button type="button" id="p-logout" hidden>登出</button>
+  </div>
+</header>
+<main>
+  <div id="app"><p class="p-center">載入中…</p></div>
+</main>
+<div class="a-toast" id="toast" role="status"></div>
+<script src="/vendor/qrcode.min.js"></script>
+<script src="/menu-lib.js"></script>
+<script src="/pos-ops.js"></script>
+<script>
+/* 平板 POS 子站（pos.emoji.tw）：只做餐飲現場五件事——櫃檯結帳、出餐、估清、訂位、日結。
+   登入與 /admin 同一組帳號（Google 或 Email）；API 同網域、token 存 localStorage。
+   畫面繪製全部在 /pos-ops.js（與 /admin 共用），本檔只管登入、分頁切換、店別切換、PWA。 */
+const KEY = 'tth_token';
+const app = document.getElementById('app');
+const esc = s => (s == null ? '' : String(s)).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const NT = n => 'NT$' + Number(n || 0).toLocaleString('en-US');
+const num = n => Number(n || 0).toLocaleString('en-US');
+const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水' };
+const TABS = [
+  { id:'pos',          label:'結帳' },
+  { id:'orders',       label:'出餐' },
+  { id:'soldout',      label:'估清' },
+  { id:'reservations', label:'訂位' },
+  { id:'sales',        label:'日結' },
+];
+const PANEL = { pos:tabPos, orders:tabOrders, soldout:tabSoldOut, reservations:tabReservations, sales:tabSales };
+let toastT, DATA = null, TAB = 'pos', SCOPE = '', MENU_DOC = null, PENDING = 0;
+try { SCOPE = localStorage.getItem('tth_pos_scope') || ''; } catch (e) {}
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2400); }
+function applicationTime(iso){ const d=iso?new Date(iso):null; return d&&!isNaN(d)?d.toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false}):'—'; }
+function downloadCSV(filename, rows){
+  const csv = rows.map(r => r.map(c => { let s = c == null ? '' : String(c); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; }).join(',')).join('\r\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'})); a.download = filename; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+// 分頁網址：/pos（結帳）、/pos/orders、/pos/soldout、/pos/reservations、/pos/sales；pos.emoji.tw 與 www.emoji.tw 皆可
+const tabUrl = tab => '/pos' + (tab === 'pos' ? '' : '/' + tab);
+function opsHref(tab){ return tabUrl(tab); }
+// Google 登入的 callback 綁在官網網域（PUBLIC_ORIGIN），state cookie 也在那裡：子網域一律先到 www 發起，登入完成再以 #token 導回本站
+const AUTH_ORIGIN = /^pos\./i.test(location.hostname) ? location.origin.replace(/\/\/pos\./i, '//www.') : location.origin;
+
+// token：登入完成由 /auth/google 或 Email 連結以 #token= 帶回，讀取後立即從網址移除
+const hash = new URLSearchParams(location.hash.slice(1));
+if (hash.get('token')) { localStorage.setItem(KEY, hash.get('token')); history.replaceState(null,'',location.pathname.startsWith('/pos') ? location.pathname : '/pos'); }
+let token = localStorage.getItem(KEY);
+
+async function api(path, { method='GET', body } = {}) {
+  const res = await fetch('/api'+path, {
+    method, headers:{ 'Content-Type':'application/json', ...(token?{Authorization:'Bearer '+token}:{}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let d={}; try{ d=await res.json(); }catch(e){}
+  if (res.status === 401 && token) { localStorage.removeItem(KEY); token = null; renderLogin('登入已過期，請重新登入。'); }
+  if (!res.ok) throw Object.assign(new Error(d.error || ('伺服器錯誤（'+res.status+'）')), {status:res.status});
+  return d;
+}
+
+function renderLogin(msg){
+  document.getElementById('p-logout').hidden = true;
+  document.getElementById('p-nav').innerHTML = ''; document.getElementById('p-scope').innerHTML = '';
+  const redirect = encodeURIComponent(location.origin + '/pos');
+  app.innerHTML = `<div class="p-login"><div class="p-login-card">
+    <h1>言文字 POS</h1>
+    <p>${esc(msg || '請用在咖啡／三點水的管理員帳號登入；登入一次後可長期使用。')}</p>
+    <a class="btn btn--solid" href="${esc(AUTH_ORIGIN)}/auth/google?redirect=${redirect}">使用 Google 登入</a>
+    <a class="btn btn--ghost" href="/event-login.html?redirect=${redirect}">使用 Email 登入</a>
+  </div></div>`;
+}
+
+/* 店別：言文字管理員可切在咖啡／三點水／全部；品牌子帳號只看自己的 */
+const scopesOf = d => d?.brands ? d.brands.filter(b => BRAND_LABEL[b]) : ['', ...Object.keys(BRAND_LABEL)];
+function setScope(s){ SCOPE = s; try { localStorage.setItem('tth_pos_scope', s); } catch (e) {} }
+
+function routeTab(){ const p = location.pathname.replace(/^\/pos\/?/, '').replace(/\/+$/,'').split('/')[0]; return TABS.some(t=>t.id===p) ? p : 'pos'; }
+function go(tab, replace){
+  TAB = tab;
+  const url = tabUrl(tab);
+  if (location.pathname !== url) history[replace ? 'replaceState' : 'pushState'](null, '', url);
+  paintNav(); activate();
+}
+document.addEventListener('click', e => {
+  const a = e.target.closest('a[data-tab]'); if (!a) return;
+  e.preventDefault(); go(a.dataset.tab);
+});
+window.addEventListener('popstate', () => { TAB = routeTab(); paintNav(); activate(); });
+
+function paintNav(){
+  const scopes = scopesOf(DATA);
+  if (!scopes.includes(SCOPE)) setScope(scopes[0] || '');
+  document.getElementById('p-scope').innerHTML = scopes.length > 1 ? scopes.map(s => `<button type="button" data-scope="${esc(s)}" aria-pressed="${s===SCOPE}">${esc(s ? BRAND_LABEL[s] : '全部')}</button>`).join('') : (SCOPE ? `<span class="pill pill-ok">${esc(BRAND_LABEL[SCOPE])}</span>` : '');
+  document.getElementById('p-scope').querySelectorAll('[data-scope]').forEach(b => b.onclick = () => { setScope(b.dataset.scope); resetPanels(); paintNav(); activate(); });
+  document.getElementById('p-nav').innerHTML = TABS.map(t => `<button type="button" data-tab="${t.id}" aria-pressed="${t.id===TAB}">${t.label}${t.id==='reservations'&&PENDING?`<span class="badge">${PENDING}</span>`:''}</button>`).join('');
+  document.getElementById('p-nav').querySelectorAll('[data-tab]').forEach(b => b.onclick = () => go(b.dataset.tab));
+}
+function resetPanels(){
+  // 換店別：清掉各分頁的快取簽章與初始化旗標，讓 pos-ops.js 重新繪製
+  document.querySelectorAll('[data-panel] > [id]').forEach(h => { delete h.dataset.sig; delete h.dataset.init; h.innerHTML=''; });
+  POS_TABLE=''; POS_PICK=null;
+}
+function activate(){
+  document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('on', p.dataset.panel === TAB));
+  clearTimeout(ORDERS_TIMER); clearTimeout(POS_TIMER);
+  if (TAB === 'pos') loadPos();
+  else if (TAB === 'orders') loadOrders();
+  else if (TAB === 'soldout') loadSoldOut();
+  else if (TAB === 'reservations') loadReservations();
+  else if (TAB === 'sales') loadSales();
+}
+function render(){
+  document.getElementById('p-logout').hidden = false;
+  app.innerHTML = installHint() + TABS.map(t => `<section class="p-tab" data-panel="${t.id}">${PANEL[t.id]()}</section>`).join('');
+  bindInstall();
+  paintNav(); activate();
+}
+
+/* 訂位待確認數：頂欄紅點，每 60 秒更新 */
+async function refreshPending(){
+  try { const d = await api('/admin/reservations?days=7' + (SCOPE ? '&venue=' + SCOPE : '')); PENDING = d.pending || 0; } catch (e) { PENDING = 0; }
+  const b = document.querySelector('#p-nav [data-tab=reservations]'); if (b) b.innerHTML = '訂位' + (PENDING ? `<span class="badge">${PENDING}</span>` : '');
+}
+setInterval(() => { if (DATA) refreshPending(); }, 60000);
+
+/* PWA：安裝提示（Android/Chrome 有 beforeinstallprompt；iPad 走「分享 → 加入主畫面」說明） */
+let installEvent = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvent = e; const h = document.getElementById('p-install'); if (h) h.hidden = false; });
+const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+function installHint(){
+  if (standalone()) return '';
+  let dismissed = false; try { dismissed = localStorage.getItem('tth_pos_install') === '1'; } catch (e) {}
+  if (dismissed) return '';
+  const ios = /iPad|iPhone|Macintosh/.test(navigator.userAgent) && 'ontouchend' in document;
+  return `<div class="p-install" id="p-install" ${ios||installEvent?'':'hidden'}><p>${ios ? '把 POS 加到主畫面：按 Safari 的「分享」→「加入主畫面」，之後像 App 一樣全螢幕開啟。' : '把 POS 安裝到這台平板，之後從主畫面直接開啟。'}</p>${installEvent ? '<button class="btn btn--solid btn-sm" id="p-install-go">安裝</button>' : ''}<button class="btn btn--ghost btn-sm" id="p-install-x">不再提示</button></div>`;
+}
+function bindInstall(){
+  const go = document.getElementById('p-install-go'); if (go) go.onclick = async () => { if (!installEvent) return; installEvent.prompt(); await installEvent.userChoice; installEvent = null; document.getElementById('p-install').hidden = true; };
+  const x = document.getElementById('p-install-x'); if (x) x.onclick = () => { try { localStorage.setItem('tth_pos_install', '1'); } catch (e) {} document.getElementById('p-install').hidden = true; };
+}
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/pos-sw.js', { scope: '/pos' }).catch(() => {});
+
+/* 離線提示：API 一律要連線，離線時標示並暫停自動更新 */
+const net = document.getElementById('p-net');
+const paintNet = () => { net.hidden = navigator.onLine; };
+addEventListener('online', () => { paintNet(); if (DATA) activate(); }); addEventListener('offline', paintNet); paintNet();
+
+document.getElementById('p-refresh').onclick = () => { if (!DATA) return location.reload(); resetPanels(); activate(); refreshPending(); };
+document.getElementById('p-logout').onclick = () => { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); location.reload(); };
+
+async function main(){
+  if (!token) return renderLogin();
+  try {
+    const d = await api('/state');
+    if (d.role !== 'admin') return renderLogin('此帳號沒有後台權限，請改用在咖啡／三點水的管理員帳號登入。');
+    if (d.brands && !d.brands.some(b => BRAND_LABEL[b])) return renderLogin('此帳號不是餐飲品牌的管理員（等等空間請用 /admin）。');
+    DATA = d;
+    MENU_DOC = (typeof d.content?.menu === 'string' && d.content.menu.trim()) ? MenuLib.parseMenuDoc(d.content.menu) : MenuLib.parseMenuDoc('');
+    TAB = routeTab();
+    render();
+    refreshPending();
+  } catch(e){
+    if (e.status === 401) return;   // api() 已轉到登入畫面
+    app.innerHTML = `<p class="p-center">暫時無法連線：${esc(e.message)}<br><button class="btn btn--ghost btn-sm" style="margin-top:1rem" onclick="location.reload()">重新整理</button></p>`;
+  }
+}
+main();
+</script>
+</body>
+</html>

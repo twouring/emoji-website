@@ -123,6 +123,7 @@
   .cal-legend i.cal-wait{border-left-color:var(--muted);border-left-style:dashed}
   .cal-legend i.cal-ev{border-left-color:#FFDE34}
   @media(max-width:760px){.cal-cell{min-height:60px}.cal-item{font-size:1rem}}
+  /* 餐飲營運（桌況格、櫃檯結帳、出餐分站、暫停點餐、日結）樣式在 /pos-ops.css，與平板 POS（pos.emoji.tw）共用 */
   /* 櫃檯 */
   .ct-results{display:grid;gap:6px;margin-bottom:14px}
   .ct-hit{text-align:left;background:var(--card);border:1px solid var(--line);padding:10px 12px;cursor:pointer;font:inherit;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
@@ -288,6 +289,7 @@
 <script src="/event-rich-editor.js"></script>
 <script src="/vendor/qrcode.min.js"></script>
 <link rel="stylesheet" href="/stylebook/components.css">
+<link rel="stylesheet" href="/pos-ops.css">
 <link rel="stylesheet" href="/event-rich.css">
 </head>
 <body>
@@ -307,6 +309,7 @@
 <div class="a-toast" id="toast"></div>
 
 <script src="/menu-lib.js"></script>
+<script src="/pos-ops.js"></script>
 <script>
 'use strict';
 const KEY = 'tth_token';
@@ -377,6 +380,8 @@ function scopedRoute(route, scope=SCOPE){
   const slug=(WORKSPACES[scope]||WORKSPACES['']).slug;
   return slug+(clean?'/'+clean:'');
 }
+// pos-ops.js 共用：產生站內連到某個餐飲分頁的網址（平板 POS 子站有自己的版本）
+function opsHref(tab){ return BASE + '/' + scopedRoute(tab); }
 function go(route, replace){
   const target=scopedRoute(route);
   const url = BASE + (target ? '/' + target.split('/').map(encodeURIComponent).join('/') : '');
@@ -480,7 +485,7 @@ function tabOverview(d, x){
   <div class="a-sec" id="overview-todo">${overviewTodoHTML(d, x)}</div>
   <div class="a-sec">
     <h2>快速指引</h2>
-    <p class="hint">這裡管理所有品牌共用的會員、會費、官網消息、社群與系統設定。品牌現場營運拆到上方品牌列，點一下即切換：<b>在咖啡</b>與<b>三點水</b>管理點餐出餐及各自菜單；<b>等等空間</b>管理活動、行事曆與櫃檯。每個工作區與分頁都有獨立網址，可直接加入書籤。<a href="/access-mock" target="_blank" rel="noopener">門禁 Mock</a> 可協助手動驗簽與掃碼啟用。</p>
+    <p class="hint">這裡管理所有品牌共用的會員、會費、官網消息、社群與系統設定。品牌現場營運拆到上方品牌列，點一下即切換：<b>在咖啡</b>與<b>三點水</b>管理櫃檯結帳、點餐出餐、訂位、日結報表及各自菜單；<b>等等空間</b>管理活動、行事曆與櫃檯。每個工作區與分頁都有獨立網址，可直接加入書籤。<a href="/access-mock" target="_blank" rel="noopener">門禁 Mock</a> 可協助手動驗簽與掃碼啟用。</p>
   </div>`;
 }
 
@@ -858,15 +863,16 @@ function tabMenu(d){
       <td class="num">${NT(it.price)}</td>
       <td class="num">${NT(it.emo)}</td>
       <td>${it.alcohol ? '<span class="pill pill-wait">酒精</span>' : ''}</td>
-      <td>${it.published ? '<span class="pill pill-ok">已發布</span>' : '<span class="pill pill-wait">未發布</span>'}</td>
+      <td>${it.published ? '<span class="pill pill-ok">已發布</span>' : '<span class="pill pill-wait">未發布</span>'}${MenuLib.soldOutToday(it) ? ' <span class="pill pill-bad">今日估清</span>' : ''}${(it.available_from || it.available_to) ? ` <span class="pill pill-draft" title="供應期間">${esc(it.available_from || '…')}～${esc(it.available_to || '…')}</span>` : ''}</td>
       <td style="white-space:nowrap">
+        ${it.published ? `<button class="btn btn--ghost btn-sm" data-mi-soldout="${it.id}" data-on="${MenuLib.soldOutToday(it) ? '0' : '1'}">${MenuLib.soldOutToday(it) ? '恢復供應' : '今日估清'}</button>` : ''}
         <button class="btn btn--ghost btn-sm" data-mi-edit="${it.id}">編輯</button>
         <button class="btn btn--ghost btn-sm" data-mi-del="${it.id}">刪除</button>
       </td>
     </tr>`).join('') || '<tr><td colspan="10" class="a-empty">尚無菜單項目</td></tr>';
   return `<div class="a-sec">
     <h2>菜單</h2>
-    <p class="hint">未發布項目（<span class="pill pill-wait">未發布</span>）不會顯示於空間頁 <code>/space#menu</code>。${seeded ? '目前顯示預設 SEED 資料，尚未寫入資料庫，請按「儲存至伺服器」完成灌入。' : '編輯或刪除項目後，務必按「儲存至伺服器」才會永久保存。'}</p>
+    <p class="hint">未發布項目（<span class="pill pill-wait">未發布</span>）不會顯示於空間頁 <code>/space#menu</code>，客人掃碼也點不到。「今日估清」立即生效、不必按儲存，隔天 03:00 後自動恢復；設定「供應期間」可做每日特餐或限時菜單。${seeded ? '目前顯示預設 SEED 資料，尚未寫入資料庫，請按「儲存至伺服器」完成灌入。' : '編輯或刪除項目後，務必按「儲存至伺服器」才會永久保存。'}</p>
     <div class="a-toolbar">
       <input type="search" id="mi-search" placeholder="搜尋店別 / 分類 / 中文 / 英文 / 備註…">
       <button class="btn btn--ghost btn-sm" id="menu-load-seed" title="以 menu-data.js 的預設菜單取代目前清單（需再按儲存）">載入預設菜單</button>
@@ -885,6 +891,8 @@ function tabMenu(d){
       <label>會員價<input id="mi-emo" type="number" min="0" value="0" style="width:100px"></label>
       <label>排序<input id="mi-sort" type="number" value="0" style="width:80px"></label>
       <label style="flex:1;min-width:180px">備註<input id="mi-note" placeholder="例：含酒精 / 黑糖 / 焦糖"></label>
+      <label>供應起<input id="mi-from" type="date" title="留空＝不限；特餐／限時菜單用"></label>
+      <label>供應迄<input id="mi-to" type="date" title="留空＝不限"></label>
       <label style="flex-direction:row;align-items:center;gap:.4em"><input type="checkbox" id="mi-alcohol" style="width:auto">含酒精</label>
       <label style="width:100%">圖片
         <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-top:.4em">
@@ -1096,39 +1104,7 @@ async function loadLogs(){
 }
 
 
-/* ---- 點餐出餐：桌邊 QR 點餐的出餐看板、清桌、桌號 QR ---- */
-function tabOrders(){ return '<div class="a-sec" id="orders-body"></div>'; }
-let ORDERS_TIMER=null,ORDERS_SEEN=null;
-function ordersBeep(){try{const c=new (window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=660;g.gain.value=.2;o.start();o.stop(c.currentTime+.5);}catch(e){}}
-async function loadOrders(){
-  const host=document.getElementById('orders-body');if(!host)return;
-  clearTimeout(ORDERS_TIMER);
-  if(!host.dataset.init){host.dataset.init='1';host.innerHTML='<h2>點餐出餐</h2><p class="hint">載入中…</p>';}
-  let d;try{d=await api('/admin/orders'+(SCOPE?'?venue='+SCOPE:''));}catch(e){host.innerHTML=`<h2>點餐出餐</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`;return;}
-  const ids=new Set(d.orders.map(o=>o.id));if(ORDERS_SEEN&&[...ids].some(id=>!ORDERS_SEEN.has(id)))ordersBeep();ORDERS_SEEN=ids;
-  // 資料沒變就不重繪，避免自動更新時把正要按的按鈕換掉
-  const sig=JSON.stringify([d.orders.map(o=>[o.id,o.status,o.push_count]),d.sessions.map(x=>[x.id,x.unpaid])]);
-  if(host.dataset.sig===sig&&host.querySelector('#qr-tables')){ORDERS_TIMER=setTimeout(()=>{if(document.getElementById('orders-body')&&TAB==='orders')loadOrders();},10000);return;}
-  host.dataset.sig=sig;
-  const qrTables=host.querySelector('#qr-tables')?.value??'';
-  const rows=d.orders.map(o=>`<tr><td><b style="font-size:1.2em">${esc(o.table_no)}</b></td><td>${o.items.map(l=>`${esc(l.zh)} ×${l.qty}${l.note?` <span class="hint" style="margin:0">${esc(l.note)}</span>`:''}`).join('<br>')}</td><td class="a-mono">${esc(applicationTime(o.paid_at))}</td><td class="num">${Number(o.amount).toLocaleString('zh-TW')}</td><td>${o.status==='ready'?'<span class="pill pill-ok">可取餐</span>':'<span class="pill pill-wait">準備中</span>'}${o.push_count?' 🔔':''}</td><td>${o.status==='paid'?`<button class="btn btn--solid btn-sm" data-order="${esc(o.id)}" data-status="ready">出餐並通知</button> `:''}<button class="btn btn--ghost btn-sm" data-order="${esc(o.id)}" data-status="done">已取餐</button></td></tr>`).join('')||'<tr><td colspan="6" class="a-empty">目前沒有待出餐的訂單</td></tr>';
-  const sess=d.sessions.map(s=>`<tr><td><b>${esc(s.table)}</b></td><td class="num">${s.unpaid}</td><td class="a-mono">${esc(applicationTime(s.updated_at))}</td><td><button class="btn btn--ghost btn-sm" data-close-session="${esc(s.id)}">清桌</button></td></tr>`).join('')||'<tr><td colspan="4" class="a-empty">沒有使用中的桌</td></tr>';
-  host.innerHTML=`<h2>點餐出餐</h2>
-    <p class="hint">客人掃桌上 QR 加菜，用餐完再到櫃檯結帳；完成付款的訂單會出現在這裡。按「出餐並通知」會推播給客人到櫃檯取餐；每 10 秒自動更新，有新單會響一聲。</p>
-    <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>桌號</th><th>品項</th><th>付款時間</th><th class="num">金額</th><th>狀態</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-    <h3 style="margin-top:28px">使用中的桌</h3>
-    <p class="hint">清桌＝這桌未付品項作廢、未取餐的單標記已取餐，下一組客人掃碼會開新的一桌。客人全部取餐完成後會自動結束。</p>
-    <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>桌號</th><th class="num">未結帳品項</th><th>最後動作</th><th></th></tr></thead><tbody>${sess}</tbody></table></div>
-    <h3 style="margin-top:28px">桌號 QR</h3>
-    <p class="hint">輸入桌號（逗號分隔）產生 QR，列印貼桌上。QR 內含簽章，更換 APP_SECRET 後須重印。</p>
-    <div class="a-toolbar"><input id="qr-tables" placeholder="例：A1,A2,A3,B1" style="min-width:260px" value="${esc(qrTables)}"><button class="btn btn--solid btn-sm" id="qr-make">產生</button><button class="btn btn--ghost btn-sm" id="qr-print" hidden>列印</button></div>
-    <div id="qr-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-top:12px"></div>`;
-  host.querySelectorAll('[data-order]').forEach(b=>b.onclick=()=>doThen(async()=>{const out=await api('/admin/orders/'+b.dataset.order+'/status',{method:'POST',body:{status:b.dataset.status}});await loadOrders();return out;},out=>out.status==='ready'?`已出餐，推播 ${out.notified} 台裝置`:'已標記取餐'));
-  host.querySelectorAll('[data-close-session]').forEach(b=>b.onclick=()=>{if(!confirm('確定清桌？未付款品項會作廢。'))return;doThen(async()=>{await api('/admin/orders/sessions/'+b.dataset.closeSession+'/close',{method:'POST',body:{}});await loadOrders();},'已清桌');});
-  host.querySelector('#qr-make').onclick=async()=>{const tables=host.querySelector('#qr-tables').value.trim();if(!tables)return;try{const out=await api('/admin/tables/qr?tables='+encodeURIComponent(tables));const grid=host.querySelector('#qr-grid');grid.innerHTML='';for(const t of out.tables){const url=await new Promise((ok,no)=>QRCode.toDataURL(t.url,{width:360,margin:1},(e,u)=>e?no(e):ok(u)));grid.insertAdjacentHTML('beforeend',`<div class="qr-card" style="text-align:center;border:1px solid #ddd;border-radius:10px;padding:12px;background:#fff"><img src="${url}" alt="桌號 ${esc(t.table)}" style="width:100%"><div style="font-size:1.6em;font-weight:700">桌號 ${esc(t.table)}</div><div class="hint" style="margin:0">掃碼點餐 · 言文字</div></div>`);}host.querySelector('#qr-print').hidden=false;}catch(e){toast(e.message);}};
-  host.querySelector('#qr-print').onclick=()=>{const w=window.open('','_blank');w.document.write('<title>桌號 QR</title><style>body{font-family:sans-serif;margin:0}.g{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px}.g>div{break-inside:avoid;text-align:center;border:1px solid #ccc;border-radius:10px;padding:12px}img{width:100%}</style><div class="g">'+host.querySelector('#qr-grid').innerHTML+'</div>');w.document.close();w.focus();w.print();};
-  ORDERS_TIMER=setTimeout(()=>{if(document.getElementById('orders-body')&&TAB==='orders')loadOrders();},10000);
-}
+/* ---- 餐飲營運：出餐看板、櫃檯結帳（POS）、訂位、日結、桌號 QR 的程式在 /pos-ops.js，與平板 POS（pos.emoji.tw）共用 ---- */
 
 function tabAdmins(d){
   const body = (d.users||[]).filter(u=>u.email).map(u=>`<tr>
@@ -1138,7 +1114,7 @@ function tabAdmins(d){
   </tr>`).join('') || '<tr><td colspan="4" class="a-empty">尚無使用者</td></tr>';
   return `<div class="a-sec">
     <h2>權限管理</h2>
-    <p class="hint">對象須先登入過本站。只有超管可授予管理員。品牌全不勾＝言文字管理員，可從上方品牌列切換全部四個工作區；勾選一個以上＝品牌子帳號，只能進勾選的品牌工作區（可同時多個品牌）。在咖啡／三點水子帳號只有「點餐出餐」與「菜單」（限自己店別），等等空間子帳號只有「活動」「行事曆」「櫃檯」。外部主辦人不在這裡設定：到「等等空間 → 活動」開啟該場活動的「主辦團隊」，加入對方 Email 並勾選「共同管理本活動」，對方即可從 /organizer/events 管理那一場。</p>
+    <p class="hint">對象須先登入過本站。只有超管可授予管理員。品牌全不勾＝言文字管理員，可從上方品牌列切換全部四個工作區；勾選一個以上＝品牌子帳號，只能進勾選的品牌工作區（可同時多個品牌）。在咖啡／三點水子帳號有「櫃檯結帳」「點餐出餐」「訂位」「日結報表」「菜單」（限自己店別），等等空間子帳號只有「活動」「行事曆」「櫃檯」。外部主辦人不在這裡設定：到「等等空間 → 活動」開啟該場活動的「主辦團隊」，加入對方 Email 並勾選「共同管理本活動」，對方即可從 /organizer/events 管理那一場。</p>
     <div class="a-wrap2"><table class="a-tbl">
       <thead><tr><th>姓名</th><th>Email</th><th>目前</th><th>操作</th></tr></thead>
       <tbody>${body}</tbody></table></div>
@@ -1148,7 +1124,7 @@ function tabAdmins(d){
 /* 後台分成四個工作區：言文字管理所有品牌共用事務；三個品牌各自管理營運資料。
    言文字管理員（brands 為空）可進全部工作區；品牌子帳號只看授權工作區（伺服器端同步把關）。 */
 const ROOT_TABS = ['overview','members','commitments','updates','social','ads','permissions','system','logs'];
-const BRAND_TABS = { CAFE:['orders','menu'], BAR:['orders','menu'], SPACE:['events','calendar','counter'] };
+const BRAND_TABS = { CAFE:['pos','orders','reservations','sales','menu'], BAR:['pos','orders','reservations','sales','menu'], SPACE:['events','calendar','counter'] };
 const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水', SPACE:'等等空間' };
 const WORKSPACES = {
   '':{ slug:'shared', label:'言文字', note:'所有品牌共用', mark:'言', tabs:ROOT_TABS },
@@ -1169,7 +1145,10 @@ const TABS = [
   { id:'events',      label:'活動',     render:tabEvents },
   { id:'calendar',    label:'行事曆',   render:tabCalendar },
   { id:'counter',     label:'櫃檯',     render:tabCounter },
+  { id:'pos',         label:'櫃檯結帳', render:tabPos },
   { id:'orders',      label:'點餐出餐', render:tabOrders },
+  { id:'reservations',label:'訂位',     render:tabReservations },
+  { id:'sales',       label:'日結報表', render:tabSales },
   { id:'updates',     label:'最新消息', render:tabUpdates },
   { id:'menu',        label:'菜單',     render:tabMenu },
   { id:'social',      label:'社群經營', render:tabSocial },
@@ -1179,7 +1158,7 @@ const TABS = [
   { id:'logs',        label:'操作紀錄', render:tabLogs, super:true },
 ];
 const NAV_GROUPS = [
-  ['營運', ['overview','members','commitments','events','calendar','counter','orders']],
+  ['營運', ['overview','members','commitments','events','calendar','counter','pos','orders','reservations','sales']],
   ['內容', ['updates','menu']],
   ['行銷', ['social','ads']],
   ['系統', ['permissions','system','logs']],
@@ -1193,6 +1172,9 @@ const ICONS = {
   calendar:     '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>',
   counter:      '<path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 9l2-5h14l2 5"/><path d="M12 13v4"/>',
   orders:       '<path d="M3 11h18"/><path d="M5 11a7 7 0 0 1 14 0"/><path d="M2 15h20"/><path d="M12 4v1"/>',
+  pos:          '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h3M15 15h3"/>',
+  reservations: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M9 15l2 2 4-4"/>',
+  sales:        '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 6-6"/>',
   logs:         '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
   system:       '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/>',
   applications: '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z"/>',
@@ -1323,6 +1305,9 @@ function applyRoute(){
   if (tab === 'calendar') { if (APPLICATIONS===null) loadApplications().then(paintCalendar); paintCalendar(); return; }
   if (tab === 'counter') { paintCounter(); return; }
   if (tab === 'orders') { loadOrders(); return; }
+  if (tab === 'pos') { loadPos(); return; }
+  if (tab === 'reservations') { loadReservations(); return; }
+  if (tab === 'sales') { loadSales(); return; }
   if (tab === 'logs') { loadLogs(); return; }
   if (tab === 'system') { if(DATA?.super)loadSystemSettings(); return; }
   if (tab === 'ads') { paintAds(); return; }
@@ -1521,7 +1506,7 @@ function resetMenuForm(){
   document.getElementById('mi-id').value = '';
   document.getElementById('mi-venue').value = SCOPE || 'CAFE';
   document.getElementById('mi-cat').value = 'FOOD';
-  ['mi-zh','mi-en','mi-note','mi-image'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  ['mi-zh','mi-en','mi-note','mi-image','mi-from','mi-to'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   const pv=document.getElementById('prev-mi-image'); if(pv){ pv.src=''; pv.style.display='none'; }
   document.getElementById('mi-price').value = 0;
   document.getElementById('mi-emo').value = 0;
@@ -1554,6 +1539,9 @@ function bindMenu(){
       alcohol: document.getElementById('mi-alcohol').checked,
       published: document.getElementById('mi-published').checked,
       sort: Number(document.getElementById('mi-sort').value) || 0,
+      available_from: document.getElementById('mi-from').value,
+      available_to: document.getElementById('mi-to').value,
+      sold_out: (MENU_DOC.items.find(x=>x.id===document.getElementById('mi-id').value)||{}).sold_out || '',   // 估清狀態由快速鍵管理，編輯表單不動它
     });
     MENU_DIRTY = true; syncMenuDirty();
     toast(editing ? '已更新（尚未存檔）' : '已新增（尚未存檔）');
@@ -1573,12 +1561,21 @@ function bindMenu(){
     document.getElementById('mi-sort').value = it.sort;
     document.getElementById('mi-note').value = it.note;
     document.getElementById('mi-image').value = it.image || '';
+    document.getElementById('mi-from').value = it.available_from || '';
+    document.getElementById('mi-to').value = it.available_to || '';
     { const pv=document.getElementById('prev-mi-image'); pv.src = it.image || ''; pv.style.display = it.image ? '' : 'none'; }
     document.getElementById('mi-alcohol').checked = !!it.alcohol;
     document.getElementById('mi-published').checked = !!it.published;
     document.getElementById('mi-save').textContent = '更新項目';
     document.getElementById('mi-reset').style.display = '';
     document.getElementById('mi-zh').scrollIntoView({behavior:'smooth',block:'center'});
+  });
+  // 估清快速鍵：直接寫伺服器（只動 sold_out 欄位），本機草稿同步更新，不影響未儲存的其他編輯
+  document.querySelectorAll('[data-mi-soldout]').forEach(b=>b.onclick=async()=>{
+    const id=b.dataset.miSoldout, on=b.dataset.on==='1';
+    try{ await api('/admin/menu/sold-out',{method:'POST',body:{item_id:id,sold_out:on}}); }catch(e){ toast(e.message); return; }
+    MENU_DOC.items=MENU_DOC.items.map(x=>x.id===id?{...x,sold_out:on?MenuLib.businessDay():''}:x);
+    toast(on?'已標記今日估清，客人掃碼點不到':'已恢復供應'); paintMenu();
   });
   document.querySelectorAll('[data-mi-del]').forEach(b=>b.onclick=()=>{
     if (!confirm('確定刪除此菜單項目？')) return;

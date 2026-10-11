@@ -12,6 +12,7 @@
 | `/admin`、`/admin/*` | 後台（會籍、發點、活動、內容、社群、廣告）；每個分頁為一般路徑（`/admin/members`、`/admin/social/edit/:id`…），伺服器對 `/admin/*` 皆回同一頁；舊 `/admin#tab` 書籤自動轉為路徑 |
 | `/ig-media/*` | 物件儲存（Railway bucket／MinIO，皆不公開）的同網域代理：社群素材、貼文圖、活動圖的公開網址一律是 `PUBLIC_ORIGIN/ig-media/<key>` |
 | `/order?t=桌號&k=簽章` | 桌邊 QR 點餐（不登入）：同桌共用購物車、TapPay 刷卡、取餐推播；QR 由後台「點餐出餐」分頁產生 |
+| `/pos`、`/pos/*`（`pos.emoji.tw`） | 平板 POS（PWA，可加到主畫面）：結帳、出餐、估清、訂位、日結五個分頁，與 `/admin` 同一組帳號與 API；畫面程式 `public/pos-ops.js`／`pos-ops.css` 與後台共用。`pos.emoji.tw` 指向同一服務（`POS_HOSTS`），首頁與 `/admin` 轉到 `/pos`；Google 登入固定由 `www` 發起再導回 |
 | `/events`、`/en/events`、`/ja/events` | 公開活動列表；私人活動以不列出的直接連結分享 |
 | `/events?apply=1#ev-apply`（三語同） | 場地／活動申請表嵌在活動頁（`event-application.js` module，按需載入）；查詢自己的申請與審核回覆。舊 `/event-application` 301 轉入 |
 
@@ -61,7 +62,8 @@ DB 未設定時伺服器優雅降級：靜態頁照常，`/api/*` 回 503。
 | `ETHEREUM_RPC_URL` | ERC-20／ERC-721 票種的 Ethereum JSON-RPC HTTPS 端點；未設定時驗證失敗並停止報名 |
 | `S3_ENDPOINT` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` / `S3_BUCKET` / `S3_REGION` | S3 相容物件儲存（正式：Railway bucket；舊為 Zeabur MinIO）。物件不公開，對外由 `/ig-media/*` 代理讀出；未設時素材落本機 `uploads/` |
 | `PUBLIC_ORIGIN` | 站台對外網址（正式：`https://www.emoji.tw`），供 Stripe 導回與 Google callback |
-| `WEB_ORIGINS` | 允許的 CORS／導回白名單（逗號分隔） |
+| `WEB_ORIGINS` | 允許的 CORS／導回白名單（逗號分隔；預設含 `https://pos.emoji.tw`） |
+| `POS_HOSTS` | 視為平板 POS 子站的 host（逗號分隔，預設 `pos.emoji.tw`）：首頁與 `/admin` 轉到 `/pos`。DNS 把 `pos.emoji.tw` CNAME 到與 `www` 相同的服務即可 |
 
 ## API
 

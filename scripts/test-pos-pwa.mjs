@@ -1,0 +1,120 @@
+// 平板 POS 子站（pos.emoji.tw → /pos，PWA）：路由分流、登入導回白名單、App 殼與 service worker 的安全邊界。
+// 以隔離的 server.js（無真 DB、無外網）實跑 HTTP；前端以原始碼正則驗證接線。
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+import { once } from 'node:events';
+import { request as httpRequest } from 'node:http';
+
+const require = createRequire(import.meta.url);
+const root = path.resolve(import.meta.dirname || path.dirname(new URL(import.meta.url).pathname), '..');
+const read = f => readFileSync(path.join(root, f), 'utf8');
+
+async function server(t, env = {}) {
+  const run = async () => ({ rows: [], rowCount: 0 });
+  const localRequire = name => {
+    if (name === 'pg') return { Pool: class { query = run; async connect() { return { query: run, release() {} }; } } };
+    if (name === 'stripe') return class { constructor() { return {}; } };
+    return createRequire(path.join(root, 'server.js'))(name);
+  };
+  const module = { exports: {} };
+  const context = vm.createContext({ require: localRequire, module, __dirname: root,
+    process: { env: { NODE_ENV: 'test', APP_SECRET: 'local-test-secret-not-used-in-production', DATABASE_URL: 'unused', STRIPE_SECRET_KEY: 'stub', STRIPE_WEBHOOK_SECRET: 'stub',
+      GOOGLE_CLIENT_ID: 'stub', PUBLIC_ORIGIN: 'https://www.emoji.tw', ACCESS_QR_SECRET: 'x', ACCESS_DOOR_SECRET: 'x', ...env } },
+    Buffer, URL, URLSearchParams, AbortSignal, Date, setTimeout,
+    fetch: () => { throw new Error('External network forbidden in test'); },
+    console: { log() {}, warn() {}, error() {} },
+  });
+  new vm.Script(read('server.js') + '\ndbReady = true;').runInContext(context);
+  const http = module.exports.app.listen(0, '127.0.0.1');
+  await once(http, 'listening');
+  t.after(() => new Promise(resolve => { http.close(resolve); http.closeAllConnections(); }));
+  const base = `http://127.0.0.1:${http.address().port}`;
+  // fetch（undici）不允許自訂 Host 標頭：有 host 的請求改走 node:http，回傳物件對齊 fetch 的 status/headers
+  return (url, headers = {}) => headers.host
+    ? new Promise((resolve, reject) => {
+        const req = httpRequest(base + url, { headers }, res => { res.resume(); res.on('end', () => resolve({ status: res.statusCode, headers: { get: k => res.headers[k.toLowerCase()] ?? null } })); });
+        req.on('error', reject); req.end();
+      })
+    : fetch(base + url, { redirect: 'manual', headers });
+}
+
+test('/pos 與子路徑回同一頁、noindex；/pos.html 轉 301；manifest 與 service worker 以正確型別與標頭回應', async t => {
+  const get = await server(t);
+  for (const url of ['/pos', '/pos/orders', '/pos/soldout', '/pos/reservations', '/pos/sales']) {
+    const res = await get(url);
+    assert.equal(res.status, 200, url);
+    assert.equal(res.headers.get('x-robots-tag'), 'noindex', url);
+    assert.match(await res.text(), /<link rel="manifest" href="\/pos\.webmanifest">/, url);
+  }
+  const legacy = await get('/pos.html');
+  assert.equal(legacy.status, 301); assert.match(legacy.headers.get('location'), /\/pos$/);
+  const manifest = await get('/pos.webmanifest');
+  assert.equal(manifest.status, 200); assert.match(manifest.headers.get('content-type'), /application\/manifest\+json/);
+  const m = await manifest.json();
+  assert.equal(m.start_url, '/pos'); assert.equal(m.scope, '/pos'); assert.equal(m.display, 'standalone');
+  assert.ok(m.icons.some(i => i.purpose === 'maskable'), 'Android 需要 maskable 圖示');
+  const sw = await get('/pos-sw.js');
+  assert.equal(sw.status, 200); assert.equal(sw.headers.get('cache-control'), 'no-cache'); assert.equal(sw.headers.get('service-worker-allowed'), '/pos');
+});
+
+test('pos.emoji.tw：首頁與 /admin 轉到 /pos；www 與 localhost 不受影響；CORS 放行 pos 來源；登入導回接受 pos 子網域', async t => {
+  const get = await server(t);
+  for (const url of ['/', '/index.html', '/admin', '/admin.html']) {
+    const res = await get(url, { host: 'pos.emoji.tw' });
+    assert.equal(res.status, 302, url); assert.match(res.headers.get('location'), /\/pos$/, url);
+  }
+  assert.equal((await get('/pos', { host: 'pos.emoji.tw' })).status, 200);
+  assert.notEqual((await get('/', { host: 'www.emoji.tw' })).status, 302);
+  assert.notEqual((await get('/', { host: 'localhost' })).status, 302);
+  assert.equal((await get('/', { host: 'pos.emoji.tw.evil.test' })).status !== 302, true);
+  const cors = await get('/api/health', { origin: 'https://pos.emoji.tw' });
+  assert.equal(cors.headers.get('access-control-allow-origin'), 'https://pos.emoji.tw');
+  assert.equal((await get('/api/health', { origin: 'https://evil.test' })).headers.get('access-control-allow-origin'), null);
+  const login = await get('/auth/google?redirect=' + encodeURIComponent('https://pos.emoji.tw/pos'));
+  assert.equal(login.status, 302);
+  const state = new URL(login.headers.get('location')).searchParams.get('state');
+  const { verifyToken } = require('../lib/security');
+  assert.equal(verifyToken(state, 'local-test-secret-not-used-in-production', { purpose: 'oauth' }).r, 'https://pos.emoji.tw/pos');
+  const bad = await get('/auth/google?redirect=' + encodeURIComponent('https://pos.emoji.tw.evil.test/pos'));
+  assert.equal(verifyToken(new URL(bad.headers.get('location')).searchParams.get('state'), 'local-test-secret-not-used-in-production', { purpose: 'oauth' }).r, 'https://www.emoji.tw/member');
+});
+
+test('pos.html：只做餐飲五件事、與 /admin 共用 pos-ops.js、登入走 www 網域、token 只存 localStorage', () => {
+  const html = read('public/pos.html');
+  assert.match(html, /<script src="\/pos-ops\.js"><\/script>/);
+  assert.match(html, /<link rel="stylesheet" href="\/pos-ops\.css">/);
+  assert.match(html, /<link rel="manifest" href="\/pos\.webmanifest">/);
+  assert.match(html, /<link rel="apple-touch-icon" href="\/pos-icon-180\.png">/);
+  assert.match(html, /apple-mobile-web-app-capable/);
+  assert.match(html, /\{ id:'pos',\s+label:'結帳' \}/); assert.match(html, /\{ id:'orders',\s+label:'出餐' \}/); assert.match(html, /\{ id:'soldout',\s+label:'估清' \}/);
+  assert.match(html, /\{ id:'reservations',\s+label:'訂位' \}/); assert.match(html, /\{ id:'sales',\s+label:'日結' \}/);
+  assert.doesNotMatch(html, /members|commitments|social|permissions/, 'POS 不帶後台其他分頁');
+  assert.match(html, /const BRAND_LABEL = \{ CAFE:'在咖啡', BAR:'三點水' \}/);
+  assert.match(html, /const AUTH_ORIGIN = \/\^pos\\\.\/i\.test\(location\.hostname\)/);
+  assert.match(html, /\$\{esc\(AUTH_ORIGIN\)\}\/auth\/google\?redirect=\$\{redirect\}/);
+  assert.match(html, /const KEY = 'tth_token'/);
+  assert.match(html, /serviceWorker\.register\('\/pos-sw\.js', \{ scope: '\/pos' \}\)/);
+  assert.match(html, /d\.role !== 'admin'/); assert.match(html, /d\.brands && !d\.brands\.some\(b => BRAND_LABEL\[b\]\)/, '等等空間子帳號擋在 POS 外');
+  // 宿主頁必須提供 pos-ops.js 用到的全域
+  for (const g of ['function toast(', 'const esc =', 'const num =', 'const NT =', 'async function api(', 'function applicationTime(', 'function downloadCSV(', 'function opsHref(', 'let toastT, DATA = null, TAB = ', 'SCOPE = ', 'MENU_DOC = null']) assert.ok(html.includes(g), g);
+});
+
+test('pos-ops.js：共用模組不碰 /admin 專屬狀態；估清分頁只動 sold_out；pos-sw.js 不快取 API 與登入', () => {
+  const ops = read('public/pos-ops.js');
+  for (const fn of ['tabOrders', 'tabPos', 'tabReservations', 'tabSales', 'tabSoldOut', 'loadOrders', 'loadPos', 'paintPos', 'loadReservations', 'loadSales', 'loadSoldOut', 'printOrder', 'voidOrderPrompt']) assert.match(ops, new RegExp(`function ${fn}\\(`), fn);
+  assert.doesNotMatch(ops, /\bWORKSPACES\b|\bscopedRoute\(|\brender\(DATA\)|\bgo\(/, '共用模組不可依賴 /admin 的路由與工作區');
+  assert.match(ops, /opsHref\('pos'\)/);
+  assert.match(ops, /\/admin\/menu\/sold-out/); assert.match(ops, /data-so=/);
+  assert.match(ops, /if\(host\.querySelector\('table'\)\)toast\('更新失敗：'/, '出餐看板更新失敗不清空畫面');
+  assert.match(ops, /if\(host\.querySelector\('\.pos-grid'\)\)toast\('更新失敗：'/, '結帳頁更新失敗不清空畫面');
+  const sw = read('public/pos-sw.js');
+  assert.match(sw, /url\.pathname\.startsWith\('\/api\/'\) \|\| url\.pathname\.startsWith\('\/auth\/'\)/);
+  assert.match(sw, /if \(!url\.pathname\.startsWith\('\/pos'\)\) return;/, '非 /pos 的導覽不接管');
+  assert.match(sw, /e\.request\.method !== 'GET'/);
+  const admin = read('public/admin.html');
+  assert.match(admin, /function opsHref\(tab\)\{ return BASE \+ '\/' \+ scopedRoute\(tab\); \}/);
+});
