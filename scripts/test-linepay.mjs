@@ -57,6 +57,10 @@ test('reconcile：只算 POS 登記 linepay 的成立單；LINE Pay 實收扣退
   assert.equal(all.diff, -180, '實收 220 − POS 400');
   assert.equal(all.rows[0].type_label, '退款'); assert.equal(all.rows[0].paid_at < all.rows[1].paid_at, true, '依時間排序');
   assert.equal(all.rows[1].method_label, '信用卡');
+  // pg 回的 paid_at 是 Date 物件（正式環境曾因此 500）：要能排序且輸出 ISO 字串
+  const fromDb = L.reconcile(orders, txs.map(t => ({ ...t, paid_at: new Date(t.paid_at) })));
+  assert.equal(fromDb.rows[0].paid_at, '2025-10-15T05:05:32.000Z'); assert.equal(fromDb.diff, -180);
+  assert.equal(L.csvRows(fromDb.rows)[1][0], '2025-10-15');
   const cafe = L.reconcile(orders, txs, { venues: ['CAFE'] });
   assert.deepEqual(cafe.pos, { count: 1, amount: 220 }); assert.equal(cafe.linepay.amount, 220, 'LINE Pay 側不分店別'); assert.equal(cafe.diff, 0);
   assert.deepEqual(L.reconcile([], []), { pos: { count: 0, amount: 0 }, linepay: { count: 0, amount: 0, refunds: 0, refund_amount: 0, by_method: {} }, diff: 0, rows: [] });
