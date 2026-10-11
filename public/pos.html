@@ -251,6 +251,16 @@ const paintNet = () => { net.hidden = navigator.onLine; };
 addEventListener('online', () => { paintNet(); if (DATA) activate(); }); addEventListener('offline', paintNet); paintNet();
 
 document.getElementById('p-refresh').onclick = () => { if (!DATA) return location.reload(); resetPanels(); activate(); refreshPending(); };
+// 平板從待機喚醒：各分頁的自動更新計時器已停，回到前景立刻重新抓一次
+document.addEventListener('visibilitychange', () => { if (!document.hidden && DATA) { activate(); refreshPending(); } });
+
+/* 登入續期：token 有效 7 天，剩不到 2 天就在背景換新的，營業中不會突然被登出；換到的 token 失效或被移除管理員時走 401 流程回登入畫面 */
+function tokenExp(t){ try { return JSON.parse(atob(t.split('.')[0].replace(/-/g,'+').replace(/_/g,'/'))).exp || 0; } catch (e) { return 0; } }
+async function renewToken(){
+  if (!token || tokenExp(token) - Date.now() > 2 * 86400e3) return;
+  try { const d = await api('/auth/renew', { method:'POST', body:{} }); if (d.token) { token = d.token; localStorage.setItem(KEY, token); } } catch (e) {}
+}
+setInterval(renewToken, 3600e3);
 document.getElementById('p-logout').onclick = () => { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); location.reload(); };
 
 async function main(){
@@ -264,6 +274,7 @@ async function main(){
     TAB = routeTab();
     render();
     refreshPending();
+    renewToken();
   } catch(e){
     if (e.status === 401) return;   // api() 已轉到登入畫面
     app.innerHTML = `<p class="p-center">暫時無法連線：${esc(e.message)}<br><button class="btn btn--ghost btn-sm" style="margin-top:1rem" onclick="location.reload()">重新整理</button></p>`;

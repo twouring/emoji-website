@@ -99,6 +99,10 @@ test('pos.html：只做餐飲五件事、與 /admin 共用 pos-ops.js、登入�
   assert.match(html, /const KEY = 'tth_token'/);
   assert.match(html, /serviceWorker\.register\('\/pos-sw\.js', \{ scope: '\/pos' \}\)/);
   assert.match(html, /d\.role !== 'admin'/); assert.match(html, /d\.brands && !d\.brands\.some\(b => BRAND_LABEL\[b\]\)/, '等等空間子帳號擋在 POS 外');
+  // 現場長期開著：喚醒重抓、到期前背景續期
+  assert.match(html, /addEventListener\('visibilitychange', \(\) => \{ if \(!document\.hidden && DATA\) \{ activate\(\); refreshPending\(\); \} \}\)/);
+  assert.match(html, /api\('\/auth\/renew', \{ method:'POST'/); assert.match(html, /setInterval\(renewToken, 3600e3\)/);
+  assert.match(html, /tokenExp\(token\) - Date\.now\(\) > 2 \* 86400e3\) return;/, '只在剩不到 2 天時續');
   // 宿主頁必須提供 pos-ops.js 用到的全域
   for (const g of ['function toast(', 'const esc =', 'const num =', 'const NT =', 'async function api(', 'function applicationTime(', 'function downloadCSV(', 'function opsHref(', 'let toastT, DATA = null, TAB = ', 'SCOPE = ', 'MENU_DOC = null']) assert.ok(html.includes(g), g);
 });
@@ -108,6 +112,10 @@ test('pos-ops.js：共用模組不碰 /admin 專屬狀態；估清分頁只動 s
   for (const fn of ['tabOrders', 'tabPos', 'tabReservations', 'tabSales', 'tabSoldOut', 'loadOrders', 'loadPos', 'paintPos', 'loadReservations', 'loadSales', 'loadSoldOut', 'printOrder', 'voidOrderPrompt']) assert.match(ops, new RegExp(`function ${fn}\\(`), fn);
   assert.doesNotMatch(ops, /\bWORKSPACES\b|\bscopedRoute\(|\brender\(DATA\)|\bgo\(/, '共用模組不可依賴 /admin 的路由與工作區');
   assert.match(ops, /opsHref\('pos'\)/);
+  // 現場作業：櫃檯開桌／外帶、櫃檯登記訂位（電話／現場）
+  assert.match(ops, /id="pos-open-table"/); assert.match(ops, /id="pos-takeout"/); assert.match(ops, /api\('\/admin\/orders\/sessions',\{method:'POST',body\}\)/);
+  assert.match(ops, /id="resv-form"/); assert.match(ops, /api\('\/admin\/reservations',\{method:'POST',body\}\)/);
+  assert.match(ops, /empty:\['pill-draft','已開桌'\]/);
   assert.match(ops, /\/admin\/menu\/sold-out/); assert.match(ops, /data-so=/);
   assert.match(ops, /if\(host\.querySelector\('table'\)\)toast\('更新失敗：'/, '出餐看板更新失敗不清空畫面');
   assert.match(ops, /if\(host\.querySelector\('\.pos-grid'\)\)toast\('更新失敗：'/, '結帳頁更新失敗不清空畫面');

@@ -124,12 +124,42 @@ test('出餐分站：飲品酒水在吧檯、餐點在廚房；桌況依未付�
   assert.deepEqual(T.splitByStation(o).bar.map(l => l.zh), ['拿鐵']);
   assert.deepEqual(T.splitByStation(o).kitchen.map(l => l.zh), ['吐司']);
   const s = { id: 'ts_1', items: cart() };
+  assert.equal(T.tableStatus({ id: 'ts_0', items: [] }, []), 'empty', '櫃檯剛開桌還沒點＝已開桌');
   assert.equal(T.tableStatus(s, []), 'open');
   const paid = { id: 'ts_1', items: s.items.map(l => ({ ...l, order_id: 'to_1' })) };
   assert.equal(T.tableStatus(paid, [{ session_id: 'ts_1', status: 'paid' }]), 'preparing');
   assert.equal(T.tableStatus(paid, [{ session_id: 'ts_1', status: 'ready' }]), 'ready');
   assert.equal(T.tableStatus(paid, [{ session_id: 'ts_other', status: 'ready' }]), 'idle');
   assert.equal(T.elapsedMin(Date.now() - 5 * 60000), 5);
+});
+
+test('櫃檯開桌／外帶：空桌子帳號看得到也清得掉；外帶取 W01–W99 最小空號、結完取完自動收掉；內用桌不自動收', () => {
+  const cafe = ['CAFE'];
+  assert.equal(T.orderVisibleToVenues({ items: [] }, cafe), true, '剛開的空桌每家店都看得到');
+  assert.equal(T.sessionClosableByVenues({ items: [] }, cafe), true, '開錯桌可以直接清掉');
+  assert.equal(T.sessionClosableByVenues({ items: [{ venue: 'BAR' }] }, cafe), false);
+  assert.equal(T.isTakeout('W01'), true); assert.equal(T.isTakeout('W1'), false); assert.equal(T.isTakeout('A1'), false);
+  assert.equal(T.nextTakeoutTable(new Set()), 'W01');
+  assert.equal(T.nextTakeoutTable(new Set(['W01', 'W02', 'W04'])), 'W03', '取最小空號');
+  assert.equal(T.nextTakeoutTable(new Set(Array.from({ length: 99 }, (_, i) => 'W' + String(i + 1).padStart(2, '0')))), null);
+  const paidItems = cart().map(l => ({ ...l, order_id: 'to_1' }));
+  assert.equal(T.takeoutFinished({ id: 'ts_w', items: [] }, []), false, '還沒點東西不能收');
+  assert.equal(T.takeoutFinished({ id: 'ts_w', items: cart() }, []), false, '有未結帳不能收');
+  assert.equal(T.takeoutFinished({ id: 'ts_w', items: paidItems }, [{ session_id: 'ts_w', status: 'paid' }]), false, '餐還沒做好不能收');
+  assert.equal(T.takeoutFinished({ id: 'ts_w', items: paidItems }, [{ session_id: 'ts_w', status: 'ready' }]), false, '客人還沒取餐不能收');
+  assert.equal(T.takeoutFinished({ id: 'ts_w', items: paidItems }, [{ session_id: 'ts_other', status: 'ready' }]), true, '結完、取完就收');
+});
+
+test('櫃檯登記訂位：Email 可空、30 分鐘內時段可登；客人自助仍照舊規則', () => {
+  const R = require('../lib/reservations');
+  const now = new Date('2026-10-11T18:00:00+08:00');
+  const base = { date: '2026-10-11', time: '18:00', party_size: 3, name: '陳先生', phone: '0912-000-111' };
+  assert.throws(() => R.normalizeReservation({ ...base, time: '20:00' }, now), /Email/, '客人端 Email 必填');
+  assert.throws(() => R.normalizeReservation({ ...base, email: 'a@b.co' }, now), /已經過了/, '客人端擋 30 分鐘內');
+  const staff = R.normalizeReservation(base, now, { staff: true });
+  assert.equal(staff.email, ''); assert.equal(staff.period, '三點水');
+  assert.throws(() => R.normalizeReservation({ ...base, email: 'not-mail' }, now, { staff: true }), /Email/, '櫃檯有填就要正確');
+  assert.throws(() => R.normalizeReservation({ ...base, time: '18:15' }, now, { staff: true }), /時段/, '櫃檯也只能選 30 分鐘格');
 });
 
 test('訂位：依時段歸店別；狀態機；確認／婉拒才寄信且要有 Email', () => {
@@ -159,6 +189,12 @@ test('server.js 接線：客人加菜擋暫停與估清、櫃檯端點、清桌�
   assert.match(server, /app\.get\('\/api\/admin\/sales'/);
   assert.match(server, /app\.get\('\/api\/admin\/reservations'/);
   assert.match(server, /app\.post\('\/api\/admin\/reservations\/:id\/status'/);
+  assert.match(server, /app\.post\('\/api\/admin\/orders\/sessions',auth,adminOnly/, '櫃檯開桌／外帶');
+  assert.match(server, /app\.post\('\/api\/admin\/reservations',auth,adminOnly/, '櫃檯登記訂位');
+  assert.match(server, /normalizeReservation\(\{\.\.\.req\.body,lang:'zh',source:'pos'\},new Date\(\),\{staff:true\}\)/);
+  assert.match(server, /if\(r\.email\)sendMailQuietly/, '櫃檯登記沒 Email 不寄信');
+  assert.match(server, /tableOrders\.takeoutFinished\(s,live\)/, '外帶單自動收掉');
+  assert.match(server, /app\.post\('\/api\/auth\/renew',auth,requireDb/, 'POS 續期');
   assert.match(server, /ALTER TABLE table_orders ADD COLUMN IF NOT EXISTS void_reason/);
   assert.match(server, /ALTER TABLE dining_reservations ADD COLUMN IF NOT EXISTS email/);
   assert.match(server, /'new','confirmed','arrived','cancelled','no_show'/);

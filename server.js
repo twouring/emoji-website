@@ -1611,6 +1611,11 @@ app.post('/api/auth/email/start',rateLimit({max:10}),requireDb,wrap(async(req,re
  await sendMail({to:email,subject:copy[0],text:copy[1]+'\n\n'+url,idempotencyKey:'email-login/'+hash});res.json({ok:true});
 }));
 app.get('/api/auth/session',auth,requireDb,(req,res)=>req.auth.sub?res.json({authenticated:true,user_id:req.auth.sub}):res.status(403).json({error:'請以會員身分登入。'}));
+// 續期：現場平板（POS）長期開著，token 快到期前換一張新的，免得營業中突然被登出；身分已由 sessionAuth 重新查過 DB（被移除管理員就拿不到）
+app.post('/api/auth/renew',auth,requireDb,(req,res)=>{
+  if(!req.auth.sub||req.auth.agent)return res.status(403).json({error:'請以會員身分登入。'});
+  res.set('Cache-Control','no-store');res.json({token:signToken({role:req.auth.role==='admin'?'admin':req.auth.role==='organizer'?'invited':req.auth.role,sub:req.auth.sub,super:req.auth.super===true,name:req.auth.name||''})});
+});
 
 app.post('/api/auth/email/verify',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
  const code=req.body?.code;if(typeof code!=='string'||!/^[a-f0-9]{64}$/.test(code))return res.status(400).json({error:'登入連結無效或已過期。'});
@@ -4653,9 +4658,27 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const orders=(await q(all?"SELECT * FROM table_orders WHERE paid_at>now()-interval '1 day' ORDER BY paid_at DESC":"SELECT * FROM table_orders WHERE status IN ('paid','ready') ORDER BY paid_at")).rows.filter(o=>tableOrders.orderOwnedByVenues(o,venues)).map(o=>({...o,push:undefined,push_count:o.push.length,stations:tableOrders.splitByStation(o)}));
   // 桌況：每桌未付品項明細（櫃檯結帳用）＋ 狀態（空桌／點餐中／準備中／可取餐）
   const live=(await q("SELECT id,session_id,status FROM table_orders WHERE status IN ('paid','ready')")).rows;
-  const sessions=(await q("SELECT id,table_no,items,updated_at FROM table_sessions WHERE status='open' ORDER BY table_no")).rows.filter(s=>tableOrders.orderVisibleToVenues(s,venues)).map(s=>{const lines=tableOrders.unpaid(s.items).filter(line=>tableOrders.itemInVenues(line,venues)).map(({guest,...l})=>l);return{id:s.id,table:s.table_no,unpaid:lines.length,unpaid_amount:tableOrders.sum(lines),lines,mixed:!tableOrders.sessionClosableByVenues(s,venues),state:tableOrders.tableStatus(s,live),updated_at:s.updated_at};});
+  let rows=(await q("SELECT id,table_no,items,updated_at FROM table_sessions WHERE status='open' ORDER BY table_no")).rows;
+  // 外帶單（W01–W99）結完帳且取餐完成就自動收掉，號碼釋出給下一位；內用桌留「待清桌」給人員確認客人離開
+  const doneTakeout=rows.filter(s=>tableOrders.isTakeout(s.table_no)&&tableOrders.takeoutFinished(s,live)).map(s=>s.id);
+  if(doneTakeout.length){await q("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=ANY($1) AND status='open'",[doneTakeout]);rows=rows.filter(s=>!doneTakeout.includes(s.id));}
+  const sessions=rows.filter(s=>tableOrders.orderVisibleToVenues(s,venues)).map(s=>{const lines=tableOrders.unpaid(s.items).filter(line=>tableOrders.itemInVenues(line,venues)).map(({guest,...l})=>l);return{id:s.id,table:s.table_no,takeout:tableOrders.isTakeout(s.table_no),unpaid:lines.length,unpaid_amount:tableOrders.sum(lines),lines,mixed:!tableOrders.sessionClosableByVenues(s,venues),state:tableOrders.tableStatus(s,live),updated_at:s.updated_at};});
   const pause=tableOrders.parsePause(await contentValue('ordering_pause'));
   res.json({orders,sessions,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue()});
+}));
+/* 櫃檯開桌／外帶：客人沒掃 QR（走進來直接在櫃檯點）也能開一桌；外帶自動取 W01–W99 最小空號。已開著的桌直接回那一桌 */
+app.post('/api/admin/orders/sessions',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const takeout=req.body?.takeout===true;
+  let table=takeout?'':tableOrders.cleanText(req.body?.table_no,8).toUpperCase();
+  if(!takeout&&!tableOrders.TABLE_RE.test(table))return res.status(400).json({error:'桌號只能用英數字與 -，最長 8 字。'});
+  if(!takeout&&tableOrders.isTakeout(table))return res.status(400).json({error:'W01–W99 保留給外帶單，請按「外帶」開單。'});
+  const client=await pool.connect();
+  try{await client.query('BEGIN');await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,['table:'+(table||'takeout')]);
+    if(takeout){const used=new Set((await client.query("SELECT table_no FROM table_sessions WHERE status='open' AND table_no ~ '^W[0-9]{2}$'")).rows.map(r=>r.table_no));table=tableOrders.nextTakeoutTable(used);if(!table){await client.query('ROLLBACK');return res.status(409).json({error:'外帶單號已用完（W01–W99），請先清掉已完成的外帶單。'});}}
+    let s=(await client.query("SELECT id,table_no FROM table_sessions WHERE table_no=$1 AND status='open' ORDER BY created_at DESC LIMIT 1",[table])).rows[0],created=false;
+    if(!s){s=(await client.query('INSERT INTO table_sessions(id,table_no) VALUES($1,$2) RETURNING id,table_no',[uid('ts_'),table])).rows[0];created=true;}
+    await client.query('COMMIT');res.status(created?201:200).json({ok:true,id:s.id,table:s.table_no,created,takeout});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 /* 櫃檯結帳（POS）：替這桌加菜、作廢未付品項、收款（現金／刷卡／LINE Pay／轉帳，可分帳、可套會員價）、作廢已結帳的單 */
 app.post('/api/admin/orders/sessions/:id/items',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -4735,6 +4758,19 @@ app.get('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=>
     .map(r=>({...r,venue:tableOrders.reservationVenue(r.reserve_time)})).filter(r=>!venues||venues.includes(r.venue));
   const pending=Number((await q("SELECT COUNT(*)::int AS n FROM dining_reservations WHERE status='new' AND reserve_date>=CURRENT_DATE")).rows[0].n);
   res.json({reservations:rows,from,days,pending,labels:tableOrders.RESERVATION_LABEL});
+}));
+/* 櫃檯登記訂位（電話／現場）：與 /api/reservations 同一套驗證，但 Email 可留空、不擋 30 分鐘內的時段；有 Email 才寄確認信 */
+app.post('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  let r;try{r=reservations.normalizeReservation({...req.body,lang:'zh',source:'pos'},new Date(),{staff:true});}catch(e){return res.status(e.status||400).json({error:e.message});}
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  if(venues&&!venues.includes(tableOrders.reservationVenue(r.time)))return res.status(403).json({error:'只能登記自己店別時段的訂位。'});
+  const tableNo=tableOrders.cleanText(req.body?.table_no,8).toUpperCase();
+  if(tableNo&&!tableOrders.TABLE_RE.test(tableNo))return res.status(400).json({error:'桌號只能用英數字與 -，最長 8 字。'});
+  const id=uid('dr_'),requestId='R'+new Date().toISOString().slice(2,10).replace(/-/g,'')+'-'+crypto.randomBytes(2).toString('hex').toUpperCase();
+  await q(`INSERT INTO dining_reservations(id,request_id,reserve_date,reserve_time,period,party_size,name,phone,email,lang,note,source,status,table_no,handled_by)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'confirmed',$13,$14)`,[id,requestId,r.date,r.time,r.period,r.partySize,r.name,r.phone,r.email,r.lang,r.note,r.source,tableNo,req.auth.email||req.auth.sub||'']);
+  if(r.email)sendMailQuietly({to:r.email,subject:reservations.guestSubject(r),text:reservations.guestMail(r,requestId),replyTo:NOTIFY_EMAIL,idempotencyKey:'reservation-confirm/'+id});
+  res.status(201).json({ok:true,id,request_id:requestId,venue:tableOrders.reservationVenue(r.time),mailed:!!r.email});
 }));
 app.post('/api/admin/reservations/:id/status',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const venues=tableOrders.visibleVenues(req.auth.brands);

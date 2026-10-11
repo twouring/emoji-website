@@ -252,6 +252,9 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 ### POST /api/admin/orders/:id/void
 作廢已結帳的出餐單。body `{ reason }`（必填）。只能作廢當個營業日的單；線上刷卡（TapPay）的單須先在 TapPay 後台退款。作廢後該單不計營收，品項退回這桌「未結帳」（可重結或清桌作廢）。記 `void_reason / voided_by / voided_at`。
 
+### POST /api/admin/orders/sessions
+櫃檯開桌／外帶：客人沒掃桌上 QR（走進來直接在櫃檯點）也能開一桌。body `{ table_no }` 開內用桌（英數字與 -，8 字內；該桌已開著就直接回那一桌，`created:false`），或 `{ takeout: true }` 開外帶單（自動取 `W01`–`W99` 最小空號；用完回 409）。`W01`–`W99` 保留給外帶，不能當內用桌號。回 `{ ok, id, table, created, takeout }`（新開 201）。外帶單結完帳且取餐完成後，由 `GET /api/admin/orders` 自動收掉並釋出號碼；內用桌仍保留「待清桌」給人員確認客人離開。
+
 ### POST /api/admin/orders/sessions/:id/items
 櫃檯代客加菜。body `{ item_id, qty, note? }`；`by` 固定「櫃檯」。可加任何已發布品項（含估清、非營業時段），但品牌子帳號不得加其他店別的品項（403）。回更新後的場。
 
@@ -275,6 +278,9 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 
 ### GET /api/admin/reservations
 訂位列表。query `from=YYYY-MM-DD`（預設台北今天）、`days`（1–60，預設 7）、`venue=`。回 `{ reservations[], from, days, pending, labels }`；每筆附 `venue`（08:00–16:59 歸 CAFE，其餘 BAR），品牌子帳號只看自己時段的。狀態：`new` 待確認、`confirmed` 已確認、`arrived` 已到、`no_show` 未到、`cancelled` 已取消。
+
+### POST /api/admin/reservations
+櫃檯登記訂位（電話／現場）。body 同 `POST /api/reservations`（`date`、`time`、`party_size`、`name`、`phone`、`email?`、`note?`）另可帶 `table_no?`；與客人自助訂位同一套時段與驗證，但 `email` 可留空、當天 30 分鐘內的時段也可登（客人剛打來說馬上到）。`lang` 固定 `zh`、`source` 固定 `pos`，狀態直接 `confirmed`，記 `handled_by`。有留 Email 才寄確認信。品牌子帳號只能登記自己店別時段（403）。回 `{ ok, id, request_id, venue, mailed }`（201）。
 
 ### POST /api/admin/reservations/:id/status
 改訂位狀態。body `{ status, table_no?, staff_note?, notify?: boolean }`。允許的轉換：new→confirmed/cancelled；confirmed→arrived/no_show/cancelled；arrived/no_show/cancelled→confirmed（其餘 409）。改成 `confirmed` 或 `cancelled` 且客人有留 Email 時寄回覆信（含桌號與店內留言；`notify:false` 不寄）。回 `{ ok, status, mailed }`。
@@ -797,6 +803,10 @@ body `{visible:boolean}`，已登入者僅能修改符合自己已驗證 Email �
 ### GET /api/auth/session
 
 以現有 Bearer session 驗證登入，回傳 `{authenticated:true,user_id}`，不回傳 session token 或完整帳號資料。供嵌入登入分頁與 iframe 驗證回傳的登入狀態。
+
+### POST /api/auth/renew
+
+以現有（仍有效的）Bearer session 換一張新的 7 天 token，回 `{ token }`。給長期開著的現場平板（POS）在到期前背景續期用；身分與管理員旗標由伺服器重新查 DB 決定，被移除管理員的帳號換到的 token 不再有後台權限。agent 金鑰與已過期的 token 不能續（403／401）。
 
 活動／加購付費報名回應新增 `session_id`，加購另回傳 `order_id`。`POST /api/events/checkout/verify` 額外回傳 `status` 與 `order_status`；登入付款限定 Checkout 所屬帳號，免登入付款限定該 Stripe Session 自己的不可猜識別碼與訪客 metadata。嵌入頁在付款連結建立後，每 15 秒確認一次、最多 10 分鐘，並保留手動更新；不因外部網站 postMessage 就宣告付款成功。
 
