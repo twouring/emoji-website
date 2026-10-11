@@ -6,8 +6,9 @@ function tabOrders(){ return '<div class="a-sec" id="orders-body"></div>'; }
 function tabPos(){ return '<div id="pos-body"></div>'; }
 function tabReservations(){ return '<div class="a-sec" id="resv-body"></div>'; }
 function tabSales(){ return '<div class="a-sec" id="sales-body"></div>'; }
-let ORDERS_TIMER=null,ORDERS_SEEN=null,POS_TIMER=null,POS_DATA=null,POS_TABLE='',POS_PICK=null,POS_MEMBER=false,RESV_FROM='',RESV_DAYS=7,SALES_DAY='';
+let ORDERS_TIMER=null,ORDERS_SEEN=null,POS_TIMER=null,POS_DATA=null,POS_TABLE='',POS_PICK=null,POS_MEMBER=false,POS_INVOICE={mode:''},RESV_FROM='',RESV_DAYS=7,SALES_DAY='';
 const PAY_LABEL={cash:'現金',card:'刷卡',linepay:'LINE Pay',transfer:'轉帳',tappay:'線上刷卡'};
+const INV_LABEL={paper:'紙本',company:'統編',mobile:'手機載具',citizen:'自然人憑證',donate:'捐贈'};
 const STATION_LABEL={bar:'吧檯',kitchen:'廚房'};
 const TABLE_STATE={empty:['pill-draft','已開桌'],open:['pill-wait','點餐中'],preparing:['pill-wait','準備中'],ready:['pill-ok','可取餐'],idle:['pill-draft','待清桌']};
 const ORDER_STATE={paid:'準備中',ready:'可取餐',done:'已取餐',void:'已作廢'};
@@ -17,6 +18,13 @@ const clockText=iso=>{const d=iso?new Date(iso):null;return d&&!isNaN(d)?d.toLoc
 const todayTaipei=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Taipei'});
 const scopeQuery=(extra='')=>{const p=[SCOPE?'venue='+SCOPE:'',extra].filter(Boolean).join('&');return p?'?'+p:'';};
 const payText=o=>PAY_LABEL[o.payer?.method]||(o.tappay?.rec_trade_id?PAY_LABEL.tappay:'—');
+const invoiceText=o=>{const inv=o.invoice||{};if(inv.status==='issued')return `發票 ${inv.number||'已開立'}`;if(inv.status==='failed')return `發票失敗：${inv.error||'待補開'}`;if(inv.status==='void')return `發票已作廢 ${inv.number||''}`;if(inv.requested)return '發票待補開';return '未開發票';};
+function invoiceBody(host){
+  const mode=host.querySelector('input[name=pos-invoice]:checked')?.value||'';POS_INVOICE.mode=mode;
+  if(!mode)return {mode:''};
+  const box=host.querySelector('.pos-invoice');
+  return {mode,buyer_ubn:box.querySelector('[name=buyer_ubn]')?.value||'',carrier_num:box.querySelector('[name=carrier_num]')?.value||'',love_code:box.querySelector('[name=love_code]')?.value||'',buyer_name:box.querySelector('[name=buyer_name]')?.value||'',buyer_email:box.querySelector('[name=buyer_email]')?.value||'',comment:box.querySelector('[name=comment]')?.value||''};
+}
 // 平板上正在操作的畫面不走 refresh() 整頁重繪，只重載該分頁
 async function opsThen(fn,msg,reload){try{const out=await fn();toast(typeof msg==='function'?msg(out):msg);if(reload)await reload(out);}catch(e){toast(e.message);}}
 function ordersBeep(){try{const c=new (window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=660;g.gain.value=.2;o.start();o.stop(c.currentTime+.5);}catch(e){}}
@@ -97,7 +105,7 @@ function paintPos(){
     const lineRows=cur.lines.map(l=>`<tr><td><input type="checkbox" data-pick="${esc(l.line)}" ${!POS_PICK||POS_PICK.has(l.line)?'checked':''} aria-label="選取 ${esc(l.zh)}"></td><td>${esc(l.zh)}${l.note?`<br><span class="hint" style="margin:0">${esc(l.note)}</span>`:''}</td><td>${esc(l.by)}</td><td class="num">${l.qty}</td><td class="num">${Number(priceOf(l)*l.qty).toLocaleString('zh-TW')}${priceOf(l)!==l.price?`<br><span class="hint" style="margin:0"><s>${Number(l.price*l.qty).toLocaleString('zh-TW')}</s></span>`:''}</td><td class="ops-actions"><button class="btn btn--ghost btn-sm" data-void-line="${esc(l.line)}">作廢</button></td></tr>`).join('')||'<tr><td colspan="6" class="a-empty">這桌沒有未結帳品項</td></tr>';
     const menuItems=MenuLib.sortItems((MENU_DOC?.items||[]).filter(it=>it.published&&(!SCOPE||it.venue===SCOPE)));
     const live=d.orders.filter(o=>o.session_id===cur.id);
-    const liveRows=live.map(o=>`<tr><td class="a-mono" title="${esc(applicationTime(o.paid_at))}">${esc(clockText(o.paid_at))}</td><td>${o.items.map(l=>`${esc(l.zh)} ×${l.qty}`).join('、')}</td><td>${esc(payText(o))}${o.payer?.member?' · 會員價':''}</td><td class="num">${Number(o.amount).toLocaleString('zh-TW')}</td><td>${o.status==='void'?`<span class="pill pill-bad">已作廢</span><br><span class="hint" style="margin:0">${esc(o.void_reason||'')}</span>`:esc(ORDER_STATE[o.status]||o.status)}</td><td style="white-space:nowrap">${o.status==='void'?'':`<button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">列印</button> <button class="btn btn--ghost btn-sm" data-void="${esc(o.id)}">作廢</button>`}</td></tr>`).join('');
+    const liveRows=live.map(o=>`<tr><td class="a-mono" title="${esc(applicationTime(o.paid_at))}">${esc(clockText(o.paid_at))}</td><td>${o.items.map(l=>`${esc(l.zh)} ×${l.qty}`).join('、')}</td><td>${esc(payText(o))}${o.payer?.member?' · 會員價':''}<br><span class="hint" style="margin:0">${esc(invoiceText(o))}</span></td><td class="num">${Number(o.amount).toLocaleString('zh-TW')}</td><td>${o.status==='void'?`<span class="pill pill-bad">已作廢</span><br><span class="hint" style="margin:0">${esc(o.void_reason||'')}</span>`:esc(ORDER_STATE[o.status]||o.status)}</td><td style="white-space:nowrap">${o.status==='void'?'':`<button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">列印</button> ${(o.invoice?.requested&&o.invoice?.status!=='issued')?`<button class="btn btn--ghost btn-sm" data-invoice-issue="${esc(o.id)}">補開發票</button> `:''}<button class="btn btn--ghost btn-sm" data-void="${esc(o.id)}">作廢</button>`}</td></tr>`).join('');
     panel=`<div class="a-sec pos-panel">
       <h2>桌號 ${esc(cur.table)} <span class="pill ${TABLE_STATE[cur.state]?.[0]||''}">${TABLE_STATE[cur.state]?.[1]||''}</span><span class="hint" style="margin:0 0 0 auto;font-weight:400">最後動作 ${esc(applicationTime(cur.updated_at))}</span></h2>
       ${cur.mixed?'<p class="hint"><span class="pill pill-bad">混桌</span> 這桌含其他品牌的品項：只能結自己店別的，清桌請由言文字管理員處理。</p>':''}
@@ -107,6 +115,7 @@ function paintPos(){
         <div class="pos-methods" role="radiogroup" aria-label="付款方式">${['cash','card','linepay','transfer'].map((m,i)=>`<label class="pos-method"><input type="radio" name="pos-method" value="${m}" ${i===0?'checked':''}><span>${PAY_LABEL[m]}</span></label>`).join('')}</div>
         <label class="pos-member"><input type="checkbox" id="pos-member" ${POS_MEMBER?'checked':''}> 套用會員價（有設會員價的品項才會變）</label>
         <div class="pos-total"><span>${POS_PICK&&POS_PICK.size<cur.lines.length?`分帳：${picked.length}／${cur.lines.length} 項`:'全桌未結帳'}</span><b>NT$${total.toLocaleString('zh-TW')}</b></div>
+        <div class="pos-invoice"><div class="pos-invoice-head"><b>ezPay 電子發票</b><span class="hint" style="margin:0">${DATA?.invoice?.configured?'已設定':'尚未設定 ezPay env，會先記為待補開／失敗'}</span></div><div class="pos-invoice-types">${[['','不開'],['paper','紙本'],['company','統編'],['mobile','手機載具'],['citizen','自然人憑證'],['donate','捐贈']].map(([m,l])=>`<label><input type="radio" name="pos-invoice" value="${m}" ${POS_INVOICE.mode===m?'checked':''}><span>${l}</span></label>`).join('')}</div><div class="pos-invoice-fields"><input name="buyer_ubn" inputmode="numeric" maxlength="8" placeholder="統編 8 碼"><input name="carrier_num" autocapitalize="characters" maxlength="64" placeholder="手機條碼 /ABC1234 或自然人憑證"><input name="love_code" inputmode="numeric" maxlength="20" placeholder="愛心碼"><input name="buyer_name" maxlength="60" placeholder="買受人／公司名稱"><input name="buyer_email" type="email" maxlength="120" placeholder="Email（選填）"><input name="comment" maxlength="80" placeholder="發票備註（選填）"></div></div>
         <div class="pos-actions"><button class="btn btn--solid" id="pos-checkout" ${picked.length?'':'disabled'}>收款並送出餐單</button><button class="btn btn--ghost" id="pos-close">${cur.takeout?'收掉外帶單':'清桌'}</button></div>
       </div>
       ${live.length?`<h3 style="margin-top:20px">這桌已結帳的單</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>時間</th><th>品項</th><th>付款</th><th class="num">金額</th><th>狀態</th><th>操作</th></tr></thead><tbody>${liveRows}</tbody></table></div>`:''}
@@ -124,13 +133,14 @@ function paintPos(){
   host.querySelector('#pos-member').onchange=e=>{POS_MEMBER=e.target.checked;paintPos();};
   host.querySelectorAll('[data-void-line]').forEach(b=>b.onclick=()=>{const reason=prompt('作廢這個品項的原因（必填）：');if(reason===null)return;if(!reason.trim()){toast('請填寫作廢原因');return;}opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/items/'+b.dataset.voidLine,{method:'DELETE',body:{reason}}),'已作廢品項',reload);});
   host.querySelector('#pos-add').onclick=()=>{const item_id=host.querySelector('#pos-item').value;if(!item_id){toast('請先選品項');return;}opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/items',{method:'POST',body:{item_id,qty:Number(host.querySelector('#pos-qty').value)||1,note:host.querySelector('#pos-note').value}}),'已加入這桌',reload);};
+  host.querySelectorAll('input[name=pos-invoice]').forEach(r=>r.onchange=()=>{POS_INVOICE.mode=r.checked?r.value:POS_INVOICE.mode;});
   host.querySelector('#pos-checkout').onclick=()=>{
     const method=host.querySelector('input[name=pos-method]:checked')?.value,picked=cur.lines.filter(l=>!POS_PICK||POS_PICK.has(l.line));
     if(!picked.length)return;
     const menuById=new Map((MENU_DOC?.items||[]).map(it=>[it.id,it]));
     const total=picked.reduce((a,l)=>{const it=menuById.get(l.item_id);return a+(POS_MEMBER&&it&&it.emo>0&&it.emo<l.price?it.emo:l.price)*l.qty;},0);
-    if(!confirm(`向桌號 ${cur.table} 收 NT$${total.toLocaleString('zh-TW')}（${PAY_LABEL[method]}${POS_MEMBER?'，會員價':''}）？`))return;
-    opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/checkout',{method:'POST',body:{method,member:POS_MEMBER,lines:POS_PICK?[...POS_PICK]:[]}}),out=>`已收款 NT$${Number(out.amount).toLocaleString('zh-TW')}${out.remaining?`，這桌還有 NT$${Number(out.remaining).toLocaleString('zh-TW')} 未結`:'，這桌已結清'}`,()=>{POS_PICK=null;POS_MEMBER=false;return reload();});
+    if(!confirm(`向桌號 ${cur.table} 收 NT$${total.toLocaleString('zh-TW')}（${PAY_LABEL[method]}${POS_MEMBER?'，會員價':''}${POS_INVOICE.mode?'，'+INV_LABEL[POS_INVOICE.mode]+'發票':''}）？`))return;
+    opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/checkout',{method:'POST',body:{method,member:POS_MEMBER,lines:POS_PICK?[...POS_PICK]:[],invoice:invoiceBody(host)}}),out=>`已收款 NT$${Number(out.amount).toLocaleString('zh-TW')}${out.invoice?.status==='issued'?`，發票 ${out.invoice.number||'已開立'}`:out.invoice?.status==='failed'?`，發票開立失敗可補開` : ''}${out.remaining?`，這桌還有 NT$${Number(out.remaining).toLocaleString('zh-TW')} 未結`:'，這桌已結清'}`,()=>{POS_PICK=null;POS_MEMBER=false;return reload();});
   };
   host.querySelector('#pos-close').onclick=async()=>{
     if(!confirm(cur.takeout?`確定收掉外帶單 ${cur.table}？`:`確定清桌 ${cur.table}？未取餐的單會標記已取餐，下一組客人掃碼會開新的一桌。`))return;
@@ -141,6 +151,7 @@ function paintPos(){
       else toast(e.message);
     }
   };
+  host.querySelectorAll('[data-invoice-issue]').forEach(b=>b.onclick=()=>opsThen(()=>api('/admin/orders/'+b.dataset.invoiceIssue+'/invoice/issue',{method:'POST',body:{}}),out=>`已補開發票 ${out.invoice?.number||''}`,reload));
   bindOrderButtons(host,d.orders,reload);
 }
 

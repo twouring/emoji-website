@@ -250,7 +250,10 @@ Google 授權回呼，簽發會員 token 並導回。
 body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請至櫃檯取餐」（回 `notified` 裝置數）；`done`＝已取餐。狀態不符回 409；已作廢的單回 409。
 
 ### POST /api/admin/orders/:id/void
-作廢已結帳的出餐單。body `{ reason }`（必填）。只能作廢當個營業日的單；線上刷卡（TapPay）的單須先在 TapPay 後台退款。作廢後該單不計營收，品項退回這桌「未結帳」（可重結或清桌作廢）。記 `void_reason / voided_by / voided_at`。
+作廢已結帳的出餐單。body `{ reason }`（必填）。只能作廢當個營業日的單；線上刷卡（TapPay）的單須先在 TapPay 後台退款。若該單已透過 ezPay 開立電子發票，會先呼叫 ezPay 作廢成功後才把 POS 訂單標成 void；未設定 ezPay 環境變數或 ezPay 作廢失敗時回 503/502，不會先作廢本地訂單。作廢後該單不計營收，品項退回這桌「未結帳」（可重結或清桌作廢）。記 `void_reason / voided_by / voided_at`。
+
+### POST /api/admin/orders/:id/invoice/issue
+補開 ezPay 電子發票。用於結帳時 ezPay 暫時失敗或當下未設定憑證的單。body 可帶 `{ invoice }`，未帶時使用訂單內已保存的發票要求；`invoice` 格式同櫃檯結帳的 `invoice` 欄位。作廢單不能補開；已開立則直接回原發票資料。回 `{ ok, invoice }`。
 
 ### POST /api/admin/orders/sessions
 櫃檯開桌／外帶：客人沒掃桌上 QR（走進來直接在櫃檯點）也能開一桌。body `{ table_no }` 開內用桌（英數字與 -，8 字內；該桌已開著就直接回那一桌，`created:false`），或 `{ takeout: true }` 開外帶單（自動取 `W01`–`W99` 最小空號；用完回 409）。`W01`–`W99` 保留給外帶，不能當內用桌號。回 `{ ok, id, table, created, takeout }`（新開 201）。外帶單結完帳且取餐完成後，由 `GET /api/admin/orders` 自動收掉並釋出號碼；內用桌仍保留「待清桌」給人員確認客人離開。
@@ -262,7 +265,7 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 櫃檯逐項作廢未結帳品項。body `{ reason }`（必填）。已結帳品項回 409（請改作廢整張單）。
 
 ### POST /api/admin/orders/sessions/:id/checkout
-櫃檯收款（POS）。body `{ method: cash|card|linepay|transfer, member?: boolean, lines?: [] , name?, note? }`。`lines` 空＝全桌未結帳品項，指定＝只結那些（分帳）。`member: true` 以菜單會員價重算（只有設了會員價且較低的品項會變）。金額由伺服器重算；成功建立出餐單（進出餐看板）並鎖定品項，回 `{ ok, order_id, amount, method, member, remaining }`。品牌子帳號只能結自己店別的品項（403）。
+櫃檯收款（POS）。body `{ method: cash|card|linepay|transfer, member?: boolean, lines?: [] , name?, note?, invoice? }`。`lines` 空＝全桌未結帳品項，指定＝只結那些（分帳）。`member: true` 以菜單會員價重算（只有設了會員價且較低的品項會變）。`invoice` 為 ezPay 電子發票要求，可不帶或 `{ mode:'' }` 表示不開；可帶 `{ mode:'paper' }` 紙本、`{ mode:'company', buyer_ubn, buyer_name?, buyer_email? }` 統編、`{ mode:'mobile', carrier_num }` 手機載具、`{ mode:'citizen', carrier_num }` 自然人憑證、`{ mode:'donate', love_code }` 捐贈。金額由伺服器重算；成功建立出餐單（進出餐看板）並鎖定品項，回 `{ ok, order_id, amount, method, member, remaining, invoice }`。若 ezPay 尚未設定或暫時失敗，收款訂單仍成立，`invoice.status='failed'`，可用補開端點重試。品牌子帳號只能結自己店別的品項（403）。
 
 ### POST /api/admin/orders/sessions/:id/close
 清桌：未取餐的單標記已取餐、這桌下一次掃碼開新場。**有未結帳品項時回 409**（請先結帳或逐項作廢，避免漏收）；言文字管理員可帶 body `{ force: true }` 強制清桌並作廢未結品項。
@@ -274,7 +277,7 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 估清快速鍵。body `{ item_id, sold_out: boolean }`。只改該品項的 `sold_out`（記營業日），不覆蓋其他欄位；當個營業日結束（翌日 03:00）自動恢復。品牌子帳號只能估清自己店別（403）。
 
 ### GET /api/admin/sales
-日結報表。query `day=YYYY-MM-DD`（營業日，預設今天；03:00 起算 24 小時）、`venue=`。回 `{ day, orders, amount, by_method{}, by_hour{}, items[]{zh,venue,qty,amount}, voided, void_amount, csv[][] }`；`csv` 為每品項一列的明細（表頭：營業日、付款時間、桌號、品項、數量、單價、小計、付款方式、會員價、狀態、作廢原因）。作廢的單不計營收。
+日結報表。query `day=YYYY-MM-DD`（營業日，預設今天；03:00 起算 24 小時）、`venue=`。回 `{ day, orders, amount, by_method{}, by_hour{}, items[]{zh,venue,qty,amount}, voided, void_amount, csv[][] }`；`csv` 為每品項一列的明細（表頭：營業日、付款時間、桌號、品項、數量、單價、小計、付款方式、會員價、發票狀態、發票號碼、狀態、作廢原因）。作廢的單不計營收。
 
 ### GET /api/admin/reservations
 訂位列表。query `from=YYYY-MM-DD`（預設台北今天）、`days`（1–60，預設 7）、`venue=`。回 `{ reservations[], from, days, pending, labels }`；每筆附 `venue`（08:00–16:59 歸 CAFE，其餘 BAR），品牌子帳號只看自己時段的。狀態：`new` 待確認、`confirmed` 已確認、`arrived` 已到、`no_show` 未到、`cancelled` 已取消。

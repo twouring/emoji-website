@@ -112,9 +112,11 @@ test('pos-ops.js：共用模組不碰 /admin 專屬狀態；估清分頁只動 s
   for (const fn of ['tabOrders', 'tabPos', 'tabReservations', 'tabSales', 'tabSoldOut', 'loadOrders', 'loadPos', 'paintPos', 'loadReservations', 'loadSales', 'loadSoldOut', 'printOrder', 'voidOrderPrompt']) assert.match(ops, new RegExp(`function ${fn}\\(`), fn);
   assert.doesNotMatch(ops, /\bWORKSPACES\b|\bscopedRoute\(|\brender\(DATA\)|\bgo\(/, '共用模組不可依賴 /admin 的路由與工作區');
   assert.match(ops, /opsHref\('pos'\)/);
-  // 現場作業：櫃檯開桌／外帶、櫃檯登記訂位（電話／現場）
+  // 現場作業：櫃檯開桌／外帶、櫃檯登記訂位（電話／現場）、ezPay 電子發票
   assert.match(ops, /id="pos-open-table"/); assert.match(ops, /id="pos-takeout"/); assert.match(ops, /api\('\/admin\/orders\/sessions',\{method:'POST',body\}\)/);
   assert.match(ops, /id="resv-form"/); assert.match(ops, /api\('\/admin\/reservations',\{method:'POST',body\}\)/);
+  assert.match(ops, /ezPay 電子發票/); assert.match(ops, /name="pos-invoice"/); assert.match(ops, /buyer_ubn/); assert.match(ops, /carrier_num/); assert.match(ops, /love_code/);
+  assert.match(ops, /invoice:invoiceBody\(host\)/); assert.match(ops, /\/invoice\/issue/);
   assert.match(ops, /empty:\['pill-draft','已開桌'\]/);
   assert.match(ops, /\/admin\/menu\/sold-out/); assert.match(ops, /data-so=/);
   assert.match(ops, /if\(host\.querySelector\('table'\)\)toast\('更新失敗：'/, '出餐看板更新失敗不清空畫面');

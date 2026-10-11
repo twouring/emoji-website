@@ -114,8 +114,8 @@ test('日結：依付款方式／時段／品項彙總，作廢不計營收；CS
   const cafe = T.salesSummary(orders, { venues: ['CAFE'], now: at(10) });
   assert.equal(cafe.amount, 630); assert.equal(cafe.by_method.tappay, undefined);
   const csv = T.salesCsvRows(orders, { venues: ['BAR'] });
-  assert.equal(csv.length, 2); assert.equal(csv[0][0], '營業日'); assert.equal(csv[1][3], '啤酒'); assert.equal(csv[1][7], '線上刷卡');
-  assert.equal(T.salesCsvRows(orders).find(r => r[2] === 'B1')[9], '作廢');
+  assert.equal(csv.length, 2); assert.equal(csv[0][0], '營業日'); assert.equal(csv[0][9], '發票狀態'); assert.equal(csv[0][10], '發票號碼'); assert.equal(csv[1][3], '啤酒'); assert.equal(csv[1][7], '線上刷卡');
+  assert.equal(T.salesCsvRows(orders).find(r => r[2] === 'B1')[11], '作廢');
 });
 
 test('出餐分站：飲品酒水在吧檯、餐點在廚房；桌況依未付與出餐單判定', () => {
