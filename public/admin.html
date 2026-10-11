@@ -1126,7 +1126,7 @@ function tabAdmins(d){
 /* 後台分成四個工作區：言文字管理所有品牌共用事務；三個品牌各自管理營運資料。
    言文字管理員（brands 為空）可進全部工作區；品牌子帳號只看授權工作區（伺服器端同步把關）。 */
 const ROOT_TABS = ['overview','members','commitments','updates','social','ads','permissions','system','logs'];
-const BRAND_TABS = { CAFE:['pos','orders','reservations','sales','menu'], BAR:['pos','orders','reservations','sales','menu'], SPACE:['events','calendar','counter'] };
+const BRAND_TABS = { CAFE:['pos','orders','reservations','history','sales','menu'], BAR:['pos','orders','reservations','history','sales','menu'], SPACE:['events','calendar','counter'] };
 const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水', SPACE:'等等空間' };
 const WORKSPACES = {
   '':{ slug:'shared', label:'言文字', note:'所有品牌共用', mark:'言', tabs:ROOT_TABS },
@@ -1150,6 +1150,7 @@ const TABS = [
   { id:'pos',         label:'櫃檯結帳', render:tabPos },
   { id:'orders',      label:'點餐出餐', render:tabOrders },
   { id:'reservations',label:'訂位',     render:tabReservations },
+  { id:'history',     label:'查單',     render:tabHistory },
   { id:'sales',       label:'日結報表', render:tabSales },
   { id:'updates',     label:'最新消息', render:tabUpdates },
   { id:'menu',        label:'菜單',     render:tabMenu },
@@ -1160,7 +1161,7 @@ const TABS = [
   { id:'logs',        label:'操作紀錄', render:tabLogs, super:true },
 ];
 const NAV_GROUPS = [
-  ['營運', ['overview','members','commitments','events','calendar','counter','pos','orders','reservations','sales']],
+  ['營運', ['overview','members','commitments','events','calendar','counter','pos','orders','reservations','history','sales']],
   ['內容', ['updates','menu']],
   ['行銷', ['social','ads']],
   ['系統', ['permissions','system','logs']],
@@ -1309,6 +1310,7 @@ function applyRoute(){
   if (tab === 'orders') { loadOrders(); return; }
   if (tab === 'pos') { loadPos(); return; }
   if (tab === 'reservations') { loadReservations(); return; }
+  if (tab === 'history') { loadHistory(); return; }
   if (tab === 'sales') { loadSales(); return; }
   if (tab === 'logs') { loadLogs(); return; }
   if (tab === 'system') { if(DATA?.super)loadSystemSettings(); return; }

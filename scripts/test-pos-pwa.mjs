@@ -44,7 +44,7 @@ async function server(t, env = {}) {
 
 test('/pos 與子路徑回同一頁、noindex；/pos.html 轉 301；manifest 與 service worker 以正確型別與標頭回應', async t => {
   const get = await server(t);
-  for (const url of ['/pos', '/pos/orders', '/pos/soldout', '/pos/reservations', '/pos/sales']) {
+  for (const url of ['/pos', '/pos/orders', '/pos/soldout', '/pos/reservations', '/pos/history', '/pos/sales']) {
     const res = await get(url);
     assert.equal(res.status, 200, url);
     assert.equal(res.headers.get('x-robots-tag'), 'noindex', url);
@@ -91,7 +91,8 @@ test('pos.html：只做餐飲五件事、與 /admin 共用 pos-ops.js、登入�
   assert.match(html, /<link rel="apple-touch-icon" href="\/pos-icon-180\.png">/);
   assert.match(html, /apple-mobile-web-app-capable/);
   assert.match(html, /\{ id:'pos',\s+label:'結帳' \}/); assert.match(html, /\{ id:'orders',\s+label:'出餐' \}/); assert.match(html, /\{ id:'soldout',\s+label:'估清' \}/);
-  assert.match(html, /\{ id:'reservations',\s+label:'訂位' \}/); assert.match(html, /\{ id:'sales',\s+label:'日結' \}/);
+  assert.match(html, /\{ id:'reservations',\s+label:'訂位' \}/); assert.match(html, /\{ id:'history',\s+label:'查單' \}/); assert.match(html, /\{ id:'sales',\s+label:'日結' \}/);
+  assert.match(html, /else if \(TAB === 'history'\) loadHistory\(\);/);
   assert.doesNotMatch(html, /members|commitments|social|permissions/, 'POS 不帶後台其他分頁');
   assert.match(html, /const BRAND_LABEL = \{ CAFE:'在咖啡', BAR:'三點水' \}/);
   assert.match(html, /const AUTH_ORIGIN = \/\^pos\\\.\/i\.test\(location\.hostname\)/);

@@ -206,11 +206,12 @@ test('server.js 接線：客人加菜擋暫停與估清、櫃檯端點、清桌�
 
 test('後台與客人端接線：新分頁、估清快速鍵、暫停點餐、訂位 Email 欄位', () => {
   const admin = read('public/admin.html'), ops = read('public/pos-ops.js'), order = read('public/order.html'), reserve = read('public/reserve.html'), reserveJs = read('public/reserve.js');
-  assert.match(admin, /CAFE:\['pos','orders','reservations','sales','menu'\]/);
-  assert.match(admin, /BAR:\['pos','orders','reservations','sales','menu'\]/);
+  assert.match(admin, /CAFE:\['pos','orders','reservations','history','sales','menu'\]/);
+  assert.match(admin, /BAR:\['pos','orders','reservations','history','sales','menu'\]/);
+  assert.match(admin, /\{ id:'history',\s+label:'查單',\s+render:tabHistory \}/); assert.match(admin, /if \(tab === 'history'\) \{ loadHistory\(\); return; \}/);
   // 餐飲營運畫面抽成 /pos-ops.js，後台與平板 POS（pos.emoji.tw）共用
   assert.match(admin, /<script src="\/pos-ops\.js"><\/script>/); assert.match(admin, /<link rel="stylesheet" href="\/pos-ops\.css">/);
-  for (const fn of ['loadPos', 'loadOrders', 'loadReservations', 'loadSales', 'loadSoldOut', 'printOrder', 'paintPos']) { assert.match(ops, new RegExp(`function ${fn}\\(`), fn); assert.doesNotMatch(admin, new RegExp(`function ${fn}\\(`), fn + ' 不應殘留在 admin.html'); }
+  for (const fn of ['loadPos', 'loadOrders', 'loadReservations', 'loadSales', 'loadSoldOut', 'loadHistory', 'printOrder', 'printReceipt', 'paintPos']) { assert.match(ops, new RegExp(`function ${fn}\\(`), fn); assert.doesNotMatch(admin, new RegExp(`function ${fn}\\(`), fn + ' 不應殘留在 admin.html'); }
   assert.match(admin, /data-mi-soldout=/); assert.match(admin, /\/admin\/menu\/sold-out/);
   assert.match(ops, /data-pause-venue=/); assert.match(ops, /\/admin\/orders\/pause/);
   assert.match(ops, /sessions\/'\+cur\.id\+'\/checkout/);
@@ -222,4 +223,82 @@ test('後台與客人端接線：新分頁、估清快速鍵、暫停點餐、�
   assert.match(order, /err\.status===423/);
   assert.match(reserve, /name="email" type="email"/);
   assert.match(reserveJs, /email:val\('email'\)/);
+});
+
+test('櫃檯改品項：數量 1–20、贈送要原因且單價歸 0、取消贈送還原；已結帳不可改', () => {
+  const items = cart();
+  const q3 = T.editLine(items, items[0].line, { qty: 3 });
+  assert.equal(q3[0].qty, 3); assert.equal(q3[1].qty, 1, '其他列不動');
+  assert.throws(() => T.editLine(items, items[0].line, { qty: 0 }), /1–20/);
+  assert.throws(() => T.editLine(items, items[0].line, { qty: 21 }), /1–20/);
+  assert.throws(() => T.editLine(items, items[0].line, { qty: 1.5 }), /1–20/);
+  assert.throws(() => T.editLine(items, items[0].line, { free: true, reason: '' }), /贈送原因/);
+  const comp = T.editLine(items, items[0].line, { free: true, reason: '生日' });
+  assert.equal(comp[0].price, 0); assert.equal(comp[0].regular_price, 180); assert.equal(comp[0].comp_reason, '生日');
+  assert.equal(T.sum(T.unpaid(comp)), 120, '贈送後只剩吐司的錢');
+  const back = T.editLine(comp, items[0].line, { free: false });
+  assert.equal(back[0].price, 180); assert.equal(back[0].regular_price, undefined); assert.equal(back[0].comp_reason, undefined);
+  assert.throws(() => T.editLine(items.map(l => ({ ...l, order_id: 'to_1' })), items[0].line, { qty: 2 }), e => e.status === 409);
+  assert.throws(() => T.editLine(items, 'nope', { qty: 2 }), e => e.status === 404);
+});
+
+test('整單折扣與現金找零：％四捨五入、金額不超過小計、原因必填；會員價→折扣→應收；實收不足擋', () => {
+  const items = cart(), menuAll = T.menuIndex(menuJson, undefined, { all: true });
+  assert.equal(T.discountOf({}, 480), null);
+  assert.deepEqual(T.discountOf({ discount: { type: 'percent', value: 10, reason: '熟客' } }, 485), { type: 'percent', value: 10, amount: 49, reason: '熟客' }, '48.5 四捨五入成 49');
+  assert.deepEqual(T.discountOf({ discount: { type: 'amount', value: 50, reason: '萬聖' } }, 480).amount, 50);
+  assert.throws(() => T.discountOf({ discount: { type: 'amount', value: 500, reason: 'x' } }, 480), /不可超過小計/);
+  assert.throws(() => T.discountOf({ discount: { type: 'percent', value: 101, reason: 'x' } }, 480), /1–100/);
+  assert.throws(() => T.discountOf({ discount: { type: 'percent', value: 10 } }, 480), /折扣原因/);
+  assert.throws(() => T.discountOf({ discount: { type: 'bogus', value: 10, reason: 'x' } }, 480), /類型/);
+  const out = T.posCheckout(items, { method: 'cash', member: true, discount: { type: 'percent', value: 10, reason: '熟客' }, received: 500 }, menuAll);
+  assert.equal(out.subtotal, 420, '先套會員價 150×2+120'); assert.equal(out.discount.amount, 42); assert.equal(out.amount, 378);
+  assert.equal(out.payer.received, 500); assert.equal(out.payer.change, 122); assert.deepEqual(out.payer.discount, { type: 'percent', value: 10, amount: 42, reason: '熟客' });
+  assert.throws(() => T.posCheckout(items, { method: 'cash', received: 100 }, menuAll), /實收/);
+  const card = T.posCheckout(items, { method: 'card', received: 1000 }, menuAll);
+  assert.equal(card.payer.received, undefined, '非現金不記實收');
+  const comp = T.editLine(items, items[0].line, { free: true, reason: '招待' });
+  assert.equal(T.posCheckout(comp, { method: 'cash', member: true }, menuAll).amount, 120, '贈送的品項套會員價也還是 0');
+});
+
+test('換桌併桌與交班：併桌把來源品項接到目標後面；交班差額＝點鈔－應有', () => {
+  const a = cart(), b = T.posAddLine([], T.menuIndex(menuJson), { item_id: 'm_toast', qty: 1 });
+  assert.equal(T.mergeItems(b, a).length, 3); assert.equal(T.mergeItems(b, a)[0].item_id, 'm_toast');
+  assert.deepEqual(T.mergeItems(null, a), a);
+  assert.deepEqual(T.shiftClose({ counted_cash: 5200, note: ' 午班交晚班 ' }, 5250), { counted_cash: 5200, expected_cash: 5250, diff: -50, note: '午班交晚班' });
+  assert.equal(T.shiftClose({ counted_cash: 0 }, 0).diff, 0);
+  assert.throws(() => T.shiftClose({ counted_cash: -1 }, 0), /0 以上/);
+  assert.throws(() => T.shiftClose({ counted_cash: 'abc' }, 0), /整數/);
+});
+
+test('日結含折扣與贈送：營收為折後實收、折扣與贈送另列；CSV 折扣為負數列', () => {
+  const at = h => `2026-10-11T${String(h).padStart(2, '0')}:30:00+08:00`;
+  const orders = [
+    { id: 'a', table_no: 'A1', status: 'done', amount: 378, paid_at: at(10), payer: { method: 'cash', member: true, discount: { type: 'percent', value: 10, amount: 42, reason: '熟客' }, received: 500, change: 122 }, tappay: {}, items: [{ item_id: 'm_latte', venue: 'CAFE', zh: '拿鐵', price: 150, qty: 2 }, { item_id: 'm_toast', venue: 'CAFE', zh: '吐司', price: 120, qty: 1 }] },
+    { id: 'b', table_no: 'A2', status: 'done', amount: 120, paid_at: at(11), payer: { method: 'cash' }, tappay: {}, items: [{ item_id: 'm_latte', venue: 'CAFE', zh: '拿鐵', price: 0, qty: 1, regular_price: 180, comp_reason: '招待' }, { item_id: 'm_toast', venue: 'CAFE', zh: '吐司', price: 120, qty: 1 }] },
+  ];
+  const s = T.salesSummary(orders, { now: at(10) });
+  assert.equal(s.amount, 498); assert.equal(s.discount_amount, 42); assert.equal(s.discount_count, 1); assert.equal(s.comp_count, 1);
+  assert.equal(s.by_method.cash, 498);
+  const csv = T.salesCsvRows(orders);
+  const disc = csv.find(r => String(r[3]).startsWith('折扣'));
+  assert.ok(disc, '折扣另列一列'); assert.equal(disc[6], -42); assert.match(disc[3], /10％：熟客/);
+  assert.equal(csv.slice(1).reduce((a, r) => a + Number(r[6]), 0), 498, '小計欄加總＝營收');
+  assert.match(csv.find(r => r[2] === 'A2' && r[6] === 0)[3], /贈送：招待/);
+});
+
+test('server.js 接線：改品項、換桌、查單、交班、結帳回找零；作廢退回時贈送維持贈送', () => {
+  const server = read('server.js'), ops = read('public/pos-ops.js'), api = read('docs/API.md');
+  assert.match(server, /app\.patch\('\/api\/admin\/orders\/sessions\/:id\/items\/:line'/);
+  assert.match(server, /app\.post\('\/api\/admin\/orders\/sessions\/:id\/move'/);
+  assert.match(server, /app\.get\('\/api\/admin\/orders\/history'/);
+  assert.match(server, /app\.post\('\/api\/admin\/sales\/shift-close'/);
+  assert.match(server, /CREATE TABLE IF NOT EXISTS pos_shift_closes/);
+  assert.match(server, /received:out\.payer\.received,change:out\.payer\.change/);
+  assert.match(server, /l\.comp_reason\?\{\.\.\.l,order_id:null\}/, '作廢退回未結帳時贈送品項維持贈送');
+  assert.match(server, /storeInvoiceResult\(\{id:orderId,table_no:s\.table_no,items:orderLines,amount:out\.amount,discount:out\.discount\}/, '發票帶折扣');
+  assert.match(server, /app\.get\(\['\/pos', '\/pos\/\*'\]/);
+  for (const s of ['data-qty=', 'data-comp=', 'pos-disc-apply', 'pos-received', 'data-received=', 'data-receipt=', '/admin/orders/history', '/admin/sales/shift-close', "'/move'", 'data-cat=', 'data-add=']) assert.ok(ops.includes(s), s);
+  assert.doesNotMatch(ops, /id="pos-item"|id="pos-qty"/, '下拉選單加菜已換成點選菜單磁貼');
+  assert.match(api, /### GET \/api\/admin\/orders\/history/); assert.match(api, /### POST \/api\/admin\/sales\/shift-close/);
 });

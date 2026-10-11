@@ -264,8 +264,14 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 ### DELETE /api/admin/orders/sessions/:id/items/:line
 櫃檯逐項作廢未結帳品項。body `{ reason }`（必填）。已結帳品項回 409（請改作廢整張單）。
 
+### PATCH /api/admin/orders/sessions/:id/items/:line
+櫃檯改未結帳品項。body `{ qty? }` 改數量（1–20），或 `{ free: true, reason }` 標記贈送（單價變 0、原價留在 `regular_price`、記 `comp_reason`，日結另列贈送件數）、`{ free: false }` 取消贈送。已結帳品項回 409；品牌子帳號只能改自己店別的品項（403）。回更新後的場。
+
+### POST /api/admin/orders/sessions/:id/move
+換桌／併桌。body `{ table_no }`。把這桌的未結帳品項與已結帳的單全部搬到目標桌：目標桌沒開就直接改桌號（換桌），已開著就接到目標桌後面並關掉來源桌（併桌）。`W01`–`W99` 外帶單號不能當目標（400）；來源或目標含其他品牌品項時品牌子帳號回 403。回 `{ ok, from, table, merged, id }`。
+
 ### POST /api/admin/orders/sessions/:id/checkout
-櫃檯收款（POS）。body `{ method: cash|card|linepay|transfer, member?: boolean, lines?: [] , name?, note?, invoice? }`。`lines` 空＝全桌未結帳品項，指定＝只結那些（分帳）。`member: true` 以菜單會員價重算（只有設了會員價且較低的品項會變）。`invoice` 為 ezPay 電子發票要求，可不帶或 `{ mode:'' }` 表示不開；可帶 `{ mode:'paper' }` 紙本、`{ mode:'company', buyer_ubn, buyer_name?, buyer_email? }` 統編、`{ mode:'mobile', carrier_num }` 手機載具、`{ mode:'citizen', carrier_num }` 自然人憑證、`{ mode:'donate', love_code }` 捐贈。金額由伺服器重算；成功建立出餐單（進出餐看板）並鎖定品項，回 `{ ok, order_id, amount, method, member, remaining, invoice }`。若 ezPay 尚未設定或暫時失敗，收款訂單仍成立，`invoice.status='failed'`，可用補開端點重試。品牌子帳號只能結自己店別的品項（403）。
+櫃檯收款（POS）。body `{ method: cash|card|linepay|transfer, member?: boolean, lines?: [], discount?, received?, name?, note?, invoice? }`。`lines` 空＝全桌未結帳品項，指定＝只結那些（分帳）。`member: true` 以菜單會員價重算（只有設了會員價且較低的品項會變）。`discount` 為整單折扣：`{ type:'percent', value:1–100, reason }` 或 `{ type:'amount', value, reason }`（金額不得超過小計、原因必填），金額順序為 會員價 → 小計 → 折扣 → 應收。`received` 只在現金時用：客人給的現金（整數、不少於應收），伺服器算 `change` 找零並一起記在 `payer`。`invoice` 為 ezPay 電子發票要求，可不帶或 `{ mode:'' }` 表示不開；可帶 `{ mode:'paper' }` 紙本、`{ mode:'company', buyer_ubn, buyer_name?, buyer_email? }` 統編、`{ mode:'mobile', carrier_num }` 手機載具、`{ mode:'citizen', carrier_num }` 自然人憑證、`{ mode:'donate', love_code }` 捐贈；有折扣時發票明細會多一列負數「折扣」讓品項加總＝總額。金額由伺服器重算；成功建立出餐單（進出餐看板）並鎖定品項，回 `{ ok, order_id, amount, subtotal, discount, received, change, method, member, remaining, invoice }`。若 ezPay 尚未設定或暫時失敗，收款訂單仍成立，`invoice.status='failed'`，可用補開端點重試。品牌子帳號只能結自己店別的品項（403）。
 
 ### POST /api/admin/orders/sessions/:id/close
 清桌：未取餐的單標記已取餐、這桌下一次掃碼開新場。**有未結帳品項時回 409**（請先結帳或逐項作廢，避免漏收）；言文字管理員可帶 body `{ force: true }` 強制清桌並作廢未結品項。
@@ -276,9 +282,15 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 ### POST /api/admin/menu/sold-out
 估清快速鍵。body `{ item_id, sold_out: boolean }`。只改該品項的 `sold_out`（記營業日），不覆蓋其他欄位；當個營業日結束（翌日 03:00）自動恢復。品牌子帳號只能估清自己店別（403）。
 
+### GET /api/admin/orders/history
+查單：某營業日全部的單（含作廢），最新在前。query `day=YYYY-MM-DD`（預設今天的營業日）、`q=`（桌號／金額／發票號碼／單號尾碼，不分大小寫）、`venue=`。每張單附 `stations`（分站明細）供重印出餐單。回 `{ day, orders[], count }`。品牌子帳號只看自己店別的單。
+
 ### GET /api/admin/sales
-日結報表。query `day=YYYY-MM-DD`（營業日，預設今天；03:00 起算 24 小時）、`venue=`。回 `{ day, orders, amount, by_method{}, by_hour{}, items[]{zh,venue,qty,amount}, voided, void_amount, csv[][], linepay }`；`csv` 為每品項一列的明細（表頭：營業日、付款時間、桌號、品項、數量、單價、小計、付款方式、會員價、發票狀態、發票號碼、狀態、作廢原因）。作廢的單不計營收。
+日結報表。query `day=YYYY-MM-DD`（營業日，預設今天；03:00 起算 24 小時）、`venue=`。回 `{ day, orders, amount, by_method{}, by_hour{}, items[]{zh,venue,qty,amount}, voided, void_amount, discount_amount, discount_count, comp_count, shifts[], csv[][], linepay }`；`amount` 為折扣後實收，`discount_amount / discount_count` 為整單折扣合計與單數，`comp_count` 為贈送件數；`shifts` 為當日交班紀錄（見 shift-close）。`csv` 為每品項一列的明細（表頭：營業日、付款時間、桌號、品項、數量、單價、小計、付款方式、會員價、發票狀態、發票號碼、狀態、作廢原因），整單折扣另列一列負數讓小計欄加總＝營收，贈送品項名稱後綴「（贈送：原因）」。作廢的單不計營收。
 `linepay` 為 LINE Pay 對帳：`{ configured, synced_at, pos:{count,amount}（POS 登記為 LINE Pay 的成立單）, linepay:{count,amount,refunds,refund_amount,by_method{}}（LINE Pay 商家後台同日實收，退款已扣）, diff（實收－POS 登記；>0 漏登或登成其他方式，<0 登了但沒收到）, rows[]（當日每筆實收：id,type,amount,paid_at,method,card_last4,confirm_no,order_no）, csv[][] }`。LINE Pay 不分店別，`?venue=` 只影響 POS 側。
+
+### POST /api/admin/sales/shift-close
+交班結算。body `{ counted_cash, day?, venue?, note? }`：點鈔抽屜現金（0 以上整數），伺服器以該營業日到目前為止、該店別的現金營收為「應有現金」，記 `diff = counted − expected`、操作人員與備註到 `pos_shift_closes`，每次交班一筆（午班交晚班、打烊各記一次）。回 `{ ok, id, day, venue, counted_cash, expected_cash, diff, note }`（201）。
 
 ### POST /api/admin/sales/linepay/sync
 從 LINE Pay 商家後台抓實收明細寫入 `linepay_transactions`（以交易號碼 upsert）。body 可帶 `{ start, end }`（YYYY-MM-DD，最多 400 天），預設最近 7 天（退款會回補到幾天前的交易）。伺服器每日 04:30（台北）自動跑一次；未設定 `LINEPAY_MERCHANT_ID` / `LINEPAY_MERCHANT_PW` 回 503，正在同步中回 409。回 `{ ok, start, end, count }`。

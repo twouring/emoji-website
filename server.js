@@ -728,6 +728,11 @@ async function migrate() {
   // 櫃檯作廢：status='void' 另記原因與誰作廢（舊庫補欄位）
   await q(`ALTER TABLE table_orders ADD COLUMN IF NOT EXISTS invoice JSONB NOT NULL DEFAULT '{}'`);
   await q(`ALTER TABLE table_orders ADD COLUMN IF NOT EXISTS void_reason TEXT, ADD COLUMN IF NOT EXISTS voided_by TEXT, ADD COLUMN IF NOT EXISTS voided_at TIMESTAMPTZ`);
+  // POS 交班結算：每次交班點鈔現金 vs 日結現金營收（venue 空＝全店）
+  await q(`CREATE TABLE IF NOT EXISTS pos_shift_closes (
+    id TEXT PRIMARY KEY, day DATE NOT NULL, venue TEXT NOT NULL DEFAULT '', counted_cash INT NOT NULL, expected_cash INT NOT NULL, diff INT NOT NULL,
+    note TEXT NOT NULL DEFAULT '', staff TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE INDEX IF NOT EXISTS pos_shift_closes_day_idx ON pos_shift_closes(day)`);
   // LINE Pay 商家後台實收明細（每日同步），日結報表拿來與 POS 登記的 LINE Pay 對帳；退款金額為負
   await q(`CREATE TABLE IF NOT EXISTS linepay_transactions (
     id TEXT PRIMARY KEY, type TEXT NOT NULL, amount INT NOT NULL, paid_at TIMESTAMPTZ NOT NULL, method TEXT NOT NULL DEFAULT '', provider TEXT NOT NULL DEFAULT '',
@@ -4730,6 +4735,40 @@ app.delete('/api/admin/orders/sessions/:id/items/:line',auth,adminOnly,requireDb
   const venues=tableOrders.visibleVenues(req.auth.brands);
   return mutateItems(req,res,items=>{const t=items.find(l=>l.line===String(req.params.line));if(t&&!tableOrders.itemInVenues(t,venues))throw Object.assign(Error('只能作廢自己店別的品項。'),{status:403});return tableOrders.voidLine(items,String(req.params.line),req.body?.reason);});
 }));
+/* 櫃檯改未結帳品項：改數量、贈送（單價 0，記原因）／取消贈送 */
+app.patch('/api/admin/orders/sessions/:id/items/:line',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  return mutateItems(req,res,items=>{const t=items.find(l=>l.line===String(req.params.line));if(t&&!tableOrders.itemInVenues(t,venues))throw Object.assign(Error('只能修改自己店別的品項。'),{status:403});return tableOrders.editLine(items,String(req.params.line),{qty:req.body?.qty,free:req.body?.free,reason:req.body?.reason});});
+}));
+/* 換桌／併桌：把這桌（未結帳品項＋已結帳的單）搬到另一桌；目標桌已開著就併桌。外帶單不能當目標 */
+app.post('/api/admin/orders/sessions/:id/move',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
+  const table=tableOrders.cleanText(req.body?.table_no,8).toUpperCase();
+  if(!tableOrders.TABLE_RE.test(table))return res.status(400).json({error:'桌號只能用英數字與 -，最長 8 字。'});
+  if(tableOrders.isTakeout(table))return res.status(400).json({error:'W01–W99 是外帶單號，不能換到外帶。'});
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const client=await pool.connect();
+  try{await client.query('BEGIN');
+    const src=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+    if(!src||src.status!=='open'){await client.query('ROLLBACK');return res.status(404).json({error:'找不到這桌。'});}
+    if(src.table_no===table){await client.query('ROLLBACK');return res.status(400).json({error:'已經在這桌了。'});}
+    if(!tableOrders.sessionClosableByVenues(src,venues)){await client.query('ROLLBACK');return res.status(403).json({error:'這桌含有其他品牌品項，請由言文字管理員換桌。'});}
+    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,['table:'+table]);
+    const dst=(await client.query("SELECT * FROM table_sessions WHERE table_no=$1 AND status='open' ORDER BY created_at DESC LIMIT 1 FOR UPDATE",[table])).rows[0];
+    if(dst&&!tableOrders.sessionClosableByVenues(dst,venues)){await client.query('ROLLBACK');return res.status(403).json({error:'目標桌含有其他品牌品項，請由言文字管理員併桌。'});}
+    if(dst){
+      await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[dst.id,JSON.stringify(tableOrders.mergeItems(dst.items,src.items))]);
+      await client.query('UPDATE table_orders SET session_id=$2,table_no=$3 WHERE session_id=$1',[src.id,dst.id,table]);
+      await client.query("UPDATE table_sessions SET status='closed',items='[]',updated_at=now() WHERE id=$1",[src.id]);
+    }else{
+      await client.query('UPDATE table_sessions SET table_no=$2,updated_at=now() WHERE id=$1',[src.id,table]);
+      await client.query('UPDATE table_orders SET table_no=$2 WHERE session_id=$1',[src.id,table]);
+    }
+    await client.query('COMMIT');
+    res.json({ok:true,from:src.table_no,table,merged:!!dst,id:dst?dst.id:src.id});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
+}));
 app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
   const venues=tableOrders.visibleVenues(req.auth.brands);
@@ -4744,16 +4783,17 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     await client.query('INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,invoice) VALUES($1,$2,$3,$4,$5,$6,$7)',[orderId,s.id,s.table_no,JSON.stringify(orderLines),out.amount,JSON.stringify(out.payer),JSON.stringify(invoice||{})]);
     await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items)]);
     await client.query('COMMIT');
-    const invoiceOut=await storeInvoiceResult({id:orderId,table_no:s.table_no,items:orderLines,amount:out.amount},invoice);
-    res.json({ok:true,order_id:orderId,amount:out.amount,method:out.payer.method,member:out.payer.member,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut});
+    const invoiceOut=await storeInvoiceResult({id:orderId,table_no:s.table_no,items:orderLines,amount:out.amount,discount:out.discount},invoice);
+    res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,received:out.payer.received,change:out.payer.change,method:out.payer.method,member:out.payer.member,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 app.post('/api/admin/orders/:id/invoice/issue',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這筆出餐單。'});
   const venues=tableOrders.visibleVenues(req.auth.brands);
-  const o=(await q('SELECT id,session_id,table_no,items,amount,status,invoice FROM table_orders WHERE id=$1',[req.params.id])).rows[0];
+  const o=(await q('SELECT id,session_id,table_no,items,amount,status,invoice,payer FROM table_orders WHERE id=$1',[req.params.id])).rows[0];
   if(!o||!tableOrders.orderOwnedByVenues(o,venues))return res.status(404).json({error:'找不到這筆出餐單。'});
   if(o.status==='void')return res.status(409).json({error:'作廢的單不能補開發票。'});
+  o.discount=o.payer?.discount||null;
   if(o.invoice?.status==='issued')return res.json({ok:true,invoice:o.invoice});
   let invoice;try{invoice=ezpayInvoice.invoiceForm(req.body?.invoice&&Object.keys(req.body.invoice).length?req.body.invoice:o.invoice);}catch(e){return res.status(e.status||400).json({error:e.message});}
   if(!invoice.requested)return res.status(400).json({error:'請先選擇發票類型。'});
@@ -4777,7 +4817,8 @@ app.post('/api/admin/orders/:id/void',auth,adminOnly,requireDb,wrap(async(req,re
   try{await client.query('BEGIN');
     await client.query("UPDATE table_orders SET status='void',void_reason=$2,voided_by=$3,voided_at=now(),invoice=$4 WHERE id=$1",[o.id,reason,req.auth.email||req.auth.sub||'',JSON.stringify(nextInvoice)]);
     const s=(await client.query("SELECT id,items,status FROM table_sessions WHERE id=$1 FOR UPDATE",[o.session_id])).rows[0];
-    if(s&&s.status==='open')await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(s.items.map(l=>l.order_id===o.id?{...l,order_id:null,price:l.regular_price||l.price,regular_price:undefined}:l))]);
+    // 退回未結帳：會員價還原為原價；贈送（comp_reason）維持贈送
+    if(s&&s.status==='open')await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(s.items.map(l=>l.order_id!==o.id?l:l.comp_reason?{...l,order_id:null}:{...l,order_id:null,price:l.regular_price||l.price,regular_price:undefined}))]);
     await client.query('COMMIT');
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
   res.json({ok:true,reason});
@@ -4807,7 +4848,32 @@ app.get('/api/admin/sales',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const txs=(await q('SELECT id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no FROM linepay_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[from,to])).rows;
   const last=(await q('SELECT max(synced_at) AS at FROM linepay_transactions')).rows[0].at;
   const lp=linepay.reconcile(orders,txs,{venues});
-  res.json({...tableOrders.salesSummary(orders,{venues,now:from}),day,csv:tableOrders.salesCsvRows(orders,{venues}),linepay:{...lp,configured:linepay.configured(),synced_at:last,csv:linepay.csvRows(lp.rows)}});
+  const shifts=(await q('SELECT id,venue,counted_cash,expected_cash,diff,note,staff,created_at FROM pos_shift_closes WHERE day=$1 ORDER BY created_at',[day])).rows.filter(r=>!venues||!r.venue||venues.includes(r.venue)).map(r=>({...r,created_at:new Date(r.created_at).toISOString()}));
+  res.json({...tableOrders.salesSummary(orders,{venues,now:from}),day,csv:tableOrders.salesCsvRows(orders,{venues}),shifts,linepay:{...lp,configured:linepay.configured(),synced_at:last,csv:linepay.csvRows(lp.rows)}});
+}));
+/* 查單：某營業日的全部單（含作廢），可用桌號／金額／發票號碼搜尋；給櫃檯重印收據、補開發票、作廢 */
+app.get('/api/admin/orders/history',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
+  const day=/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.day||''))?String(req.query.day):tableOrders.MenuLib.businessDay();
+  const from=new Date(day+'T03:00:00+08:00'),to=new Date(+from+86400e3);
+  const needle=tableOrders.cleanText(req.query.q,40).toUpperCase();
+  const orders=(await q('SELECT id,session_id,table_no,items,amount,payer,tappay,invoice,status,paid_at,ready_at,done_at,void_reason,voided_by FROM table_orders WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at DESC',[from,to])).rows
+    .filter(o=>tableOrders.orderOwnedByVenues(o,venues))
+    .filter(o=>!needle||String(o.table_no).toUpperCase().includes(needle)||String(o.amount)===needle||String(o.invoice?.number||'').toUpperCase().includes(needle)||o.id.toUpperCase().endsWith(needle))
+    .map(o=>({...o,paid_at:new Date(o.paid_at).toISOString(),stations:tableOrders.splitByStation(o)}));
+  res.json({day,orders,count:orders.length});
+}));
+/* 交班結算：點鈔現金 vs 這個營業日（到目前為止）的現金營收；每次交班一筆，日結頁列出 */
+app.post('/api/admin/sales/shift-close',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venues=tableOrders.visibleVenues(req.auth.brands,String(req.body?.venue||''));
+  const day=/^\d{4}-\d{2}-\d{2}$/.test(String(req.body?.day||''))?String(req.body.day):tableOrders.MenuLib.businessDay();
+  const from=new Date(day+'T03:00:00+08:00'),to=new Date(+from+86400e3);
+  const orders=(await q('SELECT id,items,amount,payer,tappay,status,paid_at FROM table_orders WHERE paid_at>=$1 AND paid_at<$2',[from,to])).rows;
+  const expected=tableOrders.salesSummary(orders,{venues,now:from}).by_method.cash||0;
+  let row;try{row=tableOrders.shiftClose(req.body,expected);}catch(e){return res.status(e.status||400).json({error:e.message});}
+  const id=uid('sc_'),venue=venues&&venues.length===1?venues[0]:'';
+  await q('INSERT INTO pos_shift_closes(id,day,venue,counted_cash,expected_cash,diff,note,staff) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[id,day,venue,row.counted_cash,row.expected_cash,row.diff,row.note,req.auth.email||req.auth.sub||'']);
+  res.status(201).json({ok:true,id,day,venue,...row});
 }));
 /* LINE Pay 同步：每日 04:30 自動抓最近 7 天（退款會回補），也可從日結頁手動按；歷史一年用 import 一次灌入 */
 let linepaySyncing=false;
@@ -4929,7 +4995,7 @@ app.get(['/menu', '/menu/', '/en/menu', '/en/menu/', '/ja/menu', '/ja/menu/'], m
 const ADMIN_PAGE = path.join(PUB, 'admin.html');
 app.get('/admin.html', (_req, res) => res.redirect(301, '/admin'));
 app.get(['/admin', '/admin/*', '/organizer', '/organizer/*'], (_req, res) => { res.set('X-Robots-Tag', 'noindex'); res.sendFile(ADMIN_PAGE); });
-// 平板 POS（PWA）：/pos、/pos/orders、/pos/soldout、/pos/reservations、/pos/sales 皆回同一頁（pos.emoji.tw 與 www 都可用，API 同網域）
+// 平板 POS（PWA）：/pos、/pos/orders、/pos/soldout、/pos/reservations、/pos/history、/pos/sales 皆回同一頁（pos.emoji.tw 與 www 都可用，API 同網域）
 const POS_PAGE = path.join(PUB, 'pos.html');
 app.get('/pos.html', (_req, res) => res.redirect(301, '/pos'));
 app.get(['/pos', '/pos/*'], (_req, res) => { res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache' }); res.sendFile(POS_PAGE); });

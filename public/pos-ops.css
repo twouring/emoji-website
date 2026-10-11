@@ -6,6 +6,43 @@
 .pos-table:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .pos-table.takeout{background:var(--accent-soft)}
 .pos-panel h2{flex-wrap:wrap}
+/* 桌況在左、這桌的帳在右（寬螢幕）；平板直式／窄螢幕上下排 */
+.pos-layout{display:grid;gap:16px;align-items:start}
+@media(min-width:1100px){.pos-layout.has-panel{grid-template-columns:minmax(260px,320px) 1fr}.pos-layout.has-panel .pos-grid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}}
+/* 未結帳品項：數量 ± 大鍵、贈送列淡顯 */
+.pos-qty{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--line);border-radius:999px;background:var(--card)}
+.pos-qty button{all:unset;cursor:pointer;width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;font-size:22px;line-height:1;color:var(--ink);border-radius:999px}
+.pos-qty button:active{background:var(--paper-alt)}.pos-qty button:focus-visible{outline:2px solid var(--ink)}
+.pos-qty b{min-width:2ch;text-align:center;font-size:1.1rem;font-variant-numeric:tabular-nums}
+tr.pos-comp td{background:#f2fbf4}
+/* 加點：分類籤 ＋ 菜單磁貼，點一下就加 1 份 */
+.pos-menu-box{margin-top:14px}.pos-menu-box summary{list-style:none;display:inline-flex;cursor:pointer;min-height:48px;align-items:center}.pos-menu-box summary::-webkit-details-marker{display:none}.pos-menu-box[open] summary{margin-bottom:10px}
+.pos-cats{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.pos-cats button{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;min-height:44px;padding:0 16px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem;color:var(--ink)}
+.pos-cats button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}.pos-cats button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.pos-menu{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.pos-item{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:4px;min-height:76px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:1rem}
+.pos-item b{font-weight:600;line-height:1.3}.pos-item span{color:var(--muted);font-variant-numeric:tabular-nums}.pos-item small{color:#b42318}
+.pos-item.off{background:var(--paper-alt);border-style:dashed}.pos-item:active{background:var(--paper-alt)}.pos-item:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.pos-add{margin-top:10px}
+/* 金額區：小計／折扣／應收 一行一項，應收最大字 */
+.pos-sum{display:grid;gap:6px;margin-left:auto;min-width:min(100%,300px);font-size:1rem;font-variant-numeric:tabular-nums}
+.pos-sum>div{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.pos-sum .pos-total{margin:4px 0 0;padding-top:8px;border-top:1px solid var(--line)}
+.pos-link{all:unset;cursor:pointer;text-decoration:underline;text-underline-offset:3px;color:var(--ink);padding:8px 4px;font-size:1rem}
+.pos-discount-form{display:flex;flex-wrap:wrap;gap:8px;padding:10px;border:1px dashed var(--line);border-radius:10px;background:var(--paper-alt)}
+.pos-discount-form select,.pos-discount-form input{min-height:44px;font:inherit;font-size:1rem;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+.pos-discount-form #pos-disc-value{width:90px}.pos-discount-form #pos-disc-reason{flex:1;min-width:160px}
+/* 現金：實收＋快速面額＋找零 */
+.pos-cash{width:100%;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.pos-cash label{display:inline-flex;align-items:center;gap:10px;font-size:1rem}.pos-cash input{width:150px;min-height:48px;font:inherit;font-size:1.2rem;padding:8px 12px;border:1px solid var(--muted);border-radius:8px;background:var(--card);color:var(--ink);font-variant-numeric:tabular-nums}
+.pos-cash-quick{display:flex;flex-wrap:wrap;gap:8px}.pos-cash-quick button{all:unset;box-sizing:border-box;cursor:pointer;min-height:48px;padding:0 16px;display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem;color:var(--ink);font-variant-numeric:tabular-nums}
+.pos-cash-quick button:active{background:var(--paper-alt)}.pos-cash-quick button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.pos-change{margin-left:auto;font-size:1rem}.pos-change b{font-size:24px;font-variant-numeric:tabular-nums}
+/* 發票收合：預設不開，點開才填 */
+.pos-invoice summary{list-style:none;cursor:pointer;min-height:44px;display:flex;align-items:center;gap:8px}.pos-invoice summary::-webkit-details-marker{display:none}
+/* 交班：差額非 0 標紅 */
+tr.shift-diff td{color:#b42318}
 /* 櫃檯開桌／外帶：桌號輸入＋兩顆大鍵 */
 .pos-open{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
 .pos-open input{font:inherit;font-size:1rem;min-height:48px;padding:8px 12px;border:1px solid var(--muted);border-radius:8px;background:var(--card);color:var(--ink);width:150px;text-transform:uppercase}
@@ -23,7 +60,7 @@
 .pos-invoice-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.pos-invoice-head b{font-size:1rem}
 .pos-invoice-types{display:flex;flex-wrap:wrap;gap:8px}.pos-invoice-types label{position:relative}.pos-invoice-types input{position:absolute;opacity:0;inset:0}.pos-invoice-types span{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem;cursor:pointer}.pos-invoice-types input:checked+span{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .pos-invoice-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px}.pos-invoice-fields input{min-height:44px;font:inherit;font-size:1rem;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
-.pos-actions{display:flex;gap:10px;width:100%}.pos-actions .btn{min-height:52px;flex:1}
+.pos-actions{display:flex;flex-wrap:wrap;gap:10px;width:100%}.pos-actions .btn{min-height:52px;flex:1;min-width:140px}.pos-actions #pos-checkout{flex:2;font-size:1.1rem}
 .ops-pauses{display:grid;gap:8px;margin-bottom:14px}
 .ops-pause{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}
 .ops-pause.on{border-color:#b42318;background:#fff5f3}.ops-pause label{display:inline-flex;align-items:center;gap:.5em;font-size:1rem}.ops-pause label input{width:22px;height:22px}.ops-pause input[data-pause-msg]{flex:1;min-width:220px;min-height:44px;font-size:1rem}.ops-pause .pill{flex-basis:100%}
@@ -47,4 +84,4 @@ tr.lp-refund td{color:#b42318}
 .ops-tablet-hint{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:10px 12px;border:1px dashed var(--line);border-radius:8px;background:var(--paper-alt);margin-bottom:12px}
 /* 平板：操作欄按鈕直向堆疊，整排都看得到、不用橫滑才找得到「作廢」 */
 @media(max-width:1020px){.pos-table{min-height:110px}.pos-pay .btn{min-height:56px}.ops-pause input[data-pause-msg]{min-height:48px}.pos-panel input[data-pick]{width:28px;height:28px}
-  #orders-body td.ops-actions,#pos-body td.ops-actions,#resv-body td.ops-actions{white-space:normal}#orders-body td.ops-actions .btn,#pos-body td.ops-actions .btn,#resv-body td.ops-actions .btn{display:block;width:100%;margin:0 0 6px;text-align:center}}
+  #orders-body td.ops-actions,#pos-body td.ops-actions,#resv-body td.ops-actions,#history-body td.ops-actions{white-space:normal}#orders-body td.ops-actions .btn,#pos-body td.ops-actions .btn,#resv-body td.ops-actions .btn,#history-body td.ops-actions .btn{display:block;width:100%;margin:0 0 6px;text-align:center}}

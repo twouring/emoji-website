@@ -39,6 +39,18 @@ test('開立欄位以含稅價拆 Amt/TaxAmt，商品明細與總額一致', () 
   assert.equal(fields.ItemAmt, '180|135');
 });
 
+test('整單折扣：發票明細多一列負數「折扣」，品項加總＝TotalAmt', () => {
+  const invoice = E.invoiceForm({ mode: 'paper' });
+  const fields = E.issueFields({ cfg, invoice, now: 1700000000000, order: { id: 'to_d', table_no: 'A1', amount: 270, discount: { type: 'percent', value: 10, amount: 30, reason: '熟客' }, items: [
+    { zh: '拿鐵', qty: 1, price: 180 }, { zh: '吐司', qty: 1, price: 120 },
+  ] } });
+  assert.equal(fields.TotalAmt, 270);
+  assert.equal(fields.ItemName, '拿鐵|吐司|折扣（熟客）');
+  assert.equal(fields.ItemPrice, '180|120|-30'); assert.equal(fields.ItemAmt, '180|120|-30');
+  assert.equal(fields.ItemAmt.split('|').reduce((a, n) => a + Number(n), 0), fields.TotalAmt);
+  assert.equal(E.issueFields({ cfg, invoice, order: { id: 'to_n', table_no: 'A1', amount: 300, items: [{ zh: '拿鐵', qty: 1, price: 300 }] } }).ItemName, '拿鐵', '沒折扣不多列');
+});
+
 test('issueInvoice 送 MerchantID_ + 加密 PostData_，並驗證回應 CheckCode', async () => {
   let seen = null;
   const invoice = E.invoiceForm({ mode: 'paper', buyer_name: '王大品' });
