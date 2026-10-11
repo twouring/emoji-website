@@ -47,7 +47,7 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" https://www.emoji.tw/api/state
 服務健康檢查。回 `{ ok, db, dbConfigured }`。
 
 ### POST /api/reservations
-1F 訂位申請（`/reserve` 頁面送出；免登入，放 Google Maps／官方 LINE 連結）。body：`{ date: 'YYYY-MM-DD', time: 'HH:MM', period, party_size, name, phone, note?, source? }`；`period` 限「早餐／上午、午餐／下午、晚餐、深夜、都可以」，日期須為台北今天起 120 天內，`party_size` 1–50，`phone` 8–32 字元數字／符號，`note` 截 500 字。成功回 `201 { ok, request_id }`，寫入 `dining_reservations`（狀態 `new`）並寄通知到 `NOTIFY_EMAIL`；寄信失敗只記 log。送出只是申請，不代表訂位成立。每 IP 每小時 30 次。
+1F 訂位（`/reserve` 頁面送出；免登入，放 Google Maps／官方 LINE 連結）。body：`{ date: 'YYYY-MM-DD', time: 'HH:MM', party_size, name, phone, email, note?, source? }`；`time` 只接受固定 30 分鐘時段：在咖啡 `08:00`–`16:30`、三點水 `17:00`–`23:30` 與 `00:00`–`02:30`（視為該日清晨），店別由時段推得、不由前端傳入。日期須為台北今天起 120 天內；當天已過（含 30 分鐘緩衝）的時段拒絕。`party_size` 1–50，`phone` 8–32 字元數字／符號，`email` 必填（確認信收件），`note` 截 500 字。送出即成立訂位：寫入 `dining_reservations`（狀態 `confirmed`），寄確認信給訂位人（座位保留至預約時間後 10 分鐘，逾時釋出）並通知 `NOTIFY_EMAIL`；寄信失敗只記 log，不影響訂位成立。成功回 `201 { ok, request_id, period, hold_until, hold_minutes }`（`period` 為「在咖啡」或「三點水」）。每 IP 每小時 30 次。
 
 ### GET /api/public
 公開唯讀資料，無個資：`{ raised, updates, events, content }`。活動只含「報名中」且公開的項目。
