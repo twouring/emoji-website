@@ -20,7 +20,7 @@ header.site-nav.scrolled{border-bottom-color:rgba(27,26,23,.14);background:rgba(
 .site-nav .brand{display:flex;flex-direction:column;align-items:flex-start;line-height:1.1;gap:3px;text-decoration:none;color:#1B1A17;flex:0 0 auto}
 .site-nav .brand b{font-family:"Noto Serif TC",serif;font-weight:700;font-size:1.16rem;letter-spacing:.16em}
 .site-nav .brand span{font-size:1rem;letter-spacing:.13em;color:#6B6558;font-weight:400}
-.site-nav__links{display:flex;gap:clamp(12px,1.5vw,20px);align-items:center}
+.site-nav__links{display:flex;gap:clamp(12px,1.5vw,20px);align-items:center;margin-left:auto}
 .site-nav__links a:not(.btn),.site-nav__dd-top{font-size:1rem;color:#3A362E;font-weight:500;
   text-decoration:none;background:none;border:0;cursor:pointer;font-family:inherit;line-height:1}
 .site-nav__links>a:not(.btn){position:relative}
@@ -96,14 +96,19 @@ header.site-nav.scrolled{border-bottom-color:rgba(27,26,23,.14);background:rgba(
   .site-nav__menu{position:static;transform:none;box-shadow:none;border:0;border-radius:0;background:transparent;
     min-width:0;padding:0 0 0 14px;opacity:1;visibility:hidden;max-height:0;overflow:hidden;transition:max-height .28s ease}
   .site-nav__menu::before{display:none}       /* 手機無 hover，橋接區反而會擋到上一列的點擊 */
-  .site-nav__lang .site-nav__menu{right:auto}
-  .site-nav__lang-label{display:inline}       /* 手機：icon 旁補語言文字，整列較清楚 */
-  .site-nav__lang .site-nav__dd-top{justify-content:flex-start;gap:10px}  /* 手機：地球＋語言靠左，與其他項對齊 */
-  .site-nav__lang .site-nav__caret{margin-left:auto}
   .site-nav__dd.open>.site-nav__menu{max-height:70vh;transform:none;padding:2px 0 8px 14px;visibility:visible}
   .site-nav__menu a{padding:12px 0;border-bottom:1px solid rgba(27,26,23,.07);border-radius:0;white-space:normal}
   .site-nav .btn{margin-top:16px;width:100%}
   .site-nav__toggle{display:grid}
+  /* 手機：語言切換拉出漢堡選單，常駐頂欄（地球＋語言名），點擊彈出小選單；外國人不必先找到選單才能換語言 */
+  .site-nav__inner{gap:8px}
+  .site-nav__lang{display:inline-flex;width:auto;flex:0 0 auto;position:relative}
+  .site-nav__lang .site-nav__dd-top{width:auto;min-height:44px;padding:0 8px;border:0;justify-content:center;gap:6px;color:#1B1A17}
+  .site-nav__lang-label{display:inline;font-size:1rem}
+  .site-nav__lang .site-nav__caret{margin-left:0}
+  .site-nav__lang .site-nav__menu{position:absolute;top:calc(100% + 6px);right:0;left:auto;min-width:148px;max-height:none;overflow:visible;padding:6px;background:#FFFFFF;border:1px solid #E4E0D6;border-radius:4px;box-shadow:0 10px 24px -16px rgba(27,26,23,.3);opacity:0;visibility:hidden;transform:translateY(4px);transition:opacity .18s ease,transform .18s ease,visibility 0s linear .15s}
+  .site-nav__lang.open>.site-nav__menu{opacity:1;visibility:visible;transform:translateY(0);max-height:none;padding:6px;transition-delay:0s}
+  .site-nav__lang .site-nav__menu a{padding:11px 14px;border-bottom:0;border-radius:3px;white-space:nowrap}
 }
 /* ── 全站頁尾（自包含：計畫頁只載 nav.css 也能用）── */
 footer.site-foot{background:#16150F;color:#B7B0A2;padding:72px 0 40px;

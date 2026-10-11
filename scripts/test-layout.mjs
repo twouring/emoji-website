@@ -416,3 +416,25 @@ test('sitemap includes system locales', () => {
   assert.match(sm, /https:\/\/www\.emoji\.tw\/en\/system/);
   assert.match(sm, /https:\/\/www\.emoji\.tw\/ja\/system/);
 });
+
+test('language switcher lives outside the hamburger menu so phones can change language from the top bar', () => {
+  for (const lang of ['zh', 'en', 'ja']) {
+    const h = fs.readFileSync(path.join(__dirname, '..', 'views', 'partials', `header-${lang}.html`), 'utf8');
+    const navClose = h.indexOf('</nav>');
+    const langAt = h.indexOf('class="site-nav__dd site-nav__lang"');
+    const toggleAt = h.indexOf('id="navToggle"');
+    assert.ok(navClose > 0 && langAt > navClose, `${lang}: lang switcher must sit after </nav>, not inside navLinks`);
+    assert.ok(langAt < toggleAt, `${lang}: lang switcher sits before the hamburger toggle`);
+    assert.match(h, /hreflang="en" lang="en"\{\{LANG_EN_CURRENT\}\}>English</);
+  }
+  const css = fs.readFileSync(path.join(PUB, 'nav.css'), 'utf8');
+  assert.match(css, /\.site-nav__links\{[^}]*margin-left:auto/);
+  const mobile = css.slice(css.indexOf('@media(max-width:1000px){'));
+  assert.match(mobile, /\.site-nav__lang\{display:inline-flex;width:auto/);
+  assert.match(mobile, /\.site-nav__lang-label\{display:inline/);
+  assert.match(mobile, /\.site-nav__lang \.site-nav__menu\{position:absolute/);
+  const html = composeLayout(`<!doctype html><body>${MARKER_HEADER}<main></main>${MARKER_FOOTER}</body>`, '/en/reserve');
+  assert.match(html, /<\/nav>\s*<div class="site-nav__dd site-nav__lang">/);
+  assert.match(html, /href="\/reserve" hreflang="zh-Hant"/);
+  assert.match(html, /href="\/ja\/reserve" hreflang="ja"/);
+});

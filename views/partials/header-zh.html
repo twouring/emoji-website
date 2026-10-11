@@ -17,20 +17,20 @@
       <a href="/events"{{NAV_EVENTS_CURRENT}}>活動與場地</a>
       <a href="/access"{{NAV_ACCESS_CURRENT}}>交通</a>
       <a href="/member" id="navMember" data-label-authed="會員專區"{{NAV_MEMBER_CURRENT}}>會員登入</a>
-      <div class="site-nav__dd site-nav__lang">
-        <button type="button" class="site-nav__dd-top" aria-haspopup="true" aria-expanded="false" aria-label="切換語言">
-          <svg class="site-nav__globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><ellipse cx="12" cy="12" rx="4" ry="9"/></svg>
-          <span class="site-nav__lang-label">中文</span>
-          <svg class="site-nav__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-        <div class="site-nav__menu">
-          <a href="{{LANG_ZH}}" hreflang="zh-Hant" lang="zh-Hant"{{LANG_ZH_CURRENT}}>中文</a>
-          <a href="{{LANG_EN}}" hreflang="en" lang="en"{{LANG_EN_CURRENT}}>English</a>
-          <a href="{{LANG_JA}}" hreflang="ja" lang="ja"{{LANG_JA_CURRENT}}>日本語</a>
-        </div>
-      </div>
       <a href="/fellow" class="btn"{{NAV_FELLOW_CURRENT}}>創始會員</a>
     </nav>
+    <div class="site-nav__dd site-nav__lang">
+      <button type="button" class="site-nav__dd-top" aria-haspopup="true" aria-expanded="false" aria-label="切換語言">
+        <svg class="site-nav__globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><ellipse cx="12" cy="12" rx="4" ry="9"/></svg>
+        <span class="site-nav__lang-label">中文</span>
+        <svg class="site-nav__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="site-nav__menu">
+        <a href="{{LANG_ZH}}" hreflang="zh-Hant" lang="zh-Hant"{{LANG_ZH_CURRENT}}>中文</a>
+        <a href="{{LANG_EN}}" hreflang="en" lang="en"{{LANG_EN_CURRENT}}>English</a>
+        <a href="{{LANG_JA}}" hreflang="ja" lang="ja"{{LANG_JA_CURRENT}}>日本語</a>
+      </div>
+    </div>
     <button class="site-nav__toggle" id="navToggle" aria-label="開啟選單" data-label-open="開啟選單" data-label-close="關閉選單" aria-controls="navLinks" aria-expanded="false">☰</button>
   </div>
 </header>

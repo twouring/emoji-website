@@ -284,6 +284,7 @@ CREATE TABLE IF NOT EXISTS dining_reservations (
   name TEXT NOT NULL,
   phone TEXT NOT NULL,
   email TEXT NOT NULL DEFAULT '',
+  lang TEXT NOT NULL DEFAULT 'zh',
   note TEXT NOT NULL DEFAULT '',
   source TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'confirmed' CHECK (status IN ('new','confirmed','cancelled','no_show')),
@@ -725,11 +726,13 @@ async function migrate() {
     name TEXT NOT NULL,
     phone TEXT NOT NULL,
     email TEXT NOT NULL DEFAULT '',
+    lang TEXT NOT NULL DEFAULT 'zh',
     note TEXT NOT NULL DEFAULT '',
     source TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL DEFAULT 'confirmed' CHECK (status IN ('new','confirmed','cancelled','no_show')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`ALTER TABLE dining_reservations ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''`);
+  await q(`ALTER TABLE dining_reservations ADD COLUMN IF NOT EXISTS lang TEXT NOT NULL DEFAULT 'zh'`);
   await q(`CREATE INDEX IF NOT EXISTS dining_reservations_date_idx ON dining_reservations(reserve_date, reserve_time)`);
   await q(`CREATE INDEX IF NOT EXISTS dining_reservations_created_idx ON dining_reservations(created_at DESC)`);
   // 場地申請＝待審的活動：申請送出即建立草稿活動，review_status 記審核結果（NULL＝平台自建）。舊申請補建。
@@ -1559,9 +1562,9 @@ app.post('/api/reservations', rateLimit({ max: 30, windowMs: 3600000 }), require
   try { r = reservations.normalizeReservation(req.body); }
   catch (error) { return res.status(error.status || 400).json({ error: error.message }); }
   const id = uid('dr_'), requestId = 'R' + new Date().toISOString().slice(2,10).replace(/-/g,'') + '-' + crypto.randomBytes(2).toString('hex').toUpperCase();
-  await q(`INSERT INTO dining_reservations(id,request_id,reserve_date,reserve_time,period,party_size,name,phone,email,note,source,status)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, [id, requestId, r.date, r.time, r.period, r.partySize, r.name, r.phone, r.email, r.note, r.source, 'confirmed']);
-  sendMailQuietly({ to: r.email, subject: `[言文字] 訂位確認 ${r.date} ${r.time}｜${r.partySize} 位`, text: reservations.guestMail(r, requestId), replyTo: NOTIFY_EMAIL, idempotencyKey: 'reservation-confirm/' + id });
+  await q(`INSERT INTO dining_reservations(id,request_id,reserve_date,reserve_time,period,party_size,name,phone,email,lang,note,source,status)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, [id, requestId, r.date, r.time, r.period, r.partySize, r.name, r.phone, r.email, r.lang, r.note, r.source, 'confirmed']);
+  sendMailQuietly({ to: r.email, subject: reservations.guestSubject(r), text: reservations.guestMail(r, requestId), replyTo: NOTIFY_EMAIL, idempotencyKey: 'reservation-confirm/' + id });
   sendMailQuietly({ to: NOTIFY_EMAIL, subject: `[訂位] ${r.date} ${r.time}｜${r.partySize} 位｜${r.name}`, text: reservations.staffMail(r, requestId, SITE_BASE), replyTo: r.email });
   res.status(201).json({ ok: true, request_id: requestId, period: r.period, hold_until: reservations.holdUntil(r.time), hold_minutes: reservations.HOLD_MINUTES });
 }));
