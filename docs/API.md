@@ -144,10 +144,10 @@ Google 授權回呼，簽發會員 token 並導回。
 重寄某一筆進度通知（`mail_state` 為 `sent`、`failed` 或 `retry` 時）。回 `{ ok, update }`；找不到或正在寄送中回 404。重寄使用新的冪等金鑰，不會被寄信服務去重。
 
 ### GET /api/admin/system-settings
-僅超級管理員可讀。回傳可由後台管理的付款、寄信、登入／會議、訊息、電子票券、社群／AI、儲存與活動設定。機敏值只回「已設定／未設定」及來源，不回明文。另列出只能在部署環境管理的根設定。
+僅超級管理員可讀。回傳可由後台管理的付款、電子發票／LINE Pay 對帳、寄信、登入／會議、訊息、電子票券、社群／AI、儲存與活動設定。機敏值只回「已設定／未設定」及來源，不回明文；每項另有 `live`（true＝儲存後免重啟）。另列出只能在部署環境管理的根設定。
 
 ### POST /api/admin/system-settings
-僅超級管理員可寫。body：`{ key, value }` 儲存加密覆寫，或 `{ key, clear: true }` 清除覆寫並改回部署環境值。只接受白名單鍵值，機敏內容不寫入操作紀錄；變更於服務重新啟動後套用。
+僅超級管理員可寫。body：`{ key, value }` 儲存加密覆寫，或 `{ key, clear: true }` 清除覆寫並改回部署環境值。只接受白名單鍵值，機敏內容不寫入操作紀錄。回 `{ ok, restart_required }`：ezPay 電子發票（`EZPAY_INVOICE_*`）與 LINE Pay 對帳（`LINEPAY_*`）為即時設定，儲存後本服務立刻套用、另一個服務（官網／POS 與後台各一）一分鐘內重載，`restart_required:false`；其餘設定於服務重新啟動後套用。ezPay HashKey 必須 32 碼、HashIV 必須 16 碼，存檔時即驗證。
 
 ### GET /api/admin/logs
 後台操作紀錄，`?limit=`（預設 200、最多 500），回 `{ logs: [{ id, actor, method, path, summary, status, created_at }] }`。所有 `/api/admin/*` 的成功寫入（POST／DELETE）由中介層自動記錄，`summary` 為請求欄位摘要（略過含 token／secret／password／key 的欄位）。

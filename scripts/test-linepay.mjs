@@ -101,7 +101,8 @@ test('server.js 接線：資料表、日結回 linepay、同步／匯入端點�
   assert.match(s, /app\.post\('\/api\/admin\/sales\/linepay\/sync',auth,adminOnly,requireDb/);
   assert.match(s, /app\.post\('\/api\/admin\/sales\/linepay\/import',auth,adminOnly,superOnly,requireDb/, '歷史匯入只給超管／agent');
   assert.match(s, /ON CONFLICT \(id\) DO UPDATE SET type=EXCLUDED\.type/, '同一筆交易重抓是覆寫不是重複');
-  assert.match(s, /schedule\('30 4 \* \* \*', \(\) => syncLinepay\(\.\.\.linepay\.syncWindow\(\)\)/);
+  // 帳密可在後台「系統設定」事後填入，排程一律掛上、執行時才檢查 configured()
+  assert.match(s, /schedule\('30 4 \* \* \*', \(\) => \{ if \(!linepay\.configured\(\)\) return; syncLinepay\(\.\.\.linepay\.syncWindow\(\)\)/);
   assert.match(s, /LINE Pay 對帳同步失敗/, '失敗要寄信');
   assert.match(s, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|registers\)/, '餐飲子帳號可用 /api/admin/sales/linepay/sync');
   assert.doesNotMatch(s, /LINEPAY_MERCHANT_PW\s*=\s*['"]/, '密碼不得寫死');

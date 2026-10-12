@@ -3601,16 +3601,20 @@ app.get('/api/admin/system-settings', auth, adminOnly, superOnly, requireDb, wra
   const rows=(await q('SELECT key,value FROM system_settings')).rows;
   res.json({settings:systemSettings.describe(rows),blocked:systemSettings.blocked,restart_required:true});
 }));
+// live 鍵（ezPay 發票、LINE Pay 對帳）存檔後：本服務立刻套用，另一個服務靠 boot() 裡的每分鐘重載
+async function refreshLiveSettings(){const rows=(await q('SELECT key,value FROM system_settings')).rows;systemSettings.refresh(rows,process.env,SECRET);}
 app.post('/api/admin/system-settings', auth, adminOnly, superOnly, requireDb, wrap(async (req,res)=>{
   const key=String(req.body?.key||'');
   if(!systemSettings.byKey.has(key))return res.status(400).json({error:'未知的系統設定。'});
-  if(req.body?.clear===true){await q('DELETE FROM system_settings WHERE key=$1',[key]);return res.json({ok:true,restart_required:true});}
+  const live=systemSettings.isLive(key);
+  if(req.body?.clear===true){await q('DELETE FROM system_settings WHERE key=$1',[key]);if(live)await refreshLiveSettings();return res.json({ok:true,restart_required:!live});}
   const value=systemSettings.validate(key,req.body?.value);
   if(!value)return res.status(400).json({error:'設定值不可空白；如要改回部署環境值，請使用清除覆寫。'});
   await q(`INSERT INTO system_settings(key,value,updated_by,updated_at) VALUES($1,$2,$3,now())
     ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_by=EXCLUDED.updated_by,updated_at=now()`,
     [key,systemSettings.encrypt(key,value,SECRET),req.auth.agent?'admin-api-key':req.auth.email||req.auth.sub]);
-  res.json({ok:true,restart_required:true});
+  if(live)await refreshLiveSettings();
+  res.json({ok:true,restart_required:!live});
 }));
 
 /* ---- 前台管理：社群經營（IG/X 貼文規劃；不串接平台 API，僅供內容管理與排程） ---- */
@@ -4745,7 +4749,7 @@ app.post('/api/admin/orders/sessions',auth,adminOnly,requireDb,wrap(async(req,re
 }));
 async function issueEzpayForOrder(order, invoice) {
   const cfg=ezpayInvoice.config();
-  if(!cfg)throw Object.assign(Error('尚未設定 ezPay 電子發票環境變數。'),{status:503});
+  if(!cfg)throw Object.assign(Error('尚未設定 ezPay 電子發票憑證，請到後台「系統設定」填入。'),{status:503});
   return ezpayInvoice.issueInvoice(cfg,order,invoice);
 }
 async function storeInvoiceResult(order, invoice, { throwOnError=false } = {}) {
@@ -4851,7 +4855,7 @@ app.post('/api/admin/orders/:id/void',auth,adminOnly,requireDb,wrap(async(req,re
   let nextInvoice=o.invoice||{};
   if(nextInvoice.status==='issued'){
     const cfg=ezpayInvoice.config();
-    if(!cfg)return res.status(503).json({error:'尚未設定 ezPay 電子發票環境變數，無法同步作廢已開立發票的訂單。'});
+    if(!cfg)return res.status(503).json({error:'尚未設定 ezPay 電子發票憑證（後台「系統設定」），無法同步作廢已開立發票的訂單。'});
     try{nextInvoice=await ezpayInvoice.invalidInvoice(cfg,o,nextInvoice,reason);}catch(e){return res.status(e.status||502).json({error:e.message});}
   }
   // 作廢＝這張單不計營收；品項退回未結帳（可重新結或清桌作廢），避免「作廢後想改付款方式」要重點一次
@@ -5016,7 +5020,7 @@ async function upsertLinepay(rows){
 }
 async function syncLinepay(start,end){
   const cfg=linepay.config();
-  if(!cfg)throw Object.assign(Error('尚未設定 LINEPAY_MERCHANT_ID / LINEPAY_MERCHANT_PW。'),{status:503});
+  if(!cfg)throw Object.assign(Error('尚未設定 LINE Pay 商家後台帳密，請到後台「系統設定」填入。'),{status:503});
   if(linepaySyncing)throw Object.assign(Error('LINE Pay 同步正在進行中，請稍候。'),{status:409});
   linepaySyncing=true;
   try{
@@ -5189,6 +5193,9 @@ async function boot() {
   }
   app.listen(PORT, () => console.log(`[server] listening on ${PORT}`));
 
+  // 後台「系統設定」的 live 鍵（ezPay 發票、LINE Pay 帳密）每分鐘從 DB 重載：兩個服務都要跑（在後台存的憑證，POS 結帳那台要拿得到），這不是排程、不會重複寄信
+  if (dbReady) { const t = setInterval(() => refreshLiveSettings().catch(e => console.error('[system-settings] 重載失敗：', e.message)), 60000); t.unref(); }
+
   // 後台服務不跑排程：webhook 投遞、活動信件、會籍提醒、LINE Pay 對帳、IG 自動發佈全由官網服務負責，兩邊都跑會重複寄信／重複發文
   if (ADMIN_MODE) { console.log('[boot] SERVICE_ROLE=admin：排程由官網服務負責，本服務不啟動'); return; }
 
@@ -5208,11 +5215,11 @@ async function boot() {
     require('node-cron').schedule('0 9 * * *', () => remindExpiringMemberships()
       .catch(e => console.error('[remind] 失敗：', e.message)), { timezone: 'Asia/Taipei' });
     // LINE Pay 對帳：每日 04:30（三點水 03:00 收班後）抓最近 7 天實收；失敗寄信提醒，日結頁也能手動重抓
-    if (linepay.configured()) {
-      require('node-cron').schedule('30 4 * * *', () => syncLinepay(...linepay.syncWindow())
-        .catch(e => { console.error('[linepay] 同步失敗：', e.message); sendMailQuietly({ to: NOTIFY_EMAIL, subject: '[POS] LINE Pay 對帳同步失敗', text: `今日 LINE Pay 實收明細同步失敗，日結報表的對帳區會停在上次同步。\n\n原因：${e.message}\n\n處理：到 ${SITE_BASE}/pos/sales 按「同步 LINE Pay」重試；若持續失敗請確認 LINE Pay 商家後台帳密或後台是否改版。` }); }), { timezone: 'Asia/Taipei' });
-      console.log('[linepay] 每日對帳同步已啟用（04:30）');
-    } else console.warn('[warn] LINEPAY_MERCHANT_ID / LINEPAY_MERCHANT_PW 未設定，LINE Pay 對帳同步停用。');
+    // 帳密可能是啟動後才在後台填的，所以排程一律掛上、執行時再看 configured()
+    require('node-cron').schedule('30 4 * * *', () => { if (!linepay.configured()) return; syncLinepay(...linepay.syncWindow())
+      .catch(e => { console.error('[linepay] 同步失敗：', e.message); sendMailQuietly({ to: NOTIFY_EMAIL, subject: '[POS] LINE Pay 對帳同步失敗', text: `今日 LINE Pay 實收明細同步失敗，日結報表的對帳區會停在上次同步。\n\n原因：${e.message}\n\n處理：到 ${SITE_BASE}/pos/sales 按「同步 LINE Pay」重試；若持續失敗請確認 LINE Pay 商家後台帳密或後台是否改版。` }); }); }, { timezone: 'Asia/Taipei' });
+    if (linepay.configured()) console.log('[linepay] 每日對帳同步已啟用（04:30）');
+    else console.warn('[warn] LINE Pay 商家後台帳密未設定（後台「系統設定」可填），對帳同步待設定後自動啟用。');
   }
 
   // IG 自動發佈 cron：env IG_AUTOPUBLISH=1 才啟用（本機開發預設不跑，避免誤發）
