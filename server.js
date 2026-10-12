@@ -104,7 +104,7 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 // 站台對外網址，供 Google 導回 callback；本地測試設 PUBLIC_ORIGIN=http://localhost:8080
 const SITE_BASE = (process.env.PUBLIC_ORIGIN || 'https://www.emoji.tw').replace(/\/$/, '');
 // 服務角色：SERVICE_ROLE=admin 的服務只當後台（admin.emoji.tw）——自己處理 OAuth callback、不跑任何排程（排程由官網服務負責）；
-// 未設定＝官網服務（www／pos），其 /admin、/organizer 一律轉到 ADMIN_BASE。兩個服務跑同一個 image、同一個 DB。
+// 未設定＝官網服務（www／pos），其 /admin 一律轉到 ADMIN_BASE；活動主入口 /organizer 屬於官網（主辦人是外部對象，不進後台網域），後台服務上的 /organizer 反向轉回 SITE_BASE。兩個服務跑同一個 image、同一個 DB。
 const ADMIN_MODE = process.env.SERVICE_ROLE === 'admin';
 // 後台對外網址：寄給員工／主辦的後台連結、官網轉後台都用這個
 const ADMIN_BASE = (process.env.ADMIN_ORIGIN || 'https://admin.emoji.tw').replace(/\/$/, '');
@@ -1380,13 +1380,20 @@ app.use((req, res, next) => {
   if (req.path === '/' || req.path === '/index.html') return res.redirect(302, '/admin');
   next();
 });
-// 官網服務不再提供後台畫面：正式網域（SITE_HOST）上的 /admin、/organizer 轉到 ADMIN_BASE，保留路徑與查詢字串。
+// 官網服務不再提供後台畫面：正式網域（SITE_HOST）上的 /admin 轉到 ADMIN_BASE，保留路徑與查詢字串。
+// 活動管理（活動主入口 /organizer）留在官網，不轉：主辦人是外部對象，邀請信、/events、會員頁都連到 www 的 /organizer。
 // 只在正式 https 網域生效：本機開發（PUBLIC_ORIGIN=http://…）與 admin 子網域暫由官網服務代管時都不轉，避免迴圈。
 // /api/admin/* 不在此限（AI agent 以 ADMIN_API_KEY 打 www 的管理 API 仍可用）。
 app.use((req, res, next) => {
   if (ADMIN_MODE || !SITE_BASE.startsWith('https://') || String(req.hostname || '').toLowerCase() !== SITE_HOST) return next();
   if (req.path === '/admin.html') return res.redirect(301, ADMIN_BASE + '/admin');
-  if (/^\/(admin|organizer)(\/|$)/.test(req.path)) return res.redirect(302, ADMIN_BASE + req.originalUrl);
+  if (/^\/admin(\/|$)/.test(req.path)) return res.redirect(302, ADMIN_BASE + req.originalUrl);
+  next();
+});
+// 反向：後台服務（或代管中的 admin 子網域）上的 /organizer 轉回官網，活動管理只有一個家（www）。
+app.use((req, res, next) => {
+  if (!SITE_BASE.startsWith('https://') || !(ADMIN_MODE || isAdminHost(req))) return next();
+  if (/^\/organizer(\/|$)/.test(req.path)) return res.redirect(302, SITE_BASE + req.originalUrl);
   next();
 });
 // 導流歸因：帶 utm_source 的到訪按日計數，並記首次來源 cookie（只存來源字串、不追蹤個人），結帳時寫進 Stripe metadata
