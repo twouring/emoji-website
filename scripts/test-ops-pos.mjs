@@ -199,7 +199,7 @@ test('server.js 接線：客人加菜擋暫停與估清、櫃檯端點、清桌�
   assert.match(server, /ALTER TABLE dining_reservations ADD COLUMN IF NOT EXISTS email/);
   assert.match(server, /'new','confirmed','arrived','cancelled','no_show'/);
   assert.match(server, /請先到櫃檯結帳或逐項作廢/, '清桌時有未結帳品項要擋');
-  assert.match(server, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\)/, '餐飲子帳號可用新端點');
+  assert.match(server, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|registers\)/, '餐飲子帳號可用新端點');
   assert.match(read('lib/security.js'), /'ordering_pause'/, '暫停點餐設定要能公開讀取');
   assert.doesNotMatch(server, /言文字根帳號/);
 });
@@ -294,11 +294,18 @@ test('server.js 接線：改品項、換桌、查單、交班、結帳回找零�
   assert.match(server, /app\.get\('\/api\/admin\/orders\/history'/);
   assert.match(server, /app\.post\('\/api\/admin\/sales\/shift-close'/);
   assert.match(server, /CREATE TABLE IF NOT EXISTS pos_shift_closes/);
+  // 開關帳：品牌 × 營業日一本；結帳前檢查；只有超管能重開
+  assert.match(server, /CREATE TABLE IF NOT EXISTS pos_registers/); assert.match(server, /CREATE TABLE IF NOT EXISTS pos_cash_moves/);
+  assert.equal((server.match(/CREATE TABLE IF NOT EXISTS pos_registers/g) || []).length, 1, '建表不可重複');
+  for (const r of ["app.get('/api/admin/registers'", "app.post('/api/admin/registers/open'", "app.get('/api/admin/registers/:id'", "app.post('/api/admin/registers/:id/cash'", "app.post('/api/admin/registers/:id/close'", "app.post('/api/admin/registers/:id/reopen',auth,adminOnly,superOnly"]) assert.ok(server.includes(r), r);
+  assert.match(server, /posRegister\.checkoutAllowed\(out\.lines/, '結帳前檢查帳本');
+  assert.match(server, /pos_registers_open_idx ON pos_registers\(day,venue\) WHERE closed_at IS NULL/, '同品牌同日只能一本開著（部分唯一索引，關帳後可重開）');
   assert.match(server, /received:out\.payer\.received,change:out\.payer\.change/);
   assert.match(server, /l\.comp_reason\?\{\.\.\.l,order_id:null\}/, '作廢退回未結帳時贈送品項維持贈送');
   assert.match(server, /storeInvoiceResult\(\{id:orderId,table_no:s\.table_no,items:orderLines,amount:out\.amount,discount:out\.discount\}/, '發票帶折扣');
   assert.match(server, /app\.get\(\['\/pos', '\/pos\/\*'\]/);
-  for (const s of ['data-qty=', 'data-comp=', 'pos-disc-apply', 'pos-received', 'data-received=', 'data-receipt=', '/admin/orders/history', '/admin/sales/shift-close', "'/move'", 'data-cat=', 'data-add=']) assert.ok(ops.includes(s), s);
+  for (const s of ['data-qty=', 'data-comp=', 'pos-disc-apply', 'pos-received', 'data-received=', 'data-receipt=', '/admin/orders/history', '/admin/sales/shift-close', "'/move'", 'data-cat=', 'data-add=', '/admin/registers/open', 'data-reg-open=', 'data-reg-close=', 'data-reg-cash=', 'data-denom=', 'function printRegisterReport(', "'/reopen'"]) assert.ok(ops.includes(s), s);
+  assert.match(api, /### POST \/api\/admin\/registers\/open/); assert.match(api, /### POST \/api\/admin\/registers\/:id\/close/);
   assert.doesNotMatch(ops, /id="pos-item"|id="pos-qty"/, '下拉選單加菜已換成點選菜單磁貼');
   assert.match(api, /### GET \/api\/admin\/orders\/history/); assert.match(api, /### POST \/api\/admin\/sales\/shift-close/);
 });

@@ -103,7 +103,7 @@ test('server.js 接線：資料表、日結回 linepay、同步／匯入端點�
   assert.match(s, /ON CONFLICT \(id\) DO UPDATE SET type=EXCLUDED\.type/, '同一筆交易重抓是覆寫不是重複');
   assert.match(s, /schedule\('30 4 \* \* \*', \(\) => syncLinepay\(\.\.\.linepay\.syncWindow\(\)\)/);
   assert.match(s, /LINE Pay 對帳同步失敗/, '失敗要寄信');
-  assert.match(s, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\)/, '餐飲子帳號可用 /api/admin/sales/linepay/sync');
+  assert.match(s, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|registers\)/, '餐飲子帳號可用 /api/admin/sales/linepay/sync');
   assert.doesNotMatch(s, /LINEPAY_MERCHANT_PW\s*=\s*['"]/, '密碼不得寫死');
 });
 

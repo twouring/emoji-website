@@ -292,6 +292,24 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 ### POST /api/admin/sales/shift-close
 交班結算。body `{ counted_cash, day?, venue?, note? }`：點鈔抽屜現金（0 以上整數），伺服器以該營業日到目前為止、該店別的現金營收為「應有現金」，記 `diff = counted − expected`、操作人員與備註到 `pos_shift_closes`，每次交班一筆（午班交晚班、打烊各記一次）。回 `{ ok, id, day, venue, counted_cash, expected_cash, diff, note }`（201）。
 
+### GET /api/admin/registers
+開關帳（帳本）。在咖啡（CAFE）與三點水（BAR）共用同一台 POS 但帳務分開，所以帳本以「品牌 × 營業日」為單位。query `day=YYYY-MM-DD`（預設今天的營業日）、`venue=`。回 `{ day, registers[], current:{CAFE, BAR}, active_venue }`；`current[venue]` 為該品牌當日最後一本帳（`null`＝還沒開帳），每本含 `opening_cash, cash_sales, cash_in, cash_out, expected`（應有現金＝零用金＋現金營收＋臨時收入－臨時支出）、`moves[]`（臨時收支）、`sales{orders,amount,by_method,voided,void_amount}`、關帳後另有 `counted_cash, diff, keep_cash, take_cash, denominations, close_note, closed_at, closed_by`，以及 `report`（小結單／關帳單資料）。
+
+### POST /api/admin/registers/open
+開帳。body `{ venue:'CAFE'|'BAR', opening_cash, note?, day? }`。零用金 0 以上整數；同品牌同營業日已有開著的帳回 409；品牌子帳號只能開自己店別（403）。回 `{ ok, id, day, venue, opening_cash }`（201）。**結帳規則**：`POST /api/admin/orders/sessions/:id/checkout` 會檢查品項所屬品牌當日的帳——已關帳一律 409；未開帳時品牌子帳號 409、言文字管理員放行但回 `warning`。
+
+### GET /api/admin/registers/:id
+小結：不關帳，回這本帳目前的現金摘要、營收摘要、臨時收支與 `report`（印小結單）。
+
+### POST /api/admin/registers/:id/cash
+現金臨時收支。body `{ type:'in'|'out', amount, reason }`，金額正整數、原因必填；關帳後 409。回 `{ ok, id, type, amount, reason, expected_cash }`（201）。
+
+### POST /api/admin/registers/:id/close
+關帳。body `{ counted_cash? , denominations?:{ "1000":3, "500":1, … }, keep_cash?, note? }`：點鈔可填總額或按面額填張數（面額限 2000/1000/500/200/100/50/20/10/5/1）；`diff = counted − expected`，差額非 0 時 `note` 必填；`keep_cash` 為留在抽屜給下一班的留存金，預設＝零用金。關帳後該品牌當日不可再結帳與記臨時收支。回 `{ ok, id, counted_cash, expected_cash, diff, keep_cash, take_cash, denominations, note, report }`；`report` 為關帳單（含現金、營收、付款方式、作廢、臨時收支）。
+
+### POST /api/admin/registers/:id/reopen
+重開補單（僅超級管理員）。關帳紀錄保留，以留存金為零用金另開一本新帳接著記；該品牌當日已有開著的帳回 409。回 `{ ok, id, day, venue, opening_cash }`（201）。
+
 ### POST /api/admin/sales/linepay/sync
 從 LINE Pay 商家後台抓實收明細寫入 `linepay_transactions`（以交易號碼 upsert）。body 可帶 `{ start, end }`（YYYY-MM-DD，最多 400 天），預設最近 7 天（退款會回補到幾天前的交易）。伺服器每日 04:30（台北）自動跑一次；未設定 `LINEPAY_MERCHANT_ID` / `LINEPAY_MERCHANT_PW` 回 503，正在同步中回 409。回 `{ ok, start, end, count }`。
 
