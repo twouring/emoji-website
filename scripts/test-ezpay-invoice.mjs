@@ -77,3 +77,13 @@ test('預設打 ezPay 正式區；cinv 是測試區，只能靠後台覆寫網�
   assert.doesNotMatch(src, /= 'https:\/\/cinv\./);
   assert.equal(E.config({ EZPAY_INVOICE_MERCHANT_ID: 'm', EZPAY_INVOICE_HASH_KEY: 'k'.repeat(32), EZPAY_INVOICE_HASH_IV: 'i'.repeat(16) }).issueUrl, 'https://inv.ezpay.com.tw/Api/invoice_issue');
 });
+
+test('B2C 發票 BuyerName 不可空白（ezPay 正式區會退「資料不可空白BuyerName」）', () => {
+  const order = { id: 'to_x', amount: 80, items: [{ zh: '原味貝果', qty: 1, price: 80 }], table_no: 'W01' };
+  const f = E.issueFields({ order, invoice: E.invoiceForm({ mode: 'paper' }), cfg });
+  assert.equal(f.BuyerName, '消費者');
+  assert.equal(f.Category, 'B2C');
+  assert.equal(E.issueFields({ order, invoice: E.invoiceForm({ mode: 'mobile', carrier_num: '/ABC1234' }), cfg }).BuyerName, '消費者');
+  assert.equal(E.issueFields({ order, invoice: E.invoiceForm({ mode: 'company', buyer_ubn: '12345678' }), cfg }).BuyerName, '買受人');
+  assert.equal(E.issueFields({ order, invoice: E.invoiceForm({ mode: 'paper', buyer_name: '王小明' }), cfg }).BuyerName, '王小明');
+});
