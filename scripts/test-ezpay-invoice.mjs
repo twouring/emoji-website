@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createRequire } from 'node:module';
+import fs from 'node:fs';
 const require = createRequire(import.meta.url);
 const E = require('../lib/ezpay-invoice');
 
@@ -67,4 +68,12 @@ test('issueInvoice 送 MerchantID_ + 加密 PostData_，並驗證回應 CheckCod
   assert.equal(out.status, 'issued');
   assert.equal(out.number, 'AB12345678');
   assert.ok(seen.PostData_);
+});
+
+test('預設打 ezPay 正式區；cinv 是測試區，只能靠後台覆寫網址', () => {
+  const src = fs.readFileSync(new URL('../lib/ezpay-invoice.js', import.meta.url), 'utf8');
+  assert.match(src, /ISSUE_URL = 'https:\/\/inv\.ezpay\.com\.tw\/Api\/invoice_issue'/);
+  assert.match(src, /INVALID_URL = 'https:\/\/inv\.ezpay\.com\.tw\/Api\/invoice_invalid'/);
+  assert.doesNotMatch(src, /= 'https:\/\/cinv\./);
+  assert.equal(E.config({ EZPAY_INVOICE_MERCHANT_ID: 'm', EZPAY_INVOICE_HASH_KEY: 'k'.repeat(32), EZPAY_INVOICE_HASH_IV: 'i'.repeat(16) }).issueUrl, 'https://inv.ezpay.com.tw/Api/invoice_issue');
 });
