@@ -33,6 +33,7 @@
   .p-brand b{font-weight:600;font-size:1rem}
   .p-scope{display:flex;gap:6px;flex:none}
   .p-scope button,.p-nav button{all:unset;box-sizing:border-box;cursor:pointer;min-height:44px;padding:0 14px;border-radius:999px;font-size:1rem;line-height:1;white-space:nowrap;color:var(--ink-soft);border:1px solid transparent}
+  .p-scope button{border-color:var(--line)}
   .p-scope button[aria-pressed=true]{background:var(--accent);color:var(--on-accent);font-weight:600}
   .p-nav{display:flex;gap:4px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .p-nav::-webkit-scrollbar{display:none}
@@ -45,7 +46,7 @@
   .p-tools .p-net{min-width:0;padding:0 10px;border:0;background:transparent;color:#b42318;font-weight:600}
   main{padding:16px max(16px,env(safe-area-inset-right)) calc(32px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));max-width:1280px;margin:0 auto}
   /* 分頁容器：與 /admin 共用 #orders-body / #pos-body / #resv-body / #sales-body / #soldout-body 的 id，pos-ops.js 直接對這些容器繪製 */
-  .p-tab{display:none}.p-tab.on{display:block}
+  .p-tab{display:none;padding:0}.p-tab.on{display:block}
   .a-sec{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
   .a-sec h2{font-size:18px;font-weight:600;margin:0 0 .25rem;display:flex;align-items:center;gap:.5em}
   .a-sec h3,h3{font-size:1rem;font-weight:600;margin:16px 0 8px}
