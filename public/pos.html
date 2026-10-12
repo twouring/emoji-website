@@ -44,7 +44,8 @@
   .p-tools button{all:unset;box-sizing:border-box;cursor:pointer;min-width:44px;min-height:44px;padding:0 12px;border-radius:8px;font-size:1rem;color:var(--muted);display:inline-grid;place-items:center;border:1px solid var(--line);background:var(--card)}
   .p-tools button:active{background:var(--paper-alt)}
   .p-tools .p-net{min-width:0;padding:0 10px;border:0;background:transparent;color:#b42318;font-weight:600}
-  main{padding:16px max(16px,env(safe-area-inset-right)) calc(32px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));max-width:1280px;margin:0 auto}
+  /* 平板滿版：不設 max-width，內容跟著螢幕寬走（iPad 10 吋 1024 → 13 吋 1366 都吃滿）；只有外接大螢幕才收到 1680 */
+  main{padding:16px max(16px,env(safe-area-inset-right)) calc(32px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));max-width:1680px;margin:0 auto}
   /* 分頁容器：與 /admin 共用 #orders-body / #pos-body / #resv-body / #sales-body / #soldout-body 的 id，pos-ops.js 直接對這些容器繪製 */
   .p-tab{display:none;padding:0}.p-tab.on{display:block}
   .a-sec{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}

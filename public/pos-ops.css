@@ -32,9 +32,18 @@ tr.resv-off td{color:var(--muted)}tr.resv-off .btn{opacity:.75}
 .pos-table:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .pos-table.takeout{background:var(--paper-alt)}.pos-table.takeout.on{background:var(--ink)}
 .pos-panel h2{flex-wrap:wrap}
-/* 桌況在左、這桌的帳在右（寬螢幕）；平板直式／窄螢幕上下排 */
+/* 桌況在左、這桌的帳在右：平板橫式（≥1000px，iPad 10 吋起）就啟用，左欄佔 34%（桌況 2–3 欄），右欄吃剩下全部；直式／窄螢幕上下排、各自滿版 */
 .pos-layout{display:grid;gap:16px;align-items:start}
-@media(min-width:1100px){.pos-layout.has-panel{grid-template-columns:minmax(260px,320px) 1fr}.pos-layout.has-panel .pos-grid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}}
+.pos-layout>*{min-width:0}
+@media(min-width:1000px){.pos-layout.has-panel{grid-template-columns:minmax(280px,30%) minmax(0,1fr)}.pos-layout.has-panel .pos-grid{grid-template-columns:repeat(auto-fill,minmax(124px,1fr))}}
+/* 兩欄模式的右欄只有 600–900px：表格一律用緊湊欄距（不管視窗多寬），避免橫捲 */
+.pos-layout.has-panel .pos-panel .a-tbl th,.pos-layout.has-panel .pos-panel .a-tbl td{padding-left:8px;padding-right:8px}
+.pos-layout.has-panel .pos-panel .a-tbl td.ops-item{min-width:9em}.pos-layout.has-panel .pos-panel .a-tbl td.ops-pay{min-width:8em}
+.pos-layout.has-panel .pos-panel .a-tbl td.ops-pay .inv-fix{flex-wrap:wrap;white-space:normal}.pos-layout.has-panel .pos-panel .a-tbl td.ops-pay .inv-fix .btn-xs{flex-basis:100%;justify-content:flex-start;padding-left:0}
+.pos-layout.has-panel .pos-panel .a-tbl td.ops-actions{min-width:216px;padding-left:6px}.pos-layout.has-panel .pos-panel .a-tbl td.ops-actions .btn{padding-left:10px;padding-right:10px}
+.pos-layout.has-panel .pos-panel .pos-lines td.ops-actions{min-width:180px}
+/* 這桌已結帳的單：四欄（品項＋時間＋狀態合一格），品項格吃剩餘寬 */
+.pos-paid td.ops-item{min-width:0;width:auto}.pos-paid td.ops-item b{font-weight:500}.pos-paid td.ops-item .pill{vertical-align:middle}
 /* 櫃檯開桌／外帶：桌號輸入＋兩顆鍵同一列 */
 .pos-open{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
 .pos-open input{flex:1 1 110px;min-width:0;font:inherit;font-size:1rem;min-height:48px;padding:8px 12px;border:1px solid var(--muted);border-radius:8px;background:var(--card);color:var(--ink);text-transform:uppercase}
