@@ -413,13 +413,12 @@ function renderLogin(msg){
   logoutBtn.style.display='none';
   const crumb = document.getElementById('a-crumb'); if (crumb) crumb.hidden = true;
   const redirect = encodeURIComponent(location.origin + location.pathname);   // 登入後回到原本那頁（主辦邀請信連到單場活動）
-  // Google 登入的 callback 綁在官網網域（PUBLIC_ORIGIN），state cookie 也在那裡：admin 子網域一律先到 www 發起，登入完成再以 #token 導回本站
-  const AUTH_ORIGIN = /^admin\./i.test(location.hostname || '') ? location.origin.replace(/\/\/admin\./i, '//www.') : location.origin;
+  // 後台服務（admin.emoji.tw）自己處理 Google callback；若後台暫由官網服務代管，/auth/google 會先在伺服器端跳到正確 host 再發起
   app.innerHTML = `<div class="a-login"><div class="a-login-card">
     <div class="a-brand"><img src="/cis/assets/emoji-h.svg" alt="言文字 emoji" width="120" height="40" style="object-fit:contain"><span>後台管理</span></div>
     <h1 class="a-h1">登入後台</h1>
     <p class="a-sub">${msg || (ORGANIZER_PORTAL ? '請用主辦團隊登記的 Email 登入。' : '請以管理員 Google 帳號登入。')}</p>
-    <a class="btn btn--solid" href="${AUTH_ORIGIN}/auth/google?redirect=${redirect}">使用 Google 登入</a>
+    <a class="btn btn--solid" href="/auth/google?redirect=${redirect}">使用 Google 登入</a>
     <a class="btn btn--ghost" href="/event-login.html?redirect=${redirect}">使用 Email 登入</a>
   </div></div>`;
 }

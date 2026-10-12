@@ -103,20 +103,28 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 // 站台對外網址，供 Google 導回 callback；本地測試設 PUBLIC_ORIGIN=http://localhost:8080
 const SITE_BASE = (process.env.PUBLIC_ORIGIN || 'https://www.emoji.tw').replace(/\/$/, '');
-// 後台對外網址（給寄給員工/主辦的審核信連結用；登入 callback 仍綁在 SITE_BASE，見 AUTH_ORIGIN 說明）
+// 服務角色：SERVICE_ROLE=admin 的服務只當後台（admin.emoji.tw）——自己處理 OAuth callback、不跑任何排程（排程由官網服務負責）；
+// 未設定＝官網服務（www／pos），其 /admin、/organizer 一律轉到 ADMIN_BASE。兩個服務跑同一個 image、同一個 DB。
+const ADMIN_MODE = process.env.SERVICE_ROLE === 'admin';
+// 後台對外網址：寄給員工／主辦的後台連結、官網轉後台都用這個
 const ADMIN_BASE = (process.env.ADMIN_ORIGIN || 'https://admin.emoji.tw').replace(/\/$/, '');
-const GOOGLE_REDIRECT_URI = SITE_BASE + '/auth/google/callback';
+// 本服務自己的對外網址：OAuth callback、state cookie、Email 登入連結都必須落在同一個 host 才讀得到 cookie
+const OWN_BASE = ADMIN_MODE ? ADMIN_BASE : SITE_BASE;
+const hostOf = u => { try { return new URL(u).hostname.toLowerCase(); } catch { return ''; } };
+const SITE_HOST = hostOf(SITE_BASE), OWN_HOST = hostOf(OWN_BASE);
+const GOOGLE_REDIRECT_URI = OWN_BASE + '/auth/google/callback';
 const GOOGLE_MEET_CLIENT_ID = process.env.GOOGLE_MEET_CLIENT_ID || '';
 const GOOGLE_MEET_CLIENT_SECRET = process.env.GOOGLE_MEET_CLIENT_SECRET || '';
-const GOOGLE_MEET_REDIRECT_URI = SITE_BASE + '/integrations/google-meet/callback';
+const GOOGLE_MEET_REDIRECT_URI = OWN_BASE + '/integrations/google-meet/callback';
 const ZOOM_CLIENT_ID = process.env.ZOOM_CLIENT_ID || '';
 const ZOOM_CLIENT_SECRET = process.env.ZOOM_CLIENT_SECRET || '';
-const ZOOM_REDIRECT_URI = SITE_BASE + '/integrations/zoom/callback';
+const ZOOM_REDIRECT_URI = OWN_BASE + '/integrations/zoom/callback';
 if (!GOOGLE_CLIENT_ID) console.warn('[warn] GOOGLE_CLIENT_ID 未設定，Google 登入停用（/auth/google 回 503）。');
 // 允許的登入完成導回目標與 CORS 來源（官網子網域），防 open redirect；逗號分隔可覆寫
-const WEB_ORIGINS = (process.env.WEB_ORIGINS ||
+// 官網與後台自己的 origin 一律納入（環境變數漏列 admin.emoji.tw 曾讓後台登入後被退回 /member）
+const WEB_ORIGINS = [...new Set([...(process.env.WEB_ORIGINS ||
   'https://www.emoji.tw,https://emoji.tw,https://pos.emoji.tw,https://admin.emoji.tw,http://localhost:5500,http://127.0.0.1:5500')
-  .split(',').map(s => s.trim()).filter(Boolean);
+  .split(',').map(s => s.trim()).filter(Boolean), SITE_BASE, ADMIN_BASE])];
 // 平板 POS 子站（pos.emoji.tw）：同一支服務依 host 分流到 public/pos.html；逗號分隔可覆寫
 const POS_HOSTS = (process.env.POS_HOSTS || 'pos.emoji.tw').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 const isPosHost = req => POS_HOSTS.includes(String(req.hostname || '').toLowerCase());
@@ -1366,10 +1374,19 @@ app.use((req, res, next) => {
   if (req.path === '/' || req.path === '/index.html' || req.path === '/admin' || req.path === '/admin.html') return res.redirect(302, '/pos');
   next();
 });
-// admin.emoji.tw 的首頁就是後台（/admin）；官網首頁不在這個子網域提供
+// 後台服務（SERVICE_ROLE=admin）或 admin.emoji.tw：首頁就是後台（/admin）；官網首頁不在這裡提供
 app.use((req, res, next) => {
-  if (!isAdminHost(req)) return next();
+  if (!ADMIN_MODE && !isAdminHost(req)) return next();
   if (req.path === '/' || req.path === '/index.html') return res.redirect(302, '/admin');
+  next();
+});
+// 官網服務不再提供後台畫面：正式網域（SITE_HOST）上的 /admin、/organizer 轉到 ADMIN_BASE，保留路徑與查詢字串。
+// 只在正式 https 網域生效：本機開發（PUBLIC_ORIGIN=http://…）與 admin 子網域暫由官網服務代管時都不轉，避免迴圈。
+// /api/admin/* 不在此限（AI agent 以 ADMIN_API_KEY 打 www 的管理 API 仍可用）。
+app.use((req, res, next) => {
+  if (ADMIN_MODE || !SITE_BASE.startsWith('https://') || String(req.hostname || '').toLowerCase() !== SITE_HOST) return next();
+  if (req.path === '/admin.html') return res.redirect(301, ADMIN_BASE + '/admin');
+  if (/^\/(admin|organizer)(\/|$)/.test(req.path)) return res.redirect(302, ADMIN_BASE + req.originalUrl);
   next();
 });
 // 導流歸因：帶 utm_source 的到訪按日計數，並記首次來源 cookie（只存來源字串、不追蹤個人），結帳時寫進 Stripe metadata
@@ -1630,7 +1647,7 @@ app.post('/api/auth/email/start',rateLimit({max:10}),requireDb,wrap(async(req,re
  if(recent.n>=6||recent.latest&&Date.now()-+new Date(recent.latest)<60000)return res.status(429).json({error:'寄送過於頻繁，請稍後再試。'});
  await client.query("INSERT INTO email_login_tokens(token_hash,email,name,redirect,expires_at) VALUES($1,$2,$3,$4,now()+interval '20 minutes')",[hash,email,name,redirect]);await client.query('COMMIT');
  }finally{await client.query('ROLLBACK');client.release();}
- const lang=['en','ja'].includes(req.body?.lang)?req.body.lang:'zh',url=SITE_BASE+'/event-login.html?lang='+lang+'#code='+code;
+ const lang=['en','ja'].includes(req.body?.lang)?req.body.lang:'zh',url=OWN_BASE+'/event-login.html?lang='+lang+'#code='+code;
  const copy={zh:['言文字登入連結','請開啟以下連結並按「確認登入」。連結 20 分鐘內有效，僅可使用一次。若不是您提出的請求，請忽略此信。'],en:['Sign in to emoji','Open the link and select Confirm sign-in. It expires in 20 minutes and can be used once. Ignore this email if you did not request it.'],ja:['言文字へのログイン','リンクを開き「ログインを確認」を押してください。有効期限は20分、1回限り使用できます。心当たりがなければ無視してください。']}[lang];
  await sendMail({to:email,subject:copy[0],text:copy[1]+'\n\n'+url,idempotencyKey:'email-login/'+hash});res.json({ok:true});
 }));
@@ -1654,6 +1671,8 @@ app.post('/api/auth/email/verify',rateLimit({max:20}),requireDb,wrap(async(req,r
 /* ---- Google 登入（OAuth 2.0 授權碼流程；重用既有 signToken 與 users 表） ---- */
 app.get('/auth/google', (req, res) => {
   if (!GOOGLE_CLIENT_ID) return res.status(503).send('Google 登入尚未開通（未設定 GOOGLE_CLIENT_ID）。');
+  // 子網域（pos；admin 由官網服務代管時）：state cookie 與 Google callback 都在 OWN_BASE，先跳回去再發起，否則 callback 讀不到 cookie
+  if ((isPosHost(req) || isAdminHost(req)) && String(req.hostname || '').toLowerCase() !== OWN_HOST) return res.redirect(302, OWN_BASE + req.originalUrl);
   const redirect = safeRedirect(req.query.redirect) || DEFAULT_MEMBER_URL;
   // state：HMAC 簽章保護導回目標並帶 nonce（CSRF 防護），callback 端驗章與時效
   const state = signToken({ r: redirect, n: crypto.randomBytes(24).toString('hex') }, { purpose: 'oauth' });
@@ -5061,6 +5080,9 @@ async function boot() {
     console.warn('[db] 未設定 DATABASE_URL / POSTGRES_*，API 將回 503；請於 Zeabur 設定資料庫連線。');
   }
   app.listen(PORT, () => console.log(`[server] listening on ${PORT}`));
+
+  // 後台服務不跑排程：webhook 投遞、活動信件、會籍提醒、LINE Pay 對帳、IG 自動發佈全由官網服務負責，兩邊都跑會重複寄信／重複發文
+  if (ADMIN_MODE) { console.log('[boot] SERVICE_ROLE=admin：排程由官網服務負責，本服務不啟動'); return; }
 
   // 會籍到期前 7 天提醒：每日 09:00（台北）
   if (dbReady) {

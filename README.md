@@ -64,6 +64,8 @@ DB 未設定時伺服器優雅降級：靜態頁照常，`/api/*` 回 503。
 | `PUBLIC_ORIGIN` | 站台對外網址（正式：`https://www.emoji.tw`），供 Stripe 導回與 Google callback |
 | `WEB_ORIGINS` | 允許的 CORS／導回白名單（逗號分隔；預設含 `https://pos.emoji.tw`） |
 | `POS_HOSTS` | 視為平板 POS 子站的 host（逗號分隔，預設 `pos.emoji.tw`）：首頁與 `/admin` 轉到 `/pos`。DNS 把 `pos.emoji.tw` CNAME 到與 `www` 相同的服務即可 |
+| `SERVICE_ROLE` | 設 `admin` ＝ 後台獨立服務（`admin.emoji.tw`，Cloud Run `emoji-admin`）：同一個 image／DB，首頁轉 `/admin`，Google／Email 登入與 Meet／Zoom callback 綁在 `ADMIN_ORIGIN`，**不跑任何排程**（排程只在官網服務）。未設定＝官網服務，正式網域上的 `/admin`、`/organizer` 一律 302 到 `ADMIN_ORIGIN`（`/api/admin/*` 不轉） |
+| `ADMIN_ORIGIN` | 後台對外網址（預設 `https://admin.emoji.tw`）：官網轉後台、寄給員工的後台連結、後台服務自己的 OAuth callback 都用它；會自動納入 `WEB_ORIGINS` |
 
 ## API
 

@@ -661,7 +661,7 @@ Twilio 訊息狀態 callback。以 `X-Twilio-Signature` 驗證請求，將 accep
 
 ### POST /api/admin/events/:id/meeting/connect
 
-以個人管理帳號取得 Google Calendar 或 Zoom OAuth 授權網址。`provider` 可為 `google-meet` 或 `zoom`，預設 Google Meet。伺服器以 HttpOnly、SameSite cookie 與限時簽章 state 保護 callback，access／refresh token 加密保存。Google 要求 `calendar.events` 與離線更新授權；Zoom scope 由 OAuth app 設定。須設定對應的 `GOOGLE_MEET_CLIENT_ID`／`GOOGLE_MEET_CLIENT_SECRET` 或 `ZOOM_CLIENT_ID`／`ZOOM_CLIENT_SECRET`，callback 分別為 `${PUBLIC_ORIGIN}/integrations/google-meet/callback` 與 `${PUBLIC_ORIGIN}/integrations/zoom/callback`；缺設定時回 503。
+以個人管理帳號取得 Google Calendar 或 Zoom OAuth 授權網址。`provider` 可為 `google-meet` 或 `zoom`，預設 Google Meet。伺服器以 HttpOnly、SameSite cookie 與限時簽章 state 保護 callback，access／refresh token 加密保存。Google 要求 `calendar.events` 與離線更新授權；Zoom scope 由 OAuth app 設定。須設定對應的 `GOOGLE_MEET_CLIENT_ID`／`GOOGLE_MEET_CLIENT_SECRET` 或 `ZOOM_CLIENT_ID`／`ZOOM_CLIENT_SECRET`，callback 分別為 `<服務自己的網址>/integrations/google-meet/callback` 與 `<服務自己的網址>/integrations/zoom/callback`（官網服務＝`PUBLIC_ORIGIN`；後台服務 `SERVICE_ROLE=admin` 時＝`ADMIN_ORIGIN`，預設 `https://admin.emoji.tw`，因為連接是從後台發起、state cookie 在後台網域）；缺設定時回 503。
 
 ### POST /api/admin/events/:id/meeting/create
 

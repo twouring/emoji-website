@@ -13,6 +13,8 @@ env:
   PROJECT_ID: emoji0701
   REGION: asia-east1
   SERVICE: emoji-website
+  # 後台獨立服務（admin.emoji.tw）：同一個 image，服務上設 SERVICE_ROLE=admin；環境變數沿用既有 revision
+  ADMIN_SERVICE: emoji-admin
   IMAGE: asia-east1-docker.pkg.dev/emoji0701/emoji/emoji-website
 jobs:
   deploy:
@@ -46,3 +48,5 @@ jobs:
         run: |
           gcloud run deploy "$SERVICE" --image "$IMAGE:${{ github.sha }}" --region "$REGION" --project "$PROJECT_ID" --quiet
           gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)'
+          gcloud run deploy "$ADMIN_SERVICE" --image "$IMAGE:${{ github.sha }}" --region "$REGION" --project "$PROJECT_ID" --quiet
+          gcloud run services describe "$ADMIN_SERVICE" --region "$REGION" --format='value(status.url)'
