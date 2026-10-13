@@ -18,9 +18,9 @@ test('後台分為言文字與三個品牌工作區', () => {
 
 test('各工作區只呈現所屬功能', () => {
   assert.match(html, /ROOT_TABS = \['overview','members','commitments','updates','social','ads','permissions','system','logs'\]/);
-  // 餐飲兩店：櫃檯結帳、出餐看板、訂位、查單、日結、菜單（現場營運閉環）
-  assert.match(html, /CAFE:\['pos','orders','reservations','history','sales','menu'\]/);
-  assert.match(html, /BAR:\['pos','orders','reservations','history','sales','menu'\]/);
+  // 餐飲兩店：櫃檯結帳、出餐看板、訂位、查單、日結、排班打卡、菜單（現場營運閉環）
+  assert.match(html, /CAFE:\['pos','orders','reservations','history','sales','staff','menu'\]/);
+  assert.match(html, /BAR:\['pos','orders','reservations','history','sales','staff','menu'\]/);
   assert.match(html, /SPACE:\['events','calendar','counter'\]/);
   assert.match(html, /const scopeTabs = \(\) => WORKSPACES\[SCOPE\]\.tabs/);
 });

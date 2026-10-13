@@ -44,7 +44,7 @@ async function server(t, env = {}) {
 
 test('/pos 與子路徑回同一頁、noindex；/pos.html 轉 301；manifest 與 service worker 以正確型別與標頭回應', async t => {
   const get = await server(t);
-  for (const url of ['/pos', '/pos/orders', '/pos/soldout', '/pos/reservations', '/pos/history', '/pos/sales']) {
+  for (const url of ['/pos', '/pos/orders', '/pos/soldout', '/pos/reservations', '/pos/history', '/pos/sales', '/pos/clock', '/pos/shifts']) {
     const res = await get(url);
     assert.equal(res.status, 200, url);
     assert.equal(res.headers.get('x-robots-tag'), 'noindex', url);

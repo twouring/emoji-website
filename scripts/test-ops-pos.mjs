@@ -199,15 +199,15 @@ test('server.js 接線：客人加菜擋暫停與估清、櫃檯端點、清桌�
   assert.match(server, /ALTER TABLE dining_reservations ADD COLUMN IF NOT EXISTS email/);
   assert.match(server, /'new','confirmed','arrived','cancelled','no_show'/);
   assert.match(server, /請先到櫃檯結帳或逐項作廢/, '清桌時有未結帳品項要擋');
-  assert.match(server, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|registers\)/, '餐飲子帳號可用新端點');
+  assert.match(server, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|registers\|staff\|shifts\|attendance\)/, '餐飲子帳號可用新端點');
   assert.match(read('lib/security.js'), /'ordering_pause'/, '暫停點餐設定要能公開讀取');
   assert.doesNotMatch(server, /言文字根帳號/);
 });
 
 test('後台與客人端接線：新分頁、估清快速鍵、暫停點餐、訂位 Email 欄位', () => {
   const admin = read('public/admin.html'), ops = read('public/pos-ops.js'), order = read('public/order.html'), reserve = read('public/reserve.html'), reserveJs = read('public/reserve.js');
-  assert.match(admin, /CAFE:\['pos','orders','reservations','history','sales','menu'\]/);
-  assert.match(admin, /BAR:\['pos','orders','reservations','history','sales','menu'\]/);
+  assert.match(admin, /CAFE:\['pos','orders','reservations','history','sales','staff','menu'\]/);
+  assert.match(admin, /BAR:\['pos','orders','reservations','history','sales','staff','menu'\]/);
   assert.match(admin, /\{ id:'history',\s+label:'查單',\s+render:tabHistory \}/); assert.match(admin, /if \(tab === 'history'\) \{ loadHistory\(\); return; \}/);
   // 餐飲營運畫面抽成 /pos-ops.js，後台與平板 POS（pos.emoji.tw）共用
   assert.match(admin, /<script src="\/pos-ops\.js"><\/script>/); assert.match(admin, /<link rel="stylesheet" href="\/pos-ops\.css">/);

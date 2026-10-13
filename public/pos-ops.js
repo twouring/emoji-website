@@ -8,7 +8,7 @@ function tabPos(){ return '<div id="pos-body"></div>'; }
 function tabReservations(){ return '<div class="a-sec" id="resv-body"></div>'; }
 function tabSales(){ return '<div class="a-sec" id="sales-body"></div>'; }
 function tabHistory(){ return '<div class="a-sec" id="history-body"></div>'; }
-let ORDERS_TIMER=null,ORDERS_SEEN=null,POS_TIMER=null,POS_DATA=null,POS_TABLE='',POS_PICK=null,POS_MEMBER=false,POS_INVOICE={mode:''},POS_METHOD='cash',POS_CAT='',POS_DISCOUNT=null,POS_DISC_OPEN=false,POS_RECEIVED='',RESV_FROM='',RESV_DAYS=7,SALES_DAY='',HIST_DAY='',HIST_Q='',REG_DATA=null,REG_CASH_OPEN=false,REG_CLOSE_OPEN=false,REG_COUNT_OPEN=false,REG_OPEN_FORM='';
+let ORDERS_TIMER=null,ORDERS_SEEN=null,POS_TIMER=null,POS_DATA=null,POS_TABLE='',POS_PICK=null,POS_MEMBER=false,POS_INVOICE={mode:''},POS_METHOD='cash',POS_CAT='',POS_DISCOUNT=null,POS_DISC_OPEN=false,POS_RECEIVED='',RESV_FROM='',RESV_DAYS=7,SALES_DAY='',HIST_DAY='',HIST_Q='',REG_DATA=null,REG_CASH_OPEN=false,REG_CLOSE_OPEN=false,REG_COUNT_OPEN=false,REG_OPEN_FORM='',CLOCK_PIN='',CLOCK_VENUE='',CLOCK_MSG=null,SHIFT_WEEK='',SHIFT_FORM={},ATT_FROM='',ATT_TO='',STAFF_EDIT=null;
 const REG_DENOMS=[1000,500,100,50,10,5,1];
 const PAY_LABEL={cash:'現金',card:'刷卡',linepay:'LINE Pay',transfer:'轉帳',tappay:'線上刷卡'};
 const INV_LABEL={paper:'紙本',company:'統編',mobile:'手機載具',citizen:'自然人憑證',donate:'捐贈'};
@@ -472,4 +472,129 @@ function loadSoldOut(){
   const cards=[...groups].map(([cat,list])=>`<h3>${esc(MenuLib.CAT_LABEL[cat]?.zh||cat)}</h3><div class="so-grid">${list.map(it=>{const off=MenuLib.soldOutToday(it);return `<button type="button" class="so-item ${off?'off':''}" data-so="${esc(it.id)}" data-on="${off?'0':'1'}" aria-pressed="${off?'true':'false'}"><b>${esc(it.zh)}</b><span>NT$${num(it.price)}${SCOPE?'':' · '+esc(BRAND_LABEL[it.venue]||it.venue)}</span><small>${off?'今日估清 · 點一下恢復':'供應中'}</small></button>`;}).join('')}</div>`).join('')||'<p class="a-empty">沒有已發布的菜單項目，請先在後台「菜單」儲存菜單。</p>';
   host.innerHTML=`<h2>估清</h2><p class="hint">點一下品項切換「今日估清」，客人掃碼立刻點不到；翌日 03:00 自動恢復供應。</p>${cards}`;
   host.querySelectorAll('[data-so]').forEach(b=>b.onclick=()=>{const id=b.dataset.so,on=b.dataset.on==='1';opsThen(()=>api('/admin/menu/sold-out',{method:'POST',body:{item_id:id,sold_out:on}}),on?'已標記今日估清，客人掃碼點不到':'已恢復供應',()=>{MENU_DOC.items=MENU_DOC.items.map(x=>x.id===id?{...x,sold_out:on?MenuLib.businessDay():''}:x);loadSoldOut();});});
+}
+
+/* ===== 排班與打卡：員工用 4 位數識別碼在平板打卡（/pos/clock）；排班表以週為單位（/pos/shifts 與後台「排班打卡」共用）；員工名單與出勤報表在後台 ===== */
+function tabClock(){ return '<div class="a-sec" id="clock-body"></div>'; }
+function tabShifts(){ return '<div class="a-sec" id="shifts-body"></div>'; }
+function tabStaff(){ return '<div class="a-sec" id="staff-body"></div>'; }
+const VENUE_HOURS={CAFE:['08:00','17:00'],BAR:['17:00','03:00']};
+const WEEKDAY=['一','二','三','四','五','六','日'];
+const dayText=d=>{const t=new Date(d+'T12:00:00Z');return `${Number(d.slice(5,7))}/${Number(d.slice(8,10))}（${WEEKDAY[(t.getUTCDay()+6)%7]}）`;};
+const addDaysStr=(day,n)=>{const t=new Date(day+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10);};
+const mondayOf=day=>addDaysStr(day,-((new Date(day+'T12:00:00Z').getUTCDay()+6)%7));
+const hoursText=m=>m==null?'—':`${Math.floor(m/60)} 時${m%60?` ${m%60} 分`:''}`;
+const localStamp=iso=>{const d=new Date(iso);return isNaN(d)?'':d.toLocaleString('sv-SE',{timeZone:'Asia/Taipei',hour12:false}).slice(0,16);};
+// 現在是哪家店在營業（08–17 在咖啡，其餘三點水）；有選店別就用店別
+const venueNow=()=>{if(SCOPE)return SCOPE;const h=Number(new Date().toLocaleTimeString('en-GB',{timeZone:'Asia/Taipei',hour12:false,hour:'2-digit'}).slice(0,2));return h>=8&&h<17?'CAFE':'BAR';};
+
+/* 打卡：大數字鍵盤輸入識別碼 → 上班／下班；結果用大字卡片顯示幾秒；下方列目前在班上的人 */
+async function loadClock(){
+  const host=document.getElementById('clock-body');if(!host)return;
+  if(!CLOCK_VENUE)CLOCK_VENUE=venueNow();
+  const today=MenuLib.businessDay();
+  let working=[];try{working=(await api(`/admin/attendance?from=${today}&to=${today}`+(SCOPE?'&venue='+SCOPE:''))).working||[];}catch(e){}
+  paintClock(host,working);
+}
+function paintClock(host,working){
+  const dots=[0,1,2,3].map(i=>`<i class="${i<CLOCK_PIN.length?'on':''}"></i>`).join('');
+  const venueBtns=SCOPE?'':`<div class="clock-venue" role="group" aria-label="店別">${['CAFE','BAR'].map(v=>`<button type="button" data-venue="${v}" aria-pressed="${CLOCK_VENUE===v?'true':'false'}">${esc(BRAND_LABEL[v])}</button>`).join('')}</div>`;
+  const keys=['1','2','3','4','5','6','7','8','9','⌫','0','清除'].map(k=>`<button type="button" class="clock-key" data-key="${esc(k)}">${esc(k)}</button>`).join('');
+  const msg=CLOCK_MSG?`<div class="clock-msg ${CLOCK_MSG.ok?'ok':'bad'}" role="status">${esc(CLOCK_MSG.text)}</div>`:'';
+  const list=working.map(w=>`<li><b>${esc(w.name)}</b><span>${esc(clockText(w.clock_in))} 上班${SCOPE?'':' · '+esc(BRAND_LABEL[w.venue]||w.venue)}${w.shift_end?` · 排到 ${esc(w.shift_end)}`:''}</span></li>`).join('');
+  host.innerHTML=`<h2>打卡</h2><p class="hint">輸入你的 4 位數識別碼，按「上班」或「下班」。忘記識別碼請找店長。</p>
+    ${venueBtns}
+    <div class="clock-pad"><div class="clock-pin" aria-label="識別碼">${dots}</div><div class="clock-keys">${keys}</div>
+      <div class="clock-go"><button type="button" class="btn btn--solid" id="clock-in">上班</button><button type="button" class="btn btn--ghost" id="clock-out">下班</button></div></div>
+    ${msg}
+    <h3>上班中</h3>${list?`<ul class="clock-list">${list}</ul>`:'<p class="a-empty">目前沒有人在班上</p>'}`;
+  host.querySelectorAll('[data-venue]').forEach(b=>b.onclick=()=>{CLOCK_VENUE=b.dataset.venue;paintClock(host,working);});
+  host.querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>{const k=b.dataset.key;if(k==='⌫')CLOCK_PIN=CLOCK_PIN.slice(0,-1);else if(k==='清除')CLOCK_PIN='';else if(CLOCK_PIN.length<4)CLOCK_PIN+=k;CLOCK_MSG=null;paintClock(host,working);});
+  // 識別碼只留在記憶體（CLOCK_PIN），送出即清空，不進 localStorage、不顯示數字（畫面只有 4 個點）
+  const punch=type=>{if(CLOCK_PIN.length<4){CLOCK_MSG={ok:false,text:'請先輸入 4 位數識別碼'};paintClock(host,working);return;}
+    const pin=CLOCK_PIN;CLOCK_PIN='';host.querySelectorAll('#clock-in,#clock-out').forEach(b=>b.disabled=true);
+    api('/admin/attendance/punch',{method:'POST',body:{pin,type,venue:CLOCK_VENUE}}).then(out=>{CLOCK_MSG={ok:true,text:out.message};},e=>{CLOCK_MSG={ok:false,text:e.message};}).then(loadClock);};
+  host.querySelector('#clock-in').onclick=()=>punch('in');host.querySelector('#clock-out').onclick=()=>punch('out');
+}
+
+/* 排班表：週一起七欄，每欄列出誰幾點到幾點；點某天「＋ 排班」展開表單。host 由 POS 分頁或後台傳入 */
+async function loadShifts(host){
+  host=host||document.getElementById('shifts-body');if(!host)return;
+  if(!SHIFT_WEEK)SHIFT_WEEK=mondayOf(MenuLib.businessDay());
+  if(!host.dataset.init){host.dataset.init='1';host.innerHTML='<h2>排班表</h2><p class="hint">載入中…</p>';}
+  let d;try{d=await api(`/admin/shifts?from=${SHIFT_WEEK}&to=${addDaysStr(SHIFT_WEEK,6)}`+(SCOPE?'&venue='+SCOPE:''));}catch(e){host.innerHTML=`<h2>排班表</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`;return;}
+  const today=MenuLib.businessDay(),staff=d.staff||[],shifts=d.shifts||[];
+  const cols=(d.days||[]).map(day=>{const list=shifts.filter(s=>s.day===day);
+    return `<div class="shift-day ${day===today?'today':''}"><h4>${esc(dayText(day))}<small>${list.length?list.length+' 班':''}</small></h4>${list.map(s=>`<div class="shift-item v-${esc(s.venue)}"><b>${esc(s.name)}</b><span>${esc(s.start_time)}–${esc(s.end_time)}${SCOPE?'':' · '+esc(BRAND_LABEL[s.venue]||s.venue)}</span>${s.note?`<small>${esc(s.note)}</small>`:''}<button type="button" class="shift-del" data-del="${esc(s.id)}" aria-label="刪除 ${esc(s.name)} ${esc(s.day)} 的班">×</button></div>`).join('')||'<p class="a-empty">—</p>'}<button type="button" class="btn btn--ghost btn-xs shift-add" data-add="${esc(day)}">＋ 排班</button></div>`;}).join('');
+  const venue=SHIFT_FORM.venue||SCOPE||venueNow();
+  const form=SHIFT_FORM.day?`<div class="a-form shift-new"><label>員工<select id="sh-staff">${staff.map(s=>`<option value="${esc(s.id)}" ${s.id===SHIFT_FORM.staff_id?'selected':''}>${esc(s.name)}${s.role?'（'+esc(s.role)+'）':''}</option>`).join('')}</select></label><label>營業日<input type="date" id="sh-day" value="${esc(SHIFT_FORM.day)}"></label>
+      ${SCOPE?'':`<label>店別<select id="sh-venue">${['CAFE','BAR'].map(v=>`<option value="${v}" ${v===venue?'selected':''}>${esc(BRAND_LABEL[v])}</option>`).join('')}</select></label>`}
+      <label>開始<input type="time" id="sh-start" value="${esc(VENUE_HOURS[venue][0])}"></label><label>結束<input type="time" id="sh-end" value="${esc(VENUE_HOURS[venue][1])}"></label><label class="shift-note">備註<input id="sh-note" maxlength="80" placeholder="例：代班"></label>
+      <button type="button" class="btn btn--solid" id="sh-save">加入</button><button type="button" class="btn btn--ghost" id="sh-cancel">取消</button></div>`:'';
+  host.innerHTML=`<h2>排班表</h2><p class="hint">${staff.length?'點某一天的「＋ 排班」加一班；三點水排到凌晨直接填 17:00–03:00，算開始那天的營業日。':'還沒有員工，請先到後台「排班打卡」新增員工。'}</p>
+    <div class="a-toolbar"><button class="btn btn--ghost btn-sm" id="sh-prev">上週</button><b class="shift-week">${esc(d.from)} ～ ${esc(d.to)}</b><button class="btn btn--ghost btn-sm" id="sh-next">下週</button><button class="btn btn--ghost btn-sm" id="sh-this">本週</button><button class="btn btn--ghost btn-sm" id="sh-csv">匯出 CSV</button></div>
+    ${form}<div class="shift-week-grid">${cols}</div>`;
+  const reload=()=>loadShifts(host);
+  host.querySelector('#sh-prev').onclick=()=>{SHIFT_WEEK=addDaysStr(SHIFT_WEEK,-7);reload();};
+  host.querySelector('#sh-next').onclick=()=>{SHIFT_WEEK=addDaysStr(SHIFT_WEEK,7);reload();};
+  host.querySelector('#sh-this').onclick=()=>{SHIFT_WEEK=mondayOf(MenuLib.businessDay());reload();};
+  host.querySelector('#sh-csv').onclick=()=>downloadCSV(`排班_${d.from}.csv`,d.csv||[]);
+  host.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{if(!staff.length){toast('請先到後台「排班打卡」新增員工');return;}SHIFT_FORM={...SHIFT_FORM,day:b.dataset.add,venue};reload();});
+  host.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{if(!confirm('刪除這一班？'))return;opsThen(()=>api('/admin/shifts/'+b.dataset.del,{method:'DELETE'}),'已刪除',reload);});
+  const vs=host.querySelector('#sh-venue');if(vs)vs.onchange=()=>{const v=vs.value;host.querySelector('#sh-start').value=VENUE_HOURS[v][0];host.querySelector('#sh-end').value=VENUE_HOURS[v][1];SHIFT_FORM.venue=v;};
+  const cancel=host.querySelector('#sh-cancel');if(cancel)cancel.onclick=()=>{SHIFT_FORM={};reload();};
+  const save=host.querySelector('#sh-save');if(save)save.onclick=()=>{const body={staff_id:host.querySelector('#sh-staff').value,day:host.querySelector('#sh-day').value,venue:vs?vs.value:(SCOPE||venue),start:host.querySelector('#sh-start').value,end:host.querySelector('#sh-end').value,note:host.querySelector('#sh-note').value};
+    opsThen(()=>api('/admin/shifts',{method:'POST',body}),out=>`已排 ${out.name} ${out.day} ${out.start_time}–${out.end_time}`,()=>{SHIFT_FORM={day:body.day,venue:body.venue,staff_id:body.staff_id};return reload();});};
+}
+
+/* 後台「排班打卡」：員工名單（識別碼）、本週排班、出勤紀錄（工時報表） */
+async function loadStaff(){
+  const host=document.getElementById('staff-body');if(!host)return;
+  if(!host.dataset.init){host.dataset.init='1';host.innerHTML=`<h2>排班打卡</h2><p class="hint">員工不用帳號：每人一組 4 位數識別碼，在平板 POS（pos.emoji.tw）的「打卡」分頁輸入後按上班／下班。有排班的話打卡會自動算出遲到早退；出勤紀錄可匯出 CSV 給會計算薪。</p><div id="staff-list"></div><div id="shifts-body"></div><div id="att-body"></div>`;}
+  await Promise.all([loadStaffList(host.querySelector('#staff-list')),loadShifts(host.querySelector('#shifts-body')),loadAttendance(host.querySelector('#att-body'))]);
+}
+async function loadStaffList(host){
+  let d;try{d=await api('/admin/staff'+(SCOPE?'?venue='+SCOPE:''));}catch(e){host.innerHTML=`<h3>員工</h3><p class="a-empty">載入失敗：${esc(e.message)}</p>`;return;}
+  const staff=d.staff||[];
+  const rows=staff.map(s=>`<tr class="${s.active?'':'staff-off'}"><td><b>${esc(s.name)}</b>${s.role?` <span class="hint" style="margin:0">${esc(s.role)}</span>`:''}</td><td class="a-mono">${s.pin!=null?esc(s.pin):'••••'}</td><td>${esc(s.venues?s.venues.map(v=>BRAND_LABEL[v]||v).join('／'):'兩店')}</td><td>${s.active?'<span class="pill pill-ok">在職</span>':'<span class="pill pill-draft">已停用</span>'}</td><td>${esc(s.note||'')}</td><td class="ops-actions"><div class="ops-btns"><button type="button" class="btn btn--ghost btn-xs" data-edit="${esc(s.id)}">編輯</button><button type="button" class="btn btn--ghost btn-xs" data-toggle="${esc(s.id)}" data-active="${s.active?'1':'0'}">${s.active?'停用':'啟用'}</button></div></td></tr>`).join('')||'<tr><td colspan="6" class="a-empty">還沒有員工，按「新增員工」開始。</td></tr>';
+  const cur=STAFF_EDIT&&STAFF_EDIT!=='new'?staff.find(s=>s.id===STAFF_EDIT):null;
+  const curVenue=cur?(cur.venues&&cur.venues.length===1?cur.venues[0]:''):(SCOPE||'');
+  const form=STAFF_EDIT?`<div class="a-form staff-form"><label>姓名<input id="st-name" maxlength="40" value="${esc(cur?.name||'')}" placeholder="員工姓名"></label><label>識別碼<input id="st-pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" value="${esc(cur?.pin||'')}" placeholder="${cur?'不改就留空':'留空自動產生'}"></label>
+      <label>店別<select id="st-venues">${[['','兩店都可'],['CAFE',BRAND_LABEL.CAFE],['BAR',BRAND_LABEL.BAR]].filter(([v])=>!SCOPE||!v||v===SCOPE).map(([v,l])=>`<option value="${v}" ${curVenue===v?'selected':''}>${esc(l)}</option>`).join('')}</select></label>
+      <label>職稱<input id="st-role" maxlength="20" value="${esc(cur?.role||'')}" placeholder="例：店長、工讀"></label><label class="shift-note">備註<input id="st-note" maxlength="120" value="${esc(cur?.note||'')}"></label>
+      <button type="button" class="btn btn--solid" id="st-save">${cur?'儲存':'新增'}</button><button type="button" class="btn btn--ghost" id="st-cancel">取消</button></div>`:'';
+  host.innerHTML=`<h3>員工</h3><div class="a-toolbar"><button class="btn btn--solid btn-sm" id="st-new">新增員工</button></div>${form}
+    <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>姓名</th><th>識別碼</th><th>店別</th><th>狀態</th><th>備註</th><th class="ops-th">操作</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  const reload=()=>loadStaffList(host);
+  host.querySelector('#st-new').onclick=()=>{STAFF_EDIT='new';reload();};
+  host.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{STAFF_EDIT=b.dataset.edit;reload();});
+  host.querySelectorAll('[data-toggle]').forEach(b=>b.onclick=()=>{const on=b.dataset.active==='1';if(on&&!confirm('停用後這位員工不能打卡，識別碼會釋出給新人。確定？'))return;opsThen(()=>api('/admin/staff/'+b.dataset.toggle,{method:'PATCH',body:{active:!on}}),on?'已停用':'已啟用',reload);});
+  const cancel=host.querySelector('#st-cancel');if(cancel)cancel.onclick=()=>{STAFF_EDIT=null;reload();};
+  const save=host.querySelector('#st-save');if(save)save.onclick=()=>{const v=host.querySelector('#st-venues').value,pin=host.querySelector('#st-pin').value.trim();const body={name:host.querySelector('#st-name').value,venues:v?[v]:[],role:host.querySelector('#st-role').value,note:host.querySelector('#st-note').value};if(pin)body.pin=pin;
+    opsThen(()=>cur?api('/admin/staff/'+cur.id,{method:'PATCH',body}):api('/admin/staff',{method:'POST',body}),out=>cur?`已更新 ${out.name}`:`已新增 ${out.name}，識別碼 ${out.pin}`,()=>{STAFF_EDIT=null;return reload();});};
+}
+/* 出勤紀錄：區間（預設最近 7 個營業日）、每人彙總、明細（可修正／刪除）、CSV */
+async function loadAttendance(host){
+  if(!ATT_TO){ATT_TO=MenuLib.businessDay();ATT_FROM=addDaysStr(ATT_TO,-6);}
+  let d;try{d=await api(`/admin/attendance?from=${ATT_FROM}&to=${ATT_TO}`+(SCOPE?'&venue='+SCOPE:''));}catch(e){host.innerHTML=`<h3>出勤紀錄</h3><p class="a-empty">載入失敗：${esc(e.message)}</p>`;return;}
+  const sum=(d.summary||[]).map(s=>`<tr><td><b>${esc(s.name)}</b></td><td class="num">${num(s.shifts)}</td><td class="num">${esc(s.hours)}</td><td class="num">${s.late?num(s.late):''}</td><td class="num">${s.open?`<span class="pill pill-bad">${num(s.open)}</span>`:''}</td></tr>`).join('')||'<tr><td colspan="5" class="a-empty">這段期間沒有出勤</td></tr>';
+  const rows=(d.rows||[]).map(r=>`<tr class="${r.clock_out?'':'att-open'}"><td class="a-mono">${esc(r.day)}</td><td><b>${esc(r.name)}</b></td>${SCOPE?'':`<td>${esc(BRAND_LABEL[r.venue]||r.venue)}</td>`}<td class="a-mono" title="${esc(applicationTime(r.clock_in))}">${esc(clockText(r.clock_in))}${r.late_minutes?` <span class="pill pill-wait">晚 ${num(r.late_minutes)} 分</span>`:''}</td><td class="a-mono" title="${esc(r.clock_out?applicationTime(r.clock_out):'')}">${r.clock_out?esc(clockText(r.clock_out)):'<span class="pill pill-bad">未打卡</span>'}${r.early_minutes?` <span class="pill pill-wait">早 ${num(r.early_minutes)} 分</span>`:''}</td><td class="num">${esc(hoursText(r.minutes))}</td><td class="hint" style="margin:0">${r.shift_start?esc(r.shift_start+'–'+r.shift_end):''}</td><td>${esc(r.note||'')}${r.edited_by?` <span class="hint" style="margin:0" title="${esc(r.edited_by)}">（已修正）</span>`:''}</td><td class="ops-actions"><div class="ops-btns"><button type="button" class="btn btn--ghost btn-xs" data-fix="${esc(r.id)}">修正</button><button type="button" class="btn btn--ghost btn-xs" data-rm="${esc(r.id)}">刪除</button></div></td></tr>`).join('')||`<tr><td colspan="${SCOPE?8:9}" class="a-empty">—</td></tr>`;
+  host.innerHTML=`<h3>出勤紀錄</h3><p class="hint">工時＝下班－上班，未打下班卡的不計；遲到早退以排班為準。忘了打卡用「修正」補登，會記下是誰改的。</p>
+    <div class="a-toolbar"><label>從 <input type="date" id="att-from" value="${esc(d.from)}"></label><label>到 <input type="date" id="att-to" value="${esc(d.to)}"></label><button class="btn btn--ghost btn-sm" id="att-week">最近 7 天</button><button class="btn btn--ghost btn-sm" id="att-month">本月</button><button class="btn btn--solid btn-sm" id="att-csv">匯出 CSV</button></div>
+    <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>員工</th><th class="num">班數</th><th class="num">總工時（小時）</th><th class="num">遲到</th><th class="num">未打下班卡</th></tr></thead><tbody>${sum}</tbody></table></div>
+    <div class="a-wrap2" style="margin-top:14px"><table class="a-tbl"><thead><tr><th>營業日</th><th>員工</th>${SCOPE?'':'<th>店別</th>'}<th>上班</th><th>下班</th><th class="num">工時</th><th>排班</th><th>備註</th><th class="ops-th">操作</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  const reload=()=>loadAttendance(host);
+  host.querySelector('#att-from').onchange=e=>{ATT_FROM=e.target.value||ATT_FROM;reload();};
+  host.querySelector('#att-to').onchange=e=>{ATT_TO=e.target.value||ATT_TO;reload();};
+  host.querySelector('#att-week').onclick=()=>{ATT_TO=MenuLib.businessDay();ATT_FROM=addDaysStr(ATT_TO,-6);reload();};
+  host.querySelector('#att-month').onclick=()=>{ATT_TO=MenuLib.businessDay();ATT_FROM=ATT_TO.slice(0,8)+'01';reload();};
+  host.querySelector('#att-csv').onclick=()=>downloadCSV(`出勤_${d.from}_${d.to}${SCOPE?'_'+(BRAND_LABEL[SCOPE]||SCOPE):''}.csv`,d.csv||[]);
+  host.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{if(!confirm('刪除這筆出勤？'))return;opsThen(()=>api('/admin/attendance/'+b.dataset.rm,{method:'DELETE'}),'已刪除',reload);});
+  // 修正：三個 prompt（上班、下班、原因），時間用台北時間「2026-10-13 09:00」
+  const toIso=s=>{s=String(s||'').trim();if(!s)return null;if(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(s))s+=':00';const t=new Date(s.replace(' ','T')+'+08:00');if(isNaN(t))throw Error('時間格式請用 2026-10-13 09:00');return t.toISOString();};
+  host.querySelectorAll('[data-fix]').forEach(b=>b.onclick=()=>{const r=(d.rows||[]).find(x=>x.id===b.dataset.fix);if(!r)return;
+    const tIn=prompt('上班時間（例 2026-10-13 09:00）：',localStamp(r.clock_in));if(tIn===null)return;
+    const tOut=prompt('下班時間（例 2026-10-13 17:30；留空＝還沒下班）：',r.clock_out?localStamp(r.clock_out):'');if(tOut===null)return;
+    const note=prompt('備註（為什麼修正）：',r.note||'');if(note===null)return;
+    opsThen(async()=>{const clock_in=toIso(tIn),clock_out=toIso(tOut);if(!clock_in)throw Error('上班時間必填');return api('/admin/attendance/'+r.id,{method:'PATCH',body:{clock_in,clock_out,note}});},out=>`已修正，本班 ${out.minutes!=null?hoursText(out.minutes):'尚未下班'}`,reload);});
 }

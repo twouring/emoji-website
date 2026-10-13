@@ -1115,7 +1115,7 @@ function tabAdmins(d){
   </tr>`).join('') || '<tr><td colspan="4" class="a-empty">尚無使用者</td></tr>';
   return `<div class="a-sec">
     <h2>權限管理</h2>
-    <p class="hint">對象須先登入過本站。只有超管可授予管理員。品牌全不勾＝言文字管理員，可從上方品牌列切換全部四個工作區；勾選一個以上＝品牌子帳號，只能進勾選的品牌工作區（可同時多個品牌）。在咖啡／三點水子帳號有「櫃檯結帳」「點餐出餐」「訂位」「日結報表」「菜單」（限自己店別），等等空間子帳號只有「活動」「行事曆」「櫃檯」。外部主辦人不在這裡設定：到「等等空間 → 活動」開啟該場活動的「主辦團隊」，加入對方 Email 並勾選「共同管理本活動」，對方即可從 /organizer/events 管理那一場。</p>
+    <p class="hint">對象須先登入過本站。只有超管可授予管理員。品牌全不勾＝言文字管理員，可從上方品牌列切換全部四個工作區；勾選一個以上＝品牌子帳號，只能進勾選的品牌工作區（可同時多個品牌）。在咖啡／三點水子帳號有「櫃檯結帳」「點餐出餐」「訂位」「日結報表」「排班打卡」「菜單」（限自己店別），等等空間子帳號只有「活動」「行事曆」「櫃檯」。外部主辦人不在這裡設定：到「等等空間 → 活動」開啟該場活動的「主辦團隊」，加入對方 Email 並勾選「共同管理本活動」，對方即可從 /organizer/events 管理那一場。</p>
     <div class="a-wrap2"><table class="a-tbl">
       <thead><tr><th>姓名</th><th>Email</th><th>目前</th><th>操作</th></tr></thead>
       <tbody>${body}</tbody></table></div>
@@ -1125,7 +1125,7 @@ function tabAdmins(d){
 /* 後台分成四個工作區：言文字管理所有品牌共用事務；三個品牌各自管理營運資料。
    言文字管理員（brands 為空）可進全部工作區；品牌子帳號只看授權工作區（伺服器端同步把關）。 */
 const ROOT_TABS = ['overview','members','commitments','updates','social','ads','permissions','system','logs'];
-const BRAND_TABS = { CAFE:['pos','orders','reservations','history','sales','menu'], BAR:['pos','orders','reservations','history','sales','menu'], SPACE:['events','calendar','counter'] };
+const BRAND_TABS = { CAFE:['pos','orders','reservations','history','sales','staff','menu'], BAR:['pos','orders','reservations','history','sales','staff','menu'], SPACE:['events','calendar','counter'] };
 const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水', SPACE:'等等空間' };
 const WORKSPACES = {
   '':{ slug:'shared', label:'言文字', note:'所有品牌共用', mark:'言', tabs:ROOT_TABS },
@@ -1151,6 +1151,7 @@ const TABS = [
   { id:'reservations',label:'訂位',     render:tabReservations },
   { id:'history',     label:'查單',     render:tabHistory },
   { id:'sales',       label:'日結報表', render:tabSales },
+  { id:'staff',       label:'排班打卡', render:tabStaff },
   { id:'updates',     label:'最新消息', render:tabUpdates },
   { id:'menu',        label:'菜單',     render:tabMenu },
   { id:'social',      label:'社群經營', render:tabSocial },
@@ -1160,7 +1161,7 @@ const TABS = [
   { id:'logs',        label:'操作紀錄', render:tabLogs, super:true },
 ];
 const NAV_GROUPS = [
-  ['營運', ['overview','members','commitments','events','calendar','counter','pos','orders','reservations','history','sales']],
+  ['營運', ['overview','members','commitments','events','calendar','counter','pos','orders','reservations','history','sales','staff']],
   ['內容', ['updates','menu']],
   ['行銷', ['social','ads']],
   ['系統', ['permissions','system','logs']],
@@ -1177,6 +1178,7 @@ const ICONS = {
   pos:          '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h3M15 15h3"/>',
   reservations: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M9 15l2 2 4-4"/>',
   sales:        '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 6-6"/>',
+  staff:        '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/><path d="M8 3.5 5 6M16 3.5 19 6"/>',
   logs:         '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
   system:       '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/>',
   applications: '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z"/>',
@@ -1311,6 +1313,7 @@ function applyRoute(){
   if (tab === 'reservations') { loadReservations(); return; }
   if (tab === 'history') { loadHistory(); return; }
   if (tab === 'sales') { loadSales(); return; }
+  if (tab === 'staff') { loadStaff(); return; }
   if (tab === 'logs') { loadLogs(); return; }
   if (tab === 'system') { if(DATA?.super)loadSystemSettings(); return; }
   if (tab === 'ads') { paintAds(); return; }

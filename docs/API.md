@@ -319,6 +319,36 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 ### POST /api/admin/registers/:id/reopen
 重開補單（僅超級管理員）。關帳紀錄保留，以留存金為零用金另開一本新帳接著記；該品牌當日已有開著的帳回 409。回 `{ ok, id, day, venue, opening_cash }`（201）。
 
+### GET /api/admin/staff
+員工名單（排班與打卡用）。員工不綁登入帳號，每位一組不重複的 4 位數識別碼，在共用平板打卡時輸入。query `venue=`。回 `{ staff[]{ id, name, venues（null＝在咖啡與三點水都可）, role, note, active, pin? }, count }`；`pin` 只有言文字管理員看得到，品牌子帳號只看到店別含自己品牌（或不限店別）的員工。停用（`active:false`）的員工排在後面。
+
+### POST /api/admin/staff
+新增員工。body `{ name, pin?, venues?:['CAFE'|'BAR'], role?, note? }`。識別碼不填由系統抽一組沒人用的（避開 0000／1234 之類）；自填須 4 位數且未被使用中的員工占用（409）。品牌子帳號只能建自己店別的員工（403）。回 `{ ok, id, name, pin, venues, role, active }`（201）。
+
+### PATCH /api/admin/staff/:id
+編輯員工（部分更新）。body `{ name?, pin?, venues?, role?, note?, active? }`；`active:false`＝停用（離職），識別碼釋出可給新人；重新啟用時若原識別碼已被占用回 409，請同時指定新識別碼。回 `{ ok, id, name, pin?, venues, role, note, active }`。
+
+### GET /api/admin/shifts
+排班表。query `from=YYYY-MM-DD`（營業日，預設本週一）、`to=`（預設 from＋6 天，最多 93 天）、`venue=`、`staff_id=`。回 `{ from, to, days[], shifts[]{ id, staff_id, name, day, venue, start_time, end_time, minutes, note }, staff[]（在職員工）, csv[][] }`。三點水 17:00–03:00 這種跨日班屬開始那天的營業日。
+
+### POST /api/admin/shifts
+排一班。body `{ staff_id, day, venue:'CAFE'|'BAR', start:'HH:MM', end:'HH:MM', note? }`；`end ≤ start` 視為跨日，一班最多 16 小時；同一位員工時間重疊回 409；員工店別不含該店回 400。回 `{ ok, id, staff_id, name, day, venue, start_time, end_time, minutes, note }`（201）。
+
+### DELETE /api/admin/shifts/:id
+刪一班；已配對這班的出勤只解除配對、不刪。回 `{ ok, id }`。
+
+### POST /api/admin/attendance/punch
+打卡。body `{ pin, type:'in'|'out', venue:'CAFE'|'BAR' }`。以識別碼找人（錯誤一律回 404「識別碼不正確」，不透露是否存在）；`in` 開一筆出勤（同一人已在上班中且未超過 16 小時回 409；超過視為忘了打下班卡，照常開新的一筆並回 `forgot_out:true`），並配對當日同店別最接近的排班算 `late_minutes`；`out` 補最近一筆未下班的 `clock_out`、算 `minutes` 與 `early_minutes`（沒上班卡回 409）。員工店別不含該店回 403。每台裝置每分鐘最多 12 次（防猜碼）。回 `{ ok, id, action, name, day, venue, at, shift{start,end}|null, late_minutes|early_minutes, minutes?, hours?, message }`（上班 201、下班 200）。
+
+### GET /api/admin/attendance
+出勤紀錄（打卡紀錄報表）。query `from=`／`to=`（營業日，預設最近 7 天，最多 93 天）、`venue=`、`staff_id=`。回 `{ from, to, rows[]{ id, staff_id, name, day, venue, shift_id, shift_start, shift_end, clock_in, clock_out, minutes, late_minutes, early_minutes, note, edited_by }, working[]（目前還在上班中的，不限區間）, summary[]{ staff_id, name, shifts, minutes, hours, late, open, days }, csv[][] }`；`csv` 為每筆出勤一列＋每人合計（總工時、遲到次數、未打下班卡），直接交會計算時薪。
+
+### PATCH /api/admin/attendance/:id
+修正出勤（補打卡／忘了下班）。body `{ clock_in?, clock_out?（null＝清掉）, note? }`，ISO 時間；下班須晚於上班且一班不超過 24 小時。營業日依新的上班時間重算，記修改人。回 `{ ok, id, day, clock_in, clock_out, minutes, hours, note }`。
+
+### DELETE /api/admin/attendance/:id
+刪一筆誤打的出勤。回 `{ ok, id }`。
+
 ### POST /api/admin/sales/linepay/sync
 從 LINE Pay 商家後台抓實收明細寫入 `linepay_transactions`（以交易號碼 upsert）。body 可帶 `{ start, end }`（YYYY-MM-DD，最多 400 天），預設最近 7 天（退款會回補到幾天前的交易）。伺服器每日 04:30（台北）自動跑一次；未設定 `LINEPAY_MERCHANT_ID` / `LINEPAY_MERCHANT_PW` 回 503，正在同步中回 409。回 `{ ok, start, end, count }`。
 

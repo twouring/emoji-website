@@ -35,6 +35,7 @@ const tableOrders=require('./lib/table-orders');
 const ezpayInvoice=require('./lib/ezpay-invoice');
 const linepay=require('./lib/linepay');
 const posRegister=require('./lib/pos-register');
+const posStaff=require('./lib/pos-staff');
 const eventQuestions = require('./lib/event-questions');
 const { eventSlug, normalizeEventInput, localizeEvent, normalizeAttribution } = require('./lib/events');
 const { normalizeEventApplication, safeHttpUrl, applicationDeposit, venueLabel, venuesOfLocation } = require('./lib/event-applications');
@@ -760,6 +761,22 @@ async function migrate() {
     id TEXT PRIMARY KEY, register_id TEXT NOT NULL REFERENCES pos_registers(id), counted_cash INT NOT NULL, expected_cash INT NOT NULL, diff INT NOT NULL,
     denominations JSONB, note TEXT NOT NULL DEFAULT '', counted_by TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE INDEX IF NOT EXISTS pos_register_counts_reg_idx ON pos_register_counts(register_id,created_at DESC)`);
+  // 排班與打卡：員工（4 位數識別碼，不綁登入帳號）、排班（員工 × 營業日 × 店別 × 起訖）、出勤（上班開一筆、下班補 clock_out）
+  await q(`CREATE TABLE IF NOT EXISTS pos_staff (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, pin TEXT NOT NULL, venues TEXT, role TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '',
+    active BOOLEAN NOT NULL DEFAULT true, created_by TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE UNIQUE INDEX IF NOT EXISTS pos_staff_pin_idx ON pos_staff(pin) WHERE active`);
+  await q(`CREATE TABLE IF NOT EXISTS pos_shifts (
+    id TEXT PRIMARY KEY, staff_id TEXT NOT NULL REFERENCES pos_staff(id), day DATE NOT NULL, venue TEXT NOT NULL, start_time TEXT NOT NULL, end_time TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE INDEX IF NOT EXISTS pos_shifts_day_idx ON pos_shifts(day,venue)`);
+  await q(`CREATE INDEX IF NOT EXISTS pos_shifts_staff_idx ON pos_shifts(staff_id,day)`);
+  await q(`CREATE TABLE IF NOT EXISTS pos_attendance (
+    id TEXT PRIMARY KEY, staff_id TEXT NOT NULL REFERENCES pos_staff(id), day DATE NOT NULL, venue TEXT NOT NULL, shift_id TEXT,
+    clock_in TIMESTAMPTZ NOT NULL, clock_out TIMESTAMPTZ, minutes INT, late_minutes INT NOT NULL DEFAULT 0, early_minutes INT NOT NULL DEFAULT 0,
+    note TEXT NOT NULL DEFAULT '', edited_by TEXT, edited_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE INDEX IF NOT EXISTS pos_attendance_day_idx ON pos_attendance(day,venue)`);
+  await q(`CREATE INDEX IF NOT EXISTS pos_attendance_staff_idx ON pos_attendance(staff_id,clock_in DESC)`);
   // LINE Pay 商家後台實收明細（每日同步），日結報表拿來與 POS 登記的 LINE Pay 對帳；退款金額為負
   await q(`CREATE TABLE IF NOT EXISTS linepay_transactions (
     id TEXT PRIMARY KEY, type TEXT NOT NULL, amount INT NOT NULL, paid_at TIMESTAMPTZ NOT NULL, method TEXT NOT NULL DEFAULT '', provider TEXT NOT NULL DEFAULT '',
@@ -1582,7 +1599,7 @@ function doorAuth(req, res, next) {
   next();
 }
 /* 品牌子帳號可用的後台 API；言文字管理員（brand 為空）不受限。餐飲兩店＝櫃檯結帳＋點餐出餐＋訂位＋日結＋菜單，等等空間＝活動／場地申請／櫃檯 */
-const FOOD_API = /^\/api\/admin\/(orders|tables|content|menu|reservations|sales|registers)(\/|$)/;
+const FOOD_API = /^\/api\/admin\/(orders|tables|content|menu|reservations|sales|registers|staff|shifts|attendance)(\/|$)/;
 const BRAND_API = { CAFE: FOOD_API, BAR: FOOD_API, SPACE: /^\/api\/admin\/(events|event-applications|entitlements|points|upload)(\/|$)/ };
 const ADMIN_BRANDS = Object.keys(BRAND_API);
 // users.admin_brand（逗號分隔）→ 品牌陣列；空＝null＝言文字管理員
@@ -5030,6 +5047,124 @@ app.post('/api/admin/registers/:id/reopen',auth,adminOnly,superOnly,requireDb,wr
   await q('INSERT INTO pos_registers(id,day,venue,opening_cash,note,opened_by,reopened_at,reopened_by) VALUES($1,$2,$3,$4,$5,$6,now(),$6)',[id,r.day,r.venue,r.keep_cash||0,'重開補單（接 '+r.id+'）',req.auth.email||req.auth.sub||'']);
   res.status(201).json({ok:true,id,day:r.day,venue:r.venue,opening_cash:r.keep_cash||0});
 }));
+/* ===== 排班與打卡：員工用 4 位數識別碼在共用平板打卡（不綁登入帳號）；排班＝員工 × 營業日 × 店別；出勤給後台算工時 ===== */
+const STAFF_SEL='id,name,pin,venues,role,note,active,created_at,updated_at';
+const staffRow=(r,{pin=false}={})=>r&&{id:r.id,name:r.name,venues:r.venues?r.venues.split(','):null,role:r.role||'',note:r.note||'',active:r.active!==false,...(pin?{pin:r.pin}:{}),created_at:new Date(r.created_at).toISOString()};
+const shiftRow=r=>({id:r.id,staff_id:r.staff_id,name:r.name,day:r.day instanceof Date?r.day.toISOString().slice(0,10):String(r.day).slice(0,10),venue:r.venue,start_time:r.start_time,end_time:r.end_time,minutes:posStaff.shiftMinutes(r.start_time,r.end_time),note:r.note||''});
+const attRow=r=>({id:r.id,staff_id:r.staff_id,name:r.name,day:r.day instanceof Date?r.day.toISOString().slice(0,10):String(r.day).slice(0,10),venue:r.venue,shift_id:r.shift_id||null,shift_start:r.shift_start||null,shift_end:r.shift_end||null,
+  clock_in:new Date(r.clock_in).toISOString(),clock_out:r.clock_out?new Date(r.clock_out).toISOString():null,minutes:r.clock_out?(r.minutes!=null?Number(r.minutes):posStaff.minutesBetween(r.clock_in,r.clock_out)):null,late_minutes:Number(r.late_minutes)||0,early_minutes:Number(r.early_minutes)||0,note:r.note||'',edited_by:r.edited_by||null});
+/* 員工名單：子帳號只看自己店別（店別為空＝兩店都看得到）；識別碼只有超管／言文字管理員看得到 */
+app.get('/api/admin/staff',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
+  const rows=(await q(`SELECT ${STAFF_SEL} FROM pos_staff ORDER BY active DESC,name`)).rows.map(r=>staffRow(r,{pin:!req.auth.brands})).filter(s=>posStaff.staffVisible(s,venues));
+  res.json({staff:rows,count:rows.length});
+}));
+/* 新增員工：body { name, pin?, venues?, role?, note? }；沒給識別碼就抽一組沒人用的 */
+app.post('/api/admin/staff',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  let s;try{s=posStaff.staffInput(req.body,{own:req.auth.brands});}catch(e){return res.status(e.status||400).json({error:e.message});}
+  const taken=(await q('SELECT pin FROM pos_staff WHERE active')).rows.map(r=>r.pin);
+  if(s.pin&&taken.includes(s.pin))return res.status(409).json({error:'這組識別碼已有人使用，請換一組。'});
+  let pin;try{pin=s.pin||posStaff.randomPin(taken);}catch(e){return res.status(e.status||400).json({error:e.message});}
+  const id=uid('st_');
+  await q('INSERT INTO pos_staff(id,name,pin,venues,role,note,active,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[id,s.name,pin,s.venues?s.venues.join(','):null,s.role,s.note,s.active,req.auth.email||req.auth.sub||'']);
+  res.status(201).json({ok:true,id,name:s.name,pin,venues:s.venues,role:s.role,active:s.active});
+}));
+async function loadStaff(req,res){
+  if(!ORDER_ID_RE.test(String(req.params.id||'')))return res.status(404).json({error:'找不到這位員工。'})&&null;
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const r=(await q(`SELECT ${STAFF_SEL} FROM pos_staff WHERE id=$1`,[req.params.id])).rows[0];
+  const s=staffRow(r,{pin:true});
+  if(!s||!posStaff.staffVisible(s,venues)){res.status(404).json({error:'找不到這位員工。'});return null;}
+  return s;
+}
+/* 編輯員工：部分更新 { name?, pin?, venues?, role?, note?, active? }；active:false＝停用（離職），識別碼釋出 */
+app.patch('/api/admin/staff/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const cur=await loadStaff(req,res);if(!cur)return;
+  let s;try{s=posStaff.staffInput(req.body,{own:req.auth.brands,existing:cur});}catch(e){return res.status(e.status||400).json({error:e.message});}
+  if(s.pin&&s.pin!==cur.pin&&(await q('SELECT 1 FROM pos_staff WHERE pin=$1 AND active AND id<>$2',[s.pin,cur.id])).rowCount)return res.status(409).json({error:'這組識別碼已有人使用，請換一組。'});
+  if(s.active&&!cur.active&&(await q('SELECT 1 FROM pos_staff WHERE pin=$1 AND active AND id<>$2',[s.pin||cur.pin,cur.id])).rowCount)return res.status(409).json({error:'原識別碼已被別人使用，請同時指定新識別碼再啟用。'});
+  await q('UPDATE pos_staff SET name=$2,pin=$3,venues=$4,role=$5,note=$6,active=$7,updated_at=now() WHERE id=$1',[cur.id,s.name,s.pin||cur.pin,s.venues?s.venues.join(','):null,s.role,s.note,s.active]);
+  res.json({ok:true,id:cur.id,name:s.name,pin:req.auth.brands?undefined:(s.pin||cur.pin),venues:s.venues,role:s.role,note:s.note,active:s.active});
+}));
+/* 排班表：query from/to（營業日，預設本週一起 7 天）、venue、staff_id；回每一班＋員工名單 */
+app.get('/api/admin/shifts',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
+  const monday=posStaff.weekOf(/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from||''))?String(req.query.from):tableOrders.MenuLib.businessDay());
+  const {from,to}=posStaff.dateRange(req.query.from||monday,req.query.to||posStaff.addDays(req.query.from||monday,6));
+  const rows=(await q('SELECT s.id,s.staff_id,p.name,s.day,s.venue,s.start_time,s.end_time,s.note FROM pos_shifts s JOIN pos_staff p ON p.id=s.staff_id WHERE s.day>=$1 AND s.day<=$2 ORDER BY s.day,s.start_time,p.name',[from,to])).rows.map(shiftRow)
+    .filter(s=>(!venues||venues.includes(s.venue))&&(!req.query.staff_id||s.staff_id===String(req.query.staff_id)));
+  const staff=(await q(`SELECT ${STAFF_SEL} FROM pos_staff WHERE active ORDER BY name`)).rows.map(r=>staffRow(r)).filter(s=>posStaff.staffVisible(s,venues));
+  res.json({from,to,days:posStaff.weekDays(from).filter(d=>d<=to),shifts:rows,staff,csv:posStaff.shiftsCsv(rows)});
+}));
+/* 排一班：body { staff_id, day, venue, start, end, note? }；同員工時間重疊回 409 */
+app.post('/api/admin/shifts',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  let s;try{s=posStaff.shiftInput(req.body,{own:req.auth.brands});}catch(e){return res.status(e.status||400).json({error:e.message});}
+  const staff=staffRow((await q(`SELECT ${STAFF_SEL} FROM pos_staff WHERE id=$1 AND active`,[s.staff_id])).rows[0]);
+  if(!staff||!posStaff.staffVisible(staff,tableOrders.visibleVenues(req.auth.brands)))return res.status(404).json({error:'找不到這位員工。'});
+  if(staff.venues&&!staff.venues.includes(s.venue))return res.status(400).json({error:`${staff.name} 只排${staff.venues.map(v=>posStaff.VENUE_LABEL[v]).join('／')}，要排到${posStaff.VENUE_LABEL[s.venue]}請先改員工店別。`});
+  const near=(await q('SELECT id,staff_id,day,venue,start_time,end_time FROM pos_shifts WHERE staff_id=$1 AND day BETWEEN $2::date-1 AND $2::date+1',[s.staff_id,s.day])).rows.map(shiftRow);
+  const hit=posStaff.shiftConflicts(s,near);
+  if(hit)return res.status(409).json({error:`${staff.name} ${hit.day} ${hit.start_time}–${hit.end_time} 已有班，時間重疊。`});
+  const id=uid('sh_');
+  await q('INSERT INTO pos_shifts(id,staff_id,day,venue,start_time,end_time,note,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[id,s.staff_id,s.day,s.venue,s.start,s.end,s.note,req.auth.email||req.auth.sub||'']);
+  res.status(201).json({ok:true,id,staff_id:s.staff_id,name:staff.name,day:s.day,venue:s.venue,start_time:s.start,end_time:s.end,minutes:s.minutes,note:s.note});
+}));
+/* 刪一班 */
+app.delete('/api/admin/shifts/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(String(req.params.id||'')))return res.status(404).json({error:'找不到這班。'});
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const r=(await q('SELECT id,venue FROM pos_shifts WHERE id=$1',[req.params.id])).rows[0];
+  if(!r||(venues&&!venues.includes(r.venue)))return res.status(404).json({error:'找不到這班。'});
+  await q('UPDATE pos_attendance SET shift_id=NULL WHERE shift_id=$1',[r.id]);
+  await q('DELETE FROM pos_shifts WHERE id=$1',[r.id]);
+  res.json({ok:true,id:r.id});
+}));
+/* 打卡：body { pin, type:'in'|'out', venue }；識別碼找人，上班開一筆、下班補 clock_out；配對當日排班算遲到／早退。防猜碼：每台每分鐘 12 次 */
+app.post('/api/admin/attendance/punch',rateLimit({max:12}),auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const pin=String(req.body?.pin||'').trim();
+  if(!/^\d{4}$/.test(pin))return res.status(400).json({error:'請輸入 4 位數識別碼。'});
+  let venue;try{venue=posStaff.venueOf(req.body?.venue,req.auth.brands);}catch(e){return res.status(e.status||400).json({error:e.message});}
+  const staff=staffRow((await q(`SELECT ${STAFF_SEL} FROM pos_staff WHERE pin=$1 AND active`,[pin])).rows[0]);
+  const open=staff?(await q('SELECT id,staff_id,day,venue,shift_id,clock_in FROM pos_attendance WHERE staff_id=$1 AND clock_out IS NULL ORDER BY clock_in DESC LIMIT 1',[staff.id])).rows[0]||null:null;
+  const today=tableOrders.MenuLib.businessDay();
+  const shifts=staff?(await q('SELECT id,staff_id,day,venue,start_time,end_time FROM pos_shifts WHERE staff_id=$1 AND (day=$2 OR id=$3)',[staff.id,today,open?.shift_id||''])).rows.map(shiftRow):[];
+  let out;try{out=posStaff.punch({type:req.body?.type,staff,venue,open:open&&{...open,day:open.day instanceof Date?open.day.toISOString().slice(0,10):open.day},shifts});}catch(e){return res.status(e.status||400).json({error:e.message});}
+  if(out.action==='in'){
+    const id=uid('at_');
+    await q('INSERT INTO pos_attendance(id,staff_id,day,venue,shift_id,clock_in,late_minutes) VALUES($1,$2,$3,$4,$5,$6,$7)',[id,staff.id,out.day,venue,out.shift_id,out.at,out.late_minutes]);
+    return res.status(201).json({ok:true,id,action:'in',name:staff.name,day:out.day,venue,at:out.at,shift:out.shift,late_minutes:out.late_minutes,forgot_out:out.forgot_out,message:out.message});
+  }
+  await q('UPDATE pos_attendance SET clock_out=$2,minutes=$3,early_minutes=$4 WHERE id=$1',[out.id,out.at,out.minutes,out.early_minutes]);
+  res.json({ok:true,id:out.id,action:'out',name:staff.name,day:out.day,venue:out.venue,at:out.at,minutes:out.minutes,hours:posStaff.hoursDecimal(out.minutes),shift:out.shift,early_minutes:out.early_minutes,over:out.over,message:out.message});
+}));
+/* 出勤紀錄：query from/to（營業日，預設最近 7 天、最多 93 天）、venue、staff_id；回明細、每人彙總、CSV（總工時＋明細，給會計算薪） */
+app.get('/api/admin/attendance',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
+  const {from,to}=posStaff.dateRange(req.query.from,req.query.to);
+  const rows=(await q('SELECT a.id,a.staff_id,p.name,a.day,a.venue,a.shift_id,s.start_time AS shift_start,s.end_time AS shift_end,a.clock_in,a.clock_out,a.minutes,a.late_minutes,a.early_minutes,a.note,a.edited_by FROM pos_attendance a JOIN pos_staff p ON p.id=a.staff_id LEFT JOIN pos_shifts s ON s.id=a.shift_id WHERE a.day>=$1 AND a.day<=$2 ORDER BY a.clock_in DESC',[from,to])).rows.map(attRow)
+    .filter(a=>(!venues||venues.includes(a.venue))&&(!req.query.staff_id||a.staff_id===String(req.query.staff_id)));
+  const working=(await q('SELECT a.id,a.staff_id,p.name,a.day,a.venue,a.shift_id,s.start_time AS shift_start,s.end_time AS shift_end,a.clock_in,a.clock_out,a.minutes,a.late_minutes,a.early_minutes,a.note,a.edited_by FROM pos_attendance a JOIN pos_staff p ON p.id=a.staff_id LEFT JOIN pos_shifts s ON s.id=a.shift_id WHERE a.clock_out IS NULL ORDER BY a.clock_in')).rows.map(attRow).filter(a=>!venues||venues.includes(a.venue));
+  res.json({from,to,rows,working,summary:posStaff.attendanceSummary(rows),csv:posStaff.attendanceCsv(rows)});
+}));
+/* 修正出勤（補打卡／忘了下班）：body { clock_in?, clock_out?, note? }（ISO 時間）；記修改人 */
+app.patch('/api/admin/attendance/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(String(req.params.id||'')))return res.status(404).json({error:'找不到這筆出勤。'});
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const r=(await q('SELECT id,staff_id,day,venue,clock_in,clock_out,note FROM pos_attendance WHERE id=$1',[req.params.id])).rows[0];
+  if(!r||(venues&&!venues.includes(r.venue)))return res.status(404).json({error:'找不到這筆出勤。'});
+  let f;try{f=posStaff.attendanceFix(req.body,r);}catch(e){return res.status(e.status||400).json({error:e.message});}
+  await q('UPDATE pos_attendance SET clock_in=$2,clock_out=$3,minutes=$4,note=$5,day=$6,edited_by=$7,edited_at=now() WHERE id=$1',[r.id,f.clock_in,f.clock_out,f.minutes,f.note,f.day,req.auth.email||req.auth.sub||'']);
+  res.json({ok:true,id:r.id,day:f.day,clock_in:f.clock_in,clock_out:f.clock_out,minutes:f.minutes,hours:f.minutes==null?null:posStaff.hoursDecimal(f.minutes),note:f.note});
+}));
+/* 刪一筆出勤（誤打） */
+app.delete('/api/admin/attendance/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(String(req.params.id||'')))return res.status(404).json({error:'找不到這筆出勤。'});
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const r=(await q('SELECT id,venue FROM pos_attendance WHERE id=$1',[req.params.id])).rows[0];
+  if(!r||(venues&&!venues.includes(r.venue)))return res.status(404).json({error:'找不到這筆出勤。'});
+  await q('DELETE FROM pos_attendance WHERE id=$1',[r.id]);
+  res.json({ok:true,id:r.id});
+}));
 /* LINE Pay 同步：每日 04:30 自動抓最近 7 天（退款會回補），也可從日結頁手動按；歷史一年用 import 一次灌入 */
 let linepaySyncing=false;
 async function upsertLinepay(rows){
@@ -5156,7 +5291,7 @@ app.get(['/menu', '/menu/', '/en/menu', '/en/menu/', '/ja/menu', '/ja/menu/'], m
 const ADMIN_PAGE = path.join(PUB, 'admin.html');
 app.get('/admin.html', (_req, res) => res.redirect(301, '/admin'));
 app.get(['/admin', '/admin/*', '/organizer', '/organizer/*'], (_req, res) => { res.set('X-Robots-Tag', 'noindex'); res.sendFile(ADMIN_PAGE); });
-// 平板 POS（PWA）：/pos、/pos/orders、/pos/soldout、/pos/reservations、/pos/history、/pos/sales 皆回同一頁（pos.emoji.tw 與 www 都可用，API 同網域）
+// 平板 POS（PWA）：/pos、/pos/orders、/pos/soldout、/pos/reservations、/pos/history、/pos/sales、/pos/clock、/pos/shifts 皆回同一頁（pos.emoji.tw 與 www 都可用，API 同網域）
 const POS_PAGE = path.join(PUB, 'pos.html');
 app.get('/pos.html', (_req, res) => res.redirect(301, '/pos'));
 app.get(['/pos', '/pos/*'], (_req, res) => { res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache' }); res.sendFile(POS_PAGE); });

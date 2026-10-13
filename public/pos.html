@@ -118,7 +118,7 @@
 <script src="/menu-lib.js"></script>
 <script src="/pos-ops.js"></script>
 <script>
-/* 平板 POS 子站（pos.emoji.tw）：只做餐飲現場五件事——櫃檯結帳、出餐、估清、訂位、日結。
+/* 平板 POS 子站（pos.emoji.tw）：只做餐飲現場的事——櫃檯結帳、出餐、估清、訂位、查單、日結、打卡、排班。
    登入與 /admin 同一組帳號（Google 或 Email）；API 同網域、token 存 localStorage。
    畫面繪製全部在 /pos-ops.js（與 /admin 共用），本檔只管登入、分頁切換、店別切換、PWA。 */
 const KEY = 'tth_token';
@@ -134,8 +134,10 @@ const TABS = [
   { id:'reservations', label:'訂位' },
   { id:'history',      label:'查單' },
   { id:'sales',        label:'日結' },
+  { id:'clock',        label:'打卡' },
+  { id:'shifts',       label:'排班' },
 ];
-const PANEL = { pos:tabPos, orders:tabOrders, soldout:tabSoldOut, reservations:tabReservations, history:tabHistory, sales:tabSales };
+const PANEL = { pos:tabPos, orders:tabOrders, soldout:tabSoldOut, reservations:tabReservations, history:tabHistory, sales:tabSales, clock:tabClock, shifts:tabShifts };
 let toastT, DATA = null, TAB = 'pos', SCOPE = '', MENU_DOC = null, PENDING = 0;
 try { SCOPE = localStorage.getItem('tth_pos_scope') || ''; } catch (e) {}
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2400); }
@@ -144,7 +146,7 @@ function downloadCSV(filename, rows){
   const csv = rows.map(r => r.map(c => { let s = c == null ? '' : String(c); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; }).join(',')).join('\r\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'})); a.download = filename; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
 }
-// 分頁網址：/pos（結帳）、/pos/orders、/pos/soldout、/pos/reservations、/pos/history、/pos/sales；pos.emoji.tw 與 www.emoji.tw 皆可
+// 分頁網址：/pos（結帳）、/pos/orders、/pos/soldout、/pos/reservations、/pos/history、/pos/sales、/pos/clock、/pos/shifts；pos.emoji.tw 與 www.emoji.tw 皆可
 const tabUrl = tab => '/pos' + (tab === 'pos' ? '' : '/' + tab);
 function opsHref(tab){ return tabUrl(tab); }
 // Google 登入的 callback 綁在官網網域（PUBLIC_ORIGIN），state cookie 也在那裡：子網域一律先到 www 發起，登入完成再以 #token 導回本站
@@ -206,7 +208,7 @@ function paintNav(){
 function resetPanels(){
   // 換店別：清掉各分頁的快取簽章與初始化旗標，讓 pos-ops.js 重新繪製
   document.querySelectorAll('[data-panel] > [id]').forEach(h => { delete h.dataset.sig; delete h.dataset.init; h.innerHTML=''; });
-  POS_TABLE=''; POS_PICK=null; POS_DISCOUNT=null; POS_RECEIVED=''; HIST_Q='';
+  POS_TABLE=''; POS_PICK=null; POS_DISCOUNT=null; POS_RECEIVED=''; HIST_Q=''; CLOCK_PIN=''; CLOCK_VENUE='';
 }
 function activate(){
   document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('on', p.dataset.panel === TAB));
@@ -217,6 +219,8 @@ function activate(){
   else if (TAB === 'reservations') loadReservations();
   else if (TAB === 'history') loadHistory();
   else if (TAB === 'sales') loadSales();
+  else if (TAB === 'clock') loadClock();
+  else if (TAB === 'shifts') loadShifts();
 }
 function render(){
   document.getElementById('p-logout').hidden = false;
