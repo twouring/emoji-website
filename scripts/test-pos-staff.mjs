@@ -121,5 +121,8 @@ test('接線：POS 多「排班」「打卡」分頁、後台餐飲工作區多�
   assert.match(admin, /CAFE:\['pos','orders','reservations','history','sales','staff','menu'\]/);
   assert.match(admin, /BAR:\['pos','orders','reservations','history','sales','staff','menu'\]/);
   assert.match(admin, /\{ id:'staff',\s+label:'排班打卡',\s+render:tabStaff \}/); assert.match(admin, /if \(tab === 'staff'\) \{ loadStaff\(\); return; \}/);
-  assert.match(sw, /VERSION = 'pos-v3'/, '新分頁要換 service worker 快取版本');
+  assert.match(sw, /VERSION = 'pos-v[4-9]\d*'/, '新分頁要換 service worker 快取版本（≥ v4）');
+  // 直式平板（768–999px）八個分頁一行放不下；.p-nav 的捲軸是隱藏的，所以要換行，不能讓「打卡」「排班」被擠到畫面外
+  assert.match(pos, /@media\(max-width:999px\)\{[^}]*--p-top:108px/, '直式平板頂欄要加高');
+  assert.match(pos, /@media\(max-width:999px\)\{(?:[^@]*?)\.p-nav\{[^}]*order:3;[^}]*flex:1 1 100%;[^}]*flex-wrap:wrap/, '直式平板分頁列要換到第二行並可折行');
 });
