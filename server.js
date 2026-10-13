@@ -5279,6 +5279,16 @@ app.post('/api/admin/reservations/:id/status',auth,adminOnly,requireDb,wrap(asyn
   if(mail&&req.body?.notify!==false)sendMailQuietly({...mail,replyTo:NOTIFY_EMAIL});
   res.json({ok:true,status:next,mailed:!!(mail&&req.body?.notify!==false)});
 }));
+/* 修改訂位資訊（客人來電改日期／時間／人數／姓名／電話／Email／備註）：驗證同櫃檯登記（staff:true），語言與來源沿用原紀錄；不自動寄信通知客人 */
+app.patch('/api/admin/reservations/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const cur=(await q(`SELECT id,reserve_time,lang,source FROM dining_reservations WHERE id=$1`,[String(req.params.id)])).rows[0];
+  if(!cur||(venues&&!venues.includes(tableOrders.reservationVenue(cur.reserve_time))))return res.status(404).json({error:'找不到這筆訂位。'});
+  let r;try{r=reservations.normalizeReservation({date:req.body?.date,time:req.body?.time,party_size:req.body?.party_size,name:req.body?.name,phone:req.body?.phone,email:req.body?.email,note:req.body?.note,lang:cur.lang,source:cur.source},new Date(),{staff:true});}catch(e){return res.status(e.status||400).json({error:e.message});}
+  if(venues&&!venues.includes(tableOrders.reservationVenue(r.time)))return res.status(403).json({error:'改到的時段不屬於自己的店別。'});
+  await q('UPDATE dining_reservations SET reserve_date=$2,reserve_time=$3,period=$4,party_size=$5,name=$6,phone=$7,email=$8,note=$9,updated_at=now() WHERE id=$1',[cur.id,r.date,r.time,r.period,r.partySize,r.name,r.phone,r.email,r.note]);
+  res.json({ok:true,id:cur.id,venue:tableOrders.reservationVenue(r.time)});
+}));
 app.post('/api/admin/orders/:id/status',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const status=String(req.body?.status||'');if(!['ready','done'].includes(status)||!ORDER_ID_RE.test(req.params.id))return res.status(400).json({error:'狀態無效。'});
   // 子帳號只能按自己品牌的單；別的品牌或混牌單一律當作不存在；作廢的單不能再出餐
