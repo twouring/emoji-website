@@ -31,6 +31,7 @@ h3{font-size:1.05rem;margin:0 0 6px}
 .item .n{padding:10px 10px 12px;min-width:0}.item .n b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.35}.item .n small{color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.item .n small.note{display:none}
 .item .meta{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px}.item .p{font-weight:800;white-space:nowrap}.item .tap{font-size:1rem;color:var(--muted)}
 .add{border:0;background:transparent;color:inherit;text-align:left}
+#name-gate{border-color:var(--yellow);box-shadow:0 0 0 1px var(--yellow)}#name-gate h3{margin-top:0}
 .menu-status{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:12px}
 .menu-status b{font-size:1.05rem}.menu-status small{display:block;color:var(--muted);line-height:1.4}
 .menu-status.paused{border-color:#b42318;background:#fff5f3}.menu-status.paused small{color:#b42318;font-weight:600}
@@ -95,11 +96,14 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   <div class="card" id="boot"><p class="muted" data-i18n="loading">載入中…</p></div>
 
   <section id="app" class="hidden">
-    <div class="card" id="orders-card"></div>
-    <div class="card"><form id="name-form" class="row" style="margin:0 0 6px"><input class="f" id="name-in" data-i18n-placeholder="name_placeholder" placeholder="你的稱呼（讓同桌知道誰點了什麼）" maxlength="20" required style="flex:1;min-width:0"><button class="btn sm" type="submit" data-i18n="confirm">好</button></form><div class="muted" data-i18n="shared_hint">同桌的人掃同一個 QR 就能一起點；用餐完再到櫃檯結帳，可付全桌、各付自己的，或平均分攤。</div></div>
-    <div class="menu-status" id="menu-shift"><div><b class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-clock"></use></svg><span data-i18n="current_menu">目前菜單</span></b><small id="menu-hours">依台北時間顯示目前供應品項</small></div></div>
-    <div id="menu"></div>
-    <p class="notice" id="alcohol-notice" data-i18n="alcohol" hidden>未滿十八歲禁止飲酒。禁止酒駕。</p>
+    <div class="card" id="name-gate"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-user"></use></svg><span data-i18n="name_gate_title">先告訴我們怎麼稱呼您</span></h3><p class="muted" style="margin-top:0" data-i18n="shared_hint">同桌的人掃同一個 QR 就能一起點；用餐完再到櫃檯結帳，可付全桌、各付自己的，或平均分攤。</p><form id="name-form" class="row" style="margin:0"><input class="f" id="name-in" data-i18n-placeholder="name_placeholder" placeholder="你的稱呼（讓同桌知道誰點了什麼）" maxlength="20" required style="flex:1;min-width:0"><button class="btn y" type="submit" data-i18n="name_gate_submit">查看菜單</button></form></div>
+    <div id="order-content" class="hidden">
+      <div class="card" id="orders-card"></div>
+      <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px"><span class="muted"><span data-i18n="ordering_as">點餐稱呼</span>：<b id="name-display"></b></span><button class="btn ghost sm" type="button" id="name-edit-btn" data-i18n="name_edit">更改</button></div>
+      <div class="menu-status" id="menu-shift"><div><b class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-clock"></use></svg><span data-i18n="current_menu">目前菜單</span></b><small id="menu-hours">依台北時間顯示目前供應品項</small></div></div>
+      <div id="menu"></div>
+      <p class="notice" id="alcohol-notice" data-i18n="alcohol" hidden>未滿十八歲禁止飲酒。禁止酒駕。</p>
+    </div>
   </section>
 </main>
 
@@ -152,9 +156,20 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   var api=function(path,opt){opt=opt||{};return fetch('/api'+path,{method:opt.method||'GET',headers:opt.body?{'Content-Type':'application/json'}:{},body:opt.body?JSON.stringify(opt.body):undefined}).then(function(r){return r.json().catch(function(){return {};}).then(function(d){if(!r.ok){var e=Error(d.error||('伺服器錯誤 '+r.status));e.status=r.status;throw e;}return d;});});};
   var fail=function(msg){$('#boot').innerHTML='<p class="err">'+esc(msg)+'</p>';$('#boot').classList.remove('hidden');};
 
+  // 先輸入稱呼才看得到菜單：掃碼進來先過這關，點餐那一刻就不用再補填
   $('#name-in').value=NAME;
-  $('#name-form').onsubmit=function(e){e.preventDefault();NAME=$('#name-in').value.trim().slice(0,20);try{localStorage.setItem('order_name',NAME);}catch(x){}$('#name-in').blur();};
-  var needName=function(){if(NAME)return true;$('#name-in').focus();$('#name-in').reportValidity();return false;};
+  function showGate(){$('#name-gate').classList.remove('hidden');$('#name-in').value=NAME;$('#name-in').focus();}
+  function hideGate(){$('#name-gate').classList.add('hidden');}
+  $('#name-form').onsubmit=function(e){
+    e.preventDefault();
+    var v=$('#name-in').value.trim().slice(0,20);if(!v)return;
+    NAME=v;try{localStorage.setItem('order_name',NAME);}catch(x){}
+    $('#name-in').blur();hideGate();
+    $('#order-content').classList.remove('hidden');$('#name-display').textContent=NAME;
+    if(S)renderState();
+  };
+  $('#name-edit-btn').onclick=function(){showGate();};
+  var needName=function(){if(NAME)return true;showGate();return false;};
 
   function renderMenu(){
     VENUE=MenuLib.activeVenue();
@@ -207,7 +222,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   function renderState(){
     $('#table-no').textContent=tr('table')+' '+S.table;
     var u=unpaid(),p=pending();
-    $('#bar').hidden=false;$('#bar-total').textContent=money(sum(u));$('#bar-count').textContent=p.length?tr('pending_items',{count:p.length}):u.length?tr('unpaid_items',{count:u.length}):tr('empty');
+    $('#bar').hidden=!NAME;$('#bar-total').textContent=money(sum(u));$('#bar-count').textContent=p.length?tr('pending_items',{count:p.length}):u.length?tr('unpaid_items',{count:u.length}):tr('empty');
     $('#open-pay').disabled=!u.length;$('#cart-pay').disabled=!u.length;
     // 有還沒送出的品項：主鍵變「送出點餐」，結帳退為白底（送出去才會進廚房）
     $('#bar').classList.toggle('has-place',p.length>0);$('#bar-place').hidden=!p.length;$('#cart-place').hidden=!p.length;
@@ -236,7 +251,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     var p=e.target.closest('[data-push]');if(p){subscribePush(p.dataset.push,p);return;}
     if(e.target.closest('[data-close]')||e.target.classList.contains('sheet'))closeSheets();   // 按「返回」或點遮罩外側都關閉
   });
-  $('#detail-add').onclick=function(){if(!CURRENT_ITEM)return;NAME=$('#name-in').value.trim().slice(0,20)||NAME;if(!needName())return;try{localStorage.setItem('order_name',NAME);}catch(x){}var btn=this;btn.disabled=true;api('/orders/'+S.id+'/items',{method:'POST',body:{item_id:CURRENT_ITEM.id,qty:CURRENT_QTY,by:NAME,guest:GUEST,note:optionNote()}}).then(function(s){S=s;renderState();btn.textContent='✓ '+tr('added');setTimeout(function(){closeSheets();btn.textContent=tr('add_to_cart');},450);}).catch(function(err){toast(err.message);if(/已結束/.test(err.message))load();if(err.status===423){PAUSED=err.message;renderMenu();}if(/售完|下架/.test(err.message))loadMenuDoc();}).then(function(){btn.disabled=!!PAUSED;});};
+  $('#detail-add').onclick=function(){if(!CURRENT_ITEM)return;if(!needName())return;var btn=this;btn.disabled=true;api('/orders/'+S.id+'/items',{method:'POST',body:{item_id:CURRENT_ITEM.id,qty:CURRENT_QTY,by:NAME,guest:GUEST,note:optionNote()}}).then(function(s){S=s;renderState();btn.textContent='✓ '+tr('added');setTimeout(function(){closeSheets();btn.textContent=tr('add_to_cart');},450);}).catch(function(err){toast(err.message);if(/已結束/.test(err.message))load();if(err.status===423){PAUSED=err.message;renderMenu();}if(/售完|下架/.test(err.message))loadMenuDoc();}).then(function(){btn.disabled=!!PAUSED;});};
   $('#open-cart').onclick=function(){openSheet('#cart');};
   $('#open-pay').onclick=$('#cart-pay').onclick=function(){$('#cart').classList.remove('on');openPay();};
   // 送出點餐：整桌還沒送的一起進出餐看板（不結帳）；送出後購物車標「已送出」、不能再自己刪
@@ -287,6 +302,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     CFG=r[0];var content=(r[1]&&r[1].content)||{};PAUSED=(r[3]&&r[3].paused)||null;
     MENU_DOC=MenuLib.parseMenuDoc(content.menu||'');MENU_DOC.__raw=content.menu||'';
     $('#boot').classList.add('hidden');$('#app').classList.remove('hidden');
+    if(NAME){hideGate();$('#order-content').classList.remove('hidden');$('#name-display').textContent=NAME;}else{showGate();}
     renderMenu();renderState();poll();
     setInterval(function(){if(MenuLib.activeVenue()!==VENUE)renderMenu();},60000); // 17:00／03:00／08:00 換品牌
     setInterval(loadPause,30000);setInterval(loadMenuDoc,60000);   // 暫停點餐、估清／特餐隨店家設定更新
