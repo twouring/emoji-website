@@ -108,6 +108,7 @@
   <nav class="p-nav" id="p-nav" aria-label="功能"></nav>
   <div class="p-tools">
     <button type="button" class="p-net" id="p-net" hidden aria-live="polite">離線</button>
+    <button type="button" id="p-operator" aria-label="操作人員"></button>
     <button type="button" id="p-refresh" aria-label="重新整理">↻</button>
     <button type="button" id="p-logout" hidden>登出</button>
   </div>
@@ -228,6 +229,8 @@ function render(){
   document.getElementById('p-logout').hidden = false;
   app.innerHTML = installHint() + TABS.map(t => `<section class="p-tab" data-panel="${t.id}">${PANEL[t.id]()}</section>`).join('');
   bindInstall();
+  document.getElementById('p-operator').onclick = () => openOperatorPad(() => {});
+  paintOperatorBtn();
   paintNav(); activate();
 }
 

@@ -135,7 +135,7 @@ function paintPos(){
   const sessions=d.sessions;
   if(POS_TABLE&&!sessions.find(s=>s.table===POS_TABLE))POS_TABLE='';
   const cur=sessions.find(s=>s.table===POS_TABLE)||null;
-  const grid=sessions.map(s=>{const [cls,label]=TABLE_STATE[s.state]||TABLE_STATE.open;return `<button type="button" class="pos-table ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''}" data-pos-table="${esc(s.table)}"><b>${s.takeout?'外帶 ':''}${esc(s.table)}</b><span class="pill ${cls}">${label}</span><small>${s.unpaid?`未結 NT$${num(s.unpaid_amount)}`:s.state==='empty'?'還沒點餐':'已結清'}</small>${s.mixed?'<small class="pill pill-bad">混桌</small>':''}</button>`;}).join('')||'<p class="a-empty">目前沒有使用中的桌。客人掃桌上 QR、或按上面「開桌」「外帶」後會出現在這裡。</p>';
+  const grid=sessions.map(s=>{const [cls,label]=TABLE_STATE[s.state]||TABLE_STATE.open;return `<button type="button" class="pos-table ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''}" data-pos-table="${esc(s.table)}"><b>${s.takeout?'外帶 ':''}${esc(s.table)}</b><span class="pill ${cls}">${label}</span><small>${s.unpaid?`未結 NT$${num(s.unpaid_amount)}`:s.state==='empty'?'還沒點餐':'已結清'}${s.operator?' · 👤 '+esc(s.operator):''}</small>${s.mixed?'<small class="pill pill-bad">混桌</small>':''}</button>`;}).join('')||'<p class="a-empty">目前沒有使用中的桌。客人掃桌上 QR、或按上面「開桌」「外帶」後會出現在這裡。</p>';
   // 櫃檯開桌／外帶：客人沒掃 QR 也能從這裡開始點
   const opener=`<div class="pos-open"><input id="pos-open-table" placeholder="桌號，例：A3" maxlength="8" autocapitalize="characters" autocomplete="off" aria-label="桌號"><button type="button" class="btn btn--ghost" id="pos-open">開桌</button><button type="button" class="btn btn--ghost" id="pos-takeout">＋ 外帶</button></div>`;
   let panel='',picked=[],subtotal=0,total=0;
@@ -148,7 +148,7 @@ function paintPos(){
     const catChips=`<div class="pos-cats" role="tablist" aria-label="分類"><button type="button" data-cat="" aria-pressed="${!POS_CAT}">全部</button>${cats.map(c=>`<button type="button" data-cat="${esc(c)}" aria-pressed="${c===POS_CAT}">${esc(MenuLib.CAT_LABEL[c]?.zh||c)}</button>`).join('')}</div>`;
     const tiles=menuItems.filter(it=>!POS_CAT||it.cat===POS_CAT).map(it=>{const off=MenuLib.soldOutToday(it);return `<button type="button" class="pos-item ${off?'off':''}" data-add="${esc(it.id)}"><b>${esc(it.zh)}</b><span>NT$${num(it.price)}${SCOPE?'':' · '+esc(BRAND_LABEL[it.venue]||it.venue)}</span>${off?'<small>今日估清</small>':''}</button>`;}).join('')||'<p class="a-empty">沒有已發布的菜單項目</p>';
     const live=d.orders.filter(o=>o.session_id===cur.id);
-    const liveRows=live.map(o=>`<tr class="${o.status==='void'?'resv-off':''}"><td class="ops-item"><b>${o.items.map(l=>`${esc(l.zh)} ×${l.qty}`).join('、')}</b>${o.payer?.discount?` <span class="hint" style="margin:0">折扣 ${esc(discountText(o.payer.discount))}</span>`:''}<br><span class="hint a-mono" style="margin:0" title="${esc(applicationTime(o.paid_at))}">${esc(clockText(o.paid_at))}</span> ${o.status==='void'?`<span class="pill pill-bad">已作廢</span> <span class="hint" style="margin:0">${esc(o.void_reason||'')}</span>`:`<span class="pill ${o.status==='done'?'pill-ok':'pill-wait'}">${esc(ORDER_STATE[o.status]||o.status)}</span>`}</td><td class="ops-pay">${esc(payText(o))}${o.payer?.member?' · 會員價':''}<br>${invoiceHtml(o)}</td><td class="num">${num(o.amount)}</td><td class="ops-actions">${orderActions(o)}</td></tr>`).join('');
+    const liveRows=live.map(o=>`<tr class="${o.status==='void'?'resv-off':''}"><td class="ops-item"><b>${o.items.map(l=>`${esc(l.zh)} ×${l.qty}`).join('、')}</b>${o.payer?.discount?` <span class="hint" style="margin:0">折扣 ${esc(discountText(o.payer.discount))}</span>`:''}<br><span class="hint a-mono" style="margin:0" title="${esc(applicationTime(o.paid_at))}">${esc(clockText(o.paid_at))}</span> ${o.status==='void'?`<span class="pill pill-bad">已作廢</span> <span class="hint" style="margin:0">${esc(o.void_reason||'')}</span>`:`<span class="pill ${o.status==='done'?'pill-ok':'pill-wait'}">${esc(ORDER_STATE[o.status]||o.status)}</span>`}</td><td class="ops-pay">${esc(payText(o))}${o.payer?.member?' · 會員價':''}${o.payer?.operator_name?' · 👤 '+esc(o.payer.operator_name):''}<br>${invoiceHtml(o)}</td><td class="num">${num(o.amount)}</td><td class="ops-actions">${orderActions(o)}</td></tr>`).join('');
     const cash=POS_METHOD==='cash';
     const received=POS_RECEIVED===''?null:Number(POS_RECEIVED);
     const change=received!=null&&received>=total?received-total:null;
@@ -182,7 +182,8 @@ function paintPos(){
   const reload=()=>{host.dataset.sig='';return loadPos();};
   bindRegisterBar(host,reload);
   host.querySelectorAll('[data-pos-table]').forEach(b=>b.onclick=()=>{POS_TABLE=b.dataset.posTable;POS_PICK=null;POS_DISCOUNT=null;POS_DISC_OPEN=false;POS_RECEIVED='';paintPos();});
-  const openSession=body=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body}),out=>out.takeout?`外帶單 ${out.table} 已開，請加入品項`:out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,out=>{POS_TABLE=out.table;POS_PICK=null;POS_DISCOUNT=null;POS_RECEIVED='';return reload();});
+  // 開桌／外帶：有操作人員就順手帶上（記這桌是誰開的），沒有也不擋——只有結帳要求一定要認人
+  const openSession=body=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{...body,operator_id:OPERATOR?.id}}),out=>out.takeout?`外帶單 ${out.table} 已開，請加入品項`:out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,out=>{POS_TABLE=out.table;POS_PICK=null;POS_DISCOUNT=null;POS_RECEIVED='';return reload();});
   host.querySelector('#pos-open').onclick=()=>{const t=host.querySelector('#pos-open-table').value.trim().toUpperCase();if(!t){toast('請先輸入桌號');host.querySelector('#pos-open-table').focus();return;}openSession({table_no:t});};
   host.querySelector('#pos-open-table').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();host.querySelector('#pos-open').click();}};
   host.querySelector('#pos-takeout').onclick=()=>openSession({takeout:true});
@@ -218,7 +219,8 @@ function paintPos(){
     const rec=method==='cash'&&POS_RECEIVED!==''?Number(POS_RECEIVED):undefined;
     if(rec!==undefined&&rec<total){toast('實收不能少於應收');return;}
     if(!confirm(`向${cur.takeout?'外帶':'桌號'} ${cur.table} 收 NT$${num(total)}（${PAY_LABEL[method]}${POS_MEMBER?'，會員價':''}${POS_DISCOUNT?'，折扣 '+discountText(POS_DISCOUNT):''}${POS_INVOICE.mode?'，'+INV_LABEL[POS_INVOICE.mode]+'發票':''}）${rec!==undefined?`\n實收 ${num(rec)}，找零 ${num(rec-total)}`:''}？`))return;
-    opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/checkout',{method:'POST',body:{method,member:POS_MEMBER,lines:POS_PICK?[...POS_PICK]:[],invoice:invoiceBody(host),discount:POS_DISCOUNT||undefined,received:rec}}),out=>`已收款 NT$${num(out.amount)}${out.change?`，找零 NT$${num(out.change)}`:''}${out.invoice?.status==='issued'?`，發票 ${out.invoice.number||'已開立'}`:out.invoice?.status==='failed'?`，發票開立失敗可補開` : ''}${out.remaining?`，這桌還有 NT$${num(out.remaining)} 未結`:'，這桌已結清'}${out.warning?`。${out.warning}`:''}`,()=>{POS_PICK=null;POS_MEMBER=false;POS_DISCOUNT=null;POS_RECEIVED='';POS_INVOICE.mode='';return reload();});
+    // 收款前一定要先認人（沒選過操作人員會先跳鍵盤），讓每一筆單都記得是誰經手
+    ensureOperator(()=>opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/checkout',{method:'POST',body:{method,member:POS_MEMBER,lines:POS_PICK?[...POS_PICK]:[],invoice:invoiceBody(host),discount:POS_DISCOUNT||undefined,received:rec,operator_id:OPERATOR?.id}}),out=>`已收款 NT$${num(out.amount)}${out.change?`，找零 NT$${num(out.change)}`:''}${out.invoice?.status==='issued'?`，發票 ${out.invoice.number||'已開立'}`:out.invoice?.status==='failed'?`，發票開立失敗可補開` : ''}${out.remaining?`，這桌還有 NT$${num(out.remaining)} 未結`:'，這桌已結清'}${out.warning?`。${out.warning}`:''}`,()=>{POS_PICK=null;POS_MEMBER=false;POS_DISCOUNT=null;POS_RECEIVED='';POS_INVOICE.mode='';return reload();}));
   };
   const mv=host.querySelector('#pos-move');if(mv)mv.onclick=()=>{const t=prompt(`把 ${cur.table} 換到哪一桌？（目標桌已開著會併桌）`);if(t===null)return;const table=t.trim().toUpperCase();if(!table)return;
     opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/move',{method:'POST',body:{table_no:table}}),out=>out.merged?`已併到 ${out.table}`:`已換到 ${out.table}`,out=>{POS_TABLE=out.table;POS_PICK=null;return reload();});};
@@ -241,7 +243,7 @@ async function loadHistory(){
   if(!host.dataset.init){host.dataset.init='1';host.innerHTML='<h2>查單</h2><p class="hint">載入中…</p>';}
   let d;try{d=await api(`/admin/orders/history?day=${encodeURIComponent(HIST_DAY)}&q=${encodeURIComponent(HIST_Q)}`+(SCOPE?'&venue='+SCOPE:''));}catch(e){host.innerHTML=`<h2>查單</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`;return;}
   const today=MenuLib.businessDay();
-  const rows=d.orders.map(o=>`<tr class="${o.status==='void'?'resv-off':''}"><td class="hist-who"><b>${isTakeoutNo(o.table_no)?'<small>外帶</small> ':''}${esc(o.table_no)}</b><br><span class="hint a-mono" style="margin:0" title="${esc(applicationTime(o.paid_at))}">${esc(clockText(o.paid_at))}</span></td><td class="ops-item">${o.items.map(l=>`${esc(l.zh)} ×${l.qty}${l.comp_reason?'（贈）':''}`).join('、')}${o.payer?.discount?`<br><span class="hint" style="margin:0">折扣 ${esc(discountText(o.payer.discount))}</span>`:''}</td><td class="num">${num(o.amount)}</td><td class="ops-pay">${esc(payText(o))}${o.payer?.member?' · 會員價':''}<br>${invoiceHtml(o)}</td><td>${o.status==='void'?`<span class="pill pill-bad">已作廢</span><br><span class="hint" style="margin:0">${esc(o.void_reason||'')}</span>`:`<span class="pill ${o.status==='done'?'pill-ok':'pill-wait'}">${esc(ORDER_STATE[o.status]||o.status)}</span>`}</td><td class="ops-actions">${orderActions(o,{allowVoid:MenuLib.businessDay(o.paid_at)===today})}</td></tr>`).join('')||'<tr><td colspan="6" class="a-empty">這天沒有符合的單</td></tr>';
+  const rows=d.orders.map(o=>`<tr class="${o.status==='void'?'resv-off':''}"><td class="hist-who"><b>${isTakeoutNo(o.table_no)?'<small>外帶</small> ':''}${esc(o.table_no)}</b><br><span class="hint a-mono" style="margin:0" title="${esc(applicationTime(o.paid_at))}">${esc(clockText(o.paid_at))}</span></td><td class="ops-item">${o.items.map(l=>`${esc(l.zh)} ×${l.qty}${l.comp_reason?'（贈）':''}`).join('、')}${o.payer?.discount?`<br><span class="hint" style="margin:0">折扣 ${esc(discountText(o.payer.discount))}</span>`:''}</td><td class="num">${num(o.amount)}</td><td class="ops-pay">${esc(payText(o))}${o.payer?.member?' · 會員價':''}${o.payer?.operator_name?' · 👤 '+esc(o.payer.operator_name):''}<br>${invoiceHtml(o)}</td><td>${o.status==='void'?`<span class="pill pill-bad">已作廢</span><br><span class="hint" style="margin:0">${esc(o.void_reason||'')}</span>`:`<span class="pill ${o.status==='done'?'pill-ok':'pill-wait'}">${esc(ORDER_STATE[o.status]||o.status)}</span>`}</td><td class="ops-actions">${orderActions(o,{allowVoid:MenuLib.businessDay(o.paid_at)===today})}</td></tr>`).join('')||'<tr><td colspan="6" class="a-empty">這天沒有符合的單</td></tr>';
   host.innerHTML=`<h2>查單</h2>
     <p class="hint">找某一筆已結帳的單：重印收據、補開發票、或作廢退款（只能作廢當個營業日的單，作廢後品項退回該桌未結帳）。</p>
     <div class="a-toolbar"><label>營業日 <input type="date" id="hist-day" value="${esc(d.day)}"></label><button class="btn btn--ghost btn-sm" id="hist-today">今天</button><input id="hist-q" placeholder="桌號／金額／發票號碼" value="${esc(HIST_Q)}" style="min-width:200px" aria-label="搜尋"><button class="btn btn--solid btn-sm" id="hist-go">搜尋</button><span class="hint" style="margin:0 0 0 auto">${num(d.count)} 單</span></div>
@@ -502,6 +504,43 @@ function paintClock(host,working){
     const pin=CLOCK_PIN;CLOCK_PIN='';host.querySelectorAll('#clock-in,#clock-out').forEach(b=>b.disabled=true);
     api('/admin/attendance/punch',{method:'POST',body:{pin,type,venue:CLOCK_VENUE}}).then(out=>{CLOCK_MSG={ok:true,text:out.message};},e=>{CLOCK_MSG={ok:false,text:e.message};}).then(loadClock);};
   host.querySelector('#clock-in').onclick=()=>punch('in');host.querySelector('#clock-out').onclick=()=>punch('out');
+}
+
+/* ===== 操作人員：疊在品牌帳號登入之上的識別——沿用排班打卡同一組 4 位數識別碼認人，結帳／開桌時記下是誰經手。
+ * 不是帳密登入：平板仍用品牌管理員帳號登入 token；這組識別碼只存「現在是誰在操作」的名字，不是憑證。 */
+let OPERATOR=null; try{OPERATOR=JSON.parse(localStorage.getItem('tth_pos_operator')||'null');}catch(e){}
+let OP_PIN='',OP_MSG=null,OP_BUSY=false;
+function operatorLabel(){ return OPERATOR?`👤 ${OPERATOR.name}`:'👤 選擇人員'; }
+function paintOperatorBtn(){ const b=document.getElementById('p-operator'); if(b)b.textContent=operatorLabel(); }
+function clearOperator(){ OPERATOR=null; try{localStorage.removeItem('tth_pos_operator');}catch(e){} paintOperatorBtn(); }
+/* 有操作人員就直接做；沒有就先跳鍵盤認人，認完再做（結帳前用這個包住，確保每一筆單都有人） */
+function ensureOperator(cb){ if(OPERATOR)return cb(); openOperatorPad(cb); }
+function openOperatorPad(onDone){
+  OP_PIN=''; OP_MSG=null;
+  const ov=document.createElement('div'); ov.className='op-overlay';
+  document.body.appendChild(ov);
+  const close=()=>{ if(ov.parentNode)ov.parentNode.removeChild(ov); };
+  const paint=()=>{
+    const dots=[0,1,2,3].map(i=>`<i class="${i<OP_PIN.length?'on':''}"></i>`).join('');
+    const keys=['1','2','3','4','5','6','7','8','9','⌫','0','清除'].map(k=>`<button type="button" class="clock-key" data-key="${esc(k)}">${esc(k)}</button>`).join('');
+    const msg=OP_MSG?`<div class="clock-msg ${OP_MSG.ok?'ok':'bad'}" role="status">${esc(OP_MSG.text)}</div>`:'';
+    ov.innerHTML=`<div class="op-card" role="dialog" aria-label="操作人員">
+      <h2>操作人員</h2>
+      <p class="hint">${OPERATOR?`目前：<b>${esc(OPERATOR.name)}</b>，輸入新的 4 位數識別碼可以切換。`:'輸入你的 4 位數識別碼，這筆單會記下是你操作的。'}</p>
+      <div class="clock-pad"><div class="clock-pin" aria-label="識別碼">${dots}</div><div class="clock-keys">${keys}</div></div>
+      ${msg}
+      <div class="op-card-actions">${OPERATOR?'<button type="button" class="btn btn--ghost" id="op-clear">清除</button>':''}<button type="button" class="btn btn--ghost" id="op-cancel">取消</button></div>
+    </div>`;
+    ov.querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>{ if(OP_BUSY)return; const k=b.dataset.key; if(k==='⌫')OP_PIN=OP_PIN.slice(0,-1); else if(k==='清除')OP_PIN=''; else if(OP_PIN.length<4)OP_PIN+=k; OP_MSG=null; paint(); if(OP_PIN.length===4)submit(); });
+    const clearBtn=ov.querySelector('#op-clear'); if(clearBtn)clearBtn.onclick=()=>{ clearOperator(); close(); };
+    ov.querySelector('#op-cancel').onclick=close;
+  };
+  const submit=async()=>{
+    const pin=OP_PIN; OP_BUSY=true;
+    try{ const out=await api('/admin/staff/verify',{method:'POST',body:{pin}}); OPERATOR={id:out.id,name:out.name}; try{localStorage.setItem('tth_pos_operator',JSON.stringify(OPERATOR));}catch(e){} paintOperatorBtn(); close(); onDone&&onDone(); }
+    catch(e){ OP_PIN=''; OP_MSG={ok:false,text:e.message}; OP_BUSY=false; paint(); }
+  };
+  paint();
 }
 
 /* 排班表：週一起七欄，每欄列出誰幾點到幾點；點某天「＋ 排班」展開表單。host 由 POS 分頁或後台傳入 */

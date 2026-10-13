@@ -730,6 +730,8 @@ async function migrate() {
     id TEXT PRIMARY KEY, table_no TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', items JSONB NOT NULL DEFAULT '[]',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE INDEX IF NOT EXISTS table_sessions_open_idx ON table_sessions(table_no) WHERE status='open'`);
+  // 操作人員（排班打卡用的 4 位數識別碼，疊在品牌帳號之上）：開桌記下是誰開的
+  await q(`ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS opened_by_staff_id TEXT, ADD COLUMN IF NOT EXISTS opened_by_staff_name TEXT`);
   await q(`CREATE TABLE IF NOT EXISTS table_orders (
     id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES table_sessions(id), table_no TEXT NOT NULL, items JSONB NOT NULL,
     amount INT NOT NULL, payer JSONB NOT NULL DEFAULT '{}', tappay JSONB NOT NULL DEFAULT '{}', invoice JSONB NOT NULL DEFAULT '{}', status TEXT NOT NULL DEFAULT 'paid',
@@ -4750,11 +4752,11 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const orders=(await q(all?"SELECT * FROM table_orders WHERE paid_at>now()-interval '1 day' ORDER BY paid_at DESC":"SELECT * FROM table_orders WHERE status IN ('paid','ready') ORDER BY paid_at")).rows.filter(o=>tableOrders.orderOwnedByVenues(o,venues)).map(o=>({...o,push:undefined,push_count:o.push.length,stations:tableOrders.splitByStation(o)}));
   // 桌況：每桌未付品項明細（櫃檯結帳用）＋ 狀態（空桌／點餐中／準備中／可取餐）
   const live=(await q("SELECT id,session_id,status FROM table_orders WHERE status IN ('paid','ready')")).rows;
-  let rows=(await q("SELECT id,table_no,items,updated_at FROM table_sessions WHERE status='open' ORDER BY table_no")).rows;
+  let rows=(await q("SELECT id,table_no,items,updated_at,opened_by_staff_name FROM table_sessions WHERE status='open' ORDER BY table_no")).rows;
   // 外帶單（W01–W99）結完帳且取餐完成就自動收掉，號碼釋出給下一位；內用桌留「待清桌」給人員確認客人離開
   const doneTakeout=rows.filter(s=>tableOrders.isTakeout(s.table_no)&&tableOrders.takeoutFinished(s,live)).map(s=>s.id);
   if(doneTakeout.length){await q("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=ANY($1) AND status='open'",[doneTakeout]);rows=rows.filter(s=>!doneTakeout.includes(s.id));}
-  const sessions=rows.filter(s=>tableOrders.orderVisibleToVenues(s,venues)).map(s=>{const lines=tableOrders.unpaid(s.items).filter(line=>tableOrders.itemInVenues(line,venues)).map(({guest,...l})=>l);return{id:s.id,table:s.table_no,takeout:tableOrders.isTakeout(s.table_no),unpaid:lines.length,unpaid_amount:tableOrders.sum(lines),lines,mixed:!tableOrders.sessionClosableByVenues(s,venues),state:tableOrders.tableStatus(s,live),updated_at:s.updated_at};});
+  const sessions=rows.filter(s=>tableOrders.orderVisibleToVenues(s,venues)).map(s=>{const lines=tableOrders.unpaid(s.items).filter(line=>tableOrders.itemInVenues(line,venues)).map(({guest,...l})=>l);return{id:s.id,table:s.table_no,takeout:tableOrders.isTakeout(s.table_no),unpaid:lines.length,unpaid_amount:tableOrders.sum(lines),lines,mixed:!tableOrders.sessionClosableByVenues(s,venues),state:tableOrders.tableStatus(s,live),updated_at:s.updated_at,operator:s.opened_by_staff_name||null};});
   // 桌邊送單（未結帳、未出餐）：與已結帳的出餐單一起上看板；子帳號只看整張都是自己品牌的
   const tickets=rows.flatMap(s=>tableOrders.ticketsOf(s)).filter(t=>tableOrders.orderOwnedByVenues(t,venues)).map(t=>({...t,items:t.items.map(({guest,...l})=>l)}));
   const pause=tableOrders.parsePause(await contentValue('ordering_pause'));
@@ -4766,12 +4768,13 @@ app.post('/api/admin/orders/sessions',auth,adminOnly,requireDb,wrap(async(req,re
   let table=takeout?'':tableOrders.cleanText(req.body?.table_no,8).toUpperCase();
   if(!takeout&&!tableOrders.TABLE_RE.test(table))return res.status(400).json({error:'桌號只能用英數字與 -，最長 8 字。'});
   if(!takeout&&tableOrders.isTakeout(table))return res.status(400).json({error:'W01–W99 保留給外帶單，請按「外帶」開單。'});
+  const operator=await resolveOperator(req,req.body?.operator_id);
   const client=await pool.connect();
   try{await client.query('BEGIN');await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,['table:'+(table||'takeout')]);
     if(takeout){const used=new Set((await client.query("SELECT table_no FROM table_sessions WHERE status='open' AND table_no ~ '^W[0-9]{2}$'")).rows.map(r=>r.table_no));table=tableOrders.nextTakeoutTable(used);if(!table){await client.query('ROLLBACK');return res.status(409).json({error:'外帶單號已用完（W01–W99），請先清掉已完成的外帶單。'});}}
     let s=(await client.query("SELECT id,table_no FROM table_sessions WHERE table_no=$1 AND status='open' ORDER BY created_at DESC LIMIT 1",[table])).rows[0],created=false;
-    if(!s){s=(await client.query('INSERT INTO table_sessions(id,table_no) VALUES($1,$2) RETURNING id,table_no',[uid('ts_'),table])).rows[0];created=true;}
-    await client.query('COMMIT');res.status(created?201:200).json({ok:true,id:s.id,table:s.table_no,created,takeout});
+    if(!s){s=(await client.query('INSERT INTO table_sessions(id,table_no,opened_by_staff_id,opened_by_staff_name) VALUES($1,$2,$3,$4) RETURNING id,table_no',[uid('ts_'),table,operator?.id||null,operator?.name||null])).rows[0];created=true;}
+    await client.query('COMMIT');res.status(created?201:200).json({ok:true,id:s.id,table:s.table_no,created,takeout,operator:operator||undefined});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 async function issueEzpayForOrder(order, invoice) {
@@ -4843,11 +4846,12 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
   const venues=tableOrders.visibleVenues(req.auth.brands);
   const menuAll=tableOrders.menuIndex(await contentValue('menu'),undefined,{all:true});
+  const operator=await resolveOperator(req,req.body?.operator_id);
   const client=await pool.connect();
   try{await client.query('BEGIN');
     const s=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
     if(!s||s.status!=='open'){await client.query('ROLLBACK');return res.status(s?409:404).json({error:s?'這桌已結束。':'找不到這桌。'});}
-    let out,invoice,regWarn='';try{out=tableOrders.posCheckout(s.items,{...req.body,staff:req.auth.email||req.auth.sub||''},menuAll);invoice=ezpayInvoice.invoiceForm(req.body?.invoice||{});
+    let out,invoice,regWarn='';try{out=tableOrders.posCheckout(s.items,{...req.body,staff:req.auth.email||req.auth.sub||'',operator},menuAll);invoice=ezpayInvoice.invoiceForm(req.body?.invoice||{});
       // 開關帳：品項所屬品牌今天的帳要開著（關帳後不能再結；沒開帳時超管放行但回警告，子帳號擋）
       regWarn=posRegister.checkoutAllowed(out.lines,await registersOpenMap(client,tableOrders.MenuLib.businessDay()),{strict:!!venues}).warning;
     }catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
@@ -5040,6 +5044,23 @@ const staffRow=(r,{pin=false}={})=>r&&{id:r.id,name:r.name,venues:r.venues?r.ven
 const shiftRow=r=>({id:r.id,staff_id:r.staff_id,name:r.name,day:r.day instanceof Date?r.day.toISOString().slice(0,10):String(r.day).slice(0,10),venue:r.venue,start_time:r.start_time,end_time:r.end_time,minutes:posStaff.shiftMinutes(r.start_time,r.end_time),note:r.note||''});
 const attRow=r=>({id:r.id,staff_id:r.staff_id,name:r.name,day:r.day instanceof Date?r.day.toISOString().slice(0,10):String(r.day).slice(0,10),venue:r.venue,shift_id:r.shift_id||null,shift_start:r.shift_start||null,shift_end:r.shift_end||null,
   clock_in:new Date(r.clock_in).toISOString(),clock_out:r.clock_out?new Date(r.clock_out).toISOString():null,minutes:r.clock_out?(r.minutes!=null?Number(r.minutes):posStaff.minutesBetween(r.clock_in,r.clock_out)):null,late_minutes:Number(r.late_minutes)||0,early_minutes:Number(r.early_minutes)||0,note:r.note||'',edited_by:r.edited_by||null});
+/* 操作人員：body 給的 staff_id 存在、在職、子帳號看得到才算數；查不到就當沒給（不擋原動作，只是少了歸屬） */
+async function resolveOperator(req, id) {
+  if (!id) return null;
+  const venues = tableOrders.visibleVenues(req.auth.brands);
+  const staff = staffRow((await q(`SELECT ${STAFF_SEL} FROM pos_staff WHERE id=$1 AND active`, [String(id)])).rows[0]);
+  if (!staff || !posStaff.staffVisible(staff, venues)) return null;
+  return { id: staff.id, name: staff.name };
+}
+/* 認人（不是登入）：平板已用品牌帳號登入，這裡只是疊一層「現在是誰在操作」，供結帳／開桌記錄經手人。防猜碼：每台每分鐘 12 次，同打卡 */
+app.post('/api/admin/staff/verify',rateLimit({max:12}),auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const pin=String(req.body?.pin||'').trim();
+  if(!/^\d{4}$/.test(pin))return res.status(400).json({error:'請輸入 4 位數識別碼。'});
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const staff=staffRow((await q(`SELECT ${STAFF_SEL} FROM pos_staff WHERE pin=$1 AND active`,[pin])).rows[0]);
+  if(!staff||!posStaff.staffVisible(staff,venues))return res.status(404).json({error:'識別碼不正確，請再試一次。'});
+  res.json({ok:true,id:staff.id,name:staff.name});
+}));
 /* 員工名單：子帳號只看自己店別（店別為空＝兩店都看得到）；識別碼只有超管／言文字管理員看得到 */
 app.get('/api/admin/staff',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));

@@ -164,6 +164,11 @@ tr.lp-refund td{color:#b42318}
 .clock-go{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.clock-go .btn{min-height:60px;font-size:1.2rem;margin:0}
 .clock-msg{max-width:560px;margin:16px auto 0;padding:14px 16px;border:1px solid;border-radius:12px;font-size:1.15rem;text-align:center}.clock-msg.ok{background:#eaf7ec;border-color:#bfe3c6;color:#1b5e2a}.clock-msg.bad{background:#fff5f3;border-color:#f3c6c0;color:#b42318}
 .clock-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}.clock-list li{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}.clock-list li span{color:var(--muted);font-size:1rem;font-variant-numeric:tabular-nums}
+/* 操作人員：全螢幕遮罩＋卡片，疊在整個 App 上面認人（不是登入帳密），結帳前自動跳出 */
+.op-overlay{position:fixed;inset:0;background:rgba(20,18,16,.55);display:grid;place-items:center;z-index:60;padding:16px}
+.op-card{max-width:380px;width:100%;background:var(--card);border-radius:16px;padding:24px 20px;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+.op-card h2{margin:0 0 .25rem;font-size:18px;font-weight:600}
+.op-card-actions{display:flex;gap:10px;justify-content:center;margin-top:14px}
 /* 排班：週一起七欄（手機自動折成多列）；在咖啡琥珀邊、三點水藍邊 */
 .shift-week{min-width:14em;text-align:center;font-variant-numeric:tabular-nums}
 .shift-week-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;margin-top:12px}@media(max-width:900px){.shift-week-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}}

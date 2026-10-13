@@ -259,7 +259,7 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 補開 ezPay 電子發票。用於結帳時 ezPay 暫時失敗或當下未設定憑證的單。body 可帶 `{ invoice }`，未帶時使用訂單內已保存的發票要求；`invoice` 格式同櫃檯結帳的 `invoice` 欄位。作廢單不能補開；已開立則直接回原發票資料。回 `{ ok, invoice }`。
 
 ### POST /api/admin/orders/sessions
-櫃檯開桌／外帶：客人沒掃桌上 QR（走進來直接在櫃檯點）也能開一桌。body `{ table_no }` 開內用桌（英數字與 -，8 字內；該桌已開著就直接回那一桌，`created:false`），或 `{ takeout: true }` 開外帶單（自動取 `W01`–`W99` 最小空號；用完回 409）。`W01`–`W99` 保留給外帶，不能當內用桌號。回 `{ ok, id, table, created, takeout }`（新開 201）。外帶單結完帳且取餐完成後，由 `GET /api/admin/orders` 自動收掉並釋出號碼；內用桌仍保留「待清桌」給人員確認客人離開。
+櫃檯開桌／外帶：客人沒掃桌上 QR（走進來直接在櫃檯點）也能開一桌。body `{ table_no }` 開內用桌（英數字與 -，8 字內；該桌已開著就直接回那一桌，`created:false`），或 `{ takeout: true }` 開外帶單（自動取 `W01`–`W99` 最小空號；用完回 409）。`W01`–`W99` 保留給外帶，不能當內用桌號。可選 `operator_id`（`POST /api/admin/staff/verify` 認出的員工 id，記這桌是誰開的，查不到就忽略不擋）。回 `{ ok, id, table, created, takeout, operator? }`（新開 201）。外帶單結完帳且取餐完成後，由 `GET /api/admin/orders` 自動收掉並釋出號碼；內用桌仍保留「待清桌」給人員確認客人離開；`GET /api/admin/orders` 回的 `sessions[].operator` 就是開桌的員工姓名。
 
 ### POST /api/admin/orders/sessions/:id/items
 櫃檯代客加菜。body `{ item_id, qty, note? }`；`by` 固定「櫃檯」。可加任何已發布品項（含估清、非營業時段），但品牌子帳號不得加其他店別的品項（403）。回更新後的場。
@@ -274,7 +274,7 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 換桌／併桌。body `{ table_no }`。把這桌的未結帳品項與已結帳的單全部搬到目標桌：目標桌沒開就直接改桌號（換桌），已開著就接到目標桌後面並關掉來源桌（併桌）。`W01`–`W99` 外帶單號不能當目標（400）；來源或目標含其他品牌品項時品牌子帳號回 403。回 `{ ok, from, table, merged, id }`。
 
 ### POST /api/admin/orders/sessions/:id/checkout
-櫃檯收款（POS）。body `{ method: cash|card|linepay|transfer, member?: boolean, lines?: [], discount?, received?, name?, note?, invoice? }`。`lines` 空＝全桌未結帳品項，指定＝只結那些（分帳）。`member: true` 以菜單會員價重算（只有設了會員價且較低的品項會變）。`discount` 為整單折扣：`{ type:'percent', value:1–100, reason }` 或 `{ type:'amount', value, reason }`（金額不得超過小計、原因必填），金額順序為 會員價 → 小計 → 折扣 → 應收。`received` 只在現金時用：客人給的現金（整數、不少於應收），伺服器算 `change` 找零並一起記在 `payer`。`invoice` 為 ezPay 電子發票要求，可不帶或 `{ mode:'' }` 表示不開；可帶 `{ mode:'paper' }` 紙本、`{ mode:'company', buyer_ubn, buyer_name?, buyer_email? }` 統編、`{ mode:'mobile', carrier_num }` 手機載具、`{ mode:'citizen', carrier_num }` 自然人憑證、`{ mode:'donate', love_code }` 捐贈；有折扣時發票明細會多一列負數「折扣」讓品項加總＝總額。金額由伺服器重算；成功建立出餐單（進出餐看板）並鎖定品項，回 `{ ok, order_id, amount, subtotal, discount, received, change, method, member, remaining, invoice }`。若 ezPay 尚未設定或暫時失敗，收款訂單仍成立，`invoice.status='failed'`，可用補開端點重試。品牌子帳號只能結自己店別的品項（403）。
+櫃檯收款（POS）。body `{ method: cash|card|linepay|transfer, member?: boolean, lines?: [], discount?, received?, name?, note?, invoice?, operator_id? }`。`operator_id` 是 `POST /api/admin/staff/verify` 認出的員工 id，記這筆是誰收的款（存進 `payer.operator_id/operator_name`），查不到就忽略不擋收款。`lines` 空＝全桌未結帳品項，指定＝只結那些（分帳）。`member: true` 以菜單會員價重算（只有設了會員價且較低的品項會變）。`discount` 為整單折扣：`{ type:'percent', value:1–100, reason }` 或 `{ type:'amount', value, reason }`（金額不得超過小計、原因必填），金額順序為 會員價 → 小計 → 折扣 → 應收。`received` 只在現金時用：客人給的現金（整數、不少於應收），伺服器算 `change` 找零並一起記在 `payer`。`invoice` 為 ezPay 電子發票要求，可不帶或 `{ mode:'' }` 表示不開；可帶 `{ mode:'paper' }` 紙本、`{ mode:'company', buyer_ubn, buyer_name?, buyer_email? }` 統編、`{ mode:'mobile', carrier_num }` 手機載具、`{ mode:'citizen', carrier_num }` 自然人憑證、`{ mode:'donate', love_code }` 捐贈；有折扣時發票明細會多一列負數「折扣」讓品項加總＝總額。金額由伺服器重算；成功建立出餐單（進出餐看板）並鎖定品項，回 `{ ok, order_id, amount, subtotal, discount, received, change, method, member, remaining, invoice }`。若 ezPay 尚未設定或暫時失敗，收款訂單仍成立，`invoice.status='failed'`，可用補開端點重試。品牌子帳號只能結自己店別的品項（403）。
 
 ### POST /api/admin/orders/sessions/:id/tickets/:ticket/serve
 看板「已出餐」：把這張桌邊送單的品項全部標 `served_at`、從看板移除（仍未結帳，留在這桌的帳上）。全部出過或找不到回 404；品牌子帳號只能出自己店別的（403）。回更新後的場。結帳時若勾選的品項都已出餐，出餐單直接以 `done` 建立，不再回到看板。
@@ -324,6 +324,9 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 
 ### PATCH /api/admin/staff/:id
 編輯員工（部分更新）。body `{ name?, pin?, venues?, role?, note?, active? }`；`active:false`＝停用（離職），識別碼釋出可給新人；重新啟用時若原識別碼已被占用回 409，請同時指定新識別碼。回 `{ ok, id, name, pin?, venues, role, note, active }`。
+
+### POST /api/admin/staff/verify
+認人（不是登入）：平板已用品牌管理員帳號登入，這支只是疊一層「現在是誰在操作」，供開桌／結帳記錄經手人，記在 `table_sessions.opened_by_staff_*` 與結帳的 `payer.operator_id/operator_name`。body `{ pin }`。識別碼找不到或停用一律回 404「識別碼不正確」（不透露是否存在），子帳號只認得到自己店別的員工。每台裝置每分鐘最多 12 次（防猜碼，同打卡）。回 `{ ok, id, name }`。
 
 ### GET /api/admin/shifts
 排班表。query `from=YYYY-MM-DD`（營業日，預設本週一）、`to=`（預設 from＋6 天，最多 93 天）、`venue=`、`staff_id=`。回 `{ from, to, days[], shifts[]{ id, staff_id, name, day, venue, start_time, end_time, minutes, note }, staff[]（在職員工）, csv[][] }`。三點水 17:00–03:00 這種跨日班屬開始那天的營業日。
