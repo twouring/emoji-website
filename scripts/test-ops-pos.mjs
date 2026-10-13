@@ -322,8 +322,8 @@ test('server.js／前端接線：桌邊送單端點、看板含送單、客人�
   assert.match(server, /tableOrders\.ticketsOf\(s\)/, '看板回送單');
   assert.match(server, /served\?'done':'paid'/, '全部出餐過的結帳直接記已取餐');
   for (const s of ['data-serve=', "'/serve'", 'd.tickets', 'ops-placed', 'ordered:[', "placed:'待出餐'"]) assert.ok(ops.includes(s), s);
-  for (const s of ['id="bar-place"', "'/place'", 'data-i18n="place"', 'id="cart-place"']) assert.ok(order.includes(s), s);
-  for (const lang of ['zh', 'en', 'ja']) assert.match(lib, new RegExp(lang + ": \\{[\\s\\S]*?place: '"), lang);
+  for (const s of ['id="bar-place"', "'/place'", 'data-i18n="place"', 'id="cart-place"', 'id="pay-reminder"']) assert.ok(order.includes(s), s);
+  for (const lang of ['zh', 'en', 'ja']) { assert.match(lib, new RegExp(lang + ": \\{[\\s\\S]*?place: '"), lang); assert.match(lib, new RegExp(lang + ": \\{[\\s\\S]*?pay_reminder: '"), lang + ' 結帳提醒'); }
   assert.match(api, /### POST \/api\/orders\/:id\/place/); assert.match(api, /tickets\/:ticket\/serve/);
 });
 

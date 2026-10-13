@@ -4,7 +4,7 @@
     zh: {
       order: '桌邊點餐', loading: '載入中…', name_placeholder: '你的稱呼（讓同桌知道誰點了什麼）', confirm: '好',
       shared_hint: '同桌的人掃同一個 QR 就能一起點；加入購物車後按「送出點餐」，用餐完再到櫃檯結帳，可付全桌、各付自己的，或平均分攤。',
-      place: '送出點餐', placed: '已送出', served: '已出餐', not_sent: '未送出', place_done: '已送出點餐，餐點準備中', pending_items: '{count} 項還沒送出',
+      place: '送出點餐', placed: '已送出', served: '已出餐', not_sent: '未送出', place_done: '已送出點餐，餐點準備中。用餐完記得到櫃檯結帳！', pay_reminder: '離席前請到櫃檯結帳，工作人員會依這桌的明細收款。', pending_items: '{count} 項還沒送出',
       current_menu: '目前菜單', closed: '非供餐時段', menu_unavailable: '目前尚未提供菜單。', closed_message: '目前非供餐時段，請稍後再點餐。',
       cart: '購物車', checkout: '用餐完結帳', table_order: '這桌的點餐', unpaid_total: '未結帳合計', continue: '繼續點',
       checkout_title: '用餐完再到櫃檯結帳', checkout_hint: '請先享用餐點；離席前帶著手機到櫃檯，工作人員會依這桌點餐明細結帳。',
@@ -18,7 +18,7 @@
     en: {
       order: 'Table ordering', loading: 'Loading…', name_placeholder: 'Your name (so your table knows what you ordered)', confirm: 'Save',
       shared_hint: 'Everyone at the table can scan the same QR code. Add items, tap "Send order", and pay at the counter after dining—together, by ordered items, or split evenly.',
-      place: 'Send order', placed: 'Sent', served: 'Served', not_sent: 'Not sent yet', place_done: 'Order sent. We are preparing it now.', pending_items: '{count} item(s) not sent yet',
+      place: 'Send order', placed: 'Sent', served: 'Served', not_sent: 'Not sent yet', place_done: 'Order sent. We are preparing it now. Remember to pay at the counter after dining!', pay_reminder: 'Please pay at the counter before leaving. Staff will charge by this table\'s order.', pending_items: '{count} item(s) not sent yet',
       current_menu: 'Current menu', closed: 'Kitchen closed', menu_unavailable: 'No menu is available yet.', closed_message: 'The kitchen is currently closed. Please try again later.',
       cart: 'Cart', checkout: 'Pay after dining', table_order: 'Table order', unpaid_total: 'Unpaid total', continue: 'Keep ordering',
       checkout_title: 'Pay at the counter after dining', checkout_hint: 'Enjoy your meal first. Before leaving, bring this screen to the counter and staff will confirm the bill.',
@@ -32,7 +32,7 @@
     ja: {
       order: 'テーブル注文', loading: '読み込み中…', name_placeholder: 'お名前（同じテーブルで確認するため）', confirm: '保存',
       shared_hint: '同じテーブルの方は同じQRから注文できます。カートに入れて「注文を送る」を押し、お食事後にカウンターでまとめて・自分の分だけ・割り勘でお支払いできます。',
-      place: '注文を送る', placed: '送信済み', served: '提供済み', not_sent: '未送信', place_done: '注文を送りました。ただいま準備中です。', pending_items: '未送信 {count} 件',
+      place: '注文を送る', placed: '送信済み', served: '提供済み', not_sent: '未送信', place_done: '注文を送りました。ただいま準備中です。お食事後はカウンターでお会計をお願いします。', pay_reminder: '退店前にカウンターでお会計をお願いします。このテーブルの注文明細で精算します。', pending_items: '未送信 {count} 件',
       current_menu: '現在のメニュー', closed: '提供時間外', menu_unavailable: '現在メニューはありません。', closed_message: '現在は提供時間外です。しばらくしてからご注文ください。',
       cart: 'カート', checkout: '食後に会計', table_order: 'このテーブルの注文', unpaid_total: '未会計合計', continue: '注文を続ける',
       checkout_title: 'お食事後にカウンターで会計', checkout_hint: 'まずお食事をお楽しみください。退店前にこの画面をカウンターで提示してください。',
