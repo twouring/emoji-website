@@ -257,6 +257,9 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 ### POST /api/admin/orders/:id/void
 作廢已結帳的出餐單。body `{ reason }`（必填）。只能作廢當個營業日的單；線上刷卡（TapPay）的單須先在 TapPay 後台退款。若該單已透過 ezPay 開立電子發票，會先呼叫 ezPay 作廢成功後才把 POS 訂單標成 void；未設定 ezPay 環境變數或 ezPay 作廢失敗時回 503/502，不會先作廢本地訂單。作廢後該單不計營收，品項退回這桌「未結帳」（可重結或清桌作廢）。記 `void_reason / voided_by / voided_at`。
 
+### POST /api/admin/orders/:id/items/:line/void
+取消已結帳單裡的「單一品項」（做不出來／客人退菜），不必作廢整張單。body `{ reason }`（必填）。比照贈送把該行單價歸零（原價留在 `regular_price`）、`cancelled: true`、`cancel_reason`、`cancelled_at`，並從整張單 `amount` 扣掉這項小計，回 `{ ok, reason, refund, amount }`。限制：只能取消當個營業日的單；線上刷卡（TapPay）或已開立 ezPay 電子發票的單無法只動一項（金額對不起來），須整張作廢；這張單只剩最後一項未取消時也不行，請改用「作廢整張單」。取消後的品項仍留在單上（出餐看板顯示劃線＋取消原因），日結熱銷統計與 CSV 不再計入，但仍留下稽核紀錄。
+
 ### POST /api/admin/orders/:id/invoice/issue
 補開 ezPay 電子發票。用於結帳時 ezPay 暫時失敗或當下未設定憑證的單。body 可帶 `{ invoice }`，未帶時使用訂單內已保存的發票要求；`invoice` 格式同櫃檯結帳的 `invoice` 欄位。作廢單不能補開；已開立則直接回原發票資料。回 `{ ok, invoice }`。
 

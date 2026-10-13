@@ -23,6 +23,8 @@
 .a-tbl td.ops-pay .inv-fix{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;margin-top:4px}.a-tbl td.ops-pay .btn-xs{min-height:36px;padding:2px 10px}
 .a-tbl td.ops-item{min-width:12em}.a-tbl td.ops-pay{min-width:13em}.a-tbl td.ops-item .hint,.a-tbl td.ops-pay .hint{white-space:nowrap}
 tr.resv-off td{color:var(--muted)}tr.resv-off .btn{opacity:.75}
+/* 出餐看板：已取消的品項劃線、灰階，不再搶走視覺焦點 */
+.line-cancelled{text-decoration:line-through;color:var(--muted)}
 
 /* ── 桌況格 ── */
 .pos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}

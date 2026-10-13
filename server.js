@@ -4907,6 +4907,16 @@ app.post('/api/admin/orders/:id/void',auth,adminOnly,requireDb,wrap(async(req,re
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
   res.json({ok:true,reason});
 }));
+/* 取消已結帳單裡的單一品項（做不出來／客人退菜），不必作廢整張單：單價歸零、從單上金額扣除這項小計 */
+app.post('/api/admin/orders/:id/items/:line/void',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這筆出餐單。'});
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const o=(await q('SELECT id,items,amount,status,paid_at,tappay,invoice FROM table_orders WHERE id=$1',[req.params.id])).rows[0];
+  if(!o||!tableOrders.orderOwnedByVenues(o,venues))return res.status(404).json({error:'找不到這筆出餐單。'});
+  let out;try{out=tableOrders.voidOrderLine(o,String(req.params.line),req.body?.reason);}catch(e){return res.status(e.status||400).json({error:e.message});}
+  await q('UPDATE table_orders SET items=$2,amount=$3 WHERE id=$1',[o.id,JSON.stringify(out.items),out.amount]);
+  res.json({ok:true,reason:out.reason,refund:out.refund,amount:out.amount});
+}));
 /* 估清（今日售完）與暫停點餐：只改單一欄位，不會蓋掉另一台平板正在編輯的菜單 */
 app.post('/api/admin/menu/sold-out',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const venues=tableOrders.visibleVenues(req.auth.brands);

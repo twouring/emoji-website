@@ -97,6 +97,30 @@ test('作廢出餐單：限當個營業日、不可重複、線上刷卡的要�
   assert.throws(() => T.voidOrder(null, 'x'), e => e.status === 404);
 });
 
+test('取消單一品項：單價歸零、原價留底、從單上金額扣除；限當個營業日、不可對最後一項／線上刷卡／已開發票的單動手', () => {
+  const twoItems = [
+    { line: 'l1', zh: '拿鐵', price: 180, qty: 2 },
+    { line: 'l2', zh: '吐司', price: 120, qty: 1 },
+  ];
+  const o = { id: 'to_1', status: 'paid', paid_at: new Date().toISOString(), amount: 480, tappay: {}, invoice: {}, items: twoItems };
+  const out = T.voidOrderLine(o, 'l2', ' 客人不要了 ');
+  assert.equal(out.reason, '客人不要了');
+  assert.equal(out.refund, 120);
+  assert.equal(out.amount, 360);
+  const cancelled = out.items.find(l => l.line === 'l2');
+  assert.equal(cancelled.cancelled, true); assert.equal(cancelled.price, 0); assert.equal(cancelled.regular_price, 120); assert.equal(cancelled.cancel_reason, '客人不要了');
+  assert.equal(out.items.find(l => l.line === 'l1').price, 180); // 其他品項不受影響
+  assert.throws(() => T.voidOrderLine(o, 'l2', ''), /原因/);
+  assert.throws(() => T.voidOrderLine(o, 'nope', 'x'), e => e.status === 404);
+  assert.throws(() => T.voidOrderLine({ ...o, items: out.items }, 'l2', 'x'), /已取消/); // 不可重複取消同一項
+  assert.throws(() => T.voidOrderLine({ ...o, items: [twoItems[0]] }, 'l1', 'x'), /最後一項/); // 只剩一項未取消時擋下，請改走作廢整張單
+  assert.throws(() => T.voidOrderLine({ ...o, status: 'void' }, 'l1', 'x'), e => e.status === 409);
+  assert.throws(() => T.voidOrderLine({ ...o, tappay: { rec_trade_id: 'R1' } }, 'l1', 'x'), /TapPay/);
+  assert.throws(() => T.voidOrderLine({ ...o, invoice: { status: 'issued' } }, 'l1', 'x'), /發票/);
+  assert.throws(() => T.voidOrderLine({ ...o, paid_at: '2020-01-01T00:00:00Z' }, 'l1', 'x'), /當個營業日/);
+  assert.throws(() => T.voidOrderLine(null, 'l1', 'x'), e => e.status === 404);
+});
+
 test('日結：依付款方式／時段／品項彙總，作廢不計營收；CSV 每品項一列；可依店別過濾', () => {
   const at = h => `2026-10-11T${String(h).padStart(2, '0')}:30:00+08:00`;
   const orders = [
