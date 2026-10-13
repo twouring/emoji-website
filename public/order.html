@@ -36,7 +36,7 @@ h3{font-size:1.05rem;margin:0 0 6px}
 .menu-status b{font-size:1.05rem}.menu-status small{display:block;color:var(--muted);line-height:1.4}
 .menu-status.paused{border-color:#b42318;background:#fff5f3}.menu-status.paused small{color:#b42318;font-weight:600}
 .bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 14px calc(10px + env(safe-area-inset-bottom));display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;z-index:5;box-shadow:0 -6px 22px rgba(0,0,0,.08)}
-.bar .s{min-width:0}.bar .s small{display:block;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .s{min-width:0}.bar .s b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar .s small{display:block;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .btn{border:1.5px solid var(--ink);background:var(--ink);color:#fff;border-radius:999px;padding:12px 18px;font-weight:700;min-height:48px}
 .btn:disabled{opacity:.45;cursor:default}.btn.ghost{background:#fff;color:var(--ink)}.btn.sm{padding:6px 14px}.btn.y{background:var(--yellow);color:var(--ink);border-color:var(--yellow)}
 .sheet{position:fixed;inset:0;background:rgba(27,26,23,.55);z-index:20;display:none;align-items:flex-end}
@@ -65,14 +65,15 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 /* 已點清單每行的送單狀態：未送出（白底黃框）、已送出（米底）、已出餐（灰字） */
 .tag{display:inline-block;padding:1px 8px;border-radius:999px;border:1px solid var(--line);margin-left:6px;vertical-align:middle;color:var(--muted)}
 .tag.pending{border-color:var(--yellow);background:#fffbe8;color:var(--ink)}.tag.placed{background:#EEE9DA;color:var(--ink)}
-.bar.has-place{grid-template-columns:1fr auto auto auto}.bar.has-place #open-pay{background:#fff;border-color:var(--line)}
+/* 有還沒送出的品項時，結帳鍵先收起來（送出去才輪到結帳）：固定只留 2 顆鍵，桌邊常見手機寬度（375–430px）才不會把金額擠到被按鈕蓋住 */
+.bar.has-place{grid-template-columns:1fr auto auto}.bar.has-place #open-pay{display:none}
 .ready-banner{position:fixed;top:0;left:0;right:0;z-index:30;background:var(--yellow);color:var(--ink);padding:calc(14px + env(safe-area-inset-top)) 16px 14px;font-weight:700;text-align:center;display:none;box-shadow:0 4px 20px rgba(0,0,0,.2)}
 .ready-banner.on{display:block}
 .err{color:var(--bad);min-height:1.2em}.muted{color:var(--muted)}
 .notice{color:var(--muted);margin:20px 0}
 .hidden{display:none!important}
 .toast{position:fixed;left:16px;right:16px;bottom:calc(112px + env(safe-area-inset-bottom));z-index:40;background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;text-align:center;display:none}.toast.on{display:block}
-@media (max-width:380px){.wrap{padding:10px}.top{padding-left:12px;padding-right:12px}.bar{grid-template-columns:1fr 82px 104px;padding-left:8px;padding-right:8px;gap:6px}.bar.has-place{grid-template-columns:1fr auto auto}.bar.has-place #open-pay{display:none}.btn{padding-left:9px;padding-right:9px}.btn.sm{min-height:42px}.menu-grid{grid-template-columns:1fr 1fr;gap:8px}.item .n{padding:8px}.item .tap{display:none}#pay-scope{grid-template-columns:1fr}.top .t{padding-left:8px;padding-right:8px}.choice-grid{grid-template-columns:1fr 1fr}.sheet .in{padding-left:12px;padding-right:12px}}
+@media (max-width:380px){.wrap{padding:10px}.top{padding-left:12px;padding-right:12px}.bar{grid-template-columns:1fr 82px 104px;padding-left:8px;padding-right:8px;gap:6px}.bar.has-place{grid-template-columns:1fr 82px 104px}.btn{padding-left:9px;padding-right:9px}.btn.sm{min-height:42px}.menu-grid{grid-template-columns:1fr 1fr;gap:8px}.item .n{padding:8px}.item .tap{display:none}#pay-scope{grid-template-columns:1fr}.top .t{padding-left:8px;padding-right:8px}.choice-grid{grid-template-columns:1fr 1fr}.sheet .in{padding-left:12px;padding-right:12px}}
 @media (max-width:320px){.menu-grid{grid-template-columns:1fr}.bar{grid-template-columns:1fr 76px 96px}.bar.has-place{grid-template-columns:1fr auto auto}.top b{font-size:1rem}.top small{display:block}.lang{min-width:42px;padding:4px 8px}.choice-grid{grid-template-columns:1fr}}
 </style>
 </head>
