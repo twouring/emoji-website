@@ -96,7 +96,7 @@
       groups.push({ key: 'ice', label: labels.ice, choices: OPT[l].ice });
     }
     if (cat === 'MAIN' || cat === 'JAPANESE' || /飯|rice|丼|咖哩/.test(name)) groups.push({ key: 'rice', label: labels.rice_amount, choices: OPT[l].rice });
-    if (cat === 'MAIN' || /麵|noodle|pasta|義大利/.test(name)) groups.push({ key: 'noodle', label: labels.noodle_amount, choices: OPT[l].noodle });
+    if (/麵|noodle|pasta|義大利/.test(name)) groups.push({ key: 'noodle', label: labels.noodle_amount, choices: OPT[l].noodle });
     return groups;
   }
 

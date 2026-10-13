@@ -32,3 +32,8 @@ test('商品細項依品類收集糖度、冰塊、麵量、飯量並支援日�
   const main = O.optionGroups({ cat: 'MAIN', zh: '牛肉麵飯' }, 'ja').map(g => g.key);
   assert.deepEqual(main, ['rice', 'noodle']);
 });
+
+test('MAIN 品類若品名無麵，不應出現麵量選項（如烤飯糰茶泡飯）', () => {
+  const onigiri = O.optionGroups({ cat: 'MAIN', zh: '炙燒明太子烤飯糰茶泡飯' }, 'zh').map(g => g.key);
+  assert.deepEqual(onigiri, ['rice']);
+});
