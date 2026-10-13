@@ -108,6 +108,7 @@ const SITE_BASE = (process.env.PUBLIC_ORIGIN || 'https://www.emoji.tw').replace(
 // 服務角色：SERVICE_ROLE=admin 的服務只當後台（admin.emoji.tw）——自己處理 OAuth callback、不跑任何排程（排程由官網服務負責）；
 // 未設定＝官網服務（www／pos），其 /admin 一律轉到 ADMIN_BASE；活動主入口 /organizer 屬於官網（主辦人是外部對象，不進後台網域），後台服務上的 /organizer 反向轉回 SITE_BASE。兩個服務跑同一個 image、同一個 DB。
 const ADMIN_MODE = process.env.SERVICE_ROLE === 'admin';
+const RAILWAY_MODE = !!process.env.RAILWAY_ENVIRONMENT; // Railway 備援環境：不跑任何排程（見 boot()）
 // 後台對外網址：寄給員工／主辦的後台連結、官網轉後台都用這個
 const ADMIN_BASE = (process.env.ADMIN_ORIGIN || 'https://admin.emoji.tw').replace(/\/$/, '');
 // 本服務自己的對外網址：OAuth callback、state cookie、Email 登入連結都必須落在同一個 host 才讀得到 cookie
@@ -5371,6 +5372,9 @@ async function boot() {
 
   // 後台服務不跑排程：webhook 投遞、活動信件、會籍提醒、LINE Pay 對帳、IG 自動發佈全由官網服務負責，兩邊都跑會重複寄信／重複發文
   if (ADMIN_MODE) { console.log('[boot] SERVICE_ROLE=admin：排程由官網服務負責，本服務不啟動'); return; }
+  // Railway 專案只留作回滾備援（2026-10-12 搬到 GCP）：它的 GitHub 自動部署仍跟著 main 更新、連的是自己那顆舊資料庫（排程貼文備份）、
+  // 用同一支 IG token，排程若也跑就會和 Cloud Run 各發一次（2026-10-13 IG 雙發事故）。Railway 一律不跑排程。
+  if (RAILWAY_MODE) { console.log('[boot] RAILWAY_ENVIRONMENT：Railway 僅為備援，排程由 Cloud Run 官網服務負責，本服務不啟動'); return; }
 
   // 會籍到期前 7 天提醒：每日 09:00（台北）
   if (dbReady) {

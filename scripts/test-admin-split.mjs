@@ -111,6 +111,10 @@ test('排程只在官網服務跑；後台頁的登入鈕走同網域 /auth/goog
   const boot = src.slice(src.indexOf('async function boot()'));
   const guard = boot.indexOf("if (ADMIN_MODE) { console.log('[boot] SERVICE_ROLE=admin"), firstCron = boot.indexOf("require('node-cron')"), webhook = boot.indexOf('deliverEventWebhookOnce');
   assert.ok(guard > -1 && guard < firstCron && guard < webhook, '後台服務必須在任何排程啟動前 return');
+  // Railway 備援環境與 Cloud Run 共用同一支 IG token 卻各有一顆 DB，排程若也跑就雙發（2026-10-13）
+  assert.match(src, /const RAILWAY_MODE = !!process\.env\.RAILWAY_ENVIRONMENT;/);
+  const railwayGuard = boot.indexOf("if (RAILWAY_MODE) { console.log('[boot] RAILWAY_ENVIRONMENT");
+  assert.ok(railwayGuard > -1 && railwayGuard < firstCron && railwayGuard < webhook, 'Railway 備援環境必須在任何排程啟動前 return');
   assert.match(src, /const OWN_BASE = ADMIN_MODE \? ADMIN_BASE : SITE_BASE;/);
   for (const name of ['GOOGLE_REDIRECT_URI', 'GOOGLE_MEET_REDIRECT_URI', 'ZOOM_REDIRECT_URI']) assert.match(src, new RegExp(`const ${name} = OWN_BASE \\+ '`), name + ' 必須綁服務自己的網址');
   assert.match(src, /url=OWN_BASE\+'\/event-login\.html\?lang='/, 'Email 登入連結回到發起的服務');
