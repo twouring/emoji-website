@@ -69,3 +69,14 @@ test('商品細項彈窗：按鈕列固定底部、只捲中間內容、開窗�
   assert.doesNotMatch(html, /\$\('#item-detail'\)\.classList\.remove\('on'\)/);
   assert.match(html, /e\.target\.classList\.contains\('sheet'\)\)closeSheets\(\)/);
 });
+
+test('已點清單彈窗：品項多、多人一起點時整張單比視窗高，「送出點餐／用餐完結帳」照樣固定在底部（否則會被捲出畫面點不到、按了沒反應）', () => {
+  assert.match(html, /#cart \.in\{display:flex;flex-direction:column;[^}]*overflow:hidden/);
+  assert.match(html, /#cart \.sheet-body\{flex:1 1 auto;min-height:0;overflow:auto/);
+  assert.match(html, /#cart \.sheet-actions\{flex:none/);
+  assert.match(html, /<div class="sheet-body" id="cart-body">/);
+  assert.match(html, /<div class="row sheet-actions"><button class="btn ghost" data-close/);
+  assert.match(html, /\$\('#cart-body'\)\.scrollTop=0;openSheet\('#cart'\)/);
+  // cart-place/cart-pay 要留在 .sheet-actions 裡，不能又回到跟著品項清單一起捲動的區塊
+  assert.match(html, /sheet-actions"><button class="btn ghost" data-close data-i18n="continue">[\s\S]*?id="cart-place"[\s\S]*?id="cart-pay"/);
+});
