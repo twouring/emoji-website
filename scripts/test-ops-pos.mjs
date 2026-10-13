@@ -287,6 +287,46 @@ test('日結含折扣與贈送：營收為折後實收、折扣與贈送另列�
   assert.match(csv.find(r => r[2] === 'A2' && r[6] === 0)[3], /贈送：招待/);
 });
 
+test('桌邊送單：送出後進看板、客人不能自己刪；出餐後從看板消失；桌況「待出餐」；全部出餐過的結帳直接記已取餐', () => {
+  const items = cart(), menu = T.menuIndex(menuJson);
+  const placed = T.placeLines(items, new Date('2026-10-13T04:00:00Z'));
+  assert.equal(placed.lines.length, items.length, '整桌還沒送的一起送');
+  assert.ok(placed.items.every(l => l.placed_at === '2026-10-13T04:00:00.000Z' && l.ticket === placed.ticket));
+  assert.throws(() => T.placeLines(placed.items), e => e.status === 400, '沒有新品項不能再送');
+  assert.throws(() => T.removeLine(placed.items, placed.items[0].line, G), /已送出/, '送出後客人不能自己移除（找櫃檯作廢）');
+  const s = { id: 'ts_1', table_no: 'A1', items: placed.items };
+  const tickets = T.ticketsOf(s);
+  assert.equal(tickets.length, 1); assert.equal(tickets[0].status, 'placed'); assert.equal(tickets[0].table_no, 'A1'); assert.equal(tickets[0].id, placed.ticket);
+  assert.equal(tickets[0].amount, T.sum(items)); assert.ok(tickets[0].stations.bar.some(l => l.zh === '拿鐵'), '看板分站');
+  assert.equal(T.tableStatus(s, []), 'ordered');
+  // 第二輪加點只送新加的；看板兩張
+  const more = T.addLine(placed.items, menu, { item_id: 'm_toast', qty: 1, by: 'C', guest: 'guest0000003' });
+  const second = T.placeLines(more);
+  assert.equal(second.lines.length, 1); assert.notEqual(second.ticket, placed.ticket);
+  assert.equal(T.ticketsOf({ id: 'ts_1', table_no: 'A1', items: second.items }).length, 2);
+  // 出餐：整張送單一起標；重複出或不存在回 404
+  const served = T.serveTicket(second.items, placed.ticket);
+  assert.equal(T.ticketsOf({ id: 'ts_1', table_no: 'A1', items: served }).length, 1);
+  assert.throws(() => T.serveTicket(served, placed.ticket), e => e.status === 404);
+  assert.throws(() => T.serveTicket(served, 'nope'), e => e.status === 404);
+  const all = T.serveTicket(served, second.ticket);
+  assert.equal(T.tableStatus({ id: 'ts_1', items: all }, []), 'open', '全部出餐但未結帳＝點餐中（可再加點）');
+  assert.ok(T.posCheckout(all, { method: 'cash' }, menu).lines.every(l => l.served_at), '結帳保留出餐記號給 server 判定直接已取餐');
+  assert.ok(T.orderOwnedByVenues(tickets[0], ['CAFE']) && !T.orderOwnedByVenues(tickets[0], ['BAR']), '子帳號只看自己品牌的送單');
+});
+
+test('server.js／前端接線：桌邊送單端點、看板含送單、客人端送出按鈕、三語文案', () => {
+  const server = read('server.js'), ops = read('public/pos-ops.js'), order = read('public/order.html'), lib = read('public/order-lib.js'), api = read('docs/API.md');
+  assert.match(server, /app\.post\('\/api\/orders\/:id\/place'[\s\S]{0,200}assertNotPaused\(\)/, '最後點餐後不能再送單');
+  assert.match(server, /app\.post\('\/api\/admin\/orders\/sessions\/:id\/tickets\/:ticket\/serve'/);
+  assert.match(server, /tableOrders\.ticketsOf\(s\)/, '看板回送單');
+  assert.match(server, /served\?'done':'paid'/, '全部出餐過的結帳直接記已取餐');
+  for (const s of ['data-serve=', "'/serve'", 'd.tickets', 'ops-placed', 'ordered:[', "placed:'待出餐'"]) assert.ok(ops.includes(s), s);
+  for (const s of ['id="bar-place"', "'/place'", 'data-i18n="place"', 'id="cart-place"']) assert.ok(order.includes(s), s);
+  for (const lang of ['zh', 'en', 'ja']) assert.match(lib, new RegExp(lang + ": \\{[\\s\\S]*?place: '"), lang);
+  assert.match(api, /### POST \/api\/orders\/:id\/place/); assert.match(api, /tickets\/:ticket\/serve/);
+});
+
 test('server.js 接線：改品項、換桌、查單、交班、結帳回找零；作廢退回時贈送維持贈送', () => {
   const server = read('server.js'), ops = read('public/pos-ops.js'), api = read('docs/API.md');
   assert.match(server, /app\.patch\('\/api\/admin\/orders\/sessions\/:id\/items\/:line'/);

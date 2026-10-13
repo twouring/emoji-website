@@ -133,6 +133,7 @@ tr.pos-comp td{background:#f2fbf4}
 .a-tbl td.a-mono,.a-tbl .resv-id{white-space:nowrap}
 .ops-station{display:flex;gap:8px;align-items:flex-start;margin:2px 0}
 tr.ops-ready td{background:#f2fbf4}
+tr.ops-placed td{background:#fff8e6}
 tr.resv-day td{background:var(--paper-alt);font-weight:600}
 /* 櫃檯登記訂位：收合表單 */
 .resv-add{margin-bottom:12px}.resv-add summary{list-style:none;display:inline-flex;cursor:pointer}.resv-add summary::-webkit-details-marker{display:none}.resv-add[open] summary{margin-bottom:10px}

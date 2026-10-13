@@ -69,7 +69,10 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" https://www.emoji.tw/api/state
 加菜。body：`{ item_id, qty(1–20), by(稱呼), guest(前端隨機識別碼), note? }`。價格以菜單當下售價快照，不信任前端金額。回更新後的場。只接受目前營業品牌、已發布、未估清且在供應期間內的品項（否則 400）；店家暫停點餐時回 `423` 並帶暫停文案。
 
 ### DELETE /api/orders/:id/items/:line
-移除自己加的未付款品項。body：`{ guest }`。他人品項回 403，已付款回 409。
+移除自己加的未付款品項。body：`{ guest }`。他人品項回 403，已付款或已送出的回 409（送出後請洽櫃檯作廢）。
+
+### POST /api/orders/:id/place
+送出點餐：把這桌購物車裡還沒送出的品項一起送進出餐看板（**不結帳**，用餐完再到櫃檯結）。body：`{ guest }`。同一次送出的品項共用一個 `ticket`，並標 `placed_at`；看板按「已出餐」後標 `served_at`。沒有待送出的品項回 400；店家暫停點餐時回 423。回更新後的場（`items[]` 多 `ticket, placed_at, served_at`）。
 
 ### POST /api/orders/:id/pay
 TapPay Pay by Prime 結帳。body：`{ prime, lines?[], name, phone?, email? }`。`lines` 空＝付全桌未付品項，指定＝只付那些（例如只付自己的）。伺服器重算金額；成功後建立出餐單並鎖定品項，回 `{ ok, order_id, amount, session }`。TapPay 拒絕回 402。每分鐘 10 次限流。
@@ -244,7 +247,7 @@ Google 授權回呼，簽發會員 token 並導回。
 對已成立的付費票執行 Stripe 全額退款並立即使票券失效。以 registration id 作 Stripe idempotency key，重送不會重複退款。
 
 ### GET /api/admin/orders
-出餐看板＋桌況：`{ orders[], sessions[], pause, active_venue }`。`orders` 預設只回 `paid`／`ready`；`?all=1` 回最近一天全部（含 `void`）；每張單附 `stations: { bar[], kitchen[] }`（飲品酒水／餐點分站）。`sessions` 為使用中的桌：`{ id, table, unpaid, unpaid_amount, lines[](未結帳品項明細，不含 guest), mixed(含其他品牌品項), state: open|preparing|ready|idle, updated_at }`。`pause` 為各店別暫停點餐設定。`?venue=` 只看單一店別；品牌子帳號只回自己品牌的單與品項。
+出餐看板＋桌況：`{ orders[], tickets[], sessions[], pause, active_venue }`。`tickets` 為桌邊送單（客人按「送出點餐」、尚未結帳也還沒出餐）：`{ id, ticket, session_id, table_no, status:'placed', placed_at, items[], amount, stations }`，形狀比照出餐單，從桌的 `items` 現算、不另存表。`orders` 預設只回 `paid`／`ready`；`?all=1` 回最近一天全部（含 `void`）；每張單附 `stations: { bar[], kitchen[] }`（飲品酒水／餐點分站）。`sessions` 為使用中的桌：`{ id, table, unpaid, unpaid_amount, lines[](未結帳品項明細，不含 guest), mixed(含其他品牌品項), state: open|preparing|ready|idle, updated_at }`。`pause` 為各店別暫停點餐設定。`?venue=` 只看單一店別；品牌子帳號只回自己品牌的單與品項。
 
 ### POST /api/admin/orders/:id/status
 body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請至櫃檯取餐」（回 `notified` 裝置數）；`done`＝已取餐。狀態不符回 409；已作廢的單回 409。
@@ -272,6 +275,9 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 
 ### POST /api/admin/orders/sessions/:id/checkout
 櫃檯收款（POS）。body `{ method: cash|card|linepay|transfer, member?: boolean, lines?: [], discount?, received?, name?, note?, invoice? }`。`lines` 空＝全桌未結帳品項，指定＝只結那些（分帳）。`member: true` 以菜單會員價重算（只有設了會員價且較低的品項會變）。`discount` 為整單折扣：`{ type:'percent', value:1–100, reason }` 或 `{ type:'amount', value, reason }`（金額不得超過小計、原因必填），金額順序為 會員價 → 小計 → 折扣 → 應收。`received` 只在現金時用：客人給的現金（整數、不少於應收），伺服器算 `change` 找零並一起記在 `payer`。`invoice` 為 ezPay 電子發票要求，可不帶或 `{ mode:'' }` 表示不開；可帶 `{ mode:'paper' }` 紙本、`{ mode:'company', buyer_ubn, buyer_name?, buyer_email? }` 統編、`{ mode:'mobile', carrier_num }` 手機載具、`{ mode:'citizen', carrier_num }` 自然人憑證、`{ mode:'donate', love_code }` 捐贈；有折扣時發票明細會多一列負數「折扣」讓品項加總＝總額。金額由伺服器重算；成功建立出餐單（進出餐看板）並鎖定品項，回 `{ ok, order_id, amount, subtotal, discount, received, change, method, member, remaining, invoice }`。若 ezPay 尚未設定或暫時失敗，收款訂單仍成立，`invoice.status='failed'`，可用補開端點重試。品牌子帳號只能結自己店別的品項（403）。
+
+### POST /api/admin/orders/sessions/:id/tickets/:ticket/serve
+看板「已出餐」：把這張桌邊送單的品項全部標 `served_at`、從看板移除（仍未結帳，留在這桌的帳上）。全部出過或找不到回 404；品牌子帳號只能出自己店別的（403）。回更新後的場。結帳時若勾選的品項都已出餐，出餐單直接以 `done` 建立，不再回到看板。
 
 ### POST /api/admin/orders/sessions/:id/close
 清桌：未取餐的單標記已取餐、這桌下一次掃碼開新場。**有未結帳品項時回 409**（請先結帳或逐項作廢，避免漏收）；言文字管理員可帶 body `{ force: true }` 強制清桌並作廢未結品項。

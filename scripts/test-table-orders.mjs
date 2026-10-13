@@ -29,6 +29,7 @@ test('共桌購物車：只加已發布品項、價格快照、只能刪自己�
   assert.throws(() => T.addLine(items, menu, { item_id: 'm_latte', qty: 0, guest: 'guest0000001' }), /數量/);
   assert.throws(() => T.removeLine(items, items[0].line, 'guest0000002'), /自己/);
   assert.throws(() => T.removeLine(items.map(l => ({ ...l, order_id: 'to_x' })), items[0].line, 'guest0000001'), /已付款/);
+  assert.throws(() => T.removeLine(items.map(l => ({ ...l, placed_at: '2026-10-13T04:00:00Z' })), items[0].line, 'guest0000001'), /已送出/);
   assert.equal(T.removeLine(items, items[0].line, 'guest0000001').length, 0);
   const merged = T.addLine(items, menu, { item_id: 'm_latte', qty: 1, by: 'KK', guest: 'guest0000001' });
   assert.equal(merged.length, 1); assert.equal(merged[0].qty, 3);

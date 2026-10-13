@@ -4687,6 +4687,8 @@ async function mutateItems(req,res,fn){
 }
 app.post('/api/orders/:id/items',requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});try{await assertNotPaused();}catch(e){return res.status(e.status||423).json({error:e.message});}const menu=await currentMenu();return mutateItems(req,res,items=>tableOrders.addLine(items,menu,req.body||{}));}));
 app.delete('/api/orders/:id/items/:line',requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});return mutateItems(req,res,items=>tableOrders.removeLine(items,String(req.params.line),String(req.body?.guest||'')));}));
+// 送出點餐：購物車裡還沒送的品項一起進出餐看板（未結帳，用餐完再到櫃檯結）；暫停點餐（最後點餐）時一樣擋
+app.post('/api/orders/:id/place',requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});try{await assertNotPaused();}catch(e){return res.status(e.status||423).json({error:e.message});}return mutateItems(req,res,items=>tableOrders.placeLines(items).items);}));
 
 // 結帳：TapPay pay-by-prime；金額由伺服器重算；可付全桌或只付自己的（lines）
 app.post('/api/orders/:id/pay',rateLimit({max:10}),requireDb,wrap(async(req,res)=>{
@@ -4736,8 +4738,10 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const doneTakeout=rows.filter(s=>tableOrders.isTakeout(s.table_no)&&tableOrders.takeoutFinished(s,live)).map(s=>s.id);
   if(doneTakeout.length){await q("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=ANY($1) AND status='open'",[doneTakeout]);rows=rows.filter(s=>!doneTakeout.includes(s.id));}
   const sessions=rows.filter(s=>tableOrders.orderVisibleToVenues(s,venues)).map(s=>{const lines=tableOrders.unpaid(s.items).filter(line=>tableOrders.itemInVenues(line,venues)).map(({guest,...l})=>l);return{id:s.id,table:s.table_no,takeout:tableOrders.isTakeout(s.table_no),unpaid:lines.length,unpaid_amount:tableOrders.sum(lines),lines,mixed:!tableOrders.sessionClosableByVenues(s,venues),state:tableOrders.tableStatus(s,live),updated_at:s.updated_at};});
+  // 桌邊送單（未結帳、未出餐）：與已結帳的出餐單一起上看板；子帳號只看整張都是自己品牌的
+  const tickets=rows.flatMap(s=>tableOrders.ticketsOf(s)).filter(t=>tableOrders.orderOwnedByVenues(t,venues)).map(t=>({...t,items:t.items.map(({guest,...l})=>l)}));
   const pause=tableOrders.parsePause(await contentValue('ordering_pause'));
-  res.json({orders,sessions,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue()});
+  res.json({orders,tickets,sessions,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue()});
 }));
 /* 櫃檯開桌／外帶：客人沒掃 QR（走進來直接在櫃檯點）也能開一桌；外帶自動取 W01–W99 最小空號。已開著的桌直接回那一桌 */
 app.post('/api/admin/orders/sessions',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -4832,7 +4836,9 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     }catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
     if(!out.lines.every(l=>tableOrders.itemInVenues(l,venues))){await client.query('ROLLBACK');return res.status(403).json({error:'這桌含有其他品牌品項，請只勾選自己店別的品項結帳，或由言文字管理員處理。'});}
     const orderId=uid('to_'),set=new Set(out.lines.map(l=>l.line)),orderLines=out.lines.map(l=>({...l,order_id:orderId})),items=s.items.map(l=>set.has(l.line)?{...l,order_id:orderId,price:out.lines.find(x=>x.line===l.line).price}:l);
-    await client.query('INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,invoice) VALUES($1,$2,$3,$4,$5,$6,$7)',[orderId,s.id,s.table_no,JSON.stringify(orderLines),out.amount,JSON.stringify(out.payer),JSON.stringify(invoice||{})]);
+    // 桌邊送單且全部已出餐的品項，結帳時直接記為已取餐（不再回到出餐看板）；有還沒出的照舊進看板
+    const served=out.lines.every(l=>l.served_at);
+    await client.query('INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,invoice,status,done_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[orderId,s.id,s.table_no,JSON.stringify(orderLines),out.amount,JSON.stringify(out.payer),JSON.stringify(invoice||{}),served?'done':'paid',served?new Date():null]);
     await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items)]);
     await client.query('COMMIT');
     const invoiceOut=await storeInvoiceResult({id:orderId,table_no:s.table_no,items:orderLines,amount:out.amount,discount:out.discount},invoice);
@@ -5111,6 +5117,12 @@ app.post('/api/admin/orders/:id/status',auth,adminOnly,requireDb,wrap(async(req,
   if(status==='ready'&&push){const payload={title:`桌號 ${o.table_no}｜餐點好了`,body:o.items.map(l=>l.zh+'×'+l.qty).join('、').slice(0,120)+'，請至櫃檯取餐。',url:tableOrders.tableUrl(SITE_BASE,o.table_no,SECRET)};
     for(const sub of o.push){try{await eventChannels.sendPush(push,sub,payload);notified++;}catch(e){console.warn('[table-push]',e.statusCode||e.message);}}}
   res.json({ok:true,status,notified});
+}));
+/* 看板「已出餐」：桌邊送單（未結帳）的品項標記已出餐、從看板移除；子帳號只能出自己店別的 */
+app.post('/api/admin/orders/sessions/:id/tickets/:ticket/serve',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id)||!ORDER_ID_RE.test(req.params.ticket))return res.status(404).json({error:'找不到這張送單。'});
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  return mutateItems(req,res,items=>{const t=items.filter(l=>l.ticket===req.params.ticket);if(t.length&&!t.every(l=>tableOrders.itemInVenues(l,venues)))throw Object.assign(Error('只能出自己店別的餐。'),{status:403});return tableOrders.serveTicket(items,req.params.ticket);});
 }));
 app.post('/api/admin/orders/sessions/:id/close',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
