@@ -54,3 +54,18 @@ test('掃碼點餐以圖片優先商品卡與細項面板收集規格', () => {
   assert.match(html, /note:optionNote\(\)/);
   assert.match(html, /@media \(max-width:320px\)/);
 });
+
+test('商品細項彈窗：按鈕列固定底部、只捲中間內容、開窗鎖頁面捲動（小螢幕按鈕被擠出畫面點不到）', () => {
+  assert.match(html, /#item-detail \.in\{display:flex;flex-direction:column;[^}]*overflow:hidden/);
+  assert.match(html, /#item-detail #detail-body\{flex:1 1 auto;min-height:0;overflow:auto/);
+  assert.match(html, /#item-detail \.sheet-actions\{flex:none/);
+  assert.match(html, /<div class="row sheet-actions"><button class="btn ghost" type="button" data-close/);
+  assert.match(html, /max-height:92dvh/);
+  assert.match(html, /body\.sheet-open\{overflow:hidden\}/);
+  assert.match(html, /function openSheet\(sel\)\{[^}]*classList\.add\('on'\);document\.body\.classList\.add\('sheet-open'\)/);
+  assert.match(html, /function closeSheets\(\)\{[\s\S]*?document\.body\.classList\.remove\('sheet-open'\);\}/);
+  assert.match(html, /\$\('#detail-body'\)\.scrollTop=0;openSheet\('#item-detail'\)/);
+  assert.doesNotMatch(html, /\$\('#item-detail'\)\.classList\.add\('on'\)/);
+  assert.doesNotMatch(html, /\$\('#item-detail'\)\.classList\.remove\('on'\)/);
+  assert.match(html, /e\.target\.classList\.contains\('sheet'\)\)closeSheets\(\)/);
+});

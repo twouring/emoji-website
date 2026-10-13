@@ -40,7 +40,13 @@ h3{font-size:1.05rem;margin:0 0 6px}
 .btn:disabled{opacity:.45;cursor:default}.btn.ghost{background:#fff;color:var(--ink)}.btn.sm{padding:6px 14px}.btn.y{background:var(--yellow);color:var(--ink);border-color:var(--yellow)}
 .sheet{position:fixed;inset:0;background:rgba(27,26,23,.55);z-index:20;display:none;align-items:flex-end}
 .sheet.on{display:flex}
-.sheet .in{background:var(--paper);width:100%;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px 16px calc(24px + env(safe-area-inset-bottom))}
+.sheet .in{background:var(--paper);width:100%;max-height:92vh;max-height:92dvh;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;border-radius:18px 18px 0 0;padding:16px 16px calc(24px + env(safe-area-inset-bottom))}
+/* 商品細項：選項多時只捲中間內容，「返回菜單／加入購物車」固定在底部，小螢幕也一定點得到 */
+#item-detail .in{display:flex;flex-direction:column;padding:0;overflow:hidden}
+#item-detail #detail-body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:16px 16px 8px}
+#item-detail .sheet-actions{flex:none;margin:0;padding:10px 16px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--paper)}
+#item-detail .sheet-actions .btn{flex:1 1 0;min-width:0}
+body.sheet-open{overflow:hidden}
 .line{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px dashed var(--line)}
 .line:last-child{border-bottom:0}.line .by{color:var(--muted)}
 .detail-img{width:100%;max-height:260px;object-fit:cover;border-radius:14px;background:var(--line);margin:6px 0 12px}.detail-note{color:var(--muted);margin:0 0 10px}.detail-price{font-size:1.25rem;font-weight:800;margin:0 0 8px}.opt{margin:14px 0}.opt-title{display:flex;justify-content:space-between;gap:8px;font-weight:700;margin-bottom:8px}.choice-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.choice-grid label{display:flex;align-items:center;justify-content:center;min-height:44px;text-align:center;border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 10px;line-height:1.25}.choice-grid label:has(input:checked){border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);background:#fff8cf}.choice-grid input{position:absolute;opacity:0;pointer-events:none}.qty{display:flex;align-items:center;gap:10px}.qty button{width:44px;height:44px;border-radius:50%;border:1.5px solid var(--ink);background:#fff;font-size:1.2rem}.qty b{min-width:2ch;text-align:center}.note-field textarea{width:100%;min-height:74px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;resize:vertical}
@@ -100,7 +106,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 
 <div class="sheet" id="item-detail"><div class="in">
   <div id="detail-body"></div>
-  <div class="row"><button class="btn ghost" data-close data-i18n="back_menu">返回菜單</button><button class="btn y" id="detail-add" type="button" data-i18n="add_to_cart">加入購物車</button></div>
+  <div class="row sheet-actions"><button class="btn ghost" type="button" data-close data-i18n="back_menu">返回菜單</button><button class="btn y" id="detail-add" type="button" data-i18n="add_to_cart">加入購物車</button></div>
 </div></div>
 
 <div class="sheet" id="pay"><div class="in">
@@ -175,8 +181,11 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     var html=(CURRENT_ITEM.image?'<img class="detail-img" src="'+esc(CURRENT_ITEM.image)+'" alt="'+esc(primary)+'">':'')+'<h3>'+esc(primary)+'</h3>'+(secondary?'<p class="muted" style="margin:0 0 6px">'+esc(secondary)+'</p>':'')+'<p class="detail-price">'+money(CURRENT_ITEM.price)+'</p>'+(CURRENT_ITEM.note?'<p class="detail-note">'+esc(CURRENT_ITEM.note)+'</p>':'')+'<div class="opt"><div class="opt-title"><span>'+esc(tr('quantity'))+'</span></div><div class="qty"><button type="button" data-qty="-1">−</button><b id="detail-qty">1</b><button type="button" data-qty="1">＋</button></div></div>';
     html+=groups.map(function(g){return '<div class="opt" data-opt="'+esc(g.key)+'"><div class="opt-title"><span>'+esc(g.label)+'</span><small class="muted">'+esc(tr('required'))+'</small></div><div class="choice-grid">'+g.choices.map(function(c,i){return '<label><input type="radio" name="opt_'+esc(g.key)+'" value="'+esc(c)+'" '+(i===0?'checked':'')+'><span>'+esc(c)+'</span></label>';}).join('')+'</div></div>';}).join('');
     html+='<label class="opt note-field"><div class="opt-title"><span>'+esc(tr('special_request'))+'</span><small class="muted">'+esc(tr('optional'))+'</small></div><textarea id="detail-note" maxlength="80" placeholder="'+esc(tr('special_placeholder'))+'"></textarea></label>';
-    $('#detail-body').innerHTML=html;$('#item-detail').classList.add('on');$('#detail-add').disabled=!!PAUSED;$('#detail-add').textContent=PAUSED?PAUSED:tr('add_to_cart');
+    $('#detail-body').innerHTML=html;$('#detail-body').scrollTop=0;openSheet('#item-detail');$('#detail-add').disabled=!!PAUSED;$('#detail-add').textContent=PAUSED?PAUSED:tr('add_to_cart');
   }
+  // 彈跳視窗開著時鎖住頁面本身捲動：行動版瀏覽器否則會把觸控事件送到底下的菜單，按鈕看得到卻點不到
+  function openSheet(sel){$(sel).classList.add('on');document.body.classList.add('sheet-open');}
+  function closeSheets(){document.querySelectorAll('.sheet').forEach(function(s){s.classList.remove('on');});document.body.classList.remove('sheet-open');}
   // 暫停點餐（公休、最後點餐、包場）：每 30 秒問一次；加菜被擋（423）時也同步狀態
   function loadPause(){return api('/orders/pause').then(function(p){var was=PAUSED;PAUSED=p.paused||null;if(was!==PAUSED){renderMenu();if(PAUSED)toast(PAUSED);}}).catch(function(){});}
   function loadMenuDoc(){return fetch('/api/public').then(function(r){return r.json();}).then(function(d){var raw=(d&&d.content&&d.content.menu)||'';if(raw!==(MENU_DOC&&MENU_DOC.__raw)){MENU_DOC=MenuLib.parseMenuDoc(raw);MENU_DOC.__raw=raw;renderMenu();}}).catch(function(){});}
@@ -214,10 +223,10 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     var qb=e.target.closest('[data-qty]');if(qb){CURRENT_QTY=Math.max(1,Math.min(20,CURRENT_QTY+Number(qb.dataset.qty||0)));$('#detail-qty').textContent=CURRENT_QTY;return;}
     var d=e.target.closest('[data-del]');if(d){api('/orders/'+S.id+'/items/'+d.dataset.del,{method:'DELETE',body:{guest:GUEST}}).then(function(s){S=s;renderState();}).catch(function(err){toast(err.message);});return;}
     var p=e.target.closest('[data-push]');if(p){subscribePush(p.dataset.push,p);return;}
-    if(e.target.closest('[data-close]'))document.querySelectorAll('.sheet').forEach(function(s){s.classList.remove('on');});
+    if(e.target.closest('[data-close]')||e.target.classList.contains('sheet'))closeSheets();   // 按「返回」或點遮罩外側都關閉
   });
-  $('#detail-add').onclick=function(){if(!CURRENT_ITEM)return;NAME=$('#name-in').value.trim().slice(0,20)||NAME;if(!needName())return;try{localStorage.setItem('order_name',NAME);}catch(x){}var btn=this;btn.disabled=true;api('/orders/'+S.id+'/items',{method:'POST',body:{item_id:CURRENT_ITEM.id,qty:CURRENT_QTY,by:NAME,guest:GUEST,note:optionNote()}}).then(function(s){S=s;renderState();btn.textContent='✓ '+tr('added');setTimeout(function(){$('#item-detail').classList.remove('on');btn.textContent=tr('add_to_cart');},450);}).catch(function(err){toast(err.message);if(/已結束/.test(err.message))load();if(err.status===423){PAUSED=err.message;renderMenu();}if(/售完|下架/.test(err.message))loadMenuDoc();}).then(function(){btn.disabled=!!PAUSED;});};
-  $('#open-cart').onclick=function(){$('#cart').classList.add('on');};
+  $('#detail-add').onclick=function(){if(!CURRENT_ITEM)return;NAME=$('#name-in').value.trim().slice(0,20)||NAME;if(!needName())return;try{localStorage.setItem('order_name',NAME);}catch(x){}var btn=this;btn.disabled=true;api('/orders/'+S.id+'/items',{method:'POST',body:{item_id:CURRENT_ITEM.id,qty:CURRENT_QTY,by:NAME,guest:GUEST,note:optionNote()}}).then(function(s){S=s;renderState();btn.textContent='✓ '+tr('added');setTimeout(function(){closeSheets();btn.textContent=tr('add_to_cart');},450);}).catch(function(err){toast(err.message);if(/已結束/.test(err.message))load();if(err.status===423){PAUSED=err.message;renderMenu();}if(/售完|下架/.test(err.message))loadMenuDoc();}).then(function(){btn.disabled=!!PAUSED;});};
+  $('#open-cart').onclick=function(){openSheet('#cart');};
   $('#open-pay').onclick=$('#cart-pay').onclick=function(){$('#cart').classList.remove('on');openPay();};
 
   /* ---- 用餐完櫃檯結帳提醒／AA 分帳 ---- */
@@ -237,7 +246,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   document.querySelectorAll('input[name=scope]').forEach(function(r){r.onchange=refreshPayAmount;});
   $('#split-people').oninput=refreshPayAmount;
   function openPay(){
-    $('#pay').classList.add('on');
+    openSheet('#pay');
     var mineRadio=document.querySelector('input[name=scope][value=mine]'),hasSeparateMine=mine().length&&mine().length<unpaid().length;
     mineRadio.parentNode.style.display=hasSeparateMine?'':'none';
     if(mineRadio.checked&&!hasSeparateMine)document.querySelector('input[name=scope][value=all]').checked=true;
