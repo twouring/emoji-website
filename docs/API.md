@@ -296,10 +296,13 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 開關帳（帳本）。在咖啡（CAFE）與三點水（BAR）共用同一台 POS 但帳務分開，所以帳本以「品牌 × 營業日」為單位。query `day=YYYY-MM-DD`（預設今天的營業日）、`venue=`。回 `{ day, registers[], current:{CAFE, BAR}, active_venue }`；`current[venue]` 為該品牌當日最後一本帳（`null`＝還沒開帳），每本含 `opening_cash, cash_sales, cash_in, cash_out, expected`（應有現金＝零用金＋現金營收＋臨時收入－臨時支出）、`moves[]`（臨時收支）、`sales{orders,amount,by_method,voided,void_amount}`、關帳後另有 `counted_cash, diff, keep_cash, take_cash, denominations, close_note, closed_at, closed_by`，以及 `report`（小結單／關帳單資料）。
 
 ### POST /api/admin/registers/open
-開帳。body `{ venue:'CAFE'|'BAR', opening_cash, note?, day? }`。零用金 0 以上整數；同品牌同營業日已有開著的帳回 409；品牌子帳號只能開自己店別（403）。回 `{ ok, id, day, venue, opening_cash }`（201）。**結帳規則**：`POST /api/admin/orders/sessions/:id/checkout` 會檢查品項所屬品牌當日的帳——已關帳一律 409；未開帳時品牌子帳號 409、言文字管理員放行但回 `warning`。
+開帳。body `{ venue:'CAFE'|'BAR', opening_cash?, denominations?:{ "1000":張數, "500":…, "100","50","10","5","1" }, note?, day? }`。零用金可直接填總額或按面額填張數（有填面額就以面額合計為準，並存成 `opening_denominations`）；0 以上整數；同品牌同營業日已有開著的帳回 409；品牌子帳號只能開自己店別（403）。回 `{ ok, id, day, venue, opening_cash, denominations }`（201）。**結帳規則**：`POST /api/admin/orders/sessions/:id/checkout` 會檢查品項所屬品牌當日的帳——已關帳一律 409；未開帳時品牌子帳號 409、言文字管理員放行但回 `warning`。
 
 ### GET /api/admin/registers/:id
-小結：不關帳，回這本帳目前的現金摘要、營收摘要、臨時收支與 `report`（印小結單）。
+小結：不關帳，回這本帳目前的現金摘要、營收摘要、臨時收支、`counts[]`（歷次小結點驗，新到舊）、`last_count` 與 `report`（印小結單；還沒關帳時 `counted_cash/diff/counted_at` 取最近一次點驗，沒點驗過為 `null`）。
+
+### POST /api/admin/registers/:id/count
+小結點驗：核對目前抽屜現金，**不關帳**、可多次記錄。body `{ counted_cash?, denominations?:{ "1000":3, … }, note? }`，點鈔可填總額或按面額填張數；`diff = counted − expected`，差額非 0 不擋、`note` 選填；關帳後 409。回 `{ ok, id, counted_cash, expected_cash, diff, denominations, note, counted_by, report }`（201），`report` 為帶上這次點驗的小結單。
 
 ### POST /api/admin/registers/:id/cash
 現金臨時收支。body `{ type:'in'|'out', amount, reason }`，金額正整數、原因必填；關帳後 409。回 `{ ok, id, type, amount, reason, expected_cash }`（201）。

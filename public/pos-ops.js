@@ -8,7 +8,7 @@ function tabPos(){ return '<div id="pos-body"></div>'; }
 function tabReservations(){ return '<div class="a-sec" id="resv-body"></div>'; }
 function tabSales(){ return '<div class="a-sec" id="sales-body"></div>'; }
 function tabHistory(){ return '<div class="a-sec" id="history-body"></div>'; }
-let ORDERS_TIMER=null,ORDERS_SEEN=null,POS_TIMER=null,POS_DATA=null,POS_TABLE='',POS_PICK=null,POS_MEMBER=false,POS_INVOICE={mode:''},POS_METHOD='cash',POS_CAT='',POS_DISCOUNT=null,POS_DISC_OPEN=false,POS_RECEIVED='',RESV_FROM='',RESV_DAYS=7,SALES_DAY='',HIST_DAY='',HIST_Q='',REG_DATA=null,REG_CASH_OPEN=false,REG_CLOSE_OPEN=false;
+let ORDERS_TIMER=null,ORDERS_SEEN=null,POS_TIMER=null,POS_DATA=null,POS_TABLE='',POS_PICK=null,POS_MEMBER=false,POS_INVOICE={mode:''},POS_METHOD='cash',POS_CAT='',POS_DISCOUNT=null,POS_DISC_OPEN=false,POS_RECEIVED='',RESV_FROM='',RESV_DAYS=7,SALES_DAY='',HIST_DAY='',HIST_Q='',REG_DATA=null,REG_CASH_OPEN=false,REG_CLOSE_OPEN=false,REG_COUNT_OPEN=false,REG_OPEN_FORM='';
 const REG_DENOMS=[1000,500,100,50,10,5,1];
 const PAY_LABEL={cash:'現金',card:'刷卡',linepay:'LINE Pay',transfer:'轉帳',tappay:'線上刷卡'};
 const INV_LABEL={paper:'紙本',company:'統編',mobile:'手機載具',citizen:'自然人憑證',donate:'捐贈'};
@@ -109,7 +109,8 @@ async function loadPos(){
   if(!host.dataset.init){host.dataset.init='1';host.innerHTML='<div class="a-sec"><h2>櫃檯結帳</h2><p class="hint">載入中…</p></div>';}
   try{[POS_DATA,REG_DATA]=await Promise.all([api('/admin/orders'+scopeQuery('all=1')),api('/admin/registers'+scopeQuery()).catch(()=>null)]);}catch(e){if(host.querySelector('.pos-grid'))toast('更新失敗：'+e.message);else host.innerHTML=`<div class="a-sec"><h2>櫃檯結帳</h2><p class="a-empty">載入失敗：${esc(e.message)}</p></div>`;POS_TIMER=setTimeout(()=>{if(document.getElementById('pos-body')&&TAB==='pos')loadPos();},15000);return;}
   const sig=JSON.stringify([POS_DATA.sessions.map(s=>[s.id,s.unpaid,s.unpaid_amount,s.state,s.lines.map(l=>[l.line,l.qty,l.price,l.comp_reason||''])]),POS_DATA.orders.map(o=>[o.id,o.status,o.invoice?.status]),REG_DATA&&Object.entries(REG_DATA.current||{}).map(([v,r])=>[v,r?.id,r?.closed_at])]);
-  if(host.dataset.sig!==sig||!host.querySelector('.pos-grid')){host.dataset.sig=sig;paintPos();}
+  // 開帳表單打開時不要被 15 秒自動刷新重畫（會清掉正在填的張數）
+  if((host.dataset.sig!==sig&&!(REG_OPEN_FORM&&host.querySelector('.reg-open-form')))||!host.querySelector('.pos-grid')){host.dataset.sig=sig;paintPos();}
   POS_TIMER=setTimeout(()=>{if(document.getElementById('pos-body')&&TAB==='pos')loadPos();},15000);
 }
 // 結帳金額（與伺服器同一套算法：會員價 → 整單折扣）；伺服器仍會重算，這裡只給畫面即時顯示
@@ -306,50 +307,69 @@ function registerBar(){
   if(!REG_DATA)return '';
   const venues=SCOPE?[SCOPE]:Object.keys(BRAND_LABEL);
   return `<div class="reg-bar">${venues.map(v=>{const r=regOf(v),st=regState(r);
-    return `<div class="reg-chip reg-${st}"><b>${esc(BRAND_LABEL[v])}</b>${st==='open'?`<span class="pill pill-ok">已開帳</span><span class="reg-exp">應有現金 NT$${num(r.expected)}</span><a href="${esc(opsHref('sales'))}" data-tab="sales" class="btn btn--ghost btn-xs">小結／關帳</a>`:st==='done'?`<span class="pill pill-draft">已關帳</span><span class="reg-exp">${esc(clockText(r.closed_at))} 關帳，不能再結帳</span>`:`<span class="pill pill-bad">未開帳</span><button type="button" class="btn btn--solid btn-xs" data-reg-open="${esc(v)}">開帳</button>`}</div>`;}).join('')}</div>`;
+    return `<div class="reg-chip reg-${st}"><b>${esc(BRAND_LABEL[v])}</b>${st==='open'?`<span class="pill pill-ok">已開帳</span><span class="reg-exp">應有現金 NT$${num(r.expected)}</span><a href="${esc(opsHref('sales'))}" data-tab="sales" class="btn btn--ghost btn-xs">小結／關帳</a>`:st==='done'?`<span class="pill pill-draft">已關帳</span><span class="reg-exp">${esc(clockText(r.closed_at))} 關帳，不能再結帳</span>`:`<span class="pill pill-bad">未開帳</span><button type="button" class="btn btn--solid btn-xs" data-reg-open="${esc(v)}">開帳</button>`}</div>`;}).join('')}</div>${REG_OPEN_FORM&&venues.includes(REG_OPEN_FORM)?openRegisterForm(REG_OPEN_FORM):''}`;
 }
-function openRegisterPrompt(venue,reload){
-  const v=prompt(`${BRAND_LABEL[venue]||venue} 開帳：抽屜零用金（找零準備金）多少？`,'3000');if(v===null)return;
-  if(!/^\d+$/.test(v.trim())){toast('零用金請輸入整數');return;}
-  opsThen(()=>api('/admin/registers/open',{method:'POST',body:{venue,opening_cash:Number(v.trim())}}),out=>`${BRAND_LABEL[out.venue]} 已開帳，零用金 NT$${num(out.opening_cash)}`,reload);
+// 面額格：開帳（零用金）與關帳（點鈔）共用；張數 × 面額合計，一張都沒填才用直接填的總額
+const denomGrid=()=>`<div class="reg-denoms">${REG_DENOMS.map(f=>`<label><span>$${num(f)}</span><input inputmode="numeric" pattern="[0-9]*" data-denom="${f}" placeholder="張"></label>`).join('')}</div>`;
+function readCount(form,directSel){const denoms={};let d=0;form.querySelectorAll('[data-denom]').forEach(i=>{const n=Number(i.value)||0;if(n>0){denoms[i.dataset.denom]=n;d+=Number(i.dataset.denom)*n;}});const direct=form.querySelector(directSel).value.trim();return {total:d>0?d:(/^\d+$/.test(direct)?Number(direct):null),denoms:d>0?denoms:undefined};}
+function openRegisterForm(venue){
+  return `<div class="reg-open-form" data-venue="${esc(venue)}"><p class="hint">${esc(BRAND_LABEL[venue]||venue)} 開帳：抽屜零用金（找零準備金）按面額填張數，或直接填總額。</p>${denomGrid()}
+    <div class="a-form"><label>零用金總額<input id="reg-open-total" inputmode="numeric" pattern="[0-9]*" placeholder="或直接填" value="3000"></label></div>
+    <div class="reg-close-sum"><span>零用金 <b id="reg-open-show">NT$3,000</b></span></div>
+    <div class="a-toolbar"><button type="button" class="btn btn--solid" id="reg-open-go">確認開帳</button><button type="button" class="btn btn--ghost" id="reg-open-cancel">取消</button></div></div>`;
 }
-function bindRegisterBar(host,reload){host.querySelectorAll('[data-reg-open]').forEach(b=>b.onclick=()=>openRegisterPrompt(b.dataset.regOpen,reload));}
-// 小結單／關帳單（80mm）：現金帳 → 營收摘要 → 臨時收支；關帳才有點鈔與短溢
+function bindOpenForm(host,reload){
+  host.querySelectorAll('[data-reg-open]').forEach(b=>b.onclick=()=>{REG_OPEN_FORM=b.dataset.regOpen;REG_CASH_OPEN=false;REG_CLOSE_OPEN=false;reload();});
+  const form=host.querySelector('.reg-open-form');if(!form)return;
+  const show=()=>{const {total}=readCount(form,'#reg-open-total');form.querySelector('#reg-open-show').textContent=total==null?'—':'NT$'+num(total);};
+  form.querySelectorAll('[data-denom],#reg-open-total').forEach(i=>i.oninput=show);
+  form.querySelector('#reg-open-cancel').onclick=()=>{REG_OPEN_FORM='';reload();};
+  form.querySelector('#reg-open-go').onclick=()=>{const {total,denoms}=readCount(form,'#reg-open-total');if(total==null){toast('零用金請按面額填張數，或填總額');return;}
+    opsThen(()=>api('/admin/registers/open',{method:'POST',body:{venue:form.dataset.venue,opening_cash:total,denominations:denoms}}),out=>`${BRAND_LABEL[out.venue]} 已開帳，零用金 NT$${num(out.opening_cash)}`,()=>{REG_OPEN_FORM='';return reload();});};
+}
+function bindRegisterBar(host,reload){bindOpenForm(host,reload);}
+// 小結單／關帳單（80mm）：現金帳 → 營收摘要 → 臨時收支；關帳有點鈔、短溢與留存金；小結有點驗過就印最近一次點鈔與差額
 function printRegisterReport(rep,kind){
   const line=(k,v,cls='l')=>`<div class="${cls}"><span>${esc(k)}</span><span>${v}</span></div>`;
   const moves=(rep.moves||[]).map(m=>line(`${m.type==='in'?'收':'支'} ${m.reason}`,`${m.type==='in'?'+':'−'}${num(m.amount)}`)).join('')||'<div class="m">無</div>';
   const methods=Object.entries(rep.by_method||{}).map(([m,v])=>line(PAY_LABEL[m]||m,num(v))).join('');
-  printWindow(`${kind} ${rep.venue}`,`<h1>${esc(BRAND_LABEL[rep.venue]||rep.venue)}</h1><div class="m">${kind} · 營業日 ${esc(rep.day)}</div><div class="m">開帳 ${esc(applicationTime(rep.opened_at))} ${esc(rep.opened_by||'')}</div>${rep.closed_at?`<div class="m">關帳 ${esc(applicationTime(rep.closed_at))} ${esc(rep.closed_by||'')}</div>`:''}
+  const closed=!!rep.closed_at;
+  printWindow(`${kind} ${rep.venue}`,`<h1>${esc(BRAND_LABEL[rep.venue]||rep.venue)}</h1><div class="m">${kind} · 營業日 ${esc(rep.day)}</div><div class="m">開帳 ${esc(applicationTime(rep.opened_at))} ${esc(rep.opened_by||'')}</div>${closed?`<div class="m">關帳 ${esc(applicationTime(rep.closed_at))} ${esc(rep.closed_by||'')}</div>`:rep.counted_at?`<div class="m">點驗 ${esc(applicationTime(rep.counted_at))}</div>`:''}
     <h2>現金</h2>${line('零用金',num(rep.opening_cash))}${line('現金營收',num(rep.cash_sales))}${line('臨時收入','+'+num(rep.cash_in))}${line('臨時支出','−'+num(rep.cash_out))}${line('應有現金','NT$'+num(rep.expected_cash),'t')}
-    ${rep.counted_cash!=null?`${line('點鈔現金','NT$'+num(rep.counted_cash),'t')}${line(rep.diff>0?'溢':rep.diff<0?'短':'差額',(rep.diff>0?'+':'')+num(rep.diff),'t big')}${line('留存金（下一班）',num(rep.keep_cash))}${line('收走',num(rep.take_cash))}${rep.note?`<div class="n">${esc(rep.note)}</div>`:''}`:''}
+    ${rep.counted_cash!=null?`${line(closed?'點鈔現金':'點驗現金','NT$'+num(rep.counted_cash),'t')}${line(rep.diff>0?'溢':rep.diff<0?'短':'差額',(rep.diff>0?'+':'')+num(rep.diff),'t big')}${closed?`${line('留存金（下一班）',num(rep.keep_cash))}${line('收走',num(rep.take_cash))}`:''}${rep.note?`<div class="n">${esc(rep.note)}</div>`:''}`:''}
     <h2>營收</h2>${line('成立單數',num(rep.orders)+' 單')}${line('營收（折扣後）','NT$'+num(rep.amount),'t')}${methods}${rep.discount_amount?line('折扣合計','−'+num(rep.discount_amount)):''}${rep.voided?line('作廢',`${num(rep.voided)} 單 ${num(rep.void_amount)}`):''}
     <h2>臨時收支</h2>${moves}<div class="c">${esc(kind)}完成</div>`);
 }
 function registerBlock(d){
   const venues=SCOPE?[SCOPE]:Object.keys(BRAND_LABEL);
   const cards=venues.map(v=>{const r=d?.current?.[v]||null,st=regState(r);
-    if(st==='closed')return `<div class="reg-card reg-closed"><h4>${esc(BRAND_LABEL[v])}</h4><p class="hint">這個營業日還沒開帳。開店時先放零用金、按開帳，之後才能結帳。</p><button type="button" class="btn btn--solid" data-reg-open="${esc(v)}">開帳</button></div>`;
+    if(st==='closed')return `<div class="reg-card reg-closed"><h4>${esc(BRAND_LABEL[v])}</h4>${REG_OPEN_FORM===v?openRegisterForm(v):`<p class="hint">這個營業日還沒開帳。開店時先放零用金、按開帳，之後才能結帳。</p><button type="button" class="btn btn--solid" data-reg-open="${esc(v)}">開帳</button>`}</div>`;
     const moves=(r.moves||[]).map(m=>`<tr><td class="a-mono">${esc(clockText(m.created_at))}</td><td>${m.type==='in'?'<span class="pill pill-ok">收入</span>':'<span class="pill pill-wait">支出</span>'}</td><td>${esc(m.reason)}</td><td class="num">${m.type==='in'?'+':'−'}${num(m.amount)}</td></tr>`).join('')||'<tr><td colspan="4" class="a-empty">沒有臨時收支</td></tr>';
     const cashForm=REG_CASH_OPEN===r.id?`<div class="a-form reg-cash-form"><select id="reg-cash-type" aria-label="類型"><option value="out">臨時支出（從抽屜拿錢）</option><option value="in">臨時收入（放錢進抽屜）</option></select><input id="reg-cash-amount" inputmode="numeric" pattern="[0-9]*" placeholder="金額"><input id="reg-cash-reason" maxlength="80" placeholder="原因（必填）例：買檸檬、補零錢"><button type="button" class="btn btn--solid btn-sm" id="reg-cash-save">記錄</button><button type="button" class="btn btn--ghost btn-sm" id="reg-cash-cancel">取消</button></div>`:'';
-    const closeForm=REG_CLOSE_OPEN===r.id?`<div class="reg-close-form"><p class="hint">按面額填張數，或直接填總額；留存金預設＝零用金（留給下一班）。差額非 0 要寫說明。</p>
-      <div class="reg-denoms">${REG_DENOMS.map(f=>`<label><span>$${num(f)}</span><input inputmode="numeric" pattern="[0-9]*" data-denom="${f}" placeholder="張"></label>`).join('')}</div>
+    const closeForm=REG_CLOSE_OPEN===r.id?`<div class="reg-close-form"><p class="hint">按面額填張數，或直接填總額；留存金預設＝零用金（留給下一班）。差額非 0 要寫說明。</p>${denomGrid()}
       <div class="a-form"><label>點鈔總額<input id="reg-counted" inputmode="numeric" pattern="[0-9]*" placeholder="或直接填"></label><label>留存金<input id="reg-keep" inputmode="numeric" pattern="[0-9]*" value="${esc(r.opening_cash)}"></label><label class="reg-note">說明<input id="reg-close-note" maxlength="200" placeholder="差額原因、交接事項"></label></div>
       <div class="reg-close-sum"><span>應有現金 <b>NT$${num(r.expected)}</b></span><span>點鈔 <b id="reg-counted-show">—</b></span><span>差額 <b id="reg-diff-show">—</b></span></div>
       <div class="a-toolbar"><button type="button" class="btn btn--solid" id="reg-close-go">確認關帳</button><button type="button" class="btn btn--ghost" id="reg-close-cancel">取消</button></div></div>`:'';
-    const done=st==='done';
+    // 小結點驗：營業中隨時核對抽屜現金，不關帳；差額只提示不卡，留痕後印小結單會帶上
+    const countForm=REG_COUNT_OPEN===r.id?`<div class="reg-close-form reg-count-form"><p class="hint">小結點驗：按面額填張數，或直接填總額，核對抽屜現金是否等於應有現金。不會關帳，可以多次點驗。</p>${denomGrid()}
+      <div class="a-form"><label>點鈔總額<input id="reg-count-total" inputmode="numeric" pattern="[0-9]*" placeholder="或直接填"></label><label class="reg-note">說明<input id="reg-count-note" maxlength="200" placeholder="選填，例：午班交接"></label></div>
+      <div class="reg-close-sum"><span>應有現金 <b>NT$${num(r.expected)}</b></span><span>點鈔 <b id="reg-count-show">—</b></span><span>差額 <b id="reg-count-diff">—</b></span></div>
+      <div class="a-toolbar"><button type="button" class="btn btn--solid" id="reg-count-go">記錄點驗</button><button type="button" class="btn btn--ghost" id="reg-count-print">記錄並印小結單</button><button type="button" class="btn btn--ghost" id="reg-count-cancel">取消</button></div></div>`:'';
+    const done=st==='done',lc=!done&&r.last_count;
     return `<div class="reg-card reg-${st}"><h4>${esc(BRAND_LABEL[v])} ${done?'<span class="pill pill-draft">已關帳</span>':'<span class="pill pill-ok">開帳中</span>'}<span class="hint" style="margin:0 0 0 auto;font-weight:400">${esc(clockText(r.opened_at))} 開帳${done?` · ${esc(clockText(r.closed_at))} 關帳`:''}</span></h4>
-      <div class="reg-cash"><div><span>零用金</span><b>${num(r.opening_cash)}</b></div><div><span>現金營收</span><b>${num(r.cash_sales)}</b></div><div><span>臨時收支</span><b>${r.cash_in-r.cash_out>=0?'+':'−'}${num(Math.abs(r.cash_in-r.cash_out))}</b></div><div class="reg-expected"><span>應有現金</span><b>NT$${num(r.expected)}</b></div>${done?`<div><span>點鈔</span><b>${num(r.counted_cash)}</b></div><div class="${r.diff?'reg-diff':''}"><span>${r.diff>0?'溢':r.diff<0?'短':'差額'}</span><b>${r.diff>0?'+':''}${num(r.diff)}</b></div>`:''}</div>
-      ${done&&r.close_note?`<p class="hint">${esc(r.close_note)}</p>`:''}
+      <div class="reg-cash"><div><span>零用金</span><b>${num(r.opening_cash)}</b></div><div><span>現金營收</span><b>${num(r.cash_sales)}</b></div><div><span>臨時收支</span><b>${r.cash_in-r.cash_out>=0?'+':'−'}${num(Math.abs(r.cash_in-r.cash_out))}</b></div><div class="reg-expected"><span>應有現金</span><b>NT$${num(r.expected)}</b></div>${done?`<div><span>點鈔</span><b>${num(r.counted_cash)}</b></div><div class="${r.diff?'reg-diff':''}"><span>${r.diff>0?'溢':r.diff<0?'短':'差額'}</span><b>${r.diff>0?'+':''}${num(r.diff)}</b></div>`:lc?`<div><span>${esc(clockText(lc.created_at))} 點驗</span><b>${num(lc.counted_cash)}</b></div><div class="${lc.diff?'reg-diff':''}"><span>${lc.diff>0?'溢':lc.diff<0?'短':'差額'}</span><b>${lc.diff>0?'+':''}${num(lc.diff)}</b></div>`:''}</div>
+      ${done&&r.close_note?`<p class="hint">${esc(r.close_note)}</p>`:lc&&lc.note?`<p class="hint">點驗：${esc(lc.note)}</p>`:''}
       <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>時間</th><th>類型</th><th>原因</th><th class="num">金額</th></tr></thead><tbody>${moves}</tbody></table></div>
-      ${cashForm}${closeForm}
-      ${!REG_CASH_OPEN&&!REG_CLOSE_OPEN?`<div class="a-toolbar reg-actions">${done?`<button type="button" class="btn btn--ghost" data-reg-print="${esc(r.id)}" data-kind="關帳單">重印關帳單</button>${DATA?.super?`<button type="button" class="btn btn--ghost" data-reg-reopen="${esc(r.id)}">重開補單</button>`:''}`:`<button type="button" class="btn btn--ghost" data-reg-cash="${esc(r.id)}">＋ 臨時收支</button><button type="button" class="btn btn--ghost" data-reg-print="${esc(r.id)}" data-kind="小結單">印小結單</button><button type="button" class="btn btn--solid" data-reg-close="${esc(r.id)}">關帳</button>`}</div>`:''}
+      ${cashForm}${countForm}${closeForm}
+      ${!REG_CASH_OPEN&&!REG_CLOSE_OPEN&&!REG_COUNT_OPEN?`<div class="a-toolbar reg-actions">${done?`<button type="button" class="btn btn--ghost" data-reg-print="${esc(r.id)}" data-kind="關帳單">重印關帳單</button>${DATA?.super?`<button type="button" class="btn btn--ghost" data-reg-reopen="${esc(r.id)}">重開補單</button>`:''}`:`<button type="button" class="btn btn--ghost" data-reg-cash="${esc(r.id)}">＋ 臨時收支</button><button type="button" class="btn btn--ghost" data-reg-count="${esc(r.id)}">小結點驗</button><button type="button" class="btn btn--ghost" data-reg-print="${esc(r.id)}" data-kind="小結單">印小結單</button><button type="button" class="btn btn--solid" data-reg-close="${esc(r.id)}">關帳</button>`}</div>`:''}
     </div>`;}).join('');
-  return `<h3>開關帳</h3><p class="hint">在咖啡與三點水各自一本帳：開店放零用金按「開帳」，營業中從抽屜拿錢要記「臨時收支」，打烊點鈔按「關帳」；關帳後該品牌當天不能再結帳。應有現金＝零用金＋現金營收＋臨時收入－臨時支出。</p><div class="reg-cards">${cards}</div>`;
+  return `<h3>開關帳</h3><p class="hint">在咖啡與三點水各自一本帳：開店放零用金按「開帳」，營業中從抽屜拿錢要記「臨時收支」、交班或隨時可「小結點驗」核對現金，打烊點鈔按「關帳」；關帳後該品牌當天不能再結帳。應有現金＝零用金＋現金營收＋臨時收入－臨時支出。</p><div class="reg-cards">${cards}</div>`;
 }
 function bindRegisterBlock(host,reload){
-  host.querySelectorAll('[data-reg-open]').forEach(b=>b.onclick=()=>openRegisterPrompt(b.dataset.regOpen,reload));
-  host.querySelectorAll('[data-reg-cash]').forEach(b=>b.onclick=()=>{REG_CASH_OPEN=b.dataset.regCash;REG_CLOSE_OPEN=false;reload();});
-  host.querySelectorAll('[data-reg-close]').forEach(b=>b.onclick=()=>{REG_CLOSE_OPEN=b.dataset.regClose;REG_CASH_OPEN=false;reload();});
+  bindOpenForm(host,reload);
+  host.querySelectorAll('[data-reg-cash]').forEach(b=>b.onclick=()=>{REG_CASH_OPEN=b.dataset.regCash;REG_CLOSE_OPEN=false;REG_COUNT_OPEN=false;reload();});
+  host.querySelectorAll('[data-reg-close]').forEach(b=>b.onclick=()=>{REG_CLOSE_OPEN=b.dataset.regClose;REG_CASH_OPEN=false;REG_COUNT_OPEN=false;reload();});
+  host.querySelectorAll('[data-reg-count]').forEach(b=>b.onclick=()=>{REG_COUNT_OPEN=b.dataset.regCount;REG_CASH_OPEN=false;REG_CLOSE_OPEN=false;reload();});
   host.querySelectorAll('[data-reg-print]').forEach(b=>b.onclick=()=>{const r=(REG_DATA?.registers||[]).find(x=>x.id===b.dataset.regPrint);if(r)printRegisterReport(r.report,b.dataset.kind);});
   host.querySelectorAll('[data-reg-reopen]').forEach(b=>b.onclick=()=>{if(!confirm('重開這本帳補單？關帳紀錄會保留，另開一本接著記。'))return;opsThen(()=>api('/admin/registers/'+b.dataset.regReopen+'/reopen',{method:'POST',body:{}}),'已重開帳',reload);});
   const cc=host.querySelector('#reg-cash-cancel');if(cc)cc.onclick=()=>{REG_CASH_OPEN=false;reload();};
@@ -358,17 +378,26 @@ function bindRegisterBlock(host,reload){
     if(!reason){toast('請填寫原因');host.querySelector('#reg-cash-reason').focus();return;}
     opsThen(()=>api('/admin/registers/'+REG_CASH_OPEN+'/cash',{method:'POST',body:{type,amount:Number(amount),reason}}),out=>`已記錄${out.type==='in'?'收入':'支出'} NT$${num(out.amount)}，應有現金 NT$${num(out.expected_cash)}`,()=>{REG_CASH_OPEN=false;return reload();});};
   const xc=host.querySelector('#reg-close-cancel');if(xc)xc.onclick=()=>{REG_CLOSE_OPEN=false;reload();};
-  const form=host.querySelector('.reg-close-form');
+  const cf=host.querySelector('.reg-count-form');
+  if(cf){const r=(REG_DATA?.registers||[]).find(x=>x.id===REG_COUNT_OPEN);const expected=Number(r?.expected)||0;
+    const show=()=>{const c=readCount(cf,'#reg-count-total').total;cf.querySelector('#reg-count-show').textContent=c==null?'—':'NT$'+num(c);const ds=cf.querySelector('#reg-count-diff');ds.textContent=c==null?'—':(c-expected>0?'+':'')+num(c-expected);ds.classList.toggle('reg-diff',c!=null&&c!==expected);};
+    cf.querySelectorAll('[data-denom],#reg-count-total').forEach(i=>i.oninput=show);
+    cf.querySelector('#reg-count-cancel').onclick=()=>{REG_COUNT_OPEN=false;reload();};
+    const submitCount=print=>{const {total,denoms}=readCount(cf,'#reg-count-total');if(total==null){toast('請點鈔：按面額填張數或填總額');return;}
+      const note=cf.querySelector('#reg-count-note').value.trim();
+      opsThen(()=>api('/admin/registers/'+r.id+'/count',{method:'POST',body:{counted_cash:total,denominations:denoms,note}}),out=>{if(print)printRegisterReport(out.report,'小結單');return out.diff===0?'點驗完成，現金帳對了':`點驗完成，${out.diff>0?'溢':'短'} NT$${num(Math.abs(out.diff))}`;},()=>{REG_COUNT_OPEN=false;return reload();});};
+    cf.querySelector('#reg-count-go').onclick=()=>submitCount(false);cf.querySelector('#reg-count-print').onclick=()=>submitCount(true);}
+  const form=host.querySelector('.reg-close-form:not(.reg-count-form)');
   if(form){const r=(REG_DATA?.registers||[]).find(x=>x.id===REG_CLOSE_OPEN);const expected=Number(r?.expected)||0;
-    const counted=()=>{const d=[...form.querySelectorAll('[data-denom]')].reduce((a,i)=>a+Number(i.dataset.denom)*(Number(i.value)||0),0);const direct=form.querySelector('#reg-counted').value.trim();return d>0?d:(/^\d+$/.test(direct)?Number(direct):null);};
+    const counted=()=>readCount(form,'#reg-counted').total;
     const show=()=>{const c=counted();form.querySelector('#reg-counted-show').textContent=c==null?'—':'NT$'+num(c);const ds=form.querySelector('#reg-diff-show');ds.textContent=c==null?'—':(c-expected>0?'+':'')+num(c-expected);ds.classList.toggle('reg-diff',c!=null&&c!==expected);};
     form.querySelectorAll('[data-denom],#reg-counted').forEach(i=>i.oninput=show);
     form.querySelector('#reg-close-go').onclick=()=>{const c=counted();if(c==null){toast('請點鈔：按面額填張數或填總額');return;}
       const note=form.querySelector('#reg-close-note').value.trim(),keep=form.querySelector('#reg-keep').value.trim();
       if(c!==expected&&!note){toast(`差額 ${c-expected>0?'+':''}${num(c-expected)}，請填寫說明`);form.querySelector('#reg-close-note').focus();return;}
       if(!confirm(`關帳 ${BRAND_LABEL[r.venue]}：點鈔 NT$${num(c)}，應有 NT$${num(expected)}，差額 ${c-expected>0?'+':''}${num(c-expected)}。關帳後今天不能再結帳，確定？`))return;
-      const denoms={};form.querySelectorAll('[data-denom]').forEach(i=>{if(Number(i.value)>0)denoms[i.dataset.denom]=Number(i.value);});
-      opsThen(()=>api('/admin/registers/'+r.id+'/close',{method:'POST',body:{counted_cash:c,denominations:Object.keys(denoms).length?denoms:undefined,keep_cash:/^\d+$/.test(keep)?Number(keep):undefined,note}}),out=>{printRegisterReport(out.report,'關帳單');return out.diff===0?'關帳完成，現金帳對了':`關帳完成，${out.diff>0?'溢':'短'} NT$${num(Math.abs(out.diff))}`;},()=>{REG_CLOSE_OPEN=false;return reload();});};}
+      const {denoms}=readCount(form,'#reg-counted');
+      opsThen(()=>api('/admin/registers/'+r.id+'/close',{method:'POST',body:{counted_cash:c,denominations:denoms,keep_cash:/^\d+$/.test(keep)?Number(keep):undefined,note}}),out=>{printRegisterReport(out.report,'關帳單');return out.diff===0?'關帳完成，現金帳對了':`關帳完成，${out.diff>0?'溢':'短'} NT$${num(Math.abs(out.diff))}`;},()=>{REG_CLOSE_OPEN=false;return reload();});};}
 }
 
 /* 日結：依營業日（03:00 起算）彙總；交班結算（點鈔 vs 現金營收）；CSV 由 downloadCSV 產生（含公式注入防護） */
@@ -408,7 +437,7 @@ async function loadSales(){
     <h3>品項銷量</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>品項</th>${SCOPE?'':'<th>店別</th>'}<th class="num">數量</th><th class="num">金額</th></tr></thead><tbody>${items}</tbody></table></div>
     ${lpBlock}`;
   bindRegisterBlock(host,loadSales);
-  const shift=n=>{const t=new Date(SALES_DAY+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);SALES_DAY=t.toISOString().slice(0,10);REG_CASH_OPEN=false;REG_CLOSE_OPEN=false;loadSales();};
+  const shift=n=>{const t=new Date(SALES_DAY+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);SALES_DAY=t.toISOString().slice(0,10);REG_CASH_OPEN=false;REG_CLOSE_OPEN=false;REG_COUNT_OPEN=false;REG_OPEN_FORM='';loadSales();};
   host.querySelector('#shift-close').onclick=()=>{const counted=host.querySelector('#shift-cash').value.trim(),note=host.querySelector('#shift-note').value;
     if(!/^\d+$/.test(counted)){toast('請輸入點鈔現金（整數）');host.querySelector('#shift-cash').focus();return;}
     const df=Number(counted)-cashTotal;

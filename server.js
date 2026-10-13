@@ -744,16 +744,22 @@ async function migrate() {
   await q(`CREATE INDEX IF NOT EXISTS pos_shift_closes_day_idx ON pos_shift_closes(day)`);
   // 開關帳（帳本）：品牌 × 營業日一本；在咖啡／三點水共用 POS 但各自開帳、關帳；臨時收支掛在帳本下
   await q(`CREATE TABLE IF NOT EXISTS pos_registers (
-    id TEXT PRIMARY KEY, day DATE NOT NULL, venue TEXT NOT NULL, opening_cash INT NOT NULL DEFAULT 0, note TEXT NOT NULL DEFAULT '',
+    id TEXT PRIMARY KEY, day DATE NOT NULL, venue TEXT NOT NULL, opening_cash INT NOT NULL DEFAULT 0, opening_denominations JSONB, note TEXT NOT NULL DEFAULT '',
     opened_by TEXT NOT NULL DEFAULT '', opened_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     closed_by TEXT, closed_at TIMESTAMPTZ, counted_cash INT, expected_cash INT, diff INT, keep_cash INT, take_cash INT, denominations JSONB, close_note TEXT NOT NULL DEFAULT '',
     report JSONB NOT NULL DEFAULT '{}', reopened_at TIMESTAMPTZ, reopened_by TEXT)`);
+  await q(`ALTER TABLE pos_registers ADD COLUMN IF NOT EXISTS opening_denominations JSONB`);
   await q(`CREATE UNIQUE INDEX IF NOT EXISTS pos_registers_open_idx ON pos_registers(day,venue) WHERE closed_at IS NULL`);
   await q(`CREATE INDEX IF NOT EXISTS pos_registers_day_idx ON pos_registers(day,venue)`);
   await q(`CREATE TABLE IF NOT EXISTS pos_cash_moves (
     id TEXT PRIMARY KEY, register_id TEXT NOT NULL REFERENCES pos_registers(id), type TEXT NOT NULL CHECK (type IN ('in','out')), amount INT NOT NULL,
     reason TEXT NOT NULL, staff TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE INDEX IF NOT EXISTS pos_cash_moves_reg_idx ON pos_cash_moves(register_id)`);
+  // 小結點驗：不關帳的現金核對，可多次記錄留痕（跟關帳的點鈔分開存，關帳仍以 pos_registers.counted_cash 為準）
+  await q(`CREATE TABLE IF NOT EXISTS pos_register_counts (
+    id TEXT PRIMARY KEY, register_id TEXT NOT NULL REFERENCES pos_registers(id), counted_cash INT NOT NULL, expected_cash INT NOT NULL, diff INT NOT NULL,
+    denominations JSONB, note TEXT NOT NULL DEFAULT '', counted_by TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE INDEX IF NOT EXISTS pos_register_counts_reg_idx ON pos_register_counts(register_id,created_at DESC)`);
   // LINE Pay 商家後台實收明細（每日同步），日結報表拿來與 POS 登記的 LINE Pay 對帳；退款金額為負
   await q(`CREATE TABLE IF NOT EXISTS linepay_transactions (
     id TEXT PRIMARY KEY, type TEXT NOT NULL, amount INT NOT NULL, paid_at TIMESTAMPTZ NOT NULL, method TEXT NOT NULL DEFAULT '', provider TEXT NOT NULL DEFAULT '',
@@ -4935,8 +4941,9 @@ async function registerSummary(reg){
   const orders=(await q('SELECT id,items,amount,payer,tappay,status,paid_at FROM table_orders WHERE paid_at>=$1 AND paid_at<$2',[from,to])).rows;
   const sales=tableOrders.salesSummary(orders,{venues:[reg.venue],now:from});
   const moves=(await q('SELECT id,type,amount,reason,staff,created_at FROM pos_cash_moves WHERE register_id=$1 ORDER BY created_at',[reg.id])).rows;
+  const counts=(await q('SELECT id,counted_cash,expected_cash,diff,denominations,note,counted_by,created_at FROM pos_register_counts WHERE register_id=$1 ORDER BY created_at DESC',[reg.id])).rows;
   const summary=posRegister.expectedCash({opening_cash:reg.opening_cash,cash_sales:sales.by_method.cash||0,moves});
-  return {sales,moves,summary,report:posRegister.registerReport({...reg,day:String(reg.day instanceof Date?reg.day.toISOString().slice(0,10):reg.day).slice(0,10),note:reg.close_note||reg.note},summary,sales,moves)};
+  return {sales,moves,counts,summary,report:posRegister.registerReport({...reg,day:String(reg.day instanceof Date?reg.day.toISOString().slice(0,10):reg.day).slice(0,10),note:reg.close_note||reg.note},summary,sales,moves,counts[0]||null)};
 }
 const regDay=r=>({...r,day:r.day instanceof Date?r.day.toISOString().slice(0,10):String(r.day).slice(0,10)});
 /* 列出某營業日兩品牌的帳本狀態（沒開＝null）＋每本的即時小結 */
@@ -4944,7 +4951,7 @@ app.get('/api/admin/registers',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
   const day=dayParam(req.query.day);
   const rows=(await q('SELECT * FROM pos_registers WHERE day=$1 ORDER BY opened_at',[day])).rows.map(regDay).filter(r=>!venues||venues.includes(r.venue));
-  const out=[];for(const r of rows){const s=await registerSummary(r);out.push({...r,...s.summary,cash_sales:s.summary.cash_sales,moves:s.moves,sales:{orders:s.sales.orders,amount:s.sales.amount,by_method:s.sales.by_method,voided:s.sales.voided,void_amount:s.sales.void_amount},report:r.closed_at?r.report:s.report});}
+  const out=[];for(const r of rows){const s=await registerSummary(r);out.push({...r,...s.summary,cash_sales:s.summary.cash_sales,moves:s.moves,counts:s.counts,last_count:s.counts[0]||null,sales:{orders:s.sales.orders,amount:s.sales.amount,by_method:s.sales.by_method,voided:s.sales.voided,void_amount:s.sales.void_amount},report:r.closed_at?r.report:s.report});}
   const byVenue={};for(const v of posRegister.VENUES){if(venues&&!venues.includes(v))continue;byVenue[v]=out.filter(r=>r.venue===v).slice(-1)[0]||null;}
   res.json({day,registers:out,current:byVenue,active_venue:tableOrders.MenuLib.activeVenue()});
 }));
@@ -4957,8 +4964,8 @@ app.post('/api/admin/registers/open',auth,adminOnly,requireDb,wrap(async(req,res
     const open=(await client.query('SELECT id,venue,opened_by FROM pos_registers WHERE day=$1 AND venue=$2 AND closed_at IS NULL',[day,venue])).rows[0];
     let row;try{row=posRegister.openRegister(req.body,{venue,open});}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
     const id=uid('rg_');
-    await client.query('INSERT INTO pos_registers(id,day,venue,opening_cash,note,opened_by) VALUES($1,$2,$3,$4,$5,$6)',[id,day,venue,row.opening_cash,row.note,req.auth.email||req.auth.sub||'']);
-    await client.query('COMMIT');res.status(201).json({ok:true,id,day,venue,opening_cash:row.opening_cash});
+    await client.query('INSERT INTO pos_registers(id,day,venue,opening_cash,opening_denominations,note,opened_by) VALUES($1,$2,$3,$4,$5,$6,$7)',[id,day,venue,row.opening_cash,row.denominations?JSON.stringify(row.denominations):null,row.note,req.auth.email||req.auth.sub||'']);
+    await client.query('COMMIT');res.status(201).json({ok:true,id,day,venue,opening_cash:row.opening_cash,denominations:row.denominations});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 async function loadOpenRegister(req,res){
@@ -4982,7 +4989,18 @@ app.post('/api/admin/registers/:id/cash',auth,adminOnly,requireDb,wrap(async(req
 app.get('/api/admin/registers/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const r=await loadOpenRegister(req,res);if(!r)return;
   const s=await registerSummary(r);
-  res.json({...r,...s.summary,moves:s.moves,sales:s.sales,report:r.closed_at?r.report:s.report});
+  res.json({...r,...s.summary,moves:s.moves,counts:s.counts,last_count:s.counts[0]||null,sales:s.sales,report:r.closed_at?r.report:s.report});
+}));
+/* 小結點驗：body { counted_cash? | denominations?{面額:張數}, note? }；不關帳、差額不卡、可多次記錄；回這次點驗與更新後的小結單 */
+app.post('/api/admin/registers/:id/count',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const r=await loadOpenRegister(req,res);if(!r)return;
+  if(r.closed_at)return res.status(409).json({error:'這本帳已關帳，不能再點驗；要看關帳點鈔請印關帳單。'});
+  const s=await registerSummary(r);
+  let c;try{c=posRegister.countRegister(req.body,s.summary);}catch(e){return res.status(e.status||400).json({error:e.message});}
+  const id=uid('rc_'),by=req.auth.email||req.auth.sub||'';
+  await q('INSERT INTO pos_register_counts(id,register_id,counted_cash,expected_cash,diff,denominations,note,counted_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[id,r.id,c.counted_cash,c.expected_cash,c.diff,c.denominations?JSON.stringify(c.denominations):null,c.note,by]);
+  const s2=await registerSummary(r);
+  res.status(201).json({ok:true,id,...c,counted_by:by,report:s2.report});
 }));
 /* 關帳：body { counted_cash? | denominations?{面額:張數}, keep_cash?, note? }；差額非 0 要 note；回關帳單 report */
 app.post('/api/admin/registers/:id/close',auth,adminOnly,requireDb,wrap(async(req,res)=>{
