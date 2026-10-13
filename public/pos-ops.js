@@ -407,7 +407,7 @@ function bindRegisterBlock(host,reload){
       opsThen(()=>api('/admin/registers/'+r.id+'/close',{method:'POST',body:{counted_cash:c,denominations:denoms,keep_cash:/^\d+$/.test(keep)?Number(keep):undefined,note}}),out=>{printRegisterReport(out.report,'關帳單');return out.diff===0?'關帳完成，現金帳對了':`關帳完成，${out.diff>0?'溢':'短'} NT$${num(Math.abs(out.diff))}`;},()=>{REG_CLOSE_OPEN=false;return reload();});};}
 }
 
-/* 日結：依營業日（03:00 起算）彙總；交班結算（點鈔 vs 現金營收）；CSV 由 downloadCSV 產生（含公式注入防護） */
+/* 日結：依營業日（03:00 起算）彙總；現金對帳走開關帳區塊；CSV 由 downloadCSV 產生（含公式注入防護） */
 async function loadSales(){
   const host=document.getElementById('sales-body');if(!host)return;
   if(!SALES_DAY)SALES_DAY=MenuLib.businessDay();
@@ -417,13 +417,6 @@ async function loadSales(){
   const hours=Object.entries(d.by_hour||{}).sort(),maxH=Math.max(1,...hours.map(h=>h[1]));
   const hourBars=hours.map(([h,v])=>`<div class="sales-bar"><span class="a-mono">${esc(h)}:00</span><i style="width:${Math.round(v/maxH*100)}%"></i><span class="num">${num(v)}</span></div>`).join('')||'<p class="a-empty">—</p>';
   const items=(d.items||[]).map(it=>`<tr><td>${esc(it.zh)}</td>${SCOPE?'':`<td>${esc(BRAND_LABEL[it.venue]||'')}</td>`}<td class="num">${it.qty}</td><td class="num">${num(it.amount)}</td></tr>`).join('')||`<tr><td colspan="${SCOPE?3:4}" class="a-empty">—</td></tr>`;
-  // 交班結算：點鈔現金 vs 日結現金營收（只有差額那格標紅）
-  const cashTotal=Number(d.by_method?.cash)||0;
-  const shiftRows=(d.shifts||[]).map(s=>`<tr class="${Number(s.diff)?'shift-diff':''}"><td class="a-mono">${esc(clockText(s.created_at))}</td>${SCOPE?'':`<td>${esc(BRAND_LABEL[s.venue]||'全店')}</td>`}<td class="num">${num(s.counted_cash)}</td><td class="num">${num(s.expected_cash)}</td><td class="num shift-d">${s.diff>0?'+':''}${num(s.diff)}</td><td>${esc(s.note||'')}</td><td class="hint" style="margin:0">${esc(s.staff||'')}</td></tr>`).join('')||`<tr><td colspan="${SCOPE?6:7}" class="a-empty">這天還沒有交班紀錄</td></tr>`;
-  const shiftBlock=`<h3>交班結算</h3>
-    <p class="hint">交班或打烊時點抽屜現金，輸入金額；系統比對這個營業日到目前為止的現金營收（NT$${num(cashTotal)}），差額記下來給管理員看。零用金請先扣掉再輸入。</p>
-    <div class="a-form shift-form"><label>點鈔現金<input id="shift-cash" inputmode="numeric" pattern="[0-9]*" placeholder="抽屜裡的現金"></label><label class="shift-note">備註<input id="shift-note" maxlength="120" placeholder="例：找零短少 50、午班交晚班"></label><button class="btn btn--solid" id="shift-close">記錄交班</button></div>
-    <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>時間</th>${SCOPE?'':'<th>店別</th>'}<th class="num">點鈔</th><th class="num">應有現金</th><th class="num">差額</th><th>備註</th><th>人員</th></tr></thead><tbody>${shiftRows}</tbody></table></div>`;
   // LINE Pay 對帳：LINE Pay 後台實收（每日 04:30 同步）vs POS 登記為 LINE Pay 的單；差額非 0 標紅
   const lp=d.linepay||{},lpPos=lp.pos||{},lpLp=lp.linepay||{},diff=Number(lp.diff)||0;
   const lpRows=(lp.rows||[]).map(t=>`<tr class="${t.amount<0?'lp-refund':''}"><td class="a-mono">${esc(clockText(t.paid_at))}</td><td>${esc(t.type_label||t.type)}</td><td class="num">${num(t.amount)}</td><td>${esc(t.method_label||t.method)}${t.card_last4?` <span class="a-mono">…${esc(t.card_last4)}</span>`:''}</td><td class="a-mono">${esc(t.confirm_no||'')}</td></tr>`).join('')||`<tr><td colspan="5" class="a-empty">${lp.configured===false?'尚未設定 LINE Pay 商家後台帳密，請到後台「系統設定」填入':'這天沒有 LINE Pay 實收'}</td></tr>`;
@@ -440,16 +433,10 @@ async function loadSales(){
     <div class="a-kpis sales-kpis"><div class="a-kpi"><div class="kl">營收</div><div class="kv"><span class="u">NT$</span>${num(d.amount)}</div><div class="ks">折扣後實收</div></div><div class="a-kpi"><div class="kl">成立單數</div><div class="kv">${num(d.orders)}<span class="u"> 單</span></div><div class="ks">平均每單 NT$${num(d.orders?Math.round(d.amount/d.orders):0)}</div></div><div class="a-kpi"><div class="kl">折扣</div><div class="kv"><span class="u">NT$</span>${num(d.discount_amount)}</div><div class="ks">${num(d.discount_count)} 單${d.comp_count?` · 贈送 ${num(d.comp_count)} 項`:''}</div></div><div class="a-kpi"><div class="kl">作廢</div><div class="kv">${num(d.voided)}<span class="u"> 單</span></div><div class="ks">NT$${num(d.void_amount)} 不計營收</div></div></div>
     ${REG_DATA?registerBlock(REG_DATA):''}
     <div class="sales-cols"><div><h3>付款方式</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>方式</th><th class="num">金額</th><th class="num">占比</th></tr></thead><tbody>${methods}</tbody></table></div></div><div><h3>時段分布</h3><div class="sales-bars">${hourBars}</div></div></div>
-    ${shiftBlock}
     <h3>品項銷量</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>品項</th>${SCOPE?'':'<th>店別</th>'}<th class="num">數量</th><th class="num">金額</th></tr></thead><tbody>${items}</tbody></table></div>
     ${lpBlock}`;
   bindRegisterBlock(host,loadSales);
   const shift=n=>{const t=new Date(SALES_DAY+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);SALES_DAY=t.toISOString().slice(0,10);REG_CASH_OPEN=false;REG_CLOSE_OPEN=false;REG_COUNT_OPEN=false;REG_OPEN_FORM='';loadSales();};
-  host.querySelector('#shift-close').onclick=()=>{const counted=host.querySelector('#shift-cash').value.trim(),note=host.querySelector('#shift-note').value;
-    if(!/^\d+$/.test(counted)){toast('請輸入點鈔現金（整數）');host.querySelector('#shift-cash').focus();return;}
-    const df=Number(counted)-cashTotal;
-    if(!confirm(`記錄交班：點鈔 NT$${num(counted)}，應有現金 NT$${num(cashTotal)}，差額 ${df>0?'+':''}${num(df)}？`))return;
-    opsThen(()=>api('/admin/sales/shift-close',{method:'POST',body:{day:d.day,venue:SCOPE||undefined,counted_cash:Number(counted),note}}),out=>out.diff===0?'交班完成，現金帳對了':`交班完成，差額 ${out.diff>0?'+':''}${num(out.diff)}`,loadSales);};
   // 同步：抓「這個營業日前後 3 天」，退款會回補到幾天前；按下去要等後台登入、約 20–60 秒
   host.querySelector('#lp-sync').onclick=e=>{const b=e.currentTarget;b.disabled=true;b.textContent='同步中…（約 1 分鐘）';
     const addDays=(day,n)=>{const t=new Date(day+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10);};

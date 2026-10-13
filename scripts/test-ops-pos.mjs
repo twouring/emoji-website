@@ -261,14 +261,11 @@ test('整單折扣與現金找零：％四捨五入、金額不超過小計、�
   assert.equal(T.posCheckout(comp, { method: 'cash', member: true }, menuAll).amount, 120, '贈送的品項套會員價也還是 0');
 });
 
-test('換桌併桌與交班：併桌把來源品項接到目標後面；交班差額＝點鈔－應有', () => {
+test('換桌併桌：併桌把來源品項接到目標後面', () => {
   const a = cart(), b = T.posAddLine([], T.menuIndex(menuJson), { item_id: 'm_toast', qty: 1 });
   assert.equal(T.mergeItems(b, a).length, 3); assert.equal(T.mergeItems(b, a)[0].item_id, 'm_toast');
   assert.deepEqual(T.mergeItems(null, a), a);
-  assert.deepEqual(T.shiftClose({ counted_cash: 5200, note: ' 午班交晚班 ' }, 5250), { counted_cash: 5200, expected_cash: 5250, diff: -50, note: '午班交晚班' });
-  assert.equal(T.shiftClose({ counted_cash: 0 }, 0).diff, 0);
-  assert.throws(() => T.shiftClose({ counted_cash: -1 }, 0), /0 以上/);
-  assert.throws(() => T.shiftClose({ counted_cash: 'abc' }, 0), /整數/);
+  assert.equal(T.shiftClose, undefined, '舊交班結算已由開關帳取代');
 });
 
 test('日結含折扣與贈送：營收為折後實收、折扣與贈送另列；CSV 折扣為負數列', () => {
@@ -327,13 +324,15 @@ test('server.js／前端接線：桌邊送單端點、看板含送單、客人�
   assert.match(api, /### POST \/api\/orders\/:id\/place/); assert.match(api, /tickets\/:ticket\/serve/);
 });
 
-test('server.js 接線：改品項、換桌、查單、交班、結帳回找零；作廢退回時贈送維持贈送', () => {
+test('server.js 接線：改品項、換桌、查單、結帳回找零；交班結算已移除；作廢退回時贈送維持贈送', () => {
   const server = read('server.js'), ops = read('public/pos-ops.js'), api = read('docs/API.md');
   assert.match(server, /app\.patch\('\/api\/admin\/orders\/sessions\/:id\/items\/:line'/);
   assert.match(server, /app\.post\('\/api\/admin\/orders\/sessions\/:id\/move'/);
   assert.match(server, /app\.get\('\/api\/admin\/orders\/history'/);
-  assert.match(server, /app\.post\('\/api\/admin\/sales\/shift-close'/);
-  assert.match(server, /CREATE TABLE IF NOT EXISTS pos_shift_closes/);
+  assert.doesNotMatch(server, /shift-close/, '舊交班結算 API 已移除（由開關帳取代）');
+  assert.doesNotMatch(ops, /交班結算|shift-close/, '日結頁不再有交班區');
+  assert.doesNotMatch(api, /### POST \/api\/admin\/sales\/shift-close/);
+  assert.match(server, /CREATE TABLE IF NOT EXISTS pos_shift_closes/, '舊表保留');
   // 開關帳：品牌 × 營業日一本；結帳前檢查；只有超管能重開
   assert.match(server, /CREATE TABLE IF NOT EXISTS pos_registers/); assert.match(server, /CREATE TABLE IF NOT EXISTS pos_cash_moves/);
   assert.equal((server.match(/CREATE TABLE IF NOT EXISTS pos_registers/g) || []).length, 1, '建表不可重複');
@@ -346,9 +345,9 @@ test('server.js 接線：改品項、換桌、查單、交班、結帳回找零�
   assert.match(server, /l\.comp_reason\?\{\.\.\.l,order_id:null\}/, '作廢退回未結帳時贈送品項維持贈送');
   assert.match(server, /storeInvoiceResult\(\{id:orderId,table_no:s\.table_no,items:orderLines,amount:out\.amount,discount:out\.discount\}/, '發票帶折扣');
   assert.match(server, /app\.get\(\['\/pos', '\/pos\/\*'\]/);
-  for (const s of ['data-qty=', 'data-comp=', 'pos-disc-apply', 'pos-received', 'data-received=', 'data-receipt=', '/admin/orders/history', '/admin/sales/shift-close', "'/move'", 'data-cat=', 'data-add=', '/admin/registers/open', 'data-reg-open=', 'data-reg-close=', 'data-reg-cash=', 'data-reg-count=', 'data-denom=', 'function openRegisterForm(', 'reg-open-total', 'reg-count-total', "'/count'", 'function printRegisterReport(', "'/reopen'"]) assert.ok(ops.includes(s), s);
+  for (const s of ['data-qty=', 'data-comp=', 'pos-disc-apply', 'pos-received', 'data-received=', 'data-receipt=', '/admin/orders/history', "'/move'", 'data-cat=', 'data-add=', '/admin/registers/open', 'data-reg-open=', 'data-reg-close=', 'data-reg-cash=', 'data-reg-count=', 'data-denom=', 'function openRegisterForm(', 'reg-open-total', 'reg-count-total', "'/count'", 'function printRegisterReport(', "'/reopen'"]) assert.ok(ops.includes(s), s);
   assert.ok(!/\bprompt\(`\$\{BRAND_LABEL\[venue\]/.test(ops), '開帳不再用 prompt，改面額／總額表單');
   assert.match(api, /### POST \/api\/admin\/registers\/open/); assert.match(api, /### POST \/api\/admin\/registers\/:id\/close/);
   assert.doesNotMatch(ops, /id="pos-item"|id="pos-qty"/, '下拉選單加菜已換成點選菜單磁貼');
-  assert.match(api, /### GET \/api\/admin\/orders\/history/); assert.match(api, /### POST \/api\/admin\/sales\/shift-close/);
+  assert.match(api, /### GET \/api\/admin\/orders\/history/);
 });

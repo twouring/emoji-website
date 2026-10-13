@@ -738,7 +738,7 @@ async function migrate() {
   // 櫃檯作廢：status='void' 另記原因與誰作廢（舊庫補欄位）
   await q(`ALTER TABLE table_orders ADD COLUMN IF NOT EXISTS invoice JSONB NOT NULL DEFAULT '{}'`);
   await q(`ALTER TABLE table_orders ADD COLUMN IF NOT EXISTS void_reason TEXT, ADD COLUMN IF NOT EXISTS voided_by TEXT, ADD COLUMN IF NOT EXISTS voided_at TIMESTAMPTZ`);
-  // POS 交班結算：每次交班點鈔現金 vs 日結現金營收（venue 空＝全店）
+  // POS 交班結算（舊，已由開關帳 pos_registers 取代；表保留供歷史查詢，不再寫入）
   await q(`CREATE TABLE IF NOT EXISTS pos_shift_closes (
     id TEXT PRIMARY KEY, day DATE NOT NULL, venue TEXT NOT NULL DEFAULT '', counted_cash INT NOT NULL, expected_cash INT NOT NULL, diff INT NOT NULL,
     note TEXT NOT NULL DEFAULT '', staff TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
@@ -4923,8 +4923,7 @@ app.get('/api/admin/sales',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const txs=(await q('SELECT id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no FROM linepay_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[from,to])).rows;
   const last=(await q('SELECT max(synced_at) AS at FROM linepay_transactions')).rows[0].at;
   const lp=linepay.reconcile(orders,txs,{venues});
-  const shifts=(await q('SELECT id,venue,counted_cash,expected_cash,diff,note,staff,created_at FROM pos_shift_closes WHERE day=$1 ORDER BY created_at',[day])).rows.filter(r=>!venues||!r.venue||venues.includes(r.venue)).map(r=>({...r,created_at:new Date(r.created_at).toISOString()}));
-  res.json({...tableOrders.salesSummary(orders,{venues,now:from}),day,csv:tableOrders.salesCsvRows(orders,{venues}),shifts,linepay:{...lp,configured:linepay.configured(),synced_at:last,csv:linepay.csvRows(lp.rows)}});
+  res.json({...tableOrders.salesSummary(orders,{venues,now:from}),day,csv:tableOrders.salesCsvRows(orders,{venues}),linepay:{...lp,configured:linepay.configured(),synced_at:last,csv:linepay.csvRows(lp.rows)}});
 }));
 /* 查單：某營業日的全部單（含作廢），可用桌號／金額／發票號碼搜尋；給櫃檯重印收據、補開發票、作廢 */
 app.get('/api/admin/orders/history',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -4937,18 +4936,6 @@ app.get('/api/admin/orders/history',auth,adminOnly,requireDb,wrap(async(req,res)
     .filter(o=>!needle||String(o.table_no).toUpperCase().includes(needle)||String(o.amount)===needle||String(o.invoice?.number||'').toUpperCase().includes(needle)||o.id.toUpperCase().endsWith(needle))
     .map(o=>({...o,paid_at:new Date(o.paid_at).toISOString(),stations:tableOrders.splitByStation(o)}));
   res.json({day,orders,count:orders.length});
-}));
-/* 交班結算：點鈔現金 vs 這個營業日（到目前為止）的現金營收；每次交班一筆，日結頁列出 */
-app.post('/api/admin/sales/shift-close',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  const venues=tableOrders.visibleVenues(req.auth.brands,String(req.body?.venue||''));
-  const day=/^\d{4}-\d{2}-\d{2}$/.test(String(req.body?.day||''))?String(req.body.day):tableOrders.MenuLib.businessDay();
-  const from=new Date(day+'T03:00:00+08:00'),to=new Date(+from+86400e3);
-  const orders=(await q('SELECT id,items,amount,payer,tappay,status,paid_at FROM table_orders WHERE paid_at>=$1 AND paid_at<$2',[from,to])).rows;
-  const expected=tableOrders.salesSummary(orders,{venues,now:from}).by_method.cash||0;
-  let row;try{row=tableOrders.shiftClose(req.body,expected);}catch(e){return res.status(e.status||400).json({error:e.message});}
-  const id=uid('sc_'),venue=venues&&venues.length===1?venues[0]:'';
-  await q('INSERT INTO pos_shift_closes(id,day,venue,counted_cash,expected_cash,diff,note,staff) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[id,day,venue,row.counted_cash,row.expected_cash,row.diff,row.note,req.auth.email||req.auth.sub||'']);
-  res.status(201).json({ok:true,id,day,venue,...row});
 }));
 /* ===== 開關帳（帳本）：在咖啡／三點水各自一本（品牌 × 營業日）。開帳放零用金 → 臨時收支 → 小結（只看）→ 關帳（點鈔、短溢）；關帳後該品牌不可再結帳，超管可重開 ===== */
 async function registersOpenMap(client,day){

@@ -292,11 +292,8 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 查單：某營業日全部的單（含作廢），最新在前。query `day=YYYY-MM-DD`（預設今天的營業日）、`q=`（桌號／金額／發票號碼／單號尾碼，不分大小寫）、`venue=`。每張單附 `stations`（分站明細）供重印出餐單。回 `{ day, orders[], count }`。品牌子帳號只看自己店別的單。
 
 ### GET /api/admin/sales
-日結報表。query `day=YYYY-MM-DD`（營業日，預設今天；03:00 起算 24 小時）、`venue=`。回 `{ day, orders, amount, by_method{}, by_hour{}, items[]{zh,venue,qty,amount}, voided, void_amount, discount_amount, discount_count, comp_count, shifts[], csv[][], linepay }`；`amount` 為折扣後實收，`discount_amount / discount_count` 為整單折扣合計與單數，`comp_count` 為贈送件數；`shifts` 為當日交班紀錄（見 shift-close）。`csv` 為每品項一列的明細（表頭：營業日、付款時間、桌號、品項、數量、單價、小計、付款方式、會員價、發票狀態、發票號碼、狀態、作廢原因），整單折扣另列一列負數讓小計欄加總＝營收，贈送品項名稱後綴「（贈送：原因）」。作廢的單不計營收。
+日結報表。query `day=YYYY-MM-DD`（營業日，預設今天；03:00 起算 24 小時）、`venue=`。回 `{ day, orders, amount, by_method{}, by_hour{}, items[]{zh,venue,qty,amount}, voided, void_amount, discount_amount, discount_count, comp_count, csv[][], linepay }`；`amount` 為折扣後實收，`discount_amount / discount_count` 為整單折扣合計與單數，`comp_count` 為贈送件數。現金對帳走開關帳（見 `/api/admin/registers`），舊的交班結算已移除。`csv` 為每品項一列的明細（表頭：營業日、付款時間、桌號、品項、數量、單價、小計、付款方式、會員價、發票狀態、發票號碼、狀態、作廢原因），整單折扣另列一列負數讓小計欄加總＝營收，贈送品項名稱後綴「（贈送：原因）」。作廢的單不計營收。
 `linepay` 為 LINE Pay 對帳：`{ configured, synced_at, pos:{count,amount}（POS 登記為 LINE Pay 的成立單）, linepay:{count,amount,refunds,refund_amount,by_method{}}（LINE Pay 商家後台同日實收，退款已扣）, diff（實收－POS 登記；>0 漏登或登成其他方式，<0 登了但沒收到）, rows[]（當日每筆實收：id,type,amount,paid_at,method,card_last4,confirm_no,order_no）, csv[][] }`。LINE Pay 不分店別，`?venue=` 只影響 POS 側。
-
-### POST /api/admin/sales/shift-close
-交班結算。body `{ counted_cash, day?, venue?, note? }`：點鈔抽屜現金（0 以上整數），伺服器以該營業日到目前為止、該店別的現金營收為「應有現金」，記 `diff = counted − expected`、操作人員與備註到 `pos_shift_closes`，每次交班一筆（午班交晚班、打烊各記一次）。回 `{ ok, id, day, venue, counted_cash, expected_cash, diff, note }`（201）。
 
 ### GET /api/admin/registers
 開關帳（帳本）。在咖啡（CAFE）與三點水（BAR）共用同一台 POS 但帳務分開，所以帳本以「品牌 × 營業日」為單位。query `day=YYYY-MM-DD`（預設今天的營業日）、`venue=`。回 `{ day, registers[], current:{CAFE, BAR}, active_venue }`；`current[venue]` 為該品牌當日最後一本帳（`null`＝還沒開帳），每本含 `opening_cash, cash_sales, cash_in, cash_out, expected`（應有現金＝零用金＋現金營收＋臨時收入－臨時支出）、`moves[]`（臨時收支）、`sales{orders,amount,by_method,voided,void_amount}`、關帳後另有 `counted_cash, diff, keep_cash, take_cash, denominations, close_note, closed_at, closed_by`，以及 `report`（小結單／關帳單資料）。

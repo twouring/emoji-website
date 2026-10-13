@@ -139,11 +139,9 @@ tr.resv-day td{background:var(--paper-alt);font-weight:600}
 .resv-add{margin-bottom:12px}.resv-add summary{list-style:none;display:inline-flex;cursor:pointer}.resv-add summary::-webkit-details-marker{display:none}.resv-add[open] summary{margin-bottom:10px}
 .resv-add .a-form{padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
 
-/* ── 日結：KPI 五張一列（窄螢幕自動折）、第二行小字；交班表單數字欄最大；差額只標那格 ── */
+/* ── 日結：KPI 五張一列（窄螢幕自動折）、第二行小字 ── */
 .sales-kpis{grid-template-columns:repeat(auto-fit,minmax(min(100%,136px),1fr))}
 .a-kpi .ks{color:var(--muted);font-size:1rem;margin-top:4px;line-height:1.35}
-.shift-form{align-items:flex-end}.shift-form #shift-cash{width:200px;font-size:1.2rem;font-variant-numeric:tabular-nums}.shift-form .shift-note{flex:1 1 220px;max-width:460px}.shift-form .btn{min-height:48px}
-tr.shift-diff td.shift-d{color:#b42318;font-weight:600}
 .lp-kpis .a-kpi.lp-diff{border-color:#b42318;background:#fff5f3}.lp-kpis .a-kpi.lp-diff .kv{color:#b42318}
 tr.lp-refund td{color:#b42318}
 .sales-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px 28px;margin-top:24px;padding-top:18px;border-top:1px solid var(--line)}
