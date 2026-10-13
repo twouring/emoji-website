@@ -12,6 +12,9 @@ let ORDERS_TIMER=null,ORDERS_SEEN=null,POS_TIMER=null,POS_DATA=null,POS_TABLE=''
 const REG_DENOMS=[1000,500,100,50,10,5,1];
 const PAY_LABEL={cash:'現金',card:'刷卡',linepay:'LINE Pay',transfer:'轉帳',tappay:'線上刷卡'};
 const INV_LABEL={paper:'紙本',company:'統編',mobile:'手機載具',citizen:'自然人憑證',donate:'捐贈'};
+/* 收款帳戶：現金／刷卡／LINE Pay／轉帳內建在 PAY_LABEL；言文字管理員在系統設定另外新增的自訂收款帳戶放在 DATA.payment_methods（見 docs/API.md GET /api/state）*/
+const payMethodLabel=code=>PAY_LABEL[code]||(DATA?.payment_methods||[]).find(m=>m.code===code)?.label||code;
+const payMethodsActive=()=>{const list=(DATA?.payment_methods||[]).filter(m=>m.active);return list.length?list:[['cash','現金'],['card','刷卡'],['linepay','LINE Pay'],['transfer','轉帳']].map(([code,label])=>({code,label,builtin:true}));};
 const STATION_LABEL={bar:'吧檯',kitchen:'廚房'};
 const TABLE_STATE={empty:['pill-draft','已開桌'],open:['pill-wait','點餐中'],ordered:['pill-wait','待出餐'],preparing:['pill-wait','準備中'],ready:['pill-ok','可取餐'],idle:['pill-draft','待清桌']};
 const ORDER_STATE={placed:'待出餐',paid:'準備中',ready:'可取餐',done:'已取餐',void:'已作廢'};
@@ -20,7 +23,7 @@ const elapsedText=iso=>{const m=Math.max(0,Math.floor((Date.now()-new Date(iso))
 const clockText=iso=>{const d=iso?new Date(iso):null;return d&&!isNaN(d)?d.toLocaleTimeString('zh-TW',{timeZone:'Asia/Taipei',hour12:false,hour:'2-digit',minute:'2-digit'}):'—';};
 const todayTaipei=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Taipei'});
 const scopeQuery=(extra='')=>{const p=[SCOPE?'venue='+SCOPE:'',extra].filter(Boolean).join('&');return p?'?'+p:'';};
-const payText=o=>PAY_LABEL[o.payer?.method]||(o.tappay?.rec_trade_id?PAY_LABEL.tappay:'—');
+const payText=o=>{const m=o.payer?.method;return m?payMethodLabel(m):(o.tappay?.rec_trade_id?PAY_LABEL.tappay:'—');};
 const invoiceText=o=>{const inv=o.invoice||{};if(inv.status==='issued')return `發票 ${inv.number||'已開立'}`;if(inv.status==='failed')return `發票失敗：${inv.error||'待補開'}`;if(inv.status==='void')return `發票已作廢 ${inv.number||''}`;if(inv.requested)return '發票待補開';return '未開發票';};
 // 表格用：發票異常（失敗／待補開）用色標，正常的只放灰字
 const invoiceHtml=o=>{const inv=o.invoice||{};const fix=o.status==='void'?'':` <button type="button" class="btn btn--ghost btn-xs" data-invoice-issue="${esc(o.id)}">補開發票</button>`;if(inv.status==='failed')return `<span class="inv-fix"><span class="pill pill-bad" title="${esc(inv.error||'')}">發票失敗</span>${fix}</span>`;if(inv.requested&&!['issued','void'].includes(inv.status))return `<span class="inv-fix"><span class="pill pill-wait">發票待補開</span>${fix}</span>`;return `<span class="hint" style="margin:0">${esc(invoiceText(o))}</span>`;};
@@ -163,7 +166,7 @@ function paintPos(){
         <div class="a-form pos-add"><label style="flex:1;min-width:200px">下一項的備註<input id="pos-note" maxlength="160" placeholder="去冰、不要蔥…（點品項時一併帶入）"></label></div>
       </details>
       <div class="pos-pay">
-        <div class="pos-methods" role="radiogroup" aria-label="付款方式">${['cash','card','linepay','transfer'].map(m=>`<label class="pos-method"><input type="radio" name="pos-method" value="${m}" ${m===POS_METHOD?'checked':''}><span>${PAY_LABEL[m]}</span></label>`).join('')}</div>
+        <div class="pos-methods" role="radiogroup" aria-label="付款方式">${payMethodsActive().map(pm=>`<label class="pos-method"><input type="radio" name="pos-method" value="${esc(pm.code)}" ${pm.code===POS_METHOD?'checked':''}><span>${esc(pm.label)}</span></label>`).join('')}</div>
         <div class="pos-sum">
           <div><span>${POS_PICK&&POS_PICK.size<cur.lines.length?`分帳 ${picked.length}／${cur.lines.length} 項`:memberSaving>0?'小計（原價）':'小計'}</span><span>NT$${num(regular)}</span></div>
           <div class="pos-sum-member"><label class="pos-member"><input type="checkbox" id="pos-member" ${POS_MEMBER?'checked':''}> 套用會員價</label><span>${POS_MEMBER&&memberSaving?'−'+num(memberSaving):'—'}</span></div>
@@ -218,7 +221,7 @@ function paintPos(){
     if(!picked.length)return;
     const rec=method==='cash'&&POS_RECEIVED!==''?Number(POS_RECEIVED):undefined;
     if(rec!==undefined&&rec<total){toast('實收不能少於應收');return;}
-    if(!confirm(`向${cur.takeout?'外帶':'桌號'} ${cur.table} 收 NT$${num(total)}（${PAY_LABEL[method]}${POS_MEMBER?'，會員價':''}${POS_DISCOUNT?'，折扣 '+discountText(POS_DISCOUNT):''}${POS_INVOICE.mode?'，'+INV_LABEL[POS_INVOICE.mode]+'發票':''}）${rec!==undefined?`\n實收 ${num(rec)}，找零 ${num(rec-total)}`:''}？`))return;
+    if(!confirm(`向${cur.takeout?'外帶':'桌號'} ${cur.table} 收 NT$${num(total)}（${payMethodLabel(method)}${POS_MEMBER?'，會員價':''}${POS_DISCOUNT?'，折扣 '+discountText(POS_DISCOUNT):''}${POS_INVOICE.mode?'，'+INV_LABEL[POS_INVOICE.mode]+'發票':''}）${rec!==undefined?`\n實收 ${num(rec)}，找零 ${num(rec-total)}`:''}？`))return;
     // 收款前一定要先認人（沒選過操作人員會先跳鍵盤），讓每一筆單都記得是誰經手
     ensureOperator(()=>opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/checkout',{method:'POST',body:{method,member:POS_MEMBER,lines:POS_PICK?[...POS_PICK]:[],invoice:invoiceBody(host),discount:POS_DISCOUNT||undefined,received:rec,operator_id:OPERATOR?.id}}),out=>`已收款 NT$${num(out.amount)}${out.change?`，找零 NT$${num(out.change)}`:''}${out.invoice?.status==='issued'?`，發票 ${out.invoice.number||'已開立'}`:out.invoice?.status==='failed'?`，發票開立失敗可補開` : ''}${out.remaining?`，這桌還有 NT$${num(out.remaining)} 未結`:'，這桌已結清'}${out.warning?`。${out.warning}`:''}`,()=>{POS_PICK=null;POS_MEMBER=false;POS_DISCOUNT=null;POS_RECEIVED='';POS_INVOICE.mode='';return reload();}));
   };
@@ -341,7 +344,7 @@ function bindRegisterBar(host,reload){bindOpenForm(host,reload);}
 function printRegisterReport(rep,kind){
   const line=(k,v,cls='l')=>`<div class="${cls}"><span>${esc(k)}</span><span>${v}</span></div>`;
   const moves=(rep.moves||[]).map(m=>line(`${m.type==='in'?'收':'支'} ${m.reason}`,`${m.type==='in'?'+':'−'}${num(m.amount)}`)).join('')||'<div class="m">無</div>';
-  const methods=Object.entries(rep.by_method||{}).map(([m,v])=>line(PAY_LABEL[m]||m,num(v))).join('');
+  const methods=Object.entries(rep.by_method||{}).map(([m,v])=>line(payMethodLabel(m),num(v))).join('');
   const closed=!!rep.closed_at;
   printWindow(`${kind} ${rep.venue}`,`<h1>${esc(BRAND_LABEL[rep.venue]||rep.venue)}</h1><div class="m">${kind} · 營業日 ${esc(rep.day)}</div><div class="m">開帳 ${esc(applicationTime(rep.opened_at))} ${esc(rep.opened_by||'')}</div>${closed?`<div class="m">關帳 ${esc(applicationTime(rep.closed_at))} ${esc(rep.closed_by||'')}</div>`:rep.counted_at?`<div class="m">點驗 ${esc(applicationTime(rep.counted_at))}</div>`:''}
     <h2>現金</h2>${line('零用金',num(rep.opening_cash))}${line('現金營收',num(rep.cash_sales))}${line('臨時收入','+'+num(rep.cash_in))}${line('臨時支出','−'+num(rep.cash_out))}${line('應有現金','NT$'+num(rep.expected_cash),'t')}
@@ -415,7 +418,7 @@ async function loadSales(){
   if(!SALES_DAY)SALES_DAY=MenuLib.businessDay();
   if(!host.dataset.init){host.dataset.init='1';host.innerHTML='<h2>日結報表</h2><p class="hint">載入中…</p>';}
   let d;try{[d,REG_DATA]=await Promise.all([api(`/admin/sales?day=${encodeURIComponent(SALES_DAY)}`+(SCOPE?'&venue='+SCOPE:'')),api(`/admin/registers?day=${encodeURIComponent(SALES_DAY)}`+(SCOPE?'&venue='+SCOPE:'')).catch(()=>null)]);}catch(e){host.innerHTML=`<h2>日結報表</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`;return;}
-  const methods=Object.entries(d.by_method||{}).sort((a,b)=>b[1]-a[1]).map(([m,v])=>`<tr><td>${esc(PAY_LABEL[m]||m)}</td><td class="num">${num(v)}</td><td class="num">${d.amount?Math.round(v/d.amount*100):0}%</td></tr>`).join('')||'<tr><td colspan="3" class="a-empty">這天沒有營收</td></tr>';
+  const methods=Object.entries(d.by_method||{}).sort((a,b)=>b[1]-a[1]).map(([m,v])=>`<tr><td>${esc(payMethodLabel(m))}</td><td class="num">${num(v)}</td><td class="num">${d.amount?Math.round(v/d.amount*100):0}%</td></tr>`).join('')||'<tr><td colspan="3" class="a-empty">這天沒有營收</td></tr>';
   const hours=Object.entries(d.by_hour||{}).sort(),maxH=Math.max(1,...hours.map(h=>h[1]));
   const hourBars=hours.map(([h,v])=>`<div class="sales-bar"><span class="a-mono">${esc(h)}:00</span><i style="width:${Math.round(v/maxH*100)}%"></i><span class="num">${num(v)}</span></div>`).join('')||'<p class="a-empty">—</p>';
   const items=(d.items||[]).map(it=>`<tr><td>${esc(it.zh)}</td>${SCOPE?'':`<td>${esc(BRAND_LABEL[it.venue]||'')}</td>`}<td class="num">${it.qty}</td><td class="num">${num(it.amount)}</td></tr>`).join('')||`<tr><td colspan="${SCOPE?3:4}" class="a-empty">—</td></tr>`;

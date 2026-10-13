@@ -1066,7 +1066,15 @@ function paintCounter(){
 }
 
 /* ===== 操作紀錄（超管） ===== */
+function paymentMethodsBlock(d){
+  const rows=(d.payment_methods||[]).map(m=>`<tr><td>${esc(m.label)}</td><td>${m.builtin?'<span class="pill pill-draft">內建</span>':m.active?'<span class="pill pill-ok">啟用中</span>':'<span class="pill pill-bad">已停用</span>'}</td><td class="ops-actions">${m.builtin?'':`<div class="ops-btns"><button class="btn btn--ghost btn-sm" data-pm-rename="${esc(m.code)}">改名</button><button class="btn btn--ghost btn-sm" data-pm-toggle="${esc(m.code)}" data-on="${m.active?'0':'1'}">${m.active?'停用':'恢復'}</button></div>`}</td></tr>`).join('')||'<tr><td colspan="3" class="a-empty">尚無收款帳戶</td></tr>';
+  return `<div class="a-sec"><h2>收款帳戶</h2><p class="hint">現金／刷卡／LINE Pay／轉帳為內建付款方式，不能改名或停用。這裡可以新增額外的收款帳戶（例如街口支付、另一組轉帳帳號），結帳時會一併出現在付款方式選項；停用後既有單據的付款方式標籤仍正常顯示，只是結帳時不能再選它。</p>
+    <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>名稱</th><th>狀態</th><th class="ops-th">操作</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="a-form"><label style="flex:1;min-width:200px">新增收款帳戶<input id="pm-label" maxlength="20" placeholder="例：街口支付"></label><button type="button" class="btn btn--solid btn-sm" id="pm-add">新增</button></div>
+  </div>`;
+}
 function tabSystem(d){ return `${d.super?'<div class="a-sec" id="system-settings-body"><h2>機敏資訊與系統參數</h2><p class="hint">載入中…</p></div>':'<div class="a-sec"><h2>機敏資訊與系統參數</h2><p class="hint">只有超級管理員可查看設定狀態與變更。</p></div>'}
+  ${d.super?paymentMethodsBlock(d):''}
   ${tabContent(d)}<div class="a-sec"><h2>其他系統內容</h2><p class="hint">菜單、最新消息與社群內容沿用各自的工作流程。</p><div class="a-toolbar"><a class="btn btn--ghost btn-sm" href="/admin/menu">菜單</a><a class="btn btn--ghost btn-sm" href="/admin/updates">最新消息</a><a class="btn btn--ghost btn-sm" href="/admin/social">社群內容</a></div></div>`; }
 async function loadSystemSettings(){
   const host=document.getElementById('system-settings-body');if(!host)return;
@@ -1469,6 +1477,11 @@ function bind(d, x){
 
   // 管理員
   document.querySelectorAll('[data-admin]').forEach(b=>b.onclick=()=>{if(!confirm(`確定${b.textContent.trim()}：${b.closest('tr')?.querySelector('td')?.textContent.trim()||''}？`))return;doThen(()=>api('/admin/users/'+b.dataset.admin+'/admin',{method:'POST',body:{admin:b.dataset.on==='1',brands:[...document.querySelectorAll(`[data-brand-for="${b.dataset.admin}"] input:checked`)].map(i=>i.value)}}),'已更新管理權限');});
+
+  // 收款帳戶：內建付款方式（現金／刷卡／LINE Pay／轉帳）不經這裡管理，只能新增／改名／停用自訂收款帳戶
+  on('pm-add','click',()=>{const el=document.getElementById('pm-label'),label=(el?.value||'').trim();if(!label){toast('請填寫收款帳戶名稱');return;}doThen(()=>api('/admin/payment-methods',{method:'POST',body:{label}}),'已新增收款帳戶');});
+  document.querySelectorAll('[data-pm-toggle]').forEach(b=>b.onclick=()=>{const willActive=b.dataset.on==='1',name=b.closest('tr')?.querySelector('td')?.textContent.trim()||'';if(!confirm(`確定${willActive?'恢復':'停用'}收款帳戶「${name}」？`))return;doThen(()=>api('/admin/payment-methods/'+b.dataset.pmToggle,{method:'PATCH',body:{active:willActive}}),willActive?'已恢復':'已停用');});
+  document.querySelectorAll('[data-pm-rename]').forEach(b=>b.onclick=()=>{const cur=b.closest('tr')?.querySelector('td')?.textContent.trim()||'',next=prompt('收款帳戶名稱',cur);if(next===null)return;const label=next.trim();if(!label){toast('請填寫收款帳戶名稱');return;}doThen(()=>api('/admin/payment-methods/'+b.dataset.pmRename,{method:'PATCH',body:{label}}),'已更新名稱');});
 
   // 菜單
   bindMenu();

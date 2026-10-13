@@ -104,7 +104,7 @@ test('server.js 接線：資料表、日結回 linepay、同步／匯入端點�
   // 帳密可在後台「系統設定」事後填入，排程一律掛上、執行時才檢查 configured()
   assert.match(s, /schedule\('30 4 \* \* \*', \(\) => \{ if \(!linepay\.configured\(\)\) return; syncLinepay\(\.\.\.linepay\.syncWindow\(\)\)/);
   assert.match(s, /LINE Pay 對帳同步失敗/, '失敗要寄信');
-  assert.match(s, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|registers\|staff\|shifts\|attendance\)/, '餐飲子帳號可用 /api/admin/sales/linepay/sync');
+  assert.match(s, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|registers\|staff\|shifts\|attendance\|payment-methods\)/, '餐飲子帳號可用 /api/admin/sales/linepay/sync');
   assert.doesNotMatch(s, /LINEPAY_MERCHANT_PW\s*=\s*['"]/, '密碼不得寫死');
 });
 

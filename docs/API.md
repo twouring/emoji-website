@@ -123,8 +123,10 @@ Google 授權回呼，簽發會員 token 並導回。
 
 ```
 { role: 'admin', super, me, bond: { target_amount, raised },
-  users[], commitments[], entitlements[], events[], content{}, updates[] }
+  users[], commitments[], entitlements[], events[], content{}, updates[], payment_methods[] }
 ```
+
+`payment_methods[]`（管理員皆可見，POS 結帳與系統設定管理共用）：`[{ code, label, active, builtin }]`，現金／刷卡／LINE Pay／轉帳為 `builtin:true` 固定在前（恆 `active:true`），之後接自訂收款帳戶（`builtin:false`，見 `POST/PATCH /api/admin/payment-methods`）。結帳付款方式選項只取 `active:true` 的；停用的自訂帳戶仍會列出（`active:false`）供系統設定頁重新啟用。
 
 `users[]` 每筆含 `access_active`、`access_summary`、`points_balance`。
 會員身分則只回自己的資料（`me`、`commitments`、`access`、`points`、`point_orders`、報名中活動）。
@@ -315,6 +317,12 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 
 ### POST /api/admin/registers/:id/reopen
 重開補單（僅超級管理員）。關帳紀錄保留，以留存金為零用金另開一本新帳接著記；該品牌當日已有開著的帳回 409。回 `{ ok, id, day, venue, opening_cash }`（201）。
+
+### POST /api/admin/payment-methods
+新增收款帳戶（僅超級管理員）。現金／刷卡／LINE Pay／轉帳為內建付款方式，不經這支 API 管理；這裡新增的是額外的自訂收款帳戶（例如街口支付、另一組轉帳帳號），結帳時會一併出現在付款方式選項。body `{ label }`（1–20 字，必填）；`code` 由系統隨機產生，不可自訂。回 `{ ok, code, label, active:true, builtin:false }`（201）。品牌子帳號只能讀（見 `GET /api/state` 的 `payment_methods`），不能呼叫這支。
+
+### PATCH /api/admin/payment-methods/:code
+改名或停用／恢復一個自訂收款帳戶（僅超級管理員）；內建付款方式沒有對應的 `:code` 可改。body `{ label? , active? }`，兩者都可選填。停用後既有歷史單據的付款方式標籤仍可正常顯示，只是結帳時不再能選它。回 `{ ok, code, label, active, builtin:false }`。
 
 ### GET /api/admin/staff
 員工名單（排班與打卡用）。員工不綁登入帳號，每位一組不重複的 4 位數識別碼，在共用平板打卡時輸入。query `venue=`。回 `{ staff[]{ id, name, venues（null＝在咖啡與三點水都可）, role, note, active, pin? }, count }`；`pin` 只有言文字管理員看得到，品牌子帳號只看到店別含自己品牌（或不限店別）的員工。停用（`active:false`）的員工排在後面。
