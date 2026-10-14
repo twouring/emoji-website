@@ -42,5 +42,5 @@ test('接線：/api/admin/staff/verify 端點存在且限流、開桌與結帳�
   assert.match(pos, /<button type="button" id="p-operator" aria-label="操作人員"><\/button>/);
   assert.match(pos, /document\.getElementById\('p-operator'\)\.onclick = \(\) => openOperatorPad/);
   assert.match(docs, /### POST \/api\/admin\/staff\/verify/);
-  assert.match(sw, /VERSION = 'pos-v[5-9]\d*'/, '改了 pos.html／pos-ops.js 要換快取版本');
+  assert.match(sw, /VERSION = 'pos-v([5-9]|\d{2,})'/, '改了 pos.html／pos-ops.js 要換快取版本');
 });

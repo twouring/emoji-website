@@ -191,6 +191,14 @@ tr.lp-refund td{color:#b42318}
 .op-card{max-width:380px;width:100%;background:var(--card);border-radius:16px;padding:24px 20px;box-shadow:0 10px 40px rgba(0,0,0,.3)}
 .op-card h2{margin:0 0 .25rem;font-size:18px;font-weight:600}
 .op-card-actions{display:flex;gap:10px;justify-content:center;margin-top:14px}
+/* 原因預設選項：膠囊鍵一按就填／就送，48px 觸控目標；覆蓋式卡片（.pos-reason）與表單內嵌（.reason-chips--inline，占整列）共用 */
+.reason-chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px}
+.reason-chips button{all:unset;box-sizing:border-box;cursor:pointer;min-height:48px;padding:8px 16px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem;line-height:1.25;color:var(--ink)}
+.reason-chips button:active,.reason-chips button[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);background:#fff8cf}
+.reason-chips--inline{flex-basis:100%;margin:4px 0 0}
+.op-card.pos-reason{max-width:520px}
+.reason-other{display:flex;flex-direction:column;gap:6px;margin-top:12px;font-size:1rem;color:var(--muted)}
+.reason-other input{min-height:48px;font:inherit;font-size:1rem;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
 /* 加點選項面板（跟桌邊點餐同一套：溫度／糖度／冰塊／飯量／麵量）：選項多時中間可捲、按鈕固定在底部，不會被捲出畫面 */
 .op-card.pos-opt{max-width:520px;display:flex;flex-direction:column;max-height:92dvh;padding:0}
 .pos-opt-body{overflow:auto;padding:22px 20px 10px;flex:1 1 auto;min-height:0}

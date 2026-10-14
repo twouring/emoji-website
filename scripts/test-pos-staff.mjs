@@ -205,7 +205,7 @@ test('接線：POS 多「排班」「打卡」分頁、後台餐飲工作區多�
   assert.match(admin, /CAFE:\['pos','orders','reservations','history','sales','staff','menu'\]/);
   assert.match(admin, /BAR:\['pos','orders','reservations','history','sales','staff','menu'\]/);
   assert.match(admin, /\{ id:'staff',\s+label:'排班打卡',\s+render:tabStaff \}/); assert.match(admin, /if \(tab === 'staff'\) \{ loadStaff\(\); return; \}/);
-  assert.match(sw, /VERSION = 'pos-v[4-9]\d*'/, '新分頁要換 service worker 快取版本（≥ v4）');
+  assert.match(sw, /VERSION = 'pos-v([4-9]|\d{2,})'/, '新分頁要換 service worker 快取版本（≥ v4）');
   // 休息：平板四顆鍵；上班中名單標休息中／該休息；伺服器打卡端點收 break_start／break_end、出勤表有 breaks 欄
   for (const s of ['id="clock-break-start"', 'id="clock-break-end"', "punch('break_start')", "punch('break_end')", 'on-break', 'needs-break', '休息中（']) assert.ok(ops.includes(s), s);
   assert.match(server, /ADD COLUMN IF NOT EXISTS breaks JSONB/); assert.match(server, /ADD COLUMN IF NOT EXISTS break_minutes INT/);

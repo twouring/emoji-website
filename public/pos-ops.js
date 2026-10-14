@@ -15,6 +15,47 @@ const INV_LABEL={paper:'紙本',company:'統編',mobile:'手機載具',citizen:'
 // 各分頁的長篇操作說明一律收進「操作說明」摺疊（預設收起），現場畫面只留會動的東西；需要時再點開看
 const opsHelp=html=>`<details class="ops-help"><summary>操作說明</summary><p class="hint">${html}</p></details>`;
 // 標題與操作說明同一列（.ops-head：標題靠左、說明鍵靠右），不另佔一列；展開時說明文字換到整列寬
+/* 原因預設選項：現場不打字——每個要填原因的地方先列常見原因，一按就送；真的選不到才在「其他」手動填寫。
+   覆蓋式（作廢整張單／作廢品項／取消品項／贈送／出勤修正）用 pickReason()，表單內嵌欄位（折扣／臨時收支／關帳說明／小結說明／台新差異）用 reasonChips()+bindReasonChips()。 */
+const REASON_PRESETS={
+  void_order:['客人取消','點錯單','重複結帳','金額錯誤','付款失敗'],
+  void_line:['點錯品項','客人取消','重複點餐','今日估清'],
+  cancel_item:['做不出來／估清','客人退菜','點錯品項','重複點餐','等太久'],
+  comp:['招待','生日','補償（出錯／等太久）','員工餐','試吃','熟客'],
+  discount:['熟客','活動優惠','員工','會員活動','補償'],
+  cash_move:['買食材','補零錢','雜費','代墊','運費'],
+  close_note:['找錯錢','點鈔誤差','臨時支出忘了記','小費','交接事項'],
+  count_note:['午班交接','晚班交接','中途點驗'],
+  taishin:['客人自行轉帳','重複刷卡','退刷','機器離線補刷'],
+  attendance_fix:['忘了打卡','打錯時間','臨時換班','系統問題'],
+};
+// 覆蓋式原因選單：回傳 Promise<string|null>（null＝取消）。按膠囊鍵立刻送出；手動填寫按「確定」或 Enter
+function pickReason({title,presets=[],placeholder='其他原因',maxlength=80,initial='',required=true}){
+  return new Promise(resolve=>{
+    const ov=document.createElement('div');ov.className='op-overlay';document.body.appendChild(ov);
+    const finish=v=>{if(ov.parentNode)ov.parentNode.removeChild(ov);resolve(v);};
+    ov.innerHTML=`<div class="op-card pos-reason" role="dialog" aria-label="${esc(title)}"><h2>${esc(title)}</h2>
+      <div class="reason-chips">${presets.map(p=>`<button type="button" data-reason="${esc(p)}">${esc(p)}</button>`).join('')}</div>
+      <label class="reason-other"><span>${required?'選不到？手動填寫':'其他說明（選填）'}</span><input id="pos-reason-input" maxlength="${Number(maxlength)||80}" placeholder="${esc(placeholder)}" value="${esc(initial)}"></label>
+      <div class="op-card-actions"><button type="button" class="btn btn--ghost" id="pos-reason-cancel">取消</button><button type="button" class="btn btn--solid" id="pos-reason-ok">確定</button></div></div>`;
+    const inp=ov.querySelector('#pos-reason-input');
+    ov.querySelectorAll('[data-reason]').forEach(b=>b.onclick=()=>finish(b.dataset.reason));
+    const ok=()=>{const v=inp.value.trim();if(required&&!v){toast('請選一個原因，或手動填寫');inp.focus();return;}finish(v);};
+    ov.querySelector('#pos-reason-ok').onclick=ok;
+    inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();ok();}};
+    ov.querySelector('#pos-reason-cancel').onclick=()=>finish(null);
+  });
+}
+// 表單內嵌：在原因輸入欄旁列膠囊鍵，按一下填入該欄（再按一次清掉），仍可自己打字
+const reasonChips=(forId,presets)=>`<div class="reason-chips reason-chips--inline" data-for="${esc(forId)}" role="group" aria-label="常見原因">${presets.map(p=>`<button type="button" data-reason="${esc(p)}">${esc(p)}</button>`).join('')}</div>`;
+function bindReasonChips(host){
+  host.querySelectorAll('.reason-chips[data-for]').forEach(box=>{
+    if(box.dataset.bound)return;const inp=host.querySelector('#'+box.dataset.for);if(!inp)return;box.dataset.bound='1';
+    const sync=()=>box.querySelectorAll('[data-reason]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.reason===inp.value.trim())));
+    box.querySelectorAll('[data-reason]').forEach(b=>b.onclick=()=>{inp.value=inp.value.trim()===b.dataset.reason?'':b.dataset.reason;inp.dispatchEvent(new Event('input'));sync();});
+    inp.addEventListener('input',sync);sync();
+  });
+}
 let POS_INV_SCAN_STREAM=null,POS_INV_SCAN_FRAME=0;
 // 發票各類型只顯示自己要填的欄位（點選後才出現），手機載具可用相機掃描條碼代替手打
 function stopPosInvoiceScanner(){
@@ -91,15 +132,13 @@ function printReceipt(o){
     ${o.status==='void'?'<div class="t">【此單已作廢】</div>':''}
     <div class="c">單號 ${esc(o.id)}<br>謝謝光臨</div>`);
 }
-function voidOrderPrompt(id,reload){
-  const reason=prompt('作廢原因（必填，會記在日結與操作紀錄）：');if(reason===null)return;
-  if(!reason.trim()){toast('請填寫作廢原因');return;}
+async function voidOrderPrompt(id,reload){
+  const reason=await pickReason({title:'作廢原因（會記在日結與操作紀錄）',presets:REASON_PRESETS.void_order});if(reason===null)return;
   opsThen(()=>api('/admin/orders/'+id+'/void',{method:'POST',body:{reason}}),'已作廢，品項退回未結帳',reload);
 }
 // 已結帳單取消單一品項（做不出來／客人退菜），不必整張作廢；金額從這張單扣除
-function cancelOrderItemPrompt(orderId,line,name,reload){
-  const reason=prompt(`取消「${name}」的原因（必填，會記在日結與收據）：`);if(reason===null)return;
-  if(!reason.trim()){toast('請填寫取消原因');return;}
+async function cancelOrderItemPrompt(orderId,line,name,reload){
+  const reason=await pickReason({title:`取消「${name}」的原因（會記在日結與收據）`,presets:REASON_PRESETS.cancel_item});if(reason===null)return;
   opsThen(()=>api(`/admin/orders/${orderId}/items/${line}/void`,{method:'POST',body:{reason}}),out=>`已取消，退 NT$${num(out.refund)}`,reload);
 }
 function bindOrderButtons(host,orders,reload){
@@ -211,7 +250,7 @@ function paintPos(){
     const received=POS_RECEIVED===''?null:Number(POS_RECEIVED);
     const change=received!=null&&received>=total?received-total:null;
     const quick=[...new Set([total,Math.ceil(total/100)*100,Math.ceil(total/500)*500,Math.ceil(total/1000)*1000].filter(n=>n>=total&&n>0))].slice(0,4);
-    const discountUI=POS_DISC_OPEN?`<div class="pos-discount-form" id="pos-disc-form"><select id="pos-disc-type" aria-label="折扣類型"><option value="percent" ${POS_DISCOUNT?.type!=='amount'?'selected':''}>折 ％</option><option value="amount" ${POS_DISCOUNT?.type==='amount'?'selected':''}>折抵 NT$</option></select><input id="pos-disc-value" inputmode="numeric" placeholder="數字" value="${POS_DISCOUNT?esc(POS_DISCOUNT.value):''}" aria-label="折扣數值"><input id="pos-disc-reason" maxlength="40" placeholder="原因（必填）例：萬聖活動、熟客" value="${POS_DISCOUNT?esc(POS_DISCOUNT.reason):''}" aria-label="折扣原因"><button type="button" class="btn btn--solid btn-sm" id="pos-disc-apply">套用</button><button type="button" class="btn btn--ghost btn-sm" id="pos-disc-cancel">取消</button></div>`:'';
+    const discountUI=POS_DISC_OPEN?`<div class="pos-discount-form" id="pos-disc-form"><select id="pos-disc-type" aria-label="折扣類型"><option value="percent" ${POS_DISCOUNT?.type!=='amount'?'selected':''}>折 ％</option><option value="amount" ${POS_DISCOUNT?.type==='amount'?'selected':''}>折抵 NT$</option></select><input id="pos-disc-value" inputmode="numeric" placeholder="數字" value="${POS_DISCOUNT?esc(POS_DISCOUNT.value):''}" aria-label="折扣數值"><input id="pos-disc-reason" maxlength="40" placeholder="原因（必填）選下面或自己填" value="${POS_DISCOUNT?esc(POS_DISCOUNT.reason):''}" aria-label="折扣原因"><button type="button" class="btn btn--solid btn-sm" id="pos-disc-apply">套用</button><button type="button" class="btn btn--ghost btn-sm" id="pos-disc-cancel">取消</button>${reasonChips('pos-disc-reason',REASON_PRESETS.discount)}</div>`:'';
     panel=`<div class="a-sec pos-panel">
       <h2>${cur.takeout?'外帶':'桌號'} ${esc(cur.table)} <span class="pill ${TABLE_STATE[cur.state]?.[0]||''}">${TABLE_STATE[cur.state]?.[1]||''}</span><span class="hint" style="margin:0 0 0 auto;font-weight:400">最後動作 ${esc(clockText(cur.updated_at))}</span></h2>
       ${cur.mixed?'<p class="hint"><span class="pill pill-bad">混桌</span> 這桌含其他品牌的品項：只能結自己店別的，清桌請由言文字管理員處理。</p>':''}
@@ -254,12 +293,12 @@ function paintPos(){
   host.querySelectorAll('input[name=pos-method]').forEach(r=>r.onchange=()=>{if(r.checked){POS_METHOD=r.value;paintPos();}});
   // 改數量：− 到 0 視同作廢（要原因）
   host.querySelectorAll('[data-qty]').forEach(b=>b.onclick=()=>{const l=cur.lines.find(x=>x.line===b.dataset.qty);if(!l)return;const next=l.qty+Number(b.dataset.delta);
-    if(next<1){const reason=prompt('數量減到 0＝作廢這個品項，原因（必填）：');if(reason===null)return;if(!reason.trim()){toast('請填寫作廢原因');return;}opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/items/'+l.line,{method:'DELETE',body:{reason}}),'已作廢品項',reload);return;}
+    if(next<1){pickReason({title:`數量減到 0＝作廢「${l.zh}」，原因`,presets:REASON_PRESETS.void_line}).then(reason=>{if(reason===null)return;opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/items/'+l.line,{method:'DELETE',body:{reason}}),'已作廢品項',reload);});return;}
     if(next>20){toast('數量最多 20');return;}
     opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/items/'+l.line,{method:'PATCH',body:{qty:next}}),`${l.zh} ×${next}`,reload);});
-  host.querySelectorAll('[data-comp]').forEach(b=>b.onclick=()=>{const on=b.dataset.on==='1';let reason='';if(on){reason=prompt('贈送原因（必填，會記在日結）：');if(reason===null)return;if(!reason.trim()){toast('請填寫贈送原因');return;}}
+  host.querySelectorAll('[data-comp]').forEach(b=>b.onclick=async()=>{const on=b.dataset.on==='1';let reason='';if(on){reason=await pickReason({title:'贈送原因（會記在日結）',presets:REASON_PRESETS.comp});if(reason===null)return;}
     opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/items/'+b.dataset.comp,{method:'PATCH',body:{free:on,reason}}),on?'已標記贈送（單價 0）':'已取消贈送',reload);});
-  host.querySelectorAll('[data-void-line]').forEach(b=>b.onclick=()=>{const reason=prompt('作廢這個品項的原因（必填）：');if(reason===null)return;if(!reason.trim()){toast('請填寫作廢原因');return;}opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/items/'+b.dataset.voidLine,{method:'DELETE',body:{reason}}),'已作廢品項',reload);});
+  host.querySelectorAll('[data-void-line]').forEach(b=>b.onclick=async()=>{const ln=cur.lines.find(x=>x.line===b.dataset.voidLine);const reason=await pickReason({title:`作廢「${ln?ln.zh:'這個品項'}」的原因`,presets:REASON_PRESETS.void_line});if(reason===null)return;opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/items/'+b.dataset.voidLine,{method:'DELETE',body:{reason}}),'已作廢品項',reload);});
   // 備註：任何品項（不限加點當下）都能補／改特別需求，留空按確定＝清除備註
   host.querySelectorAll('[data-note-edit]').forEach(b=>b.onclick=()=>{const ln=cur.lines.find(x=>x.line===b.dataset.noteEdit);const note=prompt(`「${ln?ln.zh:''}」的備註（特別需求，160 字內，留空＝清除）：`,ln?.note||'');if(note===null)return;opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/items/'+b.dataset.noteEdit,{method:'PATCH',body:{note}}),'已更新備註',reload);});
   host.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{POS_CAT=b.dataset.cat;paintPos();host.querySelector('.pos-menu-box')?.setAttribute('open','');});
@@ -278,6 +317,7 @@ function paintPos(){
     const groups=itemOptionGroups(it);
     if(!groups.length)return send({item_id:b.dataset.add,qty:1,note});
     openItemOptions(it,groups,note,send);});
+  bindReasonChips(host);
   const discOpen=host.querySelector('#pos-disc-open');if(discOpen)discOpen.onclick=()=>{POS_DISC_OPEN=!POS_DISC_OPEN;paintPos();host.querySelector('#pos-disc-value')?.focus();};
   const discClear=host.querySelector('#pos-disc-clear');if(discClear)discClear.onclick=()=>{POS_DISCOUNT=null;POS_DISC_OPEN=false;paintPos();};
   const discCancel=host.querySelector('#pos-disc-cancel');if(discCancel)discCancel.onclick=()=>{POS_DISC_OPEN=false;paintPos();};
@@ -475,14 +515,14 @@ function registerBlock(d){
   const cards=venues.map(v=>{const r=d?.current?.[v]||null,st=regState(r);
     if(st==='closed')return `<div class="reg-card reg-closed"><h4>${esc(BRAND_LABEL[v])}</h4>${REG_OPEN_FORM===v?openRegisterForm(v):`<p class="hint">還沒開帳：放零用金後按開帳才能結帳。</p><button type="button" class="btn btn--solid" data-reg-open="${esc(v)}">開帳</button>`}</div>`;
     const moves=(r.moves||[]).map(m=>`<tr><td class="a-mono">${esc(clockText(m.created_at))}</td><td>${m.type==='in'?'<span class="pill pill-ok">收入</span>':'<span class="pill pill-wait">支出</span>'}</td><td>${esc(m.reason)}</td><td class="num">${m.type==='in'?'+':'−'}${num(m.amount)}</td></tr>`).join('')||'<tr><td colspan="4" class="a-empty">沒有臨時收支</td></tr>';
-    const cashForm=REG_CASH_OPEN===r.id?`<div class="a-form reg-cash-form"><select id="reg-cash-type" aria-label="類型"><option value="out">臨時支出（從抽屜拿錢）</option><option value="in">臨時收入（放錢進抽屜）</option></select><input id="reg-cash-amount" inputmode="numeric" pattern="[0-9]*" placeholder="金額"><input id="reg-cash-reason" maxlength="80" placeholder="原因（必填）例：買檸檬、補零錢"><button type="button" class="btn btn--solid btn-sm" id="reg-cash-save">記錄</button><button type="button" class="btn btn--ghost btn-sm" id="reg-cash-cancel">取消</button></div>`:'';
+    const cashForm=REG_CASH_OPEN===r.id?`<div class="a-form reg-cash-form"><select id="reg-cash-type" aria-label="類型"><option value="out">臨時支出（從抽屜拿錢）</option><option value="in">臨時收入（放錢進抽屜）</option></select><input id="reg-cash-amount" inputmode="numeric" pattern="[0-9]*" placeholder="金額"><input id="reg-cash-reason" maxlength="80" placeholder="原因（必填）選下面或自己填"><button type="button" class="btn btn--solid btn-sm" id="reg-cash-save">記錄</button><button type="button" class="btn btn--ghost btn-sm" id="reg-cash-cancel">取消</button>${reasonChips('reg-cash-reason',REASON_PRESETS.cash_move)}</div>`:'';
     const closeForm=REG_CLOSE_OPEN===r.id?`<div class="reg-close-form"><p class="hint">按面額填張數，或直接填總額；留存金預設＝零用金（留給下一班）。差額非 0 要寫說明。</p>${denomGrid()}
-      <div class="a-form"><label>點鈔總額<input id="reg-counted" inputmode="numeric" pattern="[0-9]*" placeholder="或直接填"></label><label>留存金<input id="reg-keep" inputmode="numeric" pattern="[0-9]*" value="${esc(r.opening_cash)}"></label><label class="reg-note">說明<input id="reg-close-note" maxlength="200" placeholder="差額原因、交接事項"></label></div>
+      <div class="a-form"><label>點鈔總額<input id="reg-counted" inputmode="numeric" pattern="[0-9]*" placeholder="或直接填"></label><label>留存金<input id="reg-keep" inputmode="numeric" pattern="[0-9]*" value="${esc(r.opening_cash)}"></label><label class="reg-note">說明<input id="reg-close-note" maxlength="200" placeholder="差額原因、交接事項"></label></div>${reasonChips('reg-close-note',REASON_PRESETS.close_note)}
       <div class="reg-close-sum"><span>應有現金 <b>NT$${num(r.expected)}</b></span><span>點鈔 <b id="reg-counted-show">—</b></span><span>差額 <b id="reg-diff-show">—</b></span></div>
       <div class="a-toolbar"><button type="button" class="btn btn--solid" id="reg-close-go">確認關帳</button><button type="button" class="btn btn--ghost" id="reg-close-cancel">取消</button></div></div>`:'';
     // 小結點驗：營業中隨時核對抽屜現金，不關帳；差額只提示不卡，留痕後印小結單會帶上
     const countForm=REG_COUNT_OPEN===r.id?`<div class="reg-close-form reg-count-form"><p class="hint">小結點驗：按面額填張數，或直接填總額，核對抽屜現金是否等於應有現金。不會關帳，可以多次點驗。</p>${denomGrid()}
-      <div class="a-form"><label>點鈔總額<input id="reg-count-total" inputmode="numeric" pattern="[0-9]*" placeholder="或直接填"></label><label class="reg-note">說明<input id="reg-count-note" maxlength="200" placeholder="選填，例：午班交接"></label></div>
+      <div class="a-form"><label>點鈔總額<input id="reg-count-total" inputmode="numeric" pattern="[0-9]*" placeholder="或直接填"></label><label class="reg-note">說明<input id="reg-count-note" maxlength="200" placeholder="選填"></label></div>${reasonChips('reg-count-note',REASON_PRESETS.count_note)}
       <div class="reg-close-sum"><span>應有現金 <b>NT$${num(r.expected)}</b></span><span>點鈔 <b id="reg-count-show">—</b></span><span>差額 <b id="reg-count-diff">—</b></span></div>
       <div class="a-toolbar"><button type="button" class="btn btn--solid" id="reg-count-go">記錄點驗</button><button type="button" class="btn btn--ghost" id="reg-count-print">記錄並印小結單</button><button type="button" class="btn btn--ghost" id="reg-count-cancel">取消</button></div></div>`:'';
     const done=st==='done',lc=!done&&r.last_count;
@@ -496,7 +536,7 @@ function registerBlock(d){
   return `<div class="ops-head"><h3>開關帳</h3>${opsHelp('在咖啡與三點水各自一本帳：開店放零用金按「開帳」，營業中從抽屜拿錢要記「臨時收支」、交班或隨時可「小結點驗」核對現金，打烊點鈔按「關帳」；關帳後該品牌當天不能再結帳。應有現金＝零用金＋現金營收＋臨時收入－臨時支出。')}</div><div class="reg-cards">${cards}</div>`;
 }
 function bindRegisterBlock(host,reload){
-  bindOpenForm(host,reload);
+  bindOpenForm(host,reload);bindReasonChips(host);
   host.querySelectorAll('[data-reg-cash]').forEach(b=>b.onclick=()=>{REG_CASH_OPEN=b.dataset.regCash;REG_CLOSE_OPEN=false;REG_COUNT_OPEN=false;reload();});
   host.querySelectorAll('[data-reg-close]').forEach(b=>b.onclick=()=>{REG_CLOSE_OPEN=b.dataset.regClose;REG_CASH_OPEN=false;REG_COUNT_OPEN=false;reload();});
   host.querySelectorAll('[data-reg-count]').forEach(b=>b.onclick=()=>{REG_COUNT_OPEN=b.dataset.regCount;REG_CASH_OPEN=false;REG_CLOSE_OPEN=false;reload();});
@@ -554,7 +594,7 @@ async function loadSales(){
   const tsStatus=tsManual==null?'':tsDiff===0?'<span class="pill pill-ok">帳對了</span>':`<span class="pill pill-bad">差額 ${tsDiff>0?'+':''}${num(tsDiff)}</span>`;
   const tsBlock=`<div class="ops-head"><h3>刷卡／台新手機付對帳 ${tsStatus}</h3>${opsHelp('刷卡與台新手機付走同一台台新收單機，沒有提供實收總額查詢，請在「小結」「關帳」時對照台新商家後台或簡訊通知，手動填入今天的實收總額。左邊是 POS 結帳時選「刷卡／台新手機付」的成立單。')}</div><p class="hint">${tsManual?`上次填寫：${esc(applicationTime(tsManual.updated_at))}${tsManual.filled_by?' · '+esc(tsManual.filled_by):''}。`:'今天還沒有人填寫。'}</p>
     <div class="a-kpis"><div class="a-kpi"><div class="kl">POS 登記刷卡／台新手機付</div><div class="kv"><span class="u">NT$</span>${num(tsPos.amount)}</div><div class="ks">${num(tsPos.count)} 單</div></div><div class="a-kpi ${tsDiff?'lp-diff':''}"><div class="kl">差額</div><div class="kv"><span class="u">NT$</span>${tsManual==null?'—':(tsDiff>0?'+':'')+num(tsDiff)}</div><div class="ks">${tsManual==null?'尚未填寫':tsDiff===0?'實收＝登記':'實收－POS 登記'}</div></div></div>
-    <form class="a-form" id="ts-form"><label>實收總額<input id="ts-amount" type="number" inputmode="numeric" min="0" step="1" value="${tsManual?Number(tsManual.amount):''}" placeholder="0" required style="width:140px"></label><label style="flex:1;min-width:200px">差異原因（差額非 0 必填）<input id="ts-reason" maxlength="200" value="${esc(tsManual?.reason||'')}" placeholder="例：客人自行用台新 App 轉帳，未走收銀機"></label><button class="btn btn--solid" type="submit">儲存</button></form>`;
+    <form class="a-form" id="ts-form"><label>實收總額<input id="ts-amount" type="number" inputmode="numeric" min="0" step="1" value="${tsManual?Number(tsManual.amount):''}" placeholder="0" required style="width:140px"></label><label style="flex:1;min-width:200px">差異原因（差額非 0 必填）<input id="ts-reason" maxlength="200" value="${esc(tsManual?.reason||'')}" placeholder="選下面或自己填"></label><button class="btn btn--solid" type="submit">儲存</button>${reasonChips('ts-reason',REASON_PRESETS.taishin)}</form>`;
   host.innerHTML=`<div class="ops-head"><h2>日結報表</h2>${opsHelp('營業日從凌晨 03:00 起算到翌日 03:00（三點水深夜的單算前一天）。作廢的單不計營收、另列筆數；折扣與贈送已從營收扣除、另列金額。CSV 含每一筆品項明細、折扣與付款方式，可直接交會計。')}</div>
     <div class="a-toolbar"><label>營業日 <input type="date" id="sales-day" value="${esc(d.day)}"></label><button class="btn btn--ghost btn-sm" id="sales-prev">前一天</button><button class="btn btn--ghost btn-sm" id="sales-next">後一天</button><button class="btn btn--ghost btn-sm" id="sales-today">今天</button><button class="btn btn--solid btn-sm" id="sales-csv">匯出 CSV</button></div>
     <div class="a-kpis sales-kpis"><div class="a-kpi"><div class="kl">營收</div><div class="kv"><span class="u">NT$</span>${num(d.amount)}</div><div class="ks">折扣後實收</div></div><div class="a-kpi"><div class="kl">成立單數</div><div class="kv">${num(d.orders)}<span class="u"> 單</span></div><div class="ks">平均每單 NT$${num(d.orders?Math.round(d.amount/d.orders):0)}</div></div><div class="a-kpi"><div class="kl">折扣</div><div class="kv"><span class="u">NT$</span>${num(d.discount_amount)}</div><div class="ks">${num(d.discount_count)} 單${d.comp_count?` · 贈送 ${num(d.comp_count)} 項`:''}</div></div><div class="a-kpi"><div class="kl">作廢</div><div class="kv">${num(d.voided)}<span class="u"> 單</span></div><div class="ks">NT$${num(d.void_amount)} 不計營收</div></div></div>
@@ -563,7 +603,7 @@ async function loadSales(){
     <h3>品項銷量</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>品項</th>${SCOPE?'':'<th>店別</th>'}<th class="num">數量</th><th class="num">金額</th></tr></thead><tbody>${items}</tbody></table></div>
     ${lpBlock}
     ${tsBlock}`;
-  bindRegisterBlock(host,loadSales);
+  bindRegisterBlock(host,loadSales);bindReasonChips(host);
   const shift=n=>{const t=new Date(SALES_DAY+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);SALES_DAY=t.toISOString().slice(0,10);REG_CASH_OPEN=false;REG_CLOSE_OPEN=false;REG_COUNT_OPEN=false;REG_OPEN_FORM='';loadSales();};
   // 同步：抓「這個營業日前後 3 天」，退款會回補到幾天前；按下去要等後台登入、約 20–60 秒
   host.querySelector('#lp-sync').onclick=e=>{const b=e.currentTarget;b.disabled=true;b.textContent='同步中…（約 1 分鐘）';
@@ -801,10 +841,10 @@ async function loadAttendance(host){
   host.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{if(!confirm('刪除這筆出勤？'))return;opsThen(()=>api('/admin/attendance/'+b.dataset.rm,{method:'DELETE'}),'已刪除',reload);});
   // 修正：三個 prompt（上班、下班、原因），時間用台北時間「2026-10-13 09:00」
   const toIso=s=>{s=String(s||'').trim();if(!s)return null;if(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(s))s+=':00';const t=new Date(s.replace(' ','T')+'+08:00');if(isNaN(t))throw Error('時間格式請用 2026-10-13 09:00');return t.toISOString();};
-  host.querySelectorAll('[data-fix]').forEach(b=>b.onclick=()=>{const r=(d.rows||[]).find(x=>x.id===b.dataset.fix);if(!r)return;
+  host.querySelectorAll('[data-fix]').forEach(b=>b.onclick=async()=>{const r=(d.rows||[]).find(x=>x.id===b.dataset.fix);if(!r)return;
     const tIn=prompt('上班時間（例 2026-10-13 09:00）：',localStamp(r.clock_in));if(tIn===null)return;
     const tOut=prompt('下班時間（例 2026-10-13 17:30；留空＝還沒下班）：',r.clock_out?localStamp(r.clock_out):'');if(tOut===null)return;
     const brk=prompt('休息分鐘（工時會扣掉）：',String(r.break_minutes||0));if(brk===null)return;
-    const note=prompt('備註（為什麼修正）：',r.note||'');if(note===null)return;
+    const note=await pickReason({title:'為什麼修正這筆出勤？',presets:REASON_PRESETS.attendance_fix,initial:r.note||'',required:false,maxlength:200});if(note===null)return;
     opsThen(async()=>{const clock_in=toIso(tIn),clock_out=toIso(tOut);if(!clock_in)throw Error('上班時間必填');return api('/admin/attendance/'+r.id,{method:'PATCH',body:{clock_in,clock_out,break_minutes:Number(brk)||0,note}});},out=>`已修正，本班 ${out.minutes!=null?hoursText(out.minutes):'尚未下班'}`,reload);});
 }
