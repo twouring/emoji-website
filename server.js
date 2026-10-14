@@ -34,6 +34,7 @@ const eventChannels=require('./lib/event-channels');
 const tableOrders=require('./lib/table-orders');
 const ezpayInvoice=require('./lib/ezpay-invoice');
 const linepay=require('./lib/linepay');
+const taishinManual=require('./lib/taishin-manual');
 const posRegister=require('./lib/pos-register');
 const posStaff=require('./lib/pos-staff');
 const posPaymentMethods=require('./lib/pos-payment-methods');
@@ -790,6 +791,9 @@ async function migrate() {
     id TEXT PRIMARY KEY, type TEXT NOT NULL, amount INT NOT NULL, paid_at TIMESTAMPTZ NOT NULL, method TEXT NOT NULL DEFAULT '', provider TEXT NOT NULL DEFAULT '',
     origin_id TEXT NOT NULL DEFAULT '', order_no TEXT NOT NULL DEFAULT '', card_last4 TEXT NOT NULL DEFAULT '', confirm_no TEXT NOT NULL DEFAULT '', synced_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE INDEX IF NOT EXISTS linepay_transactions_paid_idx ON linepay_transactions(paid_at)`);
+  // 台新手機付沒有實收總額查詢 API，每個營業日手動填一次實收總額，日結報表拿來與 POS 登記為 taishin 的單對帳
+  await q(`CREATE TABLE IF NOT EXISTS pos_taishin_daily (
+    day DATE PRIMARY KEY, amount INT NOT NULL, reason TEXT NOT NULL DEFAULT '', filled_by TEXT NOT NULL DEFAULT '', updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   // 1F 訂位申請（Google Maps／官方 LINE 連結 /reserve）：不登入、存 DB、寄通知；舊庫補建
   await q(`CREATE TABLE IF NOT EXISTS dining_reservations (
     id TEXT PRIMARY KEY,
@@ -4944,8 +4948,25 @@ app.get('/api/admin/sales',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const txs=(await q('SELECT id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no FROM linepay_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[from,to])).rows;
   const last=(await q('SELECT max(synced_at) AS at FROM linepay_transactions')).rows[0].at;
   const lp=linepay.reconcile(orders,txs,{venues});
+  // 台新手機付對帳：沒有查詢 API，用當天手動填寫的實收總額（填一次存一次，沒填過就是 null）
+  const tsRow=(await q('SELECT amount,reason,filled_by,updated_at FROM pos_taishin_daily WHERE day=$1',[day])).rows[0]||null;
+  const ts=taishinManual.reconcile(orders,tsRow,{venues});
   const methodLabels=Object.fromEntries((await paymentMethodsList()).map(m=>[m.code,m.label]));
-  res.json({...tableOrders.salesSummary(orders,{venues,now:from}),day,csv:tableOrders.salesCsvRows(orders,{venues,methodLabels}),linepay:{...lp,configured:linepay.configured(),synced_at:last,csv:linepay.csvRows(lp.rows)}});
+  res.json({...tableOrders.salesSummary(orders,{venues,now:from}),day,csv:tableOrders.salesCsvRows(orders,{venues,methodLabels}),linepay:{...lp,configured:linepay.configured(),synced_at:last,csv:linepay.csvRows(lp.rows)},taishin:ts});
+}));
+/* 台新手機付日結對帳：手動填寫當天實收總額（無查詢 API）。差額非 0 要填差異原因（決策紀錄第 4 點）；填寫人與時間存檔供日後查詢。 */
+app.post('/api/admin/sales/taishin',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const day=/^\d{4}-\d{2}-\d{2}$/.test(String(req.body?.day||''))?String(req.body.day):'';
+  if(!day)return res.status(400).json({error:'營業日格式不正確。'});
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const from=new Date(day+'T03:00:00+08:00'),to=new Date(+from+86400e3);
+  const orders=(await q('SELECT amount,payer,status FROM table_orders WHERE paid_at>=$1 AND paid_at<$2',[from,to])).rows;
+  const posAmount=taishinManual.reconcile(orders,null,{venues}).pos.amount;
+  let input;try{input=taishinManual.manualInput(req.body,posAmount);}catch(e){return res.status(e.status||400).json({error:e.message});}
+  const filledBy=req.auth.email||req.auth.sub||'';
+  await q(`INSERT INTO pos_taishin_daily(day,amount,reason,filled_by,updated_at) VALUES($1,$2,$3,$4,now())
+    ON CONFLICT (day) DO UPDATE SET amount=EXCLUDED.amount,reason=EXCLUDED.reason,filled_by=EXCLUDED.filled_by,updated_at=now()`,[day,input.amount,input.reason,filledBy]);
+  res.json({ok:true,day,amount:input.amount,reason:input.reason,diff:input.amount-posAmount});
 }));
 /* 查單：某營業日的全部單（含作廢），可用桌號／金額／發票號碼搜尋；給櫃檯重印收據、補開發票、作廢 */
 app.get('/api/admin/orders/history',auth,adminOnly,requireDb,wrap(async(req,res)=>{

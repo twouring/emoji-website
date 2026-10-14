@@ -299,6 +299,7 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 ### GET /api/admin/sales
 日結報表。query `day=YYYY-MM-DD`（營業日，預設今天；03:00 起算 24 小時）、`venue=`。回 `{ day, orders, amount, by_method{}, by_hour{}, items[]{zh,venue,qty,amount}, voided, void_amount, discount_amount, discount_count, comp_count, csv[][], linepay }`；`amount` 為折扣後實收，`discount_amount / discount_count` 為整單折扣合計與單數，`comp_count` 為贈送件數。現金對帳走開關帳（見 `/api/admin/registers`），舊的交班結算已移除。`csv` 為每品項一列的明細（表頭：營業日、付款時間、桌號、品項、數量、單價、小計、付款方式、會員價、發票狀態、發票號碼、狀態、作廢原因），整單折扣另列一列負數讓小計欄加總＝營收，贈送品項名稱後綴「（贈送：原因）」。作廢的單不計營收。
 `linepay` 為 LINE Pay 對帳：`{ configured, synced_at, pos:{count,amount}（POS 登記為 LINE Pay 的成立單）, linepay:{count,amount,refunds,refund_amount,by_method{}}（LINE Pay 商家後台同日實收，退款已扣）, diff（實收－POS 登記；>0 漏登或登成其他方式，<0 登了但沒收到）, rows[]（當日每筆實收：id,type,amount,paid_at,method,card_last4,confirm_no,order_no）, csv[][] }`。LINE Pay 不分店別，`?venue=` 只影響 POS 側。
+`taishin` 為台新手機付對帳（沒有實收查詢 API，手動填寫）：`{ pos:{count,amount}（POS 登記為台新手機付的成立單）, manual（還沒填過是 null；填過是 {amount,reason,filled_by,updated_at}）, diff（manual.amount－POS 登記；還沒填是 null）}`。填寫走 `POST /api/admin/sales/taishin`。
 
 ### GET /api/admin/registers
 開關帳（帳本）。在咖啡（CAFE）與三點水（BAR）共用同一台 POS 但帳務分開，所以帳本以「品牌 × 營業日」為單位。query `day=YYYY-MM-DD`（預設今天的營業日）、`venue=`。回 `{ day, registers[], current:{CAFE, BAR}, active_venue }`；`current[venue]` 為該品牌當日最後一本帳（`null`＝還沒開帳），每本含 `opening_cash, cash_sales, cash_in, cash_out, expected`（應有現金＝零用金＋現金營收＋臨時收入－臨時支出）、`moves[]`（臨時收支）、`sales{orders,amount,by_method,voided,void_amount}`、關帳後另有 `counted_cash, diff, keep_cash, take_cash, denominations, close_note, closed_at, closed_by`，以及 `report`（小結單／關帳單資料）。
@@ -362,6 +363,9 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 
 ### POST /api/admin/sales/linepay/sync
 從 LINE Pay 商家後台抓實收明細寫入 `linepay_transactions`（以交易號碼 upsert）。body 可帶 `{ start, end }`（YYYY-MM-DD，最多 400 天），預設最近 7 天（退款會回補到幾天前的交易）。伺服器每日 04:30（台北）自動跑一次；未設定 `LINEPAY_MERCHANT_ID` / `LINEPAY_MERCHANT_PW` 回 503，正在同步中回 409。回 `{ ok, start, end, count }`。
+
+### POST /api/admin/sales/taishin
+台新手機付日結對帳：手動填寫當天（`day=YYYY-MM-DD`）實收總額（台新沒有實收查詢 API）。body `{ day, amount, reason? }`；`amount` 為 0 以上整數，與系統登記（POS 選「台新手機付」的成立單合計）差額非 0 時 `reason` 必填（400）。同一天重複填寫＝覆蓋（upsert），記填寫人與時間供日後查詢。回 `{ ok, day, amount, reason, diff }`。
 
 ### POST /api/admin/sales/linepay/import
 歷史匯入（僅超級管理員／`ADMIN_API_KEY`）。body `{ rows: [] }`，1–500 筆，每筆為 LINE Pay 後台原始交易物件（含 `transactionSequence`）或已正規化的列（`{ id, type, amount, paid_at, method, ... }`）。回 `{ ok, count, skipped }`。
