@@ -266,6 +266,16 @@ test('櫃檯改品項：數量 1–20、贈送要原因且單價歸 0、取消�
   assert.throws(() => T.editLine(items, 'nope', { qty: 2 }), e => e.status === 404);
 });
 
+test('櫃檯改品項：任何品項都能補／改／清除備註，不限加點當下；可與改數量同時送', () => {
+  const items = cart();
+  const noted = T.editLine(items, items[0].line, { note: '不要冰' });
+  assert.equal(noted[0].note, '不要冰'); assert.equal(noted[1].note, '', '其他列不動');
+  const cleared = T.editLine(noted, items[0].line, { note: '' });
+  assert.equal(cleared[0].note, '', '留空＝清除備註');
+  const both = T.editLine(items, items[0].line, { qty: 3, note: '少冰少糖' });
+  assert.equal(both[0].qty, 3); assert.equal(both[0].note, '少冰少糖');
+});
+
 test('整單折扣與現金找零：％四捨五入、金額不超過小計、原因必填；會員價→折扣→應收；實收不足擋', () => {
   const items = cart(), menuAll = T.menuIndex(menuJson, undefined, { all: true });
   assert.equal(T.discountOf({}, 480), null);

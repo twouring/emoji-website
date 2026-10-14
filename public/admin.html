@@ -865,7 +865,7 @@ function tabMenu(d){
       <td class="num">${NT(it.price)}</td>
       <td class="num">${NT(it.emo)}</td>
       <td>${it.alcohol ? '<span class="pill pill-wait">酒精</span>' : ''}</td>
-      <td>${it.published ? '<span class="pill pill-ok">已發布</span>' : '<span class="pill pill-wait">未發布</span>'}${MenuLib.soldOutToday(it) ? ' <span class="pill pill-bad">今日估清</span>' : ''}${(it.available_from || it.available_to) ? ` <span class="pill pill-draft" title="供應期間">${esc(it.available_from || '…')}～${esc(it.available_to || '…')}</span>` : ''}</td>
+      <td>${it.published ? '<span class="pill pill-ok">已發布</span>' : '<span class="pill pill-wait">未發布</span>'}${MenuLib.soldOutToday(it) ? ' <span class="pill pill-bad">今日估清</span>' : ''}${(it.available_from || it.available_to) ? ` <span class="pill pill-draft" title="供應期間">${esc(it.available_from || '…')}～${esc(it.available_to || '…')}</span>` : ''}${it.custom_price ? ' <span class="pill pill-draft" title="點餐時店員現場輸入金額">現場輸入金額</span>' : ''}${it.pos_only ? ' <span class="pill pill-wait" title="客人掃碼點餐看不到，只在 POS／後台加點">POS 限定</span>' : ''}</td>
       <td style="white-space:nowrap">
         ${it.published ? `<button class="btn btn--ghost btn-sm" data-mi-soldout="${it.id}" data-on="${MenuLib.soldOutToday(it) ? '0' : '1'}">${MenuLib.soldOutToday(it) ? '恢復供應' : '今日估清'}</button>` : ''}
         <button class="btn btn--ghost btn-sm" data-mi-edit="${it.id}">編輯</button>
@@ -896,6 +896,8 @@ function tabMenu(d){
       <label>供應起<input id="mi-from" type="date" title="留空＝不限；特餐／限時菜單用"></label>
       <label>供應迄<input id="mi-to" type="date" title="留空＝不限"></label>
       <label style="flex-direction:row;align-items:center;gap:.4em"><input type="checkbox" id="mi-alcohol" style="width:auto">含酒精</label>
+      <label style="flex-direction:row;align-items:center;gap:.4em" title="點餐時店員現場輸入金額，不用固定原價（例：其他／客製需求）"><input type="checkbox" id="mi-custom-price" style="width:auto">現場輸入金額</label>
+      <label style="flex-direction:row;align-items:center;gap:.4em" title="客人掃碼點餐（/order）看不到，只能由 POS／後台代客加點"><input type="checkbox" id="mi-pos-only" style="width:auto">僅供 POS 加點</label>
       <label style="width:100%">圖片
         <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-top:.4em">
           <img id="prev-mi-image" src="" alt="" style="width:72px;height:72px;object-fit:cover;border:1px solid var(--line);border-radius:8px;background:var(--card);display:none">
@@ -1532,6 +1534,9 @@ function resetMenuForm(){
   document.getElementById('mi-emo').value = 0;
   document.getElementById('mi-sort').value = 0;
   document.getElementById('mi-alcohol').checked = false;
+  document.getElementById('mi-custom-price').checked = false;
+  document.getElementById('mi-pos-only').checked = false;
+  document.getElementById('mi-pos-only').disabled = false;
   document.getElementById('mi-published').checked = false;
   document.getElementById('mi-save').textContent = '新增項目';
   document.getElementById('mi-reset').style.display = 'none';
@@ -1542,6 +1547,15 @@ function bindMenu(){
   const on = (sel,ev,fn)=>{ const el=document.getElementById(sel); if(el) el.addEventListener(ev,fn); };
 
   on('mi-search','input',e=> applyMenuSearch(e.target.value));
+
+  // 現場輸入金額的品項一律視為「僅供 POS 加點」（伺服器端也會強制），勾選後鎖住、避免誤以為能跟一般品項一樣發布給客人點
+  const syncPosOnlyLock = () => {
+    const cp = document.getElementById('mi-custom-price'), po = document.getElementById('mi-pos-only');
+    if (!cp || !po) return;
+    if (cp.checked) { po.checked = true; po.disabled = true; } else { po.disabled = false; }
+  };
+  on('mi-custom-price','change',syncPosOnlyLock);
+  syncPosOnlyLock();
 
   on('mi-save','click',()=>{
     const zh = document.getElementById('mi-zh').value.trim();
@@ -1557,6 +1571,8 @@ function bindMenu(){
       note: document.getElementById('mi-note').value.trim(),
       image: document.getElementById('mi-image').value.trim(),
       alcohol: document.getElementById('mi-alcohol').checked,
+      custom_price: document.getElementById('mi-custom-price').checked,
+      pos_only: document.getElementById('mi-pos-only').checked,
       published: document.getElementById('mi-published').checked,
       sort: Number(document.getElementById('mi-sort').value) || 0,
       available_from: document.getElementById('mi-from').value,
@@ -1585,6 +1601,9 @@ function bindMenu(){
     document.getElementById('mi-to').value = it.available_to || '';
     { const pv=document.getElementById('prev-mi-image'); pv.src = it.image || ''; pv.style.display = it.image ? '' : 'none'; }
     document.getElementById('mi-alcohol').checked = !!it.alcohol;
+    document.getElementById('mi-custom-price').checked = !!it.custom_price;
+    document.getElementById('mi-pos-only').checked = !!it.pos_only;
+    syncPosOnlyLock();
     document.getElementById('mi-published').checked = !!it.published;
     document.getElementById('mi-save').textContent = '更新項目';
     document.getElementById('mi-reset').style.display = '';

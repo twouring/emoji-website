@@ -7,7 +7,7 @@
     'COLD_APP', 'HOT_APP', 'FRIED', 'GRILL', 'MAIN', 'SOUP',
     'COFFEE', 'BEVERAGE', 'TEA', 'SPARKLING',
     'SAKE', 'LIQUEUR', 'WINE', 'ALCOHOL',
-    'FOOD', 'SNACK',
+    'FOOD', 'SNACK', 'OTHER',
   ];
   const ALCOHOL_CATS = ['ALCOHOL', 'SAKE', 'LIQUEUR', 'WINE'];
   const VENUE_LABEL = {
@@ -35,6 +35,7 @@
     SOUP: { zh: '湯品', en: 'Soup', ja: 'スープ' },
     FOOD: { zh: '餐點', en: 'Food', ja: 'フード' },
     SNACK: { zh: '點心', en: 'Snack', ja: 'おやつ' },
+    OTHER: { zh: '其他', en: 'Other', ja: 'その他' },
   };
   /* 當下營業品牌（台北時間，UTC+8 無日光節約）：08:00–17:00 在咖啡、17:00–翌日 03:00 三點水、其餘 null。
    * ponytail：只看整點時段，不處理最後加點（16:30／02:00）；要擋再加分鐘判斷。 */
@@ -75,6 +76,10 @@
       image: String(raw.image || '').trim(),
       alcohol: coerceAlcohol({ ...raw, cat }),
       published: raw.published === true,
+      custom_price: raw.custom_price === true,   // 現場輸入金額（例：其他／客製需求），POS 加點時另外問價
+      // 只在 POS／後台加點看得到，不會出現在客人掃碼點餐的菜單；custom_price 一律強制視為 pos_only，
+      // 避免客人端 /api/orders/:id/items 的 price 欄位被塞進一個本該由伺服器端信任的覆寫價。
+      pos_only: raw.custom_price === true || raw.pos_only === true,
       sort: Number.isFinite(Number(raw.sort)) ? Number(raw.sort) : 0,
       sold_out: dateOrEmpty(raw.sold_out),               // 估清：記營業日，隔天自動恢復
       available_from: dateOrEmpty(raw.available_from),   // 特餐排程：只在這段營業日可點（含）
@@ -83,14 +88,17 @@
   }
   /* 可點：已發布、今天沒估清、在供應期間內（給 /order 與櫃檯用；官網菜單仍用 publishedOnly） */
   function soldOutToday(item, now) { return !!item.sold_out && item.sold_out === businessDay(now); }
-  function isOrderable(item, now) {
+  /* ctx.posOnly=true 時才把 pos_only 品項算進可點範圍（POS／後台代客加點用）；
+   * 客人掃碼點餐（/order）與任何沒傳 ctx 的呼叫，一律看不到 pos_only 品項。 */
+  function isOrderable(item, now, ctx) {
     if (!item.published || soldOutToday(item, now)) return false;
+    if (item.pos_only && !(ctx && ctx.posOnly)) return false;
     const day = businessDay(now);
     if (item.available_from && day < item.available_from) return false;
     if (item.available_to && day > item.available_to) return false;
     return true;
   }
-  function orderableOnly(doc, now) { return (doc.items || []).filter(it => isOrderable(it, now)); }
+  function orderableOnly(doc, now, ctx) { return (doc.items || []).filter(it => isOrderable(it, now, ctx)); }
 
   function parseMenuDoc(value) {
     if (!value || !String(value).trim()) return { version: 1, updated_at: null, items: [] };

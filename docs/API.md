@@ -267,13 +267,13 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 櫃檯開桌／外帶：客人沒掃桌上 QR（走進來直接在櫃檯點）也能開一桌。body `{ table_no }` 開內用桌（英數字與 -，8 字內；該桌已開著就直接回那一桌，`created:false`），或 `{ takeout: true }` 開外帶單（自動取 `W01`–`W99` 最小空號；用完回 409）。`W01`–`W99` 保留給外帶，不能當內用桌號。可選 `operator_id`（`POST /api/admin/staff/verify` 認出的員工 id，記這桌是誰開的，查不到就忽略不擋）。回 `{ ok, id, table, created, takeout, operator? }`（新開 201）。外帶單結完帳且取餐完成後，由 `GET /api/admin/orders` 自動收掉並釋出號碼；內用桌仍保留「待清桌」給人員確認客人離開；`GET /api/admin/orders` 回的 `sessions[].operator` 就是開桌的員工姓名。
 
 ### POST /api/admin/orders/sessions/:id/items
-櫃檯代客加菜。body `{ item_id, qty, note? }`；`by` 固定「櫃檯」。可加任何已發布品項（含估清、非營業時段），但品牌子帳號不得加其他店別的品項（403）。回更新後的場。
+櫃檯代客加菜。body `{ item_id, qty, note?, price? }`；`by` 固定「櫃檯」。可加任何已發布品項（含估清、非營業時段、僅供 POS 的 `pos_only` 品項如「其他」），但品牌子帳號不得加其他店別的品項（403）。`price` 只在該品項 `custom_price:true` 時才採信（店員現場輸入金額，0–100000 的整數；超出範圍或缺漏回 400），其餘品項一律用菜單定價、忽略 `price`。回更新後的場。
 
 ### DELETE /api/admin/orders/sessions/:id/items/:line
 櫃檯逐項作廢未結帳品項。body `{ reason }`（必填）。已結帳品項回 409（請改作廢整張單）。
 
 ### PATCH /api/admin/orders/sessions/:id/items/:line
-櫃檯改未結帳品項。body `{ qty? }` 改數量（1–20），或 `{ free: true, reason }` 標記贈送（單價變 0、原價留在 `regular_price`、記 `comp_reason`，日結另列贈送件數）、`{ free: false }` 取消贈送。已結帳品項回 409；品牌子帳號只能改自己店別的品項（403）。回更新後的場。
+櫃檯改未結帳品項。body `{ qty? }` 改數量（1–20），或 `{ free: true, reason }` 標記贈送（單價變 0、原價留在 `regular_price`、記 `comp_reason`，日結另列贈送件數）、`{ free: false }` 取消贈送，或 `{ note }`（160 字內，空字串＝清空）補／改這個品項的特別需求備註——任何品項（不只加點當下）都能補或改備註，可與 `qty`/`free` 同時送。已結帳品項回 409；品牌子帳號只能改自己店別的品項（403）。回更新後的場。
 
 ### POST /api/admin/orders/sessions/:id/move
 換桌／併桌。body `{ table_no }`。把這桌的未結帳品項與已結帳的單全部搬到目標桌：目標桌沒開就直接改桌號（換桌），已開著就接到目標桌後面並關掉來源桌（併桌）。`W01`–`W99` 外帶單號不能當目標（400）；來源或目標含其他品牌品項時品牌子帳號回 403。回 `{ ok, from, table, merged, id }`。

@@ -48,6 +48,8 @@ window.__MENU_SEED = [
   { venue:"CAFE", cat:"SPARKLING", zh:"柚子氣泡", en:"Yuzu Sparkling", price:160, note:"柚子果漿、氣泡水。清新柚香搭配細緻氣泡，酸甜輕盈，明亮果香隨氣泡展開，口感清爽俐落。" },
   { venue:"CAFE", cat:"SPARKLING", zh:"莓果氣泡", en:"Berry Sparkling", price:160, note:"莓果果漿、氣泡水。莓果酸甜遇上細緻氣泡，明亮清爽，酸香與甜味平衡，留下輕盈鮮明的莓果香。", image:U('1623227314867-33230da9b493') },
   { venue:"CAFE", cat:"SPARKLING", zh:"鳳梨氣泡", en:"Pineapple Sparkling", price:160, note:"鳳梨果漿、氣泡水。鳳梨的熱帶果香搭配細緻氣泡，酸甜鮮活，果香隨氣泡展開，口感清爽輕盈。", image:U('1626388877564-269967fb8ba7') },
+  // ── OTHER（POS 限定，現場輸入金額：菜單上沒列的客製需求、加購服務等） ──
+  { venue:"CAFE", cat:"OTHER", zh:"其他", en:"Other", price:0, note:"菜單上沒有的客製需求，由店員現場輸入金額。", custom_price:true, pos_only:true },
   // ══ 三點水 ══
   // ── COLD_APP ──
   { venue:"BAR", cat:"COLD_APP", zh:"柚香鮭魚冷盤", en:"Yuzu Salmon Crudo", price:320, note:"生鮮鮭魚搭配柚子精凍、橄欖油與鹽巴調味，以紅蔥頭、茴香增添辛香與草本氣息，搭配黃檸檬呈現鮭魚油脂、柑橘酸香與清爽風味。", image:U('1656106577512-0259bf5b9fd6') },
@@ -88,6 +90,8 @@ window.__MENU_SEED = [
   { venue:"BAR", cat:"SPARKLING", zh:"柚子氣泡", en:"Yuzu Sparkling", price:160, note:"柚子果漿、氣泡水。清新柚香搭配細緻氣泡，酸甜輕盈，明亮果香隨氣泡展開，口感清爽俐落。" },
   { venue:"BAR", cat:"SPARKLING", zh:"莓果氣泡", en:"Berry Sparkling", price:160, note:"莓果果漿、氣泡水。莓果酸甜遇上細緻氣泡，明亮清爽，酸香與甜味平衡，留下輕盈鮮明的莓果香。", image:U('1623227314867-33230da9b493') },
   { venue:"BAR", cat:"SPARKLING", zh:"鳳梨氣泡", en:"Pineapple Sparkling", price:160, note:"鳳梨果漿、氣泡水。鳳梨的熱帶果香搭配細緻氣泡，酸甜鮮活，果香隨氣泡展開，口感清爽輕盈。", image:U('1626388877564-269967fb8ba7') },
+  // ── OTHER（POS 限定，現場輸入金額：菜單上沒列的客製需求、加購服務等） ──
+  { venue:"BAR", cat:"OTHER", zh:"其他", en:"Other", price:0, note:"菜單上沒有的客製需求，由店員現場輸入金額。", custom_price:true, pos_only:true },
 ];
 // 向後相容：舊程式碼可能仍讀 window.MENU_DATA；admin.html 會在讀到 DB 資料後覆寫此值。
 window.MENU_DATA = window.__MENU_SEED;

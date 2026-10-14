@@ -4831,7 +4831,7 @@ async function storeInvoiceResult(order, invoice, { throwOnError=false } = {}) {
 app.post('/api/admin/orders/sessions/:id/items',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
   const venues=tableOrders.visibleVenues(req.auth.brands);
-  const menuAll=tableOrders.menuIndex(await contentValue('menu'));   // 櫃檯可替客人加任何已發布品項（含估清、非營業時段），但不得跨品牌
+  const menuAll=tableOrders.menuIndex(await contentValue('menu'),undefined,{posOnly:true});   // 櫃檯可替客人加任何已發布品項（含估清、非營業時段、POS 限定如「其他」），但不得跨品牌
   const it=menuAll.get(String(req.body?.item_id||''));if(it&&!tableOrders.itemInVenues(it,venues))return res.status(403).json({error:'只能加自己店別的品項。'});
   return mutateItems(req,res,items=>tableOrders.posAddLine(items,menuAll,req.body||{}));
 }));
@@ -4844,7 +4844,7 @@ app.delete('/api/admin/orders/sessions/:id/items/:line',auth,adminOnly,requireDb
 app.patch('/api/admin/orders/sessions/:id/items/:line',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
   const venues=tableOrders.visibleVenues(req.auth.brands);
-  return mutateItems(req,res,items=>{const t=items.find(l=>l.line===String(req.params.line));if(t&&!tableOrders.itemInVenues(t,venues))throw Object.assign(Error('只能修改自己店別的品項。'),{status:403});return tableOrders.editLine(items,String(req.params.line),{qty:req.body?.qty,free:req.body?.free,reason:req.body?.reason});});
+  return mutateItems(req,res,items=>{const t=items.find(l=>l.line===String(req.params.line));if(t&&!tableOrders.itemInVenues(t,venues))throw Object.assign(Error('只能修改自己店別的品項。'),{status:403});return tableOrders.editLine(items,String(req.params.line),{qty:req.body?.qty,free:req.body?.free,reason:req.body?.reason,note:req.body?.note});});
 }));
 /* 換桌／併桌：把這桌（未結帳品項＋已結帳的單）搬到另一桌；目標桌已開著就併桌。外帶單不能當目標 */
 app.post('/api/admin/orders/sessions/:id/move',auth,adminOnly,requireDb,wrap(async(req,res)=>{
