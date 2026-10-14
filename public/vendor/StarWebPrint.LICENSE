@@ -1,0 +1,7 @@
+StarWebPrintBuilder.js / StarWebPrintTrader.js
+Star webPRNT SDK (https://github.com/star-micronics/starwebprnt-sdk)
+Copyright 2012-2025 STAR MICRONICS CO., LTD. All Rights Reserved.
+
+Used unmodified, for communication with the Star mPOP purchased for 言文字 POS,
+under the Star Micronics Software License Agreement bundled with the SDK
+(SoftwareLicenseAgreement.pdf). Only served to pos.html; not redistributed.

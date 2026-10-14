@@ -25,6 +25,8 @@ const EXCLUDED = new Set([
   'public/vendor/html-to-image.js',
   'public/vendor/qrcode.min.js',
   'public/vendor/zxing-reader.js',
+  'public/vendor/StarWebPrintBuilder.js',
+  'public/vendor/StarWebPrintTrader.js',
 ]);
 
 function walk(dir) {
