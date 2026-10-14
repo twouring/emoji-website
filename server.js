@@ -4905,7 +4905,14 @@ app.post('/api/admin/orders/:id/invoice/issue',auth,adminOnly,requireDb,wrap(asy
   if(!o||!tableOrders.orderOwnedByVenues(o,venues))return res.status(404).json({error:'找不到這筆出餐單。'});
   if(o.status==='void')return res.status(409).json({error:'作廢的單不能補開發票。'});
   o.discount=o.payer?.discount||null;
-  if(o.invoice?.status==='issued')return res.json({ok:true,invoice:o.invoice});
+  if(o.invoice?.status==='issued'){
+    if(o.invoice.number)return res.json({ok:true,invoice:o.invoice});
+    // ezPay 已開立但當時沒解析到號碼：用自訂編號＋金額查回來，不能重開（會重複開票）
+    const cfg=ezpayInvoice.config();
+    if(!cfg)return res.status(503).json({error:'尚未設定 ezPay 電子發票憑證（後台「系統設定」）。'});
+    try{const synced=await ezpayInvoice.searchInvoice(cfg,o,o.invoice);await q('UPDATE table_orders SET invoice=$2 WHERE id=$1',[o.id,JSON.stringify(synced)]);return res.json({ok:true,invoice:synced,synced:true});}
+    catch(e){return res.status(e.status||502).json({error:e.message});}
+  }
   let invoice;try{invoice=ezpayInvoice.invoiceForm(req.body?.invoice&&Object.keys(req.body.invoice).length?req.body.invoice:o.invoice);}catch(e){return res.status(e.status||400).json({error:e.message});}
   if(!invoice.requested)return res.status(400).json({error:'請先選擇發票類型。'});
   try{const out=await storeInvoiceResult(o,invoice,{throwOnError:true});res.json({ok:true,invoice:out});}
@@ -4921,7 +4928,9 @@ app.post('/api/admin/orders/:id/void',auth,adminOnly,requireDb,wrap(async(req,re
   if(nextInvoice.status==='issued'){
     const cfg=ezpayInvoice.config();
     if(!cfg)return res.status(503).json({error:'尚未設定 ezPay 電子發票憑證（後台「系統設定」），無法同步作廢已開立發票的訂單。'});
-    try{nextInvoice=await ezpayInvoice.invalidInvoice(cfg,o,nextInvoice,reason);}catch(e){return res.status(e.status||502).json({error:e.message});}
+    // 已開立但沒記到號碼：先向 ezPay 查回號碼，再作廢
+    if(!nextInvoice.number){try{nextInvoice=await ezpayInvoice.searchInvoice(cfg,o,nextInvoice);}catch(e){return res.status(e.status||502).json({error:e.message});}}
+    if(nextInvoice.status==='issued'){try{nextInvoice=await ezpayInvoice.invalidInvoice(cfg,o,nextInvoice,reason);}catch(e){return res.status(e.status||502).json({error:e.message});}}
   }
   // 作廢＝這張單不計營收；品項退回未結帳（可重新結或清桌作廢），避免「作廢後想改付款方式」要重點一次
   const client=await pool.connect();
