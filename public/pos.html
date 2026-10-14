@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>POS · 言文字</title>
 <meta name="robots" content="noindex,nofollow">
 <meta name="theme-color" content="#FBFAF6">
@@ -22,6 +22,8 @@
   /* 平板 POS：單欄、頂欄分頁、48px 以上觸控目標；沿用 CIS token（/style.css）與 /pos-ops.css 的餐飲營運樣式 */
   :root{--p-top:60px}
   html{background:var(--paper)}
+  /* 全站鎖定尺寸：不可雙指縮放、不可雙擊放大（touch-action 擋雙擊，gesturestart 擋雙指，見下方 script） */
+  html,body{touch-action:manipulation}
   body{font-family:var(--sans);font-size:1rem;line-height:1.6;color:var(--ink);background:var(--paper);min-height:100vh;padding-top:calc(var(--p-top) + env(safe-area-inset-top));-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
   *,*::before,*::after{box-sizing:border-box}
   :focus-visible{outline:3px solid var(--ink);outline-offset:2px;border-radius:4px}
@@ -124,6 +126,8 @@
 /* 平板 POS 子站（pos.emoji.tw）：只做餐飲現場的事——櫃檯結帳、出餐、估清、訂位、查單、日結、打卡、排班。
    登入與 /admin 同一組帳號（Google 或 Email）；API 同網域、token 存 localStorage。
    畫面繪製全部在 /pos-ops.js（與 /admin 共用），本檔只管登入、分頁切換、店別切換、PWA。 */
+// 畫面禁止縮放：touch-action（CSS）擋雙擊放大，這裡再擋 iOS Safari 的雙指縮放手勢（gesturestart 不受 touch-action 管）
+['gesturestart','gesturechange','gestureend'].forEach(ev => document.addEventListener(ev, e => e.preventDefault()));
 const KEY = 'tth_token';
 const app = document.getElementById('app');
 const esc = s => (s == null ? '' : String(s)).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
