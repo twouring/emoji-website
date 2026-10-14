@@ -17,6 +17,8 @@ const payMethodLabel=code=>PAY_LABEL[code]||(DATA?.payment_methods||[]).find(m=>
 const payMethodsActive=()=>{const list=(DATA?.payment_methods||[]).filter(m=>m.active);return list.length?list:[['cash','現金'],['card','刷卡'],['linepay','LINE Pay'],['transfer','轉帳'],['taishin','台新手機付']].map(([code,label])=>({code,label,builtin:true}));};
 const STATION_LABEL={bar:'吧檯',kitchen:'廚房'};
 const TABLE_STATE={empty:['pill-draft','已開桌'],open:['pill-wait','點餐中'],ordered:['pill-wait','待出餐'],preparing:['pill-wait','準備中'],ready:['pill-ok','可取餐'],idle:['pill-draft','待清桌']};
+// 現場固定桌位（跟桌牌印刷一致，見 table-cards-20261012）：桌況格一律先列出這些桌，不管有沒有開桌，方便現場人員直接點選開桌
+const DEFAULT_TABLES=['A1','A2','A3','A4','A5','A6','A7','A8','A9','A10','B1','B2','C1','C2','C3','C4'];
 const ORDER_STATE={placed:'待出餐',paid:'準備中',ready:'可取餐',done:'已取餐',void:'已作廢'};
 const elapsedText=iso=>{const m=Math.max(0,Math.floor((Date.now()-new Date(iso))/60000));return m<60?`${m} 分`:`${Math.floor(m/60)} 時 ${m%60} 分`;};
 // 現場看板只顯示時刻（HH:MM），不佔欄寬；完整日期時間放 title 供滑鼠停留查看
@@ -152,9 +154,16 @@ function paintPos(){
   const sessions=d.sessions;
   if(POS_TABLE&&!sessions.find(s=>s.table===POS_TABLE))POS_TABLE='';
   const cur=sessions.find(s=>s.table===POS_TABLE)||null;
-  const grid=sessions.map(s=>{const [cls,label]=TABLE_STATE[s.state]||TABLE_STATE.open;return `<button type="button" class="pos-table ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''}" data-pos-table="${esc(s.table)}"><b>${s.takeout?'外帶 ':''}${esc(s.table)}</b><span class="pill ${cls}">${label}</span><small>${s.unpaid?`未結 NT$${num(s.unpaid_amount)}`:s.state==='empty'?'還沒點餐':'已結清'}${s.operator?' · 👤 '+esc(s.operator):''}</small>${s.mixed?'<small class="pill pill-bad">混桌</small>':''}</button>`;}).join('')||'<p class="a-empty">目前沒有使用中的桌。客人掃桌上 QR、或按上面「開桌」「外帶」後會出現在這裡。</p>';
-  // 櫃檯開桌／外帶：客人沒掃 QR 也能從這裡開始點
-  const opener=`<div class="pos-open"><input id="pos-open-table" placeholder="桌號，例：A3" maxlength="8" autocapitalize="characters" autocomplete="off" aria-label="桌號"><button type="button" class="btn btn--ghost" id="pos-open">開桌</button><button type="button" class="btn btn--ghost" id="pos-takeout">＋ 外帶</button></div>`;
+  // 桌況格固定先列出現場的 16 桌（不管有沒有開桌，方便現場人員直接點選開桌），已開桌/外帶但不在固定桌號清單裡的（例如外帶、加開的桌）排在後面
+  const byTable=new Map(sessions.filter(s=>!s.takeout).map(s=>[s.table,s]));
+  const extraSessions=sessions.filter(s=>s.takeout||!DEFAULT_TABLES.includes(s.table));
+  const slots=[...DEFAULT_TABLES.map(t=>byTable.get(t)||{table:t,empty:true}),...extraSessions];
+  const grid=slots.map(s=>{
+    if(s.empty)return `<button type="button" class="pos-table empty" data-open-table="${esc(s.table)}"><b>${esc(s.table)}</b><span class="pill pill-draft">空桌</span><small>點選直接開桌</small></button>`;
+    const [cls,label]=TABLE_STATE[s.state]||TABLE_STATE.open;return `<button type="button" class="pos-table ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''}" data-pos-table="${esc(s.table)}"><b>${s.takeout?'外帶 ':''}${esc(s.table)}</b><span class="pill ${cls}">${label}</span><small>${s.unpaid?`未結 NT$${num(s.unpaid_amount)}`:s.state==='empty'?'還沒點餐':'已結清'}${s.operator?' · 👤 '+esc(s.operator):''}</small>${s.mixed?'<small class="pill pill-bad">混桌</small>':''}</button>`;
+  }).join('');
+  // 櫃檯開桌／外帶：加開固定清單以外的桌號、或外帶單
+  const opener=`<div class="pos-open"><input id="pos-open-table" placeholder="加開其他桌號，例：A11" maxlength="8" autocapitalize="characters" autocomplete="off" aria-label="桌號"><button type="button" class="btn btn--ghost" id="pos-open">開桌</button><button type="button" class="btn btn--ghost" id="pos-takeout">＋ 外帶</button></div>`;
   let panel='',picked=[],subtotal=0,total=0;
   if(cur){
     if(POS_PICK)POS_PICK=new Set([...POS_PICK].filter(l=>cur.lines.some(x=>x.line===l)));
@@ -195,12 +204,14 @@ function paintPos(){
       ${live.length?`<h3>這桌已結帳的單</h3><div class="a-wrap2"><table class="a-tbl pos-paid"><thead><tr><th>品項 · 時間 · 狀態</th><th>付款</th><th class="num">金額</th><th class="ops-th">操作</th></tr></thead><tbody>${liveRows}</tbody></table></div>`:''}
     </div>`;
   }
-  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><h2>櫃檯結帳</h2>${registerBar()}<p class="hint">點桌號看這桌的帳；沒掃 QR 的客人用「開桌」或「外帶」。</p>${opener}<div class="pos-grid">${grid}</div></div>${panel}</div>`;
+  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><h2>櫃檯結帳</h2>${registerBar()}<p class="hint">點空桌直接開桌；點已開的桌看這桌的帳。沒印在桌牌上的桌號或外帶用下面加開。</p>${opener}<div class="pos-grid">${grid}</div></div>${panel}</div>`;
   const reload=()=>{host.dataset.sig='';return loadPos();};
   bindRegisterBar(host,reload);
   host.querySelectorAll('[data-pos-table]').forEach(b=>b.onclick=()=>{POS_TABLE=b.dataset.posTable;POS_PICK=null;POS_DISCOUNT=null;POS_DISC_OPEN=false;POS_RECEIVED='';paintPos();});
   // 開桌／外帶：有操作人員就順手帶上（記這桌是誰開的），沒有也不擋——只有結帳要求一定要認人
   const openSession=body=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{...body,operator_id:OPERATOR?.id}}),out=>out.takeout?`外帶單 ${out.table} 已開，請加入品項`:out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,out=>{POS_TABLE=out.table;POS_PICK=null;POS_DISCOUNT=null;POS_RECEIVED='';return reload();});
+  // 空桌格：直接點就開桌，不用再打字輸入桌號
+  host.querySelectorAll('[data-open-table]').forEach(b=>b.onclick=()=>openSession({table_no:b.dataset.openTable}));
   host.querySelector('#pos-open').onclick=()=>{const t=host.querySelector('#pos-open-table').value.trim().toUpperCase();if(!t){toast('請先輸入桌號');host.querySelector('#pos-open-table').focus();return;}openSession({table_no:t});};
   host.querySelector('#pos-open-table').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();host.querySelector('#pos-open').click();}};
   host.querySelector('#pos-takeout').onclick=()=>openSession({takeout:true});

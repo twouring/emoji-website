@@ -35,6 +35,7 @@ tr.resv-off td{color:var(--muted)}tr.resv-off .btn{opacity:.75}
 .pos-table.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}.pos-table.on small{color:rgba(255,255,255,.75)}
 .pos-table:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .pos-table.takeout{background:var(--paper-alt)}.pos-table.takeout.on{background:var(--ink)}
+.pos-table.empty{border-style:dashed;background:transparent;color:var(--muted)}.pos-table.empty b{color:var(--ink)}
 .pos-panel h2{flex-wrap:wrap}
 /* 桌況在左、這桌的帳在右：平板橫式（≥1000px，iPad 10 吋起）就啟用，左欄佔 34%（桌況 2–3 欄），右欄吃剩下全部；直式／窄螢幕上下排、各自滿版 */
 .pos-layout{display:grid;gap:16px;align-items:start}
