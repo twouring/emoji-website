@@ -118,6 +118,11 @@ test('pos-ops.js：共用模組不碰 /admin 專屬狀態；估清分頁只動 s
   assert.match(ops, /id="resv-form"/); assert.match(ops, /api\('\/admin\/reservations',\{method:'POST',body\}\)/);
   assert.match(ops, /ezPay 電子發票/); assert.match(ops, /name="pos-invoice"/); assert.match(ops, /buyer_ubn/); assert.match(ops, /carrier_num/); assert.match(ops, /love_code/);
   assert.match(ops, /invoice:invoiceBody\(host\)/); assert.match(ops, /\/invoice\/issue/);
+  assert.match(ops, /STAR_SCHEME='starpassprnt:\/\/v1\/print\/nopreview'/, 'Star URL scheme 用於硬體列印／開錢櫃');
+  assert.match(ops, /function openCashDrawer\(\)/); assert.match(ops, /id="pos-cash-drawer"/);
+  assert.match(ops, /function code39SvgData\(text\)/); assert.match(ops, /async function printInvoiceProof\(o,\{drawer=false,star=true\}=\{\}\)/);
+  assert.match(ops, /data-invoice-print=/); assert.match(ops, /out\.invoice\?\.status==='issued'\)printInvoiceProof\(order,\{drawer:method==='cash',star:true\}\);else if\(method==='cash'\)openCashDrawer\(\)/);
+  assert.match(ops, /Safari\/WebUSB 在 iPadOS 不能當成穩定可用/, '不要宣稱 iPadOS PWA 可穩定 WebUSB 直連');
   assert.match(ops, /empty:\['pill-draft','已開桌'\]/);
   assert.match(ops, /\/admin\/menu\/sold-out/); assert.match(ops, /data-so=/);
   assert.match(ops, /if\(host\.querySelector\('table'\)\)toast\('更新失敗：'/, '出餐看板更新失敗不清空畫面');

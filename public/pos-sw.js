@@ -1,6 +1,6 @@
 /* 言文字 POS（pos.emoji.tw）service worker：只讓 App 殼（頁面、腳本、樣式、圖示）可離線開啟；
    /api、/auth 一律走網路、不快取（訂單與結帳資料不可用舊的）。部署新版時改 VERSION 即會換快取。 */
-const VERSION = 'pos-v8';
+const VERSION = 'pos-v9';
 const SHELL = ['/pos', '/pos-ops.js', '/pos-ops.css', '/menu-lib.js', '/order-lib.js', '/vendor/qrcode.min.js', '/style.css', '/pos.webmanifest', '/pos-icon-192.png', '/pos-icon-512.png'];
 
 self.addEventListener('install', e => {
