@@ -165,7 +165,13 @@ tr.lp-refund td{color:#b42318}
 .clock-pad{max-width:360px;margin:0 auto}
 .clock-pin{display:flex;justify-content:center;gap:18px;margin:10px 0 16px}.clock-pin i{width:18px;height:18px;border-radius:50%;border:2px solid var(--ink);background:transparent}.clock-pin i.on{background:var(--ink)}
 .clock-keys{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.clock-key{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;justify-content:center;min-height:64px;border:1px solid var(--line);border-radius:12px;background:var(--card);font-size:1.6rem;font-variant-numeric:tabular-nums;user-select:none;-webkit-user-select:none}.clock-key:active{background:var(--paper-alt)}.clock-key:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-.clock-go{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.clock-go .btn{min-height:60px;font-size:1.2rem;margin:0}
+/* 四顆鍵：上班／下班一排（大）、開始休息／結束休息一排 */
+.clock-go{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.clock-go .btn{min-height:60px;font-size:1.2rem;margin:0;white-space:nowrap}.clock-go #clock-break-start,.clock-go #clock-break-end{min-height:52px;font-size:1.05rem}
+.clock-list li.on-break{border-color:#d9c36a;background:#fffbe8}.clock-list li.needs-break{border-color:#f3c6c0;background:#fff5f3}.clock-list li em{font-style:normal;font-size:1rem;color:#b42318}.clock-list li.on-break em{color:#7a5d00}
+/* 排班：排休列（灰）、自動排班排不滿的警示、人力需求表單 */
+.shift-item.shift-off{background:var(--paper-alt);color:var(--muted);border-style:dashed}
+.shift-warn{margin:0 0 12px;padding:12px 14px;border:1px solid #f3c6c0;background:#fff5f3;border-radius:12px;color:#b42318}.shift-warn ul{margin:6px 0 0;padding-left:20px}
+.staffing-row{display:flex;align-items:center;gap:8px;flex:1 1 100%}.staffing-row input[type=number]{width:64px}.staffing-row select,.staffing-row input{min-height:44px}
 .clock-msg{max-width:560px;margin:16px auto 0;padding:14px 16px;border:1px solid;border-radius:12px;font-size:1.15rem;text-align:center}.clock-msg.ok{background:#eaf7ec;border-color:#bfe3c6;color:#1b5e2a}.clock-msg.bad{background:#fff5f3;border-color:#f3c6c0;color:#b42318}
 .clock-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}.clock-list li{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}.clock-list li span{color:var(--muted);font-size:1rem;font-variant-numeric:tabular-nums}
 /* 操作人員：全螢幕遮罩＋卡片，疊在整個 App 上面認人（不是登入帳密），結帳前自動跳出 */

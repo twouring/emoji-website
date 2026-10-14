@@ -63,7 +63,7 @@ test('打卡：識別碼錯 404、停用 403、不在該店 403；上班配對�
   assert.throws(() => S.punch({ type: 'in', staff: null, venue: 'CAFE', now }), e => e.status === 404);
   assert.throws(() => S.punch({ type: 'in', staff: { ...staff, active: false }, venue: 'CAFE', now }), e => e.status === 403);
   assert.throws(() => S.punch({ type: 'in', staff, venue: 'BAR', now }), e => e.status === 403 && /三點水/.test(e.message));
-  assert.throws(() => S.punch({ type: 'x', staff, venue: 'CAFE', now }), /上班或下班/);
+  assert.throws(() => S.punch({ type: 'x', staff, venue: 'CAFE', now }), /上班、下班或休息/);
   const inn = S.punch({ type: 'in', staff, venue: 'CAFE', open: null, shifts, now });
   assert.equal(inn.day, '2026-10-13'); assert.equal(inn.shift_id, 'sh_1'); assert.equal(inn.late_minutes, 12); assert.match(inn.message, /晚 12 分/);
   const early = S.punch({ type: 'in', staff, venue: 'CAFE', open: null, shifts, now: +new Date('2026-10-13T07:50:00+08:00') });
@@ -78,6 +78,90 @@ test('打卡：識別碼錯 404、停用 403、不在該店 403；上班配對�
   assert.equal(out.id, 'at_1'); assert.equal(out.minutes, 498); assert.equal(out.early_minutes, 30); assert.equal(out.venue, 'CAFE'); assert.equal(out.day, '2026-10-13'); assert.match(out.message, /8 小時 18 分/);
   const night = S.punch({ type: 'in', staff: { ...staff, venues: null }, venue: 'BAR', open: null, shifts: [], now: +new Date('2026-10-14T01:00:00+08:00') });
   assert.equal(night.day, '2026-10-13', '凌晨 01:00 算前一營業日'); assert.equal(night.shift_id, null);
+});
+
+test('休息（勞基法第 35 條）：開始／結束休息要在班上；重複開始 409；工時扣休息；連續 4 小時沒休息標記；未滿 30 分提醒；休息中直接下班休息算到下班', () => {
+  const staff = { id: 'st_1', name: '小美', active: true, venues: null };
+  const t = h => +new Date(`2026-10-13T${h}:00+08:00`);
+  assert.throws(() => S.punch({ type: 'break_start', staff, venue: 'CAFE', open: null, now: t('12:00') }), e => e.status === 409 && /不能休息/.test(e.message));
+  const open = { id: 'at_1', staff_id: 'st_1', day: '2026-10-13', venue: 'CAFE', clock_in: new Date(t('08:00')), shift_id: null, breaks: [] };
+  const b1 = S.punch({ type: 'break_start', staff, venue: 'CAFE', open, now: t('12:10') });
+  assert.equal(b1.action, 'break_start'); assert.equal(b1.breaks.length, 1); assert.equal(b1.breaks[0].end, null); assert.match(b1.message, /已連續工作 4 小時 10 分/);
+  const onBreak = { ...open, breaks: b1.breaks };
+  assert.throws(() => S.punch({ type: 'break_start', staff, venue: 'CAFE', open: onBreak, now: t('12:20') }), e => e.status === 409 && /已在休息中/.test(e.message));
+  assert.throws(() => S.punch({ type: 'break_end', staff, venue: 'CAFE', open, now: t('12:20') }), e => e.status === 409 && /不在休息中/.test(e.message));
+  const short = S.punch({ type: 'break_end', staff, venue: 'CAFE', open: onBreak, now: t('12:25') });
+  assert.equal(short.break_minutes, 15); assert.match(short.message, /未滿 30 分/);
+  const b2 = S.punch({ type: 'break_end', staff, venue: 'CAFE', open: onBreak, now: t('13:10') });
+  assert.equal(b2.break_minutes, 60); assert.doesNotMatch(b2.message, /未滿/);
+  const out = S.punch({ type: 'out', staff, venue: 'CAFE', open: { ...open, breaks: b2.breaks }, now: t('17:00') });
+  assert.equal(out.minutes, 480, '9 小時扣 1 小時休息'); assert.equal(out.break_minutes, 60); assert.equal(out.break_short, false); assert.match(out.message, /本班 8 小時（休息 1 小時）/);
+  // 休息中直接下班：休息算到下班那一刻
+  const outOnBreak = S.punch({ type: 'out', staff, venue: 'CAFE', open: onBreak, now: t('13:00') });
+  assert.equal(outOnBreak.break_minutes, 50); assert.equal(outOnBreak.minutes, 250); assert.equal(outOnBreak.breaks[0].end, new Date(t('13:00')).toISOString());
+  // 整班沒休息又超過 4 小時：下班提醒；不到 4 小時不提醒
+  assert.equal(S.punch({ type: 'out', staff, venue: 'CAFE', open, now: t('17:00') }).break_short, true);
+  assert.equal(S.punch({ type: 'out', staff, venue: 'CAFE', open, now: t('11:00') }).break_short, false);
+  // 休息狀態（上班中名單用）：連續工作從上次休息結束算
+  const st = S.breakState(b2.breaks, open.clock_in, t('17:15'));
+  assert.equal(st.continuous_minutes, 245); assert.equal(st.needs_break, true); assert.equal(st.on_break, false);
+  assert.equal(S.breakState([], open.clock_in, t('11:59')).needs_break, false);
+  assert.equal(S.breakState(b1.breaks, open.clock_in, t('12:30')).on_break, true);
+  // 修正出勤可改休息分鐘，工時跟著扣；報表合計已扣休息並多一欄休息
+  const f = S.attendanceFix({ clock_out: '2026-10-13T17:00:00+08:00', break_minutes: 45 }, { clock_in: new Date(t('08:00')), clock_out: null, break_minutes: 0, note: '' });
+  assert.equal(f.minutes, 495); assert.equal(f.break_minutes, 45);
+  assert.throws(() => S.attendanceFix({ clock_out: '2026-10-13T09:00:00+08:00', break_minutes: 90 }, { clock_in: new Date(t('08:00')), note: '' }), /比整班時間還長/);
+  const rows = [{ staff_id: 'st_1', name: '小美', day: '2026-10-13', venue: 'CAFE', clock_in: new Date(t('08:00')).toISOString(), clock_out: new Date(t('17:00')).toISOString(), minutes: 480, break_minutes: 60, late_minutes: 0 }];
+  assert.equal(S.attendanceSummary(rows)[0].hours, 8); assert.equal(S.attendanceSummary(rows)[0].break_minutes, 60);
+  assert.equal(S.attendanceCsv(rows)[0].at(-1), '休息（分）'); assert.equal(S.attendanceCsv(rows)[1].at(-1), 60);
+});
+
+test('勞基法排班檢查：一天一班、間隔 11 小時、一週最多 5 天、週 40 小時、日 12 小時、月加班 46 小時；排休輸入不可過去', () => {
+  const day = (d, s, e, id = 'x') => ({ id, staff_id: 'st_1', day: d, start_time: s, end_time: e });
+  assert.deepEqual(S.shiftWarnings({ staff_id: 'st_1', day: '2026-10-13', start: '08:00', end: '17:00' }, []), []);
+  assert.match(S.shiftWarnings({ staff_id: 'st_1', day: '2026-10-13', start: '17:00', end: '03:00' }, [day('2026-10-13', '08:00', '17:00')]).join(), /同一天已有班/);
+  assert.match(S.shiftWarnings({ staff_id: 'st_1', day: '2026-10-14', start: '08:00', end: '17:00' }, [day('2026-10-13', '17:00', '03:00')]).join(), /11 小時/, '03:00 下班 08:00 上班只隔 5 小時');
+  assert.deepEqual(S.shiftWarnings({ staff_id: 'st_1', day: '2026-10-14', start: '17:00', end: '03:00' }, [day('2026-10-13', '17:00', '03:00')]), [], '隔 14 小時可排');
+  const five = ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16'].map((d, i) => day(d, '08:00', '17:00', 's' + i));
+  const w = S.shiftWarnings({ staff_id: 'st_1', day: '2026-10-17', start: '08:00', end: '17:00' }, five);
+  assert.match(w.join(), /已排 5 天/); assert.match(w.join(), /40 小時/, '5×8＝40 再加 8 超過');
+  assert.match(S.shiftWarnings({ staff_id: 'st_1', day: '2026-10-13', start: '08:00', end: '22:00' }, []).join(), /12 小時/, '14 小時扣 1 小時休息＝13 > 12');
+  assert.match(S.shiftWarnings({ staff_id: 'st_1', day: '2026-10-20', start: '08:00', end: '20:00' }, Array.from({ length: 16 }, (_, i) => day('2026-10-' + String(i + 1).padStart(2, '0'), '08:00', '20:00', 'm' + i))).join(), /46 小時/, '每班 3 小時加班 ×16＝48');
+  assert.equal(S.shiftWarnings({ staff_id: 'st_2', day: '2026-10-13', start: '08:00', end: '17:00' }, five).length, 0, '別人的班不算');
+  const now = new Date('2026-10-13T12:00:00+08:00');
+  assert.deepEqual(S.dayOffInput({ staff_id: 'st_1', day: '2026-10-20', note: ' 回家 ' }, { now }), { staff_id: 'st_1', day: '2026-10-20', note: '回家' });
+  assert.throws(() => S.dayOffInput({ staff_id: 'st_1', day: '2026-10-12' }, { now }), /今天以後/);
+  assert.throws(() => S.dayOffInput({ day: '2026-10-20' }, { now }), /員工/);
+  assert.deepEqual(S.staffingInput([{ venue: 'cafe', start: '08:00', end: '17:00', headcount: '2' }]), [{ venue: 'CAFE', start: '08:00', end: '17:00', headcount: 2 }]);
+  assert.throws(() => S.staffingInput([{ venue: 'CAFE', start: '08:00', end: '17:00', headcount: 12 }]), /0–9/);
+  assert.throws(() => S.staffingInput([{ venue: 'BAR', start: '17:00', end: '03:00', headcount: 1 }], { own: ['CAFE'] }), e => e.status === 403);
+});
+
+test('自動排班：排休日不排、既有班保留、每人輪流（班少的先）、依勞基法規則；排不到人留警示', () => {
+  const staff = [{ id: 'a', name: '阿明', active: true, venues: null }, { id: 'b', name: '小美', active: true, venues: ['CAFE'] }, { id: 'c', name: '離職', active: false, venues: null }];
+  const staffing = [{ venue: 'CAFE', start: '08:00', end: '17:00', headcount: 1 }, { venue: 'BAR', start: '17:00', end: '03:00', headcount: 1 }];
+  const r = S.autoSchedule({ monday: '2026-10-12', staff, daysOff: [{ staff_id: 'b', day: '2026-10-12' }], shifts: [], staffing });
+  const days = ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18'];
+  assert.ok(r.added.every(s => s.note === '自動排班' && days.includes(s.day)));
+  assert.ok(!r.added.some(s => s.staff_id === 'c'), '停用的不排');
+  assert.ok(!r.added.some(s => s.staff_id === 'b' && s.day === '2026-10-12'), '排休日不排');
+  assert.ok(!r.added.some(s => s.staff_id === 'b' && s.venue === 'BAR'), '店別不含三點水的不排三點水');
+  // 三點水只有阿明能排：一週 7 天 ×10 小時，受「5 天」「40 小時」限制只能排 4–5 天，其餘留警示
+  const barDays = r.added.filter(s => s.venue === 'BAR').map(s => s.day);
+  assert.ok(barDays.length >= 4 && barDays.length <= 5, `三點水排 ${barDays.length} 天`);
+  assert.ok(r.warnings.some(w => w.venue === 'BAR' && /缺 1 人/.test(w.message)), '排不到人要有警示');
+  for (const id of ['a', 'b']) assert.ok(new Set(r.added.filter(s => s.staff_id === id).map(s => s.day)).size <= 5, `${id} 一週不超過 5 天`);
+  for (const s of r.added) assert.deepEqual(S.shiftWarnings({ staff_id: s.staff_id, day: s.day, start: s.start, end: s.end }, r.added.filter(x => x !== s).map((x, i) => ({ ...x, id: 'n' + i, start_time: x.start, end_time: x.end }))), [], '排出來的班彼此不違規');
+  // 既有班保留：已排好的那天不會再排第二個人
+  const existing = [{ id: 'e1', staff_id: 'b', name: '小美', day: '2026-10-13', venue: 'CAFE', start_time: '08:00', end_time: '17:00' }];
+  const r2 = S.autoSchedule({ monday: '2026-10-12', staff, daysOff: [], shifts: existing, staffing: [staffing[0]] });
+  assert.ok(!r2.added.some(s => s.day === '2026-10-13' && s.venue === 'CAFE'), '10/13 在咖啡已有人');
+  assert.equal(r2.added.length, 6);
+  // 只排自己店別
+  const r3 = S.autoSchedule({ monday: '2026-10-12', staff, daysOff: [], shifts: [], staffing, venues: ['CAFE'] });
+  assert.ok(r3.added.every(s => s.venue === 'CAFE'));
+  // 沒人力需求＝什麼都不排
+  assert.deepEqual(S.autoSchedule({ monday: '2026-10-12', staff, staffing: [] }), { added: [], warnings: [] });
 });
 
 test('管理員修正出勤：下班要晚於上班、不超過 24 小時；pg 回 Date 也能處理', () => {
@@ -122,6 +206,16 @@ test('接線：POS 多「排班」「打卡」分頁、後台餐飲工作區多�
   assert.match(admin, /BAR:\['pos','orders','reservations','history','sales','staff','menu'\]/);
   assert.match(admin, /\{ id:'staff',\s+label:'排班打卡',\s+render:tabStaff \}/); assert.match(admin, /if \(tab === 'staff'\) \{ loadStaff\(\); return; \}/);
   assert.match(sw, /VERSION = 'pos-v[4-9]\d*'/, '新分頁要換 service worker 快取版本（≥ v4）');
+  // 休息：平板四顆鍵；上班中名單標休息中／該休息；伺服器打卡端點收 break_start／break_end、出勤表有 breaks 欄
+  for (const s of ['id="clock-break-start"', 'id="clock-break-end"', "punch('break_start')", "punch('break_end')", 'on-break', 'needs-break', '休息中（']) assert.ok(ops.includes(s), s);
+  assert.match(server, /ADD COLUMN IF NOT EXISTS breaks JSONB/); assert.match(server, /ADD COLUMN IF NOT EXISTS break_minutes INT/);
+  assert.match(server, /if\(out\.action==='break_start'\|\|out\.action==='break_end'\)\{\s*await q\('UPDATE pos_attendance SET breaks=\$2::jsonb,break_minutes=\$3/);
+  assert.match(server, /UPDATE pos_attendance SET clock_out=\$2,minutes=\$3,early_minutes=\$4,breaks=\$5::jsonb,break_minutes=\$6/, '下班同時存休息');
+  // 排休與自動排班：端點、平板按鈕、人力需求
+  for (const ep of ["app.post('/api/admin/shifts/auto'", "app.get('/api/admin/shifts/days-off'", "app.post('/api/admin/shifts/days-off'", "app.delete('/api/admin/shifts/days-off/:id'", "app.get('/api/admin/shifts/staffing'", "app.put('/api/admin/shifts/staffing'", 'CREATE TABLE IF NOT EXISTS pos_days_off', 'CREATE TABLE IF NOT EXISTS pos_staffing']) assert.ok(server.includes(ep), ep);
+  assert.ok(server.indexOf("app.post('/api/admin/shifts/auto'") < server.indexOf("app.delete('/api/admin/shifts/:id'"), '/shifts/auto 等路由要排在 /shifts/:id 之前');
+  assert.match(server, /posStaff\.shiftWarnings\(s,mine\)/, '手動排班回勞基法提醒');
+  for (const s of ['id="sh-auto"', 'id="sh-staffing"', 'data-off=', 'data-off-del=', "'/admin/shifts/auto'", "'/admin/shifts/days-off'", "'/admin/shifts/staffing'", 'shift-warn', 'staffing-row']) assert.ok(ops.includes(s), s);
   // 直式平板（768–999px）八個分頁一行放不下；.p-nav 的捲軸是隱藏的，所以要換行，不能讓「打卡」「排班」被擠到畫面外
   assert.match(pos, /@media\(max-width:999px\)\{[^}]*--p-top:108px/, '直式平板頂欄要加高');
   assert.match(pos, /@media\(max-width:999px\)\{(?:[^@]*?)\.p-nav\{[^}]*order:3;[^}]*flex:1 1 100%;[^}]*flex-wrap:wrap/, '直式平板分頁列要換到第二行並可折行');

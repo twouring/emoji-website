@@ -788,6 +788,15 @@ async function migrate() {
     clock_in TIMESTAMPTZ NOT NULL, clock_out TIMESTAMPTZ, minutes INT, late_minutes INT NOT NULL DEFAULT 0, early_minutes INT NOT NULL DEFAULT 0,
     note TEXT NOT NULL DEFAULT '', edited_by TEXT, edited_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE INDEX IF NOT EXISTS pos_attendance_day_idx ON pos_attendance(day,venue)`);
+  // 休息（勞基法第 35 條）：breaks 存每段 [{start,end}]，break_minutes 為合計；minutes（工時）已扣休息
+  await q(`ALTER TABLE pos_attendance ADD COLUMN IF NOT EXISTS breaks JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  await q(`ALTER TABLE pos_attendance ADD COLUMN IF NOT EXISTS break_minutes INT NOT NULL DEFAULT 0`);
+  // 排休：員工自己填不能上班的日期；自動排班不會排進去
+  await q(`CREATE TABLE IF NOT EXISTS pos_days_off (
+    id TEXT PRIMARY KEY, staff_id TEXT NOT NULL REFERENCES pos_staff(id), day DATE NOT NULL, note TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE(staff_id,day))`);
+  // 人力需求：各店各時段要幾個人（自動排班的目標）；一列一個時段
+  await q(`CREATE TABLE IF NOT EXISTS pos_staffing (
+    id SERIAL PRIMARY KEY, venue TEXT NOT NULL, start_time TEXT NOT NULL, end_time TEXT NOT NULL, headcount INT NOT NULL DEFAULT 1)`);
   await q(`CREATE INDEX IF NOT EXISTS pos_attendance_staff_idx ON pos_attendance(staff_id,clock_in DESC)`);
   // LINE Pay 商家後台實收明細（每日同步），日結報表拿來與 POS 登記的 LINE Pay 對帳；退款金額為負
   await q(`CREATE TABLE IF NOT EXISTS linepay_transactions (
@@ -5157,8 +5166,14 @@ app.post('/api/pos-devices/:id/pin-login',rateLimit({max:12}),requireDb,wrap(asy
 const STAFF_SEL='id,name,pin,venues,role,note,active,created_at,updated_at';
 const staffRow=(r,{pin=false}={})=>r&&{id:r.id,name:r.name,venues:r.venues?r.venues.split(','):null,role:r.role||'',note:r.note||'',active:r.active!==false,...(pin?{pin:r.pin}:{}),created_at:new Date(r.created_at).toISOString()};
 const shiftRow=r=>({id:r.id,staff_id:r.staff_id,name:r.name,day:r.day instanceof Date?r.day.toISOString().slice(0,10):String(r.day).slice(0,10),venue:r.venue,start_time:r.start_time,end_time:r.end_time,minutes:posStaff.shiftMinutes(r.start_time,r.end_time),note:r.note||''});
-const attRow=r=>({id:r.id,staff_id:r.staff_id,name:r.name,day:r.day instanceof Date?r.day.toISOString().slice(0,10):String(r.day).slice(0,10),venue:r.venue,shift_id:r.shift_id||null,shift_start:r.shift_start||null,shift_end:r.shift_end||null,
-  clock_in:new Date(r.clock_in).toISOString(),clock_out:r.clock_out?new Date(r.clock_out).toISOString():null,minutes:r.clock_out?(r.minutes!=null?Number(r.minutes):posStaff.minutesBetween(r.clock_in,r.clock_out)):null,late_minutes:Number(r.late_minutes)||0,early_minutes:Number(r.early_minutes)||0,note:r.note||'',edited_by:r.edited_by||null});
+const attRow=r=>{const breaks=Array.isArray(r.breaks)?r.breaks:[];const st=posStaff.breakState(breaks,r.clock_in,Date.now(),r.clock_out);
+  return {id:r.id,staff_id:r.staff_id,name:r.name,day:r.day instanceof Date?r.day.toISOString().slice(0,10):String(r.day).slice(0,10),venue:r.venue,shift_id:r.shift_id||null,shift_start:r.shift_start||null,shift_end:r.shift_end||null,
+  clock_in:new Date(r.clock_in).toISOString(),clock_out:r.clock_out?new Date(r.clock_out).toISOString():null,minutes:r.clock_out?(r.minutes!=null?Number(r.minutes):Math.max(0,posStaff.minutesBetween(r.clock_in,r.clock_out)-(Number(r.break_minutes)||0))):null,
+  breaks,break_minutes:r.clock_out?(Number(r.break_minutes)||0):st.break_minutes,on_break:r.clock_out?false:st.on_break,break_since:r.clock_out?null:st.break_since,continuous_minutes:r.clock_out?null:st.continuous_minutes,needs_break:r.clock_out?false:st.needs_break,
+  late_minutes:Number(r.late_minutes)||0,early_minutes:Number(r.early_minutes)||0,note:r.note||'',edited_by:r.edited_by||null};};
+const dayOffRow=r=>({id:r.id,staff_id:r.staff_id,name:r.name,day:r.day instanceof Date?r.day.toISOString().slice(0,10):String(r.day).slice(0,10),note:r.note||''});
+const staffingRow=r=>({venue:r.venue,start:r.start_time,end:r.end_time,headcount:Number(r.headcount)||0});
+async function loadStaffing(venues){const rows=(await q('SELECT venue,start_time,end_time,headcount FROM pos_staffing ORDER BY venue,start_time')).rows.map(staffingRow);const list=rows.length?rows:posStaff.DEFAULT_STAFFING;return list.filter(s=>!venues||venues.includes(s.venue));}
 /* 操作人員：body 給的 staff_id 存在、在職、子帳號看得到才算數；查不到就當沒給（不擋原動作，只是少了歸屬） */
 async function resolveOperator(req, id) {
   if (!id) return null;
@@ -5228,9 +5243,66 @@ app.post('/api/admin/shifts',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const near=(await q('SELECT id,staff_id,day,venue,start_time,end_time FROM pos_shifts WHERE staff_id=$1 AND day BETWEEN $2::date-1 AND $2::date+1',[s.staff_id,s.day])).rows.map(shiftRow);
   const hit=posStaff.shiftConflicts(s,near);
   if(hit)return res.status(409).json({error:`${staff.name} ${hit.day} ${hit.start_time}–${hit.end_time} 已有班，時間重疊。`});
+  // 勞基法檢查只提醒不擋（管理者手動調整時自己負責）；排休那天也提醒
+  const month=s.day.slice(0,7);
+  const mine=(await q('SELECT id,staff_id,day,venue,start_time,end_time FROM pos_shifts WHERE staff_id=$1 AND day BETWEEN ($2::date-14) AND ($2::date+14)',[s.staff_id,s.day])).rows.map(shiftRow);
+  const warnings=posStaff.shiftWarnings(s,mine);
+  if((await q('SELECT 1 FROM pos_days_off WHERE staff_id=$1 AND day=$2',[s.staff_id,s.day])).rowCount)warnings.unshift(`${staff.name} 這天有排休`);
   const id=uid('sh_');
   await q('INSERT INTO pos_shifts(id,staff_id,day,venue,start_time,end_time,note,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[id,s.staff_id,s.day,s.venue,s.start,s.end,s.note,req.auth.email||req.auth.sub||'']);
-  res.status(201).json({ok:true,id,staff_id:s.staff_id,name:staff.name,day:s.day,venue:s.venue,start_time:s.start,end_time:s.end,minutes:s.minutes,note:s.note});
+  res.status(201).json({ok:true,id,staff_id:s.staff_id,name:staff.name,day:s.day,venue:s.venue,start_time:s.start,end_time:s.end,minutes:s.minutes,note:s.note,warnings,month});
+}));
+/* 自動排班：body { from }（該週任一天，以週一起 7 天）；依人力需求把沒排休、不違反勞基法規則的員工排進去；既有班保留。回新增的班與排不滿的警示 */
+app.post('/api/admin/shifts/auto',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venues=tableOrders.visibleVenues(req.auth.brands,String(req.body?.venue||''));
+  const monday=posStaff.weekOf(/^\d{4}-\d{2}-\d{2}$/.test(String(req.body?.from||''))?String(req.body.from):tableOrders.MenuLib.businessDay());
+  const sunday=posStaff.addDays(monday,6);
+  const staff=(await q(`SELECT ${STAFF_SEL} FROM pos_staff WHERE active ORDER BY name`)).rows.map(r=>staffRow(r)).filter(s=>posStaff.staffVisible(s,venues));
+  const shifts=(await q('SELECT s.id,s.staff_id,p.name,s.day,s.venue,s.start_time,s.end_time,s.note FROM pos_shifts s JOIN pos_staff p ON p.id=s.staff_id WHERE s.day BETWEEN ($1::date-31) AND ($2::date+14)',[monday,sunday])).rows.map(shiftRow);
+  const daysOff=(await q('SELECT id,staff_id,day,note FROM pos_days_off WHERE day BETWEEN $1 AND $2',[monday,sunday])).rows.map(r=>({staff_id:r.staff_id,day:r.day}));
+  const staffing=await loadStaffing(venues);
+  const out=posStaff.autoSchedule({monday,staff,daysOff,shifts,staffing,venues});
+  const by=req.auth.email||req.auth.sub||'';
+  for(const s of out.added){s.id=uid('sh_');await q('INSERT INTO pos_shifts(id,staff_id,day,venue,start_time,end_time,note,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[s.id,s.staff_id,s.day,s.venue,s.start,s.end,s.note,by]);}
+  res.json({ok:true,from:monday,to:sunday,added:out.added.map(s=>({id:s.id,staff_id:s.staff_id,name:s.name,day:s.day,venue:s.venue,start_time:s.start,end_time:s.end,minutes:s.minutes,note:s.note})),warnings:out.warnings});
+}));
+/* 排休：員工自己填（平板排班頁）或管理者代填；query from/to 預設本週起 5 週 */
+app.get('/api/admin/shifts/days-off',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const monday=posStaff.weekOf(/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from||''))?String(req.query.from):tableOrders.MenuLib.businessDay());
+  const {from,to}=posStaff.dateRange(monday,req.query.to||posStaff.addDays(monday,34));
+  const rows=(await q('SELECT d.id,d.staff_id,p.name,d.day,d.note,p.venues FROM pos_days_off d JOIN pos_staff p ON p.id=d.staff_id WHERE d.day>=$1 AND d.day<=$2 ORDER BY d.day,p.name',[from,to])).rows
+    .filter(r=>posStaff.staffVisible({venues:r.venues?r.venues.split(','):null},venues)).map(dayOffRow);
+  res.json({from,to,days_off:rows});
+}));
+app.post('/api/admin/shifts/days-off',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  let d;try{d=posStaff.dayOffInput(req.body);}catch(e){return res.status(e.status||400).json({error:e.message});}
+  const staff=staffRow((await q(`SELECT ${STAFF_SEL} FROM pos_staff WHERE id=$1 AND active`,[d.staff_id])).rows[0]);
+  if(!staff||!posStaff.staffVisible(staff,tableOrders.visibleVenues(req.auth.brands)))return res.status(404).json({error:'找不到這位員工。'});
+  const id=uid('do_');
+  const r=(await q('INSERT INTO pos_days_off(id,staff_id,day,note) VALUES($1,$2,$3,$4) ON CONFLICT (staff_id,day) DO UPDATE SET note=EXCLUDED.note RETURNING id',[id,d.staff_id,d.day,d.note])).rows[0];
+  const clash=(await q('SELECT id,start_time,end_time FROM pos_shifts WHERE staff_id=$1 AND day=$2',[d.staff_id,d.day])).rows;
+  res.status(201).json({ok:true,id:r.id,staff_id:d.staff_id,name:staff.name,day:d.day,note:d.note,warnings:clash.length?[`${staff.name} ${d.day} 已排 ${clash.map(c=>c.start_time+'–'+c.end_time).join('、')}，請管理者調整`]:[]});
+}));
+app.delete('/api/admin/shifts/days-off/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(String(req.params.id||'')))return res.status(404).json({error:'找不到這筆排休。'});
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const r=(await q('SELECT d.id,p.venues FROM pos_days_off d JOIN pos_staff p ON p.id=d.staff_id WHERE d.id=$1',[req.params.id])).rows[0];
+  if(!r||!posStaff.staffVisible({venues:r.venues?r.venues.split(','):null},venues))return res.status(404).json({error:'找不到這筆排休。'});
+  await q('DELETE FROM pos_days_off WHERE id=$1',[r.id]);
+  res.json({ok:true,id:r.id});
+}));
+/* 人力需求：各店各時段要幾個人（自動排班目標）。GET 回目前設定（沒設過回預設）；PUT 整組覆寫（子帳號只能覆寫自己店別的列） */
+app.get('/api/admin/shifts/staffing',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  res.json({staffing:await loadStaffing(tableOrders.visibleVenues(req.auth.brands))});
+}));
+app.put('/api/admin/shifts/staffing',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  let rows;try{rows=posStaff.staffingInput(req.body?.staffing,{own:req.auth.brands});}catch(e){return res.status(e.status||400).json({error:e.message});}
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const keep=venues?(await q('SELECT venue,start_time,end_time,headcount FROM pos_staffing')).rows.map(staffingRow).filter(s=>!venues.includes(s.venue)):[];
+  await q('DELETE FROM pos_staffing');
+  for(const s of [...keep,...rows])await q('INSERT INTO pos_staffing(venue,start_time,end_time,headcount) VALUES($1,$2,$3,$4)',[s.venue,s.start,s.end,s.headcount]);
+  res.json({ok:true,staffing:await loadStaffing(venues)});
 }));
 /* 刪一班 */
 app.delete('/api/admin/shifts/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -5242,13 +5314,13 @@ app.delete('/api/admin/shifts/:id',auth,adminOnly,requireDb,wrap(async(req,res)=
   await q('DELETE FROM pos_shifts WHERE id=$1',[r.id]);
   res.json({ok:true,id:r.id});
 }));
-/* 打卡：body { pin, type:'in'|'out', venue }；識別碼找人，上班開一筆、下班補 clock_out；配對當日排班算遲到／早退。防猜碼：每台每分鐘 12 次 */
+/* 打卡：body { pin, type:'in'|'out'|'break_start'|'break_end', venue }；識別碼找人，上班開一筆、下班補 clock_out（工時已扣休息）；休息記在 breaks；配對當日排班算遲到／早退。防猜碼：每台每分鐘 12 次 */
 app.post('/api/admin/attendance/punch',rateLimit({max:12}),auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const pin=String(req.body?.pin||'').trim();
   if(!/^\d{4}$/.test(pin))return res.status(400).json({error:'請輸入 4 位數識別碼。'});
   let venue;try{venue=posStaff.venueOf(req.body?.venue,req.auth.brands);}catch(e){return res.status(e.status||400).json({error:e.message});}
   const staff=staffRow((await q(`SELECT ${STAFF_SEL} FROM pos_staff WHERE pin=$1 AND active`,[pin])).rows[0]);
-  const open=staff?(await q('SELECT id,staff_id,day,venue,shift_id,clock_in FROM pos_attendance WHERE staff_id=$1 AND clock_out IS NULL ORDER BY clock_in DESC LIMIT 1',[staff.id])).rows[0]||null:null;
+  const open=staff?(await q('SELECT id,staff_id,day,venue,shift_id,clock_in,breaks FROM pos_attendance WHERE staff_id=$1 AND clock_out IS NULL ORDER BY clock_in DESC LIMIT 1',[staff.id])).rows[0]||null:null;
   const today=tableOrders.MenuLib.businessDay();
   const shifts=staff?(await q('SELECT id,staff_id,day,venue,start_time,end_time FROM pos_shifts WHERE staff_id=$1 AND (day=$2 OR id=$3)',[staff.id,today,open?.shift_id||''])).rows.map(shiftRow):[];
   let out;try{out=posStaff.punch({type:req.body?.type,staff,venue,open:open&&{...open,day:open.day instanceof Date?open.day.toISOString().slice(0,10):open.day},shifts});}catch(e){return res.status(e.status||400).json({error:e.message});}
@@ -5257,27 +5329,31 @@ app.post('/api/admin/attendance/punch',rateLimit({max:12}),auth,adminOnly,requir
     await q('INSERT INTO pos_attendance(id,staff_id,day,venue,shift_id,clock_in,late_minutes) VALUES($1,$2,$3,$4,$5,$6,$7)',[id,staff.id,out.day,venue,out.shift_id,out.at,out.late_minutes]);
     return res.status(201).json({ok:true,id,action:'in',name:staff.name,day:out.day,venue,at:out.at,shift:out.shift,late_minutes:out.late_minutes,forgot_out:out.forgot_out,message:out.message});
   }
-  await q('UPDATE pos_attendance SET clock_out=$2,minutes=$3,early_minutes=$4 WHERE id=$1',[out.id,out.at,out.minutes,out.early_minutes]);
-  res.json({ok:true,id:out.id,action:'out',name:staff.name,day:out.day,venue:out.venue,at:out.at,minutes:out.minutes,hours:posStaff.hoursDecimal(out.minutes),shift:out.shift,early_minutes:out.early_minutes,over:out.over,message:out.message});
+  if(out.action==='break_start'||out.action==='break_end'){
+    await q('UPDATE pos_attendance SET breaks=$2::jsonb,break_minutes=$3 WHERE id=$1',[out.id,JSON.stringify(out.breaks),out.break_minutes]);
+    return res.json({ok:true,id:out.id,action:out.action,name:staff.name,day:out.day,venue:out.venue,at:out.at,break_minutes:out.break_minutes,message:out.message});
+  }
+  await q('UPDATE pos_attendance SET clock_out=$2,minutes=$3,early_minutes=$4,breaks=$5::jsonb,break_minutes=$6 WHERE id=$1',[out.id,out.at,out.minutes,out.early_minutes,JSON.stringify(out.breaks),out.break_minutes]);
+  res.json({ok:true,id:out.id,action:'out',name:staff.name,day:out.day,venue:out.venue,at:out.at,minutes:out.minutes,hours:posStaff.hoursDecimal(out.minutes),break_minutes:out.break_minutes,break_short:out.break_short,shift:out.shift,early_minutes:out.early_minutes,over:out.over,message:out.message});
 }));
 /* 出勤紀錄：query from/to（營業日，預設最近 7 天、最多 93 天）、venue、staff_id；回明細、每人彙總、CSV（總工時＋明細，給會計算薪） */
 app.get('/api/admin/attendance',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
   const {from,to}=posStaff.dateRange(req.query.from,req.query.to);
-  const rows=(await q('SELECT a.id,a.staff_id,p.name,a.day,a.venue,a.shift_id,s.start_time AS shift_start,s.end_time AS shift_end,a.clock_in,a.clock_out,a.minutes,a.late_minutes,a.early_minutes,a.note,a.edited_by FROM pos_attendance a JOIN pos_staff p ON p.id=a.staff_id LEFT JOIN pos_shifts s ON s.id=a.shift_id WHERE a.day>=$1 AND a.day<=$2 ORDER BY a.clock_in DESC',[from,to])).rows.map(attRow)
+  const rows=(await q('SELECT a.id,a.staff_id,p.name,a.day,a.venue,a.shift_id,s.start_time AS shift_start,s.end_time AS shift_end,a.clock_in,a.clock_out,a.minutes,a.breaks,a.break_minutes,a.late_minutes,a.early_minutes,a.note,a.edited_by FROM pos_attendance a JOIN pos_staff p ON p.id=a.staff_id LEFT JOIN pos_shifts s ON s.id=a.shift_id WHERE a.day>=$1 AND a.day<=$2 ORDER BY a.clock_in DESC',[from,to])).rows.map(attRow)
     .filter(a=>(!venues||venues.includes(a.venue))&&(!req.query.staff_id||a.staff_id===String(req.query.staff_id)));
-  const working=(await q('SELECT a.id,a.staff_id,p.name,a.day,a.venue,a.shift_id,s.start_time AS shift_start,s.end_time AS shift_end,a.clock_in,a.clock_out,a.minutes,a.late_minutes,a.early_minutes,a.note,a.edited_by FROM pos_attendance a JOIN pos_staff p ON p.id=a.staff_id LEFT JOIN pos_shifts s ON s.id=a.shift_id WHERE a.clock_out IS NULL ORDER BY a.clock_in')).rows.map(attRow).filter(a=>!venues||venues.includes(a.venue));
+  const working=(await q('SELECT a.id,a.staff_id,p.name,a.day,a.venue,a.shift_id,s.start_time AS shift_start,s.end_time AS shift_end,a.clock_in,a.clock_out,a.minutes,a.breaks,a.break_minutes,a.late_minutes,a.early_minutes,a.note,a.edited_by FROM pos_attendance a JOIN pos_staff p ON p.id=a.staff_id LEFT JOIN pos_shifts s ON s.id=a.shift_id WHERE a.clock_out IS NULL ORDER BY a.clock_in')).rows.map(attRow).filter(a=>!venues||venues.includes(a.venue));
   res.json({from,to,rows,working,summary:posStaff.attendanceSummary(rows),csv:posStaff.attendanceCsv(rows)});
 }));
 /* 修正出勤（補打卡／忘了下班）：body { clock_in?, clock_out?, note? }（ISO 時間）；記修改人 */
 app.patch('/api/admin/attendance/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(String(req.params.id||'')))return res.status(404).json({error:'找不到這筆出勤。'});
   const venues=tableOrders.visibleVenues(req.auth.brands);
-  const r=(await q('SELECT id,staff_id,day,venue,clock_in,clock_out,note FROM pos_attendance WHERE id=$1',[req.params.id])).rows[0];
+  const r=(await q('SELECT id,staff_id,day,venue,clock_in,clock_out,break_minutes,note FROM pos_attendance WHERE id=$1',[req.params.id])).rows[0];
   if(!r||(venues&&!venues.includes(r.venue)))return res.status(404).json({error:'找不到這筆出勤。'});
   let f;try{f=posStaff.attendanceFix(req.body,r);}catch(e){return res.status(e.status||400).json({error:e.message});}
-  await q('UPDATE pos_attendance SET clock_in=$2,clock_out=$3,minutes=$4,note=$5,day=$6,edited_by=$7,edited_at=now() WHERE id=$1',[r.id,f.clock_in,f.clock_out,f.minutes,f.note,f.day,req.auth.email||req.auth.sub||'']);
-  res.json({ok:true,id:r.id,day:f.day,clock_in:f.clock_in,clock_out:f.clock_out,minutes:f.minutes,hours:f.minutes==null?null:posStaff.hoursDecimal(f.minutes),note:f.note});
+  await q('UPDATE pos_attendance SET clock_in=$2,clock_out=$3,minutes=$4,note=$5,day=$6,edited_by=$7,edited_at=now(),break_minutes=$8 WHERE id=$1',[r.id,f.clock_in,f.clock_out,f.minutes,f.note,f.day,req.auth.email||req.auth.sub||'',f.break_minutes]);
+  res.json({ok:true,id:r.id,day:f.day,clock_in:f.clock_in,clock_out:f.clock_out,minutes:f.minutes,hours:f.minutes==null?null:posStaff.hoursDecimal(f.minutes),break_minutes:f.break_minutes,note:f.note});
 }));
 /* 刪一筆出勤（誤打） */
 app.delete('/api/admin/attendance/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{

@@ -344,16 +344,34 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 排班表。query `from=YYYY-MM-DD`（營業日，預設本週一）、`to=`（預設 from＋6 天，最多 93 天）、`venue=`、`staff_id=`。回 `{ from, to, days[], shifts[]{ id, staff_id, name, day, venue, start_time, end_time, minutes, note }, staff[]（在職員工）, csv[][] }`。三點水 17:00–03:00 這種跨日班屬開始那天的營業日。
 
 ### POST /api/admin/shifts
-排一班。body `{ staff_id, day, venue:'CAFE'|'BAR', start:'HH:MM', end:'HH:MM', note? }`；`end ≤ start` 視為跨日，一班最多 16 小時；同一位員工時間重疊回 409；員工店別不含該店回 400。回 `{ ok, id, staff_id, name, day, venue, start_time, end_time, minutes, note }`（201）。
+排一班。body `{ staff_id, day, venue:'CAFE'|'BAR', start:'HH:MM', end:'HH:MM', note? }`；`end ≤ start` 視為跨日，一班最多 16 小時；同一位員工時間重疊回 409；員工店別不含該店回 400。回 `{ ok, id, staff_id, name, day, venue, start_time, end_time, minutes, note, warnings[] }`（201）。`warnings` 是勞基法提醒（不擋，管理者自行負責）：同一天已有班、與前後班間隔不足 11 小時（第 34 條）、這週已排 5 天（第 36 條）、週正常工時超過 40 小時（第 30 條）、日工時超過 12 小時或月加班超過 46 小時（第 32 條）、這天有排休。
+
+### POST /api/admin/shifts/auto
+自動排班。body `{ from?（該週任一天，預設本週）, venue? }`。以週一起 7 天、依「人力需求」（`GET /api/admin/shifts/staffing`）把在職、店別相符、沒排休、加進去不會違反任何上述勞基法規則的員工排進去；人選先挑這週班數少的、再挑總時數少的。既有班保留並算進覆蓋人數，不會重排。回 `{ ok, from, to, added[]{ id, staff_id, name, day, venue, start_time, end_time, minutes, note:'自動排班' }, warnings[]{ day, venue, start, end, needed, filled, message } }`；`warnings` 是排不滿的時段，由管理者手動補人。
+
+### GET /api/admin/shifts/days-off
+排休清單。query `from=`（預設本週一）、`to=`（預設 from＋34 天）。回 `{ from, to, days_off[]{ id, staff_id, name, day, note } }`。
+
+### POST /api/admin/shifts/days-off
+員工填排休（不能上班的日子）。body `{ staff_id, day, note? }`；日期不可早於今天；同人同日重複填只更新備註。回 `{ ok, id, staff_id, name, day, note, warnings[] }`（201）；那天已有班時 `warnings` 提醒管理者調整。
+
+### DELETE /api/admin/shifts/days-off/:id
+取消一筆排休。回 `{ ok, id }`。
+
+### GET /api/admin/shifts/staffing
+人力需求（自動排班目標）：各店各時段要幾個人。沒設過回預設（在咖啡 08:00–17:00 一人、三點水 17:00–03:00 一人）。回 `{ staffing[]{ venue, start, end, headcount } }`。
+
+### PUT /api/admin/shifts/staffing
+整組覆寫人力需求。body `{ staffing[]{ venue, start, end, headcount:0–9 } }`，最多 20 列；品牌子帳號只能改自己店別的列（其他店別的保留）。回 `{ ok, staffing[] }`。
 
 ### DELETE /api/admin/shifts/:id
 刪一班；已配對這班的出勤只解除配對、不刪。回 `{ ok, id }`。
 
 ### POST /api/admin/attendance/punch
-打卡。body `{ pin, type:'in'|'out', venue:'CAFE'|'BAR' }`。以識別碼找人（錯誤一律回 404「識別碼不正確」，不透露是否存在）；`in` 開一筆出勤（同一人已在上班中且未超過 16 小時回 409；超過視為忘了打下班卡，照常開新的一筆並回 `forgot_out:true`），並配對當日同店別最接近的排班算 `late_minutes`；`out` 補最近一筆未下班的 `clock_out`、算 `minutes` 與 `early_minutes`（沒上班卡回 409）。員工店別不含該店回 403。每台裝置每分鐘最多 12 次（防猜碼）。回 `{ ok, id, action, name, day, venue, at, shift{start,end}|null, late_minutes|early_minutes, minutes?, hours?, message }`（上班 201、下班 200）。
+打卡。body `{ pin, type:'in'|'out'|'break_start'|'break_end', venue:'CAFE'|'BAR' }`。以識別碼找人（錯誤一律回 404「識別碼不正確」，不透露是否存在）；`in` 開一筆出勤（同一人已在上班中且未超過 16 小時回 409；超過視為忘了打下班卡，照常開新的一筆並回 `forgot_out:true`），並配對當日同店別最接近的排班算 `late_minutes`；`break_start`／`break_end` 開始／結束休息（要在班上，否則 409；重複開始或不在休息中也 409），休息段存在該筆出勤的 `breaks[]{start,end}`，結束休息未滿 30 分鐘訊息會提醒（勞基法第 35 條：連續工作 4 小時至少休息 30 分鐘）；`out` 補最近一筆未下班的 `clock_out`、算 `minutes`（＝下班－上班－休息）、`break_minutes` 與 `early_minutes`（沒上班卡回 409；休息中直接下班，休息算到下班那一刻）；整班超過 4 小時而休息未滿 30 分鐘回 `break_short:true` 並在訊息提醒管理員確認。員工店別不含該店回 403。每台裝置每分鐘最多 12 次（防猜碼）。回 `{ ok, id, action, name, day, venue, at, shift{start,end}|null, late_minutes|early_minutes, minutes?, hours?, break_minutes?, break_short?, message }`（上班 201、其餘 200）。
 
 ### GET /api/admin/attendance
-出勤紀錄（打卡紀錄報表）。query `from=`／`to=`（營業日，預設最近 7 天，最多 93 天）、`venue=`、`staff_id=`。回 `{ from, to, rows[]{ id, staff_id, name, day, venue, shift_id, shift_start, shift_end, clock_in, clock_out, minutes, late_minutes, early_minutes, note, edited_by }, working[]（目前還在上班中的，不限區間）, summary[]{ staff_id, name, shifts, minutes, hours, late, open, days }, csv[][] }`；`csv` 為每筆出勤一列＋每人合計（總工時、遲到次數、未打下班卡），直接交會計算時薪。
+出勤紀錄（打卡紀錄報表）。query `from=`／`to=`（營業日，預設最近 7 天，最多 93 天）、`venue=`、`staff_id=`。回 `{ from, to, rows[]{ id, staff_id, name, day, venue, shift_id, shift_start, shift_end, clock_in, clock_out, minutes, breaks[], break_minutes, on_break, break_since, continuous_minutes, needs_break, late_minutes, early_minutes, note, edited_by }, working[]（目前還在上班中的，不限區間）, summary[]{ staff_id, name, shifts, minutes, hours, break_minutes, late, open, days }, csv[][] }`；`minutes`／`hours` 已扣休息；上班中的 `continuous_minutes` 是從上班（或上次休息結束）起連續工作幾分鐘，滿 240 分鐘 `needs_break:true`（平板「上班中」名單標紅）。`csv` 為每筆出勤一列（含休息分鐘）＋每人合計（總工時、遲到次數、未打下班卡），直接交會計算時薪。`PATCH /api/admin/attendance/:id` 另可帶 `break_minutes` 修正休息分鐘，工時跟著重算。
 
 ### PATCH /api/admin/attendance/:id
 修正出勤（補打卡／忘了下班）。body `{ clock_in?, clock_out?（null＝清掉）, note? }`，ISO 時間；下班須晚於上班且一班不超過 24 小時。營業日依新的上班時間重算，記修改人。回 `{ ok, id, day, clock_in, clock_out, minutes, hours, note }`。
