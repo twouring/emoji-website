@@ -136,7 +136,13 @@ tr.pos-comp td{background:#f2fbf4}
 .reg-close-sum{display:flex;flex-wrap:wrap;gap:8px 24px;margin:10px 0;font-size:1rem}.reg-close-sum b{font-size:1.2rem;font-variant-numeric:tabular-nums}
 
 /* ── 出餐看板、暫停點餐 ── */
-.ops-help{margin:0 0 12px}.ops-help summary{list-style:none;display:inline-flex;align-items:center;min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:var(--paper);font-size:1rem;cursor:pointer}.ops-help summary::-webkit-details-marker{display:none}.ops-help summary:before{content:'？';display:inline-grid;place-items:center;width:20px;height:20px;margin-right:6px;border-radius:50%;background:var(--ink);color:var(--paper);font-size:1rem}.ops-help[open] summary{margin-bottom:8px}.ops-help .hint{padding:10px 12px;border:1px dashed var(--line);border-radius:8px;background:var(--paper-alt)}
+/* 標題列：標題靠左、「操作說明」摺疊鍵靠右同一列；展開後說明文字落到下一列整寬 */
+.ops-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 12px}.ops-head h2,.ops-head h3{margin:0;padding-top:0;border-top:0;flex:1 1 auto}.ops-head .ops-help{margin:0;flex:0 0 auto}.ops-head .ops-help[open]{flex-basis:100%}
+.ops-help{margin:0 0 12px}.ops-help summary{list-style:none;display:inline-flex;align-items:center;min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:var(--paper);font-size:1rem;color:var(--muted);cursor:pointer}.ops-help summary::-webkit-details-marker{display:none}.ops-help summary:before{content:'？';display:inline-grid;place-items:center;width:20px;height:20px;margin-right:6px;border-radius:50%;background:var(--ink);color:var(--paper);font-size:1rem}.ops-help[open] summary{margin-bottom:8px;color:var(--ink)}.ops-help .hint{margin:0;padding:10px 12px;border:1px dashed var(--line);border-radius:8px;background:var(--paper-alt)}
+:is(#pos-body,#sales-body,#history-body,#shifts-body,#att-body,#clock-body,#staff-body) .ops-head{margin-top:24px;padding-top:18px;border-top:1px solid var(--line)}:is(#pos-body,#sales-body,#history-body,#shifts-body,#att-body,#clock-body,#staff-body) .ops-head:first-child,:is(#pos-body,#sales-body,#history-body,#shifts-body,#att-body,#clock-body,#staff-body) .ops-head:has(h2){margin-top:0;padding-top:0;border-top:0}
+/* 原本 :is(#…-body) h3 自帶上邊線＋上內距（ID 權重高），包進 .ops-head 後要用同權重蓋掉，否則標題會比說明鍵低一截、邊線只畫到標題寬 */
+:is(#pos-body,#sales-body,#history-body,#shifts-body,#att-body,#clock-body,#staff-body) .ops-head h3{margin:0;padding-top:0;border-top:0}
+.btn-xs,.a-tbl td.ops-actions .btn{white-space:nowrap}
 .ops-pauses{display:grid;gap:8px;margin-bottom:14px}
 .ops-pause{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}
 .ops-pause.on{border-color:#b42318;background:#fff5f3}.ops-pause label{display:inline-flex;align-items:center;gap:.5em;font-size:1rem}.ops-pause label input{width:22px;height:22px}.ops-pause input[data-pause-msg]{flex:1;min-width:220px;min-height:44px;font-size:1rem}.ops-pause .pill{flex-basis:100%}
@@ -215,4 +221,6 @@ tr.lp-refund td{color:#b42318}
   :is(#history-body,.pos-panel) .a-tbl th,:is(#history-body,.pos-panel) .a-tbl td{padding-left:8px;padding-right:8px}
   .a-tbl td.ops-item{min-width:8em}.a-tbl td.ops-pay{min-width:8em}
   .a-tbl td.ops-pay .inv-fix{flex-wrap:wrap;white-space:normal}.a-tbl td.ops-pay .inv-fix .btn-xs{flex-basis:100%;justify-content:flex-start;padding-left:0}
-  .a-tbl td.ops-actions{min-width:214px;padding-left:6px}.a-tbl td.ops-actions .btn{padding-left:10px;padding-right:10px}}
+  .a-tbl td.ops-actions{min-width:214px;padding-left:6px}.a-tbl td.ops-actions .btn{padding-left:10px;padding-right:10px}
+  /* 出餐看板直式：操作欄讓三顆鍵折成兩列（已取餐／列印 作廢），整張表塞進 820px，不讓「作廢」被卡片邊緣切掉 */
+  #orders-body .a-tbl td.ops-actions{min-width:150px;width:150px}#orders-body .a-tbl th.ops-th{white-space:normal}}
