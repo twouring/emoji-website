@@ -38,11 +38,15 @@
   .p-scope button,.p-nav button{all:unset;box-sizing:border-box;cursor:pointer;min-height:44px;padding:0 14px;border-radius:999px;font-size:1rem;line-height:1;white-space:nowrap;color:var(--ink-soft);border:1px solid transparent}
   .p-scope button{border-color:var(--line)}
   .p-scope button[aria-pressed=true]{background:var(--accent);color:var(--on-accent);font-weight:600}
+  .p-nav-wrap{position:relative;display:flex;flex:1;min-width:0}
   .p-nav{display:flex;gap:4px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .p-nav::-webkit-scrollbar{display:none}
   .p-nav button[aria-pressed=true]{background:var(--ink);color:var(--paper);font-weight:600}
   .p-nav button .badge{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;margin-left:6px;border-radius:999px;background:#b42318;color:#fff;font-size:1rem;line-height:1;font-weight:600}
   .p-nav button[aria-pressed=true] .badge{background:var(--accent);color:var(--on-accent)}
+  /* 分頁列還能往右滑時的明確提示：不能只靠隱藏捲軸或淡化邊緣，之前（10/13）就是因為使用者完全看不出還有分頁而漏用「打卡」「排班」 */
+  .p-nav-more{position:absolute;top:0;bottom:0;right:0;display:none;align-items:center;padding:0 2px 0 18px;pointer-events:none;color:var(--muted);font-weight:700;font-size:1.3rem;background:linear-gradient(to right,transparent,var(--card) 65%)}
+  .p-nav-more.show{display:flex}
   .p-tools{display:flex;align-items:center;gap:6px;flex:none;margin-left:auto}
   .p-tools button{all:unset;box-sizing:border-box;cursor:pointer;min-width:44px;min-height:44px;padding:0 12px;border-radius:8px;font-size:1rem;color:var(--muted);display:inline-grid;place-items:center;border:1px solid var(--line);background:var(--card)}
   .p-tools button:active{background:var(--paper-alt)}
@@ -98,8 +102,12 @@
   .p-install p{margin:0;flex:1;min-width:220px}
   .a-toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);opacity:0;background:var(--ink);color:var(--paper);padding:.8em 1.3em;border-radius:10px;font-size:1rem;transition:.2s;pointer-events:none;z-index:50;max-width:min(92vw,520px)}
   .a-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-  /* 直式平板（<1000px）：八個分頁一行放不下，「打卡」「排班」會被擠出畫面外（捲軸是隱藏的，沒人知道要滑）→ 分頁列換到第二行，頂欄加高 */
-  @media(max-width:999px){:root{--p-top:108px}.p-top{flex-wrap:wrap;align-content:center;row-gap:6px;padding-top:calc(8px + env(safe-area-inset-top));padding-bottom:8px}.p-nav{order:3;flex:1 1 100%;overflow-x:visible;flex-wrap:wrap}.p-login{min-height:calc(100vh - var(--p-top))}}
+  /* <1000px 共用：店別／工具擠不進一行，頂欄換行；p-login 高度跟著頂欄變動的高度走 */
+  @media(max-width:999px){.p-top{flex-wrap:wrap;align-content:center;row-gap:6px;padding-top:calc(8px + env(safe-area-inset-top));padding-bottom:8px}.p-login{min-height:calc(100vh - var(--p-top))}}
+  /* 直式平板（601–999px，如 iPad 10 吋直式）：分頁列仍放不下一行，且「打卡」「排班」會被擠出畫面外（捲軸隱藏，沒人知道要滑）→ 換到第二行，頂欄加高 */
+  @media(min-width:601px) and (max-width:999px){:root{--p-top:108px}.p-nav-wrap{order:3;flex:1 1 100%}.p-nav{overflow-x:visible;flex-wrap:wrap}}
+  /* 手機（≤600px）：若分頁跟平板一樣換行會疊成 4 行、頂欄佔掉近一半螢幕（KK 回報「上半部佔比太多」）→ 分頁維持單行橫向滑動，右側漸層＋固定「›」提示還有更多（比單純淡化邊緣更明顯），並在切換分頁時自動把目前分頁捲進視野，不靠隱藏捲軸讓人自己猜 */
+  @media(max-width:600px){:root{--p-top:108px}.p-nav-wrap{order:3;flex:1 1 100%}.p-nav{overflow-x:auto;flex-wrap:nowrap}}
   @media(max-width:720px){.p-brand b{display:none}.p-scope button,.p-nav button{padding:0 12px}}
   @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -108,7 +116,10 @@
 <header class="p-top">
   <a class="p-brand" href="/" aria-label="言文字 POS"><i>言</i><b>POS</b></a>
   <div class="p-scope" id="p-scope" role="group" aria-label="切換店別"></div>
-  <nav class="p-nav" id="p-nav" aria-label="功能"></nav>
+  <div class="p-nav-wrap" id="p-nav-wrap">
+    <nav class="p-nav" id="p-nav" aria-label="功能"></nav>
+    <span class="p-nav-more" id="p-nav-more" aria-hidden="true">›</span>
+  </div>
   <div class="p-tools">
     <button type="button" class="p-net" id="p-net" hidden aria-live="polite">離線</button>
     <button type="button" id="p-operator" aria-label="操作人員"></button>
@@ -247,6 +258,12 @@ document.addEventListener('click', e => {
 });
 window.addEventListener('popstate', () => { TAB = routeTab(); paintNav(); activate(); });
 
+// 分頁列（手機單行可滑動時）還能往右滑就亮「›」提示：淡化邊緣太不明顯，10/13 就是因為使用者完全看不出還有分頁而漏用「打卡」「排班」，這次用明確的提示而不是只靠邊緣效果
+const navEl = document.getElementById('p-nav');
+function updateNavMore(){ const more = document.getElementById('p-nav-more'); if (!more) return; more.classList.toggle('show', navEl.scrollWidth - navEl.scrollLeft - navEl.clientWidth > 4); }
+navEl.addEventListener('scroll', updateNavMore, { passive: true });
+window.addEventListener('resize', updateNavMore);
+
 function paintNav(){
   const scopes = scopesOf(DATA);
   if (!scopes.includes(SCOPE)) setScope(scopes[0] || '');
@@ -254,6 +271,9 @@ function paintNav(){
   document.getElementById('p-scope').querySelectorAll('[data-scope]').forEach(b => b.onclick = () => { setScope(b.dataset.scope); resetPanels(); paintNav(); activate(); });
   document.getElementById('p-nav').innerHTML = TABS.map(t => `<button type="button" data-tab="${t.id}" aria-pressed="${t.id===TAB}">${t.label}${t.id==='reservations'&&PENDING?`<span class="badge">${PENDING}</span>`:''}</button>`).join('');
   document.getElementById('p-nav').querySelectorAll('[data-tab]').forEach(b => b.onclick = () => go(b.dataset.tab));
+  // 手機分頁列是可滑動單行（不換行），切換分頁後把目前分頁捲進視野，避免使用者不知道要滑到哪一個
+  const active = document.querySelector('#p-nav [data-tab="' + TAB + '"]'); if (active) active.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+  updateNavMore();
 }
 function resetPanels(){
   // 換店別：清掉各分頁的快取簽章與初始化旗標，讓 pos-ops.js 重新繪製

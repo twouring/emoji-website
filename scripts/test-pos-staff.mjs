@@ -216,9 +216,16 @@ test('接線：POS 多「排班」「打卡」分頁、後台餐飲工作區多�
   assert.ok(server.indexOf("app.post('/api/admin/shifts/auto'") < server.indexOf("app.delete('/api/admin/shifts/:id'"), '/shifts/auto 等路由要排在 /shifts/:id 之前');
   assert.match(server, /posStaff\.shiftWarnings\(s,mine\)/, '手動排班回勞基法提醒');
   for (const s of ['id="sh-auto"', 'id="sh-staffing"', 'data-off=', 'data-off-del=', "'/admin/shifts/auto'", "'/admin/shifts/days-off'", "'/admin/shifts/staffing'", 'shift-warn', 'staffing-row']) assert.ok(ops.includes(s), s);
-  // 直式平板（768–999px）八個分頁一行放不下；.p-nav 的捲軸是隱藏的，所以要換行，不能讓「打卡」「排班」被擠到畫面外
-  assert.match(pos, /@media\(max-width:999px\)\{[^}]*--p-top:108px/, '直式平板頂欄要加高');
-  assert.match(pos, /@media\(max-width:999px\)\{(?:[^@]*?)\.p-nav\{[^}]*order:3;[^}]*flex:1 1 100%;[^}]*flex-wrap:wrap/, '直式平板分頁列要換到第二行並可折行');
+  // 直式平板（601–999px，如 iPad 10 吋直式）八個分頁一行放不下；.p-nav 的捲軸是隱藏的，所以要換行，不能讓「打卡」「排班」被擠到畫面外
+  assert.match(pos, /@media\(min-width:601px\) and \(max-width:999px\)\{:root\{--p-top:108px\}\.p-nav-wrap\{order:3;flex:1 1 100%\}\.p-nav\{overflow-x:visible;flex-wrap:wrap/, '直式平板分頁列要換到第二行並可折行');
+  // 手機（≤600px）：跟平板一樣換行會疊成 4 行、頂欄佔掉近一半螢幕（KK 回報「上半部佔比太多」）→ 分頁維持單行可滑動，不可換行
+  assert.match(pos, /@media\(max-width:600px\)\{:root\{--p-top:108px\}\.p-nav-wrap\{order:3;flex:1 1 100%\}\.p-nav\{overflow-x:auto;flex-wrap:nowrap/, '手機分頁列要維持單行可滑動');
+  // 「還有更多分頁可滑」要有明確提示，不能只靠隱藏捲軸或邊緣淡化（10/13 就是因為使用者看不出來而漏用「打卡」「排班」）
+  assert.match(pos, /id="p-nav-more" aria-hidden="true">›</, 'HTML 要有固定的「還有更多」提示元素');
+  assert.match(pos, /\.p-nav-more\.show\{display:flex\}/, '提示預設隱藏、有內容可滑才顯示');
+  assert.match(pos, /navEl\.scrollWidth - navEl\.scrollLeft - navEl\.clientWidth > 4/, '要判斷分頁列是否還能往右滑');
+  assert.match(pos, /navEl\.addEventListener\('scroll', updateNavMore/, '捲動分頁列要即時更新提示');
+  assert.match(pos, /active\.scrollIntoView\(\{ inline: 'nearest'/, '切換分頁要把目前分頁捲進視野');
   // 手機（375px）頂欄會折成三四行：不能用 fixed＋固定高度（多出來的行往上被狀態列蓋住、往下壓到內容），要 sticky＋min-height 由內容撐高
   assert.match(pos, /\.p-top\{position:sticky;top:0;min-height:calc\(var\(--p-top\)/, '頂欄要 sticky、高度由內容撐');
   assert.doesNotMatch(pos, /\.p-top\{[^}]*position:fixed/, '頂欄不可 fixed');
