@@ -217,8 +217,12 @@ function paintPos(){
     opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/items/'+b.dataset.comp,{method:'PATCH',body:{free:on,reason}}),on?'已標記贈送（單價 0）':'已取消贈送',reload);});
   host.querySelectorAll('[data-void-line]').forEach(b=>b.onclick=()=>{const reason=prompt('作廢這個品項的原因（必填）：');if(reason===null)return;if(!reason.trim()){toast('請填寫作廢原因');return;}opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/items/'+b.dataset.voidLine,{method:'DELETE',body:{reason}}),'已作廢品項',reload);});
   host.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{POS_CAT=b.dataset.cat;paintPos();host.querySelector('.pos-menu-box')?.setAttribute('open','');});
+  // 加點：有冰熱／甜度／飯量／麵量等選項的品項先跳選項面板（跟桌邊點餐同一套規格），沒選項的直接加（櫃檯才快）
   host.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{const note=host.querySelector('#pos-note')?.value||'';const it=(MENU_DOC?.items||[]).find(x=>x.id===b.dataset.add);
-    opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/items',{method:'POST',body:{item_id:b.dataset.add,qty:1,note}}),`已加 ${it?it.zh:''}`,()=>{const n=host.querySelector('#pos-note');if(n)n.value='';return reload();});});
+    const send=body=>opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/items',{method:'POST',body}),`已加 ${it?it.zh:''}${body.qty>1?' ×'+body.qty:''}`,()=>{const n=host.querySelector('#pos-note');if(n)n.value='';return reload();});
+    const groups=itemOptionGroups(it);
+    if(!groups.length)return send({item_id:b.dataset.add,qty:1,note});
+    openItemOptions(it,groups,note,send);});
   const discOpen=host.querySelector('#pos-disc-open');if(discOpen)discOpen.onclick=()=>{POS_DISC_OPEN=!POS_DISC_OPEN;paintPos();host.querySelector('#pos-disc-value')?.focus();};
   const discClear=host.querySelector('#pos-disc-clear');if(discClear)discClear.onclick=()=>{POS_DISCOUNT=null;POS_DISC_OPEN=false;paintPos();};
   const discCancel=host.querySelector('#pos-disc-cancel');if(discCancel)discCancel.onclick=()=>{POS_DISC_OPEN=false;paintPos();};
@@ -564,6 +568,32 @@ function paintClock(host,working){
     api('/admin/attendance/punch',{method:'POST',body:{pin,type,venue:CLOCK_VENUE}}).then(out=>{CLOCK_MSG={ok:!out.break_short,text:out.message};},e=>{CLOCK_MSG={ok:false,text:e.message};}).then(loadClock);};
   host.querySelector('#clock-in').onclick=()=>punch('in');host.querySelector('#clock-out').onclick=()=>punch('out');
   host.querySelector('#clock-break-start').onclick=()=>punch('break_start');host.querySelector('#clock-break-end').onclick=()=>punch('break_end');
+}
+
+/* ===== 加點選項：跟桌邊點餐同一套規格（order-lib.js 的 optionGroups：溫度／糖度／冰塊／飯量／麵量），備註格式也一樣
+ * 「糖度：半糖；冰塊：去冰；其他需求」——出餐單、收據、查單看到的字串與客人自己掃碼點的一致。
+ * 沒有選項的品項（甜點、單品）不跳面板直接加。order-lib.js 沒載到（舊快取）就退回直接加，不擋結帳。 */
+function itemOptionGroups(it){ return (it&&typeof OrderLib!=='undefined'&&OrderLib.optionGroups)?OrderLib.optionGroups(it,'zh'):[]; }
+function itemOptionNote(groups,picks,extra){ const parts=groups.map(g=>g.label+'：'+(picks[g.key]||g.choices[0])); const x=String(extra||'').trim(); if(x)parts.push(x.slice(0,80)); return parts.join('；'); }
+function openItemOptions(it,groups,note0,onDone){
+  const picks={}; groups.forEach(g=>{ picks[g.key]=g.choices[0]; }); let qty=1;
+  const ov=document.createElement('div'); ov.className='op-overlay'; document.body.appendChild(ov);
+  const close=()=>{ if(ov.parentNode)ov.parentNode.removeChild(ov); };
+  ov.innerHTML=`<div class="op-card pos-opt" role="dialog" aria-label="加點選項">
+    <div class="pos-opt-body">
+      <h2>${esc(it.zh)}</h2><p class="hint" style="margin:0">NT$${num(it.price)}${it.en?' · '+esc(it.en):''}</p>
+      <div class="pos-opt-group"><div class="pos-opt-title"><span>數量</span></div><div class="pos-opt-qty"><button type="button" data-oq="-1" aria-label="減少">−</button><b id="pos-opt-qty">1</b><button type="button" data-oq="1" aria-label="增加">＋</button></div></div>
+      ${groups.map(g=>`<div class="pos-opt-group" data-opt="${esc(g.key)}"><div class="pos-opt-title"><span>${esc(g.label)}</span><small class="hint" style="margin:0">必選</small></div><div class="pos-opt-choices">${g.choices.map((c,i)=>`<label><input type="radio" name="pos_opt_${esc(g.key)}" value="${esc(c)}" ${i===0?'checked':''}><span>${esc(c)}</span></label>`).join('')}</div></div>`).join('')}
+      <label class="pos-opt-group"><div class="pos-opt-title"><span>其他需求</span><small class="hint" style="margin:0">選填</small></div><textarea id="pos-opt-note" maxlength="80" placeholder="例如：不要蔥、醬另外放">${esc(note0||'')}</textarea></label>
+    </div>
+    <div class="op-card-actions pos-opt-actions"><button type="button" class="btn btn--ghost" id="pos-opt-cancel">取消</button><button type="button" class="btn btn--solid" id="pos-opt-add">加入</button></div>
+  </div>`;
+  const paint=()=>{ ov.querySelector('#pos-opt-qty').textContent=qty; ov.querySelector('#pos-opt-add').textContent=`加入${qty>1?' ×'+qty:''} NT$${num(it.price*qty)}`; };
+  ov.querySelectorAll('[data-oq]').forEach(b=>b.onclick=()=>{ qty=Math.max(1,Math.min(20,qty+Number(b.dataset.oq))); paint(); });
+  ov.querySelectorAll('input[type=radio]').forEach(r=>r.onchange=()=>{ if(r.checked)picks[r.name.replace(/^pos_opt_/,'')]=r.value; });
+  ov.querySelector('#pos-opt-cancel').onclick=close;
+  ov.querySelector('#pos-opt-add').onclick=()=>{ const note=itemOptionNote(groups,picks,ov.querySelector('#pos-opt-note').value); close(); onDone({item_id:it.id,qty,note}); };
+  paint();
 }
 
 /* ===== 操作人員：疊在品牌帳號登入之上的識別——沿用排班打卡同一組 4 位數識別碼認人，結帳／開桌時記下是誰經手。

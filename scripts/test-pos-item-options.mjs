@@ -1,0 +1,51 @@
+// scripts/test-pos-item-options.mjs — POS 加點也要能選冰熱、甜度、飯量、麵量（跟桌邊點餐一樣）。
+// 規格來源只有一份：public/order-lib.js 的 optionGroups；POS 與 /admin 都載入它，備註字串格式與桌邊點餐一致。
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import fs from 'node:fs';
+import vm from 'node:vm';
+const read = p => fs.readFileSync(new URL('../' + p, import.meta.url), 'utf8');
+const ops = read('public/pos-ops.js');
+
+test('接線：pos.html／admin.html 在 pos-ops.js 之前載入 order-lib.js；service worker 快取殼含 order-lib 並換版', () => {
+  for (const page of ['public/pos.html', 'public/admin.html']) {
+    const html = read(page);
+    const a = html.indexOf('<script src="/order-lib.js"></script>'), b = html.indexOf('<script src="/pos-ops.js"></script>');
+    assert.ok(a > 0 && b > a, `${page} 要在 pos-ops.js 之前載入 order-lib.js`);
+  }
+  const sw = read('public/pos-sw.js');
+  assert.match(sw, /'\/order-lib\.js'/, 'SW 殼要含 order-lib.js，離線也能開選項面板');
+  assert.match(sw, /VERSION = 'pos-v(8|9|[1-9]\d)'/, '加了殼檔案要換快取版本');
+});
+
+test('加點：有選項的品項先跳面板（數量＋每組必選＋其他需求），沒選項的直接加；取消不送單', () => {
+  assert.match(ops, /function itemOptionGroups\(it\)\{ return \(it&&typeof OrderLib!=='undefined'&&OrderLib\.optionGroups\)\?OrderLib\.optionGroups\(it,'zh'\):\[\]; \}/, '規格一律來自 order-lib（沒載到就退回直接加）');
+  assert.match(ops, /const groups=itemOptionGroups\(it\);\s*if\(!groups\.length\)return send\(\{item_id:b\.dataset\.add,qty:1,note\}\);\s*openItemOptions\(it,groups,note,send\);/, '沒選項直接加、有選項開面板');
+  assert.match(ops, /function openItemOptions\(it,groups,note0,onDone\)/);
+  assert.match(ops, /class="op-card pos-opt" role="dialog"/, '重用操作人員的遮罩與卡片樣式');
+  assert.match(ops, /data-oq="-1"[\s\S]*id="pos-opt-qty"[\s\S]*data-oq="1"/, '數量 ±');
+  assert.match(ops, /name="pos_opt_\$\{esc\(g\.key\)\}" value="\$\{esc\(c\)\}" \$\{i===0\?'checked':''\}/, '每組預設選第一個（正常）＝必選');
+  assert.match(ops, /id="pos-opt-note" maxlength="80"/, '其他需求 80 字，與桌邊點餐相同');
+  assert.match(ops, /qty=Math\.max\(1,Math\.min\(20,qty\+Number\(b\.dataset\.oq\)\)\)/, '數量 1–20，與 addLine 一致');
+  assert.match(ops, /#pos-opt-cancel'\)\.onclick=close;/, '取消只關面板');
+  assert.match(ops, /onDone\(\{item_id:it\.id,qty,note\}\)/, '送出沿用既有 POST …/items body');
+});
+
+test('備註格式與桌邊點餐 optionNote 相同：「標籤：選項」以「；」串接，其他需求接在最後、最多 80 字', () => {
+  const src = ops.slice(ops.indexOf('function itemOptionNote('), ops.indexOf('function openItemOptions('));
+  const ctx = {}; vm.createContext(ctx); vm.runInContext(src + '\nthis.f=itemOptionNote;', ctx);
+  const groups = [{ key: 'temperature', label: '溫度', choices: ['冰', '熱'] }, { key: 'sugar', label: '糖度', choices: ['正常糖', '少糖'] }];
+  assert.equal(ctx.f(groups, { temperature: '熱' }, ''), '溫度：熱；糖度：正常糖', '沒點的組用第一個選項');
+  assert.equal(ctx.f(groups, { temperature: '熱', sugar: '少糖' }, '  不要蓋子 '), '溫度：熱；糖度：少糖；不要蓋子');
+  assert.equal(ctx.f([], {}, 'x'.repeat(100)), 'x'.repeat(80), '其他需求截 80 字');
+  assert.equal(ctx.f([], {}, ''), '', '沒選項沒備註＝空字串（伺服器端才會合併同品項數量）');
+});
+
+test('CSS：面板內容可捲、按鈕固定底部（選項多時不會被捲出畫面）；字級不小於 1rem', () => {
+  const css = read('public/pos-ops.css');
+  assert.match(css, /\.op-card\.pos-opt\{[^}]*display:flex;flex-direction:column;max-height:92dvh/);
+  assert.match(css, /\.pos-opt-body\{[^}]*overflow:auto[^}]*flex:1 1 auto;min-height:0/);
+  assert.match(css, /\.pos-opt-actions\{flex:none/);
+  assert.match(css, /\.pos-opt-choices label:has\(input:checked\)/, '選中態');
+  for (const m of css.matchAll(/\.pos-opt[^{]*\{[^}]*font-size:([\d.]+)rem/g)) assert.ok(Number(m[1]) >= 1, `pos-opt 字級 ${m[1]}rem`);
+});

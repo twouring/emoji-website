@@ -179,6 +179,18 @@ tr.lp-refund td{color:#b42318}
 .op-card{max-width:380px;width:100%;background:var(--card);border-radius:16px;padding:24px 20px;box-shadow:0 10px 40px rgba(0,0,0,.3)}
 .op-card h2{margin:0 0 .25rem;font-size:18px;font-weight:600}
 .op-card-actions{display:flex;gap:10px;justify-content:center;margin-top:14px}
+/* 加點選項面板（跟桌邊點餐同一套：溫度／糖度／冰塊／飯量／麵量）：選項多時中間可捲、按鈕固定在底部，不會被捲出畫面 */
+.op-card.pos-opt{max-width:520px;display:flex;flex-direction:column;max-height:92dvh;padding:0}
+.pos-opt-body{overflow:auto;padding:22px 20px 10px;flex:1 1 auto;min-height:0}
+.pos-opt-actions{flex:none;padding:12px 20px 18px;border-top:1px solid var(--line);margin-top:0}.pos-opt-actions .btn{flex:1;min-height:52px}
+.pos-opt-group{display:block;margin:16px 0 0}
+.pos-opt-title{display:flex;justify-content:space-between;gap:8px;font-weight:600;margin-bottom:8px}
+.pos-opt-choices{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pos-opt-choices label{position:relative;display:flex;align-items:center;justify-content:center;min-height:48px;text-align:center;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:8px 10px;line-height:1.25;cursor:pointer}
+.pos-opt-choices label:has(input:checked){border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);background:#fff8cf}
+.pos-opt-choices input{position:absolute;opacity:0;pointer-events:none}
+.pos-opt-qty{display:flex;align-items:center;gap:12px}.pos-opt-qty button{all:unset;box-sizing:border-box;cursor:pointer;width:48px;height:48px;border-radius:50%;border:1.5px solid var(--ink);background:var(--card);font-size:1.3rem;display:grid;place-items:center}.pos-opt-qty button:active{background:var(--paper-alt)}.pos-opt-qty b{min-width:2ch;text-align:center;font-size:1.2rem}
+.pos-opt textarea{width:100%;min-height:64px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);resize:vertical;font:inherit}
 /* 排班：週一起七欄（手機自動折成多列）；在咖啡琥珀邊、三點水藍邊 */
 .shift-week{min-width:14em;text-align:center;font-variant-numeric:tabular-nums}
 .shift-week-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;margin-top:12px}@media(max-width:900px){.shift-week-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}}
