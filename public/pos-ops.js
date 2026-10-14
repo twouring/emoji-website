@@ -64,6 +64,28 @@ function stopPosInvoiceScanner(){
   POS_INV_SCAN_STREAM=null;
   const v=document.getElementById('pos-invoice-video');if(v){v.style.display='none';v.srcObject=null;}
 }
+// 相機條碼辨識：Chrome／Android 用瀏覽器內建 BarcodeDetector；Safari（iPhone／iPad 上所有瀏覽器都是 WebKit）至今沒開放這個 API，
+// 改用同網域的 /vendor/zxing-reader.js（zxing-wasm），.wasm 也放本站 /vendor/，不連外部 CDN（PWA 離線殼也快取得到）。
+// 兩種都包成同一個 detect(video) 介面給掃描迴圈用。
+let POS_BD_READY=false,POS_BD_CANVAS=null;
+function barcodeDetectorClass(){
+  if('BarcodeDetector' in window)return window.BarcodeDetector;
+  const zx=window.ZXingWASM;if(!zx?.readBarcodes)return null;
+  if(!POS_BD_READY){POS_BD_READY=true;try{zx.prepareZXingModule({overrides:{locateFile:(p,prefix)=>p.endsWith('.wasm')?'/vendor/zxing_reader.wasm':prefix+p},fireImmediately:true});}catch(e){}}
+  // 手機載具是「標準」Code 39（「/」是字面字元）：一定要用 Code39Std，用 Code39（extended）會把 /A 譯成「!」掃出錯的載具號碼；
+  // 這版 zxing-wasm 的 tryCode39ExtendedMode:false 不生效，只有換 format 才有用（.tmp/bd-polyfill/verify3.cjs 實測）
+  const FMT={code_39:'Code39Std',code_128:'Code128',qr_code:'QRCode'};
+  return class{
+    constructor({formats=[]}={}){this.formats=formats.map(f=>FMT[f]).filter(Boolean);}
+    async detect(video){
+      const w=video.videoWidth,h=video.videoHeight;if(!w||!h)return[];
+      const c=POS_BD_CANVAS||(POS_BD_CANVAS=document.createElement('canvas'));c.width=w;c.height=h;
+      const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(video,0,0,w,h);
+      const out=await zx.readBarcodes(ctx.getImageData(0,0,w,h),{formats:this.formats,textMode:'Plain',maxNumberOfSymbols:1});
+      return out.filter(r=>r.text).map(r=>({rawValue:r.text,format:r.format}));
+    }
+  };
+}
 function updateInvoiceFields(host){
   const box=host.querySelector('.pos-invoice');if(!box)return;
   const mode=POS_INVOICE.mode;
@@ -332,13 +354,14 @@ function paintPos(){
   host.querySelectorAll('input[name=pos-invoice]').forEach(r=>r.onchange=()=>{POS_INVOICE.mode=r.checked?r.value:POS_INVOICE.mode;const s=host.querySelector('.pos-invoice summary .hint');if(s)s.textContent=POS_INVOICE.mode?INV_LABEL[POS_INVOICE.mode]:'不開';updateInvoiceFields(host);});
   const invScan=host.querySelector('#pos-invoice-scan');
   if(invScan)invScan.onclick=async()=>{
-    if(!('BarcodeDetector' in window)||!navigator.mediaDevices?.getUserMedia){toast('此瀏覽器不支援相機掃碼，請直接輸入手機條碼。');return;}
+    const BD=barcodeDetectorClass();
+    if(!BD||!navigator.mediaDevices?.getUserMedia){toast('此瀏覽器不支援相機掃碼，請直接輸入手機條碼。');return;}
     try{
       stopPosInvoiceScanner();
       const video=host.querySelector('#pos-invoice-video');
       POS_INV_SCAN_STREAM=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
       video.srcObject=POS_INV_SCAN_STREAM;video.style.display='block';await video.play();
-      const detector=new BarcodeDetector({formats:['code_39','code_128','qr_code']});
+      const detector=new BD({formats:['code_39','code_128','qr_code']});
       const tick=async()=>{
         if(!POS_INV_SCAN_STREAM)return;
         const codes=await detector.detect(video).catch(()=>[]);

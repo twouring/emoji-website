@@ -24,6 +24,7 @@ const EXCLUDED = new Set([
   'public/social-ads-lib.js',
   'public/vendor/html-to-image.js',
   'public/vendor/qrcode.min.js',
+  'public/vendor/zxing-reader.js',
 ]);
 
 function walk(dir) {
