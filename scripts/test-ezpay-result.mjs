@@ -51,6 +51,12 @@ test('searchInvoice：補回號碼並保留原紀錄；ezPay 已作廢 → statu
   await assert.rejects(() => E.searchInvoice(cfg, order, stale, reply({ MerchantOrderNo: 'to178ac24895494d3c' })), (e) => e.status === 404);
 });
 
+test('作廢 Version 固定 1.0（正式區帶 1.5 退「欄位資料格式錯誤-Version」）', () => {
+  const f = E.invalidFields({ order, invoice: { number: 'FT29956600' }, reason: '串接測試', cfg, now: 1700000000000 });
+  assert.equal(f.Version, '1.0'); assert.equal(f.InvoiceNumber, 'FT29956600'); assert.equal(f.InvalidReason, '串接測試');
+  assert.equal(E.issueFields({ order, invoice: E.invoiceForm({ mode: 'paper' }), cfg }).Version, '1.5', '開立仍帶 1.5');
+});
+
 test('server：補開／作廢遇到已開立但沒號碼時走 searchInvoice，不重開', () => {
   const src = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
   const issue = src.slice(src.indexOf("app.post('/api/admin/orders/:id/invoice/issue'"), src.indexOf("app.post('/api/admin/orders/:id/void'"));
