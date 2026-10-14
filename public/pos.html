@@ -24,12 +24,13 @@
   html{background:var(--paper)}
   /* 全站鎖定尺寸：不可雙指縮放、不可雙擊放大（touch-action 擋雙擊，gesturestart 擋雙指，見下方 script） */
   html,body{touch-action:manipulation}
-  body{font-family:var(--sans);font-size:1rem;line-height:1.6;color:var(--ink);background:var(--paper);min-height:100vh;padding-top:calc(var(--p-top) + env(safe-area-inset-top));-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
+  body{font-family:var(--sans);font-size:1rem;line-height:1.6;color:var(--ink);background:var(--paper);min-height:100vh;margin:0;-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
   *,*::before,*::after{box-sizing:border-box}
   :focus-visible{outline:3px solid var(--ink);outline-offset:2px;border-radius:4px}
   [hidden]{display:none!important}
   h1,h2,h3{font-family:var(--sans);letter-spacing:0}
-  .p-top{position:fixed;top:0;left:0;right:0;height:calc(var(--p-top) + env(safe-area-inset-top));padding-top:env(safe-area-inset-top);background:var(--card);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right));z-index:20}
+  /* 頂欄用 sticky 而不是 fixed＋固定高度：手機（375px）上店別／工具／分頁會折成三四行，固定高度會讓多出來的行往上被狀態列蓋住、往下壓到內容；sticky 由內容撐高、main 自然往下排 */
+  .p-top{position:sticky;top:0;min-height:calc(var(--p-top) + env(safe-area-inset-top));padding-top:env(safe-area-inset-top);background:var(--card);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right));z-index:20}
   .p-brand{display:flex;align-items:center;gap:8px;flex:none;color:var(--ink);text-decoration:none}
   .p-brand i{width:32px;height:32px;border-radius:8px;background:var(--ink);color:var(--accent);display:grid;place-items:center;font-family:var(--serif);font-weight:900;font-style:normal;font-size:1rem}
   .p-brand b{font-weight:600;font-size:1rem}
@@ -98,7 +99,7 @@
   .a-toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);opacity:0;background:var(--ink);color:var(--paper);padding:.8em 1.3em;border-radius:10px;font-size:1rem;transition:.2s;pointer-events:none;z-index:50;max-width:min(92vw,520px)}
   .a-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   /* 直式平板（<1000px）：八個分頁一行放不下，「打卡」「排班」會被擠出畫面外（捲軸是隱藏的，沒人知道要滑）→ 分頁列換到第二行，頂欄加高 */
-  @media(max-width:999px){:root{--p-top:108px}.p-top{flex-wrap:wrap;align-content:center;row-gap:4px;padding-top:calc(6px + env(safe-area-inset-top));padding-bottom:6px}.p-nav{order:3;flex:1 1 100%;overflow-x:visible;flex-wrap:wrap}.p-login{min-height:calc(100vh - var(--p-top))}}
+  @media(max-width:999px){:root{--p-top:108px}.p-top{flex-wrap:wrap;align-content:center;row-gap:6px;padding-top:calc(8px + env(safe-area-inset-top));padding-bottom:8px}.p-nav{order:3;flex:1 1 100%;overflow-x:visible;flex-wrap:wrap}.p-login{min-height:calc(100vh - var(--p-top))}}
   @media(max-width:720px){.p-brand b{display:none}.p-scope button,.p-nav button{padding:0 12px}}
   @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>

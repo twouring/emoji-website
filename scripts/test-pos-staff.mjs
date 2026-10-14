@@ -219,4 +219,8 @@ test('接線：POS 多「排班」「打卡」分頁、後台餐飲工作區多�
   // 直式平板（768–999px）八個分頁一行放不下；.p-nav 的捲軸是隱藏的，所以要換行，不能讓「打卡」「排班」被擠到畫面外
   assert.match(pos, /@media\(max-width:999px\)\{[^}]*--p-top:108px/, '直式平板頂欄要加高');
   assert.match(pos, /@media\(max-width:999px\)\{(?:[^@]*?)\.p-nav\{[^}]*order:3;[^}]*flex:1 1 100%;[^}]*flex-wrap:wrap/, '直式平板分頁列要換到第二行並可折行');
+  // 手機（375px）頂欄會折成三四行：不能用 fixed＋固定高度（多出來的行往上被狀態列蓋住、往下壓到內容），要 sticky＋min-height 由內容撐高
+  assert.match(pos, /\.p-top\{position:sticky;top:0;min-height:calc\(var\(--p-top\)/, '頂欄要 sticky、高度由內容撐');
+  assert.doesNotMatch(pos, /\.p-top\{[^}]*position:fixed/, '頂欄不可 fixed');
+  assert.doesNotMatch(pos, /body\{[^}]*padding-top:calc\(var\(--p-top\)/, 'body 不再用 padding-top 預留頂欄高度');
 });
