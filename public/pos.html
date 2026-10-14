@@ -161,8 +161,14 @@ const AUTH_ORIGIN = /^pos\./i.test(location.hostname) ? location.origin.replace(
 
 // token：登入完成由 /auth/google 或 Email 連結以 #token= 帶回，讀取後立即從網址移除
 const hash = new URLSearchParams(location.hash.slice(1));
+const justLoggedInByGmail = !!hash.get('token');
 if (hash.get('token')) { localStorage.setItem(KEY, hash.get('token')); history.replaceState(null,'',location.pathname.startsWith('/pos') ? location.pathname : '/pos'); }
 let token = localStorage.getItem(KEY);
+
+// 裝置綁定：每台 iPad 存一個隨機代碼，店長 Gmail 登入一次完成綁定後，之後員工才能用四位數密碼登入（換裝置／重設瀏覽器資料要重新綁定）
+let DEVICE_ID = localStorage.getItem('tth_pos_device');
+if (!DEVICE_ID) { DEVICE_ID = (crypto.randomUUID ? crypto.randomUUID() : 'd-' + Math.random().toString(36).slice(2) + Date.now().toString(36)); localStorage.setItem('tth_pos_device', DEVICE_ID); }
+let DEVICE_BOUND = false; // main() 每次開機都重新確認
 
 async function api(path, { method='GET', body } = {}) {
   const res = await fetch('/api'+path, {
@@ -170,10 +176,12 @@ async function api(path, { method='GET', body } = {}) {
     body: body ? JSON.stringify(body) : undefined,
   });
   let d={}; try{ d=await res.json(); }catch(e){}
-  if (res.status === 401 && token) { localStorage.removeItem(KEY); token = null; renderLogin('登入已過期，請重新登入。'); }
+  if (res.status === 401 && token) { localStorage.removeItem(KEY); token = null; showLoginScreen('登入已過期，請重新登入。'); }
   if (!res.ok) throw Object.assign(new Error(d.error || ('伺服器錯誤（'+res.status+'）')), {status:res.status});
   return d;
 }
+
+function showLoginScreen(msg){ return DEVICE_BOUND ? renderPinLogin(msg) : renderLogin(msg); }
 
 function renderLogin(msg){
   document.getElementById('p-logout').hidden = true;
@@ -181,10 +189,42 @@ function renderLogin(msg){
   const redirect = encodeURIComponent(location.origin + '/pos');
   app.innerHTML = `<div class="p-login"><div class="p-login-card">
     <h1>言文字 POS</h1>
-    <p>${esc(msg || '請用在咖啡／三點水的管理員帳號登入；登入一次後可長期使用。')}</p>
+    <p>${esc(msg || '請用在咖啡／三點水的管理員帳號登入；登入一次後本裝置就能用四位數密碼登入。')}</p>
     <a class="btn btn--solid" href="${esc(AUTH_ORIGIN)}/auth/google?redirect=${redirect}">使用 Google 登入</a>
     <a class="btn btn--ghost" href="/event-login.html?redirect=${redirect}">使用 Email 登入</a>
+    ${DEVICE_BOUND ? `<button type="button" class="btn btn--ghost btn-sm" id="pin-back">改用四位數密碼登入</button>` : ''}
   </div></div>`;
+  const back = document.getElementById('pin-back'); if (back) back.onclick = () => renderPinLogin();
+}
+
+// 操作人員四位數密碼登入（裝置已綁定才會出現）：沿用打卡鍵盤的樣式，密碼只留在記憶體，絕不進 localStorage／DOM 以外的地方
+function renderPinLogin(msg){
+  document.getElementById('p-logout').hidden = true;
+  document.getElementById('p-nav').innerHTML = ''; document.getElementById('p-scope').innerHTML = '';
+  let pin = '';
+  const paint = () => { const d = document.getElementById('pin-dots'); if (d) d.textContent = Array.from({length:4},(_,i)=>i<pin.length?'●':'○').join(' '); };
+  app.innerHTML = `<div class="p-login"><div class="p-login-card">
+    <h1>言文字 POS</h1>
+    <p>${esc(msg || '請輸入您的四位數密碼')}</p>
+    <div class="clock-pad"><div class="clock-pin" id="pin-dots"></div>
+      <div class="clock-keys">${['1','2','3','4','5','6','7','8','9','','0','⌫'].map(k=>`<button type="button" data-key="${esc(k)}" ${k===''?'disabled style="visibility:hidden"':''}>${esc(k)}</button>`).join('')}</div>
+    </div>
+    <button type="button" class="btn btn--ghost btn-sm" id="pin-alt">改用管理員帳號登入</button>
+  </div></div>`;
+  paint();
+  document.getElementById('pin-alt').onclick = () => renderLogin();
+  document.querySelectorAll('[data-key]').forEach(b => b.onclick = async () => {
+    const k = b.dataset.key;
+    if (k === '⌫') { pin = pin.slice(0, -1); paint(); return; }
+    if (!k || pin.length >= 4) return;
+    pin += k; paint();
+    if (pin.length === 4) {
+      try {
+        const d = await api('/pos-devices/' + encodeURIComponent(DEVICE_ID) + '/pin-login', { method:'POST', body:{ pin } });
+        localStorage.setItem(KEY, d.token); location.reload();
+      } catch (e) { renderPinLogin(e.message || '密碼錯誤，請重新輸入。'); }
+    }
+  });
 }
 
 /* 店別：言文字管理員可切在咖啡／三點水／全部；品牌子帳號只看自己的 */
@@ -281,11 +321,13 @@ setInterval(renewToken, 3600e3);
 document.getElementById('p-logout').onclick = () => { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); location.reload(); };
 
 async function main(){
-  if (!token) return renderLogin();
+  try { const dv = await api('/pos-devices/' + encodeURIComponent(DEVICE_ID)); DEVICE_BOUND = !!dv.bound; } catch (e) {}
+  if (!token) return showLoginScreen();
   try {
     const d = await api('/state');
-    if (d.role !== 'admin') return renderLogin('此帳號沒有後台權限，請改用在咖啡／三點水的管理員帳號登入。');
-    if (d.brands && !d.brands.some(b => BRAND_LABEL[b])) return renderLogin('此帳號不是餐飲品牌的管理員（等等空間請用 /admin）。');
+    if (d.role !== 'admin') return showLoginScreen('此帳號沒有後台權限，請改用在咖啡／三點水的管理員帳號登入。');
+    if (d.brands && !d.brands.some(b => BRAND_LABEL[b])) return showLoginScreen('此帳號不是餐飲品牌的管理員（等等空間請用 /admin）。');
+    if (justLoggedInByGmail && !d.me?.operator) api('/admin/pos-devices/bind', { method:'POST', body:{ device_id: DEVICE_ID } }).then(() => { DEVICE_BOUND = true; }).catch(() => {});
     DATA = d;
     MENU_DOC = (typeof d.content?.menu === 'string' && d.content.menu.trim()) ? MenuLib.parseMenuDoc(d.content.menu) : MenuLib.parseMenuDoc('');
     TAB = routeTab();

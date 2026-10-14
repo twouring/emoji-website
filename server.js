@@ -775,6 +775,9 @@ async function migrate() {
     id TEXT PRIMARY KEY, name TEXT NOT NULL, pin TEXT NOT NULL, venues TEXT, role TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '',
     active BOOLEAN NOT NULL DEFAULT true, created_by TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE UNIQUE INDEX IF NOT EXISTS pos_staff_pin_idx ON pos_staff(pin) WHERE active`);
+  // 裝置綁定：店長在店內 iPad 用管理員帳號登入一次完成綁定，之後該裝置才能用四位數密碼登入；未綁定的裝置不給 PIN 登入
+  await q(`CREATE TABLE IF NOT EXISTS pos_devices (
+    device_id TEXT PRIMARY KEY, bound_by TEXT NOT NULL DEFAULT '', bound_by_email TEXT NOT NULL DEFAULT '', label TEXT NOT NULL DEFAULT '', bound_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE TABLE IF NOT EXISTS pos_shifts (
     id TEXT PRIMARY KEY, staff_id TEXT NOT NULL REFERENCES pos_staff(id), day DATE NOT NULL, venue TEXT NOT NULL, start_time TEXT NOT NULL, end_time TEXT NOT NULL,
     note TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
@@ -1564,6 +1567,14 @@ function requireDb(req, res, next) {
 async function sessionAuth(t) {
   const p = verifyToken(t);
   if (!p || !pool || !dbReady) return p;
+  if (p.operator_staff_id) {
+    // POS 操作人員（四位數密碼＋裝置綁定登入）：身分來自 pos_staff，不是 users；每次請求都重查 active，停用即失效
+    const staff = (await q('SELECT id,name,venues,active FROM pos_staff WHERE id=$1', [p.operator_staff_id])).rows[0];
+    if (!staff || !staff.active) return null;
+    const brands = String(staff.venues || '').split(',').map(x => x.trim().toUpperCase()).filter(x => ['CAFE', 'BAR'].includes(x));
+    if (!brands.length) return null; // 沒設所屬品牌的操作人員：一律視為未登入（不給預設全開權限）
+    return { ...p, role: 'admin', super: false, brands, name: staff.name };
+  }
   const user = (await q(`SELECT id,email,is_admin,admin_brand FROM users WHERE id=$1`, [p.sub])).rows[0];
   if (!user) return null;
   const isSuper = String(user.email || '').toLowerCase() === SUPER_ADMIN_EMAIL;
@@ -1612,7 +1623,7 @@ function doorAuth(req, res, next) {
   next();
 }
 /* 品牌子帳號可用的後台 API；言文字管理員（brand 為空）不受限。餐飲兩店＝櫃檯結帳＋點餐出餐＋訂位＋日結＋菜單，等等空間＝活動／場地申請／櫃檯 */
-const FOOD_API = /^\/api\/admin\/(orders|tables|content|menu|reservations|sales|registers|staff|shifts|attendance|payment-methods)(\/|$)/;
+const FOOD_API = /^\/api\/admin\/(orders|tables|content|menu|reservations|sales|registers|staff|shifts|attendance|payment-methods|pos-devices)(\/|$)/;
 const BRAND_API = { CAFE: FOOD_API, BAR: FOOD_API, SPACE: /^\/api\/admin\/(events|event-applications|entitlements|points|upload)(\/|$)/ };
 const ADMIN_BRANDS = Object.keys(BRAND_API);
 // users.admin_brand（逗號分隔）→ 品牌陣列；空＝null＝言文字管理員
@@ -1711,7 +1722,7 @@ app.get('/api/auth/session',auth,requireDb,(req,res)=>req.auth.sub?res.json({aut
 // 續期：現場平板（POS）長期開著，token 快到期前換一張新的，免得營業中突然被登出；身分已由 sessionAuth 重新查過 DB（被移除管理員就拿不到）
 app.post('/api/auth/renew',auth,requireDb,(req,res)=>{
   if(!req.auth.sub||req.auth.agent)return res.status(403).json({error:'請以會員身分登入。'});
-  res.set('Cache-Control','no-store');res.json({token:signToken({role:req.auth.role==='admin'?'admin':req.auth.role==='organizer'?'invited':req.auth.role,sub:req.auth.sub,super:req.auth.super===true,name:req.auth.name||''})});
+  res.set('Cache-Control','no-store');res.json({token:signToken({role:req.auth.role==='admin'?'admin':req.auth.role==='organizer'?'invited':req.auth.role,sub:req.auth.sub,super:req.auth.super===true,name:req.auth.name||'',...(req.auth.operator_staff_id?{operator_staff_id:req.auth.operator_staff_id}:{})})});
 });
 
 app.post('/api/auth/email/verify',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
@@ -1839,8 +1850,9 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
   const updates = numify((await q(`SELECT ${SEL_UPD} FROM updates ORDER BY published_at DESC`)).rows);
 
   if (req.auth.role === 'admin' && req.auth.brands && !req.auth.brands.includes('SPACE')) {
-    // 餐飲子帳號：只需菜單內容，不帶會員、金流、活動資料
-    const me = pubUser((await q(`SELECT ${SEL_USER} FROM users WHERE id=$1`, [req.auth.sub])).rows[0]);
+    // 餐飲子帳號：只需菜單內容，不帶會員、金流、活動資料。操作人員（PIN 登入）沒有 users 列，身分直接用 token 裡的姓名
+    const me = req.auth.operator_staff_id ? { id: req.auth.sub, name: req.auth.name || '', email: '', is_admin: true, operator: true }
+      : pubUser((await q(`SELECT ${SEL_USER} FROM users WHERE id=$1`, [req.auth.sub])).rows[0]);
     return res.json({ role: 'admin', super: false, brands: req.auth.brands, me, bond, users: [], commitments: [], entitlements: [], events: [], content: await readContent(), updates: [], invoice: { provider: 'ezpay', configured: ezpayInvoice.configured() }, payment_methods: await paymentMethodsList() });
   }
   if (req.auth.role === 'admin') {
@@ -5102,6 +5114,44 @@ app.patch('/api/admin/payment-methods/:code',auth,adminOnly,superOnly,requireDb,
   if(req.body?.active!==undefined)next.active=req.body.active===true;
   await q('UPDATE pos_payment_methods SET label=$2,active=$3 WHERE code=$1',[row.code,next.label,next.active]);
   res.json({ok:true,code:row.code,...next,builtin:false});
+}));
+/* ===== POS 裝置綁定＋操作人員密碼登入：店長 Gmail 登入一次綁定該台 iPad，之後員工改用自己的 4 位數密碼登入（不用再經過 Gmail）=====
+ * 登入後的身分＝pos_staff（操作人員），依其 venues（所屬品牌）過濾資料，不是靠裝置本身的品牌（裝置可兩店共用）。 */
+app.get('/api/pos-devices/:id',requireDb,wrap(async(req,res)=>{
+  const id=String(req.params.id||'').trim().slice(0,80);
+  if(!id)return res.status(400).json({error:'缺少裝置代碼。'});
+  const row=(await q('SELECT 1 FROM pos_devices WHERE device_id=$1',[id])).rows[0];
+  res.json({bound:!!row});
+}));
+app.post('/api/admin/pos-devices/bind',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const id=String(req.body?.device_id||'').trim().slice(0,80);
+  if(!id)return res.status(400).json({error:'缺少裝置代碼。'});
+  const label=String(req.body?.label||'').trim().slice(0,40);
+  await q(`INSERT INTO pos_devices(device_id,bound_by,bound_by_email,label) VALUES($1,$2,$3,$4)
+    ON CONFLICT(device_id) DO UPDATE SET bound_by=$2,bound_by_email=$3,label=CASE WHEN $4<>'' THEN $4 ELSE pos_devices.label END,bound_at=now()`,
+    [id,req.auth.sub||'',req.auth.email||'',label]);
+  res.json({ok:true});
+}));
+app.get('/api/admin/pos-devices',auth,adminOnly,superOnly,requireDb,wrap(async(req,res)=>{
+  const rows=(await q('SELECT device_id,bound_by_email,label,bound_at FROM pos_devices ORDER BY bound_at DESC')).rows
+    .map(r=>({device_id:r.device_id,bound_by_email:r.bound_by_email,label:r.label,bound_at:new Date(r.bound_at).toISOString()}));
+  res.json({devices:rows});
+}));
+app.delete('/api/admin/pos-devices/:id',auth,adminOnly,superOnly,requireDb,wrap(async(req,res)=>{
+  await q('DELETE FROM pos_devices WHERE device_id=$1',[String(req.params.id||'')]);
+  res.json({ok:true});
+}));
+/* 操作人員密碼登入：裝置須已綁定；密碼錯誤／裝置未綁定一律用同樣的錯誤訊息（不洩漏哪個原因）。防猜碼：每台每分鐘 12 次，同打卡 */
+app.post('/api/pos-devices/:id/pin-login',rateLimit({max:12}),requireDb,wrap(async(req,res)=>{
+  const id=String(req.params.id||'').trim().slice(0,80);
+  const bound=id&&(await q('SELECT 1 FROM pos_devices WHERE device_id=$1',[id])).rows[0];
+  const pin=String(req.body?.pin||'').trim();
+  if(!bound||!/^\d{4}$/.test(pin))return res.status(404).json({error:'密碼錯誤，請重新輸入；若是第一次使用，請先由店長以管理員帳號登入完成裝置綁定。'});
+  const staff=(await q('SELECT id,name,venues FROM pos_staff WHERE pin=$1 AND active',[pin])).rows[0];
+  if(!staff)return res.status(404).json({error:'密碼錯誤，請重新輸入。'});
+  const brands=String(staff.venues||'').split(',').map(x=>x.trim().toUpperCase()).filter(x=>['CAFE','BAR'].includes(x));
+  if(!brands.length)return res.status(403).json({error:`${staff.name} 尚未設定所屬品牌，請管理員到「排班打卡」設定後再登入。`});
+  res.json({token:signToken({role:'admin',sub:'staff:'+staff.id,operator_staff_id:staff.id,name:staff.name}),name:staff.name,brands});
 }));
 /* ===== 排班與打卡：員工用 4 位數識別碼在共用平板打卡（不綁登入帳號）；排班＝員工 × 營業日 × 店別；出勤給後台算工時 ===== */
 const STAFF_SEL='id,name,pin,venues,role,note,active,created_at,updated_at';

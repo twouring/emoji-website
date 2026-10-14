@@ -382,6 +382,21 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 ### PATCH /api/admin/reservations/:id
 修改訂位資訊（客人來電更改日期、時間、人數、姓名、電話、Email 或備註；桌號／店內留言／狀態仍走上面的 `/status`）。body `{ date, time, party_size, name, phone, email?, note? }`，驗證規則同 `POST /api/admin/reservations`（`staff:true`：Email 可留空、不擋 30 分鐘內的時段），語言與來源沿用原紀錄。品牌子帳號只能改自己店別時段的訂位、也不能把時段改到別的店別（403）。**不會自動寄信通知客人**，需要時請自行電話聯繫，或改完用 `/status` 的「確認並通知」補寄。回 `{ ok, id, venue }`。
 
+### GET /api/pos-devices/:id
+公開（免登入）。POS 開機時查這台裝置是否已綁定，決定登入畫面要顯示四位數密碼鍵盤還是 Gmail 登入。回 `{ bound }`。
+
+### POST /api/admin/pos-devices/bind
+裝置綁定：店長（任何品牌管理員帳號皆可，不限超管）用 Gmail／Email 登入後呼叫一次，把這台裝置記成「已綁定」，之後本裝置才能用四位數密碼登入。body `{ device_id, label? }`；同一 `device_id` 重複綁定＝覆蓋（更新綁定人與時間）。回 `{ ok }`。
+
+### GET /api/admin/pos-devices
+超管專用：列出所有已綁定裝置（`device_id`、綁定人 email、標籤、綁定時間），供「裝置遺失/更換時解除綁定」使用。
+
+### DELETE /api/admin/pos-devices/:id
+超管專用：清除該裝置的綁定（iPad 遺失或更換時用）。清除後該裝置的四位數密碼登入立即失效，須重新用 Gmail 登入綁定。
+
+### POST /api/pos-devices/:id/pin-login
+公開（免登入，防猜碼：每台每分鐘 12 次）。操作人員四位數密碼登入：裝置須已綁定，否則與密碼錯誤回同一則訊息（不洩漏原因）。密碼對應的 `pos_staff` 須 `active` 且已設定所屬品牌（`venues`），否則 403。成功回 `{ token, name, brands }`；`token` 的身分只來自 `pos_staff`（不是 `users`），`req.auth.brands` 固定是該員工的所屬品牌陣列（絕不是 `null`＝全開），所有頁面與後端 API 依此過濾——不是只在前端隱藏。
+
 ### DELETE /api/admin/reservations/:id
 刪除訂位（含已取消的，讓畫面不再雜亂）。軟刪除（`deleted_at`），`GET /api/admin/reservations` 一律過濾掉，保留紀錄供日後查帳；無法復原畫面（資料庫仍有紀錄）。品牌子帳號只能刪自己店別時段的訂位（404）。回 `{ ok }`。
 

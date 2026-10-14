@@ -111,7 +111,7 @@ test('接線：POS 多「排班」「打卡」分頁、後台餐飲工作區多�
   assert.match(pos, /\{ id:'shifts',\s+label:'排班' \}/); assert.match(pos, /\{ id:'clock',\s+label:'打卡' \}/);
   assert.match(pos, /else if \(TAB === 'shifts'\) loadShifts\(\);/); assert.match(pos, /else if \(TAB === 'clock'\) loadClock\(\);/);
   assert.match(server, /app\.get\(\['\/pos', '\/pos\/\*'\]/);
-  assert.match(server, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|registers\|staff\|shifts\|attendance\|payment-methods\)/, '子帳號可用排班打卡 API');
+  assert.match(server, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|registers\|staff\|shifts\|attendance\|payment-methods\|pos-devices\)/, '子帳號可用排班打卡 API');
   for (const fn of ['tabShifts', 'tabClock', 'loadShifts', 'loadClock']) assert.match(ops, new RegExp(`function ${fn}\\(`), fn);
   assert.match(ops, /api\('\/admin\/attendance\/punch',\{method:'POST',body:\{pin/);
   assert.doesNotMatch(ops, /localStorage\.setItem\([^)]*pin/i, '識別碼不可存在平板');
