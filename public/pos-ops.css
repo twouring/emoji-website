@@ -25,6 +25,8 @@
 tr.resv-off td{color:var(--muted)}tr.resv-off .btn{opacity:.75}
 /* 出餐看板：已取消的品項劃線、灰階，不再搶走視覺焦點 */
 .line-cancelled{text-decoration:line-through;color:var(--muted)}
+/* 部分出餐：同一張送單裡已出的那幾道劃線，沒出的照常顯示並留「出餐」鍵 */
+.line-served{text-decoration:line-through;color:var(--muted)}
 
 /* ── 桌況格 ── */
 .pos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}

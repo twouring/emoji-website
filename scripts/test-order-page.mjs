@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const html = readFileSync(new URL('../public/order.html', import.meta.url), 'utf8');
+const lib = readFileSync(new URL('../public/order-lib.js', import.meta.url), 'utf8');
 
 test('掃碼點餐依台北時間切換供應品牌，但不標示白天或晚上菜單', () => {
   assert.match(html, /id="menu-shift"/);
@@ -55,19 +56,38 @@ test('掃碼點餐以圖片優先商品卡與細項面板收集規格', () => {
   assert.match(html, /@media \(max-width:320px\)/);
 });
 
-test('商品細項彈窗：按鈕列固定底部、只捲中間內容、開窗鎖頁面捲動（小螢幕按鈕被擠出畫面點不到）', () => {
-  assert.match(html, /#item-detail \.in\{display:flex;flex-direction:column;[^}]*overflow:hidden/);
+test('餐點詳情＝獨立頁面：全螢幕、只捲中間內容、「上一步」固定底部；開頁 pushState 讓手機返回手勢回菜單並保留捲動位置', () => {
+  assert.match(html, /#item-detail\{background:var\(--paper\);align-items:stretch\}/, '不是半透明底部彈窗，是整頁');
+  assert.match(html, /#item-detail \.in\{display:flex;flex-direction:column;[^}]*overflow:hidden;max-height:none;height:100%;border-radius:0/);
   assert.match(html, /#item-detail #detail-body\{flex:1 1 auto;min-height:0;overflow:auto/);
   assert.match(html, /#item-detail \.sheet-actions\{flex:none/);
-  assert.match(html, /<div class="row sheet-actions"><button class="btn ghost" type="button" data-close/);
+  assert.match(html, /<div class="row sheet-actions"><button class="btn ghost with-icon" type="button" data-close>[\s\S]*?data-i18n="back_step">上一步</);
   assert.match(html, /max-height:92dvh/);
   assert.match(html, /body\.sheet-open\{overflow:hidden\}/);
-  assert.match(html, /function openSheet\(sel\)\{[^}]*classList\.add\('on'\);document\.body\.classList\.add\('sheet-open'\)/);
-  assert.match(html, /function closeSheets\(\)\{[\s\S]*?document\.body\.classList\.remove\('sheet-open'\);\}/);
+  assert.match(html, /function openSheet\(sel\)\{[\s\S]*?history\.pushState\(\{sheet:sel\},''\)[\s\S]*?classList\.add\('on'\);document\.body\.classList\.add\('sheet-open'\)/);
+  assert.match(html, /function closeSheets\(viaHistory\)\{[\s\S]*?document\.body\.classList\.remove\('sheet-open'\);[\s\S]*?history\.back\(\)/);
+  assert.match(html, /window\.addEventListener\('popstate',function\(\)\{if\(SHEET_OPEN\)closeSheets\(true\);\}\)/, '返回手勢關閉詳情頁');
   assert.match(html, /\$\('#detail-body'\)\.scrollTop=0;openSheet\('#item-detail'\)/);
   assert.doesNotMatch(html, /\$\('#item-detail'\)\.classList\.add\('on'\)/);
   assert.doesNotMatch(html, /\$\('#item-detail'\)\.classList\.remove\('on'\)/);
   assert.match(html, /e\.target\.classList\.contains\('sheet'\)\)closeSheets\(\)/);
+});
+
+test('小螢幕：按鈕一律不斷行；375px／320px 底部列金額欄保最小寬、按鈕縮內距不折行', () => {
+  assert.match(html, /\.btn\{[^}]*white-space:nowrap\}/);
+  assert.match(html, /@media \(max-width:400px\)\{\.bar\{grid-template-columns:minmax\(84px,1fr\) auto auto/);
+  assert.match(html, /@media \(max-width:320px\)\{[^@]*\.bar\{grid-template-columns:minmax\(72px,1fr\) auto auto/);
+  assert.match(html, /\.name-actions \.btn\{flex:1 1 0;min-width:0;white-space:nowrap\}/);
+});
+
+test('出餐通知：一進頁面就請求通知權限；POS 出某一道 → 輪詢到 served_at → 頁內橫幅＋提示音；拒絕授權仍有橫幅；確認稱呼時解鎖 iOS 音效', () => {
+  assert.match(html, /function askNotify\(\)\{[^}]*Notification\.requestPermission\(\)/);
+  assert.match(html, /askNotify\(\);\s*renderMenu\(\);renderState\(\);poll\(\);/, '啟動時就問');
+  assert.match(html, /if\(l\.served_at&&!l\.order_id&&!seenServed\[l\.line\]\)/, '品項層級判斷新出餐');
+  assert.match(html, /SERVED_READY=true;/, '第一次載入不通知');
+  assert.match(html, /function notifyGuest\(text\)\{[\s\S]*?ready-banner[\s\S]*?beep\(\);[\s\S]*?Notification\.permission==='granted'/);
+  assert.match(html, /function unlockAudio\(\)/); assert.match(html, /hideGate\(\);unlockAudio\(\);/, '確認稱呼時解鎖音效');
+  assert.match(lib, /served_banner: '桌號 \{table\}｜\{items\} 已送到桌上'/); assert.match(lib, /served_banner: 'Table/); assert.match(lib, /served_banner: 'テーブル/);
 });
 
 test('已點清單彈窗：品項多、多人一起點時整張單比視窗高，「送出點餐／用餐完結帳」照樣固定在底部（否則會被捲出畫面點不到、按了沒反應）', () => {

@@ -37,16 +37,19 @@ h3{font-size:1.05rem;margin:0 0 6px}
 .menu-status.paused{border-color:#b42318;background:#fff5f3}.menu-status.paused small{color:#b42318;font-weight:600}
 .bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 14px calc(10px + env(safe-area-inset-bottom));display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;z-index:5;box-shadow:0 -6px 22px rgba(0,0,0,.08)}
 .bar .s{min-width:0}.bar .s b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar .s small{display:block;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.btn{border:1.5px solid var(--ink);background:var(--ink);color:#fff;border-radius:999px;padding:12px 18px;font-weight:700;min-height:48px}
+/* 按鈕一律不斷行：小螢幕靠縮內距與字級，不靠折成兩行（折行會把金額擠出可視區） */
+.btn{border:1.5px solid var(--ink);background:var(--ink);color:#fff;border-radius:999px;padding:12px 18px;font-weight:700;min-height:48px;white-space:nowrap}
 .btn:disabled{opacity:.45;cursor:default}.btn.ghost{background:#fff;color:var(--ink)}.btn.sm{padding:6px 14px}.btn.y{background:var(--yellow);color:var(--ink);border-color:var(--yellow)}
 .sheet{position:fixed;inset:0;background:rgba(27,26,23,.55);z-index:20;display:none;align-items:flex-end}
 .sheet.on{display:flex}
 .sheet .in{background:var(--paper);width:100%;max-height:92vh;max-height:92dvh;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;border-radius:18px 18px 0 0;padding:16px 16px calc(24px + env(safe-area-inset-bottom))}
-/* 商品細項：選項多時只捲中間內容，「返回菜單／加入已點清單」固定在底部，小螢幕也一定點得到 */
-#item-detail .in{display:flex;flex-direction:column;padding:0;overflow:hidden}
-#item-detail #detail-body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:16px 16px 8px}
+/* 餐點詳情＝獨立頁面：全螢幕蓋住菜單（不是底部彈窗、沒有半透明遮罩），只捲中間內容，「上一步／加入已點清單」固定在底部，小螢幕也一定點得到 */
+#item-detail{background:var(--paper);align-items:stretch}
+#item-detail .in{display:flex;flex-direction:column;padding:0;overflow:hidden;max-height:none;height:100%;border-radius:0;max-width:640px;margin:0 auto}
+#item-detail #detail-body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:calc(16px + env(safe-area-inset-top)) 16px 8px}
 #item-detail .sheet-actions{flex:none;margin:0;padding:10px 16px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--paper)}
-#item-detail .sheet-actions .btn{flex:1 1 0;min-width:0}
+#item-detail .sheet-actions .btn{flex:1 1 0;min-width:0;white-space:nowrap}
+.name-form{margin:0}.name-form .f{min-height:48px;margin-bottom:10px}.name-actions{margin:0;flex-wrap:nowrap}.name-actions .btn{flex:1 1 0;min-width:0;white-space:nowrap}
 /* 已點清單：多人一起點、品項一多時整張單比視窗高，「送出點餐／用餐完結帳」同樣固定在底部，不會被捲出畫面點不到 */
 #cart .in{display:flex;flex-direction:column;padding:0;overflow:hidden}
 #cart .sheet-body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:16px 16px 8px}
@@ -78,8 +81,11 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 .notice{color:var(--muted);margin:20px 0}
 .hidden{display:none!important}
 .toast{position:fixed;left:16px;right:16px;bottom:calc(112px + env(safe-area-inset-bottom));z-index:40;background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;text-align:center;display:none}.toast.on{display:block}
-@media (max-width:380px){.wrap{padding:10px}.top{padding-left:12px;padding-right:12px}.bar{grid-template-columns:1fr 82px 104px;padding-left:8px;padding-right:8px;gap:6px}.bar.has-place{grid-template-columns:1fr 82px 104px}.btn{padding-left:9px;padding-right:9px}.btn.sm{min-height:42px}.menu-grid{grid-template-columns:1fr 1fr;gap:8px}.item .n{padding:8px}.item .tap{display:none}#pay-scope{grid-template-columns:1fr}.top .t{padding-left:8px;padding-right:8px}.choice-grid{grid-template-columns:1fr 1fr}.sheet .in{padding-left:12px;padding-right:12px}}
-@media (max-width:320px){.menu-grid{grid-template-columns:1fr}.bar{grid-template-columns:1fr 76px 96px}.bar.has-place{grid-template-columns:1fr auto auto}.top b{font-size:1rem}.top small{display:block}.lang{min-width:42px;padding:4px 8px}.choice-grid{grid-template-columns:1fr}}
+/* 375px（iPhone SE／mini）：底部列的兩顆鍵用 auto 寬、內距縮小（字級維持 16px 以上），金額欄保有最小寬度不被蓋住 */
+@media (max-width:400px){.bar{grid-template-columns:minmax(84px,1fr) auto auto;gap:6px;padding-left:10px;padding-right:10px}.bar .btn{padding:10px 12px}.bar .with-icon{gap:5px}.bar .s b{font-size:1.05rem}.sheet-actions .btn{padding-left:10px;padding-right:10px}}
+@media (max-width:380px){.wrap{padding:10px}.top{padding-left:12px;padding-right:12px}.bar{padding-left:8px;padding-right:8px}.btn{padding-left:9px;padding-right:9px}.btn.sm{min-height:42px}.menu-grid{grid-template-columns:1fr 1fr;gap:8px}.item .n{padding:8px}.item .tap{display:none}#pay-scope{grid-template-columns:1fr}.top .t{padding-left:8px;padding-right:8px}.choice-grid{grid-template-columns:1fr 1fr}.sheet .in{padding-left:12px;padding-right:12px}}
+/* 320px：底部列按鈕藏圖示只留文字、內距再縮；上一步／加入兩顆鍵各半；語言鍵縮小 */
+@media (max-width:320px){.menu-grid{grid-template-columns:1fr}.bar{grid-template-columns:minmax(72px,1fr) auto auto;gap:4px}.bar .btn{padding:9px 9px}.bar .ico{display:none}.top b{font-size:1rem}.top small{display:block}.lang{min-width:42px;padding:4px 8px}.choice-grid{grid-template-columns:1fr}.sheet-actions .btn{padding:10px 8px}.name-actions .btn{padding-left:8px;padding-right:8px}}
 </style>
 </head>
 <body>
@@ -94,6 +100,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   <symbol id="i-counter" viewBox="0 0 24 24"><path d="M3 10h18M5 10v9h14v-9M8 6h8l2 4H6l2-4Z"/><path d="M9 14h6"/></symbol>
   <symbol id="i-bell" viewBox="0 0 24 24"><path d="M5 17h14l-2-3v-4a5 5 0 0 0-10 0v4l-2 3Z"/><path d="M10 20h4"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
 </svg>
 <div class="ready-banner" id="ready-banner"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -102,7 +109,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   <div class="card" id="boot"><p class="muted" data-i18n="loading">載入中…</p></div>
 
   <section id="app" class="hidden">
-    <div class="card" id="name-gate"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-user"></use></svg><span data-i18n="name_gate_title">先告訴我們怎麼稱呼您</span></h3><p class="muted" style="margin-top:0" data-i18n="shared_hint">同桌的人掃同一個 QR 就能一起點；用餐完再到櫃檯結帳，可付全桌、各付自己的，或平均分攤。</p><form id="name-form" class="row" style="margin:0"><input class="f" id="name-in" data-i18n-placeholder="name_placeholder" placeholder="你的稱呼（讓同桌知道誰點了什麼）" maxlength="20" required style="flex:1;min-width:0"><button class="btn y" type="submit" data-i18n="name_gate_submit">查看菜單</button></form></div>
+    <div class="card" id="name-gate"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-user"></use></svg><span data-i18n="name_gate_title">先告訴我們怎麼稱呼您</span></h3><p class="muted" style="margin-top:0" data-i18n="shared_hint">同桌的人掃同一個 QR 就能一起點；用餐完再到櫃檯結帳，可付全桌、各付自己的，或平均分攤。</p><form id="name-form" class="name-form"><input class="f" id="name-in" data-i18n-placeholder="name_placeholder" placeholder="你的稱呼（讓同桌知道誰點了什麼）" maxlength="20" autocomplete="off"><div class="row name-actions"><button class="btn ghost" type="button" id="name-skip" data-i18n="name_skip">略過</button><button class="btn y" type="submit" data-i18n="name_gate_submit">查看菜單</button></div></form></div>
     <div id="order-content" class="hidden">
       <div class="card" id="orders-card"></div>
       <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px"><span class="muted"><span data-i18n="ordering_as">點餐稱呼</span>：<b id="name-display"></b></span><button class="btn ghost sm" type="button" id="name-edit-btn" data-i18n="name_edit">更改</button></div>
@@ -124,7 +131,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 
 <div class="sheet" id="item-detail"><div class="in">
   <div id="detail-body"></div>
-  <div class="row sheet-actions"><button class="btn ghost" type="button" data-close data-i18n="back_menu">返回菜單</button><button class="btn y" id="detail-add" type="button" data-i18n="add_to_cart">加入已點清單</button></div>
+  <div class="row sheet-actions"><button class="btn ghost with-icon" type="button" data-close><svg class="ico" aria-hidden="true"><use href="#i-back"></use></svg><span data-i18n="back_step">上一步</span></button><button class="btn y" id="detail-add" type="button" data-i18n="add_to_cart">加入已點清單</button></div>
 </div></div>
 
 <div class="sheet" id="pay"><div class="in">
@@ -169,13 +176,24 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   $('#name-in').value=NAME;
   function showGate(){$('#name-gate').classList.remove('hidden');$('#name-in').value=NAME;$('#name-in').focus();}
   function hideGate(){$('#name-gate').classList.add('hidden');}
+  // 確認稱呼的那一下是使用者的點擊：順便把 iOS 的音效解鎖（之後出餐提示音才響得出來）
+  function setName(v){
+    NAME=v;try{localStorage.setItem('order_name',NAME);}catch(x){}
+    $('#name-in').blur();hideGate();unlockAudio();
+    $('#order-content').classList.remove('hidden');$('#name-display').textContent=NAME;
+    if(S)renderState();
+  }
   $('#name-form').onsubmit=function(e){
     e.preventDefault();
     var v=$('#name-in').value.trim().slice(0,20);if(!v)return;
-    NAME=v;try{localStorage.setItem('order_name',NAME);}catch(x){}
-    $('#name-in').blur();hideGate();
-    $('#order-content').classList.remove('hidden');$('#name-display').textContent=NAME;
-    if(S)renderState();
+    setName(v);
+  };
+  // 略過：以「桌號＋流水號」命名（同桌第幾位掃進來），例：A1-3；流水號＝這桌目前已出現的稱呼數＋1
+  $('#name-skip').onclick=function(){
+    var seen={};(S&&S.items||[]).forEach(function(l){if(l.by)seen[l.by]=1;});
+    var n=Object.keys(seen).length+1,base=(S&&S.table)||T||'';
+    var v=base+'-'+n;while(seen[v]){n++;v=base+'-'+n;}
+    setName(v.slice(0,20));
   };
   $('#name-edit-btn').onclick=function(){showGate();};
   var needName=function(){if(NAME)return true;showGate();return false;};
@@ -212,9 +230,21 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     html+='<label class="opt note-field"><div class="opt-title"><span>'+esc(tr('special_request'))+'</span><small class="muted">'+esc(tr('optional'))+'</small></div><textarea id="detail-note" maxlength="80" placeholder="'+esc(tr('special_placeholder'))+'"></textarea></label>';
     $('#detail-body').innerHTML=html;$('#detail-body').scrollTop=0;openSheet('#item-detail');$('#detail-add').disabled=!!PAUSED;$('#detail-add').textContent=PAUSED?PAUSED:tr('add_to_cart');
   }
-  // 彈跳視窗開著時鎖住頁面本身捲動：行動版瀏覽器否則會把觸控事件送到底下的菜單，按鈕看得到卻點不到
-  function openSheet(sel){$(sel).classList.add('on');document.body.classList.add('sheet-open');}
-  function closeSheets(){document.querySelectorAll('.sheet').forEach(function(s){s.classList.remove('on');});document.body.classList.remove('sheet-open');}
+  // 餐點詳情是「獨立頁面」：全螢幕蓋住菜單（不是底部彈窗），內容自己捲；開頁時 pushState，手機返回手勢＝上一步，
+  // 回到菜單時整頁沒動過所以捲動位置保留。已點清單／結帳維持底部彈窗。
+  var SHEET_OPEN=null;
+  function openSheet(sel){
+    if(SHEET_OPEN===sel)return;
+    if(!SHEET_OPEN){try{history.pushState({sheet:sel},'');}catch(e){}}
+    SHEET_OPEN=sel;document.querySelectorAll('.sheet').forEach(function(s){s.classList.remove('on');});
+    $(sel).classList.add('on');document.body.classList.add('sheet-open');
+  }
+  function closeSheets(viaHistory){
+    document.querySelectorAll('.sheet').forEach(function(s){s.classList.remove('on');});document.body.classList.remove('sheet-open');
+    var was=SHEET_OPEN;SHEET_OPEN=null;
+    if(was&&!viaHistory&&history.state&&history.state.sheet){try{history.back();}catch(e){}}
+  }
+  window.addEventListener('popstate',function(){if(SHEET_OPEN)closeSheets(true);});
   // 暫停點餐（公休、最後點餐、包場）：每 30 秒問一次；加菜被擋（423）時也同步狀態
   function loadPause(){return api('/orders/pause').then(function(p){var was=PAUSED;PAUSED=p.paused||null;if(was!==PAUSED){renderMenu();if(PAUSED)toast(PAUSED);}}).catch(function(){});}
   function loadMenuDoc(){return fetch('/api/public').then(function(r){return r.json();}).then(function(d){var raw=(d&&d.content&&d.content.menu)||'';if(raw!==(MENU_DOC&&MENU_DOC.__raw)){MENU_DOC=MenuLib.parseMenuDoc(raw);MENU_DOC.__raw=raw;renderMenu();}}).catch(function(){});}
@@ -246,9 +276,25 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     var os=S.orders||[],byId={};(S.items||[]).forEach(function(l){byId[l.line]=l;});
     $('#orders-card').classList.toggle('hidden',!os.length);
     $('#orders-card').innerHTML='<h3 class="title-icon">'+icon('receipt')+'<span>'+esc(tr('paid'))+'</span></h3>'+os.map(function(o){var st={paid:tr('preparing'),ready:tr('ready'),done:tr('done')}[o.status]||o.status,statusIcon=o.status==='paid'?'bell':'check';return '<div class="line"><span><span class="st '+esc(o.status)+'">'+icon(statusIcon)+esc(st)+'</span> '+o.lines.map(function(id){var l=byId[id];return l?esc(LANG==='en'?(l.en||l.zh):LANG==='ja'?(l.ja||l.zh):l.zh)+'×'+l.qty:'';}).filter(Boolean).join(LANG==='en'?', ':'、')+'</span><span>'+money(o.amount)+'</span></div>'+(o.status==='paid'&&CFG.vapid_public_key&&!o._pushed?'<div class="row"><button class="btn ghost sm with-icon" data-push="'+esc(o.id)+'">'+icon('bell')+'<span>'+esc(tr('notification_prompt'))+'</span></button></div>':'');}).join('');
-    os.forEach(function(o){if(o.status==='ready'&&!seenReady[o.id]){seenReady[o.id]=true;var b=$('#ready-banner');b.textContent=tr('ready_banner',{table:S.table});b.classList.add('on');try{navigator.vibrate&&navigator.vibrate([200,100,200]);}catch(e){}beep();setTimeout(function(){b.classList.remove('on');},15000);}});
+    os.forEach(function(o){if(o.status==='ready'&&!seenReady[o.id]){seenReady[o.id]=true;notifyGuest(tr('ready_banner',{table:S.table}));}});
+    // 桌邊送單出餐（品項層級）：POS 按某一道「出餐」→ 輪詢到該行新出現 served_at → 頁內橫幅＋提示音＋系統通知（有授權才會響）
+    var newlyServed=[];(S.items||[]).forEach(function(l){if(l.served_at&&!l.order_id&&!seenServed[l.line]){seenServed[l.line]=true;if(SERVED_READY)newlyServed.push(l);}});
+    SERVED_READY=true;   // 第一次載入只記錄、不通知（之前就出過的不該再響）
+    if(newlyServed.length){var names=newlyServed.map(function(l){return (LANG==='en'?(l.en||l.zh):LANG==='ja'?(l.ja||l.zh):l.zh)+'×'+l.qty;}).join(LANG==='en'?', ':'、');notifyGuest(tr('served_banner',{table:S.table,items:names}));}
   }
-  function beep(){try{var c=new (window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.15;o.start();o.stop(c.currentTime+.4);}catch(e){}}
+  var seenServed={},SERVED_READY=false,AUDIO_CTX=null;
+  // iOS 要先在使用者點擊時建立／恢復 AudioContext，之後才准播聲音；確認稱呼時叫一次
+  function unlockAudio(){try{AUDIO_CTX=AUDIO_CTX||new (window.AudioContext||window.webkitAudioContext)();if(AUDIO_CTX.state==='suspended')AUDIO_CTX.resume();var b=AUDIO_CTX.createBuffer(1,1,22050),s=AUDIO_CTX.createBufferSource();s.buffer=b;s.connect(AUDIO_CTX.destination);s.start(0);}catch(e){}}
+  function beep(){try{var c=AUDIO_CTX||new (window.AudioContext||window.webkitAudioContext)();AUDIO_CTX=c;if(c.state==='suspended')c.resume();var t=c.currentTime;[0,.25].forEach(function(d){var o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=d?1175:880;g.gain.value=.15;o.start(t+d);o.stop(t+d+.2);});}catch(e){}}
+  // 頁內通知：黃色橫幅 15 秒＋震動＋提示音；有系統通知授權（Android／加入主畫面的 iOS）再多發一則，拒絕授權也照樣看得到橫幅
+  function notifyGuest(text){
+    var b=$('#ready-banner');b.textContent=text;b.classList.add('on');
+    try{navigator.vibrate&&navigator.vibrate([200,100,200]);}catch(e){}
+    beep();setTimeout(function(){b.classList.remove('on');},15000);
+    try{if('Notification'in window&&Notification.permission==='granted'&&document.hidden)new Notification(tr('order'),{body:text,tag:'tth-serve'});}catch(e){}
+  }
+  // 一進桌邊點餐就請求通知權限（文件決議）；瀏覽器不支援或被拒絕都不影響頁內通知
+  function askNotify(){try{if('Notification'in window&&Notification.permission==='default')Notification.requestPermission().catch(function(){});}catch(e){}}
 
   function load(){return api('/orders/table?t='+encodeURIComponent(T)+'&k='+encodeURIComponent(K)+'&g='+GUEST).then(function(s){S=s;renderState();});}
   function poll(){clearTimeout(pollTimer);pollTimer=setTimeout(function(){if(document.hidden)return poll();api('/orders/'+S.id+'?g='+GUEST).then(function(s){if(s.status!=='open'){return load();}S=s;renderState();}).catch(function(){}).then(poll);},5000);}
@@ -260,7 +306,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     var p=e.target.closest('[data-push]');if(p){subscribePush(p.dataset.push,p);return;}
     if(e.target.closest('[data-close]')||e.target.classList.contains('sheet'))closeSheets();   // 按「返回」或點遮罩外側都關閉
   });
-  $('#detail-add').onclick=function(){if(!CURRENT_ITEM)return;if(!needName())return;var btn=this;btn.disabled=true;api('/orders/'+S.id+'/items',{method:'POST',body:{item_id:CURRENT_ITEM.id,qty:CURRENT_QTY,by:NAME,guest:GUEST,note:optionNote()}}).then(function(s){S=s;renderState();btn.textContent='✓ '+tr('added');setTimeout(function(){closeSheets();btn.textContent=tr('add_to_cart');},450);}).catch(function(err){toast(err.message);if(/已結束/.test(err.message))load();if(err.status===423){PAUSED=err.message;renderMenu();}if(/售完|下架/.test(err.message))loadMenuDoc();}).then(function(){btn.disabled=!!PAUSED;});};
+  $('#detail-add').onclick=function(){if(!CURRENT_ITEM)return;if(!needName())return;var btn=this;btn.disabled=true;unlockAudio();api('/orders/'+S.id+'/items',{method:'POST',body:{item_id:CURRENT_ITEM.id,qty:CURRENT_QTY,by:NAME,guest:GUEST,note:optionNote()}}).then(function(s){S=s;renderState();btn.textContent='✓ '+tr('added');setTimeout(function(){closeSheets();btn.textContent=tr('add_to_cart');},450);}).catch(function(err){toast(err.message);if(/已結束/.test(err.message))load();if(err.status===423){PAUSED=err.message;renderMenu();}if(/售完|下架/.test(err.message))loadMenuDoc();}).then(function(){btn.disabled=!!PAUSED;});};
   $('#open-cart').onclick=function(){$('#cart-body').scrollTop=0;openSheet('#cart');};
   $('#open-pay').onclick=$('#cart-pay').onclick=function(){$('#cart').classList.remove('on');openPay();};
   // 送出點餐：整桌還沒送的一起進出餐看板（不結帳）；送出後已點清單標「已送出」、不能再自己刪
@@ -312,6 +358,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     MENU_DOC=MenuLib.parseMenuDoc(content.menu||'');MENU_DOC.__raw=content.menu||'';
     $('#boot').classList.add('hidden');$('#app').classList.remove('hidden');
     if(NAME){hideGate();$('#order-content').classList.remove('hidden');$('#name-display').textContent=NAME;}else{showGate();}
+    askNotify();
     renderMenu();renderState();poll();
     setInterval(function(){if(MenuLib.activeVenue()!==VENUE)renderMenu();},60000); // 17:00／03:00／08:00 換品牌
     setInterval(loadPause,30000);setInterval(loadMenuDoc,60000);   // 暫停點餐、估清／特餐隨店家設定更新

@@ -5394,11 +5394,12 @@ app.post('/api/admin/orders/:id/status',auth,adminOnly,requireDb,wrap(async(req,
     for(const sub of o.push){try{await eventChannels.sendPush(push,sub,payload);notified++;}catch(e){console.warn('[table-push]',e.statusCode||e.message);}}}
   res.json({ok:true,status,notified});
 }));
-/* 看板「已出餐」：桌邊送單（未結帳）的品項標記已出餐、從看板移除；子帳號只能出自己店別的 */
+/* 看板「出餐」：桌邊送單（未結帳）的品項標記已出餐。body { lines?: [] }：給了就只出那幾道（部分出餐，送單留在看板），沒給＝整筆出餐。子帳號只能出自己店別的 */
 app.post('/api/admin/orders/sessions/:id/tickets/:ticket/serve',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id)||!ORDER_ID_RE.test(req.params.ticket))return res.status(404).json({error:'找不到這張送單。'});
   const venues=tableOrders.visibleVenues(req.auth.brands);
-  return mutateItems(req,res,items=>{const t=items.filter(l=>l.ticket===req.params.ticket);if(t.length&&!t.every(l=>tableOrders.itemInVenues(l,venues)))throw Object.assign(Error('只能出自己店別的餐。'),{status:403});return tableOrders.serveTicket(items,req.params.ticket);});
+  const lines=Array.isArray(req.body?.lines)?req.body.lines.map(x=>String(x).slice(0,40)).slice(0,100):null;
+  return mutateItems(req,res,items=>{const t=items.filter(l=>l.ticket===req.params.ticket);if(t.length&&!t.every(l=>tableOrders.itemInVenues(l,venues)))throw Object.assign(Error('只能出自己店別的餐。'),{status:403});return tableOrders.serveTicket(items,req.params.ticket,undefined,lines);});
 }));
 app.post('/api/admin/orders/sessions/:id/close',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});

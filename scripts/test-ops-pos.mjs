@@ -325,8 +325,19 @@ test('桌邊送單：送出後進看板、客人不能自己刪；出餐後從�
   const second = T.placeLines(more);
   assert.equal(second.lines.length, 1); assert.notEqual(second.ticket, placed.ticket);
   assert.equal(T.ticketsOf({ id: 'ts_1', table_no: 'A1', items: second.items }).length, 2);
-  // 出餐：整張送單一起標；重複出或不存在回 404
-  const served = T.serveTicket(second.items, placed.ticket);
+  // 部分出餐：第一張送單只先出第一道 → 送單還留在看板、該行劃線（served_at）、served/partial 標好
+  const firstLine = placed.lines[0].line;
+  const part = T.serveTicket(second.items, placed.ticket, undefined, [firstLine]);
+  assert.ok(part.find(l => l.line === firstLine).served_at, '點名的那道標已出');
+  assert.ok(placed.lines.slice(1).every(x => !part.find(l => l.line === x.line).served_at), '其他道還沒出');
+  const partTickets = T.ticketsOf({ id: 'ts_1', table_no: 'A1', items: part });
+  assert.equal(partTickets.length, 2, '部分出餐的送單仍在看板');
+  const pt = partTickets.find(t => t.id === placed.ticket);
+  assert.equal(pt.served, 1); assert.equal(pt.partial, true); assert.equal(pt.items.length, placed.lines.length, '已出的行一起回，看板才能劃線');
+  assert.throws(() => T.serveTicket(part, placed.ticket, undefined, [firstLine]), e => e.status === 404, '同一道不能出兩次');
+  assert.throws(() => T.serveTicket(part, placed.ticket, undefined, ['nope']), e => e.status === 404, '行不在這張送單');
+  // 整筆出餐：沒給 lines ＝ 剩下的全部標；全部出完才從看板消失；重複出或不存在回 404
+  const served = T.serveTicket(part, placed.ticket);
   assert.equal(T.ticketsOf({ id: 'ts_1', table_no: 'A1', items: served }).length, 1);
   assert.throws(() => T.serveTicket(served, placed.ticket), e => e.status === 404);
   assert.throws(() => T.serveTicket(served, 'nope'), e => e.status === 404);
@@ -342,7 +353,8 @@ test('server.js／前端接線：桌邊送單端點、看板含送單、客人�
   assert.match(server, /app\.post\('\/api\/admin\/orders\/sessions\/:id\/tickets\/:ticket\/serve'/);
   assert.match(server, /tableOrders\.ticketsOf\(s\)/, '看板回送單');
   assert.match(server, /served\?'done':'paid'/, '全部出餐過的結帳直接記已取餐');
-  for (const s of ['data-serve=', "'/serve'", 'd.tickets', 'ops-placed', 'ordered:[', "placed:'待出餐'"]) assert.ok(ops.includes(s), s);
+  for (const s of ['data-serve=', 'data-serve-line=', "'/serve'", 'd.tickets', 'ops-placed', 'ordered:[', "placed:'待出餐'", '整筆出餐', 'line-served', '部分出餐']) assert.ok(ops.includes(s), s);
+  assert.match(server, /req\.body\?\.lines/, '出餐端點接受 lines（品項層級）');
   for (const s of ['id="bar-place"', "'/place'", 'data-i18n="place"', 'id="cart-place"', 'id="pay-reminder"']) assert.ok(order.includes(s), s);
   for (const lang of ['zh', 'en', 'ja']) { assert.match(lib, new RegExp(lang + ": \\{[\\s\\S]*?place: '"), lang); assert.match(lib, new RegExp(lang + ": \\{[\\s\\S]*?pay_reminder: '"), lang + ' 結帳提醒'); }
   assert.match(api, /### POST \/api\/orders\/:id\/place/); assert.match(api, /tickets\/:ticket\/serve/);

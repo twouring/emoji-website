@@ -39,6 +39,13 @@ test('桌邊點餐：名字沒確認前，下方結帳列也不顯示', () => {
   assert.doesNotMatch(html, /\$\('#bar'\)\.hidden=false;/);
 });
 
+test('稱呼關卡「略過」：以桌號＋流水號命名（同桌已出現的稱呼數＋1，撞名往後推）後直接進菜單', () => {
+  assert.match(html, /<button class="btn ghost" type="button" id="name-skip" data-i18n="name_skip">略過<\/button>/);
+  assert.match(html, /\$\('#name-skip'\)\.onclick=function\(\)\{[\s\S]*?var v=base\+'-'\+n;while\(seen\[v\]\)\{n\+\+;v=base\+'-'\+n;\}\s*setName\(v\.slice\(0,20\)\);/);
+  assert.match(html, /function setName\(v\)\{\s*NAME=v;try\{localStorage\.setItem\('order_name',NAME\);\}/);
+  assert.match(lib, /name_skip: '略過'/); assert.match(lib, /name_skip: 'Skip'/); assert.match(lib, /name_skip: 'スキップ'/);
+});
+
 test('稱呼關卡文案提供三語並可事後更改', () => {
   for (const lang of ['zh', 'en', 'ja']) {
     assert.match(lib, new RegExp(`name_gate_title:`));
