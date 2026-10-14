@@ -310,7 +310,8 @@ CREATE TABLE IF NOT EXISTS dining_reservations (
   note TEXT NOT NULL DEFAULT '',
   source TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'confirmed' CHECK (status IN ('new','confirmed','cancelled','no_show')),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  deleted_at TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS dining_reservations_date_idx ON dining_reservations(reserve_date, reserve_time);
 CREATE INDEX IF NOT EXISTS dining_reservations_created_idx ON dining_reservations(created_at DESC);
@@ -811,6 +812,7 @@ async function migrate() {
   await q(`CREATE INDEX IF NOT EXISTS dining_reservations_created_idx ON dining_reservations(created_at DESC)`);
   // 訂位後台：客人 Email（寄確認信）、排桌、店內備註、處理人；狀態多 arrived（舊庫改 CHECK）
   await q(`ALTER TABLE dining_reservations ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS table_no TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS staff_note TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS handled_by TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`);
+  await q(`ALTER TABLE dining_reservations ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`);
   await q(`ALTER TABLE dining_reservations DROP CONSTRAINT IF EXISTS dining_reservations_status_check`);
   await q(`ALTER TABLE dining_reservations ADD CONSTRAINT dining_reservations_status_check CHECK (status IN ('new','confirmed','arrived','cancelled','no_show'))`);
   // 場地申請＝待審的活動：申請送出即建立草稿活動，review_status 記審核結果（NULL＝平台自建）。舊申請補建。
@@ -5259,7 +5261,7 @@ app.get('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=>
   const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
   const from=/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from||''))?String(req.query.from):new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Taipei'});
   const days=Math.min(60,Math.max(1,Number(req.query.days)||7));
-  const rows=(await q(`SELECT id,request_id,to_char(reserve_date,'YYYY-MM-DD') AS reserve_date,reserve_time,period,party_size,name,phone,email,note,source,status,table_no,staff_note,handled_by,created_at,updated_at FROM dining_reservations WHERE reserve_date>=$1::date AND reserve_date<$1::date+$2::int ORDER BY reserve_date,reserve_time`,[from,days])).rows
+  const rows=(await q(`SELECT id,request_id,to_char(reserve_date,'YYYY-MM-DD') AS reserve_date,reserve_time,period,party_size,name,phone,email,note,source,status,table_no,staff_note,handled_by,created_at,updated_at FROM dining_reservations WHERE reserve_date>=$1::date AND reserve_date<$1::date+$2::int AND deleted_at IS NULL ORDER BY reserve_date,reserve_time`,[from,days])).rows
     .map(r=>({...r,venue:tableOrders.reservationVenue(r.reserve_time)})).filter(r=>!venues||venues.includes(r.venue));
   const pending=Number((await q("SELECT COUNT(*)::int AS n FROM dining_reservations WHERE status='new' AND reserve_date>=CURRENT_DATE")).rows[0].n);
   res.json({reservations:rows,from,days,pending,labels:tableOrders.RESERVATION_LABEL});
@@ -5298,6 +5300,14 @@ app.patch('/api/admin/reservations/:id',auth,adminOnly,requireDb,wrap(async(req,
   if(venues&&!venues.includes(tableOrders.reservationVenue(r.time)))return res.status(403).json({error:'改到的時段不屬於自己的店別。'});
   await q('UPDATE dining_reservations SET reserve_date=$2,reserve_time=$3,period=$4,party_size=$5,name=$6,phone=$7,email=$8,note=$9,updated_at=now() WHERE id=$1',[cur.id,r.date,r.time,r.period,r.partySize,r.name,r.phone,r.email,r.note]);
   res.json({ok:true,id:cur.id,venue:tableOrders.reservationVenue(r.time)});
+}));
+/* 刪除訂位（含已取消）：客人取消後不想再留在畫面上。軟刪除（deleted_at），列表一律過濾掉，保留紀錄供日後查帳。 */
+app.delete('/api/admin/reservations/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const r=(await q(`SELECT id,reserve_time FROM dining_reservations WHERE id=$1 AND deleted_at IS NULL`,[String(req.params.id)])).rows[0];
+  if(!r||(venues&&!venues.includes(tableOrders.reservationVenue(r.reserve_time))))return res.status(404).json({error:'找不到這筆訂位。'});
+  await q('UPDATE dining_reservations SET deleted_at=now() WHERE id=$1',[r.id]);
+  res.json({ok:true});
 }));
 app.post('/api/admin/orders/:id/status',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const status=String(req.body?.status||'');if(!['ready','done'].includes(status)||!ORDER_ID_RE.test(req.params.id))return res.status(400).json({error:'狀態無效。'});
