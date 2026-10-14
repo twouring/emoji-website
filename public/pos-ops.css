@@ -104,6 +104,10 @@ tr.pos-comp td{background:#f2fbf4}
 .pos-invoice-body{display:grid;gap:10px;padding:12px;border:1px dashed var(--line);border-radius:10px;background:var(--paper-alt);margin-bottom:4px}
 .pos-invoice-types{display:flex;flex-wrap:wrap;gap:8px}.pos-invoice-types label{position:relative}.pos-invoice-types input{position:absolute;opacity:0;inset:0}.pos-invoice-types span{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem;cursor:pointer}.pos-invoice-types input:checked+span{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .pos-invoice-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px}.pos-invoice-fields input{min-height:44px;font:inherit;font-size:1rem;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+/* 發票欄位：點選對應類型才出現那一格；手機載具多一顆相機掃描鍵 */
+.pos-inv-row[hidden]{display:none}
+.pos-inv-scan-row{display:flex;gap:6px;align-items:center}.pos-inv-scan-row input{flex:1;min-width:0}.pos-inv-scan-row #pos-invoice-scan{flex:none;min-height:44px}
+#pos-invoice-video{display:none;width:100%;max-width:320px;border-radius:8px;margin-top:6px}
 /* 收款獨佔一列最大；換桌／清桌縮小放下面 */
 .pos-actions{display:grid;gap:10px;width:100%}
 .pos-actions #pos-checkout{min-height:60px;font-size:1.25rem;font-weight:600}

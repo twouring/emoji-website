@@ -12,6 +12,20 @@ let ORDERS_TIMER=null,ORDERS_SEEN=null,POS_TIMER=null,POS_DATA=null,POS_TABLE=''
 const REG_DENOMS=[1000,500,100,50,10,5,1];
 const PAY_LABEL={cash:'現金',card:'刷卡',linepay:'LINE Pay',transfer:'轉帳',taishin:'台新手機付',tappay:'線上刷卡'};
 const INV_LABEL={paper:'紙本',company:'統編',mobile:'手機載具',citizen:'自然人憑證',donate:'捐贈'};
+let POS_INV_SCAN_STREAM=null,POS_INV_SCAN_FRAME=0;
+// 發票各類型只顯示自己要填的欄位（點選後才出現），手機載具可用相機掃描條碼代替手打
+function stopPosInvoiceScanner(){
+  cancelAnimationFrame(POS_INV_SCAN_FRAME);POS_INV_SCAN_FRAME=0;
+  if(POS_INV_SCAN_STREAM)POS_INV_SCAN_STREAM.getTracks().forEach(t=>t.stop());
+  POS_INV_SCAN_STREAM=null;
+  const v=document.getElementById('pos-invoice-video');if(v){v.style.display='none';v.srcObject=null;}
+}
+function updateInvoiceFields(host){
+  const box=host.querySelector('.pos-invoice');if(!box)return;
+  const mode=POS_INVOICE.mode;
+  box.querySelectorAll('[data-inv-modes]').forEach(el=>{el.hidden=!el.dataset.invModes.split(',').includes(mode);});
+  if(mode!=='mobile')stopPosInvoiceScanner();
+}
 /* 收款帳戶：現金／刷卡／LINE Pay／轉帳內建在 PAY_LABEL；言文字管理員在系統設定另外新增的自訂收款帳戶放在 DATA.payment_methods（見 docs/API.md GET /api/state）*/
 const payMethodLabel=code=>PAY_LABEL[code]||(DATA?.payment_methods||[]).find(m=>m.code===code)?.label||code;
 const payMethodsActive=()=>{const list=(DATA?.payment_methods||[]).filter(m=>m.active);return list.length?list:[['cash','現金'],['card','刷卡'],['linepay','LINE Pay'],['transfer','轉帳'],['taishin','台新手機付']].map(([code,label])=>({code,label,builtin:true}));};
@@ -151,6 +165,7 @@ function posTotals(cur){
 }
 function paintPos(){
   const host=document.getElementById('pos-body'),d=POS_DATA;if(!host||!d)return;
+  stopPosInvoiceScanner();
   const sessions=d.sessions;
   if(POS_TABLE&&!sessions.find(s=>s.table===POS_TABLE))POS_TABLE='';
   const cur=sessions.find(s=>s.table===POS_TABLE)||null;
@@ -198,7 +213,7 @@ function paintPos(){
           <div class="pos-total"><span>應收</span><b>NT$${num(total)}</b></div>
           ${cash?`<div class="pos-cash"><label>實收<input id="pos-received" inputmode="numeric" pattern="[0-9]*" placeholder="客人給的現金" value="${esc(POS_RECEIVED)}" aria-label="實收金額"></label><div class="pos-cash-quick">${quick.map(n=>`<button type="button" data-received="${n}">${n===total?'剛好':'$'+num(n)}</button>`).join('')}</div></div><div class="pos-change ${change?'has':''}"><span>找零</span><b>${change!=null?'NT$'+num(change):'—'}</b></div>`:''}
         </div>
-        <details class="pos-invoice" ${POS_INVOICE.mode?'open':''}><summary><b>ezPay 電子發票</b> <span class="hint" style="margin:0">${POS_INVOICE.mode?INV_LABEL[POS_INVOICE.mode]:'不開'}${DATA?.invoice?.configured?'':'（尚未設定 ezPay，會先記為待補開）'}</span><span class="pos-invoice-caret" aria-hidden="true"></span></summary><div class="pos-invoice-body"><div class="pos-invoice-types">${[['','不開'],['paper','紙本'],['company','統編'],['mobile','手機載具'],['citizen','自然人憑證'],['donate','捐贈']].map(([m,l])=>`<label><input type="radio" name="pos-invoice" value="${m}" ${POS_INVOICE.mode===m?'checked':''}><span>${l}</span></label>`).join('')}</div><div class="pos-invoice-fields"><input name="buyer_ubn" inputmode="numeric" maxlength="8" placeholder="統編 8 碼"><input name="carrier_num" autocapitalize="characters" maxlength="64" placeholder="手機條碼 /ABC1234 或自然人憑證"><input name="love_code" inputmode="numeric" maxlength="20" placeholder="愛心碼"><input name="buyer_name" maxlength="60" placeholder="買受人／公司名稱"><input name="buyer_email" type="email" maxlength="120" placeholder="Email（選填）"><input name="comment" maxlength="80" placeholder="發票備註（選填）"></div></div></details>
+        <details class="pos-invoice" ${POS_INVOICE.mode?'open':''}><summary><b>ezPay 電子發票</b> <span class="hint" style="margin:0">${POS_INVOICE.mode?INV_LABEL[POS_INVOICE.mode]:'不開'}${DATA?.invoice?.configured?'':'（尚未設定 ezPay，會先記為待補開）'}</span><span class="pos-invoice-caret" aria-hidden="true"></span></summary><div class="pos-invoice-body"><div class="pos-invoice-types">${[['','不開'],['paper','紙本'],['company','統編'],['mobile','手機載具'],['citizen','自然人憑證'],['donate','捐贈']].map(([m,l])=>`<label><input type="radio" name="pos-invoice" value="${m}" ${POS_INVOICE.mode===m?'checked':''}><span>${l}</span></label>`).join('')}</div><div class="pos-invoice-fields"><div class="pos-inv-row" data-inv-modes="company"><input name="buyer_ubn" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="統編 8 碼"></div><div class="pos-inv-row" data-inv-modes="mobile,citizen"><div class="pos-inv-scan-row"><input name="carrier_num" autocapitalize="characters" maxlength="64" placeholder="手機條碼 /ABC1234"><button type="button" class="btn btn--ghost btn-xs" id="pos-invoice-scan" data-inv-modes="mobile">📷 掃描</button></div><video id="pos-invoice-video" playsinline muted></video></div><div class="pos-inv-row" data-inv-modes="donate"><input name="love_code" inputmode="numeric" pattern="[0-9]*" maxlength="20" placeholder="愛心碼"></div><div class="pos-inv-row" data-inv-modes="paper,company"><input name="buyer_name" maxlength="60" placeholder="買受人／公司名稱（選填）"></div><div class="pos-inv-row" data-inv-modes="paper,company,mobile,citizen,donate"><input name="buyer_email" type="email" maxlength="120" placeholder="Email（選填）"></div><div class="pos-inv-row" data-inv-modes="paper,company,mobile,citizen,donate"><input name="comment" maxlength="80" placeholder="發票備註（選填）"></div></div></div></details>
         <div class="pos-actions"><button class="btn btn--solid" id="pos-checkout" ${picked.length?'':'disabled'}>收款 NT$${num(total)}</button><div class="pos-actions-sub"><button class="btn btn--ghost" id="pos-move" ${cur.takeout?'hidden':''}>換桌／併桌</button><button class="btn btn--ghost btn--danger" id="pos-close">${cur.takeout?'收掉外帶單':'清桌'}</button></div></div>
       </div>
       ${live.length?`<h3>這桌已結帳的單</h3><div class="a-wrap2"><table class="a-tbl pos-paid"><thead><tr><th>品項 · 時間 · 狀態</th><th>付款</th><th class="num">金額</th><th class="ops-th">操作</th></tr></thead><tbody>${liveRows}</tbody></table></div>`:''}
@@ -255,7 +270,27 @@ function paintPos(){
     POS_DISCOUNT={type,value,reason};POS_DISC_OPEN=false;paintPos();};
   const recv=host.querySelector('#pos-received');if(recv){recv.oninput=()=>{POS_RECEIVED=recv.value.replace(/\D/g,'');const r=POS_RECEIVED===''?null:Number(POS_RECEIVED);const ch=host.querySelector('.pos-change');const ok=r!=null&&r>=total;ch.querySelector('b').textContent=ok?'NT$'+num(r-total):'—';ch.classList.toggle('has',ok&&r-total>0);};}
   host.querySelectorAll('[data-received]').forEach(b=>b.onclick=()=>{POS_RECEIVED=String(b.dataset.received);paintPos();});
-  host.querySelectorAll('input[name=pos-invoice]').forEach(r=>r.onchange=()=>{POS_INVOICE.mode=r.checked?r.value:POS_INVOICE.mode;const s=host.querySelector('.pos-invoice summary .hint');if(s)s.textContent=POS_INVOICE.mode?INV_LABEL[POS_INVOICE.mode]:'不開';});
+  updateInvoiceFields(host);
+  host.querySelectorAll('input[name=pos-invoice]').forEach(r=>r.onchange=()=>{POS_INVOICE.mode=r.checked?r.value:POS_INVOICE.mode;const s=host.querySelector('.pos-invoice summary .hint');if(s)s.textContent=POS_INVOICE.mode?INV_LABEL[POS_INVOICE.mode]:'不開';updateInvoiceFields(host);});
+  const invScan=host.querySelector('#pos-invoice-scan');
+  if(invScan)invScan.onclick=async()=>{
+    if(!('BarcodeDetector' in window)||!navigator.mediaDevices?.getUserMedia){toast('此瀏覽器不支援相機掃碼，請直接輸入手機條碼。');return;}
+    try{
+      stopPosInvoiceScanner();
+      const video=host.querySelector('#pos-invoice-video');
+      POS_INV_SCAN_STREAM=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
+      video.srcObject=POS_INV_SCAN_STREAM;video.style.display='block';await video.play();
+      const detector=new BarcodeDetector({formats:['code_39','code_128','qr_code']});
+      const tick=async()=>{
+        if(!POS_INV_SCAN_STREAM)return;
+        const codes=await detector.detect(video).catch(()=>[]);
+        const raw=codes[0]?.rawValue;
+        if(raw){const carrierIn=host.querySelector('.pos-invoice [name=carrier_num]');if(carrierIn)carrierIn.value=raw.trim().toUpperCase();stopPosInvoiceScanner();toast('已掃到條碼：'+raw);return;}
+        POS_INV_SCAN_FRAME=requestAnimationFrame(tick);
+      };
+      tick();
+    }catch(e){stopPosInvoiceScanner();toast('無法開啟相機：'+e.message);}
+  };
   host.querySelector('#pos-checkout').onclick=()=>{
     const method=POS_METHOD;
     if(!picked.length)return;
