@@ -121,6 +121,8 @@ test('pos-ops.js：共用模組不碰 /admin 專屬狀態；估清分頁只動 s
   assert.match(ops, /empty:\['pill-draft','已開桌'\]/);
   assert.match(ops, /\/admin\/menu\/sold-out/); assert.match(ops, /data-so=/);
   assert.match(ops, /if\(host\.querySelector\('table'\)\)toast\('更新失敗：'/, '出餐看板更新失敗不清空畫面');
+  assert.match(ops, /<details class="ops-help"><summary>操作說明<\/summary><p class="hint">客人掃桌上 QR 點餐/, '出餐看板長說明要預設收合，避免 UI 雜亂');
+  assert.doesNotMatch(ops, /<h2>點餐出餐<\/h2>\s*\n\s*<p class="hint">客人掃桌上 QR 點餐/, '出餐看板長說明不可直接攤開在標題下');
   assert.match(ops, /if\(host\.querySelector\('\.pos-grid'\)\)toast\('更新失敗：'/, '結帳頁更新失敗不清空畫面');
   const sw = read('public/pos-sw.js');
   assert.match(sw, /url\.pathname\.startsWith\('\/api\/'\) \|\| url\.pathname\.startsWith\('\/auth\/'\)/);
