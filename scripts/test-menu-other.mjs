@@ -2,6 +2,7 @@
 // 客人掃碼點餐看不到、POS 才看得到；加點時現場輸入金額且經伺服器驗證，不同金額不合併。
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import fs from 'node:fs';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const T = require('../lib/table-orders');
@@ -20,6 +21,17 @@ test('pos_only 品項：客人端 menuIndex（預設）看不到；POS 端 {posO
   assert.ok(guestMenu.has('m_latte'));
   const posMenu = T.menuIndex(menuJson, undefined, { posOnly: true });
   assert.ok(posMenu.has('m_other'), 'POS 代客加點看得到「其他」');
+});
+
+test('「其他」只用於 POS：官網菜單（publishedOnly）與 IG 看不到；結帳 all 模式仍查得到（會員價重算）', () => {
+  const doc = M.parseMenuDoc(menuJson);
+  assert.ok(!M.publishedOnly(doc).some(it => it.id === 'm_other'), '官網菜單頁不列 pos_only');
+  assert.ok(M.publishedOnly(doc).some(it => it.id === 'm_latte'));
+  assert.ok(T.menuIndex(menuJson, undefined, { all: true }).has('m_other'), '結帳重算價格要查得到已點的「其他」');
+  const ops = fs.readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'utf8');
+  assert.match(ops, /it\.published&&!it\.pos_only&&\(!SCOPE/, '估清分頁不列 pos_only');
+  const ig = fs.readFileSync(new URL('../public/ig-studio.js', import.meta.url), 'utf8');
+  assert.match(ig, /filter\(m => !m\.pos_only\)/, 'IG 選單不列 pos_only');
 });
 
 test('CAT_LABEL／CATS 含 OTHER，排在最後（分類排序不影響既有分類）', () => {

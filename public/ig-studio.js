@@ -53,7 +53,7 @@
     comingTitle: 'Coming\nsoon.', comingSub: '2026 年 11 月　台北車站見。',
   };
 
-  const MENU = () => (window.MENU_DATA || []);
+  const MENU = () => (window.MENU_DATA || []).filter(m => !m.pos_only);   // POS 限定品項（其他）不上 IG
 
   function menuSelectedItems() {
     return (state.m_menuIds || []).map(id => MENU().find(m => m.id === id)).filter(Boolean);

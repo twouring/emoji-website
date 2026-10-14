@@ -142,8 +142,9 @@
     return next;
   }
 
+  /* 對外可見（官網菜單頁、IG）：已發布且非 POS 限定；pos_only 品項（例：其他）只在 POS／後台加點出現 */
   function publishedOnly(doc) {
-    return (doc.items || []).filter(x => x.published);
+    return (doc.items || []).filter(x => x.published && !x.pos_only);
   }
 
   function fromSeedRows(rows) {
