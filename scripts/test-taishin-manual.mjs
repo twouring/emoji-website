@@ -20,20 +20,21 @@ test('manualInput：金額須為 0 以上整數；差額非 0 時差異原因必
   assert.deepEqual(ok, { amount: 4800, reason: '客人自行轉帳' });
 });
 
-test('reconcile：加總 POS 登記為 taishin 的成立單（排除作廢、依品牌過濾）；manual 為 null 時 diff 為 null', () => {
+test('reconcile：加總 POS 登記為 taishin 或 card 的成立單（刷卡與台新手機付同一台機器對帳，2026-10-14 決策合併；排除作廢、依品牌過濾）；manual 為 null 時 diff 為 null', () => {
   const orders = [
     { status: 'paid', amount: 300, payer: { method: 'taishin' }, items: [{ venue: 'CAFE' }] },
     { status: 'paid', amount: 200, payer: { method: 'taishin' }, items: [{ venue: 'BAR' }] },
+    { status: 'paid', amount: 150, payer: { method: 'card' }, items: [{ venue: 'CAFE' }] },
     { status: 'void', amount: 999, payer: { method: 'taishin' }, items: [{ venue: 'CAFE' }] },
     { status: 'paid', amount: 100, payer: { method: 'cash' }, items: [{ venue: 'CAFE' }] },
   ];
   const all = TS.reconcile(orders, null, { venues: null });
-  assert.deepEqual(all.pos, { count: 2, amount: 500 });
+  assert.deepEqual(all.pos, { count: 3, amount: 650 });
   assert.equal(all.manual, null);
   assert.equal(all.diff, null);
   const cafeOnly = TS.reconcile(orders, null, { venues: ['CAFE'] });
-  assert.deepEqual(cafeOnly.pos, { count: 1, amount: 300 });
-  const manual = { amount: 520, reason: '多收 20', filled_by: 'a@x.com', updated_at: '2026-10-14T03:00:00.000Z' };
+  assert.deepEqual(cafeOnly.pos, { count: 2, amount: 450 });
+  const manual = { amount: 670, reason: '多收 20', filled_by: 'a@x.com', updated_at: '2026-10-14T03:00:00.000Z' };
   const withManual = TS.reconcile(orders, manual, { venues: null });
   assert.deepEqual(withManual.manual, manual);
   assert.equal(withManual.diff, 20);
@@ -62,14 +63,23 @@ test('server.js：GET /api/admin/sales 回 taishin 對帳區，POST /api/admin/s
 
 test('docs/API.md 記錄 taishin 對帳欄位與 POST /api/admin/sales/taishin', () => {
   const docs = read('docs/API.md');
-  assert.match(docs, /`taishin` 為台新手機付對帳/);
+  assert.match(docs, /`taishin` 為刷卡／台新手機付對帳/);
   assert.match(docs, /### POST \/api\/admin\/sales\/taishin/);
 });
 
-test('pos-ops.js：日結報表新增「台新手機付對帳」區塊，表單送 POST /admin/sales/taishin', () => {
+test('pos-ops.js：日結報表新增「刷卡／台新手機付對帳」區塊，表單送 POST /admin/sales/taishin', () => {
   const ops = read('public/pos-ops.js');
-  assert.match(ops, /taishin:'台新手機付'/);
-  assert.match(ops, /<h3>台新手機付對帳/);
+  assert.match(ops, /taishin:'台新手機付'/, '歷史單據的 payMethodLabel 仍各自顯示 card／taishin 原本的名稱');
+  assert.match(ops, /<h3>刷卡／台新手機付對帳/);
   assert.match(ops, /id="ts-form"/);
   assert.match(ops, /api\('\/admin\/sales\/taishin',\{method:'POST',body:\{day:d\.day,amount,reason\}\}\)/);
+});
+
+test('結帳付款方式：刷卡與台新手機付同一台機器對帳，2026-10-14 決策合併為一個選項（代碼 taishin），不再把 card 單獨列出；歷史單據的顯示名稱不受影響', () => {
+  const server = read('server.js');
+  assert.match(server, /code!=='tappay'&&code!=='card'/, 'paymentMethodsList 不該再把 card 列為可選的收款方式');
+  assert.match(server, /MERGED_PAY_LABEL=\{taishin:'刷卡／台新手機付'\}/);
+  const ops = read('public/pos-ops.js');
+  assert.doesNotMatch(ops, /\['cash','現金'\],\['card'/, 'payMethodsActive 的備援清單也不該再單獨列 card');
+  assert.match(ops, /\['taishin','刷卡／台新手機付'\]/);
 });

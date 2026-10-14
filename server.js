@@ -4792,7 +4792,8 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   // 桌邊送單（未結帳、未出餐）：與已結帳的出餐單一起上看板；子帳號只看整張都是自己品牌的
   const tickets=rows.flatMap(s=>tableOrders.ticketsOf(s)).filter(t=>tableOrders.orderOwnedByVenues(t,venues)).map(t=>({...t,items:t.items.map(({guest,...l})=>l)}));
   const pause=tableOrders.parsePause(await contentValue('ordering_pause'));
-  res.json({orders,tickets,sessions,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue()});
+  // payment_methods 一起回傳：已開著的 POS 畫面每 15 秒輪詢這支 API，新增的自訂收款帳戶才會即時出現在結帳選項，不用重新整理
+  res.json({orders,tickets,sessions,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue(),payment_methods:await paymentMethodsList()});
 }));
 /* 櫃檯開桌／外帶：客人沒掃 QR（走進來直接在櫃檯點）也能開一桌；外帶自動取 W01–W99 最小空號。已開著的桌直接回那一桌 */
 app.post('/api/admin/orders/sessions',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -5110,8 +5111,11 @@ app.post('/api/admin/registers/:id/reopen',auth,adminOnly,superOnly,requireDb,wr
 /* ===== 收款帳戶：現金／刷卡／LINE Pay／轉帳為內建（table-orders.PAY_METHODS，不給改／不給停用）；
  * 言文字管理員可另外新增自訂收款帳戶（例如街口支付、另一組轉帳帳號），結帳時一併出現在付款方式選項。
  * 全部品牌子帳號都能讀（櫃檯結帳要用），只有超管能新增／改名／停用。 */
+// 2026-10-14 決策：刷卡與台新手機付實際上走同一台台新收單機、同一包對帳，結帳畫面只留一個合併選項（代碼仍用 taishin，沿用既有對帳機制）；
+// 歷史單據原本各自的 card／taishin 紀錄不回頭改，payMethodLabel() 查歷史單仍會顯示原本各自的名稱
+const MERGED_PAY_LABEL={taishin:'刷卡／台新手機付'};
 async function paymentMethodsList(){
-  const builtin=Object.entries(tableOrders.PAY_METHODS).filter(([code])=>code!=='tappay').map(([code,label])=>({code,label,active:true,builtin:true}));
+  const builtin=Object.entries(tableOrders.PAY_METHODS).filter(([code])=>code!=='tappay'&&code!=='card').map(([code,label])=>({code,label:MERGED_PAY_LABEL[code]||label,active:true,builtin:true}));
   const custom=(await q('SELECT code,label,active FROM pos_payment_methods ORDER BY created_at')).rows.map(r=>({...r,builtin:false}));
   return [...builtin,...custom];
 }
