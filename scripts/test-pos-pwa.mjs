@@ -125,7 +125,9 @@ test('pos-ops.js：共用模組不碰 /admin 專屬狀態；估清分頁只動 s
   assert.match(ops, /const STAR_DOTS=384/, 'mPOP 58mm 可印寬 384 點');
   assert.match(ops, /function openCashDrawer\(\{auto=false\}=\{\}\)/); assert.match(ops, /id="pos-cash-drawer"/);
   assert.match(ops, /function drawCode39\(g,text,x0,y,h\)/); assert.match(ops, /async function invoiceProofCanvas\(o\)/); assert.match(ops, /async function printInvoiceProof\(o,\{drawer=false,auto=false\}=\{\}\)/);
-  assert.match(ops, /data-invoice-print=/); assert.match(ops, /out\.invoice\?\.status==='issued'\)printInvoiceProof\(order,\{drawer:method==='cash',auto:true\}\);else if\(method==='cash'\)openCashDrawer\(\{auto:true\}\)/);
+  assert.match(ops, /data-invoice-print=/); assert.match(ops, /await printCheckoutOrder\(order\)/);
+  assert.match(ops, /await printInvoiceProof\(order,\{drawer:order\.payer\?\.method==='cash',auto:true\}\)/);
+  assert.match(ops, /await printOrder\(order,\{auto:true\}\)/);
   assert.doesNotMatch(ops, /starpassprnt|PassPRNT|WebUSB|StarXpand|藍牙配對/i, 'POP10CI 沒藍牙：不留 PassPRNT／WebUSB 路徑');
   assert.match(ops, /iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址/, '操作說明講 webPRNT Browser + USB-C');
   assert.match(read('public/pos.html'), /<script src="\/vendor\/StarWebPrintBuilder\.js"><\/script>\s*<script src="\/vendor\/StarWebPrintTrader\.js"><\/script>/, 'pos.html 載入 Star webPRNT SDK');

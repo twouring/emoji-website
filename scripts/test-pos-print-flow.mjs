@@ -1,0 +1,48 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+const src=readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');
+const load=()=>vm.createContext({console,setTimeout,clearTimeout});
+function printContext(){
+ const texts=[],sent=[];const g={fillRect(){},fillText(t){texts.push(t);},measureText(t){return {width:[...t].length*20};},drawImage(){}};
+ const c=vm.createContext({console,setTimeout,clearTimeout,document:{createElement:()=>({getContext:()=>g})},BRAND_LABEL:{cafe:'在咖啡'},SCOPE:'cafe',num:String,applicationTime:String,navigator:{userAgent:'StarWebPRNTBrowser'},PosEncouragement:{pick:()=>({zh:'測試鼓勵語',en:'Keep going.'})},toast(){}});
+ vm.runInContext(src,c);c.sent=sent;vm.runInContext('StarWebPrintBuilder=function(){};StarWebPrintTrader=function(){};starSend=async job=>{sent.push(job);return true;}',c);
+ return {c,texts,sent};
+}
+test('company invoice canvas includes buyer tax ID and name',async()=>{
+ const {c,texts}=printContext();await vm.runInContext("invoiceProofCanvas({invoice:{status:'issued',number:'AB12345678',buyer_ubn:'12345678',buyer_name:'測試公司'},items:[],amount:100})",c);
+ assert.ok(texts.includes('12345678'));assert.ok(texts.includes('測試公司'));
+ assert.ok(texts.includes('言文字股份有限公司'));
+ assert.ok(texts.includes('測試鼓勵語'));
+ assert.ok(texts.includes('Keep going.'));
+});
+test('kitchen and receipt use mPOP with all items and long notes',async()=>{
+ const {c,texts,sent}=printContext();c.o={id:'o1',table_no:'A1',amount:100,paid_at:'now',items:[{zh:'咖啡',qty:1,price:100,note:'少冰少糖'.repeat(30)}]};
+ await vm.runInContext('printOrder(o);',c);assert.equal(sent.length,1);assert.ok(texts.some(t=>t.includes('咖啡')));
+ await vm.runInContext('printReceipt(o);',c);assert.equal(sent.length,2);assert.ok(texts.includes('收據'));
+});
+test('checkout always prints kitchen ticket even when invoice printing throws',async()=>{
+ const {c}=printContext();c.jobs=[];vm.runInContext("printOrder=async()=>jobs.push('kitchen');printInvoiceProof=async()=>{throw Error('offline')};",c);
+ await vm.runInContext("printCheckoutOrder({invoice:{status:'issued'},payer:{method:'cash'}})",c);assert.deepEqual([...c.jobs],['kitchen']);
+});
+test('printer jobs are serialized and recover after a failed job',async()=>{
+ const c=load();vm.runInContext(src,c);c.started=[];c.release=[];
+ vm.runInContext('starSendNow=job=>{started.push(job.id);return new Promise((resolve,reject)=>release.push(job.fail?()=>reject(Error("offline")):()=>resolve(true)));}',c);
+ const a=vm.runInContext('starSend({id:1,fail:true})',c);const caught=a.catch(()=>false);const b=vm.runInContext('starSend({id:2})',c);
+ await Promise.resolve();assert.deepEqual([...c.started],[1]);c.release[0]();await caught;await Promise.resolve();await Promise.resolve();assert.deepEqual([...c.started],[1,2]);c.release[1]();assert.equal(await b,true);
+});
+test('without an invoice every checkout still prints kitchen ticket',async()=>{
+ const {c}=printContext();c.jobs=[];vm.runInContext("printOrder=async()=>jobs.push('kitchen');",c);
+ await vm.runInContext("printCheckoutOrder({invoice:{},payer:{method:'card'}})",c);assert.deepEqual([...c.jobs],['kitchen']);
+});
+test('history offers invoice scan lookup without auto-voiding',()=>{
+ assert.match(src,/id="hist-scan"/);assert.match(src,/PosInvoiceScan\.open\(\{onScan/);
+ assert.match(src,/HIST_Q=number;HIST_DAY=MenuLib\.businessDay\(\);loadHistory\(\)/);
+});
+test('every checkout starts with paper invoice and no-invoice is last',()=>{
+ const c=load();vm.runInContext(src,c);
+ assert.equal(vm.runInContext('POS_INVOICE.mode',c),'paper');
+ assert.match(src,/\[\['paper','紙本'\].*\['','不開立'\]\]/);
+ assert.match(src,/POS_INVOICE.mode='paper';return reload/);
+});
