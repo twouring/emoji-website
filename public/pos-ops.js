@@ -265,7 +265,7 @@ async function loadPos(){
   try{[POS_DATA,REG_DATA]=await Promise.all([api('/admin/orders'+scopeQuery('all=1')),api('/admin/registers'+scopeQuery()).catch(()=>null)]);}catch(e){if(host.querySelector('.pos-grid'))toast('更新失敗：'+e.message);else host.innerHTML=`<div class="a-sec"><h2>櫃檯結帳</h2><p class="a-empty">載入失敗：${esc(e.message)}</p></div>`;POS_TIMER=setTimeout(()=>{if(document.getElementById('pos-body')&&TAB==='pos')loadPos();},15000);return;}
   // 後台系統設定新增／停用自訂收款帳戶後，這台 POS 不用重新整理頁面，最慢 15 秒內跟著這支輪詢更新
   if(POS_DATA.payment_methods)DATA.payment_methods=POS_DATA.payment_methods;
-  const sig=JSON.stringify([POS_DATA.sessions.map(s=>[s.id,s.unpaid,s.unpaid_amount,s.state,s.lines.map(l=>[l.line,l.qty,l.price,l.comp_reason||''])]),POS_DATA.orders.map(o=>[o.id,o.status,o.invoice?.status]),REG_DATA&&Object.entries(REG_DATA.current||{}).map(([v,r])=>[v,r?.id,r?.closed_at]),(DATA.payment_methods||[]).map(m=>[m.code,m.label,m.active])]);
+  const sig=JSON.stringify([POS_DATA.sessions.map(s=>[s.id,s.unpaid,s.unpaid_amount,s.state,s.lines.map(l=>[l.line,l.qty,l.price,l.comp_reason||''])]),POS_DATA.orders.map(o=>[o.id,o.status,o.invoice?.status]),Object.entries(POS_DATA.reservations||{}).map(([t,rs])=>[t,rs.map(r=>[r.id,r.time,r.status])]),REG_DATA&&Object.entries(REG_DATA.current||{}).map(([v,r])=>[v,r?.id,r?.closed_at]),(DATA.payment_methods||[]).map(m=>[m.code,m.label,m.active])]);
   // 開帳表單打開時不要被 15 秒自動刷新重畫（會清掉正在填的張數）
   if((host.dataset.sig!==sig&&!(REG_OPEN_FORM&&host.querySelector('.reg-open-form')))||!host.querySelector('.pos-grid')){host.dataset.sig=sig;paintPos();}
   POS_TIMER=setTimeout(()=>{if(document.getElementById('pos-body')&&TAB==='pos')loadPos();},15000);
@@ -290,9 +290,12 @@ function paintPos(){
   const byTable=new Map(sessions.filter(s=>!s.takeout).map(s=>[s.table,s]));
   const extraSessions=sessions.filter(s=>s.takeout||!DEFAULT_TABLES.includes(s.table));
   const slots=[...DEFAULT_TABLES.map(t=>byTable.get(t)||{table:t,empty:true}),...extraSessions];
+  // 今天這桌有排的訂位（訂位頁填了桌號）：空桌與使用中的桌都標出來，提醒現場人員這桌有人預約；只是提示，不會自動開桌
+  const resvOf=t=>(d.reservations||{})[t]||[];
+  const resvHtml=t=>resvOf(t).map(r=>`<small class="pos-resv"><span class="pos-resv-tag">預約</span> ${esc(r.time)} ${esc(r.name)} ${r.party_size} 位${r.status==='new'?'（待確認）':''}</small>`).join('');
   const grid=slots.map(s=>{
-    if(s.empty)return `<button type="button" class="pos-table empty" data-open-table="${esc(s.table)}"><b>${esc(s.table)}</b><span class="pill pill-draft">空桌</span><small>點選直接開桌</small></button>`;
-    const [cls,label]=TABLE_STATE[s.state]||TABLE_STATE.open;return `<button type="button" class="pos-table ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''}" data-pos-table="${esc(s.table)}"><b>${s.takeout?'外帶 ':''}${esc(s.table)}</b><span class="pill ${cls}">${label}</span><small>${s.unpaid?`未結 NT$${num(s.unpaid_amount)}`:s.state==='empty'?'還沒點餐':'已結清'}${s.operator?' · 👤 '+esc(s.operator):''}</small>${s.mixed?'<small class="pill pill-bad">混桌</small>':''}</button>`;
+    if(s.empty)return `<button type="button" class="pos-table empty ${resvOf(s.table).length?'reserved':''}" data-open-table="${esc(s.table)}"><b>${esc(s.table)}</b><span class="pill pill-draft">空桌</span>${resvHtml(s.table)||'<small>點選直接開桌</small>'}</button>`;
+    const [cls,label]=TABLE_STATE[s.state]||TABLE_STATE.open;return `<button type="button" class="pos-table ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''}" data-pos-table="${esc(s.table)}"><b>${s.takeout?'外帶 ':''}${esc(s.table)}</b><span class="pill ${cls}">${label}</span><small>${s.unpaid?`未結 NT$${num(s.unpaid_amount)}`:s.state==='empty'?'還沒點餐':'已結清'}${s.operator?' · 👤 '+esc(s.operator):''}</small>${s.mixed?'<small class="pill pill-bad">混桌</small>':''}${resvHtml(s.table)}</button>`;
   }).join('');
   // 櫃檯開桌／外帶：加開固定清單以外的桌號、或外帶單
   const opener=`<div class="pos-open"><input id="pos-open-table" placeholder="例 A11" maxlength="8" autocapitalize="characters" autocomplete="off" aria-label="桌號"><button type="button" class="btn btn--ghost" id="pos-open">開桌</button><button type="button" class="btn btn--ghost" id="pos-takeout">＋ 外帶</button></div>`;
@@ -343,8 +346,17 @@ function paintPos(){
   host.querySelectorAll('[data-pos-table]').forEach(b=>b.onclick=()=>{POS_TABLE=b.dataset.posTable;POS_PICK=null;POS_DISCOUNT=null;POS_DISC_OPEN=false;POS_RECEIVED='';paintPos();});
   // 開桌／外帶：有操作人員就順手帶上（記這桌是誰開的），沒有也不擋——只有結帳要求一定要認人
   const openSession=body=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{...body,operator_id:OPERATOR?.id}}),out=>out.takeout?`外帶單 ${out.table} 已開，請加入品項`:out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,out=>{POS_TABLE=out.table;POS_PICK=null;POS_DISCOUNT=null;POS_RECEIVED='';return reload();});
-  // 空桌格：直接點就開桌，不用再打字輸入桌號
-  host.querySelectorAll('[data-open-table]').forEach(b=>b.onclick=()=>openSession({table_no:b.dataset.openTable}));
+  // 空桌格：直接點就開桌，不用再打字輸入桌號；這桌有已確認的訂位時，開桌後順手問要不要把訂位標成「已到」（訂位頁就不用再點一次）
+  host.querySelectorAll('[data-open-table]').forEach(b=>b.onclick=()=>{
+    const table=b.dataset.openTable,r=((POS_DATA?.reservations||{})[table]||[]).find(x=>x.status==='confirmed');
+    if(!r)return openSession({table_no:table});
+    const arrive=confirm(`${table} 有訂位：${r.time} ${r.name} ${r.party_size} 位。\n開桌並把這筆訂位標成「已到」？（取消＝只開桌）`);
+    opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{table_no:table,operator_id:OPERATOR?.id}}),out=>out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,async out=>{
+      POS_TABLE=out.table;POS_PICK=null;POS_DISCOUNT=null;POS_RECEIVED='';
+      if(arrive){try{await api('/admin/reservations/'+r.id+'/status',{method:'POST',body:{status:'arrived',notify:false}});toast(`訂位 ${r.name} 已標記「已到」`);}catch(e){toast('訂位狀態沒更新：'+e.message);}}
+      return reload();
+    });
+  });
   host.querySelector('#pos-open').onclick=()=>{const t=host.querySelector('#pos-open-table').value.trim().toUpperCase();if(!t){toast('請先輸入桌號');host.querySelector('#pos-open-table').focus();return;}openSession({table_no:t});};
   host.querySelector('#pos-open-table').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();host.querySelector('#pos-open').click();}};
   host.querySelector('#pos-takeout').onclick=()=>openSession({takeout:true});

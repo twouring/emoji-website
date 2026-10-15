@@ -4817,8 +4817,11 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   // 桌邊送單（未結帳、未出餐）：與已結帳的出餐單一起上看板；子帳號只看整張都是自己品牌的
   const tickets=rows.flatMap(s=>tableOrders.ticketsOf(s)).filter(t=>tableOrders.orderOwnedByVenues(t,venues)).map(t=>({...t,items:t.items.map(({guest,...l})=>l)}));
   const pause=tableOrders.parsePause(await contentValue('ordering_pause'));
+  // 今天已排桌號、還沒到的訂位：桌況格上標「預約」提示（不自動開桌）；子帳號只看自己時段的
+  const resvRows=(await q(`SELECT id,to_char(reserve_date,'YYYY-MM-DD') AS reserve_date,reserve_time,party_size,name,status,table_no FROM dining_reservations WHERE reserve_date BETWEEN CURRENT_DATE-1 AND CURRENT_DATE+1 AND status IN ('new','confirmed') AND table_no<>'' AND deleted_at IS NULL`)).rows.filter(r=>!venues||venues.includes(tableOrders.reservationVenue(r.reserve_time)));
+  const reservations=tableOrders.reservationsByTable(resvRows);
   // payment_methods 一起回傳：已開著的 POS 畫面每 15 秒輪詢這支 API，新增的自訂收款帳戶才會即時出現在結帳選項，不用重新整理
-  res.json({orders,tickets,sessions,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue(),payment_methods:await paymentMethodsList()});
+  res.json({orders,tickets,sessions,reservations,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue(),payment_methods:await paymentMethodsList()});
 }));
 /* 櫃檯開桌／外帶：客人沒掃 QR（走進來直接在櫃檯點）也能開一桌；外帶自動取 W01–W99 最小空號。已開著的桌直接回那一桌 */
 app.post('/api/admin/orders/sessions',auth,adminOnly,requireDb,wrap(async(req,res)=>{
