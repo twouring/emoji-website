@@ -4560,7 +4560,7 @@ app.post('/api/admin/sales/taishin',auth,adminOnly,requireDb,wrap(async(req,res)
     ON CONFLICT (day) DO UPDATE SET amount=EXCLUDED.amount,reason=EXCLUDED.reason,filled_by=EXCLUDED.filled_by,updated_at=now()`,[day,input.amount,input.reason,filledBy]);
   res.json({ok:true,day,amount:input.amount,reason:input.reason,diff:input.amount-posAmount});
 }));
-/* 查單：某營業日的全部單（含作廢），可用桌號／金額／發票號碼搜尋；給櫃檯重印收據、補開發票、作廢 */
+/* 查單：某營業日的全部單（含作廢），可用桌號／金額／發票號碼搜尋；給櫃檯重印收據明細、補開發票、作廢 */
 app.get('/api/admin/orders/history',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
   const day=/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.day||''))?String(req.query.day):tableOrders.MenuLib.businessDay();

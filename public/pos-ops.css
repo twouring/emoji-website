@@ -16,7 +16,7 @@
 :is(#pos-body,#orders-body,#history-body,#sales-body,#resv-body,#shifts-body,#att-body,#clock-body,#staff-body) .pill-wait{background:#fff6dc;border-color:#f1dc9a;color:#7a5a00}
 :is(#pos-body,#orders-body,#history-body,#sales-body,#resv-body,#shifts-body,#att-body,#clock-body,#staff-body) .pill-wait::before{background:#d59f00;opacity:1}
 :is(#pos-body,#orders-body,#history-body,#sales-body,#resv-body,#shifts-body,#att-body,#clock-body,#staff-body) .pill-draft{color:var(--muted)}
-/* 表格：操作欄靠右、寬度剛好一行放下三顆（收據／出餐單／作廢），列高才一致 */
+/* 表格：操作欄靠右、寬度剛好一行放下三顆（收據明細／出餐單／作廢），列高才一致 */
 .a-tbl td.ops-actions{width:1%;min-width:270px;text-align:right;line-height:1}.a-tbl th.ops-th{text-align:right}
 .a-tbl td.ops-actions .ops-btns{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px}.a-tbl td.ops-actions .btn{margin:0;flex:0 0 auto;padding-left:14px;padding-right:14px}
 .pos-lines td.ops-actions{min-width:200px}
