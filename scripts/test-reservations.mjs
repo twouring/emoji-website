@@ -209,3 +209,18 @@ test('reservation errors and guest confirmation follow the visitor language; sta
   assert.match(staff, /alex@example\.com/);
   assert.match(staff, /https:\/\/www\.emoji\.tw\/reserve/);
 });
+
+test('訂位編號是 MMDD-NN（台北時間當天第幾筆），好在電話裡報', () => {
+  const now = new Date('2026-10-15T17:30:00Z'); // 台北已是 10/16 01:30
+  assert.equal(reservations.requestIdPrefix(now), '1016');
+  assert.equal(reservations.requestId(now, 3), '1016-03');
+  assert.equal(reservations.requestId(now, 120), '1016-120');
+  assert.match(server, /insertWithRequestId/);
+  assert.doesNotMatch(server, /randomBytes\(2\)\.toString\('hex'\)\.toUpperCase\(\)/, '不再用隨機英數字編號');
+});
+
+test('現場人員（四位數密碼登入）的操作紀錄記姓名，不記 staff:st_… 代號', () => {
+  assert.match(server, /const actorOf = a => a\.email \|\| \(a\.operator_staff_id && a\.name\) \|\| a\.sub/);
+  assert.doesNotMatch(server, /req\.auth\.email\|\|req\.auth\.sub/);
+  assert.match(server, /'staff:'\|\|ps\.id=handled_by/, '舊紀錄列表時換成姓名');
+});

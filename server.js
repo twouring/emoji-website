@@ -1573,6 +1573,8 @@ function requireDb(req, res, next) {
   if (!dbReady) return res.status(503).json({ error: '資料庫尚未就緒，請稍候再試。' });
   next();
 }
+/* 操作者標籤：Email 登入用 Email；POS 四位數密碼登入的現場人員 sub 是內部代號（staff:st_…），要記姓名，不然畫面只看到一串英數字 */
+const actorOf = a => a.email || (a.operator_staff_id && a.name) || a.sub;
 async function sessionAuth(t) {
   const p = verifyToken(t);
   if (!p || !pool || !dbReady) return p;
@@ -1702,14 +1704,25 @@ app.get('/api/health', (req, res) =>
 /* ---- 1F 訂位（/reserve；不登入）：驗證 → 存 dining_reservations（confirmed）→ 寄確認信給客人＋通知 NOTIFY_EMAIL ----
    後台「訂位」分頁（/api/admin/reservations）可排桌、取消（寄婉拒信）、標記已到／未到。 */
 const reservations = require('./lib/reservations');
+/* 訂位編號 MMDD-NN（當天第 NN 筆，電話裡好報）：同一天先算已有幾筆再 +1，撞號（並發）就往後挪再試 */
+async function insertWithRequestId(run) {
+  const mmdd = reservations.requestIdPrefix(new Date());
+  const seq0 = Number((await q('SELECT COUNT(*)::int AS n FROM dining_reservations WHERE request_id LIKE $1', [mmdd + '-%'])).rows[0].n);
+  for (let i = 1; i <= 8; i++) {
+    const rid = reservations.requestId(new Date(), seq0 + i);
+    try { await run(rid); return rid; }
+    catch (e) { if (!(e && e.code === '23505' && /request_id/.test(String(e.constraint || e.detail || '')))) throw e; }
+  }
+  throw new Error('訂位編號產生失敗，請再試一次。');
+}
 const reservationAdminUrl = r => `${ADMIN_BASE}/admin/${tableOrders.reservationVenue(r.time) === 'CAFE' ? 'cafe' : 'bar'}/reservations`;
 app.post('/api/reservations', rateLimit({ max: 30, windowMs: 3600000 }), requireDb, wrap(async (req, res) => {
   let r;
   try { r = reservations.normalizeReservation(req.body); }
   catch (error) { return res.status(error.status || 400).json({ error: error.message }); }
-  const id = uid('dr_'), requestId = 'R' + new Date().toISOString().slice(2,10).replace(/-/g,'') + '-' + crypto.randomBytes(2).toString('hex').toUpperCase();
-  await q(`INSERT INTO dining_reservations(id,request_id,reserve_date,reserve_time,period,party_size,name,phone,email,lang,note,source,status)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, [id, requestId, r.date, r.time, r.period, r.partySize, r.name, r.phone, r.email, r.lang, r.note, r.source, 'confirmed']);
+  const id = uid('dr_');
+  const requestId = await insertWithRequestId(rid => q(`INSERT INTO dining_reservations(id,request_id,reserve_date,reserve_time,period,party_size,name,phone,email,lang,note,source,status)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, [id, rid, r.date, r.time, r.period, r.partySize, r.name, r.phone, r.email, r.lang, r.note, r.source, 'confirmed']));
   sendMailQuietly({ to: r.email, subject: reservations.guestSubject(r), text: reservations.guestMail(r, requestId), replyTo: NOTIFY_EMAIL, idempotencyKey: 'reservation-confirm/' + id });
   sendMailQuietly({ to: NOTIFY_EMAIL, subject: `[訂位] ${r.date} ${r.time}｜${r.partySize} 位｜${r.name}`, text: reservations.staffMail(r, requestId, SITE_BASE) + `\n\n後台「訂位」分頁（排桌、取消、已到／未到）：${reservationAdminUrl(r)}`, replyTo: r.email });
   res.status(201).json({ ok: true, request_id: requestId, period: r.period, hold_until: reservations.holdUntil(r.time), hold_minutes: reservations.HOLD_MINUTES });
@@ -3681,7 +3694,7 @@ app.post('/api/admin/system-settings', auth, adminOnly, superOnly, requireDb, wr
   if(!value)return res.status(400).json({error:'設定值不可空白；如要改回部署環境值，請使用清除覆寫。'});
   await q(`INSERT INTO system_settings(key,value,updated_by,updated_at) VALUES($1,$2,$3,now())
     ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_by=EXCLUDED.updated_by,updated_at=now()`,
-    [key,systemSettings.encrypt(key,value,SECRET),req.auth.agent?'admin-api-key':req.auth.email||req.auth.sub]);
+    [key,systemSettings.encrypt(key,value,SECRET),req.auth.agent?'admin-api-key':actorOf(req.auth)]);
   if(live)await refreshLiveSettings();
   res.json({ok:true,restart_required:!live});
 }));
@@ -4896,7 +4909,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
   try{await client.query('BEGIN');
     const s=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
     if(!s||s.status!=='open'){await client.query('ROLLBACK');return res.status(s?409:404).json({error:s?'這桌已結束。':'找不到這桌。'});}
-    let out,invoice,regWarn='';try{out=tableOrders.posCheckout(s.items,{...req.body,staff:req.auth.email||req.auth.sub||'',operator},menuAll,await activePaymentCodes());invoice=ezpayInvoice.invoiceForm(req.body?.invoice||{});
+    let out,invoice,regWarn='';try{out=tableOrders.posCheckout(s.items,{...req.body,staff:actorOf(req.auth)||'',operator},menuAll,await activePaymentCodes());invoice=ezpayInvoice.invoiceForm(req.body?.invoice||{});
       // 開關帳：品項所屬品牌今天的帳要開著（關帳後不能再結；沒開帳時超管放行但回警告，子帳號擋）
       regWarn=posRegister.checkoutAllowed(out.lines,await registersOpenMap(client,tableOrders.MenuLib.businessDay()),{strict:!!venues}).warning;
     }catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
@@ -4948,7 +4961,7 @@ app.post('/api/admin/orders/:id/void',auth,adminOnly,requireDb,wrap(async(req,re
   // 作廢＝這張單不計營收；品項退回未結帳（可重新結或清桌作廢），避免「作廢後想改付款方式」要重點一次
   const client=await pool.connect();
   try{await client.query('BEGIN');
-    await client.query("UPDATE table_orders SET status='void',void_reason=$2,voided_by=$3,voided_at=now(),invoice=$4 WHERE id=$1",[o.id,reason,req.auth.email||req.auth.sub||'',JSON.stringify(nextInvoice)]);
+    await client.query("UPDATE table_orders SET status='void',void_reason=$2,voided_by=$3,voided_at=now(),invoice=$4 WHERE id=$1",[o.id,reason,actorOf(req.auth)||'',JSON.stringify(nextInvoice)]);
     const s=(await client.query("SELECT id,items,status FROM table_sessions WHERE id=$1 FOR UPDATE",[o.session_id])).rows[0];
     // 退回未結帳：會員價還原為原價；贈送（comp_reason）維持贈送
     if(s&&s.status==='open')await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(s.items.map(l=>l.order_id!==o.id?l:l.comp_reason?{...l,order_id:null}:{...l,order_id:null,price:l.regular_price||l.price,regular_price:undefined}))]);
@@ -5006,7 +5019,7 @@ app.post('/api/admin/sales/taishin',auth,adminOnly,requireDb,wrap(async(req,res)
   const orders=(await q('SELECT amount,payer,status FROM table_orders WHERE paid_at>=$1 AND paid_at<$2',[from,to])).rows;
   const posAmount=taishinManual.reconcile(orders,null,{venues}).pos.amount;
   let input;try{input=taishinManual.manualInput(req.body,posAmount);}catch(e){return res.status(e.status||400).json({error:e.message});}
-  const filledBy=req.auth.email||req.auth.sub||'';
+  const filledBy=actorOf(req.auth)||'';
   await q(`INSERT INTO pos_taishin_daily(day,amount,reason,filled_by,updated_at) VALUES($1,$2,$3,$4,now())
     ON CONFLICT (day) DO UPDATE SET amount=EXCLUDED.amount,reason=EXCLUDED.reason,filled_by=EXCLUDED.filled_by,updated_at=now()`,[day,input.amount,input.reason,filledBy]);
   res.json({ok:true,day,amount:input.amount,reason:input.reason,diff:input.amount-posAmount});
@@ -5060,7 +5073,7 @@ app.post('/api/admin/registers/open',auth,adminOnly,requireDb,wrap(async(req,res
     const open=(await client.query('SELECT id,venue,opened_by FROM pos_registers WHERE day=$1 AND venue=$2 AND closed_at IS NULL',[day,venue])).rows[0];
     let row;try{row=posRegister.openRegister(req.body,{venue,open});}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
     const id=uid('rg_');
-    await client.query('INSERT INTO pos_registers(id,day,venue,opening_cash,opening_denominations,note,opened_by) VALUES($1,$2,$3,$4,$5,$6,$7)',[id,day,venue,row.opening_cash,row.denominations?JSON.stringify(row.denominations):null,row.note,req.auth.email||req.auth.sub||'']);
+    await client.query('INSERT INTO pos_registers(id,day,venue,opening_cash,opening_denominations,note,opened_by) VALUES($1,$2,$3,$4,$5,$6,$7)',[id,day,venue,row.opening_cash,row.denominations?JSON.stringify(row.denominations):null,row.note,actorOf(req.auth)||'']);
     await client.query('COMMIT');res.status(201).json({ok:true,id,day,venue,opening_cash:row.opening_cash,denominations:row.denominations});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
@@ -5077,7 +5090,7 @@ app.post('/api/admin/registers/:id/cash',auth,adminOnly,requireDb,wrap(async(req
   if(r.closed_at)return res.status(409).json({error:'這本帳已關帳，不能再記臨時收支。'});
   let m;try{m=posRegister.cashMove(req.body);}catch(e){return res.status(e.status||400).json({error:e.message});}
   const id=uid('cm_');
-  await q('INSERT INTO pos_cash_moves(id,register_id,type,amount,reason,staff) VALUES($1,$2,$3,$4,$5,$6)',[id,r.id,m.type,m.amount,m.reason,req.auth.email||req.auth.sub||'']);
+  await q('INSERT INTO pos_cash_moves(id,register_id,type,amount,reason,staff) VALUES($1,$2,$3,$4,$5,$6)',[id,r.id,m.type,m.amount,m.reason,actorOf(req.auth)||'']);
   const s=await registerSummary(r);
   res.status(201).json({ok:true,id,...m,expected_cash:s.summary.expected});
 }));
@@ -5093,7 +5106,7 @@ app.post('/api/admin/registers/:id/count',auth,adminOnly,requireDb,wrap(async(re
   if(r.closed_at)return res.status(409).json({error:'這本帳已關帳，不能再點驗；要看關帳點鈔請印關帳單。'});
   const s=await registerSummary(r);
   let c;try{c=posRegister.countRegister(req.body,s.summary);}catch(e){return res.status(e.status||400).json({error:e.message});}
-  const id=uid('rc_'),by=req.auth.email||req.auth.sub||'';
+  const id=uid('rc_'),by=actorOf(req.auth)||'';
   await q('INSERT INTO pos_register_counts(id,register_id,counted_cash,expected_cash,diff,denominations,note,counted_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[id,r.id,c.counted_cash,c.expected_cash,c.diff,c.denominations?JSON.stringify(c.denominations):null,c.note,by]);
   const s2=await registerSummary(r);
   res.status(201).json({ok:true,id,...c,counted_by:by,report:s2.report});
@@ -5104,7 +5117,7 @@ app.post('/api/admin/registers/:id/close',auth,adminOnly,requireDb,wrap(async(re
   if(r.closed_at)return res.status(409).json({error:'這本帳已經關過了。'});
   const s=await registerSummary(r);
   let c;try{c=posRegister.closeRegister(req.body,s.summary);}catch(e){return res.status(e.status||400).json({error:e.message});}
-  const closedBy=req.auth.email||req.auth.sub||'',closedAt=new Date().toISOString();
+  const closedBy=actorOf(req.auth)||'',closedAt=new Date().toISOString();
   const report=posRegister.registerReport({...r,closed_at:closedAt,closed_by:closedBy,...c,note:c.note},s.summary,s.sales,s.moves);
   const u=await q('UPDATE pos_registers SET closed_by=$2,closed_at=$3,counted_cash=$4,expected_cash=$5,diff=$6,keep_cash=$7,take_cash=$8,denominations=$9,close_note=$10,report=$11 WHERE id=$1 AND closed_at IS NULL',[r.id,closedBy,closedAt,c.counted_cash,c.expected_cash,c.diff,c.keep_cash,c.take_cash,c.denominations?JSON.stringify(c.denominations):null,c.note,JSON.stringify(report)]);
   if(!u.rowCount)return res.status(409).json({error:'這本帳已經關過了。'});
@@ -5117,7 +5130,7 @@ app.post('/api/admin/registers/:id/reopen',auth,adminOnly,superOnly,requireDb,wr
   const open=(await q('SELECT id FROM pos_registers WHERE day=$1 AND venue=$2 AND closed_at IS NULL',[r.day,r.venue])).rows[0];
   if(open)return res.status(409).json({error:'今天已經另有一本開著的帳。'});
   const id=uid('rg_');
-  await q('INSERT INTO pos_registers(id,day,venue,opening_cash,note,opened_by,reopened_at,reopened_by) VALUES($1,$2,$3,$4,$5,$6,now(),$6)',[id,r.day,r.venue,r.keep_cash||0,'重開補單（接 '+r.id+'）',req.auth.email||req.auth.sub||'']);
+  await q('INSERT INTO pos_registers(id,day,venue,opening_cash,note,opened_by,reopened_at,reopened_by) VALUES($1,$2,$3,$4,$5,$6,now(),$6)',[id,r.day,r.venue,r.keep_cash||0,'重開補單（接 '+r.id+'）',actorOf(req.auth)||'']);
   res.status(201).json({ok:true,id,day:r.day,venue:r.venue,opening_cash:r.keep_cash||0});
 }));
 /* ===== 收款帳戶：現金／刷卡／LINE Pay／轉帳為內建（table-orders.PAY_METHODS，不給改／不給停用）；
@@ -5137,7 +5150,7 @@ async function activePaymentCodes(){
 app.post('/api/admin/payment-methods',auth,adminOnly,superOnly,requireDb,wrap(async(req,res)=>{
   const existing=(await q('SELECT code FROM pos_payment_methods')).rows.map(r=>r.code);
   let m;try{m=posPaymentMethods.methodInput(req.body,existing);}catch(e){return res.status(e.status||400).json({error:e.message});}
-  await q('INSERT INTO pos_payment_methods(code,label,created_by) VALUES($1,$2,$3)',[m.code,m.label,req.auth.email||req.auth.sub||'']);
+  await q('INSERT INTO pos_payment_methods(code,label,created_by) VALUES($1,$2,$3)',[m.code,m.label,actorOf(req.auth)||'']);
   res.status(201).json({ok:true,code:m.code,label:m.label,active:true,builtin:false});
 }));
 app.patch('/api/admin/payment-methods/:code',auth,adminOnly,superOnly,requireDb,wrap(async(req,res)=>{
@@ -5229,7 +5242,7 @@ app.post('/api/admin/staff',auth,adminOnly,notOperator,requireDb,wrap(async(req,
   if(s.pin&&taken.includes(s.pin))return res.status(409).json({error:'這組識別碼已有人使用，請換一組。'});
   let pin;try{pin=s.pin||posStaff.randomPin(taken);}catch(e){return res.status(e.status||400).json({error:e.message});}
   const id=uid('st_');
-  await q('INSERT INTO pos_staff(id,name,pin,venues,role,note,active,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[id,s.name,pin,s.venues?s.venues.join(','):null,s.role,s.note,s.active,req.auth.email||req.auth.sub||'']);
+  await q('INSERT INTO pos_staff(id,name,pin,venues,role,note,active,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[id,s.name,pin,s.venues?s.venues.join(','):null,s.role,s.note,s.active,actorOf(req.auth)||'']);
   res.status(201).json({ok:true,id,name:s.name,pin,venues:s.venues,role:s.role,active:s.active});
 }));
 async function loadStaff(req,res){
@@ -5274,7 +5287,7 @@ app.post('/api/admin/shifts',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const warnings=posStaff.shiftWarnings(s,mine);
   if((await q('SELECT 1 FROM pos_days_off WHERE staff_id=$1 AND day=$2',[s.staff_id,s.day])).rowCount)warnings.unshift(`${staff.name} 這天有排休`);
   const id=uid('sh_');
-  await q('INSERT INTO pos_shifts(id,staff_id,day,venue,start_time,end_time,note,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[id,s.staff_id,s.day,s.venue,s.start,s.end,s.note,req.auth.email||req.auth.sub||'']);
+  await q('INSERT INTO pos_shifts(id,staff_id,day,venue,start_time,end_time,note,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[id,s.staff_id,s.day,s.venue,s.start,s.end,s.note,actorOf(req.auth)||'']);
   res.status(201).json({ok:true,id,staff_id:s.staff_id,name:staff.name,day:s.day,venue:s.venue,start_time:s.start,end_time:s.end,minutes:s.minutes,note:s.note,warnings,month});
 }));
 /* 自動排班：body { from }（該週任一天，以週一起 7 天）；依人力需求把沒排休、不違反勞基法規則的員工排進去；既有班保留。回新增的班與排不滿的警示 */
@@ -5287,7 +5300,7 @@ app.post('/api/admin/shifts/auto',auth,adminOnly,requireDb,wrap(async(req,res)=>
   const daysOff=(await q('SELECT id,staff_id,day,note FROM pos_days_off WHERE day BETWEEN $1 AND $2',[monday,sunday])).rows.map(r=>({staff_id:r.staff_id,day:r.day}));
   const staffing=await loadStaffing(venues);
   const out=posStaff.autoSchedule({monday,staff,daysOff,shifts,staffing,venues});
-  const by=req.auth.email||req.auth.sub||'';
+  const by=actorOf(req.auth)||'';
   for(const s of out.added){s.id=uid('sh_');await q('INSERT INTO pos_shifts(id,staff_id,day,venue,start_time,end_time,note,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[s.id,s.staff_id,s.day,s.venue,s.start,s.end,s.note,by]);}
   res.json({ok:true,from:monday,to:sunday,added:out.added.map(s=>({id:s.id,staff_id:s.staff_id,name:s.name,day:s.day,venue:s.venue,start_time:s.start,end_time:s.end,minutes:s.minutes,note:s.note})),warnings:out.warnings});
 }));
@@ -5398,7 +5411,7 @@ app.patch('/api/admin/attendance/:id',auth,adminOnly,notOperator,requireDb,wrap(
   const r=(await q('SELECT id,staff_id,day,venue,clock_in,clock_out,break_minutes,note FROM pos_attendance WHERE id=$1',[req.params.id])).rows[0];
   if(!r||(venues&&!venues.includes(r.venue)))return res.status(404).json({error:'找不到這筆出勤。'});
   let f;try{f=posStaff.attendanceFix(req.body,r);}catch(e){return res.status(e.status||400).json({error:e.message});}
-  await q('UPDATE pos_attendance SET clock_in=$2,clock_out=$3,minutes=$4,note=$5,day=$6,edited_by=$7,edited_at=now(),break_minutes=$8 WHERE id=$1',[r.id,f.clock_in,f.clock_out,f.minutes,f.note,f.day,req.auth.email||req.auth.sub||'',f.break_minutes]);
+  await q('UPDATE pos_attendance SET clock_in=$2,clock_out=$3,minutes=$4,note=$5,day=$6,edited_by=$7,edited_at=now(),break_minutes=$8 WHERE id=$1',[r.id,f.clock_in,f.clock_out,f.minutes,f.note,f.day,actorOf(req.auth)||'',f.break_minutes]);
   res.json({ok:true,id:r.id,day:f.day,clock_in:f.clock_in,clock_out:f.clock_out,minutes:f.minutes,hours:f.minutes==null?null:posStaff.hoursDecimal(f.minutes),break_minutes:f.break_minutes,note:f.note});
 }));
 /* 刪一筆出勤（誤打） */
@@ -5454,7 +5467,7 @@ app.get('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=>
   const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
   const from=/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from||''))?String(req.query.from):new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Taipei'});
   const days=Math.min(60,Math.max(1,Number(req.query.days)||7));
-  const rows=(await q(`SELECT id,request_id,to_char(reserve_date,'YYYY-MM-DD') AS reserve_date,reserve_time,period,party_size,name,phone,email,note,source,status,table_no,staff_note,handled_by,created_at,updated_at FROM dining_reservations WHERE reserve_date>=$1::date AND reserve_date<$1::date+$2::int AND deleted_at IS NULL ORDER BY reserve_date,reserve_time`,[from,days])).rows
+  const rows=(await q(`SELECT id,request_id,to_char(reserve_date,'YYYY-MM-DD') AS reserve_date,reserve_time,period,party_size,name,phone,email,note,source,status,table_no,staff_note,COALESCE((SELECT name FROM pos_staff ps WHERE 'staff:'||ps.id=handled_by),handled_by) AS handled_by,created_at,updated_at FROM dining_reservations WHERE reserve_date>=$1::date AND reserve_date<$1::date+$2::int AND deleted_at IS NULL ORDER BY reserve_date,reserve_time`,[from,days])).rows
     .map(r=>({...r,venue:tableOrders.reservationVenue(r.reserve_time)})).filter(r=>!venues||venues.includes(r.venue));
   const pending=Number((await q("SELECT COUNT(*)::int AS n FROM dining_reservations WHERE status='new' AND reserve_date>=CURRENT_DATE")).rows[0].n);
   res.json({reservations:rows,from,days,pending,labels:tableOrders.RESERVATION_LABEL});
@@ -5466,9 +5479,9 @@ app.post('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=
   if(venues&&!venues.includes(tableOrders.reservationVenue(r.time)))return res.status(403).json({error:'只能登記自己店別時段的訂位。'});
   const tableNo=tableOrders.cleanText(req.body?.table_no,8).toUpperCase();
   if(tableNo&&!tableOrders.TABLE_RE.test(tableNo))return res.status(400).json({error:'桌號只能用英數字與 -，最長 8 字。'});
-  const id=uid('dr_'),requestId='R'+new Date().toISOString().slice(2,10).replace(/-/g,'')+'-'+crypto.randomBytes(2).toString('hex').toUpperCase();
-  await q(`INSERT INTO dining_reservations(id,request_id,reserve_date,reserve_time,period,party_size,name,phone,email,lang,note,source,status,table_no,handled_by)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'confirmed',$13,$14)`,[id,requestId,r.date,r.time,r.period,r.partySize,r.name,r.phone,r.email,r.lang,r.note,r.source,tableNo,req.auth.email||req.auth.sub||'']);
+  const id=uid('dr_');
+  const requestId=await insertWithRequestId(rid=>q(`INSERT INTO dining_reservations(id,request_id,reserve_date,reserve_time,period,party_size,name,phone,email,lang,note,source,status,table_no,handled_by)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'confirmed',$13,$14)`,[id,rid,r.date,r.time,r.period,r.partySize,r.name,r.phone,r.email,r.lang,r.note,r.source,tableNo,actorOf(req.auth)||'']));
   if(r.email)sendMailQuietly({to:r.email,subject:reservations.guestSubject(r),text:reservations.guestMail(r,requestId),replyTo:NOTIFY_EMAIL,idempotencyKey:'reservation-confirm/'+id});
   res.status(201).json({ok:true,id,request_id:requestId,venue:tableOrders.reservationVenue(r.time),mailed:!!r.email});
 }));
@@ -5479,7 +5492,7 @@ app.post('/api/admin/reservations/:id/status',auth,adminOnly,requireDb,wrap(asyn
   let next;try{next=tableOrders.reservationTransition(r.status,String(req.body?.status||''));}catch(e){return res.status(e.status||400).json({error:e.message});}
   const tableNo=tableOrders.cleanText(req.body?.table_no,8).toUpperCase(),staffNote=tableOrders.cleanText(req.body?.staff_note,200);
   if(tableNo&&!tableOrders.TABLE_RE.test(tableNo))return res.status(400).json({error:'桌號只能用英數字與 -，最長 8 字。'});
-  await q('UPDATE dining_reservations SET status=$2,table_no=COALESCE(NULLIF($3,\'\'),table_no),staff_note=$4,handled_by=$5,updated_at=now() WHERE id=$1',[r.id,next,tableNo,staffNote,req.auth.email||req.auth.sub||'']);
+  await q('UPDATE dining_reservations SET status=$2,table_no=COALESCE(NULLIF($3,\'\'),table_no),staff_note=$4,handled_by=$5,updated_at=now() WHERE id=$1',[r.id,next,tableNo,staffNote,actorOf(req.auth)||'']);
   const mail=tableOrders.reservationReplyMail({...r,table_no:tableNo||r.table_no},next,{origin:SITE_BASE,staffNote});
   if(mail&&req.body?.notify!==false)sendMailQuietly({...mail,replyTo:NOTIFY_EMAIL});
   res.json({ok:true,status:next,mailed:!!(mail&&req.body?.notify!==false)});
