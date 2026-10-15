@@ -28,3 +28,12 @@ test('legacy CMS copy is projected without changing storage, IDs, menu or assets
   assert.match(publicText('<img src="/assets/space/3f-concept.jpg" alt="三樓活動">'), /alt="等等空間活動"/);
   assert.doesNotMatch(publicText('二、三樓會員空間 / 2F and 3F / 2階・3階 / 屋上 / 屋根裏 / attic'),/樓|\dF|階|屋上|屋根裏|attic/);
 });
+test('public rich-content locales cannot restore legacy level copy',()=>{
+  const {publicEventCopy}=require('../lib/public-copy');
+  const event={id:'4F',rich_content:{zh:'<p>一樓白天是咖啡，入夜是酒；樓上是閱讀與工作。</p>',en:'<p>Coffee on the ground floor; upstairs for work.</p>',ja:'<p>1 階はコーヒー、上階は仕事。</p>'}};
+  const original=JSON.stringify(event);
+  const out=publicEventCopy(event);
+  for(const html of Object.values(out.rich_content)) assert.doesNotMatch(html,/一樓|樓上|ground floor|upstairs|1\s*階|上階/i);
+  assert.equal(JSON.stringify(event),original);
+  assert.equal(out.id,'4F');
+});
