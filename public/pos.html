@@ -96,6 +96,7 @@
   .p-login-card h1{font-size:22px;font-weight:600;margin:0}
   .p-login-card p{color:var(--muted);margin:0 0 8px}
   .p-login-card .btn{width:100%}
+  .p-login-card input{width:100%;min-width:0}
   .p-center{text-align:center;padding:60px 0;color:var(--muted)}
   /* 安裝提示（只在未安裝為 App 時顯示一次） */
   .p-install{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;padding:12px 14px;border:1px dashed var(--line);border-radius:10px;background:var(--accent-soft);margin-bottom:14px}
@@ -178,7 +179,7 @@ const AUTH_ORIGIN = /^pos\./i.test(location.hostname) ? location.origin.replace(
 
 // token：登入完成由 /auth/google 或 Email 連結以 #token= 帶回，讀取後立即從網址移除
 const hash = new URLSearchParams(location.hash.slice(1));
-const justLoggedInByGmail = !!hash.get('token');
+let justLoggedInByAdmin = !!hash.get('token');
 if (hash.get('token')) { localStorage.setItem(KEY, hash.get('token')); history.replaceState(null,'',location.pathname.startsWith('/pos') ? location.pathname : '/pos'); }
 let token = localStorage.getItem(KEY);
 
@@ -208,9 +209,32 @@ function renderLogin(msg){
     <h1>言文字 POS</h1>
     <p>${esc(msg || '請用在咖啡／三點水的管理員帳號登入；登入一次後本裝置就能用四位數密碼登入。')}</p>
     <a class="btn btn--solid" href="${esc(AUTH_ORIGIN)}/auth/google?redirect=${redirect}">使用 Google 登入</a>
-    <a class="btn btn--ghost" href="/event-login.html?redirect=${redirect}">使用 Email 登入</a>
+    <form id="pos-password-login" class="a-form" style="display:grid;margin:0">
+      <label>Email<input name="email" type="email" autocomplete="username" required></label>
+      <label>密碼<input name="password" type="password" autocomplete="current-password" required></label>
+      <button class="btn btn--solid" type="submit">使用 Email 與密碼登入</button>
+      <p id="pos-login-error" role="alert" hidden></p>
+    </form>
+    <a class="btn btn--ghost" href="/event-login.html?redirect=${redirect}">使用 Email 登入連結</a>
     ${DEVICE_BOUND ? `<button type="button" class="btn btn--ghost btn-sm" id="pin-back">改用四位數密碼登入</button>` : ''}
   </div></div>`;
+  const form = document.getElementById('pos-password-login');
+  form.onsubmit = async event => {
+    event.preventDefault();
+    const button = form.querySelector('button'), error = document.getElementById('pos-login-error');
+    if (button.disabled) return;
+    button.disabled = true; error.hidden = true;
+    try {
+      const result = await api('/auth/admin/password', { method:'POST', body:{ email:form.elements.email.value, password:form.elements.password.value } });
+      form.elements.password.value = '';
+      token = result.token; localStorage.setItem(KEY, token);
+      justLoggedInByAdmin = true;
+      await main();
+    } catch (e) {
+      form.elements.password.value = '';
+      error.textContent = e.message || '登入失敗，請稍後再試。'; error.hidden = false; button.disabled = false;
+    }
+  };
   const back = document.getElementById('pin-back'); if (back) back.onclick = () => renderPinLogin();
 }
 
@@ -353,7 +377,7 @@ async function main(){
     const d = await api('/state');
     if (d.role !== 'admin') return showLoginScreen('此帳號沒有後台權限，請改用在咖啡／三點水的管理員帳號登入。');
     if (d.brands && !d.brands.some(b => BRAND_LABEL[b])) return showLoginScreen('此帳號不是餐飲品牌的管理員（等等空間請用 /admin）。');
-    if (justLoggedInByGmail && !d.me?.operator) api('/admin/pos-devices/bind', { method:'POST', body:{ device_id: DEVICE_ID } }).then(() => { DEVICE_BOUND = true; }).catch(() => {});
+    if (justLoggedInByAdmin && !d.me?.operator) api('/admin/pos-devices/bind', { method:'POST', body:{ device_id: DEVICE_ID } }).then(() => { DEVICE_BOUND = true; }).catch(() => {});
     DATA = d;
     MENU_DOC = (typeof d.content?.menu === 'string' && d.content.menu.trim()) ? MenuLib.parseMenuDoc(d.content.menu) : MenuLib.parseMenuDoc('');
     TAB = routeTab();

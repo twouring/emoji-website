@@ -35,7 +35,7 @@ test('pos.html：開機先查裝置是否綁定，未綁定走 Gmail、綁定後
   assert.match(pos, /function showLoginScreen\(msg\)\{ return DEVICE_BOUND \? renderPinLogin\(msg\) : renderLogin\(msg\); \}/);
   assert.match(pos, /function renderPinLogin\(msg\)\{/);
   assert.match(pos, /api\('\/pos-devices\/' \+ encodeURIComponent\(DEVICE_ID\) \+ '\/pin-login', \{ method:'POST', body:\{ pin \} \}\)/);
-  assert.match(pos, /if \(justLoggedInByGmail && !d\.me\?\.operator\) api\('\/admin\/pos-devices\/bind'/);
+  assert.match(pos, /if \(justLoggedInByAdmin && !d\.me\?\.operator\) api\('\/admin\/pos-devices\/bind'/);
   assert.doesNotMatch(pos, /localStorage\.setItem\([^)]*pin\b/i, '密碼不可寫進 localStorage');
 });
 
