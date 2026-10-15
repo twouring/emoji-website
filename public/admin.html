@@ -46,7 +46,7 @@
   .a-nav-foot{margin-top:auto;padding:12px 10px 0;border-top:1px solid var(--line);font-size:1rem;color:var(--muted);line-height:1.45;overflow-wrap:anywhere}
   .a-nav-foot b{display:block;color:var(--ink-soft);font-weight:500}
   .a-tab-nav{display:flex;flex-direction:column;gap:16px}
-  /* 品牌切換：攤開在頂欄中央的膠囊按鈕（言文字／在咖啡／三點水／等等空間），一鍵切換不用展開選單 */
+  /* 品牌切換：攤開在頂欄中央的膠囊按鈕（言文字／在咖啡／三點水），一鍵切換不用展開選單 */
   .a-workspaces{display:none;align-items:center;gap:6px;flex:none;max-width:50vw;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:4px 0}
   .a-workspaces::-webkit-scrollbar{display:none}
   .a-workspaces.on{display:flex}
@@ -328,7 +328,6 @@ let MENU_SEEDED = false;
 let APPLICATIONS = null, APPLICATION_EVENT = '', APPLICATION_LOADING = false;
 let APPLICATION_REVIEWING = '', APPLICATION_MESSAGE = '';
 let CAL_MONTH = null;            // 行事曆月份 'YYYY-MM'；null=本月
-let COUNTER_UID = '';             // 櫃檯：選定的會員
 let LOGS = null, SYSTEM_SETTINGS = null;
 const APPLICATION_DRAFTS = new Map();
 const APPLICATION_UPDATE_DRAFTS = new Map();
@@ -487,7 +486,7 @@ function tabOverview(d, x){
   <div class="a-sec" id="overview-todo">${overviewTodoHTML(d, x)}</div>
   <div class="a-sec">
     <h2>快速指引</h2>
-    <p class="hint">這裡管理所有品牌共用的會員、會費、官網消息、社群與系統設定。品牌現場營運拆到上方品牌列，點一下即切換：<b>在咖啡</b>與<b>三點水</b>管理櫃檯結帳、點餐出餐、訂位、日結報表及各自菜單；<b>等等空間</b>管理活動、行事曆與櫃檯。每個工作區與分頁都有獨立網址，可直接加入書籤。<a href="/access-mock" target="_blank" rel="noopener">門禁 Mock</a> 可協助手動驗簽與掃碼啟用。</p>
+    <p class="hint">這裡管理所有品牌共用的會員、會費、官網消息、社群、廣告、活動與行事曆——在咖啡／三點水的品牌子帳號也能使用這些共用分頁。品牌現場營運（櫃檯結帳、點餐出餐、訂位、排班打卡、菜單）已全部移到 <b>pos.emoji.tw</b>，後台品牌列只保留<b>在咖啡</b>與<b>三點水</b>的日結報表；「權限管理」「系統設定」「操作紀錄」僅言文字管理員可用。每個工作區與分頁都有獨立網址，可直接加入書籤。<a href="/access-mock" target="_blank" rel="noopener">門禁 Mock</a> 可協助手動驗簽與掃碼啟用。</p>
   </div>`;
 }
 
@@ -499,11 +498,11 @@ function overviewTodoHTML(d, x){
   const item = (href, n, label) => `<a class="a-todo-item" href="${href}"><span class="n${n===0?' zero':''}">${n===null?'…':n}</span><span class="l">${label}</span></a>`;
   return `<h2>今日待辦</h2>
     <div class="a-todo">
-      ${d.organizer?'':item(BASE+'/space/events/applications', apps, '待審場地申請')}
+      ${d.organizer?'':item(BASE+'/shared/events/applications', apps, '待審場地申請')}
       ${d.organizer?'':item(BASE+'/shared/commitments', pendingPay, '待入帳會費')}
-      ${item(BASE+'/space/events', upcoming.length, '7 天內活動')}
+      ${item(BASE+'/shared/events', upcoming.length, '7 天內活動')}
     </div>
-    ${upcoming.length?`<ul class="a-todo-list">${upcoming.map(({e})=>`<li><a href="${BASE}/space/events/${encodeURIComponent(e.id)}">${esc(e.title)}</a><span class="meta">${esc(e.starts_at||'')} · ${esc(e.location||'')}</span><span class="meta">報名 ${e.reg_count||0}${e.capacity>0?'／'+e.capacity:''} · 已到 ${e.checkin_count||0}</span></li>`).join('')}</ul>`:'<p class="hint" style="margin:10px 0 0">未來 7 天沒有進行中的活動。</p>'}`;
+    ${upcoming.length?`<ul class="a-todo-list">${upcoming.map(({e})=>`<li><a href="${BASE}/shared/events/${encodeURIComponent(e.id)}">${esc(e.title)}</a><span class="meta">${esc(e.starts_at||'')} · ${esc(e.location||'')}</span><span class="meta">報名 ${e.reg_count||0}${e.capacity>0?'／'+e.capacity:''} · 已到 ${e.checkin_count||0}</span></li>`).join('')}</ul>`:'<p class="hint" style="margin:10px 0 0">未來 7 天沒有進行中的活動。</p>'}`;
 }
 function paintOverviewTodo(){
   const host = document.getElementById('overview-todo'); if (!host || !DATA) return;
@@ -1017,57 +1016,6 @@ function paintCalendar(){
   document.getElementById('cal-now').onclick = ()=>{ CAL_MONTH=null; paintCalendar(); };
 }
 
-/* ===== 櫃檯：現場開通會籍、贈點 ===== */
-function tabCounter(){ return '<div class="a-sec" id="counter-body"></div>'; }
-function paintCounter(){
-  const host = document.getElementById('counter-body'); if (!host) return;
-  const users = (DATA && DATA.users) || [];
-  const u = users.find(x=>x.id===COUNTER_UID) || null;
-  const plans = { day_4h:'單日 4 小時 NT$200', day_12h:'單日 12 小時 NT$500', month:'月會員 NT$4,000（贈 1,000 點）', quarter:'季會員 NT$10,000（贈 3,000 點）', year:'年會員 NT$35,000（贈 10,000 點）' };
-  host.innerHTML = `<h2>櫃檯</h2>
-    <p class="hint">現場收款後在這裡開通會籍或發點。收款本身不經系統（現金／刷卡機），開通後會員專區即時生效；月季年會籍自動贈點。</p>
-    <div class="a-toolbar"><input type="search" id="ct-q" placeholder="搜尋姓名 / Email / 電話…" style="min-width:260px" autofocus></div>
-    <div id="ct-results" class="ct-results"></div>
-    ${u ? `<div class="ct-card">
-      <div><b>${esc(u.name||'—')}</b> <span class="a-mono">${esc(u.email||'')}</span> ${esc(u.phone||'')}</div>
-      <div class="hint" style="margin:6px 0 14px">點數 ${u.points_balance!=null?Number(u.points_balance):'—'} · ${esc(u.access_summary||'無有效會籍')} ${u.access_active?'<span class="pill pill-ok">門禁有效</span>':''}</div>
-      <div class="a-toolbar" style="flex-wrap:wrap">
-        <select id="ct-plan">${Object.entries(plans).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select>
-        <button class="btn btn--solid btn-sm" id="ct-grant-plan">開通會籍</button>
-      </div>
-      <div class="a-toolbar" style="flex-wrap:wrap">
-        <input id="ct-pts" type="number" min="1" placeholder="贈點數" style="width:110px">
-        <input id="ct-note" placeholder="備註（必填，例：現場加購）" style="min-width:220px">
-        <button class="btn btn--ghost btn-sm" id="ct-grant-pts">發點</button>
-      </div>
-    </div>` : '<p class="a-empty">先搜尋並選擇會員。</p>'}`;
-  const q = document.getElementById('ct-q');
-  const results = document.getElementById('ct-results');
-  const paintResults = () => {
-    const kw = q.value.trim().toLowerCase();
-    if (!kw) { results.innerHTML=''; return; }
-    const hits = users.filter(x=>((x.name||'')+' '+(x.email||'')+' '+(x.phone||'')).toLowerCase().includes(kw)).slice(0,8);
-    results.innerHTML = hits.length ? hits.map(x=>`<button type="button" class="ct-hit${x.id===COUNTER_UID?' on':''}" data-uid="${esc(x.id)}"><b>${esc(x.name||'—')}</b> <span class="a-mono">${esc(x.email||'')}</span> <span>${esc(x.access_summary||'')}</span></button>`).join('') : '<p class="a-empty">找不到會員；請先請對方以 Google 登入會員專區。</p>';
-    results.querySelectorAll('[data-uid]').forEach(b=>b.onclick=()=>{ COUNTER_UID=b.dataset.uid; paintCounter(); document.getElementById('ct-q').value=kw; paintResultsAfter(); });
-  };
-  const paintResultsAfter = () => { const qq=document.getElementById('ct-q'); if (qq && qq.value) qq.dispatchEvent(new Event('input')); };
-  q.oninput = paintResults;
-  if (u) {
-    document.getElementById('ct-grant-plan').onclick = () => {
-      const plan = document.getElementById('ct-plan').value;
-      if (!confirm(`確定為 ${u.name||u.email} 開通「${plans[plan]}」？`)) return;
-      doThen(()=>api('/admin/entitlements',{method:'POST',body:{ user_id:u.id, plan }}),'已開通會籍');
-    };
-    document.getElementById('ct-grant-pts').onclick = () => {
-      const amount = Number(document.getElementById('ct-pts').value);
-      const note = document.getElementById('ct-note').value.trim();
-      if (!Number.isInteger(amount) || amount<1) { toast('請輸入點數'); return; }
-      if (!note) { toast('備註必填'); return; }
-      doThen(()=>api('/admin/points/grants',{method:'POST',body:{ user_id:u.id, amount, note }}),'已發放點數');
-    };
-  }
-}
-
 /* ===== 操作紀錄（超管） ===== */
 function paymentMethodsBlock(d){
   const rows=(d.payment_methods||[]).map(m=>`<tr><td>${esc(m.label)}</td><td>${m.builtin?'<span class="pill pill-draft">內建</span>':m.active?'<span class="pill pill-ok">啟用中</span>':'<span class="pill pill-bad">已停用</span>'}</td><td class="ops-actions">${m.builtin?'':`<div class="ops-btns"><button class="btn btn--ghost btn-sm" data-pm-rename="${esc(m.code)}">改名</button><button class="btn btn--ghost btn-sm" data-pm-toggle="${esc(m.code)}" data-on="${m.active?'0':'1'}">${m.active?'停用':'恢復'}</button></div>`}</td></tr>`).join('')||'<tr><td colspan="3" class="a-empty">尚無收款帳戶</td></tr>';
@@ -1121,33 +1069,36 @@ async function loadLogs(){
 function tabAdmins(d){
   const body = (d.users||[]).filter(u=>u.email).map(u=>`<tr>
     <td>${esc(u.name)}</td><td class="a-mono">${esc(u.email)}</td>
-    <td>${u.is_admin?`<span class="pill pill-ok">${u.admin_brand?esc(u.admin_brand.split(',').map(b=>BRAND_LABEL[b]).join('＋'))+' 子帳號':'言文字管理員'}</span>`:'<span class="pill pill-wait">一般</span>'}</td>
+    <td>${u.is_admin?`<span class="pill pill-ok">${u.admin_brand?esc(u.admin_brand.split(',').map(b=>BRAND_LABEL[b]||b).join('＋'))+' 子帳號':'言文字管理員'}</span>`:'<span class="pill pill-wait">一般</span>'}</td>
     <td>${d.super?`<span data-brand-for="${u.id}">${Object.entries(BRAND_LABEL).map(([v,l])=>`<label style="margin-right:8px;white-space:nowrap"><input type="checkbox" value="${v}" ${(u.admin_brand||'').split(',').includes(v)?'checked':''}> ${l}</label>`).join('')}</span> <button class="btn btn--ghost btn-sm" data-admin="${u.id}" data-on="1">${u.is_admin?'更新範圍':'設為管理員'}</button>${u.is_admin?` <button class="btn btn--ghost btn-sm" data-admin="${u.id}" data-on="0">取消管理員</button>`:''}`:''}</td>
   </tr>`).join('') || '<tr><td colspan="4" class="a-empty">尚無使用者</td></tr>';
   return `<div class="a-sec">
     <h2>權限管理</h2>
-    <p class="hint">對象須先登入過本站。只有超管可授予管理員。品牌全不勾＝言文字管理員，可從上方品牌列切換全部四個工作區；勾選一個以上＝品牌子帳號，只能進勾選的品牌工作區（可同時多個品牌）。在咖啡／三點水子帳號有「櫃檯結帳」「點餐出餐」「訂位」「日結報表」「排班打卡」「菜單」（限自己店別），等等空間子帳號只有「活動」「行事曆」「櫃檯」。外部主辦人不在這裡設定：到「等等空間 → 活動」開啟該場活動的「主辦團隊」，加入對方 Email 並勾選「共同管理本活動」，對方即可從 /organizer/events 管理那一場。</p>
+    <p class="hint">對象須先登入過本站。只有超管可授予管理員。品牌全不勾＝言文字管理員，可進全部工作區；勾選一個以上＝品牌子帳號，除了勾選的品牌工作區（在咖啡／三點水只剩「日結報表」，現場營運請改用 pos.emoji.tw），也會一併進入言文字工作區的共用分頁（會員、會費、消息、社群、廣告、活動、行事曆），但「權限管理」「系統設定」「操作紀錄」僅言文字管理員可用。外部主辦人不在這裡設定：到「言文字 → 活動」開啟該場活動的「主辦團隊」，加入對方 Email 並勾選「共同管理本活動」，對方即可從 /organizer/events 管理那一場。</p>
     <div class="a-wrap2"><table class="a-tbl">
       <thead><tr><th>姓名</th><th>Email</th><th>目前</th><th>操作</th></tr></thead>
       <tbody>${body}</tbody></table></div>
   </div>`;
 }
 
-/* 後台分成四個工作區：言文字管理所有品牌共用事務；三個品牌各自管理營運資料。
-   言文字管理員（brands 為空）可進全部工作區；品牌子帳號只看授權工作區（伺服器端同步把關）。 */
-const ROOT_TABS = ['overview','members','commitments','updates','social','ads','permissions','system','logs'];
-const BRAND_TABS = { CAFE:['pos','orders','reservations','history','sales','staff','menu'], BAR:['pos','orders','reservations','history','sales','staff','menu'], SPACE:['events','calendar','counter'] };
-const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水', SPACE:'等等空間' };
+/* 後台分成三個工作區：言文字管理所有品牌共用事務（含會員、會費、消息、社群、廣告、活動、行事曆），
+   在咖啡／三點水各自只剩日結報表（現場營運：櫃檯結帳、點餐出餐、訂位、排班打卡、菜單全部搬到 pos.emoji.tw，不再進 admin）。
+   言文字管理員（brands 為空）可進全部工作區；品牌子帳號除了自己的品牌工作區，也能進言文字工作區的共用分頁，
+   但「權限管理」「系統設定」「操作紀錄」三頁僅言文字管理員可用（伺服器端同步把關）。
+   等等空間工作區已於 2026-10 移除：原本的「活動」「行事曆」併入言文字；「櫃檯」（現場開通會籍／贈點）功能一併下架。 */
+const ROOT_TABS = ['overview','members','commitments','updates','social','ads','events','calendar','permissions','system','logs'];
+const ROOT_TABS_BRAND = ['overview','members','commitments','updates','social','ads','events','calendar'];
+const BRAND_TABS = { CAFE:['sales'], BAR:['sales'] };
+const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水' };
 const WORKSPACES = {
   '':{ slug:'shared', label:'言文字', note:'所有品牌共用', mark:'言', tabs:ROOT_TABS },
-  CAFE:{ slug:'cafe', label:'在咖啡', note:'餐飲營運', mark:'咖', tabs:BRAND_TABS.CAFE },
-  BAR:{ slug:'bar', label:'三點水', note:'餐飲營運', mark:'水', tabs:BRAND_TABS.BAR },
-  SPACE:{ slug:'space', label:'等等空間', note:'場地與活動', mark:'等', tabs:BRAND_TABS.SPACE },
+  CAFE:{ slug:'cafe', label:'在咖啡', note:'日結報表', mark:'咖', tabs:BRAND_TABS.CAFE },
+  BAR:{ slug:'bar', label:'三點水', note:'日結報表', mark:'水', tabs:BRAND_TABS.BAR },
 };
 const SCOPE_BY_SLUG = Object.fromEntries(Object.entries(WORKSPACES).map(([scope,w])=>[w.slug,scope]));
 let SCOPE = ''; try { SCOPE = localStorage.getItem('tth_scope') || ''; } catch (e) {}
-const scopesOf = d => d?.organizer ? [''] : d?.brands || ['', ...Object.keys(BRAND_LABEL)];
-const scopeTabs = () => WORKSPACES[SCOPE].tabs;
+const scopesOf = d => d?.organizer ? [''] : d?.brands ? ['', ...d.brands].filter(s => WORKSPACES[s]) : ['', ...Object.keys(BRAND_LABEL)];
+const scopeTabs = () => SCOPE === '' && DATA && DATA.brands ? ROOT_TABS_BRAND : WORKSPACES[SCOPE].tabs;
 function setScope(s){ SCOPE = s; try { localStorage.setItem('tth_scope', s); } catch (e) {} }
 const homeTab = d => d?.organizer ? 'events' : scopeTabs()[0];
 const TABS = [
@@ -1156,7 +1107,6 @@ const TABS = [
   { id:'commitments', label:'參與紀錄', render:tabCommitments },
   { id:'events',      label:'活動',     render:tabEvents },
   { id:'calendar',    label:'行事曆',   render:tabCalendar },
-  { id:'counter',     label:'櫃檯',     render:tabCounter },
   { id:'pos',         label:'櫃檯結帳', render:tabPos },
   { id:'orders',      label:'點餐出餐', render:tabOrders },
   { id:'reservations',label:'訂位',     render:tabReservations },
@@ -1172,7 +1122,7 @@ const TABS = [
   { id:'logs',        label:'操作紀錄', render:tabLogs, super:true },
 ];
 const NAV_GROUPS = [
-  ['營運', ['overview','members','commitments','events','calendar','counter','pos','orders','reservations','history','sales','staff']],
+  ['營運', ['overview','members','commitments','events','calendar','pos','orders','reservations','history','sales','staff']],
   ['內容', ['updates','menu']],
   ['行銷', ['social','ads']],
   ['系統', ['permissions','system','logs']],
@@ -1184,7 +1134,6 @@ const ICONS = {
   commitments:  '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/>',
   events:       '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
   calendar:     '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>',
-  counter:      '<path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 9l2-5h14l2 5"/><path d="M12 13v4"/>',
   orders:       '<path d="M3 11h18"/><path d="M5 11a7 7 0 0 1 14 0"/><path d="M2 15h20"/><path d="M12 4v1"/>',
   pos:          '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h3M15 15h3"/>',
   reservations: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M9 15l2 2 4-4"/>',
@@ -1255,7 +1204,7 @@ function render(d){
   if (crumb) {
     crumb.hidden = false;
     document.getElementById('a-crumb-workspace').textContent = d.organizer ? '活動主後台' : WORKSPACES[SCOPE].label;
-    document.getElementById('a-role').textContent = d.organizer ? '活動主' : d.super ? '言文字 · 超級管理員' : d.brands ? d.brands.map(b=>BRAND_LABEL[b]).join('＋')+' · 子帳號' : '言文字 · 管理員';
+    document.getElementById('a-role').textContent = d.organizer ? '活動主' : d.super ? '言文字 · 超級管理員' : d.brands ? d.brands.map(b=>BRAND_LABEL[b]||b).join('＋')+' · 子帳號' : '言文字 · 管理員';
   }
   document.querySelectorAll('[data-scope]').forEach(button=>button.onclick=()=>{
     setScope(button.dataset.scope); TAB=homeTab(d); render(DATA); go(TAB,true);
@@ -1318,7 +1267,6 @@ function applyRoute(){
   activateTab(tab);
   if (tab === 'overview') { if (APPLICATIONS===null && !DATA?.organizer) loadApplications().then(paintOverviewTodo); return; }
   if (tab === 'calendar') { if (APPLICATIONS===null) loadApplications().then(paintCalendar); paintCalendar(); return; }
-  if (tab === 'counter') { paintCounter(); return; }
   if (tab === 'orders') { loadOrders(); return; }
   if (tab === 'pos') { loadPos(); return; }
   if (tab === 'reservations') { loadReservations(); return; }

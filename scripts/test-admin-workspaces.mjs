@@ -7,22 +7,33 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const html = fs.readFileSync(path.join(root, 'public/admin.html'), 'utf8');
 
-test('後台分為言文字與三個品牌工作區', () => {
+test('後台分為言文字與兩個品牌工作區（等等空間已移除）', () => {
   assert.match(html, /const WORKSPACES = \{/);
   assert.match(html, /label:'言文字'/);
   assert.match(html, /note:'所有品牌共用'/);
   assert.match(html, /CAFE:\{ slug:'cafe', label:'在咖啡'/);
   assert.match(html, /BAR:\{ slug:'bar', label:'三點水'/);
-  assert.match(html, /SPACE:\{ slug:'space', label:'等等空間'/);
+  assert.doesNotMatch(html, /SPACE:\{ slug:'space'/);
+  assert.doesNotMatch(html, /label:'等等空間'/);
 });
 
-test('各工作區只呈現所屬功能', () => {
-  assert.match(html, /ROOT_TABS = \['overview','members','commitments','updates','social','ads','permissions','system','logs'\]/);
-  // 餐飲兩店：櫃檯結帳、出餐看板、訂位、查單、日結、排班打卡、菜單（現場營運閉環）
-  assert.match(html, /CAFE:\['pos','orders','reservations','history','sales','staff','menu'\]/);
-  assert.match(html, /BAR:\['pos','orders','reservations','history','sales','staff','menu'\]/);
-  assert.match(html, /SPACE:\['events','calendar','counter'\]/);
-  assert.match(html, /const scopeTabs = \(\) => WORKSPACES\[SCOPE\]\.tabs/);
+test('POS 相關分頁從 admin 移除，品牌工作區只剩日結報表；活動／行事曆併入言文字', () => {
+  assert.match(html, /ROOT_TABS = \['overview','members','commitments','updates','social','ads','events','calendar','permissions','system','logs'\]/);
+  assert.match(html, /ROOT_TABS_BRAND = \['overview','members','commitments','updates','social','ads','events','calendar'\]/);
+  assert.match(html, /BRAND_TABS = \{ CAFE:\['sales'\], BAR:\['sales'\] \}/);
+  assert.doesNotMatch(html, /CAFE:\['pos','orders'/, '在咖啡工作區不應再有 POS 分頁');
+  assert.doesNotMatch(html, /SPACE:\['events','calendar','counter'\]/);
+  assert.match(html, /const scopeTabs = \(\) => SCOPE === '' && DATA && DATA\.brands \? ROOT_TABS_BRAND : WORKSPACES\[SCOPE\]\.tabs/);
+});
+
+test('品牌子帳號也能進言文字共用工作區，但權限／系統設定／記錄仍限言文字管理員', () => {
+  assert.match(html, /const scopesOf = d => d\?\.organizer \? \[''\] : d\?\.brands \? \['', \.\.\.d\.brands\]\.filter\(s => WORKSPACES\[s\]\) : \['', \.\.\.Object\.keys\(BRAND_LABEL\)\]/);
+  // ROOT_TABS_BRAND（品牌子帳號在言文字工作區可見的分頁）不含這三頁
+  assert.doesNotMatch(html.match(/ROOT_TABS_BRAND = \[[^\]]*\]/)[0], /permissions|system|logs/);
+});
+
+test('等等空間「櫃檯」（現場開通會籍／贈點）功能已下架', () => {
+  assert.doesNotMatch(html, /tabCounter|paintCounter|COUNTER_UID/);
 });
 
 test('品牌切換攤開在頂欄，不再藏在下拉選單或側欄', () => {
@@ -46,4 +57,10 @@ test('新網址包含工作區且舊網址仍可轉址', () => {
   assert.match(html, /return slug\+\(clean\?'\/'\+clean:''\)/);
   assert.match(html, /const requestedScope = SCOPE_BY_SLUG\[routeParts\.shift\(\)\]/);
   assert.match(html, /舊網址相容：未帶工作區或工作區不符時/);
+});
+
+test('活動相關連結改用言文字（shared）工作區網址，不再指向已移除的 space 工作區', () => {
+  assert.doesNotMatch(html, /BASE\+'\/space\/events/);
+  assert.doesNotMatch(html, /\$\{BASE\}\/space\/events/);
+  assert.match(html, /BASE\+'\/shared\/events/);
 });

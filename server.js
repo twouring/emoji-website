@@ -1631,14 +1631,21 @@ function doorAuth(req, res, next) {
     return res.status(401).json({ error: '門禁憑證無效。' });
   next();
 }
-/* 品牌子帳號可用的後台 API；言文字管理員（brand 為空）不受限。餐飲兩店＝櫃檯結帳＋點餐出餐＋訂位＋日結＋菜單，等等空間＝活動／場地申請／櫃檯 */
+/* 品牌子帳號可用的後台 API；言文字管理員（brand 為空）不受限。
+   餐飲兩店（在咖啡／三點水）＝ POS 完整功能（給 pos.emoji.tw 用；admin 後台已不提供這些畫面，只留日結報表）。
+   言文字共用（會員發點、會費、消息、社群、廣告、活動、行事曆／場地申請）對「所有」品牌子帳號開放，
+   不分品牌——對應 admin 後台把這些分頁併入言文字工作區、開放給所有品牌子帳號的決定；
+   「權限管理」「系統設定」「操作紀錄」刻意不在這裡，維持言文字管理員專屬。 */
 const FOOD_API = /^\/api\/admin\/(orders|tables|content|menu|reservations|sales|registers|staff|shifts|attendance|payment-methods|pos-devices)(\/|$)/;
-const BRAND_API = { CAFE: FOOD_API, BAR: FOOD_API, SPACE: /^\/api\/admin\/(events|event-applications|entitlements|points|upload)(\/|$)/ };
+const SHARED_API = /^\/api\/admin\/(updates|commitments|events|event-applications|social|ads|upload\/social|x\/compose|ig|points\/grants|users\/[^/]+\/points)(\/|$)/;
+const BRAND_API = { CAFE: FOOD_API, BAR: FOOD_API };
 const ADMIN_BRANDS = Object.keys(BRAND_API);
+// SPACE 僅為相容舊資料（2026-10 前的等等空間子帳號），不再是獨立工作區／品牌，也不可再被指派
+const KNOWN_BRANDS = [...ADMIN_BRANDS, 'SPACE'];
 // users.admin_brand（逗號分隔）→ 品牌陣列；空＝null＝言文字管理員
-const parseBrands = v => { const b = ADMIN_BRANDS.filter(x => String(v || '').split(',').includes(x)); return b.length ? b : null; };
-const brandDenied = req => !!req.auth.brands && !req.auth.brands.some(b => BRAND_API[b].test(req.path));
-const eventAdmin = req => req.auth.role === 'admin' && (!req.auth.brands || req.auth.brands.includes('SPACE'));
+const parseBrands = v => { const b = KNOWN_BRANDS.filter(x => String(v || '').split(',').includes(x)); return b.length ? b : null; };
+const brandDenied = req => !!req.auth.brands && !req.auth.brands.some(b => BRAND_API[b]?.test(req.path)) && !SHARED_API.test(req.path);
+const eventAdmin = req => req.auth.role === 'admin';
 function adminOnly(req, res, next) {
   if (req.auth.role !== 'admin') return res.status(403).json({ error: '需要後台權限。' });
   if (brandDenied(req)) return res.status(403).json({ error: '此功能由言文字管理員管理。' });

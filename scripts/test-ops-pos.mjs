@@ -230,8 +230,8 @@ test('server.js 接線：客人加菜擋暫停與估清、櫃檯端點、清桌�
 
 test('後台與客人端接線：新分頁、估清快速鍵、暫停點餐、訂位 Email 欄位', () => {
   const admin = read('public/admin.html'), ops = read('public/pos-ops.js'), order = read('public/order.html'), reserve = read('public/reserve.html'), reserveJs = read('public/reserve.js');
-  assert.match(admin, /CAFE:\['pos','orders','reservations','history','sales','staff','menu'\]/);
-  assert.match(admin, /BAR:\['pos','orders','reservations','history','sales','staff','menu'\]/);
+  // 2026-10 起：後台品牌工作區只留日結報表，櫃檯結帳／點餐出餐／訂位／查單記錄等現場操作全部搬到 pos.emoji.tw
+  assert.match(admin, /BRAND_TABS = \{ CAFE:\['sales'\], BAR:\['sales'\] \}/);
   assert.match(admin, /\{ id:'history',\s+label:'查單',\s+render:tabHistory \}/); assert.match(admin, /if \(tab === 'history'\) \{ loadHistory\(\); return; \}/);
   // 餐飲營運畫面抽成 /pos-ops.js，後台與平板 POS（pos.emoji.tw）共用
   assert.match(admin, /<script src="\/pos-ops\.js"><\/script>/); assert.match(admin, /<link rel="stylesheet" href="\/pos-ops\.css">/);

@@ -348,8 +348,11 @@ test('brand sub-accounts only reach their own admin APIs and menu items', async 
   const token = signToken({ sub: user.id, role: 'admin' }, secret);
   const edit = (id, price) => { const doc = JSON.parse(menu); doc.items.find(it => it.id === id).price = price; return JSON.stringify(doc); };
   assert.equal((await request('/api/admin/orders', undefined, token)).status, 200);
-  for (const url of ['/api/admin/system-settings', '/api/admin/logs', '/api/admin/event-applications', '/api/admin/events/e_x/hosts'])
+  // 權限管理／系統設定／操作紀錄維持言文字管理員專屬，品牌子帳號一律擋下（不分品牌）
+  for (const url of ['/api/admin/system-settings', '/api/admin/logs'])
     assert.equal((await request(url, undefined, token)).status, 403, url);
+  // 活動／行事曆／場地申請（言文字共用分頁）2026-10 起對所有品牌子帳號開放，不再是等等空間專屬
+  assert.equal((await request('/api/admin/event-applications', undefined, token)).status, 200);
   assert.equal((await request('/api/admin/content', { key: 'about', value: 'x' }, token)).status, 403);
   assert.equal((await request('/api/admin/content', { key: 'menu', value: edit('m_bar', 1) }, token)).status, 403);
   assert.equal(saved, null);
