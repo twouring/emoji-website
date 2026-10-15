@@ -33,7 +33,7 @@ test('品牌子帳號也能進言文字共用工作區，但權限／系統設�
   assert.doesNotMatch(html.match(/ROOT_TABS_BRAND = \[[^\]]*\]/)[0], /permissions|system|logs/);
 });
 
-test('等等空間「櫃檯」（現場開通會籍／贈點）功能已下架', () => {
+test('等等空間「櫃檯」（現場開通會籍）功能已下架', () => {
   assert.doesNotMatch(html, /tabCounter|paintCounter|COUNTER_UID/);
 });
 
