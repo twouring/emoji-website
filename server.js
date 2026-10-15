@@ -1679,6 +1679,11 @@ function superOnly(req, res, next) {
   if (req.auth.super !== true) return res.status(403).json({ error: '需要超級管理員權限。' });
   next();
 }
+// 員工管理（新增／編輯員工、修正出勤）只給用 Gmail／Email 登入的管理員：平板上用四位數密碼登入的現場人員（operator_staff_id）不能改員工資料，避免現場亂動
+function notOperator(req, res, next) {
+  if (req.auth.operator_staff_id) return res.status(403).json({ error: '員工管理請用管理員帳號到後台（admin.emoji.tw）操作。' });
+  next();
+}
 const wrap = fn => (req, res) => fn(req, res).catch(e => {
   const paymentUnavailable = e && (e.code === 'api_key_expired' ||
     ['StripeAuthenticationError', 'StripePermissionError', 'StripeConnectionError', 'StripeRateLimitError', 'StripeAPIError'].includes(e.type));
@@ -5218,7 +5223,7 @@ app.get('/api/admin/staff',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   res.json({staff:rows,count:rows.length});
 }));
 /* 新增員工：body { name, pin?, venues?, role?, note? }；沒給識別碼就抽一組沒人用的 */
-app.post('/api/admin/staff',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+app.post('/api/admin/staff',auth,adminOnly,notOperator,requireDb,wrap(async(req,res)=>{
   let s;try{s=posStaff.staffInput(req.body,{own:req.auth.brands});}catch(e){return res.status(e.status||400).json({error:e.message});}
   const taken=(await q('SELECT pin FROM pos_staff WHERE active')).rows.map(r=>r.pin);
   if(s.pin&&taken.includes(s.pin))return res.status(409).json({error:'這組識別碼已有人使用，請換一組。'});
@@ -5236,7 +5241,7 @@ async function loadStaff(req,res){
   return s;
 }
 /* 編輯員工：部分更新 { name?, pin?, venues?, role?, note?, active? }；active:false＝停用（離職），識別碼釋出 */
-app.patch('/api/admin/staff/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+app.patch('/api/admin/staff/:id',auth,adminOnly,notOperator,requireDb,wrap(async(req,res)=>{
   const cur=await loadStaff(req,res);if(!cur)return;
   let s;try{s=posStaff.staffInput(req.body,{own:req.auth.brands,existing:cur});}catch(e){return res.status(e.status||400).json({error:e.message});}
   if(s.pin&&s.pin!==cur.pin&&(await q('SELECT 1 FROM pos_staff WHERE pin=$1 AND active AND id<>$2',[s.pin,cur.id])).rowCount)return res.status(409).json({error:'這組識別碼已有人使用，請換一組。'});
@@ -5366,7 +5371,7 @@ app.get('/api/admin/attendance',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   res.json({from,to,rows,working,summary:posStaff.attendanceSummary(rows),csv:posStaff.attendanceCsv(rows)});
 }));
 /* 修正出勤（補打卡／忘了下班）：body { clock_in?, clock_out?, note? }（ISO 時間）；記修改人 */
-app.patch('/api/admin/attendance/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+app.patch('/api/admin/attendance/:id',auth,adminOnly,notOperator,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(String(req.params.id||'')))return res.status(404).json({error:'找不到這筆出勤。'});
   const venues=tableOrders.visibleVenues(req.auth.brands);
   const r=(await q('SELECT id,staff_id,day,venue,clock_in,clock_out,break_minutes,note FROM pos_attendance WHERE id=$1',[req.params.id])).rows[0];
@@ -5376,7 +5381,7 @@ app.patch('/api/admin/attendance/:id',auth,adminOnly,requireDb,wrap(async(req,re
   res.json({ok:true,id:r.id,day:f.day,clock_in:f.clock_in,clock_out:f.clock_out,minutes:f.minutes,hours:f.minutes==null?null:posStaff.hoursDecimal(f.minutes),break_minutes:f.break_minutes,note:f.note});
 }));
 /* 刪一筆出勤（誤打） */
-app.delete('/api/admin/attendance/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+app.delete('/api/admin/attendance/:id',auth,adminOnly,notOperator,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(String(req.params.id||'')))return res.status(404).json({error:'找不到這筆出勤。'});
   const venues=tableOrders.visibleVenues(req.auth.brands);
   const r=(await q('SELECT id,venue FROM pos_attendance WHERE id=$1',[req.params.id])).rows[0];

@@ -486,7 +486,7 @@ function tabOverview(d, x){
   <div class="a-sec" id="overview-todo">${overviewTodoHTML(d, x)}</div>
   <div class="a-sec">
     <h2>快速指引</h2>
-    <p class="hint">這裡管理所有品牌共用的會員、會費、官網消息、社群、廣告、活動與行事曆——在咖啡／三點水的品牌子帳號也能使用這些共用分頁。品牌現場營運（櫃檯結帳、點餐出餐、訂位、排班打卡、菜單）已全部移到 <b>pos.emoji.tw</b>，後台品牌列只保留<b>在咖啡</b>與<b>三點水</b>的日結報表；「權限管理」「系統設定」「操作紀錄」僅言文字管理員可用。每個工作區與分頁都有獨立網址，可直接加入書籤。<a href="/access-mock" target="_blank" rel="noopener">門禁 Mock</a> 可協助手動驗簽與掃碼啟用。</p>
+    <p class="hint">這裡管理所有品牌共用的會員、會費、官網消息、社群、廣告、活動與行事曆——在咖啡／三點水的品牌子帳號也能使用這些共用分頁。品牌現場營運（櫃檯結帳、點餐出餐、訂位、菜單）已全部移到 <b>pos.emoji.tw</b>，後台品牌列只保留<b>在咖啡</b>與<b>三點水</b>的日結報表與排班打卡（員工管理只能在這裡做，平板上的現場人員改不到）；「權限管理」「系統設定」「操作紀錄」僅言文字管理員可用。每個工作區與分頁都有獨立網址，可直接加入書籤。<a href="/access-mock" target="_blank" rel="noopener">門禁 Mock</a> 可協助手動驗簽與掃碼啟用。</p>
   </div>`;
 }
 
@@ -1074,7 +1074,7 @@ function tabAdmins(d){
   </tr>`).join('') || '<tr><td colspan="4" class="a-empty">尚無使用者</td></tr>';
   return `<div class="a-sec">
     <h2>權限管理</h2>
-    <p class="hint">對象須先登入過本站。只有超管可授予管理員。品牌全不勾＝言文字管理員，可進全部工作區；勾選一個以上＝品牌子帳號，除了勾選的品牌工作區（在咖啡／三點水只剩「日結報表」，現場營運請改用 pos.emoji.tw），也會一併進入言文字工作區的共用分頁（會員、會費、消息、社群、廣告、活動、行事曆），但「權限管理」「系統設定」「操作紀錄」僅言文字管理員可用。外部主辦人不在這裡設定：到「言文字 → 活動」開啟該場活動的「主辦團隊」，加入對方 Email 並勾選「共同管理本活動」，對方即可從 /organizer/events 管理那一場。</p>
+    <p class="hint">對象須先登入過本站。只有超管可授予管理員。品牌全不勾＝言文字管理員，可進全部工作區；勾選一個以上＝品牌子帳號，除了勾選的品牌工作區（在咖啡／三點水只剩「日結報表」「排班打卡」，現場營運請改用 pos.emoji.tw），也會一併進入言文字工作區的共用分頁（會員、會費、消息、社群、廣告、活動、行事曆），但「權限管理」「系統設定」「操作紀錄」僅言文字管理員可用。外部主辦人不在這裡設定：到「言文字 → 活動」開啟該場活動的「主辦團隊」，加入對方 Email 並勾選「共同管理本活動」，對方即可從 /organizer/events 管理那一場。</p>
     <div class="a-wrap2"><table class="a-tbl">
       <thead><tr><th>姓名</th><th>Email</th><th>目前</th><th>操作</th></tr></thead>
       <tbody>${body}</tbody></table></div>
@@ -1082,18 +1082,19 @@ function tabAdmins(d){
 }
 
 /* 後台分成三個工作區：言文字管理所有品牌共用事務（含會員、會費、消息、社群、廣告、活動、行事曆），
-   在咖啡／三點水各自只剩日結報表（現場營運：櫃檯結帳、點餐出餐、訂位、排班打卡、菜單全部搬到 pos.emoji.tw，不再進 admin）。
+   在咖啡／三點水各自只剩日結報表與排班打卡（員工管理）；現場營運（櫃檯結帳、點餐出餐、訂位、菜單）全部搬到 pos.emoji.tw，不再進 admin。
+   員工的新增／編輯／停用與出勤修正刻意留在 admin：平板上用四位數密碼登入的現場人員不能自己改員工資料（伺服器端同步把關）。
    言文字管理員（brands 為空）可進全部工作區；品牌子帳號除了自己的品牌工作區，也能進言文字工作區的共用分頁，
    但「權限管理」「系統設定」「操作紀錄」三頁僅言文字管理員可用（伺服器端同步把關）。
    等等空間工作區已於 2026-10 移除：原本的「活動」「行事曆」併入言文字；「櫃檯」（現場開通會籍／贈點）功能一併下架。 */
 const ROOT_TABS = ['overview','members','commitments','updates','social','ads','events','calendar','permissions','system','logs'];
 const ROOT_TABS_BRAND = ['overview','members','commitments','updates','social','ads','events','calendar'];
-const BRAND_TABS = { CAFE:['sales'], BAR:['sales'] };
+const BRAND_TABS = { CAFE:['sales','staff'], BAR:['sales','staff'] };
 const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水' };
 const WORKSPACES = {
   '':{ slug:'shared', label:'言文字', note:'所有品牌共用', mark:'言', tabs:ROOT_TABS },
-  CAFE:{ slug:'cafe', label:'在咖啡', note:'日結報表', mark:'咖', tabs:BRAND_TABS.CAFE },
-  BAR:{ slug:'bar', label:'三點水', note:'日結報表', mark:'水', tabs:BRAND_TABS.BAR },
+  CAFE:{ slug:'cafe', label:'在咖啡', note:'日結報表、排班打卡', mark:'咖', tabs:BRAND_TABS.CAFE },
+  BAR:{ slug:'bar', label:'三點水', note:'日結報表、排班打卡', mark:'水', tabs:BRAND_TABS.BAR },
 };
 const SCOPE_BY_SLUG = Object.fromEntries(Object.entries(WORKSPACES).map(([scope,w])=>[w.slug,scope]));
 let SCOPE = ''; try { SCOPE = localStorage.getItem('tth_scope') || ''; } catch (e) {}

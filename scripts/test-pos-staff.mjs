@@ -202,9 +202,14 @@ test('接線：POS 多「排班」「打卡」分頁、後台餐飲工作區多�
   // 平板用自製數字鍵盤（不彈系統鍵盤），畫面只顯示 4 個點、不顯示數字；送出後立刻清空
   assert.match(ops, /class="clock-pin"/, '識別碼以點顯示'); assert.match(ops, /const pin=CLOCK_PIN;CLOCK_PIN='';/, '送出即清空識別碼');
   assert.doesNotMatch(ops, /\$\{CLOCK_PIN\}|esc\(CLOCK_PIN\)/, '識別碼不可印到畫面');
-  // 2026-10 起：後台品牌工作區只留日結報表，排班打卡等現場操作全部搬到 pos.emoji.tw
-  assert.match(admin, /BRAND_TABS = \{ CAFE:\['sales'\], BAR:\['sales'\] \}/);
+  // 2026-10-15 決策：員工管理（新增／編輯／停用、出勤修正）只在 admin 品牌工作區「排班打卡」，平板 POS 不放「員工」分頁，
+  // 且伺服器端把用四位數密碼登入的現場人員（operator_staff_id）擋在這些寫入端點之外，避免現場亂動
+  assert.match(admin, /BRAND_TABS = \{ CAFE:\['sales','staff'\], BAR:\['sales','staff'\] \}/);
   assert.match(admin, /\{ id:'staff',\s+label:'排班打卡',\s+render:tabStaff \}/); assert.match(admin, /if \(tab === 'staff'\) \{ loadStaff\(\); return; \}/);
+  assert.doesNotMatch(pos, /id:'staff'/, '平板 POS 不放員工管理分頁'); assert.doesNotMatch(ops, /loadStaffPage/);
+  assert.match(server, /function notOperator\(req, res, next\) \{\s*if \(req\.auth\.operator_staff_id\) return res\.status\(403\)/);
+  for (const ep of ["app.post('/api/admin/staff',auth,adminOnly,notOperator,", "app.patch('/api/admin/staff/:id',auth,adminOnly,notOperator,", "app.patch('/api/admin/attendance/:id',auth,adminOnly,notOperator,", "app.delete('/api/admin/attendance/:id',auth,adminOnly,notOperator,"]) assert.ok(server.includes(ep), ep);
+  assert.ok(server.includes("app.get('/api/admin/staff',auth,adminOnly,requireDb"), '員工名單仍開放給操作人員（排班／打卡要用）');
   assert.match(sw, /VERSION = 'pos-v([4-9]|\d{2,})'/, '新分頁要換 service worker 快取版本（≥ v4）');
   // 休息：平板四顆鍵；上班中名單標休息中／該休息；伺服器打卡端點收 break_start／break_end、出勤表有 breaks 欄
   for (const s of ['id="clock-break-start"', 'id="clock-break-end"', "punch('break_start')", "punch('break_end')", 'on-break', 'needs-break', '休息中（']) assert.ok(ops.includes(s), s);
