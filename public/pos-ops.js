@@ -726,10 +726,11 @@ function paintClock(host,working){
   const msg=CLOCK_MSG?`<div class="clock-msg ${CLOCK_MSG.ok?'ok':'bad'}" role="status">${esc(CLOCK_MSG.text)}</div>`:'';
   // 上班中名單：休息中標示、連續工作滿 4 小時沒休息的標紅（勞基法第 35 條：連續工作 4 小時至少休息 30 分鐘）
   const list=working.map(w=>`<li class="${w.on_break?'on-break':w.needs_break?'needs-break':''}"><b>${esc(w.name)}</b><span>${esc(clockText(w.clock_in))} 上班${SCOPE?'':' · '+esc(BRAND_LABEL[w.venue]||w.venue)}${w.shift_end?` · 排到 ${esc(w.shift_end)}`:''}${w.break_minutes?` · 已休 ${esc(hoursText(w.break_minutes))}`:''}</span>${w.on_break?`<em>休息中（${esc(clockText(w.break_since))} 起）</em>`:w.needs_break?`<em>已連續工作 ${esc(hoursText(w.continuous_minutes))}，該休息了</em>`:''}</li>`).join('');
-  host.innerHTML=`<div class="ops-head"><h2>打卡</h2>${opsHelp('輸入你的 4 位數識別碼，按「上班」「下班」或「開始休息」「結束休息」。連續工作 4 小時要休息至少 30 分鐘，休息時間不算工時。忘記識別碼請找店長。')}</div>
+  host.innerHTML=`<div class="ops-head"><h2>打卡</h2>${opsHelp('輸入你的 4 位數識別碼，按「上班」「下班」或「開始休息」「結束休息」。連續工作 4 小時要休息至少 30 分鐘，休息時間不算工時。忘了打卡就按下方「補打卡」自己補（只能補自己、7 天內、要寫原因）；忘記識別碼請找店長。')}</div>
     ${venueBtns}
     <div class="clock-pad"><div class="clock-pin" aria-label="識別碼">${dots}</div><div class="clock-keys">${keys}</div>
-      <div class="clock-go"><button type="button" class="btn btn--solid" id="clock-in">上班</button><button type="button" class="btn btn--ghost" id="clock-out">下班</button><button type="button" class="btn btn--ghost" id="clock-break-start">開始休息</button><button type="button" class="btn btn--ghost" id="clock-break-end">結束休息</button></div></div>
+      <div class="clock-go"><button type="button" class="btn btn--solid" id="clock-in">上班</button><button type="button" class="btn btn--ghost" id="clock-out">下班</button><button type="button" class="btn btn--ghost" id="clock-break-start">開始休息</button><button type="button" class="btn btn--ghost" id="clock-break-end">結束休息</button></div>
+      <button type="button" class="clock-makeup" id="clock-makeup">忘了打卡？補打卡</button></div>
     ${msg}
     <h3>上班中</h3>${list?`<ul class="clock-list">${list}</ul>`:'<p class="a-empty">目前沒有人在班上</p>'}`;
   host.querySelectorAll('[data-venue]').forEach(b=>b.onclick=()=>{CLOCK_VENUE=b.dataset.venue;paintClock(host,working);});
@@ -740,6 +741,39 @@ function paintClock(host,working){
     api('/admin/attendance/punch',{method:'POST',body:{pin,type,venue:CLOCK_VENUE}}).then(out=>{CLOCK_MSG={ok:!out.break_short,text:out.message};},e=>{CLOCK_MSG={ok:false,text:e.message};}).then(loadClock);};
   host.querySelector('#clock-in').onclick=()=>punch('in');host.querySelector('#clock-out').onclick=()=>punch('out');
   host.querySelector('#clock-break-start').onclick=()=>punch('break_start');host.querySelector('#clock-break-end').onclick=()=>punch('break_end');
+  host.querySelector('#clock-makeup').onclick=()=>{if(CLOCK_PIN.length<4){CLOCK_MSG={ok:false,text:'請先輸入你的 4 位數識別碼，再按「補打卡」'};paintClock(host,working);return;}
+    const pin=CLOCK_PIN;CLOCK_PIN='';paintClock(host,working);openMakeup(pin,CLOCK_VENUE,()=>loadClock());};
+}
+/* 補打卡：忘了打上班／下班時，員工用自己的識別碼補登（只能補自己、過去 7 天內、要寫原因；後台出勤紀錄會標「補打卡」備註與補登人）。
+   時間用 datetime-local（台北時間字串直接送，不經裝置時區換算）；識別碼只留在閉包、送出即丟，不進 localStorage／DOM。 */
+function openMakeup(pin,venue,done){
+  const nowTp=localStamp(new Date().toISOString()).replace(' ','T'),minTp=localStamp(new Date(Date.now()-7*86400e3).toISOString()).replace(' ','T');
+  const ov=document.createElement('div');ov.className='op-overlay';document.body.appendChild(ov);
+  const close=()=>{if(ov.parentNode)ov.parentNode.removeChild(ov);};
+  const TYPES=[['both','整班（上班＋下班）'],['in','只補上班'],['out','只補下班']];
+  const REASONS=['忘記打卡','平板當機','臨時支援'];
+  ov.innerHTML=`<div class="op-card pos-opt" role="dialog" aria-label="補打卡"><div class="pos-opt-body">
+    <h2>補打卡 · ${esc(BRAND_LABEL[venue]||venue)}</h2><p class="hint" style="margin:0">只能補自己、過去 7 天內已經發生的時間；會記下「補打卡」與原因，店長看得到。</p>
+    <div class="pos-opt-group"><div class="pos-opt-title"><span>補哪一種</span></div><div class="pos-opt-choices mk-types">${TYPES.map(([v,t],i)=>`<label><input type="radio" name="mk_type" value="${v}" ${i===0?'checked':''}><span>${esc(t)}</span></label>`).join('')}</div></div>
+    <label class="pos-opt-group mk-field" data-mk="in,both"><div class="pos-opt-title"><span>上班時間</span></div><input type="datetime-local" id="mk-in" min="${minTp}" max="${nowTp}"></label>
+    <label class="pos-opt-group mk-field" data-mk="out,both"><div class="pos-opt-title"><span>下班時間</span></div><input type="datetime-local" id="mk-out" min="${minTp}" max="${nowTp}" value="${nowTp}"></label>
+    <label class="pos-opt-group mk-field" data-mk="out,both"><div class="pos-opt-title"><span>休息分鐘</span><small class="hint" style="margin:0">工時會扣掉；只補下班可留空＝用已記錄的休息</small></div><input type="number" id="mk-break" inputmode="numeric" min="0" max="600" placeholder="0"></label>
+    <label class="pos-opt-group mk-field"><div class="pos-opt-title"><span>原因</span><small class="hint" style="margin:0">必填</small></div><input type="text" id="mk-reason" maxlength="80" placeholder="例如：忘記打卡"><div class="mk-presets">${REASONS.map(r=>`<button type="button" data-mk-reason="${esc(r)}">${esc(r)}</button>`).join('')}</div></label>
+    <div class="clock-msg bad" id="mk-err" role="alert" hidden></div>
+  </div><div class="op-card-actions pos-opt-actions"><button type="button" class="btn btn--ghost" id="mk-cancel">取消</button><button type="button" class="btn btn--solid" id="mk-save">送出補打卡</button></div></div>`;
+  const $=sel=>ov.querySelector(sel),type=()=>ov.querySelector('[name=mk_type]:checked').value;
+  const sync=()=>{ov.querySelectorAll('[data-mk]').forEach(el=>{el.hidden=!el.dataset.mk.split(',').includes(type());});};
+  ov.querySelectorAll('[name=mk_type]').forEach(r=>r.onchange=sync);sync();
+  ov.querySelectorAll('[data-mk-reason]').forEach(b=>b.onclick=()=>{$('#mk-reason').value=b.dataset.mkReason;});
+  $('#mk-cancel').onclick=close;
+  $('#mk-save').onclick=()=>{const t=type(),err=$('#mk-err');err.hidden=true;
+    const body={pin,venue,reason:$('#mk-reason').value.trim()};
+    if(t!=='out')body.clock_in=$('#mk-in').value;if(t!=='in')body.clock_out=$('#mk-out').value;if(t!=='in'&&$('#mk-break').value!=='')body.break_minutes=Number($('#mk-break').value);
+    if(t!=='out'&&!body.clock_in){err.textContent='請填上班時間';err.hidden=false;return;}
+    if(t!=='in'&&!body.clock_out){err.textContent='請填下班時間';err.hidden=false;return;}
+    if(body.reason.length<2){err.textContent='請寫補打卡的原因';err.hidden=false;return;}
+    $('#mk-save').disabled=true;
+    api('/admin/attendance/makeup',{method:'POST',body}).then(out=>{close();CLOCK_MSG={ok:!out.break_short,text:out.message};done();},e=>{$('#mk-save').disabled=false;err.textContent=e.message;err.hidden=false;});};
 }
 
 /* ===== 加點選項：跟桌邊點餐同一套規格（order-lib.js 的 optionGroups：溫度／糖度／冰塊／飯量／麵量），備註格式也一樣

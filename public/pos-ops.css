@@ -232,3 +232,10 @@ tr.lp-refund td{color:#b42318}
   .a-tbl td.ops-actions{min-width:214px;padding-left:6px}.a-tbl td.ops-actions .btn{padding-left:10px;padding-right:10px}
   /* 出餐看板直式：操作欄讓三顆鍵折成兩列（已取餐／列印 作廢），整張表塞進 820px，不讓「作廢」被卡片邊緣切掉 */
   #orders-body .a-tbl td.ops-actions{min-width:150px;width:150px}#orders-body .a-tbl th.ops-th{white-space:normal}}
+/* 補打卡 */
+.clock-makeup{all:unset;box-sizing:border-box;display:block;margin:14px auto 0;min-height:48px;padding:0 18px;cursor:pointer;font-size:1rem;color:var(--muted);text-decoration:underline;text-underline-offset:3px}.clock-makeup:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.mk-field input{width:100%;box-sizing:border-box;min-height:48px;font:inherit;font-size:1rem;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
+.mk-field[hidden]{display:none}
+.mk-presets{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.mk-presets button{all:unset;box-sizing:border-box;cursor:pointer;min-height:44px;padding:0 14px;display:flex;align-items:center;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem}.mk-presets button:active{background:var(--paper-alt)}
+.mk-types{grid-template-columns:1fr}
+#mk-err{margin-top:14px;max-width:none}
