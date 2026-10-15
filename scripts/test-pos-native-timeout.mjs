@@ -1,0 +1,20 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+test('missing native callback completes boundedly, quarantines channel, and late callback cannot complete another job',async()=>{
+ const source=fs.readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');
+ const sdk=fs.readFileSync(new URL('../public/vendor/StarWebPrintTrader.js',import.meta.url),'utf8');
+ const messages=[],timers=new Map();let seq=0;
+ const ctx={Promise,toast(){},starReady:()=>true,STAR_WEBPRNT_URL:'https://localhost:8001/StarWebPRNT/SendMessage',navigator:{userAgent:'StarWebPRNTBrowser webPRNTSupportMessageHandler'},webkit:{messageHandlers:{sendMessageHandler:{postMessage:j=>messages.push(JSON.parse(j))}}},setTimeout(fn){timers.set(++seq,fn);return seq;},clearTimeout(id){timers.delete(id);},StarWebPrintBuilder:class{createInitializationElement(){return '<init/>';}createPeripheralElement(){return '<drawer/>';}}};
+ vm.createContext(ctx);vm.runInContext(sdk,ctx);
+ vm.runInContext(source.slice(source.indexOf('let STAR_NATIVE_UNCERTAIN='),source.indexOf('const DRAWER_ATTEMPTS=')),ctx);
+ const first=ctx.starSend({drawer:true});await Promise.resolve();assert.equal(messages.length,1);
+ assert.equal(timers.size,1,'application deadline exists even on native bridge');
+ [...timers.values()][0]();assert.equal(await first,false);
+ assert.equal(await ctx.starSend({drawer:true}),false,'unknown outcome blocks new sends without replay');assert.equal(messages.length,1);
+ const done={url:messages[0].url,htmlCode:200,response:'&lt;success&gt;true&lt;/success&gt;&lt;code&gt;0&lt;/code&gt;&lt;status&gt;0000000000000000&lt;/status&gt;'};
+ ctx._onFinish(done);
+ let settled=false;const next=ctx.starSend({drawer:true}).then(r=>{settled=true;return r;});await Promise.resolve();assert.equal(messages.length,2);assert.equal(settled,false);
+ ctx._onFinish(done);assert.equal(await next,true);assert.equal(messages.length,2);
+});

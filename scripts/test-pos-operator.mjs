@@ -37,7 +37,7 @@ test('接線：/api/admin/staff/verify 端點存在且限流、開桌與結帳�
   assert.match(ops, /localStorage\.getItem\('tth_pos_operator'\)/);
   assert.doesNotMatch(ops, /localStorage\.setItem\([^)]*\bOP_PIN\b/, '識別碼本身不可存進 localStorage，只能存認出來的 id/name');
   assert.match(ops, /api\('\/admin\/staff\/verify',\{method:'POST',body:\{pin\}\}\)/);
-  assert.match(ops, /ensureOperator\(\(\)=>\{const checkout=[^\n]+return opsThen\(\(\)=>api\('\/admin\/orders\/sessions\/'\+cur\.id\+'\/checkout'/, '結帳前要先確保有操作人員，並鎖住重複收款');
+  assert.match(ops, /ensureOperator\(\(\)=>runCheckoutOnce\(cur\.id,async\(\)=>\{const checkout=[^\n]+return await opsThen\(\(\)=>api\('\/admin\/orders\/sessions\/'\+cur\.id\+'\/checkout'/, '結帳前要先確保有操作人員，並鎖住重複收款');
   assert.match(ops, /operator_id:OPERATOR\?\.id/);
   assert.match(pos, /<button type="button" id="p-operator" aria-label="操作人員"><\/button>/);
   assert.match(pos, /document\.getElementById\('p-operator'\)\.onclick = \(\) => openOperatorPad/);

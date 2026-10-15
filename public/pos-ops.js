@@ -133,23 +133,49 @@ const starBrowserUrl=()=>'webprnt://starmicronics.com/open?url='+encodeURICompon
 function starHint(){toast('要印發票／開錢櫃，請用 Star webPRNT Browser 開 POS（iPad 以 USB-C 線接 mPOP）');}
 function starOpenHere(){if(confirm('印發票／開錢櫃要在 Star webPRNT Browser 裡操作（iPad 以 USB-C 線接 mPOP）。現在切換過去？'))location.href=starBrowserUrl();}
 // 組一份 webPRNT 請求送給 mPOP：canvas = 要印的點陣圖（可省略，只開錢櫃）；drawer = 先踢錢櫃
+// Native SDK keys callbacks by URL, not job id. Never clear its pending slot on timeout:
+// a late callback would otherwise be attributed to the next job. Fail closed until it drains.
+let STAR_NATIVE_UNCERTAIN=null;
 let STAR_PRINT_QUEUE=Promise.resolve();
 function starSend(job={}){const result=STAR_PRINT_QUEUE.then(()=>starSendNow(job));STAR_PRINT_QUEUE=result.catch(()=>false);return result;}
 function starSendNow({canvas=null,drawer=false}={}){
   if(!canvas&&!drawer)return Promise.resolve(false);
   if(!starReady())return Promise.resolve(false);
+  if(STAR_NATIVE_UNCERTAIN){toast('mPOP 前一筆結果未明，暫停傳送；請確認錢櫃與單據，等待回應或重新啟動 Star Browser，勿重複收退款。');return Promise.resolve(false);}
   const b=new StarWebPrintBuilder();let req=b.createInitializationElement({reset:true,print:true});
   if(drawer)req+=b.createPeripheralElement({channel:1,on:200,off:200});
   if(canvas)req+=b.createAlignmentElement({position:'center'})+b.createBitImageElement({context:canvas.getContext('2d'),x:0,y:0,width:canvas.width,height:canvas.height})+b.createFeedElement({line:3})+b.createCutPaperElement({feed:true,type:'partial'});
   return new Promise(resolve=>{
     const t=new StarWebPrintTrader({url:STAR_WEBPRNT_URL,timeout:15000});
-    t.onReceive=r=>{if(r.traderSuccess==='true')return resolve(true);toast(t.isPaperEnd(r)?'mPOP 沒紙了':t.isCoverOpen(r)?'mPOP 上蓋沒關':t.isOffLine(r)?'mPOP 離線：請確認 USB-C 線與電源':'mPOP 回報錯誤（'+r.traderCode+'）');resolve(false);};
-    t.onError=e=>{toast('連不到 mPOP（'+(e?.status||'')+'）：請確認 USB-C 線已接上、mPOP 已開機');resolve(false);};
-    t.onTimeout=()=>{toast('mPOP 沒有回應，請確認 USB-C 線與電源');resolve(false);};
-    try{t.sendMessage({request:req});}catch(e){toast('送出失敗：'+e.message);resolve(false);}
+    let settled=false;
+    const finish=ok=>{if(STAR_NATIVE_UNCERTAIN===t)STAR_NATIVE_UNCERTAIN=null;if(settled)return;settled=true;clearTimeout(deadline);resolve(ok);};
+    const deadline=setTimeout(()=>{if(settled)return;if(typeof _handlerCallback!=='undefined'&&_handlerCallback[STAR_WEBPRNT_URL]===t)STAR_NATIVE_UNCERTAIN=t;settled=true;toast('mPOP 回應逾時，結果未明；請檢查錢櫃與單據，勿重複收退款。');resolve(false);},16000);
+    t.onReceive=r=>{if(settled){finish(false);return;}if(r.traderSuccess==='true')return finish(true);toast(t.isPaperEnd(r)?'mPOP 沒紙了':t.isCoverOpen(r)?'mPOP 上蓋沒關':t.isOffLine(r)?'mPOP 離線：請確認 USB-C 線與電源':'mPOP 回報錯誤（'+r.traderCode+'）');finish(false);};
+    t.onError=e=>{if(!settled)toast('連不到 mPOP（'+(e?.status||'')+'）：請確認 USB-C 線已接上、mPOP 已開機');finish(false);};
+    t.onTimeout=()=>{if(!settled)toast('mPOP 沒有回應，請確認 USB-C 線與電源');finish(false);};
+    try{t.sendMessage({request:req});}catch(e){toast('送出失敗：'+e.message);finish(false);}
   });
 }
-function openCashDrawer({auto=false}={}){if(starReady()){return starSend({drawer:true}).then(ok=>{if(ok)toast('錢櫃已開');return ok;});}if(auto)starHint();else starOpenHere();}
+const DRAWER_ATTEMPTS=new Set(),CHECKOUT_BUSY=new Set();
+async function runCheckoutOnce(id,fn){if(CHECKOUT_BUSY.has(id))return;CHECKOUT_BUSY.add(id);try{return await fn();}finally{CHECKOUT_BUSY.delete(id);}}
+async function openCashDrawer({auto=false}={}){if(starReady()){const ok=await starSend({drawer:true});if(ok)toast('開櫃指令已送出');return ok;}if(auto)starHint();else starOpenHere();return false;}
+async function claimCashDrawer(event){
+  const out=await api('/admin/pos/drawer-events',{method:'POST',body:{...event,operator_id:OPERATOR?.id}});
+  if(!out.claimed)return false;
+  return await openCashDrawer({auto:true});
+}
+async function autoCashDrawer({kind,order_id,line,method,amount,payments,cash_refund=0}){
+  const cash=method==='cash'?Number(amount):(payments||[]).filter(p=>p.method==='cash').reduce((s,p)=>s+Math.max(0,Number(p.amount)||0),0);
+  if(!order_id||!(kind==='checkout'?cash>0:kind==='refund'&&Number(cash_refund)>0))return null;
+  const event_key=kind+':'+order_id+(line?':'+line:'');
+  if(DRAWER_ATTEMPTS.has(event_key))return false;DRAWER_ATTEMPTS.add(event_key);
+  try{const ok=await claimCashDrawer({event_key,kind,order_id,line,reason:kind==='checkout'?'現金結帳':'確認退現金'});if(ok)return true;}catch(e){/* 已完成的交易不可因開櫃失敗而重送。 */}
+  toast('交易已完成，未確認開櫃成功；請確認錢櫃，需要時按「開錢櫃」重試，勿重複收退款。');return false;
+}
+async function manualCashDrawer(reason){
+  if(!reason?.trim())return false;
+  try{const ok=await claimCashDrawer({event_key:'manual:'+crypto.randomUUID(),kind:'manual',reason:reason.trim()});if(!ok)toast('未確認開櫃成功，請檢查連線與錢櫃後再試。');return ok;}catch(e){toast('開櫃未送出：'+e.message);return false;}
+}
 const c39={0:'101001101101',1:'110100101011',2:'101100101011',3:'110110010101',4:'101001101011',5:'110100110101',6:'101100110101',7:'101001011011',8:'110100101101',9:'101100101101',A:'110101001011',B:'101101001011',C:'110110100101',D:'101011001011',E:'110101100101',F:'101101100101',G:'101010011011',H:'110101001101',I:'101101001101',J:'101011001101',K:'110101010011',L:'101101010011',M:'110110101001',N:'101011010011',O:'110101101001',P:'101101101001',Q:'101010110011',R:'110101011001',S:'101101011001',T:'101011011001',U:'110010101011',V:'100110101011',W:'110011010101',X:'100101101011',Y:'110010110101',Z:'100110110101','-':'100101011011','.':'110010101101',' ':'100110101101','$':'100100100101','/':'100100101001','+':'100101001001','%':'101001001001','*':'100101101101'};
 const invPick=(inv,...keys)=>{for(const k of keys){const v=inv?.[k]??inv?.result?.[k];if(v!==undefined&&v!==null&&String(v))return String(v);}return '';};
 function invoiceDateText(inv){const d=new Date(inv?.issued_at||Date.now());return isNaN(d)?'':d.toLocaleDateString('zh-TW',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'});}
@@ -176,10 +202,10 @@ async function invoiceProofCanvas(o){
   const encouragement=PosEncouragement.pick();y+=8;centerWrapped(encouragement.zh,22);centerWrapped(encouragement.en,18);
   const out=document.createElement('canvas');out.width=W;out.height=Math.ceil(y+8);const og=out.getContext('2d');og.fillStyle='#fff';og.fillRect(0,0,W,out.height);og.drawImage(c,0,0);return out;
 }
-// 印發票：在 Star webPRNT Browser 裡直接送 mPOP（現金可同時開錢櫃）；不在裡面時結帳流程只提示（auto），手動按鍵則問要不要切過去
-async function printInvoiceProof(o,{drawer=false,auto=false}={}){
+// 列印與開錢櫃完全分開，補印永遠不觸發開櫃。
+async function printInvoiceProof(o,{auto=false}={}){
   if(!o?.invoice||o.invoice.status!=='issued'){toast('這筆沒有可列印的已開立發票');return;}
-  if(starReady()){const canvas=await invoiceProofCanvas(o);const ok=await starSend({canvas,drawer});if(ok)toast(drawer?'發票已印出，錢櫃已開':'發票已印出');return;}
+  if(starReady()){const canvas=await invoiceProofCanvas(o);const ok=await starSend({canvas});if(ok)toast('發票已印出');return ok;}
   if(auto)starHint();else starOpenHere();
 }
 // 收據／出餐單共用 58mm 點陣排版，依實際文字寬度換行，避免備註被裁切。
@@ -198,7 +224,7 @@ function ticketLines(o,receipt=false){
 }
 async function printCheckoutOrder(order){
   // 各張單據獨立處理：發票失敗也要送出餐單；不重送收款、不自動重印。
-  try{if(order.invoice?.status==='issued')await printInvoiceProof(order,{drawer:order.payer?.method==='cash',auto:true});else if(order.payer?.method==='cash')await openCashDrawer({auto:true});}catch(e){toast('已收款，發票列印失敗，請到查單補印：'+e.message);}
+  try{if(order.invoice?.status==='issued')await printInvoiceProof(order,{auto:true});}catch(e){toast('已收款，發票列印失敗，請到查單補印：'+e.message);}
   try{await printOrder(order,{auto:true});}catch(e){toast('已收款，出餐單列印失敗，請到查單補印：'+e.message);}
 }
 // 出餐單（給吧檯／廚房）：桌號大字、分站列品項與備註
@@ -223,14 +249,16 @@ async function printReceipt(o){
     ${o.status==='void'?'<div class="t">【此單已作廢】</div>':''}
     <div class="c">單號 ${esc(o.id)}<br>謝謝光臨</div>`);
 }
-async function voidOrderPrompt(id,reload){
+async function voidOrderPrompt(id,reload,order){
   const reason=await pickReason({title:'作廢原因（會記在日結與操作紀錄）',presets:REASON_PRESETS.void_order});if(reason===null)return;
-  opsThen(()=>api('/admin/orders/'+id+'/void',{method:'POST',body:{reason}}),'已作廢，品項退回未結帳',reload);
+  const refundCash=order?.payer?.method==='cash'&&Number(order.amount)>0&&confirm('這次作廢是否要退還現金？\n確定：記錄退現金並自動開錢櫃。\n取消：只更正帳務，不退現金、不開櫃。');
+  return ensureOperator(()=>opsThen(()=>api('/admin/orders/'+id+'/void',{method:'POST',body:{reason,refund_cash:refundCash,operator_id:OPERATOR?.id}}),async out=>{const ok=await autoCashDrawer({kind:'refund',order_id:id,cash_refund:out.cash_refund});return '已作廢，品項退回未結帳'+(out.cash_refund>0?`；請退現金 NT$${num(out.cash_refund)}`:'')+(ok===false?'；未確認開櫃成功，請按「開錢櫃」重試':'');},reload));
 }
 // 已結帳單取消單一品項（做不出來／客人退菜），不必整張作廢；金額從這張單扣除
-async function cancelOrderItemPrompt(orderId,line,name,reload){
+async function cancelOrderItemPrompt(orderId,line,name,reload,order){
   const reason=await pickReason({title:`取消「${name}」的原因（會記在日結與收據）`,presets:REASON_PRESETS.cancel_item});if(reason===null)return;
-  opsThen(()=>api(`/admin/orders/${orderId}/items/${line}/void`,{method:'POST',body:{reason}}),out=>`已取消，退 NT$${num(out.refund)}`,reload);
+  const refundCash=order?.payer?.method==='cash'&&confirm('取消品項是否要退還現金？\n確定：記錄退現金並自動開錢櫃。\n取消：只更正帳務，不退現金、不開櫃。');
+  return ensureOperator(()=>opsThen(()=>api(`/admin/orders/${orderId}/items/${line}/void`,{method:'POST',body:{reason,refund_cash:refundCash,operator_id:OPERATOR?.id}}),async out=>{const ok=await autoCashDrawer({kind:'refund',order_id:orderId,line,cash_refund:out.cash_refund});return `已取消，帳務扣除 NT$${num(out.refund)}`+(out.cash_refund>0?`；請退現金 NT$${num(out.cash_refund)}`:'')+(ok===false?'；未確認開櫃成功，請按「開錢櫃」重試':'');},reload));
 }
 async function issueOrderInvoice(o,reload){
   if(!o||o.status==='void')return;
@@ -249,7 +277,7 @@ function bindOrderButtons(host,orders,reload){
   host.querySelectorAll('[data-print]').forEach(b=>b.onclick=()=>{const o=orders.find(x=>x.id===b.dataset.print);if(o)printOrder(o);});
   host.querySelectorAll('[data-receipt]').forEach(b=>b.onclick=()=>{const o=orders.find(x=>x.id===b.dataset.receipt);if(o)printReceipt(o);});
   host.querySelectorAll('[data-invoice-print]').forEach(b=>b.onclick=()=>{const o=orders.find(x=>x.id===b.dataset.invoicePrint);if(o)printInvoiceProof(o);});
-  host.querySelectorAll('[data-void]').forEach(b=>b.onclick=()=>voidOrderPrompt(b.dataset.void,reload));
+  host.querySelectorAll('[data-void]').forEach(b=>b.onclick=()=>voidOrderPrompt(b.dataset.void,reload,orders.find(o=>o.id===b.dataset.void)));
   host.querySelectorAll('[data-invoice-issue]').forEach(b=>b.onclick=async()=>{if(b.disabled)return;b.disabled=true;try{await issueOrderInvoice(orders.find(x=>x.id===b.dataset.invoiceIssue),reload);}finally{b.disabled=false;}});
 }
 // 已結帳單的操作列（櫃檯「這桌已結帳的單」與查單共用）：發票證明聯只在 ezPay 已開立時顯示；作廢固定紅字
@@ -293,7 +321,7 @@ async function loadOrders(){
   host.querySelectorAll('[data-serve]').forEach(b=>b.onclick=()=>opsThen(()=>api('/admin/orders/sessions/'+b.dataset.session+'/tickets/'+b.dataset.serve+'/serve',{method:'POST',body:{}}),'整筆已出餐，客人用餐完再到櫃檯結帳',reload));
   host.querySelectorAll('[data-serve-line]').forEach(b=>b.onclick=()=>opsThen(()=>api('/admin/orders/sessions/'+b.dataset.session+'/tickets/'+b.dataset.serveTicket+'/serve',{method:'POST',body:{lines:[b.dataset.serveLine]}}),out=>{const left=(out.items||[]).filter(l=>l.ticket===b.dataset.serveTicket&&!l.served_at&&!l.order_id).length;return left?`已出餐，這張還有 ${left} 道`:'這張送單全部出完';},reload));
   bindOrderButtons(host,board,reload);
-  host.querySelectorAll('[data-cancel-item]').forEach(b=>b.onclick=()=>cancelOrderItemPrompt(b.dataset.cancelItem,b.dataset.cancelLine,b.dataset.cancelName,reload));
+  host.querySelectorAll('[data-cancel-item]').forEach(b=>b.onclick=()=>cancelOrderItemPrompt(b.dataset.cancelItem,b.dataset.cancelLine,b.dataset.cancelName,reload,d.orders.find(o=>o.id===b.dataset.cancelItem)));
   host.querySelectorAll('[data-pause-save]').forEach(b=>b.onclick=()=>{const box=b.closest('[data-pause-venue]');opsThen(()=>api('/admin/orders/pause',{method:'POST',body:{venue:box.dataset.pauseVenue,paused:box.querySelector('[data-pause-on]').checked,message:box.querySelector('[data-pause-msg]').value}}),out=>out.pause[box.dataset.pauseVenue].paused?'已暫停點餐，客人掃碼會看到你的文案':'已恢復點餐',reload);});
   host.querySelector('#qr-make').onclick=async()=>{const tables=host.querySelector('#qr-tables').value.trim();if(!tables)return;try{const out=await api('/admin/tables/qr?tables='+encodeURIComponent(tables));const grid=host.querySelector('#qr-grid');grid.innerHTML='';for(const t of out.tables){const url=await new Promise((ok,no)=>QRCode.toDataURL(t.url,{width:360,margin:1},(e,u)=>e?no(e):ok(u)));grid.insertAdjacentHTML('beforeend',`<div class="qr-card" style="text-align:center;border:1px solid #ddd;border-radius:10px;padding:12px;background:#fff"><img src="${url}" alt="桌號 ${esc(t.table)}" style="width:100%"><div style="font-size:1.6em;font-weight:700">桌號 ${esc(t.table)}</div><div class="hint" style="margin:0">掃碼點餐 · 言文字</div></div>`);}host.querySelector('#qr-print').hidden=false;}catch(e){toast(e.message);}};
   host.querySelector('#qr-print').onclick=()=>{const w=window.open('','_blank');w.document.write('<title>桌號 QR</title><style>body{font-family:sans-serif;margin:0}.g{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px}.g>div{break-inside:avoid;text-align:center;border:1px solid #ccc;border-radius:10px;padding:12px}img{width:100%}</style><div class="g">'+host.querySelector('#qr-grid').innerHTML+'</div>');w.document.close();w.focus();w.print();};
@@ -385,7 +413,7 @@ function paintPos(){
   host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('點空桌直接開桌；點已開的桌看這桌的帳。沒印在桌牌上的桌號或外帶用下面加開。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div>${registerBar()}<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>${opener}<div class="pos-grid">${grid}</div></div>${panel}</div>`;
   const reload=()=>{host.dataset.sig='';return loadPos();};
   bindRegisterBar(host,reload);
-  const drawerBtn=host.querySelector('#pos-cash-drawer');if(drawerBtn)drawerBtn.onclick=()=>openCashDrawer();
+  const drawerBtn=host.querySelector('#pos-cash-drawer');if(drawerBtn)drawerBtn.onclick=()=>ensureOperator(async()=>{const reason=await pickReason({title:'開錢櫃原因（記錄操作人員與時間）',presets:['開班放零用金','換鈔','交班點鈔','交易已完成，重試開櫃']});if(!reason||drawerBtn.disabled)return;drawerBtn.disabled=true;try{await manualCashDrawer(reason);}finally{drawerBtn.disabled=false;}});
   host.querySelectorAll('[data-pos-table]').forEach(b=>b.onclick=()=>{POS_TABLE=b.dataset.posTable;POS_PICK=null;POS_DISCOUNT=null;POS_DISC_OPEN=false;POS_RECEIVED='';paintPos();});
   // 開桌／外帶：有操作人員就順手帶上（記這桌是誰開的），沒有也不擋——只有結帳要求一定要認人
   const openSession=body=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{...body,operator_id:OPERATOR?.id}}),out=>out.takeout?`外帶單 ${out.table} 已開，請加入品項`:out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,out=>{POS_TABLE=out.table;POS_PICK=null;POS_DISCOUNT=null;POS_RECEIVED='';return reload();});
@@ -473,7 +501,7 @@ function paintPos(){
     if(rec!==undefined&&rec<total){toast('實收不能少於應收');return;}
     if(!confirm(`向${cur.takeout?'外帶':'桌號'} ${cur.table} 收 NT$${num(total)}（${payMethodLabel(method)}${POS_MEMBER?'，會員價':''}${POS_DISCOUNT?'，折扣 '+discountText(POS_DISCOUNT):''}${POS_INVOICE.mode?'，'+INV_LABEL[POS_INVOICE.mode]+'發票':''}）${rec!==undefined?`\n實收 ${num(rec)}，找零 ${num(rec-total)}`:''}？`))return;
     // 收款前一定要先認人（沒選過操作人員會先跳鍵盤），讓每一筆單都記得是誰經手
-    ensureOperator(()=>{const checkout=host.querySelector('#pos-checkout');if(checkout.disabled)return;checkout.disabled=true;return opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/checkout',{method:'POST',body:{method,member:POS_MEMBER,lines:POS_PICK?[...POS_PICK]:[],invoice:invoiceBody(host),discount:POS_DISCOUNT||undefined,received:rec,operator_id:OPERATOR?.id}}),async out=>{const order={id:out.order_id,order_id:out.order_id,table_no:cur.table,items:picked.map(l=>({...l,price:priceOf(l)})),amount:out.amount,invoice:out.invoice,paid_at:new Date().toISOString(),payer:{method,member:POS_MEMBER,discount:POS_DISCOUNT,received:rec,change:out.change}};await printCheckoutOrder(order);return `已收款 NT$${num(out.amount)}${out.change?`，找零 NT$${num(out.change)}`:''}${out.invoice?.status==='issued'?`，發票 ${out.invoice.number||'已開立'}`:out.invoice?.status==='failed'?`，發票開立失敗可補開` : ''}${out.remaining?`，這桌還有 NT$${num(out.remaining)} 未結`:'，這桌已結清'}${out.warning?`。${out.warning}`:''}`;},()=>{POS_PICK=null;POS_MEMBER=false;POS_DISCOUNT=null;POS_RECEIVED='';POS_INVOICE.mode='paper';return reload();}).finally(()=>{checkout.disabled=false;});});
+    return ensureOperator(()=>runCheckoutOnce(cur.id,async()=>{const checkout=host.querySelector('#pos-checkout');checkout.disabled=true;try{return await opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/checkout',{method:'POST',body:{method,member:POS_MEMBER,lines:POS_PICK?[...POS_PICK]:[],invoice:invoiceBody(host),discount:POS_DISCOUNT||undefined,received:rec,operator_id:OPERATOR?.id}}),async out=>{const drawerOk=await autoCashDrawer({kind:'checkout',order_id:out.order_id,method:out.method||method,amount:out.amount,payments:out.payments});const order={id:out.order_id,order_id:out.order_id,table_no:cur.table,items:picked.map(l=>({...l,price:priceOf(l)})),amount:out.amount,invoice:out.invoice,paid_at:new Date().toISOString(),payer:{method,member:POS_MEMBER,discount:POS_DISCOUNT,received:rec,change:out.change}};await printCheckoutOrder(order);return `已收款 NT$${num(out.amount)}${out.change?`，找零 NT$${num(out.change)}`:''}${out.invoice?.status==='issued'?`，發票 ${out.invoice.number||'已開立'}`:out.invoice?.status==='failed'?`，發票開立失敗可補開` : ''}${out.remaining?`，這桌還有 NT$${num(out.remaining)} 未結`:'，這桌已結清'}${out.warning?`。${out.warning}`:''}${drawerOk===false?'。未確認開櫃成功，請確認錢櫃並按「開錢櫃」重試，勿重複收款。':''}`;},()=>{POS_PICK=null;POS_MEMBER=false;POS_DISCOUNT=null;POS_RECEIVED='';POS_INVOICE.mode='paper';return reload();});}finally{checkout.disabled=false;}}));
   };
   const mv=host.querySelector('#pos-move');if(mv)mv.onclick=()=>{const t=prompt(`把 ${cur.table} 換到哪一桌？（目標桌已開著會併桌）`);if(t===null)return;const table=t.trim().toUpperCase();if(!table)return;
     opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/move',{method:'POST',body:{table_no:table}}),out=>out.merged?`已併到 ${out.table}`:`已換到 ${out.table}`,out=>{POS_TABLE=out.table;POS_PICK=null;return reload();});};

@@ -270,11 +270,31 @@ Google 授權回呼，簽發會員 token 並導回。
 ### POST /api/admin/orders/:id/status
 body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請至櫃檯取餐」（回 `notified` 裝置數）；`done`＝已取餐。狀態不符回 409；已作廢的單回 409。
 
+### POST /api/admin/pos/drawer-events
+記錄「要求開錢櫃」並取得一次性發送資格；需要登入、管理員權限及可用資料庫。body：
+
+```json
+{ "event_key": "checkout:to_example", "kind": "checkout", "order_id": "to_example", "reason": "現金結帳", "operator_id": "st_example" }
+```
+
+- `kind` 為 `checkout | refund | manual`；`event_key` 必填、最長 200 字元；`reason` 必填（最多保存 200 字元）。有帶 `operator_id` 時須為在職且目前帳號看得到的操作人員；`manual` 必須選擇有效操作人員。
+- `checkout`：`order_id` 必填，事件代碼固定 `checkout:<order_id>`，不得帶 `line`。訂單須屬於目前帳號可操作的品牌、未作廢、金額大於 0，而且 `payer.method === 'cash'` 或資料庫已存的 `payer.payments[]` 有正數現金分攤（`{method:'cash',amount}`）。目前結帳介面仍不提供混合付款，不會從用戶端傳入的付款資料推定有現金。
+- `refund`：整單固定 `refund:<order_id>`，訂單須已作廢；單項固定 `refund:<order_id>:<line>` 並帶 `line`，該行須已取消。原收款方式須為現金，且作廢交易內已保存該事件的正數現金退還意圖；僅作帳務調整的取消不能事後補送此端點來開櫃。用戶端 `cash_refund` 不作為驗證依據。
+- `manual`：事件代碼用 `manual:<uuid>`（前綴後允許 8–128 個英數字、`_`、`-`），每次明確的手動操作產生新代碼；不可帶訂單或品項。
+
+回 `{ ok:true, claimed:true|false, event_id }`。資料庫 `pos_drawer_events.event_key` 有唯一限制；只有首筆成功寫入回 `claimed:true`，重送回 `claimed:false` 與相同 `event_id`。保存登入身分 `actor`、伺服器時間、原因及操作人員 id／姓名。輸入錯誤回 400、無此訂單或跨品牌回 404、沒有合格現金交易／退還意圖回 409；資料庫失敗不會回成功資格。
+
+**前端只能在 `claimed === true` 後送出一次硬體指令**；任何錯誤或 `claimed:false` 都不能送。稽核只代表請求曾被領取，不表示錢櫃實際開啟，也不表示已交付退款。領取後若硬體失敗，不可換交易代碼重送；檢查錢櫃後改走附原因與人員的手動開櫃。不提供自動重試，以避免重複開櫃。
+
 ### POST /api/admin/orders/:id/void
-作廢已結帳的出餐單。body `{ reason }`（必填）。只能作廢當個營業日的單；線上刷卡（TapPay）的單須先在 TapPay 後台退款。若該單已透過 ezPay 開立電子發票，會先呼叫 ezPay 作廢成功後才把 POS 訂單標成 void（已開立但沒記到號碼時，先用 `invoice_search` 查回號碼再作廢；ezPay 端已是作廢狀態就直接同步）；未設定 ezPay 環境變數或 ezPay 作廢失敗時回 503/502，不會先作廢本地訂單。作廢後該單不計營收，品項退回這桌「未結帳」（可重結或清桌作廢）。記 `void_reason / voided_by / voided_at`。
+作廢已結帳的出餐單。body `{ reason, refund_cash?:boolean, operator_id? }`（`reason` 必填）。只能作廢當個營業日的單；線上刷卡（TapPay）的單須先在 TapPay 後台退款。若該單已透過 ezPay 開立電子發票，會先呼叫 ezPay 作廢成功後才把 POS 訂單標成 void（已開立但沒記到號碼時，先用 `invoice_search` 查回號碼再作廢；ezPay 端已是作廢狀態就直接同步）；未設定 ezPay 環境變數或 ezPay 作廢失敗時回 503/502，不會先作廢本地訂單。作廢後該單不計營收，品項退回這桌「未結帳」（可重結或清桌作廢）。記 `void_reason / voided_by / voided_at`。
+
+預設只作帳務調整，不表示現金已交付。僅 `refund_cash === true` 且原 `payer.method === 'cash'`、剩餘訂單金額大於 0，才在同一筆交易保存 `payer.drawer_refunds[event_key]` 並回正數 `cash_refund`；否則為 0、不回 `event_key`。回 `{ ok:true, reason, method, cash_refund, event_key? }`，事件代碼為 `refund:<order_id>`。請在送出前明確詢問是否退還現金，再透過 drawer-events 取得開櫃資格；此回應不是退款成功的證明。交易先鎖定訂單再檢查與變更（包含 ezPay 作廢），重複／同時作廢回 409，避免重複退款意圖。
 
 ### POST /api/admin/orders/:id/items/:line/void
-取消已結帳單裡的「單一品項」（做不出來／客人退菜），不必作廢整張單。body `{ reason }`（必填）。比照贈送把該行單價歸零（原價留在 `regular_price`）、`cancelled: true`、`cancel_reason`、`cancelled_at`，並從整張單 `amount` 扣掉這項小計，回 `{ ok, reason, refund, amount }`。限制：只能取消當個營業日的單；線上刷卡（TapPay）或已開立 ezPay 電子發票的單無法只動一項（金額對不起來），須整張作廢；這張單只剩最後一項未取消時也不行，請改用「作廢整張單」。取消後的品項仍留在單上（出餐看板顯示劃線＋取消原因），日結熱銷統計與 CSV 不再計入，但仍留下稽核紀錄。
+取消已結帳單裡的「單一品項」（做不出來／客人退菜），不必作廢整張單。body `{ reason, refund_cash?:boolean, operator_id? }`（`reason` 必填）。比照贈送把該行單價歸零（原價留在 `regular_price`）、`cancelled: true`、`cancel_reason`、`cancelled_at`，並從整張單 `amount` 扣掉這項小計，回 `{ ok, reason, refund, amount, method, cash_refund, event_key? }`；`refund` 不超過此次訂單實際扣減金額。限制：只能取消當個營業日的單；線上刷卡（TapPay）或已開立 ezPay 電子發票的單無法只動一項（金額對不起來），須整張作廢；這張單只剩最後一項未取消時也不行，請改用「作廢整張單」。取消後的品項仍留在單上（出餐看板顯示劃線＋取消原因），日結熱銷統計與 CSV 不再計入，但仍留下稽核紀錄。
+
+現金退還 opt-in 規則與整單作廢相同；`cash_refund` 為此次實際扣減金額（不超過剩餘訂單金額），只有明確 `refund_cash:true`、原付款方式為現金且金額大於 0 才回 `event_key: refund:<order_id>:<line>` 並在同一交易保存退還意圖。預設 `cash_refund:0`，純帳務調整不開櫃。整單與單項取消均使用訂單列鎖，避免同時取消覆蓋金額；已取消的品項重送回 409。
 
 ### POST /api/admin/orders/:id/invoice/issue
 補開 ezPay 電子發票。用於結帳時 ezPay 暫時失敗或當下未設定憑證的單。body 可帶 `{ invoice }`，未帶時使用訂單內已保存的發票要求；`invoice` 格式同櫃檯結帳的 `invoice` 欄位。作廢單不能補開；已開立且有號碼則直接回原發票資料。若狀態是已開立但 `number` 空白（ezPay 回應沒解析到號碼），不會重開，而是以 `invoice_search`（自訂編號＋金額）向 ezPay 查回號碼並更新訂單，回 `{ ok, invoice, synced: true }`；查不到回 404。回 `{ ok, invoice }`。
