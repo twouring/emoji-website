@@ -9,17 +9,12 @@ import { request as httpRequest } from 'node:http';
 
 const require = createRequire(import.meta.url);
 const root = path.resolve(import.meta.dirname || path.dirname(new URL(import.meta.url).pathname), '..');
-const { signToken, verifyToken, safeEqual, matchesPointCheckout, PUBLIC_CONTENT_KEYS, rateLimit } = require('../lib/security');
+const { signToken, verifyToken, safeEqual, PUBLIC_CONTENT_KEYS, rateLimit } = require('../lib/security');
 const { isAdminApiKey } = require('../lib/admin-key');
 const { signAccessToken, verifyAccessToken } = require('../lib/access-token');
 const secret = 'local-test-secret-not-used-in-production';
 const adminKey = 'test-admin-key-isolated-http-test';
 const user = { id: 'u_test', email: 'member@example.test', is_admin: false };
-const order = { id: 'po_test', user_id: user.id, pack_id: 'p_test', stripe_session_id: 'cs_test', pay_twd: 100,
-  principal: 100, bonus: 0, status: 'pending' };
-const paid = { id: order.stripe_session_id, payment_status: 'paid', currency: 'twd', amount_total: 10000,
-  payment_intent: 'pi_test', metadata: { kind: 'point_pack', point_order_id: order.id, user_id: user.id, pack_id: order.pack_id } };
-
 // Execute real Express routes with isolated DB/payment doubles; this never reads .env or opens an external service.
 async function server(t, { query, stripe = {}, env = {} } = {}) {
   const log = [], errors = [];
@@ -90,15 +85,6 @@ test('session is purpose-bound, expiring, strictly segmented and rejects non-ASC
   assert.equal(isAdminApiKey('é'.repeat(adminKey.length), adminKey), false);
   const qr = signAccessToken({ sub: 'u', ent: 'e', plan: 'month' }, secret);
   assert.equal(verifyAccessToken(qr.split('.')[0] + '.' + 'é'.repeat(43), secret), null);
-});
-
-test('payment fulfillment binds every order field, currency, exact amount and paid session', () => {
-  assert.equal(matchesPointCheckout(paid, order), true);
-  for (const change of [{ id: 'cs_other' }, { currency: 'usd' }, { amount_total: 9999 },
-    { amount_total: '10000' }, { payment_status: 'unpaid' }, { metadata: {} },
-    ...['kind', 'point_order_id', 'user_id', 'pack_id'].map(key => ({ metadata: { ...paid.metadata, [key]: 'other' } }))]) {
-    assert.equal(matchesPointCheckout({ ...paid, ...change }, order), false);
-  }
 });
 
 test('rate limit expires and cannot grow without a bound', () => {
@@ -191,27 +177,6 @@ test('a still-signed door QR cannot open an expired entitlement', async t => {
   assert.equal(log.some(x => /INSERT INTO access_scans/.test(x.sql)), false);
 });
 
-test('point webhook credits once; a mismatched session cannot credit the order', async t => {
-  const currentOrder = { ...order };
-  const lots = [];
-  const stripe = { webhooks: { constructEvent: body => JSON.parse(body.toString()) } };
-  const { request } = await server(t, { stripe, query(sql, args) {
-    if (/SELECT \* FROM point_orders/.test(sql)) return { rows: [{ ...currentOrder }] };
-    if (/UPDATE point_orders SET status='paid'/.test(sql)) { currentOrder.status = 'paid'; return { rows: [{ ...currentOrder }] }; }
-    if (/INSERT INTO point_lots/.test(sql)) {
-      const row = { id: args[0], user_id: args[1], type: args[2], original_amount: args[3], remaining: args[3], expires_at: args[4] };
-      lots.push(row); return { rows: [row] };
-    }
-  } });
-  const event = session => ({ type: 'checkout.session.completed', data: { object: session } });
-  assert.equal((await request('/api/stripe/webhook', event({ ...paid, amount_total: 1 }))).status, 400);
-  assert.equal(lots.length, 0);
-  assert.equal((await request('/api/stripe/webhook', event(paid))).status, 200);
-  assert.equal((await request('/api/stripe/webhook', event(paid))).status, 200);
-  assert.equal(lots.length, 1);
-  assert.equal(lots[0].remaining, 100);
-});
-
 test('founding checkout counts live reservations and locks before scanning Stripe', async t => {
   let scans = 0, created = 0;
   const stripe = { checkout: { sessions: {
@@ -244,54 +209,6 @@ test('Stripe provider outages are retryable 503 responses and never expose crede
   assert.equal(log.at(-1).sql, 'ROLLBACK');
 });
 
-test('refund survives external success followed by DB failure; changed amount retries the same persisted intent', async t => {
-  const lot = { id: 'lot_1', user_id: user.id, type: 'purchase', original_amount: 100, remaining: 100,
-    expires_at: null, source_type: 'point_order', source_id: order.id };
-  let intent, externalRefund, creates = 0, failFinalize = true;
-  const steps = [];
-  const { request } = await server(t, { stripe: {
-    checkout: { sessions: { retrieve: async () => paid } },
-    refunds: {
-      async *list() { if (externalRefund) yield externalRefund; },
-      async create(body, options) {
-        assert.equal(steps.at(-1), 'COMMIT');
-        assert.equal(intent.status, 'pending');
-        assert.equal(lot.remaining, 0);
-        assert.equal(options.idempotencyKey, `points-refund-${intent.id}`);
-        assert.equal(body.amount, 10000);
-        creates++;
-        externalRefund = { id: 're_test', status: 'succeeded', metadata: body.metadata };
-        return externalRefund;
-      },
-    },
-  }, query(sql, args) {
-    steps.push(sql);
-    if (/SELECT \* FROM point_orders/.test(sql)) return { rows: [{ ...order, status: 'paid' }] };
-    if (/SELECT \* FROM point_refunds/.test(sql)) return { rows: intent?.status === 'pending' ? [{ ...intent }] : [] };
-    if (/SELECT .* FROM point_lots WHERE user_id=\$1 FOR UPDATE/s.test(sql)) return { rows: [{ ...lot }] };
-    if (/SELECT id, user_id, type, original_amount/.test(sql)) return { rows: [{ ...lot }] };
-    if (/UPDATE point_lots SET remaining = remaining -/.test(sql)) {
-      lot.remaining -= args[1]; return { rows: [{ id: lot.id }], rowCount: 1 };
-    }
-    if (/INSERT INTO point_refunds/.test(sql)) {
-      intent = { id: args[0], point_order_id: args[1], user_id: args[2], principal_points: args[3], refund_twd: args[4], status: 'pending' };
-      return { rows: [] };
-    }
-    if (/UPDATE point_refunds SET status='completed'/.test(sql)) {
-      if (failFinalize) { failFinalize = false; throw new Error('simulated DB interruption'); }
-      intent.status = 'completed'; return { rows: [], rowCount: 1 };
-    }
-  } });
-  const token = signToken({ sub: user.id, role: 'participant' }, secret);
-  const first = await request('/api/me/points/refunds', { point_order_id: order.id, principal_points: 100 }, token);
-  assert.equal(first.status, 502);
-  assert.equal(intent.status, 'pending'); assert.equal(lot.remaining, 0);
-  const retry = await request('/api/me/points/refunds', { point_order_id: order.id, principal_points: 30 }, token);
-  assert.equal(retry.status, 200);
-  assert.equal((await retry.json()).refund.principal_points, 100);
-  assert.equal(creates, 1); assert.equal(lot.remaining, 0); assert.equal(intent.status, 'completed');
-});
-
 test('founding inventory de-duplicates a checkout paid while pagination runs', async t => {
   const scans = [];
   let creates = 0;
@@ -304,35 +221,6 @@ test('founding inventory de-duplicates a checkout paid while pagination runs', a
   } } } });
   assert.equal((await request('/api/checkout', {})).status, 200);
   assert.deepEqual(scans, ['open', 'complete']); assert.equal(creates, 1);
-});
-
-test('a confirmed failed Stripe refund restores reserved points exactly once and remains visible to the UI', async t => {
-  const lot = { id: 'lot_failed', user_id: user.id, type: 'purchase', original_amount: 100, remaining: 100,
-    expires_at: null, source_type: 'point_order', source_id: order.id };
-  let intent, restores = 0;
-  const { request } = await server(t, { stripe: {
-    checkout: { sessions: { retrieve: async () => paid } },
-    refunds: { async *list() {}, async create(body) { return { id: 're_failed', status: 'failed', metadata: body.metadata }; } },
-  }, query(sql, args) {
-    if (/SELECT \* FROM point_orders/.test(sql)) return { rows: [{ ...order, status: 'paid' }] };
-    if (/SELECT (\*|id) FROM point_refunds/.test(sql)) return { rows: intent?.status === 'pending' ? [{ ...intent }] : [] };
-    if (/SELECT \* FROM point_lots/.test(sql)) return { rows: [{ ...lot }] };
-    if (/UPDATE point_lots SET remaining = remaining -/.test(sql)) {
-      lot.remaining -= args[1]; return { rows: [{ id: lot.id }], rowCount: 1 };
-    }
-    if (/INSERT INTO point_refunds/.test(sql)) {
-      intent = { id: args[0], point_order_id: args[1], principal_points: args[3], refund_twd: args[4], status: 'pending' };
-      return { rows: [] };
-    }
-    if (/SELECT lot_id,delta FROM point_ledger/.test(sql)) return { rows: [{ lot_id: lot.id, delta: -40 }] };
-    if (/UPDATE point_lots SET remaining=remaining-/.test(sql)) { lot.remaining -= args[1]; restores++; return { rows: [] }; }
-    if (/UPDATE point_refunds SET status='failed'/.test(sql)) { intent.status = 'failed'; return { rows: [] }; }
-  } });
-  const token = signToken({ sub: user.id, role: 'participant' }, secret);
-  const result = await request('/api/me/points/refunds', { point_order_id: order.id, principal_points: 40 }, token);
-  assert.equal(result.status, 409);
-  assert.equal((await result.json()).refund_id, intent.id);
-  assert.equal(intent.status, 'failed'); assert.equal(lot.remaining, 100); assert.equal(restores, 1);
 });
 
 test('brand sub-accounts only reach their own admin APIs and menu items', async t => {

@@ -18,7 +18,7 @@ const {
 } = require('./lib/entitlements');
 const { signAccessToken, verifyAccessToken } = require('./lib/access-token');
 const { isAdminApiKey, ADMIN_API_KEY_MIN } = require('./lib/admin-key');
-const { safeEqual, signToken: signSession, verifyToken: verifySession, matchesPointCheckout,
+const { safeEqual, signToken: signSession, verifyToken: verifySession,
   PUBLIC_CONTENT_KEYS, rateLimit } = require('./lib/security');
 const {embedOrigins}=require('./lib/event-embed');
 const {richText,contentFileType}=require('./lib/event-rich-text');
@@ -42,10 +42,7 @@ const eventQuestions = require('./lib/event-questions');
 const { eventSlug, normalizeEventInput, localizeEvent, normalizeAttribution } = require('./lib/events');
 const { normalizeEventApplication, safeHttpUrl, applicationDeposit, venueLabel, venuesOfLocation } = require('./lib/event-applications');
 const { sendMail, sendMailQuietly, NOTIFY_EMAIL } = require('./lib/mail');
-const {
-  POINT_PRICE_TWD, PACKS, MEMBERSHIP_GIFT_POINTS, PLAN_PRICE_TWD,
-  addYears, isLotAvailable, availableBalance, planDebit, planRefund, redeemPointsFor,
-} = require('./lib/points');
+const { PLAN_PRICE_TWD } = require('./lib/plans');
 const { FEATURED_ID, eventPage, featuredEvent } = require('./lib/event-page');
 const { sendPage, layoutMiddleware, composeEventMeta } = require('./lib/layout');
 const { SPACE_SEED, missingSpaceSeedKeys } = require('./lib/space-content');
@@ -368,66 +365,6 @@ CREATE TABLE IF NOT EXISTS system_settings (
   value TEXT NOT NULL,
   updated_by TEXT NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE TABLE IF NOT EXISTS point_orders (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  pack_id TEXT NOT NULL,
-  principal INT NOT NULL,
-  bonus INT NOT NULL DEFAULT 0,
-  pay_twd INT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending',
-  stripe_session_id TEXT,
-  paid_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE UNIQUE INDEX IF NOT EXISTS point_orders_stripe_session_uidx
-  ON point_orders(stripe_session_id) WHERE stripe_session_id IS NOT NULL;
-CREATE TABLE IF NOT EXISTS point_lots (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  type TEXT NOT NULL,
-  original_amount INT NOT NULL,
-  remaining INT NOT NULL,
-  expires_at TIMESTAMPTZ,
-  source_type TEXT NOT NULL,
-  source_id TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (user_id, type, source_type, source_id)
-);
-CREATE INDEX IF NOT EXISTS point_lots_user_idx ON point_lots(user_id);
-CREATE TABLE IF NOT EXISTS point_ledger (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  lot_id TEXT REFERENCES point_lots(id),
-  delta INT NOT NULL,
-  reason TEXT NOT NULL,
-  ref_type TEXT,
-  ref_id TEXT,
-  actor TEXT,
-  note TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS point_ledger_user_idx ON point_ledger(user_id);
-CREATE TABLE IF NOT EXISTS point_redemptions (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  service TEXT NOT NULL,
-  points INT NOT NULL,
-  hours INT,
-  status TEXT NOT NULL DEFAULT 'paid',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE TABLE IF NOT EXISTS point_refunds (
-  id TEXT PRIMARY KEY,
-  point_order_id TEXT NOT NULL REFERENCES point_orders(id) ON DELETE CASCADE,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  principal_points INT NOT NULL,
-  refund_twd INT NOT NULL,
-  bonus_voided INT NOT NULL DEFAULT 0,
-  status TEXT NOT NULL DEFAULT 'completed',
-  stripe_refund_id TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS social_posts (
   id TEXT PRIMARY KEY,
@@ -1043,153 +980,6 @@ async function ensureFoundingEntitlement(commitment) {
   return rowToEnt(r.rows[0]);
 }
 
-function rowToLot(r) {
-  if (!r) return null;
-  return {
-    ...r,
-    original_amount: Number(r.original_amount),
-    remaining: Number(r.remaining),
-    expires_at: r.expires_at ? new Date(r.expires_at) : null,
-    created_at: r.created_at ? new Date(r.created_at) : null,
-  };
-}
-
-async function expireLotsForUser(userId, now = new Date()) {
-  const due = await q(
-    `SELECT id, remaining FROM point_lots
-     WHERE user_id=$1 AND remaining > 0 AND expires_at IS NOT NULL AND expires_at <= $2`,
-    [userId, now]
-  );
-  for (const row of due.rows) {
-    const rem = Number(row.remaining);
-    const u = await q(
-      `UPDATE point_lots SET remaining=0 WHERE id=$1 AND remaining=$2 RETURNING id`,
-      [row.id, rem]
-    );
-    if (!u.rowCount) continue;
-    await q(
-      `INSERT INTO point_ledger (id, user_id, lot_id, delta, reason, actor)
-       VALUES ($1,$2,$3,$4,'expire','system')`,
-      [uid('ldg_'), userId, row.id, -rem]
-    );
-  }
-}
-
-async function loadPointLots(userId, client) {
-  await expireLotsForUser(userId);
-  const run = client ? (t, p) => client.query(t, p) : q;
-  const r = await run(
-    `SELECT id, user_id, type, original_amount, remaining, expires_at, source_type, source_id, created_at
-     FROM point_lots WHERE user_id=$1 ORDER BY created_at`,
-    [userId]
-  );
-  return r.rows.map(rowToLot);
-}
-
-async function creditLot(client, {
-  userId, type, amount, expiresAt, sourceType, sourceId, reason, actor, note,
-}) {
-  const id = uid('pl_');
-  const ins = await client.query(
-    `INSERT INTO point_lots
-       (id, user_id, type, original_amount, remaining, expires_at, source_type, source_id)
-     VALUES ($1,$2,$3,$4,$4,$5,$6,$7)
-     ON CONFLICT (user_id, type, source_type, source_id) DO NOTHING
-     RETURNING *`,
-    [id, userId, type, amount, expiresAt, sourceType, sourceId]
-  );
-  let row = ins.rows[0];
-  if (!row) {
-    row = (await client.query(
-      `SELECT * FROM point_lots WHERE user_id=$1 AND type=$2 AND source_type=$3 AND source_id=$4`,
-      [userId, type, sourceType, sourceId]
-    )).rows[0];
-    return { lot: rowToLot(row), created: false };
-  }
-  await client.query(
-    `INSERT INTO point_ledger (id, user_id, lot_id, delta, reason, ref_type, ref_id, actor, note)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-    [uid('ldg_'), userId, row.id, amount, reason, sourceType, sourceId, actor || 'system', note || null]
-  );
-  return { lot: rowToLot(row), created: true };
-}
-
-async function fulfillPointOrder(client, order, now = new Date()) {
-  if (order.status === 'paid') return { already: true };
-  const upd = await client.query(
-    `UPDATE point_orders SET status='paid', paid_at=$2 WHERE id=$1 AND status='pending' RETURNING *`,
-    [order.id, now]
-  );
-  if (!upd.rows[0]) {
-    const cur = (await client.query(`SELECT * FROM point_orders WHERE id=$1`, [order.id])).rows[0];
-    return { already: cur && cur.status === 'paid' };
-  }
-  await creditLot(client, {
-    userId: order.user_id, type: 'purchase', amount: Number(order.principal),
-    expiresAt: null, sourceType: 'point_order', sourceId: order.id,
-    reason: 'purchase', actor: 'system',
-  });
-  if (Number(order.bonus) > 0) {
-    await creditLot(client, {
-      userId: order.user_id, type: 'bonus', amount: Number(order.bonus),
-      expiresAt: addYears(now, 1), sourceType: 'point_order', sourceId: order.id,
-      reason: 'bonus', actor: 'system',
-    });
-  }
-  return { already: false };
-}
-
-async function grantMembershipGift(client, userId, plan, sourceId, now = new Date()) {
-  const amount = MEMBERSHIP_GIFT_POINTS[plan];
-  if (amount == null) throw new Error('unknown plan');
-  if (amount <= 0) return { skipped: true };
-  return creditLot(client, {
-    userId, type: 'membership_gift', amount,
-    expiresAt: addYears(now, 1),
-    sourceType: 'commitment', sourceId,
-    reason: 'membership_gift', actor: 'system',
-  });
-}
-
-async function applyDebit(client, userId, allocations, reason, refType, refId, actor) {
-  for (const a of allocations) {
-    const u = await client.query(
-      `UPDATE point_lots SET remaining = remaining - $2
-       WHERE id=$1 AND remaining >= $2
-         AND (expires_at IS NULL OR expires_at > now())
-       RETURNING id`,
-      [a.lot_id, a.amount]
-    );
-    if (!u.rowCount) {
-      const err = new Error('lot_debit_conflict');
-      err.status = 409;
-      throw err;
-    }
-    await client.query(
-      `INSERT INTO point_ledger (id, user_id, lot_id, delta, reason, ref_type, ref_id, actor)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [uid('ldg_'), userId, a.lot_id, -a.amount, reason, refType, refId, actor]
-    );
-  }
-}
-
-async function pointsSummaryFor(userId) {
-  const lots = await loadPointLots(userId);
-  const now = new Date();
-  return {
-    balance: availableBalance(lots, now),
-    lots: lots.map(l => ({
-      id: l.id,
-      type: l.type,
-      remaining: l.remaining,
-      expires_at: l.expires_at,
-      source_type: l.source_type,
-      source_id: l.source_id,
-      available: isLotAvailable(l, now),
-    })),
-  };
-}
-
 /* ---------- 活動付款核銷（webhook 與成功頁共用；冪等） ---------- */
 async function activateAdditionalOrder(client,order,reg){
  if(!(await client.query('SELECT 1 FROM event_attendees WHERE registration_id=$1 LIMIT 1',[reg.id])).rowCount){const buyer=(await client.query('SELECT name,email FROM users WHERE id=$1',[reg.user_id])).rows[0];for(let i=0;i<reg.quantity;i++)await client.query('INSERT INTO event_attendees(id,registration_id,name,email,ordinal) VALUES($1,$2,$3,$4,$5)',[uid('att_'),reg.id,buyer.name,buyer.email,i]);}
@@ -1272,19 +1062,6 @@ async function expireEventCheckout(session) {
   );
 }
 
-async function fulfillPointsCheckout(session) {
-  if (session?.metadata?.kind !== 'point_pack' || session.payment_status !== 'paid') return;
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const order = (await client.query(`SELECT * FROM point_orders WHERE id=$1 FOR UPDATE`, [session.metadata.point_order_id])).rows[0];
-    if (!matchesPointCheckout(session, order)) throw new Error('購點付款與訂單快照不符');
-    await fulfillPointOrder(client, order);
-    await client.query('COMMIT');
-  } catch (e) { await client.query('ROLLBACK'); throw e; }
-  finally { client.release(); }
-}
-
 /* ---------- 一般會籍線上購買：Stripe 結帳完成後開通 ---------- */
 async function fulfillPlanCheckout(session) {
   const meta = session && session.metadata;
@@ -1300,7 +1077,6 @@ async function fulfillPlanCheckout(session) {
        VALUES ($1,$2,$3,'stripe',$4,now()) ON CONFLICT (source,source_id) DO NOTHING RETURNING id`,
       [id, meta.user_id, meta.plan, session.id])).rows[0];
     if (!inserted) { await client.query('COMMIT'); return { already: true }; }
-    await grantMembershipGift(client, meta.user_id, meta.plan, id);
     await client.query('COMMIT');
     notifyPlanPurchased(meta.user_id, meta.plan);
     return { already: false, entitlementId: id };
@@ -1390,8 +1166,7 @@ async function notifyRegistrationStatus(userId,eventId,status){
 async function notifyPlanPurchased(userId, plan) {
   try {
     const u = await userContact(userId); if (!u || !u.email) return;
-    const gift = MEMBERSHIP_GIFT_POINTS[plan] || 0;
-    const text = `${u.name || ''} 您好，\n\n您已購買「${PLAN_LABEL[plan] || plan}」（NT$${PLAN_PRICE_TWD[plan].toLocaleString('en-US')}）。${gift ? `已贈送 ${gift.toLocaleString('en-US')} 點（一年效期）。` : ''}\n\n會籍會在您第一次以會員專區的進出 QR 進場時啟用；若 7 天內未進場，將自第 7 天起自動起算。\n會員專區：${SITE_BASE}/member\n\n言文字｜台灣人才聚落`;
+    const text = `${u.name || ''} 您好，\n\n您已購買「${PLAN_LABEL[plan] || plan}」（NT$${PLAN_PRICE_TWD[plan].toLocaleString('en-US')}）。\n\n會籍會在您第一次以會員專區的進出 QR 進場時啟用；若 7 天內未進場，將自第 7 天起自動起算。\n會員專區：${SITE_BASE}/member\n\n言文字｜台灣人才聚落`;
     await sendMailQuietly({ to: u.email, subject: `[言文字] 會籍已購買：${PLAN_LABEL[plan] || plan}`, text, replyTo: NOTIFY_EMAIL });
   } catch (e) { console.error('[mail] 會籍通知失敗：', e.message); }
 }
@@ -1496,7 +1271,6 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json', limit: '
       if (!pool || !dbReady) return res.status(503).send('database not ready');
       await fulfillEventCheckout(event.data.object);
       await fulfillAdditionalCheckout(event.data.object);
-      await fulfillPointsCheckout(event.data.object);
       await fulfillPlanCheckout(event.data.object);
       await fulfillApplicationDeposit(event.data.object);
     } else if (['refund.created','refund.updated','refund.failed'].includes(event.type)) {
@@ -1639,7 +1413,7 @@ function doorAuth(req, res, next) {
    不分品牌——對應 admin 後台把這些分頁併入言文字工作區、開放給所有品牌子帳號的決定；
    「權限管理」「系統設定」「操作紀錄」刻意不在這裡，維持言文字管理員專屬。 */
 const FOOD_API = /^\/api\/admin\/(orders|tables|content|menu|reservations|sales|registers|staff|shifts|attendance|payment-methods|pos-devices)(\/|$)/;
-const SHARED_API = /^\/api\/admin\/(updates|commitments|events|event-applications|social|ads|upload\/social|x\/compose|ig|points\/grants|users\/[^/]+\/points)(\/|$)/;
+const SHARED_API = /^\/api\/admin\/(updates|commitments|events|event-applications|social|ads|upload\/social|x\/compose|ig)(\/|$)/;
 const BRAND_API = { CAFE: FOOD_API, BAR: FOOD_API };
 const ADMIN_BRANDS = Object.keys(BRAND_API);
 // SPACE 僅為相容舊資料（2026-10 前的等等空間子帳號），不再是獨立工作區／品牌，也不可再被指派
@@ -1899,14 +1673,10 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
       if (!byUser.has(entitlement.user_id)) byUser.set(entitlement.user_id, []);
       byUser.get(entitlement.user_id).push(entitlement);
     }
-    const balances = new Map((await q(`SELECT user_id,SUM(remaining)::bigint AS balance FROM point_lots
-      WHERE remaining>0 AND (expires_at IS NULL OR expires_at>now()) GROUP BY user_id`)).rows
-      .map(r => [r.user_id, Number(r.balance)]));
     for (const u of users) {
       const access = deriveMemberAccess(byUser.get(u.id) || [], now);
       u.access_active = access.active;
       u.access_summary = accessSummary(access);
-      u.points_balance = balances.get(u.id) || 0;
     }
     // 活動 + 每場報名人數（後台總覽用）
     const events = (await q(
@@ -1919,11 +1689,6 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
     const self = {};
     if (me) {
       self.access = deriveMemberAccess(byUser.get(me.id) || [], now);
-      self.points = await pointsSummaryFor(me.id);
-      self.point_orders = (await q(`SELECT id,pack_id,principal,bonus,pay_twd,status,paid_at,created_at
-        FROM point_orders WHERE user_id=$1 ORDER BY created_at DESC`, [me.id])).rows;
-      self.point_refunds = (await q(`SELECT id,point_order_id,principal_points,refund_twd,status,stripe_refund_id
-        FROM point_refunds WHERE user_id=$1 AND status='pending' ORDER BY created_at`, [me.id])).rows;
     }
     return res.json({ role: 'admin', super: req.auth.super === true, brands: req.auth.brands, me, bond, users, commitments: req.auth.brands ? [] : commitments, entitlements, events, content, updates, invoice: { provider: 'ezpay', configured: ezpayInvoice.configured() }, payment_methods: await paymentMethodsList(), ...self });
   }
@@ -1931,13 +1696,6 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
   if (!me) return res.status(401).json({ error: '帳號不存在，請重新登入。' });
   const commitments = numify((await q(`SELECT ${SEL_C} FROM commitments WHERE user_id=$1 ORDER BY created_at`, [me.id])).rows);
   const access = await memberAccessFor(me.id);
-  const points = await pointsSummaryFor(me.id);
-  const pointOrders = (await q(
-    `SELECT id, pack_id, principal, bonus, pay_twd, status, paid_at, created_at
-     FROM point_orders WHERE user_id=$1 ORDER BY created_at DESC`, [me.id]
-  )).rows;
-  const pointRefunds = (await q(`SELECT id,point_order_id,principal_points,refund_twd,status,stripe_refund_id
-    FROM point_refunds WHERE user_id=$1 AND status='pending' ORDER BY created_at`, [me.id])).rows;
   // 會員專區：報名中的活動 + 我是否已報名（供報名/取消按鈕）
   const events = (await q(
     `SELECT ${SEL_EVENT},
@@ -1959,9 +1717,6 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
       pending: access.pending,
       activeEntitlements: access.activeEntitlements,
     },
-    points,
-    point_orders: pointOrders,
-    point_refunds: pointRefunds,
   });
 }));
 
@@ -2130,20 +1885,8 @@ app.post('/api/admin/commitments/:id/confirm', auth, adminOnly, requireDb, wrap(
     }
     await client.query(`UPDATE users SET status='已參與' WHERE id=$1`, [r.rows[0].user_id]);
     const c = (await client.query(`SELECT ${SEL_C} FROM commitments WHERE id=$1`, [req.params.id])).rows[0];
-    // ensureFoundingEntitlement 用全域 q；此處先 commit 後再呼叫會失去交易——改為交易外既有函式 + gift 同連線
     await client.query('COMMIT');
     await ensureFoundingEntitlement(c);
-    const gClient = await pool.connect();
-    try {
-      await gClient.query('BEGIN');
-      await grantMembershipGift(gClient, c.user_id, 'founding', c.id);
-      await gClient.query('COMMIT');
-    } catch (e) {
-      await gClient.query('ROLLBACK');
-      throw e;
-    } finally {
-      gClient.release();
-    }
     res.json({ ok: true });
   } catch (e) {
     try { await client.query('ROLLBACK'); } catch (_) {}
@@ -2170,7 +1913,6 @@ app.post('/api/admin/entitlements', auth, adminOnly, requireDb, wrap(async (req,
        VALUES ($1,$2,$3,'admin',$4,now())`,
       [id, userId, plan, sourceId]
     );
-    await grantMembershipGift(client, userId, plan, id);
     await client.query('COMMIT');
   } catch (e) {
     await client.query('ROLLBACK');
@@ -2180,316 +1922,6 @@ app.post('/api/admin/entitlements', auth, adminOnly, requireDb, wrap(async (req,
   }
   const row = rowToEnt((await q(`SELECT ${SEL_ENT} FROM entitlements WHERE id=$1`, [id])).rows[0]);
   res.json({ entitlement: row });
-}));
-
-/* ---- 點數：方案／餘額／購點／兌換／退款／後台發點 ---- */
-app.get('/api/points/packs', (req, res) => {
-  res.json({ price_twd: POINT_PRICE_TWD, packs: Object.values(PACKS) });
-});
-
-app.get('/api/me/points', auth, requireDb, wrap(async (req, res) => {
-  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
-  res.json(await pointsSummaryFor(req.auth.sub));
-}));
-
-app.post('/api/admin/points/grants', auth, adminOnly, requireDb, wrap(async (req, res) => {
-  const userId = (req.body.user_id || '').trim();
-  const amount = Number(req.body.amount);
-  const note = (req.body.note || '').trim();
-  if (!userId || !Number.isInteger(amount) || amount < 1) {
-    return res.status(400).json({ error: 'user_id 與正整數 amount 必填。' });
-  }
-  if (!note) return res.status(400).json({ error: '備註必填。' });
-  const u = (await q(`SELECT id FROM users WHERE id=$1`, [userId])).rows[0];
-  if (!u) return res.status(404).json({ error: '找不到使用者。' });
-  const now = new Date();
-  let expiresAt = addYears(now, 1);
-  if (req.body.expires_at) {
-    const d = new Date(req.body.expires_at);
-    if (Number.isNaN(+d)) return res.status(400).json({ error: 'expires_at 無效。' });
-    expiresAt = d;
-  }
-  const grantId = uid('pg_');
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const { lot } = await creditLot(client, {
-      userId, type: 'admin', amount, expiresAt,
-      sourceType: 'admin_grant', sourceId: grantId,
-      reason: 'admin', actor: req.auth.sub || 'agent', note,   // agent 無會員 id，軌跡仍留名
-    });
-    await client.query('COMMIT');
-    res.json({ lot, grant_id: grantId, note });
-  } catch (e) {
-    await client.query('ROLLBACK');
-    throw e;
-  } finally {
-    client.release();
-  }
-}));
-
-app.get('/api/admin/users/:id/points', auth, adminOnly, requireDb, wrap(async (req, res) => {
-  const summary = await pointsSummaryFor(req.params.id);
-  const ledger = (await q(
-    `SELECT id, lot_id, delta, reason, ref_type, ref_id, actor, note, created_at
-     FROM point_ledger WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100`,
-    [req.params.id]
-  )).rows;
-  const orders = (await q(
-    `SELECT * FROM point_orders WHERE user_id=$1 ORDER BY created_at DESC LIMIT 50`,
-    [req.params.id]
-  )).rows;
-  res.json({ ...summary, ledger, orders });
-}));
-
-app.post('/api/me/points/redeem', auth, requireDb, wrap(async (req, res) => {
-  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
-  const access = await memberAccessFor(req.auth.sub);
-  if (!access.active) {
-    return res.status(403).json({ error: '需要 active 會員才能兌換二樓服務。', code: 'not_active' });
-  }
-  const service = (req.body.service || '').trim();
-  let hours = req.body.hours;
-  if (service === 'shower' || service === 'laundry') hours = 1;
-  else {
-    hours = Number(hours);
-    if (!Number.isInteger(hours) || hours < 1) return res.status(400).json({ error: 'hours 須為正整數。' });
-  }
-  let points;
-  try { points = redeemPointsFor(service, hours); }
-  catch { return res.status(400).json({ error: '不支援的服務。' }); }
-
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await expireLotsForUser(req.auth.sub);
-    const lots = (await client.query(
-      `SELECT * FROM point_lots WHERE user_id=$1 FOR UPDATE`, [req.auth.sub]
-    )).rows.map(rowToLot);
-    const plan = planDebit(lots, points, new Date());
-    if (!plan.ok) {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ error: '點數不足。', code: plan.error });
-    }
-    const rid = uid('pr_');
-    await client.query(
-      `INSERT INTO point_redemptions (id, user_id, service, points, hours, status)
-       VALUES ($1,$2,$3,$4,$5,'paid')`,
-      [rid, req.auth.sub, service, points, (service === 'shower' || service === 'laundry') ? null : hours]
-    );
-    await applyDebit(client, req.auth.sub, plan.allocations, 'redeem', 'point_redemption', rid, req.auth.sub);
-    await client.query('COMMIT');
-    res.json({
-      redemption: { id: rid, service, points, hours: (service === 'shower' || service === 'laundry') ? null : hours, status: 'paid' },
-      balance: (await pointsSummaryFor(req.auth.sub)).balance,
-    });
-  } catch (e) {
-    await client.query('ROLLBACK');
-    if (e.status === 409) return res.status(409).json({ error: '扣點衝突，請重試。' });
-    throw e;
-  } finally {
-    client.release();
-  }
-}));
-
-app.post('/api/me/points/orders', auth, requireDb, wrap(async (req, res) => {
-  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
-  if (!stripe) return res.status(503).json({ error: '購買功能尚未開通（未設定 Stripe）。' });
-  const pack = PACKS[(req.body.pack_id || '').trim()];
-  if (!pack) return res.status(400).json({ error: '未知方案。' });
-
-  const id = uid('po_');
-  await q(
-    `INSERT INTO point_orders (id, user_id, pack_id, principal, bonus, pay_twd, status)
-     VALUES ($1,$2,$3,$4,$5,$6,'pending')`,
-    [id, req.auth.sub, pack.id, pack.principal, pack.bonus, pack.pay_twd]
-  );
-
-  const origin = SITE_BASE;
-  const lang = String((req.body && req.body.lang) || 'zh').toLowerCase();
-  const memberBase = lang === 'en' ? '/en/member' : lang === 'ja' ? '/ja/member' : '/member';
-  const session = await stripe.checkout.sessions.create({
-    mode: 'payment',
-    payment_method_types: ['card'], // 帳戶未對 TWD 啟用預設付款方式時 Stripe 會拒建 session，明示 card 即可
-    line_items: [{
-      price_data: {
-        currency: 'twd',
-        product_data: {
-          name: `言文字點數方案 ${pack.id}`,
-          description: `本金 ${pack.principal} 點` + (pack.bonus ? `＋加贈 ${pack.bonus} 點（一年效期）` : '') + '・每點 NT$1',
-        },
-        unit_amount: pack.pay_twd * 100,
-      },
-      quantity: 1,
-    }],
-    success_url: `${origin}${memberBase}?points_paid=1&oid=${id}&s={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${origin}${memberBase}?points_canceled=1`,
-    client_reference_id: id,
-    metadata: { kind: 'point_pack', point_order_id: id, user_id: req.auth.sub, pack_id: pack.id, src: srcOf(req) || undefined },
-  });
-  await q(`UPDATE point_orders SET stripe_session_id=$2 WHERE id=$1`, [id, session.id]);
-  res.json({ order_id: id, url: session.url });
-}));
-
-app.post('/api/me/points/orders/:id/fulfill', auth, requireDb, wrap(async (req, res) => {
-  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
-  if (!stripe) return res.status(503).json({ error: 'Stripe 未設定。' });
-  const order = (await q(`SELECT * FROM point_orders WHERE id=$1`, [req.params.id])).rows[0];
-  if (!order || order.user_id !== req.auth.sub) return res.status(404).json({ error: '找不到訂單。' });
-  if (order.status === 'paid') {
-    return res.json({ ok: true, already: true, balance: (await pointsSummaryFor(req.auth.sub)).balance });
-  }
-
-  const sessionId = String(req.body.session_id || order.stripe_session_id || '');
-  if (!sessionId || sessionId !== order.stripe_session_id)
-    return res.status(400).json({ error: 'session 與訂單不符。' });
-  const session = await stripe.checkout.sessions.retrieve(sessionId);
-  if (session.payment_status !== 'paid') return res.status(402).json({ error: '尚未付款。' });
-  if (!matchesPointCheckout(session, order)) {
-    return res.status(400).json({ error: 'session 與訂單不符。' });
-  }
-
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const locked = (await client.query(`SELECT * FROM point_orders WHERE id=$1 FOR UPDATE`, [order.id])).rows[0];
-    if (!matchesPointCheckout(session, locked)) throw new Error('付款快照已變更');
-    await fulfillPointOrder(client, locked);
-    await client.query('COMMIT');
-  } catch (e) {
-    await client.query('ROLLBACK');
-    throw e;
-  } finally {
-    client.release();
-  }
-  res.json({ ok: true, balance: (await pointsSummaryFor(req.auth.sub)).balance });
-}));
-
-app.post('/api/admin/points/orders/:id/fulfill', auth, adminOnly, requireDb, wrap(async (req, res) => {
-  const order = (await q(`SELECT * FROM point_orders WHERE id=$1`, [req.params.id])).rows[0];
-  if (!order) return res.status(404).json({ error: '找不到訂單。' });
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const locked = (await client.query(`SELECT * FROM point_orders WHERE id=$1 FOR UPDATE`, [order.id])).rows[0];
-    const out = await fulfillPointOrder(client, locked);
-    await client.query('COMMIT');
-    res.json({ ok: true, already: !!out.already, balance: (await pointsSummaryFor(order.user_id)).balance });
-  } catch (e) {
-    await client.query('ROLLBACK');
-    throw e;
-  } finally {
-    client.release();
-  }
-}));
-
-app.post('/api/me/points/refunds', auth, requireDb, wrap(async (req, res) => {
-  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
-  const orderId = (req.body.point_order_id || '').trim();
-  const principalPoints = Number(req.body.principal_points);
-  if (!orderId || !Number.isInteger(principalPoints) || principalPoints < 1) {
-    return res.status(400).json({ error: 'point_order_id 與 principal_points 必填。' });
-  }
-  const order = (await q(`SELECT * FROM point_orders WHERE id=$1`, [orderId])).rows[0];
-  if (!order || order.user_id !== req.auth.sub) return res.status(404).json({ error: '找不到訂單。' });
-  if (order.status !== 'paid') return res.status(400).json({ error: '訂單未付款。' });
-  if (!stripe || !order.stripe_session_id)
-    return res.status(503).json({ error: '此訂單需由管理員辦理退款，目前未執行退款或扣點。' });
-  const paidSession = await stripe.checkout.sessions.retrieve(order.stripe_session_id);
-  const paymentIntentId = typeof paidSession.payment_intent === 'string' ? paidSession.payment_intent : paidSession.payment_intent?.id;
-  if (!matchesPointCheckout(paidSession, order) || !paymentIntentId)
-    return res.status(409).json({ error: '訂單付款資料不符，尚未扣點，請聯絡管理員。' });
-
-  const client = await pool.connect();
-  let refundRow;
-  try {
-    await client.query('BEGIN');
-    await client.query(`SELECT id FROM point_orders WHERE id=$1 FOR UPDATE`, [orderId]);
-    refundRow = (await client.query(`SELECT * FROM point_refunds WHERE point_order_id=$1 AND status='pending' ORDER BY created_at LIMIT 1`, [orderId])).rows[0];
-    if (!refundRow) {
-      await expireLotsForUser(req.auth.sub);
-      const lots = (await client.query(
-        `SELECT * FROM point_lots WHERE user_id=$1 FOR UPDATE`, [req.auth.sub]
-      )).rows.map(rowToLot);
-      const plan = planRefund(lots, orderId, principalPoints);
-      if (!plan.ok) {
-        await client.query('ROLLBACK');
-        return res.status(400).json({ error: '無法退款。', code: plan.error });
-      }
-      const rid = uid('prf_');
-      const bonusVoided = plan.void_bonus.reduce((s, x) => s + x.amount, 0);
-      await applyDebit(client, req.auth.sub, plan.debit_principal, 'refund', 'point_refund', rid, req.auth.sub);
-      for (const v of plan.void_bonus) {
-        const u = await client.query(
-          `UPDATE point_lots SET remaining = 0 WHERE id=$1 AND remaining=$2 RETURNING id`,
-          [v.lot_id, v.amount]
-        );
-        if (!u.rowCount) continue;
-        await client.query(
-          `INSERT INTO point_ledger (id, user_id, lot_id, delta, reason, ref_type, ref_id, actor)
-           VALUES ($1,$2,$3,$4,'void_bonus','point_refund',$5,$6)`,
-          [uid('ldg_'), req.auth.sub, v.lot_id, -v.amount, rid, req.auth.sub]
-        );
-      }
-
-      await client.query(
-        `INSERT INTO point_refunds
-           (id, point_order_id, user_id, principal_points, refund_twd, bonus_voided, status, stripe_refund_id)
-         VALUES ($1,$2,$3,$4,$5,$6,'pending',NULL)`,
-        [rid, orderId, req.auth.sub, principalPoints, plan.refund_twd, bonusVoided]
-      );
-      refundRow = {
-        id: rid,
-        principal_points: principalPoints,
-        refund_twd: plan.refund_twd,
-        bonus_voided: bonusVoided,
-        stripe_refund_id: null, status: 'pending',
-      };
-    }
-    await client.query('COMMIT');
-  } catch (e) {
-    await client.query('ROLLBACK');
-    if (e.status === 409) return res.status(409).json({ error: '退款衝突，請重試。' });
-    throw e;
-  } finally {
-    client.release();
-  }
-  // 扣點與 pending intent 已持久化，外部成功後 DB 失敗也可用同一 intent 重試。
-  try {
-    let rf;
-    for await (const existing of stripe.refunds.list({ payment_intent: paymentIntentId, limit: 100 })) {
-      if (existing.metadata?.point_refund_id === refundRow.id) { rf = existing; break; }
-    }
-    if (!rf) rf = await stripe.refunds.create({ payment_intent: paymentIntentId, amount: Number(refundRow.refund_twd) * 100,
-      metadata: { point_refund_id: refundRow.id } }, { idempotencyKey: `points-refund-${refundRow.id}` });
-    if (rf.status === 'failed' || rf.status === 'canceled') {
-      const restore = await pool.connect();
-      try {
-        await restore.query('BEGIN');
-        const pending = (await restore.query(`SELECT id FROM point_refunds WHERE id=$1 AND status='pending' FOR UPDATE`, [refundRow.id])).rows[0];
-        if (pending) {
-          const debits = (await restore.query(`SELECT lot_id,delta FROM point_ledger WHERE ref_type='point_refund' AND ref_id=$1 AND delta<0`, [refundRow.id])).rows;
-          for (const debit of debits) {
-            await restore.query(`UPDATE point_lots SET remaining=remaining-$2 WHERE id=$1`, [debit.lot_id, debit.delta]);
-            await restore.query(`INSERT INTO point_ledger (id,user_id,lot_id,delta,reason,ref_type,ref_id,actor)
-              VALUES ($1,$2,$3,$4,'refund_failed','point_refund',$5,'system')`,
-              [uid('ldg_'), req.auth.sub, debit.lot_id, -Number(debit.delta), refundRow.id]);
-          }
-          await restore.query(`UPDATE point_refunds SET status='failed',stripe_refund_id=$2 WHERE id=$1`, [refundRow.id, rf.id]);
-        }
-        await restore.query('COMMIT');
-      } catch (e) { await restore.query('ROLLBACK'); throw e; }
-      finally { restore.release(); }
-      return res.status(409).json({ error: '退款未成功，已恢復原點數與贈點，請聯絡管理員。', refund_id: refundRow.id });
-    }
-    if (rf.status !== 'succeeded') throw new Error('Stripe 退款尚未完成');
-    await q(`UPDATE point_refunds SET status='completed',stripe_refund_id=$2 WHERE id=$1`, [refundRow.id, rf.id]);
-    refundRow = { ...refundRow, status: 'completed', stripe_refund_id: rf.id };
-  } catch (e) {
-    console.error('[point refund pending]', e.message);
-    return res.status(502).json({ error: '退款仍在處理中；點數已保留，再次送出將重試同一筆退款。', refund_id: refundRow.id });
-  }
-  res.json({ refund: refundRow, balance: (await pointsSummaryFor(req.auth.sub)).balance });
 }));
 
 // 帶 id＝改寫既有消息，否則新增（同 events／social posts 的 upsert 慣例）
@@ -4537,7 +3969,7 @@ app.post('/api/checkout', requireDb, wrap(async (req, res) => {
           currency: 'twd',
           product_data: {
             name: '言文字創始會員',
-            description: `18 個月會籍（${MEMBERSHIP_START} 起算至 ${endMinus1}）＋贈點 20,000（一年效期）・限量 100 名`,
+            description: `18 個月會籍（${MEMBERSHIP_START} 起算至 ${endMinus1}）・限量 100 名`,
           },
           unit_amount: PRICE * 100, // TWD 為 2 位小數幣別：NT$35,000 → 3,500,000
         },
@@ -4591,7 +4023,7 @@ app.post('/api/me/plans/checkout', auth, requireDb, wrap(async (req, res) => {
     line_items: [{
       price_data: {
         currency: 'twd',
-        product_data: { name: `言文字會籍 ${PLAN_LABEL[plan]}`, description: MEMBERSHIP_GIFT_POINTS[plan] ? `含贈點 ${MEMBERSHIP_GIFT_POINTS[plan]} 點（一年效期）` : '單日方案，首次進場啟用' },
+        product_data: { name: `言文字會籍 ${PLAN_LABEL[plan]}`, description: plan.startsWith('day_') ? '單日方案，首次進場啟用' : '會員可自由使用 2F／3F 所有設備' },
         unit_amount: PLAN_PRICE_TWD[plan] * 100,
       },
       quantity: 1,

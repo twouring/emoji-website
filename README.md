@@ -8,8 +8,8 @@
 | `/cis/`、`/en/cis/`、`/ja/cis/` | 企業識別 CIS（公開 Brand Guidelines） |
 | `/fellow` | 言文字創始會員站（一頁式 SPA，含登入／會員儀表板／後台／Stripe 結帳） |
 | `/api/*`、`/auth/google/*` | 後端 REST API 與 Google 登入；資料存 Postgres |
-| `/member` | 會員專區（進出 QR、點數錢包、購點／兌換／退款） |
-| `/admin`、`/admin/*` | 後台（會籍、發點、活動、內容、社群、廣告）；每個分頁為一般路徑（`/admin/members`、`/admin/social/edit/:id`…），伺服器對 `/admin/*` 皆回同一頁；舊 `/admin#tab` 書籤自動轉為路徑 |
+| `/member` | 會員專區（進出 QR、會籍狀態、活動報名） |
+| `/admin`、`/admin/*` | 後台（會籍、活動、內容、社群、廣告）；每個分頁為一般路徑（`/admin/members`、`/admin/social/edit/:id`…），伺服器對 `/admin/*` 皆回同一頁；舊 `/admin#tab` 書籤自動轉為路徑 |
 | `/ig-media/*` | 物件儲存（Railway bucket／MinIO，皆不公開）的同網域代理：社群素材、貼文圖、活動圖的公開網址一律是 `PUBLIC_ORIGIN/ig-media/<key>` |
 | `/order?t=桌號&k=簽章` | 桌邊 QR 點餐（不登入）：同桌共用購物車、TapPay 刷卡、取餐推播；QR 由後台「點餐出餐」分頁產生 |
 | `/pos`、`/pos/*`（`pos.emoji.tw`） | 平板 POS（PWA，可加到主畫面）：結帳、出餐、估清、訂位、日結五個分頁，與 `/admin` 同一組帳號與 API；畫面程式 `public/pos-ops.js`／`pos-ops.css` 與後台共用。`pos.emoji.tw` 指向同一服務（`POS_HOSTS`），首頁與 `/admin` 轉到 `/pos`；Google 登入固定由 `www` 發起再導回 |
@@ -96,12 +96,10 @@ DB 未設定時伺服器優雅降級：靜態頁照常，`/api/*` 回 503。
 
 `npm test` 包含輸入驗證及前台錯誤恢復測試。另設 `EVENT_APPLICATION_TEST_DATABASE_URL` 為本機 PostgreSQL URL 可執行資料庫整合測試；測試會建立及清除自己的隨機 schema，不載入正式環境設定。2026-09-06 本次隔離發行版本 `8fa5ee24` 完整測試結果：220 通過、0 失敗、0 略過。
 
-## 會員點數（摘要）
+## 會員設備（無點數制）
 
-- 每點 NT$1（2026-07-25 起，1 點＝1 元）；購買本金無效期可退未使用部分；加贈／會籍贈點預設一年、不退現。
-- 會籍贈點：月會員 1,000 點、季會員 3,000 點、年會員 10,000 點、創始會員 20,000 點。
-- 兌換（須持有效會籍）：淋浴 70 點／次、膠囊休憩席／交誼廳各 100 點／小時；包場現金。
-- 規格：`docs/superpowers/specs/2026-07-12-member-points-design.md`（點值以本節與 `lib/points.js` 為準）
+- 2026-10-15 起移除點數制（購點／贈點／兌換／退款一律下架）；持有效會籍的會員可自由使用 2F／3F／頂樓所有設備（淋浴、洗脫烘、膠囊休憩席、交誼廳），不另收費。
+- 資料庫的 `point_*` 表保留舊資料，不再建立、不再讀寫（移除時皆為 0 筆有效點數）。
 
 ## 百鬼夜行活動頁（2026-09-07，待完成報名流程）
 

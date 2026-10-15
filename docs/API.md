@@ -29,9 +29,8 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" https://www.emoji.tw/api/state
 
 **注意事項**
 
-- 金鑰＝超級管理員，可指派管理員、發點數、改所有內容。只存在環境變數，絕不可寫進前端或 commit。
+- 金鑰＝超級管理員，可指派管理員、改所有內容。只存在環境變數，絕不可寫進前端或 commit。
 - agent 身分沒有綁定會員（`sub` 為 null），因此所有 `/api/me/*` 與報名類端點會回 403。這是刻意的。
-- agent 發放點數時，`point_ledger.actor` 記為 `agent`。
 - 會員 token 有效七天；每次請求以資料庫目前的管理員權限為準。部署本次修正後，舊版無期限 token 須重新登入。
 - OAuth state 有效十分鐘，使用 HttpOnly、SameSite=Lax cookie 綁定發起登入的瀏覽器，不能作為 API token。
 
@@ -88,14 +87,11 @@ TapPay Pay by Prime 結帳。body：`{ prime, lines?[], name, phone?, email? }`�
 支援同樣的 `?lang=zh|en|ja`；回傳包含 `translations`。
 活動詳情。公開、私人與會員限定活動皆可由直接連結讀取；私人活動不列入清單，會員限定活動只列入有效會員的清單。帶有效 Bearer token 時一併回自己的報名、付款與簽到狀態，以及只屬於目前帳號的 `viewer: {name,email}`，供報名表預填。公開活動的有效報名另回 `referral_token`；帶有效 `ref` 查詢參數時回 `referred_by`，前台可顯示邀請人。私人與會員限定活動不啟用個人轉介追蹤。
 
-### GET /api/points/packs
-點數方案定價表。回 `{ price_twd, packs }`。
-
 ### GET /api/venue/schedule
 未來 90 天已排定的場地時段與公開活動，回 `{ bookings: [{ venue, kind, starts_at, ends_at }], events: [{ title, slug, location, starts_at, ends_at, venues }] }`。`venues` 為該活動佔用的空間代碼（`1F`／`2F`／`3F`／`4F`）：由場地申請轉成的活動用申請的空間，其餘由 `location` 文字推斷，寫不出樓層視為全棟。`bookings` 只含審核通過的申請時段，不含申請人資料；供申請表與行事曆顯示「已排定」。快取 5 分鐘。
 
 ### POST /api/checkout
-所有結帳、活動付款、點數購買、退款與 webhook 都必須使用 Stripe「Emoji 言文字」帳號 `acct_1Ts2y95NXMKDsl40`。
+所有結帳、活動付款、退款與 webhook 都必須使用 Stripe「Emoji 言文字」帳號 `acct_1Ts2y95NXMKDsl40`。
 
 建立 Stripe 結帳（購買創始會籍）。body：`{ lang }`。回 `{ url }`。未設 `STRIPE_SECRET_KEY` 或 DB 未就緒時回 503；超過 `SALE_END`（預設 2026-12-31）回 410。已付款與有效結帳保留名額合計達 `MAX_PARTICIPANTS`（預設 100）回 409。新 checkout 保留 30 分鐘；以 Postgres 交易鎖序列化所有 instance 的名額盤點與建立。
 
@@ -106,7 +102,7 @@ TapPay Pay by Prime 結帳。body：`{ prime, lines?[], name, phone?, email? }`�
 驗證進出 QR token 是否有效。body：`{ token }`。回 `{ ok, claims }`。
 
 ### POST /api/stripe/webhook
-Stripe 活動與點數付款 webhook。只接受 `STRIPE_WEBHOOK_SECRET` 驗證成功的原始 request body；處理 `checkout.session.completed`、`checkout.session.async_payment_succeeded` 與 `checkout.session.expired`。點數與活動皆驗證訂單、帳號、session、TWD 幣別及金額快照；重送不會重複核銷或入點。
+Stripe 活動與會籍付款 webhook。只接受 `STRIPE_WEBHOOK_SECRET` 驗證成功的原始 request body；處理 `checkout.session.completed`、`checkout.session.async_payment_succeeded` 與 `checkout.session.expired`。活動與會籍皆驗證訂單、帳號、session、TWD 幣別及金額快照；重送不會重複核銷。
 
 ## 登入
 
@@ -128,9 +124,9 @@ Google 授權回呼，簽發會員 token 並導回。
 
 `payment_methods[]`（管理員皆可見，POS 結帳與系統設定管理共用）：`[{ code, label, active, builtin }]`，現金／刷卡／LINE Pay／轉帳為 `builtin:true` 固定在前（恆 `active:true`），之後接自訂收款帳戶（`builtin:false`，見 `POST/PATCH /api/admin/payment-methods`）。結帳付款方式選項只取 `active:true` 的；停用的自訂帳戶仍會列出（`active:false`）供系統設定頁重新啟用。
 
-`users[]` 每筆含 `access_active`、`access_summary`、`points_balance`。
-會員身分則只回自己的資料（`me`、`commitments`、`access`、`points`、`point_orders`、報名中活動）。
-綁定會員的管理員另有本人 `access`、`points`、`point_orders`；會員及管理員皆有本人尚在處理的 `point_refunds`，供退款重試使用。
+`users[]` 每筆含 `access_active`、`access_summary`。
+會員身分則只回自己的資料（`me`、`commitments`、`access`、報名中活動）。
+綁定會員的管理員另有本人 `access`。
 
 ## 後台管理（需管理員或 agent 金鑰）
 
@@ -451,7 +447,7 @@ query `tables=A1,A2`（最多 100 桌，英數字與 -，8 字內）。回 `{ ta
 ### GET /api/admin/ig/status
 IG 自動發文系統狀態：token 有無、AI key 有無、未來排程、錯誤與逾期清單、素材庫統計、近 30 天官網導流 `utm:[{source,medium,hits}]`。
 
-導流歸因：任何帶 `utm_source` 的 GET 到訪按日計入 `utm_hits`，並寫首次來源 cookie `src`（30 天，只存 `source|medium|campaign` 字串）；創始會員、會籍、點數結帳把它帶進 Stripe metadata `src`。
+導流歸因：任何帶 `utm_source` 的 GET 到訪按日計入 `utm_hits`，並寫首次來源 cookie `src`（30 天，只存 `source|medium|campaign` 字串）；創始會員、會籍結帳把它帶進 Stripe metadata `src`。
 
 ### GET /api/admin/ig/storage
 列 MinIO 物件（預設 `prefix=assets/`，可帶 `?prefix=posts/`）。回 `{ objects:[{key,size,lastModified,url}] }`，用來找未登記進 ig_assets 的原始素材。
@@ -499,19 +495,10 @@ X 貼文 AI 起草：body `{ topic }`，回 `{ ok, draft: { title, caption, capt
 
 ### POST /api/admin/commitments/:id/confirm
 確認參與款項入帳：`payment_status` → 已付款、`membership_status` → 已啟用、
-使用者 `status` → 已參與，並建立創始會員權益與贈點。
+使用者 `status` → 已參與，並建立創始會員權益。
 
 ### POST /api/admin/entitlements
 建立會員權益。body：`{ user_id, plan, ... }`。
-
-### POST /api/admin/points/grants
-發放點數。body：`{ user_id, amount, note（必填）, expires_at? }`。預設一年後到期。
-
-### GET /api/admin/users/:id/points
-指定會員的點數餘額與批次明細。
-
-### POST /api/admin/points/orders/:id/fulfill
-手動完成點數訂單（Stripe webhook 失敗時的補救）。
 
 ### POST /api/admin/users/:id/admin
 指派或取消管理員，並設定後台範圍。body：`{ admin: boolean, brand?: 'CAFE'|'BAR'|'SPACE'|null }`。**限超級管理員或 agent 金鑰。**
@@ -524,21 +511,6 @@ X 貼文 AI 起草：body `{ topic }`，回 `{ ok, draft: { title, caption, capt
 
 ### GET /api/me/access-qr
 取得 45 秒有效的進出 QR token。
-
-### GET /api/me/points
-自己的點數餘額與批次。
-
-### POST /api/me/points/redeem
-以點數兌換服務。body：`{ service: "shower" | "laundry" | "capsule" | "entertainment", hours? }`；淋浴 70 點／次、頂樓洗脫烘 50 點／次、膠囊席與交誼廳各 100 點／小時（`hours` 必填）。須持有效會籍。
-
-### POST /api/me/points/orders
-建立點數加值訂單（走 Stripe）。
-
-### POST /api/me/points/orders/:id/fulfill
-完成自己的點數訂單。session 必須與原訂單、會員、方案、TWD 幣別及應付金額全部吻合，不能套用其他已付款 checkout。
-
-### POST /api/me/points/refunds
-點數退款。body：`{ point_order_id, principal_points }`。先持久化扣點與 pending 退款紀錄，再對 Stripe 退款；中斷時回 502 及 `refund_id`。同訂單有 pending 紀錄時，再次送出只重試原紀錄與金額。Stripe 明確失敗或取消時交易回補原點數與贈點，回 409 及 `refund_id`；僅 succeeded 標示完成。
 
 ### POST /api/me/profile
 更新自己的姓名與電話。body：`{ name, phone? }`（姓名 1–80 字、電話 40 字以內），回 `{ ok, me }`。Email 由 Google 登入決定，不可改。
@@ -669,7 +641,7 @@ Twilio 訊息狀態 callback。以 `X-Twilio-Signature` 驗證請求，將 accep
 活動主入口 `/organizer/events` 沿用活動編輯器，可用 Google 或 Email（`/event-login.html`）登入；活動管理放在官網（`www.emoji.tw`），不在後台網域：前後台拆開後 `www` 只把 `/admin` 轉到 `admin.emoji.tw`，`/organizer` 留在 `www`，後台服務上的 `/organizer` 反向轉回 `www`；主辦人若從 `/admin` 進入，前端確認 `GET /api/organizer/state` 可用後自動轉到 `/organizer` 同一路徑。沒有全域「活動主」角色：平台管理員在單場活動指定負責人（`owner_id`）或於「主辦團隊」加入可管理的 Email，該帳號即可進入並只管理那幾場；平台管理員可直接建立活動；其他人以場地申請建立（送件即建立待審草稿活動並成為負責人）。可管理者可複製自己管理的活動：非平台管理員的副本視為新的場地申請（`review_status='pending'`，同時寫入一筆申請與收件通知），須再審核才能公開。`GET /api/organizer/state` 另回本人 `applications`（含審核回覆與進度紀錄）。每次請求重新查核資料庫權限，不能靠舊 token 保留撤銷後的權限。
 
 ### GET /api/organizer/state
-僅回自己的／受邀共同管理的活動、本人姓名與 Email，以及 `can_create_events`。不包含其他會員、金流、點數、設定或其他主辦人的活動。未授權回 403。
+僅回自己的／受邀共同管理的活動、本人姓名與 Email，以及 `can_create_events`。不包含其他會員、金流、設定或其他主辦人的活動。未授權回 403。
 
 ### GET /api/admin/events/:id/hosts
 平台管理員／本活動負責人／共同管理者可讀主辦團隊。回 `{ owner, hosts, tickets, checkin }`；owner 為平台指定的主要負責人；hosts 有 `name,email,is_visible,can_manage,can_checkin,checkin_ticket_ids`，checkin 為預設掃描模式與鎖定狀態。

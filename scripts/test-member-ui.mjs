@@ -6,35 +6,33 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const {
-  EXPIRING_WITHIN_DAYS,
   pickNextEvent,
-  expiringPointsSummary,
   membershipStatusTitle,
 } = require('../lib/member-ui.js');
 
 const now = new Date('2026-07-12T12:00:00.000Z');
 
 for (const page of ['member.html', 'en/member.html', 'ja/member.html']) {
-  test(`${page}: paid return remains retryable until fulfillment succeeds`, async () => {
+  test(`${page}: paid return remains retryable until verification succeeds`, async () => {
     const html = fs.readFileSync(new URL('../public/' + page, import.meta.url), 'utf8');
-    const start = html.indexOf('  async function fulfillPointsIfNeeded()');
+    const start = html.indexOf('  async function fulfillPlanIfNeeded()');
     const end = html.indexOf('  async function regEvent(', start);
     assert.ok(start >= 0 && end > start);
     const changedUrls = [];
     let response;
     const context = {
-      URLSearchParams, token: 'member-token', FELLOW: '', T: { opFail: 'retry' },
-      location: { pathname: '/' + page.replace('.html', ''), search: '?points_paid=1&oid=po_test&s=cs_test&keep=1', hash: '#points' },
+      URLSearchParams, token: 'member-token', FELLOW: '', showToast() {}, T: { opFail: 'retry', planVerifying: 'verifying', planPaid: 'paid', planCanceled: 'canceled' },
+      location: { pathname: '/' + page.replace('.html', ''), search: '?plan_paid=1&s=cs_test&keep=1', hash: '#points' },
       history: { replaceState: (_state, _title, url) => changedUrls.push(url) },
       fetch: async (url, options) => {
-        assert.equal(url, '/api/me/points/orders/po_test/fulfill');
+        assert.equal(url, '/api/me/plans/verify');
         assert.equal(options.headers.authorization, 'Bearer member-token');
         assert.deepEqual(JSON.parse(options.body), { session_id: 'cs_test' });
         if (response instanceof Error) throw response;
         return response;
       },
     };
-    const run = () => vm.runInNewContext(html.slice(start, end) + '\nfulfillPointsIfNeeded()', context);
+    const run = () => vm.runInNewContext(html.slice(start, end) + '\nfulfillPlanIfNeeded()', context);
     for (const failure of [
       { ok: false, json: async () => ({ error: 'temporary failure' }) },
       { ok: true, json: async () => ({}) },
@@ -75,40 +73,6 @@ for (const page of ['member.html', 'en/member.html', 'ja/member.html']) {
     assert.deepEqual(changedUrls, [context.location.pathname + context.location.search]);
   });
 
-  test(`${page}: a pending full refund remains actionable with zero points`, async () => {
-    const html = fs.readFileSync(new URL('../public/' + page, import.meta.url), 'utf8');
-    const render = html.slice(html.indexOf('  function renderPoints('), html.indexOf('  function renderLoggedOut('));
-    const data = {
-      points: { balance: 0, lots: [{ type: 'purchase', source_id: 'po_test', remaining: 0 }] },
-      point_orders: [{ id: 'po_test', pack_id: 'small', status: 'paid' }],
-      point_refunds: [{ point_order_id: 'po_test', principal_points: 500, status: 'pending' }],
-    };
-    const context = {
-      data, esc: value => String(value ?? ''), expiringPointsSummary: () => null,
-      T: { orderPaid: id => id, orderRemain: n => String(n), retryRefund: 'Retry refund', refundPending: 'Pending refund' },
-    };
-    const output = vm.runInNewContext(render + '\nrenderPoints(data)', context);
-    assert.match(output, /data-refund="po_test" data-max="500" data-pending="1"/);
-    assert.match(output, /Retry refund/);
-    let refreshes = 0;
-    let sent;
-    const btn = { dataset: { pending: '1' }, disabled: false };
-    Object.assign(context, {
-      btn, FELLOW: '', token: 'member-token',
-      prompt: () => assert.fail('retry must keep the original pending refund amount'),
-      fetch: async (_url, options) => {
-        sent = JSON.parse(options.body);
-        return { ok: false, json: async () => ({ refund_id: 'prf_test', error: 'pending' }) };
-      },
-      main: async () => { refreshes++; }, showToast() {},
-    });
-    const refund = html.slice(html.indexOf('  async function refundPoints('), html.indexOf('  async function fulfillPointsIfNeeded('));
-    await vm.runInNewContext(refund + "\nrefundPoints('po_test', 500, btn)", context);
-    assert.deepEqual(sent, { point_order_id: 'po_test', principal_points: 500 });
-    assert.equal(refreshes, 1);
-    assert.equal(btn.disabled, false);
-  });
-
   test(`${page}: admin member view only renders their own membership`, async () => {
     const html = fs.readFileSync(new URL('../public/' + page, import.meta.url), 'utf8');
     const main = html.slice(html.indexOf('  async function main()'), html.indexOf("  document.addEventListener('visibilitychange'"));
@@ -118,17 +82,13 @@ for (const page of ['member.html', 'en/member.html', 'ja/member.html']) {
       { id: 'own-membership', user_id: 'audit_admin' },
     ] };
     await vm.runInNewContext(main + '\nmain()', {
-      token: 'member-token', FELLOW: '', fulfillPointsIfNeeded: async () => {}, fulfillPlanIfNeeded: async () => {},
+      token: 'member-token', FELLOW: '', fulfillPlanIfNeeded: async () => {},
       fetch: async () => ({ ok: true, json: async () => data }),
       renderMember: value => { rendered = value; },
     });
     assert.deepEqual(rendered.commitments, [{ id: 'own-membership', user_id: 'audit_admin' }]);
   });
 }
-
-test('EXPIRING_WITHIN_DAYS is 30', () => {
-  assert.equal(EXPIRING_WITHIN_DAYS, 30);
-});
 
 test('pickNextEvent prefers soonest registered future event', () => {
   const events = [
@@ -151,25 +111,6 @@ test('pickNextEvent returns null when empty or all past', () => {
   assert.equal(pickNextEvent([], now), null);
   assert.equal(pickNextEvent([
     { id: '1', starts_at: '2026-07-01T00:00:00.000Z', registered: true },
-  ], now), null);
-});
-
-test('expiringPointsSummary sums remaining within 30d and picks earliest date', () => {
-  const lots = [
-    { remaining: 10, expires_at: '2026-07-20T00:00:00.000Z', available: true },
-    { remaining: 20, expires_at: '2026-07-25T00:00:00.000Z', available: true },
-    { remaining: 50, expires_at: null, available: true },
-    { remaining: 5, expires_at: '2026-09-01T00:00:00.000Z', available: true },
-    { remaining: 99, expires_at: '2026-07-13T00:00:00.000Z', available: false },
-  ];
-  const s = expiringPointsSummary(lots, now);
-  assert.equal(s.points, 30);
-  assert.equal(new Date(s.soonest).toISOString(), '2026-07-20T00:00:00.000Z');
-});
-
-test('expiringPointsSummary returns null when none', () => {
-  assert.equal(expiringPointsSummary([
-    { remaining: 10, expires_at: null, available: true },
   ], now), null);
 });
 

@@ -82,7 +82,6 @@
   .m-panel{border:1px solid var(--line);border-radius:var(--radius-sm);padding:16px;background:var(--card);
     position:relative;overflow:hidden;margin-bottom:14px}
   .m-panel::after{display:none}
-  .m-panel--wallet::after{display:none}
   .m-progress{height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin-bottom:8px}
   .m-progress>i{display:block;height:100%;background:var(--ink);border-radius:99px}
   .m-meta{display:flex;justify-content:space-between;gap:10px;font-size:1rem;color:var(--muted);margin-bottom:14px}
@@ -139,9 +138,9 @@
     zh: {
       loading: '載入中…',
       loginTitle: '查看活動與會員權益',
-      loginSub: '登入後可查看活動報名、會籍狀態、進出 QR 與點數餘額。',
+      loginSub: '登入後可查看活動報名、會籍狀態、進出 QR。',
       loginBtn: '使用 Google 登入',
-      loginNote: '首次登入會以 Google 已驗證的姓名與 Email 免費建立帳號；免費帳號可報名活動，但不包含 2F／3F 通行、點數或付費會籍權益。只有已購買並持有的方案會顯示對應權益。',
+      loginNote: '首次登入會以 Google 已驗證的姓名與 Email 免費建立帳號；免費帳號可報名活動，但不包含 2F／3F 通行或付費會籍權益。只有已購買並持有的方案會顯示對應權益。',
       plans: { day_4h: '單日 4 小時', day_12h: '單日 12 小時', month: '月會員', quarter: '季會員', year: '年會員', founding: '創始會員', fallback: '權益' },
       pendingActivate: '待首次進場啟用',
       noFloorAccess: '目前沒有可進出二三樓的權益。',
@@ -163,32 +162,6 @@
       qrPending: '（待首次進場啟用）',
       qrUntil: '，有效至 ',
       qrOffline: '暫時無法連線產生 QR，請稍後再試。',
-      packSmall: '小：500 點',
-      packMid: '中：1,000＋贈 100',
-      packLarge: '大：3,000＋贈 450',
-      packXl: '超大：5,000＋贈 1,000',
-      ptsLot: (t, n, exp) => `${t} ${n} 點 · 至 ${exp}`,
-      redeemShower: '淋浴（70 點）',
-      redeemCapsule: '膠囊休憩席 1h（100 點）',
-      redeemEnt: '交誼廳 1h（100 點）',
-      needActive: '需有可進出二三樓的有效會籍，才能兌換淋浴／膠囊／交誼廳。',
-      orderPaid: (id) => `${id} 訂單`,
-      orderRemain: (n) => `剩餘可退 ${n} 點`,
-      refund: '退款',
-      retryRefund: '重試退款',
-      refundPending: '退款處理中',
-      noOrders: '尚無已付款購點訂單。',
-      walletLabel: '點數錢包',
-      walletTitle: '點數錢包',
-      walletNote: '每點 NT$1。購買點數無使用期限、可退款；加贈／會籍贈點預設一年、不退現。效期近者優先扣除。',
-      ptsUnit: (n) => `${n} 點`,
-      expiring: '即將到期',
-      ptsAvailable: '可用點數',
-      ptsExpiring: '即將到期',
-      ptsUnitLabel: '點',
-      buyPts: '購買點數',
-      redeemSvc: '兌換服務',
-      ordersRefund: '購點訂單／退款',
       badgeTitle: '創始會員計畫參與者',
       badgeName: '創始會員',
       memStatus: '會籍狀態',
@@ -212,13 +185,7 @@
       eventsTitle: '近期活動',
       updatesTitle: '會員動態',
       logout: '登出',
-      buyFail: '無法建立購點訂單',
       netFail: '連線失敗，請稍後再試',
-      redeemFail: '兌換失敗',
-      refundPrompt: (max) => `退還未使用的購買點（最多 ${max} 點）。退款時該筆訂單剩餘加贈會全部作廢。`,
-      refundBad: (max) => `請輸入 1～${max} 的整數`,
-      refundFail: '退款失敗',
-      refundOk: (n) => `已申請退款 NT$${n}`,
       opFail: '操作失敗，請稍後再試。',
       tempFail: '暫時無法連線，請稍後再試。',
       sysFail: '暫時無法連線會員系統，請稍後再試。',
@@ -240,7 +207,6 @@
       nameLabel: '姓名',
       saveName: '儲存',
       nameReadonly: '姓名資料由 Google 帳號提供，目前僅供檢視、無法在此修改。',
-      redeemOk: '兌換成功',
       regOk: '已完成報名',
       unregOk: '已取消報名',
       locale: 'zh-TW',
@@ -248,9 +214,9 @@
     en: {
       loading: 'Loading…',
       loginTitle: 'View your events and member benefits',
-      loginSub: 'Sign in to view event registrations, membership status, your entry QR and points balance.',
+      loginSub: 'Sign in to view event registrations, membership status, and your entry QR.',
       loginBtn: 'Sign in with Google',
-      loginNote: 'On first sign-in, we create a free account using your verified Google name and email. Free accounts can register for events but do not include 2F/3F access, points or paid membership benefits. Only benefits from plans you have purchased and currently hold will appear.',
+      loginNote: 'On first sign-in, we create a free account using your verified Google name and email. Free accounts can register for events but do not include 2F/3F access or paid membership benefits. Only benefits from plans you have purchased and currently hold will appear.',
       plans: { day_4h: 'Day pass · 4 hrs', day_12h: 'Day pass · 12 hrs', month: 'Monthly', quarter: 'Quarterly', year: 'Annual', founding: 'Founding Member', fallback: 'Plan' },
       pendingActivate: 'Activates on first entry',
       noFloorAccess: 'No valid 2F/3F access entitlement yet.',
@@ -272,32 +238,6 @@
       qrPending: ' (pending first entry)',
       qrUntil: ', valid until ',
       qrOffline: 'Could not reach the QR service. Please try again.',
-      packSmall: 'S: 500 pts',
-      packMid: 'M: 1,000 + 100 bonus',
-      packLarge: 'L: 3,000 + 450 bonus',
-      packXl: 'XL: 5,000 + 1,000 bonus',
-      ptsLot: (t, n, exp) => `${t} ${n} pts · until ${exp}`,
-      redeemShower: 'Shower (70 pts)',
-      redeemCapsule: 'Capsule rest seat 1h (100 pts)',
-      redeemEnt: 'Play room 1h (100 pts)',
-      needActive: 'A valid membership with 2F/3F access is required to redeem shower / capsule / play room.',
-      orderPaid: (id) => `Order ${id}`,
-      orderRemain: (n) => `Refundable left: ${n} pts`,
-      refund: 'Refund',
-      retryRefund: 'Retry refund',
-      refundPending: 'Refund processing',
-      noOrders: 'No paid point orders yet.',
-      walletLabel: 'Points wallet',
-      walletTitle: 'Points wallet',
-      walletNote: 'NT$1 per point. Purchased principal has no expiry and is refundable; bonus / membership gift points expire in one year and are non-refundable. Nearest expiry is spent first.',
-      ptsUnit: (n) => `${n} pts`,
-      expiring: 'Expiring soon',
-      ptsAvailable: 'Available points',
-      ptsExpiring: 'Expiring soon',
-      ptsUnitLabel: 'pts',
-      buyPts: 'Buy points',
-      redeemSvc: 'Redeem services',
-      ordersRefund: 'Orders / refunds',
       badgeTitle: 'Founding Member participant',
       badgeName: 'Founding Member',
       memStatus: 'Membership status',
@@ -321,13 +261,7 @@
       eventsTitle: 'Upcoming events',
       updatesTitle: 'Member updates',
       logout: 'Sign out',
-      buyFail: 'Could not create point order',
       netFail: 'Connection failed. Please try again.',
-      redeemFail: 'Redemption failed',
-      refundPrompt: (max) => `Refund unused purchased points (max ${max}). Remaining bonus on that order will be voided.`,
-      refundBad: (max) => `Enter an integer from 1 to ${max}`,
-      refundFail: 'Refund failed',
-      refundOk: (n) => `Refund requested: NT$${n}`,
       opFail: 'Action failed. Please try again.',
       tempFail: 'Temporarily unavailable. Please try again.',
       sysFail: 'Could not reach the member system. Please try again.',
@@ -349,7 +283,6 @@
       nameLabel: 'Name',
       saveName: 'Save',
       nameReadonly: 'Your name comes from your Google account — view only for now.',
-      redeemOk: 'Redeemed',
       regOk: 'Registered',
       unregOk: 'Registration cancelled',
       locale: 'en-US',
@@ -357,9 +290,9 @@
     ja: {
       loading: '読み込み中…',
       loginTitle: 'イベントと会員特典を確認',
-      loginSub: 'ログイン後、イベント申込、会員資格の状態、入館 QR、ポイント残高を確認できます。',
+      loginSub: 'ログイン後、イベント申込、会員資格の状態、入館 QR を確認できます。',
       loginBtn: 'Google でログイン',
-      loginNote: '初回ログイン時、Googleで確認済みの氏名とメールで無料アカウントを作成します。無料アカウントでイベントに申し込めますが、2F・3Fの利用、ポイント、有料会員特典は含まれません。購入・保有中のプランに応じた特典のみ表示されます。',
+      loginNote: '初回ログイン時、Googleで確認済みの氏名とメールで無料アカウントを作成します。無料アカウントでイベントに申し込めますが、2F・3Fの利用、有料会員特典は含まれません。購入・保有中のプランに応じた特典のみ表示されます。',
       plans: { day_4h: 'デイ（4時間）', day_12h: 'デイ（12時間）', month: '月会員', quarter: '四半期会員', year: '年会員', founding: '創始会員', fallback: 'プラン' },
       pendingActivate: '初回入場で有効化',
       noFloorAccess: '2F/3F に入れる有効な権利がありません。',
@@ -381,32 +314,6 @@
       qrPending: '（初回入場で有効化）',
       qrUntil: '、有効期限 ',
       qrOffline: 'QR サービスに接続できません。しばらくしてから再度お試しください。',
-      packSmall: 'S：500ポイント',
-      packMid: 'M：1,000＋ボーナス100',
-      packLarge: 'L：3,000＋ボーナス450',
-      packXl: 'XL：5,000＋ボーナス1,000',
-      ptsLot: (t, n, exp) => `${t} ${n} pt · 〜${exp}`,
-      redeemShower: 'シャワー（70 pt）',
-      redeemCapsule: 'カプセル休憩席 1h（100 pt）',
-      redeemEnt: 'プレイルーム 1h（100 pt）',
-      needActive: 'シャワー／ランドリー／カプセル／ソーシャルルームの交換には、2F・3Fを利用できる有効な会員資格が必要です。',
-      orderPaid: (id) => `注文 ${id}`,
-      orderRemain: (n) => `返金可能の残り ${n} pt`,
-      refund: '返金',
-      retryRefund: '返金を再試行',
-      refundPending: '返金処理中',
-      noOrders: '支払い済みのポイント注文はまだありません。',
-      walletLabel: 'ポイントウォレット',
-      walletTitle: 'ポイントウォレット',
-      walletNote: '1ポイント NT$1。購入ポイントは期限なし・返金可。ボーナス／会員プラン付与は原則1年・現金返金不可。期限の近いものから優先消化。',
-      ptsUnit: (n) => `${n} pt`,
-      expiring: 'まもなく失効',
-      ptsAvailable: '利用可能ポイント',
-      ptsExpiring: 'まもなく失効',
-      ptsUnitLabel: 'pt',
-      buyPts: 'ポイント購入',
-      redeemSvc: 'サービス交換',
-      ordersRefund: '注文／返金',
       badgeTitle: '創始会員プログラム参加者',
       badgeName: '創始会員',
       memStatus: '会員資格の状態',
@@ -430,13 +337,7 @@
       eventsTitle: '近日のイベント',
       updatesTitle: '会員向けお知らせ',
       logout: 'ログアウト',
-      buyFail: 'ポイント注文を作成できません',
       netFail: '接続に失敗しました。しばらくしてから再度お試しください。',
-      redeemFail: '交換に失敗しました',
-      refundPrompt: (max) => `未使用の購入ポイントを返金（最大 ${max}）。その注文の残ボーナスはすべて失効します。`,
-      refundBad: (max) => `1〜${max} の整数を入力してください`,
-      refundFail: '返金に失敗しました',
-      refundOk: (n) => `返金を申請しました：NT$${n}`,
       opFail: '操作に失敗しました。しばらくしてから再度お試しください。',
       tempFail: '一時的に利用できません。しばらくしてから再度お試しください。',
       sysFail: '会員システムに接続できません。しばらくしてから再度お試しください。',
@@ -460,13 +361,11 @@
       phoneLabel: '電話番号',
       profileSaved: 'プロフィールを更新しました',
       profileFail: '更新に失敗しました',
-      redeemLaundry: '屋上ランドリー 1回（50 pt）',
       buyPlanBtn: (price) => `オンラインで購入 · NT$${price.toLocaleString('en-US')}`,
       planPaid: '会員プランを購入しました。初回入場時に有効化されます。',
       planCanceled: '支払いをキャンセルしました。',
       planVerifying: '支払いを確認中…',
       nameReadonly: '氏名は Google アカウントの情報です。現時点では閲覧のみで、ここでは編集できません。',
-      redeemOk: '交換しました',
       regOk: '申込みが完了しました',
       unregOk: '申込みを取消しました',
       locale: 'ja-JP',
@@ -522,7 +421,6 @@
   const QR_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 17h3v4h-4v-3h4M18 14h3v3"></path></svg>';
 
   // sync with lib/member-ui.js
-  const EXPIRING_WITHIN_DAYS = 30;
   function parseTime(v) {
     if (!v) return null;
     const d = new Date(v);
@@ -537,17 +435,6 @@
     const registered = upcoming.find((x) => x.e.registered);
     if (registered) return registered.e;
     return upcoming.length ? upcoming[0].e : null;
-  }
-  function expiringPointsSummary(lots, now = new Date(), withinDays = EXPIRING_WITHIN_DAYS) {
-    const horizon = new Date(+now + withinDays * 86400000);
-    const hits = (Array.isArray(lots) ? lots : [])
-      .filter((l) => l && l.available !== false)
-      .map((l) => ({ rem: Number(l.remaining) || 0, exp: parseTime(l.expires_at) }))
-      .filter((x) => x.rem > 0 && x.exp && x.exp > now && x.exp <= horizon);
-    if (!hits.length) return null;
-    const points = hits.reduce((s, x) => s + x.rem, 0);
-    const soonest = hits.map((x) => x.exp).sort((a, b) => a - b)[0];
-    return { points, soonest: soonest.toISOString() };
   }
   /** @param {{ active: boolean, planLabel: string, pending: boolean, hadEntitlement: boolean }} s */
   function membershipStatusTitle(s, T) {
@@ -720,67 +607,6 @@
     qrTimer = setInterval(refreshQr, 30000);
   }
 
-  function renderPoints(data) {
-    const points = data.points || { balance: 0, lots: [] };
-    const orders = Array.isArray(data.point_orders) ? data.point_orders : [];
-    const refunds = Array.isArray(data.point_refunds) ? data.point_refunds : [];
-    const active = !!(data.access && data.access.active);
-    const balance = Number(points.balance) || 0;
-    const expiring = expiringPointsSummary(points.lots || []);
-    const packs = [
-      { id: 'small', label: T.packSmall, pay: 500 },
-      { id: 'mid', label: T.packMid, pay: 1000 },
-      { id: 'large', label: T.packLarge, pay: 3000 },
-      { id: 'xl', label: T.packXl, pay: 5000 },
-    ];
-    const packBtns = packs.map(p =>
-      `<button class="btn btn--ghost" type="button" data-pack="${p.id}">${esc(p.label)}（NT$${p.pay}）</button>`
-    ).join(' ');
-    const redeem = active
-      ? `<div class="m-actions" style="margin-top:0">
-           <button class="btn btn--solid" type="button" data-redeem="shower">${T.redeemShower}</button>
-           <button class="btn btn--ghost" type="button" data-redeem="capsule" data-hours="1">${T.redeemCapsule}</button>
-           <button class="btn btn--ghost" type="button" data-redeem="entertainment" data-hours="1">${T.redeemEnt}</button>
-           <button class="btn btn--ghost" type="button" data-redeem="laundry">${T.redeemLaundry}</button>
-         </div>`
-      : `<p class="m-note" style="margin-top:0">${T.needActive}</p>`;
-    const orderRows = orders.filter(o => o.status === 'paid').map(o => {
-      const purchaseLot = (points.lots || []).find(l => l.type === 'purchase' && l.source_id === o.id);
-      const rem = purchaseLot ? purchaseLot.remaining : 0;
-      const pending = refunds.find(r => r.point_order_id === o.id && r.status === 'pending');
-      return `<div class="m-row"><b>${esc(T.orderPaid(o.pack_id))}</b>
-        <span>${T.orderRemain(rem)}
-          ${pending ? `<span role="status"> · ${T.refundPending}</span>` : ''}
-          ${pending || rem > 0 ? `<button class="btn btn--ghost" type="button" data-refund="${esc(o.id)}" data-max="${pending ? Number(pending.principal_points) : rem}" data-pending="${pending ? '1' : '0'}" style="margin-left:.5em;padding:.35em .8em">${pending ? T.retryRefund : T.refund}</button>` : ''}
-        </span></div>`;
-    }).join('') || `<div class="m-empty">${T.noOrders}</div>`;
-    return `<section class="m-panel m-panel--wallet" aria-label="${esc(T.walletLabel)}">
-      <div class="m-head" style="margin-bottom:12px">
-        <h3 style="font-family:var(--serif);font-size:1.15rem;margin:0">${esc(T.walletTitle)}</h3>
-        <button type="button" class="btn btn--ghost" id="m-points-ledger-toggle" style="padding:.4em .9em;font-size:1rem;flex:0 0 auto">${esc(T.ordersRefund)}</button>
-      </div>
-      <div class="m-stat-grid">
-        <div class="m-stat m-stat--hi"${expiring ? '' : ' style="grid-column:1/-1"'}>
-          <span class="m-eyebrow" style="letter-spacing:.05em">${esc(T.ptsAvailable)}</span>
-          <b>${balance}</b>
-          <span class="m-note" style="margin:0">${esc(T.ptsUnitLabel)}</span>
-        </div>
-        ${expiring ? `<div class="m-stat">
-          <span class="m-eyebrow" style="letter-spacing:.05em">${esc(T.ptsExpiring)}</span>
-          <b>${expiring.points}</b>
-          <span class="m-note" style="margin:0">${esc(fmtTime(expiring.soonest))}</span>
-        </div>` : ''}
-      </div>
-      <div class="m-btn-row">
-        <button type="button" class="btn btn--solid" data-open-buy>${esc(T.buyPts)}</button>
-        <button type="button" class="btn btn--ghost" data-open-redeem>${esc(T.redeemSvc)}</button>
-      </div>
-      <div class="m-drawer" id="m-buy-drawer" hidden>${packBtns}</div>
-      <div class="m-drawer" id="m-redeem-drawer" hidden>${redeem}</div>
-      <div class="m-drawer" id="m-ledger-drawer" hidden>${orderRows}</div>
-    </section>`;
-  }
-
   function renderLoggedOut() {
     stopQrRefresh();
     card.innerHTML = `
@@ -850,7 +676,6 @@
       ${data.role === 'admin' ? `<div style="margin:0 0 1.4rem"><a class="btn btn--solid" href="/admin">${T.goAdmin}</a></div>` : ''}
       ${renderNotice(data.events)}
       ${renderStatus(data)}
-      ${renderPoints(data)}
       <div class="m-quiet" id="m-events">
         <h3 class="m-sec-title">${T.eventsTitle}</h3>
         <div>${events}</div>
@@ -869,10 +694,7 @@
     };
     card.querySelectorAll('[data-reg]').forEach(b => b.onclick = () => regEvent(b.dataset.reg, 'POST', b));
     card.querySelectorAll('[data-unreg]').forEach(b => b.onclick = () => regEvent(b.dataset.unreg, 'DELETE', b));
-    card.querySelectorAll('[data-pack]').forEach(b => b.onclick = () => buyPack(b.dataset.pack, b));
     card.querySelectorAll('[data-plan]').forEach(b => b.onclick = () => buyPlan(b.dataset.plan, b));
-    card.querySelectorAll('[data-redeem]').forEach(b => b.onclick = () => redeemService(b.dataset.redeem, Number(b.dataset.hours || 1), b));
-    card.querySelectorAll('[data-refund]').forEach(b => b.onclick = () => refundPoints(b.dataset.refund, Number(b.dataset.max), b));
     const chip = document.getElementById('m-access-chip');
     if (chip) chip.onclick = () => {
       if (chip.dataset.blocked === '1') { showToast(T.needPlan); return; }
@@ -903,15 +725,6 @@
     const togglePlansDrawer = () => { if (plansDrawer) plansDrawer.hidden = !plansDrawer.hidden; };
     if (plansToggle) plansToggle.onclick = togglePlansDrawer;
     if (plansPrimary) plansPrimary.onclick = togglePlansDrawer;
-    const buyToggle = card.querySelector('[data-open-buy]');
-    const buyDrawer = document.getElementById('m-buy-drawer');
-    if (buyToggle && buyDrawer) buyToggle.onclick = () => { buyDrawer.hidden = !buyDrawer.hidden; };
-    const redeemToggle = card.querySelector('[data-open-redeem]');
-    const redeemDrawer = document.getElementById('m-redeem-drawer');
-    if (redeemToggle && redeemDrawer) redeemToggle.onclick = () => { redeemDrawer.hidden = !redeemDrawer.hidden; };
-    const ledgerToggle = document.getElementById('m-points-ledger-toggle');
-    const ledgerDrawer = document.getElementById('m-ledger-drawer');
-    if (ledgerToggle && ledgerDrawer) ledgerToggle.onclick = () => { ledgerDrawer.hidden = !ledgerDrawer.hidden; };
     if (qrOverlayEl && !qrOverlayEl.hidden) startQrRefresh(true);
   }
 
@@ -956,84 +769,6 @@
     showToast(T.planPaid);
   }
 
-  async function buyPack(packId, btn) {
-    btn.disabled = true;
-    try {
-      const r = await fetch(FELLOW + '/api/me/points/orders', {
-        method: 'POST',
-        headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' },
-        body: JSON.stringify({ pack_id: packId, lang: LANG }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) { showToast(d.error || T.buyFail); btn.disabled = false; return; }
-      location.href = d.url;
-    } catch (e) {
-      showToast(T.netFail);
-      btn.disabled = false;
-    }
-  }
-
-  async function redeemService(service, hours, btn) {
-    btn.disabled = true;
-    try {
-      const body = (service === 'shower' || service === 'laundry') ? { service } : { service, hours };
-      const r = await fetch(FELLOW + '/api/me/points/redeem', {
-        method: 'POST',
-        headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) { showToast(d.error || T.redeemFail); btn.disabled = false; return; }
-      showToast(T.redeemOk);
-      await main();
-    } catch (e) {
-      showToast(T.netFail);
-      btn.disabled = false;
-    }
-  }
-
-  async function refundPoints(orderId, max, btn) {
-    const raw = btn.dataset.pending === '1' ? String(max) : prompt(T.refundPrompt(max), String(max));
-    if (raw == null) return;
-    const n = Number(raw);
-    if (!Number.isInteger(n) || n < 1 || n > max) { showToast(T.refundBad(max)); return; }
-    btn.disabled = true;
-    try {
-      const r = await fetch(FELLOW + '/api/me/points/refunds', {
-        method: 'POST',
-        headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' },
-        body: JSON.stringify({ point_order_id: orderId, principal_points: n }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        if (d.refund_id) await main();
-        showToast(d.error || T.refundFail); btn.disabled = false; return;
-      }
-      showToast(T.refundOk(d.refund?.refund_twd || n * 1));
-      await main();
-    } catch (e) {
-      showToast(T.netFail);
-      btn.disabled = false;
-    }
-  }
-
-  async function fulfillPointsIfNeeded() {
-    const q = new URLSearchParams(location.search);
-    if (q.get('points_paid') !== '1') return;
-    const oid = q.get('oid');
-    const s = q.get('s');
-    if (!oid || !token) throw new Error(T.opFail);
-    const r = await fetch(FELLOW + '/api/me/points/orders/' + encodeURIComponent(oid) + '/fulfill', {
-      method: 'POST',
-      headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' },
-      body: JSON.stringify({ session_id: s }),
-    });
-    const d = await r.json();
-    if (!r.ok || d.ok !== true) throw Object.assign(new Error(d.error || T.opFail), { status: r.status });
-    ['points_paid', 'oid', 's'].forEach(key => q.delete(key));
-    history.replaceState(null, '', location.pathname + (q.size ? '?' + q : '') + location.hash);
-  }
-
   async function regEvent(id, method, btn) {
     btn.disabled = true;
     try {
@@ -1050,7 +785,6 @@
   async function main() {
     if (!token) return renderLoggedOut();
     try {
-      await fulfillPointsIfNeeded();
       await fulfillPlanIfNeeded();
       const r = await fetch(FELLOW + '/api/state', { headers: { authorization: 'Bearer ' + token } });
       if (!r.ok) throw Object.assign(new Error('state ' + r.status), { status: r.status });

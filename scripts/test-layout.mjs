@@ -202,7 +202,6 @@ test('member page has redesign markers', () => {
   assert.match(member, /m-access-chip|m-chip/);
   assert.match(member, /m-qr-overlay/);
   assert.match(member, /m-notice/);
-  assert.match(member, /m-panel--wallet|ptsAvailable|walletTitle/);
   assert.match(member, /m-toast/);
   assert.doesNotMatch(member, /申購|本金|持倉|贖回/);
   assert.doesNotMatch(member, /Principal left|残元本/);
@@ -232,7 +231,7 @@ test('system zh page structure', () => {
   assert.match(html, /system\.css/);
   assert.match(html, /id="overview"/);
   assert.match(html, /id="membership"/);
-  assert.match(html, /id="points"/);
+  assert.match(html, /id="facilities"/);
   assert.match(html, /id="booking"/);
   assert.match(html, /id="cafe"/);
   assert.match(html, /href="\/fellow"/);
