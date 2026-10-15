@@ -59,10 +59,11 @@ test('防濫用：要原因、不能是未來、只能 7 天內、一班 ≤ 16 
   assert.throws(() => mk({ clock_in: '2026-10-15 10:00', clock_out: '2026-10-15 11:00' }, { existing: live }), e => e.status === 409, '上班中的也算重疊');
 });
 
-test('員工檢查：錯碼 404、停用／不屬於該店 403', () => {
+test('員工檢查：錯碼 404、停用 403；補打卡不受品牌限制', () => {
   assert.throws(() => S.makeupPunch({ staff: null, venue: 'CAFE', body: {}, now: NOW }), e => e.status === 404);
   assert.throws(() => mk({ clock_in: '2026-10-15 08:00' }, { staff: { ...staff, active: false } }), e => e.status === 403);
-  assert.throws(() => S.makeupPunch({ staff, venue: 'BAR', body: { reason: '忘記打卡', clock_in: '2026-10-15 08:00' }, now: NOW }), e => e.status === 403);
+  const out = S.makeupPunch({ staff, venue: 'BAR', body: { reason: '忘記打卡', clock_in: '2026-10-15 08:00' }, now: NOW });
+  assert.equal(out.venue, 'TTH');
 });
 
 test('server 接線：端點限流＋識別碼、不需 notOperator（現場人員可補自己）、記補登人；API 文件有寫', () => {
