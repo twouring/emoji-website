@@ -428,10 +428,33 @@ function renderLogin(msg){
   app.innerHTML = `<div class="a-login"><div class="a-login-card">
     <div class="a-brand"><img src="/cis/assets/emoji-h.svg" alt="言文字 emoji" width="120" height="40" style="object-fit:contain"><span>後台管理</span></div>
     <h1 class="a-h1">登入後台</h1>
-    <p class="a-sub">${msg || (ORGANIZER_PORTAL ? '請用主辦團隊登記的 Email 登入。' : '請以管理員 Google 帳號登入。')}</p>
+    <p class="a-sub">${msg || (ORGANIZER_PORTAL ? '請用主辦團隊登記的 Email 登入。' : '請使用管理員 Email 與密碼，或選擇 Google 登入。')}</p>
+    ${ORGANIZER_PORTAL ? '' : `<form id="admin-password-login" style="display:grid;gap:12px;text-align:left;margin-bottom:20px">
+      <label for="admin-login-email">Email</label>
+      <input class="input" id="admin-login-email" name="email" type="email" autocomplete="username" maxlength="254" required>
+      <label for="admin-login-password">密碼</label>
+      <input class="input" id="admin-login-password" name="password" type="password" autocomplete="current-password" required>
+      <p id="admin-login-error" role="alert" style="color:var(--danger,#b42318);margin:0" hidden></p>
+      <button class="btn btn--solid" type="submit">使用密碼登入</button>
+    </form>`}
     <a class="btn btn--solid" href="/auth/google?redirect=${redirect}">使用 Google 登入</a>
-    <a class="btn btn--ghost" href="/event-login.html?redirect=${redirect}">使用 Email 登入</a>
+    <a class="btn btn--ghost" href="/event-login.html?redirect=${redirect}">使用 Email 登入連結</a>
   </div></div>`;
+  if(!ORGANIZER_PORTAL){
+    const form=document.getElementById('admin-password-login');
+    form.onsubmit=async event=>{
+      event.preventDefault();
+      const button=form.querySelector('button'),error=document.getElementById('admin-login-error');
+      button.disabled=true;error.hidden=true;
+      try{
+        const result=await api('/auth/admin/password',{method:'POST',body:{email:form.elements.email.value,password:form.elements.password.value}});
+        form.elements.password.value='';
+        token=result.token;localStorage.setItem(KEY,token);location.reload();
+      }catch(e){
+        form.elements.password.value='';error.textContent=e.message;error.hidden=false;button.disabled=false;
+      }
+    };
+  }
 }
 
 /* ---------- CSV 匯出（純前端） ---------- */

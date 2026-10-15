@@ -426,6 +426,10 @@ CREATE TABLE IF NOT EXISTS utm_hits (
 async function migrate() {
   await q(SCHEMA_SQL);
   // 既有 DB 補欄位：管理員旗標（超管以 Google email 認定，其餘管理員存此旗標）
+  await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_password_hash TEXT`);
+  await q(`CREATE TABLE IF NOT EXISTS admin_password_attempts (
+    bucket TEXT PRIMARY KEY, attempts INTEGER NOT NULL, expires_at TIMESTAMPTZ NOT NULL)`);
+  await q(`CREATE INDEX IF NOT EXISTS admin_password_attempts_expiry ON admin_password_attempts(expires_at)`);
   await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false`);
   await q(`CREATE TABLE IF NOT EXISTS email_login_tokens (
     token_hash TEXT PRIMARY KEY,email TEXT NOT NULL,name TEXT NOT NULL,redirect TEXT NOT NULL,
@@ -1529,6 +1533,55 @@ app.post('/api/auth/email/start',rateLimit({max:10}),requireDb,wrap(async(req,re
  const copy={zh:['言文字登入連結','請開啟以下連結並按「確認登入」。連結 20 分鐘內有效，僅可使用一次。若不是您提出的請求，請忽略此信。'],en:['Sign in to emoji','Open the link and select Confirm sign-in. It expires in 20 minutes and can be used once. Ignore this email if you did not request it.'],ja:['言文字へのログイン','リンクを開き「ログインを確認」を押してください。有効期限は20分、1回限り使用できます。心当たりがなければ無視してください。']}[lang];
  await sendMail({to:email,subject:copy[0],text:copy[1]+'\n\n'+url,idempotencyKey:'email-login/'+hash});res.json({ok:true});
 }));
+const { hashPassword, verifyPassword, validPassword } = require('./lib/admin-password');
+// Shared DB buckets enforce limits across both services and all Cloud Run replicas.
+async function adminPasswordLimit(req, res, next) {
+  try {
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase().slice(0, 254) : '';
+    for (const [kind, value, max] of [['ip', req.ip || req.socket.remoteAddress || '', 40], ['email', email, 10]]) {
+      const bucket = crypto.createHash('sha256').update(kind + ':' + value).digest('hex');
+      const row = (await q(`INSERT INTO admin_password_attempts(bucket,attempts,expires_at) VALUES($1,1,now()+interval '15 minutes')
+        ON CONFLICT(bucket) DO UPDATE SET
+        attempts=CASE WHEN admin_password_attempts.expires_at<=now() THEN 1 ELSE admin_password_attempts.attempts+1 END,
+        expires_at=CASE WHEN admin_password_attempts.expires_at<=now() THEN now()+interval '15 minutes' ELSE admin_password_attempts.expires_at END
+        RETURNING attempts`, [bucket])).rows[0];
+      if (row.attempts > max) { res.set('Retry-After', '900'); return res.status(429).json({error:'操作過於頻繁，請稍後再試。'}); }
+    }
+    await q('DELETE FROM admin_password_attempts WHERE expires_at < now()');
+    next();
+  } catch (error) { next(error); }
+}
+app.post('/api/auth/admin/password', rateLimit({max:40,windowMs:900000}), requireDb, adminPasswordLimit, wrap(async(req,res)=>{
+  res.set('Cache-Control','no-store');
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const users = (await q('SELECT id,name,is_admin,admin_password_hash FROM users WHERE lower(email)=$1', [email.slice(0,254)])).rows;
+  const user = users.length === 1 ? users[0] : null;
+  const matches = await verifyPassword(req.body?.password, user?.admin_password_hash);
+  if (!matches || !user || user.is_admin !== true || email.length>254) return res.status(401).json({error:'Email 或密碼錯誤。'});
+  // Role/brands always rehydrated by sessionAuth from DB, never a hardcoded email override.
+  res.json({token:signToken({role:'invited',sub:user.id,name:user.name||''})});
+}));
+// Explicit super-only provisioning; never return a hash or include request body in logs.
+app.post('/api/admin/users/password', auth, requireDb, superOnly, rateLimit({max:10}), wrap(async(req,res)=>{
+  res.set('Cache-Control','no-store');
+  const {email:rawEmail,password,admin,brands,name} = req.body || {};
+  const email = typeof rawEmail==='string' ? rawEmail.trim().toLowerCase() : '';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length>254 || !validPassword(password) || admin!==true || !Array.isArray(brands) || brands.some(b=>!ADMIN_BRANDS.includes(b)))
+    return res.status(400).json({error:'請提供有效 Email、至少 12 個字元的密碼、admin:true 與 brands 陣列。'});
+  if (email===SUPER_ADMIN_EMAIL) return res.status(400).json({error:'此端點不能設定超級管理員密碼。'});
+  const hash = await hashPassword(password), client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const user = await accountByEmail(client,email,typeof name==='string'?name.slice(0,120):'',true);
+    await client.query('UPDATE users SET is_admin=true,admin_brand=$2,admin_password_hash=$3 WHERE id=$1', [user.id,brands.length?[...new Set(brands)].join(','):null,hash]);
+    await client.query('COMMIT');
+    res.json({ok:true,user:{id:user.id,email,admin:true,brands:[...new Set(brands)]}});
+  } catch(error) {
+    if(error.code==='AMBIGUOUS_EMAIL') return res.status(409).json({error:'Email 對應多筆帳號，請先合併。'});
+    throw error;
+  } finally { await client.query('ROLLBACK'); client.release(); }
+}));
+
 app.get('/api/auth/session',auth,requireDb,(req,res)=>req.auth.sub?res.json({authenticated:true,user_id:req.auth.sub}):res.status(403).json({error:'請以會員身分登入。'}));
 // 續期：現場平板（POS）長期開著，token 快到期前換一張新的，免得營業中突然被登出；身分已由 sessionAuth 重新查過 DB（被移除管理員就拿不到）
 app.post('/api/auth/renew',auth,requireDb,(req,res)=>{

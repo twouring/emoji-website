@@ -574,7 +574,7 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
 test('organizers entering /admin land in the organizer portal; denied accounts can switch login',async()=>{
  const {runInNewContext}=await import('node:vm'),{readFileSync}=await import('node:fs'),source=readFileSync(new URL('../public/admin.html',import.meta.url),'utf8');
  const code=source.slice(source.indexOf('function renderLogin('),source.indexOf('/* ---------- CSV'))+source.slice(source.indexOf('async function main(){'),source.indexOf('main();\n</script>'));
- const run=async(path,state,organizer=false)=>{const replaced=[],app={innerHTML:''},context={token:'t',KEY:'tth_token',ORGANIZER_PORTAL:path.startsWith('/organizer'),app,logoutBtn:{style:{}},document:{getElementById:()=>null},localStorage:{removeItem(){}},esc:String,
+ const run=async(path,state,organizer=false)=>{const replaced=[],app={innerHTML:''},context={token:'t',KEY:'tth_token',ORGANIZER_PORTAL:path.startsWith('/organizer'),app,logoutBtn:{style:{}},document:{getElementById:id=>id==='admin-password-login'?{}:null},localStorage:{removeItem(){}},esc:String,
   location:{origin:'https://www.emoji.tw',pathname:path,search:'?task=hosts',replace:url=>replaced.push(url)},render:()=>replaced.push('render'),applyRoute(){},ensureIgScripts:async()=>{},
   api:async p=>{if(p==='/state'){if(state instanceof Error)throw state;return state;}if(organizer)return {};throw Object.assign(new Error('需要活動主權限，請聯絡言文字授權。'),{status:403});}};
   runInNewContext(code,context);await context.main();return {replaced,html:app.innerHTML};};

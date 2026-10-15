@@ -42,6 +42,26 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" https://www.emoji.tw/api/state
 
 ## 公開端點（免認證）
 
+### POST /api/auth/admin/password
+後台 Email／密碼登入（`admin.emoji.tw` 與官網 API 皆可用），免 Bearer。body：`{ email, password }`。Email 會去除前後空白並轉小寫；密碼保留原樣。僅 `users.is_admin=true` 且已設定密碼的唯一帳號可登入；不依特定 Email 自動授權。成功回 `{ token }`（七天 session，`Cache-Control: no-store`），每次請求仍由 `sessionAuth` 重查 DB 的管理員與品牌權限。帳號不存在、密碼錯誤、非管理員、重複 Email 一律 `401 { error: "Email 或密碼錯誤。" }`。Postgres 共用固定 15 分鐘視窗：每 Email 10 次、每 IP 40 次（跨服務與副本共用），超過回 429 與 `Retry-After: 900`；另有程序內 IP 限流。登入不會建立帳號、不寄信、不記錄密碼。
+
+### POST /api/admin/users/password
+**僅超級管理員**（含 `ADMIN_API_KEY`）可建立／更新管理員密碼。body：`{ email, password, admin: true, brands: [], name?: string }`。`admin:true` 與 `brands` 必須明確提供；`brands:[]` 表示不限制品牌（DB `is_admin=true, admin_brand=NULL`），也可指定 `["CAFE"]`／`["BAR"]`／兩者。這是一般管理員，不授予 `super`，不修改 `SUPER_ADMIN_EMAIL`；本端點拒絕替既有超級管理員 Email 設密碼。密碼至少 12 個字元且至多 1024 UTF-8 bytes；使用 Node crypto 非同步 scrypt（N=32768,r=8,p=1、16-byte 隨機 salt、64-byte key）儲存 `users.admin_password_hash`，不存明文、不回傳 hash。既有 Email 更新密碼；新 Email 建立 users；交易與 Email advisory lock 防重複建立，重複舊資料回 409。成功 `{ ok:true, user:{ id,email,admin:true,brands } }`；錯誤參數 400、未登入 401、非超管 403。每程序 IP 每分鐘 10 次。重設密碼不會撤銷已發出的 session；撤銷管理員須移除 DB 的 is_admin。
+
+操作範例（密碼只從隱藏輸入讀入，不放 shell history、命令列參數、檔案或 git；`ADMIN_API_KEY` 由既有授權環境提供）：
+```bash
+python3 - <<'PY'
+import getpass, json, os, urllib.request
+payload = {'email':'us@emoji.tw', 'password':getpass.getpass('新管理員密碼：'), 'admin':True, 'brands':[], 'name':'言文字管理員'}
+request = urllib.request.Request('https://admin.emoji.tw/api/admin/users/password',
+    data=json.dumps(payload).encode(), method='POST',
+    headers={'Content-Type':'application/json','Authorization':'Bearer '+os.environ['ADMIN_API_KEY']})
+with urllib.request.urlopen(request) as response:
+    print(response.read().decode())
+PY
+```
+建立後以 `/api/auth/admin/password` 取得 token，再讀 `/api/state` 確認 `role:"admin"`、`super:false`、`brands:null`。實際帳號與密碼由操作者另行設定，部署本身不會建立任何預設帳密。
+
 ### GET /api/health
 服務健康檢查。回 `{ ok, db, dbConfigured }`。
 
