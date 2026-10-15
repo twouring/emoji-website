@@ -202,7 +202,8 @@ test('space markdown passes parsed HTML to the sanitizer and fails closed withou
     const html = read('public/' + file);
     assert.doesNotMatch(html, /<script[^>]*src="https:\/\//);
     assert.ok(html.indexOf('/vendor/marked.js') > html.indexOf('<!--SITE_FOOTER-->'));
-    assert.ok(html.indexOf('/vendor/purify.min.js') < html.indexOf('/space-dir.js'));
+    assert.ok(html.indexOf('/vendor/purify.min.js') < html.indexOf('function fillMd('));
+    assert.doesNotMatch(html, /<script[^>]*src="\/space-dir\.js"/);
   }
 });
 
