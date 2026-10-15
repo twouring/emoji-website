@@ -159,8 +159,9 @@ const TABS = [
   { id:'sales',        label:'日結' },
   { id:'clock',        label:'打卡' },
   { id:'shifts',       label:'排班' },
+  { id:'staff',        label:'員工' },
 ];
-const PANEL = { pos:tabPos, orders:tabOrders, soldout:tabSoldOut, reservations:tabReservations, history:tabHistory, sales:tabSales, clock:tabClock, shifts:tabShifts };
+const PANEL = { pos:tabPos, orders:tabOrders, soldout:tabSoldOut, reservations:tabReservations, history:tabHistory, sales:tabSales, clock:tabClock, shifts:tabShifts, staff:tabStaff };
 let toastT, DATA = null, TAB = 'pos', SCOPE = '', MENU_DOC = null, PENDING = 0;
 try { SCOPE = localStorage.getItem('tth_pos_scope') || ''; } catch (e) {}
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2400); }
@@ -293,6 +294,7 @@ function activate(){
   else if (TAB === 'sales') loadSales();
   else if (TAB === 'clock') loadClock();
   else if (TAB === 'shifts') loadShifts();
+  else if (TAB === 'staff') loadStaffPage();
 }
 function render(){
   document.getElementById('p-logout').hidden = false;

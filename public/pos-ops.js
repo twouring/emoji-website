@@ -827,14 +827,14 @@ async function loadShifts(host){
       ${SCOPE?'':`<label>店別<select id="sh-venue">${['CAFE','BAR'].map(v=>`<option value="${v}" ${v===venue?'selected':''}>${esc(BRAND_LABEL[v])}</option>`).join('')}</select></label>`}
       <label>開始<input type="time" id="sh-start" value="${esc(VENUE_HOURS[venue][0])}"></label><label>結束<input type="time" id="sh-end" value="${esc(VENUE_HOURS[venue][1])}"></label><label class="shift-note">備註<input id="sh-note" maxlength="80" placeholder="例：代班"></label>
       <button type="button" class="btn btn--solid" id="sh-save">加入</button><button type="button" class="btn btn--ghost" id="sh-cancel">取消</button></div>`:'';
-  host.innerHTML=`<div class="ops-head"><h2>排班表</h2>${staff.length?opsHelp('員工先按「排休」填不能上班的日子；店長按「自動排班」一鍵排整週（排休日不排、依勞基法規則），再手動調整。三點水排到凌晨直接填 17:00–03:00，算開始那天的營業日。'):''}</div>${staff.length?'':'<p class="hint">還沒有員工，請先到後台「排班打卡」新增員工。</p>'}
+  host.innerHTML=`<div class="ops-head"><h2>排班表</h2>${staff.length?opsHelp('員工先按「排休」填不能上班的日子；店長按「自動排班」一鍵排整週（排休日不排、依勞基法規則），再手動調整。三點水排到凌晨直接填 17:00–03:00，算開始那天的營業日。'):''}</div>${staff.length?'':'<p class="hint">還沒有員工，請先到「員工」分頁新增員工。</p>'}
     <div class="a-toolbar"><button class="btn btn--ghost btn-sm" id="sh-prev">上週</button><b class="shift-week">${esc(d.from)} ～ ${esc(d.to)}</b><button class="btn btn--ghost btn-sm" id="sh-next">下週</button><button class="btn btn--ghost btn-sm" id="sh-this">本週</button><button class="btn btn--solid btn-sm" id="sh-auto">自動排班</button><button class="btn btn--ghost btn-sm" id="sh-staffing">人力需求</button><button class="btn btn--ghost btn-sm" id="sh-csv">匯出 CSV</button></div>
     ${warn}${form}${offForm}${staffingForm}<div class="shift-week-grid">${cols}</div>`;
   const reload=()=>loadShifts(host);
-  host.querySelector('#sh-auto').onclick=()=>{if(!staff.length){toast('請先到後台「排班打卡」新增員工');return;}if(!confirm(`自動排 ${d.from} ～ ${d.to} 這週？已排的班會保留，排休日不排。`))return;
+  host.querySelector('#sh-auto').onclick=()=>{if(!staff.length){toast('請先到「員工」分頁新增員工');return;}if(!confirm(`自動排 ${d.from} ～ ${d.to} 這週？已排的班會保留，排休日不排。`))return;
     opsThen(()=>api('/admin/shifts/auto',{method:'POST',body:{from:SHIFT_WEEK,venue:SCOPE||''}}),out=>`已自動排 ${out.added.length} 班${out.warnings.length?`，${out.warnings.length} 個時段排不滿`:''}`,out=>{SHIFT_FORM={warnings:out.warnings};return reload();});};
   host.querySelector('#sh-staffing').onclick=()=>{SHIFT_FORM={staffing:staffing.map(s=>({...s}))};reload();};
-  host.querySelectorAll('[data-off]').forEach(b=>b.onclick=()=>{if(!staff.length){toast('請先到後台「排班打卡」新增員工');return;}SHIFT_FORM={offDay:b.dataset.off};reload();});
+  host.querySelectorAll('[data-off]').forEach(b=>b.onclick=()=>{if(!staff.length){toast('請先到「員工」分頁新增員工');return;}SHIFT_FORM={offDay:b.dataset.off};reload();});
   host.querySelectorAll('[data-off-del]').forEach(b=>b.onclick=()=>{if(!confirm('取消這天排休？'))return;opsThen(()=>api('/admin/shifts/days-off/'+b.dataset.offDel,{method:'DELETE'}),'已取消排休',reload);});
   const offCancel=host.querySelector('#off-cancel');if(offCancel)offCancel.onclick=()=>{SHIFT_FORM={};reload();};
   const offSave=host.querySelector('#off-save');if(offSave)offSave.onclick=()=>{const body={staff_id:host.querySelector('#off-staff').value,day:host.querySelector('#off-day').value,note:host.querySelector('#off-note').value};
@@ -850,7 +850,7 @@ async function loadShifts(host){
   host.querySelector('#sh-next').onclick=()=>{SHIFT_WEEK=addDaysStr(SHIFT_WEEK,7);reload();};
   host.querySelector('#sh-this').onclick=()=>{SHIFT_WEEK=mondayOf(MenuLib.businessDay());reload();};
   host.querySelector('#sh-csv').onclick=()=>downloadCSV(`排班_${d.from}.csv`,d.csv||[]);
-  host.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{if(!staff.length){toast('請先到後台「排班打卡」新增員工');return;}SHIFT_FORM={...SHIFT_FORM,day:b.dataset.add,venue};reload();});
+  host.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{if(!staff.length){toast('請先到「員工」分頁新增員工');return;}SHIFT_FORM={...SHIFT_FORM,day:b.dataset.add,venue};reload();});
   host.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{if(!confirm('刪除這一班？'))return;opsThen(()=>api('/admin/shifts/'+b.dataset.del,{method:'DELETE'}),'已刪除',reload);});
   const vs=host.querySelector('#sh-venue');if(vs)vs.onchange=()=>{const v=vs.value;host.querySelector('#sh-start').value=VENUE_HOURS[v][0];host.querySelector('#sh-end').value=VENUE_HOURS[v][1];SHIFT_FORM.venue=v;};
   const cancel=host.querySelector('#sh-cancel');if(cancel)cancel.onclick=()=>{SHIFT_FORM={};reload();};
@@ -883,6 +883,12 @@ async function loadStaffList(host){
   const cancel=host.querySelector('#st-cancel');if(cancel)cancel.onclick=()=>{STAFF_EDIT=null;reload();};
   const save=host.querySelector('#st-save');if(save)save.onclick=()=>{const v=host.querySelector('#st-venues').value,pin=host.querySelector('#st-pin').value.trim();const body={name:host.querySelector('#st-name').value,venues:v?[v]:[],role:host.querySelector('#st-role').value,note:host.querySelector('#st-note').value};if(pin)body.pin=pin;
     opsThen(()=>cur?api('/admin/staff/'+cur.id,{method:'PATCH',body}):api('/admin/staff',{method:'POST',body}),out=>cur?`已更新 ${out.name}`:`已新增 ${out.name}，識別碼 ${out.pin}`,()=>{STAFF_EDIT=null;return reload();});};
+}
+/* POS「員工」分頁：員工清單＋出勤紀錄（排班表另有獨立分頁，這裡不重複放） */
+async function loadStaffPage(){
+  const host=document.getElementById('staff-body');if(!host)return;
+  if(!host.dataset.init){host.dataset.init='1';host.innerHTML=`<div id="staff-list"></div><div id="staff-att-body"></div>`;}
+  await Promise.all([loadStaffList(host.querySelector('#staff-list')),loadAttendance(host.querySelector('#staff-att-body'))]);
 }
 /* 出勤紀錄：區間（預設最近 7 個營業日）、每人彙總、明細（可修正／刪除）、CSV */
 async function loadAttendance(host){
