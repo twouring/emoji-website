@@ -20,7 +20,7 @@ test('every progress kind produces a personal mail with the application id and p
     assert.ok(text.includes(`https://www.emoji.tw/events?apply=1&application=${application.id}#ev-apply`));
   }
   const submitted = mail.applicationUpdateMail({ application, update: { kind: 'submitted' } }).text;
-  assert.match(submitted, /二樓交誼廳/);
+  assert.match(submitted, /等等空間交誼廳/);
   assert.match(submitted, /2099\/06\/20\D{1,3}19:00/);
   assert.match(submitted, /2099\/06\/20\D{1,3}21:00/);
   assert.match(submitted, /不代表場地已保留/);

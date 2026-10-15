@@ -1,28 +1,28 @@
 {
   "name": "言文字｜台灣人才聚落 Taiwan Talent Hub",
   "url": "https://www.emoji.tw/",
-  "description": "台北車站旁三層空間：1F 餐飲會客、2F／3F 會員工作與活動空間。",
+  "description": "台北車站旁品牌空間：在咖啡／三點水 餐飲會客、等等空間 會員工作與活動空間。",
   "dateModified": "2026-09-06",
   "capabilities": [
     {
-      "name": "1F dining and client meetings",
+      "name": "Dining with at cafe or 3AM and client meetings",
       "description": "在咖啡（at cafe）與三點水（3AM）用餐、會客不需會員。"
     },
     {
       "name": "Day membership 4 hours",
-      "description": "單日會籍 4 小時 NT$200，可使用 2F／3F。",
+      "description": "單日會籍 4 小時 NT$200，可使用等等空間。",
       "price": "200",
       "priceCurrency": "TWD"
     },
     {
       "name": "Day membership 12 hours",
-      "description": "單日會籍 12 小時 NT$500，可使用 2F／3F。",
+      "description": "單日會籍 12 小時 NT$500，可使用等等空間。",
       "price": "500",
       "priceCurrency": "TWD"
     },
     {
       "name": "Monthly / quarterly / annual membership",
-      "description": "月 NT$4,000、季 NT$10,000、年 NT$35,000，可使用 2F／3F 與所有設備。"
+      "description": "月 NT$4,000、季 NT$10,000、年 NT$35,000，可使用等等空間與所有設備。"
     },
     {
       "name": "Founding Member",
@@ -30,8 +30,8 @@
       "url": "https://www.emoji.tw/fellow"
     },
     {
-      "name": "3F community event application",
-      "description": "只有三樓社群活動使用場地申請表；送出申請或審核通過都不代表場地已預留。",
+      "name": "Stay Square community event application",
+      "description": "只有等等空間社群活動使用場地申請表；送出申請或審核通過都不代表場地已預留。",
       "url": "https://www.emoji.tw/events?apply=1#ev-apply"
     },
     {

@@ -186,7 +186,7 @@ test('reservation errors and guest confirmation follow the visitor language; sta
   const enMail = guestMail(en, 'R261011-AB12');
   assert.match(guestSubject(en), /^\[emoji\] Booking confirmed 2026-10-12 19:00 · 2 guests$/);
   assert.match(enMail, /Your table is booked/);
-  assert.match(enMail, /3AM \(bar\), 1F/);
+  assert.match(enMail, /3AM \(bistro\)/);
   assert.match(enMail, /Chongqing S\. Rd\./);
   assert.match(enMail, /until 19:10 \(10 minutes after your booking time\)/);
   assert.match(enMail, /R261011-AB12/);
@@ -196,7 +196,7 @@ test('reservation errors and guest confirmation follow the visitor language; sta
   assert.match(guestSubject(ja), /ご予約確認 2026-10-12 10:00｜2名/);
   const jaMail = guestMail(ja, 'R261011-AB12');
   assert.match(jaMail, /ご予約が確定しました/);
-  assert.match(jaMail, /在咖啡 at cafe（カフェ・1F）/);
+  assert.match(jaMail, /在咖啡 at cafe（カフェ）/);
   assert.match(jaMail, /10:10（予約時間の10分後）/);
 
   const zh = normalizeReservation({ ...base, lang: 'zh' }, now);

@@ -1,5 +1,5 @@
 /**
- * 空間頁等角樓層目錄：依平面圖繪製三層樓＋附屬設施，點擊展開詳情（1F 含菜單）。
+ * 空間頁等角空間目錄：依平面圖繪製品牌與服務＋附屬設施，點擊展開詳情（at cafe / 3AM 含菜單）。
  * 依賴頁面提供 #space-dir-root、#floor-detail，以及 window.SpaceDirContent 注入。
  */
 (function (global) {
@@ -7,21 +7,21 @@
 
   var I18N = {
     zh: {
-      intro: '今天要做什麼？選一層開始',
+      intro: '今天要做什麼？從品牌與服務開始',
       close: '收合',
-      nos: { 1: '1F', 2: '2F', 3: '3F', 4: '頂樓' },
+      nos: { 1: '餐飲', 2: '休憩', 3: '工作', 4: '設備' },
       menuTitle: '餐飲菜單 Menu',
       areas: {
         1: '在咖啡／三點水 · 約 25.2 坪',
         2: '等等空間 · 約 29.5 坪',
         3: '等等空間 · 約 29.9 坪',
-        4: '頂樓 · 洗衣／戶外吸菸區',
+        4: '會員附屬設施 · 洗衣／戶外吸菸區',
       },
       names: {
         1: '在咖啡（at cafe）／三點水（3AM）',
         2: '等等空間 · 會員休息與淋浴',
         3: '等等空間 · 工作與活動',
-        4: '頂樓附屬設施',
+        4: '會員附屬設施',
       },
       kickers: {
         1: '用餐 · 咖啡 · 會客',
@@ -37,30 +37,30 @@
       },
       factLabels: { use: '用途', hours: '時段', eligibility: '使用資格', price: '費用' },
       facts: {
-        1: { use: '用餐、外帶與深夜熱食', hours: '在咖啡 08:00–17:00；三點水 17:00–27:00', eligibility: '所有訪客，不需會員', price: '依菜單；分一般價與會員價', href: '/space#menu', cta: '查看一樓菜單' },
+        1: { use: '用餐、外帶與深夜熱食', hours: '在咖啡 08:00–17:00；三點水 17:00–27:00', eligibility: '所有訪客，不需會員', price: '依菜單；分一般價與會員價', href: '/space#menu', cta: '查看品牌菜單' },
         2: { use: '看書休憩、膠囊席、交誼廳與淋浴', hours: '24 小時（條件式啟用）', eligibility: '持有效會籍的會員', price: '會員所有設備自由使用', href: '/system', cta: '比較會員方案' },
-        3: { use: '共享辦公、社群活動與企業包場', hours: '約 08:00–翌日 03:00；包場時段另議', eligibility: '會員可日常使用；社群活動可填申請；企業、團隊或客戶包場請來信', price: '會員使用或包場方案', href: '/events?apply=1#ev-apply', cta: '申請三樓社群活動', secondaryHref: 'mailto:us@emoji.tw?subject=3F%20business%20venue%20enquiry', secondaryCta: '洽詢企業／團隊包場' },
+        3: { use: '共享辦公、社群活動與企業包場', hours: '約 08:00–翌日 03:00；包場時段另議', eligibility: '會員可日常使用；社群活動可填申請；企業、團隊或客戶包場請來信', price: '會員使用或包場方案', href: '/events?apply=1#ev-apply', cta: '申請等等空間社群活動', secondaryHref: 'mailto:us@emoji.tw?subject=Stay Square%20business%20venue%20enquiry', secondaryCta: '洽詢企業／團隊包場' },
         4: { use: '洗脫烘與戶外吸菸區', hours: '會員 24 小時（條件式啟用）', eligibility: '持有效會籍的會員', price: '洗脫烘與吸菸區會員免費使用', href: 'mailto:us@emoji.tw?subject=附屬設施使用詢問', cta: '詢問使用方式' },
       },
       imageLabel: '空間影像',
-      conceptCaptions: { 1: '一樓用餐區規劃示意', 2: '二樓膠囊休憩席規劃示意', 3: '三樓共享辦公與活動空間規劃示意' },
+      conceptCaptions: { 1: '餐飲空間用餐區規劃示意', 2: '等等空間膠囊休憩席規劃示意', 3: '等等空間共享辦公與活動空間規劃示意' },
     },
     en: {
-      intro: 'What do you need today? Start with a floor',
+      intro: 'What do you need today? Explore the brands and services',
       close: 'Close',
-      nos: { 1: '1F', 2: '2F', 3: '3F', 4: 'ROOF' },
+      nos: { 1: 'Dine', 2: 'Rest', 3: 'Work', 4: 'Care' },
       menuTitle: 'Menu',
       areas: {
         1: 'at cafe / 3AM · ~25.2 ping',
         2: 'Stay Square · ~29.5 ping',
         3: 'Stay Square · ~29.9 ping',
-        4: 'Rooftop · laundry / outdoor smoking area',
+        4: 'member facilities · laundry / outdoor smoking area',
       },
       names: {
         1: '在咖啡 (at cafe) / 三點水 (3AM)',
         2: 'Stay Square · member rest & showers',
         3: 'Stay Square · work & events',
-        4: 'Rooftop facilities',
+        4: 'member facilities facilities',
       },
       kickers: {
         1: 'Dining · coffee · client meetings',
@@ -76,30 +76,30 @@
       },
       factLabels: { use: 'Use', hours: 'Hours', eligibility: 'Access', price: 'Price' },
       facts: {
-        1: { use: 'Dining, takeaway and late-night food', hours: '在咖啡 08:00–17:00; 三點水 17:00–03:00 next day', eligibility: 'Open to everyone; no membership required', price: 'See menu; standard and member prices', href: '/en/space#menu', cta: 'View the 1F menu' },
+        1: { use: 'Dining, takeaway and late-night food', hours: '在咖啡 08:00–17:00; 三點水 17:00–03:00 next day', eligibility: 'Open to everyone; no membership required', price: 'See menu; standard and member prices', href: '/en/space#menu', cta: 'View the brand menus' },
         2: { use: 'Reading, rest, capsule seats, social room and showers', hours: '24 hours (conditional)', eligibility: 'Members with a valid membership', price: 'All facilities are free for members to use', href: '/en/system', cta: 'Compare memberships' },
-        3: { use: 'Coworking, community events and business private hire', hours: 'About 08:00–03:00 next day; private events by arrangement', eligibility: 'Members use it day to day. Community events may use the application form; companies, teams and client-event organizers should email us.', price: 'Membership or private venue plan', href: '/en/events?apply=1#ev-apply', cta: 'Apply for a 3F community event', secondaryHref: 'mailto:us@emoji.tw?subject=3F%20business%20venue%20enquiry', secondaryCta: 'Email about business or team hire' },
-        4: { use: 'Wash-and-dry laundry and outdoor smoking area', hours: 'Members, 24 hours (conditional)', eligibility: 'Members with a valid membership', price: 'Laundry and smoking area are free for members', href: 'mailto:us@emoji.tw?subject=Rooftop%20facilities', cta: 'Ask about access' },
+        3: { use: 'Coworking, community events and business private hire', hours: 'About 08:00–03:00 next day; private events by arrangement', eligibility: 'Members use it day to day. Community events may use the application form; companies, teams and client-event organizers should email us.', price: 'Membership or private venue plan', href: '/en/events?apply=1#ev-apply', cta: 'Apply for a Stay Square community event', secondaryHref: 'mailto:us@emoji.tw?subject=Stay Square%20business%20venue%20enquiry', secondaryCta: 'Email about business or team hire' },
+        4: { use: 'Wash-and-dry laundry and outdoor smoking area', hours: 'Members, 24 hours (conditional)', eligibility: 'Members with a valid membership', price: 'Laundry and smoking area are free for members', href: 'mailto:us@emoji.tw?subject=member facilities%20facilities', cta: 'Ask about access' },
       },
       imageLabel: 'Space image',
-      conceptCaptions: { 1: '1F dining area · concept rendering', 2: '2F capsule rest seats · concept rendering', 3: '3F coworking and event space · concept rendering' },
+      conceptCaptions: { 1: 'Dining with at cafe or 3AM area · concept rendering', 2: 'Stay Square capsule rest seats · concept rendering', 3: 'Stay Square coworking and event space · concept rendering' },
     },
     ja: {
-      intro: '今日の目的に合うフロアを選ぶ',
+      intro: '目的に合うブランドとサービスを選ぶ',
       close: '閉じる',
-      nos: { 1: '1F', 2: '2F', 3: '3F', 4: '屋上' },
+      nos: { 1: '飲食', 2: '休憩', 3: '仕事', 4: '設備' },
       menuTitle: 'メニュー Menu',
       areas: {
         1: '在咖啡／三點水 · 約25.2坪',
         2: '等等空間 · 約29.5坪',
         3: '等等空間 · 約29.9坪',
-        4: '屋上 · ランドリー／屋外喫煙エリア',
+        4: '会員向け設備 · ランドリー／屋外喫煙エリア',
       },
       names: {
         1: '在咖啡（at cafe）／三點水（3AM）',
         2: '等等空間 · 会員の休憩・シャワー',
         3: '等等空間 · 仕事・イベント',
-        4: '屋上附属施設',
+        4: '会員向け設備附属施設',
       },
       kickers: {
         1: '食事 · コーヒー · 打ち合わせ',
@@ -115,13 +115,13 @@
       },
       factLabels: { use: '用途', hours: '利用時間', eligibility: '利用条件', price: '料金' },
       facts: {
-        1: { use: '飲食、テイクアウト、深夜の食事', hours: '在咖啡 08:00–17:00／三點水 17:00–27:00', eligibility: 'どなたでも利用可。会員登録不要', price: 'メニュー参照。通常価格と会員価格', href: '/ja/space#menu', cta: '1Fメニューを見る' },
+        1: { use: '飲食、テイクアウト、深夜の食事', hours: '在咖啡 08:00–17:00／三點水 17:00–27:00', eligibility: 'どなたでも利用可。会員登録不要', price: 'メニュー参照。通常価格と会員価格', href: '/ja/space#menu', cta: 'ブランドのメニューを見る' },
         2: { use: '読書、休憩、カプセル席、ソーシャルルーム、シャワー', hours: '24時間（条件付き）', eligibility: '有効な会員資格を持つ会員', price: '会員は設備をすべて自由に利用可', href: '/ja/system', cta: '会員プランを比較' },
-        3: { use: 'コワーキング、コミュニティイベント、企業貸切', hours: '約08:00–翌03:00。貸切は個別調整', eligibility: '日常利用は会員向け。コミュニティ活動は会場利用申請、企業・チーム・顧客向けイベントの貸切はメールでお問い合わせください。', price: '会員プランでの利用または貸切プラン', href: '/ja/events?apply=1#ev-apply', cta: '3Fコミュニティ活動を申請', secondaryHref: 'mailto:us@emoji.tw?subject=3F%20business%20venue%20enquiry', secondaryCta: '企業・チーム貸切を問い合わせる' },
+        3: { use: 'コワーキング、コミュニティイベント、企業貸切', hours: '約08:00–翌03:00。貸切は個別調整', eligibility: '日常利用は会員向け。コミュニティ活動は会場利用申請、企業・チーム・顧客向けイベントの貸切はメールでお問い合わせください。', price: '会員プランでの利用または貸切プラン', href: '/ja/events?apply=1#ev-apply', cta: 'Stay Squareコミュニティ活動を申請', secondaryHref: 'mailto:us@emoji.tw?subject=Stay Square%20business%20venue%20enquiry', secondaryCta: '企業・チーム貸切を問い合わせる' },
         4: { use: '洗濯乾燥と屋外喫煙エリア', hours: '会員 24時間（条件付き）', eligibility: '有効な会員資格を持つ会員', price: '洗濯乾燥・喫煙エリアは会員無料', href: 'mailto:us@emoji.tw?subject=附属施設について', cta: '利用方法を問い合わせる' },
       },
       imageLabel: 'スペース画像',
-      conceptCaptions: { 1: '1F飲食エリア · 完成イメージ', 2: '2Fカプセル休憩席 · 完成イメージ', 3: '3Fコワーキング・イベントスペース · 完成イメージ' },
+      conceptCaptions: { 1: 'at cafe / 3AM飲食エリア · 完成イメージ', 2: 'Stay Squareカプセル休憩席 · 完成イメージ', 3: 'Stay Squareコワーキング・イベントスペース · 完成イメージ' },
     },
   };
 
@@ -294,7 +294,7 @@
       return slabGroup(ox, oy, f.z, f.W, f.D, H, f.furn(ox, oy, f.z, f.W, f.D, H), f.id);
     });
 
-    // 細長塔：x 約 -173…39，y 約頂層到 1F 底；實作後若裁切再微調
+    // 細長塔：x 約 -173…39，y 約頂層到 at cafe / 3AM 底；實作後若裁切再微調
     return (
       '<svg class="space-dir__svg" viewBox="-200 -160 280 420" role="img" aria-hidden="true">' +
         parts.join('') +
@@ -328,7 +328,7 @@
         '<div class="space-dir__grid">' +
           '<div class="space-dir__viz">' + buildSvg() + '</div>' +
           '<div class="space-dir__side">' +
-            '<ol class="space-dir__list" aria-label="Floors">' + buildList(t) + '</ol>' +
+            '<ol class="space-dir__list" aria-label="' + t.intro + '">' + buildList(t) + '</ol>' +
           '</div>' +
         '</div>' +
       '</div>';
@@ -346,7 +346,7 @@
     if (this.panel) {
       this.panel.classList.remove('wrap');
       this.panel.classList.add('space-panel--accordion');
-      // 收合時寄放在目錄根節點，展開時再插入對應樓層 <li>
+      // 收合時寄放在目錄根節點，展開時再插入對應空間 <li>
       this.root.appendChild(this.panel);
     }
     this._bind();

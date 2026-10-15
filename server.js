@@ -46,6 +46,7 @@ const { PLAN_PRICE_TWD } = require('./lib/plans');
 const { FEATURED_ID, eventPage, featuredEvent } = require('./lib/event-page');
 const { sendPage, layoutMiddleware, composeEventMeta } = require('./lib/layout');
 const { SPACE_SEED, missingSpaceSeedKeys } = require('./lib/space-content');
+const { publicText, publicContent, publicEventCopy } = require('./lib/public-copy');
 const { assertSpaceImageFile, buildSafeSpaceFilename } = require('./lib/space-upload');
 const { assertSocialImageFile, buildSafeSocialFilename, sniffImageType } = require('./lib/social-upload');
 const { loadSocialSeedPosts } = require('./lib/social-seed');
@@ -1712,7 +1713,7 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
   res.json({
     role: commitments.length ? 'participant' : 'invited',
     organizer: req.auth.role === 'organizer',
-    me, bond, users: [me], commitments, events:events.map(e=>localizeEvent(e,'zh')), updates,
+    me, bond, users: [me], commitments, events:events.map(e=>publicEventCopy(localizeEvent(e,'zh'))), updates:updates.map(publicEventCopy),
     access: {
       active: access.active,
       entitlements: access.entitlements,
@@ -1808,7 +1809,7 @@ app.get('/api/public', requireDb, wrap(async (req, res) => {
        (SELECT COALESCE(SUM(r.quantity),0)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS reg_count
      FROM events e WHERE status IN ('預告','報名中') AND visibility='public' ORDER BY starts_at ASC NULLS LAST`)).rows;
   const content = await readContent();
-  res.json({ raised, updates, events, content });
+  res.json({ raised, updates: updates.map(publicEventCopy), events: events.map(publicEventCopy), content: publicContent(content) });
 }));
 
 app.post('/api/commitments', auth, requireDb, wrap(async (req, res) => {
@@ -3470,8 +3471,8 @@ app.get('/api/admin/ig/insights', auth, adminOnly, requireDb, wrap(async (_req, 
 
 /* ---- 活動前台：公開列表、私人連結、報名付款與票券 ---- */
 function publicEvent(event,lang){
- if(event.registration_mode==='closed')return {id:event.id,slug:event.slug,title:{en:'Private event',ja:'非公開イベント'}[lang]||'私人活動',visibility:'private',registration_mode:'closed',status:event.status,location:event.location,starts_at:event.starts_at,ends_at:event.ends_at,starts_at_iso:event.starts_at_iso,ends_at_iso:event.ends_at_iso};
- const out=localizeEvent(event,lang);out.can_contact_host=!!(event.owner_id||event.event_details?.contact_email);delete out.owner_id;if(out.event_details)delete out.event_details.contact_email;return out;
+ if(event.registration_mode==='closed')return {id:event.id,slug:event.slug,title:{en:'Private event',ja:'非公開イベント'}[lang]||'私人活動',visibility:'private',registration_mode:'closed',status:event.status,location:publicText(event.location),starts_at:event.starts_at,ends_at:event.ends_at,starts_at_iso:event.starts_at_iso,ends_at_iso:event.ends_at_iso};
+ const out=publicEventCopy(localizeEvent(event,lang));out.can_contact_host=!!(event.owner_id||event.event_details?.contact_email);delete out.owner_id;if(out.event_details)delete out.event_details.contact_email;return out;
 }
 function eventReferralToken(registrationId,event){
  const end=event.ends_at||event.starts_at,ttlSec=end?Math.max(86400,Math.floor((+new Date(end)-Date.now())/1000)+30*86400):366*86400;

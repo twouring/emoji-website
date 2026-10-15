@@ -236,7 +236,8 @@ test('system zh page structure', () => {
   assert.match(html, /id="cafe"/);
   assert.match(html, /href="\/fellow"/);
   assert.match(html, /href="\/events#venue"/);
-  assert.match(html, /href="\/space"/);
+  assert.match(html, /href="\/at-cafe"/);
+  assert.match(html, /href="\/3am"/);
   assert.match(html, /NT\$\s*4,000|NT\$4,000/);
   assert.doesNotMatch(html, /旅館|hotel|住宿|過夜|共居|居住|入住|酒吧|Cafe &amp; Bar|Cafe & Bar|Member Plaza|Talent Lounge/i);
 });
@@ -251,7 +252,8 @@ test('system en page structure', () => {
   assert.match(html, /id="membership"/);
   assert.match(html, /href="\/en\/fellow"/);
   assert.match(html, /href="\/en\/events#venue"/);
-  assert.match(html, /href="\/en\/space"/);
+  assert.match(html, /href="\/en\/at-cafe"/);
+  assert.match(html, /href="\/en\/3am"/);
   assert.match(html, /canonical" href="https:\/\/www\.emoji\.tw\/en\/system"/);
   assert.doesNotMatch(html, /旅館|hotel|住宿|過夜|共居|居住|入住|酒吧|Cafe &amp; Bar|Cafe & Bar|Member Plaza|Talent Lounge/i);
 });
@@ -262,7 +264,8 @@ test('system ja page structure', () => {
   assert.match(html, /id="membership"/);
   assert.match(html, /href="\/ja\/fellow"/);
   assert.match(html, /href="\/ja\/events#venue"/);
-  assert.match(html, /href="\/ja\/space"/);
+  assert.match(html, /href="\/ja\/at-cafe"/);
+  assert.match(html, /href="\/ja\/3am"/);
   assert.match(html, /canonical" href="https:\/\/www\.emoji\.tw\/ja\/system"/);
   assert.doesNotMatch(html, /旅館|hotel|宿泊|ホテル|過夜|共居|居住|入住/i);
 });
