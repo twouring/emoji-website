@@ -1567,7 +1567,7 @@ app.post('/api/admin/users/password', auth, requireDb, superOnly, rateLimit({max
   const {email:rawEmail,password,admin,brands,name} = req.body || {};
   const email = typeof rawEmail==='string' ? rawEmail.trim().toLowerCase() : '';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length>254 || !validPassword(password) || admin!==true || !Array.isArray(brands) || brands.some(b=>!ADMIN_BRANDS.includes(b)))
-    return res.status(400).json({error:'請提供有效 Email、至少 12 個字元的密碼、admin:true 與 brands 陣列。'});
+    return res.status(400).json({error:'請提供有效 Email、至少 8 個字元的密碼、admin:true 與 brands 陣列。'});
   if (email===SUPER_ADMIN_EMAIL) return res.status(400).json({error:'此端點不能設定超級管理員密碼。'});
   const hash = await hashPassword(password), client = await pool.connect();
   try {

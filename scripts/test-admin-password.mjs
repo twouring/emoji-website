@@ -71,6 +71,11 @@ test('admin login offers accessible password form alongside Google; organizers k
  assert.match(source,/localStorage\.setItem\(KEY/);
  assert.match(source,/if\(!ORGANIZER_PORTAL\)/);
 });
+test('provisioning accepts passwords of eight or more characters',async()=>{
+ const {hashPassword,verifyPassword}=require('../lib/admin-password');
+ const hash=await hashPassword('test-9chr');assert.equal(await verifyPassword('test-9chr',hash),true);
+ await assert.rejects(()=>hashPassword('seven77'));
+});
 test('scrypt hashes are salted, bounded, and verify without accepting malformed hashes',async()=>{
  const {hashPassword,verifyPassword}=require('../lib/admin-password');
  const password='test-only-random-password-42';
