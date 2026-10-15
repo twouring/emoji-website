@@ -76,7 +76,7 @@ test('server 接線：端點限流＋識別碼、不需 notOperator（現場人�
 
 test('POS 接線：打卡頁有補打卡入口、識別碼不進 localStorage／DOM、表單欄位與原因必填', () => {
   const js = read('public/pos-ops.js');
-  assert.match(js, /id="clock-makeup"/); assert.match(js, /function openMakeup\(pin,venue,done\)/);
+  assert.match(js, /id="clock-makeup"/); assert.match(js, /function openMakeup\(pin,done\)/);
   assert.match(js, /api\('\/admin\/attendance\/makeup',\{method:'POST',body\}\)/);
   const fn = js.slice(js.indexOf('function openMakeup('), js.indexOf('/* ===== 加點選項'));
   assert.doesNotMatch(fn, /localStorage/); assert.match(fn, /datetime-local/); assert.match(fn, /id="mk-reason"/);

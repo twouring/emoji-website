@@ -281,7 +281,7 @@ function paintNav(){
 function resetPanels(){
   // 換店別：清掉各分頁的快取簽章與初始化旗標，讓 pos-ops.js 重新繪製
   document.querySelectorAll('[data-panel] > [id]').forEach(h => { delete h.dataset.sig; delete h.dataset.init; h.innerHTML=''; });
-  POS_TABLE=''; POS_PICK=null; POS_DISCOUNT=null; POS_RECEIVED=''; HIST_Q=''; CLOCK_PIN=''; CLOCK_VENUE='';
+  POS_TABLE=''; POS_PICK=null; POS_DISCOUNT=null; POS_RECEIVED=''; HIST_Q=''; CLOCK_PIN='';
 }
 function activate(){
   document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('on', p.dataset.panel === TAB));

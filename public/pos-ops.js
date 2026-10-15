@@ -8,7 +8,7 @@ function tabPos(){ return '<div id="pos-body"></div>'; }
 function tabReservations(){ return '<div class="a-sec" id="resv-body"></div>'; }
 function tabSales(){ return '<div class="a-sec" id="sales-body"></div>'; }
 function tabHistory(){ return '<div class="a-sec" id="history-body"></div>'; }
-let ORDERS_TIMER=null,ORDERS_SEEN=null,POS_TIMER=null,POS_DATA=null,POS_TABLE='',POS_PICK=null,POS_MEMBER=false,POS_INVOICE={mode:''},POS_METHOD='cash',POS_CAT='',POS_DISCOUNT=null,POS_DISC_OPEN=false,POS_RECEIVED='',RESV_FROM='',RESV_DAYS=7,RESV_EDIT=null,SALES_DAY='',HIST_DAY='',HIST_Q='',REG_DATA=null,REG_CASH_OPEN=false,REG_CLOSE_OPEN=false,REG_COUNT_OPEN=false,REG_OPEN_FORM='',CLOCK_PIN='',CLOCK_VENUE='',CLOCK_MSG=null,SHIFT_WEEK='',SHIFT_FORM={},ATT_FROM='',ATT_TO='',STAFF_EDIT=null;
+let ORDERS_TIMER=null,ORDERS_SEEN=null,POS_TIMER=null,POS_DATA=null,POS_TABLE='',POS_PICK=null,POS_MEMBER=false,POS_INVOICE={mode:''},POS_METHOD='cash',POS_CAT='',POS_DISCOUNT=null,POS_DISC_OPEN=false,POS_RECEIVED='',RESV_FROM='',RESV_DAYS=7,RESV_EDIT=null,SALES_DAY='',HIST_DAY='',HIST_Q='',REG_DATA=null,REG_CASH_OPEN=false,REG_CLOSE_OPEN=false,REG_COUNT_OPEN=false,REG_OPEN_FORM='',CLOCK_PIN='',CLOCK_MSG=null,SHIFT_WEEK='',SHIFT_FORM={},ATT_FROM='',ATT_TO='',STAFF_EDIT=null;
 const REG_DENOMS=[1000,500,100,50,10,5,1];
 const PAY_LABEL={cash:'現金',card:'刷卡',linepay:'LINE Pay',transfer:'轉帳',taishin:'台新手機付',tappay:'線上刷卡'};
 const INV_LABEL={paper:'紙本',company:'統編',mobile:'手機載具',citizen:'自然人憑證',donate:'捐贈'};
@@ -714,46 +714,42 @@ const venueNow=()=>{if(SCOPE)return SCOPE;const h=Number(new Date().toLocaleTime
 /* 打卡：大數字鍵盤輸入識別碼 → 上班／下班；結果用大字卡片顯示幾秒；下方列目前在班上的人 */
 async function loadClock(){
   const host=document.getElementById('clock-body');if(!host)return;
-  if(!CLOCK_VENUE)CLOCK_VENUE=venueNow();
   const today=MenuLib.businessDay();
   let working=[];try{working=(await api(`/admin/attendance?from=${today}&to=${today}`+(SCOPE?'&venue='+SCOPE:''))).working||[];}catch(e){}
   paintClock(host,working);
 }
 function paintClock(host,working){
   const dots=[0,1,2,3].map(i=>`<i class="${i<CLOCK_PIN.length?'on':''}"></i>`).join('');
-  const venueBtns=SCOPE?'':`<div class="clock-venue" role="group" aria-label="店別">${['CAFE','BAR'].map(v=>`<button type="button" data-venue="${v}" aria-pressed="${CLOCK_VENUE===v?'true':'false'}">${esc(BRAND_LABEL[v])}</button>`).join('')}</div>`;
   const keys=['1','2','3','4','5','6','7','8','9','⌫','0','清除'].map(k=>`<button type="button" class="clock-key" data-key="${esc(k)}">${esc(k)}</button>`).join('');
   const msg=CLOCK_MSG?`<div class="clock-msg ${CLOCK_MSG.ok?'ok':'bad'}" role="status">${esc(CLOCK_MSG.text)}</div>`:'';
   // 上班中名單：休息中標示、連續工作滿 4 小時沒休息的標紅（勞基法第 35 條：連續工作 4 小時至少休息 30 分鐘）
   const list=working.map(w=>`<li class="${w.on_break?'on-break':w.needs_break?'needs-break':''}"><b>${esc(w.name)}</b><span>${esc(clockText(w.clock_in))} 上班${SCOPE?'':' · '+esc(BRAND_LABEL[w.venue]||w.venue)}${w.shift_end?` · 排到 ${esc(w.shift_end)}`:''}${w.break_minutes?` · 已休 ${esc(hoursText(w.break_minutes))}`:''}</span>${w.on_break?`<em>休息中（${esc(clockText(w.break_since))} 起）</em>`:w.needs_break?`<em>已連續工作 ${esc(hoursText(w.continuous_minutes))}，該休息了</em>`:''}</li>`).join('');
   host.innerHTML=`<div class="ops-head"><h2>打卡</h2>${opsHelp('輸入你的 4 位數識別碼，按「上班」「下班」或「開始休息」「結束休息」。連續工作 4 小時要休息至少 30 分鐘，休息時間不算工時。忘了打卡就按下方「補打卡」自己補（只能補自己、7 天內、要寫原因）；忘記識別碼請找店長。')}</div>
-    ${venueBtns}
     <div class="clock-pad"><div class="clock-pin" aria-label="識別碼">${dots}</div><div class="clock-keys">${keys}</div>
       <div class="clock-go"><button type="button" class="btn btn--solid" id="clock-in">上班</button><button type="button" class="btn btn--ghost" id="clock-out">下班</button><button type="button" class="btn btn--ghost" id="clock-break-start">開始休息</button><button type="button" class="btn btn--ghost" id="clock-break-end">結束休息</button></div>
       <button type="button" class="clock-makeup" id="clock-makeup">忘了打卡？補打卡</button></div>
     ${msg}
     <h3>上班中</h3>${list?`<ul class="clock-list">${list}</ul>`:'<p class="a-empty">目前沒有人在班上</p>'}`;
-  host.querySelectorAll('[data-venue]').forEach(b=>b.onclick=()=>{CLOCK_VENUE=b.dataset.venue;paintClock(host,working);});
   host.querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>{const k=b.dataset.key;if(k==='⌫')CLOCK_PIN=CLOCK_PIN.slice(0,-1);else if(k==='清除')CLOCK_PIN='';else if(CLOCK_PIN.length<4)CLOCK_PIN+=k;CLOCK_MSG=null;paintClock(host,working);});
   // 識別碼只留在記憶體（CLOCK_PIN），送出即清空，不進 localStorage、不顯示數字（畫面只有 4 個點）
   const punch=type=>{if(CLOCK_PIN.length<4){CLOCK_MSG={ok:false,text:'請先輸入 4 位數識別碼'};paintClock(host,working);return;}
     const pin=CLOCK_PIN;CLOCK_PIN='';host.querySelectorAll('.clock-go .btn').forEach(b=>b.disabled=true);
-    api('/admin/attendance/punch',{method:'POST',body:{pin,type,venue:CLOCK_VENUE}}).then(out=>{CLOCK_MSG={ok:!out.break_short,text:out.message};},e=>{CLOCK_MSG={ok:false,text:e.message};}).then(loadClock);};
+    api('/admin/attendance/punch',{method:'POST',body:{pin,type,venue:SCOPE||undefined}}).then(out=>{CLOCK_MSG={ok:!out.break_short,text:out.message};},e=>{CLOCK_MSG={ok:false,text:e.message};}).then(loadClock);};
   host.querySelector('#clock-in').onclick=()=>punch('in');host.querySelector('#clock-out').onclick=()=>punch('out');
   host.querySelector('#clock-break-start').onclick=()=>punch('break_start');host.querySelector('#clock-break-end').onclick=()=>punch('break_end');
   host.querySelector('#clock-makeup').onclick=()=>{if(CLOCK_PIN.length<4){CLOCK_MSG={ok:false,text:'請先輸入你的 4 位數識別碼，再按「補打卡」'};paintClock(host,working);return;}
-    const pin=CLOCK_PIN;CLOCK_PIN='';paintClock(host,working);openMakeup(pin,CLOCK_VENUE,()=>loadClock());};
+    const pin=CLOCK_PIN;CLOCK_PIN='';paintClock(host,working);openMakeup(pin,()=>loadClock());};
 }
 /* 補打卡：忘了打上班／下班時，員工用自己的識別碼補登（只能補自己、過去 7 天內、要寫原因；後台出勤紀錄會標「補打卡」備註與補登人）。
    時間用 datetime-local（台北時間字串直接送，不經裝置時區換算）；識別碼只留在閉包、送出即丟，不進 localStorage／DOM。 */
-function openMakeup(pin,venue,done){
+function openMakeup(pin,done){
   const nowTp=localStamp(new Date().toISOString()).replace(' ','T'),minTp=localStamp(new Date(Date.now()-7*86400e3).toISOString()).replace(' ','T');
   const ov=document.createElement('div');ov.className='op-overlay';document.body.appendChild(ov);
   const close=()=>{if(ov.parentNode)ov.parentNode.removeChild(ov);};
   const TYPES=[['both','整班（上班＋下班）'],['in','只補上班'],['out','只補下班']];
   const REASONS=['忘記打卡','平板當機','臨時支援'];
   ov.innerHTML=`<div class="op-card pos-opt" role="dialog" aria-label="補打卡"><div class="pos-opt-body">
-    <h2>補打卡 · ${esc(BRAND_LABEL[venue]||venue)}</h2><p class="hint" style="margin:0">只能補自己、過去 7 天內已經發生的時間；會記下「補打卡」與原因，店長看得到。</p>
+    <h2>補打卡</h2><p class="hint" style="margin:0">只能補自己、過去 7 天內已經發生的時間；會記下「補打卡」與原因，店長看得到。</p>
     <div class="pos-opt-group"><div class="pos-opt-title"><span>補哪一種</span></div><div class="pos-opt-choices mk-types">${TYPES.map(([v,t],i)=>`<label><input type="radio" name="mk_type" value="${v}" ${i===0?'checked':''}><span>${esc(t)}</span></label>`).join('')}</div></div>
     <label class="pos-opt-group mk-field" data-mk="in,both"><div class="pos-opt-title"><span>上班時間</span></div><input type="datetime-local" id="mk-in" min="${minTp}" max="${nowTp}"></label>
     <label class="pos-opt-group mk-field" data-mk="out,both"><div class="pos-opt-title"><span>下班時間</span></div><input type="datetime-local" id="mk-out" min="${minTp}" max="${nowTp}" value="${nowTp}"></label>
@@ -767,7 +763,7 @@ function openMakeup(pin,venue,done){
   ov.querySelectorAll('[data-mk-reason]').forEach(b=>b.onclick=()=>{$('#mk-reason').value=b.dataset.mkReason;});
   $('#mk-cancel').onclick=close;
   $('#mk-save').onclick=()=>{const t=type(),err=$('#mk-err');err.hidden=true;
-    const body={pin,venue,reason:$('#mk-reason').value.trim()};
+    const body={pin,venue:SCOPE||undefined,reason:$('#mk-reason').value.trim()};
     if(t!=='out')body.clock_in=$('#mk-in').value;if(t!=='in')body.clock_out=$('#mk-out').value;if(t!=='in'&&$('#mk-break').value!=='')body.break_minutes=Number($('#mk-break').value);
     if(t!=='out'&&!body.clock_in){err.textContent='請填上班時間';err.hidden=false;return;}
     if(t!=='in'&&!body.clock_out){err.textContent='請填下班時間';err.hidden=false;return;}

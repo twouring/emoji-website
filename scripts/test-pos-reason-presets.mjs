@@ -82,5 +82,5 @@ test('膠囊鍵樣式：48px 觸控目標、字級不小於 1rem、選中有標�
   assert.match(css, /\.reason-chips button\{[^}]*min-height:48px/);
   assert.match(css, /\.reason-chips button\[aria-pressed="true"\]/);
   assert.match(css, /\.reason-chips--inline\{[^}]*flex-basis:100%/);
-  assert.match(read('public/pos-sw.js'), /VERSION = 'pos-v1\d'/);
+  assert.match(read('public/pos-sw.js'), /VERSION = 'pos-v\d{2,}'/);
 });

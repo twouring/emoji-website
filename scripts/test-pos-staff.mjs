@@ -236,3 +236,30 @@ test('接線：POS 多「排班」「打卡」分頁、後台餐飲工作區多�
   assert.doesNotMatch(pos, /\.p-top\{[^}]*position:fixed/, '頂欄不可 fixed');
   assert.doesNotMatch(pos, /body\{[^}]*padding-top:calc\(var\(--p-top\)/, 'body 不再用 padding-top 預留頂欄高度');
 });
+
+test('打卡不用選店別：沒指定時依「未下班那筆→只有一家→當天排班→營業時段」自動判斷', () => {
+  const both = { id: 'st_1', name: '小美', active: true, venues: null };
+  const at = h => +new Date(`2026-10-15T${h}:00+08:00`);
+  assert.equal(S.pickVenue({ requested: 'bar', staff: both, at: at('10:00') }), 'BAR', '有指定就用指定');
+  assert.equal(S.pickVenue({ staff: both, at: at('10:00') }), 'CAFE', '白天在咖啡');
+  assert.equal(S.pickVenue({ staff: both, at: at('17:00') }), 'BAR', '17:00 起三點水');
+  assert.equal(S.pickVenue({ staff: both, at: at('01:00') }), 'BAR', '凌晨還是三點水');
+  assert.equal(S.pickVenue({ staff: { ...both, venues: ['BAR'] }, at: at('10:00') }), 'BAR', '員工只屬一家就是那家');
+  assert.equal(S.pickVenue({ staff: both, own: ['CAFE'], at: at('20:00') }), 'CAFE', '子帳號只能用自己店');
+  const shifts = [{ id: 'sh', staff_id: 'st_1', day: '2026-10-15', venue: 'BAR', start_time: '12:00', end_time: '20:00' }];
+  assert.equal(S.pickVenue({ staff: both, shifts, at: at('10:00') }), 'BAR', '有排班就跟排班走，不看時段');
+  const open = { venue: 'BAR', clock_in: new Date(at('18:00')) };
+  assert.equal(S.pickVenue({ staff: both, open, at: at('23:00') }), 'BAR', '下班跟著上班那家');
+  assert.equal(S.pickVenue({ staff: both, open, useOpen: false, at: at('10:00') }), 'CAFE', '重新上班不沿用舊卡');
+  assert.throws(() => S.pickVenue({ staff: { ...both, venues: ['BAR'] }, own: ['CAFE'], at: at('10:00') }), e => e.status === 403);
+  const out = S.makeupPunch({ staff: both, body: { reason: '忘記打卡', clock_in: '2026-10-15 18:00', clock_out: '2026-10-15 23:00' }, open: null, existing: [], shifts: [], now: at('23:30') });
+  assert.equal(out.venue, 'BAR', '補打卡沒指定店別也能依時間判斷');
+});
+test('POS 打卡頁沒有店別按鈕，也不送固定店別', () => {
+  const js = read('public/pos-ops.js');
+  assert.doesNotMatch(js, /CLOCK_VENUE|clock-venue|aria-label="店別"/);
+  assert.match(js, /body:\{pin,type,venue:SCOPE\|\|undefined\}/);
+  const srv = read('server.js');
+  assert.match(srv, /posStaff\.pickVenue\(\{requested:req\.body\?\.venue/);
+  assert.doesNotMatch(srv, /posStaff\.venueOf\(req\.body\?\.venue,req\.auth\.brands\)[\s\S]{0,200}pos_staff WHERE pin/);
+});
