@@ -437,3 +437,22 @@ tr.lp-refund td{color:var(--danger)}
 .pos-grid-edit .pos-drag.dragging{position:relative;z-index:5;opacity:.9;box-shadow:0 8px 24px rgba(0,0,0,.25);cursor:grabbing}
 .pos-grid-edit .pos-drag-grip{color:var(--muted)}
 .pos-editing .hint{margin:0 0 12px}
+
+/* 查單卡片：一單一卡，卡頭桌號／時間／狀態／金額，品項逐行，主鍵「補印收據明細」，其餘收進「更多」 */
+.hist-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;align-items:start}
+.hist-card{display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.hist-card.is-void{background:var(--paper-alt);border-color:var(--danger-line)}.hist-card.is-void .hist-lines{opacity:.6}
+.hist-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.hist-table{font-size:1.6rem;line-height:1}.hist-table small{font-size:1rem;margin-right:4px;color:var(--muted)}
+.hist-time,.hist-id{color:var(--muted);font-size:1rem}.hist-amount{margin-left:auto;font-size:1.3rem;font-variant-numeric:tabular-nums}
+.hist-lines{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.hist-line{display:grid;grid-template-columns:2.6em 1fr auto;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)}
+.hist-line.is-off .hist-name b{text-decoration:line-through}
+.hist-qty{font-weight:700;font-variant-numeric:tabular-nums}.hist-qty.many{color:var(--warn-ink)}
+.hist-name{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0}.hist-name .hint{color:var(--ink-soft)}.hist-sub{font-variant-numeric:tabular-nums;color:var(--ink-soft)}
+.hist-pay{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px 12px}.hist-inv{text-align:right}
+.hist-void{color:var(--danger);font-weight:600}
+.hist-actions{display:flex;flex-wrap:wrap;gap:8px;position:relative;margin-top:auto}
+.hist-actions>.btn,.hist-actions .ops-more>summary{min-height:48px}.hist-actions .ops-more{margin-left:auto}
+.hist-actions .ops-more[open]>.ops-btns{top:auto;bottom:100%;margin-bottom:6px}
+@media(max-width:700px){.hist-list{grid-template-columns:1fr}}
