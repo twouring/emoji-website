@@ -414,7 +414,7 @@ POS 關掉某筆客人的結帳需求（客人改口或已另外處理）；品�
 - `cash_actual = counted_cash − opening_cash − cash_in + cash_out`。`total_pos` 取伺服器訂單營收原值；`total_actual = cash_actual + 各非現金帳戶實收`。總額相同直接關帳；不同時必須**另填** `total_reason`，不可借用現金原因。
 - `keep_cash` 為抽屜留存金，預設零用金。回傳原現金欄位加 `cash_confirmed, accounts, cash_actual, total_pos, total_actual, total_diff, total_reason, report`。所有核對金額、標籤、原因與總額凍結在 `report` JSON，重印沿用原紀錄，不需新增資料表。舊關帳單仍可重印。
 
-LINE Pay 為全店共用商店帳號，沿用依開關帳時段分配店別的機制與分店表格；`/sales/taishin` 手填紀錄仍涵蓋全店。保留參考與原操作，不自動當作單一品牌的已確認實收。關帳後該品牌當日不可再結帳與記臨時收支。
+LINE Pay 同步依開關帳時間歸屬店別，保留既有品牌篩選、分店明細與 CSV；`/sales/taishin` 手填紀錄仍為全店。兩者保留為參考與原操作，不自動當作逐項已確認實收。關帳後該品牌當日不可再結帳與記臨時收支。
 
 ### POST /api/admin/registers/:id/reopen
 重開補單（僅超級管理員）。關帳紀錄保留，以留存金為零用金另開一本新帳接著記；當日任何品牌還有開著的帳回 409（另一品牌開著時訊息會說要先關誰）。回 `{ ok, id, day, venue, opening_cash }`（201）。

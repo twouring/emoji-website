@@ -1247,7 +1247,11 @@ function registerReportSpec(rep,kind){
   if(rep.voided)row('作廢',`${n(rep.voided)} 單 ${n(rep.void_amount)}`);
   if(rep.accounts){
     sec('逐項帳戶核對');row('現金實收',n(rep.cash_actual));
-    for(const [code,a] of Object.entries(rep.accounts)){sp.push({kind:'wrap',text:a.label||payMethodLabel(code),size:20,bold:true});row('POS／實收',n(a.pos)+'／'+n(a.actual));row('差異',(a.diff>0?'+':'')+n(a.diff));if(a.reason)sp.push({kind:'wrap',text:a.reason,size:20});}
+    for(const [code,a] of Object.entries(rep.accounts)){
+      sp.push({kind:'wrap',text:a.label||payMethodLabel(code),size:22,bold:true});
+      row('POS／實收',n(a.pos)+'／'+n(a.actual));row('差異',(a.diff>0?'+':'')+n(a.diff));
+      if(a.reason)sp.push({kind:'wrap',text:a.reason,size:20});
+    }
     sec('最後核對總額');row('訂單總額',n(rep.total_pos));row('帳戶總額',n(rep.total_actual));row('總差異',(rep.total_diff>0?'+':'')+n(rep.total_diff),true);
     if(rep.total_reason)sp.push({kind:'wrap',text:'總差異原因：'+rep.total_reason,size:20});
   }
@@ -1285,7 +1289,7 @@ function dailyCloseForm(r){
     <fieldset data-close-step="cash"><legend>2. 清點錢櫃</legend><div class="ops-head"><h4>關帳點鈔</h4>${tipIcon('現金實收＝點鈔－零用金－臨時收入＋臨時支出。各項有差異都要填原因，不能互相抵銷。')}</div>${denomGrid()}
     <div class="a-form"><label>點鈔總額<input id="reg-counted" inputmode="numeric" pattern="[0-9]*" placeholder="或直接填"></label><label>留存金<input id="reg-keep" inputmode="numeric" pattern="[0-9]*" value="${esc(r.opening_cash)}"></label><label class="reg-note">現金差異原因<input id="reg-close-note" maxlength="200" placeholder="現金差額非 0 必填"></label></div>${fillChips('reg-keep',[[r.opening_cash,'同零用金 $'+num(r.opening_cash)],[0,'全部收走'],[3000,'$3,000'],[5000,'$5,000']])}${reasonChips('reg-close-note',REASON_PRESETS.close_note)}
     <div class="reg-close-sum"><span>應有現金 <b>NT$${num(r.expected)}</b></span><span>點鈔 <b id="reg-counted-show">—</b></span><span>差額 <b id="reg-diff-show">—</b></span></div><label><input type="checkbox" data-close-confirm="cash"> 已確認錢櫃與現金差異原因</label></fieldset>
-    ${entries.map(([code,pos],i)=>`<fieldset data-close-step="${esc(code)}" disabled><legend>${i+3}. 核對 ${esc(regAccountLabel(r,code))}</legend><p>本品牌 POS 登記 <b>NT$${num(pos)}</b></p><p class="hint">請核對並填入「${esc(BRAND_LABEL[r.venue])}」本營業日的實收（退款已扣、手續費扣除前）。LINE Pay 同步依開關帳時段分配店別、台新手填紀錄仍為全店；兩者僅供參考，不能代替本品牌逐項確認。</p><div class="a-form"><label>本品牌實收<input data-account-actual="${esc(code)}" inputmode="numeric" pattern="[0-9]*" placeholder="必填，沒有收款也請填 0"></label><label>差異原因<input data-account-reason="${esc(code)}" maxlength="200" placeholder="差額非 0 必填"></label></div><p>差額 <b data-account-diff="${esc(code)}">—</b></p><label><input type="checkbox" data-close-confirm="${esc(code)}"> 已確認此帳戶與差異原因</label></fieldset>`).join('')}
+    ${entries.map(([code,pos],i)=>`<fieldset data-close-step="${esc(code)}" disabled><legend>${i+3}. 核對 ${esc(regAccountLabel(r,code))}</legend><p>本品牌 POS 登記 <b>NT$${num(pos)}</b></p><p class="hint">請核對並填入「${esc(BRAND_LABEL[r.venue])}」本營業日的實收（退款已扣、手續費扣除前）。LINE Pay 店別歸屬與全店台新手填紀錄僅供參考，請另行確認本品牌實收。</p><div class="a-form"><label>本品牌實收<input data-account-actual="${esc(code)}" inputmode="numeric" pattern="[0-9]*" placeholder="必填，沒有收款也請填 0"></label><label>差異原因<input data-account-reason="${esc(code)}" maxlength="200" placeholder="差額非 0 必填"></label></div><p>差額 <b data-account-diff="${esc(code)}">—</b></p><label><input type="checkbox" data-close-confirm="${esc(code)}"> 已確認此帳戶與差異原因</label></fieldset>`).join('')}
     <fieldset data-close-final disabled><legend>${entries.length+3}. 最後核對總額</legend><div class="reg-close-sum"><span>訂單總額 <b>NT$${num(r.sales?.amount)}</b></span><span>帳戶總額 <b id="reg-actual-total">—</b></span><span>總差異 <b id="reg-total-diff">—</b></span></div><p class="hint">帳戶總額＝現金實收＋每個非現金帳戶實收；總額相同可直接關帳，不同須另外填總差異原因。</p><label id="reg-total-reason-label" hidden>總差異原因（另填）<input id="reg-total-reason" maxlength="200"></label></fieldset>
     <p id="reg-close-status" role="status" aria-live="polite">請依序完成每一項確認。</p><div class="a-toolbar"><button type="button" class="btn btn--solid" id="reg-close-go" disabled>確認關帳</button><button type="button" class="btn btn--ghost" id="reg-close-cancel">取消</button></div></div>`;
 }
@@ -1377,7 +1381,7 @@ function bindDailyClose(form,r,reload){
     const body=read();
     submitting=true;show();
     if(!await posConfirm(`關帳 ${BRAND_LABEL[r.venue]}：訂單總額 NT$${num(r.sales.amount)}，帳戶總額 ${q('#reg-actual-total').textContent}。\n關帳後今天不能再結帳。`,{ok:'關帳'})){submitting=false;show();return;}
-    opsThen(async()=>{try{return await api('/admin/registers/'+r.id+'/close',{method:'POST',body});}catch(e){await reload();throw e;}},async out=>{try{await printRegisterReport(out.report,'關帳單');return '日結關帳完成';}catch(e){return '日結關帳完成，列印失敗，請重印關帳單';}},()=>{REG_CLOSE_DRAFTS.delete(r.id);REG_CLOSE_OPEN=false;return reload();}).finally(()=>{submitting=false;if(form.isConnected)show();});
+    return opsThen(async()=>{try{return await api('/admin/registers/'+r.id+'/close',{method:'POST',body});}catch(e){await reload();throw e;}},async out=>{try{const printed=await printRegisterReport(out.report,'關帳單');return printed===false?'日結關帳完成；列印未完成，請按「重印關帳單」':'日結關帳完成';}catch(e){return '日結關帳完成；列印失敗，請按「重印關帳單」';}},()=>{REG_CLOSE_DRAFTS.delete(r.id);REG_CLOSE_OPEN=false;return reload();}).finally(()=>{submitting=false;if(REG_CLOSE_OPEN===r.id)show();});
   };
   show();
 }
@@ -1394,11 +1398,9 @@ async function loadSales(){
   const items=(d.items||[]).map(it=>`<tr><td>${esc(it.zh)}</td>${SCOPE?'':`<td>${esc(BRAND_LABEL[it.venue]||'')}</td>`}<td class="num">${it.qty}</td><td class="num">${num(it.amount)}</td></tr>`).join('')||`<tr><td colspan="${SCOPE?3:4}" class="a-empty">—</td></tr>`;
   // LINE Pay 對帳：LINE Pay 後台實收（每日 04:30 同步）vs POS 登記為 LINE Pay 的單；差額非 0 標紅
   const lp=d.linepay||{},lpPos=lp.pos||{},lpLp=lp.linepay||{},diff=Number(lp.diff)||0;
-
   const lpRows=(lp.rows||[]).map(t=>`<tr class="${t.amount<0?'lp-refund':''}"><td class="a-mono">${esc(clockText(t.paid_at))}</td><td>${esc(t.venue_label||'')}</td><td>${esc(t.type_label||t.type)}</td><td class="num">${num(t.amount)}</td><td>${esc(t.method_label||t.method)}${t.card_last4?` <span class="a-mono">…${esc(t.card_last4)}</span>`:''}</td><td class="a-mono">${esc(t.confirm_no||'')}</td></tr>`).join('')||`<tr><td colspan="6" class="a-empty">${lp.configured===false?'尚未設定 LINE Pay 商家後台帳密，請到後台「系統設定」填入':'這天沒有 LINE Pay 實收'}</td></tr>`;
   const lpStatus=diff===0?(lpLp.count||lpPos.count?'<span class="pill pill-ok">帳對了</span>':''):`<span class="pill pill-bad">差額 ${diff>0?'+':''}${num(diff)}</span>`;
   const lpVenues=Object.values(lp.by_venue||{}),lpVenueTable=!SCOPE&&lpVenues.length?`<div class="a-wrap2"><table class="a-tbl"><thead><tr><th>店別</th><th class="num">POS 登記</th><th class="num">LINE Pay 實收</th><th class="num">差額</th></tr></thead><tbody>${lpVenues.map(v=>`<tr class="${v.diff?'lp-diff':''}"><td>${esc(v.label)}</td><td class="num">${num(v.pos.amount)} <span class="hint">${num(v.pos.count)} 單</span></td><td class="num">${num(v.linepay.amount)} <span class="hint">${num(v.linepay.count)} 筆</span></td><td class="num">${v.diff>0?'+':''}${num(v.diff)}</td></tr>`).join('')}</tbody></table></div>`:'';
-
   const lpHint=diff>0?'LINE Pay 收到的比 POS 登記多：可能有單漏登、或登成現金／刷卡。':diff<0?'POS 登記的 LINE Pay 比實際收到多：可能客人未完成付款、或已在 LINE Pay 退款但 POS 沒作廢。':'';
   const lpBlock=`<div class="ops-head"><h3>LINE Pay 對帳 ${lpStatus}</h3>${opsHelp('左邊是 POS 結帳時選「LINE Pay」的成立單，右邊是 LINE Pay 商家後台同一營業日的實收（退款已扣）。LINE Pay 只有一個商店帳號，店別依當天開關帳時間歸屬：開帳到關帳之間的實收算該店，關帳後的實收一律算下一本帳（在咖啡關帳後算三點水、三點水關帳後算在咖啡）；還沒開過帳的日子才用 08:00–17:00／17:00 之後分。')}</div>${lp.synced_at||lpHint?`<p class="hint">${lp.synced_at?`上次同步 ${esc(applicationTime(lp.synced_at))}。`:''}${esc(lpHint)}</p>`:''}
     <div class="a-kpis lp-kpis"><div class="a-kpi"><div class="kl">POS 登記 LINE Pay</div><div class="kv"><span class="u">NT$</span>${num(lpPos.amount)}</div><div class="ks">${num(lpPos.count)} 單</div></div><div class="a-kpi"><div class="kl">LINE Pay 實收</div><div class="kv"><span class="u">NT$</span>${num(lpLp.amount)}</div><div class="ks">${num(lpLp.count)} 筆${lpLp.refunds?` · 退 ${num(lpLp.refunds)} 筆 NT$${num(lpLp.refund_amount)}`:''}</div></div><div class="a-kpi ${diff?'lp-diff':''}"><div class="kl">差額</div><div class="kv"><span class="u">NT$</span>${diff>0?'+':''}${num(diff)}</div><div class="ks">${diff===0?'實收＝登記':'實收－POS 登記'}</div></div></div>
@@ -1417,7 +1419,7 @@ async function loadSales(){
     ${REG_DATA?registerBlock(REG_DATA):''}
     <div class="sales-cols"><div><h3>付款方式</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>方式</th><th class="num">金額</th><th class="num">占比</th></tr></thead><tbody>${methods}</tbody></table></div></div><div><h3>時段分布</h3><div class="sales-bars">${hourBars}</div></div></div>
     <h3>品項銷量</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>品項</th>${SCOPE?'':'<th>店別</th>'}<th class="num">數量</th><th class="num">金額</th></tr></thead><tbody>${items}</tbody></table></div>
-    <details><summary>外部帳務參考（需逐項確認）</summary><p class="hint">LINE Pay 使用全店共用商店帳號，依開關帳時段分配店別（詳見說明）；台新手填實收仍涵蓋全店。這些參考數字不自動帶入或確認，請在上方日結流程逐項核對本品牌實收。</p>${lpBlock}${tsBlock}</details>`;
+    <details><summary>帳務參考（另行逐項確認）</summary><p class="hint">LINE Pay 依開關帳時間歸屬店別，台新手填紀錄為全店實收；請核對商家紀錄後，在上方關帳流程逐一填寫本品牌實收。</p>${lpBlock}${tsBlock}</details>`;
   bindRegisterBlock(host,loadSales);bindReasonChips(host);bindFillChips(host);
   const shift=n=>{const t=new Date(SALES_DAY+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);SALES_DAY=t.toISOString().slice(0,10);REG_CASH_OPEN=false;REG_CLOSE_OPEN=false;REG_COUNT_OPEN=false;REG_OPEN_FORM='';loadSales();};
   // 同步：抓「這個營業日前後 3 天」，退款會回補到幾天前；按下去要等後台登入、約 20–60 秒

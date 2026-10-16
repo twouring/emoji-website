@@ -25,12 +25,11 @@ try{
  const BRAND_LABEL={CAFE:'在咖啡',BAR:'三點水'},REG_DENOMS=[2000,1000,500,200,100,50,20,10,5,1],REASON_PRESETS={close_note:[]};
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),num=v=>Number(v||0).toLocaleString('en-US');
  const payMethodLabel=c=>({linepay:'LINE Pay',taishin:'刷卡／台新手機付',transfer:'轉帳',wallet:'其他帳戶'}[c]||c),tipIcon=()=>'',fillChips=()=>'',reasonChips=()=>'',applicationTime=v=>v||'',printWindow=(title,html)=>window.printed=html;
- let REG_CLOSE_OPEN='fixture';const posConfirm=async()=>true;
- const starReady=()=>false;
- async function opsThen(fn,msg,reload){const out=await fn();await msg(out);await reload();}
+ let REG_CLOSE_OPEN='fixture';const posConfirm=async()=>true,starReady=()=>false;
+ async function opsThen(fn,msg,reload){try{const out=await fn();window.lastMessage=await msg(out);await reload();}catch(e){window.lastMessage=e.message;}}
  async function api(path,{body}){window.submitted=body;return closeFixture(body);}
  ${slice('const denomGrid=', 'function openRegisterForm(')}
- ${slice('function registerReportSpec(', 'function registerBlock(')}
+ ${slice('async function printRegisterReport(', 'function registerBlock(')}
  ${slice('function bindDailyClose(', '/* 日結：')}
  window.r={id:'fixture',venue:'CAFE',opening_cash:1000,cash_in:50,cash_out:20,expected:1230,sales:{amount:640},reconciliation_accounts:{linepay:100,taishin:300,transfer:0,wallet:40},account_labels:{}};
  window.mount=()=>{document.querySelector('#host').innerHTML=dailyCloseForm(r);bindDailyClose(document.querySelector('.reg-close-form'),r,async()=>{window.reloaded=true;});};mount();
@@ -53,8 +52,10 @@ try{
  await page.click('#reg-close-go');await page.waitForFunction(()=>window.reloaded===true);
  const b=await page.evaluate(()=>window.submitted);assert.equal(b.total_reason,'總差異待追查');assert.equal(b.accounts.transfer.actual,0);assert.equal(b.accounts.wallet.confirmed,true);
  assert.match(await page.evaluate(()=>window.printed),/逐項帳戶核對/);assert.match(await page.evaluate(()=>window.printed),/總差異待追查/);
- const thermal=await page.evaluate(()=>registerReportSpec({accounts:{wallet:{label:'其他帳戶',pos:40,actual:50,diff:10,reason:'跨日入帳'}},total_pos:640,total_actual:650,total_diff:10,total_reason:'總差異待追查'},'關帳單'));
- assert.match(JSON.stringify(thermal),/逐項帳戶核對/);assert.match(JSON.stringify(thermal),/總差異待追查/);
+ // A successful close deletes its draft; a new in-progress draft is invalidated on change.
+ assert.equal(await page.evaluate(()=>REG_CLOSE_DRAFTS.has(r.id)),false);
+ await page.evaluate(()=>{REG_CLOSE_OPEN=r.id;mount();});
+ await input('#reg-counted',1230);await confirm('cash');await input('[data-account-actual="linepay"]',110);
  // An authoritative change invalidates confirmations, while retaining typed amounts.
  await page.evaluate(()=>{r.sales.amount=641;mount();});assert.equal(await disabled('#reg-close-go'),true);assert.equal(await page.$eval('[data-close-confirm="cash"]',e=>e.checked),false);assert.equal(await page.$eval('[data-account-actual="linepay"]',e=>e.value),'110');
  await page.evaluate(()=>{r={...r,id:'bar-fixture',venue:'BAR'};mount();});assert.equal(await page.$eval('#reg-counted',e=>e.value),'');
@@ -65,6 +66,13 @@ try{
  await input('[data-denom="1000"]',0);assert.equal(await page.$eval('#reg-counted-show',e=>e.textContent),'NT$0');
  await input('[data-denom="1000"]',-1);assert.equal(await disabled('[data-close-confirm="cash"]'),true);
  await input('[data-denom="1000"]','');
+ // Printing failure must leave the successful close final, with an explicit reprint hint.
+ await page.evaluate(()=>{r={...r,id:'print-failure',sales:{amount:640}};REG_CLOSE_OPEN=r.id;window.reloaded=false;printRegisterReport=async()=>{throw new Error('printer unavailable');};mount();});
+ await input('#reg-counted',1230);await confirm('cash');
+ for(const [code,actual] of Object.entries({linepay:100,taishin:300,transfer:0,wallet:40})){await input(`[data-account-actual="${code}"]`,actual);await confirm(code);}
+ await page.click('#reg-close-go');await page.waitForFunction(()=>window.reloaded===true);
+ assert.match(await page.evaluate(()=>window.lastMessage),/重印關帳單/);
+ assert.equal(await page.evaluate(()=>REG_CLOSE_OPEN),false);
  assert.deepEqual(errors,[]);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true,'375px has no horizontal overflow');
  const screenshot=process.env.SCREENSHOT_PATH;if(screenshot)await page.screenshot({path:screenshot,fullPage:true});
