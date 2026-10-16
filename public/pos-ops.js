@@ -532,8 +532,7 @@ function paintPos(){
       ${live.length?`<h3>這桌已結帳的單</h3><div class="a-wrap2"><table class="a-tbl pos-paid"><thead><tr><th>品項 · 時間 · 狀態</th><th>付款</th><th class="num">金額</th><th class="ops-th">操作</th></tr></thead><tbody>${liveRows}</tbody></table></div>`:''}
     </div>`;
   }
-  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('點空桌或按「開桌」選桌位；點已開的桌看這桌的帳；外帶按「＋ 外帶」。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div>${registerBar()}${kitchenPrintStatusHtml()}${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>'}${opener}<div class="pos-grid">${grid}</div></div>${panel}</div>`;
-  bindRegisterBar(host,reload);
+  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('點空桌或按「開桌」選桌位；點已開的桌看這桌的帳；外帶按「＋ 外帶」。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div>${kitchenPrintStatusHtml()}${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>'}${opener}<div class="pos-grid">${grid}</div></div>${panel}</div>`;
   if(!document.getElementById('p-drawer'))bindCashDrawerButton(host.querySelector('#pos-cash-drawer'));
   const resumePrint=host.querySelector('#pos-print-resume');if(resumePrint)resumePrint.onclick=()=>{resumeKitchenPrinting();if(KITCHEN_PRINT_PAUSED)return;paintPos();return pollKitchenPrinting();};
   host.querySelectorAll('[data-pos-table]').forEach(b=>b.onclick=()=>{POS_TABLE=b.dataset.posTable;POS_PICK=null;POS_QTY={};POS_PAYREQ=null;POS_SPLIT={};POS_DISCOUNT=null;POS_DISC_OPEN=false;POS_RECEIVED='';paintPos();});
@@ -791,12 +790,6 @@ const regDefaultCash=()=>REG_DATA?.handover?Number(REG_DATA.handover.keep_cash)|
 const registerVenue=()=>SCOPE||REG_DATA?.active_venue||'CAFE';
 const regOf=v=>REG_DATA?.current?.[v]||null;
 const regState=r=>!r?'closed':r.closed_at?'done':'open';
-function registerBar(){
-  if(!REG_DATA)return '';
-  const venues=SCOPE?[SCOPE]:Object.keys(BRAND_LABEL);
-  return `<div class="reg-bar">${venues.map(v=>{const r=regOf(v),st=regState(r);
-    return `<div class="reg-chip reg-${st}"><b>${esc(BRAND_LABEL[v])}</b>${st==='open'?`<span class="pill pill-ok">已開帳</span><span class="reg-exp">應有現金 NT$${num(r.expected)}</span><a href="${esc(opsHref('sales'))}" data-tab="sales" class="btn btn--ghost btn-xs">小結／關帳</a>`:st==='done'?`<span class="pill pill-draft">已關帳</span><span class="reg-exp">${esc(clockText(r.closed_at))} 關帳，不能再結帳</span>`:regWait(v)?regWaitChip(v):`<span class="pill pill-bad">未開帳</span><button type="button" class="btn btn--solid btn-xs" data-reg-open="${esc(v)}">開帳</button>`}</div>`;}).join('')}</div>${REG_OPEN_FORM&&venues.includes(REG_OPEN_FORM)?openRegisterForm(REG_OPEN_FORM):''}`;
-}
 // 面額格：開帳（零用金）與關帳（點鈔）共用；張數 × 面額合計，一張都沒填才用直接填的總額
 const denomGrid=()=>`<div class="reg-denoms">${REG_DENOMS.map(f=>`<label><span>$${num(f)}</span><input inputmode="numeric" pattern="[0-9]*" data-denom="${f}" placeholder="張"></label>`).join('')}</div>`;
 function readCount(form,directSel){const denoms={};let d=0;form.querySelectorAll('[data-denom]').forEach(i=>{const n=Number(i.value)||0;if(n>0){denoms[i.dataset.denom]=n;d+=Number(i.dataset.denom)*n;}});const direct=form.querySelector(directSel).value.trim();return {total:d>0?d:(/^\d+$/.test(direct)?Number(direct):null),denoms:d>0?denoms:undefined};}
@@ -816,7 +809,6 @@ function bindOpenForm(host,reload){
   form.querySelector('#reg-open-go').onclick=()=>{const {total,denoms}=readCount(form,'#reg-open-total');if(total==null){toast('零用金請按面額填張數，或填總額');return;}
     opsThen(()=>api('/admin/registers/open',{method:'POST',body:{venue:form.dataset.venue,opening_cash:total,denominations:denoms}}),out=>`${BRAND_LABEL[out.venue]} 已開帳，零用金 NT$${num(out.opening_cash)}`,()=>{REG_OPEN_FORM='';return reload();});};
 }
-function bindRegisterBar(host,reload){bindOpenForm(host,reload);}
 // 小結單／關帳單（80mm）：現金帳 → 營收摘要 → 臨時收支；關帳有點鈔、短溢與留存金；小結有點驗過就印最近一次點鈔與差額
 function printRegisterReport(rep,kind){
   const line=(k,v,cls='l')=>`<div class="${cls}"><span>${esc(k)}</span><span>${v}</span></div>`;
