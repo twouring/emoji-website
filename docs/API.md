@@ -326,6 +326,9 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 
 預設只作帳務調整，不表示現金已交付。僅 `refund_cash === true` 且這張單有收現金（`payer.method === 'cash'` 全額，或混合付款 `payer.payments[]` 的現金部分；`cash_refund` 不超過實收現金）、剩餘訂單金額大於 0，才在同一筆交易保存 `payer.drawer_refunds[event_key]` 並回正數 `cash_refund`；否則為 0、不回 `event_key`。回 `{ ok:true, reason, method, cash_refund, event_key? }`，事件代碼為 `refund:<order_id>`。請在送出前明確詢問是否退還現金，再透過 drawer-events 取得開櫃資格；此回應不是退款成功的證明。交易先鎖定訂單再檢查與變更（包含 ezPay 作廢），重複／同時作廢回 409，避免重複退款意圖。
 
+### POST /api/admin/orders/:id/pay-method
+更正已結帳單的付款方式（現場人員點錯時用）。body `{ method, operator_id? }`；`method` 為內建（`cash`／`card`／`linepay`／`transfer`／`taishin`）或已啟用的自訂收款帳戶代碼。整張單改成單一付款方式（混合付款會被取代），只動 `payer`，不動金額、品項、發票。現金改其他方式會清掉 `received／change`；改成現金視為實收等於應收。每次更正附加到 `payer.method_changes[]`（`from／to／at／by／operator`，保留最近 10 筆）。限制：只能改當個營業日的單；已作廢、線上刷卡（TapPay）、部分付款（預收）單回 409；新舊方式相同回 400。回 `{ ok, payer }`。此操作不開錢櫃；日結以更正後的付款方式計算。
+
 ### POST /api/admin/orders/:id/items/:line/void
 取消已結帳單裡的「單一品項」（做不出來／客人退菜），不必作廢整張單。body `{ reason, refund_cash?:boolean, operator_id? }`（`reason` 必填）。比照贈送把該行單價歸零（原價留在 `regular_price`）、`cancelled: true`、`cancel_reason`、`cancelled_at`，並從整張單 `amount` 扣掉這項小計，回 `{ ok, reason, refund, amount, method, cash_refund, event_key? }`；`refund` 不超過此次訂單實際扣減金額。限制：只能取消當個營業日的單；線上刷卡（TapPay）或已開立 ezPay 電子發票的單無法只動一項（金額對不起來），須整張作廢；這張單只剩最後一項未取消時也不行，請改用「作廢整張單」。取消後的品項仍留在單上（出餐看板顯示劃線＋取消原因），日結熱銷統計與 CSV 不再計入，但仍留下稽核紀錄。
 
