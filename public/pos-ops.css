@@ -486,3 +486,13 @@ tr.lp-refund td{color:var(--danger)}
 .pos-lines tr.pos-group .pos-group-name{font-weight:700;font-size:1.1rem}
 .pos-lines tr.pos-group .pos-group-meta{color:var(--muted);font-variant-numeric:tabular-nums}
 .pos-lines tr.pos-group .pos-group-wrap .btn{margin-left:auto}
+
+/* 品項圖片：POS 菜單磚（上圖下字）與已點品項（左縮圖） */
+.pos-menu{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.pos-item__img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:7px;background:var(--paper-alt);margin-bottom:2px}
+.pos-item__img--ph{display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:600;color:var(--muted)}
+.pos-item{min-height:0;padding:8px}
+.pos-line__img{float:left;width:44px;height:44px;margin-right:10px;border-radius:8px;object-fit:cover;background:var(--paper-alt)}
+.pos-line__img--ph{display:flex;align-items:center;justify-content:center;font-weight:600;color:var(--muted)}
+.pos-lines .ops-item::after{content:"";display:block;clear:both}
+.pos-item>span:last-of-type{margin-top:auto}
