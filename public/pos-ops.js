@@ -1072,7 +1072,38 @@ function bindOpenForm(host,reload){
     opsThen(()=>api('/admin/registers/open',{method:'POST',body:{venue:form.dataset.venue,opening_cash:total,denominations:denoms}}),out=>`${BRAND_LABEL[out.venue]} 已開帳，零用金 NT$${num(out.opening_cash)}`,()=>{REG_OPEN_FORM='';return reload();});};
 }
 // 小結單／關帳單（80mm）：現金帳 → 營收摘要 → 臨時收支；關帳有點鈔、短溢與留存金；小結有點驗過就印最近一次點鈔與差額
-function printRegisterReport(rep,kind){
+// 關帳單／小結單 58mm 點陣排版（mPOP）：內容與下方瀏覽器版一致
+function registerReportSpec(rep,kind){
+  const closed=!!rep.closed_at,n=v=>num(v),sp=[];
+  const row=(l,r,bold,size=22)=>sp.push({kind:'row',left:l,right:String(r),size,bold:!!bold});
+  const sec=t=>{sp.push('dash',{kind:'left',text:t,size:22,bold:true});};
+  sp.push({kind:'center',text:BRAND_LABEL[rep.venue]||rep.venue,size:30,bold:true},{kind:'center',text:`${kind} · 營業日 ${rep.day}`,size:20},{kind:'left',text:`開帳 ${applicationTime(rep.opened_at)} ${rep.opened_by||''}`,size:18});
+  if(closed)sp.push({kind:'left',text:`關帳 ${applicationTime(rep.closed_at)} ${rep.closed_by||''}`,size:18});
+  else if(rep.counted_at)sp.push({kind:'left',text:`點驗 ${applicationTime(rep.counted_at)}`,size:18});
+  sec('現金');row('零用金',n(rep.opening_cash));row('現金營收',n(rep.cash_sales));row('臨時收入','+'+n(rep.cash_in));row('臨時支出','−'+n(rep.cash_out));row('應有現金','NT$'+n(rep.expected_cash),true);
+  if(rep.counted_cash!=null){
+    row(closed?'點鈔現金':'點驗現金','NT$'+n(rep.counted_cash),true);row(rep.diff>0?'溢':rep.diff<0?'短':'差額',(rep.diff>0?'+':'')+n(rep.diff),true,28);
+    if(closed){row('留存金（下一班）',n(rep.keep_cash));row('收走',n(rep.take_cash));}
+    if(rep.note)sp.push({kind:'wrap',text:rep.note,size:20});
+  }
+  sec('營收');row('成立單數',n(rep.orders)+' 單');row('營收（折扣後）','NT$'+n(rep.amount),true);
+  for(const [m,v] of Object.entries(rep.by_method||{}))row(payMethodLabel(m),n(v));
+  if(rep.discount_amount)row('折扣合計','−'+n(rep.discount_amount));
+  if(rep.redeem_points)row(`點數兌換 ${n(rep.redeem_count)} 單`,`${n(rep.redeem_points)} 點／−${n(rep.redeem_value)}`);
+  if(rep.voided)row('作廢',`${n(rep.voided)} 單 ${n(rep.void_amount)}`);
+  sec('臨時收支');
+  const moves=rep.moves||[];
+  if(!moves.length)sp.push({kind:'left',text:'無',size:20});
+  for(const m of moves)row(`${m.type==='in'?'收':'支'} ${m.reason}`,`${m.type==='in'?'+':'−'}${n(m.amount)}`);
+  sp.push('dash',{kind:'center',text:`${kind}完成`,size:20});
+  return sp;
+}
+// 有接 mPOP 就直接出紙；沒接就退回瀏覽器列印視窗。回傳 Promise<boolean>
+async function printRegisterReport(rep,kind){
+  if(starReady()){const ok=await starSend({canvas:ticketCanvas(registerReportSpec(rep,kind))});toast(ok?kind+'已印出':kind+'未印出，請按「重印關帳單」');return ok;}
+  return printRegisterReportWindow(rep,kind);
+}
+function printRegisterReportWindow(rep,kind){
   const line=(k,v,cls='l')=>`<div class="${cls}"><span>${esc(k)}</span><span>${v}</span></div>`;
   const moves=(rep.moves||[]).map(m=>line(`${m.type==='in'?'收':'支'} ${m.reason}`,`${m.type==='in'?'+':'−'}${num(m.amount)}`)).join('')||'<div class="m">無</div>';
   const methods=Object.entries(rep.by_method||{}).map(([m,v])=>line(payMethodLabel(m),num(v))).join('');
