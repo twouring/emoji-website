@@ -5288,6 +5288,10 @@ app.get(['/admin', '/admin/*', '/organizer', '/organizer/*'], (_req, res) => { r
 const POS_PAGE = path.join(PUB, 'pos.html');
 app.get('/pos.html', (_req, res) => res.redirect(301, '/pos'));
 app.get(['/pos', '/pos/*'], (_req, res) => { res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache' }); res.sendFile(POS_PAGE); });
+// 會員 PWA（手機）：/m 回同一頁；scope 只到 /m，不影響官網其他頁
+app.get(['/m', '/m/*'], (_req, res) => { res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache' }); res.sendFile(path.join(PUB, 'm.html')); });
+app.get('/m.webmanifest', (_req, res) => { res.type('application/manifest+json'); res.sendFile(path.join(PUB, 'm.webmanifest')); });
+app.get('/m-sw.js', (_req, res) => { res.set({ 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': '/m' }); res.sendFile(path.join(PUB, 'm-sw.js')); });
 // 含 <!--SITE_HEADER--> 的 HTML（member、menu、語系首頁…）在 static 前組裝
 app.use(layoutMiddleware(PUB));
 app.use('/fellow', express.static(path.join(PUB, 'fellow'), { extensions: ['html'] }));

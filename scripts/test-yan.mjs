@@ -1,4 +1,4 @@
-// 言點：消費累積／折抵／作廢沖回；數位會員卡 QR。避開已淘汰的購點／贈點 API。
+// 點數：消費累積／折抵／作廢沖回；數位會員卡 QR。避開已淘汰的購點／贈點 API。
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
@@ -89,7 +89,7 @@ test('server.js：yan_ledger 建表、lookup／card／yan 路由；避開舊購�
   assert.match(server, /yan\.applyEarn|require\('\.\/lib\/yan'\)/);
 });
 
-test('POS 結帳可帶會員電話／卡，會員頁有言點與會員卡', () => {
+test('POS 結帳可帶會員電話／卡，會員頁有點數與會員卡', () => {
   const ops = read('public/pos-ops.js');
   assert.match(ops, /yan\/lookup/);
   assert.match(ops, /MEMBER_PHONE|member_phone/);
