@@ -91,6 +91,22 @@
   .p-login-card p{color:var(--muted);margin:0 0 8px}
   .p-login-card .btn{width:100%}
   .p-login-card input{width:100%;min-width:0}
+  .p-login-card{justify-items:stretch;gap:14px;padding:32px 28px}
+  .p-login-brand{display:grid;gap:4px;text-align:center;margin-bottom:4px}
+  .p-login-brand small{font-size:.875rem;letter-spacing:.12em;color:var(--muted)}
+  .p-login-card h1{font-size:1.5rem;text-align:center}
+  .p-login-card .p-login-msg{text-align:center;min-height:1.5em;margin:0}
+  .p-login-card .p-login-msg.err,.p-login-card #pos-login-error{color:#b3261e;font-weight:500}
+  .p-login-card .btn{min-height:52px;font-size:1.0625rem}
+  .p-login-card .btn-sm{min-height:48px;font-size:1rem}
+  .p-login-or{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:.9375rem}
+  .p-login-or::before,.p-login-or::after{content:"";flex:1;height:1px;background:var(--line)}
+  .p-login-form{display:grid;gap:12px;margin:0}
+  .p-login-form label{display:grid;gap:6px;font-size:1rem;color:var(--muted)}
+  .p-login-card .clock-pin.shake{animation:p-shake .35s}
+  @keyframes p-shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+  .p-login-card .clock-keys.busy{opacity:.5;pointer-events:none}
+  @media(prefers-reduced-motion:reduce){.p-login-card .clock-pin.shake{animation:none}}
   .p-center{text-align:center;padding:60px 0;color:var(--muted)}
   /* 安裝提示（只在未安裝為 App 時顯示一次） */
   .a-toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);opacity:0;background:var(--ink);color:var(--paper);padding:.8em 1.3em;border-radius:10px;font-size:1rem;transition:.2s;pointer-events:none;z-index:50;max-width:min(92vw,520px)}
@@ -201,13 +217,14 @@ function renderLogin(msg){
   document.getElementById('p-nav').innerHTML = ''; document.getElementById('p-scope').innerHTML = '';
   const redirect = encodeURIComponent(location.origin + '/pos');
   app.innerHTML = `<div class="p-login"><div class="p-login-card">
-    <h1>言文字 POS</h1>
-    <p>${esc(msg || '請用 POS 專用帳號登入一次，之後本裝置就能用四位數密碼登入。')}</p>
+    <div class="p-login-brand"><small>EMOJI</small><h1>言文字 POS</h1></div>
+    <p class="p-login-msg${msg ? ' err' : ''}">${esc(msg || '管理員登入一次，本裝置之後就能用四位數密碼。')}</p>
     <a class="btn btn--solid" href="${esc(AUTH_ORIGIN)}/auth/google?redirect=${redirect}">使用 Google 登入</a>
-    <form id="pos-password-login" class="a-form" style="display:grid;margin:0">
+    <div class="p-login-or">或用 Email</div>
+    <form id="pos-password-login" class="a-form p-login-form">
       <label>Email<input name="email" type="email" autocomplete="username" required></label>
       <label>密碼<input name="password" type="password" autocomplete="current-password" required></label>
-      <button class="btn btn--solid" type="submit">使用 Email 與密碼登入</button>
+      <button class="btn btn--ghost" type="submit">Email 密碼登入</button>
       <p id="pos-login-error" role="alert" hidden></p>
     </form>
     <a class="btn btn--ghost" href="/event-login.html?redirect=${redirect}">使用 Email 登入連結</a>
@@ -242,15 +259,25 @@ function renderPinLogin(msg){
   // 與打卡／認人鍵盤同一套（.clock-pad／.clock-pin／.clock-key，pos-ops.css）：圓點 <i>、鍵位 1–9／⌫／0／清除
   const paint = () => { const d = document.getElementById('pin-dots'); if (d) d.innerHTML = [0,1,2,3].map(i => `<i class="${i<pin.length?'on':''}"></i>`).join(''); };
   app.innerHTML = `<div class="p-login"><div class="p-login-card">
-    <h1>言文字 POS</h1>
-    <p>${esc(msg || '請輸入您的四位數密碼')}</p>
+    <div class="p-login-brand"><small>EMOJI</small><h1>言文字 POS</h1></div>
+    <p class="p-login-msg${msg ? ' err' : ''}" role="status">${esc(msg || '請輸入四位數密碼')}</p>
     <div class="clock-pad"><div class="clock-pin" id="pin-dots" aria-label="密碼"></div>
       <div class="clock-keys">${['1','2','3','4','5','6','7','8','9','⌫','0','清除'].map(k=>`<button type="button" class="clock-key" data-key="${esc(k)}">${esc(k)}</button>`).join('')}</div>
     </div>
     <button type="button" class="btn btn--ghost btn-sm" id="pin-alt">改用管理員帳號登入</button>
   </div></div>`;
   paint();
+  if (msg) { const d = document.getElementById('pin-dots'); d.classList.add('shake'); if (navigator.vibrate) navigator.vibrate(120); }
   document.getElementById('pin-alt').onclick = () => renderLogin();
+  const keysEl = app.querySelector('.clock-keys');
+  // 實體鍵盤（藍牙／外接）也能輸入：數字、Backspace、Escape
+  window.__posPinKey && document.removeEventListener('keydown', window.__posPinKey);
+  window.__posPinKey = ev => {
+    if (!document.getElementById('pin-dots')) { document.removeEventListener('keydown', window.__posPinKey); return; }
+    const k = /^[0-9]$/.test(ev.key) ? ev.key : ev.key === 'Backspace' ? '⌫' : ev.key === 'Escape' ? '清除' : null;
+    const b = k && app.querySelector(`[data-key="${k}"]`); if (b) { ev.preventDefault(); b.click(); }
+  };
+  document.addEventListener('keydown', window.__posPinKey);
   document.querySelectorAll('[data-key]').forEach(b => b.onclick = async () => {
     const k = b.dataset.key;
     if (k === '⌫') { pin = pin.slice(0, -1); paint(); return; }
@@ -258,6 +285,7 @@ function renderPinLogin(msg){
     if (!k || pin.length >= 4) return;
     pin += k; paint();
     if (pin.length === 4) {
+      keysEl.classList.add('busy');
       try {
         const d = await api('/pos-devices/' + encodeURIComponent(DEVICE_ID) + '/pin-login', { method:'POST', body:{ pin } });
         if (d.choose) return renderBrandChoice(pin, d);
