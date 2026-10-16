@@ -34,6 +34,7 @@ const eventChannels=require('./lib/event-channels');
 const tableOrders=require('./lib/table-orders');
 const yan=require('./lib/yan');
 const kitchenPrint=require('./lib/pos-kitchen-print');
+const tableLive=require('./lib/table-live');
 const ezpayInvoice=require('./lib/ezpay-invoice');
 const linepay=require('./lib/linepay');
 const taishinManual=require('./lib/taishin-manual');
@@ -700,6 +701,8 @@ async function migrate() {
     id TEXT PRIMARY KEY, job JSONB NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     claimed_at TIMESTAMPTZ, actor TEXT, operator_id TEXT
   )`);
+  // 桌邊點餐即時同步：同桌任何異動（加點、送單、出餐、收款）由觸發器 pg_notify，server LISTEN 後走 SSE 推給手機
+  await q(tableLive.TRIGGER_SQL);
   // 只記錄開錢櫃請求，不代表硬體已成功開啟；event_key 唯一限制負責跨平板去重。
   await q(`CREATE TABLE IF NOT EXISTS pos_drawer_events (
     id TEXT PRIMARY KEY, event_key TEXT NOT NULL UNIQUE, kind TEXT NOT NULL CHECK (kind IN ('checkout','refund','manual')),
@@ -4367,6 +4370,15 @@ app.get('/api/orders/table',requireDb,wrap(async(req,res)=>{
   }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
 }));
 app.get('/api/orders/:id',requireDb,wrap(async(req,res)=>{const s=await loadSession(req.params.id);if(!s)return res.status(404).json({error:'找不到這桌的點餐。'});res.json(publicSession(s,String(req.query.g||'')));}));
+// 即時同步（SSE）：連上先推一份目前狀態，之後同桌任何異動（別人加點、送單、出餐、櫃檯收款）即刻推新狀態；斷線瀏覽器自動重連
+const liveHub=tableLive.createHub({load:async id=>{const s=await loadSession(id);return s?guest=>publicSession(s,guest):null;},log:console.warn});
+app.get('/api/orders/:id/live',requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});
+  const s=await loadSession(req.params.id);if(!s)return res.status(404).json({error:'找不到這桌的點餐。'});
+  const guest=String(req.query.g||'');
+  const sub=liveHub.subscribe(s.id,guest,req,res);
+  liveHub.write(sub,'session',publicSession(s,guest));
+}));
 
 // 共桌加菜／退菜：所有掃同一桌 QR 的人看同一份購物車，只能移除自己加的
 async function mutateItems(req,res,fn){
@@ -5364,7 +5376,7 @@ async function syncIssuedWalletPasses(){
 
 async function boot() {
   if (pool) {
-    try { await migrate(); dbReady = true; console.log('[db] 連線並完成 migrate'); }
+    try { await migrate(); dbReady = true; console.log('[db] 連線並完成 migrate'); liveHub.start(); tableLive.startListener(pool, liveHub); }
     catch (e) { console.error('[db] migrate 失敗（前端仍會運作，API 回 503）：', e.message); }
   } else {
     console.warn('[db] 未設定 DATABASE_URL / POSTGRES_*，API 將回 503；請於 Zeabur 設定資料庫連線。');

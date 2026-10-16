@@ -82,7 +82,7 @@ test('小螢幕：按鈕一律不斷行；375px／320px 底部列金額欄保最
 
 test('出餐通知：一進頁面就請求通知權限；POS 出某一道 → 輪詢到 served_at → 頁內橫幅＋提示音；拒絕授權仍有橫幅；確認稱呼時解鎖 iOS 音效', () => {
   assert.match(html, /function askNotify\(\)\{[^}]*Notification\.requestPermission\(\)/);
-  assert.match(html, /askNotify\(\);\s*renderMenu\(\);renderState\(\);poll\(\);/, '啟動時就問');
+  assert.match(html, /askNotify\(\);\s*renderMenu\(\);renderState\(\);live\(\);poll\(\);/, '啟動時就問');
   assert.match(html, /if\(l\.served_at&&!l\.order_id&&!seenServed\[l\.line\]\)/, '品項層級判斷新出餐');
   assert.match(html, /SERVED_READY=true;/, '第一次載入不通知');
   assert.match(html, /function notifyGuest\(text\)\{[\s\S]*?ready-banner[\s\S]*?beep\(\);[\s\S]*?Notification\.permission==='granted'/);

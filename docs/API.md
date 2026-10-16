@@ -98,6 +98,9 @@ PY
 ### GET /api/orders/:id
 同桌購物車現況（供輪詢）。query `g`＝自己的 guest 識別碼，回應以 `mine` 標記自己的行（不外露他人識別碼）。`items[]` 每行含 `line, zh, price, qty, by, mine, order_id`；`order_id` 非空＝已付款。`orders[]` 為出餐單 `{ id, amount, status: paid|ready|done, lines[] }`。
 
+### GET /api/orders/:id/live
+同桌購物車即時同步（Server-Sent Events）。query `g` 同上。連上先推一則 `event: session`（內容同 `GET /api/orders/:id`），之後同桌任何異動（別人加點／移除、送單、出餐、櫃檯收款、作廢、清桌）由 Postgres 觸發器 `pg_notify` → server `LISTEN` 即刻再推一則；每 25 秒送註解行當心跳，斷線由瀏覽器依 `retry: 2000` 自動重連。沒有 EventSource 的環境請改輪詢 `GET /api/orders/:id`。
+
 ### POST /api/orders/:id/items
 加菜。body：`{ item_id, qty(1–20), by(稱呼), guest(前端隨機識別碼), note? }`。價格以菜單當下售價快照，不信任前端金額。回更新後的場。只接受目前營業品牌、已發布、未估清且在供應期間內的品項（否則 400）；店家暫停點餐時回 `423` 並帶暫停文案。
 
