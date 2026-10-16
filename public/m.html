@@ -168,9 +168,39 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     const x=document.getElementById('instx');if(x)x.onclick=()=>{lsSet('m_inst_x',String(Date.now()));paint();};
     const r=document.getElementById('inst2');if(r)r.onclick=()=>doInstall(r.dataset.k);
   }
+  /* ---- Passkey（Touch ID／Face ID） ---- */
+  const PK_FLAG='m_pk';
+  const b64uToBuf=s=>{s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';const b=atob(s),a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a.buffer;};
+  const bufToB64u=b=>{let s='';new Uint8Array(b).forEach(c=>s+=String.fromCharCode(c));return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');};
+  const pkPost=async(path,body,auth)=>{const r=await fetch(path,{method:'POST',headers:Object.assign({'content-type':'application/json'},auth?{authorization:'Bearer '+token()}:{}),body:JSON.stringify(body||{})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'失敗');return d;};
+  const pkSupport=async()=>{try{return !!(window.PublicKeyCredential&&PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable&&await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable());}catch(e){return false;}};
+  async function pkLogin(){
+    const o=await pkPost('/api/passkey/login/options');
+    const opt=o.options;opt.challenge=b64uToBuf(opt.challenge);
+    const c=await navigator.credentials.get({publicKey:opt});
+    const r=c.response;
+    const d=await pkPost('/api/passkey/login/verify',{state:o.state,credential:{id:c.id,response:{clientDataJSON:bufToB64u(r.clientDataJSON),authenticatorData:bufToB64u(r.authenticatorData),signature:bufToB64u(r.signature)}}});
+    lsSet(KEY,d.token);lsSet(PK_FLAG,'1');try{sessionStorage.removeItem('m_noauto');}catch(e){}
+  }
+  async function pkRegister(){
+    const o=await pkPost('/api/passkey/register/options',{},true);
+    const opt=o.options;opt.challenge=b64uToBuf(opt.challenge);opt.user.id=b64uToBuf(opt.user.id);
+    opt.excludeCredentials=(opt.excludeCredentials||[]).map(x=>({type:x.type,id:b64uToBuf(x.id)}));
+    const c=await navigator.credentials.create({publicKey:opt});
+    const r=c.response;
+    await pkPost('/api/passkey/register/verify',{state:o.state,name:ENV.ios?'iPhone／iPad':'這台裝置',credential:{id:c.id,response:{clientDataJSON:bufToB64u(r.clientDataJSON),attestationObject:bufToB64u(r.attestationObject),transports:r.getTransports?r.getTransports():[]}}},true);
+    lsSet(PK_FLAG,'1');
+  }
+  const pkQuiet=e=>e&&(e.name==='NotAllowedError'||e.name==='AbortError');
+  async function loginWithPasskey(btn){
+    btn.disabled=true;
+    try{await pkLogin();await load();}
+    catch(e){if(!pkQuiet(e))toast(e.message||'無法使用 Touch ID，請改用 Google 登入');btn.disabled=false;}
+  }
   function login(){
     tabs.hidden=true;
-    app.innerHTML=`<div class="login">${MARK}<h1>言文字 會員</h1><p>登入後，用一張卡在所有空間累積點數、報名活動。</p><a class="btn solid" href="/auth/google?redirect=${encodeURIComponent(location.origin+ROOT)}">使用 Google 登入</a></div>`;
+    app.innerHTML=`<div class="login">${MARK}<h1>言文字 會員</h1><p>登入後，用一張卡在所有空間累積點數、報名活動。</p><button class="btn solid" id="pkl" hidden>用 Touch ID／Face ID 登入</button><a class="btn${lsGet(PK_FLAG)?'':' solid'}" href="/auth/google?redirect=${encodeURIComponent(location.origin+ROOT)}" style="margin-top:10px">使用 Google 登入</a></div>`;
+    pkSupport().then(ok=>{const b=document.getElementById('pkl');if(!ok||!b)return;b.hidden=false;b.onclick=()=>loginWithPasskey(b);let na=false;try{na=!!sessionStorage.getItem('m_noauto');}catch(e){}if(lsGet(PK_FLAG)&&!na&&!login.auto){login.auto=1;b.click();}});
   }
   const fmt=v=>{if(!v)return '';const d=new Date(String(v).replace(/\//g,'-').replace(' ','T')+(String(v).length<=16?':00+08:00':''));return Number.isNaN(+d)?String(v):d.toLocaleString('zh-TW',{timeZone:'Asia/Taipei',month:'numeric',day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false});};
   function nextEvent(){const list=(data.events||[]);return list.find(e=>e.registered)||list[0]||null;}
@@ -201,12 +231,24 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     <section class="sec"><h2>更新資料</h2>
       <label style="display:block;color:var(--soft)">手機（09 開頭，結帳報號碼就能累點）<input id="ph" type="tel" inputmode="tel" autocomplete="tel" value="${esc(m.phone||'')}" style="display:block;width:100%;margin-top:6px;min-height:52px;padding:0 14px;border:1.5px solid var(--line);border-radius:12px;font-family:inherit;font-size:1rem;background:#fff"></label>
       <button class="btn solid" id="save" style="margin-top:12px">儲存</button></section>
+    <section class="sec" id="pksec" hidden><h2>快速登入</h2><p class="hint" id="pkmsg"></p><button class="btn" id="pkon">啟用 Touch ID／Face ID 登入</button><button class="quiet" id="pkoff" hidden>移除這台裝置的快速登入</button></section>
     ${kindNow(true)?`<section class="sec"><h2>主畫面</h2><button class="btn" id="inst2" data-k="${kindNow(true)}">${INSTALL_LABEL[kindNow(true)]}</button></section>`:''}
     ${data.role==='admin'||data.organizer?`<section class="sec"><h2>管理</h2>${data.role==='admin'?`<a class="btn" href="https://admin.emoji.tw/admin">前往後台</a>`:''}${data.organizer?`<a class="btn" href="https://www.emoji.tw/organizer/events" style="margin-top:10px">管理我的活動</a>`:''}</section>`:''}
     <section class="sec"><a class="btn" href="${SITE}/member?web=1">完整會員專區</a><button class="quiet" id="out">登出</button></section>`;
     document.getElementById('save').onclick=async()=>{const b=document.getElementById('save');b.disabled=true;try{const r=await fetch('/api/me/profile',{method:'POST',headers:{authorization:'Bearer '+token(),'content-type':'application/json'},body:JSON.stringify({name:m.name||'會員',phone:document.getElementById('ph').value})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'儲存失敗');toast('已儲存');await load();}catch(e){toast(e.message);}b.disabled=false;};
-    bindInstall();
-    document.getElementById('out').onclick=()=>{try{localStorage.removeItem(KEY);localStorage.removeItem(CACHE);}catch(e){}location.reload();};
+    bindInstall();bindPasskey();
+    document.getElementById('out').onclick=()=>{try{localStorage.removeItem(KEY);localStorage.removeItem(CACHE);sessionStorage.setItem('m_noauto','1');}catch(e){}location.reload();};
+  }
+  async function bindPasskey(){
+    const sec=document.getElementById('pksec');if(!sec||!await pkSupport())return;
+    let list=[];try{list=(await get('/api/passkey')).passkeys||[];}catch(e){return;}
+    if(!document.getElementById('pksec'))return;
+    const on=document.getElementById('pkon'),off=document.getElementById('pkoff'),msg=document.getElementById('pkmsg');
+    const here=!!lsGet(PK_FLAG)&&list.length>0;
+    sec.hidden=false;msg.textContent=here?'已啟用。下次打開 App 可以直接用 Touch ID／Face ID 登入。':'登入過期時，不用再跳去 Google，用指紋或臉就能回來。';
+    on.hidden=here;off.hidden=!here;
+    on.onclick=async()=>{on.disabled=true;try{await pkRegister();toast('已啟用');paint();}catch(e){if(!pkQuiet(e))toast(e.message||'無法啟用');on.disabled=false;}};
+    off.onclick=async()=>{off.disabled=true;try{for(const p of list)await fetch('/api/passkey/'+encodeURIComponent(p.id),{method:'DELETE',headers:{authorization:'Bearer '+token()}});try{localStorage.removeItem(PK_FLAG);}catch(e){}toast('已移除');paint();}catch(e){toast('移除失敗');off.disabled=false;}};
   }
   function paint(){tabs.hidden=false;[...tabs.children].forEach(b=>b.setAttribute('aria-current',b.dataset.tab===tab));({home,events,me})[tab]();window.scrollTo(0,0);}
   tabs.onclick=e=>{const b=e.target.closest('button');if(!b)return;tab=b.dataset.tab;paint();};
