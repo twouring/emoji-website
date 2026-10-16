@@ -8,17 +8,22 @@ test('unrequested active orders offer issue, void orders do not',()=>{
  assert.match(vm.runInContext("invoiceHtml({id:'x',invoice:{}})",c),/data-invoice-issue/);
  assert.doesNotMatch(vm.runInContext("invoiceHtml({id:'x',status:'void',invoice:{}})",c),/data-invoice-issue/);
 });
-test('paper/company late issue posts invoice, prints once, and cancel posts nothing',async()=>{
- for(const value of ['', '12345678',null,'123']){
-  // 補開發票改用點選面板（askUbn：紙本／統編＋數字鍵盤），回傳形狀與舊 prompt 相同：''＝紙本、8 碼＝統編、null＝取消
-  const calls=[],prints=[];const c=vm.createContext({prompt:()=>{throw new Error('不該再用 prompt');},confirm:()=>true,num:String,toast(){},api:async(url,body)=>{calls.push(body);return {invoice:{status:'issued',number:'AB12345678'}};}});vm.runInContext(src,c);c.prints=prints;vm.runInContext('printInvoiceProof=async o=>prints.push(o)',c);c.ubnValue=value;vm.runInContext('askUbn=async()=>ubnValue',c);
+test('late issue accepts all five invoice types, prints once, and cancel posts nothing',async()=>{
+ const cases=[{mode:'paper'},{mode:'company',buyer_ubn:'12345678'},{mode:'mobile',carrier_num:'/ABC+123'},{mode:'citizen',carrier_num:'AB12345678901234'},{mode:'donate',love_code:'168001'},null];
+ for(const inv of cases){
+  const calls=[],prints=[];const c=vm.createContext({prompt:()=>{throw new Error('不該再用 prompt');},confirm:()=>true,num:String,toast(){},api:async(url,body)=>{calls.push(body);return {invoice:{status:'issued',number:'AB12345678'}};}});vm.runInContext(src,c);c.prints=prints;vm.runInContext('printInvoiceProof=async o=>prints.push(o)',c);c.pick=inv;vm.runInContext('askInvoice=async()=>pick',c);
   await c.issueOrderInvoice({id:'o1',amount:100,invoice:{mode:''}},()=>{});
-  assert.equal(calls.length,value===null||value==='123'?0:1);
-  if(calls.length){assert.equal(calls[0].body.invoice.mode,value?'company':'paper');assert.equal(prints.length,1);}
+  assert.equal(calls.length,inv?1:0);
+  if(inv){assert.equal(calls[0].body.invoice.mode,inv.mode);assert.equal(prints.length,1);}
  }
+});
+test('askInvoice offers five types and validates carrier/donate formats',()=>{
+ for(const k of ['paper','company','mobile','citizen','donate'])assert.ok(src.includes(`{value:'${k}',label:`),k);
+ assert.match(src,/\^\\\/\[A-Z0-9\.\+-\]\{7\}\$/);
+ assert.match(src,/\^\[A-Z\]\{2\}\\d\{14\}\$/);
 });
 test('late issue sends explicit validated invoice choice and prints issued result',()=>{
  assert.match(src,/async function issueOrderInvoice/);
  assert.match(src,/body:\{invoice\}/);
- assert.match(src,/buyer_ubn:ubn/);
+ assert.match(src,/async function askInvoice/);
 });

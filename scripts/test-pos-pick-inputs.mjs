@@ -50,7 +50,7 @@ const click = (node, attr, value) => { const b = node.querySelectorAll(`[data-${
 
 test('pos-ops.js 不再有任何瀏覽器 prompt()：桌號、金額、備註、統編、訂位留言、出勤時間全改面板／膠囊', () => {
   assert.equal((ops.match(/\bprompt\(/g) || []).length, 0);
-  for (const fn of ['function pickFrom(', 'function pickTableNo(', 'function pickAmount(', 'function pickNote(', 'async function askUbn(', 'function stampChips(', 'function bindStampChips(', 'function openAttendanceFix(', 'const noteChips=', 'const fillChips=', 'function bindNoteChips(', 'function bindFillChips(']) assert.ok(ops.includes(fn), fn);
+  for (const fn of ['function pickFrom(', 'function pickTableNo(', 'function pickAmount(', 'function pickNote(', 'async function askInvoice(', 'function stampChips(', 'function bindStampChips(', 'function openAttendanceFix(', 'const noteChips=', 'const fillChips=', 'function bindNoteChips(', 'function bindFillChips(']) assert.ok(ops.includes(fn), fn);
 });
 
 test('pickTableNo：點區＋數字鍵＝桌號；沒按數字不放行；排除自己這桌；取消回 null', async () => {
@@ -80,15 +80,6 @@ test('pickAmount：常用面額一鍵送出；數字鍵＋確定回 number 且�
   click(ov, 'key', '確定'); assert.match(toasts.at(-1), /8 位數字/);
   click(ov, 'key', '8'); click(ov, 'key', '9'); // 第 9 碼不會進去
   click(ov, 'key', '確定'); assert.equal(await p, '12345678');
-});
-
-test('askUbn：紙本回空字串、取消回 null、統編走 8 碼鍵盤（與 issueOrderInvoice 既有驗證相容）', async () => {
-  const { ctx, made } = ctxWith();
-  let p = ctx.askUbn(); let ov = made.at(-1); assert.match(ov.html, /data-pick="paper"/); assert.match(ov.html, /data-pick="company"/);
-  click(ov, 'pick', 'paper'); assert.equal(await p, '');
-  p = ctx.askUbn(); ov = made.at(-1); click(ov, 'cancel'); assert.equal(await p, null);
-  p = ctx.askUbn(); ov = made.at(-1); click(ov, 'pick', 'company'); await new Promise(r => setImmediate(r)); ov = made.at(-1);
-  assert.match(ov.html, /統編 8 碼/); for (const k of '22334455') click(ov, 'key', k); click(ov, 'key', '確定'); assert.equal(await p, '22334455');
 });
 
 test('pickNote：常用備註可複選（再按一次移除）、以「、」串接、可補字、取消回 null、清空回空字串', async () => {
@@ -144,7 +135,7 @@ test('接線：結帳頁開桌／換桌／備註／客製金額／折扣／補�
   // 折扣快捷鍵
   assert.match(ops, /data-disc-quick="\$\{t\}:\$\{v\}"/); assert.match(ops, /\[data-disc-quick\]'\)\.forEach\(b=>b\.onclick=/);
   // 補開發票
-  assert.match(ops, /const value=await askUbn\(\);/);
+  assert.match(ops, /invoice=await askInvoice\(\);/);
   // 訂位：日期／人數／桌號／備註膠囊；確認／婉拒留言用 pickReason
   for (const s of ["fillChips('resv-new-date',dayChoices())", "fillChips('resv-new-party',PARTY_CHOICES)", "fillChips('resv-new-table',[['','不排'],...DEFAULT_TABLES.map(t=>[t,t])])", "noteChips('resv-new-note',RESV_NOTE_PRESETS)", "fillChips('re-date',dayChoices())", "fillChips('re-party',PARTY_CHOICES)", "noteChips('re-note',RESV_NOTE_PRESETS)"]) assert.ok(ops.includes(s), s);
   assert.match(ops, /presets:status==='confirmed'\?REASON_PRESETS\.resv_confirm:REASON_PRESETS\.resv_cancel/);

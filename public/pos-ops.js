@@ -156,11 +156,24 @@ function pickNote({title,presets=NOTE_PRESETS,initial='',maxlength=160,placehold
     inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();done(inp.value.trim());}};
   });
 }
-// 補開發票先問「紙本／統編」，選統編再用數字鍵盤輸 8 碼。回傳與舊 prompt 相同形狀：''＝紙本、'12345678'、null＝取消；格式驗證仍在呼叫端
-async function askUbn(){
-  const kind=await pickFrom({title:'補開發票',hint:'一般客人開紙本；公司報帳才要統編。',options:[{value:'paper',label:'紙本',sub:'不需統編'},{value:'company',label:'統編',sub:'公司報帳'}],cols:2});
-  if(kind===null)return null;if(kind==='paper')return '';
-  return pickAmount({title:'統編 8 碼',hint:'對照客人提供的統一編號',unit:'',digits:8});
+// 補開發票：與結帳同樣五種（紙本／統編／手機載具／自然人憑證／捐贈）；回傳 invoice 物件，null＝取消，格式錯誤會提示後回 null
+async function askInvoice(){
+  const kind=await pickFrom({title:'補開發票',hint:'一般客人開紙本；公司報帳選統編；會員載具或捐贈也可補開。',options:[{value:'paper',label:'紙本',sub:'不需統編'},{value:'company',label:'統編',sub:'公司報帳'},{value:'mobile',label:'手機載具',sub:'/ 開頭 8 碼'},{value:'citizen',label:'自然人憑證',sub:'2 英文＋14 數字'},{value:'donate',label:'捐贈',sub:'愛心碼'}],cols:3});
+  if(kind===null)return null;
+  if(kind==='paper')return {mode:'paper'};
+  if(kind==='company'){
+    const v=await pickAmount({title:'統編 8 碼',hint:'對照客人提供的統一編號',unit:'',digits:8});
+    if(v===null)return null;const ubn=String(v).trim();
+    if(!/^\d{8}$/.test(ubn)){toast('統編請輸入 8 碼數字');return null;}
+    return {mode:'company',buyer_ubn:ubn};
+  }
+  const cfg={mobile:{title:'手機載具條碼',placeholder:'例：/ABC+123（共 8 碼）'},citizen:{title:'自然人憑證條碼',placeholder:'例：AB12345678901234'},donate:{title:'捐贈愛心碼',placeholder:'3–7 碼數字'}}[kind];
+  const v=await pickReason({title:cfg.title,presets:[],placeholder:cfg.placeholder,maxlength:20});
+  if(v===null)return null;const val=v.trim().toUpperCase();
+  if(kind==='mobile'){if(!/^\/[A-Z0-9.+-]{7}$/.test(val)){toast('手機條碼需為 / 開頭共 8 碼');return null;}return {mode:'mobile',carrier_num:val};}
+  if(kind==='citizen'){if(!/^[A-Z]{2}\d{14}$/.test(val)){toast('自然人憑證條碼格式不正確');return null;}return {mode:'citizen',carrier_num:val};}
+  if(!/^\d{3,7}$/.test(val)){toast('愛心碼請輸入 3–7 碼數字');return null;}
+  return {mode:'donate',love_code:val};
 }
 let POS_INV_SCAN_STREAM=null,POS_INV_SCAN_FRAME=0;
 // 發票各類型只顯示自己要填的欄位（點選後才出現），手機載具可用相機掃描條碼代替手打
@@ -496,12 +509,11 @@ async function issueOrderInvoice(o,reload){
   let invoice;
   if(o.invoice?.requested)invoice=o.invoice;
   else{
-    const value=await askUbn();
-    if(value===null)return;
-    const ubn=value.trim();if(ubn&&!/^\d{8}$/.test(ubn)){toast('統編請輸入 8 碼數字');return;}
-    invoice=ubn?{mode:'company',buyer_ubn:ubn}:{mode:'paper'};
+    invoice=await askInvoice();
+    if(!invoice)return;
   }
-  if(!confirm(`補開${invoice.mode==='company'?'統編 '+invoice.buyer_ubn:'紙本'}發票，金額 NT$${num(o.amount)}？`))return;
+  const detail=invoice.mode==='company'?'統編 '+invoice.buyer_ubn:invoice.mode==='mobile'||invoice.mode==='citizen'?(INV_LABEL[invoice.mode]||'')+' '+(invoice.carrier_num||''):invoice.mode==='donate'?'捐贈 '+(invoice.love_code||''):'紙本';
+  if(!confirm(`補開${detail}發票，金額 NT$${num(o.amount)}？`))return;
   await opsThen(()=>api('/admin/orders/'+o.id+'/invoice/issue',{method:'POST',body:{invoice}}),async out=>{if(out.invoice?.status==='issued')await printInvoiceProof({...o,invoice:out.invoice},{auto:true});return `已補開發票 ${out.invoice?.number||''}`;},reload);
 }
 function bindOrderButtons(host,orders,reload){
