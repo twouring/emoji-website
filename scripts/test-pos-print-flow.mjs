@@ -79,6 +79,6 @@ test('every checkout starts with paper invoice and no-invoice is last',()=>{
  assert.match(src,/POS_INVOICE.mode='paper';return reload/);
 });
 test('table panel offers pre-checkout kitchen and receipt printing',()=>{
- assert.match(src,/id="pos-print-kitchen"/);assert.match(src,/id="pos-print-receipt"/);
- assert.match(src,/printOrder\(tableTicket\(\)\)/);assert.match(src,/printReceipt\(tableTicket\(\)\)/);
+ assert.match(src,/id="pos-place"[\s\S]{0,120}>列印出餐單<\/button>/);assert.doesNotMatch(src,/送出點餐／列印出餐單/);assert.match(src,/id="pos-print-receipt"/);
+ assert.match(src,/printOrder\(tableTicket\(\)\)/);assert.match(src,/sessions\/'\+cur\.id\+'\/place/);assert.match(src,/printReceipt\(tableTicket\(\)\)/);
 });
