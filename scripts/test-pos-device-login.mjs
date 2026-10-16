@@ -14,7 +14,7 @@ test('server.js：裝置綁定表與四個端點，身分只來自 pos_staff，b
   assert.match(server, /app\.get\('\/api\/admin\/pos-devices',auth,adminOnly,superOnly,requireDb/, '裝置清單僅超管');
   assert.match(server, /app\.delete\('\/api\/admin\/pos-devices\/:id',auth,adminOnly,superOnly,requireDb/, '清除綁定僅超管（iPad 遺失／更換）');
   assert.match(server, /app\.post\('\/api\/pos-devices\/:id\/pin-login',rateLimit\(\{max:12\}\),requireDb/, '密碼登入免登入但要防猜碼');
-  assert.match(server, /密碼錯誤，請重新輸入；若是第一次使用，請先由店長以管理員帳號登入完成裝置綁定/, '未綁定裝置無法用密碼登入，且不洩漏原因');
+  assert.match(server, /密碼錯誤，請重新輸入；若是第一次使用，請先用 POS 專用帳號登入這台裝置/, '未綁定裝置無法用密碼登入，且不洩漏原因');
   assert.match(server, /if\(!brands\.length\)return res\.status\(403\)\.json\(\{error:`\$\{staff\.name\} 尚未設定所屬品牌/, '沒設所屬品牌的操作人員不能登入');
   assert.doesNotMatch(server, /operator_staff_id[^\n]*brands:\s*null/, '操作人員的 brands 絕不能是 null（null＝全開權限）');
 });
@@ -35,7 +35,7 @@ test('pos.html：開機先查裝置是否綁定，未綁定走 Gmail、綁定後
   assert.match(pos, /function showLoginScreen\(msg\)\{ return DEVICE_BOUND \? renderPinLogin\(msg\) : renderLogin\(msg\); \}/);
   assert.match(pos, /function renderPinLogin\(msg\)\{/);
   assert.match(pos, /api\('\/pos-devices\/' \+ encodeURIComponent\(DEVICE_ID\) \+ '\/pin-login', \{ method:'POST', body:\{ pin \} \}\)/);
-  assert.match(pos, /if \(justLoggedInByAdmin && !d\.me\?\.operator\) api\('\/admin\/pos-devices\/bind'/);
+  assert.match(pos, /if \(justLoggedInByAdmin && !d\.me\?\.operator\) \{[\s\S]*api\('\/admin\/pos-devices\/bind'/);
   assert.doesNotMatch(pos, /localStorage\.setItem\([^)]*pin\b/i, '密碼不可寫進 localStorage');
 });
 

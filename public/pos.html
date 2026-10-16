@@ -186,7 +186,7 @@ let justLoggedInByAdmin = !!hash.get('token');
 if (hash.get('token')) { localStorage.setItem(KEY, hash.get('token')); history.replaceState(null,'',location.pathname.startsWith('/pos') ? location.pathname : '/pos'); }
 let token = localStorage.getItem(KEY);
 
-// 裝置綁定：每台 iPad 存一個隨機代碼，店長 Gmail 登入一次完成綁定後，之後員工才能用四位數密碼登入（換裝置／重設瀏覽器資料要重新綁定）
+// 裝置綁定：每台 iPad 存一個隨機代碼，POS 專用帳號登入一次完成綁定後，之後員工才能用四位數密碼登入（換裝置／重設瀏覽器資料要重新綁定）
 let DEVICE_ID = localStorage.getItem('tth_pos_device');
 if (!DEVICE_ID) { DEVICE_ID = (crypto.randomUUID ? crypto.randomUUID() : 'd-' + Math.random().toString(36).slice(2) + Date.now().toString(36)); localStorage.setItem('tth_pos_device', DEVICE_ID); }
 let DEVICE_BOUND = false; // main() 每次開機都重新確認
@@ -211,7 +211,7 @@ function renderLogin(msg){
   const redirect = encodeURIComponent(location.origin + '/pos');
   app.innerHTML = `<div class="p-login"><div class="p-login-card">
     <h1>言文字 POS</h1>
-    <p>${esc(msg || '請用在咖啡／三點水的管理員帳號登入；登入一次後本裝置就能用四位數密碼登入。')}</p>
+    <p>${esc(msg || '請用 POS 專用帳號登入一次，之後本裝置就能用四位數密碼登入。')}</p>
     <a class="btn btn--solid" href="${esc(AUTH_ORIGIN)}/auth/google?redirect=${redirect}">使用 Google 登入</a>
     <form id="pos-password-login" class="a-form" style="display:grid;margin:0">
       <label>Email<input name="email" type="email" autocomplete="username" required></label>
@@ -406,7 +406,11 @@ async function main(){
     const d = await api('/state');
     if (d.role !== 'admin') return showLoginScreen('此帳號沒有後台權限，請改用在咖啡／三點水的管理員帳號登入。');
     if (d.brands && !d.brands.some(b => BRAND_LABEL[b])) return showLoginScreen('此帳號不是餐飲品牌的管理員（等等空間請用 /admin）。');
-    if (justLoggedInByAdmin && !d.me?.operator) api('/admin/pos-devices/bind', { method:'POST', body:{ device_id: DEVICE_ID } }).then(() => { DEVICE_BOUND = true; }).catch(() => {});
+    if (justLoggedInByAdmin && !d.me?.operator) {
+      // 只有 POS 專用帳號能綁定裝置；綁完立刻登出，裝置只留員工四位數密碼入口（POS 帳號不留在平板上）
+      const isPosAccount = String(d.me?.email || '').toLowerCase() === 'pos@emoji.tw';
+      api('/admin/pos-devices/bind', { method:'POST', body:{ device_id: DEVICE_ID } }).then(() => { DEVICE_BOUND = true; if (isPosAccount) { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); location.reload(); } }).catch(() => {});
+    }
     DATA = d;
     MENU_DOC = (typeof d.content?.menu === 'string' && d.content.menu.trim()) ? MenuLib.parseMenuDoc(d.content.menu) : MenuLib.parseMenuDoc('');
     TAB = routeTab();

@@ -65,6 +65,7 @@ const PRICE = 35000;                    // 創始會費（固定）
 const TARGET = 3500000;                 // 預收會費總額（100 名 × NT$35,000）
 const MIN_TERM = 18, MAX_TERM = 18;     // 會籍期間固定 18 個月（term 以月計）
 // 超級管理員：以 Google 帳號（email）認定，非代碼。超管可於後台指派其他管理員（users.is_admin）。
+const POS_ACCOUNT_EMAIL = (process.env.POS_ACCOUNT_EMAIL || 'pos@emoji.tw').toLowerCase(); // 只有這個帳號登入過的裝置才能用員工 PIN
 const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL || 'us@twouring.com').toLowerCase();
 const SECRET = process.env.APP_SECRET || 'dev-insecure-secret-change-me';
 const ACCESS_QR_SECRET = process.env.ACCESS_QR_SECRET || '';
@@ -1377,7 +1378,7 @@ async function sessionAuth(t) {
     // POS 操作人員（四位數密碼＋裝置綁定登入）：身分來自 pos_staff，不是 users；每次請求都重查 active，停用即失效
     const staff = (await q('SELECT id,name,venues,active FROM pos_staff WHERE id=$1', [p.operator_staff_id])).rows[0];
     if (!staff || !staff.active) return null;
-    const brands = String(staff.venues || '').split(',').map(x => x.trim().toUpperCase()).filter(x => ['CAFE', 'BAR'].includes(x));
+    const brands = staff.venues ? String(staff.venues).split(',').map(x => x.trim().toUpperCase()).filter(x => ['CAFE', 'BAR'].includes(x)) : ['CAFE', 'BAR']; // venues 為空＝兩店都可
     if (!brands.length) return null; // 沒設所屬品牌的操作人員：一律視為未登入（不給預設全開權限）
     // 品牌跟著登入的人走：雙品牌員工登入時選一個，token 內的 pos_venue 鎖定本次登入；舊 token 沒帶品牌時，只有單品牌員工可沿用，雙品牌須重登
     const venue = p.pos_venue ? (brands.includes(p.pos_venue) ? p.pos_venue : null) : (brands.length === 1 ? brands[0] : null);
@@ -4773,12 +4774,13 @@ app.patch('/api/admin/payment-methods/:code',auth,adminOnly,superOnly,requireDb,
 app.get('/api/pos-devices/:id',requireDb,wrap(async(req,res)=>{
   const id=String(req.params.id||'').trim().slice(0,80);
   if(!id)return res.status(400).json({error:'缺少裝置代碼。'});
-  const row=(await q('SELECT 1 FROM pos_devices WHERE device_id=$1',[id])).rows[0];
+  const row=(await q('SELECT 1 FROM pos_devices WHERE device_id=$1 AND lower(bound_by_email)=$2',[id,POS_ACCOUNT_EMAIL])).rows[0];
   res.json({bound:!!row});
 }));
 app.post('/api/admin/pos-devices/bind',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const id=String(req.body?.device_id||'').trim().slice(0,80);
   if(!id)return res.status(400).json({error:'缺少裝置代碼。'});
+  if(String(req.auth.email||'').toLowerCase()!==POS_ACCOUNT_EMAIL)return res.status(403).json({error:'請用 POS 專用帳號登入，才能啟用員工密碼登入。'});
   const label=String(req.body?.label||'').trim().slice(0,40);
   await q(`INSERT INTO pos_devices(device_id,bound_by,bound_by_email,label) VALUES($1,$2,$3,$4)
     ON CONFLICT(device_id) DO UPDATE SET bound_by=$2,bound_by_email=$3,label=CASE WHEN $4<>'' THEN $4 ELSE pos_devices.label END,bound_at=now()`,
@@ -4797,12 +4799,12 @@ app.delete('/api/admin/pos-devices/:id',auth,adminOnly,superOnly,requireDb,wrap(
 /* 操作人員密碼登入：裝置須已綁定；密碼錯誤／裝置未綁定一律用同樣的錯誤訊息（不洩漏哪個原因）。防猜碼：每台每分鐘 12 次，同打卡 */
 app.post('/api/pos-devices/:id/pin-login',rateLimit({max:12}),requireDb,wrap(async(req,res)=>{
   const id=String(req.params.id||'').trim().slice(0,80);
-  const bound=id&&(await q('SELECT 1 FROM pos_devices WHERE device_id=$1',[id])).rows[0];
+  const bound=id&&(await q('SELECT 1 FROM pos_devices WHERE device_id=$1 AND lower(bound_by_email)=$2',[id,POS_ACCOUNT_EMAIL])).rows[0];
   const pin=String(req.body?.pin||'').trim();
-  if(!bound||!/^\d{4}$/.test(pin))return res.status(404).json({error:'密碼錯誤，請重新輸入；若是第一次使用，請先由店長以管理員帳號登入完成裝置綁定。'});
+  if(!bound||!/^\d{4}$/.test(pin))return res.status(404).json({error:'密碼錯誤，請重新輸入；若是第一次使用，請先用 POS 專用帳號登入這台裝置。'});
   const staff=(await q('SELECT id,name,venues FROM pos_staff WHERE pin=$1 AND active',[pin])).rows[0];
   if(!staff)return res.status(404).json({error:'密碼錯誤，請重新輸入。'});
-  const brands=String(staff.venues||'').split(',').map(x=>x.trim().toUpperCase()).filter(x=>['CAFE','BAR'].includes(x));
+  const brands=staff.venues?String(staff.venues).split(',').map(x=>x.trim().toUpperCase()).filter(x=>['CAFE','BAR'].includes(x)):['CAFE','BAR']; // venues 為空＝兩店都可（同 staffVisible）
   if(!brands.length)return res.status(403).json({error:`${staff.name} 尚未設定所屬品牌，請管理員到「排班打卡」設定後再登入。`});
   // 品牌跟著登入的人：單品牌直接進；雙品牌要先選（沒帶 venue 時回 choose，不發 token），選定後本次登入鎖定該品牌
   const want=String(req.body?.venue||'').toUpperCase();
