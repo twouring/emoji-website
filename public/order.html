@@ -35,8 +35,8 @@ h3{font-size:1.05rem;margin:0 0 6px}
 .menu-status{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:12px}
 .menu-status b{font-size:1.05rem}.menu-status small{display:block;color:var(--muted);line-height:1.4}
 .menu-status.paused{border-color:#b42318;background:#fff5f3}.menu-status.paused small{color:#b42318;font-weight:600}
-.bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 14px calc(10px + env(safe-area-inset-bottom));display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;z-index:5;box-shadow:0 -6px 22px rgba(0,0,0,.08)}
-.bar .s{min-width:0}.bar .s b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar .s small{display:block;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:8px 14px calc(8px + env(safe-area-inset-bottom));display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;z-index:5;box-shadow:0 -6px 22px rgba(0,0,0,.08)}
+.bar [hidden]{display:none!important}.bar .btn{min-height:44px;padding-top:8px;padding-bottom:8px}.bar .s{min-width:0}.bar .s b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar .s small{display:block;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* 按鈕一律不斷行：小螢幕靠縮內距與字級，不靠折成兩行（折行會把金額擠出可視區） */
 .btn{border:1.5px solid var(--ink);background:var(--ink);color:#fff;border-radius:999px;padding:12px 18px;font-weight:700;min-height:48px;white-space:nowrap}
 .btn:disabled{opacity:.45;cursor:default}.btn.ghost{background:#fff;color:var(--ink)}.btn.sm{padding:6px 14px}.btn.y{background:var(--yellow);color:var(--ink);border-color:var(--yellow)}
