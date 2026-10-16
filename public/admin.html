@@ -949,6 +949,7 @@ function tabMenu(d){
       <label>分類<select id="mi-cat">${MenuLib.CATS.map(c => `<option value="${c}">${MenuLib.CAT_LABEL[c].zh}（${c}）</option>`).join('')}</select></label>
       <label>中文<input id="mi-zh" placeholder="品名（中）"></label>
       <label>英文<input id="mi-en" placeholder="ITEM NAME"></label>
+      <label>日文<input id="mi-ja" placeholder="品名（日本語）"></label>
       <label>原價<input id="mi-price" type="number" min="0" value="0" style="width:100px"></label>
       <label>會員價<input id="mi-emo" type="number" min="0" value="0" style="width:100px"></label>
       <label>排序<input id="mi-sort" type="number" value="0" style="width:80px"></label>
@@ -1543,7 +1544,7 @@ function resetMenuForm(){
   document.getElementById('mi-id').value = '';
   document.getElementById('mi-venue').value = SCOPE || 'CAFE';
   document.getElementById('mi-cat').value = 'FOOD';
-  ['mi-zh','mi-en','mi-note','mi-image','mi-from','mi-to'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  ['mi-zh','mi-en','mi-ja','mi-note','mi-image','mi-from','mi-to'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   const pv=document.getElementById('prev-mi-image'); if(pv){ pv.src=''; pv.style.display='none'; }
   document.getElementById('mi-price').value = 0;
   document.getElementById('mi-emo').value = 0;
@@ -1580,7 +1581,7 @@ function bindMenu(){
       id: document.getElementById('mi-id').value || undefined,
       venue: document.getElementById('mi-venue').value,
       cat: document.getElementById('mi-cat').value,
-      zh, en: document.getElementById('mi-en').value.trim(),
+      zh, en: document.getElementById('mi-en').value.trim(), ja: document.getElementById('mi-ja').value.trim(),
       price: Number(document.getElementById('mi-price').value) || 0,
       emo: Number(document.getElementById('mi-emo').value) || 0,
       note: document.getElementById('mi-note').value.trim(),
@@ -1607,6 +1608,7 @@ function bindMenu(){
     document.getElementById('mi-cat').value = it.cat;
     document.getElementById('mi-zh').value = it.zh;
     document.getElementById('mi-en').value = it.en;
+    document.getElementById('mi-ja').value = it.ja || '';
     document.getElementById('mi-price').value = it.price;
     document.getElementById('mi-emo').value = it.emo;
     document.getElementById('mi-sort').value = it.sort;

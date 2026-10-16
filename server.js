@@ -910,7 +910,17 @@ async function seedSocialPosts() {
 async function seedMenuContent() {
   const force = process.env.FORCE_MENU_SEED === '1' || process.env.FORCE_MENU_SEED === 'true';
   const content = await readContent();
-  if (!shouldWriteMenuSeed(content, force)) return;
+  if (!shouldWriteMenuSeed(content, force)) {
+    // 既有菜單：僅補上缺少的日文品名（不動已填內容）
+    try {
+      const doc = JSON.parse(content.menu);
+      if (require('./lib/menu-ja').fillMenuJa(doc.items) > 0) {
+        await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
+        console.log('[menu-seed] 已補上菜單日文品名。');
+      }
+    } catch (e) { console.warn('[menu-seed] 日文回填略過：', e && e.message); }
+    return;
+  }
   let rows;
   try {
     rows = loadMenuSeedRows();

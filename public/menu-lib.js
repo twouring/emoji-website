@@ -70,6 +70,8 @@
       cat,
       zh: String(raw.zh || '').trim(),
       en: String(raw.en || '').trim(),
+      ja: String(raw.ja || '').trim(),
+      ja: String(raw.ja || '').trim(),
       price: Number.isFinite(price) ? price : 0,
       emo: Number.isFinite(emo) ? emo : 0,
       note: String(raw.note || '').trim(),
@@ -192,8 +194,8 @@
     return '<li class="menu-item' + (item.image ? ' menu-item--img' : '') + '">' +
       (item.image ? '<img class="menu-item__img" src="' + esc(item.image) + '" alt="' + esc(item.zh) + '" loading="lazy">' : '') +
       '<div class="menu-item__names">' +
-      '<span class="menu-item__zh">' + esc(item.zh) + '</span>' +
-      (item.en ? '<span class="menu-item__en">' + esc(item.en) + '</span>' : '') +
+      '<span class="menu-item__zh">' + esc(lang === 'ja' && item.ja ? item.ja : item.zh) + '</span>' +
+      (lang === 'ja' ? (item.ja ? '<span class="menu-item__en">' + esc(item.zh) + '</span>' : '') : (item.en ? '<span class="menu-item__en">' + esc(item.en) + '</span>' : '')) +
       (item.note ? '<div class="menu-item__note">' + esc(item.note) + '</div>' : '') +
       '</div><div class="menu-item__price">' + priceHtml + '</div></li>';
   }
