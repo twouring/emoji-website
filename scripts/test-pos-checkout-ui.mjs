@@ -36,3 +36,8 @@ test('收款只保留「餐點到齊」確認，不再跳出第二道金額確�
   assert.match(ops, /餐點都到齊了嗎/);
   assert.doesNotMatch(ops, /向\$\{cur\.takeout\?'外帶':'桌號'\} \$\{cur\.table\} 收 NT\$/);
 });
+
+test('桌況區高度固定：桌號格自己捲，外帶／開桌釘在底部', () => {
+  assert.match(css, /@media\(min-width:1000px\)\{\.pos-layout \.pos-tables\{display:flex;flex-direction:column;height:calc\(100dvh/);
+  assert.match(css, /\.pos-layout \.pos-tables \.pos-grid\{[^}]*overflow:auto/);
+});
