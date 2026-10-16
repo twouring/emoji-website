@@ -5084,7 +5084,8 @@ app.get('/api/admin/sales',auth,adminOnly,requireDb,wrap(async(req,res)=>{
 /* 銷量／客群分析（POS「銷量」「客群」分頁）：跨營業日區間，最多 93 天；作廢不計。新客＝該會員第一張成立單落在這個區間 */
 app.get('/api/admin/analytics',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
-  const {from,to,start,end}=tableOrders.analyticsRange(req.query);
+  let range;try{range=tableOrders.analyticsRange(req.query);}catch(e){if(e.status===400)return res.status(400).json({error:e.message});throw e;}
+  const {from,to,start,end}=range;
   const orders=(await q(`SELECT id,table_no,items,amount,payer,tappay,status,paid_at FROM table_orders WHERE status<>'void' AND paid_at>=$1 AND paid_at<$2 ORDER BY paid_at`,[start,end])).rows;
   const first=(await q(`SELECT payer->>'member_id' AS mid,min(paid_at) AS at FROM table_orders WHERE status<>'void' AND payer->>'member_id' IS NOT NULL GROUP BY 1`)).rows;
   const firstPaid=Object.fromEntries(first.map(r=>[r.mid,new Date(r.at).toISOString()]));

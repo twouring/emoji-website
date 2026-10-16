@@ -11,6 +11,17 @@ function printContext(){
  vm.runInContext(menuLib,c);vm.runInContext(src,c);c.sent=sent;vm.runInContext('StarWebPrintBuilder=function(){};StarWebPrintTrader=function(){};starSend=async job=>{sent.push(job);return true;}',c);
  return {c,texts,sent};
 }
+for(const blocked of [true,false])test(`register browser report returns ${blocked?'false when popup is blocked':'true after printing'}`,async()=>{
+ const messages=[],calls=[];
+ const popup={document:{write(html){calls.push(html);},close(){}},focus(){},print(){calls.push('printed');}};
+ const c=vm.createContext({console,setTimeout,clearTimeout,navigator:{userAgent:'Safari'},window:{open:()=>blocked?null:popup},BRAND_LABEL:{CAFE:'在咖啡'},num:String,applicationTime:String,esc:String,toast:m=>messages.push(m)});
+ vm.runInContext(src,c);
+ const result=await vm.runInContext("printRegisterReport({venue:'CAFE',day:'2026-10-17',opened_at:'2026-10-17'},'關帳單')",c);
+ assert.equal(result,!blocked);
+ if(blocked){assert.equal(calls.length,0);assert.ok(messages.some(m=>m.includes('瀏覽器擋下列印視窗')));}
+ else{assert.equal(calls.at(-1),'printed');assert.match(calls[0],/關帳單/);}
+});
+
 test('company invoice canvas includes buyer tax ID and name',async()=>{
  const {c,texts}=printContext();await vm.runInContext("invoiceProofCanvas({invoice:{status:'issued',number:'AB12345678',buyer_ubn:'12345678',buyer_name:'測試公司'},items:[],amount:100})",c);
  assert.ok(texts.includes('12345678'));assert.ok(texts.includes('測試公司'));

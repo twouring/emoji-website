@@ -25,6 +25,30 @@ test('analytics HTTP handler binds business-day edges and applies brand ownershi
  await handler({auth:{brands:['CAFE']},query:{from:'2026-10-16',to:'2026-10-16'}},{json:d=>result=d});
  assert.equal(queries[0].args[0].toISOString(),'2026-10-15T19:00:00.000Z');assert.equal(queries[0].args[1].toISOString(),'2026-10-16T19:00:00.000Z');assert.equal(result.orders,1);assert.equal(result.customers.new_members,1);
 });
+test('analytics route returns HTTP 400 for invalid ranges before querying the database',async()=>{
+ const source=fs.readFileSync(new URL('../server.js',import.meta.url),'utf8');
+ const app=require('express')();let queries=0;
+ const ctx=vm.createContext({app,tableOrders:T,console:{error(){}},auth:(req,res,next)=>{req.auth={brands:['CAFE']};next();},adminOnly:(req,res,next)=>next(),requireDb:(req,res,next)=>next(),q:async()=>{queries++;throw Error('database unavailable');}});
+ const wrapStart=source.indexOf('const wrap = fn =>');
+ vm.runInContext(source.slice(wrapStart,source.indexOf("app.post('/api/twilio/events/status'",wrapStart)),ctx);
+ const start=source.indexOf("app.get('/api/admin/analytics'");
+ vm.runInContext(source.slice(start,source.indexOf('/* 台新手機付日結',start)),ctx);
+ const server=app.listen(0,'127.0.0.1');
+ await new Promise(resolve=>server.once('listening',resolve));
+ try{
+  const base=`http://127.0.0.1:${server.address().port}/api/admin/analytics`;
+  for(const query of [{from:'bad',to:'2026-10-17'},{from:'2026-02-30',to:'2026-10-17'},{from:'2026-10-18',to:'2026-10-17'}]){
+   const response=await fetch(base+'?'+new URLSearchParams(query));
+   assert.equal(response.status,400);
+   let message;try{T.analyticsRange(query);}catch(e){message=e.message;}
+   assert.deepEqual(await response.json(),{error:message});
+  }
+  assert.equal(queries,0);
+  const response=await fetch(base+'?from=2026-10-16&to=2026-10-17');
+  assert.equal(response.status,500);assert.deepEqual(await response.json(),{error:'伺服器處理失敗。'});assert.equal(queries,1);
+ }finally{await new Promise((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}
+});
+
 test('brand middleware admits analytics and both tabs have reachable loaders',()=>{
  const s=fs.readFileSync(new URL('../server.js',import.meta.url),'utf8');
  const re=vm.runInNewContext(s.match(/const FOOD_API = ([^;]+);/)[1]);assert.equal(re.test('/api/admin/analytics'),true);
