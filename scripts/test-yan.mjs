@@ -143,7 +143,9 @@ test('點數兌換品項：該行變 0 元、扣菜單點數、不折抵金額�
 });
 
 test('兌換空間時數：扣點、單日會籍、只認掃碼確認的有效會籍', () => {
-  assert.deepEqual(Y.SPACE_REDEEM, { day_4h: 200, day_12h: 500 });
+  assert.deepEqual(Y.parseSpaceRewards('{"day_4h":200,"day_12h":"500","x":9}'), { day_4h: 200, day_12h: 500 });
+  assert.deepEqual(Y.parseSpaceRewards('壞掉'), { day_4h: 0, day_12h: 0 }, '沒設定＝不開放');
+  assert.deepEqual(Y.parseSpaceRewards({ day_4h: -5 }), { day_4h: 0, day_12h: 0 });
   const rows = Y.applyEarn([], { userId: 'u1', orderId: 'o1', amount: 30000, brand: 'CAFE' }).rows;
   const r = Y.applyRedeem(rows, { orderId: 'en_x', points: 200, amount: 200, userId: 'u1', refType: 'space' });
   assert.equal(r.rows.at(-1).ref_type, 'space'); assert.equal(Y.balance(r.rows), 100);
@@ -156,4 +158,22 @@ test('兌換空間時數：扣點、單日會籍、只認掃碼確認的有效�
   const ops = read('public/pos-ops.js');
   assert.doesNotMatch(ops, /id="pos-member"/, '不能再手動勾選會籍價');
   assert.match(ops, /data-redeem/); assert.match(ops, /pos-yan-space/); assert.doesNotMatch(ops, /pos-yan-redeem/);
+});
+
+test('兌換列像折扣：日結／CSV 統計兌換點數與折抵；作廢還原；設定入口', () => {
+  const T = require('../lib/table-orders');
+  const mk = (id, items) => ({ id, status: 'paid', amount: 100, paid_at: new Date().toISOString(), payer: { method: 'cash' }, items });
+  const redeemed = { line: 'l1', item_id: 'a', zh: '拿鐵', qty: 2, price: 0, regular_price: 150, redeem_points: 300, venue: 'CAFE' };
+  const plain = { line: 'l2', item_id: 'b', zh: '吐司', qty: 1, price: 100, venue: 'CAFE' };
+  const sum = T.salesSummary([mk('o1', [redeemed, plain]), mk('o2', [plain])], {});
+  assert.equal(sum.redeem_points, 300); assert.equal(sum.redeem_count, 1); assert.equal(sum.redeem_value, 300);
+  const csv = T.salesCsvRows([mk('o1', [redeemed, plain])], {});
+  assert.ok(csv.some(r => String(r[3]).includes('點數兌換 300 點，折抵 NT$300')));
+  const srv = read('server.js'), ops = read('public/pos-ops.js'), adm = read('public/admin.html');
+  assert.match(srv, /redeem_points:undefined/, '作廢單要還原兌換行');
+  assert.match(srv, /yan\.parseSpaceRewards\(await contentValue\('yan_rewards'\)\)/);
+  assert.match(read('lib/security.js'), /'yan_rewards'/);
+  assert.match(read('lib/pos-register.js'), /redeem_points/);
+  assert.match(ops, /點數兌換 \$\{num\(rd\.points\)\} 點/, '收據另列兌換折抵');
+  assert.match(adm, /id="yr-save"/); assert.match(adm, /'updates','menu'/);
 });

@@ -937,6 +937,13 @@ function tabMenu(d){
   return `<div class="a-sec">
     <h2>菜單</h2>
     <p class="hint">未發布項目（<span class="pill pill-wait">未發布</span>）不會顯示於空間頁 <code>/space#menu</code>，客人掃碼也點不到。「今日估清」立即生效、不必按儲存，隔天 03:00 後自動恢復；設定「供應期間」可做每日特餐或限時菜單。${seeded ? '目前顯示預設 SEED 資料，尚未寫入資料庫，請按「儲存至伺服器」完成灌入。' : '編輯或刪除項目後，務必按「儲存至伺服器」才會永久保存。'}</p>
+    ${(SCOPE || d?.brands) ? '' : (() => { let rw = {}; try { rw = JSON.parse(d?.content?.yan_rewards || '{}') || {}; } catch (e) {} return `<div class="a-form" id="yan-rewards" style="margin:0 0 14px;padding-bottom:14px;border-bottom:1px dashed var(--line)">
+      <b style="flex-basis:100%">點數可兌換的空間服務</b>
+      <p class="hint" style="flex-basis:100%;margin:0">會員用點數換單日會籍（立刻開通）。留 0＝不開放。餐飲品項的兌換點數在下方每個品項的「兌換點數」欄設定。點數只換品項與服務，不折抵金額。</p>
+      <label>單日 4 小時<input id="yr-day_4h" type="number" min="0" value="${Number(rw.day_4h) || 0}" style="width:100px"> 點</label>
+      <label>單日 12 小時<input id="yr-day_12h" type="number" min="0" value="${Number(rw.day_12h) || 0}" style="width:100px"> 點</label>
+      <button class="btn btn--solid btn-sm" id="yr-save">儲存空間兌換點數</button>
+    </div>`; })()}
     <div class="a-toolbar">
       <input type="search" id="mi-search" placeholder="搜尋店別 / 分類 / 中文 / 英文 / 備註…">
       <button class="btn btn--ghost btn-sm" id="menu-load-seed" title="以 menu-data.js 的預設菜單取代目前清單（需再按儲存）">載入預設菜單</button>
@@ -1178,13 +1185,13 @@ function tabAdmins(d){
 }
 
 /* 後台分成三個工作區：言文字管理所有品牌共用事務（含會員、會費、消息、社群、廣告、活動、行事曆），
-   在咖啡／三點水各自只剩日結報表與排班打卡（員工管理）；現場營運（櫃檯結帳、點餐出餐、訂位、菜單）全部搬到 pos.emoji.tw，不再進 admin。
+   在咖啡／三點水各自只剩日結報表與排班打卡（員工管理）；現場營運（櫃檯結帳、點餐出餐、訂位）全部搬到 pos.emoji.tw，不再進 admin；菜單（品項、會籍價、兌換點數、空間兌換點數）留在言文字工作區。
    員工的新增／編輯／停用與出勤修正刻意留在 admin：平板上用四位數密碼登入的現場人員不能自己改員工資料（伺服器端同步把關）。
    言文字管理員（brands 為空）可進全部工作區；品牌子帳號除了自己的品牌工作區，也能進言文字工作區的共用分頁，
    但「權限管理」「系統設定」「操作紀錄」三頁僅言文字管理員可用（伺服器端同步把關）。
    等等空間工作區已於 2026-10 移除：原本的「活動」「行事曆」併入言文字；「櫃檯」（現場開通會籍）功能一併下架。 */
-const ROOT_TABS = ['overview','members','commitments','updates','social','ads','events','calendar','permissions','system','logs'];
-const ROOT_TABS_BRAND = ['overview','members','commitments','updates','social','ads','events','calendar'];
+const ROOT_TABS = ['overview','members','commitments','updates','menu','social','ads','events','calendar','permissions','system','logs'];
+const ROOT_TABS_BRAND = ['overview','members','commitments','updates','menu','social','ads','events','calendar'];
 const BRAND_TABS = { CAFE:['sales','staff'], BAR:['sales','staff'] };
 const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水' };
 const WORKSPACES = {
@@ -1679,6 +1686,14 @@ function bindMenu(){
     MENU_DIRTY = true; syncMenuDirty();
     toast('已載入預設菜單（尚未存檔）');
     paintMenu();
+  });
+
+  on('yr-save','click',async()=>{
+    const v = k => Math.max(0, Math.floor(Number(document.getElementById('yr-' + k).value)) || 0);
+    try {
+      await api('/admin/content', { method:'POST', body:{ key:'yan_rewards', value: JSON.stringify({ day_4h: v('day_4h'), day_12h: v('day_12h') }) } });
+      toast('空間兌換點數已儲存'); await refresh();
+    } catch(e){ toast(e.message); }
   });
 
   on('menu-save-server','click',()=>{

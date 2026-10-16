@@ -336,7 +336,7 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 POS 查／建會員。body `{ phone }`（台灣手機）或 `{ token }`（會員卡 QR）。回 `{ ok, member:{id,name,phone}, balance }`。沒有帳號就用手機建立。品牌子帳號可用。回傳多 `active`（是否有效會籍）與 `verified`（是否以會員條碼確認身分）。POS 流程：掃會員條碼（`token`）→ 確認身分；有效會籍才套**會籍價**；點數不看會籍，掃碼確認身分後即可兌換品項與服務、兌換空間時數；只輸入手機＝只累點。會籍價＝菜單 `emo`（>0 時）否則原價九折（四捨五入），「現場輸入金額」品項不打折。註冊會員（沒有有效會籍）也能累點、兌換，只是沒有會籍價。點數**不折抵金額**。
 
 ### POST /api/admin/yan/redeem-space
-POS 用點數兌換空間時數。body `{ plan: day_4h|day_12h, user_id, operator_id? }`。扣點（單日 4 小時 200 點、單日 12 小時 500 點）並在同一交易發一張單日會籍（`entitlements.source='yan'`，啟用規則同購買）。點數不足回 400。回 `{ ok, plan, cost, entitlement_id, balance }`。
+POS 用點數兌換空間時數。body `{ plan: day_4h|day_12h, user_id, operator_id? }`。扣點（所需點數由後台設定，存在 `site_content.yan_rewards = {day_4h,day_12h}`，經 `POST /api/admin/content` 寫入、言文字管理員在後台「菜單」頁設定；0 或沒設＝不開放，回 400）並在同一交易發一張單日會籍（`entitlements.source='yan'`，啟用規則同購買）。點數不足回 400。回 `{ ok, plan, cost, entitlement_id, balance }`。
 
 ### POST /api/admin/orders/:id/invoice/issue
 補開 ezPay 電子發票。用於結帳時 ezPay 暫時失敗或當下未設定憑證的單。body 可帶 `{ invoice }`，未帶時使用訂單內已保存的發票要求；`invoice` 格式同櫃檯結帳的 `invoice` 欄位。作廢單不能補開；已開立且有號碼則直接回原發票資料。若狀態是已開立但 `number` 空白（ezPay 回應沒解析到號碼），不會重開，而是以 `invoice_search`（自訂編號＋金額）向 ezPay 查回號碼並更新訂單，回 `{ ok, invoice, synced: true }`；查不到回 404。回 `{ ok, invoice }`。
@@ -378,7 +378,7 @@ POS 關掉某筆客人的結帳需求（客人改口或已另外處理）；品�
 查單：某營業日全部的單（含作廢），最新在前。query `day=YYYY-MM-DD`（預設今天的營業日）、`q=`（桌號／金額／發票號碼／單號尾碼，不分大小寫）、`venue=`。每張單附 `stations`（分站明細）供重印出餐單。回 `{ day, orders[], count }`。品牌子帳號只看自己店別的單。
 
 ### GET /api/admin/sales
-日結報表。query `day=YYYY-MM-DD`（營業日，預設今天；03:00 起算 24 小時）、`venue=`。回 `{ day, orders, amount, by_method{}, by_hour{}, items[]{zh,venue,qty,amount}, voided, void_amount, discount_amount, discount_count, comp_count, csv[][], linepay }`；`amount` 為折扣後實收，`discount_amount / discount_count` 為整單折扣合計與單數，`comp_count` 為贈送件數。現金對帳走開關帳（見 `/api/admin/registers`），舊的交班結算已移除。`csv` 為每品項一列的明細（表頭：營業日、付款時間、桌號、品項、數量、單價、小計、付款方式、會員價、發票狀態、發票號碼、狀態、作廢原因），整單折扣另列一列負數讓小計欄加總＝營收，贈送品項名稱後綴「（贈送：原因）」。作廢的單不計營收。
+日結報表。query `day=YYYY-MM-DD`（營業日，預設今天；03:00 起算 24 小時）、`venue=`。回 `{ day, orders, amount, by_method{}, by_hour{}, items[]{zh,venue,qty,amount}, voided, void_amount, discount_amount, discount_count, comp_count, redeem_points, redeem_count, redeem_value, csv[][], linepay }`；`redeem_points / redeem_count / redeem_value` 為點數兌換的點數合計、單數與折抵原價合計（像折扣一樣另列，CSV 該品項標「點數兌換 N 點，折抵 NT$X」）；`amount` 為折扣後實收，`discount_amount / discount_count` 為整單折扣合計與單數，`comp_count` 為贈送件數。現金對帳走開關帳（見 `/api/admin/registers`），舊的交班結算已移除。`csv` 為每品項一列的明細（表頭：營業日、付款時間、桌號、品項、數量、單價、小計、付款方式、會員價、發票狀態、發票號碼、狀態、作廢原因），整單折扣另列一列負數讓小計欄加總＝營收，贈送品項名稱後綴「（贈送：原因）」。作廢的單不計營收。
 `linepay` 為 LINE Pay 對帳：`{ configured, synced_at, pos:{count,amount}（POS 登記為 LINE Pay 的成立單）, linepay:{count,amount,refunds,refund_amount,by_method{}}（LINE Pay 商家後台同日實收，退款已扣）, diff（實收－POS 登記；>0 漏登或登成其他方式，<0 登了但沒收到）, rows[]（當日每筆實收：id,type,amount,paid_at,method,card_last4,confirm_no,order_no）, csv[][] }`。LINE Pay 不分店別，`?venue=` 只影響 POS 側。
 `taishin` 為刷卡／台新手機付對帳（兩者同一台台新收單機、沒有實收查詢 API，手動填寫）：`{ pos:{count,amount}（POS 登記為刷卡或台新手機付的成立單，2026-10-14 決策合併；結帳畫面已合併成一個選項、代碼一律寫 taishin，但仍把歷史單據可能留著的舊 card 紀錄一起算入）, manual（還沒填過是 null；填過是 {amount,reason,filled_by,updated_at}）, diff（manual.amount－POS 登記；還沒填是 null）}`。填寫走 `POST /api/admin/sales/taishin`。
 

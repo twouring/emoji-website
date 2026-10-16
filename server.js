@@ -4430,8 +4430,8 @@ app.post('/api/admin/yan/lookup', auth, adminOnly, requireDb, wrap(async (req, r
 
 // POS 兌換空間時數：掃會員條碼確認身分後，扣點並發一張單日會籍（entitlements.source='yan'），與購買的同樣計算啟用
 app.post('/api/admin/yan/redeem-space', auth, adminOnly, requireDb, wrap(async (req, res) => {
-  const plan = String(req.body?.plan || ''), cost = yan.SPACE_REDEEM[plan];
-  if (!cost) return res.status(400).json({ error: '請選擇單日 4 小時或 12 小時。' });
+  const plan = String(req.body?.plan || ''), cost = yan.parseSpaceRewards(await contentValue('yan_rewards'))[plan];
+  if (!cost) return res.status(400).json({ error: '這個空間方案沒有開放點數兌換（後台菜單頁可設定）。' });
   const userId = String(req.body?.user_id || '').trim().slice(0, 64);
   const client = await pool.connect();
   try {
@@ -4964,7 +4964,7 @@ app.post('/api/admin/orders/:id/void',auth,adminOnly,requireDb,wrap(async(req,re
     const s=(await client.query("SELECT id,items,status FROM table_sessions WHERE id=$1 FOR UPDATE",[o.session_id])).rows[0];
     // 退回未結帳：會員價還原為原價；贈送（comp_reason）維持贈送
     // 部分付款（預收）單作廢：這張單的「部分付款」行與桌上的「已預收」抵扣行一起拿掉，不退回未結帳
-    if(s&&s.status==='open')await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(o.payer?.prepay?s.items.filter(l=>l.order_id!==o.id&&l.credit_of!==o.id):s.items.map(l=>l.order_id!==o.id?l:l.comp_reason?{...l,order_id:null}:{...l,order_id:null,price:l.regular_price||l.price,regular_price:undefined}))]);
+    if(s&&s.status==='open')await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(o.payer?.prepay?s.items.filter(l=>l.order_id!==o.id&&l.credit_of!==o.id):s.items.map(l=>l.order_id!==o.id?l:l.comp_reason?{...l,order_id:null}:{...l,order_id:null,price:l.regular_price||l.price,regular_price:undefined,redeem_points:undefined}))]);
     await client.query('COMMIT');committed=true;
   res.json({ok:true,reason,method,cash_refund,event_key});
   }finally{if(!committed)await client.query('ROLLBACK').catch(()=>{});client.release();}

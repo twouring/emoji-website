@@ -18,8 +18,8 @@ test('後台分為言文字與兩個品牌工作區（等等空間已移除）',
 });
 
 test('POS 相關分頁從 admin 移除，品牌工作區只剩日結報表；活動／行事曆併入言文字', () => {
-  assert.match(html, /ROOT_TABS = \['overview','members','commitments','updates','social','ads','events','calendar','permissions','system','logs'\]/);
-  assert.match(html, /ROOT_TABS_BRAND = \['overview','members','commitments','updates','social','ads','events','calendar'\]/);
+  assert.match(html, /ROOT_TABS = \['overview','members','commitments','updates','menu','social','ads','events','calendar','permissions','system','logs'\]/);
+  assert.match(html, /ROOT_TABS_BRAND = \['overview','members','commitments','updates','menu','social','ads','events','calendar'\]/);
   // 員工管理（排班打卡）刻意留在 admin：平板上用四位數密碼登入的現場人員不能改員工資料
   assert.match(html, /BRAND_TABS = \{ CAFE:\['sales','staff'\], BAR:\['sales','staff'\] \}/);
   assert.doesNotMatch(html, /CAFE:\['pos','orders'/, '在咖啡工作區不應再有 POS 分頁');
