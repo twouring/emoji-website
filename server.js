@@ -1814,6 +1814,34 @@ app.post('/api/passkey/login/verify', rateLimit({ max: 30 }), requireDb, passkey
   const role = isSuper || row.is_admin === true ? 'admin' : (n > 0 ? 'participant' : 'invited');
   res.set('Cache-Control', 'no-store'); res.json({ token: signToken({ role, sub: row.user_id, super: isSuper, name: row.uname || '' }) });
 }));
+// 快速註冊：只要名字＋Touch ID／Face ID，驗證成功才建立帳號（沒有 Email，之後可在 App 內再綁 Google）
+app.post('/api/passkey/signup/options', rateLimit({ max: 10, windowMs: 3600000 }), requireDb, passkeyGuard, wrap(async (req, res) => {
+  const name = String(req.body?.name || '').trim();
+  if (!name || name.length > 80) return res.status(400).json({ error: '請填寫名字（80 字以內）。' });
+  const id = uid('u_'), challenge = crypto.randomBytes(32).toString('base64url');
+  const state = signToken({ k: 'pk-signup', c: challenge, uid: id, nm: name, rp: req.rp.rpId }, { purpose: 'oauth' });
+  res.set('Cache-Control', 'no-store');
+  res.json({ state, options: passkey.registrationOptions({ rpId: req.rp.rpId, rpName: '言文字', user: { id, name, displayName: name }, challenge, exclude: [] }) });
+}));
+app.post('/api/passkey/signup/verify', rateLimit({ max: 10, windowMs: 3600000 }), requireDb, passkeyGuard, wrap(async (req, res) => {
+  const st = verifyToken(String(req.body?.state || ''), { purpose: 'oauth' });
+  if (!st || st.k !== 'pk-signup' || st.rp !== req.rp.rpId) return res.status(400).json({ error: '驗證已逾時，請重試。' });
+  let r;
+  try { r = passkey.verifyRegistration({ credential: req.body?.credential, challenge: st.c, rpId: req.rp.rpId, origins: req.rp.origins }); }
+  catch (e) { if (e.code === 'PASSKEY_INVALID') return res.status(400).json({ error: e.message }); throw e; }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query("INSERT INTO users(id,name,status) VALUES($1,$2,'已查看')", [st.uid, st.nm]);
+    await client.query('INSERT INTO passkeys(id,user_id,jwk,counter,transports,name) VALUES($1,$2,$3,$4,$5,$6)', [r.credentialId, st.uid, JSON.stringify(r.jwk), r.counter, r.transports.join(','), '這台裝置']);
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    if (e.code === '23505') return res.status(409).json({ error: '這組 Passkey 已經註冊過，請直接登入。' });
+    throw e;
+  } finally { client.release(); }
+  res.set('Cache-Control', 'no-store'); res.json({ token: signToken({ role: 'invited', sub: st.uid, super: false, name: st.nm }) });
+}));
 app.delete('/api/passkey/:id', auth, requireDb, passkeyOnly, wrap(async (req, res) => {
   await q('DELETE FROM passkeys WHERE id=$1 AND user_id=$2', [req.params.id, req.auth.sub]); res.json({ ok: true });
 }));

@@ -91,3 +91,12 @@ test('伺服器與前端接線', () => {
   assert.match(m, /isUserVerifyingPlatformAuthenticatorAvailable/);
   assert.match(api, /POST \/api\/passkey\/login\/verify/);
 });
+
+test('快速註冊：端點、名字上限、驗證後才建帳號、前端表單', () => {
+  const s = read('server.js'), m = read('public/m.html');
+  assert.ok(s.includes("'/api/passkey/signup/options'") && s.includes("'/api/passkey/signup/verify'"));
+  assert.match(s, /pk-signup/);
+  const v = s.slice(s.indexOf("'/api/passkey/signup/verify'"));
+  assert.ok(v.indexOf('verifyRegistration') < v.indexOf('INSERT INTO users'), '先驗證再建帳號');
+  assert.match(m, /pkSignup/); assert.match(m, /快速註冊/);
+});

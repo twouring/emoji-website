@@ -191,6 +191,14 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     await pkPost('/api/passkey/register/verify',{state:o.state,name:ENV.ios?'iPhone／iPad':'這台裝置',credential:{id:c.id,response:{clientDataJSON:bufToB64u(r.clientDataJSON),attestationObject:bufToB64u(r.attestationObject),transports:r.getTransports?r.getTransports():[]}}},true);
     lsSet(PK_FLAG,'1');
   }
+  async function pkSignup(name){
+    const o=await pkPost('/api/passkey/signup/options',{name});
+    const opt=o.options;opt.challenge=b64uToBuf(opt.challenge);opt.user.id=b64uToBuf(opt.user.id);
+    const c=await navigator.credentials.create({publicKey:opt});
+    const r=c.response;
+    const d=await pkPost('/api/passkey/signup/verify',{state:o.state,credential:{id:c.id,response:{clientDataJSON:bufToB64u(r.clientDataJSON),attestationObject:bufToB64u(r.attestationObject),transports:r.getTransports?r.getTransports():[]}}});
+    lsSet(KEY,d.token);lsSet(PK_FLAG,'1');try{sessionStorage.removeItem('m_noauto');}catch(e){}
+  }
   const pkQuiet=e=>e&&(e.name==='NotAllowedError'||e.name==='AbortError');
   async function loginWithPasskey(btn){
     btn.disabled=true;
@@ -199,8 +207,8 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   }
   function login(){
     tabs.hidden=true;
-    app.innerHTML=`<div class="login">${MARK}<h1>言文字 會員</h1><p>登入後，用一張卡在所有空間累積點數、報名活動。</p><button class="btn solid" id="pkl" hidden>用 Touch ID／Face ID 登入</button><a class="btn${lsGet(PK_FLAG)?'':' solid'}" href="/auth/google?redirect=${encodeURIComponent(location.origin+ROOT)}" style="margin-top:10px">使用 Google 登入</a></div>`;
-    pkSupport().then(ok=>{const b=document.getElementById('pkl');if(!ok||!b)return;b.hidden=false;b.onclick=()=>loginWithPasskey(b);let na=false;try{na=!!sessionStorage.getItem('m_noauto');}catch(e){}if(lsGet(PK_FLAG)&&!na&&!login.auto){login.auto=1;b.click();}});
+    app.innerHTML=`<div class="login">${MARK}<h1>言文字 會員</h1><p>登入後，用一張卡在所有空間累積點數、報名活動。</p><button class="btn solid" id="pkl" hidden>用 Touch ID／Face ID 登入</button><form id="pks" hidden style="margin-top:10px"><input id="pkn" maxlength="80" autocomplete="name" placeholder="第一次來？輸入名字" aria-label="名字" style="display:block;width:100%;min-height:52px;padding:0 14px;border:1.5px solid var(--line);border-radius:12px;font-family:inherit;font-size:1rem;background:#fff;margin-bottom:10px"><button class="btn solid" id="pkj" type="submit">用 Touch ID／Face ID 快速註冊</button></form><a class="btn${lsGet(PK_FLAG)?'':' solid'}" href="/auth/google?redirect=${encodeURIComponent(location.origin+ROOT)}" style="margin-top:10px">使用 Google 登入</a></div>`;
+    pkSupport().then(ok=>{const b=document.getElementById('pkl');if(!ok||!b)return;b.hidden=false;b.onclick=()=>loginWithPasskey(b);const f=document.getElementById('pks');f.hidden=false;f.onsubmit=async e=>{e.preventDefault();const n=document.getElementById('pkn').value.trim();if(!n){toast('請先輸入名字');return;}const j=document.getElementById('pkj');j.disabled=true;try{await pkSignup(n);await load();}catch(x){if(!pkQuiet(x))toast(x.message||'無法註冊，請改用 Google 登入');j.disabled=false;}};let na=false;try{na=!!sessionStorage.getItem('m_noauto');}catch(e){}if(lsGet(PK_FLAG)&&!na&&!login.auto){login.auto=1;b.click();}});
   }
   const fmt=v=>{if(!v)return '';const d=new Date(String(v).replace(/\//g,'-').replace(' ','T')+(String(v).length<=16?':00+08:00':''));return Number.isNaN(+d)?String(v):d.toLocaleString('zh-TW',{timeZone:'Asia/Taipei',month:'numeric',day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false});};
   function nextEvent(){const list=(data.events||[]);return list.find(e=>e.registered)||list[0]||null;}

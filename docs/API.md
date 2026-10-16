@@ -612,6 +612,12 @@ X 貼文 AI 起草：body `{ topic }`，回 `{ ok, draft: { title, caption, capt
 ### POST /api/passkey/login/verify
 body：`{ state, credential: { id, response: { clientDataJSON, authenticatorData, signature } } }`，驗簽成功回 `{ token }`（同 Google 登入的 session token，權限依帳號重算）；失敗 401。
 
+### POST /api/passkey/signup/options
+快速註冊（免登入、免 Email）。body：`{ name }`（1–80 字），回 `{ state, options }`；此時尚未建立帳號。每小時每 IP 10 次。
+
+### POST /api/passkey/signup/verify
+body：`{ state, credential }`（同 register/verify）。驗證成功才建立沒有 Email 的會員並綁定這組 Passkey，回 `{ token }`；重複註冊 409。沒有 Email 的帳號無法用 Google／Email 找回，遺失裝置後需客服處理。
+
 ### DELETE /api/passkey/:id
 移除自己的一組 Passkey，回 `{ ok }`。
 
