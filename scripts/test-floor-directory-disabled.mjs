@@ -18,16 +18,17 @@ test('public HTML does not load or mount the temporarily retired 3D floor direct
   }
 });
 
-test('all three locales preserve interior concept photos, facade, CMS photos and menu loading', () => {
+test('all three locales preserve interior concept photos, facade, CMS photo slots and server-rendered menu slots', () => {
   for (const prefix of ['', 'en/', 'ja/']) {
     for (const page of ['space','at-cafe','3am','stay-square']) {
       const html=fs.readFileSync(new URL(prefix+page+'.html',pub),'utf8');
       assert.match(html, /<link rel="stylesheet" href="\/space-dir\.css">/);
       assert.match(html, /assets\/space\/(?:[1-4]f-concept|1f-night)\.jpg/);
-      if (page==='space') assert.match(html, /facade-current\.jpg/);
-      assert.match(html, /content\.space_hero_image/);
-      assert.match(html, /space_' \+ f \+ 'f_image/);
-      assert.match(html, /MenuLib\.renderMenuHtml/);
+      if (page==='space') { assert.match(html, /facade-current\.jpg/); assert.match(html, /<figure class="hero-media" id="media-hero">/); }
+      // CMS 圖片／文案／菜單改由 lib/public-render.js 在伺服器端填入：頁面只留插槽，不再載 marked／DOMPurify／menu-lib 或抓 /api/public
+      assert.match(html, /<figure class="space-brand__media" data-image="(?:[1-4]|bar)">/);
+      assert.match(html, page==='stay-square' ? /<div class="md-content" data-md="[2-4]"><\/div>/ : /<div data-menu="(?:CAFE|BAR)"><\/div>/);
+      assert.doesNotMatch(html, /fetch\('\/api\/public'\)|\/vendor\/marked\.js|\/vendor\/purify\.min\.js|\/menu-lib\.js/);
     }
     const home=fs.readFileSync(new URL(prefix+'index.html',pub),'utf8');
     assert.match(home,/1f-concept\.jpg/);

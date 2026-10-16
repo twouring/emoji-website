@@ -201,8 +201,8 @@ test('space markdown passes parsed HTML to the sanitizer and fails closed withou
   for (const file of ['space.html', 'en/space.html', 'ja/space.html']) {
     const html = read('public/' + file);
     assert.doesNotMatch(html, /<script[^>]*src="https:\/\//);
-    assert.ok(html.indexOf('/vendor/marked.js') > html.indexOf('<!--SITE_FOOTER-->'));
-    assert.ok(html.indexOf('/vendor/purify.min.js') < html.indexOf('function fillMd('));
+    // 空間文案改在伺服器端 marked → sanitize-html（lib/public-render.js）；頁面不再載瀏覽器端 marked／DOMPurify
+    assert.doesNotMatch(html, /\/vendor\/marked\.js|\/vendor\/purify\.min\.js|function fillMd\(/);
     assert.doesNotMatch(html, /<script[^>]*src="\/space-dir\.js"/);
   }
 });

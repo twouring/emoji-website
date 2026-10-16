@@ -330,7 +330,7 @@
 
 <!-- ===== CTA / CONTACT / NEWSLETTER ===== -->
 
-<!-- ===== お知らせ／イベント（/api/public；空なら非表示） ===== -->
+<!-- ===== お知らせ／イベント（サーバー側で描画。空なら非表示） ===== -->
 <section id="news" hidden style="padding:54px 0">
   <div class="wrap">
     <div class="sec-head reveal">
@@ -377,38 +377,5 @@
 <!--SITE_FOOTER-->
 
 <script src="/script.js"></script>
-<script>
-(function(){
-  var esc = function(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); };
-  fetch('/api/public').then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
-    if(!d) return;
-    var notice = d.content && d.content.home_notice;
-    if(notice){ var nb=document.getElementById('site-notice'); if(nb){ nb.textContent=notice; nb.hidden=false; } }
-    var events = d.events || [], updates = (d.updates || []).slice(0,5);
-    if(events.length){
-      document.getElementById('news-events-list').innerHTML = events.map(function(e){
-        var meta = esc(e.starts_at||'日時未定') + (e.location?'｜'+esc(e.location):'');
-        return '<div style="padding:12px 0;border-top:1px solid var(--line)">'
-          + '<b style="font-weight:500">'+esc(e.title)+'</b>'
-          + '<div style="color:var(--muted);font-size:1rem;margin-top:.2em">'+meta+'</div>'
-          + (e.description?'<p style="color:var(--ink-soft);font-size:1rem;margin-top:.35em">'+esc(e.description)+'</p>':'')
-          + '</div>';
-      }).join('');
-      document.getElementById('news-events').hidden=false;
-    }
-    if(updates.length){
-      document.getElementById('news-updates-list').innerHTML = updates.map(function(u){
-        return '<div style="padding:12px 0;border-top:1px solid var(--line)">'
-          + '<b style="font-weight:500">'+esc(u.title)+'</b>'
-          + '<div style="color:var(--muted);font-size:1rem;margin-top:.2em">'+esc(u.published_at)+'｜'+esc(u.type)+'</div>'
-          + (u.content?'<p style="color:var(--ink-soft);font-size:1rem;margin-top:.35em;white-space:pre-wrap">'+esc(u.content)+'</p>':'')
-          + '</div>';
-      }).join('');
-      document.getElementById('news-updates').hidden=false;
-    }
-    if(events.length || updates.length) document.getElementById('news').hidden=false;
-  }).catch(function(){});
-})();
-</script>
 </body>
 </html>

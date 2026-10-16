@@ -9,6 +9,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const express = require('express');
+const compression = require('compression');
 const multer = require('multer');
 const { Pool } = require('pg');
 const Stripe = require('stripe');
@@ -51,6 +52,7 @@ const { PLAN_PRICE_TWD } = require('./lib/plans');
 const { FEATURED_ID, eventPage, featuredEvent } = require('./lib/event-page');
 const { sendPage, layoutMiddleware, composeEventMeta } = require('./lib/layout');
 const { SPACE_SEED, missingSpaceSeedKeys } = require('./lib/space-content');
+const publicRender = require('./lib/public-render');
 const { publicText, publicContent, publicEventCopy } = require('./lib/public-copy');
 const { assertSpaceImageFile, buildSafeSpaceFilename } = require('./lib/space-upload');
 const { assertSocialImageFile, buildSafeSocialFilename, sniffImageType } = require('./lib/social-upload');
@@ -1291,6 +1293,8 @@ app.use((req, res, next) => {
   if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) res.set('Cache-Control', 'no-store');
   next();
 });
+// gzip 由 Node 端壓縮（Cloud Run 前無 CDN）；SSE 回應自帶 no-transform，compression 會略過
+app.use(compression());
 // pos.emoji.tw 的首頁就是 POS（/pos）；官網首頁與其他頁面不在這個子網域提供，避免現場平板誤入官網
 app.use((req, res, next) => {
   if (!isPosHost(req)) return next();
@@ -4708,12 +4712,55 @@ app.get(['/halloween-2026','/en/halloween-2026','/ja/halloween-2026'], wrap(asyn
   sendPage(res,path.join(PUB,pre || '', 'halloween-2026.html'),req.path,html => eventPage(html,event,req.path));
 }));
 app.get(['/halloween-2026.html','/en/halloween-2026.html','/ja/halloween-2026.html'], (req,res) => res.redirect(301,req.path.replace(/\.html$/,'')));
+// 公開內容快照（首頁公告／活動／消息、空間文案、菜單）：與 /api/public 同查詢，記憶體快取 60 秒，
+// 讓首頁與空間頁在伺服器端渲染完成（SEO／GEO 可讀、不再每次到訪抓 ~100 KB JSON）。DB 未就緒回 null → 頁面維持靜態版（區塊隱藏、菜單顯示準備中）。
+const SNAPSHOT_TTL_MS = 60_000;
+let snapshotCache = { at: 0, value: null, pending: null };
+async function loadPublicSnapshot() {
+  const updates = numify((await q(`SELECT ${SEL_UPD} FROM updates ORDER BY published_at DESC`)).rows);
+  const events = (await q(`SELECT ${SEL_EVENT} FROM events e WHERE status IN ('預告','報名中') AND visibility='public' ORDER BY starts_at ASC NULLS LAST`)).rows;
+  const content = await readContent();
+  return { updates, events, content };
+}
+async function publicSnapshot() {
+  if (!pool || !dbReady) return null;
+  const now = Date.now();
+  if (snapshotCache.value && now - snapshotCache.at < SNAPSHOT_TTL_MS) return snapshotCache.value;
+  if (!snapshotCache.pending) snapshotCache.pending = loadPublicSnapshot()
+    .then(value => { snapshotCache = { at: Date.now(), value, pending: null }; return value; })
+    .catch(e => { console.error('[public-snapshot]', e.message); snapshotCache.pending = null; return snapshotCache.value; });
+  return snapshotCache.pending;
+}
+// 匿名公開頁可被瀏覽器／代理短暫快取；帶 utm_source 的請求會種 cookie，維持 no-store
+function publicPageCache(req, res) {
+  res.set('Cache-Control', req.query.utm_source ? 'no-store' : 'public, max-age=60, stale-while-revalidate=600');
+}
+const langOfPath = p => /^\/(en|ja)(?:\/|$)/.exec(p)?.[1] || 'zh';
 app.get(['/', '/en', '/ja', '/en/', '/ja/', '/events', '/en/events', '/ja/events'], wrap(async (req,res) => {
-  const event = await featuredRow();
+  const [event, snapshot] = await Promise.all([featuredRow(), publicSnapshot()]);
   const pre = /^\/(en|ja)(?:\/|$)/.exec(req.path)?.[1];
-  const file = req.path.endsWith('/events') ? EVENTS_PAGE : path.join(PUB,pre || '', 'index.html');
-  res.set('Cache-Control','no-store');
-  sendPage(res,file,req.path,html => featuredEvent(html,event,req.path));
+  const isEvents = req.path.endsWith('/events');
+  const file = isEvents ? EVENTS_PAGE : path.join(PUB,pre || '', 'index.html');
+  publicPageCache(req, res);
+  sendPage(res,file,req.path,html => {
+    html = featuredEvent(html,event,req.path);
+    return isEvents ? html : publicRender.renderHome(html, snapshot, langOfPath(req.path));
+  });
+}));
+// 空間與子品牌頁：空間文案、CMS 圖片、菜單皆伺服器端渲染（at-cafe／3am 另附餐廳菜單 JSON-LD）
+for (const page of ['space', 'at-cafe', '3am', 'stay-square']) {
+  app.get(['/' + page, '/en/' + page, '/ja/' + page], wrap(async (req, res) => {
+    const snapshot = await publicSnapshot();
+    const pre = /^\/(en|ja)(?:\/|$)/.exec(req.path)?.[1];
+    publicPageCache(req, res);
+    sendPage(res, path.join(PUB, pre || '', page + '.html'), req.path, html => publicRender.renderSpace(html, snapshot, langOfPath(req.path), page));
+  }));
+}
+// 動態 sitemap：靜態清單 + 公開活動頁（三語）；DB 未就緒時只回靜態內容
+app.get('/sitemap.xml', wrap(async (req, res) => {
+  const snapshot = await publicSnapshot();
+  res.set({ 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
+  res.send(publicRender.buildSitemap(fs.readFileSync(path.join(PUB, 'sitemap.xml'), 'utf8'), snapshot ? snapshot.events : []));
 }));
 app.get(['/embed/events/:slug','/en/embed/events/:slug','/ja/embed/events/:slug'],requireDb,wrap(async(req,res)=>{
  const event=(await q(`SELECT e.slug,e.embed_origins FROM events e WHERE (e.slug=$1 OR (e.id=(SELECT event_id FROM event_slug_redirects WHERE old_slug=$1) AND NOT EXISTS(SELECT 1 FROM events current WHERE current.slug=$1))) AND e.status<>'草稿' ORDER BY (e.slug=$1) DESC LIMIT 1`,[req.params.slug])).rows[0];
@@ -5758,8 +5805,11 @@ app.get('/ig-media/*', wrap(async (req, res) => {
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   setHeaders: (res,file) => {res.set('X-Content-Type-Options', 'nosniff');if(file.endsWith('.pdf'))res.set({'Content-Disposition':'attachment','Content-Security-Policy':"sandbox; default-src 'none'"});},   // 上傳目錄防內容嗅探
 }));
-// 靜態官網（無標記 HTML／資產）
-app.use(express.static(PUB, { extensions: ['html'] }));
+// 靜態官網（無標記 HTML／資產）：圖片／字型／vendor 可快取一天，css／js 十分鐘（保留 ETag 供再驗證）
+app.use(express.static(PUB, { extensions: ['html'], setHeaders: (res, file) => {
+  if (/\.(?:png|jpe?g|webp|gif|svg|ico|avif|woff2?|ttf|otf|mp4|webm|pdf)$/i.test(file) || file.includes(`${path.sep}vendor${path.sep}`)) res.set('Cache-Control', 'public, max-age=86400');
+  else if (/\.(?:css|js|mjs)$/i.test(file)) res.set('Cache-Control', 'public, max-age=600');
+} }));
 // JSON/parser/路由錯誤不可回傳 Express 預設的 stack trace 或伺服器路徑。
 app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);

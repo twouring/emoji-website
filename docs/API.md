@@ -95,6 +95,7 @@ PY
 ### GET /api/public
 公開唯讀資料，無個資：`{ raised, updates, events, content }`。活動只含「報名中」且公開的項目。
 `content` 僅回首頁公告、菜單及空間文案／圖片白名單；IG token 與內部排程資料不會傳至瀏覽器。
+官網首頁與空間／子品牌頁（`/`、`/space`、`/at-cafe`、`/3am`、`/stay-square` 三語）已改由伺服器端用同一份資料渲染（`lib/public-render.js`，記憶體快取 60 秒，回應 `Cache-Control: public, max-age=60`；帶 `utm_source` 時 `no-store`），不再於瀏覽器端呼叫此端點；本端點保留給桌邊點餐（`/order`）等其他用途。`/sitemap.xml` 亦為動態：靜態清單加上公開活動頁三語網址。
 
 ### GET /api/orders/config
 桌邊點餐前端設定：`{ tappay: { app_id, app_key, env } | null, vapid_public_key }`。TapPay 未設定時 `tappay` 為 null，前端顯示「請至櫃檯結帳」。

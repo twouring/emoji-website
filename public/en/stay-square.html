@@ -112,52 +112,5 @@
 
 <!--SITE_FOOTER-->
 
-<script src="/vendor/marked.js"></script>
-<script src="/vendor/purify.min.js"></script>
-<script src="/menu-lib.js"></script>
-<!-- 3D floor directory temporarily offline; keep brand photos and shared styles. -->
-<script>
-(function() {
-  var htmlLang = (document.documentElement.getAttribute('lang') || 'zh').toLowerCase();
-  var LANG = htmlLang.indexOf('en') === 0 ? 'en' : (htmlLang.indexOf('ja') === 0 ? 'ja' : 'zh');
-  var EMPTY_MENU = { zh: '目前尚未提供菜單資料。', en: 'Menu coming soon.', ja: 'メニュー準備中。' }[LANG];
-
-  function fillMd(el, raw) {
-    if (!raw) { el.hidden = true; return; }
-    if (window.marked && window.DOMPurify) el.innerHTML = DOMPurify.sanitize(marked.parse(raw), { USE_PROFILES: { html: true } });
-    else el.textContent = raw;
-  }
-  // 後台「網站內容」的空間文案／圖片（space_1f_zh…、space_1f_image）填入對應子品牌區塊；ponytail: 三點水共用 at cafe / 3AM 文案位（不另設欄位）
-  fetch('/api/public')
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (d) {
-      var content = (d && d.content) || {};
-      var hero = document.getElementById('media-hero');
-      var heroUrl = String(content.space_hero_image || '').trim();
-      if (hero && heroUrl) { hero.querySelector('img').src = heroUrl; hero.querySelector('figcaption').textContent = ''; }
-      [1, 2, 3, 4].forEach(function (f) {
-        var raw = String(content['space_' + f + 'f_' + LANG] || '').trim();
-        if (!raw && LANG === 'zh') raw = String(content['space_' + f + 'f'] || '').trim();
-        var md = document.querySelector('[data-md="' + f + '"]');
-        if (md) fillMd(md, raw);
-        var custom = String(content['space_' + f + 'f_image'] || '').trim();
-        var img = document.querySelector('[data-image="' + f + '"] img');
-        if (custom && img) { img.src = custom; img.removeAttribute('width'); img.removeAttribute('height'); }
-      });
-      var items = [];
-      if (content.menu && window.MenuLib) {
-        items = MenuLib.sortItems(MenuLib.publishedOnly(MenuLib.parseMenuDoc(content.menu)));
-      }
-      ['CAFE', 'BAR'].forEach(function (venue) {
-        var el = document.querySelector('[data-menu="' + venue + '"]');
-        if (el) el.innerHTML = MenuLib.renderMenuHtml(items.filter(function (it) { return it.venue === venue; }), LANG, EMPTY_MENU);
-      });
-    })
-    .catch(function (err) {
-      console.error(err);
-      document.querySelectorAll('[data-md]').forEach(function (el) { el.hidden = true; });
-    });
-})();
-</script>
 </body>
 </html>
