@@ -30,8 +30,8 @@ test('手機載具專屬相機掃描鍵：用 BarcodeDetector 掃條碼寫回 ca
   assert.match(ops, /id="pos-invoice-scan"[^>]*data-inv-modes="mobile"/);
   assert.match(ops, /const BD=barcodeDetectorClass\(\);/);
   assert.match(ops, /new BD\(\{formats:\['code_39','code_128','qr_code'\]\}\)/);
-  assert.match(ops, /此瀏覽器不支援相機掃碼，請直接輸入手機條碼/);
-  assert.match(ops, /carrierIn\.value=raw\.trim\(\)\.toUpperCase\(\)/);
+  assert.match(ops, /此瀏覽器不支援相機掃碼，請直接輸入條碼/);
+  assert.match(ops, /const v=raw\.trim\(\)\.toUpperCase\(\);stopPosInvoiceScanner\(video\);onCode\(v\)/, '掃到的條碼在共用迴圈裡去空白轉大寫');assert.match(ops, /if\(carrierIn\)carrierIn\.value=raw;/);
 });
 
 test('Safari／iOS 沒有內建 BarcodeDetector：改用同網域的 zxing-wasm，.wasm 也放本站，不連外部 CDN；PWA 殼一併快取；手機載具 Code 39 要關 extended 模式', () => {
@@ -51,7 +51,7 @@ test('Safari／iOS 沒有內建 BarcodeDetector：改用同網域的 zxing-wasm�
 });
 
 test('切換畫面／離開手機載具模式要停止相機，不留下背景串流', () => {
-  assert.match(ops, /function stopPosInvoiceScanner\(\)\{/);
+  assert.match(ops, /function stopPosInvoiceScanner\(video\)\{/);
   assert.match(ops, /function paintPos\(\)\{\s*\n\s*const host=document\.getElementById\('pos-body'\),d=POS_DATA;if\(!host\|\|!d\)return;\s*\n\s*stopPosInvoiceScanner\(\);/);
   assert.match(ops, /if\(mode!=='mobile'\)stopPosInvoiceScanner\(\);/);
 });
