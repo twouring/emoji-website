@@ -41,3 +41,8 @@ test('桌況區高度固定：桌號格自己捲，外帶／開桌釘在底部',
   assert.match(css, /@media\(min-width:1000px\)\{\.pos-layout \.pos-tables\{display:flex;flex-direction:column;height:calc\(100dvh/);
   assert.match(css, /\.pos-layout \.pos-tables \.pos-grid\{[^}]*overflow:auto/);
 });
+
+test('固定高度兩欄外距歸零：整頁不再多出 .a-sec margin-bottom 的可捲餘量', () => {
+  assert.match(css, /\.pos-layout\.has-panel \.pos-panel\{[^}]*height:calc\(100dvh[^}]*margin-bottom:0/);
+  assert.match(css, /\.pos-layout \.pos-tables\{[^}]*height:calc\(100dvh[^}]*margin-bottom:0/);
+});
