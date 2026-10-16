@@ -6,7 +6,7 @@ const src=readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');
 test('actual paintPos closure retains computed item prices for checkout printing',async()=>{
  const nodes=new Map(),printed=[],errors=[];
  const host={dataset:{},querySelector(s){if(!nodes.has(s))nodes.set(s,{value:'',disabled:false,querySelector(){return null;},querySelectorAll(){return [];}});return nodes.get(s);},querySelectorAll(){return [];}};
- const c=vm.createContext({console,setTimeout,clearTimeout,cancelAnimationFrame(){},document:{getElementById:id=>id==='pos-body'?host:null},esc:String,num:String,applicationTime:String,DATA:{payment_methods:[]},SCOPE:'CAFE',BRAND_LABEL:{CAFE:'在咖啡'},MENU_DOC:{items:[]},MenuLib:{sortItems:x=>x},OPERATOR:{id:'op'},opsHref:x=>x,ensureOperator:fn=>fn(),confirm:()=>true,toast:x=>errors.push(x)});
+ const c=vm.createContext({console,setTimeout,clearTimeout,cancelAnimationFrame(){},navigator:{userAgent:'Safari'},document:{getElementById:id=>id==='pos-body'?host:null},esc:String,num:String,applicationTime:String,DATA:{payment_methods:[]},SCOPE:'CAFE',BRAND_LABEL:{CAFE:'在咖啡'},MENU_DOC:{items:[]},MenuLib:{sortItems:x=>x},OPERATOR:{id:'op'},opsHref:x=>x,ensureOperator:fn=>fn(),confirm:()=>true,toast:x=>errors.push(x)});
  vm.runInContext(src,c);
  vm.runInContext(`POS_DATA={sessions:[{id:'ts_test',table:'A1',state:'ordered',lines:[{line:'a',zh:'咖啡',qty:1,price:100}]}],orders:[]};POS_TABLE='A1';
  posTotals=()=>({picked:POS_DATA.sessions[0].lines,priceOf:()=>80,subtotal:80,total:80,discount:0,regular:100});

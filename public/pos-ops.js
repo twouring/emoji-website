@@ -291,6 +291,18 @@ function resumeKitchenPrinting(){
   KITCHEN_PRINT_PAUSED=false;toast('已恢復新單自動列印；前一張結果不明的單請檢查後手動補印。');
 }
 const KITCHEN_PRINT_UNKNOWN=new Set();
+// 結帳頁狀態列：運行中（Star Browser＋mPOP SDK 就緒、未暫停）／已暫停（只有這時才有恢復鍵）／未自動出單（一般瀏覽器或結果未明）
+function kitchenPrintStatus(){
+  if(KITCHEN_PRINT_PAUSED)return {state:'paused'};
+  if(!starReady()||STAR_NATIVE_UNCERTAIN)return {state:'unavailable'};
+  return {state:'running'};
+}
+function kitchenPrintStatusHtml(){
+  const st=kitchenPrintStatus().state;
+  if(st==='paused')return `<div class="a-toolbar pos-print-status pos-print-paused"><span class="pill pill-bad">自動出單已暫停</span><span class="hint" style="margin:0">檢查紙張、補印後</span><button type="button" class="btn btn--ghost btn-xs" id="pos-print-resume">恢復自動出單</button></div>`;
+  if(st==='running')return `<div class="a-toolbar pos-print-status"><span class="pill pill-ok">自動出單運行中</span><span class="hint" style="margin:0">客人送單後這台會自動印出餐單</span></div>`;
+  return `<div class="a-toolbar pos-print-status"><span class="pill pill-draft">這台未自動出單</span><span class="hint" style="margin:0">要自動印出餐單，請用 Star webPRNT Browser 開 POS 並接上 mPOP</span></div>`;
+}
 function startKitchenPrinting(){
   if(KITCHEN_PRINT_TIMER!==null)return;
   KITCHEN_PRINT_TIMER=setTimeout(async function tick(){
@@ -508,7 +520,7 @@ function paintPos(){
       ${live.length?`<h3>這桌已結帳的單</h3><div class="a-wrap2"><table class="a-tbl pos-paid"><thead><tr><th>品項 · 時間 · 狀態</th><th>付款</th><th class="num">金額</th><th class="ops-th">操作</th></tr></thead><tbody>${liveRows}</tbody></table></div>`:''}
     </div>`;
   }
-  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('點空桌直接開桌；點已開的桌看這桌的帳。沒印在桌牌上的桌號或外帶用下面加開。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div>${registerBar()}${KITCHEN_PRINT_PAUSED?`<div class="a-toolbar pos-print-paused"><span class="pill pill-bad">自動出單已暫停</span><span class="hint" style="margin:0">檢查紙張、補印後</span><button type="button" class="btn btn--ghost btn-xs" id="pos-print-resume">恢復自動出單</button></div>`:''}${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>'}${opener}<div class="pos-grid">${grid}</div></div>${panel}</div>`;
+  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('點空桌直接開桌；點已開的桌看這桌的帳。沒印在桌牌上的桌號或外帶用下面加開。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div>${registerBar()}${kitchenPrintStatusHtml()}${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>'}${opener}<div class="pos-grid">${grid}</div></div>${panel}</div>`;
   const reload=()=>{host.dataset.sig='';return loadPos();};
   bindRegisterBar(host,reload);
   if(!document.getElementById('p-drawer'))bindCashDrawerButton(host.querySelector('#pos-cash-drawer'));

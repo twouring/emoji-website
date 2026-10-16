@@ -52,10 +52,17 @@ test('printer failure stops claiming later tickets until explicit operator resum
  assert.deepEqual([...c.prints],['tk_one','tk_two']);
 });
 test('resume control is hidden unless paused and requires explicit confirmation',()=>{
- assert.match(src,/KITCHEN_PRINT_PAUSED\?`[^`]*id="pos-print-resume"[^`]*`:''/);
+ assert.match(src,/if\(st==='paused'\)return `[^`]*id="pos-print-resume"[^`]*`;/);assert.doesNotMatch(src.replace(/if\(st==='paused'\)return `[^`]*`;/,''),/pos-print-resume"/);
  const {c}=browser();vm.runInContext('KITCHEN_PRINT_PAUSED=true;confirm=()=>false;',c);
  vm.runInContext('resumeKitchenPrinting()',c);assert.equal(vm.runInContext('KITCHEN_PRINT_PAUSED',c),true);
  vm.runInContext('confirm=()=>true;resumeKitchenPrinting()',c);assert.equal(vm.runInContext('KITCHEN_PRINT_PAUSED',c),false);
+});
+test('checkout page shows a running/paused/unavailable auto-print status label',()=>{
+ assert.match(src,/\$\{kitchenPrintStatusHtml\(\)\}/);
+ const {c}=browser();
+ assert.equal(vm.runInContext('kitchenPrintStatus().state',c),'running');assert.match(vm.runInContext('kitchenPrintStatusHtml()',c),/自動出單運行中/);
+ vm.runInContext('KITCHEN_PRINT_PAUSED=true',c);assert.equal(vm.runInContext('kitchenPrintStatus().state',c),'paused');assert.match(vm.runInContext('kitchenPrintStatusHtml()',c),/id="pos-print-resume"/);
+ const off=browser({ready:false}).c;assert.equal(vm.runInContext('kitchenPrintStatus().state',off),'unavailable');assert.match(vm.runInContext('kitchenPrintStatusHtml()',off),/未自動出單/);assert.doesNotMatch(vm.runInContext('kitchenPrintStatusHtml()',off),/pos-print-resume/);
 });
 test('ordinary browser never consumes a printer claim',async()=>{
  const {c,calls}=browser({ready:false});await vm.runInContext('pollKitchenPrinting()',c);assert.equal(calls.length,0);
