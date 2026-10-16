@@ -65,6 +65,18 @@ test('reconcile：只算 POS 登記 linepay 的成立單；LINE Pay 實收扣退
   assert.equal(L.venueOfTime('2026-10-16T01:00:00+08:00'), 'BAR'); assert.equal(L.venueOfTime('2026-10-16T08:00:00+08:00'), 'CAFE');
   assert.equal(L.venueOfTime('2026-10-16T16:59:00+08:00'), 'CAFE'); assert.equal(L.venueOfTime('2026-10-16T17:00:00+08:00'), 'BAR');
   assert.equal(L.venueOfTime('2026-10-17T02:30:00+08:00'), 'BAR');
+  // 有開關帳紀錄時以開帳～關帳時間為準（pg 回 Date 物件）；關帳後到下一店開帳前算前一本帳；第一本帳開帳前算第一本帳；還沒關帳的視為開到現在
+  const regs = [
+    { venue: 'BAR', opened_at: new Date('2026-10-16T18:10:00+08:00'), closed_at: null },
+    { venue: 'CAFE', opened_at: new Date('2026-10-16T09:30:00+08:00'), closed_at: new Date('2026-10-16T17:40:00+08:00') },
+  ];
+  assert.equal(L.venueOfTime('2026-10-16T09:00:00+08:00', regs), 'CAFE', '開帳前');
+  assert.equal(L.venueOfTime('2026-10-16T17:20:00+08:00', regs), 'CAFE', '在咖啡 17:00 後還沒關帳');
+  assert.equal(L.venueOfTime('2026-10-16T17:50:00+08:00', regs), 'CAFE', '關帳後、三點水開帳前');
+  assert.equal(L.venueOfTime('2026-10-16T18:10:00+08:00', regs), 'BAR');
+  assert.equal(L.venueOfTime('2026-10-17T02:50:00+08:00', regs), 'BAR', '還沒關帳');
+  assert.equal(L.venueOfTime('2026-10-16T12:00:00+08:00', [{ venue: 'BAR', opened_at: '2026-10-16T11:00:00+08:00', closed_at: null }]), 'BAR', '只開過三點水就全歸三點水');
+  assert.equal(L.reconcile(orders, txs, { registers: [{ venue: 'CAFE', opened_at: '2025-10-15T00:00:00+08:00', closed_at: null }] }).by_venue.CAFE.linepay.amount, 220, 'reconcile 帶 registers');
   const cafe = L.reconcile(orders, txs, { venues: ['CAFE'] });
   assert.deepEqual(cafe.pos, { count: 1, amount: 220 }); assert.equal(cafe.linepay.amount, -180, '在咖啡只含 13:05 的退款'); assert.equal(cafe.diff, -400);
   const bar = L.reconcile(orders, txs, { venues: ['BAR'] });
@@ -105,7 +117,7 @@ test('fetchTransactions：按月抓、去重、session 失效重登；瀏覽器�
 test('server.js 接線：資料表、日結回 linepay、同步／匯入端點、每日排程', () => {
   const s = read('server.js');
   assert.match(s, /CREATE TABLE IF NOT EXISTS linepay_transactions/);
-  assert.match(s, /app\.get\('\/api\/admin\/sales'[\s\S]{0,1500}linepay\.reconcile\(orders,txs,\{venues\}\)/);
+  assert.match(s, /app\.get\('\/api\/admin\/sales'[\s\S]{0,1500}linepay\.reconcile\(orders,txs,\{venues,registers\}\)/);
   assert.match(s, /app\.post\('\/api\/admin\/sales\/linepay\/sync',auth,adminOnly,requireDb/);
   assert.match(s, /app\.post\('\/api\/admin\/sales\/linepay\/import',auth,adminOnly,superOnly,requireDb/, '歷史匯入只給超管／agent');
   assert.match(s, /ON CONFLICT \(id\) DO UPDATE SET type=EXCLUDED\.type/, '同一筆交易重抓是覆寫不是重複');

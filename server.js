@@ -5140,10 +5140,11 @@ app.get('/api/admin/sales',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   // 營業日 = 台北 03:00 起算 24 小時
   const from=new Date(day+'T03:00:00+08:00'),to=new Date(+from+86400e3);
   const orders=(await q('SELECT id,session_id,table_no,items,amount,payer,tappay,invoice,status,paid_at,void_reason,voided_by FROM table_orders WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[from,to])).rows;
-  // LINE Pay 對帳：同一營業日 LINE Pay 後台實收 vs POS 登記為 LINE Pay 的單；LINE Pay 不分店別，所以子帳號看到的實收是全店的
+  // LINE Pay 對帳：同一營業日 LINE Pay 後台實收 vs POS 登記為 LINE Pay 的單；LINE Pay 後台不分店別，依當天開關帳時間把每筆實收歸到在咖啡／三點水
+  const registers=(await q('SELECT venue,opened_at,closed_at FROM pos_registers WHERE day=$1 ORDER BY opened_at',[day])).rows;
   const txs=(await q('SELECT id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no FROM linepay_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[from,to])).rows;
   const last=(await q('SELECT max(synced_at) AS at FROM linepay_transactions')).rows[0].at;
-  const lp=linepay.reconcile(orders,txs,{venues});
+  const lp=linepay.reconcile(orders,txs,{venues,registers});
   // 台新手機付對帳：沒有查詢 API，用當天手動填寫的實收總額（填一次存一次，沒填過就是 null）
   const tsRow=(await q('SELECT amount,reason,filled_by,updated_at FROM pos_taishin_daily WHERE day=$1',[day])).rows[0]||null;
   const ts=taishinManual.reconcile(orders,tsRow,{venues});
