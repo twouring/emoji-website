@@ -53,6 +53,9 @@ tr.resv-off td{color:var(--muted)}tr.resv-off .btn{opacity:.75}
 .pos-layout{display:grid;gap:16px;align-items:start}
 .pos-layout>*{min-width:0}
 @media(min-width:1000px){.pos-layout.has-panel{grid-template-columns:minmax(280px,30%) minmax(0,1fr)}.pos-layout.has-panel .pos-grid{grid-template-columns:repeat(auto-fill,minmax(124px,1fr))}}
+/* 直向平板／手機：選桌後只看帳單，桌況格收起來；「← 桌況」回到格子。橫向雙欄時這顆鍵藏起來。 */
+.btn.pos-back{display:none;min-height:48px;padding:6px 12px;margin-right:6px;flex:none}
+@media(max-width:999px){.pos-layout.has-panel .pos-tables{display:none}.btn.pos-back{display:inline-flex}}
 /* 兩欄模式的右欄只有 600–900px：表格一律用緊湊欄距（不管視窗多寬），避免橫捲 */
 .pos-layout.has-panel .pos-panel .a-tbl th,.pos-layout.has-panel .pos-panel .a-tbl td{padding-left:8px;padding-right:8px}
 .pos-layout.has-panel .pos-panel .a-tbl td.ops-item{min-width:9em}.pos-layout.has-panel .pos-panel .a-tbl td.ops-pay{min-width:8em}
@@ -89,8 +92,8 @@ tr.pos-comp td{background:var(--ok-faint)}
 
 /* ── 付款區：付款方式 → 金額卡（小計／會員價／折扣／應收／現金找零）→ 發票（收合）→ 收款 ── */
 .pos-pay{display:grid;gap:14px;margin-top:16px;padding-top:16px;border-top:1px dashed var(--line)}
-.pos-methods{display:flex;flex-wrap:wrap;gap:8px}
-.pos-method{position:relative}.pos-method input{position:absolute;opacity:0;inset:0;margin:0}.pos-method span{display:inline-flex;align-items:center;min-height:48px;padding:0 18px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem;cursor:pointer}
+.pos-methods{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.pos-method{position:relative}.pos-method input{position:absolute;opacity:0;inset:0;margin:0}.pos-method span{display:flex;align-items:center;justify-content:center;min-height:56px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:1rem;cursor:pointer;text-align:center;width:100%}
 .pos-method input:checked+span{background:var(--ink);color:var(--paper);border-color:var(--ink)}.pos-method input:focus-visible+span{outline:2px solid var(--ink);outline-offset:2px}
 .pos-sum{width:100%;border:1px solid var(--line);border-radius:10px;background:var(--paper-alt);overflow:hidden;font-size:1rem;font-variant-numeric:tabular-nums}
 .pos-sum>div{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:54px;padding:4px 14px}
@@ -108,7 +111,8 @@ tr.pos-comp td{background:var(--ok-faint)}
 .pos-cash label{display:inline-flex;align-items:center;gap:10px;font-size:1rem}.pos-cash input{width:150px;min-height:48px;font:inherit;font-size:1.2rem;padding:8px 12px;border:1px solid var(--muted);border-radius:8px;background:var(--card);color:var(--ink);font-variant-numeric:tabular-nums}
 .pos-cash-quick{display:flex;flex:1 1 240px;gap:8px}.pos-cash-quick button{all:unset;box-sizing:border-box;cursor:pointer;flex:1 1 0;min-height:48px;padding:0 10px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
 .pos-cash-quick button:active{background:var(--paper-alt)}.pos-cash-quick button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-.pos-sum .pos-change{background:var(--card);min-height:52px}.pos-sum .pos-change b{font-size:1.375rem;font-weight:600;font-variant-numeric:tabular-nums}.pos-sum .pos-change.has b{color:var(--ok)}
+.pos-sum .pos-change{background:var(--ok-soft);min-height:68px}.pos-sum .pos-change b{font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums}.pos-sum .pos-change.has b{color:var(--ok)}
+.pos-sum-member{flex-wrap:wrap;align-items:center}.pos-sum-member label{display:flex;flex:1 1 220px;align-items:center;gap:8px;min-width:0}.pos-sum-member input[type=tel],.pos-sum-member #pos-yan-phone{flex:1;min-width:0;min-height:48px;font:inherit;font-size:1rem;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}.pos-sum-member #pos-yan-lookup{flex:none}
 /* 發票：預設收起只有一行，展開才有底色 */
 .pos-invoice{width:100%;border-top:1px solid var(--line)}
 .pos-invoice summary{list-style:none;cursor:pointer;min-height:48px;display:flex;align-items:center;gap:8px}.pos-invoice summary::-webkit-details-marker{display:none}.pos-invoice summary b{font-size:1rem;font-weight:500}
@@ -122,8 +126,18 @@ tr.pos-comp td{background:var(--ok-faint)}
 #pos-invoice-video,#pos-carrier-video{display:none;width:100%;max-width:320px;border-radius:8px;margin-top:6px}.pos-move-box .pos-inv-scan-row input{min-height:48px;font-size:1.125rem;padding:0 10px}.pos-move-box .pos-inv-scan-row #pos-carrier-scan{flex:none;min-height:48px}
 /* 收款獨佔一列最大；換桌／清桌縮小放下面 */
 .pos-actions{display:grid;gap:10px;width:100%}
-.pos-actions #pos-checkout{min-height:60px;font-size:1.25rem;font-weight:600}
-.pos-actions-sub{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end}.pos-actions-sub .btn{min-height:48px}
+.pos-actions-sub{display:flex;flex-wrap:wrap;gap:10px}.pos-actions-sub .btn{min-height:48px}
+.pos-actions #pos-close{justify-self:end;min-height:48px}
+/* 帳單面板自己捲：收款列 sticky 在面板底，第一屏就能按。直向選桌後面板吃滿可視高度。 */
+.pos-layout.has-panel .pos-panel{display:flex;flex-direction:column;max-height:calc(100dvh - var(--p-top,60px) - 48px);overflow:hidden;padding-bottom:0}
+@media(max-width:999px){.pos-layout.has-panel .pos-panel{max-height:calc(100dvh - 13rem)}}
+.pos-panel-scroll{flex:1;min-height:0;overflow:auto}
+.pos-dock{flex:none;z-index:12;display:flex;align-items:center;gap:12px;margin:0 -16px;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--line);box-shadow:0 -8px 24px rgba(20,18,16,.08)}
+.pos-dock-change,.pos-dock-due{display:flex;flex-direction:column;gap:0;min-width:7em;font-variant-numeric:tabular-nums}
+.pos-dock-change span,.pos-dock-due span{font-size:1rem;color:var(--muted);line-height:1.2}
+.pos-dock-change b,.pos-dock-due b{font-size:1.75rem;line-height:1.1;font-weight:700}
+.pos-dock-change.has b{color:var(--ok)}
+.pos-dock #pos-checkout{flex:1;min-height:64px;font-size:1.25rem;font-weight:600}
 
 /* ── 開關帳：結帳頁一條狀態列（每品牌一顆晶片）；日結頁每品牌一張卡 ── */
 .reg-bar{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
