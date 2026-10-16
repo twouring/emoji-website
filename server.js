@@ -1922,6 +1922,7 @@ app.get('/api/line/qr/:token.png', requireDb, rateLimit({max:120,windowMs:60000}
   if(!valid.rowCount)return res.status(404).json({error:'找不到有效票券。'});
   res.type('png').send(line.qrPng(String(req.params.token)));
 }));
+app.get('/api/auth/methods', (_req, res) => { res.set('Cache-Control', 'no-store'); res.json({ line: !!line.loginConfig() }); });
 app.get('/auth/line', (req, res) => {
   const lc = line.loginConfig();
   if (!lc) return res.status(503).send('LINE 登入尚未開通。');
