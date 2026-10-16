@@ -817,17 +817,6 @@ async function migrate() {
   await q(`CREATE TABLE IF NOT EXISTS line_events (id TEXT PRIMARY KEY, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE TABLE IF NOT EXISTS line_broadcasts (id TEXT PRIMARY KEY, segment TEXT NOT NULL, text TEXT NOT NULL, url TEXT NOT NULL DEFAULT '', recipients INT NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE UNIQUE INDEX IF NOT EXISTS users_phone_e164_uidx ON users(phone_e164) WHERE phone_e164 IS NOT NULL AND phone_e164<>''`);
-  await q(`CREATE TABLE IF NOT EXISTS passkeys (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    jwk JSONB NOT NULL,
-    counter BIGINT NOT NULL DEFAULT 0,
-    transports TEXT NOT NULL DEFAULT '',
-    name TEXT NOT NULL DEFAULT '',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    last_used_at TIMESTAMPTZ
-  )`);
-  await q(`CREATE INDEX IF NOT EXISTS passkeys_user_idx ON passkeys(user_id)`);
   await q(`CREATE TABLE IF NOT EXISTS yan_ledger (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -1799,96 +1788,6 @@ app.get('/auth/google/callback', wrap(async (req, res) => {
   // token 以 URL fragment 帶回官網（不進伺服器存取記錄）；官網讀取後即從網址移除
   const sep = redirect.includes('#') ? '&' : '#';
   res.redirect(redirect + sep + 'token=' + encodeURIComponent(token));
-}));
-
-/* ---- Passkey（Touch ID／Face ID）：登入過一次後在「我的」啟用，之後用生物辨識換 session token ---- */
-const passkey = require('./lib/passkey');
-function passkeyRp(req) {
-  const host = String(req.hostname || '').toLowerCase();
-  const allowed = APP_HOSTS.includes(host) || host === SITE_HOST || (!SITE_BASE.startsWith('https://') && (host === 'localhost' || host === '127.0.0.1'));
-  if (!allowed) return null;
-  return { rpId: host, origins: [(SITE_BASE.startsWith('https://') ? 'https://' : 'http://') + req.get('host')] };
-}
-const passkeyOnly = (req, res, next) => (!req.auth.sub || req.auth.agent || req.auth.operator_staff_id) ? res.status(403).json({ error: '請以會員身分登入。' }) : next();
-const passkeyGuard = (req, res, next) => { req.rp = passkeyRp(req); return req.rp ? next() : res.status(400).json({ error: '這個網域不支援 Passkey。' }); };
-app.get('/api/passkey', auth, requireDb, passkeyOnly, wrap(async (req, res) => {
-  const rows = (await q('SELECT id,name,created_at,last_used_at FROM passkeys WHERE user_id=$1 ORDER BY created_at', [req.auth.sub])).rows;
-  res.set('Cache-Control', 'no-store'); res.json({ passkeys: rows });
-}));
-app.post('/api/passkey/register/options', rateLimit({ max: 20 }), auth, requireDb, passkeyOnly, passkeyGuard, wrap(async (req, res) => {
-  const u = (await q('SELECT id,email,name FROM users WHERE id=$1', [req.auth.sub])).rows[0];
-  if (!u) return res.status(401).json({ error: '請先登入。' });
-  const challenge = crypto.randomBytes(32).toString('base64url');
-  const exclude = (await q('SELECT id FROM passkeys WHERE user_id=$1', [u.id])).rows.map(r => r.id);
-  const state = signToken({ k: 'pk-reg', c: challenge, sub: u.id, rp: req.rp.rpId }, { purpose: 'oauth' });
-  res.set('Cache-Control', 'no-store');
-  res.json({ state, options: passkey.registrationOptions({ rpId: req.rp.rpId, rpName: '言文字', user: { id: u.id, name: u.email || u.id, displayName: u.name || u.email || '會員' }, challenge, exclude }) });
-}));
-app.post('/api/passkey/register/verify', rateLimit({ max: 20 }), auth, requireDb, passkeyOnly, passkeyGuard, wrap(async (req, res) => {
-  const st = verifyToken(String(req.body?.state || ''), { purpose: 'oauth' });
-  if (!st || st.k !== 'pk-reg' || st.sub !== req.auth.sub || st.rp !== req.rp.rpId) return res.status(400).json({ error: '驗證已逾時，請重試。' });
-  const n = (await q('SELECT COUNT(*)::int AS n FROM passkeys WHERE user_id=$1', [req.auth.sub])).rows[0].n;
-  if (n >= 10) return res.status(409).json({ error: '最多設定 10 組 Passkey，請先移除舊的。' });
-  let r;
-  try { r = passkey.verifyRegistration({ credential: req.body?.credential, challenge: st.c, rpId: req.rp.rpId, origins: req.rp.origins }); }
-  catch (e) { if (e.code === 'PASSKEY_INVALID') return res.status(400).json({ error: e.message }); throw e; }
-  const name = String(req.body?.name || '').trim().slice(0, 40) || '這台裝置';
-  try { await q('INSERT INTO passkeys(id,user_id,jwk,counter,transports,name) VALUES($1,$2,$3,$4,$5,$6)', [r.credentialId, req.auth.sub, JSON.stringify(r.jwk), r.counter, r.transports.join(','), name]); }
-  catch (e) { if (e.code === '23505') return res.status(409).json({ error: '這組 Passkey 已經設定過。' }); throw e; }
-  res.json({ ok: true });
-}));
-app.post('/api/passkey/login/options', rateLimit({ max: 30 }), requireDb, passkeyGuard, wrap(async (req, res) => {
-  const challenge = crypto.randomBytes(32).toString('base64url');
-  const state = signToken({ k: 'pk-login', c: challenge, rp: req.rp.rpId }, { purpose: 'oauth' });
-  res.set('Cache-Control', 'no-store'); res.json({ state, options: passkey.authenticationOptions({ rpId: req.rp.rpId, challenge }) });
-}));
-app.post('/api/passkey/login/verify', rateLimit({ max: 30 }), requireDb, passkeyGuard, wrap(async (req, res) => {
-  const bad = () => res.status(401).json({ error: 'Passkey 驗證失敗，請改用其他方式登入。' });
-  const st = verifyToken(String(req.body?.state || ''), { purpose: 'oauth' });
-  if (!st || st.k !== 'pk-login' || st.rp !== req.rp.rpId) return res.status(400).json({ error: '驗證已逾時，請重試。' });
-  const cred = req.body?.credential, id = typeof cred?.id === 'string' ? cred.id : '';
-  if (!/^[A-Za-z0-9_-]{16,1400}$/.test(id)) return bad();
-  const row = (await q('SELECT p.*,u.email,u.name AS uname,u.is_admin FROM passkeys p JOIN users u ON u.id=p.user_id WHERE p.id=$1', [id])).rows[0];
-  if (!row) return bad();
-  let out;
-  try { out = passkey.verifyAssertion({ credential: cred, challenge: st.c, rpId: req.rp.rpId, origins: req.rp.origins, stored: { jwk: row.jwk, counter: Number(row.counter) } }); }
-  catch (e) { if (e.code === 'PASSKEY_INVALID') return bad(); throw e; }
-  await q('UPDATE passkeys SET counter=$2,last_used_at=now() WHERE id=$1', [id, out.counter]);
-  const isSuper = String(row.email || '').toLowerCase() === SUPER_ADMIN_EMAIL;
-  const n = (await q('SELECT COUNT(*)::int AS n FROM commitments WHERE user_id=$1', [row.user_id])).rows[0].n;
-  const role = isSuper || row.is_admin === true ? 'admin' : (n > 0 ? 'participant' : 'invited');
-  res.set('Cache-Control', 'no-store'); res.json({ token: signToken({ role, sub: row.user_id, super: isSuper, name: row.uname || '' }) });
-}));
-// 快速註冊：只要名字＋Touch ID／Face ID，驗證成功才建立帳號（沒有 Email，之後可在 App 內再綁 Google）
-app.post('/api/passkey/signup/options', rateLimit({ max: 10, windowMs: 3600000 }), requireDb, passkeyGuard, wrap(async (req, res) => {
-  const name = String(req.body?.name || '').trim();
-  if (!name || name.length > 80) return res.status(400).json({ error: '請填寫名字（80 字以內）。' });
-  const id = uid('u_'), challenge = crypto.randomBytes(32).toString('base64url');
-  const state = signToken({ k: 'pk-signup', c: challenge, uid: id, nm: name, rp: req.rp.rpId }, { purpose: 'oauth' });
-  res.set('Cache-Control', 'no-store');
-  res.json({ state, options: passkey.registrationOptions({ rpId: req.rp.rpId, rpName: '言文字', user: { id, name, displayName: name }, challenge, exclude: [] }) });
-}));
-app.post('/api/passkey/signup/verify', rateLimit({ max: 10, windowMs: 3600000 }), requireDb, passkeyGuard, wrap(async (req, res) => {
-  const st = verifyToken(String(req.body?.state || ''), { purpose: 'oauth' });
-  if (!st || st.k !== 'pk-signup' || st.rp !== req.rp.rpId) return res.status(400).json({ error: '驗證已逾時，請重試。' });
-  let r;
-  try { r = passkey.verifyRegistration({ credential: req.body?.credential, challenge: st.c, rpId: req.rp.rpId, origins: req.rp.origins }); }
-  catch (e) { if (e.code === 'PASSKEY_INVALID') return res.status(400).json({ error: e.message }); throw e; }
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query("INSERT INTO users(id,name,status) VALUES($1,$2,'已查看')", [st.uid, st.nm]);
-    await client.query('INSERT INTO passkeys(id,user_id,jwk,counter,transports,name) VALUES($1,$2,$3,$4,$5,$6)', [r.credentialId, st.uid, JSON.stringify(r.jwk), r.counter, r.transports.join(','), '這台裝置']);
-    await client.query('COMMIT');
-  } catch (e) {
-    await client.query('ROLLBACK');
-    if (e.code === '23505') return res.status(409).json({ error: '這組 Passkey 已經註冊過，請直接登入。' });
-    throw e;
-  } finally { client.release(); }
-  res.set('Cache-Control', 'no-store'); res.json({ token: signToken({ role: 'invited', sub: st.uid, super: false, name: st.nm }) });
-}));
-app.delete('/api/passkey/:id', auth, requireDb, passkeyOnly, wrap(async (req, res) => {
-  await q('DELETE FROM passkeys WHERE id=$1 AND user_id=$2', [req.params.id, req.auth.sub]); res.json({ ok: true });
 }));
 
 /* ---- LINE 官方帳號：服務層、LINE Login（會員綁定／訂位通知）、後台 API ---- */

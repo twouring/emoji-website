@@ -599,30 +599,6 @@ X 貼文 AI 起草：body `{ topic }`，回 `{ ok, draft: { title, caption, capt
 ### GET /api/me/access-qr
 取得 45 秒有效的進出 QR token。
 
-### GET /api/passkey
-列出自己已啟用的 Passkey（Touch ID／Face ID）。回 `{ passkeys: [{ id, name, created_at, last_used_at }] }`。agent 金鑰、POS 操作人員 403。
-
-### POST /api/passkey/register/options
-開始註冊 Passkey（需已登入）。回 `{ state, options }`，`options` 為 WebAuthn `PublicKeyCredentialCreationOptions`（平台驗證器、必須生物辨識、可探索憑證）；`state` 10 分鐘內有效。只允許 app／www 網域。
-
-### POST /api/passkey/register/verify
-完成註冊。body：`{ state, name?, credential: { id, response: { clientDataJSON, attestationObject, transports? } } }`（皆 base64url），回 `{ ok }`。每位會員最多 10 組；重複註冊 409；驗證失敗 400。
-
-### POST /api/passkey/login/options
-免登入。回 `{ state, options }`（`PublicKeyCredentialRequestOptions`，不指定帳號，由裝置挑選 Passkey）。
-
-### POST /api/passkey/login/verify
-body：`{ state, credential: { id, response: { clientDataJSON, authenticatorData, signature } } }`，驗簽成功回 `{ token }`（同 Google 登入的 session token，權限依帳號重算）；失敗 401。
-
-### POST /api/passkey/signup/options
-快速註冊（免登入、免 Email）。body：`{ name }`（1–80 字），回 `{ state, options }`；此時尚未建立帳號。每小時每 IP 10 次。
-
-### POST /api/passkey/signup/verify
-body：`{ state, credential }`（同 register/verify）。驗證成功才建立沒有 Email 的會員並綁定這組 Passkey，回 `{ token }`；重複註冊 409。沒有 Email 的帳號無法用 Google／Email 找回，遺失裝置後需客服處理。
-
-### DELETE /api/passkey/:id
-移除自己的一組 Passkey，回 `{ ok }`。
-
 ### GET /api/me/yan
 登入會員的點數餘額。回 `{ ok, balance, phone }`。消費每滿 NT$100 累積 1 點，隔年 4/30 到期；作廢出餐單會沖回。agent 金鑰 403。
 

@@ -83,10 +83,22 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tab) + env(safe-area-inset-bottom) + 16px);background:var(--ink);color:var(--paper);padding:.7em 1.1em;border-radius:12px;z-index:40;max-width:90vw}
 .toast[hidden]{display:none}
 /* 登入 */
-.login{min-height:80vh;display:flex;flex-direction:column;justify-content:center;text-align:center;gap:14px}
-.login .mark{width:96px;height:96px;margin:0 auto}
+.login{min-height:80vh;display:flex;flex-direction:column;justify-content:center;text-align:center;gap:10px}
+.login .mark{width:88px;height:88px;margin:0 auto 4px}
 .login h1{font-size:1.7rem}
 .login p{color:var(--muted);margin:0;text-wrap:balance}
+.login .ways{display:flex;flex-direction:column;gap:12px;margin-top:22px}
+.login .way{position:relative;display:flex;align-items:center;justify-content:center;width:100%;min-height:56px;padding:0 56px;border-radius:16px;border:1.5px solid var(--line);background:#fff;color:var(--ink);font-weight:500;font-size:1.05rem;text-decoration:none;font-family:inherit}
+.login .way svg{position:absolute;left:18px;top:50%;width:24px;height:24px;transform:translateY(-50%)}
+.login .way.line{background:#06C755;border-color:#06C755;color:#fff}
+.login .way.email{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.login .way:active{transform:scale(.985)}
+.login .first{margin-top:14px}
+.login .ef{text-align:left;margin-top:8px}
+.login .ef .btn{margin-top:16px}
+.login .sent{background:var(--alt);border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:22px}
+.login .sent b{display:block;font-size:1.1rem;margin-bottom:6px}
+.login .lang{margin-top:22px}
 .offline{background:var(--alt);border:1px solid var(--line);color:var(--soft);border-radius:10px;padding:.4em .8em;margin-bottom:12px;text-align:center}
 /* 預約表單 */
 .fld{display:block;color:var(--soft);margin-top:12px}
@@ -170,7 +182,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   const PROMO_END='2026-12-31',promoOpen=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei'}).format(new Date())<=PROMO_END;
   const I18N={
     zh:{locale:'zh-TW',tabHome:'會員卡',tabPlan:'會籍',tabEvents:'活動',tabMe:'我的',loading:'載入中…',
-      loginTitle:'言文字 會員',loginSub:'登入後，用一張卡在所有空間累積點數、查看會籍、報名活動。',pkLogin:'用 Touch ID／Face ID 登入',pkName:'第一次來？輸入名字',pkSignup:'用 Touch ID／Face ID 快速註冊',google:'使用 Google 登入',lineLogin:'使用 LINE 登入',email:'改用 Email 登入',needName:'請先輸入名字',pkFail:'無法使用 Touch ID，請改用 Google 登入',signupFail:'無法註冊，請改用 Google 登入',
+      loginTitle:'言文字 會員',loginSub:'登入後，用一張卡在所有空間累積點數、查看會籍、報名活動。',google:'使用 Google 登入',lineLogin:'使用 LINE 登入',email:'使用 Email 登入',needName:'請先輸入名字',emailSend:'寄送登入連結',emailSent:'登入連結已寄出',emailSentTo:e=>'請到 '+e+' 收信，點開連結即可登入。連結 20 分鐘內有效。',emailFail:'目前無法寄送登入連結，請改用 Google 登入',firstTime:'第一次使用？用任一方式登入，就會自動建立帳號。',
       hi:n=>'嗨，'+n,welcome:'歡迎回來',morning:'早安',noon:'午安',evening:'晚安',brand:'言文字',myPts:'我的點數',showCard:'結帳時出示會員卡',scanMe:'請出示給店員掃描',
       hintPhone:'也可以直接報手機號碼。',hintNoPhone:'到「我的」填寫手機，結帳報號碼就能累點。',hintEarn:'消費每滿 100 元累積 1 點，點數可兌換餐飲、服務與空間時數（不折抵金額；到櫃檯出示會員卡）。',
       reserve:'訂位',signup:'報名活動',menu:'菜單',redeem:'可以兌換',canRedeem:'現在就能兌換',short:n=>'還差 '+n+' 點',pts:n=>n+' 點',redeemHint:'到櫃檯出示會員卡，店員掃碼後兌換。',
@@ -181,7 +193,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       accessTitle:'進出等等空間',accessOn:'可進出等等空間',accessPending:'待啟用',accessOff:'目前不可進出',accessQr:'顯示進出 QR',accessNote:'進出 QR 每 30 秒更新；持有效會籍即可進出等等空間，享有所有空間與設備。',needPlan:'尚無可用方案，請先加入會員方案。',qrPending:'（待首次進場啟用）',qrUntil:'有效至 ',qrFail:'目前無法產生進出 QR',qrOffline:'需要網路才能顯示 QR',
       buy:'購買會籍',renew:'續訂／升級',plansTitle:'方案',buyBtn:p=>'線上購買 NT$'+p.toLocaleString('en-US'),promoTag:'開幕優惠',promoName:'年會員 18 個月',promoNote:'同年會員價，多送 6 個月（共 18 個月）。優惠至 2026/12/31。',founderYes:'創始會員',planPaid:'會籍已購買，首次進場時啟用。',planCanceled:'已取消付款。',planVerifying:'確認付款中…',planFail:'目前無法線上購買，請到現場辦理。',
       me:'我的',name:'姓名',emailL:'Email',phone:'手機',phoneHint:'手機（09 開頭，結帳報號碼就能累點）',noPhone:'尚未填寫',edit:'更新資料',save:'儲存',saved:'已儲存',saveFail:'儲存失敗',
-      lineLink:'綁定 LINE・接收活動票券與訂位提醒',lineFail:'LINE 綁定失敗',quick:'快速登入',pkOn:'啟用 Touch ID／Face ID 登入',pkOff:'移除這台裝置的快速登入',pkHere:'已啟用。下次打開 App 可以直接用 Touch ID／Face ID 登入。',pkWhy:'登入過期時，不用再跳去 Google，用指紋或臉就能回來。',enabled:'已啟用',removed:'已移除',removeFail:'移除失敗',enableFail:'無法啟用',
+      lineLink:'綁定 LINE・接收活動票券與訂位提醒',lineFail:'LINE 綁定失敗',
       manage:'管理',admin:'前往後台',organizer:'管理我的活動',language:'語言',logout:'登出',offline:'目前離線，顯示上次的資料',netFail:'連線失敗，請稍後再試',reload:'重新整理',
       sheetInapp:['點畫面角落的「⋯」選單','選「用預設瀏覽器開啟」，或<span class="nb">「在 Safari／Chrome 開啟」</span>','開啟後，再依畫面提示加到主畫面'],sheetIos:['點瀏覽器的「分享」圖示（方框加向上箭頭）','在選單裡找到並點「加入主畫面」（要往上滑才看得到）','按右上角「新增」，之後從主畫面開啟即可'],
       sheetInappTitle:'請先用瀏覽器開啟',sheetIosTitle:'加入主畫面',sheetInappNote:'LINE、Facebook、Instagram 內建的瀏覽器沒辦法加到主畫面。',sheetIosNote:'找不到「加入主畫面」，請改用 Safari 開啟這個網址。',copy:'複製網址',copied:'已複製網址',copyFail:'請長按網址列複製',ok:'知道了',
@@ -193,7 +205,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       pickupTitle:'預約取餐',pickupHint:n=>'先選取餐時間，再選餐點。取餐前 '+n+' 分鐘開始準備，到店付款。',pickupDay:'取餐日',today:'今天',tomorrow:'明天',pickupTime:'取餐時間',noSlots:'今天已沒有可預約的時段，請選明天',loadingMenu:'載入菜單…',pickTimeFirst:'選好時間後會顯示該時段的菜單。',submitPickup:'送出預約',itemsN:n=>'（'+n+' 件）',menuFail:'菜單載入失敗',noItems:'這個時段沒有可預約的品項',dec:'減少',inc:'增加',pickupOk:'預約成立，取餐前會開始準備',cafe:'在咖啡',bar:'三點水',opFail:'操作失敗，請稍後再試',
       installLabel:{prompt:'安裝到主畫面',ios:'看怎麼加到主畫面',inapp:'看怎麼用瀏覽器開啟'}},
     en:{locale:'en-US',tabHome:'Card',tabPlan:'Membership',tabEvents:'Events',tabMe:'Me',loading:'Loading…',
-      loginTitle:'emoji Member',loginSub:'Sign in to earn points at every space, view your membership and register for events.',pkLogin:'Sign in with Touch ID / Face ID',pkName:'New here? Enter your name',pkSignup:'Quick sign-up with Touch ID / Face ID',google:'Sign in with Google',lineLogin:'Sign in with LINE',email:'Sign in with email instead',needName:'Please enter your name',pkFail:'Touch ID unavailable — use Google instead',signupFail:'Could not sign up — use Google instead',
+      loginTitle:'emoji Member',loginSub:'Sign in to earn points at every space, view your membership and register for events.',google:'Sign in with Google',lineLogin:'Sign in with LINE',email:'Sign in with Email',needName:'Please enter your name',emailSend:'Send sign-in link',emailSent:'Link sent',emailSentTo:e=>'Check '+e+' and open the link to sign in. It expires in 20 minutes.',emailFail:'Could not send the link — try Google instead',firstTime:'New here? Sign in with any option and your account is created automatically.',
       hi:n=>'Hi, '+n,welcome:'Welcome back',morning:'Good morning',noon:'Good afternoon',evening:'Good evening',brand:'emoji',myPts:'My points',showCard:'Show card at checkout',scanMe:'Show this to staff to scan',
       hintPhone:'You can also just give your phone number.',hintNoPhone:'Add your phone under “Me” to earn points by number.',hintEarn:'Earn 1 point per NT$100. Redeem for food, drinks, services or space hours (not cash discounts) — show your card at the counter.',
       reserve:'Reserve',signup:'Events',menu:'Menu',redeem:'Rewards',canRedeem:'Redeem now',short:n=>n+' more points',pts:n=>n+' pts',redeemHint:'Show your card at the counter; staff scan it to redeem.',
@@ -204,7 +216,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       accessTitle:'Stay Square access',accessOn:'Stay Square access',accessPending:'Pending',accessOff:'No access',accessQr:'Show access QR',accessNote:'The access QR refreshes every 30 seconds. A valid membership includes Stay Square and every space and facility.',needPlan:'No valid membership yet — join a plan first.',qrPending:' (pending first entry)',qrUntil:'valid until ',qrFail:'Could not generate access QR',qrOffline:'Network needed to show the QR',
       buy:'Buy membership',renew:'Renew / upgrade',plansTitle:'Plans',buyBtn:p=>'Buy online NT$'+p.toLocaleString('en-US'),promoTag:'Opening offer',promoName:'Annual · 18 months',promoNote:'Annual price, 6 extra months (18 total). Until Dec 31, 2026.',founderYes:'Founding Member',planPaid:'Membership purchased — activates on first entry.',planCanceled:'Payment cancelled.',planVerifying:'Confirming payment…',planFail:'Online purchase unavailable — please ask on-site.',
       me:'Me',name:'Name',emailL:'Email',phone:'Phone',phoneHint:'Phone (Taiwan mobile; give it at checkout to earn points)',noPhone:'Not set',edit:'Update profile',save:'Save',saved:'Saved',saveFail:'Could not save',
-      lineLink:'Link LINE · tickets & booking reminders',lineFail:'LINE linking failed',quick:'Quick sign-in',pkOn:'Enable Touch ID / Face ID',pkOff:'Remove quick sign-in on this device',pkHere:'Enabled. Next time, sign in with Touch ID / Face ID.',pkWhy:'When your session expires, use your fingerprint or face instead of Google.',enabled:'Enabled',removed:'Removed',removeFail:'Could not remove',enableFail:'Could not enable',
+      lineLink:'Link LINE · tickets & booking reminders',lineFail:'LINE linking failed',
       manage:'Manage',admin:'Open admin',organizer:'Manage my events',language:'Language',logout:'Sign out',offline:'Offline — showing last data',netFail:'Connection failed. Please try again.',reload:'Reload',
       sheetInapp:['Tap the “⋯” menu in the corner','Choose “Open in browser” (Safari / Chrome)','Then follow the prompt to add to home screen'],sheetIos:['Tap the browser Share icon (box with arrow)','Scroll and tap “Add to Home Screen”','Tap “Add” — open it from your home screen next time'],
       sheetInappTitle:'Open in a browser first',sheetIosTitle:'Add to Home Screen',sheetInappNote:'In-app browsers (LINE, Facebook, Instagram) cannot add to home screen.',sheetIosNote:'Can’t find “Add to Home Screen”? Open this URL in Safari.',copy:'Copy URL',copied:'URL copied',copyFail:'Long-press the address bar to copy',ok:'Got it',
@@ -216,7 +228,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       pickupTitle:'Order for pickup',pickupHint:n=>'Choose a pickup time, then your items. We start preparing '+n+' minutes before pickup; pay in store.',pickupDay:'Pickup day',today:'Today',tomorrow:'Tomorrow',pickupTime:'Pickup time',noSlots:'No more slots today — try tomorrow',loadingMenu:'Loading menu…',pickTimeFirst:'Pick a time to see that period’s menu.',submitPickup:'Place order',itemsN:n=>' ('+n+' items)',menuFail:'Could not load the menu',noItems:'Nothing available for this slot',dec:'Less',inc:'More',pickupOk:'Order placed — we’ll start preparing before pickup',cafe:'at cafe',bar:'3AM',opFail:'Action failed. Please try again.',
       installLabel:{prompt:'Install',ios:'How to add to home screen',inapp:'How to open in a browser'}},
     ja:{locale:'ja-JP',tabHome:'会員カード',tabPlan:'会員資格',tabEvents:'イベント',tabMe:'マイページ',loading:'読み込み中…',
-      loginTitle:'言文字 会員',loginSub:'ログインすると、すべての空間でポイントを貯め、会員資格の確認やイベント申込ができます。',pkLogin:'Touch ID／Face ID でログイン',pkName:'初めての方は名前を入力',pkSignup:'Touch ID／Face ID でかんたん登録',google:'Google でログイン',lineLogin:'LINE でログイン',email:'メールでログイン',needName:'名前を入力してください',pkFail:'Touch ID を使えません。Google でログインしてください',signupFail:'登録できません。Google でログインしてください',
+      loginTitle:'言文字 会員',loginSub:'ログインすると、すべての空間でポイントを貯め、会員資格の確認やイベント申込ができます。',google:'Google でログイン',lineLogin:'LINE でログイン',email:'メールでログイン',needName:'名前を入力してください',emailSend:'ログインリンクを送信',emailSent:'送信しました',emailSentTo:e=>e+' に届いたリンクを開くとログインできます。有効期限は20分です。',emailFail:'送信できませんでした。Google でログインしてください',firstTime:'初めての方も、いずれかの方法でログインすると自動で登録されます。',
       hi:n=>n+' さん、こんにちは',welcome:'おかえりなさい',morning:'おはようございます',noon:'こんにちは',evening:'こんばんは',brand:'言文字',myPts:'ポイント',showCard:'会計時に会員カードを提示',scanMe:'スタッフに提示してスキャン',
       hintPhone:'携帯電話番号を伝えるだけでもOKです。',hintNoPhone:'「マイページ」で携帯番号を登録すると、番号だけでポイントが貯まります。',hintEarn:'100元ごとに1ポイント。飲食・サービス・スペース利用時間と交換できます（値引きには使えません）。',
       reserve:'予約',signup:'イベント',menu:'メニュー',redeem:'交換できるもの',canRedeem:'今すぐ交換可',short:n=>'あと '+n+' ポイント',pts:n=>n+' pt',redeemHint:'カウンターで会員カードを提示し、スタッフがスキャンして交換します。',
@@ -227,7 +239,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       accessTitle:'Stay Square 入退室',accessOn:'Stay Square 利用可',accessPending:'保留中',accessOff:'現在利用不可',accessQr:'入退室 QR を表示',accessNote:'入退室 QR は30秒ごとに更新。有効な会員資格があれば Stay Square とすべての設備を利用できます。',needPlan:'有効なプランがありません。先に会員プランに加入してください。',qrPending:'（初回入場で有効化）',qrUntil:'有効期限 ',qrFail:'入退室 QR を生成できません',qrOffline:'QR の表示にはネットワークが必要です',
       buy:'会員プランを購入',renew:'更新／アップグレード',plansTitle:'プラン',buyBtn:p=>'オンライン購入 NT$'+p.toLocaleString('en-US'),promoTag:'オープン特典',promoName:'年会員 18か月',promoNote:'年会員と同価格で6か月分おトク（計18か月）。2026/12/31まで。',founderYes:'創始会員',planPaid:'購入完了。初回入場時に有効化されます。',planCanceled:'支払いをキャンセルしました。',planVerifying:'支払いを確認中…',planFail:'オンライン購入は現在利用できません。現地でお申し込みください。',
       me:'マイページ',name:'氏名',emailL:'メール',phone:'携帯電話',phoneHint:'携帯電話（会計時に伝えるとポイントが貯まります）',noPhone:'未登録',edit:'プロフィールを更新',save:'保存',saved:'保存しました',saveFail:'保存できませんでした',
-      lineLink:'LINE 連携・チケットと予約リマインド',lineFail:'LINE 連携に失敗しました',quick:'かんたんログイン',pkOn:'Touch ID／Face ID ログインを有効化',pkOff:'この端末のかんたんログインを削除',pkHere:'有効です。次回から Touch ID／Face ID でログインできます。',pkWhy:'ログインが切れても、Google に戻らず指紋や顔で再ログインできます。',enabled:'有効にしました',removed:'削除しました',removeFail:'削除できませんでした',enableFail:'有効化できませんでした',
+      lineLink:'LINE 連携・チケットと予約リマインド',lineFail:'LINE 連携に失敗しました',
       manage:'管理',admin:'管理画面へ',organizer:'イベントを管理',language:'言語',logout:'ログアウト',offline:'オフライン：前回のデータを表示中',netFail:'接続に失敗しました。しばらくしてから再度お試しください。',reload:'再読み込み',
       sheetInapp:['画面隅の「⋯」メニューをタップ','「ブラウザで開く」（Safari／Chrome）を選択','開いたら案内に従ってホーム画面に追加'],sheetIos:['ブラウザの「共有」アイコン（矢印付きの四角）をタップ','下にスクロールして「ホーム画面に追加」をタップ','右上の「追加」をタップ。次回からホーム画面から開けます'],
       sheetInappTitle:'まずブラウザで開いてください',sheetIosTitle:'ホーム画面に追加',sheetInappNote:'LINE・Facebook・Instagram 内のブラウザからはホーム画面に追加できません。',sheetIosNote:'「ホーム画面に追加」が見つからない場合は Safari でこの URL を開いてください。',copy:'URL をコピー',copied:'コピーしました',copyFail:'アドレスバーを長押ししてコピーしてください',ok:'OK',
@@ -303,52 +315,43 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     const x=document.getElementById('instx');if(x)x.onclick=()=>{lsSet('m_inst_x',String(Date.now()));paint();};
     const r=document.getElementById('inst2');if(r)r.onclick=()=>doInstall(r.dataset.k);
   }
-  /* ---- Passkey（Touch ID／Face ID） ---- */
-  const PK_FLAG='m_pk';
-  const b64uToBuf=s=>{s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';const b=atob(s),a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a.buffer;};
-  const bufToB64u=b=>{let s='';new Uint8Array(b).forEach(c=>s+=String.fromCharCode(c));return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');};
-  const pkPost=async(path,body,auth)=>{const r=await fetch(path,{method:'POST',headers:Object.assign({'content-type':'application/json'},auth?{authorization:'Bearer '+token()}:{}),body:JSON.stringify(body||{})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'失敗');return d;};
-  const pkSupport=async()=>{try{return !!(window.PublicKeyCredential&&PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable&&await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable());}catch(e){return false;}};
-  async function pkLogin(){
-    const o=await pkPost('/api/passkey/login/options');
-    const opt=o.options;opt.challenge=b64uToBuf(opt.challenge);
-    const c=await navigator.credentials.get({publicKey:opt});
-    const r=c.response;
-    const d=await pkPost('/api/passkey/login/verify',{state:o.state,credential:{id:c.id,response:{clientDataJSON:bufToB64u(r.clientDataJSON),authenticatorData:bufToB64u(r.authenticatorData),signature:bufToB64u(r.signature)}}});
-    lsSet(KEY,d.token);lsSet(PK_FLAG,'1');try{sessionStorage.removeItem('m_noauto');}catch(e){}
-  }
-  async function pkRegister(){
-    const o=await pkPost('/api/passkey/register/options',{},true);
-    const opt=o.options;opt.challenge=b64uToBuf(opt.challenge);opt.user.id=b64uToBuf(opt.user.id);
-    opt.excludeCredentials=(opt.excludeCredentials||[]).map(x=>({type:x.type,id:b64uToBuf(x.id)}));
-    const c=await navigator.credentials.create({publicKey:opt});
-    const r=c.response;
-    await pkPost('/api/passkey/register/verify',{state:o.state,name:ENV.ios?'iPhone／iPad':'這台裝置',credential:{id:c.id,response:{clientDataJSON:bufToB64u(r.clientDataJSON),attestationObject:bufToB64u(r.attestationObject),transports:r.getTransports?r.getTransports():[]}}},true);
-    lsSet(PK_FLAG,'1');
-  }
-  async function pkSignup(name){
-    const o=await pkPost('/api/passkey/signup/options',{name});
-    const opt=o.options;opt.challenge=b64uToBuf(opt.challenge);opt.user.id=b64uToBuf(opt.user.id);
-    const c=await navigator.credentials.create({publicKey:opt});
-    const r=c.response;
-    const d=await pkPost('/api/passkey/signup/verify',{state:o.state,credential:{id:c.id,response:{clientDataJSON:bufToB64u(r.clientDataJSON),attestationObject:bufToB64u(r.attestationObject),transports:r.getTransports?r.getTransports():[]}}});
-    lsSet(KEY,d.token);lsSet(PK_FLAG,'1');try{sessionStorage.removeItem('m_noauto');}catch(e){}
-  }
-  const pkQuiet=e=>e&&(e.name==='NotAllowedError'||e.name==='AbortError');
-  async function loginWithPasskey(btn){
-    btn.disabled=true;
-    try{await pkLogin();await load();}
-    catch(e){if(!pkQuiet(e))toast(e.message||T.pkFail);btn.disabled=false;}
-  }
+  /* ---- 登入畫面：Google／LINE／Email 三種方式（Email 走一次性登入連結） ---- */
+  const ICON={
+    google:'<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.6 12.23c0-.68-.06-1.33-.17-1.96H12v3.7h5.38a4.6 4.6 0 0 1-2 3.02v2.5h3.24c1.9-1.75 2.98-4.32 2.98-7.26z"/><path fill="#34A853" d="M12 21.6c2.7 0 4.96-.9 6.62-2.42l-3.24-2.5c-.9.6-2.04.95-3.38.95-2.6 0-4.8-1.76-5.59-4.12H3.07v2.58A9.99 9.99 0 0 0 12 21.6z"/><path fill="#FBBC05" d="M6.41 13.5A6 6 0 0 1 6.1 11.6c0-.66.11-1.3.31-1.9V7.12H3.07A9.99 9.99 0 0 0 2 11.6c0 1.61.39 3.14 1.07 4.48l3.34-2.58z"/><path fill="#EA4335" d="M12 5.98c1.47 0 2.79.5 3.83 1.5l2.87-2.87C16.96 2.99 14.7 2 12 2 8.09 2 4.72 4.24 3.07 7.12l3.34 2.58C7.2 7.74 9.4 5.98 12 5.98z"/></svg>',
+    line:'<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M12 3C6.48 3 2 6.64 2 11.13c0 4.02 3.57 7.39 8.39 8.03.33.07.77.22.88.5.1.26.07.66.03.92l-.14.85c-.04.26-.2 1 .88.55 1.08-.46 5.83-3.43 7.95-5.88C21.46 14.49 22 12.9 22 11.13 22 6.64 17.52 3 12 3zM8.6 13.6H6.4a.5.5 0 0 1-.5-.5V9.1a.5.5 0 0 1 1 0v3.5h1.7a.5.5 0 0 1 0 1zm1.9-.5a.5.5 0 0 1-1 0V9.1a.5.5 0 0 1 1 0v4zm4.8 0a.5.5 0 0 1-.9.3l-2-2.7v2.4a.5.5 0 0 1-1 0V9.1a.5.5 0 0 1 .9-.3l2 2.7V9.1a.5.5 0 0 1 1 0v4zm3.2-2.5a.5.5 0 0 1 0 1h-1.7v1h1.7a.5.5 0 0 1 0 1h-2.2a.5.5 0 0 1-.5-.5V9.1a.5.5 0 0 1 .5-.5h2.2a.5.5 0 0 1 0 1h-1.7v1h1.7z"/></svg>',
+    mail:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>'
+  };
   const langBar=()=>`<div class="lang" role="group" aria-label="Language">${['zh','en','ja'].map(l=>`<button type="button" data-lang="${l}" aria-pressed="${l===LANG}">${{zh:'中文',en:'English',ja:'日本語'}[l]}</button>`).join('')}</div>`;
   function bindLang(){document.querySelectorAll('[data-lang]').forEach(b=>b.onclick=()=>{applyLang(b.dataset.lang);location.replace(location.pathname+'?lang='+b.dataset.lang);});}
   function login(){
     tabs.hidden=true;
-    const back=location.origin+ROOT+(LANG==='zh'?'':'?lang='+LANG);
-    app.innerHTML=`<div class="login">${MARK}<h1>${esc(T.loginTitle)}</h1><p>${esc(T.loginSub)}</p><button class="btn solid" id="pkl" hidden>${esc(T.pkLogin)}</button><form id="pks" hidden style="margin-top:10px"><input id="pkn" maxlength="80" autocomplete="name" placeholder="${esc(T.pkName)}" aria-label="${esc(T.name)}" style="display:block;width:100%;min-height:52px;padding:0 14px;border:1.5px solid var(--line);border-radius:12px;font-family:inherit;font-size:1rem;background:#fff;margin-bottom:10px"><button class="btn solid" id="pkj" type="submit">${esc(T.pkSignup)}</button></form><a class="btn line-login" id="line-login" hidden href="/auth/line?redirect=${encodeURIComponent(back)}" style="margin-top:10px;background:#06C755;border-color:#06C755;color:#fff">${esc(T.lineLogin)}</a><a class="btn${lsGet(PK_FLAG)?'':' solid'}" href="/auth/google?redirect=${encodeURIComponent(back)}" style="margin-top:10px">${esc(T.google)}</a><a class="quiet" href="${SITE}/event-login.html?lang=${LANG}&redirect=${encodeURIComponent(back)}">${esc(T.email)}</a>${langBar()}</div>`;
+    const back=location.origin+ROOT+(LANG==='zh'?'':'?lang='+LANG), r=encodeURIComponent(back);
+    app.innerHTML=`<div class="login">${MARK}<h1>${esc(T.loginTitle)}</h1><p>${esc(T.loginSub)}</p>
+      <div class="ways">
+        <a class="way google" href="/auth/google?redirect=${r}">${ICON.google}${esc(T.google)}</a>
+        <a class="way line" id="line-login" hidden href="/auth/line?redirect=${r}">${ICON.line}${esc(T.lineLogin)}</a>
+        <button type="button" class="way email" id="email-login">${ICON.mail}${esc(T.email)}</button>
+      </div>
+      <form class="ef" id="ef" hidden>
+        <label class="field">${esc(T.name)}<input name="name" required maxlength="120" autocomplete="name"></label>
+        <label class="field">Email<input name="email" type="email" required maxlength="254" autocomplete="email" inputmode="email"></label>
+        <button class="btn solid" id="efs" type="submit">${esc(T.emailSend)}</button>
+      </form>
+      <p class="first">${esc(T.firstTime)}</p>${langBar()}</div>`;
     bindLang();
     fetch('/api/auth/methods').then(r=>r.json()).then(j=>{const b=document.getElementById('line-login');if(b&&j&&j.line)b.hidden=false;}).catch(()=>{});
-    pkSupport().then(ok=>{const b=document.getElementById('pkl');if(!ok||!b)return;b.hidden=false;b.onclick=()=>loginWithPasskey(b);const f=document.getElementById('pks');f.hidden=false;f.onsubmit=async e=>{e.preventDefault();const n=document.getElementById('pkn').value.trim();if(!n){toast(T.needName);return;}const j=document.getElementById('pkj');j.disabled=true;try{await pkSignup(n);await load();}catch(x){if(!pkQuiet(x))toast(x.message||T.signupFail);j.disabled=false;}};let na=false;try{na=!!sessionStorage.getItem('m_noauto');}catch(e){}if(lsGet(PK_FLAG)&&!na&&!login.auto){login.auto=1;b.click();}});
+    const ef=document.getElementById('ef'),eb=document.getElementById('email-login');
+    eb.onclick=()=>{ef.hidden=false;eb.setAttribute('aria-expanded','true');ef.querySelector('input[name=name]').focus();};
+    ef.onsubmit=async e=>{
+      e.preventDefault();const s=document.getElementById('efs');s.disabled=true;
+      const name=ef.elements.name.value.trim(),email=ef.elements.email.value.trim();
+      if(!name){toast(T.needName);s.disabled=false;return;}
+      try{
+        const res=await fetch('/api/auth/email/start',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name,email,redirect:back,lang:LANG})});
+        const d=await res.json().catch(()=>({}));if(!res.ok)throw new Error(d.error||T.emailFail);
+        ef.outerHTML=`<div class="sent" role="status"><b>${esc(T.emailSent)}</b>${esc(T.emailSentTo(email))}</div>`;
+      }catch(x){toast(x.message||T.emailFail);s.disabled=false;}
+    };
   }
   const parseT=v=>{if(!v)return null;const d=new Date(String(v).replace(/\//g,'-').replace(' ','T')+(String(v).length<=16?':00+08:00':''));return Number.isNaN(+d)?null:d;};
   const fmt=v=>{const d=parseT(v);return d?d.toLocaleString(T.locale,{timeZone:'Asia/Taipei',month:'numeric',day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false}):String(v||'');};
@@ -551,26 +554,14 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       <label class="field">${esc(T.phoneHint)}<input id="ph" type="tel" inputmode="tel" autocomplete="tel" maxlength="40" value="${esc(m.phone||'')}"></label>
       <button class="btn solid" id="save" style="margin-top:12px">${esc(T.save)}</button></section>
     <section class="sec"><button class="btn" id="line-link">${esc(T.lineLink)}</button></section>
-    <section class="sec" id="pksec" hidden><h2>${esc(T.quick)}</h2><p class="hint" id="pkmsg"></p><button class="btn" id="pkon">${esc(T.pkOn)}</button><button class="quiet" id="pkoff" hidden>${esc(T.pkOff)}</button></section>
     ${kindNow(true)?`<section class="sec"><h2>${esc(T.home)}</h2><button class="btn" id="inst2" data-k="${kindNow(true)}">${esc(T.installLabel[kindNow(true)])}</button></section>`:''}
     ${data.role==='admin'||data.organizer?`<section class="sec"><h2>${esc(T.manage)}</h2>${data.role==='admin'?`<a class="btn" href="https://admin.emoji.tw/admin">${esc(T.admin)}</a>`:''}${data.organizer?`<a class="btn" href="https://www.emoji.tw/organizer/events" style="margin-top:10px">${esc(T.organizer)}</a>`:''}</section>`:''}
     <section class="sec"><h2>${esc(T.language)}</h2>${langBar()}</section>
     <section class="sec"><button class="quiet" id="out">${esc(T.logout)}</button></section>`;
     document.getElementById('save').onclick=async()=>{const b=document.getElementById('save');b.disabled=true;try{await post('/api/me/profile',{name:document.getElementById('nm').value.trim()||m.name||'會員',phone:document.getElementById('ph').value});toast(T.saved);await load();}catch(e){toast(e.message||T.saveFail);}b.disabled=false;};
     document.getElementById('line-link').onclick=async function(){this.disabled=true;try{const out=await post('/api/me/line-link');location.assign(out.url);}catch(e){toast(e.message||T.lineFail);this.disabled=false;}};
-    bindInstall();bindPasskey();bindLang();
-    document.getElementById('out').onclick=()=>{try{localStorage.removeItem(KEY);localStorage.removeItem(CACHE);sessionStorage.setItem('m_noauto','1');}catch(e){}location.reload();};
-  }
-  async function bindPasskey(){
-    const sec=document.getElementById('pksec');if(!sec||!await pkSupport())return;
-    let list=[];try{list=(await get('/api/passkey')).passkeys||[];}catch(e){return;}
-    if(!document.getElementById('pksec'))return;
-    const on=document.getElementById('pkon'),off=document.getElementById('pkoff'),msg=document.getElementById('pkmsg');
-    const here=!!lsGet(PK_FLAG)&&list.length>0;
-    sec.hidden=false;msg.textContent=here?T.pkHere:T.pkWhy;
-    on.hidden=here;off.hidden=!here;
-    on.onclick=async()=>{on.disabled=true;try{await pkRegister();toast(T.enabled);paint();}catch(e){if(!pkQuiet(e))toast(e.message||T.enableFail);on.disabled=false;}};
-    off.onclick=async()=>{off.disabled=true;try{for(const p of list)await fetch('/api/passkey/'+encodeURIComponent(p.id),{method:'DELETE',headers:{authorization:'Bearer '+token()}});try{localStorage.removeItem(PK_FLAG);}catch(e){}toast(T.removed);paint();}catch(e){toast(T.removeFail);off.disabled=false;}};
+    bindInstall();bindLang();
+    document.getElementById('out').onclick=()=>{try{localStorage.removeItem(KEY);localStorage.removeItem(CACHE);}catch(e){}location.reload();};
   }
   function paint(){tabs.hidden=false;[...tabs.children].forEach(b=>b.setAttribute('aria-current',b.dataset.tab===tab));({home,book,plan,events,me})[tab]();window.scrollTo(0,0);}
   tabs.onclick=e=>{const b=e.target.closest('button');if(!b)return;tab=b.dataset.tab;paint();};
