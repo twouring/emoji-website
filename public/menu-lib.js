@@ -82,10 +82,10 @@
       zh: String(raw.zh || '').trim(),
       en: String(raw.en || '').trim(),
       ja: String(raw.ja || '').trim(),
-      ja: String(raw.ja || '').trim(),
       price: Number.isFinite(price) ? price : 0,
       emo: Number.isFinite(emo) ? emo : 0,
       note: String(raw.note || '').trim(),
+      note_ja: String(raw.note_ja || '').trim(),
       image: String(raw.image || '').trim(),
       alcohol: coerceAlcohol({ ...raw, cat }),
       published: raw.published === true,
@@ -208,7 +208,7 @@
       '<div class="menu-item__names">' +
       '<span class="menu-item__zh">' + esc(lang === 'ja' && item.ja ? item.ja : item.zh) + '</span>' +
       (lang === 'ja' ? (item.ja ? '<span class="menu-item__en">' + esc(item.zh) + '</span>' : '') : (item.en ? '<span class="menu-item__en">' + esc(item.en) + '</span>' : '')) +
-      (item.note ? '<div class="menu-item__note">' + esc(item.note) + '</div>' : '') +
+      (function (n) { return n ? '<div class="menu-item__note">' + esc(n) + '</div>' : ''; })(lang === 'ja' && item.note_ja ? item.note_ja : item.note) +
       '</div><div class="menu-item__price">' + priceHtml + '</div></li>';
   }
 
