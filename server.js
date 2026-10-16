@@ -5086,6 +5086,22 @@ app.post('/api/admin/orders/:id/void',auth,adminOnly,requireDb,wrap(async(req,re
   }finally{if(!committed)await client.query('ROLLBACK').catch(()=>{});client.release();}
 }));
 /* 取消已結帳單裡的單一品項（做不出來／客人退菜），不必作廢整張單：單價歸零、從單上金額扣除這項小計 */
+/* 更正已結帳單的付款方式（現場點錯）：body { method, operator_id }；只動 payer，不動金額／發票／品項 */
+app.post('/api/admin/orders/:id/pay-method',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這筆出餐單。'});
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const operator=await resolveOperator(req,req.body?.operator_id);
+  const client=await pool.connect();let committed=false;
+  try{
+    await client.query('BEGIN');
+    const o=(await client.query('SELECT id,items,amount,status,payer,paid_at,tappay FROM table_orders WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+    if(!o||!tableOrders.orderOwnedByVenues(o,venues))return res.status(404).json({error:'找不到這筆出餐單。'});
+    let payer;try{payer=tableOrders.changePayMethod(o,req.body?.method,{extraCodes:await activePaymentCodes(),by:actorOf(req.auth)||'',operator});}catch(e){return res.status(e.status||400).json({error:e.message});}
+    await client.query('UPDATE table_orders SET payer=$2 WHERE id=$1',[o.id,JSON.stringify(payer)]);
+    await client.query('COMMIT');committed=true;
+    res.json({ok:true,payer});
+  }finally{if(!committed)await client.query('ROLLBACK').catch(()=>{});client.release();}
+}));
 app.post('/api/admin/orders/:id/items/:line/void',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這筆出餐單。'});
   const venues=tableOrders.visibleVenues(req.auth.brands);
