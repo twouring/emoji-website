@@ -2,7 +2,7 @@
   "name": "emoji-website",
   "version": "1.0.0",
   "private": true,
-  "description": "台灣人才聚落官網 — 靜態官網（/）＋創始會員站 fellow（/fellow）＋API，單一 Node/Express 伺服器",
+  "description": "台灣人才聚落官網 — 靜態官網（/）＋API，單一 Node/Express 伺服器",
   "main": "server.js",
   "scripts": {
     "start": "node bootstrap.js",

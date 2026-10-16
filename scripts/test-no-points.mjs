@@ -16,7 +16,7 @@ test('點數相關程式與 API 已移除', () => {
 
 test('聚落價目表仍可用', () => {
   const { PLAN_PRICE_TWD } = createRequire(import.meta.url)('../lib/plans');
-  assert.deepEqual(PLAN_PRICE_TWD, { day_4h: 200, day_12h: 500, month: 4000, quarter: 10000, year: 35000 });
+  assert.deepEqual(PLAN_PRICE_TWD, { day_4h: 200, day_12h: 500, month: 4000, quarter: 10000, year: 35000, year_promo: 35000 });
 });
 
 test('會員 App 不再有點數錢包、購點、兌換、退款', () => {
@@ -40,7 +40,7 @@ test('公開文案（三語）改為會員所有設備自由使用', () => {
     assert.match(html, /會員享有所有空間與設備|Membership includes every space and facility|会員はすべての空間と設備/, f);
   }
   for (const f of ['public/index.html', 'public/en/index.html', 'public/ja/index.html', 'public/llms.txt', 'public/llms-full.txt',
-    'public/fellow/index.html', 'public/en/fellow/index.html', 'public/ja/fellow/index.html', 'public/fellow/app.js', 'public/cis/index.html']) {
+    'public/cis/index.html']) {
     assert.doesNotMatch(read(f), /贈點|20,000 點|gift points|one-year bonus points|贈呈ポイント|20,000ポイント|70 點|100 點|1 點＝1 元|point expiry/, f);
   }
 });

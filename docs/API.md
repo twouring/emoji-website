@@ -150,13 +150,8 @@ TapPay Pay by Prime 結帳。body：`{ prime, lines?[], name, phone?, email? }`�
 ### GET /api/venue/schedule
 未來 90 天已排定的場地時段與公開活動，回 `{ bookings: [{ venue, kind, starts_at, ends_at }], events: [{ title, slug, location, starts_at, ends_at, venues }] }`。`venues` 為該活動佔用的空間代碼（`1F`／`2F`／`3F`／`4F`）：由場地申請轉成的活動用申請的空間，其餘由 `location` 文字推斷，寫不出樓層視為全棟。`bookings` 只含審核通過的申請時段，不含申請人資料；供申請表與行事曆顯示「已排定」。快取 5 分鐘。
 
-### POST /api/checkout
+### Stripe 帳號
 所有結帳、活動付款、退款與 webhook 都必須使用 Stripe「Emoji 言文字」帳號 `acct_1Ts2y95NXMKDsl40`。
-
-建立 Stripe 結帳（購買創始會籍）。body：`{ lang }`。回 `{ url }`。未設 `STRIPE_SECRET_KEY` 或 DB 未就緒時回 503；超過 `SALE_END`（預設 2026-12-31）回 410。已付款與有效結帳保留名額合計達 `MAX_PARTICIPANTS`（預設 100）回 409。新 checkout 保留 30 分鐘；以 Postgres 交易鎖序列化所有 instance 的名額盤點與建立。
-
-### GET /api/checkout/verify
-付款成功頁驗證。query：`s`（Stripe checkout session id）。向 Stripe 確認 `payment_status=paid` 且為創始會員商品，回 `{ paid }`。
 
 ### POST /api/access/verify
 驗證進出 QR token 是否有效。body：`{ token }`。回 `{ ok, claims }`。
@@ -659,7 +654,7 @@ body：`{ state, credential }`（同 register/verify）。驗證成功才建立�
 更新自己的姓名與電話。body：`{ name, phone? }`（姓名 1–80 字、電話 40 字以內），回 `{ ok, me }`。Email 由 Google 登入決定，不可改。
 
 ### POST /api/me/plans/checkout
-線上購買一般會籍。body：`{ plan: "day_4h" | "day_12h" | "month" | "quarter" | "year", lang? }`，回 `{ url }`（Stripe Checkout）。牌價：200／500／4,000／10,000／35,000。付款完成後導回會員 App `https://app.emoji.tw/?plan_paid=1&s=<session>`（取消：`?plan_canceled=1`），由 webhook 或 `/api/me/plans/verify` 建立 entitlement（`source: "stripe"`，以 session id 去重）；會籍於首次進場啟用，7 天未進場自動起算。未設 Stripe 回 503。
+線上購買一般會籍。body：`{ plan: "day_4h" | "day_12h" | "month" | "quarter" | "year" | "year_promo", lang? }`，回 `{ url }`（Stripe Checkout）。牌價：200／500／4,000／10,000／35,000；`year_promo`（開幕優惠，年會員價、會籍 18 個月）35,000，至 2026-12-31 止，逾期回 410。付款完成後導回會員 App `https://app.emoji.tw/?plan_paid=1&s=<session>`（取消：`?plan_canceled=1`），由 webhook 或 `/api/me/plans/verify` 建立 entitlement（`source: "stripe"`，以 session id 去重）；會籍於首次進場啟用，7 天未進場自動起算。未設 Stripe 回 503。
 
 ### POST /api/me/plans/verify
 結帳導回時驗證並開通。body：`{ session_id }`，回 `{ ok, already, plan }`；session 不屬於本人回 404、未付款回 402。與 webhook 重複執行不會重複開通。

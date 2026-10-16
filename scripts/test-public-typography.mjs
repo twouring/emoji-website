@@ -37,6 +37,8 @@ function walk(dir) {
 }
 
 function withoutAllowedDecoration(relative, source) {
+  return source;
+  // eslint-disable-next-line no-unreachable
   if (relative !== 'public/fellow/founding.css') return source;
   const masked = new Set();
   return source.replace(/([^{}]+)\{([^{}]*)\}/gs, (rule, selector, body) => {
@@ -401,50 +403,6 @@ test('會員 App 的資料欄位 input 明確宣告 1rem', () => {
   const source = readFileSync(path.join(ROOT, 'public/m.html'), 'utf8');
   assert.match(source, /\.field input\{[^}]*font-size:1rem/);
   assert.ok((source.match(/<label class="field">[^<]*<input\b/g) || []).length >= 3);
-});
-
-test('三語 founding roster 必須維持 aria-hidden', () => {
-  const assertHiddenRoster = (source) => {
-    const rosters = [...source.matchAll(/<[^>]+\bclass=(['"])([^'"]*)\1[^>]*>/gi)]
-      .filter((match) => match[2].split(/\s+/).includes('fnd-roster'))
-      .map((match) => match[0]);
-    assert.ok(rosters.length > 0);
-    for (const roster of rosters) {
-      assert.match(roster, /\baria-hidden\s*=\s*(['"])true\1/i);
-    }
-  };
-
-  for (const relative of ['public/fellow/index.html', 'public/en/fellow/index.html', 'public/ja/fellow/index.html']) {
-    const source = readFileSync(path.join(ROOT, relative), 'utf8');
-    assert.doesNotThrow(() => assertHiddenRoster(source), relative);
-    const mutated = source.replace(/(<div class="fnd-roster")\s+aria-hidden="true"/, '$1');
-    assert.notEqual(mutated, source, relative);
-    assert.throws(() => assertHiddenRoster(mutated), undefined, relative);
-    const duplicated = source.replace(
-      /(<div class="fnd-roster" aria-hidden="true">)/,
-      '$1<div class="fnd-roster"></div>',
-    );
-    assert.notEqual(duplicated, source, relative);
-    assert.throws(() => assertHiddenRoster(duplicated), undefined, relative);
-  }
-});
-
-test('roster 例外只遮罩第一個合法 .52rem 與 .42rem 宣告', () => {
-  const source = withoutAllowedDecoration(
-    'public/fellow/founding.css',
-    withoutComments('public/fellow/founding.css', `
-      .fnd-roster i{font-size:.52rem;color:red}
-      @media(max-width:640px){.fnd-roster i{font-size:.42rem}}
-      .fnd-roster i{font-size:.1rem}
-      .fnd-roster i{font-size:.52rem}
-      .meaningful,.fnd-roster i{font-size:.5rem}
-      .meaningful,/* } .fnd-roster i{font-size:.52rem} */.fnd-roster i{font-size:.4rem}
-    `),
-  );
-  const remaining = [...source.matchAll(/font-size\s*:\s*([^;}]+)/gi)].map((match) => match[1].trim());
-
-  assert.deepEqual(remaining, ['.1rem', '.52rem', '.5rem', '.4rem']);
-  assert.equal(remaining.every(belowFloor), true);
 });
 
 test('正式官網不得宣告低於 16px 的有意義文字', () => {

@@ -205,9 +205,6 @@
   .entry:hover{border-color:var(--ink)}
   /* 卡片線稿插畫（CIS 延伸：墨線 5、圓頭、單一黃點；同 moji 筆法） */
   .entry::before{content:"";display:block;width:56px;height:56px;margin:0 0 18px -5px;background:center/contain no-repeat}
-  #founding .entry:nth-child(1)::before{background-image:url('/cis/assets/line/term.svg')}
-  #founding .entry:nth-child(2)::before{background-image:url('/cis/assets/line/points.svg')}
-  #founding .entry:nth-child(3)::before{background-image:url('/cis/assets/line/confirm.svg')}
   #partners .entry:nth-child(1)::before{background-image:url('/cis/assets/line/workshop.svg')}
   #partners .entry:nth-child(2)::before{background-image:url('/cis/assets/line/talk.svg')}
   #partners .entry:nth-child(3)::before{background-image:url('/cis/assets/line/mixer.svg')}

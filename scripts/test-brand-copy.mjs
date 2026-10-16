@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const pages = ['index','space','system','at-cafe','3am','stay-square','access','about','events','fellow/index','cis/index','startup/index'];
+const pages = ['index','space','system','at-cafe','3am','stay-square','access','about','events','cis/index','startup/index'];
 const floors = /(?:[一二三四五]樓|二、三樓|二三樓|樓層|閣樓|頂樓|樓上|[1-5]F\b|[1-5]階|屋上|屋根裏|上階|フロア|\b(?:floors?|rooftop|attic|upstairs|three-story|three-storey)\b)/i;
 test('machine-readable public descriptions have no levels', () => {
   for (const file of ['public/llms.txt','public/llms-full.txt','public/feed.xml',...fs.readdirSync('public/ai').filter(f=>f.endsWith('.json')).map(f=>'public/ai/'+f)]) {

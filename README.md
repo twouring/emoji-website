@@ -6,7 +6,6 @@
 |------|------|
 | `/`、`/en/`、`/ja/` | 靜態官網（中／英／日三語系） |
 | `/cis/`、`/en/cis/`、`/ja/cis/` | 企業識別 CIS（公開 Brand Guidelines） |
-| `/fellow` | 言文字創始會員站（一頁式 SPA，含登入／會員儀表板／後台／Stripe 結帳） |
 | `/api/*`、`/auth/google/*` | 後端 REST API 與 Google 登入；資料存 Postgres |
 | `/member`（三語） | 302 → 會員 App `https://app.emoji.tw/`（會員卡、點數、會籍與進出 QR、活動、資料、LINE 綁定全在 App；`public/m.html`） |
 | `/admin`、`/admin/*` | 後台（會籍、活動、內容、社群、廣告）；每個分頁為一般路徑（`/admin/members`、`/admin/social/edit/:id`…），伺服器對 `/admin/*` 皆回同一頁；舊 `/admin#tab` 書籤自動轉為路徑 |

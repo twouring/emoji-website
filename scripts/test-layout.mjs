@@ -18,11 +18,11 @@ test('localePaths maps home locales', () => {
   assert.deepEqual(localePaths('/'), { lang: 'zh', slug: '', zh: '/', en: '/en/', ja: '/ja/' });
   assert.equal(localePaths('/en/').lang, 'en');
   assert.equal(localePaths('/en').zh, '/');
-  assert.equal(localePaths('/ja/fellow').ja, '/ja/fellow');
+  assert.equal(localePaths('/ja/startup').ja, '/ja/startup');
 });
 
 test('localePaths maps programs and cis slash', () => {
-  assert.equal(localePaths('/fellow').slug, 'fellow');
+  assert.equal(localePaths('/startup').slug, 'startup');
   assert.equal(localePaths('/en/partner').en, '/en/partner');
   assert.equal(localePaths('/cis').zh, '/cis/');
   assert.equal(localePaths('/en/cis/').en, '/en/cis/');
@@ -147,13 +147,11 @@ test('public event detail has event metadata and safe JSON-LD', () => {
 
 test('composeLayout injects header and footer with aria-current', () => {
   const raw = `<!doctype html><body>${MARKER_HEADER}<main></main>${MARKER_FOOTER}</body>`;
-  const html = composeLayout(raw, '/en/fellow');
+  const html = composeLayout(raw, '/en/startup');
   assert.match(html, /class="site-nav"/);
   assert.match(html, /class="site-foot"/);
   assert.doesNotMatch(html, /SITE_HEADER/);
-  assert.match(html, /href="\/en\/fellow"[^>]*aria-current="page"/);
   assert.match(html, /hreflang="en"[^>]*aria-current="page"/);
-  assert.match(html, /href="\/fellow"/);
 });
 
 test('composeLayout passes through unmarked html', () => {
@@ -164,7 +162,7 @@ test('composeLayout passes through unmarked html', () => {
 test('resolvePublicHtml resolves known pages', () => {
   assert.ok(resolvePublicHtml(PUB, '/').endsWith('index.html'));
   assert.equal(resolvePublicHtml(PUB, '/member'), null, '會員頁已移到 app.emoji.tw');
-  assert.ok(resolvePublicHtml(PUB, '/fellow').includes(`${path.sep}fellow${path.sep}index.html`));
+  assert.equal(resolvePublicHtml(PUB, '/fellow'), null, '創始會員頁已下架');
 });
 
 test('header partials prioritize visitor tasks and keep brand material in the footer', () => {
@@ -182,7 +180,6 @@ test('header partials prioritize visitor tasks and keep brand material in the fo
     assert.match(h, new RegExp(`href="${expect[lang].prefix}/system"[^>]*>\\s*${expect[lang].label}`));
     const positions = ['about', 'system', 'events', 'access'].map(slug => h.indexOf(`href="${expect[lang].prefix}/${slug}"`));
     assert.ok(positions.every((position, index) => position >= 0 && (!index || position > positions[index - 1])), `${lang} nav order`);
-    assert.match(h, new RegExp(`href="${expect[lang].prefix}/fellow" class="btn"`));
   }
 });
 
@@ -228,7 +225,6 @@ test('about zh page structure', () => {
   assert.match(html, /id="kk"/);
   assert.match(html, /about\.css/);
   assert.match(html, /href="\/space"/);
-  assert.match(html, /href="\/fellow#about"/);
   assert.doesNotMatch(html, /旅館|hotel|住宿|過夜/i);
   assert.doesNotMatch(html, /哈哈|～～/);
 });
@@ -247,7 +243,6 @@ test('system zh page structure', () => {
   assert.match(html, /id="facilities"/);
   assert.match(html, /id="booking"/);
   assert.match(html, /id="cafe"/);
-  assert.match(html, /href="\/fellow"/);
   assert.match(html, /href="\/events#venue"/);
   assert.match(html, /href="\/at-cafe"/);
   assert.match(html, /href="\/3am"/);
@@ -263,7 +258,6 @@ test('system en page structure', () => {
   const html = fs.readFileSync(path.join(PUB, 'en', 'system.html'), 'utf8');
   assert.match(html, /lang="en"/);
   assert.match(html, /id="membership"/);
-  assert.match(html, /href="\/en\/fellow"/);
   assert.match(html, /href="\/en\/events#venue"/);
   assert.match(html, /href="\/en\/at-cafe"/);
   assert.match(html, /href="\/en\/3am"/);
@@ -275,7 +269,6 @@ test('system ja page structure', () => {
   const html = fs.readFileSync(path.join(PUB, 'ja', 'system.html'), 'utf8');
   assert.match(html, /lang="ja"/);
   assert.match(html, /id="membership"/);
-  assert.match(html, /href="\/ja\/fellow"/);
   assert.match(html, /href="\/ja\/events#venue"/);
   assert.match(html, /href="\/ja\/at-cafe"/);
   assert.match(html, /href="\/ja\/3am"/);
@@ -343,7 +336,7 @@ test('public hours copy carries no opening wording and Japanese membership terms
     assert.ok(footer.includes(footerOpening[lang]));
     assert.doesNotMatch(footer, /試營運|開幕|grand opening|soft opening|正式オープン|プレオープン/);
   }
-  for (const rel of ['m.html', path.join('ja', 'fellow', 'index.html')]) {
+  for (const rel of ['m.html']) {
     const html = fs.readFileSync(path.join(PUB, rel), 'utf8');
     assert.doesNotMatch(html, /会籍|購入元本/);
   }
@@ -355,7 +348,6 @@ test('about en page structure', () => {
   assert.match(html, /id="why"/);
   assert.match(html, /id="kk"/);
   assert.match(html, /href="\/en\/space"/);
-  assert.match(html, /href="\/en\/fellow#about"/);
   assert.match(html, /canonical" href="https:\/\/www\.emoji\.tw\/en\/about"/);
   assert.match(html, /SITE_HEADER/);
   assert.match(html, /about\.css/);
@@ -372,7 +364,6 @@ test('about ja page structure', () => {
   assert.match(html, /id="why"/);
   assert.match(html, /id="kk"/);
   assert.match(html, /href="\/ja\/space"/);
-  assert.match(html, /href="\/ja\/fellow#about"/);
   assert.match(html, /canonical" href="https:\/\/www\.emoji\.tw\/ja\/about"/);
   assert.match(html, /SITE_HEADER/);
   assert.match(html, /about\.css/);

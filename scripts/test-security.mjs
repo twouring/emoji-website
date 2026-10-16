@@ -177,52 +177,6 @@ test('a still-signed door QR cannot open an expired entitlement', async t => {
   assert.equal(log.some(x => /INSERT INTO access_scans/.test(x.sql)), false);
 });
 
-test('founding checkout counts live reservations and locks before scanning Stripe', async t => {
-  let scans = 0, created = 0;
-  const stripe = { checkout: { sessions: {
-    async *list({ status, created: range }) {
-      scans++;
-      assert.equal(range.gte, Math.floor(Date.parse('2026-07-11T00:00:00+08:00') / 1000));
-      if (status === 'open') yield { id: 'cs_reserved', metadata: { plan: 'founding-member' }, payment_status: 'unpaid', expires_at: Date.now() / 1000 + 100 };
-    },
-    async create() { created++; return { url: 'https://checkout.stripe.com/test' }; },
-  } } };
-  const { request, log } = await server(t, { stripe, env: { MAX_PARTICIPANTS: '1', SALE_END: '2099-01-01' } });
-  assert.equal((await request('/api/checkout', {})).status, 409);
-  assert.equal(scans, 1); assert.equal(created, 0);
-  assert.match(log[1].sql, /pg_advisory_xact_lock/);
-  assert.equal(log.at(-1).sql, 'ROLLBACK');
-});
-
-test('Stripe provider outages are retryable 503 responses and never expose credential details', async t => {
-  const expired = Object.assign(new Error('Expired API Key provided: sk_live_sensitive'),
-    { type: 'StripeAuthenticationError', code: 'api_key_expired' });
-  const stripe = { checkout: { sessions: { async *list() { throw expired; } } } };
-  const { request, log, errors } = await server(t, { stripe, env: { SALE_END: '2099-01-01' } });
-  const response = await request('/api/checkout', {});
-  const body = await response.json();
-  assert.equal(response.status, 503);
-  assert.deepEqual(body, { error: '付款服務暫時無法使用，請稍後再試。', code: 'PAYMENT_UNAVAILABLE' });
-  assert.doesNotMatch(JSON.stringify(body), /sk_live|Expired API Key/);
-  assert.doesNotMatch(errors.join('\n'), /sk_live|Expired API Key/);
-  assert.match(errors.join('\n'), /StripeAuthenticationError api_key_expired/);
-  assert.equal(log.at(-1).sql, 'ROLLBACK');
-});
-
-test('founding inventory de-duplicates a checkout paid while pagination runs', async t => {
-  const scans = [];
-  let creates = 0;
-  const { request } = await server(t, { env: { MAX_PARTICIPANTS: '2', SALE_END: '2099-01-01' }, stripe: { checkout: { sessions: {
-    async *list({ status }) {
-      scans.push(status);
-      yield { id: 'cs_same', metadata: { plan: 'founding-member' }, payment_status: status === 'open' ? 'unpaid' : 'paid', expires_at: Date.now() / 1000 + 300 };
-    },
-    async create(params) { assert.ok(params.expires_at > Date.now() / 1000); creates++; return { url: 'https://checkout.stripe.com/test' }; },
-  } } } });
-  assert.equal((await request('/api/checkout', {})).status, 200);
-  assert.deepEqual(scans, ['open', 'complete']); assert.equal(creates, 1);
-});
-
 test('brand sub-accounts only reach their own admin APIs and menu items', async t => {
   const menu = JSON.stringify({ version: 1, items: [
     { id: 'm_cafe', venue: 'CAFE', cat: 'COFFEE', zh: '手沖', price: 180, status: 'published' },

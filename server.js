@@ -1,5 +1,5 @@
 /* =========================================================================
-   言文字｜台灣人才聚落・創始會員計畫 — backend
+   言文字｜台灣人才聚落 — backend
    Express 同時提供前端靜態檔與 /api REST API；資料存 Postgres。
    開機自動建表 + （可選）種子；DB 未設定時優雅降級（API 回 503，前端照常）。
    ========================================================================= */
@@ -106,7 +106,6 @@ const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 if (stripe && !STRIPE_WEBHOOK_SECRET) console.warn('[warn] STRIPE_WEBHOOK_SECRET 未設定，付費活動停用。');
 if (!EVENT_QR_SECRET) console.warn('[warn] EVENT_QR_SECRET／ACCESS_QR_SECRET 未設定，活動票券 QR 停用。');
 const MEMBERSHIP_START = process.env.MEMBERSHIP_START || '2026-11-01'; // 會籍起算＝開幕日（/api/commitments 與 Stripe 共用此單一來源）
-const SALE_END = process.env.SALE_END || '2026-12-31'; // 創始會員售止日（含當日；須與 fellow 頁面三語同步）
 
 /* ---------- Google 登入（會員 App 用；未設 GOOGLE_CLIENT_ID 時 /auth/google 回 503） ---------- */
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
@@ -996,7 +995,9 @@ const SEL_EVENT = `e.id,e.slug,e.title,e.description,e.location,e.translations,e
 const SEL_ENT = `id,user_id,plan,source,source_id,
   purchased_at, activated_at, starts_at, ends_at`;
 const numify = rows => rows.map(r => ({ ...r, amount: r.amount != null ? Number(r.amount) : r.amount }));
-const FLOOR_PLANS = ['day_4h', 'day_12h', 'month', 'quarter', 'year'];
+const FLOOR_PLANS = ['day_4h', 'day_12h', 'month', 'quarter', 'year', 'year_promo'];
+const PROMO_SALE_END = '2026-12-31'; // 開幕優惠（年會員 18 個月）售止日，含當日
+const promoOpen = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10) <= PROMO_SALE_END;
 
 function rowToEnt(r) {
   if (!r) return null;
@@ -1172,7 +1173,7 @@ async function fulfillPlanCheckout(session) {
 }
 
 /* ---------- 交易通知信（失敗只記 log） ---------- */
-const PLAN_LABEL = { day_4h: '單日 4 小時', day_12h: '單日 12 小時', month: '月會員', quarter: '季會員', year: '年會員', founding: '創始會員' };
+const PLAN_LABEL = { day_4h: '單日 4 小時', day_12h: '單日 12 小時', month: '月會員', quarter: '季會員', year: '年會員', founding: '創始會員', year_promo: '開幕優惠 年會員 18 個月' };
 const fmtTaipei = d => d ? new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(d)) : '';
 const fmtTaipeiDate = d => d ? new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(d)) : '';
 const appKind = a => a.kind === 'business' ? '企業包場' : '社群活動';
@@ -1264,7 +1265,7 @@ async function remindExpiringMemberships() {
   if (!pool || !dbReady) return;
   const rows = (await q(
     `SELECT e.id,e.plan,e.ends_at,u.email,u.name FROM entitlements e JOIN users u ON u.id=e.user_id
-     WHERE e.plan IN ('month','quarter','year') AND e.reminded_at IS NULL
+     WHERE e.plan IN ('month','quarter','year','year_promo') AND e.reminded_at IS NULL
        AND e.ends_at IS NOT NULL AND e.ends_at > now() AND e.ends_at <= now() + interval '7 days'`)).rows;
   for (const r of rows) {
     if (!r.email) continue;
@@ -4317,78 +4318,6 @@ app.delete('/api/events/:id/register', auth, requireDb, wrap(async (req, res) =>
   }finally{await client.query('ROLLBACK');client.release();}
 }));
 
-/* ---- Stripe Checkout（開放任何人購買，無需登入；Stripe 為訂單真相來源） ---- */
-// 已付款與仍可付款的 checkout 皆占名額；Stripe 為真相來源。
-const FOUNDING_SALE_START_TS = Math.floor(Date.parse('2026-07-11T00:00:00+08:00') / 1000);
-async function reservedFoundingCount() {
-  const ids = new Set();
-  // 先 open 再 complete，掃描中完成付款的 session 只會重複，不能漏計。
-  for (const status of ['open', 'complete']) {
-    for await (const s of stripe.checkout.sessions.list({ status, limit: 100, created: { gte: FOUNDING_SALE_START_TS } })) {
-      if (s.metadata?.plan === 'founding-member' &&
-          (s.payment_status === 'paid' || (status === 'open' && s.expires_at > Date.now() / 1000))) ids.add(s.id);
-      if (ids.size >= MAX_PARTICIPANTS) return ids.size;
-    }
-  }
-  return ids.size;
-}
-const todayTaipei = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
-
-app.post('/api/checkout', requireDb, wrap(async (req, res) => {
-  if (!stripe) return res.status(503).json({ error: '購買功能尚未開通（未設定 Stripe）。' });
-  if (todayTaipei() > SALE_END) return res.status(410).json({ error: `創始會員已於 ${SALE_END} 截止販售。`, code: 'SALE_ENDED' });
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    // 所有 instance 共用 Postgres 鎖，盤點＋建立 checkout 保留名額不可併行。
-    await client.query(`SELECT pg_advisory_xact_lock(hashtext('founding-checkout'))`);
-    if (await reservedFoundingCount() >= MAX_PARTICIPANTS) {
-      await client.query('ROLLBACK');
-      return res.status(409).json({ error: `創始名額已滿或正在結帳中（限量 ${MAX_PARTICIPANTS} 名），請稍後再試。`, code: 'SOLD_OUT' });
-    }
-    // 不信任 Origin header（避免 open redirect）；導向目標一律用伺服器端常數，本地測試以 PUBLIC_ORIGIN 覆蓋
-    const origin = SITE_BASE;
-    // 結帳完成後導回購買者所在語系頁（僅允許 en/ja 前綴，其餘回中文 /fellow）
-    const langPrefix = ['en', 'ja'].includes(req.body && req.body.lang) ? '/' + req.body.lang : '';
-    // 會籍：自開幕日起算 18 個月（起訖明確帶入商品說明與 metadata）
-    const end = addMonthsISO(addMonthsISO(MEMBERSHIP_START, MAX_TERM), 0);
-    const endMinus1 = (() => { const d = new Date(end + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); })();
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
-      payment_method_types: ['card'], // 同上：明示 card，避免帳戶未啟用 TWD 預設付款方式時回 500
-      line_items: [{
-        price_data: {
-          currency: 'twd',
-          product_data: {
-            name: '言文字創始會員',
-            description: `18 個月會籍（${MEMBERSHIP_START} 起算至 ${endMinus1}）・限量 100 名`,
-          },
-          unit_amount: PRICE * 100, // TWD 為 2 位小數幣別：NT$35,000 → 3,500,000
-        },
-        quantity: 1,
-      }],
-      success_url: `${origin}${langPrefix}/fellow?paid=1&s={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}${langPrefix}/fellow?canceled=1`,
-      billing_address_collection: 'required',
-      phone_number_collection: { enabled: true },
-      metadata: { plan: 'founding-member', term_months: String(MAX_TERM), start_date: MEMBERSHIP_START, end_date: endMinus1, src: srcOf(req) || undefined },
-    });
-    await client.query('COMMIT');
-    res.json({ url: session.url });
-  } catch (e) { await client.query('ROLLBACK'); throw e; }
-  finally { client.release(); }
-}));
-
-// 付款成功頁驗證：前端只憑 ?paid=1 不足採信，須以 session id 向 Stripe 確認已付款
-app.get('/api/checkout/verify', wrap(async (req, res) => {
-  if (!stripe) return res.status(503).json({ paid: false });
-  const id = String(req.query.s || '');
-  if (!/^cs_[A-Za-z0-9_]+$/.test(id)) return res.status(400).json({ paid: false });
-  const s = await stripe.checkout.sessions.retrieve(id);
-  res.json({ paid: s.payment_status === 'paid' && !!s.metadata && s.metadata.plan === 'founding-member' });
-}));
-
 /* ---- 會員資料、一般會籍線上購買、場地檔期、後台操作紀錄 ---- */
 async function yanRowsFor(clientOrPool, userId) {
   const run = clientOrPool.query ? clientOrPool : { query: (...a) => q(...a) };
@@ -4612,6 +4541,7 @@ app.post('/api/me/plans/checkout', auth, requireDb, wrap(async (req, res) => {
   if (!stripe) return res.status(503).json({ error: '購買功能尚未開通（未設定 Stripe）。' });
   const plan = String(req.body?.plan || '');
   if (!FLOOR_PLANS.includes(plan)) return res.status(400).json({ error: '未知方案。' });
+  if (plan === 'year_promo' && !promoOpen()) return res.status(410).json({ error: '開幕優惠已截止。' });
   const user = (await q(`SELECT email FROM users WHERE id=$1`, [req.auth.sub])).rows[0];
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
@@ -4678,7 +4608,9 @@ const PUB = path.join(__dirname, 'public');
 // HTML 經 layout 組裝 header／footer（SEO／GEO：回應已含完整 markup）。
 // 活動場地已併入活動頁：舊 /partner 三語 301 至 /events#venue
 for (const pre of ['', '/en', '/ja']) app.get(pre + '/partner', (req, res) => res.redirect(301, pre + '/events#venue'));
-const PROGRAMS = ['fellow', 'startup'];
+// 創始會員頁已下架：舊網址轉回對應語系首頁（促銷改在會員 App）
+for (const pre of ['', '/en', '/ja']) app.get(pre + '/fellow', (req, res) => res.redirect(301, pre + '/'));
+const PROGRAMS = ['startup'];
 for (const prog of PROGRAMS) {
   for (const pre of ['', 'en', 'ja']) {
     const parts = pre ? [pre, prog] : [prog];

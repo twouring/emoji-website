@@ -129,7 +129,8 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 .btn2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--ink);border-radius:999px;padding:6px 12px;background:var(--card);font-weight:500}
 .chip .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}.chip .dot.on{background:var(--accent);border:1px solid var(--ink)}
-.plan{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.plan.promo .tag{display:inline-block;padding:2px 8px;border-radius:999px;background:#FFDE34;color:#1a1a1a;font-size:1rem;font-weight:600}
+  .plan{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
 .plan button,.plan a{min-height:44px;padding:0 14px;border:1.5px solid var(--ink);border-radius:12px;background:transparent;color:var(--ink);font-weight:500;text-decoration:none;display:inline-flex;align-items:center;white-space:nowrap}
 .ev{display:block;padding:14px 0;border-top:1px solid var(--line);color:inherit;text-decoration:none}
 .ev h3{font-size:1.05rem}.ev .meta2{color:var(--muted);margin-top:2px}.ev p{color:var(--soft);margin:.3em 0 0;white-space:pre-wrap}
@@ -163,9 +164,10 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 <script>
 (function(){
   const KEY='tth_token', CACHE='m_cache', LANG_KEY='m_lang';
-  /* app.emoji.tw 是獨立網域：App 在根路徑；活動詳情、創始會員與 Email 登入頁仍在官網 */
+  /* app.emoji.tw 是獨立網域：App 在根路徑；活動詳情與 Email 登入頁仍在官網 */
   const ON_APP=location.hostname==='app.emoji.tw', SITE=ON_APP?'https://www.emoji.tw':'', ROOT=ON_APP?'/':'/m';
-  const PLAN_PRICES={day_4h:200,day_12h:500,month:4000,quarter:10000,year:35000};
+  const PLAN_PRICES={day_4h:200,day_12h:500,month:4000,quarter:10000,year:35000,year_promo:35000};
+  const PROMO_END='2026-12-31',promoOpen=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei'}).format(new Date())<=PROMO_END;
   const I18N={
     zh:{locale:'zh-TW',tabHome:'會員卡',tabPlan:'會籍',tabEvents:'活動',tabMe:'我的',loading:'載入中…',
       loginTitle:'言文字 會員',loginSub:'登入後，用一張卡在所有空間累積點數、查看會籍、報名活動。',pkLogin:'用 Touch ID／Face ID 登入',pkName:'第一次來？輸入名字',pkSignup:'用 Touch ID／Face ID 快速註冊',google:'使用 Google 登入',lineLogin:'使用 LINE 登入',email:'改用 Email 登入',needName:'請先輸入名字',pkFail:'無法使用 Touch ID，請改用 Google 登入',signupFail:'無法註冊，請改用 Google 登入',
@@ -175,9 +177,9 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       install:'把會員卡放到主畫面',installSub:'結帳時一點就開，不用再找網址。',later:'稍後',installed:'已加到主畫面',home:'主畫面',
       nextEvent:'下一場活動',noEvents:'目前沒有開放報名的活動',registered:'已報名',pendingPay:'等待付款',full:'名額已滿',free:'免費',cap:(r,c)=>'名額 '+r+'／'+c,regCount:n=>'已報名 '+n+' 人',timeTbd:'時間待定',updates:'會員動態',noUpdates:'目前尚無會員動態。',events:'活動',
       plan:'會籍',statusLabel:'目前狀態',statusActive:p=>p+'會籍有效',statusPending:'待首次進場啟用',statusExpired:'會籍已到期',statusNone:'尚未有會籍',daysLeft:n=>'還有 '+n+' 天',
-      plans:{day_4h:'單日 4 小時',day_12h:'單日 12 小時',month:'月會員',quarter:'季會員',year:'年會員',founding:'創始會員',fallback:'權益'},
+      plans:{day_4h:'單日 4 小時',day_12h:'單日 12 小時',month:'月會員',quarter:'季會員',year:'年會員',year_promo:'開幕優惠 年會員 18 個月',founding:'創始會員',fallback:'權益'},
       accessTitle:'進出等等空間',accessOn:'可進出等等空間',accessPending:'待啟用',accessOff:'目前不可進出',accessQr:'顯示進出 QR',accessNote:'進出 QR 每 30 秒更新；持有效會籍即可進出等等空間，享有所有空間與設備。',needPlan:'尚無可用方案，請先加入會員方案。',qrPending:'（待首次進場啟用）',qrUntil:'有效至 ',qrFail:'目前無法產生進出 QR',qrOffline:'需要網路才能顯示 QR',
-      buy:'購買會籍',renew:'續訂／升級',plansTitle:'方案',buyBtn:p=>'線上購買 NT$'+p.toLocaleString('en-US'),joinFounder:'前往加入 →',founderNote:'創始會員：18 個月會籍、限量 100 名。',founderYes:'創始會員',planPaid:'會籍已購買，首次進場時啟用。',planCanceled:'已取消付款。',planVerifying:'確認付款中…',planFail:'目前無法線上購買，請到現場辦理。',
+      buy:'購買會籍',renew:'續訂／升級',plansTitle:'方案',buyBtn:p=>'線上購買 NT$'+p.toLocaleString('en-US'),promoTag:'開幕優惠',promoName:'年會員 18 個月',promoNote:'同年會員價，多送 6 個月（共 18 個月）。優惠至 2026/12/31。',founderYes:'創始會員',planPaid:'會籍已購買，首次進場時啟用。',planCanceled:'已取消付款。',planVerifying:'確認付款中…',planFail:'目前無法線上購買，請到現場辦理。',
       me:'我的',name:'姓名',emailL:'Email',phone:'手機',phoneHint:'手機（09 開頭，結帳報號碼就能累點）',noPhone:'尚未填寫',edit:'更新資料',save:'儲存',saved:'已儲存',saveFail:'儲存失敗',
       lineLink:'綁定 LINE・接收活動票券與訂位提醒',lineFail:'LINE 綁定失敗',quick:'快速登入',pkOn:'啟用 Touch ID／Face ID 登入',pkOff:'移除這台裝置的快速登入',pkHere:'已啟用。下次打開 App 可以直接用 Touch ID／Face ID 登入。',pkWhy:'登入過期時，不用再跳去 Google，用指紋或臉就能回來。',enabled:'已啟用',removed:'已移除',removeFail:'移除失敗',enableFail:'無法啟用',
       manage:'管理',admin:'前往後台',organizer:'管理我的活動',language:'語言',logout:'登出',offline:'目前離線，顯示上次的資料',netFail:'連線失敗，請稍後再試',reload:'重新整理',
@@ -198,9 +200,9 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       install:'Add the card to your home screen',installSub:'One tap at checkout — no URL to find.',later:'Later',installed:'Added to home screen',home:'Home screen',
       nextEvent:'Next event',noEvents:'No open events right now',registered:'Registered',pendingPay:'Payment pending',full:'Full',free:'Free',cap:(r,c)=>r+' / '+c+' seats',regCount:n=>n+' registered',timeTbd:'Time TBD',updates:'Member updates',noUpdates:'No member updates yet.',events:'Events',
       plan:'Membership',statusLabel:'Current status',statusActive:p=>p+' valid',statusPending:'Activates on first entry',statusExpired:'Membership expired',statusNone:'No membership yet',daysLeft:n=>n+' days left',
-      plans:{day_4h:'Day pass · 4 hrs',day_12h:'Day pass · 12 hrs',month:'Monthly',quarter:'Quarterly',year:'Annual',founding:'Founding Member',fallback:'Plan'},
+      plans:{day_4h:'Day pass · 4 hrs',day_12h:'Day pass · 12 hrs',month:'Monthly',quarter:'Quarterly',year:'Annual',year_promo:'Opening offer · Annual 18 months',founding:'Founding Member',fallback:'Plan'},
       accessTitle:'Stay Square access',accessOn:'Stay Square access',accessPending:'Pending',accessOff:'No access',accessQr:'Show access QR',accessNote:'The access QR refreshes every 30 seconds. A valid membership includes Stay Square and every space and facility.',needPlan:'No valid membership yet — join a plan first.',qrPending:' (pending first entry)',qrUntil:'valid until ',qrFail:'Could not generate access QR',qrOffline:'Network needed to show the QR',
-      buy:'Buy membership',renew:'Renew / upgrade',plansTitle:'Plans',buyBtn:p=>'Buy online NT$'+p.toLocaleString('en-US'),joinFounder:'Join →',founderNote:'Founding Member: 18-month membership, limited to 100.',founderYes:'Founding Member',planPaid:'Membership purchased — activates on first entry.',planCanceled:'Payment cancelled.',planVerifying:'Confirming payment…',planFail:'Online purchase unavailable — please ask on-site.',
+      buy:'Buy membership',renew:'Renew / upgrade',plansTitle:'Plans',buyBtn:p=>'Buy online NT$'+p.toLocaleString('en-US'),promoTag:'Opening offer',promoName:'Annual · 18 months',promoNote:'Annual price, 6 extra months (18 total). Until Dec 31, 2026.',founderYes:'Founding Member',planPaid:'Membership purchased — activates on first entry.',planCanceled:'Payment cancelled.',planVerifying:'Confirming payment…',planFail:'Online purchase unavailable — please ask on-site.',
       me:'Me',name:'Name',emailL:'Email',phone:'Phone',phoneHint:'Phone (Taiwan mobile; give it at checkout to earn points)',noPhone:'Not set',edit:'Update profile',save:'Save',saved:'Saved',saveFail:'Could not save',
       lineLink:'Link LINE · tickets & booking reminders',lineFail:'LINE linking failed',quick:'Quick sign-in',pkOn:'Enable Touch ID / Face ID',pkOff:'Remove quick sign-in on this device',pkHere:'Enabled. Next time, sign in with Touch ID / Face ID.',pkWhy:'When your session expires, use your fingerprint or face instead of Google.',enabled:'Enabled',removed:'Removed',removeFail:'Could not remove',enableFail:'Could not enable',
       manage:'Manage',admin:'Open admin',organizer:'Manage my events',language:'Language',logout:'Sign out',offline:'Offline — showing last data',netFail:'Connection failed. Please try again.',reload:'Reload',
@@ -221,9 +223,9 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       install:'会員カードをホーム画面に追加',installSub:'会計時にワンタップで開けます。',later:'あとで',installed:'ホーム画面に追加しました',home:'ホーム画面',
       nextEvent:'次のイベント',noEvents:'現在申し込み可能なイベントはありません',registered:'申込済',pendingPay:'支払い待ち',full:'満席',free:'無料',cap:(r,c)=>'定員 '+r+'／'+c,regCount:n=>'申込 '+n+' 人',timeTbd:'日時未定',updates:'会員向けお知らせ',noUpdates:'お知らせはまだありません。',events:'イベント',
       plan:'会員資格',statusLabel:'現在のステータス',statusActive:p=>p+'：有効',statusPending:'初回入場で有効化',statusExpired:'期限切れ',statusNone:'まだ会員プランがありません',daysLeft:n=>'残り '+n+' 日',
-      plans:{day_4h:'デイ（4時間）',day_12h:'デイ（12時間）',month:'月会員',quarter:'四半期会員',year:'年会員',founding:'創始会員',fallback:'プラン'},
+      plans:{day_4h:'デイ（4時間）',day_12h:'デイ（12時間）',month:'月会員',quarter:'四半期会員',year:'年会員',year_promo:'オープン特典 年会員18か月',founding:'創始会員',fallback:'プラン'},
       accessTitle:'Stay Square 入退室',accessOn:'Stay Square 利用可',accessPending:'保留中',accessOff:'現在利用不可',accessQr:'入退室 QR を表示',accessNote:'入退室 QR は30秒ごとに更新。有効な会員資格があれば Stay Square とすべての設備を利用できます。',needPlan:'有効なプランがありません。先に会員プランに加入してください。',qrPending:'（初回入場で有効化）',qrUntil:'有効期限 ',qrFail:'入退室 QR を生成できません',qrOffline:'QR の表示にはネットワークが必要です',
-      buy:'会員プランを購入',renew:'更新／アップグレード',plansTitle:'プラン',buyBtn:p=>'オンライン購入 NT$'+p.toLocaleString('en-US'),joinFounder:'加入する →',founderNote:'創始会員：18か月の会員資格、限定100名。',founderYes:'創始会員',planPaid:'購入完了。初回入場時に有効化されます。',planCanceled:'支払いをキャンセルしました。',planVerifying:'支払いを確認中…',planFail:'オンライン購入は現在利用できません。現地でお申し込みください。',
+      buy:'会員プランを購入',renew:'更新／アップグレード',plansTitle:'プラン',buyBtn:p=>'オンライン購入 NT$'+p.toLocaleString('en-US'),promoTag:'オープン特典',promoName:'年会員 18か月',promoNote:'年会員と同価格で6か月分おトク（計18か月）。2026/12/31まで。',founderYes:'創始会員',planPaid:'購入完了。初回入場時に有効化されます。',planCanceled:'支払いをキャンセルしました。',planVerifying:'支払いを確認中…',planFail:'オンライン購入は現在利用できません。現地でお申し込みください。',
       me:'マイページ',name:'氏名',emailL:'メール',phone:'携帯電話',phoneHint:'携帯電話（会計時に伝えるとポイントが貯まります）',noPhone:'未登録',edit:'プロフィールを更新',save:'保存',saved:'保存しました',saveFail:'保存できませんでした',
       lineLink:'LINE 連携・チケットと予約リマインド',lineFail:'LINE 連携に失敗しました',quick:'かんたんログイン',pkOn:'Touch ID／Face ID ログインを有効化',pkOff:'この端末のかんたんログインを削除',pkHere:'有効です。次回から Touch ID／Face ID でログインできます。',pkWhy:'ログインが切れても、Google に戻らず指紋や顔で再ログインできます。',enabled:'有効にしました',removed:'削除しました',removeFail:'削除できませんでした',enableFail:'有効化できませんでした',
       manage:'管理',admin:'管理画面へ',organizer:'イベントを管理',language:'言語',logout:'ログアウト',offline:'オフライン：前回のデータを表示中',netFail:'接続に失敗しました。しばらくしてから再度お試しください。',reload:'再読み込み',
@@ -507,8 +509,8 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     const period=s&&e&&!Number.isNaN(+s)&&!Number.isNaN(+e)?fmtDate(s)+' – '+fmtDate(e):'';
     const right=[label,period].filter(Boolean).join(' · ');
     const chipLabel=active?T.accessOn:pend.length?T.accessPending:T.accessOff;
-    const rows=['day_4h','day_12h','month','quarter','year'].map(id=>`<div class="plan"><span>${esc(T.plans[id])}</span><button type="button" data-plan="${id}">${esc(T.buyBtn(PLAN_PRICES[id]))}</button></div>`).join('')
-      +`<div class="plan"><span>${esc(T.plans.founding)}<br><small style="color:var(--muted)">${esc(T.founderNote)}</small></span><a href="${SITE}${BASE}/fellow">${esc(T.joinFounder)}</a></div>`;
+    const promo=promoOpen()?`<div class="plan promo"><span><b class="tag">${esc(T.promoTag)}</b> ${esc(T.promoName)}<br><small style="color:var(--muted)">${esc(T.promoNote)}</small></span><button type="button" data-plan="year_promo">${esc(T.buyBtn(PLAN_PRICES.year_promo))}</button></div>`:'';
+    const rows=promo+['day_4h','day_12h','month','quarter','year'].map(id=>`<div class="plan"><span>${esc(T.plans[id])}</span><button type="button" data-plan="${id}">${esc(T.buyBtn(PLAN_PRICES[id]))}</button></div>`).join('');
     app.innerHTML=`<div class="hello"><h1>${esc(T.plan)}</h1></div>
     <section class="panel"><div class="eyebrow">${esc(T.statusLabel)}${c&&c.cert_no?' · No. '+esc(c.cert_no):''}</div><div class="status">${esc(title)}</div>${bar}${left||right?`<div class="meta"><span>${esc(left)}</span><span>${esc(right)}</span></div>`:''}
       <div class="btn2"><button class="btn solid" id="plans-toggle">${esc(had?T.renew:T.buy)}</button><button class="chip" id="access-chip"${canIssue?'':' data-blocked="1"'}><span class="dot${active?' on':''}"></span>${esc(chipLabel)}</button></div>
