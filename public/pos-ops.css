@@ -398,11 +398,18 @@ tr.lp-refund td{color:var(--danger)}
 .a-tbl.pos-lines td.ops-item{min-width:0}
 @media(max-width:600px){.pos-lines th,.pos-lines td{padding-left:4px!important;padding-right:4px!important}.pos-lines td.pos-qty-col .pos-qty button{width:44px}.pos-lines td:first-child{width:28px}.pos-lines .num{font-size:1rem}}
 @media(min-width:1000px){
-.pos-layout.has-panel .pos-panel-scroll{grid-template-rows:auto auto auto auto minmax(0,1fr);overflow:hidden}
-.pos-panel-scroll>.pos-lines-wrap{grid-row:2;max-height:34vh}
+.pos-layout.has-panel .pos-panel-scroll{grid-template-rows:auto auto auto minmax(0,1fr) auto;overflow:hidden}
+.pos-panel-scroll>.pos-lines-wrap{grid-row:2;max-height:50vh}
 .pos-panel-scroll>.pos-menu-box{grid-column:1;grid-row:3}
-.pos-panel-scroll>.pos-invoice{grid-column:1;grid-row:4;margin-top:8px;overflow:auto;max-height:100%}
+.pos-panel-scroll>.pos-table-actions{grid-column:1;grid-row:5;align-self:end}
 .pos-panel-scroll>.pos-pay{grid-column:2;grid-row:2/span 4;display:grid;overflow:auto;margin-top:0;padding-top:0;border-top:0;align-content:start}
 .pos-pay>.pos-methods{grid-template-columns:repeat(2,1fr)}
 }
 .pos-more,.pos-more-menu{display:none}
+
+.pos-table-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}.pos-table-actions .btn{min-height:48px}
+.pos-method span{min-height:44px;padding:0 8px}
+.pos-methods{grid-template-columns:repeat(auto-fit,minmax(110px,1fr))}
+.pos-sum-member label{flex:1 1 0}.pos-sum-member:has(label){flex-wrap:wrap}.pos-sum-member #pos-yan-scan{flex:none}.pos-sum-member:has(label)>span:last-child{flex:1 0 100%}
+.pos-pay>.pos-invoice{border:1px solid var(--line);border-radius:10px;padding:0 12px}
+@media(min-width:1000px){.pos-pay>.pos-methods{grid-template-columns:repeat(3,1fr)}}
