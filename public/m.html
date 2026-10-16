@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>言文字 會員</title>
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#FBFAF6">
@@ -90,6 +90,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 .offline{background:var(--alt);border:1px solid var(--line);color:var(--soft);border-radius:10px;padding:.4em .8em;margin-bottom:12px;text-align:center}
 @media (prefers-reduced-motion:reduce){.show:active{transform:none}}
 </style>
+<style>html,body{touch-action:manipulation}</style>
 </head>
 <body>
 <main id="app" class="wrap"><p class="empty">載入中…</p></main>
@@ -234,5 +235,6 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   if('serviceWorker' in navigator)navigator.serviceWorker.register('/m-sw.js',{scope:ROOT}).catch(()=>{});
 })();
 </script>
+<script>['gesturestart','gesturechange','gestureend'].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault()));</script>
 </body>
 </html>

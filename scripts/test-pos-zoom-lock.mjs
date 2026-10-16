@@ -38,3 +38,10 @@ test('PIN 鍵盤共用樣式：.clock-pad 要 width:100%（登入卡是 grid，�
   assert.match(css, /\.op-card\{max-width:480px/);
   assert.match(read('public/pos.html'), /\.p-login-card\{width:min\(100%,480px\)/);
 });
+
+test('App PWA（m.html）同樣鎖定縮放：viewport、touch-action、gesture 事件', () => {
+  const m = read('public/m.html');
+  assert.match(m, /maximum-scale=1, user-scalable=no/);
+  assert.match(m, /html,body\{touch-action:manipulation\}/);
+  assert.match(m, /gesturestart/);
+});
