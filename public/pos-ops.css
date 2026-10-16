@@ -240,3 +240,5 @@ tr.lp-refund td{color:#b42318}
 .mk-presets{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.mk-presets button{all:unset;box-sizing:border-box;cursor:pointer;min-height:44px;padding:0 14px;display:flex;align-items:center;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem}.mk-presets button:active{background:var(--paper-alt)}
 .mk-types{grid-template-columns:1fr}
 #mk-err{margin-top:14px;max-width:none}
+
+.pos-part{margin-top:4px;border-style:dashed}.pos-part small{padding:0 6px;color:var(--muted,#777)}

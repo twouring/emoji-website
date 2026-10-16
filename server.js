@@ -4440,7 +4440,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
       regWarn=posRegister.checkoutAllowed(out.lines,await registersOpenMap(client,tableOrders.MenuLib.businessDay()),{strict:!!venues}).warning;
     }catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
     if(!out.lines.every(l=>tableOrders.itemInVenues(l,venues))){await client.query('ROLLBACK');return res.status(403).json({error:'這桌含有其他品牌品項，請只勾選自己店別的品項結帳，或由言文字管理員處理。'});}
-    const orderId=uid('to_'),set=new Set(out.lines.map(l=>l.line)),orderLines=out.lines.map(l=>({...l,order_id:orderId})),items=s.items.map(l=>set.has(l.line)?{...l,order_id:orderId,price:out.lines.find(x=>x.line===l.line).price}:l);
+    const orderId=uid('to_'),set=new Set(out.lines.map(l=>l.line)),orderLines=out.lines.map(l=>({...l,order_id:orderId})),items=tableOrders.settleItems(s.items,out.lines,orderId);
     // 桌邊送單且全部已出餐的品項，結帳時直接記為已取餐（不再回到出餐看板）；有還沒出的照舊進看板
     const served=out.lines.every(l=>l.served_at);
     await client.query('INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,invoice,status,done_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[orderId,s.id,s.table_no,JSON.stringify(orderLines),out.amount,JSON.stringify(out.payer),JSON.stringify(invoice||{}),served?'done':'paid',served?new Date():null]);
