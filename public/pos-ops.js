@@ -780,7 +780,8 @@ function paintPos(){
         <div class="pos-actions"><div class="pos-actions-sub"><button class="btn btn--ghost" id="pos-place" ${cur.lines.some(l=>!l.credit_of)?'':'disabled'} title="有還沒送出的品項就先送單再印；都送過了就整桌重印">列印出餐單</button><button class="btn btn--ghost" id="pos-print-receipt" ${cur.lines.some(l=>!l.credit_of)?'':'disabled'}>列印收據明細</button></div></div>
       </div>
       ${live.length?`<h3>這桌已結帳的單</h3><div class="a-wrap2"><table class="a-tbl pos-paid"><thead><tr><th>品項 · 時間 · 狀態</th><th>付款</th><th class="num">金額</th><th class="ops-th">操作</th></tr></thead><tbody>${liveRows}</tbody></table></div>`:''}
-      </div><div class="pos-dock">${cash?`<div class="pos-change pos-dock-change ${change?'has':''}"><span>找零</span><b>${change!=null?'NT$'+num(change):'—'}</b></div>`:`<div class="pos-dock-due"><span>應收</span><b>NT$${num(total)}</b></div>`}<button class="btn btn--solid" id="pos-checkout" ${picked.length?'':'disabled'}>收款 NT$${num(total)}</button></div>
+      <div class="pos-dock">${cash?`<div class="pos-change pos-dock-change ${change?'has':''}"><span>找零</span><b>${change!=null?'NT$'+num(change):'—'}</b></div>`:`<div class="pos-dock-due"><span>應收</span><b>NT$${num(total)}</b></div>`}<button class="btn btn--solid" id="pos-checkout" ${picked.length?'':'disabled'}>收款 NT$${num(total)}</button></div>
+      </div>
     </div>`;
   }
   host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('客人掃桌上 QR 點餐後，點該桌看帳、結帳；外帶按「＋ 外帶」；客人沒掃碼要櫃檯點餐時，直接點空桌開桌。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div><div class="pos-grid">${grid}</div>${opener}<div class="pos-sub">${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>'}<div class="a-toolbar pos-tools">${posPauseHtml(d.pause)}</div></div></div>${panel}</div>`;

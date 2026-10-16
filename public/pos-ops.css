@@ -139,7 +139,7 @@ tr.pos-comp td{background:var(--ok-faint)}
 /* 桌況區同樣固定高度：桌號格自己捲，外帶／開桌與工具列釘在底部。 */
 @media(min-width:1000px){.pos-layout .pos-tables{display:flex;flex-direction:column;height:calc(100dvh - var(--p-top,60px) - 48px);overflow:hidden;margin-bottom:0}.pos-layout .pos-tables .ops-head,.pos-layout .pos-tables .pos-open,.pos-layout .pos-tables .pos-sub{flex:none}.pos-layout .pos-tables .pos-grid{flex:1;min-height:0;overflow:auto;align-content:start;padding-bottom:4px}}
 .pos-panel-scroll{flex:1;min-height:0;overflow:auto}
-.pos-dock{flex:none;z-index:12;display:flex;align-items:center;gap:12px;margin:0 -16px;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--line);box-shadow:0 -8px 24px rgba(20,18,16,.08)}
+.pos-dock{flex:none;position:sticky;bottom:0;z-index:12;display:flex;align-items:center;gap:12px;margin:12px 0 0;padding:10px 0 calc(6px + env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--line)}
 .pos-dock-change,.pos-dock-due{display:flex;flex-direction:column;gap:0;min-width:7em;font-variant-numeric:tabular-nums}
 .pos-dock-change span,.pos-dock-due span{font-size:1rem;color:var(--muted);line-height:1.2}
 .pos-dock-change b,.pos-dock-due b{font-size:1.75rem;line-height:1.1;font-weight:700}
@@ -401,7 +401,8 @@ tr.lp-refund td{color:var(--danger)}
 .pos-panel-scroll>.pos-lines-wrap{grid-row:2;max-height:50vh}
 .pos-panel-scroll>.pos-menu-box{grid-column:1;grid-row:3}
 .pos-panel-scroll>.pos-table-actions{grid-column:1;grid-row:5;align-self:end}
-.pos-panel-scroll>.pos-pay{grid-column:2;grid-row:2/span 4;display:grid;overflow:auto;margin-top:0;padding-top:0;border-top:0;align-content:start}
+.pos-panel-scroll>.pos-dock{grid-column:2;grid-row:5;align-self:end;position:static;margin-top:0}
+.pos-panel-scroll>.pos-pay{grid-column:2;grid-row:2/span 3;display:grid;overflow:auto;margin-top:0;padding-top:0;border-top:0;align-content:start}
 .pos-pay>.pos-methods{grid-template-columns:repeat(2,1fr)}
 }
 .pos-more,.pos-more-menu{display:none}
