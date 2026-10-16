@@ -126,6 +126,9 @@ TapPay Pay by Prime 結帳。body：`{ prime, lines?[], name, phone?, email? }`�
 可用 `?lang=zh|en|ja` 取得名稱、說明與地點的對應語系；未填翻譯沿用中文。公開列表包含預告與報名中。
 公開活動列表。未登入只回 `visibility=public`；有效會員帶 Bearer token 時另回 `visibility=members`，皆限「預告／報名中」並包含已成立報名數。
 
+### GET /api/events/calendar.ics
+整站公開活動的訂閱日曆（`text/calendar`，多個 `VEVENT`，`X-WR-CALNAME`），供 Google／Apple 行事曆「以 URL 訂閱」。只含 `visibility=public`、非私人時段（`registration_mode<>'closed'`）的預告／報名中活動；沒有開始時間的活動略過。支援 `?lang=zh|en|ja`。快取 5 分鐘。
+
 ### GET /api/events/:slug
 支援同樣的 `?lang=zh|en|ja`；回傳包含 `translations`。
 活動詳情。公開、私人與會員限定活動皆可由直接連結讀取；私人活動不列入清單，會員限定活動只列入有效會員的清單。帶有效 Bearer token 時一併回自己的報名、付款與簽到狀態，以及只屬於目前帳號的 `viewer: {name,email}`，供報名表預填。公開活動的有效報名另回 `referral_token`；帶有效 `ref` 查詢參數時回 `referred_by`，前台可顯示邀請人。私人與會員限定活動不啟用個人轉介追蹤。

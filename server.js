@@ -24,7 +24,7 @@ const {embedOrigins}=require('./lib/event-embed');
 const {richText,contentFileType}=require('./lib/event-rich-text');
 const {normalizeBlast,blastAudienceSQL}=require('./lib/event-mailer');
 const {normalizeTickets,selectTicket,ticketPrice,publicTickets,normalizeCoupons,discountPrice,normalizeTax,taxPrice} = require('./lib/event-tickets');
-const {eventCalendar,googleCalendarUrl} = require('./lib/event-calendar');
+const {eventCalendar,eventsCalendar,googleCalendarUrl} = require('./lib/event-calendar');
 const {refundTotals}=require('./lib/event-refunds');
 const {EVENT_TYPES:EVENT_WEBHOOK_TYPES,normalizeWebhook,sendWebhook}=require('./lib/event-webhooks');
 const {oauthUrl,meetingRequest,meetingResult}=require('./lib/event-meetings');
@@ -3768,6 +3768,13 @@ app.post('/api/events/:id/ticket-options',requireDb,wrap(async(req,res)=>{
  res.json({tickets:publicTickets(event.tickets,req.body?.unlock_code)});
 }));
 
+// 整站公開活動訂閱日曆（必須在 /api/events/:slug 之前註冊）。只含公開且非私人時段的預告／報名中活動。
+app.get('/api/events/calendar.ics',requireDb,wrap(async(req,res)=>{
+ const lang=['en','ja'].includes(req.query.lang)?req.query.lang:'zh';
+ const rows=(await q(`SELECT e.* FROM events e WHERE e.status IN ('預告','報名中') AND e.visibility='public' AND e.registration_mode<>'closed' ORDER BY e.starts_at ASC NULLS LAST`)).rows;
+ const name={zh:'言文字活動',en:'emoji events',ja:'言文字イベント'}[lang];
+ res.set({'Content-Type':'text/calendar; charset=utf-8','Content-Disposition':'inline; filename="emoji-events.ics"','Cache-Control':'public, max-age=300'}).send(eventsCalendar(rows.map(row=>publicEvent(row,lang)),SITE_BASE,name));
+}));
 app.get(['/api/events/:slug/calendar.ics','/api/events/:slug/calendar/google'],requireDb,wrap(async(req,res)=>{
  const event=(await q(`SELECT e.* FROM events e WHERE (e.slug=$1 OR (e.id=(SELECT event_id FROM event_slug_redirects WHERE old_slug=$1) AND NOT EXISTS(SELECT 1 FROM events current WHERE current.slug=$1))) AND e.status<>'草稿' ORDER BY (e.slug=$1) DESC LIMIT 1`,[req.params.slug])).rows[0];
  if(!event)return res.status(404).json({error:'找不到活動。'});

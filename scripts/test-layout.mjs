@@ -125,7 +125,26 @@ test('public event detail has event metadata and safe JSON-LD', () => {
   assert.match(html, /"startDate":"2026-11-08T14:00:00\+08:00"/);
   assert.match(html, /"price":200/);
   assert.doesNotMatch(html, /<title>Meet <Build>/);
+  assert.match(html, /og:image" content="https:\/\/www\.emoji\.tw\/og-cover\.jpg"/, 'no cover keeps the site og image');
+  assert.doesNotMatch(html, /"image":/);
   assert.equal(composeEventMeta(base, { visibility: 'private' }, '/en/events/private'), base);
+
+  // 活動封面進分享預覽（og:image／twitter:image）與 JSON-LD image；非 https 或帶標記的值不採用。
+  const withCover = composeEventMeta(base, {
+    title: 'Covered', description: 'x', visibility: 'public', status: '報名中', starts_at_iso: '2026-11-01T14:00',
+    event_details: { cover_url: 'https://www.emoji.tw/ig-media/assets/event-cover.jpg' },
+  }, '/events/covered');
+  assert.match(withCover, /property="og:image" content="https:\/\/www\.emoji\.tw\/ig-media\/assets\/event-cover\.jpg"/);
+  assert.match(withCover, /name="twitter:image" content="https:\/\/www\.emoji\.tw\/ig-media\/assets\/event-cover\.jpg"/);
+  assert.match(withCover, /"image":\["https:\/\/www\.emoji\.tw\/ig-media\/assets\/event-cover\.jpg"\]/);
+  assert.doesNotMatch(withCover, /og-cover\.jpg/);
+  for (const bad of ['/uploads/relative.jpg', 'http://insecure.example/x.jpg', 'https://x.example/a.jpg"><script>']) {
+    const out = composeEventMeta(base, { title: 'T', visibility: 'public', status: '報名中', event_details: { cover_url: bad } }, '/events/t');
+    assert.match(out, /og:image" content="https:\/\/www\.emoji\.tw\/og-cover\.jpg"/, bad);
+    assert.doesNotMatch(out, /<script>/, bad);
+  }
+  const cancelled = composeEventMeta(base, { title: 'C', visibility: 'public', status: '已取消' }, '/events/c');
+  assert.match(cancelled, /"eventStatus":"https:\/\/schema\.org\/EventCancelled"/);
 });
 
 test('composeLayout injects header and footer with aria-current', () => {
