@@ -26,8 +26,9 @@ test('直向選桌後桌況格收起來，帳單標題有「← 桌況」', () =
   assert.match(css, /\.btn\.pos-back\{display:none/);
 });
 
-test('發票預設攤開；找零字級跟應收同級', () => {
-  assert.match(ops, /details class="pos-invoice" open><summary>/);
+test('發票區塊不可折疊；找零字級跟應收同級', () => {
+  assert.doesNotMatch(ops, /<details class="pos-invoice/);
+  assert.match(ops, /class="pos-invoice-head"/);
   assert.match(css, /\.pos-sum \.pos-change b\{font-size:2rem/);
   assert.match(css, /\.pos-dock-change b,\.pos-dock-due b\{font-size:1.75rem/);
 });

@@ -11,9 +11,9 @@ test('發票欄位：每個類型各自的輸入框用 data-inv-modes 標記，�
   assert.match(ops, /data-inv-modes="company"[^>]*>[^<]*<input name="buyer_ubn"/);
   assert.match(ops, /data-inv-modes="mobile,citizen"/);
   assert.match(ops, /data-inv-modes="donate"[^>]*>[^<]*<input name="love_code"/);
-  assert.match(ops, /data-inv-modes="paper,company"[^>]*>[^<]*<input name="buyer_name"/);
+  assert.doesNotMatch(ops, /name="buyer_name"/);
   // buyer_email／comment 在任何一種發票類型下都該出現（都含 paper,company,mobile,citizen,donate）
-  assert.match(ops, /data-inv-modes="paper,company,mobile,citizen,donate"[^>]*>[^<]*<input name="buyer_email"/);
+  assert.doesNotMatch(ops, /name="buyer_email"/);
   assert.match(ops, /data-inv-modes="paper,company,mobile,citizen,donate"[^>]*>[^<]*<input name="comment"/);
 });
 
