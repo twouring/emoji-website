@@ -478,8 +478,9 @@ function paintPos(){
     const [cls,label]=TABLE_STATE[s.state]||TABLE_STATE.open;return `<button type="button" class="pos-table ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''}" data-pos-table="${esc(s.table)}"><b>${s.takeout?'外帶 ':''}${esc(s.table)}</b><span class="pill ${cls}">${label}</span><small>${s.unpaid?`未結 NT$${num(s.unpaid_amount)}`:s.state==='empty'?'還沒點餐':'已結清'}${s.operator?' · 👤 '+esc(s.operator):''}</small>${s.mixed?'<small class="pill pill-bad">混桌</small>':''}${resvHtml(s.table)}</button>`;
   }).join('');
   // 櫃檯開桌／外帶：加開固定清單以外的桌號、或外帶單
-  const opener=`<div class="pos-open"><input id="pos-open-table" placeholder="例 A11" maxlength="8" autocapitalize="characters" autocomplete="off" aria-label="桌號"><button type="button" class="btn btn--ghost" id="pos-open">開桌</button><button type="button" class="btn btn--ghost" id="pos-takeout">＋ 外帶</button></div>`;
+  const opener=`<div class="pos-open"><button type="button" class="btn btn--ghost" id="pos-open">開桌</button><button type="button" class="btn btn--ghost" id="pos-takeout">＋ 外帶</button></div>`;
   let panel='',picked=[],subtotal=0,total=0,priceOf=l=>l.price;
+  const reload=()=>{host.dataset.sig='';return loadPos();};
   if(cur){
     if(POS_PICK)POS_PICK=new Set([...POS_PICK].filter(l=>cur.lines.some(x=>x.line===l)));
     for(const k of Object.keys(POS_QTY)){const x=cur.lines.find(l=>l.line===k);if(!x||POS_QTY[k]>=x.qty||POS_QTY[k]<1)delete POS_QTY[k];}
@@ -520,8 +521,7 @@ function paintPos(){
       ${live.length?`<h3>這桌已結帳的單</h3><div class="a-wrap2"><table class="a-tbl pos-paid"><thead><tr><th>品項 · 時間 · 狀態</th><th>付款</th><th class="num">金額</th><th class="ops-th">操作</th></tr></thead><tbody>${liveRows}</tbody></table></div>`:''}
     </div>`;
   }
-  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('點空桌直接開桌；點已開的桌看這桌的帳。沒印在桌牌上的桌號或外帶用下面加開。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div>${registerBar()}${kitchenPrintStatusHtml()}${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>'}${opener}<div class="pos-grid">${grid}</div></div>${panel}</div>`;
-  const reload=()=>{host.dataset.sig='';return loadPos();};
+  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('點空桌或按「開桌」選桌位；點已開的桌看這桌的帳；外帶按「＋ 外帶」。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div>${registerBar()}${kitchenPrintStatusHtml()}${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>'}${opener}<div class="pos-grid">${grid}</div></div>${panel}</div>`;
   bindRegisterBar(host,reload);
   if(!document.getElementById('p-drawer'))bindCashDrawerButton(host.querySelector('#pos-cash-drawer'));
   const resumePrint=host.querySelector('#pos-print-resume');if(resumePrint)resumePrint.onclick=()=>{resumeKitchenPrinting();if(KITCHEN_PRINT_PAUSED)return;paintPos();return pollKitchenPrinting();};
@@ -539,8 +539,16 @@ function paintPos(){
       return reload();
     });
   });
-  host.querySelector('#pos-open').onclick=()=>{const t=host.querySelector('#pos-open-table').value.trim().toUpperCase();if(!t){toast('請先輸入桌號');host.querySelector('#pos-open-table').focus();return;}openSession({table_no:t});};
-  host.querySelector('#pos-open-table').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();host.querySelector('#pos-open').click();}};
+  host.querySelector('#pos-open').onclick=()=>{
+    // 點「開桌」再從桌位清單選一桌（不打字）；沿用桌況格空桌的開桌流程（含訂位已到詢問）
+    const ov=document.createElement('div');ov.className='pos-move-ov';
+    ov.innerHTML=`<div class="pos-move-box" role="dialog" aria-label="開桌"><h3>開哪一桌？</h3><div class="pos-move-grid">${DEFAULT_TABLES.map(t=>{const o=byTable.get(t);return `<button type="button" class="pos-move-opt ${o?'busy':''}" data-to="${esc(t)}"><b>${esc(t)}</b><small>${o?'使用中':'空桌'}</small></button>`;}).join('')}</div><div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-cancel>取消</button></div></div>`;
+    const done=()=>ov.remove();
+    ov.onclick=e=>{if(e.target===ov)done();};
+    ov.querySelector('[data-cancel]').onclick=done;
+    ov.querySelectorAll('[data-to]').forEach(b=>b.onclick=()=>{done();const t=b.dataset.to;if(byTable.get(t)){POS_TABLE=t;POS_PICK=null;POS_QTY={};POS_DISCOUNT=null;POS_RECEIVED='';paintPos();}else host.querySelector('[data-open-table="'+t+'"]')?.click();});
+    document.body.appendChild(ov);
+  };
   host.querySelector('#pos-takeout').onclick=()=>openSession({takeout:true});
   if(!cur)return;
   host.querySelectorAll('[data-part]').forEach(b=>b.onclick=()=>{const l=cur.lines.find(x=>x.line===b.dataset.part);if(!l)return;const n=Math.min(l.qty,Math.max(1,(POS_QTY[l.line]||l.qty)+Number(b.dataset.delta)));if(n>=l.qty)delete POS_QTY[l.line];else POS_QTY[l.line]=n;paintPos();});
