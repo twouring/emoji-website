@@ -152,7 +152,33 @@ tr.pos-comp td{background:#f2fbf4}
 .ops-pause{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}
 .ops-pause.on{border-color:#b42318;background:#fff5f3}.ops-pause label{display:inline-flex;align-items:center;gap:.5em;font-size:1rem}.ops-pause label input{width:22px;height:22px}.ops-pause input[data-pause-msg]{flex:1;min-width:220px;min-height:44px;font-size:1rem}.ops-pause .pill{flex-basis:100%}
 .a-tbl td.a-mono,.a-tbl .resv-id{white-space:nowrap}
-.ops-station{display:flex;gap:8px;align-items:flex-start;margin:2px 0}
+/* 出餐看板品項：每道一個區塊（類別籤｜品名＋數量＋規格籤＋鍵），道與道之間虛線分隔；目標是現場一眼辨識、不做錯。
+   類別欄用 auto 而非 max-content：直向平板（820px）表格放不下時膠囊可換行，不把整張表撐出橫向捲軸 */
+.ops-lines{display:grid;gap:0}
+.ops-line{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:start;padding:7px 0;border-top:1px dashed var(--line)}
+.ops-line:first-child{border-top:0;padding-top:0}.ops-line:last-child{padding-bottom:0}
+.ops-cat{font-size:1rem;line-height:1.3;color:var(--muted);padding:2px 6px;border:1px solid var(--line);border-radius:999px;background:var(--paper);text-align:center;margin-top:2px}
+.ops-line.done .ops-cat{opacity:.5}
+.ops-line-body{min-width:0}
+.ops-line-top{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
+.ops-name{font-size:1.15rem;font-weight:700;line-height:1.3}
+.ops-line.done .ops-name{font-weight:400}
+.ops-qty{font-size:1.15rem;font-weight:700;line-height:1.3;font-variant-numeric:tabular-nums}
+.ops-qty.many{background:var(--ink);color:var(--paper);padding:0 8px;border-radius:6px}
+.ops-line-btns{margin-left:auto;display:inline-flex;gap:6px}.ops-line-btns:empty{display:none}
+.ops-specs{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.ops-spec{font-size:1rem;line-height:1.3;padding:2px 8px;border-radius:6px;border:1px solid var(--ink);color:var(--ink);font-weight:600;background:var(--card)}
+.ops-spec-default{border-color:var(--line);color:var(--muted);font-weight:400}
+.ops-spec-custom{border-color:#d59f00;background:#fff6dc;color:#7a5a00;font-weight:700}
+/* 品名、規格籤、類別籤都不拆字（「※醬另外放」被擠成直排就是漏做的開始）；品項欄保底 18em，寧可其他欄縮、桌號不換行。
+   直向平板（≤1000px）類別籤改放品名上方、操作鍵直向堆疊，品名才有整行可用 */
+.ops-name,.ops-cat,.ops-spec,.a-tbl td.ops-table-no{white-space:nowrap}
+.a-tbl td.ops-item-col{min-width:18em}
+@media(max-width:1000px){.ops-line{grid-template-columns:1fr;gap:2px}.ops-cat{justify-self:start;margin-top:0}#orders-body .a-tbl td.ops-actions{min-width:0;width:auto}#orders-body .a-tbl td.ops-actions .ops-btns{flex-direction:column;align-items:stretch}
+  /* 直向平板：桌號／狀態欄縮到剛好、膠囊可折行、品項欄保底降到 14em，整張表不出現橫向捲軸（量測 820px：overflow 0） */
+  .a-tbl td.ops-item-col{min-width:14em}.a-tbl td.ops-table-no{white-space:normal;padding-left:8px;padding-right:8px}.a-tbl td.ops-table-no small{display:block}
+  #orders-body .a-tbl td:nth-child(5){white-space:normal}#orders-body .a-tbl td:nth-child(5) .pill{white-space:normal;line-height:1.25;text-align:left}
+  #orders-body .a-tbl th,#orders-body .a-tbl td{padding-left:8px;padding-right:8px}}
 tr.ops-ready td{background:#f2fbf4}
 tr.ops-placed td{background:#fff8e6}
 tr.resv-day td{background:var(--paper-alt);font-weight:600}

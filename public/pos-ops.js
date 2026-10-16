@@ -1,4 +1,4 @@
-/* 餐飲營運共用腳本：出餐看板（吧檯／廚房分站、列印、作廢）、暫停點餐、櫃檯結帳（POS）＋桌況、估清、訂位、查單、日結＋交班、桌號 QR。
+/* 餐飲營運共用腳本：出餐看板（品項標類別、列印、作廢）、暫停點餐、櫃檯結帳（POS）＋桌況、估清、訂位、查單、日結＋交班、桌號 QR。
    /admin（admin.html）與平板 POS 子站（pos.emoji.tw → pos.html）共同載入；本檔只管畫面與 API 呼叫。
    宿主頁須先定義：esc、num、NT、api、toast、applicationTime、downloadCSV、opsHref(tab)、SCOPE、TAB、DATA、MENU_DOC、BRAND_LABEL，
    並載入 /menu-lib.js（MenuLib）與 /vendor/qrcode.min.js（QRCode）。
@@ -202,7 +202,22 @@ function updateInvoiceFields(host){
 const payMethodLabel=code=>PAY_LABEL[code]||(DATA?.payment_methods||[]).find(m=>m.code===code)?.label||code;
 // 刷卡與台新手機付同一台機器對帳，結帳選項合併成一個（代碼仍是 taishin）；歷史單據各自的 card／taishin 標籤不受影響，見 payMethodLabel
 const payMethodsActive=()=>{const list=(DATA?.payment_methods||[]).filter(m=>m.active);return list.length?list:[['cash','現金'],['linepay','LINE Pay'],['transfer','轉帳'],['taishin','刷卡／台新手機付']].map(([code,label])=>({code,label,builtin:true}));};
-const STATION_LABEL={bar:'吧檯',kitchen:'廚房'};
+// 開放式餐吧不分吧檯／廚房；看板與出餐單改用菜單類別（咖啡、茶、日式主食…）讓現場一眼看出餐飲類型。API 的 stations 仍照舊回，這裡攤平後依類別排序。
+const catLabel=c=>(typeof MenuLib!=='undefined'&&MenuLib.CAT_LABEL?.[c]?.zh)||c||'其他';
+const catOrder=c=>{const i=typeof MenuLib!=='undefined'?MenuLib.CATS.indexOf(c):-1;return i<0?999:i;};
+const byCat=lines=>lines.map((l,i)=>[l,i]).sort((a,b)=>catOrder(a[0].cat)-catOrder(b[0].cat)||a[1]-b[1]).map(([l])=>l);
+const orderLines=o=>byCat(o.stations&&(o.stations.bar?.length||o.stations.kitchen?.length)?[...(o.stations.bar||[]),...(o.stations.kitchen||[])]:(o.items||[]).filter(l=>!l.prepay&&!l.credit_of));
+const groupByCat=lines=>{const g=new Map();for(const l of byCat(lines)){const k=l.cat||'';if(!g.has(k))g.set(k,[]);g.get(k).push(l);}return [...g];};
+// 規格：note 由桌邊／櫃檯加點寫成「溫度：熱；糖度：無糖；冰塊：去冰；自由文字」。拆成一顆顆標籤：預設值（正常冰、正常糖…）淡化、非預設值深色加粗、
+// 沒有「標籤：」的自由需求標 ※ 琥珀底——現場看一眼就知道哪些要特別處理，減少做錯。預設值來自 order-lib 同一份規格定義（沒載到就全部當非預設）。
+function specParts(l){
+  const defaults={};try{for(const g of (typeof OrderLib!=='undefined'&&OrderLib.optionGroups)?OrderLib.optionGroups({cat:l.cat,zh:l.zh},'zh'):[])defaults[g.label]=g.choices[0];}catch(e){}
+  return String(l.note||'').split(/[；;]/).map(s=>s.trim()).filter(Boolean).flatMap(s=>{
+    const m=s.match(/^([^：:]{1,6})[：:](.+)$/);
+    if(!m)return s.split(/[、,，]/).map(t=>t.trim()).filter(Boolean).map(text=>({text,kind:'custom'})); // 常用備註膠囊以「、」連接，一顆一籤
+    const text=m[2].trim();return [{text,kind:defaults[m[1]]===text?'default':'option'}];
+  });
+}
 const TABLE_STATE={empty:['pill-draft','已開桌'],open:['pill-wait','點餐中'],ordered:['pill-wait','待出餐'],preparing:['pill-wait','準備中'],ready:['pill-ok','可取餐'],idle:['pill-draft','待清桌']};
 // 現場固定桌位（跟桌牌印刷一致，見 table-cards-20261012）：桌況格一律先列出這些桌，不管有沒有開桌，方便現場人員直接點選開桌
 const DEFAULT_TABLES=['A1','A2','A3','A4','A5','A6','A7','A8','A9','A10','B1','B2','C1','C2','C3','C4'];
@@ -319,13 +334,8 @@ async function printInvoiceProof(o,{auto=false}={}){
   if(starReady()){const canvas=await invoiceProofCanvas(o);const ok=await starSend({canvas});if(ok)toast('發票已印出');return ok;}
   if(auto)starHint();else starOpenHere();
 }
-// 出餐單／收據明細 58mm 點陣排版。出餐單給吧檯／廚房：桌號大字、分站、品名×數量、備註（不印價錢）。收據明細給客人：品項金額、折扣、付款、發票。
-const TICKET_BAR_CATS=['COFFEE','TEA','BEVERAGE','SPARKLING','SAKE','LIQUEUR','WINE','ALCOHOL'];
-function ticketStationOf(l){return l?.station||(TICKET_BAR_CATS.includes(l?.cat)?'bar':'kitchen');}
-function ticketStations(o){
-  if(o.stations&&(o.stations.bar?.length||o.stations.kitchen?.length))return {bar:o.stations.bar||[],kitchen:o.stations.kitchen||[]};
-  const out={bar:[],kitchen:[]};for(const l of o.items||[])out[ticketStationOf(l)].push(l);return out;
-}
+// 出餐單／收據明細 58mm 點陣排版。出餐單給現場：桌號大字、依類別分段、品名×數量、備註（不印價錢）。收據明細給客人：品項金額、折扣、付款、發票。
+const ticketGroups=o=>groupByCat(orderLines(o).filter(l=>!l.cancelled));
 function ticketTableLabel(o){return `${isTakeoutNo(o.table_no)?'外帶':'桌號'} ${o.table_no||''}`;}
 function ticketShop(o){return BRAND_LABEL[o.items?.[0]?.venue]||BRAND_LABEL[SCOPE]||'言文字';}
 function ticketLineMark(l){return l.cancelled?'（已取消）':l.comp_reason?'（贈送）':'';}
@@ -353,17 +363,19 @@ function ticketCanvas(spec){
   const out=document.createElement('canvas');out.width=W;out.height=Math.ceil(y+8);const og=out.getContext('2d');og.fillStyle='#fff';og.fillRect(0,0,W,out.height);og.drawImage(c,0,0);return out;
 }
 function kitchenTicketSpec(o){
-  const stations=ticketStations(o),takeout=isTakeoutNo(o.table_no);
+  const takeout=isTakeoutNo(o.table_no);
   const spec=[{kind:'center',text:'出餐單',size:22,bold:true},{kind:'center',text:takeout?'外帶':'桌號',size:20},{kind:'center',text:String(o.table_no||''),size:54,bold:true},{kind:'center',text:applicationTime(o.paid_at||o.placed_at),size:18}];
   if(o.status==='placed')spec.push({kind:'center',text:'未結帳',size:20,bold:true});
   spec.push('rule');
   let count=0;
-  for(const s of ['bar','kitchen']){
-    const lines=(stations[s]||[]).filter(l=>!l.cancelled);if(!lines.length)continue;
-    spec.push({kind:'left',text:'【'+STATION_LABEL[s]+'】',size:22,bold:true});
+  for(const [cat,lines] of ticketGroups(o)){
+    spec.push({kind:'left',text:'【'+catLabel(cat)+'】',size:22,bold:true});
     for(const l of lines){
       spec.push({kind:'row',left:`${l.zh}${l.comp_reason?'（贈）':''}`,right:'×'+l.qty,size:26,bold:true});
-      if(l.note)spec.push({kind:'wrap',text:'※ '+l.note,size:22,bold:true});
+      // 規格一行（熱／無糖／去冰）、自由需求各自一行加大 ※，做的人不用在一串字裡找重點
+      const parts=specParts(l),opts=parts.filter(p=>p.kind!=='custom').map(p=>p.text),custom=parts.filter(p=>p.kind==='custom').map(p=>p.text);
+      if(opts.length)spec.push({kind:'wrap',text:'　'+opts.join('／'),size:22,bold:true});
+      for(const t of custom)spec.push({kind:'wrap',text:'※ '+t,size:24,bold:true});
       count+=l.qty;
     }
   }
@@ -443,14 +455,13 @@ async function printCheckoutOrder(order){
   try{if(order.invoice?.status==='issued')await printInvoiceProof(order,{auto:true});}catch(e){toast('已收款，發票列印失敗，請到查單補印：'+e.message);}
   try{await printReceipt(order,{auto:true});}catch(e){toast('已收款，明細列印失敗，請到查單補印：'+e.message);}
 }
-// 出餐單（給吧檯／廚房）：桌號大字、分站列品項與備註；不印價錢與付款，避免出餐時分心。
+// 出餐單（給現場）：桌號大字、依類別分段列品項與備註；不印價錢與付款，避免出餐時分心。
 async function printOrder(o,{auto=false}={}){
   if(starReady()){const ok=await starSend({canvas:ticketCanvas(kitchenTicketSpec(o))});if(!ok)toast('出餐單未印出，請到查單補印');return ok;}
   if(auto){starHint();return false;}
-  const stations=ticketStations(o);
-  const section=s=>(stations[s]||[]).filter(l=>!l.cancelled).length?`<h2>${STATION_LABEL[s]}</h2>`+stations[s].filter(l=>!l.cancelled).map(l=>`<div class="l k"><span>${esc(l.zh)}${l.comp_reason?'（贈）':''}</span><span>×${l.qty}</span></div>${l.note?`<div class="n">※ ${esc(l.note)}</div>`:''}`).join(''):'';
+  const sections=ticketGroups(o).map(([cat,lines])=>`<h2>${esc(catLabel(cat))}</h2>`+lines.map(l=>{const parts=specParts(l),opts=parts.filter(p=>p.kind!=='custom').map(p=>p.text),custom=parts.filter(p=>p.kind==='custom').map(p=>p.text);return `<div class="l k"><span>${esc(l.zh)}${l.comp_reason?'（贈）':''}</span><span>×${l.qty}</span></div>${opts.length?`<div class="n">${esc(opts.join('／'))}</div>`:''}${custom.map(t=>`<div class="n">※ ${esc(t)}</div>`).join('')}`;}).join('')).join('');
   const count=(o.items||[]).filter(l=>!l.cancelled).reduce((a,l)=>a+l.qty,0);
-  printWindow(`出餐單 ${ticketTableLabel(o)}`,`<div class="c">出餐單</div><h1 class="k">${isTakeoutNo(o.table_no)?'外帶':'桌號'} ${esc(o.table_no)}</h1><div class="m c">${esc(applicationTime(o.paid_at||o.placed_at))}${o.status==='placed'?' · 未結帳':''}</div>${section('bar')}${section('kitchen')}<hr class="sep"><div class="c">共 ${count} 件<br>單號 ${esc(o.id||o.order_id||'')}</div>`);
+  printWindow(`出餐單 ${ticketTableLabel(o)}`,`<div class="c">出餐單</div><h1 class="k">${isTakeoutNo(o.table_no)?'外帶':'桌號'} ${esc(o.table_no)}</h1><div class="m c">${esc(applicationTime(o.paid_at||o.placed_at))}${o.status==='placed'?' · 未結帳':''}</div>${sections}<hr class="sep"><div class="c">共 ${count} 件<br>單號 ${esc(o.id||o.order_id||'')}</div>`);
 }
 // 客人收據明細：店名、品項、小計／折扣／合計、付款方式、實收找零、發票號碼、單號（查單可重印）
 async function printReceipt(o,{auto=false}={}){
@@ -520,18 +531,20 @@ async function loadOrders(){
   const cancelBtn=(o,l)=>o.status!=='placed'?` <button type="button" class="btn btn--ghost btn-xs" data-cancel-item="${esc(o.id)}" data-cancel-line="${esc(l.line)}" data-cancel-name="${esc(l.zh)}">取消</button>`:'';
   // 桌邊送單每一道各自出餐：沒出的有「出餐」鍵，出過的劃線；整張都出完才從看板消失
   const serveLineBtn=(o,l)=>o.status!=='placed'||l.served_at?'':` <button type="button" class="btn btn--ghost btn-xs" data-serve-line="${esc(l.line)}" data-serve-ticket="${esc(o.ticket)}" data-session="${esc(o.session_id)}" aria-label="出餐 ${esc(l.zh)}">出餐</button>`;
-  const lineHtml=(o,l)=>l.cancelled?`<span class="line-cancelled">${esc(l.zh)} ×${l.qty}</span> <span class="hint" style="margin:0">已取消${l.cancel_reason?'：'+esc(l.cancel_reason):''}</span>`
-    :o.status==='placed'&&l.served_at?`<span class="line-served">${esc(l.zh)} ×${l.qty}</span> <span class="hint" style="margin:0">已出 ${esc(clockText(l.served_at))}</span>`
-    :`${esc(l.zh)} ×${l.qty}${l.note?` <span class="hint" style="margin:0">${esc(l.note)}</span>`:''}${cancelBtn(o,l)}${serveLineBtn(o,l)}`;
-  const stationHtml=o=>['bar','kitchen'].filter(s=>o.stations?.[s]?.length).map(s=>`<div class="ops-station"><span class="pill pill-draft">${STATION_LABEL[s]}</span><span>${o.stations[s].map(l=>lineHtml(o,l)).join('<br>')}</span></div>`).join('');
-  const tableCell=o=>`<td><b style="font-size:1.2em">${isTakeoutNo(o.table_no)?'<small>外帶</small> ':''}${esc(o.table_no)}</b></td><td>${stationHtml(o)}</td>`;
+  // 每一道一個區塊：類別籤靠左、品名加粗放大、數量 ×2 以上反白（最常見的錯是做少）、規格拆成標籤（預設淡、非預設深、自由需求 ※ 琥珀）、出餐／取消鍵靠右
+  const specHtml=l=>{const parts=specParts(l);return parts.length?`<div class="ops-specs">${parts.map(p=>`<span class="ops-spec ops-spec-${p.kind}">${p.kind==='custom'?'※ ':''}${esc(p.text)}</span>`).join('')}</div>`:'';};
+  const lineHtml=(o,l)=>l.cancelled?`<div class="ops-line-top"><span class="ops-name line-cancelled">${esc(l.zh)} ×${l.qty}</span><span class="hint" style="margin:0">已取消${l.cancel_reason?'：'+esc(l.cancel_reason):''}</span></div>`
+    :o.status==='placed'&&l.served_at?`<div class="ops-line-top"><span class="ops-name line-served">${esc(l.zh)} ×${l.qty}</span><span class="hint" style="margin:0">已出 ${esc(clockText(l.served_at))}</span></div>`
+    :`<div class="ops-line-top"><b class="ops-name">${esc(l.zh)}</b><b class="ops-qty${l.qty>1?' many':''}">×${l.qty}</b>${l.comp_reason?'<span class="hint" style="margin:0">贈送</span>':''}<span class="ops-line-btns">${cancelBtn(o,l)}${serveLineBtn(o,l)}</span></div>${specHtml(l)}`;
+  const linesHtml=o=>`<div class="ops-lines">${orderLines(o).map(l=>`<div class="ops-line${l.cancelled||(o.status==='placed'&&l.served_at)?' done':''}"><span class="ops-cat">${esc(catLabel(l.cat))}</span><div class="ops-line-body">${lineHtml(o,l)}</div></div>`).join('')}</div>`;
+  const tableCell=o=>`<td class="ops-table-no"><b style="font-size:1.2em">${isTakeoutNo(o.table_no)?'<small>外帶</small> ':''}${esc(o.table_no)}</b></td><td class="ops-item-col">${linesHtml(o)}</td>`;
   const timeCell=at=>`<td class="a-mono" title="${esc(applicationTime(at))}">${esc(clockText(at))}<br><span class="hint" style="margin:0">${elapsedText(at)}前</span></td>`;
   const rows=board.map(o=>o.status==='placed'
     ?`<tr class="ops-placed">${tableCell(o)}${timeCell(o.placed_at)}<td class="num" style="white-space:nowrap">${num(o.amount)}<br><span class="hint" style="margin:0">未結帳</span></td><td>${o.served?`<span class="pill pill-wait">部分出餐 ${o.served}/${o.items.length}</span>`:'<span class="pill pill-wait">待出餐</span>'}</td><td class="ops-actions"><div class="ops-btns"><button class="btn btn--solid btn-sm" data-serve="${esc(o.ticket)}" data-session="${esc(o.session_id)}">整筆出餐</button><button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">列印</button></div></td></tr>`
     :`<tr class="${o.status==='ready'?'ops-ready':''}">${tableCell(o)}${timeCell(o.paid_at)}<td class="num" style="white-space:nowrap">${num(o.amount)}<br><span class="hint" style="margin:0">${esc(payText(o))}</span></td><td>${o.status==='ready'?'<span class="pill pill-ok">可取餐</span>':'<span class="pill pill-wait">準備中</span>'}${o.push_count?' 🔔':''}</td><td class="ops-actions"><div class="ops-btns">${o.status==='paid'?`<button class="btn btn--solid btn-sm" data-order="${esc(o.id)}" data-status="ready">出餐並通知</button>`:''}<button class="btn btn--ghost btn-sm" data-order="${esc(o.id)}" data-status="done">已取餐</button><button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">列印</button><button class="btn btn--ghost btn-sm" data-void="${esc(o.id)}">作廢</button></div></td></tr>`).join('')||'<tr><td colspan="6" class="a-empty">目前沒有待出餐的單</td></tr>';
-  host.innerHTML=`<div class="ops-head"><h2>點餐出餐</h2>${opsHelp(`客人掃桌上 QR 點餐，按「送出點餐」後會直接出現在這裡（未結帳）；做好一道按那一道的「出餐」，全部好了按「整筆出餐」，客人手機會跳通知；用餐完到 <a href="${opsHref('pos')}" data-tab="pos">櫃檯結帳</a>。櫃檯收款的單（外帶、先結後做）也在這裡，按「出餐並通知」會推播給客人到櫃檯取餐。品項依吧檯／廚房分列，每 10 秒自動更新，有新單會響一聲。`)}</div>
+  host.innerHTML=`<div class="ops-head"><h2>點餐出餐</h2>${opsHelp(`客人掃桌上 QR 點餐，按「送出點餐」後會直接出現在這裡（未結帳）；做好一道按那一道的「出餐」，全部好了按「整筆出餐」，客人手機會跳通知；用餐完到 <a href="${opsHref('pos')}" data-tab="pos">櫃檯結帳</a>。櫃檯收款的單（外帶、先結後做）也在這裡，按「出餐並通知」會推播給客人到櫃檯取餐。每道標類別與規格（深色＝客人有改、※＝自由需求），每 10 秒自動更新，有新單會響一聲。`)}</div>
     ${pauseEdit?`<div class="ops-pauses">${pauseEdit}</div>`:''}
-    <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>桌號</th><th>品項（吧檯／廚房）</th><th>結帳</th><th class="num">金額</th><th>狀態</th><th class="ops-th">操作</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>桌號</th><th>類別／品項</th><th>結帳</th><th class="num">金額</th><th>狀態</th><th class="ops-th">操作</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="ops-head" style="margin-top:28px"><h3>桌號 QR</h3>${opsHelp('輸入桌號（逗號分隔）產生 QR，列印貼桌上。QR 內含簽章，更換 APP_SECRET 後須重印。')}</div>
     <div class="a-toolbar"><input id="qr-tables" placeholder="例：A1,A2,A3,B1" style="min-width:260px" value="${esc(qrTables)}"><button type="button" class="btn btn--ghost btn-sm" id="qr-all">全部固定桌</button><button class="btn btn--solid btn-sm" id="qr-make">產生</button><button class="btn btn--ghost btn-sm" id="qr-print" hidden>列印</button></div>
     <div id="qr-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-top:12px"></div>`;
