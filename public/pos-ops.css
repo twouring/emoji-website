@@ -415,3 +415,11 @@ tr.lp-refund td{color:var(--danger)}
 @media(min-width:1000px){.pos-pay>.pos-methods{grid-template-columns:repeat(3,1fr)}}
 .pos-panel h2 .pos-qr-btn{flex:none;min-height:44px;padding:0 12px}
 .pos-table .pos-dwell{font-variant-numeric:tabular-nums}
+
+.pos-qty-col .pos-qty{vertical-align:middle}
+.pos-part-wrap{margin-top:8px;padding:6px 8px;border:1px dashed var(--line);border-radius:12px;background:var(--paper-alt);display:flex;flex-direction:column;align-items:center;gap:4px}
+.pos-part-lbl{font-size:1rem;color:var(--muted);white-space:nowrap}
+.pos-part-wrap .pos-qty.pos-part{margin-top:0;border-style:solid}
+.pos-lines td.pos-amt{text-align:right;white-space:nowrap;vertical-align:top;font-size:1.1rem}
+.pos-lines td.ops-item{vertical-align:top}.pos-lines td.pos-qty-col{vertical-align:top}.pos-lines td.ops-actions{vertical-align:top}
+.pos-lines td.ops-item b{font-size:1.1rem}
