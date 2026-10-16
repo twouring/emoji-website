@@ -30,16 +30,22 @@ test('類別顯示中文菜單類別名；未知或空類別退回「其他」',
   assert.equal(vm.runInContext("catLabel(undefined)", c), '其他');
 });
 
-test('看板與出餐單不再出現吧檯／廚房；表頭改「類別／品項」；每道一個 .ops-line 區塊（類別籤＋品名＋數量＋規格籤）', () => {
+test('看板採市售 KDS 一單一卡；每道保留類別籤＋品名＋數量＋規格籤', () => {
   assert.ok(!/STATION_LABEL|stationHtml|ticketStations|【吧檯】|【廚房】|品項（吧檯／廚房）|依吧檯／廚房分列/.test(ops), 'pos-ops.js 畫面與出餐單不該再出現吧檯／廚房分站');
-  assert.match(ops, /<th>桌號<\/th><th>類別／品項<\/th>/);
+  assert.match(ops, /<article class="kds-card\$\{[^`]*\$\{cardHead\(o,at,state\)\}\$\{linesHtml\(o\)\}<div class="kds-foot">/, '出餐看板改為一單一卡（KDS）：卡頭＋品項＋卡尾主鍵');
+  assert.match(ops, /<div class="kds-head"><b class="kds-table">/, '卡頭桌號大字；用 div 不用 header/footer（全站 footer 樣式會染黑卡尾）');
+  assert.ok(!/<(header|footer) class="kds-/.test(ops), '卡片不得用 header/footer 元素');
+  assert.match(ops, /<span class="kds-age"[^>]*>\$\{elapsedText\(at\)\}<\/span>/, '卡頭顯示等候分鐘，不放時刻／金額');
+  assert.ok(!/<th>結帳<\/th>|num\(o\.amount\)[^\n]*未結帳/.test(ops.slice(ops.indexOf('async function loadOrders'), ops.indexOf('async function loadPos'))), '出餐看板不顯示金額與付款方式');
   assert.match(ops, /<div class="ops-line\$\{[^`]*\}"><span class="ops-cat">\$\{esc\(catLabel\(l\.cat\)\)\}<\/span><div class="ops-line-body">/);
   assert.match(ops, /<b class="ops-name">\$\{esc\(l\.zh\)\}<\/b><b class="ops-qty\$\{l\.qty>1\?' many':''\}">×\$\{l\.qty\}<\/b>/, '品名加粗、數量 ×2 以上反白');
   assert.match(css, /\.ops-line\{display:grid;grid-template-columns:auto 1fr/, '類別欄用 auto（直向平板放不下時膠囊換行），不用 max-content 撐出橫向捲軸');
   assert.match(css, /\.ops-qty\.many\{background:var\(--ink\);color:var\(--paper\)/);
   for (const k of ['default', 'option', 'custom']) assert.match(css, new RegExp(`\\.ops-spec-${k}\\{|\\.ops-spec\\{`), '三種規格籤樣式');
-  assert.match(css, /\.ops-name,\.ops-cat,\.ops-spec,\.a-tbl td\.ops-table-no\{white-space:nowrap\}/, '品名與規格籤不拆字');
-  assert.match(css, /\.a-tbl td\.ops-item-col\{min-width:18em\}/, '品項欄保底寬度');
+  assert.match(css, /\.ops-name,\.ops-cat,\.ops-spec\{white-space:nowrap\}/, '品名與規格籤不拆字');
+  assert.match(css, /\.kds-grid\{columns:300px/, '卡片用 CSS columns 瀑布排欄，卡高不一不留空');
+  assert.match(css, /\.kds-card\{[^}]*break-inside:avoid/, '卡片不跨欄被切');
+  assert.match(css, /\.kds-card\.kds-late \.kds-age\{color:#b42318\}/, '超時卡片紅字');
   assert.match(sw, /VERSION = 'pos-v(39|[4-9]\d|\d{3,})'/, '改了 pos-ops.js／css 要換快取版本');
 });
 

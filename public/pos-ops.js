@@ -516,8 +516,8 @@ const orderActions=(o,{allowVoid=true}={})=>`<div class="ops-btns"><button class
 async function loadOrders(){
   const host=document.getElementById('orders-body');if(!host)return;
   clearTimeout(ORDERS_TIMER);
-  if(!host.dataset.init){host.dataset.init='1';host.innerHTML='<h2>點餐出餐</h2><p class="hint">載入中…</p>';}
-  let d;try{d=await api('/admin/orders'+scopeQuery());}catch(e){if(host.querySelector('table'))toast('更新失敗：'+e.message);else host.innerHTML=`<h2>點餐出餐</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`;ORDERS_TIMER=setTimeout(()=>{if(document.getElementById('orders-body')&&TAB==='orders')loadOrders();},10000);return;}
+  if(!host.dataset.init){host.dataset.init='1';host.innerHTML='<h2>出餐</h2><p class="hint">載入中…</p>';}
+  let d;try{d=await api('/admin/orders'+scopeQuery());}catch(e){if(host.querySelector('.kds-grid'))toast('更新失敗：'+e.message);else host.innerHTML=`<h2>出餐</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`;ORDERS_TIMER=setTimeout(()=>{if(document.getElementById('orders-body')&&TAB==='orders')loadOrders();},10000);return;}
   // 看板＝桌邊送單（客人按「送出點餐」，未結帳）＋已結帳的出餐單，依時間排；新單（含送單）響一聲
   const board=[...(d.tickets||[]).map(t=>({...t,at:t.placed_at})),...d.orders.map(o=>({...o,at:o.paid_at}))].sort((a,b)=>a.at<b.at?-1:1);
   const ids=new Set(board.map(o=>o.id));if(ORDERS_SEEN&&[...ids].some(id=>!ORDERS_SEEN.has(id)))ordersBeep();ORDERS_SEEN=ids;
@@ -527,6 +527,7 @@ async function loadOrders(){
   if(host.dataset.sig===sig&&host.querySelector('#qr-tables')){again();return;}
   host.dataset.sig=sig;
   const qrTables=host.querySelector('#qr-tables')?.value??'';
+  const anyPaused=Object.values(d.pause||{}).some(p=>p.paused);
   const pauseEdit=Object.entries(d.pause||{}).map(([v,p])=>`<div class="ops-pause ${p.paused?'on':''}" data-pause-venue="${esc(v)}"><label><input type="checkbox" data-pause-on ${p.paused?'checked':''}> <b>${esc(BRAND_LABEL[v]||v)}</b> 暫停點餐</label><input data-pause-msg id="pause-msg-${esc(v)}" maxlength="80" placeholder="給客人的文案，點下面常用句或自己填" value="${esc(p.message)}"><button class="btn btn--ghost btn-sm" data-pause-save>儲存</button>${p.paused?'<span class="pill pill-bad">客人目前無法加菜</span>':''}${reasonChips('pause-msg-'+v,PAUSE_PRESETS)}</div>`).join('');
   const cancelBtn=(o,l)=>o.status!=='placed'?` <button type="button" class="btn btn--ghost btn-xs" data-cancel-item="${esc(o.id)}" data-cancel-line="${esc(l.line)}" data-cancel-name="${esc(l.zh)}">取消</button>`:'';
   // 桌邊送單每一道各自出餐：沒出的有「出餐」鍵，出過的劃線；整張都出完才從看板消失
@@ -537,17 +538,22 @@ async function loadOrders(){
     :o.status==='placed'&&l.served_at?`<div class="ops-line-top"><span class="ops-name line-served">${esc(l.zh)} ×${l.qty}</span><span class="hint" style="margin:0">已出 ${esc(clockText(l.served_at))}</span></div>`
     :`<div class="ops-line-top"><b class="ops-name">${esc(l.zh)}</b><b class="ops-qty${l.qty>1?' many':''}">×${l.qty}</b>${l.comp_reason?'<span class="hint" style="margin:0">贈送</span>':''}<span class="ops-line-btns">${cancelBtn(o,l)}${serveLineBtn(o,l)}</span></div>${specHtml(l)}`;
   const linesHtml=o=>`<div class="ops-lines">${orderLines(o).map(l=>`<div class="ops-line${l.cancelled||(o.status==='placed'&&l.served_at)?' done':''}"><span class="ops-cat">${esc(catLabel(l.cat))}</span><div class="ops-line-body">${lineHtml(o,l)}</div></div>`).join('')}</div>`;
-  const tableCell=o=>`<td class="ops-table-no"><b style="font-size:1.2em">${isTakeoutNo(o.table_no)?'<small>外帶</small> ':''}${esc(o.table_no)}</b></td><td class="ops-item-col">${linesHtml(o)}</td>`;
-  const timeCell=at=>`<td class="a-mono" title="${esc(applicationTime(at))}">${esc(clockText(at))}<br><span class="hint" style="margin:0">${elapsedText(at)}前</span></td>`;
-  const rows=board.map(o=>o.status==='placed'
-    ?`<tr class="ops-placed">${tableCell(o)}${timeCell(o.placed_at)}<td class="num" style="white-space:nowrap">${num(o.amount)}<br><span class="hint" style="margin:0">未結帳</span></td><td>${o.served?`<span class="pill pill-wait">部分出餐 ${o.served}/${o.items.length}</span>`:'<span class="pill pill-wait">待出餐</span>'}</td><td class="ops-actions"><div class="ops-btns"><button class="btn btn--solid btn-sm" data-serve="${esc(o.ticket)}" data-session="${esc(o.session_id)}">整筆出餐</button><button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">列印</button></div></td></tr>`
-    :`<tr class="${o.status==='ready'?'ops-ready':''}">${tableCell(o)}${timeCell(o.paid_at)}<td class="num" style="white-space:nowrap">${num(o.amount)}<br><span class="hint" style="margin:0">${esc(payText(o))}</span></td><td>${o.status==='ready'?'<span class="pill pill-ok">可取餐</span>':'<span class="pill pill-wait">準備中</span>'}${o.push_count?' 🔔':''}</td><td class="ops-actions"><div class="ops-btns">${o.status==='paid'?`<button class="btn btn--solid btn-sm" data-order="${esc(o.id)}" data-status="ready">出餐並通知</button>`:''}<button class="btn btn--ghost btn-sm" data-order="${esc(o.id)}" data-status="done">已取餐</button><button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">列印</button><button class="btn btn--ghost btn-sm" data-void="${esc(o.id)}">作廢</button></div></td></tr>`).join('')||'<tr><td colspan="6" class="a-empty">目前沒有待出餐的單</td></tr>';
-  host.innerHTML=`<div class="ops-head"><h2>點餐出餐</h2>${opsHelp(`客人掃桌上 QR 點餐，按「送出點餐」後會直接出現在這裡（未結帳）；做好一道按那一道的「出餐」，全部好了按「整筆出餐」，客人手機會跳通知；用餐完到 <a href="${opsHref('pos')}" data-tab="pos">櫃檯結帳</a>。櫃檯收款的單（外帶、先結後做）也在這裡，按「出餐並通知」會推播給客人到櫃檯取餐。每道標類別與規格（深色＝客人有改、※＝自由需求），每 10 秒自動更新，有新單會響一聲。`)}</div>
-    ${pauseEdit?`<div class="ops-pauses">${pauseEdit}</div>`:''}
-    <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>桌號</th><th>類別／品項</th><th>結帳</th><th class="num">金額</th><th>狀態</th><th class="ops-th">操作</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="ops-head" style="margin-top:28px"><h3>桌號 QR</h3>${opsHelp('輸入桌號（逗號分隔）產生 QR，列印貼桌上。QR 內含簽章，更換 APP_SECRET 後須重印。')}</div>
+  // 卡片看板（參考市售 KDS：Toast／Square／iCHEF 出餐確認）：一張單一張卡、舊單在前；卡頭＝桌號大字＋等候分鐘（8 分轉琥珀、15 分轉紅），不放金額／付款；卡尾一顆主鍵
+  const ageClass=at=>{const m=(Date.now()-new Date(at))/60000;return m>=15?' kds-late':m>=8?' kds-warn':'';};
+  // 卡頭／卡尾用 div 不用 header/footer：全站 style.css 的 footer{background:var(--ink-surface)} 會把卡尾染黑、主鍵看不見
+  const cardHead=(o,at,state)=>`<div class="kds-head"><b class="kds-table">${isTakeoutNo(o.table_no)?'<small>外帶</small>':''}${esc(o.table_no)}</b>${state?`<span class="kds-state">${state}</span>`:''}<span class="kds-age" title="${esc(applicationTime(at))}">${elapsedText(at)}</span></div>`;
+  const card=(o,at,state,btns)=>`<article class="kds-card${o.status==='placed'?' ops-placed':o.status==='ready'?' ops-ready':''}${o.status==='ready'?'':ageClass(at)}" data-kds="${esc(o.id)}">${cardHead(o,at,state)}${linesHtml(o)}<div class="kds-foot">${btns}</div></article>`;
+  const printBtn=o=>`<button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">列印</button>`;
+  const cards=board.map(o=>o.status==='placed'
+    ?card(o,o.placed_at,o.served?`部分出餐 ${o.served}/${o.items.length}`:'',`<button class="btn btn--solid" data-serve="${esc(o.ticket)}" data-session="${esc(o.session_id)}">整筆出餐</button>${printBtn(o)}`)
+    :card(o,o.paid_at,o.status==='ready'?'可取餐':'已結帳',o.status==='paid'?`<button class="btn btn--solid" data-order="${esc(o.id)}" data-status="ready">出餐並通知</button>${printBtn(o)}`:`<button class="btn btn--ghost" data-order="${esc(o.id)}" data-status="done">已取餐</button>`)).join('')||'<p class="a-empty kds-empty">目前沒有待出餐的單</p>';
+  const pending=board.filter(o=>o.status!=='ready').length;
+  host.innerHTML=`<div class="ops-head"><h2>出餐${pending?` <span class="kds-count">${pending}</span>`:''}</h2>${opsHelp(`客人掃桌上 QR 點餐，按「送出點餐」後會直接出現在這裡；做好一道按那一道的「出餐」，全部好了按「整筆出餐」，客人手機會跳通知；用餐完到 <a href="${opsHref('pos')}" data-tab="pos">櫃檯結帳</a>。櫃檯先收款的單（外帶、先結後做）也在這裡，按「出餐並通知」會推播給客人到櫃檯取餐。卡頭的分鐘數＝等候時間，8 分轉黃、15 分轉紅；深色規格＝客人有改、※＝自由需求。每 10 秒自動更新，有新單會響一聲。`)}</div>
+    ${pauseEdit?`<details class="ops-fold"${anyPaused?' open':''}><summary>${anyPaused?'⚠ 目前暫停點餐中':'暫停點餐'}</summary><div class="ops-pauses">${pauseEdit}</div></details>`:''}
+    <div class="kds-grid">${cards}</div>
+    <details class="ops-fold" style="margin-top:28px"><summary>桌號 QR（列印貼桌）</summary>
     <div class="a-toolbar"><input id="qr-tables" placeholder="例：A1,A2,A3,B1" style="min-width:260px" value="${esc(qrTables)}"><button type="button" class="btn btn--ghost btn-sm" id="qr-all">全部固定桌</button><button class="btn btn--solid btn-sm" id="qr-make">產生</button><button class="btn btn--ghost btn-sm" id="qr-print" hidden>列印</button></div>
-    <div id="qr-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-top:12px"></div>`;
+    <div id="qr-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-top:12px"></div></details>`;
   const reload=()=>{host.dataset.sig='';return loadOrders();};
   host.querySelectorAll('[data-order]').forEach(b=>b.onclick=()=>opsThen(()=>api('/admin/orders/'+b.dataset.order+'/status',{method:'POST',body:{status:b.dataset.status}}),out=>out.status==='ready'?`已出餐，推播 ${out.notified} 台裝置`:'已標記取餐',reload));
   host.querySelectorAll('[data-serve]').forEach(b=>b.onclick=()=>opsThen(()=>api('/admin/orders/sessions/'+b.dataset.session+'/tickets/'+b.dataset.serve+'/serve',{method:'POST',body:{}}),'整筆已出餐，客人用餐完再到櫃檯結帳',reload));
