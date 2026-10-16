@@ -128,9 +128,10 @@ tr.pos-comp td{background:var(--ok-faint)}
 .pos-inv-scan-row{display:flex;gap:6px;align-items:center}.pos-inv-scan-row input{flex:1;min-width:0}.pos-inv-scan-row #pos-invoice-scan{flex:none;min-height:48px}
 #pos-invoice-video,#pos-carrier-video{display:none;width:100%;max-width:320px;border-radius:8px;margin-top:6px}.pos-move-box .pos-inv-scan-row input{min-height:48px;font-size:1.125rem;padding:0 10px}.pos-move-box .pos-inv-scan-row #pos-carrier-scan{flex:none;min-height:48px}
 /* 收款獨佔一列最大；換桌／清桌縮小放下面 */
-.pos-actions{display:grid;gap:10px;width:100%}
+/* 動作列一排：列印類靠左，換桌／清桌靠右；窄螢幕才換行 */
+.pos-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;width:100%}
 .pos-actions-sub{display:flex;flex-wrap:wrap;gap:10px}.pos-actions-sub .btn{min-height:48px}
-.pos-actions #pos-close{justify-self:end;min-height:48px}
+.pos-actions-end{margin-left:auto}
 /* 結帳面板高度固定（符合平板操作，不隨品項數伸縮）；內容自己捲，收款列釘在底部。 */
 /* 帳單面板自己捲：收款列 sticky 在面板底，第一屏就能按。直向選桌後面板吃滿可視高度。 */
 .pos-layout.has-panel .pos-panel{display:flex;flex-direction:column;height:calc(100dvh - var(--p-top,60px) - 48px);overflow:hidden;padding-bottom:0}

@@ -75,8 +75,7 @@ test('抵扣超過這次勾選的品項金額時 400', () => {
 test('前端與伺服器接線：混合付款 UI、先收部分金額、作廢退現金看 cashPaid', () => {
   const ops = fs.readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'utf8');
   assert.match(ops, /code:'mixed',label:'混合付款'/);
-  assert.match(ops, /data-split=/); assert.match(ops, /id="pos-prepay"/);
-  assert.match(ops, /body:\{prepay:n,method,payments/);
+  assert.match(ops, /data-split=/); assert.doesNotMatch(ops, /id="pos-prepay"/, '先收部分金額已移除：直接收款，結清自動清桌');
   assert.match(ops, /body:\{method,payments,member:POS_MEMBER/);
   assert.match(ops, /const refundCash=cashPaidOf\(order\)>0&&await posConfirm\('這次作廢/);
   assert.match(ops, /const refundCash=cashPaidOf\(order\)>0&&await posConfirm\('取消品項/);

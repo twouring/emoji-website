@@ -121,9 +121,6 @@ test('接線：結帳頁開桌／換桌／備註／客製金額／折扣／補�
   assert.match(ops, /<button type="button" class="btn btn--ghost" id="pos-open-extra">＋ 加開桌號<\/button>/);
   assert.doesNotMatch(ops, /<input id="pos-open-table"/);
   assert.match(ops, /#pos-open-extra'\)\.onclick=async\(\)=>\{const t=await pickTableNo\(/);
-  // 先收部分金額（預收）也走金額鍵盤，上限＝未結金額－1
-  assert.match(ops, /#pos-prepay'\);if\(prepayBtn\)prepayBtn\.onclick=async\(\)=>\{/);
-  assert.match(ops, /const raw=await pickAmount\(\{title:`這桌未結 NT\$\$\{num\(due\)\}，先付多少？`[^\n]*max:Math\.max\(1,due-1\)/);
   assert.match(ops, /\[data-other\]'\)\.onclick=async\(\)=>\{done\(\);const table=await pickTableNo\(\{[^\n]*exclude:\[cur\.table\]/);
   // 備註：下一項備註欄有常用膠囊；改備註走 pickNote；選項面板也有膠囊
   assert.ok(ops.includes("${noteChips('pos-note',NOTE_PRESETS)}"));
