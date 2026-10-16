@@ -31,3 +31,4 @@ uploads/events/*
 
 # 暫存／驗證產物（.tmp 慣例）
 .tmp/
+dogfood-output/
