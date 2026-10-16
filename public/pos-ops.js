@@ -273,6 +273,8 @@ const TABLE_STATE={empty:['pill-draft','已開桌'],open:['pill-wait','點餐中
 // 現場固定桌位（跟桌牌印刷一致，見 table-cards-20261012）：桌況格一律先列出這些桌，不管有沒有開桌，方便現場人員直接點選開桌
 const DEFAULT_TABLES=['A1','A2','A3','A4','A5','A6','A7','A8','A9','A10','B1','B2','C1','C2','C3','C4'];
 const ORDER_STATE={placed:'待出餐',paid:'準備中',ready:'可取餐',done:'已取餐',void:'已作廢'};
+const IDLE_WARN_MIN=10;
+const idleWarn=s=>!s.takeout&&s.state==='empty'&&s.created_at&&(Date.now()-new Date(s.created_at))>=IDLE_WARN_MIN*60000;
 const elapsedText=iso=>{const m=Math.max(0,Math.floor((Date.now()-new Date(iso))/60000));return m<60?`${m} 分`:`${Math.floor(m/60)} 時 ${m%60} 分`;};
 // 現場看板只顯示時刻（HH:MM），不佔欄寬；完整日期時間放 title 供滑鼠停留查看
 const clockText=iso=>{const d=iso?new Date(iso):null;return d&&!isNaN(d)?d.toLocaleTimeString('zh-TW',{timeZone:'Asia/Taipei',hour12:false,hour:'2-digit',minute:'2-digit'}):'—';};
@@ -685,7 +687,7 @@ function paintPos(){
   const resvHtml=t=>resvOf(t).map(r=>`<small class="pos-resv"><span class="pos-resv-tag">預約</span> ${esc(r.time)} ${esc(r.name)} ${r.party_size} 位${r.status==='new'?'（待確認）':''}</small>`).join('');
   const grid=slots.map(s=>{
     if(s.empty)return `<button type="button" class="pos-table empty ${resvOf(s.table).length?'reserved':''}" data-open-table="${esc(s.table)}"><b>${esc(s.table)}</b><span class="pill pill-draft">空桌</span>${resvHtml(s.table)||'<small>點選直接開桌</small>'}</button>`;
-    const [cls,label]=TABLE_STATE[s.state]||TABLE_STATE.open;return `<button type="button" class="pos-table ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''} ${s.pay_requests?.length?'payreq':''}" data-pos-table="${esc(s.table)}"><b>${s.takeout?'外帶 ':''}${esc(s.table)}</b><span class="pill ${cls}">${label}</span><small>${s.unpaid?`未結 NT$${num(s.unpaid_amount)}`:s.state==='empty'?'還沒點餐':'已結清'}${s.operator?' · 👤 '+esc(s.operator):''}</small>${s.created_at&&!s.takeout?`<small class="pos-dwell">⏱ 已用餐 ${elapsedText(s.created_at)}</small>`:''}${s.pay_requests?.length?`<small class="pos-payreq-tag">💳 要結帳 ${s.pay_requests.map(r=>esc(r.name)).join('、')}</small>`:''}${s.mixed?'<small class="pill pill-bad">混桌</small>':''}${resvHtml(s.table)}</button>`;
+    const [cls,label]=TABLE_STATE[s.state]||TABLE_STATE.open;return `<button type="button" class="pos-table ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''} ${s.pay_requests?.length?'payreq':''} ${idleWarn(s)?'idlewarn':''}" data-pos-table="${esc(s.table)}"><b>${s.takeout?'外帶 ':''}${esc(s.table)}</b><span class="pill ${cls}">${label}</span><small>${s.unpaid?`未結 NT$${num(s.unpaid_amount)}`:s.state==='empty'?'還沒點餐':'已結清'}${s.operator?' · 👤 '+esc(s.operator):''}</small>${idleWarn(s)?`<small class="pos-idlewarn-tag">⚠ 開桌 ${elapsedText(s.created_at)}還沒點餐，去問問客人？</small>`:''}${s.created_at&&!s.takeout?`<small class="pos-dwell">⏱ 已用餐 ${elapsedText(s.created_at)}</small>`:''}${s.pay_requests?.length?`<small class="pos-payreq-tag">💳 要結帳 ${s.pay_requests.map(r=>esc(r.name)).join('、')}</small>`:''}${s.mixed?'<small class="pill pill-bad">混桌</small>':''}${resvHtml(s.table)}</button>`;
   }).join('');
   // 櫃檯開桌／外帶：加開固定清單以外的桌號、或外帶單
   // 「開桌」＝從固定桌號清單點一桌；「加開桌號」＝桌牌上沒有的桌號（點區＋數字鍵）；都不打字

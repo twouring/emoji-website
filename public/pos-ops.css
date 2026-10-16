@@ -326,3 +326,5 @@ tr.lp-refund td{color:#b42318}
 .kds-foot{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line)}.kds-foot .btn{margin:0;min-height:52px}.kds-foot .btn--solid{flex:1;font-size:1.1rem}.kds-foot .btn--ghost:only-child{flex:1}
 .kds-count{display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 8px;border-radius:999px;background:var(--ink);color:var(--paper);font-size:1rem;font-weight:600}
 @media(max-width:700px){.kds-grid{columns:1}}
+
+.pos-table.idlewarn{border-color:#d9822b;background:#fff1e0}.pos-table.idlewarn.on{background:var(--ink)}.pos-table .pos-idlewarn-tag{color:#9a4a00;font-weight:600;overflow-wrap:anywhere}
