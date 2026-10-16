@@ -40,3 +40,9 @@ test('消費者介面不出現品牌化點數名稱（言點、Yan）', () => {
   for (const f of ['public/m.html', 'public/member.html', 'public/en/member.html', 'public/ja/member.html', 'docs/API.md', 'lib/yan.js'])
     assert.doesNotMatch(read(f), /言點|Yan points|言ポイント/, f);
 });
+
+test('會員卡首頁：可兌換清單、訂位／活動／菜單快捷；/api/me/rewards 只讀', () => {
+  const h = read('public/m.html'), s = read('server.js');
+  assert.match(h, /\/api\/me\/rewards/); assert.match(h, /\/reserve/); assert.match(h, /rewardsSec/);
+  assert.match(s, /app\.get\('\/api\/me\/rewards', auth, requireDb/);
+});

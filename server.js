@@ -4396,6 +4396,19 @@ app.get('/api/me/yan', auth, requireDb, wrap(async (req, res) => {
   const rows = await yanRowsFor({ query: (...a) => q(...a) }, req.auth.sub);
   res.json({ ok: true, balance: yan.balance(rows), phone: (await q('SELECT phone_e164 FROM users WHERE id=$1',[req.auth.sub])).rows[0]?.phone_e164 || '' });
 }));
+/* 會員卡「可兌換」清單：菜單有設兌換點數的品項＋後台設定的空間時數；只讀、與兌換結帳邏輯無關（實際兌換仍在櫃檯掃碼） */
+app.get('/api/me/rewards', auth, requireDb, wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  const doc = tableOrders.MenuLib.parseMenuDoc(await contentValue('menu'));
+  const day = tableOrders.MenuLib.businessDay(new Date());
+  const items = (doc.items || []).filter(it => it.published && !it.pos_only && it.points > 0 && !(it.sold_out && it.sold_out === day))
+    .sort((a, b) => a.points - b.points || a.sort - b.sort)
+    .map(it => ({ id: it.id, venue: it.venue, zh: it.zh, en: it.en, ja: it.ja, points: it.points, image: it.image }));
+  const sp = yan.parseSpaceRewards(await contentValue('yan_rewards'));
+  const space = [{ plan: 'day_4h', zh: '空間 4 小時', points: sp.day_4h }, { plan: 'day_12h', zh: '空間 12 小時', points: sp.day_12h }].filter(r => r.points > 0);
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, items, space });
+}));
 app.get('/api/me/card', auth, requireDb, wrap(async (req, res) => {
   if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
   const secret = process.env.ACCESS_QR_SECRET || SECRET;

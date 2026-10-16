@@ -88,6 +88,14 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 .login h1{font-size:1.7rem}
 .login p{color:var(--muted);margin:0;text-wrap:balance}
 .offline{background:var(--alt);border:1px solid var(--line);color:var(--soft);border-radius:10px;padding:.4em .8em;margin-bottom:12px;text-align:center}
+/* 快捷 */
+.quick{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}
+.quick a,.quick button{min-height:84px;border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--ink);text-decoration:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-weight:500;font-size:1rem}
+.quick svg{width:26px;height:26px}
+.rw{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}
+.rw b{font-family:"Cormorant Garamond","Noto Serif TC",serif;font-size:1.5rem;font-variant-numeric:tabular-nums;white-space:nowrap}
+.rw small{display:block;color:var(--muted);font-size:1rem}
+.rw.ok b{background:var(--accent);border-radius:999px;padding:0 .6em}
 @media (prefers-reduced-motion:reduce){.show:active{transform:none}}
 </style>
 <style>html,body{touch-action:manipulation}</style>
@@ -212,6 +220,13 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   }
   const fmt=v=>{if(!v)return '';const d=new Date(String(v).replace(/\//g,'-').replace(' ','T')+(String(v).length<=16?':00+08:00':''));return Number.isNaN(+d)?String(v):d.toLocaleString('zh-TW',{timeZone:'Asia/Taipei',month:'numeric',day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false});};
   function nextEvent(){const list=(data.events||[]);return list.find(e=>e.registered)||list[0]||null;}
+  function rewardsSec(pts){
+    const r=data.rewards||{items:[],space:[]};
+    const list=[].concat((r.space||[]).map(x=>({n:x.zh,p:x.points})),(r.items||[]).map(x=>({n:x.zh,p:x.points})));
+    if(!list.length)return '';
+    const row=x=>{const ok=pts>=x.p;return `<div class="rw${ok?' ok':''}"><span>${esc(x.n)}<small>${ok?'現在就能兌換':'還差 '+esc(x.p-pts)+' 點'}</small></span><b>${esc(x.p)} 點</b></div>`;};
+    return `<section class="sec"><h2>可以兌換</h2>${list.map(row).join('')}<p class="hint">到櫃檯出示會員卡，店員掃碼後兌換。</p></section>`;
+  }
   function home(){
     const me=data.me||{},pts=(data.yan&&data.yan.balance)||0,ev=nextEvent();
     const phone=(data.yan&&data.yan.phone)||'';
@@ -220,9 +235,16 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     <section class="pass" aria-label="會員卡"><div class="brand">言文字</div><div class="pts"><span>我的點數</span><b>${esc(pts)}</b></div><div class="who"><span>${esc(me.name||'')}</span><i>${esc(phone?phone.replace(/^\+886(\d{2})\d{4}(\d{3})$/,'0$1-****-$2'):'')}</i></div></section>
     <button class="show" id="show"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17h3v4h-4v-3h4M18 14h3v3"/></svg>結帳時出示會員卡</button>
     <p class="hint">${phone?'也可以直接報手機號碼。':'到「我的」填寫手機，結帳報號碼就能累點。'}消費每滿 <span class="nb">100 元</span>累積 <span class="nb">1 點</span>，點數可兌換餐飲、服務與空間時數（不折抵金額；到櫃檯出示會員卡）。</p>
+    <nav class="quick" aria-label="快捷">
+      <a href="${SITE}/reserve"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M17 3c-2 2-3 5-3 8h3v10"/></svg>訂位</a>
+      <button id="qev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>報名活動</button>
+      <a href="${SITE}/menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M5 8h12v6a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5zM17 10h2a2 2 0 0 1 0 4h-2"/></svg>菜單</a>
+    </nav>
+    ${rewardsSec(pts)}
     ${installCard()}
     <section class="sec"><h2>下一場活動</h2>${ev?evTile(ev):'<p class="empty">目前沒有開放報名的活動</p>'}</section>`;
     document.getElementById('show').onclick=openQr;
+    document.getElementById('qev').onclick=()=>{tab='events';paint();};
     bindInstall();
   }
   function evTile(e){return `<a class="tile" href="${SITE}/events/${encodeURIComponent(e.slug||e.id)}"><h3>${esc(e.title)}${e.registered?'<span class="tag">已報名</span>':''}</h3><div class="meta">${esc(fmt(e.starts_at))}${e.location?' · '+esc(e.location):''}</div></a>`;}
@@ -269,8 +291,8 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQr();});
   async function load(){
     try{
-      const s=await get('/api/state');let y={balance:0,phone:''};try{y=await get('/api/me/yan');}catch(e){}
-      s.events=(s.events||[]);data={me:s.me,events:s.events,yan:y,role:s.role,organizer:!!s.organizer};offline=false;
+      const s=await get('/api/state');let y={balance:0,phone:''},rw={items:[],space:[]};try{y=await get('/api/me/yan');}catch(e){}try{rw=await get('/api/me/rewards');}catch(e){}
+      s.events=(s.events||[]);data={me:s.me,events:s.events,yan:y,rewards:rw,role:s.role,organizer:!!s.organizer};offline=false;
       try{localStorage.setItem(CACHE,JSON.stringify(data));}catch(e){}
     }catch(e){
       if(e.status===401){try{localStorage.removeItem(KEY);}catch(x){}return login();}

@@ -624,6 +624,9 @@ body：`{ state, credential }`（同 register/verify）。驗證成功才建立�
 ### GET /api/me/yan
 登入會員的點數餘額。回 `{ ok, balance, phone }`。消費每滿 NT$100 累積 1 點，隔年 4/30 到期；作廢出餐單會沖回。agent 金鑰 403。
 
+### GET /api/me/rewards
+會員卡「可以兌換」清單（只讀）。回 `{ ok, items:[{id,venue,zh,en,ja,points,image}], space:[{plan,zh,points}] }`：`items` 為菜單中已發布、非 POS 專用、今天未估清且 `points>0` 的品項（點數由低到高）；`space` 為後台 `yan_rewards` 設定的空間時數。實際兌換仍在櫃檯掃會員碼。agent 金鑰 403。
+
 ### GET /api/me/card
 數位會員卡 QR（120 秒）。回 `{ token, exp, name, phone }`。現場 POS 掃描或報手機即可累點。agent 金鑰 403。
 
