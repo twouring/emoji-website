@@ -65,6 +65,7 @@ body.sheet-open{overflow:hidden}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
 #pay-scope{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}#pay-scope label{display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px;line-height:1.35}#pay-scope label:has(input:checked){border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
 .split-box{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}.split-box input{width:72px;min-height:44px;border:1px solid var(--line);border-radius:8px;padding:8px;text-align:center}.split-result{background:#fff8cf;border-radius:10px;padding:10px 12px;margin:8px 0}.split-result b{display:block;font-size:1.15rem}
+.pay-sent{display:flex;align-items:center;gap:8px;background:#eaf7ec;border:1px solid #bfe3c6;border-radius:10px;padding:10px 12px;margin:8px 0;color:#1b5e2a}.pay-sent span{flex:1}
 input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff}
 .tp{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;height:44px}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -141,7 +142,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   <label class="split-box hidden" id="split-box"><svg class="ico" aria-hidden="true"><use href="#i-users"></use></svg><span data-i18n="people">分攤人數</span><input id="split-people" type="number" inputmode="numeric" min="2" max="20" value="2"><span data-i18n="people_suffix">人</span></label>
   <div class="tot"><span class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-counter"></use></svg><span data-i18n="counter_amount">櫃檯結帳金額</span></span><span id="pay-amount"></span></div>
   <div class="split-result hidden" id="split-result"><div class="title-icon"><svg class="ico lg" aria-hidden="true"><use href="#i-split"></use></svg><b id="split-each"></b></div><span class="muted" id="split-note"></span></div>
-  <div id="pay-off"><p class="muted" data-i18n="keep_screen">畫面可先保留，結帳時出示給櫃檯確認。</p><div class="row"><button class="btn ghost" data-close data-i18n="back">返回繼續點</button></div></div>
+  <div id="pay-off"><p class="muted" data-i18n="keep_screen">畫面可先保留，結帳時出示給櫃檯確認。</p><div class="row"><button class="btn y with-icon" type="button" id="pay-notify"><svg class="ico" aria-hidden="true"><use href="#i-counter"></use></svg><span data-i18n="notify_counter">通知櫃檯我要結帳</span></button><button class="btn ghost" data-close data-i18n="back">返回繼續點</button></div><div class="pay-sent hidden" id="pay-sent"><svg class="ico" aria-hidden="true"><use href="#i-check"></use></svg><span id="pay-sent-text"></span><button class="btn ghost sm" type="button" id="pay-cancel" data-i18n="notify_cancel">取消</button></div></div>
 </div></div>
 
 <script src="/menu-lib.js"></script>
@@ -272,6 +273,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     $('#cart-total').textContent=money(sum(u));
     // 有已送出但未結帳的品項：已點清單固定提醒離席前到櫃檯結帳
     $('#pay-reminder').hidden=!u.some(function(l){return l.placed_at;});
+    if(SHEET_OPEN==='#pay')renderPayRequest();   // 輪詢到櫃檯已收款（需求消失）時同步畫面
     // 出餐單
     var os=S.orders||[],byId={};(S.items||[]).forEach(function(l){byId[l.line]=l;});
     $('#orders-card').classList.toggle('hidden',!os.length);
@@ -332,12 +334,26 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   }
   document.querySelectorAll('input[name=scope]').forEach(function(r){r.onchange=refreshPayAmount;});
   $('#split-people').oninput=refreshPayAmount;
+  // 通知櫃檯：把現在選的範圍（全桌／只付我的）送到 POS，櫃檯桌號畫面會出現「待結帳：稱呼 NT$」一點就勾好；平均分攤沒有對應品項，退回全桌
+  function renderPayRequest(){
+    var pr=S&&S.pay_request;
+    $('#pay-sent').classList.toggle('hidden',!pr);$('#pay-notify').hidden=!!pr;
+    if(pr){var ls=unpaid().filter(function(l){return pr.lines.indexOf(l.line)>=0;});$('#pay-sent-text').textContent=tr('notify_sent',{amount:money(sum(ls)),count:ls.length});}
+  }
+  $('#pay-notify').onclick=function(){
+    var scope=document.querySelector('input[name=scope]:checked').value,ls=scope==='mine'?mine():unpaid();
+    if(!ls.length)return;var btn=this;btn.disabled=true;
+    api('/orders/'+S.id+'/pay-request',{method:'POST',body:{guest:GUEST,name:NAME,scope:scope==='mine'?'mine':'all',lines:scope==='mine'?ls.map(function(l){return l.line;}):[]}})
+      .then(function(s){S=s;renderState();renderPayRequest();toast(tr('notify_done'),5000);try{navigator.vibrate&&navigator.vibrate(80);}catch(e){}})
+      .catch(function(err){toast(err.message);if(/已結束/.test(err.message))load();}).then(function(){btn.disabled=false;});
+  };
+  $('#pay-cancel').onclick=function(){api('/orders/'+S.id+'/pay-request',{method:'DELETE',body:{guest:GUEST}}).then(function(s){S=s;renderState();renderPayRequest();}).catch(function(err){toast(err.message);});};
   function openPay(){
     openSheet('#pay');
     var mineRadio=document.querySelector('input[name=scope][value=mine]'),hasSeparateMine=mine().length&&mine().length<unpaid().length;
     mineRadio.parentNode.style.display=hasSeparateMine?'':'none';
     if(mineRadio.checked&&!hasSeparateMine)document.querySelector('input[name=scope][value=all]').checked=true;
-    refreshPayAmount();
+    refreshPayAmount();renderPayRequest();
   }
 
   /* ---- 取餐推播（不登入） ---- */

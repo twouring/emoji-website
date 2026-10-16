@@ -37,6 +37,10 @@ tr.resv-off td{color:var(--muted)}tr.resv-off .btn{opacity:.75}
 .pos-table.takeout{background:var(--paper-alt)}.pos-table.takeout.on{background:var(--ink)}
 .pos-table.empty{border-style:dashed;background:transparent;color:var(--muted)}.pos-table.empty b{color:var(--ink)}
 .pos-table.reserved{border-style:solid;border-color:var(--ink)}.pos-table .pos-resv{color:var(--ink);line-height:1.3;overflow-wrap:anywhere}.pos-table .pos-resv-tag{display:inline-block;padding:0 6px;border:1px solid currentColor;border-radius:999px;font-size:1rem;line-height:1.4}.pos-table.on .pos-resv{color:var(--paper)}
+/* 客人手機按「通知櫃檯我要結帳」：桌況格標黃、桌號畫面列成一顆顆按鈕，一點就把那幾項勾好 */
+.pos-table.payreq{border-color:#f1dc9a;background:#fff6dc}.pos-table.payreq.on{background:var(--ink)}.pos-table .pos-payreq-tag{color:#7a5a00;font-weight:600;overflow-wrap:anywhere}.pos-table.on .pos-payreq-tag{color:#f1dc9a}
+.pos-payreqs{display:flex;flex-direction:column;gap:8px;margin:10px 0}.pos-payreq{display:flex;align-items:center;gap:8px}.pos-payreq.on .pos-payreq-apply{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.pos-payreq-apply{all:unset;box-sizing:border-box;cursor:pointer;flex:1;display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;min-height:52px;padding:10px 14px;border:1px solid #f1dc9a;border-radius:10px;background:#fff6dc;font-size:1rem;color:var(--ink)}.pos-payreq-apply b{font-size:1.15em}.pos-payreq-apply small{margin-left:auto;color:var(--muted)}.pos-payreq-apply:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .pos-panel h2{flex-wrap:wrap}
 /* 桌況在左、這桌的帳在右：平板橫式（≥1000px，iPad 10 吋起）就啟用，左欄佔 34%（桌況 2–3 欄），右欄吃剩下全部；直式／窄螢幕上下排、各自滿版 */
 .pos-layout{display:grid;gap:16px;align-items:start}

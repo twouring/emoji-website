@@ -679,6 +679,8 @@ async function migrate() {
   await q(`CREATE INDEX IF NOT EXISTS table_sessions_open_idx ON table_sessions(table_no) WHERE status='open'`);
   // 操作人員（排班打卡用的 4 位數識別碼，疊在品牌帳號之上）：開桌記下是誰開的
   await q(`ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS opened_by_staff_id TEXT, ADD COLUMN IF NOT EXISTS opened_by_staff_name TEXT`);
+  // 客人手機送出的「結帳需求」（要付哪幾項）：POS 桌號畫面一點就勾好；結掉的品項自動剔除
+  await q(`ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS pay_requests JSONB NOT NULL DEFAULT '[]'`);
   await q(`CREATE TABLE IF NOT EXISTS table_orders (
     id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES table_sessions(id), table_no TEXT NOT NULL, items JSONB NOT NULL,
     amount INT NOT NULL, payer JSONB NOT NULL DEFAULT '{}', tappay JSONB NOT NULL DEFAULT '{}', invoice JSONB NOT NULL DEFAULT '{}', status TEXT NOT NULL DEFAULT 'paid',
@@ -4225,7 +4227,7 @@ async function loadSession(id){
   s.orders=(await q('SELECT id,items,amount,status,paid_at,ready_at,done_at FROM table_orders WHERE session_id=$1 ORDER BY paid_at',[id])).rows;return s;
 }
 // 不外露各行的 guest 識別碼（否則同桌可互刪）；帶 ?g= 或 body.guest 時只標記 mine
-const publicSession=(s,guest)=>({id:s.id,table:s.table_no,status:s.status,items:s.items.map(({guest:g,...l})=>({...l,mine:!!guest&&g===guest})),orders:s.orders.map(o=>({id:o.id,amount:o.amount,status:o.status,paid_at:o.paid_at,ready_at:o.ready_at,lines:o.items.map(l=>l.line)})),total_unpaid:tableOrders.sum(tableOrders.unpaid(s.items))});
+const publicSession=(s,guest)=>{const mine=guest?tableOrders.prunePayRequests(s.pay_requests,s.items).find(r=>r.guest===guest):null;return {id:s.id,table:s.table_no,status:s.status,items:s.items.map(({guest:g,...l})=>({...l,mine:!!guest&&g===guest})),orders:s.orders.map(o=>({id:o.id,amount:o.amount,status:o.status,paid_at:o.paid_at,ready_at:o.ready_at,lines:o.items.map(l=>l.line)})),total_unpaid:tableOrders.sum(tableOrders.unpaid(s.items)),pay_request:mine?{scope:mine.scope,lines:mine.lines,at:mine.at}:null};};
 const contentValue=async key=>(await q('SELECT value FROM site_content WHERE key=$1',[key])).rows[0]?.value||'';
 async function currentMenu(opt){return tableOrders.menuIndex(await contentValue('menu'),tableOrders.MenuLib.activeVenue(),opt);}
 // 暫停點餐（公休、最後點餐、包場）：客人加菜前擋下，回店家設定的文案
@@ -4269,6 +4271,25 @@ app.delete('/api/orders/:id/items/:line',requireDb,wrap(async(req,res)=>{if(!ORD
 // 送出點餐：購物車裡還沒送的品項一起進出餐看板（未結帳，用餐完再到櫃檯結）；暫停點餐（最後點餐）時一樣擋
 app.post('/api/orders/:id/place',requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});try{await assertNotPaused();}catch(e){return res.status(e.status||423).json({error:e.message});}return mutateItems(req,res,items=>tableOrders.placeLines(items).items);}));
 
+// 結帳需求：客人在手機上選好「付全桌／只付我的」按「通知櫃檯」，POS 桌號畫面列成一顆按鈕，一點就把那幾項勾好再收款（不經過付款碼／掃描）
+app.post('/api/orders/:id/pay-request',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});
+  const client=await pool.connect();
+  try{await client.query('BEGIN');
+    const s=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+    if(!s||s.status!=='open'){await client.query('ROLLBACK');return res.status(s?409:404).json({error:s?'這桌已結束，請重新掃描 QR。':'找不到這桌的點餐。'});}
+    let next;try{next=tableOrders.addPayRequest(s.pay_requests,s.items,req.body||{});}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
+    await client.query('UPDATE table_sessions SET pay_requests=$2 WHERE id=$1',[s.id,JSON.stringify(next)]);
+    await client.query('COMMIT');res.json(publicSession(await loadSession(s.id),String(req.body?.guest||'')));
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
+}));
+app.delete('/api/orders/:id/pay-request',requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});
+  const guest=tableOrders.cleanText(req.body?.guest,40);if(!guest)return res.status(400).json({error:'缺少識別碼，請重新整理頁面。'});
+  const s=(await q('SELECT id,items,pay_requests FROM table_sessions WHERE id=$1',[req.params.id])).rows[0];if(!s)return res.status(404).json({error:'找不到這桌的點餐。'});
+  await q('UPDATE table_sessions SET pay_requests=$2 WHERE id=$1',[s.id,JSON.stringify(tableOrders.prunePayRequests(s.pay_requests,s.items).filter(r=>r.guest!==guest))]);
+  res.json(publicSession(await loadSession(s.id),guest));
+}));
 // 結帳：TapPay pay-by-prime；金額由伺服器重算；可付全桌或只付自己的（lines）
 app.post('/api/orders/:id/pay',rateLimit({max:10}),requireDb,wrap(async(req,res)=>{
   const tp=tableOrders.tappayConfig();if(!tp)return res.status(503).json({error:'線上付款尚未開通，請至櫃檯結帳。'});
@@ -4327,11 +4348,11 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const orders=(await q(all?"SELECT * FROM table_orders WHERE paid_at>now()-interval '1 day' ORDER BY paid_at DESC":"SELECT * FROM table_orders WHERE status IN ('paid','ready') ORDER BY paid_at")).rows.filter(o=>tableOrders.orderOwnedByVenues(o,venues)).map(o=>({...o,push:undefined,push_count:o.push.length,stations:tableOrders.splitByStation(o)}));
   // 桌況：每桌未付品項明細（櫃檯結帳用）＋ 狀態（空桌／點餐中／準備中／可取餐）
   const live=(await q("SELECT id,session_id,status FROM table_orders WHERE status IN ('paid','ready')")).rows;
-  let rows=(await q("SELECT id,table_no,items,updated_at,opened_by_staff_name FROM table_sessions WHERE status='open' ORDER BY table_no")).rows;
+  let rows=(await q("SELECT id,table_no,items,updated_at,opened_by_staff_name,pay_requests FROM table_sessions WHERE status='open' ORDER BY table_no")).rows;
   // 外帶單（W01–W99）結完帳且取餐完成就自動收掉，號碼釋出給下一位；內用桌留「待清桌」給人員確認客人離開
   const doneTakeout=rows.filter(s=>tableOrders.isTakeout(s.table_no)&&tableOrders.takeoutFinished(s,live)).map(s=>s.id);
   if(doneTakeout.length){await q("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=ANY($1) AND status='open'",[doneTakeout]);rows=rows.filter(s=>!doneTakeout.includes(s.id));}
-  const sessions=rows.filter(s=>tableOrders.orderVisibleToVenues(s,venues)).map(s=>{const lines=tableOrders.unpaid(s.items).filter(line=>tableOrders.itemInVenues(line,venues)).map(({guest,...l})=>l);return{id:s.id,table:s.table_no,takeout:tableOrders.isTakeout(s.table_no),unpaid:lines.length,unpaid_amount:tableOrders.sum(lines),lines,mixed:!tableOrders.sessionClosableByVenues(s,venues),state:tableOrders.tableStatus(s,live),updated_at:s.updated_at,operator:s.opened_by_staff_name||null};});
+  const sessions=rows.filter(s=>tableOrders.orderVisibleToVenues(s,venues)).map(s=>{const lines=tableOrders.unpaid(s.items).filter(line=>tableOrders.itemInVenues(line,venues)).map(({guest,...l})=>l);return{id:s.id,table:s.table_no,takeout:tableOrders.isTakeout(s.table_no),unpaid:lines.length,unpaid_amount:tableOrders.sum(lines),lines,mixed:!tableOrders.sessionClosableByVenues(s,venues),state:tableOrders.tableStatus(s,live),updated_at:s.updated_at,operator:s.opened_by_staff_name||null,pay_requests:tableOrders.payRequestsView(s.pay_requests,s.items).map(r=>({...r,lines:r.lines.filter(l=>lines.some(x=>x.line===l))})).filter(r=>r.lines.length)};});
   // 桌邊送單（未結帳、未出餐）：與已結帳的出餐單一起上看板；子帳號只看整張都是自己品牌的
   const tickets=rows.flatMap(s=>tableOrders.ticketsOf(s)).filter(t=>tableOrders.orderOwnedByVenues(t,venues)).map(t=>({...t,items:t.items.map(({guest,...l})=>l)}));
   const pause=tableOrders.parsePause(await contentValue('ordering_pause'));
@@ -4415,7 +4436,7 @@ app.post('/api/admin/orders/sessions/:id/move',auth,adminOnly,requireDb,wrap(asy
     const dst=(await client.query("SELECT * FROM table_sessions WHERE table_no=$1 AND status='open' ORDER BY created_at DESC LIMIT 1 FOR UPDATE",[table])).rows[0];
     if(dst&&!tableOrders.sessionClosableByVenues(dst,venues)){await client.query('ROLLBACK');return res.status(403).json({error:'目標桌含有其他品牌品項，請由言文字管理員併桌。'});}
     if(dst){
-      await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[dst.id,JSON.stringify(tableOrders.mergeItems(dst.items,src.items))]);
+      await client.query('UPDATE table_sessions SET items=$2,pay_requests=$3,updated_at=now() WHERE id=$1',[dst.id,JSON.stringify(tableOrders.mergeItems(dst.items,src.items)),JSON.stringify([...(Array.isArray(dst.pay_requests)?dst.pay_requests:[]),...(Array.isArray(src.pay_requests)?src.pay_requests:[])].slice(-tableOrders.PAY_REQUEST_MAX))]);
       await client.query('UPDATE table_orders SET session_id=$2,table_no=$3 WHERE session_id=$1',[src.id,dst.id,table]);
       await client.query("UPDATE table_sessions SET status='closed',items='[]',updated_at=now() WHERE id=$1",[src.id]);
     }else{
@@ -4425,6 +4446,14 @@ app.post('/api/admin/orders/sessions/:id/move',auth,adminOnly,requireDb,wrap(asy
     await client.query('COMMIT');
     res.json({ok:true,from:src.table_no,table,merged:!!dst,id:dst?dst.id:src.id});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
+}));
+// POS 關掉某筆結帳需求（客人改口、或已用別的方式處理）：只拿掉那一筆，品項不動
+app.delete('/api/admin/orders/sessions/:id/pay-requests/:rid',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id)||!/^pr_[a-f0-9]{12}$/.test(req.params.rid))return res.status(404).json({error:'找不到這筆結帳需求。'});
+  const s=(await q("SELECT id,items,pay_requests FROM table_sessions WHERE id=$1 AND status='open'",[req.params.id])).rows[0];if(!s)return res.status(404).json({error:'找不到這桌。'});
+  const next=tableOrders.prunePayRequests(s.pay_requests,s.items).filter(r=>r.id!==req.params.rid);
+  await q('UPDATE table_sessions SET pay_requests=$2 WHERE id=$1',[s.id,JSON.stringify(next)]);
+  res.json({ok:true,pay_requests:tableOrders.payRequestsView(next,s.items)});
 }));
 app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
@@ -4447,7 +4476,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     // 內用採離場結帳：整桌結清即清桌；分帳、跨品牌權限與外帶取餐流程保留。
     const closed=!tableOrders.isTakeout(s.table_no)&&tableOrders.unpaid(items).length===0&&tableOrders.sessionClosableByVenues(s,venues);
     if(closed)await client.query("UPDATE table_orders SET status='done',done_at=now() WHERE session_id=$1 AND status IN ('paid','ready')",[s.id]);
-    await client.query('UPDATE table_sessions SET items=$2,status=$3,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),closed?'closed':'open']);
+    await client.query('UPDATE table_sessions SET items=$2,status=$3,pay_requests=$4,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),closed?'closed':'open',JSON.stringify(tableOrders.prunePayRequests(s.pay_requests,items))]);
     await client.query('COMMIT');
     const invoiceOut=await storeInvoiceResult({id:orderId,table_no:s.table_no,items:orderLines,amount:out.amount,discount:out.discount},invoice);
     res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,received:out.payer.received,change:out.payer.change,method:out.payer.method,member:out.payer.member,closed,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut,warning:regWarn||undefined});
