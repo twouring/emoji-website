@@ -26,7 +26,7 @@ test('sessionAuth：operator_staff_id 走 pos_staff，不查 users；停用的 s
 });
 
 test('/api/auth/renew 與 /api/state：操作人員續期要保留 operator_staff_id；/api/state 的 me 不查 users（避免查到不存在的列）', () => {
-  assert.match(server, /\.\.\.\(req\.auth\.operator_staff_id\?\{operator_staff_id:req\.auth\.operator_staff_id\}:\{\}\)\}\)\}\);\n\}\);\n\napp\.post\('\/api\/auth\/email/);
+  assert.match(server, /operator_staff_id:req\.auth\.operator_staff_id,pos_venue:req\.auth\.pos_venue/);
   assert.match(server, /const me = req\.auth\.operator_staff_id \? \{ id: req\.auth\.sub, name: req\.auth\.name \|\| '', email: '', is_admin: true, operator: true \}/);
 });
 

@@ -466,7 +466,7 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 超管專用：清除該裝置的綁定（iPad 遺失或更換時用）。清除後該裝置的四位數密碼登入立即失效，須重新用 Gmail 登入綁定。
 
 ### POST /api/pos-devices/:id/pin-login
-公開（免登入，防猜碼：每台每分鐘 12 次）。操作人員四位數密碼登入：裝置須已綁定，否則與密碼錯誤回同一則訊息（不洩漏原因）。密碼對應的 `pos_staff` 須 `active` 且已設定所屬品牌（`venues`），否則 403。成功回 `{ token, name, brands }`；`token` 的身分只來自 `pos_staff`（不是 `users`），`req.auth.brands` 固定是該員工的所屬品牌陣列（絕不是 `null`＝全開），所有頁面與後端 API 依此過濾——不是只在前端隱藏。
+公開（免登入，防猜碼：每台每分鐘 12 次）。操作人員四位數密碼登入：裝置須已綁定（管理員登入時自動綁定，不需選品牌），否則與密碼錯誤回同一則訊息（不洩漏原因）。員工須在職且已設定所屬品牌（`venues`），否則 403。品牌跟著登入的人走：單一品牌員工直接成功；雙品牌員工第一次不帶 `venue` 會回 `{ choose:true, name, brands }`（不發 token），再帶 `venue` 重送才發 token；`venue` 不在員工品牌內回 403。成功回 `{ token, name, brands }`，`brands` 永遠只有本次登入的單一品牌，token 內的 `pos_venue` 鎖定該品牌，續期亦保留。每次請求重新檢查員工在職與品牌權限；舊 token 未帶品牌時，單品牌員工沿用、雙品牌員工須重新登入。要換品牌必須登出後重登，沒有畫面切換。
 
 ### DELETE /api/admin/reservations/:id
 刪除訂位（含已取消的，讓畫面不再雜亂）。軟刪除（`deleted_at`），`GET /api/admin/reservations` 一律過濾掉，保留紀錄供日後查帳；無法復原畫面（資料庫仍有紀錄）。品牌子帳號只能刪自己店別時段的訂位（404）。回 `{ ok }`。

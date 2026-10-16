@@ -267,15 +267,28 @@ function renderPinLogin(msg){
     if (pin.length === 4) {
       try {
         const d = await api('/pos-devices/' + encodeURIComponent(DEVICE_ID) + '/pin-login', { method:'POST', body:{ pin } });
+        if (d.choose) return renderBrandChoice(pin, d);
         localStorage.setItem(KEY, d.token); location.reload();
       } catch (e) { renderPinLogin(e.message || '密碼錯誤，請重新輸入。'); }
     }
   });
 }
 
-/* 店別：言文字管理員可切在咖啡／三點水／全部；品牌子帳號只看自己的 */
-const scopesOf = d => d?.brands ? d.brands.filter(b => BRAND_LABEL[b]) : ['', ...Object.keys(BRAND_LABEL)];
-function setScope(s){ SCOPE = s; try { localStorage.setItem('tth_pos_scope', s); } catch (e) {} }
+// 雙品牌員工：PIN 通過後選這次要上哪個品牌，登入後鎖定；要換品牌就登出重登（PIN 只留在這個函式的記憶體，不寫入儲存）
+function renderBrandChoice(pin, d){
+  // 品牌代碼來自伺服器白名單（CAFE/BAR），名稱以 esc 轉義
+  app.innerHTML = `<div class="p-login"><div class="p-login-card"><h1>${esc(d.name)}，今天上哪個品牌？</h1><p>登入後只能操作這個品牌；要換品牌請登出後重新登入。</p>${d.brands.filter(b=>BRAND_LABEL[b]).map(b=>`<button type="button" class="btn btn--solid" data-pick-brand="${b}">${esc(BRAND_LABEL[b])}</button>`).join('')}<button type="button" class="btn btn--ghost btn-sm" id="pick-cancel">取消</button></div></div>`;
+  document.getElementById('pick-cancel').onclick = () => renderPinLogin();
+  app.querySelectorAll('[data-pick-brand]').forEach(b => b.onclick = async () => {
+    if (b.disabled) return; b.disabled = true;
+    try { const r = await api('/pos-devices/' + encodeURIComponent(DEVICE_ID) + '/pin-login', { method:'POST', body:{ pin, venue:b.dataset.pickBrand } }); localStorage.setItem(KEY, r.token); location.reload(); }
+    catch (e) { renderPinLogin(e.message || '登入失敗，請重新輸入。'); }
+  });
+}
+
+/* 店別：員工鎖定登入時的品牌（單一）；管理員可切在咖啡／三點水／全部 */
+const scopesOf = d => d?.me?.operator ? (d.brands || []).filter(b => BRAND_LABEL[b]).slice(0,1) : d?.brands ? d.brands.filter(b => BRAND_LABEL[b]) : ['', ...Object.keys(BRAND_LABEL)];
+function setScope(s){ if (DATA?.me?.operator && s !== scopesOf(DATA)[0]) return; SCOPE = s; try { localStorage.setItem('tth_pos_scope', s); } catch (e) {} }
 
 function routeTab(){ const p = location.pathname.replace(/^\/pos\/?/, '').replace(/\/+$/,'').split('/')[0]; return TABS.some(t=>t.id===p) ? p : 'pos'; }
 function go(tab, replace){
@@ -299,7 +312,7 @@ window.addEventListener('resize', updateNavMore);
 function paintNav(){
   const scopes = scopesOf(DATA);
   if (!scopes.includes(SCOPE)) setScope(scopes[0] || '');
-  document.getElementById('p-scope').innerHTML = scopes.length > 1 ? scopes.map(s => `<button type="button" data-scope="${esc(s)}" aria-pressed="${s===SCOPE}">${esc(s ? BRAND_LABEL[s] : '全部')}</button>`).join('') : (SCOPE ? `<span class="pill pill-ok">${esc(BRAND_LABEL[SCOPE])}</span>` : '');
+  document.getElementById('p-scope').innerHTML = scopes.length > 1 ? scopes.map(s => `<button type="button" data-scope="${esc(s)}" aria-pressed="${s===SCOPE}">${esc(s ? BRAND_LABEL[s] : '全部')}</button>`).join('') : (SCOPE ? `<span class="pill pill-ok">${esc(BRAND_LABEL[SCOPE])}${DATA?.me?.operator && DATA.me.name ? ' · ' + esc(DATA.me.name) : ''}</span>` : '');
   document.getElementById('p-scope').querySelectorAll('[data-scope]').forEach(b => b.onclick = () => { setScope(b.dataset.scope); resetPanels(); paintNav(); activate(); });
   document.getElementById('p-nav').innerHTML = TABS.map(t => `<button type="button" data-tab="${t.id}" aria-pressed="${t.id===TAB}">${t.label}${t.id==='reservations'&&PENDING?`<span class="badge">${PENDING}</span>`:''}</button>`).join('');
   document.getElementById('p-nav').querySelectorAll('[data-tab]').forEach(b => b.onclick = () => go(b.dataset.tab));
@@ -378,6 +391,14 @@ async function renewToken(){
 setInterval(renewToken, 3600e3);
 document.getElementById('p-logout').onclick = () => { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); location.reload(); };
 
+// 閒置 3 分鐘自動登出回 PIN 畫面（員工用 PIN 登入才啟用）：交班時下一位同事自然要重新登入，也避免離開座位被別人代 key
+let IDLE_T = null;
+function startIdleLock(){
+  const lock = () => { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); location.reload(); };
+  const bump = () => { clearTimeout(IDLE_T); IDLE_T = setTimeout(lock, 3 * 60e3); };
+  ['click','touchstart','keydown'].forEach(ev => document.addEventListener(ev, bump, { passive:true }));
+  bump();
+}
 async function main(){
   try { const dv = await api('/pos-devices/' + encodeURIComponent(DEVICE_ID)); DEVICE_BOUND = !!dv.bound; } catch (e) {}
   if (!token) return showLoginScreen();
@@ -389,6 +410,7 @@ async function main(){
     DATA = d;
     MENU_DOC = (typeof d.content?.menu === 'string' && d.content.menu.trim()) ? MenuLib.parseMenuDoc(d.content.menu) : MenuLib.parseMenuDoc('');
     TAB = routeTab();
+    if (d.me?.operator) { setScope(scopesOf(d)[0] || ''); startIdleLock(); }
     render();
     refreshPending();
     renewToken();

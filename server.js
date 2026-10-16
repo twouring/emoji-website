@@ -1375,7 +1375,10 @@ async function sessionAuth(t) {
     if (!staff || !staff.active) return null;
     const brands = String(staff.venues || '').split(',').map(x => x.trim().toUpperCase()).filter(x => ['CAFE', 'BAR'].includes(x));
     if (!brands.length) return null; // 沒設所屬品牌的操作人員：一律視為未登入（不給預設全開權限）
-    return { ...p, role: 'admin', super: false, brands, name: staff.name };
+    // 品牌跟著登入的人走：雙品牌員工登入時選一個，token 內的 pos_venue 鎖定本次登入；舊 token 沒帶品牌時，只有單品牌員工可沿用，雙品牌須重登
+    const venue = p.pos_venue ? (brands.includes(p.pos_venue) ? p.pos_venue : null) : (brands.length === 1 ? brands[0] : null);
+    if (!venue) return null;
+    return { ...p, role: 'admin', super: false, brands: [venue], pos_venue: venue, name: staff.name };
   }
   const user = (await q(`SELECT id,email,is_admin,admin_brand FROM users WHERE id=$1`, [p.sub])).rows[0];
   if (!user) return null;
@@ -1596,7 +1599,7 @@ app.get('/api/auth/session',auth,requireDb,(req,res)=>req.auth.sub?res.json({aut
 // 續期：現場平板（POS）長期開著，token 快到期前換一張新的，免得營業中突然被登出；身分已由 sessionAuth 重新查過 DB（被移除管理員就拿不到）
 app.post('/api/auth/renew',auth,requireDb,(req,res)=>{
   if(!req.auth.sub||req.auth.agent)return res.status(403).json({error:'請以會員身分登入。'});
-  res.set('Cache-Control','no-store');res.json({token:signToken({role:req.auth.role==='admin'?'admin':req.auth.role==='organizer'?'invited':req.auth.role,sub:req.auth.sub,super:req.auth.super===true,name:req.auth.name||'',...(req.auth.operator_staff_id?{operator_staff_id:req.auth.operator_staff_id}:{})})});
+  res.set('Cache-Control','no-store');res.json({token:signToken({role:req.auth.role==='admin'?'admin':req.auth.role==='organizer'?'invited':req.auth.role,sub:req.auth.sub,super:req.auth.super===true,name:req.auth.name||'',...(req.auth.operator_staff_id?{operator_staff_id:req.auth.operator_staff_id,pos_venue:req.auth.pos_venue}:{})})});
 });
 
 app.post('/api/auth/email/verify',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
@@ -4382,10 +4385,7 @@ app.post('/api/admin/orders/sessions/:id/items',auth,adminOnly,requireDb,wrap(as
 app.post('/api/admin/orders/sessions/:id/place',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
   const venues=tableOrders.visibleVenues(req.auth.brands);
-  return mutateItems(req,res,items=>{
-    if(!tableOrders.sessionClosableByVenues({items},venues))throw Object.assign(Error('混合品牌請由言文字管理員送單。'),{status:403});
-    return tableOrders.placeLines(items).items;
-  });
+  return mutateItems(req,res,items=>tableOrders.placeLines(items,new Date(),venues).items);   // 混桌只送自己品牌的品項
 }));
 app.delete('/api/admin/orders/sessions/:id/items/:line',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
@@ -4767,7 +4767,12 @@ app.post('/api/pos-devices/:id/pin-login',rateLimit({max:12}),requireDb,wrap(asy
   if(!staff)return res.status(404).json({error:'密碼錯誤，請重新輸入。'});
   const brands=String(staff.venues||'').split(',').map(x=>x.trim().toUpperCase()).filter(x=>['CAFE','BAR'].includes(x));
   if(!brands.length)return res.status(403).json({error:`${staff.name} 尚未設定所屬品牌，請管理員到「排班打卡」設定後再登入。`});
-  res.json({token:signToken({role:'admin',sub:'staff:'+staff.id,operator_staff_id:staff.id,name:staff.name}),name:staff.name,brands});
+  // 品牌跟著登入的人：單品牌直接進；雙品牌要先選（沒帶 venue 時回 choose，不發 token），選定後本次登入鎖定該品牌
+  const want=String(req.body?.venue||'').toUpperCase();
+  if(brands.length>1&&!want)return res.json({choose:true,name:staff.name,brands});
+  if(want&&!brands.includes(want))return res.status(403).json({error:'您無法操作這個品牌。'});
+  const venue=brands.length===1?brands[0]:want;
+  res.json({token:signToken({role:'admin',sub:'staff:'+staff.id,operator_staff_id:staff.id,name:staff.name,pos_venue:venue}),name:staff.name,brands:[venue]});
 }));
 /* ===== 排班與打卡：員工用 4 位數識別碼在共用平板打卡（不綁登入帳號）；排班＝員工 × 營業日 × 店別；出勤給後台算工時 ===== */
 const STAFF_SEL='id,name,pin,venues,role,note,active,created_at,updated_at';
