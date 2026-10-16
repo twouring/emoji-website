@@ -61,11 +61,19 @@ test('reconcile：只算 POS 登記 linepay 的成立單；LINE Pay 實收扣退
   const fromDb = L.reconcile(orders, txs.map(t => ({ ...t, paid_at: new Date(t.paid_at) })));
   assert.equal(fromDb.rows[0].paid_at, '2025-10-15T05:05:32.000Z'); assert.equal(fromDb.diff, -180);
   assert.equal(L.csvRows(fromDb.rows)[1][0], '2025-10-15');
+  // 店別：交易時間 08–17 歸在咖啡、17 點後到凌晨歸三點水；兩側都依店別範圍過濾
+  assert.equal(L.venueOfTime('2026-10-16T01:00:00+08:00'), 'BAR'); assert.equal(L.venueOfTime('2026-10-16T08:00:00+08:00'), 'CAFE');
+  assert.equal(L.venueOfTime('2026-10-16T16:59:00+08:00'), 'CAFE'); assert.equal(L.venueOfTime('2026-10-16T17:00:00+08:00'), 'BAR');
+  assert.equal(L.venueOfTime('2026-10-17T02:30:00+08:00'), 'BAR');
   const cafe = L.reconcile(orders, txs, { venues: ['CAFE'] });
-  assert.deepEqual(cafe.pos, { count: 1, amount: 220 }); assert.equal(cafe.linepay.amount, 220, 'LINE Pay 側不分店別'); assert.equal(cafe.diff, 0);
-  assert.deepEqual(L.reconcile([], []), { pos: { count: 0, amount: 0 }, linepay: { count: 0, amount: 0, refunds: 0, refund_amount: 0, by_method: {} }, diff: 0, rows: [] });
+  assert.deepEqual(cafe.pos, { count: 1, amount: 220 }); assert.equal(cafe.linepay.amount, -180, '在咖啡只含 13:05 的退款'); assert.equal(cafe.diff, -400);
+  const bar = L.reconcile(orders, txs, { venues: ['BAR'] });
+  assert.deepEqual(bar.pos, { count: 1, amount: 180 }); assert.equal(bar.linepay.amount, 400); assert.equal(bar.diff, 220);
+  assert.equal(all.by_venue.CAFE.label, '在咖啡'); assert.equal(all.by_venue.BAR.linepay.amount, 400); assert.equal(all.by_venue.CAFE.pos.amount, 220);
+  assert.equal(all.rows[0].venue_label, '在咖啡'); assert.equal(L.csvRows(all.rows)[1][1], '在咖啡');
+  const empty = L.reconcile([], []); assert.deepEqual([empty.pos, empty.linepay.amount, empty.diff, empty.rows], [{ count: 0, amount: 0 }, 0, 0, []]);
   const csv = L.csvRows(all.rows);
-  assert.equal(csv[0][0], '營業日'); assert.equal(csv.length, 4); assert.equal(csv[1][2], '2025101513598559211'); assert.equal(csv[1][4], -180);
+  assert.equal(csv[0][0], '營業日'); assert.equal(csv.length, 4); assert.equal(csv[1][3], '2025101513598559211'); assert.equal(csv[1][5], -180);
 });
 
 test('fetchRange：帶 x-atom-api-version、翻頁到底；非 SUCCESS 擲錯並標 retry（session 失效）', async () => {
