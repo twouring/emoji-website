@@ -26,7 +26,15 @@ test('密碼鍵盤（打卡 /pos/clock、操作人員切換）按鈕觸控區不
   const css = read('public/pos-ops.css');
   const m = css.match(/\.clock-key\{[^}]*\}/);
   assert.ok(m, '找不到 .clock-key 樣式');
-  assert.match(m[0], /min-height:64px/, '按鈕觸控區需 ≥44px（目前 64px）');
+  assert.match(m[0], /min-height:84px/, '按鈕觸控區需 ≥44px（目前 84px）');
   const js = read('public/pos-ops.js');
   assert.match(js, /\[data-key\]'\)\.forEach\(b=>b\.onclick=/, '打卡鍵盤用 onclick 穩定綁定');
+});
+
+test('PIN 鍵盤共用樣式：.clock-pad 要 width:100%（登入卡是 grid，少了會縮成 43px 窄鍵），鍵高 84px、數字 2rem、面板最寬 440px', () => {
+  const css = read('public/pos-ops.css');
+  assert.match(css, /\.clock-pad\{width:100%;max-width:440px;margin:0 auto\}/);
+  assert.match(css, /\.clock-key\{[^}]*min-height:84px[^}]*font-size:2rem/);
+  assert.match(css, /\.op-card\{max-width:480px/);
+  assert.match(read('public/pos.html'), /\.p-login-card\{width:min\(100%,480px\)/);
 });
