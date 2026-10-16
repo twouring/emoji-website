@@ -1000,10 +1000,12 @@ let OPERATOR=null; try{OPERATOR=JSON.parse(localStorage.getItem('tth_pos_operato
 let OP_PIN='',OP_MSG=null,OP_BUSY=false;
 function operatorLabel(){ return OPERATOR?`👤 ${OPERATOR.name}`:'👤 選擇人員'; }
 function paintOperatorBtn(){ const b=document.getElementById('p-operator'); if(b)b.textContent=operatorLabel(); }
-function clearOperator(){ OPERATOR=null; try{localStorage.removeItem('tth_pos_operator');}catch(e){} paintOperatorBtn(); }
+function clearOperator(){ OPERATOR=null; try{localStorage.removeItem('tth_pos_operator');}catch(e){} paintOperatorBtn(); enforceOperator(); }
+/* 還沒選人員：全螢幕鍵盤蓋住所有功能，輸入識別碼前什麼都不能操作（不能取消） */
+function enforceOperator(){ if(OPERATOR||!document.getElementById('p-operator')||document.querySelector('.op-overlay'))return; openOperatorPad(()=>{},true); }
 /* 有操作人員就直接做；沒有就先跳鍵盤認人，認完再做（結帳前用這個包住，確保每一筆單都有人） */
 function ensureOperator(cb){ if(OPERATOR)return cb(); openOperatorPad(cb); }
-function openOperatorPad(onDone){
+function openOperatorPad(onDone,required){
   OP_PIN=''; OP_MSG=null;
   const ov=document.createElement('div'); ov.className='op-overlay';
   document.body.appendChild(ov);
@@ -1014,14 +1016,15 @@ function openOperatorPad(onDone){
     const msg=OP_MSG?`<div class="clock-msg ${OP_MSG.ok?'ok':'bad'}" role="status">${esc(OP_MSG.text)}</div>`:'';
     ov.innerHTML=`<div class="op-card" role="dialog" aria-label="操作人員">
       <h2>操作人員</h2>
-      <p class="hint">${OPERATOR?`目前：<b>${esc(OPERATOR.name)}</b>，輸入新的 4 位數識別碼可以切換。`:'輸入你的 4 位數識別碼，這筆單會記下是你操作的。'}</p>
+      <p class="hint">${OPERATOR?`目前：<b>${esc(OPERATOR.name)}</b>，輸入新的 4 位數識別碼可以切換。`:(required?'請先輸入你的 4 位數識別碼選擇人員，才能操作 POS。':'輸入你的 4 位數識別碼，這筆單會記下是你操作的。')}</p>
       <div class="clock-pad"><div class="clock-pin" aria-label="識別碼">${dots}</div><div class="clock-keys">${keys}</div></div>
       ${msg}
-      <div class="op-card-actions">${OPERATOR?'<button type="button" class="btn btn--ghost" id="op-clear">清除</button>':''}<button type="button" class="btn btn--ghost" id="op-cancel">取消</button></div>
+      <div class="op-card-actions">${required?'<button type="button" class="btn btn--ghost" id="op-logout">登出</button>':`${OPERATOR?'<button type="button" class="btn btn--ghost" id="op-clear">清除</button>':''}<button type="button" class="btn btn--ghost" id="op-cancel">取消</button>`}</div>
     </div>`;
     ov.querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>{ if(OP_BUSY)return; const k=b.dataset.key; if(k==='⌫')OP_PIN=OP_PIN.slice(0,-1); else if(k==='清除')OP_PIN=''; else if(OP_PIN.length<4)OP_PIN+=k; OP_MSG=null; paint(); if(OP_PIN.length===4)submit(); });
     const clearBtn=ov.querySelector('#op-clear'); if(clearBtn)clearBtn.onclick=()=>{ clearOperator(); close(); };
-    ov.querySelector('#op-cancel').onclick=close;
+    const cancelBtn=ov.querySelector('#op-cancel'); if(cancelBtn)cancelBtn.onclick=close;
+    const outBtn=ov.querySelector('#op-logout'); if(outBtn)outBtn.onclick=()=>{ document.getElementById('p-logout')?.click(); };
   };
   const submit=async()=>{
     const pin=OP_PIN; OP_BUSY=true;

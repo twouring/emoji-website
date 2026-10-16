@@ -345,7 +345,7 @@ function render(){
   app.innerHTML = installHint() + TABS.map(t => `<section class="p-tab" data-panel="${t.id}">${PANEL[t.id]()}</section>`).join('');
   bindInstall();
   document.getElementById('p-operator').onclick = () => openOperatorPad(() => {});
-  paintOperatorBtn();
+  paintOperatorBtn(); enforceOperator();
   paintNav(); activate();
 }
 
