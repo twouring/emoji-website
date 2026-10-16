@@ -691,7 +691,7 @@ function paintPos(){
   }).join('');
   // 櫃檯開桌／外帶：加開固定清單以外的桌號、或外帶單
   // 「開桌」＝從固定桌號清單點一桌；「加開桌號」＝桌牌上沒有的桌號（點區＋數字鍵）；都不打字
-  const opener=`<div class="pos-open"><button type="button" class="btn btn--solid" id="pos-open">開桌</button><button type="button" class="btn btn--solid" id="pos-takeout">＋ 外帶</button><button type="button" class="btn btn--ghost" id="pos-open-extra">＋ 加開桌號</button></div>`;
+  const opener=`<div class="pos-open"><button type="button" class="btn btn--solid" id="pos-takeout">＋ 外帶</button><button type="button" class="btn btn--ghost" id="pos-open">開桌</button><button type="button" class="btn btn--ghost" id="pos-open-extra">＋ 加開桌號</button></div>`;
   let panel='',picked=[],subtotal=0,total=0,priceOf=l=>l.price,mixed=false,splitList=[],splitLeft=0,cashDue=0,cash=false;
   const reload=()=>{host.dataset.sig='';return loadPos();};
   if(cur){
@@ -741,7 +741,7 @@ function paintPos(){
       ${live.length?`<h3>這桌已結帳的單</h3><div class="a-wrap2"><table class="a-tbl pos-paid"><thead><tr><th>品項 · 時間 · 狀態</th><th>付款</th><th class="num">金額</th><th class="ops-th">操作</th></tr></thead><tbody>${liveRows}</tbody></table></div>`:''}
     </div>`;
   }
-  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('點空桌或按「開桌」選桌位；點已開的桌看這桌的帳；外帶按「＋ 外帶」。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div>${opener}<div class="pos-grid">${grid}</div><div class="pos-sub">${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>'}<div class="a-toolbar pos-tools"><button type="button" class="btn btn--ghost btn-sm" id="pos-table-qr">桌號 QR</button>${posPauseHtml(d.pause)}</div></div></div>${panel}</div>`;
+  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('客人掃桌上 QR 點餐後，點該桌看帳、結帳；外帶按「＋ 外帶」；客人沒掃碼要櫃檯點餐時才用「開桌」。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div><div class="pos-grid">${grid}</div>${opener}<div class="pos-sub">${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>'}<div class="a-toolbar pos-tools"><button type="button" class="btn btn--ghost btn-sm" id="pos-table-qr">桌號 QR</button>${posPauseHtml(d.pause)}</div></div></div>${panel}</div>`;
   if(!document.getElementById('p-drawer'))bindCashDrawerButton(host.querySelector('#pos-cash-drawer'));
   host.querySelectorAll('[data-pos-table]').forEach(b=>b.onclick=()=>{POS_TABLE=b.dataset.posTable;POS_PICK=null;POS_QTY={};POS_PAYREQ=null;POS_SPLIT={};POS_DISCOUNT=null;POS_DISC_OPEN=false;POS_RECEIVED='';paintPos();});
   // 開桌／外帶：每次都先輸入 PIN 認人，記這桌是誰開的（與結帳、作廢、開錢櫃一致）
