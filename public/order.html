@@ -18,7 +18,7 @@ button{font:inherit;cursor:pointer;touch-action:manipulation}input,textarea{font
 .svg-sprite{position:absolute;width:0;height:0;overflow:hidden}.ico{width:1.15em;height:1.15em;display:inline-block;vertical-align:-.18em;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}.ico.lg{width:1.35em;height:1.35em}.with-icon{display:inline-flex;align-items:center;justify-content:center;gap:7px}.title-icon{display:inline-flex;align-items:center;gap:8px}
 .top{position:sticky;top:0;z-index:5;background:var(--ink);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;display:flex;justify-content:space-between;align-items:center;gap:12px}
 .top b{font-size:1.15rem}.top .actions{display:flex;align-items:center;gap:8px}.top .t{background:var(--yellow);color:var(--ink);padding:4px 12px;border-radius:999px;font-weight:700;white-space:nowrap}.lang{min-width:48px;min-height:38px;border:1px solid #777;background:transparent;color:#fff;border-radius:999px;padding:4px 10px;font-weight:700}
-.top small{color:#cfc9bb}
+.top small{color:#cfc9bb;white-space:nowrap}.top>div:first-child{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.top .actions{flex-shrink:0}.lang{white-space:nowrap;flex-shrink:0}.menu-status[hidden]{display:none}
 .wrap{padding:14px;max-width:640px;margin:0 auto}
 .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
 h2{font-size:1rem;margin:22px 0 8px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
@@ -59,7 +59,7 @@ body.sheet-open{overflow:hidden}
 .line{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px dashed var(--line)}
 .line:last-child{border-bottom:0}.line .by{color:var(--muted)}
 .detail-img{width:100%;max-height:260px;object-fit:cover;border-radius:14px;background:var(--line);margin:6px 0 12px}.detail-note{color:var(--muted);margin:0 0 10px}.detail-price{font-size:1.25rem;font-weight:800;margin:0 0 8px}.opt{margin:14px 0}.opt-title{display:flex;justify-content:space-between;gap:8px;font-weight:700;margin-bottom:8px}.choice-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.choice-grid label{display:flex;align-items:center;justify-content:center;min-height:44px;text-align:center;border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 10px;line-height:1.25}.choice-grid label:has(input:checked){border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);background:#fff8cf}.opt[data-opt=temperature] label:has(input:checked){background:#ffe7e2}.opt[data-opt=sugar] label:has(input:checked){background:#fff3bd}.opt[data-opt=ice] label:has(input:checked){background:#e1f2ff}.opt[data-opt=rice] label:has(input:checked){background:#e6f4df}.opt[data-opt=noodle] label:has(input:checked){background:#f0e7ff}.choice-grid input{position:absolute;opacity:0;pointer-events:none}.qty{display:flex;align-items:center;gap:10px}.qty button{width:44px;height:44px;border-radius:50%;border:1.5px solid var(--ink);background:#fff;font-size:1.2rem}.qty b{min-width:2ch;text-align:center}.note-field textarea{width:100%;min-height:74px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;resize:vertical}
-.line .x{border:0;background:none;color:var(--bad);padding:0 4px}
+.line .x{border:0;background:none;color:var(--bad);padding:10px 12px;margin:-10px -8px -10px 0;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;line-height:1;font-size:1.1rem;cursor:pointer;touch-action:manipulation}
 .who{font-weight:700;margin:14px 0 4px;display:flex;justify-content:space-between}
 .tot{display:flex;justify-content:space-between;font-size:1.15rem;font-weight:700;margin:14px 0}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
@@ -215,6 +215,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     $('#brand').textContent=label(venueLabel);
     $('#menu-hours').textContent=PAUSED?PAUSED:hours;   // 店家暫停點餐：文案由後台設定，直接顯示
     $('#menu-shift').classList.toggle('paused',!!PAUSED);
+    $('#menu-shift').hidden=!(PAUSED||!VENUE);   // 正常供應時不顯示「目前菜單」，只在暫停／非供餐時提示
     var items=MenuLib.sortItems(MENU.filter(function(it){return it.venue===VENUE;})),html='',venue='',cat='';
     items.forEach(function(it){
       if(it.venue!==venue){if(venue)html+='</div>';venue=it.venue;cat='';var v=MenuLib.VENUE_LABEL[venue]||{zh:venue,en:'',ja:venue};html+='<div class="venue">'+esc(label(v))+'<small>'+esc(LANG==='zh'?v.en:v.zh)+'</small></div><div>';}
