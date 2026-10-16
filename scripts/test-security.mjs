@@ -258,3 +258,18 @@ test('brand sub-accounts only reach their own admin APIs and menu items', async 
   assert.equal((await request('/api/admin/content', { key: 'menu', value: edit('m_cafe', 1) }, token)).status, 403);
   assert.equal((await request('/api/admin/system-settings', undefined, token)).status, 403);
 });
+
+test('LINE Pay API routes enforce real authentication, food-brand scope and fail-closed setup',async t=>{
+ let brand='CAFE';
+ const {request}=await server(t,{env:{LINEPAY_OFFLINE_ENV:'production',LINEPAY_OFFLINE_CHANNEL_ID:'1234567890',LINEPAY_OFFLINE_CHANNEL_SECRET:'synthetic-test-only'},query:async(sql)=>{
+  if(/SELECT id,email,is_admin,admin_brand FROM users/.test(sql))return {rows:[{...user,is_admin:true,admin_brand:brand}]};
+  if(sql.startsWith('SELECT * FROM table_sessions'))return {rows:[{id:'ts_1234567890',status:'open',table_no:'A1',items:[{line:'a',venue:'CAFE',qty:1,price:120}]}]};
+  if(sql.startsWith('SELECT * FROM linepay_payments'))return {rows:[{id:'lp_test',session_id:'ts_1234567890',state:'settled',amount:120,mode:'production'}]};
+ }});
+ const token=signToken({sub:user.id,role:'admin'},secret),path='/api/admin/orders/sessions/ts_1234567890/linepay/';
+ for(const action of ['prepare','pay','check','cancel'])assert.equal((await request(path+action,{attempt_id:'lp_test'})).status,401);
+ assert.equal((await request(path+'prepare',{},token)).status,503,'CAFE reaches handler but missing enable blocks payment');
+ assert.equal((await request(path+'check',{attempt_id:'lp_test'},token)).status,200,'CAFE can recover own transaction even when new charges disabled');
+ brand='BAR';assert.equal((await request(path+'check',{attempt_id:'lp_test'},token)).status,404,'cross-brand lookup is denied');
+ brand='SPACE';assert.equal((await request(path+'check',{attempt_id:'lp_test'},token)).status,403,'non-food brand is denied by middleware');
+});

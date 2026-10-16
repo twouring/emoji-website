@@ -37,9 +37,11 @@
 - UPDATE 再驗綁定 LINE、未刪除、new / confirmed、日期未過；無權、已取消、已到店、no_show 拒絕。重送取消不重複成功。
 - POS 的 `GET /api/admin/reservations` 讀同表，下次重新整理／既有輪詢即顯示 cancelled（非新增即時 WebSocket）。測試以 PostgreSQL 引擎取消後實際呼叫 POS HTTP API 驗證。
 
-## LINE Pay extras.addFriends：已查證，但本專案沒有可掛載的付款 request
+## LINE Pay extras.addFriends：獨立付款入口已實作，預設停用
 
-程式盤點：`lib/linepay.js` 是 Puppeteer 登入商家後台，再讀 `merchant-paymoney.line.me/mrc/merchant/payment/transactions` 做日結對帳；不是付款 API。POS 的「LINE Pay」是登記收款方式。repo 目前沒有 LINE Pay `/v2/payments/request`、`/v3/payments/request` 或 `/v2/payments/oneTimeKeys/pay` request，因此**本次不捏造可用付款流程，也不把 addFriends 塞進對帳 API**。
+原 `lib/linepay.js` 仍為 Puppeteer 商家中心日結對帳、原 POS「LINE Pay」仍是手動記帳，不會因本次功能而自動扣款。另新增 `lib/linepay-offline.js`／`lib/linepay-pos.js` 與 POS「LINE Pay API 收款＋加好友」明確入口，使用官方 **Offline v2** `/v2/payments/oneTimeKeys/pay`、`capture:true` 與下列 `extras.addFriends`。具備服務端報價、品牌／操作人員驗證、持久意圖、未知結果查詢與帳單鎖；尚未設定／商家未確認 v2 權限時停用，不代表已實收。
+
+完整啟用條件、版本限制、安全邊界與測試見 [LINEPAY-ADDFRIENDS.md](LINEPAY-ADDFRIENDS.md)。
 
 官方已驗證的 `extras.addFriends` 是 object array（不是裸字串陣列），例如：
 
@@ -53,12 +55,12 @@
 }
 ```
 
-`idList` 的官方帳號須先在 LINE Pay 商家中心註冊／關聯；不是填入任何帳號就能生效。這只是未來串接時的格式說明，**不是已送出的 request**。若將來採用 Online v3，應依該版 options 結構重新確認，不能把舊版 extras 直接當成 v3 top-level 欄位。加好友提示也不等於使用者同意或完成會員綁定。
+`idList` 的官方帳號須先在 LINE Pay 商家中心註冊／關聯；不是填入任何帳號就能生效。上列欄位已接進可啟用的 Offline v2 request，但本次**未向真實客人發送交易**。若改用 Online v3 或 Offline v2.4／v4，應先取得該版支援規格，不能把舊版 extras 直接套用。加好友提示不等於使用者同意或完成會員綁定。
 
 官方來源（查證於2026-10-16）：
 
 1. [LINE Pay 整合指南 v1.1.2，Extra fields / extras.addFriends](https://pay.line.me/file/guidebook/technicallinking/LINE_Pay_Integration_Guide_for_Merchant-v1.1.2-TW.pdf)：object[]、`type: LINE_AT`、`idList`、需商家中心註冊的官方帳號。
-2. [Offline Payment request](https://developers-pay.line.me/offline-api/request-payment)：`POST /v2/payments/oneTimeKeys/pay` 的 extras 示例。
+2. [Offline v2 Payment request](https://developers-pay.line.me/offline-api-v2/request-payment)：`POST /v2/payments/oneTimeKeys/pay` 的 extras 示例。
 3. [Online v3 付款請求](https://developers-pay.line.me/zh/online-api-v3/request-payment)：`POST /v3/payments/request` 使用 options / packages / redirectUrls，不能以舊版範例捏造。
 4. [Messaging API retry key](https://developers.line.biz/en/docs/messaging-api/retrying-api-request/)：持久 retry key、24h有效期與409 accepted request。
 

@@ -237,7 +237,7 @@ function barcodeDetectorClass(){
   };
 }
 // 共用掃描迴圈：開相機→逐幀辨識→掃到就停、回呼、提示。結帳與補開發票都用這一個；video 是誰的就把畫面放誰那裡
-async function startInvoiceScan(video,onCode,{raw:keepRaw=false}={}){
+async function startInvoiceScan(video,onCode,{raw:keepRaw=false,sensitive=false}={}){
   const BD=barcodeDetectorClass();
   if(!BD||!navigator.mediaDevices?.getUserMedia){toast('此瀏覽器不支援相機掃碼，請直接輸入條碼。');return false;}
   try{
@@ -249,7 +249,7 @@ async function startInvoiceScan(video,onCode,{raw:keepRaw=false}={}){
       if(!POS_INV_SCAN_STREAM||video.srcObject!==POS_INV_SCAN_STREAM)return;
       const codes=await detector.detect(video).catch(()=>[]);
       const raw=codes[0]?.rawValue;
-      if(raw){const v=keepRaw?raw.trim():raw.trim().toUpperCase();stopPosInvoiceScanner(video);onCode(v);toast('已掃到條碼：'+v);return;}
+      if(raw){const v=keepRaw?raw.trim():raw.trim().toUpperCase();stopPosInvoiceScanner(video);onCode(v);toast(sensitive?'已掃到付款碼':'已掃到條碼：'+v);return;}
       POS_INV_SCAN_FRAME=requestAnimationFrame(tick);
     };
     tick();return true;
@@ -685,11 +685,11 @@ async function loadPos(){
   try{[POS_DATA,REG_DATA]=await Promise.all([api('/admin/orders'+scopeQuery('all=1')),api('/admin/registers'+scopeQuery()).catch(()=>null)]);}catch(e){if(host.querySelector('.pos-grid'))toast('更新失敗：'+e.message);else host.innerHTML=`<div class="a-sec"><h2>櫃檯結帳</h2><p class="a-empty">載入失敗：${esc(e.message)}</p></div>`;POS_TIMER=setTimeout(()=>{if(document.getElementById('pos-body')&&TAB==='pos')loadPos();},15000);return;}
   // 後台系統設定新增／停用自訂收款帳戶後，這台 POS 不用重新整理頁面，最慢 15 秒內跟著這支輪詢更新
   if(POS_DATA.payment_methods)DATA.payment_methods=POS_DATA.payment_methods;
-  const sig=JSON.stringify([POS_DATA.pause,POS_DATA.sessions.map(s=>[s.id,s.unpaid,s.unpaid_amount,s.state,s.lines.map(l=>[l.line,l.qty,l.price,l.comp_reason||'',l.placed_at||'']),(s.pay_requests||[]).map(r=>[r.id,r.amount,r.count])]),POS_DATA.orders.map(o=>[o.id,o.status,o.invoice?.status]),Object.entries(POS_DATA.reservations||{}).map(([t,rs])=>[t,rs.map(r=>[r.id,r.time,r.status])]),REG_DATA&&Object.entries(REG_DATA.current||{}).map(([v,r])=>[v,r?.id,r?.closed_at]),(DATA.payment_methods||[]).map(m=>[m.code,m.label,m.active])]);
+  const sig=JSON.stringify([POS_DATA.linepay,POS_DATA.pause,POS_DATA.sessions.map(s=>[s.id,s.linepay,s.unpaid,s.unpaid_amount,s.state,s.lines.map(l=>[l.line,l.qty,l.price,l.comp_reason||'',l.placed_at||'']),(s.pay_requests||[]).map(r=>[r.id,r.amount,r.count])]),POS_DATA.orders.map(o=>[o.id,o.status,o.invoice?.status]),Object.entries(POS_DATA.reservations||{}).map(([t,rs])=>[t,rs.map(r=>[r.id,r.time,r.status])]),REG_DATA&&Object.entries(REG_DATA.current||{}).map(([v,r])=>[v,r?.id,r?.closed_at]),(DATA.payment_methods||[]).map(m=>[m.code,m.label,m.active])]);
   // 客人手機按「通知櫃檯我要結帳」：第一次看到的需求響一聲（和新單同一個音）
   const reqIds=new Set(POS_DATA.sessions.flatMap(s=>(s.pay_requests||[]).map(r=>r.id)));if(PAYREQ_SEEN&&[...reqIds].some(id=>!PAYREQ_SEEN.has(id)))ordersBeep();PAYREQ_SEEN=reqIds;
   // 開帳表單打開時不要被 15 秒自動刷新重畫（會清掉正在填的張數）
-  if((host.dataset.sig!==sig&&!(REG_OPEN_FORM&&host.querySelector('.reg-open-form')))||!host.querySelector('.pos-grid')){host.dataset.sig=sig;paintPos();}
+  if(!CHECKOUT_BUSY.size&&((host.dataset.sig!==sig&&!(REG_OPEN_FORM&&host.querySelector('.reg-open-form')))||!host.querySelector('.pos-grid'))){host.dataset.sig=sig;paintPos();}
   POS_TIMER=setTimeout(()=>{if(document.getElementById('pos-body')&&TAB==='pos')loadPos();},15000);
 }
 // 結帳金額（與伺服器同一套算法：會員價 → 整單折扣）；伺服器仍會重算，這裡只給畫面即時顯示
@@ -705,6 +705,51 @@ function posTotals(cur){
   return {priceOf,picked,regular,subtotal,discount,pts,menuById,total:subtotal-discount};
 }
 function bindCashDrawerButton(drawerBtn){if(drawerBtn)drawerBtn.onclick=()=>ensureOperator(async()=>{const reason=await pickReason({title:'開錢櫃原因（記錄操作人員與時間）',presets:['開班放零用金','換鈔','交班點鈔','交易已完成，重試開櫃']});if(!reason||drawerBtn.disabled)return;drawerBtn.disabled=true;try{await manualCashDrawer(reason);}finally{drawerBtn.disabled=false;}});}
+function linepayPanelHtml(cur,config){
+  const a=cur.linepay,pending=!!a,enabled=!!config?.enabled&&!cur.mixed;
+  const hint=pending?`原交易 ${a.id}：${a.state==='prepared'?'尚未送出，可繼續掃碼或取消':'結果待確認；禁止改用其他方式收款'}`:(cur.mixed?'跨品牌整桌帳單請由言文字管理員處理':config?.blockers?.join('；')||'整桌原價單一付款；付款時邀請加入 @338ymhys，由客人自行選擇');
+  return `<div class="a-sec"><h3>LINE Pay API 收款＋加好友</h3><p class="hint">${esc(hint)}</p><button type="button" class="btn btn--ghost" id="pos-linepay-api" ${(!pending&&!enabled)||CHECKOUT_BUSY.has(cur.id)?'disabled':''}>${pending&&a.state!=='prepared'?'查詢原 LINE Pay 交易':'掃客人付款碼（API 實收）'}</button>${a?.state==='prepared'?'<button type="button" class="btn btn--ghost" id="pos-linepay-cancel">取消尚未送出的交易</button>':''}</div>`;
+}
+function pickLinepayCode(amount){
+  return new Promise(resolve=>{
+    const {ov,close}=pickOverlay(`<h3>LINE Pay API 實收 NT$${num(amount)}</h3><p class="hint">請客人出示 LINE Pay「我的條碼」；掃描或用掃描槍輸入 18 碼。不會儲存付款碼。</p><div class="pos-inv-scan-row"><input data-code inputmode="numeric" autocomplete="off" maxlength="18" aria-label="LINE Pay 付款碼"><button type="button" class="btn btn--ghost" data-scan>相機掃描</button></div><video playsinline muted></video><div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-cancel>取消</button><button type="button" class="btn btn--solid" data-next>確認付款碼</button></div>`,'LINE Pay API 收款');
+    const input=ov.querySelector('[data-code]'),video=ov.querySelector('video');
+    const done=value=>{stopPosInvoiceScanner(video);input.value='';close();resolve(value);};
+    const accept=raw=>{if(!/^\d{18}$/.test(raw)){toast('請掃描 18 碼 LINE Pay 付款碼，不是會員卡或店家 QR');return;}done(raw);};
+    ov.querySelector('[data-scan]').onclick=()=>startInvoiceScan(video,accept,{raw:true,sensitive:true});
+    ov.querySelector('[data-next]').onclick=()=>accept(input.value.trim());
+    input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();accept(input.value.trim());}};
+    ov.querySelector('[data-cancel]').onclick=()=>done(null);input.focus();
+  });
+}
+async function linepayCheckout(cur,host){
+  return runCheckoutOnce(cur.id,async()=>{
+    const path='/admin/orders/sessions/'+cur.id+'/linepay/';
+    let a=cur.linepay;
+    try{
+      if(!a){
+        if(POS_PICK||Object.keys(POS_QTY).length||POS_MEMBER||POS_YAN.id||POS_DISCOUNT||POS_METHOD==='mixed'){toast('API 收款限整桌原價，請先清除分帳、會員、點數、折扣及混合付款選項');return;}
+        a=await api(path+'prepare',{method:'POST',body:{operator_id:OPERATOR?.id,invoice:invoiceBody(host)}});cur.linepay=a;
+      }
+      if(a.state==='review'){toast('此交易需管理員核對 LINE Pay 實收／退款，不能解除鎖定或重新收款。原交易：'+a.id);return;}
+      let out;
+      if(a.state==='prepared'){
+        const oneTimeKey=await pickLinepayCode(a.amount);
+        if(!oneTimeKey){await api(path+'cancel',{method:'POST',body:{attempt_id:a.id}});cur.linepay=null;return;}
+        if(!await posConfirm(`將向客人實際收取 NT$${num(a.amount)}（全桌原價）。付款時邀請加入 @338ymhys，是否加入由客人選擇。`,{title:'LINE Pay API 實際扣款',ok:'送出實際扣款'})){await api(path+'cancel',{method:'POST',body:{attempt_id:a.id}});cur.linepay=null;return;}
+        cur.linepay={...a,state:'unknown'};
+        out=await api(path+'pay',{method:'POST',body:{attempt_id:a.id,oneTimeKey}});
+      }else out=await api(path+'check',{method:'POST',body:{attempt_id:a.id}});
+      cur.linepay=out;
+      if(out.state==='settled'){
+        toast(`LINE Pay 已確認實收 NT$${num(out.amount)}${out.result?.closed?'，已自動清桌':''}。列印失敗請重印，不可重新收款。`);
+        POS_PICK=null;POS_QTY={};POS_SPLIT={};POS_MEMBER=false;POS_YAN={phone:'',name:'',balance:null};POS_DISCOUNT=null;POS_RECEIVED='';
+        if(out.order)await printCheckoutOrder(out.order);
+      }else if(out.state==='failed'){cur.linepay=null;toast('LINE Pay 拒絕付款（'+(out.code||'FAIL')+'），未登記實收；請確認客人付款狀態後再選付款方式。');}
+      else toast('原交易 '+out.id+' 結果尚未確認，帳單保持鎖定；請按「查詢原 LINE Pay 交易」，勿重新扣款或改收現金。');
+    }catch(e){toast('LINE Pay：'+e.message+'；如已送出，請查詢原交易，勿重新收款。');}
+  }).finally(()=>loadPos());
+}
 function paintPos(){
   const host=document.getElementById('pos-body'),d=POS_DATA;if(!host||!d)return;
   stopPosInvoiceScanner();
@@ -770,6 +815,7 @@ function paintPos(){
           ${cash?`<div class="pos-cash"><label>${mixed?'現金實收':'實收'}<input id="pos-received" inputmode="numeric" pattern="[0-9]*" placeholder="客人給的現金" value="${esc(POS_RECEIVED)}" aria-label="實收金額"></label><div class="pos-cash-quick">${quick.map(n=>`<button type="button" data-received="${n}">${n===cashDue?'剛好':'$'+num(n)}</button>`).join('')}</div></div>`:''}
         </div>
         <details class="pos-invoice"><summary><b>ezPay 電子發票</b> <span class="hint hint--tight">${POS_INVOICE.mode?INV_LABEL[POS_INVOICE.mode]:'不開'}${DATA?.invoice?.configured?'':'（尚未設定 ezPay，會先記為待補開）'}</span><span class="pos-invoice-caret" aria-hidden="true"></span></summary><div class="pos-invoice-body"><div class="pos-invoice-types">${[['paper','紙本'],['company','統編'],['mobile','手機載具'],['citizen','自然人憑證'],['donate','捐贈'],['','不開立']].map(([m,l])=>`<label><input type="radio" name="pos-invoice" value="${m}" ${POS_INVOICE.mode===m?'checked':''}><span>${l}</span></label>`).join('')}</div><div class="pos-invoice-fields"><div class="pos-inv-row" data-inv-modes="company"><input name="buyer_ubn" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="統編 8 碼"></div><div class="pos-inv-row" data-inv-modes="mobile,citizen"><div class="pos-inv-scan-row"><input name="carrier_num" autocapitalize="characters" maxlength="64" placeholder="手機條碼 /ABC1234"><button type="button" class="btn btn--ghost btn-xs" id="pos-invoice-scan" data-inv-modes="mobile">📷 掃描</button></div><video id="pos-invoice-video" playsinline muted></video></div><div class="pos-inv-row" data-inv-modes="donate"><input name="love_code" inputmode="numeric" pattern="[0-9]*" maxlength="20" placeholder="愛心碼"></div><div class="pos-inv-row" data-inv-modes="paper,company"><input name="buyer_name" maxlength="60" placeholder="買受人／公司名稱（選填）"></div><div class="pos-inv-row" data-inv-modes="paper,company,mobile,citizen,donate"><input name="buyer_email" type="email" maxlength="120" placeholder="Email（選填）"></div><div class="pos-inv-row" data-inv-modes="paper,company,mobile,citizen,donate"><input name="comment" maxlength="80" placeholder="發票備註（選填）"></div></div></div></details>
+        ${linepayPanelHtml(cur,d.linepay)}
         <div class="pos-actions"><div class="pos-actions-sub"><button class="btn btn--ghost" id="pos-place" ${cur.lines.some(l=>!l.placed_at)?'':'disabled'}>送出點餐／列印出餐單</button><button class="btn btn--ghost" id="pos-prepay" ${cur.lines.some(l=>!l.credit_of)&&total>1?'':'disabled'} title="客人先付一部分金額，餘額之後再收">先收部分金額</button><button class="btn btn--ghost" id="pos-move" ${cur.takeout?'hidden':''}>換桌／併桌</button></div><button class="btn btn--ghost btn--danger" id="pos-close">${cur.takeout?'收掉外帶單':'清桌'}</button></div>
       </div>
       ${live.length?`<h3>這桌已結帳的單</h3><div class="a-wrap2"><table class="a-tbl pos-paid"><thead><tr><th>品項 · 時間 · 狀態</th><th>付款</th><th class="num">金額</th><th class="ops-th">操作</th></tr></thead><tbody>${liveRows}</tbody></table></div>`:''}
@@ -871,6 +917,11 @@ function paintPos(){
   host.querySelectorAll('input[name=pos-invoice]').forEach(r=>r.onchange=()=>{POS_INVOICE.mode=r.checked?r.value:POS_INVOICE.mode;const s=host.querySelector('.pos-invoice summary .hint');if(s)s.textContent=POS_INVOICE.mode?INV_LABEL[POS_INVOICE.mode]:'不開';updateInvoiceFields(host);});
   const invScan=host.querySelector('#pos-invoice-scan');
   if(invScan)invScan.onclick=()=>startInvoiceScan(host.querySelector('#pos-invoice-video'),raw=>{const carrierIn=host.querySelector('.pos-invoice [name=carrier_num]');if(carrierIn)carrierIn.value=raw;});
+  const linepayBtn=host.querySelector('#pos-linepay-api');
+  if(linepayBtn)linepayBtn.onclick=()=>ensureOperator(()=>linepayCheckout(cur,host));
+  const linepayCancel=host.querySelector('#pos-linepay-cancel');
+  if(linepayCancel)linepayCancel.onclick=()=>ensureOperator(()=>runCheckoutOnce(cur.id,async()=>{try{await api('/admin/orders/sessions/'+cur.id+'/linepay/cancel',{method:'POST',body:{attempt_id:cur.linepay.id}});cur.linepay=null;}catch(e){toast(e.message);}}).finally(()=>loadPos()));
+  if(cur.linepay){host.querySelector('#pos-checkout').disabled=true;const prepay=host.querySelector('#pos-prepay');if(prepay)prepay.disabled=true;}
   host.querySelector('#pos-checkout').onclick=async()=>{
     const method=POS_METHOD;
     if(!picked.length)return;

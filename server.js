@@ -39,6 +39,7 @@ const kitchenPrint=require('./lib/pos-kitchen-print');
 const tableLive=require('./lib/table-live');
 const ezpayInvoice=require('./lib/ezpay-invoice');
 const linepay=require('./lib/linepay');
+const linepayOffline=require('./lib/linepay-offline');
 const taishinManual=require('./lib/taishin-manual');
 const posRegister=require('./lib/pos-register');
 const posStaff=require('./lib/pos-staff');
@@ -773,6 +774,7 @@ async function migrate() {
     id TEXT PRIMARY KEY, type TEXT NOT NULL, amount INT NOT NULL, paid_at TIMESTAMPTZ NOT NULL, method TEXT NOT NULL DEFAULT '', provider TEXT NOT NULL DEFAULT '',
     origin_id TEXT NOT NULL DEFAULT '', order_no TEXT NOT NULL DEFAULT '', card_last4 TEXT NOT NULL DEFAULT '', confirm_no TEXT NOT NULL DEFAULT '', synced_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE INDEX IF NOT EXISTS linepay_transactions_paid_idx ON linepay_transactions(paid_at)`);
+  await q(linepayOffline.schema);
   // 台新手機付沒有實收總額查詢 API，每個營業日手動填一次實收總額，日結報表拿來與 POS 登記為 taishin 的單對帳
   await q(`CREATE TABLE IF NOT EXISTS pos_taishin_daily (
     day DATE PRIMARY KEY, amount INT NOT NULL, reason TEXT NOT NULL DEFAULT '', filled_by TEXT NOT NULL DEFAULT '', updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
@@ -1561,6 +1563,7 @@ function notOperator(req, res, next) {
   next();
 }
 const wrap = fn => (req, res) => fn(req, res).catch(e => {
+  if(e?.code==='55P03'&&/^LINEPAY_(PAYMENT_LOCK|REFUND_REQUIRED):/.test(e.message||''))return res.status(423).json({error:e.message,code:'LINEPAY_LOCKED'});
   const paymentUnavailable = e && (e.code === 'api_key_expired' ||
     ['StripeAuthenticationError', 'StripePermissionError', 'StripeConnectionError', 'StripeRateLimitError', 'StripeAPIError'].includes(e.type));
   console.error('[api error]', paymentUnavailable
@@ -4694,6 +4697,7 @@ app.post('/api/orders/:id/pay',rateLimit({max:10}),requireDb,wrap(async(req,res)
   try{await client.query('BEGIN');
     const s=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
     if(!s||s.status!=='open'){await client.query('ROLLBACK');return res.status(s?409:404).json({error:s?'這桌已結束，請重新掃描 QR。':'找不到這桌的點餐。'});}
+    if((await client.query("SELECT id FROM linepay_payments WHERE session_id=$1 AND state NOT IN ('failed','cancelled','settled')",[s.id])).rows.length){await client.query('ROLLBACK');return res.status(423).json({error:'LINE Pay 原交易待確認，請查詢原交易，勿改用其他方式收款。'});}
     let lines;try{lines=tableOrders.selectLines(s.items,req.body?.lines);}catch(e){await client.query('ROLLBACK');return res.status(e.status).json({error:e.message});}
     const amount=tableOrders.sum(lines);if(!lines.length||amount<=0){await client.query('ROLLBACK');return res.status(400).json({error:'沒有可結帳的品項。'});}
     const orderId=uid('to_');
@@ -4755,7 +4759,9 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const resvRows=(await q(`SELECT id,to_char(reserve_date,'YYYY-MM-DD') AS reserve_date,reserve_time,party_size,name,status,table_no FROM dining_reservations WHERE reserve_date BETWEEN CURRENT_DATE-1 AND CURRENT_DATE+1 AND status IN ('new','confirmed') AND table_no<>'' AND deleted_at IS NULL`)).rows.filter(r=>!venues||venues.includes(tableOrders.reservationVenue(r.reserve_time)));
   const reservations=tableOrders.reservationsByTable(resvRows);
   // payment_methods 一起回傳：已開著的 POS 畫面每 15 秒輪詢這支 API，新增的自訂收款帳戶才會即時出現在結帳選項，不用重新整理
-  res.json({orders,tickets,sessions,reservations,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue(),payment_methods:await paymentMethodsList()});
+  const pendingLinepay=(await q("SELECT id,session_id,state,amount,mode FROM linepay_payments WHERE state NOT IN ('failed','cancelled','settled')")).rows;
+  for(const s of sessions){if(!s.mixed)s.linepay=pendingLinepay.find(a=>a.session_id===s.id)||null;}
+  res.json({orders,tickets,sessions,reservations,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue(),payment_methods:await paymentMethodsList(),linepay:linepayOfflineStatus()});
 }));
 /* 櫃檯開桌／外帶：客人沒掃 QR（走進來直接在櫃檯點）也能開一桌；外帶自動取 W01–W99 最小空號。已開著的桌直接回那一桌 */
 app.post('/api/admin/orders/sessions',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -4851,6 +4857,33 @@ app.delete('/api/admin/orders/sessions/:id/pay-requests/:rid',auth,adminOnly,req
   await q('UPDATE table_sessions SET pay_requests=$2 WHERE id=$1',[s.id,JSON.stringify(next)]);
   res.json({ok:true,pay_requests:tableOrders.payRequestsView(next,s.items)});
 }));
+function linepayOfflineStatus(){
+  const c=linepayOffline.configuration(process.env),blockers=[...c.blockers];
+  // Sandbox must never turn real restaurant bills into fake revenue.
+  if(c.mode==='sandbox')blockers.push('sandbox 僅供隔離測試；正式 POS 不可用測試付款沖銷帳單');
+  return {enabled:!blockers.length,mode:c.mode||null,blockers};
+}
+const linepayPosService=linepayOffline.createService({pool,uid,env:process.env,api:linepayOffline.createClient({env:process.env,fetcher:(...args)=>fetch(...args)}),...require('./lib/linepay-pos').createHooks({tableOrders,contentValue,resolveOperator,activePaymentCodes,registersOpenMap,posRegister,ezpayInvoice,actorOf,uid})});
+async function linepayPosAction(action,req,res){
+  if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
+  if(['prepare','pay'].includes(action)&&!linepayOfflineStatus().enabled)return res.status(503).json({error:linepayOfflineStatus().blockers.join('；')});
+  try{
+    const out=await linepayPosService[action](req.params.id,req.auth,req.body||{});
+    if(out.state==='settled'&&out.result?.order_id){
+      const o=(await q('SELECT * FROM table_orders WHERE id=$1',[out.result.order_id])).rows[0];
+      if(o){
+        // Only the transaction winner can issue. Replays/read recovery never reissue an invoice.
+        if(out.settled_now)o.invoice=await storeInvoiceResult(o,o.invoice);
+        out.order=o;out.result={...out.result,invoice:o.invoice};
+      }
+    }
+    delete out.settled_now;res.set('Cache-Control','no-store');res.json(out);
+  }catch(e){if(e.status)return res.status(e.status).json({error:e.message});throw e;}
+}
+app.post('/api/admin/orders/sessions/:id/linepay/prepare',auth,adminOnly,requireDb,wrap((req,res)=>linepayPosAction('prepare',req,res)));
+app.post('/api/admin/orders/sessions/:id/linepay/pay',rateLimit({max:10}),auth,adminOnly,requireDb,wrap((req,res)=>linepayPosAction('pay',req,res)));
+app.post('/api/admin/orders/sessions/:id/linepay/check',rateLimit({max:30}),auth,adminOnly,requireDb,wrap((req,res)=>linepayPosAction('check',req,res)));
+app.post('/api/admin/orders/sessions/:id/linepay/cancel',auth,adminOnly,requireDb,wrap((req,res)=>linepayPosAction('cancel',req,res)));
 app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
   const venues=tableOrders.visibleVenues(req.auth.brands);
@@ -4860,6 +4893,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
   try{await client.query('BEGIN');
     const s=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
     if(!s||s.status!=='open'){await client.query('ROLLBACK');return res.status(s?409:404).json({error:s?'這桌已結束。':'找不到這桌。'});}
+    if((await client.query("SELECT id FROM linepay_payments WHERE session_id=$1 AND state NOT IN ('failed','cancelled','settled')",[s.id])).rows.length){await client.query('ROLLBACK');return res.status(423).json({error:'LINE Pay 原交易待確認，請查詢原交易，勿改用其他方式收款。'});}
     let memberUser=null;
     const cardTok=String(req.body?.member_token||'').trim(),phoneRaw=String(req.body?.member_phone||'').trim(),memberIdRaw=String(req.body?.member_id||'').trim().slice(0,64);
     if(cardTok){const p=verifyAccessToken(cardTok,process.env.ACCESS_QR_SECRET||SECRET);if(!p||p.plan!=='yan-card'){await client.query('ROLLBACK');return res.status(400).json({error:'會員卡無效或過期。'});}memberUser=(await client.query('SELECT id,name,phone,phone_e164 FROM users WHERE id=$1',[p.sub])).rows[0];if(!memberUser){await client.query('ROLLBACK');return res.status(404).json({error:'找不到這位會員。'});}}
