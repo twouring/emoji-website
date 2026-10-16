@@ -84,6 +84,7 @@
       ja: String(raw.ja || '').trim(),
       price: Number.isFinite(price) ? price : 0,
       emo: Number.isFinite(emo) ? emo : 0,
+      points: Math.max(0, Math.min(100000, Math.floor(Number(raw.points)) || 0)),   // 兌換所需點數；0＝不開放點數兌換（餐飲或服務品項都可設）
       note: String(raw.note || '').trim(),
       note_ja: String(raw.note_ja || '').trim(),
       image: String(raw.image || '').trim(),

@@ -54,17 +54,17 @@ test('帳本：累點冪等、餘額加總、過期不算、作廢沖回', () =>
   assert.equal(Y.applyVoidEarn(voided.rows, { orderId: 'to_a' }).delta, 0, '作廢沖回冪等');
 });
 
-test('折抵：1 點＝1 元、不得超餘額／應收；作廢還點', () => {
+test('兌換扣點：不得超餘額、同一單冪等；作廢還點', () => {
   const now = new Date('2026-11-01T04:00:00.000Z');
   let rows = Y.applyEarn([], { userId: 'u1', orderId: 'to_e', amount: 5000, brand: 'CAFE', at: now }).rows;
   assert.equal(Y.balance(rows, now), 50);
-  assert.throws(() => Y.applyRedeem(rows, { orderId: 'to_r', points: 51, amount: 180 }), /不足/);
-  assert.throws(() => Y.applyRedeem(rows, { orderId: 'to_r', points: 200, amount: 180 }), /應收/);
-  const r = Y.applyRedeem(rows, { orderId: 'to_r', points: 50, amount: 180 });
+  assert.throws(() => Y.applyRedeem(rows, { orderId: 'to_r', points: 51 }), /不足/);
+  assert.throws(() => Y.applyRedeem(rows, { orderId: 'to_r', points: 0 }), /正整數/);
+  const r = Y.applyRedeem(rows, { orderId: 'to_r', points: 50 });
   assert.equal(r.delta, -50);
   assert.equal(r.used, 50);
   assert.equal(Y.balance(r.rows, now), 0);
-  assert.equal(Y.applyRedeem(r.rows, { orderId: 'to_r', points: 10, amount: 180 }).delta, 0, '同一單折抵冪等');
+  assert.equal(Y.applyRedeem(r.rows, { orderId: 'to_r', points: 10 }).delta, 0, '同一單兌換冪等');
   const back = Y.applyVoidRedeem(r.rows, { orderId: 'to_r' });
   assert.equal(back.delta, 50);
   assert.equal(Y.balance(back.rows, now), 50);
@@ -125,18 +125,21 @@ test('POS：掃會員條碼套會員價、手機只累點', () => {
   assert.doesNotMatch(ops, /balance:out\.balance\|\|0\};POS_MEMBER=true;return `\$\{out\.member\?\.name\|\|'會員'\} · \$\{out/);
 });
 
-test('點數折抵直接扣應收；發票折扣列合併；會籍價名稱', () => {
+test('點數兌換品項：該行變 0 元、扣菜單點數、不折抵金額；不開放的品項擋下', () => {
   const T = require('../lib/table-orders');
-  const menu = new Map([['a', { id: 'a', price: 200, emo: 0 }]]);
-  const items = [{ line: 'l1', item_id: 'a', price: 200, qty: 1, venue: 'CAFE' }];
-  const out = T.posCheckout(items, { method: 'cash', yan_points: 50, received: 200 }, menu);
-  assert.equal(out.amount, 150); assert.equal(out.payer.yan_points, 50); assert.equal(out.payer.change, 50);
-  assert.throws(() => T.posCheckout(items, { method: 'cash', yan_points: 201 }, menu), /折抵點數/);
-  assert.throws(() => T.posCheckout(items, { method: 'cash', yan_points: 1.5 }, menu), /折抵點數/);
-  assert.deepEqual(T.invoiceDiscount({ type: 'amount', amount: 10, reason: '熟客' }, 50), { type: 'amount', amount: 60, reason: '熟客、點數折抵' });
-  assert.equal(T.invoiceDiscount(null, 0), null);
-  assert.equal(globalThis.MenuLib.MEMBER_LABEL, undefined);
+  const menu = new Map([['a', { id: 'a', price: 200, emo: 0, points: 150 }], ['b', { id: 'b', price: 100, emo: 0, points: 0 }]]);
+  const items = [{ line: 'l1', item_id: 'a', zh: '拿鐵', price: 200, qty: 2, venue: 'CAFE' }, { line: 'l2', item_id: 'b', zh: '吐司', price: 100, qty: 1, venue: 'CAFE' }];
+  const out = T.posCheckout(items, { method: 'cash', redeem_lines: ['l1'] }, menu);
+  assert.equal(out.amount, 100, '拿鐵 2 杯兌換變 0，只剩吐司 100');
+  assert.equal(out.payer.yan_redeem_points, 300);
+  assert.equal(out.lines[0].redeem_points, 300); assert.equal(out.lines[0].regular_price, 200);
+  assert.throws(() => T.posCheckout(items, { method: 'cash', redeem_lines: ['l2'] }, menu), /不開放點數兌換/);
+  assert.throws(() => T.posCheckout(items, { method: 'cash', redeem_lines: ['zzz'] }, menu), /不在這次結帳/);
+  assert.equal(T.posCheckout(items, { method: 'cash' }, menu).amount, 500, '沒選兌換就照原價');
+  assert.equal(T.posCheckout(items, { method: 'cash', yan_points: 50 }, menu).amount, 500, '舊的 yan_points 折抵已移除、不再折錢');
+  assert.equal(T.invoiceDiscount, undefined);
   assert.match(read('public/menu-lib.js'), /zh: '會籍價'/);
+  assert.equal(globalThis.MenuLib.normalizeItem({ cat: 'COFFEE', zh: 'x', price: 1, points: 80.7 }).points, 80);
 });
 
 test('兌換空間時數：扣點、單日會籍、只認掃碼確認的有效會籍', () => {
@@ -149,8 +152,8 @@ test('兌換空間時數：扣點、單日會籍、只認掃碼確認的有效�
   assert.match(srv, /redeem-space/);
   assert.match(srv, /verified=!!\(cardTok\|\|memberIdRaw\)/);
   assert.match(srv, /memberActive=verified&&memberUser\?\(await memberAccessFor\(memberUser\.id\)\)\.active:false/);
-  assert.match(srv, /折抵點數請先掃會員條碼確認身分/);
+  assert.match(srv, /點數兌換請先掃會員條碼確認身分/);
   const ops = read('public/pos-ops.js');
   assert.doesNotMatch(ops, /id="pos-member"/, '不能再手動勾選會籍價');
-  assert.match(ops, /pos-yan-redeem/); assert.match(ops, /pos-yan-space/);
+  assert.match(ops, /data-redeem/); assert.match(ops, /pos-yan-space/); assert.doesNotMatch(ops, /pos-yan-redeem/);
 });

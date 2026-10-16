@@ -219,7 +219,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     <div class="hello"><div><h1>${esc(me.name?'嗨，'+me.name:'歡迎回來')}</h1><small>${new Date().getHours()<12?'早安':new Date().getHours()<18?'午安':'晚安'}</small></div>${MARK}</div>
     <section class="pass" aria-label="會員卡"><div class="brand">言文字</div><div class="pts"><span>我的點數</span><b>${esc(pts)}</b></div><div class="who"><span>${esc(me.name||'')}</span><i>${esc(phone?phone.replace(/^\+886(\d{2})\d{4}(\d{3})$/,'0$1-****-$2'):'')}</i></div></section>
     <button class="show" id="show"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17h3v4h-4v-3h4M18 14h3v3"/></svg>結帳時出示會員卡</button>
-    <p class="hint">${phone?'也可以直接報手機號碼。':'到「我的」填寫手機，結帳報號碼就能累點。'}消費每滿 <span class="nb">100 元</span>累積 <span class="nb">1 點</span>，<span class="nb">1 點</span>折 <span class="nb">1 元</span>，也能兌換餐飲或空間時數（限在櫃檯出示會員卡）。</p>
+    <p class="hint">${phone?'也可以直接報手機號碼。':'到「我的」填寫手機，結帳報號碼就能累點。'}消費每滿 <span class="nb">100 元</span>累積 <span class="nb">1 點</span>，點數可兌換餐飲、服務與空間時數（不折抵金額；到櫃檯出示會員卡）。</p>
     ${installCard()}
     <section class="sec"><h2>下一場活動</h2>${ev?evTile(ev):'<p class="empty">目前沒有開放報名的活動</p>'}</section>`;
     document.getElementById('show').onclick=openQr;
