@@ -729,7 +729,36 @@ function bindPosPause(host,reload){
     opsThen(()=>api('/admin/orders/pause',{method:'POST',body:{venue,paused:true,message}}),'已暫停點餐，客人掃碼會看到你的文案',reload);
   });
 }
+async function openOneTableQr(table){
+  const ov=document.createElement('div');ov.className='op-overlay';document.body.appendChild(ov);
+  const close=()=>{if(ov.parentNode)ov.parentNode.removeChild(ov);};
+  ov.innerHTML=`<div class="op-card" role="dialog" aria-label="桌號 ${esc(table)} QR" style="text-align:center"><h2>桌號 ${esc(table)}</h2>
+    <div id="qr-one" class="qr-grid" style="grid-template-columns:minmax(0,360px);justify-content:center"></div>
+    <div class="op-card-actions"><button type="button" class="btn btn--ghost" id="qr-close">關閉</button><button type="button" class="btn btn--solid" id="qr-print1" hidden>列印</button></div></div>`;
+  ov.querySelector('#qr-close').onclick=close;ov.addEventListener('click',e=>{if(e.target===ov)close();});
+  try{
+    const out=await api('/admin/tables/qr?tables='+encodeURIComponent(table));const t=out.tables?.[0];if(!t)throw Error('找不到這桌');
+    const img=await new Promise((ok,no)=>QRCode.toDataURL(t.url,{width:360,margin:1},(e,u)=>e?no(e):ok(u)));
+    ov.querySelector('#qr-one').innerHTML=`<div class="qr-card"><img src="${img}" alt="桌號 ${esc(t.table)}"><small>掃碼點餐 · 言文字</small></div>`;
+    const pb=ov.querySelector('#qr-print1');pb.hidden=false;
+    pb.onclick=async()=>{if(pb.disabled)return;pb.disabled=true;try{await printTableQr(t.table,t.url);}catch(e){toast('桌號 QR 列印失敗：'+e.message);}finally{pb.disabled=false;}};
+  }catch(e){toast(e.message);}
+}
+// 單一桌號 QR：只顯示該桌，列印走 mPOP（58mm 點陣圖）
+async function printTableQr(table,url){
+  if(!starReady()){await starOpenHere();return false;}
+  const q=await new Promise(resolve=>{if(!url||typeof QRCode==='undefined'||!QRCode.toCanvas)return resolve(null);const c=document.createElement('canvas');QRCode.toCanvas(c,String(url),{width:300,margin:4},err=>resolve(err?null:c));});
+  if(!q){toast('QR 產生失敗');return false;}
+  const W=STAR_DOTS,c=document.createElement('canvas');c.width=W;c.height=470;const g=c.getContext('2d');
+  g.fillStyle='#fff';g.fillRect(0,0,W,c.height);g.fillStyle='#000';g.textBaseline='top';g.textAlign='center';
+  g.font='bold 26px sans-serif';g.fillText('言文字',W/2,8);
+  g.drawImage(q,(W-300)/2,44,300,300);
+  g.font='bold 44px sans-serif';g.fillText('桌號 '+table,W/2,358);
+  g.font='20px sans-serif';g.fillText('掃碼點餐 · Scan to order',W/2,418);
+  const ok=await starSend({canvas:c});toast(ok?'桌號 QR 已送出列印':'桌號 QR 列印失敗');return ok;
+}
 function openTableQr(table){
+  if(typeof table==='string')return openOneTableQr(table);
   const ov=document.createElement('div');ov.className='op-overlay';document.body.appendChild(ov);
   const close=()=>{if(ov.parentNode)ov.parentNode.removeChild(ov);};
   ov.innerHTML=`<div class="op-card op-card--wide" role="dialog" aria-label="桌號 QR"><h2>桌號 QR（列印貼桌）</h2>

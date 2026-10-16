@@ -118,6 +118,13 @@
   /* 手機（≤600px）：若分頁跟平板一樣換行會疊成 4 行、頂欄佔掉近一半螢幕（KK 回報「上半部佔比太多」）→ 分頁維持單行橫向滑動，右側漸層＋固定「›」提示還有更多（比單純淡化邊緣更明顯），並在切換分頁時自動把目前分頁捲進視野，不靠隱藏捲軸讓人自己猜 */
   @media(max-width:600px){:root{--p-top:108px}.p-nav-wrap{order:3;flex:1 1 100%}.p-nav{overflow-x:auto;flex-wrap:nowrap}}
   @media(max-width:720px){.p-brand b{display:none}.p-scope button,.p-nav button{padding:0 12px}}
+  /* 圖示：跟文字同色、與文字等高，按鈕內圖示＋文字並排 */
+  .ic{flex:none;width:20px;height:20px;vertical-align:-4px;margin-right:6px}
+  .p-tools button .ic,.p-nav button .ic{margin-right:0}
+  .p-nav button .ic{margin-right:6px}
+  .p-tools #p-refresh .ic,.p-tools #p-drawer .ic,.p-tools #p-logout .ic{margin-right:0}
+  .p-tools #p-drawer .ic,.p-tools #p-logout .ic{margin-right:6px}
+  .btn .ic,button .ic{pointer-events:none}
   @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -132,7 +139,7 @@
   <div class="p-tools">
     <button type="button" class="p-net" id="p-net" hidden aria-live="polite">離線</button>
     <button type="button" id="p-drawer" hidden>開錢櫃</button>
-    <button type="button" id="p-refresh" aria-label="重新整理">↻</button>
+    <button type="button" id="p-refresh" aria-label="重新整理"></button>
     <button type="button" id="p-logout" hidden>登出</button>
   </div>
 </header>
@@ -149,6 +156,7 @@
 <script src="/pos-encouragement.js"></script>
 <script src="/pos-invoice-scan.js"></script>
 <script src="/pos-ops.js"></script>
+<script src="/pos-icons.js"></script>
 <script>
 /* 平板 POS 子站（pos.emoji.tw）：只做餐飲現場的事——櫃檯結帳、出餐、估清、訂位、查單、日結、打卡、排班。
    登入與 /admin 同一組帳號（Google 或 Email）；API 同網域、token 存 localStorage。
@@ -162,14 +170,14 @@ const NT = n => 'NT$' + Number(n || 0).toLocaleString('en-US');
 const num = n => Number(n || 0).toLocaleString('en-US');
 const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水' };
 const TABS = [
-  { id:'pos',          label:'結帳' },
-  { id:'orders',       label:'出餐' },
-  { id:'soldout',      label:'估清' },
-  { id:'reservations', label:'訂位' },
-  { id:'history',      label:'查單' },
-  { id:'sales',        label:'日結' },
-  { id:'clock',        label:'打卡' },
-  { id:'shifts',       label:'排班' },
+  { id:'pos', icon:'wallet',          label:'結帳' },
+  { id:'orders', icon:'utensils',       label:'出餐' },
+  { id:'soldout', icon:'ban',      label:'估清' },
+  { id:'reservations', icon:'calendar', label:'訂位' },
+  { id:'history', icon:'search',      label:'查單' },
+  { id:'sales', icon:'chart',        label:'日結' },
+  { id:'clock', icon:'clock',        label:'打卡' },
+  { id:'shifts', icon:'users',       label:'排班' },
 ];
 // 員工管理（新增／編輯／停用、出勤修正）刻意不放平板：只在 admin.emoji.tw 品牌工作區「排班打卡」，現場人員改不到
 const PANEL = { pos:tabPos, orders:tabOrders, soldout:tabSoldOut, reservations:tabReservations, history:tabHistory, sales:tabSales, clock:tabClock, shifts:tabShifts };
@@ -335,7 +343,7 @@ function paintNav(){
   if (!scopes.includes(SCOPE)) setScope(scopes[0] || '');
   document.getElementById('p-scope').innerHTML = scopes.length > 1 ? scopes.map(s => `<button type="button" data-scope="${esc(s)}" aria-pressed="${s===SCOPE}">${esc(s ? BRAND_LABEL[s] : '全部')}</button>`).join('') : (SCOPE ? `<span class="pill pill-ok">${esc(BRAND_LABEL[SCOPE])}${DATA?.me?.operator && DATA.me.name ? ' · ' + esc(DATA.me.name) : ''}</span>` : '');
   document.getElementById('p-scope').querySelectorAll('[data-scope]').forEach(b => b.onclick = () => { setScope(b.dataset.scope); resetPanels(); paintNav(); activate(); });
-  document.getElementById('p-nav').innerHTML = TABS.map(t => `<button type="button" data-tab="${t.id}" aria-pressed="${t.id===TAB}">${t.label}${t.id==='reservations'&&PENDING?`<span class="badge">${PENDING}</span>`:''}</button>`).join('');
+  document.getElementById('p-nav').innerHTML = TABS.map(t => `<button type="button" data-tab="${t.id}" aria-pressed="${t.id===TAB}">${POSIcon(t.icon)}${t.label}${t.id==='reservations'&&PENDING?`<span class="badge">${PENDING}</span>`:''}</button>`).join('');
   document.getElementById('p-nav').querySelectorAll('[data-tab]').forEach(b => b.onclick = () => go(b.dataset.tab));
   // 手機分頁列是可滑動單行（不換行），切換分頁後把目前分頁捲進視野，避免使用者不知道要滑到哪一個
   const active = document.querySelector('#p-nav [data-tab="' + TAB + '"]'); if (active) active.scrollIntoView({ inline: 'nearest', block: 'nearest' });
@@ -370,7 +378,7 @@ function render(){
 /* 訂位待確認數：頂欄紅點，每 60 秒更新 */
 async function refreshPending(){
   try { const d = await api('/admin/reservations?days=7' + (SCOPE ? '&venue=' + SCOPE : '')); PENDING = d.pending || 0; } catch (e) { PENDING = 0; }
-  const b = document.querySelector('#p-nav [data-tab=reservations]'); if (b) b.innerHTML = '訂位' + (PENDING ? `<span class="badge">${PENDING}</span>` : '');
+  const b = document.querySelector('#p-nav [data-tab=reservations]'); if (b) b.innerHTML = POSIcon('calendar') + '訂位' + (PENDING ? `<span class="badge">${PENDING}</span>` : '');
 }
 setInterval(() => { if (DATA) refreshPending(); }, 60000);
 

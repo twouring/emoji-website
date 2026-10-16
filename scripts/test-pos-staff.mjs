@@ -192,7 +192,7 @@ test('報表：每人班數／總工時只算已下班、遲到次數、漏卡�
 
 test('接線：POS 多「排班」「打卡」分頁、後台餐飲工作區多「排班打卡」、API 子帳號白名單含 staff；pos-ops 打卡用識別碼不落 localStorage', () => {
   const pos = read('public/pos.html'), ops = read('public/pos-ops.js'), admin = read('public/admin.html'), server = read('server.js');
-  assert.match(pos, /\{ id:'shifts',\s+label:'排班' \}/); assert.match(pos, /\{ id:'clock',\s+label:'打卡' \}/);
+  assert.match(pos, /\{ id:'shifts',(?: icon:'users',)?\s+label:'排班' \}/); assert.match(pos, /\{ id:'clock',(?: icon:'clock',)?\s+label:'打卡' \}/);
   assert.match(pos, /else if \(TAB === 'shifts'\) loadShifts\(\);/); assert.match(pos, /else if \(TAB === 'clock'\) loadClock\(\);/);
   assert.match(server, /app\.get\(\['\/pos', '\/pos\/\*'\]/);
   assert.match(server, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|registers\|staff\|shifts\|attendance\|payment-methods\|pos-devices\|yan\)/, '子帳號可用排班打卡 API');
