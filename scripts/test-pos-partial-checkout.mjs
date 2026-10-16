@@ -34,5 +34,5 @@ test('份數等於全量＝整行結；超過或非整數 400', () => {
 });
 test('前端與伺服器都接上 quantities', () => {
   assert.match(fs.readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'utf8'), /data-part=.*quantities:/s);
-  assert.match(fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8'), /settleItems\(s\.items,out\.lines,orderId\)/);
+  assert.match(fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8'), /settleItems\(s\.items,out\.lines,orderId,out\.credit\)/);
 });

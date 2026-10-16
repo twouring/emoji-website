@@ -255,3 +255,10 @@ tr.lp-refund td{color:#b42318}
 .pos-move-opt b{font-size:1.2em}.pos-move-opt small{color:#777}
 .pos-move-opt.busy{background:#fff4cc;border-color:#e0b800}
 .pos-move-foot{display:flex;justify-content:space-between;gap:8px}
+
+/* 混合付款：各方式各收多少 */
+.pos-split{display:flex;flex-wrap:wrap;gap:8px 12px;width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--paper-alt)}
+.pos-split-row{display:inline-flex;align-items:center;gap:8px;min-height:48px}.pos-split-row>span{min-width:5em}
+.pos-split-row input{width:110px;min-height:44px;font:inherit;font-size:1.1rem;padding:6px 10px;border:1px solid var(--muted);border-radius:8px;background:var(--card);color:var(--ink);font-variant-numeric:tabular-nums}
+.pos-split-left{display:flex;align-items:center;gap:10px;flex-basis:100%;min-height:40px;font-weight:600}.pos-split-left b{font-size:1.2rem;color:#b91c1c}.pos-split-left.ok b{color:#15803d}
+.pos-lines tr.pos-credit td{background:var(--paper-alt)}

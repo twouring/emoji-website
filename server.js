@@ -4471,7 +4471,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
       regWarn=posRegister.checkoutAllowed(out.lines,await registersOpenMap(client,tableOrders.MenuLib.businessDay()),{strict:!!venues}).warning;
     }catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
     if(!out.lines.every(l=>tableOrders.itemInVenues(l,venues))){await client.query('ROLLBACK');return res.status(403).json({error:'這桌含有其他品牌品項，請只勾選自己店別的品項結帳，或由言文字管理員處理。'});}
-    const orderId=uid('to_'),set=new Set(out.lines.map(l=>l.line)),orderLines=out.lines.map(l=>({...l,order_id:orderId})),items=tableOrders.settleItems(s.items,out.lines,orderId);
+    const orderId=uid('to_'),set=new Set(out.lines.map(l=>l.line)),orderLines=out.lines.map(l=>({...l,order_id:orderId})),items=tableOrders.settleItems(s.items,out.lines,orderId,out.credit);
     // 桌邊送單且全部已出餐的品項，結帳時直接記為已取餐（不再回到出餐看板）；有還沒出的照舊進看板
     const served=out.lines.every(l=>l.served_at);
     await client.query('INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,invoice,status,done_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[orderId,s.id,s.table_no,JSON.stringify(orderLines),out.amount,JSON.stringify(out.payer),JSON.stringify(invoice||{}),served?'done':'paid',served?new Date():null]);
@@ -4481,7 +4481,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     await client.query('UPDATE table_sessions SET items=$2,status=$3,pay_requests=$4,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),closed?'closed':'open',JSON.stringify(tableOrders.prunePayRequests(s.pay_requests,items))]);
     await client.query('COMMIT');
     const invoiceOut=await storeInvoiceResult({id:orderId,table_no:s.table_no,items:orderLines,amount:out.amount,discount:out.discount},invoice);
-    res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,received:out.payer.received,change:out.payer.change,method:out.payer.method,member:out.payer.member,closed,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut,warning:regWarn||undefined});
+    res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,received:out.payer.received,change:out.payer.change,method:out.payer.method,payments:out.payer.payments,prepay:!!out.payer.prepay,member:out.payer.member,closed,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut,warning:regWarn||undefined});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 app.post('/api/admin/orders/:id/invoice/issue',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -4517,12 +4517,12 @@ app.post('/api/admin/pos/drawer-events',auth,adminOnly,requireDb,wrap(async(req,
     if(!order||!tableOrders.orderOwnedByVenues(order,tableOrders.visibleVenues(req.auth.brands)))return res.status(404).json({error:'找不到這筆出餐單。'});
     const payer=order.payer||{};
     if(kind==='checkout'){
-      const cash=payer.method==='cash'?Number(order.amount):(Array.isArray(payer.payments)?payer.payments.filter(p=>p.method==='cash').reduce((n,p)=>n+Math.max(0,Number(p.amount)||0),0):0);
+      const cash=tableOrders.cashPaid(payer,order.amount);
       if(key!==`checkout:${order.id}`||body.line!=null||order.status==='void'||!(Number(order.amount)>0&&cash>0))return res.status(409).json({error:'這筆訂單沒有可開錢櫃的現金收款。'});
     }else{
       const line=body.line==null?null:String(body.line),expected=line===null?`refund:${order.id}`:`refund:${order.id}:${line}`;
       const cancelled=line===null?order.status==='void':order.items.some(l=>l.line===line&&l.cancelled);
-      if(key!==expected||payer.method!=='cash'||!cancelled||!(payer.drawer_refunds?.[key]>0))return res.status(409).json({error:'這筆訂單沒有已確認的現金退還請求。'});
+      if(key!==expected||!cancelled||!(payer.drawer_refunds?.[key]>0))return res.status(409).json({error:'這筆訂單沒有已確認的現金退還請求。'});
     }
   }else if(!/^manual:[A-Za-z0-9_-]{8,128}$/.test(key)||body.order_id!=null||body.line!=null)return res.status(400).json({error:'手動開錢櫃須使用獨立事件代碼，且不可指定訂單或品項。'});
   const id=uid('de_');
@@ -4541,6 +4541,8 @@ app.post('/api/admin/orders/:id/void',auth,adminOnly,requireDb,wrap(async(req,re
   const o=(await client.query('SELECT id,session_id,table_no,items,amount,status,payer,paid_at,tappay,invoice FROM table_orders WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
   if(!o||!tableOrders.orderOwnedByVenues(o,venues))return res.status(404).json({error:'找不到這筆出餐單。'});
   let reason;try{reason=tableOrders.voidOrder(o,req.body?.reason);}catch(e){return res.status(e.status||400).json({error:e.message});}
+  // 部分付款（預收）單：抵扣已經用在後面那張結帳單上就不能單獨作廢，要先作廢那張
+  if(o.payer?.prepay){const sess=(await client.query('SELECT items FROM table_sessions WHERE id=$1',[o.session_id])).rows[0];if(sess&&(sess.items||[]).some(l=>l.credit_of===o.id&&l.order_id))return res.status(409).json({error:'這筆預收已抵扣在後面的結帳單，請先作廢那張單。'});}
   let nextInvoice=o.invoice||{};
   if(nextInvoice.status==='issued'){
     const cfg=ezpayInvoice.config();
@@ -4550,13 +4552,14 @@ app.post('/api/admin/orders/:id/void',auth,adminOnly,requireDb,wrap(async(req,re
     if(nextInvoice.status==='issued'){try{nextInvoice=await ezpayInvoice.invalidInvoice(cfg,o,nextInvoice,reason);}catch(e){return res.status(e.status||502).json({error:e.message});}}
   }
   // 作廢＝這張單不計營收；品項退回未結帳（可重新結或清桌作廢），避免「作廢後想改付款方式」要重點一次
-  const method=o.payer?.method||null,cash_refund=req.body?.refund_cash===true&&method==='cash'?Math.max(0,Number(o.amount)||0):0;
+  const method=o.payer?.method||null,cash_refund=req.body?.refund_cash===true?tableOrders.cashPaid(o.payer,o.amount):0;
   const event_key=cash_refund>0?`refund:${o.id}`:undefined;
   const payer={...o.payer,...(event_key?{drawer_refunds:{...o.payer?.drawer_refunds,[event_key]:cash_refund}}:{})};
     await client.query("UPDATE table_orders SET status='void',void_reason=$2,voided_by=$3,voided_at=now(),invoice=$4,payer=$5 WHERE id=$1",[o.id,reason,actorOf(req.auth)||'',JSON.stringify(nextInvoice),JSON.stringify(payer)]);
     const s=(await client.query("SELECT id,items,status FROM table_sessions WHERE id=$1 FOR UPDATE",[o.session_id])).rows[0];
     // 退回未結帳：會員價還原為原價；贈送（comp_reason）維持贈送
-    if(s&&s.status==='open')await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(s.items.map(l=>l.order_id!==o.id?l:l.comp_reason?{...l,order_id:null}:{...l,order_id:null,price:l.regular_price||l.price,regular_price:undefined}))]);
+    // 部分付款（預收）單作廢：這張單的「部分付款」行與桌上的「已預收」抵扣行一起拿掉，不退回未結帳
+    if(s&&s.status==='open')await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(o.payer?.prepay?s.items.filter(l=>l.order_id!==o.id&&l.credit_of!==o.id):s.items.map(l=>l.order_id!==o.id?l:l.comp_reason?{...l,order_id:null}:{...l,order_id:null,price:l.regular_price||l.price,regular_price:undefined}))]);
     await client.query('COMMIT');committed=true;
   res.json({ok:true,reason,method,cash_refund,event_key});
   }finally{if(!committed)await client.query('ROLLBACK').catch(()=>{});client.release();}
@@ -4572,7 +4575,7 @@ app.post('/api/admin/orders/:id/items/:line/void',auth,adminOnly,requireDb,wrap(
   if(!o||!tableOrders.orderOwnedByVenues(o,venues))return res.status(404).json({error:'找不到這筆出餐單。'});
   let out;try{out=tableOrders.voidOrderLine(o,String(req.params.line),req.body?.reason);}catch(e){return res.status(e.status||400).json({error:e.message});}
   const refund=Math.max(0,Number(o.amount)-out.amount),method=o.payer?.method||null;
-  const cash_refund=req.body?.refund_cash===true&&method==='cash'?refund:0,event_key=cash_refund>0?`refund:${o.id}:${req.params.line}`:undefined;
+  const cash_refund=req.body?.refund_cash===true?Math.min(refund,tableOrders.cashPaid(o.payer,o.amount)):0,event_key=cash_refund>0?`refund:${o.id}:${req.params.line}`:undefined;
   const payer={...o.payer,...(event_key?{drawer_refunds:{...o.payer?.drawer_refunds,[event_key]:cash_refund}}:{})};
   await client.query('UPDATE table_orders SET items=$2,amount=$3,payer=$4 WHERE id=$1',[o.id,JSON.stringify(out.items),out.amount,JSON.stringify(payer)]);
   await client.query('COMMIT');committed=true;
