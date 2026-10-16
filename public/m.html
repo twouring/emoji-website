@@ -55,6 +55,19 @@ h1,h2,h3{font-family:"Noto Serif TC",serif;font-weight:700;margin:0}
 .btn{display:flex;align-items:center;justify-content:center;min-height:52px;border-radius:14px;border:1.5px solid var(--ink);background:transparent;font-weight:500;width:100%;text-decoration:none;color:var(--ink)}
 .quiet{display:block;width:100%;margin-top:18px;min-height:48px;border:0;background:none;color:var(--muted);text-decoration:underline;text-underline-offset:4px}
 .btn.solid{background:var(--ink);color:var(--paper)}
+/* 安裝引導 */
+.install{background:var(--card);border:1.5px solid var(--ink);border-radius:18px;padding:16px;margin-top:18px}
+.install h3{font-size:1.05rem}
+.install p{margin:4px 0 12px;color:var(--soft)}
+.install .irow{display:flex;gap:10px;align-items:center}
+.install .btn{width:auto;flex:1;padding:0 16px}
+.install .later{min-height:48px;padding:0 14px;border:0;background:none;color:var(--muted);text-decoration:underline;text-underline-offset:4px}
+.sheet{position:fixed;inset:0;z-index:35;background:rgba(27,26,23,.55);display:flex;align-items:flex-end}
+.sheet .panel{background:var(--paper);width:100%;max-width:480px;margin:0 auto;border-radius:22px 22px 0 0;padding:22px 20px calc(22px + env(safe-area-inset-bottom))}
+.sheet h3{font-size:1.2rem}
+.sheet ol{padding-left:1.3em;margin:12px 0 16px}
+.sheet li{margin:10px 0}
+.sheet .note{color:var(--muted);margin:0 0 14px;text-wrap:pretty}
 /* 底部分頁 */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:10;background:rgba(251,250,246,.96);backdrop-filter:blur(10px);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(3,1fr);padding-bottom:env(safe-area-inset-bottom)}
 nav.tabs button{height:var(--tab);border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--muted);font-size:1rem}
@@ -106,6 +119,54 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   const MARK='<svg class="mark" viewBox="0 0 200 200" fill="none" stroke="#1B1A17" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M62 72C26 58 12 118 44 130 52 132 58 128 64 122"/><path d="M138 72C174 58 188 118 156 130 148 132 142 128 136 122"/><path d="M62 72C66 44 134 44 138 72 144 92 140 112 130 124M70 124C60 112 56 92 62 72"/><path d="M100 100C106 130 106 160 86 180"/><circle fill="#FFDE34" stroke="none" cx="84" cy="80" r="6"/><circle fill="#1B1A17" stroke="none" cx="116" cy="80" r="6"/></svg>';
   function toast(m){const t=document.getElementById('toast');t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,2800);}
   async function get(path){const r=await fetch(path,{headers:{authorization:'Bearer '+token()}});if(r.status===401){const e=new Error('401');e.status=401;throw e;}if(!r.ok)throw new Error(r.status);return r.json();}
+  /* ---- 安裝到主畫面 ---- */
+  function installKind(s){
+    if(s.standalone)return null;
+    if(s.dismissedAt&&s.now-s.dismissedAt<7*864e5)return null;
+    if(s.inApp)return 'inapp';
+    if(s.hasPrompt)return 'prompt';
+    if(s.ios)return 'ios';
+    return null;
+  }
+  /* install-end */
+  const UA=navigator.userAgent;
+  const ENV={ios:/iPhone|iPad|iPod/.test(UA)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),inApp:/Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(UA)};
+  const isStandalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+  let deferred=null;
+  const lsGet=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
+  const lsSet=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
+  const kindNow=ignoreDismiss=>installKind({standalone:isStandalone(),dismissedAt:ignoreDismiss?0:Number(lsGet('m_inst_x')||0),now:Date.now(),hasPrompt:!!deferred,ios:ENV.ios,inApp:ENV.inApp});
+  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;if(data&&tab==='home')paint();});
+  window.addEventListener('appinstalled',()=>{deferred=null;toast('已加到主畫面');if(data)paint();});
+  const INSTALL_LABEL={prompt:'安裝到主畫面',ios:'看怎麼加到主畫面',inapp:'看怎麼用瀏覽器開啟'};
+  function installCard(){
+    const k=kindNow(false);if(!k)return '';
+    return `<section class="install" id="install"><h3>把會員卡放到主畫面</h3><p>結帳時一點就開，不用再找網址。</p><div class="irow"><button class="btn solid" id="inst" data-k="${k}">${INSTALL_LABEL[k]}</button><button class="later" id="instx">稍後</button></div></section>`;
+  }
+  function openSheet(k){
+    const steps=k==='inapp'
+      ?['點畫面角落的「⋯」選單','選「用預設瀏覽器開啟」，或<span class="nb">「在 Safari／Chrome 開啟」</span>','開啟後，再依畫面提示加到主畫面']
+      :['點瀏覽器的「分享」圖示（方框加向上箭頭）','在選單裡找到並點「加入主畫面」（要往上滑才看得到）','按右上角「新增」，之後從主畫面開啟即可'];
+    const title=k==='inapp'?'請先用瀏覽器開啟':'加入主畫面';
+    const note=k==='inapp'?'LINE、Facebook、Instagram 內建的瀏覽器沒辦法加到主畫面。':'找不到「加入主畫面」，請改用 Safari 開啟這個網址。';
+    const el=document.createElement('div');el.className='sheet';el.setAttribute('role','dialog');el.setAttribute('aria-modal','true');
+    el.innerHTML=`<div class="panel"><h3>${title}</h3><ol>${steps.map(s=>'<li>'+s+'</li>').join('')}</ol><p class="note">${note}</p>${k==='inapp'?'<button class="btn solid" id="cpy" style="margin-bottom:10px">複製網址</button><button class="btn" id="shx">知道了</button>':'<button class="btn solid" id="shx">知道了</button>'}</div>`;
+    const close=()=>el.remove();
+    el.onclick=e=>{if(e.target===el)close();};
+    document.body.appendChild(el);
+    el.querySelector('#shx').onclick=close;
+    const c=el.querySelector('#cpy');
+    if(c)c.onclick=async()=>{try{await navigator.clipboard.writeText(location.href);toast('已複製網址');}catch(e){toast('請長按網址列複製');}};
+  }
+  async function doInstall(k){
+    if(k==='prompt'&&deferred){deferred.prompt();try{await deferred.userChoice;}catch(e){}deferred=null;paint();return;}
+    openSheet(k);
+  }
+  function bindInstall(){
+    const b=document.getElementById('inst');if(b)b.onclick=()=>doInstall(b.dataset.k);
+    const x=document.getElementById('instx');if(x)x.onclick=()=>{lsSet('m_inst_x',String(Date.now()));paint();};
+    const r=document.getElementById('inst2');if(r)r.onclick=()=>doInstall(r.dataset.k);
+  }
   function login(){
     tabs.hidden=true;
     app.innerHTML=`<div class="login">${MARK}<h1>言文字 會員</h1><p>登入後，用一張卡在所有空間累積點數、報名活動。</p><a class="btn solid" href="/auth/google?redirect=${encodeURIComponent(location.origin+ROOT)}">使用 Google 登入</a></div>`;
@@ -120,8 +181,10 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     <section class="pass" aria-label="會員卡"><div class="brand">言文字</div><div class="pts"><span>我的點數</span><b>${esc(pts)}</b></div><div class="who"><span>${esc(me.name||'')}</span><i>${esc(phone?phone.replace(/^\+886(\d{2})\d{4}(\d{3})$/,'0$1-****-$2'):'')}</i></div></section>
     <button class="show" id="show"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17h3v4h-4v-3h4M18 14h3v3"/></svg>結帳時出示會員卡</button>
     <p class="hint">${phone?'也可以直接報手機號碼。':'到「我的」填寫手機，結帳報號碼就能累點。'}消費每滿 <span class="nb">100 元</span>累積 <span class="nb">1 點</span>，<span class="nb">1 點</span>折 <span class="nb">1 元</span>。</p>
+    ${installCard()}
     <section class="sec"><h2>下一場活動</h2>${ev?evTile(ev):'<p class="empty">目前沒有開放報名的活動</p>'}</section>`;
     document.getElementById('show').onclick=openQr;
+    bindInstall();
   }
   function evTile(e){return `<a class="tile" href="${SITE}/events/${encodeURIComponent(e.slug||e.id)}"><h3>${esc(e.title)}${e.registered?'<span class="tag">已報名</span>':''}</h3><div class="meta">${esc(fmt(e.starts_at))}${e.location?' · '+esc(e.location):''}</div></a>`;}
   function events(){
@@ -137,8 +200,10 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     <section class="sec"><h2>更新資料</h2>
       <label style="display:block;color:var(--soft)">手機（09 開頭，結帳報號碼就能累點）<input id="ph" type="tel" inputmode="tel" autocomplete="tel" value="${esc(m.phone||'')}" style="display:block;width:100%;margin-top:6px;min-height:52px;padding:0 14px;border:1.5px solid var(--line);border-radius:12px;font-family:inherit;font-size:1rem;background:#fff"></label>
       <button class="btn solid" id="save" style="margin-top:12px">儲存</button></section>
-    <section class="sec"><a class="btn" href="${SITE}/member">完整會員專區</a><button class="quiet" id="out">登出</button></section>`;
+    ${kindNow(true)?`<section class="sec"><h2>主畫面</h2><button class="btn" id="inst2" data-k="${kindNow(true)}">${INSTALL_LABEL[kindNow(true)]}</button></section>`:''}
+    <section class="sec"><a class="btn" href="${SITE}/member?web=1">完整會員專區</a><button class="quiet" id="out">登出</button></section>`;
     document.getElementById('save').onclick=async()=>{const b=document.getElementById('save');b.disabled=true;try{const r=await fetch('/api/me/profile',{method:'POST',headers:{authorization:'Bearer '+token(),'content-type':'application/json'},body:JSON.stringify({name:m.name||'會員',phone:document.getElementById('ph').value})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'儲存失敗');toast('已儲存');await load();}catch(e){toast(e.message);}b.disabled=false;};
+    bindInstall();
     document.getElementById('out').onclick=()=>{try{localStorage.removeItem(KEY);localStorage.removeItem(CACHE);}catch(e){}location.reload();};
   }
   function paint(){tabs.hidden=false;[...tabs.children].forEach(b=>b.setAttribute('aria-current',b.dataset.tab===tab));({home,events,me})[tab]();window.scrollTo(0,0);}

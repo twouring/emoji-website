@@ -89,7 +89,7 @@ test('app.emoji.tw 登入：先跳回官網發起 Google 登入（state cookie �
 test('前端：app 子網域用根路徑登入、活動與完整會員專區連回官網；service worker 殼含 /', () => {
   const h = read('public/m.html'), sw = read('public/m-sw.js');
   assert.match(h, /ON_APP=location\.hostname==='app\.emoji\.tw'/);
-  assert.match(h, /href="\$\{SITE\}\/events\//); assert.match(h, /href="\$\{SITE\}\/member"/);
+  assert.match(h, /href="\$\{SITE\}\/events\//); assert.match(h, /href="\$\{SITE\}\/member\?web=1"/);
   assert.match(h, /register\('\/m-sw\.js',\{scope:ROOT\}\)/);
   assert.match(sw, /VERSION = 'm-v([2-9]|\d{2,})'/); assert.match(sw, /SHELL = \['\/m', '\/'/);
 });

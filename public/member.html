@@ -844,6 +844,26 @@
     } catch (e) { showToast(T.tempFail); btn.disabled = false; }
   }
 
+  /* 登入後自動前往 app.emoji.tw：先探測連得到才跳（子站或憑證未就緒時留在這頁）；只對中文會員頁、一般會員；
+     ?web=1 或 sessionStorage 表示會員刻意留在網頁版（App 內「完整會員專區」連結帶 web=1，避免來回跳）。 */
+  const APP_URL = 'https://app.emoji.tw/';
+  async function maybeGoApp(data) {
+    try {
+      if (LANG !== 'zh') return false;
+      if (location.hostname !== 'www.emoji.tw' && location.hostname !== 'emoji.tw') return false;
+      const q = new URLSearchParams(location.search);
+      if (q.has('web')) { try { sessionStorage.setItem('tth_web', '1'); } catch (e) {} return false; }
+      if (q.has('plan_paid') || q.has('plan_canceled')) return false;
+      try { if (sessionStorage.getItem('tth_web') === '1') return false; } catch (e) {}
+      if (data.role === 'admin' || data.organizer) return false;
+      const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 2500);
+      await fetch(APP_URL + 'm-sw.js', { mode: 'no-cors', cache: 'no-store', signal: ctl.signal });
+      clearTimeout(timer);
+      location.replace(APP_URL + '#token=' + encodeURIComponent(token));
+      return true;
+    } catch (e) { return false; }
+  }
+  /* app-handoff-end */
   async function main() {
     if (!token) return renderLoggedOut();
     try {
@@ -856,6 +876,7 @@
         const yr = await fetch(FELLOW + '/api/me/yan', { headers: { authorization: 'Bearer ' + token } });
         data.yan = yr.ok ? await yr.json() : { balance: 0 };
       } catch (e) { data.yan = { balance: 0 }; }
+      if (typeof maybeGoApp === 'function' && await maybeGoApp(data)) return;
       renderMember(data);
     } catch (e) {
       if (e.status === 401) { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); return renderLoggedOut(); }
