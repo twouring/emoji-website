@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 const read = p => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
-const ops = read('public/pos-ops.js'), css = read('public/pos-ops.css'), sw = read('public/pos-sw.js');
+const ops = read('public/pos-ops.js'), css = read('public/pos-ops.css');
 function ctx() {
   const c = vm.createContext({ console, setTimeout, clearTimeout });
   vm.runInContext(read('public/menu-lib.js'), c); vm.runInContext(ops, c); return c;
@@ -48,7 +48,6 @@ test('看板採市售 KDS 一單一卡；每道保留類別籤＋品名＋數量
   assert.match(css, /\.kds-grid\{columns:300px/, '卡片用 CSS columns 瀑布排欄，卡高不一不留空');
   assert.match(css, /\.kds-card\{[^}]*break-inside:avoid/, '卡片不跨欄被切');
   assert.match(css, /\.kds-card\.kds-late \.kds-age\{color:#b42318\}/, '超時卡片紅字');
-  assert.match(sw, /VERSION = 'pos-v(39|[4-9]\d|\d{3,})'/, '改了 pos-ops.js／css 要換快取版本');
 });
 
 test('規格拆籤：預設值淡化、非預設值深色、自由需求 ※；沒載 order-lib 時全部當非預設', () => {

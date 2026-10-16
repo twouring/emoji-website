@@ -191,7 +191,7 @@ test('報表：每人班數／總工時只算已下班、遲到次數、漏卡�
 });
 
 test('接線：POS 多「排班」「打卡」分頁、後台餐飲工作區多「排班打卡」、API 子帳號白名單含 staff；pos-ops 打卡用識別碼不落 localStorage', () => {
-  const pos = read('public/pos.html'), ops = read('public/pos-ops.js'), admin = read('public/admin.html'), server = read('server.js'), sw = read('public/pos-sw.js');
+  const pos = read('public/pos.html'), ops = read('public/pos-ops.js'), admin = read('public/admin.html'), server = read('server.js');
   assert.match(pos, /\{ id:'shifts',\s+label:'排班' \}/); assert.match(pos, /\{ id:'clock',\s+label:'打卡' \}/);
   assert.match(pos, /else if \(TAB === 'shifts'\) loadShifts\(\);/); assert.match(pos, /else if \(TAB === 'clock'\) loadClock\(\);/);
   assert.match(server, /app\.get\(\['\/pos', '\/pos\/\*'\]/);
@@ -210,7 +210,6 @@ test('接線：POS 多「排班」「打卡」分頁、後台餐飲工作區多�
   assert.match(server, /function notOperator\(req, res, next\) \{\s*if \(req\.auth\.operator_staff_id\) return res\.status\(403\)/);
   for (const ep of ["app.post('/api/admin/staff',auth,adminOnly,notOperator,", "app.patch('/api/admin/staff/:id',auth,adminOnly,notOperator,", "app.patch('/api/admin/attendance/:id',auth,adminOnly,notOperator,", "app.delete('/api/admin/attendance/:id',auth,adminOnly,notOperator,"]) assert.ok(server.includes(ep), ep);
   assert.ok(server.includes("app.get('/api/admin/staff',auth,adminOnly,requireDb"), '員工名單仍開放給操作人員（排班／打卡要用）');
-  assert.match(sw, /VERSION = 'pos-v([4-9]|\d{2,})'/, '新分頁要換 service worker 快取版本（≥ v4）');
   // 休息：平板四顆鍵；上班中名單標休息中／該休息；伺服器打卡端點收 break_start／break_end、出勤表有 breaks 欄
   for (const s of ['id="clock-break-start"', 'id="clock-break-end"', "punch('break_start')", "punch('break_end')", 'on-break', 'needs-break', '休息中（']) assert.ok(ops.includes(s), s);
   assert.match(server, /ADD COLUMN IF NOT EXISTS breaks JSONB/); assert.match(server, /ADD COLUMN IF NOT EXISTS break_minutes INT/);

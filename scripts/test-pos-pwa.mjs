@@ -42,23 +42,18 @@ async function server(t, env = {}) {
     : fetch(base + url, { redirect: 'manual', headers });
 }
 
-test('/pos 與子路徑回同一頁、noindex；/pos.html 轉 301；manifest 與 service worker 以正確型別與標頭回應', async t => {
+test('/pos 與子路徑回同一頁、noindex；/pos.html 轉 301；不再是 PWA（無 manifest、無 service worker）', async t => {
   const get = await server(t);
   for (const url of ['/pos', '/pos/orders', '/pos/soldout', '/pos/reservations', '/pos/history', '/pos/sales', '/pos/clock', '/pos/shifts']) {
     const res = await get(url);
     assert.equal(res.status, 200, url);
     assert.equal(res.headers.get('x-robots-tag'), 'noindex', url);
-    assert.match(await res.text(), /<link rel="manifest" href="\/pos\.webmanifest">/, url);
+    const body = await res.text();
+    assert.doesNotMatch(body, /rel="manifest"|apple-mobile-web-app|apple-touch-icon|beforeinstallprompt/, url + ' 不可再有 PWA 標記');
   }
   const legacy = await get('/pos.html');
   assert.equal(legacy.status, 301); assert.match(legacy.headers.get('location'), /\/pos$/);
-  const manifest = await get('/pos.webmanifest');
-  assert.equal(manifest.status, 200); assert.match(manifest.headers.get('content-type'), /application\/manifest\+json/);
-  const m = await manifest.json();
-  assert.equal(m.start_url, '/pos'); assert.equal(m.scope, '/pos'); assert.equal(m.display, 'standalone');
-  assert.ok(m.icons.some(i => i.purpose === 'maskable'), 'Android 需要 maskable 圖示');
-  const sw = await get('/pos-sw.js');
-  assert.equal(sw.status, 200); assert.equal(sw.headers.get('cache-control'), 'no-cache'); assert.equal(sw.headers.get('service-worker-allowed'), '/pos');
+  for (const gone of ['/pos.webmanifest', '/pos-sw.js', '/pos-icon-192.png']) assert.doesNotMatch(String((await get(gone)).headers.get('content-type')), /manifest|javascript|image\/png/, gone + ' 應已移除');
 });
 
 test('pos.emoji.tw：首頁與 /admin 轉到 /pos；www 與 localhost 不受影響；CORS 放行 pos 來源；登入導回接受 pos 子網域', async t => {
@@ -87,9 +82,9 @@ test('pos.html：只做餐飲五件事、與 /admin 共用 pos-ops.js、登入�
   const html = read('public/pos.html');
   assert.match(html, /<script src="\/pos-ops\.js"><\/script>/);
   assert.match(html, /<link rel="stylesheet" href="\/pos-ops\.css">/);
-  assert.match(html, /<link rel="manifest" href="\/pos\.webmanifest">/);
-  assert.match(html, /<link rel="apple-touch-icon" href="\/pos-icon-180\.png">/);
-  assert.match(html, /apple-mobile-web-app-capable/);
+  assert.doesNotMatch(html, /rel="manifest"|apple-mobile-web-app|apple-touch-icon|installHint|beforeinstallprompt/, '純瀏覽器：不留 PWA 安裝提示');
+  assert.match(html, /getRegistrations\(\)\.then\(rs => rs\.forEach\(r => r\.unregister\(\)\)\)/, '註銷舊版殘留的 service worker');
+  assert.doesNotMatch(html, /serviceWorker\.register/);
   assert.match(html, /\{ id:'pos',\s+label:'結帳' \}/); assert.match(html, /\{ id:'orders',\s+label:'出餐' \}/); assert.match(html, /\{ id:'soldout',\s+label:'估清' \}/);
   assert.match(html, /\{ id:'reservations',\s+label:'訂位' \}/); assert.match(html, /\{ id:'history',\s+label:'查單' \}/); assert.match(html, /\{ id:'sales',\s+label:'日結' \}/);
   assert.match(html, /else if \(TAB === 'history'\) loadHistory\(\);/);
@@ -98,7 +93,6 @@ test('pos.html：只做餐飲五件事、與 /admin 共用 pos-ops.js、登入�
   assert.match(html, /const AUTH_ORIGIN = \/\^pos\\\.\/i\.test\(location\.hostname\)/);
   assert.match(html, /\$\{esc\(AUTH_ORIGIN\)\}\/auth\/google\?redirect=\$\{redirect\}/);
   assert.match(html, /const KEY = 'tth_token'/);
-  assert.match(html, /serviceWorker\.register\('\/pos-sw\.js', \{ scope: '\/pos' \}\)/);
   assert.match(html, /d\.role !== 'admin'/); assert.match(html, /d\.brands && !d\.brands\.some\(b => BRAND_LABEL\[b\]\)/, '等等空間子帳號擋在 POS 外');
   // 現場長期開著：喚醒重抓、到期前背景續期
   assert.match(html, /addEventListener\('visibilitychange', \(\) => \{ if \(!document\.hidden && DATA\) \{ activate\(\); refreshPending\(\); \} \}\)/);
@@ -108,7 +102,7 @@ test('pos.html：只做餐飲五件事、與 /admin 共用 pos-ops.js、登入�
   for (const g of ['function toast(', 'const esc =', 'const num =', 'const NT =', 'async function api(', 'function applicationTime(', 'function downloadCSV(', 'function opsHref(', 'let toastT, DATA = null, TAB = ', 'SCOPE = ', 'MENU_DOC = null']) assert.ok(html.includes(g), g);
 });
 
-test('pos-ops.js：共用模組不碰 /admin 專屬狀態；估清分頁只動 sold_out；pos-sw.js 不快取 API 與登入', () => {
+test('pos-ops.js：共用模組不碰 /admin 專屬狀態；估清分頁只動 sold_out；Star webPRNT 列印接線', () => {
   const ops = read('public/pos-ops.js');
   for (const fn of ['tabOrders', 'tabPos', 'tabReservations', 'tabSales', 'tabSoldOut', 'loadOrders', 'loadPos', 'paintPos', 'loadReservations', 'loadSales', 'loadSoldOut', 'printOrder', 'voidOrderPrompt']) assert.match(ops, new RegExp(`function ${fn}\\(`), fn);
   assert.doesNotMatch(ops, /\bWORKSPACES\b|\bscopedRoute\(|\brender\(DATA\)|\bgo\(/, '共用模組不可依賴 /admin 的路由與工作區');
@@ -131,7 +125,6 @@ test('pos-ops.js：共用模組不碰 /admin 專屬狀態；估清分頁只動 s
   assert.doesNotMatch(ops, /starpassprnt|PassPRNT|WebUSB|StarXpand|藍牙配對/i, 'POP10CI 沒藍牙：不留 PassPRNT／WebUSB 路徑');
   assert.match(ops, /iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址/, '操作說明講 webPRNT Browser + USB-C');
   assert.match(read('public/pos.html'), /<script src="\/vendor\/StarWebPrintBuilder\.js"><\/script>\s*<script src="\/vendor\/StarWebPrintTrader\.js"><\/script>/, 'pos.html 載入 Star webPRNT SDK');
-  assert.match(read('public/pos-sw.js'), /'\/vendor\/StarWebPrintBuilder\.js', '\/vendor\/StarWebPrintTrader\.js'/, 'SDK 進 PWA 殼快取');
   assert.match(ops, /empty:\['pill-draft','已開桌'\]/);
   assert.match(ops, /\/admin\/menu\/sold-out/); assert.match(ops, /data-so=/);
   assert.match(ops, /if\(host\.querySelector\('\.kds-grid'\)\)toast\('更新失敗：'/, '出餐看板更新失敗不清空畫面');
@@ -142,10 +135,6 @@ test('pos-ops.js：共用模組不碰 /admin 專屬狀態；估清分頁只動 s
     assert.doesNotMatch(ops, new RegExp('<p class="hint">' + lead), lead + ' 不可直接攤開');
   }
   assert.match(ops, /if\(host\.querySelector\('\.pos-grid'\)\)toast\('更新失敗：'/, '結帳頁更新失敗不清空畫面');
-  const sw = read('public/pos-sw.js');
-  assert.match(sw, /url\.pathname\.startsWith\('\/api\/'\) \|\| url\.pathname\.startsWith\('\/auth\/'\)/);
-  assert.match(sw, /if \(!url\.pathname\.startsWith\('\/pos'\)\) return;/, '非 /pos 的導覽不接管');
-  assert.match(sw, /e\.request\.method !== 'GET'/);
   const admin = read('public/admin.html');
   assert.match(admin, /function opsHref\(tab\)\{ return BASE \+ '\/' \+ scopedRoute\(tab\); \}/);
 });

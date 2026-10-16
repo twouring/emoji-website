@@ -6,13 +6,7 @@
 <title>EMO POS · 言文字</title>
 <meta name="robots" content="noindex,nofollow">
 <meta name="theme-color" content="#FBFAF6">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="EMO POS">
-<link rel="manifest" href="/pos.webmanifest">
-<link rel="icon" href="/pos-icon-192.png">
-<link rel="apple-touch-icon" href="/pos-icon-180.png">
+<link rel="icon" href="/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -99,8 +93,6 @@
   .p-login-card input{width:100%;min-width:0}
   .p-center{text-align:center;padding:60px 0;color:var(--muted)}
   /* 安裝提示（只在未安裝為 App 時顯示一次） */
-  .p-install{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;padding:12px 14px;border:1px dashed var(--line);border-radius:10px;background:var(--accent-soft);margin-bottom:14px}
-  .p-install p{margin:0;flex:1;min-width:220px}
   .a-toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);opacity:0;background:var(--ink);color:var(--paper);padding:.8em 1.3em;border-radius:10px;font-size:1rem;transition:.2s;pointer-events:none;z-index:50;max-width:min(92vw,520px)}
   .a-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   /* <1000px 共用：店別／工具擠不進一行，頂欄換行；p-login 高度跟著頂欄變動的高度走 */
@@ -144,7 +136,7 @@
 <script>
 /* 平板 POS 子站（pos.emoji.tw）：只做餐飲現場的事——櫃檯結帳、出餐、估清、訂位、查單、日結、打卡、排班。
    登入與 /admin 同一組帳號（Google 或 Email）；API 同網域、token 存 localStorage。
-   畫面繪製全部在 /pos-ops.js（與 /admin 共用），本檔只管登入、分頁切換、店別切換、PWA。 */
+   畫面繪製全部在 /pos-ops.js（與 /admin 共用），本檔只管登入、分頁切換、店別切換。 */
 // 畫面禁止縮放：touch-action（CSS）擋雙擊放大，這裡再擋 iOS Safari 的雙指縮放手勢（gesturestart 不受 touch-action 管）
 ['gesturestart','gesturechange','gestureend'].forEach(ev => document.addEventListener(ev, e => e.preventDefault()));
 const KEY = 'tth_token';
@@ -343,8 +335,7 @@ function render(){
   document.getElementById('p-drawer').hidden = false;
   bindCashDrawerButton(document.getElementById('p-drawer'));
   document.getElementById('p-logout').hidden = false;
-  app.innerHTML = installHint() + TABS.map(t => `<section class="p-tab" data-panel="${t.id}">${PANEL[t.id]()}</section>`).join('');
-  bindInstall();
+  app.innerHTML = TABS.map(t => `<section class="p-tab" data-panel="${t.id}">${PANEL[t.id]()}</section>`).join('');
   paintNav(); activate();
 }
 
@@ -355,22 +346,9 @@ async function refreshPending(){
 }
 setInterval(() => { if (DATA) refreshPending(); }, 60000);
 
-/* PWA：安裝提示（Android/Chrome 有 beforeinstallprompt；iPad 走「分享 → 加入主畫面」說明） */
-let installEvent = null;
-window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvent = e; const h = document.getElementById('p-install'); if (h) h.hidden = false; });
-const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-function installHint(){
-  if (standalone()) return '';
-  let dismissed = false; try { dismissed = localStorage.getItem('tth_pos_install') === '1'; } catch (e) {}
-  if (dismissed) return '';
-  const ios = /iPad|iPhone|Macintosh/.test(navigator.userAgent) && 'ontouchend' in document;
-  return `<div class="p-install" id="p-install" ${ios||installEvent?'':'hidden'}><p>${ios ? '把 POS 加到主畫面：按 Safari 的「分享」→「加入主畫面」，之後像 App 一樣全螢幕開啟。' : '把 POS 安裝到這台平板，之後從主畫面直接開啟。'}</p>${installEvent ? '<button class="btn btn--solid btn-sm" id="p-install-go">安裝</button>' : ''}<button class="btn btn--ghost btn-sm" id="p-install-x">不再提示</button></div>`;
-}
-function bindInstall(){
-  const go = document.getElementById('p-install-go'); if (go) go.onclick = async () => { if (!installEvent) return; installEvent.prompt(); await installEvent.userChoice; installEvent = null; document.getElementById('p-install').hidden = true; };
-  const x = document.getElementById('p-install-x'); if (x) x.onclick = () => { try { localStorage.setItem('tth_pos_install', '1'); } catch (e) {} document.getElementById('p-install').hidden = true; };
-}
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/pos-sw.js', { scope: '/pos' }).catch(() => {});
+/* 純瀏覽器（Star webPRNT Browser）：不再是 PWA。清掉舊版已安裝的 service worker 與快取，避免平板吃到舊檔 */
+if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
+if (window.caches) caches.keys().then(ks => ks.filter(k => /^pos-v/.test(k)).forEach(k => caches.delete(k))).catch(() => {});
 
 /* 離線提示：API 一律要連線，離線時標示並暫停自動更新 */
 const net = document.getElementById('p-net');

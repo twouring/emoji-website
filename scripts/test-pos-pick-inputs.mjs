@@ -169,5 +169,4 @@ test('樣式與 SW：鍵盤 56px、大字顯示、選中狀態、時間膠囊橫
   assert.match(css, /\.pos-tno b,\.pos-amt b\{font-size:2rem/);
   assert.match(css, /\.note-chips button\[aria-pressed="true"\]/); assert.match(css, /\.fill-chips button\[aria-pressed="true"\]/);
   assert.match(css, /\.stamp-chips \.stamp-times\{flex-wrap:nowrap;overflow-x:auto/);
-  const v = Number(read('public/pos-sw.js').match(/VERSION = 'pos-v(\d+)'/)[1]); assert.ok(v >= 35, 'pos-sw VERSION ≥ 35');
 });

@@ -12,7 +12,7 @@
 | `/admin`、`/admin/*` | 後台（會籍、活動、內容、社群、廣告）；每個分頁為一般路徑（`/admin/members`、`/admin/social/edit/:id`…），伺服器對 `/admin/*` 皆回同一頁；舊 `/admin#tab` 書籤自動轉為路徑 |
 | `/ig-media/*` | 物件儲存（Railway bucket／MinIO，皆不公開）的同網域代理：社群素材、貼文圖、活動圖的公開網址一律是 `PUBLIC_ORIGIN/ig-media/<key>` |
 | `/order?t=桌號&k=簽章` | 桌邊 QR 點餐（不登入）：同桌共用購物車、TapPay 刷卡、取餐推播；QR 由後台「點餐出餐」分頁產生 |
-| `/pos`、`/pos/*`（`pos.emoji.tw`） | 平板 POS（PWA，可加到主畫面）：結帳、出餐、估清、訂位、日結五個分頁，與 `/admin` 同一組帳號與 API；畫面程式 `public/pos-ops.js`／`pos-ops.css` 與後台共用。`pos.emoji.tw` 指向同一服務（`POS_HOSTS`），首頁與 `/admin` 轉到 `/pos`；Google 登入固定由 `www` 發起再導回 |
+| `/pos`、`/pos/*`（`pos.emoji.tw`） | 平板 POS（純瀏覽器，用 Star webPRNT Browser 開）：結帳、出餐、估清、訂位、日結五個分頁，與 `/admin` 同一組帳號與 API；畫面程式 `public/pos-ops.js`／`pos-ops.css` 與後台共用。`pos.emoji.tw` 指向同一服務（`POS_HOSTS`），首頁與 `/admin` 轉到 `/pos`；Google 登入固定由 `www` 發起再導回 |
 | `/events`、`/en/events`、`/ja/events` | 公開活動列表；私人活動以不列出的直接連結分享 |
 | `/events?apply=1#ev-apply`（三語同） | 場地／活動申請表嵌在活動頁（`event-application.js` module，按需載入）；查詢自己的申請與審核回覆。舊 `/event-application` 301 轉入 |
 

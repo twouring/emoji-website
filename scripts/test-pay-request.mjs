@@ -82,7 +82,7 @@ test('客人端：結帳面板有「通知櫃檯我要結帳」、已送出狀�
 });
 
 test('POS：桌況格標記、桌號畫面一鍵勾選、✕ 關閉、新需求響一聲、sig 含需求、快取版本 bump', () => {
-  const js = read('public/pos-ops.js'), css = read('public/pos-ops.css'), sw = read('public/pos-sw.js');
+  const js = read('public/pos-ops.js'), css = read('public/pos-ops.css');
   assert.match(js, /PAYREQ_SEEN=null,POS_PAYREQ=null/);
   assert.match(js, /\(s\.pay_requests\|\|\[\]\)\.map\(r=>\[r\.id,r\.amount,r\.count\]\)/, '輪詢 sig 要含需求，否則畫面不重繪');
   assert.match(js, /PAYREQ_SEEN&&\[\.\.\.reqIds\]\.some\(id=>!PAYREQ_SEEN\.has\(id\)\)\)ordersBeep\(\)/);
@@ -93,5 +93,4 @@ test('POS：桌況格標記、桌號畫面一鍵勾選、✕ 關閉、新需求�
   assert.match(js, /api\('\/admin\/orders\/sessions\/'\+cur\.id\+'\/pay-requests\/'\+b\.dataset\.payreqDismiss,\{method:'DELETE'\}\)/);
   assert.match(js, /POS_TABLE=b\.dataset\.posTable;POS_PICK=null;POS_QTY=\{\};POS_PAYREQ=null;/, '換桌重置');
   assert.match(css, /\.pos-table\.payreq\{/); assert.match(css, /\.pos-payreq-apply\{/);
-  assert.match(sw, /VERSION = 'pos-v(3[5-9]|[4-9]\d|\d{3,})'/);
 });

@@ -26,7 +26,7 @@ test('posCheckout：有給 operator 就記進 payer.operator_id/operator_name；
 });
 
 test('接線：/api/admin/staff/verify 端點存在且限流、開桌與結帳都接 operator_id、table_sessions 有 opened_by 欄位', () => {
-  const server = read('server.js'), ops = read('public/pos-ops.js'), pos = read('public/pos.html'), docs = read('docs/API.md'), sw = read('public/pos-sw.js');
+  const server = read('server.js'), ops = read('public/pos-ops.js'), pos = read('public/pos.html'), docs = read('docs/API.md');
   assert.match(server, /app\.post\('\/api\/admin\/staff\/verify',rateLimit\(\{max:12\}\),auth,adminOnly,requireDb/, '認人端點要跟打卡一樣限流防猜碼');
   assert.match(server, /async function resolveOperator\(req, id\)/, '要有共用的 operator 解析函式');
   assert.match(server, /ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS opened_by_staff_id TEXT, ADD COLUMN IF NOT EXISTS opened_by_staff_name TEXT/);
@@ -41,7 +41,6 @@ test('接線：/api/admin/staff/verify 端點存在且限流、開桌與結帳�
   assert.match(ops, /operator_id:OPERATOR\?\.id/);
   assert.doesNotMatch(pos, /p-operator/, '導覽列不放選擇人員');
   assert.match(docs, /### POST \/api\/admin\/staff\/verify/);
-  assert.match(sw, /VERSION = 'pos-v([5-9]|\d{2,})'/, '改了 pos.html／pos-ops.js 要換快取版本');
 });
 
 test('閒置蓋板：3 分鐘鎖定，需 PIN 解鎖，所有登入方式都啟用', () => {

@@ -36,7 +36,6 @@ test('手機載具專屬相機掃描鍵：用 BarcodeDetector 掃條碼寫回 ca
 
 test('Safari／iOS 沒有內建 BarcodeDetector：改用同網域的 zxing-wasm，.wasm 也放本站，不連外部 CDN；PWA 殼一併快取；手機載具 Code 39 要關 extended 模式', () => {
   const html = fs.readFileSync(new URL('../public/pos.html', import.meta.url), 'utf8');
-  const sw = fs.readFileSync(new URL('../public/pos-sw.js', import.meta.url), 'utf8');
   assert.match(ops, /function barcodeDetectorClass\(\)\{/);
   assert.match(ops, /if\('BarcodeDetector' in window\)return window\.BarcodeDetector;/, '有內建的（Chrome／Android）優先用內建');
   assert.match(ops, /window\.ZXingWASM/);
@@ -46,7 +45,6 @@ test('Safari／iOS 沒有內建 BarcodeDetector：改用同網域的 zxing-wasm�
   assert.match(ops, /code_39:'Code39Std'/);
   assert.doesNotMatch(ops, /code_39:'Code39'[,}]/);
   assert.match(html, /<script src="\/vendor\/zxing-reader\.js"><\/script>\s*\n\s*<script src="\/menu-lib\.js">/, 'zxing 要在 pos-ops.js 之前載入');
-  assert.match(sw, /'\/vendor\/zxing-reader\.js', '\/vendor\/zxing_reader\.wasm'/);
   for (const f of ['zxing-reader.js', 'zxing_reader.wasm', 'zxing-reader.LICENSE']) {
     assert.ok(fs.statSync(new URL('../public/vendor/' + f, import.meta.url)).size > 0, f);
   }

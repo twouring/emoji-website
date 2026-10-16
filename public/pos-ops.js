@@ -171,7 +171,7 @@ function stopPosInvoiceScanner(){
   const v=document.getElementById('pos-invoice-video');if(v){v.style.display='none';v.srcObject=null;}
 }
 // 相機條碼辨識：Chrome／Android 用瀏覽器內建 BarcodeDetector；Safari（iPhone／iPad 上所有瀏覽器都是 WebKit）至今沒開放這個 API，
-// 改用同網域的 /vendor/zxing-reader.js（zxing-wasm），.wasm 也放本站 /vendor/，不連外部 CDN（PWA 離線殼也快取得到）。
+// 改用同網域的 /vendor/zxing-reader.js（zxing-wasm），.wasm 也放本站 /vendor/，不連外部 CDN。
 // 兩種都包成同一個 detect(video) 介面給掃描迴圈用。
 let POS_BD_READY=false,POS_BD_CANVAS=null;
 function barcodeDetectorClass(){

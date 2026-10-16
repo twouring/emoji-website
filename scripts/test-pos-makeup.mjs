@@ -82,5 +82,4 @@ test('POS 接線：打卡頁有補打卡入口、識別碼不進 localStorage／
   const fn = js.slice(js.indexOf('function openMakeup('), js.indexOf('/* ===== 加點選項'));
   assert.doesNotMatch(fn, /localStorage/); assert.match(fn, /datetime-local/); assert.match(fn, /id="mk-reason"/);
   assert.match(js.slice(js.indexOf("'#clock-makeup'") - 40, js.indexOf('function openMakeup(')), /CLOCK_PIN='';/, '開表單就清掉記憶體裡的識別碼');
-  assert.match(read('public/pos-sw.js'), /VERSION = 'pos-v(1[89]|[2-9]\d)'/);
 });

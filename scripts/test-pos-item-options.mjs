@@ -13,9 +13,6 @@ test('接線：pos.html／admin.html 在 pos-ops.js 之前載入 order-lib.js；
     const a = html.indexOf('<script src="/order-lib.js"></script>'), b = html.indexOf('<script src="/pos-ops.js"></script>');
     assert.ok(a > 0 && b > a, `${page} 要在 pos-ops.js 之前載入 order-lib.js`);
   }
-  const sw = read('public/pos-sw.js');
-  assert.match(sw, /'\/order-lib\.js'/, 'SW 殼要含 order-lib.js，離線也能開選項面板');
-  assert.match(sw, /VERSION = 'pos-v(8|9|[1-9]\d)'/, '加了殼檔案要換快取版本');
 });
 
 test('加點：有選項的品項先跳面板（數量＋每組必選＋其他需求），沒選項的直接加；取消不送單', () => {

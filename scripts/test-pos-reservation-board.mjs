@@ -62,5 +62,4 @@ test('桌況格：空桌與使用中都顯示預約提示；開桌只問一次�
   assert.match(read('public/pos-ops.css'), /\.pos-table\.reserved\{border-style:solid/);
   assert.match(read('public/pos-ops.css'), /\.pos-table \.pos-resv\{[^}]*overflow-wrap:anywhere/, '卡片只有 150px 寬，要換行不要省略號');
   assert.doesNotMatch(read('public/pos-ops.css'), /\.pos-resv\{[^}]*text-overflow:ellipsis/);
-  assert.match(read('public/pos-sw.js'), /VERSION = 'pos-v(2[1-9]|[3-9]\d)'/);
 });
