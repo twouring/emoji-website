@@ -37,11 +37,21 @@
 - UPDATE 再驗綁定 LINE、未刪除、new / confirmed、日期未過；無權、已取消、已到店、no_show 拒絕。重送取消不重複成功。
 - POS 的 `GET /api/admin/reservations` 讀同表，下次重新整理／既有輪詢即顯示 cancelled（非新增即時 WebSocket）。測試以 PostgreSQL 引擎取消後實際呼叫 POS HTTP API 驗證。
 
-## LINE Pay extras.addFriends：獨立付款入口已實作，預設停用
+## LINE Pay 加好友：已在現有 QR 商家後台完成綁定
 
-原 `lib/linepay.js` 仍為 Puppeteer 商家中心日結對帳、原 POS「LINE Pay」仍是手動記帳，不會因本次功能而自動扣款。另新增 `lib/linepay-offline.js`／`lib/linepay-pos.js` 與 POS「LINE Pay API 收款＋加好友」明確入口，使用官方 **Offline v2** `/v2/payments/oneTimeKeys/pay`、`capture:true` 與下列 `extras.addFriends`。具備服務端報價、品牌／操作人員驗證、持久意圖、未知結果查詢與帳單鎖；尚未設定／商家未確認 v2 權限時停用，不代表已實收。
+父代理已透過使用者登入的 LINE Pay 商家中心完成「管理基本資訊 → 綁定 LINE 官方帳號 → 輸入 `@338ymhys` → 設定 → 確認」。頁面先顯示「套用成功」、再顯示「儲存成功」；重新讀取帳戶資訊後，已列出：
 
-完整啟用條件、版本限制、安全邊界與測試見 [LINEPAY-ADDFRIENDS.md](LINEPAY-ADDFRIENDS.md)。
+- 官方帳號：`@338ymhys`
+- 狀態：`UNVERIFIED`
+- 名稱：`言文字 Emoji｜咖啡．酒吧．共享空間`
+
+商家頁面明確說明「付款完成後新增 LINE@ 好友」，且設定會即時套用付款頁面。因此現有商家 QR 付款已完成所需的加好友邀請設定，**不需要為這項需求新增 Offline 扣款 API**。`UNVERIFIED` 為頁面回讀的原始狀態，不冒稱已通過認證。
+
+**已驗證範圍**：商家設定成功且重新讀取仍有綁定資料。**尚未驗證**：真實客人付款後的畫面與加入好友結果；沒有對客人扣款或建立試交易。是否加入好友由客人自行選擇，不等於已完成會員綁定。
+
+既有 `lib/linepay.js` 商家對帳與 POS「LINE Pay」手動記帳保持原本用途；不因上述商家設定而自動向客人扣款。另行開發的 Offline API 功能目前僅保留在未推送的工作分支草稿，停止擴充，不列為本次啟用或部署項目。
+
+以下僅保留供未來另案評估的 API 版本查核資料，**不代表本次 QR 付款需要或已呼叫這些 API**。
 
 官方已驗證的 `extras.addFriends` 是 object array（不是裸字串陣列），例如：
 
@@ -55,7 +65,7 @@
 }
 ```
 
-`idList` 的官方帳號須先在 LINE Pay 商家中心註冊／關聯；不是填入任何帳號就能生效。上列欄位已接進可啟用的 Offline v2 request，但本次**未向真實客人發送交易**。若改用 Online v3 或 Offline v2.4／v4，應先取得該版支援規格，不能把舊版 extras 直接套用。加好友提示不等於使用者同意或完成會員綁定。
+`idList` 的官方帳號須先在 LINE Pay 商家中心註冊／關聯；不是填入任何帳號就能生效。Offline v2 request 僅存在本地草稿，沒有推送、部署或送出實際交易。若未來另案需要 Online v3 或 Offline v2.4／v4，應先取得該版支援規格，不能把舊版 extras 直接套用。現有 QR 商家付款的邀請已透過後台綁定設定，不依賴這份程式草稿。
 
 官方來源（查證於2026-10-16）：
 
