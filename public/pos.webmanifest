@@ -1,7 +1,7 @@
 {
   "id": "/pos",
-  "name": "言文字 POS",
-  "short_name": "POS",
+  "name": "EMO POS",
+  "short_name": "EMO POS",
   "description": "在咖啡／三點水現場：櫃檯結帳、出餐、估清、訂位、日結",
   "lang": "zh-Hant",
   "start_url": "/pos",
