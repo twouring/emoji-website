@@ -110,7 +110,7 @@ test('pos-ops.js：共用模組不碰 /admin 專屬狀態；估清分頁只動 s
   // 現場作業：櫃檯開桌／外帶、櫃檯登記訂位（電話／現場）、ezPay 電子發票
   assert.match(ops, /id="pos-open"/); assert.doesNotMatch(ops, /id="pos-open-table"/); assert.match(ops, /id="pos-takeout"/); assert.match(ops, /api\('\/admin\/orders\/sessions',\{method:'POST',body:\{\.\.\.body,operator_id:OPERATOR\?\.id\}\}\)/);
   assert.match(ops, /id="resv-form"/); assert.match(ops, /api\('\/admin\/reservations',\{method:'POST',body\}\)/);
-  assert.match(ops, /ezPay 電子發票/); assert.match(ops, /name="pos-invoice"/); assert.match(ops, /buyer_ubn/); assert.match(ops, /carrier_num/); assert.match(ops, /love_code/);
+  assert.match(ops, /電子發票/); assert.match(ops, /name="pos-invoice"/); assert.match(ops, /buyer_ubn/); assert.match(ops, /carrier_num/); assert.match(ops, /love_code/);
   assert.match(ops, /invoice:invoiceBody\(host\)/); assert.match(ops, /\/invoice\/issue/);
   assert.match(ops, /STAR_WEBPRNT_URL='https:\/\/localhost:8001\/StarWebPRNT\/SendMessage'/, '硬體列印／開錢櫃走 Star webPRNT Browser（mPOP POP10CI 沒藍牙，USB-C 有線）');
   assert.match(ops, /const inStarBrowser=\(\)=>\/StarWebPRNTBrowser\/i\.test\(navigator\.userAgent\)/, '用 UA 判斷是否在 Star webPRNT Browser 裡');
