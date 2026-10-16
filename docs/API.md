@@ -361,10 +361,10 @@ POS 關掉某筆客人的結帳需求（客人改口或已另外處理）；品�
 `taishin` 為刷卡／台新手機付對帳（兩者同一台台新收單機、沒有實收查詢 API，手動填寫）：`{ pos:{count,amount}（POS 登記為刷卡或台新手機付的成立單，2026-10-14 決策合併；結帳畫面已合併成一個選項、代碼一律寫 taishin，但仍把歷史單據可能留著的舊 card 紀錄一起算入）, manual（還沒填過是 null；填過是 {amount,reason,filled_by,updated_at}）, diff（manual.amount－POS 登記；還沒填是 null）}`。填寫走 `POST /api/admin/sales/taishin`。
 
 ### GET /api/admin/registers
-開關帳（帳本）。在咖啡（CAFE）與三點水（BAR）共用同一台 POS 但帳務分開，所以帳本以「品牌 × 營業日」為單位。query `day=YYYY-MM-DD`（預設今天的營業日）、`venue=`。回 `{ day, registers[], current:{CAFE, BAR}, active_venue }`；`current[venue]` 為該品牌當日最後一本帳（`null`＝還沒開帳），每本含 `opening_cash, cash_sales, cash_in, cash_out, expected`（應有現金＝零用金＋現金營收＋臨時收入－臨時支出）、`moves[]`（臨時收支）、`sales{orders,amount,by_method,voided,void_amount}`、關帳後另有 `counted_cash, diff, keep_cash, take_cash, denominations, close_note, closed_at, closed_by`，以及 `report`（小結單／關帳單資料）。
+開關帳（帳本）。在咖啡（CAFE）與三點水（BAR）共用同一台 POS 與**同一個抽屜帳**：帳本仍以「品牌 × 營業日」記（營收分品牌），但同一營業日同一時間只能有一本開著——在咖啡關帳後三點水才能開帳（反之亦然）。query `day=YYYY-MM-DD`（預設今天的營業日）、`venue=`。回 `{ day, registers[], current:{CAFE, BAR}, active_venue, open_venue, handover, can_open:{CAFE,BAR}, wait:{CAFE,BAR} }`；`open_venue` 為現在開著的品牌（`null`＝沒有）、`handover` 為當日最後一本已關帳的帳 `{ id, venue, keep_cash, closed_at }`（下一本開帳預設承接其留存金）、`wait[venue]` 為該品牌要等誰關帳（空字串＝可以開）——這四個欄位看全店，不受子帳號品牌範圍過濾；`current[venue]` 為該品牌當日最後一本帳（`null`＝還沒開帳），每本含 `opening_cash, cash_sales, cash_in, cash_out, expected`（應有現金＝零用金＋現金營收＋臨時收入－臨時支出）、`moves[]`（臨時收支）、`sales{orders,amount,by_method,voided,void_amount}`、關帳後另有 `counted_cash, diff, keep_cash, take_cash, denominations, close_note, closed_at, closed_by`，以及 `report`（小結單／關帳單資料）。
 
 ### POST /api/admin/registers/open
-開帳。body `{ venue:'CAFE'|'BAR', opening_cash?, denominations?:{ "1000":張數, "500":…, "100","50","10","5","1" }, note?, day? }`。零用金可直接填總額或按面額填張數（有填面額就以面額合計為準，並存成 `opening_denominations`）；0 以上整數；同品牌同營業日已有開著的帳回 409；品牌子帳號只能開自己店別（403）。回 `{ ok, id, day, venue, opening_cash, denominations }`（201）。**結帳規則**：`POST /api/admin/orders/sessions/:id/checkout` 會檢查品項所屬品牌當日的帳——已關帳一律 409；未開帳時品牌子帳號 409、言文字管理員放行但回 `warning`。
+開帳。body `{ venue:'CAFE'|'BAR', opening_cash?, denominations?:{ "1000":張數, "500":…, "100","50","10","5","1" }, note?, day? }`。零用金可直接填總額或按面額填張數（有填面額就以面額合計為準，並存成 `opening_denominations`）；0 以上整數；都沒填時承接當日上一本已關帳的留存金 `keep_cash`（沒有上一本就 400）。當日**任何品牌**還有開著的帳就回 409（共用抽屜帳：同品牌→請先關帳；另一品牌→請先把它關帳）；DB 另有部分唯一索引 `pos_registers_open_day_idx (day) WHERE closed_at IS NULL` 兜底。品牌子帳號只能開自己店別（403）。回 `{ ok, id, day, venue, opening_cash, denominations }`（201）。**結帳規則**：`POST /api/admin/orders/sessions/:id/checkout` 會檢查品項所屬品牌當日的帳——已關帳一律 409；未開帳時品牌子帳號 409、言文字管理員放行但回 `warning`。
 
 ### GET /api/admin/registers/:id
 小結：不關帳，回這本帳目前的現金摘要、營收摘要、臨時收支、`counts[]`（歷次小結點驗，新到舊）、`last_count` 與 `report`（印小結單；還沒關帳時 `counted_cash/diff/counted_at` 取最近一次點驗，沒點驗過為 `null`）。
@@ -379,7 +379,7 @@ POS 關掉某筆客人的結帳需求（客人改口或已另外處理）；品�
 關帳。body `{ counted_cash? , denominations?:{ "1000":3, "500":1, … }, keep_cash?, note? }`：點鈔可填總額或按面額填張數（面額限 2000/1000/500/200/100/50/20/10/5/1）；`diff = counted − expected`，差額非 0 時 `note` 必填；`keep_cash` 為留在抽屜給下一班的留存金，預設＝零用金。關帳後該品牌當日不可再結帳與記臨時收支。回 `{ ok, id, counted_cash, expected_cash, diff, keep_cash, take_cash, denominations, note, report }`；`report` 為關帳單（含現金、營收、付款方式、作廢、臨時收支）。
 
 ### POST /api/admin/registers/:id/reopen
-重開補單（僅超級管理員）。關帳紀錄保留，以留存金為零用金另開一本新帳接著記；該品牌當日已有開著的帳回 409。回 `{ ok, id, day, venue, opening_cash }`（201）。
+重開補單（僅超級管理員）。關帳紀錄保留，以留存金為零用金另開一本新帳接著記；當日任何品牌還有開著的帳回 409（另一品牌開著時訊息會說要先關誰）。回 `{ ok, id, day, venue, opening_cash }`（201）。
 
 ### POST /api/admin/payment-methods
 新增收款帳戶（僅超級管理員）。現金／刷卡／LINE Pay／轉帳為內建付款方式，不經這支 API 管理；這裡新增的是額外的自訂收款帳戶（例如街口支付、另一組轉帳帳號），結帳時會一併出現在付款方式選項。body `{ label }`（1–20 字，必填）；`code` 由系統隨機產生，不可自訂。回 `{ ok, code, label, active:true, builtin:false }`（201）。品牌子帳號只能讀（見 `GET /api/state` 的 `payment_methods`），不能呼叫這支。

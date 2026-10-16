@@ -703,7 +703,7 @@ async function migrate() {
     id TEXT PRIMARY KEY, day DATE NOT NULL, venue TEXT NOT NULL DEFAULT '', counted_cash INT NOT NULL, expected_cash INT NOT NULL, diff INT NOT NULL,
     note TEXT NOT NULL DEFAULT '', staff TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE INDEX IF NOT EXISTS pos_shift_closes_day_idx ON pos_shift_closes(day)`);
-  // 開關帳（帳本）：品牌 × 營業日一本；在咖啡／三點水共用 POS 但各自開帳、關帳；臨時收支掛在帳本下
+  // 開關帳（帳本）：品牌 × 營業日一本；在咖啡／三點水共用 POS 與同一個抽屜帳，同一時間全店只能一本開著（在咖啡關帳後三點水才能開）；臨時收支掛在帳本下
   await q(`CREATE TABLE IF NOT EXISTS pos_registers (
     id TEXT PRIMARY KEY, day DATE NOT NULL, venue TEXT NOT NULL, opening_cash INT NOT NULL DEFAULT 0, opening_denominations JSONB, note TEXT NOT NULL DEFAULT '',
     opened_by TEXT NOT NULL DEFAULT '', opened_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -711,6 +711,8 @@ async function migrate() {
     report JSONB NOT NULL DEFAULT '{}', reopened_at TIMESTAMPTZ, reopened_by TEXT)`);
   await q(`ALTER TABLE pos_registers ADD COLUMN IF NOT EXISTS opening_denominations JSONB`);
   await q(`CREATE UNIQUE INDEX IF NOT EXISTS pos_registers_open_idx ON pos_registers(day,venue) WHERE closed_at IS NULL`);
+  // 2026-10-16：兩品牌共用同一個抽屜帳 → 同一營業日只能一本開著（不分品牌）。既有資料若兩本同時開著，索引建不起來就先略過（API 仍會擋），關掉其中一本後下次啟動補建
+  try{await q(`CREATE UNIQUE INDEX IF NOT EXISTS pos_registers_open_day_idx ON pos_registers(day) WHERE closed_at IS NULL`);}catch(e){console.warn('[pos_registers_open_day_idx]',e.message);}
   await q(`CREATE INDEX IF NOT EXISTS pos_registers_day_idx ON pos_registers(day,venue)`);
   await q(`CREATE TABLE IF NOT EXISTS pos_cash_moves (
     id TEXT PRIMARY KEY, register_id TEXT NOT NULL REFERENCES pos_registers(id), type TEXT NOT NULL CHECK (type IN ('in','out')), amount INT NOT NULL,
@@ -4660,16 +4662,19 @@ app.get('/api/admin/registers',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const rows=(await q('SELECT * FROM pos_registers WHERE day=$1 ORDER BY opened_at',[day])).rows.map(regDay).filter(r=>!venues||venues.includes(r.venue));
   const out=[];for(const r of rows){const s=await registerSummary(r);out.push({...r,...s.summary,cash_sales:s.summary.cash_sales,moves:s.moves,counts:s.counts,last_count:s.counts[0]||null,sales:{orders:s.sales.orders,amount:s.sales.amount,by_method:s.sales.by_method,voided:s.sales.voided,void_amount:s.sales.void_amount},report:r.closed_at?r.report:s.report});}
   const byVenue={};for(const v of posRegister.VENUES){if(venues&&!venues.includes(v))continue;byVenue[v]=out.filter(r=>r.venue===v).slice(-1)[0]||null;}
-  res.json({day,registers:out,current:byVenue,active_venue:tableOrders.MenuLib.activeVenue()});
+  // 共用抽屜帳：總覽要看全店（含子帳號看不到的另一品牌），否則三點水子帳號不知道在咖啡還沒關帳
+  const all=(await q('SELECT id,venue,opened_at,closed_at,keep_cash FROM pos_registers WHERE day=$1',[day])).rows;
+  res.json({day,registers:out,current:byVenue,active_venue:tableOrders.MenuLib.activeVenue(),...posRegister.registerOverview(all)});
 }));
-/* 開帳：body { venue, opening_cash, note?, day? }；同品牌同日已有開著的帳回 409 */
+/* 開帳：body { venue, opening_cash?, note?, day? }；當日任何品牌還有開著的帳回 409（共用抽屜帳，在咖啡關帳後三點水才能開）；沒填零用金就承接上一本的留存金 */
 app.post('/api/admin/registers/open',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   let venue;try{venue=posRegister.registerVenue(req.body?.venue,req.auth.brands);}catch(e){return res.status(e.status||400).json({error:e.message});}
   const day=dayParam(req.body?.day);
   const client=await pool.connect();
-  try{await client.query('BEGIN');await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,['register:'+day+':'+venue]);
-    const open=(await client.query('SELECT id,venue,opened_by FROM pos_registers WHERE day=$1 AND venue=$2 AND closed_at IS NULL',[day,venue])).rows[0];
-    let row;try{row=posRegister.openRegister(req.body,{venue,open});}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
+  try{await client.query('BEGIN');await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,['register:'+day]);
+    const open=(await client.query('SELECT id,venue,opened_by FROM pos_registers WHERE day=$1 AND closed_at IS NULL ORDER BY opened_at LIMIT 1',[day])).rows[0];
+    const handover=(await client.query('SELECT id,venue,keep_cash FROM pos_registers WHERE day=$1 AND closed_at IS NOT NULL ORDER BY closed_at DESC LIMIT 1',[day])).rows[0]||null;
+    let row;try{row=posRegister.openRegister(req.body,{venue,open,handover});}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
     const id=uid('rg_');
     await client.query('INSERT INTO pos_registers(id,day,venue,opening_cash,opening_denominations,note,opened_by) VALUES($1,$2,$3,$4,$5,$6,$7)',[id,day,venue,row.opening_cash,row.denominations?JSON.stringify(row.denominations):null,row.note,actorOf(req.auth)||'']);
     await client.query('COMMIT');res.status(201).json({ok:true,id,day,venue,opening_cash:row.opening_cash,denominations:row.denominations});
@@ -4725,8 +4730,8 @@ app.post('/api/admin/registers/:id/close',auth,adminOnly,requireDb,wrap(async(re
 app.post('/api/admin/registers/:id/reopen',auth,adminOnly,superOnly,requireDb,wrap(async(req,res)=>{
   const r=await loadOpenRegister(req,res);if(!r)return;
   if(!r.closed_at)return res.status(409).json({error:'這本帳還開著。'});
-  const open=(await q('SELECT id FROM pos_registers WHERE day=$1 AND venue=$2 AND closed_at IS NULL',[r.day,r.venue])).rows[0];
-  if(open)return res.status(409).json({error:'今天已經另有一本開著的帳。'});
+  const open=(await q('SELECT id,venue FROM pos_registers WHERE day=$1 AND closed_at IS NULL ORDER BY opened_at LIMIT 1',[r.day])).rows[0];
+  if(open)return res.status(409).json({error:open.venue===r.venue?'今天已經另有一本開著的帳。':`${posRegister.LABEL(open.venue)}的帳還開著，兩個品牌共用同一個抽屜帳，請先關帳再重開${posRegister.LABEL(r.venue)}補單。`});
   const id=uid('rg_');
   await q('INSERT INTO pos_registers(id,day,venue,opening_cash,note,opened_by,reopened_at,reopened_by) VALUES($1,$2,$3,$4,$5,$6,now(),$6)',[id,r.day,r.venue,r.keep_cash||0,'重開補單（接 '+r.id+'）',actorOf(req.auth)||'']);
   res.status(201).json({ok:true,id,day:r.day,venue:r.venue,opening_cash:r.keep_cash||0});

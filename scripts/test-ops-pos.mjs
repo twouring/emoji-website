@@ -387,6 +387,14 @@ test('server.js 接線：改品項、換桌、查單、結帳回找零；交班�
   assert.match(server, /ADD COLUMN IF NOT EXISTS opening_denominations JSONB/, '開帳面額欄位要有 ALTER 給既有 DB');
   assert.match(server, /posRegister\.checkoutAllowed\(out\.lines/, '結帳前檢查帳本');
   assert.match(server, /pos_registers_open_idx ON pos_registers\(day,venue\) WHERE closed_at IS NULL/, '同品牌同日只能一本開著（部分唯一索引，關帳後可重開）');
+  assert.match(server, /pos_registers_open_day_idx ON pos_registers\(day\) WHERE closed_at IS NULL/, '共用抽屜帳：同日不分品牌只能一本開著（DB 兜底）');
+  assert.match(server, /pg_advisory_xact_lock\(hashtext\(\$1\)\)`,\['register:'\+day\]\)/, '開帳鎖整個營業日，不是鎖品牌');
+  assert.match(server, /FROM pos_registers WHERE day=\$1 AND closed_at IS NULL ORDER BY opened_at LIMIT 1',\[day\]/, '開帳前查的是當日任何品牌開著的帳');
+  assert.match(server, /FROM pos_registers WHERE day=\$1 AND closed_at IS NOT NULL ORDER BY closed_at DESC LIMIT 1',\[day\]/, '承接上一本關帳的留存金');
+  assert.match(server, /posRegister\.openRegister\(req\.body,\{venue,open,handover\}\)/);
+  assert.match(server, /\.\.\.posRegister\.registerOverview\(all\)/, '帳本列表附全店總覽（open_venue/handover/can_open/wait）');
+  assert.match(server, /FROM pos_registers WHERE day=\$1 AND closed_at IS NULL ORDER BY opened_at LIMIT 1',\[r\.day\]/, '重開補單也要看全店有沒有開著的帳');
+  for (const s of ['const regWait=', 'regWaitChip(v)', 'regDefaultCash()', 'REG_DATA?.handover', '等${esc(regWait(v))}關帳', '共用同一個抽屜帳']) assert.ok(ops.includes(s), '前端共用抽屜帳：' + s);
   assert.match(server, /received:out\.payer\.received,change:out\.payer\.change/);
   assert.match(server, /l\.comp_reason\?\{\.\.\.l,order_id:null\}/, '作廢退回未結帳時贈送品項維持贈送');
   assert.match(server, /storeInvoiceResult\(\{id:orderId,table_no:s\.table_no,items:orderLines,amount:out\.amount,discount:out\.discount\}/, '發票帶折扣');

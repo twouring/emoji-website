@@ -1,4 +1,4 @@
-// scripts/test-pos-register.mjs — 開關帳純邏輯：兩品牌各自一本帳、零用金、臨時收支、面額點鈔、短溢、關帳後擋結帳
+// scripts/test-pos-register.mjs — 開關帳純邏輯：兩品牌各記一本但共用抽屜帳（同一時間只能一本開著）、零用金承接留存金、臨時收支、面額點鈔、短溢、關帳後擋結帳
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createRequire } from 'node:module';
@@ -14,6 +14,42 @@ test('開帳：店別必填且子帳號只能開自己的；同品牌同日只�
   assert.throws(() => R.openRegister({ opening_cash: 3000 }, { venue: 'CAFE', open: { venue: 'CAFE', opened_by: 'a@x' } }), e => e.status === 409 && /已經開了/.test(e.message));
   assert.throws(() => R.openRegister({ opening_cash: -1 }, { venue: 'CAFE', open: null }), /零用金/);
   assert.throws(() => R.openRegister({ opening_cash: '12.5' }, { venue: 'CAFE', open: null }), /零用金/);
+});
+
+test('共用抽屜帳：在咖啡還開著時三點水不能開帳（409，訊息說要先關誰）；反過來也一樣', () => {
+  assert.throws(() => R.openRegister({ opening_cash: 3000 }, { venue: 'BAR', open: { venue: 'CAFE', opened_by: 'a@x' } }),
+    e => e.status === 409 && /在咖啡的帳還開著/.test(e.message) && /共用同一個抽屜帳/.test(e.message) && /先把在咖啡關帳，再開三點水/.test(e.message));
+  assert.throws(() => R.openRegister({ opening_cash: 3000 }, { venue: 'CAFE', open: { venue: 'BAR', opened_by: 'b@x' } }), /三點水的帳還開著/);
+  // 在咖啡關了（open=null）→ 三點水可以開
+  assert.equal(R.openRegister({ opening_cash: 3000 }, { venue: 'BAR', open: null }).venue, 'BAR');
+});
+
+test('開帳零用金沒填時承接上一本關帳的留存金；有填（總額或面額）就以填的為準；沒上一本又沒填才擋', () => {
+  const handover = { id: 'r0', venue: 'CAFE', keep_cash: 3000 };
+  assert.equal(R.openRegister({}, { venue: 'BAR', open: null, handover }).opening_cash, 3000);
+  assert.equal(R.openRegister({ opening_cash: '' }, { venue: 'BAR', open: null, handover }).opening_cash, 3000);
+  assert.equal(R.openRegister({ opening_cash: 2500 }, { venue: 'BAR', open: null, handover }).opening_cash, 2500);
+  assert.equal(R.openRegister({ opening_cash: 0 }, { venue: 'BAR', open: null, handover }).opening_cash, 0, '明確填 0 不當成沒填');
+  assert.equal(R.openRegister({ denominations: { 1000: 1 } }, { venue: 'BAR', open: null, handover }).opening_cash, 1000);
+  assert.throws(() => R.openRegister({}, { venue: 'BAR', open: null, handover: null }), /零用金/);
+});
+
+test('帳本總覽：有開著的帳 → 兩品牌都不能開、另一品牌要等它關；都關了 → handover 是最後關的那本（含留存金）', () => {
+  const none = R.registerOverview([]);
+  assert.deepEqual(none, { open_venue: null, handover: null, can_open: { CAFE: true, BAR: true }, wait: { CAFE: '', BAR: '' } });
+  const cafeOpen = R.registerOverview([{ id: 'r1', venue: 'CAFE', opened_at: '2026-10-16T00:00:00Z', closed_at: null, keep_cash: null }]);
+  assert.equal(cafeOpen.open_venue, 'CAFE'); assert.deepEqual(cafeOpen.can_open, { CAFE: false, BAR: false }); assert.deepEqual(cafeOpen.wait, { CAFE: '', BAR: '在咖啡' });
+  const cafeClosed = R.registerOverview([
+    { id: 'r0', venue: 'CAFE', opened_at: '2026-10-16T00:00:00Z', closed_at: '2026-10-16T02:00:00Z', keep_cash: 1000 },
+    { id: 'r1', venue: 'CAFE', opened_at: '2026-10-16T02:30:00Z', closed_at: '2026-10-16T09:00:00Z', keep_cash: 3000 },
+  ]);
+  assert.equal(cafeClosed.open_venue, null); assert.deepEqual(cafeClosed.can_open, { CAFE: true, BAR: true });
+  assert.deepEqual(cafeClosed.handover, { id: 'r1', venue: 'CAFE', keep_cash: 3000, closed_at: '2026-10-16T09:00:00Z' });
+  const barOpen = R.registerOverview([
+    { id: 'r1', venue: 'CAFE', opened_at: '2026-10-16T00:00:00Z', closed_at: '2026-10-16T09:00:00Z', keep_cash: 3000 },
+    { id: 'r2', venue: 'BAR', opened_at: '2026-10-16T09:10:00Z', closed_at: null, keep_cash: null },
+  ]);
+  assert.equal(barOpen.open_venue, 'BAR'); assert.equal(barOpen.wait.CAFE, '三點水'); assert.equal(barOpen.wait.BAR, '');
 });
 
 test('開帳：零用金也可按面額填張數，不必直接填總額', () => {

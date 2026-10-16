@@ -752,7 +752,12 @@ async function loadReservations(){
   if(reCancel)reCancel.onclick=()=>{RESV_EDIT=null;loadReservations();};
 }
 
-/* ===== 開關帳（帳本）：在咖啡／三點水各一本。結帳頁頂端一條狀態列（沒開帳→開帳鍵；開著→應有現金＋關帳捷徑）；日結頁完整區塊 ===== */
+/* ===== 開關帳（帳本）：在咖啡／三點水各記一本，但共用同一個抽屜帳 → 同一時間只能一本開著（在咖啡關帳後三點水才能開）。
+ * 結帳頁頂端一條狀態列（沒開帳→開帳鍵／等對方關帳；開著→應有現金＋關帳捷徑）；日結頁完整區塊 ===== */
+// 另一品牌還開著 → 這個品牌現在不能開帳，顯示要等誰關帳；開帳零用金預設承接上一本的留存金
+const regWait=v=>REG_DATA?.wait?.[v]||'';
+const regWaitChip=v=>`<span class="pill pill-wait">等${esc(regWait(v))}關帳</span><span class="reg-exp">共用抽屜帳，${esc(regWait(v))}關帳後才能開${esc(BRAND_LABEL[v])}</span>`;
+const regDefaultCash=()=>REG_DATA?.handover?Number(REG_DATA.handover.keep_cash)||0:3000;
 // 這台平板現在要管的品牌：有鎖店別就是店別，否則依時段（08–17 在咖啡、其餘三點水）
 const registerVenue=()=>SCOPE||REG_DATA?.active_venue||'CAFE';
 const regOf=v=>REG_DATA?.current?.[v]||null;
@@ -761,15 +766,16 @@ function registerBar(){
   if(!REG_DATA)return '';
   const venues=SCOPE?[SCOPE]:Object.keys(BRAND_LABEL);
   return `<div class="reg-bar">${venues.map(v=>{const r=regOf(v),st=regState(r);
-    return `<div class="reg-chip reg-${st}"><b>${esc(BRAND_LABEL[v])}</b>${st==='open'?`<span class="pill pill-ok">已開帳</span><span class="reg-exp">應有現金 NT$${num(r.expected)}</span><a href="${esc(opsHref('sales'))}" data-tab="sales" class="btn btn--ghost btn-xs">小結／關帳</a>`:st==='done'?`<span class="pill pill-draft">已關帳</span><span class="reg-exp">${esc(clockText(r.closed_at))} 關帳，不能再結帳</span>`:`<span class="pill pill-bad">未開帳</span><button type="button" class="btn btn--solid btn-xs" data-reg-open="${esc(v)}">開帳</button>`}</div>`;}).join('')}</div>${REG_OPEN_FORM&&venues.includes(REG_OPEN_FORM)?openRegisterForm(REG_OPEN_FORM):''}`;
+    return `<div class="reg-chip reg-${st}"><b>${esc(BRAND_LABEL[v])}</b>${st==='open'?`<span class="pill pill-ok">已開帳</span><span class="reg-exp">應有現金 NT$${num(r.expected)}</span><a href="${esc(opsHref('sales'))}" data-tab="sales" class="btn btn--ghost btn-xs">小結／關帳</a>`:st==='done'?`<span class="pill pill-draft">已關帳</span><span class="reg-exp">${esc(clockText(r.closed_at))} 關帳，不能再結帳</span>`:regWait(v)?regWaitChip(v):`<span class="pill pill-bad">未開帳</span><button type="button" class="btn btn--solid btn-xs" data-reg-open="${esc(v)}">開帳</button>`}</div>`;}).join('')}</div>${REG_OPEN_FORM&&venues.includes(REG_OPEN_FORM)?openRegisterForm(REG_OPEN_FORM):''}`;
 }
 // 面額格：開帳（零用金）與關帳（點鈔）共用；張數 × 面額合計，一張都沒填才用直接填的總額
 const denomGrid=()=>`<div class="reg-denoms">${REG_DENOMS.map(f=>`<label><span>$${num(f)}</span><input inputmode="numeric" pattern="[0-9]*" data-denom="${f}" placeholder="張"></label>`).join('')}</div>`;
 function readCount(form,directSel){const denoms={};let d=0;form.querySelectorAll('[data-denom]').forEach(i=>{const n=Number(i.value)||0;if(n>0){denoms[i.dataset.denom]=n;d+=Number(i.dataset.denom)*n;}});const direct=form.querySelector(directSel).value.trim();return {total:d>0?d:(/^\d+$/.test(direct)?Number(direct):null),denoms:d>0?denoms:undefined};}
 function openRegisterForm(venue){
-  return `<div class="reg-open-form" data-venue="${esc(venue)}"><p class="hint">${esc(BRAND_LABEL[venue]||venue)} 開帳：抽屜零用金（找零準備金）按面額填張數，或直接填總額。</p>${denomGrid()}
-    <div class="a-form"><label>零用金總額<input id="reg-open-total" inputmode="numeric" pattern="[0-9]*" placeholder="或直接填" value="3000"></label></div>
-    <div class="reg-close-sum"><span>零用金 <b id="reg-open-show">NT$3,000</b></span></div>
+  const h=REG_DATA?.handover,def=regDefaultCash();
+  return `<div class="reg-open-form" data-venue="${esc(venue)}"><p class="hint">${esc(BRAND_LABEL[venue]||venue)} 開帳：抽屜零用金（找零準備金）按面額填張數，或直接填總額。${h?`預設承接 ${esc(BRAND_LABEL[h.venue]||h.venue)} ${esc(clockText(h.closed_at))} 關帳的留存金 NT$${num(h.keep_cash)}，點過抽屜不符請改。`:''}</p>${denomGrid()}
+    <div class="a-form"><label>零用金總額<input id="reg-open-total" inputmode="numeric" pattern="[0-9]*" placeholder="或直接填" value="${def}"></label></div>
+    <div class="reg-close-sum"><span>零用金 <b id="reg-open-show">NT$${num(def)}</b></span></div>
     <div class="a-toolbar"><button type="button" class="btn btn--solid" id="reg-open-go">確認開帳</button><button type="button" class="btn btn--ghost" id="reg-open-cancel">取消</button></div></div>`;
 }
 function bindOpenForm(host,reload){
@@ -797,7 +803,7 @@ function printRegisterReport(rep,kind){
 function registerBlock(d){
   const venues=SCOPE?[SCOPE]:Object.keys(BRAND_LABEL);
   const cards=venues.map(v=>{const r=d?.current?.[v]||null,st=regState(r);
-    if(st==='closed')return `<div class="reg-card reg-closed"><h4>${esc(BRAND_LABEL[v])}</h4>${REG_OPEN_FORM===v?openRegisterForm(v):`<p class="hint">還沒開帳：放零用金後按開帳才能結帳。</p><button type="button" class="btn btn--solid" data-reg-open="${esc(v)}">開帳</button>`}</div>`;
+    if(st==='closed')return `<div class="reg-card reg-closed"><h4>${esc(BRAND_LABEL[v])}</h4>${regWait(v)?`<p class="hint">${regWaitChip(v)}</p>`:REG_OPEN_FORM===v?openRegisterForm(v):`<p class="hint">還沒開帳：放零用金後按開帳才能結帳。</p><button type="button" class="btn btn--solid" data-reg-open="${esc(v)}">開帳</button>`}</div>`;
     const moves=(r.moves||[]).map(m=>`<tr><td class="a-mono">${esc(clockText(m.created_at))}</td><td>${m.type==='in'?'<span class="pill pill-ok">收入</span>':'<span class="pill pill-wait">支出</span>'}</td><td>${esc(m.reason)}</td><td class="num">${m.type==='in'?'+':'−'}${num(m.amount)}</td></tr>`).join('')||'<tr><td colspan="4" class="a-empty">沒有臨時收支</td></tr>';
     const cashForm=REG_CASH_OPEN===r.id?`<div class="a-form reg-cash-form"><select id="reg-cash-type" aria-label="類型"><option value="out">臨時支出（從抽屜拿錢）</option><option value="in">臨時收入（放錢進抽屜）</option></select><input id="reg-cash-amount" inputmode="numeric" pattern="[0-9]*" placeholder="金額"><input id="reg-cash-reason" maxlength="80" placeholder="原因（必填）選下面或自己填"><button type="button" class="btn btn--solid btn-sm" id="reg-cash-save">記錄</button><button type="button" class="btn btn--ghost btn-sm" id="reg-cash-cancel">取消</button>${reasonChips('reg-cash-reason',REASON_PRESETS.cash_move)}</div>`:'';
     const closeForm=REG_CLOSE_OPEN===r.id?`<div class="reg-close-form"><p class="hint">按面額填張數，或直接填總額；留存金預設＝零用金（留給下一班）。差額非 0 要寫說明。</p>${denomGrid()}
@@ -817,7 +823,7 @@ function registerBlock(d){
       ${cashForm}${countForm}${closeForm}
       ${!REG_CASH_OPEN&&!REG_CLOSE_OPEN&&!REG_COUNT_OPEN?`<div class="a-toolbar reg-actions">${done?`<button type="button" class="btn btn--ghost" data-reg-print="${esc(r.id)}" data-kind="關帳單">重印關帳單</button>${DATA?.super?`<button type="button" class="btn btn--ghost" data-reg-reopen="${esc(r.id)}">重開補單</button>`:''}`:`<button type="button" class="btn btn--ghost" data-reg-cash="${esc(r.id)}">＋ 臨時收支</button><button type="button" class="btn btn--ghost" data-reg-count="${esc(r.id)}">小結點驗</button><button type="button" class="btn btn--ghost" data-reg-print="${esc(r.id)}" data-kind="小結單">印小結單</button><button type="button" class="btn btn--solid" data-reg-close="${esc(r.id)}">關帳</button>`}</div>`:''}
     </div>`;}).join('');
-  return `<div class="ops-head"><h3>開關帳</h3>${opsHelp('在咖啡與三點水各自一本帳：開店放零用金按「開帳」，營業中從抽屜拿錢要記「臨時收支」、交班或隨時可「小結點驗」核對現金，打烊點鈔按「關帳」；關帳後該品牌當天不能再結帳。應有現金＝零用金＋現金營收＋臨時收入－臨時支出。')}</div><div class="reg-cards">${cards}</div>`;
+  return `<div class="ops-head"><h3>開關帳</h3>${opsHelp('在咖啡與三點水共用同一個抽屜帳，各記一本但同一時間只能一本開著：在咖啡關帳後，三點水才能開帳（零用金預設承接上一本的留存金）。開店放零用金按「開帳」，營業中從抽屜拿錢要記「臨時收支」、交班或隨時可「小結點驗」核對現金，打烊點鈔按「關帳」；關帳後該品牌當天不能再結帳。應有現金＝零用金＋現金營收＋臨時收入－臨時支出。')}</div><div class="reg-cards">${cards}</div>`;
 }
 function bindRegisterBlock(host,reload){
   bindOpenForm(host,reload);bindReasonChips(host);
