@@ -85,6 +85,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 .err{color:var(--bad);min-height:1.2em}.muted{color:var(--muted)}
 .notice{color:var(--muted);margin:20px 0}
 .hidden{display:none!important}
+#thanks .btn{margin-top:12px;width:100%}
 .toast{position:fixed;left:16px;right:16px;bottom:calc(112px + env(safe-area-inset-bottom));z-index:40;background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;text-align:center;display:none}.toast.on{display:block}
 /* 375px（iPhone SE／mini）：底部列的兩顆鍵用 auto 寬、內距縮小（字級維持 16px 以上），金額欄保有最小寬度不被蓋住 */
 @media (max-width:400px){.bar{grid-template-columns:minmax(84px,1fr) auto auto;gap:6px;padding-left:10px;padding-right:10px}.bar .btn{padding:10px 12px}.bar .with-icon{gap:5px}.bar .s b{font-size:1.05rem}.sheet-actions .btn{padding-left:10px;padding-right:10px}}
@@ -112,6 +113,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 <header class="top"><div><b id="brand">言文字</b> <small data-i18n="order">桌邊點餐</small></div><div class="actions"><button class="lang with-icon" id="lang-toggle" type="button" aria-label="Switch language"><svg class="ico" aria-hidden="true"><use href="#i-globe"></use></svg><span id="lang-label">EN</span></button><span class="t" id="table-no">—</span></div></header>
 <main class="wrap">
   <div class="card" id="boot"><p class="muted" data-i18n="loading">載入中…</p></div>
+  <div class="card hidden" id="thanks"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-check"></use></svg><span data-i18n="thanks">感謝用餐，期待再次光臨。</span></h3><p class="muted" data-i18n="thanks_hint">這次點餐已結束。若要再點，請重新掃描桌上的 QR。</p><button class="btn y" type="button" id="thanks-again" data-i18n="thanks_again">重新點餐</button></div>
 
   <section id="app" class="hidden">
     <div class="card" id="name-gate"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-user"></use></svg><span data-i18n="name_gate_title">先告訴我們怎麼稱呼您</span></h3><p class="muted" style="margin-top:0" data-i18n="shared_hint">同桌的人掃同一個 QR 就能一起點；用餐完再到櫃檯結帳，可付全桌、各付自己的，或平均分攤。</p><form id="name-form" class="name-form"><input class="f" id="name-in" data-i18n-placeholder="name_placeholder" placeholder="你的稱呼（讓同桌知道誰點了什麼）" maxlength="20" autocomplete="off"><div class="row name-actions"><button class="btn ghost" type="button" id="name-skip" data-i18n="name_skip">略過</button><button class="btn y" type="submit" data-i18n="name_gate_submit">查看菜單</button></div></form></div>
@@ -328,8 +330,23 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   // 一進桌邊點餐就請求通知權限（文件決議）；瀏覽器不支援或被拒絕都不影響頁內通知
   function askNotify(){try{if('Notification'in window&&Notification.permission==='default')Notification.requestPermission().catch(function(){});}catch(e){}}
 
-  function load(){return api('/orders/table?t='+encodeURIComponent(T)+'&k='+encodeURIComponent(K)+'&g='+GUEST).then(function(s){var sid=S&&S.id;applyState(s);if(s.id!==sid)live();}).catch(function(e){if(e.status===409&&S){if(ES){ES.close();ES=null;}S=null;$('#app').classList.add('hidden');fail(e.message);}throw e;});}
-  function refresh(){return api('/orders/'+S.id+'?g='+GUEST).then(function(s){if(s.status!=='open'){return load();}applyState(s);}).catch(function(){});}
+  // 同裝置結帳後鎖定：這支手機的場結束後，舊分頁／書籤不再打 /orders/table（會自動開新場或併進下一組）
+  var ENDED_KEY='order_ended_'+T;
+  function endedId(){try{return localStorage.getItem(ENDED_KEY)||'';}catch(e){return '';}}
+  function setEnded(id){try{if(id)localStorage.setItem(ENDED_KEY,id);}catch(e){}}
+  function clearEnded(){try{localStorage.removeItem(ENDED_KEY);}catch(e){}}
+  function showThanks(){
+    if(ES){ES.close();ES=null;}S=null;clearTimeout(pollTimer);
+    closeSheets(true);$('#bar').hidden=true;$('#app').classList.add('hidden');$('#boot').classList.add('hidden');
+    $('#thanks').classList.remove('hidden');
+  }
+  function sessionClosed(s){setEnded((s&&s.id)||(S&&S.id)||'1');showThanks();}
+
+  function load(){
+    if(endedId()){showThanks();return Promise.resolve(null);}
+    return api('/orders/table?t='+encodeURIComponent(T)+'&k='+encodeURIComponent(K)+'&g='+GUEST).then(function(s){var sid=S&&S.id;applyState(s);if(s.id!==sid)live();return s;});
+  }
+  function refresh(){if(!S)return Promise.resolve();return api('/orders/'+S.id+'?g='+GUEST).then(function(s){if(s.status!=='open'){sessionClosed(s);return;}applyState(s);}).catch(function(){});}
   // 即時同步：SSE 連上就推目前狀態，之後同桌任何異動（別人加點、送單、出餐、櫃檯收款）伺服器立刻推；瀏覽器自動重連。
   // 沒有 EventSource 或連不上時退回輪詢；SSE 正常時仍每 30 秒拉一次當保險（代理斷線但瀏覽器沒察覺）
   var ES=null,LIVE_OK=false;
@@ -337,10 +354,10 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     if(ES){ES.close();ES=null;}LIVE_OK=false;
     if(!('EventSource'in window)||!S)return;
     ES=new EventSource('/api/orders/'+encodeURIComponent(S.id)+'/live?g='+encodeURIComponent(GUEST));
-    ES.addEventListener('session',function(e){LIVE_OK=true;try{var s=JSON.parse(e.data);if(s.status!=='open'){ES.close();ES=null;return load();}applyState(s);}catch(x){}});
+    ES.addEventListener('session',function(e){LIVE_OK=true;try{var s=JSON.parse(e.data);if(s.status!=='open'){ES.close();ES=null;return sessionClosed(s);}applyState(s);}catch(x){}});
     ES.onerror=function(){LIVE_OK=false;};   // 瀏覽器會自己重連；期間 poll 以 5 秒補上
   }
-  function poll(){clearTimeout(pollTimer);pollTimer=setTimeout(function(){if(document.hidden)return poll();refresh().then(poll);},LIVE_OK?30000:5000);}
+  function poll(){clearTimeout(pollTimer);if(!S)return;pollTimer=setTimeout(function(){if(document.hidden||!S)return poll();refresh().then(poll);},LIVE_OK?30000:5000);}
 
   document.addEventListener('click',function(e){
     var oi=e.target.closest('[data-open-item]');if(oi){openItem(oi.dataset.openItem);return;}
@@ -349,7 +366,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     var p=e.target.closest('[data-push]');if(p){subscribePush(p.dataset.push,p);return;}
     if(e.target.closest('[data-close]')||e.target.classList.contains('sheet'))closeSheets();   // 按「返回」或點遮罩外側都關閉
   });
-  $('#detail-add').onclick=function(){if(!CURRENT_ITEM)return;if(!needName())return;var btn=this;btn.disabled=true;unlockAudio();api('/orders/'+S.id+'/items',{method:'POST',body:{item_id:CURRENT_ITEM.id,qty:CURRENT_QTY,by:NAME,guest:GUEST,note:optionNote()}}).then(function(s){applyState(s);btn.textContent='✓ '+tr('added');setTimeout(function(){closeSheets();btn.textContent=tr('add_to_cart');},450);}).catch(function(err){toast(err.message);if(/已結束/.test(err.message))load();if(err.status===423){PAUSED=err.message;renderMenu();}if(/售完|下架/.test(err.message))loadMenuDoc();}).then(function(){btn.disabled=!!PAUSED;});};
+  $('#detail-add').onclick=function(){if(!CURRENT_ITEM)return;if(!needName())return;var btn=this;btn.disabled=true;unlockAudio();api('/orders/'+S.id+'/items',{method:'POST',body:{item_id:CURRENT_ITEM.id,qty:CURRENT_QTY,by:NAME,guest:GUEST,note:optionNote()}}).then(function(s){applyState(s);btn.textContent='✓ '+tr('added');setTimeout(function(){closeSheets();btn.textContent=tr('add_to_cart');},450);}).catch(function(err){toast(err.message);if(/已結束/.test(err.message))sessionClosed();if(err.status===423){PAUSED=err.message;renderMenu();}if(/售完|下架/.test(err.message))loadMenuDoc();}).then(function(){btn.disabled=!!PAUSED;});};
   $('#open-cart').onclick=function(){$('#cart-body').scrollTop=0;openSheet('#cart');};
   $('#open-pay').onclick=$('#cart-pay').onclick=function(){$('#cart').classList.remove('on');openPay();};
   // 送出點餐：整桌還沒送的一起進出餐看板（不結帳）；送出後已點清單標「已送出」、不能再自己刪
@@ -358,7 +375,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     var op=othersPending();if(op.length&&!confirm(tr('place_confirm',{others:joinItems(op)})))return;
     placing=true;var btns=[$('#bar-place'),$('#cart-place')];btns.forEach(function(b){b.disabled=true;});
     api('/orders/'+S.id+'/place',{method:'POST',body:{guest:GUEST}}).then(function(s){applyState(s);closeSheets();toast(tr('place_done'),6000);try{navigator.vibrate&&navigator.vibrate(80);}catch(e){}})
-      .catch(function(err){toast(err.message);if(/已結束/.test(err.message))load();if(err.status===423){PAUSED=err.message;renderMenu();}})
+      .catch(function(err){toast(err.message);if(/已結束/.test(err.message))sessionClosed();if(err.status===423){PAUSED=err.message;renderMenu();}})
       .then(function(){placing=false;btns.forEach(function(b){b.disabled=false;});});};
 
   /* ---- 用餐完櫃檯結帳提醒／AA 分帳 ---- */
@@ -388,7 +405,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     if(!ls.length)return;var btn=this;btn.disabled=true;
     api('/orders/'+S.id+'/pay-request',{method:'POST',body:{guest:GUEST,name:NAME,scope:scope==='mine'?'mine':'all',lines:scope==='mine'?ls.map(function(l){return l.line;}):[]}})
       .then(function(s){S=s;renderState();renderPayRequest();toast(tr('notify_done'),5000);try{navigator.vibrate&&navigator.vibrate(80);}catch(e){}})
-      .catch(function(err){toast(err.message);if(/已結束/.test(err.message))load();}).then(function(){btn.disabled=false;});
+      .catch(function(err){toast(err.message);if(/已結束/.test(err.message))sessionClosed();}).then(function(){btn.disabled=false;});
   };
   $('#pay-cancel').onclick=function(){api('/orders/'+S.id+'/pay-request',{method:'DELETE',body:{guest:GUEST}}).then(function(s){S=s;renderState();renderPayRequest();}).catch(function(err){toast(err.message);});};
   function openPay(){
@@ -410,19 +427,26 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
       .catch(function(err){toast(tr('notification_error',{message:err.message}));btn.disabled=false;});
   }
 
-  /* ---- 啟動 ---- */
-  if(!T||!K)return fail('請掃描桌上的 QR Code 進入點餐。');
-  Promise.all([api('/orders/config'),fetch('/api/public').then(function(r){return r.json();}),load(),api('/orders/pause').catch(function(){return {};})]).then(function(r){
+  function bootApp(r){
+    if(endedId()||!S){if(endedId())showThanks();return;}
     CFG=r[0];var content=(r[1]&&r[1].content)||{};PAUSED=(r[3]&&r[3].paused)||null;
     MENU_DOC=MenuLib.parseMenuDoc(content.menu||'');MENU_DOC.__raw=content.menu||'';
-    $('#boot').classList.add('hidden');$('#app').classList.remove('hidden');
+    $('#thanks').classList.add('hidden');$('#boot').classList.add('hidden');$('#app').classList.remove('hidden');
     if(NAME){hideGate();$('#order-content').classList.remove('hidden');$('#name-display').textContent=NAME;}else{showGate();}
     askNotify();
     renderMenu();renderState();live();poll();
-    setInterval(function(){if(MenuLib.activeVenue()!==VENUE)renderMenu();},60000); // 17:00／03:00／08:00 換品牌
-    setInterval(loadPause,30000);setInterval(loadMenuDoc,60000);   // 暫停點餐、估清／特餐隨店家設定更新
-    document.addEventListener('visibilitychange',function(){if(!document.hidden){refresh();if(!ES||ES.readyState===2)live();}});
-  }).catch(function(err){fail(err.message);});
+  }
+  $('#thanks-again').onclick=function(){
+    clearEnded();$('#thanks').classList.add('hidden');$('#boot').classList.remove('hidden');
+    Promise.all([api('/orders/config'),fetch('/api/public').then(function(r){return r.json();}),load(),api('/orders/pause').catch(function(){return {};})]).then(bootApp).catch(function(err){fail(err.message);});
+  };
+  /* ---- 啟動 ---- */
+  if(!T||!K)return fail('請掃描桌上的 QR Code 進入點餐。');
+  if(endedId())showThanks();
+  else Promise.all([api('/orders/config'),fetch('/api/public').then(function(r){return r.json();}),load(),api('/orders/pause').catch(function(){return {};})]).then(bootApp).catch(function(err){fail(err.message);});
+  setInterval(function(){if(S&&MenuLib.activeVenue()!==VENUE)renderMenu();},60000); // 17:00／03:00／08:00 換品牌
+  setInterval(function(){if(S)loadPause();},30000);setInterval(function(){if(S)loadMenuDoc();},60000);   // 暫停點餐、估清／特餐隨店家設定更新
+  document.addEventListener('visibilitychange',function(){if(!document.hidden&&S){refresh();if(!ES||ES.readyState===2)live();}});
 })();
 </script>
 </body>

@@ -4382,8 +4382,6 @@ app.get('/api/orders/table',requireDb,wrap(async(req,res)=>{
       // ponytail: 4 小時無動靜視同離席；未付品項直接作廢
       const stale=Date.now()-new Date(s.updated_at).getTime()>4*3600e3;
       if(tableOrders.sessionFinished(s.items,s.orders)||stale){await client.query("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=$1",[s.id]);s=null;}}
-    // 掃 QR 只代表「桌位」，不代表用餐資格：沒有開著的場就不自動開桌（離席客人的舊 QR／截圖再掃也點不了），由櫃檯在 POS 開桌；TABLE_SELF_OPEN=1 可回到舊的掃碼自動開桌
-    if(!s&&process.env.TABLE_SELF_OPEN!=='1'){await client.query('COMMIT');return res.status(409).json({error:'這桌尚未開桌，請洽櫃台為您開桌。',needs_open:true});}
     if(!s){s=(await client.query('INSERT INTO table_sessions(id,table_no) VALUES($1,$2) RETURNING *',[uid('ts_'),table])).rows[0];s.orders=[];}
     await client.query('COMMIT');res.json(publicSession(s,String(req.query.g||'')));
   }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}

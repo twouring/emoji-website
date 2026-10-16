@@ -15,6 +15,7 @@
       split_each: '每人', split_remainder: '其中 {count} 人各多付 NT$1（尾差由櫃檯調整）', table: '桌號', unpaid_items: '{count} 項未結帳', empty: '尚未點餐',
       no_orders: '還沒有人點餐。', me: '我', paid: '已付款', preparing: '準備中', ready: '可取餐', done: '已取餐',
       alcohol: '未滿十八歲禁止飲酒。禁止酒駕。', add: '加入', remove: '移除', ready_banner: '桌號 {table}｜餐點好了，請至櫃檯取餐',
+      thanks: '感謝用餐，期待再次光臨。', thanks_hint: '這次點餐已結束。若要再點，請重新掃描桌上的 QR。', thanks_again: '重新點餐',
       view_detail: '查看細項', back_menu: '返回菜單', add_to_cart: '加入已點清單', added: '已加入', quantity: '數量', required: '必選', optional: '選填', special_request: '其他需求', special_placeholder: '例如：不要蔥、醬另外放', sugar: '糖度', ice: '冰塊', temperature: '溫度', rice_amount: '飯量', noodle_amount: '麵量', notification_prompt: '餐點好了通知我', notification_on: '已開啟通知', notification_unsupported: '此瀏覽器不支援通知；請留在這個頁面，餐點好了會在畫面上提示。', notification_error: '無法開啟通知：{message}。請留在此頁，餐點好了會在畫面上提示。',
     },
     en: {
@@ -31,6 +32,7 @@
       split_each: 'Each person', split_remainder: '{count} person(s) pays NT$1 more; staff will adjust the remainder', table: 'Table', unpaid_items: '{count} unpaid item(s)', empty: 'No items yet',
       no_orders: 'No one has ordered yet.', me: 'Me', paid: 'Paid', preparing: 'Preparing', ready: 'Ready for pickup', done: 'Picked up',
       alcohol: 'No alcohol under 18. Do not drink and drive.', add: 'Add', remove: 'Remove', ready_banner: 'Table {table} | Your order is ready. Please pick it up at the counter.',
+      thanks: 'Thanks for dining with us. See you next time.', thanks_hint: 'This order has ended. Scan the table QR again to start a new one.', thanks_again: 'Order again',
       view_detail: 'Details', back_menu: 'Back to menu', add_to_cart: 'Add to order list', added: 'Added', quantity: 'Quantity', required: 'Required', optional: 'Optional', special_request: 'Other requests', special_placeholder: 'e.g. no scallions, sauce on the side', sugar: 'Sweetness', ice: 'Ice', temperature: 'Temperature', rice_amount: 'Rice amount', noodle_amount: 'Noodle amount', notification_prompt: 'Notify me when ready', notification_on: 'Notifications on', notification_unsupported: 'This browser does not support notifications. Keep this page open and we will show an on-screen alert when your order is ready.', notification_error: 'Could not enable notifications: {message}. Keep this page open for the on-screen alert.',
     },
     ja: {
@@ -47,6 +49,7 @@
       split_each: '一人あたり', split_remainder: '{count} 人が NT$1 多く支払います（端数はスタッフが調整）', table: 'テーブル', unpaid_items: '未会計 {count} 件', empty: 'まだ注文はありません',
       no_orders: 'まだ注文はありません。', me: '自分', paid: '支払い済み', preparing: '準備中', ready: '受け取り可', done: '受け取り済み',
       alcohol: '20歳未満の飲酒は禁止です。飲酒運転禁止。', add: '追加', remove: '削除', ready_banner: 'テーブル {table}｜ご注文の品ができました。カウンターでお受け取りください。',
+      thanks: 'ご来店ありがとうございました。', thanks_hint: '今回のご注文は終了しました。もう一度ご注文の際はテーブルのQRをスキャンしてください。', thanks_again: 'もう一度注文する',
       view_detail: '詳細を見る', back_menu: 'メニューに戻る', add_to_cart: '注文リストに追加', added: '追加しました', quantity: '数量', required: '必須', optional: '任意', special_request: 'その他の希望', special_placeholder: '例：ねぎ抜き、ソース別添え', sugar: '甘さ', ice: '氷', temperature: '温度', rice_amount: 'ご飯の量', noodle_amount: '麺の量', notification_prompt: '出来上がりを通知', notification_on: '通知を有効にしました', notification_unsupported: 'このブラウザは通知に対応していません。このページを開いたままにしてください。出来上がり時に画面でお知らせします。', notification_error: '通知を有効にできません：{message}。このページを開いたままにしてください。',
     },
   };
