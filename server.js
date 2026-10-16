@@ -4414,10 +4414,13 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     // 桌邊送單且全部已出餐的品項，結帳時直接記為已取餐（不再回到出餐看板）；有還沒出的照舊進看板
     const served=out.lines.every(l=>l.served_at);
     await client.query('INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,invoice,status,done_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[orderId,s.id,s.table_no,JSON.stringify(orderLines),out.amount,JSON.stringify(out.payer),JSON.stringify(invoice||{}),served?'done':'paid',served?new Date():null]);
-    await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items)]);
+    // 內用採離場結帳：整桌結清即清桌；分帳、跨品牌權限與外帶取餐流程保留。
+    const closed=!tableOrders.isTakeout(s.table_no)&&tableOrders.unpaid(items).length===0&&tableOrders.sessionClosableByVenues(s,venues);
+    if(closed)await client.query("UPDATE table_orders SET status='done',done_at=now() WHERE session_id=$1 AND status IN ('paid','ready')",[s.id]);
+    await client.query('UPDATE table_sessions SET items=$2,status=$3,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),closed?'closed':'open']);
     await client.query('COMMIT');
     const invoiceOut=await storeInvoiceResult({id:orderId,table_no:s.table_no,items:orderLines,amount:out.amount,discount:out.discount},invoice);
-    res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,received:out.payer.received,change:out.payer.change,method:out.payer.method,member:out.payer.member,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut,warning:regWarn||undefined});
+    res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,received:out.payer.received,change:out.payer.change,method:out.payer.method,member:out.payer.member,closed,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut,warning:regWarn||undefined});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 app.post('/api/admin/orders/:id/invoice/issue',auth,adminOnly,requireDb,wrap(async(req,res)=>{
