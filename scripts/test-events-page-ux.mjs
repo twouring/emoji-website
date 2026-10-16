@@ -118,6 +118,19 @@ test('share bar: LINE, copy, Threads, Facebook with encoded URL and text; native
   assert.match(html, /id="ev-share-native" hidden/);
   assert.match(html, /data-text="A &amp; B · 11\/1（週日） 14:00 – 17:00 · 言文字"/);
   assert.equal((html.match(/target="_blank" rel="noopener"/g) || []).length, 3);
+  assert.match(html, /id="ev-share-ig"/, 'Instagram story button');
+});
+
+test('Instagram share: 1080x1920 story card via Web Share files, download+copy fallback, no IG web-intent URL', () => {
+  assert.match(source, /async function shareToInstagram\(bar\)/);
+  assert.match(source, /c\.width=W;c\.height=H/);
+  assert.match(source, /const W=1080,H=1920/);
+  assert.match(source, /navigator\.canShare&&navigator\.canShare\(\{files:\[file\]\}\)/);
+  assert.match(source, /a\.download=file\.name/);
+  assert.match(source, /navigator\.clipboard\.writeText\(url\)/);
+  assert.match(source, /bar\.dataset\.text|text:bar\.dataset\.text/);
+  assert.equal((source.match(/igLabel:'/g) || []).length, 3, 'zh/en/ja copy');
+  assert.equal((source.match(/igDone:'/g) || []).length, 3);
 });
 
 test('detail page renders facts + share for public events only and wires the bottom CTA', () => {

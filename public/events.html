@@ -180,6 +180,7 @@
 .ev-share__btn[hidden]{display:none}
 .ev-share__btn svg{width:18px;height:18px}
 .ev-share__btn--line{border-color:#06C755;color:#06C755}
+.ev-share__btn--ig{border-color:#C13584;color:#C13584}
 .ev-side-proof{margin:10px 0 0;display:flex;flex-wrap:wrap;gap:6px 14px;font-size:1rem;color:var(--ink-soft)}
 .ev-side-proof b{color:var(--ink);font-weight:500}
 .ev-side-proof .ev-left{color:#B3261E;font-weight:500}
@@ -331,9 +332,9 @@ function meta(e){const when=[e.starts_at,e.ends_at].filter(Boolean).join(' – '
 /* ---- 2026-10 改版：日期塊、月份分組、社會證明、分享列、訂閱行事曆、手機底部 CTA ----
    所有來自 API 的字串（標題、說明、地點、封面網址、票種名）都經 esc() 再放進樣板，與本頁既有做法一致；innerHTML 只接收這些已逸出的樣板。 */
 const T2={
- zh:{subscribe:'訂閱活動行事曆',subGoogle:'Google 日曆',subApple:'Apple／Outlook 行事曆',subCopy:'複製訂閱網址',subNote:'新活動會自動出現在你的行事曆',copied:'已複製',registered:n=>`已報名 ${n} 人`,left:n=>`剩 ${n} 席`,full:'名額已滿',waitlist:'可候補',from:'起',today:'今天',tomorrow:'明天',tba:'時間待定',external:'外部報名',preview:'預告',share:'分享',copyLink:'複製連結',more:'更多',map:'Google 地圖',cal:'加入行事曆',calGoogle:'Google 日曆',hiddenPlace:'報名後顯示地點',onlineOnly:'線上活動',endsSoon:d=>`${d} 截止`,earlyBird:(n,d)=>`${n} 售至 ${d}`,ctaGo:'立即報名',ctaPay:'前往付款',ctaExternal:'前往報名',when:'時間',where:'地點',tz:'台北時間'},
- en:{subscribe:'Subscribe to calendar',subGoogle:'Google Calendar',subApple:'Apple / Outlook calendar',subCopy:'Copy subscription URL',subNote:'New events appear in your calendar automatically',copied:'Copied',registered:n=>`${n} registered`,left:n=>`${n} spots left`,full:'Sold out',waitlist:'Waitlist open',from:'from',today:'Today',tomorrow:'Tomorrow',tba:'Time TBA',external:'External registration',preview:'Preview',share:'Share',copyLink:'Copy link',more:'More',map:'Google Maps',cal:'Add to calendar',calGoogle:'Google Calendar',hiddenPlace:'Location shared after registration',onlineOnly:'Online event',endsSoon:d=>`Ends ${d}`,earlyBird:(n,d)=>`${n} until ${d}`,ctaGo:'Register',ctaPay:'Get tickets',ctaExternal:'Register',when:'When',where:'Where',tz:'Taipei time (UTC+8)'},
- ja:{subscribe:'カレンダーを購読',subGoogle:'Google カレンダー',subApple:'Apple／Outlook カレンダー',subCopy:'購読URLをコピー',subNote:'新しいイベントが自動で追加されます',copied:'コピーしました',registered:n=>`申込 ${n} 名`,left:n=>`残り ${n} 席`,full:'満席',waitlist:'キャンセル待ち可',from:'〜',today:'今日',tomorrow:'明日',tba:'日時未定',external:'外部サイトで申込',preview:'予告',share:'シェア',copyLink:'リンクをコピー',more:'その他',map:'Google マップ',cal:'カレンダーに追加',calGoogle:'Google カレンダー',hiddenPlace:'申込後に場所を表示',onlineOnly:'オンライン開催',endsSoon:d=>`${d} 締切`,earlyBird:(n,d)=>`${n} は ${d} まで`,ctaGo:'申し込む',ctaPay:'チケットを購入',ctaExternal:'申し込む',when:'日時',where:'場所',tz:'台北時間 (UTC+8)'}
+ zh:{subscribe:'訂閱活動行事曆',subGoogle:'Google 日曆',subApple:'Apple／Outlook 行事曆',subCopy:'複製訂閱網址',subNote:'新活動會自動出現在你的行事曆',copied:'已複製',registered:n=>`已報名 ${n} 人`,left:n=>`剩 ${n} 席`,full:'名額已滿',waitlist:'可候補',from:'起',today:'今天',tomorrow:'明天',tba:'時間待定',external:'外部報名',preview:'預告',share:'分享',copyLink:'複製連結',more:'更多',igLabel:'Instagram 限動',igDone:'圖片已儲存、連結已複製，到 Instagram 貼上連結貼紙',igShared:'已開啟分享',igFail:'無法產生圖片',igSite:'台灣人才聚落',map:'Google 地圖',cal:'加入行事曆',calGoogle:'Google 日曆',hiddenPlace:'報名後顯示地點',onlineOnly:'線上活動',endsSoon:d=>`${d} 截止`,earlyBird:(n,d)=>`${n} 售至 ${d}`,ctaGo:'立即報名',ctaPay:'前往付款',ctaExternal:'前往報名',when:'時間',where:'地點',tz:'台北時間'},
+ en:{subscribe:'Subscribe to calendar',subGoogle:'Google Calendar',subApple:'Apple / Outlook calendar',subCopy:'Copy subscription URL',subNote:'New events appear in your calendar automatically',copied:'Copied',registered:n=>`${n} registered`,left:n=>`${n} spots left`,full:'Sold out',waitlist:'Waitlist open',from:'from',today:'Today',tomorrow:'Tomorrow',tba:'Time TBA',external:'External registration',preview:'Preview',share:'Share',copyLink:'Copy link',more:'More',igLabel:'Instagram story',igDone:'Image saved and link copied. Add it as a link sticker in Instagram.',igShared:'Share opened',igFail:'Could not create the image',igSite:'Taiwan Talent Hub',map:'Google Maps',cal:'Add to calendar',calGoogle:'Google Calendar',hiddenPlace:'Location shared after registration',onlineOnly:'Online event',endsSoon:d=>`Ends ${d}`,earlyBird:(n,d)=>`${n} until ${d}`,ctaGo:'Register',ctaPay:'Get tickets',ctaExternal:'Register',when:'When',where:'Where',tz:'Taipei time (UTC+8)'},
+ ja:{subscribe:'カレンダーを購読',subGoogle:'Google カレンダー',subApple:'Apple／Outlook カレンダー',subCopy:'購読URLをコピー',subNote:'新しいイベントが自動で追加されます',copied:'コピーしました',registered:n=>`申込 ${n} 名`,left:n=>`残り ${n} 席`,full:'満席',waitlist:'キャンセル待ち可',from:'〜',today:'今日',tomorrow:'明日',tba:'日時未定',external:'外部サイトで申込',preview:'予告',share:'シェア',copyLink:'リンクをコピー',more:'その他',igLabel:'Instagram ストーリーズ',igDone:'画像を保存しリンクをコピーしました。Instagram でリンクスタンプに貼り付けてください',igShared:'シェアを開きました',igFail:'画像を作成できませんでした',igSite:'台湾タレントハブ',map:'Google マップ',cal:'カレンダーに追加',calGoogle:'Google カレンダー',hiddenPlace:'申込後に場所を表示',onlineOnly:'オンライン開催',endsSoon:d=>`${d} 締切`,earlyBird:(n,d)=>`${n} は ${d} まで`,ctaGo:'申し込む',ctaPay:'チケットを購入',ctaExternal:'申し込む',when:'日時',where:'場所',tz:'台北時間 (UTC+8)'}
 }[lang];
 const TZ='Asia/Taipei';
 function startDate(e){return e.starts_at_iso?new Date(e.starts_at_iso+':00+08:00'):null;}
@@ -384,12 +385,43 @@ function renderHeroActions(){
 }
 function shareText(e){return e.title+(e.starts_at_iso?' · '+shortDate(e):'')+' · 言文字';}
 function shareBar(e){
+ shareEvent=e;
  const url=location.origin+base+'/events/'+encodeURIComponent(e.slug),text=shareText(e),u=encodeURIComponent(url),t=encodeURIComponent(text);
- const icon={line:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3C6.5 3 2 6.6 2 11c0 3.9 3.5 7.2 8.2 7.9.3.1.8.2.9.5.1.3.1.6 0 .9l-.1.9c0 .3-.2 1 .9.5s5.7-3.4 7.8-5.8C21.1 14.2 22 12.7 22 11c0-4.4-4.5-8-10-8Z"/></svg>',link:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>',threads:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 21c-5 0-8-3.4-8-9s3-9 8-9 7.5 3 7.5 6.3c0 2.6-1.6 4.2-3.8 4.2-1.9 0-3-1.1-3.2-2.8"/><path d="M12.5 10.7c2.1-.2 4 .6 4.1 2.6.1 2-1.5 3.1-3.3 3.1-1.6 0-2.9-.9-2.9-2.2 0-1.4 1.4-2.1 3.4-2.1 1.5 0 3.3.5 4.2 1.1"/></svg>',fb:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.5 22v-8h2.7l.4-3.2h-3.1V8.8c0-.9.3-1.6 1.6-1.6h1.7V4.4c-.3 0-1.3-.1-2.5-.1-2.5 0-4.1 1.5-4.1 4.2v2.3H7.4V14h2.8v8h3.3Z"/></svg>',more:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7"/></svg>'};
- return `<div class="ev-share" id="ev-share" data-url="${esc(url)}" data-text="${esc(text)}"><span class="ev-share__label">${T2.share}</span><a class="ev-share__btn ev-share__btn--line" href="https://social-plugins.line.me/lineit/share?url=${u}&text=${t}" target="_blank" rel="noopener">${icon.line}LINE</a><button type="button" class="ev-share__btn" id="ev-share-copy">${icon.link}${T2.copyLink}</button><a class="ev-share__btn" href="https://www.threads.net/intent/post?text=${encodeURIComponent(text+'\n'+url)}" target="_blank" rel="noopener">${icon.threads}Threads</a><a class="ev-share__btn" href="https://www.facebook.com/sharer/sharer.php?u=${u}" target="_blank" rel="noopener">${icon.fb}Facebook</a><button type="button" class="ev-share__btn" id="ev-share-native" hidden>${icon.more}${T2.more}</button></div>`;
+ const icon={line:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3C6.5 3 2 6.6 2 11c0 3.9 3.5 7.2 8.2 7.9.3.1.8.2.9.5.1.3.1.6 0 .9l-.1.9c0 .3-.2 1 .9.5s5.7-3.4 7.8-5.8C21.1 14.2 22 12.7 22 11c0-4.4-4.5-8-10-8Z"/></svg>',link:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>',threads:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 21c-5 0-8-3.4-8-9s3-9 8-9 7.5 3 7.5 6.3c0 2.6-1.6 4.2-3.8 4.2-1.9 0-3-1.1-3.2-2.8"/><path d="M12.5 10.7c2.1-.2 4 .6 4.1 2.6.1 2-1.5 3.1-3.3 3.1-1.6 0-2.9-.9-2.9-2.2 0-1.4 1.4-2.1 3.4-2.1 1.5 0 3.3.5 4.2 1.1"/></svg>',fb:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.5 22v-8h2.7l.4-3.2h-3.1V8.8c0-.9.3-1.6 1.6-1.6h1.7V4.4c-.3 0-1.3-.1-2.5-.1-2.5 0-4.1 1.5-4.1 4.2v2.3H7.4V14h2.8v8h3.3Z"/></svg>',ig:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r=".8" fill="currentColor"/></svg>',more:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7"/></svg>'};
+ return `<div class="ev-share" id="ev-share" data-url="${esc(url)}" data-text="${esc(text)}"><span class="ev-share__label">${T2.share}</span><a class="ev-share__btn ev-share__btn--line" href="https://social-plugins.line.me/lineit/share?url=${u}&text=${t}" target="_blank" rel="noopener">${icon.line}LINE</a><button type="button" class="ev-share__btn" id="ev-share-copy">${icon.link}${T2.copyLink}</button><a class="ev-share__btn" href="https://www.threads.net/intent/post?text=${encodeURIComponent(text+'\n'+url)}" target="_blank" rel="noopener">${icon.threads}Threads</a><a class="ev-share__btn" href="https://www.facebook.com/sharer/sharer.php?u=${u}" target="_blank" rel="noopener">${icon.fb}Facebook</a><button type="button" class="ev-share__btn ev-share__btn--ig" id="ev-share-ig">${icon.ig}${T2.igLabel}</button><button type="button" class="ev-share__btn" id="ev-share-native" hidden>${icon.more}${T2.more}</button></div>`;
+}
+let shareEvent=null;
+function wrapLines(ctx,str,max,limit){const out=[];let line='';for(const ch of String(str)){const t=line+ch;if(ctx.measureText(t).width>max&&line){out.push(line);line=ch;}else line=t;}if(line)out.push(line);if(out.length>limit){out.length=limit;out[limit-1]=out[limit-1].replace(/.$/,'…');}return out;}
+function loadCover(src){return new Promise(r=>{if(!src)return r(null);const im=new Image();im.crossOrigin='anonymous';im.onload=()=>r(im);im.onerror=()=>r(null);im.src=src;});}
+async function storyBlob(e,url){
+ const W=1080,H=1920,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+ x.fillStyle='#FFDE34';x.fillRect(0,0,W,H);
+ const im=await loadCover(e.event_details?.cover_url);let y=150;
+ if(im){const bw=W-160,bh=bw*0.75,r=Math.max(bw/im.width,bh/im.height),sw=bw/r,sh=bh/r;x.save();x.beginPath();x.roundRect(80,y,bw,bh,36);x.clip();x.drawImage(im,(im.width-sw)/2,(im.height-sh)/2,sw,sh,80,y,bw,bh);x.restore();y+=bh+90;}else y=420;
+ x.fillStyle='#121212';x.textBaseline='top';
+ x.font='700 76px "Noto Serif TC","Songti TC",serif';
+ for(const l of wrapLines(x,e.title,W-160,3)){x.fillText(l,80,y);y+=100;}
+ y+=30;x.font='500 44px "Noto Sans TC","PingFang TC",sans-serif';
+ const rows=[e.starts_at_iso?shortDate(e):'',e.location||''].filter(Boolean);
+ for(const r of rows)for(const l of wrapLines(x,r,W-160,2)){x.fillText(l,80,y);y+=64;}
+ x.font='600 40px "Noto Sans TC","PingFang TC",sans-serif';x.fillText('言文字 · '+T2.igSite,80,H-300);
+ x.font='500 36px "Noto Sans TC","PingFang TC",sans-serif';x.fillText(url.replace(/^https?:\/\//,''),80,H-230);
+ return new Promise(r=>c.toBlob(r,'image/png'));
+}
+async function shareToInstagram(bar){
+ const url=bar.dataset.url,e=shareEvent;
+ try{
+  const blob=await storyBlob(e,url);if(!blob)throw new Error('blob');
+  const file=new File([blob],'emoji-event-'+e.slug+'.png',{type:'image/png'});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],url,text:bar.dataset.text});toast(T2.igShared);return;}catch(err){if(err&&err.name==='AbortError')return;}}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  try{await navigator.clipboard.writeText(url);}catch{}
+  toast(T2.igDone);
+ }catch{toast(T2.igFail);}
 }
 function bindShare(){
  const bar=document.getElementById('ev-share');if(!bar)return;const url=bar.dataset.url,text=bar.dataset.text;
+ const ig=document.getElementById('ev-share-ig');if(ig)ig.onclick=()=>shareToInstagram(bar);
  document.getElementById('ev-share-copy').onclick=async()=>{try{await navigator.clipboard.writeText(url);toast(T2.copied);}catch{prompt(T2.copyLink,url);}};
  const native=document.getElementById('ev-share-native');if(typeof navigator!=='undefined'&&navigator.share){native.hidden=false;native.onclick=()=>navigator.share({title:text,text,url}).catch(()=>{});}
 }
