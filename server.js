@@ -5033,6 +5033,11 @@ app.post('/api/admin/orders/table-layout',auth,adminOnly,requireDb,wrap(async(re
   await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('pos_table_layout',$1,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,[JSON.stringify(clean)]);
   res.json({ok:true,order:clean});
 }));
+app.get('/api/admin/orders/pause',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  res.set('Cache-Control','no-store');
+  const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||'')),pause=tableOrders.parsePause(await contentValue('ordering_pause'));
+  res.json({pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause});
+}));
 app.post('/api/admin/orders/pause',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const venue=String(req.body?.venue||''),venues=tableOrders.visibleVenues(req.auth.brands);
   if(!tableOrders.itemInVenues({venue},venues))return res.status(403).json({error:'只能設定自己店別。'});

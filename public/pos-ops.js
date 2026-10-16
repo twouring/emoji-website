@@ -832,7 +832,7 @@ function paintPos(){
   }
   // 櫃檯開桌／外帶：加開固定清單以外的桌號、或外帶單
   // 空桌直接點桌況格就開桌；「加開桌號」＝桌牌上沒有的桌號（點區＋數字鍵）；都不打字
-  const opener=`<div class="pos-open"><button type="button" class="btn btn--solid" id="pos-takeout">＋ 外帶</button><button type="button" class="btn btn--ghost" id="pos-open-extra">＋ 加開桌號</button><button type="button" class="btn btn--ghost" id="pos-edit-tables">編輯桌位</button>${posPauseHtml(d.pause)}</div>`;
+  const opener=`<div class="pos-open"><button type="button" class="btn btn--solid" id="pos-takeout">＋ 外帶</button><button type="button" class="btn btn--ghost" id="pos-open-extra">＋ 加開桌號</button><button type="button" class="btn btn--ghost" id="pos-edit-tables">編輯桌位</button></div>`;
   let panel='',picked=[],subtotal=0,total=0,priceOf=l=>l.price,mixed=false,splitList=[],splitLeft=0,cashDue=0,cash=false;
   const reload=()=>{host.dataset.sig='';return loadPos();};
   if(cur){
@@ -906,7 +906,6 @@ function paintPos(){
   host.querySelector('#pos-open-extra').onclick=async()=>{const t=await pickTableNo({title:'加開桌號',hint:'桌牌上沒有的桌號、戶外或臨時桌才用這裡；已開著的桌會直接切過去。'});if(t)openSession({table_no:t});};
   host.querySelector('#pos-takeout').onclick=()=>openSession({takeout:true});
   // 桌號 QR／暫停點餐在工具列，沒選桌也要能按，所以綁在 if(!cur)return 之前
-  bindPosPause(host,reload);
   if(!cur)return;
   // 這桌的點餐 QR：桌號旁的「QR」鈕，開面板直接顯示這桌（要印全部桌還是按面板裡的「全部固定桌」）
   const qrBtn=host.querySelector('#pos-table-qr');if(qrBtn)qrBtn.onclick=()=>openTableQr(cur.table);
@@ -1309,12 +1308,16 @@ async function loadSales(){
 
 /* 估清：平板一鍵切換「今日估清／恢復供應」，直接寫伺服器（只動 sold_out），翌日 03:00 自動恢復 */
 function tabSoldOut(){ return '<div class="a-sec" id="soldout-body"></div>'; }
-function loadSoldOut(){
+let SO_PAUSE=null;
+async function loadSoldOut(refresh){
   const host=document.getElementById('soldout-body');if(!host)return;
+  if(SO_PAUSE===null||refresh===true){try{SO_PAUSE=(await api('/admin/orders/pause'+scopeQuery())).pause||{};}catch(e){SO_PAUSE=SO_PAUSE||{};toast('暫停點餐狀態載入失敗：'+e.message);}}
+  if(!document.getElementById('soldout-body'))return;
   const items=MenuLib.sortItems((MENU_DOC?.items||[]).filter(it=>it.published&&!it.pos_only&&(!SCOPE||it.venue===SCOPE)));   // 「其他」這類 POS 限定品項沒有估清的意義
   const groups=new Map();for(const it of items){if(!groups.has(it.cat))groups.set(it.cat,[]);groups.get(it.cat).push(it);}
   const cards=[...groups].map(([cat,list])=>`<h3>${esc(MenuLib.CAT_LABEL[cat]?.zh||cat)}</h3><div class="so-grid">${list.map(it=>{const off=MenuLib.soldOutToday(it);return `<button type="button" class="so-item ${off?'off':''}" data-so="${esc(it.id)}" data-on="${off?'0':'1'}" aria-pressed="${off?'true':'false'}"><b>${esc(it.zh)}</b><span>NT$${num(it.price)}${SCOPE?'':' · '+esc(BRAND_LABEL[it.venue]||it.venue)}</span><small>${off?'今日估清 · 點一下恢復':'供應中'}</small></button>`;}).join('')}</div>`).join('')||'<p class="a-empty">沒有已發布的菜單項目，請先在後台「菜單」儲存菜單。</p>';
-  host.innerHTML=`<div class="ops-head"><h2>估清</h2>${opsHelp('點一下品項切換「今日估清」，客人掃碼立刻點不到；翌日 03:00 自動恢復供應。')}</div>${cards}`;
+  host.innerHTML=`<div class="ops-head"><h2>估清</h2>${opsHelp('點一下品項切換「今日估清」，客人掃碼立刻點不到；翌日 03:00 自動恢復供應。')}</div><div class="a-toolbar pos-tools" id="so-pause">${posPauseHtml(SO_PAUSE)}</div>${cards}`;
+  bindPosPause(host,()=>loadSoldOut(true));
   host.querySelectorAll('[data-so]').forEach(b=>b.onclick=()=>{const id=b.dataset.so,on=b.dataset.on==='1';opsThen(()=>api('/admin/menu/sold-out',{method:'POST',body:{item_id:id,sold_out:on}}),on?'已標記今日估清，客人掃碼點不到':'已恢復供應',()=>{MENU_DOC.items=MENU_DOC.items.map(x=>x.id===id?{...x,sold_out:on?MenuLib.businessDay():''}:x);loadSoldOut();});});
 }
 
