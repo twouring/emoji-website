@@ -848,7 +848,6 @@
       if (q.has('web')) { try { sessionStorage.setItem('tth_web', '1'); } catch (e) {} return false; }
       if (q.has('plan_paid') || q.has('plan_canceled')) return false;
       try { if (sessionStorage.getItem('tth_web') === '1') return false; } catch (e) {}
-      if (data.role === 'admin' || data.organizer) return false;
       const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 2500);
       await fetch(APP_URL + 'm-sw.js', { mode: 'no-cors', cache: 'no-store', signal: ctl.signal });
       clearTimeout(timer);

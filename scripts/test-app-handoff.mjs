@@ -53,14 +53,18 @@ test('app 子站連不到（DNS／憑證未就緒）就留在網頁版，不把�
   const r = await go({ reach: false });
   assert.equal(r.out, false); assert.equal(r.replaced, null);
 });
-test('管理員、活動主辦、付款返回、?web=1 都不跳；?web=1 之後同一分頁也記住不跳', async () => {
-  assert.equal((await go({ data: { role: 'admin' } })).out, false);
-  assert.equal((await go({ data: { role: 'participant', organizer: true } })).out, false);
+test('管理員與活動主辦也會跳（App 內有後台入口）；付款返回、?web=1 不跳；?web=1 之後同一分頁也記住不跳', async () => {
+  assert.equal((await go({ data: { role: 'admin' } })).out, true);
+  assert.equal((await go({ data: { role: 'participant', organizer: true } })).out, true);
   assert.equal((await go({ search: '?plan_paid=1&s=cs_x' })).out, false);
   const store = {};
   const web = await go({ search: '?web=1', store });
   assert.equal(web.out, false); assert.equal(store.tth_web, '1');
   assert.equal((await go({ store })).out, false, '已選擇網頁版就不再跳');
+});
+test('App「我的」頁：管理員有「前往後台」、主辦有「管理我的活動」', () => {
+  assert.match(m, /https:\/\/admin\.emoji\.tw\/admin/); assert.match(m, /\/organizer\/events/);
+  assert.match(m, /role:s\.role,organizer:!!s\.organizer/);
 });
 test('本機與其他網域不跳轉', async () => {
   assert.equal((await go({ host: '127.0.0.1' })).out, false);
@@ -75,5 +79,5 @@ test('app 的「完整會員專區」連結帶 web=1，避免來回跳；跳轉�
 });
 test('app 子站收到 #token= 後存起並清掉網址（沿用既有行為）；service worker 版本已更新', () => {
   assert.match(m, /hash\.get\('token'\)/);
-  assert.match(read('public/m-sw.js'), /VERSION = 'm-v([3-9]|\d{2,})'/);
+  assert.match(read('public/m-sw.js'), /VERSION = 'm-v([5-9]|\d{2,})'/);
 });

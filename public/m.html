@@ -201,6 +201,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       <label style="display:block;color:var(--soft)">手機（09 開頭，結帳報號碼就能累點）<input id="ph" type="tel" inputmode="tel" autocomplete="tel" value="${esc(m.phone||'')}" style="display:block;width:100%;margin-top:6px;min-height:52px;padding:0 14px;border:1.5px solid var(--line);border-radius:12px;font-family:inherit;font-size:1rem;background:#fff"></label>
       <button class="btn solid" id="save" style="margin-top:12px">儲存</button></section>
     ${kindNow(true)?`<section class="sec"><h2>主畫面</h2><button class="btn" id="inst2" data-k="${kindNow(true)}">${INSTALL_LABEL[kindNow(true)]}</button></section>`:''}
+    ${data.role==='admin'||data.organizer?`<section class="sec"><h2>管理</h2>${data.role==='admin'?`<a class="btn" href="https://admin.emoji.tw/admin">前往後台</a>`:''}${data.organizer?`<a class="btn" href="https://www.emoji.tw/organizer/events" style="margin-top:10px">管理我的活動</a>`:''}</section>`:''}
     <section class="sec"><a class="btn" href="${SITE}/member?web=1">完整會員專區</a><button class="quiet" id="out">登出</button></section>`;
     document.getElementById('save').onclick=async()=>{const b=document.getElementById('save');b.disabled=true;try{const r=await fetch('/api/me/profile',{method:'POST',headers:{authorization:'Bearer '+token(),'content-type':'application/json'},body:JSON.stringify({name:m.name||'會員',phone:document.getElementById('ph').value})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'儲存失敗');toast('已儲存');await load();}catch(e){toast(e.message);}b.disabled=false;};
     bindInstall();
@@ -218,7 +219,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   async function load(){
     try{
       const s=await get('/api/state');let y={balance:0,phone:''};try{y=await get('/api/me/yan');}catch(e){}
-      s.events=(s.events||[]);data={me:s.me,events:s.events,yan:y};offline=false;
+      s.events=(s.events||[]);data={me:s.me,events:s.events,yan:y,role:s.role,organizer:!!s.organizer};offline=false;
       try{localStorage.setItem(CACHE,JSON.stringify(data));}catch(e){}
     }catch(e){
       if(e.status===401){try{localStorage.removeItem(KEY);}catch(x){}return login();}
