@@ -366,7 +366,7 @@ tr.lp-refund td{color:var(--danger)}
 .pos-table.idlewarn{border-color:#d9822b;background:#fff1e0}.pos-table.idlewarn.on{background:var(--ink)}.pos-table .pos-idlewarn-tag{color:#9a4a00;font-weight:600;overflow-wrap:anywhere}
 .pos-open .btn--solid{flex:1 1 160px;min-height:56px;font-size:1.05rem}
 .pos-open .btn--ghost{flex:0 0 auto;min-height:48px}
-.pos-sub{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px;padding-top:12px;border-top:1px dashed var(--muted)}.pos-sub .a-toolbar{margin:0}
+.pos-sub{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px}.pos-sub .a-toolbar{margin:0}
 /* 結帳面板精簡：品項操作收進 ⋯、次要資訊縮小，避免橫向與多餘垂直捲動 */
 .pos-lines td.ops-actions,.pos-layout.has-panel .pos-panel .pos-lines td.ops-actions{min-width:0;width:1%;text-align:right;position:relative}
 .ops-more{display:inline-block}.ops-more>summary{list-style:none;cursor:pointer;min-width:48px;min-height:48px;justify-content:center}.ops-more>summary::-webkit-details-marker{display:none}
