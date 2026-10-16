@@ -65,14 +65,16 @@ test('reconcile：只算 POS 登記 linepay 的成立單；LINE Pay 實收扣退
   assert.equal(L.venueOfTime('2026-10-16T01:00:00+08:00'), 'BAR'); assert.equal(L.venueOfTime('2026-10-16T08:00:00+08:00'), 'CAFE');
   assert.equal(L.venueOfTime('2026-10-16T16:59:00+08:00'), 'CAFE'); assert.equal(L.venueOfTime('2026-10-16T17:00:00+08:00'), 'BAR');
   assert.equal(L.venueOfTime('2026-10-17T02:30:00+08:00'), 'BAR');
-  // 有開關帳紀錄時以開帳～關帳時間為準（pg 回 Date 物件）；關帳後到下一店開帳前算前一本帳；第一本帳開帳前算第一本帳；還沒關帳的視為開到現在
+  // 有開關帳紀錄時以開帳～關帳時間為準（pg 回 Date 物件）；關帳後到下一店開帳前算下一本帳（提早付款）；最後一本帳關帳後算輪到的另一店；還沒關帳的視為開到現在
   const regs = [
     { venue: 'BAR', opened_at: new Date('2026-10-16T18:10:00+08:00'), closed_at: null },
     { venue: 'CAFE', opened_at: new Date('2026-10-16T09:30:00+08:00'), closed_at: new Date('2026-10-16T17:40:00+08:00') },
   ];
   assert.equal(L.venueOfTime('2026-10-16T09:00:00+08:00', regs), 'CAFE', '開帳前');
   assert.equal(L.venueOfTime('2026-10-16T17:20:00+08:00', regs), 'CAFE', '在咖啡 17:00 後還沒關帳');
-  assert.equal(L.venueOfTime('2026-10-16T17:50:00+08:00', regs), 'CAFE', '關帳後、三點水開帳前');
+  assert.equal(L.venueOfTime('2026-10-16T17:50:00+08:00', regs), 'BAR', '關帳後、三點水開帳前：算下一本帳');
+  assert.equal(L.venueOfTime('2026-10-16T18:30:00+08:00', [regs[1]]), 'BAR', '最後一本帳（在咖啡）關帳後：算下一本帳＝三點水');
+  assert.equal(L.venueOfTime('2026-10-17T02:58:00+08:00', [{ venue: 'BAR', opened_at: '2026-10-16T17:30:00+08:00', closed_at: '2026-10-17T02:50:00+08:00' }]), 'CAFE', '三點水關帳後：算下一本帳＝在咖啡');
   assert.equal(L.venueOfTime('2026-10-16T18:10:00+08:00', regs), 'BAR');
   assert.equal(L.venueOfTime('2026-10-17T02:50:00+08:00', regs), 'BAR', '還沒關帳');
   assert.equal(L.venueOfTime('2026-10-16T12:00:00+08:00', [{ venue: 'BAR', opened_at: '2026-10-16T11:00:00+08:00', closed_at: null }]), 'BAR', '只開過三點水就全歸三點水');
