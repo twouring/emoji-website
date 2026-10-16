@@ -16,7 +16,7 @@ Base URL：`https://www.emoji.tw`（本地：`http://localhost:8080`）
 
 ### POST /api/admin/orders/kitchen-print-jobs/:id/claim
 
-領取一張工作，body `{operator_id?}`。伺服器驗證品牌所有權並以原子 `UPDATE ... WHERE claimed_at IS NULL` 跨裝置／重新整理去重，記錄 actor、操作人員與時間。回 `{ok:true,claimed:true,job}` 或 `{ok:true,claimed:false}`，無權限／不存在回 404。遇到硬體失敗會暫停本機後續領取，檢查紙張與補印後按「恢復自動出單」。領取只代表嘗試列印，不是實體紙張成功；不自動釋放或重試，逾時／失敗須檢查紙張後用既有出餐／查單按鈕明確補印。只有連接印表機的 Star webPRNT Browser 自動輪詢（每 5 秒，與分頁無關）；一般瀏覽器不領取。Star Browser 必須保持開啟、前景且網路可用，背景休眠無法保證即時。
+領取一張工作，body `{operator_id?}`。伺服器驗證品牌所有權並以原子 `UPDATE ... WHERE claimed_at IS NULL` 跨裝置／重新整理去重，記錄 actor、操作人員與時間。回 `{ok:true,claimed:true,job}` 或 `{ok:true,claimed:false}`，無權限／不存在回 404。遇到硬體失敗會暫停本機後續領取；結帳頁只在暫停時顯示「恢復自動出單」，按下需再確認已檢查紙張並補印，恢復不重印結果不明的那張。領取只代表嘗試列印，不是實體紙張成功；不自動釋放或重試，逾時／失敗須檢查紙張後用既有出餐／查單按鈕明確補印。只有連接印表機的 Star webPRNT Browser 自動輪詢（每 5 秒，與分頁無關）；一般瀏覽器不領取。Star Browser 必須保持開啟、前景且網路可用，背景休眠無法保證即時。
 
 ### POST /api/admin/orders/sessions/:id/place
 

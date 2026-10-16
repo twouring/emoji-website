@@ -284,7 +284,12 @@ function receiptTicketSpec(o){
 // Independent of active tab. Claims are durable attempted commands, never leases:
 // a lost HTTP response or hardware timeout must not cause an automatic replay.
 let KITCHEN_PRINT_TIMER=null,KITCHEN_PRINT_BUSY=false,KITCHEN_PRINT_PAUSED=false;
-function resumeKitchenPrinting(){KITCHEN_PRINT_PAUSED=false;toast('已恢復新單自動列印；前一張結果不明的單請檢查後手動補印。');}
+function resumeKitchenPrinting(){
+  if(!KITCHEN_PRINT_PAUSED)return;
+  // 只在暫停時出現，且要再確認一次：恢復前要先檢查紙張並補印結果不明的那張，不會自動重印。
+  if(!confirm('已檢查印表機、紙張，並補印結果不明的出餐單了嗎？\n確定：恢復新單自動列印（不重印前一張）。'))return;
+  KITCHEN_PRINT_PAUSED=false;toast('已恢復新單自動列印；前一張結果不明的單請檢查後手動補印。');
+}
 const KITCHEN_PRINT_UNKNOWN=new Set();
 function startKitchenPrinting(){
   if(KITCHEN_PRINT_TIMER!==null)return;
@@ -305,7 +310,7 @@ async function pollKitchenPrinting(){
         if(!claim.claimed)continue;
         const ok=await printOrder(claim.job,{auto:true});
         if(!ok)throw Error('未確認印表機成功');
-      }catch(e){KITCHEN_PRINT_PAUSED=true;toast('出餐單 '+job.id+' 未確認列印：'+e.message+'；已暫停自動列印，請檢查紙張並手動補印，再按「恢復自動出單」。');break;}
+      }catch(e){KITCHEN_PRINT_PAUSED=true;toast('出餐單 '+job.id+' 未確認列印：'+e.message+'；已暫停自動列印，請檢查紙張並手動補印，再到結帳頁按「恢復自動出單」。');if(typeof document!=='undefined'&&document.getElementById?.('pos-body')?.querySelector?.('.pos-grid'))paintPos();break;}
     }
   }catch(e){/* 尚未領取的工作留在伺服器；不重送已領取的工作。 */}
   finally{KITCHEN_PRINT_BUSY=false;}
@@ -502,11 +507,11 @@ function paintPos(){
       ${live.length?`<h3>這桌已結帳的單</h3><div class="a-wrap2"><table class="a-tbl pos-paid"><thead><tr><th>品項 · 時間 · 狀態</th><th>付款</th><th class="num">金額</th><th class="ops-th">操作</th></tr></thead><tbody>${liveRows}</tbody></table></div>`:''}
     </div>`;
   }
-  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('點空桌直接開桌；點已開的桌看這桌的帳。沒印在桌牌上的桌號或外帶用下面加開。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div>${registerBar()}<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-print-resume">恢復自動出單</button></div>${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>'}${opener}<div class="pos-grid">${grid}</div></div>${panel}</div>`;
+  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('點空桌直接開桌；點已開的桌看這桌的帳。沒印在桌牌上的桌號或外帶用下面加開。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div>${registerBar()}${KITCHEN_PRINT_PAUSED?`<div class="a-toolbar pos-print-paused"><span class="pill pill-bad">自動出單已暫停</span><span class="hint" style="margin:0">檢查紙張、補印後</span><button type="button" class="btn btn--ghost btn-xs" id="pos-print-resume">恢復自動出單</button></div>`:''}${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>'}${opener}<div class="pos-grid">${grid}</div></div>${panel}</div>`;
   const reload=()=>{host.dataset.sig='';return loadPos();};
   bindRegisterBar(host,reload);
   if(!document.getElementById('p-drawer'))bindCashDrawerButton(host.querySelector('#pos-cash-drawer'));
-  const resumePrint=host.querySelector('#pos-print-resume');if(resumePrint)resumePrint.onclick=()=>{resumeKitchenPrinting();return pollKitchenPrinting();};
+  const resumePrint=host.querySelector('#pos-print-resume');if(resumePrint)resumePrint.onclick=()=>{resumeKitchenPrinting();if(KITCHEN_PRINT_PAUSED)return;paintPos();return pollKitchenPrinting();};
   host.querySelectorAll('[data-pos-table]').forEach(b=>b.onclick=()=>{POS_TABLE=b.dataset.posTable;POS_PICK=null;POS_DISCOUNT=null;POS_DISC_OPEN=false;POS_RECEIVED='';paintPos();});
   // 開桌／外帶：有操作人員就順手帶上（記這桌是誰開的），沒有也不擋——只有結帳要求一定要認人
   const openSession=body=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{...body,operator_id:OPERATOR?.id}}),out=>out.takeout?`外帶單 ${out.table} 已開，請加入品項`:out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,out=>{POS_TABLE=out.table;POS_PICK=null;POS_DISCOUNT=null;POS_RECEIVED='';return reload();});

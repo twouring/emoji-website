@@ -48,8 +48,14 @@ test('printer failure stops claiming later tickets until explicit operator resum
  c.api=async(path,opt)=>{calls.push(path);if(!opt)return {jobs:[{id:'tk_one'},{id:'tk_two'}]};return {claimed:true,job:{id:path.includes('tk_one')?'tk_one':'tk_two'}};};
  await vm.runInContext('pollKitchenPrinting()',c);await vm.runInContext('pollKitchenPrinting()',c);
  assert.equal(calls.filter(p=>p.includes('/claim')).length,1);
- vm.runInContext('fail=false;resumeKitchenPrinting();',c);await vm.runInContext('pollKitchenPrinting()',c);
+ vm.runInContext('fail=false;confirm=()=>true;resumeKitchenPrinting();',c);await vm.runInContext('pollKitchenPrinting()',c);
  assert.deepEqual([...c.prints],['tk_one','tk_two']);
+});
+test('resume control is hidden unless paused and requires explicit confirmation',()=>{
+ assert.match(src,/KITCHEN_PRINT_PAUSED\?`[^`]*id="pos-print-resume"[^`]*`:''/);
+ const {c}=browser();vm.runInContext('KITCHEN_PRINT_PAUSED=true;confirm=()=>false;',c);
+ vm.runInContext('resumeKitchenPrinting()',c);assert.equal(vm.runInContext('KITCHEN_PRINT_PAUSED',c),true);
+ vm.runInContext('confirm=()=>true;resumeKitchenPrinting()',c);assert.equal(vm.runInContext('KITCHEN_PRINT_PAUSED',c),false);
 });
 test('ordinary browser never consumes a printer claim',async()=>{
  const {c,calls}=browser({ready:false});await vm.runInContext('pollKitchenPrinting()',c);assert.equal(calls.length,0);
