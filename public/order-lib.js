@@ -90,18 +90,34 @@
     const l = lang === 'en' || lang === 'ja' ? lang : 'zh';
     const labels = TEXT[l] || TEXT.zh;
     const cat = String(item?.cat || '');
-    const name = [item?.zh, item?.en, item?.note].filter(Boolean).join(' ').toLowerCase();
+    const title = [item?.zh, item?.en].filter(Boolean).join(' ').toLowerCase();
+    const name = [title, item?.note].filter(Boolean).join(' ').toLowerCase();
     const groups = [];
-    const drinkCats = new Set(['COFFEE', 'TEA', 'BEVERAGE', 'SPARKLING']);
-    if (drinkCats.has(cat)) {
-      if (cat === 'COFFEE') groups.push({ key: 'temperature', label: labels.temperature, choices: OPT[l].temp });
-      if (cat !== 'COFFEE' || /拿鐵|茶|latte|milk|sparkling|氣泡|飲/.test(name)) groups.push({ key: 'sugar', label: labels.sugar, choices: OPT[l].sugar });
-      groups.push({ key: 'ice', label: labels.ice, choices: OPT[l].ice });
+    const temperature = () => groups.push({ key: 'temperature', label: labels.temperature, choices: OPT[l].temp });
+    const sugar = () => groups.push({ key: 'sugar', label: labels.sugar, choices: OPT[l].sugar });
+    // 冰塊只有冰飲才顯示；固定冷飲沒有「常溫」，避免氣泡飲出現不合理選項。
+    const ice = conditional => groups.push({ key: 'ice', label: labels.ice, choices: conditional ? OPT[l].ice : OPT[l].ice.slice(0, 4), ...(conditional ? { when: { key: 'temperature', value: OPT[l].temp[0] } } : {}) });
+    const fixedHot = cat === 'TEA' && /（壺）|\(pot\)|熱水|hot water/.test(name);
+    const fixedCold = cat === 'SPARKLING' || /西西里|柚子美式|氣泡|sparkling|romano/.test(name);
+    const sweetened = /拿鐵|黑糖|可可|抹茶|奶|柚子|latte|milk|cocoa|matcha|yuzu/.test(name);
+    if ((cat === 'COFFEE' || cat === 'BEVERAGE' || cat === 'TEA') && !fixedHot && !fixedCold) {
+      temperature();
+      if (cat !== 'COFFEE' || sweetened) sugar();
+      ice(true);
+    } else if ((cat === 'COFFEE' || cat === 'BEVERAGE' || cat === 'TEA' || cat === 'SPARKLING') && fixedCold) {
+      if (cat !== 'COFFEE' || sweetened) sugar();
+      ice(false);
     }
-    if (cat === 'MAIN' || cat === 'JAPANESE' || /飯|rice|丼|咖哩/.test(name)) groups.push({ key: 'rice', label: labels.rice_amount, choices: OPT[l].rice });
-    if (/麵|noodle|pasta|義大利/.test(name)) groups.push({ key: 'noodle', label: labels.noodle_amount, choices: OPT[l].noodle });
+    // 只依品名判斷主食份量；麵優先，避免 MAIN/JAPANESE 麵類同時出現「加飯」。
+    const hasNoodle = /麵|noodle|pasta|udon|soba|義大利/.test(title);
+    const hasRice = /飯|rice|丼|咖哩|curry|onigiri|ochazuke/.test(title);
+    if (hasNoodle) groups.push({ key: 'noodle', label: labels.noodle_amount, choices: OPT[l].noodle });
+    else if (hasRice) groups.push({ key: 'rice', label: labels.rice_amount, choices: OPT[l].rice });
     return groups;
   }
+  function activeOptionGroups(groups, picks) {
+    return (groups || []).filter(g => !g.when || picks?.[g.when.key] === g.when.value);
+  }
 
-  global.OrderLib = { TEXT, text, splitBill, optionGroups };
+  global.OrderLib = { TEXT, text, splitBill, optionGroups, activeOptionGroups };
 })(typeof window !== 'undefined' ? window : globalThis);

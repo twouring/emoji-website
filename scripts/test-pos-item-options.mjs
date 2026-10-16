@@ -25,6 +25,8 @@ test('加點：有選項的品項先跳面板（數量＋每組必選＋其他�
   assert.match(ops, /class="op-card pos-opt" role="dialog"/, '重用操作人員的遮罩與卡片樣式');
   assert.match(ops, /data-oq="-1"[\s\S]*id="pos-opt-qty"[\s\S]*data-oq="1"/, '數量 ±');
   assert.match(ops, /name="pos_opt_\$\{esc\(g\.key\)\}" value="\$\{esc\(c\)\}" \$\{i===0\?'checked':''\}/, '每組預設選第一個（正常）＝必選');
+  assert.match(ops, /const syncGroups=\(\)=>\{const active=.*OrderLib\.activeOptionGroups/, '選熱飲時即時隱藏冰塊組');
+  assert.match(ops, /const active=groups\.filter\(g=>!g\.when\|\|picks\[g\.when\.key\]===g\.when\.value\)/, '送出備註前再次排除不適用規格');
   assert.match(ops, /id="pos-opt-note" maxlength="80"/, '其他需求 80 字，與桌邊點餐相同');
   assert.match(ops, /qty=Math\.max\(1,Math\.min\(20,qty\+Number\(b\.dataset\.oq\)\)\)/, '數量 1–20，與 addLine 一致');
   assert.match(ops, /#pos-opt-cancel'\)\.onclick=close;/, '取消只關面板');
@@ -34,9 +36,9 @@ test('加點：有選項的品項先跳面板（數量＋每組必選＋其他�
 test('備註格式與桌邊點餐 optionNote 相同：「標籤：選項」以「；」串接，其他需求接在最後、最多 80 字', () => {
   const src = ops.slice(ops.indexOf('function itemOptionNote('), ops.indexOf('function openItemOptions('));
   const ctx = {}; vm.createContext(ctx); vm.runInContext(src + '\nthis.f=itemOptionNote;', ctx);
-  const groups = [{ key: 'temperature', label: '溫度', choices: ['冰', '熱'] }, { key: 'sugar', label: '糖度', choices: ['正常糖', '少糖'] }];
-  assert.equal(ctx.f(groups, { temperature: '熱' }, ''), '溫度：熱；糖度：正常糖', '沒點的組用第一個選項');
-  assert.equal(ctx.f(groups, { temperature: '熱', sugar: '少糖' }, '  不要蓋子 '), '溫度：熱；糖度：少糖；不要蓋子');
+  const groups = [{ key: 'temperature', label: '溫度', choices: ['冰', '熱'] }, { key: 'sugar', label: '糖度', choices: ['正常糖', '少糖'] }, { key: 'ice', label: '冰塊', choices: ['正常冰', '去冰'], when: { key: 'temperature', value: '冰' } }];
+  assert.equal(ctx.f(groups, { temperature: '熱' }, ''), '溫度：熱；糖度：正常糖', '選熱飲時不得留下冰塊');
+  assert.equal(ctx.f(groups, { temperature: '冰', sugar: '少糖', ice: '去冰' }, '  不要蓋子 '), '溫度：冰；糖度：少糖；冰塊：去冰；不要蓋子');
   assert.equal(ctx.f([], {}, 'x'.repeat(100)), 'x'.repeat(80), '其他需求截 80 字');
   assert.equal(ctx.f([], {}, ''), '', '沒選項沒備註＝空字串（伺服器端才會合併同品項數量）');
 });
@@ -47,5 +49,8 @@ test('CSS：面板內容可捲、按鈕固定底部（選項多時不會被捲�
   assert.match(css, /\.pos-opt-body\{[^}]*overflow:auto[^}]*flex:1 1 auto;min-height:0/);
   assert.match(css, /\.pos-opt-actions\{flex:none/);
   assert.match(css, /\.pos-opt-choices label:has\(input:checked\)/, '選中態');
+  assert.match(css, /\.pos-opt-group\[data-opt=temperature\][^}]*background:#ffe7e2/, '溫度選中為紅底');
+  assert.match(css, /\.pos-opt-group\[data-opt=sugar\][^}]*background:#fff3bd/, '糖度選中為黃底');
+  assert.match(css, /\.pos-opt-group\[data-opt=ice\][^}]*background:#e1f2ff/, '冰塊選中為藍底');
   for (const m of css.matchAll(/\.pos-opt[^{]*\{[^}]*font-size:([\d.]+)rem/g)) assert.ok(Number(m[1]) >= 1, `pos-opt 字級 ${m[1]}rem`);
 });

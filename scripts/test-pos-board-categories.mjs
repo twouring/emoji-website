@@ -42,7 +42,9 @@ test('看板採市售 KDS 一單一卡；每道保留類別籤＋品名＋數量
   assert.match(css, /\.ops-line\{display:grid;grid-template-columns:auto 1fr/, '類別欄用 auto（直向平板放不下時膠囊換行），不用 max-content 撐出橫向捲軸');
   assert.match(css, /\.ops-qty\.many\{background:var\(--ink\);color:var\(--paper\)/);
   for (const k of ['default', 'option', 'custom']) assert.match(css, new RegExp(`\\.ops-spec-${k}\\{|\\.ops-spec\\{`), '三種規格籤樣式');
-  assert.match(css, /\.ops-name,\.ops-cat,\.ops-spec\{white-space:nowrap\}/, '品名與規格籤不拆字');
+  for (const k of ['temperature','sugar','ice','rice','noodle','custom']) assert.match(css, new RegExp(`\\.ops-spec-${k}\\{`), `${k} 有獨立底色`);
+  assert.match(css, /\.ops-cat\{white-space:nowrap\}/, '短類別籤維持單行');
+  assert.match(css, /\.ops-name,\.ops-spec\{white-space:normal;overflow-wrap:anywhere;max-width:100%\}/, '長品名與客製規格必須換行，不得被卡片裁掉');
   assert.match(css, /\.kds-grid\{columns:300px/, '卡片用 CSS columns 瀑布排欄，卡高不一不留空');
   assert.match(css, /\.kds-card\{[^}]*break-inside:avoid/, '卡片不跨欄被切');
   assert.match(css, /\.kds-card\.kds-late \.kds-age\{color:#b42318\}/, '超時卡片紅字');
@@ -54,13 +56,13 @@ test('規格拆籤：預設值淡化、非預設值深色、自由需求 ※；�
   const run = expr => JSON.parse(JSON.stringify(vm.runInContext(expr, c)));
   c.l = { cat: 'COFFEE', zh: '拿鐵咖啡', note: '溫度：冰；糖度：正常糖；冰塊：去冰；燕麥奶' };
   assert.deepEqual(run('specParts(l)'), [
-    { text: '冰', kind: 'default' }, { text: '正常糖', kind: 'default' }, { text: '去冰', kind: 'option' }, { text: '燕麥奶', kind: 'custom' },
+    { text: '冰', kind: 'default', tone: 'temperature' }, { text: '正常糖', kind: 'default', tone: 'sugar' }, { text: '去冰', kind: 'option', tone: 'ice' }, { text: '燕麥奶', kind: 'custom', tone: 'custom' },
   ]);
   c.r = { cat: 'JAPANESE', zh: '鮭魚親子丼', note: '飯量：飯多' };
-  assert.deepEqual(run('specParts(r)'), [{ text: '飯多', kind: 'option' }]);
+  assert.deepEqual(run('specParts(r)'), [{ text: '飯多', kind: 'option', tone: 'rice' }]);
   assert.deepEqual(run('specParts({cat:"BREAD",zh:"吐司"})'), [], '沒備註就沒籤');
-  assert.deepEqual(run('specParts({cat:"BREAD",zh:"吐司",note:"不要蔥"})'), [{ text: '不要蔥', kind: 'custom' }]);
-  assert.deepEqual(run('specParts({cat:"BREAD",zh:"吐司",note:"不要蔥、醬另放"})'), [{ text: '不要蔥', kind: 'custom' }, { text: '醬另放', kind: 'custom' }], '常用備註膠囊以「、」連接，拆成一顆一籤');
+  assert.deepEqual(run('specParts({cat:"BREAD",zh:"吐司",note:"不要蔥"})'), [{ text: '不要蔥', kind: 'custom', tone: 'custom' }]);
+  assert.deepEqual(run('specParts({cat:"BREAD",zh:"吐司",note:"不要蔥、醬另放"})'), [{ text: '不要蔥', kind: 'custom', tone: 'custom' }, { text: '醬另放', kind: 'custom', tone: 'custom' }], '常用備註膠囊以「、」連接，拆成一顆一籤');
   const c2 = ctx();
-  assert.deepEqual(JSON.parse(JSON.stringify(vm.runInContext('specParts({cat:"COFFEE",zh:"拿鐵",note:"溫度：冰；冰塊：正常冰"})', c2))), [{ text: '冰', kind: 'option' }, { text: '正常冰', kind: 'option' }], '沒 OrderLib 時不知道預設，一律深色（寧可多看一眼）');
+  assert.deepEqual(JSON.parse(JSON.stringify(vm.runInContext('specParts({cat:"COFFEE",zh:"拿鐵",note:"溫度：冰；冰塊：正常冰"})', c2))), [{ text: '冰', kind: 'option', tone: 'temperature' }, { text: '正常冰', kind: 'option', tone: 'ice' }], '沒 OrderLib 時不知道預設，一律深色（寧可多看一眼）');
 });
