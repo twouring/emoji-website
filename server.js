@@ -5105,6 +5105,9 @@ async function registerSummary(reg){
   const moves=(await q('SELECT id,type,amount,reason,staff,created_at FROM pos_cash_moves WHERE register_id=$1 ORDER BY created_at',[reg.id])).rows;
   const counts=(await q('SELECT id,counted_cash,expected_cash,diff,denominations,note,counted_by,created_at FROM pos_register_counts WHERE register_id=$1 ORDER BY created_at DESC',[reg.id])).rows;
   const summary=posRegister.expectedCash({opening_cash:reg.opening_cash,cash_sales:sales.by_method.cash||0,moves});
+  const methods=await paymentMethodsList(),accounts=posRegister.accountsOf(sales.by_method),labels={};
+  for(const m of methods){labels[m.code]=m.label;if(m.active&&m.code!=='cash'&&m.code!=='card')accounts[m.code]??=0;}
+  summary.reconciliation_accounts=accounts;summary.account_labels=labels;
   return {sales,moves,counts,summary,report:posRegister.registerReport({...reg,day:String(reg.day instanceof Date?reg.day.toISOString().slice(0,10):reg.day).slice(0,10),note:reg.close_note||reg.note},summary,sales,moves,counts[0]||null)};
 }
 const regDay=r=>({...r,day:r.day instanceof Date?r.day.toISOString().slice(0,10):String(r.day).slice(0,10)});
@@ -5172,7 +5175,9 @@ app.post('/api/admin/registers/:id/close',auth,adminOnly,requireDb,wrap(async(re
   const r=await loadOpenRegister(req,res);if(!r)return;
   if(r.closed_at)return res.status(409).json({error:'這本帳已經關過了。'});
   const s=await registerSummary(r);
-  let c;try{c=posRegister.closeRegister(req.body,s.summary);}catch(e){return res.status(e.status||400).json({error:e.message});}
+  const version=JSON.stringify([s.summary.expected,s.summary.opening_cash,s.summary.cash_in,s.summary.cash_out,s.sales.amount,s.summary.reconciliation_accounts]);
+  if(req.body?.reconciliation_version!==version)return res.status(409).json({error:'營收或帳戶已變更，請重新載入日結並逐項確認。'});
+  let c;try{c=posRegister.closeRegister(req.body,s.summary,{accounts:s.summary.reconciliation_accounts,labels:s.summary.account_labels,order_total:s.sales.amount});}catch(e){return res.status(e.status||400).json({error:e.message});}
   const closedBy=actorOf(req.auth)||'',closedAt=new Date().toISOString();
   const report=posRegister.registerReport({...r,closed_at:closedAt,closed_by:closedBy,...c,note:c.note},s.summary,s.sales,s.moves);
   const u=await q('UPDATE pos_registers SET closed_by=$2,closed_at=$3,counted_cash=$4,expected_cash=$5,diff=$6,keep_cash=$7,take_cash=$8,denominations=$9,close_note=$10,report=$11 WHERE id=$1 AND closed_at IS NULL',[r.id,closedBy,closedAt,c.counted_cash,c.expected_cash,c.diff,c.keep_cash,c.take_cash,c.denominations?JSON.stringify(c.denominations):null,c.note,JSON.stringify(report)]);

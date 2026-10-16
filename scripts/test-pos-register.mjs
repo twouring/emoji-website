@@ -80,17 +80,18 @@ test('應有現金 ＝ 零用金 ＋ 現金營收 ＋ 臨時收入 － 臨時支
 
 test('關帳：點鈔可填總額或面額；差額非 0 要說明；預設留零用金當下一班留存金', () => {
   const s = R.expectedCash({ opening_cash: 3000, cash_sales: 10000, moves: [] });
-  const ok = R.closeRegister({ counted_cash: 13000 }, s);
-  assert.deepEqual({ ...ok, denominations: undefined }, { counted_cash: 13000, expected_cash: 13000, diff: 0, note: '', keep_cash: 3000, take_cash: 10000, denominations: undefined });
-  assert.throws(() => R.closeRegister({ counted_cash: 12950 }, s), /差 -50，請填寫說明/);
-  const short = R.closeRegister({ counted_cash: 12950, note: '找零少 50' }, s);
+  const close = body => R.closeRegister({cash_confirmed:true,accounts:{linepay:{actual:0,confirmed:true},taishin:{actual:0,confirmed:true},transfer:{actual:0,confirmed:true}},total_reason:body.note||'',...body},s);
+  const ok = close({ counted_cash: 13000 });
+  assert.deepEqual({ ...ok, denominations: undefined }, { counted_cash: 13000, expected_cash: 13000, diff: 0, note: '', keep_cash: 3000, take_cash: 10000, denominations: undefined, cash_confirmed:true, accounts:{linepay:{pos:0,actual:0,diff:0,reason:'',confirmed:true,label:'linepay'},taishin:{pos:0,actual:0,diff:0,reason:'',confirmed:true,label:'taishin'},transfer:{pos:0,actual:0,diff:0,reason:'',confirmed:true,label:'transfer'}},cash_actual:10000,total_pos:10000,total_actual:10000,total_diff:0,total_reason:'' });
+  assert.throws(() => close({ counted_cash: 12950 }), /差 -50，請填寫說明/);
+  const short = close({ counted_cash: 12950, note: '找零少 50' });
   assert.equal(short.diff, -50);
-  const byDenom = R.closeRegister({ denominations: { 1000: 13, 100: 1 }, note: '多 100' }, s);
+  const byDenom = close({ denominations: { 1000: 13, 100: 1 }, note: '多 100' });
   assert.equal(byDenom.counted_cash, 13100); assert.equal(byDenom.diff, 100); assert.deepEqual(byDenom.denominations, { 1000: 13, 100: 1 });
-  const keep = R.closeRegister({ counted_cash: 13000, keep_cash: 5000 }, s);
+  const keep = close({ counted_cash: 13000, keep_cash: 5000 });
   assert.equal(keep.keep_cash, 5000); assert.equal(keep.take_cash, 8000);
-  assert.equal(R.closeRegister({ counted_cash: 2000, keep_cash: 5000, note: '短' }, s).keep_cash, 2000, '留存金不能超過點鈔');
-  assert.throws(() => R.closeRegister({}, s), /點鈔/);
+  assert.equal(close({ counted_cash: 2000, keep_cash: 5000, note: '短' }).keep_cash, 2000, '留存金不能超過點鈔');
+  assert.throws(() => close({}), /點鈔/);
 });
 
 test('小結點驗：點鈔可填總額或面額，只算差額不卡關、說明選填（不像關帳強制要求）', () => {

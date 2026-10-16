@@ -406,7 +406,15 @@ POS 關掉某筆客人的結帳需求（客人改口或已另外處理）；品�
 現金臨時收支。body `{ type:'in'|'out', amount, reason }`，金額正整數、原因必填；關帳後 409。回 `{ ok, id, type, amount, reason, expected_cash }`（201）。
 
 ### POST /api/admin/registers/:id/close
-關帳。body `{ counted_cash? , denominations?:{ "1000":3, "500":1, … }, keep_cash?, note? }`：點鈔可填總額或按面額填張數（面額限 2000/1000/500/200/100/50/20/10/5/1）；`diff = counted − expected`，差額非 0 時 `note` 必填；`keep_cash` 為留在抽屜給下一班的留存金，預設＝零用金。關帳後該品牌當日不可再結帳與記臨時收支。回 `{ ok, id, counted_cash, expected_cash, diff, keep_cash, take_cash, denominations, note, report }`；`report` 為關帳單（含現金、營收、付款方式、作廢、臨時收支）。
+關帳改為逐項日結確認。body `{ counted_cash?, denominations?:{ "1000":3, "500":1, … }, cash_confirmed:true, keep_cash?, note?, accounts:{ code:{actual,confirmed:true,reason?} }, total_reason?, reconciliation_version }`。
+
+- 先讀 `GET /api/admin/registers`：每本帳的 `reconciliation_accounts` 是伺服器依**該品牌、該營業日**計算的 POS 帳戶金額（歷史 `card` 併入 `taishin`）；固定 LINE Pay、刷卡／台新、轉帳，另含啟用的自訂帳戶與當日曾收款的已停用帳戶。即使 POS 為 0，也必須明確填 `actual:0` 並確認；不接受缺漏、未知帳戶、空白、null、布林或非整數金額。
+- `reconciliation_version = JSON.stringify([expected,opening_cash,cash_in,cash_out,sales.amount,reconciliation_accounts])`；送出前營收／帳戶變更回 409，須重新載入並確認。舊版只送現金的客戶端不再允許關帳。
+- 現金可按面額或總額點鈔；`cash_confirmed:true` 必填。現金差額非 0 時 `note` 必填；每個非現金帳戶 `actual − POS` 非 0 時各自 `reason` 必填，即使差額互抵也不能省略。
+- `cash_actual = counted_cash − opening_cash − cash_in + cash_out`。`total_pos` 取伺服器訂單營收原值；`total_actual = cash_actual + 各非現金帳戶實收`。總額相同直接關帳；不同時必須**另填** `total_reason`，不可借用現金原因。
+- `keep_cash` 為抽屜留存金，預設零用金。回傳原現金欄位加 `cash_confirmed, accounts, cash_actual, total_pos, total_actual, total_diff, total_reason, report`。所有核對金額、標籤、原因與總額凍結在 `report` JSON，重印沿用原紀錄，不需新增資料表。舊關帳單仍可重印。
+
+LINE Pay 為全店共用商店帳號，沿用依開關帳時段分配店別的機制與分店表格；`/sales/taishin` 手填紀錄仍涵蓋全店。保留參考與原操作，不自動當作單一品牌的已確認實收。關帳後該品牌當日不可再結帳與記臨時收支。
 
 ### POST /api/admin/registers/:id/reopen
 重開補單（僅超級管理員）。關帳紀錄保留，以留存金為零用金另開一本新帳接著記；當日任何品牌還有開著的帳回 409（另一品牌開著時訊息會說要先關誰）。回 `{ ok, id, day, venue, opening_cash }`（201）。
