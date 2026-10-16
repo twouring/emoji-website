@@ -78,3 +78,7 @@ test('every checkout starts with paper invoice and no-invoice is last',()=>{
  assert.match(src,/\[\['paper','紙本'\].*\['','不開立'\]\]/);
  assert.match(src,/POS_INVOICE.mode='paper';return reload/);
 });
+test('table panel offers pre-checkout kitchen and receipt printing',()=>{
+ assert.match(src,/id="pos-print-kitchen"/);assert.match(src,/id="pos-print-receipt"/);
+ assert.match(src,/printOrder\(tableTicket\(\)\)/);assert.match(src,/printReceipt\(tableTicket\(\)\)/);
+});
