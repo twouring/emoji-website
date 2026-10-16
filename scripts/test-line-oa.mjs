@@ -146,13 +146,13 @@ test('系統設定：LINE 金鑰為即時載入、機敏值加密、格式在存
 });
 
 /* ---- 路由層：真的 server.js 跑在 vm 沙盒，DB／外網都是替身 ---- */
-async function boot(t, extraEnv = {}) {
+async function boot(t, extraEnv = {}, dbRun) {
   // lib/line.js 在呼叫當下讀真實 process.env（與正式環境一致），所以路由測試要把 LINE 設定放進真實 env，結束後還原
   const keys = Object.keys(process.env).filter(k => k.startsWith('LINE_')), saved = Object.fromEntries(keys.map(k => [k, process.env[k]]));
   for (const k of keys) delete process.env[k];
   for (const [k, v] of Object.entries(extraEnv)) if (k.startsWith('LINE_')) process.env[k] = v;
   t.after(() => { for (const k of Object.keys(process.env)) if (k.startsWith('LINE_')) delete process.env[k]; Object.assign(process.env, saved); });
-  const run = async () => ({ rows: [], rowCount: 0 });
+  const run = dbRun || (async () => ({ rows: [], rowCount: 0 }));
   const localRequire = name => name === 'pg' ? { Pool: class { query = run; async connect() { return { query: run, release() {} }; } } } : createRequire(path.join(root, 'server.js'))(name);
   const module = { exports: {} };
   const context = vm.createContext({ require: localRequire, module, __dirname: root, process: { env: { NODE_ENV: 'test', APP_SECRET: 'test-secret', ADMIN_API_KEY: 'k', DATABASE_URL: 'x', PUBLIC_ORIGIN: 'http://127.0.0.1', ...extraEnv } },
@@ -162,6 +162,38 @@ async function boot(t, extraEnv = {}) {
   t.after(() => new Promise(r => { http.close(r); http.closeAllConnections(); }));
   return `http://127.0.0.1:${http.address().port}`;
 }
+
+test('會員 LINE 綁定入口要求登入，QR 拒絕偽造票券', async t => {
+  const base = await boot(t, {...env,EVENT_QR_SECRET:'qr-secret'});
+  assert.equal((await fetch(base+'/api/me/line-link',{method:'POST'})).status,401);
+  assert.equal((await fetch(base+'/api/line/qr/forged.png')).status,400);
+});
+
+test('會員綁定 state 鎖定已登入會員，callback 不會以另一個 Email 綁錯帳號',async t=>{
+  const {signToken,verifyToken}=require('../lib/security');
+  const sql=[];
+  const run=async(text,args)=>{sql.push({text,args});
+    if(text.startsWith('UPDATE users SET line_user_id'))return {rows:[],rowCount:1};
+    if(text==='SELECT id,email,is_admin,admin_brand FROM users WHERE id=$1')return {rows:[{id:'existing-member',email:'old@example.com',is_admin:false}],rowCount:1};
+    if(text==='SELECT id,name,email FROM users WHERE id=$1')return {rows:[{id:'existing-member',name:'Member',email:'old@example.com'}],rowCount:1};
+    if(text.includes('COUNT(*)'))return {rows:[{n:0}],rowCount:1};
+    return {rows:[],rowCount:0};
+  };
+  const base=await boot(t,{...env,LINE_LOGIN_CHANNEL_ID:'1234567890',LINE_LOGIN_CHANNEL_SECRET:'x'},run);
+  const oldExchange=line.exchangeCode;line.exchangeCode=async()=>({sub:'U'+'a'.repeat(32),email:'different@example.com',name:'LINE'});
+  t.after(()=>{line.exchangeCode=oldExchange;});
+  const member=signToken({sub:'existing-member',role:'invited'},'test-secret');
+  const start=await fetch(base+'/api/me/line-link',{method:'POST',headers:{authorization:'Bearer '+member}});
+  assert.equal(start.status,200);
+  const url=new URL((await start.json()).url),state=url.searchParams.get('state'),cookie=start.headers.get('set-cookie').split(';')[0];
+  assert.equal(verifyToken(state,'test-secret',{purpose:'line-oauth'}).b,'existing-member');
+  const callback=base+'/auth/line/callback?state='+encodeURIComponent(state)+'&code=test';
+  assert.equal((await fetch(callback,{redirect:'manual'})).status,400);
+  const done=await fetch(callback,{redirect:'manual',headers:{cookie}});assert.equal(done.status,302);
+  const update=sql.find(x=>x.text.startsWith('UPDATE users SET line_user_id'));
+  assert.equal(update.args[0],'existing-member');
+  assert.ok(!sql.some(x=>x.text.includes('lower(email)')));
+});
 
 test('POST /api/line/webhook：未設定 503、簽章錯 401、簽章對 200', async t => {
   const none = await boot(t);

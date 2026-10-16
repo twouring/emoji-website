@@ -8,6 +8,16 @@
 Base URL：`https://www.emoji.tw`（本地：`http://localhost:8080`）
 所有請求與回應皆為 JSON（檔案上傳除外，用 `multipart/form-data`）。
 
+## LINE 會員票券與用餐回饋
+
+### POST /api/me/line-link
+
+會員 Bearer session 啟動 LINE 帳號綁定；body 無欄位，不接受客戶端指定會員 ID。回 `{url}`（LINE OAuth 授權網址），並設定 HttpOnly / SameSite=Lax 的短效 state cookie。前端須於同一瀏覽器轉往 `url`。callback 只綁定經驗證 session 的會員，已綁定他人時回 409，不自動解除既有綁定。未登入 401，LINE Login 未設定 503。成功後會員可接收尚有效活動的 Flex 票券；會員頁有三語綁定按鈕。此端點不是付款 API。
+
+### GET /api/line/qr/:token.png
+
+LINE Flex 票券圖片（image/png），使用現有活動 `event-ticket` HMAC token；不含姓名／Email／電話。無效／過期 400，報名未成立、退款、取消、舊版本或無效加購票 404。每次產圖前查實際 `event_regs` / `event_attendees` / `event_ticket_orders` 狀態；`Cache-Control: no-store`、`Referrer-Policy: no-referrer`。QR 內容直接是既有核銷 token，沿用既有管理員核銷端點，不新增公開核銷。圖片 URL 是 bearer credential，不應記錄完整路徑／分享給他人。部署與排程規則見 [LINE 完整整合](LINE-COMPLETION.md)。
+
 ## POS 出餐單列印時機
 
 ### GET /api/admin/orders/kitchen-print-jobs

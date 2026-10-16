@@ -804,6 +804,8 @@ async function migrate() {
   await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS line_user_id TEXT, ADD COLUMN IF NOT EXISTS line_linked_at TIMESTAMPTZ`);
   await q(`CREATE UNIQUE INDEX IF NOT EXISTS users_line_user_id_uidx ON users(line_user_id) WHERE line_user_id IS NOT NULL`);
   await q(`ALTER TABLE dining_reservations ADD COLUMN IF NOT EXISTS line_user_id TEXT, ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ`);
+  await q(require('./lib/line-delivery').SCHEMA);
+  await q(`CREATE INDEX IF NOT EXISTS line_deliveries_due_idx ON line_deliveries(available_at) WHERE state='pending'`);
   await q(`CREATE TABLE IF NOT EXISTS line_events (id TEXT PRIMARY KEY, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE TABLE IF NOT EXISTS line_broadcasts (id TEXT PRIMARY KEY, segment TEXT NOT NULL, text TEXT NOT NULL, url TEXT NOT NULL DEFAULT '', recipients INT NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE UNIQUE INDEX IF NOT EXISTS users_phone_e164_uidx ON users(phone_e164) WHERE phone_e164 IS NOT NULL AND phone_e164<>''`);
@@ -1222,6 +1224,8 @@ async function expireEventAuthorizations(){
  }finally{await client.query('ROLLBACK');client.release();}}
 }
 async function notifyRegistration(userId,eventId){
+ // Independent from email configuration / confirmation_queued. Durable scan recovers transient failures.
+ await lineService.quiet('活動票券排程', () => lineDelivery.enqueueTickets(userId,eventId));
  try{
  const row=(await q(`SELECT r.id AS booking_id,r.ticket_version,r.language,r.confirmation_queued,u.email,u.name,e.* FROM event_regs r JOIN users u ON u.id=r.user_id JOIN events e ON e.id=r.event_id WHERE r.user_id=$1 AND r.event_id=$2 AND r.status='registered' AND e.status<>'已取消'`,[userId,eventId])).rows[0];
  if(!row||row.confirmation_queued)return;
@@ -1819,7 +1823,33 @@ const lineService = createLineService({
   q: (t, p) => q(t, p), uid, origin: () => SITE_BASE,
   yanBalance: async userId => yan.balance(await yanRowsFor({ query: (...a) => q(...a) }, userId)),
 });
+const lineDelivery = require('./lib/line-delivery').createLineDelivery({
+  q:(t,p)=>q(t,p),origin:()=>SITE_BASE,
+  buildTicket:async(serial,lang)=>EVENT_QR_SECRET ? eventWalletTicketBySerial(serial,lang) : null,
+});
 const LINE_REDIRECT_URI = OWN_BASE + '/auth/line/callback';
+// Start account linking only with an authenticated member request; never accept a user id from a URL.
+app.post('/api/me/line-link', auth, requireDb, wrap(async(req,res)=>{
+  if(!req.auth.sub)return res.status(403).json({error:'請先登入會員。'});
+  const lc=line.loginConfig();if(!lc)return res.status(503).json({error:'LINE 登入尚未開通。'});
+  const nonce=crypto.randomBytes(16).toString('hex');
+  const state=signToken({b:req.auth.sub,r:DEFAULT_MEMBER_URL,n:nonce},{purpose:'line-oauth'});
+  res.cookie('line_state',state,{httpOnly:true,sameSite:'lax',secure:SITE_BASE.startsWith('https://'),path:'/auth/line',maxAge:10*60*1000});
+  res.set('Cache-Control','no-store');
+  res.json({url:line.authorizeUrl(lc,{redirectUri:LINE_REDIRECT_URI,state,nonce})});
+}));
+app.get('/api/line/qr/:token.png', requireDb, rateLimit({max:120,windowMs:60000}), wrap(async(req,res)=>{
+  res.set({'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'});
+  const ticket=verifyAccessToken(String(req.params.token||''),EVENT_QR_SECRET);
+  if(!ticket||ticket.plan!=='event-ticket'||!Number.isInteger(ticket.version))return res.status(400).json({error:'票券無效或已過期。'});
+  const valid=await q(`SELECT 1 FROM event_regs r JOIN events e ON e.id=r.event_id
+    LEFT JOIN event_attendees a ON a.registration_id=r.id LEFT JOIN event_ticket_orders o ON o.id=a.order_id
+    WHERE r.id=$1 AND r.event_id=$2 AND r.ticket_version=$3 AND r.status='registered' AND e.status NOT IN ('已取消','草稿') AND COALESCE(e.event_details->>'mode','offline')<>'online'
+    AND (($4::text IS NULL AND r.quantity=1) OR a.id=$4) AND (a.order_id IS NULL OR o.status='registered') LIMIT 1`,
+    [ticket.ent,ticket.event,ticket.version,ticket.attendee||null]);
+  if(!valid.rowCount)return res.status(404).json({error:'找不到有效票券。'});
+  res.type('png').send(line.qrPng(String(req.params.token)));
+}));
 app.get('/auth/line', (req, res) => {
   const lc = line.loginConfig();
   if (!lc) return res.status(503).send('LINE 登入尚未開通。');
@@ -1846,17 +1876,22 @@ app.get('/auth/line/callback', wrap(async (req, res) => {
   if (!pool || !dbReady) return res.status(503).send('資料庫尚未就緒，請稍後再試。');
   const accountClient = await pool.connect(); let u;
   try {
-    u = await lineService.resolveLoginUser(prof, async (email, name) => {
+    if(st.b){
+      await lineService.bindUser(st.b,prof.sub);
+      u=(await q('SELECT id,name,email FROM users WHERE id=$1',[st.b])).rows[0];
+    } else u = await lineService.resolveLoginUser(prof, async (email, name) => {
       await accountClient.query('BEGIN');
       try { const a = await accountByEmail(accountClient, email, name, true); await accountClient.query('COMMIT'); return a; }
       catch (e) { await accountClient.query('ROLLBACK'); throw e; }
     });
-  } catch (e) { if (e.code === 'AMBIGUOUS_EMAIL') return res.status(409).send(e.message); throw e; }
+  } catch (e) { if (e.code === 'AMBIGUOUS_EMAIL' || e.status===409) return res.status(409).send('帳號綁定衝突，請聯絡店家處理。'); throw e; }
   finally { accountClient.release(); }
+  await lineService.quiet('綁定後活動票券',()=>lineDelivery.enqueueTickets(u.id));
   // 訂位完成頁帶來的綁定：把這個 LINE 掛到那筆訂位，並馬上推確認卡
   const rv = st.v ? verifyToken(st.v, { purpose: 'line-resv' }) : null;
   if (rv?.resv) {
-    await lineService.linkReservation(String(rv.resv), prof.sub);
+    const linked=await lineService.quiet('訂位綁定',()=>lineService.linkReservation(String(rv.resv), prof.sub));
+    if(!linked)return res.status(409).send('此訂位無法綁定，請聯絡店家。');
     return res.redirect(302, `${SITE_BASE}/line-linked.html`);
   }
   const isSuper = u.email && String(u.email).toLowerCase() === SUPER_ADMIN_EMAIL;
@@ -5579,6 +5614,11 @@ async function boot() {
         catch(e){console.error('[event-mail]',e.message);}finally{running=false;}
       });
     }
+    let lineDeliveryRunning=false;
+    require('node-cron').schedule('* * * * *',async()=>{
+      if(lineDeliveryRunning)return;lineDeliveryRunning=true;
+      try{await lineDelivery.run();}catch{console.error('[line-delivery] scheduler_failed');}finally{lineDeliveryRunning=false;}
+    });
     // LINE 訂位前一日提醒：每天 18:00（台北），一筆只提醒一次
     require('node-cron').schedule('0 18 * * *', () => lineService.sendReminders().catch(e => console.error('[line] 提醒失敗：', e.message)), { timezone: 'Asia/Taipei' });
     require('node-cron').schedule('0 9 * * *', () => remindExpiringMemberships()

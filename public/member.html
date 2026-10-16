@@ -746,9 +746,19 @@
       </div>
       ${renderFoundingLine(c)}
       <div class="m-actions">
+        <button class="btn btn--ghost" id="line-link">${LANG === 'en' ? 'Link LINE · event tickets' : LANG === 'ja' ? 'LINE連携・チケット' : '綁定 LINE・接收活動票券'}</button>
         <button class="btn btn--ghost" id="logout">${T.logout}</button>
       </div>`;
     if (me.name) try { localStorage.setItem('tth_name', me.name); } catch (e) {}
+    document.getElementById('line-link').onclick = async function () {
+      this.disabled = true;
+      try {
+        const r = await fetch(FELLOW + '/api/me/line-link', {method:'POST',headers:{authorization:'Bearer '+token}});
+        const out = await r.json();
+        if(!r.ok)throw Error(out.error || 'LINE linking failed');
+        location.assign(out.url);
+      } catch(e) { showToast(e.message); this.disabled=false; }
+    };
     document.getElementById('logout').onclick = () => {
       localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); location.reload();
     };
