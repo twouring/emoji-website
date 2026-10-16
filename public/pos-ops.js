@@ -521,7 +521,7 @@ async function printCheckoutOrder(order){
 async function printOrder(o,{auto=false}={}){
   if(starReady()){const ok=await starSend({canvas:ticketCanvas(kitchenTicketSpec(o))});if(!ok)toast('出餐單未印出，請到查單補印');return ok;}
   if(auto){starHint();return false;}
-  const sections=ticketGroups(o).map(([cat,lines])=>`<h2>${esc(catLabel(cat))}</h2>`+lines.map(l=>{const parts=specParts(l),opts=parts.filter(p=>p.kind!=='custom').map(p=>p.text),custom=parts.filter(p=>p.kind==='custom').map(p=>p.text);return `<div class="l k"><span>${esc(l.zh)}${l.comp_reason?'（贈）':''}</span><span>×${l.qty}</span></div>${ordererOf(l)?`<div class="n">👤 ${esc(ordererOf(l))}</div>`:''}${opts.length?`<div class="n">${esc(opts.join('／'))}</div>`:''}${custom.map(t=>`<div class="n">※ ${esc(t)}</div>`).join('')}`;}).join('')).join('');
+  const sections=ticketGroups(o).map(([cat,lines])=>`<h2>${esc(catLabel(cat))}</h2>`+lines.map(l=>{const parts=specParts(l),opts=parts.filter(p=>p.kind!=='custom').map(p=>p.text),custom=parts.filter(p=>p.kind==='custom').map(p=>p.text);return `<div class="l k"><span>${esc(l.zh)}${l.comp_reason?'（贈）':''}</span><span>×${l.qty}</span></div>${ordererOf(l)?`<div class="n">${esc(ordererOf(l))}</div>`:''}${opts.length?`<div class="n">${esc(opts.join('／'))}</div>`:''}${custom.map(t=>`<div class="n">※ ${esc(t)}</div>`).join('')}`;}).join('')).join('');
   const count=(o.items||[]).filter(l=>!l.cancelled).reduce((a,l)=>a+l.qty,0);
   printWindow(`出餐單 ${ticketTableLabel(o)}`,`<div class="c">出餐單</div><h1 class="k">${isTakeoutNo(o.table_no)?'外帶':'桌號'} ${esc(o.table_no)}</h1><div class="m c">${esc(applicationTime(o.paid_at||o.placed_at))}</div>${sections}<hr class="sep"><div class="c">共 ${count} 件<br>單號 ${esc(o.id||o.order_id||'')}</div>`);
 }
