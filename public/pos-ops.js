@@ -535,14 +535,11 @@ async function loadOrders(){
   const board=[...(d.tickets||[]).map(t=>({...t,at:t.placed_at})),...d.orders.map(o=>({...o,at:o.paid_at}))].sort((a,b)=>a.at<b.at?-1:1);
   const ids=new Set(board.map(o=>o.id));if(ORDERS_SEEN&&[...ids].some(id=>!ORDERS_SEEN.has(id)))ordersBeep();ORDERS_SEEN=ids;
   // 資料沒變就不重繪，避免自動更新時把正要按的按鈕換掉（經過時間每分鐘更新一次）
-  const sig=JSON.stringify([board.map(o=>[o.id,o.status,o.push_count,o.items.length,o.served||0]),d.pause,Math.floor(Date.now()/60000)]);
+  const sig=JSON.stringify([board.map(o=>[o.id,o.status,o.push_count,o.items.length,o.served||0]),Math.floor(Date.now()/60000)]);
   const again=()=>{ORDERS_TIMER=setTimeout(()=>{if(document.getElementById('orders-body')&&TAB==='orders')loadOrders();},10000);};
   if(host.dataset.sig===sig&&host.querySelector('#qr-tables')){again();return;}
   host.dataset.sig=sig;
-  const qrTables=host.querySelector('#qr-tables')?.value??'';
-  const anyPaused=Object.values(d.pause||{}).some(p=>p.paused);
-  const pauseEdit=Object.entries(d.pause||{}).map(([v,p])=>`<div class="ops-pause ${p.paused?'on':''}" data-pause-venue="${esc(v)}"><label><input type="checkbox" data-pause-on ${p.paused?'checked':''}> <b>${esc(BRAND_LABEL[v]||v)}</b> 暫停點餐</label><input data-pause-msg id="pause-msg-${esc(v)}" maxlength="80" placeholder="給客人的文案，點下面常用句或自己填" value="${esc(p.message)}"><button class="btn btn--ghost btn-sm" data-pause-save>儲存</button>${p.paused?'<span class="pill pill-bad">客人目前無法加菜</span>':''}${reasonChips('pause-msg-'+v,PAUSE_PRESETS)}</div>`).join('');
-  const cancelBtn=(o,l)=>o.status!=='placed'?` <button type="button" class="btn btn--ghost btn-xs" data-cancel-item="${esc(o.id)}" data-cancel-line="${esc(l.line)}" data-cancel-name="${esc(l.zh)}">取消</button>`:'';
+    const cancelBtn=(o,l)=>o.status!=='placed'?` <button type="button" class="btn btn--ghost btn-xs" data-cancel-item="${esc(o.id)}" data-cancel-line="${esc(l.line)}" data-cancel-name="${esc(l.zh)}">取消</button>`:'';
   // 桌邊送單每一道各自出餐：沒出的有「出餐」鍵，出過的劃線；整張都出完才從看板消失
   const serveLineBtn=(o,l)=>o.status!=='placed'||l.served_at?'':` <button type="button" class="btn btn--ghost btn-xs" data-serve-line="${esc(l.line)}" data-serve-ticket="${esc(o.ticket)}" data-session="${esc(o.session_id)}" aria-label="出餐 ${esc(l.zh)}">出餐</button>`;
   // 每一道一個區塊：類別籤靠左、品名加粗放大、數量 ×2 以上反白（最常見的錯是做少）、規格拆成標籤（預設淡、非預設深、自由需求 ※ 琥珀）、出餐／取消鍵靠右
@@ -562,25 +559,44 @@ async function loadOrders(){
     :card(o,o.paid_at,o.status==='ready'?'可取餐':'已結帳',o.status==='paid'?`<button class="btn btn--solid" data-order="${esc(o.id)}" data-status="ready">出餐並通知</button>${printBtn(o)}`:`<button class="btn btn--ghost" data-order="${esc(o.id)}" data-status="done">已取餐</button>`)).join('')||'<p class="a-empty kds-empty">目前沒有待出餐的單</p>';
   const pending=board.filter(o=>o.status!=='ready').length;
   host.innerHTML=`<div class="ops-head"><h2>出餐${pending?` <span class="kds-count">${pending}</span>`:''}</h2>${opsHelp(`客人掃桌上 QR 點餐，按「送出點餐」後會直接出現在這裡；做好一道按那一道的「出餐」，全部好了按「整筆出餐」，客人手機會跳通知；用餐完到 <a href="${opsHref('pos')}" data-tab="pos">櫃檯結帳</a>。櫃檯先收款的單（外帶、先結後做）也在這裡，按「出餐並通知」會推播給客人到櫃檯取餐。卡頭的分鐘數＝等候時間，8 分轉黃、15 分轉紅；深色規格＝客人有改、※＝自由需求。每 10 秒自動更新，有新單會響一聲。`)}</div>
-    ${pauseEdit?`<details class="ops-fold"${anyPaused?' open':''}><summary>${anyPaused?'⚠ 目前暫停點餐中':'暫停點餐'}</summary><div class="ops-pauses">${pauseEdit}</div></details>`:''}
-    <div class="kds-grid">${cards}</div>
-    <details class="ops-fold" style="margin-top:28px"><summary>桌號 QR（列印貼桌）</summary>
-    <div class="a-toolbar"><input id="qr-tables" placeholder="例：A1,A2,A3,B1" style="min-width:260px" value="${esc(qrTables)}"><button type="button" class="btn btn--ghost btn-sm" id="qr-all">全部固定桌</button><button class="btn btn--solid btn-sm" id="qr-make">產生</button><button class="btn btn--ghost btn-sm" id="qr-print" hidden>列印</button></div>
-    <div id="qr-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-top:12px"></div></details>`;
+    <div class="kds-grid">${cards}</div>`;
   const reload=()=>{host.dataset.sig='';return loadOrders();};
   host.querySelectorAll('[data-order]').forEach(b=>b.onclick=()=>opsThen(()=>api('/admin/orders/'+b.dataset.order+'/status',{method:'POST',body:{status:b.dataset.status}}),out=>out.status==='ready'?`已出餐，推播 ${out.notified} 台裝置`:'已標記取餐',reload));
   host.querySelectorAll('[data-serve]').forEach(b=>b.onclick=()=>opsThen(()=>api('/admin/orders/sessions/'+b.dataset.session+'/tickets/'+b.dataset.serve+'/serve',{method:'POST',body:{}}),'整筆已出餐，客人用餐完再到櫃檯結帳',reload));
   host.querySelectorAll('[data-serve-line]').forEach(b=>b.onclick=()=>opsThen(()=>api('/admin/orders/sessions/'+b.dataset.session+'/tickets/'+b.dataset.serveTicket+'/serve',{method:'POST',body:{lines:[b.dataset.serveLine]}}),out=>{const left=(out.items||[]).filter(l=>l.ticket===b.dataset.serveTicket&&!l.served_at&&!l.order_id).length;return left?`已出餐，這張還有 ${left} 道`:'這張送單全部出完';},reload));
   bindOrderButtons(host,board,reload);bindReasonChips(host);
   host.querySelectorAll('[data-cancel-item]').forEach(b=>b.onclick=()=>cancelOrderItemPrompt(b.dataset.cancelItem,b.dataset.cancelLine,b.dataset.cancelName,reload,d.orders.find(o=>o.id===b.dataset.cancelItem)));
-  host.querySelectorAll('[data-pause-save]').forEach(b=>b.onclick=()=>{const box=b.closest('[data-pause-venue]');opsThen(()=>api('/admin/orders/pause',{method:'POST',body:{venue:box.dataset.pauseVenue,paused:box.querySelector('[data-pause-on]').checked,message:box.querySelector('[data-pause-msg]').value}}),out=>out.pause[box.dataset.pauseVenue].paused?'已暫停點餐，客人掃碼會看到你的文案':'已恢復點餐',reload);});
-  host.querySelector('#qr-all').onclick=()=>{host.querySelector('#qr-tables').value=DEFAULT_TABLES.join(',');host.querySelector('#qr-make').click();};
-  host.querySelector('#qr-make').onclick=async()=>{const tables=host.querySelector('#qr-tables').value.trim();if(!tables)return;try{const out=await api('/admin/tables/qr?tables='+encodeURIComponent(tables));const grid=host.querySelector('#qr-grid');grid.innerHTML='';for(const t of out.tables){const url=await new Promise((ok,no)=>QRCode.toDataURL(t.url,{width:360,margin:1},(e,u)=>e?no(e):ok(u)));grid.insertAdjacentHTML('beforeend',`<div class="qr-card" style="text-align:center;border:1px solid #ddd;border-radius:10px;padding:12px;background:#fff"><img src="${url}" alt="桌號 ${esc(t.table)}" style="width:100%"><div style="font-size:1.6em;font-weight:700">桌號 ${esc(t.table)}</div><div class="hint" style="margin:0">掃碼點餐 · 言文字</div></div>`);}host.querySelector('#qr-print').hidden=false;}catch(e){toast(e.message);}};
-  host.querySelector('#qr-print').onclick=()=>{const w=window.open('','_blank');w.document.write('<title>桌號 QR</title><style>body{font-family:sans-serif;margin:0}.g{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px}.g>div{break-inside:avoid;text-align:center;border:1px solid #ccc;border-radius:10px;padding:12px}img{width:100%}</style><div class="g">'+host.querySelector('#qr-grid').innerHTML+'</div>');w.document.close();w.focus();w.print();};
   again();
 }
 
 /* 櫃檯結帳：桌況格 → 點桌號 → 未結帳品項（數量±、贈送、作廢、勾選分帳）→ 點選菜單加點 → 折扣／付款方式／會員價／現金實收找零 → 收款；也能換桌併桌、清桌 */
+// 結帳頁頂端：暫停點餐＝每個店別一顆按鈕（按下選文案才暫停；暫停中再按一下恢復）、桌號 QR＝按鈕開面板
+function posPauseHtml(pause){
+  return Object.entries(pause||{}).map(([v,p])=>`<button type="button" class="btn ${p.paused?'btn--solid':'btn--ghost'} btn-sm pos-pause-btn ${p.paused?'on':''}" data-pause-venue="${esc(v)}" data-paused="${p.paused?'1':''}" data-pause-msg="${esc(p.message||'')}" aria-pressed="${p.paused?'true':'false'}">${p.paused?'⏸ '+esc(BRAND_LABEL[v]||v)+' 暫停點餐中・按此恢復':'暫停 '+esc(BRAND_LABEL[v]||v)+' 點餐'}</button>`).join('');
+}
+function bindPosPause(host,reload){
+  host.querySelectorAll('[data-pause-venue]').forEach(b=>b.onclick=async()=>{
+    const venue=b.dataset.pauseVenue,label=BRAND_LABEL[venue]||venue;
+    if(b.dataset.paused){if(!confirm(`恢復 ${label} 點餐？客人掃碼就能再加菜。`))return;return opsThen(()=>api('/admin/orders/pause',{method:'POST',body:{venue,paused:false,message:b.dataset.pauseMsg||''}}),'已恢復點餐',reload);}
+    const message=await pickReason({title:`暫停 ${label} 點餐`,presets:PAUSE_PRESETS,placeholder:'給客人看的文案',maxlength:80});
+    if(message===null)return;
+    opsThen(()=>api('/admin/orders/pause',{method:'POST',body:{venue,paused:true,message}}),'已暫停點餐，客人掃碼會看到你的文案',reload);
+  });
+}
+function openTableQr(){
+  const ov=document.createElement('div');ov.className='op-overlay';document.body.appendChild(ov);
+  const close=()=>{if(ov.parentNode)ov.parentNode.removeChild(ov);};
+  ov.innerHTML=`<div class="op-card" role="dialog" aria-label="桌號 QR" style="max-width:720px;max-height:90vh;overflow:auto"><h2>桌號 QR（列印貼桌）</h2>
+    <div class="a-toolbar"><input id="qr-tables" placeholder="例：A1,A2,A3,B1" style="min-width:220px"><button type="button" class="btn btn--ghost btn-sm" id="qr-all">全部固定桌</button><button class="btn btn--solid btn-sm" id="qr-make">產生</button><button class="btn btn--ghost btn-sm" id="qr-print" hidden>列印</button></div>
+    <div id="qr-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-top:12px"></div>
+    <div class="op-card-actions"><button type="button" class="btn btn--ghost" id="qr-close">關閉</button></div></div>`;
+  const host=ov;
+  ov.querySelector('#qr-close').onclick=close;ov.addEventListener('click',e=>{if(e.target===ov)close();});
+  ov.querySelector('#qr-tables').value=DEFAULT_TABLES.join(',');
+  host.querySelector('#qr-make').onclick=async()=>{const tables=host.querySelector('#qr-tables').value.trim();if(!tables)return;try{const out=await api('/admin/tables/qr?tables='+encodeURIComponent(tables));const grid=host.querySelector('#qr-grid');grid.innerHTML='';for(const t of out.tables){const url=await new Promise((ok,no)=>QRCode.toDataURL(t.url,{width:360,margin:1},(e,u)=>e?no(e):ok(u)));grid.insertAdjacentHTML('beforeend',`<div class="qr-card" style="text-align:center;border:1px solid #ddd;border-radius:10px;padding:12px;background:#fff"><img src="${url}" alt="桌號 ${esc(t.table)}" style="width:100%"><div style="font-size:1.6em;font-weight:700">桌號 ${esc(t.table)}</div><div class="hint" style="margin:0">掃碼點餐 · 言文字</div></div>`);}host.querySelector('#qr-print').hidden=false;}catch(e){toast(e.message);}};
+  host.querySelector('#qr-print').onclick=()=>{const w=window.open('','_blank');w.document.write('<title>桌號 QR</title><style>body{font-family:sans-serif;margin:0}.g{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px}.g>div{break-inside:avoid;text-align:center;border:1px solid #ccc;border-radius:10px;padding:12px}img{width:100%}</style><div class="g">'+host.querySelector('#qr-grid').innerHTML+'</div>');w.document.close();w.focus();w.print();};
+  host.querySelector('#qr-all').onclick=()=>{host.querySelector('#qr-tables').value=DEFAULT_TABLES.join(',');host.querySelector('#qr-make').click();};
+}
 async function loadPos(){
   const host=document.getElementById('pos-body');if(!host)return;
   clearTimeout(POS_TIMER);
@@ -588,7 +604,7 @@ async function loadPos(){
   try{[POS_DATA,REG_DATA]=await Promise.all([api('/admin/orders'+scopeQuery('all=1')),api('/admin/registers'+scopeQuery()).catch(()=>null)]);}catch(e){if(host.querySelector('.pos-grid'))toast('更新失敗：'+e.message);else host.innerHTML=`<div class="a-sec"><h2>櫃檯結帳</h2><p class="a-empty">載入失敗：${esc(e.message)}</p></div>`;POS_TIMER=setTimeout(()=>{if(document.getElementById('pos-body')&&TAB==='pos')loadPos();},15000);return;}
   // 後台系統設定新增／停用自訂收款帳戶後，這台 POS 不用重新整理頁面，最慢 15 秒內跟著這支輪詢更新
   if(POS_DATA.payment_methods)DATA.payment_methods=POS_DATA.payment_methods;
-  const sig=JSON.stringify([POS_DATA.sessions.map(s=>[s.id,s.unpaid,s.unpaid_amount,s.state,s.lines.map(l=>[l.line,l.qty,l.price,l.comp_reason||'',l.placed_at||'']),(s.pay_requests||[]).map(r=>[r.id,r.amount,r.count])]),POS_DATA.orders.map(o=>[o.id,o.status,o.invoice?.status]),Object.entries(POS_DATA.reservations||{}).map(([t,rs])=>[t,rs.map(r=>[r.id,r.time,r.status])]),REG_DATA&&Object.entries(REG_DATA.current||{}).map(([v,r])=>[v,r?.id,r?.closed_at]),(DATA.payment_methods||[]).map(m=>[m.code,m.label,m.active])]);
+  const sig=JSON.stringify([POS_DATA.pause,POS_DATA.sessions.map(s=>[s.id,s.unpaid,s.unpaid_amount,s.state,s.lines.map(l=>[l.line,l.qty,l.price,l.comp_reason||'',l.placed_at||'']),(s.pay_requests||[]).map(r=>[r.id,r.amount,r.count])]),POS_DATA.orders.map(o=>[o.id,o.status,o.invoice?.status]),Object.entries(POS_DATA.reservations||{}).map(([t,rs])=>[t,rs.map(r=>[r.id,r.time,r.status])]),REG_DATA&&Object.entries(REG_DATA.current||{}).map(([v,r])=>[v,r?.id,r?.closed_at]),(DATA.payment_methods||[]).map(m=>[m.code,m.label,m.active])]);
   // 客人手機按「通知櫃檯我要結帳」：第一次看到的需求響一聲（和新單同一個音）
   const reqIds=new Set(POS_DATA.sessions.flatMap(s=>(s.pay_requests||[]).map(r=>r.id)));if(PAYREQ_SEEN&&[...reqIds].some(id=>!PAYREQ_SEEN.has(id)))ordersBeep();PAYREQ_SEEN=reqIds;
   // 開帳表單打開時不要被 15 秒自動刷新重畫（會清掉正在填的張數）
@@ -675,7 +691,7 @@ function paintPos(){
       ${live.length?`<h3>這桌已結帳的單</h3><div class="a-wrap2"><table class="a-tbl pos-paid"><thead><tr><th>品項 · 時間 · 狀態</th><th>付款</th><th class="num">金額</th><th class="ops-th">操作</th></tr></thead><tbody>${liveRows}</tbody></table></div>`:''}
     </div>`;
   }
-  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('點空桌或按「開桌」選桌位；點已開的桌看這桌的帳；外帶按「＋ 外帶」。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div>${kitchenPrintStatusHtml()}${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>'}${opener}<div class="pos-grid">${grid}</div></div>${panel}</div>`;
+  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('點空桌或按「開桌」選桌位；點已開的桌看這桌的帳；外帶按「＋ 外帶」。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div>${kitchenPrintStatusHtml()}${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>'}<div class="a-toolbar pos-tools"><button type="button" class="btn btn--ghost btn-sm" id="pos-table-qr">桌號 QR</button>${posPauseHtml(d.pause)}</div>${opener}<div class="pos-grid">${grid}</div></div>${panel}</div>`;
   if(!document.getElementById('p-drawer'))bindCashDrawerButton(host.querySelector('#pos-cash-drawer'));
   const resumePrint=host.querySelector('#pos-print-resume');if(resumePrint)resumePrint.onclick=()=>{resumeKitchenPrinting();if(KITCHEN_PRINT_PAUSED)return;paintPos();return pollKitchenPrinting();};
   host.querySelectorAll('[data-pos-table]').forEach(b=>b.onclick=()=>{POS_TABLE=b.dataset.posTable;POS_PICK=null;POS_QTY={};POS_PAYREQ=null;POS_SPLIT={};POS_DISCOUNT=null;POS_DISC_OPEN=false;POS_RECEIVED='';paintPos();});
@@ -743,6 +759,7 @@ function paintPos(){
     const groups=itemOptionGroups(it);
     if(!groups.length)return send({item_id:b.dataset.add,qty:1,note});
     openItemOptions(it,groups,note,send);});
+  host.querySelector('#pos-table-qr').onclick=openTableQr;bindPosPause(host,reload);
   bindReasonChips(host);bindNoteChips(host);
   // 常用折扣：一鍵帶入類型與數值，原因仍要選（按「套用」才生效）
   host.querySelectorAll('[data-disc-quick]').forEach(b=>b.onclick=()=>{const [t,v]=b.dataset.discQuick.split(':');host.querySelector('#pos-disc-type').value=t;host.querySelector('#pos-disc-value').value=v;host.querySelectorAll('[data-disc-quick]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));});
