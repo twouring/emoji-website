@@ -367,3 +367,42 @@ tr.lp-refund td{color:var(--danger)}
 .pos-open .btn--solid{flex:1 1 160px;min-height:56px;font-size:1.05rem}
 .pos-open .btn--ghost{flex:0 0 auto;min-height:48px}
 .pos-sub{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px;padding-top:12px;border-top:1px dashed var(--muted)}.pos-sub .a-toolbar{margin:0}
+/* 結帳面板精簡：品項操作收進 ⋯、次要資訊縮小，避免橫向與多餘垂直捲動 */
+.pos-lines td.ops-actions,.pos-layout.has-panel .pos-panel .pos-lines td.ops-actions{min-width:0;width:1%;text-align:right;position:relative}
+.ops-more{display:inline-block}.ops-more>summary{list-style:none;cursor:pointer;min-width:48px;min-height:48px;justify-content:center}.ops-more>summary::-webkit-details-marker{display:none}
+.ops-more[open]>.ops-btns{position:absolute;right:0;top:100%;z-index:20;flex-direction:column;align-items:stretch;min-width:160px;padding:8px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(20,18,16,.16)}
+.ops-more>.ops-btns .btn{min-height:48px;justify-content:center}
+.pos-layout.has-panel .pos-panel .pos-lines td.ops-item{min-width:0}
+.pos-pay{gap:10px;margin-top:10px;padding-top:10px}
+.pos-method span{min-height:48px}
+.pos-sum>div{min-height:48px}
+.pos-layout.has-panel .pos-panel h2 .hint--end{display:none}
+.pos-actions{display:block}.pos-actions-sub{align-items:center}.pos-more{position:relative}.pos-more>summary{min-height:48px;display:inline-flex;align-items:center}
+.pos-more[open]>.pos-more-menu{position:absolute;bottom:100%;left:0;z-index:20;display:flex;flex-direction:column;min-width:200px;gap:6px;padding:8px;margin-bottom:6px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(20,18,16,.16)}
+.pos-more-menu .btn{min-height:48px;justify-content:center}
+.pos-actions #pos-close{justify-self:auto}
+.pos-sum>div.pos-sum-member{min-height:48px;padding-top:2px;padding-bottom:2px}
+.pos-sum>div[hidden]{display:none}
+@media(min-width:1000px){
+.pos-layout.has-panel .pos-panel-scroll{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,.9fr);column-gap:16px;grid-template-rows:auto auto auto 1fr;align-content:start;overflow:auto}
+.pos-panel-scroll>*{grid-column:1/-1;min-height:0}
+.pos-panel-scroll>.pos-lines-wrap{grid-column:1;grid-row:2;overflow:auto;max-height:100%}
+.pos-panel-scroll>.pos-menu-box{grid-column:1;grid-row:3}
+.pos-panel-scroll>.pos-pay{grid-column:2;grid-row:2/span 3;margin-top:0;padding-top:0;border-top:0;overflow:auto;align-content:start}
+.pos-panel-scroll>.pos-payreqs{grid-row:auto}
+}
+.pos-lines{table-layout:auto;width:100%}.pos-lines td.ops-item,.pos-layout.has-panel .pos-panel .pos-lines td.ops-item{min-width:0;white-space:normal;overflow-wrap:anywhere}
+.pos-lines .hint{white-space:normal}
+@media(min-width:1000px){.pos-layout.has-panel .pos-panel-scroll{grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr)}}
+.a-tbl.pos-lines td.ops-item .hint{white-space:normal}
+.a-tbl.pos-lines td.ops-item{min-width:0}
+@media(max-width:600px){.pos-lines th,.pos-lines td{padding-left:4px!important;padding-right:4px!important}.pos-lines td.pos-qty-col .pos-qty button{width:44px}.pos-lines td:first-child{width:28px}.pos-lines .num{font-size:1rem}}
+@media(min-width:1000px){
+.pos-layout.has-panel .pos-panel-scroll{grid-template-rows:auto auto auto auto minmax(0,1fr);overflow:hidden}
+.pos-panel-scroll>.pos-lines-wrap{grid-row:2;max-height:34vh}
+.pos-panel-scroll>.pos-menu-box{grid-column:1;grid-row:3}
+.pos-panel-scroll>.pos-invoice{grid-column:1;grid-row:4;margin-top:8px;overflow:auto;max-height:100%}
+.pos-panel-scroll>.pos-pay{grid-column:2;grid-row:2/span 4;display:grid;overflow:auto;margin-top:0;padding-top:0;border-top:0;align-content:start}
+.pos-pay>.pos-methods{grid-template-columns:repeat(2,1fr)}
+}
+.pos-more,.pos-more-menu{display:none}
