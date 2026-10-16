@@ -123,6 +123,11 @@
   <p class="m-note" id="m-qr-overlay-meta"></p>
   <img id="m-qr-overlay-img" alt="" width="220" height="220" style="border-radius:12px;background:#fff;padding:12px">
 </div>
+<div class="m-overlay" id="m-card-overlay" hidden aria-modal="true" role="dialog" aria-label="card">
+  <button type="button" class="x" id="m-card-close" aria-label="Close">×</button>
+  <p class="m-note" id="m-card-overlay-meta"></p>
+  <img id="m-card-overlay-img" alt="" width="220" height="220" style="border-radius:12px;background:#fff;padding:12px">
+</div>
 
 <!--SITE_FOOTER-->
 
@@ -209,6 +214,12 @@
       nameReadonly: '姓名資料由 Google 帳號提供，目前僅供檢視、無法在此修改。',
       regOk: '已完成報名',
       unregOk: '已取消報名',
+      yanTitle: '言點',
+      yanHint: '三品牌通用。消費每滿 100 元累積 1 點，隔年 4/30 到期。現場結帳出示會員卡或報手機。',
+      yanCard: '會員卡',
+      yanUntil: '有效至 ',
+      yanFail: '目前無法產生會員卡',
+      yanOffline: '暫時無法連線，請稍後再試。',
       locale: 'zh-TW',
     },
     en: {
@@ -292,6 +303,12 @@
       nameReadonly: 'Your name comes from your Google account. View only for now.',
       regOk: 'Registered',
       unregOk: 'Registration cancelled',
+      yanTitle: 'Yan points',
+      yanHint: 'Earn 1 point per NT$100 across all three brands. Points expire on 30 Apr the following year. Show this card or your phone number at checkout.',
+      yanCard: 'Member card',
+      yanUntil: 'valid until ',
+      yanFail: 'Could not generate member card',
+      yanOffline: 'Could not reach the card service. Please try again.',
       locale: 'en-US',
     },
     ja: {
@@ -368,6 +385,12 @@
       nameReadonly: '氏名は Google アカウントから取得されており、現時点では閲覧のみでここでは編集できません。',
       regOk: '申込みが完了しました',
       unregOk: '申込みを取消しました',
+      yanTitle: '言ポイント',
+      yanHint: '3ブランド共通。100元ごとに1ポイント。翌年4/30まで有効。会計時に会員カードまたは携帯電話番号を提示。',
+      yanCard: '会員カード',
+      yanUntil: '有効期限 ',
+      yanFail: '会員カードを発行できません',
+      yanOffline: '接続できません。しばらくしてから再試行してください。',
       locale: 'ja-JP',
     },
   };
@@ -555,6 +578,30 @@
   const qrCloseBtn = document.getElementById('m-qr-close');
   if (qrCloseBtn) qrCloseBtn.onclick = closeQrOverlay;
   if (qrOverlayEl) qrOverlayEl.addEventListener('click', e => { if (e.target === qrOverlayEl) closeQrOverlay(); });
+  const cardOverlayEl = document.getElementById('m-card-overlay');
+  const cardCloseBtn = document.getElementById('m-card-close');
+  if (cardCloseBtn) cardCloseBtn.onclick = () => { if (cardOverlayEl) cardOverlayEl.hidden = true; };
+  if (cardOverlayEl) cardOverlayEl.addEventListener('click', e => { if (e.target === cardOverlayEl) cardOverlayEl.hidden = true; });
+  async function openMemberCard() {
+    const ov = document.getElementById('m-card-overlay');
+    const img = document.getElementById('m-card-overlay-img');
+    const meta = document.getElementById('m-card-overlay-meta');
+    if (!ov || !img || !meta) return;
+    ov.hidden = false;
+    try {
+      const r = await fetch(FELLOW + '/api/me/card', { headers: { authorization: 'Bearer ' + token } });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { img.style.display = 'none'; meta.textContent = d.error || T.yanFail; return; }
+      img.style.display = '';
+      img.src = await qrDataUrl(d.token);
+      const exp = d.exp ? fmtTime(d.exp * 1000) : '';
+      meta.textContent = (d.name || '') + (exp ? T.yanUntil + exp : '');
+    } catch (e) {
+      img.style.display = 'none';
+      meta.textContent = T.yanOffline;
+    }
+  }
+
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && qrOverlayEl && !qrOverlayEl.hidden) closeQrOverlay();
   });
@@ -675,6 +722,12 @@
       </div>
       ${data.role === 'admin' ? `<div style="margin:0 0 1.4rem"><a class="btn btn--solid" href="/admin">${T.goAdmin}</a></div>` : ''}
       ${renderNotice(data.events)}
+      <section class="m-panel" id="m-yan">
+        <div class="m-eyebrow">${esc(T.yanTitle)}</div>
+        <div class="m-stat-grid"><div class="m-stat m-stat--hi"><span>${esc(T.yanTitle)}</span><b>${esc(String((data.yan&&data.yan.balance)||0))}</b></div></div>
+        <p class="m-note" style="margin-top:0">${esc(T.yanHint)}</p>
+        <div class="m-btn-row"><button type="button" class="btn btn--solid" id="m-yan-card">${esc(T.yanCard)}</button></div>
+      </section>
       ${renderStatus(data)}
       <div class="m-quiet" id="m-events">
         <h3 class="m-sec-title">${T.eventsTitle}</h3>
@@ -725,6 +778,8 @@
     const togglePlansDrawer = () => { if (plansDrawer) plansDrawer.hidden = !plansDrawer.hidden; };
     if (plansToggle) plansToggle.onclick = togglePlansDrawer;
     if (plansPrimary) plansPrimary.onclick = togglePlansDrawer;
+    const yanCardBtn = document.getElementById('m-yan-card');
+    if (yanCardBtn) yanCardBtn.onclick = openMemberCard;
     if (qrOverlayEl && !qrOverlayEl.hidden) startQrRefresh(true);
   }
 
@@ -790,6 +845,10 @@
       if (!r.ok) throw Object.assign(new Error('state ' + r.status), { status: r.status });
       const data = await r.json();
       data.commitments = (data.commitments || []).filter(c => c.user_id === data.me?.id);
+      try {
+        const yr = await fetch(FELLOW + '/api/me/yan', { headers: { authorization: 'Bearer ' + token } });
+        data.yan = yr.ok ? await yr.json() : { balance: 0 };
+      } catch (e) { data.yan = { balance: 0 }; }
       renderMember(data);
     } catch (e) {
       if (e.status === 401) { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); return renderLoggedOut(); }

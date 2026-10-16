@@ -316,6 +316,9 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 
 現金退還 opt-in 規則與整單作廢相同；`cash_refund` 為此次實際扣減金額（不超過剩餘訂單金額，混合付款時也不超過實收現金），只有明確 `refund_cash:true`、這張單有收現金且金額大於 0 才回 `event_key: refund:<order_id>:<line>` 並在同一交易保存退還意圖。預設 `cash_refund:0`，純帳務調整不開櫃。整單與單項取消均使用訂單列鎖，避免同時取消覆蓋金額；已取消的品項重送回 409。
 
+### POST /api/admin/yan/lookup
+POS 查／建會員。body `{ phone }`（台灣手機）或 `{ token }`（會員卡 QR）。回 `{ ok, member:{id,name,phone}, balance }`。沒有帳號就用手機建立。品牌子帳號可用。
+
 ### POST /api/admin/orders/:id/invoice/issue
 補開 ezPay 電子發票。用於結帳時 ezPay 暫時失敗或當下未設定憑證的單。body 可帶 `{ invoice }`，未帶時使用訂單內已保存的發票要求；`invoice` 格式同櫃檯結帳的 `invoice` 欄位。作廢單不能補開；已開立且有號碼則直接回原發票資料。若狀態是已開立但 `number` 空白（ezPay 回應沒解析到號碼），不會重開，而是以 `invoice_search`（自訂編號＋金額）向 ezPay 查回號碼並更新訂單，回 `{ ok, invoice, synced: true }`；查不到回 404。回 `{ ok, invoice }`。
 
@@ -338,7 +341,7 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 POS 關掉某筆客人的結帳需求（客人改口或已另外處理）；品項不動。回 `{ ok, pay_requests[] }`。
 
 ### POST /api/admin/orders/sessions/:id/checkout
-櫃檯收款（POS）。body `{ method: cash|card|linepay|transfer, payments?: [{ method, amount }], prepay?: 金額, member?: boolean, lines?: [], quantities?: { 行號: 份數 }, discount?, received?, name?, note?, invoice?, operator_id? }`。**混合付款**：`payments` 給兩筆以上（最多 6）`{ method, amount }`（每筆為已啟用的付款方式、正整數金額），合計須等於應收否則 400；此時 `payer.method='mixed'`、`payer.payments[]` 存各筆，`received`／`change` 只對現金那幾筆算，日結 `by_method` 依各筆拆到各付款方式，開錢櫃與退現金只看現金部分。只給一筆就視同該付款方式。**先收部分金額**：`prepay: n`（正整數、須小於這桌目前未結金額，否則 400）不綁品項，另開一張「部分付款」單（`payer.prepay=true`、品項一行 `prepay:true` 的「部分付款」），並在桌上留一行負數「已預收」（`credit_of`＝那張單號、不能改／作廢），下次結帳時一併勾選就自動抵扣；要取消預收請作廢那張部分付款單（會把抵扣行一起拿掉；抵扣已用在後面的結帳單時回 409，要先作廢後面那張）。預收不套會員價、不折扣。`operator_id` 是 `POST /api/admin/staff/verify` 認出的員工 id，記這筆是誰收的款（存進 `payer.operator_id/operator_name`），查不到就忽略不擋收款。`lines` 空＝全桌未結帳品項，指定＝只結那些（分帳）。`quantities` 部分結帳：指定行只結其中幾份（1 到該行數量的整數，否則 400），原行扣掉份數留在桌上，已結的份數以新行（`part_of`＝原行號）記在這張單。`member: true` 以菜單會員價重算（只有設了會員價且較低的品項會變）。`discount` 為整單折扣：`{ type:'percent', value:1–100, reason }` 或 `{ type:'amount', value, reason }`（金額不得超過小計、原因必填），金額順序為 會員價 → 小計 → 折扣 → 應收。`received` 只在現金時用：客人給的現金（整數、不少於應收），伺服器算 `change` 找零並一起記在 `payer`。`invoice` 為 ezPay 電子發票要求，可不帶或 `{ mode:'' }` 表示不開；可帶 `{ mode:'paper' }` 紙本、`{ mode:'company', buyer_ubn, buyer_name?, buyer_email? }` 統編、`{ mode:'mobile', carrier_num }` 手機載具、`{ mode:'citizen', carrier_num }` 自然人憑證、`{ mode:'donate', love_code }` 捐贈；有折扣時發票明細會多一列負數「折扣」讓品項加總＝總額。金額由伺服器重算；成功建立出餐單（進出餐看板）並鎖定品項，回 `{ ok, order_id, amount, subtotal, discount, received, change, method, payments?, prepay, member, closed, remaining, invoice }`。內用桌整桌結清（包含零元未付品項都已結帳）且目前帳號具整桌清桌權限時，在同一交易自動關閉桌位，並將該場未取餐訂單標記 `done`；`closed:true` 表示已自動清桌。分帳仍有未付品項、超出品牌權限的混桌不自動清桌；外帶維持結清且取餐完成後釋出號碼。若 ezPay 尚未設定或暫時失敗，收款訂單仍成立，`invoice.status='failed'`，可用補開端點重試。品牌子帳號只能結自己店別的品項（403）。
+櫃檯收款（POS）。body `{ method: cash|card|linepay|transfer, payments?: [{ method, amount }], prepay?: 金額, member?: boolean, member_phone?, member_token?, yan_points?, lines?: [], quantities?: { 行號: 份數 }, discount?, received?, name?, note?, invoice?, operator_id? }`。`member_phone` 為台灣手機（09 開頭），沒有帳號就建立；`member_token` 為 `/api/me/card` 的會員卡 QR。有綁會員時該筆消費每滿 NT$100 累積 1 言點（預收不算），回 `yan:{earned,redeemed,balance}`。`yan_points` 為折抵點數（1 點＝1 元，不得超過應收與餘額）。作廢整張單會沖回該單累點／折抵。**混合付款**：`payments` 給兩筆以上（最多 6）`{ method, amount }`（每筆為已啟用的付款方式、正整數金額），合計須等於應收否則 400；此時 `payer.method='mixed'`、`payer.payments[]` 存各筆，`received`／`change` 只對現金那幾筆算，日結 `by_method` 依各筆拆到各付款方式，開錢櫃與退現金只看現金部分。只給一筆就視同該付款方式。**先收部分金額**：`prepay: n`（正整數、須小於這桌目前未結金額，否則 400）不綁品項，另開一張「部分付款」單（`payer.prepay=true`、品項一行 `prepay:true` 的「部分付款」），並在桌上留一行負數「已預收」（`credit_of`＝那張單號、不能改／作廢），下次結帳時一併勾選就自動抵扣；要取消預收請作廢那張部分付款單（會把抵扣行一起拿掉；抵扣已用在後面的結帳單時回 409，要先作廢後面那張）。預收不套會員價、不折扣。`operator_id` 是 `POST /api/admin/staff/verify` 認出的員工 id，記這筆是誰收的款（存進 `payer.operator_id/operator_name`），查不到就忽略不擋收款。`lines` 空＝全桌未結帳品項，指定＝只結那些（分帳）。`quantities` 部分結帳：指定行只結其中幾份（1 到該行數量的整數，否則 400），原行扣掉份數留在桌上，已結的份數以新行（`part_of`＝原行號）記在這張單。`member: true` 以菜單會員價重算（只有設了會員價且較低的品項會變）。`discount` 為整單折扣：`{ type:'percent', value:1–100, reason }` 或 `{ type:'amount', value, reason }`（金額不得超過小計、原因必填），金額順序為 會員價 → 小計 → 折扣 → 應收。`received` 只在現金時用：客人給的現金（整數、不少於應收），伺服器算 `change` 找零並一起記在 `payer`。`invoice` 為 ezPay 電子發票要求，可不帶或 `{ mode:'' }` 表示不開；可帶 `{ mode:'paper' }` 紙本、`{ mode:'company', buyer_ubn, buyer_name?, buyer_email? }` 統編、`{ mode:'mobile', carrier_num }` 手機載具、`{ mode:'citizen', carrier_num }` 自然人憑證、`{ mode:'donate', love_code }` 捐贈；有折扣時發票明細會多一列負數「折扣」讓品項加總＝總額。金額由伺服器重算；成功建立出餐單（進出餐看板）並鎖定品項，回 `{ ok, order_id, amount, subtotal, discount, received, change, method, payments?, prepay, member, closed, remaining, invoice }`。內用桌整桌結清（包含零元未付品項都已結帳）且目前帳號具整桌清桌權限時，在同一交易自動關閉桌位，並將該場未取餐訂單標記 `done`；`closed:true` 表示已自動清桌。分帳仍有未付品項、超出品牌權限的混桌不自動清桌；外帶維持結清且取餐完成後釋出號碼。若 ezPay 尚未設定或暫時失敗，收款訂單仍成立，`invoice.status='failed'`，可用補開端點重試。品牌子帳號只能結自己店別的品項（403）。
 
 ### POST /api/admin/orders/sessions/:id/tickets/:ticket/serve
 看板出餐（品項層級）。body `{ lines?: [] }`：給了只把那幾行標 `served_at`（部分出餐，送單留在看板、已出的行劃線），沒給＝「整筆出餐」把這張送單全部標完。全部出完的送單才從看板消失（仍未結帳，留在這桌的帳上）。沒有任何一行可標（都出過、或行不在這張送單）回 404；品牌子帳號只能出自己店別的（403）。回更新後的場。`GET /api/admin/orders` 的 `tickets[]` 多 `served`（已出幾行）、`partial`。客人手機端輪詢到自己這桌有品項新標 `served_at` 時會跳頁內通知＋提示音。結帳時若勾選的品項都已出餐，出餐單直接以 `done` 建立，不再回到看板。
@@ -574,6 +577,12 @@ X 貼文 AI 起草：body `{ topic }`，回 `{ ok, draft: { title, caption, capt
 
 ### GET /api/me/access-qr
 取得 45 秒有效的進出 QR token。
+
+### GET /api/me/yan
+登入會員的言點餘額。回 `{ ok, balance, phone }`。消費每滿 NT$100 累積 1 點，隔年 4/30 到期；作廢出餐單會沖回。agent 金鑰 403。
+
+### GET /api/me/card
+數位會員卡 QR（120 秒）。回 `{ token, exp, name, phone }`。現場 POS 掃描或報手機即可累點。agent 金鑰 403。
 
 ### POST /api/me/profile
 更新自己的姓名與電話。body：`{ name, phone? }`（姓名 1–80 字、電話 40 字以內），回 `{ ok, me }`。Email 由 Google 登入決定，不可改。

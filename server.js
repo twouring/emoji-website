@@ -32,6 +32,7 @@ const eventWallets=require('./lib/event-wallets');
 const eventCrypto=require('./lib/event-crypto');
 const eventChannels=require('./lib/event-channels');
 const tableOrders=require('./lib/table-orders');
+const yan=require('./lib/yan');
 const kitchenPrint=require('./lib/pos-kitchen-print');
 const ezpayInvoice=require('./lib/ezpay-invoice');
 const linepay=require('./lib/linepay');
@@ -788,6 +789,22 @@ async function migrate() {
   // 訂位後台：客人 Email（寄確認信）、排桌、店內備註、處理人；狀態多 arrived（舊庫改 CHECK）
   await q(`ALTER TABLE dining_reservations ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS table_no TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS staff_note TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS handled_by TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`);
   await q(`ALTER TABLE dining_reservations ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`);
+  await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_e164 TEXT`);
+  await q(`CREATE UNIQUE INDEX IF NOT EXISTS users_phone_e164_uidx ON users(phone_e164) WHERE phone_e164 IS NOT NULL AND phone_e164<>''`);
+  await q(`CREATE TABLE IF NOT EXISTS yan_ledger (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK (kind IN ('earn','void_earn','redeem','void_redeem')),
+    delta INT NOT NULL,
+    brand TEXT NOT NULL DEFAULT '',
+    ref_type TEXT NOT NULL DEFAULT 'order',
+    ref_id TEXT NOT NULL,
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS yan_ledger_user_idx ON yan_ledger(user_id, created_at)`);
+  await q(`CREATE UNIQUE INDEX IF NOT EXISTS yan_ledger_kind_ref_uidx ON yan_ledger(kind, ref_id)`);
+  await q(`ALTER TABLE table_orders ADD COLUMN IF NOT EXISTS user_id TEXT`);
   await q(`ALTER TABLE dining_reservations DROP CONSTRAINT IF EXISTS dining_reservations_status_check`);
   await q(`ALTER TABLE dining_reservations ADD CONSTRAINT dining_reservations_status_check CHECK (status IN ('new','confirmed','arrived','cancelled','no_show'))`);
   // 場地申請＝待審的活動：申請送出即建立草稿活動，review_status 記審核結果（NULL＝平台自建）。舊申請補建。
@@ -1437,7 +1454,7 @@ function doorAuth(req, res, next) {
    言文字共用（會員發點、會費、消息、社群、廣告、活動、行事曆／場地申請）對「所有」品牌子帳號開放，
    不分品牌——對應 admin 後台把這些分頁併入言文字工作區、開放給所有品牌子帳號的決定；
    「權限管理」「系統設定」「操作紀錄」刻意不在這裡，維持言文字管理員專屬。 */
-const FOOD_API = /^\/api\/admin\/(orders|tables|content|menu|reservations|sales|registers|staff|shifts|attendance|payment-methods|pos-devices)(\/|$)/;
+const FOOD_API = /^\/api\/admin\/(orders|tables|content|menu|reservations|sales|registers|staff|shifts|attendance|payment-methods|pos-devices|yan)(\/|$)/;
 const SHARED_API = /^\/api\/admin\/(updates|commitments|events|event-applications|social|ads|upload\/social|x\/compose|ig)(\/|$)/;
 const BRAND_API = { CAFE: FOOD_API, BAR: FOOD_API };
 const ADMIN_BRANDS = Object.keys(BRAND_API);
@@ -4071,13 +4088,96 @@ app.get('/api/checkout/verify', wrap(async (req, res) => {
 }));
 
 /* ---- 會員資料、一般會籍線上購買、場地檔期、後台操作紀錄 ---- */
+async function yanRowsFor(clientOrPool, userId) {
+  const run = clientOrPool.query ? clientOrPool : { query: (...a) => q(...a) };
+  return (await run.query('SELECT id,user_id,kind,delta,brand,ref_type,ref_id,expires_at,created_at FROM yan_ledger WHERE user_id=$1 ORDER BY created_at',[userId])).rows;
+}
+async function insertYanRow(client, rec) {
+  await client.query(`INSERT INTO yan_ledger(id,user_id,kind,delta,brand,ref_type,ref_id,expires_at,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [rec.id, rec.user_id, rec.kind, rec.delta, rec.brand || '', rec.ref_type || 'order', rec.ref_id, rec.expires_at, rec.created_at]);
+}
+async function persistYanDiff(client, before, after) {
+  const known = new Set(before.map(r => r.id));
+  for (const rec of after) if (!known.has(rec.id)) await insertYanRow(client, rec);
+}
+async function findOrCreateMemberByPhone(client, phoneRaw, name) {
+  const phone = yan.normalizeTwPhone(phoneRaw);
+  if (!phone) throw Object.assign(Error('請輸入台灣手機（09 開頭 10 碼）。'), { status: 400 });
+  await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,1))',[phone]);
+  let user = (await client.query('SELECT id,name,email,phone,phone_e164 FROM users WHERE phone_e164=$1 LIMIT 1',[phone])).rows[0];
+  if (user) return user;
+  const display = String(name || '').trim().slice(0, 80) || phone;
+  user = { id: uid('u_'), name: display, email: null, phone, phone_e164: phone };
+  await client.query(`INSERT INTO users(id,name,email,phone,phone_e164,status) VALUES($1,$2,$3,$4,$5,'已查看')`,[user.id, user.name, user.email, phone, phone]);
+  return user;
+}
+async function applyYanForCheckout(client, { user, orderId, amount, brand, prepay, redeemPoints }) {
+  if (!user || !orderId) return { earned: 0, redeemed: 0, balance: 0 };
+  const before = await yanRowsFor(client, user.id);
+  let rows = before, earned = 0, redeemed = 0;
+  if (redeemPoints) {
+    const r = yan.applyRedeem(rows, { orderId, points: redeemPoints, amount, userId: user.id });
+    rows = r.rows; redeemed = r.used;
+  }
+  const e = yan.applyEarn(rows, { userId: user.id, orderId, amount: amount - redeemed, brand, prepay });
+  rows = e.rows; earned = e.delta;
+  await persistYanDiff(client, before, rows);
+  return { earned, redeemed, balance: yan.balance(rows) };
+}
+async function reverseYanForOrder(client, orderId) {
+  const existing = (await client.query('SELECT user_id FROM yan_ledger WHERE ref_id=$1 LIMIT 1',[orderId])).rows[0];
+  if (!existing) return;
+  const before = await yanRowsFor(client, existing.user_id);
+  let rows = yan.applyVoidEarn(before, { orderId }).rows;
+  rows = yan.applyVoidRedeem(rows, { orderId }).rows;
+  await persistYanDiff(client, before, rows);
+}
+
+app.get('/api/me/yan', auth, requireDb, wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  const rows = await yanRowsFor({ query: (...a) => q(...a) }, req.auth.sub);
+  res.json({ ok: true, balance: yan.balance(rows), phone: (await q('SELECT phone_e164 FROM users WHERE id=$1',[req.auth.sub])).rows[0]?.phone_e164 || '' });
+}));
+app.get('/api/me/card', auth, requireDb, wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  const secret = process.env.ACCESS_QR_SECRET || SECRET;
+  const me = (await q('SELECT id,name,phone_e164 FROM users WHERE id=$1',[req.auth.sub])).rows[0];
+  if (!me) return res.status(404).json({ error: '找不到帳號。' });
+  const token = signAccessToken(yan.cardClaims(me), secret, { ttlSec: 120 });
+  const payload = verifyAccessToken(token, secret);
+  res.json({ token, exp: payload.exp, name: me.name || '', phone: me.phone_e164 || '' });
+}));
+app.post('/api/admin/yan/lookup', auth, adminOnly, requireDb, wrap(async (req, res) => {
+  const token = String(req.body?.token || '').trim();
+  const secret = process.env.ACCESS_QR_SECRET || SECRET;
+  let user = null;
+  if (token) {
+    const p = verifyAccessToken(token, secret);
+    if (!p || p.plan !== 'yan-card') return res.status(400).json({ error: '會員卡無效或過期。' });
+    user = (await q('SELECT id,name,email,phone,phone_e164 FROM users WHERE id=$1',[p.sub])).rows[0];
+    if (!user) return res.status(404).json({ error: '找不到這位會員。' });
+  } else {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      user = await findOrCreateMemberByPhone(client, req.body?.phone, req.body?.name);
+      await client.query('COMMIT');
+    } catch (e) { await client.query('ROLLBACK').catch(()=>{}); return res.status(e.status||400).json({ error: e.message }); }
+    finally { client.release(); }
+  }
+  const rows = await yanRowsFor({ query: (...a) => q(...a) }, user.id);
+  res.json({ ok: true, member: { id: user.id, name: user.name, phone: user.phone_e164 || user.phone || '' }, balance: yan.balance(rows) });
+}));
+
 app.post('/api/me/profile', auth, requireDb, wrap(async (req, res) => {
   if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
   const name = String(req.body?.name ?? '').trim();
   const phone = String(req.body?.phone ?? '').trim();
   if (!name || name.length > 80 || name.includes('\0')) return res.status(400).json({ error: '請填寫姓名（80 字以內）。' });
   if (phone.length > 40 || phone.includes('\0')) return res.status(400).json({ error: '電話格式不正確（40 字以內）。' });
-  const row = (await q(`UPDATE users SET name=$2,phone=$3,phone_verified_at=CASE WHEN phone=$3 THEN phone_verified_at ELSE NULL END WHERE id=$1 RETURNING id,name,email,phone`, [req.auth.sub, name, phone])).rows[0];
+  const e164 = yan.normalizeTwPhone(phone);
+  if (phone && !e164) return res.status(400).json({ error: '請輸入台灣手機（09 開頭 10 碼），現場才能累積言點。' });
+  const row = (await q(`UPDATE users SET name=$2,phone=$3,phone_e164=$4,phone_verified_at=CASE WHEN phone=$3 THEN phone_verified_at ELSE NULL END WHERE id=$1 RETURNING id,name,email,phone,phone_e164`, [req.auth.sub, name, phone, e164])).rows[0];
   if (!row) return res.status(404).json({ error: '找不到帳號。' });
   res.json({ ok: true, me: row });
 }));
@@ -4468,22 +4568,27 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
   try{await client.query('BEGIN');
     const s=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
     if(!s||s.status!=='open'){await client.query('ROLLBACK');return res.status(s?409:404).json({error:s?'這桌已結束。':'找不到這桌。'});}
-    let out,invoice,regWarn='';try{out=tableOrders.posCheckout(s.items,{...req.body,staff:actorOf(req.auth)||'',operator},menuAll,await activePaymentCodes());invoice=ezpayInvoice.invoiceForm(req.body?.invoice||{});
+    let out,invoice,regWarn='',memberUser=null,yanOut={earned:0,redeemed:0,balance:0};try{out=tableOrders.posCheckout(s.items,{...req.body,staff:actorOf(req.auth)||'',operator},menuAll,await activePaymentCodes());invoice=ezpayInvoice.invoiceForm(req.body?.invoice||{});
       // 開關帳：品項所屬品牌今天的帳要開著（關帳後不能再結；沒開帳時超管放行但回警告，子帳號擋）
       regWarn=posRegister.checkoutAllowed(out.lines,await registersOpenMap(client,tableOrders.MenuLib.businessDay()),{strict:!!venues}).warning;
     }catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
     if(!out.lines.every(l=>tableOrders.itemInVenues(l,venues))){await client.query('ROLLBACK');return res.status(403).json({error:'這桌含有其他品牌品項，請只勾選自己店別的品項結帳，或由言文字管理員處理。'});}
+    const cardTok=String(req.body?.member_token||'').trim(),phoneRaw=String(req.body?.member_phone||'').trim();
+    if(cardTok){const p=verifyAccessToken(cardTok,process.env.ACCESS_QR_SECRET||SECRET);if(!p||p.plan!=='yan-card'){await client.query('ROLLBACK');return res.status(400).json({error:'會員卡無效或過期。'});}memberUser=(await client.query('SELECT id,name,phone,phone_e164 FROM users WHERE id=$1',[p.sub])).rows[0];if(!memberUser){await client.query('ROLLBACK');return res.status(404).json({error:'找不到這位會員。'});}}
+    else if(phoneRaw){try{memberUser=await findOrCreateMemberByPhone(client,phoneRaw,req.body?.name);}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}}
+    if(memberUser){out.payer={...out.payer,member:true,member_id:memberUser.id,member_phone:memberUser.phone_e164||memberUser.phone||''};}
     const orderId=uid('to_'),set=new Set(out.lines.map(l=>l.line)),orderLines=out.lines.map(l=>({...l,order_id:orderId})),items=tableOrders.settleItems(s.items,out.lines,orderId,out.credit);
+    if(memberUser){try{yanOut=await applyYanForCheckout(client,{user:memberUser,orderId,amount:out.amount,brand:(out.lines.find(l=>l.venue)||{}).venue||'',prepay:!!out.payer.prepay,redeemPoints:req.body?.yan_points});}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}if(yanOut.redeemed)out.payer={...out.payer,yan_redeemed:yanOut.redeemed,yan_earned:yanOut.earned};else out.payer={...out.payer,yan_earned:yanOut.earned};}
     // 桌邊送單且全部已出餐的品項，結帳時直接記為已取餐（不再回到出餐看板）；有還沒出的照舊進看板
     const served=out.lines.every(l=>l.served_at);
-    await client.query('INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,invoice,status,done_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[orderId,s.id,s.table_no,JSON.stringify(orderLines),out.amount,JSON.stringify(out.payer),JSON.stringify(invoice||{}),served?'done':'paid',served?new Date():null]);
+    await client.query('INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,invoice,status,done_at,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',[orderId,s.id,s.table_no,JSON.stringify(orderLines),out.amount,JSON.stringify(out.payer),JSON.stringify(invoice||{}),served?'done':'paid',served?new Date():null,memberUser?.id||null]);
     // 內用採離場結帳：整桌結清即清桌；分帳、跨品牌權限與外帶取餐流程保留。
     const closed=!tableOrders.isTakeout(s.table_no)&&tableOrders.unpaid(items).length===0&&tableOrders.sessionClosableByVenues(s,venues);
     if(closed)await client.query("UPDATE table_orders SET status='done',done_at=now() WHERE session_id=$1 AND status IN ('paid','ready')",[s.id]);
     await client.query('UPDATE table_sessions SET items=$2,status=$3,pay_requests=$4,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),closed?'closed':'open',JSON.stringify(tableOrders.prunePayRequests(s.pay_requests,items))]);
     await client.query('COMMIT');
     const invoiceOut=await storeInvoiceResult({id:orderId,table_no:s.table_no,items:orderLines,amount:out.amount,discount:out.discount},invoice);
-    res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,received:out.payer.received,change:out.payer.change,method:out.payer.method,payments:out.payer.payments,prepay:!!out.payer.prepay,member:out.payer.member,closed,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut,warning:regWarn||undefined});
+    res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,received:out.payer.received,change:out.payer.change,method:out.payer.method,payments:out.payer.payments,prepay:!!out.payer.prepay,member:out.payer.member,yan:memberUser?yanOut:undefined,closed,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut,warning:regWarn||undefined});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 app.post('/api/admin/orders/:id/invoice/issue',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -4557,6 +4662,7 @@ app.post('/api/admin/orders/:id/void',auth,adminOnly,requireDb,wrap(async(req,re
   const method=o.payer?.method||null,cash_refund=req.body?.refund_cash===true?tableOrders.cashPaid(o.payer,o.amount):0;
   const event_key=cash_refund>0?`refund:${o.id}`:undefined;
   const payer={...o.payer,...(event_key?{drawer_refunds:{...o.payer?.drawer_refunds,[event_key]:cash_refund}}:{})};
+    await reverseYanForOrder(client,o.id);
     await client.query("UPDATE table_orders SET status='void',void_reason=$2,voided_by=$3,voided_at=now(),invoice=$4,payer=$5 WHERE id=$1",[o.id,reason,actorOf(req.auth)||'',JSON.stringify(nextInvoice),JSON.stringify(payer)]);
     const s=(await client.query("SELECT id,items,status FROM table_sessions WHERE id=$1 FOR UPDATE",[o.session_id])).rows[0];
     // 退回未結帳：會員價還原為原價；贈送（comp_reason）維持贈送

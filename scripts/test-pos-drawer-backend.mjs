@@ -23,7 +23,7 @@ function harness(o=order(),options={}){
  let lock=Promise.resolve();
  const connect=async()=>{let unlock=null;return {async query(sql,p){if(sql.includes('FROM table_orders')&&sql.includes('FOR UPDATE')){const previous=lock;lock=new Promise(resolve=>{unlock=resolve;});await previous;}const out=await query(sql,p);if((sql==='COMMIT'||sql==='ROLLBACK')&&unlock){unlock();unlock=null;}return out;},release(){if(unlock)unlock();}};};
  const pass=()=>{};
- const context={app:{post:(p,...handlers)=>routes.set(p,handlers)},auth:pass,adminOnly:pass,requireDb:pass,wrap:f=>f,q:query,pool:{connect},tableOrders,ORDER_ID_RE:/^to_[a-z0-9]{16}$/,resolveOperator:async(req,id)=>id==='staff-ok'?{id,name:'小明'}:null,actorOf:a=>a.email,uid:p=>p+(++serial),ezpayInvoice:{config:()=>null},Date,console};
+ const context={app:{post:(p,...handlers)=>routes.set(p,handlers)},auth:pass,adminOnly:pass,requireDb:pass,wrap:f=>f,q:query,pool:{connect},tableOrders,ORDER_ID_RE:/^to_[a-z0-9]{16}$/,resolveOperator:async(req,id)=>id==='staff-ok'?{id,name:'小明'}:null,actorOf:a=>a.email,uid:p=>p+(++serial),ezpayInvoice:{config:()=>null},reverseYanForOrder:async()=>{},Date,console};
  for(const route of ['/api/admin/pos/drawer-events','/api/admin/orders/:id/void','/api/admin/orders/:id/items/:line/void']){
   const start=source().indexOf(`app.post('${route}'`);if(start<0)continue;
   const end=source().indexOf('\n}));',start)+6;vm.runInNewContext(source().slice(start,end),context);
