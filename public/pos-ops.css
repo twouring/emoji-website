@@ -430,3 +430,10 @@ tr.lp-refund td{color:var(--danger)}
 .pos-table .pos-detail-items{color:var(--ink);font-weight:600}
 .pos-table.on .pos-detail{border-top-color:rgba(255,255,255,.35)}.pos-table.on .pos-detail-items{color:var(--paper)}
 .pos-open .pos-pause-btn{flex:0 0 auto;min-height:48px;padding:10px 14px}
+
+/* 編輯桌位：拖拉排序 */
+.pos-grid-edit{touch-action:none;user-select:none;-webkit-user-select:none}
+.pos-grid-edit .pos-drag{cursor:grab;border:2px dashed var(--ink);background:var(--card);touch-action:none;min-height:92px}
+.pos-grid-edit .pos-drag.dragging{position:relative;z-index:5;opacity:.9;box-shadow:0 8px 24px rgba(0,0,0,.25);cursor:grabbing}
+.pos-grid-edit .pos-drag-grip{color:var(--muted)}
+.pos-editing .hint{margin:0 0 12px}

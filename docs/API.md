@@ -370,6 +370,9 @@ POS 關掉某筆客人的結帳需求（客人改口或已另外處理）；品�
 ### POST /api/admin/orders/sessions/:id/close
 清桌：未取餐的單標記已取餐、這桌下一次掃碼開新場。**有未結帳品項時回 409**（請先結帳或逐項作廢，避免漏收）；言文字管理員可帶 body `{ force: true }` 強制清桌並作廢未結品項。
 
+### POST /api/admin/orders/table-layout
+儲存 POS 桌況格的排列順序（全店共用）。Body：`{order:["A1","B2",...]}`。`GET /api/admin/orders` 會回傳 `table_layout`。
+
 ### POST /api/admin/orders/pause
 暫停點餐開關（依店別）。body `{ venue: CAFE|BAR, paused: boolean, message? }`（文案 80 字內，客人掃碼會看到）。存 `site_content.ordering_pause`。回 `{ ok, pause }`。
 

@@ -231,6 +231,7 @@ function pickCarrier(kind){
     inp.focus();
   });
 }
+let POS_EDIT=false,POS_EDIT_ORDER=null;
 let POS_INV_SCAN_STREAM=null,POS_INV_SCAN_FRAME=0;
 // 發票各類型只顯示自己要填的欄位（點選後才出現），手機載具可用相機掃描條碼代替手打
 function stopPosInvoiceScanner(video){
@@ -752,6 +753,7 @@ async function loadPos(){
   // 客人手機按「通知櫃檯我要結帳」：第一次看到的需求響一聲（和新單同一個音）
   const reqIds=new Set(POS_DATA.sessions.flatMap(s=>(s.pay_requests||[]).map(r=>r.id)));if(PAYREQ_SEEN&&[...reqIds].some(id=>!PAYREQ_SEEN.has(id)))ordersBeep();PAYREQ_SEEN=reqIds;
   // 開帳表單打開時不要被 15 秒自動刷新重畫（會清掉正在填的張數）
+  if(POS_EDIT&&host.querySelector('.pos-grid'))return;
   if((host.dataset.sig!==sig&&!(REG_OPEN_FORM&&host.querySelector('.reg-open-form')))||!host.querySelector('.pos-grid')){host.dataset.sig=sig;paintPos();}
   POS_TIMER=setTimeout(()=>{if(document.getElementById('pos-body')&&TAB==='pos')loadPos();},15000);
 }
@@ -768,6 +770,41 @@ function posTotals(cur){
   return {priceOf,picked,regular,subtotal,discount,pts,menuById,total:subtotal-discount};
 }
 function bindCashDrawerButton(drawerBtn){if(drawerBtn)drawerBtn.onclick=()=>ensureOperator(async()=>{const reason=await pickReason({title:'開錢櫃原因（記錄操作人員與時間）',presets:['開班放零用金','換鈔','交班點鈔','交易已完成，重試開櫃']});if(!reason||drawerBtn.disabled)return;drawerBtn.disabled=true;try{await manualCashDrawer(reason);}finally{drawerBtn.disabled=false;}});}
+function bindTableDrag(host){
+  const grid=host.querySelector('.pos-grid-edit');if(!grid)return;
+  const order=()=>[...grid.querySelectorAll('[data-drag-table]')].map(e=>e.dataset.dragTable);
+  const exit=()=>{POS_EDIT=false;POS_EDIT_ORDER=null;host.dataset.sig='';paintPos();loadPos();};
+  let drag=null;
+  grid.addEventListener('pointerdown',ev=>{
+    const el=ev.target.closest('[data-drag-table]');if(!el||ev.button>0)return;
+    ev.preventDefault();el.setPointerCapture(ev.pointerId);
+    drag={el,id:ev.pointerId,sx:ev.clientX,sy:ev.clientY};el.classList.add('dragging');
+  });
+  grid.addEventListener('pointermove',ev=>{
+    if(!drag||ev.pointerId!==drag.id)return;
+    drag.el.style.transform=`translate(${ev.clientX-drag.sx}px,${ev.clientY-drag.sy}px)`;
+    drag.el.style.pointerEvents='none';
+    const over=document.elementFromPoint(ev.clientX,ev.clientY)?.closest?.('[data-drag-table]');
+    drag.el.style.pointerEvents='';
+    if(over&&over!==drag.el){
+      const kids=[...grid.children],a=kids.indexOf(drag.el),b=kids.indexOf(over);
+      const before=drag.el.getBoundingClientRect();
+      grid.insertBefore(drag.el,a<b?over.nextSibling:over);
+      const after=drag.el.getBoundingClientRect();
+      drag.sx+=after.left-before.left;drag.sy+=after.top-before.top;
+      drag.el.style.transform=`translate(${ev.clientX-drag.sx}px,${ev.clientY-drag.sy}px)`;
+    }
+  });
+  const end=ev=>{if(!drag||ev.pointerId!==drag.id)return;drag.el.classList.remove('dragging');drag.el.style.transform='';drag=null;POS_EDIT_ORDER=order();};
+  grid.addEventListener('pointerup',end);grid.addEventListener('pointercancel',end);
+  host.querySelector('#pos-edit-cancel').onclick=exit;
+  host.querySelector('#pos-edit-reset').onclick=()=>{POS_EDIT_ORDER=[...DEFAULT_TABLES,...order().filter(t=>!DEFAULT_TABLES.includes(t))];paintPos();};
+  host.querySelector('#pos-edit-done').onclick=async()=>{
+    const btn=host.querySelector('#pos-edit-done');btn.disabled=true;
+    try{await api('/admin/orders/table-layout',{method:'POST',body:{order:order()}});if(POS_DATA)POS_DATA.table_layout=order();toast('桌位排列已儲存');exit();}
+    catch(e){btn.disabled=false;toast('儲存失敗：'+e.message);}
+  };
+}
 function paintPos(){
   const host=document.getElementById('pos-body'),d=POS_DATA;if(!host||!d)return;
   stopPosInvoiceScanner();
@@ -776,8 +813,11 @@ function paintPos(){
   const cur=sessions.find(s=>s.table===POS_TABLE)||null;
   // 桌況格固定先列出現場的 16 桌（不管有沒有開桌，方便現場人員直接點選開桌），已開桌/外帶但不在固定桌號清單裡的（例如外帶、加開的桌）排在後面
   const byTable=new Map(sessions.filter(s=>!s.takeout).map(s=>[s.table,s]));
-  const extraSessions=sessions.filter(s=>s.takeout||!DEFAULT_TABLES.includes(s.table));
-  const slots=[...DEFAULT_TABLES.map(t=>byTable.get(t)||{table:t,empty:true}),...extraSessions];
+  const baseNames=[...DEFAULT_TABLES,...sessions.filter(s=>!s.takeout&&!DEFAULT_TABLES.includes(s.table)).map(s=>s.table)];
+  const layout=POS_EDIT&&POS_EDIT_ORDER?POS_EDIT_ORDER:(d.table_layout||[]);
+  const rank=t=>{const i=layout.indexOf(t);return i<0?1e6+baseNames.indexOf(t):i;};
+  const orderedNames=[...baseNames].sort((a,b)=>rank(a)-rank(b));
+  const slots=[...orderedNames.map(t=>byTable.get(t)||{table:t,empty:true}),...sessions.filter(s=>s.takeout)];
   // 今天這桌有排的訂位（訂位頁填了桌號）：空桌與使用中的桌都標出來，提醒現場人員這桌有人預約；只是提示，不會自動開桌
   const resvOf=t=>(d.reservations||{})[t]||[];
   const resvHtml=t=>resvOf(t).map(r=>`<small class="pos-resv"><span class="pos-resv-tag">預約</span> ${esc(r.time)} ${esc(r.name)} ${r.party_size} 位${r.status==='new'?'（待確認）':''}</small>`).join('');
@@ -785,9 +825,14 @@ function paintPos(){
     if(s.empty)return `<button type="button" class="pos-table empty ${resvOf(s.table).length?'reserved':''}" data-open-table="${esc(s.table)}"><b>${esc(s.table)}</b><span class="pill pill-draft">空桌</span>${resvHtml(s.table)}</button>`;
     const [cls,label]=TABLE_STATE[s.state]||TABLE_STATE.open;return `<button type="button" class="pos-table ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''} ${s.pay_requests?.length?'payreq':''} ${idleWarn(s)?'idlewarn':''}" data-pos-table="${esc(s.table)}"><b>${s.takeout?'外帶 ':''}${esc(s.table)}</b><span class="pill ${cls}">${label}</span>${s.pickup_at?`<small class="pos-resv"><span class="pos-resv-tag">預約取餐</span> ${esc(clockText(s.pickup_at))}${s.pickup_placed?'':'（時間到自動送單）'}${s.pickup_note?' · '+esc(s.pickup_note):''}</small>`:''}${idleWarn(s)?`<small class="pos-idlewarn-tag">⚠ 還沒點餐 ${elapsedText(s.created_at)}</small>`:`<small>${s.unpaid?`未結 NT$${num(s.unpaid_amount)}`:s.state==='empty'?'還沒點餐':'已結清'}</small>${s.created_at&&!s.takeout?`<small class="pos-dwell">⏱ ${elapsedText(s.created_at)}</small>`:''}`}${tableDetailHtml(s)}${s.pay_requests?.length?`<small class="pos-payreq-tag">💳 要結帳 ${s.pay_requests.map(r=>esc(r.name)).join('、')}</small>`:''}${s.mixed?'<small class="pill pill-bad">混桌</small>':''}${resvHtml(s.table)}</button>`;
   }).join('');
+  if(POS_EDIT){
+    const gridEdit=orderedNames.map(t=>{const s=byTable.get(t);return `<div class="pos-table pos-drag" data-drag-table="${esc(t)}" role="listitem" aria-label="桌 ${esc(t)}，按住拖拉換位置"><b>${esc(t)}</b><span class="pill ${s?'pill-wait':'pill-draft'}">${s?'使用中':'空桌'}</span><small class="pos-drag-grip" aria-hidden="true">⠿ 按住拖拉</small></div>`;}).join('');
+    host.innerHTML=`<div class="pos-layout"><div class="a-sec pos-tables pos-editing"><div class="ops-head"><h2>編輯桌位排列</h2></div><p class="hint">按住桌號拖到想要的位置，排成跟現場桌位一樣；完成後全店 iPad 都會套用。</p><div class="pos-grid pos-grid-edit" role="list">${gridEdit}</div><div class="pos-open"><button type="button" class="btn btn--solid" id="pos-edit-done">完成</button><button type="button" class="btn btn--ghost" id="pos-edit-reset">還原預設排列</button><button type="button" class="btn btn--ghost" id="pos-edit-cancel">取消</button></div></div></div>`;
+    bindTableDrag(host);return;
+  }
   // 櫃檯開桌／外帶：加開固定清單以外的桌號、或外帶單
   // 空桌直接點桌況格就開桌；「加開桌號」＝桌牌上沒有的桌號（點區＋數字鍵）；都不打字
-  const opener=`<div class="pos-open"><button type="button" class="btn btn--solid" id="pos-takeout">＋ 外帶</button><button type="button" class="btn btn--ghost" id="pos-open-extra">＋ 加開桌號</button>${posPauseHtml(d.pause)}</div>`;
+  const opener=`<div class="pos-open"><button type="button" class="btn btn--solid" id="pos-takeout">＋ 外帶</button><button type="button" class="btn btn--ghost" id="pos-open-extra">＋ 加開桌號</button><button type="button" class="btn btn--ghost" id="pos-edit-tables">編輯桌位</button>${posPauseHtml(d.pause)}</div>`;
   let panel='',picked=[],subtotal=0,total=0,priceOf=l=>l.price,mixed=false,splitList=[],splitLeft=0,cashDue=0,cash=false;
   const reload=()=>{host.dataset.sig='';return loadPos();};
   if(cur){
@@ -856,6 +901,7 @@ function paintPos(){
       return reload();
     }));
   });
+  host.querySelector('#pos-edit-tables').onclick=()=>{POS_EDIT=true;POS_EDIT_ORDER=[...orderedNames];paintPos();};
   // 加開桌號：點區＋號碼，不打字（桌牌上有的桌號直接點桌況格或「開桌」）
   host.querySelector('#pos-open-extra').onclick=async()=>{const t=await pickTableNo({title:'加開桌號',hint:'桌牌上沒有的桌號、戶外或臨時桌才用這裡；已開著的桌會直接切過去。'});if(t)openSession({table_no:t});};
   host.querySelector('#pos-takeout').onclick=()=>openSession({takeout:true});

@@ -4770,7 +4770,7 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const resvRows=(await q(`SELECT id,to_char(reserve_date,'YYYY-MM-DD') AS reserve_date,reserve_time,party_size,name,status,table_no FROM dining_reservations WHERE reserve_date BETWEEN CURRENT_DATE-1 AND CURRENT_DATE+1 AND status IN ('new','confirmed') AND table_no<>'' AND deleted_at IS NULL`)).rows.filter(r=>!venues||venues.includes(tableOrders.reservationVenue(r.reserve_time)));
   const reservations=tableOrders.reservationsByTable(resvRows);
   // payment_methods 一起回傳：已開著的 POS 畫面每 15 秒輪詢這支 API，新增的自訂收款帳戶才會即時出現在結帳選項，不用重新整理
-  res.json({orders,tickets,sessions,reservations,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue(),payment_methods:await paymentMethodsList()});
+  res.json({orders,tickets,sessions,reservations,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue(),table_layout:tableLayoutParse(await contentValue('pos_table_layout')),payment_methods:await paymentMethodsList()});
 }));
 /* 櫃檯開桌／外帶：客人沒掃 QR（走進來直接在櫃檯點）也能開一桌；外帶自動取 W01–W99 最小空號。已開著的桌直接回那一桌 */
 app.post('/api/admin/orders/sessions',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -5024,6 +5024,14 @@ app.post('/api/admin/menu/sold-out',auth,adminOnly,requireDb,wrap(async(req,res)
   let next;try{next=tableOrders.setSoldOut(await contentValue('menu'),String(req.body?.item_id||''),req.body?.sold_out===true,venues);}catch(e){return res.status(e.status||400).json({error:e.message});}
   await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu',$1,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,[next]);
   res.json({ok:true,sold_out:req.body?.sold_out===true});
+}));
+function tableLayoutParse(v){try{const a=JSON.parse(v||'[]');return Array.isArray(a)?a.map(x=>String(x).slice(0,8)).filter(Boolean).slice(0,200):[];}catch(e){return [];}}
+// 桌況格排列順序：全店共用（現場每台 iPad 看到同一個排法）
+app.post('/api/admin/orders/table-layout',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const order=req.body?.order;if(!Array.isArray(order)||order.length>200)return res.status(400).json({error:'桌位順序格式不正確。'});
+  const clean=[...new Set(order.map(x=>String(x||'').trim().slice(0,8)).filter(Boolean))];
+  await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('pos_table_layout',$1,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,[JSON.stringify(clean)]);
+  res.json({ok:true,order:clean});
 }));
 app.post('/api/admin/orders/pause',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const venue=String(req.body?.venue||''),venues=tableOrders.visibleVenues(req.auth.brands);
