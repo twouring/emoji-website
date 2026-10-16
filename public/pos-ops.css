@@ -262,3 +262,23 @@ tr.lp-refund td{color:#b42318}
 .pos-split-row input{width:110px;min-height:44px;font:inherit;font-size:1.1rem;padding:6px 10px;border:1px solid var(--muted);border-radius:8px;background:var(--card);color:var(--ink);font-variant-numeric:tabular-nums}
 .pos-split-left{display:flex;align-items:center;gap:10px;flex-basis:100%;min-height:40px;font-weight:600}.pos-split-left b{font-size:1.2rem;color:#b91c1c}.pos-split-left.ok b{color:#15803d}
 .pos-lines tr.pos-credit td{background:var(--paper-alt)}
+/* ── 現場輸入用點的：桌號（區＋號碼鍵盤）、金額鍵盤、備註／數值膠囊、時間膠囊 ── */
+.pos-move-box .reason-chips{margin:10px 0}
+.pos-tno,.pos-amt{display:flex;align-items:baseline;justify-content:center;gap:6px;min-height:56px;margin:8px 0;padding:6px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper-alt);font-variant-numeric:tabular-nums}
+.pos-tno b,.pos-amt b{font-size:2rem;line-height:1.1;letter-spacing:.04em}.pos-amt span{color:var(--muted);font-size:1rem}
+.pos-tno-zones button[aria-pressed="true"],.note-chips button[aria-pressed="true"],.fill-chips button[aria-pressed="true"],.stamp-chips button[aria-pressed="true"],[data-disc-quick][aria-pressed="true"],[data-shift-quick][aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);background:#fff8cf}
+.pos-tno-keys,.pos-amt-keys{margin:10px 0 4px}.pos-tno-keys .clock-key,.pos-amt-keys .clock-key{min-height:64px;font-size:1.5rem}
+/* 「確定」鍵用主色，跟數字鍵分開；A–F 區六等分撐滿一列 */
+.pos-tno-keys .clock-key[data-key="確定"],.pos-amt-keys .clock-key[data-key="確定"]{background:var(--ink);color:var(--paper);border-color:var(--ink);font-size:1.15rem}
+.pos-tno-zones{display:grid;grid-template-columns:repeat(6,1fr)}.pos-tno-zones button{justify-content:center;min-height:52px;padding:8px 6px;text-align:center}
+/* 面板底部主次按鈕：與加點選項面板一致，各佔一半、52px 高、上方留線 */
+.pos-move-box .op-card-actions{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}.pos-move-box .op-card-actions .btn{flex:1;min-height:52px}
+.pos-move-box .pos-move-foot{margin-top:14px}.pos-move-box .pos-move-foot .btn{min-height:48px}
+.pos-move-box .btn-xs{min-height:44px}
+.pos-amt-presets button{font-variant-numeric:tabular-nums}
+/* 時間膠囊：48 格橫向捲，不撐高面板；目前選到的那格會捲進視野 */
+.stamp-chips{margin-top:6px}.stamp-chips .stamp-times{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;scrollbar-width:thin}.stamp-chips .stamp-times button{flex:0 0 auto}
+.pos-move-box .mk-field{display:block;margin:14px 0 0}
+.pos-move-box .reason-other{margin-top:4px}
+/* 面板在平板直式也放得下：寬一點、內容可捲 */
+.pos-move-box{max-width:600px}

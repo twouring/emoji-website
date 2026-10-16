@@ -10,7 +10,8 @@ test('unrequested active orders offer issue, void orders do not',()=>{
 });
 test('paper/company late issue posts invoice, prints once, and cancel posts nothing',async()=>{
  for(const value of ['', '12345678',null,'123']){
-  const calls=[],prints=[];const c=vm.createContext({prompt:()=>value,confirm:()=>true,num:String,toast(){},api:async(url,body)=>{calls.push(body);return {invoice:{status:'issued',number:'AB12345678'}};}});vm.runInContext(src,c);c.prints=prints;vm.runInContext('printInvoiceProof=async o=>prints.push(o)',c);
+  // 補開發票改用點選面板（askUbn：紙本／統編＋數字鍵盤），回傳形狀與舊 prompt 相同：''＝紙本、8 碼＝統編、null＝取消
+  const calls=[],prints=[];const c=vm.createContext({prompt:()=>{throw new Error('不該再用 prompt');},confirm:()=>true,num:String,toast(){},api:async(url,body)=>{calls.push(body);return {invoice:{status:'issued',number:'AB12345678'}};}});vm.runInContext(src,c);c.prints=prints;vm.runInContext('printInvoiceProof=async o=>prints.push(o)',c);c.ubnValue=value;vm.runInContext('askUbn=async()=>ubnValue',c);
   await c.issueOrderInvoice({id:'o1',amount:100,invoice:{mode:''}},()=>{});
   assert.equal(calls.length,value===null||value==='123'?0:1);
   if(calls.length){assert.equal(calls[0].body.invoice.mode,value?'company':'paper');assert.equal(prints.length,1);}

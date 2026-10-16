@@ -66,7 +66,9 @@ test('每個要填原因的地方都接了預設選項：覆蓋式用 pickReason
   assert.match(ops, /\[data-comp\]'\)\.forEach\(b=>b\.onclick=async\(\)=>\{[^\n]*pickReason\(\{[^\n]*presets:REASON_PRESETS\.comp/, '贈送');
   assert.match(ops, /\[data-void-line\]'\)\.forEach\(b=>b\.onclick=async\(\)=>\{[^\n]*pickReason\(\{[^\n]*presets:REASON_PRESETS\.void_line/, '作廢品項');
   assert.match(ops, /if\(next<1\)\{pickReason\(\{[^\n]*presets:REASON_PRESETS\.void_line/, '數量減到 0');
-  assert.match(ops, /pickReason\(\{title:'為什麼修正這筆出勤？',presets:REASON_PRESETS\.attendance_fix,[^}]*required:false/, '出勤修正備註選填');
+  // 出勤修正改成一張面板（openAttendanceFix）：原因欄是表單內嵌膠囊、選填（沒有 required 檢查）
+  assert.ok(ops.includes("reasonChips('fx-note',REASON_PRESETS.attendance_fix)"), '出勤修正備註選填（面板內嵌膠囊）');
+  assert.match(ops.slice(ops.indexOf('function openAttendanceFix('), ops.indexOf('/* 出勤紀錄')), /if\(!tIn\)\{toast\('請選上班時間'\);return;\}/, '面板只擋上班時間，原因不擋');
   // 表單欄位：折扣、臨時收支、關帳說明、小結說明、台新差異原因
   for (const [id, key] of [['pos-disc-reason', 'discount'], ['reg-cash-reason', 'cash_move'], ['reg-close-note', 'close_note'], ['reg-count-note', 'count_note'], ['ts-reason', 'taishin']]) {
     assert.ok(ops.includes(`\${reasonChips('${id}',REASON_PRESETS.${key})}`), id);
