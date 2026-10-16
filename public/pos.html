@@ -123,6 +123,7 @@
   </div>
   <div class="p-tools">
     <button type="button" class="p-net" id="p-net" hidden aria-live="polite">離線</button>
+    <button type="button" id="p-drawer" hidden>開錢櫃</button>
     <button type="button" id="p-operator" aria-label="操作人員"></button>
     <button type="button" id="p-refresh" aria-label="重新整理">↻</button>
     <button type="button" id="p-logout" hidden>登出</button>
@@ -204,6 +205,7 @@ async function api(path, { method='GET', body } = {}) {
 function showLoginScreen(msg){ return DEVICE_BOUND ? renderPinLogin(msg) : renderLogin(msg); }
 
 function renderLogin(msg){
+  const drawer = document.getElementById('p-drawer'); if (drawer) drawer.hidden = true;
   document.getElementById('p-logout').hidden = true;
   document.getElementById('p-nav').innerHTML = ''; document.getElementById('p-scope').innerHTML = '';
   const redirect = encodeURIComponent(location.origin + '/pos');
@@ -242,6 +244,7 @@ function renderLogin(msg){
 
 // 操作人員四位數密碼登入（裝置已綁定才會出現）：沿用打卡鍵盤的樣式，密碼只留在記憶體，絕不進 localStorage／DOM 以外的地方
 function renderPinLogin(msg){
+  const drawer = document.getElementById('p-drawer'); if (drawer) drawer.hidden = true;
   document.getElementById('p-logout').hidden = true;
   document.getElementById('p-nav').innerHTML = ''; document.getElementById('p-scope').innerHTML = '';
   let pin = '';
@@ -322,6 +325,8 @@ function activate(){
   else if (TAB === 'shifts') loadShifts();
 }
 function render(){
+  document.getElementById('p-drawer').hidden = false;
+  bindCashDrawerButton(document.getElementById('p-drawer'));
   document.getElementById('p-logout').hidden = false;
   app.innerHTML = installHint() + TABS.map(t => `<section class="p-tab" data-panel="${t.id}">${PANEL[t.id]()}</section>`).join('');
   bindInstall();

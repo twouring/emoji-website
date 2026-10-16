@@ -412,6 +412,7 @@ function posTotals(cur){
   let discount=0;if(POS_DISCOUNT){discount=POS_DISCOUNT.type==='percent'?Math.round(subtotal*POS_DISCOUNT.value/100):Math.min(subtotal,POS_DISCOUNT.value);}
   return {priceOf,picked,regular,subtotal,discount,total:subtotal-discount};
 }
+function bindCashDrawerButton(drawerBtn){if(drawerBtn)drawerBtn.onclick=()=>ensureOperator(async()=>{const reason=await pickReason({title:'開錢櫃原因（記錄操作人員與時間）',presets:['開班放零用金','換鈔','交班點鈔','交易已完成，重試開櫃']});if(!reason||drawerBtn.disabled)return;drawerBtn.disabled=true;try{await manualCashDrawer(reason);}finally{drawerBtn.disabled=false;}});}
 function paintPos(){
   const host=document.getElementById('pos-body'),d=POS_DATA;if(!host||!d)return;
   stopPosInvoiceScanner();
@@ -471,10 +472,10 @@ function paintPos(){
       ${live.length?`<h3>這桌已結帳的單</h3><div class="a-wrap2"><table class="a-tbl pos-paid"><thead><tr><th>品項 · 時間 · 狀態</th><th>付款</th><th class="num">金額</th><th class="ops-th">操作</th></tr></thead><tbody>${liveRows}</tbody></table></div>`:''}
     </div>`;
   }
-  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('點空桌直接開桌；點已開的桌看這桌的帳。沒印在桌牌上的桌號或外帶用下面加開。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div>${registerBar()}<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>${opener}<div class="pos-grid">${grid}</div></div>${panel}</div>`;
+  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('點空桌直接開桌；點已開的桌看這桌的帳。沒印在桌牌上的桌號或外帶用下面加開。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div>${registerBar()}${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>'}${opener}<div class="pos-grid">${grid}</div></div>${panel}</div>`;
   const reload=()=>{host.dataset.sig='';return loadPos();};
   bindRegisterBar(host,reload);
-  const drawerBtn=host.querySelector('#pos-cash-drawer');if(drawerBtn)drawerBtn.onclick=()=>ensureOperator(async()=>{const reason=await pickReason({title:'開錢櫃原因（記錄操作人員與時間）',presets:['開班放零用金','換鈔','交班點鈔','交易已完成，重試開櫃']});if(!reason||drawerBtn.disabled)return;drawerBtn.disabled=true;try{await manualCashDrawer(reason);}finally{drawerBtn.disabled=false;}});
+  if(!document.getElementById('p-drawer'))bindCashDrawerButton(host.querySelector('#pos-cash-drawer'));
   host.querySelectorAll('[data-pos-table]').forEach(b=>b.onclick=()=>{POS_TABLE=b.dataset.posTable;POS_PICK=null;POS_DISCOUNT=null;POS_DISC_OPEN=false;POS_RECEIVED='';paintPos();});
   // 開桌／外帶：有操作人員就順手帶上（記這桌是誰開的），沒有也不擋——只有結帳要求一定要認人
   const openSession=body=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{...body,operator_id:OPERATOR?.id}}),out=>out.takeout?`外帶單 ${out.table} 已開，請加入品項`:out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,out=>{POS_TABLE=out.table;POS_PICK=null;POS_DISCOUNT=null;POS_RECEIVED='';return reload();});
