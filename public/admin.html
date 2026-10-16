@@ -1133,9 +1133,18 @@ function tabAdmins(d){
     <td>${u.is_admin?`<span class="pill pill-ok">${u.admin_brand?esc(u.admin_brand.split(',').map(b=>BRAND_LABEL[b]||b).join('＋'))+' 子帳號':'言文字管理員'}</span>`:'<span class="pill pill-wait">一般</span>'}</td>
     <td>${d.super?`<span data-brand-for="${u.id}">${Object.entries(BRAND_LABEL).map(([v,l])=>`<label style="margin-right:8px;white-space:nowrap"><input type="checkbox" value="${v}" ${(u.admin_brand||'').split(',').includes(v)?'checked':''}> ${l}</label>`).join('')}</span> <button class="btn btn--ghost btn-sm" data-admin="${u.id}" data-on="1">${u.is_admin?'更新範圍':'設為管理員'}</button>${u.is_admin?` <button class="btn btn--ghost btn-sm" data-admin="${u.id}" data-on="0">取消管理員</button>`:''}`:''}</td>
   </tr>`).join('') || '<tr><td colspan="4" class="a-empty">尚無使用者</td></tr>';
+  const createForm = d.super ? `<form id="acct-form" class="a-form" autocomplete="off" style="align-items:flex-end;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+      <label style="flex:1;min-width:200px">Email<input id="acct-email" name="email" type="email" required maxlength="254" autocomplete="off" placeholder="name@example.com"></label>
+      <label style="min-width:140px">姓名<input id="acct-name" name="name" maxlength="120" autocomplete="off" placeholder="選填"></label>
+      <label style="min-width:180px">密碼（至少 8 字）<input id="acct-password" name="password" type="password" required minlength="8" autocomplete="new-password"></label>
+      <span id="acct-brands" style="white-space:nowrap">${Object.entries(BRAND_LABEL).map(([v,l])=>`<label style="margin-right:8px;white-space:nowrap"><input type="checkbox" value="${v}"> ${l}</label>`).join('')}</span>
+      <button type="submit" class="btn btn--solid btn-sm" id="acct-add">新增帳號</button>
+      <p class="hint" style="flex-basis:100%;margin:0">用 Email＋密碼登入 admin.emoji.tw 與 pos.emoji.tw，不必先用 Google 登入。Email 已存在時＝重設這個人的密碼與品牌範圍（忘記密碼也在這裡處理）。</p>
+    </form>` : '';
   return `<div class="a-sec">
     <h2>權限管理</h2>
-    <p class="hint">對象須先登入過本站。只有超管可授予管理員。品牌全不勾＝言文字管理員，可進全部工作區；勾選一個以上＝品牌子帳號，除了勾選的品牌工作區（在咖啡／三點水只剩「日結報表」「排班打卡」，現場營運請改用 pos.emoji.tw），也會一併進入言文字工作區的共用分頁（會員、會費、消息、社群、廣告、活動、行事曆），但「權限管理」「系統設定」「操作紀錄」僅言文字管理員可用。外部主辦人不在這裡設定：到「言文字 → 活動」開啟該場活動的「主辦團隊」，加入對方 Email 並勾選「共同管理本活動」，對方即可從 /organizer/events 管理那一場。</p>
+    ${createForm}
+    <p class="hint">只有超管可授予管理員。品牌全不勾＝言文字管理員，可進全部工作區；勾選一個以上＝品牌子帳號，除了勾選的品牌工作區（在咖啡／三點水只剩「日結報表」「排班打卡」，現場營運請改用 pos.emoji.tw），也會一併進入言文字工作區的共用分頁（會員、會費、消息、社群、廣告、活動、行事曆），但「權限管理」「系統設定」「操作紀錄」僅言文字管理員可用。外部主辦人不在這裡設定：到「言文字 → 活動」開啟該場活動的「主辦團隊」，加入對方 Email 並勾選「共同管理本活動」，對方即可從 /organizer/events 管理那一場。</p>
     <div class="a-wrap2"><table class="a-tbl">
       <thead><tr><th>姓名</th><th>Email</th><th>目前</th><th>操作</th></tr></thead>
       <tbody>${body}</tbody></table></div>
@@ -1478,6 +1487,14 @@ function bind(d, x){
 
   // 管理員
   document.querySelectorAll('[data-admin]').forEach(b=>b.onclick=()=>{if(!confirm(`確定${b.textContent.trim()}：${b.closest('tr')?.querySelector('td')?.textContent.trim()||''}？`))return;doThen(()=>api('/admin/users/'+b.dataset.admin+'/admin',{method:'POST',body:{admin:b.dataset.on==='1',brands:[...document.querySelectorAll(`[data-brand-for="${b.dataset.admin}"] input:checked`)].map(i=>i.value)}}),'已更新管理權限');});
+
+  // 新增帳號（超管）：Email＋密碼直接建立管理員，不必先 Google 登入；同 Email 再送＝重設密碼與範圍
+  on('acct-form','submit',e=>{e.preventDefault();const f=e.target,email=f.elements.email.value.trim().toLowerCase(),name=f.elements.name.value.trim(),password=f.elements.password.value,brands=[...document.querySelectorAll('#acct-brands input:checked')].map(i=>i.value);
+    if(!email||password.length<8){toast('請填 Email 與至少 8 字的密碼');return;}
+    const exists=(DATA?.users||[]).some(u=>(u.email||'').toLowerCase()===email);
+    if(exists&&!confirm(`${email} 已有帳號，要重設這個人的密碼與品牌範圍？`))return;
+    doThen(()=>api('/admin/users/password',{method:'POST',body:{email,password,admin:true,brands,...(name?{name}:{})}}),out=>`${exists?'已重設':'已新增'} ${out.user.email}（${brands.length?brands.map(b=>BRAND_LABEL[b]||b).join('＋')+' 子帳號':'言文字管理員'}）`);
+  });
 
   // 收款帳戶：內建付款方式（現金／刷卡／LINE Pay／轉帳）不經這裡管理，只能新增／改名／停用自訂收款帳戶
   on('pm-add','click',()=>{const el=document.getElementById('pm-label'),label=(el?.value||'').trim();if(!label){toast('請填寫收款帳戶名稱');return;}doThen(()=>api('/admin/payment-methods',{method:'POST',body:{label}}),'已新增收款帳戶');});

@@ -71,6 +71,20 @@ test('admin login offers accessible password form alongside Google; organizers k
  assert.match(source,/localStorage\.setItem\(KEY/);
  assert.match(source,/if\(!ORGANIZER_PORTAL\)/);
 });
+test('permissions tab lets super admin create an Email/password admin directly (no prior Google login)',()=>{
+ const html=readFileSync(path.join(root,'public/admin.html'),'utf8');
+ const tab=html.slice(html.indexOf('function tabAdmins('),html.indexOf('function tabAdmins(')+6000);
+ assert.match(tab,/d\.super \? `<form id="acct-form"/,'只有超管看得到新增帳號表單');
+ assert.match(tab,/id="acct-email"[^>]*type="email"[^>]*required/);
+ assert.match(tab,/id="acct-password"[^>]*type="password"[^>]*required[^>]*minlength="8"[^>]*autocomplete="new-password"/);
+ assert.match(tab,/id="acct-brands"/);
+ assert.doesNotMatch(tab,/對象須先登入過本站/,'不再要求對方先登入過');
+ const handler=html.slice(html.indexOf("on('acct-form','submit'"),html.indexOf("on('acct-form','submit'")+900);
+ assert.match(handler,/api\('\/admin\/users\/password',\{method:'POST',body:\{email,password,admin:true,brands/);
+ assert.match(handler,/password\.length<8/);
+ assert.match(handler,/confirm\(`\$\{email\} 已有帳號/,'同 Email 再送要先確認是重設');
+ assert.match(handler,/\.\.\.\(name\?\{name\}:\{\}\)/,'姓名選填');
+});
 test('provisioning accepts passwords of eight or more characters',async()=>{
  const {hashPassword,verifyPassword}=require('../lib/admin-password');
  const hash=await hashPassword('test-9chr');assert.equal(await verifyPassword('test-9chr',hash),true);
