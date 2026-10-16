@@ -331,6 +331,20 @@ const DEFAULT_TABLES=['A1','A2','A3','A4','A5','A6','A7','A8','A9','A10','B1','B
 const ORDER_STATE={placed:'待出餐',paid:'準備中',ready:'可取餐',done:'已取餐',void:'已作廢'};
 const IDLE_WARN_MIN=10;
 const idleWarn=s=>!s.takeout&&s.state==='empty'&&s.created_at&&(Date.now()-new Date(s.created_at))>=IDLE_WARN_MIN*60000;
+// 桌況卡的詳細資訊：品項摘要、份數、出餐進度、開桌／最後動作時間、點餐人、開桌人員
+const tableDetailHtml=s=>{
+  const ls=(s.lines||[]).filter(l=>!l.credit_of&&!l.cancelled);
+  if(!ls.length&&!s.created_at)return '';
+  const qty=ls.reduce((a,l)=>a+(Number(l.qty)||0),0);
+  const served=ls.filter(l=>l.served_at).reduce((a,l)=>a+(Number(l.qty)||0),0);
+  const waiting=ls.filter(l=>l.placed_at&&!l.served_at).reduce((a,l)=>a+(Number(l.qty)||0),0);
+  const unsent=qty-served-waiting;
+  const names=ls.slice(0,4).map(l=>`${esc(l.zh)}×${l.qty}`).join('、')+(ls.length>4?` …等 ${ls.length} 項`:'');
+  const who=[...new Set(ls.map(l=>l.by).filter(Boolean))];
+  const prog=qty?[`共 ${qty} 份`,served?`已出 ${served}`:'',waiting?`待出 ${waiting}`:'',unsent>0?`未送單 ${unsent}`:''].filter(Boolean).join(' · '):'';
+  const times=[s.created_at?`${s.takeout?'開單':'開桌'} ${clockText(s.created_at)}`:'',s.updated_at?`最後動作 ${clockText(s.updated_at)}`:''].filter(Boolean).join(' · ');
+  return `<span class="pos-detail">${names?`<small class="pos-detail-items">${names}</small>`:''}${prog?`<small>${prog}</small>`:''}${who.length?`<small>點餐：${who.map(esc).join('、')}</small>`:''}${times?`<small>${times}</small>`:''}${s.operator?`<small>開桌：${esc(s.operator)}</small>`:''}</span>`;
+};
 const elapsedText=iso=>{const m=Math.max(0,Math.floor((Date.now()-new Date(iso))/60000));return m<60?`${m} 分`:`${Math.floor(m/60)} 時 ${m%60} 分`;};
 // 現場看板只顯示時刻（HH:MM），不佔欄寬；完整日期時間放 title 供滑鼠停留查看
 const clockText=iso=>{const d=iso?new Date(iso):null;return d&&!isNaN(d)?d.toLocaleTimeString('zh-TW',{timeZone:'Asia/Taipei',hour12:false,hour:'2-digit',minute:'2-digit'}):'—';};
@@ -769,11 +783,11 @@ function paintPos(){
   const resvHtml=t=>resvOf(t).map(r=>`<small class="pos-resv"><span class="pos-resv-tag">預約</span> ${esc(r.time)} ${esc(r.name)} ${r.party_size} 位${r.status==='new'?'（待確認）':''}</small>`).join('');
   const grid=slots.map(s=>{
     if(s.empty)return `<button type="button" class="pos-table empty ${resvOf(s.table).length?'reserved':''}" data-open-table="${esc(s.table)}"><b>${esc(s.table)}</b><span class="pill pill-draft">空桌</span>${resvHtml(s.table)}</button>`;
-    const [cls,label]=TABLE_STATE[s.state]||TABLE_STATE.open;return `<button type="button" class="pos-table ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''} ${s.pay_requests?.length?'payreq':''} ${idleWarn(s)?'idlewarn':''}" data-pos-table="${esc(s.table)}"><b>${s.takeout?'外帶 ':''}${esc(s.table)}</b><span class="pill ${cls}">${label}</span>${s.pickup_at?`<small class="pos-resv"><span class="pos-resv-tag">預約取餐</span> ${esc(clockText(s.pickup_at))}${s.pickup_placed?'':'（時間到自動送單）'}${s.pickup_note?' · '+esc(s.pickup_note):''}</small>`:''}${idleWarn(s)?`<small class="pos-idlewarn-tag">⚠ 還沒點餐 ${elapsedText(s.created_at)}</small>`:`<small>${s.unpaid?`未結 NT$${num(s.unpaid_amount)}`:s.state==='empty'?'還沒點餐':'已結清'}</small>${s.created_at&&!s.takeout?`<small class="pos-dwell">⏱ ${elapsedText(s.created_at)}</small>`:''}`}${s.pay_requests?.length?`<small class="pos-payreq-tag">💳 要結帳 ${s.pay_requests.map(r=>esc(r.name)).join('、')}</small>`:''}${s.mixed?'<small class="pill pill-bad">混桌</small>':''}${resvHtml(s.table)}</button>`;
+    const [cls,label]=TABLE_STATE[s.state]||TABLE_STATE.open;return `<button type="button" class="pos-table ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''} ${s.pay_requests?.length?'payreq':''} ${idleWarn(s)?'idlewarn':''}" data-pos-table="${esc(s.table)}"><b>${s.takeout?'外帶 ':''}${esc(s.table)}</b><span class="pill ${cls}">${label}</span>${s.pickup_at?`<small class="pos-resv"><span class="pos-resv-tag">預約取餐</span> ${esc(clockText(s.pickup_at))}${s.pickup_placed?'':'（時間到自動送單）'}${s.pickup_note?' · '+esc(s.pickup_note):''}</small>`:''}${idleWarn(s)?`<small class="pos-idlewarn-tag">⚠ 還沒點餐 ${elapsedText(s.created_at)}</small>`:`<small>${s.unpaid?`未結 NT$${num(s.unpaid_amount)}`:s.state==='empty'?'還沒點餐':'已結清'}</small>${s.created_at&&!s.takeout?`<small class="pos-dwell">⏱ ${elapsedText(s.created_at)}</small>`:''}`}${tableDetailHtml(s)}${s.pay_requests?.length?`<small class="pos-payreq-tag">💳 要結帳 ${s.pay_requests.map(r=>esc(r.name)).join('、')}</small>`:''}${s.mixed?'<small class="pill pill-bad">混桌</small>':''}${resvHtml(s.table)}</button>`;
   }).join('');
   // 櫃檯開桌／外帶：加開固定清單以外的桌號、或外帶單
   // 空桌直接點桌況格就開桌；「加開桌號」＝桌牌上沒有的桌號（點區＋數字鍵）；都不打字
-  const opener=`<div class="pos-open"><button type="button" class="btn btn--solid" id="pos-takeout">＋ 外帶</button><button type="button" class="btn btn--ghost" id="pos-open-extra">＋ 加開桌號</button></div>`;
+  const opener=`<div class="pos-open"><button type="button" class="btn btn--solid" id="pos-takeout">＋ 外帶</button><button type="button" class="btn btn--ghost" id="pos-open-extra">＋ 加開桌號</button>${posPauseHtml(d.pause)}</div>`;
   let panel='',picked=[],subtotal=0,total=0,priceOf=l=>l.price,mixed=false,splitList=[],splitLeft=0,cashDue=0,cash=false;
   const reload=()=>{host.dataset.sig='';return loadPos();};
   if(cur){
@@ -826,7 +840,7 @@ function paintPos(){
       </div>
     </div>`;
   }
-  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('客人掃桌上 QR 點餐後，點該桌看帳、結帳；外帶按「＋ 外帶」；客人沒掃碼要櫃檯點餐時，直接點空桌開桌。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div><div class="pos-grid">${grid}</div>${opener}<div class="pos-sub">${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>'}<div class="a-toolbar pos-tools">${posPauseHtml(d.pause)}</div></div></div>${panel}</div>`;
+  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('客人掃桌上 QR 點餐後，點該桌看帳、結帳；外帶按「＋ 外帶」；客人沒掃碼要櫃檯點餐時，直接點空桌開桌。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div><div class="pos-grid">${grid}</div>${opener}<div class="pos-sub">${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>'}</div></div>${panel}</div>`;
   if(!document.getElementById('p-drawer'))bindCashDrawerButton(host.querySelector('#pos-cash-drawer'));
   host.querySelectorAll('[data-pos-table]').forEach(b=>b.onclick=()=>{POS_TABLE=b.dataset.posTable;POS_PICK=null;POS_QTY={};POS_PAYREQ=null;POS_SPLIT={};POS_DISCOUNT=null;POS_DISC_OPEN=false;POS_RECEIVED='';paintPos();});
   // 開桌／外帶：每次都先輸入 PIN 認人，記這桌是誰開的（與結帳、作廢、開錢櫃一致）

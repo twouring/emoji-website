@@ -424,3 +424,9 @@ tr.lp-refund td{color:var(--danger)}
 .pos-lines td.pos-amt{text-align:right;white-space:nowrap;vertical-align:top;font-size:1.1rem}
 .pos-lines td.ops-item{vertical-align:top}.pos-lines td.pos-qty-col{vertical-align:top}.pos-lines td.ops-actions{vertical-align:top}
 .pos-lines td.ops-item b{font-size:1.1rem}
+
+.pos-table .pos-detail{display:flex;flex-direction:column;gap:2px;margin-top:2px;padding-top:6px;border-top:1px dashed var(--line)}
+.pos-table .pos-detail small{line-height:1.3;overflow-wrap:anywhere}
+.pos-table .pos-detail-items{color:var(--ink);font-weight:600}
+.pos-table.on .pos-detail{border-top-color:rgba(255,255,255,.35)}.pos-table.on .pos-detail-items{color:var(--paper)}
+.pos-open .pos-pause-btn{flex:0 0 auto;min-height:48px;padding:10px 14px}
