@@ -87,3 +87,31 @@ test('前端與伺服器接線：混合付款 UI、先收部分金額、作廢�
   assert.match(server, /o\.payer\?\.prepay\?s\.items\.filter\(l=>l\.order_id!==o\.id&&l\.credit_of!==o\.id\)/);
   assert.match(server, /這筆預收已抵扣在後面的結帳單/);
 });
+
+test('平均分攤多次收款：前 N−1 人走預收單（品名標第 k／N 人、payer.split），最後一人收剩餘；POS 有入口、分次收款鍵、分攤時不套折扣', () => {
+  const its = items();
+  const gross = T.sum(T.unpaid(its));
+  const each = Math.floor(gross / 3);
+  const p1 = T.posCheckout(its, { prepay: each, split: { people: 3, index: 1 }, method: 'cash', received: each }, menu, []);
+  assert.equal(p1.lines[0].zh, '平均分攤 第 1／3 人'); assert.deepEqual(p1.payer.split, { people: 3, index: 1 }); assert.equal(p1.payer.prepay, true);
+  let next = T.settleItems(its, p1.lines, 'to_s1', p1.credit);
+  const p2 = T.posCheckout(next, { prepay: each, split: { people: 3, index: 2 }, method: 'linepay' }, menu, []);
+  assert.equal(p2.lines[0].zh, '平均分攤 第 2／3 人');
+  next = T.settleItems(next, p2.lines, 'to_s2', p2.credit);
+  assert.equal(next.filter(l => l.credit_of).length, 2);
+  const fin = T.posCheckout(next, { method: 'card' }, menu, []);
+  assert.equal(fin.amount, gross - each * 2, '最後一人＝全桌減前面已收（含尾差）');
+  assert.equal(T.unpaid(T.settleItems(next, fin.lines, 'to_fin')).length, 0);
+  // 沒帶 split 的預收仍是「部分付款」
+  assert.equal(T.posCheckout(items(), { prepay: 100, method: 'cash' }, menu, []).lines[0].zh, '部分付款');
+  const ops = fs.readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'utf8');
+  assert.match(ops, /POS_PAYREQ=null,POS_AA=null,/);
+  assert.match(ops, /function startAA\(people\)\{POS_AA=\{people\};POS_PICK=null;POS_QTY=\{\};POS_DISCOUNT=null;/);
+  assert.match(ops, /id="pos-aa-open"/); assert.match(ops, /id="pos-aa-clear"/);
+  assert.match(ops, /index=cur\.lines\.filter\(l=>l\.credit_of\)\.length\+1/, '第幾人由桌上抵扣行數推算');
+  assert.match(ops, /if\(aa&&!aa\.last\)total=aa\.each;/);
+  assert.match(ops, /body:\{prepay:aa\.each,split:\{people:aa\.people,index:aa\.index\},method,payments,invoice:invoiceBody\(host\),received:rec,operator_id:OPERATOR\?\.id\}/);
+  assert.match(ops, /\$\{aa\?\(aa\.last\?'收最後一人':`收第 \$\{aa\.index\}／\$\{aa\.people\} 人`\)\+' ':'收款 '\}NT\$/);
+  assert.match(ops, /<div class="pos-sum-disc" \$\{aa\?'hidden':''\}>/, '分攤時折扣列隱藏');
+  assert.match(ops, /POS_RECEIVED='';POS_AA=null;paintPos\(\);/, '換桌／返回桌況會離開分攤模式');
+});

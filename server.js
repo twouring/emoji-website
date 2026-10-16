@@ -4628,7 +4628,7 @@ async function loadSession(id){
   s.orders=(await q('SELECT id,items,amount,status,paid_at,ready_at,done_at FROM table_orders WHERE session_id=$1 ORDER BY paid_at',[id])).rows;return s;
 }
 // 不外露各行的 guest 識別碼（否則同桌可互刪）；帶 ?g= 或 body.guest 時只標記 mine
-const publicSession=(s,guest)=>{const mine=guest?tableOrders.prunePayRequests(s.pay_requests,s.items).find(r=>r.guest===guest):null;return {id:s.id,table:s.table_no,status:s.status,items:s.items.map(({guest:g,...l})=>({...l,mine:!!guest&&g===guest})),orders:s.orders.map(o=>({id:o.id,amount:o.amount,status:o.status,paid_at:o.paid_at,ready_at:o.ready_at,lines:o.items.map(l=>l.line)})),total_unpaid:tableOrders.sum(tableOrders.unpaid(s.items)),pay_request:mine?{scope:mine.scope,lines:mine.lines,at:mine.at}:null};};
+const publicSession=(s,guest)=>{const mine=guest?tableOrders.prunePayRequests(s.pay_requests,s.items).find(r=>r.guest===guest):null;return {id:s.id,table:s.table_no,status:s.status,items:s.items.map(({guest:g,...l})=>({...l,mine:!!guest&&g===guest})),orders:s.orders.map(o=>({id:o.id,amount:o.amount,status:o.status,paid_at:o.paid_at,ready_at:o.ready_at,lines:o.items.map(l=>l.line)})),total_unpaid:tableOrders.sum(tableOrders.unpaid(s.items)),pay_request:mine?{scope:mine.scope,lines:mine.lines,people:mine.people||undefined,at:mine.at}:null};};
 const contentValue=async key=>(await q('SELECT value FROM site_content WHERE key=$1',[key])).rows[0]?.value||'';
 async function currentMenu(opt){return tableOrders.menuIndex(await contentValue('menu'),tableOrders.MenuLib.activeVenue(),opt);}
 // 暫停點餐（公休、最後點餐、包場）：客人加菜前擋下，回店家設定的文案
@@ -4681,7 +4681,7 @@ app.delete('/api/orders/:id/items/:line',requireDb,wrap(async(req,res)=>{if(!ORD
 // 送出點餐：購物車裡還沒送的品項一起進出餐看板（未結帳，用餐完再到櫃檯結）；暫停點餐（最後點餐）時一樣擋
 app.post('/api/orders/:id/place',rateLimit({max:60}),requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});try{await assertNotPaused();}catch(e){return res.status(e.status||423).json({error:e.message});}return mutateItems(req,res,items=>tableOrders.placeLines(items).items);}));
 
-// 結帳需求：客人在手機上選好「付全桌／只付我的」按「通知櫃檯」，POS 桌號畫面列成一顆按鈕，一點就把那幾項勾好再收款（不經過付款碼／掃描）
+// 結帳需求：客人在手機上選好「全部付款／各付各的／平均分攤」按「通知櫃檯」，POS 桌號畫面列成一顆按鈕，一點就把那幾項勾好再收款（不經過付款碼／掃描）
 app.post('/api/orders/:id/pay-request',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});
   const client=await pool.connect();

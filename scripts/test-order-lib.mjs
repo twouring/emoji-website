@@ -21,7 +21,7 @@ test('中英文字典涵蓋桌邊點餐與 AA 結帳核心文案', () => {
   assert.equal(O.text('zh', 'split_evenly'), '平均分攤');
   assert.equal(O.text('en', 'split_evenly'), 'Split evenly');
   assert.equal(O.text('en', 'checkout_title'), 'Pay at the counter after dining');
-  assert.equal(O.text('en', 'my_items'), 'My items');
+  assert.equal(O.text('en', 'my_items'), 'Pay my own items');
 });
 
 

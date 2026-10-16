@@ -13,7 +13,7 @@ const items = [
   { line: 'c3', item_id: 'z', zh: '貝果', price: 80, qty: 1, guest: 'g1', by: '阿明', placed_at: '2026-10-16T03:01:00Z' },
 ];
 
-test('addPayRequest：只付我的＝指定行；付全桌＝全部未付；同一 guest 再送覆蓋', () => {
+test('addPayRequest：各付各的＝指定行；全部付款＝全部未付；同一 guest 再送覆蓋', () => {
   let rs = T.addPayRequest([], items, { guest: 'g1', name: '阿明', scope: 'mine', lines: ['a1', 'c3'] });
   assert.equal(rs.length, 1);
   assert.deepEqual(rs[0].lines, ['a1', 'c3']); assert.equal(rs[0].scope, 'mine'); assert.equal(rs[0].name, '阿明');
@@ -66,13 +66,13 @@ test('server：資料欄、客人端 POST/DELETE、POS 關閉端點、輪詢回�
   assert.match(s, /pay_requests:tableOrders\.payRequestsView\(s\.pay_requests,s\.items\)/);
   assert.match(s, /SET items=\$2,status=\$3,pay_requests=\$4,updated_at=now\(\) WHERE id=\$1',\[s\.id,JSON\.stringify\(items\),closed\?'closed':'open',JSON\.stringify\(tableOrders\.prunePayRequests\(s\.pay_requests,items\)\)\]/);
   assert.match(s, /SET items=\$2,pay_requests=\$3,updated_at=now\(\) WHERE id=\$1',\[dst\.id/);
-  assert.match(s, /pay_request:mine\?\{scope:mine\.scope,lines:mine\.lines,at:mine\.at\}:null/, '客人端只看到自己那筆');
+  assert.match(s, /pay_request:mine\?\{scope:mine\.scope,lines:mine\.lines,people:mine\.people\|\|undefined,at:mine\.at\}:null/, '客人端只看到自己那筆（含分攤人數）');
 });
 
 test('客人端：結帳面板有「通知櫃檯我要結帳」、已送出狀態與取消；三語文案', () => {
   const html = read('public/order.html'), lib = read('public/order-lib.js');
   assert.match(html, /id="pay-notify"/); assert.match(html, /id="pay-sent"/); assert.match(html, /id="pay-cancel"/);
-  assert.match(html, /api\('\/orders\/'\+S\.id\+'\/pay-request',\{method:'POST',body:\{guest:GUEST,name:NAME,scope:scope==='mine'\?'mine':'all',lines:/);
+  assert.match(html, /api\('\/orders\/'\+S\.id\+'\/pay-request',\{method:'POST',body:\{guest:GUEST,name:NAME,scope:scope==='mine'\?'mine':scope==='split'\?'split':'all',people:people,lines:/);
   assert.match(html, /api\('\/orders\/'\+S\.id\+'\/pay-request',\{method:'DELETE',body:\{guest:GUEST\}\}\)/);
   assert.match(html, /if\(SHEET_OPEN==='#pay'\)renderPayRequest\(\);/, '輪詢到櫃檯收款後同步');
   for (const k of ['notify_counter', 'notify_done', 'notify_sent', 'notify_cancel']) {
@@ -93,4 +93,18 @@ test('POS：桌況格標記、桌號畫面一鍵勾選、✕ 關閉、新需求�
   assert.match(js, /api\('\/admin\/orders\/sessions\/'\+cur\.id\+'\/pay-requests\/'\+b\.dataset\.payreqDismiss,\{method:'DELETE'\}\)/);
   assert.match(js, /POS_TABLE=b\.dataset\.posTable;POS_PICK=null;POS_QTY=\{\};POS_PAYREQ=null;/, '換桌重置');
   assert.match(css, /\.pos-table\.payreq\{/); assert.match(css, /\.pos-payreq-apply\{/);
+});
+
+test('平均分攤：addPayRequest 帶人數（2–20）、view 算每人金額；手機頁三種範圍文案與提示；POS 一點進入分攤模式', () => {
+  let rs = T.addPayRequest([], items, { guest: 'g1', name: '阿明', scope: 'split', people: 3 });
+  assert.equal(rs[0].scope, 'split'); assert.equal(rs[0].people, 3); assert.deepEqual(rs[0].lines, ['a1', 'b2', 'c3']);
+  const v = T.payRequestsView(rs, items)[0];
+  assert.equal(v.amount, 330); assert.equal(v.people, 3); assert.equal(v.each, 110);
+  for (const bad of [1, 21, 'x', undefined]) assert.throws(() => T.addPayRequest([], items, { guest: 'g1', scope: 'split', people: bad }), e => e.status === 400, String(bad));
+  const html = read('public/order.html'), lib = read('public/order-lib.js'), js = read('public/pos-ops.js');
+  assert.match(html, /data-i18n="whole_table">全部付款</); assert.match(html, /data-i18n="my_items">各付各的</); assert.match(html, /data-i18n="split_evenly">平均分攤</);
+  assert.match(html, /id="pay-scope-hint"/); assert.match(html, /notify_sent_split/);
+  for (const k of ['whole_table', 'my_items', 'split_evenly', 'my_items_hint', 'split_hint', 'notify_sent_split']) assert.equal((lib.match(new RegExp(`\\b${k}: '`, 'g')) || []).length, 3, k + ' 要有 zh/en/ja');
+  assert.match(js, /r\.scope==='split'\?`平均分攤 \$\{r\.people\} 人 · 每人 NT\$\$\{num\(r\.each\|\|0\)\}`:r\.scope==='mine'\?'各付各的':'全部付款'/);
+  assert.match(js, /if\(r\.scope==='split'&&r\.people\)\{startAA\(r\.people\);POS_PAYREQ=r\.id;paintPos\(\);return;\}/, '分攤需求一點就進分攤模式');
 });

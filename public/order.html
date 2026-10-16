@@ -116,7 +116,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   <div class="card hidden" id="thanks"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-check"></use></svg><span data-i18n="thanks">感謝用餐，期待再次光臨。</span></h3><p class="muted" data-i18n="thanks_hint">這次點餐已結束。若要再點，請重新掃描桌上的 QR。</p><button class="btn y" type="button" id="thanks-again" data-i18n="thanks_again">重新點餐</button></div>
 
   <section id="app" class="hidden">
-    <div class="card" id="name-gate"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-user"></use></svg><span data-i18n="name_gate_title">先告訴我們怎麼稱呼您</span></h3><p class="muted" style="margin-top:0" data-i18n="shared_hint">同桌的人掃同一個 QR 就能一起點；用餐完再到櫃檯結帳，可付全桌、各付自己的，或平均分攤。</p><form id="name-form" class="name-form"><input class="f" id="name-in" data-i18n-placeholder="name_placeholder" placeholder="你的稱呼（讓同桌知道誰點了什麼）" maxlength="20" autocomplete="off"><div class="row name-actions"><button class="btn ghost" type="button" id="name-skip" data-i18n="name_skip">略過</button><button class="btn y" type="submit" data-i18n="name_gate_submit">查看菜單</button></div></form></div>
+    <div class="card" id="name-gate"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-user"></use></svg><span data-i18n="name_gate_title">先告訴我們怎麼稱呼您</span></h3><p class="muted" style="margin-top:0" data-i18n="shared_hint">同桌的人掃同一個 QR 就能一起點；用餐完再到櫃檯結帳，可全部付款、各付各的，或平均分攤。</p><form id="name-form" class="name-form"><input class="f" id="name-in" data-i18n-placeholder="name_placeholder" placeholder="你的稱呼（讓同桌知道誰點了什麼）" maxlength="20" autocomplete="off"><div class="row name-actions"><button class="btn ghost" type="button" id="name-skip" data-i18n="name_skip">略過</button><button class="btn y" type="submit" data-i18n="name_gate_submit">查看菜單</button></div></form></div>
     <div id="order-content" class="hidden">
       <div class="card" id="orders-card"></div>
       <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px"><span class="muted"><span data-i18n="ordering_as">點餐稱呼</span>：<b id="name-display"></b></span><button class="btn ghost sm" type="button" id="name-edit-btn" data-i18n="name_edit">更改</button></div>
@@ -144,7 +144,8 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 <div class="sheet" id="pay"><div class="in">
   <h3 class="title-icon"><svg class="ico lg" aria-hidden="true"><use href="#i-counter"></use></svg><span data-i18n="checkout_title">用餐完再到櫃檯結帳</span></h3>
   <p class="muted" data-i18n="checkout_hint">請先享用餐點；離席前帶著手機到櫃檯，工作人員會依這桌點餐明細結帳。</p>
-  <div class="row" id="pay-scope"><label><input type="radio" name="scope" value="all" checked><svg class="ico" aria-hidden="true"><use href="#i-users"></use></svg><span data-i18n="whole_table">付全桌</span></label><label><input type="radio" name="scope" value="mine"><svg class="ico" aria-hidden="true"><use href="#i-user"></use></svg><span data-i18n="my_items">只付我的</span></label><label><input type="radio" name="scope" value="split"><svg class="ico" aria-hidden="true"><use href="#i-split"></use></svg><span data-i18n="split_evenly">平均分攤</span></label></div>
+  <div class="row" id="pay-scope"><label><input type="radio" name="scope" value="all" checked><svg class="ico" aria-hidden="true"><use href="#i-users"></use></svg><span data-i18n="whole_table">全部付款</span></label><label><input type="radio" name="scope" value="mine"><svg class="ico" aria-hidden="true"><use href="#i-user"></use></svg><span data-i18n="my_items">各付各的</span></label><label><input type="radio" name="scope" value="split"><svg class="ico" aria-hidden="true"><use href="#i-split"></use></svg><span data-i18n="split_evenly">平均分攤</span></label></div>
+  <p class="muted" id="pay-scope-hint"></p>
   <label class="split-box hidden" id="split-box"><svg class="ico" aria-hidden="true"><use href="#i-users"></use></svg><span data-i18n="people">分攤人數</span><input id="split-people" type="number" inputmode="numeric" min="2" max="20" value="2"><span data-i18n="people_suffix">人</span></label>
   <div class="tot"><span class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-counter"></use></svg><span data-i18n="counter_amount">櫃檯結帳金額</span></span><span id="pay-amount"></span></div>
   <div class="split-result hidden" id="split-result"><div class="title-icon"><svg class="ico lg" aria-hidden="true"><use href="#i-split"></use></svg><b id="split-each"></b></div><span class="muted" id="split-note"></span></div>
@@ -386,6 +387,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     if(!S)return;
     var scope=document.querySelector('input[name=scope]:checked').value,ls=payScopeLines(),isSplit=scope==='split';
     $('#pay-amount').textContent=money(sum(ls));
+    $('#pay-scope-hint').textContent=scope==='mine'?tr('my_items_hint'):isSplit?tr('split_hint'):'';
     $('#split-box').classList.toggle('hidden',!isSplit);$('#split-result').classList.toggle('hidden',!isSplit);
     if(isSplit){
       var people=Math.max(2,Math.min(20,Number($('#split-people').value)||2));$('#split-people').value=people;
@@ -396,16 +398,17 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   }
   document.querySelectorAll('input[name=scope]').forEach(function(r){r.onchange=refreshPayAmount;});
   $('#split-people').oninput=refreshPayAmount;
-  // 通知櫃檯：把現在選的範圍（全桌／只付我的）送到 POS，櫃檯桌號畫面會出現「待結帳：稱呼 NT$」一點就勾好；平均分攤沒有對應品項，退回全桌
+  // 通知櫃檯：把現在選的範圍送到 POS。全部付款／各付各的＝櫃檯桌號畫面一點就勾好那幾項；平均分攤＝帶人數，櫃檯依人數分次收款（每人一張單）
   function renderPayRequest(){
     var pr=S&&S.pay_request;
     $('#pay-sent').classList.toggle('hidden',!pr);$('#pay-notify').hidden=!!pr;
-    if(pr){var ls=unpaid().filter(function(l){return pr.lines.indexOf(l.line)>=0;});$('#pay-sent-text').textContent=tr('notify_sent',{amount:money(sum(ls)),count:ls.length});}
+    if(pr){var ls=unpaid().filter(function(l){return pr.lines.indexOf(l.line)>=0;});$('#pay-sent-text').textContent=pr.scope==='split'&&pr.people?tr('notify_sent_split',{people:pr.people,each:money(OrderLib.splitBill(sum(ls),pr.people).base)}):tr('notify_sent',{amount:money(sum(ls)),count:ls.length});}
   }
   $('#pay-notify').onclick=function(){
     var scope=document.querySelector('input[name=scope]:checked').value,ls=scope==='mine'?mine():unpaid();
     if(!ls.length)return;var btn=this;btn.disabled=true;
-    api('/orders/'+S.id+'/pay-request',{method:'POST',body:{guest:GUEST,name:NAME,scope:scope==='mine'?'mine':'all',lines:scope==='mine'?ls.map(function(l){return l.line;}):[]}})
+    var people=scope==='split'?Math.max(2,Math.min(20,Number($('#split-people').value)||2)):undefined;
+    api('/orders/'+S.id+'/pay-request',{method:'POST',body:{guest:GUEST,name:NAME,scope:scope==='mine'?'mine':scope==='split'?'split':'all',people:people,lines:scope==='mine'?ls.map(function(l){return l.line;}):[]}})
       .then(function(s){S=s;renderState();renderPayRequest();toast(tr('notify_done'),5000);try{navigator.vibrate&&navigator.vibrate(80);}catch(e){}})
       .catch(function(err){toast(err.message);if(/已結束/.test(err.message))sessionClosed();}).then(function(){btn.disabled=false;});
   };

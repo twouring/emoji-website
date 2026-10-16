@@ -112,6 +112,7 @@ tr.pos-comp td{background:var(--ok-faint)}
 .pos-cash-quick{display:flex;flex:1 1 240px;gap:8px}.pos-cash-quick button{all:unset;box-sizing:border-box;cursor:pointer;flex:1 1 0;min-height:48px;padding:0 10px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
 .pos-cash-quick button:active{background:var(--paper-alt)}.pos-cash-quick button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .pos-sum .pos-change{background:var(--ok-soft);min-height:68px}.pos-sum .pos-change b{font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums}.pos-sum .pos-change.has b{color:var(--ok)}
+.pos-sum-aa{flex-wrap:wrap}.pos-sum-aa>span:last-child{display:inline-flex;align-items:center;gap:8px}
 .pos-sum-member{flex-wrap:wrap;align-items:center}.pos-sum-member label{display:flex;flex:1 1 220px;align-items:center;gap:8px;min-width:0}.pos-sum-member input[type=tel],.pos-sum-member #pos-yan-phone{flex:1;min-width:0;min-height:48px;font:inherit;font-size:1rem;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}.pos-sum-member #pos-yan-lookup{flex:none}
 /* 發票：預設收起只有一行，展開才有底色 */
 .pos-invoice{width:100%;border-top:1px solid var(--line)}
@@ -478,3 +479,10 @@ tr.lp-refund td{color:var(--danger)}
 }
 /* 會員手機輸入框至少要看得到號碼：右欄變窄時，查會員／掃會員換到下一行 */
 .pos-sum-member label{flex:1 1 12em}.pos-sum-member #pos-yan-phone{min-width:8em}
+/* 結帳品項依點餐人分組：組頭一列＝稱呼、幾項、小計、「只結這組」（各付各的一點就勾好） */
+.pos-lines tr.pos-group td{background:var(--paper-alt);border-top:2px solid var(--line);padding:6px 10px}
+.pos-lines tr.pos-group.on td{background:var(--ok-faint)}
+.pos-lines tr.pos-group .pos-group-wrap{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px}
+.pos-lines tr.pos-group .pos-group-name{font-weight:700;font-size:1.1rem}
+.pos-lines tr.pos-group .pos-group-meta{color:var(--muted);font-variant-numeric:tabular-nums}
+.pos-lines tr.pos-group .pos-group-wrap .btn{margin-left:auto}
