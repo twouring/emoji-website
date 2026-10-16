@@ -78,8 +78,8 @@ test('前端與伺服器接線：混合付款 UI、先收部分金額、作廢�
   assert.match(ops, /data-split=/); assert.match(ops, /id="pos-prepay"/);
   assert.match(ops, /body:\{prepay:n,method,payments/);
   assert.match(ops, /body:\{method,payments,member:POS_MEMBER/);
-  assert.match(ops, /const refundCash=cashPaidOf\(order\)>0&&confirm\('這次作廢/);
-  assert.match(ops, /const refundCash=cashPaidOf\(order\)>0&&confirm\('取消品項/);
+  assert.match(ops, /const refundCash=cashPaidOf\(order\)>0&&await posConfirm\('這次作廢/);
+  assert.match(ops, /const refundCash=cashPaidOf\(order\)>0&&await posConfirm\('取消品項/);
   const server = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
   assert.match(server, /tableOrders\.settleItems\(s\.items,out\.lines,orderId,out\.credit\)/);
   assert.match(server, /const cash=tableOrders\.cashPaid\(payer,order\.amount\);/);

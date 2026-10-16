@@ -2,25 +2,32 @@
    依賴 /style.css 的 CIS token（--ink/--paper/--line…）與宿主頁的 .btn/.pill/.a-sec/.a-tbl 基礎樣式。
    版面原則：一條右對齊線（金額、操作鍵都靠右）、主動作獨佔一列、破壞性動作紅字、狀態用語意色。 */
 
+/* 語意色 token（只給營運畫面；CIS 的 --ink／--paper／--line／--accent 在 /style.css）：紅＝破壞性／異常、綠＝完成／帳對、琥珀＝進行中／提醒。
+   規格籤的溫度／糖度／冰塊／飯量／麵量是分類色票，不是語意色，維持各自色碼 */
+:root{--danger:#b42318;--danger-line:#f3c6c0;--danger-soft:#fff5f3;--danger-faint:#fff9f8;--ok:#1b5e2a;--ok-line:#bfe3c6;--ok-soft:#eaf7ec;--ok-faint:#f2fbf4;--warn:#d59f00;--warn-ink:#7a5a00;--warn-line:#f1dc9a;--warn-soft:#fff6dc;--warn-faint:#fff8e6}
+/* 觸控目標：獨立按鈕／膠囊／輸入框 48px，表格列內與頂欄的小鍵最少 44px（Apple HIG 44pt），不再出現更小的 */
+
 /* ── 共用：按鈕尺寸、紅字按鈕、勾選框、區塊標題 ── */
-.btn-xs{min-height:40px;padding:4px 12px}
-.btn.btn--danger{color:#b42318;border-color:#f3c6c0}.btn.btn--danger:active{background:#fff5f3}
+.btn-xs{min-height:44px;padding:4px 12px}
+.btn.btn--danger{color:var(--danger);border-color:var(--danger-line)}.btn.btn--danger:active{background:var(--danger-soft)}
+/* 破壞性主鍵（清桌、刪除、停用）：實心紅，只在確認對話框用 */
+.btn.btn--solid.btn--danger{background:var(--danger);border-color:var(--danger);color:#fff}.btn.btn--solid.btn--danger:active{filter:brightness(.85)}
 /* 宿主頁的 .pill 排在本檔之後，異常狀態要用複合選擇器才蓋得過 */
-.pill.pill-bad{color:#b42318;border-color:#f3c6c0;background:#fff5f3}.pill.pill-bad::before{background:#b42318;opacity:1}
+.pill.pill-bad{color:var(--danger);border-color:var(--danger-line);background:var(--danger-soft)}.pill.pill-bad::before{background:var(--danger);opacity:1}
 :is(#pos-body,#orders-body,#history-body,#sales-body,#resv-body,#shifts-body,#att-body,#clock-body) input[type=checkbox]{accent-color:var(--ink)}
-.pos-tables h2,.pos-panel h2{font-size:20px}
+.pos-tables h2,.pos-panel h2{font-size:1.25rem}
 :is(#pos-body,#sales-body,#history-body,#shifts-body,#att-body,#clock-body,#staff-body) h3{margin:24px 0 10px;padding-top:18px;border-top:1px solid var(--line);font-size:1.05rem}
 /* 狀態色：綠＝完成／可取／帳對、琥珀＝進行中、灰＝閒置、紅＝異常（只在營運畫面內，不動 /admin 其他分頁） */
-:is(#pos-body,#orders-body,#history-body,#sales-body,#resv-body,#shifts-body,#att-body,#clock-body,#staff-body) .pill-ok{background:#eaf7ec;border-color:#bfe3c6;color:#1b5e2a}
-:is(#pos-body,#orders-body,#history-body,#sales-body,#resv-body,#shifts-body,#att-body,#clock-body,#staff-body) .pill-ok::before{background:#2e7d32;opacity:1}
-:is(#pos-body,#orders-body,#history-body,#sales-body,#resv-body,#shifts-body,#att-body,#clock-body,#staff-body) .pill-wait{background:#fff6dc;border-color:#f1dc9a;color:#7a5a00}
-:is(#pos-body,#orders-body,#history-body,#sales-body,#resv-body,#shifts-body,#att-body,#clock-body,#staff-body) .pill-wait::before{background:#d59f00;opacity:1}
+:is(#pos-body,#orders-body,#history-body,#sales-body,#resv-body,#shifts-body,#att-body,#clock-body,#staff-body) .pill-ok{background:var(--ok-soft);border-color:var(--ok-line);color:var(--ok)}
+:is(#pos-body,#orders-body,#history-body,#sales-body,#resv-body,#shifts-body,#att-body,#clock-body,#staff-body) .pill-ok::before{background:var(--ok);opacity:1}
+:is(#pos-body,#orders-body,#history-body,#sales-body,#resv-body,#shifts-body,#att-body,#clock-body,#staff-body) .pill-wait{background:var(--warn-soft);border-color:var(--warn-line);color:var(--warn-ink)}
+:is(#pos-body,#orders-body,#history-body,#sales-body,#resv-body,#shifts-body,#att-body,#clock-body,#staff-body) .pill-wait::before{background:var(--warn);opacity:1}
 :is(#pos-body,#orders-body,#history-body,#sales-body,#resv-body,#shifts-body,#att-body,#clock-body,#staff-body) .pill-draft{color:var(--muted)}
 /* 表格：操作欄靠右、寬度剛好一行放下三顆（收據明細／出餐單／作廢），列高才一致 */
 .a-tbl td.ops-actions{width:1%;min-width:270px;text-align:right;line-height:1}.a-tbl th.ops-th{text-align:right}
 .a-tbl td.ops-actions .ops-btns{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px}.a-tbl td.ops-actions .btn{margin:0;flex:0 0 auto;padding-left:14px;padding-right:14px}
 .pos-lines td.ops-actions{min-width:200px}
-.a-tbl td.ops-pay .inv-fix{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;margin-top:4px}.a-tbl td.ops-pay .btn-xs{min-height:36px;padding:2px 10px}
+.a-tbl td.ops-pay .inv-fix{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;margin-top:4px}.a-tbl td.ops-pay .btn-xs{min-height:44px;padding:2px 10px}
 .a-tbl td.ops-item{min-width:12em}.a-tbl td.ops-pay{min-width:13em}.a-tbl td.ops-item .hint,.a-tbl td.ops-pay .hint{white-space:nowrap}
 tr.resv-off td{color:var(--muted)}tr.resv-off .btn{opacity:.75}
 /* 出餐看板：已取消的品項劃線、灰階，不再搶走視覺焦點 */
@@ -31,16 +38,16 @@ tr.resv-off td{color:var(--muted)}tr.resv-off .btn{opacity:.75}
 /* ── 桌況格 ── */
 .pos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
 .pos-table{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:6px;min-height:92px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:1rem;color:var(--ink)}
-.pos-table b{font-size:22px;line-height:1.1}.pos-table small{font-size:1rem;color:var(--muted)}
+.pos-table b{font-size:1.375rem;line-height:1.1}.pos-table small{font-size:1rem;color:var(--muted)}
 .pos-table.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}.pos-table.on small{color:rgba(255,255,255,.75)}
 .pos-table:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .pos-table.takeout{background:var(--paper-alt)}.pos-table.takeout.on{background:var(--ink)}
 .pos-table.empty{border-style:dashed;background:transparent;color:var(--muted)}.pos-table.empty b{color:var(--ink)}
 .pos-table.reserved{border-style:solid;border-color:var(--ink)}.pos-table .pos-resv{color:var(--ink);line-height:1.3;overflow-wrap:anywhere}.pos-table .pos-resv-tag{display:inline-block;padding:0 6px;border:1px solid currentColor;border-radius:999px;font-size:1rem;line-height:1.4}.pos-table.on .pos-resv{color:var(--paper)}
 /* 客人手機按「通知櫃檯我要結帳」：桌況格標黃、桌號畫面列成一顆顆按鈕，一點就把那幾項勾好 */
-.pos-table.payreq{border-color:#f1dc9a;background:#fff6dc}.pos-table.payreq.on{background:var(--ink)}.pos-table .pos-payreq-tag{color:#7a5a00;font-weight:600;overflow-wrap:anywhere}.pos-table.on .pos-payreq-tag{color:#f1dc9a}
+.pos-table.payreq{border-color:var(--warn-line);background:var(--warn-soft)}.pos-table.payreq.on{background:var(--ink)}.pos-table .pos-payreq-tag{color:var(--warn-ink);font-weight:600;overflow-wrap:anywhere}.pos-table.on .pos-payreq-tag{color:var(--warn-line)}
 .pos-payreqs{display:flex;flex-direction:column;gap:8px;margin:10px 0}.pos-payreq{display:flex;align-items:center;gap:8px}.pos-payreq.on .pos-payreq-apply{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
-.pos-payreq-apply{all:unset;box-sizing:border-box;cursor:pointer;flex:1;display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;min-height:52px;padding:10px 14px;border:1px solid #f1dc9a;border-radius:10px;background:#fff6dc;font-size:1rem;color:var(--ink)}.pos-payreq-apply b{font-size:1.15em}.pos-payreq-apply small{margin-left:auto;color:var(--muted)}.pos-payreq-apply:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.pos-payreq-apply{all:unset;box-sizing:border-box;cursor:pointer;flex:1;display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;min-height:52px;padding:10px 14px;border:1px solid var(--warn-line);border-radius:10px;background:var(--warn-soft);font-size:1rem;color:var(--ink)}.pos-payreq-apply b{font-size:1.15em}.pos-payreq-apply small{margin-left:auto;color:var(--muted)}.pos-payreq-apply:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .pos-panel h2{flex-wrap:wrap}
 /* 桌況在左、這桌的帳在右：平板橫式（≥1000px，iPad 10 吋起）就啟用，左欄佔 34%（桌況 2–3 欄），右欄吃剩下全部；直式／窄螢幕上下排、各自滿版 */
 .pos-layout{display:grid;gap:16px;align-items:start}
@@ -63,20 +70,20 @@ tr.resv-off td{color:var(--muted)}tr.resv-off .btn{opacity:.75}
 .pos-lines th:first-child,.pos-lines td:first-child{width:1%}
 .pos-lines th.pos-qty-col,.pos-lines td.pos-qty-col{text-align:center;width:1%;white-space:nowrap}
 .pos-qty{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--line);border-radius:999px;background:var(--card)}
-.pos-qty button{all:unset;cursor:pointer;width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;font-size:22px;line-height:1;color:var(--ink);border-radius:999px}
+.pos-qty button{all:unset;cursor:pointer;width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;font-size:1.375rem;line-height:1;color:var(--ink);border-radius:999px}
 .pos-qty button:active{background:var(--paper-alt)}.pos-qty button:focus-visible{outline:2px solid var(--ink)}
 .pos-qty b{min-width:2ch;text-align:center;font-size:1.1rem;font-variant-numeric:tabular-nums}
-tr.pos-comp td{background:#f2fbf4}
+tr.pos-comp td{background:var(--ok-faint)}
 .pos-panel input[data-pick]{width:24px;height:24px;cursor:pointer}
 
 /* ── 加點：分類籤 ＋ 菜單磁貼 ── */
 .pos-menu-box{margin-top:14px}.pos-menu-box summary{list-style:none;display:inline-flex;cursor:pointer;min-height:48px;align-items:center}.pos-menu-box summary::-webkit-details-marker{display:none}.pos-menu-box[open] summary{margin-bottom:10px}
 .pos-cats{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
-.pos-cats button{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;min-height:44px;padding:0 16px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem;color:var(--ink)}
+.pos-cats button{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;min-height:48px;padding:0 16px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem;color:var(--ink)}
 .pos-cats button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}.pos-cats button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .pos-menu{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
 .pos-item{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:4px;min-height:76px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:1rem}
-.pos-item b{font-weight:600;line-height:1.3}.pos-item span{color:var(--muted);font-variant-numeric:tabular-nums}.pos-item small{color:#b42318}
+.pos-item b{font-weight:600;line-height:1.3}.pos-item span{color:var(--muted);font-variant-numeric:tabular-nums}.pos-item small{color:var(--danger)}
 .pos-item.off{background:var(--paper-alt);border-style:dashed}.pos-item:active{background:var(--paper-alt)}.pos-item:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .pos-add{margin-top:10px}
 
@@ -91,28 +98,28 @@ tr.pos-comp td{background:#f2fbf4}
 .pos-sum>div>span:first-child{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
 .pos-member{display:inline-flex;align-items:center;gap:.5em;font-size:1rem;cursor:pointer}.pos-member input{width:22px;height:22px}
 .pos-sum .pos-discount-form{display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px;background:var(--card)}
-.pos-discount-form select,.pos-discount-form input{min-height:44px;font:inherit;font-size:1rem;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+.pos-discount-form select,.pos-discount-form input{min-height:48px;font:inherit;font-size:1rem;padding:8px 10px;border:1px solid var(--muted);border-radius:8px;background:var(--card);color:var(--ink)}
 .pos-discount-form #pos-disc-value{width:90px}.pos-discount-form #pos-disc-reason{flex:1;min-width:160px}
 /* 應收：白底、粗頂線、最大字；黑色留給「收款」鍵 */
 .pos-sum .pos-total{background:var(--card);min-height:68px;padding:8px 14px;border-top:2px solid var(--ink);font-weight:600}
-.pos-total b{font-size:32px;font-variant-numeric:tabular-nums;line-height:1.1}
+.pos-total b{font-size:2rem;font-variant-numeric:tabular-nums;line-height:1.1}
 /* 現金：實收＋快速面額（等寬）一列；找零獨立一列、右對齊跟應收同一條線 */
 .pos-sum .pos-cash{justify-content:flex-start;flex-wrap:wrap;gap:10px 14px;padding:10px 14px;background:var(--card)}
 .pos-cash label{display:inline-flex;align-items:center;gap:10px;font-size:1rem}.pos-cash input{width:150px;min-height:48px;font:inherit;font-size:1.2rem;padding:8px 12px;border:1px solid var(--muted);border-radius:8px;background:var(--card);color:var(--ink);font-variant-numeric:tabular-nums}
 .pos-cash-quick{display:flex;flex:1 1 240px;gap:8px}.pos-cash-quick button{all:unset;box-sizing:border-box;cursor:pointer;flex:1 1 0;min-height:48px;padding:0 10px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
 .pos-cash-quick button:active{background:var(--paper-alt)}.pos-cash-quick button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-.pos-sum .pos-change{background:var(--card);min-height:52px}.pos-sum .pos-change b{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}.pos-sum .pos-change.has b{color:#15803d}
+.pos-sum .pos-change{background:var(--card);min-height:52px}.pos-sum .pos-change b{font-size:1.375rem;font-weight:600;font-variant-numeric:tabular-nums}.pos-sum .pos-change.has b{color:var(--ok)}
 /* 發票：預設收起只有一行，展開才有底色 */
 .pos-invoice{width:100%;border-top:1px solid var(--line)}
 .pos-invoice summary{list-style:none;cursor:pointer;min-height:48px;display:flex;align-items:center;gap:8px}.pos-invoice summary::-webkit-details-marker{display:none}.pos-invoice summary b{font-size:1rem;font-weight:500}
 .pos-invoice-caret{margin-left:auto;width:10px;height:10px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .15s}.pos-invoice[open] .pos-invoice-caret{transform:rotate(-135deg)}
 .pos-invoice-body{display:grid;gap:10px;padding:12px;border:1px dashed var(--line);border-radius:10px;background:var(--paper-alt);margin-bottom:4px}
-.pos-invoice-types{display:flex;flex-wrap:wrap;gap:8px}.pos-invoice-types label{position:relative}.pos-invoice-types input{position:absolute;opacity:0;inset:0}.pos-invoice-types span{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem;cursor:pointer}.pos-invoice-types input:checked+span{background:var(--ink);color:var(--paper);border-color:var(--ink)}
-.pos-invoice-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px}.pos-invoice-fields input{min-height:44px;font:inherit;font-size:1rem;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+.pos-invoice-types{display:flex;flex-wrap:wrap;gap:8px}.pos-invoice-types label{position:relative}.pos-invoice-types input{position:absolute;opacity:0;inset:0}.pos-invoice-types span{display:inline-flex;align-items:center;min-height:48px;padding:0 14px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem;cursor:pointer}.pos-invoice-types input:checked+span{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.pos-invoice-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px}.pos-invoice-fields input{min-height:48px;font:inherit;font-size:1rem;padding:8px 10px;border:1px solid var(--muted);border-radius:8px;background:var(--card);color:var(--ink)}
 /* 發票欄位：點選對應類型才出現那一格；手機載具多一顆相機掃描鍵 */
 .pos-inv-row[hidden]{display:none}
-.pos-inv-scan-row{display:flex;gap:6px;align-items:center}.pos-inv-scan-row input{flex:1;min-width:0}.pos-inv-scan-row #pos-invoice-scan{flex:none;min-height:44px}
-#pos-invoice-video,#pos-carrier-video{display:none;width:100%;max-width:320px;border-radius:8px;margin-top:6px}.pos-move-box .pos-inv-scan-row input{min-height:48px;font-size:18px;padding:0 10px}.pos-move-box .pos-inv-scan-row #pos-carrier-scan{flex:none;min-height:48px}
+.pos-inv-scan-row{display:flex;gap:6px;align-items:center}.pos-inv-scan-row input{flex:1;min-width:0}.pos-inv-scan-row #pos-invoice-scan{flex:none;min-height:48px}
+#pos-invoice-video,#pos-carrier-video{display:none;width:100%;max-width:320px;border-radius:8px;margin-top:6px}.pos-move-box .pos-inv-scan-row input{min-height:48px;font-size:1.125rem;padding:0 10px}.pos-move-box .pos-inv-scan-row #pos-carrier-scan{flex:none;min-height:48px}
 /* 收款獨佔一列最大；換桌／清桌縮小放下面 */
 .pos-actions{display:grid;gap:10px;width:100%}
 .pos-actions #pos-checkout{min-height:60px;font-size:1.25rem;font-weight:600}
@@ -121,7 +128,7 @@ tr.pos-comp td{background:#f2fbf4}
 /* ── 開關帳：結帳頁一條狀態列（每品牌一顆晶片）；日結頁每品牌一張卡 ── */
 .reg-bar{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
 .reg-chip{display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px 10px;min-height:48px;padding:6px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:1rem}
-.reg-chip.reg-closed{border-color:#f3c6c0;background:#fff5f3}.reg-chip .reg-exp{color:var(--muted);font-variant-numeric:tabular-nums}
+.reg-chip.reg-closed{border-color:var(--danger-line);background:var(--danger-soft)}.reg-chip .reg-exp{color:var(--muted);font-variant-numeric:tabular-nums}
 .reg-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:14px}
 .reg-card{padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
 .reg-card.reg-closed{border-style:dashed;background:var(--paper-alt)}.reg-card.reg-done{opacity:.9}
@@ -130,27 +137,27 @@ tr.pos-comp td{background:#f2fbf4}
 .reg-cash>div{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}
 .reg-cash span{font-size:1rem;color:var(--muted)}.reg-cash b{font-size:1.2rem;font-variant-numeric:tabular-nums}
 .reg-cash .reg-expected{border-top:3px solid var(--ink)}.reg-cash .reg-expected b{font-size:1.4rem}
-.reg-cash .reg-diff b,#reg-diff-show.reg-diff{color:#b42318}
+.reg-cash .reg-diff b,#reg-diff-show.reg-diff{color:var(--danger)}
 .reg-actions{justify-content:flex-end;margin-top:12px}.reg-actions .btn{min-height:48px}
 .reg-cash-form{align-items:flex-end;margin-top:10px}.reg-cash-form select,.reg-cash-form input{min-height:48px;font-size:1rem}.reg-cash-form #reg-cash-amount{width:130px}.reg-cash-form #reg-cash-reason{flex:1 1 220px}
 .reg-close-form,.reg-open-form{margin-top:12px;padding:12px;border:1px dashed var(--line);border-radius:10px;background:var(--paper-alt)}
 .reg-bar+.reg-open-form{margin:0 0 12px;background:var(--card)}.reg-card .reg-open-form{margin-top:0;padding:0;border:0;background:none}
 .reg-denoms{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-bottom:10px}
-.reg-denoms label{display:flex;flex-direction:column;gap:4px;font-size:1rem;color:var(--muted)}.reg-denoms input{min-height:48px;font-size:1.1rem;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-variant-numeric:tabular-nums;width:100%}
+.reg-denoms label{display:flex;flex-direction:column;gap:4px;font-size:1rem;color:var(--muted)}.reg-denoms input{min-height:48px;font-size:1.1rem;padding:6px 10px;border:1px solid var(--muted);border-radius:8px;background:var(--card);color:var(--ink);font-variant-numeric:tabular-nums;width:100%}
 .reg-close-form .a-form,.reg-open-form .a-form{align-items:flex-end}.reg-close-form #reg-counted,.reg-close-form #reg-keep,.reg-open-form #reg-open-total{width:150px;font-size:1.1rem}.reg-close-form .reg-note{flex:1 1 220px}
 .reg-close-sum{display:flex;flex-wrap:wrap;gap:8px 24px;margin:10px 0;font-size:1rem}.reg-close-sum b{font-size:1.2rem;font-variant-numeric:tabular-nums}
 
 /* ── 出餐看板、暫停點餐 ── */
 /* 標題列：標題靠左、「操作說明」摺疊鍵靠右同一列；展開後說明文字落到下一列整寬 */
 .ops-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 12px}.ops-head h2,.ops-head h3{margin:0;padding-top:0;border-top:0;flex:1 1 auto}.ops-head .ops-help{margin:0;flex:0 0 auto}.ops-head .ops-help[open]{flex-basis:100%}
-.ops-help{margin:0 0 12px}.ops-help summary{list-style:none;display:inline-flex;align-items:center;min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:var(--paper);font-size:1rem;color:var(--muted);cursor:pointer}.ops-help summary::-webkit-details-marker{display:none}.ops-help summary:before{content:'?';display:inline-grid;place-items:center;width:20px;height:20px;margin-right:6px;border-radius:50%;background:var(--ink);color:var(--paper);font-size:1rem;font-weight:700;line-height:1;font-family:system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif}.ops-help[open] summary{margin-bottom:8px;color:var(--ink)}.ops-help .hint{margin:0;padding:10px 12px;border:1px dashed var(--line);border-radius:8px;background:var(--paper-alt)}
+.ops-help{margin:0 0 12px}.ops-help summary{list-style:none;display:inline-flex;align-items:center;min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:var(--paper);font-size:1rem;color:var(--muted);cursor:pointer}.ops-help summary::-webkit-details-marker{display:none}.ops-help summary:before{content:'?';display:inline-grid;place-items:center;width:20px;height:20px;margin-right:6px;border-radius:50%;background:var(--ink);color:var(--paper);font-size:1rem;font-weight:700;line-height:1;font-family:system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif}.ops-help[open] summary{margin-bottom:8px;color:var(--ink)}.ops-help .hint{margin:0;padding:10px 12px;border:1px dashed var(--line);border-radius:8px;background:var(--paper-alt)}
 :is(#pos-body,#sales-body,#history-body,#shifts-body,#att-body,#clock-body,#staff-body) .ops-head{margin-top:24px;padding-top:18px;border-top:1px solid var(--line)}:is(#pos-body,#sales-body,#history-body,#shifts-body,#att-body,#clock-body,#staff-body) .ops-head:first-child,:is(#pos-body,#sales-body,#history-body,#shifts-body,#att-body,#clock-body,#staff-body) .ops-head:has(h2){margin-top:0;padding-top:0;border-top:0}
 /* 原本 :is(#…-body) h3 自帶上邊線＋上內距（ID 權重高），包進 .ops-head 後要用同權重蓋掉，否則標題會比說明鍵低一截、邊線只畫到標題寬 */
 :is(#pos-body,#sales-body,#history-body,#shifts-body,#att-body,#clock-body,#staff-body) .ops-head h3{margin:0;padding-top:0;border-top:0}
 .btn-xs,.a-tbl td.ops-actions .btn{white-space:nowrap}
 .ops-pauses{display:grid;gap:8px;margin-bottom:14px}
 .ops-pause{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}
-.ops-pause.on{border-color:#b42318;background:#fff5f3}.ops-pause label{display:inline-flex;align-items:center;gap:.5em;font-size:1rem}.ops-pause label input{width:22px;height:22px}.ops-pause input[data-pause-msg]{flex:1;min-width:220px;min-height:44px;font-size:1rem}.ops-pause .pill{flex-basis:100%}
+.ops-pause.on{border-color:var(--danger);background:var(--danger-soft)}.ops-pause label{display:inline-flex;align-items:center;gap:.5em;font-size:1rem}.ops-pause label input{width:22px;height:22px}.ops-pause input[data-pause-msg]{flex:1;min-width:220px;min-height:48px;font-size:1rem}.ops-pause .pill{flex-basis:100%}
 .a-tbl td.a-mono,.a-tbl .resv-id{white-space:nowrap}
 /* 出餐看板品項：每道一個區塊（類別籤｜品名＋數量＋規格籤＋鍵），道與道之間虛線分隔；目標是現場一眼辨識、不做錯。
    類別欄用 auto 而非 max-content：直向平板（820px）表格放不下時膠囊可換行，不把整張表撐出橫向捲軸 */
@@ -169,16 +176,16 @@ tr.pos-comp td{background:#f2fbf4}
 .ops-specs{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
 .ops-spec{font-size:1rem;line-height:1.3;padding:2px 8px;border-radius:6px;border:1px solid var(--ink);color:var(--ink);font-weight:600;background:var(--card)}
 .ops-spec-default{border-color:var(--line);color:var(--muted);font-weight:400}
-.ops-spec-custom{border-color:#d59f00;background:#fff6dc;color:#7a5a00;font-weight:700}
+.ops-spec-custom{border-color:var(--warn);background:var(--warn-soft);color:var(--warn-ink);font-weight:700}
 /* 規格固定色碼：溫度紅、糖度黃、冰塊藍、飯量綠、麵量紫、自由需求琥珀；出餐時不必逐字讀標籤 */
-.ops-spec-temperature{border-color:#e5a39a;background:#ffe7e2;color:#7f2d22}.ops-spec-sugar{border-color:#ddbd45;background:#fff3bd;color:#6f5300}.ops-spec-ice{border-color:#92c5e8;background:#e1f2ff;color:#155378}.ops-spec-rice{border-color:#9dc68d;background:#e6f4df;color:#315e27}.ops-spec-noodle{border-color:#b9a0dd;background:#f0e7ff;color:#563487}.ops-spec-custom{border-color:#d59f00;background:#fff0c2;color:#7a5a00}
+.ops-spec-temperature{border-color:#e5a39a;background:#ffe7e2;color:#7f2d22}.ops-spec-sugar{border-color:#ddbd45;background:#fff3bd;color:#6f5300}.ops-spec-ice{border-color:#92c5e8;background:#e1f2ff;color:#155378}.ops-spec-rice{border-color:#9dc68d;background:#e6f4df;color:#315e27}.ops-spec-noodle{border-color:#b9a0dd;background:#f0e7ff;color:#563487}
 /* 類別籤維持單行；品名與規格可能來自菜單／自由備註，必須在卡片邊界換行，否則會被 .kds-card 的 overflow:hidden 裁掉。
    直向平板（≤1000px）類別籤改放品名上方，品名才有整行可用。 */
 .ops-cat{white-space:nowrap}
 .ops-name,.ops-spec{white-space:normal;overflow-wrap:anywhere;max-width:100%}
 @media(max-width:1000px){.ops-line{grid-template-columns:1fr;gap:2px}.ops-cat{justify-self:start;margin-top:0}}
-tr.ops-ready td{background:#f2fbf4}
-tr.ops-placed td{background:#fff8e6}
+tr.ops-ready td{background:var(--ok-faint)}
+tr.ops-placed td{background:var(--warn-faint)}
 tr.resv-day td{background:var(--paper-alt);font-weight:600}
 /* 櫃檯登記訂位：收合表單 */
 .resv-add{margin-bottom:12px}.resv-add summary{list-style:none;display:inline-flex;cursor:pointer}.resv-add summary::-webkit-details-marker{display:none}.resv-add[open] summary{margin-bottom:10px}
@@ -187,8 +194,8 @@ tr.resv-day td{background:var(--paper-alt);font-weight:600}
 /* ── 日結：KPI 五張一列（窄螢幕自動折）、第二行小字 ── */
 .sales-kpis{grid-template-columns:repeat(auto-fit,minmax(min(100%,136px),1fr))}
 .a-kpi .ks{color:var(--muted);font-size:1rem;margin-top:4px;line-height:1.35}
-.lp-kpis .a-kpi.lp-diff{border-color:#b42318;background:#fff5f3}.lp-kpis .a-kpi.lp-diff .kv{color:#b42318}
-tr.lp-refund td{color:#b42318}
+.lp-kpis .a-kpi.lp-diff{border-color:var(--danger);background:var(--danger-soft)}.lp-kpis .a-kpi.lp-diff .kv{color:var(--danger)}
+tr.lp-refund td{color:var(--danger)}
 .sales-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px 28px;margin-top:24px;padding-top:18px;border-top:1px solid var(--line)}
 .sales-cols>div{display:flex;flex-direction:column}
 /* 兩欄各自的標題不再各畫一條線（會變成左右兩段），改由 .sales-cols 畫一條貫通線；權重要壓過上面的 :is(#…) h3 */
@@ -199,7 +206,7 @@ tr.lp-refund td{color:#b42318}
 .so-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:18px}
 .so-item{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:4px;min-height:92px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:1rem}
 .so-item b{font-weight:600;line-height:1.3}.so-item span{color:var(--muted);font-variant-numeric:tabular-nums}.so-item small{margin-top:auto;font-size:1rem;color:var(--muted)}
-.so-item.off{background:#fff5f3;border-color:#f3c6c0;color:#b42318}.so-item.off small{color:#b42318}
+.so-item.off{background:var(--danger-soft);border-color:var(--danger-line);color:var(--danger)}.so-item.off small{color:var(--danger)}
 .so-item:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 /* 打卡：大數字鍵盤＋ 4 點識別碼，站著單手按得到；結果卡片大字 */
 
@@ -209,26 +216,34 @@ tr.lp-refund td{color:#b42318}
 .clock-keys{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.clock-key{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;justify-content:center;min-height:84px;border:1px solid var(--line);border-radius:14px;background:var(--card);font-size:2rem;font-weight:500;font-variant-numeric:tabular-nums;user-select:none;-webkit-user-select:none}.clock-key[data-key="⌫"],.clock-key[data-key="清除"]{font-size:1.25rem;color:var(--ink-soft)}.clock-key:active{background:var(--paper-alt)}.clock-key:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 /* 四顆鍵：上班／下班一排（大）、開始休息／結束休息一排 */
 .clock-go{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.clock-go .btn{min-height:60px;font-size:1.2rem;margin:0;white-space:nowrap}.clock-go #clock-break-start,.clock-go #clock-break-end{min-height:52px;font-size:1.05rem}
-.clock-list li.on-break{border-color:#d9c36a;background:#fffbe8}.clock-list li.needs-break{border-color:#f3c6c0;background:#fff5f3}.clock-list li em{font-style:normal;font-size:1rem;color:#b42318}.clock-list li.on-break em{color:#7a5d00}
+.clock-list li.on-break{border-color:var(--warn-line);background:var(--warn-faint)}.clock-list li.needs-break{border-color:var(--danger-line);background:var(--danger-soft)}.clock-list li em{font-style:normal;font-size:1rem;color:var(--danger)}.clock-list li.on-break em{color:var(--warn-ink)}
 /* 排班：排休列（灰）、自動排班排不滿的警示、人力需求表單 */
 .shift-item.shift-off{background:var(--paper-alt);color:var(--muted);border-style:dashed}
-.shift-warn{margin:0 0 12px;padding:12px 14px;border:1px solid #f3c6c0;background:#fff5f3;border-radius:12px;color:#b42318}.shift-warn ul{margin:6px 0 0;padding-left:20px}
-.staffing-row{display:flex;align-items:center;gap:8px;flex:1 1 100%}.staffing-row input[type=number]{width:64px}.staffing-row select,.staffing-row input{min-height:44px}
-.clock-msg{max-width:560px;margin:16px auto 0;padding:14px 16px;border:1px solid;border-radius:12px;font-size:1.15rem;text-align:center}.clock-msg.ok{background:#eaf7ec;border-color:#bfe3c6;color:#1b5e2a}.clock-msg.bad{background:#fff5f3;border-color:#f3c6c0;color:#b42318}
+.shift-warn{margin:0 0 12px;padding:12px 14px;border:1px solid var(--danger-line);background:var(--danger-soft);border-radius:12px;color:var(--danger)}.shift-warn ul{margin:6px 0 0;padding-left:20px}
+.staffing-row{display:flex;align-items:center;gap:8px;flex:1 1 100%}.staffing-row input[type=number]{width:64px}.staffing-row select,.staffing-row input{min-height:48px}
+.clock-msg{max-width:560px;margin:16px auto 0;padding:14px 16px;border:1px solid;border-radius:12px;font-size:1.15rem;text-align:center}.clock-msg.ok{background:var(--ok-soft);border-color:var(--ok-line);color:var(--ok)}.clock-msg.bad{background:var(--danger-soft);border-color:var(--danger-line);color:var(--danger)}
 .clock-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}.clock-list li{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}.clock-list li span{color:var(--muted);font-size:1rem;font-variant-numeric:tabular-nums}
 /* 操作人員：全螢幕遮罩＋卡片，疊在整個 App 上面認人（不是登入帳密），結帳前自動跳出 */
 .op-overlay{position:fixed;inset:0;background:rgba(20,18,16,.55);display:grid;place-items:center;z-index:60;padding:16px}
 .op-card{max-width:480px;width:100%;background:var(--card);border-radius:16px;padding:24px 20px;box-shadow:0 10px 40px rgba(0,0,0,.3)}
-.op-card h2{margin:0 0 .25rem;font-size:18px;font-weight:600}
+.op-card h2{margin:0 0 .25rem;font-size:1.125rem;font-weight:600}
 .op-card-actions{display:flex;gap:10px;justify-content:center;margin-top:14px}
+/* 確認對話框（posConfirm，取代瀏覽器 confirm）：同一張 .op-card，訊息 1.1rem、兩顆鍵各半、主鍵在右；破壞性動作用實心紅 */
+.op-card.pos-confirm{max-width:440px}.pos-confirm-msg{margin:6px 0 0;font-size:1.1rem;line-height:1.5;overflow-wrap:anywhere}.pos-confirm .op-card-actions{margin-top:20px}.pos-confirm .op-card-actions .btn{flex:1;min-height:52px}
+.op-card--wide{max-width:720px;max-height:90vh;overflow:auto}
+/* .hint 變體：--tight 不留下邊距（表格格內、卡片內一行說明）；--end 靠右（標題列右側的小字）；--row 在 flex 表單裡獨佔一列。
+   寫成 .hint.hint--x（兩個 class）：宿主頁 pos.html／admin.html 的 .hint{margin…} 排在本檔之後，單 class 權重相同會被蓋掉 */
+.hint.hint--tight{margin:0}.hint.hint--end{margin:0 0 0 auto;font-weight:400}.hint.hint--row{flex:1 1 100%;margin:0}.a-form .f-grow{flex:1;min-width:200px}
+/* 桌號 QR 卡（螢幕版；列印視窗另有同構樣式） */
+.qr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-top:12px}.qr-card{text-align:center;border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--card)}.qr-card img{width:100%}.qr-card b{display:block;font-size:1.6rem;font-weight:700}.qr-card small{display:block;font-size:1rem;color:var(--muted)}
 /* 原因預設選項：膠囊鍵一按就填／就送，48px 觸控目標；覆蓋式卡片（.pos-reason）與表單內嵌（.reason-chips--inline，占整列）共用 */
 .reason-chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px}
 .reason-chips button{all:unset;box-sizing:border-box;cursor:pointer;min-height:48px;padding:8px 16px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem;line-height:1.25;color:var(--ink)}
-.reason-chips button:active,.reason-chips button[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);background:#fff8cf}
+.reason-chips button:active,.reason-chips button[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);background:var(--accent-soft)}
 .reason-chips--inline{flex-basis:100%;margin:4px 0 0}
 .op-card.pos-reason{max-width:520px}
 .reason-other{display:flex;flex-direction:column;gap:6px;margin-top:12px;font-size:1rem;color:var(--muted)}
-.reason-other input{min-height:48px;font:inherit;font-size:1rem;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
+.reason-other input{min-height:48px;font:inherit;font-size:1rem;padding:8px 12px;border:1px solid var(--muted);border-radius:8px;background:var(--card);color:var(--ink)}
 /* 加點選項面板（跟桌邊點餐同一套：溫度／糖度／冰塊／飯量／麵量）：選項多時中間可捲、按鈕固定在底部，不會被捲出畫面 */
 .op-card.pos-opt{max-width:520px;display:flex;flex-direction:column;max-height:92dvh;padding:0}
 .pos-opt-body{overflow:auto;padding:22px 20px 10px;flex:1 1 auto;min-height:0}
@@ -237,22 +252,22 @@ tr.lp-refund td{color:#b42318}
 .pos-opt-title{display:flex;justify-content:space-between;gap:8px;font-weight:600;margin-bottom:8px}
 .pos-opt-choices{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .pos-opt-choices label{position:relative;display:flex;align-items:center;justify-content:center;min-height:48px;text-align:center;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:8px 10px;line-height:1.25;cursor:pointer}
-.pos-opt-choices label:has(input:checked){border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);background:#fff8cf}
+.pos-opt-choices label:has(input:checked){border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);background:var(--accent-soft)}
 .pos-opt-group[data-opt=temperature] label:has(input:checked){background:#ffe7e2}.pos-opt-group[data-opt=sugar] label:has(input:checked){background:#fff3bd}.pos-opt-group[data-opt=ice] label:has(input:checked){background:#e1f2ff}.pos-opt-group[data-opt=rice] label:has(input:checked){background:#e6f4df}.pos-opt-group[data-opt=noodle] label:has(input:checked){background:#f0e7ff}
 .pos-opt-choices input{position:absolute;opacity:0;pointer-events:none}
 .pos-opt-qty{display:flex;align-items:center;gap:12px}.pos-opt-qty button{all:unset;box-sizing:border-box;cursor:pointer;width:48px;height:48px;border-radius:50%;border:1.5px solid var(--ink);background:var(--card);font-size:1.3rem;display:grid;place-items:center}.pos-opt-qty button:active{background:var(--paper-alt)}.pos-opt-qty b{min-width:2ch;text-align:center;font-size:1.2rem}
-.pos-opt textarea{width:100%;min-height:64px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);resize:vertical;font:inherit}
+.pos-opt textarea{width:100%;min-height:64px;padding:10px 12px;border:1px solid var(--muted);border-radius:8px;background:var(--card);resize:vertical;font:inherit}
 /* 排班：週一起七欄（手機自動折成多列）；在咖啡琥珀邊、三點水藍邊 */
 .shift-week{min-width:14em;text-align:center;font-variant-numeric:tabular-nums}
 .shift-week-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;margin-top:12px}@media(max-width:900px){.shift-week-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}}
 .shift-day{display:flex;flex-direction:column;gap:6px;min-height:120px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--card)}.shift-day.today{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
 .shift-day h4{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 4px;font-size:1rem}.shift-day h4 small{color:var(--muted);font-weight:400}
 .shift-day .a-empty{margin:0;padding:6px 0}.shift-day .shift-add{margin:auto 0 0;align-self:flex-start}
-.shift-item{position:relative;display:flex;flex-direction:column;gap:2px;padding:8px 34px 8px 10px;border-left:4px solid var(--line);border-radius:8px;background:var(--paper-alt)}.shift-item.v-CAFE{border-left-color:#d59f00}.shift-item.v-BAR{border-left-color:#2e5fa3}
+.shift-item{position:relative;display:flex;flex-direction:column;gap:2px;padding:8px 46px 8px 10px;border-left:4px solid var(--line);border-radius:8px;background:var(--paper-alt)}.shift-item.v-CAFE{border-left-color:var(--warn)}.shift-item.v-BAR{border-left-color:#2e5fa3}
 .shift-item span,.shift-item small{color:var(--muted);font-variant-numeric:tabular-nums;font-size:1rem}
-.shift-del{all:unset;box-sizing:border-box;cursor:pointer;position:absolute;top:4px;right:4px;width:30px;height:30px;display:grid;place-items:center;border-radius:50%;color:var(--muted);font-size:1.2rem}.shift-del:hover{background:var(--line);color:var(--ink)}.shift-del:focus-visible{outline:2px solid var(--ink)}
-.shift-new,.staff-form{align-items:flex-end;margin:12px 0}.shift-new select,.shift-new input,.staff-form select,.staff-form input{min-height:44px}.staff-form #st-pin{width:6em;font-variant-numeric:tabular-nums}
-.a-tbl tr.staff-off td{color:var(--muted)}.a-tbl tr.att-open td{background:#fff9f8}
+.shift-del{all:unset;box-sizing:border-box;cursor:pointer;position:absolute;top:0;right:0;width:44px;height:44px;display:grid;place-items:center;border-radius:50%;color:var(--muted);font-size:1.2rem}.shift-del:hover{background:var(--line);color:var(--ink)}.shift-del:focus-visible{outline:2px solid var(--ink)}
+.shift-new,.staff-form{align-items:flex-end;margin:12px 0}.shift-new select,.shift-new input,.staff-form select,.staff-form input{min-height:48px}.staff-form #st-pin{width:6em;font-variant-numeric:tabular-nums}
+.a-tbl tr.staff-off td{color:var(--muted)}.a-tbl tr.att-open td{background:var(--danger-faint)}
 .ops-tablet-hint{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:10px 12px;border:1px dashed var(--line);border-radius:8px;background:var(--paper-alt);margin-bottom:12px}
 
 /* 平板：觸控目標放大；查單／已結帳表在直式時縮欄距、發票異常的「補開發票」鍵換到膠囊下面，整張表塞進 768px 不橫捲 */
@@ -264,34 +279,34 @@ tr.lp-refund td{color:#b42318}
   }
 /* 補打卡 */
 .clock-makeup{all:unset;box-sizing:border-box;display:block;margin:14px auto 0;min-height:48px;padding:0 18px;cursor:pointer;font-size:1rem;color:var(--muted);text-decoration:underline;text-underline-offset:3px}.clock-makeup:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-.mk-field input{width:100%;box-sizing:border-box;min-height:48px;font:inherit;font-size:1rem;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
+.mk-field input{width:100%;box-sizing:border-box;min-height:48px;font:inherit;font-size:1rem;padding:8px 12px;border:1px solid var(--muted);border-radius:8px;background:var(--card);color:var(--ink)}
 .mk-field[hidden]{display:none}
-.mk-presets{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.mk-presets button{all:unset;box-sizing:border-box;cursor:pointer;min-height:44px;padding:0 14px;display:flex;align-items:center;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem}.mk-presets button:active{background:var(--paper-alt)}
+.mk-presets{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.mk-presets button{all:unset;box-sizing:border-box;cursor:pointer;min-height:48px;padding:0 14px;display:flex;align-items:center;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem}.mk-presets button:active{background:var(--paper-alt)}
 .mk-types{grid-template-columns:1fr}
 #mk-err{margin-top:14px;max-width:none}
 
-.pos-part{margin-top:4px;border-style:dashed}.pos-part small{padding:0 6px;color:var(--muted,#777)}
+.pos-part{margin-top:4px;border-style:dashed}.pos-part small{padding:0 6px;color:var(--muted)}
 
-.pos-move-ov{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px}
-.pos-move-box{background:#fff;border-radius:14px;padding:18px;max-width:520px;width:100%;max-height:90vh;overflow:auto}
-.pos-move-box h3{margin:0 0 4px}
+.pos-move-ov{position:fixed;inset:0;background:rgba(20,18,16,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px}
+.pos-move-box{background:var(--card);border-radius:16px;padding:24px 20px;max-width:520px;width:100%;max-height:90vh;overflow:auto}
+.pos-move-box h3{margin:0 0 .25rem;font-size:1.125rem;font-weight:600}
 .pos-move-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}
-.pos-move-opt{min-height:64px;border:1px solid #d8d8d8;border-radius:10px;background:#fafafa;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font:inherit;cursor:pointer}
-.pos-move-opt b{font-size:1.2em}.pos-move-opt small{color:#777}
-.pos-move-opt.busy{background:#fff4cc;border-color:#e0b800}
+.pos-move-opt{min-height:64px;border:1px solid var(--line);border-radius:10px;background:var(--paper);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font:inherit;cursor:pointer}
+.pos-move-opt b{font-size:1.2em}.pos-move-opt small{color:var(--muted)}
+.pos-move-opt.busy{background:var(--warn-soft);border-color:var(--warn)}
 .pos-move-foot{display:flex;justify-content:space-between;gap:8px}
 
 /* 混合付款：各方式各收多少 */
 .pos-split{display:flex;flex-wrap:wrap;gap:8px 12px;width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--paper-alt)}
 .pos-split-row{display:inline-flex;align-items:center;gap:8px;min-height:48px}.pos-split-row>span{min-width:5em}
-.pos-split-row input{width:110px;min-height:44px;font:inherit;font-size:1.1rem;padding:6px 10px;border:1px solid var(--muted);border-radius:8px;background:var(--card);color:var(--ink);font-variant-numeric:tabular-nums}
-.pos-split-left{display:flex;align-items:center;gap:10px;flex-basis:100%;min-height:40px;font-weight:600}.pos-split-left b{font-size:1.2rem;color:#b91c1c}.pos-split-left.ok b{color:#15803d}
+.pos-split-row input{width:110px;min-height:48px;font:inherit;font-size:1.1rem;padding:6px 10px;border:1px solid var(--muted);border-radius:8px;background:var(--card);color:var(--ink);font-variant-numeric:tabular-nums}
+.pos-split-left{display:flex;align-items:center;gap:10px;flex-basis:100%;min-height:44px;font-weight:600}.pos-split-left b{font-size:1.2rem;color:var(--danger)}.pos-split-left.ok b{color:var(--ok)}
 .pos-lines tr.pos-credit td{background:var(--paper-alt)}
 /* ── 現場輸入用點的：桌號（區＋號碼鍵盤）、金額鍵盤、備註／數值膠囊、時間膠囊 ── */
 .pos-move-box .reason-chips{margin:10px 0}
 .pos-tno,.pos-amt{display:flex;align-items:baseline;justify-content:center;gap:6px;min-height:56px;margin:8px 0;padding:6px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper-alt);font-variant-numeric:tabular-nums}
 .pos-tno b,.pos-amt b{font-size:2rem;line-height:1.1;letter-spacing:.04em}.pos-amt span{color:var(--muted);font-size:1rem}
-.pos-tno-zones button[aria-pressed="true"],.note-chips button[aria-pressed="true"],.fill-chips button[aria-pressed="true"],.stamp-chips button[aria-pressed="true"],[data-disc-quick][aria-pressed="true"],[data-shift-quick][aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);background:#fff8cf}
+.pos-tno-zones button[aria-pressed="true"],.note-chips button[aria-pressed="true"],.fill-chips button[aria-pressed="true"],.stamp-chips button[aria-pressed="true"],[data-disc-quick][aria-pressed="true"],[data-shift-quick][aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);background:var(--accent-soft)}
 .pos-tno-keys,.pos-amt-keys{margin:10px 0 4px}.pos-tno-keys .clock-key,.pos-amt-keys .clock-key{min-height:64px;font-size:1.5rem}
 /* 「確定」鍵用主色，跟數字鍵分開；A–F 區六等分撐滿一列 */
 .pos-tno-keys .clock-key[data-key="確定"],.pos-amt-keys .clock-key[data-key="確定"]{background:var(--ink);color:var(--paper);border-color:var(--ink);font-size:1.15rem}
@@ -299,7 +314,6 @@ tr.lp-refund td{color:#b42318}
 /* 面板底部主次按鈕：與加點選項面板一致，各佔一半、52px 高、上方留線 */
 .pos-move-box .op-card-actions{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}.pos-move-box .op-card-actions .btn{flex:1;min-height:52px}
 .pos-move-box .pos-move-foot{margin-top:14px}.pos-move-box .pos-move-foot .btn{min-height:48px}
-.pos-move-box .btn-xs{min-height:44px}
 .pos-amt-presets button{font-variant-numeric:tabular-nums}
 /* 時間膠囊：48 格橫向捲，不撐高面板；目前選到的那格會捲進視野 */
 .stamp-chips{margin-top:6px}.stamp-chips .stamp-times{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;scrollbar-width:thin}.stamp-chips .stamp-times button{flex:0 0 auto}
@@ -309,7 +323,7 @@ tr.lp-refund td{color:#b42318}
 .pos-move-box{max-width:600px}
 
 /* 出餐頁：低頻功能（暫停點餐、桌號 QR）預設收折 */
-.ops-fold{margin:0 0 14px}.ops-fold>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;color:var(--muted);font-size:1rem;list-style:none}.ops-fold>summary::-webkit-details-marker{display:none}.ops-fold[open]>summary{margin-bottom:8px}.ops-fold[open]:has(.ops-pause.on)>summary{color:#b42318;font-weight:700}
+.ops-fold{margin:0 0 14px}.ops-fold>summary{cursor:pointer;min-height:48px;display:flex;align-items:center;color:var(--muted);font-size:1rem;list-style:none}.ops-fold>summary::-webkit-details-marker{display:none}.ops-fold[open]>summary{margin-bottom:8px}.ops-fold[open]:has(.ops-pause.on)>summary{color:var(--danger);font-weight:700}
 /* 出餐看板卡片（參考市售 KDS）：一單一卡、舊單在前；卡頭桌號大字＋等候分鐘，8 分琥珀、15 分紅；可取餐的卡淡化；卡尾一顆主鍵（52px） */
 /* 多欄用 CSS columns（瀑布式）而不是 grid：卡高不一時 grid 會整列對齊留大片空白；columns 由上往下、再換欄，和 Toast／Square KDS 的閱讀順序一致 */
 .kds-grid{columns:300px;column-gap:12px}
@@ -319,9 +333,9 @@ tr.lp-refund td{color:#b42318}
 .kds-table{font-size:1.7rem;font-weight:700;line-height:1.1;white-space:nowrap}.kds-table small{font-size:1rem;font-weight:600;margin-right:4px;color:var(--muted)}
 .kds-state{font-size:1rem;color:var(--muted);white-space:nowrap}
 .kds-age{margin-left:auto;font-size:1.15rem;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
-.kds-card.kds-warn .kds-head{background:#fff1cc}.kds-card.kds-warn .kds-age{color:#8a5a00}
-.kds-card.kds-late .kds-head{background:#ffd9d2}.kds-card.kds-late .kds-age{color:#b42318}.kds-card.kds-late{border-color:#f3c6c0}
-.kds-card.ops-ready{opacity:.7}.kds-card.ops-ready .kds-head{background:#e4f5e8}
+.kds-card.kds-warn .kds-head{background:var(--warn-soft)}.kds-card.kds-warn .kds-age{color:var(--warn-ink)}
+.kds-card.kds-late .kds-head{background:var(--danger-line)}.kds-card.kds-late .kds-age{color:var(--danger)}.kds-card.kds-late{border-color:var(--danger-line)}
+.kds-card.ops-ready{opacity:.7}.kds-card.ops-ready .kds-head{background:var(--ok-soft)}
 .kds-card .ops-lines{padding:8px 12px;flex:1}.kds-card .ops-line{padding:8px 0}.kds-card .ops-line-btns .btn{min-height:44px}
 .kds-foot{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line)}.kds-foot .btn{margin:0;min-height:52px}.kds-foot .btn--solid{flex:1;font-size:1.1rem}.kds-foot .btn--ghost:only-child{flex:1}
 .kds-count{display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 8px;border-radius:999px;background:var(--ink);color:var(--paper);font-size:1rem;font-weight:600}

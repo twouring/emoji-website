@@ -36,7 +36,7 @@
   .p-nav{display:flex;gap:4px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .p-nav::-webkit-scrollbar{display:none}
   .p-nav button[aria-pressed=true]{background:var(--ink);color:var(--paper);font-weight:600}
-  .p-nav button .badge{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;margin-left:6px;border-radius:999px;background:#b42318;color:#fff;font-size:1rem;line-height:1;font-weight:600}
+  .p-nav button .badge{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;margin-left:6px;border-radius:999px;background:var(--danger);color:#fff;font-size:1rem;line-height:1;font-weight:600}
   .p-nav button[aria-pressed=true] .badge{background:var(--accent);color:var(--on-accent)}
   /* 分頁列還能往右滑時的明確提示：不能只靠隱藏捲軸或淡化邊緣，之前（10/13）就是因為使用者完全看不出還有分頁而漏用「打卡」「排班」 */
   .p-nav-more{position:absolute;top:0;bottom:0;right:0;display:none;align-items:center;padding:0 2px 0 18px;pointer-events:none;color:var(--muted);font-weight:700;font-size:1.3rem;background:linear-gradient(to right,transparent,var(--card) 65%)}
@@ -44,13 +44,13 @@
   .p-tools{display:flex;align-items:center;gap:6px;flex:none;margin-left:auto}
   .p-tools button{all:unset;box-sizing:border-box;cursor:pointer;min-width:44px;min-height:44px;padding:0 12px;border-radius:8px;font-size:1rem;color:var(--muted);display:inline-grid;place-items:center;border:1px solid var(--line);background:var(--card)}
   .p-tools button:active{background:var(--paper-alt)}
-  .p-tools .p-net{min-width:0;padding:0 10px;border:0;background:transparent;color:#b42318;font-weight:600}
+  .p-tools .p-net{min-width:0;padding:0 10px;border:0;background:transparent;color:var(--danger);font-weight:600}
   /* 平板滿版：不設 max-width，內容跟著螢幕寬走（iPad 10 吋 1024 → 13 吋 1366 都吃滿）；只有外接大螢幕才收到 1680 */
   main{padding:16px max(16px,env(safe-area-inset-right)) calc(32px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));max-width:1680px;margin:0 auto}
   /* 分頁容器：與 /admin 共用 #orders-body / #pos-body / #resv-body / #sales-body / #soldout-body 的 id，pos-ops.js 直接對這些容器繪製 */
   .p-tab{display:none;padding:0}.p-tab.on{display:block}
   .a-sec{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
-  .a-sec h2{font-size:18px;font-weight:600;margin:0 0 .25rem;display:flex;align-items:center;gap:.5em}
+  .a-sec h2{font-size:1.125rem;font-weight:600;margin:0 0 .25rem;display:flex;align-items:center;gap:.5em}
   .a-sec h3,h3{font-size:1rem;font-weight:600;margin:16px 0 8px}
   .hint{color:var(--muted);font-size:1rem;margin:0 0 12px;line-height:1.5}
   .a-empty{color:var(--muted);padding:14px 10px}
@@ -70,7 +70,7 @@
   .a-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
   .a-kpi{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
   .a-kpi .kl{color:var(--muted);font-size:1rem}
-  .a-kpi .kv{font-size:24px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums;line-height:1.25}
+  .a-kpi .kv{font-size:1.5rem;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums;line-height:1.25}
   .a-kpi .kv .u{font-size:1rem;color:var(--muted);font-weight:400;margin-right:.15em}
   .badge{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--on-accent);font-size:1rem;line-height:1;font-weight:600}
   .btn{display:inline-flex;align-items:center;justify-content:center;font:inherit;font-size:1rem;min-height:48px;min-width:48px;padding:10px 20px;border-radius:8px;font-weight:500;line-height:1.3;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;text-decoration:none;transition:background .15s,color .15s,border-color .15s}
@@ -87,7 +87,7 @@
   /* 登入 */
   .p-login{min-height:calc(100vh - var(--p-top));display:grid;place-items:center;padding:24px 16px 40px}
   .p-login-card{width:min(100%,480px);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:28px;display:grid;gap:12px}
-  .p-login-card h1{font-size:22px;font-weight:600;margin:0}
+  .p-login-card h1{font-size:1.375rem;font-weight:600;margin:0}
   .p-login-card p{color:var(--muted);margin:0 0 8px}
   .p-login-card .btn{width:100%}
   .p-login-card input{width:100%;min-width:0}

@@ -47,7 +47,7 @@ test('看板採市售 KDS 一單一卡；每道保留類別籤＋品名＋數量
   assert.match(css, /\.ops-name,\.ops-spec\{white-space:normal;overflow-wrap:anywhere;max-width:100%\}/, '長品名與客製規格必須換行，不得被卡片裁掉');
   assert.match(css, /\.kds-grid\{columns:300px/, '卡片用 CSS columns 瀑布排欄，卡高不一不留空');
   assert.match(css, /\.kds-card\{[^}]*break-inside:avoid/, '卡片不跨欄被切');
-  assert.match(css, /\.kds-card\.kds-late \.kds-age\{color:#b42318\}/, '超時卡片紅字');
+  assert.match(css, /\.kds-card\.kds-late \.kds-age\{color:var\(--danger\)\}/, '超時卡片紅字');
 });
 
 test('規格拆籤：預設值淡化、非預設值深色、自由需求 ※；沒載 order-lib 時全部當非預設', () => {

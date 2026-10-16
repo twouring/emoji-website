@@ -36,9 +36,9 @@ test('docs/API.md 記錄 DELETE /api/admin/reservations/:id', () => {
   assert.match(section, /404/);
 });
 
-test('POS「訂位」分頁：每筆（含已取消）都有「刪除」按鈕，按下先 confirm 再送 DELETE', () => {
+test('POS「訂位」分頁：每筆（含已取消）都有「刪除」按鈕，按下先 posConfirm 再送 DELETE', () => {
   assert.match(ops, /data-resv-delete="\$\{esc\(r\.id\)\}">刪除<\/button>/);
-  assert.match(ops, /host\.querySelectorAll\('\[data-resv-delete\]'\)\.forEach\(b=>b\.onclick=\(\)=>\{/);
-  assert.match(ops, /if\(!confirm\(`確定要刪除/);
+  assert.match(ops, /host\.querySelectorAll\('\[data-resv-delete\]'\)\.forEach\(b=>b\.onclick=async\(\)=>\{/);
+  assert.match(ops, /if\(!await posConfirm\(`刪除 /);
   assert.match(ops, /api\('\/admin\/reservations\/'\+r\.id,\{method:'DELETE'\}\)/);
 });

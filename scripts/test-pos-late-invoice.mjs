@@ -11,7 +11,7 @@ test('unrequested active orders offer issue, void orders do not',()=>{
 test('late issue accepts all five invoice types, prints once, and cancel posts nothing',async()=>{
  const cases=[{mode:'paper'},{mode:'company',buyer_ubn:'12345678'},{mode:'mobile',carrier_num:'/ABC+123'},{mode:'citizen',carrier_num:'AB12345678901234'},{mode:'donate',love_code:'168001'},null];
  for(const inv of cases){
-  const calls=[],prints=[];const c=vm.createContext({prompt:()=>{throw new Error('不該再用 prompt');},confirm:()=>true,num:String,toast(){},api:async(url,body)=>{calls.push(body);return {invoice:{status:'issued',number:'AB12345678'}};}});vm.runInContext(src,c);c.prints=prints;vm.runInContext('printInvoiceProof=async o=>prints.push(o)',c);c.pick=inv;vm.runInContext('askInvoice=async()=>pick',c);
+  const calls=[],prints=[];const c=vm.createContext({prompt:()=>{throw new Error('不該再用 prompt');},confirm:()=>true,num:String,toast(){},api:async(url,body)=>{calls.push(body);return {invoice:{status:'issued',number:'AB12345678'}};}});vm.runInContext(src,c);c.prints=prints;vm.runInContext('printInvoiceProof=async o=>prints.push(o)',c);c.pick=inv;vm.runInContext('askInvoice=async()=>pick;posConfirm=async()=>true',c);
   await c.issueOrderInvoice({id:'o1',amount:100,invoice:{mode:''}},()=>{});
   assert.equal(calls.length,inv?1:0);
   if(inv){assert.equal(calls[0].body.invoice.mode,inv.mode);assert.equal(prints.length,1);}

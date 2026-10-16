@@ -56,7 +56,7 @@ test('桌況格：空桌與使用中都顯示預約提示；開桌只問一次�
   // 只有 confirmed 才問「已到」（new → arrived 不在狀態機裡）；取消＝只開桌，不擋
   assert.match(src, /\.find\(x=>x\.status==='confirmed'\)/);
   assert.match(src, /if\(!r\)return openSession\(\{table_no:table\}\)/);
-  assert.match(src, /const arrive=confirm\(/);
+  assert.match(src, /const arrive=await posConfirm\(/);
   assert.match(src, /if\(arrive\)\{try\{await api\('\/admin\/reservations\/'\+r\.id\+'\/status',\{method:'POST',body:\{status:'arrived',notify:false\}\}\)/);
   assert.doesNotMatch(src, /table_sessions.*dining_reservations/, '不自動開桌');
   assert.match(read('public/pos-ops.css'), /\.pos-table\.reserved\{border-style:solid/);
