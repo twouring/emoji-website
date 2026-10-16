@@ -188,7 +188,7 @@
   const esc = s => (s == null ? '' : String(s)).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const money = n => 'NT$' + Number(n || 0).toLocaleString('zh-TW');
   const REGULAR_LABEL = { zh: '一般價', en: 'Regular', ja: '一般価格' };
-  const MEMBER_LABEL = { zh: '會員價', en: 'Member', ja: '会員価格' };
+  const MEMBER_LABEL = { zh: '會籍價', en: 'Membership rate', ja: 'メンバー価格' };
   const pick = (label, lang) => label[lang] || label.zh;
 
   function groupBy(items, key) {

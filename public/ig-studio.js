@@ -307,7 +307,7 @@
       <span class="igp-price-label">${H(state.p_unit)}</span>
       <span class="igp-price"><sup>$</sup>${H(state.p_price)}</span>
     </div>
-    ${state.showMember && state.p_emo ? `<div class="igp-member"><span class="tag">會員</span><span>會員價</span><b><sup style="font-size:.5em">$</sup>${H(state.p_emo)}</b></div>` : ''}`;
+    ${state.showMember && state.p_emo ? `<div class="igp-member"><span class="tag">會員</span><span>會籍價</span><b><sup style="font-size:.5em">$</sup>${H(state.p_emo)}</b></div>` : ''}`;
 
   function render01a() {
     const sq = state.format === 'square';
@@ -986,7 +986,7 @@
       <div class="ig-seg" style="gap:12px">
         <label style="flex:1">單位<input data-k="p_unit" value="${H(state.p_unit)}"></label>
         <label style="flex:1">原價<input data-k="p_price" type="number" value="${H(state.p_price)}"></label>
-        <label style="flex:1">會員價<input data-k="p_emo" type="number" value="${H(state.p_emo)}"></label>
+        <label style="flex:1">會籍價<input data-k="p_emo" type="number" value="${H(state.p_emo)}"></label>
       </div>
       <label style="flex-direction:row;align-items:center;gap:.4em"><input type="checkbox" data-k="p_alcohol" ${state.p_alcohol ? 'checked' : ''}> 含酒精（人工標記，匯出將自動附加警語）</label>
       ${state.p_alcohol ? '<p class="ig-hint ig-hint--warn">已標記酒精飲品：匯出將自動附加法定警語，且無法在缺少警語時匯出。</p>' : ''}`,
@@ -1220,7 +1220,7 @@
         <div class="ig-toggles">
           <label><input type="checkbox" data-t="dark"${state.dark ? ' checked' : ''}${currentLayout().forceDark ? ' disabled' : ''}> 暗底</label>
           <label><input type="checkbox" data-t="showEn"${state.showEn ? ' checked' : ''}> 顯示英文</label>
-          <label><input type="checkbox" data-t="showMember"${state.showMember ? ' checked' : ''}> 顯示會員價</label>
+          <label><input type="checkbox" data-t="showMember"${state.showMember ? ' checked' : ''}> 顯示會籍價</label>
           <label><input type="checkbox" data-t="hl"${state.hl ? ' checked' : ''}> 標題重點</label>
         </div>
         <div id="ig-fields"></div>

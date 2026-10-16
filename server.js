@@ -1979,10 +1979,16 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
       if (!byUser.has(entitlement.user_id)) byUser.set(entitlement.user_id, []);
       byUser.get(entitlement.user_id).push(entitlement);
     }
+    const yanByUser = new Map();
+    for (const r of (await q('SELECT user_id,kind,delta,ref_id,expires_at,created_at FROM yan_ledger')).rows) {
+      if (!yanByUser.has(r.user_id)) yanByUser.set(r.user_id, []);
+      yanByUser.get(r.user_id).push(r);
+    }
     for (const u of users) {
       const access = deriveMemberAccess(byUser.get(u.id) || [], now);
       u.access_active = access.active;
       u.access_summary = accessSummary(access);
+      u.yan_balance = yan.balance(yanByUser.get(u.id) || [], now);
     }
     // 活動 + 每場報名人數（後台總覽用）
     const events = (await q(
@@ -4335,13 +4341,15 @@ async function findOrCreateMemberByPhone(client, phoneRaw, name) {
 }
 async function applyYanForCheckout(client, { user, orderId, amount, brand, prepay, redeemPoints }) {
   if (!user || !orderId) return { earned: 0, redeemed: 0, balance: 0 };
+  await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,2))',[user.id]);
   const before = await yanRowsFor(client, user.id);
   let rows = before, earned = 0, redeemed = 0;
   if (redeemPoints) {
-    const r = yan.applyRedeem(rows, { orderId, points: redeemPoints, amount, userId: user.id });
+    // amount 是折抵後的實收，折抵上限＝實收＋折抵（posCheckout 已確認不超過應收）
+    const r = yan.applyRedeem(rows, { orderId, points: redeemPoints, amount: amount + Number(redeemPoints), userId: user.id });
     rows = r.rows; redeemed = r.used;
   }
-  const e = yan.applyEarn(rows, { userId: user.id, orderId, amount: amount - redeemed, brand, prepay });
+  const e = yan.applyEarn(rows, { userId: user.id, orderId, amount, brand, prepay });
   rows = e.rows; earned = e.delta;
   await persistYanDiff(client, before, rows);
   return { earned, redeemed, balance: yan.balance(rows) };
@@ -4388,7 +4396,32 @@ app.post('/api/admin/yan/lookup', auth, adminOnly, requireDb, wrap(async (req, r
     finally { client.release(); }
   }
   const rows = await yanRowsFor({ query: (...a) => q(...a) }, user.id);
-  res.json({ ok: true, member: { id: user.id, name: user.name, phone: user.phone_e164 || user.phone || '' }, balance: yan.balance(rows) });
+  const active = (await memberAccessFor(user.id)).active;
+  res.json({ ok: true, member: { id: user.id, name: user.name, phone: user.phone_e164 || user.phone || '' }, balance: yan.balance(rows), active, verified: !!token });
+}));
+
+// POS 兌換空間時數：掃會員條碼確認身分後，扣點並發一張單日會籍（entitlements.source='yan'），與購買的同樣計算啟用
+app.post('/api/admin/yan/redeem-space', auth, adminOnly, requireDb, wrap(async (req, res) => {
+  const plan = String(req.body?.plan || ''), cost = yan.SPACE_REDEEM[plan];
+  if (!cost) return res.status(400).json({ error: '請選擇單日 4 小時或 12 小時。' });
+  const userId = String(req.body?.user_id || '').trim().slice(0, 64);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,2))',[userId]);
+    const user = (await client.query('SELECT id,name FROM users WHERE id=$1',[userId])).rows[0];
+    if (!user) { await client.query('ROLLBACK'); return res.status(404).json({ error: '找不到這位會員。' }); }
+    const entId = uid('en_');
+    const before = await yanRowsFor(client, userId);
+    let r;
+    try { r = yan.applyRedeem(before, { orderId: entId, points: cost, amount: cost, userId, refType: 'space' }); }
+    catch (e) { await client.query('ROLLBACK'); return res.status(e.status || 400).json({ error: e.message }); }
+    await persistYanDiff(client, before, r.rows);
+    await client.query(`INSERT INTO entitlements (id,user_id,plan,source,source_id,purchased_at) VALUES ($1,$2,$3,'yan',$1,now())`, [entId, userId, plan]);
+    await client.query('COMMIT');
+    res.json({ ok: true, plan, cost, entitlement_id: entId, balance: yan.balance(r.rows) });
+  } catch (e) { await client.query('ROLLBACK').catch(()=>{}); throw e; }
+  finally { client.release(); }
 }));
 
 app.post('/api/me/profile', auth, requireDb, wrap(async (req, res) => {
@@ -4799,18 +4832,22 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
   try{await client.query('BEGIN');
     const s=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
     if(!s||s.status!=='open'){await client.query('ROLLBACK');return res.status(s?409:404).json({error:s?'這桌已結束。':'找不到這桌。'});}
-    let out,invoice,regWarn='',memberUser=null,yanOut={earned:0,redeemed:0,balance:0};try{out=tableOrders.posCheckout(s.items,{...req.body,staff:actorOf(req.auth)||'',operator},menuAll,await activePaymentCodes());invoice=ezpayInvoice.invoiceForm(req.body?.invoice||{});
-      // 開關帳：品項所屬品牌今天的帳要開著（關帳後不能再結；沒開帳時超管放行但回警告，子帳號擋）
-      regWarn=posRegister.checkoutAllowed(out.lines,await registersOpenMap(client,tableOrders.MenuLib.businessDay()),{strict:!!venues}).warning;
-    }catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
-    if(!out.lines.every(l=>tableOrders.itemInVenues(l,venues))){await client.query('ROLLBACK');return res.status(403).json({error:'這桌含有其他品牌品項，請只勾選自己店別的品項結帳，或由言文字管理員處理。'});}
+    let memberUser=null;
     const cardTok=String(req.body?.member_token||'').trim(),phoneRaw=String(req.body?.member_phone||'').trim(),memberIdRaw=String(req.body?.member_id||'').trim().slice(0,64);
     if(cardTok){const p=verifyAccessToken(cardTok,process.env.ACCESS_QR_SECRET||SECRET);if(!p||p.plan!=='yan-card'){await client.query('ROLLBACK');return res.status(400).json({error:'會員卡無效或過期。'});}memberUser=(await client.query('SELECT id,name,phone,phone_e164 FROM users WHERE id=$1',[p.sub])).rows[0];if(!memberUser){await client.query('ROLLBACK');return res.status(404).json({error:'找不到這位會員。'});}}
     else if(memberIdRaw){memberUser=(await client.query('SELECT id,name,phone,phone_e164 FROM users WHERE id=$1',[memberIdRaw])).rows[0];if(!memberUser){await client.query('ROLLBACK');return res.status(404).json({error:'找不到這位會員。'});}}
     else if(phoneRaw){try{memberUser=await findOrCreateMemberByPhone(client,phoneRaw,req.body?.name);}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}}
-    if(memberUser){out.payer={...out.payer,member:true,member_id:memberUser.id,member_phone:memberUser.phone_e164||memberUser.phone||''};}
+    // 掃會員條碼（或 member_id，來自掃碼那一步）才算驗證過身分：只有驗證過、且會籍有效的會員才套會籍價、才能用點數折抵；只報手機只累點
+    const verified=!!(cardTok||memberIdRaw),memberActive=verified&&memberUser?(await memberAccessFor(memberUser.id)).active:false;
+    if(req.body?.yan_points&&!verified){await client.query('ROLLBACK');return res.status(400).json({error:'折抵點數請先掃會員條碼確認身分。'});}
+    let out,invoice,regWarn='',yanOut={earned:0,redeemed:0,balance:0};try{out=tableOrders.posCheckout(s.items,{...req.body,member:memberActive,staff:actorOf(req.auth)||'',operator},menuAll,await activePaymentCodes());invoice=ezpayInvoice.invoiceForm(req.body?.invoice||{});
+      // 開關帳：品項所屬品牌今天的帳要開著（關帳後不能再結；沒開帳時超管放行但回警告，子帳號擋）
+      regWarn=posRegister.checkoutAllowed(out.lines,await registersOpenMap(client,tableOrders.MenuLib.businessDay()),{strict:!!venues}).warning;
+    }catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
+    if(!out.lines.every(l=>tableOrders.itemInVenues(l,venues))){await client.query('ROLLBACK');return res.status(403).json({error:'這桌含有其他品牌品項，請只勾選自己店別的品項結帳，或由言文字管理員處理。'});}
+    if(memberUser){out.payer={...out.payer,member:memberActive,member_id:memberUser.id,member_phone:memberUser.phone_e164||memberUser.phone||''};}
     const orderId=uid('to_'),set=new Set(out.lines.map(l=>l.line)),orderLines=out.lines.map(l=>({...l,order_id:orderId})),items=tableOrders.settleItems(s.items,out.lines,orderId,out.credit);
-    if(memberUser){try{yanOut=await applyYanForCheckout(client,{user:memberUser,orderId,amount:out.amount,brand:(out.lines.find(l=>l.venue)||{}).venue||'',prepay:!!out.payer.prepay,redeemPoints:req.body?.yan_points});}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}if(yanOut.redeemed)out.payer={...out.payer,yan_redeemed:yanOut.redeemed,yan_earned:yanOut.earned};else out.payer={...out.payer,yan_earned:yanOut.earned};}
+    if(memberUser){try{yanOut=await applyYanForCheckout(client,{user:memberUser,orderId,amount:out.amount,brand:(out.lines.find(l=>l.venue)||{}).venue||'',prepay:!!out.payer.prepay,redeemPoints:out.payer.yan_points});}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}if(yanOut.redeemed)out.payer={...out.payer,yan_redeemed:yanOut.redeemed,yan_earned:yanOut.earned};else out.payer={...out.payer,yan_earned:yanOut.earned};}
     // 桌邊送單且全部已出餐的品項，結帳時直接記為已取餐（不再回到出餐看板）；有還沒出的照舊進看板
     const served=out.lines.every(l=>l.served_at);
     await client.query('INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,invoice,status,done_at,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',[orderId,s.id,s.table_no,JSON.stringify(orderLines),out.amount,JSON.stringify(out.payer),JSON.stringify(invoice||{}),served?'done':'paid',served?new Date():null,memberUser?.id||null]);
@@ -4819,7 +4856,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     if(closed)await client.query("UPDATE table_orders SET status='done',done_at=now() WHERE session_id=$1 AND status IN ('paid','ready')",[s.id]);
     await client.query('UPDATE table_sessions SET items=$2,status=$3,pay_requests=$4,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),closed?'closed':'open',JSON.stringify(tableOrders.prunePayRequests(s.pay_requests,items))]);
     await client.query('COMMIT');
-    const invoiceOut=await storeInvoiceResult({id:orderId,table_no:s.table_no,items:orderLines,amount:out.amount,discount:out.discount},invoice);
+    const invoiceOut=await storeInvoiceResult({id:orderId,table_no:s.table_no,items:orderLines,amount:out.amount,discount:tableOrders.invoiceDiscount(out.discount,out.payer.yan_points)},invoice);
     res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,received:out.payer.received,change:out.payer.change,method:out.payer.method,payments:out.payer.payments,prepay:!!out.payer.prepay,member:out.payer.member,yan:memberUser?yanOut:undefined,closed,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut,warning:regWarn||undefined});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
@@ -4829,7 +4866,7 @@ app.post('/api/admin/orders/:id/invoice/issue',auth,adminOnly,requireDb,wrap(asy
   const o=(await q('SELECT id,session_id,table_no,items,amount,status,invoice,payer FROM table_orders WHERE id=$1',[req.params.id])).rows[0];
   if(!o||!tableOrders.orderOwnedByVenues(o,venues))return res.status(404).json({error:'找不到這筆出餐單。'});
   if(o.status==='void')return res.status(409).json({error:'作廢的單不能補開發票。'});
-  o.discount=o.payer?.discount||null;
+  o.discount=tableOrders.invoiceDiscount(o.payer?.discount,o.payer?.yan_points);
   if(o.invoice?.status==='issued'){
     if(o.invoice.number)return res.json({ok:true,invoice:o.invoice});
     // ezPay 已開立但當時沒解析到號碼：用自訂編號＋金額查回來，不能重開（會重複開票）

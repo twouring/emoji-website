@@ -558,18 +558,19 @@ function tabMembers(d, x){
       <td>${esc(u.access_summary||'—')}</td>
       <td>${c?'<span class="pill pill-ok">'+esc(status)+'</span>':'<span class="pill pill-wait">尚未加入</span>'}</td>
       <td class="a-mono">${esc(c?c.cert_no:'')}</td>
+      <td class="num">${esc(u.yan_balance||0)}</td>
       <td class="num">${esc(u.created_at||'')}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="8" class="a-empty">尚無使用者</td></tr>';
+  }).join('') || '<tr><td colspan="9" class="a-empty">尚無使用者</td></tr>';
   return `<div class="a-sec">
     <h2>會員名單</h2>
-    <p class="hint">所有以 Google 登入或已建立的使用者；含門禁狀態、權益摘要、會籍狀態與會員編號。</p>
+    <p class="hint">所有以 Google 登入或已建立的使用者（註冊會員）；含門禁狀態、權益摘要、會籍狀態、會員編號與點數餘額。點數人人可累積、可折抵餐飲或兌換空間時數；「會籍價」只給有效會籍（門禁有效）的會員。</p>
     <div class="a-toolbar">
       <input type="search" id="m-search" placeholder="搜尋姓名 / Email / 電話…">
       <button class="btn btn--ghost btn-sm" id="m-csv">匯出 CSV</button>
     </div>
     <div class="a-wrap2"><table class="a-tbl">
-      <thead><tr><th>姓名</th><th>Email</th><th>電話</th><th>門禁狀態</th><th>權益摘要</th><th>創始狀態</th><th>會員編號</th><th class="num">加入日</th></tr></thead>
+      <thead><tr><th>姓名</th><th>Email</th><th>電話</th><th>門禁狀態</th><th>權益摘要</th><th>創始狀態</th><th>會員編號</th><th class="num">點數</th><th class="num">加入日</th></tr></thead>
       <tbody id="m-body">${body}</tbody></table></div>
   </div>`;
 }
@@ -941,7 +942,7 @@ function tabMenu(d){
       <button class="btn btn--solid btn-sm" id="menu-save-server">儲存至伺服器</button>
     </div>
     <div class="a-wrap2"><table class="a-tbl">
-      <thead><tr><th>圖</th><th>店別</th><th>分類</th><th>中文</th><th>英文</th><th class="num">原價</th><th class="num">會員價</th><th>酒精</th><th>發布</th><th>操作</th></tr></thead>
+      <thead><tr><th>圖</th><th>店別</th><th>分類</th><th>中文</th><th>英文</th><th class="num">原價</th><th class="num">會籍價</th><th>酒精</th><th>發布</th><th>操作</th></tr></thead>
       <tbody id="mi-body">${body}</tbody></table></div>
     <div class="a-form" style="margin-top:16px;border-top:1px dashed var(--line);padding-top:16px">
       <input type="hidden" id="mi-id">
@@ -951,7 +952,7 @@ function tabMenu(d){
       <label>英文<input id="mi-en" placeholder="ITEM NAME"></label>
       <label>日文<input id="mi-ja" placeholder="品名（日本語）"></label>
       <label>原價<input id="mi-price" type="number" min="0" value="0" style="width:100px"></label>
-      <label title="留 0＝自動原價九折；填數字＝指定會員價">會員價（0＝九折）<input id="mi-emo" type="number" min="0" value="0" style="width:100px"></label>
+      <label title="有效會籍的會員適用。留 0＝自動原價九折；填數字＝指定會籍價">會籍價（0＝九折）<input id="mi-emo" type="number" min="0" value="0" style="width:100px"></label>
       <label>排序<input id="mi-sort" type="number" value="0" style="width:80px"></label>
       <label style="flex:1;min-width:180px">備註<input id="mi-note" placeholder="例：含酒精 / 黑糖 / 焦糖"></label>
       <label style="flex:1;min-width:180px">備註（日文）<input id="mi-note-ja" placeholder="説明（日本語）"></label>

@@ -39,7 +39,7 @@ test('renderMenuHtml groups by venue then cat', () => {
 
 test('member price is shown beside the regular price without crossing either out', () => {
   const item = M.normalizeItem({ venue: 'CAFE', cat: 'COFFEE', zh: '拿鐵', price: 180, emo: 150, published: true });
-  const labels = { zh: ['會員價', '一般價'], en: ['Member', 'Regular'], ja: ['会員価格', '一般価格'] };
+  const labels = { zh: ['會籍價', '一般價'], en: ['Membership rate', 'Regular'], ja: ['メンバー価格', '一般価格'] };
   for (const [lang, expected] of Object.entries(labels)) {
     const html = M.renderMenuHtml([item], lang, '');
     assert.ok(expected.every(label => html.includes(label)), `${lang} price labels`);
