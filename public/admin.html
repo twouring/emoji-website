@@ -1086,10 +1086,31 @@ function paymentMethodsBlock(d){
     <div class="a-form"><label style="flex:1;min-width:200px">新增收款帳戶<input id="pm-label" maxlength="20" placeholder="例：街口支付"></label><button type="button" class="btn btn--solid btn-sm" id="pm-add">新增</button></div>
   </div>`;
 }
-function tabSystem(d){ return `${d.super?'<div class="a-sec" id="system-settings-body"><h2>機敏資訊與系統參數</h2><p class="hint">載入中…</p></div>':'<div class="a-sec"><h2>機敏資訊與系統參數</h2><p class="hint">只有超級管理員可查看設定狀態與變更。</p></div>'}
+function tabSystem(d){ return `${d.super?'<div class="a-sec" id="line-body"><h2>LINE 官方帳號</h2><p class="hint">載入中…</p></div>':''}${d.super?'<div class="a-sec" id="system-settings-body"><h2>機敏資訊與系統參數</h2><p class="hint">載入中…</p></div>':'<div class="a-sec"><h2>機敏資訊與系統參數</h2><p class="hint">只有超級管理員可查看設定狀態與變更。</p></div>'}
   ${d.super?paymentMethodsBlock(d):''}
   ${tabContent(d)}<div class="a-sec"><h2>其他系統內容</h2><p class="hint">菜單、最新消息與社群內容沿用各自的工作流程。</p><div class="a-toolbar"><a class="btn btn--ghost btn-sm" href="/admin/menu">菜單</a><a class="btn btn--ghost btn-sm" href="/admin/updates">最新消息</a><a class="btn btn--ghost btn-sm" href="/admin/social">社群內容</a></div></div>`; }
+async function loadLinePanel(){
+  const host=document.getElementById('line-body');if(!host)return;
+  let st;try{st=await api('/admin/line/status');}catch(e){host.innerHTML=`<h2>LINE 官方帳號</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`;return;}
+  const ok=v=>v?'✅':'⬜';
+  const q=st.quota?`本月推播 ${st.quota.used}${st.quota.limit!=null?' / '+st.quota.limit:''} 則（Reply 不計費）`:'';
+  const f=st.followers&&st.followers.followers!=null?`好友 ${st.followers.followers}（封鎖 ${st.followers.blocks??'—'}）`:'';
+  host.innerHTML=`<h2>LINE 官方帳號 ${esc(st.oa_id)}</h2>
+  <p class="hint">${ok(st.configured)} Messaging API 金鑰　${ok(st.login)} LINE Login　${ok(st.staff_group)} 員工群組　已綁定會員 ${st.linked} 人${q?'<br>'+esc(q):''}${f?'　'+esc(f):''}</p>
+  <p class="hint">Webhook URL（貼到 LINE Developers → Messaging API）：<code>${esc(st.webhook_url)}</code><br>金鑰在上方「系統設定 → LINE 官方帳號」填。把官方帳號加進員工群組、在群組輸入「群組ID」，bot 會回報 ID。</p>
+  <div class="a-toolbar"><select id="line-seg">${st.segments.map(x=>`<option value="${esc(x.key)}">${esc(x.label)}</option>`).join('')}</select></div>
+  <textarea id="line-text" rows="3" maxlength="1000" placeholder="推播內容（1–1000 字）。推播計費，事件型優於群發。" style="width:100%"></textarea>
+  <input id="line-url" type="url" placeholder="連結（選填，https://）" style="width:100%;margin-top:6px">
+  <div class="a-toolbar" style="margin-top:8px"><button class="btn btn--ghost btn-sm" id="line-prev">預覽人數</button><button class="btn btn-sm" id="line-send">送出推播</button><button class="btn btn--ghost btn-sm" id="line-menu">重新發佈圖文選單</button></div>
+  <p class="hint" id="line-msg"></p>`;
+  const msg=t=>{document.getElementById('line-msg').textContent=t;};
+  const body=extra=>({segment:document.getElementById('line-seg').value,text:document.getElementById('line-text').value,url:document.getElementById('line-url').value,...extra});
+  document.getElementById('line-prev').onclick=async()=>{try{const o=await api('/admin/line/broadcast',{method:'POST',body:body({preview:true})});msg(`會送給 ${o.count} 人。`);}catch(e){msg(e.message);}};
+  document.getElementById('line-send').onclick=async()=>{try{const o=await api('/admin/line/broadcast',{method:'POST',body:body({preview:true})});if(!confirm(`確定推播給 ${o.count} 人？送出後無法收回。`))return;const r=await api('/admin/line/broadcast',{method:'POST',body:body({})});msg(`已送出 ${r.sent} 人。`);}catch(e){msg(e.message);}};
+  document.getElementById('line-menu').onclick=async()=>{if(!confirm('用目前的設計重新發佈圖文選單？'))return;msg('發佈中…');try{await api('/admin/line/richmenu',{method:'POST',body:{}});msg('圖文選單已更新。');}catch(e){msg(e.message);}};
+}
 async function loadSystemSettings(){
+  loadLinePanel();
   const host=document.getElementById('system-settings-body');if(!host)return;
   host.innerHTML='<h2>系統設定</h2><p class="hint">載入中…</p>';
   try{SYSTEM_SETTINGS=await api('/admin/system-settings');paintSystemSettings();}catch(e){host.innerHTML=`<h2>系統設定</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`;}

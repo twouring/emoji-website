@@ -1031,3 +1031,29 @@ body `{visible:boolean}`，已登入者僅能修改符合自己已驗證 Email �
 取消活動可附 `reason_translations: {en, ja}`，兩欄選填、各最多 1000 字。活動頁與取消郵件依語系套用，空白翻譯沿用 `reason`。
 
 活動數據另回傳 `registrations: [{day, bookings, self_service_bookings, registered, self_service_registered, self_service_checked_in}]`：以台灣日期依目前報名紀錄建立日彙總。`bookings` 包含後台匯入，`self_service_*` 只計前台自行報名；有效與簽到人數採查詢當下狀態，不是當日歷史快照，也不另計獨立加購筆數。範圍沿用 `days`。
+
+## LINE 官方帳號（@338ymhys）
+
+金鑰由後台「系統設定 → LINE 官方帳號」填，存檔一分鐘內生效；沒設定時所有 LINE 功能靜默退化，不影響訂位、結帳。
+
+### POST /api/line/webhook
+LINE Messaging API webhook（原始 body 驗 `X-Line-Signature`；未設定 503、驗章失敗 401，其餘一律 200）。處理：加好友歡迎、關鍵字自動回應（Reply，免費）、訂位提醒按鈕（會到／取消）、員工群組輸入「群組ID」回報 ID。`webhookEventId` 寫入 `line_events` 去重。
+
+### GET /auth/line
+LINE Login 入口（`?resv=<簽名 token>` 為訂位完成頁帶來的綁定；`?redirect=` 為登入後導回）。帶 `bot_prompt=aggressive` 順勢加好友。
+
+### GET /auth/line/callback
+LINE Login 回呼：驗 state 與 nonce、驗 id_token，完成後綁定 `users.line_user_id`；帶 `resv` 時把 LINE 掛到該筆訂位並推確認卡，導向 `/line-linked.html`。
+
+**POST /api/reservations 新增回應欄位**：`line_url`：已設定 LINE Login 時回傳「用 LINE 收通知」連結，否則為空字串。
+
+### GET /api/admin/line/status
+超管限定。`{ configured, login, oa_id, staff_group, webhook_url, linked, segments[], bot, quota, followers }`。
+
+### POST /api/admin/line/broadcast
+超管限定。body `{ segment, text, url?, preview? }`。`preview:true` 只回 `{ count }`；否則 multicast 並寫入 `line_broadcasts`，回 `{ sent }`。每小時 10 次。
+
+### POST /api/admin/line/richmenu
+超管限定。截圖 `/line-richmenu.html`，建立並設為預設圖文選單，回 `{ rich_menu_id }`。每小時 5 次。
+
+排程：每天 18:00（台北）推「明天訂位」提醒卡（只掃已綁定 LINE 且尚未提醒者）。

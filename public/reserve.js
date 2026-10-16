@@ -87,6 +87,11 @@
       addLine(T.guests,data.party_size+T.unit);
       addLine(T.hold,body.hold_until||holdUntil(data.time));
       addLine(T.mail,data.email);
+      if(body.line_url){
+        var L={zh:'用 LINE 收通知（前一天提醒、可直接取消）',en:'Get reminders on LINE (cancel in one tap)',ja:'LINEでリマインドを受け取る'}[LANG]||'';
+        var a=document.createElement('a');a.className='btn btn-primary';a.href=body.line_url;a.textContent=L;a.style.marginTop='12px';a.style.display='inline-block';
+        summary.appendChild(a);
+      }
       window.scrollTo({top:0,behavior:'smooth'});
     }catch(error){msg(error.message||T.fail,'err');submit.disabled=false;}
   });

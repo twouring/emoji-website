@@ -33,6 +33,8 @@ const eventCrypto=require('./lib/event-crypto');
 const eventChannels=require('./lib/event-channels');
 const tableOrders=require('./lib/table-orders');
 const yan=require('./lib/yan');
+const line = require('./lib/line');
+const { createLineService } = require('./lib/line-service');
 const kitchenPrint=require('./lib/pos-kitchen-print');
 const tableLive=require('./lib/table-live');
 const ezpayInvoice=require('./lib/ezpay-invoice');
@@ -798,6 +800,12 @@ async function migrate() {
   await q(`ALTER TABLE dining_reservations ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS table_no TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS staff_note TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS handled_by TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`);
   await q(`ALTER TABLE dining_reservations ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`);
   await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_e164 TEXT`);
+  // LINE 官方帳號：會員綁定、訂位通知／提醒、webhook 去重、推播紀錄
+  await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS line_user_id TEXT, ADD COLUMN IF NOT EXISTS line_linked_at TIMESTAMPTZ`);
+  await q(`CREATE UNIQUE INDEX IF NOT EXISTS users_line_user_id_uidx ON users(line_user_id) WHERE line_user_id IS NOT NULL`);
+  await q(`ALTER TABLE dining_reservations ADD COLUMN IF NOT EXISTS line_user_id TEXT, ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ`);
+  await q(`CREATE TABLE IF NOT EXISTS line_events (id TEXT PRIMARY KEY, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE TABLE IF NOT EXISTS line_broadcasts (id TEXT PRIMARY KEY, segment TEXT NOT NULL, text TEXT NOT NULL, url TEXT NOT NULL DEFAULT '', recipients INT NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE UNIQUE INDEX IF NOT EXISTS users_phone_e164_uidx ON users(phone_e164) WHERE phone_e164 IS NOT NULL AND phone_e164<>''`);
   await q(`CREATE TABLE IF NOT EXISTS passkeys (
     id TEXT PRIMARY KEY,
@@ -1383,6 +1391,16 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json', limit: '
     res.status(400).send('invalid webhook');
   }
 });
+/* LINE webhook：驗章要原始 body，所以掛在全域 express.json() 之前。永遠回 200（驗章失敗除外），事件處理錯誤只記 log */
+app.post('/api/line/webhook', express.raw({ type: '*/*', limit: '256kb' }), async (req, res) => {
+  const c = line.config();
+  if (!c) return res.sendStatus(503);
+  if (!line.verifySignature(req.body, String(req.headers['x-line-signature'] || ''), c.channelSecret)) return res.sendStatus(401);
+  if (!pool || !dbReady) return res.sendStatus(503);
+  let body; try { body = JSON.parse(req.body.toString('utf8')); } catch { return res.sendStatus(400); }
+  try { await lineService.handleWebhook(body); } catch (e) { console.error('[line] webhook：', e.message); }
+  res.sendStatus(200);
+});
 app.use(express.json({ limit: '256kb' }));
 
 // 後台操作紀錄：/api/admin 的寫入（成功者）記 actor／路徑／摘要；GET 不記。
@@ -1577,7 +1595,9 @@ app.post('/api/reservations', rateLimit({ max: 30, windowMs: 3600000 }), require
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, [id, rid, r.date, r.time, r.period, r.partySize, r.name, r.phone, r.email, r.lang, r.note, r.source, 'confirmed']));
   sendMailQuietly({ to: r.email, subject: reservations.guestSubject(r), text: reservations.guestMail(r, requestId), replyTo: NOTIFY_EMAIL, idempotencyKey: 'reservation-confirm/' + id });
   sendMailQuietly({ to: NOTIFY_EMAIL, subject: `[訂位] ${r.date} ${r.time}｜${r.partySize} 位｜${r.name}`, text: reservations.staffMail(r, requestId, SITE_BASE) + `\n\n後台「訂位」分頁（排桌、取消、已到／未到）：${reservationAdminUrl(r)}`, replyTo: r.email });
-  res.status(201).json({ ok: true, request_id: requestId, period: r.period, hold_until: reservations.holdUntil(r.time), hold_minutes: reservations.HOLD_MINUTES });
+  lineService.notifyStaffReservation(r, requestId, 'web');
+  const lineUrl = line.loginConfig() ? `${OWN_BASE}/auth/line?resv=${encodeURIComponent(signToken({ resv: id }, { purpose: 'line-resv' }))}` : '';
+  res.status(201).json({ ok: true, request_id: requestId, period: r.period, hold_until: reservations.holdUntil(r.time), hold_minutes: reservations.HOLD_MINUTES, line_url: lineUrl });
 }));
 
 async function accountByEmail(client,email,name,fillName=false){
@@ -1792,6 +1812,68 @@ app.post('/api/passkey/login/verify', rateLimit({ max: 30 }), requireDb, passkey
 }));
 app.delete('/api/passkey/:id', auth, requireDb, passkeyOnly, wrap(async (req, res) => {
   await q('DELETE FROM passkeys WHERE id=$1 AND user_id=$2', [req.params.id, req.auth.sub]); res.json({ ok: true });
+}));
+
+/* ---- LINE 官方帳號：服務層、LINE Login（會員綁定／訂位通知）、後台 API ---- */
+const lineService = createLineService({
+  q: (t, p) => q(t, p), uid, origin: () => SITE_BASE,
+  yanBalance: async userId => yan.balance(await yanRowsFor({ query: (...a) => q(...a) }, userId)),
+});
+const LINE_REDIRECT_URI = OWN_BASE + '/auth/line/callback';
+app.get('/auth/line', (req, res) => {
+  const lc = line.loginConfig();
+  if (!lc) return res.status(503).send('LINE 登入尚未開通。');
+  if ((isPosHost(req) || isAdminHost(req) || isAppHost(req)) && String(req.hostname || '').toLowerCase() !== OWN_HOST) return res.redirect(302, OWN_BASE + req.originalUrl);
+  const resvTok = String(req.query.resv || '');
+  if (resvTok && !verifyToken(resvTok, { purpose: 'line-resv' })) return res.status(400).send('連結已失效，請重新訂位。');
+  const redirect = safeRedirect(req.query.redirect) || DEFAULT_MEMBER_URL;
+  const nonce = crypto.randomBytes(16).toString('hex');
+  const state = signToken({ r: redirect, n: nonce, v: resvTok }, { purpose: 'line-oauth' });
+  res.cookie('line_state', state, { httpOnly: true, sameSite: 'lax', secure: SITE_BASE.startsWith('https://'), path: '/auth/line', maxAge: 10 * 60 * 1000 });
+  res.redirect(line.authorizeUrl(lc, { redirectUri: LINE_REDIRECT_URI, state, nonce }));
+});
+app.get('/auth/line/callback', wrap(async (req, res) => {
+  const lc = line.loginConfig();
+  if (!lc) return res.status(503).send('LINE 登入尚未開通。');
+  const state = String(req.query.state || '');
+  const st = verifyToken(state, { purpose: 'line-oauth' });
+  const cookieState = (req.headers.cookie || '').split(';').map(s => s.trim()).find(s => s.startsWith('line_state='))?.slice(11);
+  res.clearCookie('line_state', { path: '/auth/line', httpOnly: true, sameSite: 'lax', secure: SITE_BASE.startsWith('https://') });
+  if (!st || !st.r || !safeEqual(state, cookieState)) return res.status(400).send('登入連結已失效，請重新登入。');
+  if (!req.query.code) return res.status(400).send('登入未完成。');
+  const prof = await line.exchangeCode(lc, { code: String(req.query.code), redirectUri: LINE_REDIRECT_URI, nonce: st.n });
+  if (!prof) return res.status(400).send('LINE 驗證失敗，請重試。');
+  if (!pool || !dbReady) return res.status(503).send('資料庫尚未就緒，請稍後再試。');
+  const accountClient = await pool.connect(); let u;
+  try {
+    u = await lineService.resolveLoginUser(prof, async (email, name) => {
+      await accountClient.query('BEGIN');
+      try { const a = await accountByEmail(accountClient, email, name, true); await accountClient.query('COMMIT'); return a; }
+      catch (e) { await accountClient.query('ROLLBACK'); throw e; }
+    });
+  } catch (e) { if (e.code === 'AMBIGUOUS_EMAIL') return res.status(409).send(e.message); throw e; }
+  finally { accountClient.release(); }
+  // 訂位完成頁帶來的綁定：把這個 LINE 掛到那筆訂位，並馬上推確認卡
+  const rv = st.v ? verifyToken(st.v, { purpose: 'line-resv' }) : null;
+  if (rv?.resv) {
+    await lineService.linkReservation(String(rv.resv), prof.sub);
+    return res.redirect(302, `${SITE_BASE}/line-linked.html`);
+  }
+  const isSuper = u.email && String(u.email).toLowerCase() === SUPER_ADMIN_EMAIL;
+  const isAdmin = isSuper || (await q('SELECT is_admin FROM users WHERE id=$1', [u.id])).rows[0]?.is_admin === true;
+  const n = (await q('SELECT COUNT(*)::int AS n FROM commitments WHERE user_id=$1', [u.id])).rows[0].n;
+  const token = signToken({ role: isAdmin ? 'admin' : (n > 0 ? 'participant' : 'invited'), sub: u.id, super: isSuper, name: u.name || prof.name || '' });
+  const redirect = safeRedirect(st.r) || DEFAULT_MEMBER_URL;
+  res.redirect(redirect + (redirect.includes('#') ? '&' : '#') + 'token=' + encodeURIComponent(token));
+}));
+app.get('/api/admin/line/status', auth, adminOnly, superOnly, requireDb, wrap(async (_req, res) => res.json(await lineService.status())));
+app.post('/api/admin/line/broadcast', auth, adminOnly, superOnly, requireDb, rateLimit({ max: 10, windowMs: 3600000 }), wrap(async (req, res) => {
+  try { res.json({ ok: true, ...(await lineService.broadcast(req.body, { preview: req.body?.preview === true })) }); }
+  catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+}));
+app.post('/api/admin/line/richmenu', auth, adminOnly, superOnly, requireDb, rateLimit({ max: 5, windowMs: 3600000 }), wrap(async (_req, res) => {
+  try { res.json({ ok: true, rich_menu_id: await lineService.publishRichMenu({ port: PORT }) }); }
+  catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 }));
 
 async function googleMeetAccessToken(userId){
@@ -5314,6 +5396,7 @@ app.post('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=
   const requestId=await insertWithRequestId(rid=>q(`INSERT INTO dining_reservations(id,request_id,reserve_date,reserve_time,period,party_size,name,phone,email,lang,note,source,status,table_no,handled_by)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'confirmed',$13,$14)`,[id,rid,r.date,r.time,r.period,r.partySize,r.name,r.phone,r.email,r.lang,r.note,r.source,tableNo,actorOf(req.auth)||'']));
   if(r.email)sendMailQuietly({to:r.email,subject:reservations.guestSubject(r),text:reservations.guestMail(r,requestId),replyTo:NOTIFY_EMAIL,idempotencyKey:'reservation-confirm/'+id});
+  lineService.notifyStaffReservation(r,requestId,'staff');
   res.status(201).json({ok:true,id,request_id:requestId,venue:tableOrders.reservationVenue(r.time),mailed:!!r.email});
 }));
 app.post('/api/admin/reservations/:id/status',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -5496,6 +5579,8 @@ async function boot() {
         catch(e){console.error('[event-mail]',e.message);}finally{running=false;}
       });
     }
+    // LINE 訂位前一日提醒：每天 18:00（台北），一筆只提醒一次
+    require('node-cron').schedule('0 18 * * *', () => lineService.sendReminders().catch(e => console.error('[line] 提醒失敗：', e.message)), { timezone: 'Asia/Taipei' });
     require('node-cron').schedule('0 9 * * *', () => remindExpiringMemberships()
       .catch(e => console.error('[remind] 失敗：', e.message)), { timezone: 'Asia/Taipei' });
     // LINE Pay 對帳：每日 04:30（三點水 03:00 收班後）抓最近 7 天實收；失敗寄信提醒，日結頁也能手動重抓

@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>已連結 LINE｜言文字</title>
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#FFDE34;color:#1B1A17;font-family:system-ui,"Noto Sans TC",sans-serif;padding:24px;text-align:center}
+main{max-width:360px}h1{font-size:28px;margin:0 0 12px}p{font-size:17px;line-height:1.6;margin:0 0 20px}
+a{display:inline-block;background:#1B1A17;color:#FFDE34;padding:14px 24px;border-radius:999px;text-decoration:none;font-weight:700;min-height:44px;box-sizing:border-box}</style></head>
+<body><main>
+<h1 data-t="h">已連結 LINE ✓</h1>
+<p data-t="p">訂位確認卡已傳到您的 LINE。前一天會再提醒一次，可直接在 LINE 取消。</p>
+<a href="line://nv/chat" data-t="a">回到 LINE</a>
+</main>
+<script>
+var l=(navigator.language||'zh').slice(0,2),D={en:{h:'LINE connected ✓',p:'Your booking card is in LINE. We will remind you the day before; you can cancel right there.',a:'Back to LINE'},ja:{h:'LINE連携完了 ✓',p:'予約確認カードをLINEに送りました。前日にもお知らせします。',a:'LINEに戻る'}}[l];
+if(D)document.querySelectorAll('[data-t]').forEach(function(e){e.textContent=D[e.dataset.t]});
+</script></body></html>
