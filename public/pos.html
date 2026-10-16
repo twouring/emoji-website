@@ -124,7 +124,6 @@
   <div class="p-tools">
     <button type="button" class="p-net" id="p-net" hidden aria-live="polite">離線</button>
     <button type="button" id="p-drawer" hidden>開錢櫃</button>
-    <button type="button" id="p-operator" aria-label="操作人員"></button>
     <button type="button" id="p-refresh" aria-label="重新整理">↻</button>
     <button type="button" id="p-logout" hidden>登出</button>
   </div>
@@ -248,12 +247,13 @@ function renderPinLogin(msg){
   document.getElementById('p-logout').hidden = true;
   document.getElementById('p-nav').innerHTML = ''; document.getElementById('p-scope').innerHTML = '';
   let pin = '';
-  const paint = () => { const d = document.getElementById('pin-dots'); if (d) d.textContent = Array.from({length:4},(_,i)=>i<pin.length?'●':'○').join(' '); };
+  // 與打卡／認人鍵盤同一套（.clock-pad／.clock-pin／.clock-key，pos-ops.css）：圓點 <i>、鍵位 1–9／⌫／0／清除
+  const paint = () => { const d = document.getElementById('pin-dots'); if (d) d.innerHTML = [0,1,2,3].map(i => `<i class="${i<pin.length?'on':''}"></i>`).join(''); };
   app.innerHTML = `<div class="p-login"><div class="p-login-card">
     <h1>言文字 POS</h1>
     <p>${esc(msg || '請輸入您的四位數密碼')}</p>
-    <div class="clock-pad"><div class="clock-pin" id="pin-dots"></div>
-      <div class="clock-keys">${['1','2','3','4','5','6','7','8','9','','0','⌫'].map(k=>`<button type="button" data-key="${esc(k)}" ${k===''?'disabled style="visibility:hidden"':''}>${esc(k)}</button>`).join('')}</div>
+    <div class="clock-pad"><div class="clock-pin" id="pin-dots" aria-label="密碼"></div>
+      <div class="clock-keys">${['1','2','3','4','5','6','7','8','9','⌫','0','清除'].map(k=>`<button type="button" class="clock-key" data-key="${esc(k)}">${esc(k)}</button>`).join('')}</div>
     </div>
     <button type="button" class="btn btn--ghost btn-sm" id="pin-alt">改用管理員帳號登入</button>
   </div></div>`;
@@ -262,6 +262,7 @@ function renderPinLogin(msg){
   document.querySelectorAll('[data-key]').forEach(b => b.onclick = async () => {
     const k = b.dataset.key;
     if (k === '⌫') { pin = pin.slice(0, -1); paint(); return; }
+    if (k === '清除') { pin = ''; paint(); return; }
     if (!k || pin.length >= 4) return;
     pin += k; paint();
     if (pin.length === 4) {
@@ -344,8 +345,6 @@ function render(){
   document.getElementById('p-logout').hidden = false;
   app.innerHTML = installHint() + TABS.map(t => `<section class="p-tab" data-panel="${t.id}">${PANEL[t.id]()}</section>`).join('');
   bindInstall();
-  document.getElementById('p-operator').onclick = () => openOperatorPad(() => {});
-  paintOperatorBtn(); enforceOperator();
   paintNav(); activate();
 }
 
@@ -391,10 +390,10 @@ async function renewToken(){
 setInterval(renewToken, 3600e3);
 document.getElementById('p-logout').onclick = () => { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); location.reload(); };
 
-// 閒置 3 分鐘自動登出回 PIN 畫面（員工用 PIN 登入才啟用）：交班時下一位同事自然要重新登入，也避免離開座位被別人代 key
+// 閒置 3 分鐘蓋板鎖定（所有登入方式）：輸入 4 位數 PIN 才能繼續，畫面狀態保留；避免離開座位被別人代 key
 let IDLE_T = null;
 function startIdleLock(){
-  const lock = () => { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); location.reload(); };
+  const lock = () => lockScreen();
   const bump = () => { clearTimeout(IDLE_T); IDLE_T = setTimeout(lock, 3 * 60e3); };
   ['click','touchstart','keydown'].forEach(ev => document.addEventListener(ev, bump, { passive:true }));
   bump();
@@ -414,7 +413,8 @@ async function main(){
     DATA = d;
     MENU_DOC = (typeof d.content?.menu === 'string' && d.content.menu.trim()) ? MenuLib.parseMenuDoc(d.content.menu) : MenuLib.parseMenuDoc('');
     TAB = routeTab();
-    if (d.me?.operator) { setScope(scopesOf(d)[0] || ''); startIdleLock(); }
+    if (d.me?.operator) setScope(scopesOf(d)[0] || '');
+    startIdleLock();
     render();
     refreshPending();
     renewToken();

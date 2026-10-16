@@ -50,3 +50,11 @@ test('brandsOf：單品牌／雙品牌／空白都正確解析，不混入無效
   assert.deepEqual(brandsOf(null), []);
   assert.deepEqual(brandsOf('SPACE,CAFE'), ['CAFE'], '不是 CAFE/BAR 的值要濾掉（操作人員不能有等等空間權限）');
 });
+
+test('pos.html：登入 PIN 鍵盤與打卡／認人同一套樣式（clock-key、<i> 圓點、⌫／0／清除）', () => {
+  const login = pos.slice(pos.indexOf('function renderPinLogin('), pos.indexOf('function renderBrandChoice('));
+  assert.match(login, /\['1','2','3','4','5','6','7','8','9','⌫','0','清除'\]\.map\(k=>`<button type="button" class="clock-key" data-key=/);
+  assert.match(login, /<i class="\$\{i<pin\.length\?'on':''\}"><\/i>/);
+  assert.match(login, /if \(k === '清除'\) \{ pin = ''; paint\(\); return; \}/);
+  assert.doesNotMatch(login, /visibility:hidden/);
+});

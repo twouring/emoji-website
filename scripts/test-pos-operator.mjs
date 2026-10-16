@@ -33,14 +33,22 @@ test('接線：/api/admin/staff/verify 端點存在且限流、開桌與結帳�
   assert.match(server, /INSERT INTO table_sessions\(id,table_no,opened_by_staff_id,opened_by_staff_name\)/, '開桌要存操作人員');
   assert.match(server, /tableOrders\.posCheckout\(s\.items,\{\.\.\.req\.body,staff:actorOf\(req\.auth\)\|\|'',operator\},menuAll,await activePaymentCodes\(\)\)/, '結帳要把 operator 與啟用中的收款帳戶代碼傳進 posCheckout');
   assert.match(server, /if\(!staff\|\|!posStaff\.staffVisible\(staff,venues\)\)return res\.status\(404\)\.json\(\{error:'識別碼不正確，請再試一次。'\}\);/, '驗 PIN 錯誤不可透露是否存在，同打卡');
-  for (const fn of ['operatorLabel', 'paintOperatorBtn', 'clearOperator', 'ensureOperator', 'openOperatorPad']) assert.match(ops, new RegExp(`function ${fn}\\(`), fn);
-  assert.match(ops, /localStorage\.getItem\('tth_pos_operator'\)/);
+  for (const fn of ['ensureOperator', 'openOperatorPad']) assert.match(ops, new RegExp(`function ${fn}\\(`), fn);
+  assert.doesNotMatch(ops, /tth_pos_operator/, '人員不再記在裝置上，每次動作輸入 PIN');
   assert.doesNotMatch(ops, /localStorage\.setItem\([^)]*\bOP_PIN\b/, '識別碼本身不可存進 localStorage，只能存認出來的 id/name');
   assert.match(ops, /api\('\/admin\/staff\/verify',\{method:'POST',body:\{pin\}\}\)/);
   assert.match(ops, /ensureOperator\(\(\)=>runCheckoutOnce\(cur\.id,async\(\)=>\{const checkout=[^\n]+return await opsThen\(\(\)=>api\('\/admin\/orders\/sessions\/'\+cur\.id\+'\/checkout'/, '結帳前要先確保有操作人員，並鎖住重複收款');
   assert.match(ops, /operator_id:OPERATOR\?\.id/);
-  assert.match(pos, /<button type="button" id="p-operator" aria-label="操作人員"><\/button>/);
-  assert.match(pos, /document\.getElementById\('p-operator'\)\.onclick = \(\) => openOperatorPad/);
+  assert.doesNotMatch(pos, /p-operator/, '導覽列不放選擇人員');
   assert.match(docs, /### POST \/api\/admin\/staff\/verify/);
   assert.match(sw, /VERSION = 'pos-v([5-9]|\d{2,})'/, '改了 pos.html／pos-ops.js 要換快取版本');
+});
+
+test('閒置蓋板：3 分鐘鎖定，需 PIN 解鎖，所有登入方式都啟用', () => {
+  const pos = read('public/pos.html'), ops = read('public/pos-ops.js');
+  assert.match(pos, /const lock = \(\) => lockScreen\(\)/);
+  assert.match(pos, /3 \* 60e3/);
+  assert.match(pos, /\n    startIdleLock\(\);/);
+  assert.match(ops, /function lockScreen\(\)/);
+  assert.match(ops, /openOperatorPad\(\(\)=>\{OPERATOR=null;\},true\)/);
 });

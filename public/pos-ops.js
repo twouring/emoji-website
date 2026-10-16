@@ -1199,15 +1199,12 @@ function openItemOptions(it,groups,note0,onDone){
 
 /* ===== 操作人員：疊在品牌帳號登入之上的識別——沿用排班打卡同一組 4 位數識別碼認人，結帳／開桌時記下是誰經手。
  * 不是帳密登入：平板仍用品牌管理員帳號登入 token；這組識別碼只存「現在是誰在操作」的名字，不是憑證。 */
-let OPERATOR=null; try{OPERATOR=JSON.parse(localStorage.getItem('tth_pos_operator')||'null');}catch(e){}
+let OPERATOR=null; /* 只在一次動作期間存在，不寫入儲存；每次要動作才輸入 PIN */
 let OP_PIN='',OP_MSG=null,OP_BUSY=false;
-function operatorLabel(){ return OPERATOR?`👤 ${OPERATOR.name}`:'👤 選擇人員'; }
-function paintOperatorBtn(){ const b=document.getElementById('p-operator'); if(b)b.textContent=operatorLabel(); }
-function clearOperator(){ OPERATOR=null; try{localStorage.removeItem('tth_pos_operator');}catch(e){} paintOperatorBtn(); enforceOperator(); }
-/* 還沒選人員：全螢幕鍵盤蓋住所有功能，輸入識別碼前什麼都不能操作（不能取消） */
-function enforceOperator(){ if(OPERATOR||!document.getElementById('p-operator')||document.querySelector('.op-overlay'))return; openOperatorPad(()=>{},true); }
-/* 有操作人員就直接做；沒有就先跳鍵盤認人，認完再做（結帳前用這個包住，確保每一筆單都有人） */
-function ensureOperator(cb){ if(OPERATOR)return cb(); openOperatorPad(cb); }
+/* 需要 PIN 的動作（結帳、作廢、開錢櫃…）：每次都先跳鍵盤認人，動作做完就忘掉 */
+async function ensureOperator(cb){ return new Promise(resolve=>openOperatorPad(async()=>{ try{ resolve(await cb()); }finally{ OPERATOR=null; } })); }
+/* 閒置蓋板：保留畫面狀態，輸入有效 PIN 才解鎖（不能取消，只能登出） */
+function lockScreen(){ if(document.querySelector('.op-overlay'))return; openOperatorPad(()=>{OPERATOR=null;},true); }
 function openOperatorPad(onDone,required){
   OP_PIN=''; OP_MSG=null;
   const ov=document.createElement('div'); ov.className='op-overlay';
@@ -1219,19 +1216,18 @@ function openOperatorPad(onDone,required){
     const msg=OP_MSG?`<div class="clock-msg ${OP_MSG.ok?'ok':'bad'}" role="status">${esc(OP_MSG.text)}</div>`:'';
     ov.innerHTML=`<div class="op-card" role="dialog" aria-label="操作人員">
       <h2>操作人員</h2>
-      <p class="hint">${OPERATOR?`目前：<b>${esc(OPERATOR.name)}</b>，輸入新的 4 位數識別碼可以切換。`:(required?'請先輸入你的 4 位數識別碼選擇人員，才能操作 POS。':'輸入你的 4 位數識別碼，這筆單會記下是你操作的。')}</p>
+      <p class="hint">${required?'閒置太久，畫面已鎖定。輸入你的 4 位數識別碼繼續。':'輸入你的 4 位數識別碼，這筆操作會記下是你。'}</p>
       <div class="clock-pad"><div class="clock-pin" aria-label="識別碼">${dots}</div><div class="clock-keys">${keys}</div></div>
       ${msg}
-      <div class="op-card-actions">${required?'<button type="button" class="btn btn--ghost" id="op-logout">登出</button>':`${OPERATOR?'<button type="button" class="btn btn--ghost" id="op-clear">清除</button>':''}<button type="button" class="btn btn--ghost" id="op-cancel">取消</button>`}</div>
+      <div class="op-card-actions">${required?'<button type="button" class="btn btn--ghost" id="op-logout">登出</button>':'<button type="button" class="btn btn--ghost" id="op-cancel">取消</button>'}</div>
     </div>`;
     ov.querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>{ if(OP_BUSY)return; const k=b.dataset.key; if(k==='⌫')OP_PIN=OP_PIN.slice(0,-1); else if(k==='清除')OP_PIN=''; else if(OP_PIN.length<4)OP_PIN+=k; OP_MSG=null; paint(); if(OP_PIN.length===4)submit(); });
-    const clearBtn=ov.querySelector('#op-clear'); if(clearBtn)clearBtn.onclick=()=>{ clearOperator(); close(); };
     const cancelBtn=ov.querySelector('#op-cancel'); if(cancelBtn)cancelBtn.onclick=close;
     const outBtn=ov.querySelector('#op-logout'); if(outBtn)outBtn.onclick=()=>{ document.getElementById('p-logout')?.click(); };
   };
   const submit=async()=>{
     const pin=OP_PIN; OP_BUSY=true;
-    try{ const out=await api('/admin/staff/verify',{method:'POST',body:{pin}}); OPERATOR={id:out.id,name:out.name}; try{localStorage.setItem('tth_pos_operator',JSON.stringify(OPERATOR));}catch(e){} paintOperatorBtn(); close(); onDone&&onDone(); }
+    try{ const out=await api('/admin/staff/verify',{method:'POST',body:{pin}}); OPERATOR={id:out.id,name:out.name}; OP_BUSY=false; close(); onDone&&onDone(); }
     catch(e){ OP_PIN=''; OP_MSG={ok:false,text:e.message}; OP_BUSY=false; paint(); }
   };
   paint();
