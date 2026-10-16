@@ -52,3 +52,10 @@ test('閒置蓋板：3 分鐘鎖定，需 PIN 解鎖，所有登入方式都啟�
   assert.match(ops, /function lockScreen\(\)/);
   assert.match(ops, /openOperatorPad\(\(\)=>\{OPERATOR=null;\},true\)/);
 });
+
+test('開桌／外帶開單：前端每次先輸入 PIN，後端沒有有效操作人員就擋', () => {
+  const ops = read('public/pos-ops.js'), server = read('server.js');
+  assert.match(ops, /const openSession=body=>ensureOperator\(\(\)=>opsThen\(\(\)=>api\('\/admin\/orders\/sessions',\{method:'POST'/, '一般開桌／外帶要先認人');
+  assert.match(ops, /ensureOperator\(\(\)=>opsThen\(\(\)=>api\('\/admin\/orders\/sessions',\{method:'POST',body:\{table_no:table,operator_id:OPERATOR\?\.id\}\}\)/, '有訂位的開桌也要先認人');
+  assert.match(server, /if\(!operator\)return res\.status\(400\)\.json\(\{error:'請先輸入 4 位數識別碼，開桌要記是誰開的。'\}\);\n  const client=await pool\.connect\(\);/, '後端開桌要求有效操作人員');
+});

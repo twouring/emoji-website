@@ -4372,6 +4372,7 @@ app.post('/api/admin/orders/sessions',auth,adminOnly,requireDb,wrap(async(req,re
   if(!takeout&&!tableOrders.TABLE_RE.test(table))return res.status(400).json({error:'桌號只能用英數字與 -，最長 8 字。'});
   if(!takeout&&tableOrders.isTakeout(table))return res.status(400).json({error:'W01–W99 保留給外帶單，請按「外帶」開單。'});
   const operator=await resolveOperator(req,req.body?.operator_id);
+  if(!operator)return res.status(400).json({error:'請先輸入 4 位數識別碼，開桌要記是誰開的。'});
   const client=await pool.connect();
   try{await client.query('BEGIN');await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,['table:'+(table||'takeout')]);
     if(takeout){const used=new Set((await client.query("SELECT table_no FROM table_sessions WHERE status='open' AND table_no ~ '^W[0-9]{2}$'")).rows.map(r=>r.table_no));table=tableOrders.nextTakeoutTable(used);if(!table){await client.query('ROLLBACK');return res.status(409).json({error:'外帶單號已用完（W01–W99），請先清掉已完成的外帶單。'});}}
