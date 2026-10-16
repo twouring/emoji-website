@@ -413,3 +413,5 @@ tr.lp-refund td{color:var(--danger)}
 .pos-sum-member label{flex:1 1 0}.pos-sum-member:has(label){flex-wrap:wrap}.pos-sum-member #pos-yan-scan{flex:none}.pos-sum-member:has(label)>span:last-child{flex:1 0 100%}
 .pos-pay>.pos-invoice{border:1px solid var(--line);border-radius:10px;padding:0 12px}
 @media(min-width:1000px){.pos-pay>.pos-methods{grid-template-columns:repeat(3,1fr)}}
+.pos-panel h2 .pos-qr-btn{flex:none;min-height:44px;padding:0 12px}
+.pos-table .pos-dwell{font-variant-numeric:tabular-nums}
