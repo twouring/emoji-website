@@ -9,11 +9,36 @@ function tabReservations(){ return '<div class="a-sec" id="resv-body"></div>'; }
 function tabSales(){ return '<div class="a-sec" id="sales-body"></div>'; }
 function tabHistory(){ return '<div class="a-sec" id="history-body"></div>'; }
 let ORDERS_TIMER=null,ORDERS_SEEN=null,PAYREQ_SEEN=null,POS_PAYREQ=null,POS_TIMER=null,POS_DATA=null,POS_TABLE='',POS_PICK=null,POS_QTY={},POS_SPLIT={},POS_MEMBER=false,POS_YAN={phone:'',name:'',balance:null},POS_INVOICE={mode:'paper'},POS_METHOD='cash',POS_CAT='',POS_DISCOUNT=null,POS_DISC_OPEN=false,POS_RECEIVED='',RESV_FROM='',RESV_DAYS=7,RESV_EDIT=null,SALES_DAY='',HIST_DAY='',HIST_Q='',REG_DATA=null,REG_CASH_OPEN=false,REG_CLOSE_OPEN=false,REG_COUNT_OPEN=false,REG_OPEN_FORM='',CLOCK_PIN='',CLOCK_MSG=null,SHIFT_WEEK='',SHIFT_FORM={},ATT_FROM='',ATT_TO='',STAFF_EDIT=null;
+const CHECKOUT_TIP='<b>這桌的帳</b><br>勾選左邊的品項決定這次結哪些（可分開結）；數量旁「−／＋」改份數，品項有「本次結」可只結幾份。<br>'
+ +'<b>＋ 加點</b>：展開菜單點品項，備註可點常用的。送單後會出現在「出餐」。<br>'
+ +'<b>換桌／併桌、清桌</b>：搬到別桌或合併；客人走了、沒有未結帳的品項才清桌。<br>'
+ +'<b>會員</b>：輸入手機按「查會員」或「掃會員」，有效會籍自動套聚落價；點數用品項旁的「點數兌換」。<br>'
+ +'<b>折扣</b>：按「加折扣」選折％或折抵金額，原因必填。<br>'
+ +'<b>付款</b>：選方式；現金輸入實收會算找零；「混合付款」每種方式各填金額，合計要等於應收。<br>'
+ +'<b>電子發票</b>：預設不開立，可選紙本、統編、手機載具、自然人憑證、捐贈。<br>'
+ +'<b>列印</b>：「列印出餐單」給廚房、「列印收據明細」給客人；收款後會自動出單並開錢櫃。<br>'
+ +'<b>QR</b>：顯示這桌的點餐 QR 給客人掃。<br>下方「這桌已結帳的單」可補印、補開發票或作廢。';
 const REG_DENOMS=[1000,500,100,50,10,5,1];
 const PAY_LABEL={cash:'現金',card:'刷卡',linepay:'LINE Pay',transfer:'轉帳',taishin:'台新手機付',tappay:'線上刷卡',mixed:'混合付款'};
 const INV_LABEL={paper:'紙本',company:'統編',mobile:'手機載具',citizen:'自然人憑證',donate:'捐贈'};
-// 各分頁的長篇操作說明一律收進「操作說明」摺疊（預設收起），現場畫面只留會動的東西；需要時再點開看
-const opsHelp=html=>`<details class="ops-help"><summary>操作說明</summary><p class="hint">${html}</p></details>`;
+// 操作說明一律是標題後方的「?」圖示，點一下才顯示浮層（再點、點別處、按 Esc 關閉）；現場畫面不攤開任何說明文字。
+// 浮層是掛在 body 的單一元素，所以出餐／桌況每 10 秒重繪也不會把打開的說明洗掉。html 與過去一樣由呼叫端負責 esc()。
+const tipIcon=html=>`<button type="button" class="tip-q" aria-label="操作說明" aria-expanded="false" data-tip="${String(html).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}"></button>`;
+const opsHelp=tipIcon;
+(function(){
+  if(typeof document==='undefined'||typeof window==='undefined'||window.__posTip)return;window.__posTip=1;
+  let pop=null,cur=null;
+  const shut=()=>{if(pop){pop.remove();pop=null;}if(cur&&cur.isConnected)cur.setAttribute('aria-expanded','false');cur=null;};
+  const place=()=>{if(!pop||!cur||!cur.isConnected)return shut();const r=cur.getBoundingClientRect(),w=Math.min(360,innerWidth-24);pop.style.width=w+'px';let l=Math.max(12,Math.min(r.left+r.width/2-w/2,innerWidth-w-12));pop.style.left=l+'px';const h=pop.offsetHeight;let t=r.bottom+8;if(t+h>innerHeight-12&&r.top-8-h>12)t=r.top-8-h;pop.style.top=Math.max(12,t)+'px';};
+  document.addEventListener('click',e=>{
+    const b=e.target.closest&&e.target.closest('.tip-q');
+    if(b){e.preventDefault();e.stopPropagation();const same=cur===b||(cur&&!cur.isConnected&&pop&&pop.dataset.src===b.dataset.tip);shut();if(same)return;cur=b;b.setAttribute('aria-expanded','true');pop=document.createElement('div');pop.className='tip-pop';pop.setAttribute('role','tooltip');pop.dataset.src=b.dataset.tip;pop.innerHTML=b.dataset.tip;document.body.appendChild(pop);place();return;}
+    if(pop&&!pop.contains(e.target))shut();
+  },true);
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')shut();});
+  window.addEventListener('resize',place);
+  document.addEventListener('scroll',e=>{if(pop&&!pop.contains(e.target))shut();},true);
+})();
 // 標題與操作說明同一列（.ops-head：標題靠左、說明鍵靠右），不另佔一列；展開時說明文字換到整列寬
 /* 原因預設選項：現場不打字——每個要填原因的地方先列常見原因，一按就送；真的選不到才在「其他」手動填寫。
    覆蓋式（作廢整張單／作廢品項／取消品項／贈送／出勤修正）用 pickReason()，表單內嵌欄位（折扣／臨時收支／關帳說明／小結說明／台新差異）用 reasonChips()+bindReasonChips()。 */
@@ -108,7 +133,7 @@ function pickOverlay(html,label){const ov=document.createElement('div');ov.class
 // 從清單點一個：options [{value,label,sub,busy}]；other={label,pick:async()=>value} 給「其他…」；回傳 Promise<string|null>
 function pickFrom({title,hint='',options=[],other=null,cols=4}){
   return new Promise(resolve=>{
-    const {ov,close}=pickOverlay(`<h3>${esc(title)}</h3>${hint?`<p class="hint">${esc(hint)}</p>`:''}<div class="pos-move-grid" style="grid-template-columns:repeat(${Number(cols)||4},1fr)">${options.map(o=>`<button type="button" class="pos-move-opt ${o.busy?'busy':''}" data-pick="${esc(o.value)}"><b>${esc(o.label??o.value)}</b>${o.sub?`<small>${esc(o.sub)}</small>`:''}</button>`).join('')}</div><div class="pos-move-foot">${other?`<button type="button" class="btn btn--ghost" data-other>${esc(other.label||'其他…')}</button>`:'<span></span>'}<button type="button" class="btn btn--ghost" data-cancel>取消</button></div>`,title);
+    const {ov,close}=pickOverlay(`<h3>${esc(title)}${hint?tipIcon(esc(hint)):''}</h3><div class="pos-move-grid" style="grid-template-columns:repeat(${Number(cols)||4},1fr)">${options.map(o=>`<button type="button" class="pos-move-opt ${o.busy?'busy':''}" data-pick="${esc(o.value)}"><b>${esc(o.label??o.value)}</b>${o.sub?`<small>${esc(o.sub)}</small>`:''}</button>`).join('')}</div><div class="pos-move-foot">${other?`<button type="button" class="btn btn--ghost" data-other>${esc(other.label||'其他…')}</button>`:'<span></span>'}<button type="button" class="btn btn--ghost" data-cancel>取消</button></div>`,title);
     const done=v=>{close();resolve(v);};
     ov.onclick=e=>{if(e.target===ov)done(null);};
     ov.querySelector('[data-cancel]').onclick=()=>done(null);
@@ -120,7 +145,7 @@ function pickFrom({title,hint='',options=[],other=null,cols=4}){
 function pickTableNo({title='開哪一桌？',hint='',exclude=[]}={}){
   return new Promise(resolve=>{
     let zone=TABLE_ZONES[0],no='';
-    const {ov,close}=pickOverlay(`<h3>${esc(title)}</h3>${hint?`<p class="hint">${esc(hint)}</p>`:''}<div class="pos-tno"><b id="pos-tno-show">—</b></div><div class="reason-chips pos-tno-zones" role="group" aria-label="區">${TABLE_ZONES.map(z=>`<button type="button" data-zone="${z}">${z} 區</button>`).join('')}</div><div class="clock-keys pos-tno-keys">${['1','2','3','4','5','6','7','8','9','⌫','0','確定'].map(k=>`<button type="button" class="clock-key" data-key="${k}">${k}</button>`).join('')}</div><div class="pos-move-foot"><span></span><button type="button" class="btn btn--ghost" data-cancel>取消</button></div>`,title);
+    const {ov,close}=pickOverlay(`<h3>${esc(title)}${hint?tipIcon(esc(hint)):''}</h3><div class="pos-tno"><b id="pos-tno-show">—</b></div><div class="reason-chips pos-tno-zones" role="group" aria-label="區">${TABLE_ZONES.map(z=>`<button type="button" data-zone="${z}">${z} 區</button>`).join('')}</div><div class="clock-keys pos-tno-keys">${['1','2','3','4','5','6','7','8','9','⌫','0','確定'].map(k=>`<button type="button" class="clock-key" data-key="${k}">${k}</button>`).join('')}</div><div class="pos-move-foot"><span></span><button type="button" class="btn btn--ghost" data-cancel>取消</button></div>`,title);
     const done=v=>{close();resolve(v);};
     ov.onclick=e=>{if(e.target===ov)done(null);};
     const paint=()=>{ov.querySelector('#pos-tno-show').textContent=zone+(no||'—');ov.querySelectorAll('[data-zone]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.zone===zone)));};
@@ -139,7 +164,7 @@ function pickAmount({title,hint='',presets=[],initial='',min=0,max=100000,unit='
   return new Promise(resolve=>{
     const D=Number(digits)||0;let v=String(initial??'').replace(/\D/g,'');
     const keys=D?['1','2','3','4','5','6','7','8','9','⌫','0','確定']:['1','2','3','4','5','6','7','8','9','00','0','⌫'];
-    const {ov,close}=pickOverlay(`<h3>${esc(title)}</h3>${hint?`<p class="hint">${esc(hint)}</p>`:''}<div class="pos-amt">${unit?`<span>${esc(unit)}</span>`:''}<b id="pos-amt-show">0</b></div>${presets.length?`<div class="reason-chips pos-amt-presets" role="group" aria-label="常用金額">${presets.map(p=>`<button type="button" data-preset="${p}">${esc(unit)}${num(p)}</button>`).join('')}</div>`:''}<div class="clock-keys pos-amt-keys">${keys.map(k=>`<button type="button" class="clock-key" data-key="${k}">${k}</button>`).join('')}</div><div class="op-card-actions"><button type="button" class="btn btn--ghost" data-cancel>取消</button>${D?'':'<button type="button" class="btn btn--solid" data-ok>確定</button>'}</div>`,title);
+    const {ov,close}=pickOverlay(`<h3>${esc(title)}${hint?tipIcon(esc(hint)):''}</h3><div class="pos-amt">${unit?`<span>${esc(unit)}</span>`:''}<b id="pos-amt-show">0</b></div>${presets.length?`<div class="reason-chips pos-amt-presets" role="group" aria-label="常用金額">${presets.map(p=>`<button type="button" data-preset="${p}">${esc(unit)}${num(p)}</button>`).join('')}</div>`:''}<div class="clock-keys pos-amt-keys">${keys.map(k=>`<button type="button" class="clock-key" data-key="${k}">${k}</button>`).join('')}</div><div class="op-card-actions"><button type="button" class="btn btn--ghost" data-cancel>取消</button>${D?'':'<button type="button" class="btn btn--solid" data-ok>確定</button>'}</div>`,title);
     const done=x=>{close();resolve(x);};
     ov.onclick=e=>{if(e.target===ov)done(null);};
     const paint=()=>{ov.querySelector('#pos-amt-show').textContent=D?(v||'—'):(v?num(Number(v)):'0');};
@@ -159,7 +184,7 @@ function pickAmount({title,hint='',presets=[],initial='',min=0,max=100000,unit='
 // 備註面板：常用詞可複選、再補一句；回傳 Promise<string|null>（空字串＝清除備註）
 function pickNote({title,presets=NOTE_PRESETS,initial='',maxlength=160,placeholder='其他補充（選填）'}){
   return new Promise(resolve=>{
-    const {ov,close}=pickOverlay(`<h3>${esc(title)}</h3><p class="hint">點常用備註（可複選），有需要再補字。</p>${noteChips('pos-note-pick',presets)}<label class="reason-other"><span>其他補充</span><input id="pos-note-pick" maxlength="${Number(maxlength)||160}" placeholder="${esc(placeholder)}" value="${esc(initial)}"></label><div class="op-card-actions"><button type="button" class="btn btn--ghost" data-cancel>取消</button><button type="button" class="btn btn--solid" data-ok>確定</button></div>`,title);
+    const {ov,close}=pickOverlay(`<h3>${esc(title)}${tipIcon('點常用備註（可複選），有需要再補字。')}</h3>${noteChips('pos-note-pick',presets)}<label class="reason-other"><span>其他補充</span><input id="pos-note-pick" maxlength="${Number(maxlength)||160}" placeholder="${esc(placeholder)}" value="${esc(initial)}"></label><div class="op-card-actions"><button type="button" class="btn btn--ghost" data-cancel>取消</button><button type="button" class="btn btn--solid" data-ok>確定</button></div>`,title);
     const done=x=>{close();resolve(x);};
     ov.onclick=e=>{if(e.target===ov)done(null);};
     bindNoteChips(ov);
@@ -195,7 +220,7 @@ async function askInvoice(){
 function pickCarrier(kind){
   const cfg=kind==='mobile'?{title:'手機載具條碼',placeholder:'例：/ABC+123（共 8 碼）'}:{title:'自然人憑證條碼',placeholder:'例：AB12345678901234'};
   return new Promise(resolve=>{
-    const {ov,close}=pickOverlay(`<h3>${esc(cfg.title)}</h3><p class="hint">按「掃描」用相機對準條碼，或直接手動輸入。</p><div class="pos-inv-scan-row"><input id="pos-carrier-input" maxlength="20" autocapitalize="characters" autocomplete="off" placeholder="${esc(cfg.placeholder)}"><button type="button" class="btn btn--ghost" id="pos-carrier-scan">📷 掃描</button></div><video id="pos-carrier-video" playsinline muted></video><div class="pos-move-foot"><span></span><span><button type="button" class="btn btn--ghost" data-cancel>取消</button> <button type="button" class="btn btn--solid" data-ok>確定</button></span></div>`,cfg.title);
+    const {ov,close}=pickOverlay(`<h3>${esc(cfg.title)}${tipIcon('按「掃描」用相機對準條碼，或直接手動輸入。')}</h3><div class="pos-inv-scan-row"><input id="pos-carrier-input" maxlength="20" autocapitalize="characters" autocomplete="off" placeholder="${esc(cfg.placeholder)}"><button type="button" class="btn btn--ghost" id="pos-carrier-scan">📷 掃描</button></div><video id="pos-carrier-video" playsinline muted></video><div class="pos-move-foot"><span></span><span><button type="button" class="btn btn--ghost" data-cancel>取消</button> <button type="button" class="btn btn--solid" data-ok>確定</button></span></div>`,cfg.title);
     const inp=ov.querySelector('#pos-carrier-input'),video=ov.querySelector('#pos-carrier-video');
     const done=v=>{stopPosInvoiceScanner(video);close();resolve(v);};
     ov.onclick=e=>{if(e.target===ov)done(null);};
@@ -258,7 +283,7 @@ async function startInvoiceScan(video,onCode,{raw:keepRaw=false}={}){
 // 掃會員條碼：相機掃 App「會員卡」QR（或掃描槍／手動貼上），向後台換成會員資料；會員卡 QR 區分大小寫，不能轉大寫
 function pickMemberCard(){
   return new Promise(resolve=>{
-    const {ov,close}=pickOverlay(`<h3>掃會員條碼</h3><p class="hint">請客人開 App「會員卡」出示 QR，按「掃描」對準；用掃描槍也可直接掃進下面欄位。</p><div class="pos-inv-scan-row"><input id="pos-card-input" autocomplete="off" placeholder="掃描槍／貼上會員條碼"><button type="button" class="btn btn--ghost" id="pos-card-scan">📷 掃描</button></div><video id="pos-card-video" playsinline muted></video><div class="pos-move-foot"><span></span><span><button type="button" class="btn btn--ghost" data-cancel>取消</button> <button type="button" class="btn btn--solid" data-ok>確定</button></span></div>`,'掃會員條碼');
+    const {ov,close}=pickOverlay(`<h3>掃會員條碼${tipIcon('請客人開 App「會員卡」出示 QR，按「掃描」對準；用掃描槍也可直接掃進下面欄位。')}</h3><div class="pos-inv-scan-row"><input id="pos-card-input" autocomplete="off" placeholder="掃描槍／貼上會員條碼"><button type="button" class="btn btn--ghost" id="pos-card-scan">📷 掃描</button></div><video id="pos-card-video" playsinline muted></video><div class="pos-move-foot"><span></span><span><button type="button" class="btn btn--ghost" data-cancel>取消</button> <button type="button" class="btn btn--solid" data-ok>確定</button></span></div>`,'掃會員條碼');
     const inp=ov.querySelector('#pos-card-input'),video=ov.querySelector('#pos-card-video');
     const done=v=>{stopPosInvoiceScanner(video);close();resolve(v);};
     ov.onclick=e=>{if(e.target===ov)done(null);};
@@ -756,7 +781,7 @@ function paintPos(){
     const quick=[...new Set([cashDue,Math.ceil(cashDue/100)*100,Math.ceil(cashDue/500)*500,Math.ceil(cashDue/1000)*1000].filter(n=>n>=cashDue&&n>0))].slice(0,4);
     const splitUI=mixed?`<div class="pos-split" id="pos-split"><div class="hint hint--row">每種方式各收多少，合計要等於應收 NT$${num(total)}</div>${splitList.map(p=>`<label class="pos-split-row"><span>${esc(p.label)}</span><input inputmode="numeric" pattern="[0-9]*" data-split="${esc(p.code)}" value="${p.amount||''}" placeholder="0" aria-label="${esc(p.label)} 金額"><button type="button" class="btn btn--ghost btn-xs" data-split-rest="${esc(p.code)}">餘額</button></label>`).join('')}<div class="pos-split-left ${splitLeft===0?'ok':''}"><span>${splitLeft>0?'還差':splitLeft<0?'超收':'合計正確'}</span><b id="pos-split-left">${splitLeft?'NT$'+num(Math.abs(splitLeft)):'✓'}</b></div></div>`:'';
     const discountUI=POS_DISC_OPEN?`<div class="pos-discount-form" id="pos-disc-form"><select id="pos-disc-type" aria-label="折扣類型"><option value="percent" ${POS_DISCOUNT?.type!=='amount'?'selected':''}>折 ％</option><option value="amount" ${POS_DISCOUNT?.type==='amount'?'selected':''}>折抵 NT$</option></select><input id="pos-disc-value" inputmode="numeric" placeholder="數字" value="${POS_DISCOUNT?esc(POS_DISCOUNT.value):''}" aria-label="折扣數值"><input id="pos-disc-reason" maxlength="40" placeholder="原因（必填）選下面或自己填" value="${POS_DISCOUNT?esc(POS_DISCOUNT.reason):''}" aria-label="折扣原因"><button type="button" class="btn btn--solid btn-sm" id="pos-disc-apply">套用</button><button type="button" class="btn btn--ghost btn-sm" id="pos-disc-cancel">取消</button><div class="reason-chips reason-chips--inline" role="group" aria-label="常用折扣">${[['percent',10,'9 折'],['percent',15,'85 折'],['percent',20,'8 折'],['percent',30,'7 折'],['amount',50,'折 $50'],['amount',100,'折 $100']].map(([t,v,l])=>`<button type="button" data-disc-quick="${t}:${v}">${l}</button>`).join('')}</div>${reasonChips('pos-disc-reason',REASON_PRESETS.discount)}</div>`:'';    panel=`<div class="a-sec pos-panel"><div class="pos-panel-scroll">
-      <h2><button type="button" class="btn btn--ghost btn-sm pos-back" id="pos-back">← 桌況</button>${cur.takeout?'外帶':'桌號'} ${esc(cur.table)} ${cur.takeout?'':'<button type="button" class="btn btn--ghost btn-xs pos-qr-btn" id="pos-table-qr" aria-label="這桌的點餐 QR">QR</button>'}<span class="pill ${TABLE_STATE[cur.state]?.[0]||''}">${TABLE_STATE[cur.state]?.[1]||''}</span>${cur.pickup_at?`<span class="pill pill-draft">預約取餐 ${esc(clockText(cur.pickup_at))}</span>`:''}<span class="hint hint--end">${cur.created_at&&!cur.takeout?`⏱ 已用餐 ${elapsedText(cur.created_at)} · `:''}最後動作 ${esc(clockText(cur.updated_at))}</span></h2>
+      <h2><button type="button" class="btn btn--ghost btn-sm pos-back" id="pos-back">← 桌況</button>${cur.takeout?'外帶':'桌號'} ${esc(cur.table)} ${cur.takeout?'':'<button type="button" class="btn btn--ghost btn-xs pos-qr-btn" id="pos-table-qr" aria-label="這桌的點餐 QR">QR</button>'}<span class="pill ${TABLE_STATE[cur.state]?.[0]||''}">${TABLE_STATE[cur.state]?.[1]||''}</span>${cur.pickup_at?`<span class="pill pill-draft">預約取餐 ${esc(clockText(cur.pickup_at))}</span>`:''}${tipIcon(CHECKOUT_TIP)}<span class="hint hint--end">${cur.created_at&&!cur.takeout?`⏱ 已用餐 ${elapsedText(cur.created_at)} · `:''}最後動作 ${esc(clockText(cur.updated_at))}</span></h2>
       ${cur.mixed?'<p class="hint"><span class="pill pill-bad">混桌</span> 這桌含其他品牌的品項：只能結自己店別的，清桌請由言文字管理員處理。</p>':''}
       ${cur.pay_requests?.length?`<div class="pos-payreqs">${cur.pay_requests.map(r=>`<div class="pos-payreq ${POS_PAYREQ===r.id?'on':''}"><button type="button" class="pos-payreq-apply" data-payreq="${esc(r.id)}"><span class="pill pill-wait">要結帳</span><b>${esc(r.name)}</b><span>${r.scope==='mine'?'只付自己的':'付全桌'} · ${r.count} 項 · NT$${num(r.amount)}</span><small>${esc(clockText(r.at))}</small></button><button type="button" class="btn btn--ghost btn-xs" data-payreq-dismiss="${esc(r.id)}" aria-label="關閉 ${esc(r.name)} 的結帳需求">✕</button></div>`).join('')}</div>`:''}
       <div class="a-wrap2 pos-lines-wrap"><table class="a-tbl pos-lines"><thead><tr><th aria-label="分帳選取"></th><th>品項</th><th class="pos-qty-col">點了幾份</th><th class="num">小計（元）</th><th class="ops-th">操作</th></tr></thead><tbody>${lineRows}</tbody></table></div>
@@ -898,7 +923,7 @@ function paintPos(){
     // 用選的：固定桌號＋目前已開的加開桌，點一下就換桌（目標桌已開＝併桌）；真的要別的桌號才用「其他桌號」打字
     const names=[...DEFAULT_TABLES,...sessions.filter(s=>!s.takeout&&!DEFAULT_TABLES.includes(s.table)).map(s=>s.table)].filter(t=>t!==cur.table);
     const ov=document.createElement('div');ov.className='pos-move-ov';
-    ov.innerHTML=`<div class="pos-move-box" role="dialog" aria-label="換桌／併桌"><h3>${esc(cur.table)} 要去哪一桌？</h3><p class="hint">空桌＝換桌；已開的桌＝併桌</p><div class="pos-move-grid">${names.map(t=>{const o=byTable.get(t);return `<button type="button" class="pos-move-opt ${o?'busy':''}" data-to="${esc(t)}"><b>${esc(t)}</b><small>${o?'併桌':'換桌'}</small></button>`;}).join('')}</div><div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-other>其他桌號…</button><button type="button" class="btn btn--ghost" data-cancel>取消</button></div></div>`;
+    ov.innerHTML=`<div class="pos-move-box" role="dialog" aria-label="換桌／併桌"><h3>${esc(cur.table)} 要去哪一桌？${tipIcon('空桌＝換桌（整桌搬過去）；已開的桌＝併桌（兩桌的品項合在一起）。')}</h3><div class="pos-move-grid">${names.map(t=>{const o=byTable.get(t);return `<button type="button" class="pos-move-opt ${o?'busy':''}" data-to="${esc(t)}"><b>${esc(t)}</b><small>${o?'併桌':'換桌'}</small></button>`;}).join('')}</div><div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-other>其他桌號…</button><button type="button" class="btn btn--ghost" data-cancel>取消</button></div></div>`;
     const done=()=>ov.remove();
     ov.onclick=e=>{if(e.target===ov)done();};
     ov.querySelector('[data-cancel]').onclick=done;
@@ -1032,7 +1057,7 @@ const denomGrid=()=>`<div class="reg-denoms">${REG_DENOMS.map(f=>`<label><span>$
 function readCount(form,directSel){const denoms={};let d=0;form.querySelectorAll('[data-denom]').forEach(i=>{const n=Number(i.value)||0;if(n>0){denoms[i.dataset.denom]=n;d+=Number(i.dataset.denom)*n;}});const direct=form.querySelector(directSel).value.trim();return {total:d>0?d:(/^\d+$/.test(direct)?Number(direct):null),denoms:d>0?denoms:undefined};}
 function openRegisterForm(venue){
   const h=REG_DATA?.handover,def=regDefaultCash();
-  return `<div class="reg-open-form" data-venue="${esc(venue)}"><p class="hint">${esc(BRAND_LABEL[venue]||venue)} 開帳：抽屜零用金（找零準備金）按面額填張數，或直接填總額。${h?`預設承接 ${esc(BRAND_LABEL[h.venue]||h.venue)} ${esc(clockText(h.closed_at))} 關帳的留存金 NT$${num(h.keep_cash)}，點過抽屜不符請改。`:''}</p>${denomGrid()}
+  return `<div class="reg-open-form" data-venue="${esc(venue)}"><div class="ops-head"><h4>${esc(BRAND_LABEL[venue]||venue)} 開帳</h4>${tipIcon('抽屜零用金（找零準備金）按面額填張數，或直接填總額。'+(h?`預設承接 ${esc(BRAND_LABEL[h.venue]||h.venue)} ${esc(clockText(h.closed_at))} 關帳的留存金 NT$${num(h.keep_cash)}，點過抽屜不符請改。`:''))}</div>${denomGrid()}
     <div class="a-form"><label>零用金總額<input id="reg-open-total" inputmode="numeric" pattern="[0-9]*" placeholder="或直接填" value="${def}"></label>${fillChips('reg-open-total',[...new Set([Number(def)||0,2000,3000,5000,10000].filter(n=>n>0))].map(n=>[n,(n===Number(def)?'承接 ':'')+'$'+num(n)]))}</div>
     <div class="reg-close-sum"><span>零用金 <b id="reg-open-show">NT$${num(def)}</b></span></div>
     <div class="a-toolbar"><button type="button" class="btn btn--solid" id="reg-open-go">確認開帳</button><button type="button" class="btn btn--ghost" id="reg-open-cancel">取消</button></div></div>`;
@@ -1064,12 +1089,12 @@ function registerBlock(d){
     if(st==='closed')return `<div class="reg-card reg-closed"><h4>${esc(BRAND_LABEL[v])}</h4>${regWait(v)?`<p class="hint">${regWaitChip(v)}</p>`:REG_OPEN_FORM===v?openRegisterForm(v):`<p class="hint">還沒開帳：放零用金後按開帳才能結帳。</p><button type="button" class="btn btn--solid" data-reg-open="${esc(v)}">開帳</button>`}</div>`;
     const moves=(r.moves||[]).map(m=>`<tr><td class="a-mono">${esc(clockText(m.created_at))}</td><td>${m.type==='in'?'<span class="pill pill-ok">收入</span>':'<span class="pill pill-wait">支出</span>'}</td><td>${esc(m.reason)}</td><td class="num">${m.type==='in'?'+':'−'}${num(m.amount)}</td></tr>`).join('')||'<tr><td colspan="4" class="a-empty">沒有臨時收支</td></tr>';
     const cashForm=REG_CASH_OPEN===r.id?`<div class="a-form reg-cash-form"><select id="reg-cash-type" aria-label="類型"><option value="out">臨時支出（從抽屜拿錢）</option><option value="in">臨時收入（放錢進抽屜）</option></select><input id="reg-cash-amount" inputmode="numeric" pattern="[0-9]*" placeholder="金額"><input id="reg-cash-reason" maxlength="80" placeholder="原因（必填）選下面或自己填"><button type="button" class="btn btn--solid btn-sm" id="reg-cash-save">記錄</button><button type="button" class="btn btn--ghost btn-sm" id="reg-cash-cancel">取消</button>${fillChips('reg-cash-amount',[[100,'$100'],[200,'$200'],[500,'$500'],[1000,'$1,000'],[2000,'$2,000']])}${reasonChips('reg-cash-reason',REASON_PRESETS.cash_move)}</div>`:'';
-    const closeForm=REG_CLOSE_OPEN===r.id?`<div class="reg-close-form"><p class="hint">按面額填張數，或直接填總額；留存金預設＝零用金（留給下一班）。差額非 0 要寫說明。</p>${denomGrid()}
+    const closeForm=REG_CLOSE_OPEN===r.id?`<div class="reg-close-form"><div class="ops-head"><h4>關帳點鈔</h4>${tipIcon('按面額填張數，或直接填總額；留存金預設＝零用金（留給下一班）。差額非 0 要寫說明。')}</div>${denomGrid()}
       <div class="a-form"><label>點鈔總額<input id="reg-counted" inputmode="numeric" pattern="[0-9]*" placeholder="或直接填"></label><label>留存金<input id="reg-keep" inputmode="numeric" pattern="[0-9]*" value="${esc(r.opening_cash)}"></label><label class="reg-note">說明<input id="reg-close-note" maxlength="200" placeholder="差額原因、交接事項"></label></div>${fillChips('reg-keep',[[r.opening_cash,'同零用金 $'+num(r.opening_cash)],[0,'全部收走'],[3000,'$3,000'],[5000,'$5,000']])}${reasonChips('reg-close-note',REASON_PRESETS.close_note)}
       <div class="reg-close-sum"><span>應有現金 <b>NT$${num(r.expected)}</b></span><span>點鈔 <b id="reg-counted-show">—</b></span><span>差額 <b id="reg-diff-show">—</b></span></div>
       <div class="a-toolbar"><button type="button" class="btn btn--solid" id="reg-close-go">確認關帳</button><button type="button" class="btn btn--ghost" id="reg-close-cancel">取消</button></div></div>`:'';
     // 小結點驗：營業中隨時核對抽屜現金，不關帳；差額只提示不卡，留痕後印小結單會帶上
-    const countForm=REG_COUNT_OPEN===r.id?`<div class="reg-close-form reg-count-form"><p class="hint">小結點驗：按面額填張數，或直接填總額，核對抽屜現金是否等於應有現金。不會關帳，可以多次點驗。</p>${denomGrid()}
+    const countForm=REG_COUNT_OPEN===r.id?`<div class="reg-close-form reg-count-form"><div class="ops-head"><h4>小結點驗</h4>${tipIcon('按面額填張數，或直接填總額，核對抽屜現金是否等於應有現金。不會關帳，可以多次點驗。')}</div>${denomGrid()}
       <div class="a-form"><label>點鈔總額<input id="reg-count-total" inputmode="numeric" pattern="[0-9]*" placeholder="或直接填"></label><label class="reg-note">說明<input id="reg-count-note" maxlength="200" placeholder="選填"></label></div>${reasonChips('reg-count-note',REASON_PRESETS.count_note)}
       <div class="reg-close-sum"><span>應有現金 <b>NT$${num(r.expected)}</b></span><span>點鈔 <b id="reg-count-show">—</b></span><span>差額 <b id="reg-count-diff">—</b></span></div>
       <div class="a-toolbar"><button type="button" class="btn btn--solid" id="reg-count-go">記錄點驗</button><button type="button" class="btn btn--ghost" id="reg-count-print">記錄並印小結單</button><button type="button" class="btn btn--ghost" id="reg-count-cancel">取消</button></div></div>`:'';
@@ -1252,7 +1277,7 @@ function openMakeup(pin,done){
   const TYPES=[['both','整班（上班＋下班）'],['in','只補上班'],['out','只補下班']];
   const REASONS=['忘記打卡','平板當機','臨時支援'];
   ov.innerHTML=`<div class="op-card pos-opt" role="dialog" aria-label="補打卡"><div class="pos-opt-body">
-    <h2>補打卡</h2><p class="hint hint--tight">只能補自己、過去 7 天內已經發生的時間；會記下「補打卡」與原因，店長看得到。</p>
+    <h2>補打卡${tipIcon('只能補自己、過去 7 天內已經發生的時間；會記下「補打卡」與原因，店長看得到。')}</h2>
     <div class="pos-opt-group"><div class="pos-opt-title"><span>補哪一種</span></div><div class="pos-opt-choices mk-types">${TYPES.map(([v,t],i)=>`<label><input type="radio" name="mk_type" value="${v}" ${i===0?'checked':''}><span>${esc(t)}</span></label>`).join('')}</div></div>
     <label class="pos-opt-group mk-field" data-mk="in,both"><div class="pos-opt-title"><span>上班時間</span><small class="hint hint--tight">點日期、再點時間</small></div><input type="datetime-local" id="mk-in" min="${minTp}" max="${nowTp}">${stampChips('mk-in')}</label>
     <label class="pos-opt-group mk-field" data-mk="out,both"><div class="pos-opt-title"><span>下班時間</span><small class="hint hint--tight">點日期、再點時間</small></div><input type="datetime-local" id="mk-out" min="${minTp}" max="${nowTp}" value="${nowTp}">${stampChips('mk-out')}</label>
@@ -1323,8 +1348,7 @@ function openOperatorPad(onDone,required){
     const keys=['1','2','3','4','5','6','7','8','9','⌫','0','清除'].map(k=>`<button type="button" class="clock-key" data-key="${esc(k)}">${esc(k)}</button>`).join('');
     const msg=OP_MSG?`<div class="clock-msg ${OP_MSG.ok?'ok':'bad'}" role="status">${esc(OP_MSG.text)}</div>`:'';
     ov.innerHTML=`<div class="op-card" role="dialog" aria-label="操作人員">
-      <h2>操作人員</h2>
-      <p class="hint">${required?'閒置太久，畫面已鎖定。輸入你的 4 位數識別碼繼續。':'輸入你的 4 位數識別碼，這筆操作會記下是你。'}</p>
+      <h2>操作人員${tipIcon(required?'閒置太久，畫面已鎖定。輸入你的 4 位數識別碼繼續。':'輸入你的 4 位數識別碼，這筆操作會記下是你。')}</h2>
       <div class="clock-pad"><div class="clock-pin" aria-label="識別碼">${dots}</div><div class="clock-keys">${keys}</div></div>
       ${msg}
       <div class="op-card-actions">${required?'<button type="button" class="btn btn--ghost" id="op-logout">登出</button>':'<button type="button" class="btn btn--ghost" id="op-cancel">取消</button>'}</div>
@@ -1413,7 +1437,7 @@ async function loadStaffList(host){
       <label>店別<select id="st-venues">${[['','兩店都可'],['CAFE',BRAND_LABEL.CAFE],['BAR',BRAND_LABEL.BAR]].filter(([v])=>!SCOPE||!v||v===SCOPE).map(([v,l])=>`<option value="${v}" ${curVenue===v?'selected':''}>${esc(l)}</option>`).join('')}</select></label>
       <label>職稱<input id="st-role" maxlength="20" value="${esc(cur?.role||'')}" placeholder="例：店長、工讀"></label>${fillChips('st-role',[['店長','店長'],['正職','正職'],['工讀','工讀'],['實習','實習']])}<label class="shift-note">備註<input id="st-note" maxlength="120" value="${esc(cur?.note||'')}"></label>
       <button type="button" class="btn btn--solid" id="st-save">${cur?'儲存':'新增'}</button><button type="button" class="btn btn--ghost" id="st-cancel">取消</button></div>`:'';
-  host.innerHTML=`<h3>員工</h3><div class="a-toolbar"><button class="btn btn--solid btn-sm" id="st-new">新增員工</button></div>${form}
+  host.innerHTML=`<div class="ops-head"><h3>員工</h3>${tipIcon('「新增員工」填姓名與店別，系統給一組 4 位數識別碼，員工用它在 POS 打卡與確認操作人員；離職或休職按「停用」，歷史紀錄保留。員工管理只在後台，平板上改不到。')}</div><div class="a-toolbar"><button class="btn btn--solid btn-sm" id="st-new">新增員工</button></div>${form}
     <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>姓名</th><th>識別碼</th><th>店別</th><th>狀態</th><th>備註</th><th class="ops-th">操作</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   const reload=()=>loadStaffList(host);
   host.querySelector('#st-new').onclick=()=>{STAFF_EDIT='new';reload();};bindFillChips(host);

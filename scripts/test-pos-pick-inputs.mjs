@@ -43,6 +43,7 @@ function ctxWith(extra = {}) {
   vm.createContext(ctx);
   // 只載入共用面板這一段 + 需要的常數
   const start = ops.indexOf('const NOTE_PRESETS='), end = ops.indexOf('let POS_INV_SCAN_STREAM=');
+  vm.runInContext(ops.slice(ops.indexOf('const tipIcon='), ops.indexOf('(function(){', ops.indexOf('const tipIcon=')))  , ctx); // tipIcon（彈窗標題後的說明圖示）
   vm.runInContext(ops.slice(start, end), ctx);
   return { ctx, made, toasts };
 }

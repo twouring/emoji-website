@@ -128,7 +128,8 @@ test('pos-ops.js：共用模組不碰 /admin 專屬狀態；估清分頁只動 s
   assert.match(ops, /empty:\['pill-draft','已開桌'\]/);
   assert.match(ops, /\/admin\/menu\/sold-out/); assert.match(ops, /data-so=/);
   assert.match(ops, /if\(host\.querySelector\('\.kds-grid'\)\)toast\('更新失敗：'/, '出餐看板更新失敗不清空畫面');
-  assert.match(ops, /const opsHelp=html=>`<details class="ops-help"><summary>操作說明<\/summary><p class="hint">\$\{html\}<\/p><\/details>`/, '長說明統一走 opsHelp() 摺疊');
+  assert.match(ops, /const opsHelp=tipIcon;/, '長說明統一走 opsHelp()＝標題後方的「?」圖示（點擊才顯示）');
+  assert.match(ops, /class="tip-q" aria-label="操作說明"/); assert.doesNotMatch(ops, /<details class="ops-help"/, '不再有攤開／摺疊的「操作說明」按鈕');
   assert.match(ops, /\$\{opsHelp\(`客人掃桌上 QR 點餐/, '出餐看板長說明要預設收合，避免 UI 雜亂');
   for (const lead of ['找某一筆已結帳的單', '客人從 <a href="\\/reserve"', '營業日從凌晨 03:00', '點一下品項切換「今日估清」', '輸入你的 4 位數識別碼，按「上班」', '在咖啡與三點水共用同一個抽屜帳', '員工先按「排休」', '工時＝下班－上班－休息']) {
     assert.match(ops, new RegExp("opsHelp\\('" + lead), lead + ' 要用 opsHelp 收合');
