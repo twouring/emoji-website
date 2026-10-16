@@ -769,6 +769,8 @@ function paintPos(){
     document.body.appendChild(ov);
   };
   host.querySelector('#pos-takeout').onclick=()=>openSession({takeout:true});
+  // 桌號 QR／暫停點餐在工具列，沒選桌也要能按，所以綁在 if(!cur)return 之前
+  host.querySelector('#pos-table-qr').onclick=openTableQr;bindPosPause(host,reload);
   if(!cur)return;
   // 客人送來的結帳需求：點一下把那幾項勾好（其餘取消勾選），再照一般流程選付款方式收款；✕＝關掉這筆（品項不動）
   host.querySelectorAll('[data-payreq]').forEach(b=>b.onclick=()=>{const r=(cur.pay_requests||[]).find(x=>x.id===b.dataset.payreq);if(!r)return;const set=new Set(r.lines.filter(l=>cur.lines.some(x=>x.line===l)));POS_PICK=set.size===cur.lines.length?null:set;POS_QTY={};POS_PAYREQ=r.id;paintPos();toast(`已選取 ${r.name} 要付的 ${set.size} 項`);});
@@ -807,7 +809,6 @@ function paintPos(){
     const groups=itemOptionGroups(it);
     if(!groups.length)return send({item_id:b.dataset.add,qty:1,note});
     openItemOptions(it,groups,note,send);});
-  host.querySelector('#pos-table-qr').onclick=openTableQr;bindPosPause(host,reload);
   bindReasonChips(host);bindNoteChips(host);
   // 常用折扣：一鍵帶入類型與數值，原因仍要選（按「套用」才生效）
   host.querySelectorAll('[data-disc-quick]').forEach(b=>b.onclick=()=>{const [t,v]=b.dataset.discQuick.split(':');host.querySelector('#pos-disc-type').value=t;host.querySelector('#pos-disc-value').value=v;host.querySelectorAll('[data-disc-quick]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));});
