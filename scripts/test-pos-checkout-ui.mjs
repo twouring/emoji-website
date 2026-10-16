@@ -16,7 +16,7 @@ test('收款鍵在底部釘住列，不跟送出點餐／清桌同列', () => {
   assert.match(css, /\.pos-dock\{[^}]*flex:none/);
   assert.match(css, /\.pos-panel-scroll\{[^}]*overflow:auto/);
   assert.match(css, /\.pos-dock #pos-checkout\{[^}]*min-height:64px/);
-  assert.match(css, /\.pos-layout\.has-panel \.pos-panel\{[^}]*max-height:calc\(100dvh/);
+  assert.match(css, /\.pos-layout\.has-panel \.pos-panel\{[^}]*height:calc\(100dvh/);
 });
 
 test('直向選桌後桌況格收起來，帳單標題有「← 桌況」', () => {

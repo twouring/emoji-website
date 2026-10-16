@@ -128,9 +128,11 @@ tr.pos-comp td{background:var(--ok-faint)}
 .pos-actions{display:grid;gap:10px;width:100%}
 .pos-actions-sub{display:flex;flex-wrap:wrap;gap:10px}.pos-actions-sub .btn{min-height:48px}
 .pos-actions #pos-close{justify-self:end;min-height:48px}
+/* 結帳面板高度固定（符合平板操作，不隨品項數伸縮）；內容自己捲，收款列釘在底部。 */
 /* 帳單面板自己捲：收款列 sticky 在面板底，第一屏就能按。直向選桌後面板吃滿可視高度。 */
-.pos-layout.has-panel .pos-panel{display:flex;flex-direction:column;max-height:calc(100dvh - var(--p-top,60px) - 48px);overflow:hidden;padding-bottom:0}
-@media(max-width:999px){.pos-layout.has-panel .pos-panel{max-height:calc(100dvh - 13rem)}}
+.pos-layout.has-panel .pos-panel{display:flex;flex-direction:column;height:calc(100dvh - var(--p-top,60px) - 48px);overflow:hidden;padding-bottom:0}
+@media(max-width:999px){.pos-layout.has-panel .pos-panel{height:calc(100dvh - 13rem)}}
+@media(min-width:1000px){.pos-layout.has-panel .pos-tables{height:calc(100dvh - var(--p-top,60px) - 48px);overflow:auto}}
 .pos-panel-scroll{flex:1;min-height:0;overflow:auto}
 .pos-dock{flex:none;z-index:12;display:flex;align-items:center;gap:12px;margin:0 -16px;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--line);box-shadow:0 -8px 24px rgba(20,18,16,.08)}
 .pos-dock-change,.pos-dock-due{display:flex;flex-direction:column;gap:0;min-width:7em;font-variant-numeric:tabular-nums}
