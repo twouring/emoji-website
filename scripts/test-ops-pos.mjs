@@ -223,7 +223,7 @@ test('server.js 接線：客人加菜擋暫停與估清、櫃檯端點、清桌�
   assert.match(server, /ALTER TABLE dining_reservations ADD COLUMN IF NOT EXISTS email/);
   assert.match(server, /'new','confirmed','arrived','cancelled','no_show'/);
   assert.match(server, /請先到櫃檯結帳或逐項作廢/, '清桌時有未結帳品項要擋');
-  assert.match(server, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|registers\|staff\|shifts\|attendance\|payment-methods\|pos-devices\|yan\)/, '餐飲子帳號可用新端點');
+  assert.match(server, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|analytics\|registers\|staff\|shifts\|attendance\|payment-methods\|pos-devices\|yan\)/, '餐飲子帳號可用新端點');
   assert.match(read('lib/security.js'), /'ordering_pause'/, '暫停點餐設定要能公開讀取');
   assert.doesNotMatch(server, /言文字根帳號/);
 });

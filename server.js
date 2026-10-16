@@ -1513,7 +1513,7 @@ function doorAuth(req, res, next) {
    言文字共用（會員發點、會費、消息、社群、廣告、活動、行事曆／場地申請）對「所有」品牌子帳號開放，
    不分品牌——對應 admin 後台把這些分頁併入言文字工作區、開放給所有品牌子帳號的決定；
    「權限管理」「系統設定」「操作紀錄」刻意不在這裡，維持言文字管理員專屬。 */
-const FOOD_API = /^\/api\/admin\/(orders|tables|content|menu|reservations|sales|registers|staff|shifts|attendance|payment-methods|pos-devices|yan)(\/|$)/;
+const FOOD_API = /^\/api\/admin\/(orders|tables|content|menu|reservations|sales|analytics|registers|staff|shifts|attendance|payment-methods|pos-devices|yan)(\/|$)/;
 const SHARED_API = /^\/api\/admin\/(updates|commitments|events|event-applications|social|ads|upload\/social|x\/compose|ig)(\/|$)/;
 const BRAND_API = { CAFE: FOOD_API, BAR: FOOD_API };
 const ADMIN_BRANDS = Object.keys(BRAND_API);
@@ -5025,13 +5025,31 @@ app.post('/api/admin/menu/sold-out',auth,adminOnly,requireDb,wrap(async(req,res)
   await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu',$1,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,[next]);
   res.json({ok:true,sold_out:req.body?.sold_out===true});
 }));
-function tableLayoutParse(v){try{const a=JSON.parse(v||'[]');return Array.isArray(a)?a.map(x=>String(x).slice(0,8)).filter(Boolean).slice(0,200):[];}catch(e){return [];}}
-// 桌況格排列順序：全店共用（現場每台 iPad 看到同一個排法）
+function tableLayoutParse(v){
+  try{
+    const o=JSON.parse(v||'{}'),order=Array.isArray(o)?o:(Array.isArray(o?.order)?o.order:[]),pos={};
+    for(const [k,xy] of Object.entries(o?.pos||{}).slice(0,200)){
+      if(!/^[A-Za-z0-9-]{1,8}$/.test(k)||!Array.isArray(xy)||xy.length!==2)continue;
+      const [x,y]=xy;if(typeof x==='number'&&typeof y==='number'&&Number.isFinite(x)&&Number.isFinite(y)&&x>=0&&x<=100&&y>=0&&y<=100)pos[k]=[x,y];
+    }
+    return {order:[...new Set(order.filter(k=>typeof k==='string'&&/^[A-Za-z0-9-]{1,8}$/.test(k)))].slice(0,200),pos};
+  }catch(e){return {order:[],pos:{}};}
+}
+// 桌況平面圖：每桌在畫布上的位置（百分比），全店共用（現場每台 iPad 看到同一個擺法）；pos 空物件＝還原成格子
 app.post('/api/admin/orders/table-layout',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  const order=req.body?.order;if(!Array.isArray(order)||order.length>200)return res.status(400).json({error:'桌位順序格式不正確。'});
-  const clean=[...new Set(order.map(x=>String(x||'').trim().slice(0,8)).filter(Boolean))];
-  await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('pos_table_layout',$1,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,[JSON.stringify(clean)]);
-  res.json({ok:true,order:clean});
+  const src=req.body?.pos;
+  if(src===undefined&&Array.isArray(req.body?.order)){
+    if(req.body.order.length>200)return res.status(400).json({error:'桌位順序格式不正確。'});
+    const layout=tableLayoutParse(JSON.stringify(req.body.order));
+    await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('pos_table_layout',$1,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,[JSON.stringify(layout)]);
+    return res.json({ok:true,...layout});
+  }
+  if(!src||typeof src!=='object'||Array.isArray(src)||Object.keys(src).length>200)return res.status(400).json({error:'桌位擺放格式不正確。'});
+  const clean=tableLayoutParse(JSON.stringify({pos:src}));
+  if(Object.keys(clean.pos).length!==Object.keys(src).length)return res.status(400).json({error:'桌位擺放格式不正確。'});
+  const pos=clean.pos;
+  await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('pos_table_layout',$1,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,[JSON.stringify({pos})]);
+  res.json({ok:true,pos});
 }));
 app.get('/api/admin/orders/pause',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   res.set('Cache-Control','no-store');
@@ -5062,6 +5080,15 @@ app.get('/api/admin/sales',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const ts=taishinManual.reconcile(orders,tsRow,{venues});
   const methodLabels=Object.fromEntries((await paymentMethodsList()).map(m=>[m.code,m.label]));
   res.json({...tableOrders.salesSummary(orders,{venues,now:from}),day,csv:tableOrders.salesCsvRows(orders,{venues,methodLabels}),linepay:{...lp,configured:linepay.configured(),synced_at:last,csv:linepay.csvRows(lp.rows)},taishin:ts});
+}));
+/* 銷量／客群分析（POS「銷量」「客群」分頁）：跨營業日區間，最多 93 天；作廢不計。新客＝該會員第一張成立單落在這個區間 */
+app.get('/api/admin/analytics',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
+  const {from,to,start,end}=tableOrders.analyticsRange(req.query);
+  const orders=(await q(`SELECT id,table_no,items,amount,payer,tappay,status,paid_at FROM table_orders WHERE status<>'void' AND paid_at>=$1 AND paid_at<$2 ORDER BY paid_at`,[start,end])).rows;
+  const first=(await q(`SELECT payer->>'member_id' AS mid,min(paid_at) AS at FROM table_orders WHERE status<>'void' AND payer->>'member_id' IS NOT NULL GROUP BY 1`)).rows;
+  const firstPaid=Object.fromEntries(first.map(r=>[r.mid,new Date(r.at).toISOString()]));
+  res.json(tableOrders.analyticsSummary(orders,{venues,from,to,firstPaid}));
 }));
 /* 台新手機付日結對帳：手動填寫當天實收總額（無查詢 API）。差額非 0 要填差異原因（決策紀錄第 4 點）；填寫人與時間存檔供日後查詢。 */
 app.post('/api/admin/sales/taishin',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -5632,7 +5659,7 @@ app.get(['/menu', '/menu/', '/en/menu', '/en/menu/', '/ja/menu', '/ja/menu/'], m
 const ADMIN_PAGE = path.join(PUB, 'admin.html');
 app.get('/admin.html', (_req, res) => res.redirect(301, '/admin'));
 app.get(['/admin', '/admin/*', '/organizer', '/organizer/*'], (_req, res) => { res.set('X-Robots-Tag', 'noindex'); res.sendFile(ADMIN_PAGE); });
-// 平板 POS（純瀏覽器，Star webPRNT Browser）：/pos、/pos/orders、/pos/soldout、/pos/reservations、/pos/history、/pos/sales、/pos/clock、/pos/shifts 皆回同一頁（pos.emoji.tw 與 www 都可用，API 同網域）
+// 平板 POS（純瀏覽器，Star webPRNT Browser）：/pos、/pos/orders、/pos/soldout、/pos/reservations、/pos/history、/pos/sales、/pos/products、/pos/customers、/pos/clock、/pos/shifts 皆回同一頁（pos.emoji.tw 與 www 都可用，API 同網域）
 const POS_PAGE = path.join(PUB, 'pos.html');
 app.get('/pos.html', (_req, res) => res.redirect(301, '/pos'));
 app.get(['/pos', '/pos/*'], (_req, res) => { res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache' }); res.sendFile(POS_PAGE); });

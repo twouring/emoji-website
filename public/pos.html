@@ -176,11 +176,13 @@ const TABS = [
   { id:'reservations', icon:'calendar', label:'訂位' },
   { id:'history', icon:'search',      label:'查單' },
   { id:'sales', icon:'chart',        label:'日結' },
+  { id:'products', icon:'chart',     label:'銷量' },
+  { id:'customers', icon:'users',    label:'客群' },
   { id:'clock', icon:'clock',        label:'打卡' },
   { id:'shifts', icon:'users',       label:'排班' },
 ];
 // 員工管理（新增／編輯／停用、出勤修正）刻意不放平板：只在 admin.emoji.tw 品牌工作區「排班打卡」，現場人員改不到
-const PANEL = { pos:tabPos, orders:tabOrders, soldout:tabSoldOut, reservations:tabReservations, history:tabHistory, sales:tabSales, clock:tabClock, shifts:tabShifts };
+const PANEL = { pos:tabPos, orders:tabOrders, soldout:tabSoldOut, reservations:tabReservations, history:tabHistory, sales:tabSales, products:tabProducts, customers:tabCustomers, clock:tabClock, shifts:tabShifts };
 let toastT, DATA = null, TAB = 'pos', SCOPE = '', MENU_DOC = null, PENDING = 0;
 try { SCOPE = localStorage.getItem('tth_pos_scope') || ''; } catch (e) {}
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2400); }
@@ -189,7 +191,7 @@ function downloadCSV(filename, rows){
   const csv = rows.map(r => r.map(c => { let s = c == null ? '' : String(c); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; }).join(',')).join('\r\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'})); a.download = filename; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
 }
-// 分頁網址：/pos（結帳）、/pos/orders、/pos/soldout、/pos/reservations、/pos/history、/pos/sales、/pos/clock、/pos/shifts；pos.emoji.tw 與 www.emoji.tw 皆可
+// 分頁網址：/pos（結帳）、/pos/orders、/pos/soldout、/pos/reservations、/pos/history、/pos/sales、/pos/products、/pos/customers、/pos/clock、/pos/shifts；pos.emoji.tw 與 www.emoji.tw 皆可
 const tabUrl = tab => '/pos' + (tab === 'pos' ? '' : '/' + tab);
 function opsHref(tab){ return tabUrl(tab); }
 // Google 登入的 callback 綁在官網網域（PUBLIC_ORIGIN），state cookie 也在那裡：子網域一律先到 www 發起，登入完成再以 #token 導回本站
@@ -364,6 +366,8 @@ function activate(){
   else if (TAB === 'reservations') loadReservations();
   else if (TAB === 'history') loadHistory();
   else if (TAB === 'sales') loadSales();
+  else if (TAB === 'products') loadProducts();
+  else if (TAB === 'customers') loadCustomers();
   else if (TAB === 'clock') loadClock();
   else if (TAB === 'shifts') loadShifts();
 }

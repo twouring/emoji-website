@@ -371,7 +371,7 @@ POS 關掉某筆客人的結帳需求（客人改口或已另外處理）；品�
 清桌：未取餐的單標記已取餐、這桌下一次掃碼開新場。**有未結帳品項時回 409**（請先結帳或逐項作廢，避免漏收）；言文字管理員可帶 body `{ force: true }` 強制清桌並作廢未結品項。
 
 ### POST /api/admin/orders/table-layout
-儲存 POS 桌況格的排列順序（全店共用）。Body：`{order:["A1","B2",...]}`。`GET /api/admin/orders` 會回傳 `table_layout`。
+儲存 POS 桌況平面圖（全店共用）：每桌在畫布上的位置，百分比座標。Body：`{pos:{"A1":[x,y],...}}`，空物件＝還原成預設格子。`GET /api/admin/orders` 會回傳 `table_layout:{order,pos}`（`order` 保留舊版排序資料）。仍接受舊版 `{order:[...]}`；座標必須為 0–100 的有限數字、桌號沿用 1–8 碼英數／連字號，最多 200 桌。
 
 ### GET /api/admin/orders/pause
 讀取各店別暫停點餐狀態（估清頁的「暫停點餐」按鈕用）。query `venue=` 可只看單一店別；品牌子帳號只看自己店別。回 `{ pause: { CAFE:{paused,message}, BAR:{...} } }`。
@@ -389,6 +389,9 @@ POS 關掉某筆客人的結帳需求（客人改口或已另外處理）；品�
 日結報表。query `day=YYYY-MM-DD`（營業日，預設今天；03:00 起算 24 小時）、`venue=`。回 `{ day, orders, amount, by_method{}, by_hour{}, items[]{zh,venue,qty,amount}, voided, void_amount, discount_amount, discount_count, comp_count, redeem_points, redeem_count, redeem_value, csv[][], linepay }`；`redeem_points / redeem_count / redeem_value` 為點數兌換的點數合計、單數與折抵原價合計（像折扣一樣另列，CSV 該品項標「點數兌換 N 點，折抵 NT$X」）；`amount` 為折扣後實收，`discount_amount / discount_count` 為整單折扣合計與單數，`comp_count` 為贈送件數。現金對帳走開關帳（見 `/api/admin/registers`），舊的交班結算已移除。`csv` 為每品項一列的明細（表頭：營業日、付款時間、桌號、品項、數量、單價、小計、付款方式、會員價、發票狀態、發票號碼、狀態、作廢原因），整單折扣另列一列負數讓小計欄加總＝營收，贈送品項名稱後綴「（贈送：原因）」。作廢的單不計營收。
 `linepay` 為 LINE Pay 對帳：`{ configured, synced_at, pos:{count,amount}（POS 登記為 LINE Pay 的成立單）, linepay:{count,amount,refunds,refund_amount,by_method{}}（LINE Pay 商家後台同日實收，退款已扣）, diff（實收－POS 登記；>0 漏登或登成其他方式，<0 登了但沒收到）, by_venue{CAFE,BAR}（各店 `{label,pos:{count,amount},linepay:{count,amount},diff}`）, rows[]（當日每筆實收：id,type,amount,paid_at,method,card_last4,confirm_no,order_no,venue,venue_label）, csv[][] }`。LINE Pay 商家後台只有一個商店 ID、交易沒有店別欄位，所以依交易時間歸屬：以當天 `pos_registers` 的開帳～關帳時間判斷是哪一店開著（關帳後一律算下一本帳——客人提早在開帳前付款；最後一本帳關帳後算輪到的另一店：在咖啡→三點水、三點水→在咖啡）；當天沒有開關帳紀錄才退回固定時段：台北 08:00–17:00 為在咖啡（CAFE），17:00 起到隔天凌晨為三點水（BAR）；`?venue=` 與品牌帳號的店別範圍會同時限制 POS 側與 LINE Pay 側。
 `taishin` 為刷卡／台新手機付對帳（兩者同一台台新收單機、沒有實收查詢 API，手動填寫）：`{ pos:{count,amount}（POS 登記為刷卡或台新手機付的成立單，2026-10-14 決策合併；結帳畫面已合併成一個選項、代碼一律寫 taishin，但仍把歷史單據可能留著的舊 card 紀錄一起算入）, manual（還沒填過是 null；填過是 {amount,reason,filled_by,updated_at}）, diff（manual.amount－POS 登記；還沒填是 null）}`。填寫走 `POST /api/admin/sales/taishin`。
+
+### GET /api/admin/analytics
+銷量／客群分析（POS「銷量」「客群」分頁；不改動既有日結帳務）。query `from=YYYY-MM-DD`、`to=YYYY-MM-DD`（營業日區間，含頭尾；預設 `to`＝今天、`from`＝6 天前，最長 93 天）、`venue=`。作廢單不計。回 `{ from, to, orders, amount, qty, avg_ticket, avg_items, by_day[]{day,orders,amount}, by_hour{HH:{orders,amount}}, by_weekday{0–6:{orders,amount}}（以營業日算星期，0＝日）, by_method{code:{orders,amount}}, items[]{id,zh,cat,venue,qty,amount,orders}（依數量排序）, categories[]{cat,qty,amount}, customers:{ member:{orders,amount}, guest:{…}, takeout:{…}, dinein:{…}, qr:{…}（桌邊 QR 自助點餐的單）, counter:{…}, unique_members, repeat_members（區間內 ≥2 單）, new_members（第一張成立單落在區間內）, member_avg_ticket, guest_avg_ticket } }`。會員單＝結帳有帶會員或套聚落價；外帶＝桌號 W01–W99。品牌子帳號只看自己店別。
 
 ### GET /api/admin/registers
 開關帳（帳本）。在咖啡（CAFE）與三點水（BAR）共用同一台 POS 與**同一個抽屜帳**：帳本仍以「品牌 × 營業日」記（營收分品牌），但同一營業日同一時間只能有一本開著——在咖啡關帳後三點水才能開帳（反之亦然）。query `day=YYYY-MM-DD`（預設今天的營業日）、`venue=`。回 `{ day, registers[], current:{CAFE, BAR}, active_venue, open_venue, handover, can_open:{CAFE,BAR}, wait:{CAFE,BAR} }`；`open_venue` 為現在開著的品牌（`null`＝沒有）、`handover` 為當日最後一本已關帳的帳 `{ id, venue, keep_cash, closed_at }`（下一本開帳預設承接其留存金）、`wait[venue]` 為該品牌要等誰關帳（空字串＝可以開）——這四個欄位看全店，不受子帳號品牌範圍過濾；`current[venue]` 為該品牌當日最後一本帳（`null`＝還沒開帳），每本含 `opening_cash, cash_sales, cash_in, cash_out, expected`（應有現金＝零用金＋現金營收＋臨時收入－臨時支出）、`moves[]`（臨時收支）、`sales{orders,amount,by_method,voided,void_amount}`、關帳後另有 `counted_cash, diff, keep_cash, take_cash, denominations, close_note, closed_at, closed_by`，以及 `report`（小結單／關帳單資料）。

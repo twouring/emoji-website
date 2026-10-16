@@ -231,7 +231,7 @@ function pickCarrier(kind){
     inp.focus();
   });
 }
-let POS_EDIT=false,POS_EDIT_ORDER=null;
+let POS_EDIT=false,POS_EDIT_POS=null;
 let POS_INV_SCAN_STREAM=null,POS_INV_SCAN_FRAME=0;
 // 發票各類型只顯示自己要填的欄位（點選後才出現），手機載具可用相機掃描條碼代替手打
 function stopPosInvoiceScanner(video){
@@ -780,11 +780,11 @@ async function loadPos(){
   try{[POS_DATA,REG_DATA]=await Promise.all([api('/admin/orders'+scopeQuery('all=1')),api('/admin/registers'+scopeQuery()).catch(()=>null)]);}catch(e){if(host.querySelector('.pos-grid'))toast('更新失敗：'+e.message);else host.innerHTML=`<div class="a-sec"><h2>櫃檯結帳</h2><p class="a-empty">載入失敗：${esc(e.message)}</p></div>`;POS_TIMER=setTimeout(()=>{if(document.getElementById('pos-body')&&TAB==='pos')loadPos();},15000);return;}
   // 後台系統設定新增／停用自訂收款帳戶後，這台 POS 不用重新整理頁面，最慢 15 秒內跟著這支輪詢更新
   if(POS_DATA.payment_methods)DATA.payment_methods=POS_DATA.payment_methods;
-  const sig=JSON.stringify([POS_DATA.pause,POS_DATA.sessions.map(s=>[s.id,s.unpaid,s.unpaid_amount,s.state,s.lines.map(l=>[l.line,l.qty,l.price,l.comp_reason||'',l.placed_at||'']),(s.pay_requests||[]).map(r=>[r.id,r.amount,r.count])]),POS_DATA.orders.map(o=>[o.id,o.status,o.invoice?.status]),Object.entries(POS_DATA.reservations||{}).map(([t,rs])=>[t,rs.map(r=>[r.id,r.time,r.status])]),REG_DATA&&Object.entries(REG_DATA.current||{}).map(([v,r])=>[v,r?.id,r?.closed_at]),(DATA.payment_methods||[]).map(m=>[m.code,m.label,m.active])]);
+  const sig=JSON.stringify([POS_DATA.table_layout,POS_DATA.pause,POS_DATA.sessions.map(s=>[s.id,s.unpaid,s.unpaid_amount,s.state,s.lines.map(l=>[l.line,l.qty,l.price,l.comp_reason||'',l.placed_at||'']),(s.pay_requests||[]).map(r=>[r.id,r.amount,r.count])]),POS_DATA.orders.map(o=>[o.id,o.status,o.invoice?.status]),Object.entries(POS_DATA.reservations||{}).map(([t,rs])=>[t,rs.map(r=>[r.id,r.time,r.status])]),REG_DATA&&Object.entries(REG_DATA.current||{}).map(([v,r])=>[v,r?.id,r?.closed_at]),(DATA.payment_methods||[]).map(m=>[m.code,m.label,m.active])]);
   // 客人手機按「通知櫃檯我要結帳」：第一次看到的需求響一聲（和新單同一個音）
   const reqIds=new Set(POS_DATA.sessions.flatMap(s=>(s.pay_requests||[]).map(r=>r.id)));if(PAYREQ_SEEN&&[...reqIds].some(id=>!PAYREQ_SEEN.has(id)))ordersBeep();PAYREQ_SEEN=reqIds;
   // 開帳表單打開時不要被 15 秒自動刷新重畫（會清掉正在填的張數）
-  if(POS_EDIT&&host.querySelector('.pos-grid'))return;
+  if(POS_EDIT&&host.querySelector('.pos-floor-edit')){POS_TIMER=setTimeout(()=>{if(document.getElementById('pos-body')&&TAB==='pos')loadPos();},15000);return;}
   if((host.dataset.sig!==sig&&!(REG_OPEN_FORM&&host.querySelector('.reg-open-form')))||!host.querySelector('.pos-grid')){host.dataset.sig=sig;paintPos();}
   POS_TIMER=setTimeout(()=>{if(document.getElementById('pos-body')&&TAB==='pos')loadPos();},15000);
 }
@@ -807,40 +807,37 @@ function posTotals(cur){
 function startAA(people){POS_AA={people};POS_PICK=null;POS_QTY={};POS_DISCOUNT=null;POS_DISC_OPEN=false;POS_RECEIVED='';POS_SPLIT={};}
 function bindCashDrawerButton(drawerBtn){if(drawerBtn)drawerBtn.onclick=()=>ensureOperator(async()=>{const reason=await pickReason({title:'開錢櫃原因（記錄操作人員與時間）',presets:['開班放零用金','換鈔','交班點鈔','交易已完成，重試開櫃']});if(!reason||drawerBtn.disabled)return;drawerBtn.disabled=true;try{await manualCashDrawer(reason);}finally{drawerBtn.disabled=false;}});}
 function bindTableDrag(host){
-  const grid=host.querySelector('.pos-grid-edit');if(!grid)return;
-  const order=()=>[...grid.querySelectorAll('[data-drag-table]')].map(e=>e.dataset.dragTable);
-  const exit=()=>{POS_EDIT=false;POS_EDIT_ORDER=null;host.dataset.sig='';paintPos();loadPos();};
+  const floor=host.querySelector('.pos-floor-edit');if(!floor)return;
+  const pct=n=>Math.max(0,Math.min(100,Math.round(n/2)*2)); // 吸附 2% 格，擺起來比較整齊
+  const read=()=>{const o={};for(const e of floor.querySelectorAll('[data-drag-table]'))o[e.dataset.dragTable]=[Number(e.dataset.x),Number(e.dataset.y)];return o;};
+  const exit=()=>{POS_EDIT=false;POS_EDIT_POS=null;host.dataset.sig='';paintPos();loadPos();};
   let drag=null;
-  grid.addEventListener('pointerdown',ev=>{
+  floor.addEventListener('pointerdown',ev=>{
     const el=ev.target.closest('[data-drag-table]');if(!el||ev.button>0)return;
     ev.preventDefault();el.setPointerCapture(ev.pointerId);
-    drag={el,id:ev.pointerId,sx:ev.clientX,sy:ev.clientY};el.classList.add('dragging');
+    const r=el.getBoundingClientRect();drag={el,id:ev.pointerId,dx:ev.clientX-r.left,dy:ev.clientY-r.top};el.classList.add('dragging');
   });
-  grid.addEventListener('pointermove',ev=>{
+  floor.addEventListener('pointermove',ev=>{
     if(!drag||ev.pointerId!==drag.id)return;
-    drag.el.style.transform=`translate(${ev.clientX-drag.sx}px,${ev.clientY-drag.sy}px)`;
-    drag.el.style.pointerEvents='none';
-    const over=document.elementFromPoint(ev.clientX,ev.clientY)?.closest?.('[data-drag-table]');
-    drag.el.style.pointerEvents='';
-    if(over&&over!==drag.el){
-      const kids=[...grid.children],a=kids.indexOf(drag.el),b=kids.indexOf(over);
-      const before=drag.el.getBoundingClientRect();
-      grid.insertBefore(drag.el,a<b?over.nextSibling:over);
-      const after=drag.el.getBoundingClientRect();
-      drag.sx+=after.left-before.left;drag.sy+=after.top-before.top;
-      drag.el.style.transform=`translate(${ev.clientX-drag.sx}px,${ev.clientY-drag.sy}px)`;
-    }
+    const f=floor.getBoundingClientRect(),r=drag.el.getBoundingClientRect();
+    const maxX=100-r.width/f.width*100,maxY=100-r.height/f.height*100;
+    const x=Math.min(pct((ev.clientX-drag.dx-f.left)/f.width*100),Math.floor(Math.max(0,maxX)));
+    const y=Math.min(pct((ev.clientY-drag.dy-f.top)/f.height*100),Math.floor(Math.max(0,maxY)));
+    drag.el.dataset.x=x;drag.el.dataset.y=y;drag.el.style.left=x+'%';drag.el.style.top=y+'%';
   });
-  const end=ev=>{if(!drag||ev.pointerId!==drag.id)return;drag.el.classList.remove('dragging');drag.el.style.transform='';drag=null;POS_EDIT_ORDER=order();};
-  grid.addEventListener('pointerup',end);grid.addEventListener('pointercancel',end);
+  const end=ev=>{if(!drag||ev.pointerId!==drag.id)return;drag.el.classList.remove('dragging');drag=null;POS_EDIT_POS=read();};
+  floor.addEventListener('pointerup',end);floor.addEventListener('pointercancel',end);
   host.querySelector('#pos-edit-cancel').onclick=exit;
-  host.querySelector('#pos-edit-reset').onclick=()=>{POS_EDIT_ORDER=[...DEFAULT_TABLES,...order().filter(t=>!DEFAULT_TABLES.includes(t))];paintPos();};
+  host.querySelector('#pos-edit-reset').onclick=async()=>{if(!await posConfirm('還原成預設的排排站格子？目前擺的位置會清掉。',{ok:'還原'}))return;POS_EDIT_POS={};paintPos();};
   host.querySelector('#pos-edit-done').onclick=async()=>{
     const btn=host.querySelector('#pos-edit-done');btn.disabled=true;
-    try{await api('/admin/orders/table-layout',{method:'POST',body:{order:order()}});if(POS_DATA)POS_DATA.table_layout=order();toast('桌位排列已儲存');exit();}
+    const pos=POS_EDIT_POS&&Object.keys(POS_EDIT_POS).length?POS_EDIT_POS:(POS_EDIT_POS?{}:read());
+    try{await api('/admin/orders/table-layout',{method:'POST',body:{pos}});if(POS_DATA)POS_DATA.table_layout={pos};toast('桌位擺放已儲存');exit();}
     catch(e){btn.disabled=false;toast('儲存失敗：'+e.message);}
   };
 }
+// 沒擺過位置的桌，編輯時先照順序排成格子（4 欄），再讓人拖去現場位置
+function defaultTablePos(names,pos){const out={...pos};const rows=Math.max(4,Math.ceil(names.length/4));const at=i=>[1+(i%4)*25,Math.round(Math.floor(i/4)*76/(rows-1))];let i=0;for(const t of names){if(out[t])continue;while(Object.values(out).some(([x,y])=>x===at(i)[0]&&y===at(i)[1]))i++;out[t]=at(i++);}return out;}
 function paintPos(){
   const host=document.getElementById('pos-body'),d=POS_DATA;if(!host||!d)return;
   stopPosInvoiceScanner();
@@ -850,20 +847,25 @@ function paintPos(){
   // 桌況格固定先列出現場的 16 桌（不管有沒有開桌，方便現場人員直接點選開桌），已開桌/外帶但不在固定桌號清單裡的（例如外帶、加開的桌）排在後面
   const byTable=new Map(sessions.filter(s=>!s.takeout).map(s=>[s.table,s]));
   const baseNames=[...DEFAULT_TABLES,...sessions.filter(s=>!s.takeout&&!DEFAULT_TABLES.includes(s.table)).map(s=>s.table)];
-  const layout=POS_EDIT&&POS_EDIT_ORDER?POS_EDIT_ORDER:(d.table_layout||[]);
-  const rank=t=>{const i=layout.indexOf(t);return i<0?1e6+baseNames.indexOf(t):i;};
-  const orderedNames=[...baseNames].sort((a,b)=>rank(a)-rank(b));
-  const slots=[...orderedNames.map(t=>byTable.get(t)||{table:t,empty:true}),...sessions.filter(s=>s.takeout)];
+  // 桌位擺放（平面圖）：有座標的桌畫在畫布上，沒座標的桌與外帶單排在畫布下面；沒人擺過就是原本的格子
+  const layoutPos=(POS_EDIT&&POS_EDIT_POS)?POS_EDIT_POS:((d.table_layout&&!Array.isArray(d.table_layout)&&d.table_layout.pos)||{});
+  const legacyOrder=Array.isArray(d.table_layout)?d.table_layout:(d.table_layout?.order||[]);baseNames.sort((a,b)=>{const rank=t=>legacyOrder.includes(t)?legacyOrder.indexOf(t):1e6;return rank(a)-rank(b);});
+  const placed=baseNames.filter(t=>Array.isArray(layoutPos[t])).sort((a,b)=>(layoutPos[a][1]-layoutPos[b][1])||(layoutPos[a][0]-layoutPos[b][0]));
+  const slots=[...placed.map(t=>({...(byTable.get(t)||{table:t,empty:true}),placed:true})),...baseNames.filter(t=>!layoutPos[t]).map(t=>byTable.get(t)||{table:t,empty:true}),...sessions.filter(s=>s.takeout)];
   // 今天這桌有排的訂位（訂位頁填了桌號）：空桌與使用中的桌都標出來，提醒現場人員這桌有人預約；只是提示，不會自動開桌
   const resvOf=t=>(d.reservations||{})[t]||[];
   const resvHtml=t=>resvOf(t).map(r=>`<small class="pos-resv"><span class="pos-resv-tag">預約</span> ${esc(r.time)} ${esc(r.name)} ${r.party_size} 位${r.status==='new'?'（待確認）':''}</small>`).join('');
-  const grid=slots.map(s=>{
-    if(s.empty)return `<button type="button" class="pos-table empty ${resvOf(s.table).length?'reserved':''}" data-open-table="${esc(s.table)}"><b>${esc(s.table)}</b><span class="pill pill-draft">空桌</span>${resvHtml(s.table)}</button>`;
-    const [cls,label]=TABLE_STATE[s.state]||TABLE_STATE.open;return `<button type="button" class="pos-table ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''} ${s.pay_requests?.length?'payreq':''} ${idleWarn(s)?'idlewarn':''}" data-pos-table="${esc(s.table)}"><b>${s.takeout?'外帶 ':''}${esc(s.table)}</b><span class="pill ${cls}">${label}</span>${s.pickup_at?`<small class="pos-resv"><span class="pos-resv-tag">預約取餐</span> ${esc(clockText(s.pickup_at))}${s.pickup_placed?'':'（時間到自動送單）'}${s.pickup_note?' · '+esc(s.pickup_note):''}</small>`:''}${idleWarn(s)?`<small class="pos-idlewarn-tag">⚠ 還沒點餐 ${elapsedText(s.created_at)}</small>`:`<small>${s.unpaid?`未結 NT$${num(s.unpaid_amount)}`:s.state==='empty'?'還沒點餐':'已結清'}</small>`}${s.pay_requests?.length?`<small class="pos-payreq-tag">💳 要結帳 ${s.pay_requests.map(r=>esc(r.name)).join('、')}</small>`:''}${s.mixed?'<small class="pill pill-bad">混桌</small>':''}${resvHtml(s.table)}</button>`;
-  }).join('');
+  const cardHtml=s=>{
+    if(s.empty)return `<button type="button" class="pos-table empty ${s.placed?'is-placed':''} ${resvOf(s.table).length?'reserved':''}" data-open-table="${esc(s.table)}"><b>${esc(s.table)}</b><span class="pill pill-draft">空桌</span>${resvHtml(s.table)}</button>`;
+    const [cls,label]=TABLE_STATE[s.state]||TABLE_STATE.open;return `<button type="button" class="pos-table ${s.placed?'is-placed':''} ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''} ${s.pay_requests?.length?'payreq':''} ${idleWarn(s)?'idlewarn':''}" data-pos-table="${esc(s.table)}"><b>${s.takeout?'外帶 ':''}${esc(s.table)}</b><span class="pill ${cls}">${label}</span>${s.pickup_at?`<small class="pos-resv"><span class="pos-resv-tag">預約取餐</span> ${esc(clockText(s.pickup_at))}${s.pickup_placed?'':'（時間到自動送單）'}${s.pickup_note?' · '+esc(s.pickup_note):''}</small>`:''}${idleWarn(s)?`<small class="pos-idlewarn-tag">⚠ 還沒點餐 ${elapsedText(s.created_at)}</small>`:`<small>${s.unpaid?`未結 NT$${num(s.unpaid_amount)}`:s.state==='empty'?'還沒點餐':'已結清'}</small>`}${s.pay_requests?.length?`<small class="pos-payreq-tag">💳 要結帳 ${s.pay_requests.map(r=>esc(r.name)).join('、')}</small>`:''}${s.mixed?'<small class="pill pill-bad">混桌</small>':''}${resvHtml(s.table)}</button>`;
+  };
+  const grid=slots.map(cardHtml).join('');
+  const floor=placed.length?`<div class="pos-floor">${placed.map(t=>`<div class="pos-floor-slot" style="left:${layoutPos[t][0]}%;top:${layoutPos[t][1]}%">${cardHtml(byTable.get(t)||{table:t,empty:true})}</div>`).join('')}</div>`:'';
+
   if(POS_EDIT){
-    const gridEdit=orderedNames.map(t=>{const s=byTable.get(t);return `<div class="pos-table pos-drag" data-drag-table="${esc(t)}" role="listitem" aria-label="桌 ${esc(t)}，按住拖拉換位置"><b>${esc(t)}</b><span class="pill ${s?'pill-wait':'pill-draft'}">${s?'使用中':'空桌'}</span><small class="pos-drag-grip" aria-hidden="true">⠿ 按住拖拉</small></div>`;}).join('');
-    host.innerHTML=`<div class="pos-layout"><div class="a-sec pos-tables pos-editing"><div class="ops-head"><h2>編輯桌位排列</h2></div><p class="hint">按住桌號拖到想要的位置，排成跟現場桌位一樣；完成後全店 iPad 都會套用。</p><div class="pos-grid pos-grid-edit" role="list">${gridEdit}</div><div class="pos-open"><button type="button" class="btn btn--solid" id="pos-edit-done">完成</button><button type="button" class="btn btn--ghost" id="pos-edit-reset">還原預設排列</button><button type="button" class="btn btn--ghost" id="pos-edit-cancel">取消</button></div></div></div>`;
+    const pos=defaultTablePos(baseNames,layoutPos);
+    const cards=baseNames.map(t=>{const s=byTable.get(t);const [x,y]=pos[t];return `<div class="pos-table pos-drag" data-drag-table="${esc(t)}" data-x="${x}" data-y="${y}" style="left:${x}%;top:${y}%" role="listitem" aria-label="桌 ${esc(t)}，按住拖到現場位置"><b>${esc(t)}</b><span class="pill ${s?'pill-wait':'pill-draft'}">${s?'使用中':'空桌'}</span></div>`;}).join('');
+    host.innerHTML=`<div class="pos-layout"><div class="a-sec pos-tables pos-editing"><div class="ops-head"><h2>編輯桌位擺放</h2></div><p class="hint">按住桌號自由拖到跟現場一樣的位置（可以不排排站）；完成後全店 iPad 都會套用。</p><div class="pos-floor pos-floor-edit" style="min-height:${Math.max(520,Math.ceil(baseNames.length/4)*130)}px" role="list">${cards}</div><div class="pos-open"><button type="button" class="btn btn--solid" id="pos-edit-done">完成</button><button type="button" class="btn btn--ghost" id="pos-edit-reset">還原預設格子</button><button type="button" class="btn btn--ghost" id="pos-edit-cancel">取消</button></div></div></div>`;
     bindTableDrag(host);return;
   }
   // 櫃檯開桌／外帶：加開固定清單以外的桌號、或外帶單
@@ -930,7 +932,7 @@ function paintPos(){
       </div>
     </div>`;
   }
-  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('客人掃桌上 QR 點餐後，點該桌看帳、結帳；外帶按「＋ 外帶」；客人沒掃碼要櫃檯點餐時，直接點空桌開桌。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div><div class="pos-grid">${grid}</div>${opener}<div class="pos-sub">${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>'}</div></div>${panel}</div>`;
+  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('客人掃桌上 QR 點餐後，點該桌看帳、結帳；外帶按「＋ 外帶」；客人沒掃碼要櫃檯點餐時，直接點空桌開桌。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div><div class="pos-board">${floor}<div class="pos-grid">${grid}</div></div>${opener}<div class="pos-sub">${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>'}</div></div>${panel}</div>`;
   if(!document.getElementById('p-drawer'))bindCashDrawerButton(host.querySelector('#pos-cash-drawer'));
   host.querySelectorAll('[data-pos-table]').forEach(b=>b.onclick=()=>{POS_TABLE=b.dataset.posTable;POS_PICK=null;POS_QTY={};POS_PAYREQ=null;POS_SPLIT={};POS_DISCOUNT=null;POS_DISC_OPEN=false;POS_RECEIVED='';POS_AA=null;paintPos();});
   // 開桌／外帶：每次都先輸入 PIN 認人，記這桌是誰開的（與結帳、作廢、開錢櫃一致）
@@ -946,7 +948,9 @@ function paintPos(){
       return reload();
     }));
   });
-  host.querySelector('#pos-edit-tables').onclick=()=>{POS_EDIT=true;POS_EDIT_ORDER=[...orderedNames];paintPos();};
+  host.querySelector('#pos-edit-tables').onclick=()=>{POS_EDIT=true;POS_EDIT_POS=null;paintPos();};
+  // 平面圖底部的桌卡若比畫布長（使用中的桌卡比較高），用 margin 把下面的內容推開，座標不變
+  const fl=host.querySelector('.pos-floor');if(fl&&typeof fl.getBoundingClientRect==='function'){const fit=()=>{const fr=fl.getBoundingClientRect();if(!fr.height)return;let over=0;for(const c of fl.children)over=Math.max(over,c.getBoundingClientRect().bottom-fr.bottom);fl.style.marginBottom=(over>0?Math.ceil(over)+12:10)+'px';};fit();if(typeof requestAnimationFrame==='function')requestAnimationFrame(fit);}
   // 加開桌號：點區＋號碼，不打字（桌牌上有的桌號直接點桌況格或「開桌」）
   host.querySelector('#pos-open-extra').onclick=async()=>{const t=await pickTableNo({title:'加開桌號',hint:'桌牌上沒有的桌號、戶外或臨時桌才用這裡；已開著的桌會直接切過去。'});if(t)openSession({table_no:t});};
   host.querySelector('#pos-takeout').onclick=()=>openSession({takeout:true});
@@ -1733,4 +1737,28 @@ async function loadAttendance(host){
   // 修正：一張面板（上班、下班、休息都用點的），時間用台北時間 YYYY-MM-DDTHH:mm
   const toIso=s=>{s=String(s||'').trim();if(!s)return null;if(/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}$/.test(s))s+=':00';const t=new Date(s.replace(' ','T')+'+08:00');if(isNaN(t))throw Error('時間格式請用 2026-10-13 09:00');return t.toISOString();};
   host.querySelectorAll('[data-fix]').forEach(b=>b.onclick=()=>{const r=(d.rows||[]).find(x=>x.id===b.dataset.fix);if(!r)return;openAttendanceFix(r,reload,toIso);});
+}
+
+function tabProducts(){return '<div class="a-sec" id="products-body"></div>';}
+function tabCustomers(){return '<div class="a-sec" id="customers-body"></div>';}
+let ANALYTICS_FROM='',ANALYTICS_TO='';
+function loadProducts(){return loadAnalytics('products');}
+function loadCustomers(){return loadAnalytics('customers');}
+async function loadAnalytics(kind){
+  const host=document.getElementById(kind+'-body');if(!host)return;
+  const title=kind==='products'?'銷量分析':'客群分析';
+  const query=new URLSearchParams();if(ANALYTICS_FROM)query.set('from',ANALYTICS_FROM);if(ANALYTICS_TO)query.set('to',ANALYTICS_TO);if(SCOPE)query.set('venue',SCOPE);
+  host.innerHTML=`<h2>${title}</h2><p class="hint">載入中…</p>`;
+  let d;try{d=await api('/admin/analytics?'+query);}catch(e){host.innerHTML=`<h2>${title}</h2><p class="a-empty">${esc(e.message)}</p>`;return;}
+  ANALYTICS_FROM=d.from;ANALYTICS_TO=d.to;
+  const table=(heads,rows)=>`<div class="a-wrap2"><table class="a-tbl"><thead><tr>${heads.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.length?rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${heads.length}" class="a-empty">這段期間沒有資料</td></tr>`}</tbody></table></div>`;
+  const productRows=(d.items||[]).map(i=>[i.zh,BRAND_LABEL[i.venue]||i.venue,i.cat,i.qty,num(i.amount),i.orders]);
+  const c=d.customers||{},segments=[['member','會員'],['guest','非會員'],['takeout','外帶'],['dinein','內用'],['qr','含 QR 點餐'],['counter','櫃檯點餐']];
+  const customerRows=segments.map(([key,label])=>[label,c[key]?.orders||0,num(c[key]?.amount||0)]);
+  host.innerHTML=`<div class="ops-head"><h2>${title}</h2>${opsHelp('營業日以凌晨 03:00 分界，最多查 93 天。作廢單不計；品項金額為品項小計，不分攤整單折扣。單數是付款單數（含預收與分攤），不是來客人數；會員、內外帶與點餐方式為不同維度，不可相加。新會員依全店首次付款判定；無會員識別碼的聚落價單不計入不重複會員。')}</div>
+    <form class="a-toolbar" id="analytics-range"><label>起日 <input type="date" name="from" value="${esc(d.from)}" required></label><label>迄日 <input type="date" name="to" value="${esc(d.to)}" required></label><button class="btn btn--solid" type="submit">查詢</button><button class="btn btn--ghost" type="button" id="analytics-csv">匯出 CSV</button></form>
+    <div class="a-kpis"><div class="a-kpi"><div class="kl">營收</div><div class="kv">NT$${num(d.amount)}</div></div><div class="a-kpi"><div class="kl">付款單數</div><div class="kv">${num(d.orders)}</div></div><div class="a-kpi"><div class="kl">平均每單</div><div class="kv">NT$${num(d.avg_ticket)}</div></div></div>
+    ${kind==='products'?`<h3>品項銷量</h3>${table(['品項','店別','類別','數量','品項金額','單數'],productRows)}<h3>每日營收</h3>${table(['營業日','付款單數','營收'],(d.by_day||[]).map(r=>[r.day,r.orders,num(r.amount)]))}<h3>類別銷量</h3>${table(['類別','數量','品項金額'],(d.categories||[]).map(r=>[r.cat,r.qty,num(r.amount)]))}`:`<h3>付款單客群</h3>${table(['分類','單數','營收'],customerRows)}<h3>會員回訪</h3>${table(['指標','數值'],[['不重複會員',c.unique_members],['區間內至少兩單',c.repeat_members],['首次付款會員',c.new_members],['會員平均每單',num(c.member_avg_ticket)],['非會員平均每單',num(c.guest_avg_ticket)]])}`}`;
+  host.querySelector('#analytics-range').onsubmit=e=>{e.preventDefault();ANALYTICS_FROM=host.querySelector('[name=from]').value;ANALYTICS_TO=host.querySelector('[name=to]').value;loadAnalytics(kind);};
+  host.querySelector('#analytics-csv').onclick=()=>downloadCSV(`${title}_${d.from}_${d.to}.csv`,kind==='products'?[['品項','店別','類別','數量','品項金額','單數'],...productRows]:[['分類','單數','營收'],...customerRows]);
 }

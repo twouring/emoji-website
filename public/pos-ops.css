@@ -433,11 +433,14 @@ tr.lp-refund td{color:var(--danger)}
 .pos-table.on .pos-detail{border-top-color:rgba(255,255,255,.35)}.pos-table.on .pos-detail-items{color:var(--paper)}
 .pos-open .pos-pause-btn{flex:0 0 auto;min-height:48px;padding:10px 14px}
 
-/* 編輯桌位：拖拉排序 */
-.pos-grid-edit{touch-action:none;user-select:none;-webkit-user-select:none}
-.pos-grid-edit .pos-drag{cursor:grab;border:2px dashed var(--ink);background:var(--card);touch-action:none;min-height:92px}
-.pos-grid-edit .pos-drag.dragging{position:relative;z-index:5;opacity:.9;box-shadow:0 8px 24px rgba(0,0,0,.25);cursor:grabbing}
-.pos-grid-edit .pos-drag-grip{color:var(--muted)}
+/* 桌位平面圖：自由擺放（座標為畫布百分比）。桌況欄夠寬（≥600px）才畫平面圖；窄欄（手機、已選桌的側欄）退回格子，順序＝平面圖由上到下、由左到右 */
+.pos-board{container-type:inline-size}
+.pos-floor{position:relative;width:100%;height:min(75cqw,calc(100dvh - var(--p-top,60px) - 250px));min-height:360px;margin-bottom:10px;border:1px dashed var(--line);border-radius:12px;background:var(--paper-alt)}
+.pos-floor-slot{position:absolute;width:23%}.pos-floor-slot:has(.pos-table.on){z-index:3}.pos-floor-slot:hover{z-index:2}
+.pos-floor-slot .pos-table,.pos-floor-slot .pos-table.empty{width:100%;background:var(--card)}
+.pos-floor-edit{touch-action:none;user-select:none;-webkit-user-select:none}
+.pos-floor-edit .pos-drag{position:absolute;width:23%;cursor:grab;border:2px dashed var(--ink);background:var(--card);touch-action:none;min-height:92px}
+.pos-floor-edit .pos-drag.dragging{z-index:5;opacity:.9;box-shadow:0 8px 24px rgba(0,0,0,.25);cursor:grabbing}
 .pos-editing .hint{margin:0 0 12px}
 
 /* 查單卡片：一單一卡，卡頭桌號／時間／狀態／金額，品項逐行，主鍵「補印收據明細」，其餘收進「更多」 */
@@ -497,3 +500,7 @@ tr.lp-refund td{color:var(--danger)}
 .pos-line__img--ph{display:flex;align-items:center;justify-content:center;font-weight:600;color:var(--muted)}
 .pos-lines .ops-item::after{content:"";display:block;clear:both}
 .pos-item>span:last-of-type{margin-top:auto}
+@container (min-width:600px){.pos-grid .pos-table.is-placed{display:none}}
+@container (max-width:599px){.pos-floor:not(.pos-floor-edit){display:none}}
+/* 桌況欄：平面圖＋格子一起在 .pos-board 內捲動（原本只有 .pos-grid 捲） */
+@media(min-width:1000px){.pos-layout .pos-tables .pos-board{flex:1;min-height:0;overflow:auto;padding-bottom:4px}.pos-layout .pos-tables .pos-board .pos-grid{flex:none;min-height:0;overflow:visible;padding-bottom:0}}
