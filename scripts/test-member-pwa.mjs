@@ -18,7 +18,7 @@ test('service worker：API 與登入不快取、只回 /m 殼、scope 只到 /m'
   assert.match(sw, /startsWith\('\/api\/'\)/); assert.match(sw, /startsWith\('\/auth\/'\)/);
   assert.match(sw, /VERSION = 'm-v\d+'/);
   assert.match(server, /app\.get\(\['\/m', '\/m\/\*'\]/);
-  assert.match(server, /'Service-Worker-Allowed': '\/m'/);
+  assert.match(server, /'Service-Worker-Allowed': isAppHost\(_req\) \? '\/' : '\/m'/);
   assert.match(server, /app\.get\('\/m\.webmanifest'/);
 });
 

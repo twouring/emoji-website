@@ -129,12 +129,17 @@ if (!GOOGLE_CLIENT_ID) console.warn('[warn] GOOGLE_CLIENT_ID 未設定，Google 
 // 允許的登入完成導回目標與 CORS 來源（官網子網域），防 open redirect；逗號分隔可覆寫
 // 官網與後台自己的 origin 一律納入（環境變數漏列 admin.emoji.tw 曾讓後台登入後被退回 /member）
 const WEB_ORIGINS = [...new Set([...(process.env.WEB_ORIGINS ||
-  'https://www.emoji.tw,https://emoji.tw,https://pos.emoji.tw,https://admin.emoji.tw,http://localhost:5500,http://127.0.0.1:5500')
+  'https://www.emoji.tw,https://emoji.tw,https://pos.emoji.tw,https://admin.emoji.tw,https://app.emoji.tw,http://localhost:5500,http://127.0.0.1:5500')
   .split(',').map(s => s.trim()).filter(Boolean), SITE_BASE, ADMIN_BASE])];
 // 平板 POS 子站（pos.emoji.tw）：同一支服務依 host 分流到 public/pos.html；逗號分隔可覆寫
 const POS_HOSTS = (process.env.POS_HOSTS || 'pos.emoji.tw').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 const isPosHost = req => POS_HOSTS.includes(String(req.hostname || '').toLowerCase());
 // 後台子網域（admin.emoji.tw）：同一支服務依 host 把首頁導到 /admin；逗號分隔可覆寫
+// 消費者 App 子站（app.emoji.tw）：同一支服務依 host 分流，首頁就是會員 PWA（public/m.html）；逗號分隔可覆寫
+const APP_HOSTS = (process.env.APP_HOSTS || 'app.emoji.tw').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+const isAppHost = req => APP_HOSTS.includes(String(req.hostname || '').toLowerCase());
+// App 子站只提供 PWA 本身、API、登入與必要靜態檔；其餘頁面（活動、官網）一律回官網，避免兩個網域出現重複內容
+const APP_HOST_OWN = /^\/($|index\.html$|m($|\/|\.webmanifest$|-sw\.js$|-icon-)|api\/|auth\/|vendor\/|favicon|logo\.png$|cis\/assets\/)/;
 const ADMIN_HOSTS = (process.env.ADMIN_HOSTS || 'admin.emoji.tw').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 const isAdminHost = req => ADMIN_HOSTS.includes(String(req.hostname || '').toLowerCase());
 const DEFAULT_MEMBER_URL = (process.env.MEMBER_URL || WEB_ORIGINS[0] + '/member');
@@ -1249,6 +1254,13 @@ app.use((req, res, next) => {
   if (req.path === '/' || req.path === '/index.html' || req.path === '/admin' || req.path === '/admin.html') return res.redirect(302, '/pos');
   next();
 });
+// app.emoji.tw：首頁直接出會員 PWA（網址維持 /）；不屬於 App 的頁面導回官網
+app.use((req, res, next) => {
+  if (!isAppHost(req)) return next();
+  if (req.path === '/' || req.path === '/index.html') { res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache' }); return res.sendFile(path.join(PUB, 'm.html')); }
+  if (!APP_HOST_OWN.test(req.path)) return res.redirect(302, SITE_BASE + req.originalUrl);
+  next();
+});
 // 後台服務（SERVICE_ROLE=admin）或 admin.emoji.tw：首頁就是後台（/admin）；官網首頁不在這裡提供
 app.use((req, res, next) => {
   if (!ADMIN_MODE && !isAdminHost(req)) return next();
@@ -1638,7 +1650,7 @@ app.post('/api/auth/email/verify',rateLimit({max:20}),requireDb,wrap(async(req,r
 app.get('/auth/google', (req, res) => {
   if (!GOOGLE_CLIENT_ID) return res.status(503).send('Google 登入尚未開通（未設定 GOOGLE_CLIENT_ID）。');
   // 子網域（pos；admin 由官網服務代管時）：state cookie 與 Google callback 都在 OWN_BASE，先跳回去再發起，否則 callback 讀不到 cookie
-  if ((isPosHost(req) || isAdminHost(req)) && String(req.hostname || '').toLowerCase() !== OWN_HOST) return res.redirect(302, OWN_BASE + req.originalUrl);
+  if ((isPosHost(req) || isAdminHost(req) || isAppHost(req)) && String(req.hostname || '').toLowerCase() !== OWN_HOST) return res.redirect(302, OWN_BASE + req.originalUrl);
   const redirect = safeRedirect(req.query.redirect) || DEFAULT_MEMBER_URL;
   // state：HMAC 簽章保護導回目標並帶 nonce（CSRF 防護），callback 端驗章與時效
   const state = signToken({ r: redirect, n: crypto.randomBytes(24).toString('hex') }, { purpose: 'oauth' });
@@ -5290,8 +5302,14 @@ app.get('/pos.html', (_req, res) => res.redirect(301, '/pos'));
 app.get(['/pos', '/pos/*'], (_req, res) => { res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache' }); res.sendFile(POS_PAGE); });
 // 會員 PWA（手機）：/m 回同一頁；scope 只到 /m，不影響官網其他頁
 app.get(['/m', '/m/*'], (_req, res) => { res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache' }); res.sendFile(path.join(PUB, 'm.html')); });
-app.get('/m.webmanifest', (_req, res) => { res.type('application/manifest+json'); res.sendFile(path.join(PUB, 'm.webmanifest')); });
-app.get('/m-sw.js', (_req, res) => { res.set({ 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': '/m' }); res.sendFile(path.join(PUB, 'm-sw.js')); });
+app.get('/m.webmanifest', (req, res) => {
+  res.type('application/manifest+json');
+  if (!isAppHost(req)) return res.sendFile(path.join(PUB, 'm.webmanifest'));
+  // app.emoji.tw：App 本身在根路徑，scope 涵蓋整個子網域
+  const m = JSON.parse(fs.readFileSync(path.join(PUB, 'm.webmanifest'), 'utf8'));
+  res.json({ ...m, id: '/', start_url: '/', scope: '/' });
+});
+app.get('/m-sw.js', (_req, res) => { res.set({ 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': isAppHost(_req) ? '/' : '/m' }); res.sendFile(path.join(PUB, 'm-sw.js')); });
 // 含 <!--SITE_HEADER--> 的 HTML（member、menu、語系首頁…）在 static 前組裝
 app.use(layoutMiddleware(PUB));
 app.use('/fellow', express.static(path.join(PUB, 'fellow'), { extensions: ['html'] }));

@@ -95,6 +95,8 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 <script>
 (function(){
   const KEY='tth_token', CACHE='m_cache';
+  /* app.emoji.tw 是獨立網域：App 在根路徑，活動與完整會員專區連回官網 */
+  const ON_APP=location.hostname==='app.emoji.tw', SITE=ON_APP?'https://www.emoji.tw':'', ROOT=ON_APP?'/':'/m';
   const app=document.getElementById('app'), tabs=document.getElementById('tabs');
   const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   let tab='home', data=null, offline=false, qrTimer=null;
@@ -106,7 +108,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   async function get(path){const r=await fetch(path,{headers:{authorization:'Bearer '+token()}});if(r.status===401){const e=new Error('401');e.status=401;throw e;}if(!r.ok)throw new Error(r.status);return r.json();}
   function login(){
     tabs.hidden=true;
-    app.innerHTML=`<div class="login">${MARK}<h1>言文字 會員</h1><p>登入後，用一張卡在所有空間累積點數、報名活動。</p><a class="btn solid" href="/auth/google?redirect=${encodeURIComponent(location.origin+'/m')}">使用 Google 登入</a></div>`;
+    app.innerHTML=`<div class="login">${MARK}<h1>言文字 會員</h1><p>登入後，用一張卡在所有空間累積點數、報名活動。</p><a class="btn solid" href="/auth/google?redirect=${encodeURIComponent(location.origin+ROOT)}">使用 Google 登入</a></div>`;
   }
   const fmt=v=>{if(!v)return '';const d=new Date(String(v).replace(/\//g,'-').replace(' ','T')+(String(v).length<=16?':00+08:00':''));return Number.isNaN(+d)?String(v):d.toLocaleString('zh-TW',{timeZone:'Asia/Taipei',month:'numeric',day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false});};
   function nextEvent(){const list=(data.events||[]);return list.find(e=>e.registered)||list[0]||null;}
@@ -121,7 +123,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     <section class="sec"><h2>下一場活動</h2>${ev?evTile(ev):'<p class="empty">目前沒有開放報名的活動</p>'}</section>`;
     document.getElementById('show').onclick=openQr;
   }
-  function evTile(e){return `<a class="tile" href="/events/${encodeURIComponent(e.slug||e.id)}"><h3>${esc(e.title)}${e.registered?'<span class="tag">已報名</span>':''}</h3><div class="meta">${esc(fmt(e.starts_at))}${e.location?' · '+esc(e.location):''}</div></a>`;}
+  function evTile(e){return `<a class="tile" href="${SITE}/events/${encodeURIComponent(e.slug||e.id)}"><h3>${esc(e.title)}${e.registered?'<span class="tag">已報名</span>':''}</h3><div class="meta">${esc(fmt(e.starts_at))}${e.location?' · '+esc(e.location):''}</div></a>`;}
   function events(){
     const list=data.events||[];
     app.innerHTML=`<div class="hello"><h1>活動</h1></div>${list.length?list.map(evTile).join(''):'<p class="empty">目前沒有開放報名的活動</p>'}`;
@@ -135,7 +137,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     <section class="sec"><h2>更新資料</h2>
       <label style="display:block;color:var(--soft)">手機（09 開頭，結帳報號碼就能累點）<input id="ph" type="tel" inputmode="tel" autocomplete="tel" value="${esc(m.phone||'')}" style="display:block;width:100%;margin-top:6px;min-height:52px;padding:0 14px;border:1.5px solid var(--line);border-radius:12px;font-family:inherit;font-size:1rem;background:#fff"></label>
       <button class="btn solid" id="save" style="margin-top:12px">儲存</button></section>
-    <section class="sec"><a class="btn" href="/member">完整會員專區</a><button class="quiet" id="out">登出</button></section>`;
+    <section class="sec"><a class="btn" href="${SITE}/member">完整會員專區</a><button class="quiet" id="out">登出</button></section>`;
     document.getElementById('save').onclick=async()=>{const b=document.getElementById('save');b.disabled=true;try{const r=await fetch('/api/me/profile',{method:'POST',headers:{authorization:'Bearer '+token(),'content-type':'application/json'},body:JSON.stringify({name:m.name||'會員',phone:document.getElementById('ph').value})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'儲存失敗');toast('已儲存');await load();}catch(e){toast(e.message);}b.disabled=false;};
     document.getElementById('out').onclick=()=>{try{localStorage.removeItem(KEY);localStorage.removeItem(CACHE);}catch(e){}location.reload();};
   }
@@ -163,7 +165,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   }
   if(!token())login();else load();
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&token())load();});
-  if('serviceWorker' in navigator)navigator.serviceWorker.register('/m-sw.js',{scope:'/m'}).catch(()=>{});
+  if('serviceWorker' in navigator)navigator.serviceWorker.register('/m-sw.js',{scope:ROOT}).catch(()=>{});
 })();
 </script>
 </body>
