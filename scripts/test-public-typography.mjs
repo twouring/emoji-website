@@ -397,19 +397,10 @@ test('新增 DOM style 路徑仍接受 inherit、initial 與 unset', () => {
   );
 });
 
-test('三語 member profile inputs 明確宣告 1rem', () => {
-  const results = ['public/member.html', 'public/en/member.html', 'public/ja/member.html'].map((relative) => {
-    const source = readFileSync(path.join(ROOT, relative), 'utf8');
-    const drawer = source.match(/<div class="m-drawer" id="m-profile-drawer"[\s\S]*?<\/div>/)?.[0] ?? '';
-    const inputs = [...drawer.matchAll(/<input\b[^>]*>/gi)].map((match) => match[0]);
-    return [relative, inputs.length, inputs.every((input) => /style="[^"]*font-size\s*:\s*1rem/i.test(input))];
-  });
-
-  assert.deepEqual(results, [
-    ['public/member.html', 3, true],
-    ['public/en/member.html', 3, true],
-    ['public/ja/member.html', 3, true],
-  ]);
+test('會員 App 的資料欄位 input 明確宣告 1rem', () => {
+  const source = readFileSync(path.join(ROOT, 'public/m.html'), 'utf8');
+  assert.match(source, /\.field input\{[^}]*font-size:1rem/);
+  assert.ok((source.match(/<label class="field">[^<]*<input\b/g) || []).length >= 3);
 });
 
 test('三語 founding roster 必須維持 aria-hidden', () => {

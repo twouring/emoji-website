@@ -75,7 +75,7 @@ test('pos.emoji.tw：首頁與 /admin 轉到 /pos；www 與 localhost 不受影�
   const { verifyToken } = require('../lib/security');
   assert.equal(verifyToken(state, 'local-test-secret-not-used-in-production', { purpose: 'oauth' }).r, 'https://pos.emoji.tw/pos');
   const bad = await get('/auth/google?redirect=' + encodeURIComponent('https://pos.emoji.tw.evil.test/pos'));
-  assert.equal(verifyToken(new URL(bad.headers.get('location')).searchParams.get('state'), 'local-test-secret-not-used-in-production', { purpose: 'oauth' }).r, 'https://www.emoji.tw/member');
+  assert.equal(verifyToken(new URL(bad.headers.get('location')).searchParams.get('state'), 'local-test-secret-not-used-in-production', { purpose: 'oauth' }).r, 'https://app.emoji.tw/');
 });
 
 test('pos.html：只做餐飲五件事、與 /admin 共用 pos-ops.js、登入走 www 網域、token 只存 localStorage', () => {

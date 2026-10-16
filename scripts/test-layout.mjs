@@ -60,15 +60,13 @@ test('composeLayout about page marks about current', () => {
   assert.doesNotMatch(html, /href="\/#about"/);
 });
 
-test('localePaths maps member menu and space locales', () => {
-  const m = localePaths('/member');
+test('localePaths maps menu and space locales', () => {
+  const m = localePaths('/system');
   assert.equal(m.lang, 'zh');
-  assert.equal(m.zh, '/member');
-  assert.equal(m.en, '/en/member');
-  assert.equal(m.ja, '/ja/member');
-  assert.equal(localePaths('/en/member').lang, 'en');
-  assert.equal(localePaths('/en/member').en, '/en/member');
-  assert.equal(localePaths('/ja/member').ja, '/ja/member');
+  assert.equal(m.zh, '/system');
+  assert.equal(m.en, '/en/system');
+  assert.equal(m.ja, '/ja/system');
+  assert.equal(localePaths('/en/system').lang, 'en');
   assert.equal(localePaths('/menu/').zh, '/menu');
   assert.equal(localePaths('/menu').en, '/en/menu');
   assert.equal(localePaths('/en/menu/').en, '/en/menu');
@@ -165,7 +163,7 @@ test('composeLayout passes through unmarked html', () => {
 
 test('resolvePublicHtml resolves known pages', () => {
   assert.ok(resolvePublicHtml(PUB, '/').endsWith('index.html'));
-  assert.ok(resolvePublicHtml(PUB, '/member').endsWith('member.html'));
+  assert.equal(resolvePublicHtml(PUB, '/member'), null, '會員頁已移到 app.emoji.tw');
   assert.ok(resolvePublicHtml(PUB, '/fellow').includes(`${path.sep}fellow${path.sep}index.html`));
 });
 
@@ -208,22 +206,18 @@ test('composeLayout space and brand pages mark the about dropdown current', () =
 
 test('source pages use markers', () => {
   const index = fs.readFileSync(path.join(PUB, 'index.html'), 'utf8');
-  const member = fs.readFileSync(path.join(PUB, 'member.html'), 'utf8');
   assert.match(index, /SITE_HEADER/);
   assert.match(index, /SITE_FOOTER/);
-  assert.match(member, /SITE_HEADER/);
-  assert.match(member, /SITE_FOOTER/);
-  assert.doesNotMatch(member, /m-top|m-foot/);
 });
 
-test('member page has redesign markers', () => {
-  const member = fs.readFileSync(path.join(PUB, 'member.html'), 'utf8');
-  assert.match(member, /m-access-chip|m-chip/);
-  assert.match(member, /m-qr-overlay/);
-  assert.match(member, /m-notice/);
-  assert.match(member, /m-toast/);
-  assert.doesNotMatch(member, /申購|本金|持倉|贖回/);
-  assert.doesNotMatch(member, /Principal left|残元本/);
+test('header and footer link to the member app instead of a site member page', () => {
+  for (const lang of ['zh', 'en', 'ja']) {
+    for (const part of ['header', 'footer']) {
+      const h = fs.readFileSync(path.join(__dirname, '..', 'views', 'partials', `${part}-${lang}.html`), 'utf8');
+      assert.match(h, /href="https:\/\/app\.emoji\.tw\//, `${part}-${lang}`);
+      assert.doesNotMatch(h, /href="(?:\/en|\/ja)?\/member"|NAV_MEMBER_CURRENT|data-label-authed/, `${part}-${lang}`);
+    }
+  }
 });
 
 test('about zh page structure', () => {
@@ -313,11 +307,8 @@ test('plan choices, venue enquiries and account limits are explicit in all local
   assert.ok(events.indexOf('id="ev-app"') < events.indexOf('id="ev-apply"'));
   assert.match(events, /instagram\.com\/emoji0701/);
 
-  for (const rel of ['member.html', path.join('en', 'member.html'), path.join('ja', 'member.html')]) {
-    const html = fs.readFileSync(path.join(PUB, rel), 'utf8');
-    assert.match(html, /首次登入會以 Google 已驗證|On first sign-in, we create an account|初回ログイン時/);
-    assert.doesNotMatch(html, /activeShort: 'Active'|activeOn: 'Active|activeOff: 'Not Active|非 Active|No active (?:or|plan)|\$\{plan\}(?:進行中|利用中)/);
-  }
+  const m = fs.readFileSync(path.join(PUB, 'm.html'), 'utf8');
+  assert.doesNotMatch(m, /accessOn:'Active'|accessOff:'Not Active|非 Active|No active (?:or|plan)|\$\{plan\}(?:進行中|利用中)/);
 });
 
 test('events page carries the venue guide in all three languages and routes both enquiry types', () => {
@@ -352,7 +343,7 @@ test('public hours copy carries no opening wording and Japanese membership terms
     assert.ok(footer.includes(footerOpening[lang]));
     assert.doesNotMatch(footer, /試營運|開幕|grand opening|soft opening|正式オープン|プレオープン/);
   }
-  for (const rel of ['member.html', path.join('en', 'member.html'), path.join('ja', 'member.html'), path.join('ja', 'fellow', 'index.html')]) {
+  for (const rel of ['m.html', path.join('ja', 'fellow', 'index.html')]) {
     const html = fs.readFileSync(path.join(PUB, rel), 'utf8');
     assert.doesNotMatch(html, /会籍|購入元本/);
   }

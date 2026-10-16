@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 
 const read = f => fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8');
 const server = read('server.js');
-const PAGES = ['member.html', 'en/member.html', 'ja/member.html'];
+const PAGES = ['m.html'];
 
 test('點數相關程式與 API 已移除', () => {
   assert.equal(fs.existsSync(new URL('../lib/points.js', import.meta.url)), false);
@@ -19,7 +19,7 @@ test('會籍價目表仍可用', () => {
   assert.deepEqual(PLAN_PRICE_TWD, { day_4h: 200, day_12h: 500, month: 4000, quarter: 10000, year: 35000 });
 });
 
-test('會員頁（三語）不再有點數錢包、購點、兌換、退款', () => {
+test('會員 App 不再有點數錢包、購點、兌換、退款', () => {
   for (const page of PAGES) {
     const html = read('public/' + page);
     assert.doesNotMatch(html, /renderPoints|buyPack|redeemService|refundPoints|fulfillPointsIfNeeded|\/api\/me\/points/, page);

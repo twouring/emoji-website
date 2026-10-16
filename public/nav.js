@@ -1,4 +1,4 @@
-/* 全站共用導覽列行為：滾動陰影、手機漢堡選單、下拉 Esc 收合、登入態文案。
+/* 全站共用導覽列行為：滾動陰影、手機漢堡選單、下拉 Esc 收合。會員登入態一律在會員 App（app.emoji.tw），官網不讀 token。
    桌機下拉以 CSS hover/focus-within 處理，本檔僅補行為層。零相依。 */
 (function () {
   'use strict';
@@ -9,48 +9,6 @@
     dd.classList.remove('open');
     var button = dd.querySelector('.site-nav__dd-top');
     if (button) button.setAttribute('aria-expanded', 'false');
-  }
-
-  // 已登入時導覽列顯示會員名稱（token payload / 快取 / /api/state）
-  var member = document.getElementById('navMember');
-  if (member) {
-    try {
-      var token = localStorage.getItem('tth_token');
-      if (token) {
-        var show = function (name) {
-          if (!name) return;
-          try { localStorage.setItem('tth_name', name); } catch (e) {}
-          member.textContent = name;
-          member.title = name; // 桌機 CSS 截斷時 hover 可見全名
-        };
-        var fromTok = (function () {
-          try {
-            var b64 = token.split('.')[0].replace(/-/g, '+').replace(/_/g, '/');
-            while (b64.length % 4) b64 += '=';
-            var bin = atob(b64), bytes = new Uint8Array(bin.length);
-            for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-            var p = JSON.parse(new TextDecoder().decode(bytes));
-            return (p && p.name) || '';
-          } catch (e) { return ''; }
-        })();
-        var cached = localStorage.getItem('tth_name') || '';
-        if (fromTok || cached) {
-          show(fromTok || cached);
-        } else {
-          member.textContent = member.getAttribute('data-label-authed') || member.textContent;
-          fetch('/api/state', { headers: { authorization: 'Bearer ' + token } })
-            .then(function (r) {
-              if (r.status === 401) {
-                try { localStorage.removeItem('tth_token'); localStorage.removeItem('tth_name'); } catch (e) {}
-                return null;
-              }
-              return r.ok ? r.json() : null;
-            })
-            .then(function (d) { if (d && d.me && d.me.name) show(d.me.name); })
-            .catch(function () {});
-        }
-      }
-    } catch (e) { /* private mode 等略過 */ }
   }
 
   if (nav) {

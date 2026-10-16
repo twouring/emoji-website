@@ -106,7 +106,7 @@ if (!EVENT_QR_SECRET) console.warn('[warn] EVENT_QR_SECRET／ACCESS_QR_SECRET �
 const MEMBERSHIP_START = process.env.MEMBERSHIP_START || '2026-11-01'; // 會籍起算＝開幕日（/api/commitments 與 Stripe 共用此單一來源）
 const SALE_END = process.env.SALE_END || '2026-12-31'; // 創始會員售止日（含當日；須與 fellow 頁面三語同步）
 
-/* ---------- Google 登入（官網會員專區用；未設 GOOGLE_CLIENT_ID 時 /auth/google 回 503） ---------- */
+/* ---------- Google 登入（會員 App 用；未設 GOOGLE_CLIENT_ID 時 /auth/google 回 503） ---------- */
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 // 站台對外網址，供 Google 導回 callback；本地測試設 PUBLIC_ORIGIN=http://localhost:8080
@@ -117,6 +117,8 @@ const ADMIN_MODE = process.env.SERVICE_ROLE === 'admin';
 const RAILWAY_MODE = !!process.env.RAILWAY_ENVIRONMENT; // Railway 備援環境：不跑任何排程（見 boot()）
 // 後台對外網址：寄給員工／主辦的後台連結、官網轉後台都用這個
 const ADMIN_BASE = (process.env.ADMIN_ORIGIN || 'https://admin.emoji.tw').replace(/\/$/, '');
+// 會員 App 對外網址（app.emoji.tw）：登入／LINE 綁定／會籍付款完成後一律導回這裡；官網不再有會員頁
+const APP_BASE = (process.env.APP_ORIGIN || 'https://app.emoji.tw').replace(/\/$/, '');
 // 本服務自己的對外網址：OAuth callback、state cookie、Email 登入連結都必須落在同一個 host 才讀得到 cookie
 const OWN_BASE = ADMIN_MODE ? ADMIN_BASE : SITE_BASE;
 const hostOf = u => { try { return new URL(u).hostname.toLowerCase(); } catch { return ''; } };
@@ -133,7 +135,7 @@ if (!GOOGLE_CLIENT_ID) console.warn('[warn] GOOGLE_CLIENT_ID 未設定，Google 
 // 官網與後台自己的 origin 一律納入（環境變數漏列 admin.emoji.tw 曾讓後台登入後被退回 /member）
 const WEB_ORIGINS = [...new Set([...(process.env.WEB_ORIGINS ||
   'https://www.emoji.tw,https://emoji.tw,https://pos.emoji.tw,https://admin.emoji.tw,https://app.emoji.tw,http://localhost:5500,http://127.0.0.1:5500')
-  .split(',').map(s => s.trim()).filter(Boolean), SITE_BASE, ADMIN_BASE])];
+  .split(',').map(s => s.trim()).filter(Boolean), SITE_BASE, ADMIN_BASE, APP_BASE])];
 // 平板 POS 子站（pos.emoji.tw）：同一支服務依 host 分流到 public/pos.html；逗號分隔可覆寫
 const POS_HOSTS = (process.env.POS_HOSTS || 'pos.emoji.tw').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 const isPosHost = req => POS_HOSTS.includes(String(req.hostname || '').toLowerCase());
@@ -145,7 +147,7 @@ const isAppHost = req => APP_HOSTS.includes(String(req.hostname || '').toLowerCa
 const APP_HOST_OWN = /^\/($|index\.html$|m($|\/|\.webmanifest$|-sw\.js$|-icon-)|api\/|auth\/|vendor\/|favicon|logo\.png$|cis\/assets\/)/;
 const ADMIN_HOSTS = (process.env.ADMIN_HOSTS || 'admin.emoji.tw').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 const isAdminHost = req => ADMIN_HOSTS.includes(String(req.hostname || '').toLowerCase());
-const DEFAULT_MEMBER_URL = (process.env.MEMBER_URL || WEB_ORIGINS[0] + '/member');
+const DEFAULT_MEMBER_URL = (process.env.MEMBER_URL || APP_BASE + '/');
 function safeRedirect(u) {
   try { return WEB_ORIGINS.includes(new URL(u).origin) ? u : null; } catch { return null; }
 }
@@ -1251,7 +1253,7 @@ async function notifyRegistrationStatus(userId,eventId,status){
 async function notifyPlanPurchased(userId, plan) {
   try {
     const u = await userContact(userId); if (!u || !u.email) return;
-    const text = `${u.name || ''} 您好，\n\n您已購買「${PLAN_LABEL[plan] || plan}」（NT$${PLAN_PRICE_TWD[plan].toLocaleString('en-US')}）。\n\n會籍會在您第一次以會員專區的進出 QR 進場時啟用；若 7 天內未進場，將自第 7 天起自動起算。\n會員專區：${SITE_BASE}/member\n\n言文字｜台灣人才聚落`;
+    const text = `${u.name || ''} 您好，\n\n您已購買「${PLAN_LABEL[plan] || plan}」（NT$${PLAN_PRICE_TWD[plan].toLocaleString('en-US')}）。\n\n會籍會在您第一次以會員 App 的進出 QR 進場時啟用；若 7 天內未進場，將自第 7 天起自動起算。\n會員 App：${APP_BASE}/\n\n言文字｜台灣人才聚落`;
     await sendMailQuietly({ to: u.email, subject: `[言文字] 會籍已購買：${PLAN_LABEL[plan] || plan}`, text, replyTo: NOTIFY_EMAIL });
   } catch (e) { console.error('[mail] 會籍通知失敗：', e.message); }
 }
@@ -1264,7 +1266,7 @@ async function remindExpiringMemberships() {
        AND e.ends_at IS NOT NULL AND e.ends_at > now() AND e.ends_at <= now() + interval '7 days'`)).rows;
   for (const r of rows) {
     if (!r.email) continue;
-    const text = `${r.name || ''} 您好，\n\n您的「${PLAN_LABEL[r.plan]}」會籍將於 ${fmtTaipeiDate(r.ends_at)} 到期。\n要續約或升級，可到會員專區線上購買，或到現場辦理：${SITE_BASE}/member\n\n言文字｜台灣人才聚落`;
+    const text = `${r.name || ''} 您好，\n\n您的「${PLAN_LABEL[r.plan]}」會籍將於 ${fmtTaipeiDate(r.ends_at)} 到期。\n要續約或升級，可在會員 App 線上購買，或到現場辦理：${APP_BASE}/\n\n言文字｜台灣人才聚落`;
     await sendMailQuietly({ to: r.email, subject: `[言文字] 會籍將於 ${fmtTaipeiDate(r.ends_at)} 到期`, text, replyTo: NOTIFY_EMAIL });
     await q(`UPDATE entitlements SET reminded_at=now() WHERE id=$1`, [r.id]);
   }
@@ -1430,7 +1432,7 @@ app.use('/api/admin', (req, res, next) => {
   next();
 });
 
-// CORS：官網（www.emoji.tw）會員專區以 Bearer token 跨網域打 /api；只放行白名單來源
+// CORS：會員 App（app.emoji.tw）與官網以 Bearer token 跨網域打 /api；只放行白名單來源
 app.use((req, res, next) => {
   const o = req.headers.origin;
   if (o && WEB_ORIGINS.includes(o)) {
@@ -2074,7 +2076,8 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
   if (!me) return res.status(401).json({ error: '帳號不存在，請重新登入。' });
   const commitments = numify((await q(`SELECT ${SEL_C} FROM commitments WHERE user_id=$1 ORDER BY created_at`, [me.id])).rows);
   const access = await memberAccessFor(me.id);
-  // 會員專區：報名中的活動 + 我是否已報名（供報名/取消按鈕）
+  const lang = ['en', 'ja'].includes(String(req.query.lang || '')) ? String(req.query.lang) : 'zh';
+  // 會員 App：報名中的活動 + 我是否已報名（活動標題依 ?lang= 回對應語系）
   const events = (await q(
     `SELECT ${SEL_EVENT},
        (SELECT COALESCE(SUM(r.quantity),0)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS reg_count,
@@ -2088,7 +2091,7 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
   res.json({
     role: commitments.length ? 'participant' : 'invited',
     organizer: req.auth.role === 'organizer',
-    me, bond, users: [me], commitments, events:events.map(e=>publicEventCopy(localizeEvent(e,'zh'))), updates:updates.map(publicEventCopy),
+    me, bond, users: [me], commitments, events:events.map(e=>publicEventCopy(localizeEvent(e,lang))), updates:updates.map(publicEventCopy),
     access: {
       active: access.active,
       entitlements: access.entitlements,
@@ -4605,8 +4608,6 @@ app.post('/api/me/plans/checkout', auth, requireDb, wrap(async (req, res) => {
   const plan = String(req.body?.plan || '');
   if (!FLOOR_PLANS.includes(plan)) return res.status(400).json({ error: '未知方案。' });
   const user = (await q(`SELECT email FROM users WHERE id=$1`, [req.auth.sub])).rows[0];
-  const lang = String(req.body?.lang || 'zh').toLowerCase();
-  const memberBase = lang === 'en' ? '/en/member' : lang === 'ja' ? '/ja/member' : '/member';
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
     payment_method_types: ['card'],
@@ -4619,8 +4620,9 @@ app.post('/api/me/plans/checkout', auth, requireDb, wrap(async (req, res) => {
       },
       quantity: 1,
     }],
-    success_url: `${SITE_BASE}${memberBase}?plan_paid=1&s={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${SITE_BASE}${memberBase}?plan_canceled=1`,
+    // 付款完成／取消都回會員 App（App 讀 ?plan_paid=1&s= 後向 /api/me/plans/verify 確認）
+    success_url: `${APP_BASE}/?plan_paid=1&s={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${APP_BASE}/?plan_canceled=1`,
     metadata: { kind: 'plan', plan, user_id: req.auth.sub, src: srcOf(req) || undefined },
   });
   res.json({ url: session.url });
@@ -5720,6 +5722,12 @@ app.get(['/admin', '/admin/*', '/organizer', '/organizer/*'], (_req, res) => { r
 const POS_PAGE = path.join(PUB, 'pos.html');
 app.get('/pos.html', (_req, res) => res.redirect(301, '/pos'));
 app.get(['/pos', '/pos/*'], (_req, res) => { res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache' }); res.sendFile(POS_PAGE); });
+// 舊的官網會員頁（/member 三語）已全部移到會員 App：保留轉址給舊連結、通知信與書籤（查詢字串原樣帶過去）
+app.get(['/member', '/member.html', '/en/member', '/en/member.html', '/ja/member', '/ja/member.html'], (req, res) => {
+  const qs = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+  res.set('X-Robots-Tag', 'noindex');
+  res.redirect(302, APP_BASE + '/' + qs);
+});
 // 會員 PWA（手機）：/m 回同一頁；scope 只到 /m，不影響官網其他頁
 app.get(['/m', '/m/*'], (_req, res) => { res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache' }); res.sendFile(path.join(PUB, 'm.html')); });
 app.get('/m.webmanifest', (req, res) => {

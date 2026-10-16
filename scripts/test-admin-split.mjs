@@ -82,7 +82,7 @@ test('官網服務：代管的 admin 子網域發起 Google 登入先跳回 www�
   assert.equal(google.origin, 'https://accounts.google.com');
   assert.equal(google.searchParams.get('redirect_uri'), 'https://www.emoji.tw/auth/google/callback');
   assert.equal(stateOf(start).r, target, '後台網域一律在白名單內，不會被退回 /member');
-  assert.equal(stateOf(await get('/auth/google?redirect=' + encodeURIComponent('https://admin.emoji.tw.evil.test/admin'), { host: 'www.emoji.tw' })).r, 'https://www.emoji.tw/member');
+  assert.equal(stateOf(await get('/auth/google?redirect=' + encodeURIComponent('https://admin.emoji.tw.evil.test/admin'), { host: 'www.emoji.tw' })).r, 'https://app.emoji.tw/');
   assert.equal((await get('/api/health', { origin: 'https://admin.emoji.tw' })).headers.get('access-control-allow-origin'), 'https://admin.emoji.tw');
 });
 

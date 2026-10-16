@@ -163,7 +163,7 @@ Stripe 活動與會籍付款 webhook。只接受 `STRIPE_WEBHOOK_SECRET` 驗證�
 ## 登入
 
 ### GET /auth/google
-導向 Google OAuth。query：`redirect`（須為白名單來源）。
+導向 Google OAuth。query：`redirect`（須為白名單來源；未帶時導回會員 App `https://app.emoji.tw/`）。
 
 ### GET /auth/google/callback
 Google 授權回呼，簽發會員 token 並導回。
@@ -181,7 +181,7 @@ Google 授權回呼，簽發會員 token 並導回。
 `payment_methods[]`（管理員皆可見，POS 結帳與系統設定管理共用）：`[{ code, label, active, builtin }]`，現金／刷卡／LINE Pay／轉帳為 `builtin:true` 固定在前（恆 `active:true`），之後接自訂收款帳戶（`builtin:false`，見 `POST/PATCH /api/admin/payment-methods`）。結帳付款方式選項只取 `active:true` 的；停用的自訂帳戶仍會列出（`active:false`）供系統設定頁重新啟用。
 
 `users[]` 每筆含 `access_active`、`access_summary`。
-會員身分則只回自己的資料（`me`、`commitments`、`access`、報名中活動）。
+會員身分則只回自己的資料（`me`、`commitments`、`access`、報名中活動、`updates`）；query `lang=en|ja` 時活動標題／說明回對應語系（會員 App 用）。
 綁定會員的管理員另有本人 `access`。
 
 ## 後台管理（需管理員或 agent 金鑰）
@@ -655,7 +655,7 @@ body：`{ state, credential }`（同 register/verify）。驗證成功才建立�
 更新自己的姓名與電話。body：`{ name, phone? }`（姓名 1–80 字、電話 40 字以內），回 `{ ok, me }`。Email 由 Google 登入決定，不可改。
 
 ### POST /api/me/plans/checkout
-線上購買一般會籍。body：`{ plan: "day_4h" | "day_12h" | "month" | "quarter" | "year", lang? }`，回 `{ url }`（Stripe Checkout）。牌價：200／500／4,000／10,000／35,000。付款完成後由 webhook 或 `/api/me/plans/verify` 建立 entitlement（`source: "stripe"`，以 session id 去重）並依方案贈點；會籍於首次進場啟用，7 天未進場自動起算。未設 Stripe 回 503。
+線上購買一般會籍。body：`{ plan: "day_4h" | "day_12h" | "month" | "quarter" | "year", lang? }`，回 `{ url }`（Stripe Checkout）。牌價：200／500／4,000／10,000／35,000。付款完成後導回會員 App `https://app.emoji.tw/?plan_paid=1&s=<session>`（取消：`?plan_canceled=1`），由 webhook 或 `/api/me/plans/verify` 建立 entitlement（`source: "stripe"`，以 session id 去重）；會籍於首次進場啟用，7 天未進場自動起算。未設 Stripe 回 503。
 
 ### POST /api/me/plans/verify
 結帳導回時驗證並開通。body：`{ session_id }`，回 `{ ok, already, plan }`；session 不屬於本人回 404、未付款回 402。與 webhook 重複執行不會重複開通。

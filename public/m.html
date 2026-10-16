@@ -69,7 +69,7 @@ h1,h2,h3{font-family:"Noto Serif TC",serif;font-weight:700;margin:0}
 .sheet li{margin:10px 0}
 .sheet .note{color:var(--muted);margin:0 0 14px;text-wrap:pretty}
 /* 底部分頁 */
-nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:10;background:rgba(251,250,246,.96);backdrop-filter:blur(10px);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom)}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:10;background:rgba(251,250,246,.96);backdrop-filter:blur(10px);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding-bottom:env(safe-area-inset-bottom)}
 nav.tabs button{height:var(--tab);border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--muted);font-size:1rem}
 nav.tabs button svg{width:24px;height:24px}
 nav.tabs button[aria-current=true]{color:var(--ink);font-weight:700}
@@ -120,6 +120,25 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 .rw b{font-family:"Cormorant Garamond","Noto Serif TC",serif;font-size:1.5rem;font-variant-numeric:tabular-nums;white-space:nowrap}
 .rw small{display:block;color:var(--muted);font-size:1rem}
 .rw.ok b{background:var(--accent);border-radius:999px;padding:0 .6em}
+/* 會籍 */
+.panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:12px}
+.eyebrow{font-size:1rem;letter-spacing:.12em;color:var(--muted)}
+.status{font-family:"Noto Serif TC",serif;font-size:1.2rem;font-weight:700;margin:.2em 0 .6em}
+.bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin-bottom:8px}.bar i{display:block;height:100%;background:var(--ink)}
+.meta{display:flex;justify-content:space-between;gap:10px;color:var(--muted);margin-bottom:12px}
+.btn2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--ink);border-radius:999px;padding:6px 12px;background:var(--card);font-weight:500}
+.chip .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}.chip .dot.on{background:var(--accent);border:1px solid var(--ink)}
+.plan{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.plan button,.plan a{min-height:44px;padding:0 14px;border:1.5px solid var(--ink);border-radius:12px;background:transparent;color:var(--ink);font-weight:500;text-decoration:none;display:inline-flex;align-items:center;white-space:nowrap}
+.ev{display:block;padding:14px 0;border-top:1px solid var(--line);color:inherit;text-decoration:none}
+.ev h3{font-size:1.05rem}.ev .meta2{color:var(--muted);margin-top:2px}.ev p{color:var(--soft);margin:.3em 0 0;white-space:pre-wrap}
+.upd{padding:12px 0;border-top:1px solid var(--line)}.upd time{display:block;color:var(--muted)}.upd p{color:var(--soft);margin:.3em 0 0;white-space:pre-wrap}
+.field{display:block;color:var(--soft);margin-top:12px}
+.field input{display:block;width:100%;margin-top:6px;min-height:52px;padding:0 14px;border:1.5px solid var(--line);border-radius:12px;font-family:inherit;font-size:1rem;background:#fff;color:var(--ink)}
+.field input:disabled{background:var(--alt);color:var(--muted)}
+.lang{display:flex;gap:8px}.lang button{flex:1;min-height:44px;border:1.5px solid var(--line);border-radius:12px;background:transparent}.lang button[aria-pressed=true]{border-color:var(--ink);font-weight:700;background:var(--accent)}
+.ov .sub{opacity:.85;margin:6px 0 0}
 @media (prefers-reduced-motion:reduce){.show:active{transform:none}}
 </style>
 <style>html,body{touch-action:manipulation}</style>
@@ -127,33 +146,118 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 <body>
 <main id="app" class="wrap"><p class="empty">載入中…</p></main>
 <nav class="tabs" id="tabs" hidden aria-label="主選單">
-  <button data-tab="home" aria-current="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg>會員卡</button>
-  <button data-tab="events"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>活動</button>
-  <button data-tab="book"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>預約</button>
-  <button data-tab="me"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>我的</button>
+  <button data-tab="home" aria-current="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg><span data-i="tabHome">會員卡</span></button>
+  <button data-tab="book"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span data-i="tabBook">預約</span></button>
+  <button data-tab="plan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11h16v9H4zM8 11V7a4 4 0 0 1 8 0v4"/></svg><span data-i="tabPlan">會籍</span></button>
+  <button data-tab="events"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg><span data-i="tabEvents">活動</span></button>
+  <button data-tab="me"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg><span data-i="tabMe">我的</span></button>
 </nav>
-<div class="ov" id="ov" hidden role="dialog" aria-modal="true" aria-label="會員 QR">
+<div class="ov" id="ov" hidden role="dialog" aria-modal="true" aria-label="QR">
   <button class="x" id="ovx" aria-label="關閉">×</button>
-  <img id="ovimg" alt="會員 QR" width="320" height="320">
-  <p id="ovmeta">請出示給店員掃描</p>
+  <img id="ovimg" alt="QR" width="320" height="320">
+  <p id="ovmeta">請出示給店員掃描</p><p class="sub" id="ovsub"></p>
 </div>
 <div class="toast" id="toast" hidden role="status"></div>
 <script src="/vendor/qrcode.min.js"></script>
 <script src="/menu-lib.js"></script>
 <script>
 (function(){
-  const KEY='tth_token', CACHE='m_cache';
-  /* app.emoji.tw 是獨立網域：App 在根路徑，活動與完整會員專區連回官網 */
+  const KEY='tth_token', CACHE='m_cache', LANG_KEY='m_lang';
+  /* app.emoji.tw 是獨立網域：App 在根路徑；活動詳情、創始會員與 Email 登入頁仍在官網 */
   const ON_APP=location.hostname==='app.emoji.tw', SITE=ON_APP?'https://www.emoji.tw':'', ROOT=ON_APP?'/':'/m';
+  const PLAN_PRICES={day_4h:200,day_12h:500,month:4000,quarter:10000,year:35000};
+  const I18N={
+    zh:{locale:'zh-TW',tabHome:'會員卡',tabPlan:'會籍',tabEvents:'活動',tabMe:'我的',loading:'載入中…',
+      loginTitle:'言文字 會員',loginSub:'登入後，用一張卡在所有空間累積點數、查看會籍、報名活動。',pkLogin:'用 Touch ID／Face ID 登入',pkName:'第一次來？輸入名字',pkSignup:'用 Touch ID／Face ID 快速註冊',google:'使用 Google 登入',email:'改用 Email 登入',needName:'請先輸入名字',pkFail:'無法使用 Touch ID，請改用 Google 登入',signupFail:'無法註冊，請改用 Google 登入',
+      hi:n=>'嗨，'+n,welcome:'歡迎回來',morning:'早安',noon:'午安',evening:'晚安',brand:'言文字',myPts:'我的點數',showCard:'結帳時出示會員卡',scanMe:'請出示給店員掃描',
+      hintPhone:'也可以直接報手機號碼。',hintNoPhone:'到「我的」填寫手機，結帳報號碼就能累點。',hintEarn:'消費每滿 100 元累積 1 點，點數可兌換餐飲、服務與空間時數（不折抵金額；到櫃檯出示會員卡）。',
+      reserve:'訂位',signup:'報名活動',menu:'菜單',redeem:'可以兌換',canRedeem:'現在就能兌換',short:n=>'還差 '+n+' 點',pts:n=>n+' 點',redeemHint:'到櫃檯出示會員卡，店員掃碼後兌換。',
+      install:'把會員卡放到主畫面',installSub:'結帳時一點就開，不用再找網址。',later:'稍後',installed:'已加到主畫面',home:'主畫面',
+      nextEvent:'下一場活動',noEvents:'目前沒有開放報名的活動',registered:'已報名',pendingPay:'等待付款',full:'名額已滿',free:'免費',cap:(r,c)=>'名額 '+r+'／'+c,regCount:n=>'已報名 '+n+' 人',timeTbd:'時間待定',updates:'會員動態',noUpdates:'目前尚無會員動態。',events:'活動',
+      plan:'會籍',statusLabel:'目前狀態',statusActive:p=>p+'會籍有效',statusPending:'待首次進場啟用',statusExpired:'會籍已到期',statusNone:'尚未有會籍',daysLeft:n=>'還有 '+n+' 天',
+      plans:{day_4h:'單日 4 小時',day_12h:'單日 12 小時',month:'月會員',quarter:'季會員',year:'年會員',founding:'創始會員',fallback:'權益'},
+      accessTitle:'進出等等空間',accessOn:'可進出等等空間',accessPending:'待啟用',accessOff:'目前不可進出',accessQr:'顯示進出 QR',accessNote:'進出 QR 每 30 秒更新；持有效會籍即可進出等等空間，享有所有空間與設備。',needPlan:'尚無可用方案，請先加入會員方案。',qrPending:'（待首次進場啟用）',qrUntil:'有效至 ',qrFail:'目前無法產生進出 QR',qrOffline:'需要網路才能顯示 QR',
+      buy:'購買會籍',renew:'續訂／升級',plansTitle:'方案',buyBtn:p=>'線上購買 NT$'+p.toLocaleString('en-US'),joinFounder:'前往加入 →',founderNote:'創始會員：18 個月會籍、限量 100 名。',founderYes:'創始會員',planPaid:'會籍已購買，首次進場時啟用。',planCanceled:'已取消付款。',planVerifying:'確認付款中…',planFail:'目前無法線上購買，請到現場辦理。',
+      me:'我的',name:'姓名',emailL:'Email',phone:'手機',phoneHint:'手機（09 開頭，結帳報號碼就能累點）',noPhone:'尚未填寫',edit:'更新資料',save:'儲存',saved:'已儲存',saveFail:'儲存失敗',
+      lineLink:'綁定 LINE・接收活動票券與訂位提醒',lineFail:'LINE 綁定失敗',quick:'快速登入',pkOn:'啟用 Touch ID／Face ID 登入',pkOff:'移除這台裝置的快速登入',pkHere:'已啟用。下次打開 App 可以直接用 Touch ID／Face ID 登入。',pkWhy:'登入過期時，不用再跳去 Google，用指紋或臉就能回來。',enabled:'已啟用',removed:'已移除',removeFail:'移除失敗',enableFail:'無法啟用',
+      manage:'管理',admin:'前往後台',organizer:'管理我的活動',language:'語言',logout:'登出',offline:'目前離線，顯示上次的資料',netFail:'連線失敗，請稍後再試',reload:'重新整理',
+      sheetInapp:['點畫面角落的「⋯」選單','選「用預設瀏覽器開啟」，或<span class="nb">「在 Safari／Chrome 開啟」</span>','開啟後，再依畫面提示加到主畫面'],sheetIos:['點瀏覽器的「分享」圖示（方框加向上箭頭）','在選單裡找到並點「加入主畫面」（要往上滑才看得到）','按右上角「新增」，之後從主畫面開啟即可'],
+      sheetInappTitle:'請先用瀏覽器開啟',sheetIosTitle:'加入主畫面',sheetInappNote:'LINE、Facebook、Instagram 內建的瀏覽器沒辦法加到主畫面。',sheetIosNote:'找不到「加入主畫面」，請改用 Safari 開啟這個網址。',copy:'複製網址',copied:'已複製網址',copyFail:'請長按網址列複製',ok:'知道了',
+      tabBook:'預約',newResv:'＋ 訂位',newPickup:'＋ 預約取餐',pickupSec:'預約取餐',noPickup:'還沒有預約取餐',pickupAt:t=>t+' 取餐',cancelPickup:'取消預約',confirmCancelPickup:'取消這張預約取餐？',
+      myResv:'我的訂位',noResv:'還沒有訂位',seats:n=>n+' 位',reqNo:'編號 ',tableNo:'桌 ',cancelResv:'取消訂位',confirmCancelResv:'取消這筆訂位？',canceled:'已取消',
+      myRegs:'我的報名',noRegs:'還沒有報名活動',checkedIn:'已報到',tickets:n=>n+' 張',showTicket:'出示票券',eventPage:'活動頁',ticketMeta:n=>n>1?'活動票券 '+n+' 張 · 請出示給工作人員掃描':'活動票券 · 請出示給工作人員掃描',ticketFail:'票券暫時無法顯示，請到活動頁查看',
+      upcoming:'即將到來',pickupLabel:'預約取餐 ',resvLabel:'訂位 ',states:{done:'已完成',ended:'已結束',ready:'可取餐',preparing:'準備中',placed:'已送單',booked:'已預約'},
+      resvTitle:'訂位',back:'返回',date:'日期',party:'人數',partyN:n=>(n===6?'6+':n)+' 位',slotLabel:'時段',venues:['在咖啡 08:00–17:00','三點水 17:00–03:00'],noteOpt:'備註（選填）',resvHint:(n,p)=>'以 '+n+(p?'、'+p:'')+' 訂位；到「我的」可修改。座位保留 10 分鐘。',submitResv:'送出訂位',pickSlot:'請選一個時段',resvOk:id=>'訂位成立 '+id,
+      pickupTitle:'預約取餐',pickupHint:n=>'先選取餐時間，再選餐點。取餐前 '+n+' 分鐘開始準備，到店付款。',pickupDay:'取餐日',today:'今天',tomorrow:'明天',pickupTime:'取餐時間',noSlots:'今天已沒有可預約的時段，請選明天',loadingMenu:'載入菜單…',pickTimeFirst:'選好時間後會顯示該時段的菜單。',submitPickup:'送出預約',itemsN:n=>'（'+n+' 件）',menuFail:'菜單載入失敗',noItems:'這個時段沒有可預約的品項',dec:'減少',inc:'增加',pickupOk:'預約成立，取餐前會開始準備',cafe:'在咖啡',bar:'三點水',opFail:'操作失敗，請稍後再試',
+      installLabel:{prompt:'安裝到主畫面',ios:'看怎麼加到主畫面',inapp:'看怎麼用瀏覽器開啟'}},
+    en:{locale:'en-US',tabHome:'Card',tabPlan:'Membership',tabEvents:'Events',tabMe:'Me',loading:'Loading…',
+      loginTitle:'emoji Member',loginSub:'Sign in to earn points at every space, view your membership and register for events.',pkLogin:'Sign in with Touch ID / Face ID',pkName:'New here? Enter your name',pkSignup:'Quick sign-up with Touch ID / Face ID',google:'Sign in with Google',email:'Sign in with email instead',needName:'Please enter your name',pkFail:'Touch ID unavailable — use Google instead',signupFail:'Could not sign up — use Google instead',
+      hi:n=>'Hi, '+n,welcome:'Welcome back',morning:'Good morning',noon:'Good afternoon',evening:'Good evening',brand:'emoji',myPts:'My points',showCard:'Show card at checkout',scanMe:'Show this to staff to scan',
+      hintPhone:'You can also just give your phone number.',hintNoPhone:'Add your phone under “Me” to earn points by number.',hintEarn:'Earn 1 point per NT$100. Redeem for food, drinks, services or space hours (not cash discounts) — show your card at the counter.',
+      reserve:'Reserve',signup:'Events',menu:'Menu',redeem:'Rewards',canRedeem:'Redeem now',short:n=>n+' more points',pts:n=>n+' pts',redeemHint:'Show your card at the counter; staff scan it to redeem.',
+      install:'Add the card to your home screen',installSub:'One tap at checkout — no URL to find.',later:'Later',installed:'Added to home screen',home:'Home screen',
+      nextEvent:'Next event',noEvents:'No open events right now',registered:'Registered',pendingPay:'Payment pending',full:'Full',free:'Free',cap:(r,c)=>r+' / '+c+' seats',regCount:n=>n+' registered',timeTbd:'Time TBD',updates:'Member updates',noUpdates:'No member updates yet.',events:'Events',
+      plan:'Membership',statusLabel:'Current status',statusActive:p=>p+' valid',statusPending:'Activates on first entry',statusExpired:'Membership expired',statusNone:'No membership yet',daysLeft:n=>n+' days left',
+      plans:{day_4h:'Day pass · 4 hrs',day_12h:'Day pass · 12 hrs',month:'Monthly',quarter:'Quarterly',year:'Annual',founding:'Founding Member',fallback:'Plan'},
+      accessTitle:'Stay Square access',accessOn:'Stay Square access',accessPending:'Pending',accessOff:'No access',accessQr:'Show access QR',accessNote:'The access QR refreshes every 30 seconds. A valid membership includes Stay Square and every space and facility.',needPlan:'No valid membership yet — join a plan first.',qrPending:' (pending first entry)',qrUntil:'valid until ',qrFail:'Could not generate access QR',qrOffline:'Network needed to show the QR',
+      buy:'Buy membership',renew:'Renew / upgrade',plansTitle:'Plans',buyBtn:p=>'Buy online NT$'+p.toLocaleString('en-US'),joinFounder:'Join →',founderNote:'Founding Member: 18-month membership, limited to 100.',founderYes:'Founding Member',planPaid:'Membership purchased — activates on first entry.',planCanceled:'Payment cancelled.',planVerifying:'Confirming payment…',planFail:'Online purchase unavailable — please ask on-site.',
+      me:'Me',name:'Name',emailL:'Email',phone:'Phone',phoneHint:'Phone (Taiwan mobile; give it at checkout to earn points)',noPhone:'Not set',edit:'Update profile',save:'Save',saved:'Saved',saveFail:'Could not save',
+      lineLink:'Link LINE · tickets & booking reminders',lineFail:'LINE linking failed',quick:'Quick sign-in',pkOn:'Enable Touch ID / Face ID',pkOff:'Remove quick sign-in on this device',pkHere:'Enabled. Next time, sign in with Touch ID / Face ID.',pkWhy:'When your session expires, use your fingerprint or face instead of Google.',enabled:'Enabled',removed:'Removed',removeFail:'Could not remove',enableFail:'Could not enable',
+      manage:'Manage',admin:'Open admin',organizer:'Manage my events',language:'Language',logout:'Sign out',offline:'Offline — showing last data',netFail:'Connection failed. Please try again.',reload:'Reload',
+      sheetInapp:['Tap the “⋯” menu in the corner','Choose “Open in browser” (Safari / Chrome)','Then follow the prompt to add to home screen'],sheetIos:['Tap the browser Share icon (box with arrow)','Scroll and tap “Add to Home Screen”','Tap “Add” — open it from your home screen next time'],
+      sheetInappTitle:'Open in a browser first',sheetIosTitle:'Add to Home Screen',sheetInappNote:'In-app browsers (LINE, Facebook, Instagram) cannot add to home screen.',sheetIosNote:'Can’t find “Add to Home Screen”? Open this URL in Safari.',copy:'Copy URL',copied:'URL copied',copyFail:'Long-press the address bar to copy',ok:'Got it',
+      tabBook:'Bookings',newResv:'+ Reserve a table',newPickup:'+ Order for pickup',pickupSec:'Pickup orders',noPickup:'No pickup orders yet',pickupAt:t=>'Pickup '+t,cancelPickup:'Cancel',confirmCancelPickup:'Cancel this pickup order?',
+      myResv:'My reservations',noResv:'No reservations yet',seats:n=>n+' guests',reqNo:'No. ',tableNo:'Table ',cancelResv:'Cancel',confirmCancelResv:'Cancel this reservation?',canceled:'Cancelled',
+      myRegs:'My registrations',noRegs:'No event registrations yet',checkedIn:'Checked in',tickets:n=>n+' tickets',showTicket:'Show ticket',eventPage:'Event page',ticketMeta:n=>n>1?n+' tickets · show to staff to scan':'Event ticket · show to staff to scan',ticketFail:'Ticket unavailable right now — see the event page',
+      upcoming:'Coming up',pickupLabel:'Pickup ',resvLabel:'Reservation ',states:{done:'Done',ended:'Closed',ready:'Ready',preparing:'Preparing',placed:'Sent to kitchen',booked:'Booked'},
+      resvTitle:'Reserve a table',back:'Back',date:'Date',party:'Guests',partyN:n=>(n===6?'6+':n),slotLabel:'Time',venues:['at cafe 08:00–17:00','3AM 17:00–03:00'],noteOpt:'Note (optional)',resvHint:(n,p)=>'Booking as '+n+(p?', '+p:'')+' — edit under “Me”. Tables are held for 10 minutes.',submitResv:'Reserve',pickSlot:'Pick a time',resvOk:id=>'Reserved · '+id,
+      pickupTitle:'Order for pickup',pickupHint:n=>'Choose a pickup time, then your items. We start preparing '+n+' minutes before pickup; pay in store.',pickupDay:'Pickup day',today:'Today',tomorrow:'Tomorrow',pickupTime:'Pickup time',noSlots:'No more slots today — try tomorrow',loadingMenu:'Loading menu…',pickTimeFirst:'Pick a time to see that period’s menu.',submitPickup:'Place order',itemsN:n=>' ('+n+' items)',menuFail:'Could not load the menu',noItems:'Nothing available for this slot',dec:'Less',inc:'More',pickupOk:'Order placed — we’ll start preparing before pickup',cafe:'at cafe',bar:'3AM',opFail:'Action failed. Please try again.',
+      installLabel:{prompt:'Install',ios:'How to add to home screen',inapp:'How to open in a browser'}},
+    ja:{locale:'ja-JP',tabHome:'会員カード',tabPlan:'会員資格',tabEvents:'イベント',tabMe:'マイページ',loading:'読み込み中…',
+      loginTitle:'言文字 会員',loginSub:'ログインすると、すべての空間でポイントを貯め、会員資格の確認やイベント申込ができます。',pkLogin:'Touch ID／Face ID でログイン',pkName:'初めての方は名前を入力',pkSignup:'Touch ID／Face ID でかんたん登録',google:'Google でログイン',email:'メールでログイン',needName:'名前を入力してください',pkFail:'Touch ID を使えません。Google でログインしてください',signupFail:'登録できません。Google でログインしてください',
+      hi:n=>n+' さん、こんにちは',welcome:'おかえりなさい',morning:'おはようございます',noon:'こんにちは',evening:'こんばんは',brand:'言文字',myPts:'ポイント',showCard:'会計時に会員カードを提示',scanMe:'スタッフに提示してスキャン',
+      hintPhone:'携帯電話番号を伝えるだけでもOKです。',hintNoPhone:'「マイページ」で携帯番号を登録すると、番号だけでポイントが貯まります。',hintEarn:'100元ごとに1ポイント。飲食・サービス・スペース利用時間と交換できます（値引きには使えません）。',
+      reserve:'予約',signup:'イベント',menu:'メニュー',redeem:'交換できるもの',canRedeem:'今すぐ交換可',short:n=>'あと '+n+' ポイント',pts:n=>n+' pt',redeemHint:'カウンターで会員カードを提示し、スタッフがスキャンして交換します。',
+      install:'会員カードをホーム画面に追加',installSub:'会計時にワンタップで開けます。',later:'あとで',installed:'ホーム画面に追加しました',home:'ホーム画面',
+      nextEvent:'次のイベント',noEvents:'現在申し込み可能なイベントはありません',registered:'申込済',pendingPay:'支払い待ち',full:'満席',free:'無料',cap:(r,c)=>'定員 '+r+'／'+c,regCount:n=>'申込 '+n+' 人',timeTbd:'日時未定',updates:'会員向けお知らせ',noUpdates:'お知らせはまだありません。',events:'イベント',
+      plan:'会員資格',statusLabel:'現在のステータス',statusActive:p=>p+'：有効',statusPending:'初回入場で有効化',statusExpired:'期限切れ',statusNone:'まだ会員プランがありません',daysLeft:n=>'残り '+n+' 日',
+      plans:{day_4h:'デイ（4時間）',day_12h:'デイ（12時間）',month:'月会員',quarter:'四半期会員',year:'年会員',founding:'創始会員',fallback:'プラン'},
+      accessTitle:'Stay Square 入退室',accessOn:'Stay Square 利用可',accessPending:'保留中',accessOff:'現在利用不可',accessQr:'入退室 QR を表示',accessNote:'入退室 QR は30秒ごとに更新。有効な会員資格があれば Stay Square とすべての設備を利用できます。',needPlan:'有効なプランがありません。先に会員プランに加入してください。',qrPending:'（初回入場で有効化）',qrUntil:'有効期限 ',qrFail:'入退室 QR を生成できません',qrOffline:'QR の表示にはネットワークが必要です',
+      buy:'会員プランを購入',renew:'更新／アップグレード',plansTitle:'プラン',buyBtn:p=>'オンライン購入 NT$'+p.toLocaleString('en-US'),joinFounder:'加入する →',founderNote:'創始会員：18か月の会員資格、限定100名。',founderYes:'創始会員',planPaid:'購入完了。初回入場時に有効化されます。',planCanceled:'支払いをキャンセルしました。',planVerifying:'支払いを確認中…',planFail:'オンライン購入は現在利用できません。現地でお申し込みください。',
+      me:'マイページ',name:'氏名',emailL:'メール',phone:'携帯電話',phoneHint:'携帯電話（会計時に伝えるとポイントが貯まります）',noPhone:'未登録',edit:'プロフィールを更新',save:'保存',saved:'保存しました',saveFail:'保存できませんでした',
+      lineLink:'LINE 連携・チケットと予約リマインド',lineFail:'LINE 連携に失敗しました',quick:'かんたんログイン',pkOn:'Touch ID／Face ID ログインを有効化',pkOff:'この端末のかんたんログインを削除',pkHere:'有効です。次回から Touch ID／Face ID でログインできます。',pkWhy:'ログインが切れても、Google に戻らず指紋や顔で再ログインできます。',enabled:'有効にしました',removed:'削除しました',removeFail:'削除できませんでした',enableFail:'有効化できませんでした',
+      manage:'管理',admin:'管理画面へ',organizer:'イベントを管理',language:'言語',logout:'ログアウト',offline:'オフライン：前回のデータを表示中',netFail:'接続に失敗しました。しばらくしてから再度お試しください。',reload:'再読み込み',
+      sheetInapp:['画面隅の「⋯」メニューをタップ','「ブラウザで開く」（Safari／Chrome）を選択','開いたら案内に従ってホーム画面に追加'],sheetIos:['ブラウザの「共有」アイコン（矢印付きの四角）をタップ','下にスクロールして「ホーム画面に追加」をタップ','右上の「追加」をタップ。次回からホーム画面から開けます'],
+      sheetInappTitle:'まずブラウザで開いてください',sheetIosTitle:'ホーム画面に追加',sheetInappNote:'LINE・Facebook・Instagram 内のブラウザからはホーム画面に追加できません。',sheetIosNote:'「ホーム画面に追加」が見つからない場合は Safari でこの URL を開いてください。',copy:'URL をコピー',copied:'コピーしました',copyFail:'アドレスバーを長押ししてコピーしてください',ok:'OK',
+      tabBook:'予約',newResv:'＋ 席を予約',newPickup:'＋ テイクアウト予約',pickupSec:'テイクアウト予約',noPickup:'テイクアウト予約はまだありません',pickupAt:t=>t+' 受け取り',cancelPickup:'キャンセル',confirmCancelPickup:'このテイクアウト予約をキャンセルしますか？',
+      myResv:'席の予約',noResv:'予約はまだありません',seats:n=>n+' 名',reqNo:'番号 ',tableNo:'テーブル ',cancelResv:'キャンセル',confirmCancelResv:'この予約をキャンセルしますか？',canceled:'キャンセルしました',
+      myRegs:'イベント申込',noRegs:'申込済みのイベントはありません',checkedIn:'チェックイン済',tickets:n=>n+' 枚',showTicket:'チケットを表示',eventPage:'イベントページ',ticketMeta:n=>n>1?'チケット '+n+' 枚 · スタッフに提示してスキャン':'イベントチケット · スタッフに提示してスキャン',ticketFail:'チケットを表示できません。イベントページをご覧ください',
+      upcoming:'近日の予定',pickupLabel:'テイクアウト ',resvLabel:'予約 ',states:{done:'完了',ended:'終了',ready:'受け取り可',preparing:'準備中',placed:'調理中',booked:'予約済'},
+      resvTitle:'席を予約',back:'戻る',date:'日付',party:'人数',partyN:n=>(n===6?'6+':n)+' 名',slotLabel:'時間',venues:['在咖啡 08:00–17:00','三點水 17:00–03:00'],noteOpt:'備考（任意）',resvHint:(n,p)=>n+(p?'・'+p:'')+' で予約します。「マイページ」で変更できます。席は10分間保持します。',submitResv:'予約する',pickSlot:'時間を選んでください',resvOk:id=>'予約完了 '+id,
+      pickupTitle:'テイクアウト予約',pickupHint:n=>'受け取り時間を選び、次に料理を選びます。受け取りの '+n+' 分前から準備し、店頭でお支払いください。',pickupDay:'受け取り日',today:'今日',tomorrow:'明日',pickupTime:'受け取り時間',noSlots:'本日の枠はもうありません。明日を選んでください',loadingMenu:'メニューを読み込み中…',pickTimeFirst:'時間を選ぶとその時間帯のメニューが表示されます。',submitPickup:'予約する',itemsN:n=>'（'+n+' 点）',menuFail:'メニューを読み込めませんでした',noItems:'この時間帯に予約できる品はありません',dec:'減らす',inc:'増やす',pickupOk:'予約完了。受け取り前に準備を始めます',cafe:'在咖啡',bar:'三點水',opFail:'操作に失敗しました。しばらくしてから再度お試しください。',
+      installLabel:{prompt:'ホーム画面にインストール',ios:'追加方法を見る',inapp:'ブラウザで開く方法を見る'}},
+  };
+  const lsGet=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
+  const lsSet=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
+  const query=new URLSearchParams(location.search);
+  let LANG=['zh','en','ja'].includes(query.get('lang'))?query.get('lang'):(lsGet(LANG_KEY)||((navigator.language||'').startsWith('ja')?'ja':(navigator.language||'').startsWith('en')?'en':'zh'));
+  if(!I18N[LANG])LANG='zh';
+  let T=I18N[LANG];
+  function applyLang(l){LANG=l;T=I18N[l];lsSet(LANG_KEY,l);document.documentElement.lang=l==='zh'?'zh-Hant':l;document.title=T.loginTitle;document.querySelectorAll('[data-i]').forEach(el=>{el.textContent=T[el.dataset.i];});}
+  applyLang(LANG);
+  const BASE=LANG==='zh'?'':'/'+LANG;
   const app=document.getElementById('app'), tabs=document.getElementById('tabs');
   const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   let tab='home', data=null, offline=false, qrTimer=null;
   const hash=new URLSearchParams(location.hash.slice(1));
-  if(hash.get('token')){try{localStorage.setItem(KEY,hash.get('token'));}catch(e){}history.replaceState(null,'',location.pathname);}
+  if(hash.get('token')){try{localStorage.setItem(KEY,hash.get('token'));}catch(e){}history.replaceState(null,'',location.pathname+location.search);}
   const token=()=>{try{return localStorage.getItem(KEY);}catch(e){return null;}};
   const MARK='<svg class="mark" viewBox="0 0 200 200" fill="none" stroke="#1B1A17" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M62 72C26 58 12 118 44 130 52 132 58 128 64 122"/><path d="M138 72C174 58 188 118 156 130 148 132 142 128 136 122"/><path d="M62 72C66 44 134 44 138 72 144 92 140 112 130 124M70 124C60 112 56 92 62 72"/><path d="M100 100C106 130 106 160 86 180"/><circle fill="#FFDE34" stroke="none" cx="84" cy="80" r="6"/><circle fill="#1B1A17" stroke="none" cx="116" cy="80" r="6"/></svg>';
   function toast(m){const t=document.getElementById('toast');t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,2800);}
   async function get(path){const r=await fetch(path,{headers:{authorization:'Bearer '+token()}});if(r.status===401){const e=new Error('401');e.status=401;throw e;}if(!r.ok)throw new Error(r.status);return r.json();}
+  async function post(path,body,method){const r=await fetch(path,{method:method||'POST',headers:{authorization:'Bearer '+token(),'content-type':'application/json'},body:body==null&&method?undefined:JSON.stringify(body||{})});const d=await r.json().catch(()=>({}));if(!r.ok){const e=new Error(d.error||r.status);e.status=r.status;throw e;}return d;}
+  /* 活動詳情在官網：帶 token 過去，報名不用再登入一次 */
+  const eventUrl=e=>SITE+BASE+'/events/'+encodeURIComponent(e.slug||e.id)+'#token='+encodeURIComponent(token()||'');
   /* ---- 安裝到主畫面 ---- */
   function installKind(s){
     if(s.standalone)return null;
@@ -168,30 +272,25 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   const ENV={ios:/iPhone|iPad|iPod/.test(UA)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),inApp:/Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(UA)};
   const isStandalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
   let deferred=null;
-  const lsGet=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
-  const lsSet=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
   const kindNow=ignoreDismiss=>installKind({standalone:isStandalone(),dismissedAt:ignoreDismiss?0:Number(lsGet('m_inst_x')||0),now:Date.now(),hasPrompt:!!deferred,ios:ENV.ios,inApp:ENV.inApp});
   window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;if(data&&tab==='home')paint();});
-  window.addEventListener('appinstalled',()=>{deferred=null;toast('已加到主畫面');if(data)paint();});
-  const INSTALL_LABEL={prompt:'安裝到主畫面',ios:'看怎麼加到主畫面',inapp:'看怎麼用瀏覽器開啟'};
+  window.addEventListener('appinstalled',()=>{deferred=null;toast(T.installed);if(data)paint();});
   function installCard(){
     const k=kindNow(false);if(!k)return '';
-    return `<section class="install" id="install"><h3>把會員卡放到主畫面</h3><p>結帳時一點就開，不用再找網址。</p><div class="irow"><button class="btn solid" id="inst" data-k="${k}">${INSTALL_LABEL[k]}</button><button class="later" id="instx">稍後</button></div></section>`;
+    return `<section class="install" id="install"><h3>${esc(T.install)}</h3><p>${esc(T.installSub)}</p><div class="irow"><button class="btn solid" id="inst" data-k="${k}">${esc(T.installLabel[k])}</button><button class="later" id="instx">${esc(T.later)}</button></div></section>`;
   }
   function openSheet(k){
-    const steps=k==='inapp'
-      ?['點畫面角落的「⋯」選單','選「用預設瀏覽器開啟」，或<span class="nb">「在 Safari／Chrome 開啟」</span>','開啟後，再依畫面提示加到主畫面']
-      :['點瀏覽器的「分享」圖示（方框加向上箭頭）','在選單裡找到並點「加入主畫面」（要往上滑才看得到）','按右上角「新增」，之後從主畫面開啟即可'];
-    const title=k==='inapp'?'請先用瀏覽器開啟':'加入主畫面';
-    const note=k==='inapp'?'LINE、Facebook、Instagram 內建的瀏覽器沒辦法加到主畫面。':'找不到「加入主畫面」，請改用 Safari 開啟這個網址。';
+    const steps=k==='inapp'?T.sheetInapp:T.sheetIos;
+    const title=k==='inapp'?T.sheetInappTitle:T.sheetIosTitle;
+    const note=k==='inapp'?T.sheetInappNote:T.sheetIosNote;
     const el=document.createElement('div');el.className='sheet';el.setAttribute('role','dialog');el.setAttribute('aria-modal','true');
-    el.innerHTML=`<div class="panel"><h3>${title}</h3><ol>${steps.map(s=>'<li>'+s+'</li>').join('')}</ol><p class="note">${note}</p>${k==='inapp'?'<button class="btn solid" id="cpy" style="margin-bottom:10px">複製網址</button><button class="btn" id="shx">知道了</button>':'<button class="btn solid" id="shx">知道了</button>'}</div>`;
+    el.innerHTML=`<div class="panel"><h3>${esc(title)}</h3><ol>${steps.map(s=>'<li>'+s+'</li>').join('')}</ol><p class="note">${esc(note)}</p>${k==='inapp'?`<button class="btn solid" id="cpy" style="margin-bottom:10px">${esc(T.copy)}</button><button class="btn" id="shx">${esc(T.ok)}</button>`:`<button class="btn solid" id="shx">${esc(T.ok)}</button>`}</div>`;
     const close=()=>el.remove();
     el.onclick=e=>{if(e.target===el)close();};
     document.body.appendChild(el);
     el.querySelector('#shx').onclick=close;
     const c=el.querySelector('#cpy');
-    if(c)c.onclick=async()=>{try{await navigator.clipboard.writeText(location.href);toast('已複製網址');}catch(e){toast('請長按網址列複製');}};
+    if(c)c.onclick=async()=>{try{await navigator.clipboard.writeText(location.href);toast(T.copied);}catch(e){toast(T.copyFail);}};
   }
   async function doInstall(k){
     if(k==='prompt'&&deferred){deferred.prompt();try{await deferred.userChoice;}catch(e){}deferred=null;paint();return;}
@@ -237,99 +336,119 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   async function loginWithPasskey(btn){
     btn.disabled=true;
     try{await pkLogin();await load();}
-    catch(e){if(!pkQuiet(e))toast(e.message||'無法使用 Touch ID，請改用 Google 登入');btn.disabled=false;}
+    catch(e){if(!pkQuiet(e))toast(e.message||T.pkFail);btn.disabled=false;}
   }
+  const langBar=()=>`<div class="lang" role="group" aria-label="Language">${['zh','en','ja'].map(l=>`<button type="button" data-lang="${l}" aria-pressed="${l===LANG}">${{zh:'中文',en:'English',ja:'日本語'}[l]}</button>`).join('')}</div>`;
+  function bindLang(){document.querySelectorAll('[data-lang]').forEach(b=>b.onclick=()=>{applyLang(b.dataset.lang);location.replace(location.pathname+'?lang='+b.dataset.lang);});}
   function login(){
     tabs.hidden=true;
-    app.innerHTML=`<div class="login">${MARK}<h1>言文字 會員</h1><p>登入後，用一張卡在所有空間累積點數、報名活動。</p><button class="btn solid" id="pkl" hidden>用 Touch ID／Face ID 登入</button><form id="pks" hidden style="margin-top:10px"><input id="pkn" maxlength="80" autocomplete="name" placeholder="第一次來？輸入名字" aria-label="名字" style="display:block;width:100%;min-height:52px;padding:0 14px;border:1.5px solid var(--line);border-radius:12px;font-family:inherit;font-size:1rem;background:#fff;margin-bottom:10px"><button class="btn solid" id="pkj" type="submit">用 Touch ID／Face ID 快速註冊</button></form><a class="btn${lsGet(PK_FLAG)?'':' solid'}" href="/auth/google?redirect=${encodeURIComponent(location.origin+ROOT)}" style="margin-top:10px">使用 Google 登入</a></div>`;
-    pkSupport().then(ok=>{const b=document.getElementById('pkl');if(!ok||!b)return;b.hidden=false;b.onclick=()=>loginWithPasskey(b);const f=document.getElementById('pks');f.hidden=false;f.onsubmit=async e=>{e.preventDefault();const n=document.getElementById('pkn').value.trim();if(!n){toast('請先輸入名字');return;}const j=document.getElementById('pkj');j.disabled=true;try{await pkSignup(n);await load();}catch(x){if(!pkQuiet(x))toast(x.message||'無法註冊，請改用 Google 登入');j.disabled=false;}};let na=false;try{na=!!sessionStorage.getItem('m_noauto');}catch(e){}if(lsGet(PK_FLAG)&&!na&&!login.auto){login.auto=1;b.click();}});
+    const back=location.origin+ROOT+(LANG==='zh'?'':'?lang='+LANG);
+    app.innerHTML=`<div class="login">${MARK}<h1>${esc(T.loginTitle)}</h1><p>${esc(T.loginSub)}</p><button class="btn solid" id="pkl" hidden>${esc(T.pkLogin)}</button><form id="pks" hidden style="margin-top:10px"><input id="pkn" maxlength="80" autocomplete="name" placeholder="${esc(T.pkName)}" aria-label="${esc(T.name)}" style="display:block;width:100%;min-height:52px;padding:0 14px;border:1.5px solid var(--line);border-radius:12px;font-family:inherit;font-size:1rem;background:#fff;margin-bottom:10px"><button class="btn solid" id="pkj" type="submit">${esc(T.pkSignup)}</button></form><a class="btn${lsGet(PK_FLAG)?'':' solid'}" href="/auth/google?redirect=${encodeURIComponent(back)}" style="margin-top:10px">${esc(T.google)}</a><a class="quiet" href="${SITE}/event-login.html?lang=${LANG}&redirect=${encodeURIComponent(back)}">${esc(T.email)}</a>${langBar()}</div>`;
+    bindLang();
+    pkSupport().then(ok=>{const b=document.getElementById('pkl');if(!ok||!b)return;b.hidden=false;b.onclick=()=>loginWithPasskey(b);const f=document.getElementById('pks');f.hidden=false;f.onsubmit=async e=>{e.preventDefault();const n=document.getElementById('pkn').value.trim();if(!n){toast(T.needName);return;}const j=document.getElementById('pkj');j.disabled=true;try{await pkSignup(n);await load();}catch(x){if(!pkQuiet(x))toast(x.message||T.signupFail);j.disabled=false;}};let na=false;try{na=!!sessionStorage.getItem('m_noauto');}catch(e){}if(lsGet(PK_FLAG)&&!na&&!login.auto){login.auto=1;b.click();}});
   }
-  const fmt=v=>{if(!v)return '';const d=new Date(String(v).replace(/\//g,'-').replace(' ','T')+(String(v).length<=16?':00+08:00':''));return Number.isNaN(+d)?String(v):d.toLocaleString('zh-TW',{timeZone:'Asia/Taipei',month:'numeric',day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false});};
-  function nextEvent(){const list=(data.events||[]);return list.find(e=>e.registered)||list[0]||null;}
+  const parseT=v=>{if(!v)return null;const d=new Date(String(v).replace(/\//g,'-').replace(' ','T')+(String(v).length<=16?':00+08:00':''));return Number.isNaN(+d)?null:d;};
+  const fmt=v=>{const d=parseT(v);return d?d.toLocaleString(T.locale,{timeZone:'Asia/Taipei',month:'numeric',day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false}):String(v||'');};
+  const fmtDate=d=>d?d.toLocaleDateString(T.locale,{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}):'';
+  const fmtTs=ms=>new Date(ms).toLocaleString(T.locale,{timeZone:'Asia/Taipei',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
+  const planName=p=>T.plans[p]||p||T.plans.fallback;
+  function nextEvent(){const now=new Date();const list=(data.events||[]).map(e=>({e,t:parseT(e.starts_at)})).filter(x=>x.t&&x.t>now).sort((a,b)=>a.t-b.t);return (list.find(x=>x.e.registered)||list[0]||{}).e||null;}
   function rewardsSec(pts){
     const r=data.rewards||{items:[],space:[]};
-    const list=[].concat((r.space||[]).map(x=>({n:x.zh,p:x.points})),(r.items||[]).map(x=>({n:x.zh,p:x.points}))).sort((a,b)=>a.p-b.p);
+    const nm=x=>LANG==='ja'&&x.ja?x.ja:LANG==='en'&&x.en?x.en:x.zh;
+    const list=[].concat((r.space||[]).map(x=>({n:nm(x),p:x.points})),(r.items||[]).map(x=>({n:nm(x),p:x.points})));
     if(!list.length)return '';
-    const row=x=>{const ok=pts>=x.p;return `<div class="rw${ok?' ok':''}"><span>${esc(x.n)}<small>${ok?'現在就能兌換':'還差 '+esc(x.p-pts)+' 點'}</small></span><b>${esc(x.p)} 點</b></div>`;};
-    return `<section class="sec"><h2>可以兌換</h2>${list.map(row).join('')}<p class="hint">到櫃檯出示會員卡，店員掃碼後兌換。</p></section>`;
+    const row=x=>{const ok=pts>=x.p;return `<div class="rw${ok?' ok':''}"><span>${esc(x.n)}<small>${ok?esc(T.canRedeem):esc(T.short(x.p-pts))}</small></span><b>${esc(T.pts(x.p))}</b></div>`;};
+    return `<section class="sec"><h2>${esc(T.redeem)}</h2>${list.map(row).join('')}<p class="hint">${esc(T.redeemHint)}</p></section>`;
   }
   function home(){
     const me=data.me||{},pts=(data.yan&&data.yan.balance)||0,ev=nextEvent();
     const phone=(data.yan&&data.yan.phone)||'';
-    app.innerHTML=`${offline?'<div class="offline">目前離線，顯示上次的資料</div>':''}
-    <div class="hello"><div><h1>${esc(me.name?'嗨，'+me.name:'歡迎回來')}</h1><small>${new Date().getHours()<12?'早安':new Date().getHours()<18?'午安':'晚安'}</small></div>${MARK}</div>
-    <section class="pass" aria-label="會員卡"><div class="brand">言文字</div><div class="pts"><span>我的點數</span><b>${esc(pts)}</b></div><div class="who"><span>${esc(me.name||'')}</span><i>${esc(phone?phone.replace(/^\+886(\d{2})\d{4}(\d{3})$/,'0$1-****-$2'):'')}</i></div></section>
-    <button class="show" id="show"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17h3v4h-4v-3h4M18 14h3v3"/></svg>結帳時出示會員卡</button>
-    <p class="hint">${phone?'也可以直接報手機號碼。':'到「我的」填寫手機，結帳報號碼就能累點。'}消費每滿 <span class="nb">100 元</span>累積 <span class="nb">1 點</span>，點數可兌換餐飲、服務與空間時數（不折抵金額；到櫃檯出示會員卡）。</p>
-    <nav class="quick" aria-label="快捷">
-      <button data-go="resv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M17 3c-2 2-3 5-3 8h3v10"/></svg>訂位</button>
-      <button data-go="pickup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 9h16l-1.5 11h-13zM8 9V6a4 4 0 0 1 8 0v3"/></svg>預約取餐</button>
-      <button data-go="events"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>報名活動</button>
+    const h=new Date().getHours();
+    app.innerHTML=`${offline?`<div class="offline">${esc(T.offline)}</div>`:''}
+    <div class="hello"><div><h1>${esc(me.name?T.hi(me.name):T.welcome)}</h1><small>${esc(h<12?T.morning:h<18?T.noon:T.evening)}</small></div>${MARK}</div>
+    <section class="pass" aria-label="${esc(T.tabHome)}"><div class="brand">${esc(T.brand)}</div><div class="pts"><span>${esc(T.myPts)}</span><b>${esc(pts)}</b></div><div class="who"><span>${esc(me.name||'')}</span><i>${esc(phone?phone.replace(/^\+886(\d{2})\d{4}(\d{3})$/,'0$1-****-$2'):'')}</i></div></section>
+    <button class="show" id="show"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17h3v4h-4v-3h4M18 14h3v3"/></svg>${esc(T.showCard)}</button>
+    <p class="hint">${esc(phone?T.hintPhone:T.hintNoPhone)}${esc(T.hintEarn)}</p>
+    <nav class="quick" aria-label="quick">
+      <button data-go="resv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M17 3c-2 2-3 5-3 8h3v10"/></svg>${esc(T.reserve)}</button>
+      <button data-go="pickup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 9h16l-1.5 11h-13zM8 9V6a4 4 0 0 1 8 0v3"/></svg>${esc(T.pickupTitle)}</button>
+      <button data-go="events"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>${esc(T.signup)}</button>
     </nav>
     ${rewardsSec(pts)}
     ${installCard()}
     ${upcomingSec()}
-    <section class="sec"><h2>下一場活動</h2>${ev?evTile(ev):'<p class="empty">目前沒有開放報名的活動</p>'}</section>`;
-    document.getElementById('show').onclick=openQr;
+    <section class="sec"><h2>${esc(T.nextEvent)}</h2>${ev?evTile(ev):`<p class="empty">${esc(T.noEvents)}</p>`}</section>`;
+    document.getElementById('show').onclick=openCard;
     app.querySelectorAll('[data-go]').forEach(b=>b.onclick=e=>{e.preventDefault();go(b.dataset.go);});
     bindInstall();
   }
-  function evTile(e){return `<a class="tile" href="${SITE}/events/${encodeURIComponent(e.slug||e.id)}"><h3>${esc(e.title)}${e.registered?'<span class="tag">已報名</span>':''}</h3><div class="meta">${esc(fmt(e.starts_at))}${e.location?' · '+esc(e.location):''}</div></a>`;}
-  function events(){
-    const list=data.events||[];
-    app.innerHTML=`<div class="hello"><h1>活動</h1></div>${list.length?list.map(evTile).join(''):'<p class="empty">目前沒有開放報名的活動</p>'}`;
+  function evTile(e){return `<a class="tile" href="${eventUrl(e)}"><h3>${esc(e.title)}${e.registered?`<span class="tag">${esc(T.registered)}</span>`:''}</h3><div class="meta">${esc(fmt(e.starts_at)||T.timeTbd)}${e.location?' · '+esc(e.location):''}</div></a>`;}
+  function evRow(e){
+    const full=e.capacity>0&&e.reg_count>=e.capacity&&!e.registered&&e.registration_status!=='pending_payment';
+    const cap=e.capacity>0?T.cap(e.reg_count,e.capacity):T.regCount(e.reg_count||0);
+    const price=e.price_twd>0?'NT$'+Number(e.price_twd).toLocaleString('en-US'):T.free;
+    const tags=[e.registered?`<span class="tag">${esc(T.registered)}</span>`:'',e.registration_status==='pending_payment'?`<span class="tag">${esc(T.pendingPay)}</span>`:'',full?`<span class="tag">${esc(T.full)}</span>`:''].join('');
+    return `<a class="ev" href="${eventUrl(e)}"><h3>${esc(e.title)}${tags}</h3><div class="meta2">${esc(fmt(e.starts_at)||T.timeTbd)}${e.location?' · '+esc(e.location):''} · ${esc(cap)} · ${esc(price)}</div>${e.description?`<p>${esc(e.description)}</p>`:''}</a>`;
   }
-  /* ---- 預約：我的訂位／預約取餐／我的報名 ---- */
-  let sub='list', PK={date:'',time:'',qty:{},note:''}, RV={date:'',time:'',party:2,note:''}, MENU=null, PICK=null;
+  function events(){
+    const list=data.events||[],ups=data.updates||[];
+    app.innerHTML=`<div class="hello"><h1>${esc(T.events)}</h1></div>${list.length?list.map(evRow).join(''):`<p class="empty">${esc(T.noEvents)}</p>`}
+    <section class="sec"><h2>${esc(T.updates)}</h2>${ups.length?ups.map(u=>`<div class="upd"><b>${esc(u.title)}</b><time>${esc(u.published_at)}${u.type?' · '+esc(u.type):''}</time>${u.content?`<p>${esc(u.content)}</p>`:''}</div>`).join(''):`<p class="empty">${esc(T.noUpdates)}</p>`}</section>`;
+  }
+  /* ---- 預約：我的訂位／預約取餐／我的報名（上游 f68960f 移植，改三語） ---- */
+  let sub='list', PK={date:'',time:'',qty:{},note:''}, RV={date:'',time:'',party:2,note:''}, MENU=null;
   function go(where){if(where==='events'){tab='events';paint();return;}tab='book';sub=where==='resv'?'resv':where==='pickup'?'pickup':'list';paint();}
-  const post=async(path,body,method)=>{const r=await fetch(path,{method:method||'POST',headers:{authorization:'Bearer '+token(),'content-type':'application/json'},body:body==null?undefined:JSON.stringify(body)});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'操作失敗，請稍後再試');return d;};
-  const dayLabel=d=>{const x=new Date(d+'T00:00:00+08:00');return x.toLocaleDateString('zh-TW',{timeZone:'Asia/Taipei',month:'numeric',day:'numeric',weekday:'short'});};
+  const dayLabel=d=>{const x=new Date(d+'T00:00:00+08:00');return x.toLocaleDateString(T.locale,{timeZone:'Asia/Taipei',month:'numeric',day:'numeric',weekday:'short'});};
+  const itemName=it=>LANG==='ja'&&it.ja?it.ja:LANG==='en'&&it.en?it.en:it.zh;
+  const linesText=ls=>ls.map(l=>itemName(l)+'×'+l.qty).join('、');
   function upcomingSec(){
     const rv=(data.reservations||[]).filter(r=>r.can_cancel),pk=(data.pickups||[]).filter(p=>p.status==='open');
     if(!rv.length&&!pk.length)return '';
-    return `<section class="sec"><h2>即將到來</h2>${pk.map(p=>`<a class="tile" href="#" data-go="list"><h3>預約取餐 ${esc(p.pickup_time)}<span class="pill ${p.state==='ready'?'on':''}">${pickupState(p)}</span></h3><div class="meta">${esc(p.items.map(l=>l.zh+'×'+l.qty).join('、'))}</div></a>`).join('')}${rv.map(r=>`<a class="tile" href="#" data-go="list"><h3>訂位 ${esc(dayLabel(r.reserve_date))} ${esc(r.reserve_time)}</h3><div class="meta">${esc(r.period)} · ${esc(r.party_size)} 位 · ${esc(r.request_id)}</div></a>`).join('')}</section>`;
+    return `<section class="sec"><h2>${esc(T.upcoming)}</h2>${pk.map(p=>`<a class="tile" href="#" data-go="list"><h3>${esc(T.pickupLabel+p.pickup_time)}<span class="pill ${p.state==='ready'?'on':''}">${esc(pickupState(p))}</span></h3><div class="meta">${esc(linesText(p.items))}</div></a>`).join('')}${rv.map(r=>`<a class="tile" href="#" data-go="list"><h3>${esc(T.resvLabel+dayLabel(r.reserve_date)+' '+r.reserve_time)}</h3><div class="meta">${esc(r.period)} · ${esc(T.seats(r.party_size))} · ${esc(r.request_id)}</div></a>`).join('')}</section>`;
   }
-  const pickupState=p=>p.status!=='open'?(p.paid?'已完成':'已結束'):p.state==='ready'?'可取餐':p.state==='preparing'?'準備中':p.placed?'已送單':'已預約';
+  const pickupState=p=>p.status!=='open'?(p.paid?T.states.done:T.states.ended):p.state==='ready'?T.states.ready:p.state==='preparing'?T.states.preparing:p.placed?T.states.placed:T.states.booked;
   function book(){
     if(sub==='resv')return bookResv();
     if(sub==='pickup')return bookPickup();
     const rv=data.reservations||[],pk=data.pickups||[],rg=data.registrations||[];
-    app.innerHTML=`<div class="hello"><h1>預約</h1></div>
-    <nav class="quick" aria-label="新增預約"><button data-go="resv">＋ 訂位</button><button data-go="pickup">＋ 預約取餐</button><button data-go="events">報名活動</button></nav>
-    <section class="sec"><h2>預約取餐</h2>${pk.length?pk.map(p=>`<div class="tile"><h3>${esc(p.pickup_time)} 取餐<span class="pill ${p.state==='ready'?'on':''}">${pickupState(p)}</span></h3><div class="meta">${esc(p.table)} · ${esc(p.items.map(l=>l.zh+'×'+l.qty).join('、'))} · NT$${esc(p.amount)}${p.note?'<br>'+esc(p.note):''}</div>${p.status==='open'&&!p.placed?`<div class="act"><button class="quiet" data-cancel-pickup="${esc(p.id)}">取消預約</button></div>`:''}</div>`).join(''):'<p class="empty">還沒有預約取餐</p>'}</section>
-    <section class="sec"><h2>我的訂位</h2>${rv.length?rv.map(r=>`<div class="tile"><h3>${esc(dayLabel(r.reserve_date))} ${esc(r.reserve_time)}<span class="pill ${r.status==='confirmed'?'on':''}">${esc(r.label)}</span></h3><div class="meta">${esc(r.period)} · ${esc(r.party_size)} 位 · 編號 ${esc(r.request_id)}${r.table_no?' · 桌 '+esc(r.table_no):''}</div>${r.can_cancel?`<div class="act"><button class="quiet" data-cancel-resv="${esc(r.id)}">取消訂位</button></div>`:''}</div>`).join(''):'<p class="empty">還沒有訂位</p>'}</section>
-    <section class="sec"><h2>我的報名</h2>${rg.length?rg.map(r=>`<div class="tile"><h3>${esc(r.title)}<span class="pill ${r.status==='registered'?'on':''}">${r.status==='registered'?(r.checked_in_at?'已報到':'已報名'):'待付款'}</span></h3><div class="meta">${esc(fmt(r.starts_at))}${r.location?' · '+esc(r.location):''}${r.quantity>1?' · '+esc(r.quantity)+' 張':''}</div><div class="act">${r.ticket?`<button class="btn solid" data-ticket="${esc(r.id)}">出示票券</button>`:''}<a class="btn" href="${SITE}/events/${encodeURIComponent(r.slug||r.id)}">活動頁</a></div></div>`).join(''):'<p class="empty">還沒有報名活動</p>'}</section>`;
+    app.innerHTML=`<div class="hello"><h1>${esc(T.tabBook)}</h1></div>
+    <nav class="quick" aria-label="new"><button data-go="resv">${esc(T.newResv)}</button><button data-go="pickup">${esc(T.newPickup)}</button><button data-go="events">${esc(T.signup)}</button></nav>
+    <section class="sec"><h2>${esc(T.pickupSec)}</h2>${pk.length?pk.map(p=>`<div class="tile"><h3>${esc(T.pickupAt(p.pickup_time))}<span class="pill ${p.state==='ready'?'on':''}">${esc(pickupState(p))}</span></h3><div class="meta">${esc(p.table)} · ${esc(linesText(p.items))} · NT$${esc(p.amount)}${p.note?'<br>'+esc(p.note):''}</div>${p.status==='open'&&!p.placed?`<div class="act"><button class="quiet" data-cancel-pickup="${esc(p.id)}">${esc(T.cancelPickup)}</button></div>`:''}</div>`).join(''):`<p class="empty">${esc(T.noPickup)}</p>`}</section>
+    <section class="sec"><h2>${esc(T.myResv)}</h2>${rv.length?rv.map(r=>`<div class="tile"><h3>${esc(dayLabel(r.reserve_date))} ${esc(r.reserve_time)}<span class="pill ${r.status==='confirmed'?'on':''}">${esc(r.label)}</span></h3><div class="meta">${esc(r.period)} · ${esc(T.seats(r.party_size))} · ${esc(T.reqNo+r.request_id)}${r.table_no?' · '+esc(T.tableNo+r.table_no):''}</div>${r.can_cancel?`<div class="act"><button class="quiet" data-cancel-resv="${esc(r.id)}">${esc(T.cancelResv)}</button></div>`:''}</div>`).join(''):`<p class="empty">${esc(T.noResv)}</p>`}</section>
+    <section class="sec"><h2>${esc(T.myRegs)}</h2>${rg.length?rg.map(r=>`<div class="tile"><h3>${esc(r.title)}<span class="pill ${r.status==='registered'?'on':''}">${esc(r.status==='registered'?(r.checked_in_at?T.checkedIn:T.registered):T.pendingPay)}</span></h3><div class="meta">${esc(fmt(r.starts_at))}${r.location?' · '+esc(r.location):''}${r.quantity>1?' · '+esc(T.tickets(r.quantity)):''}</div><div class="act">${r.ticket?`<button class="btn solid" data-ticket="${esc(r.id)}">${esc(T.showTicket)}</button>`:''}<a class="btn" href="${eventUrl(r)}">${esc(T.eventPage)}</a></div></div>`).join(''):`<p class="empty">${esc(T.noRegs)}</p>`}</section>`;
     app.querySelectorAll('[data-go]').forEach(b=>b.onclick=e=>{e.preventDefault();go(b.dataset.go);});
-    app.querySelectorAll('[data-cancel-pickup]').forEach(b=>b.onclick=async()=>{if(!confirm('取消這張預約取餐？'))return;b.disabled=true;try{await post('/api/me/pickups/'+encodeURIComponent(b.dataset.cancelPickup),null,'DELETE');toast('已取消');await load();}catch(e){toast(e.message);b.disabled=false;}});
-    app.querySelectorAll('[data-cancel-resv]').forEach(b=>b.onclick=async()=>{if(!confirm('取消這筆訂位？'))return;b.disabled=true;try{await post('/api/me/reservations/'+encodeURIComponent(b.dataset.cancelResv),null,'DELETE');toast('已取消');await load();}catch(e){toast(e.message);b.disabled=false;}});
+    app.querySelectorAll('[data-cancel-pickup]').forEach(b=>b.onclick=async()=>{if(!confirm(T.confirmCancelPickup))return;b.disabled=true;try{await post('/api/me/pickups/'+encodeURIComponent(b.dataset.cancelPickup),null,'DELETE');toast(T.canceled);await load();}catch(e){toast(e.message||T.opFail);b.disabled=false;}});
+    app.querySelectorAll('[data-cancel-resv]').forEach(b=>b.onclick=async()=>{if(!confirm(T.confirmCancelResv))return;b.disabled=true;try{await post('/api/me/reservations/'+encodeURIComponent(b.dataset.cancelResv),null,'DELETE');toast(T.canceled);await load();}catch(e){toast(e.message||T.opFail);b.disabled=false;}});
     app.querySelectorAll('[data-ticket]').forEach(b=>b.onclick=()=>openTicket(b.dataset.ticket));
   }
   async function openTicket(eventId){
-    const img=document.getElementById('ovimg'),meta=document.getElementById('ovmeta');
-    try{const d=await get('/api/events/'+encodeURIComponent(eventId)+'/ticket');clearInterval(qrTimer);ov.hidden=false;QRCode.toDataURL(d.token,{width:320,margin:1},(err,url)=>{if(!err)img.src=url;});meta.textContent=(d.tickets||[]).length>1?`活動票券 ${d.tickets.length} 張 · 請出示給工作人員掃描`:'活動票券 · 請出示給工作人員掃描';}
-    catch(e){toast('票券暫時無法顯示，請到活動頁查看');}
+    const img=document.getElementById('ovimg'),meta=document.getElementById('ovmeta'),sub2=document.getElementById('ovsub');
+    try{const d=await get('/api/events/'+encodeURIComponent(eventId)+'/ticket');clearInterval(qrTimer);ov.hidden=false;img.style.display='';QRCode.toDataURL(d.token,{width:320,margin:1},(err,url)=>{if(!err)img.src=url;});meta.textContent=T.ticketMeta((d.tickets||[]).length);sub2.textContent='';}
+    catch(e){toast(T.ticketFail);}
   }
   function bookResv(){
     const me=data.me||{},today=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Taipei'});
     if(!RV.date)RV.date=today;
-    const slot=(a,b)=>{const o=[];for(let m=a;m<b;m+=30)o.push(String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'));return o;};
+    const slot=(a,b)=>{const o=[];for(let x=a;x<b;x+=30)o.push(String(Math.floor(x/60)).padStart(2,'0')+':'+String(x%60).padStart(2,'0'));return o;};
     const now=new Date(),tpMin=(now.getUTCHours()+8)%24*60+now.getUTCMinutes();
     const past=t=>RV.date===today&&(Number(t.slice(0,2))*60+Number(t.slice(3)))<=tpMin+30&&Number(t.slice(0,2))>=3;
-    const groups=[['在咖啡 08:00–17:00',slot(8*60,17*60)],['三點水 17:00–03:00',slot(17*60,24*60).concat(slot(0,3*60))]];
-    app.innerHTML=`<div class="hello"><h1>訂位</h1><button class="quiet" id="bk" style="width:auto;margin:0">返回</button></div>
-    <label class="fld">日期<input type="date" id="rvd" min="${today}" value="${esc(RV.date)}"></label>
-    <div class="fld">人數<div class="seg" id="rvp">${[1,2,3,4,5,6].map(n=>`<button type="button" data-p="${n}" aria-pressed="${RV.party===n}">${n===6?'6+':n} 位</button>`).join('')}</div>${RV.party>=6?`<input type="number" id="rvpn" min="6" max="50" inputmode="numeric" value="${esc(RV.party)}" style="margin-top:8px">`:''}</div>
-    <div class="fld">時段<div class="slots" id="rvt">${groups.map(([h,ts])=>`<h4>${h}</h4>`+ts.map(t=>`<button type="button" data-t="${t}" aria-pressed="${RV.time===t}" ${past(t)?'disabled':''}>${t}</button>`).join('')).join('')}</div></div>
-    <label class="fld">備註（選填）<textarea id="rvn" maxlength="500">${esc(RV.note)}</textarea></label>
-    <p class="hint">以 ${esc(me.name||'')}${(data.yan&&data.yan.phone)||me.phone?'、'+esc(((data.yan&&data.yan.phone)||me.phone).replace(/^\+886/,'0')):''} 訂位；到「我的」可修改。座位保留 10 分鐘。</p>
-    <div class="sticky"><button class="btn solid" id="rvgo">送出訂位</button></div>`;
+    const groups=[[T.venues[0],slot(8*60,17*60)],[T.venues[1],slot(17*60,24*60).concat(slot(0,3*60))]];
+    const ph=((data.yan&&data.yan.phone)||me.phone||'').replace(/^\+886/,'0');
+    app.innerHTML=`<div class="hello"><h1>${esc(T.resvTitle)}</h1><button class="quiet" id="bk" style="width:auto;margin:0">${esc(T.back)}</button></div>
+    <label class="fld">${esc(T.date)}<input type="date" id="rvd" min="${today}" value="${esc(RV.date)}"></label>
+    <div class="fld">${esc(T.party)}<div class="seg" id="rvp">${[1,2,3,4,5,6].map(n=>`<button type="button" data-p="${n}" aria-pressed="${RV.party===n||(n===6&&RV.party>6)}">${esc(T.partyN(n))}</button>`).join('')}</div>${RV.party>=6?`<input type="number" id="rvpn" min="6" max="50" inputmode="numeric" value="${esc(RV.party)}" style="margin-top:8px">`:''}</div>
+    <div class="fld">${esc(T.slotLabel)}<div class="slots" id="rvt">${groups.map(([h,ts])=>`<h4>${esc(h)}</h4>`+ts.map(t=>`<button type="button" data-t="${t}" aria-pressed="${RV.time===t}" ${past(t)?'disabled':''}>${t}</button>`).join('')).join('')}</div></div>
+    <label class="fld">${esc(T.noteOpt)}<textarea id="rvn" maxlength="500">${esc(RV.note)}</textarea></label>
+    <p class="hint">${esc(T.resvHint(me.name||'',ph))}</p>
+    <div class="sticky"><button class="btn solid" id="rvgo">${esc(T.submitResv)}</button></div>`;
     document.getElementById('bk').onclick=()=>{sub='list';paint();};
     document.getElementById('rvd').onchange=e=>{RV.date=e.target.value;RV.time='';paint();};
     document.getElementById('rvp').onclick=e=>{const b=e.target.closest('button');if(!b)return;RV.party=Number(b.dataset.p);paint();};
     const pn=document.getElementById('rvpn');if(pn)pn.onchange=e=>{RV.party=Math.max(6,Math.min(50,Number(e.target.value)||6));};
     document.getElementById('rvt').onclick=e=>{const b=e.target.closest('button');if(!b||b.disabled)return;RV.time=b.dataset.t;document.querySelectorAll('#rvt button').forEach(x=>x.setAttribute('aria-pressed',x===b));};
     document.getElementById('rvn').oninput=e=>{RV.note=e.target.value;};
-    document.getElementById('rvgo').onclick=async()=>{const b=document.getElementById('rvgo');if(!RV.time)return toast('請選一個時段');b.disabled=true;try{const d=await post('/api/me/reservations',{date:RV.date,time:RV.time,party_size:RV.party,note:RV.note,lang:'zh'});toast('訂位成立 '+d.request_id);RV={date:'',time:'',party:2,note:''};sub='list';await load();}catch(e){toast(e.message);b.disabled=false;}};
+    document.getElementById('rvgo').onclick=async()=>{const b=document.getElementById('rvgo');if(!RV.time)return toast(T.pickSlot);b.disabled=true;try{const d=await post('/api/me/reservations',{date:RV.date,time:RV.time,party_size:RV.party,note:RV.note,lang:LANG});toast(T.resvOk(d.request_id));RV={date:'',time:'',party:2,note:''};sub='list';await load();}catch(e){toast(e.message||T.opFail);b.disabled=false;}};
   }
   async function loadMenu(){if(MENU)return MENU;const d=await fetch('/api/public').then(r=>r.json());MENU=MenuLib.parseMenuDoc((d.content&&d.content.menu)||'');return MENU;}
   function bookPickup(){
@@ -337,50 +456,106 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     if(!PK.date)PK.date=pk.dates[0]||'';
     const slots=(pk.slots||{})[PK.date]||[];
     const venue=(slots.find(x=>x.time===PK.time)||{}).venue||'';
-    app.innerHTML=`<div class="hello"><h1>預約取餐</h1><button class="quiet" id="bk" style="width:auto;margin:0">返回</button></div>
-    <p class="hint">先選取餐時間，再選餐點。取餐前 ${esc(pk.prep_min||20)} 分鐘開始準備，到店付款。</p>
-    <div class="fld">取餐日<div class="seg two" id="pkd">${pk.dates.map((d,i)=>`<button type="button" data-d="${d}" aria-pressed="${PK.date===d}">${i===0?'今天':'明天'} ${esc(dayLabel(d))}</button>`).join('')}</div></div>
-    <div class="fld">取餐時間<div class="slots" id="pkt">${slots.length?['CAFE','BAR'].map(v=>{const ts=slots.filter(x=>x.venue===v);return ts.length?`<h4>${v==='CAFE'?'在咖啡':'三點水'}</h4>`+ts.map(x=>`<button type="button" data-t="${x.time}" aria-pressed="${PK.time===x.time}">${x.time}</button>`).join(''):'';}).join(''):'<p class="empty">今天已沒有可預約的時段，請選明天</p>'}</div></div>
-    <div id="pkm">${PK.time?'<p class="empty">載入菜單…</p>':'<p class="hint">選好時間後會顯示該時段的菜單。</p>'}</div>
-    <label class="fld">備註（選填）<textarea id="pkn" maxlength="200">${esc(PK.note)}</textarea></label>
-    <div class="sticky"><button class="btn solid" id="pkgo" ${PK.time&&Object.values(PK.qty).some(n=>n>0)?'':'disabled'}>送出預約${pkCount()?'（'+pkCount()+' 件）':''}</button></div>`;
+    app.innerHTML=`<div class="hello"><h1>${esc(T.pickupTitle)}</h1><button class="quiet" id="bk" style="width:auto;margin:0">${esc(T.back)}</button></div>
+    <p class="hint">${esc(T.pickupHint(pk.prep_min||20))}</p>
+    <div class="fld">${esc(T.pickupDay)}<div class="seg two" id="pkd">${pk.dates.map((d,i)=>`<button type="button" data-d="${d}" aria-pressed="${PK.date===d}">${esc(i===0?T.today:T.tomorrow)} ${esc(dayLabel(d))}</button>`).join('')}</div></div>
+    <div class="fld">${esc(T.pickupTime)}<div class="slots" id="pkt">${slots.length?['CAFE','BAR'].map(v=>{const ts=slots.filter(x=>x.venue===v);return ts.length?`<h4>${esc(v==='CAFE'?T.cafe:T.bar)}</h4>`+ts.map(x=>`<button type="button" data-t="${x.time}" aria-pressed="${PK.time===x.time}">${x.time}</button>`).join(''):'';}).join(''):`<p class="empty">${esc(T.noSlots)}</p>`}</div></div>
+    <div id="pkm">${PK.time?`<p class="empty">${esc(T.loadingMenu)}</p>`:`<p class="hint">${esc(T.pickTimeFirst)}</p>`}</div>
+    <label class="fld">${esc(T.noteOpt)}<textarea id="pkn" maxlength="200">${esc(PK.note)}</textarea></label>
+    <div class="sticky"><button class="btn solid" id="pkgo" ${PK.time&&pkCount()?'':'disabled'}>${esc(T.submitPickup)}${pkCount()?esc(T.itemsN(pkCount())):''}</button></div>`;
     document.getElementById('bk').onclick=()=>{sub='list';paint();};
     document.getElementById('pkd').onclick=e=>{const b=e.target.closest('button');if(!b)return;PK.date=b.dataset.d;PK.time='';paint();};
     document.getElementById('pkt').onclick=e=>{const b=e.target.closest('button');if(!b)return;const prev=venue;PK.time=b.dataset.t;const nv=(slots.find(x=>x.time===PK.time)||{}).venue;if(prev&&nv!==prev)PK.qty={};paint();};
     document.getElementById('pkn').oninput=e=>{PK.note=e.target.value;};
     document.getElementById('pkgo').onclick=submitPickup;
-    if(PK.time)loadMenu().then(()=>renderPickMenu(venue)).catch(()=>{const h=document.getElementById('pkm');if(h)h.innerHTML='<p class="empty">菜單載入失敗</p>';});
+    if(PK.time)loadMenu().then(()=>renderPickMenu(venue)).catch(()=>{const h=document.getElementById('pkm');if(h)h.innerHTML=`<p class="empty">${esc(T.menuFail)}</p>`;});
   }
   const pkCount=()=>Object.values(PK.qty).reduce((a,n)=>a+n,0);
   function renderPickMenu(venue){
     const host=document.getElementById('pkm');if(!host||!MENU)return;
     const items=MenuLib.sortItems(MenuLib.orderableOnly(MENU,new Date(PK.date+'T'+PK.time+':00+08:00')).filter(it=>it.venue===venue));
-    if(!items.length){host.innerHTML='<p class="empty">這個時段沒有可預約的品項</p>';return;}
+    if(!items.length){host.innerHTML=`<p class="empty">${esc(T.noItems)}</p>`;return;}
     let cat='',html='';
-    for(const it of items){if(it.cat!==cat){cat=it.cat;html+=`<div class="cat">${esc((MenuLib.CAT_LABEL[cat]||{}).zh||cat)}</div>`;}const n=PK.qty[it.id]||0;html+=`<div class="mi"><div class="nm">${esc(it.zh)}<small>NT$${esc(it.price)}${it.note?' · '+esc(it.note):''}</small></div><div class="q"><button type="button" data-dec="${esc(it.id)}" aria-label="減少" ${n?'':'disabled'}>−</button><b>${n}</b><button type="button" data-inc="${esc(it.id)}" aria-label="增加">＋</button></div></div>`;}
+    for(const it of items){if(it.cat!==cat){cat=it.cat;const cl=MenuLib.CAT_LABEL[cat]||{};html+=`<div class="cat">${esc(cl[LANG]||cl.zh||cat)}</div>`;}const n=PK.qty[it.id]||0;const nt=LANG==='ja'&&it.note_ja?it.note_ja:it.note;html+=`<div class="mi"><div class="nm">${esc(itemName(it))}<small>NT$${esc(it.price)}${nt?' · '+esc(nt):''}</small></div><div class="q"><button type="button" data-dec="${esc(it.id)}" aria-label="${esc(T.dec)}" ${n?'':'disabled'}>−</button><b>${n}</b><button type="button" data-inc="${esc(it.id)}" aria-label="${esc(T.inc)}">＋</button></div></div>`;}
     host.innerHTML=html;
-    host.onclick=e=>{const b=e.target.closest('button');if(!b)return;const id=b.dataset.inc||b.dataset.dec;const n=(PK.qty[id]||0)+(b.dataset.inc?1:-1);if(n<=0)delete PK.qty[id];else PK.qty[id]=Math.min(20,n);renderPickMenu(venue);const go=document.getElementById('pkgo');if(go){go.disabled=!pkCount();go.textContent='送出預約'+(pkCount()?'（'+pkCount()+' 件）':'');}};
+    host.onclick=e=>{const b=e.target.closest('button');if(!b)return;const id=b.dataset.inc||b.dataset.dec;const n=(PK.qty[id]||0)+(b.dataset.inc?1:-1);if(n<=0)delete PK.qty[id];else PK.qty[id]=Math.min(20,n);renderPickMenu(venue);const g=document.getElementById('pkgo');if(g){g.disabled=!pkCount();g.textContent=T.submitPickup+(pkCount()?T.itemsN(pkCount()):'');}};
   }
   async function submitPickup(){
     const b=document.getElementById('pkgo');b.disabled=true;
-    try{const items=Object.entries(PK.qty).filter(([,n])=>n>0).map(([item_id,qty])=>({item_id,qty}));await post('/api/me/pickups',{date:PK.date,time:PK.time,items,note:PK.note});toast('預約成立，取餐前會開始準備');PK={date:'',time:'',qty:{},note:''};sub='list';await load();}
-    catch(e){toast(e.message);b.disabled=false;}
+    try{const items=Object.entries(PK.qty).filter(([,n])=>n>0).map(([item_id,qty])=>({item_id,qty}));await post('/api/me/pickups',{date:PK.date,time:PK.time,items,note:PK.note});toast(T.pickupOk);PK={date:'',time:'',qty:{},note:''};sub='list';await load();}
+    catch(e){toast(e.message||T.opFail);b.disabled=false;}
+  }
+  /* ---- 會籍 ---- */
+  function accessInfo(){
+    const a=data.access||{},act=Array.isArray(a.activeEntitlements)?a.activeEntitlements:[],pend=Array.isArray(a.pending)?a.pending:[],ents=Array.isArray(a.entitlements)?a.entitlements:[];
+    const c=(data.commitments||[])[0]||null;
+    return {active:!!a.active,act,pend,ents,c,canIssue:act.length>0||pend.length>0};
+  }
+  function plan(){
+    const {active,act,pend,ents,c,canIssue}=accessInfo();
+    const primary=act[0]||pend[0]||null;
+    const label=primary?planName(primary.plan):(c?planName('founding'):'');
+    const had=ents.length>0||!!c;
+    const title=active?T.statusActive(label||T.plans.fallback):pend.length?T.statusPending:had?T.statusExpired:T.statusNone;
+    let s=null,e=null;
+    if(act[0]&&act[0].starts_at&&act[0].ends_at){s=parseT(act[0].starts_at)||new Date(act[0].starts_at);e=parseT(act[0].ends_at)||new Date(act[0].ends_at);}
+    else if(c&&c.start_date&&c.maturity_date){s=new Date(c.start_date);e=new Date(c.maturity_date);}
+    const now=new Date();let bar='',left='';
+    if(s&&e&&e>s&&!Number.isNaN(+s)&&!Number.isNaN(+e)){const pct=Math.min(100,Math.max(0,(now-s)/(e-s)*100)),dl=Math.max(0,Math.ceil((e-now)/864e5));bar=`<div class="bar"><i style="width:${pct.toFixed(1)}%"></i></div>`;left=dl>0?T.daysLeft(dl):T.statusExpired;}
+    else if(pend.length)left=T.statusPending;
+    const period=s&&e&&!Number.isNaN(+s)&&!Number.isNaN(+e)?fmtDate(s)+' – '+fmtDate(e):'';
+    const right=[label,period].filter(Boolean).join(' · ');
+    const chipLabel=active?T.accessOn:pend.length?T.accessPending:T.accessOff;
+    const rows=['day_4h','day_12h','month','quarter','year'].map(id=>`<div class="plan"><span>${esc(T.plans[id])}</span><button type="button" data-plan="${id}">${esc(T.buyBtn(PLAN_PRICES[id]))}</button></div>`).join('')
+      +`<div class="plan"><span>${esc(T.plans.founding)}<br><small style="color:var(--muted)">${esc(T.founderNote)}</small></span><a href="${SITE}${BASE}/fellow">${esc(T.joinFounder)}</a></div>`;
+    app.innerHTML=`<div class="hello"><h1>${esc(T.plan)}</h1></div>
+    <section class="panel"><div class="eyebrow">${esc(T.statusLabel)}${c&&c.cert_no?' · No. '+esc(c.cert_no):''}</div><div class="status">${esc(title)}</div>${bar}${left||right?`<div class="meta"><span>${esc(left)}</span><span>${esc(right)}</span></div>`:''}
+      <div class="btn2"><button class="btn solid" id="plans-toggle">${esc(had?T.renew:T.buy)}</button><button class="chip" id="access-chip"${canIssue?'':' data-blocked="1"'}><span class="dot${active?' on':''}"></span>${esc(chipLabel)}</button></div>
+      <div id="plans" hidden style="margin-top:12px"><div class="eyebrow">${esc(T.plansTitle)}</div>${rows}</div></section>
+    <section class="panel"><div class="eyebrow">${esc(T.accessTitle)}</div><p class="hint" style="margin:6px 0 12px">${esc(T.accessNote)}</p><button class="btn" id="access-qr">${esc(T.accessQr)}</button></section>
+    ${c?`<p class="hint">${esc(T.founderYes)}${c.cert_no?' · No. '+esc(c.cert_no):''}</p>`:''}`;
+    const drawer=document.getElementById('plans');
+    document.getElementById('plans-toggle').onclick=()=>{drawer.hidden=!drawer.hidden;};
+    document.querySelectorAll('[data-plan]').forEach(b=>b.onclick=()=>buyPlan(b.dataset.plan,b));
+    const openAccess=()=>{if(!canIssue){toast(T.needPlan);return;}openQr('access');};
+    document.getElementById('access-chip').onclick=openAccess;
+    document.getElementById('access-qr').onclick=openAccess;
+  }
+  async function buyPlan(id,btn){
+    btn.disabled=true;
+    try{const d=await post('/api/me/plans/checkout',{plan:id,lang:LANG});location.href=d.url;}
+    catch(e){toast(e.status===503?T.planFail:(e.message||T.netFail));btn.disabled=false;}
+  }
+  async function fulfillPlanIfNeeded(){
+    const q=new URLSearchParams(location.search);
+    const clean=()=>{['plan_paid','plan_canceled','s'].forEach(k=>q.delete(k));history.replaceState(null,'',location.pathname+(q.size?'?'+q:''));};
+    if(q.get('plan_canceled')==='1'){clean();toast(T.planCanceled);return;}
+    if(q.get('plan_paid')!=='1')return;
+    const s=q.get('s');if(!s||!token())return;
+    toast(T.planVerifying);
+    try{const d=await post('/api/me/plans/verify',{session_id:s});if(d.ok===true){clean();toast(T.planPaid);tab='plan';}}
+    catch(e){toast(e.message||T.netFail);}
   }
   function me(){
     const m=data.me||{},phone=(data.yan&&data.yan.phone)||m.phone||'';
-    app.innerHTML=`<div class="hello"><h1>我的</h1></div>
-    <div class="row"><span>姓名</span><b>${esc(m.name||'')}</b></div>
-    <div class="row"><span>Email</span><b>${esc(m.email||'')}</b></div>
-    <div class="row"><span>手機</span><b>${esc(phone?phone.replace(/^\+886/,'0'):'尚未填寫')}</b></div>
-    <section class="sec"><h2>更新資料</h2>
-      <label style="display:block;color:var(--soft)">手機（09 開頭，結帳報號碼就能累點）<input id="ph" type="tel" inputmode="tel" autocomplete="tel" value="${esc(m.phone||'')}" style="display:block;width:100%;margin-top:6px;min-height:52px;padding:0 14px;border:1.5px solid var(--line);border-radius:12px;font-family:inherit;font-size:1rem;background:#fff"></label>
-      <button class="btn solid" id="save" style="margin-top:12px">儲存</button></section>
-    <section class="sec" id="pksec" hidden><h2>快速登入</h2><p class="hint" id="pkmsg"></p><button class="btn" id="pkon">啟用 Touch ID／Face ID 登入</button><button class="quiet" id="pkoff" hidden>移除這台裝置的快速登入</button></section>
-    ${kindNow(true)?`<section class="sec"><h2>主畫面</h2><button class="btn" id="inst2" data-k="${kindNow(true)}">${INSTALL_LABEL[kindNow(true)]}</button></section>`:''}
-    ${data.role==='admin'||data.organizer?`<section class="sec"><h2>管理</h2>${data.role==='admin'?`<a class="btn" href="https://admin.emoji.tw/admin">前往後台</a>`:''}${data.organizer?`<a class="btn" href="https://www.emoji.tw/organizer/events" style="margin-top:10px">管理我的活動</a>`:''}</section>`:''}
-    <section class="sec"><a class="btn" href="${SITE}/member?web=1">完整會員專區</a><button class="quiet" id="out">登出</button></section>`;
-    document.getElementById('save').onclick=async()=>{const b=document.getElementById('save');b.disabled=true;try{const r=await fetch('/api/me/profile',{method:'POST',headers:{authorization:'Bearer '+token(),'content-type':'application/json'},body:JSON.stringify({name:m.name||'會員',phone:document.getElementById('ph').value})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'儲存失敗');toast('已儲存');await load();}catch(e){toast(e.message);}b.disabled=false;};
-    bindInstall();bindPasskey();
+    app.innerHTML=`<div class="hello"><h1>${esc(T.me)}</h1></div>
+    <div class="row"><span>${esc(T.name)}</span><b>${esc(m.name||'')}</b></div>
+    <div class="row"><span>${esc(T.emailL)}</span><b>${esc(m.email||'')}</b></div>
+    <div class="row"><span>${esc(T.phone)}</span><b>${esc(phone?phone.replace(/^\+886/,'0'):T.noPhone)}</b></div>
+    <section class="sec"><h2>${esc(T.edit)}</h2>
+      <label class="field">${esc(T.name)}<input id="nm" maxlength="80" autocomplete="name" value="${esc(m.name||'')}"></label>
+      <label class="field">${esc(T.emailL)}<input value="${esc(m.email||'')}" disabled></label>
+      <label class="field">${esc(T.phoneHint)}<input id="ph" type="tel" inputmode="tel" autocomplete="tel" maxlength="40" value="${esc(m.phone||'')}"></label>
+      <button class="btn solid" id="save" style="margin-top:12px">${esc(T.save)}</button></section>
+    <section class="sec"><button class="btn" id="line-link">${esc(T.lineLink)}</button></section>
+    <section class="sec" id="pksec" hidden><h2>${esc(T.quick)}</h2><p class="hint" id="pkmsg"></p><button class="btn" id="pkon">${esc(T.pkOn)}</button><button class="quiet" id="pkoff" hidden>${esc(T.pkOff)}</button></section>
+    ${kindNow(true)?`<section class="sec"><h2>${esc(T.home)}</h2><button class="btn" id="inst2" data-k="${kindNow(true)}">${esc(T.installLabel[kindNow(true)])}</button></section>`:''}
+    ${data.role==='admin'||data.organizer?`<section class="sec"><h2>${esc(T.manage)}</h2>${data.role==='admin'?`<a class="btn" href="https://admin.emoji.tw/admin">${esc(T.admin)}</a>`:''}${data.organizer?`<a class="btn" href="https://www.emoji.tw/organizer/events" style="margin-top:10px">${esc(T.organizer)}</a>`:''}</section>`:''}
+    <section class="sec"><h2>${esc(T.language)}</h2>${langBar()}</section>
+    <section class="sec"><button class="quiet" id="out">${esc(T.logout)}</button></section>`;
+    document.getElementById('save').onclick=async()=>{const b=document.getElementById('save');b.disabled=true;try{await post('/api/me/profile',{name:document.getElementById('nm').value.trim()||m.name||'會員',phone:document.getElementById('ph').value});toast(T.saved);await load();}catch(e){toast(e.message||T.saveFail);}b.disabled=false;};
+    document.getElementById('line-link').onclick=async function(){this.disabled=true;try{const out=await post('/api/me/line-link');location.assign(out.url);}catch(e){toast(e.message||T.lineFail);this.disabled=false;}};
+    bindInstall();bindPasskey();bindLang();
     document.getElementById('out').onclick=()=>{try{localStorage.removeItem(KEY);localStorage.removeItem(CACHE);sessionStorage.setItem('m_noauto','1');}catch(e){}location.reload();};
   }
   async function bindPasskey(){
@@ -389,30 +564,40 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     if(!document.getElementById('pksec'))return;
     const on=document.getElementById('pkon'),off=document.getElementById('pkoff'),msg=document.getElementById('pkmsg');
     const here=!!lsGet(PK_FLAG)&&list.length>0;
-    sec.hidden=false;msg.textContent=here?'已啟用。下次打開 App 可以直接用 Touch ID／Face ID 登入。':'登入過期時，不用再跳去 Google，用指紋或臉就能回來。';
+    sec.hidden=false;msg.textContent=here?T.pkHere:T.pkWhy;
     on.hidden=here;off.hidden=!here;
-    on.onclick=async()=>{on.disabled=true;try{await pkRegister();toast('已啟用');paint();}catch(e){if(!pkQuiet(e))toast(e.message||'無法啟用');on.disabled=false;}};
-    off.onclick=async()=>{off.disabled=true;try{for(const p of list)await fetch('/api/passkey/'+encodeURIComponent(p.id),{method:'DELETE',headers:{authorization:'Bearer '+token()}});try{localStorage.removeItem(PK_FLAG);}catch(e){}toast('已移除');paint();}catch(e){toast('移除失敗');off.disabled=false;}};
+    on.onclick=async()=>{on.disabled=true;try{await pkRegister();toast(T.enabled);paint();}catch(e){if(!pkQuiet(e))toast(e.message||T.enableFail);on.disabled=false;}};
+    off.onclick=async()=>{off.disabled=true;try{for(const p of list)await fetch('/api/passkey/'+encodeURIComponent(p.id),{method:'DELETE',headers:{authorization:'Bearer '+token()}});try{localStorage.removeItem(PK_FLAG);}catch(e){}toast(T.removed);paint();}catch(e){toast(T.removeFail);off.disabled=false;}};
   }
-  function paint(){tabs.hidden=false;[...tabs.children].forEach(b=>b.setAttribute('aria-current',b.dataset.tab===tab));({home,events,book,me})[tab]();window.scrollTo(0,0);}
+  function paint(){tabs.hidden=false;[...tabs.children].forEach(b=>b.setAttribute('aria-current',b.dataset.tab===tab));({home,book,plan,events,me})[tab]();window.scrollTo(0,0);}
   tabs.onclick=e=>{const b=e.target.closest('button');if(!b)return;tab=b.dataset.tab;paint();};
-  /* 全螢幕 QR：亮度靠白底、30 秒更新 */
-  const ov=document.getElementById('ov');
-  async function refreshQr(){const img=document.getElementById('ovimg'),meta=document.getElementById('ovmeta');try{const d=await get('/api/me/card');QRCode.toDataURL(d.token,{width:320,margin:1},(err,url)=>{if(!err)img.src=url;});meta.textContent='請出示給店員掃描';}catch(e){meta.textContent=offline||!navigator.onLine?'需要網路才能顯示會員卡，也可以直接報手機號碼':'暫時無法產生，請稍後再試';}}
-  function openQr(){ov.hidden=false;refreshQr();qrTimer=setInterval(refreshQr,30000);}
+  /* 全螢幕 QR：會員卡（結帳累點）與進出 QR 共用；亮度靠白底、30 秒更新 */
+  const ov=document.getElementById('ov');let qrKind='card';
+  const draw=(img,text)=>QRCode.toDataURL(text,{width:320,margin:1},(err,url)=>{if(!err)img.src=url;});
+  async function refreshQr(){
+    const img=document.getElementById('ovimg'),meta=document.getElementById('ovmeta'),sub=document.getElementById('ovsub');
+    try{
+      if(qrKind==='access'){const d=await get('/api/me/access-qr');draw(img,d.token);img.style.display='';meta.textContent=T.accessTitle;sub.textContent=planName(d.plan)+(d.pending_activation?T.qrPending:'')+(d.exp?' · '+T.qrUntil+fmtTs(d.exp*1000):'');}
+      else{const d=await get('/api/me/card');draw(img,d.token);img.style.display='';meta.textContent=T.scanMe;sub.textContent='';}
+    }catch(e){img.style.display='none';meta.textContent=offline||!navigator.onLine?(qrKind==='access'?T.qrOffline:T.hintPhone):(qrKind==='access'?(e.status===403?T.needPlan:T.qrFail):T.netFail);sub.textContent='';}
+  }
+  function openQr(kind){qrKind=kind||'card';ov.hidden=false;refreshQr();clearInterval(qrTimer);qrTimer=setInterval(refreshQr,30000);}
+  function openCard(){openQr('card');}
   function closeQr(){ov.hidden=true;clearInterval(qrTimer);}
   document.getElementById('ovx').onclick=closeQr;
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQr();});
   async function load(){
     try{
-      const s=await get('/api/state');let y={balance:0,phone:''},rw={items:[],space:[]};try{y=await get('/api/me/yan');}catch(e){}try{rw=await get('/api/me/rewards');}catch(e){}
+      await fulfillPlanIfNeeded();
+      const s=await get('/api/state?lang='+LANG);let y={balance:0,phone:''},rw={items:[],space:[]};try{y=await get('/api/me/yan');}catch(e){}try{rw=await get('/api/me/rewards');}catch(e){}
       let rv=[],pk={pickups:[],dates:[],slots:{}},rg=[];try{rv=(await get('/api/me/reservations')).reservations||[];}catch(e){}try{pk=await get('/api/me/pickups');}catch(e){}try{rg=(await get('/api/me/registrations')).registrations||[];}catch(e){}
-      s.events=(s.events||[]);data={me:s.me,events:s.events,yan:y,rewards:rw,reservations:rv,pickups:pk.pickups||[],pickupMeta:{dates:pk.dates||[],slots:pk.slots||{},prep_min:pk.prep_min},registrations:rg,role:s.role,organizer:!!s.organizer};offline=false;
+      s.events=(s.events||[]);
+      data={me:s.me,events:s.events,updates:s.updates||[],access:s.access||{},commitments:(s.commitments||[]).filter(c=>!s.me||c.user_id===s.me.id),yan:y,rewards:rw,reservations:rv,pickups:pk.pickups||[],pickupMeta:{dates:pk.dates||[],slots:pk.slots||{},prep_min:pk.prep_min},registrations:rg,role:s.role,organizer:!!s.organizer};offline=false;
       try{localStorage.setItem(CACHE,JSON.stringify(data));}catch(e){}
     }catch(e){
       if(e.status===401){try{localStorage.removeItem(KEY);}catch(x){}return login();}
       try{data=JSON.parse(localStorage.getItem(CACHE)||'null');}catch(x){data=null;}
-      if(!data){app.innerHTML='<p class="empty">連線失敗，請稍後再試<br><br><button class="btn" onclick="location.reload()">重新整理</button></p>';return;}
+      if(!data){app.innerHTML=`<p class="empty">${esc(T.netFail)}<br><br><button class="btn" onclick="location.reload()">${esc(T.reload)}</button></p>`;return;}
       offline=true;
     }
     paint();

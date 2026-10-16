@@ -8,7 +8,7 @@
 | `/cis/`、`/en/cis/`、`/ja/cis/` | 企業識別 CIS（公開 Brand Guidelines） |
 | `/fellow` | 言文字創始會員站（一頁式 SPA，含登入／會員儀表板／後台／Stripe 結帳） |
 | `/api/*`、`/auth/google/*` | 後端 REST API 與 Google 登入；資料存 Postgres |
-| `/member` | 會員專區（進出 QR、會籍狀態、活動報名） |
+| `/member`（三語） | 302 → 會員 App `https://app.emoji.tw/`（會員卡、點數、會籍與進出 QR、活動、資料、LINE 綁定全在 App；`public/m.html`） |
 | `/admin`、`/admin/*` | 後台（會籍、活動、內容、社群、廣告）；每個分頁為一般路徑（`/admin/members`、`/admin/social/edit/:id`…），伺服器對 `/admin/*` 皆回同一頁；舊 `/admin#tab` 書籤自動轉為路徑 |
 | `/ig-media/*` | 物件儲存（Railway bucket／MinIO，皆不公開）的同網域代理：社群素材、貼文圖、活動圖的公開網址一律是 `PUBLIC_ORIGIN/ig-media/<key>` |
 | `/order?t=桌號&k=簽章` | 桌邊 QR 點餐（不登入）：同桌共用購物車、TapPay 刷卡、取餐推播；QR 由後台「點餐出餐」分頁產生 |
@@ -52,7 +52,7 @@ DB 未設定時伺服器優雅降級：靜態頁照常，`/api/*` 回 503。
 | `TAPPAY_APP_ID` / `TAPPAY_APP_KEY` / `TAPPAY_PARTNER_KEY` / `TAPPAY_MERCHANT_ID` / `TAPPAY_ENV` | 桌邊 QR 點餐刷卡（TapPay Pay by Prime）；`TAPPAY_ENV` 為 `sandbox`（預設）或 `production`。缺任一項時 `/order` 顯示「請至櫃檯結帳」 |
 | `STRIPE_WEBHOOK_SECRET` | 同帳號送至 `/api/stripe/webhook` 的簽章；未設時付費活動 fail closed |
 | `EVENT_QR_SECRET` | 活動票券 QR 簽章；留空時沿用 `ACCESS_QR_SECRET` |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 會員專區 Google 登入 |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 會員 App Google 登入 |
 | `GOOGLE_MEET_CLIENT_ID` / `GOOGLE_MEET_CLIENT_SECRET` | 活動主連接 Google Calendar 並建立 Meet；OAuth callback 為 `${PUBLIC_ORIGIN}/integrations/google-meet/callback` |
 | `ZOOM_CLIENT_ID` / `ZOOM_CLIENT_SECRET` | 活動主連接 Zoom 並建立 Meeting／Webinar；OAuth callback 為 `${PUBLIC_ORIGIN}/integrations/zoom/callback` |
 | `GOOGLE_WALLET_ISSUER_ID` / `GOOGLE_WALLET_SERVICE_ACCOUNT_B64` | Google Wallet issuer 與 base64 服務帳號 JSON；簽發後由 Wallet Objects API 同步活動異動，缺任一項不顯示按鈕 |

@@ -900,7 +900,7 @@ function tabUpdates(d){
   </tr>`).join('') || '<tr><td colspan="4" class="a-empty">尚無更新</td></tr>';
   return `<div class="a-sec">
     <h2>最新消息</h2>
-    <p class="hint">發布後會公開顯示於官網首頁「最新消息」，也顯示於會員專區。</p>
+    <p class="hint">發布後會公開顯示於官網首頁「最新消息」，也顯示於會員 App。</p>
     <div class="a-form" style="align-items:center">
       <input id="u-title" placeholder="標題" aria-label="更新標題">
       <select id="u-type" aria-label="更新類型"><option>月報</option><option>季報</option><option>重大事項</option><option>活動通知</option><option>財務摘要</option></select>
@@ -1471,7 +1471,7 @@ function bind(d, x){
   // 最新消息
   on('u-add','click',()=>{ const title=document.getElementById('u-title').value.trim(); if(!title){toast('請輸入標題');return;}
     doThen(()=>api('/admin/updates',{method:'POST',body:{title,type:document.getElementById('u-type').value,content:document.getElementById('u-content').value.trim(),date:document.getElementById('u-date').value||undefined}}),'已發布'); });
-  document.querySelectorAll('[data-upd-del]').forEach(b=>b.onclick=()=>{if(!confirm('確定刪除這則最新消息？官網與會員專區會立即消失。'))return;doThen(()=>api('/admin/updates/'+b.dataset.updDel,{method:'DELETE'}),'已刪除');});
+  document.querySelectorAll('[data-upd-del]').forEach(b=>b.onclick=()=>{if(!confirm('確定刪除這則最新消息？官網與會員 App 會立即消失。'))return;doThen(()=>api('/admin/updates/'+b.dataset.updDel,{method:'DELETE'}),'已刪除');});
 
   // 網站內容
   on('ct-save','click',()=>doThen(()=>{

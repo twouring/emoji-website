@@ -37,7 +37,7 @@ test('hidden 屬性不得被 display 規則蓋掉（未登入不顯示分頁列�
 });
 
 test('消費者介面不出現品牌化點數名稱（言點、Yan）', () => {
-  for (const f of ['public/m.html', 'public/member.html', 'public/en/member.html', 'public/ja/member.html', 'docs/API.md', 'lib/yan.js'])
+  for (const f of ['public/m.html', 'docs/API.md', 'lib/yan.js'])
     assert.doesNotMatch(read(f), /言點|Yan points|言ポイント/, f);
 });
 

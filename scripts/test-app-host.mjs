@@ -53,7 +53,7 @@ test('app.emoji.tw：首頁直接出會員 PWA（網址維持 /），帶 noindex
 
 test('app.emoji.tw：不屬於 App 的頁面導回官網（保留路徑），App 需要的檔案與 API 不轉', async t => {
   const get = await server(t);
-  for (const url of ['/events/abc?x=1', '/space', '/member', '/fellow']) {
+  for (const url of ['/events/abc?x=1', '/space', '/fellow']) {
     const res = await get(url, { host: 'app.emoji.tw' });
     assert.equal(res.status, 302, url); assert.equal(res.headers.get('location'), 'https://www.emoji.tw' + url, url);
   }
@@ -86,10 +86,10 @@ test('app.emoji.tw 登入：先跳回官網發起 Google 登入（state cookie �
   assert.notEqual(stateOf(evil).r, 'https://app.emoji.tw.evil.test/');
 });
 
-test('前端：app 子網域用根路徑登入、活動與完整會員專區連回官網；service worker 殼含 /', () => {
+test('前端：app 子網域用根路徑登入、活動詳情與創始會員連回官網；service worker 殼含 /', () => {
   const h = read('public/m.html'), sw = read('public/m-sw.js');
   assert.match(h, /ON_APP=location\.hostname==='app\.emoji\.tw'/);
-  assert.match(h, /href="\$\{SITE\}\/events\//); assert.match(h, /href="\$\{SITE\}\/member\?web=1"/);
+  assert.match(h, /SITE\+BASE\+'\/events\/'/); assert.match(h, /href="\$\{SITE\}\$\{BASE\}\/fellow"/); assert.doesNotMatch(h, /\/member\?web=1/);
   assert.match(h, /register\('\/m-sw\.js',\{scope:ROOT\}\)/);
   assert.match(sw, /VERSION = 'm-v([2-9]|\d{2,})'/); assert.match(sw, /SHELL = \['\/m', '\/'/);
 });

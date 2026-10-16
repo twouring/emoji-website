@@ -93,7 +93,7 @@ test('POS 結帳可帶會員電話／卡，會員頁有點數與會員卡', () =
   const ops = read('public/pos-ops.js');
   assert.match(ops, /yan\/lookup/);
   assert.match(ops, /MEMBER_PHONE|member_phone/);
-  const pages = ['public/member.html', 'public/en/member.html', 'public/ja/member.html'];
+  const pages = ['public/m.html'];
   for (const f of pages) {
     const html = read(f);
     assert.match(html, /\/api\/me\/yan/, f);

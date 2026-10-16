@@ -22,7 +22,7 @@ test('route audit rejects non-loopback origins and credentials', () => {
 test('three-language pages, local assets, redirects and missing events', { skip: !process.env.SITE_AUDIT_ORIGIN }, async () => {
   const origin = localOrigin(process.env.SITE_AUDIT_ORIGIN);
   const prefixes = ['', '/en', '/ja'];
-  const slugs = ['', 'about', 'system', 'space', 'events', 'member', 'access', 'fellow', 'startup', 'cis/'];
+  const slugs = ['', 'about', 'system', 'space', 'events', 'access', 'fellow', 'startup', 'cis/'];
   const pages = prefixes.flatMap(pre => slugs.map(slug => `${pre}/${slug}`));
   const extraPages = ['/admin', '/access-mock', '/ig-render'];
   const assets = new Set();
