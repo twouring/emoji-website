@@ -1283,6 +1283,7 @@ function bindNav(){
 }
 
 function activateTab(t){
+  startKitchenPrinting();
   TAB = t;
   document.querySelectorAll('[data-tab]').forEach(n=>{ const on = n.dataset.tab===TAB; n.classList.toggle('on',on); n.setAttribute('aria-current', on?'page':'false'); });
   document.querySelectorAll('[data-panel]').forEach(p=>p.classList.toggle('on',p.dataset.panel===TAB));

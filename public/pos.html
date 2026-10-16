@@ -313,6 +313,7 @@ function resetPanels(){
   POS_TABLE=''; POS_PICK=null; POS_DISCOUNT=null; POS_RECEIVED=''; HIST_Q=''; CLOCK_PIN='';
 }
 function activate(){
+  startKitchenPrinting();
   document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('on', p.dataset.panel === TAB));
   clearTimeout(ORDERS_TIMER); clearTimeout(POS_TIMER);
   if (TAB === 'pos') loadPos();

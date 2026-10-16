@@ -44,9 +44,9 @@ test('receipt detail shows guest totals, payment and invoice',async()=>{
  assert.ok(texts.some(t=>String(t).includes('折扣')));assert.ok(texts.some(t=>String(t).includes('實收')));
  assert.ok(texts.some(t=>String(t).includes('發票 AB12345678')));assert.ok(texts.some(t=>String(t).includes('買受人統編')));
 });
-test('checkout always prints kitchen ticket even when invoice printing throws',async()=>{
- const {c}=printContext();c.jobs=[];vm.runInContext("printOrder=async()=>jobs.push('kitchen');printInvoiceProof=async()=>{throw Error('offline')};",c);
- await vm.runInContext("printCheckoutOrder({invoice:{status:'issued'},payer:{method:'cash'}})",c);assert.deepEqual([...c.jobs],['kitchen']);
+test('checkout prints receipt, never kitchen, even when invoice printing throws',async()=>{
+ const {c}=printContext();c.jobs=[];vm.runInContext("printReceipt=async()=>jobs.push('receipt');printOrder=async()=>jobs.push('kitchen');printInvoiceProof=async()=>{throw Error('offline')};",c);
+ await vm.runInContext("printCheckoutOrder({invoice:{status:'issued'},payer:{method:'cash'}})",c);assert.deepEqual([...c.jobs],['receipt']);
 });
 test('printer jobs are serialized and recover after a failed job',async()=>{
  const c=load();vm.runInContext(src,c);c.started=[];c.release=[];
@@ -54,9 +54,17 @@ test('printer jobs are serialized and recover after a failed job',async()=>{
  const a=vm.runInContext('starSend({id:1,fail:true})',c);const caught=a.catch(()=>false);const b=vm.runInContext('starSend({id:2})',c);
  await Promise.resolve();assert.deepEqual([...c.started],[1]);c.release[0]();await caught;await Promise.resolve();await Promise.resolve();assert.deepEqual([...c.started],[1,2]);c.release[1]();assert.equal(await b,true);
 });
-test('without an invoice every checkout still prints kitchen ticket',async()=>{
- const {c}=printContext();c.jobs=[];vm.runInContext("printOrder=async()=>jobs.push('kitchen');",c);
- await vm.runInContext("printCheckoutOrder({invoice:{},payer:{method:'card'}})",c);assert.deepEqual([...c.jobs],['kitchen']);
+test('without an invoice checkout prints receipt only',async()=>{
+ const {c}=printContext();c.jobs=[];vm.runInContext("printReceipt=async()=>jobs.push('receipt');printOrder=async()=>jobs.push('kitchen');",c);
+ await vm.runInContext("printCheckoutOrder({invoice:{},payer:{method:'card'}})",c);assert.deepEqual([...c.jobs],['receipt']);
+});
+test('checkout prints invoice and receipt exactly once, with no kitchen call',async()=>{
+ const {c}=printContext();c.jobs=[];vm.runInContext("printReceipt=async()=>jobs.push('receipt');printOrder=async()=>jobs.push('kitchen');printInvoiceProof=async()=>jobs.push('invoice');",c);
+ await vm.runInContext("printCheckoutOrder({invoice:{status:'issued'}})",c);assert.deepEqual([...c.jobs],['invoice','receipt']);
+});
+test('automatic receipt outside Star Browser never opens a popup',async()=>{
+ const {c}=printContext();vm.runInContext("navigator.userAgent='Safari';printWindow=()=>{throw Error('unexpected popup')};",c);
+ assert.equal(await vm.runInContext("printReceipt({items:[]},{auto:true})",c),false);
 });
 test('history offers invoice scan lookup without auto-voiding',()=>{
  assert.match(src,/id="hist-scan"/);assert.match(src,/PosInvoiceScan\.open\(\{onScan/);

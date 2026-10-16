@@ -5,12 +5,12 @@ import vm from 'node:vm';
 const src=fs.readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');
 function checkout({method='cash',fail=false,printFail=false}={}){
  const events=[],messages=[],button={disabled:false};
- const ctx={Promise,Map,Set,Date,Number,String,priceOf:l=>l.price,printOrder:async()=>events.push('kitchen'),OPERATOR:{id:'op1'},POS_METHOD:method,POS_RECEIVED:'200',POS_MEMBER:false,POS_DISCOUNT:null,POS_INVOICE:{mode:''},POS_PICK:null,picked:[{zh:'測試品項',qty:1,price:180}],total:180,cur:{id:'s1',table:'A1'},host:{querySelector:()=>button},confirm:()=>true,num:String,payMethodLabel:x=>x,invoiceBody:()=>({}),ensureOperator:fn=>fn(),toast:m=>messages.push(m),reload:async()=>events.push('reload'),api:async()=>{events.push('payment');if(fail)throw Error('payment rejected');return {order_id:'to_1',amount:180,change:20,method,invoice:{status:'issued',number:'AB12345678'}};},autoCashDrawer:async event=>{events.push(event);return true;},printInvoiceProof:async()=>{events.push('print');if(printFail)throw Error('canvas failed');}};
+ const ctx={Promise,Map,Set,Date,Number,String,priceOf:l=>l.price,printReceipt:async()=>events.push('receipt'),printOrder:async()=>events.push('kitchen'),OPERATOR:{id:'op1'},POS_METHOD:method,POS_RECEIVED:'200',POS_MEMBER:false,POS_DISCOUNT:null,POS_INVOICE:{mode:''},POS_PICK:null,picked:[{zh:'測試品項',qty:1,price:180}],total:180,cur:{id:'s1',table:'A1'},host:{querySelector:()=>button},confirm:()=>true,num:String,payMethodLabel:x=>x,invoiceBody:()=>({}),ensureOperator:fn=>fn(),toast:m=>messages.push(m),reload:async()=>events.push('reload'),api:async()=>{events.push('payment');if(fail)throw Error('payment rejected');return {order_id:'to_1',amount:180,change:20,method,invoice:{status:'issued',number:'AB12345678'}};},autoCashDrawer:async event=>{events.push(event);return true;},printInvoiceProof:async()=>{events.push('print');if(printFail)throw Error('canvas failed');}};
  vm.createContext(ctx);
  vm.runInContext(src.slice(src.indexOf('async function opsThen('),src.indexOf('function ordersBeep(')),ctx);
  vm.runInContext(src.slice(src.indexOf('const DRAWER_ATTEMPTS='),src.indexOf('async function openCashDrawer(')),ctx);
  vm.runInContext(src.slice(src.indexOf('async function printCheckoutOrder('),src.indexOf('// 出餐單（')),ctx);
- vm.runInContext(src.slice(src.indexOf("  host.querySelector('#pos-checkout').onclick="),src.indexOf("  const mv=host.querySelector('#pos-move')")),ctx);
+ vm.runInContext(src.slice(src.indexOf("  host.querySelector('#pos-checkout').onclick="),src.indexOf("  const place=host.querySelector('#pos-place')")),ctx);
  return {ctx,button,events,messages};
 }
 test('checkout failure never triggers drawer or invoice',async()=>{
@@ -19,7 +19,7 @@ test('checkout failure never triggers drawer or invoice',async()=>{
 });
 test('successful checkout opens before invoice work and resets even when canvas fails',async()=>{
  const {ctx,button,events,messages}=checkout({printFail:true});await button.onclick();
- assert.equal(events[0],'payment');assert.equal(events[1].kind,'checkout');assert.equal(events[1].order_id,'to_1');assert.equal(events[2],'print');assert.equal(events[3],'kitchen');assert.equal(events[4],'reload');assert.equal(button.disabled,false);assert.equal(ctx.POS_RECEIVED,'');assert.equal(ctx.POS_INVOICE.mode,'paper');assert.match(messages.join(' '),/發票列印失敗/);
+ assert.equal(events[0],'payment');assert.equal(events[1].kind,'checkout');assert.equal(events[1].order_id,'to_1');assert.equal(events[2],'print');assert.equal(events[3],'receipt');assert.equal(events[4],'reload');assert.equal(button.disabled,false);assert.equal(ctx.POS_RECEIVED,'');assert.equal(ctx.POS_INVOICE.mode,'paper');assert.match(messages.join(' '),/發票列印失敗/);
 });
 test('rapid double click submits only once while processing',async()=>{
  const {ctx,button,events}=checkout();let release;ctx.api=()=>new Promise(r=>{events.push('payment');release=()=>r({order_id:'to_2',amount:180,method:'cash'});});

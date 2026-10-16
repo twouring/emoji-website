@@ -32,6 +32,7 @@ const eventWallets=require('./lib/event-wallets');
 const eventCrypto=require('./lib/event-crypto');
 const eventChannels=require('./lib/event-channels');
 const tableOrders=require('./lib/table-orders');
+const kitchenPrint=require('./lib/pos-kitchen-print');
 const ezpayInvoice=require('./lib/ezpay-invoice');
 const linepay=require('./lib/linepay');
 const taishinManual=require('./lib/taishin-manual');
@@ -686,6 +687,10 @@ async function migrate() {
   // 櫃檯作廢：status='void' 另記原因與誰作廢（舊庫補欄位）
   await q(`ALTER TABLE table_orders ADD COLUMN IF NOT EXISTS invoice JSONB NOT NULL DEFAULT '{}'`);
   await q(`ALTER TABLE table_orders ADD COLUMN IF NOT EXISTS void_reason TEXT, ADD COLUMN IF NOT EXISTS voided_by TEXT, ADD COLUMN IF NOT EXISTS voided_at TIMESTAMPTZ`);
+  await q(`CREATE TABLE IF NOT EXISTS pos_kitchen_print_jobs (
+    id TEXT PRIMARY KEY, job JSONB NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    claimed_at TIMESTAMPTZ, actor TEXT, operator_id TEXT
+  )`);
   // 只記錄開錢櫃請求，不代表硬體已成功開啟；event_key 唯一限制負責跨平板去重。
   await q(`CREATE TABLE IF NOT EXISTS pos_drawer_events (
     id TEXT PRIMARY KEY, event_key TEXT NOT NULL UNIQUE, kind TEXT NOT NULL CHECK (kind IN ('checkout','refund','manual')),
@@ -4251,6 +4256,8 @@ async function mutateItems(req,res,fn){
     if(!s||s.status!=='open'){await client.query('ROLLBACK');return res.status(s?409:404).json({error:s?'這桌已結束，請重新掃描 QR。':'找不到這桌的點餐。'});}
     const items=await fn(s.items);
     await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items)]);
+    const previousTickets=new Set(s.items.map(l=>l.ticket).filter(Boolean));
+    await kitchenPrint.enqueue(client.query.bind(client),[{...s,items:items.filter(l=>l.ticket&&!previousTickets.has(l.ticket))}]);
     await client.query('COMMIT');const out=await loadSession(s.id);res.json(publicSession(out,String(req.body?.guest||'')));
   }catch(e){await client.query('ROLLBACK');if(e.status)return res.status(e.status).json({error:e.message});throw e;}finally{client.release();}
 }
@@ -4277,6 +4284,7 @@ app.post('/api/orders/:id/pay',rateLimit({max:10}),requireDb,wrap(async(req,res)
     try{
     await client.query('INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,tappay) VALUES($1,$2,$3,$4,$5,$6,$7)',[orderId,s.id,s.table_no,JSON.stringify(lines.map(l=>({...l,order_id:orderId}))),amount,JSON.stringify(who),JSON.stringify({rec_trade_id:paid.rec_trade_id,bank_transaction_id:paid.bank_transaction_id,auth_code:paid.auth_code,last_four:paid.card_info?.last_four})]);
     await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items)]);
+    await kitchenPrint.enqueue(client.query.bind(client),[{id:orderId,session_id:s.id,table_no:s.table_no,items:lines.filter(l=>!l.ticket),status:'paid'}]);
     await client.query('COMMIT');
     }catch(e){console.error(`[table-pay] 已扣款但未入帳：rec_trade_id=${paid.rec_trade_id} order=${orderId} table=${s.table_no} amount=${amount}`,e.message);throw e;}
     res.json({ok:true,order_id:orderId,amount,session:publicSession(await loadSession(s.id),String(req.body?.guest||''))});
@@ -4295,6 +4303,20 @@ app.post('/api/orders/:id/push',requireDb,wrap(async(req,res)=>{
 }));
 
 /* 後台：出餐看板、清桌、桌號 QR */
+app.get('/api/admin/orders/kitchen-print-jobs',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
+  // New submissions enqueue transactionally. Polling must not replay pre-release orders.
+  const rows=(await q('SELECT job FROM pos_kitchen_print_jobs WHERE claimed_at IS NULL ORDER BY created_at,id')).rows;
+  res.json({jobs:rows.map(r=>r.job).filter(j=>tableOrders.orderOwnedByVenues(j,venues))});
+}));
+app.post('/api/admin/orders/kitchen-print-jobs/:id/claim',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!/^(tk_|to_)[A-Za-z0-9_-]{1,128}$/.test(req.params.id))return res.status(404).json({error:'找不到列印工作。'});
+  const operator=await resolveOperator(req,req.body?.operator_id);
+  if(req.body?.operator_id&&!operator)return res.status(400).json({error:'操作人員無效。'});
+  const out=await kitchenPrint.claim(q,req.params.id,tableOrders.visibleVenues(req.auth.brands),actorOf(req.auth)||'',operator?.id);
+  if(!out)return res.status(404).json({error:'找不到列印工作。'});
+  res.json({ok:true,...out});
+}));
 app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const all=req.query.all==='1';
   // 品牌後台用 ?venue= 只看單一店別；子帳號不得超出自己的品牌（判斷集中在 lib/table-orders.js，可單測）
@@ -4356,6 +4378,14 @@ app.post('/api/admin/orders/sessions/:id/items',auth,adminOnly,requireDb,wrap(as
   const menuAll=tableOrders.menuIndex(await contentValue('menu'),undefined,{posOnly:true});   // 櫃檯可替客人加任何已發布品項（含估清、非營業時段、POS 限定如「其他」），但不得跨品牌
   const it=menuAll.get(String(req.body?.item_id||''));if(it&&!tableOrders.itemInVenues(it,venues))return res.status(403).json({error:'只能加自己店別的品項。'});
   return mutateItems(req,res,items=>tableOrders.posAddLine(items,menuAll,req.body||{}));
+}));
+app.post('/api/admin/orders/sessions/:id/place',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  return mutateItems(req,res,items=>{
+    if(!tableOrders.sessionClosableByVenues({items},venues))throw Object.assign(Error('混合品牌請由言文字管理員送單。'),{status:403});
+    return tableOrders.placeLines(items).items;
+  });
 }));
 app.delete('/api/admin/orders/sessions/:id/items/:line',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
