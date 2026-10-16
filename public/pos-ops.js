@@ -167,21 +167,39 @@ async function askInvoice(){
     if(!/^\d{8}$/.test(ubn)){toast('統編請輸入 8 碼數字');return null;}
     return {mode:'company',buyer_ubn:ubn};
   }
-  const cfg={mobile:{title:'手機載具條碼',placeholder:'例：/ABC+123（共 8 碼）'},citizen:{title:'自然人憑證條碼',placeholder:'例：AB12345678901234'},donate:{title:'捐贈愛心碼',placeholder:'3–7 碼數字'}}[kind];
-  const v=await pickReason({title:cfg.title,presets:[],placeholder:cfg.placeholder,maxlength:20});
-  if(v===null)return null;const val=v.trim().toUpperCase();
-  if(kind==='mobile'){if(!/^\/[A-Z0-9.+-]{7}$/.test(val)){toast('手機條碼需為 / 開頭共 8 碼');return null;}return {mode:'mobile',carrier_num:val};}
-  if(kind==='citizen'){if(!/^[A-Z]{2}\d{14}$/.test(val)){toast('自然人憑證條碼格式不正確');return null;}return {mode:'citizen',carrier_num:val};}
-  if(!/^\d{3,7}$/.test(val)){toast('愛心碼請輸入 3–7 碼數字');return null;}
-  return {mode:'donate',love_code:val};
+  if(kind==='donate'){
+    const v=await pickReason({title:'捐贈愛心碼',presets:[],placeholder:'3–7 碼數字',maxlength:20});
+    if(v===null)return null;const val=v.trim();
+    if(!/^\d{3,7}$/.test(val)){toast('愛心碼請輸入 3–7 碼數字');return null;}
+    return {mode:'donate',love_code:val};
+  }
+  const val=await pickCarrier(kind);if(val===null)return null;
+  if(kind==='mobile'&&!/^\/[A-Z0-9.+-]{7}$/.test(val)){toast('手機條碼需為 / 開頭共 8 碼');return null;}
+  if(kind==='citizen'&&!/^[A-Z]{2}\d{14}$/.test(val)){toast('自然人憑證條碼格式不正確');return null;}
+  return {mode:kind,carrier_num:val};
+}
+// 載具條碼：相機掃描（與結帳同一套辨識）或手動輸入；掃到就直接送出。回傳大寫條碼字串，null＝取消
+function pickCarrier(kind){
+  const cfg=kind==='mobile'?{title:'手機載具條碼',placeholder:'例：/ABC+123（共 8 碼）'}:{title:'自然人憑證條碼',placeholder:'例：AB12345678901234'};
+  return new Promise(resolve=>{
+    const {ov,close}=pickOverlay(`<h3>${esc(cfg.title)}</h3><p class="hint">按「掃描」用相機對準條碼，或直接手動輸入。</p><div class="pos-inv-scan-row"><input id="pos-carrier-input" maxlength="20" autocapitalize="characters" autocomplete="off" placeholder="${esc(cfg.placeholder)}"><button type="button" class="btn btn--ghost" id="pos-carrier-scan">📷 掃描</button></div><video id="pos-carrier-video" playsinline muted></video><div class="pos-move-foot"><span></span><span><button type="button" class="btn btn--ghost" data-cancel>取消</button> <button type="button" class="btn btn--solid" data-ok>確定</button></span></div>`,cfg.title);
+    const inp=ov.querySelector('#pos-carrier-input'),video=ov.querySelector('#pos-carrier-video');
+    const done=v=>{stopPosInvoiceScanner(video);close();resolve(v);};
+    ov.onclick=e=>{if(e.target===ov)done(null);};
+    ov.querySelector('[data-cancel]').onclick=()=>done(null);
+    ov.querySelector('[data-ok]').onclick=()=>done(inp.value.trim().toUpperCase());
+    inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();done(inp.value.trim().toUpperCase());}};
+    ov.querySelector('#pos-carrier-scan').onclick=()=>startInvoiceScan(video,v=>{inp.value=v;done(v);});
+    inp.focus();
+  });
 }
 let POS_INV_SCAN_STREAM=null,POS_INV_SCAN_FRAME=0;
 // 發票各類型只顯示自己要填的欄位（點選後才出現），手機載具可用相機掃描條碼代替手打
-function stopPosInvoiceScanner(){
+function stopPosInvoiceScanner(video){
   cancelAnimationFrame(POS_INV_SCAN_FRAME);POS_INV_SCAN_FRAME=0;
   if(POS_INV_SCAN_STREAM)POS_INV_SCAN_STREAM.getTracks().forEach(t=>t.stop());
   POS_INV_SCAN_STREAM=null;
-  const v=document.getElementById('pos-invoice-video');if(v){v.style.display='none';v.srcObject=null;}
+  for(const v of [video,document.getElementById('pos-invoice-video')])if(v){v.style.display='none';v.srcObject=null;}
 }
 // 相機條碼辨識：Chrome／Android 用瀏覽器內建 BarcodeDetector；Safari（iPhone／iPad 上所有瀏覽器都是 WebKit）至今沒開放這個 API，
 // 改用同網域的 /vendor/zxing-reader.js（zxing-wasm），.wasm 也放本站 /vendor/，不連外部 CDN。
@@ -204,6 +222,25 @@ function barcodeDetectorClass(){
       return out.filter(r=>r.text).map(r=>({rawValue:r.text,format:r.format}));
     }
   };
+}
+// 共用掃描迴圈：開相機→逐幀辨識→掃到就停、回呼、提示。結帳與補開發票都用這一個；video 是誰的就把畫面放誰那裡
+async function startInvoiceScan(video,onCode){
+  const BD=barcodeDetectorClass();
+  if(!BD||!navigator.mediaDevices?.getUserMedia){toast('此瀏覽器不支援相機掃碼，請直接輸入條碼。');return false;}
+  try{
+    stopPosInvoiceScanner();
+    POS_INV_SCAN_STREAM=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
+    video.srcObject=POS_INV_SCAN_STREAM;video.style.display='block';await video.play();
+    const detector=new BD({formats:['code_39','code_128','qr_code']});
+    const tick=async()=>{
+      if(!POS_INV_SCAN_STREAM||video.srcObject!==POS_INV_SCAN_STREAM)return;
+      const codes=await detector.detect(video).catch(()=>[]);
+      const raw=codes[0]?.rawValue;
+      if(raw){const v=raw.trim().toUpperCase();stopPosInvoiceScanner(video);onCode(v);toast('已掃到條碼：'+v);return;}
+      POS_INV_SCAN_FRAME=requestAnimationFrame(tick);
+    };
+    tick();return true;
+  }catch(e){stopPosInvoiceScanner(video);toast('無法開啟相機：'+e.message);return false;}
 }
 function updateInvoiceFields(host){
   const box=host.querySelector('.pos-invoice');if(!box)return;
@@ -440,8 +477,17 @@ function kitchenPrintStatus(){
 function kitchenPrintStatusHtml(){
   const st=kitchenPrintStatus().state;
   if(st==='paused')return `<div class="a-toolbar pos-print-status pos-print-paused"><span class="pill pill-bad">自動出單已暫停</span><span class="hint" style="margin:0">檢查紙張、補印後</span><button type="button" class="btn btn--ghost btn-xs" id="pos-print-resume">恢復自動出單</button></div>`;
-  if(st==='running')return `<div class="a-toolbar pos-print-status"><span class="pill pill-ok">自動出單運行中</span><span class="hint" style="margin:0">客人送單後這台會自動印出餐單</span></div>`;
-  return `<div class="a-toolbar pos-print-status"><span class="pill pill-draft">這台未自動出單</span><span class="hint" style="margin:0">要自動印出餐單，請用 Star webPRNT Browser 開 POS 並接上 mPOP</span></div>`;
+  if(st==='running')return `<div class="a-toolbar pos-print-status"><span class="pill pill-ok">自動出單運行中</span><span class="hint" style="margin:0">已接 mPOP：送單後自動印紙本出餐單，這頁只做查看與補印</span><button type="button" class="btn btn--ghost btn-xs" id="pos-print-test">測試列印</button></div>`;
+  return `<div class="a-toolbar pos-print-status"><span class="pill pill-draft">這台未自動出單</span><span class="hint" style="margin:0">沒接 mPOP：用這頁出餐；要印紙本出餐單，請用 Star webPRNT Browser 開 POS 並接上 mPOP</span></div>`;
+}
+async function printTestTicket(){
+  if(!starReady()){starHint();return false;}
+  const spec=[{kind:'center',text:'測試列印',size:22,bold:true},{kind:'center',text:'mPOP 連線正常',size:20},{kind:'center',text:applicationTime(new Date().toISOString()),size:18},{kind:'center',text:'這張不是出餐單，可直接丟棄',size:18}];
+  const ok=await starSend({canvas:ticketCanvas(spec)});toast(ok?'測試列印已送出，請看 mPOP 是否出紙':'測試列印失敗，請檢查 USB-C 線與 mPOP 電源');return ok;
+}
+function bindPrintStatus(host,repaint){
+  const resume=host.querySelector('#pos-print-resume');if(resume)resume.onclick=()=>{resumeKitchenPrinting();if(KITCHEN_PRINT_PAUSED)return;repaint();return pollKitchenPrinting();};
+  const test=host.querySelector('#pos-print-test');if(test)test.onclick=async()=>{if(test.disabled)return;test.disabled=true;try{await printTestTicket();}finally{test.disabled=false;}};
 }
 function startKitchenPrinting(){
   if(KITCHEN_PRINT_TIMER!==null)return;
@@ -462,7 +508,7 @@ async function pollKitchenPrinting(){
         if(!claim.claimed)continue;
         const ok=await printOrder(claim.job,{auto:true});
         if(!ok)throw Error('未確認印表機成功');
-      }catch(e){KITCHEN_PRINT_PAUSED=true;toast('出餐單 '+job.id+' 未確認列印：'+e.message+'；已暫停自動列印，請檢查紙張並手動補印，再到結帳頁按「恢復自動出單」。');if(typeof document!=='undefined'&&document.getElementById?.('pos-body')?.querySelector?.('.pos-grid'))paintPos();break;}
+      }catch(e){KITCHEN_PRINT_PAUSED=true;toast('出餐單 '+job.id+' 未確認列印：'+e.message+'；已暫停自動列印，請檢查紙張並手動補印，再到出餐頁按「恢復自動出單」。');if(typeof document!=='undefined'){const ob=document.getElementById?.('orders-body');if(ob?.querySelector?.('.kds-grid')){ob.dataset.sig='';loadOrders();}}break;}
     }
   }catch(e){/* 尚未領取的工作留在伺服器；不重送已領取的工作。 */}
   finally{KITCHEN_PRINT_BUSY=false;}
@@ -538,7 +584,7 @@ async function loadOrders(){
   const board=[...(d.tickets||[]).map(t=>({...t,at:t.placed_at})),...d.orders.map(o=>({...o,at:o.paid_at}))].sort((a,b)=>a.at<b.at?-1:1);
   const ids=new Set(board.map(o=>o.id));if(ORDERS_SEEN&&[...ids].some(id=>!ORDERS_SEEN.has(id)))ordersBeep();ORDERS_SEEN=ids;
   // 資料沒變就不重繪，避免自動更新時把正要按的按鈕換掉（經過時間每分鐘更新一次）
-  const sig=JSON.stringify([board.map(o=>[o.id,o.status,o.push_count,o.items.length,o.served||0]),Math.floor(Date.now()/60000)]);
+  const sig=JSON.stringify([board.map(o=>[o.id,o.status,o.push_count,o.items.length,o.served||0]),Math.floor(Date.now()/60000),kitchenPrintStatus().state]);
   const again=()=>{ORDERS_TIMER=setTimeout(()=>{if(document.getElementById('orders-body')&&TAB==='orders')loadOrders();},10000);};
   if(host.dataset.sig===sig&&host.querySelector('#qr-tables')){again();return;}
   host.dataset.sig=sig;
@@ -561,9 +607,9 @@ async function loadOrders(){
     ?card(o,o.placed_at,o.served?`部分出餐 ${o.served}/${o.items.length}`:'',`<button class="btn btn--solid" data-serve="${esc(o.ticket)}" data-session="${esc(o.session_id)}">整筆出餐</button>${printBtn(o)}`)
     :card(o,o.paid_at,o.status==='ready'?'可取餐':'已結帳',o.status==='paid'?`<button class="btn btn--solid" data-order="${esc(o.id)}" data-status="ready">出餐並通知</button>${printBtn(o)}`:`<button class="btn btn--ghost" data-order="${esc(o.id)}" data-status="done">已取餐</button>`)).join('')||'<p class="a-empty kds-empty">目前沒有待出餐的單</p>';
   const pending=board.filter(o=>o.status!=='ready').length;
-  host.innerHTML=`<div class="ops-head"><h2>出餐${pending?` <span class="kds-count">${pending}</span>`:''}</h2>${opsHelp(`客人掃桌上 QR 點餐，按「送出點餐」後會直接出現在這裡；做好一道按那一道的「出餐」，全部好了按「整筆出餐」，客人手機會跳通知；用餐完到 <a href="${opsHref('pos')}" data-tab="pos">櫃檯結帳</a>。櫃檯先收款的單（外帶、先結後做）也在這裡，按「出餐並通知」會推播給客人到櫃檯取餐。卡頭的分鐘數＝等候時間，8 分轉黃、15 分轉紅；深色規格＝客人有改、※＝自由需求。每 10 秒自動更新，有新單會響一聲。`)}</div>
+  host.innerHTML=`<div class="ops-head"><h2>出餐${pending?` <span class="kds-count">${pending}</span>`:''}</h2>${opsHelp(`客人掃桌上 QR 點餐，按「送出點餐」後會直接出現在這裡；做好一道按那一道的「出餐」，全部好了按「整筆出餐」，客人手機會跳通知；用餐完到 <a href="${opsHref('pos')}" data-tab="pos">櫃檯結帳</a>。櫃檯先收款的單（外帶、先結後做）也在這裡，按「出餐並通知」會推播給客人到櫃檯取餐。卡頭的分鐘數＝等候時間，8 分轉黃、15 分轉紅；深色規格＝客人有改、※＝自由需求。每 10 秒自動更新，有新單會響一聲。`)}</div>${document.getElementById('p-nav')?kitchenPrintStatusHtml():''}
     <div class="kds-grid">${cards}</div>`;
-  const reload=()=>{host.dataset.sig='';return loadOrders();};
+  const reload=()=>{host.dataset.sig='';return loadOrders();};bindPrintStatus(host,reload);
   host.querySelectorAll('[data-order]').forEach(b=>b.onclick=()=>opsThen(()=>api('/admin/orders/'+b.dataset.order+'/status',{method:'POST',body:{status:b.dataset.status}}),out=>out.status==='ready'?`已出餐，推播 ${out.notified} 台裝置`:'已標記取餐',reload));
   host.querySelectorAll('[data-serve]').forEach(b=>b.onclick=()=>opsThen(()=>api('/admin/orders/sessions/'+b.dataset.session+'/tickets/'+b.dataset.serve+'/serve',{method:'POST',body:{}}),'整筆已出餐，客人用餐完再到櫃檯結帳',reload));
   host.querySelectorAll('[data-serve-line]').forEach(b=>b.onclick=()=>opsThen(()=>api('/admin/orders/sessions/'+b.dataset.session+'/tickets/'+b.dataset.serveTicket+'/serve',{method:'POST',body:{lines:[b.dataset.serveLine]}}),out=>{const left=(out.items||[]).filter(l=>l.ticket===b.dataset.serveTicket&&!l.served_at&&!l.order_id).length;return left?`已出餐，這張還有 ${left} 道`:'這張送單全部出完';},reload));
@@ -694,9 +740,8 @@ function paintPos(){
       ${live.length?`<h3>這桌已結帳的單</h3><div class="a-wrap2"><table class="a-tbl pos-paid"><thead><tr><th>品項 · 時間 · 狀態</th><th>付款</th><th class="num">金額</th><th class="ops-th">操作</th></tr></thead><tbody>${liveRows}</tbody></table></div>`:''}
     </div>`;
   }
-  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('點空桌或按「開桌」選桌位；點已開的桌看這桌的帳；外帶按「＋ 外帶」。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div>${kitchenPrintStatusHtml()}${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>'}<div class="a-toolbar pos-tools"><button type="button" class="btn btn--ghost btn-sm" id="pos-table-qr">桌號 QR</button>${posPauseHtml(d.pause)}</div>${opener}<div class="pos-grid">${grid}</div></div>${panel}</div>`;
+  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('點空桌或按「開桌」選桌位；點已開的桌看這桌的帳；外帶按「＋ 外帶」。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div>${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">開錢櫃</button></div>'}<div class="a-toolbar pos-tools"><button type="button" class="btn btn--ghost btn-sm" id="pos-table-qr">桌號 QR</button>${posPauseHtml(d.pause)}</div>${opener}<div class="pos-grid">${grid}</div></div>${panel}</div>`;
   if(!document.getElementById('p-drawer'))bindCashDrawerButton(host.querySelector('#pos-cash-drawer'));
-  const resumePrint=host.querySelector('#pos-print-resume');if(resumePrint)resumePrint.onclick=()=>{resumeKitchenPrinting();if(KITCHEN_PRINT_PAUSED)return;paintPos();return pollKitchenPrinting();};
   host.querySelectorAll('[data-pos-table]').forEach(b=>b.onclick=()=>{POS_TABLE=b.dataset.posTable;POS_PICK=null;POS_QTY={};POS_PAYREQ=null;POS_SPLIT={};POS_DISCOUNT=null;POS_DISC_OPEN=false;POS_RECEIVED='';paintPos();});
   // 開桌／外帶：每次都先輸入 PIN 認人，記這桌是誰開的（與結帳、作廢、開錢櫃一致）
   const openSession=body=>ensureOperator(()=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{...body,operator_id:OPERATOR?.id}}),out=>out.takeout?`外帶單 ${out.table} 已開，請加入品項`:out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,out=>{POS_TABLE=out.table;POS_PICK=null;POS_DISCOUNT=null;POS_RECEIVED='';return reload();}));
@@ -783,25 +828,7 @@ function paintPos(){
   updateInvoiceFields(host);
   host.querySelectorAll('input[name=pos-invoice]').forEach(r=>r.onchange=()=>{POS_INVOICE.mode=r.checked?r.value:POS_INVOICE.mode;const s=host.querySelector('.pos-invoice summary .hint');if(s)s.textContent=POS_INVOICE.mode?INV_LABEL[POS_INVOICE.mode]:'不開';updateInvoiceFields(host);});
   const invScan=host.querySelector('#pos-invoice-scan');
-  if(invScan)invScan.onclick=async()=>{
-    const BD=barcodeDetectorClass();
-    if(!BD||!navigator.mediaDevices?.getUserMedia){toast('此瀏覽器不支援相機掃碼，請直接輸入手機條碼。');return;}
-    try{
-      stopPosInvoiceScanner();
-      const video=host.querySelector('#pos-invoice-video');
-      POS_INV_SCAN_STREAM=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
-      video.srcObject=POS_INV_SCAN_STREAM;video.style.display='block';await video.play();
-      const detector=new BD({formats:['code_39','code_128','qr_code']});
-      const tick=async()=>{
-        if(!POS_INV_SCAN_STREAM)return;
-        const codes=await detector.detect(video).catch(()=>[]);
-        const raw=codes[0]?.rawValue;
-        if(raw){const carrierIn=host.querySelector('.pos-invoice [name=carrier_num]');if(carrierIn)carrierIn.value=raw.trim().toUpperCase();stopPosInvoiceScanner();toast('已掃到條碼：'+raw);return;}
-        POS_INV_SCAN_FRAME=requestAnimationFrame(tick);
-      };
-      tick();
-    }catch(e){stopPosInvoiceScanner();toast('無法開啟相機：'+e.message);}
-  };
+  if(invScan)invScan.onclick=()=>startInvoiceScan(host.querySelector('#pos-invoice-video'),raw=>{const carrierIn=host.querySelector('.pos-invoice [name=carrier_num]');if(carrierIn)carrierIn.value=raw;});
   host.querySelector('#pos-checkout').onclick=()=>{
     const method=POS_METHOD;
     if(!picked.length)return;

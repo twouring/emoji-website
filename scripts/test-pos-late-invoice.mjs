@@ -27,3 +27,10 @@ test('late issue sends explicit validated invoice choice and prints issued resul
  assert.match(src,/body:\{invoice\}/);
  assert.match(src,/async function askInvoice/);
 });
+test('late-issue carrier step has camera scan sharing the checkout scanner loop',()=>{
+ assert.match(src,/function pickCarrier\(kind\)/);
+ assert.match(src,/id="pos-carrier-scan"/);
+ assert.match(src,/id="pos-carrier-video"/);
+ assert.equal((src.match(/startInvoiceScan\(/g)||[]).length,3); // 定義＋結帳＋補開
+ assert.doesNotMatch(src,/invScan\.onclick=async\(\)=>\{\s*const BD=/); // 結帳不再有自己的掃描迴圈
+});

@@ -112,7 +112,7 @@ tr.pos-comp td{background:#f2fbf4}
 /* 發票欄位：點選對應類型才出現那一格；手機載具多一顆相機掃描鍵 */
 .pos-inv-row[hidden]{display:none}
 .pos-inv-scan-row{display:flex;gap:6px;align-items:center}.pos-inv-scan-row input{flex:1;min-width:0}.pos-inv-scan-row #pos-invoice-scan{flex:none;min-height:44px}
-#pos-invoice-video{display:none;width:100%;max-width:320px;border-radius:8px;margin-top:6px}
+#pos-invoice-video,#pos-carrier-video{display:none;width:100%;max-width:320px;border-radius:8px;margin-top:6px}.pos-move-box .pos-inv-scan-row input{min-height:48px;font-size:18px;padding:0 10px}.pos-move-box .pos-inv-scan-row #pos-carrier-scan{flex:none;min-height:48px}
 /* 收款獨佔一列最大；換桌／清桌縮小放下面 */
 .pos-actions{display:grid;gap:10px;width:100%}
 .pos-actions #pos-checkout{min-height:60px;font-size:1.25rem;font-weight:600}

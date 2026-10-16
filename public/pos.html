@@ -283,9 +283,7 @@ function renderBrandChoice(pin, d){
 const scopesOf = d => d?.me?.operator ? (d.brands || []).filter(b => BRAND_LABEL[b]).slice(0,1) : d?.brands ? d.brands.filter(b => BRAND_LABEL[b]) : ['', ...Object.keys(BRAND_LABEL)];
 function setScope(s){ if (DATA?.me?.operator && s !== scopesOf(DATA)[0]) return; SCOPE = s; try { localStorage.setItem('tth_pos_scope', s); } catch (e) {} }
 
-// 接了 mPOP（Star webPRNT Browser＋SDK 就緒）＝出餐單走紙本，不顯示「出餐」看板分頁；沒接才用出餐頁面
-const visibleTabs = () => (typeof starReady === 'function' && starReady()) ? TABS.filter(t => t.id !== 'orders') : TABS;
-function routeTab(){ const p = location.pathname.replace(/^\/pos\/?/, '').replace(/\/+$/,'').split('/')[0]; return visibleTabs().some(t=>t.id===p) ? p : 'pos'; }
+function routeTab(){ const p = location.pathname.replace(/^\/pos\/?/, '').replace(/\/+$/,'').split('/')[0]; return TABS.some(t=>t.id===p) ? p : 'pos'; }
 function go(tab, replace){
   TAB = tab;
   const url = tabUrl(tab);
@@ -309,7 +307,7 @@ function paintNav(){
   if (!scopes.includes(SCOPE)) setScope(scopes[0] || '');
   document.getElementById('p-scope').innerHTML = scopes.length > 1 ? scopes.map(s => `<button type="button" data-scope="${esc(s)}" aria-pressed="${s===SCOPE}">${esc(s ? BRAND_LABEL[s] : '全部')}</button>`).join('') : (SCOPE ? `<span class="pill pill-ok">${esc(BRAND_LABEL[SCOPE])}${DATA?.me?.operator && DATA.me.name ? ' · ' + esc(DATA.me.name) : ''}</span>` : '');
   document.getElementById('p-scope').querySelectorAll('[data-scope]').forEach(b => b.onclick = () => { setScope(b.dataset.scope); resetPanels(); paintNav(); activate(); });
-  document.getElementById('p-nav').innerHTML = visibleTabs().map(t => `<button type="button" data-tab="${t.id}" aria-pressed="${t.id===TAB}">${t.label}${t.id==='reservations'&&PENDING?`<span class="badge">${PENDING}</span>`:''}</button>`).join('');
+  document.getElementById('p-nav').innerHTML = TABS.map(t => `<button type="button" data-tab="${t.id}" aria-pressed="${t.id===TAB}">${t.label}${t.id==='reservations'&&PENDING?`<span class="badge">${PENDING}</span>`:''}</button>`).join('');
   document.getElementById('p-nav').querySelectorAll('[data-tab]').forEach(b => b.onclick = () => go(b.dataset.tab));
   // 手機分頁列是可滑動單行（不換行），切換分頁後把目前分頁捲進視野，避免使用者不知道要滑到哪一個
   const active = document.querySelector('#p-nav [data-tab="' + TAB + '"]'); if (active) active.scrollIntoView({ inline: 'nearest', block: 'nearest' });
