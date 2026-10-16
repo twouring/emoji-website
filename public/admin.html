@@ -564,7 +564,7 @@ function tabMembers(d, x){
   }).join('') || '<tr><td colspan="9" class="a-empty">尚無使用者</td></tr>';
   return `<div class="a-sec">
     <h2>會員名單</h2>
-    <p class="hint">所有以 Google 登入或已建立的使用者（註冊會員）；含門禁狀態、權益摘要、會籍狀態、會員編號與點數餘額。點數人人可累積，只用來兌換餐飲或服務（菜單「兌換點數」欄設定每份幾點）與空間時數，不折抵金額；「會籍價」只給有效會籍（門禁有效）的會員。</p>
+    <p class="hint">所有以 Google 登入或已建立的使用者（註冊會員）；含門禁狀態、權益摘要、會籍狀態、會員編號與點數餘額。點數人人可累積，只用來兌換餐飲或服務（菜單「兌換點數」欄設定每份幾點）與空間時數，不折抵金額；「聚落價」只給有效會籍（門禁有效）的會員。</p>
     <div class="a-toolbar">
       <input type="search" id="m-search" placeholder="搜尋姓名 / Email / 電話…">
       <button class="btn btn--ghost btn-sm" id="m-csv">匯出 CSV</button>
@@ -950,7 +950,7 @@ function tabMenu(d){
       <button class="btn btn--solid btn-sm" id="menu-save-server">儲存至伺服器</button>
     </div>
     <div class="a-wrap2"><table class="a-tbl">
-      <thead><tr><th>圖</th><th>店別</th><th>分類</th><th>中文</th><th>英文</th><th class="num">原價</th><th class="num">會籍價</th><th class="num">兌換點數</th><th>酒精</th><th>發布</th><th>操作</th></tr></thead>
+      <thead><tr><th>圖</th><th>店別</th><th>分類</th><th>中文</th><th>英文</th><th class="num">原價</th><th class="num">聚落價</th><th class="num">兌換點數</th><th>酒精</th><th>發布</th><th>操作</th></tr></thead>
       <tbody id="mi-body">${body}</tbody></table></div>
     <div class="a-form" style="margin-top:16px;border-top:1px dashed var(--line);padding-top:16px">
       <input type="hidden" id="mi-id">
@@ -960,7 +960,7 @@ function tabMenu(d){
       <label>英文<input id="mi-en" placeholder="ITEM NAME"></label>
       <label>日文<input id="mi-ja" placeholder="品名（日本語）"></label>
       <label>原價<input id="mi-price" type="number" min="0" value="0" style="width:100px"></label>
-      <label title="有效會籍的會員適用。留 0＝自動原價九折；填數字＝指定會籍價">會籍價（0＝九折）<input id="mi-emo" type="number" min="0" value="0" style="width:100px"></label>
+      <label title="有效會籍的會員適用。留 0＝自動原價九折；填數字＝指定聚落價">聚落價（0＝九折）<input id="mi-emo" type="number" min="0" value="0" style="width:100px"></label>
       <label title="換這個品項（餐飲或服務）要幾點，每份；留 0＝不開放點數兌換。點數只能換品項，不折抵金額">兌換點數<input id="mi-points" type="number" min="0" value="0" style="width:90px"></label>
       <label>排序<input id="mi-sort" type="number" value="0" style="width:80px"></label>
       <label style="flex:1;min-width:180px">備註<input id="mi-note" placeholder="例：含酒精 / 黑糖 / 焦糖"></label>
@@ -1185,7 +1185,7 @@ function tabAdmins(d){
 }
 
 /* 後台分成三個工作區：言文字管理所有品牌共用事務（含會員、會費、消息、社群、廣告、活動、行事曆），
-   在咖啡／三點水各自只剩日結報表與排班打卡（員工管理）；現場營運（櫃檯結帳、點餐出餐、訂位）全部搬到 pos.emoji.tw，不再進 admin；菜單（品項、會籍價、兌換點數、空間兌換點數）留在言文字工作區。
+   在咖啡／三點水各自只剩日結報表與排班打卡（員工管理）；現場營運（櫃檯結帳、點餐出餐、訂位）全部搬到 pos.emoji.tw，不再進 admin；菜單（品項、聚落價、兌換點數、空間兌換點數）留在言文字工作區。
    員工的新增／編輯／停用與出勤修正刻意留在 admin：平板上用四位數密碼登入的現場人員不能自己改員工資料（伺服器端同步把關）。
    言文字管理員（brands 為空）可進全部工作區；品牌子帳號除了自己的品牌工作區，也能進言文字工作區的共用分頁，
    但「權限管理」「系統設定」「操作紀錄」三頁僅言文字管理員可用（伺服器端同步把關）。

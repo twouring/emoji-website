@@ -189,7 +189,7 @@
   const esc = s => (s == null ? '' : String(s)).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const money = n => 'NT$' + Number(n || 0).toLocaleString('zh-TW');
   const REGULAR_LABEL = { zh: '一般價', en: 'Regular', ja: '一般価格' };
-  const MEMBER_LABEL = { zh: '會籍價', en: 'Membership rate', ja: 'メンバー価格' };
+  const MEMBER_LABEL = { zh: '聚落價', en: 'Hub rate', ja: 'ハブ価格' };
   const pick = (label, lang) => label[lang] || label.zh;
 
   function groupBy(items, key) {
@@ -234,6 +234,14 @@
         esc(title) + '<span class="menu-venue__sub">' + esc(sub) + '</span></h2>' +
         groupBy(list, 'cat').map(([cat, l]) => renderGroup(cat, l, lang)).join('') + '</section>';
     }).join('');
+    if (items.some(it => memberPrice(it) > 0 && memberPrice(it) < it.price)) {
+      const N = {
+        zh: '聚落價限已加入聚落者享有。加入方式：購買等等空間會員方案或單日會員。',
+        en: 'Hub rates are for Hub members only. Join by buying a Stay Square membership plan or a day pass.',
+        ja: 'ハブ価格は、ハブに参加された方のみ。等等空間の会員プランまたは1日会員の購入で参加できます。',
+      };
+      html += '<p class="menu-notice">' + esc(pick(N, lang)) + '</p>';
+    }
     if (items.some(it => it.alcohol)) {
       html += '<p class="menu-notice">未滿十八歲禁止飲酒。禁止酒駕。 / No alcohol under 18. Don\'t drink and drive.</p>';
     }

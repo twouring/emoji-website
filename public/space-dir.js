@@ -37,7 +37,7 @@
       },
       factLabels: { use: '用途', hours: '時段', eligibility: '使用資格', price: '費用' },
       facts: {
-        1: { use: '用餐、外帶與深夜熱食', hours: '在咖啡 08:00–17:00；三點水 17:00–27:00', eligibility: '所有訪客，不需會員', price: '依菜單；分一般價與會員價', href: '/space#menu', cta: '查看品牌菜單' },
+        1: { use: '用餐、外帶與深夜熱食', hours: '在咖啡 08:00–17:00；三點水 17:00–27:00', eligibility: '所有訪客，不需會員', price: '依菜單；分一般價與聚落價', href: '/space#menu', cta: '查看品牌菜單' },
         2: { use: '看書休憩、膠囊席、交誼廳與淋浴', hours: '24 小時（條件式啟用）', eligibility: '持有效會籍的會員', price: '會員所有設備自由使用', href: '/system', cta: '比較會員方案' },
         3: { use: '共享辦公、社群活動與企業包場', hours: '約 08:00–翌日 03:00；包場時段另議', eligibility: '會員可日常使用；社群活動可填申請；企業、團隊或客戶包場請來信', price: '會員使用或包場方案', href: '/events?apply=1#ev-apply', cta: '申請等等空間社群活動', secondaryHref: 'mailto:us@emoji.tw?subject=Stay Square%20business%20venue%20enquiry', secondaryCta: '洽詢企業／團隊包場' },
         4: { use: '洗脫烘與戶外吸菸區', hours: '會員 24 小時（條件式啟用）', eligibility: '持有效會籍的會員', price: '洗脫烘與吸菸區會員免費使用', href: 'mailto:us@emoji.tw?subject=附屬設施使用詢問', cta: '詢問使用方式' },
@@ -76,7 +76,7 @@
       },
       factLabels: { use: 'Use', hours: 'Hours', eligibility: 'Access', price: 'Price' },
       facts: {
-        1: { use: 'Dining, takeaway and late-night food', hours: '在咖啡 08:00–17:00; 三點水 17:00–03:00 next day', eligibility: 'Open to everyone; no membership required', price: 'See menu; standard and member prices', href: '/en/space#menu', cta: 'View the brand menus' },
+        1: { use: 'Dining, takeaway and late-night food', hours: '在咖啡 08:00–17:00; 三點水 17:00–03:00 next day', eligibility: 'Open to everyone; no membership required', price: 'See menu; standard and Hub rates', href: '/en/space#menu', cta: 'View the brand menus' },
         2: { use: 'Reading, rest, capsule seats, social room and showers', hours: '24 hours (conditional)', eligibility: 'Members with a valid membership', price: 'All facilities are free for members to use', href: '/en/system', cta: 'Compare memberships' },
         3: { use: 'Coworking, community events and business private hire', hours: 'About 08:00–03:00 next day; private events by arrangement', eligibility: 'Members use it day to day. Community events may use the application form; companies, teams and client-event organizers should email us.', price: 'Membership or private venue plan', href: '/en/events?apply=1#ev-apply', cta: 'Apply for a Stay Square community event', secondaryHref: 'mailto:us@emoji.tw?subject=Stay Square%20business%20venue%20enquiry', secondaryCta: 'Email about business or team hire' },
         4: { use: 'Wash-and-dry laundry and outdoor smoking area', hours: 'Members, 24 hours (conditional)', eligibility: 'Members with a valid membership', price: 'Laundry and smoking area are free for members', href: 'mailto:us@emoji.tw?subject=member facilities%20facilities', cta: 'Ask about access' },
@@ -115,7 +115,7 @@
       },
       factLabels: { use: '用途', hours: '利用時間', eligibility: '利用条件', price: '料金' },
       facts: {
-        1: { use: '飲食、テイクアウト、深夜の食事', hours: '在咖啡 08:00–17:00／三點水 17:00–27:00', eligibility: 'どなたでも利用可。会員登録不要', price: 'メニュー参照。通常価格と会員価格', href: '/ja/space#menu', cta: 'ブランドのメニューを見る' },
+        1: { use: '飲食、テイクアウト、深夜の食事', hours: '在咖啡 08:00–17:00／三點水 17:00–27:00', eligibility: 'どなたでも利用可。会員登録不要', price: 'メニュー参照。通常価格とハブ価格', href: '/ja/space#menu', cta: 'ブランドのメニューを見る' },
         2: { use: '読書、休憩、カプセル席、ソーシャルルーム、シャワー', hours: '24時間（条件付き）', eligibility: '有効な会員資格を持つ会員', price: '会員は設備をすべて自由に利用可', href: '/ja/system', cta: '会員プランを比較' },
         3: { use: 'コワーキング、コミュニティイベント、企業貸切', hours: '約08:00–翌03:00。貸切は個別調整', eligibility: '日常利用は会員向け。コミュニティ活動は会場利用申請、企業・チーム・顧客向けイベントの貸切はメールでお問い合わせください。', price: '会員プランでの利用または貸切プラン', href: '/ja/events?apply=1#ev-apply', cta: 'Stay Squareコミュニティ活動を申請', secondaryHref: 'mailto:us@emoji.tw?subject=Stay Square%20business%20venue%20enquiry', secondaryCta: '企業・チーム貸切を問い合わせる' },
         4: { use: '洗濯乾燥と屋外喫煙エリア', hours: '会員 24時間（条件付き）', eligibility: '有効な会員資格を持つ会員', price: '洗濯乾燥・喫煙エリアは会員無料', href: 'mailto:us@emoji.tw?subject=附属施設について', cta: '利用方法を問い合わせる' },

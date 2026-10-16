@@ -87,7 +87,7 @@ test('renderSpace：Markdown 消毒（onerror 移除、圖片保留）、CMS 圖
   assert.match(zh, /data-image="2"><img src="\/uploads\/space\/2\.webp"(?![^>]*width=)[^>]*>\s*<figcaption>等等空間/);
   assert.match(zh, /data-image="3"><img src="\/assets\/space\/3f-concept\.jpg" [^>]*width="1400"/);
   const cafe = zh.match(/<div data-menu="CAFE">([\s\S]*?)<div data-menu="BAR">/)[1];
-  assert.match(cafe, /menu-venue__title">在咖啡/); assert.match(cafe, /拿鐵/); assert.match(cafe, /會籍價 NT\$120/); assert.match(cafe, /雙份濃縮/);
+  assert.match(cafe, /menu-venue__title">在咖啡/); assert.match(cafe, /拿鐵/); assert.match(cafe, /聚落價 NT\$120/); assert.match(cafe, /雙份濃縮/);
   assert.doesNotMatch(cafe, /未發布布丁|純米吟釀/);
   const bar = zh.match(/<div data-menu="BAR">([\s\S]*?)<\/section>\s*<section class="space-brand" id="stay">/)[1];
   assert.match(bar, /純米吟釀/); assert.match(bar, /未滿十八歲禁止飲酒/);
@@ -95,10 +95,10 @@ test('renderSpace：Markdown 消毒（onerror 移除、圖片保留）、CMS 圖
 
   const en = R.renderSpace(read('public/en/space.html'), SNAP, 'en', 'space');
   assert.match(en, /<div class="md-content" data-md="1"><p>Coffee by day\.<\/p>\n<\/div>/);
-  assert.match(en, /Membership rate NT\$120/); assert.match(en, /Latte/);
+  assert.match(en, /Hub rate NT\$120/); assert.match(en, /Latte/);
   const ja = R.renderSpace(read('public/ja/space.html'), SNAP, 'ja', 'space');
   assert.match(ja, /<div class="md-content" data-md="1" hidden><\/div>/, 'ja 無文案且不退回 zh');
-  assert.match(ja, /ラテ/); assert.match(ja, /メンバー価格 NT\$120/);
+  assert.match(ja, /ラテ/); assert.match(ja, /ハブ価格 NT\$120/);
   for (const [lang, file] of [['zh', 'public/space.html'], ['en', 'public/en/space.html'], ['ja', 'public/ja/space.html']]) {
     const empty = R.renderSpace(read(file), null, lang, 'space');
     assert.match(empty, new RegExp(`<div data-menu="CAFE"><p class="menu-empty">${R.EMPTY_MENU[lang]}</p></div>`));

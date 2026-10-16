@@ -138,7 +138,7 @@ test('點數兌換品項：該行變 0 元、扣菜單點數、不折抵金額�
   assert.equal(T.posCheckout(items, { method: 'cash' }, menu).amount, 500, '沒選兌換就照原價');
   assert.equal(T.posCheckout(items, { method: 'cash', yan_points: 50 }, menu).amount, 500, '舊的 yan_points 折抵已移除、不再折錢');
   assert.equal(T.invoiceDiscount, undefined);
-  assert.match(read('public/menu-lib.js'), /zh: '會籍價'/);
+  assert.match(read('public/menu-lib.js'), /zh: '聚落價'/);
   assert.equal(globalThis.MenuLib.normalizeItem({ cat: 'COFFEE', zh: 'x', price: 1, points: 80.7 }).points, 80);
 });
 
@@ -156,7 +156,7 @@ test('兌換空間時數：扣點、單日會籍、只認掃碼確認的有效�
   assert.match(srv, /memberActive=verified&&memberUser\?\(await memberAccessFor\(memberUser\.id\)\)\.active:false/);
   assert.match(srv, /點數兌換請先掃會員條碼確認身分/);
   const ops = read('public/pos-ops.js');
-  assert.doesNotMatch(ops, /id="pos-member"/, '不能再手動勾選會籍價');
+  assert.doesNotMatch(ops, /id="pos-member"/, '不能再手動勾選聚落價');
   assert.match(ops, /data-redeem/); assert.match(ops, /pos-yan-space/); assert.doesNotMatch(ops, /pos-yan-redeem/);
 });
 

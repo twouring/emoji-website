@@ -14,7 +14,7 @@ test('點數相關程式與 API 已移除', () => {
   assert.doesNotMatch(server, /MEMBERSHIP_GIFT_POINTS|pointsSummaryFor|points_balance/);
 });
 
-test('會籍價目表仍可用', () => {
+test('聚落價目表仍可用', () => {
   const { PLAN_PRICE_TWD } = createRequire(import.meta.url)('../lib/plans');
   assert.deepEqual(PLAN_PRICE_TWD, { day_4h: 200, day_12h: 500, month: 4000, quarter: 10000, year: 35000 });
 });
