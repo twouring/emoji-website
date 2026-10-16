@@ -101,3 +101,26 @@ test('POS 結帳可帶會員電話／卡，會員頁有點數與會員卡', () =
     assert.doesNotMatch(html, /\/api\/me\/points|點數錢包|購買點數|renderPoints/, f);
   }
 });
+
+test('會員價：emo 空白＝九折；有填用 emo；現場輸入金額不打折', () => {
+  const M = require('../public/menu-lib.js') && globalThis.MenuLib;
+  assert.equal(M.memberPrice({ price: 320, emo: 0 }), 288);
+  assert.equal(M.memberPrice({ price: 185, emo: 0 }), 167);
+  assert.equal(M.memberPrice({ price: 320, emo: 250 }), 250);
+  assert.equal(M.memberPrice({ price: 100, emo: 0, custom_price: true }), 100);
+  const T = require('../lib/table-orders');
+  const menu = new Map([['a', { id: 'a', price: 200, emo: 0 }], ['b', { id: 'b', price: 200, emo: 150 }]]);
+  const out = T.applyMemberPrice([{ item_id: 'a', price: 200 }, { item_id: 'b', price: 200 }, { item_id: 'a', price: 0 }, { item_id: 'x', price: 50 }], menu);
+  assert.deepEqual(out.map(l => l.price), [180, 150, 0, 50]);
+  assert.equal(out[0].regular_price, 200);
+});
+
+test('POS：掃會員條碼套會員價、手機只累點', () => {
+  const ops = read('public/pos-ops.js'), srv = read('server.js');
+  assert.match(ops, /pos-yan-scan/);
+  assert.match(ops, /body:\{token\}/);
+  assert.match(ops, /member_id/);
+  assert.match(srv, /member_id/);
+  // 手機查會員不再自動打開會員價
+  assert.doesNotMatch(ops, /balance:out\.balance\|\|0\};POS_MEMBER=true;return `\$\{out\.member\?\.name\|\|'會員'\} · \$\{out/);
+});

@@ -68,7 +68,7 @@ test('櫃檯結帳：付款方式必選且不含 tappay；可分帳；會員價�
   const all = T.posCheckout(items, { method: 'cash', staff: 'kk@emoji.tw' }, menuAll);
   assert.equal(all.amount, 480); assert.equal(all.lines.length, 2); assert.equal(all.payer.method, 'cash'); assert.equal(all.payer.member, false);
   const member = T.posCheckout(items, { method: 'linepay', member: true }, menuAll);
-  assert.equal(member.amount, 150 * 2 + 120, '拿鐵套會員價、吐司沒設會員價維持原價');
+  assert.equal(member.amount, 150 * 2 + 108, '拿鐵用設定的會員價 150、吐司沒設會員價＝九折 108');
   assert.equal(member.lines[0].regular_price, 180);
   const split = T.posCheckout(items, { method: 'card', lines: [items[1].line] }, menuAll);
   assert.equal(split.amount, 120); assert.equal(split.lines.length, 1);
@@ -286,13 +286,13 @@ test('整單折扣與現金找零：％四捨五入、金額不超過小計、�
   assert.throws(() => T.discountOf({ discount: { type: 'percent', value: 10 } }, 480), /折扣原因/);
   assert.throws(() => T.discountOf({ discount: { type: 'bogus', value: 10, reason: 'x' } }, 480), /類型/);
   const out = T.posCheckout(items, { method: 'cash', member: true, discount: { type: 'percent', value: 10, reason: '熟客' }, received: 500 }, menuAll);
-  assert.equal(out.subtotal, 420, '先套會員價 150×2+120'); assert.equal(out.discount.amount, 42); assert.equal(out.amount, 378);
-  assert.equal(out.payer.received, 500); assert.equal(out.payer.change, 122); assert.deepEqual(out.payer.discount, { type: 'percent', value: 10, amount: 42, reason: '熟客' });
+  assert.equal(out.subtotal, 408, '先套會員價 150×2+108'); assert.equal(out.discount.amount, 41); assert.equal(out.amount, 367);
+  assert.equal(out.payer.received, 500); assert.equal(out.payer.change, 133); assert.deepEqual(out.payer.discount, { type: 'percent', value: 10, amount: 41, reason: '熟客' });
   assert.throws(() => T.posCheckout(items, { method: 'cash', received: 100 }, menuAll), /實收/);
   const card = T.posCheckout(items, { method: 'card', received: 1000 }, menuAll);
   assert.equal(card.payer.received, undefined, '非現金不記實收');
   const comp = T.editLine(items, items[0].line, { free: true, reason: '招待' });
-  assert.equal(T.posCheckout(comp, { method: 'cash', member: true }, menuAll).amount, 120, '贈送的品項套會員價也還是 0');
+  assert.equal(T.posCheckout(comp, { method: 'cash', member: true }, menuAll).amount, 108, '贈送的品項套會員價也還是 0；吐司九折 108');
 });
 
 test('換桌併桌：併桌把來源品項接到目標後面', () => {

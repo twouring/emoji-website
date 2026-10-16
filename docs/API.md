@@ -323,7 +323,7 @@ body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請�
 現金退還 opt-in 規則與整單作廢相同；`cash_refund` 為此次實際扣減金額（不超過剩餘訂單金額，混合付款時也不超過實收現金），只有明確 `refund_cash:true`、這張單有收現金且金額大於 0 才回 `event_key: refund:<order_id>:<line>` 並在同一交易保存退還意圖。預設 `cash_refund:0`，純帳務調整不開櫃。整單與單項取消均使用訂單列鎖，避免同時取消覆蓋金額；已取消的品項重送回 409。
 
 ### POST /api/admin/yan/lookup
-POS 查／建會員。body `{ phone }`（台灣手機）或 `{ token }`（會員卡 QR）。回 `{ ok, member:{id,name,phone}, balance }`。沒有帳號就用手機建立。品牌子帳號可用。
+POS 查／建會員。body `{ phone }`（台灣手機）或 `{ token }`（會員卡 QR）。回 `{ ok, member:{id,name,phone}, balance }`。沒有帳號就用手機建立。品牌子帳號可用。POS 流程：掃會員條碼（`token`）→ 回傳會員後自動套會員價（結帳 body `member:true` + `member_id`）；只輸入手機＝累點，不自動套會員價。會員價＝菜單 `emo`（>0 時）否則原價九折（四捨五入），「現場輸入金額」品項不打折。
 
 ### POST /api/admin/orders/:id/invoice/issue
 補開 ezPay 電子發票。用於結帳時 ezPay 暫時失敗或當下未設定憑證的單。body 可帶 `{ invoice }`，未帶時使用訂單內已保存的發票要求；`invoice` 格式同櫃檯結帳的 `invoice` 欄位。作廢單不能補開；已開立且有號碼則直接回原發票資料。若狀態是已開立但 `number` 空白（ezPay 回應沒解析到號碼），不會重開，而是以 `invoice_search`（自訂編號＋金額）向 ezPay 查回號碼並更新訂單，回 `{ ok, invoice, synced: true }`；查不到回 404。回 `{ ok, invoice }`。

@@ -237,7 +237,7 @@ function barcodeDetectorClass(){
   };
 }
 // 共用掃描迴圈：開相機→逐幀辨識→掃到就停、回呼、提示。結帳與補開發票都用這一個；video 是誰的就把畫面放誰那裡
-async function startInvoiceScan(video,onCode){
+async function startInvoiceScan(video,onCode,{raw:keepRaw=false}={}){
   const BD=barcodeDetectorClass();
   if(!BD||!navigator.mediaDevices?.getUserMedia){toast('此瀏覽器不支援相機掃碼，請直接輸入條碼。');return false;}
   try{
@@ -249,11 +249,25 @@ async function startInvoiceScan(video,onCode){
       if(!POS_INV_SCAN_STREAM||video.srcObject!==POS_INV_SCAN_STREAM)return;
       const codes=await detector.detect(video).catch(()=>[]);
       const raw=codes[0]?.rawValue;
-      if(raw){const v=raw.trim().toUpperCase();stopPosInvoiceScanner(video);onCode(v);toast('已掃到條碼：'+v);return;}
+      if(raw){const v=keepRaw?raw.trim():raw.trim().toUpperCase();stopPosInvoiceScanner(video);onCode(v);toast('已掃到條碼：'+v);return;}
       POS_INV_SCAN_FRAME=requestAnimationFrame(tick);
     };
     tick();return true;
   }catch(e){stopPosInvoiceScanner(video);toast('無法開啟相機：'+e.message);return false;}
+}
+// 掃會員條碼：相機掃 App「會員卡」QR（或掃描槍／手動貼上），向後台換成會員資料；會員卡 QR 區分大小寫，不能轉大寫
+function pickMemberCard(){
+  return new Promise(resolve=>{
+    const {ov,close}=pickOverlay(`<h3>掃會員條碼</h3><p class="hint">請客人開 App「會員卡」出示 QR，按「掃描」對準；用掃描槍也可直接掃進下面欄位。</p><div class="pos-inv-scan-row"><input id="pos-card-input" autocomplete="off" placeholder="掃描槍／貼上會員條碼"><button type="button" class="btn btn--ghost" id="pos-card-scan">📷 掃描</button></div><video id="pos-card-video" playsinline muted></video><div class="pos-move-foot"><span></span><span><button type="button" class="btn btn--ghost" data-cancel>取消</button> <button type="button" class="btn btn--solid" data-ok>確定</button></span></div>`,'掃會員條碼');
+    const inp=ov.querySelector('#pos-card-input'),video=ov.querySelector('#pos-card-video');
+    const done=v=>{stopPosInvoiceScanner(video);close();resolve(v);};
+    ov.onclick=e=>{if(e.target===ov)done(null);};
+    ov.querySelector('[data-cancel]').onclick=()=>done(null);
+    ov.querySelector('[data-ok]').onclick=()=>done(inp.value.trim()||null);
+    inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();done(inp.value.trim()||null);}};
+    ov.querySelector('#pos-card-scan').onclick=()=>startInvoiceScan(video,v=>{inp.value=v;done(v);},{raw:true});
+    inp.focus();
+  });
 }
 function updateInvoiceFields(host){
   const box=host.querySelector('.pos-invoice');if(!box)return;
@@ -677,7 +691,7 @@ async function loadPos(){
 // 結帳金額（與伺服器同一套算法：會員價 → 整單折扣）；伺服器仍會重算，這裡只給畫面即時顯示
 function posTotals(cur){
   const menuById=new Map((MENU_DOC?.items||[]).map(it=>[it.id,it]));
-  const priceOf=l=>{if(l.comp_reason)return 0;const it=menuById.get(l.item_id);return POS_MEMBER&&it&&it.emo>0&&it.emo<l.price?it.emo:l.price;};
+  const priceOf=l=>{if(l.comp_reason)return 0;const it=menuById.get(l.item_id);if(!POS_MEMBER||!it)return l.price;const mp=MenuLib.memberPrice(it,l.price);return mp>0&&mp<l.price?mp:l.price;};
   const picked=cur.lines.filter(l=>!POS_PICK||POS_PICK.has(l.line)).map(l=>POS_QTY[l.line]>0&&POS_QTY[l.line]<l.qty?{...l,qty:POS_QTY[l.line],full_qty:l.qty}:l);
   const regular=picked.reduce((a,l)=>a+(l.comp_reason?0:l.price)*l.qty,0);
   const subtotal=picked.reduce((a,l)=>a+priceOf(l)*l.qty,0);
@@ -742,7 +756,7 @@ function paintPos(){
         <div class="pos-sum">
           <div><span>${(POS_PICK&&POS_PICK.size<cur.lines.length)||Object.keys(POS_QTY).length?`部分結帳 ${picked.length}／${cur.lines.length} 項`:memberSaving>0?'小計（原價）':'小計'}</span><span>NT$${num(regular)}</span></div>
           <div class="pos-sum-member"><label class="pos-member"><input type="checkbox" id="pos-member" ${POS_MEMBER?'checked':''}> 套用會員價</label><span>${POS_MEMBER&&memberSaving?'−'+num(memberSaving):'—'}</span></div>
-          <div class="pos-sum-member"><label>會員手機<input id="pos-yan-phone" inputmode="tel" maxlength="20" placeholder="0912…" value="${esc(POS_YAN.phone||'')}" aria-label="會員手機"></label><button type="button" class="btn btn--ghost btn-xs" id="pos-yan-lookup">查會員</button><span>${POS_YAN.name?`${esc(POS_YAN.name)} · ${num(POS_YAN.balance||0)} 點`:'—'}</span></div>
+          <div class="pos-sum-member"><label>會員手機<input id="pos-yan-phone" inputmode="tel" maxlength="20" placeholder="0912…" value="${esc(POS_YAN.phone||'')}" aria-label="會員手機"></label><button type="button" class="btn btn--ghost btn-xs" id="pos-yan-lookup">查會員</button><button type="button" class="btn btn--ghost btn-xs" id="pos-yan-scan">📷 掃會員條碼</button><span>${POS_YAN.name?`${esc(POS_YAN.name)} · ${num(POS_YAN.balance||0)} 點${POS_YAN.id?'':'（累點）'}`:'—'}</span></div>
           <div class="pos-sum-disc"><span>折扣 ${POS_DISCOUNT?`<span class="pill pill-ok">${esc(discountText(POS_DISCOUNT))}</span> <button type="button" class="btn btn--ghost btn-xs" id="pos-disc-clear">移除</button>`:`<button type="button" class="btn btn--ghost btn-xs" id="pos-disc-open">${POS_DISC_OPEN?'收起':'加折扣'}</button>`}</span><span>${discount?'−'+num(discount):'—'}</span></div>
           ${discountUI}
           <div class="pos-total"><span>應收</span><b>NT$${num(total)}</b></div>
@@ -795,9 +809,11 @@ function paintPos(){
   host.querySelectorAll('[data-pick]').forEach(c=>c.onchange=()=>{const all=[...host.querySelectorAll('[data-pick]')],on=all.filter(x=>x.checked).map(x=>x.dataset.pick);POS_PICK=on.length===all.length?null:new Set(on);paintPos();});
   host.querySelector('#pos-member').onchange=e=>{POS_MEMBER=e.target.checked;paintPos();};
   const yanPhone=host.querySelector('#pos-yan-phone');
-  if(yanPhone)yanPhone.onchange=e=>{POS_YAN={...POS_YAN,phone:e.target.value.trim(),name:'',balance:null};};
+  if(yanPhone)yanPhone.onchange=e=>{POS_YAN={phone:e.target.value.trim(),name:'',balance:null};};
   const yanLookup=host.querySelector('#pos-yan-lookup');
-  if(yanLookup)yanLookup.onclick=()=>{const phone=(host.querySelector('#pos-yan-phone')?.value||'').trim();if(!phone){toast('請輸入手機');return;}POS_YAN={...POS_YAN,phone};return opsThen(()=>api('/admin/yan/lookup',{method:'POST',body:{phone}}),out=>{POS_YAN={phone,name:out.member?.name||'',balance:out.balance||0};POS_MEMBER=true;return `${out.member?.name||'會員'} · ${out.balance||0} 點`;},()=>paintPos());};
+  if(yanLookup)yanLookup.onclick=()=>{const phone=(host.querySelector('#pos-yan-phone')?.value||'').trim();if(!phone){toast('請輸入手機');return;}POS_YAN={...POS_YAN,phone};return opsThen(()=>api('/admin/yan/lookup',{method:'POST',body:{phone}}),out=>{POS_YAN={phone,name:out.member?.name||'',balance:out.balance||0};return `${out.member?.name||'會員'} · ${out.balance||0} 點`;},()=>paintPos());};
+  const yanScan=host.querySelector('#pos-yan-scan');
+  if(yanScan)yanScan.onclick=async()=>{const token=await pickMemberCard();if(!token)return;return opsThen(()=>api('/admin/yan/lookup',{method:'POST',body:{token}}),out=>{POS_YAN={id:out.member?.id||'',phone:out.member?.phone||'',name:out.member?.name||'',balance:out.balance||0};POS_MEMBER=true;return `${out.member?.name||'會員'} · 已套會員價（${out.balance||0} 點）`;},()=>paintPos());};
   host.querySelectorAll('input[name=pos-method]').forEach(r=>r.onchange=()=>{if(r.checked){POS_METHOD=r.value;paintPos();}});
   // 改數量：− 到 0 視同作廢（要原因）
   host.querySelectorAll('[data-qty]').forEach(b=>b.onclick=()=>{const l=cur.lines.find(x=>x.line===b.dataset.qty);if(!l)return;const next=l.qty+Number(b.dataset.delta);
@@ -858,7 +874,7 @@ function paintPos(){
     const unserved=picked.filter(l=>!l.credit_of&&!l.served_at);
     if(!await posConfirm(`${cur.takeout?'外帶':'桌號'} ${cur.table}：餐點都到齊了嗎？${unserved.length?`\n尚未出餐：${unserved.map(l=>`${l.zh}×${POS_QTY[l.line]||l.qty}`).join('、')}`:''}`,{ok:'已到齊，收款'}))return;
     // 收款前一定要先認人（沒選過操作人員會先跳鍵盤），讓每一筆單都記得是誰經手
-    return ensureOperator(()=>runCheckoutOnce(cur.id,async()=>{const checkout=host.querySelector('#pos-checkout');checkout.disabled=true;try{const member_phone=(host.querySelector('#pos-yan-phone')?.value||POS_YAN.phone||'').trim()||undefined;return await opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/checkout',{method:'POST',body:{method,payments,member:POS_MEMBER,member_phone,lines:POS_PICK?[...POS_PICK]:Object.keys(POS_QTY).length?cur.lines.map(l=>l.line):[],quantities:Object.keys(POS_QTY).length?{...POS_QTY}:undefined,invoice:invoiceBody(host),discount:POS_DISCOUNT||undefined,received:rec,operator_id:OPERATOR?.id}}),async out=>{const drawerOk=await autoCashDrawer({kind:'checkout',order_id:out.order_id,method:out.method||method,amount:out.amount,payments:out.payments});const order={id:out.order_id,order_id:out.order_id,table_no:cur.table,items:picked.map(l=>({...l,price:priceOf(l)})),amount:out.amount,invoice:out.invoice,paid_at:new Date().toISOString(),payer:{method,payments:out.payments,member:POS_MEMBER,discount:POS_DISCOUNT,received:rec,change:out.change}};await printCheckoutOrder(order);return `已收款 NT$${num(out.amount)}${out.change?`，找零 NT$${num(out.change)}`:''}${out.yan?.earned?`，累積 ${out.yan.earned} 點（餘 ${out.yan.balance}）`:''}${out.invoice?.status==='issued'?`，發票 ${out.invoice.number||'已開立'}`:out.invoice?.status==='failed'?`，發票開立失敗可補開` : ''}${out.remaining?`，這桌還有 NT$${num(out.remaining)} 未結`:out.closed?'，已自動清桌':'，這桌已結清'}${out.warning?`。${out.warning}`:''}${drawerOk===false?'。未確認開櫃成功，請確認錢櫃並按「開錢櫃」重試，勿重複收款。':''}`;},()=>{POS_PICK=null;POS_QTY={};POS_SPLIT={};POS_MEMBER=false;POS_YAN={phone:'',name:'',balance:null};POS_DISCOUNT=null;POS_RECEIVED='';POS_INVOICE.mode='paper';return reload();});}finally{checkout.disabled=false;}}));
+    return ensureOperator(()=>runCheckoutOnce(cur.id,async()=>{const checkout=host.querySelector('#pos-checkout');checkout.disabled=true;try{const member_id=POS_YAN.id||undefined;const member_phone=member_id?undefined:((host.querySelector('#pos-yan-phone')?.value||POS_YAN.phone||'').trim()||undefined);return await opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/checkout',{method:'POST',body:{method,payments,member:POS_MEMBER,member_id,member_phone,lines:POS_PICK?[...POS_PICK]:Object.keys(POS_QTY).length?cur.lines.map(l=>l.line):[],quantities:Object.keys(POS_QTY).length?{...POS_QTY}:undefined,invoice:invoiceBody(host),discount:POS_DISCOUNT||undefined,received:rec,operator_id:OPERATOR?.id}}),async out=>{const drawerOk=await autoCashDrawer({kind:'checkout',order_id:out.order_id,method:out.method||method,amount:out.amount,payments:out.payments});const order={id:out.order_id,order_id:out.order_id,table_no:cur.table,items:picked.map(l=>({...l,price:priceOf(l)})),amount:out.amount,invoice:out.invoice,paid_at:new Date().toISOString(),payer:{method,payments:out.payments,member:POS_MEMBER,discount:POS_DISCOUNT,received:rec,change:out.change}};await printCheckoutOrder(order);return `已收款 NT$${num(out.amount)}${out.change?`，找零 NT$${num(out.change)}`:''}${out.yan?.earned?`，累積 ${out.yan.earned} 點（餘 ${out.yan.balance}）`:''}${out.invoice?.status==='issued'?`，發票 ${out.invoice.number||'已開立'}`:out.invoice?.status==='failed'?`，發票開立失敗可補開` : ''}${out.remaining?`，這桌還有 NT$${num(out.remaining)} 未結`:out.closed?'，已自動清桌':'，這桌已結清'}${out.warning?`。${out.warning}`:''}${drawerOk===false?'。未確認開櫃成功，請確認錢櫃並按「開錢櫃」重試，勿重複收款。':''}`;},()=>{POS_PICK=null;POS_QTY={};POS_SPLIT={};POS_MEMBER=false;POS_YAN={phone:'',name:'',balance:null};POS_DISCOUNT=null;POS_RECEIVED='';POS_INVOICE.mode='paper';return reload();});}finally{checkout.disabled=false;}}));
   };
   // 先收部分金額：不綁品項，另開一張「部分付款」單，桌上留一行「已預收」抵扣，下次結帳自動扣掉
   const prepayBtn=host.querySelector('#pos-prepay');if(prepayBtn)prepayBtn.onclick=async()=>{

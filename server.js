@@ -4687,8 +4687,9 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
       regWarn=posRegister.checkoutAllowed(out.lines,await registersOpenMap(client,tableOrders.MenuLib.businessDay()),{strict:!!venues}).warning;
     }catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
     if(!out.lines.every(l=>tableOrders.itemInVenues(l,venues))){await client.query('ROLLBACK');return res.status(403).json({error:'這桌含有其他品牌品項，請只勾選自己店別的品項結帳，或由言文字管理員處理。'});}
-    const cardTok=String(req.body?.member_token||'').trim(),phoneRaw=String(req.body?.member_phone||'').trim();
+    const cardTok=String(req.body?.member_token||'').trim(),phoneRaw=String(req.body?.member_phone||'').trim(),memberIdRaw=String(req.body?.member_id||'').trim().slice(0,64);
     if(cardTok){const p=verifyAccessToken(cardTok,process.env.ACCESS_QR_SECRET||SECRET);if(!p||p.plan!=='yan-card'){await client.query('ROLLBACK');return res.status(400).json({error:'會員卡無效或過期。'});}memberUser=(await client.query('SELECT id,name,phone,phone_e164 FROM users WHERE id=$1',[p.sub])).rows[0];if(!memberUser){await client.query('ROLLBACK');return res.status(404).json({error:'找不到這位會員。'});}}
+    else if(memberIdRaw){memberUser=(await client.query('SELECT id,name,phone,phone_e164 FROM users WHERE id=$1',[memberIdRaw])).rows[0];if(!memberUser){await client.query('ROLLBACK');return res.status(404).json({error:'找不到這位會員。'});}}
     else if(phoneRaw){try{memberUser=await findOrCreateMemberByPhone(client,phoneRaw,req.body?.name);}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}}
     if(memberUser){out.payer={...out.payer,member:true,member_id:memberUser.id,member_phone:memberUser.phone_e164||memberUser.phone||''};}
     const orderId=uid('to_'),set=new Set(out.lines.map(l=>l.line)),orderLines=out.lines.map(l=>({...l,order_id:orderId})),items=tableOrders.settleItems(s.items,out.lines,orderId,out.credit);

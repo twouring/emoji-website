@@ -54,6 +54,17 @@
   const dateOrEmpty = v => (DATE_RE.test(String(v || '')) ? String(v) : '');
   const uid = () => 'm_' + Math.random().toString(36).slice(2, 10);
 
+  // 會員價：品項有填 emo（>0）就用它；空白／0＝原價九折（四捨五入）。現場輸入金額的品項（custom_price）不打折。
+  const MEMBER_RATE = 0.9;
+  function memberPrice(item, base) {
+    if (!item) return 0;
+    const price = Number.isFinite(Number(base)) && base !== undefined && base !== null ? Number(base) : Number(item.price);
+    if (item.custom_price === true) return price;
+    const emo = Number(item.emo);
+    if (Number.isFinite(emo) && emo > 0) return emo;
+    return Math.round(price * MEMBER_RATE);
+  }
+
   function coerceAlcohol(item) {
     if (ALCOHOL_CATS.includes(item.cat)) return true;
     if (item.note && String(item.note).includes('含酒精')) return true;
@@ -187,9 +198,10 @@
   }
 
   function renderItem(item, lang) {
-    const showOrig = item.emo > 0 && item.emo !== item.price;
+    const mp = memberPrice(item);
+    const showOrig = mp > 0 && mp < item.price;
     const priceHtml = showOrig
-      ? '<span class="now">' + pick(MEMBER_LABEL, lang) + ' ' + money(item.emo) + '</span><span class="orig">' + pick(REGULAR_LABEL, lang) + ' ' + money(item.price) + '</span>'
+      ? '<span class="now">' + pick(MEMBER_LABEL, lang) + ' ' + money(mp) + '</span><span class="orig">' + pick(REGULAR_LABEL, lang) + ' ' + money(item.price) + '</span>'
       : '<span class="now">' + money(item.price) + '</span>';
     return '<li class="menu-item' + (item.image ? ' menu-item--img' : '') + '">' +
       (item.image ? '<img class="menu-item__img" src="' + esc(item.image) + '" alt="' + esc(item.zh) + '" loading="lazy">' : '') +
@@ -228,7 +240,7 @@
   }
 
   global.MenuLib = {
-    CATS, VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, activeVenue, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
+    CATS, VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, MEMBER_RATE, memberPrice, activeVenue, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
     upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, soldOutToday, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
