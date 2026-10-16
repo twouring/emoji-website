@@ -242,3 +242,12 @@ tr.lp-refund td{color:#b42318}
 #mk-err{margin-top:14px;max-width:none}
 
 .pos-part{margin-top:4px;border-style:dashed}.pos-part small{padding:0 6px;color:var(--muted,#777)}
+
+.pos-move-ov{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px}
+.pos-move-box{background:#fff;border-radius:14px;padding:18px;max-width:520px;width:100%;max-height:90vh;overflow:auto}
+.pos-move-box h3{margin:0 0 4px}
+.pos-move-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}
+.pos-move-opt{min-height:64px;border:1px solid #d8d8d8;border-radius:10px;background:#fafafa;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font:inherit;cursor:pointer}
+.pos-move-opt b{font-size:1.2em}.pos-move-opt small{color:#777}
+.pos-move-opt.busy{background:#fff4cc;border-color:#e0b800}
+.pos-move-foot{display:flex;justify-content:space-between;gap:8px}

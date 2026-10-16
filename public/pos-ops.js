@@ -604,8 +604,19 @@ function paintPos(){
     return ensureOperator(()=>runCheckoutOnce(cur.id,async()=>{const checkout=host.querySelector('#pos-checkout');checkout.disabled=true;try{return await opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/checkout',{method:'POST',body:{method,member:POS_MEMBER,lines:POS_PICK?[...POS_PICK]:Object.keys(POS_QTY).length?cur.lines.map(l=>l.line):[],quantities:Object.keys(POS_QTY).length?{...POS_QTY}:undefined,invoice:invoiceBody(host),discount:POS_DISCOUNT||undefined,received:rec,operator_id:OPERATOR?.id}}),async out=>{const drawerOk=await autoCashDrawer({kind:'checkout',order_id:out.order_id,method:out.method||method,amount:out.amount,payments:out.payments});const order={id:out.order_id,order_id:out.order_id,table_no:cur.table,items:picked.map(l=>({...l,price:priceOf(l)})),amount:out.amount,invoice:out.invoice,paid_at:new Date().toISOString(),payer:{method,member:POS_MEMBER,discount:POS_DISCOUNT,received:rec,change:out.change}};await printCheckoutOrder(order);return `已收款 NT$${num(out.amount)}${out.change?`，找零 NT$${num(out.change)}`:''}${out.invoice?.status==='issued'?`，發票 ${out.invoice.number||'已開立'}`:out.invoice?.status==='failed'?`，發票開立失敗可補開` : ''}${out.remaining?`，這桌還有 NT$${num(out.remaining)} 未結`:out.closed?'，已自動清桌':'，這桌已結清'}${out.warning?`。${out.warning}`:''}${drawerOk===false?'。未確認開櫃成功，請確認錢櫃並按「開錢櫃」重試，勿重複收款。':''}`;},()=>{POS_PICK=null;POS_QTY={};POS_MEMBER=false;POS_DISCOUNT=null;POS_RECEIVED='';POS_INVOICE.mode='paper';return reload();});}finally{checkout.disabled=false;}}));
   };
   const place=host.querySelector('#pos-place');if(place)place.onclick=()=>{if(place.disabled)return;place.disabled=true;return opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/place',{method:'POST',body:{}}),async()=>{await pollKitchenPrinting();return '已送出點餐，出餐單由連接印表機的 Star Browser 自動列印';},reload).finally(()=>{place.disabled=false;});};
-  const mv=host.querySelector('#pos-move');if(mv)mv.onclick=()=>{const t=prompt(`把 ${cur.table} 換到哪一桌？（目標桌已開著會併桌）`);if(t===null)return;const table=t.trim().toUpperCase();if(!table)return;
-    opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/move',{method:'POST',body:{table_no:table}}),out=>out.merged?`已併到 ${out.table}`:`已換到 ${out.table}`,out=>{POS_TABLE=out.table;POS_PICK=null;return reload();});};
+  const mv=host.querySelector('#pos-move');if(mv)mv.onclick=()=>{
+    const doMove=table=>opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/move',{method:'POST',body:{table_no:table}}),out=>out.merged?`已併到 ${out.table}`:`已換到 ${out.table}`,out=>{POS_TABLE=out.table;POS_PICK=null;return reload();});
+    // 用選的：固定桌號＋目前已開的加開桌，點一下就換桌（目標桌已開＝併桌）；真的要別的桌號才用「其他桌號」打字
+    const names=[...DEFAULT_TABLES,...sessions.filter(s=>!s.takeout&&!DEFAULT_TABLES.includes(s.table)).map(s=>s.table)].filter(t=>t!==cur.table);
+    const ov=document.createElement('div');ov.className='pos-move-ov';
+    ov.innerHTML=`<div class="pos-move-box" role="dialog" aria-label="換桌／併桌"><h3>${esc(cur.table)} 要去哪一桌？</h3><p class="hint">空桌＝換桌；已開的桌＝併桌</p><div class="pos-move-grid">${names.map(t=>{const o=byTable.get(t);return `<button type="button" class="pos-move-opt ${o?'busy':''}" data-to="${esc(t)}"><b>${esc(t)}</b><small>${o?'併桌':'換桌'}</small></button>`;}).join('')}</div><div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-other>其他桌號…</button><button type="button" class="btn btn--ghost" data-cancel>取消</button></div></div>`;
+    const done=()=>ov.remove();
+    ov.onclick=e=>{if(e.target===ov)done();};
+    ov.querySelector('[data-cancel]').onclick=done;
+    ov.querySelector('[data-other]').onclick=()=>{const t=prompt('輸入桌號（目標桌已開著會併桌）');const table=(t||'').trim().toUpperCase();if(!table)return;done();doMove(table);};
+    ov.querySelectorAll('[data-to]').forEach(b=>b.onclick=()=>{done();doMove(b.dataset.to);});
+    document.body.appendChild(ov);
+  };
   host.querySelector('#pos-close').onclick=async()=>{
     if(!confirm(cur.takeout?`確定收掉外帶單 ${cur.table}？`:`確定清桌 ${cur.table}？未取餐的單會標記已取餐，下一組客人掃碼會開新的一桌。`))return;
     try{await api('/admin/orders/sessions/'+cur.id+'/close',{method:'POST',body:{}});toast('已清桌');POS_TABLE='';await reload();}
