@@ -804,6 +804,11 @@ async function migrate() {
   await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS line_user_id TEXT, ADD COLUMN IF NOT EXISTS line_linked_at TIMESTAMPTZ`);
   await q(`CREATE UNIQUE INDEX IF NOT EXISTS users_line_user_id_uidx ON users(line_user_id) WHERE line_user_id IS NOT NULL`);
   await q(`ALTER TABLE dining_reservations ADD COLUMN IF NOT EXISTS line_user_id TEXT, ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ`);
+  // 會員 App 訂位／預約取餐：訂位綁會員；取餐單（table_sessions 外帶單）記會員、取餐時間與自動送單時間
+  await q(`ALTER TABLE dining_reservations ADD COLUMN IF NOT EXISTS user_id TEXT`);
+  await q(`CREATE INDEX IF NOT EXISTS dining_reservations_user_idx ON dining_reservations(user_id) WHERE user_id IS NOT NULL`);
+  await q(`ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS user_id TEXT, ADD COLUMN IF NOT EXISTS pickup_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS pickup_note TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS pickup_placed_at TIMESTAMPTZ`);
+  await q(`CREATE INDEX IF NOT EXISTS table_sessions_pickup_idx ON table_sessions(pickup_at) WHERE status='open' AND pickup_at IS NOT NULL`);
   await q(require('./lib/line-delivery').SCHEMA);
   await q(`CREATE INDEX IF NOT EXISTS line_deliveries_due_idx ON line_deliveries(available_at) WHERE state='pending'`);
   await q(`CREATE TABLE IF NOT EXISTS line_events (id TEXT PRIMARY KEY, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
@@ -1602,6 +1607,39 @@ app.post('/api/reservations', rateLimit({ max: 30, windowMs: 3600000 }), require
   lineService.notifyStaffReservation(r, requestId, 'web');
   const lineUrl = line.loginConfig() ? `${OWN_BASE}/auth/line?resv=${encodeURIComponent(signToken({ resv: id }, { purpose: 'line-resv' }))}` : '';
   res.status(201).json({ ok: true, request_id: requestId, period: r.period, hold_until: reservations.holdUntil(r.time), hold_minutes: reservations.HOLD_MINUTES, line_url: lineUrl });
+}));
+
+/* ---- 會員 App：訂位綁帳號、我的訂位、取消 ---- */
+const SEL_RESV_ME=`id,request_id,to_char(reserve_date,'YYYY-MM-DD') AS reserve_date,reserve_time,period,party_size,name,phone,note,status,table_no,created_at`;
+app.post('/api/me/reservations', auth, requireDb, rateLimit({ max: 20, windowMs: 3600000 }), wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  const me = (await q('SELECT id,name,email,phone,phone_e164 FROM users WHERE id=$1', [req.auth.sub])).rows[0];
+  if (!me) return res.status(401).json({ error: '帳號不存在，請重新登入。' });
+  let r;
+  try { r = reservations.normalizeReservation({ ...req.body, name: req.body?.name || me.name, phone: req.body?.phone || me.phone_e164 || me.phone, email: req.body?.email ?? me.email ?? '', source: 'member-app' }, new Date(), { member: true }); }
+  catch (error) { return res.status(error.status || 400).json({ error: error.message }); }
+  const open = Number((await q("SELECT COUNT(*)::int AS n FROM dining_reservations WHERE user_id=$1 AND deleted_at IS NULL AND status IN ('new','confirmed') AND reserve_date>=(now() AT TIME ZONE 'Asia/Taipei')::date", [me.id])).rows[0].n);
+  if (open >= 5) return res.status(409).json({ error: '你已有 5 筆未到的訂位，請先取消其中一筆。' });
+  const id = uid('dr_');
+  const requestId = await insertWithRequestId(rid => q(`INSERT INTO dining_reservations(id,request_id,reserve_date,reserve_time,period,party_size,name,phone,email,lang,note,source,status,user_id)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`, [id, rid, r.date, r.time, r.period, r.partySize, r.name, r.phone, r.email, r.lang, r.note, r.source, 'confirmed', me.id]));
+  if (r.email) sendMailQuietly({ to: r.email, subject: reservations.guestSubject(r), text: reservations.guestMail(r, requestId), replyTo: NOTIFY_EMAIL, idempotencyKey: 'reservation-confirm/' + id });
+  sendMailQuietly({ to: NOTIFY_EMAIL, subject: `[訂位] ${r.date} ${r.time}｜${r.partySize} 位｜${r.name}`, text: reservations.staffMail(r, requestId, SITE_BASE) + `\n\n後台「訂位」分頁（排桌、取消、已到／未到）：${reservationAdminUrl(r)}`, replyTo: r.email || undefined });
+  lineService.notifyStaffReservation(r, requestId, 'app');
+  res.status(201).json({ ok: true, id, request_id: requestId, period: r.period, hold_until: reservations.holdUntil(r.time), hold_minutes: reservations.HOLD_MINUTES });
+}));
+app.get('/api/me/reservations', auth, requireDb, wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  const rows = (await q(`SELECT ${SEL_RESV_ME} FROM dining_reservations WHERE user_id=$1 AND deleted_at IS NULL AND reserve_date>=(now() AT TIME ZONE 'Asia/Taipei')::date-1 ORDER BY reserve_date,reserve_time`, [req.auth.sub])).rows;
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, reservations: rows.map(r => ({ ...r, venue: tableOrders.reservationVenue(r.reserve_time), label: tableOrders.RESERVATION_LABEL[r.status] || r.status, can_cancel: ['new', 'confirmed'].includes(r.status) })) });
+}));
+app.delete('/api/me/reservations/:id', auth, requireDb, wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  const r = (await q(`UPDATE dining_reservations SET status='cancelled',updated_at=now() WHERE id=$1 AND user_id=$2 AND deleted_at IS NULL AND status IN ('new','confirmed') AND reserve_date>=(now() AT TIME ZONE 'Asia/Taipei')::date RETURNING ${SEL_RESV_ME}`, [String(req.params.id), req.auth.sub])).rows[0];
+  if (!r) return res.status(404).json({ error: '找不到可取消的訂位。' });
+  lineService.notifyStaff(`❌ 訂位已由客人在會員 App 取消 ${r.request_id}\n${r.reserve_date} ${r.reserve_time}｜${r.party_size} 位｜${r.name}`);
+  res.json({ ok: true });
 }));
 
 async function accountByEmail(client,email,name,fillName=false){
@@ -4396,6 +4434,89 @@ app.get('/api/me/yan', auth, requireDb, wrap(async (req, res) => {
   const rows = await yanRowsFor({ query: (...a) => q(...a) }, req.auth.sub);
   res.json({ ok: true, balance: yan.balance(rows), phone: (await q('SELECT phone_e164 FROM users WHERE id=$1',[req.auth.sub])).rows[0]?.phone_e164 || '' });
 }));
+/* 會員 App「我的報名」：已成立報名（含待付款）的活動，過去 1 天內到未來；票券 QR 由 /api/events/:id/ticket 取 */
+app.get('/api/me/registrations', auth, requireDb, wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  const rows = (await q(`SELECT e.id,e.slug,e.title,e.location,e.status AS event_status,to_char(e.starts_at AT TIME ZONE 'Asia/Taipei','YYYY/MM/DD HH24:MI') AS starts_at,
+      r.id AS registration_id,r.status,r.quantity,r.amount_paid,r.checked_in_at
+    FROM event_regs r JOIN events e ON e.id=r.event_id
+    WHERE r.user_id=$1 AND r.status IN ('registered','pending_payment') AND e.status<>'已取消' AND (e.ends_at IS NULL OR e.ends_at>now()-interval '1 day') AND (e.starts_at IS NULL OR e.starts_at>now()-interval '7 day')
+    ORDER BY e.starts_at ASC NULLS LAST`, [req.auth.sub])).rows;
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, registrations: rows.map(r => ({ ...r, ticket: r.status === 'registered' && !!EVENT_QR_SECRET })) });
+}));
+
+/* ---- 預約取餐（會員 App）：先選時間與品項 → 開一張外帶單（W01–W99，記會員與取餐時間）→ 取餐前 PREP_MIN 分鐘排程自動送單（出餐看板＋出餐單）→ 到店付款 ---- */
+const pickup = require('./lib/pickup');
+const pickupView = s => ({ id: s.id, table: s.table_no, pickup_at: s.pickup_at, pickup_time: pickup.clock(s.pickup_at), note: s.pickup_note || '', placed: !!s.pickup_placed_at, status: s.status,
+  state: tableOrders.tableStatus(s, s.live || []), items: (s.items || []).map(({ guest, ...l }) => l), amount: tableOrders.sum(s.items || []), paid: tableOrders.unpaid(s.items || []).length === 0 && (s.items || []).length > 0 });
+async function loadPickups(userId) {
+  const rows = (await q(`SELECT * FROM table_sessions WHERE user_id=$1 AND pickup_at IS NOT NULL AND (status='open' OR updated_at>now()-interval '1 day') ORDER BY pickup_at DESC LIMIT 10`, [userId])).rows;
+  const ids = rows.map(r => r.id);
+  const live = ids.length ? (await q("SELECT id,session_id,status FROM table_orders WHERE session_id=ANY($1) AND status IN ('paid','ready')", [ids])).rows : [];
+  return rows.map(s => ({ ...s, live: live.filter(o => o.session_id === s.id) }));
+}
+app.get('/api/me/pickups', auth, requireDb, wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  const now = new Date();
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, pickups: (await loadPickups(req.auth.sub)).map(pickupView), dates: pickup.dates(now), slots: Object.fromEntries(pickup.dates(now).map(d => [d, pickup.slotsFor(d, now)])), prep_min: pickup.PREP_MIN });
+}));
+app.post('/api/me/pickups', auth, requireDb, rateLimit({ max: 20, windowMs: 3600000 }), wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  const me = (await q('SELECT id,name FROM users WHERE id=$1', [req.auth.sub])).rows[0];
+  if (!me) return res.status(401).json({ error: '帳號不存在，請重新登入。' });
+  let p; try { p = pickup.normalizePickup(req.body); } catch (e) { return res.status(e.status || 400).json({ error: e.message }); }
+  const pauseMsg = tableOrders.pauseFor(await contentValue('ordering_pause'), p.venue);
+  if (pauseMsg) return res.status(423).json({ error: pauseMsg });
+  // 菜單依取餐時段的品牌（不是現在的營業品牌）；客人端看不到 pos_only
+  const menu = tableOrders.menuIndex(await contentValue('menu'), p.venue, { now: p.pickupAt });
+  let items = [];
+  try { for (const x of p.items) items = tableOrders.addLine(items, menu, { item_id: x.item_id, qty: x.qty, by: me.name || '會員', guest: pickup.guestOf(me.id), note: x.note }); }
+  catch (e) { return res.status(e.status || 400).json({ error: e.message }); }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN'); await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, ['table:takeout']);
+    const open = Number((await client.query("SELECT COUNT(*)::int AS n FROM table_sessions WHERE user_id=$1 AND status='open' AND pickup_at IS NOT NULL", [me.id])).rows[0].n);
+    if (open >= pickup.MAX_OPEN_PER_USER) { await client.query('ROLLBACK'); return res.status(409).json({ error: `你已有 ${pickup.MAX_OPEN_PER_USER} 張未取的預約，請先取消或取餐。` }); }
+    const used = new Set((await client.query("SELECT table_no FROM table_sessions WHERE status='open' AND table_no ~ '^W[0-9]{2}$'")).rows.map(r => r.table_no));
+    const table = tableOrders.nextTakeoutTable(used);
+    if (!table) { await client.query('ROLLBACK'); return res.status(409).json({ error: '目前預約已滿，請稍後再試或到店點餐。' }); }
+    const s = (await client.query(`INSERT INTO table_sessions(id,table_no,items,user_id,pickup_at,pickup_note,opened_by_staff_name) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`, [uid('ts_'), table, JSON.stringify(items), me.id, p.pickupAt, p.note, '會員 App'])).rows[0];
+    await client.query('COMMIT');
+    lineService.notifyStaff(`🥡 新預約取餐 ${table}（會員 App）\n${p.date} ${p.time} 取餐｜${me.name || ''}\n${items.map(l => `${l.zh} ×${l.qty}`).join('、')}${p.note ? '\n備註：' + p.note : ''}\n取餐前 ${pickup.PREP_MIN} 分鐘自動送單`);
+    res.status(201).json({ ok: true, pickup: pickupView({ ...s, live: [] }) });
+  } catch (e) { await client.query('ROLLBACK').catch(() => {}); throw e; } finally { client.release(); }
+}));
+app.delete('/api/me/pickups/:id', auth, requireDb, wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  if (!ORDER_ID_RE.test(req.params.id)) return res.status(404).json({ error: '找不到這張預約。' });
+  // 已送進廚房（pickup_placed_at）就不能自己取消，請聯絡店家
+  const r = (await q(`UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=$1 AND user_id=$2 AND status='open' AND pickup_at IS NOT NULL AND pickup_placed_at IS NULL AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(items) l WHERE l->>'order_id' IS NOT NULL AND l->>'order_id'<>'') RETURNING table_no`, [req.params.id, req.auth.sub])).rows[0];
+  if (!r) return res.status(409).json({ error: '這張預約已開始準備或已結帳，無法取消，請聯絡店家。' });
+  lineService.notifyStaff(`❌ 預約取餐 ${r.table_no} 已由客人取消`);
+  res.json({ ok: true });
+}));
+/* 排程：到了取餐前 PREP_MIN 分鐘就把預約單的品項送單（進出餐看板、出餐單列印）；過期（取餐後 EXPIRE_HOURS 小時仍未結帳）自動收掉 */
+async function placeDuePickups(now = new Date()) {
+  const rows = (await q(`SELECT * FROM table_sessions WHERE status='open' AND pickup_at IS NOT NULL AND pickup_placed_at IS NULL AND pickup_at<=$1 ORDER BY pickup_at LIMIT 50`, [new Date(now.getTime() + pickup.PREP_MIN * 60e3)])).rows;
+  let n = 0;
+  for (const s of rows) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const cur = (await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE', [s.id])).rows[0];
+      if (!cur || cur.status !== 'open' || cur.pickup_placed_at) { await client.query('ROLLBACK'); continue; }
+      let placed; try { placed = tableOrders.placeLines(cur.items, now); } catch { await client.query("UPDATE table_sessions SET pickup_placed_at=now() WHERE id=$1", [cur.id]); await client.query('COMMIT'); continue; }
+      await client.query('UPDATE table_sessions SET items=$2,pickup_placed_at=now(),updated_at=now() WHERE id=$1', [cur.id, JSON.stringify(placed.items)]);
+      await kitchenPrint.enqueue(client.query.bind(client), [{ ...cur, items: placed.lines }]);
+      await client.query('COMMIT'); n++;
+    } catch (e) { await client.query('ROLLBACK').catch(() => {}); console.error('[pickup] 送單失敗', s.id, e.message); } finally { client.release(); }
+  }
+  const stale = await q(`UPDATE table_sessions SET status='closed',updated_at=now() WHERE status='open' AND pickup_at IS NOT NULL AND pickup_at<$1 AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(items) l WHERE l->>'order_id' IS NOT NULL AND l->>'order_id'<>'')`, [new Date(now.getTime() - pickup.EXPIRE_HOURS * 3600e3)]);
+  return { placed: n, expired: stale.rowCount };
+}
+
 /* 會員卡「可兌換」清單：菜單有設兌換點數的品項＋後台設定的空間時數；只讀、與兌換結帳邏輯無關（實際兌換仍在櫃檯掃碼） */
 app.get('/api/me/rewards', auth, requireDb, wrap(async (req, res) => {
   if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
@@ -4756,11 +4877,11 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const orders=(await q(all?"SELECT * FROM table_orders WHERE paid_at>now()-interval '1 day' ORDER BY paid_at DESC":"SELECT * FROM table_orders WHERE status IN ('paid','ready') ORDER BY paid_at")).rows.filter(o=>tableOrders.orderOwnedByVenues(o,venues)).map(o=>({...o,push:undefined,push_count:o.push.length,stations:tableOrders.splitByStation(o)}));
   // 桌況：每桌未付品項明細（櫃檯結帳用）＋ 狀態（空桌／點餐中／準備中／可取餐）
   const live=(await q("SELECT id,session_id,status FROM table_orders WHERE status IN ('paid','ready')")).rows;
-  let rows=(await q("SELECT id,table_no,items,created_at,updated_at,opened_by_staff_name,pay_requests FROM table_sessions WHERE status='open' ORDER BY table_no")).rows;
+  let rows=(await q("SELECT id,table_no,items,created_at,updated_at,opened_by_staff_name,pay_requests,pickup_at,pickup_note,pickup_placed_at FROM table_sessions WHERE status='open' ORDER BY table_no")).rows;
   // 外帶單（W01–W99）結完帳且取餐完成就自動收掉，號碼釋出給下一位；內用桌留「待清桌」給人員確認客人離開
   const doneTakeout=rows.filter(s=>tableOrders.isTakeout(s.table_no)&&tableOrders.takeoutFinished(s,live)).map(s=>s.id);
   if(doneTakeout.length){await q("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=ANY($1) AND status='open'",[doneTakeout]);rows=rows.filter(s=>!doneTakeout.includes(s.id));}
-  const sessions=rows.filter(s=>tableOrders.orderVisibleToVenues(s,venues)).map(s=>{const lines=tableOrders.unpaid(s.items).filter(line=>tableOrders.itemInVenues(line,venues)).map(({guest,...l})=>l);return{id:s.id,table:s.table_no,takeout:tableOrders.isTakeout(s.table_no),unpaid:lines.length,unpaid_amount:tableOrders.sum(lines),lines,mixed:!tableOrders.sessionClosableByVenues(s,venues),state:tableOrders.tableStatus(s,live),updated_at:s.updated_at,created_at:s.created_at,operator:s.opened_by_staff_name||null,pay_requests:tableOrders.payRequestsView(s.pay_requests,s.items).map(r=>({...r,lines:r.lines.filter(l=>lines.some(x=>x.line===l))})).filter(r=>r.lines.length)};});
+  const sessions=rows.filter(s=>tableOrders.orderVisibleToVenues(s,venues)).map(s=>{const lines=tableOrders.unpaid(s.items).filter(line=>tableOrders.itemInVenues(line,venues)).map(({guest,...l})=>l);return{id:s.id,table:s.table_no,takeout:tableOrders.isTakeout(s.table_no),pickup_at:s.pickup_at||null,pickup_note:s.pickup_note||'',pickup_placed:!!s.pickup_placed_at,unpaid:lines.length,unpaid_amount:tableOrders.sum(lines),lines,mixed:!tableOrders.sessionClosableByVenues(s,venues),state:tableOrders.tableStatus(s,live),updated_at:s.updated_at,created_at:s.created_at,operator:s.opened_by_staff_name||null,pay_requests:tableOrders.payRequestsView(s.pay_requests,s.items).map(r=>({...r,lines:r.lines.filter(l=>lines.some(x=>x.line===l))})).filter(r=>r.lines.length)};});
   // 桌邊送單（未結帳、未出餐）：與已結帳的出餐單一起上看板；子帳號只看整張都是自己品牌的
   const tickets=rows.flatMap(s=>tableOrders.ticketsOf(s)).filter(t=>tableOrders.orderOwnedByVenues(t,venues)).map(t=>({...t,items:t.items.map(({guest,...l})=>l)}));
   const pause=tableOrders.parsePause(await contentValue('ordering_pause'));
@@ -5697,6 +5818,9 @@ async function boot() {
       if(lineDeliveryRunning)return;lineDeliveryRunning=true;
       try{await lineDelivery.run();}catch{console.error('[line-delivery] scheduler_failed');}finally{lineDeliveryRunning=false;}
     });
+    // 預約取餐：每分鐘檢查，取餐前 PREP_MIN 分鐘自動送單；過期未取自動收掉
+    let pickupRunning=false;
+    require('node-cron').schedule('* * * * *',async()=>{if(pickupRunning)return;pickupRunning=true;try{await placeDuePickups();}catch(e){console.error('[pickup]',e.message);}finally{pickupRunning=false;}});
     // LINE 訂位前一日提醒：每天 18:00（台北），一筆只提醒一次
     require('node-cron').schedule('0 18 * * *', () => lineService.sendReminders().catch(e => console.error('[line] 提醒失敗：', e.message)), { timezone: 'Asia/Taipei' });
     require('node-cron').schedule('0 9 * * *', () => remindExpiringMemberships()

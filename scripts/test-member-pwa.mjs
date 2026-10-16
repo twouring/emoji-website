@@ -43,6 +43,16 @@ test('消費者介面不出現品牌化點數名稱（言點、Yan）', () => {
 
 test('會員卡首頁：可兌換清單、訂位／活動／菜單快捷；/api/me/rewards 只讀', () => {
   const h = read('public/m.html'), s = read('server.js');
-  assert.match(h, /\/api\/me\/rewards/); assert.match(h, /\/reserve/); assert.match(h, /rewardsSec/);
+  assert.match(h, /\/api\/me\/rewards/); assert.match(h, /rewardsSec/);
   assert.match(s, /app\.get\('\/api\/me\/rewards', auth, requireDb/);
+});
+
+test('預約分頁：訂位／預約取餐／我的報名；首頁快捷；API 皆要求會員登入', () => {
+  const h = read('public/m.html'), s = read('server.js');
+  assert.match(h, /data-tab="book"/); assert.match(h, /data-go="resv"/); assert.match(h, /data-go="pickup"/); assert.match(h, /data-go="events"/);
+  for (const p of ['/api/me/reservations', '/api/me/pickups', '/api/me/registrations']) { assert.ok(h.includes(p), p); assert.match(s, new RegExp(`app\\.get\\('${p.replace(/\//g, '\\/')}', auth, requireDb`)); }
+  assert.match(s, /app\.post\('\/api\/me\/reservations', auth, requireDb, rateLimit/); assert.match(s, /app\.post\('\/api\/me\/pickups', auth, requireDb, rateLimit/);
+  assert.match(s, /app\.delete\('\/api\/me\/reservations\/:id', auth/); assert.match(s, /app\.delete\('\/api\/me\/pickups\/:id', auth/);
+  assert.match(h, /\/api\/events\/'\+encodeURIComponent\(eventId\)\+'\/ticket/, '票券 QR');
+  assert.match(h, /<script src="\/menu-lib\.js"><\/script>/); assert.match(read('public/m-sw.js'), /'\/menu-lib\.js'/);
 });

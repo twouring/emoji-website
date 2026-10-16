@@ -69,7 +69,7 @@ h1,h2,h3{font-family:"Noto Serif TC",serif;font-weight:700;margin:0}
 .sheet li{margin:10px 0}
 .sheet .note{color:var(--muted);margin:0 0 14px;text-wrap:pretty}
 /* 底部分頁 */
-nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:10;background:rgba(251,250,246,.96);backdrop-filter:blur(10px);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(3,1fr);padding-bottom:env(safe-area-inset-bottom)}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:10;background:rgba(251,250,246,.96);backdrop-filter:blur(10px);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom)}
 nav.tabs button{height:var(--tab);border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--muted);font-size:1rem}
 nav.tabs button svg{width:24px;height:24px}
 nav.tabs button[aria-current=true]{color:var(--ink);font-weight:700}
@@ -88,6 +88,30 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 .login h1{font-size:1.7rem}
 .login p{color:var(--muted);margin:0;text-wrap:balance}
 .offline{background:var(--alt);border:1px solid var(--line);color:var(--soft);border-radius:10px;padding:.4em .8em;margin-bottom:12px;text-align:center}
+/* 預約表單 */
+.fld{display:block;color:var(--soft);margin-top:12px}
+.fld input,.fld select,.fld textarea{display:block;width:100%;margin-top:6px;min-height:52px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);font-family:inherit;font-size:1rem;color:var(--ink)}
+.fld textarea{min-height:72px}
+.seg{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.seg button{min-height:48px;padding:0 16px;border:1.5px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem}
+.seg button[aria-pressed=true]{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+.seg button{flex:1 1 calc(33.333% - 8px)}.seg.two button{flex:1 1 calc(50% - 8px)}
+.mi .q button:disabled{opacity:.35}
+.slots{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px}
+.slots button{min-height:48px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);font-size:1rem;font-variant-numeric:tabular-nums}
+.slots button[aria-pressed=true]{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+.slots h4{grid-column:1/-1;margin:8px 0 0;font-weight:500;color:var(--muted)}
+.mi{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}
+.mi .nm{flex:1}.mi .nm small{display:block;color:var(--muted);font-size:1rem}
+.mi .q{display:flex;align-items:center;gap:4px}
+.mi .q button{width:44px;height:44px;border:1.5px solid var(--ink);border-radius:50%;background:transparent;font-size:1.3rem;line-height:1}
+.mi .q b{min-width:28px;text-align:center;font-variant-numeric:tabular-nums}
+.cat{margin:18px 0 4px;color:var(--muted);font-weight:500}
+.tile .act{display:flex;gap:10px;margin-top:12px}.tile .act .btn{min-height:44px;flex:1}
+.tile .act .quiet{margin:0;width:auto;flex:1;min-height:44px}
+.sticky{position:sticky;bottom:calc(var(--tab) + env(safe-area-inset-bottom) + 8px);background:var(--paper);padding:10px 0 2px}
+.pill{display:inline-block;border-radius:999px;padding:0 .7em;font-size:1rem;border:1px solid var(--line);margin-left:6px;color:var(--muted)}
+.pill.on{background:var(--accent);border-color:var(--ink);color:var(--ink)}
 /* 快捷 */
 .quick{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}
 .quick a,.quick button{min-height:84px;border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--ink);text-decoration:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-weight:500;font-size:1rem}
@@ -105,6 +129,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 <nav class="tabs" id="tabs" hidden aria-label="主選單">
   <button data-tab="home" aria-current="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg>會員卡</button>
   <button data-tab="events"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>活動</button>
+  <button data-tab="book"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>預約</button>
   <button data-tab="me"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>我的</button>
 </nav>
 <div class="ov" id="ov" hidden role="dialog" aria-modal="true" aria-label="會員 QR">
@@ -114,6 +139,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 </div>
 <div class="toast" id="toast" hidden role="status"></div>
 <script src="/vendor/qrcode.min.js"></script>
+<script src="/menu-lib.js"></script>
 <script>
 (function(){
   const KEY='tth_token', CACHE='m_cache';
@@ -222,7 +248,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   function nextEvent(){const list=(data.events||[]);return list.find(e=>e.registered)||list[0]||null;}
   function rewardsSec(pts){
     const r=data.rewards||{items:[],space:[]};
-    const list=[].concat((r.space||[]).map(x=>({n:x.zh,p:x.points})),(r.items||[]).map(x=>({n:x.zh,p:x.points})));
+    const list=[].concat((r.space||[]).map(x=>({n:x.zh,p:x.points})),(r.items||[]).map(x=>({n:x.zh,p:x.points}))).sort((a,b)=>a.p-b.p);
     if(!list.length)return '';
     const row=x=>{const ok=pts>=x.p;return `<div class="rw${ok?' ok':''}"><span>${esc(x.n)}<small>${ok?'現在就能兌換':'還差 '+esc(x.p-pts)+' 點'}</small></span><b>${esc(x.p)} 點</b></div>`;};
     return `<section class="sec"><h2>可以兌換</h2>${list.map(row).join('')}<p class="hint">到櫃檯出示會員卡，店員掃碼後兌換。</p></section>`;
@@ -236,21 +262,109 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     <button class="show" id="show"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17h3v4h-4v-3h4M18 14h3v3"/></svg>結帳時出示會員卡</button>
     <p class="hint">${phone?'也可以直接報手機號碼。':'到「我的」填寫手機，結帳報號碼就能累點。'}消費每滿 <span class="nb">100 元</span>累積 <span class="nb">1 點</span>，點數可兌換餐飲、服務與空間時數（不折抵金額；到櫃檯出示會員卡）。</p>
     <nav class="quick" aria-label="快捷">
-      <a href="${SITE}/reserve"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M17 3c-2 2-3 5-3 8h3v10"/></svg>訂位</a>
-      <button id="qev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>報名活動</button>
-      <a href="${SITE}/menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M5 8h12v6a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5zM17 10h2a2 2 0 0 1 0 4h-2"/></svg>菜單</a>
+      <button data-go="resv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M17 3c-2 2-3 5-3 8h3v10"/></svg>訂位</button>
+      <button data-go="pickup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 9h16l-1.5 11h-13zM8 9V6a4 4 0 0 1 8 0v3"/></svg>預約取餐</button>
+      <button data-go="events"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>報名活動</button>
     </nav>
     ${rewardsSec(pts)}
     ${installCard()}
+    ${upcomingSec()}
     <section class="sec"><h2>下一場活動</h2>${ev?evTile(ev):'<p class="empty">目前沒有開放報名的活動</p>'}</section>`;
     document.getElementById('show').onclick=openQr;
-    document.getElementById('qev').onclick=()=>{tab='events';paint();};
+    app.querySelectorAll('[data-go]').forEach(b=>b.onclick=e=>{e.preventDefault();go(b.dataset.go);});
     bindInstall();
   }
   function evTile(e){return `<a class="tile" href="${SITE}/events/${encodeURIComponent(e.slug||e.id)}"><h3>${esc(e.title)}${e.registered?'<span class="tag">已報名</span>':''}</h3><div class="meta">${esc(fmt(e.starts_at))}${e.location?' · '+esc(e.location):''}</div></a>`;}
   function events(){
     const list=data.events||[];
     app.innerHTML=`<div class="hello"><h1>活動</h1></div>${list.length?list.map(evTile).join(''):'<p class="empty">目前沒有開放報名的活動</p>'}`;
+  }
+  /* ---- 預約：我的訂位／預約取餐／我的報名 ---- */
+  let sub='list', PK={date:'',time:'',qty:{},note:''}, RV={date:'',time:'',party:2,note:''}, MENU=null, PICK=null;
+  function go(where){if(where==='events'){tab='events';paint();return;}tab='book';sub=where==='resv'?'resv':where==='pickup'?'pickup':'list';paint();}
+  const post=async(path,body,method)=>{const r=await fetch(path,{method:method||'POST',headers:{authorization:'Bearer '+token(),'content-type':'application/json'},body:body==null?undefined:JSON.stringify(body)});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'操作失敗，請稍後再試');return d;};
+  const dayLabel=d=>{const x=new Date(d+'T00:00:00+08:00');return x.toLocaleDateString('zh-TW',{timeZone:'Asia/Taipei',month:'numeric',day:'numeric',weekday:'short'});};
+  function upcomingSec(){
+    const rv=(data.reservations||[]).filter(r=>r.can_cancel),pk=(data.pickups||[]).filter(p=>p.status==='open');
+    if(!rv.length&&!pk.length)return '';
+    return `<section class="sec"><h2>即將到來</h2>${pk.map(p=>`<a class="tile" href="#" data-go="list"><h3>預約取餐 ${esc(p.pickup_time)}<span class="pill ${p.state==='ready'?'on':''}">${pickupState(p)}</span></h3><div class="meta">${esc(p.items.map(l=>l.zh+'×'+l.qty).join('、'))}</div></a>`).join('')}${rv.map(r=>`<a class="tile" href="#" data-go="list"><h3>訂位 ${esc(dayLabel(r.reserve_date))} ${esc(r.reserve_time)}</h3><div class="meta">${esc(r.period)} · ${esc(r.party_size)} 位 · ${esc(r.request_id)}</div></a>`).join('')}</section>`;
+  }
+  const pickupState=p=>p.status!=='open'?(p.paid?'已完成':'已結束'):p.state==='ready'?'可取餐':p.state==='preparing'?'準備中':p.placed?'已送單':'已預約';
+  function book(){
+    if(sub==='resv')return bookResv();
+    if(sub==='pickup')return bookPickup();
+    const rv=data.reservations||[],pk=data.pickups||[],rg=data.registrations||[];
+    app.innerHTML=`<div class="hello"><h1>預約</h1></div>
+    <nav class="quick" aria-label="新增預約"><button data-go="resv">＋ 訂位</button><button data-go="pickup">＋ 預約取餐</button><button data-go="events">報名活動</button></nav>
+    <section class="sec"><h2>預約取餐</h2>${pk.length?pk.map(p=>`<div class="tile"><h3>${esc(p.pickup_time)} 取餐<span class="pill ${p.state==='ready'?'on':''}">${pickupState(p)}</span></h3><div class="meta">${esc(p.table)} · ${esc(p.items.map(l=>l.zh+'×'+l.qty).join('、'))} · NT$${esc(p.amount)}${p.note?'<br>'+esc(p.note):''}</div>${p.status==='open'&&!p.placed?`<div class="act"><button class="quiet" data-cancel-pickup="${esc(p.id)}">取消預約</button></div>`:''}</div>`).join(''):'<p class="empty">還沒有預約取餐</p>'}</section>
+    <section class="sec"><h2>我的訂位</h2>${rv.length?rv.map(r=>`<div class="tile"><h3>${esc(dayLabel(r.reserve_date))} ${esc(r.reserve_time)}<span class="pill ${r.status==='confirmed'?'on':''}">${esc(r.label)}</span></h3><div class="meta">${esc(r.period)} · ${esc(r.party_size)} 位 · 編號 ${esc(r.request_id)}${r.table_no?' · 桌 '+esc(r.table_no):''}</div>${r.can_cancel?`<div class="act"><button class="quiet" data-cancel-resv="${esc(r.id)}">取消訂位</button></div>`:''}</div>`).join(''):'<p class="empty">還沒有訂位</p>'}</section>
+    <section class="sec"><h2>我的報名</h2>${rg.length?rg.map(r=>`<div class="tile"><h3>${esc(r.title)}<span class="pill ${r.status==='registered'?'on':''}">${r.status==='registered'?(r.checked_in_at?'已報到':'已報名'):'待付款'}</span></h3><div class="meta">${esc(fmt(r.starts_at))}${r.location?' · '+esc(r.location):''}${r.quantity>1?' · '+esc(r.quantity)+' 張':''}</div><div class="act">${r.ticket?`<button class="btn solid" data-ticket="${esc(r.id)}">出示票券</button>`:''}<a class="btn" href="${SITE}/events/${encodeURIComponent(r.slug||r.id)}">活動頁</a></div></div>`).join(''):'<p class="empty">還沒有報名活動</p>'}</section>`;
+    app.querySelectorAll('[data-go]').forEach(b=>b.onclick=e=>{e.preventDefault();go(b.dataset.go);});
+    app.querySelectorAll('[data-cancel-pickup]').forEach(b=>b.onclick=async()=>{if(!confirm('取消這張預約取餐？'))return;b.disabled=true;try{await post('/api/me/pickups/'+encodeURIComponent(b.dataset.cancelPickup),null,'DELETE');toast('已取消');await load();}catch(e){toast(e.message);b.disabled=false;}});
+    app.querySelectorAll('[data-cancel-resv]').forEach(b=>b.onclick=async()=>{if(!confirm('取消這筆訂位？'))return;b.disabled=true;try{await post('/api/me/reservations/'+encodeURIComponent(b.dataset.cancelResv),null,'DELETE');toast('已取消');await load();}catch(e){toast(e.message);b.disabled=false;}});
+    app.querySelectorAll('[data-ticket]').forEach(b=>b.onclick=()=>openTicket(b.dataset.ticket));
+  }
+  async function openTicket(eventId){
+    const img=document.getElementById('ovimg'),meta=document.getElementById('ovmeta');
+    try{const d=await get('/api/events/'+encodeURIComponent(eventId)+'/ticket');clearInterval(qrTimer);ov.hidden=false;QRCode.toDataURL(d.token,{width:320,margin:1},(err,url)=>{if(!err)img.src=url;});meta.textContent=(d.tickets||[]).length>1?`活動票券 ${d.tickets.length} 張 · 請出示給工作人員掃描`:'活動票券 · 請出示給工作人員掃描';}
+    catch(e){toast('票券暫時無法顯示，請到活動頁查看');}
+  }
+  function bookResv(){
+    const me=data.me||{},today=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Taipei'});
+    if(!RV.date)RV.date=today;
+    const slot=(a,b)=>{const o=[];for(let m=a;m<b;m+=30)o.push(String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'));return o;};
+    const now=new Date(),tpMin=(now.getUTCHours()+8)%24*60+now.getUTCMinutes();
+    const past=t=>RV.date===today&&(Number(t.slice(0,2))*60+Number(t.slice(3)))<=tpMin+30&&Number(t.slice(0,2))>=3;
+    const groups=[['在咖啡 08:00–17:00',slot(8*60,17*60)],['三點水 17:00–03:00',slot(17*60,24*60).concat(slot(0,3*60))]];
+    app.innerHTML=`<div class="hello"><h1>訂位</h1><button class="quiet" id="bk" style="width:auto;margin:0">返回</button></div>
+    <label class="fld">日期<input type="date" id="rvd" min="${today}" value="${esc(RV.date)}"></label>
+    <div class="fld">人數<div class="seg" id="rvp">${[1,2,3,4,5,6].map(n=>`<button type="button" data-p="${n}" aria-pressed="${RV.party===n}">${n===6?'6+':n} 位</button>`).join('')}</div>${RV.party>=6?`<input type="number" id="rvpn" min="6" max="50" inputmode="numeric" value="${esc(RV.party)}" style="margin-top:8px">`:''}</div>
+    <div class="fld">時段<div class="slots" id="rvt">${groups.map(([h,ts])=>`<h4>${h}</h4>`+ts.map(t=>`<button type="button" data-t="${t}" aria-pressed="${RV.time===t}" ${past(t)?'disabled':''}>${t}</button>`).join('')).join('')}</div></div>
+    <label class="fld">備註（選填）<textarea id="rvn" maxlength="500">${esc(RV.note)}</textarea></label>
+    <p class="hint">以 ${esc(me.name||'')}${(data.yan&&data.yan.phone)||me.phone?'、'+esc(((data.yan&&data.yan.phone)||me.phone).replace(/^\+886/,'0')):''} 訂位；到「我的」可修改。座位保留 10 分鐘。</p>
+    <div class="sticky"><button class="btn solid" id="rvgo">送出訂位</button></div>`;
+    document.getElementById('bk').onclick=()=>{sub='list';paint();};
+    document.getElementById('rvd').onchange=e=>{RV.date=e.target.value;RV.time='';paint();};
+    document.getElementById('rvp').onclick=e=>{const b=e.target.closest('button');if(!b)return;RV.party=Number(b.dataset.p);paint();};
+    const pn=document.getElementById('rvpn');if(pn)pn.onchange=e=>{RV.party=Math.max(6,Math.min(50,Number(e.target.value)||6));};
+    document.getElementById('rvt').onclick=e=>{const b=e.target.closest('button');if(!b||b.disabled)return;RV.time=b.dataset.t;document.querySelectorAll('#rvt button').forEach(x=>x.setAttribute('aria-pressed',x===b));};
+    document.getElementById('rvn').oninput=e=>{RV.note=e.target.value;};
+    document.getElementById('rvgo').onclick=async()=>{const b=document.getElementById('rvgo');if(!RV.time)return toast('請選一個時段');b.disabled=true;try{const d=await post('/api/me/reservations',{date:RV.date,time:RV.time,party_size:RV.party,note:RV.note,lang:'zh'});toast('訂位成立 '+d.request_id);RV={date:'',time:'',party:2,note:''};sub='list';await load();}catch(e){toast(e.message);b.disabled=false;}};
+  }
+  async function loadMenu(){if(MENU)return MENU;const d=await fetch('/api/public').then(r=>r.json());MENU=MenuLib.parseMenuDoc((d.content&&d.content.menu)||'');return MENU;}
+  function bookPickup(){
+    const pk=data.pickupMeta||{dates:[],slots:{}};
+    if(!PK.date)PK.date=pk.dates[0]||'';
+    const slots=(pk.slots||{})[PK.date]||[];
+    const venue=(slots.find(x=>x.time===PK.time)||{}).venue||'';
+    app.innerHTML=`<div class="hello"><h1>預約取餐</h1><button class="quiet" id="bk" style="width:auto;margin:0">返回</button></div>
+    <p class="hint">先選取餐時間，再選餐點。取餐前 ${esc(pk.prep_min||20)} 分鐘開始準備，到店付款。</p>
+    <div class="fld">取餐日<div class="seg two" id="pkd">${pk.dates.map((d,i)=>`<button type="button" data-d="${d}" aria-pressed="${PK.date===d}">${i===0?'今天':'明天'} ${esc(dayLabel(d))}</button>`).join('')}</div></div>
+    <div class="fld">取餐時間<div class="slots" id="pkt">${slots.length?['CAFE','BAR'].map(v=>{const ts=slots.filter(x=>x.venue===v);return ts.length?`<h4>${v==='CAFE'?'在咖啡':'三點水'}</h4>`+ts.map(x=>`<button type="button" data-t="${x.time}" aria-pressed="${PK.time===x.time}">${x.time}</button>`).join(''):'';}).join(''):'<p class="empty">今天已沒有可預約的時段，請選明天</p>'}</div></div>
+    <div id="pkm">${PK.time?'<p class="empty">載入菜單…</p>':'<p class="hint">選好時間後會顯示該時段的菜單。</p>'}</div>
+    <label class="fld">備註（選填）<textarea id="pkn" maxlength="200">${esc(PK.note)}</textarea></label>
+    <div class="sticky"><button class="btn solid" id="pkgo" ${PK.time&&Object.values(PK.qty).some(n=>n>0)?'':'disabled'}>送出預約${pkCount()?'（'+pkCount()+' 件）':''}</button></div>`;
+    document.getElementById('bk').onclick=()=>{sub='list';paint();};
+    document.getElementById('pkd').onclick=e=>{const b=e.target.closest('button');if(!b)return;PK.date=b.dataset.d;PK.time='';paint();};
+    document.getElementById('pkt').onclick=e=>{const b=e.target.closest('button');if(!b)return;const prev=venue;PK.time=b.dataset.t;const nv=(slots.find(x=>x.time===PK.time)||{}).venue;if(prev&&nv!==prev)PK.qty={};paint();};
+    document.getElementById('pkn').oninput=e=>{PK.note=e.target.value;};
+    document.getElementById('pkgo').onclick=submitPickup;
+    if(PK.time)loadMenu().then(()=>renderPickMenu(venue)).catch(()=>{const h=document.getElementById('pkm');if(h)h.innerHTML='<p class="empty">菜單載入失敗</p>';});
+  }
+  const pkCount=()=>Object.values(PK.qty).reduce((a,n)=>a+n,0);
+  function renderPickMenu(venue){
+    const host=document.getElementById('pkm');if(!host||!MENU)return;
+    const items=MenuLib.sortItems(MenuLib.orderableOnly(MENU,new Date(PK.date+'T'+PK.time+':00+08:00')).filter(it=>it.venue===venue));
+    if(!items.length){host.innerHTML='<p class="empty">這個時段沒有可預約的品項</p>';return;}
+    let cat='',html='';
+    for(const it of items){if(it.cat!==cat){cat=it.cat;html+=`<div class="cat">${esc((MenuLib.CAT_LABEL[cat]||{}).zh||cat)}</div>`;}const n=PK.qty[it.id]||0;html+=`<div class="mi"><div class="nm">${esc(it.zh)}<small>NT$${esc(it.price)}${it.note?' · '+esc(it.note):''}</small></div><div class="q"><button type="button" data-dec="${esc(it.id)}" aria-label="減少" ${n?'':'disabled'}>−</button><b>${n}</b><button type="button" data-inc="${esc(it.id)}" aria-label="增加">＋</button></div></div>`;}
+    host.innerHTML=html;
+    host.onclick=e=>{const b=e.target.closest('button');if(!b)return;const id=b.dataset.inc||b.dataset.dec;const n=(PK.qty[id]||0)+(b.dataset.inc?1:-1);if(n<=0)delete PK.qty[id];else PK.qty[id]=Math.min(20,n);renderPickMenu(venue);const go=document.getElementById('pkgo');if(go){go.disabled=!pkCount();go.textContent='送出預約'+(pkCount()?'（'+pkCount()+' 件）':'');}};
+  }
+  async function submitPickup(){
+    const b=document.getElementById('pkgo');b.disabled=true;
+    try{const items=Object.entries(PK.qty).filter(([,n])=>n>0).map(([item_id,qty])=>({item_id,qty}));await post('/api/me/pickups',{date:PK.date,time:PK.time,items,note:PK.note});toast('預約成立，取餐前會開始準備');PK={date:'',time:'',qty:{},note:''};sub='list';await load();}
+    catch(e){toast(e.message);b.disabled=false;}
   }
   function me(){
     const m=data.me||{},phone=(data.yan&&data.yan.phone)||m.phone||'';
@@ -280,7 +394,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     on.onclick=async()=>{on.disabled=true;try{await pkRegister();toast('已啟用');paint();}catch(e){if(!pkQuiet(e))toast(e.message||'無法啟用');on.disabled=false;}};
     off.onclick=async()=>{off.disabled=true;try{for(const p of list)await fetch('/api/passkey/'+encodeURIComponent(p.id),{method:'DELETE',headers:{authorization:'Bearer '+token()}});try{localStorage.removeItem(PK_FLAG);}catch(e){}toast('已移除');paint();}catch(e){toast('移除失敗');off.disabled=false;}};
   }
-  function paint(){tabs.hidden=false;[...tabs.children].forEach(b=>b.setAttribute('aria-current',b.dataset.tab===tab));({home,events,me})[tab]();window.scrollTo(0,0);}
+  function paint(){tabs.hidden=false;[...tabs.children].forEach(b=>b.setAttribute('aria-current',b.dataset.tab===tab));({home,events,book,me})[tab]();window.scrollTo(0,0);}
   tabs.onclick=e=>{const b=e.target.closest('button');if(!b)return;tab=b.dataset.tab;paint();};
   /* 全螢幕 QR：亮度靠白底、30 秒更新 */
   const ov=document.getElementById('ov');
@@ -292,7 +406,8 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   async function load(){
     try{
       const s=await get('/api/state');let y={balance:0,phone:''},rw={items:[],space:[]};try{y=await get('/api/me/yan');}catch(e){}try{rw=await get('/api/me/rewards');}catch(e){}
-      s.events=(s.events||[]);data={me:s.me,events:s.events,yan:y,rewards:rw,role:s.role,organizer:!!s.organizer};offline=false;
+      let rv=[],pk={pickups:[],dates:[],slots:{}},rg=[];try{rv=(await get('/api/me/reservations')).reservations||[];}catch(e){}try{pk=await get('/api/me/pickups');}catch(e){}try{rg=(await get('/api/me/registrations')).registrations||[];}catch(e){}
+      s.events=(s.events||[]);data={me:s.me,events:s.events,yan:y,rewards:rw,reservations:rv,pickups:pk.pickups||[],pickupMeta:{dates:pk.dates||[],slots:pk.slots||{},prep_min:pk.prep_min},registrations:rg,role:s.role,organizer:!!s.organizer};offline=false;
       try{localStorage.setItem(CACHE,JSON.stringify(data));}catch(e){}
     }catch(e){
       if(e.status===401){try{localStorage.removeItem(KEY);}catch(x){}return login();}

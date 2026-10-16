@@ -624,6 +624,27 @@ body：`{ state, credential }`（同 register/verify）。驗證成功才建立�
 ### GET /api/me/yan
 登入會員的點數餘額。回 `{ ok, balance, phone }`。消費每滿 NT$100 累積 1 點，隔年 4/30 到期；作廢出餐單會沖回。agent 金鑰 403。
 
+### POST /api/me/reservations
+會員 App 訂位（已登入）。body 同 `POST /api/reservations`（`date`、`time`、`party_size`、`note?`、`name?`、`phone?`、`email?`），姓名／電話／Email 沒帶就用會員資料，Email 可空（空則不寄確認信）；寫入 `dining_reservations.user_id`，`source='member-app'`。同一會員最多 5 筆未到訂位（409）。回 `{ ok, id, request_id, period, hold_until, hold_minutes }`。限 20 次／小時。agent 金鑰 403。
+
+### GET /api/me/reservations
+我的訂位（昨天起）。回 `{ ok, reservations:[{ id, request_id, reserve_date, reserve_time, period, party_size, name, phone, note, status, label, table_no, venue, can_cancel }] }`。agent 金鑰 403。
+
+### DELETE /api/me/reservations/:id
+客人自行取消自己的訂位（只限 `new`／`confirmed` 且日期未過），通知員工 LINE 群組。回 `{ ok }`；找不到或不可取消 404。agent 金鑰 403。
+
+### GET /api/me/registrations
+我的報名：已成立（`registered`）或待付款（`pending_payment`）的活動，活動結束一天內仍列出。回 `{ ok, registrations:[{ id, slug, title, location, starts_at, event_status, registration_id, status, quantity, amount_paid, checked_in_at, ticket }] }`；`ticket:true` 表示可用 `GET /api/events/:id/ticket` 取 QR。agent 金鑰 403。
+
+### GET /api/me/pickups
+預約取餐：我的預約（開著的＋一天內結束的，最多 10 筆）與可選時段。回 `{ ok, pickups:[{ id, table, pickup_at, pickup_time, note, placed, status, state, items, amount, paid }], dates:[今天,明天], slots:{ 日期:[{ time, venue }] }, prep_min }`。時段 08:00–23:45 每 15 分鐘，今天只列「現在 + 20 分鐘」之後；`state` 同 POS 桌況（open／ordered／preparing／ready）。agent 金鑰 403。
+
+### POST /api/me/pickups
+建立預約取餐。body `{ date, time, items:[{ item_id, qty(1–20), note? }], note? }`。只能今天或明天、取餐時間至少 20 分鐘後、最多 20 種 40 件；菜單依取餐時段的品牌（08:00–16:45 在咖啡、17:00–23:45 三點水）取可點品項（估清、供應期間、`pos_only` 規則同桌邊點餐），該品牌暫停點餐回 423。開一張外帶單（`table_sessions` W01–W99，`user_id`、`pickup_at`、`pickup_note`），品項先放購物車**不送單**；排程每分鐘檢查，取餐前 20 分鐘自動送單（進出餐看板、出餐單列印、`pickup_placed_at`）；到店掃會員卡結帳。同一會員最多 3 張未取（409）、號碼用完 409。通知員工 LINE 群組。回 `{ ok, pickup }`。限 20 次／小時。agent 金鑰 403。
+
+### DELETE /api/me/pickups/:id
+取消預約取餐：只限還沒自動送單（`pickup_placed_at` 空）且沒結帳的，否則 409 請聯絡店家。回 `{ ok }`。agent 金鑰 403。
+
 ### GET /api/me/rewards
 會員卡「可以兌換」清單（只讀）。回 `{ ok, items:[{id,venue,zh,en,ja,points,image}], space:[{plan,zh,points}] }`：`items` 為菜單中已發布、非 POS 專用、今天未估清且 `points>0` 的品項（點數由低到高）；`space` 為後台 `yan_rewards` 設定的空間時數。實際兌換仍在櫃檯掃會員碼。agent 金鑰 403。
 
