@@ -4382,6 +4382,8 @@ app.get('/api/orders/table',requireDb,wrap(async(req,res)=>{
       // ponytail: 4 小時無動靜視同離席；未付品項直接作廢
       const stale=Date.now()-new Date(s.updated_at).getTime()>4*3600e3;
       if(tableOrders.sessionFinished(s.items,s.orders)||stale){await client.query("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=$1",[s.id]);s=null;}}
+    // 掃 QR 只代表「桌位」，不代表用餐資格：沒有開著的場就不自動開桌（離席客人的舊 QR／截圖再掃也點不了），由櫃檯在 POS 開桌；TABLE_SELF_OPEN=1 可回到舊的掃碼自動開桌
+    if(!s&&process.env.TABLE_SELF_OPEN!=='1'){await client.query('COMMIT');return res.status(409).json({error:'這桌尚未開桌，請洽櫃台為您開桌。',needs_open:true});}
     if(!s){s=(await client.query('INSERT INTO table_sessions(id,table_no) VALUES($1,$2) RETURNING *',[uid('ts_'),table])).rows[0];s.orders=[];}
     await client.query('COMMIT');res.json(publicSession(s,String(req.query.g||'')));
   }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
@@ -4410,10 +4412,10 @@ async function mutateItems(req,res,fn){
     await client.query('COMMIT');const out=await loadSession(s.id);res.json(publicSession(out,String(req.body?.guest||'')));
   }catch(e){await client.query('ROLLBACK');if(e.status)return res.status(e.status).json({error:e.message});throw e;}finally{client.release();}
 }
-app.post('/api/orders/:id/items',requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});try{await assertNotPaused();}catch(e){return res.status(e.status||423).json({error:e.message});}const menu=await currentMenu();return mutateItems(req,res,items=>tableOrders.addLine(items,menu,req.body||{}));}));
+app.post('/api/orders/:id/items',rateLimit({max:60}),requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});try{await assertNotPaused();}catch(e){return res.status(e.status||423).json({error:e.message});}const menu=await currentMenu();return mutateItems(req,res,items=>tableOrders.addLine(items,menu,req.body||{}));}));
 app.delete('/api/orders/:id/items/:line',requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});return mutateItems(req,res,items=>tableOrders.removeLine(items,String(req.params.line),String(req.body?.guest||'')));}));
 // 送出點餐：購物車裡還沒送的品項一起進出餐看板（未結帳，用餐完再到櫃檯結）；暫停點餐（最後點餐）時一樣擋
-app.post('/api/orders/:id/place',requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});try{await assertNotPaused();}catch(e){return res.status(e.status||423).json({error:e.message});}return mutateItems(req,res,items=>tableOrders.placeLines(items).items);}));
+app.post('/api/orders/:id/place',rateLimit({max:60}),requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});try{await assertNotPaused();}catch(e){return res.status(e.status||423).json({error:e.message});}return mutateItems(req,res,items=>tableOrders.placeLines(items).items);}));
 
 // 結帳需求：客人在手機上選好「付全桌／只付我的」按「通知櫃檯」，POS 桌號畫面列成一顆按鈕，一點就把那幾項勾好再收款（不經過付款碼／掃描）
 app.post('/api/orders/:id/pay-request',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{

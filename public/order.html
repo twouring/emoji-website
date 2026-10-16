@@ -328,7 +328,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   // 一進桌邊點餐就請求通知權限（文件決議）；瀏覽器不支援或被拒絕都不影響頁內通知
   function askNotify(){try{if('Notification'in window&&Notification.permission==='default')Notification.requestPermission().catch(function(){});}catch(e){}}
 
-  function load(){return api('/orders/table?t='+encodeURIComponent(T)+'&k='+encodeURIComponent(K)+'&g='+GUEST).then(function(s){var sid=S&&S.id;applyState(s);if(s.id!==sid)live();});}
+  function load(){return api('/orders/table?t='+encodeURIComponent(T)+'&k='+encodeURIComponent(K)+'&g='+GUEST).then(function(s){var sid=S&&S.id;applyState(s);if(s.id!==sid)live();}).catch(function(e){if(e.status===409&&S){if(ES){ES.close();ES=null;}S=null;$('#app').classList.add('hidden');fail(e.message);}throw e;});}
   function refresh(){return api('/orders/'+S.id+'?g='+GUEST).then(function(s){if(s.status!=='open'){return load();}applyState(s);}).catch(function(){});}
   // 即時同步：SSE 連上就推目前狀態，之後同桌任何異動（別人加點、送單、出餐、櫃檯收款）伺服器立刻推；瀏覽器自動重連。
   // 沒有 EventSource 或連不上時退回輪詢；SSE 正常時仍每 30 秒拉一次當保險（代理斷線但瀏覽器沒察覺）
