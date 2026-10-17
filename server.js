@@ -4960,6 +4960,26 @@ app.post('/api/admin/orders/:id/invoice/issue',auth,adminOnly,requireDb,wrap(asy
   try{const out=await storeInvoiceResult(o,invoice,{throwOnError:true});res.json({ok:true,invoice:out});}
   catch(e){res.status(e.status||502).json({error:e.message});}
 }));
+// 統編查抬頭（經濟部商工公開資料，公司→商業登記兩個資料集）；查不到或服務異常回 found:false，不擋開立
+const UBN_CACHE=new Map();
+async function lookupUbn(ubn){
+  const hit=UBN_CACHE.get(ubn);if(hit&&Date.now()-hit.t<6*3600e3)return hit.v;
+  const sets=['5F64D864-61CB-4D0D-8AD9-492047CC1EA6','426D5542-5F05-43EB-83F9-F1300F14E1F1'];
+  const fields=['Company_Name','Business_Name'];let v={found:false},failed=false;
+  for(let i=0;i<sets.length&&!v.found;i++){
+    try{
+      const r=await fetch(`https://data.gcis.nat.gov.tw/od/data/api/${sets[i]}?$format=json&$filter=${i?'President_No':'Business_Accounting_NO'}%20eq%20${ubn}&$skip=0&$top=1`,{signal:AbortSignal.timeout(6000)});
+      const rows=await r.json().catch(()=>[]);const row=Array.isArray(rows)?rows[0]:null;
+      if(row&&row[fields[i]])v={found:true,name:String(row[fields[i]]),status:row.Company_Status_Desc||row.Business_Current_Status_Desc||''};
+    }catch{failed=true;}
+  }
+  if(!v.found&&failed)return {found:false,error:true};
+  UBN_CACHE.set(ubn,{t:Date.now(),v});return v;
+}
+app.get('/api/admin/orders/company-lookup/:ubn',auth,adminOnly,wrap(async(req,res)=>{
+  const ubn=String(req.params.ubn||'');if(!/^\d{8}$/.test(ubn))return res.status(400).json({error:'統編需為 8 碼數字。'});
+  res.set('Cache-Control','no-store');res.json(await lookupUbn(ubn));
+}));
 app.post('/api/admin/pos/drawer-events',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const body=req.body||{},key=body.event_key,kind=body.kind;
   const reason=tableOrders.cleanText(body.reason,200);

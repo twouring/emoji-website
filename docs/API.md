@@ -307,6 +307,10 @@ Google 授權回呼，簽發會員 token 並導回。
 ### POST /api/admin/orders/:id/status
 body `{ status: 'ready' | 'done' }`。`ready`＝出餐並推播給客人「請至櫃檯取餐」（回 `notified` 裝置數）；`done`＝已取餐。狀態不符回 409；已作廢的單回 409。
 
+### GET /api/admin/orders/company-lookup/:ubn
+
+POS 結帳輸入統編時查抬頭。`:ubn` 為 8 碼數字（否則 400）。後端查經濟部商工公開資料（公司登記，再查商業登記），回 `{ found:true, name, status }`；查無回 `{ found:false }`，上游逾時或異常回 `{ found:false, error:true }`。查不到不影響開立：前端只顯示提示，`invoice.buyer_name` 有值才帶入 ezPay。結果快取 6 小時。
+
 ### POST /api/admin/pos/drawer-events
 記錄「要求開錢櫃」並取得一次性發送資格；需要登入、管理員權限及可用資料庫。body：
 

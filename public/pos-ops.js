@@ -366,7 +366,7 @@ function invoiceBody(host){
   const mode=host.querySelector('input[name=pos-invoice]:checked')?.value||'';POS_INVOICE.mode=mode;
   if(!mode)return {mode:''};
   const box=host.querySelector('.pos-invoice');
-  return {mode,buyer_ubn:box.querySelector('[name=buyer_ubn]')?.value||'',carrier_num:box.querySelector('[name=carrier_num]')?.value||'',love_code:box.querySelector('[name=love_code]')?.value||'',comment:box.querySelector('[name=comment]')?.value||''};
+  return {mode,buyer_ubn:box.querySelector('[name=buyer_ubn]')?.value||'',buyer_name:mode==='company'?(box.querySelector('#pos-ubn-result')?.dataset.name||''):'',carrier_num:box.querySelector('[name=carrier_num]')?.value||'',love_code:box.querySelector('[name=love_code]')?.value||'',comment:box.querySelector('[name=comment]')?.value||''};
 }
 // 平板上正在操作的畫面不走 refresh() 整頁重繪，只重載該分頁
 async function opsThen(fn,msg,reload){try{const out=await fn();toast(typeof msg==='function'?await msg(out):msg);if(reload)await reload(out);}catch(e){toast(e.message);}}
@@ -1002,7 +1002,7 @@ function paintPos(){
           ${discountUI}
                     ${cash?`<div class="pos-cash"><label>${mixed?'現金實收':'實收'}<input id="pos-received" inputmode="numeric" pattern="[0-9]*" placeholder="客人給的現金" value="${esc(POS_RECEIVED)}" aria-label="實收金額"></label><div class="pos-cash-quick">${quick.map(n=>`<button type="button" data-received="${n}">${n===cashDue?'剛好':'$'+num(n)}</button>`).join('')}</div></div>`:''}
         </div>
-        <div class="pos-invoice"><div class="pos-invoice-head"><b>電子發票</b> <span class="pos-inv-badge hint hint--tight" data-off="${POS_INVOICE.mode?'':'1'}">${POS_INVOICE.mode?INV_LABEL[POS_INVOICE.mode]:'不開立'}</span>${DATA?.invoice?.configured?'':'<span class="pos-inv-warn">ezPay 尚未設定，先記為待補開</span>'}</div><div class="pos-invoice-body"><div class="pos-invoice-types">${[['paper','紙本'],['company','統編'],['mobile','手機載具'],['citizen','自然人憑證'],['donate','捐贈'],['','不開立']].map(([m,l])=>`<label><input type="radio" name="pos-invoice" value="${m}" ${POS_INVOICE.mode===m?'checked':''}><span>${l}</span></label>`).join('')}</div><div class="pos-invoice-fields"><div class="pos-inv-row" data-inv-modes="company"><input name="buyer_ubn" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="統編 8 碼"></div><div class="pos-inv-row" data-inv-modes="mobile,citizen"><div class="pos-inv-scan-row"><input name="carrier_num" autocapitalize="characters" maxlength="64" placeholder="手機條碼 /ABC1234"><button type="button" class="btn btn--ghost btn-xs" id="pos-invoice-scan" data-inv-modes="mobile">📷 掃描</button></div><video id="pos-invoice-video" playsinline muted></video></div><div class="pos-inv-row" data-inv-modes="donate"><input name="love_code" inputmode="numeric" pattern="[0-9]*" maxlength="20" placeholder="愛心碼"></div><div class="pos-inv-row" data-inv-modes="paper,company,mobile,citizen,donate"><input name="comment" maxlength="80" placeholder="發票備註（選填）"></div></div></div></div>
+        <div class="pos-invoice"><div class="pos-invoice-head"><b>電子發票</b> <span class="pos-inv-badge hint hint--tight" data-off="${POS_INVOICE.mode?'':'1'}">${POS_INVOICE.mode?INV_LABEL[POS_INVOICE.mode]:'不開立'}</span>${DATA?.invoice?.configured?'':'<span class="pos-inv-warn">ezPay 尚未設定，先記為待補開</span>'}</div><div class="pos-invoice-body"><div class="pos-invoice-types">${[['paper','紙本'],['company','統編'],['mobile','手機載具'],['citizen','自然人憑證'],['donate','捐贈'],['','不開立']].map(([m,l])=>`<label><input type="radio" name="pos-invoice" value="${m}" ${POS_INVOICE.mode===m?'checked':''}><span>${l}</span></label>`).join('')}</div><div class="pos-invoice-fields"><div class="pos-inv-row" data-inv-modes="company"><input name="buyer_ubn" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="統編 8 碼"><div class="pos-ubn-result hint" id="pos-ubn-result" aria-live="polite"></div></div><div class="pos-inv-row" data-inv-modes="mobile,citizen"><div class="pos-inv-scan-row"><input name="carrier_num" autocapitalize="characters" maxlength="64" placeholder="手機條碼 /ABC1234"><button type="button" class="btn btn--ghost btn-xs" id="pos-invoice-scan" data-inv-modes="mobile">📷 掃描</button></div><video id="pos-invoice-video" playsinline muted></video></div><div class="pos-inv-row" data-inv-modes="donate"><input name="love_code" inputmode="numeric" pattern="[0-9]*" maxlength="20" placeholder="愛心碼"></div><div class="pos-inv-row" data-inv-modes="paper,company,mobile,citizen,donate"><input name="comment" maxlength="80" placeholder="發票備註（選填）"></div></div></div></div>
         ${linepayPanelHtml(cur,d.linepay)}
         <div class="pos-actions"><div class="pos-actions-sub"><button class="btn btn--ghost" id="pos-place" ${cur.lines.some(l=>!l.credit_of)?'':'disabled'} title="有還沒送出的品項就先送單再印；都送過了就整桌重印">列印出餐單</button><button class="btn btn--ghost" id="pos-print-receipt" ${cur.lines.some(l=>!l.credit_of)?'':'disabled'}>列印收據明細</button></div></div>
       </div>
@@ -1099,6 +1099,16 @@ function paintPos(){
   host.querySelectorAll('[data-split-rest]').forEach(b=>b.onclick=()=>{const code=b.dataset.splitRest;const others=Object.entries(POS_SPLIT).filter(([c])=>c!==code).reduce((a,[,n])=>a+Math.max(0,n),0);POS_SPLIT[code]=Math.max(0,total-others);paintPos();});
   updateInvoiceFields(host);
   host.querySelectorAll('input[name=pos-invoice]').forEach(r=>r.onchange=()=>{POS_INVOICE.mode=r.checked?r.value:POS_INVOICE.mode;syncInvoiceBadge(host);updateInvoiceFields(host);});
+  const ubnIn=host.querySelector('.pos-invoice [name=buyer_ubn]'),ubnOut=host.querySelector('#pos-ubn-result');
+  if(ubnIn?.addEventListener&&ubnOut){let seq=0;ubnIn.addEventListener('input',async()=>{
+    const v=ubnIn.value.replace(/\D/g,'');ubnOut.dataset.name='';ubnOut.dataset.state='';ubnOut.textContent='';
+    if(v.length!==8)return;
+    const my=++seq;ubnOut.textContent='查詢中…';
+    let out=null;try{out=await api('/admin/orders/company-lookup/'+v);}catch{}
+    if(my!==seq)return;
+    if(out?.found){ubnOut.dataset.name=out.name;ubnOut.dataset.state='ok';ubnOut.textContent=out.name+(out.status&&!/核准|營業中/.test(out.status)?'（'+out.status+'）':'');}
+    else{ubnOut.dataset.state='warn';ubnOut.textContent=out?.error?'暫時查不到抬頭，仍可開立':'查無此統編的公司抬頭，請與客人確認；仍可開立';}
+  });}
   const invScan=host.querySelector('#pos-invoice-scan');
   if(invScan)invScan.onclick=()=>startInvoiceScan(host.querySelector('#pos-invoice-video'),raw=>{const carrierIn=host.querySelector('.pos-invoice [name=carrier_num]');if(carrierIn)carrierIn.value=raw;});
   // 平均分攤：人數用數字鍵盤選（2–20）；進入分攤時全桌一起算、不勾選品項、不套折扣
