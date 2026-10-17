@@ -31,6 +31,6 @@ test('late-issue carrier step has camera scan sharing the checkout scanner loop'
  assert.match(src,/function pickCarrier\(kind\)/);
  assert.match(src,/id="pos-carrier-scan"/);
  assert.match(src,/id="pos-carrier-video"/);
- assert.equal((src.match(/startInvoiceScan\(/g)||[]).length,4); // 定義＋結帳＋補開＋掃會員條碼
+ assert.equal((src.match(/startInvoiceScan\(/g)||[]).length,5); // 定義＋結帳＋補開＋掃會員條碼＋LINE Pay 付款碼（敏感模式）
  assert.doesNotMatch(src,/invScan\.onclick=async\(\)=>\{\s*const BD=/); // 結帳不再有自己的掃描迴圈
 });
