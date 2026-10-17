@@ -522,3 +522,61 @@ tr.lp-refund td{color:var(--danger)}
 .chart-donut-wrap{display:flex;gap:18px;align-items:center;flex-wrap:wrap}.chart-donut{width:10rem;height:10rem;border-radius:50%;display:grid;place-items:center;flex:none;position:relative}
 .chart-donut::after{content:"";position:absolute;inset:30px;background:#fff;border-radius:50%}.chart-donut span{position:relative;z-index:1;font-weight:700;font-size:1rem;text-align:center}
 .chart-legend{list-style:none;margin:0;padding:0;flex:1;min-width:150px;display:grid;gap:6px}.chart-legend li{display:flex;align-items:center;gap:8px;font-size:1rem}.chart-legend b{width:12px;height:12px;border-radius:3px;flex:none}.chart-legend .num{margin-left:auto}
+
+/* ── 手機（≤600px，以 375 寬驗收）──
+   桌況兩欄；結帳品項／這桌已結帳的單／訂位表改成卡片列，不再要橫向滑才看得到金額與操作；
+   結帳面板改用整頁捲動（原本固定高度的內捲動在手機只剩 440px，一次看不到一個品項），收款列 sticky 在畫面底。 */
+@media(max-width:600px){
+  .pos-grid,.pos-layout.has-panel .pos-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .pos-table{min-height:88px;padding:10px 12px}
+  .pos-layout.has-panel .pos-panel{height:auto;overflow:visible}
+  .pos-layout.has-panel .pos-panel-scroll,.pos-panel-scroll{overflow:visible}
+  .pos-dock{margin-left:-12px;margin-right:-12px;padding-left:12px;padding-right:12px;gap:10px}
+  .pos-dock-change,.pos-dock-due{min-width:0;flex:none}.pos-dock-change b,.pos-dock-due b{font-size:1.5rem}
+  .pos-dock #pos-checkout{min-width:0;white-space:nowrap;padding-left:12px;padding-right:12px}
+  .pos-panel h2{flex-wrap:wrap;row-gap:6px}
+
+  /* 品項：勾選｜品名＋金額＋⋯ 一行，數量（與「這次只結」）在下一行 */
+  .pos-lines-wrap{border:0;border-radius:0;overflow:visible}
+  .a-tbl.pos-lines,.a-tbl.pos-lines tbody{display:block}
+  .a-tbl.pos-lines thead{display:none}
+  .a-tbl.pos-lines tr{display:grid;grid-template-columns:32px minmax(0,1fr) auto 48px;grid-template-areas:"pick item amt more" "pick qty qty qty";align-items:start;column-gap:6px;row-gap:6px;padding:10px 0;border-bottom:1px solid var(--line)}
+  .a-tbl.pos-lines tr>td{display:block;border:0;padding:0!important;min-width:0;width:auto}
+  .a-tbl.pos-lines tr>td:first-child{grid-area:pick;width:auto;padding-top:8px!important}
+  .a-tbl.pos-lines td.ops-item{grid-area:item}
+  .a-tbl.pos-lines td.pos-amt{grid-area:amt;display:block;min-height:0;margin:0;border:0;background:none;text-align:right;white-space:nowrap;font-size:1.1rem}
+  .a-tbl.pos-lines td.pos-amt b{font-size:1.1rem;letter-spacing:0}
+  .a-tbl.pos-lines td.ops-actions{grid-area:more;text-align:right}
+  .a-tbl.pos-lines td.pos-qty-col{grid-area:qty;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+  .a-tbl.pos-lines td.pos-qty-col:empty{display:none}
+  .pos-part-wrap{margin-top:0;flex-direction:row;flex-wrap:wrap;gap:6px;padding:2px 4px 2px 10px}
+  .pos-line__img{width:36px;height:36px;margin-right:8px}
+  .a-tbl.pos-lines tr.pos-group{display:block;padding:0;border-bottom:0}
+  .a-tbl.pos-lines tr.pos-group>td{padding:8px 10px!important;border-radius:8px}
+  .a-tbl.pos-lines tr>td[colspan]{grid-column:1/-1}
+  .a-tbl.pos-lines tr.pos-comp,.a-tbl.pos-lines tr.pos-credit{background:var(--ok-faint)}
+  .a-tbl.pos-lines tr.pos-comp td,.a-tbl.pos-lines tr.pos-credit td{background:none}
+
+  /* 這桌已結帳的單：品項＋金額一行，付款／發票一行，操作一行 */
+  .a-wrap2:has(>.a-tbl.pos-paid),.a-wrap2:has(>.a-tbl.resv-tbl){border:0;overflow:visible}
+  .a-tbl.pos-paid,.a-tbl.pos-paid tbody,.a-tbl.resv-tbl,.a-tbl.resv-tbl tbody{display:block}
+  .a-tbl.pos-paid thead,.a-tbl.resv-tbl thead{display:none}
+  .a-tbl.pos-paid tr{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"item amt" "pay pay" "act act";gap:6px;padding:10px 0;border-bottom:1px solid var(--line)}
+  .a-tbl.pos-paid tr>td{display:block;border:0;padding:0;min-width:0;width:auto}
+  .a-tbl.pos-paid td.ops-item{grid-area:item}.a-tbl.pos-paid td.num{grid-area:amt;font-weight:600}
+  .a-tbl.pos-paid td.ops-pay{grid-area:pay;min-width:0}
+  .a-tbl.pos-paid td.ops-actions,.pos-layout.has-panel .pos-panel .a-tbl.pos-paid td.ops-actions{grid-area:act;min-width:0;padding:0;text-align:left}
+  .a-tbl.pos-paid td.ops-actions .ops-btns{justify-content:flex-start}
+
+  /* 訂位：時間｜客人｜狀態 一行，備註，桌號＋編號，操作 */
+  .a-tbl.resv-tbl tr{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"time guest state" "note note note" "tbl tbl id" "act act act";gap:6px 10px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .a-tbl.resv-tbl tr>td{display:block;border:0;padding:0;min-width:0;width:auto}
+  .a-tbl.resv-tbl tr>td:nth-child(1){grid-area:time}.a-tbl.resv-tbl tr>td:nth-child(2){grid-area:guest;overflow-wrap:anywhere}
+  .a-tbl.resv-tbl tr>td:nth-child(3){grid-area:note}.a-tbl.resv-tbl tr>td:nth-child(3):empty{display:none}
+  .a-tbl.resv-tbl tr>td:nth-child(4){grid-area:tbl}.a-tbl.resv-tbl tr>td:nth-child(5){grid-area:state;text-align:right}
+  .a-tbl.resv-tbl tr>td:nth-child(6){grid-area:id;align-self:center;text-align:right;color:var(--muted)}
+  .a-tbl.resv-tbl td.ops-actions{grid-area:act;min-width:0;text-align:left;white-space:normal!important;display:flex;flex-wrap:wrap;gap:6px;line-height:1.2}
+  .a-tbl.resv-tbl td.ops-actions .btn{min-height:44px}
+  .a-tbl.resv-tbl tr.resv-day,.a-tbl.resv-tbl tr:has(>td[colspan]){display:block;padding:0;border-bottom:0}
+  .a-tbl.resv-tbl tr.resv-day>td,.a-tbl.resv-tbl tr>td[colspan]{padding:8px 10px;border-radius:8px}
+}

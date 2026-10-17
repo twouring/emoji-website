@@ -122,6 +122,10 @@
   /* 手機（≤600px）：若分頁跟平板一樣換行會疊成 4 行、頂欄佔掉近一半螢幕（KK 回報「上半部佔比太多」）→ 分頁維持單行橫向滑動，右側漸層＋固定「›」提示還有更多（比單純淡化邊緣更明顯），並在切換分頁時自動把目前分頁捲進視野，不靠隱藏捲軸讓人自己猜 */
   @media(max-width:600px){:root{--p-top:108px}.p-nav-wrap{order:3;flex:1 1 100%}.p-nav{overflow-x:auto;flex-wrap:nowrap}}
   @media(max-width:720px){.p-brand b{display:none}.p-scope button,.p-nav button{padding:0 12px}}
+  /* 手機（≤600px，以 375 寬為準）：店別＋錢櫃／登出併成第一行、分頁第二行；錢櫃／登出只留圖示（文字仍是無障礙名稱），不再上下疊成第三行 */
+  @media(max-width:600px){.p-brand{display:none}.p-scope{min-width:0}.p-tools button:not(.p-net){display:inline-flex;align-items:center;justify-content:flex-start;width:44px;padding:0 0 0 11px;overflow:hidden;white-space:nowrap}.p-tools #p-drawer .ic,.p-tools #p-logout .ic{margin-right:12px}
+    main{padding:12px max(12px,env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}.a-sec{padding:12px}
+    table.a-tbl th,table.a-tbl td{padding:8px 6px}}
   /* 圖示：跟文字同色、與文字等高，按鈕內圖示＋文字並排 */
   .ic{flex:none;width:20px;height:20px;vertical-align:-4px;margin-right:6px}
   .p-tools button .ic,.p-nav button .ic{margin-right:0}
