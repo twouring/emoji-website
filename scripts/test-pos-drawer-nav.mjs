@@ -6,7 +6,7 @@ const page=fs.readFileSync(new URL('public/pos.html',root),'utf8');
 const ops=fs.readFileSync(new URL('public/pos-ops.js',root),'utf8');
 test('logged-in POS has one right-side header drawer button, outside scrollable tabs',()=>{
  const header=page.match(/<header class="p-top">([\s\S]*?)<\/header>/)?.[1]||'';
- assert.match(header,/<div class="p-tools">[\s\S]*?<button[^>]*id="p-drawer"[^>]*>開錢櫃<\/button>/);
+ assert.match(header,/<div class="p-tools">[\s\S]*?<button[^>]*id="p-drawer"[^>]*>錢櫃<\/button>/);
  assert.ok(header.indexOf('id="p-drawer"')>header.indexOf('id="p-nav"'));
  assert.match(page,/function render\(\)[\s\S]*?getElementById\('p-drawer'\)\.hidden = false/);
  assert.match(page,/function renderLogin\(msg\)[\s\S]*?if \(drawer\) drawer\.hidden = true/);

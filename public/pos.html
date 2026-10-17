@@ -122,7 +122,7 @@
   .ic{flex:none;width:20px;height:20px;vertical-align:-4px;margin-right:6px}
   .p-tools button .ic,.p-nav button .ic{margin-right:0}
   .p-nav button .ic{margin-right:6px}
-  .p-tools #p-refresh .ic,.p-tools #p-drawer .ic,.p-tools #p-logout .ic{margin-right:0}
+  .p-tools #p-drawer .ic,.p-tools #p-logout .ic{margin-right:0}
   .p-tools #p-drawer .ic,.p-tools #p-logout .ic{margin-right:6px}
   .btn .ic,button .ic{pointer-events:none}
   @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
@@ -138,8 +138,7 @@
   </div>
   <div class="p-tools">
     <button type="button" class="p-net" id="p-net" hidden aria-live="polite">離線</button>
-    <button type="button" id="p-drawer" hidden>開錢櫃</button>
-    <button type="button" id="p-refresh" aria-label="重新整理"></button>
+    <button type="button" id="p-drawer" hidden>錢櫃</button>
     <button type="button" id="p-logout" hidden>登出</button>
   </div>
 </header>
@@ -395,7 +394,6 @@ const net = document.getElementById('p-net');
 const paintNet = () => { net.hidden = navigator.onLine; };
 addEventListener('online', () => { paintNet(); if (DATA) activate(); }); addEventListener('offline', paintNet); paintNet();
 
-document.getElementById('p-refresh').onclick = () => { if (!DATA) return location.reload(); resetPanels(); activate(); refreshPending(); };
 // 平板從待機喚醒：各分頁的自動更新計時器已停，回到前景立刻重新抓一次
 document.addEventListener('visibilitychange', () => { if (!document.hidden && DATA) { activate(); refreshPending(); } });
 

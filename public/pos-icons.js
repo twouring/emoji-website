@@ -46,7 +46,7 @@
   window.POSIcon = ic;
 
   var MAP = [
-    ['#p-refresh','refresh'], ['#p-drawer','archive'], ['#p-logout','logout'], ['#op-logout','logout'],
+    ['#p-drawer','archive'], ['#p-logout','logout'], ['#op-logout','logout'],
     // 結帳
     ['#pos-open','plus'], ['#pos-open-extra','plus'], ['#pos-takeout','bag'], ['#pos-place','send'],
     ['#pos-checkout','cash'], ['#pos-prepay','wallet'], ['#pos-move','swap'], ['#pos-cash-drawer','archive'],
