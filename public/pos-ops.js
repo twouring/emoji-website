@@ -1352,10 +1352,30 @@ function printRegisterReportWindow(rep,kind){
 const REG_CLOSE_DRAFTS=new Map();
 const regAccountLabel=(r,c)=>r.account_labels?.[c]||payMethodLabel(c);
 const regCloseStamp=r=>JSON.stringify([r.expected,r.opening_cash,r.cash_in,r.cash_out,r.sales?.amount,r.reconciliation_accounts]);
+function accountOverview(r,kind){
+  const entries=Object.entries(r.reconciliation_accounts||{}).sort(([a],[b])=>{const rk=c=>c==='linepay'?0:c==='taishin'?1:2;return rk(a)-rk(b);});
+  const rows=[['現金（應有）',r.expected],...entries.map(([c,v])=>[regAccountLabel(r,c),v])];
+  return `<fieldset class="reg-overview" data-close-overview><legend>${kind}前：先確認各帳戶</legend><table class="a-tbl"><thead><tr><th>帳戶</th><th class="num">POS 登記</th></tr></thead><tbody>${rows.map(([n,v])=>`<tr><td>${esc(n)}</td><td class="num">NT$${num(v)}</td></tr>`).join('')}</tbody></table><p class="hint">請對照錢櫃、收單機與各帳戶後台，確認有哪些帳戶要核對；下一步才開始點鈔與填實收。</p><label><input type="checkbox" data-overview-confirm> 已看過每個帳戶</label></fieldset>`;
+}
+const ACCT_CONFIRMED=new Map();
+function accountConfirmBlock(d){
+  const venues=SCOPE?[SCOPE]:Object.keys(BRAND_LABEL);
+  const cards=venues.map(v=>{const r=d?.current?.[v];if(!r||r.closed_at)return '';
+    const rows=[['cash','現金（應有）',r.expected],...Object.entries(r.reconciliation_accounts||{}).sort(([a],[b])=>{const rk=c=>c==='linepay'?0:c==='taishin'?1:2;return rk(a)-rk(b);}).map(([c,x])=>[c,regAccountLabel(r,c),x])];
+    const set=ACCT_CONFIRMED.get(r.id)||new Set(),n=rows.filter(x=>set.has(x[0])).length;
+    return `<div class="reg-card" data-acct-card="${esc(r.id)}"><h4>${esc(BRAND_LABEL[v])} <span class="pill ${n===rows.length?'pill-ok':'pill-wait'}">${n}/${rows.length} 已確認</span></h4><table class="a-tbl"><thead><tr><th>帳戶</th><th class="num">POS 登記</th><th>確認</th></tr></thead><tbody>${rows.map(([c,nm,amt])=>`<tr><td>${esc(nm)}</td><td class="num">NT$${num(amt)}</td><td><label><input type="checkbox" data-acct-confirm="${esc(c)}" ${set.has(c)?'checked':''}> 已核對</label></td></tr>`).join('')}</tbody></table></div>`;}).join('');
+  return cards?`<div class="ops-head"><h3>各帳戶確認</h3>${opsHelp('小結或關帳前，先逐一核對每個帳戶（現金、LINE Pay、刷卡／台新手機付、轉帳與其他）的 POS 登記金額與實際收款是否相符。這裡的勾選只是提醒，不會寫入帳務；關帳時仍須逐項填實收。')}</div><div class="reg-cards">${cards}</div>`:'';
+}
+function bindAccountConfirm(host){
+  host.querySelectorAll('[data-acct-card]').forEach(card=>{const id=card.dataset.acctCard;
+    card.querySelectorAll('[data-acct-confirm]').forEach(cb=>cb.onchange=()=>{const set=ACCT_CONFIRMED.get(id)||new Set();cb.checked?set.add(cb.dataset.acctConfirm):set.delete(cb.dataset.acctConfirm);ACCT_CONFIRMED.set(id,set);
+      const all=[...card.querySelectorAll('[data-acct-confirm]')],n=all.filter(x=>x.checked).length,pill=card.querySelector('.pill');pill.textContent=`${n}/${all.length} 已確認`;pill.className='pill '+(n===all.length?'pill-ok':'pill-wait');});});
+}
 function dailyCloseForm(r){
   const entries=Object.entries(r.reconciliation_accounts||{}).sort(([a],[b])=>{const rank=c=>c==='linepay'?0:c==='taishin'?1:2;return rank(a)-rank(b);});
   return `<div class="reg-close-form" data-register-id="${esc(r.id)}"><h4>1. 當日營收 · ${esc(BRAND_LABEL[r.venue])}</h4><p>訂單總額 <b>NT$${num(r.sales?.amount)}</b>（本品牌、同一營業日；非全店實收）</p>
-    <fieldset data-close-step="cash"><legend>2. 清點錢櫃</legend><div class="ops-head"><h4>關帳點鈔</h4>${tipIcon('現金實收＝點鈔－零用金－臨時收入＋臨時支出。各項有差異都要填原因，不能互相抵銷。')}</div>${denomGrid()}
+    ${accountOverview(r,'關帳')}
+    <fieldset data-close-step="cash" disabled><legend>2. 清點錢櫃</legend><div class="ops-head"><h4>關帳點鈔</h4>${tipIcon('現金實收＝點鈔－零用金－臨時收入＋臨時支出。各項有差異都要填原因，不能互相抵銷。')}</div>${denomGrid()}
     <div class="a-form"><label>點鈔總額<input id="reg-counted" inputmode="numeric" pattern="[0-9]*" placeholder="或直接填"></label><label>留存金<input id="reg-keep" inputmode="numeric" pattern="[0-9]*" value="${esc(r.opening_cash)}"></label><label class="reg-note">現金差異原因<input id="reg-close-note" maxlength="200" placeholder="現金差額非 0 必填"></label></div>${fillChips('reg-keep',[[r.opening_cash,'同零用金 $'+num(r.opening_cash)],[0,'全部收走'],[3000,'$3,000'],[5000,'$5,000']])}${reasonChips('reg-close-note',REASON_PRESETS.close_note)}
     <div class="reg-close-sum"><span>應有現金 <b>NT$${num(r.expected)}</b></span><span>點鈔 <b id="reg-counted-show">—</b></span><span>差額 <b id="reg-diff-show">—</b></span></div><label><input type="checkbox" data-close-confirm="cash"> 已確認錢櫃與現金差異原因</label></fieldset>
     ${entries.map(([code,pos],i)=>`<fieldset data-close-step="${esc(code)}" disabled><legend>${i+3}. 核對 ${esc(regAccountLabel(r,code))}</legend><p>本品牌 POS 登記 <b>NT$${num(pos)}</b></p><p class="hint">請核對並填入「${esc(BRAND_LABEL[r.venue])}」本營業日的實收（退款已扣、手續費扣除前）。LINE Pay 店別歸屬與全店台新手填紀錄僅供參考，請另行確認本品牌實收。</p><div class="a-form"><label>本品牌實收<input data-account-actual="${esc(code)}" inputmode="numeric" pattern="[0-9]*" placeholder="必填，沒有收款也請填 0"></label><label>差異原因<input data-account-reason="${esc(code)}" maxlength="200" placeholder="差額非 0 必填"></label></div><p>差額 <b data-account-diff="${esc(code)}">—</b></p><label><input type="checkbox" data-close-confirm="${esc(code)}"> 已確認此帳戶與差異原因</label></fieldset>`).join('')}
@@ -1427,7 +1447,7 @@ function bindDailyClose(form,r,reload){
   const show=()=>{
     const b=read(),c=b.counted_cash,diff=c==null?null:c-r.expected;
     q('#reg-counted-show').textContent=c==null?'—':'NT$'+num(c);q('#reg-diff-show').textContent=diff==null?'—':(diff>0?'+':'')+num(diff);
-    let all=true;
+    const ov=q('[data-overview-confirm]');let all=ov.checked;
     for(const [i,step] of steps.entries()){
       step.disabled=!all;const confirm=step.querySelector('[data-close-confirm]');let valid;
       if(i===0)valid=c!==null&&(diff===0||!!b.note)&&b.keep_cash!==null;
@@ -1485,11 +1505,11 @@ async function loadSales(){
   host.innerHTML=`<div class="ops-head"><h2>日結報表</h2>${opsHelp('營業日從凌晨 03:00 起算到翌日 03:00（三點水深夜的單算前一天）。作廢的單不計營收、另列筆數；折扣與贈送已從營收扣除、另列金額。CSV 含每一筆品項明細、折扣與付款方式，可直接交會計。')}</div>
     <div class="a-toolbar"><label>營業日 <input type="date" id="sales-day" value="${esc(d.day)}"></label><button class="btn btn--ghost btn-sm" id="sales-prev">前一天</button><button class="btn btn--ghost btn-sm" id="sales-next">後一天</button><button class="btn btn--ghost btn-sm" id="sales-today">今天</button><button class="btn btn--solid btn-sm" id="sales-csv">匯出 CSV</button></div>
     <div class="a-kpis sales-kpis"><div class="a-kpi"><div class="kl">營收</div><div class="kv"><span class="u">NT$</span>${num(d.amount)}</div><div class="ks">折扣後實收</div></div><div class="a-kpi"><div class="kl">成立單數</div><div class="kv">${num(d.orders)}<span class="u"> 單</span></div><div class="ks">平均每單 NT$${num(d.orders?Math.round(d.amount/d.orders):0)}</div></div><div class="a-kpi"><div class="kl">折扣</div><div class="kv"><span class="u">NT$</span>${num(d.discount_amount)}</div><div class="ks">${num(d.discount_count)} 單${d.comp_count?` · 贈送 ${num(d.comp_count)} 項`:''}</div></div>${d.redeem_points?`<div class="a-kpi"><div class="kl">點數兌換</div><div class="kv">${num(d.redeem_points)}<span class="u"> 點</span></div><div class="ks">${num(d.redeem_count)} 單 · 折抵 NT$${num(d.redeem_value)}</div></div>`:''}<div class="a-kpi"><div class="kl">作廢</div><div class="kv">${num(d.voided)}<span class="u"> 單</span></div><div class="ks">NT$${num(d.void_amount)} 不計營收</div></div></div>
-    ${REG_DATA?registerBlock(REG_DATA):''}
+    ${REG_DATA?accountConfirmBlock(REG_DATA)+registerBlock(REG_DATA):''}
     <div class="sales-cols"><div><h3>付款方式</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>方式</th><th class="num">金額</th><th class="num">占比</th></tr></thead><tbody>${methods}</tbody></table></div></div><div><h3>時段分布</h3><div class="sales-bars">${hourBars}</div></div></div>
     <h3>品項銷量</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>品項</th>${SCOPE?'':'<th>店別</th>'}<th class="num">數量</th><th class="num">金額</th></tr></thead><tbody>${items}</tbody></table></div>
     <details><summary>帳務參考（另行逐項確認）</summary><p class="hint">LINE Pay 依開關帳時間歸屬店別，台新手填紀錄為全店實收；請核對商家紀錄後，在上方關帳流程逐一填寫本品牌實收。</p>${lpBlock}${tsBlock}</details>`;
-  bindRegisterBlock(host,loadSales);bindReasonChips(host);bindFillChips(host);
+  bindAccountConfirm(host);bindRegisterBlock(host,loadSales);bindReasonChips(host);bindFillChips(host);
   const shift=n=>{const t=new Date(SALES_DAY+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);SALES_DAY=t.toISOString().slice(0,10);REG_CASH_OPEN=false;REG_CLOSE_OPEN=false;REG_COUNT_OPEN=false;REG_OPEN_FORM='';loadSales();};
   // 同步：抓「這個營業日前後 3 天」，退款會回補到幾天前；按下去要等後台登入、約 20–60 秒
   host.querySelector('#lp-sync').onclick=e=>{const b=e.currentTarget;b.disabled=true;b.textContent='同步中…（約 1 分鐘）';

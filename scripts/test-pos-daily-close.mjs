@@ -37,7 +37,8 @@ test('close route uses authoritative brand sales and stale guard; reprints store
  assert.match(close,/JSON\.stringify\(report\)/);
  assert.match(server,/r\.closed_at\?r\.report:s\.report/);
  const ui=fs.readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');
- assert.ok(ui.indexOf('sales-kpis')<ui.indexOf('${REG_DATA?registerBlock(REG_DATA)'));
+ assert.ok(ui.indexOf('sales-kpis')<ui.indexOf('${REG_DATA?accountConfirmBlock(REG_DATA)+registerBlock(REG_DATA)'));
+ assert.match(ui,/各帳戶確認/); // 日結頁在開關帳前先列各帳戶逐一確認。
  assert.match(ui,/帳務參考（另行逐項確認）/);
  assert.match(ui,/lpVenueTable/); // 保留 main 的 LINE Pay 店別歸屬與明細。
  const spec=ui.slice(ui.indexOf('function registerReportSpec('),ui.indexOf('// 有接 mPOP'));
