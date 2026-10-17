@@ -62,12 +62,20 @@ h1,h2,h3{font-family:"Noto Serif TC",serif;font-weight:700;margin:0}
 .install .irow{display:flex;gap:10px;align-items:center}
 .install .btn{width:auto;flex:1;padding:0 16px}
 .install .later{min-height:48px;padding:0 14px;border:0;background:none;color:var(--muted);text-decoration:underline;text-underline-offset:4px}
-.sheet{position:fixed;inset:0;z-index:35;background:rgba(27,26,23,.55);display:flex;align-items:flex-end}
-.sheet .panel{background:var(--paper);width:100%;max-width:480px;margin:0 auto;border-radius:22px 22px 0 0;padding:22px 20px calc(22px + env(safe-area-inset-bottom))}
-.sheet h3{font-size:1.2rem}
-.sheet ol{padding-left:1.3em;margin:12px 0 16px}
-.sheet li{margin:10px 0}
-.sheet .note{color:var(--muted);margin:0 0 14px;text-wrap:pretty}
+.pg{position:fixed;inset:0;z-index:50;background:var(--paper);color:var(--ink);display:flex;flex-direction:column;animation:pgin .26s cubic-bezier(.2,.8,.2,1)}
+.pg.out{animation:pgout .2s ease-in forwards}
+@keyframes pgin{from{transform:translateX(100%)}to{transform:none}}
+@keyframes pgout{to{transform:translateX(100%)}}
+.pg[hidden]{display:none}
+.pg>header{display:flex;align-items:center;min-height:56px;padding:env(safe-area-inset-top) 6px 0;border-bottom:1px solid var(--line);background:rgba(251,250,246,.96)}
+.pg .back{min-height:48px;min-width:48px;padding:0 14px 0 8px;border:0;background:none;color:var(--ink);font:inherit;font-size:1.1rem;display:flex;align-items:center;gap:2px}
+.pg .back b{font-size:1.9rem;line-height:1;font-weight:400}
+.pg>header h3{font-size:1.05rem;position:absolute;left:50%;transform:translateX(-50%);pointer-events:none}
+.pg .body{flex:1;overflow:auto;padding:22px 20px calc(22px + env(safe-area-inset-bottom));max-width:480px;width:100%;margin:0 auto}
+.pg.center .body{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.pg ol{padding-left:1.3em;margin:12px 0 16px}
+.pg li{margin:10px 0}
+.pg .note{color:var(--muted);margin:0 0 14px;text-wrap:pretty}
 /* 底部分頁 */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:10;background:rgba(251,250,246,.96);backdrop-filter:blur(10px);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding-bottom:env(safe-area-inset-bottom)}
 nav.tabs button{height:var(--tab);border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--muted);font-size:1rem}
@@ -75,11 +83,8 @@ nav.tabs button svg{width:24px;height:24px}
 nav.tabs button[aria-current=true]{color:var(--ink);font-weight:700}
 nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 /* 全螢幕 QR */
-.ov{position:fixed;inset:0;z-index:30;background:var(--ink);color:var(--paper);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center}
-.ov[hidden]{display:none}
-.ov img{width:min(78vw,320px);height:min(78vw,320px);background:#fff;border-radius:20px;padding:14px}
-.ov p{margin:16px 0 0;opacity:.85}
-.ov .x{position:absolute;top:calc(env(safe-area-inset-top) + 12px);right:14px;width:48px;height:48px;border:0;background:none;color:var(--paper);font-size:2rem}
+.ov img{width:min(78vw,320px);height:min(78vw,320px);background:#fff;border:1px solid var(--line);border-radius:20px;padding:14px}
+.ov p{margin:16px 0 0;color:var(--soft)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tab) + env(safe-area-inset-bottom) + 16px);background:var(--ink);color:var(--paper);padding:.7em 1.1em;border-radius:12px;z-index:40;max-width:90vw}
 .toast[hidden]{display:none}
 /* 登入 */
@@ -133,9 +138,8 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 .rw b{font-family:"Cormorant Garamond","Noto Serif TC",serif;font-size:1.5rem;font-variant-numeric:tabular-nums;white-space:nowrap}
 .rw small{display:block;color:var(--muted);font-size:1rem}
 .rwb{min-height:44px;min-width:72px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font:inherit;font-size:1.05rem;padding:0 1em;cursor:pointer}
-.scanov{position:fixed;inset:0;z-index:60;background:rgba(27,26,23,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px;color:#fff;text-align:center}
+.scanov .body{align-items:center;justify-content:center;gap:16px}
 .scanov video{width:100%;max-width:420px;aspect-ratio:1;object-fit:cover;border-radius:18px;background:#000}
-.scanov button{min-height:48px;min-width:120px;border-radius:999px;border:1px solid #fff;background:transparent;color:#fff;font:inherit;font-size:1.1rem}
 .rw.ok b{background:var(--accent);border-radius:999px;padding:0 .6em}
 /* 會籍 */
 .panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:12px}
@@ -156,7 +160,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 .field input{display:block;width:100%;margin-top:6px;min-height:52px;padding:0 14px;border:1.5px solid var(--line);border-radius:12px;font-family:inherit;font-size:1rem;background:#fff;color:var(--ink)}
 .field input:disabled{background:var(--alt);color:var(--muted)}
 .lang{display:flex;gap:8px}.lang button{flex:1;min-height:44px;border:1.5px solid var(--line);border-radius:12px;background:transparent}.lang button[aria-pressed=true]{border-color:var(--ink);font-weight:700;background:var(--accent)}
-.ov .sub{opacity:.85;margin:6px 0 0}
+.ov .sub{color:var(--muted);margin:6px 0 0}
 .rgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
 .rcard{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
 .rcard .ph{aspect-ratio:4/3;width:100%;object-fit:cover;background:var(--alt);display:flex;align-items:center;justify-content:center;color:var(--muted)}
@@ -192,10 +196,10 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   <button data-tab="events"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg><span data-i="tabEvents">活動</span></button>
   <button data-tab="me"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg><span data-i="tabMe">我的</span></button>
 </nav>
-<div class="ov" id="ov" hidden role="dialog" aria-modal="true" aria-label="QR">
-  <button class="x" id="ovx" aria-label="關閉">×</button>
-  <img id="ovimg" alt="QR" width="320" height="320">
-  <p id="ovmeta">請出示給店員掃描</p><p class="sub" id="ovsub"></p>
+<div class="pg ov center" id="ov" hidden>
+  <header><button class="back" id="ovx" type="button" aria-label="返回"><b>‹</b><span>返回</span></button></header>
+  <div class="body"><img id="ovimg" alt="QR" width="320" height="320">
+  <p id="ovmeta">請出示給店員掃描</p><p class="sub" id="ovsub"></p></div>
 </div>
 <div class="toast" id="toast" hidden role="status"></div>
 <script src="/vendor/qrcode.min.js"></script>
@@ -208,7 +212,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   const PLAN_PRICES={day_4h:200,day_12h:500,month:4000,quarter:10000,year:35000,year_promo:35000};
   const PROMO_END='2026-12-31',promoOpen=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei'}).format(new Date())<=PROMO_END;
   const I18N={
-    zh:{locale:'zh-TW',tabHome:'會員卡',tabPlan:'會籍',tabEvents:'活動',tabMe:'我的',loading:'載入中…',
+    zh:{locale:'zh-TW',back:'返回',tabHome:'會員卡',tabPlan:'會籍',tabEvents:'活動',tabMe:'我的',loading:'載入中…',
       loginTitle:'言文字 會員',loginSub:'登入後，用一張卡在所有空間累積點數、查看會籍、報名活動。',google:'使用 Google 登入',lineLogin:'使用 LINE 登入',email:'使用 Email 登入',needName:'請先輸入名字',emailSend:'寄送登入連結',emailSent:'登入連結已寄出',emailSentTo:e=>'請到 '+e+' 收信，點開連結即可登入。連結 20 分鐘內有效。',emailFail:'目前無法寄送登入連結，請改用 Google 登入',firstTime:'第一次使用？用任一方式登入，就會自動建立帳號。',
       hi:n=>'嗨，'+n,welcome:'歡迎回來',morning:'早安',noon:'午安',evening:'晚安',brand:'言文字',myPts:'我的點數',showCard:'結帳時出示會員卡',scanMe:'請出示給店員掃描',
       hintPhone:'也可以直接報手機號碼。',hintNoPhone:'到「我的」填寫手機，結帳報號碼就能累點。',hintEarn:'消費每滿 100 元得 1 點，1 點可兌換 NT$10 的餐飲。',
@@ -231,7 +235,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       resvTitle:'訂位',back:'返回',date:'日期',party:'人數',partyN:n=>(n===6?'6+':n)+' 位',slotLabel:'時段',venues:['在咖啡 08:00–17:00','三點水 17:00–03:00'],noteOpt:'備註（選填）',resvHint:()=>'座位保留 10 分鐘。',submitResv:'送出訂位',pickSlot:'請選一個時段',resvOk:id=>'訂位成立 '+id,
       pickupTitle:'預約取餐',pickupHint:n=>'先選時間再選餐點，到店付款。',pickupDay:'取餐日',today:'今天',tomorrow:'明天',dayAfter:'後天',pickupTime:'取餐時間',noSlots:'這天已沒有可預約的時段，請改選其他日期',loadingMenu:'載入菜單…',pickTimeFirst:'選好時間後會顯示該時段的菜單。',submitPickup:'送出預約',itemsN:n=>'（'+n+' 件）',menuFail:'菜單載入失敗',noItems:'這個時段沒有可預約的品項',dec:'減少',inc:'增加',pickupOk:'預約成立，取餐前會開始準備',cafe:'在咖啡',bar:'三點水',opFail:'操作失敗，請稍後再試',
       installLabel:{prompt:'安裝到主畫面',ios:'看怎麼加到主畫面',inapp:'看怎麼用瀏覽器開啟'}},
-    en:{locale:'en-US',tabHome:'Card',tabPlan:'Membership',tabEvents:'Events',tabMe:'Me',loading:'Loading…',
+    en:{locale:'en-US',back:'Back',tabHome:'Card',tabPlan:'Membership',tabEvents:'Events',tabMe:'Me',loading:'Loading…',
       loginTitle:'emoji Member',loginSub:'Sign in to earn points at every space, view your membership and register for events.',google:'Sign in with Google',lineLogin:'Sign in with LINE',email:'Sign in with Email',needName:'Please enter your name',emailSend:'Send sign-in link',emailSent:'Link sent',emailSentTo:e=>'Check '+e+' and open the link to sign in. It expires in 20 minutes.',emailFail:'Could not send the link — try Google instead',firstTime:'New here? Sign in with any option and your account is created automatically.',
       hi:n=>'Hi, '+n,welcome:'Welcome back',morning:'Good morning',noon:'Good afternoon',evening:'Good evening',brand:'emoji',myPts:'My points',showCard:'Show card at checkout',scanMe:'Show this to staff to scan',
       hintPhone:'You can also just give your phone number.',hintNoPhone:'Add your phone under “Me” to earn points by number.',hintEarn:'Earn 1 point per NT$100; 1 point redeems NT$10 of food or drinks.',
@@ -254,7 +258,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       resvTitle:'Reserve a table',back:'Back',date:'Date',party:'Guests',partyN:n=>(n===6?'6+':n),slotLabel:'Time',venues:['at cafe 08:00–17:00','3AM 17:00–03:00'],noteOpt:'Note (optional)',resvHint:()=>'Tables are held for 10 minutes.',submitResv:'Reserve',pickSlot:'Pick a time',resvOk:id=>'Reserved · '+id,
       pickupTitle:'Order for pickup',pickupHint:n=>'Pick a time, then your items. Pay in store.',pickupDay:'Pickup day',today:'Today',tomorrow:'Tomorrow',dayAfter:'In 2 days',pickupTime:'Pickup time',noSlots:'No more slots that day — pick another date',loadingMenu:'Loading menu…',pickTimeFirst:'Pick a time to see that period’s menu.',submitPickup:'Place order',itemsN:n=>' ('+n+' items)',menuFail:'Could not load the menu',noItems:'Nothing available for this slot',dec:'Less',inc:'More',pickupOk:'Order placed — we’ll start preparing before pickup',cafe:'at cafe',bar:'3AM',opFail:'Action failed. Please try again.',
       installLabel:{prompt:'Install',ios:'How to add to home screen',inapp:'How to open in a browser'}},
-    ja:{locale:'ja-JP',tabHome:'会員カード',tabPlan:'会員資格',tabEvents:'イベント',tabMe:'マイページ',loading:'読み込み中…',
+    ja:{locale:'ja-JP',back:'戻る',tabHome:'会員カード',tabPlan:'会員資格',tabEvents:'イベント',tabMe:'マイページ',loading:'読み込み中…',
       loginTitle:'言文字 会員',loginSub:'ログインすると、すべての空間でポイントを貯め、会員資格の確認やイベント申込ができます。',google:'Google でログイン',lineLogin:'LINE でログイン',email:'メールでログイン',needName:'名前を入力してください',emailSend:'ログインリンクを送信',emailSent:'送信しました',emailSentTo:e=>e+' に届いたリンクを開くとログインできます。有効期限は20分です。',emailFail:'送信できませんでした。Google でログインしてください',firstTime:'初めての方も、いずれかの方法でログインすると自動で登録されます。',
       hi:n=>n+' さん、こんにちは',welcome:'おかえりなさい',morning:'おはようございます',noon:'こんにちは',evening:'こんばんは',brand:'言文字',myPts:'ポイント',showCard:'会計時に会員カードを提示',scanMe:'スタッフに提示してスキャン',
       hintPhone:'携帯電話番号を伝えるだけでもOKです。',hintNoPhone:'「マイページ」で携帯番号を登録すると、番号だけでポイントが貯まります。',hintEarn:'100元ごとに1ポイント。1ポイントで飲食NT$10分と交換できます。',
@@ -320,16 +324,24 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     const k=kindNow(false);if(!k)return '';
     return `<section class="install" id="install"><h3>${esc(T.install)}</h3><p>${esc(T.installSub)}</p><div class="irow"><button class="btn solid" id="inst" data-k="${k}">${esc(T.installLabel[k])}</button><button class="later" id="instx">${esc(T.later)}</button></div></section>`;
   }
+  /* 整頁推入（像手機換頁）：從右滑入，返回鍵／手勢／‹ 都能回上一頁 */
+  const pgStack=[];
+  function pushPg(el,onClose){
+    let done=false;
+    const fin=()=>{if(done)return;done=true;const i=pgStack.findIndex(x=>x.el===el);if(i>=0)pgStack.splice(i,1);if(onClose)onClose();el.classList.add('out');setTimeout(()=>{if(el.dataset.keep)el.hidden=true,el.classList.remove('out');else el.remove();},200);};
+    pgStack.push({el,fin});history.pushState({pg:pgStack.length},'');
+    return ()=>{if(pgStack.length&&pgStack[pgStack.length-1].el===el&&history.state&&history.state.pg)history.back();else fin();};
+  }
+  window.addEventListener('popstate',()=>{const t=pgStack[pgStack.length-1];if(t)t.fin();});
   function openSheet(k){
     const steps=k==='inapp'?T.sheetInapp:T.sheetIos;
     const title=k==='inapp'?T.sheetInappTitle:T.sheetIosTitle;
     const note=k==='inapp'?T.sheetInappNote:T.sheetIosNote;
-    const el=document.createElement('div');el.className='sheet';el.setAttribute('role','dialog');el.setAttribute('aria-modal','true');
-    el.innerHTML=`<div class="panel"><h3>${esc(title)}</h3><ol>${steps.map(s=>'<li>'+s+'</li>').join('')}</ol><p class="note">${esc(note)}</p>${k==='inapp'?`<button class="btn solid" id="cpy" style="margin-bottom:10px">${esc(T.copy)}</button><button class="btn" id="shx">${esc(T.ok)}</button>`:`<button class="btn solid" id="shx">${esc(T.ok)}</button>`}</div>`;
-    const close=()=>el.remove();
-    el.onclick=e=>{if(e.target===el)close();};
+    const el=document.createElement('div');el.className='pg';
+    el.innerHTML=`<header><button class="back" id="shb" type="button"><b>‹</b><span>${esc(T.back)}</span></button><h3>${esc(title)}</h3></header><div class="body"><ol>${steps.map(s=>'<li>'+s+'</li>').join('')}</ol><p class="note">${esc(note)}</p>${k==='inapp'?`<button class="btn solid" id="cpy" style="margin-bottom:10px">${esc(T.copy)}</button><button class="btn" id="shx">${esc(T.ok)}</button>`:`<button class="btn solid" id="shx">${esc(T.ok)}</button>`}</div>`;
     document.body.appendChild(el);
-    el.querySelector('#shx').onclick=close;
+    const close=pushPg(el);
+    el.querySelector('#shx').onclick=close;el.querySelector('#shb').onclick=close;
     const c=el.querySelector('#cpy');
     if(c)c.onclick=async()=>{try{await navigator.clipboard.writeText(location.href);toast(T.copied);}catch(e){toast(T.copyFail);}};
   }
@@ -466,7 +478,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   }
   async function openTicket(eventId){
     const img=document.getElementById('ovimg'),meta=document.getElementById('ovmeta'),sub2=document.getElementById('ovsub');
-    try{const d=await get('/api/events/'+encodeURIComponent(eventId)+'/ticket');clearInterval(qrTimer);ov.hidden=false;img.style.display='';QRCode.toDataURL(d.token,{width:320,margin:1},(err,url)=>{if(!err)img.src=url;});meta.textContent=T.ticketMeta((d.tickets||[]).length);sub2.textContent='';}
+    try{const d=await get('/api/events/'+encodeURIComponent(eventId)+'/ticket');clearInterval(qrTimer);showOv();img.style.display='';QRCode.toDataURL(d.token,{width:320,margin:1},(err,url)=>{if(!err)img.src=url;});meta.textContent=T.ticketMeta((d.tickets||[]).length);sub2.textContent='';}
     catch(e){toast(T.ticketFail);}
   }
   function bookResv(){
@@ -617,10 +629,13 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       else{const d=await get('/api/me/card');draw(img,d.token);img.style.display='';meta.textContent=T.scanMe;sub.textContent='';}
     }catch(e){img.style.display='none';meta.textContent=offline||!navigator.onLine?(qrKind==='access'?T.qrOffline:T.hintPhone):(qrKind==='access'?(e.status===403?T.needPlan:T.qrFail):T.netFail);sub.textContent='';}
   }
-  function openQr(kind){qrKind=kind||'card';ov.hidden=false;refreshQr();clearInterval(qrTimer);qrTimer=setInterval(refreshQr,30000);}
+  let ovClose=null;
+  function showOv(){ov.dataset.keep='1';ov.classList.remove('out');ov.hidden=false;if(!ovClose||!pgStack.some(x=>x.el===ov))ovClose=pushPg(ov,()=>clearInterval(qrTimer));}
+  function openQr(kind){qrKind=kind||'card';showOv();refreshQr();clearInterval(qrTimer);qrTimer=setInterval(refreshQr,30000);}
   /* 兌換：選品項→開相機掃桌上點菜 QR（/order?t=桌號&k=驗證碼）→伺服器扣點並把 0 元兌換行加進該桌點菜清單 */
   let scanStream=null,scanOv=null;
-  function stopScan(){if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null;}if(scanOv){scanOv.remove();scanOv=null;}}
+  let scanClose=null;
+  function stopScan(){if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null;}if(scanOv){const c=scanClose;scanOv=null;scanClose=null;if(c)c();}}
   function loadZx(){return window.ZXingWASM?Promise.resolve():new Promise((ok,no)=>{const sc=document.createElement('script');sc.src='/vendor/zxing-reader.js';sc.onload=ok;sc.onerror=no;document.head.appendChild(sc);});}
   async function makeDetector(){
     if('BarcodeDetector' in window){const d=new BarcodeDetector({formats:['qr_code']});return v=>d.detect(v).then(r=>r[0]&&r[0].rawValue).catch(()=>'');}
@@ -633,9 +648,11 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   async function startRedeem(id,name,pts){
     if(!confirm(T.redeemConfirm(name,pts)))return;
     stopScan();
-    scanOv=document.createElement('div');scanOv.className='scanov';
-    scanOv.innerHTML='<h3>'+esc(T.scanTitle)+'</h3><video playsinline muted></video><p>'+esc(T.scanSub(name))+'</p><button type="button">'+esc(T.scanCancel)+'</button>';
-    document.body.appendChild(scanOv);scanOv.querySelector('button').onclick=stopScan;
+    scanOv=document.createElement('div');scanOv.className='pg scanov center';
+    scanOv.innerHTML='<header><button class="back" type="button"><b>‹</b><span>'+esc(T.back)+'</span></button><h3>'+esc(T.scanTitle)+'</h3></header><div class="body"><video playsinline muted></video><p>'+esc(T.scanSub(name))+'</p></div>';
+    document.body.appendChild(scanOv);
+    scanClose=pushPg(scanOv,()=>{if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null;}scanOv=null;scanClose=null;});
+    scanOv.querySelector('.back').onclick=()=>{const c=scanClose;if(c)c();};
     const video=scanOv.querySelector('video'),mine=scanOv;
     try{
       scanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
@@ -658,9 +675,8 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   }
   const nm2=x=>LANG==='ja'&&x.ja?x.ja:LANG==='en'&&x.en?x.en:x.zh;
   function openCard(){openQr('card');}
-  function closeQr(){ov.hidden=true;clearInterval(qrTimer);}
+  function closeQr(){if(ovClose&&pgStack.some(x=>x.el===ov))ovClose();}
   document.getElementById('ovx').onclick=closeQr;
-  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeQr();});
   async function load(){
     try{
       await fulfillPlanIfNeeded();
