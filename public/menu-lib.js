@@ -6,10 +6,10 @@
     'SALAD', 'BREAD', 'JAPANESE', 'DESSERT',
     'COLD_APP', 'HOT_APP', 'FRIED', 'GRILL', 'MAIN', 'SOUP',
     'COFFEE', 'BEVERAGE', 'TEA', 'SPARKLING',
-    'SAKE', 'LIQUEUR', 'WINE', 'ALCOHOL',
+    'SAKE', 'LIQUEUR', 'WINE', 'BEER', 'BOTTLE', 'ALCOHOL',
     'FOOD', 'SNACK', 'OTHER',
   ];
-  const ALCOHOL_CATS = ['ALCOHOL', 'SAKE', 'LIQUEUR', 'WINE'];
+  const ALCOHOL_CATS = ['ALCOHOL', 'SAKE', 'LIQUEUR', 'WINE', 'BEER', 'BOTTLE'];
   const VENUE_LABEL = {
     CAFE: { zh: '在咖啡', en: 'at cafe', ja: '在咖啡' },
     BAR: { zh: '三點水', en: '3AM', ja: '三點水' },
@@ -22,6 +22,8 @@
     SAKE: { zh: '清酒', en: 'Sake', ja: '日本酒' },
     LIQUEUR: { zh: '果實酒', en: 'Fruit Liqueur', ja: '果実酒' },
     WINE: { zh: '甜白葡萄酒', en: 'Sweet White Wine', ja: '甘口白ワイン' },
+    BEER: { zh: '啤酒', en: 'Beer', ja: 'ビール' },
+    BOTTLE: { zh: '整瓶', en: 'Bottle', ja: 'ボトル' },
     ALCOHOL: { zh: '酒精飲品', en: 'Alcohol', ja: 'アルコール' },
     SALAD: { zh: '沙拉／優格', en: 'Salad & Yogurt', ja: 'サラダ・ヨーグルト' },
     BREAD: { zh: '麵包主食', en: 'Bread', ja: 'パン' },
@@ -48,7 +50,7 @@
     return new Date((now == null ? Date.now() : +new Date(now)) + (8 - 3) * 3600e3).toISOString().slice(0, 10);
   }
   /* 出餐站：飲品／酒水在吧檯，其餘進廚房 */
-  const BAR_CATS = ['COFFEE', 'TEA', 'BEVERAGE', 'SPARKLING', 'SAKE', 'LIQUEUR', 'WINE', 'ALCOHOL'];
+  const BAR_CATS = ['COFFEE', 'TEA', 'BEVERAGE', 'SPARKLING', 'SAKE', 'LIQUEUR', 'WINE', 'BEER', 'BOTTLE', 'ALCOHOL'];
   function stationOf(item) { return BAR_CATS.includes(item && item.cat) ? 'bar' : 'kitchen'; }
   const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   const dateOrEmpty = v => (DATE_RE.test(String(v || '')) ? String(v) : '');

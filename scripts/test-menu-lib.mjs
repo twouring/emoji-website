@@ -9,9 +9,17 @@ const window = {};
 vm.runInNewContext(code, { window, console });
 const M = window.MenuLib;
 
-test('CATS includes SNACK', () => {
+test('CATS includes SNACK, BEER, BOTTLE', () => {
   assert.ok(M.CATS.includes('SNACK'));
   assert.ok(M.CATS.includes('COFFEE'));
+  assert.ok(M.CATS.includes('BEER'));
+  assert.ok(M.CATS.includes('BOTTLE'));
+  assert.equal(M.CAT_LABEL.BEER.zh, '啤酒');
+  assert.equal(M.CAT_LABEL.BOTTLE.zh, '整瓶');
+  assert.equal(M.stationOf({ cat: 'BEER' }), 'bar');
+  assert.equal(M.stationOf({ cat: 'BOTTLE' }), 'bar');
+  assert.equal(M.normalizeItem({ cat: 'BEER', zh: '生啤', price: 240 }).alcohol, true);
+  assert.equal(M.normalizeItem({ cat: 'BOTTLE', zh: '整瓶', price: 3200 }).alcohol, true);
 });
 
 test('venue defaults to CAFE; sortItems groups CAFE before BAR', () => {

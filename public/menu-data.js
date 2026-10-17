@@ -86,6 +86,18 @@ window.__MENU_SEED = [
   { venue:"BAR", cat:"LIQUEUR", zh:"老松・御免酒柚子", en:"Oimatsu Gomenshu Yuzu Liqueur", price:280, alcohol:true, note:"柚子控不用把菜單翻完。 龍神村柚子的香氣濃厚，果實酸甜鮮明。｜8%・60ml／杯・整瓶 720ml NT$2,700・加冰" },
   // ── WINE ──
   { venue:"BAR", cat:"WINE", zh:"高畠・冰結甜白葡萄酒", en:"Takahata Hyoketsu-shibori Sweet White", price:400, alcohol:true, note:"甜點不一定用盤子。這我知道。 杏子、熟白桃、乾果與蜂蜜香，甜美濃郁。｜9.5%・60ml／杯・整瓶 500ml NT$2,800・冷藏不加冰" },
+  // ── BEER ──
+  { venue:"BAR", cat:"BEER", zh:"三得利 Premium Malt's 頂級白生啤", en:"Suntory The Premium Malt's", price:240, alcohol:true, note:"生啤。冷藏供應。" },
+  // ── BOTTLE ──
+  { venue:"BAR", cat:"BOTTLE", zh:"雪之松島・海 AIR 純米原酒（整瓶）", en:"Yuki no Matsushima “Kai AIR” Junmai Genshu Bottle", price:3200, alcohol:true, note:"720ml／瓶・冷藏不加冰" },
+  { venue:"BAR", cat:"BOTTLE", zh:"雪之松島・入魂超辛＋20（整瓶）", en:"Yuki no Matsushima Nyukon Cho-kara +20 Bottle", price:1900, alcohol:true, note:"720ml／瓶・冷藏不加冰" },
+  { venue:"BAR", cat:"BOTTLE", zh:"繁桝・紅紫蘇純米梅酒（整瓶）", en:"Shigemasu Red Shiso Junmai Umeshu Bottle", price:2500, alcohol:true, note:"720ml／瓶" },
+  { venue:"BAR", cat:"BOTTLE", zh:"本坊・文旦飴酒（整瓶）", en:"Hombo Buntan-ame Bottle", price:1750, alcohol:true, note:"500ml／瓶" },
+  { venue:"BAR", cat:"BOTTLE", zh:"篠崎・甘王草莓梅酒（整瓶）", en:"Shinozaki Amaou Strawberry Umeshu Bottle", price:1750, alcohol:true, note:"500ml／瓶" },
+  { venue:"BAR", cat:"BOTTLE", zh:"西吉田・八女茶梅酒（整瓶）", en:"Nishiyoshida Yame Tea Umeshu Bottle", price:2600, alcohol:true, note:"720ml／瓶" },
+  { venue:"BAR", cat:"BOTTLE", zh:"堤酒造・晚白柚酒（整瓶）", en:"Tsutsumi Banpeiyu Pomelo Liqueur Bottle", price:2300, alcohol:true, note:"720ml／瓶" },
+  { venue:"BAR", cat:"BOTTLE", zh:"老松・御免酒柚子（整瓶）", en:"Oimatsu Gomenshu Yuzu Liqueur Bottle", price:2700, alcohol:true, note:"720ml／瓶" },
+  { venue:"BAR", cat:"BOTTLE", zh:"高畠・冰結甜白葡萄酒（整瓶）", en:"Takahata Hyoketsu-shibori Sweet White Bottle", price:2800, alcohol:true, note:"500ml／瓶・冷藏不加冰" },
   // ── SPARKLING ──
   { venue:"BAR", cat:"SPARKLING", zh:"柚子氣泡", en:"Yuzu Sparkling", price:160, note:"柚子果漿、氣泡水。清新柚香搭配細緻氣泡，酸甜輕盈，明亮果香隨氣泡展開，口感清爽俐落。" },
   { venue:"BAR", cat:"SPARKLING", zh:"莓果氣泡", en:"Berry Sparkling", price:160, note:"莓果果漿、氣泡水。莓果酸甜遇上細緻氣泡，明亮清爽，酸香與甜味平衡，留下輕盈鮮明的莓果香。", image:U('1623227314867-33230da9b493') },

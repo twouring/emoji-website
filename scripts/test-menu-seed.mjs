@@ -42,14 +42,16 @@ test('buildMenuSeedDoc publishes all by default', () => {
   assert.equal(doc.items[1].sort, 20);
 });
 
-test('buildMenuSeedDoc treats SAKE/LIQUEUR/WINE as alcohol', () => {
+test('buildMenuSeedDoc treats SAKE/LIQUEUR/WINE/BEER/BOTTLE as alcohol', () => {
   const doc = buildMenuSeedDoc([
     { venue: 'BAR', cat: 'SAKE', zh: '清酒', price: 450 },
     { venue: 'BAR', cat: 'LIQUEUR', zh: '梅酒', price: 240 },
     { venue: 'BAR', cat: 'WINE', zh: '甜白', price: 400 },
+    { venue: 'BAR', cat: 'BEER', zh: '啤酒', price: 240 },
+    { venue: 'BAR', cat: 'BOTTLE', zh: '整瓶', price: 3200 },
     { venue: 'BAR', cat: 'SPARKLING', zh: '柚子氣泡', price: 160 },
   ]);
-  assert.deepEqual(doc.items.map((i) => i.alcohol), [true, true, true, false]);
+  assert.deepEqual(doc.items.map((i) => i.alcohol), [true, true, true, true, true, false]);
   assert.ok(doc.items.every((i) => i.cat !== 'FOOD'));
 });
 
@@ -72,6 +74,10 @@ test('loadMenuSeedRows reads menu-data.js', () => {
   assert.ok(rows.some((r) => r.zh === '美式咖啡' && r.venue === 'CAFE'));
   assert.ok(rows.some((r) => r.zh === '柚香鮭魚冷盤' && r.venue === 'BAR'));
   assert.ok(rows.some((r) => r.cat === 'SAKE' && r.venue === 'BAR' && r.alcohol === true));
+  assert.ok(rows.some((r) => r.zh === "三得利 Premium Malt's 頂級白生啤" && r.cat === 'BEER' && r.price === 240));
+  assert.ok(rows.some((r) => r.zh === '雪之松島・海 AIR 純米原酒（整瓶）' && r.cat === 'BOTTLE' && r.price === 3200));
+  assert.ok(rows.some((r) => r.zh === '高畠・冰結甜白葡萄酒（整瓶）' && r.cat === 'BOTTLE' && r.price === 2800));
+  assert.ok(!rows.some((r) => r.zh === '本坊・寶星梅酒（整瓶）'), '寶星僅杯售');
   assert.ok(rows.every((r) => r.note), '定稿菜單每項都有產品內容');
   assert.ok(rows.every((r) => ['CAFE', 'BAR'].includes(r.venue)));
 });
