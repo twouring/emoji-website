@@ -1372,7 +1372,7 @@ function acctDialog(r,code,sales){
     const cash=code==='cash';
     const {ov,close}=pickOverlay(`<h3>核對 ${esc(label)} · ${esc(BRAND_LABEL[r.venue])}</h3>
       <div class="reg-close-sum"><span>應收 <b>NT$${num(expected)}</b></span><span>實收 <b id="acct-actual-show">—</b></span><span>差額 <b id="acct-diff-show">—</b></span></div>
-      ${cash?`<p class="hint">按面額填張數，或直接填總額。應收＝零用金＋現金營收＋臨時收入－臨時支出（整個錢櫃）。</p>${denomGrid()}`:code==='linepay'?`<p class="hint">${lpAuto==null?'LINE Pay 後台尚未同步，請先在「帳務參考」按「同步 LINE Pay」，或對照商家後台手動填入。':`已自動帶入 LINE Pay 後台同步實收（${esc(applicationTime(sales.linepay.synced_at))} 同步，退款已扣），可修改。`}</p>`:`<p class="hint">請對照收單機、商家後台或交接資料填入本品牌本營業日實收（退款已扣、手續費扣除前）。</p>`}
+      ${cash?`<p class="hint">按面額填張數，或直接填總額。應收＝零用金＋現金營收＋臨時收入－臨時支出（整個錢櫃）。</p>${denomGrid()}`:code==='linepay'?`<p class="hint" id="acct-lp-hint">${lpAuto==null?'LINE Pay 後台尚未同步：按「同步 LINE Pay」自動帶入實收，或對照商家後台手動填入。':`已自動帶入 LINE Pay 後台同步實收（${esc(applicationTime(sales.linepay.synced_at))} 同步，退款已扣），可修改；有新交易可再同步。`}</p><div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="acct-lp-sync" ${sales?.linepay?.configured===false?'disabled title="尚未設定 LINE Pay 商家後台帳密"':''}>同步 LINE Pay</button></div>`:`<p class="hint">請對照收單機、商家後台或交接資料填入本品牌本營業日實收（退款已扣、手續費扣除前）。</p>`}
       <div class="a-form"><label>${cash?'實收總額':'實收'}<input id="acct-actual" inputmode="numeric" pattern="[0-9]*" placeholder="${cash?'或直接填':'沒有收款請填 0'}" value="${prev?esc(prev.actual):lpAuto!=null?lpAuto:''}"></label><label class="reg-note" id="acct-reason-label" hidden>差異原因（應收≠實收必填）<input id="acct-reason" maxlength="200" value="${esc(prev?.reason||'')}"></label></div>${reasonChips('acct-reason',REASON_PRESETS.close_note)}
       <div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-cancel>取消</button><button type="button" class="btn btn--solid" data-ok disabled>確認</button></div>`,'核對 '+label);
     const box=ov.querySelector('.pos-move-box');bindReasonChips(box);
@@ -1383,6 +1383,18 @@ function acctDialog(r,code,sales){
       q('#acct-actual-show').textContent=actual==null?'—':'NT$'+num(actual);const ds=q('#acct-diff-show');ds.textContent=diff==null?'—':(diff>0?'+':'')+num(diff);ds.classList.toggle('reg-diff',!!diff);
       q('#acct-reason-label').hidden=!diff;q('[data-ok]').disabled=actual==null||(diff!==0&&!reason);};
     box.addEventListener('input',show,true);box.addEventListener('change',show);
+    // LINE Pay：對話框內直接同步後台（抓營業日前 3 天到隔天），重抓當日對帳結果帶入本店別實收；同步要等後台登入，約 20–60 秒
+    const sb=q('#acct-lp-sync');if(sb)sb.onclick=async()=>{sb.disabled=true;sb.textContent='同步中…（約 1 分鐘）';
+      const day=String(r.day||SALES_DAY||'').slice(0,10)||todayTaipei(),addDays=(d0,n)=>{const t=new Date(d0+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10);};
+      const start=addDays(day,-3),end=[addDays(day,1),todayTaipei()].sort()[0];
+      try{const out=await api('/admin/sales/linepay/sync',{method:'POST',body:{start,end}});
+        const fresh=await api(`/admin/sales?day=${encodeURIComponent(day)}`+(SCOPE?'&venue='+SCOPE:''));
+        if(sales&&fresh?.linepay)sales.linepay=fresh.linepay;   // 同一頁再開其他帳戶／重開對話框都用新資料
+        const v=acctLinepayActual(fresh?.linepay,r.venue);
+        if(v!=null){q('#acct-actual').value=v;q('#acct-lp-hint').textContent=`已同步 ${out.count} 筆，帶入 LINE Pay 後台實收（${applicationTime(fresh.linepay.synced_at)} 同步，退款已扣），可修改。`;}
+        else q('#acct-lp-hint').textContent='同步完成，但沒有本店別的實收資料，請對照商家後台手動填入。';
+        show();toast(`已同步 ${out.start} ～ ${out.end}，${out.count} 筆`);}
+      catch(e){toast(e.message||'同步失敗');}finally{sb.disabled=false;sb.textContent='同步 LINE Pay';}};
     const done=v=>{close();resolve(v);};
     q('[data-cancel]').onclick=()=>done(null);ov.addEventListener('click',e=>{if(e.target===ov)done(null);});
     q('[data-ok]').onclick=()=>{const {actual,denoms}=read();if(actual==null)return;const diff=actual-expected,reason=q('#acct-reason').value.trim();if(diff!==0&&!reason){toast('應收與實收不同，請填差異原因');q('#acct-reason').focus();return;}done({actual,diff,reason:diff?reason:'',denoms});};

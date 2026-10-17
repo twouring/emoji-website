@@ -43,6 +43,7 @@ test('close route uses authoritative brand sales and stale guard; reprints store
  assert.match(ui,/acctLinepayActual\(sales\?\.linepay,r\.venue\)/); // LINE Pay 實收自動帶入後台同步結果（依店別歸屬）。
  assert.match(ui,/q\('\[data-ok\]'\)\.disabled=actual==null\|\|\(diff!==0&&!reason\)/); // 應收≠實收必須填原因才能確認。
  assert.match(ui,/const pre=ACCT_CONFIRMED\.get\(r\.id\)/); // 已確認結果帶入關帳表單。
+ assert.match(ui,/id="acct-lp-sync"/);assert.match(ui,/api\('\/admin\/sales\/linepay\/sync',\{method:'POST',body:\{start,end\}\}\)/); // LINE Pay 對話框內可直接同步後台再帶入實收。
  assert.match(ui,/帳務參考（另行逐項確認）/);
  assert.match(ui,/lpVenueTable/); // 保留 main 的 LINE Pay 店別歸屬與明細。
  const spec=ui.slice(ui.indexOf('function registerReportSpec('),ui.indexOf('// 有接 mPOP'));
