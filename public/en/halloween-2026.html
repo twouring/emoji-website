@@ -19,15 +19,17 @@
 <main id="content" class="hy-page">
 <section class="hy-hero"><div class="wrap hy-grid"><div>
 <p class="hy-kicker">{{kicker}}</p><p class="hy-name">{{title}}</p><h1>{{headline}}</h1>
-{{hosts}}<p class="hy-intro">{{description}}</p><p class="hy-date">{{when}}</p>
+{{hosts}}<p class="hy-intro">{{description}}</p><p class="hy-date">{{when}}</p><p class="hy-count" data-start="2026-10-31T18:00:00+08:00" data-end="2026-11-01T00:00:00+08:00" data-pre="Opening eve in" data-unit="days" data-today="Tonight" data-live="The night is on"></p>
 <div class="hy-actions">{{actions}}</div></div>
 <div class="hy-poster" aria-hidden="true"><span>EMOJI / OPENING EVE</span><b class="hy-kanji">百鬼<br>夜行</b><img src="/cis/assets/moji/moji-meet.svg" alt="" width="300" height="200"><strong>{{poster_date}}</strong><span>TAIPEI · 2026</span></div>
 </div></section>
 <section class="wrap hy-section"><p class="hy-kicker">{{section_label}}</p><h2>{{section_title}}</h2><div class="hy-cards">
 <article><span>01 / DRESS UP</span><h3>{{highlight_1_title}}</h3><p>{{highlight_1_body}}</p></article><article><span>02 / MUSIC</span><h3>{{highlight_2_title}}</h3><p>{{highlight_2_body}}</p></article><article><span>03 / MEET</span><h3>{{highlight_3_title}}</h3><p>{{highlight_3_body}}</p></article>
 </div></section>
+<section class="hy-flow"><div class="wrap"><p class="hy-kicker">{{flow_label}}</p><h2>{{flow_title}}</h2><ol class="hy-steps">
+<li><span class="hy-step-no">I</span><small>{{flow_1_tag}}</small><h3>{{flow_1_title}}</h3><p>{{flow_1_body}}</p></li><li><span class="hy-step-no">II</span><small>{{flow_2_tag}}</small><h3>{{flow_2_title}}</h3><p>{{flow_2_body}}</p></li><li><span class="hy-step-no">III</span><small>{{flow_3_tag}}</small><h3>{{flow_3_title}}</h3><p>{{flow_3_body}}</p></li></ol><p class="hy-note">{{flow_note}}</p></div></section>
 <section class="wrap hy-section hy-grid hy-venue"><figure><img src="/assets/space/1f-night.jpg" alt="{{venue_caption}}" width="1400" height="867" loading="lazy"><figcaption>{{venue_caption}}</figcaption></figure><div><p class="hy-kicker">TAIPEI / Z10</p><h2>{{venue_title}}</h2><p>{{location}}</p><p>{{venue_note}}</p><a class="btn btn--ghost" href="/en/access">Get directions →</a></div></section>
 <section class="wrap hy-section hy-faq"><h2>{{faq_title}}</h2><details><summary>{{faq_1_question}}</summary><p>{{faq_1_answer}}</p></details><details><summary>{{faq_2_question}}</summary><p>{{faq_2_answer}}</p></details><details><summary>{{faq_3_question}}</summary><p>{{faq_3_answer}}</p></details><details><summary>{{faq_4_question}}</summary><p>{{faq_4_answer}}</p></details></section>
 <section class="hy-final"><div class="wrap"><h2>{{closing}}</h2><div class="hy-actions">{{actions}}</div><p class="hy-note">{{notice}}</p><a href="/en/events">← All events</a></div></section>
-</main><!--SITE_FOOTER-->
+</main><script>(function(){var el=document.querySelector('.hy-count');if(!el)return;var s=Date.parse(el.dataset.start),e=Date.parse(el.dataset.end),n=Date.now();if(n>=e){el.remove();return}if(n>=s){el.textContent=el.dataset.live;return}var d=Math.ceil((s-n)/864e5);el.innerHTML=d<=1?'<b>'+el.dataset.today+'</b>':el.dataset.pre+' <b>'+d+'</b> '+el.dataset.unit})()</script><!--SITE_FOOTER-->
 </body></html>

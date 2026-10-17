@@ -644,6 +644,9 @@ async function migrate() {
   await q(`INSERT INTO events (id,slug,title,description,location,starts_at,ends_at,status,translations)
     VALUES ($1,'halloween-2026',$2,$3,$4,'2026-10-31T18:00:00+08:00','2026-11-01T00:00:00+08:00','預告',$5)
     ON CONFLICT DO NOTHING`, [FEATURED_ID,halloween.zh.title,halloween.zh.description,halloween.zh.location,JSON.stringify(halloween)]);
+  // 一次性：2026-10-17 活動文案改版（新增三幕流程）；以 flow_label 是否存在判斷，後台再編輯不會被覆蓋
+  await q(`UPDATE events SET translations=COALESCE(translations,'{}'::jsonb)||(SELECT jsonb_object_agg(l.k,COALESCE(translations->l.k,'{}'::jsonb)||($1::jsonb->l.k)) FROM (VALUES ('zh'),('en'),('ja')) l(k)),
+    description=$2 WHERE id=$3 AND COALESCE(translations->'zh'->>'flow_label','')=''`, [JSON.stringify(halloween),halloween.zh.description,FEATURED_ID]);
 
   await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS amount_due INT NOT NULL DEFAULT 0`);
   await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS amount_paid INT NOT NULL DEFAULT 0`);
