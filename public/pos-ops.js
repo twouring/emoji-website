@@ -1404,7 +1404,7 @@ function acctDialog(r,code,sales){
     const {ov,close}=pickOverlay(`<h3>核對 ${esc(label)} · ${esc(BRAND_LABEL[r.venue])}</h3>
       <div class="reg-close-sum"><span>應收 <b>NT$${num(expected)}</b></span><span>實收 <b id="acct-actual-show">—</b></span><span>差額 <b id="acct-diff-show">—</b></span></div>
       ${cash?`<p class="hint">按面額填張數，或直接填總額。應收＝零用金＋現金營收＋臨時收入－臨時支出（整個錢櫃）。</p>${denomGrid()}`:code==='linepay'?`<p class="hint" id="acct-lp-hint">${lpAuto==null?'LINE Pay 後台尚未同步：按「同步 LINE Pay」自動帶入實收，或對照商家後台手動填入。':`已自動帶入 LINE Pay 後台同步實收（${esc(applicationTime(sales.linepay.synced_at))} 同步，退款已扣），可修改；有新交易可再同步。`}</p><div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="acct-lp-sync" ${sales?.linepay?.configured===false?'disabled title="尚未設定 LINE Pay 商家後台帳密"':''}>同步 LINE Pay</button></div>`:`<p class="hint">實收預設等於應收，帳對了直接按確認；不同請對照收單機、商家後台或交接資料改填本品牌本營業日實收（退款已扣、手續費扣除前）。</p>`}
-      <div class="a-form"><label>${cash?'實收總額':'實收'}<input id="acct-actual" inputmode="numeric" pattern="[0-9]*" placeholder="${cash?'或直接填':'沒有收款請填 0'}" onfocus="this.select()" value="${prev?esc(prev.actual):lpAuto!=null?lpAuto:expected}"></label><label class="reg-note" id="acct-reason-label">差異原因（應收≠實收必填）<input id="acct-reason" maxlength="200" placeholder="差額非 0 必填" value="${esc(prev?.reason||'')}"></label></div>${reasonChips('acct-reason',REASON_PRESETS.close_note)}
+      <div class="a-form"><label>${cash?'實收總額':'實收'}<input id="acct-actual" inputmode="numeric" pattern="[0-9]*" placeholder="${cash?'或直接填':'沒有收款請填 0'}" onfocus="this.select()" value="${prev?esc(prev.actual):lpAuto!=null?lpAuto:expected}"></label><label class="reg-note" id="acct-reason-label" hidden>差異原因（應收≠實收必填）<input id="acct-reason" maxlength="200" placeholder="差額非 0 必填" value="${esc(prev?.reason||'')}"></label></div><div id="acct-reason-options" hidden>${reasonChips('acct-reason',REASON_PRESETS.close_note)}</div>
       <div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-cancel>取消</button><button type="button" class="btn btn--solid" data-ok disabled>確認</button></div>`,'核對 '+label);
     const box=ov.querySelector('.pos-move-box');bindReasonChips(box);
     if(cash&&prev?.denoms)for(const [f,n] of Object.entries(prev.denoms)){const i=box.querySelector(`[data-denom="${f}"]`);if(i)i.value=n;}
@@ -1412,7 +1412,8 @@ function acctDialog(r,code,sales){
     const read=()=>{if(cash){const c=readCount(box,'#acct-actual');return {actual:c.total,denoms:c.denoms};}return {actual:amount()};};
     const show=()=>{const {actual}=read(),diff=actual==null?null:actual-expected,reason=q('#acct-reason').value.trim();
       q('#acct-actual-show').textContent=actual==null?'—':'NT$'+num(actual);const ds=q('#acct-diff-show');ds.textContent=diff==null?'—':(diff>0?'+':'')+num(diff);ds.classList.toggle('reg-diff',!!diff);
-      q('[data-ok]').disabled=actual==null||(diff!==0&&!reason);};
+      const needsReason=diff!==null&&diff!==0;q('#acct-reason-label').hidden=!needsReason;q('#acct-reason-options').hidden=!needsReason;
+      q('[data-ok]').disabled=actual==null||(needsReason&&!reason);};
     box.addEventListener('input',show,true);box.addEventListener('change',show);
     // LINE Pay：對話框內直接同步後台（抓營業日前 3 天到隔天），重抓當日對帳結果帶入本店別實收；同步要等後台登入，約 20–60 秒
     const sb=q('#acct-lp-sync');if(sb)sb.onclick=async()=>{sb.disabled=true;sb.textContent='同步中…（約 1 分鐘）';

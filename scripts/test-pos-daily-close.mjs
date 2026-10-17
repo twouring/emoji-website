@@ -42,7 +42,8 @@ test('close route uses authoritative brand sales and stale guard; reprints store
  assert.match(ui,/data-acct-open=/); // 每個帳戶一顆「核對」按鈕，點開對話框填實收。
  assert.match(ui,/acctLinepayActual\(sales\?\.linepay,r\.venue\)/); // LINE Pay 實收自動帶入後台同步結果（依店別歸屬）。
  assert.match(ui,/lpAuto!=null\?lpAuto:expected/); // 實收預設等於應收，帳對了直接按確認。
- assert.match(ui,/q\('\[data-ok\]'\)\.disabled=actual==null\|\|\(diff!==0&&!reason\)/); // 應收≠實收必須填原因才能確認。
+ assert.match(ui,/const needsReason=diff!==null&&diff!==0;q\('#acct-reason-label'\)\.hidden=!needsReason;q\('#acct-reason-options'\)\.hidden=!needsReason/); // 差額為 0 時隱藏原因欄位與快捷選項。
+ assert.match(ui,/q\('\[data-ok\]'\)\.disabled=actual==null\|\|\(needsReason&&!reason\)/); // 應收≠實收必須填原因才能確認。
  assert.match(ui,/function closeChecks\(r\)/); // 關帳只檢查上方各帳戶是否已核對，不再重填一輪。
  assert.ok(!ui.includes('data-close-step'));
  assert.match(ui,/id="acct-lp-sync"/);assert.match(ui,/api\('\/admin\/sales\/linepay\/sync',\{method:'POST',body:\{start,end\}\}\)/); // LINE Pay 對話框內可直接同步後台再帶入實收。
