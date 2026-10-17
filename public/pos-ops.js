@@ -841,11 +841,13 @@ function startAA(people){POS_AA={people};POS_PICK=null;POS_QTY={};POS_DISCOUNT=n
 /* 水平滑動手勢：垂直捲動不受影響（touch-action:pan-y）；超過 min 像素且橫向大於縱向才算滑動 */
 function bindSwipe(el,{dir='right',min=100,follow=false,onSwipe}){
   if(!el||!el.dataset||!el.addEventListener||el.dataset.swipe)return;el.dataset.swipe='1';if(el.style)el.style.touchAction='pan-y';
+  // touch-action 對 <tr> 不生效（CSS 規格排除表格列），橫向手勢會被當成捲動而 pointercancel；改設在儲存格上
+  if(el.querySelectorAll)el.querySelectorAll('td,th').forEach(c=>{if(c.style)c.style.touchAction='pan-y';});
   let x0=0,y0=0,id=null,moved=false,sup=0;
   el.addEventListener('click',e=>{if(!el._prog&&Date.now()-sup<500){e.stopImmediatePropagation();e.preventDefault();}},true);
   const reset=()=>{if(follow){el.style.transition='transform .15s';el.style.transform='';}};
   el.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;if(e.target.closest('input,select,textarea,summary,.ops-btns,.pos-qty'))return;id=e.pointerId;x0=e.clientX;y0=e.clientY;moved=false;el.style.transition='';});
-  el.addEventListener('pointermove',e=>{if(e.pointerId!==id)return;const dx=e.clientX-x0,dy=e.clientY-y0;if(Math.abs(dy)>Math.abs(dx)&&!moved)return;if(Math.abs(dx)>10)moved=true;if(follow&&moved&&dx>0)el.style.transform=`translateX(${Math.min(dx,min)}px)`;});
+  el.addEventListener('pointermove',e=>{if(e.pointerId!==id)return;const dx=e.clientX-x0,dy=e.clientY-y0;if(Math.abs(dy)>Math.abs(dx)&&!moved)return;if(Math.abs(dx)>10)moved=true;if(follow&&moved&&(dir==='both'||dx>0))el.style.transform=`translateX(${Math.max(-min,Math.min(dx,min))}px)`;});
   const end=e=>{if(e.pointerId!==id)return;id=null;const dx=e.clientX-x0,dy=e.clientY-y0;reset();if(moved)sup=Date.now();if(Math.abs(dx)>=min&&Math.abs(dx)>Math.abs(dy)*1.5&&(dir==='both'||(dir==='right'?dx>0:dx<0))){onSwipe(el,dx);}};
   el.addEventListener('pointerup',end);el.addEventListener('pointercancel',e=>{if(e.pointerId===id){id=null;reset();}});
 }
@@ -1165,7 +1167,7 @@ function paintPos(){
   if(cur.linepay)host.querySelector('#pos-checkout').disabled=true;
   /* 平板滑動操作（參考 iChef）：收款鈕向右滑＝收款；品項列左滑＝展開「⋯」更多操作、右滑收合。點擊照舊可用 */
   bindSwipe(host.querySelector('#pos-checkout'),{dir:'right',min:120,follow:true,onSwipe:el=>{if(el.disabled)return;el._prog=1;try{el.click();}finally{el._prog=0;}}});
-  host.querySelectorAll('.pos-lines tbody tr').forEach(tr=>{const d=tr.querySelector('details.ops-more');if(!d)return;bindSwipe(tr,{dir:'both',min:70,onSwipe:(el,dx)=>{d.open=dx<0;}});});
+  host.querySelectorAll('.pos-lines tbody tr').forEach(tr=>{const d=tr.querySelector('details.ops-more');if(!d)return;bindSwipe(tr,{dir:'both',min:70,follow:true,onSwipe:(el,dx)=>{d.open=dx<0;}});});
   host.querySelector('#pos-checkout').onclick=async()=>{
     const method=POS_METHOD;
     if(!picked.length)return;
