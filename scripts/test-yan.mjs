@@ -177,3 +177,26 @@ test('兌換列像折扣：日結／CSV 統計兌換點數與折抵；作廢還�
   assert.match(ops, /點數兌換 \$\{num\(rd\.points\)\} 點/, '收據另列兌換折抵');
   assert.match(adm, /id="yr-save"/); assert.match(adm, /'updates','menu'/);
 });
+
+test('手動給點：必填原因與經手人、1–1000、算入餘額且記錄留痕', () => {
+  const op = { id: 'st_1', name: '小明' };
+  const r = Y.applyGrant([], { userId: 'u1', points: 5, reason: '活動贈點', operator: op });
+  assert.equal(Y.balance(r.rows), 5);
+  assert.equal(r.rec.kind, 'grant');
+  assert.equal(r.rec.reason, '活動贈點');
+  assert.equal(r.rec.operator_id, 'st_1');
+  assert.equal(r.rec.operator_name, '小明');
+  assert.throws(() => Y.applyGrant([], { userId: 'u1', points: 5, reason: '', operator: op }), /原因/);
+  assert.throws(() => Y.applyGrant([], { userId: 'u1', points: 5, reason: '補償' }), /識別碼/);
+  assert.throws(() => Y.applyGrant([], { userId: 'u1', points: 0, reason: '補償', operator: op }), /整數/);
+  assert.throws(() => Y.applyGrant([], { userId: 'u1', points: 1001, reason: '補償', operator: op }), /整數/);
+  const spent = Y.applyRedeem(r.rows, { orderId: 'o1', points: 3, userId: 'u1' });
+  assert.equal(Y.balance(spent.rows), 2);
+});
+
+test('手動給點 API 與 POS 按鈕存在，且走操作者驗證', () => {
+  const srv = read('server.js'), pos = read('public/pos-ops.js');
+  assert.match(srv, /\/api\/admin\/yan\/grant[\s\S]{0,400}resolveOperator/);
+  assert.match(pos, /pos-yan-grant/);
+  assert.match(pos, /admin\/yan\/grant[\s\S]{0,200}operator_id/);
+});

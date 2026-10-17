@@ -833,6 +833,9 @@ async function migrate() {
     expires_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`);
+  await q(`ALTER TABLE yan_ledger ADD COLUMN IF NOT EXISTS reason TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS operator_id TEXT, ADD COLUMN IF NOT EXISTS operator_name TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS actor TEXT NOT NULL DEFAULT ''`);
+  await q(`ALTER TABLE yan_ledger DROP CONSTRAINT IF EXISTS yan_ledger_kind_check`);
+  await q(`ALTER TABLE yan_ledger ADD CONSTRAINT yan_ledger_kind_check CHECK (kind IN ('earn','void_earn','redeem','void_redeem','grant'))`);
   await q(`CREATE INDEX IF NOT EXISTS yan_ledger_user_idx ON yan_ledger(user_id, created_at)`);
   await q(`CREATE UNIQUE INDEX IF NOT EXISTS yan_ledger_kind_ref_uidx ON yan_ledger(kind, ref_id)`);
   await q(`ALTER TABLE table_orders ADD COLUMN IF NOT EXISTS user_id TEXT`);
@@ -4226,11 +4229,11 @@ app.delete('/api/events/:id/register', auth, requireDb, wrap(async (req, res) =>
 /* ---- 會員資料、一般會籍線上購買、場地檔期、後台操作紀錄 ---- */
 async function yanRowsFor(clientOrPool, userId) {
   const run = clientOrPool.query ? clientOrPool : { query: (...a) => q(...a) };
-  return (await run.query('SELECT id,user_id,kind,delta,brand,ref_type,ref_id,expires_at,created_at FROM yan_ledger WHERE user_id=$1 ORDER BY created_at',[userId])).rows;
+  return (await run.query('SELECT id,user_id,kind,delta,brand,ref_type,ref_id,reason,operator_id,operator_name,actor,expires_at,created_at FROM yan_ledger WHERE user_id=$1 ORDER BY created_at',[userId])).rows;
 }
 async function insertYanRow(client, rec) {
-  await client.query(`INSERT INTO yan_ledger(id,user_id,kind,delta,brand,ref_type,ref_id,expires_at,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-    [rec.id, rec.user_id, rec.kind, rec.delta, rec.brand || '', rec.ref_type || 'order', rec.ref_id, rec.expires_at, rec.created_at]);
+  await client.query(`INSERT INTO yan_ledger(id,user_id,kind,delta,brand,ref_type,ref_id,expires_at,created_at,reason,operator_id,operator_name,actor) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+    [rec.id, rec.user_id, rec.kind, rec.delta, rec.brand || '', rec.ref_type || 'order', rec.ref_id, rec.expires_at, rec.created_at, rec.reason || '', rec.operator_id || null, rec.operator_name || '', rec.actor || '']);
 }
 async function persistYanDiff(client, before, after) {
   const known = new Set(before.map(r => r.id));
@@ -4405,6 +4408,29 @@ app.post('/api/admin/yan/lookup', auth, adminOnly, requireDb, wrap(async (req, r
 }));
 
 // POS 兌換空間時數：掃會員條碼確認身分後，扣點並發一張單日會籍（entitlements.source='yan'），與購買的同樣計算啟用
+// POS 手動給點：須掃碼／查到會員、填原因、輸入經手人識別碼；帳本記 reason／operator／actor
+app.post('/api/admin/yan/grant', auth, adminOnly, requireDb, wrap(async (req, res) => {
+  const userId = String(req.body?.user_id || '').trim().slice(0, 64);
+  const operator = await resolveOperator(req, req.body?.operator_id);
+  if (!operator) return res.status(400).json({ error: '請先輸入 4 位數識別碼，給點要記是誰操作的。' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,2))',[userId]);
+    const user = (await client.query('SELECT id,name FROM users WHERE id=$1',[userId])).rows[0];
+    if (!user) { await client.query('ROLLBACK'); return res.status(404).json({ error: '找不到這位會員。' }); }
+    const before = await yanRowsFor(client, userId);
+    let r;
+    try { r = yan.applyGrant(before, { userId, points: req.body?.points, reason: req.body?.reason, operator }); }
+    catch (e) { await client.query('ROLLBACK'); return res.status(e.status || 400).json({ error: e.message }); }
+    r.rec.actor = actorOf(req.auth) || '';
+    await persistYanDiff(client, before, r.rows);
+    await client.query('COMMIT');
+    res.json({ ok: true, granted: r.delta, balance: yan.balance(r.rows), operator });
+  } catch (e) { await client.query('ROLLBACK').catch(()=>{}); throw e; }
+  finally { client.release(); }
+}));
+
 app.post('/api/admin/yan/redeem-space', auth, adminOnly, requireDb, wrap(async (req, res) => {
   const plan = String(req.body?.plan || ''), cost = yan.parseSpaceRewards(await contentValue('yan_rewards'))[plan];
   if (!cost) return res.status(400).json({ error: '這個空間方案沒有開放點數兌換（後台菜單頁可設定）。' });
