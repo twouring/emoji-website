@@ -17,7 +17,7 @@ const CHECKOUT_TIP='<b>這桌的帳</b><br>品項依點餐人分組；勾選左�
  +'<b>折扣</b>：按「加折扣」選折％或折抵金額，原因必填。<br>'
  +'<b>付款</b>：選方式；現金輸入實收會算找零；「混合付款」每種方式各填金額，合計要等於應收。<br>'
  +'<b>電子發票</b>：預設不開立，可選紙本、統編、手機載具、自然人憑證、捐贈。<br>'
- +'<b>列印</b>：「列印出餐單」給廚房、「列印收據明細」給客人；收款後會自動出單並開錢櫃。<br>'
+ +'<b>列印</b>：「列印出餐單」給廚房、「列印收據明細」給客人；收款後會自動出單並開錢櫃；日結核對現金時也會自動開錢櫃。<br>'
  +'<b>QR</b>：顯示這桌的點餐 QR 給客人掃。<br>下方「這桌已結帳的單」可補印、補開發票或作廢。';
 const REG_DENOMS=[1000,500,100,50,10,5,1];
 const PAY_LABEL={cash:'現金',card:'刷卡',linepay:'LINE Pay',transfer:'轉帳',taishin:'台新手機付',other:'其他',tappay:'線上刷卡',mixed:'混合付款'};
@@ -1537,7 +1537,7 @@ function acctDialog(r,code,sales){
 }
 function bindAccountConfirm(host,sales,reload){
   host.querySelectorAll('[data-acct-card]').forEach(card=>{const id=card.dataset.acctCard,r=(REG_DATA?.registers||[]).find(x=>x.id===id);if(!r)return;
-    card.querySelectorAll('[data-acct-open]').forEach(b=>b.onclick=async()=>{const out=await acctDialog(r,b.dataset.acctOpen,sales);if(!out)return;ACCT_CONFIRMED.set(id,{...(ACCT_CONFIRMED.get(id)||{}),[b.dataset.acctOpen]:out});toast(out.diff?`已確認，${out.diff>0?'溢':'短'} NT$${num(Math.abs(out.diff))}`:'已確認，帳對了');reload();});});
+    card.querySelectorAll('[data-acct-open]').forEach(b=>b.onclick=async()=>{if(b.dataset.acctOpen==='cash'&&!b.dataset.drawerBusy){b.dataset.drawerBusy='1';try{await ensureOperator(()=>manualCashDrawer('日結核對現金'));}catch(e){}finally{delete b.dataset.drawerBusy;}}const out=await acctDialog(r,b.dataset.acctOpen,sales);if(!out)return;ACCT_CONFIRMED.set(id,{...(ACCT_CONFIRMED.get(id)||{}),[b.dataset.acctOpen]:out});toast(out.diff?`已確認，${out.diff>0?'溢':'短'} NT$${num(Math.abs(out.diff))}`:'已確認，帳對了');reload();});});
 }
 // 關帳表單不再重填一輪帳務：只檢查上方「各帳戶確認」是否每個帳戶都已核對，再填留存金（與總差異原因）就能關帳
 function closeChecks(r){
