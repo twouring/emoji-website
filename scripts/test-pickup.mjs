@@ -62,7 +62,7 @@ test('會員訂位：綁 user_id、Email 可空、來源 member-app、取消通�
   assert.throws(() => R.normalizeReservation(base, now), /Email/);
   assert.equal(R.normalizeReservation(base, now, { member: true }).email, '');
   assert.throws(() => R.normalizeReservation({ ...base, time: '10:30', date: '2026-10-20' }, now, { member: true }), /已經過了/, '會員端仍擋 30 分鐘內');
-  assert.match(server, /source: 'member-app' \}, new Date\(\), \{ member: true \}/);
+  assert.match(server, /source: 'member-app' \}, new Date\(\), \{ member: true, hours: await loadReservationHours\(\) \}/);
   assert.match(server, /ALTER TABLE dining_reservations ADD COLUMN IF NOT EXISTS user_id TEXT/);
   assert.match(server, /lineService\.notifyStaff\(`❌ 訂位已由客人在會員 App 取消/);
 });
