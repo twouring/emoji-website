@@ -19,7 +19,7 @@ const CHECKOUT_TIP='<b>這桌的帳</b><br>品項依點餐人分組；勾選左�
  +'<b>列印</b>：「列印出餐單」給廚房、「列印收據明細」給客人；收款後會自動出單並開錢櫃。<br>'
  +'<b>QR</b>：顯示這桌的點餐 QR 給客人掃。<br>下方「這桌已結帳的單」可補印、補開發票或作廢。';
 const REG_DENOMS=[1000,500,100,50,10,5,1];
-const PAY_LABEL={cash:'現金',card:'刷卡',linepay:'LINE Pay',transfer:'轉帳',taishin:'台新手機付',tappay:'線上刷卡',mixed:'混合付款'};
+const PAY_LABEL={cash:'現金',card:'刷卡',linepay:'LINE Pay',transfer:'轉帳',taishin:'台新手機付',other:'其他',tappay:'線上刷卡',mixed:'混合付款'};
 const INV_LABEL={paper:'紙本',company:'統編',mobile:'手機載具',citizen:'自然人憑證',donate:'捐贈'};
 // 操作說明一律是標題後方的「?」圖示，點一下才顯示浮層（再點、點別處、按 Esc 關閉）；現場畫面不攤開任何說明文字。
 // 浮層是掛在 body 的單一元素，所以出餐／桌況每 10 秒重繪也不會把打開的說明洗掉。html 與過去一樣由呼叫端負責 esc()。
@@ -308,7 +308,7 @@ function updateInvoiceFields(host){
 /* 收款帳戶：現金／刷卡／LINE Pay／轉帳內建在 PAY_LABEL；言文字管理員在系統設定另外新增的自訂收款帳戶放在 DATA.payment_methods（見 docs/API.md GET /api/state）*/
 const payMethodLabel=code=>PAY_LABEL[code]||(DATA?.payment_methods||[]).find(m=>m.code===code)?.label||code;
 // 刷卡與台新手機付同一台機器對帳，結帳選項合併成一個（代碼仍是 taishin）；歷史單據各自的 card／taishin 標籤不受影響，見 payMethodLabel
-const payMethodsActive=()=>{const list=(DATA?.payment_methods||[]).filter(m=>m.active);return list.length?list:[['cash','現金'],['linepay','LINE Pay'],['transfer','轉帳'],['taishin','刷卡／台新手機付']].map(([code,label])=>({code,label,builtin:true}));};
+const payMethodsActive=()=>{const list=(DATA?.payment_methods||[]).filter(m=>m.active);return list.length?list:[['cash','現金'],['linepay','LINE Pay'],['transfer','轉帳'],['taishin','刷卡／台新手機付'],['other','其他']].map(([code,label])=>({code,label,builtin:true}));};
 // 開放式餐吧不分吧檯／廚房；看板與出餐單改用菜單類別（咖啡、茶、日式主食…）讓現場一眼看出餐飲類型。API 的 stations 仍照舊回，這裡攤平後依類別排序。
 const catLabel=c=>(typeof MenuLib!=='undefined'&&MenuLib.CAT_LABEL?.[c]?.zh)||c||'其他';
 const catOrder=c=>{const i=typeof MenuLib!=='undefined'?MenuLib.CATS.indexOf(c):-1;return i<0?999:i;};
