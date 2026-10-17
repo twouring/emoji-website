@@ -16,10 +16,13 @@
 <style>
   /* 平板 POS：單欄、頂欄分頁、48px 以上觸控目標；沿用 CIS token（/style.css）與 /pos-ops.css 的餐飲營運樣式 */
   :root{--p-top:60px}
-  html{background:var(--paper)}
+  html{background:var(--paper);height:100%;overflow:hidden;overscroll-behavior:none}
   /* 全站鎖定尺寸：不可雙指縮放、不可雙擊放大（touch-action 擋雙擊，gesturestart 擋雙指，見下方 script） */
   html,body{touch-action:manipulation}
-  body{font-family:var(--sans);font-size:1rem;line-height:1.6;color:var(--ink);background:var(--paper);min-height:100vh;margin:0;-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
+  body{font-family:var(--sans);font-size:1rem;line-height:1.6;color:var(--ink);background:var(--paper);height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;margin:0;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+  /* 鎖住整頁橡皮筋彈跳：body 固定視窗高，只有 main 內部捲動，且到頂／底不外溢（overscroll-behavior:none） */
+  body>.p-top{flex:none}
+  body>main{flex:1;min-height:0;width:100%;overflow-y:auto;overflow-x:hidden;overscroll-behavior:none;-webkit-overflow-scrolling:touch}
   *,*::before,*::after{box-sizing:border-box}
   :focus-visible{outline:3px solid var(--ink);outline-offset:2px;border-radius:4px}
   [hidden]{display:none!important}
