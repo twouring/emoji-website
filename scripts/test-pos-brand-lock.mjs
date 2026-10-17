@@ -13,7 +13,7 @@ function handler(path,ctx){
 }
 const response=()=>({code:200,status(n){this.code=n;return this;},json(x){this.body=x;return this;}});
 async function login(venues,body){
-  let signed;const ctx={q:async sql=>({rows:sql.includes('FROM pos_devices')?[{venue:''}]:[{id:'st1',name:'小明',venues}]}),signToken:p=>(signed=p,'tok')};
+  let signed;const ctx={q:async sql=>({rows:sql.includes('FROM pos_devices')?[{venue:''}]:[{id:'st1',name:'小明',venues}]}),signToken:p=>(signed=p,'tok'),uid:p=>p+'x'};
   const res=response();await handler('/api/pos-devices/:id/pin-login',ctx)({params:{id:'d1'},body},res);return {res,signed};
 }
 test('單品牌員工直接進入，token 鎖該品牌',async()=>{

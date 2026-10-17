@@ -351,6 +351,7 @@ const elapsedText=iso=>{const m=Math.max(0,Math.floor((Date.now()-new Date(iso))
 const clockText=iso=>{const d=iso?new Date(iso):null;return d&&!isNaN(d)?d.toLocaleTimeString('zh-TW',{timeZone:'Asia/Taipei',hour12:false,hour:'2-digit',minute:'2-digit'}):'—';};
 const todayTaipei=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Taipei'});
 // 日期膠囊：今天起 7 天（含週幾），再遠的才用月曆；人數膠囊 1–8
+const relDayText=date=>{const n=Math.round((Date.parse(date+'T00:00:00Z')-Date.parse(todayTaipei()+'T00:00:00Z'))/864e5);return n===0?'今天':n===1?'明天':n===2?'後天':n===-1?'昨天':n===-2?'前天':n>0?n+' 天後':-n+' 天前';};
 const dayChoices=(from=todayTaipei(),n=7)=>Array.from({length:n},(_,i)=>{const d=addDaysStr(from,i);return [d,i===0?'今天':i===1?'明天':dayText(d)];});
 const PARTY_CHOICES=[1,2,3,4,5,6,7,8].map(n=>[String(n),n+' 位']);
 const scopeQuery=(extra='')=>{const p=[SCOPE?'venue='+SCOPE:'',extra].filter(Boolean).join('&');return p?'?'+p:'';};
@@ -1229,7 +1230,7 @@ async function loadReservations(){
   const weekday=date=>['日','一','二','三','四','五','六'][new Date(date+'T12:00:00Z').getUTCDay()];
   let day='';
   const rows=d.reservations.map(r=>{
-    const head=r.reserve_date!==day?(day=r.reserve_date,`<tr class="resv-day"><td colspan="7">${esc(r.reserve_date)}（${weekday(r.reserve_date)}）</td></tr>`):'';
+    const head=r.reserve_date!==day?(day=r.reserve_date,`<tr class="resv-day"><td colspan="7">${esc(r.reserve_date)}（${weekday(r.reserve_date)}）<span class="pill ${r.reserve_date===todayTaipei()?'pill-ok':'pill-wait'}" style="margin-left:8px">${relDayText(r.reserve_date)}</span></td></tr>`):'';
     return head+`<tr class="${r.status==='cancelled'?'resv-off':''}"><td class="a-mono"><b>${esc(r.reserve_time)}</b><br><span class="hint hint--tight">${esc(BRAND_LABEL[r.venue]||r.period)}</span></td><td><b>${esc(r.name)}</b> ${Number(r.party_size)} 位<br><a href="tel:${esc(r.phone)}">${esc(r.phone)}</a>${r.email?`<br><span class="hint hint--tight">${esc(r.email)}</span>`:'<br><span class="hint hint--tight">未留 Email，請電話聯繫</span>'}</td><td>${esc(r.note||'')}${r.staff_note?`<br><span class="hint hint--tight">店內：${esc(r.staff_note)}</span>`:''}</td><td><select data-resv-table="${esc(r.id)}" style="min-width:96px;min-height:44px" aria-label="桌號"><option value="">未排桌</option>${[...new Set([...DEFAULT_TABLES,...(r.table_no&&!DEFAULT_TABLES.includes(r.table_no)?[r.table_no]:[])])].map(t=>`<option value="${esc(t)}"${t===(r.table_no||'')?' selected':''}>${esc(t)}</option>`).join('')}</select></td><td><span class="pill ${PILL[r.status]||''}">${esc(L[r.status]||r.status)}</span>${r.handled_by?`<br><span class="hint hint--tight">${esc(r.handled_by)}</span>`:''}</td><td class="a-mono resv-id">${esc(r.request_id)}</td><td class="ops-actions" style="white-space:nowrap">${actions(r)} <button type="button" class="btn btn--ghost btn-sm" data-resv-edit="${esc(r.id)}">編輯</button> <button type="button" class="btn btn--ghost btn--danger btn-sm" data-resv-delete="${esc(r.id)}">刪除</button></td></tr>`;
   }).join('')||'<tr><td colspan="7" class="a-empty">這段期間沒有訂位申請</td></tr>';
   // 櫃檯登記（電話／現場）：時段依店別 30 分鐘一格；Email 可留空（留了才寄確認信）
@@ -1263,7 +1264,7 @@ async function loadReservations(){
   host.innerHTML=`<div class="ops-head"><h2>訂位 ${d.pending?`<span class="badge">${d.pending} 待確認</span>`:''}</h2>${opsHelp('客人從 <a href="/reserve" target="_blank" rel="noopener">/reserve</a>（Google Maps／官方 LINE 連結）訂位，送出即成立、客人已收到確認信（座位保留至預約時間後 10 分鐘）。08:00–16:59 歸在咖啡、其餘歸三點水。這裡可填桌號、按「取消」寄婉拒信給客人（沒留 Email 的請電話聯繫）；當天到店按「已到」，沒來按「未到」。舊的「待確認」申請按「確認並通知」會補寄確認信。日期、時間、人數、姓名、電話、Email、備註打錯或客人來電更改，按該筆「編輯」修改。')}</div>
     ${addForm}
     ${editForm}
-    <div class="a-toolbar"><label>從 <input type="date" id="resv-from" value="${esc(RESV_FROM)}"></label><select id="resv-days" aria-label="顯示天數">${[[1,'只看這天'],[7,'7 天'],[30,'30 天'],[60,'60 天']].map(([n,l])=>`<option value="${n}" ${n===RESV_DAYS?'selected':''}>${l}</option>`).join('')}</select><button class="btn btn--ghost btn-sm" id="resv-today">今天</button><span class="hint hint--tight">${d.reservations.length} 筆</span></div>
+    <div class="a-toolbar"><label>從 <input type="date" id="resv-from" value="${esc(RESV_FROM)}"></label><b class="hint hint--tight">${relDayText(RESV_FROM)}</b><select id="resv-days" aria-label="顯示天數">${[[1,'只看這天'],[7,'7 天'],[30,'30 天'],[60,'60 天']].map(([n,l])=>`<option value="${n}" ${n===RESV_DAYS?'selected':''}>${l}</option>`).join('')}</select><button class="btn btn--ghost btn-sm" id="resv-today">今天</button><span class="hint hint--tight">${d.reservations.length} 筆</span></div>
     <div class="a-wrap2"><table class="a-tbl resv-tbl"><thead><tr><th>時間</th><th>客人</th><th>備註</th><th>桌號</th><th>狀態</th><th>編號</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   bindFillChips(host);bindNoteChips(host);
   host.querySelector('#resv-from').onchange=e=>{RESV_FROM=e.target.value||todayTaipei();loadReservations();};

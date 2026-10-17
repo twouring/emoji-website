@@ -44,6 +44,7 @@ const linepayOffline=require('./lib/linepay-offline');
 const taishinManual=require('./lib/taishin-manual');
 const posRegister=require('./lib/pos-register');
 const posStaff=require('./lib/pos-staff');
+const posLog=require('./lib/pos-log');
 const posPaymentMethods=require('./lib/pos-payment-methods');
 const eventQuestions = require('./lib/event-questions');
 const { eventSlug, normalizeEventInput, localizeEvent, normalizeAttribution } = require('./lib/events');
@@ -737,6 +738,12 @@ async function migrate() {
     id TEXT PRIMARY KEY, event_key TEXT NOT NULL UNIQUE, kind TEXT NOT NULL CHECK (kind IN ('checkout','refund','manual')),
     order_id TEXT REFERENCES table_orders(id), line TEXT, reason TEXT NOT NULL, actor TEXT NOT NULL,
     operator_id TEXT, operator_name TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  // POS 操作紀錄：現場每個寫入動作（誰、哪個品牌、做了什麼），供 POS「紀錄」分頁查看
+  await q(`CREATE TABLE IF NOT EXISTS pos_logs (
+    id TEXT PRIMARY KEY, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), venue TEXT NOT NULL DEFAULT '',
+    actor TEXT NOT NULL DEFAULT '', operator_id TEXT, operator_name TEXT NOT NULL DEFAULT '',
+    action TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '', method TEXT NOT NULL DEFAULT '', path TEXT NOT NULL DEFAULT '')`);
+  await q('CREATE INDEX IF NOT EXISTS pos_logs_created_idx ON pos_logs(created_at DESC)');
   // POS 交班結算（舊，已由開關帳 pos_registers 取代；表保留供歷史查詢，不再寫入）
   await q(`CREATE TABLE IF NOT EXISTS pos_shift_closes (
     id TEXT PRIMARY KEY, day DATE NOT NULL, venue TEXT NOT NULL DEFAULT '', counted_cash INT NOT NULL, expected_cash INT NOT NULL, diff INT NOT NULL,
@@ -1457,11 +1464,31 @@ app.post('/api/line/webhook', express.raw({ type: '*/*', limit: '256kb' }), asyn
 });
 app.use(express.json({ limit: '256kb' }));
 
+/* POS 操作紀錄：誰（操作人員姓名；沒有就用登入者）在哪個品牌做了什麼。失敗不影響原動作 */
+async function recordPosLog(req, action, payload, extra = {}) {
+  try {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const auth = req.auth || {};
+    let opId = body.operator_id || null, opName = '';
+    if (opId) opName = (await q('SELECT name FROM pos_staff WHERE id=$1', [String(opId)])).rows[0]?.name || '';
+    if (!opName && payload && typeof payload.name === 'string' && payload.name) { opName = payload.name; opId = payload.id && String(payload.id).startsWith('st_') ? payload.id : opId; }
+    if (!opName && auth.operator_staff_id) { opId = auth.operator_staff_id; opName = auth.name || ''; }
+    const venue = (auth.brands && auth.brands[0]) || String(body.venue || req.query?.venue || '').toUpperCase().slice(0, 10);
+    const actor = auth.agent ? 'admin-api-key' : (auth.email || auth.name || auth.sub || 'unknown');
+    await q('INSERT INTO pos_logs(id,venue,actor,operator_id,operator_name,action,detail,method,path) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+      [uid('pl_'), venue, String(actor).slice(0, 120), opId, opName, action, extra.detail ?? posLog.summarize(body), req.method, String(req.originalUrl || '').split('?')[0].slice(0, 200)]);
+  } catch (e) { console.error('[pos-log]', e.message); }
+}
 // 後台操作紀錄：/api/admin 的寫入（成功者）記 actor／路徑／摘要；GET 不記。
 app.use('/api/admin', (req, res, next) => {
   if (req.method === 'GET' || req.method === 'OPTIONS') return next();
+  let payload = null;
+  const rawJson = res.json.bind(res);
+  res.json = d => { payload = d; return rawJson(d); };
   res.on('finish', () => {
     if (!pool || !dbReady || !req.auth || res.statusCode >= 400) return;
+    const posAction = posLog.describe(req.method, req.path);
+    if (posAction) recordPosLog(req, posAction, payload);
     const actor = req.auth.agent ? 'admin-api-key' : (req.auth.email || req.auth.sub || 'unknown');
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const summary = req.path === '/system-settings' ? `key=${String(body.key||'').slice(0,60)}` : Object.entries(body)
@@ -4676,6 +4703,22 @@ app.get('/api/venue/schedule', requireDb, wrap(async (_req, res) => {
   res.json({ bookings, events });
 }));
 
+/* POS 紀錄分頁：依營業日（預設今天）列出現場操作；子帳號／現場人員只看自己品牌。q 搜尋人員、動作、細節 */
+app.get('/api/admin/pos-logs', auth, adminOnly, requireDb, wrap(async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.day || '')) ? String(req.query.day) : tableOrders.MenuLib.businessDay();
+  const venues = tableOrders.visibleVenues(req.auth.brands, String(req.query.venue || ''));
+  const kw = String(req.query.q || '').trim().slice(0, 60);
+  const limit = Math.min(1000, Math.max(1, Number(req.query.limit) || 500));
+  // 營業日 = 台北時間 03:00 起算 24 小時（凌晨 3 點前算前一天）
+  const rows = (await q(`SELECT id,created_at,venue,actor,operator_id,operator_name,action,detail FROM pos_logs
+    WHERE created_at >= ($1::date + time '03:00') AT TIME ZONE 'Asia/Taipei' AND created_at < ($1::date + interval '1 day' + time '03:00') AT TIME ZONE 'Asia/Taipei'
+    AND ($2::text[] IS NULL OR venue = ANY($2) OR venue = '')
+    AND ($3 = '' OR operator_name ILIKE '%'||$3||'%' OR actor ILIKE '%'||$3||'%' OR action ILIKE '%'||$3||'%' OR detail ILIKE '%'||$3||'%')
+    ORDER BY created_at DESC LIMIT $4`, [day, venues, kw, limit])).rows;
+  res.json({ day, logs: rows });
+}));
+
 app.get('/api/admin/logs', auth, adminOnly, requireDb, wrap(async (req, res) => {
   res.set('Cache-Control', 'no-store');
   const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 200));
@@ -5553,6 +5596,7 @@ app.post('/api/pos-devices/:id/pin-login',rateLimit({max:12}),requireDb,wrap(asy
   if(brands.length>1&&!want)return res.json({choose:true,name:staff.name,brands});
   if(want&&!brands.includes(want))return res.status(403).json({error:'您無法操作這個品牌。'});
   const venue=brands.length===1?brands[0]:want;
+  q('INSERT INTO pos_logs(id,venue,actor,operator_id,operator_name,action,detail,method,path) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[uid('pl_'),venue,staff.name,staff.id,staff.name,'登入 POS','裝置 '+id.slice(0,8),'POST','/api/pos-devices/pin-login']).catch(e=>console.error('[pos-log]',e.message));
   res.json({token:signToken({role:'admin',sub:'staff:'+staff.id,operator_staff_id:staff.id,name:staff.name,pos_venue:venue}),name:staff.name,brands:[venue]});
 }));
 /* ===== 排班與打卡：員工用 4 位數識別碼在共用平板打卡（不綁登入帳號）；排班＝員工 × 營業日 × 店別；出勤給後台算工時 ===== */
