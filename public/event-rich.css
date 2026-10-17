@@ -1,3 +1,18 @@
 .event-rich-content{font-size:17px;line-height:1.7;overflow-wrap:anywhere;margin-top:24px}.event-rich-content img{max-width:100%;height:auto;border-radius:12px}.event-rich-content iframe{width:100%;aspect-ratio:16/9;border:0;border-radius:12px}.event-rich-content blockquote{border-left:4px solid currentColor;margin:20px 0;padding:0 20px}.event-rich-content table{border-collapse:collapse;max-width:100%;display:block;overflow:auto}.event-rich-content td,.event-rich-content th{border:1px solid var(--muted);padding:8px}.event-content-button{display:inline-block;padding:12px 20px;border-radius:var(--radius-sm);background:var(--ink);color:var(--paper)!important;text-decoration:none}.event-rich-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.event-rich-editor{min-height:260px;padding:16px;border:1px solid var(--muted);border-radius:12px;background:var(--card);color:var(--ink)}.event-rich-editor:focus{outline:3px solid var(--ink)}.event-rich-insert{display:flex;gap:var(--ui-space-3);flex-wrap:wrap;padding:12px 0}
 
 .event-rich-insert{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));align-items:end}.event-rich-insert>*{min-width:0}
+
+/* 開幕茶會等活動頁：引言強調、三欄「你會遇到」卡片、圖片與說明 */
+.event-rich-content h2{margin:2em 0 .6em;line-height:1.35}
+.event-rich-content>p:first-child{color:var(--muted)}
+.event-rich-content blockquote{border:0;border-radius:var(--radius-sm);background:var(--accent,#FFDE34);color:#111;font-weight:700;font-size:1.12em;line-height:1.6;padding:16px 20px;margin:24px 0}
+.event-rich-content table{display:block;overflow:visible;border:0;margin:20px 0}
+.event-rich-content table tbody{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.event-rich-content table tr{display:contents}
+.event-rich-content table td{display:block;border:1px solid var(--line,#ddd);border-top:4px solid var(--accent,#FFDE34);border-radius:var(--radius-sm);padding:16px;background:var(--paper-alt,#f6f4ec);font-size:.95em;line-height:1.7}
+.event-rich-content table td strong{display:block;font-size:1.15em;margin-bottom:6px}
+.event-rich-content img+*,.event-rich-content p:has(>img)+p>em{display:block}
+.event-rich-content p>em{color:var(--muted);font-size:.92em}
+.event-rich-content ul{padding-left:1.2em}.event-rich-content li{margin:.5em 0}
+.event-rich-content li>strong:first-child{display:inline-block;min-width:3.4em;background:var(--ink);color:var(--paper);padding:0 8px;border-radius:6px;margin-right:6px;text-align:center}
+@media(max-width:760px){.event-rich-content table tbody{grid-template-columns:1fr}}
