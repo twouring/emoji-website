@@ -70,7 +70,7 @@ test('每個要填原因的地方都接了預設選項：覆蓋式用 pickReason
   assert.ok(ops.includes("reasonChips('fx-note',REASON_PRESETS.attendance_fix)"), '出勤修正備註選填（面板內嵌膠囊）');
   assert.match(ops.slice(ops.indexOf('function openAttendanceFix('), ops.indexOf('/* 出勤紀錄')), /if\(!tIn\)\{toast\('請選上班時間'\);return;\}/, '面板只擋上班時間，原因不擋');
   // 表單欄位：折扣、臨時收支、關帳說明、小結說明、台新差異原因
-  for (const [id, key] of [['pos-disc-reason', 'discount'], ['reg-cash-reason', 'cash_move'], ['reg-close-note', 'close_note'], ['reg-count-note', 'count_note'], ['ts-reason', 'taishin']]) {
+  for (const [id, key] of [['pos-disc-reason', 'discount'], ['reg-cash-reason', 'cash_move'], ['acct-reason', 'close_note'], ['reg-count-note', 'count_note'], ['ts-reason', 'taishin']]) {
     assert.ok(ops.includes(`\${reasonChips('${id}',REASON_PRESETS.${key})}`), id);
   }
   // 綁定：結帳面板、開關帳區塊、日結頁都呼叫 bindReasonChips
