@@ -47,3 +47,11 @@ test('固定高度兩欄外距歸零：整頁不再多出 .a-sec margin-bottom �
   assert.match(css, /\.pos-layout\.has-panel \.pos-panel\{[^}]*height:calc\(100dvh[^}]*margin-bottom:0/);
   assert.match(css, /\.pos-layout \.pos-tables\{[^}]*height:calc\(100dvh[^}]*margin-bottom:0/);
 });
+
+test('平板滑動操作：收款鈕向右滑收款、品項列左滑展開更多，垂直捲動不受影響', () => {
+  assert.match(ops, /function bindSwipe\(/);
+  assert.match(ops, /touchAction='pan-y'/);
+  assert.match(ops, /bindSwipe\(host\.querySelector\('#pos-checkout'\),\{dir:'right'/);
+  assert.match(ops, /bindSwipe\(tr,\{dir:'both'/);
+  assert.match(ops, /el\._prog=1;try\{el\.click\(\)/);
+});
