@@ -179,16 +179,16 @@ const num = n => Number(n || 0).toLocaleString('en-US');
 const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水' };
 const TABS = [
   { id:'pos', icon:'wallet',          label:'結帳' },
-  { id:'members', icon:'users', label:'會員' },
   { id:'orders', icon:'utensils',       label:'出餐' },
   { id:'soldout', icon:'ban',      label:'估清' },
   { id:'reservations', icon:'calendar', label:'訂位' },
+  { id:'members', icon:'users', label:'會員' },
   { id:'history', icon:'search',      label:'查單' },
+  { id:'clock', icon:'clock',        label:'打卡' },
   { id:'sales', icon:'receipt',      label:'日結' },
+  { id:'shifts', icon:'users',       label:'排班' },
   { id:'products', icon:'chart',     label:'銷量' },
   { id:'customers', icon:'pie',      label:'客群' },
-  { id:'clock', icon:'clock',        label:'打卡' },
-  { id:'shifts', icon:'users',       label:'排班' },
 ];
 // 員工管理（新增／編輯／停用、出勤修正）刻意不放平板：只在 admin.emoji.tw 品牌工作區「排班打卡」，現場人員改不到
 const PANEL = { pos:tabPos, members:tabPosMembers, orders:tabOrders, soldout:tabSoldOut, reservations:tabReservations, history:tabHistory, sales:tabSales, products:tabProducts, customers:tabCustomers, clock:tabClock, shifts:tabShifts };
