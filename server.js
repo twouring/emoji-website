@@ -363,6 +363,26 @@ CREATE TABLE IF NOT EXISTS entitlements (
   UNIQUE (source, source_id)
 );
 CREATE INDEX IF NOT EXISTS entitlements_user_idx ON entitlements(user_id);
+CREATE TABLE IF NOT EXISTS pos_membership_grants (
+  request_id TEXT PRIMARY KEY,
+  entitlement_id TEXT NOT NULL UNIQUE,
+  user_id TEXT NOT NULL,
+  plan TEXT NOT NULL CHECK (plan IN ('day_4h','day_12h','month','quarter','year')),
+  reason TEXT NOT NULL CHECK (length(reason) BETWEEN 1 AND 80),
+  operator_id TEXT NOT NULL,
+  operator_name TEXT NOT NULL,
+  actor TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL,
+  starts_at TIMESTAMPTZ NOT NULL,
+  ends_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS pos_membership_grants_user_idx ON pos_membership_grants(user_id,created_at DESC);
+-- Append-only audit: even deleting an entitlement/account must not erase grant evidence.
+CREATE OR REPLACE FUNCTION reject_pos_membership_grant_change() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN RAISE EXCEPTION 'pos_membership_grants is append-only'; END;
+$$;
+DROP TRIGGER IF EXISTS pos_membership_grants_immutable ON pos_membership_grants;
+CREATE TRIGGER pos_membership_grants_immutable BEFORE UPDATE OR DELETE ON pos_membership_grants FOR EACH ROW EXECUTE FUNCTION reject_pos_membership_grant_change();
 CREATE TABLE IF NOT EXISTS access_scans (
   id TEXT PRIMARY KEY,
   entitlement_id TEXT REFERENCES entitlements(id) ON DELETE CASCADE,
@@ -4472,7 +4492,8 @@ app.get('/api/admin/yan/members/:id', auth, adminOnly, requireDb, wrap(async (re
   const rows = await yanRowsFor({ query: (...a) => q(...a) }, id);
   const history = [...rows].sort((a,b) => new Date(b.created_at) - new Date(a.created_at) || String(b.id).localeCompare(String(a.id)));
   const ledger = history.slice(offset, offset + limit).map(r => ({ id:r.id, kind:r.kind, delta:r.delta, brand:r.brand || '', reason:r.reason || '', operator_id:r.operator_id || '', operator_name:r.operator_name || '', created_at:r.created_at, expires_at:r.expires_at || null }));
-  res.json({ member:{ id:user.id, name:user.name || '', phone:user.phone_e164 || user.phone || '' }, active:!!deriveMemberAccess(await loadEntitlements(id)).active, balance:yan.balance(rows), ledger, next_offset:history.length > offset + limit ? offset + limit : null });
+  const manual_grants = (await q('SELECT entitlement_id,plan,reason,operator_id,operator_name,created_at,starts_at,ends_at FROM pos_membership_grants WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100', [id])).rows;
+  res.json({ member:{ id:user.id, name:user.name || '', phone:user.phone_e164 || user.phone || '' }, active:!!deriveMemberAccess(await loadEntitlements(id)).active, balance:yan.balance(rows), ledger, manual_grants, next_offset:history.length > offset + limit ? offset + limit : null });
 }));
 app.post('/api/admin/yan/lookup', auth, adminOnly, requireDb, wrap(async (req, res) => {
   const token = String(req.body?.token || '').trim();
@@ -4495,6 +4516,45 @@ app.post('/api/admin/yan/lookup', auth, adminOnly, requireDb, wrap(async (req, r
   const rows = await yanRowsFor({ query: (...a) => q(...a) }, user.id);
   const active = (await memberAccessFor(user.id)).active;
   res.json({ ok: true, member: { id: user.id, name: user.name, phone: user.phone_e164 || user.phone || '' }, balance: yan.balance(rows), active, verified: !!token });
+}));
+
+app.get('/api/admin/yan/membership-plans', auth, adminOnly, requireDb, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ plans: require('./lib/pos-manual-membership').manualPlans, activation: 'immediate' });
+});
+app.post('/api/admin/yan/activate-membership', rateLimit({max:12}), auth, adminOnly, requireDb, wrap(async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const { prepareManualMembership } = require('./lib/pos-manual-membership');
+  const b = req.body || {}, userId = b.user_id, requestId = b.request_id;
+  if (typeof userId !== 'string' || !userId || userId.length > 64 || /[\x00-\x20]/.test(userId) || typeof requestId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) return res.status(400).json({ error: '會員或操作識別碼不正確。' });
+  const card = typeof b.member_token === 'string' && b.member_token.length < 4096 ? verifyAccessToken(b.member_token, process.env.ACCESS_QR_SECRET || SECRET) : null;
+  if (!card || card.plan !== 'yan-card' || card.sub !== userId) return res.status(400).json({ error: '請重新掃描這位會員的有效會員卡。' });
+  const operator = await resolveOperator(req, b.operator_id);
+  const pin = typeof b.operator_pin === 'string' && /^\d{4}$/.test(b.operator_pin) ? b.operator_pin : null;
+  if (!operator || !pin || !(await q('SELECT id FROM pos_staff WHERE id=$1 AND pin=$2 AND active', [operator.id,pin])).rows[0]) return res.status(400).json({ error: '請輸入經手人 4 位數識別碼。' });
+  // Validate even on retries. Client dates, names and payment fields are never consumed.
+  prepareManualMembership(b, []);
+  const actor = actorOf(req.auth) || '';
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,2))', [userId]);
+    const user = (await client.query('SELECT id FROM users WHERE id=$1 FOR UPDATE', [userId])).rows[0];
+    if (!user) throw Object.assign(new Error('找不到這位會員。'), { status: 404 });
+    const previous = (await client.query('SELECT * FROM pos_membership_grants WHERE request_id=$1', [requestId])).rows[0];
+    if (previous) {
+      if (previous.user_id !== userId || previous.plan !== b.plan || previous.reason !== b.reason.trim() || previous.actor !== actor || previous.operator_id !== operator.id) throw Object.assign(new Error('操作識別碼已用於不同的開通內容。'), { status: 409 });
+      await client.query('COMMIT');
+      return res.json({ ok: true, duplicate: true, grant: previous });
+    }
+    const ents = (await client.query(`SELECT ${SEL_ENT} FROM entitlements WHERE user_id=$1`, [userId])).rows;
+    const grant = prepareManualMembership(b, ents), entId = uid('en_');
+    await client.query(`INSERT INTO entitlements (id,user_id,plan,source,source_id,purchased_at,activated_at,starts_at,ends_at) VALUES ($1,$2,$3,'pos-manual',$4,$5,$5,$5,$6)`, [entId,userId,grant.plan,requestId,grant.starts_at,grant.ends_at]);
+    const record = (await client.query(`INSERT INTO pos_membership_grants (request_id,entitlement_id,user_id,plan,reason,operator_id,operator_name,actor,created_at,starts_at,ends_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9,$10) RETURNING *`, [requestId,entId,userId,grant.plan,grant.reason,operator.id,operator.name,actor,grant.starts_at,grant.ends_at])).rows[0];
+    await client.query('COMMIT');
+    res.json({ ok: true, duplicate: false, grant: record });
+  } catch (e) { await client.query('ROLLBACK').catch(()=>{}); throw e; }
+  finally { client.release(); }
 }));
 
 // POS 兌換空間時數：掃會員條碼確認身分後，扣點並發一張單日會籍（entitlements.source='yan'），與購買的同樣計算啟用

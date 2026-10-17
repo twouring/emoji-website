@@ -351,6 +351,19 @@ POS「會員」瀏覽身分與「結帳」本次帳單身分獨立：選會員�
 ### POST /api/admin/yan/lookup
 POS 查／建會員。body `{ phone }`（台灣手機）或 `{ token }`（會員卡 QR）。回 `{ ok, member:{id,name,phone}, balance }`。沒有帳號就用手機建立。品牌子帳號可用。回傳多 `active`（是否有效會籍）與 `verified`（是否以會員條碼確認身分）。POS 流程：掃會員條碼（`token`）→ 確認身分；有效會籍才套**會籍價**；點數不看會籍，掃碼確認身分後即可兌換品項與服務、兌換空間時數；只輸入手機＝只累點。會籍價＝菜單 `emo`（>0 時）否則原價九折（四捨五入），「現場輸入金額」品項不打折。註冊會員（沒有有效會籍）也能累點、兌換，只是沒有會籍價。點數**不折抵金額**。
 
+### GET /api/admin/yan/membership-plans
+POS 手動開通可選的一般會籍，`auth`＋`adminOnly`（CAFE／BAR 子帳號可用）、`no-store`。回 `{ plans:[{plan,label,duration}], activation:'immediate' }`，只含 `day_4h/day_12h/month/quarter/year`；不含創始、活動票與開幕優惠 `year_promo`。
+
+### POST /api/admin/yan/activate-membership
+POS `/pos/members`「手動開通會籍」，同上權限，每分鐘限制 12 次。body `{ user_id, plan, reason, member_token, operator_id, operator_pin, request_id }`：
+- `member_token` 必須是尚未過期且 sub 完全等於 `user_id` 的 `yan-card` 簽章；只輸入手機或偽造目標不接受。
+- `reason` 必填 1–80 字，不含控制字元。`operator_id` 經既有 `resolveOperator` 驗證在職與品牌權限，**每次 mutation 另外驗證 `operator_pin`（4 碼）**，不可只傳已知員工 id。PIN 只在單次操作記憶體／HTTPS request 中使用，不寫入紀錄與儲存空間。經手人名稱與 actor 由伺服器解析。
+- `request_id` 為 UUID v4。同會員、方案、原因、actor、operator 重送同鍵回原紀錄 `duplicate:true`；同鍵不同內容 409。UI 網路失敗重試保留相同鍵。會員 advisory lock＋users 列鎖在交易內序列化，另一新鍵遇有效／待啟用／未來會籍回 409；不延長、不覆寫、不疊加原權益。
+- **立即啟用**，`purchased_at=activated_at=starts_at=伺服器開通時間`，`ends_at=endsAtAfterActivation(plan, starts_at)`（4／12 小時，或 1／3／12 曆月，UTC 月底 clamp）；有效區間 `[starts_at,ends_at)`。不是購買後等首次進場，也不等待 7 天自動啟用。客戶端起迄時間不採用。
+- 同一交易 INSERT `entitlements(source='pos-manual', source_id=request_id)` 與 append-only `pos_membership_grants`；audit 保存 entitlement、會員、方案、actor、經手人、原因、開通時間、起迄；DB trigger 禁止 UPDATE／DELETE，刪除帳號也不連帶刪稽核。audit 寫入失敗整筆 rollback。
+- **只授予會籍權益**，不收款、不建立任何訂單、發票、現金、Stripe 付款或付款完成狀態。會籍價仍經原本 `memberAccessFor().active` 判定，不新增獨立資格旗標。
+回 `{ok:true,duplicate:boolean,grant:{request_id,entitlement_id,user_id,plan,reason,operator_id,operator_name,actor,created_at,starts_at,ends_at}}`；不合法輸入 400，找不到會員 404，重複權益／鍵衝突 409。會員 detail 的 `manual_grants` 回最新 100 筆（不回 actor／PIN），供 POS 顯示原因、經手人、時間與實際起迄。
+
 ### POST /api/admin/yan/grant
 POS 手動給點。body `{ user_id, points (1–1000 整數), reason (必填 2–200 字), operator_id (必填，4 位數識別碼驗證後的員工) }`。帳本新增 `kind='grant'`、`ref_type='manual'`，記錄 `reason`、`operator_id`、`operator_name`、`actor`（登入帳號），效期同消費累積。缺原因或經手人回 400。回 `{ ok, granted, balance, operator }`。
 

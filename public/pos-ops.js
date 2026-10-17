@@ -1743,10 +1743,10 @@ function openItemOptions(it,groups,note0,onDone){
 let OPERATOR=null; /* 只在一次動作期間存在，不寫入儲存；每次要動作才輸入 PIN */
 let OP_PIN='',OP_MSG=null,OP_BUSY=false;
 /* 需要 PIN 的動作（結帳、作廢、開錢櫃…）：每次都先跳鍵盤認人，動作做完就忘掉 */
-async function ensureOperator(cb){ return new Promise(resolve=>openOperatorPad(async()=>{ try{ resolve(await cb()); }finally{ OPERATOR=null; } })); }
+async function ensureOperator(cb){ return new Promise((resolve,reject)=>openOperatorPad(async()=>{ try{ resolve(await cb()); }catch(e){reject(e);}finally{ OPERATOR=null; } },false,()=>{OPERATOR=null;resolve();})); }
 /* 閒置蓋板：保留畫面狀態，輸入有效 PIN 才解鎖（不能取消，只能登出） */
 function lockScreen(){ if(document.querySelector('.op-overlay'))return; openOperatorPad(()=>{OPERATOR=null;},true); }
-function openOperatorPad(onDone,required){
+function openOperatorPad(onDone,required,onCancel){
   OP_PIN=''; OP_MSG=null;
   const ov=document.createElement('div'); ov.className='op-overlay';
   document.body.appendChild(ov);
@@ -1762,12 +1762,12 @@ function openOperatorPad(onDone,required){
       <div class="op-card-actions">${required?'<button type="button" class="btn btn--ghost" id="op-logout">登出</button>':'<button type="button" class="btn btn--ghost" id="op-cancel">取消</button>'}</div>
     </div>`;
     ov.querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>{ if(OP_BUSY)return; const k=b.dataset.key; if(k==='⌫')OP_PIN=OP_PIN.slice(0,-1); else if(k==='清除')OP_PIN=''; else if(OP_PIN.length<4)OP_PIN+=k; OP_MSG=null; paint(); if(OP_PIN.length===4)submit(); });
-    const cancelBtn=ov.querySelector('#op-cancel'); if(cancelBtn)cancelBtn.onclick=close;
+    const cancelBtn=ov.querySelector('#op-cancel'); if(cancelBtn)cancelBtn.onclick=()=>{if(OP_BUSY)return;OP_PIN='';close();onCancel?.();};
     const outBtn=ov.querySelector('#op-logout'); if(outBtn)outBtn.onclick=()=>{ document.getElementById('p-logout')?.click(); };
   };
   const submit=async()=>{
     const pin=OP_PIN; OP_BUSY=true;
-    try{ const out=await api('/admin/staff/verify',{method:'POST',body:{pin}}); OPERATOR={id:out.id,name:out.name}; OP_BUSY=false; close(); onDone&&onDone(); }
+    try{ const out=await api('/admin/staff/verify',{method:'POST',body:{pin}}); OPERATOR={id:out.id,name:out.name,pin}; OP_PIN=''; OP_BUSY=false; close(); onDone&&onDone(); }
     catch(e){ OP_PIN=''; OP_MSG={ok:false,text:e.message}; OP_BUSY=false; paint(); }
   };
   paint();
