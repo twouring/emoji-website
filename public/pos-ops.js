@@ -1843,8 +1843,8 @@ function analyticsCharts(kind,d){
   if(kind==='products'){
     const top=(d.items||[]).slice(0,10).map(i=>[i.zh,i.qty]);
     const topAmt=[...(d.items||[])].sort((a,b)=>b.amount-a.amount).slice(0,10).map(i=>[i.zh,i.amount]);
-    const cats=(d.categories||[]).slice(0,8).map(r=>[r.cat,r.amount,'NT$'+num(r.amount)]);
-    const catQty=(d.categories||[]).slice(0,8).map(r=>[r.cat,r.qty]);
+    const cats=(d.categories||[]).slice(0,8).map(r=>[catLabel(r.cat),r.amount,'NT$'+num(r.amount)]);
+    const catQty=(d.categories||[]).slice(0,8).map(r=>[catLabel(r.cat),r.qty]);
     return `<div class="chart-grid">${chartCard('每日營收',vbars(dayRows))}${chartCard('類別營收占比',donut(cats,{center:'NT$'+num(d.amount)}))}${chartCard('熱銷品項 Top 10（數量）',hbars(top))}${chartCard('品項營收 Top 10（金額）',hbars(topAmt,{fmt:v=>'NT$'+num(v)}))}${chartCard('各類別銷量',hbars(catQty))}${chartCard('時段營收',vbars(hourRows))}</div>`;
   }
   const methods=Object.entries(d.by_method||{}).map(([k,v])=>[payMethodLabel(k),v.amount,'NT$'+num(v.amount)]).sort((a,b)=>b[1]-a[1]);
@@ -1864,14 +1864,14 @@ async function loadAnalytics(kind){
   let d;try{d=await api('/admin/analytics?'+query);}catch(e){host.innerHTML=`<h2>${title}</h2><p class="a-empty">${esc(e.message)}</p>`;return;}
   ANALYTICS_FROM=d.from;ANALYTICS_TO=d.to;
   const table=(heads,rows)=>`<div class="a-wrap2"><table class="a-tbl"><thead><tr>${heads.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.length?rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${heads.length}" class="a-empty">這段期間沒有資料</td></tr>`}</tbody></table></div>`;
-  const productRows=(d.items||[]).map(i=>[i.zh,BRAND_LABEL[i.venue]||i.venue,i.cat,i.qty,num(i.amount),i.orders]);
+  const productRows=(d.items||[]).map(i=>[i.zh,BRAND_LABEL[i.venue]||i.venue,catLabel(i.cat),i.qty,num(i.amount),i.orders]);
   const c=d.customers||{},segments=[['member','會員'],['guest','非會員'],['takeout','外帶'],['dinein','內用'],['qr','含 QR 點餐'],['counter','櫃檯點餐']];
   const customerRows=segments.map(([key,label])=>[label,c[key]?.orders||0,num(c[key]?.amount||0)]);
   host.innerHTML=`<div class="ops-head"><h2>${title}</h2>${opsHelp('營業日以凌晨 03:00 分界，最多查 93 天。作廢單不計；品項金額為品項小計，不分攤整單折扣。單數是付款單數（含預收與分攤），不是來客人數；會員、內外帶與點餐方式為不同維度，不可相加。新會員依全店首次付款判定；無會員識別碼的聚落價單不計入不重複會員。')}</div>
     <form class="a-toolbar" id="analytics-range"><label>起日 <input type="date" name="from" value="${esc(d.from)}" required></label><label>迄日 <input type="date" name="to" value="${esc(d.to)}" required></label><button class="btn btn--solid" type="submit">查詢</button><button class="btn btn--ghost" type="button" id="analytics-csv">匯出 CSV</button></form>
     <div class="a-kpis"><div class="a-kpi"><div class="kl">營收</div><div class="kv">NT$${num(d.amount)}</div></div><div class="a-kpi"><div class="kl">付款單數</div><div class="kv">${num(d.orders)}</div></div><div class="a-kpi"><div class="kl">平均每單</div><div class="kv">NT$${num(d.avg_ticket)}</div></div></div>
     ${analyticsCharts(kind,d)}
-    ${kind==='products'?`<h3>品項銷量</h3>${table(['品項','店別','類別','數量','品項金額','單數'],productRows)}<h3>每日營收</h3>${table(['營業日','付款單數','營收'],(d.by_day||[]).map(r=>[r.day,r.orders,num(r.amount)]))}<h3>類別銷量</h3>${table(['類別','數量','品項金額'],(d.categories||[]).map(r=>[r.cat,r.qty,num(r.amount)]))}`:`<h3>付款單客群</h3>${table(['分類','單數','營收'],customerRows)}<h3>會員回訪</h3>${table(['指標','數值'],[['不重複會員',c.unique_members],['區間內至少兩單',c.repeat_members],['首次付款會員',c.new_members],['會員平均每單',num(c.member_avg_ticket)],['非會員平均每單',num(c.guest_avg_ticket)]])}`}`;
+    ${kind==='products'?`<h3>品項銷量</h3>${table(['品項','店別','類別','數量','品項金額','單數'],productRows)}<h3>每日營收</h3>${table(['營業日','付款單數','營收'],(d.by_day||[]).map(r=>[r.day,r.orders,num(r.amount)]))}<h3>類別銷量</h3>${table(['類別','數量','品項金額'],(d.categories||[]).map(r=>[catLabel(r.cat),r.qty,num(r.amount)]))}`:`<h3>付款單客群</h3>${table(['分類','單數','營收'],customerRows)}<h3>會員回訪</h3>${table(['指標','數值'],[['不重複會員',c.unique_members],['區間內至少兩單',c.repeat_members],['首次付款會員',c.new_members],['會員平均每單',num(c.member_avg_ticket)],['非會員平均每單',num(c.guest_avg_ticket)]])}`}`;
   host.querySelector('#analytics-range').onsubmit=e=>{e.preventDefault();ANALYTICS_FROM=host.querySelector('[name=from]').value;ANALYTICS_TO=host.querySelector('[name=to]').value;loadAnalytics(kind);};
   host.querySelector('#analytics-csv').onclick=()=>downloadCSV(`${title}_${d.from}_${d.to}.csv`,kind==='products'?[['品項','店別','類別','數量','品項金額','單數'],...productRows]:[['分類','單數','營收'],...customerRows]);
 }

@@ -55,3 +55,11 @@ test('brand middleware admits analytics and both tabs have reachable loaders',()
  const h=fs.readFileSync(new URL('../public/pos.html',import.meta.url),'utf8'),js=fs.readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');
  for(const [id,fn] of [['products','Products'],['customers','Customers']]){assert.match(h,new RegExp(id+':tab'+fn));assert.match(h,new RegExp('load'+fn+'\\(\\)'));assert.match(js,new RegExp('function load'+fn+'\\('));}
 });
+test('sales charts and tables show category labels, never raw cat codes',()=>{
+ const js=fs.readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');
+ assert.match(js,/const cats=\(d\.categories\|\|\[\]\)\.slice\(0,8\)\.map\(r=>\[catLabel\(r\.cat\)/);
+ assert.match(js,/const catQty=\(d\.categories\|\|\[\]\)\.slice\(0,8\)\.map\(r=>\[catLabel\(r\.cat\)/);
+ assert.match(js,/BRAND_LABEL\[i\.venue\]\|\|i\.venue,catLabel\(i\.cat\)/);
+ assert.match(js,/\(d\.categories\|\|\[\]\)\.map\(r=>\[catLabel\(r\.cat\),r\.qty/);
+ assert.doesNotMatch(js,/\.map\(r=>\[r\.cat,/);
+});
