@@ -1352,30 +1352,51 @@ function printRegisterReportWindow(rep,kind){
 const REG_CLOSE_DRAFTS=new Map();
 const regAccountLabel=(r,c)=>r.account_labels?.[c]||payMethodLabel(c);
 const regCloseStamp=r=>JSON.stringify([r.expected,r.opening_cash,r.cash_in,r.cash_out,r.sales?.amount,r.reconciliation_accounts]);
-function accountOverview(r,kind){
-  const entries=Object.entries(r.reconciliation_accounts||{}).sort(([a],[b])=>{const rk=c=>c==='linepay'?0:c==='taishin'?1:2;return rk(a)-rk(b);});
-  const rows=[['現金（應有）',r.expected],...entries.map(([c,v])=>[regAccountLabel(r,c),v])];
-  return `<fieldset class="reg-overview" data-close-overview><legend>${kind}前：先確認各帳戶</legend><table class="a-tbl"><thead><tr><th>帳戶</th><th class="num">POS 登記</th></tr></thead><tbody>${rows.map(([n,v])=>`<tr><td>${esc(n)}</td><td class="num">NT$${num(v)}</td></tr>`).join('')}</tbody></table><p class="hint">請對照錢櫃、收單機與各帳戶後台，確認有哪些帳戶要核對；下一步才開始點鈔與填實收。</p><label><input type="checkbox" data-overview-confirm> 已看過每個帳戶</label></fieldset>`;
-}
+/* 各帳戶確認：小結／關帳前，每個帳戶一顆按鈕，點開填實收（現金可按面額點鈔；LINE Pay 自動帶入後台同步實收）。
+ * 應收≠實收必須填原因才能確認。確認結果留在本頁記憶體（ACCT_CONFIRMED），開「關帳」時自動帶入點鈔、各帳戶實收與原因；不直接寫帳務。 */
 const ACCT_CONFIRMED=new Map();
-function accountConfirmBlock(d){
+const acctRows=r=>[['cash','現金',r.expected],...Object.entries(r.reconciliation_accounts||{}).sort(([a],[b])=>{const rk=c=>c==='linepay'?0:c==='taishin'?1:2;return rk(a)-rk(b);}).map(([c,x])=>[c,regAccountLabel(r,c),x])];
+// LINE Pay 後台實收：單品牌頁直接用對帳結果；全店頁用 by_venue 依開關帳時間歸屬的分店金額
+function acctLinepayActual(lp,venue){if(!lp||lp.configured===false||!lp.synced_at)return null;const v=lp.by_venue?.[venue];return Number(v?v.linepay.amount:lp.linepay?.amount)||0;}
+function accountConfirmBlock(d,sales){
   const venues=SCOPE?[SCOPE]:Object.keys(BRAND_LABEL);
   const cards=venues.map(v=>{const r=d?.current?.[v];if(!r||r.closed_at)return '';
-    const rows=[['cash','現金（應有）',r.expected],...Object.entries(r.reconciliation_accounts||{}).sort(([a],[b])=>{const rk=c=>c==='linepay'?0:c==='taishin'?1:2;return rk(a)-rk(b);}).map(([c,x])=>[c,regAccountLabel(r,c),x])];
-    const set=ACCT_CONFIRMED.get(r.id)||new Set(),n=rows.filter(x=>set.has(x[0])).length;
-    return `<div class="reg-card" data-acct-card="${esc(r.id)}"><h4>${esc(BRAND_LABEL[v])} <span class="pill ${n===rows.length?'pill-ok':'pill-wait'}">${n}/${rows.length} 已確認</span></h4><table class="a-tbl"><thead><tr><th>帳戶</th><th class="num">POS 登記</th><th>確認</th></tr></thead><tbody>${rows.map(([c,nm,amt])=>`<tr><td>${esc(nm)}</td><td class="num">NT$${num(amt)}</td><td><label><input type="checkbox" data-acct-confirm="${esc(c)}" ${set.has(c)?'checked':''}> 已核對</label></td></tr>`).join('')}</tbody></table></div>`;}).join('');
-  return cards?`<div class="ops-head"><h3>各帳戶確認</h3>${opsHelp('小結或關帳前，先逐一核對每個帳戶（現金、LINE Pay、刷卡／台新手機付、轉帳與其他）的 POS 登記金額與實際收款是否相符。這裡的勾選只是提醒，不會寫入帳務；關帳時仍須逐項填實收。')}</div><div class="reg-cards">${cards}</div>`:'';
+    const rows=acctRows(r),done=ACCT_CONFIRMED.get(r.id)||{},n=rows.filter(x=>done[x[0]]).length;
+    return `<div class="reg-card" data-acct-card="${esc(r.id)}"><h4>${esc(BRAND_LABEL[v])} <span class="pill ${n===rows.length?'pill-ok':'pill-wait'}">${n}/${rows.length} 已確認</span></h4><div class="a-wrap2"><table class="a-tbl reg-acct"><thead><tr><th>帳戶</th><th class="num">應收</th><th class="num">實收</th><th class="num">差額</th><th></th></tr></thead><tbody>${rows.map(([c,nm,amt])=>{const a=done[c];return `<tr class="${a&&a.diff?'lp-diff':''}"><td>${esc(nm)}</td><td class="num">NT$${num(amt)}</td><td class="num">${a?'NT$'+num(a.actual):'—'}</td><td class="num">${a?(a.diff>0?'+':'')+num(a.diff):'—'}</td><td><button type="button" class="btn ${a?'btn--ghost':'btn--solid'} btn-sm" data-acct-open="${esc(c)}">${a?'✓ 已確認':'核對'}</button></td></tr>`;}).join('')}</tbody></table></div></div>`;}).join('');
+  return cards?`<div class="ops-head"><h3>各帳戶確認</h3>${opsHelp('小結或關帳前，逐一按「核對」填入每個帳戶的實收：現金可按面額點鈔或直接填總額，LINE Pay 自動帶入後台同步的實收，刷卡／台新手機付與其他帳戶對照機台或後台填入。應收與實收不同時要填原因才能確認。確認結果會自動帶入關帳表單，但關帳前仍可修改。')}</div><div class="reg-cards">${cards}</div>`:'';
 }
-function bindAccountConfirm(host){
-  host.querySelectorAll('[data-acct-card]').forEach(card=>{const id=card.dataset.acctCard;
-    card.querySelectorAll('[data-acct-confirm]').forEach(cb=>cb.onchange=()=>{const set=ACCT_CONFIRMED.get(id)||new Set();cb.checked?set.add(cb.dataset.acctConfirm):set.delete(cb.dataset.acctConfirm);ACCT_CONFIRMED.set(id,set);
-      const all=[...card.querySelectorAll('[data-acct-confirm]')],n=all.filter(x=>x.checked).length,pill=card.querySelector('.pill');pill.textContent=`${n}/${all.length} 已確認`;pill.className='pill '+(n===all.length?'pill-ok':'pill-wait');});});
+function acctDialog(r,code,sales){
+  return new Promise(resolve=>{
+    const [,label,expected]=acctRows(r).find(x=>x[0]===code),prev=(ACCT_CONFIRMED.get(r.id)||{})[code];
+    const lpAuto=code==='linepay'?acctLinepayActual(sales?.linepay,r.venue):null;
+    const cash=code==='cash';
+    const {ov,close}=pickOverlay(`<h3>核對 ${esc(label)} · ${esc(BRAND_LABEL[r.venue])}</h3>
+      <div class="reg-close-sum"><span>應收 <b>NT$${num(expected)}</b></span><span>實收 <b id="acct-actual-show">—</b></span><span>差額 <b id="acct-diff-show">—</b></span></div>
+      ${cash?`<p class="hint">按面額填張數，或直接填總額。應收＝零用金＋現金營收＋臨時收入－臨時支出（整個錢櫃）。</p>${denomGrid()}`:code==='linepay'?`<p class="hint">${lpAuto==null?'LINE Pay 後台尚未同步，請先在「帳務參考」按「同步 LINE Pay」，或對照商家後台手動填入。':`已自動帶入 LINE Pay 後台同步實收（${esc(applicationTime(sales.linepay.synced_at))} 同步，退款已扣），可修改。`}</p>`:`<p class="hint">請對照收單機、商家後台或交接資料填入本品牌本營業日實收（退款已扣、手續費扣除前）。</p>`}
+      <div class="a-form"><label>${cash?'實收總額':'實收'}<input id="acct-actual" inputmode="numeric" pattern="[0-9]*" placeholder="${cash?'或直接填':'沒有收款請填 0'}" value="${prev?esc(prev.actual):lpAuto!=null?lpAuto:''}"></label><label class="reg-note" id="acct-reason-label" hidden>差異原因（應收≠實收必填）<input id="acct-reason" maxlength="200" value="${esc(prev?.reason||'')}"></label></div>${reasonChips('acct-reason',REASON_PRESETS.close_note)}
+      <div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-cancel>取消</button><button type="button" class="btn btn--solid" data-ok disabled>確認</button></div>`,'核對 '+label);
+    const box=ov.querySelector('.pos-move-box');bindReasonChips(box);
+    if(cash&&prev?.denoms)for(const [f,n] of Object.entries(prev.denoms)){const i=box.querySelector(`[data-denom="${f}"]`);if(i)i.value=n;}
+    const q=s=>box.querySelector(s),amount=()=>{const t=q('#acct-actual').value.trim();return /^\d+$/.test(t)&&Number(t)<=10000000?Number(t):null;};
+    const read=()=>{if(cash){const c=readCount(box,'#acct-actual');return {actual:c.total,denoms:c.denoms};}return {actual:amount()};};
+    const show=()=>{const {actual}=read(),diff=actual==null?null:actual-expected,reason=q('#acct-reason').value.trim();
+      q('#acct-actual-show').textContent=actual==null?'—':'NT$'+num(actual);const ds=q('#acct-diff-show');ds.textContent=diff==null?'—':(diff>0?'+':'')+num(diff);ds.classList.toggle('reg-diff',!!diff);
+      q('#acct-reason-label').hidden=!diff;q('[data-ok]').disabled=actual==null||(diff!==0&&!reason);};
+    box.addEventListener('input',show,true);box.addEventListener('change',show);
+    const done=v=>{close();resolve(v);};
+    q('[data-cancel]').onclick=()=>done(null);ov.addEventListener('click',e=>{if(e.target===ov)done(null);});
+    q('[data-ok]').onclick=()=>{const {actual,denoms}=read();if(actual==null)return;const diff=actual-expected,reason=q('#acct-reason').value.trim();if(diff!==0&&!reason){toast('應收與實收不同，請填差異原因');q('#acct-reason').focus();return;}done({actual,diff,reason:diff?reason:'',denoms});};
+    show();
+  });
+}
+function bindAccountConfirm(host,sales,reload){
+  host.querySelectorAll('[data-acct-card]').forEach(card=>{const id=card.dataset.acctCard,r=(REG_DATA?.registers||[]).find(x=>x.id===id);if(!r)return;
+    card.querySelectorAll('[data-acct-open]').forEach(b=>b.onclick=async()=>{const out=await acctDialog(r,b.dataset.acctOpen,sales);if(!out)return;ACCT_CONFIRMED.set(id,{...(ACCT_CONFIRMED.get(id)||{}),[b.dataset.acctOpen]:out});toast(out.diff?`已確認，${out.diff>0?'溢':'短'} NT$${num(Math.abs(out.diff))}`:'已確認，帳對了');reload();});});
 }
 function dailyCloseForm(r){
   const entries=Object.entries(r.reconciliation_accounts||{}).sort(([a],[b])=>{const rank=c=>c==='linepay'?0:c==='taishin'?1:2;return rank(a)-rank(b);});
   return `<div class="reg-close-form" data-register-id="${esc(r.id)}"><h4>1. 當日營收 · ${esc(BRAND_LABEL[r.venue])}</h4><p>訂單總額 <b>NT$${num(r.sales?.amount)}</b>（本品牌、同一營業日；非全店實收）</p>
-    ${accountOverview(r,'關帳')}
-    <fieldset data-close-step="cash" disabled><legend>2. 清點錢櫃</legend><div class="ops-head"><h4>關帳點鈔</h4>${tipIcon('現金實收＝點鈔－零用金－臨時收入＋臨時支出。各項有差異都要填原因，不能互相抵銷。')}</div>${denomGrid()}
+    <fieldset data-close-step="cash"><legend>2. 清點錢櫃</legend><div class="ops-head"><h4>關帳點鈔</h4>${tipIcon('現金實收＝點鈔－零用金－臨時收入＋臨時支出。各項有差異都要填原因，不能互相抵銷。')}</div>${denomGrid()}
     <div class="a-form"><label>點鈔總額<input id="reg-counted" inputmode="numeric" pattern="[0-9]*" placeholder="或直接填"></label><label>留存金<input id="reg-keep" inputmode="numeric" pattern="[0-9]*" value="${esc(r.opening_cash)}"></label><label class="reg-note">現金差異原因<input id="reg-close-note" maxlength="200" placeholder="現金差額非 0 必填"></label></div>${fillChips('reg-keep',[[r.opening_cash,'同零用金 $'+num(r.opening_cash)],[0,'全部收走'],[3000,'$3,000'],[5000,'$5,000']])}${reasonChips('reg-close-note',REASON_PRESETS.close_note)}
     <div class="reg-close-sum"><span>應有現金 <b>NT$${num(r.expected)}</b></span><span>點鈔 <b id="reg-counted-show">—</b></span><span>差額 <b id="reg-diff-show">—</b></span></div><label><input type="checkbox" data-close-confirm="cash"> 已確認錢櫃與現金差異原因</label></fieldset>
     ${entries.map(([code,pos],i)=>`<fieldset data-close-step="${esc(code)}" disabled><legend>${i+3}. 核對 ${esc(regAccountLabel(r,code))}</legend><p>本品牌 POS 登記 <b>NT$${num(pos)}</b></p><p class="hint">請核對並填入「${esc(BRAND_LABEL[r.venue])}」本營業日的實收（退款已扣、手續費扣除前）。LINE Pay 店別歸屬與全店台新手填紀錄僅供參考，請另行確認本品牌實收。</p><div class="a-form"><label>本品牌實收<input data-account-actual="${esc(code)}" inputmode="numeric" pattern="[0-9]*" placeholder="必填，沒有收款也請填 0"></label><label>差異原因<input data-account-reason="${esc(code)}" maxlength="200" placeholder="差額非 0 必填"></label></div><p>差額 <b data-account-diff="${esc(code)}">—</b></p><label><input type="checkbox" data-close-confirm="${esc(code)}"> 已確認此帳戶與差異原因</label></fieldset>`).join('')}
@@ -1437,6 +1458,11 @@ function bindDailyClose(form,r,reload){
   const fields=[...form.querySelectorAll('input')];
   const key=i=>i.id||JSON.stringify(i.dataset);
   if(saved)for(const i of fields){const v=saved.values[key(i)];if(v){i.value=v.value;i.checked=saved.stamp===stamp&&v.checked;}}
+  // 沒有草稿時，帶入「各帳戶確認」已確認的點鈔、實收與原因（仍可修改；確認勾選要重新核對）
+  const pre=ACCT_CONFIRMED.get(r.id);
+  if(!saved&&pre){const set=(sel,v)=>{const i=form.querySelector(sel);if(i&&v!=null&&v!=='')i.value=v;};
+    if(pre.cash){for(const [f,n] of Object.entries(pre.cash.denoms||{}))set(`[data-denom="${f}"]`,n);set('#reg-counted',pre.cash.actual);set('#reg-close-note',pre.cash.reason);}
+    for(const [code,a] of Object.entries(pre)){if(code==='cash')continue;set(`[data-account-actual="${code}"]`,a.actual);set(`[data-account-reason="${code}"]`,a.reason);}}
   const amount=i=>/^\d+$/.test(i.value.trim())&&Number(i.value)<=10000000?Number(i.value):null;
   const read=()=>{
     const counted=readCount(form,'#reg-counted'),accounts={};
@@ -1447,7 +1473,7 @@ function bindDailyClose(form,r,reload){
   const show=()=>{
     const b=read(),c=b.counted_cash,diff=c==null?null:c-r.expected;
     q('#reg-counted-show').textContent=c==null?'—':'NT$'+num(c);q('#reg-diff-show').textContent=diff==null?'—':(diff>0?'+':'')+num(diff);
-    const ov=q('[data-overview-confirm]');let all=ov.checked;
+    let all=true;
     for(const [i,step] of steps.entries()){
       step.disabled=!all;const confirm=step.querySelector('[data-close-confirm]');let valid;
       if(i===0)valid=c!==null&&(diff===0||!!b.note)&&b.keep_cash!==null;
@@ -1484,6 +1510,7 @@ async function loadSales(){
   const methods=Object.entries(d.by_method||{}).sort((a,b)=>b[1]-a[1]).map(([m,v])=>`<tr><td>${esc(payMethodLabel(m))}</td><td class="num">${num(v)}</td><td class="num">${d.amount?Math.round(v/d.amount*100):0}%</td></tr>`).join('')||'<tr><td colspan="3" class="a-empty">這天沒有營收</td></tr>';
   const hours=Object.entries(d.by_hour||{}).sort(),maxH=Math.max(1,...hours.map(h=>h[1]));
   const hourBars=hours.map(([h,v])=>`<div class="sales-bar"><span class="a-mono">${esc(h)}:00</span><i style="width:${Math.round(v/maxH*100)}%"></i><span class="num">${num(v)}</span></div>`).join('')||'<p class="a-empty">—</p>';
+  const hasProducts=!!document.getElementById('products-body');   // POS 平板有「銷量」分頁：品項銷量整合到那邊，日結只留捷徑
   const items=(d.items||[]).map(it=>`<tr><td>${esc(it.zh)}</td>${SCOPE?'':`<td>${esc(BRAND_LABEL[it.venue]||'')}</td>`}<td class="num">${it.qty}</td><td class="num">${num(it.amount)}</td></tr>`).join('')||`<tr><td colspan="${SCOPE?3:4}" class="a-empty">—</td></tr>`;
   // LINE Pay 對帳：LINE Pay 後台實收（每日 04:30 同步）vs POS 登記為 LINE Pay 的單；差額非 0 標紅
   const lp=d.linepay||{},lpPos=lp.pos||{},lpLp=lp.linepay||{},diff=Number(lp.diff)||0;
@@ -1505,11 +1532,11 @@ async function loadSales(){
   host.innerHTML=`<div class="ops-head"><h2>日結報表</h2>${opsHelp('營業日從凌晨 03:00 起算到翌日 03:00（三點水深夜的單算前一天）。作廢的單不計營收、另列筆數；折扣與贈送已從營收扣除、另列金額。CSV 含每一筆品項明細、折扣與付款方式，可直接交會計。')}</div>
     <div class="a-toolbar"><label>營業日 <input type="date" id="sales-day" value="${esc(d.day)}"></label><button class="btn btn--ghost btn-sm" id="sales-prev">前一天</button><button class="btn btn--ghost btn-sm" id="sales-next">後一天</button><button class="btn btn--ghost btn-sm" id="sales-today">今天</button><button class="btn btn--solid btn-sm" id="sales-csv">匯出 CSV</button></div>
     <div class="a-kpis sales-kpis"><div class="a-kpi"><div class="kl">營收</div><div class="kv"><span class="u">NT$</span>${num(d.amount)}</div><div class="ks">折扣後實收</div></div><div class="a-kpi"><div class="kl">成立單數</div><div class="kv">${num(d.orders)}<span class="u"> 單</span></div><div class="ks">平均每單 NT$${num(d.orders?Math.round(d.amount/d.orders):0)}</div></div><div class="a-kpi"><div class="kl">折扣</div><div class="kv"><span class="u">NT$</span>${num(d.discount_amount)}</div><div class="ks">${num(d.discount_count)} 單${d.comp_count?` · 贈送 ${num(d.comp_count)} 項`:''}</div></div>${d.redeem_points?`<div class="a-kpi"><div class="kl">點數兌換</div><div class="kv">${num(d.redeem_points)}<span class="u"> 點</span></div><div class="ks">${num(d.redeem_count)} 單 · 折抵 NT$${num(d.redeem_value)}</div></div>`:''}<div class="a-kpi"><div class="kl">作廢</div><div class="kv">${num(d.voided)}<span class="u"> 單</span></div><div class="ks">NT$${num(d.void_amount)} 不計營收</div></div></div>
-    ${REG_DATA?accountConfirmBlock(REG_DATA)+registerBlock(REG_DATA):''}
+    ${REG_DATA?accountConfirmBlock(REG_DATA,d)+registerBlock(REG_DATA):''}
     <div class="sales-cols"><div><h3>付款方式</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>方式</th><th class="num">金額</th><th class="num">占比</th></tr></thead><tbody>${methods}</tbody></table></div></div><div><h3>時段分布</h3><div class="sales-bars">${hourBars}</div></div></div>
-    <h3>品項銷量</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>品項</th>${SCOPE?'':'<th>店別</th>'}<th class="num">數量</th><th class="num">金額</th></tr></thead><tbody>${items}</tbody></table></div>
+    ${hasProducts?`<div class="a-toolbar"><a class="btn btn--ghost btn-sm" id="sales-items-go" data-tab="products" href="${esc(opsHref('products'))}">品項銷量 → 銷量分頁（${esc(d.day)}）</a></div>`:`<h3>品項銷量</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>品項</th>${SCOPE?'':'<th>店別</th>'}<th class="num">數量</th><th class="num">金額</th></tr></thead><tbody>${items}</tbody></table></div>`}
     <details><summary>帳務參考（另行逐項確認）</summary><p class="hint">LINE Pay 依開關帳時間歸屬店別，台新手填紀錄為全店實收；請核對商家紀錄後，在上方關帳流程逐一填寫本品牌實收。</p>${lpBlock}${tsBlock}</details>`;
-  bindAccountConfirm(host);bindRegisterBlock(host,loadSales);bindReasonChips(host);bindFillChips(host);
+  bindAccountConfirm(host,d,loadSales);bindRegisterBlock(host,loadSales);bindReasonChips(host);bindFillChips(host);
   const shift=n=>{const t=new Date(SALES_DAY+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);SALES_DAY=t.toISOString().slice(0,10);REG_CASH_OPEN=false;REG_CLOSE_OPEN=false;REG_COUNT_OPEN=false;REG_OPEN_FORM='';loadSales();};
   // 同步：抓「這個營業日前後 3 天」，退款會回補到幾天前；按下去要等後台登入、約 20–60 秒
   host.querySelector('#lp-sync').onclick=e=>{const b=e.currentTarget;b.disabled=true;b.textContent='同步中…（約 1 分鐘）';
@@ -1527,6 +1554,7 @@ async function loadSales(){
   host.querySelector('#sales-prev').onclick=()=>shift(-1);
   host.querySelector('#sales-next').onclick=()=>shift(1);
   host.querySelector('#sales-today').onclick=()=>{SALES_DAY=MenuLib.businessDay();loadSales();};
+  const ig=host.querySelector('#sales-items-go');if(ig)ig.onclick=()=>{ANALYTICS_FROM=d.day;ANALYTICS_TO=d.day;};   // 宿主頁的 a[data-tab] 點擊處理會切到銷量分頁，帶這個營業日
   host.querySelector('#sales-csv').onclick=()=>downloadCSV(`日結_${d.day}${SCOPE?'_'+(BRAND_LABEL[SCOPE]||SCOPE):''}.csv`,d.csv||[]);
 }
 
@@ -1868,10 +1896,11 @@ async function loadAnalytics(kind){
   const c=d.customers||{},segments=[['member','會員'],['guest','非會員'],['takeout','外帶'],['dinein','內用'],['qr','含 QR 點餐'],['counter','櫃檯點餐']];
   const customerRows=segments.map(([key,label])=>[label,c[key]?.orders||0,num(c[key]?.amount||0)]);
   host.innerHTML=`<div class="ops-head"><h2>${title}</h2>${opsHelp('營業日以凌晨 03:00 分界，最多查 93 天。作廢單不計；品項金額為品項小計，不分攤整單折扣。單數是付款單數（含預收與分攤），不是來客人數；會員、內外帶與點餐方式為不同維度，不可相加。新會員依全店首次付款判定；無會員識別碼的聚落價單不計入不重複會員。')}</div>
-    <form class="a-toolbar" id="analytics-range"><label>起日 <input type="date" name="from" value="${esc(d.from)}" required></label><label>迄日 <input type="date" name="to" value="${esc(d.to)}" required></label><button class="btn btn--solid" type="submit">查詢</button><button class="btn btn--ghost" type="button" id="analytics-csv">匯出 CSV</button></form>
+    <form class="a-toolbar" id="analytics-range"><label>起日 <input type="date" name="from" value="${esc(d.from)}" required></label><label>迄日 <input type="date" name="to" value="${esc(d.to)}" required></label><button class="btn btn--solid" type="submit">查詢</button><button class="btn btn--ghost" type="button" id="analytics-today">今天</button><button class="btn btn--ghost" type="button" id="analytics-csv">匯出 CSV</button></form>
     <div class="a-kpis"><div class="a-kpi"><div class="kl">營收</div><div class="kv">NT$${num(d.amount)}</div></div><div class="a-kpi"><div class="kl">付款單數</div><div class="kv">${num(d.orders)}</div></div><div class="a-kpi"><div class="kl">平均每單</div><div class="kv">NT$${num(d.avg_ticket)}</div></div></div>
     ${analyticsCharts(kind,d)}
     ${kind==='products'?`<h3>品項銷量</h3>${table(['品項','店別','類別','數量','品項金額','單數'],productRows)}<h3>每日營收</h3>${table(['營業日','付款單數','營收'],(d.by_day||[]).map(r=>[r.day,r.orders,num(r.amount)]))}<h3>類別銷量</h3>${table(['類別','數量','品項金額'],(d.categories||[]).map(r=>[catLabel(r.cat),r.qty,num(r.amount)]))}`:`<h3>付款單客群</h3>${table(['分類','單數','營收'],customerRows)}<h3>會員回訪</h3>${table(['指標','數值'],[['不重複會員',c.unique_members],['區間內至少兩單',c.repeat_members],['首次付款會員',c.new_members],['會員平均每單',num(c.member_avg_ticket)],['非會員平均每單',num(c.guest_avg_ticket)]])}`}`;
   host.querySelector('#analytics-range').onsubmit=e=>{e.preventDefault();ANALYTICS_FROM=host.querySelector('[name=from]').value;ANALYTICS_TO=host.querySelector('[name=to]').value;loadAnalytics(kind);};
+  host.querySelector('#analytics-today').onclick=()=>{ANALYTICS_FROM=ANALYTICS_TO=MenuLib.businessDay();loadAnalytics(kind);};
   host.querySelector('#analytics-csv').onclick=()=>downloadCSV(`${title}_${d.from}_${d.to}.csv`,kind==='products'?[['品項','店別','類別','數量','品項金額','單數'],...productRows]:[['分類','單數','營收'],...customerRows]);
 }

@@ -37,8 +37,12 @@ test('close route uses authoritative brand sales and stale guard; reprints store
  assert.match(close,/JSON\.stringify\(report\)/);
  assert.match(server,/r\.closed_at\?r\.report:s\.report/);
  const ui=fs.readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');
- assert.ok(ui.indexOf('sales-kpis')<ui.indexOf('${REG_DATA?accountConfirmBlock(REG_DATA)+registerBlock(REG_DATA)'));
+ assert.ok(ui.indexOf('sales-kpis')<ui.indexOf('${REG_DATA?accountConfirmBlock(REG_DATA,d)+registerBlock(REG_DATA)'));
  assert.match(ui,/各帳戶確認/); // 日結頁在開關帳前先列各帳戶逐一確認。
+ assert.match(ui,/data-acct-open=/); // 每個帳戶一顆「核對」按鈕，點開對話框填實收。
+ assert.match(ui,/acctLinepayActual\(sales\?\.linepay,r\.venue\)/); // LINE Pay 實收自動帶入後台同步結果（依店別歸屬）。
+ assert.match(ui,/q\('\[data-ok\]'\)\.disabled=actual==null\|\|\(diff!==0&&!reason\)/); // 應收≠實收必須填原因才能確認。
+ assert.match(ui,/const pre=ACCT_CONFIRMED\.get\(r\.id\)/); // 已確認結果帶入關帳表單。
  assert.match(ui,/帳務參考（另行逐項確認）/);
  assert.match(ui,/lpVenueTable/); // 保留 main 的 LINE Pay 店別歸屬與明細。
  const spec=ui.slice(ui.indexOf('function registerReportSpec('),ui.indexOf('// 有接 mPOP'));

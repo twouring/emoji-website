@@ -160,6 +160,8 @@ tr.pos-comp td{background:var(--ok-faint)}
 .reg-cash span{font-size:1rem;color:var(--muted)}.reg-cash b{font-size:1.2rem;font-variant-numeric:tabular-nums}
 .reg-cash .reg-expected{border-top:3px solid var(--ink)}.reg-cash .reg-expected b{font-size:1.4rem}
 .reg-cash .reg-diff b,#reg-diff-show.reg-diff{color:var(--danger)}
+/* 各帳戶確認表：數字欄不換行、欄間留白，核對鈕整顆不折行（手機 375px 也放得下） */
+.reg-acct th,.reg-acct td{white-space:nowrap;padding-left:8px;padding-right:8px}.reg-acct td.num,.reg-acct th.num{font-variant-numeric:tabular-nums}.reg-acct .btn{white-space:nowrap;min-height:44px}.reg-acct tr.lp-diff td.num:nth-child(4){color:var(--danger);font-weight:700}
 .reg-actions{justify-content:flex-end;margin-top:12px}.reg-actions .btn{min-height:48px}
 .reg-cash-form{align-items:flex-end;margin-top:10px}.reg-cash-form select,.reg-cash-form input{min-height:48px;font-size:1rem}.reg-cash-form #reg-cash-amount{width:130px}.reg-cash-form #reg-cash-reason{flex:1 1 220px}
 .reg-close-form,.reg-open-form{margin-top:12px;padding:12px;border:1px dashed var(--line);border-radius:10px;background:var(--paper-alt)}
