@@ -125,7 +125,7 @@ test('reservation API confirms immediately, stores email and lang, mails guest i
   assert.match(server, /ALTER TABLE dining_reservations ADD COLUMN IF NOT EXISTS lang/);
   assert.match(server, /CREATE INDEX IF NOT EXISTS dining_reservations_date_idx/);
   assert.match(server, /app\.post\('\/api\/reservations', rateLimit\(\{ max: 30, windowMs: 3600000 \}\), requireDb, wrap/);
-  assert.match(server, /reservations\.normalizeReservation\(req\.body\)/);
+  assert.match(server, /reservations\.normalizeReservation\(req\.body, new Date\(\), \{ hours:/);
   assert.match(server, /r\.email, r\.lang, r\.note, r\.source, 'confirmed'\]/);
   assert.match(server, /sendMailQuietly\(\{ to: r\.email, subject: reservations\.guestSubject\(r\), text: reservations\.guestMail\(r, requestId\)/);
   assert.match(server, /sendMailQuietly\(\{ to: NOTIFY_EMAIL, subject: `\[訂位\]/);

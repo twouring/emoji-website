@@ -247,7 +247,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       myResv:'我的訂位',noResv:'還沒有訂位',seats:n=>n+' 位',reqNo:'編號 ',tableNo:'桌 ',cancelResv:'取消訂位',confirmCancelResv:'取消這筆訂位？',canceled:'已取消',
       myRegs:'我的報名',noRegs:'還沒有報名活動',checkedIn:'已報到',tickets:n=>n+' 張',showTicket:'出示票券',eventPage:'活動頁',ticketMeta:n=>n>1?'活動票券 '+n+' 張 · 請出示給工作人員掃描':'活動票券 · 請出示給工作人員掃描',ticketFail:'票券暫時無法顯示，請到活動頁查看',
       upcoming:'即將到來',pickupLabel:'預約取餐 ',resvLabel:'訂位 ',states:{done:'已完成',ended:'已結束',ready:'可取餐',preparing:'準備中',placed:'已送單',booked:'已預約'},
-      resvTitle:'訂位',back:'返回',date:'日期',party:'人數',partyN:n=>(n===6?'6+':n)+' 位',slotLabel:'時段',venues:['在咖啡 08:00–17:00','三點水 17:00–03:00'],noteOpt:'備註（選填）',resvHint:()=>'座位保留 10 分鐘。',submitResv:'送出訂位',pickSlot:'請選一個時段',resvOk:id=>'訂位成立 '+id,
+      resvTitle:'訂位',back:'返回',date:'日期',party:'人數',partyN:n=>(n===6?'6+':n)+' 位',slotLabel:'時段',venues:['在咖啡 08:00–17:00','三點水 17:00–03:00'],noteOpt:'備註（選填）',resvHint:()=>'座位保留 10 分鐘。',submitResv:'送出訂位',pickSlot:'請選一個時段',noOpenSlots:'這天沒有開放訂位的時段，請改選其他日期',resvOk:id=>'訂位成立 '+id,
       pickupTitle:'預約取餐',pickupShort:'預約取餐',pickupHint:n=>'先選時間再選餐點，到店付款。',pickupDay:'取餐日',today:'今天',tomorrow:'明天',dayAfter:'後天',pickupTime:'取餐時間',noSlots:'這天已沒有可預約的時段，請改選其他日期',loadingMenu:'載入菜單…',pickTimeFirst:'選好時間後會顯示該時段的菜單。',submitPickup:'送出預約',itemsN:n=>'（'+n+' 件）',menuFail:'菜單載入失敗',noItems:'這個時段沒有可預約的品項',dec:'減少',inc:'增加',pickupOk:'預約成立，取餐前會開始準備',cafe:'在咖啡',bar:'三點水',opFail:'操作失敗，請稍後再試',
       installLabel:{prompt:'安裝到主畫面',ios:'看怎麼加到主畫面',inapp:'看怎麼用瀏覽器開啟'}},
     en:{locale:'en-US',back:'Back',tabHome:'Card',tabPlan:'Plan',tabEvents:'Events',tabMe:'Me',loading:'Loading…',
@@ -270,7 +270,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       myResv:'My reservations',noResv:'No reservations yet',seats:n=>n+' guests',reqNo:'No. ',tableNo:'Table ',cancelResv:'Cancel',confirmCancelResv:'Cancel this reservation?',canceled:'Cancelled',
       myRegs:'My registrations',noRegs:'No event registrations yet',checkedIn:'Checked in',tickets:n=>n+' tickets',showTicket:'Show ticket',eventPage:'Event page',ticketMeta:n=>n>1?n+' tickets · show to staff to scan':'Event ticket · show to staff to scan',ticketFail:'Ticket unavailable right now — see the event page',
       upcoming:'Coming up',pickupLabel:'Pickup ',resvLabel:'Reservation ',states:{done:'Done',ended:'Closed',ready:'Ready',preparing:'Preparing',placed:'Sent to kitchen',booked:'Booked'},
-      resvTitle:'Reserve a table',back:'Back',date:'Date',party:'Guests',partyN:n=>(n===6?'6+':n),slotLabel:'Time',venues:['at cafe 08:00–17:00','3AM 17:00–03:00'],noteOpt:'Note (optional)',resvHint:()=>'Tables are held for 10 minutes.',submitResv:'Reserve',pickSlot:'Pick a time',resvOk:id=>'Reserved · '+id,
+      resvTitle:'Reserve a table',back:'Back',date:'Date',party:'Guests',partyN:n=>(n===6?'6+':n),slotLabel:'Time',venues:['at cafe 08:00–17:00','3AM 17:00–03:00'],noteOpt:'Note (optional)',resvHint:()=>'Tables are held for 10 minutes.',submitResv:'Reserve',pickSlot:'Pick a time',noOpenSlots:'No bookable slots on this day. Pick another date.',resvOk:id=>'Reserved · '+id,
       pickupTitle:'Order for pickup',pickupShort:'Pickup',pickupHint:n=>'Pick a time, then your items. Pay in store.',pickupDay:'Pickup day',today:'Today',tomorrow:'Tomorrow',dayAfter:'In 2 days',pickupTime:'Pickup time',noSlots:'No more slots that day — pick another date',loadingMenu:'Loading menu…',pickTimeFirst:'Pick a time to see that period’s menu.',submitPickup:'Place order',itemsN:n=>' ('+n+' items)',menuFail:'Could not load the menu',noItems:'Nothing available for this slot',dec:'Less',inc:'More',pickupOk:'Order placed — we’ll start preparing before pickup',cafe:'at cafe',bar:'3AM',opFail:'Action failed. Please try again.',
       installLabel:{prompt:'Install',ios:'How to add to home screen',inapp:'How to open in a browser'}},
     ja:{locale:'ja-JP',back:'戻る',tabHome:'カード',tabPlan:'会員',tabEvents:'イベント',tabMe:'設定',loading:'読み込み中…',
@@ -293,7 +293,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       myResv:'席の予約',noResv:'予約はまだありません',seats:n=>n+' 名',reqNo:'番号 ',tableNo:'テーブル ',cancelResv:'キャンセル',confirmCancelResv:'この予約をキャンセルしますか？',canceled:'キャンセルしました',
       myRegs:'イベント申込',noRegs:'申込済みのイベントはありません',checkedIn:'チェックイン済',tickets:n=>n+' 枚',showTicket:'チケットを表示',eventPage:'イベントページ',ticketMeta:n=>n>1?'チケット '+n+' 枚 · スタッフに提示してスキャン':'イベントチケット · スタッフに提示してスキャン',ticketFail:'チケットを表示できません。イベントページをご覧ください',
       upcoming:'近日の予定',pickupLabel:'テイクアウト ',resvLabel:'予約 ',states:{done:'完了',ended:'終了',ready:'受け取り可',preparing:'準備中',placed:'調理中',booked:'予約済'},
-      resvTitle:'席を予約',back:'戻る',date:'日付',party:'人数',partyN:n=>(n===6?'6+':n)+' 名',slotLabel:'時間',venues:['在咖啡 08:00–17:00','三點水 17:00–03:00'],noteOpt:'備考（任意）',resvHint:()=>'席は10分間保持します。',submitResv:'予約する',pickSlot:'時間を選んでください',resvOk:id=>'予約完了 '+id,
+      resvTitle:'席を予約',back:'戻る',date:'日付',party:'人数',partyN:n=>(n===6?'6+':n)+' 名',slotLabel:'時間',venues:['在咖啡 08:00–17:00','三點水 17:00–03:00'],noteOpt:'備考（任意）',resvHint:()=>'席は10分間保持します。',submitResv:'予約する',pickSlot:'時間を選んでください',noOpenSlots:'この日はご予約枠がありません。別の日をお選びください。',resvOk:id=>'予約完了 '+id,
       pickupTitle:'テイクアウト予約',pickupShort:'お持ち帰り',pickupHint:n=>'時間を選んでから料理を選びます。お支払いは店頭で。',pickupDay:'受け取り日',today:'今日',tomorrow:'明日',dayAfter:'明後日',pickupTime:'受け取り時間',noSlots:'この日の枠はもうありません。別の日を選んでください',loadingMenu:'メニューを読み込み中…',pickTimeFirst:'時間を選ぶとその時間帯のメニューが表示されます。',submitPickup:'予約する',itemsN:n=>'（'+n+' 点）',menuFail:'メニューを読み込めませんでした',noItems:'この時間帯に予約できる品はありません',dec:'減らす',inc:'増やす',pickupOk:'予約完了。受け取り前に準備を始めます',cafe:'在咖啡',bar:'三點水',opFail:'操作に失敗しました。しばらくしてから再度お試しください。',
       installLabel:{prompt:'ホーム画面にインストール',ios:'追加方法を見る',inapp:'ブラウザで開く方法を見る'}},
   };
@@ -496,18 +496,21 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     try{const d=await get('/api/events/'+encodeURIComponent(eventId)+'/ticket');clearInterval(qrTimer);showOv();img.style.display='';QRCode.toDataURL(d.token,{width:320,margin:1},(err,url)=>{if(!err)img.src=url;});meta.textContent=T.ticketMeta((d.tickets||[]).length);sub2.textContent='';}
     catch(e){toast(T.ticketFail);}
   }
+  let RV_OPEN={date:'',slots:null};
   function bookResv(){
     const me=data.me||{},today=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Taipei'});
     if(!RV.date)RV.date=today;
+    if(RV.date&&RV_OPEN.date!==RV.date){const d0=RV.date;RV_OPEN={date:d0,slots:null};fetch('/api/reservations/slots?date='+encodeURIComponent(d0),{cache:'no-store'}).then(r=>r.ok?r.json():null).then(j=>{if(j&&Array.isArray(j.slots)&&RV.date===d0&&sub==='resv'){RV_OPEN={date:d0,slots:j.slots};paint();}}).catch(()=>{});}
     const slot=(a,b)=>{const o=[];for(let x=a;x<b;x+=30)o.push(String(Math.floor(x/60)).padStart(2,'0')+':'+String(x%60).padStart(2,'0'));return o;};
     const now=new Date(),tpMin=(now.getUTCHours()+8)%24*60+now.getUTCMinutes();
     const past=t=>RV.date===today&&(Number(t.slice(0,2))*60+Number(t.slice(3)))<=tpMin+30&&Number(t.slice(0,2))>=3;
-    const groups=[[T.venues[0],slot(8*60,17*60)],[T.venues[1],slot(17*60,24*60).concat(slot(0,3*60))]];
+    const openOnly=ts=>RV_OPEN.date===RV.date&&RV_OPEN.slots?ts.filter(t=>RV_OPEN.slots.includes(t)):ts;
+    const groups=[[T.venues[0],openOnly(slot(8*60,17*60))],[T.venues[1],openOnly(slot(17*60,24*60).concat(slot(0,3*60)))]].filter(g=>g[1].length);
     const ph=((data.yan&&data.yan.phone)||me.phone||'').replace(/^\+886/,'0');
     app.innerHTML=`<div class="hello"><h1>${esc(T.resvTitle)}</h1><button class="quiet" id="bk" style="width:auto;margin:0">${esc(T.back)}</button></div>
     <label class="fld">${esc(T.date)}<input type="date" id="rvd" min="${today}" value="${esc(RV.date)}"></label>
     <div class="fld">${esc(T.party)}<div class="seg" id="rvp">${[1,2,3,4,5,6].map(n=>`<button type="button" data-p="${n}" aria-pressed="${RV.party===n||(n===6&&RV.party>6)}">${esc(T.partyN(n))}</button>`).join('')}</div>${RV.party>=6?`<input type="number" id="rvpn" min="6" max="50" inputmode="numeric" value="${esc(RV.party)}" style="margin-top:8px">`:''}</div>
-    <div class="fld">${esc(T.slotLabel)}<div class="slots" id="rvt">${groups.map(([h,ts])=>`<h4>${esc(h)}</h4>`+ts.map(t=>`<button type="button" data-t="${t}" aria-pressed="${RV.time===t}" ${past(t)?'disabled':''}>${t}</button>`).join('')).join('')}</div></div>
+    <div class="fld">${esc(T.slotLabel)}<div class="slots" id="rvt">${groups.length?groups.map(([h,ts])=>`<h4>${esc(h)}</h4>`+ts.map(t=>`<button type="button" data-t="${t}" aria-pressed="${RV.time===t}" ${past(t)?'disabled':''}>${t}</button>`).join('')).join(''):`<p class="empty" style="grid-column:1/-1">${esc(T.noOpenSlots)}</p>`}</div></div>
     <label class="fld">${esc(T.noteOpt)}<textarea id="rvn" maxlength="500">${esc(RV.note)}</textarea></label>
     <p class="hint">${esc(T.resvHint(me.name||'',ph))}</p>
     <div class="sticky"><button class="btn solid" id="rvgo">${esc(T.submitResv)}</button></div>`;

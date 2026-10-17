@@ -536,6 +536,15 @@ LINE Pay 同步依開關帳時間歸屬店別，保留既有品牌篩選、分�
 ### POST /api/admin/sales/linepay/import
 歷史匯入（僅超級管理員／`ADMIN_API_KEY`）。body `{ rows: [] }`，1–500 筆，每筆為 LINE Pay 後台原始交易物件（含 `transactionSequence`）或已正規化的列（`{ id, type, amount, paid_at, method, ... }`）。回 `{ ok, count, skipped }`。
 
+### GET /api/reservations/slots
+客人端某天可訂的時段（`/reserve` 與會員 App 換日期時呼叫；免登入）。query `date=YYYY-MM-DD`。回 `{ ok, date, slots[] }`（`'HH:MM'`，沒設定＝全部 30 分鐘時段）。依 `GET /api/admin/reservation-hours` 的設定：特定日期優先於每週設定，空陣列＝該日公休。`Cache-Control: no-store`；每 IP 每小時 300 次。
+
+### GET /api/admin/reservation-hours
+可訂位時間設定：`{ ok, all[], weekly:{ "0".."6": slots[] }, dates:{ "YYYY-MM-DD": slots[] } }`（`0`＝週日）。沒列出的星期／日期＝全天開放。
+
+### PUT /api/admin/reservation-hours
+整份覆寫可訂位時間。body `{ weekly, dates }`，格式同上；不認得的時段丟棄、過去的日期例外與「全開」的星期自動清掉、特定日期上限 400 筆。只限制客人自助訂位（`POST /api/reservations`、`POST /api/me/reservations` 回 400「這個時段目前不開放訂位」），櫃檯登記與編修不受限。存在 `site_content.reservation_hours`。
+
 ### GET /api/admin/reservations
 訂位列表。query `from=YYYY-MM-DD`（預設台北今天）、`days`（1–60，預設 7）、`venue=`。回 `{ reservations[], from, days, pending, labels }`；每筆附 `venue`（08:00–16:59 歸 CAFE，其餘 BAR），品牌子帳號只看自己時段的。狀態：`new` 待確認、`confirmed` 已確認、`arrived` 已到、`no_show` 未到、`cancelled` 已取消。
 

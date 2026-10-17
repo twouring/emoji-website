@@ -14,9 +14,9 @@
   var htmlLang=String(document.documentElement.lang||'zh').toLowerCase();
   var LANG=htmlLang.indexOf('zh')===0?'zh':htmlLang.slice(0,2);
   var DICT={
-    zh:{cafe:'在咖啡',bar:'三點水',cafeHours:'08:00–17:00',barHours:'17:00–03:00',allPast:'今天的時段都已過，請改選明天或之後的日期。',pick:'請點選一個時段。',sending:'送出中，請稍候…',fail:'送出失敗，請稍後再試。',id:'訂位編號：',time:'時間：',guests:'人數：',unit:' 位',hold:'座位保留至：',mail:'確認信：',po:'（',pc:'）'},
-    en:{cafe:'at cafe',bar:'3AM',cafeHours:'café · 08:00–17:00',barHours:'bar · 17:00–03:00',allPast:'All of today’s slots have passed. Please pick tomorrow or later.',pick:'Please choose a time slot.',sending:'Sending…',fail:'Something went wrong. Please try again.',id:'Booking no.: ',time:'Time: ',guests:'Guests: ',unit:'',hold:'Table held until: ',mail:'Confirmation sent to: ',po:' (',pc:')'},
-    ja:{cafe:'在咖啡 at cafe',bar:'三點水 3AM',cafeHours:'カフェ · 08:00–17:00',barHours:'バー · 17:00–03:00',allPast:'本日の枠はすべて終了しました。明日以降の日付をお選びください。',pick:'時間枠を選んでください。',sending:'送信中…',fail:'送信に失敗しました。しばらくしてからもう一度お試しください。',id:'予約番号：',time:'日時：',guests:'人数：',unit:' 名',hold:'お席の確保：',mail:'確認メール：',po:'（',pc:'）'}
+    zh:{cafe:'在咖啡',bar:'三點水',cafeHours:'08:00–17:00',barHours:'17:00–03:00',closedDay:'這天沒有開放訂位的時段，請改選其他日期。',allPast:'今天的時段都已過，請改選明天或之後的日期。',pick:'請點選一個時段。',sending:'送出中，請稍候…',fail:'送出失敗，請稍後再試。',id:'訂位編號：',time:'時間：',guests:'人數：',unit:' 位',hold:'座位保留至：',mail:'確認信：',po:'（',pc:'）'},
+    en:{cafe:'at cafe',bar:'3AM',cafeHours:'café · 08:00–17:00',barHours:'bar · 17:00–03:00',closedDay:'No bookable slots on this day. Please pick another date.',allPast:'All of today’s slots have passed. Please pick tomorrow or later.',pick:'Please choose a time slot.',sending:'Sending…',fail:'Something went wrong. Please try again.',id:'Booking no.: ',time:'Time: ',guests:'Guests: ',unit:'',hold:'Table held until: ',mail:'Confirmation sent to: ',po:' (',pc:')'},
+    ja:{cafe:'在咖啡 at cafe',bar:'三點水 3AM',cafeHours:'カフェ · 08:00–17:00',barHours:'バー · 17:00–03:00',closedDay:'この日はご予約枠がありません。別の日をお選びください。',allPast:'本日の枠はすべて終了しました。明日以降の日付をお選びください。',pick:'時間枠を選んでください。',sending:'送信中…',fail:'送信に失敗しました。しばらくしてからもう一度お試しください。',id:'予約番号：',time:'日時：',guests:'人数：',unit:' 名',hold:'お席の確保：',mail:'確認メール：',po:'（',pc:'）'}
   };
   var T=DICT[LANG]||DICT.zh;
 
@@ -34,6 +34,7 @@
   date.min=now.date;
   date.value=now.date;
 
+  var OPEN=null;
   function render(){
     slotHost.textContent='';
     var isToday=date.value===now.date;
@@ -42,7 +43,10 @@
       var sec=document.createElement('div');sec.className='slot-group';
       var h=document.createElement('h3');h.textContent=g.name;var small=document.createElement('small');small.textContent=g.hours;h.appendChild(small);sec.appendChild(h);
       var grid=document.createElement('div');grid.className='chips';
+      var times=OPEN?g.times.filter(function(t){return OPEN.indexOf(t)>=0;}):g.times;
+      if(!times.length)return;
       g.times.forEach(function(t){
+        if(OPEN&&OPEN.indexOf(t)<0)return;
         var label=document.createElement('label');label.className='chip';
         var input=document.createElement('input');input.type='radio';input.name='time';input.value=t;input.required=true;input.dataset.label=g.name;
         var mins=Number(t.slice(0,2))*60+Number(t.slice(3));
@@ -53,10 +57,18 @@
       });
       sec.appendChild(grid);slotHost.appendChild(sec);
     });
-    if(isToday&&!anyEnabled){var p=document.createElement('p');p.className='hint';p.textContent=T.allPast;slotHost.appendChild(p);}
+    if(isToday&&!anyEnabled&&!(OPEN&&!OPEN.length)){var p=document.createElement('p');p.className='hint';p.textContent=T.allPast;slotHost.appendChild(p);}
+    if(OPEN&&!OPEN.length){var c=document.createElement('p');c.className='hint';c.textContent=T.closedDay;slotHost.appendChild(c);}
   }
-  date.addEventListener('change',render);
-  render();
+  // 店家設定的可訂位時間：換日期時向伺服器取當天開放的時段；取不到就當全部開放（送出時伺服器仍會把關）
+  function loadOpen(){
+    var d=date.value;
+    fetch('/api/reservations/slots?date='+encodeURIComponent(d),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(j){
+      if(date.value!==d)return;OPEN=j&&Array.isArray(j.slots)?j.slots:null;render();
+    }).catch(function(){OPEN=null;render();});
+  }
+  date.addEventListener('change',function(){OPEN=null;render();loadOpen();});
+  render();loadOpen();
 
   function msg(text,kind){status.textContent=text;status.className='status '+kind;}
   function val(name){return String(form.elements[name]?.value||'').trim();}

@@ -1671,9 +1671,18 @@ async function insertWithRequestId(run) {
   throw new Error('訂位編號產生失敗，請再試一次。');
 }
 const reservationAdminUrl = r => `${ADMIN_BASE}/admin/${tableOrders.reservationVenue(r.time) === 'CAFE' ? 'cafe' : 'bar'}/reservations`;
+const reservationHours = require('./lib/reservation-hours');
+const loadReservationHours = async () => reservationHours.parse(await contentValue('reservation_hours'));
+/* 客人端某天可訂的時段（/reserve、會員 App 換日期時抓）；沒設定＝全部開放 */
+app.get('/api/reservations/slots', rateLimit({ max: 300, windowMs: 3600000 }), requireDb, wrap(async (req, res) => {
+  const date = String(req.query.date || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'date 格式不正確。' });
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, date, slots: reservationHours.slotsFor(await loadReservationHours(), date) });
+}));
 app.post('/api/reservations', rateLimit({ max: 30, windowMs: 3600000 }), requireDb, wrap(async (req, res) => {
   let r;
-  try { r = reservations.normalizeReservation(req.body); }
+  try { r = reservations.normalizeReservation(req.body, new Date(), { hours: await loadReservationHours() }); }
   catch (error) { return res.status(error.status || 400).json({ error: error.message }); }
   const id = uid('dr_');
   const requestId = await insertWithRequestId(rid => q(`INSERT INTO dining_reservations(id,request_id,reserve_date,reserve_time,period,party_size,name,phone,email,lang,note,source,status)
@@ -1692,7 +1701,7 @@ app.post('/api/me/reservations', auth, requireDb, rateLimit({ max: 20, windowMs:
   const me = (await q('SELECT id,name,email,phone,phone_e164 FROM users WHERE id=$1', [req.auth.sub])).rows[0];
   if (!me) return res.status(401).json({ error: '帳號不存在，請重新登入。' });
   let r;
-  try { r = reservations.normalizeReservation({ ...req.body, name: req.body?.name || me.name, phone: req.body?.phone || me.phone_e164 || me.phone, email: req.body?.email ?? me.email ?? '', source: 'member-app' }, new Date(), { member: true }); }
+  try { r = reservations.normalizeReservation({ ...req.body, name: req.body?.name || me.name, phone: req.body?.phone || me.phone_e164 || me.phone, email: req.body?.email ?? me.email ?? '', source: 'member-app' }, new Date(), { member: true, hours: await loadReservationHours() }); }
   catch (error) { return res.status(error.status || 400).json({ error: error.message }); }
   const open = Number((await q("SELECT COUNT(*)::int AS n FROM dining_reservations WHERE user_id=$1 AND deleted_at IS NULL AND status IN ('new','confirmed') AND reserve_date>=(now() AT TIME ZONE 'Asia/Taipei')::date", [me.id])).rows[0].n);
   if (open >= 5) return res.status(409).json({ error: '你已有 5 筆未到的訂位，請先取消其中一筆。' });
@@ -5866,6 +5875,16 @@ app.get('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=>
     .map(r=>({...r,venue:tableOrders.reservationVenue(r.reserve_time)})).filter(r=>!venues||venues.includes(r.venue));
   const pending=Number((await q("SELECT COUNT(*)::int AS n FROM dining_reservations WHERE status='new' AND reserve_date>=CURRENT_DATE")).rows[0].n);
   res.json({reservations:rows,from,days,pending,labels:tableOrders.RESERVATION_LABEL});
+}));
+/* 可訂位時間管理：每週固定＋特定日期例外（含公休）；只限制客人端，櫃檯登記不受限 */
+app.get('/api/admin/reservation-hours',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  res.set('Cache-Control','no-store');
+  res.json({ok:true,all:reservationHours.ALL,...(await loadReservationHours())});
+}));
+app.put('/api/admin/reservation-hours',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  let cfg;try{cfg=reservationHours.normalize({weekly:req.body?.weekly,dates:req.body?.dates},new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Taipei'}));}catch(e){return res.status(e.status||400).json({error:e.message});}
+  await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('reservation_hours',$1,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,[JSON.stringify(cfg)]);
+  res.json({ok:true,all:reservationHours.ALL,...cfg});
 }));
 /* 櫃檯登記訂位（電話／現場）：與 /api/reservations 同一套驗證，但 Email 可留空、不擋 30 分鐘內的時段；有 Email 才寄確認信 */
 app.post('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=>{
