@@ -20,7 +20,7 @@ test('cash and account reasons cannot cancel each other; final reason is separat
  assert.throws(()=>R.closeRegister(b,summary,opts),/說明|原因/);
  b.note='找零短少';assert.throws(()=>R.closeRegister(b,summary,opts),/原因/);
  b.accounts.linepay.reason='跨日入帳';const c=R.closeRegister(b,summary,opts);assert.equal(c.total_diff,0);assert.equal(c.cash_actual,190);
- b.accounts.linepay.actual=100;assert.throws(()=>R.closeRegister(b,summary,opts),/總額|總差異/);
+ b.accounts.linepay.actual=100;assert.equal(R.closeRegister(b,summary,opts).total_diff!==0,true);assert.equal(R.closeRegister(b,summary,opts).total_reason,'');
  b.total_reason='短少待追查';assert.equal(R.closeRegister(b,summary,opts).total_reason,b.total_reason);
 });
 test('authoritative order amount, merged cards and frozen report preserve reconciliation',()=>{
@@ -63,7 +63,7 @@ test('real close handler rejects stale or invalid bodies without writing and fre
  const fixture={sales:{amount:640},moves:[],summary:{...summary,reconciliation_accounts:opts.accounts,account_labels:{custom_wallet:'錢包'}}};
  const ctx=vm.createContext({app:{post:(...args)=>{handler=args.at(-1);}},auth:0,adminOnly:0,requireDb:0,wrap:fn=>fn,
   loadOpenRegister:async()=>({id:'reg',venue:'CAFE',day:'2026-10-17',opening_cash:1000}),registerSummary:async()=>fixture,
-  posRegister:R,actorOf:()=> 'test-operator',q:async(sql,params)=>{writes.push({sql,params});return {rowCount:1};}});
+  posRegister:R,actorOf:()=> 'test-operator',resolveOperator:async()=>({id:'op',name:'test-operator'}),q:async(sql,params)=>{writes.push({sql,params});return {rowCount:1};}});
  vm.runInContext(route,ctx);
  const call=async payload=>{let status=200,result;const res={status(n){status=n;return this;},json(v){result=v;return this;}};await handler({body:payload,auth:{}},res);return {status,result};};
  const version=JSON.stringify([summary.expected,summary.opening_cash,summary.cash_in,summary.cash_out,640,opts.accounts]);

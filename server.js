@@ -5518,7 +5518,9 @@ app.post('/api/admin/registers/:id/close',auth,adminOnly,requireDb,wrap(async(re
   const version=JSON.stringify([s.summary.expected,s.summary.opening_cash,s.summary.cash_in,s.summary.cash_out,s.sales.amount,s.summary.reconciliation_accounts]);
   if(req.body?.reconciliation_version!==version)return res.status(409).json({error:'營收或帳戶已變更，請重新載入日結並逐項確認。'});
   let c;try{c=posRegister.closeRegister(req.body,s.summary,{accounts:s.summary.reconciliation_accounts,labels:s.summary.account_labels,order_total:s.sales.amount});}catch(e){return res.status(e.status||400).json({error:e.message});}
-  const closedBy=actorOf(req.auth)||'',closedAt=new Date().toISOString();
+  const operator=await resolveOperator(req,req.body?.operator_id);
+  if(!operator)return res.status(400).json({error:'關帳須輸入員工 PIN，請先選擇有效的操作人員。'});
+  const closedBy=operator.name,closedAt=new Date().toISOString();
   const report=posRegister.registerReport({...r,closed_at:closedAt,closed_by:closedBy,...c,note:c.note},s.summary,s.sales,s.moves);
   const u=await q('UPDATE pos_registers SET closed_by=$2,closed_at=$3,counted_cash=$4,expected_cash=$5,diff=$6,keep_cash=$7,take_cash=$8,denominations=$9,close_note=$10,report=$11 WHERE id=$1 AND closed_at IS NULL',[r.id,closedBy,closedAt,c.counted_cash,c.expected_cash,c.diff,c.keep_cash,c.take_cash,c.denominations?JSON.stringify(c.denominations):null,c.note,JSON.stringify(report)]);
   if(!u.rowCount)return res.status(409).json({error:'這本帳已經關過了。'});

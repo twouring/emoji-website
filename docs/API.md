@@ -459,7 +459,7 @@ body `{attempt_id}`。只取消 `prepared`（尚未送出）意圖；已送出�
 - 先讀 `GET /api/admin/registers`：每本帳的 `reconciliation_accounts` 是伺服器依**該品牌、該營業日**計算的 POS 帳戶金額（歷史 `card` 併入 `taishin`）；固定 LINE Pay、刷卡／台新、轉帳，另含啟用的自訂帳戶與當日曾收款的已停用帳戶。即使 POS 為 0，也必須明確填 `actual:0` 並確認；不接受缺漏、未知帳戶、空白、null、布林或非整數金額。
 - `reconciliation_version = JSON.stringify([expected,opening_cash,cash_in,cash_out,sales.amount,reconciliation_accounts])`；送出前營收／帳戶變更回 409，須重新載入並確認。舊版只送現金的客戶端不再允許關帳。
 - 現金可按面額或總額點鈔；`cash_confirmed:true` 必填。現金差額非 0 時 `note` 必填；每個非現金帳戶 `actual − POS` 非 0 時各自 `reason` 必填，即使差額互抵也不能省略。
-- `cash_actual = counted_cash − opening_cash − cash_in + cash_out`。`total_pos` 取伺服器訂單營收原值；`total_actual = cash_actual + 各非現金帳戶實收`。總額相同直接關帳；不同時必須**另填** `total_reason`，不可借用現金原因。
+- `cash_actual = counted_cash − opening_cash − cash_in + cash_out`。`total_pos` 取伺服器訂單營收原值；`total_actual = cash_actual + 各非現金帳戶實收`。總額不同也可關帳，`total_reason` 選填（各帳戶原因已在逐項核對填寫）。
 - `keep_cash` 為抽屜留存金，預設零用金。回傳原現金欄位加 `cash_confirmed, accounts, cash_actual, total_pos, total_actual, total_diff, total_reason, report`。所有核對金額、標籤、原因與總額凍結在 `report` JSON，重印沿用原紀錄，不需新增資料表。舊關帳單仍可重印。
 
 LINE Pay 同步依開關帳時間歸屬店別，保留既有品牌篩選、分店明細與 CSV；`/sales/taishin` 手填紀錄仍為全店。兩者保留為參考與原操作，不自動當作逐項已確認實收。關帳後該品牌當日不可再結帳與記臨時收支。

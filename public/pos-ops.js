@@ -1565,7 +1565,7 @@ function bindAccountConfirm(host,sales,reload){
   host.querySelectorAll('[data-acct-card]').forEach(card=>{const id=card.dataset.acctCard,r=(REG_DATA?.registers||[]).find(x=>x.id===id);if(!r)return;
     card.querySelectorAll('[data-acct-open]').forEach(b=>b.onclick=async()=>{if(b.dataset.acctOpen==='cash'&&!b.dataset.drawerBusy){b.dataset.drawerBusy='1';try{await ensureOperator(()=>manualCashDrawer('日結核對現金'));}catch(e){}finally{delete b.dataset.drawerBusy;}}const out=await acctDialog(r,b.dataset.acctOpen,sales);if(!out)return;ACCT_CONFIRMED.set(id,{...(ACCT_CONFIRMED.get(id)||{}),[b.dataset.acctOpen]:out});toast(out.diff?`已確認，${out.diff>0?'溢':'短'} NT$${num(Math.abs(out.diff))}`:'已確認，帳對了');reload();});});
 }
-// 關帳表單不再重填一輪帳務：只檢查上方「各帳戶確認」是否每個帳戶都已核對，再填留存金（與總差異原因）就能關帳
+// 關帳表單不再重填一輪帳務：只檢查上方「各帳戶確認」是否每個帳戶都已核對，再填留存金就能關帳
 function closeChecks(r){
   const done=ACCT_CONFIRMED.get(r.id)||{},rows=acctRows(r);
   const items=rows.map(([code,name,exp])=>{const a=done[code],diff=a?a.actual-exp:null;return {code,name,exp,a,diff,ok:!!a&&(diff===0||!!a.reason)};});
@@ -1579,7 +1579,7 @@ function dailyCloseForm(r){
   return `<div class="reg-close-form" data-register-id="${esc(r.id)}"><h4>確認關帳 · ${esc(BRAND_LABEL[r.venue])}</h4><p>訂單總額 <b>NT$${num(r.sales?.amount)}</b>（本品牌、同一營業日；非全店實收）</p>
     ${pending.length?`<p class="hint" id="reg-close-pending">上方「各帳戶確認」還有 ${esc(pending.join('、'))} 沒有核對，請先按「核對」完成後再關帳。</p>`:`<div class="a-wrap2"><table class="a-tbl reg-acct"><thead><tr><th>帳戶</th><th class="num">應收</th><th class="num">實收</th><th class="num">差額</th></tr></thead><tbody>${c.items.map(x=>`<tr class="${x.diff?'lp-diff':''}"><td>${esc(x.name)}</td><td class="num">NT$${num(x.exp)}</td><td class="num">NT$${num(x.a.actual)}</td><td class="num">${x.diff>0?'+':''}${num(x.diff)}</td></tr>`).join('')}</tbody></table></div>
     <div class="reg-close-sum"><span>訂單總額 <b>NT$${num(r.sales?.amount)}</b></span><span>帳戶總額 <b>NT$${num(c.actual)}</b></span><span>總差異 <b>${c.totalDiff>0?'+':''}${num(c.totalDiff)}</b></span></div>
-    <div class="a-form"><label>留存金（下一班）<input id="reg-keep" inputmode="numeric" pattern="[0-9]*" value="${esc(r.opening_cash)}"></label>${c.totalDiff?`<label class="reg-note">總差異原因（另填）<input id="reg-total-reason" maxlength="200"></label>`:''}</div>${fillChips('reg-keep',[[r.opening_cash,'同零用金 $'+num(r.opening_cash)],[0,'全部收走'],[3000,'$3,000'],[5000,'$5,000']])}${c.totalDiff?reasonChips('reg-total-reason',REASON_PRESETS.close_note):''}`}
+    <div class="a-form"><label>留存金（下一班）<input id="reg-keep" inputmode="numeric" pattern="[0-9]*" value="${esc(r.opening_cash)}"></label></div>${fillChips('reg-keep',[[r.opening_cash,'同零用金 $'+num(r.opening_cash)],[0,'全部收走'],[3000,'$3,000'],[5000,'$5,000']])}`}
     <p id="reg-close-status" role="status" aria-live="polite">${pending.length?'帳戶尚未全部核對。':'上方帳戶皆已核對，可以關帳。'}</p><div class="a-toolbar"><button type="button" class="btn btn--solid" id="reg-close-go" disabled>確認關帳</button><button type="button" class="btn btn--ghost" id="reg-close-cancel">取消</button></div></div>`;
 }
 function registerBlock(d){
@@ -1638,13 +1638,13 @@ function bindDailyClose(form,r,reload){
     const done=ACCT_CONFIRMED.get(r.id)||{},accounts={};
     for(const x of c.items.slice(1))accounts[x.code]={actual:x.a.actual,reason:x.a.reason||'',confirmed:true};
     const cash=done.cash;
-    return {counted_cash:cash.actual,denominations:cash.denoms||{},cash_confirmed:true,keep_cash:amount(q('#reg-keep')),note:cash.reason||'',accounts,total_reason:(q('#reg-total-reason')?.value||'').trim(),reconciliation_version:stamp};
+    return {counted_cash:cash.actual,denominations:cash.denoms||{},cash_confirmed:true,keep_cash:amount(q('#reg-keep')),note:cash.reason||'',accounts,reconciliation_version:stamp};
   };
   const show=()=>{
     const go=q('#reg-close-go');if(!c.allOk){go.disabled=true;return false;}
-    const b=read(),need=c.totalDiff!==0&&!b.total_reason;
+    const b=read(),need=false;
     go.disabled=submitting||b.keep_cash===null||need;
-    q('#reg-close-status').textContent=b.keep_cash===null?'請填留存金。':need?'總額不同，請另外填寫總差異原因。':'上方帳戶皆已核對，可以關帳。';
+    q('#reg-close-status').textContent=b.keep_cash===null?'請填留存金。':'上方帳戶皆已核對，可以關帳。';
     return !go.disabled;
   };
   form.addEventListener('input',show,true);form.addEventListener('change',show);
@@ -1653,7 +1653,7 @@ function bindDailyClose(form,r,reload){
     const body=read();
     submitting=true;show();
     if(!await posConfirm(`關帳 ${BRAND_LABEL[r.venue]}：訂單總額 NT$${num(r.sales.amount)}，帳戶總額 NT$${num(c.actual)}。\n關帳後今天不能再結帳。`,{ok:'關帳'})){submitting=false;show();return;}
-    return opsThen(async()=>{try{return await api('/admin/registers/'+r.id+'/close',{method:'POST',body});}catch(e){await reload();throw e;}},async out=>{try{const printed=await printRegisterReport(out.report,'關帳單');return printed===false?'日結關帳完成；列印未完成，請按「重印關帳單」':'日結關帳完成';}catch(e){return '日結關帳完成；列印失敗，請按「重印關帳單」';}},()=>{ACCT_CONFIRMED.delete(r.id);REG_CLOSE_DRAFTS.delete(r.id);REG_CLOSE_OPEN=false;return reload();}).finally(()=>{submitting=false;if(REG_CLOSE_OPEN===r.id)show();});
+    return ensureOperator(()=>opsThen(async()=>{try{return await api('/admin/registers/'+r.id+'/close',{method:'POST',body:{...body,operator_id:OPERATOR?.id}});}catch(e){await reload();throw e;}},async out=>{try{const printed=await printRegisterReport(out.report,'關帳單');return printed===false?'日結關帳完成；列印未完成，請按「重印關帳單」':'日結關帳完成';}catch(e){return '日結關帳完成；列印失敗，請按「重印關帳單」';}},()=>{ACCT_CONFIRMED.delete(r.id);REG_CLOSE_DRAFTS.delete(r.id);REG_CLOSE_OPEN=false;return reload();}).finally(()=>{submitting=false;if(REG_CLOSE_OPEN===r.id)show();})).finally(()=>{submitting=false;if(REG_CLOSE_OPEN===r.id)show();});
   };
   show();
 }
