@@ -5539,9 +5539,9 @@ app.post('/api/admin/registers/:id/reopen',auth,adminOnly,superOnly,requireDb,wr
 /* ===== 收款帳戶：現金／刷卡／LINE Pay／轉帳為內建（table-orders.PAY_METHODS，不給改／不給停用）；
  * 言文字管理員可另外新增自訂收款帳戶（例如街口支付、另一組轉帳帳號），結帳時一併出現在付款方式選項。
  * 全部品牌子帳號都能讀（櫃檯結帳要用），只有超管能新增／改名／停用。 */
-// 2026-10-14 決策：刷卡與台新手機付實際上走同一台台新收單機、同一包對帳，結帳畫面只留一個合併選項（代碼仍用 taishin，沿用既有對帳機制）；
+// 2026-10-14 決策：信用卡實際上走同一台台新收單機、同一包對帳，結帳畫面只留一個合併選項（代碼仍用 taishin，沿用既有對帳機制）；
 // 歷史單據原本各自的 card／taishin 紀錄不回頭改，payMethodLabel() 查歷史單仍會顯示原本各自的名稱
-const MERGED_PAY_LABEL={taishin:'刷卡／台新手機付'};
+const MERGED_PAY_LABEL={taishin:'信用卡'};
 async function paymentMethodsList(){
   const builtin=Object.entries(tableOrders.PAY_METHODS).filter(([code])=>code!=='tappay'&&code!=='card').map(([code,label])=>({code,label:MERGED_PAY_LABEL[code]||label,active:true,builtin:true}));
   const custom=(await q('SELECT code,label,active FROM pos_payment_methods ORDER BY created_at')).rows.map(r=>({...r,builtin:false}));

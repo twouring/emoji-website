@@ -35,7 +35,7 @@ test('日結 by_method 依混合付款拆到各方式；CSV 付款方式欄列�
   const rep = T.salesSummary(orders, { now: new Date('2026-10-16T05:00:00Z') });
   assert.equal(rep.by_method.cash, 300); assert.equal(rep.by_method.card, 150); assert.equal(rep.amount, 450);
   const csv = T.salesCsvRows(orders);
-  assert.match(csv[1][7], /^混合：現金 200＋刷卡 150$/);
+  assert.match(csv[1][7], /^混合：現金 200＋信用卡 150$/);
 });
 test('先收部分金額：開「部分付款」單、桌上留負數抵扣行、下次結帳自動扣', () => {
   const its = items();

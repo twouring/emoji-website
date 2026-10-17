@@ -24,7 +24,7 @@ try{
  await page.addScriptTag({content:`
  const BRAND_LABEL={CAFE:'在咖啡',BAR:'三點水'},REG_DENOMS=[2000,1000,500,200,100,50,20,10,5,1],REASON_PRESETS={close_note:[]};
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),num=v=>Number(v||0).toLocaleString('en-US');
- const payMethodLabel=c=>({linepay:'LINE Pay',taishin:'刷卡／台新手機付',transfer:'轉帳',wallet:'其他帳戶'}[c]||c),tipIcon=()=>'',fillChips=()=>'',reasonChips=()=>'',applicationTime=v=>v||'',printWindow=(title,html)=>window.printed=html;
+ const payMethodLabel=c=>({linepay:'LINE Pay',taishin:'信用卡',transfer:'轉帳',wallet:'其他帳戶'}[c]||c),tipIcon=()=>'',fillChips=()=>'',reasonChips=()=>'',applicationTime=v=>v||'',printWindow=(title,html)=>window.printed=html;
  let REG_CLOSE_OPEN='fixture';const posConfirm=async()=>true,starReady=()=>false;
  async function opsThen(fn,msg,reload){try{const out=await fn();window.lastMessage=await msg(out);await reload();}catch(e){window.lastMessage=e.message;}}
  async function api(path,{body}){window.submitted=body;return closeFixture(body);}

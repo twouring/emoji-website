@@ -41,7 +41,7 @@ test('reconcile：加總 POS 登記為 taishin 或 card 的成立單（刷卡與
 });
 
 test('lib/table-orders：台新手機付是內建付款方式（PAY_METHODS），結帳可直接選，不必走自訂收款帳戶', () => {
-  assert.equal(T.PAY_METHODS.taishin, '台新手機付');
+  assert.equal(T.PAY_METHODS.taishin, '信用卡');
   assert.equal(T.payMethod('taishin'), 'taishin');
 });
 
@@ -63,14 +63,14 @@ test('server.js：GET /api/admin/sales 回 taishin 對帳區，POST /api/admin/s
 
 test('docs/API.md 記錄 taishin 對帳欄位與 POST /api/admin/sales/taishin', () => {
   const docs = read('docs/API.md');
-  assert.match(docs, /`taishin` 為刷卡／台新手機付對帳/);
+  assert.match(docs, /`taishin` 為信用卡對帳/);
   assert.match(docs, /### POST \/api\/admin\/sales\/taishin/);
 });
 
-test('pos-ops.js：日結報表新增「刷卡／台新手機付對帳」區塊，表單送 POST /admin/sales/taishin', () => {
+test('pos-ops.js：日結報表新增「信用卡對帳」區塊，表單送 POST /admin/sales/taishin', () => {
   const ops = read('public/pos-ops.js');
-  assert.match(ops, /taishin:'台新手機付'/, '歷史單據的 payMethodLabel 仍各自顯示 card／taishin 原本的名稱');
-  assert.match(ops, /<h3>刷卡／台新手機付對帳/);
+  assert.match(ops, /taishin:'信用卡'/, '歷史單據的 payMethodLabel 仍各自顯示 card／taishin 原本的名稱');
+  assert.match(ops, /<h3>信用卡對帳/);
   assert.match(ops, /id="ts-form"/);
   assert.match(ops, /api\('\/admin\/sales\/taishin',\{method:'POST',body:\{day:d\.day,amount,reason\}\}\)/);
 });
@@ -78,8 +78,8 @@ test('pos-ops.js：日結報表新增「刷卡／台新手機付對帳」區塊�
 test('結帳付款方式：刷卡與台新手機付同一台機器對帳，2026-10-14 決策合併為一個選項（代碼 taishin），不再把 card 單獨列出；歷史單據的顯示名稱不受影響', () => {
   const server = read('server.js');
   assert.match(server, /code!=='tappay'&&code!=='card'/, 'paymentMethodsList 不該再把 card 列為可選的收款方式');
-  assert.match(server, /MERGED_PAY_LABEL=\{taishin:'刷卡／台新手機付'\}/);
+  assert.match(server, /MERGED_PAY_LABEL=\{taishin:'信用卡'\}/);
   const ops = read('public/pos-ops.js');
   assert.doesNotMatch(ops, /\['cash','現金'\],\['card'/, 'payMethodsActive 的備援清單也不該再單獨列 card');
-  assert.match(ops, /\['taishin','刷卡／台新手機付'\]/);
+  assert.match(ops, /\['taishin','信用卡'\]/);
 });

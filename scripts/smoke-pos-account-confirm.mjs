@@ -11,7 +11,7 @@ for(const f of ['style.css','pos-ops.css'])await page.addStyleTag({content:fs.re
 await page.addScriptTag({content:`
 const BRAND_LABEL={CAFE:'在咖啡',BAR:'三點水'},REG_DENOMS=[1000,500,100,50,10,5,1],REASON_PRESETS={close_note:['找錯錢','點鈔誤差']},SCOPE='';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),num=v=>Number(v||0).toLocaleString('en-US');
-const payMethodLabel=c=>({linepay:'LINE Pay',taishin:'刷卡／台新手機付',transfer:'轉帳'}[c]||c),tipIcon=()=>'',applicationTime=v=>v||'',opsHelp=()=>'',toast=m=>{window.toasts=(window.toasts||[]).concat(m);};
+const payMethodLabel=c=>({linepay:'LINE Pay',taishin:'信用卡',transfer:'轉帳'}[c]||c),tipIcon=()=>'',applicationTime=v=>v||'',opsHelp=()=>'',toast=m=>{window.toasts=(window.toasts||[]).concat(m);};
 const bindOpenForm=()=>{};let SALES_DAY='2026-10-17';const todayTaipei=()=>'2026-10-17';
 window.apiCalls=[];async function api(path,opts){window.apiCalls.push([path,opts?.body||null]);if(path.includes('/linepay/sync'))return {start:'2026-10-14',end:'2026-10-17',count:3};if(path.startsWith('/admin/sales?'))return {linepay:{synced_at:'2026-10-17T11:00:00Z',configured:true,linepay:{amount:999},by_venue:{CAFE:{linepay:{amount:120}},BAR:{linepay:{amount:879}}}}};throw new Error('unexpected '+path);}const PAY_LABEL={};const DATA={};
 ${slice('const reasonChips=','function pickOverlay(')}
