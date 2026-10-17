@@ -589,11 +589,26 @@ function startKitchenPrinting(){
     try{await pollKitchenPrinting();}finally{KITCHEN_PRINT_TIMER=setTimeout(tick,5000);}
   },0);
 }
+// 收到新單：跳出置中提示（點一下關閉，8 秒後自動消失）並響三聲；iPad 需先點過畫面才允許出聲，所以第一次點擊時先解鎖音訊
+let POS_AUDIO=null;
+function posAudio(){try{if(!POS_AUDIO)POS_AUDIO=new (window.AudioContext||window.webkitAudioContext)();if(POS_AUDIO.state==='suspended')POS_AUDIO.resume();return POS_AUDIO;}catch(e){return null;}}
+if(typeof document!=='undefined'&&document.addEventListener)document.addEventListener('pointerdown',()=>{posAudio();},{once:true,capture:true});
+function newTicketChime(){const c=posAudio();if(!c)return;[0,.3,.6].forEach((d,i)=>{try{const o=c.createOscillator(),g=c.createGain(),t=c.currentTime+d;o.type='sine';o.frequency.value=i===2?988:784;o.connect(g);g.connect(c.destination);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.6,t+.02);g.gain.exponentialRampToValueAtTime(.0001,t+.25);o.start(t);o.stop(t+.27);}catch(e){}});}
+function notifyNewTickets(jobs){
+  if(!jobs.length||typeof document==='undefined'||!document.body)return;
+  newTicketChime();
+  const tables=[...new Set(jobs.map(j=>ticketTableLabel(j)))].join('、');
+  let box=document.getElementById('pos-new-ticket');
+  if(!box){box=document.createElement('div');box.id='pos-new-ticket';box.setAttribute('role','alert');box.style.cssText='position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:99999;background:#FFDE34;color:#111;border:3px solid #111;border-radius:14px;padding:16px 28px;font-size:22px;font-weight:800;box-shadow:0 8px 28px rgba(0,0,0,.35);cursor:pointer;text-align:center;max-width:90vw';box.onclick=()=>box.remove();document.body.appendChild(box);}
+  box.textContent='🔔 收到新單 '+(jobs.length>1?jobs.length+' 張：':'：')+tables+'，出單中';
+  clearTimeout(box._t);box._t=setTimeout(()=>box.remove(),8000);
+}
 async function pollKitchenPrinting(){
   if(KITCHEN_PRINT_BUSY||KITCHEN_PRINT_PAUSED||!DATA||!starReady()||STAR_NATIVE_UNCERTAIN)return;
   KITCHEN_PRINT_BUSY=true;
   try{
     const out=await api('/admin/orders/kitchen-print-jobs'+scopeQuery());
+    notifyNewTickets((out.jobs||[]).filter(j=>!KITCHEN_PRINT_UNKNOWN.has(j.id)));
     for(const job of out.jobs||[]){
       if(KITCHEN_PRINT_UNKNOWN.has(job.id))continue;
       KITCHEN_PRINT_UNKNOWN.add(job.id);
