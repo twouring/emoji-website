@@ -305,10 +305,10 @@
   .out-card--due{border-color:#B3261E;box-shadow:inset 4px 0 0 #B3261E}
   .out-card-main{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:4px;padding:12px 14px 10px;min-height:48px}
   .out-card-main:focus-visible{outline:3px solid var(--ink);outline-offset:-3px}
-  .out-card-top{display:flex;align-items:flex-start;gap:8px}.out-card-name{font-size:1.05rem;line-height:1.4;font-weight:700}
+  .out-card-top{display:flex;align-items:flex-start;gap:8px}.out-card-name{font-size:1.05rem;line-height:1.4;font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-break:strict;word-break:auto-phrase}
   .out-pri{flex:none;display:inline-grid;place-items:center;min-width:28px;height:28px;border-radius:999px;font-size:1rem;font-weight:700;line-height:1;background:var(--paper-alt);color:var(--ink)}
   .out-pri--1{background:var(--ink);color:var(--paper)}
-  .out-card-meta,.out-card-addr,.out-card-fit,.out-card-next{color:var(--muted);font-size:1rem;line-height:1.45}
+  .out-card-meta,.out-card-addr,.out-card-fit,.out-card-next{color:var(--muted);font-size:1rem;line-height:1.45;line-break:strict;word-break:auto-phrase}.out-card-fit{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .out-card-fit{color:var(--ink-soft)}.out-stage{color:var(--ink);font-weight:500}
   .out-card-acts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 12px 12px}
   .out-card-acts .btn{min-height:48px;display:inline-flex;align-items:center;justify-content:center;padding:0 8px;white-space:nowrap}
@@ -325,10 +325,10 @@
   body.out-sheet-open{overflow:hidden}
   .out-sheet{position:fixed;inset:0;z-index:80;display:flex;align-items:flex-end;justify-content:center}
   .out-sheet-back{position:absolute;inset:0;background:rgba(0,0,0,.4)}
-  .out-sheet-card{position:relative;width:100%;max-width:560px;max-height:92dvh;overflow-y:auto;background:var(--card);border-radius:16px 16px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;overscroll-behavior:contain}
+  .out-sheet-card{position:relative;width:100%;max-width:560px;max-height:92dvh;overflow-y:auto;background:var(--card);border-radius:16px 16px 0 0;padding:16px 16px 0;display:flex;flex-direction:column;gap:12px;overscroll-behavior:contain}
   .out-sheet-card label{display:flex;flex-direction:column;gap:4px;font-size:1rem}
   .out-sheet-card input,.out-sheet-card textarea{font-size:16px;min-height:48px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);width:100%;box-sizing:border-box}
-  .out-sheet-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.out-sheet-head b{font-size:1.1rem}
+  .out-sheet-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.out-sheet-head>div{min-width:0}.out-sheet-head b{font-size:1.1rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.out-sheet-head .btn,.out-detail-head .btn{flex:none;white-space:nowrap;min-height:44px}
   .out-results{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px}.out-results legend{font-size:1rem;margin-bottom:6px;color:var(--muted)}
   .out-sheet-card .out-chip{flex-direction:row}
   .out-chip input{position:absolute;opacity:0;width:1px;height:1px;min-height:0}
@@ -337,14 +337,19 @@
   .out-chip input:focus-visible+span{outline:3px solid var(--ink);outline-offset:2px}
   .out-sheet-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .out-quick{display:flex;flex-wrap:wrap;gap:8px}.out-quick .btn{min-height:44px}
-  .out-sheet-go{min-height:52px;font-size:1.05rem}
-  @media(min-width:761px){.out-sheet{align-items:center}.out-sheet-card{border-radius:16px}}
+  .out-sheet-foot{position:sticky;bottom:0;margin:0 -16px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--line)}.out-sheet-go{width:100%;min-height:52px;font-size:1.05rem}
+  .out-sheet-row{align-items:end}.out-results{gap:6px}.out-chip span{padding:0 12px}
+  @media(min-width:761px){.out-sheet{align-items:center}.out-sheet-card{border-radius:16px}#out-filter-btn{display:none}.out-filters{display:contents}}
   @media(max-width:760px){
     .out-hint{display:none}
     .out-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px}.out-kpis .a-kpi{padding:8px 12px}.out-kpis .kv{font-size:1.2rem}
-    .out-toolbar{display:grid!important;grid-template-columns:1fr 1fr;gap:8px}
-    .out-toolbar #out-q{grid-column:1/-1}
-    .out-toolbar input,.out-toolbar select,.out-toolbar .btn{width:100%!important;min-height:48px}
+    .out-toolbar{display:grid!important;grid-template-columns:1fr auto;gap:8px}
+    .out-toolbar input,.out-toolbar select{width:100%!important;min-height:48px}
+    .out-toolbar #out-filter-btn{min-height:48px;white-space:nowrap}
+    .out-toolbar .out-filters{grid-column:1/-1;display:none;grid-template-columns:1fr 1fr;gap:8px}
+    .out-toolbar.out-toolbar--open .out-filters{display:grid}
+    .out-filters #out-new{grid-column:1/-1;min-height:48px}
+    .out-kpis{display:flex!important;overflow-x:auto;scrollbar-width:none}.out-kpis .a-kpi{flex:none;min-width:120px}
     [data-panel="outreach"]>.a-sec{padding:12px;border:0;background:transparent}
   }
 </style>
@@ -2748,6 +2753,7 @@ const ADS_STATUS_META = { planned:['規劃中','pill-wait'], running:['投放中
    手機（≤760px）預設「外出開發」：依分數／距離／離我最近排序的卡片，每張卡直接撥號、導航、登記；
    登記用底部面板：一鍵選結果（已拜訪／已合作…）＋送券張數＋下次跟進，送出即更新階段，不必進詳細頁。 */
 const OUT_MOBILE = () => matchMedia('(max-width:760px)').matches;
+let OUT_FILTERS = false;
 let OUT = null, OUT_VIEW = '', OUT_OPEN = null, OUT_Q = '', OUT_CAT = '', OUT_STAGE = 'open', OUT_SORT = 'score', OUT_LOGS = [], OUT_ME = null, OUT_LIMIT = 40;
 function tabOutreach(){ return '<div class="a-sec" id="out-body"><h2>合作開發</h2><p class="a-sub">載入資料…</p></div>'; }
 const outToday = () => new Date(Date.now()+8*3600e3).toISOString().slice(0,10);
@@ -2795,8 +2801,8 @@ function outFieldCard({l,d}){
   const tel = outTel(l.phone);
   return `<article class="out-card ${outDue(l)?'out-card--due':''}">
     <button type="button" class="out-card-main" data-out-open="${esc(l.id)}">
-      <span class="out-card-top"><span class="out-pri out-pri--${l.priority}">${OUT_PRI[l.priority]}</span><b class="out-card-name">${esc(l.name)}</b></span>
-      <span class="out-card-meta">${esc(l.category)}${d<9e9?`・${outDistTxt(d)}`:''}${l.score!=null?`・${l.score} 分`:''}・<span class="out-stage">${esc(l.stage)}</span></span>
+      <span class="out-card-top"><span class="out-pri out-pri--${l.priority}" title="優先度${OUT_PRI[l.priority]}" aria-label="優先度${OUT_PRI[l.priority]}">${OUT_PRI[l.priority]}</span><b class="out-card-name">${esc(l.name)}</b></span>
+      <span class="out-card-meta">${esc(l.category)}${d<9e9?`・${outDistTxt(d)}`:''}${l.score!=null?`・契合 ${l.score}`:''}・<span class="out-stage">${esc(l.stage)}</span></span>
       ${l.fit_reason?`<span class="out-card-fit">${esc(l.fit_reason)}</span>`:''}
       ${l.next_action||l.next_action_date?`<span class="out-card-next ${outDue(l)?'out-due':''}">下次：${l.next_action_date?esc(l.next_action_date.slice(5))+' ':''}${esc(l.next_action)}</span>`:''}
       ${l.address?`<span class="out-card-addr">${esc(l.address)}</span>`:''}
@@ -2824,14 +2830,16 @@ function paintOutreach(){
   host.innerHTML = `<h2>合作開發</h2>
     <p class="hint out-hint">開發周邊商旅、按摩養生、補習班，提供飲品招待券給他們的客人，作為言文字宣傳。分數＝距離 50％＋契合度 50％（類別、招待券適合度、規模評價）。</p>
     <div class="a-kpis out-kpis"><div class="a-kpi"><div class="kl">進行中</div><div class="kv">${OUT.leads.length-cnt('已合作')-cnt('暫不合作')}</div></div><div class="a-kpi"><div class="kl">洽談中</div><div class="kv">${cnt('洽談中')}</div></div><div class="a-kpi"><div class="kl">已合作</div><div class="kv">${cnt('已合作')}<span class="u"> 家・券 ${coupons}</span></div></div><div class="a-kpi"><div class="kl">今天／逾期跟進</div><div class="kv ${due?'out-due':''}">${due}</div></div></div>
-    <div class="a-toolbar out-toolbar">
+    <div class="a-toolbar out-toolbar ${OUT_FILTERS?'out-toolbar--open':''}">
       <input type="search" id="out-q" placeholder="搜尋店家、地址、電話…" value="${esc(OUT_Q)}" aria-label="搜尋名單" enterkeyhint="search">
+      <button type="button" class="btn btn--ghost" id="out-filter-btn" aria-expanded="${OUT_FILTERS?'true':'false'}" aria-controls="out-filters">篩選${(OUT_CAT||OUT_STAGE!=='open'||OUT_SORT!=='score')?'・已設定':''}</button>
+      <div class="out-filters" id="out-filters">
       <select id="out-cat" aria-label="類別"><option value="">全部類別</option>${OUT.categories.map(c=>`<option ${c===OUT_CAT?'selected':''}>${esc(c)}</option>`).join('')}</select>
       <select id="out-stage" aria-label="階段">${stageOpts.map(([v,lbl])=>`<option value="${esc(v)}" ${v===OUT_STAGE?'selected':''}>${esc(lbl)}</option>`).join('')}</select>
       <select id="out-sort" aria-label="排序">${sortOpts.map(([v,lbl])=>`<option value="${v}" ${v===OUT_SORT?'selected':''}>${lbl}</option>`).join('')}</select>
       <select id="out-view" aria-label="檢視"><option value="field" ${OUT_VIEW==='field'?'selected':''}>外出開發</option><option value="board" ${OUT_VIEW==='board'?'selected':''}>看板</option><option value="list" ${OUT_VIEW==='list'?'selected':''}>清單</option></select>
-      <button class="btn btn--ghost btn-sm" id="out-new" type="button">＋ 新增店家</button></div>
-    <p class="hint out-count">${rows.length} 筆${OUT_SORT==='near'?(OUT_ME?'・依你目前位置排序':'・定位中…'):''}</p>
+      <button class="btn btn--ghost btn-sm" id="out-new" type="button">＋ 新增店家</button></div></div>
+    <p class="hint out-count">${rows.length} 筆・${esc((sortOpts.find(x=>x[0]===OUT_SORT)||[])[1]||'')}${OUT_SORT==='near'?(OUT_ME?'':'・定位中…'):''}</p>
     ${OUT_VIEW==='field'?field:OUT_VIEW==='board'?board:list}
     <div id="out-detail"></div>`;
   const q = document.getElementById('out-q');
@@ -2841,6 +2849,7 @@ function paintOutreach(){
   document.getElementById('out-sort').onchange = e => { OUT_SORT = e.target.value; OUT_LIMIT = 40; if (OUT_SORT==='near') outLocate(); paintOutreach(); };
   document.getElementById('out-view').onchange = e => { OUT_VIEW = e.target.value; paintOutreach(); };
   document.getElementById('out-new').onclick = () => openOutLead(null);
+  document.getElementById('out-filter-btn').onclick = () => { OUT_FILTERS = !OUT_FILTERS; paintOutreach(); };
   const more = document.getElementById('out-more'); if (more) more.onclick = () => { OUT_LIMIT += 40; paintOutreach(); };
   host.querySelectorAll('[data-out-open]').forEach(b => b.onclick = () => openOutLead(b.dataset.outOpen));
   host.querySelectorAll('[data-out-log]').forEach(b => b.onclick = () => outLogSheet(b.dataset.outLog));
@@ -2876,7 +2885,7 @@ function outLogSheet(id){
       <div class="out-quick"><button type="button" class="btn btn--ghost btn-sm" data-out-d="3">3 天後</button><button type="button" class="btn btn--ghost btn-sm" data-out-d="7">下週</button><button type="button" class="btn btn--ghost btn-sm" data-out-d="14">兩週後</button><button type="button" class="btn btn--ghost btn-sm" data-out-d="0">不排</button></div>
       <label>下次要做什麼<input name="next_action" maxlength="200" placeholder="例：帶招待券樣張再訪"></label>
       <label>聯絡人<input name="contact_person" maxlength="80" value="${esc(l.contact_person||'')}" placeholder="姓名／職稱"></label>
-      <button type="submit" class="btn btn--solid out-sheet-go">送出登記</button>
+      <div class="out-sheet-foot"><button type="submit" class="btn btn--solid out-sheet-go">送出登記</button></div>
     </form>`;
   document.body.appendChild(wrap); document.body.classList.add('out-sheet-open');
   history.pushState({...(history.state||{}), outSheet:1}, '');
