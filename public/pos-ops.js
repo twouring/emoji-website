@@ -890,7 +890,7 @@ function defaultTablePos(names,pos){const out={...pos};const rows=Math.max(4,Mat
 function linepayPanelHtml(cur,config){
   const a=cur.linepay,pending=!!a,enabled=!!config?.enabled&&!cur.mixed;
   const hint=pending?`原交易 ${a.id}：${a.state==='prepared'?'尚未送出，可繼續掃碼或取消':'結果待確認；禁止改用其他方式收款'}`:(cur.mixed?'跨品牌整桌帳單請由言文字管理員處理':config?.blockers?.join('；')||'整桌原價單一付款；付款時邀請加入 @338ymhys，由客人自行選擇');
-  return `<div class="a-sec"><h3>LINE Pay API 收款＋加好友</h3><p class="hint">${esc(hint)}</p><button type="button" class="btn btn--ghost" id="pos-linepay-api" ${(!pending&&!enabled)||CHECKOUT_BUSY.has(cur.id)?'disabled':''}>${pending&&a.state!=='prepared'?'查詢原 LINE Pay 交易':'掃客人付款碼（API 實收）'}</button>${a?.state==='prepared'?'<button type="button" class="btn btn--ghost" id="pos-linepay-cancel">取消尚未送出的交易</button>':''}</div>`;
+  return `<details class="a-sec pos-lp" ${pending||enabled?'open':''}><summary><b>LINE Pay API 收款＋加好友</b>${pending||enabled?'':' <span class="hint hint--tight">未啟用</span>'}</summary><p class="hint">${esc(hint)}</p><button type="button" class="btn btn--ghost" id="pos-linepay-api" ${(!pending&&!enabled)||CHECKOUT_BUSY.has(cur.id)?'disabled':''}>${pending&&a.state!=='prepared'?'查詢原 LINE Pay 交易':'掃客人付款碼（API 實收）'}</button>${a?.state==='prepared'?'<button type="button" class="btn btn--ghost" id="pos-linepay-cancel">取消尚未送出的交易</button>':''}</details>`;
 }
 function pickLinepayCode(amount){
   return new Promise(resolve=>{
@@ -1005,16 +1005,17 @@ function paintPos(){
       </div>
       <details class="pos-menu-box" ${cur.lines.length&&!(typeof matchMedia==='function'&&matchMedia('(min-width:1000px)').matches)?'':'open'}><summary class="btn btn--ghost">＋ 加點（點選菜單）</summary>
         <div class="pos-menu-body">${catChips}<div class="pos-menu">${tiles}</div>
-        <div class="a-form pos-add"><label class="f-grow">下一項的備註<input id="pos-note" maxlength="160" placeholder="點下面常用備註，或自己補字（點品項時一併帶入）"></label>${noteChips('pos-note',NOTE_PRESETS)}</div></div>
+        <div class="a-form pos-add"><label class="f-grow">下一項的備註<input id="pos-note" maxlength="160" placeholder="點常用備註或自己打"></label>${noteChips('pos-note',NOTE_PRESETS)}</div></div>
       </details>
       <div class="pos-table-actions"><button class="btn btn--ghost" id="pos-move" ${cur.takeout?'hidden':''}>換桌／併桌</button><button class="btn btn--ghost btn--danger" id="pos-close">${cur.takeout?'收掉外帶單':'清桌'}</button></div>
       <div class="pos-pay">
+        <div class="pos-member-bar"><input id="pos-yan-phone" inputmode="tel" maxlength="20" placeholder="會員手機" value="${esc(POS_YAN.phone||'')}" aria-label="會員手機"><button type="button" class="btn btn--ghost btn-xs" id="pos-yan-lookup">查會員</button><button type="button" class="btn btn--ghost btn-xs" id="pos-yan-scan">掃會員</button>${POS_YAN.id||POS_YAN.phone?'<button type="button" class="btn btn--ghost btn-xs" id="pos-yan-clear">移除</button>':''}</div>${POS_YAN.name?`<div class="pos-member-who"><b>${esc(POS_YAN.name)}</b> · ${num(POS_YAN.balance||0)} 點${POS_YAN.id?'':'（只累點）'}</div>`:''}
         <div class="pos-methods" role="radiogroup" aria-label="付款方式">${payMethodsActive().map(pm=>`<label class="pos-method"><input type="radio" name="pos-method" value="${esc(pm.code)}" ${pm.code===POS_METHOD?'checked':''}><span>${esc(pm.label)}</span></label>`).join('')}</div>${splitUI}
         <div class="pos-sum">
           <div class="pos-sum-sub" ${(POS_PICK&&POS_PICK.size<cur.lines.length)||Object.keys(POS_QTY).length||memberSaving>0||discount?'':'hidden'}><span>${(POS_PICK&&POS_PICK.size<cur.lines.length)||Object.keys(POS_QTY).length?`部分結帳 ${picked.length}／${cur.lines.length} 項`:memberSaving>0?'小計（原價）':'小計'}</span><span>NT$${num(regular)}</span></div>
           ${POS_YAN.id||memberSaving>0?`<div class="pos-sum-member"><span>${POS_YAN.id?(POS_MEMBER?'<span class="pill pill-ok">有效會籍</span> 已套聚落價':'<span class="pill pill-wait">註冊會員</span> 無有效會籍，不適用聚落價'):'聚落價'}</span><span>${POS_MEMBER&&memberSaving?'−'+num(memberSaving):'—'}</span></div>`:''}
           ${POS_YAN.id?`<div class="pos-sum-member"><span>點數 ${num(POS_YAN.balance||0)} 點${pts?`　本單兌換 ${num(pts)} 點，結後剩 ${num((POS_YAN.balance||0)-pts)} 點`:'　（點品項旁的「點數兌換」換餐飲或服務，不折抵金額）'}</span></div>`:''}
-          <div class="pos-sum-member"><label>本單會員手機<input id="pos-yan-phone" inputmode="tel" maxlength="20" placeholder="0912…" value="${esc(POS_YAN.phone||'')}" aria-label="會員手機"></label><button type="button" class="btn btn--ghost btn-xs" id="pos-yan-lookup">查會員</button><button type="button" class="btn btn--ghost btn-xs" id="pos-yan-scan">掃會員</button>${POS_YAN.id||POS_YAN.phone?'<button type="button" class="btn btn--ghost btn-xs" id="pos-yan-clear">移除</button>':''}<span>${POS_YAN.name?`${esc(POS_YAN.name)} · ${num(POS_YAN.balance||0)} 點${POS_YAN.id?'':'（只累點）'}`:'—'}</span></div>
+
           ${aa?`<div class="pos-sum-aa"><span><span class="pill pill-wait">平均分攤</span> ${aa.people} 人 · 每人 NT$${num(aa.each)}${aa.gross%aa.people?`，尾差 NT$${num(aa.gross%aa.people)} 併入最後一人`:''}</span><span><b>${aa.last?'最後一人':`第 ${aa.index}／${aa.people} 人`}</b> <button type="button" class="btn btn--ghost btn-xs" id="pos-aa-clear">取消分攤</button></span></div>`:`<div class="pos-sum-aa"><span>平均分攤</span><button type="button" class="btn btn--ghost btn-xs" id="pos-aa-open" ${cur.lines.some(l=>!l.credit_of)?'':'disabled'}>依人數分次收款…</button></div>`}
           <div class="pos-sum-disc" ${aa?'hidden':''}><span>折扣 ${POS_DISCOUNT?`<span class="pill pill-ok">${esc(discountText(POS_DISCOUNT))}</span> <button type="button" class="btn btn--ghost btn-xs" id="pos-disc-clear">移除</button>`:`<button type="button" class="btn btn--ghost btn-xs" id="pos-disc-open">${POS_DISC_OPEN?'收起':'加折扣'}</button>`}</span><span>${discount?'−'+num(discount):'—'}</span></div>
           ${discountUI}
