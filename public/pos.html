@@ -12,6 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/pos-ops.css">
+<link rel="stylesheet" href="/pos-members.css">
 <style>
   /* 平板 POS：單欄、頂欄分頁、48px 以上觸控目標；沿用 CIS token（/style.css）與 /pos-ops.css 的餐飲營運樣式 */
   :root{--p-top:60px}
@@ -158,6 +159,7 @@
 <script src="/pos-encouragement.js"></script>
 <script src="/pos-invoice-scan.js"></script>
 <script src="/pos-ops.js"></script>
+<script src="/pos-members.js"></script>
 <script src="/pos-icons.js"></script>
 <script>
 /* 平板 POS 子站（pos.emoji.tw）：只做餐飲現場的事——櫃檯結帳、出餐、估清、訂位、查單、日結、打卡、排班。
@@ -173,6 +175,7 @@ const num = n => Number(n || 0).toLocaleString('en-US');
 const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水' };
 const TABS = [
   { id:'pos', icon:'wallet',          label:'結帳' },
+  { id:'members', icon:'users', label:'會員' },
   { id:'orders', icon:'utensils',       label:'出餐' },
   { id:'soldout', icon:'ban',      label:'估清' },
   { id:'reservations', icon:'calendar', label:'訂位' },
@@ -184,7 +187,7 @@ const TABS = [
   { id:'shifts', icon:'users',       label:'排班' },
 ];
 // 員工管理（新增／編輯／停用、出勤修正）刻意不放平板：只在 admin.emoji.tw 品牌工作區「排班打卡」，現場人員改不到
-const PANEL = { pos:tabPos, orders:tabOrders, soldout:tabSoldOut, reservations:tabReservations, history:tabHistory, sales:tabSales, products:tabProducts, customers:tabCustomers, clock:tabClock, shifts:tabShifts };
+const PANEL = { pos:tabPos, members:tabPosMembers, orders:tabOrders, soldout:tabSoldOut, reservations:tabReservations, history:tabHistory, sales:tabSales, products:tabProducts, customers:tabCustomers, clock:tabClock, shifts:tabShifts };
 let toastT, DATA = null, TAB = 'pos', SCOPE = '', MENU_DOC = null, PENDING = 0;
 try { SCOPE = localStorage.getItem('tth_pos_scope') || ''; } catch (e) {}
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2400); }
@@ -377,12 +380,14 @@ function resetPanels(){
   // 換店別：清掉各分頁的快取簽章與初始化旗標，讓 pos-ops.js 重新繪製
   document.querySelectorAll('[data-panel] > [id]').forEach(h => { delete h.dataset.sig; delete h.dataset.init; h.innerHTML=''; });
   POS_TABLE=''; POS_PICK=null; POS_DISCOUNT=null; POS_RECEIVED=''; HIST_Q=''; CLOCK_PIN='';
+  POS_YAN={phone:'',name:'',balance:null};POS_MEMBER=false;resetPosMembers();
 }
 function activate(){
   startKitchenPrinting();
   document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('on', p.dataset.panel === TAB));
   clearTimeout(ORDERS_TIMER); clearTimeout(POS_TIMER);
   if (TAB === 'pos') loadPos();
+  else if (TAB === 'members') loadPosMembers();
   else if (TAB === 'orders') loadOrders();
   else if (TAB === 'soldout') loadSoldOut();
   else if (TAB === 'reservations') loadReservations();

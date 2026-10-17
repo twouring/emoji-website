@@ -4445,6 +4445,27 @@ app.get('/api/me/card', auth, requireDb, wrap(async (req, res) => {
   const payload = verifyAccessToken(token, secret);
   res.json({ token, exp: payload.exp, name: me.name || '', phone: me.phone_e164 || '' });
 }));
+app.get('/api/admin/yan/members', auth, adminOnly, requireDb, wrap(async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const limit = Number(req.query.limit ?? 25), offset = Number(req.query.offset ?? 0), search = String(req.query.q || '').trim();
+  if (!Number.isInteger(limit) || limit < 1 || limit > 50 || !Number.isInteger(offset) || offset < 0 || offset > 100000 || search.length > 80) return res.status(400).json({ error: '查詢條件不正確。' });
+  const pattern = '%' + search.replace(/[\\%_]/g, '\\$&') + '%';
+  const rows = (await q(`SELECT id,name,COALESCE(NULLIF(phone_e164,''),phone,'') AS phone FROM users
+    WHERE ($1='' OR name ILIKE $2 OR phone ILIKE $2 OR phone_e164 ILIKE $2 OR replace(phone_e164,'+886','0') ILIKE $2)
+    ORDER BY created_at DESC,id DESC LIMIT $3 OFFSET $4`, [search, pattern, limit + 1, offset])).rows;
+  res.json({ members: rows.slice(0, limit).map(u => ({ id: u.id, name: u.name || '', phone: u.phone || '' })), next_offset: rows.length > limit ? offset + limit : null });
+}));
+app.get('/api/admin/yan/members/:id', auth, adminOnly, requireDb, wrap(async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const limit = Number(req.query.limit ?? 25), offset = Number(req.query.offset ?? 0), id = String(req.params.id);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 50 || !Number.isInteger(offset) || offset < 0 || offset > 100000 || id.length > 64) return res.status(400).json({ error: '查詢條件不正確。' });
+  const user = (await q('SELECT id,name,phone,phone_e164 FROM users WHERE id=$1', [id])).rows[0];
+  if (!user) return res.status(404).json({ error: '找不到這位會員。' });
+  const rows = await yanRowsFor({ query: (...a) => q(...a) }, id);
+  const history = [...rows].sort((a,b) => new Date(b.created_at) - new Date(a.created_at) || String(b.id).localeCompare(String(a.id)));
+  const ledger = history.slice(offset, offset + limit).map(r => ({ id:r.id, kind:r.kind, delta:r.delta, brand:r.brand || '', reason:r.reason || '', operator_id:r.operator_id || '', operator_name:r.operator_name || '', created_at:r.created_at, expires_at:r.expires_at || null }));
+  res.json({ member:{ id:user.id, name:user.name || '', phone:user.phone_e164 || user.phone || '' }, active:!!deriveMemberAccess(await loadEntitlements(id)).active, balance:yan.balance(rows), ledger, next_offset:history.length > offset + limit ? offset + limit : null });
+}));
 app.post('/api/admin/yan/lookup', auth, adminOnly, requireDb, wrap(async (req, res) => {
   const token = String(req.body?.token || '').trim();
   const secret = process.env.ACCESS_QR_SECRET || SECRET;
@@ -4493,6 +4514,8 @@ app.post('/api/admin/yan/grant', auth, adminOnly, requireDb, wrap(async (req, re
 }));
 
 app.post('/api/admin/yan/redeem-space', auth, adminOnly, requireDb, wrap(async (req, res) => {
+  const operator = await resolveOperator(req, req.body?.operator_id);
+  if (!operator) return res.status(400).json({ error: '請先輸入 4 位數識別碼，兌換要記是誰操作的。' });
   const plan = String(req.body?.plan || ''), cost = yan.parseSpaceRewards(await contentValue('yan_rewards'))[plan];
   if (!cost) return res.status(400).json({ error: '這個空間方案沒有開放點數兌換（後台菜單頁可設定）。' });
   const userId = String(req.body?.user_id || '').trim().slice(0, 64);

@@ -157,7 +157,7 @@ test('兌換空間時數：扣點、單日會籍、只認掃碼確認的有效�
   assert.match(srv, /點數兌換請先掃會員條碼確認身分/);
   const ops = read('public/pos-ops.js');
   assert.doesNotMatch(ops, /id="pos-member"/, '不能再手動勾選聚落價');
-  assert.match(ops, /data-redeem/); assert.match(ops, /pos-yan-space/); assert.doesNotMatch(ops, /pos-yan-redeem/);
+  assert.match(ops, /data-redeem/); assert.match(read('public/pos-members.js'), /members-space/); assert.doesNotMatch(ops, /pos-yan-redeem/);
 });
 
 test('兌換列像折扣：日結／CSV 統計兌換點數與折抵；作廢還原；設定入口', () => {
@@ -195,8 +195,9 @@ test('手動給點：必填原因與經手人、1–1000、算入餘額且記錄
 });
 
 test('手動給點 API 與 POS 按鈕存在，且走操作者驗證', () => {
-  const srv = read('server.js'), pos = read('public/pos-ops.js');
+  const srv = read('server.js'), pos = read('public/pos-members.js');
   assert.match(srv, /\/api\/admin\/yan\/grant[\s\S]{0,400}resolveOperator/);
-  assert.match(pos, /pos-yan-grant/);
-  assert.match(pos, /admin\/yan\/grant[\s\S]{0,200}operator_id/);
+  assert.match(pos, /members-grant/);
+  assert.match(pos, /operator_id:OPERATOR\?\.id/);
+  assert.doesNotMatch(read('public/pos-ops.js'), /pos-yan-grant|pos-yan-space/);
 });

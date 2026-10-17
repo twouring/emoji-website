@@ -1,0 +1,19 @@
+/* 會員分頁：觸控優先；手機先名單後明細，平板左右並排。 */
+.members-tools{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:16px 0}
+#members-search{align-items:flex-end}
+.members-tools label{display:flex;flex:1 1 12rem;flex-direction:column;gap:8px}
+.members-tools input{min-height:48px;font-size:1rem;width:100%;box-sizing:border-box}
+.members-tools .btn,.members-card{min-height:48px;font-size:1rem}
+.members-layout{display:grid;grid-template-columns:minmax(240px,.7fr) minmax(0,1.3fr);gap:24px}
+.members-layout>section{min-width:0}
+.members-list{display:grid;gap:8px;max-height:65dvh;overflow:auto}
+.members-card{display:flex;align-items:flex-start;flex-direction:column;gap:8px;text-align:left;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--paper);color:var(--ink);cursor:pointer;overflow-wrap:anywhere}
+.members-card.on{border:2px solid var(--ok)}
+.members-detail{border:1px solid var(--line);border-radius:16px;padding:20px;overflow-wrap:anywhere}
+.members-balance b{font-size:2rem}
+.members-ledger{list-style:none;padding:0;margin:0}
+.members-ledger li{padding:16px 0;border-bottom:1px solid var(--line)}
+.members-ledger li>div{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px}
+.members-ledger p{margin:8px 0 0}
+.members-ledger time{display:block;margin-top:8px;font-size:1rem}
+@media(max-width:700px){.members-layout{grid-template-columns:minmax(0,1fr)}.members-list{max-height:35dvh}.members-detail{padding:16px}}
