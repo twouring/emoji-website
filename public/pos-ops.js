@@ -832,17 +832,25 @@ function bindCashDrawerButton(drawerBtn){if(drawerBtn)drawerBtn.onclick=()=>ensu
 function bindTableDrag(host){
   const floor=host.querySelector('.pos-floor-edit');if(!floor)return;
   const pct=n=>Math.max(0,Math.min(100,Math.round(n/2)*2)); // 吸附 2% 格，擺起來比較整齊
-  const read=()=>{const o={};for(const e of floor.querySelectorAll('[data-drag-table]'))o[e.dataset.dragTable]=[Number(e.dataset.x),Number(e.dataset.y)];return o;};
+  const read=()=>{const o={};for(const e of floor.querySelectorAll('[data-drag-table]'))o[e.dataset.dragTable]=e.dataset.w?[Number(e.dataset.x),Number(e.dataset.y),Number(e.dataset.w),Number(e.dataset.h)]:[Number(e.dataset.x),Number(e.dataset.y)];return o;};
   const exit=()=>{POS_EDIT=false;POS_EDIT_POS=null;host.dataset.sig='';paintPos();loadPos();};
   let drag=null;
   floor.addEventListener('pointerdown',ev=>{
     const el=ev.target.closest('[data-drag-table]');if(!el||ev.button>0)return;
     ev.preventDefault();el.setPointerCapture(ev.pointerId);
-    const r=el.getBoundingClientRect();drag={el,id:ev.pointerId,dx:ev.clientX-r.left,dy:ev.clientY-r.top};el.classList.add('dragging');
+    const r=el.getBoundingClientRect();
+    if(ev.target.closest('[data-rz]')){drag={el,id:ev.pointerId,rz:true,left:r.left,top:r.top};el.classList.add('dragging');return;}
+    drag={el,id:ev.pointerId,dx:ev.clientX-r.left,dy:ev.clientY-r.top};el.classList.add('dragging');
   });
   floor.addEventListener('pointermove',ev=>{
     if(!drag||ev.pointerId!==drag.id)return;
     const f=floor.getBoundingClientRect(),r=drag.el.getBoundingClientRect();
+    if(drag.rz){ // 拖右下角調整大小：寬高存畫布百分比，吸附 2%
+      const x=Number(drag.el.dataset.x),y=Number(drag.el.dataset.y);
+      const w=Math.max(10,Math.min(60,100-x,Math.round((ev.clientX-drag.left)/f.width*100/2)*2));
+      const h=Math.max(8,Math.min(60,100-y,Math.round((ev.clientY-drag.top)/f.height*100/2)*2));
+      drag.el.dataset.w=w;drag.el.dataset.h=h;drag.el.style.width=w+'%';drag.el.style.height=h+'%';return;
+    }
     const maxX=100-r.width/f.width*100,maxY=100-r.height/f.height*100;
     const x=Math.min(pct((ev.clientX-drag.dx-f.left)/f.width*100),Math.floor(Math.max(0,maxX)));
     const y=Math.min(pct((ev.clientY-drag.dy-f.top)/f.height*100),Math.floor(Math.max(0,maxY)));
@@ -928,11 +936,11 @@ function paintPos(){
     const [cls,label]=TABLE_STATE[s.state]||TABLE_STATE.open;return `<button type="button" class="pos-table ${s.placed?'is-placed':''} ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''} ${s.pay_requests?.length?'payreq':''} ${idleWarn(s)?'idlewarn':''}" data-pos-table="${esc(s.table)}"><b>${s.takeout?'外帶 ':''}${esc(s.table)}</b><span class="pill ${cls}">${label}</span>${s.pickup_at?`<small class="pos-resv"><span class="pos-resv-tag">預約取餐</span> ${esc(clockText(s.pickup_at))}${s.pickup_placed?'':'（時間到自動送單）'}${s.pickup_note?' · '+esc(s.pickup_note):''}</small>`:''}${idleWarn(s)?`<small class="pos-idlewarn-tag">⚠ 還沒點餐 ${elapsedText(s.created_at)}</small>`:`<small>${s.unpaid?`未結 NT$${num(s.unpaid_amount)}`:s.state==='empty'?'還沒點餐':'已結清'}</small>`}${s.pay_requests?.length?`<small class="pos-payreq-tag">💳 要結帳 ${s.pay_requests.map(r=>esc(r.name)).join('、')}</small>`:''}${s.mixed?'<small class="pill pill-bad">混桌</small>':''}${resvHtml(s.table)}</button>`;
   };
   const grid=slots.map(cardHtml).join('');
-  const floor=placed.length?`<div class="pos-floor">${placed.map(t=>`<div class="pos-floor-slot" style="left:${layoutPos[t][0]}%;top:${layoutPos[t][1]}%">${cardHtml(byTable.get(t)||{table:t,empty:true})}</div>`).join('')}</div>`:'';
+  const floor=placed.length?`<div class="pos-floor">${placed.map(t=>`<div class="pos-floor-slot${layoutPos[t][2]?' is-sized':''}" style="left:${layoutPos[t][0]}%;top:${layoutPos[t][1]}%${layoutPos[t][2]?`;width:${layoutPos[t][2]}%;height:${layoutPos[t][3]}%`:''}">${cardHtml(byTable.get(t)||{table:t,empty:true})}</div>`).join('')}</div>`:'';
 
   if(POS_EDIT){
     const pos=defaultTablePos(baseNames,layoutPos);
-    const cards=baseNames.map(t=>{const s=byTable.get(t);const [x,y]=pos[t];return `<div class="pos-table pos-drag" data-drag-table="${esc(t)}" data-x="${x}" data-y="${y}" style="left:${x}%;top:${y}%" role="listitem" aria-label="桌 ${esc(t)}，按住拖到現場位置"><b>${esc(t)}</b><span class="pill ${s?'pill-wait':'pill-draft'}">${s?'使用中':'空桌'}</span></div>`;}).join('');
+    const cards=baseNames.map(t=>{const s=byTable.get(t);const [x,y,w,h]=pos[t];return `<div class="pos-table pos-drag" data-drag-table="${esc(t)}" data-x="${x}" data-y="${y}" ${w?`data-w="${w}" data-h="${h}"`:''} style="left:${x}%;top:${y}%${w?`;width:${w}%;height:${h}%`:''}" role="listitem" aria-label="桌 ${esc(t)}，按住拖到現場位置，拖右下角調整大小"><b>${esc(t)}</b><span class="pill ${s?'pill-wait':'pill-draft'}">${s?'使用中':'空桌'}</span><i class="pos-rz" data-rz aria-label="拖曳調整大小"></i></div>`;}).join('');
     host.innerHTML=`<div class="pos-layout"><div class="a-sec pos-tables pos-editing"><div class="ops-head"><h2>編輯桌位擺放</h2></div><p class="hint">按住桌號自由拖到跟現場一樣的位置（可以不排排站）；完成後全店 iPad 都會套用。</p><div class="pos-floor pos-floor-edit" style="min-height:${Math.max(520,Math.ceil(baseNames.length/4)*130)}px" role="list">${cards}</div><div class="pos-open"><button type="button" class="btn btn--solid" id="pos-edit-done">完成</button><button type="button" class="btn btn--ghost" id="pos-edit-reset">還原預設格子</button><button type="button" class="btn btn--ghost" id="pos-edit-cancel">取消</button></div></div></div>`;
     bindTableDrag(host);return;
   }

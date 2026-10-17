@@ -5074,8 +5074,10 @@ function tableLayoutParse(v){
   try{
     const o=JSON.parse(v||'{}'),order=Array.isArray(o)?o:(Array.isArray(o?.order)?o.order:[]),pos={};
     for(const [k,xy] of Object.entries(o?.pos||{}).slice(0,200)){
-      if(!/^[A-Za-z0-9-]{1,8}$/.test(k)||!Array.isArray(xy)||xy.length!==2)continue;
-      const [x,y]=xy;if(typeof x==='number'&&typeof y==='number'&&Number.isFinite(x)&&Number.isFinite(y)&&x>=0&&x<=100&&y>=0&&y<=100)pos[k]=[x,y];
+      if(!/^[A-Za-z0-9-]{1,8}$/.test(k)||!Array.isArray(xy)||(xy.length!==2&&xy.length!==4))continue;
+      const ok=(n,lo,hi)=>typeof n==='number'&&Number.isFinite(n)&&n>=lo&&n<=hi;
+      // [x,y] 位置；[x,y,w,h] 另含桌牌寬高（皆為畫布百分比，供平板拖角調整大小）
+      if(ok(xy[0],0,100)&&ok(xy[1],0,100)&&(xy.length===2||(ok(xy[2],8,60)&&ok(xy[3],6,60))))pos[k]=xy.slice();
     }
     return {order:[...new Set(order.filter(k=>typeof k==='string'&&/^[A-Za-z0-9-]{1,8}$/.test(k)))].slice(0,200),pos};
   }catch(e){return {order:[],pos:{}};}

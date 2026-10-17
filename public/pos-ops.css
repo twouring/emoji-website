@@ -442,6 +442,10 @@ tr.lp-refund td{color:var(--danger)}
 .pos-floor-slot .pos-table,.pos-floor-slot .pos-table.empty{width:100%;background:var(--card)}
 .pos-floor-edit{touch-action:none;user-select:none;-webkit-user-select:none}
 .pos-floor-edit .pos-drag{position:absolute;width:23%;cursor:grab;border:2px dashed var(--ink);background:var(--card);touch-action:none;min-height:92px}
+.pos-floor-edit .pos-drag{box-sizing:border-box}
+.pos-floor-edit .pos-rz{position:absolute;right:-2px;bottom:-2px;width:44px;height:44px;border-radius:12px 0 8px 0;background:var(--ink);opacity:.85;cursor:nwse-resize;touch-action:none}
+.pos-floor-edit .pos-rz::after{content:'';position:absolute;right:9px;bottom:9px;width:14px;height:14px;border-right:3px solid var(--card);border-bottom:3px solid var(--card)}
+.pos-floor-slot.is-sized{display:flex}.pos-floor-slot.is-sized .pos-table{height:100%}
 .pos-floor-edit .pos-drag.dragging{z-index:5;opacity:.9;box-shadow:0 8px 24px rgba(0,0,0,.25);cursor:grabbing}
 .pos-editing .hint{margin:0 0 12px}
 

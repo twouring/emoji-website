@@ -10,3 +10,6 @@ test('桌位排列存伺服器並隨 /admin/orders 回傳',()=>{
   assert.match(srv,/app\.post\('\/api\/admin\/orders\/table-layout'/);assert.match(srv,/table_layout:tableLayoutParse/);
   assert.match(api,/POST \/api\/admin\/orders\/table-layout/);assert.match(srv,/req\.body\?\.pos/);
 });
+test('桌位可拖右下角調整大小，寬高隨 [x,y,w,h] 儲存',()=>{
+  assert.match(js,/data-rz/);assert.match(js,/drag\.rz/);assert.match(srv,/xy\.length!==4/);
+});
