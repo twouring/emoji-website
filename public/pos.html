@@ -380,7 +380,7 @@ function render(){
 
 /* 訂位待確認數：頂欄紅點，每 60 秒更新 */
 async function refreshPending(){
-  try { const d = await api('/admin/reservations?days=7' + (SCOPE ? '&venue=' + SCOPE : '')); PENDING = d.pending || 0; } catch (e) { PENDING = 0; }
+  try { const d = await api('/admin/reservations?days=7'); PENDING = d.pending || 0; } catch (e) { PENDING = 0; }
   const b = document.querySelector('#p-nav [data-tab=reservations]'); if (b) b.innerHTML = POSIcon('calendar') + '訂位' + (PENDING ? `<span class="badge">${PENDING}</span>` : '');
 }
 setInterval(() => { if (DATA) refreshPending(); }, 60000);

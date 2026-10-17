@@ -5597,7 +5597,7 @@ app.post('/api/admin/sales/linepay/import',auth,adminOnly,superOnly,requireDb,wr
 }));
 /* 訂位：依日期列出（餐飲子帳號只看自己時段的）、改狀態（確認／婉拒會寄信給留 Email 的客人）、排桌與店內備註 */
 app.get('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
+  const venues=null;   // 訂位是整間店共用：任何店別的帳號都能看與處理全部時段
   const from=/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from||''))?String(req.query.from):new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Taipei'});
   const days=Math.min(60,Math.max(1,Number(req.query.days)||7));
   const rows=(await q(`SELECT id,request_id,to_char(reserve_date,'YYYY-MM-DD') AS reserve_date,reserve_time,period,party_size,name,phone,email,note,source,status,table_no,staff_note,COALESCE((SELECT name FROM pos_staff ps WHERE 'staff:'||ps.id=handled_by),handled_by) AS handled_by,created_at,updated_at FROM dining_reservations WHERE reserve_date>=$1::date AND reserve_date<$1::date+$2::int AND deleted_at IS NULL ORDER BY reserve_date,reserve_time`,[from,days])).rows
@@ -5608,7 +5608,7 @@ app.get('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=>
 /* 櫃檯登記訂位（電話／現場）：與 /api/reservations 同一套驗證，但 Email 可留空、不擋 30 分鐘內的時段；有 Email 才寄確認信 */
 app.post('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   let r;try{r=reservations.normalizeReservation({...req.body,lang:'zh',source:'pos'},new Date(),{staff:true});}catch(e){return res.status(e.status||400).json({error:e.message});}
-  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const venues=null;   // 同上：訂位不分店別權限
   if(venues&&!venues.includes(tableOrders.reservationVenue(r.time)))return res.status(403).json({error:'只能登記自己店別時段的訂位。'});
   const tableNo=tableOrders.cleanText(req.body?.table_no,8).toUpperCase();
   if(tableNo&&!tableOrders.TABLE_RE.test(tableNo))return res.status(400).json({error:'桌號只能用英數字與 -，最長 8 字。'});
@@ -5620,7 +5620,7 @@ app.post('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=
   res.status(201).json({ok:true,id,request_id:requestId,venue:tableOrders.reservationVenue(r.time),mailed:!!r.email});
 }));
 app.post('/api/admin/reservations/:id/status',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const venues=null;   // 同上：訂位不分店別權限
   const r=(await q(`SELECT id,request_id,to_char(reserve_date,'YYYY-MM-DD') AS reserve_date,reserve_time,period,party_size,name,phone,email,status,table_no FROM dining_reservations WHERE id=$1`,[String(req.params.id)])).rows[0];
   if(!r||(venues&&!venues.includes(tableOrders.reservationVenue(r.reserve_time))))return res.status(404).json({error:'找不到這筆訂位。'});
   let next;try{next=tableOrders.reservationTransition(r.status,String(req.body?.status||''));}catch(e){return res.status(e.status||400).json({error:e.message});}
@@ -5633,7 +5633,7 @@ app.post('/api/admin/reservations/:id/status',auth,adminOnly,requireDb,wrap(asyn
 }));
 /* 修改訂位資訊（客人來電改日期／時間／人數／姓名／電話／Email／備註）：驗證同櫃檯登記（staff:true），語言與來源沿用原紀錄；不自動寄信通知客人 */
 app.patch('/api/admin/reservations/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const venues=null;   // 同上：訂位不分店別權限
   const cur=(await q(`SELECT id,reserve_time,lang,source FROM dining_reservations WHERE id=$1`,[String(req.params.id)])).rows[0];
   if(!cur||(venues&&!venues.includes(tableOrders.reservationVenue(cur.reserve_time))))return res.status(404).json({error:'找不到這筆訂位。'});
   let r;try{r=reservations.normalizeReservation({date:req.body?.date,time:req.body?.time,party_size:req.body?.party_size,name:req.body?.name,phone:req.body?.phone,email:req.body?.email,note:req.body?.note,lang:cur.lang,source:cur.source},new Date(),{staff:true});}catch(e){return res.status(e.status||400).json({error:e.message});}
@@ -5643,7 +5643,7 @@ app.patch('/api/admin/reservations/:id',auth,adminOnly,requireDb,wrap(async(req,
 }));
 /* 刪除訂位（含已取消）：客人取消後不想再留在畫面上。軟刪除（deleted_at），列表一律過濾掉，保留紀錄供日後查帳。 */
 app.delete('/api/admin/reservations/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const venues=null;   // 同上：訂位不分店別權限
   const r=(await q(`SELECT id,reserve_time FROM dining_reservations WHERE id=$1 AND deleted_at IS NULL`,[String(req.params.id)])).rows[0];
   if(!r||(venues&&!venues.includes(tableOrders.reservationVenue(r.reserve_time))))return res.status(404).json({error:'找不到這筆訂位。'});
   await q('UPDATE dining_reservations SET deleted_at=now() WHERE id=$1',[r.id]);
