@@ -37,9 +37,21 @@
 - UPDATE 再驗綁定 LINE、未刪除、new / confirmed、日期未過；無權、已取消、已到店、no_show 拒絕。重送取消不重複成功。
 - POS 的 `GET /api/admin/reservations` 讀同表，下次重新整理／既有輪詢即顯示 cancelled（非新增即時 WebSocket）。測試以 PostgreSQL 引擎取消後實際呼叫 POS HTTP API 驗證。
 
-## LINE Pay extras.addFriends：已查證，但本專案沒有可掛載的付款 request
+## LINE Pay 加好友：已在現有 QR 商家後台完成綁定
 
-程式盤點：`lib/linepay.js` 是 Puppeteer 登入商家後台，再讀 `merchant-paymoney.line.me/mrc/merchant/payment/transactions` 做日結對帳；不是付款 API。POS 的「LINE Pay」是登記收款方式。repo 目前沒有 LINE Pay `/v2/payments/request`、`/v3/payments/request` 或 `/v2/payments/oneTimeKeys/pay` request，因此**本次不捏造可用付款流程，也不把 addFriends 塞進對帳 API**。
+父代理已透過使用者登入的 LINE Pay 商家中心完成「管理基本資訊 → 綁定 LINE 官方帳號 → 輸入 `@338ymhys` → 設定 → 確認」。頁面先顯示「套用成功」、再顯示「儲存成功」；重新讀取帳戶資訊後，已列出：
+
+- 官方帳號：`@338ymhys`
+- 狀態：`UNVERIFIED`
+- 名稱：`言文字 Emoji｜咖啡．酒吧．共享空間`
+
+商家頁面明確說明「付款完成後新增 LINE@ 好友」，且設定會即時套用付款頁面。因此現有商家 QR 付款已完成所需的加好友邀請設定，**不需要為這項需求新增 Offline 扣款 API**。`UNVERIFIED` 為頁面回讀的原始狀態，不冒稱已通過認證。
+
+**已驗證範圍**：商家設定成功且重新讀取仍有綁定資料。**尚未驗證**：真實客人付款後的畫面與加入好友結果；沒有對客人扣款或建立試交易。是否加入好友由客人自行選擇，不等於已完成會員綁定。
+
+既有 `lib/linepay.js` 商家對帳與 POS「LINE Pay」手動記帳保持原本用途；不因上述商家設定而自動向客人扣款。**2026-10-17 使用者已推翻先前停止擴充決定，要求全部處理合併**：Offline API 改為整合進最新 `origin/main` 的本機 merge commit，保留 `feat/linepay-addfriends` 祖先；此次仍不推送、不部署、不啟用、不做真實付款。缺少獨立 API 憑證、環境、啟用旗標或 v2 商家權限一律拒絕新增收款，sandbox 不可沖銷正式帳單。
+
+以下是已整合程式的 API 版本依據，**不代表現有 QR 付款已呼叫 API，亦不表示已取得商家收款許可**。持久去重、未知結果、人工對帳與驗證限制詳見 `docs/LINEPAY-ADDFRIENDS.md`。
 
 官方已驗證的 `extras.addFriends` 是 object array（不是裸字串陣列），例如：
 
@@ -53,12 +65,12 @@
 }
 ```
 
-`idList` 的官方帳號須先在 LINE Pay 商家中心註冊／關聯；不是填入任何帳號就能生效。這只是未來串接時的格式說明，**不是已送出的 request**。若將來採用 Online v3，應依該版 options 結構重新確認，不能把舊版 extras 直接當成 v3 top-level 欄位。加好友提示也不等於使用者同意或完成會員綁定。
+`idList` 的官方帳號須先在 LINE Pay 商家中心註冊／關聯；不是填入任何帳號就能生效。Offline v2 request 已依新決策納入本機合併準備，沒有推送、部署或送出實際交易。若未來另案需要 Online v3 或 Offline v2.4／v4，應先取得該版支援規格，不能把舊版 extras 直接套用。現有 QR 商家付款的邀請已透過後台綁定設定，不依賴這個新增 API。
 
 官方來源（查證於2026-10-16）：
 
 1. [LINE Pay 整合指南 v1.1.2，Extra fields / extras.addFriends](https://pay.line.me/file/guidebook/technicallinking/LINE_Pay_Integration_Guide_for_Merchant-v1.1.2-TW.pdf)：object[]、`type: LINE_AT`、`idList`、需商家中心註冊的官方帳號。
-2. [Offline Payment request](https://developers-pay.line.me/offline-api/request-payment)：`POST /v2/payments/oneTimeKeys/pay` 的 extras 示例。
+2. [Offline v2 Payment request](https://developers-pay.line.me/offline-api-v2/request-payment)：`POST /v2/payments/oneTimeKeys/pay` 的 extras 示例。
 3. [Online v3 付款請求](https://developers-pay.line.me/zh/online-api-v3/request-payment)：`POST /v3/payments/request` 使用 options / packages / redirectUrls，不能以舊版範例捏造。
 4. [Messaging API retry key](https://developers.line.biz/en/docs/messaging-api/retrying-api-request/)：持久 retry key、24h有效期與409 accepted request。
 
