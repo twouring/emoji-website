@@ -9,7 +9,7 @@ function tabReservations(){ return '<div class="a-sec" id="resv-body"></div>'; }
 function tabSales(){ return '<div class="a-sec" id="sales-body"></div>'; }
 function tabHistory(){ return '<div class="a-sec" id="history-body"></div>'; }
 function tabLogs(){ return '<div class="a-sec" id="logs-body"></div>'; }
-let ORDERS_TIMER=null,ORDERS_SEEN=null,PAYREQ_SEEN=null,POS_PAYREQ=null,POS_AA=null,POS_TIMER=null,POS_DATA=null,POS_TABLE='',POS_PICK=null,POS_QTY={},POS_SPLIT={},POS_MEMBER=false,POS_YAN={phone:'',name:'',balance:null},POS_INVOICE={mode:'paper'},POS_METHOD='cash',POS_CAT='',POS_DISCOUNT=null,POS_DISC_OPEN=false,POS_RECEIVED='',RESV_FROM='',RESV_DAYS=7,RESV_EDIT=null,SALES_DAY='',HIST_DAY='',HIST_Q='',REG_DATA=null,REG_CASH_OPEN=false,REG_CLOSE_OPEN=false,REG_COUNT_OPEN=false,REG_OPEN_FORM='',CLOCK_PIN='',CLOCK_MSG=null,SHIFT_WEEK='',SHIFT_FORM={},ATT_FROM='',ATT_TO='',STAFF_EDIT=null;
+let ORDERS_TIMER=null,ORDERS_SEEN=null,PAYREQ_SEEN=null,POS_PAYREQ=null,POS_AA=null,POS_TIMER=null,POS_DATA=null,POS_TABLE='',POS_PICK=null,POS_QTY={},POS_SPLIT={},POS_MEMBER=false,POS_YAN={phone:'',name:'',balance:null},POS_INVOICE={mode:'paper'},POS_METHOD='cash',POS_CAT='',POS_DISCOUNT=null,POS_DISC_OPEN=false,POS_RECEIVED='',RESV_FROM='',RESV_DAYS=7,RESV_EDIT=null,SALES_DAY='',HIST_DAY='',HIST_Q='',HIST_OPEN=new Set(),REG_DATA=null,REG_CASH_OPEN=false,REG_CLOSE_OPEN=false,REG_COUNT_OPEN=false,REG_OPEN_FORM='',CLOCK_PIN='',CLOCK_MSG=null,SHIFT_WEEK='',SHIFT_FORM={},ATT_FROM='',ATT_TO='',STAFF_EDIT=null;
 const CHECKOUT_TIP='<b>這桌的帳</b><br>品項依點餐人分組；勾選左邊決定這次結哪些，組頭「只結這組」＝各付各的，「依人數分次收款」＝平均分攤；可分多次收款，全部結清自動清桌。數量旁「−／＋」改份數，品項有「本次結」可只結幾份。<br>'
  +'<b>＋ 加點</b>：展開菜單點品項，備註可點常用的。送單後會出現在「出餐」。<br>'
  +'<b>換桌／併桌、清桌</b>：搬到別桌或合併；客人走了、沒有未結帳的品項才清桌。<br>'
@@ -1203,27 +1203,43 @@ async function loadHistory(){
   if(!host.dataset.init){host.dataset.init='1';host.innerHTML='<h2>查單</h2><p class="hint">載入中…</p>';}
   let d;try{d=await api(`/admin/orders/history?day=${encodeURIComponent(HIST_DAY)}&q=${encodeURIComponent(HIST_Q)}`+(SCOPE?'&venue='+SCOPE:''));}catch(e){host.innerHTML=`<h2>查單</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`;return;}
   const today=MenuLib.businessDay();
-  // 一單一卡：卡頭＝桌號／時間／單號尾碼＋金額＋狀態；品項逐行（規格拆標籤、多人點餐才逐行標點餐人）；付款與發票一行；主要鍵「補印收據明細」，其餘收進「⋯」
+  // 查單＝確認訂單狀態：一單一列的摘要表（時間／桌號／單號／品項／付款／發票／金額／狀態），點一列才展開詳情與操作鍵；展開狀態記在 HIST_OPEN，操作後重載仍保持展開
   const histState=o=>{const p=o.payer||{};if(o.status==='void')return `<span class="pill pill-bad">已作廢</span>`;if(p.prepay)return `<span class="pill pill-wait">部分付款</span>`;return `<span class="pill pill-ok">已結帳</span>`;};
+  const histInvShort=o=>{const inv=o.invoice||{};if(inv.status==='failed')return '<span class="pill pill-bad">發票失敗</span>';if(inv.requested&&!['issued','void'].includes(inv.status))return '<span class="pill pill-wait">待補開</span>';if(inv.status==='issued')return `<span class="a-mono">${esc(inv.number||'已開立')}</span>`;if(inv.status==='void')return '<span class="hint hint--tight">已作廢</span>';return '<span class="hint hint--tight">未開</span>';};
   const histLine=(l,multiBy)=>{const tags=specParts(l).map(t=>`<span class="ops-spec ops-spec-${t.kind} ops-spec-${t.tone}">${t.kind==='custom'?'※ ':''}${esc(t.text)}</span>`).join('');const flag=l.cancelled?'已取消':l.comp_reason?'贈送':l.redeem_points>0?'點數兌換':'';const sub=Number.isFinite(Number(l.price))?(l.cancelled?`<s>${num(Number(l.price)*l.qty)}</s>`:num(Number(l.price)*l.qty)):'';return `<li class="hist-line${l.cancelled?' is-off':''}"><span class="hist-qty${l.qty>1?' many':''}">×${l.qty}</span><span class="hist-name"><b>${esc(l.zh)}</b>${flag?` <span class="pill pill-draft">${flag}</span>`:''}${tags?`<span class="ops-specs">${tags}</span>`:''}${multiBy&&l.by?`<span class="hint hint--tight">由 ${esc(l.by)} 點</span>`:''}</span><span class="hist-sub">${sub}</span></li>`;};
-  const histActions=(o,allowVoid)=>{const canPay=allowVoid&&o.status!=='void'&&!o.payer?.prepay&&!o.tappay?.rec_trade_id;const more=[canPay?`<button class="btn btn--ghost btn-sm" data-paymethod="${esc(o.id)}">改付款方式</button>`:'',o.status==='void'?'':`<button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">補印出餐單</button>`,o.status!=='void'&&allowVoid?`<button class="btn btn--ghost btn--danger btn-sm" data-void="${esc(o.id)}">作廢</button>`:''].filter(Boolean).join('');return `<div class="hist-actions"><button class="btn btn--solid btn-sm" data-receipt="${esc(o.id)}">補印收據明細</button>${o.invoice?.status==='issued'?`<button class="btn btn--ghost btn-sm" data-invoice-print="${esc(o.id)}">補印發票</button>`:''}${more?`<details class="ops-more"><summary class="btn btn--ghost btn-sm" aria-label="更多操作">更多 ⋯</summary><div class="ops-btns">${more}</div></details>`:''}</div>`;};
-  const cards=d.orders.map(o=>{
+  const histActions=(o,allowVoid)=>{const canPay=allowVoid&&o.status!=='void'&&!o.payer?.prepay&&!o.tappay?.rec_trade_id;return `<div class="hist-actions"><button class="btn btn--solid btn-sm" data-receipt="${esc(o.id)}">補印收據明細</button>${o.invoice?.status==='issued'?`<button class="btn btn--ghost btn-sm" data-invoice-print="${esc(o.id)}">補印發票</button>`:''}${o.status==='void'?'':`<button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">補印出餐單</button>`}${canPay?`<button class="btn btn--ghost btn-sm" data-paymethod="${esc(o.id)}">改付款方式</button>`:''}${o.status!=='void'&&allowVoid?`<button class="btn btn--ghost btn--danger btn-sm" data-void="${esc(o.id)}">作廢</button>`:''}</div>`;};
+  const rows=d.orders.map(o=>{
     const lines=(o.items||[]).filter(l=>!l.prepay&&!l.credit_of);
+    const live=lines.filter(l=>!l.cancelled);
     const bys=[...new Set(lines.map(l=>l.by).filter(Boolean))];
     const red=redeemOf(o),p=o.payer||{};
     const flow=o.status==='void'?'':ORDER_STATE[o.status]?`出餐：${ORDER_STATE[o.status]}`:'';
     const meta=[bys.length?`點餐 ${bys.map(esc).join('、')}`:'',p.operator_name?`收銀 ${esc(p.operator_name)}`:'',flow].filter(Boolean).join(' · ');
-    return `<article class="hist-card${o.status==='void'?' is-void':''}"><div class="hist-head"><b class="hist-table">${isTakeoutNo(o.table_no)?'<small>外帶</small>':''}${esc(o.table_no)}</b><span class="hist-time a-mono" title="${esc(applicationTime(o.paid_at))}">${esc(clockText(o.paid_at))}</span><span class="hist-id a-mono">#${esc(String(o.id).slice(-4).toUpperCase())}</span>${histState(o)}<b class="hist-amount">NT$ ${num(o.amount)}</b></div>
+    const summary=live.length?live.slice(0,2).map(l=>`${esc(l.zh)}×${l.qty}`).join('、')+(live.length>2?` 等 ${live.length} 項`:''):'（無品項）';
+    const open=HIST_OPEN.has(o.id),id=esc(o.id);
+    return `<tr class="hist-row${o.status==='void'?' is-void':''}${open?' is-open':''}" data-hist-row="${id}" tabindex="0" role="button" aria-expanded="${open}">
+      <td class="hist-time a-mono" title="${esc(applicationTime(o.paid_at))}">${esc(clockText(o.paid_at))}</td>
+      <td class="hist-table">${isTakeoutNo(o.table_no)?'<small>外帶</small>':''}<b>${esc(o.table_no)}</b></td>
+      <td class="hist-id a-mono">#${esc(String(o.id).slice(-4).toUpperCase())}</td>
+      <td class="hist-items">${summary}</td>
+      <td class="hist-paycol">${esc(payText(o))}</td>
+      <td class="hist-invcol">${histInvShort(o)}</td>
+      <td class="hist-amount">${num(o.amount)}</td>
+      <td class="hist-state">${histState(o)}<span class="hist-chev" aria-hidden="true"></span></td></tr>
+      <tr class="hist-detail" data-hist-detail="${id}"${open?'':' hidden'}><td colspan="8"><div class="hist-card${o.status==='void'?' is-void':''}">
       <ul class="hist-lines">${lines.map(l=>histLine(l,bys.length>1)).join('')||'<li class="hint">（無品項）</li>'}</ul>
       ${p.discount?`<div class="hint hint--tight">折扣 ${esc(discountText(p.discount))}</div>`:''}${red.points?`<div class="hint hint--tight">點數兌換 ${num(red.points)} 點　折抵 −${num(red.value)}</div>`:''}
       ${o.status==='void'?`<div class="hist-void">作廢原因：${esc(o.void_reason||'未填')}${o.voided_by?' · '+esc(o.voided_by):''}</div>`:''}
-      <div class="hist-pay"><span>${esc(payText(o))}${p.member?' · 聚落價':''}</span><span class="hist-inv">${invoiceHtml(o)}</span></div>
-      ${meta?`<div class="hint hint--tight hist-meta">${meta}</div>`:''}
-      ${histActions(o,MenuLib.businessDay(o.paid_at)===today)}</article>`;}).join('')||'<p class="a-empty">這天沒有符合的單</p>';
-  host.innerHTML=`<div class="ops-head"><h2>查單</h2>${opsHelp('找某一筆已結帳的單：重印收據明細、補開發票、改付款方式、或作廢退款（只能改／作廢當個營業日的單，作廢後品項退回該桌未結帳）。')}</div>
+      <div class="hist-pay"><span>${esc(payText(o))}${p.member?' · 聚落價':''}${p.received!=null?`　實收 ${num(p.received)}　找零 ${num(p.change)}`:''}</span><span class="hist-inv">${invoiceHtml(o)}</span></div>
+      <div class="hint hint--tight hist-meta">${[esc(applicationTime(o.paid_at)),`單號 ${id}`,meta].filter(Boolean).join(' · ')}</div>
+      ${histActions(o,MenuLib.businessDay(o.paid_at)===today)}</div></td></tr>`;}).join('');
+  const table=rows?`<table class="hist-sheet"><thead><tr><th>時間</th><th>桌號</th><th>單號</th><th>品項</th><th>付款</th><th>發票</th><th class="hist-amount">金額</th><th>狀態</th></tr></thead><tbody>${rows}</tbody></table>`:'<p class="a-empty">這天沒有符合的單</p>';
+  host.innerHTML=`<div class="ops-head"><h2>查單</h2>${opsHelp('確認每一筆單的狀態：一單一列，點一下展開品項與操作（補印收據明細、補開發票、改付款方式、作廢退款；只能改／作廢當個營業日的單，作廢後品項退回該桌未結帳）。')}</div>
     <div class="a-toolbar"><label>營業日 <input type="date" id="hist-day" value="${esc(d.day)}"></label><button class="btn btn--ghost btn-sm" id="hist-today">今天</button><input id="hist-q" placeholder="桌號／金額／發票號碼" value="${esc(HIST_Q)}" style="min-width:200px" aria-label="搜尋"><button class="btn btn--solid btn-sm" id="hist-go">搜尋</button><button type="button" class="btn btn--ghost btn-sm" id="hist-scan">掃發票找單／作廢</button><span class="hint hint--end">${num(d.count)} 單</span></div>
-    <div class="hist-list">${cards}</div>`;
-  host.querySelector('#hist-day').onchange=e=>{HIST_DAY=e.target.value||MenuLib.businessDay();loadHistory();};
+    <div class="hist-list">${table}</div>`;
+  const toggle=tr=>{const id=tr.dataset.histRow,det=host.querySelector(`[data-hist-detail="${CSS.escape(id)}"]`);const open=!HIST_OPEN.has(id);if(open)HIST_OPEN.add(id);else HIST_OPEN.delete(id);tr.classList.toggle('is-open',open);tr.setAttribute('aria-expanded',String(open));if(det)det.hidden=!open;};
+  host.querySelectorAll('[data-hist-row]').forEach(tr=>{tr.onclick=()=>toggle(tr);tr.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle(tr);}};});
+  host.querySelector('#hist-day').onchange=e=>{HIST_OPEN.clear();HIST_DAY=e.target.value||MenuLib.businessDay();loadHistory();};
   host.querySelector('#hist-today').onclick=()=>{HIST_DAY=MenuLib.businessDay();loadHistory();};
   const search=()=>{const raw=host.querySelector('#hist-q').value.trim();HIST_Q=PosInvoiceScan.parse(raw)||raw;loadHistory();};
   host.querySelector('#hist-go').onclick=search;

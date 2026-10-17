@@ -28,13 +28,13 @@ test('未連接 Star、QR 失敗及列印失敗均不宣稱實體出紙成功',a
     assert.equal(calls.filter(c=>c[0]==='send').length,scenario.success===false?1:0);
   }
 });
-test('桌位專屬 QR 自動查詢該桌，保留批次入口與新版查單卡片',()=>{
+test('桌位專屬 QR 自動查詢該桌，保留批次入口；查單一單一列、點開看詳情與操作',()=>{
   assert.match(ops,/if\(typeof table==='string'\)return openOneTableQr\(table\)/);
   assert.match(ops,/async function openOneTableQr\(table\)/);
   assert.match(ops,/api\('\/admin\/tables\/qr\?tables='\+encodeURIComponent\(table\)\)/);
   assert.match(ops,/await printTableQr\(t.table,t.url\)/);
   assert.match(ops,/pb.disabled=true/);assert.match(ops,/finally\{pb.disabled=false/);
-  assert.ok(ops.includes('class="hist-list"'));assert.doesNotMatch(ops,/hist-tbl/);
+  assert.ok(ops.includes('class="hist-list"'));assert.ok(ops.includes('<table class="hist-sheet">'));assert.match(ops,/data-hist-row=/);assert.match(ops,/data-hist-detail=/);
 });
 test('POS 圖示 script 與導覽圖示接線，未知名稱不能注入 SVG',()=>{
   const html=read('public/pos.html');assert.match(html,/<script src="\/pos-icons.js"><\/script>/);

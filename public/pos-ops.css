@@ -450,24 +450,45 @@ tr.lp-refund td{color:var(--danger)}
 .pos-floor-edit .pos-drag.dragging{z-index:5;opacity:.9;box-shadow:0 8px 24px rgba(0,0,0,.25);cursor:grabbing}
 .pos-editing .hint{margin:0 0 12px}
 
-/* 查單卡片：一單一卡，卡頭桌號／時間／狀態／金額，品項逐行，主鍵「補印收據明細」，其餘收進「更多」 */
-.hist-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;align-items:start}
-.hist-card{display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
-.hist-card.is-void{background:var(--paper-alt);border-color:var(--danger-line)}.hist-card.is-void .hist-lines{opacity:.6}
-.hist-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
-.hist-table{font-size:1.6rem;line-height:1}.hist-table small{font-size:1rem;margin-right:4px;color:var(--muted)}
-.hist-time,.hist-id{color:var(--muted);font-size:1rem}.hist-amount{margin-left:auto;font-size:1.3rem;font-variant-numeric:tabular-nums}
-.hist-lines{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border-top:1px solid var(--line)}
+/* 查單表格：一單一列（時間／桌號／單號／品項／付款／發票／金額／狀態），點列展開詳情卡與操作鍵；手機改兩行卡片列 */
+.hist-list{overflow-x:auto}
+.hist-sheet{width:100%;border-collapse:collapse;font-size:1rem;font-variant-numeric:tabular-nums}
+.hist-sheet th{position:sticky;top:0;z-index:1;text-align:left;font-weight:600;color:var(--muted);padding:8px 10px;border-bottom:2px solid var(--line);background:var(--paper);white-space:nowrap}
+.hist-sheet td{padding:0 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+.hist-row{cursor:pointer;height:56px}.hist-row:hover td,.hist-row:active td{background:var(--paper-alt)}.hist-row:focus-visible{outline:3px solid var(--ink);outline-offset:-3px}
+.hist-row.is-open td{background:var(--paper-alt);border-bottom-color:transparent}
+.hist-row.is-void td{color:var(--muted)}.hist-row.is-void .hist-amount{text-decoration:line-through}
+.hist-time,.hist-id{color:var(--muted);white-space:nowrap}
+.hist-table{white-space:nowrap}.hist-table b{font-size:1.2rem}.hist-table small{font-size:1rem;margin-right:4px;color:var(--muted)}
+.hist-items{max-width:22em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hist-paycol,.hist-invcol{white-space:nowrap}
+.hist-sheet .hist-amount{text-align:right;font-weight:700;white-space:nowrap}
+.hist-state{white-space:nowrap}
+.hist-chev{display:inline-block;width:.6em;height:.6em;margin-left:10px;border-right:2px solid var(--ink-soft);border-bottom:2px solid var(--ink-soft);transform:translateY(-3px) rotate(45deg);transition:transform .15s}
+.hist-row.is-open .hist-chev{transform:translateY(2px) rotate(-135deg)}
+.hist-detail>td{padding:0 10px 12px;background:var(--paper-alt);border-bottom:1px solid var(--line)}
+.hist-card{display:flex;flex-direction:column;gap:10px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.hist-card.is-void{border-color:var(--danger-line)}.hist-card.is-void .hist-lines{opacity:.6}
+.hist-lines{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
 .hist-line{display:grid;grid-template-columns:2.6em 1fr auto;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)}
 .hist-line.is-off .hist-name b{text-decoration:line-through}
 .hist-qty{font-weight:700;font-variant-numeric:tabular-nums}.hist-qty.many{color:var(--warn-ink)}
 .hist-name{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0}.hist-name .hint{color:var(--ink-soft)}.hist-sub{font-variant-numeric:tabular-nums;color:var(--ink-soft)}
 .hist-pay{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px 12px}.hist-inv{text-align:right}
 .hist-void{color:var(--danger);font-weight:600}
-.hist-actions{display:flex;flex-wrap:wrap;gap:8px;position:relative;margin-top:auto}
-.hist-actions>.btn,.hist-actions .ops-more>summary{min-height:48px}.hist-actions .ops-more{margin-left:auto}
-.hist-actions .ops-more[open]>.ops-btns{top:auto;bottom:100%;margin-bottom:6px}
-@media(max-width:700px){.hist-list{grid-template-columns:1fr}}
+.hist-actions{display:flex;flex-wrap:wrap;gap:8px}
+.hist-actions>.btn{min-height:48px}.hist-actions [data-void]{margin-left:auto}
+@media(max-width:700px){
+.hist-sheet thead{display:none}
+.hist-sheet,.hist-sheet tbody{display:block}
+.hist-row{display:grid;grid-template-columns:auto auto 1fr auto;grid-template-areas:"time table state amount" "items items items items";gap:4px 10px;align-items:center;height:auto;padding:10px 4px;border-bottom:1px solid var(--line)}
+.hist-row td{display:block;padding:0;border:0;background:none}
+.hist-row.is-open,.hist-row:active{background:var(--paper-alt)}
+.hist-time{grid-area:time}.hist-table{grid-area:table}.hist-state{grid-area:state}.hist-sheet .hist-amount{grid-area:amount}
+.hist-items{grid-area:items;max-width:none;color:var(--ink-soft)}
+.hist-id,.hist-paycol,.hist-invcol{display:none!important}
+.hist-detail{display:block}.hist-detail[hidden]{display:none}.hist-detail>td{display:block;padding:0 0 12px}
+}
 /* 結帳三欄（≥1000px）：左＝菜單、中＝已點品項、右＝結帳資訊；各欄內容自己捲，底部資訊釘住 */
 .pos-menu-body{display:contents}
 @media(min-width:1000px){
