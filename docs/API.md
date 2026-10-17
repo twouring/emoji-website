@@ -656,7 +656,7 @@ X 貼文 AI 起草：body `{ topic }`，回 `{ ok, draft: { title, caption, capt
 預約取餐：我的預約（開著的＋一天內結束的，最多 10 筆）與可選時段。回 `{ ok, pickups:[{ id, table, pickup_at, pickup_time, note, placed, status, state, items, amount, paid }], dates:[今天,明天], slots:{ 日期:[{ time, venue }] }, prep_min }`。時段 08:00–23:45 每 15 分鐘，今天只列「現在 + 20 分鐘」之後；`state` 同 POS 桌況（open／ordered／preparing／ready）。agent 金鑰 403。
 
 ### POST /api/me/pickups
-建立預約取餐。body `{ date, time, items:[{ item_id, qty(1–20), note? }], note? }`。只能今天或明天、取餐時間至少 20 分鐘後、最多 20 種 40 件；菜單依取餐時段的品牌（08:00–16:45 在咖啡、17:00–23:45 三點水）取可點品項（估清、供應期間、`pos_only` 規則同桌邊點餐），該品牌暫停點餐回 423。開一張外帶單（`table_sessions` W01–W99，`user_id`、`pickup_at`、`pickup_note`），品項先放購物車**不送單**；排程每分鐘檢查，取餐前 20 分鐘自動送單（進出餐看板、出餐單列印、`pickup_placed_at`）；到店掃會員卡結帳。同一會員最多 3 張未取（409）、號碼用完 409。通知員工 LINE 群組。回 `{ ok, pickup }`。限 20 次／小時。agent 金鑰 403。
+建立預約取餐。body `{ date, time, items:[{ item_id, qty(1–20), note? }], note? }`。只能三天內（今天、明天、後天）、取餐時間至少 20 分鐘後、最多 20 種 40 件；菜單依取餐時段的品牌（08:00–16:45 在咖啡、17:00–23:45 三點水）取可點品項（估清、供應期間、`pos_only` 規則同桌邊點餐），該品牌暫停點餐回 423。開一張外帶單（`table_sessions` W01–W99，`user_id`、`pickup_at`、`pickup_note`），品項先放購物車**不送單**；排程每分鐘檢查，取餐前 20 分鐘自動送單（進出餐看板、出餐單列印、`pickup_placed_at`）；到店掃會員卡結帳。同一會員最多 3 張未取（409）、號碼用完 409。通知員工 LINE 群組。回 `{ ok, pickup }`。限 20 次／小時。agent 金鑰 403。
 
 ### DELETE /api/me/pickups/:id
 取消預約取餐：只限還沒自動送單（`pickup_placed_at` 空）且沒結帳的，否則 409 請聯絡店家。回 `{ ok }`。agent 金鑰 403。

@@ -10,7 +10,7 @@ const at = (d, t) => new Date(`${d}T${t}:00+08:00`);
 
 test('時段：08:00–23:45 每 15 分鐘，今天剔除 20 分鐘內；凌晨不開放', () => {
   const now = at('2026-10-20', '10:07');
-  assert.deepEqual(pickup.dates(now), ['2026-10-20', '2026-10-21']);
+  assert.deepEqual(pickup.dates(now), ['2026-10-20', '2026-10-21', '2026-10-22']);
   const today = pickup.slotsFor('2026-10-20', now);
   assert.equal(today[0].time, '10:30'); assert.equal(today[0].venue, 'CAFE');
   assert.equal(today.at(-1).time, '23:45'); assert.equal(today.at(-1).venue, 'BAR');
@@ -24,7 +24,7 @@ test('normalizePickup：日期／時間／品項驗證', () => {
   const now = at('2026-10-20', '10:00');
   const ok = pickup.normalizePickup({ date: '2026-10-20', time: '11:00', items: [{ item_id: 'm_a', qty: 2, note: ' 去冰 ' }], note: 'x' }, now);
   assert.equal(ok.venue, 'CAFE'); assert.equal(ok.items[0].note, '去冰'); assert.equal(+ok.pickupAt, +at('2026-10-20', '11:00'));
-  assert.throws(() => pickup.normalizePickup({ date: '2026-10-22', time: '11:00', items: [{ item_id: 'a', qty: 1 }] }, now), /今天或明天/);
+  assert.throws(() => pickup.normalizePickup({ date: '2026-10-23', time: '11:00', items: [{ item_id: 'a', qty: 1 }] }, now), /三天內/);
   assert.throws(() => pickup.normalizePickup({ date: '2026-10-20', time: '11:10', items: [{ item_id: 'a', qty: 1 }] }, now), /15 分鐘/);
   assert.throws(() => pickup.normalizePickup({ date: '2026-10-20', time: '10:15', items: [{ item_id: 'a', qty: 1 }] }, now), /20 分鐘後/);
   assert.throws(() => pickup.normalizePickup({ date: '2026-10-21', time: '01:00', items: [{ item_id: 'a', qty: 1 }] }, now), /沒有營業/);

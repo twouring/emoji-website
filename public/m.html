@@ -107,6 +107,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 .seg{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
 .seg button{min-height:48px;padding:0 16px;border:1.5px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem}
 .seg button[aria-pressed=true]{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+.seg#pkd button{white-space:nowrap;padding:6px 4px;border-radius:16px;line-height:1.35}
 .seg button{flex:1 1 calc(33.333% - 8px)}.seg.two button{flex:1 1 calc(50% - 8px)}
 .mi .q button:disabled{opacity:.35}
 .slots{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px}
@@ -156,6 +157,28 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 .field input:disabled{background:var(--alt);color:var(--muted)}
 .lang{display:flex;gap:8px}.lang button{flex:1;min-height:44px;border:1.5px solid var(--line);border-radius:12px;background:transparent}.lang button[aria-pressed=true]{border-color:var(--ink);font-weight:700;background:var(--accent)}
 .ov .sub{opacity:.85;margin:6px 0 0}
+.rgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.rcard{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
+.rcard .ph{aspect-ratio:4/3;width:100%;object-fit:cover;background:var(--alt);display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.rcard .ph svg{width:36px;height:36px}
+.rcard.lock .ph{opacity:.55}
+.rcard .bd{padding:10px 12px 12px;display:flex;flex-direction:column;gap:4px;flex:1}
+.rcard .nm{font-weight:500;line-height:1.35}
+.rcard .pt{font-family:"Cormorant Garamond","Noto Serif TC",serif;font-weight:600;font-size:1.4rem;font-variant-numeric:tabular-nums}
+.rcard .rwb{margin-top:auto;width:100%}
+.rcard .need{margin-top:auto;color:var(--muted)}
+.ecard{display:block;background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden;color:inherit;text-decoration:none;margin-bottom:14px}
+.ecard .cv{aspect-ratio:16/9;width:100%;object-fit:cover;display:block;background:var(--accent)}
+.ecard .cv.ph{display:flex;align-items:center;justify-content:center}.ecard .cv.ph svg{width:48px;height:48px}
+.ecard .bd{padding:14px 16px 16px}
+.ecard h3{font-size:1.1rem;margin-bottom:4px}
+.ecard .meta2{color:var(--muted)}
+.ecard .foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.ecard .price{font-weight:700}
+.ecard p{color:var(--soft);margin:.4em 0 0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.upd.mute,.upd.mute p{color:var(--muted)}
+.row.view b{text-align:right;word-break:break-all}
+.ghost{color:var(--muted)}
 @media (prefers-reduced-motion:reduce){.show:active{transform:none}}
 </style>
 <style>html,body{touch-action:manipulation}</style>
@@ -188,15 +211,15 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     zh:{locale:'zh-TW',tabHome:'會員卡',tabPlan:'會籍',tabEvents:'活動',tabMe:'我的',loading:'載入中…',
       loginTitle:'言文字 會員',loginSub:'登入後，用一張卡在所有空間累積點數、查看會籍、報名活動。',google:'使用 Google 登入',lineLogin:'使用 LINE 登入',email:'使用 Email 登入',needName:'請先輸入名字',emailSend:'寄送登入連結',emailSent:'登入連結已寄出',emailSentTo:e=>'請到 '+e+' 收信，點開連結即可登入。連結 20 分鐘內有效。',emailFail:'目前無法寄送登入連結，請改用 Google 登入',firstTime:'第一次使用？用任一方式登入，就會自動建立帳號。',
       hi:n=>'嗨，'+n,welcome:'歡迎回來',morning:'早安',noon:'午安',evening:'晚安',brand:'言文字',myPts:'我的點數',showCard:'結帳時出示會員卡',scanMe:'請出示給店員掃描',
-      hintPhone:'也可以直接報手機號碼。',hintNoPhone:'到「我的」填寫手機，結帳報號碼就能累點。',hintEarn:'消費每滿 100 元累積 1 點；1 點可兌換 NT$10 的餐飲（不折抵金額），在「可以兌換」點選品項、掃桌上的點菜條碼即可。',
-      reserve:'訂位',signup:'報名活動',menu:'菜單',redeem:'可以兌換',redeemBtn:'兌換',scanTitle:'掃描桌上的點菜條碼',scanSub:n=>'兌換「'+n+'」：對準桌上的 QR，會自動加進點菜清單。',scanCancel:'取消',scanNoCam:'無法開啟相機，請允許相機權限。',scanBad:'這不是桌上的點菜條碼。',redeemDone:(n,t)=>'已加入「'+n+'」（兌換，桌 '+t+'），剩餘點數 ',redeemConfirm:(n,p)=>'用 '+p+' 點兌換「'+n+'」？',canRedeem:'現在就能兌換',short:n=>'還差 '+n+' 點',pts:n=>n+' 點',redeemHint:'餐點與飲品：點「兌換」後掃桌上的點菜條碼即可。空間時數請到櫃檯出示會員卡。',
+      hintPhone:'也可以直接報手機號碼。',hintNoPhone:'到「我的」填寫手機，結帳報號碼就能累點。',hintEarn:'消費每滿 100 元得 1 點，1 點可兌換 NT$10 的餐飲。',
+      reserve:'訂位',signup:'報名活動',menu:'菜單',redeem:'可以兌換',redeemBtn:'兌換',scanTitle:'掃描桌上的點菜條碼',scanSub:n=>'兌換「'+n+'」：對準桌上的 QR，會自動加進點菜清單。',scanCancel:'取消',scanNoCam:'無法開啟相機，請允許相機權限。',scanBad:'這不是桌上的點菜條碼。',redeemDone:(n,t)=>'已加入「'+n+'」（兌換，桌 '+t+'），剩餘點數 ',redeemConfirm:(n,p)=>'用 '+p+' 點兌換「'+n+'」？',canRedeem:'現在就能兌換',short:n=>'還差 '+n+' 點',pts:n=>n+' 點',redeemHint:'點「兌換」後掃桌上的點菜條碼。空間時數請到櫃檯。',
       install:'把會員卡放到主畫面',installSub:'結帳時一點就開，不用再找網址。',later:'稍後',installed:'已加到主畫面',home:'主畫面',
       nextEvent:'下一場活動',noEvents:'目前沒有開放報名的活動',registered:'已報名',pendingPay:'等待付款',full:'名額已滿',free:'免費',cap:(r,c)=>'名額 '+r+'／'+c,regCount:n=>'已報名 '+n+' 人',timeTbd:'時間待定',updates:'會員動態',noUpdates:'目前尚無會員動態。',events:'活動',
       plan:'會籍',statusLabel:'目前狀態',statusActive:p=>p+'會籍有效',statusPending:'待首次進場啟用',statusExpired:'會籍已到期',statusNone:'尚未有會籍',daysLeft:n=>'還有 '+n+' 天',
       plans:{day_4h:'單日 4 小時',day_12h:'單日 12 小時',month:'月會員',quarter:'季會員',year:'年會員',year_promo:'開幕優惠 年會員 18 個月',founding:'創始會員',fallback:'權益'},
-      accessTitle:'進出等等空間',accessOn:'可進出等等空間',accessPending:'待啟用',accessOff:'目前不可進出',accessQr:'顯示進出 QR',accessNote:'進出 QR 每 30 秒更新；持有效會籍即可進出等等空間，享有所有空間與設備。',needPlan:'尚無可用方案，請先加入會員方案。',qrPending:'（待首次進場啟用）',qrUntil:'有效至 ',qrFail:'目前無法產生進出 QR',qrOffline:'需要網路才能顯示 QR',
+      accessTitle:'進出等等空間',accessOn:'可進出等等空間',accessPending:'待啟用',accessOff:'目前不可進出',accessQr:'顯示進出 QR',accessNote:'持有效會籍即可進出等等空間。',needPlan:'尚無可用方案，請先加入會員方案。',qrPending:'（待首次進場啟用）',qrUntil:'有效至 ',qrFail:'目前無法產生進出 QR',qrOffline:'需要網路才能顯示 QR',
       buy:'購買會籍',renew:'續訂／升級',plansTitle:'方案',buyBtn:p=>'線上購買 NT$'+p.toLocaleString('en-US'),promoTag:'開幕優惠',promoName:'年會員 18 個月',promoNote:'同年會員價，多送 6 個月（共 18 個月）。優惠至 2026/12/31。',founderYes:'創始會員',planPaid:'會籍已購買，首次進場時啟用。',planCanceled:'已取消付款。',planVerifying:'確認付款中…',planFail:'目前無法線上購買，請到現場辦理。',
-      me:'我的',name:'姓名',emailL:'Email',phone:'手機',phoneHint:'手機（09 開頭，結帳報號碼就能累點）',noPhone:'尚未填寫',edit:'更新資料',save:'儲存',saved:'已儲存',saveFail:'儲存失敗',
+      me:'我的',name:'姓名',emailL:'Email',phone:'手機',phoneHint:'手機（09 開頭，結帳報號碼就能累點）',noPhone:'尚未填寫',edit:'更新資料',editBtn:'編輯',cancelEdit:'取消',save:'儲存',saved:'已儲存',saveFail:'儲存失敗',
       lineLink:'綁定 LINE・接收活動票券與訂位提醒',lineFail:'LINE 綁定失敗',
       manage:'管理',admin:'前往後台',organizer:'管理我的活動',language:'語言',logout:'登出',offline:'目前離線，顯示上次的資料',netFail:'連線失敗，請稍後再試',reload:'重新整理',
       sheetInapp:['點畫面角落的「⋯」選單','選「用預設瀏覽器開啟」，或<span class="nb">「在 Safari／Chrome 開啟」</span>','開啟後，再依畫面提示加到主畫面'],sheetIos:['點瀏覽器的「分享」圖示（方框加向上箭頭）','在選單裡找到並點「加入主畫面」（要往上滑才看得到）','按右上角「新增」，之後從主畫面開啟即可'],
@@ -205,21 +228,21 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       myResv:'我的訂位',noResv:'還沒有訂位',seats:n=>n+' 位',reqNo:'編號 ',tableNo:'桌 ',cancelResv:'取消訂位',confirmCancelResv:'取消這筆訂位？',canceled:'已取消',
       myRegs:'我的報名',noRegs:'還沒有報名活動',checkedIn:'已報到',tickets:n=>n+' 張',showTicket:'出示票券',eventPage:'活動頁',ticketMeta:n=>n>1?'活動票券 '+n+' 張 · 請出示給工作人員掃描':'活動票券 · 請出示給工作人員掃描',ticketFail:'票券暫時無法顯示，請到活動頁查看',
       upcoming:'即將到來',pickupLabel:'預約取餐 ',resvLabel:'訂位 ',states:{done:'已完成',ended:'已結束',ready:'可取餐',preparing:'準備中',placed:'已送單',booked:'已預約'},
-      resvTitle:'訂位',back:'返回',date:'日期',party:'人數',partyN:n=>(n===6?'6+':n)+' 位',slotLabel:'時段',venues:['在咖啡 08:00–17:00','三點水 17:00–03:00'],noteOpt:'備註（選填）',resvHint:(n,p)=>'以 '+n+(p?'、'+p:'')+' 訂位；到「我的」可修改。座位保留 10 分鐘。',submitResv:'送出訂位',pickSlot:'請選一個時段',resvOk:id=>'訂位成立 '+id,
-      pickupTitle:'預約取餐',pickupHint:n=>'先選取餐時間，再選餐點。取餐前 '+n+' 分鐘開始準備，到店付款。',pickupDay:'取餐日',today:'今天',tomorrow:'明天',pickupTime:'取餐時間',noSlots:'今天已沒有可預約的時段，請選明天',loadingMenu:'載入菜單…',pickTimeFirst:'選好時間後會顯示該時段的菜單。',submitPickup:'送出預約',itemsN:n=>'（'+n+' 件）',menuFail:'菜單載入失敗',noItems:'這個時段沒有可預約的品項',dec:'減少',inc:'增加',pickupOk:'預約成立，取餐前會開始準備',cafe:'在咖啡',bar:'三點水',opFail:'操作失敗，請稍後再試',
+      resvTitle:'訂位',back:'返回',date:'日期',party:'人數',partyN:n=>(n===6?'6+':n)+' 位',slotLabel:'時段',venues:['在咖啡 08:00–17:00','三點水 17:00–03:00'],noteOpt:'備註（選填）',resvHint:()=>'座位保留 10 分鐘。',submitResv:'送出訂位',pickSlot:'請選一個時段',resvOk:id=>'訂位成立 '+id,
+      pickupTitle:'預約取餐',pickupHint:n=>'先選時間再選餐點，到店付款。',pickupDay:'取餐日',today:'今天',tomorrow:'明天',dayAfter:'後天',pickupTime:'取餐時間',noSlots:'這天已沒有可預約的時段，請改選其他日期',loadingMenu:'載入菜單…',pickTimeFirst:'選好時間後會顯示該時段的菜單。',submitPickup:'送出預約',itemsN:n=>'（'+n+' 件）',menuFail:'菜單載入失敗',noItems:'這個時段沒有可預約的品項',dec:'減少',inc:'增加',pickupOk:'預約成立，取餐前會開始準備',cafe:'在咖啡',bar:'三點水',opFail:'操作失敗，請稍後再試',
       installLabel:{prompt:'安裝到主畫面',ios:'看怎麼加到主畫面',inapp:'看怎麼用瀏覽器開啟'}},
     en:{locale:'en-US',tabHome:'Card',tabPlan:'Membership',tabEvents:'Events',tabMe:'Me',loading:'Loading…',
       loginTitle:'emoji Member',loginSub:'Sign in to earn points at every space, view your membership and register for events.',google:'Sign in with Google',lineLogin:'Sign in with LINE',email:'Sign in with Email',needName:'Please enter your name',emailSend:'Send sign-in link',emailSent:'Link sent',emailSentTo:e=>'Check '+e+' and open the link to sign in. It expires in 20 minutes.',emailFail:'Could not send the link — try Google instead',firstTime:'New here? Sign in with any option and your account is created automatically.',
       hi:n=>'Hi, '+n,welcome:'Welcome back',morning:'Good morning',noon:'Good afternoon',evening:'Good evening',brand:'emoji',myPts:'My points',showCard:'Show card at checkout',scanMe:'Show this to staff to scan',
-      hintPhone:'You can also just give your phone number.',hintNoPhone:'Add your phone under “Me” to earn points by number.',hintEarn:'Earn 1 point per NT$100. Redeem for food, drinks, services or space hours (not cash discounts) — show your card at the counter.',
-      reserve:'Reserve',signup:'Events',menu:'Menu',redeem:'Rewards',redeemBtn:'Redeem',scanTitle:'Scan the QR on your table',scanSub:n=>'Redeeming “'+n+'”: point at the table QR and it is added to your order automatically.',scanCancel:'Cancel',scanNoCam:'Cannot open the camera. Please allow camera access.',scanBad:'That is not a table ordering QR.',redeemDone:(n,t)=>'Added “'+n+'” (redeemed, table '+t+'). Points left: ',redeemConfirm:(n,p)=>'Redeem “'+n+'” for '+p+' points?',canRedeem:'Redeem now',short:n=>n+' more points',pts:n=>n+' pts',redeemHint:'Food & drinks: tap Redeem, then scan the table QR. For space hours, show your card at the counter.',
+      hintPhone:'You can also just give your phone number.',hintNoPhone:'Add your phone under “Me” to earn points by number.',hintEarn:'Earn 1 point per NT$100; 1 point redeems NT$10 of food or drinks.',
+      reserve:'Reserve',signup:'Events',menu:'Menu',redeem:'Rewards',redeemBtn:'Redeem',scanTitle:'Scan the QR on your table',scanSub:n=>'Redeeming “'+n+'”: point at the table QR and it is added to your order automatically.',scanCancel:'Cancel',scanNoCam:'Cannot open the camera. Please allow camera access.',scanBad:'That is not a table ordering QR.',redeemDone:(n,t)=>'Added “'+n+'” (redeemed, table '+t+'). Points left: ',redeemConfirm:(n,p)=>'Redeem “'+n+'” for '+p+' points?',canRedeem:'Redeem now',short:n=>n+' more points',pts:n=>n+' pts',redeemHint:'Tap Redeem, then scan the table QR. Space hours: at the counter.',
       install:'Add the card to your home screen',installSub:'One tap at checkout — no URL to find.',later:'Later',installed:'Added to home screen',home:'Home screen',
       nextEvent:'Next event',noEvents:'No open events right now',registered:'Registered',pendingPay:'Payment pending',full:'Full',free:'Free',cap:(r,c)=>r+' / '+c+' seats',regCount:n=>n+' registered',timeTbd:'Time TBD',updates:'Member updates',noUpdates:'No member updates yet.',events:'Events',
       plan:'Membership',statusLabel:'Current status',statusActive:p=>p+' valid',statusPending:'Activates on first entry',statusExpired:'Membership expired',statusNone:'No membership yet',daysLeft:n=>n+' days left',
       plans:{day_4h:'Day pass · 4 hrs',day_12h:'Day pass · 12 hrs',month:'Monthly',quarter:'Quarterly',year:'Annual',year_promo:'Opening offer · Annual 18 months',founding:'Founding Member',fallback:'Plan'},
-      accessTitle:'Stay Square access',accessOn:'Stay Square access',accessPending:'Pending',accessOff:'No access',accessQr:'Show access QR',accessNote:'The access QR refreshes every 30 seconds. A valid membership includes Stay Square and every space and facility.',needPlan:'No valid membership yet — join a plan first.',qrPending:' (pending first entry)',qrUntil:'valid until ',qrFail:'Could not generate access QR',qrOffline:'Network needed to show the QR',
+      accessTitle:'Stay Square access',accessOn:'Stay Square access',accessPending:'Pending',accessOff:'No access',accessQr:'Show access QR',accessNote:'A valid membership gets you into Stay Square.',needPlan:'No valid membership yet — join a plan first.',qrPending:' (pending first entry)',qrUntil:'valid until ',qrFail:'Could not generate access QR',qrOffline:'Network needed to show the QR',
       buy:'Buy membership',renew:'Renew / upgrade',plansTitle:'Plans',buyBtn:p=>'Buy online NT$'+p.toLocaleString('en-US'),promoTag:'Opening offer',promoName:'Annual · 18 months',promoNote:'Annual price, 6 extra months (18 total). Until Dec 31, 2026.',founderYes:'Founding Member',planPaid:'Membership purchased — activates on first entry.',planCanceled:'Payment cancelled.',planVerifying:'Confirming payment…',planFail:'Online purchase unavailable — please ask on-site.',
-      me:'Me',name:'Name',emailL:'Email',phone:'Phone',phoneHint:'Phone (Taiwan mobile; give it at checkout to earn points)',noPhone:'Not set',edit:'Update profile',save:'Save',saved:'Saved',saveFail:'Could not save',
+      me:'Me',name:'Name',emailL:'Email',phone:'Phone',phoneHint:'Phone (Taiwan mobile; give it at checkout to earn points)',noPhone:'Not set',edit:'Update profile',editBtn:'Edit',cancelEdit:'Cancel',save:'Save',saved:'Saved',saveFail:'Could not save',
       lineLink:'Link LINE · tickets & booking reminders',lineFail:'LINE linking failed',
       manage:'Manage',admin:'Open admin',organizer:'Manage my events',language:'Language',logout:'Sign out',offline:'Offline — showing last data',netFail:'Connection failed. Please try again.',reload:'Reload',
       sheetInapp:['Tap the “⋯” menu in the corner','Choose “Open in browser” (Safari / Chrome)','Then follow the prompt to add to home screen'],sheetIos:['Tap the browser Share icon (box with arrow)','Scroll and tap “Add to Home Screen”','Tap “Add” — open it from your home screen next time'],
@@ -228,21 +251,21 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       myResv:'My reservations',noResv:'No reservations yet',seats:n=>n+' guests',reqNo:'No. ',tableNo:'Table ',cancelResv:'Cancel',confirmCancelResv:'Cancel this reservation?',canceled:'Cancelled',
       myRegs:'My registrations',noRegs:'No event registrations yet',checkedIn:'Checked in',tickets:n=>n+' tickets',showTicket:'Show ticket',eventPage:'Event page',ticketMeta:n=>n>1?n+' tickets · show to staff to scan':'Event ticket · show to staff to scan',ticketFail:'Ticket unavailable right now — see the event page',
       upcoming:'Coming up',pickupLabel:'Pickup ',resvLabel:'Reservation ',states:{done:'Done',ended:'Closed',ready:'Ready',preparing:'Preparing',placed:'Sent to kitchen',booked:'Booked'},
-      resvTitle:'Reserve a table',back:'Back',date:'Date',party:'Guests',partyN:n=>(n===6?'6+':n),slotLabel:'Time',venues:['at cafe 08:00–17:00','3AM 17:00–03:00'],noteOpt:'Note (optional)',resvHint:(n,p)=>'Booking as '+n+(p?', '+p:'')+' — edit under “Me”. Tables are held for 10 minutes.',submitResv:'Reserve',pickSlot:'Pick a time',resvOk:id=>'Reserved · '+id,
-      pickupTitle:'Order for pickup',pickupHint:n=>'Choose a pickup time, then your items. We start preparing '+n+' minutes before pickup; pay in store.',pickupDay:'Pickup day',today:'Today',tomorrow:'Tomorrow',pickupTime:'Pickup time',noSlots:'No more slots today — try tomorrow',loadingMenu:'Loading menu…',pickTimeFirst:'Pick a time to see that period’s menu.',submitPickup:'Place order',itemsN:n=>' ('+n+' items)',menuFail:'Could not load the menu',noItems:'Nothing available for this slot',dec:'Less',inc:'More',pickupOk:'Order placed — we’ll start preparing before pickup',cafe:'at cafe',bar:'3AM',opFail:'Action failed. Please try again.',
+      resvTitle:'Reserve a table',back:'Back',date:'Date',party:'Guests',partyN:n=>(n===6?'6+':n),slotLabel:'Time',venues:['at cafe 08:00–17:00','3AM 17:00–03:00'],noteOpt:'Note (optional)',resvHint:()=>'Tables are held for 10 minutes.',submitResv:'Reserve',pickSlot:'Pick a time',resvOk:id=>'Reserved · '+id,
+      pickupTitle:'Order for pickup',pickupHint:n=>'Pick a time, then your items. Pay in store.',pickupDay:'Pickup day',today:'Today',tomorrow:'Tomorrow',dayAfter:'In 2 days',pickupTime:'Pickup time',noSlots:'No more slots that day — pick another date',loadingMenu:'Loading menu…',pickTimeFirst:'Pick a time to see that period’s menu.',submitPickup:'Place order',itemsN:n=>' ('+n+' items)',menuFail:'Could not load the menu',noItems:'Nothing available for this slot',dec:'Less',inc:'More',pickupOk:'Order placed — we’ll start preparing before pickup',cafe:'at cafe',bar:'3AM',opFail:'Action failed. Please try again.',
       installLabel:{prompt:'Install',ios:'How to add to home screen',inapp:'How to open in a browser'}},
     ja:{locale:'ja-JP',tabHome:'会員カード',tabPlan:'会員資格',tabEvents:'イベント',tabMe:'マイページ',loading:'読み込み中…',
       loginTitle:'言文字 会員',loginSub:'ログインすると、すべての空間でポイントを貯め、会員資格の確認やイベント申込ができます。',google:'Google でログイン',lineLogin:'LINE でログイン',email:'メールでログイン',needName:'名前を入力してください',emailSend:'ログインリンクを送信',emailSent:'送信しました',emailSentTo:e=>e+' に届いたリンクを開くとログインできます。有効期限は20分です。',emailFail:'送信できませんでした。Google でログインしてください',firstTime:'初めての方も、いずれかの方法でログインすると自動で登録されます。',
       hi:n=>n+' さん、こんにちは',welcome:'おかえりなさい',morning:'おはようございます',noon:'こんにちは',evening:'こんばんは',brand:'言文字',myPts:'ポイント',showCard:'会計時に会員カードを提示',scanMe:'スタッフに提示してスキャン',
-      hintPhone:'携帯電話番号を伝えるだけでもOKです。',hintNoPhone:'「マイページ」で携帯番号を登録すると、番号だけでポイントが貯まります。',hintEarn:'100元ごとに1ポイント。飲食・サービス・スペース利用時間と交換できます（値引きには使えません）。',
-      reserve:'予約',signup:'イベント',menu:'メニュー',redeem:'交換できるもの',redeemBtn:'交換',scanTitle:'テーブルの注文QRをスキャン',scanSub:n=>'「'+n+'」を交換：テーブルのQRに向けると注文リストに自動で追加されます。',scanCancel:'キャンセル',scanNoCam:'カメラを起動できません。カメラの許可をご確認ください。',scanBad:'テーブルの注文QRではありません。',redeemDone:(n,t)=>'「'+n+'」を追加しました（交換・テーブル '+t+'）。残りポイント：',redeemConfirm:(n,p)=>p+' ポイントで「'+n+'」を交換しますか？',canRedeem:'今すぐ交換可',short:n=>'あと '+n+' ポイント',pts:n=>n+' pt',redeemHint:'フード・ドリンク：「交換」を押してテーブルのQRをスキャン。スペース利用はカウンターで会員カードを提示してください。',
+      hintPhone:'携帯電話番号を伝えるだけでもOKです。',hintNoPhone:'「マイページ」で携帯番号を登録すると、番号だけでポイントが貯まります。',hintEarn:'100元ごとに1ポイント。1ポイントで飲食NT$10分と交換できます。',
+      reserve:'予約',signup:'イベント',menu:'メニュー',redeem:'交換できるもの',redeemBtn:'交換',scanTitle:'テーブルの注文QRをスキャン',scanSub:n=>'「'+n+'」を交換：テーブルのQRに向けると注文リストに自動で追加されます。',scanCancel:'キャンセル',scanNoCam:'カメラを起動できません。カメラの許可をご確認ください。',scanBad:'テーブルの注文QRではありません。',redeemDone:(n,t)=>'「'+n+'」を追加しました（交換・テーブル '+t+'）。残りポイント：',redeemConfirm:(n,p)=>p+' ポイントで「'+n+'」を交換しますか？',canRedeem:'今すぐ交換可',short:n=>'あと '+n+' ポイント',pts:n=>n+' pt',redeemHint:'「交換」を押してテーブルのQRをスキャン。スペース利用はカウンターで。',
       install:'会員カードをホーム画面に追加',installSub:'会計時にワンタップで開けます。',later:'あとで',installed:'ホーム画面に追加しました',home:'ホーム画面',
       nextEvent:'次のイベント',noEvents:'現在申し込み可能なイベントはありません',registered:'申込済',pendingPay:'支払い待ち',full:'満席',free:'無料',cap:(r,c)=>'定員 '+r+'／'+c,regCount:n=>'申込 '+n+' 人',timeTbd:'日時未定',updates:'会員向けお知らせ',noUpdates:'お知らせはまだありません。',events:'イベント',
       plan:'会員資格',statusLabel:'現在のステータス',statusActive:p=>p+'：有効',statusPending:'初回入場で有効化',statusExpired:'期限切れ',statusNone:'まだ会員プランがありません',daysLeft:n=>'残り '+n+' 日',
       plans:{day_4h:'デイ（4時間）',day_12h:'デイ（12時間）',month:'月会員',quarter:'四半期会員',year:'年会員',year_promo:'オープン特典 年会員18か月',founding:'創始会員',fallback:'プラン'},
-      accessTitle:'Stay Square 入退室',accessOn:'Stay Square 利用可',accessPending:'保留中',accessOff:'現在利用不可',accessQr:'入退室 QR を表示',accessNote:'入退室 QR は30秒ごとに更新。有効な会員資格があれば Stay Square とすべての設備を利用できます。',needPlan:'有効なプランがありません。先に会員プランに加入してください。',qrPending:'（初回入場で有効化）',qrUntil:'有効期限 ',qrFail:'入退室 QR を生成できません',qrOffline:'QR の表示にはネットワークが必要です',
+      accessTitle:'Stay Square 入退室',accessOn:'Stay Square 利用可',accessPending:'保留中',accessOff:'現在利用不可',accessQr:'入退室 QR を表示',accessNote:'有効な会員資格があれば Stay Square に入場できます。',needPlan:'有効なプランがありません。先に会員プランに加入してください。',qrPending:'（初回入場で有効化）',qrUntil:'有効期限 ',qrFail:'入退室 QR を生成できません',qrOffline:'QR の表示にはネットワークが必要です',
       buy:'会員プランを購入',renew:'更新／アップグレード',plansTitle:'プラン',buyBtn:p=>'オンライン購入 NT$'+p.toLocaleString('en-US'),promoTag:'オープン特典',promoName:'年会員 18か月',promoNote:'年会員と同価格で6か月分おトク（計18か月）。2026/12/31まで。',founderYes:'創始会員',planPaid:'購入完了。初回入場時に有効化されます。',planCanceled:'支払いをキャンセルしました。',planVerifying:'支払いを確認中…',planFail:'オンライン購入は現在利用できません。現地でお申し込みください。',
-      me:'マイページ',name:'氏名',emailL:'メール',phone:'携帯電話',phoneHint:'携帯電話（会計時に伝えるとポイントが貯まります）',noPhone:'未登録',edit:'プロフィールを更新',save:'保存',saved:'保存しました',saveFail:'保存できませんでした',
+      me:'マイページ',name:'氏名',emailL:'メール',phone:'携帯電話',phoneHint:'携帯電話（会計時に伝えるとポイントが貯まります）',noPhone:'未登録',edit:'プロフィールを更新',editBtn:'編集',cancelEdit:'キャンセル',save:'保存',saved:'保存しました',saveFail:'保存できませんでした',
       lineLink:'LINE 連携・チケットと予約リマインド',lineFail:'LINE 連携に失敗しました',
       manage:'管理',admin:'管理画面へ',organizer:'イベントを管理',language:'言語',logout:'ログアウト',offline:'オフライン：前回のデータを表示中',netFail:'接続に失敗しました。しばらくしてから再度お試しください。',reload:'再読み込み',
       sheetInapp:['画面隅の「⋯」メニューをタップ','「ブラウザで開く」（Safari／Chrome）を選択','開いたら案内に従ってホーム画面に追加'],sheetIos:['ブラウザの「共有」アイコン（矢印付きの四角）をタップ','下にスクロールして「ホーム画面に追加」をタップ','右上の「追加」をタップ。次回からホーム画面から開けます'],
@@ -251,8 +274,8 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       myResv:'席の予約',noResv:'予約はまだありません',seats:n=>n+' 名',reqNo:'番号 ',tableNo:'テーブル ',cancelResv:'キャンセル',confirmCancelResv:'この予約をキャンセルしますか？',canceled:'キャンセルしました',
       myRegs:'イベント申込',noRegs:'申込済みのイベントはありません',checkedIn:'チェックイン済',tickets:n=>n+' 枚',showTicket:'チケットを表示',eventPage:'イベントページ',ticketMeta:n=>n>1?'チケット '+n+' 枚 · スタッフに提示してスキャン':'イベントチケット · スタッフに提示してスキャン',ticketFail:'チケットを表示できません。イベントページをご覧ください',
       upcoming:'近日の予定',pickupLabel:'テイクアウト ',resvLabel:'予約 ',states:{done:'完了',ended:'終了',ready:'受け取り可',preparing:'準備中',placed:'調理中',booked:'予約済'},
-      resvTitle:'席を予約',back:'戻る',date:'日付',party:'人数',partyN:n=>(n===6?'6+':n)+' 名',slotLabel:'時間',venues:['在咖啡 08:00–17:00','三點水 17:00–03:00'],noteOpt:'備考（任意）',resvHint:(n,p)=>n+(p?'・'+p:'')+' で予約します。「マイページ」で変更できます。席は10分間保持します。',submitResv:'予約する',pickSlot:'時間を選んでください',resvOk:id=>'予約完了 '+id,
-      pickupTitle:'テイクアウト予約',pickupHint:n=>'受け取り時間を選び、次に料理を選びます。受け取りの '+n+' 分前から準備し、店頭でお支払いください。',pickupDay:'受け取り日',today:'今日',tomorrow:'明日',pickupTime:'受け取り時間',noSlots:'本日の枠はもうありません。明日を選んでください',loadingMenu:'メニューを読み込み中…',pickTimeFirst:'時間を選ぶとその時間帯のメニューが表示されます。',submitPickup:'予約する',itemsN:n=>'（'+n+' 点）',menuFail:'メニューを読み込めませんでした',noItems:'この時間帯に予約できる品はありません',dec:'減らす',inc:'増やす',pickupOk:'予約完了。受け取り前に準備を始めます',cafe:'在咖啡',bar:'三點水',opFail:'操作に失敗しました。しばらくしてから再度お試しください。',
+      resvTitle:'席を予約',back:'戻る',date:'日付',party:'人数',partyN:n=>(n===6?'6+':n)+' 名',slotLabel:'時間',venues:['在咖啡 08:00–17:00','三點水 17:00–03:00'],noteOpt:'備考（任意）',resvHint:()=>'席は10分間保持します。',submitResv:'予約する',pickSlot:'時間を選んでください',resvOk:id=>'予約完了 '+id,
+      pickupTitle:'テイクアウト予約',pickupHint:n=>'時間を選んでから料理を選びます。お支払いは店頭で。',pickupDay:'受け取り日',today:'今日',tomorrow:'明日',dayAfter:'明後日',pickupTime:'受け取り時間',noSlots:'この日の枠はもうありません。別の日を選んでください',loadingMenu:'メニューを読み込み中…',pickTimeFirst:'時間を選ぶとその時間帯のメニューが表示されます。',submitPickup:'予約する',itemsN:n=>'（'+n+' 点）',menuFail:'メニューを読み込めませんでした',noItems:'この時間帯に予約できる品はありません',dec:'減らす',inc:'増やす',pickupOk:'予約完了。受け取り前に準備を始めます',cafe:'在咖啡',bar:'三點水',opFail:'操作に失敗しました。しばらくしてから再度お試しください。',
       installLabel:{prompt:'ホーム画面にインストール',ios:'追加方法を見る',inapp:'ブラウザで開く方法を見る'}},
   };
   const lsGet=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
@@ -363,13 +386,17 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   const fmtTs=ms=>new Date(ms).toLocaleString(T.locale,{timeZone:'Asia/Taipei',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
   const planName=p=>T.plans[p]||p||T.plans.fallback;
   function nextEvent(){const now=new Date();const list=(data.events||[]).map(e=>({e,t:parseT(e.starts_at)})).filter(x=>x.t&&x.t>now).sort((a,b)=>a.t-b.t);return (list.find(x=>x.e.registered)||list[0]||{}).e||null;}
+  const imgUrl=u=>/^\//.test(u||'')?SITE+u:(u||'');
+  const SVG_CUP='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h12v6a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5zM17 10h2a2 2 0 0 1 0 4h-2M8 3v2M12 3v2"/></svg>';
+  const SVG_CLOCK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
   function rewardsSec(pts){
     const r=data.rewards||{items:[],space:[]};
     const nm=x=>LANG==='ja'&&x.ja?x.ja:LANG==='en'&&x.en?x.en:x.zh;
-    const list=[].concat((r.space||[]).map(x=>({n:nm(x),p:x.points})),(r.items||[]).map(x=>({n:nm(x),p:x.points,id:x.id})));
+    const list=[].concat((r.items||[]).map(x=>({n:nm(x),p:x.points,id:x.id,img:x.image})),(r.space||[]).map(x=>({n:nm(x),p:x.points,space:true})));
     if(!list.length)return '';
-    const row=x=>{const ok=pts>=x.p;return `<div class="rw${ok?' ok':''}"><span>${esc(x.n)}<small>${ok?esc(T.canRedeem):esc(T.short(x.p-pts))}</small></span><b>${esc(T.pts(x.p))}</b>${x.id&&ok?`<button class="rwb" data-rw="${esc(x.id)}" data-n="${esc(x.n)}" data-p="${x.p}">${esc(T.redeemBtn)}</button>`:''}</div>`;};
-    return `<section class="sec"><h2>${esc(T.redeem)}</h2>${list.map(row).join('')}<p class="hint">${esc(T.redeemHint)}</p></section>`;
+    const card=x=>{const ok=pts>=x.p;const ph=x.img?`<img class="ph" src="${esc(imgUrl(x.img))}" alt="${esc(x.n)}" loading="lazy">`:`<div class="ph">${x.space?SVG_CLOCK:SVG_CUP}</div>`;
+      return `<div class="rcard${ok?'':' lock'}">${ph}<div class="bd"><span class="nm">${esc(x.n)}</span><span class="pt">${esc(T.pts(x.p))}</span>${x.id&&ok?`<button class="rwb" data-rw="${esc(x.id)}" data-n="${esc(x.n)}" data-p="${x.p}">${esc(T.redeemBtn)}</button>`:`<small class="need">${ok?'':esc(T.short(x.p-pts))}</small>`}</div></div>`;};
+    return `<section class="sec"><h2>${esc(T.redeem)}</h2><div class="rgrid">${list.map(card).join('')}</div><p class="hint ghost">${esc(T.redeemHint)}</p></section>`;
   }
   function home(){
     const me=data.me||{},pts=(data.yan&&data.yan.balance)||0,ev=nextEvent();
@@ -379,7 +406,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     <div class="hello"><div><h1>${esc(me.name?T.hi(me.name):T.welcome)}</h1><small>${esc(h<12?T.morning:h<18?T.noon:T.evening)}</small></div>${MARK}</div>
     <section class="pass" aria-label="${esc(T.tabHome)}"><div class="brand">${esc(T.brand)}</div><div class="pts"><span>${esc(T.myPts)}</span><b>${esc(pts)}</b></div><div class="who"><span>${esc(me.name||'')}</span><i>${esc(phone?phone.replace(/^\+886(\d{2})\d{4}(\d{3})$/,'0$1-****-$2'):'')}</i></div></section>
     <button class="show" id="show"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17h3v4h-4v-3h4M18 14h3v3"/></svg>${esc(T.showCard)}</button>
-    <p class="hint">${esc(phone?T.hintPhone:T.hintNoPhone)}${esc(T.hintEarn)}</p>
+    <p class="hint ghost">${esc(phone?'':T.hintNoPhone+' ')}${esc(T.hintEarn)}</p>
     <nav class="quick" aria-label="quick">
       <button data-go="resv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M17 3c-2 2-3 5-3 8h3v10"/></svg>${esc(T.reserve)}</button>
       <button data-go="pickup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 9h16l-1.5 11h-13zM8 9V6a4 4 0 0 1 8 0v3"/></svg>${esc(T.pickupTitle)}</button>
@@ -395,17 +422,19 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     bindInstall();
   }
   function evTile(e){return `<a class="tile" href="${eventUrl(e)}"><h3>${esc(e.title)}${e.registered?`<span class="tag">${esc(T.registered)}</span>`:''}</h3><div class="meta">${esc(fmt(e.starts_at)||T.timeTbd)}${e.location?' · '+esc(e.location):''}</div></a>`;}
+  const SVG_CAL='<svg viewBox="0 0 24 24" fill="none" stroke="#1B1A17" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>';
   function evRow(e){
     const full=e.capacity>0&&e.reg_count>=e.capacity&&!e.registered&&e.registration_status!=='pending_payment';
-    const cap=e.capacity>0?T.cap(e.reg_count,e.capacity):T.regCount(e.reg_count||0);
-    const price=e.price_twd>0?'NT$'+Number(e.price_twd).toLocaleString('en-US'):T.free;
+      const price=e.price_twd>0?'NT$'+Number(e.price_twd).toLocaleString('en-US'):T.free;
     const tags=[e.registered?`<span class="tag">${esc(T.registered)}</span>`:'',e.registration_status==='pending_payment'?`<span class="tag">${esc(T.pendingPay)}</span>`:'',full?`<span class="tag">${esc(T.full)}</span>`:''].join('');
-    return `<a class="ev" href="${eventUrl(e)}"><h3>${esc(e.title)}${tags}</h3><div class="meta2">${esc(fmt(e.starts_at)||T.timeTbd)}${e.location?' · '+esc(e.location):''} · ${esc(cap)} · ${esc(price)}</div>${e.description?`<p>${esc(e.description)}</p>`:''}</a>`;
+    const cover=(e.event_details&&e.event_details.cover_url)||'';
+    const cv=cover?`<img class="cv" src="${esc(imgUrl(cover))}" alt="" loading="lazy">`:`<div class="cv ph">${SVG_CAL}</div>`;
+    return `<a class="ecard" href="${eventUrl(e)}">${cv}<div class="bd"><h3>${esc(e.title)}</h3><div class="meta2">${esc(fmt(e.starts_at)||T.timeTbd)}${e.location?' · '+esc(e.location):''}</div>${e.description?`<p>${esc(e.description)}</p>`:''}<div class="foot"><span class="price">${esc(price)}</span><span>${tags}</span></div></div></a>`;
   }
   function events(){
     const list=data.events||[],ups=data.updates||[];
     app.innerHTML=`<div class="hello"><h1>${esc(T.events)}</h1></div>${list.length?list.map(evRow).join(''):`<p class="empty">${esc(T.noEvents)}</p>`}
-    <section class="sec"><h2>${esc(T.updates)}</h2>${ups.length?ups.map(u=>`<div class="upd"><b>${esc(u.title)}</b><time>${esc(u.published_at)}${u.type?' · '+esc(u.type):''}</time>${u.content?`<p>${esc(u.content)}</p>`:''}</div>`).join(''):`<p class="empty">${esc(T.noUpdates)}</p>`}</section>`;
+    <section class="sec"><h2>${esc(T.updates)}</h2>${ups.length?ups.map(u=>`<div class="upd mute"><b style="color:var(--ink)">${esc(u.title)}</b><time>${esc(u.published_at)}</time>${u.content?`<p>${esc(u.content)}</p>`:''}</div>`).join(''):`<p class="empty">${esc(T.noUpdates)}</p>`}</section>`;
   }
   /* ---- 預約：我的訂位／預約取餐／我的報名（上游 f68960f 移植，改三語） ---- */
   let sub='list', PK={date:'',time:'',qty:{},note:''}, RV={date:'',time:'',party:2,note:''}, MENU=null;
@@ -416,7 +445,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   function upcomingSec(){
     const rv=(data.reservations||[]).filter(r=>r.can_cancel),pk=(data.pickups||[]).filter(p=>p.status==='open');
     if(!rv.length&&!pk.length)return '';
-    return `<section class="sec"><h2>${esc(T.upcoming)}</h2>${pk.map(p=>`<a class="tile" href="#" data-go="list"><h3>${esc(T.pickupLabel+p.pickup_time)}<span class="pill ${p.state==='ready'?'on':''}">${esc(pickupState(p))}</span></h3><div class="meta">${esc(linesText(p.items))}</div></a>`).join('')}${rv.map(r=>`<a class="tile" href="#" data-go="list"><h3>${esc(T.resvLabel+dayLabel(r.reserve_date)+' '+r.reserve_time)}</h3><div class="meta">${esc(r.period)} · ${esc(T.seats(r.party_size))} · ${esc(r.request_id)}</div></a>`).join('')}</section>`;
+    return `<section class="sec"><h2>${esc(T.upcoming)}</h2>${pk.map(p=>`<a class="tile" href="#" data-go="list"><h3>${esc(T.pickupLabel+p.pickup_time)}<span class="pill ${p.state==='ready'?'on':''}">${esc(pickupState(p))}</span></h3><div class="meta">${esc(linesText(p.items))}</div></a>`).join('')}${rv.map(r=>`<a class="tile" href="#" data-go="list"><h3>${esc(T.resvLabel+dayLabel(r.reserve_date)+' '+r.reserve_time)}</h3><div class="meta">${esc(r.period)} · ${esc(T.seats(r.party_size))}</div></a>`).join('')}</section>`;
   }
   const pickupState=p=>p.status!=='open'?(p.paid?T.states.done:T.states.ended):p.state==='ready'?T.states.ready:p.state==='preparing'?T.states.preparing:p.placed?T.states.placed:T.states.booked;
   function book(){
@@ -425,8 +454,8 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     const rv=data.reservations||[],pk=data.pickups||[],rg=data.registrations||[];
     app.innerHTML=`<div class="hello"><h1>${esc(T.tabBook)}</h1></div>
     <nav class="quick" aria-label="new"><button data-go="resv">${esc(T.newResv)}</button><button data-go="pickup">${esc(T.newPickup)}</button><button data-go="events">${esc(T.signup)}</button></nav>
-    <section class="sec"><h2>${esc(T.pickupSec)}</h2>${pk.length?pk.map(p=>`<div class="tile"><h3>${esc(T.pickupAt(p.pickup_time))}<span class="pill ${p.state==='ready'?'on':''}">${esc(pickupState(p))}</span></h3><div class="meta">${esc(p.table)} · ${esc(linesText(p.items))} · NT$${esc(p.amount)}${p.note?'<br>'+esc(p.note):''}</div>${p.status==='open'&&!p.placed?`<div class="act"><button class="quiet" data-cancel-pickup="${esc(p.id)}">${esc(T.cancelPickup)}</button></div>`:''}</div>`).join(''):`<p class="empty">${esc(T.noPickup)}</p>`}</section>
-    <section class="sec"><h2>${esc(T.myResv)}</h2>${rv.length?rv.map(r=>`<div class="tile"><h3>${esc(dayLabel(r.reserve_date))} ${esc(r.reserve_time)}<span class="pill ${r.status==='confirmed'?'on':''}">${esc(r.label)}</span></h3><div class="meta">${esc(r.period)} · ${esc(T.seats(r.party_size))} · ${esc(T.reqNo+r.request_id)}${r.table_no?' · '+esc(T.tableNo+r.table_no):''}</div>${r.can_cancel?`<div class="act"><button class="quiet" data-cancel-resv="${esc(r.id)}">${esc(T.cancelResv)}</button></div>`:''}</div>`).join(''):`<p class="empty">${esc(T.noResv)}</p>`}</section>
+    <section class="sec"><h2>${esc(T.pickupSec)}</h2>${pk.length?pk.map(p=>`<div class="tile"><h3>${esc(T.pickupAt(p.pickup_time))}<span class="pill ${p.state==='ready'?'on':''}">${esc(pickupState(p))}</span></h3><div class="meta">${esc(linesText(p.items))} · NT$${esc(p.amount)}${p.note?'<br>'+esc(p.note):''}</div>${p.status==='open'&&!p.placed?`<div class="act"><button class="quiet" data-cancel-pickup="${esc(p.id)}">${esc(T.cancelPickup)}</button></div>`:''}</div>`).join(''):`<p class="empty">${esc(T.noPickup)}</p>`}</section>
+    <section class="sec"><h2>${esc(T.myResv)}</h2>${rv.length?rv.map(r=>`<div class="tile"><h3>${esc(dayLabel(r.reserve_date))} ${esc(r.reserve_time)}<span class="pill ${r.status==='confirmed'?'on':''}">${esc(r.label)}</span></h3><div class="meta">${esc(r.period)} · ${esc(T.seats(r.party_size))}${r.table_no?' · '+esc(T.tableNo+r.table_no):''}</div>${r.can_cancel?`<div class="act"><button class="quiet" data-cancel-resv="${esc(r.id)}">${esc(T.cancelResv)}</button></div>`:''}</div>`).join(''):`<p class="empty">${esc(T.noResv)}</p>`}</section>
     <section class="sec"><h2>${esc(T.myRegs)}</h2>${rg.length?rg.map(r=>`<div class="tile"><h3>${esc(r.title)}<span class="pill ${r.status==='registered'?'on':''}">${esc(r.status==='registered'?(r.checked_in_at?T.checkedIn:T.registered):T.pendingPay)}</span></h3><div class="meta">${esc(fmt(r.starts_at))}${r.location?' · '+esc(r.location):''}${r.quantity>1?' · '+esc(T.tickets(r.quantity)):''}</div><div class="act">${r.ticket?`<button class="btn solid" data-ticket="${esc(r.id)}">${esc(T.showTicket)}</button>`:''}<a class="btn" href="${eventUrl(r)}">${esc(T.eventPage)}</a></div></div>`).join(''):`<p class="empty">${esc(T.noRegs)}</p>`}</section>`;
     app.querySelectorAll('[data-go]').forEach(b=>b.onclick=e=>{e.preventDefault();go(b.dataset.go);});
     app.querySelectorAll('[data-cancel-pickup]').forEach(b=>b.onclick=async()=>{if(!confirm(T.confirmCancelPickup))return;b.disabled=true;try{await post('/api/me/pickups/'+encodeURIComponent(b.dataset.cancelPickup),null,'DELETE');toast(T.canceled);await load();}catch(e){toast(e.message||T.opFail);b.disabled=false;}});
@@ -469,7 +498,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     const venue=(slots.find(x=>x.time===PK.time)||{}).venue||'';
     app.innerHTML=`<div class="hello"><h1>${esc(T.pickupTitle)}</h1><button class="quiet" id="bk" style="width:auto;margin:0">${esc(T.back)}</button></div>
     <p class="hint">${esc(T.pickupHint(pk.prep_min||20))}</p>
-    <div class="fld">${esc(T.pickupDay)}<div class="seg two" id="pkd">${pk.dates.map((d,i)=>`<button type="button" data-d="${d}" aria-pressed="${PK.date===d}">${esc(i===0?T.today:T.tomorrow)} ${esc(dayLabel(d))}</button>`).join('')}</div></div>
+    <div class="fld">${esc(T.pickupDay)}<div class="seg" id="pkd">${pk.dates.map((d,i)=>`<button type="button" data-d="${d}" aria-pressed="${PK.date===d}">${esc([T.today,T.tomorrow,T.dayAfter][i]||'')}<br>${esc(dayLabel(d))}</button>`).join('')}</div></div>
     <div class="fld">${esc(T.pickupTime)}<div class="slots" id="pkt">${slots.length?['CAFE','BAR'].map(v=>{const ts=slots.filter(x=>x.venue===v);return ts.length?`<h4>${esc(v==='CAFE'?T.cafe:T.bar)}</h4>`+ts.map(x=>`<button type="button" data-t="${x.time}" aria-pressed="${PK.time===x.time}">${x.time}</button>`).join(''):'';}).join(''):`<p class="empty">${esc(T.noSlots)}</p>`}</div></div>
     <div id="pkm">${PK.time?`<p class="empty">${esc(T.loadingMenu)}</p>`:`<p class="hint">${esc(T.pickTimeFirst)}</p>`}</div>
     <label class="fld">${esc(T.noteOpt)}<textarea id="pkn" maxlength="200">${esc(PK.note)}</textarea></label>
@@ -520,11 +549,11 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     const promo=promoOpen()?`<div class="plan promo"><span><b class="tag">${esc(T.promoTag)}</b> ${esc(T.promoName)}<br><small style="color:var(--muted)">${esc(T.promoNote)}</small></span><button type="button" data-plan="year_promo">${esc(T.buyBtn(PLAN_PRICES.year_promo))}</button></div>`:'';
     const rows=promo+['day_4h','day_12h','month','quarter','year'].map(id=>`<div class="plan"><span>${esc(T.plans[id])}</span><button type="button" data-plan="${id}">${esc(T.buyBtn(PLAN_PRICES[id]))}</button></div>`).join('');
     app.innerHTML=`<div class="hello"><h1>${esc(T.plan)}</h1></div>
-    <section class="panel"><div class="eyebrow">${esc(T.statusLabel)}${c&&c.cert_no?' · No. '+esc(c.cert_no):''}</div><div class="status">${esc(title)}</div>${bar}${left||right?`<div class="meta"><span>${esc(left)}</span><span>${esc(right)}</span></div>`:''}
+    <section class="panel"><div class="eyebrow">${esc(T.statusLabel)}</div><div class="status">${esc(title)}</div>${bar}${left||right?`<div class="meta"><span>${esc(left)}</span><span>${esc(right)}</span></div>`:''}
       <div class="btn2"><button class="btn solid" id="plans-toggle">${esc(had?T.renew:T.buy)}</button><button class="chip" id="access-chip"${canIssue?'':' data-blocked="1"'}><span class="dot${active?' on':''}"></span>${esc(chipLabel)}</button></div>
       <div id="plans" hidden style="margin-top:12px"><div class="eyebrow">${esc(T.plansTitle)}</div>${rows}</div></section>
     <section class="panel"><div class="eyebrow">${esc(T.accessTitle)}</div><p class="hint" style="margin:6px 0 12px">${esc(T.accessNote)}</p><button class="btn" id="access-qr">${esc(T.accessQr)}</button></section>
-    ${c?`<p class="hint">${esc(T.founderYes)}${c.cert_no?' · No. '+esc(c.cert_no):''}</p>`:''}`;
+    ${c?`<p class="hint ghost">${esc(T.founderYes)}${c.cert_no?' · No. '+esc(c.cert_no):''}</p>`:''}`;
     const drawer=document.getElementById('plans');
     document.getElementById('plans-toggle').onclick=()=>{drawer.hidden=!drawer.hidden;};
     document.querySelectorAll('[data-plan]').forEach(b=>b.onclick=()=>buyPlan(b.dataset.plan,b));
@@ -547,29 +576,35 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     try{const d=await post('/api/me/plans/verify',{session_id:s});if(d.ok===true){clean();toast(T.planPaid);tab='plan';}}
     catch(e){toast(e.message||T.netFail);}
   }
+  let editing=false;
   function me(){
     const m=data.me||{},phone=(data.yan&&data.yan.phone)||m.phone||'';
-    app.innerHTML=`<div class="hello"><h1>${esc(T.me)}</h1></div>
-    <div class="row"><span>${esc(T.name)}</span><b>${esc(m.name||'')}</b></div>
-    <div class="row"><span>${esc(T.emailL)}</span><b>${esc(m.email||'')}</b></div>
-    <div class="row"><span>${esc(T.phone)}</span><b>${esc(phone?phone.replace(/^\+886/,'0'):T.noPhone)}</b></div>
-    <section class="sec"><h2>${esc(T.edit)}</h2>
-      <label class="field">${esc(T.name)}<input id="nm" maxlength="80" autocomplete="name" value="${esc(m.name||'')}"></label>
+    const view=`<div class="row view"><span>${esc(T.name)}</span><b>${esc(m.name||'')}</b></div>
+    <div class="row view"><span>${esc(T.emailL)}</span><b>${esc(m.email||'')}</b></div>
+    <div class="row view"><span>${esc(T.phone)}</span><b>${esc(phone?phone.replace(/^\+886/,'0'):T.noPhone)}</b></div>`;
+    const form=`<section class="sec"><label class="field">${esc(T.name)}<input id="nm" maxlength="80" autocomplete="name" value="${esc(m.name||'')}"></label>
       <label class="field">${esc(T.emailL)}<input value="${esc(m.email||'')}" disabled></label>
       <label class="field">${esc(T.phoneHint)}<input id="ph" type="tel" inputmode="tel" autocomplete="tel" maxlength="40" value="${esc(m.phone||'')}"></label>
-      <button class="btn solid" id="save" style="margin-top:12px">${esc(T.save)}</button></section>
-    <section class="sec"><button class="btn" id="line-link">${esc(T.lineLink)}</button></section>
+      <div class="btn2" style="margin-top:12px"><button class="btn" id="ecancel" type="button">${esc(T.cancelEdit)}</button><button class="btn solid" id="save" type="button">${esc(T.save)}</button></div></section>`;
+    app.innerHTML=`<div class="hello"><h1>${esc(T.me)}</h1>${editing?'':`<button class="btn" id="eedit" type="button" style="width:auto;min-height:44px;padding:0 18px">${esc(T.editBtn)}</button>`}</div>
+    ${editing?form:view}
+    ${editing?'':`<section class="sec"><button class="btn" id="line-link">${esc(T.lineLink)}</button></section>
     ${kindNow(true)?`<section class="sec"><h2>${esc(T.home)}</h2><button class="btn" id="inst2" data-k="${kindNow(true)}">${esc(T.installLabel[kindNow(true)])}</button></section>`:''}
     ${data.role==='admin'||data.organizer?`<section class="sec"><h2>${esc(T.manage)}</h2>${data.role==='admin'?`<a class="btn" href="https://admin.emoji.tw/admin">${esc(T.admin)}</a>`:''}${data.organizer?`<a class="btn" href="https://www.emoji.tw/organizer/events" style="margin-top:10px">${esc(T.organizer)}</a>`:''}</section>`:''}
     <section class="sec"><h2>${esc(T.language)}</h2>${langBar()}</section>
-    <section class="sec"><button class="quiet" id="out">${esc(T.logout)}</button></section>`;
-    document.getElementById('save').onclick=async()=>{const b=document.getElementById('save');b.disabled=true;try{await post('/api/me/profile',{name:document.getElementById('nm').value.trim()||m.name||'會員',phone:document.getElementById('ph').value});toast(T.saved);await load();}catch(e){toast(e.message||T.saveFail);}b.disabled=false;};
+    <section class="sec"><button class="quiet" id="out">${esc(T.logout)}</button></section>`}`;
+    if(editing){
+      document.getElementById('ecancel').onclick=()=>{editing=false;me();window.scrollTo(0,0);};
+      document.getElementById('save').onclick=async()=>{const b=document.getElementById('save');b.disabled=true;try{await post('/api/me/profile',{name:document.getElementById('nm').value.trim()||m.name||'會員',phone:document.getElementById('ph').value});toast(T.saved);editing=false;await load();return;}catch(e){toast(e.message||T.saveFail);}b.disabled=false;};
+      return;
+    }
+    document.getElementById('eedit').onclick=()=>{editing=true;me();window.scrollTo(0,0);};
     document.getElementById('line-link').onclick=async function(){this.disabled=true;try{const out=await post('/api/me/line-link');location.assign(out.url);}catch(e){toast(e.message||T.lineFail);this.disabled=false;}};
     bindInstall();bindLang();
     document.getElementById('out').onclick=()=>{try{localStorage.removeItem(KEY);localStorage.removeItem(CACHE);}catch(e){}location.reload();};
   }
   function paint(){tabs.hidden=false;[...tabs.children].forEach(b=>b.setAttribute('aria-current',b.dataset.tab===tab));({home,book,plan,events,me})[tab]();window.scrollTo(0,0);}
-  tabs.onclick=e=>{const b=e.target.closest('button');if(!b)return;tab=b.dataset.tab;paint();};
+  tabs.onclick=e=>{const b=e.target.closest('button');if(!b)return;tab=b.dataset.tab;editing=false;paint();};
   /* 全螢幕 QR：會員卡（結帳累點）與進出 QR 共用；亮度靠白底、30 秒更新 */
   const ov=document.getElementById('ov');let qrKind='card';
   const draw=(img,text)=>QRCode.toDataURL(text,{width:320,margin:1},(err,url)=>{if(!err)img.src=url;});
