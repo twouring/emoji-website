@@ -3844,7 +3844,7 @@ app.post('/api/events/:id/additional-tickets',auth,requireDb,wrap(async(req,res)
  if(!price){await activateAdditionalOrder(client,{id,quantity,attendees},reg);await client.query('COMMIT');return res.json({ok:true});}
  const lang=['en','ja'].includes(req.body?.lang)?'/'+req.body.lang:'',url=SITE_BASE+lang+'/events/'+encodeURIComponent(event.slug);
  const session=await stripe.checkout.sessions.create({mode:'payment',payment_method_types:['card'],customer_email:reg.email,expires_at:Math.floor(Date.now()/1000)+1800,
- line_items:[{price_data:{currency:'twd',unit_amount:price*100,product_data:{name:event.title+' · 加購 '+quantity+' 張票'}},quantity:1}],success_url:url+'?paid=1&s={CHECKOUT_SESSION_ID}',cancel_url:url+'?canceled=1',metadata:{kind:'event-additional-tickets',order_id:id,registration_id:reg.id,event_id:event.id,user_id:req.auth.sub}});
+ line_items:[{price_data:{currency:'twd',unit_amount:price*100,product_data:{name:event.title+' · 加購 '+quantity+' 張票'}},quantity:1}],success_url:SITE_BASE+lang+'/events/result/paid?event='+encodeURIComponent(event.slug)+'&s={CHECKOUT_SESSION_ID}',cancel_url:SITE_BASE+lang+'/events/result/canceled?event='+encodeURIComponent(event.slug),metadata:{kind:'event-additional-tickets',order_id:id,registration_id:reg.id,event_id:event.id,user_id:req.auth.sub}});
  await client.query('UPDATE event_ticket_orders SET stripe_session_id=$2,expires_at=to_timestamp($3) WHERE id=$1',[id,session.id,session.expires_at]);await client.query('COMMIT');res.json({url:session.url,session_id:session.id,order_id:id});
  }finally{await client.query('ROLLBACK');client.release();}
 }));
@@ -4182,8 +4182,8 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
         },
         quantity: 1,
       }],
-      success_url: `${detailUrl}?paid=1&s={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${detailUrl}?canceled=1`,
+      success_url: `${SITE_BASE}${langPrefix}/events/result/paid?event=${encodeURIComponent(ev.slug)}&s={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${SITE_BASE}${langPrefix}/events/result/canceled?event=${encodeURIComponent(ev.slug)}`,
       metadata: { kind: 'event-registration', registration_id: regId, event_id: ev.id, user_id:userId,guest_registration:String(guest),capture_required:String(captureRequired) },
       ...(captureRequired?{custom_text:{submit:{message:'信用卡先預授權，主辦人核准後才請款。Card authorization only; charged after approval.'}},payment_intent_data:{capture_method:'manual',metadata:{kind:'event-registration',registration_id:regId,event_id:ev.id,user_id:userId}}}:{}),
     });
@@ -4608,6 +4608,13 @@ app.get(['/embed/events/:slug','/en/embed/events/:slug','/ja/embed/events/:slug'
  res.removeHeader('X-Frame-Options');res.set({'Cache-Control':'no-store','X-Robots-Tag':'noindex','Content-Security-Policy':"object-src 'none'; base-uri 'self'; frame-ancestors 'self' "+origins.join(' ')+"; form-action 'self' https://checkout.stripe.com"});
  sendPage(res,EVENTS_PAGE,req.path,html=>html.replace('<body','<body data-event-embed="true"').replace('</head>','<style>body[data-event-embed] #nav,body[data-event-embed] footer,body[data-event-embed] .ev-back{display:none!important}body[data-event-embed] main{padding-top:24px!important}body[data-event-embed] .ev-detail{gap:24px}</style></head>'));
 }));
+// 報名結果頁：每種結果一個獨立網址（registered／pending_approval／waitlisted／failed／paid／canceled），方便用頁面路徑追蹤轉換
+const EVENT_RESULT_PAGE = path.join(PUB, 'event-result.html'), EVENT_RESULT_STATUSES = ['registered', 'pending_approval', 'waitlisted', 'failed', 'paid', 'canceled'];
+app.get(['/events/result/:status', '/en/events/result/:status', '/ja/events/result/:status'], (req, res, next) => {
+  if (!EVENT_RESULT_STATUSES.includes(req.params.status)) return next();
+  res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-store' });
+  sendPage(res, EVENT_RESULT_PAGE, req.path);
+});
 app.get(['/events/:slug', '/en/events/:slug', '/ja/events/:slug'], async (req, res) => {
   let event = null;
   if (dbReady) {

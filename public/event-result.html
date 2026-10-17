@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<script>
+(function(){var m=location.pathname.match(/^\/(en|ja)(\/|$)/);if(m)document.documentElement.lang=m[1]==='ja'?'ja':'en';})();
+</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>報名結果｜言文字・台灣人才聚落</title>
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Serif+TC:wght@500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/stylebook/components.css">
+<link rel="stylesheet" href="/nav.css">
+<script defer src="/nav.js"></script>
+<style>
+  .er-main{max-width:560px;margin:0 auto;padding:72px 24px 104px;min-height:60vh}
+  .er-icon{width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:700;color:#fff;background:#1f9d55;margin-bottom:24px}
+  .er--failed .er-icon,.er--canceled .er-icon{background:#d64545}
+  .er--pending_approval .er-icon,.er--waitlisted .er-icon,.er--checking .er-icon{background:#e0a100}
+  .er-h1{font-family:var(--serif);font-size:clamp(1.8rem,4.6vw,2.6rem);font-weight:500;line-height:1.25;margin:0 0 14px}
+  .er-msg{font-size:1.05rem;line-height:1.75;color:var(--ink-soft);margin:0}
+  .er-reason{margin:14px 0 0;padding:12px 16px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--paper-alt);font-size:1rem;line-height:1.6;word-break:break-word}
+  .er-note{margin:18px 0 0;font-size:1rem;line-height:1.7;color:var(--muted)}
+  .er-actions{display:flex;flex-direction:column;gap:12px;margin-top:32px}
+  .er-actions .ui-button{width:100%;min-height:52px;font-size:1.05rem}
+  .er-event{margin-top:28px;font-size:1rem;color:var(--muted)}
+  .er-event b{color:var(--ink);font-weight:500}
+</style>
+</head>
+<body>
+<!--SITE_HEADER-->
+<main id="content" class="er-main">
+  <article id="er" class="er" aria-live="polite">
+    <div class="er-icon" id="er-icon" aria-hidden="true"></div>
+    <h1 class="er-h1" id="er-title"></h1>
+    <p class="er-msg" id="er-msg"></p>
+    <p class="er-reason" id="er-reason" hidden></p>
+    <p class="er-note" id="er-note" hidden></p>
+    <p class="er-event" id="er-event" hidden></p>
+    <div class="er-actions" id="er-actions"></div>
+  </article>
+</main>
+<!--SITE_FOOTER-->
+<script>
+'use strict';
+const lang=(location.pathname.match(/^\/(en|ja)(\/|$)/)||[,'zh'])[1],base=lang==='zh'?'':'/'+lang;
+const parts=location.pathname.split('/').filter(Boolean);if(parts[0]==='en'||parts[0]==='ja')parts.shift();
+let status=parts[2]||'registered';
+const q=new URLSearchParams(location.search),slug=q.get('event')||'',eventUrl=slug?base+'/events/'+encodeURIComponent(slug):base+'/events';
+const TOKEN_KEY='tth_token',GUEST_RESULT_KEY='tth_event_guest_result';let token='';try{token=localStorage.getItem(TOKEN_KEY)||'';}catch{}
+const COPY={
+ zh:{registered:['✓','報名成功','確認信與票券資訊會寄到你的 Email。'],paid:['✓','付款完成，報名成功','活動票券已成立，確認信會寄到你的 Email。'],pending_approval:['…','已送出申請','等待主辦人審核，結果會以 Email 通知你。'],waitlisted:['…','已加入候補','目前尚未取得名額，有空位時會以 Email 通知你。'],failed:['!','報名失敗','這次報名沒有成功，請回活動頁再試一次，或聯絡我們。'],canceled:['!','付款未完成','你已取消付款，尚未報名成功。名額會保留到結帳連結到期，可回活動頁繼續付款。'],checking:['…','付款確認中','正在向付款服務確認結果，請稍候。'],unconfirmed:['…','付款確認中','尚未收到付款結果。若已扣款，稍後會收到確認信；也可以回活動頁查看報名狀態。'],
+  guestNote:'我們已用這個 Email 為你建立言文字會員帳號（免密碼），之後用同一個 Email 登入即可查看票券。',event:'活動',back:'回到活動頁',ticket:'查看票券',retry:'回活動頁再試一次',resume:'回活動頁繼續付款',all:'查看所有活動',contact:'聯絡我們'},
+ en:{registered:['✓','Registration successful','A confirmation and ticket details will be emailed to you.'],paid:['✓','Payment received, you are registered','Your ticket is ready. A confirmation will be emailed to you.'],pending_approval:['…','Request submitted','Awaiting host approval. We will email you the result.'],waitlisted:['…','Added to waitlist','You do not have a spot yet. We will email you if one opens.'],failed:['!','Registration failed','Your registration did not go through. Go back to the event to try again, or contact us.'],canceled:['!','Payment not completed','Payment was canceled and you are not registered yet. Your spot is held until checkout expires; go back to the event to resume payment.'],checking:['…','Confirming payment','Checking the payment result, one moment.'],unconfirmed:['…','Confirming payment','We have not received the payment result yet. If you were charged, a confirmation will arrive shortly; you can also check your status on the event page.'],
+  guestNote:'We created a free member account with this email (no password needed). Sign in with it anytime to view your tickets.',event:'Event',back:'Back to event',ticket:'View ticket',retry:'Back to event to try again',resume:'Back to event to resume payment',all:'All events',contact:'Contact us'},
+ ja:{registered:['✓','申込が完了しました','確認とチケット情報をメールでお送りします。'],paid:['✓','支払い完了・申込確定','チケットが発行されました。確認メールをお送りします。'],pending_approval:['…','申込を送信しました','主催者の承認待ちです。結果はメールでお知らせします。'],waitlisted:['…','キャンセル待ちに登録しました','まだ参加は確定していません。空きが出たらメールでご連絡します。'],failed:['!','申込に失敗しました','申込は完了していません。イベントページに戻ってもう一度お試しいただくか、お問い合わせください。'],canceled:['!','支払いが完了していません','支払いをキャンセルしました。まだ申込は完了していません。Checkout の期限まで枠を確保しますので、イベントページから支払いを続けられます。'],checking:['…','支払い確認中','支払い結果を確認しています。少々お待ちください。'],unconfirmed:['…','支払い確認中','支払い結果をまだ受信していません。請求済みの場合は確認メールが届きます。イベントページでも申込状況を確認できます。'],
+  guestNote:'このメールアドレスで会員アカウント（パスワード不要）を作成しました。同じメールでログインするとチケットを確認できます。',event:'イベント',back:'イベントページへ戻る',ticket:'チケットを表示',retry:'イベントページでもう一度申し込む',resume:'イベントページで支払いを続ける',all:'イベント一覧',contact:'お問い合わせ'}
+}[lang];
+const el=id=>document.getElementById(id);
+function render(kind,{guest=false,reason=''}={}){
+ const [icon,title,msg]=COPY[kind]||COPY.registered;
+ el('er').className='er er--'+kind;el('er-icon').textContent=icon;el('er-title').textContent=title;el('er-msg').textContent=msg;document.title=title+'｜言文字';
+ el('er-reason').hidden=!reason;el('er-reason').textContent=reason;
+ el('er-note').hidden=!guest;el('er-note').textContent=COPY.guestNote;
+ el('er-event').hidden=!slug;if(slug)el('er-event').innerHTML=COPY.event+'：<b></b>',el('er-event').querySelector('b').textContent=decodeURIComponent(slug).replace(/-/g,' ');
+ const primary={failed:COPY.retry,canceled:COPY.resume,registered:token?COPY.ticket:COPY.back,paid:token?COPY.ticket:COPY.back}[kind]||COPY.back;
+ el('er-actions').innerHTML=kind==='checking'?'':`<a class="ui-button" href="${eventUrl}">${primary}</a><a class="ui-button ui-button--secondary" href="${base}/events">${COPY.all}</a>${kind==='failed'?`<a class="ui-button ui-button--secondary" href="mailto:us@emoji.tw">${COPY.contact}</a>`:''}`;
+ document.body.dataset.eventResult=kind;try{(window.dataLayer=window.dataLayer||[]).push({event:'event_registration_result',result:kind,event_slug:slug,lang});}catch{}
+}
+async function verifyPaid(){
+ render('checking');const session=q.get('s')||'';
+ try{const res=await fetch('/api/events/checkout/verify',{method:'POST',headers:{'content-type':'application/json',...(token?{authorization:'Bearer '+token}:{})},body:JSON.stringify({session_id:session})}),out=await res.json().catch(()=>({}));
+  if(!res.ok)throw new Error(out.error||'');
+  if(out.paid){if(!token){try{sessionStorage.setItem(GUEST_RESULT_KEY,JSON.stringify({event_id:out.event_id,status:out.status||'registered',referral_token:out.referral_token}));}catch{}}render('paid',{guest:!token});}
+  else render('unconfirmed');
+ }catch(err){render('failed',{reason:err.message});}
+}
+if(status==='paid')verifyPaid();else render(status,{guest:q.get('guest')==='1',reason:q.get('reason')||''});
+</script>
+</body>
+</html>
