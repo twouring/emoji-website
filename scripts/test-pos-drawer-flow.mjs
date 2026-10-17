@@ -21,6 +21,21 @@ test('successful checkout opens before invoice work and resets even when canvas 
  const {ctx,button,events,messages}=checkout({printFail:true});await button.onclick();
  assert.equal(events[0],'payment');assert.equal(events[1].kind,'checkout');assert.equal(events[1].order_id,'to_1');assert.equal(events[2],'print');assert.equal(events[3],'receipt');assert.equal(events[4],'reload');assert.equal(button.disabled,false);assert.equal(ctx.POS_RECEIVED,'');assert.equal(ctx.POS_INVOICE.mode,'paper');assert.match(messages.join(' '),/發票列印失敗/);
 });
+for(const averageSplit of [false,true]){
+ test(`${averageSplit?'average-split':'ordinary'} checkout drawer failure points to 錢櫃 without repeating payment`,async()=>{
+  const {ctx,button,events,messages}=checkout();
+  if(averageSplit)ctx.aa={people:3,index:1,each:60};
+  ctx.autoCashDrawer=async event=>{events.push(event);return false;};
+  await button.onclick();
+  assert.equal(events.filter(e=>e==='payment').length,1);
+  assert.equal(events.filter(e=>e?.kind==='checkout').length,1);
+  assert.equal(events.filter(e=>e==='reload').length,1);
+  assert.equal(button.disabled,false);
+  const message=messages.find(m=>m.includes('未確認開櫃成功'));
+  assert.match(message,/已收.*未確認開櫃成功.*按「錢櫃」重試.*勿重複收款/);
+  assert.doesNotMatch(message,/「開錢櫃」/);
+ });
+}
 test('rapid double click submits only once while processing',async()=>{
  const {ctx,button,events}=checkout();let release;ctx.api=()=>new Promise(r=>{events.push('payment');release=()=>r({order_id:'to_2',amount:180,method:'cash'});});
  const first=button.onclick();await button.onclick();assert.deepEqual(events,['payment']);release();await first;assert.equal(events.filter(x=>x==='payment').length,1);
@@ -42,9 +57,18 @@ function refundContext({cash=true,confirmCash=true,fail=false,item=false}={}){
  vm.runInContext(src.slice(src.indexOf('async function voidOrderPrompt('),src.indexOf('function bindOrderButtons(')),ctx);
  const order={amount:180,payer:{method:cash?'cash':'card'}};
  const run=()=>item?ctx.cancelOrderItemPrompt('to_1','l1','品項',()=>reloaded=true,order):ctx.voidOrderPrompt('to_1',()=>reloaded=true,order);
- return {run,calls,opens,messages,get reloaded(){return reloaded;}};
+ return {ctx,run,calls,opens,messages,get reloaded(){return reloaded;}};
 }
 for(const item of [false,true]){
+ test(`${item?'item':'whole'} completed refund drawer failure points to 錢櫃 and preserves cash amount`,async()=>{
+  const c=refundContext({item});
+  c.ctx.autoCashDrawer=async e=>{c.opens.push(e);return false;};
+  await c.run();
+  assert.equal(c.calls.length,1);assert.equal(c.calls[0].body.refund_cash,true);
+  assert.equal(c.opens.length,1);assert.equal(c.reloaded,true);
+  assert.match(c.messages.join(' '),/已(?:取消|作廢).*請退現金 NT\$50.*未確認開櫃成功.*按「錢櫃」重試/);
+  assert.doesNotMatch(c.messages.join(' '),/「開錢櫃」/);
+ });
  test(`${item?'item':'whole'} refund opens only after successful explicit cash intent`,async()=>{
   const c=refundContext({item});await c.run();assert.equal(c.calls[0].body.refund_cash,true);assert.equal(c.opens[0].cash_refund,50);assert.equal(c.opens[0].line,item?'l1':undefined);assert.equal(c.reloaded,true);
  });

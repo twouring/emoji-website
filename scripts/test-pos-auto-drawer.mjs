@@ -48,7 +48,10 @@ test('hardware failure reports completed transaction and does not retry automati
  const {ctx,calls,messages}=drawerContext({starSend:async()=>false});
  await ctx.autoCashDrawer({kind:'checkout',order_id:'to_1',method:'cash',amount:180});
  await ctx.autoCashDrawer({kind:'checkout',order_id:'to_1',method:'cash',amount:180});
- assert.equal(calls.length,1);assert.match(messages.join(' '),/交易已完成.*開錢櫃/);
+ assert.equal(calls.length,1);
+ assert.equal(messages.length,1,'失敗只提示一次，不自動重送交易或開櫃');
+ assert.match(messages[0],/交易已完成.*未確認開櫃成功.*按「錢櫃」重試.*勿重複收退款/);
+ assert.doesNotMatch(messages[0],/「開錢櫃」/);
 });
 test('manual drawer is audited with reason and operator',async()=>{
  const {ctx,calls}=drawerContext();await ctx.manualCashDrawer('換鈔');
