@@ -294,6 +294,59 @@
     .sp-page{grid-template-columns:1fr}
   }
 .cal-item.cal-cancel{text-decoration:line-through;opacity:.6;border-left-color:var(--muted)}.a-todo{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:10px;margin-top:4px}.a-todo-item{display:block;padding:12px 14px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);text-decoration:none;transition:border-color .15s}.a-todo-item:hover{border-color:var(--ink)}.a-todo-item .n{display:block;font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.2}.a-todo-item .n.zero{color:var(--muted);font-weight:400}.a-todo-item .l{color:var(--muted)}.a-todo-list{margin:8px 0 0;padding:0;list-style:none}.a-todo-list li{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;padding:8px 0;border-top:1px solid var(--line)}.a-todo-list li:first-child{border-top:0}.a-todo-list a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}.a-todo-list a:hover{text-decoration-color:var(--ink)}.a-todo-list .meta{color:var(--muted);font-variant-numeric:tabular-nums}[data-panel="menu"] table.a-tbl td:nth-child(2),[data-panel="menu"] table.a-tbl th:nth-child(2){white-space:nowrap}#menu-save-server.is-dirty{background:var(--accent);color:var(--ink);border-color:var(--accent)}#ev-hosts label:has(>#share-url){display:block;width:100%}#share-url{width:100%;box-sizing:border-box;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92rem;line-height:1.45;padding:8px 10px;border:1px solid var(--muted);border-radius:6px;background:var(--card);color:var(--ink)}.ev-savebar{position:sticky;bottom:0;background:var(--paper);padding:16px 0;border-top:1px solid var(--line);z-index:5}#ev-translations summary{cursor:pointer;padding:12px 0;font-size:1rem}#ev-hosts[hidden]{display:none}#ev-hosts{scroll-margin-top:80px}
+
+  /* 合作開發：外出開發卡片、底部登記面板（手機優先，點擊目標 ≥48px） */
+  .out-bcard{text-align:left;width:100%;margin:0 0 8px;cursor:pointer;padding:10px 12px}.out-bname{font-weight:700}
+  .out-board{display:grid;gap:10px;overflow-x:auto}.out-board .a-nav-gl{margin-bottom:6px}
+  .out-due{color:#B3261E!important;font-weight:700}
+  .out-count{margin:4px 0 10px}
+  .out-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:10px}
+  .out-card{border:1px solid var(--line);border-radius:10px;background:var(--card);display:flex;flex-direction:column;overflow:hidden}
+  .out-card--due{border-color:#B3261E;box-shadow:inset 4px 0 0 #B3261E}
+  .out-card-main{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:4px;padding:12px 14px 10px;min-height:48px}
+  .out-card-main:focus-visible{outline:3px solid var(--ink);outline-offset:-3px}
+  .out-card-top{display:flex;align-items:flex-start;gap:8px}.out-card-name{font-size:1.05rem;line-height:1.4;font-weight:700}
+  .out-pri{flex:none;display:inline-grid;place-items:center;min-width:28px;height:28px;border-radius:999px;font-size:1rem;font-weight:700;line-height:1;background:var(--paper-alt);color:var(--ink)}
+  .out-pri--1{background:var(--ink);color:var(--paper)}
+  .out-card-meta,.out-card-addr,.out-card-fit,.out-card-next{color:var(--muted);font-size:1rem;line-height:1.45}
+  .out-card-fit{color:var(--ink-soft)}.out-stage{color:var(--ink);font-weight:500}
+  .out-card-acts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 12px 12px}
+  .out-card-acts .btn{min-height:48px;display:inline-flex;align-items:center;justify-content:center;padding:0 8px;white-space:nowrap}
+  .out-off{opacity:.45;pointer-events:none}
+  .out-more{width:100%;min-height:48px;margin-top:12px}
+  .out-detail{margin-top:16px;scroll-margin-top:calc(var(--a-top) + 12px)}
+  .out-detail-head{display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .out-detail-acts{padding:8px 0 4px;grid-template-columns:repeat(auto-fit,minmax(96px,1fr))}
+  .out-logs{list-style:none;padding:0;margin:8px 0 12px;display:flex;flex-direction:column;gap:8px}
+  .out-logs li{border-left:3px solid var(--line);padding:2px 0 2px 10px}.out-logs .kl{display:block;color:var(--muted)}
+  .out-edit>summary{cursor:pointer;min-height:48px;display:flex;align-items:center;font-weight:600}
+  #out-form{flex-wrap:wrap;gap:10px;align-items:flex-end}.out-f{min-width:200px;flex:1}.out-f--wide{flex-basis:100%}.out-f--wide textarea{width:100%}
+  .out-form-acts{display:flex;gap:8px;flex-basis:100%}
+  body.out-sheet-open{overflow:hidden}
+  .out-sheet{position:fixed;inset:0;z-index:80;display:flex;align-items:flex-end;justify-content:center}
+  .out-sheet-back{position:absolute;inset:0;background:rgba(0,0,0,.4)}
+  .out-sheet-card{position:relative;width:100%;max-width:560px;max-height:92dvh;overflow-y:auto;background:var(--card);border-radius:16px 16px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;overscroll-behavior:contain}
+  .out-sheet-card label{display:flex;flex-direction:column;gap:4px;font-size:1rem}
+  .out-sheet-card input,.out-sheet-card textarea{font-size:16px;min-height:48px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);width:100%;box-sizing:border-box}
+  .out-sheet-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.out-sheet-head b{font-size:1.1rem}
+  .out-results{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px}.out-results legend{font-size:1rem;margin-bottom:6px;color:var(--muted)}
+  .out-sheet-card .out-chip{flex-direction:row}
+  .out-chip input{position:absolute;opacity:0;width:1px;height:1px;min-height:0}
+  .out-chip span{display:inline-flex;align-items:center;min-height:48px;padding:0 14px;border:1px solid var(--line);border-radius:999px;cursor:pointer;background:var(--paper)}
+  .out-chip input:checked+span{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .out-chip input:focus-visible+span{outline:3px solid var(--ink);outline-offset:2px}
+  .out-sheet-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .out-quick{display:flex;flex-wrap:wrap;gap:8px}.out-quick .btn{min-height:44px}
+  .out-sheet-go{min-height:52px;font-size:1.05rem}
+  @media(min-width:761px){.out-sheet{align-items:center}.out-sheet-card{border-radius:16px}}
+  @media(max-width:760px){
+    .out-hint{display:none}
+    .out-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px}.out-kpis .a-kpi{padding:8px 12px}.out-kpis .kv{font-size:1.2rem}
+    .out-toolbar{display:grid!important;grid-template-columns:1fr 1fr;gap:8px}
+    .out-toolbar #out-q{grid-column:1/-1}
+    .out-toolbar input,.out-toolbar select,.out-toolbar .btn{width:100%!important;min-height:48px}
+    [data-panel="outreach"]>.a-sec{padding:12px;border:0;background:transparent}
+  }
 </style>
 <script src="/event-csv.js"></script>
 <script src="/event-fields.js"></script>
@@ -2691,48 +2744,163 @@ const ADS_LAYER_META = { awareness:'陌生觸及', retarget:'互動再行銷', a
 const ADS_STATUS_META = { planned:['規劃中','pill-wait'], running:['投放中','pill-live'], done:['已結案','pill-ok'] };
 
 
-/* ---- 合作開發：商旅／按摩／補習班等周邊店家，贈送飲品招待券換取宣傳；名單＋pipeline＋跟進紀錄 ---- */
-let OUT = null, OUT_VIEW = 'board', OUT_OPEN = null, OUT_Q = '', OUT_CAT = '', OUT_LOGS = [];
+/* ---- 合作開發：商旅／按摩／補習班等周邊店家，贈送飲品招待券換取宣傳；名單＋pipeline＋跟進紀錄 ----
+   手機（≤760px）預設「外出開發」：依分數／距離／離我最近排序的卡片，每張卡直接撥號、導航、登記；
+   登記用底部面板：一鍵選結果（已拜訪／已合作…）＋送券張數＋下次跟進，送出即更新階段，不必進詳細頁。 */
+const OUT_MOBILE = () => matchMedia('(max-width:760px)').matches;
+let OUT = null, OUT_VIEW = '', OUT_OPEN = null, OUT_Q = '', OUT_CAT = '', OUT_STAGE = 'open', OUT_SORT = 'score', OUT_LOGS = [], OUT_ME = null, OUT_LIMIT = 40;
 function tabOutreach(){ return '<div class="a-sec" id="out-body"><h2>合作開發</h2><p class="a-sub">載入資料…</p></div>'; }
-const outDue = l => l.next_action_date && !['已合作','暫不合作'].includes(l.stage) && l.next_action_date <= new Date(Date.now()+8*3600e3).toISOString().slice(0,10);
+const outToday = () => new Date(Date.now()+8*3600e3).toISOString().slice(0,10);
+const outDue = l => l.next_action_date && !['已合作','暫不合作'].includes(l.stage) && l.next_action_date <= outToday();
+const outGeo = l => { if (l.lat!=null && l.lon!=null) return [l.lat,l.lon]; const m=/query=([\d.]+),([\d.]+)/.exec(l.note||''); return m?[+m[1],+m[2]]:null; };
+const outMeters = (a,b) => { const dy=(a[0]-b[0])*111320, dx=(a[1]-b[1])*111320*Math.cos(a[0]*Math.PI/180); return Math.round(Math.hypot(dx,dy)); };
+const outDistTxt = m => m==null ? '' : m<1000 ? `${m} m` : `${(m/1000).toFixed(1)} km`;
+const outMapsUrl = l => { const m=/(https:\/\/maps\.google\.com\/\?cid=\d+)/.exec(l.note||''); if (m) return m[1]; const g=outGeo(l); return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(g?g.join(','):(l.name+' '+(l.address||''))); };
+const outTel = p => String(p||'').replace(/[^\d+]/g,'');
+const OUT_PRI = ['','高','中','低'];
+const OUT_RESULTS = [
+  {k:'visit', label:'已拜訪', kind:'拜訪', stage:'已聯絡'},
+  {k:'call', label:'已通話', kind:'電話', stage:'已聯絡'},
+  {k:'talk', label:'有興趣・洽談中', kind:'拜訪', stage:'洽談中'},
+  {k:'deal', label:'談成合作', kind:'拜訪', stage:'已合作'},
+  {k:'coupon', label:'送券', kind:'送券', stage:''},
+  {k:'absent', label:'沒遇到負責人', kind:'拜訪', stage:''},
+  {k:'no', label:'不合作', kind:'拜訪', stage:'暫不合作'},
+];
 async function loadOutreach(){
   const host = document.getElementById('out-body'); if (!host) return;
   try { OUT = await api('/admin/outreach'); } catch(e){ host.innerHTML = `<h2>合作開發</h2><p class="a-empty">${esc(e.message)}</p>`; return; }
+  if (!OUT_VIEW) OUT_VIEW = OUT_MOBILE() ? 'field' : 'board';
   paintOutreach();
 }
+async function outReload(){ OUT = await api('/admin/outreach'); paintOutreach(); }
+function outFiltered(){
+  const kw = OUT_Q.trim().toLowerCase();
+  let leads = OUT.leads.filter(l => (!OUT_CAT || l.category===OUT_CAT)
+    && (OUT_STAGE==='all' || (OUT_STAGE==='open' ? !['已合作','暫不合作'].includes(l.stage) : OUT_STAGE==='due' ? outDue(l) : l.stage===OUT_STAGE))
+    && (!kw || [l.name,l.address,l.owner,l.contact_person,l.note,l.phone].join(' ').toLowerCase().includes(kw)));
+  const d = l => { if (OUT_SORT==='near' && OUT_ME) { const g=outGeo(l); return g?outMeters(OUT_ME,g):9e9; } return l.distance_m ?? 9e9; };
+  leads = leads.map(l => ({l, d:d(l)}));
+  leads.sort((a,b) => OUT_SORT==='score' ? (b.l.score??-1)-(a.l.score??-1) || a.d-b.d : OUT_SORT==='due' ? String(a.l.next_action_date||'9999').localeCompare(String(b.l.next_action_date||'9999')) || a.d-b.d : a.d-b.d);
+  return leads;
+}
 function outCard(l){
-  const pr = ['','高','中','低'][l.priority];
-  return `<button type="button" class="a-kpi" data-out-open="${esc(l.id)}" style="text-align:left;width:100%;margin:0 0 8px;cursor:pointer;padding:10px 12px">
-    <div style="font-weight:700">${esc(l.name)}</div>
-    <div class="kl">${esc(l.category)}・優先${pr}${l.coupon_qty?`・券 ${l.coupon_qty} 張`:''}</div>
-    ${l.next_action||l.next_action_date?`<div class="kl" style="${outDue(l)?'color:#c0392b;font-weight:700':''}">${l.next_action_date?esc(l.next_action_date.slice(5))+' ':''}${esc(l.next_action)}</div>`:''}
+  return `<button type="button" class="a-kpi out-bcard" data-out-open="${esc(l.id)}">
+    <div class="out-bname">${esc(l.name)}</div>
+    <div class="kl">${esc(l.category)}・優先${OUT_PRI[l.priority]}${l.score!=null?`・${l.score} 分`:''}${l.distance_m!=null?`・${outDistTxt(l.distance_m)}`:''}${l.coupon_qty?`・券 ${l.coupon_qty} 張`:''}</div>
+    ${l.next_action||l.next_action_date?`<div class="kl ${outDue(l)?'out-due':''}">${l.next_action_date?esc(l.next_action_date.slice(5))+' ':''}${esc(l.next_action)}</div>`:''}
     ${l.owner?`<div class="kl">負責：${esc(l.owner)}</div>`:''}</button>`;
+}
+function outFieldCard({l,d}){
+  const tel = outTel(l.phone);
+  return `<article class="out-card ${outDue(l)?'out-card--due':''}">
+    <button type="button" class="out-card-main" data-out-open="${esc(l.id)}">
+      <span class="out-card-top"><span class="out-pri out-pri--${l.priority}">${OUT_PRI[l.priority]}</span><b class="out-card-name">${esc(l.name)}</b></span>
+      <span class="out-card-meta">${esc(l.category)}${d<9e9?`・${outDistTxt(d)}`:''}${l.score!=null?`・${l.score} 分`:''}・<span class="out-stage">${esc(l.stage)}</span></span>
+      ${l.fit_reason?`<span class="out-card-fit">${esc(l.fit_reason)}</span>`:''}
+      ${l.next_action||l.next_action_date?`<span class="out-card-next ${outDue(l)?'out-due':''}">下次：${l.next_action_date?esc(l.next_action_date.slice(5))+' ':''}${esc(l.next_action)}</span>`:''}
+      ${l.address?`<span class="out-card-addr">${esc(l.address)}</span>`:''}
+    </button>
+    <div class="out-card-acts">
+      ${tel?`<a class="btn btn--ghost" href="tel:${esc(tel)}">撥號</a>`:'<span class="btn btn--ghost out-off" aria-disabled="true">無電話</span>'}
+      <a class="btn btn--ghost" href="${esc(outMapsUrl(l))}" target="_blank" rel="noopener">導航</a>
+      <button type="button" class="btn btn--solid" data-out-log="${esc(l.id)}">登記</button>
+    </div>
+  </article>`;
 }
 function paintOutreach(){
   const host = document.getElementById('out-body'); if (!host || !OUT) return;
-  const kw = OUT_Q.toLowerCase();
-  const leads = OUT.leads.filter(l => (!OUT_CAT || l.category===OUT_CAT) && (!kw || [l.name,l.address,l.owner,l.contact_person,l.note].join(' ').toLowerCase().includes(kw)));
+  const rows = outFiltered();
+  const leads = rows.map(r=>r.l);
   const cnt = s => OUT.leads.filter(l=>l.stage===s).length;
   const due = OUT.leads.filter(outDue).length;
   const coupons = OUT.leads.filter(l=>l.stage==='已合作').reduce((a,l)=>a+l.coupon_qty,0);
-  const board = `<div style="display:grid;grid-template-columns:repeat(${OUT.stages.length},minmax(190px,1fr));gap:10px;overflow-x:auto">${OUT.stages.map(s=>`<div><div class="a-nav-gl" style="margin-bottom:6px">${esc(s)}（${leads.filter(l=>l.stage===s).length}）</div>${(()=>{const col=leads.filter(l=>l.stage===s);return (col.slice(0,60).map(outCard).join('')||'<p class="a-empty" style="margin:0">—</p>')+(col.length>60?`<p class="hint" style="margin:4px 0">還有 ${col.length-60} 筆，請用搜尋、類別篩選或清單檢視</p>`:'');})()}</div>`).join('')}</div>`;
-  const list = `<div class="a-wrap2"><table class="a-tbl"><thead><tr><th>店家</th><th>類別</th><th>階段</th><th>優先</th><th>負責</th><th>下次跟進</th><th></th></tr></thead><tbody>${leads.map(l=>`<tr><td>${esc(l.name)}</td><td>${esc(l.category)}</td><td>${esc(l.stage)}</td><td>${['','高','中','低'][l.priority]}</td><td>${esc(l.owner)}</td><td style="${outDue(l)?'color:#c0392b;font-weight:700':''}">${esc(l.next_action_date||'')} ${esc(l.next_action)}</td><td><button class="btn btn--ghost btn-sm" data-out-open="${esc(l.id)}">開啟</button></td></tr>`).join('')||'<tr><td colspan="7" class="a-empty">沒有符合的名單</td></tr>'}</tbody></table></div>`;
+  const stageOpts = [['open','進行中（未結案）'],['due','今天／逾期要跟進'],['all','全部階段'],...OUT.stages.map(s=>[s,s])];
+  const sortOpts = [['score','契合度高→低'],['dist','距言文字近→遠'],['near','離我最近（定位）'],['due','跟進日期']];
+  const field = `<div class="out-list">${rows.slice(0,OUT_LIMIT).map(outFieldCard).join('')||'<p class="a-empty">沒有符合的名單</p>'}</div>
+    ${rows.length>OUT_LIMIT?`<button type="button" class="btn btn--ghost out-more" id="out-more">再顯示 ${Math.min(40,rows.length-OUT_LIMIT)} 筆（共 ${rows.length}）</button>`:''}`;
+  const board = `<div class="out-board" style="grid-template-columns:repeat(${OUT.stages.length},minmax(190px,1fr))">${OUT.stages.map(s=>{const col=leads.filter(l=>l.stage===s);return `<div><div class="a-nav-gl">${esc(s)}（${col.length}）</div>${col.slice(0,60).map(outCard).join('')||'<p class="a-empty">—</p>'}${col.length>60?`<p class="hint">還有 ${col.length-60} 筆，請用搜尋、篩選或清單檢視</p>`:''}</div>`;}).join('')}</div>`;
+  const list = `<div class="a-wrap2"><table class="a-tbl"><thead><tr><th>店家</th><th>類別</th><th>分數</th><th>距離</th><th>階段</th><th>優先</th><th>負責</th><th>下次跟進</th><th></th></tr></thead><tbody>${rows.slice(0,300).map(({l,d})=>`<tr><td>${esc(l.name)}</td><td>${esc(l.category)}</td><td class="num">${l.score??''}</td><td class="num">${outDistTxt(d<9e9?d:null)}</td><td>${esc(l.stage)}</td><td>${OUT_PRI[l.priority]}</td><td>${esc(l.owner)}</td><td class="${outDue(l)?'out-due':''}">${esc(l.next_action_date||'')} ${esc(l.next_action)}</td><td><button class="btn btn--ghost btn-sm" data-out-open="${esc(l.id)}">開啟</button></td></tr>`).join('')||'<tr><td colspan="9" class="a-empty">沒有符合的名單</td></tr>'}</tbody></table></div>${rows.length>300?`<p class="hint">只列前 300 筆（共 ${rows.length}），請用搜尋或篩選縮小範圍。</p>`:''}`;
   host.innerHTML = `<h2>合作開發</h2>
-    <p class="hint">開發周邊商旅、按摩養生、補習班等店家，提供飲品招待券給他們的客人，作為言文字宣傳。僅超管與被授權的言文字管理員可見、可登記。名單初稿來自公開網頁，聯絡前請先核對。</p>
-    <div class="a-kpis"><div class="a-kpi"><div class="kl">名單</div><div class="kv">${OUT.leads.length}</div></div><div class="a-kpi"><div class="kl">洽談中</div><div class="kv">${cnt('洽談中')}</div></div><div class="a-kpi"><div class="kl">已合作</div><div class="kv">${cnt('已合作')}<span class="u"> 家</span></div></div><div class="a-kpi"><div class="kl">已合作招待券</div><div class="kv">${coupons}<span class="u"> 張</span></div></div><div class="a-kpi"><div class="kl">今日／逾期待跟進</div><div class="kv" style="${due?'color:#c0392b':''}">${due}</div></div></div>
-    <div class="a-toolbar"><input type="search" id="out-q" placeholder="搜尋店家、地址、負責人…" value="${esc(OUT_Q)}" aria-label="搜尋名單">
+    <p class="hint out-hint">開發周邊商旅、按摩養生、補習班，提供飲品招待券給他們的客人，作為言文字宣傳。分數＝距離 50％＋契合度 50％（類別、招待券適合度、規模評價）。</p>
+    <div class="a-kpis out-kpis"><div class="a-kpi"><div class="kl">進行中</div><div class="kv">${OUT.leads.length-cnt('已合作')-cnt('暫不合作')}</div></div><div class="a-kpi"><div class="kl">洽談中</div><div class="kv">${cnt('洽談中')}</div></div><div class="a-kpi"><div class="kl">已合作</div><div class="kv">${cnt('已合作')}<span class="u"> 家・券 ${coupons}</span></div></div><div class="a-kpi"><div class="kl">今天／逾期跟進</div><div class="kv ${due?'out-due':''}">${due}</div></div></div>
+    <div class="a-toolbar out-toolbar">
+      <input type="search" id="out-q" placeholder="搜尋店家、地址、電話…" value="${esc(OUT_Q)}" aria-label="搜尋名單" enterkeyhint="search">
       <select id="out-cat" aria-label="類別"><option value="">全部類別</option>${OUT.categories.map(c=>`<option ${c===OUT_CAT?'selected':''}>${esc(c)}</option>`).join('')}</select>
-      <select id="out-view" aria-label="檢視"><option value="board" ${OUT_VIEW==='board'?'selected':''}>看板</option><option value="list" ${OUT_VIEW==='list'?'selected':''}>清單</option></select>
-      <button class="btn btn--solid btn-sm" id="out-new">＋ 新增店家</button></div>
-    ${OUT_VIEW==='board'?board:list}
+      <select id="out-stage" aria-label="階段">${stageOpts.map(([v,lbl])=>`<option value="${esc(v)}" ${v===OUT_STAGE?'selected':''}>${esc(lbl)}</option>`).join('')}</select>
+      <select id="out-sort" aria-label="排序">${sortOpts.map(([v,lbl])=>`<option value="${v}" ${v===OUT_SORT?'selected':''}>${lbl}</option>`).join('')}</select>
+      <select id="out-view" aria-label="檢視"><option value="field" ${OUT_VIEW==='field'?'selected':''}>外出開發</option><option value="board" ${OUT_VIEW==='board'?'selected':''}>看板</option><option value="list" ${OUT_VIEW==='list'?'selected':''}>清單</option></select>
+      <button class="btn btn--ghost btn-sm" id="out-new" type="button">＋ 新增店家</button></div>
+    <p class="hint out-count">${rows.length} 筆${OUT_SORT==='near'?(OUT_ME?'・依你目前位置排序':'・定位中…'):''}</p>
+    ${OUT_VIEW==='field'?field:OUT_VIEW==='board'?board:list}
     <div id="out-detail"></div>`;
   const q = document.getElementById('out-q');
-  q.oninput = () => { OUT_Q = q.value; const pos=q.selectionStart; paintOutreach(); const n=document.getElementById('out-q'); n.focus(); n.setSelectionRange(pos,pos); };
-  document.getElementById('out-cat').onchange = e => { OUT_CAT = e.target.value; paintOutreach(); };
+  let qt; q.oninput = () => { clearTimeout(qt); qt = setTimeout(() => { OUT_Q = q.value; OUT_LIMIT = 40; const pos=q.selectionStart; paintOutreach(); const n=document.getElementById('out-q'); n.focus(); n.setSelectionRange(pos,pos); }, 250); };
+  document.getElementById('out-cat').onchange = e => { OUT_CAT = e.target.value; OUT_LIMIT = 40; paintOutreach(); };
+  document.getElementById('out-stage').onchange = e => { OUT_STAGE = e.target.value; OUT_LIMIT = 40; paintOutreach(); };
+  document.getElementById('out-sort').onchange = e => { OUT_SORT = e.target.value; OUT_LIMIT = 40; if (OUT_SORT==='near') outLocate(); paintOutreach(); };
   document.getElementById('out-view').onchange = e => { OUT_VIEW = e.target.value; paintOutreach(); };
   document.getElementById('out-new').onclick = () => openOutLead(null);
+  const more = document.getElementById('out-more'); if (more) more.onclick = () => { OUT_LIMIT += 40; paintOutreach(); };
   host.querySelectorAll('[data-out-open]').forEach(b => b.onclick = () => openOutLead(b.dataset.outOpen));
+  host.querySelectorAll('[data-out-log]').forEach(b => b.onclick = () => outLogSheet(b.dataset.outLog));
   if (OUT_OPEN) openOutLead(OUT_OPEN, true);
+}
+function outLocate(){
+  if (!navigator.geolocation) { toast('這台裝置不支援定位，改依距言文字排序'); OUT_SORT='dist'; paintOutreach(); return; }
+  navigator.geolocation.getCurrentPosition(p => { OUT_ME = [p.coords.latitude, p.coords.longitude]; paintOutreach(); },
+    () => { toast('無法取得定位，改依距言文字排序'); OUT_SORT='dist'; paintOutreach(); }, {enableHighAccuracy:true, timeout:10000, maximumAge:60000});
+}
+/* 底部登記面板：手機外出時一頁完成「選結果→送券張數→下次跟進→送出」；返回鍵＝關閉 */
+function outCloseSheet(fromPop){
+  const s = document.getElementById('out-sheet'); if (!s) return;
+  s.remove(); document.body.classList.remove('out-sheet-open');
+  if (!fromPop && history.state && history.state.outSheet) history.back();
+}
+window.addEventListener('popstate', () => { if (document.getElementById('out-sheet')) outCloseSheet(true); });
+function outLogSheet(id){
+  const l = OUT.leads.find(x=>x.id===id); if (!l) return;
+  outCloseSheet(true);
+  const d7 = new Date(Date.now()+8*3600e3+7*864e5).toISOString().slice(0,10);
+  const wrap = document.createElement('div');
+  wrap.id = 'out-sheet'; wrap.className = 'out-sheet';
+  wrap.innerHTML = `<div class="out-sheet-back" data-out-x></div>
+    <form class="out-sheet-card" role="dialog" aria-modal="true" aria-labelledby="out-sheet-t">
+      <div class="out-sheet-head"><div><b id="out-sheet-t">${esc(l.name)}</b><div class="kl">${esc(l.category)}・目前「${esc(l.stage)}」</div></div><button type="button" class="btn btn--ghost" data-out-x aria-label="關閉">關閉</button></div>
+      <fieldset class="out-results"><legend>結果</legend>${OUT_RESULTS.map((r,i)=>`<label class="out-chip"><input type="radio" name="result" value="${r.k}" ${i===0?'checked':''}><span>${esc(r.label)}</span></label>`).join('')}</fieldset>
+      <label>補充說明<textarea name="content" rows="2" maxlength="2000" placeholder="例：櫃檯經理林小姐，下週三再來"></textarea></label>
+      <div class="out-sheet-row">
+        <label>送出招待券（張）<input name="coupon_add" type="number" inputmode="numeric" min="0" max="10000" placeholder="0"></label>
+        <label>下次跟進日<input name="next_action_date" type="date" value=""></label>
+      </div>
+      <div class="out-quick"><button type="button" class="btn btn--ghost btn-sm" data-out-d="3">3 天後</button><button type="button" class="btn btn--ghost btn-sm" data-out-d="7">下週</button><button type="button" class="btn btn--ghost btn-sm" data-out-d="14">兩週後</button><button type="button" class="btn btn--ghost btn-sm" data-out-d="0">不排</button></div>
+      <label>下次要做什麼<input name="next_action" maxlength="200" placeholder="例：帶招待券樣張再訪"></label>
+      <label>聯絡人<input name="contact_person" maxlength="80" value="${esc(l.contact_person||'')}" placeholder="姓名／職稱"></label>
+      <button type="submit" class="btn btn--solid out-sheet-go">送出登記</button>
+    </form>`;
+  document.body.appendChild(wrap); document.body.classList.add('out-sheet-open');
+  history.pushState({...(history.state||{}), outSheet:1}, '');
+  const f = wrap.querySelector('form');
+  wrap.querySelectorAll('[data-out-x]').forEach(b => b.onclick = () => outCloseSheet());
+  wrap.querySelectorAll('[data-out-d]').forEach(b => b.onclick = () => { const n=+b.dataset.outD; f.next_action_date.value = n ? new Date(Date.now()+8*3600e3+n*864e5).toISOString().slice(0,10) : ''; });
+  f.onchange = e => { if (e.target.name==='result' && ['visit','call','absent','talk'].includes(e.target.value) && !f.next_action_date.value) f.next_action_date.value = d7; };
+  f.next_action_date.value = d7;
+  f.onsubmit = async e => {
+    e.preventDefault();
+    const r = OUT_RESULTS.find(x=>x.k===f.result.value);
+    const add = Math.max(0, Math.floor(Number(f.coupon_add.value)||0));
+    const extra = f.content.value.trim();
+    const body = { kind: add && r.k==='coupon' ? '送券' : r.kind, content: [r.label, add?`送出招待券 ${add} 張`:'', extra].filter(Boolean).join('｜'),
+      next_action_date: f.next_action_date.value || '', next_action: f.next_action.value.trim() };
+    if (r.stage && r.stage !== l.stage) body.stage = r.stage;
+    if (add) body.coupon_qty = (l.coupon_qty||0) + add;
+    const btn = f.querySelector('.out-sheet-go'); btn.disabled = true; btn.textContent = '送出中…';
+    try {
+      await api('/admin/outreach/leads/'+id+'/logs', {method:'POST', body});
+      if (f.contact_person.value.trim() !== (l.contact_person||'')) await api('/admin/outreach/leads', {method:'POST', body:{id, contact_person:f.contact_person.value.trim()}});
+      outCloseSheet(); toast('已登記：'+l.name); await outReload();
+    } catch(err){ toast(err.message); btn.disabled = false; btn.textContent = '送出登記'; }
+  };
 }
 async function openOutLead(id, keep){
   OUT_OPEN = id || 'new';
@@ -2740,37 +2908,33 @@ async function openOutLead(id, keep){
   if (!l) { OUT_OPEN = null; return; }
   OUT_LOGS = id ? ((await api('/admin/outreach/'+id+'/logs').catch(()=>({logs:[]}))).logs) : [];
   const opt = (arr, v) => arr.map(x=>`<option ${x===v?'selected':''}>${esc(x)}</option>`).join('');
-  const f = (k,label,type='text',extra='') => `<label style="min-width:200px;flex:1">${label}<input name="${k}" type="${type}" value="${esc(l[k]??'')}" ${extra}></label>`;
+  const f = (k,label,type='text',extra='') => `<label class="out-f">${label}<input name="${k}" type="${type}" value="${esc(l[k]??'')}" ${extra}></label>`;
+  const tel = outTel(l.phone);
   const host = document.getElementById('out-detail');
-  host.innerHTML = `<div class="a-sec" style="margin-top:16px;border:1px solid var(--line,#ddd);padding:14px"><h3>${id?esc(l.name):'新增店家'} <button class="btn btn--ghost btn-sm" id="out-close" type="button">關閉</button></h3>
-    <form id="out-form" class="a-form" style="flex-wrap:wrap;gap:10px;align-items:flex-end">
+  host.innerHTML = `<div class="a-sec out-detail" id="out-detail-card">
+    <div class="out-detail-head"><h3>${id?esc(l.name):'新增店家'}</h3><button class="btn btn--ghost btn-sm" id="out-close" type="button">關閉</button></div>
+    ${id?`<p class="kl">${esc(l.category)}・${esc(l.stage)}${l.score!=null?`・${l.score} 分`:''}${l.distance_m!=null?`・距言文字 ${outDistTxt(l.distance_m)}`:''}${l.fit_reason?`<br>${esc(l.fit_reason)}`:''}</p>
+    <div class="out-card-acts out-detail-acts">${tel?`<a class="btn btn--ghost" href="tel:${esc(tel)}">撥號</a>`:''}<a class="btn btn--ghost" href="${esc(outMapsUrl(l))}" target="_blank" rel="noopener">導航</a>${l.website?`<a class="btn btn--ghost" href="${esc(l.website)}" target="_blank" rel="noopener">網站</a>`:''}<button type="button" class="btn btn--solid" data-out-log="${esc(l.id)}">登記</button></div>`:''}
+    ${id?`<h3>開發紀錄</h3><ol class="out-logs">${OUT_LOGS.map(g=>`<li><span class="kl">${esc(applicationTime(g.created_at))}・${esc(g.actor)}・${esc(g.kind)}</span>${esc(g.content)}${g.stage_to?` <span class="pill pill-ok">→ ${esc(g.stage_to)}</span>`:''}</li>`).join('')||'<li class="a-empty">尚無紀錄</li>'}</ol>`:''}
+    <details class="out-edit" ${id?'':'open'}><summary>${id?'編輯店家資料':'店家資料'}</summary>
+    <form id="out-form" class="a-form">
       ${f('name','店家名稱','text','required maxlength="120"')}
-      <label>類別<select name="category">${opt(OUT.categories,l.category)}</select></label>
-      <label>階段<select name="stage">${opt(OUT.stages,l.stage)}</select></label>
-      <label>優先度<select name="priority">${[1,2,3].map(n=>`<option value="${n}" ${n===l.priority?'selected':''}>${['','高','中','低'][n]}</option>`).join('')}</select></label>
-      ${f('address','地址')}${f('phone','電話')}${f('website','網站')}${f('contact_person','聯絡人')}${f('owner','言文字負責人')}
-      ${f('coupon_qty','招待券數量','number','min="0"')}${f('next_action','下次跟進事項')}${f('next_action_date','下次跟進日','date')}
-      <label style="flex-basis:100%">備註<textarea name="note" rows="2" maxlength="2000" style="width:100%">${esc(l.note||'')}</textarea></label>
-      <button class="btn btn--solid btn-sm" type="submit">${id?'儲存':'建立'}</button>
-      ${id&&DATA.super?'<button class="btn btn--ghost btn-sm" type="button" id="out-del">刪除</button>':''}
-    </form>
-    ${id?`<h3 style="margin-top:16px">登記開發狀況</h3>
-    <form id="out-log-form" class="a-form" style="flex-wrap:wrap;gap:10px;align-items:flex-end">
-      <label>方式<select name="kind">${opt(OUT.log_kinds,'電話')}</select></label>
-      <label style="flex:1;min-width:240px">內容<input name="content" required maxlength="2000" placeholder="例：電話聯絡櫃檯，店長下週三回覆"></label>
-      <label>更新階段<select name="stage"><option value="">不變</option>${opt(OUT.stages,'')}</select></label>
-      <label>下次跟進日<input name="next_action_date" type="date"></label>
-      <label>下次事項<input name="next_action" maxlength="200"></label>
-      <button class="btn btn--solid btn-sm" type="submit">登記</button></form>
-    <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>時間</th><th>人員</th><th>方式</th><th>內容</th></tr></thead><tbody>${OUT_LOGS.map(g=>`<tr><td class="a-mono">${esc(applicationTime(g.created_at))}</td><td>${esc(g.actor)}</td><td>${esc(g.kind)}</td><td>${esc(g.content)}${g.stage_to?` <span class="pill pill-ok">→ ${esc(g.stage_to)}</span>`:''}</td></tr>`).join('')||'<tr><td colspan="4" class="a-empty">尚無紀錄</td></tr>'}</tbody></table></div>`:''}</div>`;
-  const body = form => { const o = Object.fromEntries(new FormData(form)); return o; };
+      <label class="out-f">類別<select name="category">${opt(OUT.categories,l.category)}</select></label>
+      <label class="out-f">階段<select name="stage">${opt(OUT.stages,l.stage)}</select></label>
+      <label class="out-f">優先度<select name="priority">${[1,2,3].map(n=>`<option value="${n}" ${n===l.priority?'selected':''}>${OUT_PRI[n]}</option>`).join('')}</select></label>
+      ${f('address','地址')}${f('phone','電話','tel')}${f('website','網站','url')}${f('contact_person','聯絡人')}${f('owner','言文字負責人')}
+      ${f('coupon_qty','招待券數量（累計）','number','min="0" inputmode="numeric"')}${f('next_action','下次跟進事項')}${f('next_action_date','下次跟進日','date')}
+      <label class="out-f out-f--wide">備註<textarea name="note" rows="3" maxlength="2000">${esc(l.note||'')}</textarea></label>
+      <div class="out-form-acts"><button class="btn btn--solid btn-sm" type="submit">${id?'儲存':'建立'}</button>
+      ${id&&DATA.super?'<button class="btn btn--ghost btn-sm" type="button" id="out-del">刪除</button>':''}</div>
+    </form></details></div>`;
+  const body = form => Object.fromEntries(new FormData(form));
   document.getElementById('out-close').onclick = () => { OUT_OPEN = null; host.innerHTML = ''; };
-  document.getElementById('out-form').onsubmit = async e => { e.preventDefault(); try { const o = body(e.target); if (id) o.id = id; const r = await api('/admin/outreach/leads',{method:'POST',body:o}); toast(id?'已儲存':'已建立'); OUT_OPEN = id ? id : r.id; OUT = await api('/admin/outreach'); paintOutreach(); } catch(err){ toast(err.message); } };
-  const lf = document.getElementById('out-log-form');
-  if (lf) lf.onsubmit = async e => { e.preventDefault(); try { await api('/admin/outreach/leads/'+id+'/logs',{method:'POST',body:body(e.target)}); toast('已登記'); OUT = await api('/admin/outreach'); paintOutreach(); } catch(err){ toast(err.message); } };
+  host.querySelectorAll('[data-out-log]').forEach(b => b.onclick = () => outLogSheet(b.dataset.outLog));
+  document.getElementById('out-form').onsubmit = async e => { e.preventDefault(); try { const o = body(e.target); if (id) o.id = id; const r = await api('/admin/outreach/leads',{method:'POST',body:o}); toast(id?'已儲存':'已建立'); OUT_OPEN = id ? id : r.id; await outReload(); } catch(err){ toast(err.message); } };
   const del = document.getElementById('out-del');
-  if (del) del.onclick = async () => { if (!confirm('刪除「'+l.name+'」與其所有跟進紀錄？')) return; try { await api('/admin/outreach/leads/'+id,{method:'DELETE'}); toast('已刪除'); OUT_OPEN = null; OUT = await api('/admin/outreach'); paintOutreach(); } catch(err){ toast(err.message); } };
-  if (!keep) host.scrollIntoView({behavior:'smooth',block:'nearest'});
+  if (del) del.onclick = async () => { if (!confirm('刪除「'+l.name+'」與其所有跟進紀錄？')) return; try { await api('/admin/outreach/leads/'+id,{method:'DELETE'}); toast('已刪除'); OUT_OPEN = null; await outReload(); } catch(err){ toast(err.message); } };
+  if (!keep) document.getElementById('out-detail-card').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function tabAds(){
