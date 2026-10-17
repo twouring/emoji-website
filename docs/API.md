@@ -662,7 +662,10 @@ X 貼文 AI 起草：body `{ topic }`，回 `{ ok, draft: { title, caption, capt
 取消預約取餐：只限還沒自動送單（`pickup_placed_at` 空）且沒結帳的，否則 409 請聯絡店家。回 `{ ok }`。agent 金鑰 403。
 
 ### GET /api/me/rewards
-會員卡「可以兌換」清單（只讀）。回 `{ ok, items:[{id,venue,zh,en,ja,points,image}], space:[{plan,zh,points}] }`：`items` 為菜單中已發布、非 POS 專用、今天未估清且 `points>0` 的品項（點數由低到高）；`space` 為後台 `yan_rewards` 設定的空間時數。實際兌換仍在櫃檯掃會員碼。agent 金鑰 403。
+會員卡「可以兌換」清單（只讀）。回 `{ ok, items:[{id,venue,zh,en,ja,points,image}], space:[{plan,zh,points}] }`：`items` 為菜單中已發布、非 POS 專用、今天未估清且 `points>0` 的品項（點數由低到高）；`space` 為後台 `yan_rewards` 設定的空間時數。餐飲品項由 App 掃桌碼兌換（`POST /api/me/redeem`），空間時數仍在櫃檯掃會員碼。agent 金鑰 403。
+
+### POST /api/me/redeem
+會員用點數兌換餐飲品項（1 點＝NT$10，點數由菜單 `points` 決定）。App 點「兌換」後開相機掃桌上點菜 QR（`/order?t=桌號&k=驗證碼`），body：`{ t, k, item_id }`。伺服器驗桌碼、檢查品項開放兌換且未估清／暫停點餐、點數足夠，在同一交易扣點（ledger `redeem`，`ref_id='rl_'+行號`）並把一行 0 元兌換品項（`app_redeem`、`regular_price`、`redeem_points`，備註「點數兌換」）加進該桌點菜清單。回 `{ ok, table, item, points, balance }`。該行在送出前被移除、清桌或作廢時自動退點。桌碼無效 403、點數不足／不開放 400、暫停點餐 423。agent 金鑰 403。
 
 ### GET /api/me/card
 數位會員卡 QR（120 秒）。回 `{ token, exp, name, phone }`。現場 POS 掃描或報手機即可累點。agent 金鑰 403。

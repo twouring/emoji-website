@@ -396,7 +396,7 @@ test('server.js 接線：改品項、換桌、查單、結帳回找零；交班�
   assert.match(server, /FROM pos_registers WHERE day=\$1 AND closed_at IS NULL ORDER BY opened_at LIMIT 1',\[r\.day\]/, '重開補單也要看全店有沒有開著的帳');
   for (const s of ['const regWait=', 'regWaitChip(v)', 'regDefaultCash()', 'REG_DATA?.handover', '等${esc(regWait(v))}關帳', '共用同一個抽屜帳']) assert.ok(ops.includes(s), '前端共用抽屜帳：' + s);
   assert.match(server, /received:out\.payer\.received,change:out\.payer\.change/);
-  assert.match(server, /l\.comp_reason\?\{\.\.\.l,order_id:null\}/, '作廢退回未結帳時贈送品項維持贈送');
+  assert.match(server, /l\.comp_reason\|\|l\.app_redeem\?\{\.\.\.l,order_id:null\}/, '作廢退回未結帳時贈送品項維持贈送');
   assert.match(server, /storeInvoiceResult\(\{id:orderId,table_no:s\.table_no,items:orderLines,amount:out\.amount,discount:out\.discount\}/, '發票帶折扣');
   assert.match(server, /app\.get\(\['\/pos', '\/pos\/\*'\]/);
   for (const s of ['data-qty=', 'data-comp=', 'pos-disc-apply', 'pos-received', 'data-received=', 'data-receipt=', '/admin/orders/history', "'/move'", 'data-cat=', 'data-add=', '/admin/registers/open', 'data-reg-open=', 'data-reg-close=', 'data-reg-cash=', 'data-reg-count=', 'data-denom=', 'function openRegisterForm(', 'reg-open-total', 'reg-count-total', "'/count'", 'function printRegisterReport(', "'/reopen'"]) assert.ok(ops.includes(s), s);

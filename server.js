@@ -933,10 +933,30 @@ async function seedSocialPosts() {
 }
 
 // 菜單：缺鍵時灌入 seed（全部 published:true）；FORCE_MENU_SEED=1 時覆寫
+const REDEEM_CATS = ['COFFEE', 'BEVERAGE', 'TEA', 'SPARKLING', 'DESSERT', 'SNACK', 'BREAD', 'COLD_APP', 'HOT_APP', 'FRIED'];
+function redeemPointsBackfill(items) {
+  let n = 0;
+  for (const it of items || []) {
+    if (!it.published || it.pos_only || it.custom_price || it.alcohol || !REDEEM_CATS.includes(it.cat) || Number(it.points) > 0 || !(it.price > 0)) continue;
+    it.points = Math.ceil(it.price / 10); n++;
+  }
+  return n;
+}
 async function seedMenuContent() {
   const force = process.env.FORCE_MENU_SEED === '1' || process.env.FORCE_MENU_SEED === 'true';
   const content = await readContent();
   if (!shouldWriteMenuSeed(content, force)) {
+    // 一次性：咖啡、飲品、小點補上兌換點數（1 點＝NT$10）；只補 points 為 0 的，做過就不再動，KK 之後在後台改的不會被蓋掉
+    try {
+      const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_points_seed_v1'`)).rows.length;
+      if (!done) {
+        const doc = JSON.parse(content.menu);
+        const n = redeemPointsBackfill(doc.items);
+        if (n > 0) await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
+        await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_points_seed_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(n)]);
+        console.log('[menu-seed] 已補上兌換點數：' + n + ' 項。');
+      }
+    } catch (e) { console.warn('[menu-seed] 兌換點數回填略過：', e && e.message); }
     // 既有菜單：僅補上缺少的日文品名（不動已填內容）
     try {
       const doc = JSON.parse(content.menu);
@@ -4274,6 +4294,47 @@ async function reverseYanForOrder(client, orderId) {
   await persistYanDiff(client, before, rows);
 }
 
+/* App 掃桌碼兌換：點數在加進點菜清單當下就扣（ref_id='rl_'+行號），行被移除／作廢／清桌時由 refundAppRedeems 退回 */
+async function refundAppRedeems(client, lines) {
+  for (const l of lines || []) {
+    if (!l.app_redeem || !l.redeem_user) continue;
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,2))',[l.redeem_user]);
+    const before = await yanRowsFor(client, l.redeem_user);
+    const r = yan.applyVoidRedeem(before, { orderId: 'rl_' + l.line });
+    await persistYanDiff(client, before, r.rows);
+  }
+}
+app.post('/api/me/redeem', auth, requireDb, rateLimit({ max: 30, windowMs: 3600000 }), wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  const table = tableOrders.verifyTable(req.body?.t, req.body?.k, SECRET);
+  if (!table) return res.status(403).json({ error: '這不是桌上的點菜條碼，請對準桌上的 QR。' });
+  try { await assertNotPaused(); } catch (e) { return res.status(e.status || 423).json({ error: e.message }); }
+  const menu = await currentMenu();
+  const it = menu.get(String(req.body?.item_id || ''));
+  const per = Math.floor(Number(it && it.points)) || 0;
+  if (!it || !(per > 0)) return res.status(400).json({ error: '這個品項目前不開放兌換，或已售完。' });
+  const me = (await q('SELECT id,name FROM users WHERE id=$1', [req.auth.sub])).rows[0];
+  if (!me) return res.status(401).json({ error: '帳號不存在，請重新登入。' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, ['table:' + table]);
+    let s = (await client.query("SELECT * FROM table_sessions WHERE table_no=$1 AND status='open' ORDER BY created_at DESC LIMIT 1 FOR UPDATE", [table])).rows[0];
+    if (!s) s = (await client.query('INSERT INTO table_sessions(id,table_no) VALUES($1,$2) RETURNING *', [uid('ts_'), table])).rows[0];
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,2))', [me.id]);
+    const before = await yanRowsFor(client, me.id);
+    const bal = yan.balance(before);
+    if (bal < per) { await client.query('ROLLBACK'); return res.status(400).json({ error: `點數不足（需要 ${per} 點，目前 ${bal} 點）。` }); }
+    const added = tableOrders.addRedeemLine(s.items, menu, { item_id: it.id, by: me.name || '會員', guest: pickup.guestOf(me.id), userId: me.id });
+    const r = yan.applyRedeem(before, { orderId: 'rl_' + added.line.line, points: per, userId: me.id, refType: 'line' });
+    await persistYanDiff(client, before, r.rows);
+    await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1', [s.id, JSON.stringify(added.items)]);
+    await client.query('COMMIT');
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true, table, item: { id: it.id, zh: it.zh, en: it.en, ja: it.ja }, points: per, balance: yan.balance(r.rows) });
+  } catch (e) { await client.query('ROLLBACK').catch(()=>{}); if (e.status) return res.status(e.status).json({ error: e.message }); throw e; }
+  finally { client.release(); }
+}));
 app.get('/api/me/yan', auth, requireDb, wrap(async (req, res) => {
   if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
   const rows = await yanRowsFor({ query: (...a) => q(...a) }, req.auth.sub);
@@ -4686,7 +4747,7 @@ app.get('/api/orders/table',requireDb,wrap(async(req,res)=>{
     if(s){s.orders=(await client.query('SELECT id,items,amount,status,paid_at,ready_at,done_at FROM table_orders WHERE session_id=$1 ORDER BY paid_at',[s.id])).rows;
       // ponytail: 4 小時無動靜視同離席；未付品項直接作廢
       const stale=Date.now()-new Date(s.updated_at).getTime()>4*3600e3;
-      if(tableOrders.sessionFinished(s.items,s.orders)||stale){await client.query("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=$1",[s.id]);s=null;}}
+      if(tableOrders.sessionFinished(s.items,s.orders)||stale){await refundAppRedeems(client,s.items);await client.query("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=$1",[s.id]);s=null;}}
     if(!s){s=(await client.query('INSERT INTO table_sessions(id,table_no) VALUES($1,$2) RETURNING *',[uid('ts_'),table])).rows[0];s.orders=[];}
     await client.query('COMMIT');res.json(publicSession(s,String(req.query.g||'')));
   }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
@@ -4709,6 +4770,7 @@ async function mutateItems(req,res,fn){
     const s=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
     if(!s||s.status!=='open'){await client.query('ROLLBACK');return res.status(s?409:404).json({error:s?'這桌已結束，請重新掃描 QR。':'找不到這桌的點餐。'});}
     const items=await fn(s.items);
+    await refundAppRedeems(client,s.items.filter(l=>l.app_redeem&&!l.order_id&&!items.some(x=>x.line===l.line)));
     await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items)]);
     const previousTickets=new Set(s.items.map(l=>l.ticket).filter(Boolean));
     await kitchenPrint.enqueue(client.query.bind(client),[{...s,items:items.filter(l=>l.ticket&&!previousTickets.has(l.ticket))}]);
@@ -5084,7 +5146,7 @@ app.post('/api/admin/orders/:id/void',auth,adminOnly,requireDb,wrap(async(req,re
     await client.query("UPDATE table_orders SET status='void',void_reason=$2,voided_by=$3,voided_at=now(),invoice=$4,payer=$5 WHERE id=$1",[o.id,reason,actorOf(req.auth)||'',JSON.stringify(nextInvoice),JSON.stringify(payer)]);
     // 退回未結帳：會員價還原為原價；贈送（comp_reason）維持贈送
     // 部分付款（預收）單作廢：這張單的「部分付款」行與桌上的「已預收」抵扣行一起拿掉，不退回未結帳
-    if(s&&s.status==='open')await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(o.payer?.prepay?s.items.filter(l=>l.order_id!==o.id&&l.credit_of!==o.id):s.items.map(l=>l.order_id!==o.id?l:l.comp_reason?{...l,order_id:null}:{...l,order_id:null,price:l.regular_price||l.price,regular_price:undefined,redeem_points:undefined}))]);
+    if(s&&s.status==='open')await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(o.payer?.prepay?s.items.filter(l=>l.order_id!==o.id&&l.credit_of!==o.id):s.items.map(l=>l.order_id!==o.id?l:l.comp_reason||l.app_redeem?{...l,order_id:null}:{...l,order_id:null,price:l.regular_price||l.price,regular_price:undefined,redeem_points:undefined}))]);
     await client.query('COMMIT');committed=true;
   res.json({ok:true,reason,method,cash_refund,event_key});
   }finally{if(!committed)await client.query('ROLLBACK').catch(()=>{});client.release();}
@@ -5746,6 +5808,7 @@ app.post('/api/admin/orders/sessions/:id/close',auth,adminOnly,requireDb,wrap(as
   const open=tableOrders.unpaid(session.items);
   if(open.length&&!(req.body?.force===true&&!venues))return res.status(409).json({error:`這桌還有 ${open.length} 項未結帳（NT$${tableOrders.sum(open).toLocaleString('zh-TW')}），請先到櫃檯結帳或逐項作廢。`,unpaid:open.length,unpaid_amount:tableOrders.sum(open)});
   await q("UPDATE table_orders SET status='done',done_at=now() WHERE session_id=$1 AND status IN ('paid','ready')",[req.params.id]);
+  {const c=await pool.connect();try{await c.query('BEGIN');await refundAppRedeems(c,tableOrders.unpaid(session.items));await c.query('COMMIT');}catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}finally{c.release();}}
   const r=await q("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=$1 AND status='open'",[req.params.id]);
   res.json({ok:true,closed:r.rowCount>0});
 }));
