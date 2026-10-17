@@ -4991,8 +4991,17 @@ app.post('/api/admin/orders/:id/void',auth,adminOnly,requireDb,wrap(async(req,re
   const client=await pool.connect();let committed=false;
   try{
   await client.query('BEGIN');
+  // Match checkout/LINE Pay settlement lock order: session before order. The unlocked
+  // lookup only locates the session; revalidate after both locks in case it moved.
+  const ref=(await client.query('SELECT session_id FROM table_orders WHERE id=$1',[req.params.id])).rows[0];
+  if(!ref)return res.status(404).json({error:'找不到這筆出餐單。'});
+  const s=(await client.query('SELECT id,items,status FROM table_sessions WHERE id=$1 FOR UPDATE',[ref.session_id])).rows[0];
   const o=(await client.query('SELECT id,session_id,table_no,items,amount,status,payer,paid_at,tappay,invoice FROM table_orders WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
   if(!o||!tableOrders.orderOwnedByVenues(o,venues))return res.status(404).json({error:'找不到這筆出餐單。'});
+  if(o.session_id!==ref.session_id)return res.status(409).json({error:'這筆訂單已換桌，請重新整理後再作廢。'});
+  // Keep the session lock until COMMIT/ROLLBACK so prepare cannot freeze the bill
+  // after this check but before irreversible invoice search/invalidation calls.
+  if((await client.query("SELECT id FROM linepay_payments WHERE session_id=$1 AND state NOT IN ('failed','cancelled','settled')",[o.session_id])).rows.length)return res.status(423).json({error:'LINE Pay 原交易待確認，請查詢原交易，勿變更帳單或作廢。'});
   let reason;try{reason=tableOrders.voidOrder(o,req.body?.reason);}catch(e){return res.status(e.status||400).json({error:e.message});}
   // 部分付款（預收）單：抵扣已經用在後面那張結帳單上就不能單獨作廢，要先作廢那張
   if(o.payer?.prepay){const sess=(await client.query('SELECT items FROM table_sessions WHERE id=$1',[o.session_id])).rows[0];if(sess&&(sess.items||[]).some(l=>l.credit_of===o.id&&l.order_id))return res.status(409).json({error:'這筆預收已抵扣在後面的結帳單，請先作廢那張單。'});}
@@ -5010,7 +5019,6 @@ app.post('/api/admin/orders/:id/void',auth,adminOnly,requireDb,wrap(async(req,re
   const payer={...o.payer,...(event_key?{drawer_refunds:{...o.payer?.drawer_refunds,[event_key]:cash_refund}}:{})};
     await reverseYanForOrder(client,o.id);
     await client.query("UPDATE table_orders SET status='void',void_reason=$2,voided_by=$3,voided_at=now(),invoice=$4,payer=$5 WHERE id=$1",[o.id,reason,actorOf(req.auth)||'',JSON.stringify(nextInvoice),JSON.stringify(payer)]);
-    const s=(await client.query("SELECT id,items,status FROM table_sessions WHERE id=$1 FOR UPDATE",[o.session_id])).rows[0];
     // 退回未結帳：會員價還原為原價；贈送（comp_reason）維持贈送
     // 部分付款（預收）單作廢：這張單的「部分付款」行與桌上的「已預收」抵扣行一起拿掉，不退回未結帳
     if(s&&s.status==='open')await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(o.payer?.prepay?s.items.filter(l=>l.order_id!==o.id&&l.credit_of!==o.id):s.items.map(l=>l.order_id!==o.id?l:l.comp_reason?{...l,order_id:null}:{...l,order_id:null,price:l.regular_price||l.price,regular_price:undefined,redeem_points:undefined}))]);
