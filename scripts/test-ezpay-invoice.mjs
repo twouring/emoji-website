@@ -93,3 +93,21 @@ test('開立後的發票紀錄保留買方統編（補印才印得出統編）',
   const rec = E.__issuedRecordForTest ? E.__issuedRecordForTest(inv, { InvoiceNumber: 'AB12345678', RandomNum: '1234' }, 'X1') : null;
   if (rec) { assert.equal(rec.buyer_ubn, '12345678'); assert.equal(rec.buyer_name, '測試公司'); }
 });
+
+test('CheckCode：TotalAmt 為數字 0 時與字串 "0" 算出同一組（不能因 0 || "" 變空）', () => {
+  const base = { InvoiceTransNo: '26101721290000001', MerchantOrderNo: 'to3a5ed0f1672e451f', RandomNum: '1234' };
+  assert.equal(E.checkCode({ cfg, result: { ...base, TotalAmt: 0 } }), E.checkCode({ cfg, result: { ...base, TotalAmt: '0' } }));
+  assert.notEqual(E.checkCode({ cfg, result: { ...base, TotalAmt: 0 } }), E.checkCode({ cfg, result: { ...base, TotalAmt: '' } }));
+  assert.equal(E.checkCode({ cfg, result: { ...base, TotalAmt: 500 } }), E.checkCode({ cfg, result: { ...base, TotalAmt: '500' } }));
+});
+
+test('0 元訂單不開立發票（issueFields 擋下，伺服器端略過不標失敗）', () => {
+  const invoice = E.invoiceForm({ mode: 'paper' });
+  assert.throws(() => E.issueFields({ cfg, invoice, order: { id: 'to_zero', table_no: 'A9', amount: 0, items: [{ zh: '招待', qty: 1, price: 0 }] } }), /0 元訂單不開立發票/);
+  assert.throws(() => E.issueFields({ cfg, invoice, order: { id: 'to_zero', table_no: 'A9', amount: -10, items: [] } }), /0 元訂單不開立發票/);
+  const src = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+  const fn = src.slice(src.indexOf('async function storeInvoiceResult('), src.indexOf('/* 櫃檯結帳（POS）'));
+  assert.match(fn, /skipped:'zero_amount'/);
+  assert.match(fn, /requested:false/);
+  assert.ok(fn.indexOf("skipped:'zero_amount'") < fn.indexOf('issueEzpayForOrder(order,invoice)'), '0 元檢查要在送 ezPay 之前');
+});

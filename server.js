@@ -4811,6 +4811,13 @@ async function issueEzpayForOrder(order, invoice) {
 }
 async function storeInvoiceResult(order, invoice, { throwOnError=false } = {}) {
   if(!invoice?.requested)return invoice||{};
+  // 0 元單（全額招待／折抵）不送 ezPay：不開票、不標失敗，查單顯示「未開發票」
+  if(!(Math.round(Number(order.amount)||0)>0)){
+    if(throwOnError)throw Object.assign(Error('0 元訂單不開立發票。'),{status:400});
+    const skipped={...invoice,requested:false,skipped:'zero_amount',skipped_at:new Date().toISOString()};
+    await q('UPDATE table_orders SET invoice=$2 WHERE id=$1',[order.id,JSON.stringify(skipped)]).catch(()=>{});
+    return skipped;
+  }
   try{
     const issued=await issueEzpayForOrder(order,invoice);
     await q('UPDATE table_orders SET invoice=$2 WHERE id=$1',[order.id,JSON.stringify(issued)]);
