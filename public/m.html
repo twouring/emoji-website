@@ -87,7 +87,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 /* 全螢幕 QR */
 .ov img{width:min(78vw,320px);height:min(78vw,320px);background:#fff;border:1px solid var(--line);border-radius:20px;padding:14px}
 .ov p{margin:16px 0 0;color:var(--soft)}
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tab) + env(safe-area-inset-bottom) + 16px);background:var(--ink);color:var(--paper);padding:.7em 1.1em;border-radius:12px;z-index:40;max-width:90vw}
+.toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(16px + env(safe-area-inset-top));background:var(--ink);color:var(--paper);padding:.7em 1.1em;border-radius:12px;z-index:40;max-width:90vw}
 .toast[hidden]{display:none}
 /* 登入 */
 .login{min-height:80vh;display:flex;flex-direction:column;justify-content:center;text-align:center;gap:10px}

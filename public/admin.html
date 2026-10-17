@@ -176,7 +176,7 @@
   .application-message{white-space:pre-wrap;overflow-wrap:anywhere;font-size:1rem;margin-bottom:12px}
   @media(max-width:480px){.application-details{grid-template-columns:1fr;gap:3px}.application-details dd{margin-bottom:9px}}
 
-  .a-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);opacity:0;
+  .a-toast{position:fixed;left:50%;top:calc(16px + env(safe-area-inset-top));transform:translateX(-50%) translateY(-20px);opacity:0;
     background:var(--ink);color:var(--paper);padding:.7em 1.2em;border-radius:8px;font-size:1rem;
     transition:.2s;pointer-events:none;z-index:50;box-shadow:0 8px 24px -8px rgba(27,26,23,.4)}
   .a-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}

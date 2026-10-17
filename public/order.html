@@ -86,7 +86,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 .notice{color:var(--muted);margin:20px 0}
 .hidden{display:none!important}
 #thanks .btn{margin-top:12px;width:100%}
-.toast{position:fixed;left:16px;right:16px;bottom:calc(112px + env(safe-area-inset-bottom));z-index:40;background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;text-align:center;display:none}.toast.on{display:block}
+.toast{position:fixed;left:16px;right:16px;top:calc(16px + env(safe-area-inset-top));z-index:40;background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;text-align:center;display:none}.toast.on{display:block}
 /* 375px（iPhone SE／mini）：底部列的兩顆鍵用 auto 寬、內距縮小（字級維持 16px 以上），金額欄保有最小寬度不被蓋住 */
 @media (max-width:400px){.bar{grid-template-columns:minmax(84px,1fr) auto auto;gap:6px;padding-left:10px;padding-right:10px}.bar .btn{padding:10px 12px}.bar .with-icon{gap:5px}.bar .s b{font-size:1.05rem}.sheet-actions .btn{padding-left:10px;padding-right:10px}}
 @media (max-width:380px){.wrap{padding:10px}.top{padding-left:12px;padding-right:12px}.bar{padding-left:8px;padding-right:8px}.btn{padding-left:9px;padding-right:9px}.btn.sm{min-height:42px}.menu-grid{grid-template-columns:1fr 1fr;gap:8px}.item .n{padding:8px}.item .tap{display:none}#pay-scope{grid-template-columns:1fr}.top .t{padding-left:8px;padding-right:8px}.choice-grid{grid-template-columns:1fr 1fr}.sheet .in{padding-left:12px;padding-right:12px}}

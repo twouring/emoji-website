@@ -111,7 +111,7 @@
   @media(prefers-reduced-motion:reduce){.p-login-card .clock-pin.shake{animation:none}}
   .p-center{text-align:center;padding:60px 0;color:var(--muted)}
   /* 安裝提示（只在未安裝為 App 時顯示一次） */
-  .a-toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);opacity:0;background:var(--ink);color:var(--paper);padding:.8em 1.3em;border-radius:10px;font-size:1rem;transition:.2s;pointer-events:none;z-index:50;max-width:min(92vw,520px)}
+  .a-toast{position:fixed;left:50%;top:calc(16px + env(safe-area-inset-top));transform:translateX(-50%) translateY(-20px);opacity:0;background:var(--ink);color:var(--paper);padding:.8em 1.3em;border-radius:10px;font-size:1rem;transition:.2s;pointer-events:none;z-index:50;max-width:min(92vw,520px)}
   .a-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   /* <1000px 共用：店別／工具擠不進一行，頂欄換行；p-login 高度跟著頂欄變動的高度走 */
   @media(max-width:999px){.p-top{flex-wrap:wrap;align-content:center;row-gap:6px;padding-top:calc(8px + env(safe-area-inset-top));padding-bottom:8px}.p-login{min-height:calc(100vh - var(--p-top))}}
