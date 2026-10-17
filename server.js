@@ -2020,7 +2020,7 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
        (mine.status='registered') AS registered
      FROM events e
      LEFT JOIN event_regs mine ON mine.event_id=e.id AND mine.user_id=$1
-     WHERE e.status='報名中' AND (e.visibility='public' OR mine.id IS NOT NULL OR (e.visibility='members' AND $2))
+     WHERE (e.status IN ('預告','報名中') OR (mine.status='registered' AND e.status NOT IN ('草稿','已取消'))) AND (e.visibility='public' OR mine.id IS NOT NULL OR (e.visibility='members' AND $2))
      ORDER BY e.starts_at ASC NULLS LAST`, [me.id, access.active])).rows;
   res.json({
     role: commitments.length ? 'participant' : 'invited',
