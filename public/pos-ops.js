@@ -428,6 +428,17 @@ async function manualCashDrawer(reason){
 }
 const c39={0:'101001101101',1:'110100101011',2:'101100101011',3:'110110010101',4:'101001101011',5:'110100110101',6:'101100110101',7:'101001011011',8:'110100101101',9:'101100101101',A:'110101001011',B:'101101001011',C:'110110100101',D:'101011001011',E:'110101100101',F:'101101100101',G:'101010011011',H:'110101001101',I:'101101001101',J:'101011001101',K:'110101010011',L:'101101010011',M:'110110101001',N:'101011010011',O:'110101101001',P:'101101101001',Q:'101010110011',R:'110101011001',S:'101101011001',T:'101011011001',U:'110010101011',V:'100110101011',W:'110011010101',X:'100101101011',Y:'110010110101',Z:'100110110101','-':'100101011011','.':'110010101101',' ':'100110101101','$':'100100100101','/':'100100101001','+':'100101001001','%':'101001001001','*':'100101101101'};
 const invPick=(inv,...keys)=>{for(const k of keys){const v=inv?.[k]??inv?.result?.[k];if(v!==undefined&&v!==null&&String(v))return String(v);}return '';};
+// 買方／賣方統編：先讀我們存的 buyer_ubn；舊發票沒存時，從左側 QR 內容解析（10 字發票號＋7 日期＋4 隨機碼＋8 銷售額＋8 總額＋8 買方＋8 賣方）
+function invoiceParties(inv){
+  const ql=invPick(inv,'QRcodeL','QRcode_Left','QRCodeL','QRCode_Left','QrCodeL');
+  const buyerQr=ql.length>=53?ql.slice(37,45):'',sellerQr=ql.length>=53?ql.slice(45,53):'';
+  const ubn=inv?.buyer_ubn||invPick(inv,'BuyerUBN')||(/^\d{8}$/.test(buyerQr)&&buyerQr!=='00000000'?buyerQr:'');
+  const seller=/^\d{8}$/.test(sellerQr)?sellerQr:'';
+  return {ubn,seller};
+}
+// 期別：民國年＋雙月，例 2026-10 → 115年09-10月
+function invoicePeriodText(inv){const d=new Date(inv?.issued_at||Date.now());const p=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Taipei',year:'numeric',month:'numeric'}).formatToParts(d);const y=+p.find(x=>x.type==='year').value,m=+p.find(x=>x.type==='month').value;const e=m%2?m+1:m;return `${y-1911}年${String(e-1).padStart(2,'0')}-${String(e).padStart(2,'0')}月`;}
+function invoiceTimeText(inv){const d=new Date(inv?.issued_at||Date.now());return isNaN(d)?'':d.toLocaleTimeString('zh-TW',{timeZone:'Asia/Taipei',hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});}
 function invoiceDateText(inv){const d=new Date(inv?.issued_at||Date.now());return isNaN(d)?'':d.toLocaleDateString('zh-TW',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'});}
 // Code 39 直接畫在 canvas：窄線 1 點、寬線 3 點、字距 1 點；台灣發票條碼 19 碼＋頭尾「*」共 336 點，放得進 384 點寬
 function drawCode39(g,text,x0,y,h){const value='*'+String(text||'').toUpperCase().replace(/[^0-9A-Z .\-$\/+%]/g,'').slice(0,38)+'*';let w=0;for(const ch of value){for(const bit of (c39[ch]||c39['-']))w+=bit==='1'?3:1;w+=1;}let x=x0+Math.max(0,Math.floor((STAR_DOTS-2*x0-w)/2));g.fillStyle='#000';for(const ch of value){const pat=c39[ch]||c39['-'];for(let i=0;i<pat.length;i++){const bw=pat[i]==='1'?3:1;if(i%2===0)g.fillRect(x,y,bw,h);x+=bw;}x+=1;}}
@@ -438,10 +449,11 @@ async function invoiceProofCanvas(o){
   const W=STAR_DOTS,c=document.createElement('canvas');c.width=W;c.height=1000;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,W,c.height);g.fillStyle='#000';g.textBaseline='top';let y=6;
   const center=(t,size,bold)=>{g.font=(bold?'bold ':'')+size+'px sans-serif';g.textAlign='center';g.fillText(t,W/2,y);y+=size+8;};
   const row=(l,r,size=22)=>{g.font=size+'px sans-serif';g.textAlign='left';g.fillText(l,8,y);g.textAlign='right';g.fillText(r,W-8,y);y+=size+8;};
-  center('言文字股份有限公司',28,true);center(shop,22,true);center('電子發票證明聯',24,true);center(no?no.replace(/^([A-Z]{2})(\d{8})$/,'$1-$2'):'發票已開立',36,true);
-  row('日期',invoiceDateText(inv));row('隨機碼',random||'');
-  const ubn=inv.buyer_ubn||invPick(inv,'BuyerUBN');if(ubn)row('買受人統編',ubn);
-  if(inv.buyer_name)center(inv.buyer_name,20);
+  const {ubn,seller}=invoiceParties(inv);
+  center('言文字股份有限公司',28,true);center(shop,22,true);center('電子發票證明聯',24,true);center(invoicePeriodText(inv),24,true);center(no?no.replace(/^([A-Z]{2})(\d{8})$/,'$1-$2'):'發票已開立',36,true);
+  row('日期',invoiceDateText(inv));row('時間',invoiceTimeText(inv));row('隨機碼',random||'');
+  if(seller)row('賣方統編',seller);
+  if(ubn){row('買方統編',ubn);if(inv.buyer_name&&inv.buyer_name!=='買受人')center(inv.buyer_name,20);const total=Math.round(Number(o.amount)||0),amt=Math.round(total/1.05);row('銷售額','NT$'+num(amt));row('營業稅','NT$'+num(total-amt));}
   row('總計','NT$'+num(o.amount),28);y+=6;
   if(bar){drawCode39(g,bar,8,y,64);y+=70;g.font='18px monospace';g.textAlign='center';g.fillText(bar,W/2,y);y+=26;}
   const qrs=(await Promise.all([qrCanvas(ql,160),qrCanvas(qr,160)])).filter(Boolean);
@@ -530,7 +542,7 @@ function receiptTicketSpec(o){
   spec.push({kind:'left',text:payText(o)+(p.member?' · 聚落價':''),size:18});
   if(p.received!=null)spec.push({kind:'row',left:'實收 '+num(p.received),right:'找零 '+num(p.change),size:20});
   if(inv.number)spec.push({kind:'left',text:'發票 '+inv.number+(inv.random?' 隨機碼 '+inv.random:''),size:16});
-  if(inv.buyer_ubn)spec.push({kind:'left',text:'買受人統編 '+inv.buyer_ubn,size:16});
+  {const pt=invoiceParties(inv);if(pt.seller)spec.push({kind:'left',text:'賣方統編 '+pt.seller,size:16});if(pt.ubn)spec.push({kind:'left',text:'買受人統編 '+pt.ubn,size:16});}
   if(o.status==='void')spec.push({kind:'center',text:'【此單已作廢】',size:22,bold:true});
   if(o.preview)spec.push({kind:'center',text:'【尚未結帳・僅供核對】',size:20,bold:true});
   spec.push({kind:'center',text:'單號 '+(o.id||o.order_id||''),size:16});
@@ -617,7 +629,7 @@ async function printReceipt(o,{auto=false}={}){
     <div class="t big"><span>合計</span><span>NT$${num(o.amount)}</span></div>
     <div class="l"><span>${esc(payText(o))}${p.member?' · 聚落價':''}</span><span>${p.received!=null?`實收 ${num(p.received)}　找零 ${num(p.change)}`:''}</span></div>
     ${inv.number?`<div class="m" style="margin-top:6px">發票 ${esc(inv.number)}${inv.random?` 隨機碼 ${esc(inv.random)}`:''}</div>`:''}
-    ${inv.buyer_ubn?`<div class="m">買受人統編 ${esc(inv.buyer_ubn)}</div>`:''}
+    ${invoiceParties(inv).seller?`<div class="m">賣方統編 ${esc(invoiceParties(inv).seller)}</div>`:''}${invoiceParties(inv).ubn?`<div class="m">買受人統編 ${esc(invoiceParties(inv).ubn)}</div>`:''}
     ${o.preview?'<div class="t">【尚未結帳・僅供核對】</div>':''}${o.status==='void'?'<div class="t">【此單已作廢】</div>':''}
     <div class="c">單號 ${esc(o.id)}<br>謝謝光臨</div>`);
 }

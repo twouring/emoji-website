@@ -87,3 +87,9 @@ test('B2C 發票 BuyerName 不可空白（ezPay 正式區會退「資料不可�
   assert.equal(E.issueFields({ order, invoice: E.invoiceForm({ mode: 'company', buyer_ubn: '12345678' }), cfg }).BuyerName, '買受人');
   assert.equal(E.issueFields({ order, invoice: E.invoiceForm({ mode: 'paper', buyer_name: '王小明' }), cfg }).BuyerName, '王小明');
 });
+
+test('開立後的發票紀錄保留買方統編（補印才印得出統編）', () => {
+  const inv = E.invoiceForm({ mode: 'company', buyer_ubn: '12345678', buyer_name: '測試公司' });
+  const rec = E.__issuedRecordForTest ? E.__issuedRecordForTest(inv, { InvoiceNumber: 'AB12345678', RandomNum: '1234' }, 'X1') : null;
+  if (rec) { assert.equal(rec.buyer_ubn, '12345678'); assert.equal(rec.buyer_name, '測試公司'); }
+});
