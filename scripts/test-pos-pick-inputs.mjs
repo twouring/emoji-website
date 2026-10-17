@@ -124,9 +124,9 @@ test('接線：結帳頁開桌／換桌／備註／客製金額／折扣／補�
   assert.match(ops, /#pos-open-extra'\)\.onclick=async\(\)=>\{const t=await pickTableNo\(/);
   assert.match(ops, /\[data-other\]'\)\.onclick=async\(\)=>\{done\(\);const table=await pickTableNo\(\{[^\n]*exclude:\[cur\.table\]/);
   // 備註：下一項備註欄有常用膠囊；改備註走 pickNote；選項面板也有膠囊
-  assert.ok(ops.includes("${noteChips('pos-note',NOTE_PRESETS)}"));
+  assert.ok(!ops.includes("id=\"pos-note\""), '舊的固定「下一項的備註」輸入框已移除，備註綁在個別餐點的細項畫面');
   assert.match(ops, /\[data-note-edit\]'\)\.forEach\(b=>b\.onclick=async\(\)=>\{[^\n]*await pickNote\(/);
-  assert.ok(ops.includes("${noteChips('pos-opt-note',NOTE_PRESETS)}"));
+  assert.ok(ops.includes("${noteChips('pos-opt-note',itemNotePresets(groups))}"));
   // 客製金額：pickAmount 帶常用面額，之後仍沿用原本 0–100000 驗證
   assert.match(ops, /if\(it\?\.custom_price\)\{\s*const raw=await pickAmount\(\{[^\n]*presets:\[50,100,150,200,300,500\]/);
   assert.match(ops, /if\(!Number\.isFinite\(n\)\|\|n<0\|\|n>100000\)/);
@@ -147,7 +147,7 @@ test('接線：結帳頁開桌／換桌／備註／客製金額／折扣／補�
   assert.match(ops, /\[data-fix\]'\)\.forEach\(b=>b\.onclick=\(\)=>\{[^\n]*openAttendanceFix\(r,reload,toIso\)/);
   assert.ok(ops.includes("${stampChips('fx-in')}") && ops.includes("${stampChips('fx-out')}") && ops.includes("fillChips('fx-break'") && ops.includes("reasonChips('fx-note',REASON_PRESETS.attendance_fix)"));
   // 綁定：每個畫面都呼叫對應的 bind
-  assert.ok((ops.match(/bindNoteChips\(/g) || []).length >= 6); assert.ok((ops.match(/bindFillChips\(/g) || []).length >= 8); assert.ok((ops.match(/bindStampChips\(/g) || []).length >= 3);
+  assert.ok((ops.match(/bindNoteChips\(/g) || []).length >= 5); assert.ok((ops.match(/bindFillChips\(/g) || []).length >= 8); assert.ok((ops.match(/bindStampChips\(/g) || []).length >= 3);
 });
 
 test('樣式與 SW：鍵盤 56px、大字顯示、選中狀態、時間膠囊橫向捲；pos-sw 升到 v35+', () => {

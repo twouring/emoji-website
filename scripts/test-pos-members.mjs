@@ -12,10 +12,14 @@ test('switching tables clears bill identity and redemption selection',()=>{
 });
 test('late phone lookup and card scan cannot bind a different table or replace a newer choice',async()=>{
  for(const mode of ['lookup','scan']){
-  let resolveLookup;const node={};
-  const ctx=vm.createContext({yanLookup:node,yanScan:node,host:{querySelector:()=>({value:'0912345678'})},cur:{id:'session1',table:'A1'},POS_TABLE:'A1',POS_YAN:{},POS_MEMBER:false,pickMemberCard:async()=> 'QR',toast:()=>{},paintPos:()=>{},api:()=>new Promise(r=>{resolveLookup=r;}),opsThen:async(fn,done,paint)=>{done(await fn());paint();}});
-  const line=ops.split('\n').find(l=>l.includes(mode==='lookup'?'if(yanLookup)yanLookup.onclick=':'if(yanScan)yanScan.onclick='));
-  vm.runInContext(line,ctx);const pending=node.onclick();for(let i=0;i<10&&!resolveLookup;i++)await new Promise(r=>setImmediate(r));assert.ok(resolveLookup,'lookup must be pending');
+  let resolveLookup;const nodes={};
+  const el=id=>nodes[id]||(nodes[id]={value:'0912345678',onclick:null,onchange:null,onkeydown:null});
+  const box={set innerHTML(v){},querySelector:sel=>el(sel)};
+  const ov={querySelector:()=>box,classList:{add(){}}};
+  const ctx=vm.createContext({pickOverlay:()=>({ov,close(){}}),tipIcon:()=>'',esc:String,num:String,memberStatusText:()=>'',cur:null,POS_TABLE:'A1',POS_YAN:{},POS_MEMBER:false,pickMemberCard:async()=> 'QR',toast:()=>{},paintPos:()=>{},api:()=>new Promise(r=>{resolveLookup=r;}),opsThen:async(fn,done,paint)=>{done(await fn());paint();}});
+  vm.runInContext(ops.slice(ops.indexOf('function openMemberDialog('),ops.indexOf('function paintPos(){')),ctx);
+  vm.runInContext("openMemberDialog({id:'session1',table:'A1'})",ctx);
+  const pending=el(mode==='lookup'?'#pos-yan-lookup':'#pos-yan-scan').onclick();for(let i=0;i<10&&!resolveLookup;i++)await new Promise(r=>setImmediate(r));assert.ok(resolveLookup,'lookup must be pending');
   ctx.POS_TABLE='A2';ctx.POS_YAN={id:'new-member'};resolveLookup({member:{id:'old-member'},active:true,balance:50});await pending;
   assert.equal(ctx.POS_YAN.id,'new-member');assert.equal(ctx.POS_MEMBER,false);
  }

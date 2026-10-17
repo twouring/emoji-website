@@ -17,17 +17,18 @@ test('接線：pos.html／admin.html 在 pos-ops.js 之前載入 order-lib.js；
 
 test('加點：有選項的品項先跳面板（數量＋每組必選＋其他需求），沒選項的直接加；取消不送單', () => {
   assert.match(ops, /function itemOptionGroups\(it\)\{ return \(it&&typeof OrderLib!=='undefined'&&OrderLib\.optionGroups\)\?OrderLib\.optionGroups\(it,'zh'\):\[\]; \}/, '規格一律來自 order-lib（沒載到就退回直接加）');
-  assert.match(ops, /const groups=itemOptionGroups\(it\);\s*if\(!groups\.length\)return send\(\{item_id:b\.dataset\.add,qty:1,note\}\);\s*openItemOptions\(it,groups,note,send\);/, '沒選項直接加、有選項開面板');
-  assert.match(ops, /function openItemOptions\(it,groups,note0,onDone\)/);
-  assert.match(ops, /class="op-card pos-opt" role="dialog"/, '重用操作人員的遮罩與卡片樣式');
+  assert.match(ops, /const groups=itemOptionGroups\(it\);\s*if\(!groups\.length\)return send\(\{item_id:b\.dataset\.add,qty:1,note\}\);\s*openItemOptions\(it,groups,note,send\);/, '沒選項直接加、有選項切換到中欄細項畫面');
+  assert.match(ops, /function openItemOptions\(it,groups,note0,onDone,editing\)/);
+  assert.match(ops, /function optionPaneHtml\(o\)/, '細項在中欄畫面，不是彈窗');
+  assert.match(ops, /class="pos-opt pos-opt-pane" role="group"/, '細項畫面取代中欄菜單');
   assert.match(ops, /data-oq="-1"[\s\S]*id="pos-opt-qty"[\s\S]*data-oq="1"/, '數量 ±');
-  assert.match(ops, /name="pos_opt_\$\{esc\(g\.key\)\}" value="\$\{esc\(c\)\}" \$\{i===0\?'checked':''\}/, '每組預設選第一個（正常）＝必選');
+  assert.match(ops, /name="pos_opt_\$\{esc\(g\.key\)\}" value="\$\{esc\(c\)\}" \$\{\(o\.picks\[g\.key\]\|\|g\.choices\[0\]\)===c\?'checked':''\}/, '每組預設選第一個（正常）＝必選；編輯時帶入既有選項');
   assert.match(ops, /const syncGroups=\(\)=>\{const active=.*OrderLib\.activeOptionGroups/, '選熱飲時即時隱藏冰塊組');
   assert.match(ops, /const active=groups\.filter\(g=>!g\.when\|\|picks\[g\.when\.key\]===g\.when\.value\)/, '送出備註前再次排除不適用規格');
   assert.match(ops, /id="pos-opt-note" maxlength="80"/, '其他需求 80 字，與桌邊點餐相同');
-  assert.match(ops, /qty=Math\.max\(1,Math\.min\(20,qty\+Number\(b\.dataset\.oq\)\)\)/, '數量 1–20，與 addLine 一致');
-  assert.match(ops, /#pos-opt-cancel'\)\.onclick=close;/, '取消只關面板');
-  assert.match(ops, /onDone\(\{item_id:it\.id,qty,note\}\)/, '送出沿用既有 POST …/items body');
+  assert.match(ops, /o\.qty=Math\.max\(1,Math\.min\(20,o\.qty\+Number\(b\.dataset\.oq\)\)\)/, '數量 1–20，與 addLine 一致');
+  assert.match(ops, /#pos-opt-cancel'\)\.onclick=\(\)=>\{ POS_OPT=null; paintPos\(\); \};/, '取消只回菜單，不送單');
+  assert.match(ops, /done\(\{item_id:o\.it\.id,qty:o\.qty,note\}\)/, '送出沿用既有 POST …/items body');
 });
 
 test('備註格式與桌邊點餐 optionNote 相同：「標籤：選項」以「；」串接，其他需求接在最後、最多 80 字', () => {

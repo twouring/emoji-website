@@ -91,7 +91,7 @@ test('POS：桌況格標記、桌號畫面一鍵勾選、✕ 關閉、新需求�
   assert.match(js, /data-payreq="\$\{esc\(r\.id\)\}"/); assert.match(js, /data-payreq-dismiss="\$\{esc\(r\.id\)\}"/);
   assert.match(js, /POS_PICK=set\.size===cur\.lines\.length\?null:set;POS_QTY=\{\};POS_PAYREQ=r\.id;paintPos\(\)/, '一點就勾好那幾項');
   assert.match(js, /api\('\/admin\/orders\/sessions\/'\+cur\.id\+'\/pay-requests\/'\+b\.dataset\.payreqDismiss,\{method:'DELETE'\}\)/);
-  assert.match(js, /POS_TABLE=b\.dataset\.posTable;POS_PICK=null;POS_QTY=\{\};POS_PAYREQ=null;/, '換桌重置');
+  assert.match(js, /POS_TABLE=b\.dataset\.posTable;POS_OPT=null;POS_MENU_SCROLL=0;POS_LEFT_SCROLL=0;POS_PICK=null;POS_QTY=\{\};POS_PAYREQ=null;/, '換桌重置');
   assert.match(css, /\.pos-table\.payreq\{/); assert.match(css, /\.pos-payreq-apply\{/);
 });
 

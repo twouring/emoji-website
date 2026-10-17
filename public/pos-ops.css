@@ -648,3 +648,48 @@ tr.lp-refund td{color:var(--danger)}
 .pos-mid .pos-lines-wrap{overflow:visible}
 .pos-invoice-head b,.pos-invoice-head .pos-inv-badge{white-space:nowrap;flex:none}.pos-invoice-head{flex-wrap:wrap;row-gap:4px}
 }
+
+/* ===== 結帳頁三欄重排（iPad 橫向）：左＝已點清單＋出餐單／換桌／清桌；中＝分類單排橫滑＋餐點／細項；右＝付款單排＋會員入口＋收款 ===== */
+.pos-left{display:flex;flex-direction:column;min-height:0}
+.pos-left .pos-mid{flex:1;min-height:0;overflow:auto}
+.pos-line-note{display:inline-block;margin-top:2px;padding:2px 8px;border-radius:6px;background:var(--accent-soft);font-size:1rem;font-weight:600;overflow-wrap:anywhere}
+.pos-lines tr[data-edit-line]{cursor:pointer}
+.pos-lines tr.is-editing{outline:2px solid var(--ink);outline-offset:-2px;background:var(--accent-soft)}
+.pos-cats{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x;scrollbar-width:none;padding-bottom:2px}
+.pos-cats::-webkit-scrollbar{display:none}
+.pos-cats button{flex:0 0 auto;white-space:nowrap}
+.pos-methods{display:grid;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:6px}
+.pos-method span{flex-direction:column;gap:2px;min-height:60px;padding:4px 2px;font-size:1rem;line-height:1.15}
+.pos-method span i{font-style:normal;font-size:1.35rem;line-height:1}
+.pos-method span b{font-weight:600;font-size:1rem;white-space:nowrap}
+.pos-member-entry{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:52px;padding:6px 14px;border:1px solid var(--ink);border-radius:10px;background:var(--card);cursor:pointer}
+.pos-member-entry b{display:block;font-weight:600}.pos-member-entry small{display:block;color:var(--muted);font-size:1rem}
+.pos-member-entry.has{border-color:var(--ok-line);background:var(--ok-soft)}.pos-member-entry i{font-style:normal;font-size:1.5rem;color:var(--muted)}
+.pos-member-entry:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.pos-member-ov .pos-move-box .pos-member-bar{margin:12px 0;flex-wrap:wrap}
+.pos-member-ov .pos-move-box .pos-member-who{margin:10px 0}
+.pos-menu-box .pos-opt-pane{display:flex;flex-direction:column;min-height:0;height:100%}
+.pos-opt-pane .pos-opt-body{padding:4px 4px 10px}
+.pos-opt-pane .pos-opt-actions{padding:12px 4px 4px}
+.pos-dock{gap:8px}.pos-dock #pos-print-receipt{flex:none;min-height:64px;padding:0 14px;white-space:nowrap}
+.pos-table-actions .btn{flex:1 1 0;min-width:0;white-space:nowrap}
+@media(min-width:1000px){
+.pos-layout.has-panel .pos-panel-scroll{grid-template-columns:minmax(300px,1fr) minmax(0,1.25fr) minmax(320px,.9fr);grid-template-rows:auto minmax(0,1fr) auto}
+.pos-panel-scroll>.pos-left{grid-column:1;grid-row:2/span 2;padding-right:12px;border-right:1px solid var(--line);overflow:hidden}
+.pos-panel-scroll>.pos-menu-box{grid-column:2;grid-row:2/span 2;border-right:0;padding-right:0;position:relative;display:block;height:100%;min-height:0;overflow:hidden;margin-top:0}
+.pos-menu-box .pos-menu-body{position:absolute;inset:0;display:flex;flex-direction:column;min-height:0}
+.pos-menu-box .pos-menu{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;flex:1;min-height:0;overflow:auto;align-content:start;grid-auto-rows:max-content}
+.pos-menu-box .pos-item{display:flex;flex-direction:column;align-items:stretch;min-height:0;padding:6px}
+.pos-menu-box .pos-item__img{grid-row:auto;width:100%;height:auto;aspect-ratio:4/3;margin:0 0 4px}
+.pos-menu-box .pos-item>b,.pos-menu-box .pos-item>span:not(.pos-item__img),.pos-menu-box .pos-item>small{grid-column:auto}
+.pos-menu-box .pos-opt-pane{overflow:hidden}.pos-menu-box .pos-opt-pane .pos-opt-body{overflow:auto;flex:1;min-height:0}
+.pos-panel-scroll>.pos-pay{grid-column:3;grid-row:2;grid-template-rows:none}
+.pos-panel-scroll>.pos-dock{grid-column:3;grid-row:3;align-self:end;position:static;margin-top:0}
+.pos-left .pos-table-actions{flex:none;margin-top:10px}
+}
+.pos-method span i{display:block;width:1.5rem;height:1.5rem}.pos-method span i svg{display:block;width:100%;height:100%}
+.pos-dock{flex-wrap:wrap;row-gap:6px}
+.pos-dock>.pos-dock-change,.pos-dock>.pos-dock-due{flex:1 1 100%;flex-direction:row;align-items:baseline;justify-content:space-between;min-width:0}
+.pos-dock #pos-checkout{flex:1 1 0;min-width:0;white-space:nowrap}
+.pos-dock #pos-print-receipt{flex:0 0 auto;min-width:6.5em}
+.pos-left .pos-mid{padding-bottom:4px}
