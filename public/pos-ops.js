@@ -1404,7 +1404,7 @@ function acctDialog(r,code,sales){
     const {ov,close}=pickOverlay(`<h3>核對 ${esc(label)} · ${esc(BRAND_LABEL[r.venue])}</h3>
       <div class="reg-close-sum"><span>應收 <b>NT$${num(expected)}</b></span><span>實收 <b id="acct-actual-show">—</b></span><span>差額 <b id="acct-diff-show">—</b></span></div>
       ${cash?`<p class="hint">按面額填張數，或直接填總額。應收＝零用金＋現金營收＋臨時收入－臨時支出（整個錢櫃）。</p>${denomGrid()}`:code==='linepay'?`<p class="hint" id="acct-lp-hint">${lpAuto==null?'LINE Pay 後台尚未同步：按「同步 LINE Pay」自動帶入實收，或對照商家後台手動填入。':`已自動帶入 LINE Pay 後台同步實收（${esc(applicationTime(sales.linepay.synced_at))} 同步，退款已扣），可修改；有新交易可再同步。`}</p><div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="acct-lp-sync" ${sales?.linepay?.configured===false?'disabled title="尚未設定 LINE Pay 商家後台帳密"':''}>同步 LINE Pay</button></div>`:`<p class="hint">實收預設等於應收，帳對了直接按確認；不同請對照收單機、商家後台或交接資料改填本品牌本營業日實收（退款已扣、手續費扣除前）。</p>`}
-      <div class="a-form"><label>${cash?'實收總額':'實收'}<input id="acct-actual" inputmode="numeric" pattern="[0-9]*" placeholder="${cash?'或直接填':'沒有收款請填 0'}" onfocus="this.select()" value="${prev?esc(prev.actual):lpAuto!=null?lpAuto:expected}"></label><label class="reg-note" id="acct-reason-label" hidden>差異原因（應收≠實收必填）<input id="acct-reason" maxlength="200" value="${esc(prev?.reason||'')}"></label></div>${reasonChips('acct-reason',REASON_PRESETS.close_note)}
+      <div class="a-form"><label>${cash?'實收總額':'實收'}<input id="acct-actual" inputmode="numeric" pattern="[0-9]*" placeholder="${cash?'或直接填':'沒有收款請填 0'}" onfocus="this.select()" value="${prev?esc(prev.actual):lpAuto!=null?lpAuto:expected}"></label><label class="reg-note" id="acct-reason-label">差異原因（應收≠實收必填）<input id="acct-reason" maxlength="200" placeholder="差額非 0 必填" value="${esc(prev?.reason||'')}"></label></div>${reasonChips('acct-reason',REASON_PRESETS.close_note)}
       <div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-cancel>取消</button><button type="button" class="btn btn--solid" data-ok disabled>確認</button></div>`,'核對 '+label);
     const box=ov.querySelector('.pos-move-box');bindReasonChips(box);
     if(cash&&prev?.denoms)for(const [f,n] of Object.entries(prev.denoms)){const i=box.querySelector(`[data-denom="${f}"]`);if(i)i.value=n;}
@@ -1412,7 +1412,7 @@ function acctDialog(r,code,sales){
     const read=()=>{if(cash){const c=readCount(box,'#acct-actual');return {actual:c.total,denoms:c.denoms};}return {actual:amount()};};
     const show=()=>{const {actual}=read(),diff=actual==null?null:actual-expected,reason=q('#acct-reason').value.trim();
       q('#acct-actual-show').textContent=actual==null?'—':'NT$'+num(actual);const ds=q('#acct-diff-show');ds.textContent=diff==null?'—':(diff>0?'+':'')+num(diff);ds.classList.toggle('reg-diff',!!diff);
-      q('#acct-reason-label').hidden=!diff;q('[data-ok]').disabled=actual==null||(diff!==0&&!reason);};
+      q('[data-ok]').disabled=actual==null||(diff!==0&&!reason);};
     box.addEventListener('input',show,true);box.addEventListener('change',show);
     // LINE Pay：對話框內直接同步後台（抓營業日前 3 天到隔天），重抓當日對帳結果帶入本店別實收；同步要等後台登入，約 20–60 秒
     const sb=q('#acct-lp-sync');if(sb)sb.onclick=async()=>{sb.disabled=true;sb.textContent='同步中…（約 1 分鐘）';
@@ -1436,15 +1436,22 @@ function bindAccountConfirm(host,sales,reload){
   host.querySelectorAll('[data-acct-card]').forEach(card=>{const id=card.dataset.acctCard,r=(REG_DATA?.registers||[]).find(x=>x.id===id);if(!r)return;
     card.querySelectorAll('[data-acct-open]').forEach(b=>b.onclick=async()=>{const out=await acctDialog(r,b.dataset.acctOpen,sales);if(!out)return;ACCT_CONFIRMED.set(id,{...(ACCT_CONFIRMED.get(id)||{}),[b.dataset.acctOpen]:out});toast(out.diff?`已確認，${out.diff>0?'溢':'短'} NT$${num(Math.abs(out.diff))}`:'已確認，帳對了');reload();});});
 }
+// 關帳表單不再重填一輪帳務：只檢查上方「各帳戶確認」是否每個帳戶都已核對，再填留存金（與總差異原因）就能關帳
+function closeChecks(r){
+  const done=ACCT_CONFIRMED.get(r.id)||{},rows=acctRows(r);
+  const items=rows.map(([code,name,exp])=>{const a=done[code],diff=a?a.actual-exp:null;return {code,name,exp,a,diff,ok:!!a&&(diff===0||!!a.reason)};});
+  const accounts=items.filter(x=>x.code!=='cash'),cash=items[0];
+  const allOk=items.every(x=>x.ok);
+  const actual=allOk?cash.a.actual-r.opening_cash-r.cash_in+r.cash_out+accounts.reduce((t,x)=>t+x.a.actual,0):null;
+  return {items,allOk,actual,totalDiff:actual==null?null:actual-r.sales.amount};
+}
 function dailyCloseForm(r){
-  const entries=Object.entries(r.reconciliation_accounts||{}).sort(([a],[b])=>{const rank=c=>c==='linepay'?0:c==='taishin'?1:2;return rank(a)-rank(b);});
-  return `<div class="reg-close-form" data-register-id="${esc(r.id)}"><h4>1. 當日營收 · ${esc(BRAND_LABEL[r.venue])}</h4><p>訂單總額 <b>NT$${num(r.sales?.amount)}</b>（本品牌、同一營業日；非全店實收）</p>
-    <fieldset data-close-step="cash"><legend>2. 清點錢櫃</legend><div class="ops-head"><h4>關帳點鈔</h4>${tipIcon('現金實收＝點鈔－零用金－臨時收入＋臨時支出。各項有差異都要填原因，不能互相抵銷。')}</div>${denomGrid()}
-    <div class="a-form"><label>點鈔總額<input id="reg-counted" inputmode="numeric" pattern="[0-9]*" placeholder="或直接填"></label><label>留存金<input id="reg-keep" inputmode="numeric" pattern="[0-9]*" value="${esc(r.opening_cash)}"></label><label class="reg-note">現金差異原因<input id="reg-close-note" maxlength="200" placeholder="現金差額非 0 必填"></label></div>${fillChips('reg-keep',[[r.opening_cash,'同零用金 $'+num(r.opening_cash)],[0,'全部收走'],[3000,'$3,000'],[5000,'$5,000']])}${reasonChips('reg-close-note',REASON_PRESETS.close_note)}
-    <div class="reg-close-sum"><span>應有現金 <b>NT$${num(r.expected)}</b></span><span>點鈔 <b id="reg-counted-show">—</b></span><span>差額 <b id="reg-diff-show">—</b></span></div><label><input type="checkbox" data-close-confirm="cash"> 已確認錢櫃與現金差異原因</label></fieldset>
-    ${entries.map(([code,pos],i)=>`<fieldset data-close-step="${esc(code)}" disabled><legend>${i+3}. 核對 ${esc(regAccountLabel(r,code))}</legend><p>本品牌 POS 登記 <b>NT$${num(pos)}</b></p><p class="hint">請核對並填入「${esc(BRAND_LABEL[r.venue])}」本營業日的實收（退款已扣、手續費扣除前）。LINE Pay 店別歸屬與全店台新手填紀錄僅供參考，請另行確認本品牌實收。</p><div class="a-form"><label>本品牌實收<input data-account-actual="${esc(code)}" inputmode="numeric" pattern="[0-9]*" placeholder="必填，沒有收款也請填 0"></label><label>差異原因<input data-account-reason="${esc(code)}" maxlength="200" placeholder="差額非 0 必填"></label></div><p>差額 <b data-account-diff="${esc(code)}">—</b></p><label><input type="checkbox" data-close-confirm="${esc(code)}"> 已確認此帳戶與差異原因</label></fieldset>`).join('')}
-    <fieldset data-close-final disabled><legend>${entries.length+3}. 最後核對總額</legend><div class="reg-close-sum"><span>訂單總額 <b>NT$${num(r.sales?.amount)}</b></span><span>帳戶總額 <b id="reg-actual-total">—</b></span><span>總差異 <b id="reg-total-diff">—</b></span></div><p class="hint">帳戶總額＝現金實收＋每個非現金帳戶實收；總額相同可直接關帳，不同須另外填總差異原因。</p><label id="reg-total-reason-label" hidden>總差異原因（另填）<input id="reg-total-reason" maxlength="200"></label></fieldset>
-    <p id="reg-close-status" role="status" aria-live="polite">請依序完成每一項確認。</p><div class="a-toolbar"><button type="button" class="btn btn--solid" id="reg-close-go" disabled>確認關帳</button><button type="button" class="btn btn--ghost" id="reg-close-cancel">取消</button></div></div>`;
+  const c=closeChecks(r),pending=c.items.filter(x=>!x.ok).map(x=>x.name);
+  return `<div class="reg-close-form" data-register-id="${esc(r.id)}"><h4>確認關帳 · ${esc(BRAND_LABEL[r.venue])}</h4><p>訂單總額 <b>NT$${num(r.sales?.amount)}</b>（本品牌、同一營業日；非全店實收）</p>
+    ${pending.length?`<p class="hint" id="reg-close-pending">上方「各帳戶確認」還有 ${esc(pending.join('、'))} 沒有核對，請先按「核對」完成後再關帳。</p>`:`<div class="a-wrap2"><table class="a-tbl reg-acct"><thead><tr><th>帳戶</th><th class="num">應收</th><th class="num">實收</th><th class="num">差額</th></tr></thead><tbody>${c.items.map(x=>`<tr class="${x.diff?'lp-diff':''}"><td>${esc(x.name)}</td><td class="num">NT$${num(x.exp)}</td><td class="num">NT$${num(x.a.actual)}</td><td class="num">${x.diff>0?'+':''}${num(x.diff)}</td></tr>`).join('')}</tbody></table></div>
+    <div class="reg-close-sum"><span>訂單總額 <b>NT$${num(r.sales?.amount)}</b></span><span>帳戶總額 <b>NT$${num(c.actual)}</b></span><span>總差異 <b>${c.totalDiff>0?'+':''}${num(c.totalDiff)}</b></span></div>
+    <div class="a-form"><label>留存金（下一班）<input id="reg-keep" inputmode="numeric" pattern="[0-9]*" value="${esc(r.opening_cash)}"></label>${c.totalDiff?`<label class="reg-note">總差異原因（另填）<input id="reg-total-reason" maxlength="200"></label>`:''}</div>${fillChips('reg-keep',[[r.opening_cash,'同零用金 $'+num(r.opening_cash)],[0,'全部收走'],[3000,'$3,000'],[5000,'$5,000']])}${c.totalDiff?reasonChips('reg-total-reason',REASON_PRESETS.close_note):''}`}
+    <p id="reg-close-status" role="status" aria-live="polite">${pending.length?'帳戶尚未全部核對。':'上方帳戶皆已核對，可以關帳。'}</p><div class="a-toolbar"><button type="button" class="btn btn--solid" id="reg-close-go" disabled>確認關帳</button><button type="button" class="btn btn--ghost" id="reg-close-cancel">取消</button></div></div>`;
 }
 function registerBlock(d){
   const venues=SCOPE?[SCOPE]:Object.keys(BRAND_LABEL);
@@ -1496,50 +1503,28 @@ function bindRegisterBlock(host,reload){
 function bindDailyClose(form,r,reload){
   if(!r)return;
   let submitting=false;
-  const q=s=>form.querySelector(s),steps=[...form.querySelectorAll('[data-close-step]')],stamp=regCloseStamp(r);
-  const saved=REG_CLOSE_DRAFTS.get(r.id);
-  const fields=[...form.querySelectorAll('input')];
-  const key=i=>i.id||JSON.stringify(i.dataset);
-  if(saved)for(const i of fields){const v=saved.values[key(i)];if(v){i.value=v.value;i.checked=saved.stamp===stamp&&v.checked;}}
-  // 沒有草稿時，帶入「各帳戶確認」已確認的點鈔、實收與原因（仍可修改；確認勾選要重新核對）
-  const pre=ACCT_CONFIRMED.get(r.id);
-  if(!saved&&pre){const set=(sel,v)=>{const i=form.querySelector(sel);if(i&&v!=null&&v!=='')i.value=v;};
-    if(pre.cash){for(const [f,n] of Object.entries(pre.cash.denoms||{}))set(`[data-denom="${f}"]`,n);set('#reg-counted',pre.cash.actual);set('#reg-close-note',pre.cash.reason);}
-    for(const [code,a] of Object.entries(pre)){if(code==='cash')continue;set(`[data-account-actual="${code}"]`,a.actual);set(`[data-account-reason="${code}"]`,a.reason);}}
-  const amount=i=>/^\d+$/.test(i.value.trim())&&Number(i.value)<=10000000?Number(i.value):null;
+  const q=s=>form.querySelector(s),c=closeChecks(r),stamp=regCloseStamp(r);
+  const amount=i=>i&&/^\d+$/.test(i.value.trim())&&Number(i.value)<=10000000?Number(i.value):null;
   const read=()=>{
-    const counted=readCount(form,'#reg-counted'),accounts={};
-    for(const step of steps.slice(1)){const code=step.dataset.closeStep;accounts[code]={actual:amount(step.querySelector('[data-account-actual]')),reason:step.querySelector('[data-account-reason]').value.trim(),confirmed:step.querySelector('[data-close-confirm]').checked};}
-    return {counted_cash:counted.total,denominations:counted.denoms,cash_confirmed:q('[data-close-confirm="cash"]').checked,keep_cash:amount(q('#reg-keep')),note:q('#reg-close-note').value.trim(),accounts,total_reason:q('#reg-total-reason').value.trim(),reconciliation_version:stamp};
+    const done=ACCT_CONFIRMED.get(r.id)||{},accounts={};
+    for(const x of c.items.slice(1))accounts[x.code]={actual:x.a.actual,reason:x.a.reason||'',confirmed:true};
+    const cash=done.cash;
+    return {counted_cash:cash.actual,denominations:cash.denoms||{},cash_confirmed:true,keep_cash:amount(q('#reg-keep')),note:cash.reason||'',accounts,total_reason:(q('#reg-total-reason')?.value||'').trim(),reconciliation_version:stamp};
   };
-  const save=()=>REG_CLOSE_DRAFTS.set(r.id,{stamp,values:Object.fromEntries(fields.map(i=>[key(i),{value:i.value,checked:i.checked}]))});
   const show=()=>{
-    const b=read(),c=b.counted_cash,diff=c==null?null:c-r.expected;
-    q('#reg-counted-show').textContent=c==null?'—':'NT$'+num(c);q('#reg-diff-show').textContent=diff==null?'—':(diff>0?'+':'')+num(diff);
-    let all=true;
-    for(const [i,step] of steps.entries()){
-      step.disabled=!all;const confirm=step.querySelector('[data-close-confirm]');let valid;
-      if(i===0)valid=c!==null&&(diff===0||!!b.note)&&b.keep_cash!==null;
-      else{const code=step.dataset.closeStep,a=b.accounts[code],d=a.actual==null?null:a.actual-r.reconciliation_accounts[code];step.querySelector('[data-account-diff]').textContent=d==null?'—':(d>0?'+':'')+num(d);valid=a.actual!==null&&(d===0||!!a.reason);}
-      confirm.disabled=!valid||!all;if(!valid||!all)confirm.checked=false;all=all&&valid&&confirm.checked;
-    }
-    const actual=c==null||Object.values(b.accounts).some(a=>a.actual===null)?null:c-r.opening_cash-r.cash_in+r.cash_out+Object.values(b.accounts).reduce((s,a)=>s+a.actual,0);
-    const totalDiff=actual===null?null:actual-r.sales.amount;
-    q('#reg-actual-total').textContent=actual===null?'—':'NT$'+num(actual);q('#reg-total-diff').textContent=totalDiff===null?'—':(totalDiff>0?'+':'')+num(totalDiff);
-    q('[data-close-final]').disabled=!all;q('#reg-total-reason-label').hidden=totalDiff===null||totalDiff===0;
-    q('#reg-close-go').disabled=submitting||!all||totalDiff===null||(totalDiff!==0&&!b.total_reason);
-    q('#reg-close-status').textContent=!all?'請依序填入實收、差異原因，並逐項確認。':totalDiff!==0&&!b.total_reason?'總額不同，請另外填寫總差異原因。':'全部核對完成，可以關帳。';
-    save();return !q('#reg-close-go').disabled;
+    const go=q('#reg-close-go');if(!c.allOk){go.disabled=true;return false;}
+    const b=read(),need=c.totalDiff!==0&&!b.total_reason;
+    go.disabled=submitting||b.keep_cash===null||need;
+    q('#reg-close-status').textContent=b.keep_cash===null?'請填留存金。':need?'總額不同，請另外填寫總差異原因。':'上方帳戶皆已核對，可以關帳。';
+    return !go.disabled;
   };
-  // Capture also receives the non-bubbling input events emitted by reason/fill chips.
-  form.addEventListener('input',e=>{const step=e.target.closest('[data-close-step]');if(step&&e.target.type!=='checkbox'){let reset=false;for(const s of steps){if(s===step)reset=true;if(reset)s.querySelector('[data-close-confirm]').checked=false;}}show();},true);
-  form.addEventListener('change',show);
+  form.addEventListener('input',show,true);form.addEventListener('change',show);
   q('#reg-close-go').onclick=async()=>{
     if(submitting||!show())return;
     const body=read();
     submitting=true;show();
-    if(!await posConfirm(`關帳 ${BRAND_LABEL[r.venue]}：訂單總額 NT$${num(r.sales.amount)}，帳戶總額 ${q('#reg-actual-total').textContent}。\n關帳後今天不能再結帳。`,{ok:'關帳'})){submitting=false;show();return;}
-    return opsThen(async()=>{try{return await api('/admin/registers/'+r.id+'/close',{method:'POST',body});}catch(e){await reload();throw e;}},async out=>{try{const printed=await printRegisterReport(out.report,'關帳單');return printed===false?'日結關帳完成；列印未完成，請按「重印關帳單」':'日結關帳完成';}catch(e){return '日結關帳完成；列印失敗，請按「重印關帳單」';}},()=>{REG_CLOSE_DRAFTS.delete(r.id);REG_CLOSE_OPEN=false;return reload();}).finally(()=>{submitting=false;if(REG_CLOSE_OPEN===r.id)show();});
+    if(!await posConfirm(`關帳 ${BRAND_LABEL[r.venue]}：訂單總額 NT$${num(r.sales.amount)}，帳戶總額 NT$${num(c.actual)}。\n關帳後今天不能再結帳。`,{ok:'關帳'})){submitting=false;show();return;}
+    return opsThen(async()=>{try{return await api('/admin/registers/'+r.id+'/close',{method:'POST',body});}catch(e){await reload();throw e;}},async out=>{try{const printed=await printRegisterReport(out.report,'關帳單');return printed===false?'日結關帳完成；列印未完成，請按「重印關帳單」':'日結關帳完成';}catch(e){return '日結關帳完成；列印失敗，請按「重印關帳單」';}},()=>{ACCT_CONFIRMED.delete(r.id);REG_CLOSE_DRAFTS.delete(r.id);REG_CLOSE_OPEN=false;return reload();}).finally(()=>{submitting=false;if(REG_CLOSE_OPEN===r.id)show();});
   };
   show();
 }
