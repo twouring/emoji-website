@@ -94,3 +94,11 @@ test('table panel offers pre-checkout kitchen and receipt printing',()=>{
  assert.match(src,/id="pos-place"[\s\S]{0,120}>列印出餐單<\/button>/);assert.doesNotMatch(src,/送出點餐／列印出餐單/);assert.match(src,/id="pos-print-receipt"/);
  assert.match(src,/printOrder\(tableTicket\(\)\)/);assert.match(src,/sessions\/'\+cur\.id\+'\/place/);assert.match(src,/printReceipt\(tableTicket\(\)\)/);
 });
+
+test('發票證明聯與收據明細預設印賣方統編 93537055', async () => {
+  const {c,texts}=printContext();await vm.runInContext("invoiceProofCanvas({invoice:{status:'issued',number:'AB12345678',buyer_ubn:'12345678'},items:[],amount:100})",c);
+  assert.ok(texts.some(t=>/^93537055$/.test(t)),'證明聯要印賣方統編');
+  assert.ok(texts.some(t=>/買方統編/.test(t)));
+  const r=vm.runInContext("receiptTicketSpec({id:'o9',table_no:'A1',amount:100,items:[],payer:{method:'cash'},invoice:{number:'AB12345678'}})",c);
+  assert.ok(JSON.parse(JSON.stringify(r)).some(x=>x&&x.text==='賣方統編 93537055'));
+});

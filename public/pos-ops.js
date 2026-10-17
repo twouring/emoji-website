@@ -429,11 +429,12 @@ async function manualCashDrawer(reason){
 const c39={0:'101001101101',1:'110100101011',2:'101100101011',3:'110110010101',4:'101001101011',5:'110100110101',6:'101100110101',7:'101001011011',8:'110100101101',9:'101100101101',A:'110101001011',B:'101101001011',C:'110110100101',D:'101011001011',E:'110101100101',F:'101101100101',G:'101010011011',H:'110101001101',I:'101101001101',J:'101011001101',K:'110101010011',L:'101101010011',M:'110110101001',N:'101011010011',O:'110101101001',P:'101101101001',Q:'101010110011',R:'110101011001',S:'101101011001',T:'101011011001',U:'110010101011',V:'100110101011',W:'110011010101',X:'100101101011',Y:'110010110101',Z:'100110110101','-':'100101011011','.':'110010101101',' ':'100110101101','$':'100100100101','/':'100100101001','+':'100101001001','%':'101001001001','*':'100101101101'};
 const invPick=(inv,...keys)=>{for(const k of keys){const v=inv?.[k]??inv?.result?.[k];if(v!==undefined&&v!==null&&String(v))return String(v);}return '';};
 // 買方／賣方統編：先讀我們存的 buyer_ubn；舊發票沒存時，從左側 QR 內容解析（10 字發票號＋7 日期＋4 隨機碼＋8 銷售額＋8 總額＋8 買方＋8 賣方）
+const SELLER_UBN='93537055';   // 言文字股份有限公司統一編號；QR 解析不到時的預設值
 function invoiceParties(inv){
   const ql=invPick(inv,'QRcodeL','QRcode_Left','QRCodeL','QRCode_Left','QrCodeL');
   const buyerQr=ql.length>=53?ql.slice(37,45):'',sellerQr=ql.length>=53?ql.slice(45,53):'';
   const ubn=inv?.buyer_ubn||invPick(inv,'BuyerUBN')||(/^\d{8}$/.test(buyerQr)&&buyerQr!=='00000000'?buyerQr:'');
-  const seller=/^\d{8}$/.test(sellerQr)?sellerQr:'';
+  const seller=/^\d{8}$/.test(sellerQr)?sellerQr:SELLER_UBN;
   return {ubn,seller};
 }
 // 期別：民國年＋雙月，例 2026-10 → 115年09-10月
