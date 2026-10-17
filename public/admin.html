@@ -1164,7 +1164,7 @@ function tabAdmins(d){
   const body = (d.users||[]).filter(u=>u.email).map(u=>`<tr>
     <td>${esc(u.name)}</td><td class="a-mono">${esc(u.email)}</td>
     <td>${u.is_admin?`<span class="pill pill-ok">${u.admin_brand?esc(u.admin_brand.split(',').map(b=>BRAND_LABEL[b]||b).join('＋'))+' 子帳號':'言文字管理員'}</span>`:'<span class="pill pill-wait">一般</span>'}</td>
-    <td>${d.super?`<span data-brand-for="${u.id}">${Object.entries(BRAND_LABEL).map(([v,l])=>`<label style="margin-right:8px;white-space:nowrap"><input type="checkbox" value="${v}" ${(u.admin_brand||'').split(',').includes(v)?'checked':''}> ${l}</label>`).join('')}</span> <button class="btn btn--ghost btn-sm" data-admin="${u.id}" data-on="1">${u.is_admin?'更新範圍':'設為管理員'}</button>${u.is_admin?` <button class="btn btn--ghost btn-sm" data-admin="${u.id}" data-on="0">取消管理員</button>`:''}`:''}</td>
+    <td>${d.super?`<span data-brand-for="${u.id}">${Object.entries(BRAND_LABEL).map(([v,l])=>`<label style="margin-right:8px;white-space:nowrap"><input type="checkbox" value="${v}" ${(u.admin_brand||'').split(',').includes(v)?'checked':''}> ${l}</label>`).join('')}</span> <button class="btn btn--ghost btn-sm" data-admin="${u.id}" data-on="1">${u.is_admin?'更新範圍':'設為管理員'}</button>${u.is_admin?` <button class="btn btn--ghost btn-sm" data-admin="${u.id}" data-on="0">取消管理員</button>`:''}${u.is_admin&&!u.admin_brand&&u.email!==(d.me&&d.me.email)?` <button class="btn btn--ghost btn-sm" data-outreach="${u.id}" data-on="${u.outreach_access?0:1}">${u.outreach_access?'收回合作開發權限':'授予合作開發權限'}</button>`:''}${u.outreach_access?' <span class="pill pill-ok">合作開發</span>':''}`:''}</td>
   </tr>`).join('') || '<tr><td colspan="4" class="a-empty">尚無使用者</td></tr>';
   const createForm = d.super ? `<form id="acct-form" class="a-form" autocomplete="off" style="align-items:flex-end;flex-wrap:wrap;gap:10px;margin-bottom:14px">
       <label style="flex:1;min-width:200px">Email<input id="acct-email" name="email" type="email" required maxlength="254" autocomplete="off" placeholder="name@example.com"></label>
@@ -1190,7 +1190,7 @@ function tabAdmins(d){
    言文字管理員（brands 為空）可進全部工作區；品牌子帳號除了自己的品牌工作區，也能進言文字工作區的共用分頁，
    但「權限管理」「系統設定」「操作紀錄」三頁僅言文字管理員可用（伺服器端同步把關）。
    等等空間工作區已於 2026-10 移除：原本的「活動」「行事曆」併入言文字；「櫃檯」（現場開通會籍）功能一併下架。 */
-const ROOT_TABS = ['overview','members','commitments','updates','menu','social','ads','events','calendar','permissions','system','logs'];
+const ROOT_TABS = ['overview','members','commitments','updates','menu','social','ads','outreach','events','calendar','permissions','system','logs'];
 const ROOT_TABS_BRAND = ['overview','members','commitments','updates','menu','social','ads','events','calendar'];
 const BRAND_TABS = { CAFE:['sales','staff'], BAR:['sales','staff'] };
 const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水' };
@@ -1221,6 +1221,7 @@ const TABS = [
   { id:'menu',        label:'菜單',     render:tabMenu },
   { id:'social',      label:'社群經營', render:tabSocial },
   { id:'ads',         label:'廣告總覽', render:tabAds },
+  { id:'outreach',    label:'合作開發', render:tabOutreach, outreach:true },
   { id:'permissions', label:'權限管理',   render:tabAdmins },
   { id:'system',      label:'系統設定', render:tabSystem },
   { id:'logs',        label:'操作紀錄', render:tabLogs, super:true },
@@ -1228,7 +1229,7 @@ const TABS = [
 const NAV_GROUPS = [
   ['營運', ['overview','members','commitments','events','calendar','pos','orders','reservations','history','sales','staff']],
   ['內容', ['updates','menu']],
-  ['行銷', ['social','ads']],
+  ['行銷', ['social','ads','outreach']],
   ['系統', ['permissions','system','logs']],
 ];
 // 側欄 icon：線條 SVG（Lucide 風格），不用 emoji
@@ -1251,6 +1252,7 @@ const ICONS = {
   content:      '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>',
   social:       '<path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z"/>',
   ads:          '<path d="M12 20V10M18 20V4M6 20v-4"/>',
+  outreach:     '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/>',
   permissions:  '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
 };
 const ico = id => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[id] || ''}</svg>`;
@@ -1275,7 +1277,7 @@ function render(d){
   const x = derived(d);
   const scopes = scopesOf(d);
   if (!scopes.includes(SCOPE)) setScope(scopes[0]);
-  const tabs = TABS.filter(t => d.organizer ? t.id==='events' : scopeTabs().includes(t.id) && (!t.super || d.super));
+  const tabs = TABS.filter(t => d.organizer ? t.id==='events' : scopeTabs().includes(t.id) && (!t.super || d.super) && (!t.outreach || d.outreach));
   if (!tabs.find(t=>t.id===TAB)) TAB=homeTab(d);
   const navBtn = t => {
     const badge = t.id==='events' ? ((d.events||[]).length ? `<span class="badge">${d.events.length}</span>` : '')+(d.organizer?'':'<span class="badge" data-application-count data-nav-badge hidden></span>') : '';
@@ -1381,6 +1383,7 @@ function applyRoute(){
   if (tab === 'logs') { loadLogs(); return; }
   if (tab === 'system') { if(DATA?.super)loadSystemSettings(); return; }
   if (tab === 'ads') { paintAds(); return; }
+  if (tab === 'outreach') { loadOutreach(); return; }
   if (tab === 'events') { if(APPLICATIONS===null&&!DATA?.organizer)loadApplications(); if(parts[1]==='applications'){go('events',true);const f=document.getElementById('ev-list-status');if(f&&!DATA?.organizer){f.value='待審';f.dispatchEvent(new Event('change'));}return;} else if(parts[1]&&!showEventManager(parts[1],DATA)){toast('找不到這場活動');go('events',true);} else if(!parts[1])showEventList(); return; }
   if (tab !== 'social') return;
   const v = parts[1] || SOCIAL_VIEW;
@@ -1518,6 +1521,7 @@ function bind(d, x){
     }
   });
 
+  document.querySelectorAll('[data-outreach]').forEach(b=>b.onclick=()=>{if(!confirm(`確定${b.textContent.trim()}：${b.closest('tr')?.querySelector('td')?.textContent.trim()||''}？`))return;doThen(()=>api('/admin/users/'+b.dataset.outreach+'/outreach',{method:'POST',body:{enabled:b.dataset.on==='1'}}),'已更新合作開發權限');});
   // 管理員
   document.querySelectorAll('[data-admin]').forEach(b=>b.onclick=()=>{if(!confirm(`確定${b.textContent.trim()}：${b.closest('tr')?.querySelector('td')?.textContent.trim()||''}？`))return;doThen(()=>api('/admin/users/'+b.dataset.admin+'/admin',{method:'POST',body:{admin:b.dataset.on==='1',brands:[...document.querySelectorAll(`[data-brand-for="${b.dataset.admin}"] input:checked`)].map(i=>i.value)}}),'已更新管理權限');});
 
@@ -2685,6 +2689,89 @@ function mountXStudio(){
 /* ---------- 廣告總覽（獨立分頁）：儀表板＋投放紀錄＋建議引擎 ---------- */
 const ADS_LAYER_META = { awareness:'陌生觸及', retarget:'互動再行銷', action:'具體行動' };
 const ADS_STATUS_META = { planned:['規劃中','pill-wait'], running:['投放中','pill-live'], done:['已結案','pill-ok'] };
+
+
+/* ---- 合作開發：商旅／按摩／補習班等周邊店家，贈送飲品招待券換取宣傳；名單＋pipeline＋跟進紀錄 ---- */
+let OUT = null, OUT_VIEW = 'board', OUT_OPEN = null, OUT_Q = '', OUT_CAT = '', OUT_LOGS = [];
+function tabOutreach(){ return '<div class="a-sec" id="out-body"><h2>合作開發</h2><p class="a-sub">載入資料…</p></div>'; }
+const outDue = l => l.next_action_date && !['已合作','暫不合作'].includes(l.stage) && l.next_action_date <= new Date(Date.now()+8*3600e3).toISOString().slice(0,10);
+async function loadOutreach(){
+  const host = document.getElementById('out-body'); if (!host) return;
+  try { OUT = await api('/admin/outreach'); } catch(e){ host.innerHTML = `<h2>合作開發</h2><p class="a-empty">${esc(e.message)}</p>`; return; }
+  paintOutreach();
+}
+function outCard(l){
+  const pr = ['','高','中','低'][l.priority];
+  return `<button type="button" class="a-kpi" data-out-open="${esc(l.id)}" style="text-align:left;width:100%;margin:0 0 8px;cursor:pointer;padding:10px 12px">
+    <div style="font-weight:700">${esc(l.name)}</div>
+    <div class="kl">${esc(l.category)}・優先${pr}${l.coupon_qty?`・券 ${l.coupon_qty} 張`:''}</div>
+    ${l.next_action||l.next_action_date?`<div class="kl" style="${outDue(l)?'color:#c0392b;font-weight:700':''}">${l.next_action_date?esc(l.next_action_date.slice(5))+' ':''}${esc(l.next_action)}</div>`:''}
+    ${l.owner?`<div class="kl">負責：${esc(l.owner)}</div>`:''}</button>`;
+}
+function paintOutreach(){
+  const host = document.getElementById('out-body'); if (!host || !OUT) return;
+  const kw = OUT_Q.toLowerCase();
+  const leads = OUT.leads.filter(l => (!OUT_CAT || l.category===OUT_CAT) && (!kw || [l.name,l.address,l.owner,l.contact_person,l.note].join(' ').toLowerCase().includes(kw)));
+  const cnt = s => OUT.leads.filter(l=>l.stage===s).length;
+  const due = OUT.leads.filter(outDue).length;
+  const coupons = OUT.leads.filter(l=>l.stage==='已合作').reduce((a,l)=>a+l.coupon_qty,0);
+  const board = `<div style="display:grid;grid-template-columns:repeat(${OUT.stages.length},minmax(190px,1fr));gap:10px;overflow-x:auto">${OUT.stages.map(s=>`<div><div class="a-nav-gl" style="margin-bottom:6px">${esc(s)}（${leads.filter(l=>l.stage===s).length}）</div>${leads.filter(l=>l.stage===s).map(outCard).join('')||'<p class="a-empty" style="margin:0">—</p>'}</div>`).join('')}</div>`;
+  const list = `<div class="a-wrap2"><table class="a-tbl"><thead><tr><th>店家</th><th>類別</th><th>階段</th><th>優先</th><th>負責</th><th>下次跟進</th><th></th></tr></thead><tbody>${leads.map(l=>`<tr><td>${esc(l.name)}</td><td>${esc(l.category)}</td><td>${esc(l.stage)}</td><td>${['','高','中','低'][l.priority]}</td><td>${esc(l.owner)}</td><td style="${outDue(l)?'color:#c0392b;font-weight:700':''}">${esc(l.next_action_date||'')} ${esc(l.next_action)}</td><td><button class="btn btn--ghost btn-sm" data-out-open="${esc(l.id)}">開啟</button></td></tr>`).join('')||'<tr><td colspan="7" class="a-empty">沒有符合的名單</td></tr>'}</tbody></table></div>`;
+  host.innerHTML = `<h2>合作開發</h2>
+    <p class="hint">開發周邊商旅、按摩養生、補習班等店家，提供飲品招待券給他們的客人，作為言文字宣傳。僅超管與被授權的言文字管理員可見、可登記。名單初稿來自公開網頁，聯絡前請先核對。</p>
+    <div class="a-kpis"><div class="a-kpi"><div class="kl">名單</div><div class="kv">${OUT.leads.length}</div></div><div class="a-kpi"><div class="kl">洽談中</div><div class="kv">${cnt('洽談中')}</div></div><div class="a-kpi"><div class="kl">已合作</div><div class="kv">${cnt('已合作')}<span class="u"> 家</span></div></div><div class="a-kpi"><div class="kl">已合作招待券</div><div class="kv">${coupons}<span class="u"> 張</span></div></div><div class="a-kpi"><div class="kl">今日／逾期待跟進</div><div class="kv" style="${due?'color:#c0392b':''}">${due}</div></div></div>
+    <div class="a-toolbar"><input type="search" id="out-q" placeholder="搜尋店家、地址、負責人…" value="${esc(OUT_Q)}" aria-label="搜尋名單">
+      <select id="out-cat" aria-label="類別"><option value="">全部類別</option>${OUT.categories.map(c=>`<option ${c===OUT_CAT?'selected':''}>${esc(c)}</option>`).join('')}</select>
+      <select id="out-view" aria-label="檢視"><option value="board" ${OUT_VIEW==='board'?'selected':''}>看板</option><option value="list" ${OUT_VIEW==='list'?'selected':''}>清單</option></select>
+      <button class="btn btn--solid btn-sm" id="out-new">＋ 新增店家</button></div>
+    ${OUT_VIEW==='board'?board:list}
+    <div id="out-detail"></div>`;
+  const q = document.getElementById('out-q');
+  q.oninput = () => { OUT_Q = q.value; const pos=q.selectionStart; paintOutreach(); const n=document.getElementById('out-q'); n.focus(); n.setSelectionRange(pos,pos); };
+  document.getElementById('out-cat').onchange = e => { OUT_CAT = e.target.value; paintOutreach(); };
+  document.getElementById('out-view').onchange = e => { OUT_VIEW = e.target.value; paintOutreach(); };
+  document.getElementById('out-new').onclick = () => openOutLead(null);
+  host.querySelectorAll('[data-out-open]').forEach(b => b.onclick = () => openOutLead(b.dataset.outOpen));
+  if (OUT_OPEN) openOutLead(OUT_OPEN, true);
+}
+async function openOutLead(id, keep){
+  OUT_OPEN = id || 'new';
+  const l = id ? OUT.leads.find(x=>x.id===id) : {name:'',category:'商旅',stage:'待開發',priority:2,coupon_qty:0};
+  if (!l) { OUT_OPEN = null; return; }
+  OUT_LOGS = id ? ((await api('/admin/outreach/'+id+'/logs').catch(()=>({logs:[]}))).logs) : [];
+  const opt = (arr, v) => arr.map(x=>`<option ${x===v?'selected':''}>${esc(x)}</option>`).join('');
+  const f = (k,label,type='text',extra='') => `<label style="min-width:200px;flex:1">${label}<input name="${k}" type="${type}" value="${esc(l[k]??'')}" ${extra}></label>`;
+  const host = document.getElementById('out-detail');
+  host.innerHTML = `<div class="a-sec" style="margin-top:16px;border:1px solid var(--line,#ddd);padding:14px"><h3>${id?esc(l.name):'新增店家'} <button class="btn btn--ghost btn-sm" id="out-close" type="button">關閉</button></h3>
+    <form id="out-form" class="a-form" style="flex-wrap:wrap;gap:10px;align-items:flex-end">
+      ${f('name','店家名稱','text','required maxlength="120"')}
+      <label>類別<select name="category">${opt(OUT.categories,l.category)}</select></label>
+      <label>階段<select name="stage">${opt(OUT.stages,l.stage)}</select></label>
+      <label>優先度<select name="priority">${[1,2,3].map(n=>`<option value="${n}" ${n===l.priority?'selected':''}>${['','高','中','低'][n]}</option>`).join('')}</select></label>
+      ${f('address','地址')}${f('phone','電話')}${f('website','網站')}${f('contact_person','聯絡人')}${f('owner','言文字負責人')}
+      ${f('coupon_qty','招待券數量','number','min="0"')}${f('next_action','下次跟進事項')}${f('next_action_date','下次跟進日','date')}
+      <label style="flex-basis:100%">備註<textarea name="note" rows="2" maxlength="2000" style="width:100%">${esc(l.note||'')}</textarea></label>
+      <button class="btn btn--solid btn-sm" type="submit">${id?'儲存':'建立'}</button>
+      ${id&&DATA.super?'<button class="btn btn--ghost btn-sm" type="button" id="out-del">刪除</button>':''}
+    </form>
+    ${id?`<h3 style="margin-top:16px">登記開發狀況</h3>
+    <form id="out-log-form" class="a-form" style="flex-wrap:wrap;gap:10px;align-items:flex-end">
+      <label>方式<select name="kind">${opt(OUT.log_kinds,'電話')}</select></label>
+      <label style="flex:1;min-width:240px">內容<input name="content" required maxlength="2000" placeholder="例：電話聯絡櫃檯，店長下週三回覆"></label>
+      <label>更新階段<select name="stage"><option value="">不變</option>${opt(OUT.stages,'')}</select></label>
+      <label>下次跟進日<input name="next_action_date" type="date"></label>
+      <label>下次事項<input name="next_action" maxlength="200"></label>
+      <button class="btn btn--solid btn-sm" type="submit">登記</button></form>
+    <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>時間</th><th>人員</th><th>方式</th><th>內容</th></tr></thead><tbody>${OUT_LOGS.map(g=>`<tr><td class="a-mono">${esc(applicationTime(g.created_at))}</td><td>${esc(g.actor)}</td><td>${esc(g.kind)}</td><td>${esc(g.content)}${g.stage_to?` <span class="pill pill-ok">→ ${esc(g.stage_to)}</span>`:''}</td></tr>`).join('')||'<tr><td colspan="4" class="a-empty">尚無紀錄</td></tr>'}</tbody></table></div>`:''}</div>`;
+  const body = form => { const o = Object.fromEntries(new FormData(form)); return o; };
+  document.getElementById('out-close').onclick = () => { OUT_OPEN = null; host.innerHTML = ''; };
+  document.getElementById('out-form').onsubmit = async e => { e.preventDefault(); try { const o = body(e.target); if (id) o.id = id; const r = await api('/admin/outreach/leads',{method:'POST',body:o}); toast(id?'已儲存':'已建立'); OUT_OPEN = id ? id : r.id; OUT = await api('/admin/outreach'); paintOutreach(); } catch(err){ toast(err.message); } };
+  const lf = document.getElementById('out-log-form');
+  if (lf) lf.onsubmit = async e => { e.preventDefault(); try { await api('/admin/outreach/leads/'+id+'/logs',{method:'POST',body:body(e.target)}); toast('已登記'); OUT = await api('/admin/outreach'); paintOutreach(); } catch(err){ toast(err.message); } };
+  const del = document.getElementById('out-del');
+  if (del) del.onclick = async () => { if (!confirm('刪除「'+l.name+'」與其所有跟進紀錄？')) return; try { await api('/admin/outreach/leads/'+id,{method:'DELETE'}); toast('已刪除'); OUT_OPEN = null; OUT = await api('/admin/outreach'); paintOutreach(); } catch(err){ toast(err.message); } };
+  if (!keep) host.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
 
 function tabAds(){
   return `<div class="a-sec"><h2>廣告總覽</h2>

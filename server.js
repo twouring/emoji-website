@@ -746,6 +746,7 @@ async function migrate() {
   await q(`CREATE TABLE IF NOT EXISTS pos_payment_methods (
     code TEXT PRIMARY KEY, label TEXT NOT NULL, active BOOLEAN NOT NULL DEFAULT true, created_by TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   // 排班與打卡：員工（4 位數識別碼，不綁登入帳號）、排班（員工 × 營業日 × 店別 × 起訖）、出勤（上班開一筆、下班補 clock_out）
+  await require('./lib/outreach').init(q, uid);
   await q(`CREATE TABLE IF NOT EXISTS pos_staff (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, pin TEXT NOT NULL, venues TEXT, role TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '',
     active BOOLEAN NOT NULL DEFAULT true, created_by TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
@@ -1492,10 +1493,13 @@ async function sessionAuth(t) {
   const user = (await q(`SELECT id,email,is_admin,admin_brand FROM users WHERE id=$1`, [p.sub])).rows[0];
   if (!user) return null;
   const isSuper = String(user.email || '').toLowerCase() === SUPER_ADMIN_EMAIL;
+  // 合作開發權限旗標：只對言文字管理員查（獨立查詢，查不到欄位時視為沒有）
+  const outreach_access = !isSuper && user.is_admin === true && !user.admin_brand
+    ? ((await q(`SELECT outreach_access FROM users WHERE id=$1`, [user.id]).catch(() => ({ rows: [] }))).rows[0]?.outreach_access === true) : false;
   // 沒有全域「活動主」角色：活動負責人或該場可管理的主辦團隊成員才進得了活動主入口；新活動只由平台建立
   const host = !isSuper && !user.is_admin
     ? (await q(`SELECT EXISTS(SELECT 1 FROM events WHERE owner_id=$1) OR EXISTS(SELECT 1 FROM event_hosts WHERE email=lower($2) AND can_manage=true) AS allowed`,[user.id,user.email])).rows[0]?.allowed : false;
-  return { ...p, email: user.email, super: isSuper, brands: isSuper ? null : parseBrands(user.admin_brand), can_create_events:isSuper || user.is_admin === true,
+  return { ...p, email: user.email, super: isSuper, outreach_access, brands: isSuper ? null : parseBrands(user.admin_brand), can_create_events:isSuper || user.is_admin === true,
     role: isSuper || user.is_admin === true ? 'admin' : host ? 'organizer' : ['admin','organizer'].includes(p.role) ? 'invited' : p.role };
 }
 async function auth(req, res, next) {
@@ -2004,7 +2008,9 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
     if (me) {
       self.access = deriveMemberAccess(byUser.get(me.id) || [], now);
     }
-    return res.json({ role: 'admin', super: req.auth.super === true, brands: req.auth.brands, me, bond, users, commitments: req.auth.brands ? [] : commitments, entitlements, events, content, updates, invoice: { provider: 'ezpay', configured: ezpayInvoice.configured() }, payment_methods: await paymentMethodsList(), ...self });
+    const outreachIds = new Set((await q(`SELECT id FROM users WHERE outreach_access=true`)).rows.map(r => r.id));
+    for (const u of users) u.outreach_access = outreachIds.has(u.id);
+    return res.json({ role: 'admin', super: req.auth.super === true, brands: req.auth.brands, outreach: !req.auth.brands && (req.auth.super === true || req.auth.outreach_access === true), me, bond, users, commitments: req.auth.brands ? [] : commitments, entitlements, events, content, updates, invoice: { provider: 'ezpay', configured: ezpayInvoice.configured() }, payment_methods: await paymentMethodsList(), ...self });
   }
   const me = pubUser((await q(`SELECT ${SEL_USER} FROM users WHERE id=$1`, [req.auth.sub])).rows[0]);
   if (!me) return res.status(401).json({ error: '帳號不存在，請重新登入。' });
@@ -2175,6 +2181,8 @@ app.get('/api/organizer/state', auth, requireDb, eventEditor, wrap(async (req,re
   await attachApplicationUpdates(applications);
   res.json({role:req.auth.role,organizer:true,can_create_events:req.auth.can_create_events,me,events,applications,users:[],commitments:[],updates:[],content:{}});
 }));
+
+require('./lib/outreach').register(app, { auth, adminOnly, requireDb, wrap, q, uid, actorOf, superOnly });
 
 /* ---- 超管：指派／取消其他管理員（以 user id；對象需已於系統有帳號，通常先以 Google 登入過） ---- */
 app.post('/api/admin/users/:id/admin', auth, adminOnly, superOnly, requireDb, wrap(async (req, res) => {
