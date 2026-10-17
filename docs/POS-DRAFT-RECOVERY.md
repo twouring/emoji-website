@@ -4,7 +4,7 @@
 
 ## 備份
 
-`/workspace/local/_archive/pos-finish-20261017/<worktree>/` 保存 HEAD、porcelain v2 狀態、tracked / unstaged / staged binary patches、完整 index 原檔與 stages 清單、所有修改及未追蹤檔案 tar。`pos-table-print/stages/{1,2,3}/public/pos-ops.js` 保留 UU 三方內容。未追蹤 `node_modules` 是 symlink，tar 保留連結本身，不展開第三方套件。
+`/workspace/spaces/_archive/pos-finish-20261017/<worktree>/`（2026-10-17 自 `/workspace/local/_archive/` 整批搬至 Spaces）保存 HEAD、porcelain v2 狀態、tracked / unstaged / staged binary patches、完整 index 原檔與 stages 清單、所有修改及未追蹤檔案 tar。`pos-table-print/stages/{1,2,3}/public/pos-ops.js` 保留 UU 三方內容。未追蹤 `node_modules` 是 symlink，tar 保留連結本身，不展開第三方套件。
 
 ## 草稿去向
 
