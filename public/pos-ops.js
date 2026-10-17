@@ -807,7 +807,7 @@ function posTotals(cur){
 function startAA(people){POS_AA={people};POS_PICK=null;POS_QTY={};POS_DISCOUNT=null;POS_DISC_OPEN=false;POS_RECEIVED='';POS_SPLIT={};}
 /* 水平滑動手勢：垂直捲動不受影響（touch-action:pan-y）；超過 min 像素且橫向大於縱向才算滑動 */
 function bindSwipe(el,{dir='right',min=100,follow=false,onSwipe}){
-  if(!el||el.dataset.swipe)return;el.dataset.swipe='1';el.style.touchAction='pan-y';
+  if(!el||!el.dataset||!el.addEventListener||el.dataset.swipe)return;el.dataset.swipe='1';if(el.style)el.style.touchAction='pan-y';
   let x0=0,y0=0,id=null,moved=false,sup=0;
   el.addEventListener('click',e=>{if(!el._prog&&Date.now()-sup<500){e.stopImmediatePropagation();e.preventDefault();}},true);
   const reset=()=>{if(follow){el.style.transition='transform .15s';el.style.transform='';}};
@@ -1824,6 +1824,33 @@ async function loadAttendance(host){
   host.querySelectorAll('[data-fix]').forEach(b=>b.onclick=()=>{const r=(d.rows||[]).find(x=>x.id===b.dataset.fix);if(!r)return;openAttendanceFix(r,reload,toIso);});
 }
 
+
+/* ---- 銷量／客群圖表：純 CSS，不依賴外部套件 ---- */
+const CHART_COLORS=['#1f2937','#d97706','#0d9488','#7c3aed','#dc2626','#2563eb','#65a30d','#db2777'];
+function hbars(rows,{fmt=num,color='var(--ink)'}={}){const mx=Math.max(1,...rows.map(r=>r[1]));return rows.length?`<div class="sales-bars chart-hbars">${rows.map(([l,v,sub])=>`<div class="sales-bar chart-hbar"><span class="chart-lbl" title="${esc(l)}">${esc(l)}</span><i style="width:${Math.max(1,Math.round(v/mx*100))}%;background:${color}"></i><span class="num">${esc(fmt(v))}${sub?`<small> ${esc(sub)}</small>`:''}</span></div>`).join('')}</div>`:'<p class="a-empty">這段期間沒有資料</p>';}
+function vbars(rows,{fmt=num}={}){const mx=Math.max(1,...rows.map(r=>r[1]));return rows.length?`<div class="chart-vbars" style="--n:${rows.length}">${rows.map(([l,v])=>`<div class="chart-vcol" title="${esc(l)}：${esc(fmt(v))}"><span class="chart-vval">${v?esc(fmt(v)):''}</span><i style="height:${Math.max(v?2:0,Math.round(v/mx*100))}%"></i><span class="chart-vlbl">${esc(l)}</span></div>`).join('')}</div>`:'<p class="a-empty">這段期間沒有資料</p>';}
+function donut(rows,{center=''}={}){const tot=rows.reduce((a,r)=>a+r[1],0);if(!tot)return '<p class="a-empty">這段期間沒有資料</p>';let acc=0;const stops=rows.map((r,i)=>{const a=acc/tot*100;acc+=r[1];return `${CHART_COLORS[i%CHART_COLORS.length]} ${a}% ${acc/tot*100}%`;}).join(',');
+  return `<div class="chart-donut-wrap"><div class="chart-donut" style="background:conic-gradient(${stops})"><span>${esc(center)}</span></div><ul class="chart-legend">${rows.map((r,i)=>`<li><b style="background:${CHART_COLORS[i%CHART_COLORS.length]}"></b>${esc(r[0])}<span class="num">${Math.round(r[1]/tot*100)}%<small> ${esc(r[2]??num(r[1]))}</small></span></li>`).join('')}</ul></div>`;}
+function chartCard(title,body){return `<div class="chart-card"><h3>${esc(title)}</h3>${body}</div>`;}
+function analyticsCharts(kind,d){
+  const hrs=Object.keys(d.by_hour||{}).map(Number).sort((a,b)=>a-b);
+  const hourRows=hrs.length?Array.from({length:hrs[hrs.length-1]-hrs[0]+1},(_,i)=>{const h=String(hrs[0]+i).padStart(2,'0');return [h,d.by_hour?.[h]?.amount||0];}):[];
+  const wdName=['日','一','二','三','四','五','六'];
+  const wdRows=[1,2,3,4,5,6,0].map(w=>['週'+wdName[w],d.by_weekday?.[w]?.amount||0]);
+  const dayRows=(d.by_day||[]).map(r=>[r.day.slice(5),r.amount]);
+  const c=d.customers||{};
+  const pair=(a,b,la,lb)=>[[la,c[a]?.orders||0,(c[a]?.orders||0)+' 單'],[lb,c[b]?.orders||0,(c[b]?.orders||0)+' 單']];
+  if(kind==='products'){
+    const top=(d.items||[]).slice(0,10).map(i=>[i.zh,i.qty]);
+    const topAmt=[...(d.items||[])].sort((a,b)=>b.amount-a.amount).slice(0,10).map(i=>[i.zh,i.amount]);
+    const cats=(d.categories||[]).slice(0,8).map(r=>[r.cat,r.amount,'NT$'+num(r.amount)]);
+    const catQty=(d.categories||[]).slice(0,8).map(r=>[r.cat,r.qty]);
+    return `<div class="chart-grid">${chartCard('每日營收',vbars(dayRows))}${chartCard('類別營收占比',donut(cats,{center:'NT$'+num(d.amount)}))}${chartCard('熱銷品項 Top 10（數量）',hbars(top))}${chartCard('品項營收 Top 10（金額）',hbars(topAmt,{fmt:v=>'NT$'+num(v)}))}${chartCard('各類別銷量',hbars(catQty))}${chartCard('時段營收',vbars(hourRows))}</div>`;
+  }
+  const methods=Object.entries(d.by_method||{}).map(([k,v])=>[payMethodLabel(k),v.amount,'NT$'+num(v.amount)]).sort((a,b)=>b[1]-a[1]);
+  return `<div class="chart-grid">${chartCard('會員 vs 非會員（單數）',donut(pair('member','guest','會員','非會員'),{center:num(d.orders)+' 單'}))}${chartCard('內用 vs 外帶（單數）',donut(pair('dinein','takeout','內用','外帶'),{center:num(d.orders)+' 單'}))}${chartCard('點餐方式（單數）',donut(pair('counter','qr','櫃檯點餐','含 QR 點餐'),{center:num(d.orders)+' 單'}))}${chartCard('付款方式（金額）',donut(methods,{center:'NT$'+num(d.amount)}))}${chartCard('時段來客（營收）',vbars(hourRows))}${chartCard('星期分布（營收）',vbars(wdRows))}${chartCard('每日營收',vbars(dayRows))}${chartCard('平均每單：會員 vs 非會員',hbars([['會員',c.member_avg_ticket||0],['非會員',c.guest_avg_ticket||0]],{fmt:v=>'NT$'+num(v)}))}</div>`;
+}
+
 function tabProducts(){return '<div class="a-sec" id="products-body"></div>';}
 function tabCustomers(){return '<div class="a-sec" id="customers-body"></div>';}
 let ANALYTICS_FROM='',ANALYTICS_TO='';
@@ -1843,6 +1870,7 @@ async function loadAnalytics(kind){
   host.innerHTML=`<div class="ops-head"><h2>${title}</h2>${opsHelp('營業日以凌晨 03:00 分界，最多查 93 天。作廢單不計；品項金額為品項小計，不分攤整單折扣。單數是付款單數（含預收與分攤），不是來客人數；會員、內外帶與點餐方式為不同維度，不可相加。新會員依全店首次付款判定；無會員識別碼的聚落價單不計入不重複會員。')}</div>
     <form class="a-toolbar" id="analytics-range"><label>起日 <input type="date" name="from" value="${esc(d.from)}" required></label><label>迄日 <input type="date" name="to" value="${esc(d.to)}" required></label><button class="btn btn--solid" type="submit">查詢</button><button class="btn btn--ghost" type="button" id="analytics-csv">匯出 CSV</button></form>
     <div class="a-kpis"><div class="a-kpi"><div class="kl">營收</div><div class="kv">NT$${num(d.amount)}</div></div><div class="a-kpi"><div class="kl">付款單數</div><div class="kv">${num(d.orders)}</div></div><div class="a-kpi"><div class="kl">平均每單</div><div class="kv">NT$${num(d.avg_ticket)}</div></div></div>
+    ${analyticsCharts(kind,d)}
     ${kind==='products'?`<h3>品項銷量</h3>${table(['品項','店別','類別','數量','品項金額','單數'],productRows)}<h3>每日營收</h3>${table(['營業日','付款單數','營收'],(d.by_day||[]).map(r=>[r.day,r.orders,num(r.amount)]))}<h3>類別銷量</h3>${table(['類別','數量','品項金額'],(d.categories||[]).map(r=>[r.cat,r.qty,num(r.amount)]))}`:`<h3>付款單客群</h3>${table(['分類','單數','營收'],customerRows)}<h3>會員回訪</h3>${table(['指標','數值'],[['不重複會員',c.unique_members],['區間內至少兩單',c.repeat_members],['首次付款會員',c.new_members],['會員平均每單',num(c.member_avg_ticket)],['非會員平均每單',num(c.guest_avg_ticket)]])}`}`;
   host.querySelector('#analytics-range').onsubmit=e=>{e.preventDefault();ANALYTICS_FROM=host.querySelector('[name=from]').value;ANALYTICS_TO=host.querySelector('[name=to]').value;loadAnalytics(kind);};
   host.querySelector('#analytics-csv').onclick=()=>downloadCSV(`${title}_${d.from}_${d.to}.csv`,kind==='products'?[['品項','店別','類別','數量','品項金額','單數'],...productRows]:[['分類','單數','營收'],...customerRows]);
