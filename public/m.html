@@ -19,12 +19,13 @@
 <style>
 :root{--ink:#1B1A17;--soft:#3A362E;--muted:#5A5448;--paper:#FBFAF6;--alt:#F4F1EA;--line:#E4E0D6;--card:#fff;--accent:#FFDE34;--tab:64px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;background:var(--paper);color:var(--ink);font-family:"Noto Sans TC",system-ui,sans-serif;font-size:1rem;line-height:1.6}
+html,body{margin:0;background:var(--paper);color:var(--ink);font-family:"Noto Sans TC",system-ui,sans-serif;font-size:1rem;line-height:1.6;line-break:strict;word-break:auto-phrase;overflow-wrap:break-word}
 body{min-height:100vh;min-height:100dvh;padding-top:env(safe-area-inset-top);padding-bottom:calc(var(--tab) + env(safe-area-inset-bottom) + 12px);overscroll-behavior-y:contain}
 [hidden]{display:none!important}
 button{font-family:inherit;font-size:1rem;color:inherit;cursor:pointer}
 .serif{font-family:"Noto Serif TC",serif}
 .wrap{max-width:480px;margin:0 auto;padding:20px 18px}
+h1,h2,h3,.btn,.show,.rwb,.quick a,.quick button,.status{text-wrap:balance}
 h1,h2,h3{font-family:"Noto Serif TC",serif;font-weight:700;margin:0}
 .hello{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
 .hello h1{font-size:1.4rem}
@@ -78,7 +79,8 @@ h1,h2,h3{font-family:"Noto Serif TC",serif;font-weight:700;margin:0}
 .pg .note{color:var(--muted);margin:0 0 14px;text-wrap:pretty}
 /* 底部分頁 */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:10;background:rgba(251,250,246,.96);backdrop-filter:blur(10px);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding-bottom:env(safe-area-inset-bottom)}
-nav.tabs button{height:var(--tab);border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--muted);font-size:1rem}
+nav.tabs button{height:var(--tab);border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--muted);font-size:1rem;white-space:nowrap;min-width:0;padding:0 2px;line-height:1.3}
+nav.tabs button span{white-space:nowrap}
 nav.tabs button svg{width:24px;height:24px}
 nav.tabs button[aria-current=true]{color:var(--ink);font-weight:700}
 nav.tabs button[aria-current=true] svg{stroke-width:2.2}
@@ -132,7 +134,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 .pill.on{background:var(--accent);border-color:var(--ink);color:var(--ink)}
 /* 快捷 */
 .quick{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}
-.quick a,.quick button{min-height:84px;border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--ink);text-decoration:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-weight:500;font-size:1rem}
+.quick a,.quick button{min-height:84px;border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--ink);text-decoration:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-weight:500;font-size:1rem;white-space:nowrap;min-width:0;padding:0 4px}
 .quick svg{width:26px;height:26px}
 .rw{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}
 .rw b{font-family:"Cormorant Garamond","Noto Serif TC",serif;font-size:1.5rem;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -183,6 +185,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 .upd.mute,.upd.mute p{color:var(--muted)}
 .row.view b{text-align:right;word-break:break-all}
 .ghost{color:var(--muted)}
+@media (max-width:340px){.quick{gap:6px}.quick a,.quick button{padding:0 1px}.wrap{padding-left:14px;padding-right:14px}}
 @media (prefers-reduced-motion:reduce){.show:active{transform:none}}
 </style>
 <style>html,body{touch-action:manipulation}</style>
@@ -233,12 +236,12 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       myRegs:'我的報名',noRegs:'還沒有報名活動',checkedIn:'已報到',tickets:n=>n+' 張',showTicket:'出示票券',eventPage:'活動頁',ticketMeta:n=>n>1?'活動票券 '+n+' 張 · 請出示給工作人員掃描':'活動票券 · 請出示給工作人員掃描',ticketFail:'票券暫時無法顯示，請到活動頁查看',
       upcoming:'即將到來',pickupLabel:'預約取餐 ',resvLabel:'訂位 ',states:{done:'已完成',ended:'已結束',ready:'可取餐',preparing:'準備中',placed:'已送單',booked:'已預約'},
       resvTitle:'訂位',back:'返回',date:'日期',party:'人數',partyN:n=>(n===6?'6+':n)+' 位',slotLabel:'時段',venues:['在咖啡 08:00–17:00','三點水 17:00–03:00'],noteOpt:'備註（選填）',resvHint:()=>'座位保留 10 分鐘。',submitResv:'送出訂位',pickSlot:'請選一個時段',resvOk:id=>'訂位成立 '+id,
-      pickupTitle:'預約取餐',pickupHint:n=>'先選時間再選餐點，到店付款。',pickupDay:'取餐日',today:'今天',tomorrow:'明天',dayAfter:'後天',pickupTime:'取餐時間',noSlots:'這天已沒有可預約的時段，請改選其他日期',loadingMenu:'載入菜單…',pickTimeFirst:'選好時間後會顯示該時段的菜單。',submitPickup:'送出預約',itemsN:n=>'（'+n+' 件）',menuFail:'菜單載入失敗',noItems:'這個時段沒有可預約的品項',dec:'減少',inc:'增加',pickupOk:'預約成立，取餐前會開始準備',cafe:'在咖啡',bar:'三點水',opFail:'操作失敗，請稍後再試',
+      pickupTitle:'預約取餐',pickupShort:'預約取餐',pickupHint:n=>'先選時間再選餐點，到店付款。',pickupDay:'取餐日',today:'今天',tomorrow:'明天',dayAfter:'後天',pickupTime:'取餐時間',noSlots:'這天已沒有可預約的時段，請改選其他日期',loadingMenu:'載入菜單…',pickTimeFirst:'選好時間後會顯示該時段的菜單。',submitPickup:'送出預約',itemsN:n=>'（'+n+' 件）',menuFail:'菜單載入失敗',noItems:'這個時段沒有可預約的品項',dec:'減少',inc:'增加',pickupOk:'預約成立，取餐前會開始準備',cafe:'在咖啡',bar:'三點水',opFail:'操作失敗，請稍後再試',
       installLabel:{prompt:'安裝到主畫面',ios:'看怎麼加到主畫面',inapp:'看怎麼用瀏覽器開啟'}},
-    en:{locale:'en-US',back:'Back',tabHome:'Card',tabPlan:'Membership',tabEvents:'Events',tabMe:'Me',loading:'Loading…',
+    en:{locale:'en-US',back:'Back',tabHome:'Card',tabPlan:'Plan',tabEvents:'Events',tabMe:'Me',loading:'Loading…',
       loginTitle:'emoji Member',loginSub:'Sign in to earn points at every space, view your membership and register for events.',google:'Sign in with Google',lineLogin:'Sign in with LINE',email:'Sign in with Email',needName:'Please enter your name',emailSend:'Send sign-in link',emailSent:'Link sent',emailSentTo:e=>'Check '+e+' and open the link to sign in. It expires in 20 minutes.',emailFail:'Could not send the link — try Google instead',firstTime:'New here? Sign in with any option and your account is created automatically.',
       hi:n=>'Hi, '+n,welcome:'Welcome back',morning:'Good morning',noon:'Good afternoon',evening:'Good evening',brand:'emoji',myPts:'My points',showCard:'Show card at checkout',scanMe:'Show this to staff to scan',
-      hintPhone:'You can also just give your phone number.',hintNoPhone:'Add your phone under “Me” to earn points by number.',hintEarn:'Earn 1 point per NT$100; 1 point redeems NT$10 of food or drinks.',
+      hintPhone:'You can also just give your phone number.',hintNoPhone:'Add your phone under “Me” to earn points by number.',hintEarn:'Earn 1 point per NT$100; 1 point redeems NT$10 of food or drinks.',
       reserve:'Reserve',signup:'Events',menu:'Menu',redeem:'Rewards',redeemBtn:'Redeem',scanTitle:'Scan the QR on your table',scanSub:n=>'Redeeming “'+n+'”: point at the table QR and it is added to your order automatically.',scanCancel:'Cancel',scanNoCam:'Cannot open the camera. Please allow camera access.',scanBad:'That is not a table ordering QR.',redeemDone:(n,t)=>'Added “'+n+'” (redeemed, table '+t+'). Points left: ',redeemConfirm:(n,p)=>'Redeem “'+n+'” for '+p+' points?',canRedeem:'Redeem now',short:n=>n+' more points',pts:n=>n+' pts',redeemHint:'Tap Redeem, then scan the table QR. Space hours: at the counter.',
       install:'Add the card to your home screen',installSub:'One tap at checkout — no URL to find.',later:'Later',installed:'Added to home screen',home:'Home screen',
       nextEvent:'Next event',noEvents:'No open events right now',registered:'Registered',pendingPay:'Payment pending',full:'Full',free:'Free',cap:(r,c)=>r+' / '+c+' seats',regCount:n=>n+' registered',timeTbd:'Time TBD',updates:'Member updates',noUpdates:'No member updates yet.',events:'Events',
@@ -251,17 +254,17 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       manage:'Manage',admin:'Open admin',organizer:'Manage my events',language:'Language',logout:'Sign out',offline:'Offline — showing last data',netFail:'Connection failed. Please try again.',reload:'Reload',
       sheetInapp:['Tap the “⋯” menu in the corner','Choose “Open in browser” (Safari / Chrome)','Then follow the prompt to add to home screen'],sheetIos:['Tap the browser Share icon (box with arrow)','Scroll and tap “Add to Home Screen”','Tap “Add” — open it from your home screen next time'],
       sheetInappTitle:'Open in a browser first',sheetIosTitle:'Add to Home Screen',sheetInappNote:'In-app browsers (LINE, Facebook, Instagram) cannot add to home screen.',sheetIosNote:'Can’t find “Add to Home Screen”? Open this URL in Safari.',copy:'Copy URL',copied:'URL copied',copyFail:'Long-press the address bar to copy',ok:'Got it',
-      tabBook:'Bookings',newResv:'+ Reserve a table',newPickup:'+ Order for pickup',pickupSec:'Pickup orders',noPickup:'No pickup orders yet',pickupAt:t=>'Pickup '+t,cancelPickup:'Cancel',confirmCancelPickup:'Cancel this pickup order?',
+      tabBook:'Bookings',newResv:'+ Table',newPickup:'+ Pickup',pickupSec:'Pickup orders',noPickup:'No pickup orders yet',pickupAt:t=>'Pickup '+t,cancelPickup:'Cancel',confirmCancelPickup:'Cancel this pickup order?',
       myResv:'My reservations',noResv:'No reservations yet',seats:n=>n+' guests',reqNo:'No. ',tableNo:'Table ',cancelResv:'Cancel',confirmCancelResv:'Cancel this reservation?',canceled:'Cancelled',
       myRegs:'My registrations',noRegs:'No event registrations yet',checkedIn:'Checked in',tickets:n=>n+' tickets',showTicket:'Show ticket',eventPage:'Event page',ticketMeta:n=>n>1?n+' tickets · show to staff to scan':'Event ticket · show to staff to scan',ticketFail:'Ticket unavailable right now — see the event page',
       upcoming:'Coming up',pickupLabel:'Pickup ',resvLabel:'Reservation ',states:{done:'Done',ended:'Closed',ready:'Ready',preparing:'Preparing',placed:'Sent to kitchen',booked:'Booked'},
       resvTitle:'Reserve a table',back:'Back',date:'Date',party:'Guests',partyN:n=>(n===6?'6+':n),slotLabel:'Time',venues:['at cafe 08:00–17:00','3AM 17:00–03:00'],noteOpt:'Note (optional)',resvHint:()=>'Tables are held for 10 minutes.',submitResv:'Reserve',pickSlot:'Pick a time',resvOk:id=>'Reserved · '+id,
-      pickupTitle:'Order for pickup',pickupHint:n=>'Pick a time, then your items. Pay in store.',pickupDay:'Pickup day',today:'Today',tomorrow:'Tomorrow',dayAfter:'In 2 days',pickupTime:'Pickup time',noSlots:'No more slots that day — pick another date',loadingMenu:'Loading menu…',pickTimeFirst:'Pick a time to see that period’s menu.',submitPickup:'Place order',itemsN:n=>' ('+n+' items)',menuFail:'Could not load the menu',noItems:'Nothing available for this slot',dec:'Less',inc:'More',pickupOk:'Order placed — we’ll start preparing before pickup',cafe:'at cafe',bar:'3AM',opFail:'Action failed. Please try again.',
+      pickupTitle:'Order for pickup',pickupShort:'Pickup',pickupHint:n=>'Pick a time, then your items. Pay in store.',pickupDay:'Pickup day',today:'Today',tomorrow:'Tomorrow',dayAfter:'In 2 days',pickupTime:'Pickup time',noSlots:'No more slots that day — pick another date',loadingMenu:'Loading menu…',pickTimeFirst:'Pick a time to see that period’s menu.',submitPickup:'Place order',itemsN:n=>' ('+n+' items)',menuFail:'Could not load the menu',noItems:'Nothing available for this slot',dec:'Less',inc:'More',pickupOk:'Order placed — we’ll start preparing before pickup',cafe:'at cafe',bar:'3AM',opFail:'Action failed. Please try again.',
       installLabel:{prompt:'Install',ios:'How to add to home screen',inapp:'How to open in a browser'}},
-    ja:{locale:'ja-JP',back:'戻る',tabHome:'会員カード',tabPlan:'会員資格',tabEvents:'イベント',tabMe:'マイページ',loading:'読み込み中…',
+    ja:{locale:'ja-JP',back:'戻る',tabHome:'カード',tabPlan:'会員',tabEvents:'イベント',tabMe:'設定',loading:'読み込み中…',
       loginTitle:'言文字 会員',loginSub:'ログインすると、すべての空間でポイントを貯め、会員資格の確認やイベント申込ができます。',google:'Google でログイン',lineLogin:'LINE でログイン',email:'メールでログイン',needName:'名前を入力してください',emailSend:'ログインリンクを送信',emailSent:'送信しました',emailSentTo:e=>e+' に届いたリンクを開くとログインできます。有効期限は20分です。',emailFail:'送信できませんでした。Google でログインしてください',firstTime:'初めての方も、いずれかの方法でログインすると自動で登録されます。',
       hi:n=>n+' さん、こんにちは',welcome:'おかえりなさい',morning:'おはようございます',noon:'こんにちは',evening:'こんばんは',brand:'言文字',myPts:'ポイント',showCard:'会計時に会員カードを提示',scanMe:'スタッフに提示してスキャン',
-      hintPhone:'携帯電話番号を伝えるだけでもOKです。',hintNoPhone:'「マイページ」で携帯番号を登録すると、番号だけでポイントが貯まります。',hintEarn:'100元ごとに1ポイント。1ポイントで飲食NT$10分と交換できます。',
+      hintPhone:'携帯電話番号を伝えるだけでもOKです。',hintNoPhone:'「マイページ」で携帯番号を登録すると、番号だけでポイントが貯まります。',hintEarn:'100元ごとに1ポイント。1ポイントでNT$10分の飲食と交換できます。',
       reserve:'予約',signup:'イベント',menu:'メニュー',redeem:'交換できるもの',redeemBtn:'交換',scanTitle:'テーブルの注文QRをスキャン',scanSub:n=>'「'+n+'」を交換：テーブルのQRに向けると注文リストに自動で追加されます。',scanCancel:'キャンセル',scanNoCam:'カメラを起動できません。カメラの許可をご確認ください。',scanBad:'テーブルの注文QRではありません。',redeemDone:(n,t)=>'「'+n+'」を追加しました（交換・テーブル '+t+'）。残りポイント：',redeemConfirm:(n,p)=>p+' ポイントで「'+n+'」を交換しますか？',canRedeem:'今すぐ交換可',short:n=>'あと '+n+' ポイント',pts:n=>n+' pt',redeemHint:'「交換」を押してテーブルのQRをスキャン。スペース利用はカウンターで。',
       install:'会員カードをホーム画面に追加',installSub:'会計時にワンタップで開けます。',later:'あとで',installed:'ホーム画面に追加しました',home:'ホーム画面',
       nextEvent:'次のイベント',noEvents:'現在申し込み可能なイベントはありません',registered:'申込済',pendingPay:'支払い待ち',full:'満席',free:'無料',cap:(r,c)=>'定員 '+r+'／'+c,regCount:n=>'申込 '+n+' 人',timeTbd:'日時未定',updates:'会員向けお知らせ',noUpdates:'お知らせはまだありません。',events:'イベント',
@@ -274,12 +277,12 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       manage:'管理',admin:'管理画面へ',organizer:'イベントを管理',language:'言語',logout:'ログアウト',offline:'オフライン：前回のデータを表示中',netFail:'接続に失敗しました。しばらくしてから再度お試しください。',reload:'再読み込み',
       sheetInapp:['画面隅の「⋯」メニューをタップ','「ブラウザで開く」（Safari／Chrome）を選択','開いたら案内に従ってホーム画面に追加'],sheetIos:['ブラウザの「共有」アイコン（矢印付きの四角）をタップ','下にスクロールして「ホーム画面に追加」をタップ','右上の「追加」をタップ。次回からホーム画面から開けます'],
       sheetInappTitle:'まずブラウザで開いてください',sheetIosTitle:'ホーム画面に追加',sheetInappNote:'LINE・Facebook・Instagram 内のブラウザからはホーム画面に追加できません。',sheetIosNote:'「ホーム画面に追加」が見つからない場合は Safari でこの URL を開いてください。',copy:'URL をコピー',copied:'コピーしました',copyFail:'アドレスバーを長押ししてコピーしてください',ok:'OK',
-      tabBook:'予約',newResv:'＋ 席を予約',newPickup:'＋ テイクアウト予約',pickupSec:'テイクアウト予約',noPickup:'テイクアウト予約はまだありません',pickupAt:t=>t+' 受け取り',cancelPickup:'キャンセル',confirmCancelPickup:'このテイクアウト予約をキャンセルしますか？',
+      tabBook:'予約',newResv:'＋ 席予約',newPickup:'＋ テイクアウト',pickupSec:'テイクアウト予約',noPickup:'テイクアウト予約はまだありません',pickupAt:t=>t+' 受け取り',cancelPickup:'キャンセル',confirmCancelPickup:'このテイクアウト予約をキャンセルしますか？',
       myResv:'席の予約',noResv:'予約はまだありません',seats:n=>n+' 名',reqNo:'番号 ',tableNo:'テーブル ',cancelResv:'キャンセル',confirmCancelResv:'この予約をキャンセルしますか？',canceled:'キャンセルしました',
       myRegs:'イベント申込',noRegs:'申込済みのイベントはありません',checkedIn:'チェックイン済',tickets:n=>n+' 枚',showTicket:'チケットを表示',eventPage:'イベントページ',ticketMeta:n=>n>1?'チケット '+n+' 枚 · スタッフに提示してスキャン':'イベントチケット · スタッフに提示してスキャン',ticketFail:'チケットを表示できません。イベントページをご覧ください',
       upcoming:'近日の予定',pickupLabel:'テイクアウト ',resvLabel:'予約 ',states:{done:'完了',ended:'終了',ready:'受け取り可',preparing:'準備中',placed:'調理中',booked:'予約済'},
       resvTitle:'席を予約',back:'戻る',date:'日付',party:'人数',partyN:n=>(n===6?'6+':n)+' 名',slotLabel:'時間',venues:['在咖啡 08:00–17:00','三點水 17:00–03:00'],noteOpt:'備考（任意）',resvHint:()=>'席は10分間保持します。',submitResv:'予約する',pickSlot:'時間を選んでください',resvOk:id=>'予約完了 '+id,
-      pickupTitle:'テイクアウト予約',pickupHint:n=>'時間を選んでから料理を選びます。お支払いは店頭で。',pickupDay:'受け取り日',today:'今日',tomorrow:'明日',dayAfter:'明後日',pickupTime:'受け取り時間',noSlots:'この日の枠はもうありません。別の日を選んでください',loadingMenu:'メニューを読み込み中…',pickTimeFirst:'時間を選ぶとその時間帯のメニューが表示されます。',submitPickup:'予約する',itemsN:n=>'（'+n+' 点）',menuFail:'メニューを読み込めませんでした',noItems:'この時間帯に予約できる品はありません',dec:'減らす',inc:'増やす',pickupOk:'予約完了。受け取り前に準備を始めます',cafe:'在咖啡',bar:'三點水',opFail:'操作に失敗しました。しばらくしてから再度お試しください。',
+      pickupTitle:'テイクアウト予約',pickupShort:'お持ち帰り',pickupHint:n=>'時間を選んでから料理を選びます。お支払いは店頭で。',pickupDay:'受け取り日',today:'今日',tomorrow:'明日',dayAfter:'明後日',pickupTime:'受け取り時間',noSlots:'この日の枠はもうありません。別の日を選んでください',loadingMenu:'メニューを読み込み中…',pickTimeFirst:'時間を選ぶとその時間帯のメニューが表示されます。',submitPickup:'予約する',itemsN:n=>'（'+n+' 点）',menuFail:'メニューを読み込めませんでした',noItems:'この時間帯に予約できる品はありません',dec:'減らす',inc:'増やす',pickupOk:'予約完了。受け取り前に準備を始めます',cafe:'在咖啡',bar:'三點水',opFail:'操作に失敗しました。しばらくしてから再度お試しください。',
       installLabel:{prompt:'ホーム画面にインストール',ios:'追加方法を見る',inapp:'ブラウザで開く方法を見る'}},
   };
   const lsGet=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
@@ -421,7 +424,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     <p class="hint ghost">${esc(phone?'':T.hintNoPhone+' ')}${esc(T.hintEarn)}</p>
     <nav class="quick" aria-label="quick">
       <button data-go="resv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M17 3c-2 2-3 5-3 8h3v10"/></svg>${esc(T.reserve)}</button>
-      <button data-go="pickup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 9h16l-1.5 11h-13zM8 9V6a4 4 0 0 1 8 0v3"/></svg>${esc(T.pickupTitle)}</button>
+      <button data-go="pickup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 9h16l-1.5 11h-13zM8 9V6a4 4 0 0 1 8 0v3"/></svg>${esc(T.pickupShort)}</button>
       <button data-go="events"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>${esc(T.signup)}</button>
     </nav>
     ${rewardsSec(pts)}
