@@ -55,3 +55,13 @@ test('平板滑動操作：收款鈕向右滑收款、品項列左滑展開更�
   assert.match(ops, /bindSwipe\(tr,\{dir:'both'/);
   assert.match(ops, /el\._prog=1;try\{el\.click\(\)/);
 });
+
+test('平板左右滑切換分頁：避開橫向捲動區與既有滑動元件，開著對話框時不切', () => {
+  const html = fs.readFileSync(new URL('../public/pos.html', import.meta.url), 'utf8');
+  assert.match(html, /#app\{touch-action:pan-y\}/);
+  assert.match(html, /app\.addEventListener\('pointerup'/);
+  assert.match(html, /el\.dataset\.swipe\) return true/);
+  assert.match(html, /overflowX\)/);
+  assert.match(html, /\.pos-move-ov,\[role="dialog"\]/);
+  assert.match(html, /TABS\[i \+ \(dx < 0 \? 1 : -1\)\]/);
+});

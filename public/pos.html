@@ -49,6 +49,9 @@
   main{padding:16px max(16px,env(safe-area-inset-right)) calc(32px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));max-width:1680px;margin:0 auto}
   /* 分頁容器：與 /admin 共用 #orders-body / #pos-body / #resv-body / #sales-body / #soldout-body 的 id，pos-ops.js 直接對這些容器繪製 */
   .p-tab{display:none;padding:0}.p-tab.on{display:block}
+  #app{touch-action:pan-y}
+  @keyframes p-slide-l{from{transform:translateX(24px);opacity:.6}to{transform:none;opacity:1}}@keyframes p-slide-r{from{transform:translateX(-24px);opacity:.6}to{transform:none;opacity:1}}
+  .p-tab.p-slide-l{animation:p-slide-l .18s ease-out}.p-tab.p-slide-r{animation:p-slide-r .18s ease-out}
   .a-sec{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
   .a-sec h2{font-size:1.125rem;font-weight:600;margin:0 0 .25rem;display:flex;align-items:center;gap:.5em}
   .a-sec h3,h3{font-size:1rem;font-weight:600;margin:16px 0 8px}
@@ -332,6 +335,26 @@ document.addEventListener('click', e => {
   e.preventDefault(); go(a.dataset.tab);
 });
 window.addEventListener('popstate', () => { TAB = routeTab(); paintNav(); activate(); });
+
+// 平板左右滑切換分頁（參考 iChef）：左滑＝下一頁、右滑＝上一頁，順序同分頁列。
+// 避開已有自己橫向手勢的區域：橫向可捲動的表格、收款鈕與品項列的滑動、桌位排版拖曳、表單欄位；上下捲動不受影響
+(function(){
+  const app = document.getElementById('app');
+  let x0 = 0, y0 = 0, id = null, skip = false;
+  const ownsGesture = t => { for (let el = t; el && el !== app; el = el.parentElement) { if (el.dataset && el.dataset.swipe) return true; if (el.matches('input,select,textarea,.pos-floor-edit,.pos-drag,[contenteditable]')) return true; const cs = getComputedStyle(el); if (/auto|scroll/.test(cs.overflowX) && el.scrollWidth > el.clientWidth + 2) return true; } return false; };
+  app.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') return; id = e.pointerId; x0 = e.clientX; y0 = e.clientY; skip = ownsGesture(e.target); });
+  app.addEventListener('pointerup', e => {
+    if (e.pointerId !== id) return; id = null; if (skip) return;
+    const dx = e.clientX - x0, dy = e.clientY - y0;
+    if (Math.abs(dx) < 90 || Math.abs(dx) < Math.abs(dy) * 2) return;
+    if (document.querySelector('.pos-move-ov,[role="dialog"]')) return;
+    const i = TABS.findIndex(t => t.id === TAB), next = TABS[i + (dx < 0 ? 1 : -1)];
+    if (!next) return;
+    go(next.id);
+    const np = document.querySelector('[data-panel="' + next.id + '"]'); if (np) { np.classList.add(dx < 0 ? 'p-slide-l' : 'p-slide-r'); setTimeout(() => np.classList.remove('p-slide-l', 'p-slide-r'), 200); }
+  });
+  app.addEventListener('pointercancel', () => { id = null; });
+})();
 
 // 分頁列（手機單行可滑動時）還能往右滑就亮「›」提示：淡化邊緣太不明顯，10/13 就是因為使用者完全看不出還有分頁而漏用「打卡」「排班」，這次用明確的提示而不是只靠邊緣效果
 const navEl = document.getElementById('p-nav');
