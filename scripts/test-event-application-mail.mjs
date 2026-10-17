@@ -50,6 +50,8 @@ function fakeQueue(rows, clock = () => Date.now()) {
       return { rows: [{ ...row }] };
     }
     const row = rows.find(r => r.id === args[0]);
+    if (/AND mail_attempts=\$4 AND mail_resends=\$5/.test(sql) &&
+        (row.mail_state !== 'processing' || row.mail_attempts !== args[3] || row.mail_resends !== args[4])) return { rows: [] };
     if (/mail_state='sent'/.test(sql)) Object.assign(row, { mail_state: 'sent', mail_provider_id: args[1], mail_error: null });
     else if (/mail_state='failed'/.test(sql)) Object.assign(row, { mail_state: 'failed', mail_error: args[1] });
     else if (/mail_state='retry'/.test(sql)) Object.assign(row, { mail_state: 'retry', mail_error: args[1], mail_next_attempt_at: Date.parse(args[2]) });
@@ -82,7 +84,7 @@ test('worker leaves the queue untouched without a mail provider and retries prov
   const failing = async () => { throw new Error('Resend 500: boom'); };
   assert.equal(await mail.deliverApplicationMailOnce(q, failing, { now: () => now }), true);
   assert.equal(rows[0].mail_state, 'retry');
-  assert.equal(rows[0].mail_error, 'Resend 500: boom');
+  assert.equal(rows[0].mail_error, 'Resend 500');
   assert.equal(rows[0].mail_next_attempt_at, now + 60e3);
   assert.equal(await mail.deliverApplicationMailOnce(q, failing, { now: () => now }), false, 'not due until the backoff passes');
   now += 60e3;
@@ -91,7 +93,7 @@ test('worker leaves the queue untouched without a mail provider and retries prov
   const skipped = async () => ({ skipped: 'no-recipient' });
   rows[0].mail_next_attempt_at = 0;
   assert.equal(await mail.deliverApplicationMailOnce(q, skipped, { now: () => now }), true);
-  assert.match(rows[0].mail_error, /no-recipient/);
+  assert.match(rows[0].mail_error, /未確認接受訊息/);
   // Exhausted attempts stop retrying and are surfaced for a manual resend.
   rows[0].mail_attempts = mail.MAX_ATTEMPTS - 1; rows[0].mail_next_attempt_at = 0;
   assert.equal(await mail.deliverApplicationMailOnce(q, failing, { now: () => now }), true);
