@@ -373,7 +373,7 @@ window.addEventListener('resize', updateNavMore);
 function paintNav(){
   const scopes = scopesOf(DATA);
   if (!scopes.includes(SCOPE)) setScope(scopes[0] || '');
-  document.getElementById('p-scope').innerHTML = scopes.length > 1 ? scopes.map(s => `<button type="button" data-scope="${esc(s)}" aria-pressed="${s===SCOPE}">${esc(s ? BRAND_LABEL[s] : '全部')}</button>`).join('') : (SCOPE ? `<span class="pill pill-ok">${esc(BRAND_LABEL[SCOPE])}${DATA?.me?.operator && DATA.me.name ? ' · ' + esc(DATA.me.name) : ''}</span>` : '');
+  document.getElementById('p-scope').innerHTML = scopes.length > 1 ? scopes.map(s => `<button type="button" data-scope="${esc(s)}" aria-pressed="${s===SCOPE}">${esc(s ? BRAND_LABEL[s] : '全部')}</button>`).join('') : (SCOPE ? `<span class="pill pill-ok">${esc(BRAND_LABEL[SCOPE])}</span>` : '');
   document.getElementById('p-scope').querySelectorAll('[data-scope]').forEach(b => b.onclick = () => { setScope(b.dataset.scope); resetPanels(); paintNav(); activate(); });
   document.getElementById('p-nav').innerHTML = TABS.map(t => `<button type="button" data-tab="${t.id}" aria-pressed="${t.id===TAB}">${POSIcon(t.icon)}${t.label}${t.id==='reservations'&&PENDING?`<span class="badge">${PENDING}</span>`:''}</button>`).join('');
   document.getElementById('p-nav').querySelectorAll('[data-tab]').forEach(b => b.onclick = () => go(b.dataset.tab));

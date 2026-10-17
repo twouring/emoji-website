@@ -57,7 +57,7 @@ test('共用座位：混桌送單只送自己品牌，對方品項保持未送',
   assert.throws(()=>T.placeLines(items,new Date(),['BAR']).items.length&&T.placeLines(out,new Date(),['BAR']),e=>e.status===400);
   assert.equal(T.placeLines(items).items.filter(l=>l.placed_at).length,2,'管理員不限品牌');
 });
-test('畫面：員工只見「品牌 · 姓名」標籤、無切換、雙品牌有選擇畫面、閒置鎖定',()=>{
+test('畫面：員工只見品牌標籤、不顯示姓名、無切換、雙品牌有選擇畫面、閒置鎖定',()=>{
   const src=pos.slice(pos.indexOf('const scopesOf ='),pos.indexOf('function routeTab'));
   const ctx={DATA:{me:{operator:true,name:'小明'},brands:['BAR']},SCOPE:'CAFE',BRAND_LABEL:{CAFE:'在咖啡',BAR:'三點水'},localStorage:{setItem(){}}};
   vm.runInNewContext(src+'\nsetScope(scopesOf(DATA)[0]);setScope("CAFE");',ctx);assert.equal(ctx.SCOPE,'BAR');
@@ -65,7 +65,7 @@ test('畫面：員工只見「品牌 · 姓名」標籤、無切換、雙品牌�
   const scopeEl={innerHTML:'',querySelectorAll:()=>[]},navEl={innerHTML:'',querySelectorAll:()=>[]};
   Object.assign(ctx,{document:{getElementById:id=>id==='p-scope'?scopeEl:navEl,querySelector:()=>null},esc:String,TABS:[],TAB:'pos',updateNavMore(){}});
   vm.runInNewContext(nav+'\npaintNav();',ctx);
-  assert.match(scopeEl.innerHTML,/三點水 · 小明/);assert.doesNotMatch(scopeEl.innerHTML,/<button|data-scope/);
+  assert.match(scopeEl.innerHTML,/>三點水</);assert.doesNotMatch(scopeEl.innerHTML,/小明| · /);assert.doesNotMatch(scopeEl.innerHTML,/<button|data-scope/);
   assert.match(pos,/function renderBrandChoice\(pin, d\)/);assert.match(pos,/if \(d\.choose\) return renderBrandChoice\(pin, d\)/);
   assert.match(pos,/function startIdleLock\(\)/);assert.match(pos,/3 \* 60e3/);
   assert.doesNotMatch(pos,/localStorage\.setItem\([^)]*pin\b/i);
