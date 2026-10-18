@@ -4770,7 +4770,7 @@ app.get('/api/venue/schedule', requireDb, wrap(async (_req, res) => {
 
 /* POS 紀錄分頁：依營業日（預設今天）列出現場操作；子帳號／現場人員只看自己品牌。q 搜尋人員、動作、細節
    只有店長能看：每次查詢都要帶店長的 4 位數識別碼（header X-Manager-Pin，不放網址免得進存取紀錄）；
-   職稱含「店長」、在職、且屬於這台裝置可見店別才算。錯碼一律 403（不洩漏是否有這組碼），防猜碼限流同打卡 */
+   職稱含「店長」且在職即可（不限店別：任一店的店長在哪台平板都能看；顯示範圍仍依平板目前店別）。錯碼一律 403（不洩漏是否有這組碼），防猜碼限流 */
 const isManagerRole = role => String(role || '').includes('店長');
 app.get('/api/admin/pos-logs', rateLimit({ max: 30 }), auth, adminOnly, requireDb, wrap(async (req, res) => {
   res.set('Cache-Control', 'no-store');
@@ -4778,7 +4778,7 @@ app.get('/api/admin/pos-logs', rateLimit({ max: 30 }), auth, adminOnly, requireD
     const pin = String(req.get('x-manager-pin') || '').trim();
     if (!/^\d{4}$/.test(pin)) return res.status(403).json({ error: '請輸入店長識別碼。', need_manager_pin: true });
     const mgr = staffRow((await q(`SELECT ${STAFF_SEL} FROM pos_staff WHERE pin=$1 AND active`, [pin])).rows[0]);
-    if (!mgr || !isManagerRole(mgr.role) || !posStaff.staffVisible(mgr, tableOrders.visibleVenues(req.auth.brands)))
+    if (!mgr || !isManagerRole(mgr.role))
       return res.status(403).json({ error: '識別碼不正確或不是店長。', need_manager_pin: true });
   }
   const day = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.day || '')) ? String(req.query.day) : tableOrders.MenuLib.businessDay();

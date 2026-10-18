@@ -214,7 +214,7 @@ Google 授權回呼，簽發會員 token 並導回。
 後台操作紀錄，`?limit=`（預設 200、最多 500），回 `{ logs: [{ id, actor, method, path, summary, status, created_at }] }`。所有 `/api/admin/*` 的成功寫入（POST／DELETE）由中介層自動記錄，`summary` 為請求欄位摘要（略過含 token／secret／password／key 的欄位）。
 
 ### GET /api/admin/pos-logs
-POS「紀錄」分頁：現場操作紀錄，`?day=YYYY-MM-DD`（營業日，凌晨 3 點為界，預設今天）、`?venue=`、`?q=`（搜尋人員／動作／內容）、`?limit=`（預設 500、最多 1000），回 `{ day, logs: [{ id, created_at, venue, actor, operator_id, operator_name, action, detail }] }`。涵蓋開桌、加點、送單、結帳、作廢、更正付款、補開發票、開錢櫃、估清、暫停點餐、開關帳、訂位、手動會籍／給點、打卡、排班與 POS 登入，由 `/api/admin/*` 寫入中介層自動寫入 `pos_logs`；`detail` 略過 PIN／token／secret 等敏感欄位。現場人員只看自己品牌。**限店長**：每次請求須帶 header `X-Manager-Pin: <4 位數識別碼>`，該員工須在職、職稱含「店長」、且屬於呼叫者可見店別，否則回 403 `{ error, need_manager_pin: true }`（ADMIN_API_KEY 免帶）；每 IP 每分鐘 30 次。
+POS「紀錄」分頁：現場操作紀錄，`?day=YYYY-MM-DD`（營業日，凌晨 3 點為界，預設今天）、`?venue=`、`?q=`（搜尋人員／動作／內容）、`?limit=`（預設 500、最多 1000），回 `{ day, logs: [{ id, created_at, venue, actor, operator_id, operator_name, action, detail }] }`。涵蓋開桌、加點、送單、結帳、作廢、更正付款、補開發票、開錢櫃、估清、暫停點餐、開關帳、訂位、手動會籍／給點、打卡、排班與 POS 登入，由 `/api/admin/*` 寫入中介層自動寫入 `pos_logs`；`detail` 略過 PIN／token／secret 等敏感欄位。現場人員只看自己品牌。**限店長**：每次請求須帶 header `X-Manager-Pin: <4 位數識別碼>`，該員工須在職且職稱含「店長」（不限店別），否則回 403 `{ error, need_manager_pin: true }`（ADMIN_API_KEY 免帶）；每 IP 每分鐘 30 次。
 
 ### POST /api/admin/updates
 新增或更新最新消息。body：`{ id?, title, content, type, date }`。

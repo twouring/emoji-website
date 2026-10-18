@@ -12,7 +12,7 @@ test('pos-logs API 要店長識別碼（header，不走網址）', () => {
   assert.match(block, /rateLimit\(\{ max: 30 \}\)/);
   assert.match(block, /req\.get\('x-manager-pin'\)/);
   assert.match(block, /isManagerRole\(mgr\.role\)/);
-  assert.match(block, /staffVisible\(mgr/);
+  assert.doesNotMatch(block, /staffVisible\(mgr/); // 店長不限店別
   assert.match(block, /status\(403\)/);
   assert.match(server, /const isManagerRole = role => String\(role \|\| ''\)\.includes\('店長'\)/);
 });
