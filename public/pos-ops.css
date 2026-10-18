@@ -672,7 +672,11 @@ tr.lp-refund td{color:var(--danger)}
 .pos-opt-pane .pos-opt-body{padding:4px 4px 10px}
 .pos-opt-pane .pos-opt-actions{padding:12px 4px 4px}
 .pos-dock{gap:8px}.pos-dock #pos-print-receipt{flex:none;min-height:64px;padding:0 14px;white-space:nowrap}
-.pos-table-actions .btn{flex:1 1 0;min-width:0;white-space:nowrap}
+/* 左欄底部三鍵：欄寬放得下就一排；不夠時 列印出餐單 獨佔一排，換桌／併桌＋清桌 第二排，文字不換行不溢出 */
+.pos-table-actions{flex-wrap:wrap;gap:6px;container-type:inline-size}
+.pos-table-actions .btn{width:auto;flex:1 1 auto;min-width:max-content;padding-left:8px;padding-right:8px;white-space:nowrap}
+.pos-table-actions #pos-close{flex-grow:0;padding-left:12px;padding-right:12px}
+@container (max-width:380px){.pos-table-actions #pos-place{flex-basis:100%}}
 @media(min-width:1000px){
 .pos-layout.has-panel .pos-panel-scroll{grid-template-columns:minmax(300px,1fr) minmax(0,1.25fr) minmax(320px,.9fr);grid-template-rows:auto minmax(0,1fr) auto}
 .pos-panel-scroll>.pos-left{grid-column:1;grid-row:2/span 2;padding-right:12px;border-right:1px solid var(--line);overflow:hidden}
