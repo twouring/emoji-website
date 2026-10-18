@@ -816,3 +816,10 @@ tr.lp-refund td{color:var(--danger)}
 .pos-open{margin-top:8px}
 .pos-open .btn,.pos-open .btn--solid,.pos-open .btn--ghost,.pos-open .pos-pause-btn{min-height:44px;padding:6px 8px}
 .pos-sub .a-toolbar .btn{min-height:44px}
+/* 座席時間字級縮小；點餐人改膠囊（每人一顆，超過 3 人顯示 +N） */
+.pos-ticket .tk-time,.pos-floor-slot.tk-c1 .pos-ticket .tk-time{font-size:1.125rem}
+.pos-floor-slot.tk-c4 .pos-ticket .tk-time{font-size:1rem}
+.pos-ticket .tk-who{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;line-height:1.2}
+.pos-ticket .tk-who-pill{display:inline-block;max-width:100%;padding:1px 8px;border-radius:999px;background:var(--paper-alt);border:1px solid var(--line);color:var(--ink);font-size:1rem;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pos-ticket .tk-who-more{color:var(--muted)}
+.pos-ticket.on .tk-who-pill{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.35);color:var(--paper)}
