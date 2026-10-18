@@ -545,7 +545,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   const pkCount=()=>Object.values(PK.qty).reduce((a,n)=>a+n,0);
   function renderPickMenu(venue){
     const host=document.getElementById('pkm');if(!host||!MENU)return;
-    const items=MenuLib.sortItems(MenuLib.orderableOnly(MENU,new Date(PK.date+'T'+PK.time+':00+08:00')).filter(it=>it.venue===venue));
+    const items=MenuLib.sortItems(MenuLib.orderableOnly(MENU,new Date(PK.date+'T'+PK.time+':00+08:00')).filter(it=>it.venue===venue&&it.cat!=='COMBO'));   // 套餐要選內容，預約取餐還沒有這個畫面
     if(!items.length){host.innerHTML=`<p class="empty">${esc(T.noItems)}</p>`;return;}
     let cat='',html='';
     for(const it of items){if(it.cat!==cat){cat=it.cat;const cl=MenuLib.CAT_LABEL[cat]||{};html+=`<div class="cat">${esc(cl[LANG]||cl.zh||cat)}</div>`;}const n=PK.qty[it.id]||0;const nt=LANG==='ja'&&it.note_ja?it.note_ja:it.note;html+=`<div class="mi"><div class="nm">${esc(itemName(it))}<small>NT$${esc(it.price)}${nt?' · '+esc(nt):''}</small></div><div class="q"><button type="button" data-dec="${esc(it.id)}" aria-label="${esc(T.dec)}" ${n?'':'disabled'}>−</button><b>${n}</b><button type="button" data-inc="${esc(it.id)}" aria-label="${esc(T.inc)}">＋</button></div></div>`;}

@@ -246,6 +246,7 @@
       '<span class="menu-item__zh">' + esc(lang === 'ja' && item.ja ? item.ja : item.zh) + '</span>' +
       (lang === 'ja' ? (item.ja ? '<span class="menu-item__en">' + esc(item.zh) + '</span>' : '') : (item.en ? '<span class="menu-item__en">' + esc(item.en) + '</span>' : '')) +
       (function (n) { return n ? '<div class="menu-item__note">' + esc(n) + '</div>' : ''; })(lang === 'ja' && item.note_ja ? item.note_ja : item.note) +
+      (item.cat === 'COMBO' && item.combo && item.combo.length ? '<div class="menu-item__note">' + item.combo.map(function (s) { return esc(s.label + '：' + s.choices.map(function (c) { return c.zh + (c.add ? '（+' + c.add + '）' : ''); }).join(' / ')); }).join('<br>') + '</div>' : '') +
       '</div><div class="menu-item__price">' + priceHtml + '</div></li>';
   }
 

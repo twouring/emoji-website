@@ -51,8 +51,8 @@ test('套餐不套聚落價', () => {
 test('comboGroups：每欄一組單選；選到的品項帶出自己的規格，切換選項時顯示／隱藏', () => {
   const g = O.comboGroups(combo('貝果套餐'), items, 'zh');
   const main = g.find(x => x.key === 'main'), drink = g.find(x => x.key === 'drink');
-  assert.equal(main.choices.join('|'), '原味貝果|無花果核桃蜂蜜奶油貝果（+50）');
-  assert.equal(drink.choices.join('|'), '美式咖啡|拿鐵咖啡（+30）|柚子氣泡');
+  assert.equal(main.choices.join('|'), '原味貝果|無花果核桃蜂蜜奶油貝果 (+50)');
+  assert.equal(drink.choices.join('|'), '美式咖啡|拿鐵咖啡 (+30)|柚子氣泡');
   const picks = { main: main.choices[0], drink: drink.choices[0] };
   g.filter(x => !x.combo).forEach(x => { picks[x.key] = x.choices[0]; });
   const act = () => O.activeOptionGroups(g, picks).filter(x => x.sub).map(x => x.label);
@@ -68,7 +68,7 @@ test('comboGroups：每欄一組單選；選到的品項帶出自己的規格，
 test('comboPayload：只送選中品項的規格，出餐單才不會混進別杯的選項', () => {
   const g = O.comboGroups(combo('貝果套餐'), items, 'zh'), picks = {};
   g.forEach(x => { picks[x.key] = x.choices[0]; });
-  picks.drink = '拿鐵咖啡（+30）';
+  picks.drink = '拿鐵咖啡 (+30)';
   picks.drink__1__temperature = '熱';
   const p = O.comboPayload(g, picks);
   assert.equal(p.main.zh, '原味貝果');
@@ -83,4 +83,47 @@ test('菜單：COMBO 要有內容；文字編輯來回一致', () => {
   const c = combo('早午餐套餐');
   assert.equal(JSON.stringify(M.comboFromText(M.comboToText(c.combo))), JSON.stringify(c.combo));
   assert.equal(M.normalizeItem({ zh: 'x', cat: 'BREAD', combo: c.combo }).combo.length, 0, '非套餐類別不留 combo');
+});
+
+test('客人掃碼點套餐（addLine）：同樣要選內容、加價由伺服器算，且 pos_only 的套餐客人點不到', () => {
+  const GUEST = 'abcdefgh12';
+  const it = combo('貝果套餐');
+  const open = items.map(x => (x.cat === 'COMBO' ? { ...x, pos_only: false } : x));
+  const m = new Map(open.filter(x => !x.pos_only).map(x => [x.id, x]));
+  assert.throws(() => T.addLine([], m, { item_id: it.id, qty: 1, guest: GUEST }), /還沒選/);
+  const out = T.addLine([], m, { item_id: it.id, qty: 1, guest: GUEST, price: 1, combo: { main: { zh: '原味貝果' }, drink: { zh: '拿鐵咖啡', note: '溫度：熱' } } });
+  assert.equal(out[0].price, 230);
+  assert.equal(out[0].parts.length, 2);
+  const closed = T.menuIndex(JSON.stringify({ version: 1, items: items.map(x => ({ ...x, published: true })) }), 'CAFE');
+  assert.equal([...closed.values()].some(x => x.cat === 'COMBO'), false, 'pos_only 套餐不在客人可點清單');
+});
+test('comboOpen：只開放內建四個、只做一次的資料轉換；後台新增的自訂套餐不動', () => {
+  const { comboOpen } = require('../lib/menu-combos.js');
+  const list = items.map(x => ({ ...x }));
+  list.push({ id: 'm_custom', cat: 'COMBO', pos_only: true, zh: '自訂套餐', venue: 'CAFE' });
+  assert.equal(comboOpen(list), 4);
+  assert.equal(list.find(x => x.id === 'm_custom').pos_only, true);
+  assert.equal(comboOpen(list), 0);
+});
+test('英日文：套餐欄名與選項名依語言顯示，送出仍用中文品名', () => {
+  const withEn = items.map(x => (x.zh === '美式咖啡' ? { ...x, en: 'Americano', ja: 'アメリカーノ' } : x));
+  const g = O.comboGroups(combo('貝果套餐'), withEn, 'en');
+  assert.equal(g.find(x => x.key === 'main').label, 'Bagel');
+  assert.equal(g.find(x => x.key === 'drink').label, 'Drink');
+  assert.match(g.find(x => x.key === 'drink').choices[0], /^Americano/);
+  const picks = {}; g.forEach(x => { picks[x.key] = x.choices[0]; });
+  assert.equal(O.comboPayload(g, picks).drink.zh, '美式咖啡');
+});
+test('官網菜單：套餐列出內容；預約取餐頁排除套餐', () => {
+  const M = (() => { const w = {}; vm.runInContext; vm.runInNewContext(fs.readFileSync(new URL('../public/menu-lib.js', import.meta.url), 'utf8'), { window: w, console }); return w.MenuLib; })();
+  const html = M.renderMenuHtml([M.normalizeItem(combo('貝果套餐'))], 'zh', '');
+  assert.match(html, /貝果：原味貝果 \/ 無花果核桃蜂蜜奶油貝果（\+50）/);
+  assert.match(html, /飲品：美式咖啡 \/ 拿鐵咖啡（\+30）/);
+  assert.match(fs.readFileSync(new URL('../public/m.html', import.meta.url), 'utf8'), /it\.cat!=='COMBO'/);
+});
+test('order.html 接線：套餐走 comboGroups／送 combo，購物車列出內容', () => {
+  const h = fs.readFileSync(new URL('../public/order.html', import.meta.url), 'utf8');
+  assert.match(h, /it\.cat==='COMBO'\?OrderLib\.comboGroups\(it,MENU,LANG\)/);
+  assert.match(h, /Object\.assign\(\{item_id:CURRENT_ITEM\.id[^\n]*\},comboBody\(\)\)/);
+  assert.match(h, /partsLines\(l\)/);
 });

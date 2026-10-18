@@ -117,21 +117,27 @@
   }
   /* 套餐：每個選擇欄（主餐／飲品）一組單選，選到的品項再帶出它自己的規格（溫度／糖度／冰塊／飯量…），
    * 規格組用 when 綁在所選品項上，沿用 activeOptionGroups 顯示／隱藏。items＝同一份菜單（找出各選項對應的品項）。 */
+  const SLOT = {
+    en: { 主餐: 'Main', 飲品: 'Drink', 貝果: 'Bagel', 飯糰: 'Onigiri', 甜點: 'Dessert' },
+    ja: { 主餐: 'メイン', 飲品: 'ドリンク', 貝果: 'ベーグル', 飯糰: 'おにぎり', 甜點: 'デザート' },
+  };
+  const slotLabel = (zh, lang) => (SLOT[lang] && SLOT[lang][zh]) || zh;
+  const nameOf = (m, lang) => (lang === 'en' && m.en) || (lang === 'ja' && m.ja) || m.zh;
   function comboGroups(item, items, lang) {
     const groups = [];
     (item?.combo || []).forEach(slot => {
       const opts = slot.choices.map(c => {
         const m = (items || []).find(x => x.zh === c.zh && x.venue === item.venue && x.cat !== 'COMBO');
-        return m ? { c, m, label: c.zh + (c.add > 0 ? '（+' + c.add + '）' : '') } : null;
+        return m ? { c, m, name: nameOf(m, lang), label: nameOf(m, lang) + (c.add > 0 ? ' (+' + c.add + ')' : '') } : null;
       }).filter(Boolean);
       if (!opts.length) return;
-      groups.push({ key: slot.key, label: slot.label, choices: opts.map(o => o.label), values: opts.map(o => o.c.zh), combo: true });
+      groups.push({ key: slot.key, label: slotLabel(slot.label, lang), choices: opts.map(o => o.label), values: opts.map(o => o.c.zh), combo: true });
       opts.forEach((o, i) => {
         optionGroups(o.m, lang).forEach(g => {
           const key = slot.key + '__' + i + '__' + g.key;
           const when = [{ key: slot.key, value: o.label }];
           if (g.when) when.push({ key: slot.key + '__' + i + '__' + g.when.key, value: g.when.value });
-          groups.push({ key, label: o.c.zh + '・' + g.label, choices: g.choices, when, sub: { slot: slot.key, label: o.label, zh: o.c.zh, optLabel: g.label } });
+          groups.push({ key, label: o.name + '・' + g.label, choices: g.choices, when, sub: { slot: slot.key, label: o.label, zh: o.c.zh, optLabel: g.label } });
         });
       });
     });
@@ -152,5 +158,5 @@
     return (groups || []).filter(g => !g.when || [].concat(g.when).every(w => picks?.[w.key] === w.value));
   }
 
-  global.OrderLib = { TEXT, text, splitBill, optionGroups, activeOptionGroups, comboGroups, comboPayload };
+  global.OrderLib = { TEXT, text, splitBill, optionGroups, activeOptionGroups, comboGroups, comboPayload, slotLabel };
 })(typeof window !== 'undefined' ? window : globalThis);
