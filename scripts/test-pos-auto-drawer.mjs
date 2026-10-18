@@ -70,7 +70,8 @@ test('invoice print/reprint cannot request drawer even when legacy caller passes
  await ctx.printInvoiceProof({invoice:{status:'issued'}},{drawer:true});assert.equal(jobs.length,1);assert.equal(jobs[0].drawer,undefined);
 });
 test('checkout and refund handlers await drawer independently of printing, and manual asks reason',()=>{
- assert.match(source,/await autoCashDrawer\(\{kind:'checkout'/);
+ assert.match(source,/ok=await autoCashDrawer\(drawer\)/);
+ assert.match(source,/checkoutHardware\(\{kind:'checkout'/);
  assert.match(source,/runCheckoutOnce\(cur\.id/);
  assert.match(source,/refund_cash:refundCash/);
  assert.match(source,/await autoCashDrawer\(\{kind:'refund'/);

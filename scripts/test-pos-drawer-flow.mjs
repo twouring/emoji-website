@@ -12,22 +12,32 @@ function checkout({method='cash',fail=false,printFail=false}={}){
  vm.runInContext(src.match(/const invoicePrintable=[^\n]+/)[0].replace('const ','var '),ctx);
  vm.runInContext(src.slice(src.indexOf('async function printCheckoutOrder('),src.indexOf('// 出餐單（')),ctx);
  vm.runInContext(src.slice(src.indexOf("  host.querySelector('#pos-checkout').onclick="),src.indexOf("  const place=host.querySelector('#pos-place')")),ctx);
- return {ctx,button,events,messages};
+ const hw=()=>vm.runInContext('CHECKOUT_HW',ctx);
+ return {ctx,button,events,messages,hw};
 }
+test('checkout UI resets and reloads without waiting for drawer or printer',async()=>{
+ const {ctx,button,events,messages,hw}=checkout();let release;
+ ctx.autoCashDrawer=event=>new Promise(r=>{events.push(event);release=()=>r(true);});
+ await button.onclick();
+ assert.equal(events[0],'payment');assert.ok(events.includes('reload'));assert.equal(button.disabled,false);
+ assert.equal(events.includes('print'),false);assert.match(messages.join(' '),/已收款 NT\$180/);
+ release();await hw();assert.ok(events.indexOf('print')>events.findIndex(e=>e?.kind==='checkout'));
+});
 test('checkout failure never triggers drawer or invoice',async()=>{
  const {button,events,messages}=checkout({fail:true});await button.onclick();
  assert.deepEqual(events,['payment']);assert.equal(button.disabled,false);assert.match(messages.join(' '),/payment rejected/);
 });
 test('successful checkout opens before invoice work and resets even when canvas fails',async()=>{
- const {ctx,button,events,messages}=checkout({printFail:true});await button.onclick();
- assert.equal(events[0],'payment');assert.equal(events[1].kind,'checkout');assert.equal(events[1].order_id,'to_1');assert.equal(events[2],'print');assert.equal(events[3],'receipt');assert.equal(events[4],'reload');assert.equal(button.disabled,false);assert.equal(ctx.POS_RECEIVED,'');assert.equal(ctx.POS_INVOICE.mode,'paper');assert.match(messages.join(' '),/發票列印失敗/);
+ const {ctx,button,events,messages,hw}=checkout({printFail:true});await button.onclick();await hw();
+ const hwEvents=events.filter(e=>e!=='reload');
+ assert.equal(hwEvents[0],'payment');assert.equal(hwEvents[1].kind,'checkout');assert.equal(hwEvents[1].order_id,'to_1');assert.equal(hwEvents[2],'print');assert.equal(hwEvents[3],'receipt');assert.equal(events.filter(e=>e==='reload').length,1);assert.equal(button.disabled,false);assert.equal(ctx.POS_RECEIVED,'');assert.equal(ctx.POS_INVOICE.mode,'paper');assert.match(messages.join(' '),/發票列印失敗/);
 });
 for(const averageSplit of [false,true]){
  test(`${averageSplit?'average-split':'ordinary'} checkout drawer failure points to 錢櫃 without repeating payment`,async()=>{
-  const {ctx,button,events,messages}=checkout();
+  const {ctx,button,events,messages,hw}=checkout();
   if(averageSplit)ctx.aa={people:3,index:1,each:60};
   ctx.autoCashDrawer=async event=>{events.push(event);return false;};
-  await button.onclick();
+  await button.onclick();await hw();
   assert.equal(events.filter(e=>e==='payment').length,1);
   assert.equal(events.filter(e=>e?.kind==='checkout').length,1);
   assert.equal(events.filter(e=>e==='reload').length,1);
