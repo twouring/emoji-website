@@ -1,19 +1,26 @@
 /* 會員分頁：觸控優先；手機先名單後明細，平板左右並排。 */
-.members-tools{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:16px 0}
-#members-search{align-items:flex-end}
-.members-tools label{display:flex;flex:1 1 12rem;flex-direction:column;gap:8px}
-.members-tools input{min-height:48px;font-size:1rem;width:100%;box-sizing:border-box}
+/* style.css 對所有 section 加了 clamp(72px,10vw,128px) 上下留白（官網用），POS 兩欄一定要歸零，否則左欄上方會多出一大塊空白。 */
+.members-head{display:flex;align-items:center;flex-wrap:wrap;gap:8px 16px;margin:0 0 12px}
+.members-head h2{margin:0}
+.members-head .members-tools{flex:1 1 24rem;margin:0}
+.members-tools{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:12px 0}
+.members-tools input{flex:1 1 10rem;min-width:0;min-height:48px;font-size:1rem;box-sizing:border-box;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink)}
 .members-tools .btn,.members-card{min-height:48px;font-size:1rem}
-.members-layout{display:grid;grid-template-columns:minmax(240px,.7fr) minmax(0,1.3fr);gap:24px}
-.members-layout>section{min-width:0}
-.members-list{display:grid;gap:8px;max-height:65dvh;overflow:auto}
-.members-card{display:flex;align-items:flex-start;flex-direction:column;gap:8px;text-align:left;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--paper);color:var(--ink);cursor:pointer;overflow-wrap:anywhere}
+.members-layout{display:grid;grid-template-columns:minmax(240px,.7fr) minmax(0,1.3fr);gap:16px;align-items:start}
+.members-layout>section{min-width:0;padding:0}
+.members-list{display:grid;gap:8px;max-height:calc(100dvh - var(--p-top,60px) - 15rem);overflow:auto;align-content:start}
+.members-card{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;text-align:left;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--paper);color:var(--ink);cursor:pointer;overflow-wrap:anywhere}
 .members-card.on{border:2px solid var(--ok)}
-.members-detail{border:1px solid var(--line);border-radius:16px;padding:20px;overflow-wrap:anywhere}
+.members-pager{margin-bottom:0}
+.members-layout>.members-detail{border:1px solid var(--line);border-radius:16px;padding:16px 20px;overflow-wrap:anywhere}
+.members-detail h3:first-child{margin-top:0}
+.members-who{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 16px;margin:0}
+.members-balance{margin:0 0 0 auto}
 .members-balance b{font-size:2rem}
 .members-ledger{list-style:none;padding:0;margin:0}
-.members-ledger li{padding:16px 0;border-bottom:1px solid var(--line)}
+.members-ledger li{padding:12px 0;border-bottom:1px solid var(--line)}
 .members-ledger li>div{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px}
 .members-ledger p{margin:8px 0 0}
-.members-ledger time{display:block;margin-top:8px;font-size:1rem}
-@media(max-width:700px){.members-layout{grid-template-columns:minmax(0,1fr)}.members-list{max-height:35dvh}.members-detail{padding:16px}}
+.members-ledger time{display:block;margin-top:4px;font-size:1rem}
+@media(min-width:701px){.members-layout>.members-detail{max-height:calc(100dvh - var(--p-top,60px) - 11rem);overflow:auto}}
+@media(max-width:700px){.members-layout{grid-template-columns:minmax(0,1fr)}.members-list{max-height:35dvh}.members-layout>.members-detail{padding:16px}}
