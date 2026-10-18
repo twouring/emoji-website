@@ -69,21 +69,21 @@
   const OPT = {
     zh: {
       sugar: ['正常糖', '少糖', '半糖', '微糖', '無糖'],
-      ice: ['正常冰', '少冰', '微冰', '去冰', '常溫'],
+      ice: ['正常冰', '少冰', '去冰'],
       temp: ['冰', '熱'],
       rice: ['正常飯', '少飯', '飯多'],
       noodle: ['正常麵', '少麵', '麵多'],
     },
     en: {
       sugar: ['Regular', 'Less sugar', 'Half sugar', 'Light sugar', 'No sugar'],
-      ice: ['Regular ice', 'Less ice', 'Light ice', 'No ice', 'Room temp'],
+      ice: ['Regular ice', 'Less ice', 'No ice'],
       temp: ['Iced', 'Hot'],
       rice: ['Regular rice', 'Less rice', 'Extra rice'],
       noodle: ['Regular noodles', 'Less noodles', 'Extra noodles'],
     },
     ja: {
       sugar: ['通常', '少なめ', '半分', '微糖', '無糖'],
-      ice: ['通常', '少なめ', '微氷', '氷なし', '常温'],
+      ice: ['通常', '少なめ', '氷なし'],
       temp: ['アイス', 'ホット'],
       rice: ['通常', '少なめ', '多め'],
       noodle: ['通常', '少なめ', '多め'],
@@ -98,8 +98,8 @@
     const groups = [];
     const temperature = () => groups.push({ key: 'temperature', label: labels.temperature, choices: OPT[l].temp });
     const sugar = () => groups.push({ key: 'sugar', label: labels.sugar, choices: OPT[l].sugar });
-    // 冰塊只有冰飲才顯示；固定冷飲沒有「常溫」，避免氣泡飲出現不合理選項。
-    const ice = conditional => groups.push({ key: 'ice', label: labels.ice, choices: conditional ? OPT[l].ice : OPT[l].ice.slice(0, 4), ...(conditional ? { when: { key: 'temperature', value: OPT[l].temp[0] } } : {}) });
+    // 冰塊只有冰飲才顯示，且所有飲品只提供 正常／少冰／去冰；氣泡飲不提供甜度調整。
+    const ice = conditional => groups.push({ key: 'ice', label: labels.ice, choices: conditional ? OPT[l].ice : OPT[l].ice, ...(conditional ? { when: { key: 'temperature', value: OPT[l].temp[0] } } : {}) });
     const fixedHot = cat === 'TEA' && /（壺）|\(pot\)|熱水|hot water/.test(name);
     const fixedCold = cat === 'SPARKLING' || /西西里|柚子美式|氣泡|sparkling|romano/.test(name);
     const sweetened = /拿鐵|黑糖|可可|抹茶|奶|柚子|latte|milk|cocoa|matcha|yuzu/.test(name);
@@ -108,7 +108,7 @@
       if (cat !== 'COFFEE' || sweetened) sugar();
       ice(true);
     } else if ((cat === 'COFFEE' || cat === 'BEVERAGE' || cat === 'TEA' || cat === 'SPARKLING') && fixedCold) {
-      if (cat !== 'COFFEE' || sweetened) sugar();
+      if (cat !== 'SPARKLING' && (cat !== 'COFFEE' || sweetened)) sugar();
       ice(false);
     }
     // 只依品名判斷主食份量；麵優先，避免 MAIN/JAPANESE 麵類同時出現「加飯」。

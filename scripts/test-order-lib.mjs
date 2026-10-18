@@ -33,8 +33,10 @@ test('飲料規格依供應方式限制；熱飲不顯示冰塊、冷飲不提�
   assert.deepEqual(O.activeOptionGroups(latte, { temperature: '冰' }).map(g => g.key), ['temperature', 'sugar', 'ice']);
   assert.deepEqual(O.optionGroups({ cat: 'TEA', zh: '紅烏龍', note: '紅烏龍茶葉、熱水。' }, 'zh'), [], '固定熱泡茶不問糖冰');
   const sparkling = O.optionGroups({ cat: 'SPARKLING', zh: '柚子氣泡' }, 'zh');
-  assert.deepEqual(sparkling.map(g => g.key), ['sugar', 'ice']);
-  assert.ok(!sparkling.find(g => g.key === 'ice').choices.includes('常溫'), '氣泡飲不可選常溫');
+  assert.deepEqual(sparkling.map(g => g.key), ['ice'], '氣泡飲不可調甜度');
+  assert.deepEqual(sparkling.find(g => g.key === 'ice').choices, ['正常冰', '少冰', '去冰']);
+  assert.deepEqual(latte.find(g => g.key === 'ice').choices, ['正常冰', '少冰', '去冰'], '所有飲品冰塊僅三選一');
+  for (const l of ['en', 'ja']) assert.equal(O.optionGroups({ cat: 'COFFEE', zh: '拿鐵咖啡' }, l).find(g => g.key === 'ice').choices.length, 3);
 });
 
 test('現行完整菜單逐品檢查：麵類無飯量、固定熱飲無冰塊、冰塊依冰飲條件顯示', () => {
