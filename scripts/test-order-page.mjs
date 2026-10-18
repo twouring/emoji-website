@@ -11,8 +11,8 @@ test('掃碼點餐依台北時間切換供應品牌，但不標示白天或晚�
   assert.doesNotMatch(html, /晚上菜單/);
   assert.doesNotMatch(html, /Day menu/);
   assert.doesNotMatch(html, /Evening menu/);
-  assert.match(html, /MenuLib\.activeVenue\(\)/);
-  assert.match(html, /17:00／03:00／08:00 換品牌/);
+  assert.match(html, /MenuLib\.orderWindow\(\)/);
+  assert.match(html, /16:00／16:30／02:00／02:30／08:00 換時段/);
 });
 
 test('掃碼點餐手機流程提醒用餐完再到櫃檯結帳', () => {

@@ -162,7 +162,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   var toastT;var toast=function(m,ms){var t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove('on');},ms||4000);};
   var money=function(n){return 'NT$'+Number(n||0).toLocaleString('zh-TW');};
   var qs=new URLSearchParams(location.search),T=qs.get('t')||'',K=qs.get('k')||'';
-  var S=null,MENU=[],MENU_DOC=null,VENUE=null,CFG={},GUEST,NAME,seenReady={},pollTimer,LANG='zh',CURRENT_ITEM=null,CURRENT_QTY=1,PAUSED=null;
+  var S=null,MENU=[],MENU_DOC=null,VENUE=null,CFG={},GUEST,NAME,seenReady={},pollTimer,LANG='zh',CURRENT_ITEM=null,CURRENT_QTY=1,PAUSED=null,WIN_KEY='';
   try{GUEST=localStorage.getItem('order_guest');NAME=localStorage.getItem('order_name')||'';LANG=localStorage.getItem('order_lang')||'';}catch(e){}
   if(!LANG){var ql=qs.get('lang'),nl=(navigator.language||'').toLowerCase();LANG=ql==='en'||ql==='ja'?ql:(!ql&&/^ja/.test(nl)?'ja':(!ql&&!/^zh/i.test(nl)?'en':'zh'));}
   var tr=function(key,vars){return OrderLib.text(LANG,key,vars);};
@@ -208,16 +208,17 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   var needName=function(){if(NAME)return true;showGate();return false;};
 
   function renderMenu(){
-    VENUE=MenuLib.activeVenue();
+    var WIN=MenuLib.orderWindow();VENUE=WIN.venue;WIN_KEY=JSON.stringify(WIN);
     // 估清／供應期間每次重繪都重算：店家按「今日估清」後，客人下一次更新菜單就點不到
     MENU=MENU_DOC?MenuLib.orderableOnly(MENU_DOC):[];
     var hours=VENUE==='CAFE'?(LANG==='en'?'at cafe · Serving now':LANG==='ja'?'在咖啡・提供中':'在咖啡・供應中'):VENUE==='BAR'?(LANG==='en'?'3AM · Serving now':LANG==='ja'?'三點水・提供中':'三點水・供應中'):(LANG==='en'?'Kitchen currently closed':LANG==='ja'?'現在は提供時間外です':'目前非供餐時段');
     var venueLabel=MenuLib.VENUE_LABEL[VENUE]||{zh:'言文字',en:'Emoji',ja:'言文字'};
     $('#brand').textContent=label(venueLabel);
+    if(VENUE&&!WIN.food)hours=VENUE==='CAFE'?tr('cafe_food_closed'):tr('bar_food_closed');   // 最後點餐：餐點已停，只剩飲品／酒水
     $('#menu-hours').textContent=PAUSED?PAUSED:hours;   // 店家暫停點餐：文案由後台設定，直接顯示
     $('#menu-shift').classList.toggle('paused',!!PAUSED);
-    $('#menu-shift').hidden=!(PAUSED||!VENUE);   // 正常供應時不顯示「目前菜單」，只在暫停／非供餐時提示
-    var items=MenuLib.sortItems(MENU.filter(function(it){return it.venue===VENUE;})),html='',venue='',cat='';
+    $('#menu-shift').hidden=!(PAUSED||!VENUE||!WIN.food);   // 正常供應時不顯示「目前菜單」，只在暫停／非供餐時提示
+    var items=MenuLib.sortItems(MENU.filter(function(it){return MenuLib.orderableInWindow(it,WIN);})),html='',venue='',cat='';
     items.forEach(function(it){
       if(it.venue!==venue){if(venue)html+='</div>';venue=it.venue;cat='';var v=MenuLib.VENUE_LABEL[venue]||{zh:venue,en:'',ja:venue};html+='<div class="venue">'+esc(label(v))+'<small>'+esc(LANG==='zh'?v.en:v.zh)+'</small></div><div>';}
       if(it.cat!==cat){cat=it.cat;var c=MenuLib.CAT_LABEL[cat]||{zh:cat,en:cat,ja:cat};html+='<h2>'+esc(label(c))+'</h2><div class="menu-grid">';}
@@ -454,7 +455,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   if(!T||!K)return fail('請掃描桌上的 QR Code 進入點餐。');
   if(endedId())showThanks();
   else Promise.all([api('/orders/config'),fetch('/api/public').then(function(r){return r.json();}),load(),api('/orders/pause').catch(function(){return {};})]).then(bootApp).catch(function(err){fail(err.message);});
-  setInterval(function(){if(S&&MenuLib.activeVenue()!==VENUE)renderMenu();},60000); // 17:00／03:00／08:00 換品牌
+  setInterval(function(){if(S&&JSON.stringify(MenuLib.orderWindow())!==WIN_KEY)renderMenu();},30000); // 16:00／16:30／02:00／02:30／08:00 換時段
   setInterval(function(){if(S)loadPause();},30000);setInterval(function(){if(S)loadMenuDoc();},60000);   // 暫停點餐、估清／特餐隨店家設定更新
   document.addEventListener('visibilitychange',function(){if(!document.hidden&&S){refresh();if(!ES||ES.readyState===2)live();}});
 })();

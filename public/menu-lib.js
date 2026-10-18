@@ -47,6 +47,22 @@
     const h = (new Date(now ?? Date.now()).getUTCHours() + 8) % 24;
     return h >= 8 && h < 17 ? 'CAFE' : (h >= 17 || h < 3) ? 'BAR' : null;
   }
+  /* 掃碼點餐時段（台北時間）：與 POS 的 activeVenue 分開——
+   *   08:00–16:00 在咖啡（餐點＋飲品）、16:00–16:30 在咖啡只剩飲品；
+   *   16:30 起換三點水菜單，02:00 後只剩酒水、02:30 後停止點餐，到 08:00 在咖啡開門。
+   * 回 { venue, food, drink }；非點餐時段 venue＝null。飲品／酒水＝BAR_CATS（吧檯出），其餘（含套餐）算餐點。 */
+  function orderWindow(now) {
+    const d = new Date(now ?? Date.now()), m = ((d.getUTCHours() + 8) % 24) * 60 + d.getUTCMinutes();
+    if (m >= 480 && m < 960) return { venue: 'CAFE', food: true, drink: true };
+    if (m >= 960 && m < 990) return { venue: 'CAFE', food: false, drink: true };
+    if (m >= 990 || m < 120) return { venue: 'BAR', food: true, drink: true };
+    if (m < 150) return { venue: 'BAR', food: false, drink: true };
+    return { venue: null, food: false, drink: false };
+  }
+  function orderableInWindow(item, w) {
+    if (!item || !w || !w.venue || item.venue !== w.venue) return false;
+    return BAR_CATS.includes(item.cat) ? w.drink : w.food;
+  }
   /* 營業日：三點水營業到翌日 03:00，凌晨的單算前一天；以台北時間減 3 小時取日期（估清、日結都用這個） */
   function businessDay(now) {
     return new Date((now == null ? Date.now() : +new Date(now)) + (8 - 3) * 3600e3).toISOString().slice(0, 10);
@@ -302,7 +318,7 @@
   }
 
   global.MenuLib = {
-    CATS, VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, MEMBER_RATE, memberPrice, activeVenue, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
+    CATS, VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, MEMBER_RATE, memberPrice, activeVenue, orderWindow, orderableInWindow, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
     normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, soldOutToday, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
