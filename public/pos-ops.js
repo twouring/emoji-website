@@ -1150,14 +1150,15 @@ function paintPos(){
     await opsThen(()=>api('/admin/orders/sessions/'+id+'/move',{method:'POST',body:{table_no:to}}),out=>out.merged?`已併到 ${out.table}`:`已換到 ${out.table}`,()=>{POS_TABLE='';return reload();});
   });
   host.querySelector('#pos-edit-tables').onclick=()=>{POS_EDIT=true;POS_EDIT_POS=null;paintPos();};
-  // 平面圖底部的桌卡若比畫布長（使用中的桌卡比較高），用 margin 把下面的內容推開，座標不變
+  // 平面圖固定在畫面高度內（不捲動、不拉高）：每個桌位框最高只到下面那桌／畫布底；單子放不下就逐級精簡（縮時間字→藏點餐人→藏開桌時刻→再縮），一律不超出桌位框
   const fl=host.querySelector('.pos-floor');if(fl&&typeof fl.getBoundingClientRect==='function'){const fit=()=>{const fr=fl.getBoundingClientRect();if(!fr.height)return;
-    // 單子比桌位框高時，把平面圖整體拉高（座標是百分比，拉高後上下桌的間距跟著變大），直到每張單都不會壓到下面那桌
-    const sl=[...fl.children].map(c=>({c,top:parseFloat(c.style.top)||0,left:parseFloat(c.style.left)||0,w:c.getBoundingClientRect().width/fr.width*100,h:(c.firstElementChild||c).getBoundingClientRect().height}));
-    let need=fr.height;
-    for(const a of sl){need=Math.max(need,(a.h+8)/Math.max(0.05,(100-a.top)/100));for(const b of sl){if(b===a||b.top<=a.top)continue;if(b.left>=a.left+a.w||a.left>=b.left+b.w)continue;need=Math.max(need,(a.h+8)/((b.top-a.top)/100));}}
-    if(need>fr.height+1)fl.style.height=Math.ceil(need)+'px';
-    const fr2=fl.getBoundingClientRect();let over=0;for(const c of fl.children)over=Math.max(over,(c.firstElementChild||c).getBoundingClientRect().bottom-fr2.bottom);fl.style.marginBottom=(over>0?Math.ceil(over)+12:10)+'px';};fit();if(typeof requestAnimationFrame==='function')requestAnimationFrame(fit);}
+    const sl=[...fl.children].map(c=>({c,top:parseFloat(c.style.top)||0,left:parseFloat(c.style.left)||0,w:c.getBoundingClientRect().width/fr.width*100}));
+    for(const a of sl){let lim=100-a.top;for(const b of sl){if(b===a||b.top<=a.top)continue;if(b.left>=a.left+a.w-0.5||a.left>=b.left+b.w-0.5)continue;lim=Math.min(lim,b.top-a.top);}
+      const px=Math.max(56,Math.floor(lim/100*fr.height)-6);if(a.c.dataset.mh===undefined)a.c.dataset.mh=a.c.style.minHeight||'';a.c.style.minHeight=a.c.dataset.mh?`min(${a.c.dataset.mh},${px}px)`:'';a.c.style.maxHeight=px+'px';const slot=a.c.firstElementChild;if(!slot)continue;
+      // 量內容實際底部（桌位框本身 min-height:100% 會撐高，不能用 scrollHeight）
+      const need=()=>{const st=slot.getBoundingClientRect().top;let b=0;for(const k of slot.children){const r=k.getBoundingClientRect();if(r.height)b=Math.max(b,r.bottom-st);}return b+6;};
+      a.c.classList.remove('tk-c1','tk-c2','tk-c3','tk-c4');for(const k of ['tk-c1','tk-c2','tk-c3','tk-c4']){if(need()<=px+1)break;a.c.classList.add(k);}}};
+    fit();if(typeof requestAnimationFrame==='function')requestAnimationFrame(fit);if(typeof ResizeObserver==='function'){let w=0;new ResizeObserver(()=>{const x=fl.getBoundingClientRect();const k=x.width+'x'+x.height;if(k!==w){w=k;fit();}}).observe(fl);}}
   // 加開桌號：點區＋號碼，不打字（桌牌上有的桌號直接點桌況格或「開桌」）
   host.querySelector('#pos-open-extra').onclick=async()=>{const t=await pickTableNo({title:'加開桌號',hint:'桌牌上沒有的桌號、戶外或臨時桌才用這裡；已開著的桌會直接切過去。'});if(t)openSession({table_no:t});};
   host.querySelector('#pos-takeout').onclick=()=>openSession({takeout:true});

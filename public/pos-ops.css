@@ -805,3 +805,14 @@ tr.lp-refund td{color:var(--danger)}
 .pos-ticket .tk-who{padding:0 8px 8px}
 .pos-ticket .tk-open:last-child{padding-bottom:8px}
 .pos-ticket.on .tk-open{color:rgba(255,255,255,.7)}
+/* 結帳桌況：平面圖填滿畫面高度、不捲動；單子一律在桌位框內（JS fit() 依空間加 tk-c1..c4 逐級精簡） */
+@media(min-width:1000px){.pos-layout .pos-tables .pos-tables-main .pos-board{display:flex;flex-direction:column}.pos-layout .pos-tables .pos-board>.pos-floor:not(.pos-floor-edit){flex:1 1 auto;height:auto;min-height:300px;margin-bottom:0}}
+.pos-floor-slot{overflow:hidden}
+.pos-floor-slot.tk-c1 .pos-slot{padding:4px;gap:2px}.pos-floor-slot.tk-c1 .pos-ticket .tk-head{padding:2px 6px}.pos-floor-slot.tk-c1 .pos-ticket .tk-time{font-size:1.25rem;padding:2px 6px 0}.pos-floor-slot.tk-c1 .pos-ticket .tk-who{padding:0 6px 4px}.pos-floor-slot.tk-c1 .pos-table.empty{min-height:44px}
+.pos-floor-slot.tk-c2 .pos-ticket .tk-who{display:none}
+.pos-floor-slot.tk-c3 .pos-ticket .tk-open{display:none}.pos-floor-slot.tk-c3 .pos-ticket .tk-time{padding-bottom:4px}
+.pos-floor-slot.tk-c4 .pos-ticket .tk-time{font-size:1.125rem;padding-top:0;padding-bottom:2px}.pos-floor-slot.tk-c4 .pos-ticket .tk-head .pill{padding:0 6px}
+/* 下方按鈕矮一點（仍 ≥44px 觸控） */
+.pos-open{margin-top:8px}
+.pos-open .btn,.pos-open .btn--solid,.pos-open .btn--ghost,.pos-open .pos-pause-btn{min-height:44px;padding:6px 8px}
+.pos-sub .a-toolbar .btn{min-height:44px}
