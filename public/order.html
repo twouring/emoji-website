@@ -362,13 +362,13 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     if(endedId()){showThanks();return Promise.resolve(null);}
     return api('/orders/table?t='+encodeURIComponent(T)+'&k='+encodeURIComponent(K)+'&g='+GUEST).then(function(s){var sid=S&&S.id;applyState(s);if(s.id!==sid)live();return s;});
   }
-  function refresh(){if(!S)return Promise.resolve();return api('/orders/'+S.id+'?g='+GUEST).then(function(s){if(s.status!=='open'){sessionClosed(s);return;}applyState(s);}).catch(function(){});}
+  function refresh(){if(!S)return Promise.resolve();if(!S.id)return load().catch(function(){});return api('/orders/'+S.id+'?g='+GUEST).then(function(s){if(s.status!=='open'){sessionClosed(s);return;}applyState(s);}).catch(function(){});}
   // 即時同步：SSE 連上就推目前狀態，之後同桌任何異動（別人加點、送單、出餐、櫃檯收款）伺服器立刻推；瀏覽器自動重連。
   // 沒有 EventSource 或連不上時退回輪詢；SSE 正常時仍每 30 秒拉一次當保險（代理斷線但瀏覽器沒察覺）
   var ES=null,LIVE_OK=false;
   function live(){
     if(ES){ES.close();ES=null;}LIVE_OK=false;
-    if(!('EventSource'in window)||!S)return;
+    if(!('EventSource'in window)||!S||!S.id)return;
     ES=new EventSource('/api/orders/'+encodeURIComponent(S.id)+'/live?g='+encodeURIComponent(GUEST));
     ES.addEventListener('session',function(e){LIVE_OK=true;try{var s=JSON.parse(e.data);if(s.status!=='open'){ES.close();ES=null;return sessionClosed(s);}applyState(s);}catch(x){}});
     ES.onerror=function(){LIVE_OK=false;};   // 瀏覽器會自己重連；期間 poll 以 5 秒補上
@@ -382,7 +382,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     var p=e.target.closest('[data-push]');if(p){subscribePush(p.dataset.push,p);return;}
     if(e.target.closest('[data-close]')||e.target.classList.contains('sheet'))closeSheets();   // 按「返回」或點遮罩外側都關閉
   });
-  $('#detail-add').onclick=function(){if(!CURRENT_ITEM)return;if(!needName())return;var btn=this;btn.disabled=true;unlockAudio();api('/orders/'+S.id+'/items',{method:'POST',body:Object.assign({item_id:CURRENT_ITEM.id,qty:CURRENT_QTY,by:NAME,guest:GUEST,note:optionNote()},comboBody())}).then(function(s){applyState(s);btn.textContent='✓ '+tr('added');setTimeout(function(){closeSheets();btn.textContent=tr('add_to_cart');},450);}).catch(function(err){toast(err.message);if(/已結束/.test(err.message))sessionClosed();if(err.status===423){PAUSED=err.message;renderMenu();}if(/售完|下架/.test(err.message))loadMenuDoc();}).then(function(){btn.disabled=!!PAUSED;});};
+  $('#detail-add').onclick=function(){if(!CURRENT_ITEM)return;if(!needName())return;var btn=this;btn.disabled=true;unlockAudio();api(S.id?'/orders/'+S.id+'/items':'/orders/table/items',{method:'POST',body:Object.assign({item_id:CURRENT_ITEM.id,t:T,k:K,qty:CURRENT_QTY,by:NAME,guest:GUEST,note:optionNote()},comboBody())}).then(function(s){var sid=S&&S.id;applyState(s);if(s.id&&s.id!==sid)live();btn.textContent='✓ '+tr('added');setTimeout(function(){closeSheets();btn.textContent=tr('add_to_cart');},450);}).catch(function(err){toast(err.message);if(/已結束/.test(err.message))sessionClosed();if(err.status===423){PAUSED=err.message;renderMenu();}if(/售完|下架/.test(err.message))loadMenuDoc();}).then(function(){btn.disabled=!!PAUSED;});};
   $('#open-cart').onclick=function(){$('#cart-body').scrollTop=0;openSheet('#cart');};
   $('#open-pay').onclick=$('#cart-pay').onclick=function(){$('#cart').classList.remove('on');openPay();};
   // 送出點餐：整桌還沒送的一起進出餐看板（不結帳）；送出後已點清單標「已送出」、不能再自己刪

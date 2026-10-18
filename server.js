@@ -4952,19 +4952,34 @@ app.get('/api/orders/config',(req,res)=>{const tp=tableOrders.tappayConfig(),pus
 // 客人端輪詢用：目前營業品牌是否暫停點餐（文案由店家設定）
 app.get('/api/orders/pause',requireDb,wrap(async(req,res)=>{res.set('Cache-Control','no-store');const venue=tableOrders.MenuLib.orderWindow().venue;res.json({venue,paused:tableOrders.pauseFor(await contentValue('ordering_pause'),venue)});}));
 
-// 掃桌上 QR：回這桌目前的場（沒有、或上一組已全部取餐完成 → 開新場）
+// 掃桌上 QR：回這桌目前的場；沒有開著的場（或上一組已結束）就回「尚未開桌」的空殼（id:null），不寫入資料庫——
+// 掃碼／手機重新載入／已離開的客人重開舊分頁都不會在 POS 上開出空桌，第一次加點（POST /api/orders/table/items）才開場
+const emptyTableSession=table=>({id:null,table,status:'open',items:[],orders:[],total_unpaid:0,pay_request:null});
 app.get('/api/orders/table',requireDb,wrap(async(req,res)=>{
   const table=tableOrders.verifyTable(req.query.t,req.query.k,SECRET);if(!table)return res.status(403).json({error:'QR 無效，請重新掃描桌上的 QR。'});
   const client=await pool.connect();
-  try{await client.query('BEGIN');await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,['table:'+table]);
-    let s=(await client.query("SELECT * FROM table_sessions WHERE table_no=$1 AND status='open' ORDER BY created_at DESC LIMIT 1",[table])).rows[0];
-    if(s){s.orders=(await client.query('SELECT id,items,amount,status,paid_at,ready_at,done_at FROM table_orders WHERE session_id=$1 ORDER BY paid_at',[s.id])).rows;
-      // ponytail: 4 小時無動靜視同離席；未付品項直接作廢
-      const stale=Date.now()-new Date(s.updated_at).getTime()>4*3600e3;
-      if(tableOrders.sessionFinished(s.items,s.orders)||stale){await refundAppRedeems(client,s.items);await client.query("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=$1",[s.id]);s=null;}}
-    if(!s){s=(await client.query('INSERT INTO table_sessions(id,table_no) VALUES($1,$2) RETURNING *',[uid('ts_'),table])).rows[0];s.orders=[];}
-    await client.query('COMMIT');res.json(publicSession(s,String(req.query.g||'')));
+  try{await client.query('BEGIN');
+    const s=await currentTableSession(client,table);
+    await client.query('COMMIT');res.set('Cache-Control','no-store');res.json(s?publicSession(s,String(req.query.g||'')):emptyTableSession(table));
   }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
+}));
+// 這桌目前開著的場（交易內、已上桌號鎖）；上一組已結束或 4 小時無動靜就關掉，回 null（不開新場）
+async function currentTableSession(client,table){
+  await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,['table:'+table]);
+  let s=(await client.query("SELECT * FROM table_sessions WHERE table_no=$1 AND status='open' ORDER BY created_at DESC LIMIT 1 FOR UPDATE",[table])).rows[0];
+  if(s){s.orders=(await client.query('SELECT id,items,amount,status,paid_at,ready_at,done_at FROM table_orders WHERE session_id=$1 ORDER BY paid_at',[s.id])).rows;
+    // ponytail: 4 小時無動靜視同離席；未付品項直接作廢
+    const stale=Date.now()-new Date(s.updated_at).getTime()>4*3600e3;
+    if(tableOrders.sessionFinished(s.items,s.orders)||stale){await refundAppRedeems(client,s.items);await client.query("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=$1",[s.id]);s=null;}}
+  return s||null;
+}
+// 尚未開桌的客人第一次加點：同一筆交易裡找／開場再加品項——加點失敗（售完、過時段）整筆回滾，不留空桌
+app.post('/api/orders/table/items',rateLimit({max:60}),requireDb,wrap(async(req,res)=>{
+  const table=tableOrders.verifyTable(req.body?.t,req.body?.k,SECRET);if(!table)return res.status(403).json({error:'QR 無效，請重新掃描桌上的 QR。'});
+  try{await assertNotPaused();}catch(e){return res.status(e.status||423).json({error:e.message});}
+  const menu=await currentMenu();const iid=String(req.body?.item_id||'');
+  if(!menu.has(iid)&&tableOrders.menuIndex(await contentValue('menu'),undefined).has(iid))return res.status(423).json({error:'這個品項目前已過最後點餐時間。'});
+  return mutateItems(req,res,items=>tableOrders.addLine(items,menu,req.body||{}),async client=>(await currentTableSession(client,table))||(await client.query('INSERT INTO table_sessions(id,table_no) VALUES($1,$2) RETURNING *',[uid('ts_'),table])).rows[0]);
 }));
 app.get('/api/orders/:id',requireDb,wrap(async(req,res)=>{const s=await loadSession(req.params.id);if(!s)return res.status(404).json({error:'找不到這桌的點餐。'});res.json(publicSession(s,String(req.query.g||'')));}));
 // 即時同步（SSE）：連上先推一份目前狀態，之後同桌任何異動（別人加點、送單、出餐、櫃檯收款）即刻推新狀態；斷線瀏覽器自動重連
@@ -4978,10 +4993,10 @@ app.get('/api/orders/:id/live',requireDb,wrap(async(req,res)=>{
 }));
 
 // 共桌加菜／退菜：所有掃同一桌 QR 的人看同一份購物車，只能移除自己加的
-async function mutateItems(req,res,fn){
+async function mutateItems(req,res,fn,resolve){
   const client=await pool.connect();
   try{await client.query('BEGIN');
-    const s=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+    const s=resolve?await resolve(client):(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
     if(!s||s.status!=='open'){await client.query('ROLLBACK');return res.status(s?409:404).json({error:s?'這桌已結束，請重新掃描 QR。':'找不到這桌的點餐。'});}
     const items=await fn(s.items);
     await refundAppRedeems(client,s.items.filter(l=>l.app_redeem&&!l.order_id&&!items.some(x=>x.line===l.line)));
