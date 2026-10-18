@@ -3818,7 +3818,7 @@ app.post('/api/admin/ig/assets/upload', auth, adminOnly, requireDb, (req, res) =
 // 菜單品項圖片：MinIO assets/menu-*（未設 S3 則落 uploads/menu）。回 { url }
 const UPLOAD_MENU_DIR = path.join(__dirname, 'uploads', 'menu');
 fs.mkdirSync(UPLOAD_MENU_DIR, { recursive: true });
-const menuUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 0, parts: 1 } });
+const menuUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 0, parts: 2 } });
 app.post('/api/admin/upload/menu', auth, adminOnly, (req, res) => {
   menuUpload.single('file')(req, res, async (err) => {
     if (err) return res.status(400).json({ error: err.message || 'Upload failed' });
