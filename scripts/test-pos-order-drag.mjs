@@ -8,7 +8,7 @@ test('桌位固定：每桌一格，單卡放在格內，格頭顯示桌號',()=
   assert.match(js,/const grid=baseNames\.map\(slotHtml\)/);
 });
 test('單卡顯示開桌／開單時間與經過時間',()=>{
-  assert.match(js,/class="tk-time pos-order-time">[^`]*clockText\(at\)/);assert.doesNotMatch(js,/elapsedShort\(s\.created_at\)/);
+  assert.match(js,/class="tk-dwell" data-since="\$\{esc\(s\.created_at\)\}">\$\{elapsedShort\(s\.created_at\)\}/);assert.match(js,/class="tk-open">\$\{s\.takeout\?'開單':'開桌'\} \$\{esc\(clockText\(s\.created_at\)\)\}/);assert.match(js,/__posDwellTick=setInterval/);
 });
 test('單卡可拖到別的桌位：呼叫 move API，目標有單先確認併桌',()=>{
   assert.match(js,/function bindOrderDrag/);

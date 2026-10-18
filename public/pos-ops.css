@@ -795,3 +795,13 @@ tr.lp-refund td{color:var(--danger)}
 .pos-scan-full-foot input{flex:1;min-width:0;min-height:56px;font-size:1.25rem;padding:0 12px;border-radius:8px;border:0}
 .pos-scan-full-foot .btn{flex:none;min-height:56px;min-width:96px}
 .pos-scan-full-foot .btn--solid{background:#FFDE34;color:#111;border-color:#FFDE34;font-weight:700}
+/* 點餐人：字級已是 16px 下限，改用淡色、細字、較緊行高讓它退後；時間放大做主角 */
+.pos-ticket .tk-time{font-size:1.5rem}
+.pos-ticket .tk-who{font-weight:400;color:var(--muted);line-height:1.2;letter-spacing:-.01em}
+.pos-ticket.on .tk-who{color:rgba(255,255,255,.7)}
+/* 座席時間大字；開桌時刻、點餐人小字淡色 */
+.pos-ticket .tk-time{padding:8px 8px 0;font-size:1.5rem}
+.pos-ticket .tk-open{display:block;padding:0 8px 2px;font-size:1rem;text-align:center;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pos-ticket .tk-who{padding:0 8px 8px}
+.pos-ticket .tk-open:last-child{padding-bottom:8px}
+.pos-ticket.on .tk-open{color:rgba(255,255,255,.7)}
