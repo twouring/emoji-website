@@ -126,9 +126,11 @@ test('server.js 接線：資料表、日結回 linepay、同步／匯入端點�
   assert.match(s, /ON CONFLICT \(id\) DO UPDATE SET type=EXCLUDED\.type/, '同一筆交易重抓是覆寫不是重複');
   // 帳密可在後台「系統設定」事後填入，排程一律掛上、執行時才檢查 configured()
   assert.match(s, /schedule\('30 4 \* \* \*', \(\) => \{ if \(!linepay\.configured\(\)\) return; syncLinepay\(\.\.\.linepay\.syncWindow\(\)\)/);
-  assert.match(s, /LINE Pay 對帳同步失敗/, '失敗要寄信');
+  assert.doesNotMatch(s, /subject: '\[POS\] LINE Pay 對帳同步失敗'/, 'LINE Pay 同步失敗不寄信');
+  assert.match(s, /INSERT INTO linepay_sync_state\(id,error,failed_at\)/, '同步失敗記錄錯誤');
+  assert.match(s, /ON CONFLICT \(id\) DO UPDATE SET error=NULL,failed_at=NULL,ok_at=now\(\)/, '同步成功清除錯誤');
+  assert.match(s, /sync_error:syncState\.error\|\|null/, '日結 API 回傳同步錯誤');
   assert.match(s, /schedule\('\*\/5 \* \* \* \*', \(\) => \{ if \(!linepay\.configured\(\) \|\| linepaySyncing\) return; syncLinepay\(\.\.\.linepay\.syncWindow\(Date\.now\(\), 1\)\)/, '背景每 5 分鐘抓昨今兩天，正在同步就跳過');
-  assert.match(s, /if \(linepayQuickFailed \|\| e\.status === 409\) return; linepayQuickFailed = true;/, '5 分鐘同步連續失敗只寄一次信');
   assert.match(s, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|analytics\|registers\|staff\|shifts\|attendance\|payment-methods\|pos-devices\|yan\)/, '餐飲子帳號可用 /api/admin/sales/linepay/sync');
   assert.doesNotMatch(s, /LINEPAY_MERCHANT_PW\s*=\s*['"]/, '密碼不得寫死');
 });
@@ -140,4 +142,11 @@ test('日結畫面：LINE Pay 對帳區、同步鍵、CSV；lib 不得含帳密'
   assert.match(css, /\.lp-diff/);
   assert.doesNotMatch(lib, /Emoji\d|CR\.\d{8}/, 'lib/linepay.js 不得含商店 ID 或密碼');
   assert.match(lib, /'x-atom-api-version'/, '缺這個 header 後台回 404');
+});
+
+test('LINE Pay 同步失敗顯示在 POS 畫面', async () => {
+  const { readFileSync } = await import('node:fs');
+  const ops = readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'utf8');
+  assert.match(ops, /LINE Pay 自動同步失敗/);
+  assert.match(ops, /\$\{lpSyncErr\(lp\)\}/);
 });

@@ -810,6 +810,8 @@ async function migrate() {
     id TEXT PRIMARY KEY, type TEXT NOT NULL, amount INT NOT NULL, paid_at TIMESTAMPTZ NOT NULL, method TEXT NOT NULL DEFAULT '', provider TEXT NOT NULL DEFAULT '',
     origin_id TEXT NOT NULL DEFAULT '', order_no TEXT NOT NULL DEFAULT '', card_last4 TEXT NOT NULL DEFAULT '', confirm_no TEXT NOT NULL DEFAULT '', synced_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE INDEX IF NOT EXISTS linepay_transactions_paid_idx ON linepay_transactions(paid_at)`);
+  // LINE Pay 同步狀態（單列）：失敗不寄信，記在這裡由 POS 日結畫面顯示；成功即清除
+  await q(`CREATE TABLE IF NOT EXISTS linepay_sync_state (id INT PRIMARY KEY DEFAULT 1, error TEXT, failed_at TIMESTAMPTZ, ok_at TIMESTAMPTZ)`);
   await q(linepayOffline.schema);
   // 台新手機付沒有實收總額查詢 API，每個營業日手動填一次實收總額，日結報表拿來與 POS 登記為 taishin 的單對帳
   await q(`CREATE TABLE IF NOT EXISTS pos_taishin_daily (
@@ -5489,12 +5491,13 @@ app.get('/api/admin/sales',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const registers=(await q('SELECT venue,opened_at,closed_at FROM pos_registers WHERE day=$1 ORDER BY opened_at',[day])).rows;
   const txs=(await q('SELECT id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no FROM linepay_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[from,to])).rows;
   const last=(await q('SELECT max(synced_at) AS at FROM linepay_transactions')).rows[0].at;
+  const syncState=(await q('SELECT error,failed_at FROM linepay_sync_state WHERE id=1').catch(()=>({rows:[]}))).rows[0]||{};
   const lp=linepay.reconcile(orders,txs,{venues,registers});
   // 台新手機付對帳：沒有查詢 API，用當天手動填寫的實收總額（填一次存一次，沒填過就是 null）
   const tsRow=(await q('SELECT amount,reason,filled_by,updated_at FROM pos_taishin_daily WHERE day=$1',[day])).rows[0]||null;
   const ts=taishinManual.reconcile(orders,tsRow,{venues});
   const methodLabels=Object.fromEntries((await paymentMethodsList()).map(m=>[m.code,m.label]));
-  res.json({...tableOrders.salesSummary(orders,{venues,now:from}),day,csv:tableOrders.salesCsvRows(orders,{venues,methodLabels}),linepay:{...lp,configured:linepay.configured(),synced_at:last,csv:linepay.csvRows(lp.rows)},taishin:ts});
+  res.json({...tableOrders.salesSummary(orders,{venues,now:from}),day,csv:tableOrders.salesCsvRows(orders,{venues,methodLabels}),linepay:{...lp,configured:linepay.configured(),synced_at:last,sync_error:syncState.error||null,sync_failed_at:syncState.failed_at||null,csv:linepay.csvRows(lp.rows)},taishin:ts});
 }));
 /* 銷量／客群分析（POS「銷量」「客群」分頁）：跨營業日區間，最多 93 天；作廢不計。新客＝該會員第一張成立單落在這個區間 */
 app.get('/api/admin/analytics',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -5953,7 +5956,11 @@ async function syncLinepay(start,end){
     const rows=await linepay.fetchTransactions(cfg,start,end,{log:m=>console.log('[linepay]',m)});
     const n=await upsertLinepay(rows);
     console.log(`[linepay] 同步 ${start}~${end}：${n} 筆`);
+    await q(`INSERT INTO linepay_sync_state(id,error,failed_at,ok_at) VALUES(1,NULL,NULL,now()) ON CONFLICT (id) DO UPDATE SET error=NULL,failed_at=NULL,ok_at=now()`).catch(()=>{});
     return {start,end,count:n};
+  }catch(e){
+    await q(`INSERT INTO linepay_sync_state(id,error,failed_at) VALUES(1,$1,now()) ON CONFLICT (id) DO UPDATE SET error=$1,failed_at=now()`,[String(e.message||e).slice(0,500)]).catch(()=>{});
+    throw e;
   }finally{linepaySyncing=false;}
 }
 app.post('/api/admin/sales/linepay/sync',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -6215,15 +6222,12 @@ async function boot() {
     require('node-cron').schedule('0 18 * * *', () => lineService.sendReminders().catch(e => console.error('[line] 提醒失敗：', e.message)), { timezone: 'Asia/Taipei' });
     require('node-cron').schedule('0 9 * * *', () => remindExpiringMemberships()
       .catch(e => console.error('[remind] 失敗：', e.message)), { timezone: 'Asia/Taipei' });
-    // LINE Pay 對帳：每日 04:30（三點水 03:00 收班後）抓最近 7 天實收；失敗寄信提醒，日結頁也能手動重抓
-    // 帳密可能是啟動後才在後台填的，所以排程一律掛上、執行時再看 configured()
+    // LINE Pay 對帳：每日 04:30（三點水 03:00 收班後）抓最近 7 天實收；失敗不寄信，錯誤記在 linepay_sync_state，POS 日結畫面顯示，也能手動重抓
     require('node-cron').schedule('30 4 * * *', () => { if (!linepay.configured()) return; syncLinepay(...linepay.syncWindow())
-      .catch(e => { console.error('[linepay] 同步失敗：', e.message); sendMailQuietly({ to: NOTIFY_EMAIL, subject: '[POS] LINE Pay 對帳同步失敗', text: `今日 LINE Pay 實收明細同步失敗，日結報表的對帳區會停在上次同步。\n\n原因：${e.message}\n\n處理：到 ${SITE_BASE}/pos/sales 按「同步 LINE Pay」重試；若持續失敗請確認 LINE Pay 商家後台帳密或後台是否改版。` }); }); }, { timezone: 'Asia/Taipei' });
-    // 背景每 5 分鐘抓昨天～今天營業日，日結對帳區與「LINE Pay 實收」自動帶入不用再手動按；正在同步就跳過。連續失敗只在第一次寄信，恢復後重置
-    let linepayQuickFailed=false;
+      .catch(e => { console.error('[linepay] 同步失敗：', e.message); }); }, { timezone: 'Asia/Taipei' });
+    // 背景每 5 分鐘抓昨天～今天營業日，日結對帳區與「LINE Pay 實收」自動帶入不用再手動按；正在同步就跳過。失敗只顯示在 POS 畫面，不寄信
     require('node-cron').schedule('*/5 * * * *', () => { if (!linepay.configured() || linepaySyncing) return; syncLinepay(...linepay.syncWindow(Date.now(), 1))
-      .then(() => { linepayQuickFailed = false; })
-      .catch(e => { console.error('[linepay] 5 分鐘同步失敗：', e.message); if (linepayQuickFailed || e.status === 409) return; linepayQuickFailed = true; sendMailQuietly({ to: NOTIFY_EMAIL, subject: '[POS] LINE Pay 對帳同步失敗', text: `LINE Pay 背景同步（每 5 分鐘）失敗，恢復前不再重複通知。\n\n原因：${e.message}\n\n處理：到 ${SITE_BASE}/pos/sales 按「同步 LINE Pay」重試；若持續失敗請確認 LINE Pay 商家後台帳密或後台是否改版。` }); }); }, { timezone: 'Asia/Taipei' });
+      .catch(e => { console.error('[linepay] 5 分鐘同步失敗：', e.message); }); }, { timezone: 'Asia/Taipei' });
     if (linepay.configured()) console.log('[linepay] 對帳同步已啟用（每 5 分鐘抓昨今兩天、每日 04:30 抓最近 7 天）');
     else console.warn('[warn] LINE Pay 商家後台帳密未設定（後台「系統設定」可填），對帳同步待設定後自動啟用。');
   }
