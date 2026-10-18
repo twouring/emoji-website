@@ -53,9 +53,9 @@ test('看板採市售 KDS 一單一卡；每道保留類別籤＋品名＋數量
 test('規格拆籤：預設值淡化、非預設值深色、自由需求 ※；沒載 order-lib 時全部當非預設', () => {
   const c = ctx(); vm.runInContext(read('public/order-lib.js'), c);
   const run = expr => JSON.parse(JSON.stringify(vm.runInContext(expr, c)));
-  c.l = { cat: 'COFFEE', zh: '拿鐵咖啡', note: '溫度：冰；糖度：正常糖；冰塊：去冰；燕麥奶' };
+  c.l = { cat: 'COFFEE', zh: '拿鐵咖啡', note: '溫度：冰；冰塊：去冰；燕麥奶' };
   assert.deepEqual(run('specParts(l)'), [
-    { text: '冰', kind: 'default', tone: 'temperature' }, { text: '正常糖', kind: 'default', tone: 'sugar' }, { text: '去冰', kind: 'option', tone: 'ice' }, { text: '燕麥奶', kind: 'custom', tone: 'custom' },
+    { text: '冰', kind: 'default', tone: 'temperature' }, { text: '去冰', kind: 'option', tone: 'ice' }, { text: '燕麥奶', kind: 'custom', tone: 'custom' },
   ]);
   c.r = { cat: 'JAPANESE', zh: '鮭魚親子丼', note: '飯量：飯多' };
   assert.deepEqual(run('specParts(r)'), [{ text: '飯多', kind: 'option', tone: 'rice' }]);

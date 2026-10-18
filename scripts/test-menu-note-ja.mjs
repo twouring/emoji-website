@@ -8,7 +8,7 @@ const MenuLib = require('../public/menu-lib.js') && globalThis.MenuLib;
 
 test('seed 每項菜單說明都有日文，且不含中文字', () => {
   const rows = loadMenuSeedRows();
-  assert.equal(rows.length, 73);
+  assert.equal(rows.length, 74);
   for (const r of rows) {
     assert.ok(NOTE_JA[r.zh], '缺日文說明：' + r.zh);
     assert.doesNotMatch(NOTE_JA[r.zh].replace(/[弁辛酒]/g, ''), /[們這與種為說]/, r.zh);

@@ -6,7 +6,7 @@ const src=readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');
 const menuLib=readFileSync(new URL('../public/menu-lib.js',import.meta.url),'utf8');
 const load=()=>vm.createContext({console,setTimeout,clearTimeout});
 function printContext(){
- const texts=[],sent=[];const g={fillRect(){},fillText(t){texts.push(t);},measureText(t){return {width:[...String(t)].length*20};},drawImage(){},beginPath(){},setLineDash(){},moveTo(){},lineTo(){},stroke(){}};
+ const texts=[],sent=[];const g={fillRect(){},strokeRect(){},fillText(t){texts.push(t);},measureText(t){return {width:[...String(t)].length*20};},drawImage(){},beginPath(){},setLineDash(){},moveTo(){},lineTo(){},stroke(){}};
  const c=vm.createContext({console,setTimeout,clearTimeout,document:{createElement:()=>({getContext:()=>g})},BRAND_LABEL:{cafe:'在咖啡'},SCOPE:'cafe',num:String,applicationTime:String,navigator:{userAgent:'StarWebPRNTBrowser'},PosEncouragement:{pick:()=>({zh:'測試鼓勵語',en:'Keep going.'})},toast(){}});
  vm.runInContext(menuLib,c);vm.runInContext(src,c);c.sent=sent;vm.runInContext('StarWebPrintBuilder=function(){};StarWebPrintTrader=function(){};starSend=async job=>{sent.push(job);return true;}',c);
  return {c,texts,sent};
