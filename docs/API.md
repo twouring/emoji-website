@@ -531,7 +531,7 @@ LINE Pay 同步依開關帳時間歸屬店別，保留既有品牌篩選、分�
 刪一筆誤打的出勤。四位數密碼登入的現場人員回 403。回 `{ ok, id }`。
 
 ### POST /api/admin/sales/linepay/sync
-從 LINE Pay 商家後台抓實收明細寫入 `linepay_transactions`（以交易號碼 upsert）。body 可帶 `{ start, end }`（YYYY-MM-DD，最多 400 天），預設最近 7 天（退款會回補到幾天前的交易）。伺服器每日 04:30（台北）自動跑一次；未設定 `LINEPAY_MERCHANT_ID` / `LINEPAY_MERCHANT_PW` 回 503，正在同步中回 409。回 `{ ok, start, end, count }`。
+從 LINE Pay 商家後台抓實收明細寫入 `linepay_transactions`（以交易號碼 upsert）。body 可帶 `{ start, end }`（YYYY-MM-DD，最多 400 天），預設最近 7 天（退款會回補到幾天前的交易）。伺服器背景每 5 分鐘自動抓昨天～今天營業日（正在同步就跳過），每日 04:30（台北）另抓最近 7 天；未設定 `LINEPAY_MERCHANT_ID` / `LINEPAY_MERCHANT_PW` 回 503，正在同步中回 409。回 `{ ok, start, end, count }`。
 
 ### POST /api/admin/sales/taishin
 台新手機付日結對帳：手動填寫當天（`day=YYYY-MM-DD`）實收總額（台新沒有實收查詢 API）。body `{ day, amount, reason? }`；`amount` 為 0 以上整數，與系統登記（POS 選「台新手機付」的成立單合計）差額非 0 時 `reason` 必填（400）。同一天重複填寫＝覆蓋（upsert），記填寫人與時間供日後查詢。回 `{ ok, day, amount, reason, diff }`。

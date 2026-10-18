@@ -39,6 +39,7 @@ test('monthChunks：整年切成自然月（後台整段查會 500）；syncWind
   assert.deepEqual(L.monthChunks('2026-03-03', '2026-03-03'), [['2026-03-03', '2026-03-03']]);
   assert.deepEqual(L.syncWindow(new Date('2026-10-12T04:30:00+08:00'), 7), ['2026-10-05', '2026-10-12']);
   assert.deepEqual(L.syncWindow(new Date('2026-10-12T02:30:00+08:00'), 7), ['2026-10-04', '2026-10-11'], '凌晨 03:00 前仍是前一個營業日');
+  assert.deepEqual(L.syncWindow(new Date('2026-10-12T17:35:00+08:00'), 1), ['2026-10-11', '2026-10-12'], '5 分鐘背景同步抓昨今兩天');
 });
 
 test('reconcile：只算 POS 登記 linepay 的成立單；LINE Pay 實收扣退款；差額方向；店別只限 POS 側', () => {
@@ -126,6 +127,8 @@ test('server.js 接線：資料表、日結回 linepay、同步／匯入端點�
   // 帳密可在後台「系統設定」事後填入，排程一律掛上、執行時才檢查 configured()
   assert.match(s, /schedule\('30 4 \* \* \*', \(\) => \{ if \(!linepay\.configured\(\)\) return; syncLinepay\(\.\.\.linepay\.syncWindow\(\)\)/);
   assert.match(s, /LINE Pay 對帳同步失敗/, '失敗要寄信');
+  assert.match(s, /schedule\('\*\/5 \* \* \* \*', \(\) => \{ if \(!linepay\.configured\(\) \|\| linepaySyncing\) return; syncLinepay\(\.\.\.linepay\.syncWindow\(Date\.now\(\), 1\)\)/, '背景每 5 分鐘抓昨今兩天，正在同步就跳過');
+  assert.match(s, /if \(linepayQuickFailed \|\| e\.status === 409\) return; linepayQuickFailed = true;/, '5 分鐘同步連續失敗只寄一次信');
   assert.match(s, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|analytics\|registers\|staff\|shifts\|attendance\|payment-methods\|pos-devices\|yan\)/, '餐飲子帳號可用 /api/admin/sales/linepay/sync');
   assert.doesNotMatch(s, /LINEPAY_MERCHANT_PW\s*=\s*['"]/, '密碼不得寫死');
 });

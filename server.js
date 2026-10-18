@@ -5897,7 +5897,7 @@ app.delete('/api/admin/attendance/:id',auth,adminOnly,notOperator,requireDb,wrap
   await q('DELETE FROM pos_attendance WHERE id=$1',[r.id]);
   res.json({ok:true,id:r.id});
 }));
-/* LINE Pay 同步：每日 04:30 自動抓最近 7 天（退款會回補），也可從日結頁手動按；歷史一年用 import 一次灌入 */
+/* LINE Pay 同步：背景每 5 分鐘抓昨今兩天、每日 04:30 抓最近 7 天（退款會回補），也可從日結頁手動按；歷史一年用 import 一次灌入 */
 let linepaySyncing=false;
 async function upsertLinepay(rows){
   let n=0;
@@ -6184,7 +6184,12 @@ async function boot() {
     // 帳密可能是啟動後才在後台填的，所以排程一律掛上、執行時再看 configured()
     require('node-cron').schedule('30 4 * * *', () => { if (!linepay.configured()) return; syncLinepay(...linepay.syncWindow())
       .catch(e => { console.error('[linepay] 同步失敗：', e.message); sendMailQuietly({ to: NOTIFY_EMAIL, subject: '[POS] LINE Pay 對帳同步失敗', text: `今日 LINE Pay 實收明細同步失敗，日結報表的對帳區會停在上次同步。\n\n原因：${e.message}\n\n處理：到 ${SITE_BASE}/pos/sales 按「同步 LINE Pay」重試；若持續失敗請確認 LINE Pay 商家後台帳密或後台是否改版。` }); }); }, { timezone: 'Asia/Taipei' });
-    if (linepay.configured()) console.log('[linepay] 每日對帳同步已啟用（04:30）');
+    // 背景每 5 分鐘抓昨天～今天營業日，日結對帳區與「LINE Pay 實收」自動帶入不用再手動按；正在同步就跳過。連續失敗只在第一次寄信，恢復後重置
+    let linepayQuickFailed=false;
+    require('node-cron').schedule('*/5 * * * *', () => { if (!linepay.configured() || linepaySyncing) return; syncLinepay(...linepay.syncWindow(Date.now(), 1))
+      .then(() => { linepayQuickFailed = false; })
+      .catch(e => { console.error('[linepay] 5 分鐘同步失敗：', e.message); if (linepayQuickFailed || e.status === 409) return; linepayQuickFailed = true; sendMailQuietly({ to: NOTIFY_EMAIL, subject: '[POS] LINE Pay 對帳同步失敗', text: `LINE Pay 背景同步（每 5 分鐘）失敗，恢復前不再重複通知。\n\n原因：${e.message}\n\n處理：到 ${SITE_BASE}/pos/sales 按「同步 LINE Pay」重試；若持續失敗請確認 LINE Pay 商家後台帳密或後台是否改版。` }); }); }, { timezone: 'Asia/Taipei' });
+    if (linepay.configured()) console.log('[linepay] 對帳同步已啟用（每 5 分鐘抓昨今兩天、每日 04:30 抓最近 7 天）');
     else console.warn('[warn] LINE Pay 商家後台帳密未設定（後台「系統設定」可填），對帳同步待設定後自動啟用。');
   }
 
