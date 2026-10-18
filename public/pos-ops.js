@@ -1335,14 +1335,26 @@ function paintPos(){
 }
 
 /* 查單：某營業日全部的單（含作廢），桌號／金額／發票號碼搜尋；重印收據明細、出餐單、補開發票、作廢（限當個營業日） */
-/* POS 紀錄分頁：依營業日列出現場操作（人員、動作、內容）；可用關鍵字篩選 */
-let LOGS_DAY='',LOGS_Q='';
+/* POS 紀錄分頁：依營業日列出現場操作（人員、動作、內容）；可用關鍵字篩選
+   只有店長能看：進分頁先輸入店長的 4 位數識別碼。識別碼只留在記憶體（LOGS_PIN），離開分頁即清空，下次進來要重輸 */
+let LOGS_DAY='',LOGS_Q='',LOGS_PIN='',LOGS_PAD='',LOGS_MSG='';
+function paintLogsGate(host){
+  const dots=[0,1,2,3].map(i=>`<i class="${i<LOGS_PAD.length?'on':''}"></i>`).join('');
+  const keys=['1','2','3','4','5','6','7','8','9','⌫','0','清除'].map(k=>`<button type="button" class="clock-key" data-key="${esc(k)}">${esc(k)}</button>`).join('');
+  host.innerHTML=`<div class="ops-head"><h2>紀錄</h2></div><p class="hint">只有店長可以查看，請輸入店長識別碼。</p>
+    <div class="clock-pad"><div class="clock-pin" aria-label="店長識別碼">${dots}</div><div class="clock-keys">${keys}</div></div>
+    ${LOGS_MSG?`<div class="clock-msg bad" role="status">${esc(LOGS_MSG)}</div>`:''}`;
+  host.querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>{const k=b.dataset.key;if(k==='⌫')LOGS_PAD=LOGS_PAD.slice(0,-1);else if(k==='清除')LOGS_PAD='';else if(LOGS_PAD.length<4)LOGS_PAD+=k;LOGS_MSG='';
+    if(LOGS_PAD.length===4){LOGS_PIN=LOGS_PAD;LOGS_PAD='';loadLogs();}else paintLogsGate(host);});
+}
 async function loadLogs(){
   const host=document.getElementById('logs-body');if(!host)return;
+  if(!LOGS_PIN){paintLogsGate(host);return;}
   host.innerHTML='<div class="ops-head"><h2>紀錄</h2></div><p class="hint">載入中…</p>';
   let d;
-  try{d=await api('/admin/pos-logs?limit=500'+(LOGS_DAY?'&day='+encodeURIComponent(LOGS_DAY):'')+(LOGS_Q?'&q='+encodeURIComponent(LOGS_Q):'')+(SCOPE?'&venue='+SCOPE:''));}
-  catch(e){host.innerHTML=`<div class="ops-head"><h2>紀錄</h2></div><p class="a-empty">載入失敗：${esc(e.message)}</p>`;return;}
+  try{d=await api('/admin/pos-logs?limit=500'+(LOGS_DAY?'&day='+encodeURIComponent(LOGS_DAY):'')+(LOGS_Q?'&q='+encodeURIComponent(LOGS_Q):'')+(SCOPE?'&venue='+SCOPE:''),{headers:{'X-Manager-Pin':LOGS_PIN}});}
+  catch(e){if(e.status===403){LOGS_PIN='';LOGS_MSG=e.message;paintLogsGate(host);return;}
+    host.innerHTML=`<div class="ops-head"><h2>紀錄</h2></div><p class="a-empty">載入失敗：${esc(e.message)}</p>`;return;}
   const rows=(d.logs||[]).map(l=>`<tr><td class="a-mono">${esc(clockText(l.created_at))}</td><td>${esc(l.operator_name||l.actor||'')}</td><td><b>${esc(l.action)}</b></td><td>${esc(l.detail||'')}</td></tr>`).join('')||'<tr><td colspan="4" class="a-empty">這個營業日沒有紀錄</td></tr>';
   host.innerHTML=`<div class="ops-head"><h2>紀錄</h2></div><div class="a-toolbar"><label>營業日 <input type="date" id="logs-day" value="${esc(d.day||'')}"></label><input type="search" id="logs-q" placeholder="人員、動作或內容" value="${esc(LOGS_Q)}" aria-label="篩選紀錄"><button type="button" class="btn btn--ghost btn-sm" id="logs-go">查詢</button><span class="hint hint--tight">${(d.logs||[]).length} 筆</span></div><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>時間</th><th>人員</th><th>動作</th><th>內容</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   const runLogs=()=>{LOGS_DAY=host.querySelector('#logs-day').value;LOGS_Q=host.querySelector('#logs-q').value.trim();loadLogs();};

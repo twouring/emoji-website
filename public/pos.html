@@ -221,9 +221,9 @@ let DEVICE_ID = localStorage.getItem('tth_pos_device');
 if (!DEVICE_ID) { DEVICE_ID = (crypto.randomUUID ? crypto.randomUUID() : 'd-' + Math.random().toString(36).slice(2) + Date.now().toString(36)); localStorage.setItem('tth_pos_device', DEVICE_ID); }
 let DEVICE_BOUND = false; // main() 每次開機都重新確認
 
-async function api(path, { method='GET', body } = {}) {
+async function api(path, { method='GET', body, headers } = {}) {
   const res = await fetch('/api'+path, {
-    method, headers:{ 'Content-Type':'application/json', ...(token?{Authorization:'Bearer '+token}:{}) },
+    method, headers:{ 'Content-Type':'application/json', ...(token?{Authorization:'Bearer '+token}:{}), ...(headers||{}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   let d={}; try{ d=await res.json(); }catch(e){}
@@ -374,6 +374,7 @@ function activate(){
   startKitchenPrinting();
   document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('on', p.dataset.panel === TAB));
   clearTimeout(ORDERS_TIMER); clearTimeout(POS_TIMER);
+  if (TAB !== 'logs') { LOGS_PIN = ''; LOGS_PAD = ''; LOGS_MSG = ''; } // 紀錄限店長：離開分頁就要重輸識別碼
   if (TAB === 'pos') loadPos();
   else if (TAB === 'members') loadPosMembers();
   else if (TAB === 'orders') loadOrders();
