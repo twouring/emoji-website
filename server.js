@@ -6063,7 +6063,7 @@ let POS_HTML_CACHE = null;
 app.get('/api/version', (_req, res) => res.set('Cache-Control', 'no-store').json({ version: APP_VERSION }));
 app.get(['/pos', '/pos/*'], (_req, res) => {
   res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache', 'Content-Type': 'text/html; charset=utf-8' });
-  if (!POS_HTML_CACHE) POS_HTML_CACHE = fs.readFileSync(POS_PAGE, 'utf8').replace('<!--POS_VERSION-->', APP_VERSION);
+  if (!POS_HTML_CACHE) POS_HTML_CACHE = fs.readFileSync(POS_PAGE, 'utf8').replace('<!--POS_VERSION_FULL-->', APP_VERSION).replace('<!--POS_VERSION-->', APP_VERSION.replace(/^\d{4}(?=\d{4}-)/, ''));
   res.send(POS_HTML_CACHE);
 });
 // 舊的官網會員頁（/member 三語）已全部移到會員 App：保留轉址給舊連結、通知信與書籤（查詢字串原樣帶過去）
