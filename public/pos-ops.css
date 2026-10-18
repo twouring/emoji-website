@@ -737,3 +737,7 @@ tr.lp-refund td{color:var(--danger)}
 .pos-takeouts h3{font-size:1rem!important}
 .pos-takeouts .pos-ticket .tk-head b{font-size:1rem}
 @media(max-width:700px){.pos-takeouts .pos-table{width:calc(50% - 3px)}}
+/* 最下排按鈕：等高、等寬、同一列對齊（外帶／加開桌號／編輯桌位） */
+.pos-open{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:stretch}
+.pos-open .btn,.pos-open .btn--solid,.pos-open .btn--ghost{flex:none;min-height:56px;padding:10px 8px;display:flex;align-items:center;justify-content:center;font-size:1rem;white-space:nowrap}
+.pos-sub{justify-content:stretch}.pos-sub .a-toolbar,.pos-sub .a-toolbar .btn{width:100%}.pos-sub .a-toolbar .btn{min-height:56px}
