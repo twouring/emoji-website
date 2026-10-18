@@ -503,3 +503,8 @@
 .mj-punct__cap span:nth-child(3){left:59%}
 .mj-punct__cap span:nth-child(4){left:71%}
 .mj-punct__cap span:nth-child(5){left:91%}
+.cis-names--3{grid-template-columns:repeat(3,1fr)}
+.cis-name--sub{border-top:6px solid var(--sub);transition:border-color .2s,transform .2s}
+a.cis-name--sub:hover{transform:translateY(-2px)}
+.cis-specs{display:grid;grid-template-columns:1fr 1fr;gap:0 40px}
+@media (max-width:900px){.cis-names--3,.cis-specs{grid-template-columns:1fr}}
