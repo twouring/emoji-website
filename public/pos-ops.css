@@ -823,7 +823,7 @@ tr.lp-refund td{color:var(--danger)}
 .pos-ticket .tk-who-pill{display:inline-block;max-width:100%;padding:1px 8px;border-radius:999px;background:var(--paper-alt);border:1px solid var(--line);color:var(--ink);font-size:1rem;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pos-ticket .tk-who-more{color:var(--muted)}
 .pos-ticket.on .tk-who-pill{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.35);color:var(--paper)}
-/* 開桌時刻再小一點，且不超出桌位寬度：平面圖上依桌位框寬度（cqi）縮放，最大 14px，最小 10px；真的放不下才截斷 */
+/* 開桌時刻不超出桌位寬度：字級守 16px 下限（test-public-typography），放不下就截斷 */
 .pos-floor-slot{container-type:inline-size}
-.pos-ticket .tk-open{font-size:.875rem;max-width:100%;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis}
-.pos-floor-slot .pos-ticket .tk-open{font-size:clamp(.625rem,calc((100cqi - 32px)/5.6),.875rem);padding-left:4px;padding-right:4px}
+.pos-ticket .tk-open{font-size:1rem;max-width:100%;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis}
+.pos-floor-slot .pos-ticket .tk-open{padding-left:4px;padding-right:4px}
