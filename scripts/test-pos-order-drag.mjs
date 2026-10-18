@@ -26,7 +26,7 @@ test('單卡是單子版型（票頭／內容／票尾），拖完 600ms 內吃�
   assert.match(js,/Date\.now\(\)-LAST_DRAG<600/);
 });
 test('v3：外帶標題與櫃檯結帳同列、平面圖桌不重複、拖完不開目標桌',()=>{
-  assert.match(js,/<aside class="pos-takeouts" aria-label="外帶單"><div class="ops-head"><h2>外帶/);
+  assert.match(js,/<aside class="pos-takeouts" aria-label="外帶單"[^>]*><div class="ops-head"><h2>外帶/);
   assert.match(js,/class="pos-slot \$\{layoutPos\[t\]\?'is-placed':''\}"/);
   assert.match(css,/\.pos-grid \.pos-slot\.is-placed\{display:none\}/);
   assert.match(js,/已換到 \$\{out\.table\}`,\(\)=>\{POS_TABLE='';return reload\(\);\}\);\n  \}\);/);

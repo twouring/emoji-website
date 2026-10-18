@@ -702,7 +702,7 @@ tr.lp-refund td{color:var(--danger)}
 .pos-slot{display:flex;flex-direction:column;gap:4px;padding:6px;border:1px dashed var(--line);border-radius:12px;background:var(--paper-alt);min-width:0;height:100%;box-sizing:border-box}
 .pos-slot-name{font-weight:700;font-size:1rem;color:var(--ink);line-height:1}
 .pos-slot .pos-table{width:100%;flex:1}.pos-slot .pos-table>b{display:none}
-.pos-slot.drop-ok{outline:3px solid var(--ink);outline-offset:1px;background:var(--card)}
+.pos-slot.drop-ok,.pos-takeouts.drop-ok{outline:3px solid var(--ink);outline-offset:1px;background:var(--card)}
 .pos-table[data-pos-table]{touch-action:pan-y;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .pos-table.dragging-src{opacity:.35}
 .pos-ghost{position:fixed!important;z-index:1000;pointer-events:none;box-shadow:0 10px 28px rgba(0,0,0,.3);opacity:.95;transform:rotate(-2deg)}

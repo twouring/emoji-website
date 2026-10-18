@@ -880,6 +880,10 @@ function bindSwipe(el,{dir='right',min=100,follow=false,onSwipe}){
   el.addEventListener('pointerup',end);el.addEventListener('pointercancel',e=>{if(e.pointerId===id){id=null;reset();}});
 }
 function bindCashDrawerButton(drawerBtn){if(drawerBtn)drawerBtn.onclick=()=>ensureOperator(async()=>{const reason=await pickReason({title:'開錢櫃原因（記錄操作人員與時間）',presets:['開班放零用金','換鈔','交班點鈔','交易已完成，重試開櫃']});if(!reason||drawerBtn.disabled)return;drawerBtn.disabled=true;try{await manualCashDrawer(reason);}finally{drawerBtn.disabled=false;}});}
+// 外帶區也是一個拖放目標（[data-slot]）；桌號只允許英數字與 -，「外帶」不會撞到真的桌號
+const TAKEOUT_SLOT='外帶';
+// 內用單移到外帶區：伺服器自動取 W01–W99 最小空號，品項／已結帳的單一起搬
+function moveToTakeout(id,then){return opsThen(()=>api('/admin/orders/sessions/'+id+'/move',{method:'POST',body:{takeout:true}}),out=>`已移到外帶 ${out.table}`,then);}
 // 桌況拖單：單卡（[data-pos-table]）拖到桌位格（[data-slot]）。拖曳後會吃掉緊接著的 click，不會誤開帳單
 let LAST_DRAG=0;
 // 座席時間每 30 秒就地更新（桌況只在資料變動時重畫，不能靠重畫刷新分鐘數）
@@ -888,7 +892,7 @@ function bindOrderDrag(host,onDrop){
   const board=host.querySelector('.pos-board');if(!board||typeof board.addEventListener!=='function'||board.dataset.dragBound)return;board.dataset.dragBound='1';
   let st=null;
   board.addEventListener('click',e=>{if(Date.now()-LAST_DRAG<600){e.stopPropagation();e.preventDefault();}},true);
-  const clear=()=>{if(!st)return;clearTimeout(st.timer);st.ghost&&st.ghost.remove();board.querySelectorAll('.drop-ok').forEach(e=>e.classList.remove('drop-ok'));st.card.classList.remove('dragging-src');st=null;};
+  const clear=()=>{if(!st)return;clearTimeout(st.timer);st.ghost&&st.ghost.remove();document.querySelectorAll('.drop-ok').forEach(e=>e.classList.remove('drop-ok'));st.card.classList.remove('dragging-src');st=null;};
   const slotAt=(x,y)=>{const e=document.elementFromPoint(x,y);return e&&e.closest?e.closest('[data-slot]'):null;};
   const begin=()=>{if(!st||st.on)return;st.on=true;const r=st.card.getBoundingClientRect();const g=st.card.cloneNode(true);g.classList.add('pos-ghost');g.style.width=r.width+'px';g.style.left=r.left+'px';g.style.top=r.top+'px';document.body.appendChild(g);st.ghost=g;st.dx=st.x0-r.left;st.dy=st.y0-r.top;st.card.classList.add('dragging-src');try{st.card.setPointerCapture(st.id);}catch(e){}};
   board.addEventListener('pointerdown',ev=>{
@@ -901,7 +905,7 @@ function bindOrderDrag(host,onDrop){
     if(!st||ev.pointerId!==st.id)return;
     if(!st.on){const far=Math.hypot(ev.clientX-st.x0,ev.clientY-st.y0)>6;if(!far)return;if(st.touch){clear();return;}begin();}
     st.ghost.style.left=(ev.clientX-st.dx)+'px';st.ghost.style.top=(ev.clientY-st.dy)+'px';
-    board.querySelectorAll('.drop-ok').forEach(e=>e.classList.remove('drop-ok'));
+    document.querySelectorAll('.drop-ok').forEach(e=>e.classList.remove('drop-ok'));
     const sl=slotAt(ev.clientX,ev.clientY);if(sl&&sl.dataset.slot!==st.card.dataset.posTable)sl.classList.add('drop-ok');
   });
   board.addEventListener('touchmove',ev=>{if(st&&st.on)ev.preventDefault();},{passive:false});
@@ -1126,7 +1130,7 @@ function paintPos(){
       </div>
     </div>`;
   }
-  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="pos-tables-row"><div class="pos-tables-main"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('客人掃桌上 QR 點餐後，點該桌看帳、結帳；外帶按「＋ 外帶」；客人沒掃碼要櫃檯點餐時，直接點空桌開桌。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div><div class="pos-board">${floor}<div class="pos-grid">${grid}</div></div></div><aside class="pos-takeouts" aria-label="外帶單"><div class="ops-head"><h2>外帶${takeouts.length?` <span class="kds-count">${takeouts.length}</span>`:''}</h2></div><div class="pos-takeout-list">${takeouts.length?takeouts.map(cardHtml).join(''):'<p class="hint">沒有外帶單</p>'}</div></aside></div>${opener}<div class="pos-sub">${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">錢櫃</button></div>'}</div></div>${panel}</div>`;
+  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="pos-tables-row"><div class="pos-tables-main"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('客人掃桌上 QR 點餐後，點該桌看帳、結帳；外帶按「＋ 外帶」；客人沒掃碼要櫃檯點餐時，直接點空桌開桌。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div><div class="pos-board">${floor}<div class="pos-grid">${grid}</div></div></div><aside class="pos-takeouts" aria-label="外帶單" data-slot="${TAKEOUT_SLOT}"><div class="ops-head"><h2>外帶${takeouts.length?` <span class="kds-count">${takeouts.length}</span>`:''}</h2></div><div class="pos-takeout-list">${takeouts.length?takeouts.map(cardHtml).join(''):'<p class="hint">沒有外帶單</p>'}</div></aside></div>${opener}<div class="pos-sub">${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">錢櫃</button></div>'}</div></div>${panel}</div>`;
   {const m=host.querySelector('.pos-menu');if(m&&POS_MENU_SCROLL)m.scrollTop=POS_MENU_SCROLL;const c=host.querySelector('.pos-cats');if(c&&POS_CATS_LEFT)c.scrollLeft=POS_CATS_LEFT;const l=host.querySelector('.pos-mid');if(l&&POS_LEFT_SCROLL){l.scrollTop=POS_LEFT_SCROLL;if(POS_LEFT_SCROLL===1e9)POS_LEFT_SCROLL=l.scrollTop;}}
   if(!document.getElementById('p-drawer'))bindCashDrawerButton(host.querySelector('#pos-cash-drawer'));
   host.querySelectorAll('[data-pos-table]').forEach(b=>b.onclick=()=>{POS_TABLE=b.dataset.posTable;POS_OPT=null;POS_MENU_SCROLL=0;POS_LEFT_SCROLL=0;POS_PICK=null;POS_QTY={};POS_PAYREQ=null;POS_YAN={phone:'',name:'',balance:null};POS_MEMBER=false;POS_SPLIT={};POS_DISCOUNT=null;POS_DISC_OPEN=false;POS_INV_VALS={};POS_RECEIVED='';POS_AA=null;paintPos();});
@@ -1145,6 +1149,7 @@ function paintPos(){
   });
   // 拖單換桌：按住單卡拖到別的桌位放開（滑鼠移動 6px 起拖；觸控長按 0.3 秒起拖，才不會跟捲動打架）；目標桌有單＝併桌，先問一次
   bindOrderDrag(host,async(id,from,to)=>{
+    if(to===TAKEOUT_SLOT)return moveToTakeout(id,()=>{POS_TABLE='';return reload();});
     const busy=byTable.get(to);
     if(busy&&!await posConfirm(`${to} 已有單，把 ${from} 併到 ${to}？兩桌的品項會合在一起。`,{ok:'併桌'}))return;
     await opsThen(()=>api('/admin/orders/sessions/'+id+'/move',{method:'POST',body:{table_no:to}}),out=>out.merged?`已併到 ${out.table}`:`已換到 ${out.table}`,()=>{POS_TABLE='';return reload();});
@@ -1303,8 +1308,9 @@ function paintPos(){
     // 用選的：固定桌號＋目前已開的加開桌，點一下就換桌（目標桌已開＝併桌）；真的要別的桌號才用「其他桌號」打字
     const names=[...DEFAULT_TABLES,...sessions.filter(s=>!s.takeout&&!DEFAULT_TABLES.includes(s.table)).map(s=>s.table)].filter(t=>t!==cur.table);
     const ov=document.createElement('div');ov.className='pos-move-ov';
-    ov.innerHTML=`<div class="pos-move-box" role="dialog" aria-label="換桌／併桌"><h3>${esc(cur.table)} 要去哪一桌？${tipIcon('空桌＝換桌（整桌搬過去）；已開的桌＝併桌（兩桌的品項合在一起）。')}</h3><div class="pos-move-grid">${names.map(t=>{const o=byTable.get(t);return `<button type="button" class="pos-move-opt ${o?'busy':''}" data-to="${esc(t)}"><b>${esc(t)}</b><small>${o?'併桌':'換桌'}</small></button>`;}).join('')}</div><div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-other>其他桌號…</button><button type="button" class="btn btn--ghost" data-cancel>取消</button></div></div>`;
+    ov.innerHTML=`<div class="pos-move-box" role="dialog" aria-label="換桌／併桌"><h3>${esc(cur.table)} 要去哪一桌？${tipIcon('空桌＝換桌（整桌搬過去）；已開的桌＝併桌（兩桌的品項合在一起）；「移到外帶」＝改成外帶單，自動給 W 號。也可以在桌況直接把單子拖到右邊外帶區。')}</h3><div class="pos-move-grid">${names.map(t=>{const o=byTable.get(t);return `<button type="button" class="pos-move-opt ${o?'busy':''}" data-to="${esc(t)}"><b>${esc(t)}</b><small>${o?'併桌':'換桌'}</small></button>`;}).join('')}</div><div class="pos-move-foot"><span><button type="button" class="btn btn--solid" data-takeout>移到外帶</button> <button type="button" class="btn btn--ghost" data-other>其他桌號…</button></span><button type="button" class="btn btn--ghost" data-cancel>取消</button></div></div>`;
     const done=()=>ov.remove();
+    ov.querySelector('[data-takeout]').onclick=()=>{done();moveToTakeout(cur.id,out=>{POS_TABLE=out.table;POS_PICK=null;return reload();});};
     ov.onclick=e=>{if(e.target===ov)done();};
     ov.querySelector('[data-cancel]').onclick=done;
     ov.querySelector('[data-other]').onclick=async()=>{done();const table=await pickTableNo({title:`${cur.table} 換到哪一桌？`,hint:'目標桌已開著會併桌',exclude:[cur.table]});if(table)doMove(table);};

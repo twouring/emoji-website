@@ -5143,19 +5143,28 @@ app.patch('/api/admin/orders/sessions/:id/items/:line',auth,adminOnly,requireDb,
   const venues=tableOrders.visibleVenues(req.auth.brands);
   return mutateItems(req,res,items=>{const t=items.find(l=>l.line===String(req.params.line));if(t&&!tableOrders.itemInVenues(t,venues))throw Object.assign(Error('只能修改自己店別的品項。'),{status:403});return tableOrders.editLine(items,String(req.params.line),{qty:req.body?.qty,free:req.body?.free,reason:req.body?.reason,note:req.body?.note});});
 }));
-/* 換桌／併桌：把這桌（未結帳品項＋已結帳的單）搬到另一桌；目標桌已開著就併桌。外帶單不能當目標 */
+/* 換桌／併桌：把這桌（未結帳品項＋已結帳的單）搬到另一桌；目標桌已開著就併桌。
+   移到外帶：body {takeout:true}，自動取 W01–W99 最小空號（不併單）。不能直接指定 W 號 */
 app.post('/api/admin/orders/sessions/:id/move',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
-  const table=tableOrders.cleanText(req.body?.table_no,8).toUpperCase();
-  if(!tableOrders.TABLE_RE.test(table))return res.status(400).json({error:'桌號只能用英數字與 -，最長 8 字。'});
-  if(tableOrders.isTakeout(table))return res.status(400).json({error:'W01–W99 是外帶單號，不能換到外帶。'});
+  const toTakeout=req.body?.takeout===true;
+  let table=toTakeout?'':tableOrders.cleanText(req.body?.table_no,8).toUpperCase();
+  if(!toTakeout&&!tableOrders.TABLE_RE.test(table))return res.status(400).json({error:'桌號只能用英數字與 -，最長 8 字。'});
+  if(!toTakeout&&tableOrders.isTakeout(table))return res.status(400).json({error:'W01–W99 是外帶單號，請改用「移到外帶」。'});
   const venues=tableOrders.visibleVenues(req.auth.brands);
   const client=await pool.connect();
   try{await client.query('BEGIN');
     const src=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
     if(!src||src.status!=='open'){await client.query('ROLLBACK');return res.status(404).json({error:'找不到這桌。'});}
+    if(toTakeout&&tableOrders.isTakeout(src.table_no)){await client.query('ROLLBACK');return res.status(400).json({error:'已經是外帶單了。'});}
     if(src.table_no===table){await client.query('ROLLBACK');return res.status(400).json({error:'已經在這桌了。'});}
     if(!tableOrders.sessionClosableByVenues(src,venues)){await client.query('ROLLBACK');return res.status(403).json({error:'這桌含有其他品牌品項，請由言文字管理員換桌。'});}
+    if(toTakeout){
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,['table:takeout']);   // 與「＋ 外帶」開單同一把鎖，避免搶到同一個 W 號
+      const used=new Set((await client.query("SELECT table_no FROM table_sessions WHERE status='open' AND table_no ~ '^W[0-9]{2}$'")).rows.map(r=>r.table_no));
+      table=tableOrders.nextTakeoutTable(used);
+      if(!table){await client.query('ROLLBACK');return res.status(409).json({error:'外帶單號已用完（W01–W99），請先清掉已完成的外帶單。'});}
+    }
     await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,['table:'+table]);
     const dst=(await client.query("SELECT * FROM table_sessions WHERE table_no=$1 AND status='open' ORDER BY created_at DESC LIMIT 1 FOR UPDATE",[table])).rows[0];
     if(dst&&!tableOrders.sessionClosableByVenues(dst,venues)){await client.query('ROLLBACK');return res.status(403).json({error:'目標桌含有其他品牌品項，請由言文字管理員併桌。'});}
@@ -5168,7 +5177,7 @@ app.post('/api/admin/orders/sessions/:id/move',auth,adminOnly,requireDb,wrap(asy
       await client.query('UPDATE table_orders SET table_no=$2 WHERE session_id=$1',[src.id,table]);
     }
     await client.query('COMMIT');
-    res.json({ok:true,from:src.table_no,table,merged:!!dst,id:dst?dst.id:src.id});
+    res.json({ok:true,from:src.table_no,table,merged:!!dst,takeout:toTakeout,id:dst?dst.id:src.id});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 // POS 關掉某筆結帳需求（客人改口、或已用別的方式處理）：只拿掉那一筆，品項不動
