@@ -31,3 +31,11 @@ test('發票證明聯只印紙本與統編，手機載具／自然人憑證／�
   assert.match(ops, /if\(invoicePrintable\(out\.invoice\)\)await printInvoiceProof/);
   assert.doesNotMatch(ops, /o\.invoice\?\.status==='issued'\?`<button[^`]*data-invoice-print/);
 });
+
+test('發票欄位重畫不清空：值存在 POS_INV_VALS，重畫時寫回 value；結帳成功／換桌／返回才清', () => {
+  assert.match(ops, /let POS_INV_VALS=\{\};/);
+  for (const n of ['buyer_ubn', 'carrier_num', 'love_code', 'comment']) assert.match(ops, new RegExp(`name="${n}"[^>]*value="\\$\\{esc\\(POS_INV_VALS\\.${n}\\|\\|''\\)\\}"`), n);
+  assert.match(ops, /forEach\(i=>i\.addEventListener\?\.\('input',\(\)=>\{POS_INV_VALS\[i\.name\]=i\.value;\}\)\)/);
+  assert.match(ops, /if\(raw!==null\)\{POS_INV_VALS\.carrier_num=raw;/);
+  assert.ok((ops.match(/POS_INV_VALS=\{\};/g) || []).length >= 5, '宣告＋兩種結帳成功＋點桌＋返回');
+});

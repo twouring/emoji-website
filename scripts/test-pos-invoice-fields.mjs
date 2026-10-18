@@ -31,7 +31,7 @@ test('手機載具專屬相機掃描鍵：用 BarcodeDetector 掃條碼寫回 ca
   assert.match(ops, /const BD=barcodeDetectorClass\(\);/);
   assert.match(ops, /new BD\(\{formats:\['code_39','code_128','qr_code'\]\}\)/);
   assert.match(ops, /此瀏覽器不支援相機掃碼，請直接輸入條碼/);
-  assert.match(ops, /const v=keepRaw\?raw\.trim\(\):raw\.trim\(\)\.toUpperCase\(\);stopPosInvoiceScanner\(video\);onCode\(v\)/, '掃到的條碼在共用迴圈裡去空白轉大寫');assert.match(ops, /if\(raw!==null&&carrierIn\)carrierIn\.value=raw;/);
+  assert.match(ops, /const v=keepRaw\?raw\.trim\(\):raw\.trim\(\)\.toUpperCase\(\);stopPosInvoiceScanner\(video\);onCode\(v\)/, '掃到的條碼在共用迴圈裡去空白轉大寫');assert.match(ops, /if\(raw!==null\)\{POS_INV_VALS\.carrier_num=raw;if\(carrierIn\)carrierIn\.value=raw;\}/);
 });
 
 test('Safari／iOS 沒有內建 BarcodeDetector：改用同網域的 zxing-wasm，.wasm 也放本站，不連外部 CDN；PWA 殼一併快取；手機載具 Code 39 要關 extended 模式', () => {
