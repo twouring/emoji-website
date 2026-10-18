@@ -28,7 +28,7 @@ window.__MENU_SEED = [
   { venue:"CAFE", cat:"DESSERT", zh:"自製布丁・鹹鮮奶油", en:"House Pudding, Salted Cream", price:120, note:"滑嫩自製布丁搭配帶輕微鹹味的鮮奶油，平衡甜度並增加乳脂層次。", image:U('1702728109878-c61a98d80491') },
   { venue:"CAFE", cat:"DESSERT", zh:"巴斯克蛋糕", en:"Basque Cheesecake", price:100, note:"濃郁型巴斯克乳酪蛋糕。", image:U('1638519651608-412009302a02') },
   { venue:"CAFE", cat:"DESSERT", zh:"可麗露", en:"Canelé", price:80, note:"經典可麗露，外殼焦脆、內部濕潤。", image:U('1593353994452-97b4560c50c2') },
-  { venue:"CAFE", cat:"DESSERT", zh:"藍莓起司蛋糕", en:"Blueberry Cheesecake", price:100, note:"濃郁型藍莓起司蛋糕。" },
+  { venue:"CAFE", cat:"DESSERT", zh:"藍莓起司蛋糕", en:"Blueberry Cheesecake", price:100, note:"濃郁型藍莓起司蛋糕。", image:U('1567327613485-fbc7bf196198') },
   // ── COFFEE ──
   { venue:"CAFE", cat:"COFFEE", zh:"拿鐵咖啡", en:"Latte", price:180, note:"濃縮、牛奶、奶泡。濃縮咖啡揉合香醇鮮奶，咖啡與奶香平衡，口感柔滑溫潤，留下細緻醇厚的咖啡香。加購燕麥奶 +30。", image:U('1541167760496-1628856ab772') },
   { venue:"CAFE", cat:"COFFEE", zh:"美式咖啡", en:"Americano", price:150, note:"濃縮、水。以濃縮咖啡調製，保留純粹清晰的咖啡香，口感輕盈順口，尾韻乾淨俐落。", image:U('1551030173-122aabc4489c') },
@@ -42,12 +42,12 @@ window.__MENU_SEED = [
   { venue:"CAFE", cat:"BEVERAGE", zh:"黑糖牛奶", en:"Brown Sugar Milk", price:180, note:"黑糖漿、牛奶、奶泡。黑糖焦香融入香醇鮮奶，溫潤柔滑，淡淡甜香隨奶香展開，簡單而耐喝。加購燕麥奶 +30。", image:U('1553909489-ec2175ef3f52') },
   { venue:"CAFE", cat:"BEVERAGE", zh:"紅烏龍拿鐵", en:"Red Oolong Latte", price:250, note:"紅烏龍茶葉、牛奶、奶泡。紅烏龍的熟果香與焙火茶韻揉合鮮奶，醇厚溫潤，茶香清晰，尾韻帶著柔和奶香。加購燕麥奶 +30。" },
   // ── TEA ──
-  { venue:"CAFE", cat:"TEA", zh:"紅烏龍", en:"Red Oolong Tea", price:220, note:"紅烏龍茶葉、熱水。熟果香伴隨細緻焙火茶韻，茶湯醇厚順口，香氣隨溫度展開，尾韻自然回甘。" },
-  { venue:"CAFE", cat:"TEA", zh:"柚子紅烏龍", en:"Yuzu Red Oolong Tea", price:250, note:"柚子果漿、紅烏龍茶葉、熱水。清新柚香融入紅烏龍，明亮酸甜襯托熟果茶韻，清爽順口，留下淡雅柚香與回甘。" },
+  { venue:"CAFE", cat:"TEA", zh:"紅烏龍", en:"Red Oolong Tea", price:220, note:"紅烏龍茶葉、熱水。熟果香伴隨細緻焙火茶韻，茶湯醇厚順口，香氣隨溫度展開，尾韻自然回甘。", image:U('1571934811356-5cc061b6821f') },
+  { venue:"CAFE", cat:"TEA", zh:"柚子紅烏龍", en:"Yuzu Red Oolong Tea", price:250, note:"柚子果漿、紅烏龍茶葉、熱水。清新柚香融入紅烏龍，明亮酸甜襯托熟果茶韻，清爽順口，留下淡雅柚香與回甘。", image:U('1567922045116-2a00fae2ed03') },
   { venue:"CAFE", cat:"TEA", zh:"果茶（壺）", en:"Fruit Tea (Pot)", price:220, note:"果茶茶葉、熱水。清新果香隨茶湯慢慢舒展，酸甜柔和而不膩，風味明亮清爽，適合悠閒品飲。", image:U('1698302659204-ab2e13ac9e55') },
   { venue:"CAFE", cat:"TEA", zh:"草本茶（壺）", en:"Herbal Tea (Pot)", price:220, note:"草本茶葉、熱水。淡雅草本香氣隨茶湯緩緩展開，清透柔和、自然舒適，適合放慢步調細細品飲。", image:U('1675155337816-5002bb718d73') },
   // ── SPARKLING ──
-  { venue:"CAFE", cat:"SPARKLING", zh:"柚子氣泡", en:"Yuzu Sparkling", price:160, note:"柚子果漿、氣泡水。清新柚香搭配細緻氣泡，酸甜輕盈，明亮果香隨氣泡展開，口感清爽俐落。" },
+  { venue:"CAFE", cat:"SPARKLING", zh:"柚子氣泡", en:"Yuzu Sparkling", price:160, note:"柚子果漿、氣泡水。清新柚香搭配細緻氣泡，酸甜輕盈，明亮果香隨氣泡展開，口感清爽俐落。", image:U('1496318447583-f524534e9ce1') },
   { venue:"CAFE", cat:"SPARKLING", zh:"莓果氣泡", en:"Berry Sparkling", price:160, note:"莓果果漿、氣泡水。莓果酸甜遇上細緻氣泡，明亮清爽，酸香與甜味平衡，留下輕盈鮮明的莓果香。", image:U('1623227314867-33230da9b493') },
   { venue:"CAFE", cat:"SPARKLING", zh:"鳳梨氣泡", en:"Pineapple Sparkling", price:160, note:"鳳梨果漿、氣泡水。鳳梨的熱帶果香搭配細緻氣泡，酸甜鮮活，果香隨氣泡展開，口感清爽輕盈。", image:U('1626388877564-269967fb8ba7') },
   // ── OTHER（POS 限定，現場輸入金額：菜單上沒列的客製需求、加購服務等） ──
@@ -62,7 +62,7 @@ window.__MENU_SEED = [
   { venue:"BAR", cat:"HOT_APP", zh:"柚子胡椒奶油炒蛤蜊", en:"Clams, Yuzu Kosho Butter", price:280, note:"炒蛤蜊以白酒、奶油與柚子胡椒烹煮。", image:U('1715249792920-bfe1a3b9d79e') },
   // ── FRIED ──
   { venue:"BAR", cat:"FRIED", zh:"酥炸唐揚雞淋川味美乃滋", en:"Karaage, Sichuan Mayo", price:280, note:"日式炸雞搭配老乾媽辣醬與美奶滋醬，呈現酸甜、麻辣與乳脂層次、柴魚香氣。", image:U('1586793783658-261cddf883ef') },
-  { venue:"BAR", cat:"FRIED", zh:"爆漿紫蘇起司條沾莓果優格醬", en:"Shiso Cheese Sticks, Berry Yogurt Dip", price:220, note:"帕瑪森起司卷紫蘇葉，搭配以莓果優格沾醬。" },
+  { venue:"BAR", cat:"FRIED", zh:"爆漿紫蘇起司條沾莓果優格醬", en:"Shiso Cheese Sticks, Berry Yogurt Dip", price:220, note:"帕瑪森起司卷紫蘇葉，搭配以莓果優格沾醬。", image:U('1734774924912-dcbb467f8599') },
   { venue:"BAR", cat:"FRIED", zh:"海苔香酥薯條附明太子美乃滋", en:"Nori Fries, Mentaiko Mayo", price:180, note:"香酥薯條搭配海苔粉增添海味與香氣，搭配明太子美乃滋，呈現薯條酥香、海苔鹹鮮與明太子濃郁鮮味的風味組合。", image:U('1630431341771-1ceb084d6607') },
   // ── GRILL ──
   { venue:"BAR", cat:"GRILL", zh:"嫩燒梅花豬蔥芥末醬", en:"Pork Collar, Charred Scallion Mustard", price:360, note:"豬梅花經鹽麴醃漬與舒肥後高溫炙烤，搭配燒蔥、日式芥末、醬油與米醋調製的醬汁。", image:U('1625477811233-044633d10dd1') },
@@ -101,7 +101,7 @@ window.__MENU_SEED = [
   { venue:"BAR", cat:"BOTTLE", zh:"老松・御免酒柚子（整瓶）", en:"Oimatsu Gomenshu Yuzu Liqueur Bottle", price:2700, alcohol:true, note:"720ml／瓶" },
   { venue:"BAR", cat:"BOTTLE", zh:"高畠・冰結甜白葡萄酒（整瓶）", en:"Takahata Hyoketsu-shibori Sweet White Bottle", price:2800, alcohol:true, note:"500ml／瓶・冷藏不加冰" },
   // ── SPARKLING ──
-  { venue:"BAR", cat:"SPARKLING", zh:"柚子氣泡", en:"Yuzu Sparkling", price:160, note:"柚子果漿、氣泡水。清新柚香搭配細緻氣泡，酸甜輕盈，明亮果香隨氣泡展開，口感清爽俐落。" },
+  { venue:"BAR", cat:"SPARKLING", zh:"柚子氣泡", en:"Yuzu Sparkling", price:160, note:"柚子果漿、氣泡水。清新柚香搭配細緻氣泡，酸甜輕盈，明亮果香隨氣泡展開，口感清爽俐落。", image:U('1496318447583-f524534e9ce1') },
   { venue:"BAR", cat:"SPARKLING", zh:"莓果氣泡", en:"Berry Sparkling", price:160, note:"莓果果漿、氣泡水。莓果酸甜遇上細緻氣泡，明亮清爽，酸香與甜味平衡，留下輕盈鮮明的莓果香。", image:U('1623227314867-33230da9b493') },
   { venue:"BAR", cat:"SPARKLING", zh:"鳳梨氣泡", en:"Pineapple Sparkling", price:160, note:"鳳梨果漿、氣泡水。鳳梨的熱帶果香搭配細緻氣泡，酸甜鮮活，果香隨氣泡展開，口感清爽輕盈。", image:U('1626388877564-269967fb8ba7') },
   // ── OTHER（POS 限定，現場輸入金額：菜單上沒列的客製需求、加購服務等） ──
