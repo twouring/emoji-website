@@ -833,3 +833,6 @@ tr.lp-refund td{color:var(--danger)}
 .pos-floor-slot .pos-ticket .tk-open{padding-left:4px;padding-right:4px}
 /* 會員卡是 QR：掃描框改正方形 */
 .pos-scan-full-frame--qr{width:min(70vmin,420px);height:min(70vmin,420px)}
+/* 數字輸入框：用 type=number 叫出數字鍵盤，隱藏桌機版上下微調箭頭 */
+input[type=number]{-moz-appearance:textfield;appearance:textfield}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
