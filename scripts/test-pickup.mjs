@@ -52,7 +52,7 @@ test('server：預約單開外帶號、品項不先送單、排程送單並出�
   assert.match(server, /pickup_placed_at IS NULL AND NOT EXISTS \(SELECT 1 FROM jsonb_array_elements\(items\)/);
   assert.match(server, /tableOrders\.menuIndex\(await contentValue\('menu'\), p\.venue, \{ now: p\.pickupAt \}\)/, '菜單依取餐時段品牌');
   assert.match(server, /pickup_at:s\.pickup_at\|\|null,pickup_note:s\.pickup_note\|\|'',pickup_placed:!!s\.pickup_placed_at/);
-  assert.match(fs.readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'utf8'), /預約取餐<\/span> \$\{esc\(clockText\(s\.pickup_at\)\)\}/);
+  assert.match(fs.readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'utf8'), /const at=s\.pickup_at\|\|s\.created_at;[\s\S]*\$\{s\.pickup_at\?'取餐 ':''\}/);
 });
 
 test('會員訂位：綁 user_id、Email 可空、來源 member-app、取消通知員工', () => {

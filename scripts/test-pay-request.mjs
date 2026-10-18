@@ -87,7 +87,7 @@ test('POS：桌況格標記、桌號畫面一鍵勾選、✕ 關閉、新需求�
   assert.match(js, /\(s\.pay_requests\|\|\[\]\)\.map\(r=>\[r\.id,r\.amount,r\.count\]\)/, '輪詢 sig 要含需求，否則畫面不重繪');
   assert.match(js, /PAYREQ_SEEN&&\[\.\.\.reqIds\]\.some\(id=>!PAYREQ_SEEN\.has\(id\)\)\)ordersBeep\(\)/);
   assert.match(js, /class="pos-table [^"]*\$\{s\.pay_requests\?\.length\?'payreq':''\}/);
-  assert.match(js, /pos-payreq-tag">💳 要結帳/);
+  assert.match(js, /\$\{s\.pay_requests\?\.length\?'payreq':''\}/);
   assert.match(js, /data-payreq="\$\{esc\(r\.id\)\}"/); assert.match(js, /data-payreq-dismiss="\$\{esc\(r\.id\)\}"/);
   assert.match(js, /POS_PICK=set\.size===cur\.lines\.length\?null:set;POS_QTY=\{\};POS_PAYREQ=r\.id;paintPos\(\)/, '一點就勾好那幾項');
   assert.match(js, /api\('\/admin\/orders\/sessions\/'\+cur\.id\+'\/pay-requests\/'\+b\.dataset\.payreqDismiss,\{method:'DELETE'\}\)/);

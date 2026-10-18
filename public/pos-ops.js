@@ -1019,11 +1019,12 @@ function paintPos(){
   const cardHtml=s=>{
     if(s.empty)return `<button type="button" class="pos-table empty ${s.placed?'is-placed':''} ${resvOf(s.table).length?'reserved':''}" data-open-table="${esc(s.table)}" aria-label="${esc(s.table)} 空桌，點一下開桌"><b>${esc(s.table)}</b><span class="tk-open">＋ 開桌</span>${resvHtml(s.table)}</button>`;
     const [cls,label]=TABLE_STATE[s.state]||TABLE_STATE.open;
-    const money=idleWarn(s)?`<span class="tk-warn">⚠ 還沒點餐</span>`:(s.unpaid?`<span class="tk-amt">NT$${num(s.unpaid_amount)}</span>`:`<span class="tk-none">${s.state==='empty'?'還沒點餐':'已結清'}</span>`);
-    return `<button type="button" class="pos-table pos-ticket ${s.placed?'is-placed':''} ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''} ${s.pay_requests?.length?'payreq':''} ${idleWarn(s)?'idlewarn':''}" data-pos-table="${esc(s.table)}"><span class="tk-head"><b>${s.takeout?'外帶 ':''}${esc(s.table)}</b><span class="pill ${cls}">${label}</span></span><span class="tk-body">${money}${s.mixed?'<span class="pill pill-bad">混桌</span>':''}${s.pay_requests?.length?`<span class="tk-pay pos-payreq-tag">💳 要結帳 ${s.pay_requests.map(r=>esc(r.name)).join('、')}</span>`:''}${s.pickup_at?`<span class="tk-pick"><span class="pos-resv-tag">預約取餐</span> ${esc(clockText(s.pickup_at))}</span>`:''}${resvHtml(s.table)}</span>${s.created_at?`<span class="tk-foot pos-order-time" title="${esc(applicationTime(s.created_at))}"><span>🕒 ${esc(clockText(s.created_at))}</span><span>${elapsedShort(s.created_at)}</span></span>`:''}</button>`;
+    // 單子只顯示時間：開桌／開單時刻；預約取餐的外帶單顯示取餐時刻。狀態、金額、要結帳都進帳單看；要結帳／久未點餐只用底色提示
+    const at=s.pickup_at||s.created_at;
+    return `<button type="button" class="pos-table pos-ticket ${s.placed?'is-placed':''} ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''} ${s.pay_requests?.length?'payreq':''} ${idleWarn(s)?'idlewarn':''}" data-pos-table="${esc(s.table)}" aria-label="${s.takeout?'外帶 ':''}${esc(s.table)}${s.pay_requests?.length?'，要結帳':''}" title="${esc(applicationTime(at||''))}">${s.takeout?`<span class="tk-head"><b>${esc(s.table)}</b></span>`:''}<span class="tk-time pos-order-time">${s.pickup_at?'取餐 ':''}${at?esc(clockText(at)):'—'}</span></button>`;
   };
   // 桌位固定：每桌一格（桌號在格頭、不會動）；單卡放在格子裡，可以拖到別的桌位（目標桌有單＝併桌）。外帶單沒有桌位，排在右側直欄
-  const slotHtml=t=>`<div class="pos-slot ${layoutPos[t]?'is-placed':''}" data-slot="${esc(t)}"><span class="pos-slot-name">${esc(t)}</span>${cardHtml(byTable.get(t)||{table:t,empty:true})}</div>`;
+  const slotHtml=t=>`<div class="pos-slot ${layoutPos[t]?'is-placed':''}" data-slot="${esc(t)}"><span class="pos-slot-name">${esc(t)}</span>${cardHtml(byTable.get(t)||{table:t,empty:true})}${byTable.get(t)?`<span class="pos-slot-resv">${resvHtml(t)}</span>`:''}</div>`;
   const takeouts=sessions.filter(s=>s.takeout);
   const grid=baseNames.map(slotHtml).join('');
   const floor=placed.length?`<div class="pos-floor">${placed.map(t=>`<div class="pos-floor-slot${layoutPos[t][2]?' is-sized':''}" style="left:${layoutPos[t][0]}%;top:${layoutPos[t][1]}%${layoutPos[t][2]?`;width:${layoutPos[t][2]}%;min-height:${layoutPos[t][3]}%`:''}">${slotHtml(t)}</div>`).join('')}</div>`:'';

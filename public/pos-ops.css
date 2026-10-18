@@ -772,3 +772,8 @@ tr.lp-refund td{color:var(--danger)}
 .pos-tables-row .ops-head{min-height:44px;margin-bottom:12px}
 .pos-tables-row .ops-head h2{line-height:1.2}
 .pos-floor-slot.is-sized{display:flex;align-items:stretch}.pos-floor-slot.is-sized>.pos-slot{flex:1;min-width:0;min-height:0;height:auto}
+/* 單子只顯示時間 */
+.pos-ticket .tk-time{display:block;padding:10px 8px;font-size:1.25rem;font-weight:700;text-align:center;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pos-ticket.on .tk-time{color:var(--paper)}
+.pos-ticket .tk-head{justify-content:center}
+.pos-slot-resv:empty{display:none}.pos-slot-resv .pos-resv{display:block;white-space:normal;overflow-wrap:anywhere}
