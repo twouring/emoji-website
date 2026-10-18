@@ -735,9 +735,11 @@ async function migrate() {
   await q(tableLive.TRIGGER_SQL);
   // 只記錄開錢櫃請求，不代表硬體已成功開啟；event_key 唯一限制負責跨平板去重。
   await q(`CREATE TABLE IF NOT EXISTS pos_drawer_events (
-    id TEXT PRIMARY KEY, event_key TEXT NOT NULL UNIQUE, kind TEXT NOT NULL CHECK (kind IN ('checkout','refund','manual')),
+    id TEXT PRIMARY KEY, event_key TEXT NOT NULL UNIQUE, kind TEXT NOT NULL CHECK (kind IN ('checkout','refund','manual','register')),
     order_id TEXT REFERENCES table_orders(id), line TEXT, reason TEXT NOT NULL, actor TEXT NOT NULL,
     operator_id TEXT, operator_name TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  // 開帳後自動開錢櫃（放零用金）：kind 'register'，事件代碼 register:<帳本 id>，一本帳只開一次
+  await q(`ALTER TABLE pos_drawer_events DROP CONSTRAINT IF EXISTS pos_drawer_events_kind_check, ADD CONSTRAINT pos_drawer_events_kind_check CHECK (kind IN ('checkout','refund','manual','register'))`);
   // POS 操作紀錄：現場每個寫入動作（誰、哪個品牌、做了什麼），供 POS「紀錄」分頁查看
   await q(`CREATE TABLE IF NOT EXISTS pos_logs (
     id TEXT PRIMARY KEY, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), venue TEXT NOT NULL DEFAULT '',
@@ -5306,11 +5308,19 @@ app.get('/api/admin/orders/company-lookup/:ubn',auth,adminOnly,wrap(async(req,re
 app.post('/api/admin/pos/drawer-events',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const body=req.body||{},key=body.event_key,kind=body.kind;
   const reason=tableOrders.cleanText(body.reason,200);
-  if(typeof key!=='string'||!key.trim()||key.length>200||!['checkout','refund','manual'].includes(kind)||!reason)return res.status(400).json({error:'請提供有效的開錢櫃事件與原因。'});
+  if(typeof key!=='string'||!key.trim()||key.length>200||!['checkout','refund','manual','register'].includes(kind)||!reason)return res.status(400).json({error:'請提供有效的開錢櫃事件與原因。'});
   const operator=await resolveOperator(req,body.operator_id);
   if((kind==='manual'||body.operator_id)&&!operator)return res.status(400).json({error:'請先選擇有效的操作人員。'});
   let order=null;
-  if(kind!=='manual'){
+  if(kind==='register'){
+    // 開帳放零用金：帳本須存在、看得到、尚未關帳；事件代碼固定 register:<帳本 id>
+    const rid=String(body.register_id||'');
+    if(!/^rg_[a-z0-9]{16}$/.test(rid)||key!==`register:${rid}`||body.order_id!=null||body.line!=null)return res.status(400).json({error:'開帳開錢櫃須指定帳本。'});
+    const reg=(await q('SELECT id,venue,closed_at FROM pos_registers WHERE id=$1',[rid])).rows[0];
+    const venues=tableOrders.visibleVenues(req.auth.brands);
+    if(!reg||(venues&&!venues.includes(reg.venue)))return res.status(404).json({error:'找不到這本帳。'});
+    if(reg.closed_at)return res.status(409).json({error:'這本帳已關帳。'});
+  }else if(kind!=='manual'){
     if(!ORDER_ID_RE.test(String(body.order_id||'')))return res.status(404).json({error:'找不到這筆出餐單。'});
     order=(await q('SELECT id,items,amount,status,payer FROM table_orders WHERE id=$1',[body.order_id])).rows[0];
     if(!order||!tableOrders.orderOwnedByVenues(order,tableOrders.visibleVenues(req.auth.brands)))return res.status(404).json({error:'找不到這筆出餐單。'});

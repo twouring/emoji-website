@@ -453,6 +453,14 @@ async function autoCashDrawer({kind,order_id,line,method,amount,payments,cash_re
   try{const ok=await claimCashDrawer({event_key,kind,order_id,line,reason:kind==='checkout'?'現金結帳':'確認退現金'});if(ok)return true;}catch(e){/* 已完成的交易不可因開櫃失敗而重送。 */}
   toast('交易已完成，未確認開櫃成功；請確認錢櫃，需要時按「錢櫃」重試，勿重複收退款。');return false;
 }
+// 開帳成功後自動開錢櫃放零用金：以帳本 id 去重（register:<id>），失敗只提示、不重送開帳
+async function registerCashDrawer(register_id){
+  if(!register_id)return null;
+  const event_key='register:'+register_id;
+  if(DRAWER_ATTEMPTS.has(event_key))return false;DRAWER_ATTEMPTS.add(event_key);
+  try{if(await claimCashDrawer({event_key,kind:'register',register_id,reason:'開帳放零用金'}))return true;}catch(e){/* 開帳已完成，不因開櫃失敗重送。 */}
+  return false;
+}
 async function manualCashDrawer(reason){
   if(!reason?.trim())return false;
   try{const ok=await claimCashDrawer({event_key:'manual:'+crypto.randomUUID(),kind:'manual',reason:reason.trim()});if(!ok)toast('未確認開櫃成功，請檢查連線與錢櫃後再試。');return ok;}catch(e){toast('開櫃未送出：'+e.message);return false;}
@@ -1572,7 +1580,7 @@ function bindOpenForm(host,reload){
   form.querySelectorAll('[data-denom],#reg-open-total').forEach(i=>i.oninput=show);bindFillChips(form);
   form.querySelector('#reg-open-cancel').onclick=()=>{REG_OPEN_FORM='';reload();};
   form.querySelector('#reg-open-go').onclick=()=>{const {total,denoms}=readCount(form,'#reg-open-total');if(total==null){toast('零用金請按面額填張數，或填總額');return;}
-    opsThen(()=>api('/admin/registers/open',{method:'POST',body:{venue:form.dataset.venue,opening_cash:total,denominations:denoms}}),out=>`${BRAND_LABEL[out.venue]} 已開帳，零用金 NT$${num(out.opening_cash)}`,()=>{REG_OPEN_FORM='';return reload();});};
+    opsThen(()=>api('/admin/registers/open',{method:'POST',body:{venue:form.dataset.venue,opening_cash:total,denominations:denoms}}),async out=>{const ok=await registerCashDrawer(out.id);return `${BRAND_LABEL[out.venue]} 已開帳，零用金 NT$${num(out.opening_cash)}`+(ok===false?'；未確認開櫃成功，請按「錢櫃」開櫃放零用金':'');},()=>{REG_OPEN_FORM='';return reload();});};
 }
 // 小結單／關帳單（80mm）：現金帳 → 營收摘要 → 臨時收支；關帳有點鈔、短溢與留存金；小結有點驗過就印最近一次點鈔與差額
 // 關帳單／小結單 58mm 點陣排版（mPOP）：內容與下方瀏覽器版一致

@@ -324,10 +324,11 @@ POS 結帳輸入統編時查抬頭。`:ubn` 為 8 碼數字（否則 400）。�
 { "event_key": "checkout:to_example", "kind": "checkout", "order_id": "to_example", "reason": "現金結帳", "operator_id": "st_example" }
 ```
 
-- `kind` 為 `checkout | refund | manual`；`event_key` 必填、最長 200 字元；`reason` 必填（最多保存 200 字元）。有帶 `operator_id` 時須為在職且目前帳號看得到的操作人員；`manual` 必須選擇有效操作人員。
+- `kind` 為 `checkout | refund | manual | register`；`event_key` 必填、最長 200 字元；`reason` 必填（最多保存 200 字元）。有帶 `operator_id` 時須為在職且目前帳號看得到的操作人員；`manual` 必須選擇有效操作人員。
 - `checkout`：`order_id` 必填，事件代碼固定 `checkout:<order_id>`，不得帶 `line`。訂單須屬於目前帳號可操作的品牌、未作廢、金額大於 0，而且 `payer.method === 'cash'` 或資料庫已存的 `payer.payments[]` 有正數現金分攤（`{method:'cash',amount}`）。現金金額一律以資料庫已存的 `payer` 判定（整單現金＝全額，混合付款＝現金那幾筆），不會從用戶端傳入的付款資料推定有現金。
 - `refund`：整單固定 `refund:<order_id>`，訂單須已作廢；單項固定 `refund:<order_id>:<line>` 並帶 `line`，該行須已取消。原收款方式須為現金，且作廢交易內已保存該事件的正數現金退還意圖；僅作帳務調整的取消不能事後補送此端點來開櫃。用戶端 `cash_refund` 不作為驗證依據。
 - `manual`：事件代碼用 `manual:<uuid>`（前綴後允許 8–128 個英數字、`_`、`-`），每次明確的手動操作產生新代碼；不可帶訂單或品項。
+- `register`：POS 開帳成功後自動開錢櫃放零用金。帶 `register_id`（`rg_` 帳本 id），事件代碼固定 `register:<register_id>`，不可帶訂單或品項；帳本須存在、屬於目前帳號可見品牌（否則 404）且尚未關帳（否則 409）。一本帳只會領到一次資格。
 
 回 `{ ok:true, claimed:true|false, event_id }`。資料庫 `pos_drawer_events.event_key` 有唯一限制；只有首筆成功寫入回 `claimed:true`，重送回 `claimed:false` 與相同 `event_id`。保存登入身分 `actor`、伺服器時間、原因及操作人員 id／姓名。輸入錯誤回 400、無此訂單或跨品牌回 404、沒有合格現金交易／退還意圖回 409；資料庫失敗不會回成功資格。
 
