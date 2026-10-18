@@ -11,7 +11,7 @@ vm.runInNewContext(fs.readFileSync(new URL('../public/order-lib.js', import.meta
 const O = win.OrderLib;
 
 const mk = (zh, cat, price) => ({ id: 'i_' + zh, venue: 'CAFE', cat, zh, en: '', ja: '', price, published: true, note: '' });
-const base = [mk('原味貝果', 'BREAD', 80), mk('無花果核桃蜂蜜奶油貝果', 'BREAD', 150), mk('美式咖啡', 'COFFEE', 150), mk('拿鐵咖啡', 'COFFEE', 180), mk('柚子氣泡', 'SPARKLING', 160),
+const base = [mk('原味貝果', 'BREAD', 80), mk('無花果核桃蜂蜜奶油貝果', 'BREAD', 150), mk('美式咖啡', 'COFFEE', 150), mk('拿鐵咖啡', 'COFFEE', 180), { ...mk('柚子氣泡', 'SPARKLING', 160), id: 'm_3x1e32pd' }, { ...mk('莓果氣泡', 'SPARKLING', 160), id: 'm_ev482pfl' }, { ...mk('鳳梨氣泡', 'SPARKLING', 160), id: 'm_i3w9zd36' },
   mk('海苔馬告豬肉時雨煮飯糰', 'JAPANESE', 220), mk('鹽烤雞腿昆布飯糰', 'JAPANESE', 240), mk('奶油松露野菇炒蛋開放式三明治', 'BREAD', 300), mk('燻鮭魚酪梨蒔蘿奶油開放式三明治', 'BREAD', 320),
   mk('明太子美式炒蛋可頌', 'BREAD', 320), mk('自製布丁・鹹鮮奶油', 'DESSERT', 120), { ...mk('柚香紫蘇雞腿冷蕎麥麵', 'JAPANESE', 320), id: 'm_8qx9kqre' }, mk('巴斯克蛋糕', 'DESSERT', 100), mk('藍莓起司蛋糕', 'DESSERT', 100)];
 const items = base.slice(); comboBackfill(items);
@@ -52,7 +52,7 @@ test('comboGroups：每欄一組單選；選到的品項帶出自己的規格，
   const g = O.comboGroups(combo('貝果套餐'), items, 'zh');
   const main = g.find(x => x.key === 'main'), drink = g.find(x => x.key === 'drink');
   assert.equal(main.choices.join('|'), '原味貝果|無花果核桃蜂蜜奶油貝果 (+50)');
-  assert.equal(drink.choices.join('|'), '美式咖啡|拿鐵咖啡 (+30)|柚子氣泡');
+  assert.equal(drink.choices.join('|'), '美式咖啡|拿鐵咖啡 (+30)|柚子氣泡|莓果氣泡|鳳梨氣泡');
   const picks = { main: main.choices[0], drink: drink.choices[0] };
   g.filter(x => !x.combo).forEach(x => { picks[x.key] = x.choices[0]; });
   const act = () => O.activeOptionGroups(g, picks).filter(x => x.sub).map(x => x.label);
@@ -81,7 +81,8 @@ test('菜單：COMBO 要有內容；文字編輯來回一致', () => {
   const M = (() => { const w = {}; vm.runInNewContext(fs.readFileSync(new URL('../public/menu-lib.js', import.meta.url), 'utf8'), { window: w, console }); return w.MenuLib; })();
   assert.equal(M.validateDoc({ items: [{ zh: '空套餐', venue: 'CAFE', cat: 'COMBO', price: 100, emo: 0, combo: [] }] }).ok, false);
   const c = combo('早午餐套餐');
-  assert.equal(JSON.stringify(M.comboFromText(M.comboToText(c.combo))), JSON.stringify(c.combo));
+  const strip = x => JSON.stringify(x.map(sl => ({ ...sl, choices: sl.choices.map(({ id, ...r }) => r) })));
+  assert.equal(strip(M.comboFromText(M.comboToText(c.combo))), strip(c.combo), '文字格式不存 id，存檔時由 linkCombo 補回');
   assert.equal(M.normalizeItem({ zh: 'x', cat: 'BREAD', combo: c.combo }).combo.length, 0, '非套餐類別不留 combo');
 });
 
@@ -183,4 +184,38 @@ test('comboRelink：舊資料（選項是改名前的品名、沒有 id）補上
   assert.deepEqual([nd.combo[0].choices[0].id, nd.combo[0].choices[0].zh], ['m_8qx9kqre', '柚香紫蘇雞腿冷蕎麥麵']);
   assert.equal(list.find(x => x.id === 'm_cafe_combo_5').combo[1].choices[0].id, 'i_美式咖啡');
   assert.equal(comboRelink(list), 0);
+});
+
+test('三點水麵套餐：只用三點水既有麵食與氣泡飲（不含酒、不跨店），一次性回填不重複', () => {
+  const { BAR_COMBO, barComboBackfill } = require('../lib/menu-combos.js');
+  const bar = (id, zh, cat, price) => ({ id, venue: 'BAR', cat, zh, en: '', ja: '', price, published: true, note: '' });
+  const list = items.concat([bar('m_1lm1cdk3', '醬香野菇蕎麥麵附溫泉蛋', 'MAIN', 240), bar('m_hrfhc7os', '濃香味噌肉醬烏龍麵附溫泉蛋', 'MAIN', 320),
+    bar('m_og0f6mpb', '柚子氣泡', 'SPARKLING', 160), bar('m_usmhblkt', '莓果氣泡', 'SPARKLING', 160), bar('m_tskeoazr', '鳳梨氣泡', 'SPARKLING', 160)]);
+  assert.equal(barComboBackfill(list), 1);
+  assert.equal(barComboBackfill(list), 0);
+  const it = list.find(x => x.venue === 'BAR' && x.cat === 'COMBO');
+  assert.equal(it.zh, '麵套餐');
+  assert.ok(it.combo[0].choices.every(c => /麵/.test(c.zh)), '麵欄只有麵食');
+  const m = new Map(list.map(i => [i.id, i]));
+  const [a] = T.posAddLine([], m, { item_id: it.id, qty: 1, combo: { main: { id: 'm_1lm1cdk3' }, drink: { id: 'm_usmhblkt' } } });
+  assert.equal(a.price, 360);
+  assert.ok(a.price < 240 + 160);
+  const [b] = T.posAddLine([], m, { item_id: it.id, qty: 1, combo: { main: { id: 'm_hrfhc7os' }, drink: { id: 'm_og0f6mpb' } } });
+  assert.equal(b.price, 420);
+  assert.ok(b.price < 320 + 160);
+  assert.throws(() => T.posAddLine([], m, { item_id: it.id, qty: 1, combo: { main: { id: 'm_8qx9kqre' }, drink: { id: 'm_og0f6mpb' } } }), /還沒選/, '在咖啡的麵不能點進三點水套餐');
+  const g = O.comboGroups(it, list, 'zh');
+  assert.ok(g.find(x => x.key === 'main').choices.length === 2);
+  assert.equal(BAR_COMBO.venue, 'BAR');
+});
+
+test('在咖啡套餐飲品有三款氣泡飲；舊資料只有柚子氣泡的一次性補齊，做第二次不變', () => {
+  const { comboAddSparkling } = require('../lib/menu-combos.js');
+  for (const c of COMBOS) assert.deepEqual(c.combo.find(s => s.key === 'drink').choices.filter(x => /氣泡/.test(x.zh)).map(x => x.zh), ['柚子氣泡', '莓果氣泡', '鳳梨氣泡'], c.zh);
+  const list = items.map(x => JSON.parse(JSON.stringify(x)));
+  list.filter(x => x.cat === 'COMBO').forEach(x => { const d = x.combo.find(s => s.key === 'drink'); d.choices = d.choices.filter(c => !/莓果|鳳梨/.test(c.zh)); });
+  assert.equal(comboAddSparkling(list), 5);
+  assert.equal(comboAddSparkling(list), 0);
+  const d = list.find(x => x.zh === '麵套餐' && x.venue === 'CAFE').combo.find(s => s.key === 'drink');
+  assert.deepEqual(d.choices.map(c => c.zh), ['美式咖啡', '拿鐵咖啡', '柚子氣泡', '莓果氣泡', '鳳梨氣泡']);
 });

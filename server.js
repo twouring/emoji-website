@@ -1016,6 +1016,26 @@ async function seedMenuContent() {
         console.log('[menu-seed] 已補上麵套餐：' + n + ' 項。');
       }
     } catch (e) { console.warn('[menu-seed] 麵套餐略過：', e && e.message); }
+    try {   // 一次性：在咖啡套餐飲品補莓果／鳳梨氣泡
+      const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_combo_sparkling_v1'`)).rows.length;
+      if (!done) {
+        const doc = JSON.parse((await readContent()).menu);
+        const n = require('./lib/menu-combos').comboAddSparkling(doc.items);
+        if (n > 0) await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
+        await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_combo_sparkling_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(n)]);
+        console.log('[menu-seed] 套餐飲品補上氣泡飲：' + n + ' 個套餐。');
+      }
+    } catch (e) { console.warn('[menu-seed] 套餐氣泡飲略過：', e && e.message); }
+    try {   // 一次性：三點水麵套餐
+      const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_combo_bar_noodle_v1'`)).rows.length;
+      if (!done) {
+        const doc = JSON.parse((await readContent()).menu);
+        const n = require('./lib/menu-combos').barComboBackfill(doc.items);
+        if (n > 0) await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
+        await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_combo_bar_noodle_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(n)]);
+        console.log('[menu-seed] 已補上三點水麵套餐：' + n + ' 項。');
+      }
+    } catch (e) { console.warn('[menu-seed] 三點水麵套餐略過：', e && e.message); }
     try {   // 每次開機：套餐選項補 id、同步品名（品項改名不脫鉤）
       const doc = JSON.parse((await readContent()).menu);
       const n = require('./lib/menu-combos').comboRelink(doc.items);
