@@ -1580,7 +1580,7 @@ function bindOpenForm(host,reload){
   form.querySelectorAll('[data-denom],#reg-open-total').forEach(i=>i.oninput=show);bindFillChips(form);
   form.querySelector('#reg-open-cancel').onclick=()=>{REG_OPEN_FORM='';reload();};
   form.querySelector('#reg-open-go').onclick=()=>{const {total,denoms}=readCount(form,'#reg-open-total');if(total==null){toast('零用金請按面額填張數，或填總額');return;}
-    opsThen(()=>api('/admin/registers/open',{method:'POST',body:{venue:form.dataset.venue,opening_cash:total,denominations:denoms}}),async out=>{const ok=await registerCashDrawer(out.id);return `${BRAND_LABEL[out.venue]} 已開帳，零用金 NT$${num(out.opening_cash)}`+(ok===false?'；未確認開櫃成功，請按「錢櫃」開櫃放零用金':'');},()=>{REG_OPEN_FORM='';return reload();});};
+    opsThen(()=>api('/admin/registers/open',{method:'POST',body:{venue:form.dataset.venue,opening_cash:total,denominations:denoms}}),async out=>{const ok=await registerCashDrawer(out.id);return `${BRAND_LABEL[out.venue]} 已開帳，零用金 NT$${num(out.opening_cash)}`+(ok===false?'；未確認開櫃成功，請按「錢櫃」開櫃放零用金':'');},()=>{REG_OPEN_FORM='';if(typeof refreshRegWarn==='function')refreshRegWarn();return reload();});};
 }
 // 小結單／關帳單（80mm）：現金帳 → 營收摘要 → 臨時收支；關帳有點鈔、短溢與留存金；小結有點驗過就印最近一次點鈔與差額
 // 關帳單／小結單 58mm 點陣排版（mPOP）：內容與下方瀏覽器版一致
@@ -1739,7 +1739,7 @@ function bindRegisterBlock(host,reload){
   host.querySelectorAll('[data-reg-close]').forEach(b=>b.onclick=()=>{REG_CLOSE_OPEN=b.dataset.regClose;REG_CASH_OPEN=false;REG_COUNT_OPEN=false;reload();});
   host.querySelectorAll('[data-reg-count]').forEach(b=>b.onclick=()=>{REG_COUNT_OPEN=b.dataset.regCount;REG_CASH_OPEN=false;REG_CLOSE_OPEN=false;reload();});
   host.querySelectorAll('[data-reg-print]').forEach(b=>b.onclick=()=>{const r=(REG_DATA?.registers||[]).find(x=>x.id===b.dataset.regPrint);if(r)printRegisterReport(r.report,b.dataset.kind);});
-  host.querySelectorAll('[data-reg-reopen]').forEach(b=>b.onclick=async()=>{if(!await posConfirm('重開這本帳補單？關帳紀錄會保留，另開一本接著記。',{ok:'重開帳'}))return;opsThen(()=>api('/admin/registers/'+b.dataset.regReopen+'/reopen',{method:'POST',body:{}}),'已重開帳',reload);});
+  host.querySelectorAll('[data-reg-reopen]').forEach(b=>b.onclick=async()=>{if(!await posConfirm('重開這本帳補單？關帳紀錄會保留，另開一本接著記。',{ok:'重開帳'}))return;opsThen(()=>api('/admin/registers/'+b.dataset.regReopen+'/reopen',{method:'POST',body:{}}),'已重開帳',()=>{if(typeof refreshRegWarn==='function')refreshRegWarn();return reload();});});
   const cc=host.querySelector('#reg-cash-cancel');if(cc)cc.onclick=()=>{REG_CASH_OPEN=false;reload();};
   const cs=host.querySelector('#reg-cash-save');if(cs)cs.onclick=()=>{const amount=host.querySelector('#reg-cash-amount').value.trim(),reason=host.querySelector('#reg-cash-reason').value.trim(),type=host.querySelector('#reg-cash-type').value;
     if(!/^\d+$/.test(amount)||Number(amount)<1){toast('金額請輸入正整數');host.querySelector('#reg-cash-amount').focus();return;}
@@ -1782,7 +1782,7 @@ function bindDailyClose(form,r,reload){
     const body=read();
     submitting=true;show();
     if(!await posConfirm(`關帳 ${BRAND_LABEL[r.venue]}：訂單總額 NT$${num(r.sales.amount)}，帳戶總額 NT$${num(c.actual)}。\n關帳後今天不能再結帳。`,{ok:'關帳'})){submitting=false;show();return;}
-    return ensureOperator(()=>opsThen(async()=>{try{return await api('/admin/registers/'+r.id+'/close',{method:'POST',body:{...body,operator_id:OPERATOR?.id}});}catch(e){await reload();throw e;}},async out=>{try{const printed=await printRegisterReport(out.report,'關帳單');return printed===false?'日結關帳完成；列印未完成，請按「重印關帳單」':'日結關帳完成';}catch(e){return '日結關帳完成；列印失敗，請按「重印關帳單」';}},()=>{ACCT_CONFIRMED.delete(r.id);REG_CLOSE_DRAFTS.delete(r.id);REG_CLOSE_OPEN=false;return reload();}).finally(()=>{submitting=false;if(REG_CLOSE_OPEN===r.id)show();})).finally(()=>{submitting=false;if(REG_CLOSE_OPEN===r.id)show();});
+    return ensureOperator(()=>opsThen(async()=>{try{return await api('/admin/registers/'+r.id+'/close',{method:'POST',body:{...body,operator_id:OPERATOR?.id}});}catch(e){await reload();throw e;}},async out=>{try{const printed=await printRegisterReport(out.report,'關帳單');return printed===false?'日結關帳完成；列印未完成，請按「重印關帳單」':'日結關帳完成';}catch(e){return '日結關帳完成；列印失敗，請按「重印關帳單」';}},()=>{ACCT_CONFIRMED.delete(r.id);REG_CLOSE_DRAFTS.delete(r.id);REG_CLOSE_OPEN=false;if(typeof refreshRegWarn==='function')refreshRegWarn();return reload();}).finally(()=>{submitting=false;if(REG_CLOSE_OPEN===r.id)show();})).finally(()=>{submitting=false;if(REG_CLOSE_OPEN===r.id)show();});
   };
   show();
 }

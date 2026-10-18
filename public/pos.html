@@ -136,10 +136,19 @@
   .p-tools #p-drawer .ic,.p-tools #p-logout .ic{margin-right:0}
   .p-tools #p-drawer .ic,.p-tools #p-logout .ic{margin-right:6px}
   .btn .ic,button .ic{pointer-events:none}
+  /* 未開帳常駐警示：頂欄上方一條，開帳前不會消失；它在最上面，所以由它吃狀態列安全區，頂欄不再重複留 */
+  body>.p-regwarn{flex:none}
+  .p-regwarn{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;padding:calc(6px + env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) 6px max(12px,env(safe-area-inset-left));background:var(--danger);color:#fff;font-size:1rem;line-height:1.35;font-weight:600}
+  .p-regwarn span{flex:1;min-width:0}
+  .p-regwarn button{all:unset;box-sizing:border-box;cursor:pointer;min-height:44px;padding:0 16px;border-radius:999px;background:#fff;color:var(--danger);font-weight:700;white-space:nowrap}
+  .p-regwarn button:focus-visible{outline:3px solid #fff;outline-offset:2px}
+  body.has-regwarn .p-top{padding-top:0}
+  @media(max-width:999px){body.has-regwarn .p-top{padding-top:8px}}
   @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
+<div class="p-regwarn" id="p-regwarn" role="alert" hidden></div>
 <header class="p-top">
   <a class="p-brand" href="/" aria-label="言文字 POS"><i>言</i><span class="p-ver-wrap"><b>POS</b><small class="p-ver" title="v<!--POS_VERSION_FULL-->">v<!--POS_VERSION--></small></span></a>
   <div class="p-scope" id="p-scope" role="group" aria-label="切換店別"></div>
@@ -235,6 +244,7 @@ async function api(path, { method='GET', body, headers } = {}) {
 function showLoginScreen(msg){ return DEVICE_BOUND ? renderPinLogin(msg) : renderLogin(msg); }
 
 function renderLogin(msg){
+  if (typeof paintRegWarn === 'function') paintRegWarn(null);
   const drawer = document.getElementById('p-drawer'); if (drawer) drawer.hidden = true;
   document.getElementById('p-logout').hidden = true;
   document.getElementById('p-nav').innerHTML = ''; document.getElementById('p-scope').innerHTML = '';
@@ -275,6 +285,7 @@ function renderLogin(msg){
 
 // 操作人員四位數密碼登入（裝置已綁定才會出現）：沿用打卡鍵盤的樣式，密碼只留在記憶體，絕不進 localStorage／DOM 以外的地方
 function renderPinLogin(msg){
+  if (typeof paintRegWarn === 'function') paintRegWarn(null);
   const drawer = document.getElementById('p-drawer'); if (drawer) drawer.hidden = true;
   document.getElementById('p-logout').hidden = true;
   document.getElementById('p-nav').innerHTML = ''; document.getElementById('p-scope').innerHTML = '';
@@ -372,6 +383,7 @@ function resetPanels(){
 }
 function activate(){
   startKitchenPrinting();
+  refreshRegWarn();
   document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('on', p.dataset.panel === TAB));
   clearTimeout(ORDERS_TIMER); clearTimeout(POS_TIMER);
   if (TAB !== 'logs') { LOGS_PIN = ''; LOGS_PAD = ''; LOGS_MSG = ''; } // 紀錄限店長：離開分頁就要重輸識別碼
@@ -402,6 +414,33 @@ async function refreshPending(){
   const b = document.querySelector('#p-nav [data-tab=reservations]'); if (b) b.innerHTML = POSIcon('calendar') + '訂位' + (PENDING ? `<span class="badge">${PENDING}</span>` : '');
 }
 setInterval(() => { if (DATA) refreshPending(); }, 60000);
+
+/* 未開帳警示：這台平板現在要管的品牌（鎖店別＝店別，否則依時段）今天營業日還沒開帳，就在頂欄上方常駐一條紅色警示，開帳後才消失 */
+let REGWARN_SEQ = 0;
+function paintRegWarn(d){
+  const bar = document.getElementById('p-regwarn');
+  const v = d ? (SCOPE || d.active_venue || 'CAFE') : '';
+  const r = d?.current?.[v];
+  const show = !!(DATA && d && BRAND_LABEL[v] && !(r && !r.closed_at));
+  if (!show) { bar.hidden = true; bar.innerHTML = ''; document.body.classList.remove('has-regwarn'); return; }
+  const wait = d.wait?.[v] || '';
+  const msg = wait ? `${BRAND_LABEL[v]}還沒開帳：${wait}尚未關帳，關帳後才能開帳結帳。` : `${BRAND_LABEL[v]}今天還沒開帳，開帳前不能結帳。`;
+  const sig = v + '|' + msg;
+  if (bar.dataset.sig !== sig || bar.hidden) {
+    bar.dataset.sig = sig;
+    bar.innerHTML = `<span>⚠ ${esc(msg)}</span>${wait ? '' : `<button type="button" data-regwarn-open="${esc(v)}">去開帳</button>`}`;
+    const b = bar.querySelector('[data-regwarn-open]');
+    if (b) b.onclick = () => { SALES_DAY = ''; REG_OPEN_FORM = b.dataset.regwarnOpen; REG_CASH_OPEN = false; REG_CLOSE_OPEN = false; REG_COUNT_OPEN = false; const h = document.getElementById('sales-body'); if (h) delete h.dataset.sig; go('sales'); };
+  }
+  bar.hidden = false; document.body.classList.add('has-regwarn');
+}
+async function refreshRegWarn(){
+  if (!DATA) return paintRegWarn(null);
+  const seq = ++REGWARN_SEQ;
+  let d = null; try { d = await api('/admin/registers' + scopeQuery()); } catch (e) { return; } // 抓不到（離線／伺服器忙）就維持原狀，不要閃
+  if (seq === REGWARN_SEQ) paintRegWarn(d);
+}
+setInterval(() => { if (DATA && !document.hidden) refreshRegWarn(); }, 30000);
 
 /* 純瀏覽器（Star webPRNT Browser）：不再是 PWA。清掉舊版已安裝的 service worker 與快取，避免平板吃到舊檔 */
 if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
