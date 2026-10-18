@@ -21,6 +21,8 @@ window.__MENU_SEED = [
   { venue:"CAFE", cat:"JAPANESE", zh:"鹽烤雞腿昆布飯糰", en:"Salt-Grilled Chicken & Kombu Onigiri", price:240, note:"白芝麻油海鹽飯底包入鹽烤雞腿，搭配細絲昆布；套餐附蜂蜜柚子油醋沙拉與柴魚醬油冷豆腐。", image:U('1696463469919-def9b2830857') },
   { venue:"CAFE", cat:"JAPANESE", zh:"海苔馬告豬肉時雨煮飯糰", en:"Nori Onigiri, Maqaw Pork Shigureni", price:220, note:"青海苔風味飯糰搭配海苔奶油雞肉與白芝麻油海鹽飯底；套餐附蜂蜜柚子油醋沙拉與柴魚醬油冷豆腐。", image:U('1696463469925-77c6b7d9f0d6') },
   { venue:"CAFE", cat:"JAPANESE", zh:"柚子紫蘇雞腿冷蕎麥麵", en:"Cold Soba, Yuzu Shiso & Chicken", price:320, note:"蕎麥麵搭配柴魚麵露、紫蘇、季節生菜、小番茄、初榨橄欖油與鹽烤雞腿；附柴魚醬油嫩豆腐。", image:U('1766634001888-5d632d62689a') },
+  // ── FRIED ──
+  { venue:"CAFE", cat:"FRIED", zh:"海苔香酥薯條附明太子美乃滋", en:"Nori Fries, Mentaiko Mayo", price:180, note:"香酥薯條搭配海苔粉增添海味與香氣，搭配明太子美乃滋，呈現薯條酥香、海苔鹹鮮與明太子濃郁鮮味的風味組合。", image:U('1630431341771-1ceb084d6607') },
   // ── DESSERT ──
   { venue:"CAFE", cat:"DESSERT", zh:"莓果法式吐司", en:"Berry French Toast", price:280, note:"鮮奶吐司浸牛奶蛋液煎烤，搭配牛奶冰淇淋、核桃、覆盆子莓果醬、附上海鹽焦糖醬。", image:U('1639108094328-2b94a49b1c2e') },
   { venue:"CAFE", cat:"DESSERT", zh:"自製布丁・鹹鮮奶油", en:"House Pudding, Salted Cream", price:120, note:"滑嫩自製布丁搭配帶輕微鹹味的鮮奶油，平衡甜度並增加乳脂層次。", image:U('1702728109878-c61a98d80491') },
