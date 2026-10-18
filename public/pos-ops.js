@@ -497,6 +497,8 @@ function ticketCanvas(spec){
   const left=(t,size,bold)=>{setFont(size,bold);g.textAlign='left';g.fillText(t,8,y);advance(size);};
   const wrap=(t,size,bold)=>{setFont(size,bold);g.textAlign='left';for(const row of wrapTicketText(g,t,maxW)){g.fillText(row,8,y);advance(size);}};
   const row=(l,r,size,bold)=>{setFont(size,bold);const right=String(r??'');const rw=g.measureText(right).width;g.textAlign='right';g.fillText(right,W-8,y);g.textAlign='left';const leftMax=Math.max(40,maxW-rw-12);const lines=wrapTicketText(g,l,leftMax);lines.forEach((s,i)=>{g.fillText(s,8,y);if(i<lines.length-1)advance(size);});advance(size);};
+  // 備註加框：每行文字包進同一個外框（廚房一眼看到客製重點）
+  const box=(texts,size,bold)=>{setFont(size,bold);g.textAlign='left';const rows=texts.flatMap(t=>wrapTicketText(g,t,maxW-20));const top=y+2,h=rows.length*(size+6)+8;y=top+6;rows.forEach(r=>{g.fillText(r,14,y);y+=size+6;});g.lineWidth=2;g.strokeRect(9,top,W-18,h);g.lineWidth=1;y=top+h+8;};
   const rule=dashed=>{g.beginPath();if(dashed)g.setLineDash([4,4]);g.moveTo(8,y+4);g.lineTo(W-8,y+4);g.stroke();g.setLineDash([]);y+=12;};
   for(const cmd of spec||[]){
     if(cmd==='rule')rule(false);
@@ -504,6 +506,7 @@ function ticketCanvas(spec){
     else if(cmd.kind==='center')center(cmd.text,cmd.size||22,!!cmd.bold);
     else if(cmd.kind==='left')left(cmd.text,cmd.size||22,!!cmd.bold);
     else if(cmd.kind==='wrap')wrap(cmd.text,cmd.size||22,!!cmd.bold);
+    else if(cmd.kind==='box')box(cmd.texts,cmd.size||22,!!cmd.bold);
     else if(cmd.kind==='row')row(cmd.left,cmd.right,cmd.size||22,!!cmd.bold);
   }
   const out=document.createElement('canvas');out.width=W;out.height=Math.ceil(y+8);const og=out.getContext('2d');og.fillStyle='#fff';og.fillRect(0,0,W,out.height);og.drawImage(c,0,0);return out;
@@ -520,12 +523,12 @@ function kitchenTicketSpec(o){
   for(const [cat,lines] of ticketGroups(o)){
     spec.push({kind:'left',text:'【'+catLabel(cat)+'】',size:22,bold:true});
     for(const l of lines){
-      spec.push({kind:'row',left:`${l.zh}${l.comp_reason?'（贈）':''}`,right:'×'+l.qty,size:26,bold:true});
-      if(ordererOf(l))spec.push({kind:'left',text:'　'+ordererOf(l),size:22,bold:true});
-      // 規格一行（熱／無糖／去冰）、自由需求各自一行加大 ※，做的人不用在一串字裡找重點
+      spec.push({kind:'row',left:`${l.zh}${l.comp_reason?'（贈）':''}`,right:'×'+l.qty,size:52,bold:true});
+      if(ordererOf(l))spec.push({kind:'left',text:'　'+ordererOf(l),size:16});
+      // 品名 52 號大字；規格一行（熱／無糖／去冰）、自由需求各自一行加 ※，整組備註加框；點餐人弱化成小字
       const parts=specParts(l),opts=parts.filter(p=>p.kind!=='custom').map(p=>p.text),custom=parts.filter(p=>p.kind==='custom').map(p=>p.text);
-      if(opts.length)spec.push({kind:'wrap',text:'　'+opts.join('／'),size:22,bold:true});
-      for(const t of custom)spec.push({kind:'wrap',text:'※ '+t,size:24,bold:true});
+      const notes=[...(opts.length?[opts.join('／')]:[]),...custom.map(t=>'※ '+t)];
+      if(notes.length)spec.push({kind:'box',texts:notes,size:24,bold:true});
       count+=l.qty;
     }
   }
