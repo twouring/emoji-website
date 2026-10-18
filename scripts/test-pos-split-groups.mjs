@@ -40,8 +40,7 @@ test('POS 結帳頁：品項表依點餐人分組（多人才顯示組頭）、�
 
 test('文案：三個分帳選項＝全部付款／各付各的／平均分攤，手機頁、POS 結帳需求卡、操作說明一致，舊稱全部移除', () => {
   const html = read('public/order.html'), lib = read('public/order-lib.js'), api = read('docs/API.md');
-  assert.match(html, /data-i18n="my_items">各付各的</);
-  assert.match(lib, /my_items: '各付各的'/);
+  assert.match(lib, /my_items: '各付各的'/);   // 桌邊頁已不提供結帳面板，文案留在 order-lib.js 供舊分頁使用
   assert.match(ops, /r\.scope==='mine'\?'各付各的':'全部付款'/);
   assert.match(ops, /組頭「只結這組」＝各付各的，「依人數分次收款」＝平均分攤；可分多次收款，全部結清自動清桌/);
   assert.match(api, /`mine`＝各付各的/);

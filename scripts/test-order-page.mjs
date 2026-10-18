@@ -15,21 +15,21 @@ test('掃碼點餐依台北時間切換供應品牌，但不標示白天或晚�
   assert.match(html, /16:00／16:30／02:00／02:30／08:00 換時段/);
 });
 
-test('掃碼點餐手機流程提醒用餐完再到櫃檯結帳', () => {
-  assert.match(html, /用餐完再到櫃檯結帳/);
-  assert.match(html, /櫃檯結帳/);
+test('桌邊點餐沒有結帳鍵：客人到櫃檯告知，現場人員在 POS 結帳', () => {
+  assert.match(html, /離席前請到櫃檯結帳/);
   assert.match(html, /env\(safe-area-inset-bottom\)/);
   assert.doesNotMatch(html, />結帳<\/button>/);
+  for (const id of ['open-pay', 'cart-pay', 'pay-notify', 'pay-cancel', 'pay-scope', 'split-people']) {
+    assert.doesNotMatch(html, new RegExp(`id="${id}"`), id);
+  }
+  assert.doesNotMatch(html, /class="sheet" id="pay"/);
+  assert.doesNotMatch(html, /data-i18n="checkout"/);
+  assert.doesNotMatch(html, /\/pay-request'/, '客人端不再送「通知櫃檯結帳」');
 });
 
-test('掃碼點餐提供多國語系切換與三種分帳方式', () => {
+test('掃碼點餐提供多國語系切換', () => {
   assert.match(html, /id="lang-toggle"/);
   assert.match(html, /order-lib\.js/);
-  assert.match(html, /value="all"/);
-  assert.match(html, /value="mine"/);
-  assert.match(html, /value="split"/);
-  assert.match(html, /id="split-people"/);
-  assert.match(html, /OrderLib\.splitBill/);
   assert.match(html, /LANG==='zh'\?'EN'/);
 });
 
@@ -40,7 +40,7 @@ test('關鍵操作使用可存取的內嵌 SVG icon 輔助文字', () => {
   assert.match(html, /class="ico" aria-hidden="true"/);
   assert.match(html, /href="#i-globe"/);
   assert.match(html, /href="#i-cart"/);
-  assert.match(html, /href="#i-split"/);
+  assert.match(html, /href="#i-bell"/);
   assert.match(html, /var icon=function\(name\)/);
 });
 
@@ -97,6 +97,6 @@ test('已點清單彈窗：品項多、多人一起點時整張單比視窗高�
   assert.match(html, /<div class="sheet-body" id="cart-body">/);
   assert.match(html, /<div class="row sheet-actions"><button class="btn ghost" data-close/);
   assert.match(html, /\$\('#cart-body'\)\.scrollTop=0;openSheet\('#cart'\)/);
-  // cart-place/cart-pay 要留在 .sheet-actions 裡，不能又回到跟著品項清單一起捲動的區塊
-  assert.match(html, /sheet-actions"><button class="btn ghost" data-close data-i18n="continue">[\s\S]*?id="cart-place"[\s\S]*?id="cart-pay"/);
+  // cart-place 要留在 .sheet-actions 裡，不能又回到跟著品項清單一起捲動的區塊
+  assert.match(html, /sheet-actions"><button class="btn ghost" data-close data-i18n="continue">[\s\S]*?id="cart-place"/);
 });

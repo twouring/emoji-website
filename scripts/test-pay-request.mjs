@@ -69,16 +69,10 @@ test('server：資料欄、客人端 POST/DELETE、POS 關閉端點、輪詢回�
   assert.match(s, /pay_request:mine\?\{scope:mine\.scope,lines:mine\.lines,people:mine\.people\|\|undefined,at:mine\.at\}:null/, '客人端只看到自己那筆（含分攤人數）');
 });
 
-test('客人端：結帳面板有「通知櫃檯我要結帳」、已送出狀態與取消；三語文案', () => {
-  const html = read('public/order.html'), lib = read('public/order-lib.js');
-  assert.match(html, /id="pay-notify"/); assert.match(html, /id="pay-sent"/); assert.match(html, /id="pay-cancel"/);
-  assert.match(html, /api\('\/orders\/'\+S\.id\+'\/pay-request',\{method:'POST',body:\{guest:GUEST,name:NAME,scope:scope==='mine'\?'mine':scope==='split'\?'split':'all',people:people,lines:/);
-  assert.match(html, /api\('\/orders\/'\+S\.id\+'\/pay-request',\{method:'DELETE',body:\{guest:GUEST\}\}\)/);
-  assert.match(html, /if\(SHEET_OPEN==='#pay'\)renderPayRequest\(\);/, '輪詢到櫃檯收款後同步');
-  for (const k of ['notify_counter', 'notify_done', 'notify_sent', 'notify_cancel']) {
-    assert.equal((lib.match(new RegExp(`\\b${k}: '`, 'g')) || []).length, 3, k + ' 要有 zh/en/ja');
-  }
-  assert.match(lib, /notify_counter: '通知櫃檯我要結帳'/);
+test('客人端：桌邊點餐不提供結帳／通知櫃檯（客人到櫃檯告知，現場人員在 POS 操作）', () => {
+  const html = read('public/order.html');
+  assert.doesNotMatch(html, /id="pay-notify"/); assert.doesNotMatch(html, /id="pay-sent"/); assert.doesNotMatch(html, /id="pay-cancel"/);
+  assert.doesNotMatch(html, /\/pay-request'/);
 });
 
 test('POS：桌況格標記、桌號畫面一鍵勾選、✕ 關閉、新需求響一聲、sig 含需求、快取版本 bump', () => {
@@ -101,10 +95,7 @@ test('平均分攤：addPayRequest 帶人數（2–20）、view 算每人金額�
   const v = T.payRequestsView(rs, items)[0];
   assert.equal(v.amount, 330); assert.equal(v.people, 3); assert.equal(v.each, 110);
   for (const bad of [1, 21, 'x', undefined]) assert.throws(() => T.addPayRequest([], items, { guest: 'g1', scope: 'split', people: bad }), e => e.status === 400, String(bad));
-  const html = read('public/order.html'), lib = read('public/order-lib.js'), js = read('public/pos-ops.js');
-  assert.match(html, /data-i18n="whole_table">全部付款</); assert.match(html, /data-i18n="my_items">各付各的</); assert.match(html, /data-i18n="split_evenly">平均分攤</);
-  assert.match(html, /id="pay-scope-hint"/); assert.match(html, /notify_sent_split/);
-  for (const k of ['whole_table', 'my_items', 'split_evenly', 'my_items_hint', 'split_hint', 'notify_sent_split']) assert.equal((lib.match(new RegExp(`\\b${k}: '`, 'g')) || []).length, 3, k + ' 要有 zh/en/ja');
+  const js = read('public/pos-ops.js');
   assert.match(js, /r\.scope==='split'\?`平均分攤 \$\{r\.people\} 人 · 每人 NT\$\$\{num\(r\.each\|\|0\)\}`:r\.scope==='mine'\?'各付各的':'全部付款'/);
   assert.match(js, /if\(r\.scope==='split'&&r\.people\)\{startAA\(r\.people\);POS_PAYREQ=r\.id;paintPos\(\);return;\}/, '分攤需求一點就進分攤模式');
 });

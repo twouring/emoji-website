@@ -50,7 +50,7 @@ h3{font-size:1.05rem;margin:0 0 6px}
 #item-detail .sheet-actions{flex:none;margin:0;padding:10px 16px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--paper)}
 #item-detail .sheet-actions .btn{flex:1 1 0;min-width:0;white-space:nowrap}
 .name-form{margin:0}.name-form .f{min-height:48px;margin-bottom:10px}.name-actions{margin:0;flex-wrap:nowrap}.name-actions .btn{flex:1 1 0;min-width:0;white-space:nowrap}
-/* 已點清單：多人一起點、品項一多時整張單比視窗高，「送出點餐／用餐完結帳」同樣固定在底部，不會被捲出畫面點不到 */
+/* 已點清單：多人一起點、品項一多時整張單比視窗高，「送出點餐」同樣固定在底部，不會被捲出畫面點不到 */
 #cart .in{display:flex;flex-direction:column;padding:0;overflow:hidden}
 #cart .sheet-body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:16px 16px 8px}
 #cart .sheet-actions{flex:none;margin:0;padding:10px 16px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--paper)}
@@ -63,9 +63,6 @@ body.sheet-open{overflow:hidden}
 .who{font-weight:700;margin:14px 0 4px;display:flex;justify-content:space-between}
 .tot{display:flex;justify-content:space-between;font-size:1.15rem;font-weight:700;margin:14px 0}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
-#pay-scope{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}#pay-scope label{display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px;line-height:1.35}#pay-scope label:has(input:checked){border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
-.split-box{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}.split-box input{width:72px;min-height:44px;border:1px solid var(--line);border-radius:8px;padding:8px;text-align:center}.split-result{background:#fff8cf;border-radius:10px;padding:10px 12px;margin:8px 0}.split-result b{display:block;font-size:1.15rem}
-.pay-sent{display:flex;align-items:center;gap:8px;background:#eaf7ec;border:1px solid #bfe3c6;border-radius:10px;padding:10px 12px;margin:8px 0;color:#1b5e2a}.pay-sent span{flex:1}
 input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff}
 .tp{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;height:44px}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -78,8 +75,6 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 .line.others-pending{background:#fff6c2;margin:0 -8px;padding-left:8px;padding-right:8px;border-radius:8px;border-bottom-color:transparent}.line.others-pending .tag.pending{background:var(--yellow);border-color:var(--ink)}
 @keyframes line-in{from{background:var(--yellow)}to{background:transparent}}.line.fresh{animation:line-in 1.6s ease-out}.line.others-pending.fresh{animation:none}
 .place-hint{color:var(--soft);margin:6px 0 0;padding:6px 10px;background:#fff6c2;border-radius:8px}
-/* 有還沒送出的品項時，結帳鍵先收起來（送出去才輪到結帳）：固定只留 2 顆鍵，桌邊常見手機寬度（375–430px）才不會把金額擠到被按鈕蓋住 */
-.bar.has-place{grid-template-columns:1fr auto auto}.bar.has-place #open-pay{display:none}
 .ready-banner{position:fixed;top:0;left:0;right:0;z-index:30;background:var(--yellow);color:var(--ink);padding:calc(14px + env(safe-area-inset-top)) 16px 14px;font-weight:700;text-align:center;display:none;box-shadow:0 4px 20px rgba(0,0,0,.2)}
 .ready-banner.on{display:block}
 .err{color:var(--bad);min-height:1.2em}.muted{color:var(--muted)}
@@ -89,7 +84,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 .toast{position:fixed;left:16px;right:16px;top:calc(16px + env(safe-area-inset-top));z-index:40;background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;text-align:center;display:none}.toast.on{display:block}
 /* 375px（iPhone SE／mini）：底部列的兩顆鍵用 auto 寬、內距縮小（字級維持 16px 以上），金額欄保有最小寬度不被蓋住 */
 @media (max-width:400px){.bar{grid-template-columns:minmax(84px,1fr) auto auto;gap:6px;padding-left:10px;padding-right:10px}.bar .btn{padding:10px 12px}.bar .with-icon{gap:5px}.bar .s b{font-size:1.05rem}.sheet-actions .btn{padding-left:10px;padding-right:10px}}
-@media (max-width:380px){.wrap{padding:10px}.top{padding-left:12px;padding-right:12px}.bar{padding-left:8px;padding-right:8px}.btn{padding-left:9px;padding-right:9px}.btn.sm{min-height:42px}.menu-grid{grid-template-columns:1fr 1fr;gap:8px}.item .n{padding:8px}.item .tap{display:none}#pay-scope{grid-template-columns:1fr}.top .t{padding-left:8px;padding-right:8px}.choice-grid{grid-template-columns:1fr 1fr}.sheet .in{padding-left:12px;padding-right:12px}}
+@media (max-width:380px){.wrap{padding:10px}.top{padding-left:12px;padding-right:12px}.bar{padding-left:8px;padding-right:8px}.btn{padding-left:9px;padding-right:9px}.btn.sm{min-height:42px}.menu-grid{grid-template-columns:1fr 1fr;gap:8px}.item .n{padding:8px}.item .tap{display:none}.top .t{padding-left:8px;padding-right:8px}.choice-grid{grid-template-columns:1fr 1fr}.sheet .in{padding-left:12px;padding-right:12px}}
 /* 320px：底部列按鈕藏圖示只留文字、內距再縮；上一步／加入兩顆鍵各半；語言鍵縮小 */
 @media (max-width:320px){.menu-grid{grid-template-columns:1fr}.bar{grid-template-columns:minmax(72px,1fr) auto auto;gap:4px}.bar .btn{padding:9px 9px}.bar .ico{display:none}.top b{font-size:1rem}.top small{display:block}.lang{min-width:42px;padding:4px 8px}.choice-grid{grid-template-columns:1fr}.sheet-actions .btn{padding:10px 8px}.name-actions .btn{padding-left:8px;padding-right:8px}}
 </style>
@@ -127,29 +122,18 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   </section>
 </main>
 
-<!-- 底部列：有還沒送出的品項→主鍵是「送出點餐」（黃底）、結帳退為白底；全部送出了→主鍵回「用餐完結帳」 -->
-<div class="bar" id="bar" hidden><div class="s"><b id="bar-total">NT$0</b><small id="bar-count"></small></div><button class="btn ghost with-icon" id="open-cart"><svg class="ico" aria-hidden="true"><use href="#i-cart"></use></svg><span data-i18n="cart">已點清單</span></button><button class="btn y with-icon" id="bar-place" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span data-i18n="place">送出點餐</span></button><button class="btn y with-icon" id="open-pay"><svg class="ico" aria-hidden="true"><use href="#i-receipt"></use></svg><span data-i18n="checkout">用餐完結帳</span></button></div>
+<!-- 底部列：已點清單＋送出點餐。桌邊不提供結帳鍵：客人用餐完到櫃檯告知，現場人員在 POS 結帳 -->
+<div class="bar" id="bar" hidden><div class="s"><b id="bar-total">NT$0</b><small id="bar-count"></small></div><button class="btn ghost with-icon" id="open-cart"><svg class="ico" aria-hidden="true"><use href="#i-cart"></use></svg><span data-i18n="cart">已點清單</span></button><button class="btn y with-icon" id="bar-place" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span data-i18n="place">送出點餐</span></button></div>
 
 <div class="sheet" id="cart"><div class="in">
   <div class="sheet-body" id="cart-body"><h3 class="title-icon"><svg class="ico lg" aria-hidden="true"><use href="#i-cart"></use></svg><span data-i18n="table_order">這桌的點餐</span></h3><div id="cart-lines"></div><div class="tot"><span data-i18n="unpaid_total">未結帳合計</span><span id="cart-total"></span></div><p class="place-hint" id="place-hint" hidden></p><p class="muted" id="pay-reminder" data-i18n="pay_reminder" hidden>離席前請到櫃檯結帳，工作人員會依這桌的明細收款。</p></div>
-  <div class="row sheet-actions"><button class="btn ghost" data-close data-i18n="continue">繼續點</button><button class="btn y with-icon" id="cart-place" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span data-i18n="place">送出點餐</span></button><button class="btn y with-icon" id="cart-pay"><svg class="ico" aria-hidden="true"><use href="#i-receipt"></use></svg><span data-i18n="checkout">用餐完結帳</span></button></div>
+  <div class="row sheet-actions"><button class="btn ghost" data-close data-i18n="continue">繼續點</button><button class="btn y with-icon" id="cart-place" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span data-i18n="place">送出點餐</span></button></div>
 </div></div>
 
 
 <div class="sheet" id="item-detail"><div class="in">
   <div id="detail-body"></div>
   <div class="row sheet-actions"><button class="btn ghost with-icon" type="button" data-close><svg class="ico" aria-hidden="true"><use href="#i-back"></use></svg><span data-i18n="back_step">上一步</span></button><button class="btn y" id="detail-add" type="button" data-i18n="add_to_cart">加入已點清單</button></div>
-</div></div>
-
-<div class="sheet" id="pay"><div class="in">
-  <h3 class="title-icon"><svg class="ico lg" aria-hidden="true"><use href="#i-counter"></use></svg><span data-i18n="checkout_title">用餐完再到櫃檯結帳</span></h3>
-  <p class="muted" data-i18n="checkout_hint">請先享用餐點；離席前帶著手機到櫃檯，工作人員會依這桌點餐明細結帳。</p>
-  <div class="row" id="pay-scope"><label><input type="radio" name="scope" value="all" checked><svg class="ico" aria-hidden="true"><use href="#i-users"></use></svg><span data-i18n="whole_table">全部付款</span></label><label><input type="radio" name="scope" value="mine"><svg class="ico" aria-hidden="true"><use href="#i-user"></use></svg><span data-i18n="my_items">各付各的</span></label><label><input type="radio" name="scope" value="split"><svg class="ico" aria-hidden="true"><use href="#i-split"></use></svg><span data-i18n="split_evenly">平均分攤</span></label></div>
-  <p class="muted" id="pay-scope-hint"></p>
-  <label class="split-box hidden" id="split-box"><svg class="ico" aria-hidden="true"><use href="#i-users"></use></svg><span data-i18n="people">分攤人數</span><input id="split-people" type="number" inputmode="numeric" min="2" max="20" value="2"><span data-i18n="people_suffix">人</span></label>
-  <div class="tot"><span class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-counter"></use></svg><span data-i18n="counter_amount">櫃檯結帳金額</span></span><span id="pay-amount"></span></div>
-  <div class="split-result hidden" id="split-result"><div class="title-icon"><svg class="ico lg" aria-hidden="true"><use href="#i-split"></use></svg><b id="split-each"></b></div><span class="muted" id="split-note"></span></div>
-  <div id="pay-off"><p class="muted" data-i18n="keep_screen">畫面可先保留，結帳時出示給櫃檯確認。</p><div class="row"><button class="btn y with-icon" type="button" id="pay-notify"><svg class="ico" aria-hidden="true"><use href="#i-counter"></use></svg><span data-i18n="notify_counter">通知櫃檯我要結帳</span></button><button class="btn ghost" data-close data-i18n="back">返回繼續點</button></div><div class="pay-sent hidden" id="pay-sent"><svg class="ico" aria-hidden="true"><use href="#i-check"></use></svg><span id="pay-sent-text"></span><button class="btn ghost sm" type="button" id="pay-cancel" data-i18n="notify_cancel">取消</button></div></div>
 </div></div>
 
 <script src="/menu-lib.js"></script>
@@ -173,7 +157,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     document.querySelectorAll('[data-i18n]').forEach(function(el){el.textContent=tr(el.dataset.i18n);});
     document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el){el.placeholder=tr(el.dataset.i18nPlaceholder);});
     $('#lang-label').textContent=LANG==='zh'?'EN':(LANG==='en'?'日本語':'中文');
-    if(S){renderMenu();renderState();refreshPayAmount();}
+    if(S){renderMenu();renderState();}
   }
   $('#lang-toggle').onclick=function(){LANG=LANG==='zh'?'en':(LANG==='en'?'ja':'zh');try{localStorage.setItem('order_lang',LANG);}catch(e){}applyLanguage();};
   applyLanguage();
@@ -280,7 +264,6 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   // 套餐內容：「主餐：明太子美式炒蛋可頌／飲品：拿鐵咖啡（溫度：熱）」逐項列在套餐名稱下面
   var partsLines=function(l){return (l.parts||[]).map(function(p){var nm=LANG==='en'?(p.en||p.zh):LANG==='ja'?(p.ja||p.zh):p.zh;var sl=(OrderLib.slotLabel?OrderLib.slotLabel(p.slot,LANG):p.slot);return '<br><span class="by">'+esc(sl+'：'+nm+(p.note?'（'+p.note+'）':''))+'</span>';}).join('');};
   var unpaid=function(){return (S.items||[]).filter(function(l){return !l.order_id;});};
-  var mine=function(){return unpaid().filter(function(l){return l.mine;});};
   var pending=function(){return unpaid().filter(function(l){return !l.placed_at;});};   // 加了還沒送出的
   var othersPending=function(){return pending().filter(function(l){return !l.mine;});};   // 別人加了還沒送出的（我按送出會一起送）
   var itemName=function(l){return LANG==='en'?(l.en||l.zh):LANG==='ja'?(l.ja||l.zh):l.zh;};
@@ -307,8 +290,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     $('#table-no').textContent=tr('table')+' '+S.table;
     var u=unpaid(),p=pending();
     $('#bar').hidden=!NAME;$('#bar-total').textContent=money(sum(u));$('#bar-count').textContent=p.length?tr('pending_items',{count:p.length}):u.length?tr('unpaid_items',{count:u.length}):tr('empty');
-    $('#open-pay').disabled=!u.length;$('#cart-pay').disabled=!u.length;
-    // 有還沒送出的品項：主鍵變「送出點餐」，結帳退為白底（送出去才會進廚房）
+    // 有還沒送出的品項才出現「送出點餐」；桌邊沒有結帳鍵，用餐完到櫃檯由現場人員在 POS 結帳
     $('#bar').classList.toggle('has-place',p.length>0);$('#bar-place').hidden=!p.length;$('#cart-place').hidden=!p.length;
     // 送出鍵寫清楚會送幾項、有沒有包到別人的：「送出 5 項（含小華 2 項）」
     var op=othersPending(),placeText=op.length?tr('place_with_others',{count:p.length,others:othersSummary(op)}):tr('place_n',{count:p.length});
@@ -321,7 +303,6 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     $('#cart-total').textContent=money(sum(u));
     // 有已送出但未結帳的品項：已點清單固定提醒離席前到櫃檯結帳
     $('#pay-reminder').hidden=!u.some(function(l){return l.placed_at;});
-    if(SHEET_OPEN==='#pay')renderPayRequest();   // 輪詢到櫃檯已收款（需求消失）時同步畫面
     // 出餐單
     var os=S.orders||[],byId={};(S.items||[]).forEach(function(l){byId[l.line]=l;});
     $('#orders-card').classList.toggle('hidden',!os.length);
@@ -384,7 +365,6 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   });
   $('#detail-add').onclick=function(){if(!CURRENT_ITEM)return;if(!needName())return;var btn=this;btn.disabled=true;unlockAudio();api(S.id?'/orders/'+S.id+'/items':'/orders/table/items',{method:'POST',body:Object.assign({item_id:CURRENT_ITEM.id,t:T,k:K,qty:CURRENT_QTY,by:NAME,guest:GUEST,note:optionNote()},comboBody())}).then(function(s){var sid=S&&S.id;applyState(s);if(s.id&&s.id!==sid)live();btn.textContent='✓ '+tr('added');setTimeout(function(){closeSheets();btn.textContent=tr('add_to_cart');},450);}).catch(function(err){toast(err.message);if(/已結束/.test(err.message))sessionClosed();if(err.status===423){PAUSED=err.message;renderMenu();}if(/售完|下架/.test(err.message))loadMenuDoc();}).then(function(){btn.disabled=!!PAUSED;});};
   $('#open-cart').onclick=function(){$('#cart-body').scrollTop=0;openSheet('#cart');};
-  $('#open-pay').onclick=$('#cart-pay').onclick=function(){$('#cart').classList.remove('on');openPay();};
   // 送出點餐：整桌還沒送的一起進出餐看板（不結帳）；送出後已點清單標「已送出」、不能再自己刪
   var placing=false;
   $('#bar-place').onclick=$('#cart-place').onclick=function(){if(placing||!pending().length)return;
@@ -393,46 +373,6 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     api('/orders/'+S.id+'/place',{method:'POST',body:{guest:GUEST}}).then(function(s){applyState(s);closeSheets();toast(tr('place_done'),6000);try{navigator.vibrate&&navigator.vibrate(80);}catch(e){}})
       .catch(function(err){toast(err.message);if(/已結束/.test(err.message))sessionClosed();if(err.status===423){PAUSED=err.message;renderMenu();}})
       .then(function(){placing=false;btns.forEach(function(b){b.disabled=false;});});};
-
-  /* ---- 用餐完櫃檯結帳提醒／AA 分帳 ---- */
-  function payScopeLines(){var scope=document.querySelector('input[name=scope]:checked').value;return scope==='mine'?mine():unpaid();}
-  function refreshPayAmount(){
-    if(!S)return;
-    var scope=document.querySelector('input[name=scope]:checked').value,ls=payScopeLines(),isSplit=scope==='split';
-    $('#pay-amount').textContent=money(sum(ls));
-    $('#pay-scope-hint').textContent=scope==='mine'?tr('my_items_hint'):isSplit?tr('split_hint'):'';
-    $('#split-box').classList.toggle('hidden',!isSplit);$('#split-result').classList.toggle('hidden',!isSplit);
-    if(isSplit){
-      var people=Math.max(2,Math.min(20,Number($('#split-people').value)||2));$('#split-people').value=people;
-      var split=OrderLib.splitBill(sum(ls),people);
-      $('#split-each').textContent=tr('split_each')+' '+money(split.base);
-      $('#split-note').textContent=split.remainder?tr('split_remainder',{count:split.remainder}):'';
-    }
-  }
-  document.querySelectorAll('input[name=scope]').forEach(function(r){r.onchange=refreshPayAmount;});
-  $('#split-people').oninput=refreshPayAmount;
-  // 通知櫃檯：把現在選的範圍送到 POS。全部付款／各付各的＝櫃檯桌號畫面一點就勾好那幾項；平均分攤＝帶人數，櫃檯依人數分次收款（每人一張單）
-  function renderPayRequest(){
-    var pr=S&&S.pay_request;
-    $('#pay-sent').classList.toggle('hidden',!pr);$('#pay-notify').hidden=!!pr;
-    if(pr){var ls=unpaid().filter(function(l){return pr.lines.indexOf(l.line)>=0;});$('#pay-sent-text').textContent=pr.scope==='split'&&pr.people?tr('notify_sent_split',{people:pr.people,each:money(OrderLib.splitBill(sum(ls),pr.people).base)}):tr('notify_sent',{amount:money(sum(ls)),count:ls.length});}
-  }
-  $('#pay-notify').onclick=function(){
-    var scope=document.querySelector('input[name=scope]:checked').value,ls=scope==='mine'?mine():unpaid();
-    if(!ls.length)return;var btn=this;btn.disabled=true;
-    var people=scope==='split'?Math.max(2,Math.min(20,Number($('#split-people').value)||2)):undefined;
-    api('/orders/'+S.id+'/pay-request',{method:'POST',body:{guest:GUEST,name:NAME,scope:scope==='mine'?'mine':scope==='split'?'split':'all',people:people,lines:scope==='mine'?ls.map(function(l){return l.line;}):[]}})
-      .then(function(s){S=s;renderState();renderPayRequest();toast(tr('notify_done'),5000);try{navigator.vibrate&&navigator.vibrate(80);}catch(e){}})
-      .catch(function(err){toast(err.message);if(/已結束/.test(err.message))sessionClosed();}).then(function(){btn.disabled=false;});
-  };
-  $('#pay-cancel').onclick=function(){api('/orders/'+S.id+'/pay-request',{method:'DELETE',body:{guest:GUEST}}).then(function(s){S=s;renderState();renderPayRequest();}).catch(function(err){toast(err.message);});};
-  function openPay(){
-    openSheet('#pay');
-    var mineRadio=document.querySelector('input[name=scope][value=mine]'),hasSeparateMine=mine().length&&mine().length<unpaid().length;
-    mineRadio.parentNode.style.display=hasSeparateMine?'':'none';
-    if(mineRadio.checked&&!hasSeparateMine)document.querySelector('input[name=scope][value=all]').checked=true;
-    refreshPayAmount();renderPayRequest();
-  }
 
   /* ---- 取餐推播（不登入） ---- */
   function subscribePush(orderId,btn){
