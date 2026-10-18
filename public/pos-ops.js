@@ -1878,8 +1878,6 @@ let OPERATOR=null; /* 只在一次動作期間存在，不寫入儲存；每次�
 let OP_PIN='',OP_MSG=null,OP_BUSY=false;
 /* 需要 PIN 的動作（結帳、作廢、開錢櫃…）：每次都先跳鍵盤認人，動作做完就忘掉 */
 async function ensureOperator(cb){ return new Promise((resolve,reject)=>openOperatorPad(async()=>{ try{ resolve(await cb()); }catch(e){reject(e);}finally{ OPERATOR=null; } },false,()=>{OPERATOR=null;resolve();})); }
-/* 閒置蓋板：保留畫面狀態，輸入有效 PIN 才解鎖（不能取消，只能登出） */
-function lockScreen(){ if(document.querySelector('.op-overlay'))return; openOperatorPad(()=>{OPERATOR=null;},true); }
 function openOperatorPad(onDone,required,onCancel){
   OP_PIN=''; OP_MSG=null;
   const ov=document.createElement('div'); ov.className='op-overlay';

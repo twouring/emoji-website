@@ -43,13 +43,10 @@ test('接線：/api/admin/staff/verify 端點存在且限流、開桌與結帳�
   assert.match(docs, /### POST \/api\/admin\/staff\/verify/);
 });
 
-test('閒置蓋板：3 分鐘鎖定，需 PIN 解鎖，所有登入方式都啟用', () => {
+test('POS 不自動鎖定螢幕（無閒置蓋板）', () => {
   const pos = read('public/pos.html'), ops = read('public/pos-ops.js');
-  assert.match(pos, /const lock = \(\) => lockScreen\(\)/);
-  assert.match(pos, /3 \* 60e3/);
-  assert.match(pos, /\n    startIdleLock\(\);/);
-  assert.match(ops, /function lockScreen\(\)/);
-  assert.match(ops, /openOperatorPad\(\(\)=>\{OPERATOR=null;\},true\)/);
+  assert.doesNotMatch(pos, /startIdleLock|lockScreen|IDLE_T/);
+  assert.doesNotMatch(ops, /function lockScreen/);
 });
 
 test('開桌／外帶開單：前端每次先輸入 PIN，後端沒有有效操作人員就擋', () => {

@@ -71,7 +71,7 @@ for (const [label,state,allowed] of [
   const ctx={token:'signed-session',DEVICE_ID:'test-device',DEVICE_BOUND:false,justLoggedInByAdmin:true,
     BRAND_LABEL:{CAFE:'在咖啡',BAR:'三點水'},api:async path=>{paths.push(path);return path==='/state'?state:{};},
     showLoginScreen:msg=>screens.push(msg),MenuLib:{parseMenuDoc:()=>({})},routeTab:()=> 'pos',
-    render:()=>{ctx.rendered=true;},startIdleLock(){},refreshPending(){},renewToken(){},app:{},esc:String};
+    render:()=>{ctx.rendered=true;},refreshPending(){},renewToken(){},app:{},esc:String};
   runInNewContext(boot,ctx);
   await ctx.main();
   assert.equal(ctx.rendered===true,allowed);

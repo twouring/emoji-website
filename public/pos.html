@@ -421,14 +421,6 @@ async function renewToken(){
 setInterval(renewToken, 3600e3);
 document.getElementById('p-logout').onclick = () => { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); location.reload(); };
 
-// 閒置 3 分鐘蓋板鎖定（所有登入方式）：輸入 4 位數 PIN 才能繼續，畫面狀態保留；避免離開座位被別人代 key
-let IDLE_T = null;
-function startIdleLock(){
-  const lock = () => lockScreen();
-  const bump = () => { clearTimeout(IDLE_T); IDLE_T = setTimeout(lock, 3 * 60e3); };
-  ['click','touchstart','keydown'].forEach(ev => document.addEventListener(ev, bump, { passive:true }));
-  bump();
-}
 async function main(){
   try { const dv = await api('/pos-devices/' + encodeURIComponent(DEVICE_ID)); DEVICE_BOUND = !!dv.bound; } catch (e) {}
   if (!token) return showLoginScreen();
@@ -445,7 +437,6 @@ async function main(){
     MENU_DOC = (typeof d.content?.menu === 'string' && d.content.menu.trim()) ? MenuLib.parseMenuDoc(d.content.menu) : MenuLib.parseMenuDoc('');
     TAB = routeTab();
     if (d.me?.operator) setScope(scopesOf(d)[0] || '');
-    startIdleLock();
     render();
     refreshPending();
     renewToken();
