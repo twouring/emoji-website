@@ -118,8 +118,8 @@
   /* 套餐：每個選擇欄（主餐／飲品）一組單選，選到的品項再帶出它自己的規格（溫度／糖度／冰塊／飯量…），
    * 規格組用 when 綁在所選品項上，沿用 activeOptionGroups 顯示／隱藏。items＝同一份菜單（找出各選項對應的品項）。 */
   const SLOT = {
-    en: { 主餐: 'Main', 飲品: 'Drink', 貝果: 'Bagel', 飯糰: 'Onigiri', 甜點: 'Dessert' },
-    ja: { 主餐: 'メイン', 飲品: 'ドリンク', 貝果: 'ベーグル', 飯糰: 'おにぎり', 甜點: 'デザート' },
+    en: { 主餐: 'Main', 飲品: 'Drink', 貝果: 'Bagel', 飯糰: 'Onigiri', 甜點: 'Dessert', 麵: 'Noodles' },
+    ja: { 主餐: 'メイン', 飲品: 'ドリンク', 貝果: 'ベーグル', 飯糰: 'おにぎり', 甜點: 'デザート', 麵: '麺' },
   };
   const slotLabel = (zh, lang) => (SLOT[lang] && SLOT[lang][zh]) || zh;
   const nameOf = (m, lang) => (lang === 'en' && m.en) || (lang === 'ja' && m.ja) || m.zh;

@@ -1006,6 +1006,16 @@ async function seedMenuContent() {
         console.log('[menu-seed] 套餐開放給客人掃碼點餐：' + n + ' 項。');
       }
     } catch (e) { console.warn('[menu-seed] 套餐開放略過：', e && e.message); }
+    try {   // 一次性：新增「麵套餐」（已有同名就略過）；直接開放給客人
+      const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_combo_noodle_v1'`)).rows.length;
+      if (!done) {
+        const doc = JSON.parse((await readContent()).menu);
+        const n = require('./lib/menu-combos').comboBackfill(doc.items, { open: true });
+        if (n > 0) await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
+        await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_combo_noodle_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(n)]);
+        console.log('[menu-seed] 已補上麵套餐：' + n + ' 項。');
+      }
+    } catch (e) { console.warn('[menu-seed] 麵套餐略過：', e && e.message); }
     // 既有菜單：僅補上缺少的日文品名（不動已填內容）
     try {
       const doc = JSON.parse((await readContent()).menu);   // 重新讀：前面的一次性回填已更新 DB，用啟動時的舊 content.menu 會把它們蓋回去
@@ -4463,7 +4473,7 @@ app.post('/api/me/pickups', auth, requireDb, rateLimit({ max: 20, windowMs: 3600
   // 菜單依取餐時段的品牌（不是現在的營業品牌）；客人端看不到 pos_only
   const menu = tableOrders.menuIndex(await contentValue('menu'), p.venue, { now: p.pickupAt });
   let items = [];
-  try { for (const x of p.items) items = tableOrders.addLine(items, menu, { item_id: x.item_id, qty: x.qty, by: me.name || '會員', guest: pickup.guestOf(me.id), note: x.note }); }
+  try { for (const x of p.items) items = tableOrders.addLine(items, menu, { item_id: x.item_id, qty: x.qty, by: me.name || '會員', guest: pickup.guestOf(me.id), note: x.note, combo: x.combo }); }
   catch (e) { return res.status(e.status || 400).json({ error: e.message }); }
   const client = await pool.connect();
   try {

@@ -13,16 +13,16 @@ const O = win.OrderLib;
 const mk = (zh, cat, price) => ({ id: 'i_' + zh, venue: 'CAFE', cat, zh, en: '', ja: '', price, published: true, note: '' });
 const base = [mk('原味貝果', 'BREAD', 80), mk('無花果核桃蜂蜜奶油貝果', 'BREAD', 150), mk('美式咖啡', 'COFFEE', 150), mk('拿鐵咖啡', 'COFFEE', 180), mk('柚子氣泡', 'SPARKLING', 160),
   mk('海苔馬告豬肉時雨煮飯糰', 'JAPANESE', 220), mk('鹽烤雞腿昆布飯糰', 'JAPANESE', 240), mk('奶油松露野菇炒蛋開放式三明治', 'BREAD', 300), mk('燻鮭魚酪梨蒔蘿奶油開放式三明治', 'BREAD', 320),
-  mk('明太子美式炒蛋可頌', 'BREAD', 320), mk('自製布丁・鹹鮮奶油', 'DESSERT', 120), mk('巴斯克蛋糕', 'DESSERT', 100), mk('藍莓起司蛋糕', 'DESSERT', 100)];
+  mk('明太子美式炒蛋可頌', 'BREAD', 320), mk('自製布丁・鹹鮮奶油', 'DESSERT', 120), mk('柚子紫蘇雞腿冷蕎麥麵', 'JAPANESE', 320), mk('巴斯克蛋糕', 'DESSERT', 100), mk('藍莓起司蛋糕', 'DESSERT', 100)];
 const items = base.slice(); comboBackfill(items);
 const menu = new Map(items.map(i => [i.id, i]));
 const combo = zh => items.find(i => i.zh === zh);
 
 test('回填：四個套餐、內容都對得到菜單品項；做兩次不重複', () => {
-  assert.equal(COMBOS.length, 4);
+  assert.equal(COMBOS.length, 5);
   assert.equal(comboBackfill(items), 0);
   for (const c of COMBOS) for (const s of c.combo) for (const ch of s.choices) assert.ok(base.some(b => b.zh === ch.zh), c.zh + ' → ' + ch.zh);
-  assert.deepEqual(COMBOS.map(c => c.zh), ['貝果套餐', '飯糰套餐', '早午餐套餐', '下午茶套餐']);
+  assert.deepEqual(COMBOS.map(c => c.zh), ['貝果套餐', '飯糰套餐', '早午餐套餐', '麵套餐', '下午茶套餐']);
 });
 test('加點套餐：沒選內容 400；選到不在套餐內的 400；價格＝套餐價＋伺服器算的加價', () => {
   const it = combo('貝果套餐');
@@ -101,7 +101,7 @@ test('comboOpen：只開放內建四個、只做一次的資料轉換；後台�
   const { comboOpen } = require('../lib/menu-combos.js');
   const list = items.map(x => ({ ...x }));
   list.push({ id: 'm_custom', cat: 'COMBO', pos_only: true, zh: '自訂套餐', venue: 'CAFE' });
-  assert.equal(comboOpen(list), 4);
+  assert.equal(comboOpen(list), 5);
   assert.equal(list.find(x => x.id === 'm_custom').pos_only, true);
   assert.equal(comboOpen(list), 0);
 });
@@ -114,16 +114,47 @@ test('英日文：套餐欄名與選項名依語言顯示，送出仍用中文�
   const picks = {}; g.forEach(x => { picks[x.key] = x.choices[0]; });
   assert.equal(O.comboPayload(g, picks).drink.zh, '美式咖啡');
 });
-test('官網菜單：套餐列出內容；預約取餐頁排除套餐', () => {
+test('官網菜單：套餐列出內容', () => {
   const M = (() => { const w = {}; vm.runInContext; vm.runInNewContext(fs.readFileSync(new URL('../public/menu-lib.js', import.meta.url), 'utf8'), { window: w, console }); return w.MenuLib; })();
   const html = M.renderMenuHtml([M.normalizeItem(combo('貝果套餐'))], 'zh', '');
   assert.match(html, /貝果：原味貝果 \/ 無花果核桃蜂蜜奶油貝果（\+50）/);
   assert.match(html, /飲品：美式咖啡 \/ 拿鐵咖啡（\+30）/);
-  assert.match(fs.readFileSync(new URL('../public/m.html', import.meta.url), 'utf8'), /it\.cat!=='COMBO'/);
 });
 test('order.html 接線：套餐走 comboGroups／送 combo，購物車列出內容', () => {
   const h = fs.readFileSync(new URL('../public/order.html', import.meta.url), 'utf8');
   assert.match(h, /it\.cat==='COMBO'\?OrderLib\.comboGroups\(it,MENU,LANG\)/);
   assert.match(h, /Object\.assign\(\{item_id:CURRENT_ITEM\.id[^\n]*\},comboBody\(\)\)/);
   assert.match(h, /partsLines\(l\)/);
+});
+
+test('麵套餐：冷蕎麥麵＋飲品，選了麵會帶出「麵量」規格，價 400', () => {
+  const it = combo('麵套餐');
+  assert.equal(it.price, 400);
+  const g = O.comboGroups(it, items, 'zh');
+  assert.equal(g.find(x => x.key === 'main').label, '麵');
+  const picks = {}; g.forEach(x => { picks[x.key] = x.choices[0]; });
+  assert.ok(O.activeOptionGroups(g, picks).some(x => x.sub && /麵量/.test(x.label)), '要問麵量');
+  const [l] = T.posAddLine([], menu, { item_id: it.id, qty: 1, combo: { main: { zh: '柚子紫蘇雞腿冷蕎麥麵', note: '麵量：少麵' }, drink: { zh: '美式咖啡' } } });
+  assert.equal(l.price, 400);
+  assert.equal(l.parts[0].note, '麵量：少麵');
+  assert.equal(win.OrderLib.slotLabel('麵', 'en'), 'Noodles');
+});
+test('預約取餐：後端收 combo 並由 addLine 驗證；App 有選內容頁、送 combo、卡片列內容；SW 快取 order-lib', () => {
+  const P = require('../lib/pickup.js');
+  const now = new Date('2026-10-19T09:00:00+08:00');
+  const body = { date: '2026-10-19', time: '12:00', items: [{ item_id: combo('貝果套餐').id, qty: 2, combo: { main: { zh: '原味貝果' }, drink: { zh: '拿鐵咖啡', note: '溫度：熱\x07' }, junk: 5 } }] };
+  const p = P.normalizePickup(body, now);
+  assert.equal(p.items[0].combo.drink.note, '溫度：熱', '控制字元要清掉');
+  assert.equal(p.items[0].combo.junk.zh, '', '不認得的欄位不會變成有效選擇');
+  const [l] = T.addLine([], menu, { item_id: p.items[0].item_id, qty: p.items[0].qty, guest: 'app12345678', combo: p.items[0].combo, price: 1 });
+  assert.equal(l.price, 230);
+  assert.equal(l.qty, 2);
+  assert.throws(() => T.addLine([], menu, { item_id: p.items[0].item_id, qty: 1, guest: 'app12345678', combo: { main: { zh: '原味貝果' } } }), /還沒選/);
+  const m = fs.readFileSync(new URL('../public/m.html', import.meta.url), 'utf8');
+  assert.match(m, /<script src="\/order-lib\.js"><\/script>/);
+  assert.match(m, /function openComboPicker\(/);
+  assert.match(m, /concat\(\(PK\.combos\|\|\[\]\)\.map\(c=>\(\{item_id:c\.id,qty:c\.qty,combo:c\.combo\}\)\)\)/);
+  assert.doesNotMatch(m, /it\.cat!=='COMBO'/, '預約取餐不再排除套餐');
+  assert.match(fs.readFileSync(new URL('../public/m-sw.js', import.meta.url), 'utf8'), /'\/order-lib\.js'/);
+  assert.match(fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8'), /combo: x\.combo/);
 });

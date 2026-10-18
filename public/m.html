@@ -219,6 +219,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 <div class="toast" id="toast" hidden role="status"></div>
 <script src="/vendor/qrcode.min.js"></script>
 <script src="/menu-lib.js"></script>
+<script src="/order-lib.js"></script>
 <script>
 (function(){
   const KEY='tth_token', CACHE='m_cache', LANG_KEY='m_lang';
@@ -248,7 +249,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       myRegs:'我的報名',noRegs:'還沒有報名活動',checkedIn:'已報到',tickets:n=>n+' 張',showTicket:'出示票券',eventPage:'活動頁',ticketMeta:n=>n>1?'活動票券 '+n+' 張 · 請出示給工作人員掃描':'活動票券 · 請出示給工作人員掃描',ticketFail:'票券暫時無法顯示，請到活動頁查看',
       upcoming:'即將到來',pickupLabel:'預約取餐 ',resvLabel:'訂位 ',states:{done:'已完成',ended:'已結束',ready:'可取餐',preparing:'準備中',placed:'已送單',booked:'已預約'},
       resvTitle:'訂位',back:'返回',date:'日期',party:'人數',partyN:n=>(n===6?'6+':n)+' 位',slotLabel:'時段',venues:['在咖啡 08:00–17:00','三點水 17:00–03:00'],noteOpt:'備註（選填）',resvHint:()=>'座位保留 10 分鐘。',submitResv:'送出訂位',pickSlot:'請選一個時段',noOpenSlots:'這天沒有開放訂位的時段，請改選其他日期',resvOk:id=>'訂位成立 '+id,
-      pickupTitle:'預約取餐',pickupShort:'預約取餐',pickupHint:n=>'先選時間再選餐點，到店付款。',pickupDay:'取餐日',today:'今天',tomorrow:'明天',dayAfter:'後天',pickupTime:'取餐時間',noSlots:'這天已沒有可預約的時段，請改選其他日期',loadingMenu:'載入菜單…',pickTimeFirst:'選好時間後會顯示該時段的菜單。',submitPickup:'送出預約',itemsN:n=>'（'+n+' 件）',menuFail:'菜單載入失敗',noItems:'這個時段沒有可預約的品項',dec:'減少',inc:'增加',pickupOk:'預約成立，取餐前會開始準備',cafe:'在咖啡',bar:'三點水',opFail:'操作失敗，請稍後再試',
+      pickupTitle:'預約取餐',pickupShort:'預約取餐',pickupHint:n=>'先選時間再選餐點，到店付款。',pickupDay:'取餐日',today:'今天',tomorrow:'明天',dayAfter:'後天',pickupTime:'取餐時間',noSlots:'這天已沒有可預約的時段，請改選其他日期',loadingMenu:'載入菜單…',pickTimeFirst:'選好時間後會顯示該時段的菜單。',submitPickup:'送出預約',comboQty:'數量',comboPick:'選擇內容',comboAdd:'加入預約',comboRemove:'移除',comboSet:'套餐',itemsN:n=>'（'+n+' 件）',menuFail:'菜單載入失敗',noItems:'這個時段沒有可預約的品項',dec:'減少',inc:'增加',pickupOk:'預約成立，取餐前會開始準備',cafe:'在咖啡',bar:'三點水',opFail:'操作失敗，請稍後再試',
       installLabel:{prompt:'安裝到主畫面',ios:'看怎麼加到主畫面',inapp:'看怎麼用瀏覽器開啟'}},
     en:{locale:'en-US',back:'Back',tabHome:'Card',tabPlan:'Plan',tabEvents:'Events',tabMe:'Me',loading:'Loading…',
       loginTitle:'emoji Member',loginSub:'Sign in to earn points at every space, view your membership and register for events.',google:'Sign in with Google',lineLogin:'Sign in with LINE',email:'Sign in with Email',needName:'Please enter your name',emailSend:'Send sign-in link',emailSent:'Link sent',emailSentTo:e=>'Check '+e+' and open the link to sign in. It expires in 20 minutes.',emailFail:'Could not send the link — try Google instead',firstTime:'New here? Sign in with any option and your account is created automatically.',
@@ -271,7 +272,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       myRegs:'My registrations',noRegs:'No event registrations yet',checkedIn:'Checked in',tickets:n=>n+' tickets',showTicket:'Show ticket',eventPage:'Event page',ticketMeta:n=>n>1?n+' tickets · show to staff to scan':'Event ticket · show to staff to scan',ticketFail:'Ticket unavailable right now — see the event page',
       upcoming:'Coming up',pickupLabel:'Pickup ',resvLabel:'Reservation ',states:{done:'Done',ended:'Closed',ready:'Ready',preparing:'Preparing',placed:'Sent to kitchen',booked:'Booked'},
       resvTitle:'Reserve a table',back:'Back',date:'Date',party:'Guests',partyN:n=>(n===6?'6+':n),slotLabel:'Time',venues:['at cafe 08:00–17:00','3AM 17:00–03:00'],noteOpt:'Note (optional)',resvHint:()=>'Tables are held for 10 minutes.',submitResv:'Reserve',pickSlot:'Pick a time',noOpenSlots:'No bookable slots on this day. Pick another date.',resvOk:id=>'Reserved · '+id,
-      pickupTitle:'Order for pickup',pickupShort:'Pickup',pickupHint:n=>'Pick a time, then your items. Pay in store.',pickupDay:'Pickup day',today:'Today',tomorrow:'Tomorrow',dayAfter:'In 2 days',pickupTime:'Pickup time',noSlots:'No more slots that day — pick another date',loadingMenu:'Loading menu…',pickTimeFirst:'Pick a time to see that period’s menu.',submitPickup:'Place order',itemsN:n=>' ('+n+' items)',menuFail:'Could not load the menu',noItems:'Nothing available for this slot',dec:'Less',inc:'More',pickupOk:'Order placed — we’ll start preparing before pickup',cafe:'at cafe',bar:'3AM',opFail:'Action failed. Please try again.',
+      pickupTitle:'Order for pickup',comboQty:'Quantity',comboPick:'Choose',comboAdd:'Add to order',comboRemove:'Remove',comboSet:'Set',pickupShort:'Pickup',pickupHint:n=>'Pick a time, then your items. Pay in store.',pickupDay:'Pickup day',today:'Today',tomorrow:'Tomorrow',dayAfter:'In 2 days',pickupTime:'Pickup time',noSlots:'No more slots that day — pick another date',loadingMenu:'Loading menu…',pickTimeFirst:'Pick a time to see that period’s menu.',submitPickup:'Place order',itemsN:n=>' ('+n+' items)',menuFail:'Could not load the menu',noItems:'Nothing available for this slot',dec:'Less',inc:'More',pickupOk:'Order placed — we’ll start preparing before pickup',cafe:'at cafe',bar:'3AM',opFail:'Action failed. Please try again.',
       installLabel:{prompt:'Install',ios:'How to add to home screen',inapp:'How to open in a browser'}},
     ja:{locale:'ja-JP',back:'戻る',tabHome:'カード',tabPlan:'会員',tabEvents:'イベント',tabMe:'設定',loading:'読み込み中…',
       loginTitle:'言文字 会員',loginSub:'ログインすると、すべての空間でポイントを貯め、会員資格の確認やイベント申込ができます。',google:'Google でログイン',lineLogin:'LINE でログイン',email:'メールでログイン',needName:'名前を入力してください',emailSend:'ログインリンクを送信',emailSent:'送信しました',emailSentTo:e=>e+' に届いたリンクを開くとログインできます。有効期限は20分です。',emailFail:'送信できませんでした。Google でログインしてください',firstTime:'初めての方も、いずれかの方法でログインすると自動で登録されます。',
@@ -294,7 +295,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       myRegs:'イベント申込',noRegs:'申込済みのイベントはありません',checkedIn:'チェックイン済',tickets:n=>n+' 枚',showTicket:'チケットを表示',eventPage:'イベントページ',ticketMeta:n=>n>1?'チケット '+n+' 枚 · スタッフに提示してスキャン':'イベントチケット · スタッフに提示してスキャン',ticketFail:'チケットを表示できません。イベントページをご覧ください',
       upcoming:'近日の予定',pickupLabel:'テイクアウト ',resvLabel:'予約 ',states:{done:'完了',ended:'終了',ready:'受け取り可',preparing:'準備中',placed:'調理中',booked:'予約済'},
       resvTitle:'席を予約',back:'戻る',date:'日付',party:'人数',partyN:n=>(n===6?'6+':n)+' 名',slotLabel:'時間',venues:['在咖啡 08:00–17:00','三點水 17:00–03:00'],noteOpt:'備考（任意）',resvHint:()=>'席は10分間保持します。',submitResv:'予約する',pickSlot:'時間を選んでください',noOpenSlots:'この日はご予約枠がありません。別の日をお選びください。',resvOk:id=>'予約完了 '+id,
-      pickupTitle:'テイクアウト予約',pickupShort:'お持ち帰り',pickupHint:n=>'時間を選んでから料理を選びます。お支払いは店頭で。',pickupDay:'受け取り日',today:'今日',tomorrow:'明日',dayAfter:'明後日',pickupTime:'受け取り時間',noSlots:'この日の枠はもうありません。別の日を選んでください',loadingMenu:'メニューを読み込み中…',pickTimeFirst:'時間を選ぶとその時間帯のメニューが表示されます。',submitPickup:'予約する',itemsN:n=>'（'+n+' 点）',menuFail:'メニューを読み込めませんでした',noItems:'この時間帯に予約できる品はありません',dec:'減らす',inc:'増やす',pickupOk:'予約完了。受け取り前に準備を始めます',cafe:'在咖啡',bar:'三點水',opFail:'操作に失敗しました。しばらくしてから再度お試しください。',
+      pickupTitle:'テイクアウト予約',comboQty:'数量',comboPick:'内容を選ぶ',comboAdd:'予約に追加',comboRemove:'削除',comboSet:'セット',pickupShort:'お持ち帰り',pickupHint:n=>'時間を選んでから料理を選びます。お支払いは店頭で。',pickupDay:'受け取り日',today:'今日',tomorrow:'明日',dayAfter:'明後日',pickupTime:'受け取り時間',noSlots:'この日の枠はもうありません。別の日を選んでください',loadingMenu:'メニューを読み込み中…',pickTimeFirst:'時間を選ぶとその時間帯のメニューが表示されます。',submitPickup:'予約する',itemsN:n=>'（'+n+' 点）',menuFail:'メニューを読み込めませんでした',noItems:'この時間帯に予約できる品はありません',dec:'減らす',inc:'増やす',pickupOk:'予約完了。受け取り前に準備を始めます',cafe:'在咖啡',bar:'三點水',opFail:'操作に失敗しました。しばらくしてから再度お試しください。',
       installLabel:{prompt:'ホーム画面にインストール',ios:'追加方法を見る',inapp:'ブラウザで開く方法を見る'}},
   };
   const lsGet=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
@@ -466,11 +467,11 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     <section class="sec"><h2>${esc(T.updates)}</h2>${ups.length?ups.map(u=>`<div class="upd mute"><b style="color:var(--ink)">${esc(u.title)}</b><time>${esc(u.published_at)}</time>${u.content?`<p>${esc(u.content)}</p>`:''}</div>`).join(''):`<p class="empty">${esc(T.noUpdates)}</p>`}</section>`;
   }
   /* ---- 預約：我的訂位／預約取餐／我的報名（上游 f68960f 移植，改三語） ---- */
-  let sub='list', PK={date:'',time:'',qty:{},note:''}, RV={date:'',time:'',party:2,note:''}, MENU=null;
+  let sub='list', PK={date:'',time:'',qty:{},combos:[],note:''}, RV={date:'',time:'',party:2,note:''}, MENU=null;
   function go(where){if(where==='events'){tab='events';paint();return;}tab='book';sub=where==='resv'?'resv':where==='pickup'?'pickup':'list';paint();}
   const dayLabel=d=>{const x=new Date(d+'T00:00:00+08:00');return x.toLocaleDateString(T.locale,{timeZone:'Asia/Taipei',month:'numeric',day:'numeric',weekday:'short'});};
   const itemName=it=>LANG==='ja'&&it.ja?it.ja:LANG==='en'&&it.en?it.en:it.zh;
-  const linesText=ls=>ls.map(l=>itemName(l)+'×'+l.qty).join('、');
+  const linesText=ls=>ls.map(l=>itemName(l)+'×'+l.qty+(l.parts&&l.parts.length?'（'+partsText(l)+'）':'')).join('、');
   function upcomingSec(){
     const rv=(data.reservations||[]).filter(r=>r.can_cancel),pk=(data.pickups||[]).filter(p=>p.status==='open');
     if(!rv.length&&!pk.length)return '';
@@ -537,24 +538,55 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     <div class="sticky"><button class="btn solid" id="pkgo" ${PK.time&&pkCount()?'':'disabled'}>${esc(T.submitPickup)}${pkCount()?esc(T.itemsN(pkCount())):''}</button></div>`;
     document.getElementById('bk').onclick=()=>{sub='list';paint();};
     document.getElementById('pkd').onclick=e=>{const b=e.target.closest('button');if(!b)return;PK.date=b.dataset.d;PK.time='';paint();};
-    document.getElementById('pkt').onclick=e=>{const b=e.target.closest('button');if(!b)return;const prev=venue;PK.time=b.dataset.t;const nv=(slots.find(x=>x.time===PK.time)||{}).venue;if(prev&&nv!==prev)PK.qty={};paint();};
+    document.getElementById('pkt').onclick=e=>{const b=e.target.closest('button');if(!b)return;const prev=venue;PK.time=b.dataset.t;const nv=(slots.find(x=>x.time===PK.time)||{}).venue;if(prev&&nv!==prev){PK.qty={};PK.combos=[];}paint();};
     document.getElementById('pkn').oninput=e=>{PK.note=e.target.value;};
     document.getElementById('pkgo').onclick=submitPickup;
     if(PK.time)loadMenu().then(()=>renderPickMenu(venue)).catch(()=>{const h=document.getElementById('pkm');if(h)h.innerHTML=`<p class="empty">${esc(T.menuFail)}</p>`;});
   }
-  const pkCount=()=>Object.values(PK.qty).reduce((a,n)=>a+n,0);
+  const pkCount=()=>Object.values(PK.qty).reduce((a,n)=>a+n,0)+(PK.combos||[]).reduce((a,c)=>a+c.qty,0);
   function renderPickMenu(venue){
     const host=document.getElementById('pkm');if(!host||!MENU)return;
-    const items=MenuLib.sortItems(MenuLib.orderableOnly(MENU,new Date(PK.date+'T'+PK.time+':00+08:00')).filter(it=>it.venue===venue&&it.cat!=='COMBO'));   // 套餐要選內容，預約取餐還沒有這個畫面
+    const items=MenuLib.sortItems(MenuLib.orderableOnly(MENU,new Date(PK.date+'T'+PK.time+':00+08:00')).filter(it=>it.venue===venue));
     if(!items.length){host.innerHTML=`<p class="empty">${esc(T.noItems)}</p>`;return;}
     let cat='',html='';
-    for(const it of items){if(it.cat!==cat){cat=it.cat;const cl=MenuLib.CAT_LABEL[cat]||{};html+=`<div class="cat">${esc(cl[LANG]||cl.zh||cat)}</div>`;}const n=PK.qty[it.id]||0;const nt=LANG==='ja'&&it.note_ja?it.note_ja:it.note;html+=`<div class="mi"><div class="nm">${esc(itemName(it))}<small>NT$${esc(it.price)}${nt?' · '+esc(nt):''}</small></div><div class="q"><button type="button" data-dec="${esc(it.id)}" aria-label="${esc(T.dec)}" ${n?'':'disabled'}>−</button><b>${n}</b><button type="button" data-inc="${esc(it.id)}" aria-label="${esc(T.inc)}">＋</button></div></div>`;}
+    for(const it of items){if(it.cat!==cat){cat=it.cat;const cl=MenuLib.CAT_LABEL[cat]||{};html+=`<div class="cat">${esc(cl[LANG]||cl.zh||cat)}</div>`;}const n=PK.qty[it.id]||0;const nt=LANG==='ja'&&it.note_ja?it.note_ja:it.note;if(it.cat==='COMBO'){const mine=(PK.combos||[]).map((c,i)=>({c,i})).filter(x=>x.c.id===it.id);html+=`<div class="mi"><div class="nm">${esc(itemName(it))}<small>NT$${esc(it.price)}${nt?' · '+esc(nt):''}</small>${mine.map(x=>`<small>${esc(comboLine(x.c))} <button type="button" class="quiet" data-cdel="${x.i}" style="width:auto;min-height:44px;margin:0">${esc(T.comboRemove)}</button></small>`).join('')}</div><div class="q"><button type="button" data-copen="${esc(it.id)}" style="width:auto;border-radius:22px;padding:0 16px;font-size:1rem">${esc(T.comboPick)}</button></div></div>`;continue;}html+=`<div class="mi"><div class="nm">${esc(itemName(it))}<small>NT$${esc(it.price)}${nt?' · '+esc(nt):''}</small></div><div class="q"><button type="button" data-dec="${esc(it.id)}" aria-label="${esc(T.dec)}" ${n?'':'disabled'}>−</button><b>${n}</b><button type="button" data-inc="${esc(it.id)}" aria-label="${esc(T.inc)}">＋</button></div></div>`;}
     host.innerHTML=html;
-    host.onclick=e=>{const b=e.target.closest('button');if(!b)return;const id=b.dataset.inc||b.dataset.dec;const n=(PK.qty[id]||0)+(b.dataset.inc?1:-1);if(n<=0)delete PK.qty[id];else PK.qty[id]=Math.min(20,n);renderPickMenu(venue);const g=document.getElementById('pkgo');if(g){g.disabled=!pkCount();g.textContent=T.submitPickup+(pkCount()?T.itemsN(pkCount()):'');}};
+    host.onclick=e=>{const b=e.target.closest('button');if(!b)return;
+      if(b.dataset.copen){openComboPicker(MENU.items.find(x=>x.id===b.dataset.copen),venue);return;}
+      if(b.dataset.cdel!==undefined){PK.combos.splice(Number(b.dataset.cdel),1);renderPickMenu(venue);syncPkGo();return;}
+      const id=b.dataset.inc||b.dataset.dec;const n=(PK.qty[id]||0)+(b.dataset.inc?1:-1);if(n<=0)delete PK.qty[id];else PK.qty[id]=Math.min(20,n);renderPickMenu(venue);syncPkGo();};
+  }
+  const syncPkGo=()=>{const g=document.getElementById('pkgo');if(g){g.disabled=!pkCount();g.textContent=T.submitPickup+(pkCount()?T.itemsN(pkCount()):'');}};
+  // 套餐內容文字：「貝果：原味貝果／飲品：拿鐵咖啡（溫度：熱）」；來源是 PK.combos（尚未送出）或已建立預約的 line.parts
+  const partName=p=>LANG==='ja'&&p.ja?p.ja:LANG==='en'&&p.en?p.en:p.zh;
+  const comboLine=c=>(c.qty>1?'×'+c.qty+' ':'')+c.labels.join('／');
+  const partsText=l=>(l.parts||[]).map(p=>OrderLib.slotLabel(p.slot,LANG)+'：'+partName(p)+(p.note?'（'+p.note+'）':'')).join('／');
+  function openComboPicker(it,venue){
+    if(!it)return;
+    const groups=OrderLib.comboGroups(it,MENU.items,LANG),picks={};let qty=1;
+    groups.forEach(g=>{picks[g.key]=g.choices[0];});
+    const el=document.createElement('div');el.className='pg';
+    const draw=()=>{
+      const act=OrderLib.activeOptionGroups(groups,picks);
+      el.querySelector('.body').innerHTML=`<h2 style="margin:0 0 4px">${esc(itemName(it))}</h2><p class="note">NT$${esc(it.price)}</p>`
+        +`<div class="fld">${esc(T.comboQty)}<div class="seg" data-q>${[1,2,3,4].map(n=>`<button type="button" data-qn="${n}" aria-pressed="${qty===n}">${n}</button>`).join('')}</div></div>`
+        +act.map(g=>`<div class="fld">${esc(g.label)}<div class="seg" data-g="${esc(g.key)}">${g.choices.map(c=>`<button type="button" data-v="${esc(c)}" aria-pressed="${picks[g.key]===c}">${esc(c)}</button>`).join('')}</div></div>`).join('')
+        +`<button class="btn solid" id="cadd" type="button">${esc(T.comboAdd)}</button>`;
+      el.querySelectorAll('[data-qn]').forEach(b=>b.onclick=()=>{qty=Number(b.dataset.qn);draw();});
+      el.querySelectorAll('[data-g] button').forEach(b=>b.onclick=()=>{picks[b.parentNode.dataset.g]=b.dataset.v;groups.forEach(g=>{if(!picks[g.key])picks[g.key]=g.choices[0];});draw();});
+      el.querySelector('#cadd').onclick=()=>{
+        const payload=OrderLib.comboPayload(groups,picks),zhGroups=OrderLib.comboGroups(it,MENU.items,'zh');
+        const labels=groups.filter(g=>g.combo).map(g=>{const i=g.choices.indexOf(picks[g.key]);const v=payload[g.key];const sub=OrderLib.activeOptionGroups(groups,picks).filter(s=>s.sub&&s.sub.slot===g.key&&s.sub.label===g.choices[i<0?0:i]).map(s=>picks[s.key]||s.choices[0]);return g.label+'：'+g.choices[i<0?0:i].replace(/ \(\+\d+\)$/,'')+(sub.length?'（'+sub.join('、')+'）':'');});
+        PK.combos.push({id:it.id,qty,combo:payload,labels});
+        close();renderPickMenu(venue);syncPkGo();
+      };
+    };
+    el.innerHTML=`<header><button class="back" type="button" id="cb"><b>‹</b><span>${esc(T.back)}</span></button></header><div class="body"></div>`;
+    document.body.appendChild(el);const close=pushPg(el);el.querySelector('#cb').onclick=close;draw();
   }
   async function submitPickup(){
     const b=document.getElementById('pkgo');b.disabled=true;
-    try{const items=Object.entries(PK.qty).filter(([,n])=>n>0).map(([item_id,qty])=>({item_id,qty}));await post('/api/me/pickups',{date:PK.date,time:PK.time,items,note:PK.note});toast(T.pickupOk);PK={date:'',time:'',qty:{},note:''};sub='list';await load();}
+    try{const items=Object.entries(PK.qty).filter(([,n])=>n>0).map(([item_id,qty])=>({item_id,qty})).concat((PK.combos||[]).map(c=>({item_id:c.id,qty:c.qty,combo:c.combo})));await post('/api/me/pickups',{date:PK.date,time:PK.time,items,note:PK.note});toast(T.pickupOk);PK={date:'',time:'',qty:{},combos:[],note:''};sub='list';await load();}
     catch(e){toast(e.message||T.opFail);b.disabled=false;}
   }
   /* ---- 會籍 ---- */
