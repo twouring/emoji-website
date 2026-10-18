@@ -83,11 +83,27 @@
       const choices = (Array.isArray(s && s.choices) ? s.choices : []).slice(0, 12).map(c => {
         const zh = String(typeof c === 'string' ? c : (c && c.zh) || '').trim();
         const add = Math.max(0, Math.min(1000, Math.round(Number(c && c.add)) || 0));
-        return zh ? { zh, add } : null;
+        const id = String((c && c.id) || '').trim().slice(0, 40);
+        return zh || id ? (id ? { id, zh, add } : { zh, add }) : null;
       }).filter(Boolean);
       const label = String((s && s.label) || '').trim().slice(0, 12);
       return label && choices.length ? { key: String((s && s.key) || 's' + (i + 1)).replace(/[^a-z0-9_]/gi, '').slice(0, 12) || 's' + (i + 1), label, choices } : null;
     }).filter(Boolean);
+  }
+
+  /* 套餐選項對應菜單品項：有 id 先用 id（品項改名也不脫鉤），沒有才用品名；只找同店、非套餐的品項 */
+  function comboTarget(choice, items, venue) {
+    const pool = (items || []).filter(x => x.venue === venue && x.cat !== 'COMBO');
+    return (choice.id && pool.find(x => x.id === choice.id)) || pool.find(x => x.zh === choice.zh) || null;
+  }
+  /* 把選項的 id 補齊、品名同步成菜單現名（後台存檔、開機回填時用）；回傳是否有改 */
+  function linkCombo(item, items) {
+    let changed = false;
+    for (const s of item.combo || []) for (const c of s.choices) {
+      const m = comboTarget(c, items, item.venue);
+      if (m && (c.id !== m.id || c.zh !== m.zh)) { c.id = m.id; c.zh = m.zh; changed = true; }
+    }
+    return changed;
   }
 
   /* 後台用文字編輯套餐：每行一個選擇欄「主餐：原味貝果、無花果核桃蜂蜜奶油貝果+70」（+數字＝加價） */
@@ -287,6 +303,6 @@
 
   global.MenuLib = {
     CATS, VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, MEMBER_RATE, memberPrice, activeVenue, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
-    normalizeCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, soldOutToday, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
+    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, soldOutToday, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

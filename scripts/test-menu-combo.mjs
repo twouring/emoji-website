@@ -13,7 +13,7 @@ const O = win.OrderLib;
 const mk = (zh, cat, price) => ({ id: 'i_' + zh, venue: 'CAFE', cat, zh, en: '', ja: '', price, published: true, note: '' });
 const base = [mk('原味貝果', 'BREAD', 80), mk('無花果核桃蜂蜜奶油貝果', 'BREAD', 150), mk('美式咖啡', 'COFFEE', 150), mk('拿鐵咖啡', 'COFFEE', 180), mk('柚子氣泡', 'SPARKLING', 160),
   mk('海苔馬告豬肉時雨煮飯糰', 'JAPANESE', 220), mk('鹽烤雞腿昆布飯糰', 'JAPANESE', 240), mk('奶油松露野菇炒蛋開放式三明治', 'BREAD', 300), mk('燻鮭魚酪梨蒔蘿奶油開放式三明治', 'BREAD', 320),
-  mk('明太子美式炒蛋可頌', 'BREAD', 320), mk('自製布丁・鹹鮮奶油', 'DESSERT', 120), mk('柚子紫蘇雞腿冷蕎麥麵', 'JAPANESE', 320), mk('巴斯克蛋糕', 'DESSERT', 100), mk('藍莓起司蛋糕', 'DESSERT', 100)];
+  mk('明太子美式炒蛋可頌', 'BREAD', 320), mk('自製布丁・鹹鮮奶油', 'DESSERT', 120), { ...mk('柚香紫蘇雞腿冷蕎麥麵', 'JAPANESE', 320), id: 'm_8qx9kqre' }, mk('巴斯克蛋糕', 'DESSERT', 100), mk('藍莓起司蛋糕', 'DESSERT', 100)];
 const items = base.slice(); comboBackfill(items);
 const menu = new Map(items.map(i => [i.id, i]));
 const combo = zh => items.find(i => i.zh === zh);
@@ -21,7 +21,7 @@ const combo = zh => items.find(i => i.zh === zh);
 test('回填：四個套餐、內容都對得到菜單品項；做兩次不重複', () => {
   assert.equal(COMBOS.length, 5);
   assert.equal(comboBackfill(items), 0);
-  for (const c of COMBOS) for (const s of c.combo) for (const ch of s.choices) assert.ok(base.some(b => b.zh === ch.zh), c.zh + ' → ' + ch.zh);
+  for (const c of COMBOS) for (const s of c.combo) for (const ch of s.choices) assert.ok(base.some(b => b.zh === ch.zh && (!ch.id || b.id === ch.id)), c.zh + ' → ' + ch.zh);
   assert.deepEqual(COMBOS.map(c => c.zh), ['貝果套餐', '飯糰套餐', '早午餐套餐', '麵套餐', '下午茶套餐']);
 });
 test('加點套餐：沒選內容 400；選到不在套餐內的 400；價格＝套餐價＋伺服器算的加價', () => {
@@ -134,7 +134,7 @@ test('麵套餐：冷蕎麥麵＋飲品，選了麵會帶出「麵量」規格�
   assert.equal(g.find(x => x.key === 'main').label, '麵');
   const picks = {}; g.forEach(x => { picks[x.key] = x.choices[0]; });
   assert.ok(O.activeOptionGroups(g, picks).some(x => x.sub && /麵量/.test(x.label)), '要問麵量');
-  const [l] = T.posAddLine([], menu, { item_id: it.id, qty: 1, combo: { main: { zh: '柚子紫蘇雞腿冷蕎麥麵', note: '麵量：少麵' }, drink: { zh: '美式咖啡' } } });
+  const [l] = T.posAddLine([], menu, { item_id: it.id, qty: 1, combo: { main: { zh: '柚香紫蘇雞腿冷蕎麥麵', note: '麵量：少麵' }, drink: { zh: '美式咖啡' } } });
   assert.equal(l.price, 400);
   assert.equal(l.parts[0].note, '麵量：少麵');
   assert.equal(win.OrderLib.slotLabel('麵', 'en'), 'Noodles');
@@ -157,4 +157,30 @@ test('預約取餐：後端收 combo 並由 addLine 驗證；App 有選內容頁
   assert.doesNotMatch(m, /it\.cat!=='COMBO'/, '預約取餐不再排除套餐');
   assert.match(fs.readFileSync(new URL('../public/m-sw.js', import.meta.url), 'utf8'), /'\/order-lib\.js'/);
   assert.match(fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8'), /combo: x\.combo/);
+});
+
+test('麵套餐只放在咖啡既有麵食；選項以 id 對應，品項改名套餐仍點得到', () => {
+  const noodles = base.filter(b => b.venue === 'CAFE' && /麵/.test(b.zh)).map(b => b.id);
+  const it = combo('麵套餐');
+  assert.ok(it.combo[0].choices.every(c => noodles.includes(c.id)), '麵欄只能是在咖啡既有麵食');
+  const renamed = items.map(x => (x.id === 'm_8qx9kqre' ? { ...x, zh: '柚香紫蘇雞腿冷蕎麥麵（新名）' } : x));
+  const m2 = new Map(renamed.map(i => [i.id, i]));
+  const g = O.comboGroups(renamed.find(x => x.zh === '麵套餐'), renamed, 'zh');
+  assert.match(g.find(x => x.key === 'main').choices[0], /新名/);
+  const picks = {}; g.forEach(x => { picks[x.key] = x.choices[0]; });
+  const pay = O.comboPayload(g, picks);
+  assert.equal(pay.main.id, 'm_8qx9kqre');
+  const [l] = T.posAddLine([], m2, { item_id: it.id, qty: 1, combo: pay });
+  assert.match(l.parts[0].zh, /新名/);
+});
+test('comboRelink：舊資料（選項是改名前的品名、沒有 id）補上 id 並同步現名；做第二次不再變動', () => {
+  const { comboRelink } = require('../lib/menu-combos.js');
+  const list = items.map(x => JSON.parse(JSON.stringify(x)));
+  const nd = list.find(x => x.id === 'm_cafe_combo_9');
+  nd.combo[0].choices = [{ zh: '柚子紫蘇雞腿冷蕎麥麵', add: 0 }];
+  list.find(x => x.id === 'm_cafe_combo_5').combo[1].choices.forEach(c => { delete c.id; });
+  assert.ok(comboRelink(list) >= 2);
+  assert.deepEqual([nd.combo[0].choices[0].id, nd.combo[0].choices[0].zh], ['m_8qx9kqre', '柚香紫蘇雞腿冷蕎麥麵']);
+  assert.equal(list.find(x => x.id === 'm_cafe_combo_5').combo[1].choices[0].id, 'i_美式咖啡');
+  assert.equal(comboRelink(list), 0);
 });

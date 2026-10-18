@@ -1689,7 +1689,7 @@ function bindMenu(){
       alcohol: document.getElementById('mi-alcohol').checked,
       custom_price: document.getElementById('mi-custom-price').checked,
       pos_only: document.getElementById('mi-pos-only').checked,
-      combo: MenuLib.comboFromText(document.getElementById('mi-combo').value),
+      combo: (()=>{ const c=MenuLib.comboFromText(document.getElementById('mi-combo').value); const it={venue:document.getElementById('mi-venue').value,combo:c}; MenuLib.linkCombo(it,MENU_DOC.items); const miss=c.flatMap(s=>s.choices.filter(x=>!x.id).map(x=>x.zh)); if(miss.length) toast('套餐內容找不到這些品項（要是同店菜單的品名）：'+miss.join('、')); return c; })(),
       published: document.getElementById('mi-published').checked,
       sort: Number(document.getElementById('mi-sort').value) || 0,
       available_from: document.getElementById('mi-from').value,

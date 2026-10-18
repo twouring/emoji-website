@@ -127,11 +127,12 @@
     const groups = [];
     (item?.combo || []).forEach(slot => {
       const opts = slot.choices.map(c => {
-        const m = (items || []).find(x => x.zh === c.zh && x.venue === item.venue && x.cat !== 'COMBO');
+        const pool = (items || []).filter(x => x.venue === item.venue && x.cat !== 'COMBO');
+        const m = (c.id && pool.find(x => x.id === c.id)) || pool.find(x => x.zh === c.zh);
         return m ? { c, m, name: nameOf(m, lang), label: nameOf(m, lang) + (c.add > 0 ? ' (+' + c.add + ')' : '') } : null;
       }).filter(Boolean);
       if (!opts.length) return;
-      groups.push({ key: slot.key, label: slotLabel(slot.label, lang), choices: opts.map(o => o.label), values: opts.map(o => o.c.zh), combo: true });
+      groups.push({ key: slot.key, label: slotLabel(slot.label, lang), choices: opts.map(o => o.label), values: opts.map(o => o.m.zh), ids: opts.map(o => o.m.id), combo: true });
       opts.forEach((o, i) => {
         optionGroups(o.m, lang).forEach(g => {
           const key = slot.key + '__' + i + '__' + g.key;
@@ -150,7 +151,7 @@
       const i = g.choices.indexOf(picks[g.key] || g.choices[0]);
       const label = g.choices[i < 0 ? 0 : i];
       const subs = active.filter(s => s.sub && s.sub.slot === g.key && s.sub.label === label);
-      out[g.key] = { zh: g.values[i < 0 ? 0 : i], note: subs.map(s => s.sub.optLabel + '：' + (picks[s.key] || s.choices[0])).join('；') };
+      out[g.key] = { id: g.ids[i < 0 ? 0 : i], zh: g.values[i < 0 ? 0 : i], note: subs.map(s => s.sub.optLabel + '：' + (picks[s.key] || s.choices[0])).join('；') };
     });
     return out;
   }

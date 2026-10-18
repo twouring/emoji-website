@@ -1016,6 +1016,11 @@ async function seedMenuContent() {
         console.log('[menu-seed] 已補上麵套餐：' + n + ' 項。');
       }
     } catch (e) { console.warn('[menu-seed] 麵套餐略過：', e && e.message); }
+    try {   // 每次開機：套餐選項補 id、同步品名（品項改名不脫鉤）
+      const doc = JSON.parse((await readContent()).menu);
+      const n = require('./lib/menu-combos').comboRelink(doc.items);
+      if (n > 0) { await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]); console.log('[menu-seed] 套餐選項已對應品項：' + n + ' 個套餐。'); }
+    } catch (e) { console.warn('[menu-seed] 套餐對應略過：', e && e.message); }
     // 既有菜單：僅補上缺少的日文品名（不動已填內容）
     try {
       const doc = JSON.parse((await readContent()).menu);   // 重新讀：前面的一次性回填已更新 DB，用啟動時的舊 content.menu 會把它們蓋回去
