@@ -9,6 +9,7 @@ function checkout({method='cash',fail=false,printFail=false}={}){
  vm.createContext(ctx);
  vm.runInContext(src.slice(src.indexOf('async function opsThen('),src.indexOf('function ordersBeep(')),ctx);
  vm.runInContext(src.slice(src.indexOf('const DRAWER_ATTEMPTS='),src.indexOf('async function openCashDrawer(')),ctx);
+ vm.runInContext(src.match(/const invoicePrintable=[^\n]+/)[0].replace('const ','var '),ctx);
  vm.runInContext(src.slice(src.indexOf('async function printCheckoutOrder('),src.indexOf('// 出餐單（')),ctx);
  vm.runInContext(src.slice(src.indexOf("  host.querySelector('#pos-checkout').onclick="),src.indexOf("  const place=host.querySelector('#pos-place')")),ctx);
  return {ctx,button,events,messages};

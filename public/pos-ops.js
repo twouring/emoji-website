@@ -215,7 +215,7 @@ async function askInvoice(){
     if(!/^\d{3,7}$/.test(val)){toast('愛心碼請輸入 3–7 碼數字');return null;}
     return {mode:'donate',love_code:val};
   }
-  const val=await pickCarrier(kind);if(val===null)return null;
+  const val=kind==='mobile'?await scanMobileCarrier():await pickCarrier(kind);if(val===null)return null;
   if(kind==='mobile'&&!/^\/[A-Z0-9.+-]{7}$/.test(val)){toast('手機條碼需為 / 開頭共 8 碼');return null;}
   if(kind==='citizen'&&!/^[A-Z]{2}\d{14}$/.test(val)){toast('自然人憑證條碼格式不正確');return null;}
   return {mode:kind,carrier_num:val};
@@ -235,6 +235,26 @@ function pickCarrier(kind){
     inp.focus();
   });
 }
+// 手機載具：全螢幕彈窗直接開相機掃客人手機上的載具條碼；只收「/ 開頭 8 碼」，其他條碼略過繼續掃。也可手打或用掃描槍。回傳條碼，null＝取消
+const MOBILE_CARRIER_RE=/^\/[A-Z0-9.+-]{7}$/;
+function scanMobileCarrier(initial=''){
+  return new Promise(resolve=>{
+    const ov=document.createElement('div');ov.className='pos-scan-full';ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');ov.setAttribute('aria-label','掃描手機載具');
+    ov.innerHTML=`<div class="pos-scan-full-head"><b>掃描手機載具</b><button type="button" class="btn btn--ghost" data-cancel>關閉</button></div><div class="pos-scan-full-cam"><video id="pos-carrier-full-video" playsinline muted></video><div class="pos-scan-full-frame" aria-hidden="true"></div></div><p class="pos-scan-full-hint" role="status">請客人打開手機載具條碼，對準框內</p><div class="pos-scan-full-foot"><input id="pos-carrier-full-input" maxlength="8" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="或手動輸入 /ABC+123" value="${esc(initial)}"><button type="button" class="btn btn--solid" data-ok>確定</button></div>`;
+    document.body.appendChild(ov);
+    const video=ov.querySelector('video'),inp=ov.querySelector('input'),hint=ov.querySelector('.pos-scan-full-hint');
+    let closed=false;
+    const done=v=>{if(closed)return;closed=true;stopPosInvoiceScanner(video);ov.remove();document.removeEventListener('keydown',esc_);resolve(v);};
+    const esc_=e=>{if(e.key==='Escape'){e.preventDefault();done(null);}};document.addEventListener('keydown',esc_);
+    const submit=()=>{const v=inp.value.trim().toUpperCase();if(!MOBILE_CARRIER_RE.test(v)){hint.textContent='手機條碼需為 / 開頭共 8 碼';inp.focus();return;}done(v);};
+    ov.querySelector('[data-cancel]').onclick=()=>done(null);
+    ov.querySelector('[data-ok]').onclick=submit;
+    inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();submit();}};
+    startInvoiceScan(video,v=>done(v),{accept:v=>MOBILE_CARRIER_RE.test(v)}).then(ok=>{if(!ok&&!closed){hint.textContent='相機無法使用，請手動輸入或用掃描槍';inp.focus();}});
+  });
+}
+// 發票證明聯只給紙本與統編；手機載具、自然人憑證、捐贈不印（ezPay PrintFlag 同規則）。舊資料沒有 mode 視為可印
+const invoicePrintable=inv=>inv?.status==='issued'&&(!inv.mode||inv.mode==='paper'||inv.mode==='company');
 let POS_EDIT=false,POS_EDIT_POS=null;
 let POS_INV_SCAN_STREAM=null,POS_INV_SCAN_FRAME=0;
 // 發票各類型只顯示自己要填的欄位（點選後才出現），手機載具可用相機掃描條碼代替手打
@@ -267,7 +287,7 @@ function barcodeDetectorClass(){
   };
 }
 // 共用掃描迴圈：開相機→逐幀辨識→掃到就停、回呼、提示。結帳與補開發票都用這一個；video 是誰的就把畫面放誰那裡
-async function startInvoiceScan(video,onCode,{raw:keepRaw=false,sensitive=false}={}){
+async function startInvoiceScan(video,onCode,{raw:keepRaw=false,sensitive=false,accept=null}={}){
   const BD=barcodeDetectorClass();
   if(!BD||!navigator.mediaDevices?.getUserMedia){toast('此瀏覽器不支援相機掃碼，請直接輸入條碼。');return false;}
   try{
@@ -279,7 +299,7 @@ async function startInvoiceScan(video,onCode,{raw:keepRaw=false,sensitive=false}
       if(!POS_INV_SCAN_STREAM||video.srcObject!==POS_INV_SCAN_STREAM)return;
       const codes=await detector.detect(video).catch(()=>[]);
       const raw=codes[0]?.rawValue;
-      if(raw){const v=keepRaw?raw.trim():raw.trim().toUpperCase();stopPosInvoiceScanner(video);onCode(v);toast(sensitive?'已掃到付款碼':'已掃到條碼：'+v);return;}
+      if(raw&&(!accept||accept(keepRaw?raw.trim():raw.trim().toUpperCase()))){const v=keepRaw?raw.trim():raw.trim().toUpperCase();stopPosInvoiceScanner(video);onCode(v);toast(sensitive?'已掃到付款碼':'已掃到條碼：'+v);return;}
       POS_INV_SCAN_FRAME=requestAnimationFrame(tick);
     };
     tick();return true;
@@ -633,7 +653,7 @@ async function pollKitchenPrinting(){
 }
 async function printCheckoutOrder(order){
   // 結帳只印發票與明細；出餐單由送單工作佇列處理，不隨收款重印。
-  try{if(order.invoice?.status==='issued')await printInvoiceProof(order,{auto:true});}catch(e){toast('已收款，發票列印失敗，請到查單補印：'+e.message);}
+  try{if(invoicePrintable(order.invoice))await printInvoiceProof(order,{auto:true});}catch(e){toast('已收款，發票列印失敗，請到查單補印：'+e.message);}
   try{await printReceipt(order,{auto:true});}catch(e){toast('已收款，明細列印失敗，請到查單補印：'+e.message);}
 }
 // 出餐單（給現場）：桌號大字、依類別分段列品項與備註；不印價錢與付款，避免出餐時分心。
@@ -681,7 +701,7 @@ async function issueOrderInvoice(o,reload){
   }
   const detail=invoice.mode==='company'?'統編 '+invoice.buyer_ubn:invoice.mode==='mobile'||invoice.mode==='citizen'?(INV_LABEL[invoice.mode]||'')+' '+(invoice.carrier_num||''):invoice.mode==='donate'?'捐贈 '+(invoice.love_code||''):'紙本';
   if(!await posConfirm(`補開${detail}發票，金額 NT$${num(o.amount)}？`,{ok:'補開發票'}))return;
-  await opsThen(()=>api('/admin/orders/'+o.id+'/invoice/issue',{method:'POST',body:{invoice}}),async out=>{if(out.invoice?.status==='issued')await printInvoiceProof({...o,invoice:out.invoice},{auto:true});return `已補開發票 ${out.invoice?.number||''}`;},reload);
+  await opsThen(()=>api('/admin/orders/'+o.id+'/invoice/issue',{method:'POST',body:{invoice}}),async out=>{if(invoicePrintable(out.invoice))await printInvoiceProof({...o,invoice:out.invoice},{auto:true});return `已補開發票 ${out.invoice?.number||''}`;},reload);
 }
 // 更正付款方式：現場點錯時改成正確的（只限當個營業日、不動金額與發票）；現金實收／找零會一併重算
 function pickPayMethod(current){
@@ -708,7 +728,7 @@ function bindOrderButtons(host,orders,reload){
   host.querySelectorAll('[data-invoice-issue]').forEach(b=>b.onclick=async()=>{if(b.disabled)return;b.disabled=true;try{await issueOrderInvoice(orders.find(x=>x.id===b.dataset.invoiceIssue),reload);}finally{b.disabled=false;}});
 }
 // 已結帳單的操作列（櫃檯「這桌已結帳的單」與查單共用）：發票證明聯只在 ezPay 已開立時顯示；作廢固定紅字
-const orderActions=(o,{allowVoid=true}={})=>`<div class="ops-btns">${allowVoid&&o.status!=='void'&&!o.payer?.prepay&&!o.tappay?.rec_trade_id?`<button class="btn btn--ghost btn-sm" data-paymethod="${esc(o.id)}">改付款方式</button>`:''}<button class="btn btn--ghost btn-sm" data-receipt="${esc(o.id)}">補印收據明細</button>${o.invoice?.status==='issued'?`<button class="btn btn--ghost btn-sm" data-invoice-print="${esc(o.id)}">補印發票</button>`:''}${o.status==='void'?'':`<button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">出餐單</button>${allowVoid?`<button class="btn btn--ghost btn--danger btn-sm" data-void="${esc(o.id)}">作廢</button>`:''}`}</div>`;
+const orderActions=(o,{allowVoid=true}={})=>`<div class="ops-btns">${allowVoid&&o.status!=='void'&&!o.payer?.prepay&&!o.tappay?.rec_trade_id?`<button class="btn btn--ghost btn-sm" data-paymethod="${esc(o.id)}">改付款方式</button>`:''}<button class="btn btn--ghost btn-sm" data-receipt="${esc(o.id)}">補印收據明細</button>${invoicePrintable(o.invoice)?`<button class="btn btn--ghost btn-sm" data-invoice-print="${esc(o.id)}">補印發票</button>`:''}${o.status==='void'?'':`<button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">出餐單</button>${allowVoid?`<button class="btn btn--ghost btn--danger btn-sm" data-void="${esc(o.id)}">作廢</button>`:''}`}</div>`;
 
 async function loadOrders(){
   const host=document.getElementById('orders-body');if(!host)return;
@@ -999,7 +1019,7 @@ function openMemberDialog(cur){
 }
 function paintPos(){
   const host=document.getElementById('pos-body'),d=POS_DATA;if(!host||!d)return;
-  stopPosInvoiceScanner();
+  if(!document.querySelector?.('.pos-scan-full'))stopPosInvoiceScanner(); // 全螢幕掃載具開著時，背景輪詢重繪不能把相機關掉
   {const m=host.querySelector('.pos-menu');if(m&&typeof m.scrollTop==='number')POS_MENU_SCROLL=m.scrollTop;const c=host.querySelector('.pos-cats');if(c&&typeof c.scrollLeft==='number')POS_CATS_LEFT=c.scrollLeft;const l=host.querySelector('.pos-mid');if(l&&typeof l.scrollTop==='number'&&POS_LEFT_SCROLL!==1e9)POS_LEFT_SCROLL=l.scrollTop;}
   const sessions=d.sessions;
   if(POS_TABLE&&!sessions.find(s=>s.table===POS_TABLE))POS_TABLE='';
@@ -1217,7 +1237,12 @@ function paintPos(){
     else{ubnOut.dataset.state='warn';ubnOut.textContent=out?.error?'暫時查不到抬頭，仍可開立':'查無此統編的公司抬頭，請與客人確認；仍可開立';}
   });}
   const invScan=host.querySelector('#pos-invoice-scan');
-  if(invScan)invScan.onclick=()=>startInvoiceScan(host.querySelector('#pos-invoice-video'),raw=>{const carrierIn=host.querySelector('.pos-invoice [name=carrier_num]');if(carrierIn)carrierIn.value=raw;});
+  // 手機載具：點選或按「掃描」都直接跳全螢幕相機；掃到填回欄位（自然人憑證仍手打）
+  // 掃描期間背景輪詢可能整區重繪，回填時要重新抓欄位，不能用開窗前抓的舊節點
+  const openCarrierScan=async()=>{const raw=await scanMobileCarrier(host.querySelector('.pos-invoice [name=carrier_num]')?.value||'');const carrierIn=host.querySelector('.pos-invoice [name=carrier_num]');if(raw!==null&&carrierIn)carrierIn.value=raw;};
+  if(invScan)invScan.onclick=openCarrierScan;
+  const mobileRadio=host.querySelector('input[name=pos-invoice][value=mobile]');
+  mobileRadio?.addEventListener?.('change',()=>{if(mobileRadio.checked&&!MOBILE_CARRIER_RE.test((host.querySelector('.pos-invoice [name=carrier_num]')?.value||'').trim().toUpperCase()))openCarrierScan();});
   // 平均分攤：人數用數字鍵盤選（2–20）；進入分攤時全桌一起算、不勾選品項、不套折扣
   const aaOpen=host.querySelector('#pos-aa-open');if(aaOpen)aaOpen.onclick=async()=>{if(aaOpen.disabled)return;const raw=await pickAmount({title:'平均分攤：幾個人？',hint:'全桌金額平均分，一人一張單、各自選付款方式',presets:[2,3,4,5,6],min:2,max:20,unit:'',initial:''});if(raw===null)return;const n=Number(raw);if(!Number.isInteger(n)||n<2||n>20){toast('分攤人數須為 2–20 人');return;}startAA(n);paintPos();};
   const aaClear=host.querySelector('#pos-aa-clear');if(aaClear)aaClear.onclick=()=>{POS_AA=null;POS_RECEIVED='';POS_SPLIT={};paintPos();toast(cur.lines.some(l=>l.credit_of)?'已離開分攤模式；前面已收的款仍記在桌上，最後結帳會自動抵扣':'已取消平均分攤');};
@@ -1312,7 +1337,7 @@ async function loadHistory(){
   const histState=o=>{const p=o.payer||{};if(o.status==='void')return `<span class="pill pill-bad">已作廢</span>`;if(p.prepay)return `<span class="pill pill-wait">部分付款</span>`;return `<span class="pill pill-ok">已結帳</span>`;};
   const histInvShort=o=>{const inv=o.invoice||{};if(inv.status==='failed')return '<span class="pill pill-bad">發票失敗</span>';if(inv.requested&&!['issued','void'].includes(inv.status))return '<span class="pill pill-wait">待補開</span>';if(inv.status==='issued')return `<span class="a-mono">${esc(inv.number||'已開立')}</span>`;if(inv.status==='void')return '<span class="hint hint--tight">已作廢</span>';return '<span class="hint hint--tight">未開</span>';};
   const histLine=(l,multiBy)=>{const tags=specParts(l).map(t=>`<span class="ops-spec ops-spec-${t.kind} ops-spec-${t.tone}">${t.kind==='custom'?'※ ':''}${esc(t.text)}</span>`).join('');const flag=l.cancelled?'已取消':l.comp_reason?'贈送':l.redeem_points>0?'點數兌換':'';const sub=Number.isFinite(Number(l.price))?(l.cancelled?`<s>${num(Number(l.price)*l.qty)}</s>`:num(Number(l.price)*l.qty)):'';return `<li class="hist-line${l.cancelled?' is-off':''}"><span class="hist-qty${l.qty>1?' many':''}">×${l.qty}</span><span class="hist-name"><b>${esc(l.zh)}</b>${flag?` <span class="pill pill-draft">${flag}</span>`:''}${partsOf(l).length?partsHtml(l):''}${tags?`<span class="ops-specs">${tags}</span>`:''}${multiBy&&l.by?`<span class="hint hint--tight">由 ${esc(l.by)} 點</span>`:''}</span><span class="hist-sub">${sub}</span></li>`;};
-  const histActions=(o,allowVoid)=>{const canPay=allowVoid&&o.status!=='void'&&!o.payer?.prepay&&!o.tappay?.rec_trade_id;return `<div class="hist-actions"><button class="btn btn--solid btn-sm" data-receipt="${esc(o.id)}">補印收據明細</button>${o.invoice?.status==='issued'?`<button class="btn btn--ghost btn-sm" data-invoice-print="${esc(o.id)}">補印發票</button>`:''}${o.status==='void'?'':`<button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">補印出餐單</button>`}${canPay?`<button class="btn btn--ghost btn-sm" data-paymethod="${esc(o.id)}">改付款方式</button>`:''}${o.status!=='void'&&allowVoid?`<button class="btn btn--ghost btn--danger btn-sm" data-void="${esc(o.id)}">作廢</button>`:''}</div>`;};
+  const histActions=(o,allowVoid)=>{const canPay=allowVoid&&o.status!=='void'&&!o.payer?.prepay&&!o.tappay?.rec_trade_id;return `<div class="hist-actions"><button class="btn btn--solid btn-sm" data-receipt="${esc(o.id)}">補印收據明細</button>${invoicePrintable(o.invoice)?`<button class="btn btn--ghost btn-sm" data-invoice-print="${esc(o.id)}">補印發票</button>`:''}${o.status==='void'?'':`<button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">補印出餐單</button>`}${canPay?`<button class="btn btn--ghost btn-sm" data-paymethod="${esc(o.id)}">改付款方式</button>`:''}${o.status!=='void'&&allowVoid?`<button class="btn btn--ghost btn--danger btn-sm" data-void="${esc(o.id)}">作廢</button>`:''}</div>`;};
   const rows=d.orders.map(o=>{
     const lines=(o.items||[]).filter(l=>!l.prepay&&!l.credit_of);
     const live=lines.filter(l=>!l.cancelled);
