@@ -44,3 +44,13 @@ test('order.html 依時段過濾菜單並顯示最後點餐提示', () => {
   assert.match(h, /MenuLib\.orderableInWindow\(it,WIN\)/);
   assert.match(h, /cafe_food_closed/);
 });
+test('order.html 常駐提醒最後點餐時間，30 分內轉橘色', () => {
+  const h = readFileSync(new URL('../public/order.html', import.meta.url), 'utf8');
+  const lib = readFileSync(new URL('../public/order-lib.js', import.meta.url), 'utf8');
+  assert.match(h, /function renderShift\(\)/);
+  assert.match(h, /tr\(W2\.food\?'cafe_last_order':'cafe_food_closed'\)/);
+  assert.match(h, /classList\.toggle\('soon',!PAUSED&&left!=null&&left<=30\)/);
+  assert.match(h, /\.menu-status\.soon\{/);
+  assert.match(h, /else renderShift\(\);\},30000\)/);
+  for (const s of ['餐點點到 16:00・飲品點到 16:30', '餐點點到 02:00・酒水點到 02:30', 'Food until 16:00', 'フード02:00・ドリンク02:30まで']) assert.ok(lib.includes(s), s);
+});

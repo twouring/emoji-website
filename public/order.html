@@ -34,7 +34,7 @@ h3{font-size:1.05rem;margin:0 0 6px}
 #name-gate{border-color:var(--yellow);box-shadow:0 0 0 1px var(--yellow)}#name-gate h3{margin-top:0}
 .menu-status{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:12px}
 .menu-status b{font-size:1.05rem}.menu-status small{display:block;color:var(--muted);line-height:1.4}
-.menu-status.paused{border-color:#b42318;background:#fff5f3}.menu-status.paused small{color:#b42318;font-weight:600}
+.menu-status.soon{border-color:#d97706;background:#fff8eb}.menu-status.soon small{color:#b45309;font-weight:600}.menu-status.paused{border-color:#b42318;background:#fff5f3}.menu-status.paused small{color:#b42318;font-weight:600}
 .bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:8px 14px calc(8px + env(safe-area-inset-bottom));display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;z-index:5;box-shadow:0 -6px 22px rgba(0,0,0,.08)}
 .bar [hidden]{display:none!important}.bar .btn{min-height:44px;padding-top:8px;padding-bottom:8px}.bar .s{min-width:0}.bar .s b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar .s small{display:block;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* 按鈕一律不斷行：小螢幕靠縮內距與字級，不靠折成兩行（折行會把金額擠出可視區） */
@@ -120,7 +120,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     <div id="order-content" class="hidden">
       <div class="card" id="orders-card"></div>
       <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px"><span class="muted"><span data-i18n="ordering_as">點餐稱呼</span>：<b id="name-display"></b></span><button class="btn ghost sm" type="button" id="name-edit-btn" data-i18n="name_edit">更改</button></div>
-      <div class="menu-status" id="menu-shift"><div><b class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-clock"></use></svg><span data-i18n="current_menu">目前菜單</span></b><small id="menu-hours">依台北時間顯示目前供應品項</small></div></div>
+      <div class="menu-status" id="menu-shift"><div><b class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-clock"></use></svg><span id="menu-shift-title">最後點餐</span></b><small id="menu-hours">依台北時間顯示目前供應品項</small></div></div>
       <div id="menu"></div>
       <p class="notice" id="alcohol-notice" data-i18n="alcohol" hidden>未滿十八歲禁止飲酒。禁止酒駕。</p>
     </div>
@@ -207,17 +207,24 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   $('#name-edit-btn').onclick=function(){showGate();};
   var needName=function(){if(NAME)return true;showGate();return false;};
 
+  /* 最後點餐常駐提醒：營業中一律顯示該店最後點餐時間；餐點已停時改「只剩飲品／酒水」；離該段截止 30 分內轉橘色；店家暫停時顯示暫停文案 */
+  function renderShift(){
+    var W2=MenuLib.orderWindow(),v=W2.venue,d=new Date(),nowM=((d.getUTCHours()+8)%24)*60+d.getUTCMinutes();
+    var cut=v==='CAFE'?(W2.food?960:990):v==='BAR'?(W2.food?120:150):null,left=cut==null?null:(cut-nowM+1440)%1440;
+    var msg=PAUSED?PAUSED:!v?tr('closed_message'):v==='CAFE'?tr(W2.food?'cafe_last_order':'cafe_food_closed'):tr(W2.food?'bar_last_order':'bar_food_closed');
+    $('#menu-shift-title').textContent=tr(PAUSED?'current_menu':v?'last_order':'closed');
+    $('#menu-hours').textContent=msg;
+    $('#menu-shift').classList.toggle('paused',!!PAUSED);
+    $('#menu-shift').classList.toggle('soon',!PAUSED&&left!=null&&left<=30);
+    $('#menu-shift').hidden=false;
+  }
   function renderMenu(){
     var WIN=MenuLib.orderWindow();VENUE=WIN.venue;WIN_KEY=JSON.stringify(WIN);
     // 估清／供應期間每次重繪都重算：店家按「今日估清」後，客人下一次更新菜單就點不到
     MENU=MENU_DOC?MenuLib.orderableOnly(MENU_DOC):[];
-    var hours=VENUE==='CAFE'?(LANG==='en'?'at cafe · Serving now':LANG==='ja'?'在咖啡・提供中':'在咖啡・供應中'):VENUE==='BAR'?(LANG==='en'?'3AM · Serving now':LANG==='ja'?'三點水・提供中':'三點水・供應中'):(LANG==='en'?'Kitchen currently closed':LANG==='ja'?'現在は提供時間外です':'目前非供餐時段');
     var venueLabel=MenuLib.VENUE_LABEL[VENUE]||{zh:'言文字',en:'Emoji',ja:'言文字'};
     $('#brand').textContent=label(venueLabel);
-    if(VENUE&&!WIN.food)hours=VENUE==='CAFE'?tr('cafe_food_closed'):tr('bar_food_closed');   // 最後點餐：餐點已停，只剩飲品／酒水
-    $('#menu-hours').textContent=PAUSED?PAUSED:hours;   // 店家暫停點餐：文案由後台設定，直接顯示
-    $('#menu-shift').classList.toggle('paused',!!PAUSED);
-    $('#menu-shift').hidden=!(PAUSED||!VENUE||!WIN.food);   // 正常供應時不顯示「目前菜單」，只在暫停／非供餐時提示
+    renderShift();
     var items=MenuLib.sortItems(MENU.filter(function(it){return MenuLib.orderableInWindow(it,WIN);})),html='',venue='',cat='';
     items.forEach(function(it){
       if(it.venue!==venue){if(venue)html+='</div>';venue=it.venue;cat='';var v=MenuLib.VENUE_LABEL[venue]||{zh:venue,en:'',ja:venue};html+='<div class="venue">'+esc(label(v))+'<small>'+esc(LANG==='zh'?v.en:v.zh)+'</small></div><div>';}
@@ -455,7 +462,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   if(!T||!K)return fail('請掃描桌上的 QR Code 進入點餐。');
   if(endedId())showThanks();
   else Promise.all([api('/orders/config'),fetch('/api/public').then(function(r){return r.json();}),load(),api('/orders/pause').catch(function(){return {};})]).then(bootApp).catch(function(err){fail(err.message);});
-  setInterval(function(){if(S&&JSON.stringify(MenuLib.orderWindow())!==WIN_KEY)renderMenu();},30000); // 16:00／16:30／02:00／02:30／08:00 換時段
+  setInterval(function(){if(!S)return;if(JSON.stringify(MenuLib.orderWindow())!==WIN_KEY)renderMenu();else renderShift();},30000); // 16:00／16:30／02:00／02:30／08:00 換時段
   setInterval(function(){if(S)loadPause();},30000);setInterval(function(){if(S)loadMenuDoc();},60000);   // 暫停點餐、估清／特餐隨店家設定更新
   document.addEventListener('visibilitychange',function(){if(!document.hidden&&S){refresh();if(!ES||ES.readyState===2)live();}});
 })();
