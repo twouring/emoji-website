@@ -288,6 +288,34 @@
     margin-left: 0;
     margin-top: 2px;
   }
+  /* 手機（375px）：品名／價格不再左右搶寬。圖｜品名、英文名、價格（同一行）；說明拉滿整行 */
+  .menu-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    column-gap: 14px;
+    align-items: start;
+  }
+  .menu-item--img { grid-template-columns: 64px minmax(0, 1fr); }
+  .menu-item__names { display: contents; }
+  .menu-item__img { grid-column: 1; grid-row: 1 / span 3; width: 64px; height: 64px; align-self: start; }
+  .menu-item__zh, .menu-item__en, .menu-item__price { grid-column: -2 / -1; }
+  .menu-item__zh { line-height: 1.4; }
+  .menu-item__en { line-height: 1.35; }
+  .menu-item__price {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 12px;
+    margin-top: 6px;
+    text-align: left;
+    white-space: normal;
+  }
+  .menu-item__price { order: 1; }
+  .menu-item__note { order: 2; }
+  .menu-item__price > * { white-space: nowrap; }
+  .menu-item__price .orig { display: inline; margin-top: 0; }
+  .menu-item__note { grid-column: 1 / -1; margin-top: 8px; line-break: strict; }
+  .menu-item--img .menu-item__note:first-of-type { margin-top: 10px; }
 }
 
 /* ——— 樓層目錄 ——— */
