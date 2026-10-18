@@ -1025,6 +1025,7 @@ function tabMenu(d){
       <label style="flex:1;min-width:180px">備註（日文）<input id="mi-note-ja" placeholder="説明（日本語）"></label>
       <label>供應起<input id="mi-from" type="date" title="留空＝不限；特餐／限時菜單用"></label>
       <label>供應迄<input id="mi-to" type="date" title="留空＝不限"></label>
+      <label id="mi-combo-wrap" style="width:100%" hidden>套餐內容（每行一個選擇欄：「欄名：選項、選項+加價」；選項要是同店菜單的品名）<textarea id="mi-combo" rows="3" placeholder="貝果：原味貝果、無花果核桃蜂蜜奶油貝果+50&#10;飲品：美式咖啡、拿鐵咖啡+30、柚子氣泡"></textarea></label>
       <label style="flex-direction:row;align-items:center;gap:.4em"><input type="checkbox" id="mi-alcohol" style="width:auto">含酒精</label>
       <label style="flex-direction:row;align-items:center;gap:.4em" title="點餐時店員現場輸入金額，不用固定原價（例：其他／客製需求）"><input type="checkbox" id="mi-custom-price" style="width:auto">現場輸入金額</label>
       <label style="flex-direction:row;align-items:center;gap:.4em" title="客人掃碼點餐（/order）看不到，只能由 POS／後台代客加點"><input type="checkbox" id="mi-pos-only" style="width:auto">僅供 POS 加點</label>
@@ -1634,6 +1635,7 @@ function paintMenu(){
   syncMenuDirty();
 }
 
+function syncComboWrap(){ const w=document.getElementById('mi-combo-wrap'); if(w) w.hidden = document.getElementById('mi-cat').value!=='COMBO'; }
 function resetMenuForm(){
   document.getElementById('mi-id').value = '';
   document.getElementById('mi-venue').value = SCOPE || 'CAFE';
@@ -1647,6 +1649,7 @@ function resetMenuForm(){
   document.getElementById('mi-custom-price').checked = false;
   document.getElementById('mi-pos-only').checked = false;
   document.getElementById('mi-pos-only').disabled = false;
+  document.getElementById('mi-combo').value = ''; syncComboWrap();
   document.getElementById('mi-published').checked = false;
   document.getElementById('mi-save').textContent = '新增項目';
   document.getElementById('mi-reset').style.display = 'none';
@@ -1665,6 +1668,7 @@ function bindMenu(){
     if (cp.checked) { po.checked = true; po.disabled = true; } else { po.disabled = false; }
   };
   on('mi-custom-price','change',syncPosOnlyLock);
+  on('mi-cat','change',syncComboWrap);
   syncPosOnlyLock();
 
   on('mi-save','click',()=>{
@@ -1685,6 +1689,7 @@ function bindMenu(){
       alcohol: document.getElementById('mi-alcohol').checked,
       custom_price: document.getElementById('mi-custom-price').checked,
       pos_only: document.getElementById('mi-pos-only').checked,
+      combo: MenuLib.comboFromText(document.getElementById('mi-combo').value),
       published: document.getElementById('mi-published').checked,
       sort: Number(document.getElementById('mi-sort').value) || 0,
       available_from: document.getElementById('mi-from').value,
@@ -1717,6 +1722,7 @@ function bindMenu(){
     document.getElementById('mi-alcohol').checked = !!it.alcohol;
     document.getElementById('mi-custom-price').checked = !!it.custom_price;
     document.getElementById('mi-pos-only').checked = !!it.pos_only;
+    document.getElementById('mi-combo').value = MenuLib.comboToText(it.combo); syncComboWrap();
     syncPosOnlyLock();
     document.getElementById('mi-published').checked = !!it.published;
     document.getElementById('mi-save').textContent = '更新項目';

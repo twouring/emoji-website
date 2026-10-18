@@ -3,6 +3,7 @@
   const VENUES = ['CAFE', 'BAR'];
   // 順序＝前台分組順序（餐點在前、飲品在後，依 2026-10-07 定稿菜單）；ALCOHOL／FOOD／SNACK 保留給舊資料相容
   const CATS = [
+    'COMBO',
     'SALAD', 'BREAD', 'JAPANESE', 'DESSERT',
     'COLD_APP', 'HOT_APP', 'FRIED', 'GRILL', 'MAIN', 'SOUP',
     'COFFEE', 'BEVERAGE', 'TEA', 'SPARKLING',
@@ -15,6 +16,7 @@
     BAR: { zh: '三點水', en: '3AM', ja: '三點水' },
   };
   const CAT_LABEL = {
+    COMBO: { zh: '套餐', en: 'Set', ja: 'セット' },
     COFFEE: { zh: '咖啡', en: 'Coffee', ja: 'コーヒー' },
     TEA: { zh: '茶', en: 'Tea', ja: 'お茶' },
     BEVERAGE: { zh: '非咖啡', en: 'Non-Coffee', ja: 'ノンコーヒー' },
@@ -73,6 +75,36 @@
     return !!item.alcohol;
   }
 
+  /* 套餐內容：[{key,label,choices:[{zh,add}]}]；choices 以菜單品名（zh）對應同店品項，add＝該選項加價。
+   * 例：[{key:'main',label:'主餐',choices:[{zh:'原味貝果',add:0}]},{key:'drink',label:'飲品',choices:[{zh:'美式咖啡',add:0}]}] */
+  function normalizeCombo(raw) {
+    if (!Array.isArray(raw)) return [];
+    return raw.slice(0, 6).map((s, i) => {
+      const choices = (Array.isArray(s && s.choices) ? s.choices : []).slice(0, 12).map(c => {
+        const zh = String(typeof c === 'string' ? c : (c && c.zh) || '').trim();
+        const add = Math.max(0, Math.min(1000, Math.round(Number(c && c.add)) || 0));
+        return zh ? { zh, add } : null;
+      }).filter(Boolean);
+      const label = String((s && s.label) || '').trim().slice(0, 12);
+      return label && choices.length ? { key: String((s && s.key) || 's' + (i + 1)).replace(/[^a-z0-9_]/gi, '').slice(0, 12) || 's' + (i + 1), label, choices } : null;
+    }).filter(Boolean);
+  }
+
+  /* 後台用文字編輯套餐：每行一個選擇欄「主餐：原味貝果、無花果核桃蜂蜜奶油貝果+70」（+數字＝加價） */
+  function comboToText(combo) {
+    return normalizeCombo(combo).map(s => s.label + '：' + s.choices.map(c => c.zh + (c.add ? '+' + c.add : '')).join('、')).join('\n');
+  }
+  function comboFromText(text) {
+    return normalizeCombo(String(text || '').split('\n').map(l => l.trim()).filter(Boolean).map((l, i) => {
+      const k = l.search(/[：:]/);
+      const choices = (k < 0 ? '' : l.slice(k + 1)).split(/[、,，]/).map(x => x.trim()).filter(Boolean).map(x => {
+        const m = x.match(/^(.*?)\s*\+\s*(\d+)$/);
+        return m ? { zh: m[1].trim(), add: Number(m[2]) } : { zh: x, add: 0 };
+      });
+      return { key: ['main', 'drink', 'side', 's4', 's5', 's6'][i], label: k < 0 ? l : l.slice(0, k).trim(), choices };
+    }));
+  }
+
   function normalizeItem(raw) {
     const cat = CATS.includes(raw.cat) ? raw.cat : 'FOOD';
     const venue = VENUES.includes(raw.venue) ? raw.venue : 'CAFE';
@@ -90,6 +122,7 @@
       note: String(raw.note || '').trim(),
       note_ja: String(raw.note_ja || '').trim(),
       image: String(raw.image || '').trim(),
+      combo: cat === 'COMBO' ? normalizeCombo(raw.combo) : [],   // 套餐內容（只有 COMBO 類別有效）
       alcohol: coerceAlcohol({ ...raw, cat }),
       published: raw.published === true,
       custom_price: raw.custom_price === true,   // 現場輸入金額（例：其他／客製需求），POS 加點時另外問價
@@ -135,6 +168,7 @@
       if (!VENUES.includes(it.venue)) return { ok: false, error: '店別無效' };
       if (!CATS.includes(it.cat)) return { ok: false, error: '分類無效' };
       if (!(it.price >= 0) || !(it.emo >= 0)) return { ok: false, error: '價格無效' };
+      if (it.cat === 'COMBO' && !(Array.isArray(it.combo) && it.combo.length)) return { ok: false, error: '套餐要有內容（至少一個選擇欄）：' + it.zh };
       if (it.image && !/^(\/uploads\/|https:\/\/)/.test(it.image)) return { ok: false, error: '圖片網址須為 /uploads/ 路徑或 https URL：' + it.zh };
     }
     return { ok: true };
@@ -252,6 +286,6 @@
 
   global.MenuLib = {
     CATS, VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, MEMBER_RATE, memberPrice, activeVenue, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
-    upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, soldOutToday, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
+    normalizeCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, soldOutToday, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

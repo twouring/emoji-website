@@ -710,3 +710,7 @@ tr.lp-refund td{color:var(--danger)}
 .pos-floor-slot .pos-slot{height:100%}
 @container (max-width:599px){.pos-floor:not(.pos-floor-edit){display:none}}
 @media(max-width:700px){.pos-board{flex-direction:column}.pos-takeouts{flex:none;width:100%;border-left:0;border-top:1px dashed var(--line);padding:10px 0 0;flex-direction:row;flex-wrap:wrap}.pos-takeouts .pos-table{width:calc(50% - 4px)}}
+/* 套餐內容：出餐看板／查單逐項列出（主餐、飲品各一行，規格標籤沿用 .ops-spec） */
+.ops-parts{display:grid;gap:4px;margin:4px 0 0 10px;padding-left:10px;border-left:3px solid var(--ink)}
+.ops-part{font-size:1.15rem;line-height:1.35}.ops-part b{font-weight:700}
+.pos-line-parts{display:inline-block;margin-top:2px;font-size:1rem;font-weight:600;color:var(--ink);overflow-wrap:anywhere}

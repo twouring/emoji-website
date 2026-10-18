@@ -985,6 +985,17 @@ async function seedMenuContent() {
         console.log('[menu-seed] 已補上兌換點數：' + n + ' 項。');
       }
     } catch (e) { console.warn('[menu-seed] 兌換點數回填略過：', e && e.message); }
+    // 一次性：在咖啡四個套餐（貝果／飯糰／早午餐／下午茶）；已有同名就略過，做過就不再動，之後在後台改的不會被蓋掉
+    try {
+      const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_combo_seed_v1'`)).rows.length;
+      if (!done) {
+        const doc = JSON.parse(content.menu);
+        const n = require('./lib/menu-combos').comboBackfill(doc.items);
+        if (n > 0) await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
+        await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_combo_seed_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(n)]);
+        console.log('[menu-seed] 已補上在咖啡套餐：' + n + ' 項。');
+      }
+    } catch (e) { console.warn('[menu-seed] 套餐回填略過：', e && e.message); }
     // 既有菜單：僅補上缺少的日文品名（不動已填內容）
     try {
       const doc = JSON.parse(content.menu);

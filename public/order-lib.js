@@ -93,6 +93,7 @@
     const l = lang === 'en' || lang === 'ja' ? lang : 'zh';
     const labels = TEXT[l] || TEXT.zh;
     const cat = String(item?.cat || '');
+    if (cat === 'COMBO') return [];   // 套餐的選項由 comboGroups 依內容產生
     const title = [item?.zh, item?.en].filter(Boolean).join(' ').toLowerCase();
     const name = [title, item?.note].filter(Boolean).join(' ').toLowerCase();
     const groups = [];
@@ -114,9 +115,42 @@
     else if (hasRice) groups.push({ key: 'rice', label: labels.rice_amount, choices: OPT[l].rice });
     return groups;
   }
+  /* 套餐：每個選擇欄（主餐／飲品）一組單選，選到的品項再帶出它自己的規格（溫度／糖度／冰塊／飯量…），
+   * 規格組用 when 綁在所選品項上，沿用 activeOptionGroups 顯示／隱藏。items＝同一份菜單（找出各選項對應的品項）。 */
+  function comboGroups(item, items, lang) {
+    const groups = [];
+    (item?.combo || []).forEach(slot => {
+      const opts = slot.choices.map(c => {
+        const m = (items || []).find(x => x.zh === c.zh && x.venue === item.venue && x.cat !== 'COMBO');
+        return m ? { c, m, label: c.zh + (c.add > 0 ? '（+' + c.add + '）' : '') } : null;
+      }).filter(Boolean);
+      if (!opts.length) return;
+      groups.push({ key: slot.key, label: slot.label, choices: opts.map(o => o.label), values: opts.map(o => o.c.zh), combo: true });
+      opts.forEach((o, i) => {
+        optionGroups(o.m, lang).forEach(g => {
+          const key = slot.key + '__' + i + '__' + g.key;
+          const when = [{ key: slot.key, value: o.label }];
+          if (g.when) when.push({ key: slot.key + '__' + i + '__' + g.when.key, value: g.when.value });
+          groups.push({ key, label: o.c.zh + '・' + g.label, choices: g.choices, when, sub: { slot: slot.key, label: o.label, zh: o.c.zh, optLabel: g.label } });
+        });
+      });
+    });
+    return groups;
+  }
+  /* 把選好的結果轉成後端要的 combo：{ main: { zh:'原味貝果', note:'飯量：正常飯' }, drink: { zh:'拿鐵咖啡', note:'溫度：熱；糖度：半糖' } } */
+  function comboPayload(groups, picks) {
+    const active = activeOptionGroups(groups, picks), out = {};
+    groups.filter(g => g.combo).forEach(g => {
+      const i = g.choices.indexOf(picks[g.key] || g.choices[0]);
+      const label = g.choices[i < 0 ? 0 : i];
+      const subs = active.filter(s => s.sub && s.sub.slot === g.key && s.sub.label === label);
+      out[g.key] = { zh: g.values[i < 0 ? 0 : i], note: subs.map(s => s.sub.optLabel + '：' + (picks[s.key] || s.choices[0])).join('；') };
+    });
+    return out;
+  }
   function activeOptionGroups(groups, picks) {
-    return (groups || []).filter(g => !g.when || picks?.[g.when.key] === g.when.value);
+    return (groups || []).filter(g => !g.when || [].concat(g.when).every(w => picks?.[w.key] === w.value));
   }
 
-  global.OrderLib = { TEXT, text, splitBill, optionGroups, activeOptionGroups };
+  global.OrderLib = { TEXT, text, splitBill, optionGroups, activeOptionGroups, comboGroups, comboPayload };
 })(typeof window !== 'undefined' ? window : globalThis);
