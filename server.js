@@ -989,7 +989,7 @@ async function seedMenuContent() {
     try {
       const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_combo_seed_v1'`)).rows.length;
       if (!done) {
-        const doc = JSON.parse(content.menu);
+        const doc = JSON.parse((await readContent()).menu);
         const n = require('./lib/menu-combos').comboBackfill(doc.items);
         if (n > 0) await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
         await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_combo_seed_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(n)]);
@@ -997,18 +997,18 @@ async function seedMenuContent() {
       }
     } catch (e) { console.warn('[menu-seed] 套餐回填略過：', e && e.message); }
     try {
-      const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_combo_open_v1'`)).rows.length;
+      const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_combo_open_v2'`)).rows.length;
       if (!done) {
         const doc = JSON.parse((await readContent()).menu);
         const n = require('./lib/menu-combos').comboOpen(doc.items);
         if (n > 0) await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
-        await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_combo_open_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(n)]);
+        await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_combo_open_v2',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(n)]);
         console.log('[menu-seed] 套餐開放給客人掃碼點餐：' + n + ' 項。');
       }
     } catch (e) { console.warn('[menu-seed] 套餐開放略過：', e && e.message); }
     // 既有菜單：僅補上缺少的日文品名（不動已填內容）
     try {
-      const doc = JSON.parse(content.menu);
+      const doc = JSON.parse((await readContent()).menu);   // 重新讀：前面的一次性回填已更新 DB，用啟動時的舊 content.menu 會把它們蓋回去
       if (require('./lib/menu-ja').fillMenuJa(doc.items) > 0) {
         await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
         console.log('[menu-seed] 已補上菜單日文品名。');
