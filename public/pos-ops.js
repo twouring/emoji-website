@@ -892,14 +892,15 @@ let LAST_DRAG=0;
 // 座席時間每 30 秒就地更新（桌況只在資料變動時重畫，不能靠重畫刷新分鐘數）
 if(typeof document!=='undefined'&&typeof setInterval==='function'&&!globalThis.__posDwellTick)globalThis.__posDwellTick=setInterval(()=>{for(const e of document.querySelectorAll?.('.tk-dwell[data-since]')||[])e.textContent=elapsedShort(e.dataset.since);},30000);
 function bindOrderDrag(host,onDrop){
-  const board=host.querySelector('.pos-board');if(!board||typeof board.addEventListener!=='function'||board.dataset.dragBound)return;board.dataset.dragBound='1';
+  // 綁在桌況＋外帶欄的共同外層，外帶單也能拖回桌位（轉內用）
+  const board=host.querySelector('.pos-tables-row')||host.querySelector('.pos-board');if(!board||typeof board.addEventListener!=='function'||board.dataset.dragBound)return;board.dataset.dragBound='1';
   let st=null;
   board.addEventListener('click',e=>{if(Date.now()-LAST_DRAG<600){e.stopPropagation();e.preventDefault();}},true);
   const clear=()=>{if(!st)return;clearTimeout(st.timer);st.ghost&&st.ghost.remove();document.querySelectorAll('.drop-ok').forEach(e=>e.classList.remove('drop-ok'));st.card.classList.remove('dragging-src');st=null;};
   const slotAt=(x,y)=>{const e=document.elementFromPoint(x,y);return e&&e.closest?e.closest('[data-slot]'):null;};
   const begin=()=>{if(!st||st.on)return;st.on=true;const r=st.card.getBoundingClientRect();const g=st.card.cloneNode(true);g.classList.add('pos-ghost');g.style.width=r.width+'px';g.style.left=r.left+'px';g.style.top=r.top+'px';document.body.appendChild(g);st.ghost=g;st.dx=st.x0-r.left;st.dy=st.y0-r.top;st.card.classList.add('dragging-src');try{st.card.setPointerCapture(st.id);}catch(e){}};
   board.addEventListener('pointerdown',ev=>{
-    const card=ev.target.closest('.pos-table[data-pos-table]');if(!card||card.classList.contains('takeout')||ev.button>0)return;
+    const card=ev.target.closest('.pos-table[data-pos-table]');if(!card||ev.button>0)return;
     clear();
     st={card,id:ev.pointerId,x0:ev.clientX,y0:ev.clientY,touch:ev.pointerType==='touch',on:false};
     if(st.touch)st.timer=setTimeout(begin,300);
@@ -1111,7 +1112,7 @@ function paintPos(){
       <div class="a-wrap2 pos-lines-wrap"><table class="a-tbl pos-lines"><thead><tr><th aria-label="分帳選取"></th><th>品項</th><th class="pos-qty-col">點了幾份</th><th class="num">小計（元）</th><th class="ops-th">操作</th></tr></thead><tbody>${lineRows}</tbody></table></div>
       ${live.length?`<h3>這桌已結帳的單</h3><div class="a-wrap2"><table class="a-tbl pos-paid"><thead><tr><th>品項 · 時間 · 狀態</th><th>付款</th><th class="num">金額</th><th class="ops-th">操作</th></tr></thead><tbody>${liveRows}</tbody></table></div>`:''}
       </div>
-      <div class="pos-table-actions"><button class="btn btn--ghost" id="pos-place" ${cur.lines.some(l=>!l.credit_of)?'':'disabled'} title="有還沒送出的品項就先送單再印；都送過了就整桌重印">列印出餐單</button><button class="btn btn--ghost" id="pos-move" ${cur.takeout?'hidden':''}>換桌／併桌</button><button class="btn btn--ghost btn--danger" id="pos-close">${cur.takeout?'收掉外帶單':'清桌'}</button></div>
+      <div class="pos-table-actions"><button class="btn btn--ghost" id="pos-place" ${cur.lines.some(l=>!l.credit_of)?'':'disabled'} title="有還沒送出的品項就先送單再印；都送過了就整桌重印">列印出餐單</button><button class="btn btn--ghost" id="pos-move">${cur.takeout?'轉內用':'換桌／併桌'}</button><button class="btn btn--ghost btn--danger" id="pos-close">${cur.takeout?'收掉外帶單':'清桌'}</button></div>
       </div>
       <div class="pos-menu-box"><div class="pos-menu-body">${POS_OPT?optionPaneHtml(POS_OPT):catChips+`<div class="pos-menu">${tiles}</div>`}</div></div>
       <div class="pos-pay">
@@ -1152,7 +1153,8 @@ function paintPos(){
   });
   // 拖單換桌：按住單卡拖到別的桌位放開（滑鼠移動 6px 起拖；觸控長按 0.3 秒起拖，才不會跟捲動打架）；目標桌有單＝併桌，先問一次
   bindOrderDrag(host,async(id,from,to)=>{
-    if(to===TAKEOUT_SLOT)return moveToTakeout(id,()=>{POS_TABLE='';return reload();});
+    const src=(POS_DATA?.sessions||[]).find(x=>x.id===id);
+    if(to===TAKEOUT_SLOT){if(src?.takeout)return;return moveToTakeout(id,()=>{POS_TABLE='';return reload();});}
     const busy=byTable.get(to);
     if(busy&&!await posConfirm(`${to} 已有單，把 ${from} 併到 ${to}？兩桌的品項會合在一起。`,{ok:'併桌'}))return;
     await opsThen(()=>api('/admin/orders/sessions/'+id+'/move',{method:'POST',body:{table_no:to}}),out=>out.merged?`已併到 ${out.table}`:`已換到 ${out.table}`,()=>{POS_TABLE='';return reload();});
@@ -1311,9 +1313,9 @@ function paintPos(){
     // 用選的：固定桌號＋目前已開的加開桌，點一下就換桌（目標桌已開＝併桌）；真的要別的桌號才用「其他桌號」打字
     const names=[...DEFAULT_TABLES,...sessions.filter(s=>!s.takeout&&!DEFAULT_TABLES.includes(s.table)).map(s=>s.table)].filter(t=>t!==cur.table);
     const ov=document.createElement('div');ov.className='pos-move-ov';
-    ov.innerHTML=`<div class="pos-move-box" role="dialog" aria-label="換桌／併桌"><h3>${esc(cur.table)} 要去哪一桌？${tipIcon('空桌＝換桌（整桌搬過去）；已開的桌＝併桌（兩桌的品項合在一起）；「移到外帶」＝改成外帶單，自動給 W 號。也可以在桌況直接把單子拖到右邊外帶區。')}</h3><div class="pos-move-grid">${names.map(t=>{const o=byTable.get(t);return `<button type="button" class="pos-move-opt ${o?'busy':''}" data-to="${esc(t)}"><b>${esc(t)}</b><small>${o?'併桌':'換桌'}</small></button>`;}).join('')}</div><div class="pos-move-foot"><span><button type="button" class="btn btn--solid" data-takeout>移到外帶</button> <button type="button" class="btn btn--ghost" data-other>其他桌號…</button></span><button type="button" class="btn btn--ghost" data-cancel>取消</button></div></div>`;
+    ov.innerHTML=`<div class="pos-move-box" role="dialog" aria-label="${cur.takeout?'轉內用':'換桌／併桌'}"><h3>${cur.takeout?`外帶 ${esc(cur.table)} 轉內用，`:`${esc(cur.table)} `}要去哪一桌？${tipIcon(cur.takeout?'點空桌＝改成這桌內用；點已開的桌＝併進那桌。也可以在桌況直接把外帶單拖到桌位。':'空桌＝換桌（整桌搬過去）；已開的桌＝併桌（兩桌的品項合在一起）；「移到外帶」＝改成外帶單，自動給 W 號。也可以在桌況直接把單子拖到右邊外帶區。')}</h3><div class="pos-move-grid">${names.map(t=>{const o=byTable.get(t);return `<button type="button" class="pos-move-opt ${o?'busy':''}" data-to="${esc(t)}"><b>${esc(t)}</b><small>${o?'併桌':'換桌'}</small></button>`;}).join('')}</div><div class="pos-move-foot"><span>${cur.takeout?'':'<button type="button" class="btn btn--solid" data-takeout>移到外帶</button> '}<button type="button" class="btn btn--ghost" data-other>其他桌號…</button></span><button type="button" class="btn btn--ghost" data-cancel>取消</button></div></div>`;
     const done=()=>ov.remove();
-    ov.querySelector('[data-takeout]').onclick=()=>{done();moveToTakeout(cur.id,out=>{POS_TABLE=out.table;POS_PICK=null;return reload();});};
+    const tk=ov.querySelector('[data-takeout]');if(tk)tk.onclick=()=>{done();moveToTakeout(cur.id,out=>{POS_TABLE=out.table;POS_PICK=null;return reload();});};
     ov.onclick=e=>{if(e.target===ov)done();};
     ov.querySelector('[data-cancel]').onclick=done;
     ov.querySelector('[data-other]').onclick=async()=>{done();const table=await pickTableNo({title:`${cur.table} 換到哪一桌？`,hint:'目標桌已開著會併桌',exclude:[cur.table]});if(table)doMove(table);};

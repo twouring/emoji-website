@@ -21,10 +21,20 @@ test('換桌視窗有「移到外帶」，外帶區可當拖放目標',()=>{
   assert.match(js,/data-takeout>移到外帶<\/button>/);
   assert.match(js,/function moveToTakeout\(id,then\)\{return opsThen\(\(\)=>api\('\/admin\/orders\/sessions\/'\+id\+'\/move',\{method:'POST',body:\{takeout:true\}\}\)/);
   assert.match(js,/<aside class="pos-takeouts" aria-label="外帶單" data-slot="\$\{TAKEOUT_SLOT\}">/);
-  assert.match(js,/if\(to===TAKEOUT_SLOT\)return moveToTakeout\(id,/);
+  assert.match(js,/if\(to===TAKEOUT_SLOT\)\{if\(src\?\.takeout\)return;return moveToTakeout\(id,/);
   assert.match(css,/\.pos-takeouts\.drop-ok/);
 });
 test('TAKEOUT_SLOT 不會跟真的桌號相撞',async()=>{
   const {TABLE_RE}=await import('../lib/table-orders.js');
   assert.equal(TABLE_RE.test('外帶'),false);
+});
+test('外帶單可轉內用：按鈕不藏、外帶單可拖回桌位、拖到外帶欄不動作',()=>{
+  assert.match(js,/id="pos-move">\$\{cur\.takeout\?'轉內用':'換桌／併桌'\}<\/button>/);
+  assert.doesNotMatch(js,/id="pos-move" \$\{cur\.takeout\?'hidden':''\}/);
+  assert.doesNotMatch(js,/card\.classList\.contains\('takeout'\)/);
+  assert.match(js,/const board=host\.querySelector\('\.pos-tables-row'\)/);
+  assert.match(js,/if\(to===TAKEOUT_SLOT\)\{if\(src\?\.takeout\)return;/);
+  // 伺服器 move 只擋「目標是 W 號」，不擋來源是外帶單
+  assert.doesNotMatch(route,/isTakeout\(src\.table_no\)\)\{await client\.query\('ROLLBACK'\);return res\.status\(400\)\.json\(\{error:'外帶/);
+  assert.match(route,/toTakeout&&tableOrders\.isTakeout\(src\.table_no\)/);
 });
