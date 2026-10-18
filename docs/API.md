@@ -86,6 +86,9 @@ PY
 ```
 建立後以 `/api/auth/admin/password` 取得 token，再讀 `/api/state` 確認 `role:"admin"`、`super:false`、`brands:null`。實際帳號與密碼由操作者另行設定，部署本身不會建立任何預設帳密。
 
+### GET /api/version
+回目前部署的版本號 `{ version }`，格式為台北日期＋當日流水號（如 `20261018-03`）；由 CI 部署時寫入 `VERSION`，本機開發為 `dev`。POS 左上角「POS」下方顯示同一個值。
+
 ### GET /api/health
 服務健康檢查。回 `{ ok, db, dbConfigured }`。
 

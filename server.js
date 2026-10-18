@@ -5989,7 +5989,15 @@ app.get(['/admin', '/admin/*', '/organizer', '/organizer/*'], (_req, res) => { r
 // 平板 POS（純瀏覽器，Star webPRNT Browser）：/pos、/pos/orders、/pos/soldout、/pos/reservations、/pos/history、/pos/sales、/pos/products、/pos/customers、/pos/clock、/pos/shifts 皆回同一頁（pos.emoji.tw 與 www 都可用，API 同網域）
 const POS_PAGE = path.join(PUB, 'pos.html');
 app.get('/pos.html', (_req, res) => res.redirect(301, '/pos'));
-app.get(['/pos', '/pos/*'], (_req, res) => { res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache' }); res.sendFile(POS_PAGE); });
+// 部署版本號：CI 在 build 前寫入 VERSION（日期＋當日流水號，如 20261018-03）；本機開發顯示 dev
+const APP_VERSION = (() => { try { return fs.readFileSync(path.join(__dirname, 'VERSION'), 'utf8').trim() || 'dev'; } catch (_) { return 'dev'; } })();
+let POS_HTML_CACHE = null;
+app.get('/api/version', (_req, res) => res.set('Cache-Control', 'no-store').json({ version: APP_VERSION }));
+app.get(['/pos', '/pos/*'], (_req, res) => {
+  res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache', 'Content-Type': 'text/html; charset=utf-8' });
+  if (!POS_HTML_CACHE) POS_HTML_CACHE = fs.readFileSync(POS_PAGE, 'utf8').replace('<!--POS_VERSION-->', APP_VERSION);
+  res.send(POS_HTML_CACHE);
+});
 // 舊的官網會員頁（/member 三語）已全部移到會員 App：保留轉址給舊連結、通知信與書籤（查詢字串原樣帶過去）
 app.get(['/member', '/member.html', '/en/member', '/en/member.html', '/ja/member', '/ja/member.html'], (req, res) => {
   const qs = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';

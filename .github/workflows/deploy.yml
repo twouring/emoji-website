@@ -22,6 +22,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -32,6 +34,13 @@ jobs:
       - run: npm test
         env:
           PUPPETEER_SKIP_DOWNLOAD: '1'
+      # 版本號＝台北日期＋當日 main 的第 N 次提交（流水號）
+      - name: Write VERSION
+        run: |
+          D=$(TZ=Asia/Taipei date +%Y%m%d)
+          N=$(git rev-list --count --since="$(TZ=Asia/Taipei date +%Y-%m-%d) 00:00 +0800" HEAD)
+          printf '%s-%02d' "$D" "$N" > VERSION
+          cat VERSION
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: projects/609447194815/locations/global/workloadIdentityPools/github/providers/github-oidc

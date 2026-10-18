@@ -31,7 +31,9 @@
   .p-top{position:sticky;top:0;min-height:calc(var(--p-top) + env(safe-area-inset-top));padding-top:env(safe-area-inset-top);background:var(--card);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right));z-index:20}
   .p-brand{display:flex;align-items:center;gap:8px;flex:none;color:var(--ink);text-decoration:none}
   .p-brand i{width:32px;height:32px;border-radius:8px;background:var(--ink);color:var(--accent);display:grid;place-items:center;font-family:var(--serif);font-weight:900;font-style:normal;font-size:1rem}
-  .p-brand b{font-weight:600;font-size:1rem}
+  .p-brand b{font-weight:600;font-size:1rem;line-height:1.1}
+  .p-ver-wrap{display:flex;flex-direction:column}
+  .p-ver{font-size:1rem;font-weight:400;line-height:1.1;color:var(--ink);opacity:.5;font-variant-numeric:tabular-nums;white-space:nowrap}
   .p-scope{display:flex;gap:6px;flex:none}
   .p-scope button,.p-nav button{all:unset;box-sizing:border-box;cursor:pointer;min-height:44px;padding:0 14px;border-radius:999px;font-size:1rem;line-height:1;white-space:nowrap;color:var(--ink-soft);border:1px solid transparent}
   .p-scope button{border-color:var(--line)}
@@ -122,7 +124,7 @@
   @media(min-width:601px) and (max-width:999px){:root{--p-top:108px}.p-nav-wrap{order:3;flex:1 1 100%}.p-nav{overflow-x:visible;flex-wrap:wrap}}
   /* 手機（≤600px）：若分頁跟平板一樣換行會疊成 4 行、頂欄佔掉近一半螢幕（KK 回報「上半部佔比太多」）→ 分頁維持單行橫向滑動，右側漸層＋固定「›」提示還有更多（比單純淡化邊緣更明顯），並在切換分頁時自動把目前分頁捲進視野，不靠隱藏捲軸讓人自己猜 */
   @media(max-width:600px){:root{--p-top:108px}.p-nav-wrap{order:3;flex:1 1 100%}.p-nav{overflow-x:auto;flex-wrap:nowrap}}
-  @media(max-width:720px){.p-brand b{display:none}.p-scope button,.p-nav button{padding:0 12px}}
+  @media(max-width:720px){.p-ver-wrap{display:none}.p-scope button,.p-nav button{padding:0 12px}}
   /* 手機（≤600px，以 375 寬為準）：店別＋錢櫃／登出併成第一行、分頁第二行；錢櫃／登出只留圖示（文字仍是無障礙名稱），不再上下疊成第三行 */
   @media(max-width:600px){.p-brand{display:none}.p-scope{min-width:0}.p-tools button:not(.p-net){display:inline-flex;align-items:center;justify-content:flex-start;width:44px;padding:0 0 0 11px;overflow:hidden;white-space:nowrap}.p-tools #p-drawer .ic,.p-tools #p-logout .ic{margin-right:12px}
     main{padding:12px max(12px,env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}.a-sec{padding:12px}
@@ -139,7 +141,7 @@
 </head>
 <body>
 <header class="p-top">
-  <a class="p-brand" href="/" aria-label="言文字 POS"><i>言</i><b>POS</b></a>
+  <a class="p-brand" href="/" aria-label="言文字 POS"><i>言</i><span class="p-ver-wrap"><b>POS</b><small class="p-ver">v<!--POS_VERSION--></small></span></a>
   <div class="p-scope" id="p-scope" role="group" aria-label="切換店別"></div>
   <div class="p-nav-wrap" id="p-nav-wrap">
     <nav class="p-nav" id="p-nav" aria-label="功能"></nav>
