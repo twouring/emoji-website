@@ -777,3 +777,9 @@ tr.lp-refund td{color:var(--danger)}
 .pos-ticket.on .tk-time{color:var(--paper)}
 .pos-ticket .tk-head{justify-content:center}
 .pos-slot-resv:empty{display:none}.pos-slot-resv .pos-resv{display:block;white-space:normal;overflow-wrap:anywhere}
+/* 單子上的點餐人 */
+.pos-ticket .tk-time{padding-bottom:4px}
+.pos-ticket .tk-who{display:block;padding:0 8px 8px;font-size:1rem;text-align:center;color:var(--ink);overflow-wrap:anywhere;line-height:1.3}
+.pos-ticket.on .tk-who{color:var(--paper)}
+.pos-ticket .tk-head{justify-content:center;gap:6px}.pos-slot .pos-ticket>.tk-head{display:flex}.pos-slot .pos-ticket>.tk-head>b{display:none}
+.pos-ticket .tk-head .pill{font-size:1rem}
