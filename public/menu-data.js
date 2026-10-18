@@ -12,15 +12,15 @@ window.__MENU_SEED = [
   { venue:"CAFE", cat:"SALAD", zh:"生火腿酪梨優格碗", en:"Prosciutto & Avocado Yogurt Bowl", price:320, note:"希臘優格搭配酪梨、綜合堅果、蜂蜜、生火腿、紫蘇、白葡萄、黃檸檬皮、黑胡椒、初榨橄欖油與海鹽；另附蜂蜜柚子油醋生菜沙拉。", image:U('1597776776723-0153bbc0d3ad') },
   // ── BREAD ──
   { venue:"CAFE", cat:"BREAD", zh:"燻鮭魚酪梨蒔蘿奶油開放式三明治", en:"Smoked Salmon & Avocado Open Sandwich", price:320, note:"酸種麵包搭配燻鮭魚、酪梨、綜合堅果、紫蘇、蒔蘿奶油起司抹醬、蜂蜜、黑胡椒、黃檸檬皮與炸酸豆；附蜂蜜柚子油醋沙拉與蜂蜜堅果原味優格。", image:U('1768482303665-ed751d06af5f') },
-  { venue:"CAFE", cat:"BREAD", zh:"奶油松露野菇炒蛋開放式三明治", en:"Truffle Mushroom & Egg Open Sandwich", price:300, note:"酸種麵包搭配蛋沙拉、奶油炒菇、紫蘇絲、帕瑪森、黑胡椒與細香蔥；附蜂蜜柚子油醋沙拉與蜂蜜堅果原味優格。", image:U('1631637214648-2c6fd7f947ae') },
+  { venue:"CAFE", cat:"BREAD", zh:"奶油松露野菇炒蛋開放式三明治", en:"Truffle Mushroom & Egg Open Sandwich", price:300, note:"酸種麵包搭配美式滑蛋、奶油炒菇、紫蘇絲、帕瑪森、黑胡椒與細香蔥；附蜂蜜柚子油醋沙拉與蜂蜜堅果原味優格。", image:U('1631637214648-2c6fd7f947ae') },
   { venue:"CAFE", cat:"BREAD", zh:"無花果核桃蜂蜜奶油貝果", en:"Fig, Walnut & Honey Cream Cheese Bagel", price:150, note:"烤貝果搭配無花果奶油起司抹醬、烤核桃、蜂蜜與海鹽，呈現果香、乳脂與堅果口感。", image:U('1707079408137-cc73e9ef71c2') },
   { venue:"CAFE", cat:"BREAD", zh:"原味貝果", en:"Plain Bagel", price:80, note:"原味貝果單點供應；可加購奶油起司與果醬，作為簡單早餐、下午茶或外帶選擇。｜奶油起司＋果醬加購 20", image:U('1726733947933-a9e406f84d9a') },
   { venue:"CAFE", cat:"BREAD", zh:"柚子胡椒雞腿貝果", en:"Yuzu Kosho Chicken Bagel", price:260, note:"烤貝果搭配柚子胡椒奶油起司抹醬、鹽麴烤雞腿、生菜、大番茄片、紫洋蔥；附蜂蜜柚子油醋沙拉與蜂蜜堅果原味優格。", image:U('1726733860096-34a3fbae77c5') },
   { venue:"CAFE", cat:"BREAD", zh:"明太子美式炒蛋可頌", en:"Mentaiko Scrambled Egg Croissant", price:320, note:"可頌搭配明太子美乃滋、美式炒蛋、細香蔥與細海苔絲；附蜂蜜柚子油醋沙拉與蜂蜜堅果原味優格。", image:U('1771285119294-96a87cd118ab') },
   // ── JAPANESE ──
   { venue:"CAFE", cat:"JAPANESE", zh:"鹽烤雞腿昆布飯糰", en:"Salt-Grilled Chicken & Kombu Onigiri", price:240, note:"白芝麻油海鹽飯底包入鹽烤雞腿，搭配細絲昆布；套餐附蜂蜜柚子油醋沙拉與柴魚醬油冷豆腐。", image:U('1696463469919-def9b2830857') },
-  { venue:"CAFE", cat:"JAPANESE", zh:"海苔馬告豬肉時雨煮飯糰", en:"Nori Onigiri, Maqaw Pork Shigureni", price:220, note:"青海苔風味飯糰搭配海苔奶油雞肉與白芝麻油海鹽飯底；套餐附蜂蜜柚子油醋沙拉與柴魚醬油冷豆腐。", image:U('1696463469925-77c6b7d9f0d6') },
-  { venue:"CAFE", cat:"JAPANESE", zh:"柚子紫蘇雞腿冷蕎麥麵", en:"Cold Soba, Yuzu Shiso & Chicken", price:320, note:"蕎麥麵搭配柴魚麵露、紫蘇、季節生菜、小番茄、初榨橄欖油與鹽烤雞腿；附柴魚醬油嫩豆腐。", image:U('1766634001888-5d632d62689a') },
+  { venue:"CAFE", cat:"JAPANESE", zh:"海苔馬告豬肉時雨煮飯糰", en:"Nori Onigiri, Maqaw Pork Shigureni", price:220, note:"青海苔風味飯糰搭配馬告薑燒豬肉與白芝麻油海鹽飯底；套餐附蜂蜜柚子油醋沙拉與柴魚醬油冷豆腐。", image:U('1696463469925-77c6b7d9f0d6') },
+  { venue:"CAFE", cat:"JAPANESE", zh:"柚香紫蘇雞腿冷蕎麥麵", en:"Cold Soba, Yuzu Shiso & Chicken", price:320, note:"蕎麥麵搭配柴魚麵露、紫蘇、季節生菜、小番茄、初榨橄欖油與鹽烤雞腿；附柴魚醬油嫩豆腐。", image:U('1766634001888-5d632d62689a') },
   // ── FRIED ──
   { venue:"CAFE", cat:"FRIED", zh:"海苔香酥薯條附明太子美乃滋", en:"Nori Fries, Mentaiko Mayo", price:180, note:"香酥薯條搭配海苔粉增添海味與香氣，搭配明太子美乃滋，呈現薯條酥香、海苔鹹鮮與明太子濃郁鮮味的風味組合。", image:U('1630431341771-1ceb084d6607') },
   // ── DESSERT ──
@@ -70,9 +70,9 @@ window.__MENU_SEED = [
   { venue:"BAR", cat:"GRILL", zh:"蒜香味噌烤節瓜", en:"Garlic Miso Zucchini", price:220, note:"櫛瓜高溫烤製，薄刷蒜味噌醬，搭配核桃碎增加穀物香與口感。", image:U('1742044609850-ed68d84c39ab') },
   // ── MAIN ──
   { venue:"BAR", cat:"MAIN", zh:"濃香味噌肉醬烏龍麵附溫泉蛋", en:"Miso Meat Sauce Udon, Onsen Egg", price:320, note:"烏龍麵搭配以赤味增、豬絞肉與牛絞肉製成的味增肉醬，加入醬油、糖及高湯調整鹹甜與濃郁度，並以蔥、薑、蒜增加辛香，最後搭配溫泉蛋，使整體呈現味增醇厚鹹香、肉醬鮮味與蛋黃滑順口。", image:U('1707201124182-099f3d98bb90') },
-  { venue:"BAR", cat:"MAIN", zh:"醬香野菇蕎麥麵附溫泉蛋", en:"Soy Mushroom Soba, Onsen Egg", price:240, note:"蕎麥麵搭配鴻禧菇、美白菇與舞菇，以洋蔥、大蒜增加辛香與自然甜味，並以醬油拌炒提味，最後搭配溫泉蛋，呈現野菇鮮香、醬油鹹香與蛋黃滑順濃郁的風味。", image:U('1674516585624-422828b423f1') },
+  { venue:"BAR", cat:"MAIN", zh:"醬香野菇蕎麥麵附溫泉蛋", en:"Soy Mushroom Soba, Onsen Egg", price:240, note:"蕎麥麵搭配鴻禧菇、美白菇，以洋蔥、大蒜增加辛香與自然甜味，並以醬油拌炒提味，最後搭配溫泉蛋，呈現野菇鮮香、醬油鹹香與蛋黃滑順濃郁的風味。", image:U('1674516585624-422828b423f1') },
   { venue:"BAR", cat:"MAIN", zh:"炙燒明太子烤飯糰茶泡飯", en:"Grilled Mentaiko Onigiri Ochazuke", price:120, note:"醬油烤飯糰搭配炙燒明太子、海苔絲，昆布柴魚高湯供應。", image:U('1516684808441-d7ca9141e63c') },
-  { venue:"BAR", cat:"MAIN", zh:"太陽蛋番茄雞肉乾咖哩", en:"Tomato Chicken Dry Curry, Sunny-Side Egg", price:200, note:"雞絞肉搭配辛甜咖哩與蕃茄糊自製成乾咖哩，以洋蔥末、大蒜末增添辛香與自然甜味，整體呈現濃郁咖哩香氣、蕃茄酸甜與雞肉鮮味，搭配太陽蛋增加滑順濃郁口感。", image:U('1679279727895-bd5c9fb9c1a0') },
+  { venue:"BAR", cat:"MAIN", zh:"太陽蛋番茄雞肉乾咖哩飯", en:"Tomato Chicken Dry Curry, Sunny-Side Egg", price:200, note:"雞絞肉搭配辛甜咖哩與蕃茄糊自製成乾咖哩，以洋蔥末、大蒜末增添辛香與自然甜味，整體呈現濃郁咖哩香氣、蕃茄酸甜與雞肉鮮味，搭配太陽蛋增加滑順濃郁口感。", image:U('1679279727895-bd5c9fb9c1a0') },
   // ── SOUP ──
   { venue:"BAR", cat:"SOUP", zh:"剝皮辣椒蛤蜊雞湯", en:"Chicken & Clam Soup, Pickled Chili", price:220, note:"雞肉搭配剝皮辣椒與蛤蠣熬煮，以大蒜增加辛香，並加入剝皮辣椒醬汁增添甘甜微辣風味；結合雞肉鮮味與蛤蠣海味，呈現甘甜、微辣且鮮味濃郁的暖湯。", image:U('1680137248903-7af5d51a3350') },
   // ── SAKE ──
