@@ -28,9 +28,9 @@ test('中英文字典涵蓋桌邊點餐與 AA 結帳核心文案', () => {
 test('飲料規格依供應方式限制；熱飲不顯示冰塊、冷飲不提供常溫', () => {
   assert.equal(O.text('ja', 'checkout_title'), 'お食事後にカウンターで会計');
   const latte = O.optionGroups({ cat: 'COFFEE', zh: '拿鐵咖啡' }, 'zh');
-  assert.deepEqual(latte.map(g => g.key), ['temperature', 'sugar', 'ice']);
-  assert.deepEqual(O.activeOptionGroups(latte, { temperature: '熱' }).map(g => g.key), ['temperature', 'sugar']);
-  assert.deepEqual(O.activeOptionGroups(latte, { temperature: '冰' }).map(g => g.key), ['temperature', 'sugar', 'ice']);
+  assert.deepEqual(latte.map(g => g.key), ['temperature', 'ice']);
+  assert.deepEqual(O.activeOptionGroups(latte, { temperature: '熱' }).map(g => g.key), ['temperature']);
+  assert.deepEqual(O.activeOptionGroups(latte, { temperature: '冰' }).map(g => g.key), ['temperature', 'ice']);
   assert.deepEqual(O.optionGroups({ cat: 'TEA', zh: '紅烏龍', note: '紅烏龍茶葉、熱水。' }, 'zh'), [], '固定熱泡茶不問糖冰');
   const sparkling = O.optionGroups({ cat: 'SPARKLING', zh: '柚子氣泡' }, 'zh');
   assert.deepEqual(sparkling.map(g => g.key), ['ice'], '氣泡飲不可調甜度');

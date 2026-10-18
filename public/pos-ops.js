@@ -106,7 +106,7 @@ function bindReasonChips(host){
  * pickAmount：金額／數字用大鍵盤＋常用面額；digits 模式給統編這類固定位數
  * pickNote：備註＝常用詞可複選＋一欄補充
  * noteChips／fillChips：表單內嵌，按一下填進旁邊欄位（備註可複選、數值直接帶入） */
-const NOTE_PRESETS=['去冰','少冰','少糖','無糖','熱的','不要蔥','不要香菜','不辣','加辣','醬另放','分開裝','打包','先上'];
+const NOTE_PRESETS=['去冰','少冰','熱的','不要蔥','不要香菜','不辣','加辣','醬另放','分開裝','打包','先上'];
 const RESV_NOTE_PRESETS=['靠窗','嬰兒椅','慶生','素食','輪椅','安靜位','商務聚會','包場洽詢'];
 const PAUSE_PRESETS=['今日最後點餐 22:30','廚房忙碌，暫停加點 15 分鐘','包場活動中，暫停點餐'];
 const TABLE_ZONES=['A','B','C','D','E','F'];
