@@ -741,3 +741,34 @@ tr.lp-refund td{color:var(--danger)}
 .pos-open{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:stretch}
 .pos-open .btn,.pos-open .btn--solid,.pos-open .btn--ghost{flex:none;min-height:56px;padding:10px 8px;display:flex;align-items:center;justify-content:center;font-size:1rem;white-space:nowrap}
 .pos-sub{justify-content:stretch}.pos-sub .a-toolbar,.pos-sub .a-toolbar .btn{width:100%}.pos-sub .a-toolbar .btn{min-height:56px}
+
+/* v3：外帶欄與「櫃檯結帳」同一列標題；桌況與外帶各自捲動 */
+.pos-tables-row{display:flex;gap:12px;align-items:stretch;min-height:0}
+.pos-tables-main{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0}
+.pos-takeouts{flex:0 0 clamp(112px,13%,140px)!important;display:flex;flex-direction:column;gap:0!important;min-height:0;padding-left:10px!important;border-left:1px dashed var(--line)}
+.pos-takeouts>.ops-head h2{white-space:nowrap}
+.pos-takeout-list{display:flex;flex-direction:column;gap:8px;min-height:0;overflow:auto;padding-bottom:4px}
+.pos-takeout-list .pos-table{width:100%}
+@media(min-width:1000px){.pos-layout .pos-tables .pos-tables-row{flex:1}.pos-layout .pos-tables .pos-tables-main .pos-board{flex:1;min-height:0;overflow:auto}}
+/* 有平面圖時，格子裡已擺在平面圖上的桌不再重複出現 */
+@container (min-width:600px){.pos-grid .pos-slot.is-placed{display:none}}
+.pos-board{display:block}
+/* 單子不裁切：每一段是不可拆的小塊，放不下就整塊換行；高度跟內容走 */
+.pos-ticket{overflow:visible}
+.pos-ticket .tk-head{flex-wrap:wrap;white-space:normal;row-gap:2px}
+.pos-ticket .tk-head .pill{white-space:nowrap}
+.pos-ticket .tk-body>*{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
+.pos-ticket .tk-foot{display:flex;flex-wrap:wrap;column-gap:6px;white-space:normal}.pos-ticket .tk-foot>span{white-space:nowrap}
+.pos-floor-slot.is-sized .pos-slot{height:auto;min-height:100%}
+.pos-floor-slot.is-sized .pos-table.pos-ticket{height:auto}
+.pos-slot .pos-ticket>.tk-head>b{display:none}
+/* 空桌＝同一個桌位框，裡面是「＋ 開桌」虛線單 */
+.pos-table.empty{align-items:center;justify-content:center;min-height:64px;border:2px dashed var(--line);border-radius:6px;background:transparent}
+.pos-table.empty .tk-open{color:var(--muted);font-weight:600;white-space:nowrap}
+.pos-slot .pos-table.empty>b{display:none}
+.pos-table.empty.reserved{border-color:var(--ink)}
+@media(max-width:700px){.pos-tables-row{flex-direction:column}.pos-takeouts{flex:none!important;width:100%;border-left:0;border-top:1px dashed var(--line);padding:10px 0 0!important}.pos-takeout-list{flex-direction:row;flex-wrap:wrap}.pos-takeout-list .pos-table{width:calc(50% - 4px)}}
+/* 兩欄標題同高：都固定 44px、垂直置中 */
+.pos-tables-row .ops-head{min-height:44px;margin-bottom:12px}
+.pos-tables-row .ops-head h2{line-height:1.2}
+.pos-floor-slot.is-sized{display:flex;align-items:stretch}.pos-floor-slot.is-sized>.pos-slot{flex:1;min-width:0;min-height:0;height:auto}

@@ -868,7 +868,7 @@ function bindOrderDrag(host,onDrop){
   const slotAt=(x,y)=>{const e=document.elementFromPoint(x,y);return e&&e.closest?e.closest('[data-slot]'):null;};
   const begin=()=>{if(!st||st.on)return;st.on=true;const r=st.card.getBoundingClientRect();const g=st.card.cloneNode(true);g.classList.add('pos-ghost');g.style.width=r.width+'px';g.style.left=r.left+'px';g.style.top=r.top+'px';document.body.appendChild(g);st.ghost=g;st.dx=st.x0-r.left;st.dy=st.y0-r.top;st.card.classList.add('dragging-src');try{st.card.setPointerCapture(st.id);}catch(e){}};
   board.addEventListener('pointerdown',ev=>{
-    const card=ev.target.closest('.pos-table[data-pos-table]');if(!card||ev.button>0)return;
+    const card=ev.target.closest('.pos-table[data-pos-table]');if(!card||card.classList.contains('takeout')||ev.button>0)return;
     clear();
     st={card,id:ev.pointerId,x0:ev.clientX,y0:ev.clientY,touch:ev.pointerType==='touch',on:false};
     if(st.touch)st.timer=setTimeout(begin,300);
@@ -1017,16 +1017,16 @@ function paintPos(){
   const resvOf=t=>(d.reservations||{})[t]||[];
   const resvHtml=t=>resvOf(t).map(r=>`<small class="pos-resv"><span class="pos-resv-tag">預約</span> ${esc(r.time)} ${esc(r.name)} ${r.party_size} 位${r.status==='new'?'（待確認）':''}</small>`).join('');
   const cardHtml=s=>{
-    if(s.empty)return `<button type="button" class="pos-table empty ${s.placed?'is-placed':''} ${resvOf(s.table).length?'reserved':''}" data-open-table="${esc(s.table)}"><b>${esc(s.table)}</b><span class="pill pill-draft">空桌</span>${resvHtml(s.table)}</button>`;
+    if(s.empty)return `<button type="button" class="pos-table empty ${s.placed?'is-placed':''} ${resvOf(s.table).length?'reserved':''}" data-open-table="${esc(s.table)}" aria-label="${esc(s.table)} 空桌，點一下開桌"><b>${esc(s.table)}</b><span class="tk-open">＋ 開桌</span>${resvHtml(s.table)}</button>`;
     const [cls,label]=TABLE_STATE[s.state]||TABLE_STATE.open;
     const money=idleWarn(s)?`<span class="tk-warn">⚠ 還沒點餐</span>`:(s.unpaid?`<span class="tk-amt">NT$${num(s.unpaid_amount)}</span>`:`<span class="tk-none">${s.state==='empty'?'還沒點餐':'已結清'}</span>`);
-    return `<button type="button" class="pos-table pos-ticket ${s.placed?'is-placed':''} ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''} ${s.pay_requests?.length?'payreq':''} ${idleWarn(s)?'idlewarn':''}" data-pos-table="${esc(s.table)}"><span class="tk-head"><b>${s.takeout?'外帶 ':''}${esc(s.table)}</b><span class="pill ${cls}">${label}</span></span><span class="tk-body">${money}${s.mixed?'<span class="pill pill-bad">混桌</span>':''}${s.pay_requests?.length?`<span class="tk-pay pos-payreq-tag">💳 要結帳 ${s.pay_requests.map(r=>esc(r.name)).join('、')}</span>`:''}${s.pickup_at?`<span class="tk-pick"><span class="pos-resv-tag">預約取餐</span> ${esc(clockText(s.pickup_at))}</span>`:''}${resvHtml(s.table)}</span>${s.created_at?`<span class="tk-foot pos-order-time" title="${esc(applicationTime(s.created_at))}">🕒 ${esc(clockText(s.created_at))} · ${elapsedShort(s.created_at)}</span>`:''}</button>`;
+    return `<button type="button" class="pos-table pos-ticket ${s.placed?'is-placed':''} ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''} ${s.pay_requests?.length?'payreq':''} ${idleWarn(s)?'idlewarn':''}" data-pos-table="${esc(s.table)}"><span class="tk-head"><b>${s.takeout?'外帶 ':''}${esc(s.table)}</b><span class="pill ${cls}">${label}</span></span><span class="tk-body">${money}${s.mixed?'<span class="pill pill-bad">混桌</span>':''}${s.pay_requests?.length?`<span class="tk-pay pos-payreq-tag">💳 要結帳 ${s.pay_requests.map(r=>esc(r.name)).join('、')}</span>`:''}${s.pickup_at?`<span class="tk-pick"><span class="pos-resv-tag">預約取餐</span> ${esc(clockText(s.pickup_at))}</span>`:''}${resvHtml(s.table)}</span>${s.created_at?`<span class="tk-foot pos-order-time" title="${esc(applicationTime(s.created_at))}"><span>🕒 ${esc(clockText(s.created_at))}</span><span>${elapsedShort(s.created_at)}</span></span>`:''}</button>`;
   };
   // 桌位固定：每桌一格（桌號在格頭、不會動）；單卡放在格子裡，可以拖到別的桌位（目標桌有單＝併桌）。外帶單沒有桌位，排在右側直欄
-  const slotHtml=t=>`<div class="pos-slot" data-slot="${esc(t)}"><span class="pos-slot-name">${esc(t)}</span>${cardHtml(byTable.get(t)||{table:t,empty:true})}</div>`;
+  const slotHtml=t=>`<div class="pos-slot ${layoutPos[t]?'is-placed':''}" data-slot="${esc(t)}"><span class="pos-slot-name">${esc(t)}</span>${cardHtml(byTable.get(t)||{table:t,empty:true})}</div>`;
   const takeouts=sessions.filter(s=>s.takeout);
   const grid=baseNames.map(slotHtml).join('');
-  const floor=placed.length?`<div class="pos-floor">${placed.map(t=>`<div class="pos-floor-slot${layoutPos[t][2]?' is-sized':''}" style="left:${layoutPos[t][0]}%;top:${layoutPos[t][1]}%${layoutPos[t][2]?`;width:${layoutPos[t][2]}%;height:${layoutPos[t][3]}%`:''}">${slotHtml(t)}</div>`).join('')}</div>`:'';
+  const floor=placed.length?`<div class="pos-floor">${placed.map(t=>`<div class="pos-floor-slot${layoutPos[t][2]?' is-sized':''}" style="left:${layoutPos[t][0]}%;top:${layoutPos[t][1]}%${layoutPos[t][2]?`;width:${layoutPos[t][2]}%;min-height:${layoutPos[t][3]}%`:''}">${slotHtml(t)}</div>`).join('')}</div>`:'';
 
   if(POS_EDIT){
     const pos=defaultTablePos(baseNames,layoutPos);
@@ -1098,7 +1098,7 @@ function paintPos(){
       </div>
     </div>`;
   }
-  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('客人掃桌上 QR 點餐後，點該桌看帳、結帳；外帶按「＋ 外帶」；客人沒掃碼要櫃檯點餐時，直接點空桌開桌。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div><div class="pos-board"><div class="pos-board-tables">${floor}<div class="pos-grid">${grid}</div></div><aside class="pos-takeouts" aria-label="外帶單"><h3>外帶 ${takeouts.length?`<span class="kds-count">${takeouts.length}</span>`:''}</h3>${takeouts.length?takeouts.map(cardHtml).join(''):'<p class="hint">沒有外帶單</p>'}</aside></div>${opener}<div class="pos-sub">${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">錢櫃</button></div>'}</div></div>${panel}</div>`;
+  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="pos-tables-row"><div class="pos-tables-main"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('客人掃桌上 QR 點餐後，點該桌看帳、結帳；外帶按「＋ 外帶」；客人沒掃碼要櫃檯點餐時，直接點空桌開桌。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div><div class="pos-board">${floor}<div class="pos-grid">${grid}</div></div></div><aside class="pos-takeouts" aria-label="外帶單"><div class="ops-head"><h2>外帶${takeouts.length?` <span class="kds-count">${takeouts.length}</span>`:''}</h2></div><div class="pos-takeout-list">${takeouts.length?takeouts.map(cardHtml).join(''):'<p class="hint">沒有外帶單</p>'}</div></aside></div>${opener}<div class="pos-sub">${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">錢櫃</button></div>'}</div></div>${panel}</div>`;
   {const m=host.querySelector('.pos-menu');if(m&&POS_MENU_SCROLL)m.scrollTop=POS_MENU_SCROLL;const c=host.querySelector('.pos-cats');if(c&&POS_CATS_LEFT)c.scrollLeft=POS_CATS_LEFT;const l=host.querySelector('.pos-mid');if(l&&POS_LEFT_SCROLL){l.scrollTop=POS_LEFT_SCROLL;if(POS_LEFT_SCROLL===1e9)POS_LEFT_SCROLL=l.scrollTop;}}
   if(!document.getElementById('p-drawer'))bindCashDrawerButton(host.querySelector('#pos-cash-drawer'));
   host.querySelectorAll('[data-pos-table]').forEach(b=>b.onclick=()=>{POS_TABLE=b.dataset.posTable;POS_OPT=null;POS_MENU_SCROLL=0;POS_LEFT_SCROLL=0;POS_PICK=null;POS_QTY={};POS_PAYREQ=null;POS_YAN={phone:'',name:'',balance:null};POS_MEMBER=false;POS_SPLIT={};POS_DISCOUNT=null;POS_DISC_OPEN=false;POS_RECEIVED='';POS_AA=null;paintPos();});
@@ -1119,11 +1119,17 @@ function paintPos(){
   bindOrderDrag(host,async(id,from,to)=>{
     const busy=byTable.get(to);
     if(busy&&!await posConfirm(`${to} 已有單，把 ${from} 併到 ${to}？兩桌的品項會合在一起。`,{ok:'併桌'}))return;
-    await opsThen(()=>api('/admin/orders/sessions/'+id+'/move',{method:'POST',body:{table_no:to}}),out=>out.merged?`已併到 ${out.table}`:`已換到 ${out.table}`,out=>{POS_TABLE=out.table;POS_PICK=null;return reload();});
+    await opsThen(()=>api('/admin/orders/sessions/'+id+'/move',{method:'POST',body:{table_no:to}}),out=>out.merged?`已併到 ${out.table}`:`已換到 ${out.table}`,()=>{POS_TABLE='';return reload();});
   });
   host.querySelector('#pos-edit-tables').onclick=()=>{POS_EDIT=true;POS_EDIT_POS=null;paintPos();};
   // 平面圖底部的桌卡若比畫布長（使用中的桌卡比較高），用 margin 把下面的內容推開，座標不變
-  const fl=host.querySelector('.pos-floor');if(fl&&typeof fl.getBoundingClientRect==='function'){const fit=()=>{const fr=fl.getBoundingClientRect();if(!fr.height)return;let over=0;for(const c of fl.children)over=Math.max(over,c.getBoundingClientRect().bottom-fr.bottom);fl.style.marginBottom=(over>0?Math.ceil(over)+12:10)+'px';};fit();if(typeof requestAnimationFrame==='function')requestAnimationFrame(fit);}
+  const fl=host.querySelector('.pos-floor');if(fl&&typeof fl.getBoundingClientRect==='function'){const fit=()=>{const fr=fl.getBoundingClientRect();if(!fr.height)return;
+    // 單子比桌位框高時，把平面圖整體拉高（座標是百分比，拉高後上下桌的間距跟著變大），直到每張單都不會壓到下面那桌
+    const sl=[...fl.children].map(c=>({c,top:parseFloat(c.style.top)||0,left:parseFloat(c.style.left)||0,w:c.getBoundingClientRect().width/fr.width*100,h:(c.firstElementChild||c).getBoundingClientRect().height}));
+    let need=fr.height;
+    for(const a of sl){need=Math.max(need,(a.h+8)/Math.max(0.05,(100-a.top)/100));for(const b of sl){if(b===a||b.top<=a.top)continue;if(b.left>=a.left+a.w||a.left>=b.left+b.w)continue;need=Math.max(need,(a.h+8)/((b.top-a.top)/100));}}
+    if(need>fr.height+1)fl.style.height=Math.ceil(need)+'px';
+    const fr2=fl.getBoundingClientRect();let over=0;for(const c of fl.children)over=Math.max(over,(c.firstElementChild||c).getBoundingClientRect().bottom-fr2.bottom);fl.style.marginBottom=(over>0?Math.ceil(over)+12:10)+'px';};fit();if(typeof requestAnimationFrame==='function')requestAnimationFrame(fit);}
   // 加開桌號：點區＋號碼，不打字（桌牌上有的桌號直接點桌況格或「開桌」）
   host.querySelector('#pos-open-extra').onclick=async()=>{const t=await pickTableNo({title:'加開桌號',hint:'桌牌上沒有的桌號、戶外或臨時桌才用這裡；已開著的桌會直接切過去。'});if(t)openSession({table_no:t});};
   host.querySelector('#pos-takeout').onclick=()=>openSession({takeout:true});
