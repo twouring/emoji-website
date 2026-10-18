@@ -16,7 +16,7 @@ test('接線：pos.html／admin.html 在 pos-ops.js 之前載入 order-lib.js；
 });
 
 test('加點：有選項的品項先跳面板（數量＋每組必選＋其他需求），沒選項的直接加；取消不送單', () => {
-  assert.match(ops, /function itemOptionGroups\(it\)\{ return \(it&&typeof OrderLib!=='undefined'&&OrderLib\.optionGroups\)\?OrderLib\.optionGroups\(it,'zh'\):\[\]; \}/, '規格一律來自 order-lib（沒載到就退回直接加）');
+  assert.match(ops, /function itemOptionGroups\(it\)\{[^\n]*it\.cat==='COMBO'[^\n]*OrderLib\.comboGroups[^\n]*return \(it&&typeof OrderLib!=='undefined'&&OrderLib\.optionGroups\)\?OrderLib\.optionGroups\(it,'zh'\):\[\]; \}/, '規格一律來自 order-lib（套餐走 comboGroups；沒載到就退回直接加）');
   assert.match(ops, /const groups=itemOptionGroups\(it\);\s*if\(!groups\.length\)return send\(\{item_id:b\.dataset\.add,qty:1,note\}\);\s*openItemOptions\(it,groups,note,send\);/, '沒選項直接加、有選項切換到中欄細項畫面');
   assert.match(ops, /function openItemOptions\(it,groups,note0,onDone,editing\)/);
   assert.match(ops, /function optionPaneHtml\(o\)/, '細項在中欄畫面，不是彈窗');
@@ -28,7 +28,7 @@ test('加點：有選項的品項先跳面板（數量＋每組必選＋其他�
   assert.match(ops, /id="pos-opt-note" maxlength="80"/, '其他需求 80 字，與桌邊點餐相同');
   assert.match(ops, /o\.qty=Math\.max\(1,Math\.min\(20,o\.qty\+Number\(b\.dataset\.oq\)\)\)/, '數量 1–20，與 addLine 一致');
   assert.match(ops, /#pos-opt-cancel'\)\.onclick=\(\)=>\{ POS_OPT=null; paintPos\(\); \};/, '取消只回菜單，不送單');
-  assert.match(ops, /done\(\{item_id:o\.it\.id,qty:o\.qty,note\}\)/, '送出沿用既有 POST …/items body');
+  assert.match(ops, /const body=\{item_id:o\.it\.id,qty:o\.qty,note\};[^\n]*done\(body\)/, '送出沿用既有 POST …/items body');
 });
 
 test('備註格式與桌邊點餐 optionNote 相同：「標籤：選項」以「；」串接，其他需求接在最後、最多 80 字', () => {

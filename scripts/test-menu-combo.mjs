@@ -60,7 +60,8 @@ test('comboGroups：每欄一組單選；選到的品項帶出自己的規格，
   assert.ok(act().some(l => l.startsWith('美式咖啡・冰塊')), '美式預設冰 → 有冰塊');
   assert.ok(!act().some(l => l.startsWith('拿鐵咖啡')));
   picks.drink = drink.choices[1];
-  assert.ok(act().some(l => l.startsWith('拿鐵咖啡・糖度')));
+  assert.ok(act().some(l => l.startsWith('拿鐵咖啡・溫度')));
+  assert.ok(!act().some(l => /糖度/.test(l)), '全店已不問糖度');
   picks.drink = drink.choices[2];
   assert.deepEqual(act().filter(l => l.startsWith('柚子氣泡')).length, 1, '氣泡只有冰塊');
 });
@@ -73,7 +74,7 @@ test('comboPayload：只送選中品項的規格，出餐單才不會混進別�
   assert.equal(p.main.zh, '原味貝果');
   assert.equal(p.drink.zh, '拿鐵咖啡');
   assert.match(p.drink.note, /溫度：熱/);
-  assert.match(p.drink.note, /糖度：正常糖/);
+  assert.doesNotMatch(p.drink.note, /糖度/);
   assert.doesNotMatch(p.drink.note, /冰塊/, '熱飲不問冰塊');
 });
 test('菜單：COMBO 要有內容；文字編輯來回一致', () => {
