@@ -714,3 +714,26 @@ tr.lp-refund td{color:var(--danger)}
 .ops-parts{display:grid;gap:4px;margin:4px 0 0 10px;padding-left:10px;border-left:3px solid var(--ink)}
 .ops-part{font-size:1.15rem;line-height:1.35}.ops-part b{font-weight:700}
 .pos-line-parts{display:inline-block;margin-top:2px;font-size:1rem;font-weight:600;color:var(--ink);overflow-wrap:anywhere}
+
+/* 單卡＝單子：票頭（桌號＋狀態）／虛線／內容／票尾（時間）；內容不換行爆版，過長省略 */
+.pos-ticket{overflow:hidden;gap:0!important;padding:0!important;min-height:0!important;border-radius:6px;background:#fffdf7;box-shadow:0 1px 2px rgba(0,0,0,.12);position:relative}
+.pos-ticket.takeout{background:#fffdf7}
+.pos-ticket .tk-head{display:flex;align-items:center;justify-content:space-between;gap:4px;padding:6px 8px;background:var(--paper-alt);border-bottom:2px dashed var(--line);white-space:nowrap}
+.pos-ticket .tk-head b{display:block!important;font-size:1.125rem;overflow:hidden;text-overflow:ellipsis}
+.pos-ticket .tk-head .pill{font-size:1rem;padding:1px 6px;flex:none}
+.pos-ticket .tk-body{display:flex;flex-direction:column;gap:2px;padding:6px 8px;min-width:0}
+.pos-ticket .tk-body>*{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:1rem;color:var(--muted)}
+.pos-ticket .tk-amt{font-size:1.125rem!important;font-weight:700;color:var(--ink)}
+.pos-ticket .tk-pay{color:var(--warn-ink)!important;font-weight:600}.pos-ticket .tk-warn{color:#9a4a00!important;font-weight:600}
+.pos-ticket .tk-foot{display:block;padding:4px 8px;border-top:1px dashed var(--line);font-size:1rem;white-space:nowrap;color:var(--muted);font-variant-numeric:tabular-nums}
+.pos-ticket .pos-resv{white-space:nowrap}
+.pos-ticket.on{background:var(--ink)}.pos-ticket.on .tk-head{background:rgba(255,255,255,.12);border-bottom-color:rgba(255,255,255,.35)}.pos-ticket.on .tk-body>*,.pos-ticket.on .tk-foot,.pos-ticket.on .tk-head b{color:var(--paper)!important}.pos-ticket.on .tk-foot{border-top-color:rgba(255,255,255,.35)}
+.pos-ticket.payreq{background:var(--warn-soft)}.pos-ticket.payreq.on{background:var(--ink)}
+.pos-ticket.idlewarn{background:#fff1e0}.pos-ticket.idlewarn.on{background:var(--ink)}
+.pos-slot .pos-ticket{flex:0 0 auto;align-self:stretch}
+.pos-slot{height:auto;min-height:100%}
+/* 外帶欄縮小 */
+.pos-takeouts{flex:0 0 clamp(104px,13%,132px)!important;padding-left:8px!important;gap:6px!important}
+.pos-takeouts h3{font-size:1rem!important}
+.pos-takeouts .pos-ticket .tk-head b{font-size:1rem}
+@media(max-width:700px){.pos-takeouts .pos-table{width:calc(50% - 3px)}}

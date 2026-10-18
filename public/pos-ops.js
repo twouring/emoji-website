@@ -350,6 +350,7 @@ const tableDetailHtml=s=>{
   const times=[s.created_at?`${s.takeout?'開單':'開桌'} ${clockText(s.created_at)}`:'',s.updated_at?`最後動作 ${clockText(s.updated_at)}`:''].filter(Boolean).join(' · ');
   return `<span class="pos-detail">${names?`<small class="pos-detail-items">${names}</small>`:''}${prog?`<small>${prog}</small>`:''}${who.length?`<small>點餐：${who.map(esc).join('、')}</small>`:''}${times?`<small>${times}</small>`:''}${s.operator?`<small>開桌：${esc(s.operator)}</small>`:''}</span>`;
 };
+const elapsedShort=iso=>{const m=Math.max(0,Math.floor((Date.now()-new Date(iso))/60000));return m<60?`${m}分`:`${Math.floor(m/60)}時${m%60}分`;};
 const elapsedText=iso=>{const m=Math.max(0,Math.floor((Date.now()-new Date(iso))/60000));return m<60?`${m} 分`:`${Math.floor(m/60)} 時 ${m%60} 分`;};
 // 現場看板只顯示時刻（HH:MM），不佔欄寬；完整日期時間放 title 供滑鼠停留查看
 const clockText=iso=>{const d=iso?new Date(iso):null;return d&&!isNaN(d)?d.toLocaleTimeString('zh-TW',{timeZone:'Asia/Taipei',hour12:false,hour:'2-digit',minute:'2-digit'}):'—';};
@@ -858,12 +859,14 @@ function bindSwipe(el,{dir='right',min=100,follow=false,onSwipe}){
 }
 function bindCashDrawerButton(drawerBtn){if(drawerBtn)drawerBtn.onclick=()=>ensureOperator(async()=>{const reason=await pickReason({title:'開錢櫃原因（記錄操作人員與時間）',presets:['開班放零用金','換鈔','交班點鈔','交易已完成，重試開櫃']});if(!reason||drawerBtn.disabled)return;drawerBtn.disabled=true;try{await manualCashDrawer(reason);}finally{drawerBtn.disabled=false;}});}
 // 桌況拖單：單卡（[data-pos-table]）拖到桌位格（[data-slot]）。拖曳後會吃掉緊接著的 click，不會誤開帳單
+let LAST_DRAG=0;
 function bindOrderDrag(host,onDrop){
   const board=host.querySelector('.pos-board');if(!board||typeof board.addEventListener!=='function'||board.dataset.dragBound)return;board.dataset.dragBound='1';
   let st=null;
+  board.addEventListener('click',e=>{if(Date.now()-LAST_DRAG<600){e.stopPropagation();e.preventDefault();}},true);
   const clear=()=>{if(!st)return;clearTimeout(st.timer);st.ghost&&st.ghost.remove();board.querySelectorAll('.drop-ok').forEach(e=>e.classList.remove('drop-ok'));st.card.classList.remove('dragging-src');st=null;};
   const slotAt=(x,y)=>{const e=document.elementFromPoint(x,y);return e&&e.closest?e.closest('[data-slot]'):null;};
-  const begin=()=>{if(!st||st.on)return;st.on=true;const r=st.card.getBoundingClientRect();const g=st.card.cloneNode(true);g.classList.add('pos-ghost');g.style.width=r.width+'px';g.style.left=r.left+'px';g.style.top=r.top+'px';document.body.appendChild(g);st.ghost=g;st.dx=st.x0-r.left;st.dy=st.y0-r.top;st.card.classList.add('dragging-src');};
+  const begin=()=>{if(!st||st.on)return;st.on=true;const r=st.card.getBoundingClientRect();const g=st.card.cloneNode(true);g.classList.add('pos-ghost');g.style.width=r.width+'px';g.style.left=r.left+'px';g.style.top=r.top+'px';document.body.appendChild(g);st.ghost=g;st.dx=st.x0-r.left;st.dy=st.y0-r.top;st.card.classList.add('dragging-src');try{st.card.setPointerCapture(st.id);}catch(e){}};
   board.addEventListener('pointerdown',ev=>{
     const card=ev.target.closest('.pos-table[data-pos-table]');if(!card||ev.button>0)return;
     clear();
@@ -883,7 +886,7 @@ function bindOrderDrag(host,onDrop){
     const was=st.on,from=st.card.dataset.posTable,sl=was&&ev.type==='pointerup'?slotAt(ev.clientX,ev.clientY):null;
     const sess=(POS_DATA?.sessions||[]).find(x=>x.table===from);
     clear();
-    if(was){board.addEventListener('click',e=>{e.stopPropagation();e.preventDefault();},{capture:true,once:true});}
+    if(was)LAST_DRAG=Date.now();
     if(was&&sl&&sess&&sl.dataset.slot!==from)onDrop(sess.id,from,sl.dataset.slot);
   };
   board.addEventListener('pointerup',end);board.addEventListener('pointercancel',end);
@@ -1015,7 +1018,9 @@ function paintPos(){
   const resvHtml=t=>resvOf(t).map(r=>`<small class="pos-resv"><span class="pos-resv-tag">預約</span> ${esc(r.time)} ${esc(r.name)} ${r.party_size} 位${r.status==='new'?'（待確認）':''}</small>`).join('');
   const cardHtml=s=>{
     if(s.empty)return `<button type="button" class="pos-table empty ${s.placed?'is-placed':''} ${resvOf(s.table).length?'reserved':''}" data-open-table="${esc(s.table)}"><b>${esc(s.table)}</b><span class="pill pill-draft">空桌</span>${resvHtml(s.table)}</button>`;
-    const [cls,label]=TABLE_STATE[s.state]||TABLE_STATE.open;return `<button type="button" class="pos-table ${s.placed?'is-placed':''} ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''} ${s.pay_requests?.length?'payreq':''} ${idleWarn(s)?'idlewarn':''}" data-pos-table="${esc(s.table)}"><b>${s.takeout?'外帶 ':''}${esc(s.table)}</b><span class="pill ${cls}">${label}</span>${s.pickup_at?`<small class="pos-resv"><span class="pos-resv-tag">預約取餐</span> ${esc(clockText(s.pickup_at))}${s.pickup_placed?'':'（時間到自動送單）'}${s.pickup_note?' · '+esc(s.pickup_note):''}</small>`:''}${idleWarn(s)?`<small class="pos-idlewarn-tag">⚠ 還沒點餐 ${elapsedText(s.created_at)}</small>`:`<small>${s.unpaid?`未結 NT$${num(s.unpaid_amount)}`:s.state==='empty'?'還沒點餐':'已結清'}</small>`}${s.pay_requests?.length?`<small class="pos-payreq-tag">💳 要結帳 ${s.pay_requests.map(r=>esc(r.name)).join('、')}</small>`:''}${s.created_at?`<small class="pos-order-time" title="${esc(applicationTime(s.created_at))}">🕒 ${s.takeout?'開單':'開桌'} ${esc(clockText(s.created_at))} · ${elapsedText(s.created_at)}</small>`:''}${s.mixed?'<small class="pill pill-bad">混桌</small>':''}${resvHtml(s.table)}</button>`;
+    const [cls,label]=TABLE_STATE[s.state]||TABLE_STATE.open;
+    const money=idleWarn(s)?`<span class="tk-warn">⚠ 還沒點餐</span>`:(s.unpaid?`<span class="tk-amt">NT$${num(s.unpaid_amount)}</span>`:`<span class="tk-none">${s.state==='empty'?'還沒點餐':'已結清'}</span>`);
+    return `<button type="button" class="pos-table pos-ticket ${s.placed?'is-placed':''} ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''} ${s.pay_requests?.length?'payreq':''} ${idleWarn(s)?'idlewarn':''}" data-pos-table="${esc(s.table)}"><span class="tk-head"><b>${s.takeout?'外帶 ':''}${esc(s.table)}</b><span class="pill ${cls}">${label}</span></span><span class="tk-body">${money}${s.mixed?'<span class="pill pill-bad">混桌</span>':''}${s.pay_requests?.length?`<span class="tk-pay pos-payreq-tag">💳 要結帳 ${s.pay_requests.map(r=>esc(r.name)).join('、')}</span>`:''}${s.pickup_at?`<span class="tk-pick"><span class="pos-resv-tag">預約取餐</span> ${esc(clockText(s.pickup_at))}</span>`:''}${resvHtml(s.table)}</span>${s.created_at?`<span class="tk-foot pos-order-time" title="${esc(applicationTime(s.created_at))}">🕒 ${esc(clockText(s.created_at))} · ${elapsedShort(s.created_at)}</span>`:''}</button>`;
   };
   // 桌位固定：每桌一格（桌號在格頭、不會動）；單卡放在格子裡，可以拖到別的桌位（目標桌有單＝併桌）。外帶單沒有桌位，排在右側直欄
   const slotHtml=t=>`<div class="pos-slot" data-slot="${esc(t)}"><span class="pos-slot-name">${esc(t)}</span>${cardHtml(byTable.get(t)||{table:t,empty:true})}</div>`;

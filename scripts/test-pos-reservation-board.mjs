@@ -50,7 +50,7 @@ test('桌況格：空桌與使用中都顯示預約提示；開桌只問一次�
   assert.match(src, /const resvOf=t=>\(d\.reservations\|\|\{\}\)\[t\]\|\|\[\]/);
   assert.match(src, /class="pos-resv"><span class="pos-resv-tag">預約<\/span> \$\{esc\(r\.time\)\} \$\{esc\(r\.name\)\} \$\{r\.party_size\} 位\$\{r\.status==='new'\?'（待確認）':''\}/);
   assert.match(src, /class="pos-table empty \$\{s\.placed\?'is-placed':''\} \$\{resvOf\(s\.table\)\.length\?'reserved':''\}" data-open-table/);
-  assert.match(src, /\$\{s\.mixed\?'<small class="pill pill-bad">混桌<\/small>':''\}\$\{resvHtml\(s\.table\)\}<\/button>/, '使用中的桌也要標下一組預約');
+  assert.match(src, /混桌<\/span>[\s\S]*\$\{resvHtml\(s\.table\)\}<\/span>/, '使用中的桌也要標下一組預約');
   // 輪詢的 sig 要含訂位，否則訂位頁排了桌號、已開著的 POS 不會重畫
   assert.match(src, /Object\.entries\(POS_DATA\.reservations\|\|\{\}\)\.map\(\(\[t,rs\]\)=>\[t,rs\.map\(r=>\[r\.id,r\.time,r\.status\]\)\]\)/);
   // 只有 confirmed 才問「已到」（new → arrived 不在狀態機裡）；取消＝只開桌，不擋

@@ -8,7 +8,7 @@ test('桌位固定：每桌一格，單卡放在格內，格頭顯示桌號',()=
   assert.match(js,/const grid=baseNames\.map\(slotHtml\)/);
 });
 test('單卡顯示開桌／開單時間與經過時間',()=>{
-  assert.match(js,/class="pos-order-time"[^`]*clockText\(s\.created_at\)[^`]*elapsedText\(s\.created_at\)/);
+  assert.match(js,/class="tk-foot pos-order-time"[^`]*clockText\(s\.created_at\)[^`]*elapsedShort\(s\.created_at\)/);
 });
 test('單卡可拖到別的桌位：呼叫 move API，目標有單先確認併桌',()=>{
   assert.match(js,/function bindOrderDrag/);
@@ -20,4 +20,8 @@ test('外帶單沒有桌位，排在右側直欄',()=>{
   assert.match(js,/<aside class="pos-takeouts"/);
   assert.match(js,/takeouts\.map\(cardHtml\)/);
   assert.match(css,/\.pos-takeouts\{flex:0 0/);
+});
+test('單卡是單子版型（票頭／內容／票尾），拖完 600ms 內吃掉 click 不進帳單',()=>{
+  assert.match(js,/class="tk-head"/);assert.match(js,/class="tk-foot pos-order-time"/);
+  assert.match(js,/Date\.now\(\)-LAST_DRAG<600/);
 });
