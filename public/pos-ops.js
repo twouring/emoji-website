@@ -307,18 +307,21 @@ async function startInvoiceScan(video,onCode,{raw:keepRaw=false,sensitive=false,
     tick();return true;
   }catch(e){stopPosInvoiceScanner(video);toast('無法開啟相機：'+e.message);return false;}
 }
-// 掃會員條碼：相機掃 App「會員卡」QR（或掃描槍／手動貼上），向後台換成會員資料；會員卡 QR 區分大小寫，不能轉大寫
+// 掃會員條碼：全螢幕彈窗，點「掃會員」即開相機掃 App「會員卡」QR；下方可用掃描槍／手動貼上。向後台換成會員資料；會員卡 QR 區分大小寫，不能轉大寫
 function pickMemberCard(){
   return new Promise(resolve=>{
-    const {ov,close}=pickOverlay(`<h3>掃會員條碼${tipIcon('請客人開 App「會員卡」出示 QR，按「掃描」對準；用掃描槍也可直接掃進下面欄位。')}</h3><div class="pos-inv-scan-row"><input id="pos-card-input" autocomplete="off" placeholder="掃描槍／貼上會員條碼"><button type="button" class="btn btn--ghost" id="pos-card-scan">📷 掃描</button></div><video id="pos-card-video" playsinline muted></video><div class="pos-move-foot"><span></span><span><button type="button" class="btn btn--ghost" data-cancel>取消</button> <button type="button" class="btn btn--solid" data-ok>確定</button></span></div>`,'掃會員條碼');
-    const inp=ov.querySelector('#pos-card-input'),video=ov.querySelector('#pos-card-video');
-    const done=v=>{stopPosInvoiceScanner(video);close();resolve(v);};
-    ov.onclick=e=>{if(e.target===ov)done(null);};
+    const ov=document.createElement('div');ov.className='pos-scan-full';ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');ov.setAttribute('aria-label','掃會員條碼');
+    ov.innerHTML=`<div class="pos-scan-full-head"><b>掃會員條碼</b><button type="button" class="btn btn--ghost" data-cancel>關閉</button></div><div class="pos-scan-full-cam"><video id="pos-card-video" playsinline muted></video><div class="pos-scan-full-frame pos-scan-full-frame--qr" aria-hidden="true"></div></div><p class="pos-scan-full-hint" role="status">請客人打開 App「會員卡」，把 QR 對準框內</p><div class="pos-scan-full-foot"><input id="pos-card-input" autocomplete="off" spellcheck="false" placeholder="或用掃描槍／貼上會員條碼"><button type="button" class="btn btn--solid" data-ok>確定</button></div>`;
+    document.body.appendChild(ov);
+    const video=ov.querySelector('video'),inp=ov.querySelector('input'),hint=ov.querySelector('.pos-scan-full-hint');
+    let closed=false;
+    const done=v=>{if(closed)return;closed=true;stopPosInvoiceScanner(video);ov.remove();document.removeEventListener('keydown',esc_);resolve(v);};
+    const esc_=e=>{if(e.key==='Escape'){e.preventDefault();done(null);}};document.addEventListener('keydown',esc_);
+    const submit=()=>{const v=inp.value.trim();if(!v){hint.textContent='請掃描或貼上會員條碼';inp.focus();return;}done(v);};
     ov.querySelector('[data-cancel]').onclick=()=>done(null);
-    ov.querySelector('[data-ok]').onclick=()=>done(inp.value.trim()||null);
-    inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();done(inp.value.trim()||null);}};
-    ov.querySelector('#pos-card-scan').onclick=()=>startInvoiceScan(video,v=>{inp.value=v;done(v);},{raw:true});
-    inp.focus();
+    ov.querySelector('[data-ok]').onclick=submit;
+    inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();submit();}};
+    startInvoiceScan(video,v=>done(v),{raw:true}).then(ok=>{if(!ok&&!closed){hint.textContent='相機無法使用，請用掃描槍或貼上會員條碼';inp.focus();}});
   });
 }
 function syncInvoiceBadge(host){
@@ -329,7 +332,7 @@ function updateInvoiceFields(host){
   const box=host.querySelector('.pos-invoice');if(!box)return;
   const mode=POS_INVOICE.mode;
   box.querySelectorAll('[data-inv-modes]').forEach(el=>{el.hidden=!el.dataset.invModes.split(',').includes(mode);});
-  if(mode!=='mobile')stopPosInvoiceScanner();
+  if(mode!=='mobile'&&!document.querySelector?.('.pos-scan-full'))stopPosInvoiceScanner(); // 全螢幕掃會員／載具開著時不關相機
 }
 /* 收款帳戶：現金／刷卡／LINE Pay／轉帳內建在 PAY_LABEL；言文字管理員在系統設定另外新增的自訂收款帳戶放在 DATA.payment_methods（見 docs/API.md GET /api/state）*/
 const payMethodLabel=code=>PAY_LABEL[code]||(DATA?.payment_methods||[]).find(m=>m.code===code)?.label||code;

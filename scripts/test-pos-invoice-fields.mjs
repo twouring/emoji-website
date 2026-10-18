@@ -53,7 +53,7 @@ test('Safari／iOS 沒有內建 BarcodeDetector：改用同網域的 zxing-wasm�
 test('切換畫面／離開手機載具模式要停止相機，不留下背景串流', () => {
   assert.match(ops, /function stopPosInvoiceScanner\(video\)\{/);
   assert.match(ops, /function paintPos\(\)\{\s*\n\s*const host=document\.getElementById\('pos-body'\),d=POS_DATA;if\(!host\|\|!d\)return;\s*\n\s*if\(!document\.querySelector\?\.\('\.pos-scan-full'\)\)stopPosInvoiceScanner\(\);/);
-  assert.match(ops, /if\(mode!=='mobile'\)stopPosInvoiceScanner\(\);/);
+  assert.match(ops, /if\(mode!=='mobile'&&!document\.querySelector\?\.\('\.pos-scan-full'\)\)stopPosInvoiceScanner\(\);/);
 });
 
 test('CSS：隱藏列真的不佔版面，手機條碼輸入框與掃描鍵同一列', () => {

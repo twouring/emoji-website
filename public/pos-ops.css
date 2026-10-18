@@ -827,3 +827,5 @@ tr.lp-refund td{color:var(--danger)}
 .pos-floor-slot{container-type:inline-size}
 .pos-ticket .tk-open{font-size:1rem;max-width:100%;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis}
 .pos-floor-slot .pos-ticket .tk-open{padding-left:4px;padding-right:4px}
+/* 會員卡是 QR：掃描框改正方形 */
+.pos-scan-full-frame--qr{width:min(70vmin,420px);height:min(70vmin,420px)}
