@@ -359,7 +359,7 @@ POS `/pos/members` 會員名單（`auth`＋`adminOnly`，餐飲品牌子帳號�
 POS「會員」瀏覽身分與「結帳」本次帳單身分獨立：選會員不套入帳單；給點／空間兌換每次掃同一位會員的卡、確認、輸入經手人識別碼。結帳保留手機累點、掃卡套價／兌換餐飲，切桌、換店或桌次結束清除綁定；舊查詢結果不帶到別桌。
 
 ### POST /api/admin/yan/lookup
-POS 查／建會員。body `{ phone }`（台灣手機）或 `{ token }`（會員卡 QR）。回 `{ ok, member:{id,name,phone}, balance }`。沒有帳號就用手機建立。品牌子帳號可用。回傳多 `active`（是否有效會籍）與 `verified`（是否以會員條碼確認身分）。POS 流程：掃會員條碼（`token`）→ 確認身分；有效會籍才套**會籍價**；點數不看會籍，掃碼確認身分後即可兌換品項與服務、兌換空間時數；只輸入手機＝只累點。會籍價＝菜單 `emo`（>0 時）否則原價九折（四捨五入），「現場輸入金額」品項不打折。註冊會員（沒有有效會籍）也能累點、兌換，只是沒有會籍價。點數**不折抵金額**。
+POS 查／建會員。body `{ phone }`（台灣手機）或 `{ token }`（會員卡 QR）。回 `{ ok, member:{id,name,phone}, balance }`。沒有帳號就用手機建立，回 `created:true`（POS 顯示「已新增會員」）。品牌子帳號可用。回傳多 `active`（是否有效會籍）與 `verified`（是否以會員條碼確認身分）。POS 流程：掃會員條碼（`token`）→ 確認身分；有效會籍才套**會籍價**；點數不看會籍，掃碼確認身分後即可兌換品項與服務、兌換空間時數；只輸入手機＝只累點。會籍價＝菜單 `emo`（>0 時）否則原價九折（四捨五入），「現場輸入金額」品項不打折。註冊會員（沒有有效會籍）也能累點、兌換，只是沒有會籍價。點數**不折抵金額**。
 
 ### GET /api/admin/yan/membership-plans
 POS 手動開通可選的一般會籍，`auth`＋`adminOnly`（CAFE／BAR 子帳號可用）、`no-store`。回 `{ plans:[{plan,label,duration}], activation:'immediate' }`，只含 `day_4h/day_12h/month/quarter/year`；不含創始、活動票與開幕優惠 `year_promo`。

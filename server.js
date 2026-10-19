@@ -4392,7 +4392,7 @@ async function findOrCreateMemberByPhone(client, phoneRaw, name) {
   let user = (await client.query('SELECT id,name,email,phone,phone_e164 FROM users WHERE phone_e164=$1 LIMIT 1',[phone])).rows[0];
   if (user) return user;
   const display = String(name || '').trim().slice(0, 80) || phone;
-  user = { id: uid('u_'), name: display, email: null, phone, phone_e164: phone };
+  user = { id: uid('u_'), name: display, email: null, phone, phone_e164: phone, created: true };
   await client.query(`INSERT INTO users(id,name,email,phone,phone_e164,status) VALUES($1,$2,$3,$4,$5,'已查看')`,[user.id, user.name, user.email, phone, phone]);
   return user;
 }
@@ -4613,7 +4613,7 @@ app.post('/api/admin/yan/lookup', auth, adminOnly, requireDb, wrap(async (req, r
   }
   const rows = await yanRowsFor({ query: (...a) => q(...a) }, user.id);
   const active = (await memberAccessFor(user.id)).active;
-  res.json({ ok: true, member: { id: user.id, name: user.name, phone: user.phone_e164 || user.phone || '' }, balance: yan.balance(rows), active, verified: !!token });
+  res.json({ ok: true, member: { id: user.id, name: user.name, phone: user.phone_e164 || user.phone || '' }, balance: yan.balance(rows), active, verified: !!token, created: !!user.created });
 }));
 
 app.get('/api/admin/yan/membership-plans', auth, adminOnly, requireDb, (req, res) => {
@@ -4716,7 +4716,10 @@ app.post('/api/me/profile', auth, requireDb, wrap(async (req, res) => {
   if (phone.length > 40 || phone.includes('\0')) return res.status(400).json({ error: '電話格式不正確（40 字以內）。' });
   const e164 = yan.normalizeTwPhone(phone);
   if (phone && !e164) return res.status(400).json({ error: '請輸入台灣手機（09 開頭 10 碼），現場才能累積言點。' });
-  const row = (await q(`UPDATE users SET name=$2,phone=$3,phone_e164=$4,phone_verified_at=CASE WHEN phone=$3 THEN phone_verified_at ELSE NULL END WHERE id=$1 RETURNING id,name,email,phone,phone_e164`, [req.auth.sub, name, phone, e164])).rows[0];
+  let row;
+  try { row = (await q(`UPDATE users SET name=$2,phone=$3,phone_e164=$4,phone_verified_at=CASE WHEN phone=$3 THEN phone_verified_at ELSE NULL END WHERE id=$1 RETURNING id,name,email,phone,phone_e164`, [req.auth.sub, name, phone, e164])).rows[0]; }
+  // 這支手機已被另一個帳號使用（常見：在店裡結帳報手機時 POS 自動建立的會員）；唯一索引擋下，回清楚訊息而不是 500
+  catch (e) { if (e.code === '23505') return res.status(409).json({ error: '這支手機已登記為另一個會員帳號（可能是在店內結帳時建立的），請洽櫃檯處理。' }); throw e; }
   if (!row) return res.status(404).json({ error: '找不到帳號。' });
   res.json({ ok: true, me: row });
 }));
@@ -5293,7 +5296,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     await client.query('UPDATE table_sessions SET items=$2,status=$3,pay_requests=$4,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),closed?'closed':'open',JSON.stringify(tableOrders.prunePayRequests(s.pay_requests,items))]);
     await client.query('COMMIT');
     const invoiceOut=await storeInvoiceResult({id:orderId,table_no:s.table_no,items:orderLines,amount:out.amount,discount:out.discount},invoice);
-    res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,received:out.payer.received,change:out.payer.change,method:out.payer.method,payments:out.payer.payments,prepay:!!out.payer.prepay,member:out.payer.member,yan:memberUser?yanOut:undefined,closed,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut,warning:regWarn||undefined});
+    res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,received:out.payer.received,change:out.payer.change,method:out.payer.method,payments:out.payer.payments,prepay:!!out.payer.prepay,member:out.payer.member,yan:memberUser?yanOut:undefined,member_created:!!memberUser?.created,closed,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut,warning:regWarn||undefined});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 app.post('/api/admin/orders/:id/invoice/issue',auth,adminOnly,requireDb,wrap(async(req,res)=>{
