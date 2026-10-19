@@ -887,6 +887,12 @@ async function migrate() {
   await q(`CREATE INDEX IF NOT EXISTS yan_ledger_user_idx ON yan_ledger(user_id, created_at)`);
   await q(`CREATE UNIQUE INDEX IF NOT EXISTS yan_ledger_kind_ref_uidx ON yan_ledger(kind, ref_id)`);
   await q(`ALTER TABLE table_orders ADD COLUMN IF NOT EXISTS user_id TEXT`);
+  // POS 合併會員紀錄：被刪掉那個帳號的快照、搬了哪些資料、誰合併的（永久留存）
+  await q(`CREATE TABLE IF NOT EXISTS pos_member_merges (
+    id TEXT PRIMARY KEY, keep_id TEXT NOT NULL, drop_id TEXT NOT NULL, drop_snapshot JSONB NOT NULL, keep_before JSONB NOT NULL,
+    moved JSONB NOT NULL DEFAULT '{}', operator_id TEXT, operator_name TEXT NOT NULL DEFAULT '', actor TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE INDEX IF NOT EXISTS pos_member_merges_keep_idx ON pos_member_merges(keep_id, created_at DESC)`);
   await q(`ALTER TABLE dining_reservations DROP CONSTRAINT IF EXISTS dining_reservations_status_check`);
   await q(`ALTER TABLE dining_reservations ADD CONSTRAINT dining_reservations_status_check CHECK (status IN ('new','confirmed','arrived','cancelled','no_show'))`);
   // 場地申請＝待審的活動：申請送出即建立草稿活動，review_status 記審核結果（NULL＝平台自建）。舊申請補建。
@@ -4631,6 +4637,65 @@ app.post('/api/admin/yan/lookup', auth, adminOnly, requireDb, wrap(async (req, r
   res.json({ ok: true, member: { id: user.id, name: user.name, phone: user.phone_e164 || user.phone || '' }, balance: yan.balance(rows), active, verified: !!token, created: !!user.created });
 }));
 
+/* POS 合併會員：同一位客人有兩個帳號（店內報手機自動建立＋App 用 Google／LINE／Email 登入）時合成一個。
+   預覽只讀；執行要店長 4 位數識別碼（伺服器驗職稱含「店長」），點數、會籍、消費、訂位、活動全部搬到保留方，刪除方刪掉，快照留在 pos_member_merges */
+const memberMerge = require('./lib/member-merge');
+const MERGE_USER_SEL = 'id,name,email,phone,phone_e164,phone_verified_at,line_user_id,line_linked_at,is_admin,admin_brand,admin_password_hash,created_at';
+async function mergeSummary(db, u) {
+  const rows = await yanRowsFor(db, u.id);
+  const c = (await db.query(`SELECT (SELECT count(*) FROM table_orders WHERE user_id=$1 AND status<>'void')::int AS orders,
+    (SELECT count(*) FROM entitlements WHERE user_id=$1)::int AS entitlements,
+    (SELECT count(*) FROM event_regs WHERE user_id=$1)::int AS events,
+    (SELECT count(*) FROM dining_reservations WHERE user_id=$1)::int AS reservations`, [u.id])).rows[0] || {};
+  return { id: u.id, name: u.name || '', phone: u.phone_e164 || u.phone || '', email: u.email || '', line: !!u.line_user_id,
+    created_at: u.created_at, balance: yan.balance(rows), active: !!deriveMemberAccess(await loadEntitlements(u.id)).active,
+    orders: c.orders || 0, entitlements: c.entitlements || 0, events: c.events || 0, reservations: c.reservations || 0 };
+}
+const mergeIds = b => [String(b?.keep_id || '').trim().slice(0, 64), String(b?.drop_id || '').trim().slice(0, 64)];
+app.get('/api/admin/yan/merge-preview', auth, adminOnly, requireDb, wrap(async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const [keepId, dropId] = mergeIds(req.query);
+  if (!keepId || !dropId) return res.status(400).json({ error: '請選兩個會員帳號。' });
+  const users = (await q(`SELECT ${MERGE_USER_SEL} FROM users WHERE id=ANY($1)`, [[keepId, dropId]])).rows;
+  const keep = users.find(u => u.id === keepId), drop = users.find(u => u.id === dropId);
+  if (!keep || !drop) return res.status(404).json({ error: '找不到這位會員。' });
+  const db = { query: (...a) => q(...a) };
+  const result = memberMerge.mergedProfile(keep, drop);
+  res.json({ keep: await mergeSummary(db, keep), drop: await mergeSummary(db, drop), blocker: memberMerge.mergeBlocker(keep, drop),
+    result: { name: result.name || '', phone: result.phone_e164 || result.phone || '', email: result.email || '', line: !!result.line_user_id } });
+}));
+app.post('/api/admin/yan/merge', rateLimit({ max: 12 }), auth, adminOnly, requireDb, wrap(async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const [keepId, dropId] = mergeIds(req.body);
+  if (!keepId || !dropId) return res.status(400).json({ error: '請選兩個會員帳號。' });
+  let operator = null;
+  if (!req.auth.agent) {
+    const pin = typeof req.body?.operator_pin === 'string' && /^\d{4}$/.test(req.body.operator_pin) ? req.body.operator_pin : '';
+    const mgr = pin ? staffRow((await q(`SELECT ${STAFF_SEL} FROM pos_staff WHERE pin=$1 AND active`, [pin])).rows[0]) : null;
+    if (!mgr || !isManagerRole(mgr.role) || String(mgr.id) !== String(req.body?.operator_id || '')) return res.status(403).json({ error: '合併會員要店長的 4 位數識別碼。', need_manager_pin: true });
+    operator = { id: mgr.id, name: mgr.name };
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const id of [keepId, dropId].sort()) await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,2))', [id]);
+    const users = (await client.query(`SELECT ${MERGE_USER_SEL} FROM users WHERE id=ANY($1) FOR UPDATE`, [[keepId, dropId]])).rows;
+    const keep = users.find(u => u.id === keepId), drop = users.find(u => u.id === dropId);
+    const blocker = memberMerge.mergeBlocker(keep, drop);
+    if (blocker) { await client.query('ROLLBACK'); return res.status(keep && drop ? 409 : 404).json({ error: blocker }); }
+    const snap = u => ({ id: u.id, name: u.name, email: u.email, phone: u.phone, phone_e164: u.phone_e164, line_user_id: u.line_user_id, created_at: u.created_at });
+    let out;
+    try { out = await memberMerge.mergeMembers(client, keep, drop); }
+    catch (e) { await client.query('ROLLBACK'); if (e.status) return res.status(e.status).json({ error: e.message }); throw e; }
+    const mergeId = uid('mm_');
+    await client.query(`INSERT INTO pos_member_merges(id,keep_id,drop_id,drop_snapshot,keep_before,moved,operator_id,operator_name,actor) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [mergeId, keepId, dropId, JSON.stringify(snap(drop)), JSON.stringify(snap(keep)), JSON.stringify(out.moved), operator?.id || null, operator?.name || '', actorOf(req.auth) || '']);
+    const rows = await yanRowsFor(client, keepId);
+    await client.query('COMMIT');
+    res.json({ ok: true, id: mergeId, keep_id: keepId, balance: yan.balance(rows), moved: out.moved, operator });
+  } catch (e) { await client.query('ROLLBACK').catch(()=>{}); throw e; }
+  finally { client.release(); }
+}));
 app.get('/api/admin/yan/membership-plans', auth, adminOnly, requireDb, (req, res) => {
   res.set('Cache-Control', 'no-store');
   res.json({ plans: require('./lib/pos-manual-membership').manualPlans, activation: 'immediate' });

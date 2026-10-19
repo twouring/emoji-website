@@ -24,3 +24,17 @@
 .members-ledger time{display:block;margin-top:4px;font-size:1rem}
 @media(min-width:701px){.members-layout>.members-detail{max-height:calc(100dvh - var(--p-top,60px) - 11rem);overflow:auto}}
 @media(max-width:700px){.members-layout{grid-template-columns:minmax(0,1fr)}.members-list{max-height:35dvh}.members-layout>.members-detail{padding:16px}}
+
+/* 合併會員 */
+.members-merge-list{max-height:50dvh;margin:8px 0}
+.members-merge-ov .pos-move-box{max-width:min(720px,94vw)}
+.members-merge-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}
+.members-merge-side{border:1px solid var(--line);border-radius:12px;padding:12px 14px;overflow-wrap:anywhere}
+.members-merge-side p{margin:4px 0}
+.members-merge-side.is-keep{border:2px solid var(--ok);background:var(--ok-soft)}
+.members-merge-side.is-drop{border-style:dashed}
+.members-merge-role{font-weight:700}
+.members-merge-result{margin:12px 0;padding:12px 14px;border-radius:12px;border:1px solid var(--line)}
+.members-merge-result p{margin:4px 0}
+.members-merge-block{color:var(--danger);font-weight:700}
+@media (max-width:640px){.members-merge-pair{grid-template-columns:1fr}}
