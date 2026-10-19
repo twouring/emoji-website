@@ -5217,6 +5217,14 @@ app.post('/api/admin/orders/sessions/:id/move',auth,adminOnly,requireDb,wrap(asy
     res.json({ok:true,from:src.table_no,table,merged:!!dst,takeout:toTakeout,id:dst?dst.id:src.id});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
+// POS 改來客人數：店員設定的人數優先於客人在手機上選的（tableOrders.partySetByPos）
+app.post('/api/admin/orders/sessions/:id/party',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
+  const s=(await q("SELECT id,party_votes FROM table_sessions WHERE id=$1 AND status='open'",[req.params.id])).rows[0];if(!s)return res.status(404).json({error:'找不到這桌。'});
+  let votes;try{votes=tableOrders.partySetByPos(s.party_votes,req.body?.party_size);}catch(e){return res.status(e.status||400).json({error:e.message});}
+  await q('UPDATE table_sessions SET party_votes=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(votes)]);
+  res.json({ok:true,party_size:tableOrders.partySize(votes)});
+}));
 // POS 關掉某筆結帳需求（客人改口、或已用別的方式處理）：只拿掉那一筆，品項不動
 app.delete('/api/admin/orders/sessions/:id/pay-requests/:rid',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id)||!/^pr_[a-f0-9]{12}$/.test(req.params.rid))return res.status(404).json({error:'找不到這筆結帳需求。'});

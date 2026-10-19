@@ -398,6 +398,9 @@ POS 用點數兌換空間時數。body `{ plan: day_4h|day_12h, user_id, operato
 ### POST /api/admin/orders/sessions/:id/move
 換桌／併桌。body `{ table_no }`。把這桌的未結帳品項與已結帳的單全部搬到目標桌：目標桌沒開就直接改桌號（換桌），已開著就接到目標桌後面並關掉來源桌（併桌）。`W01`–`W99` 外帶單號不能直接當 `table_no`（400）；要把內用單移到外帶區改送 `{ takeout: true }`，伺服器自動取最小空號 W01–W99（不併單；已是外帶單回 400、號碼用完回 409）。反過來外帶單（W 號）也能當來源送 `{ table_no }` 轉內用：空桌改桌號，已開的桌併進去。來源或目標含其他品牌品項時品牌子帳號回 403。回 `{ ok, from, table, merged, takeout, id }`。
 
+### POST /api/admin/orders/sessions/:id/party
+POS 改來客人數。body `{ party_size }`（1–20）。存在 `party_votes.__pos`，之後一律以店員設定為準，客人手機再選也不覆蓋。回 `{ ok, party_size }`；超出範圍 400，桌不存在或已結束 404。
+
 ### DELETE /api/admin/orders/sessions/:id/pay-requests/:rid
 POS 關掉某筆客人的結帳需求（客人改口或已另外處理）；品項不動。回 `{ ok, pay_requests[] }`。
 

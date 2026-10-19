@@ -1181,7 +1181,7 @@ function paintPos(){
       <div class="a-wrap2 pos-lines-wrap"><table class="a-tbl pos-lines"><thead><tr><th aria-label="分帳選取"></th><th>品項</th><th class="pos-qty-col">點了幾份</th><th class="num">小計（元）</th><th class="ops-th">操作</th></tr></thead><tbody>${lineRows}</tbody></table></div>
       ${live.length?`<h3>這桌已結帳的單</h3><div class="a-wrap2"><table class="a-tbl pos-paid"><thead><tr><th>品項 · 時間 · 狀態</th><th>付款</th><th class="num">金額</th><th class="ops-th">操作</th></tr></thead><tbody>${liveRows}</tbody></table></div>`:''}
       </div>
-      <div class="pos-table-actions"><button class="btn btn--ghost" id="pos-place" ${cur.lines.some(l=>!l.credit_of)?'':'disabled'} title="有還沒送出的品項就先送單再印；都送過了就整桌重印">列印出餐單</button><button class="btn btn--ghost" id="pos-move">${cur.takeout?'轉內用':'換桌／併桌'}</button><button class="btn btn--ghost btn--danger" id="pos-close">${cur.takeout?'收掉外帶單':'清桌'}</button></div>
+      <div class="pos-table-actions"><button class="btn btn--ghost" id="pos-place" ${cur.lines.some(l=>!l.credit_of)?'':'disabled'} title="有還沒送出的品項就先送單再印；都送過了就整桌重印">列印出餐單</button>${cur.takeout?'':`<button class="btn btn--ghost" id="pos-party">${cur.party_size?`人數 ${Number(cur.party_size)} 位`:'設定人數'}</button>`}<button class="btn btn--ghost" id="pos-move">${cur.takeout?'轉內用':'換桌／併桌'}</button><button class="btn btn--ghost btn--danger" id="pos-close">${cur.takeout?'收掉外帶單':'清桌'}</button></div>
       </div>
       <div class="pos-menu-box"><div class="pos-menu-body">${POS_OPT?optionPaneHtml(POS_OPT):catChips+`<div class="pos-menu">${tiles}</div>`}</div></div>
       <div class="pos-pay">
@@ -1377,6 +1377,16 @@ function paintPos(){
     if(cur.lines.some(l=>!l.placed_at))await opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/place',{method:'POST',body:{}}),async()=>{await pollKitchenPrinting();return starReady()?'已送出點餐並列印出餐單':'已送出點餐，出餐單由連接印表機的 Star Browser 自動列印';},reload);
     else await printOrder(tableTicket());
   }finally{place.disabled=false;}};
+  // 改來客人數：攤開 1–20 用點的，點一下就存；店員設定的人數優先於客人手機選的
+  const pty=host.querySelector('#pos-party');if(pty)pty.onclick=()=>{
+    const ov=document.createElement('div');ov.className='pos-move-ov';
+    ov.innerHTML=`<div class="pos-move-box" role="dialog" aria-label="來客人數"><h3>${esc(cur.table)} 來客人數</h3><div class="pos-move-grid pos-party-grid">${Array.from({length:20},(_,i)=>i+1).map(n=>`<button type="button" class="pos-move-opt ${n===Number(cur.party_size)?'on':''}" data-party="${n}"><b>${n}</b><small>位</small></button>`).join('')}</div><div class="pos-move-foot"><span></span><button type="button" class="btn btn--ghost" data-cancel>取消</button></div></div>`;
+    const done=()=>ov.remove();
+    ov.onclick=e=>{if(e.target===ov)done();};
+    ov.querySelector('[data-cancel]').onclick=done;
+    ov.querySelectorAll('[data-party]').forEach(b=>b.onclick=()=>{done();opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/party',{method:'POST',body:{party_size:Number(b.dataset.party)}}),out=>`${cur.table} 已改為 ${out.party_size} 位`,reload);});
+    document.body.appendChild(ov);
+  };
   const mv=host.querySelector('#pos-move');if(mv)mv.onclick=()=>{
     const doMove=table=>opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/move',{method:'POST',body:{table_no:table}}),out=>out.merged?`已併到 ${out.table}`:`已換到 ${out.table}`,out=>{POS_TABLE=out.table;POS_PICK=null;return reload();});
     // 用選的：固定桌號＋目前已開的加開桌，點一下就換桌（目標桌已開＝併桌）；真的要別的桌號才用「其他桌號」打字

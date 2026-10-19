@@ -54,3 +54,21 @@ test('POS：桌況卡與明細顯示來客人數', () => {
   assert.match(pos, /<span class="tk-party">\$\{Number\(s\.party_size\)\} 位<\/span>/);
   assert.match(pos, /來客 \$\{Number\(s\.party_size\)\} 位/);
 });
+
+test('POS 改人數：店員設定優先於客人票，之後客人再選也不覆蓋；客人不能冒用保留 key', () => {
+  let v = T.partyVote({}, 'g1', 2);
+  v = T.partySetByPos(v, 5);
+  assert.equal(T.partySize(v), 5);
+  v = T.partyVote(v, 'g2', 9);
+  assert.equal(T.partySize(v), 5);
+  v = T.partySetByPos(v, 3);
+  assert.equal(T.partySize(v), 3);
+  assert.throws(() => T.partyVote({}, '__pos', 4), /請選擇/);
+  for (const n of [0, 21, 'x']) assert.throws(() => T.partySetByPos({}, n), /人數請選/);
+});
+
+test('POS 改人數：API 與桌位面板按鈕', () => {
+  assert.match(server, /app\.post\('\/api\/admin\/orders\/sessions\/:id\/party',auth,adminOnly,requireDb/);
+  assert.match(pos, /id="pos-party"/);
+  assert.match(pos, /api\('\/admin\/orders\/sessions\/'\+cur\.id\+'\/party',\{method:'POST',body:\{party_size:Number\(b\.dataset\.party\)\}\}\)/);
+});
