@@ -756,7 +756,7 @@ async function migrate() {
     bom JSONB NOT NULL DEFAULT '[]', qty NUMERIC NOT NULL DEFAULT 0, avg_cost NUMERIC, note TEXT NOT NULL DEFAULT '', active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   // 進貨單位換算（斤＝600 g）、使用率（可食率）、保存方式／天數、供應商（2026-10-20 依 Drive 食材成本表補）
-  await q(`ALTER TABLE pos_inventory_items ADD COLUMN IF NOT EXISTS pack_unit TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS pack_size NUMERIC, ADD COLUMN IF NOT EXISTS yield_rate NUMERIC NOT NULL DEFAULT 1, ADD COLUMN IF NOT EXISTS supplier TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS storage TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS shelf_life TEXT NOT NULL DEFAULT ''`);
+  await q(`ALTER TABLE pos_inventory_items ADD COLUMN IF NOT EXISTS pack_unit TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS pack_size NUMERIC, ADD COLUMN IF NOT EXISTS yield_rate NUMERIC NOT NULL DEFAULT 1, ADD COLUMN IF NOT EXISTS supplier TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS storage TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS shelf_life TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS ref_cost NUMERIC`);
   await q(`CREATE TABLE IF NOT EXISTS pos_menu_recipes (item_id TEXT PRIMARY KEY, lines JSONB NOT NULL DEFAULT '[]', updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE TABLE IF NOT EXISTS pos_inventory_moves (
     id TEXT PRIMARY KEY, inv_id TEXT NOT NULL REFERENCES pos_inventory_items(id), type TEXT NOT NULL, delta NUMERIC NOT NULL, qty_after NUMERIC,
@@ -5547,7 +5547,7 @@ app.post('/api/admin/menu/sold-out',auth,adminOnly,requireDb,wrap(async(req,res)
   res.json({ok:true,sold_out:req.body?.sold_out===true});
 }));
 /* ===== POS 庫存（lib/pos-inventory.js）：原物料＋備料（醬料等）、菜單配方、進貨／耗用／報廢／盤點／製作備料、出餐自動扣 ===== */
-const INV_SEL='id,name,kind,unit,venue,category,safety_qty::float AS safety_qty,batch_yield::float AS batch_yield,bom,qty::float AS qty,avg_cost::float AS avg_cost,pack_unit,pack_size::float AS pack_size,yield_rate::float AS yield_rate,supplier,storage,shelf_life,note,active,updated_at';
+const INV_SEL='id,name,kind,unit,venue,category,safety_qty::float AS safety_qty,batch_yield::float AS batch_yield,bom,qty::float AS qty,avg_cost::float AS avg_cost,pack_unit,pack_size::float AS pack_size,yield_rate::float AS yield_rate,supplier,storage,shelf_life,ref_cost::float AS ref_cost,note,active,updated_at';
 // 單筆異動：ref_key 有給就用唯一索引去重（出餐自動扣同一行只扣一次）；回傳 null＝已處理過
 async function inventoryMove(query,{inv_id,type,delta,set_qty=null,unit_cost=null,amount=null,note='',ref_key=null,ref_id=null,actor='',operator=null}){
   const id=uid('im_');
@@ -5616,7 +5616,7 @@ app.post('/api/admin/inventory/items',auth,adminOnly,requireDb,wrap(async(req,re
   if(all.some(i=>i.name===v.name&&i.venue===v.venue))return res.status(409).json({error:`已經有「${v.name}」了。`});
   const id=uid('inv_');
   let bom=[];if(v.kind==='prep'&&req.body?.bom){try{bom=posInventory.recipeInput(req.body.bom,all,{selfId:id});}catch(e){return res.status(e.status||400).json({error:e.message});}}
-  const row=(await q(`INSERT INTO pos_inventory_items(id,name,kind,unit,venue,category,safety_qty,batch_yield,bom,note,pack_unit,pack_size,yield_rate,supplier,storage,shelf_life) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING ${INV_SEL}`,[id,v.name,v.kind,v.unit,v.venue,v.category,v.safety_qty,v.batch_yield,JSON.stringify(bom),v.note,v.pack_unit,v.pack_size,v.yield_rate,v.supplier,v.storage,v.shelf_life])).rows[0];
+  const row=(await q(`INSERT INTO pos_inventory_items(id,name,kind,unit,venue,category,safety_qty,batch_yield,bom,note,pack_unit,pack_size,yield_rate,supplier,storage,shelf_life,ref_cost) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING ${INV_SEL}`,[id,v.name,v.kind,v.unit,v.venue,v.category,v.safety_qty,v.batch_yield,JSON.stringify(bom),v.note,v.pack_unit,v.pack_size,v.yield_rate,v.supplier,v.storage,v.shelf_life,v.ref_cost])).rows[0];
   res.status(201).json({ok:true,item:row});
 }));
 app.patch('/api/admin/inventory/items/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -5629,7 +5629,7 @@ app.patch('/api/admin/inventory/items/:id',auth,adminOnly,requireDb,wrap(async(r
   let bom=v.kind==='prep'?cur.bom:[];
   if(v.kind==='prep'&&req.body?.bom!==undefined){const all=(await q(`SELECT ${INV_SEL} FROM pos_inventory_items`)).rows.filter(i=>posInventory.visible(i,venues));try{bom=posInventory.recipeInput(req.body.bom,all,{selfId:cur.id});}catch(e){return res.status(e.status||400).json({error:e.message});}}
   if(v.unit!==cur.unit&&Number(cur.qty)!==0)return res.status(409).json({error:`「${cur.name}」已有庫存，改單位請用「換算單位」（會一併換算庫存量、均價與配方用量）。`});
-  const row=(await q(`UPDATE pos_inventory_items SET name=$2,kind=$3,unit=$4,venue=$5,category=$6,safety_qty=$7,batch_yield=$8,bom=$9,note=$10,active=$11,pack_unit=$12,pack_size=$13,yield_rate=$14,supplier=$15,storage=$16,shelf_life=$17,updated_at=now() WHERE id=$1 RETURNING ${INV_SEL}`,[cur.id,v.name,v.kind,v.unit,v.venue,v.category,v.safety_qty,v.batch_yield,JSON.stringify(bom),v.note,v.active,v.pack_unit,v.pack_size,v.yield_rate,v.supplier,v.storage,v.shelf_life])).rows[0];
+  const row=(await q(`UPDATE pos_inventory_items SET name=$2,kind=$3,unit=$4,venue=$5,category=$6,safety_qty=$7,batch_yield=$8,bom=$9,note=$10,active=$11,pack_unit=$12,pack_size=$13,yield_rate=$14,supplier=$15,storage=$16,shelf_life=$17,ref_cost=$18,updated_at=now() WHERE id=$1 RETURNING ${INV_SEL}`,[cur.id,v.name,v.kind,v.unit,v.venue,v.category,v.safety_qty,v.batch_yield,JSON.stringify(bom),v.note,v.active,v.pack_unit,v.pack_size,v.yield_rate,v.supplier,v.storage,v.shelf_life,v.ref_cost])).rows[0];
   res.json({ok:true,item:row});
 }));
 /* 換算單位：例如斤→g（factor 600）。庫存量、安全量、均價、每批產出量、進貨包裝，以及所有引用它的菜單配方與備料配方用量一起換算 */
@@ -5641,7 +5641,7 @@ app.post('/api/admin/inventory/items/:id/convert',auth,adminOnly,requireDb,wrap(
     const item=(await query(`SELECT ${INV_SEL} FROM pos_inventory_items WHERE id=$1 FOR UPDATE`,[String(req.params.id)])).rows[0];
     if(!item||!posInventory.visible(item,venues)){await client.query('ROLLBACK');return res.status(404).json({error:'找不到這個庫存品項。'});}
     let c;try{c=posInventory.convertInput(req.body||{},item);}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
-    await query('UPDATE pos_inventory_items SET unit=$2,qty=$3,safety_qty=$4,avg_cost=$5,batch_yield=$6,pack_size=$7,updated_at=now() WHERE id=$1',[item.id,c.unit,c.qty,c.safety_qty,c.avg_cost,c.batch_yield,c.pack_size]);
+    await query('UPDATE pos_inventory_items SET unit=$2,qty=$3,safety_qty=$4,avg_cost=$5,batch_yield=$6,pack_size=$7,ref_cost=$8,updated_at=now() WHERE id=$1',[item.id,c.unit,c.qty,c.safety_qty,c.avg_cost,c.batch_yield,c.pack_size,c.ref_cost]);
     for(const r of (await query(`SELECT item_id,lines FROM pos_menu_recipes WHERE lines @> $1::jsonb`,[JSON.stringify([{inv_id:item.id}])])).rows)await query('UPDATE pos_menu_recipes SET lines=$2,updated_at=now() WHERE item_id=$1',[r.item_id,JSON.stringify(posInventory.scaleLines(r.lines,item.id,c.factor))]);
     for(const r of (await query(`SELECT id,bom FROM pos_inventory_items WHERE bom @> $1::jsonb`,[JSON.stringify([{inv_id:item.id}])])).rows)await query('UPDATE pos_inventory_items SET bom=$2,updated_at=now() WHERE id=$1',[r.id,JSON.stringify(posInventory.scaleLines(r.bom,item.id,c.factor))]);
     await query(`INSERT INTO pos_inventory_moves(id,inv_id,type,delta,qty_after,note,actor,operator_id,operator_name) VALUES($1,$2,'convert',0,$3,$4,$5,$6,$7)`,[uid('im_'),item.id,c.qty,`單位 ${item.unit}→${c.unit}（×${c.factor}）`,actorOf(req.auth)||'',op.id,op.name]);

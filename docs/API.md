@@ -570,7 +570,7 @@ POS 庫存（`/pos/inventory`）。query `venue=`。回 `{ items[], recipes{菜�
 ### POST /api/admin/inventory/items/:id/convert
 換算庫存單位（例如斤→g）。body `{ unit, factor, operator_id }`，`factor`＝1 個舊單位等於幾個新單位（斤→g 填 600）。庫存量、安全量、每批產出量、進貨包裝 ×factor，均價 ÷factor；所有引用它的菜單配方（`pos_menu_recipes`）與備料每批配方（`bom`）用量 ×factor；記一筆 `type='convert'` 異動。已有庫存的品項不能用 PATCH 直接改 `unit`（409），要走這支。
 
-品項欄位（POST／PATCH `/api/admin/inventory/items`，2026-10-20 起）另有：`pack_unit`（進貨單位，如「斤」「盒」「瓶」）＋`pack_size`（每一進貨單位＝幾個庫存單位，`pack_unit` 有填時必填）、`yield_rate`（使用率／可食率 0.05–1，預設 1；出餐與製作備料依配方淨用量 ÷ 使用率扣毛重）、`supplier`、`storage`（`chill`／`freeze`／`dry`）、`shelf_life`（文字，如「D+3」「5 天」）。進貨（`type='in'`）可改帶 `packs`（幾個進貨單位），伺服器換成庫存單位；單位成本存到小數 4 位。`GET /api/admin/inventory` 另回 `costs{菜單品項id:{cost,ratio,missing[]}}`（每份食材成本、成本率、缺均價的品項）與每個品項的 `unit_cost`（原物料＝均價；備料＝每批配方成本 ÷ 產出量）。
+品項欄位（POST／PATCH `/api/admin/inventory/items`，2026-10-20 起）另有：`pack_unit`（進貨單位，如「斤」「盒」「瓶」）＋`pack_size`（每一進貨單位＝幾個庫存單位，`pack_unit` 有填時必填）、`yield_rate`（使用率／可食率 0.05–1，預設 1；出餐與製作備料依配方淨用量 ÷ 使用率扣毛重）、`supplier`、`storage`（`chill`／`freeze`／`dry`）、`shelf_life`（文字，如「D+3」「5 天」）、`ref_cost`（參考成本，元／庫存單位；還沒有進貨均價時配方成本用它，有均價後以均價為準）。進貨（`type='in'`）可改帶 `packs`（幾個進貨單位），伺服器換成庫存單位；單位成本存到小數 4 位。`GET /api/admin/inventory` 另回 `costs{菜單品項id:{cost,ratio,missing[]}}`（每份食材成本、成本率、缺均價的品項）與每個品項的 `unit_cost`（原物料＝均價；備料＝每批配方成本 ÷ 產出量）。
 
 ### POST /api/admin/inventory/items/:id/moves
 手動庫存異動。body `{ type, qty?, counted?, amount?, unit_cost?, note?, operator_id }`：

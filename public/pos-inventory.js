@@ -57,7 +57,7 @@ function invEditForm(){
   if(!INV.edit)return '';
   const cur=INV.edit==='new'?{kind:'raw',venue:SCOPE||'TTH',unit:'',safety_qty:0,batch_yield:1,bom:[]}:invById(INV.edit);
   if(!cur)return '';
-  const f=INV.form||(INV.form={name:cur.name||'',kind:cur.kind,unit:cur.unit||'',venue:cur.venue||'TTH',category:cur.category||'',safety_qty:cur.safety_qty??0,batch_yield:cur.batch_yield??1,note:cur.note||'',pack_unit:cur.pack_unit||'',pack_size:cur.pack_size??'',yield_rate:cur.yield_rate??1,supplier:cur.supplier||'',storage:cur.storage||'',shelf_life:cur.shelf_life||''});
+  const f=INV.form||(INV.form={name:cur.name||'',kind:cur.kind,unit:cur.unit||'',venue:cur.venue||'TTH',category:cur.category||'',safety_qty:cur.safety_qty??0,batch_yield:cur.batch_yield??1,note:cur.note||'',pack_unit:cur.pack_unit||'',pack_size:cur.pack_size??'',yield_rate:cur.yield_rate??1,supplier:cur.supplier||'',storage:cur.storage||'',shelf_life:cur.shelf_life||'',ref_cost:cur.ref_cost??''});
   const hasStock=INV.edit!=='new'&&Number(cur.qty)!==0;
   if(!INV.bom)INV.bom=(cur.bom||[]).map(b=>({...b}));
   const prep=f.kind==='prep';
@@ -72,6 +72,7 @@ function invEditForm(){
     <label>供應商（選填）<input id="inv-supplier" maxlength="30" value="${esc(f.supplier)}" placeholder="尚太、大永、海康…"></label>
     <label>保存方式<select id="inv-storage"><option value="">—</option>${Object.entries(INV_STORAGE).map(([k,l])=>`<option value="${k}"${f.storage===k?' selected':''}>${l}</option>`).join('')}</select></label>
     <label>保存天數（選填）<input id="inv-shelf" maxlength="40" value="${esc(f.shelf_life)}" placeholder="D+3、5 天、依包裝效期…"></label>
+    ${f.kind==='prep'?'':`<label>參考成本（元／${esc(f.unit||'單位')}，選填）<input id="inv-ref-cost" type="number" inputmode="decimal" min="0" step="any" value="${esc(f.ref_cost)}" placeholder="還沒進貨時，算配方成本用"></label>`}
     <label>店別<select id="inv-venue">${invVenueOptions(f.venue)}</select></label>
     <label>分類（選填）<input id="inv-cat" maxlength="20" value="${esc(f.category)}" placeholder="乳品、醬料、包材…"></label>
     <label>安全庫存量<input id="inv-safety" type="number" inputmode="decimal" min="0" step="any" value="${esc(f.safety_qty)}"></label>
@@ -82,7 +83,7 @@ function invEditForm(){
 }
 function invReadForm(host){
   const v=id=>host.querySelector(id)?.value??'';
-  INV.form={...INV.form,name:v('#inv-name'),unit:v('#inv-unit'),venue:v('#inv-venue'),category:v('#inv-cat'),safety_qty:v('#inv-safety'),batch_yield:host.querySelector('#inv-yield')?v('#inv-yield'):INV.form?.batch_yield,note:v('#inv-note'),pack_unit:v('#inv-pack-unit'),pack_size:v('#inv-pack-size'),yield_rate:v('#inv-yield-rate'),supplier:v('#inv-supplier'),storage:v('#inv-storage'),shelf_life:v('#inv-shelf')};
+  INV.form={...INV.form,name:v('#inv-name'),unit:v('#inv-unit'),venue:v('#inv-venue'),category:v('#inv-cat'),safety_qty:v('#inv-safety'),batch_yield:host.querySelector('#inv-yield')?v('#inv-yield'):INV.form?.batch_yield,note:v('#inv-note'),pack_unit:v('#inv-pack-unit'),pack_size:v('#inv-pack-size'),yield_rate:v('#inv-yield-rate'),supplier:v('#inv-supplier'),storage:v('#inv-storage'),shelf_life:v('#inv-shelf'),ref_cost:host.querySelector('#inv-ref-cost')?v('#inv-ref-cost'):INV.form?.ref_cost};
   const k=host.querySelector('input[name=inv-kind]:checked');if(k)INV.form.kind=k.value;
   const box=host.querySelector('[data-inv-bom]');if(box)INV.bom=invReadBom(box);
 }
@@ -133,7 +134,7 @@ function bindInventory(host){
       let bom;try{bom=f.kind==='prep'?invBomBody(INV.bom||[]):undefined;}catch(err){toast(err.message);return;}
       const pu=String(f.pack_unit||'').trim();if(pu&&!(Number(f.pack_size)>0)){toast('請填每一'+pu+'是幾'+f.unit);return;}
       const yr=f.yield_rate===''?1:Number(f.yield_rate);if(!(yr>=0.05&&yr<=1)){toast('使用率要在 0.05–1 之間（例：0.9＝九成可用）');return;}
-      const body={name:f.name.trim(),kind:f.kind,unit:f.unit.trim(),venue:f.venue,category:f.category.trim(),safety_qty:f.safety_qty===''?0:Number(f.safety_qty),note:f.note.trim(),pack_unit:pu,pack_size:pu?Number(f.pack_size):null,yield_rate:yr,supplier:String(f.supplier||'').trim(),storage:f.storage||'',shelf_life:String(f.shelf_life||'').trim(),...(f.kind==='prep'?{batch_yield:Number(f.batch_yield),bom}:{})};
+      const body={name:f.name.trim(),kind:f.kind,unit:f.unit.trim(),venue:f.venue,category:f.category.trim(),safety_qty:f.safety_qty===''?0:Number(f.safety_qty),note:f.note.trim(),pack_unit:pu,pack_size:pu?Number(f.pack_size):null,yield_rate:yr,supplier:String(f.supplier||'').trim(),storage:f.storage||'',shelf_life:String(f.shelf_life||'').trim(),ref_cost:f.kind==='prep'||f.ref_cost===''||f.ref_cost==null?null:Number(f.ref_cost),...(f.kind==='prep'?{batch_yield:Number(f.batch_yield),bom}:{})};
       const isNew=INV.edit==='new';
       ensureOperator(()=>opsThen(()=>api(isNew?'/admin/inventory/items':'/admin/inventory/items/'+encodeURIComponent(INV.edit),{method:isNew?'POST':'PATCH',body:{...body,operator_id:OPERATOR?.id}}),isNew?`已新增「${body.name}」`:'已儲存',()=>{INV.edit=null;INV.form=null;INV.bom=null;return loadInventory();}));
     };

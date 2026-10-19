@@ -36,7 +36,7 @@ test('使用率：配方是淨用量，扣毛重（÷使用率）；出餐與製
 
 test('換算單位：斤→g，庫存、安全量、均價、包裝、配方用量一起換', () => {
   const c = I.convertInput({ unit: 'g', factor: 600 }, { qty: 14.375, safety_qty: 2, avg_cost: 133.91, batch_yield: null, pack_size: null });
-  assert.deepEqual(c, { unit: 'g', factor: 600, qty: 8625, safety_qty: 1200, avg_cost: 0.2232, batch_yield: null, pack_size: null });
+  assert.deepEqual(c, { unit: 'g', factor: 600, qty: 8625, safety_qty: 1200, avg_cost: 0.2232, ref_cost: null, batch_yield: null, pack_size: null });
   assert.deepEqual(I.scaleLines([{ inv_id: 'a', qty: 0.2 }, { inv_id: 'b', qty: 3 }], 'a', 600), [{ inv_id: 'a', qty: 120 }, { inv_id: 'b', qty: 3 }]);
   assert.throws(() => I.convertInput({ unit: 'g', factor: 0 }, {}), /換算倍數/);
 });
@@ -53,6 +53,11 @@ test('成本：備料每 g 成本由每批配方遞迴算出；菜單成本率�
   assert.equal(I.unitCostOf('liquid', byId), 0.0147, 'Drive 表：梅漬番茄液 0.0147 元/g');
   const c = I.menuCost([{ inv_id: 'tomato', qty: 126 }, { inv_id: 'liquid', qty: 100 }, { inv_id: 'tea', qty: 1 }], byId, 120);
   assert.equal(c.cost, 22.47); assert.equal(c.ratio, 0.187); assert.deepEqual(c.missing, ['焙茶粉']);
+  // 參考成本：沒有均價時用 Drive 的每克成本；有均價時以均價為準
+  const ref = new Map([['a', { id: 'a', name: '白話梅', kind: 'raw', avg_cost: null, ref_cost: 0.26 }], ['b', { id: 'b', kind: 'raw', avg_cost: 0.3, ref_cost: 0.1 }]]);
+  assert.equal(I.unitCostOf('a', ref), 0.26); assert.equal(I.unitCostOf('b', ref), 0.3);
+  assert.equal(I.itemInput({ name: 'x', unit: 'g', ref_cost: '0.123456' }).ref_cost, 0.1235);
+  assert.equal(I.convertInput({ unit: 'kg', factor: 0.001 }, { qty: 0, ref_cost: 0.26 }).ref_cost, 260);
   // 循環配方不當機
   const loop = new Map([['a', { id: 'a', kind: 'prep', batch_yield: 1, bom: [{ inv_id: 'b', qty: 1 }], avg_cost: 2 }], ['b', { id: 'b', kind: 'prep', batch_yield: 1, bom: [{ inv_id: 'a', qty: 1 }] }]]);
   assert.equal(I.unitCostOf('a', loop), 2);

@@ -9,7 +9,7 @@ const read = p => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const server = read('server.js'), html = read('public/pos.html'), ui = read('public/pos-inventory.js'), docs = read('docs/API.md'), log = read('lib/pos-log.js');
 
 test('品項設定：備料要有每批產出量；店別、單位、名稱驗證', () => {
-  assert.deepEqual(I.itemInput({ name: ' 鮮奶 ', unit: 'ml', safety_qty: '2000' }), { name: '鮮奶', kind: 'raw', unit: 'ml', venue: 'TTH', safety_qty: 2000, batch_yield: null, category: '', shelf_life: '', storage: '', supplier: '', pack_unit: '', pack_size: null, yield_rate: 1, note: '', active: true });
+  assert.deepEqual(I.itemInput({ name: ' 鮮奶 ', unit: 'ml', safety_qty: '2000' }), { name: '鮮奶', kind: 'raw', unit: 'ml', venue: 'TTH', safety_qty: 2000, batch_yield: null, category: '', shelf_life: '', storage: '', supplier: '', pack_unit: '', pack_size: null, yield_rate: 1, ref_cost: null, note: '', active: true });
   const p = I.itemInput({ name: '青醬', kind: 'prep', unit: 'g', batch_yield: 500, venue: 'cafe' });
   assert.equal(p.kind, 'prep'); assert.equal(p.batch_yield, 500); assert.equal(p.venue, 'CAFE');
   assert.throws(() => I.itemInput({ name: '青醬', kind: 'prep', unit: 'g', batch_yield: 0 }), /每批產出量/);
