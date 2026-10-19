@@ -725,6 +725,7 @@ tr.lp-refund td{color:var(--danger)}
 .pos-ticket .tk-head{display:flex;align-items:center;justify-content:space-between;gap:4px;padding:6px 8px;background:var(--paper-alt);border-bottom:2px dashed var(--line);white-space:nowrap}
 .pos-ticket .tk-head b{display:block!important;font-size:1.125rem;overflow:hidden;text-overflow:ellipsis}
 .pos-ticket .tk-head .pill{font-size:1rem;padding:1px 6px;flex:none}
+.pos-ticket .tk-head .tk-party{flex:none;font-size:1rem;font-weight:700}
 .pos-ticket .tk-body{display:flex;flex-direction:column;gap:2px;padding:6px 8px;min-width:0}
 .pos-ticket .tk-body>*{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:1rem;color:var(--muted)}
 .pos-ticket .tk-amt{font-size:1.125rem!important;font-weight:700;color:var(--ink)}

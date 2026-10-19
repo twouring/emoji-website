@@ -62,7 +62,7 @@ test('server：資料欄、客人端 POST/DELETE、POS 關閉端點、輪詢回�
   assert.match(s, /app\.post\('\/api\/orders\/:id\/pay-request',rateLimit/);
   assert.match(s, /app\.delete\('\/api\/orders\/:id\/pay-request'/);
   assert.match(s, /app\.delete\('\/api\/admin\/orders\/sessions\/:id\/pay-requests\/:rid'/);
-  assert.match(s, /opened_by_staff_name,pay_requests,pickup_at,pickup_note,pickup_placed_at FROM table_sessions WHERE status='open'/);
+  assert.match(s, /opened_by_staff_name,pay_requests,pickup_at,pickup_note,pickup_placed_at(,party_votes)? FROM table_sessions WHERE status='open'/);
   assert.match(s, /pay_requests:tableOrders\.payRequestsView\(s\.pay_requests,s\.items\)/);
   assert.match(s, /SET items=\$2,status=\$3,pay_requests=\$4,updated_at=now\(\) WHERE id=\$1',\[s\.id,JSON\.stringify\(items\),closed\?'closed':'open',JSON\.stringify\(tableOrders\.prunePayRequests\(s\.pay_requests,items\)\)\]/);
   assert.match(s, /SET items=\$2,pay_requests=\$3,updated_at=now\(\) WHERE id=\$1',\[dst\.id/);

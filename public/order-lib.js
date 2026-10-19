@@ -3,7 +3,7 @@
   const TEXT = {
     zh: {
       order: '桌邊點餐', loading: '載入中…', name_placeholder: '你的稱呼（讓同桌知道誰點了什麼）', confirm: '好',
-      name_gate_title: '先告訴我們怎麼稱呼您', name_gate_submit: '查看菜單', name_skip: '略過', ordering_as: '點餐稱呼', name_edit: '更改', back_step: '上一步', served_banner: '桌號 {table}｜{items} 已送到桌上',
+      name_gate_title: '先告訴我們怎麼稱呼您', name_gate_submit: '查看菜單', name_skip: '略過', party_title: '幾位用餐？', ordering_as: '點餐稱呼', name_edit: '更改', back_step: '上一步', served_banner: '桌號 {table}｜{items} 已送到桌上',
       shared_hint: '同桌的人掃同一個 QR 就能一起點；加入已點清單後按「送出點餐」，用餐完再到櫃檯結帳，可全部付款、各付各的，或平均分攤。',
       place: '送出點餐', place_n: '送出 {count} 項', n_items: '{count} 項', place_with_others: '送出 {count} 項（含{others}）', place_confirm: '這會把同桌其他人還沒送出的品項一起送進廚房：{others}。確定送出？', someone_added: '{name} 加了 {items}', someone_removed: '{name} 移除了 {items}', others_pending_hint: '同桌還沒送出的品項會跟著一起送出', placed: '已送出', served: '已出餐', not_sent: '未送出', place_done: '已送出點餐，餐點準備中。用餐完記得到櫃檯結帳！', pay_reminder: '離席前請到櫃檯結帳，工作人員會依這桌的明細收款。', pending_items: '{count} 項還沒送出',
       current_menu: '目前菜單', closed: '非供餐時段', menu_unavailable: '目前尚未提供菜單。', closed_message: '目前非供餐時段，請稍後再點餐。', last_order: '最後點餐', cafe_last_order: '餐點點到 16:00・飲品點到 16:30', bar_last_order: '餐點點到 02:00・酒水點到 02:30', cafe_food_closed: '餐點已過最後點餐（16:00），飲品點到 16:30', bar_food_closed: '餐點已過最後點餐（02:00），酒水點到 02:30',
@@ -21,7 +21,7 @@
     },
     en: {
       order: 'Table ordering', loading: 'Loading…', name_placeholder: 'Your name (so your table knows what you ordered)', confirm: 'Save',
-      name_gate_title: 'Tell us your name first', name_gate_submit: 'View menu', name_skip: 'Skip', ordering_as: 'Ordering as', name_edit: 'Change', back_step: 'Back', served_banner: 'Table {table} | {items} served',
+      name_gate_title: 'Tell us your name first', name_gate_submit: 'View menu', name_skip: 'Skip', party_title: 'How many in your party?', ordering_as: 'Ordering as', name_edit: 'Change', back_step: 'Back', served_banner: 'Table {table} | {items} served',
       shared_hint: 'Everyone at the table can scan the same QR code. Add items, tap "Send order", and pay at the counter after dining—together, by ordered items, or split evenly.',
       place: 'Send order', place_n: 'Send {count} item(s)', n_items: '{count} item(s)', place_with_others: 'Send {count} item(s) (incl. {others})', place_confirm: 'This will also send items others at your table have not sent yet: {others}. Send now?', someone_added: '{name} added {items}', someone_removed: '{name} removed {items}', others_pending_hint: 'Unsent items from others at the table will be sent together', placed: 'Sent', served: 'Served', not_sent: 'Not sent yet', place_done: 'Order sent. We are preparing it now. Remember to pay at the counter after dining!', pay_reminder: 'Please pay at the counter before leaving. Staff will charge by this table\'s order.', pending_items: '{count} item(s) not sent yet',
       current_menu: 'Current menu', closed: 'Kitchen closed', menu_unavailable: 'No menu is available yet.', closed_message: 'The kitchen is currently closed. Please try again later.', last_order: 'Last order', cafe_last_order: 'Food until 16:00 · drinks until 16:30', bar_last_order: 'Food until 02:00 · drinks until 02:30', cafe_food_closed: 'Last food order was 16:00 · drinks until 16:30', bar_food_closed: 'Last food order was 02:00 · drinks until 02:30',
@@ -39,7 +39,7 @@
     },
     ja: {
       order: 'テーブル注文', loading: '読み込み中…', name_placeholder: 'お名前（同じテーブルで確認するため）', confirm: '保存',
-      name_gate_title: 'まずお名前を教えてください', name_gate_submit: 'メニューを見る', name_skip: 'スキップ', ordering_as: 'ご注文者', name_edit: '変更', back_step: '戻る', served_banner: 'テーブル {table}｜{items} をお届けしました',
+      name_gate_title: 'まずお名前を教えてください', name_gate_submit: 'メニューを見る', name_skip: 'スキップ', party_title: '何名様ですか？', ordering_as: 'ご注文者', name_edit: '変更', back_step: '戻る', served_banner: 'テーブル {table}｜{items} をお届けしました',
       shared_hint: '同じテーブルの方は同じQRから注文できます。注文リストに入れて「注文を送る」を押し、お食事後にカウンターでまとめて・自分の分だけ・割り勘でお支払いできます。',
       place: '注文を送る', place_n: '{count} 件を送る', n_items: '{count} 件', place_with_others: '{count} 件を送る（{others} を含む）', place_confirm: '同じテーブルの他の方がまだ送っていない注文も一緒に送られます：{others}。送信しますか？', someone_added: '{name} さんが {items} を追加しました', someone_removed: '{name} さんが {items} を削除しました', others_pending_hint: '同席者の未送信の注文も一緒に送られます', placed: '送信済み', served: '提供済み', not_sent: '未送信', place_done: '注文を送りました。ただいま準備中です。お食事後はカウンターでお会計をお願いします。', pay_reminder: '退店前にカウンターでお会計をお願いします。このテーブルの注文明細で精算します。', pending_items: '未送信 {count} 件',
       current_menu: '現在のメニュー', closed: '提供時間外', menu_unavailable: '現在メニューはありません。', closed_message: '現在は提供時間外です。しばらくしてからご注文ください。', last_order: 'ラストオーダー', cafe_last_order: 'フード16:00・ドリンク16:30まで', bar_last_order: 'フード02:00・ドリンク02:30まで', cafe_food_closed: 'フードのラストオーダーは16:00・ドリンクは16:30まで', bar_food_closed: 'フードのラストオーダーは02:00・ドリンクは02:30まで',

@@ -110,10 +110,10 @@ PY
 客人端輪詢用：`{ venue, paused }`。`paused` 為 null（可點）或店家在後台設定的暫停文案（例「今日最後點餐 22:30」）。設定存於 `site_content.ordering_pause`，依店別分開。
 
 ### GET /api/orders/table
-掃桌上 QR 進入：query `t`（桌號）、`k`（簽章，由後台產生 QR 時附上）。回這桌目前的場 `{ id, table, status, items[], orders[], total_unpaid }`；沒有開著的場、或上一組客人已全部取餐（或 4 小時無動靜，順手關掉），回 `id: null` 的空殼——**只讀，不開桌**（掃碼、重新載入、已離開客人的舊分頁都不會在 POS 上開出空桌）。第一次加點走 `POST /api/orders/table/items` 才開場。簽章錯誤回 403。
+掃桌上 QR 進入：query `t`（桌號）、`k`（簽章，由後台產生 QR 時附上）。回這桌目前的場 `{ id, table, status, party_size, items[], orders[], total_unpaid }`（`party_size`＝來客人數，尚未有人選過為 `null`；客人端據此決定稱呼關卡要不要顯示人數選項）；沒有開著的場、或上一組客人已全部取餐（或 4 小時無動靜，順手關掉），回 `id: null` 的空殼——**只讀，不開桌**（掃碼、重新載入、已離開客人的舊分頁都不會在 POS 上開出空桌）。第一次加點走 `POST /api/orders/table/items` 才開場。簽章錯誤回 403。
 
 ### POST /api/orders/table/items
-尚未開桌（`GET /api/orders/table` 回 `id: null`）時的第一次加點。body 同 `POST /api/orders/:id/items` 再加 `t`、`k`（桌牌 QR 簽章）。同一筆交易裡找這桌開著的場、沒有才開新場，再加品項；加點失敗（售完、過時段、暫停點餐 423）整筆回滾，不留空桌。回更新後的場（含新 `id`）。簽章錯誤回 403。
+尚未開桌（`GET /api/orders/table` 回 `id: null`）時的第一次加點。body 同 `POST /api/orders/:id/items` 再加 `t`、`k`（桌牌 QR 簽章）。兩支加點 API 都可選帶 `party_size`（1–20，客人在稱呼關卡點選的來客人數）：以 `guest` 為單位記一票（重選覆蓋自己那票），桌的人數＝所有票平均後四捨五入；超出範圍直接忽略、不擋加點。同一筆交易裡找這桌開著的場、沒有才開新場，再加品項；加點失敗（售完、過時段、暫停點餐 423）整筆回滾，不留空桌。回更新後的場（含新 `id`）。簽章錯誤回 403。
 
 ### GET /api/orders/:id
 同桌購物車現況（供輪詢）。query `g`＝自己的 guest 識別碼，回應以 `mine` 標記自己的行（不外露他人識別碼）。`items[]` 每行含 `line, zh, price, qty, by, mine, order_id`；`order_id` 非空＝已付款。`orders[]` 為出餐單 `{ id, amount, status: paid|ready|done, lines[] }`。

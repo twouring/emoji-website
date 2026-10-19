@@ -35,4 +35,4 @@ test('單子顯示點餐人（櫃檯代點不算，最多 3 個）',()=>{
   assert.match(js,/const who=\[\.\.\.new Set\(\(s\.lines\|\|\[\]\)\.filter\(l=>!l\.credit_of&&!l\.cancelled\)\.map\(ordererOf\)/);
   assert.match(js,/class="tk-who"/);
 });
-test('單子顯示狀態',()=>{assert.match(js,/<span class="tk-head">[\s\S]{0,80}<span class="pill \$\{cls\}">\$\{label\}<\/span><\/span><span class="tk-time/);});
+test('單子顯示狀態',()=>{assert.match(js,/<span class="tk-head">[\s\S]{0,80}<span class="pill \$\{cls\}">\$\{label\}<\/span>(\$\{s\.party_size\?`<span class="tk-party">[^`]*`:''\})?<\/span><span class="tk-time/);});
