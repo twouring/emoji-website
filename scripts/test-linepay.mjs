@@ -131,7 +131,7 @@ test('server.js 接線：資料表、日結回 linepay、同步／匯入端點�
   assert.match(s, /ON CONFLICT \(id\) DO UPDATE SET error=NULL,failed_at=NULL,ok_at=now\(\)/, '同步成功清除錯誤');
   assert.match(s, /sync_error:syncState\.error\|\|null/, '日結 API 回傳同步錯誤');
   assert.match(s, /schedule\('\*\/5 \* \* \* \*', \(\) => \{ if \(!linepay\.configured\(\) \|\| linepaySyncing\) return; syncLinepay\(\.\.\.linepay\.syncWindow\(Date\.now\(\), 1\)\)/, '背景每 5 分鐘抓昨今兩天，正在同步就跳過');
-  assert.match(s, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|analytics\|registers\|staff\|shifts\|attendance\|payment-methods\|pos-devices\|yan\)/, '餐飲子帳號可用 /api/admin/sales/linepay/sync');
+  assert.match(s, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|analytics\|registers\|staff\|shifts\|attendance\|payment-methods\|pos-devices\|yan\|reservation-hours\)/, '餐飲子帳號可用 /api/admin/sales/linepay/sync');
   assert.doesNotMatch(s, /LINEPAY_MERCHANT_PW\s*=\s*['"]/, '密碼不得寫死');
 });
 

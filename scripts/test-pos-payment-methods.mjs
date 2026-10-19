@@ -62,7 +62,7 @@ test('server.js：收款帳戶表、API 路由、FOOD_API 白名單、/api/state
   assert.match(server, /CREATE TABLE IF NOT EXISTS pos_payment_methods/);
   assert.match(server, /app\.post\('\/api\/admin\/payment-methods',auth,adminOnly,superOnly,requireDb/, '新增收款帳戶僅超管');
   assert.match(server, /app\.patch\('\/api\/admin\/payment-methods\/:code',auth,adminOnly,superOnly,requireDb/, '改名／停用僅超管');
-  assert.match(server, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|analytics\|registers\|staff\|shifts\|attendance\|payment-methods\|pos-devices\|yan\)/, '品牌子帳號可讀收款帳戶清單（結帳要用）');
+  assert.match(server, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|analytics\|registers\|staff\|shifts\|attendance\|payment-methods\|pos-devices\|yan\|reservation-hours\)/, '品牌子帳號可讀收款帳戶清單（結帳要用）');
   assert.match(server, /payment_methods: await paymentMethodsList\(\)/, '/api/state 要帶收款帳戶清單給前端畫結帳選項');
   assert.match(server, /tableOrders\.posCheckout\(s\.items,\{[^\n]*?operator\},menuAll,await activePaymentCodes\(\)\)/, '結帳要把啟用中的自訂收款帳戶代碼傳給 posCheckout 驗證');
 });

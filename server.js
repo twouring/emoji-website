@@ -1652,7 +1652,7 @@ function doorAuth(req, res, next) {
    言文字共用（會員發點、會費、消息、社群、廣告、活動、行事曆／場地申請）對「所有」品牌子帳號開放，
    不分品牌——對應 admin 後台把這些分頁併入言文字工作區、開放給所有品牌子帳號的決定；
    「權限管理」「系統設定」「操作紀錄」刻意不在這裡，維持言文字管理員專屬。 */
-const FOOD_API = /^\/api\/admin\/(orders|tables|content|menu|reservations|sales|analytics|registers|staff|shifts|attendance|payment-methods|pos-devices|yan)(\/|$)/;
+const FOOD_API = /^\/api\/admin\/(orders|tables|content|menu|reservations|sales|analytics|registers|staff|shifts|attendance|payment-methods|pos-devices|yan|reservation-hours)(\/|$)/;
 const SHARED_API = /^\/api\/admin\/(updates|commitments|events|event-applications|social|ads|upload\/social|x\/compose|ig)(\/|$)/;
 const BRAND_API = { CAFE: FOOD_API, BAR: FOOD_API };
 const ADMIN_BRANDS = Object.keys(BRAND_API);

@@ -10,7 +10,7 @@ function tabSales(){ return '<div class="a-sec" id="sales-body"></div>'; }
 function tabHistory(){ return '<div class="a-sec" id="history-body"></div>'; }
 function tabLogs(){ return '<div class="a-sec" id="logs-body"></div>'; }
 let POS_OPT=null,POS_MENU_SCROLL=0,POS_LEFT_SCROLL=0,POS_CATS_LEFT=0;
-let ORDERS_TIMER=null,ORDERS_SEEN=null,PAYREQ_SEEN=null,POS_PAYREQ=null,POS_AA=null,POS_TIMER=null,POS_DATA=null,POS_TABLE='',POS_PICK=null,POS_QTY={},POS_SPLIT={},POS_MEMBER=false,POS_YAN={phone:'',name:'',balance:null},POS_INVOICE={mode:'paper'},POS_METHOD='cash',POS_CAT='',POS_DISCOUNT=null,POS_DISC_OPEN=false,POS_RECEIVED='',RESV_FROM='',RESV_DAYS=7,RESV_EDIT=null,RESV_HOURS=null,RESV_HOURS_OPEN=false,SALES_DAY='',HIST_DAY='',HIST_Q='',HIST_OPEN=new Set(),REG_DATA=null,REG_CASH_OPEN=false,REG_CLOSE_OPEN=false,REG_COUNT_OPEN=false,REG_OPEN_FORM='',CLOCK_PIN='',CLOCK_MSG=null,SHIFT_WEEK='',SHIFT_FORM={},ATT_FROM='',ATT_TO='',STAFF_EDIT=null;
+let ORDERS_TIMER=null,ORDERS_SEEN=null,PAYREQ_SEEN=null,POS_PAYREQ=null,POS_AA=null,POS_TIMER=null,POS_DATA=null,POS_TABLE='',POS_PICK=null,POS_QTY={},POS_SPLIT={},POS_MEMBER=false,POS_YAN={phone:'',name:'',balance:null},POS_INVOICE={mode:'paper'},POS_METHOD='cash',POS_CAT='',POS_DISCOUNT=null,POS_DISC_OPEN=false,POS_RECEIVED='',RESV_FROM='',RESV_DAYS=7,RESV_EDIT=null,RESV_HOURS=null,RESV_HOURS_ERR='',RESV_HOURS_OPEN=false,SALES_DAY='',HIST_DAY='',HIST_Q='',HIST_OPEN=new Set(),REG_DATA=null,REG_CASH_OPEN=false,REG_CLOSE_OPEN=false,REG_COUNT_OPEN=false,REG_OPEN_FORM='',CLOCK_PIN='',CLOCK_MSG=null,SHIFT_WEEK='',SHIFT_FORM={},ATT_FROM='',ATT_TO='',STAFF_EDIT=null;
 const CHECKOUT_TIP='<b>這桌的帳</b><br>品項依點餐人分組；勾選左邊決定這次結哪些，組頭「只結這組」＝各付各的，「依人數分次收款」＝平均分攤；可分多次收款，全部結清自動清桌。數量旁「−／＋」改份數，品項有「本次結」可只結幾份。<br>'
  +'<b>＋ 加點</b>：展開菜單點品項，備註可點常用的。送單後會出現在「出餐」。<br>'
  +'<b>換桌／併桌、清桌</b>：搬到別桌或合併；客人走了、沒有未結帳的品項才清桌。<br>'
@@ -1434,7 +1434,7 @@ async function loadHistory(){
 
 /* 可訂位時間：客人端（/reserve、會員 App）可選的時段。每週固定＋特定日期例外（含公休）；櫃檯登記不受限 */
 function hoursPanel(){
-  const H=RESV_HOURS;if(!H)return '';
+  const H=RESV_HOURS;if(!H)return RESV_HOURS_ERR?`<p class="hint">可訂位時間設定載入失敗：${esc(RESV_HOURS_ERR)}</p>`:'';
   const WD=['日','一','二','三','四','五','六'],ALL=H.all||[];
   const dates=Object.keys(H.dates||{}).sort();
   const sum=l=>l.length===0?'公休':l.length===ALL.length?'全天開放':`${l.length} 個時段（${l[0]}…）`;
@@ -1490,7 +1490,7 @@ async function loadReservations(){
   if(!RESV_FROM)RESV_FROM=todayTaipei();
   if(!host.dataset.init){host.dataset.init='1';host.innerHTML='<h2>訂位</h2><p class="hint">載入中…</p>';}
   let d;try{d=await api(`/admin/reservations?from=${encodeURIComponent(RESV_FROM)}&days=${RESV_DAYS}`);}catch(e){host.innerHTML=`<h2>訂位</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`;return;}
-  try{RESV_HOURS=await api('/admin/reservation-hours');}catch(e){RESV_HOURS=RESV_HOURS||null;}
+  try{RESV_HOURS=await api('/admin/reservation-hours');RESV_HOURS_ERR='';}catch(e){RESV_HOURS=RESV_HOURS||null;RESV_HOURS_ERR=e.message||'載入失敗';}
   const L=d.labels||{},PILL={new:'pill-wait',confirmed:'pill-ok',arrived:'pill-ok',no_show:'pill-bad',cancelled:'pill-draft'};
   const FLOW={new:[['confirmed','確認並通知'],['cancelled','婉拒']],confirmed:[['arrived','已到'],['no_show','未到'],['cancelled','取消']],arrived:[['confirmed','改回已確認']],no_show:[['confirmed','改回已確認']],cancelled:[['confirmed','恢復並通知']]};
   const actions=r=>(FLOW[r.status]||[]).map(([s,l])=>`<button class="btn ${s==='confirmed'&&r.status==='new'?'btn--solid':'btn--ghost'} btn-sm" data-resv="${esc(r.id)}" data-resv-status="${s}">${l}</button>`).join(' ');
