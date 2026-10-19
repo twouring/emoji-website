@@ -110,10 +110,10 @@ PY
 客人端輪詢用：`{ venue, paused }`。`paused` 為 null（可點）或店家在後台設定的暫停文案（例「今日最後點餐 22:30」）。設定存於 `site_content.ordering_pause`，依店別分開。
 
 ### GET /api/orders/table
-掃桌上 QR 進入：query `t`（桌號）、`k`（簽章，由後台產生 QR 時附上）。回這桌目前的場 `{ id, table, status, party_size, items[], orders[], total_unpaid }`（`party_size`＝來客人數，尚未有人選過為 `null`；客人端據此決定稱呼關卡要不要顯示人數選項）；沒有開著的場、或上一組客人已全部取餐（或 4 小時無動靜，順手關掉），回 `id: null` 的空殼——**只讀，不開桌**（掃碼、重新載入、已離開客人的舊分頁都不會在 POS 上開出空桌）。第一次加點走 `POST /api/orders/table/items` 才開場。簽章錯誤回 403。
+掃桌上 QR 進入：query `t`（桌號）、`k`（簽章，由後台產生 QR 時附上）。回這桌目前的場 `{ id, table, status, items[], orders[], total_unpaid }`；沒有開著的場、或上一組客人已全部取餐（或 4 小時無動靜，順手關掉），回 `id: null` 的空殼——**只讀，不開桌**（掃碼、重新載入、已離開客人的舊分頁都不會在 POS 上開出空桌）。第一次加點走 `POST /api/orders/table/items` 才開場。簽章錯誤回 403。
 
 ### POST /api/orders/table/items
-尚未開桌（`GET /api/orders/table` 回 `id: null`）時的第一次加點。body 同 `POST /api/orders/:id/items` 再加 `t`、`k`（桌牌 QR 簽章）。兩支加點 API 都可選帶 `party_size`（1–20，客人在稱呼關卡點選的來客人數）：以 `guest` 為單位記一票（重選覆蓋自己那票），桌的人數＝所有票平均後四捨五入；超出範圍直接忽略、不擋加點。同一筆交易裡找這桌開著的場、沒有才開新場，再加品項；加點失敗（售完、過時段、暫停點餐 423）整筆回滾，不留空桌。回更新後的場（含新 `id`）。簽章錯誤回 403。
+尚未開桌（`GET /api/orders/table` 回 `id: null`）時的第一次加點。body 同 `POST /api/orders/:id/items` 再加 `t`、`k`（桌牌 QR 簽章）。同一筆交易裡找這桌開著的場、沒有才開新場，再加品項；加點失敗（售完、過時段、暫停點餐 423）整筆回滾，不留空桌。回更新後的場（含新 `id`）。簽章錯誤回 403。
 
 ### GET /api/orders/:id
 同桌購物車現況（供輪詢）。query `g`＝自己的 guest 識別碼，回應以 `mine` 標記自己的行（不外露他人識別碼）。`items[]` 每行含 `line, zh, price, qty, by, mine, order_id`；`order_id` 非空＝已付款。`orders[]` 為出餐單 `{ id, amount, status: paid|ready|done, lines[] }`。
@@ -399,7 +399,7 @@ POS 用點數兌換空間時數。body `{ plan: day_4h|day_12h, user_id, operato
 換桌／併桌。body `{ table_no }`。把這桌的未結帳品項與已結帳的單全部搬到目標桌：目標桌沒開就直接改桌號（換桌），已開著就接到目標桌後面並關掉來源桌（併桌）。`W01`–`W99` 外帶單號不能直接當 `table_no`（400）；要把內用單移到外帶區改送 `{ takeout: true }`，伺服器自動取最小空號 W01–W99（不併單；已是外帶單回 400、號碼用完回 409）。反過來外帶單（W 號）也能當來源送 `{ table_no }` 轉內用：空桌改桌號，已開的桌併進去。來源或目標含其他品牌品項時品牌子帳號回 403。回 `{ ok, from, table, merged, takeout, id }`。
 
 ### POST /api/admin/orders/sessions/:id/party
-POS 改來客人數。body `{ party_size }`（1–20）。存在 `party_votes.__pos`，之後一律以店員設定為準，客人手機再選也不覆蓋。回 `{ ok, party_size }`；超出範圍 400，桌不存在或已結束 404。
+POS 改來客人數。body `{ party_size }`（1–20）。存在 `table_sessions.party_votes.__pos`；客人端不填人數，桌況 `sessions[].party_size` 只來自這裡（未設定為 `null`）。回 `{ ok, party_size }`；超出範圍 400，桌不存在或已結束 404。
 
 ### DELETE /api/admin/orders/sessions/:id/pay-requests/:rid
 POS 關掉某筆客人的結帳需求（客人改口或已另外處理）；品項不動。回 `{ ok, pay_requests[] }`。

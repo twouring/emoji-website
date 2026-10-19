@@ -719,7 +719,7 @@ async function migrate() {
   await q(`ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS opened_by_staff_id TEXT, ADD COLUMN IF NOT EXISTS opened_by_staff_name TEXT`);
   // 客人手機送出的「結帳需求」（要付哪幾項）：POS 桌號畫面一點就勾好；結掉的品項自動剔除
   await q(`ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS pay_requests JSONB NOT NULL DEFAULT '[]'`);
-  // 來客人數：客人輸入稱呼時點選，每支手機一票 { guest: n }，桌的人數＝平均四捨五入（tableOrders.partySize）
+  // 來客人數：只由 POS 店員設定（POST /api/admin/orders/sessions/:id/party），存 { __pos: n }
   await q(`ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS party_votes JSONB NOT NULL DEFAULT '{}'`);
   await q(`CREATE TABLE IF NOT EXISTS table_orders (
     id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES table_sessions(id), table_no TEXT NOT NULL, items JSONB NOT NULL,
@@ -4947,7 +4947,7 @@ async function loadSession(id){
   s.orders=(await q('SELECT id,items,amount,status,paid_at,ready_at,done_at FROM table_orders WHERE session_id=$1 ORDER BY paid_at',[id])).rows;return s;
 }
 // 不外露各行的 guest 識別碼（否則同桌可互刪）；帶 ?g= 或 body.guest 時只標記 mine
-const publicSession=(s,guest)=>{const mine=guest?tableOrders.prunePayRequests(s.pay_requests,s.items).find(r=>r.guest===guest):null;return {id:s.id,table:s.table_no,status:s.status,party_size:tableOrders.partySize(s.party_votes),items:s.items.map(({guest:g,...l})=>({...l,mine:!!guest&&g===guest})),orders:s.orders.map(o=>({id:o.id,amount:o.amount,status:o.status,paid_at:o.paid_at,ready_at:o.ready_at,lines:o.items.map(l=>l.line)})),total_unpaid:tableOrders.sum(tableOrders.unpaid(s.items)),pay_request:mine?{scope:mine.scope,lines:mine.lines,people:mine.people||undefined,at:mine.at}:null};};
+const publicSession=(s,guest)=>{const mine=guest?tableOrders.prunePayRequests(s.pay_requests,s.items).find(r=>r.guest===guest):null;return {id:s.id,table:s.table_no,status:s.status,items:s.items.map(({guest:g,...l})=>({...l,mine:!!guest&&g===guest})),orders:s.orders.map(o=>({id:o.id,amount:o.amount,status:o.status,paid_at:o.paid_at,ready_at:o.ready_at,lines:o.items.map(l=>l.line)})),total_unpaid:tableOrders.sum(tableOrders.unpaid(s.items)),pay_request:mine?{scope:mine.scope,lines:mine.lines,people:mine.people||undefined,at:mine.at}:null};};
 const contentValue=async key=>(await q('SELECT value FROM site_content WHERE key=$1',[key])).rows[0]?.value||'';
 /* 客人掃碼點餐的菜單：依點餐時段（MenuLib.orderWindow）——在咖啡 16:00 停餐點、16:30 停飲品並換三點水；三點水 02:00 停餐點、02:30 停酒水 */
 async function currentMenu(opt){const w=tableOrders.MenuLib.orderWindow(),m=tableOrders.menuIndex(await contentValue('menu'),w.venue,opt);for(const [k,it] of m)if(!tableOrders.MenuLib.orderableInWindow(it,w))m.delete(k);return m;}
@@ -4962,7 +4962,7 @@ app.get('/api/orders/pause',requireDb,wrap(async(req,res)=>{res.set('Cache-Contr
 
 // 掃桌上 QR：回這桌目前的場；沒有開著的場（或上一組已結束）就回「尚未開桌」的空殼（id:null），不寫入資料庫——
 // 掃碼／手機重新載入／已離開的客人重開舊分頁都不會在 POS 上開出空桌，第一次加點（POST /api/orders/table/items）才開場
-const emptyTableSession=table=>({id:null,table,status:'open',party_size:null,items:[],orders:[],total_unpaid:0,pay_request:null});
+const emptyTableSession=table=>({id:null,table,status:'open',items:[],orders:[],total_unpaid:0,pay_request:null});
 app.get('/api/orders/table',requireDb,wrap(async(req,res)=>{
   const table=tableOrders.verifyTable(req.query.t,req.query.k,SECRET);if(!table)return res.status(403).json({error:'QR 無效，請重新掃描桌上的 QR。'});
   const client=await pool.connect();
@@ -5008,9 +5008,7 @@ async function mutateItems(req,res,fn,resolve){
     if(!s||s.status!=='open'){await client.query('ROLLBACK');return res.status(s?409:404).json({error:s?'這桌已結束，請重新掃描 QR。':'找不到這桌的點餐。'});}
     const items=await fn(s.items);
     await refundAppRedeems(client,s.items.filter(l=>l.app_redeem&&!l.order_id&&!items.some(x=>x.line===l.line)));
-    // 加點時順帶的來客人數（客人在稱呼關卡點選）：記成這支手機的一票；格式不對就忽略，不擋加點
-    let votes=s.party_votes||{};if(req.body?.party_size!=null){try{votes=tableOrders.partyVote(votes,req.body.guest,req.body.party_size);}catch{}}
-    await client.query('UPDATE table_sessions SET items=$2,party_votes=$3,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),JSON.stringify(votes)]);
+    await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items)]);
     const previousTickets=new Set(s.items.map(l=>l.ticket).filter(Boolean));
     await kitchenPrint.enqueue(client.query.bind(client),[{...s,items:items.filter(l=>l.ticket&&!previousTickets.has(l.ticket))}]);
     await client.query('COMMIT');const out=await loadSession(s.id);res.json(publicSession(out,String(req.body?.guest||'')));
@@ -5217,7 +5215,7 @@ app.post('/api/admin/orders/sessions/:id/move',auth,adminOnly,requireDb,wrap(asy
     res.json({ok:true,from:src.table_no,table,merged:!!dst,takeout:toTakeout,id:dst?dst.id:src.id});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
-// POS 改來客人數：店員設定的人數優先於客人在手機上選的（tableOrders.partySetByPos）
+// POS 設定來客人數（客人端不填，統一由現場人員在 POS 點選）
 app.post('/api/admin/orders/sessions/:id/party',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
   const s=(await q("SELECT id,party_votes FROM table_sessions WHERE id=$1 AND status='open'",[req.params.id])).rows[0];if(!s)return res.status(404).json({error:'找不到這桌。'});

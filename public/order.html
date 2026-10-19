@@ -49,7 +49,7 @@ h3{font-size:1.05rem;margin:0 0 6px}
 #item-detail #detail-body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:calc(16px + env(safe-area-inset-top)) 16px 8px}
 #item-detail .sheet-actions{flex:none;margin:0;padding:10px 16px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--paper)}
 #item-detail .sheet-actions .btn{flex:1 1 0;min-width:0;white-space:nowrap}
-.name-form{margin:0}.name-form .f{min-height:48px;margin-bottom:10px}.party-pick{margin:4px 0 12px}.party-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.party-grid button{min-height:48px;border:1px solid var(--line);background:#fff;border-radius:12px;font-size:1.1rem;font-weight:700;color:var(--ink)}.party-grid button.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);background:#fff8cf}.name-actions{margin:0;flex-wrap:nowrap}.name-actions .btn{flex:1 1 0;min-width:0;white-space:nowrap}
+.name-form{margin:0}.name-form .f{min-height:48px;margin-bottom:10px}.name-actions{margin:0;flex-wrap:nowrap}.name-actions .btn{flex:1 1 0;min-width:0;white-space:nowrap}
 /* 已點清單：多人一起點、品項一多時整張單比視窗高，「送出點餐」同樣固定在底部，不會被捲出畫面點不到 */
 #cart .in{display:flex;flex-direction:column;padding:0;overflow:hidden}
 #cart .sheet-body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:16px 16px 8px}
@@ -118,7 +118,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   <div class="card hidden" id="thanks"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-check"></use></svg><span data-i18n="thanks">感謝用餐，期待再次光臨。</span></h3><p class="muted" data-i18n="thanks_hint">這次點餐已結束。若要再點，請重新掃描桌上的 QR。</p><button class="btn y" type="button" id="thanks-again" data-i18n="thanks_again">重新點餐</button><div class="review-box"><b data-i18n="review_title">喜歡今天的餐點嗎？</b><p class="muted" data-i18n="review_hint">在 Google 地圖留下評論，結帳時把評論出示給櫃檯人員，就送你 5 點會員點數（每位會員限領一次）。</p><a class="btn ghost" data-review-link href="https://maps.app.goo.gl/ZKdyKqwXjVA5x6JF6?g_st=ic" target="_blank" rel="noopener" data-i18n="review_go">寫 Google 評論</a></div></div>
 
   <section id="app" class="hidden">
-    <div class="card" id="name-gate"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-user"></use></svg><span data-i18n="name_gate_title">先告訴我們怎麼稱呼您</span></h3><p class="muted" style="margin-top:0" data-i18n="shared_hint">同桌的人掃同一個 QR 就能一起點；用餐完再到櫃檯結帳，可全部付款、各付各的，或平均分攤。</p><form id="name-form" class="name-form"><input class="f" id="name-in" data-i18n-placeholder="name_placeholder" placeholder="你的稱呼（讓同桌知道誰點了什麼）" maxlength="20" autocomplete="off"><div id="party-pick" class="party-pick" hidden><div class="opt-title"><span data-i18n="party_title">幾位用餐？</span></div><div class="party-grid" role="radiogroup"></div></div><div class="row name-actions"><button class="btn ghost" type="button" id="name-skip" data-i18n="name_skip">略過</button><button class="btn y" type="submit" data-i18n="name_gate_submit">查看菜單</button></div></form></div>
+    <div class="card" id="name-gate"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-user"></use></svg><span data-i18n="name_gate_title">先告訴我們怎麼稱呼您</span></h3><p class="muted" style="margin-top:0" data-i18n="shared_hint">同桌的人掃同一個 QR 就能一起點；用餐完再到櫃檯結帳，可全部付款、各付各的，或平均分攤。</p><form id="name-form" class="name-form"><input class="f" id="name-in" data-i18n-placeholder="name_placeholder" placeholder="你的稱呼（讓同桌知道誰點了什麼）" maxlength="20" autocomplete="off"><div class="row name-actions"><button class="btn ghost" type="button" id="name-skip" data-i18n="name_skip">略過</button><button class="btn y" type="submit" data-i18n="name_gate_submit">查看菜單</button></div></form></div>
     <div id="order-content" class="hidden">
       <div class="card" id="orders-card"></div>
       <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px"><span class="muted"><span data-i18n="ordering_as">點餐稱呼</span>：<b id="name-display"></b></span><button class="btn ghost sm" type="button" id="name-edit-btn" data-i18n="name_edit">更改</button></div>
@@ -179,17 +179,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 
   // 先輸入稱呼才看得到菜單：掃碼進來先過這關，點餐那一刻就不用再補填
   $('#name-in').value=NAME;
-  // 來客人數：稱呼下方攤開 1–10 用點的；同桌已有人選過（S.party_size）就不再出現。選了就跟著這支手機下一次加點送出，
-  // 伺服器每支手機記一票，多人選了不同人數取平均四捨五入
-  // 只記在這次頁面（不存 localStorage），以免同桌下一組客人帶到上一組的人數；選項是固定數字，innerHTML 無外部輸入
-  var PARTY=0;
-  $('#party-pick .party-grid').innerHTML=[1,2,3,4,5,6,7,8,9,10].map(function(n){return '<button type="button" role="radio" data-party="'+n+'">'+n+'</button>';}).join('');
-  function renderParty(){
-    $('#party-pick').hidden=!!(S&&S.party_size);
-    document.querySelectorAll('#party-pick [data-party]').forEach(function(b){var on=Number(b.dataset.party)===PARTY;b.classList.toggle('on',on);b.setAttribute('aria-checked',on?'true':'false');});
-  }
-  $('#party-pick').onclick=function(e){var b=e.target.closest('[data-party]');if(!b)return;PARTY=Number(b.dataset.party);renderParty();};
-  function showGate(){$('#name-gate').classList.remove('hidden');$('#name-in').value=NAME;renderParty();$('#name-in').focus();}
+  function showGate(){$('#name-gate').classList.remove('hidden');$('#name-in').value=NAME;$('#name-in').focus();}
   function hideGate(){$('#name-gate').classList.add('hidden');}
   // 確認稱呼的那一下是使用者的點擊：順便把 iOS 的音效解鎖（之後出餐提示音才響得出來）
   function setName(v){
@@ -309,7 +299,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   var sum=function(ls){return ls.reduce(function(a,l){return a+l.price*l.qty;},0);};
 
   function renderState(){
-    $('#table-no').textContent=tr('table')+' '+S.table;renderParty();
+    $('#table-no').textContent=tr('table')+' '+S.table;
     var u=unpaid(),p=pending();
     $('#bar').hidden=!NAME;$('#bar-total').textContent=money(sum(u));$('#bar-count').textContent=p.length?tr('pending_items',{count:p.length}):u.length?tr('unpaid_items',{count:u.length}):tr('empty');
     // 有還沒送出的品項才出現「送出點餐」；桌邊沒有結帳鍵，用餐完到櫃檯由現場人員在 POS 結帳
@@ -359,7 +349,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     closeSheets(true);$('#bar').hidden=true;$('#app').classList.add('hidden');$('#boot').classList.add('hidden');
     $('#thanks').classList.remove('hidden');
   }
-  function sessionClosed(s){setEnded((s&&s.id)||(S&&S.id)||'1');PARTY=0;showThanks();}
+  function sessionClosed(s){setEnded((s&&s.id)||(S&&S.id)||'1');showThanks();}
 
   function load(){
     if(endedId()){showThanks();return Promise.resolve(null);}
@@ -385,7 +375,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     var p=e.target.closest('[data-push]');if(p){subscribePush(p.dataset.push,p);return;}
     if(e.target.closest('[data-close]')||e.target.classList.contains('sheet'))closeSheets();   // 按「返回」或點遮罩外側都關閉
   });
-  $('#detail-add').onclick=function(){if(!CURRENT_ITEM)return;if(!needName())return;var btn=this;btn.disabled=true;unlockAudio();api(S.id?'/orders/'+S.id+'/items':'/orders/table/items',{method:'POST',body:Object.assign({item_id:CURRENT_ITEM.id,t:T,k:K,qty:CURRENT_QTY,by:NAME,guest:GUEST,note:optionNote()},PARTY?{party_size:PARTY}:{},comboBody())}).then(function(s){var sid=S&&S.id;applyState(s);if(s.id&&s.id!==sid)live();btn.textContent='✓ '+tr('added');setTimeout(function(){closeSheets();btn.textContent=tr('add_to_cart');},450);}).catch(function(err){toast(err.message);if(/已結束/.test(err.message))sessionClosed();if(err.status===423){PAUSED=err.message;renderMenu();}if(/售完|下架/.test(err.message))loadMenuDoc();}).then(function(){btn.disabled=!!PAUSED;});};
+  $('#detail-add').onclick=function(){if(!CURRENT_ITEM)return;if(!needName())return;var btn=this;btn.disabled=true;unlockAudio();api(S.id?'/orders/'+S.id+'/items':'/orders/table/items',{method:'POST',body:Object.assign({item_id:CURRENT_ITEM.id,t:T,k:K,qty:CURRENT_QTY,by:NAME,guest:GUEST,note:optionNote()},comboBody())}).then(function(s){var sid=S&&S.id;applyState(s);if(s.id&&s.id!==sid)live();btn.textContent='✓ '+tr('added');setTimeout(function(){closeSheets();btn.textContent=tr('add_to_cart');},450);}).catch(function(err){toast(err.message);if(/已結束/.test(err.message))sessionClosed();if(err.status===423){PAUSED=err.message;renderMenu();}if(/售完|下架/.test(err.message))loadMenuDoc();}).then(function(){btn.disabled=!!PAUSED;});};
   // 結帳意圖：已送出的餐全部出完、沒有還沒送的品項，客人又打開已點清單（在看帳）→ 先跳 Google 評論邀請，每場一次
   var REVIEW_URL='https://maps.app.goo.gl/ZKdyKqwXjVA5x6JF6?g_st=ic';
   function reviewKey(){return 'order_review_'+((S&&S.id)||T);}

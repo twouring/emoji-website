@@ -1377,7 +1377,7 @@ function paintPos(){
     if(cur.lines.some(l=>!l.placed_at))await opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/place',{method:'POST',body:{}}),async()=>{await pollKitchenPrinting();return starReady()?'已送出點餐並列印出餐單':'已送出點餐，出餐單由連接印表機的 Star Browser 自動列印';},reload);
     else await printOrder(tableTicket());
   }finally{place.disabled=false;}};
-  // 改來客人數：攤開 1–20 用點的，點一下就存；店員設定的人數優先於客人手機選的
+  // 來客人數：客人端不填，統一由現場人員在這裡攤開 1–20 點選，點一下就存
   const pty=host.querySelector('#pos-party');if(pty)pty.onclick=()=>{
     const ov=document.createElement('div');ov.className='pos-move-ov';
     ov.innerHTML=`<div class="pos-move-box" role="dialog" aria-label="來客人數"><h3>${esc(cur.table)} 來客人數</h3><div class="pos-move-grid pos-party-grid">${Array.from({length:20},(_,i)=>i+1).map(n=>`<button type="button" class="pos-move-opt ${n===Number(cur.party_size)?'on':''}" data-party="${n}"><b>${n}</b><small>位</small></button>`).join('')}</div><div class="pos-move-foot"><span></span><button type="button" class="btn btn--ghost" data-cancel>取消</button></div></div>`;
