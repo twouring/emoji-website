@@ -18,7 +18,7 @@ const CHECKOUT_TIP='<b>這桌的帳</b><br>品項依點餐人分組；勾選左�
  +'<b>折扣</b>：按「加折扣」選折％或折抵金額，原因必填。<br>'
  +'<b>付款</b>：選方式；現金輸入實收會算找零；「混合付款」每種方式各填金額，合計要等於應收。<br>'
  +'<b>電子發票</b>：預設不開立，可選紙本、統編、手機載具、自然人憑證、捐贈。<br>'
- +'<b>列印</b>：「列印出餐單」給廚房、「列印收據明細」給客人；收款後會自動出單並開錢櫃；日結核對現金時也會自動開錢櫃。<br>'
+ +'<b>列印</b>：「列印出餐單」給現場（餐點單黑底橫幅、飲品單斜線橫幅，分兩張出）、「列印收據明細」給客人；收款後會自動出單並開錢櫃；日結核對現金時也會自動開錢櫃。<br>'
  +'<b>QR</b>：顯示這桌的點餐 QR 給客人掃。<br>下方「這桌已結帳的單」可補印、補開發票或作廢。';
 const REG_DENOMS=[1000,500,100,50,10,5,1];
 const PAY_LABEL={cash:'現金',card:'信用卡',linepay:'LINE Pay',transfer:'轉帳',taishin:'信用卡',other:'其他',tappay:'線上刷卡',mixed:'混合付款'};
@@ -534,8 +534,16 @@ function ticketCanvas(spec){
   // 備註加框：每行文字包進同一個外框（廚房一眼看到客製重點）
   const box=(texts,size,bold)=>{setFont(size,bold);g.textAlign='left';const rows=texts.flatMap(t=>wrapTicketText(g,t,maxW-20));const top=y+2,h=rows.length*(size+6)+8;y=top+6;rows.forEach(r=>{g.fillText(r,14,y);y+=size+6;});g.lineWidth=2;g.strokeRect(9,top,W-18,h);g.lineWidth=1;y=top+h+8;};
   const rule=dashed=>{g.beginPath();if(dashed)g.setLineDash([4,4]);g.moveTo(8,y+4);g.lineTo(W-8,y+4);g.stroke();g.setLineDash([]);y+=12;};
+  // 分單橫幅：solid＝整條黑底白字（餐點單）；hatch＝斜線底、中間白框黑字（飲品單）。熱感應紙只有黑白，靠底紋區分
+  const banner=(t,size,style)=>{const h=size+28,top=y;setFont(size,true);g.textAlign='center';
+    if(style==='hatch'){g.save();g.beginPath();g.rect(0,top,W,h);g.clip();g.lineWidth=5;for(let x=-h;x<W+h;x+=16){g.beginPath();g.moveTo(x,top+h);g.lineTo(x+h,top);g.stroke();}g.restore();g.lineWidth=1;const tw=g.measureText(t).width+28;g.fillStyle='#fff';g.fillRect((W-tw)/2,top+6,tw,h-12);g.fillStyle='#000';g.lineWidth=3;g.strokeRect((W-tw)/2,top+6,tw,h-12);g.lineWidth=1;g.fillText(t,W/2,top+14);}
+    else{g.fillRect(0,top,W,h);g.fillStyle='#fff';g.fillText(t,W/2,top+14);g.fillStyle='#000';}
+    y=top+h+10;};
+  let edge=null;
   for(const cmd of spec||[]){
     if(cmd==='rule')rule(false);
+    else if(cmd.kind==='banner')banner(cmd.text,cmd.size||36,cmd.style);
+    else if(cmd.kind==='edge')edge=cmd.style;
     else if(cmd==='dash')rule(true);
     else if(cmd.kind==='center')center(cmd.text,cmd.size||22,!!cmd.bold);
     else if(cmd.kind==='left')left(cmd.text,cmd.size||22,!!cmd.bold);
@@ -543,15 +551,42 @@ function ticketCanvas(spec){
     else if(cmd.kind==='box')box(cmd.texts,cmd.size||22,!!cmd.bold);
     else if(cmd.kind==='row')row(cmd.left,cmd.right,cmd.size||22,!!cmd.bold);
   }
-  const out=document.createElement('canvas');out.width=W;out.height=Math.ceil(y+8);const og=out.getContext('2d');og.fillStyle='#fff';og.fillRect(0,0,W,out.height);og.drawImage(c,0,0);return out;
+  const out=document.createElement('canvas');out.width=W;out.height=Math.ceil(y+8);const og=out.getContext('2d');og.fillStyle='#fff';og.fillRect(0,0,W,out.height);og.drawImage(c,0,0);
+  // 兩側邊條：餐點單整條實心、飲品單一格一格的虛線；一疊單子裡從側邊也看得出是哪一種
+  if(edge){og.fillStyle='#000';const ew=4;if(edge==='solid'){og.fillRect(0,0,ew,out.height);og.fillRect(W-ew,0,ew,out.height);}else for(let yy=0;yy<out.height;yy+=20){og.fillRect(0,yy,ew,10);og.fillRect(W-ew,yy,ew,10);}}
+  return out;
 }
 // 點餐人：每個品項旁標示（客人掃碼時填的名字；同桌多人各自點、一起送單時靠這個分）。櫃檯代點不標。
 const ordererOf=l=>{const n=String(l.by||'').trim();return n&&n!=='櫃檯'?n:'';};
 // 結帳頁品項依點餐人分組（各付各的時一組就是一個人的帳）：依第一次出現的順序；櫃檯代點自成一組；預收抵扣行放最後一組
 const lineGroups=lines=>{const m=new Map();for(const l of lines){const key=l.credit_of?'credit':ordererOf(l)||(String(l.by||'').trim()==='櫃檯'?'櫃檯':'');if(!m.has(key))m.set(key,{key,label:key==='credit'?'已預收':key==='櫃檯'?'櫃檯點的':key||'客人',lines:[]});m.get(key).lines.push(l);}const gs=[...m.values()];return gs.filter(g=>g.key!=='credit').concat(gs.filter(g=>g.key==='credit'));};
-function kitchenTicketSpec(o){
-  const takeout=isTakeoutNo(o.table_no);
-  const spec=[{kind:'center',text:'出餐單',size:22,bold:true},{kind:'center',text:takeout?'外帶':'桌號',size:20},{kind:'center',text:String(o.table_no||''),size:54,bold:true},{kind:'center',text:applicationTime(o.paid_at||o.placed_at),size:18}];
+// 出餐單分兩張：餐點單（廚房）與飲品單（吧檯），依 MenuLib.stationOf（BAR_CATS＝飲品／酒水）。
+// 套餐拆開：主餐留在餐點單，套餐裡的飲品印到飲品單（標原套餐名）。只有一種就只印一張。
+const isDrinkCat=cat=>typeof MenuLib!=='undefined'&&MenuLib.stationOf?MenuLib.stationOf({cat})==='bar':false;
+const TICKET_KIND={food:{label:'餐 點',name:'餐點單',banner:'solid'},drink:{label:'飲 品',name:'飲品單',banner:'hatch'}};
+function splitTicketLines(lines){
+  const food=[],drink=[];
+  for(const l of lines){
+    const parts=partsOf(l);
+    if(parts.length){const dp=parts.filter(p=>isDrinkCat(p.cat)),fp=parts.filter(p=>!isDrinkCat(p.cat));
+      if(isDrinkCat(l.cat)){drink.push(l);continue;}
+      if(fp.length||!dp.length)food.push(dp.length?{...l,parts:fp}:l);
+      if(dp.length)drink.push({...l,parts:dp,note:fp.length?'':l.note});
+      continue;}
+    (isDrinkCat(l.cat)?drink:food).push(l);
+  }
+  return {food,drink};
+}
+// 回 [{kind:'food'|'drink',order}]：每張只帶自己那一半品項；沒有品項的那張不印
+function ticketParts(o){
+  const s=splitTicketLines(orderLines(o).filter(l=>!l.cancelled));
+  const kinds=['food','drink'].filter(k=>s[k].length);
+  return kinds.map(k=>({kind:k,total:kinds.length,order:{...o,stations:null,items:s[k]}}));
+}
+function kitchenTicketSpec(o,kind,total=1){
+  const takeout=isTakeoutNo(o.table_no),K=TICKET_KIND[kind];
+  const spec=K?[{kind:'edge',style:K.banner},{kind:'center',text:'出餐單',size:22,bold:true},{kind:'banner',text:K.label,size:40,style:K.banner}]:[{kind:'center',text:'出餐單',size:22,bold:true}];
+  spec.push({kind:'center',text:takeout?'外帶':'桌號',size:20},{kind:'center',text:String(o.table_no||''),size:54,bold:true},{kind:'center',text:applicationTime(o.paid_at||o.placed_at),size:18});
   spec.push('rule');
   let count=0;
   for(const [cat,lines] of ticketGroups(o)){
@@ -568,8 +603,10 @@ function kitchenTicketSpec(o){
     }
   }
   spec.push('rule');
-  spec.push({kind:'center',text:`共 ${count} 件`,size:20,bold:true});
+  spec.push({kind:'center',text:K?`${K.name} 共 ${count} 件`:`共 ${count} 件`,size:20,bold:true});
+  if(K&&total>1)spec.push({kind:'center',text:`同單另有${TICKET_KIND[kind==='food'?'drink':'food'].name}`,size:18});
   spec.push({kind:'center',text:'單號 '+(o.id||o.order_id||''),size:16});
+  if(K)spec.push({kind:'banner',text:K.name,size:22,style:K.banner});
   return spec;
 }
 function receiptTicketSpec(o){
@@ -682,12 +719,24 @@ function checkoutHardware(drawer,order,paidText){
   return CHECKOUT_HW;
 }
 // 出餐單（給現場）：桌號大字、依類別分段列品項與備註；不印價錢與付款，避免出餐時分心。
+// 餐點與飲品分兩張印（餐點單黑底橫幅＋實心邊條、飲品單斜線橫幅＋虛線邊條）；任一張失敗就回 false，交給自動出單暫停流程
 async function printOrder(o,{auto=false}={}){
-  if(starReady()){const ok=await starSend({canvas:ticketCanvas(kitchenTicketSpec(o))});if(!ok)toast('出餐單未印出，請到查單補印');return ok;}
+  const tickets=ticketParts(o);
+  if(starReady()){
+    if(!tickets.length)return true;
+    let ok=true;
+    for(const t of tickets){const r=await starSend({canvas:ticketCanvas(kitchenTicketSpec(t.order,t.kind,t.total))});if(!r){toast(TICKET_KIND[t.kind].name+'未印出，請到查單補印');ok=false;break;}}
+    return ok;
+  }
   if(auto){starHint();return false;}
+  const html=tickets.map(t=>{const K=TICKET_KIND[t.kind];return `<section class="tk tk-${t.kind}"><div class="c">出餐單</div><div class="bn bn-${t.kind}"><span>${K.label}</span></div>${kitchenTicketHtml(t.order)}<div class="c"><b>${K.name}</b></div></section>`;}).join('');
+  printWindow(`出餐單 ${ticketTableLabel(o)}`,html,PRINT_CSS+'.tk{break-after:page;page-break-after:always}.tk:last-child{break-after:auto;page-break-after:auto}.tk-food{border-left:6px solid #000;border-right:6px solid #000;padding:0 2mm}.tk-drink{border-left:6px dashed #000;border-right:6px dashed #000;padding:0 2mm}.bn{text-align:center;font-size:34px;font-weight:800;padding:6px 0;margin:6px 0;-webkit-print-color-adjust:exact;print-color-adjust:exact}.bn-food{background:#000;color:#fff}.bn-drink{background:repeating-linear-gradient(45deg,#000 0 5px,#fff 5px 14px)}.bn-drink span{background:#fff;border:3px solid #000;padding:0 14px}');
+  return true;
+}
+function kitchenTicketHtml(o){
   const sections=ticketGroups(o).map(([cat,lines])=>`<h2>${esc(catLabel(cat))}</h2>`+lines.map(l=>{const parts=specParts(l),opts=parts.filter(p=>p.kind!=='custom').map(p=>p.text),custom=parts.filter(p=>p.kind==='custom').map(p=>p.text);return `<div class="l k"><span>${esc(l.zh)}${l.comp_reason?'（贈）':''}</span><span>×${l.qty}</span></div>${partsOf(l).map(p=>`<div class="l k"><span>　${esc(partText(p))}</span></div>${p.note?`<div class="n">　${esc(p.note)}</div>`:''}`).join('')}${ordererOf(l)?`<div class="n">${esc(ordererOf(l))}</div>`:''}${opts.length?`<div class="n">${esc(opts.join('／'))}</div>`:''}${custom.map(t=>`<div class="n">※ ${esc(t)}</div>`).join('')}`;}).join('')).join('');
   const count=(o.items||[]).filter(l=>!l.cancelled).reduce((a,l)=>a+l.qty,0);
-  printWindow(`出餐單 ${ticketTableLabel(o)}`,`<div class="c">出餐單</div><h1 class="k">${isTakeoutNo(o.table_no)?'外帶':'桌號'} ${esc(o.table_no)}</h1><div class="m c">${esc(applicationTime(o.paid_at||o.placed_at))}</div>${sections}<hr class="sep"><div class="c">共 ${count} 件<br>單號 ${esc(o.id||o.order_id||'')}</div>`);
+  return `<h1 class="k">${isTakeoutNo(o.table_no)?'外帶':'桌號'} ${esc(o.table_no)}</h1><div class="m c">${esc(applicationTime(o.paid_at||o.placed_at))}</div>${sections}<hr class="sep"><div class="c">共 ${count} 件<br>單號 ${esc(o.id||o.order_id||'')}</div>`;
 }
 // 客人收據明細：店名、品項、小計／折扣／合計、付款方式、實收找零、發票號碼、單號（查單可重印）
 async function printReceipt(o,{auto=false}={}){

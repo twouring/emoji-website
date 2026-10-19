@@ -6,7 +6,7 @@ const src=readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');
 const menuLib=readFileSync(new URL('../public/menu-lib.js',import.meta.url),'utf8');
 const load=()=>vm.createContext({console,setTimeout,clearTimeout});
 function printContext(){
- const texts=[],sent=[];const g={fillRect(){},strokeRect(){},fillText(t){texts.push(t);},measureText(t){return {width:[...String(t)].length*20};},drawImage(){},beginPath(){},setLineDash(){},moveTo(){},lineTo(){},stroke(){}};
+ const texts=[],sent=[];const g={save(){},restore(){},rect(){},clip(){},fillRect(){},strokeRect(){},fillText(t){texts.push(t);},measureText(t){return {width:[...String(t)].length*20};},drawImage(){},beginPath(){},setLineDash(){},moveTo(){},lineTo(){},stroke(){}};
  const c=vm.createContext({console,setTimeout,clearTimeout,document:{createElement:()=>({getContext:()=>g})},BRAND_LABEL:{cafe:'在咖啡'},SCOPE:'cafe',num:String,applicationTime:String,navigator:{userAgent:'StarWebPRNTBrowser'},PosEncouragement:{pick:()=>({zh:'測試鼓勵語',en:'Keep going.'})},toast(){}});
  vm.runInContext(menuLib,c);vm.runInContext(src,c);c.sent=sent;vm.runInContext('StarWebPrintBuilder=function(){};StarWebPrintTrader=function(){};starSend=async job=>{sent.push(job);return true;}',c);
  return {c,texts,sent};
@@ -47,7 +47,7 @@ test('kitchen ticket groups by menu category (food first) and omits cancelled it
  assert.ok(texts.includes('出餐單'));assert.ok(texts.includes('【麵包主食】'));assert.ok(texts.includes('【咖啡】'));assert.ok(!texts.includes('【主食】'),'取消的品項連類別標題都不印');
  assert.ok(texts.indexOf('【麵包主食】')<texts.indexOf('【咖啡】'),'依菜單類別順序：餐點在前、飲品在後');
  assert.ok(texts.includes('拿鐵'));assert.ok(texts.includes('吐司'));assert.ok(!texts.includes('已退的菜'));
- assert.ok(texts.some(t=>String(t).includes('去冰')),'規格印在品名下一行');assert.ok(texts.includes('共 3 件'));
+ assert.ok(texts.some(t=>String(t).includes('去冰')),'規格印在品名下一行');assert.ok(texts.includes('餐點單 共 1 件')&&texts.includes('飲品單 共 2 件'),'餐點與飲品分兩張');
  assert.ok(!texts.some(t=>/現金|合計|NT\$|實收/.test(String(t))));
 });
 test('receipt detail shows guest totals, payment and invoice',async()=>{
