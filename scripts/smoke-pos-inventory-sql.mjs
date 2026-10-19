@@ -103,6 +103,23 @@ test('庫存：真 SQL 跑進貨→製作備料→出餐自動扣（去重）→
     ctx.posInventory.consumptionFor = saved;
     await q('INSERT INTO outer_work VALUES (2)'); await q('COMMIT');
     assert.equal((await q('SELECT count(*)::int AS n FROM outer_work')).rows[0].n, 2, '點餐／收款交易不受影響');
+    // 進貨單位＋使用率：番茄用「斤」進貨、庫存記 g、使用率 0.9；菜單每份淨 135 g → 扣 150 g
+    const tomato = (await call('POST', '/inventory/items', { name: '牛番茄', unit: 'g', pack_unit: '斤', pack_size: 600, yield_rate: 0.9, storage: 'chill', shelf_life: '5 天', ...op })).body.item;
+    assert.equal(tomato.pack_size, 600); assert.equal(tomato.yield_rate, 0.9);
+    r = await call('POST', `/inventory/items/${tomato.id}/moves`, { type: 'in', packs: 3.125, amount: 406.25, ...op });
+    assert.equal(r.body.qty, 1875);
+    await call('PUT', '/inventory/recipes/m_bar', { lines: [{ inv_id: tomato.id, qty: 135 }], ...op });
+    await tx(() => ctx.inventoryConsume(q, [{ line: 'T1', item_id: 'm_bar', zh: '清酒', qty: 1 }]));
+    inv = (await call('GET', '/inventory')).body;
+    assert.equal(inv.items.find(i => i.id === tomato.id).qty, 1725, '135 ÷ 0.9 = 150');
+    assert.equal(inv.costs.m_bar.cost, 32.51, '150 g × 0.2167');
+    // 有庫存不能直接改單位；換算單位：斤→g 反向示範（g→kg，factor 0.001），配方一起換
+    assert.equal((await call('PATCH', `/inventory/items/${tomato.id}`, { unit: 'kg', ...op })).status, 409);
+    r = await call('POST', `/inventory/items/${tomato.id}/convert`, { unit: 'kg', factor: 0.001, ...op });
+    assert.equal(r.body.qty, 1.725);
+    inv = (await call('GET', '/inventory')).body;
+    assert.deepEqual(inv.recipes.m_bar.map(l => l.qty), [0.135]);
+    const tz = inv.items.find(i => i.id === tomato.id); assert.equal(tz.unit, 'kg'); assert.equal(tz.pack_size, 0.6); assert.equal(tz.avg_cost, 216.7);
     // 停用
     r = await call('PATCH', `/inventory/items/${oil.id}`, { active: false, ...op }); assert.equal(r.body.item.active, false);
     assert.equal((await call('POST', `/inventory/items/${oil.id}/moves`, { type: 'in', qty: 1, ...op })).status, 409, '停用品項不能異動');
