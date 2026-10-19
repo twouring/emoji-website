@@ -4589,7 +4589,7 @@ app.get('/api/admin/yan/members/:id', auth, adminOnly, requireDb, wrap(async (re
   const history = [...rows].sort((a,b) => new Date(b.created_at) - new Date(a.created_at) || String(b.id).localeCompare(String(a.id)));
   const ledger = history.slice(offset, offset + limit).map(r => ({ id:r.id, kind:r.kind, delta:r.delta, brand:r.brand || '', reason:r.reason || '', operator_id:r.operator_id || '', operator_name:r.operator_name || '', created_at:r.created_at, expires_at:r.expires_at || null }));
   const manual_grants = (await q('SELECT entitlement_id,plan,reason,operator_id,operator_name,created_at,starts_at,ends_at FROM pos_membership_grants WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100', [id])).rows;
-  res.json({ member:{ id:user.id, name:user.name || '', phone:user.phone_e164 || user.phone || '' }, active:!!deriveMemberAccess(await loadEntitlements(id)).active, balance:yan.balance(rows), ledger, manual_grants, next_offset:history.length > offset + limit ? offset + limit : null });
+  res.json({ member:{ id:user.id, name:user.name || '', phone:user.phone_e164 || user.phone || '' }, active:!!deriveMemberAccess(await loadEntitlements(id)).active, balance:yan.balance(rows), reviewed:rows.some(r => r.ref_type === 'review'), ledger, manual_grants, next_offset:history.length > offset + limit ? offset + limit : null });
 }));
 app.post('/api/admin/yan/lookup', auth, adminOnly, requireDb, wrap(async (req, res) => {
   const token = String(req.body?.token || '').trim();
@@ -4667,8 +4667,12 @@ app.post('/api/admin/yan/grant', auth, adminOnly, requireDb, wrap(async (req, re
     if (!user) { await client.query('ROLLBACK'); return res.status(404).json({ error: '找不到這位會員。' }); }
     const before = await yanRowsFor(client, userId);
     let r;
-    try { r = yan.applyGrant(before, { userId, points: req.body?.points, reason: req.body?.reason, operator }); }
+    // Google 地圖評論獎勵：固定 5 點、每位會員限一次（帳本 ref_type='review'），點數與原因不吃前端
+    const review = req.body?.kind === 'google_review';
+    if (review && before.some(x => x.ref_type === 'review')) { await client.query('ROLLBACK'); return res.status(409).json({ error: '這位會員已經領過 Google 評論點數（每人限一次）。' }); }
+    try { r = yan.applyGrant(before, review ? { userId, points: yan.REVIEW_POINTS, reason: 'Google 地圖評論', operator } : { userId, points: req.body?.points, reason: req.body?.reason, operator }); }
     catch (e) { await client.query('ROLLBACK'); return res.status(e.status || 400).json({ error: e.message }); }
+    if (review) r.rec.ref_type = 'review';
     r.rec.actor = actorOf(req.auth) || '';
     await persistYanDiff(client, before, r.rows);
     await client.query('COMMIT');

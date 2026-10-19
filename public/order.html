@@ -81,6 +81,13 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 .notice{color:var(--muted);margin:20px 0}
 .hidden{display:none!important}
 #thanks .btn{margin-top:12px;width:100%}
+/* Google 評論邀請：判定有結帳意圖（餐都出完了打開已點清單、或櫃檯已結帳）才出現，每場最多跳一次 */
+#review .in{display:flex;flex-direction:column;padding:0;overflow:hidden}
+#review .sheet-body{flex:1 1 auto;min-height:0;overflow:auto;padding:18px 16px 8px}
+#review .sheet-actions{flex:none;margin:0;padding:10px 16px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--paper)}
+#review .sheet-actions .btn{flex:1 1 0;min-width:0;text-align:center;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.review-stars{font-size:1.6rem;letter-spacing:4px;color:#E8B400;margin:0 0 4px}
+.review-box{margin-top:16px;padding-top:14px;border-top:1px dashed var(--line)}.review-box a.btn{display:flex;align-items:center;justify-content:center;text-decoration:none;width:100%}
 .toast{position:fixed;left:16px;right:16px;top:calc(16px + env(safe-area-inset-top));z-index:40;background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;text-align:center;display:none}.toast.on{display:block}
 /* 375px（iPhone SE／mini）：底部列的兩顆鍵用 auto 寬、內距縮小（字級維持 16px 以上），金額欄保有最小寬度不被蓋住 */
 @media (max-width:400px){.bar{grid-template-columns:minmax(84px,1fr) auto auto;gap:6px;padding-left:10px;padding-right:10px}.bar .btn{padding:10px 12px}.bar .with-icon{gap:5px}.bar .s b{font-size:1.05rem}.sheet-actions .btn{padding-left:10px;padding-right:10px}}
@@ -108,7 +115,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 <header class="top"><div><b id="brand">言文字</b> <small data-i18n="order">桌邊點餐</small></div><div class="actions"><button class="lang with-icon" id="lang-toggle" type="button" aria-label="Switch language"><svg class="ico" aria-hidden="true"><use href="#i-globe"></use></svg><span id="lang-label">EN</span></button><span class="t" id="table-no">—</span></div></header>
 <main class="wrap">
   <div class="card" id="boot"><p class="muted" data-i18n="loading">載入中…</p></div>
-  <div class="card hidden" id="thanks"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-check"></use></svg><span data-i18n="thanks">感謝用餐，期待再次光臨。</span></h3><p class="muted" data-i18n="thanks_hint">這次點餐已結束。若要再點，請重新掃描桌上的 QR。</p><button class="btn y" type="button" id="thanks-again" data-i18n="thanks_again">重新點餐</button></div>
+  <div class="card hidden" id="thanks"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-check"></use></svg><span data-i18n="thanks">感謝用餐，期待再次光臨。</span></h3><p class="muted" data-i18n="thanks_hint">這次點餐已結束。若要再點，請重新掃描桌上的 QR。</p><button class="btn y" type="button" id="thanks-again" data-i18n="thanks_again">重新點餐</button><div class="review-box"><b data-i18n="review_title">喜歡今天的餐點嗎？</b><p class="muted" data-i18n="review_hint">在 Google 地圖留下評論，結帳時把評論出示給櫃檯人員，就送你 5 點會員點數（每位會員限領一次）。</p><a class="btn ghost" data-review-link href="https://maps.app.goo.gl/ZKdyKqwXjVA5x6JF6?g_st=ic" target="_blank" rel="noopener" data-i18n="review_go">寫 Google 評論</a></div></div>
 
   <section id="app" class="hidden">
     <div class="card" id="name-gate"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-user"></use></svg><span data-i18n="name_gate_title">先告訴我們怎麼稱呼您</span></h3><p class="muted" style="margin-top:0" data-i18n="shared_hint">同桌的人掃同一個 QR 就能一起點；用餐完再到櫃檯結帳，可全部付款、各付各的，或平均分攤。</p><form id="name-form" class="name-form"><input class="f" id="name-in" data-i18n-placeholder="name_placeholder" placeholder="你的稱呼（讓同桌知道誰點了什麼）" maxlength="20" autocomplete="off"><div class="row name-actions"><button class="btn ghost" type="button" id="name-skip" data-i18n="name_skip">略過</button><button class="btn y" type="submit" data-i18n="name_gate_submit">查看菜單</button></div></form></div>
@@ -130,6 +137,11 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   <div class="row sheet-actions"><button class="btn ghost" data-close data-i18n="continue">繼續點</button><button class="btn y with-icon" id="cart-place" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span data-i18n="place">送出點餐</span></button></div>
 </div></div>
 
+
+<div class="sheet" id="review" role="dialog" aria-labelledby="review-title"><div class="in">
+  <div class="sheet-body"><p class="review-stars" aria-hidden="true">★★★★★</p><h3 id="review-title" data-i18n="review_title">喜歡今天的餐點嗎？</h3><p class="muted" data-i18n="review_hint">在 Google 地圖留下評論，結帳時把評論出示給櫃檯人員，就送你 5 點會員點數（每位會員限領一次）。</p></div>
+  <div class="row sheet-actions"><button class="btn ghost" type="button" id="review-cart" data-i18n="review_view_cart">查看已點清單</button><a class="btn y" id="review-go" data-review-link href="https://maps.app.goo.gl/ZKdyKqwXjVA5x6JF6?g_st=ic" target="_blank" rel="noopener" data-i18n="review_go">寫 Google 評論</a></div>
+</div></div>
 
 <div class="sheet" id="item-detail"><div class="in">
   <div id="detail-body"></div>
@@ -364,7 +376,16 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     if(e.target.closest('[data-close]')||e.target.classList.contains('sheet'))closeSheets();   // 按「返回」或點遮罩外側都關閉
   });
   $('#detail-add').onclick=function(){if(!CURRENT_ITEM)return;if(!needName())return;var btn=this;btn.disabled=true;unlockAudio();api(S.id?'/orders/'+S.id+'/items':'/orders/table/items',{method:'POST',body:Object.assign({item_id:CURRENT_ITEM.id,t:T,k:K,qty:CURRENT_QTY,by:NAME,guest:GUEST,note:optionNote()},comboBody())}).then(function(s){var sid=S&&S.id;applyState(s);if(s.id&&s.id!==sid)live();btn.textContent='✓ '+tr('added');setTimeout(function(){closeSheets();btn.textContent=tr('add_to_cart');},450);}).catch(function(err){toast(err.message);if(/已結束/.test(err.message))sessionClosed();if(err.status===423){PAUSED=err.message;renderMenu();}if(/售完|下架/.test(err.message))loadMenuDoc();}).then(function(){btn.disabled=!!PAUSED;});};
-  $('#open-cart').onclick=function(){$('#cart-body').scrollTop=0;openSheet('#cart');};
+  // 結帳意圖：已送出的餐全部出完、沒有還沒送的品項，客人又打開已點清單（在看帳）→ 先跳 Google 評論邀請，每場一次
+  var REVIEW_URL='https://maps.app.goo.gl/ZKdyKqwXjVA5x6JF6?g_st=ic';
+  function reviewKey(){return 'order_review_'+((S&&S.id)||T);}
+  function reviewShown(){try{return !!localStorage.getItem(reviewKey());}catch(e){return false;}}
+  function markReview(){try{localStorage.setItem(reviewKey(),'1');}catch(e){}}
+  function checkoutIntent(){if(!S||!S.id)return false;var u=unpaid();return u.length>0&&!pending().length&&u.every(function(l){return l.served_at;});}
+  function maybeReview(){if(!checkoutIntent()||reviewShown())return false;markReview();openSheet('#review');return true;}
+  $('#open-cart').onclick=function(){$('#cart-body').scrollTop=0;if(maybeReview())return;openSheet('#cart');};
+  $('#review-cart').onclick=function(){$('#cart-body').scrollTop=0;openSheet('#cart');};
+  $('#review-go').addEventListener('click',function(){markReview();setTimeout(function(){closeSheets();},300);});
   // 送出點餐：整桌還沒送的一起進出餐看板（不結帳）；送出後已點清單標「已送出」、不能再自己刪
   var placing=false;
   $('#bar-place').onclick=$('#cart-place').onclick=function(){if(placing||!pending().length)return;

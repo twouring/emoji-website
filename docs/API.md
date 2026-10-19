@@ -375,7 +375,7 @@ POS `/pos/members`「手動開通會籍」，同上權限，每分鐘限制 12 �
 回 `{ok:true,duplicate:boolean,grant:{request_id,entitlement_id,user_id,plan,reason,operator_id,operator_name,actor,created_at,starts_at,ends_at}}`；不合法輸入 400，找不到會員 404，重複權益／鍵衝突 409。會員 detail 的 `manual_grants` 回最新 100 筆（不回 actor／PIN），供 POS 顯示原因、經手人、時間與實際起迄。
 
 ### POST /api/admin/yan/grant
-POS 手動給點。body `{ user_id, points (1–1000 整數), reason (必填 2–200 字), operator_id (必填，4 位數識別碼驗證後的員工) }`。帳本新增 `kind='grant'`、`ref_type='manual'`，記錄 `reason`、`operator_id`、`operator_name`、`actor`（登入帳號），效期同消費累積。缺原因或經手人回 400。回 `{ ok, granted, balance, operator }`。
+POS 手動給點。body `{ user_id, points (1–1000 整數), reason (必填 2–200 字), operator_id (必填，4 位數識別碼驗證後的員工) }`。帳本新增 `kind='grant'`、`ref_type='manual'`，記錄 `reason`、`operator_id`、`operator_name`、`actor`（登入帳號），效期同消費累積。缺原因或經手人回 400。回 `{ ok, granted, balance, operator }`。 帶 `kind: 'google_review'` 時為 Google 地圖評論獎勵：忽略 `points`／`reason`，固定 5 點、原因「Google 地圖評論」、`ref_type='review'`；同一會員已領過回 409。
 
 ### POST /api/admin/yan/redeem-space
 POS 用點數兌換空間時數。body `{ plan: day_4h|day_12h, user_id, operator_id }`（必填有效經手人，由伺服器解析；缺少回 400）。扣點（所需點數由後台設定，存在 `site_content.yan_rewards = {day_4h,day_12h}`，經 `POST /api/admin/content` 寫入、言文字管理員在後台「菜單」頁設定；0 或沒設＝不開放，回 400）並在同一交易發一張單日會籍（`entitlements.source='yan'`，啟用規則同購買）。點數不足回 400。回 `{ ok, plan, cost, entitlement_id, balance }`。
