@@ -85,7 +85,7 @@ test('server.js：yan_ledger 建表、lookup／card／yan 路由；避開舊購�
   assert.match(server, /app\.get\('\/api\/me\/card'/);
   assert.match(server, /app\.post\('\/api\/admin\/yan\/lookup'/);
   assert.doesNotMatch(server, /\/api\/me\/points|point_ledger|grantMembershipGift|points_balance/);
-  assert.match(server, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|analytics\|registers\|staff\|shifts\|attendance\|payment-methods\|pos-devices\|yan\|reservation-hours\)/);
+  assert.match(server, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|analytics\|registers\|staff\|shifts\|attendance\|payment-methods\|pos-devices\|yan\|reservation-hours\|inventory\)/);
   assert.match(server, /yan\.applyEarn|require\('\.\/lib\/yan'\)/);
 });
 

@@ -45,6 +45,7 @@ const taishinManual=require('./lib/taishin-manual');
 const posRegister=require('./lib/pos-register');
 const posStaff=require('./lib/pos-staff');
 const posLog=require('./lib/pos-log');
+const posInventory=require('./lib/pos-inventory');
 const posPaymentMethods=require('./lib/pos-payment-methods');
 const eventQuestions = require('./lib/event-questions');
 const { eventSlug, normalizeEventInput, localizeEvent, normalizeAttribution } = require('./lib/events');
@@ -748,6 +749,19 @@ async function migrate() {
     actor TEXT NOT NULL DEFAULT '', operator_id TEXT, operator_name TEXT NOT NULL DEFAULT '',
     action TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '', method TEXT NOT NULL DEFAULT '', path TEXT NOT NULL DEFAULT '')`);
   await q('CREATE INDEX IF NOT EXISTS pos_logs_created_idx ON pos_logs(created_at DESC)');
+  // POS 庫存：原物料＋備料（醬料等店內半成品，bom＝每批配方）；菜單配方 pos_menu_recipes；異動 pos_inventory_moves（ref_key 唯一＝出餐自動扣不重複）
+  await q(`CREATE TABLE IF NOT EXISTS pos_inventory_items (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'raw' CHECK (kind IN ('raw','prep')), unit TEXT NOT NULL,
+    venue TEXT NOT NULL DEFAULT 'TTH', category TEXT NOT NULL DEFAULT '', safety_qty NUMERIC NOT NULL DEFAULT 0, batch_yield NUMERIC,
+    bom JSONB NOT NULL DEFAULT '[]', qty NUMERIC NOT NULL DEFAULT 0, avg_cost NUMERIC, note TEXT NOT NULL DEFAULT '', active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE TABLE IF NOT EXISTS pos_menu_recipes (item_id TEXT PRIMARY KEY, lines JSONB NOT NULL DEFAULT '[]', updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE TABLE IF NOT EXISTS pos_inventory_moves (
+    id TEXT PRIMARY KEY, inv_id TEXT NOT NULL REFERENCES pos_inventory_items(id), type TEXT NOT NULL, delta NUMERIC NOT NULL, qty_after NUMERIC,
+    unit_cost NUMERIC, amount INT, note TEXT NOT NULL DEFAULT '', ref_key TEXT, ref_id TEXT, actor TEXT NOT NULL DEFAULT '',
+    operator_id TEXT, operator_name TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q('CREATE UNIQUE INDEX IF NOT EXISTS pos_inventory_moves_ref_idx ON pos_inventory_moves(ref_key,inv_id) WHERE ref_key IS NOT NULL');
+  await q('CREATE INDEX IF NOT EXISTS pos_inventory_moves_created_idx ON pos_inventory_moves(created_at DESC)');
   // POS 交班結算（舊，已由開關帳 pos_registers 取代；表保留供歷史查詢，不再寫入）
   await q(`CREATE TABLE IF NOT EXISTS pos_shift_closes (
     id TEXT PRIMARY KEY, day DATE NOT NULL, venue TEXT NOT NULL DEFAULT '', counted_cash INT NOT NULL, expected_cash INT NOT NULL, diff INT NOT NULL,
@@ -1654,7 +1668,7 @@ function doorAuth(req, res, next) {
    言文字共用（會員發點、會費、消息、社群、廣告、活動、行事曆／場地申請）對「所有」品牌子帳號開放，
    不分品牌——對應 admin 後台把這些分頁併入言文字工作區、開放給所有品牌子帳號的決定；
    「權限管理」「系統設定」「操作紀錄」刻意不在這裡，維持言文字管理員專屬。 */
-const FOOD_API = /^\/api\/admin\/(orders|tables|content|menu|reservations|sales|analytics|registers|staff|shifts|attendance|payment-methods|pos-devices|yan|reservation-hours)(\/|$)/;
+const FOOD_API = /^\/api\/admin\/(orders|tables|content|menu|reservations|sales|analytics|registers|staff|shifts|attendance|payment-methods|pos-devices|yan|reservation-hours|inventory)(\/|$)/;
 const SHARED_API = /^\/api\/admin\/(updates|commitments|events|event-applications|social|ads|upload\/social|x\/compose|ig)(\/|$)/;
 const BRAND_API = { CAFE: FOOD_API, BAR: FOOD_API };
 const ADMIN_BRANDS = Object.keys(BRAND_API);
@@ -4542,6 +4556,7 @@ async function placeDuePickups(now = new Date()) {
       let placed; try { placed = tableOrders.placeLines(cur.items, now); } catch { await client.query("UPDATE table_sessions SET pickup_placed_at=now() WHERE id=$1", [cur.id]); await client.query('COMMIT'); continue; }
       await client.query('UPDATE table_sessions SET items=$2,pickup_placed_at=now(),updated_at=now() WHERE id=$1', [cur.id, JSON.stringify(placed.items)]);
       await kitchenPrint.enqueue(client.query.bind(client), [{ ...cur, items: placed.lines }]);
+      await inventoryConsume(client.query.bind(client), placed.lines, { ref_id: cur.id });
       await client.query('COMMIT'); n++;
     } catch (e) { await client.query('ROLLBACK').catch(() => {}); console.error('[pickup] 送單失敗', s.id, e.message); } finally { client.release(); }
   }
@@ -5013,7 +5028,11 @@ async function mutateItems(req,res,fn,resolve){
     await refundAppRedeems(client,s.items.filter(l=>l.app_redeem&&!l.order_id&&!items.some(x=>x.line===l.line)));
     await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items)]);
     const previousTickets=new Set(s.items.map(l=>l.ticket).filter(Boolean));
-    await kitchenPrint.enqueue(client.query.bind(client),[{...s,items:items.filter(l=>l.ticket&&!previousTickets.has(l.ticket))}]);
+    const newlyPlaced=items.filter(l=>l.ticket&&!previousTickets.has(l.ticket));
+    await kitchenPrint.enqueue(client.query.bind(client),[{...s,items:newlyPlaced}]);
+    // 庫存：新送出的品項依配方扣；送單後、出餐前被作廢的品項回補
+    await inventoryConsume(client.query.bind(client),newlyPlaced,{ref_id:s.id});
+    await inventoryRestore(client.query.bind(client),posInventory.restorableRemoved(s.items,items),{actor:req.auth?actorOf(req.auth)||'':''});
     await client.query('COMMIT');const out=await loadSession(s.id);res.json(publicSession(out,String(req.body?.guest||'')));
   }catch(e){await client.query('ROLLBACK');if(e.status)return res.status(e.status).json({error:e.message});throw e;}finally{client.release();}
 }
@@ -5061,6 +5080,7 @@ app.post('/api/orders/:id/pay',rateLimit({max:10}),requireDb,wrap(async(req,res)
     await client.query('INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,tappay) VALUES($1,$2,$3,$4,$5,$6,$7)',[orderId,s.id,s.table_no,JSON.stringify(lines.map(l=>({...l,order_id:orderId}))),amount,JSON.stringify(who),JSON.stringify({rec_trade_id:paid.rec_trade_id,bank_transaction_id:paid.bank_transaction_id,auth_code:paid.auth_code,last_four:paid.card_info?.last_four})]);
     await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items)]);
     await kitchenPrint.enqueue(client.query.bind(client),[{id:orderId,session_id:s.id,table_no:s.table_no,items:lines.filter(l=>!l.ticket),status:'paid'}]);
+    await inventoryConsume(client.query.bind(client),lines.filter(l=>!l.placed_at),{ref_id:orderId});
     await client.query('COMMIT');
     }catch(e){console.error(`[table-pay] 已扣款但未入帳：rec_trade_id=${paid.rec_trade_id} order=${orderId} table=${s.table_no} amount=${amount}`,e.message);throw e;}
     res.json({ok:true,order_id:orderId,amount,session:publicSession(await loadSession(s.id),String(req.body?.guest||''))});
@@ -5294,6 +5314,8 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     const closed=!tableOrders.isTakeout(s.table_no)&&tableOrders.unpaid(items).length===0&&tableOrders.sessionClosableByVenues(s,venues);
     if(closed)await client.query("UPDATE table_orders SET status='done',done_at=now() WHERE session_id=$1 AND status IN ('paid','ready')",[s.id]);
     await client.query('UPDATE table_sessions SET items=$2,status=$3,pay_requests=$4,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),closed?'closed':'open',JSON.stringify(tableOrders.prunePayRequests(s.pay_requests,items))]);
+    // 庫存：櫃檯直接結帳、沒先送單的品項（先結後做）在這裡依配方扣；已送單的品項送單時就扣過了
+    await inventoryConsume(client.query.bind(client),orderLines.filter(l=>!l.placed_at),{ref_id:orderId,actor:actorOf(req.auth)||''});
     await client.query('COMMIT');
     const invoiceOut=await storeInvoiceResult({id:orderId,table_no:s.table_no,items:orderLines,amount:out.amount,discount:out.discount},invoice);
     res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,received:out.payer.received,change:out.payer.change,method:out.payer.method,payments:out.payer.payments,prepay:!!out.payer.prepay,member:out.payer.member,yan:memberUser?yanOut:undefined,member_created:!!memberUser?.created,closed,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut,warning:regWarn||undefined});
@@ -5456,6 +5478,136 @@ app.post('/api/admin/menu/sold-out',auth,adminOnly,requireDb,wrap(async(req,res)
   let next;try{next=tableOrders.setSoldOut(await contentValue('menu'),String(req.body?.item_id||''),req.body?.sold_out===true,venues);}catch(e){return res.status(e.status||400).json({error:e.message});}
   await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu',$1,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,[next]);
   res.json({ok:true,sold_out:req.body?.sold_out===true});
+}));
+/* ===== POS 庫存（lib/pos-inventory.js）：原物料＋備料（醬料等）、菜單配方、進貨／耗用／報廢／盤點／製作備料、出餐自動扣 ===== */
+const INV_SEL='id,name,kind,unit,venue,category,safety_qty::float AS safety_qty,batch_yield::float AS batch_yield,bom,qty::float AS qty,avg_cost::float AS avg_cost,note,active,updated_at';
+// 單筆異動：ref_key 有給就用唯一索引去重（出餐自動扣同一行只扣一次）；回傳 null＝已處理過
+async function inventoryMove(query,{inv_id,type,delta,set_qty=null,unit_cost=null,amount=null,note='',ref_key=null,ref_id=null,actor='',operator=null}){
+  const id=uid('im_');
+  const ins=(await query(`INSERT INTO pos_inventory_moves(id,inv_id,type,delta,unit_cost,amount,note,ref_key,ref_id,actor,operator_id,operator_name) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+    ON CONFLICT (ref_key,inv_id) WHERE ref_key IS NOT NULL DO NOTHING RETURNING id`,[id,inv_id,type,posInventory.round3(delta),unit_cost,amount,String(note||'').slice(0,160),ref_key,ref_id,String(actor||'').slice(0,120),operator?.id||null,operator?.name||''])).rows[0];
+  if(!ins)return null;
+  const cur=(await query('SELECT qty::float AS qty,avg_cost::float AS avg_cost FROM pos_inventory_items WHERE id=$1 FOR UPDATE',[inv_id])).rows[0];
+  const avg=posInventory.nextAvgCost(cur||{},delta,unit_cost);
+  const after=(await query(`UPDATE pos_inventory_items SET qty=${set_qty==null?'qty+$2':'$2'},avg_cost=$3,updated_at=now() WHERE id=$1 RETURNING qty::float AS qty`,[inv_id,set_qty==null?posInventory.round3(delta):set_qty,avg])).rows[0];
+  await query('UPDATE pos_inventory_moves SET qty_after=$2 WHERE id=$1',[id,after?.qty??null]);
+  return {id,qty_after:after?.qty??null};
+}
+// 出餐自動扣：送單／先結後做的品項依菜單配方扣（套餐依組成品項）。在呼叫端的交易裡用 SAVEPOINT 包起來：庫存出錯只記 log，絕不擋點餐或收款
+async function inventoryConsume(query,lines,{ref_id=null,actor='系統'}={}){
+  const use=(lines||[]).filter(l=>l&&!l.cancelled);if(!use.length)return 0;
+  await query('SAVEPOINT inv_consume');
+  try{
+    const ids=posInventory.recipeIdsOf(use);
+    const rec=ids.length?(await query('SELECT item_id,lines FROM pos_menu_recipes WHERE item_id=ANY($1)',[ids])).rows:[];
+    let n=0;
+    if(rec.length)for(const p of posInventory.consumptionFor(use,new Map(rec.map(r=>[r.item_id,Array.isArray(r.lines)?r.lines:[]])))){
+      const l=use.find(x=>x.line===p.line);
+      if(await inventoryMove(query,{inv_id:p.inv_id,type:'sale',delta:-p.qty,ref_key:p.ref_key,ref_id,actor,note:`${l?.zh||''}×${l?.qty||''}`}))n++;
+    }
+    await query('RELEASE SAVEPOINT inv_consume');return n;
+  }catch(e){await query('ROLLBACK TO SAVEPOINT inv_consume').catch(()=>{});console.error('[inventory] 出餐扣庫存失敗',e.message);return 0;}
+}
+// 送單後、出餐前作廢的品項：照當初扣的量原數回補（配方之後改過也不影響）
+async function inventoryRestore(query,removed,{actor=''}={}){
+  if(!removed?.length)return 0;
+  await query('SAVEPOINT inv_restore');
+  try{
+    let n=0;
+    for(const l of removed){
+      const used=(await query("SELECT inv_id,delta::float AS delta FROM pos_inventory_moves WHERE ref_key=$1 AND type='sale'",['line:'+l.line])).rows;
+      for(const u of used)if(await inventoryMove(query,{inv_id:u.inv_id,type:'void_back',delta:-u.delta,ref_key:'void:'+l.line,actor,note:`作廢 ${l.zh||''}×${l.qty||''}`}))n++;
+    }
+    await query('RELEASE SAVEPOINT inv_restore');return n;
+  }catch(e){await query('ROLLBACK TO SAVEPOINT inv_restore').catch(()=>{});console.error('[inventory] 作廢回補失敗',e.message);return 0;}
+}
+async function inventoryOperator(req,res){
+  const op=await resolveOperator(req,req.body?.operator_id);
+  if(!op){res.status(400).json({error:'請先輸入 4 位數識別碼，庫存異動要記是誰做的。'});return null;}
+  return op;
+}
+app.get('/api/admin/inventory',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
+  const items=posInventory.sortItems((await q(`SELECT ${INV_SEL} FROM pos_inventory_items`)).rows.filter(i=>posInventory.visible(i,venues)));
+  const ids=new Set(items.map(i=>i.id));
+  const recipes={};for(const r of (await q('SELECT item_id,lines FROM pos_menu_recipes')).rows)recipes[r.item_id]=(Array.isArray(r.lines)?r.lines:[]).filter(l=>ids.has(l.inv_id));
+  res.set('Cache-Control','no-store');
+  res.json({items,recipes,low:items.filter(posInventory.isLow).length});
+}));
+app.post('/api/admin/inventory/items',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const op=await inventoryOperator(req,res);if(!op)return;
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  let v;try{v=posInventory.itemInput(req.body||{});}catch(e){return res.status(e.status||400).json({error:e.message});}
+  if(!posInventory.visible(v,venues))return res.status(403).json({error:'只能新增共用或自己店別的庫存品項。'});
+  const all=(await q(`SELECT ${INV_SEL} FROM pos_inventory_items WHERE active`)).rows.filter(i=>posInventory.visible(i,venues));
+  if(all.some(i=>i.name===v.name&&i.venue===v.venue))return res.status(409).json({error:`已經有「${v.name}」了。`});
+  const id=uid('inv_');
+  let bom=[];if(v.kind==='prep'&&req.body?.bom){try{bom=posInventory.recipeInput(req.body.bom,all,{selfId:id});}catch(e){return res.status(e.status||400).json({error:e.message});}}
+  const row=(await q(`INSERT INTO pos_inventory_items(id,name,kind,unit,venue,category,safety_qty,batch_yield,bom,note) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING ${INV_SEL}`,[id,v.name,v.kind,v.unit,v.venue,v.category,v.safety_qty,v.batch_yield,JSON.stringify(bom),v.note])).rows[0];
+  res.status(201).json({ok:true,item:row});
+}));
+app.patch('/api/admin/inventory/items/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const op=await inventoryOperator(req,res);if(!op)return;
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const cur=(await q(`SELECT ${INV_SEL} FROM pos_inventory_items WHERE id=$1`,[String(req.params.id)])).rows[0];
+  if(!cur||!posInventory.visible(cur,venues))return res.status(404).json({error:'找不到這個庫存品項。'});
+  let v;try{v=posInventory.itemInput(req.body||{},cur);}catch(e){return res.status(e.status||400).json({error:e.message});}
+  if(!posInventory.visible(v,venues))return res.status(403).json({error:'只能改成共用或自己店別。'});
+  let bom=v.kind==='prep'?cur.bom:[];
+  if(v.kind==='prep'&&req.body?.bom!==undefined){const all=(await q(`SELECT ${INV_SEL} FROM pos_inventory_items`)).rows.filter(i=>posInventory.visible(i,venues));try{bom=posInventory.recipeInput(req.body.bom,all,{selfId:cur.id});}catch(e){return res.status(e.status||400).json({error:e.message});}}
+  const row=(await q(`UPDATE pos_inventory_items SET name=$2,kind=$3,unit=$4,venue=$5,category=$6,safety_qty=$7,batch_yield=$8,bom=$9,note=$10,active=$11,updated_at=now() WHERE id=$1 RETURNING ${INV_SEL}`,[cur.id,v.name,v.kind,v.unit,v.venue,v.category,v.safety_qty,v.batch_yield,JSON.stringify(bom),v.note,v.active])).rows[0];
+  res.json({ok:true,item:row});
+}));
+/* 手動庫存操作：進貨（可帶金額／單價算平均成本）、耗用、報廢（要原因）、盤點（填實點數量）、製作備料（依每批配方扣原物料） */
+app.post('/api/admin/inventory/items/:id/moves',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const op=await inventoryOperator(req,res);if(!op)return;
+  const venues=tableOrders.visibleVenues(req.auth.brands),actor=actorOf(req.auth)||'';
+  const client=await pool.connect();
+  try{await client.query('BEGIN');const query=client.query.bind(client);
+    const item=(await query(`SELECT ${INV_SEL} FROM pos_inventory_items WHERE id=$1 FOR UPDATE`,[String(req.params.id)])).rows[0];
+    if(!item||!posInventory.visible(item,venues)){await client.query('ROLLBACK');return res.status(404).json({error:'找不到這個庫存品項。'});}
+    let m;try{m=posInventory.moveInput(req.body||{},item);}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
+    let unitCost=m.unit_cost,used=[];
+    if(m.type==='make'){
+      const plan=posInventory.makePlan(item,m.produced,item.bom);
+      if(!plan.length){await client.query('ROLLBACK');return res.status(400).json({error:`「${item.name}」還沒設定每批配方，請先按「編輯」填寫用了哪些原物料。`});}
+      const src=new Map((await query(`SELECT ${INV_SEL} FROM pos_inventory_items WHERE id=ANY($1)`,[plan.map(p=>p.inv_id)])).rows.map(r=>[r.id,r]));
+      let cost=0,known=true;
+      for(const p of plan){const s=src.get(p.inv_id);if(!s)continue;if(s.avg_cost==null)known=false;else cost+=s.avg_cost*p.qty;
+        const out=await inventoryMove(query,{inv_id:p.inv_id,type:'prep_use',delta:-p.qty,actor,operator:op,note:`製作 ${item.name} ${m.produced}${item.unit}`});used.push({inv_id:p.inv_id,name:s.name,unit:s.unit,qty:p.qty,qty_after:out?.qty_after});}
+      if(known&&m.produced>0)unitCost=Math.round(cost/m.produced*100)/100;
+    }
+    const out=await inventoryMove(query,{inv_id:item.id,type:m.type,delta:m.delta,set_qty:m.type==='count'?m.counted:null,unit_cost:unitCost,amount:m.amount,note:m.note,actor,operator:op});
+    await client.query('COMMIT');
+    res.json({ok:true,type:m.type,delta:m.delta,qty:out?.qty_after,used});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
+}));
+app.get('/api/admin/inventory/moves',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
+  const day=s=>/^\d{4}-\d{2}-\d{2}$/.test(String(s||''))?String(s):null;
+  const to=day(req.query.to)||tableOrders.MenuLib.businessDay(),from=day(req.query.from)||to;
+  const inv=String(req.query.inv_id||'').slice(0,40);
+  const items=(await q(`SELECT ${INV_SEL} FROM pos_inventory_items`)).rows.filter(i=>posInventory.visible(i,venues));
+  const byId=new Map(items.map(i=>[i.id,i]));
+  // 營業日＝台北 03:00 起算，同日結
+  const moves=(await q(`SELECT id,inv_id,type,delta::float AS delta,qty_after::float AS qty_after,unit_cost::float AS unit_cost,amount,note,ref_key,ref_id,actor,operator_name,created_at FROM pos_inventory_moves
+    WHERE created_at >= ($1::date + time '03:00') AT TIME ZONE 'Asia/Taipei' AND created_at < ($2::date + interval '1 day' + time '03:00') AT TIME ZONE 'Asia/Taipei' AND ($3='' OR inv_id=$3)
+    ORDER BY created_at DESC LIMIT 2000`,[from,to,inv])).rows.filter(m=>byId.has(m.inv_id));
+  res.set('Cache-Control','no-store');
+  res.json({from,to,moves,csv:posInventory.movesCsv(moves,byId)});
+}));
+/* 菜單配方：每份用量（可用原物料或備料）；套餐不必設，會依組成品項各自的配方扣 */
+app.put('/api/admin/inventory/recipes/:item_id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const op=await inventoryOperator(req,res);if(!op)return;
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const menuAll=tableOrders.menuIndex(await contentValue('menu'),undefined,{all:true});
+  const it=menuAll.get(String(req.params.item_id));
+  if(!it||!tableOrders.itemInVenues(it,venues))return res.status(404).json({error:'找不到這個菜單品項。'});
+  const items=(await q(`SELECT ${INV_SEL} FROM pos_inventory_items`)).rows.filter(i=>posInventory.visible(i,venues));
+  let lines;try{lines=posInventory.recipeInput(req.body?.lines||[],items);}catch(e){return res.status(e.status||400).json({error:e.message});}
+  if(lines.length)await q(`INSERT INTO pos_menu_recipes(item_id,lines,updated_at) VALUES($1,$2,now()) ON CONFLICT (item_id) DO UPDATE SET lines=EXCLUDED.lines,updated_at=now()`,[it.id,JSON.stringify(lines)]);
+  else await q('DELETE FROM pos_menu_recipes WHERE item_id=$1',[it.id]);
+  res.json({ok:true,item_id:it.id,lines});
 }));
 function tableLayoutParse(v){
   try{
@@ -6113,7 +6265,7 @@ app.get(['/menu', '/menu/', '/en/menu', '/en/menu/', '/ja/menu', '/ja/menu/'], m
 const ADMIN_PAGE = path.join(PUB, 'admin.html');
 app.get('/admin.html', (_req, res) => res.redirect(301, '/admin'));
 app.get(['/admin', '/admin/*', '/organizer', '/organizer/*'], (_req, res) => { res.set('X-Robots-Tag', 'noindex'); res.sendFile(ADMIN_PAGE); });
-// 平板 POS（純瀏覽器，Star webPRNT Browser）：/pos、/pos/orders、/pos/soldout、/pos/reservations、/pos/history、/pos/sales、/pos/products、/pos/customers、/pos/clock、/pos/shifts 皆回同一頁（pos.emoji.tw 與 www 都可用，API 同網域）
+// 平板 POS（純瀏覽器，Star webPRNT Browser）：/pos、/pos/orders、/pos/soldout、/pos/inventory、/pos/reservations、/pos/history、/pos/sales、/pos/products、/pos/customers、/pos/clock、/pos/shifts 皆回同一頁（pos.emoji.tw 與 www 都可用，API 同網域）
 const POS_PAGE = path.join(PUB, 'pos.html');
 app.get('/pos.html', (_req, res) => res.redirect(301, '/pos'));
 // 部署版本號：CI 在 build 前寫入 VERSION（日期＋當日流水號，如 20261018-03）；本機開發顯示 dev

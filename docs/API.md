@@ -552,6 +552,29 @@ LINE Pay 同步依開關帳時間歸屬店別，保留既有品牌篩選、分�
 ### GET /api/admin/reservation-hours
 可訂位時間設定：`{ ok, all[], weekly:{ "0".."6": slots[] }, dates:{ "YYYY-MM-DD": slots[] } }`（`0`＝週日）。沒列出的星期／日期＝全天開放。
 
+### GET /api/admin/inventory
+POS 庫存（`/pos/inventory`）。query `venue=`。回 `{ items[], recipes{菜單品項id:[{inv_id,qty}]}, low }`。`items` 每筆 `{ id, name, kind:'raw'|'prep', unit, venue:'TTH'|'CAFE'|'BAR', category, safety_qty, batch_yield, bom[{inv_id,qty}], qty, avg_cost, note, active, updated_at }`；`kind='prep'` 是備料（醬料、糖漿、高湯等店內做好的半成品），`bom` 是做一批（`batch_yield` 單位）用掉的原物料。`venue='TTH'` 為兩店共用，品牌子帳號看得到共用＋自己店別。低於安全量（`qty<=safety_qty` 且 `safety_qty>0`）的排前面，`low` 為件數。庫存可為負數。
+
+### POST /api/admin/inventory/items
+新增庫存品項。body `{ name, kind, unit, venue?, category?, safety_qty?, batch_yield?（備料必填，>0）, bom?（備料每批配方 [{inv_id,qty}]）, note?, operator_id }`。`operator_id` 必填（4 位數識別碼認人後的員工 id，否則 400）。同店別同名 409；子帳號只能建共用或自己店別（403）。回 201 `{ ok, item }`。
+
+### PATCH /api/admin/inventory/items/:id
+修改庫存品項，欄位同新增（沒帶的沿用），另可帶 `active:false` 停用／`true` 恢復（紀錄保留）。`operator_id` 必填。數量不能在這裡改，請用異動端點。
+
+### POST /api/admin/inventory/items/:id/moves
+手動庫存異動。body `{ type, qty?, counted?, amount?, unit_cost?, note?, operator_id }`：
+- `in` 進貨（入倉）：`qty>0`，可帶這批總金額 `amount` 或 `unit_cost`，用加權平均更新 `avg_cost`。
+- `make` 製作備料（只限 `kind='prep'`）：`qty`＝這次產出量；依 `bom × qty / batch_yield` 扣各原物料（`prep_use` 異動），再加備料；原物料都有均價時備料成本＝用料成本 ÷ 產出量。沒設配方 400。
+- `use` 耗用、`waste` 報廢（`note` 必填）：`qty>0`，扣庫存。
+- `count` 盤點：`counted`＝實點數量，直接改成該數，`delta` 記盤差。
+回 `{ ok, type, delta, qty（異動後結存）, used[]（製作時扣掉的原物料）}`。
+
+### GET /api/admin/inventory/moves
+庫存異動紀錄。query `from`、`to`（營業日 YYYY-MM-DD，台北 03:00 起算，預設今天）、`inv_id=`、`venue=`。最新在前、最多 2000 筆。回 `{ from, to, moves[]{id,inv_id,type,delta,qty_after,unit_cost,amount,note,ref_key,ref_id,actor,operator_name,created_at}, csv[][] }`。`type` 另有系統產生的 `sale`（出餐扣庫存，`ref_key=line:<品項行號>`，同一行只扣一次）、`void_back`（送單後出餐前作廢的回補，`ref_key=void:<行號>`）、`prep_use`（製作備料用掉的原物料）。
+
+### PUT /api/admin/inventory/recipes/:item_id
+設定菜單品項的每份用量。body `{ lines:[{inv_id,qty}], operator_id }`，`lines` 可用原物料或備料，空陣列＝清除（這道不扣）。出餐自動扣的時機：客人或櫃檯「送出點餐」（`/place`，含預約取餐排程送單）時扣已送出的品項；櫃檯沒送單直接結帳（先結後做）的品項在結帳時扣。套餐依組成品項（`parts`）各自的配方扣，套餐本身的配方只放額外耗材。扣庫存失敗只記 log，不影響點餐與收款；作廢已出餐或已結帳的品項不回補，差異以盤點調整。
+
 ### PUT /api/admin/reservation-hours
 整份覆寫可訂位時間。body `{ weekly, dates }`，格式同上；不認得的時段丟棄、過去的日期例外與「全開」的星期自動清掉、特定日期上限 400 筆。只限制客人自助訂位（`POST /api/reservations`、`POST /api/me/reservations` 回 400「這個時段目前不開放訂位」），櫃檯登記與編修不受限。存在 `site_content.reservation_hours`。
 
