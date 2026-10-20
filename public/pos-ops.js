@@ -1500,53 +1500,71 @@ function hoursPanel(){
   const dates=Object.keys(H.dates||{}).sort();
   const blocked=l=>ALL.filter(t=>!l.includes(t));
   const range=b=>{const r=[];let s=null,p=-2;b.forEach(t=>{const i=ALL.indexOf(t);if(i!==p+1){if(s)r.push([s,ALL[p]]);s=t;}p=i;});if(s)r.push([s,ALL[p]]);return r.map(([x,y])=>x===y?x:`${x}–${y}`).join('、');};
-  const sum=l=>{const b=blocked(l);return b.length===0?'無限制':b.length===ALL.length?'全天不可訂位':`不可訂位 ${range(b).slice(0,24)}${range(b).length>24?'…':''}`;};
-  const weekRows=WD.map((n,i)=>{const l=H.weekly[i];return `<button type="button" class="btn btn--ghost btn-sm" data-rh-edit="w${i}">週${n}：${esc(l?sum(l):'無限制')}</button>`;}).join(' ');
-  const dateRows=dates.map(k=>`<button type="button" class="btn btn--ghost btn-sm" data-rh-edit="d${esc(k)}">${esc(k)}（${WD[new Date(k+'T12:00:00Z').getUTCDay()]}）：${esc(sum(H.dates[k]))}</button>`).join(' ')||'<span class="hint hint--tight">沒有設定特定日期</span>';
+  const brief=l=>{const b=blocked(l);return b.length===0?'無限制':b.length===ALL.length?'全天':range(b);};
+  const weekRows=WD.map((n,i)=>{const l=H.weekly[i];return `<button type="button" class="rh-week${l?' is-off':''}" data-rh-edit="w${i}"><b>週${n}</b><small>${esc(l?brief(l):'無限制')}</small></button>`;}).join('');
+  const dateRows=dates.map(k=>`<span class="rh-date is-off"><button type="button" data-rh-edit="d${esc(k)}">${esc(k.slice(5).replace('-','/'))}（${WD[new Date(k+'T12:00:00Z').getUTCDay()]}） ${esc(brief(H.dates[k]))}</button><button type="button" class="rh-x" data-rh-del="d${esc(k)}" aria-label="移除 ${esc(k)}">×</button></span>`).join('')||'<span class="hint hint--tight">沒有設定特定日期</span>';
   return `<details class="resv-add" id="resv-hours" ${RESV_HOURS_OPEN?'open':''}><summary class="btn btn--ghost">不可訂位設定</summary>
     <p class="hint">點選的時段客人就不能從網站／會員 App 訂位；櫃檯登記不受限。特定日期的設定優先於每週設定；沒設定＝全部可訂。</p>
-    <p><b>特定日期</b>（公休、包場、活動）</p>
-    <div class="a-form"><label>日期<input type="date" id="rh-newdate" min="${esc(todayTaipei())}"></label><button type="button" class="btn btn--ghost" id="rh-adddate">設定這天</button></div>
-    <div class="reason-chips reason-chips--inline">${dateRows}</div>
-    <p><b>每週固定</b></p><div class="reason-chips reason-chips--inline">${weekRows}</div>
-    <div id="rh-editor"></div></details>`;
+    <p class="rh-h">特定日期<span class="hint hint--tight">公休、包場、活動</span></p>
+    <div class="rh-add"><label>日期<input type="date" id="rh-newdate" min="${esc(todayTaipei())}"></label><button type="button" class="btn btn--ghost" id="rh-adddate">設定這天</button></div>
+    <div class="rh-dates">${dateRows}</div>
+    <p class="rh-h">每週固定</p>
+    <div class="rh-weeks">${weekRows}</div></details>`;
 }
 function bindHoursPanel(host){
   const H=RESV_HOURS;if(!H)return;
   const ALL=H.all||[],WD=['日','一','二','三','四','五','六'];
-  const box=host.querySelector('#rh-editor');if(!box)return;
-  const det=host.querySelector('#resv-hours');det.addEventListener('toggle',()=>{RESV_HOURS_OPEN=det.open;});
+  const det=host.querySelector('#resv-hours');if(!det)return;
+  const closeRh=()=>document.querySelectorAll('.op-overlay.rh-ov').forEach(n=>n.remove());
+  det.addEventListener('toggle',()=>{RESV_HOURS_OPEN=det.open;if(!det.open)closeRh();});
+  const save=next=>{
+    const body={weekly:{...H.weekly},dates:{...H.dates}};
+    next(body);
+    opsThen(()=>api('/admin/reservation-hours',{method:'PUT',body}),'已更新不可訂位設定',()=>{RESV_HOURS_OPEN=true;closeRh();return loadReservations();});
+  };
   const open=key=>{
+    closeRh();
     const isW=key[0]==='w',id=key.slice(1);
     const openList=isW?(H.weekly[id]||ALL):(H.dates[id]||H.weekly[new Date(id+'T12:00:00Z').getUTCDay()]||ALL);
     const off=new Set(ALL.filter(t=>!openList.includes(t)));   // off＝不可訂位
     const title=isW?`每週${WD[id]}`:`${id}（${WD[new Date(id+'T12:00:00Z').getUTCDay()]}）`;
-    const style=on=>`min-height:44px;min-width:64px;margin:3px;border-radius:10px;border:1px solid ${on?'#b42318':'var(--muted)'};background:${on?'#b42318':'var(--card)'};color:${on?'#fff':'var(--ink)'};${on?'text-decoration:line-through;':''}`;
-    const chip=t=>`<button type="button" class="rh-chip" data-t="${t}" aria-pressed="${off.has(t)}" style="${style(off.has(t))}">${t}</button>`;
     const cafe=ALL.filter(t=>t>='08:00'&&t<'17:00'),bar=ALL.filter(t=>!(t>='08:00'&&t<'17:00'));
-    box.innerHTML=`<div class="a-form" style="display:block"><p><b>${esc(title)}</b> 點選不可訂位的時段（紅色＝不可訂位）</p>
-      <div class="reason-chips reason-chips--inline"><button type="button" class="btn btn--ghost btn-sm" data-rh-set="none">全部可訂</button><button type="button" class="btn btn--ghost btn-sm" data-rh-set="all">整天不可訂（公休）</button><button type="button" class="btn btn--ghost btn-sm" data-rh-set="cafe">在咖啡不可訂</button><button type="button" class="btn btn--ghost btn-sm" data-rh-set="bar">三點水不可訂</button></div>
-      <p class="hint hint--tight">在咖啡</p><div id="rh-cafe">${cafe.map(chip).join('')}</div>
-      <p class="hint hint--tight">三點水</p><div id="rh-bar">${bar.map(chip).join('')}</div>
-      <div style="margin-top:10px"><button type="button" class="btn btn--solid" id="rh-save">儲存</button> <button type="button" class="btn btn--ghost" id="rh-cancel">取消</button> ${isW?'<button type="button" class="btn btn--ghost" id="rh-reset">清除這天的限制</button>':'<button type="button" class="btn btn--ghost btn--danger" id="rh-del">移除這天的設定</button>'}</div></div>`;
-    const paint=()=>box.querySelectorAll('.rh-chip').forEach(b=>{const on=off.has(b.dataset.t);b.setAttribute('aria-pressed',on);b.style.cssText=style(on);});
-    box.onclick=e=>{
+    const chip=t=>`<button type="button" class="rh-chip" data-t="${t}" aria-pressed="${off.has(t)}">${t}</button>`;
+    const ov=document.createElement('div');ov.className='op-overlay rh-ov';
+    ov.innerHTML=`<div class="op-card rh-card" role="dialog" aria-label="${esc(title)}">
+      <div class="rh-card-body">
+        <p class="rh-card-title"><b>${esc(title)}</b><span class="rh-legend"><i class="on"></i>不可訂位</span><span class="rh-legend"><i></i>可訂</span></p>
+        <p class="hint hint--tight">點選不可訂位的時段（紅色＝不可訂位）</p>
+        <div class="rh-presets"><button type="button" class="btn btn--ghost btn-sm" data-rh-set="none">全部可訂</button><button type="button" class="btn btn--ghost btn-sm" data-rh-set="all">整天不可訂（公休）</button><button type="button" class="btn btn--ghost btn-sm" data-rh-set="cafe">在咖啡不可訂</button><button type="button" class="btn btn--ghost btn-sm" data-rh-set="bar">三點水不可訂</button></div>
+        <div class="rh-group"><div class="rh-group-h">在咖啡 <span>08:00–16:30</span></div><div class="rh-slots" id="rh-cafe">${cafe.map(chip).join('')}</div></div>
+        <div class="rh-group"><div class="rh-group-h">三點水 <span>17:00–02:30</span></div><div class="rh-slots" id="rh-bar">${bar.map(chip).join('')}</div></div>
+      </div>
+      <div class="rh-card-actions"><button type="button" class="btn btn--solid" id="rh-save">儲存</button> <button type="button" class="btn btn--ghost" id="rh-cancel">取消</button> ${isW?'<button type="button" class="btn btn--ghost" id="rh-reset">改回無限制</button>':'<button type="button" class="btn btn--ghost btn--danger" id="rh-del">移除這天的設定</button>'}</div>
+    </div>`;
+    document.body.appendChild(ov);
+    const eq=(a,fn)=>a.every(fn);
+    const paint=()=>{
+      ov.querySelectorAll('.rh-chip').forEach(b=>b.setAttribute('aria-pressed',off.has(b.dataset.t)));
+      ov.querySelectorAll('[data-rh-set]').forEach(b=>{
+        const k=b.dataset.rhSet,on=k==='none'?off.size===0:k==='all'?off.size===ALL.length:k==='cafe'?eq(cafe,t=>off.has(t))&&eq(bar,t=>!off.has(t)):eq(bar,t=>off.has(t))&&eq(cafe,t=>!off.has(t));
+        b.setAttribute('aria-pressed',on);
+      });
+    };
+    paint();
+    ov.onclick=e=>{
       const c=e.target.closest('.rh-chip');if(c){const t=c.dataset.t;off.has(t)?off.delete(t):off.add(t);paint();return;}
       const st=e.target.closest('[data-rh-set]');if(st){off.clear();({all:ALL,none:[],cafe,bar})[st.dataset.rhSet].forEach(t=>off.add(t));paint();}
     };
-    const save=next=>{
-      const body={weekly:{...H.weekly},dates:{...H.dates}};
-      next(body);
-      opsThen(()=>api('/admin/reservation-hours',{method:'PUT',body}),'已更新不可訂位設定',()=>{RESV_HOURS_OPEN=true;return loadReservations();});
-    };
-    box.querySelector('#rh-save').onclick=()=>save(b=>{const l=ALL.filter(t=>!off.has(t));if(isW)b.weekly[id]=l;else b.dates[id]=l;});
-    box.querySelector('#rh-cancel').onclick=()=>{box.innerHTML='';};
-    const rs=box.querySelector('#rh-reset');if(rs)rs.onclick=()=>save(b=>{delete b.weekly[id];});
-    const dl=box.querySelector('#rh-del');if(dl)dl.onclick=()=>save(b=>{delete b.dates[id];});
-    box.scrollIntoView({block:'nearest'});
+    ov.querySelector('#rh-save').onclick=()=>save(b=>{const l=ALL.filter(t=>!off.has(t));if(isW)b.weekly[id]=l;else b.dates[id]=l;});
+    ov.querySelector('#rh-cancel').onclick=closeRh;
+    const rs=ov.querySelector('#rh-reset');if(rs)rs.onclick=()=>save(b=>{delete b.weekly[id];});
+    const dl=ov.querySelector('#rh-del');if(dl)dl.onclick=()=>save(b=>{delete b.dates[id];});
+    ov.addEventListener('keydown',e=>{if(e.key==='Escape')closeRh();});
+    ov.addEventListener('click',e=>{if(e.target===ov)closeRh();});
   };
   host.querySelectorAll('[data-rh-edit]').forEach(b=>b.onclick=()=>open(b.dataset.rhEdit));
-  host.querySelector('#rh-adddate').onclick=()=>{const v=host.querySelector('#rh-newdate').value;if(!v)return toast('請先選日期');open('d'+v);};
+  host.querySelectorAll('[data-rh-del]').forEach(b=>b.onclick=()=>{const id=b.dataset.rhDel.slice(1);save(body=>{delete body.dates[id];});});
+  host.querySelector('#rh-adddate').onclick=()=>{const v=host.querySelector('#rh-newdate').value;if(!v)return toast('請先選日期');host.querySelector('#rh-adddate').blur();open('d'+v);};
 }
 
 /* 訂位：依日期列出、確認／婉拒（留 Email 的客人會收到信）、排桌、已到／未到 */
@@ -1597,7 +1615,7 @@ async function loadReservations(){
     ${addForm}
     ${hoursPanel()}
     ${editForm}
-    <div class="a-toolbar"><label>從 <input type="date" id="resv-from" value="${esc(RESV_FROM)}"></label><b class="hint hint--tight">${relDayText(RESV_FROM)}</b><select id="resv-days" aria-label="顯示天數">${[[1,'只看這天'],[7,'7 天'],[30,'30 天'],[60,'60 天']].map(([n,l])=>`<option value="${n}" ${n===RESV_DAYS?'selected':''}>${l}</option>`).join('')}</select><button class="btn btn--ghost btn-sm" id="resv-today">今天</button><span class="hint hint--tight">${d.reservations.length} 筆</span></div>
+    <div class="a-toolbar"><label>從<input type="date" id="resv-from" value="${esc(RESV_FROM)}"></label><select id="resv-days" aria-label="顯示天數">${[[1,'只看這天'],[7,'7 天'],[30,'30 天'],[60,'60 天']].map(([n,l])=>`<option value="${n}" ${n===RESV_DAYS?'selected':''}>${l}</option>`).join('')}</select><button class="btn btn--ghost btn-sm" id="resv-today">今天</button><span class="hint hint--tight">${d.reservations.length} 筆</span></div>
     <div class="a-wrap2"><table class="a-tbl resv-tbl"><thead><tr><th>時間</th><th>客人</th><th>備註</th><th>桌號</th><th>狀態</th><th>編號</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   bindFillChips(host);bindNoteChips(host);bindHoursPanel(host);
   host.querySelector('#resv-from').onchange=e=>{RESV_FROM=e.target.value||todayTaipei();loadReservations();};

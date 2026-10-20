@@ -217,6 +217,48 @@ tr.resv-day td{background:var(--paper-alt);font-weight:600}
 /* 櫃檯登記訂位：收合表單 */
 .resv-add{margin-bottom:12px}.resv-add summary{list-style:none;display:inline-flex;cursor:pointer}.resv-add summary::-webkit-details-marker{display:none}.resv-add[open] summary{margin-bottom:10px}
 .resv-add .a-form{padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+#resv-body>.resv-add{display:inline-block;margin-right:8px;vertical-align:top}
+#resv-body>.resv-add[open]{display:block;width:100%;margin-right:0;padding-bottom:4px}
+.rh-h{display:flex;align-items:baseline;gap:8px;margin:14px 0 8px;font-weight:600}
+.rh-h .hint{margin:0}
+.rh-add{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;margin:0 0 10px}
+.rh-add label{font-size:1rem;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+.rh-add input[type=date]{font:inherit;font-size:1rem;padding:8px 12px;min-height:48px;border:1px solid var(--muted);border-radius:8px;background:var(--card);color:var(--ink)}
+.rh-add .btn{min-height:48px;align-self:flex-end}
+.rh-dates{display:flex;flex-wrap:wrap;gap:8px}
+.rh-date{display:inline-flex;align-items:stretch;border:1px solid var(--danger-line);border-radius:999px;background:var(--danger-soft);overflow:hidden}
+.rh-date>button{all:unset;box-sizing:border-box;cursor:pointer;min-height:44px;padding:6px 12px;font:inherit;font-size:1rem;line-height:1.25;color:var(--danger)}
+.rh-date .rh-x{padding:6px 12px 6px 8px;border-left:1px solid var(--danger-line);font-weight:700;color:var(--danger)}
+.rh-weeks{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.rh-week{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:56px;padding:8px 4px;border:1px solid var(--line);border-radius:10px;background:var(--card);text-align:center}
+.rh-week b{font-size:1rem;font-weight:600;line-height:1.2}
+.rh-week small{font-size:1rem;color:var(--muted);line-height:1.2}
+.rh-week.is-off{border-color:var(--danger-line);background:var(--danger-soft)}
+.rh-week.is-off small{color:var(--danger);font-weight:500}
+.rh-ov{align-items:center;background:rgba(20,18,16,.62)}
+.rh-card{max-width:min(720px,100%);width:min(720px,100%);max-height:92dvh;display:flex;flex-direction:column;padding:0;overflow:hidden}
+.rh-card-body{overflow:auto;padding:20px 20px 12px;flex:1 1 auto;min-height:0}
+@media(max-width:420px){.rh-card-body{padding:16px 14px 10px}.rh-card-actions{padding:10px 14px 14px}}
+.rh-card-title{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:0 0 6px}
+.rh-card-title b{font-size:1.125rem}
+.rh-legend{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:1rem}
+.rh-legend i{width:16px;height:16px;border-radius:4px;border:1px solid var(--muted);background:var(--card);display:inline-block}
+.rh-legend i.on{background:var(--danger);border-color:var(--danger)}
+.rh-presets{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 14px}
+.rh-presets .btn[aria-pressed=true]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.rh-group{margin:0 0 14px}
+.rh-group-h{display:flex;align-items:baseline;gap:8px;font-weight:600;margin:0 0 8px}
+.rh-group-h span{font-weight:400;color:var(--muted)}
+.rh-slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(68px,1fr));gap:6px}
+.rh-chip{all:unset;box-sizing:border-box;cursor:pointer;display:grid;place-items:center;min-height:44px;padding:6px 4px;border:1px solid var(--line);border-radius:10px;background:var(--card);font:inherit;font-size:1rem;font-variant-numeric:tabular-nums;text-align:center;color:var(--ink)}
+.rh-chip[aria-pressed=true]{background:var(--danger);border-color:var(--danger);color:#fff;text-decoration:line-through}
+.rh-card-actions{flex:none;display:flex;flex-wrap:wrap;gap:8px;padding:12px 20px 18px;border-top:1px solid var(--line)}
+.rh-card-actions .btn{min-height:52px}
+.rh-card-actions .btn--solid{flex:1 1 120px}
+#resv-body .a-toolbar{align-items:center}
+#resv-body .a-toolbar>label{display:flex;align-items:center;gap:8px;color:var(--muted)}
+@media(max-width:720px){.rh-weeks{grid-template-columns:repeat(4,minmax(0,1fr))}.rh-ov{padding:0}.rh-card{max-width:100%;max-height:100dvh;border-radius:16px 16px 0 0}}
+@media(max-width:420px){.rh-weeks{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 /* ── 日結：KPI 五張一列（窄螢幕自動折）、第二行小字 ── */
 .sales-kpis{grid-template-columns:repeat(auto-fit,minmax(min(100%,136px),1fr))}
