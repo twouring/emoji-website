@@ -100,3 +100,11 @@ test('已點清單彈窗：品項多、多人一起點時整張單比視窗高�
   // cart-place 要留在 .sheet-actions 裡，不能又回到跟著品項清單一起捲動的區塊
   assert.match(html, /sheet-actions"><button class="btn ghost" data-close data-i18n="continue">[\s\S]*?id="cart-place"/);
 });
+
+test('掃碼點餐菜單為單欄小方圖列表（大圖只在詳細頁）', () => {
+  const h = html;
+  assert.match(h, /\.menu-grid\{display:grid;grid-template-columns:minmax\(0,1fr\)/);
+  assert.match(h, /\.item img,\.item \.ph\{width:60px;height:60px/);
+  assert.doesNotMatch(h, /\.item img[^}]*aspect-ratio:4\/3/);
+  assert.doesNotMatch(h, /\.menu-grid\{grid-template-columns:1fr 1fr/);
+});
