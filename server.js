@@ -3282,6 +3282,7 @@ app.post('/api/admin/events/:id/guests/import',auth,requireDb,eventEditor,wrap(a
  const b=req.body||{},status=b.status||'invited',sendInvites=b.send_invites===true,language=['en','ja'].includes(b.language)?b.language:'zh',inviteMessage=String(b.message||'').trim();
  if(!['invited','registered','pending_approval','waitlisted'].includes(status)||!Array.isArray(b.guests)||!b.guests.length||b.guests.length>500)return res.status(400).json({error:'每次可匯入 1–500 位來賓，請選擇有效狀態。'});
  if(b.update_existing!==undefined&&typeof b.update_existing!=='boolean')return res.status(400).json({error:'更新既有來賓設定格式不正確。'});
+ if(b.reinvite_expired!==undefined&&(typeof b.reinvite_expired!=='boolean'||b.reinvite_expired&&(status!=='invited'||b.send_invites!==true)))return res.status(400).json({error:'重新邀請只能搭配寄送邀請使用。'});
  if(b.send_invites!==undefined&&typeof b.send_invites!=='boolean'||b.language!==undefined&&!['zh','en','ja'].includes(b.language)||sendInvites&&status!=='invited'||inviteMessage.length>1000)return res.status(400).json({error:'邀請寄送設定格式不正確。'});
  const invitationProviders=deliveryChannels();if(sendInvites&&!Object.values(invitationProviders).some(Boolean))return res.status(503).json({error:'邀請通知服務尚未設定，未新增來賓或排入邀請。'});
  const seen=new Set(),guests=[];
@@ -3290,13 +3291,23 @@ app.post('/api/admin/events/:id/guests/import',auth,requireDb,eventEditor,wrap(a
  const event=(await client.query('SELECT * FROM events WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
  if(!event){await client.query('ROLLBACK');return res.status(404).json({error:'找不到活動。'});}
  if(event.status==='已取消'||status==='registered'&&event.status!=='報名中'){await client.query('ROLLBACK');return res.status(409).json({error:'活動未開放報名或已取消。'});}
- let ticket=null;try{if(event.tickets.length&&status!=='invited')ticket=selectTicket(event.tickets,b.ticket_id,Date.now(),b.unlock_code);}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}
+ let ticket=null;try{if(event.tickets.length&&(status!=='invited'||sendInvites&&b.ticket_id))ticket=selectTicket(event.tickets,b.ticket_id,Date.now(),b.unlock_code);}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}
+ // 邀請信可預選票種（含隱藏票解鎖碼），來賓點開即帶入。
+ const inviteQuery=status==='invited'&&ticket?'?tt='+encodeURIComponent(ticket.id)+(ticket.hidden?'&unlock_code='+encodeURIComponent(ticket.unlock_code):''):'';
  const price=ticket?.price_twd??event.price_twd;
  if(status==='registered'&&price>0){await client.query('ROLLBACK');return res.status(409).json({error:'付費票不能以匯入標記為已付款；請先邀請來賓自行付款。'});}
  let added=0,updated=0,skipped=0,queued=0,deliveries=0;
  for(const guest of guests.sort((a,b)=>a.email.localeCompare(b.email))){
   const user=await accountByEmail(client,guest.email,guest.name);
   const existing=(await client.query('SELECT * FROM event_regs WHERE event_id=$1 AND user_id=$2 FOR UPDATE',[event.id,user.id])).rows[0];
+  if(existing&&b.reinvite_expired&&['expired','cancelled'].includes(existing.status)){
+   // 付款未完成（逾期／取消）的來賓：保存舊紀錄後改回受邀，新版本重新寄出邀請。
+   await client.query('INSERT INTO event_registration_history(event_id,registration_id,user_id,snapshot) VALUES($1,$2,$3,$4)',[event.id,existing.id,user.id,JSON.stringify(existing)]);
+   const version=(await client.query("UPDATE event_regs SET status='invited',amount_due=0,amount_paid=0,ticket_version=ticket_version+1,stripe_session_id=NULL,stripe_payment_intent_id=NULL,checkout_expires_at=NULL,paid_at=NULL,language=$2 WHERE id=$1 RETURNING ticket_version",[existing.id,language])).rows[0].ticket_version;
+   await recordEventActivity(client,event.id,existing.id,req.auth.sub||null,'guest_reinvited');updated++;
+   const count=await require('./lib/event-mailer').queueEventInvitation((sql,args)=>client.query(sql,args),{event,registrationId:existing.id,ticketVersion:version,email:guest.email,name:guest.name,language,origin:SITE_BASE,token:eventInviteToken(existing.id,event),message:inviteMessage,query:inviteQuery,emailEnabled:invitationProviders.email});
+   if(!count){await client.query('ROLLBACK');return res.status(409).json({error:`${guest.email} 沒有目前可用的邀請通知通路，整批未匯入。`});}queued++;deliveries+=count;continue;
+  }
   if(existing){if(b.update_existing&&ticket){const changed=await changeRegistrationTicket(client,event,existing,ticket);if(changed.error){await client.query('ROLLBACK');return res.status(409).json({error:changed.error});}if(changed.changed){await recordEventActivity(client,event.id,existing.id,req.auth.sub||null,'guest_ticket_updated');updated++;continue;}}skipped++;continue;}
   if(status==='registered'){
    const used=await reservedEventSeats(client,event.id);
@@ -3305,9 +3316,9 @@ app.post('/api/admin/events/:id/guests/import',auth,requireDb,eventEditor,wrap(a
   }
   const regId=uid('r_');await client.query("INSERT INTO event_regs(id,event_id,user_id,status,amount_due,amount_paid,ticket_snapshot,note,entry_source,language) VALUES($1,$2,$3,$4,$5,0,$6,$7,$8,$9)",[regId,event.id,user.id,status,status==='invited'?0:price,ticket?JSON.stringify(ticket):null,'主辦人手動匯入',status==='invited'?'invited':'imported',language]);
   await recordEventActivity(client,event.id,regId,req.auth.sub||null,'guest_imported:'+status);added++;
-  if(sendInvites){const count=await require('./lib/event-mailer').queueEventInvitation((sql,args)=>client.query(sql,args),{event,registrationId:regId,email:user.email,name:guest.name,language,origin:SITE_BASE,token:eventInviteToken(regId,event),message:inviteMessage,emailEnabled:invitationProviders.email});if(!count){await client.query('ROLLBACK');return res.status(409).json({error:`${guest.email} 沒有目前可用的邀請通知通路，整批未匯入。`});}queued++;deliveries+=count;}
+  if(sendInvites){const count=await require('./lib/event-mailer').queueEventInvitation((sql,args)=>client.query(sql,args),{event,registrationId:regId,email:guest.email,name:guest.name,language,origin:SITE_BASE,token:eventInviteToken(regId,event),message:inviteMessage,query:inviteQuery,emailEnabled:invitationProviders.email});if(!count){await client.query('ROLLBACK');return res.status(409).json({error:`${guest.email} 沒有目前可用的邀請通知通路，整批未匯入。`});}queued++;deliveries+=count;}
  }
- await client.query('COMMIT');res.json({ok:true,added,updated,skipped,queued,deliveries,notice:sendInvites?`已新增並排入 ${queued} 位來賓、${deliveries} 則通知；重複來賓不會重寄。`:'已匯入，未寄送任何通知。'});
+ await client.query('COMMIT');res.json({ok:true,added,updated,skipped,queued,deliveries,notice:sendInvites?`已排入 ${queued} 位來賓、${deliveries} 則通知；重複來賓不會重寄${b.reinvite_expired?'（逾期／取消的來賓已重新邀請）':''}。`:'已匯入，未寄送任何通知。'});
  }catch(e){await client.query('ROLLBACK');if(e.code==='AMBIGUOUS_EMAIL')return res.status(409).json({error:e.message});throw e;}finally{client.release();}
 }));
 

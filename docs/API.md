@@ -1007,6 +1007,8 @@ Twilio 訊息狀態 callback。以 `X-Twilio-Signature` 驗證請求，將 accep
 
 匯入 guests（name、email），每批 1–500 位；status 可為 invited、registered（僅免費票）、pending_approval、waitlisted。可指定 ticket_id 及 unlock_code。使用交易鎖檢查名額，不足時整批回滾；重複報名預設跳過。傳入 `update_existing: true` 且指定票種時，只更新既有報名的原始票種，不覆寫姓名、報名狀態、票款、退款或加購／贈票。
 
+`reinvite_expired: true`（只能搭配 `status: invited` 與 `send_invites: true`）：Email 已有一筆「已逾期」或「已取消」的報名時，不再略過；舊紀錄存進報名歷史，改回受邀並遞增 `ticket_version`，以新版本重新寄出邀請（`invite_<報名 id>_v<版本>`），已付款或其他狀態仍略過。受邀匯入時若指定 `ticket_id`（隱藏票再帶 `unlock_code`），邀請連結會加上 `?tt=…&unlock_code=…`，來賓點開即預選該票種。
+
 新增受邀來賓時可傳 `send_invites: true`、`language: zh|en|ja` 與最多 1000 字的 `message`。邀請只排給本次新增者；重複 Email 會略過且不重寄。通知依已設定的 Email、收件者已驗證的 SMS／WhatsApp 與瀏覽器推播通路排入；每則都包含不放在伺服器查詢紀錄中的簽章 fragment 連結。沒有任何可用通路時整批回滾。受邀者可由連結直接確認身分、婉拒或完成報名；報名免除活動或票種審核，但仍須完成必填問題、名額檢查與付費。
 
 ### PATCH /api/admin/events/:id/regs/:registrationId/ticket
