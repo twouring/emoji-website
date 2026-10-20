@@ -913,7 +913,8 @@ async function loadPos(){
   try{[POS_DATA,REG_DATA]=await Promise.all([api('/admin/orders'+scopeQuery('all=1')),api('/admin/registers'+scopeQuery()).catch(()=>null)]);}catch(e){if(host.querySelector('.pos-grid'))toast('更新失敗：'+e.message);else host.innerHTML=`<div class="a-sec"><h2>櫃檯結帳</h2><p class="a-empty">載入失敗：${esc(e.message)}</p></div>`;POS_TIMER=setTimeout(()=>{if(document.getElementById('pos-body')&&TAB==='pos')loadPos();},15000);return;}
   // 後台系統設定新增／停用自訂收款帳戶後，這台 POS 不用重新整理頁面，最慢 15 秒內跟著這支輪詢更新
   if(POS_DATA.payment_methods)DATA.payment_methods=POS_DATA.payment_methods;
-  const sig=JSON.stringify([POS_DATA.table_layout,POS_DATA.linepay,POS_DATA.pause,POS_DATA.sessions.map(s=>[s.id,s.linepay,s.unpaid,s.unpaid_amount,s.state,s.lines.map(l=>[l.line,l.qty,l.price,l.comp_reason||'',l.placed_at||'']),(s.pay_requests||[]).map(r=>[r.id,r.amount,r.count])]),POS_DATA.orders.map(o=>[o.id,o.status,o.invoice?.status]),Object.entries(POS_DATA.reservations||{}).map(([t,rs])=>[t,rs.map(r=>[r.id,r.time,r.status])]),REG_DATA&&Object.entries(REG_DATA.current||{}).map(([v,r])=>[v,r?.id,r?.closed_at]),(DATA.payment_methods||[]).map(m=>[m.code,m.label,m.active])]);
+  applyLiveStock(POS_DATA.stock);
+  const sig=JSON.stringify([POS_DATA.stock,POS_DATA.table_layout,POS_DATA.linepay,POS_DATA.pause,POS_DATA.sessions.map(s=>[s.id,s.linepay,s.unpaid,s.unpaid_amount,s.state,s.lines.map(l=>[l.line,l.qty,l.price,l.comp_reason||'',l.placed_at||'']),(s.pay_requests||[]).map(r=>[r.id,r.amount,r.count])]),POS_DATA.orders.map(o=>[o.id,o.status,o.invoice?.status]),Object.entries(POS_DATA.reservations||{}).map(([t,rs])=>[t,rs.map(r=>[r.id,r.time,r.status])]),REG_DATA&&Object.entries(REG_DATA.current||{}).map(([v,r])=>[v,r?.id,r?.closed_at]),(DATA.payment_methods||[]).map(m=>[m.code,m.label,m.active])]);
   // 客人手機按「通知櫃檯我要結帳」：第一次看到的需求響一聲（和新單同一個音）
   const reqIds=new Set(POS_DATA.sessions.flatMap(s=>(s.pay_requests||[]).map(r=>r.id)));if(PAYREQ_SEEN&&[...reqIds].some(id=>!PAYREQ_SEEN.has(id)))ordersBeep();PAYREQ_SEEN=reqIds;
   // 開帳表單打開時不要被 15 秒自動刷新重畫（會清掉正在填的張數）
@@ -1159,7 +1160,7 @@ function paintPos(){
     if(POS_OPT&&(POS_OPT.table!==cur.table||(POS_OPT.line&&!cur.lines.some(l=>l.line===POS_OPT.line))))POS_OPT=null;
     const cats=[...new Set(menuItems.map(it=>it.cat))];if(POS_CAT&&!cats.includes(POS_CAT))POS_CAT='';
     const catChips=`<div class="pos-cats" role="tablist" aria-label="分類"><button type="button" data-cat="" aria-pressed="${!POS_CAT}">全部</button>${cats.map(c=>`<button type="button" data-cat="${esc(c)}" aria-pressed="${c===POS_CAT}">${esc(MenuLib.CAT_LABEL[c]?.zh||c)}</button>`).join('')}</div>`;
-    const tiles=menuItems.filter(it=>!POS_CAT||it.cat===POS_CAT).map(it=>{const off=MenuLib.soldOutToday(it);return `<button type="button" class="pos-item ${off?'off':''}" data-add="${esc(it.id)}">${itemThumb(it,'pos-item__img')}<b>${esc(it.zh)}</b><span>${it.custom_price?'現場輸入金額':'NT$'+num(it.price)}${SCOPE?'':' · '+esc(BRAND_LABEL[it.venue]||it.venue)}</span>${off?'<small>今日估清</small>':''}</button>`;}).join('')||'<p class="a-empty">沒有已發布的菜單項目</p>';
+    const tiles=menuItems.filter(it=>!POS_CAT||it.cat===POS_CAT).map(it=>{const off=MenuLib.soldOutToday(it);return `<button type="button" class="pos-item ${off?'off':''}" data-add="${esc(it.id)}">${itemThumb(it,'pos-item__img')}<b>${esc(it.zh)}</b><span>${it.custom_price?'現場輸入金額':'NT$'+num(it.price)}${SCOPE?'':' · '+esc(BRAND_LABEL[it.venue]||it.venue)}</span>${off?'<small>今日估清</small>':MenuLib.stockLeft(it)!==null?`<small class="pos-item__left">剩 ${MenuLib.stockLeft(it)} 份</small>`:''}</button>`;}).join('')||'<p class="a-empty">沒有已發布的菜單項目</p>';
     const live=d.orders.filter(o=>o.session_id===cur.id);
     const liveRows=live.map(o=>`<tr class="${o.status==='void'?'resv-off':''}"><td class="ops-item"><b>${o.items.map(l=>`${esc(l.zh)} ×${l.qty}${l.cancelled?'（已取消）':''}`).join('、')}</b>${o.payer?.discount?` <span class="hint hint--tight">折扣 ${esc(discountText(o.payer.discount))}</span>`:''}<br><span class="hint a-mono hint--tight" title="${esc(applicationTime(o.paid_at))}">${esc(clockText(o.paid_at))}</span> ${o.status==='void'?`<span class="pill pill-bad">已作廢</span> <span class="hint hint--tight">${esc(o.void_reason||'')}</span>`:`<span class="pill ${o.status==='done'?'pill-ok':'pill-wait'}">${esc(ORDER_STATE[o.status]||o.status)}</span>`}</td><td class="ops-pay">${esc(payText(o))}${o.payer?.member?' · 聚落價':''}${o.payer?.operator_name?' · 👤 '+esc(o.payer.operator_name):''}<br>${invoiceHtml(o)}</td><td class="num">${num(o.amount)}</td><td class="ops-actions">${orderActions(o)}</td></tr>`).join('');
     if(POS_METHOD==='mixed')POS_METHOD='cash';mixed=false;
@@ -1922,19 +1923,69 @@ async function loadSales(){
   host.querySelector('#sales-csv').onclick=()=>downloadCSV(`日結_${d.day}${SCOPE?'_'+(BRAND_LABEL[SCOPE]||SCOPE):''}.csv`,d.csv||[]);
 }
 
-/* 估清：平板一鍵切換「今日估清／恢復供應」，直接寫伺服器（只動 sold_out），翌日 03:00 自動恢復 */
+/* 估清：每格點開設定「今日估清／剩幾份／恢復不限量」，直接寫伺服器（只動 sold_out／stock_*）；送單自動扣份數，扣到 0＝售完；翌日 03:00 自動恢復 */
 function tabSoldOut(){ return '<div class="a-sec" id="soldout-body"></div>'; }
-let SO_PAUSE=null;
+let SO_PAUSE=null,SO_TIMER=null;
+// 輪詢回來的即時估清／份數套進本機菜單（POS 不必重新整理就看到別台平板或客人送單扣掉的份數）
+function applyLiveStock(list){
+  if(!Array.isArray(list)||!MENU_DOC)return;
+  const by=new Map(list.map(x=>[x.id,x]));
+  MENU_DOC.items=MENU_DOC.items.map(it=>{const x=by.get(it.id);return x?{...it,sold_out:x.sold_out||'',stock_day:x.stock_day||'',stock_left:x.stock_left??null}:(it.sold_out||it.stock_day?{...it,sold_out:'',stock_day:'',stock_left:null}:it);});
+}
+function soState(it){
+  const left=MenuLib.stockLeft(it);
+  if(MenuLib.soldOutToday(it))return {cls:'off',text:left===0?'已賣完（剩 0 份）':'今日估清'};
+  if(left!==null)return {cls:left<=3?'low':'limited',text:`剩 ${left} 份`};
+  return {cls:'',text:'供應中'};
+}
+function soEdit(it){
+  return new Promise(resolve=>{
+    const ov=document.createElement('div');ov.className='op-overlay';document.body.appendChild(ov);
+    const finish=v=>{if(ov.parentNode)ov.parentNode.removeChild(ov);resolve(v);};
+    const left=MenuLib.stockLeft(it);let val=left!==null&&left>0?String(left):'';
+    ov.innerHTML=`<div class="op-card so-edit" role="dialog" aria-label="${esc(it.zh)} 供應設定">
+      <div class="so-edit-head">${itemThumb(it,'so-edit__img')}<div><h2>${esc(it.zh)}</h2><p class="hint hint--tight">目前：${esc(soState(it).text)}</p></div></div>
+      <p class="so-edit-label">今天剩幾份？<span class="hint hint--tight">客人送單自動扣，扣到 0 自動售完</span></p>
+      <div class="so-edit-val" aria-live="polite"><b id="so-val"></b><span>份</span></div>
+      <div class="so-quick">${[3,5,10,20].map(n=>`<button type="button" data-q="${n}">${n}</button>`).join('')}</div>
+      <div class="so-pad">${[1,2,3,4,5,6,7,8,9].map(n=>`<button type="button" data-k="${n}">${n}</button>`).join('')}<button type="button" data-k="clr" aria-label="清除">清除</button><button type="button" data-k="0">0</button><button type="button" data-k="del" aria-label="退格">⌫</button></div>
+      <div class="op-card-actions so-edit-actions">
+        <button type="button" class="btn btn--solid" data-act="set">設定份數</button>
+        <button type="button" class="btn btn--ghost btn--danger" data-act="out">今日估清</button>
+        <button type="button" class="btn btn--ghost" data-act="free">恢復不限量</button>
+        <button type="button" class="btn btn--ghost" data-act="cancel">取消</button>
+      </div></div>`;
+    const show=()=>{ov.querySelector('#so-val').textContent=val===''?'—':val;ov.querySelector('[data-act="set"]').disabled=val==='';};show();
+    ov.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{const k=b.dataset.k;if(k==='clr')val='';else if(k==='del')val=val.slice(0,-1);else if(val.length<4)val=(val==='0'?'':val)+k;show();});
+    ov.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{val=b.dataset.q;show();});
+    ov.querySelector('[data-act="set"]').onclick=()=>{if(val!=='')finish({left:Number(val)});};
+    ov.querySelector('[data-act="out"]').onclick=()=>finish({sold_out:true});
+    ov.querySelector('[data-act="free"]').onclick=()=>finish({free:true});
+    ov.querySelector('[data-act="cancel"]').onclick=()=>finish(null);
+  });
+}
 async function loadSoldOut(refresh){
   const host=document.getElementById('soldout-body');if(!host)return;
+  clearTimeout(SO_TIMER);
   if(SO_PAUSE===null||refresh===true){try{SO_PAUSE=(await api('/admin/orders/pause'+scopeQuery())).pause||{};}catch(e){SO_PAUSE=SO_PAUSE||{};toast('暫停點餐狀態載入失敗：'+e.message);}}
+  if(refresh!=='paint'){try{const d=await api('/admin/orders'+scopeQuery());applyLiveStock(d.stock);}catch(e){}}
   if(!document.getElementById('soldout-body'))return;
   const items=MenuLib.sortItems((MENU_DOC?.items||[]).filter(it=>it.published&&!it.pos_only&&(!SCOPE||it.venue===SCOPE)));   // 「其他」這類 POS 限定品項沒有估清的意義
   const groups=new Map();for(const it of items){if(!groups.has(it.cat))groups.set(it.cat,[]);groups.get(it.cat).push(it);}
-  const cards=[...groups].map(([cat,list])=>`<h3>${esc(MenuLib.CAT_LABEL[cat]?.zh||cat)}</h3><div class="so-grid">${list.map(it=>{const off=MenuLib.soldOutToday(it);return `<button type="button" class="so-item ${off?'off':''}" data-so="${esc(it.id)}" data-on="${off?'0':'1'}" aria-pressed="${off?'true':'false'}"><b>${esc(it.zh)}</b><span>NT$${num(it.price)}${SCOPE?'':' · '+esc(BRAND_LABEL[it.venue]||it.venue)}</span><small>${off?'今日估清 · 點一下恢復':'供應中'}</small></button>`;}).join('')}</div>`).join('')||'<p class="a-empty">沒有已發布的菜單項目，請先在後台「菜單」儲存菜單。</p>';
-  host.innerHTML=`<div class="ops-head"><h2>估清</h2>${opsHelp('點一下品項切換「今日估清」，客人掃碼立刻點不到；翌日 03:00 自動恢復供應。')}</div><div class="a-toolbar pos-tools" id="so-pause">${posPauseHtml(SO_PAUSE)}</div>${cards}`;
-  bindPosPause(host,()=>loadSoldOut(true));
-  host.querySelectorAll('[data-so]').forEach(b=>b.onclick=()=>{const id=b.dataset.so,on=b.dataset.on==='1';opsThen(()=>api('/admin/menu/sold-out',{method:'POST',body:{item_id:id,sold_out:on}}),on?'已標記今日估清，客人掃碼點不到':'已恢復供應',()=>{MENU_DOC.items=MENU_DOC.items.map(x=>x.id===id?{...x,sold_out:on?MenuLib.businessDay():''}:x);loadSoldOut();});});
+  const cards=[...groups].map(([cat,list])=>`<h3>${esc(MenuLib.CAT_LABEL[cat]?.zh||cat)}</h3><div class="so-grid">${list.map(it=>{const st=soState(it),off=st.cls==='off';return `<button type="button" class="so-item ${st.cls}" data-so="${esc(it.id)}" aria-pressed="${off?'true':'false'}">${itemThumb(it,'so-item__img')}<b>${esc(it.zh)}</b><span>NT$${num(it.price)}${SCOPE?'':' · '+esc(BRAND_LABEL[it.venue]||it.venue)}</span><small>${esc(st.text)}</small></button>`;}).join('')}</div>`).join('')||'<p class="a-empty">沒有已發布的菜單項目，請先在後台「菜單」儲存菜單。</p>';
+  const sig=JSON.stringify([SO_PAUSE,items.map(it=>[it.id,it.image,soState(it).text])]);
+  if(host.dataset.sig!==sig){host.dataset.sig=sig;
+    host.innerHTML=`<div class="ops-head"><h2>估清</h2>${opsHelp('點一下品項設定「今日估清」或「剩餘份數」：客人每送一份就自動扣，扣到 0 自動售完、客人掃碼點不到；翌日 03:00 自動恢復供應。櫃檯加點不受份數限制。')}</div><div class="a-toolbar pos-tools" id="so-pause">${posPauseHtml(SO_PAUSE)}</div>${cards}`;
+    bindPosPause(host,()=>loadSoldOut(true));
+    host.querySelectorAll('[data-so]').forEach(b=>b.onclick=async()=>{
+      const id=b.dataset.so,it=(MENU_DOC?.items||[]).find(x=>x.id===id);if(!it)return;
+      const pick=await soEdit(it);if(!pick)return;
+      if(pick.left!==undefined)return opsThen(()=>api('/admin/menu/stock',{method:'POST',body:{item_id:id,left:pick.left}}),pick.left>0?`已設定今天剩 ${pick.left} 份`:'已設為 0 份（售完）',out=>{MENU_DOC.items=MENU_DOC.items.map(x=>x.id===id?{...x,sold_out:'',stock_day:out.stock_day,stock_left:out.stock_left}:x);loadSoldOut('paint');});
+      const on=!!pick.sold_out;
+      opsThen(()=>api('/admin/menu/sold-out',{method:'POST',body:{item_id:id,sold_out:on}}),on?'已標記今日估清，客人掃碼點不到':'已恢復供應（不限量）',()=>{MENU_DOC.items=MENU_DOC.items.map(x=>x.id===id?{...x,sold_out:on?MenuLib.businessDay():'',stock_day:'',stock_left:null}:x);loadSoldOut('paint');});
+    });
+  }
+  SO_TIMER=setTimeout(()=>{if(document.getElementById('soldout-body'))loadSoldOut();},20000);
 }
 
 /* ===== 排班與打卡：員工用 4 位數識別碼在平板打卡（/pos/clock）；排班表以週為單位（/pos/shifts 與後台「排班打卡」共用）；員工名單與出勤報表在後台 ===== */

@@ -441,7 +441,10 @@ body `{attempt_id}`。只取消 `prepared`（尚未送出）意圖；已送出�
 暫停點餐開關（依店別）。body `{ venue: CAFE|BAR, paused: boolean, message? }`（文案 80 字內，客人掃碼會看到）。存 `site_content.ordering_pause`。回 `{ ok, pause }`。
 
 ### POST /api/admin/menu/sold-out
-估清快速鍵。body `{ item_id, sold_out: boolean }`。只改該品項的 `sold_out`（記營業日），不覆蓋其他欄位；當個營業日結束（翌日 03:00）自動恢復。品牌子帳號只能估清自己店別（403）。
+估清快速鍵。body `{ item_id, sold_out: boolean }`。只改該品項的 `sold_out`（記營業日），不覆蓋其他欄位；當個營業日結束（翌日 03:00）自動恢復。估清或恢復供應都會一併清除剩餘份數。品牌子帳號只能估清自己店別（403）。
+
+### POST /api/admin/menu/stock
+剩餘份數。body `{ item_id, left: 0–9999 | null }`。設定今天（營業日）還能賣幾份，存在品項的 `stock_day`／`stock_left`，同時解除今日估清；`left:null` 取消限量。客人送單（含套餐選項）與櫃檯先結後做的結帳時自動扣，扣到 0 即視同今日估清；已送單、尚未出餐的品項被作廢會回補。客人端加點超過剩餘份數回 409；櫃檯加點不擋、最少扣到 0。翌日 03:00 自動失效回到不限量。後台整份菜單存檔（`POST /api/admin/content` key=menu）一律沿用資料庫現值的 `sold_out`／`stock_day`／`stock_left`。品牌子帳號只能設定自己店別（403）。回 `{ ok, item_id, stock_day, stock_left }`。
 
 ### GET /api/admin/orders/history
 查單：某營業日全部的單（含作廢），最新在前。query `day=YYYY-MM-DD`（預設今天的營業日）、`q=`（桌號／金額／發票號碼／單號尾碼，不分大小寫）、`venue=`。每張單附 `stations`（分站明細）供重印出餐單。回 `{ day, orders[], count }`。品牌子帳號只看自己店別的單。

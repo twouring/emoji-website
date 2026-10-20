@@ -3565,9 +3565,17 @@ app.post('/api/admin/content', auth, adminOnly, requireDb, wrap(async (req, res)
     const old = (await q("SELECT value FROM site_content WHERE key='menu'")).rows[0]?.value;
     if (others(old) !== others(String(req.body.value ?? ''))) return res.status(403).json({ error: '只能修改自己店別的品項。' });
   }
-  await q(`INSERT INTO site_content (key,value,updated_at) VALUES ($1,$2,now())
+  // 估清與剩餘份數由 POS 即時維護：整份菜單存檔一律沿用資料庫現值，不讓後台草稿把份數倒回（鎖住 menu 列，避免和送單扣份數互相覆蓋）
+  const client = key === 'menu' ? await pool.connect() : null;
+  try {
+    const run = client ? (s, a) => client.query(s, a) : q;
+    let value = String(req.body.value ?? '');
+    if (client) { await client.query('BEGIN'); value = tableOrders.keepLiveMenuFields((await client.query("SELECT value FROM site_content WHERE key='menu' FOR UPDATE")).rows[0]?.value || '', value); }
+    await run(`INSERT INTO site_content (key,value,updated_at) VALUES ($1,$2,now())
            ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,
-    [key, String(req.body.value ?? '')]);
+      [key, value]);
+    if (client) await client.query('COMMIT');
+  } catch (e) { if (client) await client.query('ROLLBACK').catch(() => {}); throw e; } finally { if (client) client.release(); }
   res.json({ ok: true });
 }));
 
@@ -4528,6 +4536,7 @@ app.post('/api/me/pickups', auth, requireDb, rateLimit({ max: 20, windowMs: 3600
   let items = [];
   try { for (const x of p.items) items = tableOrders.addLine(items, menu, { item_id: x.item_id, qty: x.qty, by: me.name || '會員', guest: pickup.guestOf(me.id), note: x.note, combo: x.combo }); }
   catch (e) { return res.status(e.status || 400).json({ error: e.message }); }
+  { const short = tableOrders.stockShortage(await contentValue('menu'), items, p.pickupAt); if (short.length) return res.status(409).json({ error: tableOrders.stockMessage(short) }); }
   const client = await pool.connect();
   try {
     await client.query('BEGIN'); await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, ['table:takeout']);
@@ -4564,6 +4573,7 @@ async function placeDuePickups(now = new Date()) {
       let placed; try { placed = tableOrders.placeLines(cur.items, now); } catch { await client.query("UPDATE table_sessions SET pickup_placed_at=now() WHERE id=$1", [cur.id]); await client.query('COMMIT'); continue; }
       await client.query('UPDATE table_sessions SET items=$2,pickup_placed_at=now(),updated_at=now() WHERE id=$1', [cur.id, JSON.stringify(placed.items)]);
       await kitchenPrint.enqueue(client.query.bind(client), [{ ...cur, items: placed.lines }]);
+      await stockConsume(client.query.bind(client), placed.lines);
       await inventoryConsume(client.query.bind(client), placed.lines, { ref_id: cur.id });
       await client.query('COMMIT'); n++;
     } catch (e) { await client.query('ROLLBACK').catch(() => {}); console.error('[pickup] 送單失敗', s.id, e.message); } finally { client.release(); }
@@ -4577,7 +4587,7 @@ app.get('/api/me/rewards', auth, requireDb, wrap(async (req, res) => {
   if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
   const doc = tableOrders.MenuLib.parseMenuDoc(await contentValue('menu'));
   const day = tableOrders.MenuLib.businessDay(new Date());
-  const items = (doc.items || []).filter(it => it.published && !it.pos_only && it.points > 0 && !(it.sold_out && it.sold_out === day))
+  const items = (doc.items || []).filter(it => it.published && !it.pos_only && it.points > 0 && !tableOrders.MenuLib.soldOutToday(it))
     .sort((a, b) => a.points - b.points || a.sort - b.sort)
     .map(it => ({ id: it.id, venue: it.venue, zh: it.zh, en: it.en, ja: it.ja, points: it.points, image: it.image }));
   const sp = yan.parseSpaceRewards(await contentValue('yan_rewards'));
@@ -5096,6 +5106,10 @@ async function mutateItems(req,res,fn,resolve){
     await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items)]);
     const previousTickets=new Set(s.items.map(l=>l.ticket).filter(Boolean));
     const newlyPlaced=items.filter(l=>l.ticket&&!previousTickets.has(l.ticket));
+    // 剩餘份數：客人加進購物車就先比對（購物車＋這次送出的不得超過剩餘份數），送單才真正扣；櫃檯不擋
+    if(!req.auth&&req.method==='POST'){const short=tableOrders.stockShortage(await contentValue('menu'),items.filter(l=>!l.order_id&&(!l.placed_at||newlyPlaced.includes(l))));if(short.length)throw Object.assign(Error(tableOrders.stockMessage(short)),{status:409});}
+    await stockConsume(client.query.bind(client),newlyPlaced,{strict:!req.auth});
+    await stockRestore(client.query.bind(client),posInventory.restorableRemoved(s.items,items));
     await kitchenPrint.enqueue(client.query.bind(client),[{...s,items:newlyPlaced}]);
     // 庫存：新送出的品項依配方扣；送單後、出餐前被作廢的品項回補
     await inventoryConsume(client.query.bind(client),newlyPlaced,{ref_id:s.id});
@@ -5147,6 +5161,7 @@ app.post('/api/orders/:id/pay',rateLimit({max:10}),requireDb,wrap(async(req,res)
     await client.query('INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,tappay) VALUES($1,$2,$3,$4,$5,$6,$7)',[orderId,s.id,s.table_no,JSON.stringify(lines.map(l=>({...l,order_id:orderId}))),amount,JSON.stringify(who),JSON.stringify({rec_trade_id:paid.rec_trade_id,bank_transaction_id:paid.bank_transaction_id,auth_code:paid.auth_code,last_four:paid.card_info?.last_four})]);
     await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items)]);
     await kitchenPrint.enqueue(client.query.bind(client),[{id:orderId,session_id:s.id,table_no:s.table_no,items:lines.filter(l=>!l.ticket),status:'paid'}]);
+    await stockConsume(client.query.bind(client),lines.filter(l=>!l.placed_at));
     await inventoryConsume(client.query.bind(client),lines.filter(l=>!l.placed_at),{ref_id:orderId});
     await client.query('COMMIT');
     }catch(e){console.error(`[table-pay] 已扣款但未入帳：rec_trade_id=${paid.rec_trade_id} order=${orderId} table=${s.table_no} amount=${amount}`,e.message);throw e;}
@@ -5201,7 +5216,7 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   // payment_methods 一起回傳：已開著的 POS 畫面每 15 秒輪詢這支 API，新增的自訂收款帳戶才會即時出現在結帳選項，不用重新整理
   const pendingLinepay=(await q("SELECT id,session_id,state,amount,mode FROM linepay_payments WHERE state NOT IN ('failed','cancelled','settled')")).rows;
   for(const s of sessions){if(!s.mixed)s.linepay=pendingLinepay.find(a=>a.session_id===s.id)||null;}
-  res.json({orders,tickets,sessions,reservations,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue(),table_layout:tableLayoutParse(await contentValue('pos_table_layout')),payment_methods:await paymentMethodsList(),linepay:linepayOfflineStatus()});
+  res.json({orders,tickets,sessions,reservations,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue(),table_layout:tableLayoutParse(await contentValue('pos_table_layout')),payment_methods:await paymentMethodsList(),linepay:linepayOfflineStatus(),stock:tableOrders.MenuLib.parseMenuDoc(await contentValue('menu')).items.filter(it=>tableOrders.MenuLib.stockLeft(it)!==null||tableOrders.MenuLib.soldOutToday(it)).map(it=>({id:it.id,sold_out:it.sold_out,stock_day:it.stock_day,stock_left:it.stock_left}))});
 }));
 /* 櫃檯開桌／外帶：客人沒掃 QR（走進來直接在櫃檯點）也能開一桌；外帶自動取 W01–W99 最小空號。已開著的桌直接回那一桌 */
 app.post('/api/admin/orders/sessions',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -5382,6 +5397,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     if(closed)await client.query("UPDATE table_orders SET status='done',done_at=now() WHERE session_id=$1 AND status IN ('paid','ready')",[s.id]);
     await client.query('UPDATE table_sessions SET items=$2,status=$3,pay_requests=$4,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),closed?'closed':'open',JSON.stringify(tableOrders.prunePayRequests(s.pay_requests,items))]);
     // 庫存：櫃檯直接結帳、沒先送單的品項（先結後做）在這裡依配方扣；已送單的品項送單時就扣過了
+    await stockConsume(client.query.bind(client),orderLines.filter(l=>!l.placed_at));
     await inventoryConsume(client.query.bind(client),orderLines.filter(l=>!l.placed_at),{ref_id:orderId,actor:actorOf(req.auth)||''});
     await client.query('COMMIT');
     const invoiceOut=await storeInvoiceResult({id:orderId,table_no:s.table_no,items:orderLines,amount:out.amount,discount:out.discount},invoice);
@@ -5540,11 +5556,27 @@ app.post('/api/admin/orders/:id/items/:line/void',auth,adminOnly,requireDb,wrap(
   }finally{if(!committed)await client.query('ROLLBACK').catch(()=>{});client.release();}
 }));
 /* 估清（今日售完）與暫停點餐：只改單一欄位，不會蓋掉另一台平板正在編輯的菜單 */
+// 菜單單欄位快速鍵共用：鎖住 menu 列再改，避免和送單扣份數互相覆蓋
+async function patchMenu(res,fn){
+  const client=await pool.connect();
+  try{await client.query('BEGIN');
+    const cur=(await client.query("SELECT value FROM site_content WHERE key='menu' FOR UPDATE")).rows[0]?.value||'';
+    let next;try{next=fn(cur);}catch(e){await client.query('ROLLBACK');res.status(e.status||400).json({error:e.message});return null;}
+    await client.query(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu',$1,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,[next]);
+    await client.query('COMMIT');return next;
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
+}
 app.post('/api/admin/menu/sold-out',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const venues=tableOrders.visibleVenues(req.auth.brands);
-  let next;try{next=tableOrders.setSoldOut(await contentValue('menu'),String(req.body?.item_id||''),req.body?.sold_out===true,venues);}catch(e){return res.status(e.status||400).json({error:e.message});}
-  await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu',$1,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,[next]);
+  if(!await patchMenu(res,cur=>tableOrders.setSoldOut(cur,String(req.body?.item_id||''),req.body?.sold_out===true,venues)))return;
   res.json({ok:true,sold_out:req.body?.sold_out===true});
+}));
+/* 剩餘份數：今天還能賣幾份（送單自動扣，扣到 0＝售完；隔天 03:00 自動失效回到不限量）；left=null 取消限量 */
+app.post('/api/admin/menu/stock',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venues=tableOrders.visibleVenues(req.auth.brands),id=String(req.body?.item_id||''),left=req.body?.left;
+  const next=await patchMenu(res,cur=>tableOrders.setStock(cur,id,left,venues));if(!next)return;
+  const it=tableOrders.MenuLib.parseMenuDoc(next).items.find(x=>x.id===id);
+  res.json({ok:true,item_id:id,stock_day:it?.stock_day||'',stock_left:tableOrders.MenuLib.stockLeft(it)});
 }));
 /* ===== POS 庫存（lib/pos-inventory.js）：原物料＋備料（醬料等）、菜單配方、進貨／耗用／報廢／盤點／製作備料、出餐自動扣 ===== */
 const INV_SEL='id,name,kind,unit,venue,category,safety_qty::float AS safety_qty,batch_yield::float AS batch_yield,bom,qty::float AS qty,avg_cost::float AS avg_cost,pack_unit,pack_size::float AS pack_size,yield_rate::float AS yield_rate,supplier,storage,shelf_life,ref_cost::float AS ref_cost,note,active,updated_at';
@@ -5561,6 +5593,21 @@ async function inventoryMove(query,{inv_id,type,delta,set_qty=null,unit_cost=nul
   return {id,qty_after:after?.qty??null};
 }
 // 出餐自動扣：送單／先結後做的品項依菜單配方扣（套餐依組成品項）。在呼叫端的交易裡用 SAVEPOINT 包起來：庫存出錯只記 log，絕不擋點餐或收款
+/* 剩餘份數：送單（或先結後做的結帳）時扣，送出後、出餐前被作廢時回補。只在有品項今天設了份數時才鎖 site_content.menu 這一列。
+   strict（客人端）份數不夠整筆擋下；櫃檯／排程不擋，最少扣到 0（現場已經答應客人了） */
+async function stockConsume(query,lines,{strict=false}={}){
+  if(!(lines||[]).length||!tableOrders.stockTouches(await contentValue('menu'),lines))return;
+  const cur=(await query("SELECT value FROM site_content WHERE key='menu' FOR UPDATE")).rows[0]?.value||'';
+  if(strict){const short=tableOrders.stockShortage(cur,lines);if(short.length)throw Object.assign(Error(tableOrders.stockMessage(short)),{status:409});}
+  const next=tableOrders.applyStock(cur,lines,-1);
+  if(next)await query("UPDATE site_content SET value=$1,updated_at=now() WHERE key='menu'",[next]);
+}
+async function stockRestore(query,lines){
+  if(!(lines||[]).length||!tableOrders.stockTouches(await contentValue('menu'),lines))return;
+  const cur=(await query("SELECT value FROM site_content WHERE key='menu' FOR UPDATE")).rows[0]?.value||'';
+  const next=tableOrders.applyStock(cur,lines,1);
+  if(next)await query("UPDATE site_content SET value=$1,updated_at=now() WHERE key='menu'",[next]);
+}
 async function inventoryConsume(query,lines,{ref_id=null,actor='系統'}={}){
   const use=(lines||[]).filter(l=>l&&!l.cancelled);if(!use.length)return 0;
   await query('SAVEPOINT inv_consume');

@@ -132,7 +132,7 @@ test('pos-ops.js：共用模組不碰 /admin 專屬狀態；估清分頁只動 s
   assert.match(ops, /const opsHelp=tipIcon;/, '長說明統一走 opsHelp()＝標題後方的「?」圖示（點擊才顯示）');
   assert.match(ops, /class="tip-q" aria-label="操作說明"/); assert.doesNotMatch(ops, /<details class="ops-help"/, '不再有攤開／摺疊的「操作說明」按鈕');
   assert.match(ops, /\$\{opsHelp\(`客人掃桌上 QR 點餐/, '出餐看板長說明要預設收合，避免 UI 雜亂');
-  for (const lead of ['確認每一筆單的狀態', '客人從 <a href="\\/reserve"', '營業日從凌晨 03:00', '點一下品項切換「今日估清」', '輸入你的 4 位數識別碼，按「上班」', '在咖啡與三點水共用同一個抽屜帳', '員工先按「排休」', '工時＝下班－上班－休息']) {
+  for (const lead of ['確認每一筆單的狀態', '客人從 <a href="\\/reserve"', '營業日從凌晨 03:00', '點一下品項設定「今日估清」或「剩餘份數」', '輸入你的 4 位數識別碼，按「上班」', '在咖啡與三點水共用同一個抽屜帳', '員工先按「排休」', '工時＝下班－上班－休息']) {
     assert.match(ops, new RegExp("opsHelp\\('" + lead), lead + ' 要用 opsHelp 收合');
     assert.doesNotMatch(ops, new RegExp('<p class="hint">' + lead), lead + ' 不可直接攤開');
   }

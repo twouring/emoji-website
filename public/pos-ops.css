@@ -235,6 +235,28 @@ tr.lp-refund td{color:var(--danger)}
 .so-item b{font-weight:600;line-height:1.3}.so-item span{color:var(--muted);font-variant-numeric:tabular-nums}.so-item small{margin-top:auto;font-size:1rem;color:var(--muted)}
 .so-item.off{background:var(--danger-soft);border-color:var(--danger-line);color:var(--danger)}.so-item.off small{color:var(--danger)}
 .so-item:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+/* 估清格加圖片：上圖下字；沒圖用品名首字佔位（itemThumb） */
+.so-item{padding:8px 8px 10px;min-height:0}
+.so-item__img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:7px;background:var(--paper-alt);margin-bottom:4px}
+.so-item__img--ph{display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:600;color:var(--muted)}
+.so-item.off .so-item__img{filter:grayscale(1);opacity:.55}
+.so-item.limited small{color:var(--ink);font-weight:600}
+.so-item.low{border-color:#d9a400;background:#fff8dc}.so-item.low small{color:#8a5a00;font-weight:700}
+.pos-item small.pos-item__left{color:#8a5a00;font-weight:600}
+/* 份數設定框：數字鍵盤，站著單手按 */
+.so-edit{width:min(420px,100%);max-height:calc(100dvh - 24px);overflow:auto}
+.so-edit-head{display:flex;gap:12px;align-items:center;margin-bottom:10px}.so-edit-head h2{margin:0}
+.so-edit__img{width:64px;height:64px;flex:none;object-fit:cover;border-radius:8px;background:var(--paper-alt)}
+.so-edit__img--ph{display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:600;color:var(--muted)}
+.so-edit-label{margin:4px 0 6px;font-weight:600;display:flex;flex-direction:column;gap:2px}
+.so-edit-val{display:flex;align-items:baseline;justify-content:center;gap:6px;margin:4px 0 8px}.so-edit-val b{font-size:2.4rem;font-variant-numeric:tabular-nums;min-width:3ch;text-align:center}
+.so-quick{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+.so-quick button,.so-pad button{all:unset;box-sizing:border-box;cursor:pointer;display:grid;place-items:center;min-height:52px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:1.25rem;font-weight:600;font-variant-numeric:tabular-nums}
+.so-quick button{min-height:44px;font-size:1rem;background:var(--paper-alt)}
+.so-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.so-pad button:active,.so-quick button:active{background:var(--paper-alt)}
+.so-pad [data-k=clr]{font-size:1rem}
+.so-edit-actions{flex-wrap:wrap}.so-edit-actions .btn{flex:1 1 140px;min-height:52px}
 /* 打卡：大數字鍵盤＋ 4 點識別碼，站著單手按得到；結果卡片大字 */
 
 /* PIN 鍵盤共用（登入／打卡／認人／蓋板）：鍵越大越不容易按錯，三欄滿版到 440px、鍵高 84px、數字 2rem */

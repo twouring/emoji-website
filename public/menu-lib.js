@@ -73,6 +73,8 @@
   const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   const dateOrEmpty = v => (DATE_RE.test(String(v || '')) ? String(v) : '');
   const uid = () => 'm_' + Math.random().toString(36).slice(2, 10);
+  const STOCK_MAX = 9999;
+  const stockOrNull = v => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Math.max(0, Math.min(STOCK_MAX, Math.floor(Number(v)))));
 
   // 會員價：品項有填 emo（>0）就用它；空白／0＝原價九折（四捨五入）。現場輸入金額的品項（custom_price）不打折。
   const MEMBER_RATE = 0.9;
@@ -163,12 +165,18 @@
       pos_only: raw.custom_price === true || raw.pos_only === true,
       sort: Number.isFinite(Number(raw.sort)) ? Number(raw.sort) : 0,
       sold_out: dateOrEmpty(raw.sold_out),               // 估清：記營業日，隔天自動恢復
+      stock_day: dateOrEmpty(raw.stock_day),             // 剩餘份數：只在這個營業日有效（隔天 03:00 自動失效＝不限量）
+      stock_left: stockOrNull(raw.stock_left),           // 剩幾份（null＝不限量）；送單扣、扣到 0＝售完
       available_from: dateOrEmpty(raw.available_from),   // 特餐排程：只在這段營業日可點（含）
       available_to: dateOrEmpty(raw.available_to),
     };
   }
   /* 可點：已發布、今天沒估清、在供應期間內（給 /order 與櫃檯用；官網菜單仍用 publishedOnly） */
-  function soldOutToday(item, now) { return !!item.sold_out && item.sold_out === businessDay(now); }
+  /* 今天剩幾份：有設且是今天營業日才算，否則 null（不限量） */
+  function stockLeft(item, now) {
+    return item && item.stock_day && item.stock_day === businessDay(now) && Number.isInteger(item.stock_left) ? item.stock_left : null;
+  }
+  function soldOutToday(item, now) { return (!!item.sold_out && item.sold_out === businessDay(now)) || stockLeft(item, now) === 0; }
   /* ctx.posOnly=true 時才把 pos_only 品項算進可點範圍（POS／後台代客加點用）；
    * 客人掃碼點餐（/order）與任何沒傳 ctx 的呼叫，一律看不到 pos_only 品項。 */
   function isOrderable(item, now, ctx) {
@@ -319,6 +327,6 @@
 
   global.MenuLib = {
     CATS, VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, MEMBER_RATE, memberPrice, activeVenue, orderWindow, orderableInWindow, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
-    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, soldOutToday, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
+    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, soldOutToday, stockLeft, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
