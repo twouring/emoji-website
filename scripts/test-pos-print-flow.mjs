@@ -102,3 +102,17 @@ test('發票證明聯與收據明細預設印賣方統編 93537055', async () =>
   const r=vm.runInContext("receiptTicketSpec({id:'o9',table_no:'A1',amount:100,items:[],payer:{method:'cash'},invoice:{number:'AB12345678'}})",c);
   assert.ok(JSON.parse(JSON.stringify(r)).some(x=>x&&x.text==='賣方統編 93537055'));
 });
+
+test('帳本夾：三點水內用送單多印一張點餐明細（□ 劃單、品項金額），在咖啡、外帶不印', async () => {
+ for (const [venue, table, want] of [['BAR','A1',2],['CAFE','A1',1],['BAR','W01',1]]) {
+  const {c,texts,sent}=printContext();c.o={id:'tk_1',table_no:table,placed_at:'now',items:[{zh:'烏龍麵',qty:2,price:320,cat:'MAIN',venue,note:'麵量：少麵'}]};
+  await vm.runInContext('printOrder(o,{auto:true,slip:true});',c);
+  assert.equal(sent.length,want,`${venue} ${table}`);
+  if(want===2){assert.ok(texts.includes('點餐明細'));assert.ok(texts.some(t=>String(t).startsWith('□ 烏龍麵 ×2')));assert.ok(texts.includes('640'));assert.ok(texts.some(t=>String(t).includes('少麵')));}
+ }
+ const {c,sent}=printContext();c.o={id:'tk_2',table_no:'A1',items:[{zh:'烏龍麵',qty:1,price:320,cat:'MAIN',venue:'BAR'}]};
+ await vm.runInContext('printOrder(o);',c);assert.equal(sent.length,1,'補印出餐單不附明細');
+});
+test('自動出單佇列送單時附點餐明細', () => {
+ assert.ok(src.includes('printOrder(claim.job,{auto:true,slip:true})'));
+});

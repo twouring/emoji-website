@@ -5363,7 +5363,7 @@ async function linepayPosAction(action,req,res){
       const o=(await q('SELECT * FROM table_orders WHERE id=$1',[out.result.order_id])).rows[0];
       if(o){
         // Only the transaction winner can issue. Replays/read recovery never reissue an invoice.
-        if(out.settled_now)o.invoice=await storeInvoiceResult(o,o.invoice);
+        if(out.settled_now){o.service_charge=o.payer?.service_charge||null;o.invoice=await storeInvoiceResult(o,o.invoice);}
         out.order=o;out.result={...out.result,invoice:o.invoice};
       }
     }
@@ -5392,7 +5392,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     // 掃會員條碼（或 member_id，來自掃碼那一步）才算驗證過身分：只有驗證過、且會籍有效的會員才套會籍價、才能用點數折抵；只報手機只累點
     const verified=!!(cardTok||memberIdRaw),memberActive=verified&&memberUser?(await memberAccessFor(memberUser.id)).active:false;
     if(req.body?.redeem_lines?.length&&!verified){await client.query('ROLLBACK');return res.status(400).json({error:'點數兌換請先掃會員條碼確認身分。'});}
-    let out,invoice,regWarn='',yanOut={earned:0,redeemed:0,balance:0};try{out=tableOrders.posCheckout(s.items,{...req.body,member:memberActive,staff:actorOf(req.auth)||'',operator},menuAll,await activePaymentCodes());invoice=ezpayInvoice.invoiceForm(req.body?.invoice||{});
+    let out,invoice,regWarn='',yanOut={earned:0,redeemed:0,balance:0};try{out=tableOrders.posCheckout(s.items,{...req.body,member:memberActive,staff:actorOf(req.auth)||'',operator},menuAll,await activePaymentCodes(),{table:s.table_no});invoice=ezpayInvoice.invoiceForm(req.body?.invoice||{});
       // 開關帳：品項所屬品牌今天的帳要開著（關帳後不能再結；沒開帳時超管放行但回警告，子帳號擋）
       regWarn=posRegister.checkoutAllowed(out.lines,await registersOpenMap(client,tableOrders.MenuLib.businessDay()),{strict:!!venues}).warning;
     }catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
@@ -5411,8 +5411,8 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     await stockConsume(client.query.bind(client),orderLines.filter(l=>!l.placed_at));
     await inventoryConsume(client.query.bind(client),orderLines.filter(l=>!l.placed_at),{ref_id:orderId,actor:actorOf(req.auth)||''});
     await client.query('COMMIT');
-    const invoiceOut=await storeInvoiceResult({id:orderId,table_no:s.table_no,items:orderLines,amount:out.amount,discount:out.discount},invoice);
-    res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,received:out.payer.received,change:out.payer.change,method:out.payer.method,payments:out.payer.payments,prepay:!!out.payer.prepay,member:out.payer.member,yan:memberUser?yanOut:undefined,member_created:!!memberUser?.created,closed,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut,warning:regWarn||undefined});
+    const invoiceOut=await storeInvoiceResult({id:orderId,table_no:s.table_no,items:orderLines,amount:out.amount,discount:out.discount,service_charge:out.service},invoice);
+    res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,service_charge:out.service||undefined,received:out.payer.received,change:out.payer.change,method:out.payer.method,payments:out.payer.payments,prepay:!!out.payer.prepay,member:out.payer.member,yan:memberUser?yanOut:undefined,member_created:!!memberUser?.created,closed,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut,warning:regWarn||undefined});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 app.post('/api/admin/orders/:id/invoice/issue',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -5421,7 +5421,7 @@ app.post('/api/admin/orders/:id/invoice/issue',auth,adminOnly,requireDb,wrap(asy
   const o=(await q('SELECT id,session_id,table_no,items,amount,status,invoice,payer FROM table_orders WHERE id=$1',[req.params.id])).rows[0];
   if(!o||!tableOrders.orderOwnedByVenues(o,venues))return res.status(404).json({error:'找不到這筆出餐單。'});
   if(o.status==='void')return res.status(409).json({error:'作廢的單不能補開發票。'});
-  o.discount=o.payer?.discount||null;
+  o.discount=o.payer?.discount||null;o.service_charge=o.payer?.service_charge||null;
   if(o.invoice?.status==='issued'){
     if(o.invoice.number)return res.json({ok:true,invoice:o.invoice});
     // ezPay 已開立但當時沒解析到號碼：用自訂編號＋金額查回來，不能重開（會重複開票）
@@ -5559,6 +5559,7 @@ app.post('/api/admin/orders/:id/items/:line/void',auth,adminOnly,requireDb,wrap(
   if(!o||!tableOrders.orderOwnedByVenues(o,venues))return res.status(404).json({error:'找不到這筆出餐單。'});
   let out;try{out=tableOrders.voidOrderLine(o,String(req.params.line),req.body?.reason);}catch(e){return res.status(e.status||400).json({error:e.message});}
   const refund=Math.max(0,Number(o.amount)-out.amount),method=o.payer?.method||null;
+  if(out.service)o.payer={...o.payer,service_charge:out.service};
   const cash_refund=req.body?.refund_cash===true?Math.min(refund,tableOrders.cashPaid(o.payer,o.amount)):0,event_key=cash_refund>0?`refund:${o.id}:${req.params.line}`:undefined;
   const payer={...o.payer,...(event_key?{drawer_refunds:{...o.payer?.drawer_refunds,[event_key]:cash_refund}}:{})};
   await client.query('UPDATE table_orders SET items=$2,amount=$3,payer=$4 WHERE id=$1',[o.id,JSON.stringify(out.items),out.amount,JSON.stringify(payer)]);

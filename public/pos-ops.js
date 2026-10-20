@@ -10,7 +10,7 @@ function tabSales(){ return '<div class="a-sec" id="sales-body"></div>'; }
 function tabHistory(){ return '<div class="a-sec" id="history-body"></div>'; }
 function tabLogs(){ return '<div class="a-sec" id="logs-body"></div>'; }
 let POS_OPT=null,POS_MENU_SCROLL=0,POS_LEFT_SCROLL=0,POS_CATS_LEFT=0;
-let ORDERS_TIMER=null,ORDERS_SEEN=null,PAYREQ_SEEN=null,POS_PAYREQ=null,POS_AA=null,POS_TIMER=null,POS_DATA=null,POS_TABLE='',POS_PICK=null,POS_QTY={},POS_SPLIT={},POS_MEMBER=false,POS_YAN={phone:'',name:'',balance:null},POS_INVOICE={mode:'paper'},POS_METHOD='cash',POS_CAT='',POS_DISCOUNT=null,POS_DISC_OPEN=false,POS_RECEIVED='',RESV_FROM='',RESV_DAYS=7,RESV_EDIT=null,RESV_HOURS=null,RESV_HOURS_ERR='',RESV_HOURS_OPEN=false,RESV_ADD_OPEN=false,SALES_DAY='',HIST_DAY='',HIST_Q='',HIST_OPEN=new Set(),REG_DATA=null,REG_CASH_OPEN=false,REG_CLOSE_OPEN=false,REG_COUNT_OPEN=false,REG_OPEN_FORM='',CLOCK_PIN='',CLOCK_MSG=null,SHIFT_WEEK='',SHIFT_FORM={},ATT_FROM='',ATT_TO='',STAFF_EDIT=null;
+let ORDERS_TIMER=null,ORDERS_SEEN=null,PAYREQ_SEEN=null,POS_PAYREQ=null,POS_AA=null,POS_TIMER=null,POS_DATA=null,POS_TABLE='',POS_PICK=null,POS_QTY={},POS_SPLIT={},POS_MEMBER=false,POS_YAN={phone:'',name:'',balance:null},POS_INVOICE={mode:'paper'},POS_METHOD='cash',POS_CAT='',POS_DISCOUNT=null,POS_DISC_OPEN=false,POS_SVC_WAIVE=null,POS_SVC_OPEN=false,POS_RECEIVED='',RESV_FROM='',RESV_DAYS=7,RESV_EDIT=null,RESV_HOURS=null,RESV_HOURS_ERR='',RESV_HOURS_OPEN=false,RESV_ADD_OPEN=false,SALES_DAY='',HIST_DAY='',HIST_Q='',HIST_OPEN=new Set(),REG_DATA=null,REG_CASH_OPEN=false,REG_CLOSE_OPEN=false,REG_COUNT_OPEN=false,REG_OPEN_FORM='',CLOCK_PIN='',CLOCK_MSG=null,SHIFT_WEEK='',SHIFT_FORM={},ATT_FROM='',ATT_TO='',STAFF_EDIT=null;
 const CHECKOUT_TIP='<b>這桌的帳</b><br>品項依點餐人分組；勾選左邊決定這次結哪些，組頭「只結這組」＝各付各的，「依人數分次收款」＝平均分攤；可分多次收款，全部結清自動清桌。數量旁「−／＋」改份數，品項有「本次結」可只結幾份。<br>'
  +'<b>＋ 加點</b>：展開菜單點品項，備註可點常用的。送單後會出現在「出餐」。<br>'
  +'<b>換桌／併桌、清桌</b>：搬到別桌或合併；客人走了、沒有未結帳的品項才清桌。<br>'
@@ -18,7 +18,7 @@ const CHECKOUT_TIP='<b>這桌的帳</b><br>品項依點餐人分組；勾選左�
  +'<b>折扣</b>：按「加折扣」選折％或折抵金額，原因必填。<br>'
  +'<b>付款</b>：選方式；現金輸入實收會算找零；「混合付款」每種方式各填金額，合計要等於應收。<br>'
  +'<b>電子發票</b>：預設不開立，可選紙本、統編、手機載具、自然人憑證、捐贈。<br>'
- +'<b>列印</b>：「列印出餐單」給現場（餐點單黑底橫幅、飲品單斜線橫幅，分兩張出）、「列印收據明細」給客人；收款後會自動出單並開錢櫃；日結核對現金時也會自動開錢櫃。<br>'
+ +'<b>列印</b>：送單時自動印出餐單給現場（餐點單黑底橫幅、飲品單斜線橫幅，分兩張出），三點水內用再多印一張「點餐明細」夾帳本夾給客人（加點也會補印，送餐時劃掉）；「列印收據明細」是結帳用；收款後會自動出單並開錢櫃；日結核對現金時也會自動開錢櫃。<br>'
  +'<b>QR</b>：顯示這桌的點餐 QR 給客人掃。<br>下方「這桌已結帳的單」可補印、補開發票或作廢。';
 const REG_DENOMS=[1000,500,100,50,10,5,1];
 const PAY_LABEL={cash:'現金',card:'信用卡',linepay:'LINE Pay',transfer:'轉帳',taishin:'信用卡',other:'其他',tappay:'線上刷卡',mixed:'混合付款'};
@@ -106,7 +106,7 @@ function bindReasonChips(host){
  * pickAmount：金額／數字用大鍵盤＋常用面額；digits 模式給統編這類固定位數
  * pickNote：備註＝常用詞可複選＋一欄補充
  * noteChips／fillChips：表單內嵌，按一下填進旁邊欄位（備註可複選、數值直接帶入） */
-const NOTE_PRESETS=['去冰','少冰','熱的','不要蔥','不要香菜','不辣','加辣','醬另放','分開裝','打包','先上'];
+const NOTE_PRESETS=['去冰（有小碎冰）','少冰','熱的','不要蔥','不要香菜','不辣','加辣','醬另放','分開裝','打包','先上'];
 const RESV_NOTE_PRESETS=['靠窗','嬰兒椅','慶生','素食','輪椅','安靜位','商務聚會','包場洽詢'];
 const PAUSE_PRESETS=['今日最後點餐 22:30','廚房忙碌，暫停加點 15 分鐘','包場活動中，暫停點餐'];
 const TABLE_ZONES=['A','B','C','D','E','F'];
@@ -609,8 +609,28 @@ function kitchenTicketSpec(o,kind,total=1){
   if(K)spec.push({kind:'banner',text:K.name,size:22,style:K.banner});
   return spec;
 }
+// 點餐明細（夾帳本夾給客人）：這次送出的品項、單價與小計，每項前面留 □ 給外場送餐時劃掉；不是收據、不含付款，結帳時另印收據明細
+function orderSlipSpec(o){
+  const lines=orderLines(o).filter(l=>!l.cancelled);
+  const spec=[{kind:'center',text:'點餐明細',size:26,bold:true},{kind:'center',text:ticketShop(o),size:20,bold:true},{kind:'center',text:ticketTableLabel(o),size:30,bold:true},{kind:'center',text:applicationTime(o.placed_at||o.paid_at),size:16},'dash'];
+  let total=0,count=0;
+  for(const l of lines){
+    const amt=(l.comp_reason?0:Number(l.price)||0)*l.qty;total+=amt;count+=l.qty;
+    spec.push({kind:'row',left:`□ ${l.zh} ×${l.qty}${l.comp_reason?'（贈）':''}`,right:num(amt),size:24,bold:true});
+    for(const p of partsOf(l))spec.push({kind:'wrap',text:'　　'+partText(p),size:18});
+    const opts=specParts(l).filter(p=>p.kind!=='default').map(p=>p.text);
+    if(opts.length)spec.push({kind:'wrap',text:'　　'+opts.join('／'),size:18});
+  }
+  spec.push('dash');
+  spec.push({kind:'row',left:`本次 ${count} 件`,right:'NT$'+num(total),size:22,bold:true});
+  const svc=MenuLib.serviceCharge?MenuLib.serviceCharge(lines.map(l=>l.comp_reason?{...l,price:0}:l),{takeout:isTakeoutNo(o.table_no)}):null;
+  if(svc)spec.push({kind:'left',text:'三點水另加 10% 服務費，結帳時計算',size:16});
+  spec.push({kind:'center',text:'送到一項劃一項；加點會再印一張',size:16});
+  spec.push({kind:'center',text:'用餐完請到櫃檯結帳，謝謝',size:18,bold:true});
+  return spec;
+}
 function receiptTicketSpec(o){
-  const p=o.payer||{},d=p.discount,inv=o.invoice||{},rd=redeemOf(o),sub=Number(o.amount)+(d?Number(d.amount)||0:0)+rd.value;
+  const p=o.payer||{},d=p.discount,sc=p.service_charge,svcAmt=Number(sc?.amount)||0,inv=o.invoice||{},rd=redeemOf(o),sub=Number(o.amount)+(d?Number(d.amount)||0:0)+rd.value-svcAmt;
   const spec=[{kind:'center',text:'收據明細',size:24,bold:true},{kind:'center',text:ticketShop(o),size:22,bold:true},{kind:'center',text:'言文字｜台灣人才聚落',size:16},{kind:'center',text:ticketTableLabel(o),size:22,bold:true},{kind:'center',text:applicationTime(o.paid_at||o.placed_at),size:16},'dash'];
   for(const l of o.items||[]){
     spec.push({kind:'row',left:`${l.zh} ×${l.qty}${ticketLineMark(l)}`,right:num(lineShown(l)),size:20});
@@ -619,7 +639,7 @@ function receiptTicketSpec(o){
     if(l.cancelled&&l.cancel_reason)spec.push({kind:'wrap',text:'　取消：'+l.cancel_reason,size:16});
   }
   spec.push('dash');
-  if(d||rd.points){spec.push({kind:'row',left:'小計',right:num(sub),size:20});if(d)spec.push({kind:'row',left:'折扣 '+discountText(d),right:'−'+num(d.amount),size:20});if(rd.points)spec.push({kind:'row',left:`點數兌換 ${num(rd.points)} 點`,right:'−'+num(rd.value),size:20});}
+  if(d||rd.points||sc){spec.push({kind:'row',left:'小計',right:num(sub),size:20});if(d)spec.push({kind:'row',left:'折扣 '+discountText(d),right:'−'+num(d.amount),size:20});if(rd.points)spec.push({kind:'row',left:`點數兌換 ${num(rd.points)} 點`,right:'−'+num(rd.value),size:20});if(sc)spec.push({kind:'row',left:sc.waived?'服務費 10%（免收）':'服務費 10%',right:sc.waived?'0':'+'+num(svcAmt),size:20});}
   spec.push({kind:'row',left:'合計',right:'NT$'+num(o.amount),size:26,bold:true});
   spec.push({kind:'left',text:payText(o)+(p.member?' · 聚落價':''),size:18});
   if(p.received!=null)spec.push({kind:'row',left:'實收 '+num(p.received),right:'找零 '+num(p.change),size:20});
@@ -694,7 +714,7 @@ async function pollKitchenPrinting(){
       try{
         const claim=await api('/admin/orders/kitchen-print-jobs/'+encodeURIComponent(job.id)+'/claim',{method:'POST',body:{operator_id:OPERATOR?.id}});
         if(!claim.claimed)continue;
-        const ok=await printOrder(claim.job,{auto:true});
+        const ok=await printOrder(claim.job,{auto:true,slip:true});
         if(!ok)throw Error('未確認印表機成功');
       }catch(e){KITCHEN_PRINT_PAUSED=true;toast('出餐單 '+job.id+' 未確認列印：'+e.message+'；已暫停自動列印，請檢查紙張並手動補印，再到出餐頁按「恢復自動出單」。');if(typeof document!=='undefined'){const ob=document.getElementById?.('orders-body');if(ob?.querySelector?.('.kds-grid')){ob.dataset.sig='';loadOrders();}}break;}
     }
@@ -720,12 +740,15 @@ function checkoutHardware(drawer,order,paidText){
 }
 // 出餐單（給現場）：桌號大字、依類別分段列品項與備註；不印價錢與付款，避免出餐時分心。
 // 餐點與飲品分兩張印（餐點單黑底橫幅＋實心邊條、飲品單斜線橫幅＋虛線邊條）；任一張失敗就回 false，交給自動出單暫停流程
-async function printOrder(o,{auto=false}={}){
+async function printOrder(o,{auto=false,slip=false}={}){
   const tickets=ticketParts(o);
   if(starReady()){
     if(!tickets.length)return true;
     let ok=true;
     for(const t of tickets){const r=await starSend({canvas:ticketCanvas(kitchenTicketSpec(t.order,t.kind,t.total))});if(!r){toast(TICKET_KIND[t.kind].name+'未印出，請到查單補印');ok=false;break;}}
+    // 帳本夾（10/19 員工大會 K4）：每次送單（含加點）多印一張點餐明細給客人，送餐時在上面劃掉已送的品項
+    // 只給三點水內用：白天在咖啡走自助（只送餐），外帶沒有帳本夾
+    if(ok&&slip&&!isTakeoutNo(o.table_no)&&(o.items||[]).some(l=>l.venue==='BAR')){const r=await starSend({canvas:ticketCanvas(orderSlipSpec(o))});if(!r){toast('點餐明細未印出，請到查單補印');ok=false;}}
     return ok;
   }
   if(auto){starHint();return false;}
@@ -742,11 +765,11 @@ function kitchenTicketHtml(o){
 async function printReceipt(o,{auto=false}={}){
   if(starReady()){const ok=await starSend({canvas:ticketCanvas(receiptTicketSpec(o))});if(!ok)toast('收據明細未印出，請再補印');return ok;}
   if(auto){starHint();return false;}
-  const p=o.payer||{},d=p.discount,inv=o.invoice||{},rd=redeemOf(o),sub=Number(o.amount)+(d?Number(d.amount)||0:0)+rd.value;
+  const p=o.payer||{},d=p.discount,sc=p.service_charge,svcAmt=Number(sc?.amount)||0,inv=o.invoice||{},rd=redeemOf(o),sub=Number(o.amount)+(d?Number(d.amount)||0:0)+rd.value-svcAmt;
   const shop=ticketShop(o);
   const lines=(o.items||[]).map(l=>`<div class="l"><span>${esc(l.zh)} ×${l.qty}${l.cancelled?'（已取消'+(l.cancel_reason?'：'+esc(l.cancel_reason):'')+'）':l.comp_reason?'（贈送）':l.redeem_points>0?'（點數兌換）':''}</span><span>${num(lineShown(l))}</span></div>${l.note?`<div class="n">${esc(l.note)}</div>`:''}`).join('');
   printWindow(`收據明細 ${o.table_no}`,`<h1>${esc(shop)}</h1><div class="c">收據明細</div><div class="m">言文字｜台灣人才聚落</div><div class="m">${esc(ticketTableLabel(o))} · ${esc(applicationTime(o.paid_at))}</div>${lines}
-    ${d||rd.points?`<div class="t"><span>小計</span><span>${num(sub)}</span></div>${d?`<div class="l"><span>折扣 ${esc(discountText(d))}</span><span>−${num(d.amount)}</span></div>`:''}${rd.points?`<div class="l"><span>點數兌換 ${num(rd.points)} 點</span><span>−${num(rd.value)}</span></div>`:''}`:''}
+    ${d||rd.points||sc?`<div class="t"><span>小計</span><span>${num(sub)}</span></div>${d?`<div class="l"><span>折扣 ${esc(discountText(d))}</span><span>−${num(d.amount)}</span></div>`:''}${rd.points?`<div class="l"><span>點數兌換 ${num(rd.points)} 點</span><span>−${num(rd.value)}</span></div>`:''}${sc?`<div class="l"><span>服務費 10%${sc.waived?'（免收）':''}</span><span>${sc.waived?'0':'+'+num(svcAmt)}</span></div>`:''}`:''}
     <div class="t big"><span>合計</span><span>NT$${num(o.amount)}</span></div>
     <div class="l"><span>${esc(payText(o))}${p.member?' · 聚落價':''}</span><span>${p.received!=null?`實收 ${num(p.received)}　找零 ${num(p.change)}`:''}</span></div>
     ${inv.number?`<div class="m" style="margin-top:6px">發票 ${esc(inv.number)}${inv.random?` 隨機碼 ${esc(inv.random)}`:''}</div>`:''}
@@ -934,11 +957,30 @@ function posTotals(cur){
   const regular=picked.reduce((a,l)=>a+(l.comp_reason?0:l.price)*l.qty,0);
   const subtotal=picked.reduce((a,l)=>a+priceOf(l)*l.qty,0);
   let discount=0;if(POS_DISCOUNT){discount=POS_DISCOUNT.type==='percent'?Math.round(subtotal*POS_DISCOUNT.value/100):Math.min(subtotal,POS_DISCOUNT.value);}
+  // 三點水服務費 10%（11/1 起；外帶、在咖啡不收）：跟伺服器同一套 MenuLib.serviceCharge；客訴免收時 svc 記原本該收多少
+  const svcCalc=MenuLib.serviceCharge?MenuLib.serviceCharge(picked.map(l=>({...l,price:priceOf(l)})),{takeout:cur.takeout,discount}):null;
+  const svc=svcCalc?(POS_SVC_WAIVE?{...svcCalc,would:svcCalc.amount,amount:0,waived:true,reason:POS_SVC_WAIVE.reason}:svcCalc):null;
   const pts=redeemSet?picked.reduce((a,l)=>{const it=menuById.get(l.item_id);return a+(redeemSet.has(l.line)&&!l.comp_reason&&it&&it.points>0?it.points*l.qty:0);},0):0;
-  return {priceOf,picked,regular,subtotal,discount,pts,menuById,total:subtotal-discount};
+  return {priceOf,picked,regular,subtotal,discount,svc,pts,menuById,total:subtotal-discount+(svc?svc.amount:0)};
+}
+// 低消（三點水 11/1 起，每人平日 300／假日 600）：看整桌三點水品項（不含贈送／取消／預收），人數用 POS 設定的來客人數；只提醒、不自動補收
+function minSpendState(cur){
+  if(!MenuLib.minSpendOf||cur.takeout)return null;
+  const goods=cur.lines.filter(l=>!l.credit_of&&!l.prepay&&!l.cancelled&&l.venue==='BAR');
+  if(!goods.length)return null;
+  const spent=goods.reduce((a,l)=>a+(l.comp_reason?0:l.price)*l.qty,0);
+  if(!MenuLib.barPolicyActive())return null;
+  const m=MenuLib.minSpendOf(cur.party_size);
+  if(!m)return {needParty:true,spent};
+  return {...m,spent,short:Math.max(0,m.total-spent)};
+}
+function minSpendHtml(ms){
+  if(!ms)return '';
+  if(ms.needParty)return `<div class="pos-sum-min"><span><span class="pill pill-wait">低消</span> 請先按「設定人數」，才能核對低消</span><span></span></div>`;
+  return `<div class="pos-sum-min ${ms.short?'short':''}"><span><span class="pill ${ms.short?'pill-bad':'pill-ok'}">低消</span> ${ms.weekend?'假日':'平日'}每人 ${num(ms.per)} × ${ms.people} 位＝${num(ms.total)}${ms.short?`，還差 NT$${num(ms.short)}`:'，已達'}</span><span></span></div>`;
 }
 // 進入平均分攤：全桌一起算（取消勾選與份數）、清掉折扣（分攤不套折扣）；人數記在 POS_AA，第幾人由桌上的抵扣行數推算
-function startAA(people){POS_AA={people};POS_PICK=null;POS_QTY={};POS_DISCOUNT=null;POS_DISC_OPEN=false;POS_RECEIVED='';POS_SPLIT={};}
+function startAA(people){POS_AA={people};POS_PICK=null;POS_QTY={};POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_DISC_OPEN=false;POS_RECEIVED='';POS_SPLIT={};}
 /* 水平滑動手勢：垂直捲動不受影響（touch-action:pan-y）；超過 min 像素且橫向大於縱向才算滑動 */
 function bindSwipe(el,{dir='right',min=100,follow=false,onSwipe}){
   if(!el||!el.dataset||!el.addEventListener||el.dataset.swipe)return;el.dataset.swipe='1';if(el.style)el.style.touchAction='pan-y';
@@ -1072,7 +1114,7 @@ async function linepayCheckout(cur,host){
       cur.linepay=out;
       if(out.state==='settled'){
         toast(`LINE Pay 已確認實收 NT$${num(out.amount)}${out.result?.closed?'，已自動清桌':''}。列印失敗請重印，不可重新收款。`);
-        POS_PICK=null;POS_QTY={};POS_SPLIT={};POS_MEMBER=false;POS_YAN={phone:'',name:'',balance:null};POS_DISCOUNT=null;POS_RECEIVED='';
+        POS_PICK=null;POS_QTY={};POS_SPLIT={};POS_MEMBER=false;POS_YAN={phone:'',name:'',balance:null};POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_RECEIVED='';
         if(out.order)await printCheckoutOrder(out.order);
       }else if(out.state==='failed'){cur.linepay=null;toast('LINE Pay 拒絕付款（'+(out.code||'FAIL')+'），未登記實收；請確認客人付款狀態後再選付款方式。');}
       else toast('原交易 '+out.id+' 結果尚未確認，帳單保持鎖定；請按「查詢原 LINE Pay 交易」，勿重新扣款或改收現金。');
@@ -1148,9 +1190,9 @@ function paintPos(){
   if(cur){
     if(POS_PICK)POS_PICK=new Set([...POS_PICK].filter(l=>cur.lines.some(x=>x.line===l)));
     for(const k of Object.keys(POS_QTY)){const x=cur.lines.find(l=>l.line===k);if(!x||POS_QTY[k]>=x.qty||POS_QTY[k]<1)delete POS_QTY[k];}
-    const t=posTotals(cur);picked=t.picked;subtotal=t.subtotal;total=t.total;priceOf=t.priceOf;const {discount,regular,pts}=t;const memberSaving=regular-subtotal;
+    const t=posTotals(cur);picked=t.picked;subtotal=t.subtotal;total=t.total;priceOf=t.priceOf;const {discount,regular,pts,svc}=t;const ms=minSpendState(cur);const memberSaving=regular-subtotal;
     // 平均分攤：全桌原價 ÷ 人數，前 N−1 人各收一份（走預收單，桌上留抵扣行），最後一人收剩餘（自動扣掉前面收的）。第幾人＝桌上已有幾行抵扣＋1
-    aa=POS_AA?(()=>{const people=POS_AA.people,index=cur.lines.filter(l=>l.credit_of).length+1,gross=cur.lines.filter(l=>!l.credit_of).reduce((a,l)=>a+(l.comp_reason?0:l.price)*l.qty,0),each=Math.floor(gross/people);return {people,index,gross,each,last:index>=people};})():null;
+    aa=POS_AA?(()=>{const people=POS_AA.people,index=cur.lines.filter(l=>l.credit_of).length+1,goods=cur.lines.filter(l=>!l.credit_of).map(l=>l.comp_reason?{...l,price:0}:l),sv=MenuLib.serviceCharge?MenuLib.serviceCharge(goods,{takeout:cur.takeout}):null,gross=goods.reduce((a,l)=>a+l.price*l.qty,0)+(sv?sv.amount:0),each=Math.floor(gross/people);return {people,index,gross,each,last:index>=people};})():null;
     if(aa&&!aa.last)total=aa.each;
     const rowOf=l=>l.credit_of?`<tr class="pos-credit"><td><input type="checkbox" data-pick="${esc(l.line)}" ${!POS_PICK||POS_PICK.has(l.line)?'checked':''} aria-label="選取 ${esc(l.zh)}"></td><td class="ops-item"><b>已預收</b> <span class="pill pill-ok">部分付款</span><br><span class="hint hint--tight">${esc(clockText(l.added_at))} 先收，這次結帳自動抵扣；要取消請到查單作廢那張「部分付款」單</span></td><td class="pos-qty-col"></td><td class="num">−${num(-l.price)}</td><td class="ops-actions"></td></tr>`:`<tr class="${l.comp_reason?'pos-comp':''}${POS_OPT?.line===l.line?' is-editing':''}" data-edit-line="${esc(l.line)}"><td><input type="checkbox" data-pick="${esc(l.line)}" ${!POS_PICK||POS_PICK.has(l.line)?'checked':''} aria-label="選取 ${esc(l.zh)}"></td><td class="ops-item">${itemThumb((MENU_DOC?.items||[]).find(x=>x.id===l.item_id)||{zh:l.zh},'pos-line__img')}<b>${esc(l.zh)}</b>${l.comp_reason?` <span class="pill pill-ok">贈送</span>`:''}${POS_YAN.redeemSet?.has(l.line)?` <span class="pill pill-ok">點數兌換</span>`:''}${l.served_at?' <span class="pill pill-draft">已出餐</span>':l.placed_at?' <span class="pill pill-wait">待出餐</span>':''}${partsOf(l).length?`<br><span class="pos-line-parts">${partsOf(l).map(p=>esc(partText(p)+(p.note?'（'+p.note+'）':''))).join('<br>')}</span>`:''}${l.note?`<br><span class="pos-line-note">${esc(l.note)}</span>`:''}${l.by||l.comp_reason?`<br><span class="hint hint--tight">${[l.by?'由 '+esc(l.by)+' 點':'',l.comp_reason?esc(l.comp_reason):''].filter(Boolean).join(' · ')}</span>`:''}</td><td class="pos-qty-col"><div class="pos-qty"><button type="button" data-qty="${esc(l.line)}" data-delta="-1" aria-label="減少">−</button><b>${l.qty}</b><button type="button" data-qty="${esc(l.line)}" data-delta="1" aria-label="增加">＋</button></div>${l.qty>1&&(!POS_PICK||POS_PICK.has(l.line))?`<div class="pos-part-wrap"><span class="pos-part-lbl">這次只結（共 ${l.qty} 份）</span><div class="pos-qty pos-part" title="這次只結幾份"><button type="button" data-part="${esc(l.line)}" data-delta="-1" aria-label="少結一份">−</button><b>${POS_QTY[l.line]||l.qty}</b><button type="button" data-part="${esc(l.line)}" data-delta="1" aria-label="多結一份">＋</button></div></div>`:''}</td><td class="num pos-amt"><b>${num(priceOf(l)*l.qty)}</b>${l.qty>1?`<br><span class="hint hint--tight">${num(priceOf(l))} × ${l.qty}</span>`:''}${priceOf(l)!==l.price||l.comp_reason?`<br><span class="hint hint--tight"><s>${num((l.regular_price||l.price)*l.qty)}</s></span>`:''}</td><td class="ops-actions"><details class="ops-more"><summary class="btn btn--ghost btn-sm" aria-label="更多操作">⋯</summary><div class="ops-btns">${(()=>{const it=POS_YAN.id&&!l.comp_reason&&!l.credit_of?(MENU_DOC?.items||[]).find(x=>x.id===l.item_id):null;return it&&it.points>0?`<button class="btn btn--sm ${POS_YAN.redeemSet?.has(l.line)?'btn--solid':'btn--ghost'}" data-redeem="${esc(l.line)}" data-pts="${it.points*l.qty}">${POS_YAN.redeemSet?.has(l.line)?'取消兌換':'點數兌換 '+it.points*l.qty+' 點'}</button>`:'';})()}<button class="btn btn--ghost btn-sm" data-comp="${esc(l.line)}" data-on="${l.comp_reason?'0':'1'}">${l.comp_reason?'取消贈送':'贈送'}</button><button class="btn btn--ghost btn-sm" data-note-edit="${esc(l.line)}">${l.note?'改備註':'備註'}</button><button class="btn btn--ghost btn--danger btn-sm" data-void-line="${esc(l.line)}">作廢</button></div></details></td></tr>`;
     // 品項依點餐人分組（同桌各自掃碼點的名字）：組頭列出稱呼、幾項、小計與「只結這組」；只有一個人點的就不加組頭
@@ -1189,12 +1231,14 @@ function paintPos(){
         <button type="button" class="pos-member-entry ${POS_YAN.name||POS_YAN.phone?'has':''}" id="pos-member-open" aria-haspopup="dialog">${POS_YAN.name||POS_YAN.phone?`<span><b>${esc(POS_YAN.name||POS_YAN.phone)}</b><small>${esc(POS_YAN.id?(POS_MEMBER?'有效會籍 · 聚落價':'註冊會員 · 無聚落價'):POS_YAN.created?'新會員 · 累點':'手機 · 累點')}${POS_YAN.id?' · '+num(POS_YAN.balance||0)+' 點':''}</small></span>`:'<span><b>會員</b><small>輸入手機累點，不是會員自動新增</small></span>'}<i aria-hidden="true">›</i></button>
         <div class="pos-methods" role="radiogroup" aria-label="付款方式">${payMethodsActive().map(pm=>`<label class="pos-method" title="${esc(pm.label)}"><input type="radio" name="pos-method" value="${esc(pm.code)}" aria-label="${esc(pm.label)}" ${pm.code===POS_METHOD?'checked':''}><span><i aria-hidden="true">${PAY_ICON[pm.code]||PAY_ICON.card}</i><b>${esc(PAY_SHORT[pm.code]||pm.label)}</b></span></label>`).join('')}</div>${splitUI}
         <div class="pos-sum">
-          <div class="pos-sum-sub" ${(POS_PICK&&POS_PICK.size<cur.lines.length)||Object.keys(POS_QTY).length||memberSaving>0||discount?'':'hidden'}><span>${(POS_PICK&&POS_PICK.size<cur.lines.length)||Object.keys(POS_QTY).length?`部分結帳 ${picked.length}／${cur.lines.length} 項`:memberSaving>0?'小計（原價）':'小計'}</span><span>NT$${num(regular)}</span></div>
+          <div class="pos-sum-sub" ${(POS_PICK&&POS_PICK.size<cur.lines.length)||Object.keys(POS_QTY).length||memberSaving>0||discount||svc?'':'hidden'}><span>${(POS_PICK&&POS_PICK.size<cur.lines.length)||Object.keys(POS_QTY).length?`部分結帳 ${picked.length}／${cur.lines.length} 項`:memberSaving>0?'小計（原價）':'小計'}</span><span>NT$${num(regular)}</span></div>
           ${POS_YAN.id||memberSaving>0?`<div class="pos-sum-member"><span>${POS_YAN.id?(POS_MEMBER?'<span class="pill pill-ok">有效會籍</span> 已套聚落價':'<span class="pill pill-wait">註冊會員</span> 無有效會籍，不適用聚落價'):'聚落價'}</span><span>${POS_MEMBER&&memberSaving?'−'+num(memberSaving):'—'}</span></div>`:''}
 
           ${aa?`<div class="pos-sum-aa"><span><span class="pill pill-wait">平均分攤</span> ${aa.people} 人 · 每人 NT$${num(aa.each)}${aa.gross%aa.people?`，尾差 NT$${num(aa.gross%aa.people)} 併入最後一人`:''}</span><span><b>${aa.last?'最後一人':`第 ${aa.index}／${aa.people} 人`}</b> <button type="button" class="btn btn--ghost btn-xs" id="pos-aa-clear">取消分攤</button></span></div>`:`<div class="pos-sum-aa"><span>平均分攤</span><button type="button" class="btn btn--ghost btn-xs" id="pos-aa-open" ${cur.lines.some(l=>!l.credit_of)?'':'disabled'}>分次收款</button></div>`}
           <div class="pos-sum-disc" ${aa?'hidden':''}><span>折扣 ${POS_DISCOUNT?`<span class="pill pill-ok">${esc(discountText(POS_DISCOUNT))}</span> <button type="button" class="btn btn--ghost btn-xs" id="pos-disc-clear">移除</button>`:`<button type="button" class="btn btn--ghost btn-xs" id="pos-disc-open">${POS_DISC_OPEN?'收起':'加折扣'}</button>`}</span><span>${discount?'−'+num(discount):'—'}</span></div>
           ${discountUI}
+          ${svc&&!aa?`<div class="pos-sum-svc"><span>服務費 10% ${svc.waived?`<span class="pill pill-wait">免收：${esc(svc.reason)}</span> <button type="button" class="btn btn--ghost btn-xs" id="pos-svc-restore">恢復收取</button>`:`<button type="button" class="btn btn--ghost btn-xs" id="pos-svc-open">${POS_SVC_OPEN?'收起':'免收（客訴）'}</button>`}</span><span>${svc.waived?`<s>${num(svc.would)}</s> 0`:'+'+num(svc.amount)}</span></div>${POS_SVC_OPEN&&!svc.waived?`<div class="pos-discount-form" id="pos-svc-form"><input id="pos-svc-reason" maxlength="40" placeholder="免收原因（例如：客訴、上菜太慢）" aria-label="免收服務費原因"><button type="button" class="btn btn--solid btn-sm" id="pos-svc-apply">免收服務費</button></div>`:''}`:svc&&aa?`<div class="pos-sum-svc"><span>服務費 10%</span><span>已含在分攤金額</span></div>`:''}
+          ${minSpendHtml(ms)}
                     ${cash?`<div class="pos-cash"><label>${mixed?'現金實收':'實收'}<input id="pos-received" type="number" inputmode="numeric" min="0" step="1" placeholder="客人給的現金" value="${esc(POS_RECEIVED)}" aria-label="實收金額"></label><div class="pos-cash-quick">${quick.map(n=>`<button type="button" data-received="${n}">${n===cashDue?'剛好':'$'+num(n)}</button>`).join('')}</div></div>`:''}
         </div>
         <div class="pos-invoice"><div class="pos-invoice-head"><b>電子發票</b> <span class="pos-inv-badge hint hint--tight" data-off="${POS_INVOICE.mode?'':'1'}">${POS_INVOICE.mode?INV_LABEL[POS_INVOICE.mode]:'不開立'}</span>${DATA?.invoice?.configured?'':'<span class="pos-inv-warn">ezPay 尚未設定，先記為待補開</span>'}</div><div class="pos-invoice-body"><div class="pos-invoice-types">${[['paper','紙本'],['company','統編'],['mobile','手機載具'],['citizen','自然人憑證'],['donate','捐贈'],['','不開立']].map(([m,l])=>`<label><input type="radio" name="pos-invoice" value="${m}" ${POS_INVOICE.mode===m?'checked':''}><span>${l}</span></label>`).join('')}</div><div class="pos-invoice-fields"><div class="pos-inv-row" data-inv-modes="company"><input name="buyer_ubn" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="統編 8 碼" value="${esc(POS_INV_VALS.buyer_ubn||'')}"><div class="pos-ubn-result hint" id="pos-ubn-result" aria-live="polite" data-name="${esc(POS_INV_VALS.ubn_name||'')}" data-state="${esc(POS_INV_VALS.ubn_state||'')}">${esc(POS_INV_VALS.ubn_text||'')}</div></div><div class="pos-inv-row" data-inv-modes="mobile,citizen"><div class="pos-inv-scan-row"><input name="carrier_num" autocapitalize="characters" maxlength="64" placeholder="手機條碼 /ABC1234" value="${esc(POS_INV_VALS.carrier_num||'')}"><button type="button" class="btn btn--ghost btn-xs" id="pos-invoice-scan" data-inv-modes="mobile">📷 掃描</button></div><video id="pos-invoice-video" playsinline muted></video></div><div class="pos-inv-row" data-inv-modes="donate"><input name="love_code" inputmode="numeric" pattern="[0-9]*" maxlength="20" placeholder="愛心碼" value="${esc(POS_INV_VALS.love_code||'')}"></div><div class="pos-inv-row" data-inv-modes="paper,company,mobile,citizen,donate"><input name="comment" maxlength="80" placeholder="發票備註（選填）" value="${esc(POS_INV_VALS.comment||'')}"></div></div></div></div>
@@ -1207,16 +1251,16 @@ function paintPos(){
   host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="pos-tables-row"><div class="pos-tables-main"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('客人掃桌上 QR 點餐後，點該桌看帳、結帳；外帶按「＋ 外帶」；客人沒掃碼要櫃檯點餐時，直接點空桌開桌。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div><div class="pos-board">${floor}<div class="pos-grid">${grid}</div></div></div><aside class="pos-takeouts" aria-label="外帶單" data-slot="${TAKEOUT_SLOT}"><div class="ops-head"><h2>外帶${takeouts.length?` <span class="kds-count">${takeouts.length}</span>`:''}</h2></div><div class="pos-takeout-list">${takeouts.length?takeouts.map(cardHtml).join(''):'<p class="hint">沒有外帶單</p>'}</div></aside></div>${opener}<div class="pos-sub">${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">錢櫃</button></div>'}</div></div>${panel}</div>`;
   {const m=host.querySelector('.pos-menu');if(m&&POS_MENU_SCROLL)m.scrollTop=POS_MENU_SCROLL;const c=host.querySelector('.pos-cats');if(c&&POS_CATS_LEFT)c.scrollLeft=POS_CATS_LEFT;const l=host.querySelector('.pos-mid');if(l&&POS_LEFT_SCROLL){l.scrollTop=POS_LEFT_SCROLL;if(POS_LEFT_SCROLL===1e9)POS_LEFT_SCROLL=l.scrollTop;}}
   if(!document.getElementById('p-drawer'))bindCashDrawerButton(host.querySelector('#pos-cash-drawer'));
-  host.querySelectorAll('[data-pos-table]').forEach(b=>b.onclick=()=>{POS_TABLE=b.dataset.posTable;POS_OPT=null;POS_MENU_SCROLL=0;POS_LEFT_SCROLL=0;POS_PICK=null;POS_QTY={};POS_PAYREQ=null;POS_YAN={phone:'',name:'',balance:null};POS_MEMBER=false;POS_SPLIT={};POS_DISCOUNT=null;POS_DISC_OPEN=false;POS_INV_VALS={};POS_RECEIVED='';POS_AA=null;paintPos();});
+  host.querySelectorAll('[data-pos-table]').forEach(b=>b.onclick=()=>{POS_TABLE=b.dataset.posTable;POS_OPT=null;POS_MENU_SCROLL=0;POS_LEFT_SCROLL=0;POS_PICK=null;POS_QTY={};POS_PAYREQ=null;POS_YAN={phone:'',name:'',balance:null};POS_MEMBER=false;POS_SPLIT={};POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_DISC_OPEN=false;POS_INV_VALS={};POS_RECEIVED='';POS_AA=null;paintPos();});
   // 開桌／外帶：每次都先輸入 PIN 認人，記這桌是誰開的（與結帳、作廢、開錢櫃一致）
-  const openSession=body=>ensureOperator(()=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{...body,operator_id:OPERATOR?.id}}),out=>out.takeout?`外帶單 ${out.table} 已開，請加入品項`:out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,out=>{POS_TABLE=out.table;POS_PICK=null;POS_DISCOUNT=null;POS_RECEIVED='';return reload();}));
+  const openSession=body=>ensureOperator(()=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{...body,operator_id:OPERATOR?.id}}),out=>out.takeout?`外帶單 ${out.table} 已開，請加入品項`:out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,out=>{POS_TABLE=out.table;POS_PICK=null;POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_RECEIVED='';return reload();}));
   // 空桌格：直接點就開桌，不用再打字輸入桌號；這桌有已確認的訂位時，開桌後順手問要不要把訂位標成「已到」（訂位頁就不用再點一次）
   host.querySelectorAll('[data-open-table]').forEach(b=>b.onclick=async()=>{
     const table=b.dataset.openTable,r=((POS_DATA?.reservations||{})[table]||[]).find(x=>x.status==='confirmed');
     if(!r)return openSession({table_no:table});
     const arrive=await posConfirm(`${table} 有訂位：${r.time} ${r.name} ${r.party_size} 位。\n開桌並把這筆訂位標成「已到」？`,{ok:'已到，開桌',cancel:'只開桌'});
     ensureOperator(()=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{table_no:table,operator_id:OPERATOR?.id}}),out=>out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,async out=>{
-      POS_TABLE=out.table;POS_PICK=null;POS_DISCOUNT=null;POS_RECEIVED='';
+      POS_TABLE=out.table;POS_PICK=null;POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_RECEIVED='';
       if(arrive){try{await api('/admin/reservations/'+r.id+'/status',{method:'POST',body:{status:'arrived',notify:false}});toast(`訂位 ${r.name} 已標記「已到」`);}catch(e){toast('訂位狀態沒更新：'+e.message);}}
       return reload();
     }));
@@ -1246,7 +1290,7 @@ function paintPos(){
   if(!cur)return;
   // 這桌的點餐 QR：桌號旁的「QR」鈕，開面板直接顯示這桌（要印全部桌還是按面板裡的「全部固定桌」）
   const qrBtn=host.querySelector('#pos-table-qr');if(qrBtn)qrBtn.onclick=()=>openTableQr(cur.table);
-  host.querySelector('#pos-back').onclick=()=>{POS_TABLE='';POS_OPT=null;POS_PICK=null;POS_QTY={};POS_PAYREQ=null;POS_SPLIT={};POS_DISCOUNT=null;POS_DISC_OPEN=false;POS_INV_VALS={};POS_RECEIVED='';POS_AA=null;paintPos();};
+  host.querySelector('#pos-back').onclick=()=>{POS_TABLE='';POS_OPT=null;POS_PICK=null;POS_QTY={};POS_PAYREQ=null;POS_SPLIT={};POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_DISC_OPEN=false;POS_INV_VALS={};POS_RECEIVED='';POS_AA=null;paintPos();};
   // 客人送來的結帳需求：點一下把那幾項勾好（其餘取消勾選），再照一般流程選付款方式收款；✕＝關掉這筆（品項不動）
   host.querySelectorAll('[data-payreq]').forEach(b=>b.onclick=()=>{const r=(cur.pay_requests||[]).find(x=>x.id===b.dataset.payreq);if(!r)return;if(r.scope==='split'&&r.people){startAA(r.people);POS_PAYREQ=r.id;paintPos();return;}const set=new Set(r.lines.filter(l=>cur.lines.some(x=>x.line===l)));POS_PICK=set.size===cur.lines.length?null:set;POS_QTY={};POS_PAYREQ=r.id;paintPos();toast(`已選取 ${r.name} 要付的 ${set.size} 項`);});
   host.querySelectorAll('[data-payreq-dismiss]').forEach(b=>b.onclick=()=>opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/pay-requests/'+b.dataset.payreqDismiss,{method:'DELETE'}),'已關閉這筆結帳需求',()=>{if(POS_PAYREQ===b.dataset.payreqDismiss)POS_PAYREQ=null;return reload();}));
@@ -1297,7 +1341,10 @@ function paintPos(){
   // 常用折扣：一鍵帶入類型與數值，原因仍要選（按「套用」才生效）
   host.querySelectorAll('[data-disc-quick]').forEach(b=>b.onclick=()=>{const [t,v]=b.dataset.discQuick.split(':');host.querySelector('#pos-disc-type').value=t;host.querySelector('#pos-disc-value').value=v;host.querySelectorAll('[data-disc-quick]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));});
   const discOpen=host.querySelector('#pos-disc-open');if(discOpen)discOpen.onclick=()=>{POS_DISC_OPEN=!POS_DISC_OPEN;paintPos();host.querySelector('#pos-disc-value')?.focus();};
-  const discClear=host.querySelector('#pos-disc-clear');if(discClear)discClear.onclick=()=>{POS_DISCOUNT=null;POS_DISC_OPEN=false;paintPos();};
+  const svcOpen=host.querySelector('#pos-svc-open');if(svcOpen)svcOpen.onclick=()=>{POS_SVC_OPEN=!POS_SVC_OPEN;paintPos();host.querySelector('#pos-svc-reason')?.focus();};
+  const svcRestore=host.querySelector('#pos-svc-restore');if(svcRestore)svcRestore.onclick=()=>{POS_SVC_WAIVE=null;POS_SVC_OPEN=false;paintPos();};
+  const svcApply=host.querySelector('#pos-svc-apply');if(svcApply)svcApply.onclick=()=>{const reason=host.querySelector('#pos-svc-reason').value.trim();if(!reason){toast('請填寫免收服務費的原因');host.querySelector('#pos-svc-reason').focus();return;}POS_SVC_WAIVE={reason};POS_SVC_OPEN=false;paintPos();};
+  const discClear=host.querySelector('#pos-disc-clear');if(discClear)discClear.onclick=()=>{POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_DISC_OPEN=false;paintPos();};
   const discCancel=host.querySelector('#pos-disc-cancel');if(discCancel)discCancel.onclick=()=>{POS_DISC_OPEN=false;paintPos();};
   const discApply=host.querySelector('#pos-disc-apply');if(discApply)discApply.onclick=()=>{const type=host.querySelector('#pos-disc-type').value,value=Number(host.querySelector('#pos-disc-value').value),reason=host.querySelector('#pos-disc-reason').value.trim();
     if(!Number.isInteger(value)||value<1||(type==='percent'&&value>100)){toast(type==='percent'?'折扣％須為 1–100':'折抵金額須為正整數');return;}
@@ -1368,10 +1415,10 @@ function paintPos(){
     const unserved=picked.filter(l=>!l.credit_of&&!l.served_at);
     if(!await posConfirm(`${cur.takeout?'外帶':'桌號'} ${cur.table}：${aa?`平均分攤最後一人，收剩餘 NT$${num(total)}。`:''}餐點都到齊了嗎？${unserved.length?`\n尚未出餐：${unserved.map(l=>`${l.zh}×${POS_QTY[l.line]||l.qty}`).join('、')}`:''}`,{ok:'已到齊，收款'}))return;
     // 收款前一定要先認人（沒選過操作人員會先跳鍵盤），讓每一筆單都記得是誰經手
-    return ensureOperator(()=>runCheckoutOnce(cur.id,async()=>{const checkout=host.querySelector('#pos-checkout');checkout.disabled=true;try{const member_id=POS_YAN.id||undefined;const member_phone=member_id?undefined:((host.querySelector('#pos-yan-phone')?.value||POS_YAN.phone||'').trim()||undefined);return await opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/checkout',{method:'POST',body:{method,payments,member:POS_MEMBER,member_id,member_phone,redeem_lines:(member_id&&POS_YAN.redeemSet?.size)?picked.filter(l=>POS_YAN.redeemSet.has(l.line)).map(l=>l.part_of||l.line):undefined,redeem_lines:(member_id&&POS_YAN.redeemSet?.size)?picked.filter(l=>POS_YAN.redeemSet.has(l.line)).map(l=>l.part_of||l.line):undefined,lines:POS_PICK?[...POS_PICK]:Object.keys(POS_QTY).length?cur.lines.map(l=>l.line):[],quantities:Object.keys(POS_QTY).length?{...POS_QTY}:undefined,invoice:invoiceBody(host),discount:POS_DISCOUNT||undefined,received:rec,operator_id:OPERATOR?.id}}),async out=>{const order={id:out.order_id,order_id:out.order_id,table_no:cur.table,items:picked.map(l=>{const rs=POS_YAN.redeemSet?.has(l.line)&&priceOf(l)===0&&!l.comp_reason;const it=rs?(MENU_DOC?.items||[]).find(x=>x.id===l.item_id):null;return rs&&it?{...l,price:0,regular_price:l.price,redeem_points:it.points*l.qty}:{...l,price:priceOf(l)};}),amount:out.amount,invoice:out.invoice,paid_at:new Date().toISOString(),payer:{method,payments:out.payments,member:POS_MEMBER,discount:POS_DISCOUNT,received:rec,change:out.change}};const text=`已收款 NT$${num(out.amount)}${out.change?`，找零 NT$${num(out.change)}`:''}${out.member_created?'，已新增會員':''}${out.yan?.earned?`，累積 ${out.yan.earned} 點（餘 ${out.yan.balance}）`:''}${out.invoice?.status==='issued'?`，發票 ${out.invoice.number||'已開立'}`:out.invoice?.status==='failed'?`，發票開立失敗可補開` : ''}${out.remaining?`，這桌還有 NT$${num(out.remaining)} 未結`:out.closed?'，已自動清桌':'，這桌已結清'}${out.warning?`。${out.warning}`:''}`;checkoutHardware({kind:'checkout',order_id:out.order_id,method:out.method||method,amount:out.amount,payments:out.payments},order,text);return text;},()=>{POS_PICK=null;POS_QTY={};POS_SPLIT={};POS_MEMBER=false;POS_YAN={phone:'',name:'',balance:null};POS_DISCOUNT=null;POS_RECEIVED='';POS_INV_VALS={};POS_INVOICE.mode='paper';POS_AA=null;return reload();});}finally{checkout.disabled=false;}}));
+    return ensureOperator(()=>runCheckoutOnce(cur.id,async()=>{const checkout=host.querySelector('#pos-checkout');checkout.disabled=true;try{const member_id=POS_YAN.id||undefined;const member_phone=member_id?undefined:((host.querySelector('#pos-yan-phone')?.value||POS_YAN.phone||'').trim()||undefined);return await opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/checkout',{method:'POST',body:{method,payments,member:POS_MEMBER,member_id,member_phone,redeem_lines:(member_id&&POS_YAN.redeemSet?.size)?picked.filter(l=>POS_YAN.redeemSet.has(l.line)).map(l=>l.part_of||l.line):undefined,redeem_lines:(member_id&&POS_YAN.redeemSet?.size)?picked.filter(l=>POS_YAN.redeemSet.has(l.line)).map(l=>l.part_of||l.line):undefined,lines:POS_PICK?[...POS_PICK]:Object.keys(POS_QTY).length?cur.lines.map(l=>l.line):[],quantities:Object.keys(POS_QTY).length?{...POS_QTY}:undefined,invoice:invoiceBody(host),discount:POS_DISCOUNT||undefined,service_waive:POS_SVC_WAIVE||undefined,received:rec,operator_id:OPERATOR?.id}}),async out=>{const order={id:out.order_id,order_id:out.order_id,table_no:cur.table,items:picked.map(l=>{const rs=POS_YAN.redeemSet?.has(l.line)&&priceOf(l)===0&&!l.comp_reason;const it=rs?(MENU_DOC?.items||[]).find(x=>x.id===l.item_id):null;return rs&&it?{...l,price:0,regular_price:l.price,redeem_points:it.points*l.qty}:{...l,price:priceOf(l)};}),amount:out.amount,invoice:out.invoice,paid_at:new Date().toISOString(),payer:{method,payments:out.payments,member:POS_MEMBER,discount:out.discount||POS_DISCOUNT,service_charge:out.service_charge,received:rec,change:out.change}};const text=`已收款 NT$${num(out.amount)}${out.change?`，找零 NT$${num(out.change)}`:''}${out.member_created?'，已新增會員':''}${out.yan?.earned?`，累積 ${out.yan.earned} 點（餘 ${out.yan.balance}）`:''}${out.invoice?.status==='issued'?`，發票 ${out.invoice.number||'已開立'}`:out.invoice?.status==='failed'?`，發票開立失敗可補開` : ''}${out.remaining?`，這桌還有 NT$${num(out.remaining)} 未結`:out.closed?'，已自動清桌':'，這桌已結清'}${out.warning?`。${out.warning}`:''}`;checkoutHardware({kind:'checkout',order_id:out.order_id,method:out.method||method,amount:out.amount,payments:out.payments},order,text);return text;},()=>{POS_PICK=null;POS_QTY={};POS_SPLIT={};POS_MEMBER=false;POS_YAN={phone:'',name:'',balance:null};POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_RECEIVED='';POS_INV_VALS={};POS_INVOICE.mode='paper';POS_AA=null;return reload();});}finally{checkout.disabled=false;}}));
   };
   // 結帳前直接從這桌列印：出餐單＝整桌品項；收據明細＝目前帳單（含會員價／折扣試算，標「尚未結帳」）。不開錢櫃、不影響帳務。
-  const tableTicket=()=>{const t=posTotals({...cur,lines:cur.lines.filter(l=>!l.credit_of)});const items=cur.lines.filter(l=>!l.credit_of&&!l.cancelled).map(l=>({...l,price:t.priceOf(l)}));const gross=items.reduce((a,l)=>a+l.price*l.qty,0);const disc=POS_DISCOUNT?(POS_DISCOUNT.type==='percent'?Math.round(gross*POS_DISCOUNT.value/100):Math.min(gross,POS_DISCOUNT.value)):0;return {id:cur.id,table_no:cur.table,placed_at:new Date().toISOString(),amount:gross-disc,items,preview:true,payer:disc?{discount:{type:POS_DISCOUNT.type,value:POS_DISCOUNT.value,reason:POS_DISCOUNT.reason,amount:disc}}:{}};};
+  const tableTicket=()=>{const t=posTotals({...cur,lines:cur.lines.filter(l=>!l.credit_of)});const items=cur.lines.filter(l=>!l.credit_of&&!l.cancelled).map(l=>({...l,price:t.priceOf(l)}));const gross=items.reduce((a,l)=>a+l.price*l.qty,0);const disc=POS_DISCOUNT?(POS_DISCOUNT.type==='percent'?Math.round(gross*POS_DISCOUNT.value/100):Math.min(gross,POS_DISCOUNT.value)):0;const sv=MenuLib.serviceCharge?MenuLib.serviceCharge(items,{takeout:cur.takeout,discount:disc}):null,svc=sv?(POS_SVC_WAIVE?{...sv,would:sv.amount,amount:0,waived:true,reason:POS_SVC_WAIVE.reason}:sv):null;return {id:cur.id,table_no:cur.table,placed_at:new Date().toISOString(),amount:gross-disc+(svc?svc.amount:0),items,preview:true,payer:{...(disc?{discount:{type:POS_DISCOUNT.type,value:POS_DISCOUNT.value,reason:POS_DISCOUNT.reason,amount:disc}}:{}),...(svc?{service_charge:svc}:{})}};};
   const pr=host.querySelector('#pos-print-receipt');if(pr)pr.onclick=async()=>{if(pr.disabled)return;pr.disabled=true;try{await printReceipt(tableTicket());}finally{pr.disabled=false;}};
   // 列印出餐單＝送單＋印：還有沒送出的品項就先送單（進出餐看板、自動出單只印新送的那張）；全都送過了就整桌重印一張
   const place=host.querySelector('#pos-place');if(place)place.onclick=async()=>{if(place.disabled)return;place.disabled=true;try{
@@ -1711,6 +1758,7 @@ function registerReportSpec(rep,kind){
   sec('營收');row('成立單數',n(rep.orders)+' 單');row('營收（折扣後）','NT$'+n(rep.amount),true);
   for(const [m,v] of Object.entries(rep.by_method||{}))row(payMethodLabel(m),n(v));
   if(rep.discount_amount)row('折扣合計','−'+n(rep.discount_amount));
+  if(rep.service_amount||rep.service_waived)row('服務費（含在營收）',n(rep.service_amount||0)+(rep.service_waived?`（免收 ${rep.service_waived} 單）`:''));
   if(rep.redeem_points)row(`點數兌換 ${n(rep.redeem_count)} 單`,`${n(rep.redeem_points)} 點／−${n(rep.redeem_value)}`);
   if(rep.voided)row('作廢',`${n(rep.voided)} 單 ${n(rep.void_amount)}`);
   if(rep.accounts){
@@ -1743,7 +1791,7 @@ function printRegisterReportWindow(rep,kind){
   return printWindow(`${kind} ${rep.venue}`,`<h1>${esc(BRAND_LABEL[rep.venue]||rep.venue)}</h1><div class="m">${kind} · 營業日 ${esc(rep.day)}</div><div class="m">開帳 ${esc(applicationTime(rep.opened_at))} ${esc(rep.opened_by||'')}</div>${closed?`<div class="m">關帳 ${esc(applicationTime(rep.closed_at))} ${esc(rep.closed_by||'')}</div>`:rep.counted_at?`<div class="m">點驗 ${esc(applicationTime(rep.counted_at))}</div>`:''}
     <h2>現金</h2>${line('零用金',num(rep.opening_cash))}${line('現金營收',num(rep.cash_sales))}${line('臨時收入','+'+num(rep.cash_in))}${line('臨時支出','−'+num(rep.cash_out))}${line('應有現金','NT$'+num(rep.expected_cash),'t')}
     ${rep.counted_cash!=null?`${line(closed?'點鈔現金':'點驗現金','NT$'+num(rep.counted_cash),'t')}${line(rep.diff>0?'溢':rep.diff<0?'短':'差額',(rep.diff>0?'+':'')+num(rep.diff),'t big')}${closed?`${line('留存金（下一班）',num(rep.keep_cash))}${line('收走',num(rep.take_cash))}`:''}${rep.note?`<div class="n">${esc(rep.note)}</div>`:''}`:''}
-    <h2>營收</h2>${line('成立單數',num(rep.orders)+' 單')}${line('營收（折扣後）','NT$'+num(rep.amount),'t')}${methods}${rep.discount_amount?line('折扣合計','−'+num(rep.discount_amount)):''}${rep.redeem_points?line(`點數兌換 ${num(rep.redeem_count)} 單`,`${num(rep.redeem_points)} 點／折抵 −${num(rep.redeem_value)}`):''}${rep.voided?line('作廢',`${num(rep.voided)} 單 ${num(rep.void_amount)}`):''}
+    <h2>營收</h2>${line('成立單數',num(rep.orders)+' 單')}${line('營收（折扣後）','NT$'+num(rep.amount),'t')}${methods}${rep.discount_amount?line('折扣合計','−'+num(rep.discount_amount)):''}${rep.service_amount||rep.service_waived?line('服務費（含在營收）',num(rep.service_amount||0)+(rep.service_waived?`（免收 ${rep.service_waived} 單）`:'')):''}${rep.redeem_points?line(`點數兌換 ${num(rep.redeem_count)} 單`,`${num(rep.redeem_points)} 點／折抵 −${num(rep.redeem_value)}`):''}${rep.voided?line('作廢',`${num(rep.voided)} 單 ${num(rep.void_amount)}`):''}
     ${rep.accounts?`<h2>逐項帳戶核對</h2>${line('現金實收',num(rep.cash_actual))}${Object.entries(rep.accounts).map(([code,a])=>`${line(a.label||payMethodLabel(code),'POS '+num(a.pos)+'／實收 '+num(a.actual))}${line('差異',(a.diff>0?'+':'')+num(a.diff))}${a.reason?`<div class="n">${esc(a.reason)}</div>`:''}`).join('')}<h2>最後核對總額</h2>${line('訂單總額',num(rep.total_pos))}${line('帳戶總額',num(rep.total_actual))}${line('總差異',(rep.total_diff>0?'+':'')+num(rep.total_diff))}${rep.total_reason?`<div class="n">總差異原因：${esc(rep.total_reason)}</div>`:''}`:''}
     <h2>臨時收支</h2>${moves}<div class="c">${esc(kind)}完成</div>`);
 }

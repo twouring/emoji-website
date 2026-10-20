@@ -14,6 +14,30 @@ let INV={data:null,view:'list',filter:'all',q:'',edit:null,bom:null,moves:null,f
 const invQty=n=>Number(n||0).toLocaleString('en-US',{maximumFractionDigits:3});
 const invCost=n=>Number(n||0).toLocaleString('en-US',{maximumFractionDigits:Number(n)<1?4:2});
 const invLow=i=>i.active!==false&&(Number(i.qty)<0||(Number(i.safety_qty)>0&&Number(i.qty)<=Number(i.safety_qty)));
+/* 叫貨單（10/19 員工大會 #42）：低於安全量或負庫存的原物料，依供應商分組；建議量＝補到安全量的 2 倍，有進貨單位就換算成整數包（無條件進位）。
+ * 只產出清單給店長傳給廠商（複製文字），不會自動下單；貨到後照舊按「進貨」入倉。備料是店內自己做的，不列入。 */
+function invOrderPlan(items){
+  const groups=new Map();
+  for(const i of items||[]){
+    if(i.kind!=='raw'||!invLow(i))continue;
+    const safety=Math.max(0,Number(i.safety_qty)||0),qty=Number(i.qty)||0;
+    const need=Math.max(safety*2-qty,safety>0?0:-qty);
+    if(!(need>0))continue;
+    const pack=i.pack_unit&&Number(i.pack_size)>0?{unit:i.pack_unit,n:Math.ceil(need/Number(i.pack_size)-1e-9)}:null;
+    const key=String(i.supplier||'').trim()||'未填供應商';
+    if(!groups.has(key))groups.set(key,[]);
+    groups.get(key).push({id:i.id,name:i.name,unit:i.unit,qty,safety,need:Math.round(need*1000)/1000,pack,venue:i.venue});
+  }
+  return [...groups].sort((a,b)=>(a[0]==='未填供應商')-(b[0]==='未填供應商')||a[0].localeCompare(b[0],'zh-Hant')).map(([supplier,lines])=>({supplier,lines}));
+}
+const invOrderAmount=l=>l.pack?`${invQty(l.pack.n)} ${l.pack.unit}`:`${invQty(l.need)} ${l.unit}`;
+function invOrderText(g){return `【叫貨】${g.supplier}\n`+g.lines.map(l=>`・${l.name} ${invOrderAmount(l)}`).join('\n');}
+function invOrderHtml(){
+  const plan=invOrderPlan(invItems());
+  if(!plan.length)return '<p class="a-empty">目前沒有低於安全量的原物料。品項要先在「編輯」填安全庫存量，低於時才會出現在這裡。</p>';
+  return `<p class="hint">低於安全量的原物料，依供應商分組；建議量＝補到安全量的 2 倍（有進貨單位就換成整包）。按「複製」貼到 LINE 給廠商，貨到後回「庫存」按「進貨」入倉。</p>`+plan.map((g,gi)=>`<section class="inv-order"><div class="ops-head"><h3>${esc(g.supplier)} <small class="hint hint--tight">${g.lines.length} 項</small></h3><button type="button" class="btn btn--ghost btn-sm" data-inv-order-copy="${gi}">複製叫貨文字</button></div>
+    <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>品項</th><th class="num">現有</th><th class="num">安全量</th><th class="num">建議叫貨</th></tr></thead><tbody>${g.lines.map(l=>`<tr><td>${esc(l.name)}${l.venue&&l.venue!=='TTH'?` <small class="hint hint--tight">${esc(INV_VENUE[l.venue]||l.venue)}</small>`:''}</td><td class="num">${invQty(l.qty)} ${esc(l.unit)}</td><td class="num">${invQty(l.safety)} ${esc(l.unit)}</td><td class="num"><b>${esc(invOrderAmount(l))}</b>${l.pack?` <small class="hint hint--tight">≈${invQty(l.need)} ${esc(l.unit)}</small>`:''}</td></tr>`).join('')}</tbody></table></div></section>`).join('');
+}
 function tabInventory(){ return '<div class="a-sec" id="inv-body"></div>'; }
 function resetInventory(){ INV={data:null,view:'list',filter:'all',q:'',edit:null,bom:null,moves:null,from:'',to:'',movesInv:''}; }
 async function loadInventory(refresh){
@@ -92,9 +116,10 @@ function paintInventory(){
   const all=invItems(),low=all.filter(invLow).length,prepN=all.filter(i=>i.kind==='prep'&&i.active!==false).length;
   const q=INV.q.trim().toLowerCase();
   const list=all.filter(i=>INV.filter==='off'?i.active===false:i.active!==false).filter(i=>INV.filter==='all'||INV.filter==='off'||(INV.filter==='low'?invLow(i):i.kind===INV.filter)).filter(i=>!q||(i.name+' '+(i.category||'')).toLowerCase().includes(q));
-  const views=[['list','庫存'],['recipes','菜單配方'],['moves','異動紀錄']];
+  const views=[['list','庫存'],['order','叫貨單'],['recipes','菜單配方'],['moves','異動紀錄']];
   const head=`<div class="ops-head"><h2>庫存${low?` <span class="pill pill-bad">${low} 項低於安全量</span>`:''}</h2>${tipIcon('<b>進貨</b>＝貨到時入倉（可填這批總金額，自動算平均成本）。<br><b>備料</b>（醬料、糖漿、高湯…）先在「編輯」設好每批配方，做好後按「製作」填產出量，原物料會依配方等比扣掉、備料加進庫存。<br><b>出餐自動扣</b>：在「菜單配方」設每份用量（可用原物料或備料）；客人送出點餐、或櫃檯直接結帳時自動扣，套餐依組成品項扣。送單後還沒出餐就作廢會自動補回；已出餐的不補，差異用「盤點」調整。<br>庫存可以是負數（先賣後補登進貨），不會自動估清。')}</div>
     <div class="inv-views" role="tablist">${views.map(([k,l])=>`<button type="button" role="tab" aria-selected="${INV.view===k}" class="${INV.view===k?'on':''}" data-inv-view="${k}">${l}</button>`).join('')}</div>`;
+  if(INV.view==='order'){host.innerHTML=head+invOrderHtml();bindInventory(host);return;}
   if(INV.view==='recipes'){host.innerHTML=head+invRecipesHtml();bindInventory(host);return;}
   if(INV.view==='moves'){host.innerHTML=head+invMovesHtml();bindInventory(host);return;}
   const filters=[['all','全部'],['raw','原物料'],['prep',`備料${prepN?' '+prepN:''}`],['low',`低於安全量${low?' '+low:''}`],['off','已停用']];
@@ -114,6 +139,7 @@ function paintInventory(){
 }
 function bindInventory(host){
   host.querySelectorAll('[data-inv-view]').forEach(b=>b.onclick=()=>{INV.view=b.dataset.invView;INV.edit=null;INV.form=null;INV.bom=null;if(INV.view==='moves'){INV.moves=null;loadInventoryMoves();}else paintInventory();});
+  host.querySelectorAll('[data-inv-order-copy]').forEach(b=>b.onclick=async()=>{const g=invOrderPlan(invItems())[Number(b.dataset.invOrderCopy)];if(!g)return;const text=invOrderText(g);try{await navigator.clipboard.writeText(text);toast('已複製 '+g.supplier+' 的叫貨文字');}catch(e){window.prompt('複製下面的叫貨文字',text);}});
   host.querySelectorAll('[data-inv-filter]').forEach(b=>b.onclick=()=>{INV.filter=b.dataset.invFilter;paintInventory();});
   const qi=host.querySelector('#inv-q');if(qi){qi.oninput=()=>{INV.q=qi.value;const pos=qi.selectionStart;paintInventory();const n=document.getElementById('inv-q');if(n){n.focus();try{n.setSelectionRange(pos,pos);}catch(e){}}};}
   const nb=host.querySelector('#inv-new');if(nb)nb.onclick=()=>{INV.edit='new';INV.form=null;INV.bom=null;paintInventory();host.querySelector('#inv-name')?.focus();};

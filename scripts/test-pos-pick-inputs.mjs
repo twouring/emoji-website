@@ -87,10 +87,10 @@ test('pickNote：常用備註可複選（再按一次移除）、以「、」串
   const { ctx, made } = ctxWith();
   assert.equal(ctx.toggleToken('', '去冰'), '去冰'); assert.equal(ctx.toggleToken('去冰', '不要蔥'), '去冰、不要蔥'); assert.equal(ctx.toggleToken('去冰、不要蔥', '去冰'), '不要蔥');
   let p = ctx.pickNote({ title: 'x', initial: '' }); let ov = made.at(-1);
-  assert.match(ov.html, /data-note="去冰"/); assert.match(ov.html, /id="pos-note-pick"/);
+  assert.match(ov.html, /data-note="去冰（有小碎冰）"/); assert.match(ov.html, /id="pos-note-pick"/);
   const inp = ov.querySelector('#pos-note-pick');
-  click(ov, 'note', '去冰'); click(ov, 'note', '不要蔥'); assert.equal(inp.value, '去冰、不要蔥');
-  click(ov, 'note', '去冰'); assert.equal(inp.value, '不要蔥');
+  click(ov, 'note', '去冰（有小碎冰）'); click(ov, 'note', '不要蔥'); assert.equal(inp.value, '去冰（有小碎冰）、不要蔥');
+  click(ov, 'note', '去冰（有小碎冰）'); assert.equal(inp.value, '不要蔥');
   inp.value = '不要蔥、醬多'; click(ov, 'ok'); assert.equal(await p, '不要蔥、醬多');
   p = ctx.pickNote({ title: 'x', initial: '舊' }); ov = made.at(-1); click(ov, 'cancel'); assert.equal(await p, null);
   p = ctx.pickNote({ title: 'x', initial: '舊' }); ov = made.at(-1); ov.querySelector('#pos-note-pick').value = ''; click(ov, 'ok'); assert.equal(await p, '');

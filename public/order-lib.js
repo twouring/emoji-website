@@ -14,6 +14,7 @@
       notify_counter: '通知櫃檯我要結帳', notify_done: '已通知櫃檯，請到櫃檯付款。', notify_sent: '已通知櫃檯：{count} 項 {amount}', notify_sent_split: '已通知櫃檯：平均分攤 {people} 人，每人 {each}', notify_cancel: '取消',
       split_each: '每人', split_remainder: '其中 {count} 人各多付 NT$1（尾差由櫃檯調整）', table: '桌號', unpaid_items: '{count} 項未結帳', empty: '尚未點餐',
       no_orders: '還沒有人點餐。', me: '我', paid: '已付款', preparing: '準備中', ready: '可取餐', done: '已取餐',
+      bar_policy: '三點水低消每人平日 NT$300、假日 NT$600，另加 10% 服務費（外帶不收）。',
       alcohol: '未滿十八歲禁止飲酒。禁止酒駕。', add: '加入', remove: '移除', ready_banner: '桌號 {table}｜餐點好了，請至櫃檯取餐',
       thanks: '感謝用餐，期待再次光臨。', thanks_hint: '這次點餐已結束。若要再點，請重新掃描桌上的 QR。', thanks_again: '重新點餐',
       review_title: '喜歡今天的餐點嗎？', review_hint: '在 Google 地圖留下評論，結帳時把評論出示給櫃檯人員，就送你 5 點會員點數（每位會員限領一次）。', review_go: '寫 Google 評論', review_view_cart: '查看已點清單', review_later: '下次再說',
@@ -32,6 +33,7 @@
       notify_counter: 'Tell the counter I\'m ready to pay', notify_done: 'Counter notified. Please pay at the counter.', notify_sent: 'Counter notified: {count} item(s) {amount}', notify_sent_split: 'Counter notified: split {people} ways, {each} each', notify_cancel: 'Cancel',
       split_each: 'Each person', split_remainder: '{count} person(s) pays NT$1 more; staff will adjust the remainder', table: 'Table', unpaid_items: '{count} unpaid item(s)', empty: 'No items yet',
       no_orders: 'No one has ordered yet.', me: 'Me', paid: 'Paid', preparing: 'Preparing', ready: 'Ready for pickup', done: 'Picked up',
+      bar_policy: '3AM minimum spend: NT$300 per person on weekdays, NT$600 on weekends, plus a 10% service charge (not for takeout).',
       alcohol: 'No alcohol under 18. Do not drink and drive.', add: 'Add', remove: 'Remove', ready_banner: 'Table {table} | Your order is ready. Please pick it up at the counter.',
       thanks: 'Thanks for dining with us. See you next time.', thanks_hint: 'This order has ended. Scan the table QR again to start a new one.', thanks_again: 'Order again',
       review_title: 'Enjoying your visit?', review_hint: 'Leave us a Google Maps review and show it to our staff when you pay. Members get 5 points (once per member).', review_go: 'Write a Google review', review_view_cart: 'View my order', review_later: 'Maybe later',
@@ -50,6 +52,7 @@
       notify_counter: 'カウンターに会計を知らせる', notify_done: 'カウンターに通知しました。カウンターでお支払いください。', notify_sent: '通知済み：{count} 件 {amount}', notify_sent_split: '通知済み：{people} 人で割り勘、一人 {each}', notify_cancel: '取消',
       split_each: '一人あたり', split_remainder: '{count} 人が NT$1 多く支払います（端数はスタッフが調整）', table: 'テーブル', unpaid_items: '未会計 {count} 件', empty: 'まだ注文はありません',
       no_orders: 'まだ注文はありません。', me: '自分', paid: '支払い済み', preparing: '準備中', ready: '受け取り可', done: '受け取り済み',
+      bar_policy: '三點水（3AM）は最低ご利用額 平日お一人様 NT$300・週末 NT$600、別途サービス料 10%（お持ち帰りは除く）。',
       alcohol: '20歳未満の飲酒は禁止です。飲酒運転禁止。', add: '追加', remove: '削除', ready_banner: 'テーブル {table}｜ご注文の品ができました。カウンターでお受け取りください。',
       thanks: 'ご来店ありがとうございました。', thanks_hint: '今回のご注文は終了しました。もう一度ご注文の際はテーブルのQRをスキャンしてください。', thanks_again: 'もう一度注文する',
       review_title: '本日のお食事はいかがでしたか？', review_hint: 'Google マップにレビューを投稿し、お会計の際にスタッフへお見せいただくと、会員ポイントを 5 点進呈します（会員様お一人につき 1 回）。', review_go: 'Google でレビューを書く', review_view_cart: '注文リストを見る', review_later: 'また今度',
@@ -72,21 +75,21 @@
   const OPT = {
     zh: {
       sugar: ['正常糖', '少糖', '半糖', '微糖', '無糖'],
-      ice: ['正常冰', '少冰', '去冰'],
+      ice: ['正常冰', '少冰', '去冰（有小碎冰）'],
       temp: ['冰', '熱'],
       rice: ['正常飯', '少飯', '飯多'],
       noodle: ['正常麵', '少麵', '麵多'],
     },
     en: {
       sugar: ['Regular', 'Less sugar', 'Half sugar', 'Light sugar', 'No sugar'],
-      ice: ['Regular ice', 'Less ice', 'No ice'],
+      ice: ['Regular ice', 'Less ice', 'No ice (small crushed ice)'],
       temp: ['Iced', 'Hot'],
       rice: ['Regular rice', 'Less rice', 'Extra rice'],
       noodle: ['Regular noodles', 'Less noodles', 'Extra noodles'],
     },
     ja: {
       sugar: ['通常', '少なめ', '半分', '微糖', '無糖'],
-      ice: ['通常', '少なめ', '氷なし'],
+      ice: ['通常', '少なめ', '氷なし（小さな砕氷あり）'],
       temp: ['アイス', 'ホット'],
       rice: ['通常', '少なめ', '多め'],
       noodle: ['通常', '少なめ', '多め'],
@@ -101,7 +104,7 @@
     const name = [title, item?.note].filter(Boolean).join(' ').toLowerCase();
     const groups = [];
     const temperature = () => groups.push({ key: 'temperature', label: labels.temperature, choices: OPT[l].temp });
-    // 冰塊只有冰飲才顯示，且所有飲品只提供 正常／少冰／去冰；所有飲品不提供甜度調整。
+    // 冰塊只有冰飲才顯示，且所有飲品只提供 正常（4 顆）／少冰（2 顆）／去冰（標示「有小碎冰」，KK 10/20 指示）；所有飲品不提供甜度調整。
     const ice = conditional => groups.push({ key: 'ice', label: labels.ice, choices: conditional ? OPT[l].ice : OPT[l].ice, ...(conditional ? { when: { key: 'temperature', value: OPT[l].temp[0] } } : {}) });
     const fixedHot = cat === 'TEA' && /（壺）|\(pot\)|熱水|hot water/.test(name);
     const fixedCold = cat === 'SPARKLING' || /西西里|柚子美式|氣泡|sparkling|romano/.test(name);
