@@ -10,7 +10,7 @@ function tabSales(){ return '<div class="a-sec" id="sales-body"></div>'; }
 function tabHistory(){ return '<div class="a-sec" id="history-body"></div>'; }
 function tabLogs(){ return '<div class="a-sec" id="logs-body"></div>'; }
 let POS_OPT=null,POS_MENU_SCROLL=0,POS_LEFT_SCROLL=0,POS_CATS_LEFT=0;
-let ORDERS_TIMER=null,ORDERS_SEEN=null,PAYREQ_SEEN=null,POS_PAYREQ=null,POS_AA=null,POS_TIMER=null,POS_DATA=null,POS_TABLE='',POS_PICK=null,POS_QTY={},POS_SPLIT={},POS_MEMBER=false,POS_YAN={phone:'',name:'',balance:null},POS_INVOICE={mode:'paper'},POS_METHOD='cash',POS_CAT='',POS_DISCOUNT=null,POS_DISC_OPEN=false,POS_RECEIVED='',RESV_FROM='',RESV_DAYS=7,RESV_EDIT=null,RESV_HOURS=null,RESV_HOURS_ERR='',RESV_HOURS_OPEN=false,SALES_DAY='',HIST_DAY='',HIST_Q='',HIST_OPEN=new Set(),REG_DATA=null,REG_CASH_OPEN=false,REG_CLOSE_OPEN=false,REG_COUNT_OPEN=false,REG_OPEN_FORM='',CLOCK_PIN='',CLOCK_MSG=null,SHIFT_WEEK='',SHIFT_FORM={},ATT_FROM='',ATT_TO='',STAFF_EDIT=null;
+let ORDERS_TIMER=null,ORDERS_SEEN=null,PAYREQ_SEEN=null,POS_PAYREQ=null,POS_AA=null,POS_TIMER=null,POS_DATA=null,POS_TABLE='',POS_PICK=null,POS_QTY={},POS_SPLIT={},POS_MEMBER=false,POS_YAN={phone:'',name:'',balance:null},POS_INVOICE={mode:'paper'},POS_METHOD='cash',POS_CAT='',POS_DISCOUNT=null,POS_DISC_OPEN=false,POS_RECEIVED='',RESV_FROM='',RESV_DAYS=7,RESV_EDIT=null,RESV_HOURS=null,RESV_HOURS_ERR='',RESV_HOURS_OPEN=false,RESV_ADD_OPEN=false,SALES_DAY='',HIST_DAY='',HIST_Q='',HIST_OPEN=new Set(),REG_DATA=null,REG_CASH_OPEN=false,REG_CLOSE_OPEN=false,REG_COUNT_OPEN=false,REG_OPEN_FORM='',CLOCK_PIN='',CLOCK_MSG=null,SHIFT_WEEK='',SHIFT_FORM={},ATT_FROM='',ATT_TO='',STAFF_EDIT=null;
 const CHECKOUT_TIP='<b>這桌的帳</b><br>品項依點餐人分組；勾選左邊決定這次結哪些，組頭「只結這組」＝各付各的，「依人數分次收款」＝平均分攤；可分多次收款，全部結清自動清桌。數量旁「−／＋」改份數，品項有「本次結」可只結幾份。<br>'
  +'<b>＋ 加點</b>：展開菜單點品項，備註可點常用的。送單後會出現在「出餐」。<br>'
  +'<b>換桌／併桌、清桌</b>：搬到別桌或合併；客人走了、沒有未結帳的品項才清桌。<br>'
@@ -1502,21 +1502,31 @@ function hoursPanel(){
   const range=b=>{const r=[];let s=null,p=-2;b.forEach(t=>{const i=ALL.indexOf(t);if(i!==p+1){if(s)r.push([s,ALL[p]]);s=t;}p=i;});if(s)r.push([s,ALL[p]]);return r.map(([x,y])=>x===y?x:`${x}–${y}`).join('、');};
   const brief=l=>{const b=blocked(l);return b.length===0?'無限制':b.length===ALL.length?'全天':range(b);};
   const weekRows=WD.map((n,i)=>{const l=H.weekly[i];return `<button type="button" class="rh-week${l?' is-off':''}" data-rh-edit="w${i}"><b>週${n}</b><small>${esc(l?brief(l):'無限制')}</small></button>`;}).join('');
-  const dateRows=dates.map(k=>`<span class="rh-date is-off"><button type="button" data-rh-edit="d${esc(k)}">${esc(k.slice(5).replace('-','/'))}（${WD[new Date(k+'T12:00:00Z').getUTCDay()]}） ${esc(brief(H.dates[k]))}</button><button type="button" class="rh-x" data-rh-del="d${esc(k)}" aria-label="移除 ${esc(k)}">×</button></span>`).join('')||'<span class="hint hint--tight">沒有設定特定日期</span>';
-  return `<details class="resv-add" id="resv-hours" ${RESV_HOURS_OPEN?'open':''}><summary class="btn btn--ghost">不可訂位設定</summary>
+  return `<div class="resv-panel" id="resv-hours"${RESV_HOURS_OPEN?'':' hidden'}>
     <p class="hint">點選的時段客人就不能從網站／會員 App 訂位；櫃檯登記不受限。特定日期的設定優先於每週設定；沒設定＝全部可訂。</p>
     <p class="rh-h">特定日期<span class="hint hint--tight">公休、包場、活動</span></p>
     <div class="rh-add"><label>日期<input type="date" id="rh-newdate" min="${esc(todayTaipei())}"></label><button type="button" class="btn btn--ghost" id="rh-adddate">設定這天</button></div>
-    <div class="rh-dates">${dateRows}</div>
     <p class="rh-h">每週固定</p>
-    <div class="rh-weeks">${weekRows}</div></details>`;
+    <div class="rh-weeks">${weekRows}</div></div>`;
+}
+/* 不可訂位時段一覽：不用展開設定就看得到（特定日期＋每週限制），點一下編輯、× 移除該日期 */
+function hoursStrip(){
+  const H=RESV_HOURS;if(!H)return '';
+  const WD=['日','一','二','三','四','五','六'],ALL=H.all||[];
+  const blocked=l=>ALL.filter(t=>!l.includes(t));
+  const range=b=>{const r=[];let s=null,p=-2;b.forEach(t=>{const i=ALL.indexOf(t);if(i!==p+1){if(s)r.push([s,ALL[p]]);s=t;}p=i;});if(s)r.push([s,ALL[p]]);return r.map(([x,y])=>x===y?x:`${x}–${y}`).join('、');};
+  const brief=l=>{const b=blocked(l);return b.length===ALL.length?'全天不可訂位（公休）':b.length?range(b):'全部可訂（覆蓋每週設定）';};
+  const today=todayTaipei();
+  const dates=Object.keys(H.dates||{}).filter(k=>k>=today).sort();
+  const dateRows=dates.map(k=>`<span class="rh-date${blocked(H.dates[k]).length?' is-off':''}"><button type="button" data-rh-edit="d${esc(k)}"><b>${esc(k.slice(5).replace('-','/'))}（${WD[new Date(k+'T12:00:00Z').getUTCDay()]}）${k===today?' 今天':''}</b> ${esc(brief(H.dates[k]))}</button><button type="button" class="rh-x" data-rh-del="d${esc(k)}" aria-label="移除 ${esc(k)} 的設定">×</button></span>`).join('');
+  const weekRows=WD.map((n,i)=>{const l=H.weekly[i];return l&&blocked(l).length?`<span class="rh-date is-off is-week"><button type="button" data-rh-edit="w${i}"><b>每週${n}</b> ${esc(brief(l))}</button></span>`:'';}).join('');
+  return `<div class="rh-strip"><div class="rh-strip-h">不可訂位時段</div><div class="rh-dates">${dateRows+weekRows||'<span class="hint hint--tight">目前沒有不可訂位時段，所有時段客人都能線上訂位。</span>'}</div></div>`;
 }
 function bindHoursPanel(host){
   const H=RESV_HOURS;if(!H)return;
   const ALL=H.all||[],WD=['日','一','二','三','四','五','六'];
-  const det=host.querySelector('#resv-hours');if(!det)return;
+  if(!host.querySelector('#resv-hours'))return;
   const closeRh=()=>document.querySelectorAll('.op-overlay.rh-ov').forEach(n=>n.remove());
-  det.addEventListener('toggle',()=>{RESV_HOURS_OPEN=det.open;if(!det.open)closeRh();});
   const save=next=>{
     const body={weekly:{...H.weekly},dates:{...H.dates}};
     next(body);
@@ -1586,7 +1596,7 @@ async function loadReservations(){
   // 櫃檯登記（電話／現場）：時段依店別 30 分鐘一格；Email 可留空（留了才寄確認信）
   const slotOf=(from,to)=>{const o=[];for(let m=from;m<to;m+=30)o.push(`${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`);return o;};
   const slotGroups=[['CAFE',slotOf(8*60,17*60)],['BAR',slotOf(17*60,24*60).concat(slotOf(0,3*60))]];   // 訂位不分店別，兩個時段都能登記
-  const addForm=`<details class="resv-add" id="resv-add"><summary class="btn btn--ghost">＋ 登記訂位（電話／現場）</summary>
+  const addForm=`<div class="resv-panel" id="resv-add"${RESV_ADD_OPEN?'':' hidden'}>
     <form class="a-form" id="resv-form" autocomplete="off">
       <label>日期<input name="date" id="resv-new-date" type="date" required value="${esc(RESV_FROM)}"></label>${fillChips('resv-new-date',dayChoices())}
       <label>時間<select name="time" required>${slotGroups.map(([v,ts])=>`<optgroup label="${esc(BRAND_LABEL[v])}">${ts.map(t=>`<option value="${t}">${t}</option>`).join('')}</optgroup>`).join('')}</select></label>
@@ -1597,7 +1607,7 @@ async function loadReservations(){
       <label>桌號<input name="table_no" id="resv-new-table" maxlength="8" autocapitalize="characters" placeholder="A3" style="width:100px"></label>${fillChips('resv-new-table',[['','不排'],...DEFAULT_TABLES.map(t=>[t,t])])}
       <label class="f-grow">備註<input name="note" id="resv-new-note" maxlength="500" placeholder="點常用的或自己填"></label>${noteChips('resv-new-note',RESV_NOTE_PRESETS)}
       <button class="btn btn--solid" type="submit">登記</button>
-    </form></details>`;
+    </form></div>`;
   // 編輯訂位資訊：日期／時間／人數／姓名／電話／Email／備註（桌號、店內留言、狀態仍在各列操作）
   const editing=RESV_EDIT?d.reservations.find(x=>x.id===RESV_EDIT):null;
   const editForm=editing?`<div class="a-form resv-edit" id="resv-edit-form">
@@ -1612,18 +1622,24 @@ async function loadReservations(){
       <button type="button" class="btn btn--solid" id="re-save">儲存</button><button type="button" class="btn btn--ghost" id="re-cancel">取消</button>
     </div>`:'';
   host.innerHTML=`<div class="ops-head"><h2>訂位 ${d.pending?`<span class="badge">${d.pending} 待確認</span>`:''}</h2>${opsHelp('客人從 <a href="/reserve" target="_blank" rel="noopener">/reserve</a>（Google Maps／官方 LINE 連結）訂位，送出即成立、客人已收到確認信（座位保留至預約時間後 10 分鐘）。08:00–16:59 歸在咖啡、其餘歸三點水。這裡可填桌號、按「取消」寄婉拒信給客人（沒留 Email 的請電話聯繫）；當天到店按「已到」，沒來按「未到」。舊的「待確認」申請按「確認並通知」會補寄確認信。日期、時間、人數、姓名、電話、Email、備註打錯或客人來電更改，按該筆「編輯」修改。')}</div>
+    <div class="resv-actions"><button type="button" class="btn ${RESV_ADD_OPEN?'btn--solid':'btn--ghost'}" id="resv-add-toggle" aria-expanded="${RESV_ADD_OPEN}" aria-controls="resv-add">＋ 登記訂位<span class="resv-act-sub">（電話／現場）</span></button><button type="button" class="btn ${RESV_HOURS_OPEN?'btn--solid':'btn--ghost'}" id="resv-hours-toggle" aria-expanded="${RESV_HOURS_OPEN}" aria-controls="resv-hours">不可訂位設定</button></div>
+    ${hoursStrip()}
     ${addForm}
     ${hoursPanel()}
     ${editForm}
     <div class="a-toolbar"><label>從<input type="date" id="resv-from" value="${esc(RESV_FROM)}"></label><select id="resv-days" aria-label="顯示天數">${[[1,'只看這天'],[7,'7 天'],[30,'30 天'],[60,'60 天']].map(([n,l])=>`<option value="${n}" ${n===RESV_DAYS?'selected':''}>${l}</option>`).join('')}</select><button class="btn btn--ghost btn-sm" id="resv-today">今天</button><span class="hint hint--tight">${d.reservations.length} 筆</span></div>
     <div class="a-wrap2"><table class="a-tbl resv-tbl"><thead><tr><th>時間</th><th>客人</th><th>備註</th><th>桌號</th><th>狀態</th><th>編號</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   bindFillChips(host);bindNoteChips(host);bindHoursPanel(host);
+  // 兩顆入口鍵同一列：各自開關下方面板，一次只開一個
+  const paintPanels=()=>[['#resv-add-toggle','#resv-add',RESV_ADD_OPEN],['#resv-hours-toggle','#resv-hours',RESV_HOURS_OPEN]].forEach(([bi,pi,on])=>{const b=host.querySelector(bi),p=host.querySelector(pi);if(p)p.hidden=!on;if(b){b.classList.toggle('btn--solid',on);b.classList.toggle('btn--ghost',!on);b.setAttribute('aria-expanded',String(on));}});
+  const addBtn=host.querySelector('#resv-add-toggle');if(addBtn)addBtn.onclick=()=>{RESV_ADD_OPEN=!RESV_ADD_OPEN;if(RESV_ADD_OPEN)RESV_HOURS_OPEN=false;paintPanels();};
+  const hoursBtn=host.querySelector('#resv-hours-toggle');if(hoursBtn)hoursBtn.onclick=()=>{RESV_HOURS_OPEN=!RESV_HOURS_OPEN;if(RESV_HOURS_OPEN)RESV_ADD_OPEN=false;paintPanels();};
   host.querySelector('#resv-from').onchange=e=>{RESV_FROM=e.target.value||todayTaipei();loadReservations();};
   host.querySelector('#resv-days').onchange=e=>{RESV_DAYS=Number(e.target.value)||7;loadReservations();};
   host.querySelector('#resv-today').onclick=()=>{RESV_FROM=todayTaipei();loadReservations();};
   host.querySelector('#resv-form').onsubmit=e=>{
     e.preventDefault();const f=e.target,body=Object.fromEntries(new FormData(f));body.party_size=Number(body.party_size);
-    opsThen(()=>api('/admin/reservations',{method:'POST',body}),out=>`已登記 ${out.request_id}${out.mailed?'，已寄確認信給客人':''}`,()=>{RESV_FROM=body.date;return loadReservations();});
+    opsThen(()=>api('/admin/reservations',{method:'POST',body}),out=>`已登記 ${out.request_id}${out.mailed?'，已寄確認信給客人':''}`,()=>{RESV_FROM=body.date;RESV_ADD_OPEN=false;return loadReservations();});
   };
   host.querySelectorAll('[data-resv]').forEach(b=>b.onclick=async()=>{
     const r=d.reservations.find(x=>x.id===b.dataset.resv),status=b.dataset.resvStatus;if(!r)return;

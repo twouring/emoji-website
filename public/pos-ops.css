@@ -217,8 +217,17 @@ tr.resv-day td{background:var(--paper-alt);font-weight:600}
 /* 櫃檯登記訂位：收合表單 */
 .resv-add{margin-bottom:12px}.resv-add summary{list-style:none;display:inline-flex;cursor:pointer}.resv-add summary::-webkit-details-marker{display:none}.resv-add[open] summary{margin-bottom:10px}
 .resv-add .a-form{padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
-#resv-body>.resv-add{display:inline-block;margin-right:8px;vertical-align:top}
-#resv-body>.resv-add[open]{display:block;width:100%;margin-right:0;padding-bottom:4px}
+.resv-actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+@media(max-width:600px){.resv-actions{flex-wrap:nowrap}.resv-actions .btn{flex:1 1 0;min-width:0;padding-left:10px;padding-right:10px;white-space:nowrap}.resv-act-sub{display:none}}
+.resv-panel{margin:0 0 14px;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.resv-panel .a-form{margin-bottom:0}
+.resv-panel .rh-h:first-of-type{margin-top:0}
+.rh-strip{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 14px;padding:10px 12px;border:1px solid var(--danger-line);border-radius:10px;background:var(--danger-faint)}
+.rh-strip-h{font-weight:600;color:var(--danger);white-space:nowrap}
+.rh-strip .rh-dates{flex:1 1 0;min-width:0}
+@media(max-width:600px){.rh-strip-h{flex-basis:100%}.rh-strip .rh-dates{flex-basis:100%}}
+.rh-date.is-week{border-style:dashed}
+.rh-date:not(.is-off){border-color:var(--line);background:var(--card)}.rh-date:not(.is-off)>button{color:var(--ink)}
 .rh-h{display:flex;align-items:baseline;gap:8px;margin:14px 0 8px;font-weight:600}
 .rh-h .hint{margin:0}
 .rh-add{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;margin:0 0 10px}
