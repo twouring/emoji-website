@@ -21,7 +21,14 @@ test('POS 品牌帳號（在咖啡／三點水平板）可讀寫可訂位時間'
   }
 });
 
-test('可訂位時間載入失敗要顯示原因，不可整塊默默消失', () => {
+test('不可訂位設定載入失敗要顯示原因，不可整塊默默消失', () => {
   assert.match(ops, /RESV_HOURS_ERR=e\.message/);
-  assert.match(ops, /可訂位時間設定載入失敗/);
+  assert.match(ops, /不可訂位設定載入失敗/);
+});
+
+
+test('POS 以「不可訂位」呈現：點選的是關閉的時段，儲存時換回開放清單', () => {
+  assert.match(ops, /<summary class="btn btn--ghost">不可訂位設定<\/summary>/);
+  assert.match(ops, /const l=ALL\.filter\(t=>!off\.has\(t\)\)/);
+  assert.doesNotMatch(ops, /亮色＝開放/);
 });
