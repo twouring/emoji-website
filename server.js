@@ -119,6 +119,11 @@ const SITE_BASE = (process.env.PUBLIC_ORIGIN || 'https://www.emoji.tw').replace(
 // 未設定＝官網服務（www／pos），其 /admin 一律轉到 ADMIN_BASE；活動主入口 /organizer 屬於官網（主辦人是外部對象，不進後台網域），後台服務上的 /organizer 反向轉回 SITE_BASE。兩個服務跑同一個 image、同一個 DB。
 const ADMIN_MODE = process.env.SERVICE_ROLE === 'admin';
 const RAILWAY_MODE = !!process.env.RAILWAY_ENVIRONMENT; // Railway 備援環境：不跑任何排程（見 boot()）
+// 排程模式：CRON_MODE=scheduler 時程序內不啟動 node-cron／setInterval，改由 Cloud Scheduler 打 POST /internal/cron/*（帶 X-Cron-Secret）
+// 觸發，Cloud Run 才能改成依請求計費、minScale=0。未設定＝原本的程序內排程。ADMIN_MODE／RAILWAY_MODE 兩種模式都不跑排程、端點也關閉。
+const cronJobs = require('./lib/cron-jobs');
+const CRON_SCHEDULER = process.env.CRON_MODE === 'scheduler';
+const CRON_SECRET = process.env.CRON_SECRET || '';
 // 後台對外網址：寄給員工／主辦的後台連結、官網轉後台都用這個
 const ADMIN_BASE = (process.env.ADMIN_ORIGIN || 'https://admin.emoji.tw').replace(/\/$/, '');
 // 會員 App 對外網址（app.emoji.tw）：登入／LINE 綁定／會籍付款完成後一律導回這裡；官網不再有會員頁
@@ -830,6 +835,8 @@ async function migrate() {
   await q(`CREATE INDEX IF NOT EXISTS linepay_transactions_paid_idx ON linepay_transactions(paid_at)`);
   // LINE Pay 同步狀態（單列）：失敗不寄信，記在這裡由 POS 日結畫面顯示；成功即清除
   await q(`CREATE TABLE IF NOT EXISTS linepay_sync_state (id INT PRIMARY KEY DEFAULT 1, error TEXT, failed_at TIMESTAMPTZ, ok_at TIMESTAMPTZ)`);
+  // Cloud Scheduler 觸發的排程租約：多個 Cloud Run 執行個體同時收到觸發時只有一個在跑（程序內排程不用）
+  await q(`CREATE TABLE IF NOT EXISTS cron_leases (name TEXT PRIMARY KEY, token TEXT NOT NULL, expires_at TIMESTAMPTZ NOT NULL)`);
   await q(linepayOffline.schema);
   // 台新手機付沒有實收總額查詢 API，每個營業日手動填一次實收總額，日結報表拿來與 POS 登記為 taishin 的單對帳
   await q(`CREATE TABLE IF NOT EXISTS pos_taishin_daily (
@@ -1425,6 +1432,31 @@ app.use((req, res, next) => {
 });
 // gzip 由 Node 端壓縮（Cloud Run 前無 CDN）；SSE 回應自帶 no-transform，compression 會略過
 app.use(compression());
+// 後台「系統設定」的 live 鍵：CRON_MODE=scheduler 時改成請求進來、距上次載入超過 60 秒才從 DB 重載（官網與後台兩個服務都設
+// CRON_MODE=scheduler 即適用；依請求計費下閒置時計時器拿不到 CPU）。最多等 1.5 秒，DB 慢就先用舊值放行，重載在背景完成。
+// 未設定 CRON_MODE 時維持 boot() 裡的每分鐘計時器，這個中介層不動作（行為與原本相同）。
+const liveSettings = cronJobs.createLazyReloader({ reload: () => refreshLiveSettings(), ttlMs: 60000 });
+app.use((req, res, next) => {
+  if (!CRON_SCHEDULER || !pool || !dbReady || !liveSettings.stale()) return next();
+  let done = false; const go = () => { if (!done) { done = true; next(); } };
+  liveSettings.maybe().then(go, go);
+  const t = setTimeout(go, 1500); t.unref?.();
+});
+// Cloud Scheduler 觸發排程：POST /internal/cron/tick（依排程時間分派）、/internal/cron/minute｜five-minute（群組）或 /internal/cron/<job>。
+// 未啟用（非 CRON_MODE=scheduler、未設 CRON_SECRET、後台服務、Railway）或密鑰不符一律 404，不透露端點存在。
+// 等工作做完才回應：依請求計費時，回應後 CPU 會被限制。工作失敗仍回 200（與原本排程一樣不自動重試，錯誤在 log／告警信），結果放在 body。
+app.post('/internal/cron/:job', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!CRON_SCHEDULER || ADMIN_MODE || RAILWAY_MODE || !cronJobs.secretMatches(req.get('x-cron-secret'), CRON_SECRET)) return res.sendStatus(404);
+  if (!pool || !dbReady) return res.status(503).json({ error: 'database not ready' });
+  const name = String(req.params.job), at = cronJobs.scheduleTime(req.get('x-cloudscheduler-scheduletime'));
+  const names = name === 'tick' ? cronJobs.dueJobs(at) : cronJobs.GROUPS[name] || (cronRunner.has(name) ? [name] : null);
+  if (!names) return res.sendStatus(404);
+  try {
+    const results = await Promise.all(names.map(n => cronRunner.run(n, { http: true, lease: true })));
+    res.json({ ok: results.every(r => r.status !== 'error'), at: at.toISOString(), results });
+  } catch (e) { console.error('[cron] 觸發失敗：', e.message); res.status(500).json({ error: 'cron failed' }); }
+});
 // pos.emoji.tw 的首頁就是 POS（/pos）；官網首頁與其他頁面不在這個子網域提供，避免現場平板誤入官網
 app.use((req, res, next) => {
   if (!isPosHost(req)) return next();
@@ -3597,8 +3629,8 @@ app.get('/api/admin/system-settings', auth, adminOnly, superOnly, requireDb, wra
   const rows=(await q('SELECT key,value FROM system_settings')).rows;
   res.json({settings:systemSettings.describe(rows),blocked:systemSettings.blocked,restart_required:true});
 }));
-// live 鍵（ezPay 發票、LINE Pay 對帳）存檔後：本服務立刻套用，另一個服務靠 boot() 裡的每分鐘重載
-async function refreshLiveSettings(){const rows=(await q('SELECT key,value FROM system_settings')).rows;systemSettings.refresh(rows,process.env,SECRET);}
+// live 鍵（ezPay 發票、LINE Pay 對帳）存檔後：本服務立刻套用，另一個服務在下一個請求（距上次載入逾 60 秒）重載；程序內排程模式另有每分鐘計時器
+async function refreshLiveSettings(){const rows=(await q('SELECT key,value FROM system_settings')).rows;systemSettings.refresh(rows,process.env,SECRET);liveSettings.markFresh();}
 app.post('/api/admin/system-settings', auth, adminOnly, superOnly, requireDb, wrap(async (req,res)=>{
   const key=String(req.body?.key||'');
   if(!systemSettings.byKey.has(key))return res.status(400).json({error:'未知的系統設定。'});
@@ -6500,6 +6532,59 @@ async function syncIssuedWalletPasses(){
  if(apple){const issue=(await q(`SELECT i.serial,array_agg(DISTINCT d.push_token) AS tokens FROM event_wallet_issues i JOIN event_apple_devices d ON d.serial=i.serial WHERE i.provider='apple' AND i.updated_at>COALESCE(d.last_notified_at,'epoch') GROUP BY i.serial,i.updated_at ORDER BY i.updated_at LIMIT 1`)).rows[0];if(issue){did=true;try{const result=await eventWallets.notifyAppleDevices(apple,issue.tokens);if(result.sent)await q(`UPDATE event_apple_devices SET last_notified_at=i.updated_at FROM event_wallet_issues i WHERE i.provider='apple' AND i.serial=$1 AND event_apple_devices.serial=i.serial AND NOT (push_token=ANY($2::text[]))`,[issue.serial,result.failed]);if(result.failed.length){retryBlocked=true;await q("UPDATE event_wallet_issues SET last_error=$2 WHERE provider='apple' AND serial=$1",[issue.serial,'APNs 未接受 '+result.failed.length+' 個裝置']);}else await q("UPDATE event_wallet_issues SET last_error=NULL WHERE provider='apple' AND serial=$1",[issue.serial]);}catch(error){retryBlocked=true;await q("UPDATE event_wallet_issues SET last_error=$2 WHERE provider='apple' AND serial=$1",[issue.serial,String(error.message).slice(0,500)]);}}}return did&&!retryBlocked;
 }
 
+/* ---------- 排程工作 ----------
+   程序內（node-cron／setInterval）與 Cloud Scheduler（POST /internal/cron/*）共用：同一個執行個體內「正在跑就跳過」，
+   HTTP 觸發另加 DB 租約（cron_leases），多個執行個體不會同時跑同一個 job。錯誤 log 與告警信沿用原本格式。 */
+const CRON_WEBHOOK_BUDGET_MS = Math.min(55000, Math.max(1000, Number(process.env.CRON_WEBHOOK_BUDGET_MS) || 50000));
+const cronLease = {
+  async acquire(name, sec) {
+    const token = crypto.randomBytes(12).toString('hex');
+    const r = await q(`INSERT INTO cron_leases(name,token,expires_at) VALUES($1,$2,now()+($3||' seconds')::interval)
+      ON CONFLICT (name) DO UPDATE SET token=EXCLUDED.token,expires_at=EXCLUDED.expires_at WHERE cron_leases.expires_at<now() RETURNING token`, [name, token, sec]);
+    return r.rows[0]?.token === token ? token : null;
+  },
+  async release(name, token) { await q('DELETE FROM cron_leases WHERE name=$1 AND token=$2', [name, token]); },
+};
+const cronRunner = cronJobs.createRunner({ lease: cronLease });
+const eventMailEnabled = () => !!(process.env.RESEND_API_KEY || eventChannels.twilioConfig() || eventChannels.pushConfig());
+// 活動 webhook：程序內每輪最多 20 筆（原行為）；HTTP 觸發時處理到佇列清空或約 50 秒（取代原本每 10 秒一輪）
+cronRunner.define('event-webhooks', ({ http } = {}) => cronJobs.drain(deliverEventWebhookOnce, http ? { budgetMs: CRON_WEBHOOK_BUDGET_MS } : { max: 20 }),
+  { onError: e => console.error('[event-webhook]', e.message), leaseSec: 120 });
+cronRunner.define('wallet-sync', () => cronJobs.drain(syncIssuedWalletPasses, { max: 20 }),
+  { enabled: () => !!(eventWallets.googleConfig() || eventWallets.appleConfig()), onError: e => console.error('[event-wallet-sync]', e.message) });
+cronRunner.define('authorization-expiry', async () => { await expireEventAuthorizations(); await reconcileExpiredEventCheckouts(); },
+  { enabled: () => !!stripe, onError: e => console.error('[authorization-expiry]', e.message) });
+cronRunner.define('event-mail', async () => {
+  await drainApplicationMail();const pending=(await q("SELECT r.user_id,r.event_id FROM event_regs r JOIN events e ON e.id=r.event_id WHERE r.status='registered' AND e.status<>'已取消' AND r.confirmation_queued=false LIMIT 100")).rows;if(process.env.RESEND_API_KEY){for(const r of pending)await notifyRegistration(r.user_id,r.event_id);await require('./lib/event-mailer').queueFeedbackRequests(q,SITE_BASE);}await require('./lib/event-mailer').queueReminders(q,SITE_BASE);const twilio=eventChannels.twilioConfig(),push=eventChannels.pushConfig(),providers={email:process.env.RESEND_API_KEY?sendMail:null,text:twilio?options=>eventChannels.sendText(twilio,options):null,push:push?(subscription,payload)=>eventChannels.sendPush(push,subscription,payload):null};for(let i=0;i<30;i++){if(!await require('./lib/event-mailer').deliverDue(q,providers,SITE_BASE,SECRET))break;}
+}, { enabled: eventMailEnabled, onError: e => console.error('[event-mail]', e.message) });
+cronRunner.define('line-delivery', () => lineDelivery.run(), { onError: () => console.error('[line-delivery] scheduler_failed') });
+// 預約取餐：取餐前 PREP_MIN 分鐘自動送單；過期未取自動收掉
+cronRunner.define('pickup', () => placeDuePickups(), { onError: e => console.error('[pickup]', e.message) });
+// LINE 訂位前一日提醒：一筆只提醒一次
+cronRunner.define('line-reminders', () => lineService.sendReminders(), { onError: e => console.error('[line] 提醒失敗：', e.message) });
+// 會籍到期前 7 天提醒
+cronRunner.define('membership-reminders', () => remindExpiringMemberships(), { onError: e => console.error('[remind] 失敗：', e.message) });
+// LINE Pay 對帳：每日抓最近 7 天；每 5 分鐘抓昨今兩天（正在同步就跳過）。失敗不寄信，錯誤記在 linepay_sync_state。兩者共用租約，跨執行個體不會同時開 puppeteer
+cronRunner.define('linepay-daily', () => syncLinepay(...linepay.syncWindow()),
+  { enabled: () => linepay.configured(), onError: e => console.error('[linepay] 同步失敗：', e.message), lockKey: 'linepay', leaseSec: 900 });
+cronRunner.define('linepay-recent', () => { if (linepaySyncing) return 'busy'; return syncLinepay(...linepay.syncWindow(Date.now(), 1)); },
+  { enabled: () => linepay.configured(), onError: e => console.error('[linepay] 5 分鐘同步失敗：', e.message), lockKey: 'linepay', leaseSec: 900 });
+// IG 自動發佈：env IG_AUTOPUBLISH=1 才啟用（本機開發預設不跑，避免誤發）；失敗即寄信（2026-09-20 失敗篇躺 7 天沒人發現）；改回「已排程」即重試
+const igAlert = (subject, text) => sendMailQuietly({ to: NOTIFY_EMAIL, subject: `[IG] ${subject}`, text });
+const igEnabled = () => process.env.IG_AUTOPUBLISH === '1';
+cronRunner.define('ig-publish', async () => {
+  const rs = await igPublisher.publishDue(igDeps());
+  // 等告警信寄完才結束：HTTP 觸發時回應後 CPU 會被限制
+  await Promise.all(rs.filter(r => !r.ok).map(r => igAlert(`發文失敗：${r.title}`,
+    `貼文「${r.title}」自動發佈失敗，已標為錯誤、不會自動重發。\n\n原因：${r.error}\n\n處理：${ADMIN_BASE}/admin/social/edit/${r.id}（修正後把狀態改回「已排程」並設定新時間即重發）`)));
+  return rs.length;
+}, { enabled: igEnabled, onError: e => console.error('[ig-publish] cron 失敗：', e.message), leaseSec: 600 });
+// 長期 token 60 天效期，每日續期一次；失敗每天提醒，過期前須處理
+cronRunner.define('ig-token-refresh', async () => {
+  try { const sec = await igPublisher.refreshToken(igDeps()); if (sec) console.log(`[ig-publish] token 已續期，效期 ${Math.round(sec / 86400)} 天`); }
+  catch (e) { console.error('[ig-publish] token 續期失敗：', e.message); await igAlert('token 續期失敗', `IG token 今日續期失敗，60 天效期到期後自動發文會全部停擺。\n\n原因：${e.message}`); throw Object.assign(e, { alerted: true }); }
+}, { enabled: igEnabled, onError: () => {} });
+
 async function boot() {
   if (pool) {
     try { await migrate(); dbReady = true; console.log('[db] 連線並完成 migrate'); liveHub.start(); tableLive.startListener(pool, liveHub); }
@@ -6510,62 +6595,46 @@ async function boot() {
   app.listen(PORT, () => console.log(`[server] listening on ${PORT}`));
 
   // 後台「系統設定」的 live 鍵（ezPay 發票、LINE Pay 帳密）每分鐘從 DB 重載：兩個服務都要跑（在後台存的憑證，POS 結帳那台要拿得到），這不是排程、不會重複寄信
-  if (dbReady) { const t = setInterval(() => refreshLiveSettings().catch(e => console.error('[system-settings] 重載失敗：', e.message)), 60000); t.unref(); }
+  // CRON_MODE=scheduler 時不掛計時器，只靠請求進來時的 lazy 重載（liveSettings 中介層）
+  if (dbReady && !CRON_SCHEDULER) { const t = setInterval(() => refreshLiveSettings().catch(e => console.error('[system-settings] 重載失敗：', e.message)), 60000); t.unref(); }
 
   // 後台服務不跑排程：webhook 投遞、活動信件、會籍提醒、LINE Pay 對帳、IG 自動發佈全由官網服務負責，兩邊都跑會重複寄信／重複發文
   if (ADMIN_MODE) { console.log('[boot] SERVICE_ROLE=admin：排程由官網服務負責，本服務不啟動'); return; }
   // Railway 專案只留作回滾備援（2026-10-12 搬到 GCP）：它的 GitHub 自動部署仍跟著 main 更新、連的是自己那顆舊資料庫（排程貼文備份）、
   // 用同一支 IG token，排程若也跑就會和 Cloud Run 各發一次（2026-10-13 IG 雙發事故）。Railway 一律不跑排程。
   if (RAILWAY_MODE) { console.log('[boot] RAILWAY_ENVIRONMENT：Railway 僅為備援，排程由 Cloud Run 官網服務負責，本服務不啟動'); return; }
+  // Cloud Scheduler 模式：程序內不啟動任何排程，由 POST /internal/cron/* 觸發（見 docs/cloud-scheduler-cron.md）
+  if (CRON_SCHEDULER) {
+    if (!cronJobs.secretMatches(CRON_SECRET, CRON_SECRET)) console.warn(`[warn] CRON_MODE=scheduler 但 CRON_SECRET 未設定或短於 ${cronJobs.CRON_SECRET_MIN} 字元：/internal/cron/* 停用，排程不會執行！`);
+    console.log('[boot] CRON_MODE=scheduler：排程改由 Cloud Scheduler 觸發 /internal/cron/*，程序內不啟動');
+    return;
+  }
 
-  // 會籍到期前 7 天提醒：每日 09:00（台北）
   if (dbReady) {
-    let webhookRunning=false;const webhookTimer=setInterval(async()=>{if(webhookRunning)return;webhookRunning=true;try{for(let i=0;i<20&&await deliverEventWebhookOnce();i++);}catch(e){console.error('[event-webhook]',e.message);}finally{webhookRunning=false;}},Math.max(EVENT_WEBHOOK_ALLOW_LOOPBACK?100:1000,Number(process.env.EVENT_WEBHOOK_POLL_MS)||10000));webhookTimer.unref();
-    if(eventWallets.googleConfig()||eventWallets.appleConfig()){let walletsRunning=false;require('node-cron').schedule('* * * * *',async()=>{if(walletsRunning)return;walletsRunning=true;try{for(let i=0;i<20&&await syncIssuedWalletPasses();i++);}catch(e){console.error('[event-wallet-sync]',e.message);}finally{walletsRunning=false;}});}
-    if(stripe){let expiring=false;require('node-cron').schedule('* * * * *',async()=>{if(expiring)return;expiring=true;try{await expireEventAuthorizations();await reconcileExpiredEventCheckouts();}catch(e){console.error('[authorization-expiry]',e.message);}finally{expiring=false;}});}
-    if(process.env.RESEND_API_KEY||eventChannels.twilioConfig()||eventChannels.pushConfig()){
-      let running=false;
-      require('node-cron').schedule('* * * * *',async()=>{
-        if(running)return;running=true;
-        try{await drainApplicationMail();const pending=(await q("SELECT r.user_id,r.event_id FROM event_regs r JOIN events e ON e.id=r.event_id WHERE r.status='registered' AND e.status<>'已取消' AND r.confirmation_queued=false LIMIT 100")).rows;if(process.env.RESEND_API_KEY){for(const r of pending)await notifyRegistration(r.user_id,r.event_id);await require('./lib/event-mailer').queueFeedbackRequests(q,SITE_BASE);}await require('./lib/event-mailer').queueReminders(q,SITE_BASE);const twilio=eventChannels.twilioConfig(),push=eventChannels.pushConfig(),providers={email:process.env.RESEND_API_KEY?sendMail:null,text:twilio?options=>eventChannels.sendText(twilio,options):null,push:push?(subscription,payload)=>eventChannels.sendPush(push,subscription,payload):null};for(let i=0;i<30;i++){if(!await require('./lib/event-mailer').deliverDue(q,providers,SITE_BASE,SECRET))break;}}
-        catch(e){console.error('[event-mail]',e.message);}finally{running=false;}
-      });
-    }
-    let lineDeliveryRunning=false;
-    require('node-cron').schedule('* * * * *',async()=>{
-      if(lineDeliveryRunning)return;lineDeliveryRunning=true;
-      try{await lineDelivery.run();}catch{console.error('[line-delivery] scheduler_failed');}finally{lineDeliveryRunning=false;}
-    });
-    // 預約取餐：每分鐘檢查，取餐前 PREP_MIN 分鐘自動送單；過期未取自動收掉
-    let pickupRunning=false;
-    require('node-cron').schedule('* * * * *',async()=>{if(pickupRunning)return;pickupRunning=true;try{await placeDuePickups();}catch(e){console.error('[pickup]',e.message);}finally{pickupRunning=false;}});
-    // LINE 訂位前一日提醒：每天 18:00（台北），一筆只提醒一次
-    require('node-cron').schedule('0 18 * * *', () => lineService.sendReminders().catch(e => console.error('[line] 提醒失敗：', e.message)), { timezone: 'Asia/Taipei' });
-    require('node-cron').schedule('0 9 * * *', () => remindExpiringMemberships()
-      .catch(e => console.error('[remind] 失敗：', e.message)), { timezone: 'Asia/Taipei' });
-    // LINE Pay 對帳：每日 04:30（三點水 03:00 收班後）抓最近 7 天實收；失敗不寄信，錯誤記在 linepay_sync_state，POS 日結畫面顯示，也能手動重抓
-    require('node-cron').schedule('30 4 * * *', () => { if (!linepay.configured()) return; syncLinepay(...linepay.syncWindow())
-      .catch(e => { console.error('[linepay] 同步失敗：', e.message); }); }, { timezone: 'Asia/Taipei' });
-    // 背景每 5 分鐘抓昨天～今天營業日，日結對帳區與「LINE Pay 實收」自動帶入不用再手動按；正在同步就跳過。失敗只顯示在 POS 畫面，不寄信
-    require('node-cron').schedule('*/5 * * * *', () => { if (!linepay.configured() || linepaySyncing) return; syncLinepay(...linepay.syncWindow(Date.now(), 1))
-      .catch(e => { console.error('[linepay] 5 分鐘同步失敗：', e.message); }); }, { timezone: 'Asia/Taipei' });
+    const cron = require('node-cron');
+    const webhookTimer=setInterval(()=>cronRunner.run('event-webhooks'),Math.max(EVENT_WEBHOOK_ALLOW_LOOPBACK?100:1000,Number(process.env.EVENT_WEBHOOK_POLL_MS)||10000));webhookTimer.unref();
+    if(eventWallets.googleConfig()||eventWallets.appleConfig())cron.schedule('* * * * *',()=>cronRunner.run('wallet-sync'));
+    if(stripe)cron.schedule('* * * * *',()=>cronRunner.run('authorization-expiry'));
+    if(eventMailEnabled())cron.schedule('* * * * *',()=>cronRunner.run('event-mail'));
+    cron.schedule('* * * * *',()=>cronRunner.run('line-delivery'));
+    // 預約取餐：每分鐘檢查
+    cron.schedule('* * * * *',()=>cronRunner.run('pickup'));
+    // LINE 訂位前一日提醒：每天 18:00（台北）
+    cron.schedule('0 18 * * *', () => cronRunner.run('line-reminders'), { timezone: 'Asia/Taipei' });
+    // 會籍到期前 7 天提醒：每日 09:00（台北）
+    cron.schedule('0 9 * * *', () => cronRunner.run('membership-reminders'), { timezone: 'Asia/Taipei' });
+    // LINE Pay 對帳：每日 04:30（三點水 03:00 收班後）抓最近 7 天；背景每 5 分鐘抓昨天～今天營業日。帳密執行時才檢查（後台存檔後自動啟用）
+    cron.schedule('30 4 * * *', () => cronRunner.run('linepay-daily'), { timezone: 'Asia/Taipei' });
+    cron.schedule('*/5 * * * *', () => cronRunner.run('linepay-recent'), { timezone: 'Asia/Taipei' });
     if (linepay.configured()) console.log('[linepay] 對帳同步已啟用（每 5 分鐘抓昨今兩天、每日 04:30 抓最近 7 天）');
     else console.warn('[warn] LINE Pay 商家後台帳密未設定（後台「系統設定」可填），對帳同步待設定後自動啟用。');
   }
 
   // IG 自動發佈 cron：env IG_AUTOPUBLISH=1 才啟用（本機開發預設不跑，避免誤發）
-  if (process.env.IG_AUTOPUBLISH === '1' && dbReady) {
+  if (igEnabled() && dbReady) {
     const cron = require('node-cron');
-    // 失敗即寄信（2026-09-20 失敗篇躺 7 天沒人發現）；改回「已排程」即重試
-    const igAlert = (subject, text) => sendMailQuietly({ to: NOTIFY_EMAIL, subject: `[IG] ${subject}`, text });
-    cron.schedule('*/5 * * * *', () => igPublisher.publishDue(igDeps())
-      .then(rs => rs.filter(r => !r.ok).forEach(r => igAlert(`發文失敗：${r.title}`,
-        `貼文「${r.title}」自動發佈失敗，已標為錯誤、不會自動重發。\n\n原因：${r.error}\n\n處理：${ADMIN_BASE}/admin/social/edit/${r.id}（修正後把狀態改回「已排程」並設定新時間即重發）`)))
-      .catch(e => console.error('[ig-publish] cron 失敗：', e.message)));
-    // 長期 token 60 天效期，每日續期一次（台北 04:10 離峰）；失敗每天提醒，過期前須處理
-    cron.schedule('10 4 * * *', () => igPublisher.refreshToken(igDeps())
-      .then(sec => sec && console.log(`[ig-publish] token 已續期，效期 ${Math.round(sec / 86400)} 天`))
-      .catch(e => { console.error('[ig-publish] token 續期失敗：', e.message); igAlert('token 續期失敗', `IG token 今日續期失敗，60 天效期到期後自動發文會全部停擺。\n\n原因：${e.message}`); }), { timezone: 'Asia/Taipei' });
+    cron.schedule('*/5 * * * *', () => cronRunner.run('ig-publish'));
+    cron.schedule('10 4 * * *', () => cronRunner.run('ig-token-refresh'), { timezone: 'Asia/Taipei' });
     console.log('[ig-publish] 自動發佈已啟用（每 5 分掃描；失敗寄信）');
   } else {
     console.log('[ig-publish] 自動發佈未啟用（IG_AUTOPUBLISH!=1 或無資料庫）');

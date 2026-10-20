@@ -109,7 +109,11 @@ test('後台服務（SERVICE_ROLE=admin）：任何 host 首頁都是 /admin、�
 test('排程只在官網服務跑；後台頁的登入鈕走同網域 /auth/google；CI 同一個 image 部署 emoji-website 與 emoji-admin', () => {
   const src = read('server.js');
   const boot = src.slice(src.indexOf('async function boot()'));
-  const guard = boot.indexOf("if (ADMIN_MODE) { console.log('[boot] SERVICE_ROLE=admin"), firstCron = boot.indexOf("require('node-cron')"), webhook = boot.indexOf('deliverEventWebhookOnce');
+  const guard = boot.indexOf("if (ADMIN_MODE) { console.log('[boot] SERVICE_ROLE=admin"), firstCron = boot.indexOf("require('node-cron')"), webhook = boot.indexOf("cronRunner.run('event-webhooks')");
+  assert.ok(firstCron > -1 && webhook > -1, '程序內排程仍由 boot() 啟動');
+  // CRON_MODE=scheduler：程序內排程一律不啟動（改由 Cloud Scheduler 打 /internal/cron/*）
+  const schedulerGuard = boot.indexOf('if (CRON_SCHEDULER) {');
+  assert.ok(schedulerGuard > -1 && schedulerGuard < firstCron && schedulerGuard < webhook, 'CRON_MODE=scheduler 必須在任何排程啟動前 return');
   assert.ok(guard > -1 && guard < firstCron && guard < webhook, '後台服務必須在任何排程啟動前 return');
   // Railway 備援環境與 Cloud Run 共用同一支 IG token 卻各有一顆 DB，排程若也跑就雙發（2026-10-13）
   assert.match(src, /const RAILWAY_MODE = !!process\.env\.RAILWAY_ENVIRONMENT;/);

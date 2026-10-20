@@ -48,7 +48,7 @@ test('server：預約單開外帶號、品項不先送單、排程送單並出�
   assert.match(server, /tableOrders\.nextTakeoutTable\(used\)/);
   assert.match(server, /INSERT INTO table_sessions\(id,table_no,items,user_id,pickup_at,pickup_note,opened_by_staff_name\)/);
   assert.match(server, /async function placeDuePickups/); assert.match(server, /tableOrders\.placeLines\(cur\.items, now\)/); assert.match(server, /kitchenPrint\.enqueue\(client\.query\.bind\(client\), \[\{ \.\.\.cur, items: placed\.lines \}\]\)/);
-  assert.match(server, /schedule\('\* \* \* \* \*',async\(\)=>\{if\(pickupRunning\)return;/);
+  assert.match(server, /cronRunner\.define\('pickup', \(\) => placeDuePickups\(\)/); assert.match(server, /schedule\('\* \* \* \* \*',\(\)=>cronRunner\.run\('pickup'\)\)/);
   assert.match(server, /pickup_placed_at IS NULL AND NOT EXISTS \(SELECT 1 FROM jsonb_array_elements\(items\)/);
   assert.match(server, /tableOrders\.menuIndex\(await contentValue\('menu'\), p\.venue, \{ now: p\.pickupAt \}\)/, '菜單依取餐時段品牌');
   assert.match(server, /pickup_at:s\.pickup_at\|\|null,pickup_note:s\.pickup_note\|\|'',pickup_placed:!!s\.pickup_placed_at/);
