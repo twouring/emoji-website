@@ -88,3 +88,13 @@ test('報名完成（免費、訪客、付款回傳）一律進結果頁，不�
   assert.match(ev, /result=v\.paid\|\|v\.status==='registered'\?'paid':'checking'/);
   for (const k of ['backEvent', 'home']) for (const l of ['zh', 'en', 'ja']) assert.ok(MEvent.L[l][k], l + '.' + k);
 });
+
+test('App 報名頁：優惠碼不摺疊、有「套用」鈕打 /quote，合計顯示原價／折抵／折扣後金額', () => {
+  const ev = read('public/m-event.js');
+  assert.match(ev, /id="mev-coupon"/);
+  assert.match(ev, /id="mev-apply"/);
+  assert.doesNotMatch(ev, /<details\$\{coupon\?' open':''\}>/, '優惠碼不要收在 details 裡');
+  assert.match(ev, /api\('\/events\/'\+e\.id\+'\/quote'/);
+  assert.match(ev, /T\.orig/);
+  assert.match(ev, /T\.discount/);
+});
