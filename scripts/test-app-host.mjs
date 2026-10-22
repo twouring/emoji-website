@@ -51,7 +51,7 @@ test('舊 /organizer 無論網域都轉 App /host，單場路徑保留活動 id'
 test('前端含 App 主辦路由、建立三步、匯入與管理錨點', () => {
   const h = read('public/m.html'), host=read('public/m-host.js');
   assert.match(h, /<script src="\/m-host\.js"><\/script>/);
-  for (const needle of ['/api/organizer/state', '/api/me/event-applications', '/api/venue-fee/quote', '/api/event-applications', '/api/me/event-import', 'hostPath', '開啟相機簽到']) assert.ok(host.includes(needle), needle);
+  for (const needle of ['/api/organizer/state', '/api/me/event-applications', '/api/venue-fee/quote', '/api/event-applications', '/api/me/event-import', 'hostPath', '掃描 QR 簽到']) assert.ok(host.includes(needle), needle);
   for (const needle of ['uxGuests', 'uxInvite', 'uxCheckin', 'uxCheckinMode', 'data-ug-filter', '/check-in/lookup', "'/guests/import'", '快速模式']) assert.ok(host.includes(needle), needle);
   assert.match(host, /HOST_I18N=.*zh:.*en:.*ja:/s);
   assert.match(host, /unlock_code/); assert.match(host, /PAYOUT_ACCOUNT_REQUIRED/);

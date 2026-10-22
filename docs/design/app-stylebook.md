@@ -1,6 +1,6 @@
-# 言文字會員 App Stylebook v1.0
+# 言文字會員 App Stylebook v1.1
 
-更新：2026-10-22。適用：會員 App app.emoji.tw（`public/m.html`）、活動報名頁 `/e/<slug>`（`public/m-event.js`）、主辦工作台 `/host`（`public/m-host.js`）。官網、後台與嵌入介面請看 `docs/design/stylebook.md`（`ui-*` 元件）；兩套不要混用。
+更新：2026-10-22（v1.1：全 App 依本規範清理）。適用：會員 App app.emoji.tw（`public/m.html`）、活動報名頁 `/e/<slug>`（`public/m-event.js`）、主辦工作台 `/host`（`public/m-host.js`）。官網、後台與嵌入介面請看 `docs/design/stylebook.md`（`ui-*` 元件）；兩套不要混用。
 
 - 展示頁：`https://www.emoji.tw/stylebook/app/`（本機 `npm run dev` 後開 `/stylebook/app/`）。
 - 展示頁不複製 CSS：`public/stylebook/app/app.js` 執行時讀 `/m.html` 的 `<style>` 和 `m-event.js` 的 `CSS` 常數，所以畫面永遠等於正式 App。
@@ -31,7 +31,8 @@ App 自己的 `:root`（在 `m.html`），名稱比官網短，不要引用官�
 規則：
 
 - 新程式只用 `var(--token)`，不寫色碼。目前允許的固定色只有：LINE 綠 #06C755、Google 標誌四色、錯誤紅 #B3261E、主辦狀態膠囊與掃描結果的淡綠／淡黃／淡紅。要加新語意色，先改本表。
-- 黃色每個畫面只出現一處主要強調（`.show`、`.pill.on`、`.tag`、`.host-action.primary` 都算）。
+- 黃色每個畫面只出現一處主要強調（`.show`、`.pill.on`、`.tag`、`.host-action.primary` 都算）。主辦工作台的 `.host-action.primary` 固定給「簽到」。
+- 深色底（相機框、掃描畫面）用 `var(--ink)`，不另寫 #000／#111。
 - 字級最小 1rem，含 small、按鈕、標籤（`test-member-pwa`、`test-login-screen` 會擋）。標題用 Noto Serif TC 700；點數、金額大字用 Cormorant Garamond＋`tabular-nums`。
 - 觸控區最小 44×44px；主要按鈕 52px；登入與出示卡片 56px。
 - 圓角：欄位 12px、按鈕 14px、卡片 16px、會員卡 22px、膠囊 999px。不用陰影做層次（會員卡除外）。
@@ -70,9 +71,11 @@ App 自己的 `:root`（在 `m.html`），名稱比官網短，不要引用官�
 | 方案列 | `.plan`、`.plan.promo` | 會籍方案；價格讀 `PLAN_PRICES` |
 | 動態列 | `.upd`、`.upd.mute` | 公告、通知 |
 | 品項列 | `.cat`、`.mi`（`.nm`、`.q`） | 點餐；數量 0 時減號 disabled |
-| 欄位 | `.field`（登入、我的、報名）、`.fld`（預約） | label 包 input；設 autocomplete、inputmode、maxlength |
+| 欄位 | `.field`（登入、我的、報名、主辦）、`.fld`（預約） | label 包 input／select／textarea；設 autocomplete、inputmode、maxlength |
+| 勾選列 | `.chk` | label 包 checkbox／radio，整列 44px；全 App 通用，不放進 `.field` |
+| 套餐選擇 | `.mi .q button.pick` | 點餐套餐的「選擇內容」膠囊鍵 |
 | 單選 | `.seg`（`.two`）、`.slots`、`.lang` | 選中用 `aria-pressed="true"`，不用 class |
-| 報名專用 | `.mev` 內的 `.tk(.off)`、`.chk`、`.req`、`.facts`、`.desc`、`.sum`、`.cover`、`.alert`、`.ok`、`.note` | 只在 `.mev` 內生效 |
+| 報名專用 | `.mev` 內的 `.tk(.off)`、`.req`、`.facts`、`.desc`、`.sum`、`.cover`、`.alert`、`.ok`、`.note` | 只在 `.mev` 內生效 |
 | 狀態標籤 | `.pill`、`.pill.on`、`.tag` | 一般狀態／已確認／強調 |
 | 空狀態 | `.empty` | 0 筆、載入中；API 失敗要另外寫原因 |
 | 說明 | `.hint`、`.ghost`、`.nb`、`.note` | 區塊下方說明；`.nb` 讓短詞不斷行 |
@@ -87,7 +90,9 @@ App 自己的 `:root`（在 `m.html`），名稱比官網短，不要引用官�
 - 所有來自 API 或使用者的字串一律經過 `esc()` 再放進樣板（測試會檢查 `esc(me.name`、`esc(e.title)`）。
 - 送出：點下立即 `disabled`，`finally` 恢復；錯誤用 `toast(x.message)`。伺服器仍要防重。
 - 選取狀態用 `aria-pressed`／`aria-current`，不要用 `.active` 之類的 class。
-- 不新增 inline style。目前樣板裡的 `style="margin-top:8px"`、`style="width:auto…"` 是待清理的舊寫法，新程式改用元件或補 class；唯一允許的是 `.bar > i` 的動態寬度。
+- 不寫 inline style（`test-app-stylebook` 會擋）；唯一允許的是 `.bar > i` 的動態寬度。間距已內建：連續 `.btn` 相隔 8px，`.field`／`.fld`／`.chk` 後的按鈕相隔 16px；`.hello` 內的 `.btn`／`.quiet` 自動寬度自動。
+- 顯示／隱藏用 `hidden` 屬性，不改 `style.display`。
+- 不用 inline 事件（`onclick="…"`），一律在 JS 綁定。
 - 三語：文字放進 `T`（zh／en／ja）對照表，不在樣板寫死中文。主辦頁（`m-host.js`）目前只有中文。
 - 動畫要能被 `prefers-reduced-motion` 關掉。
 - 圖片給寬高或 `aspect-ratio`；裝飾圖 `alt=""`。
@@ -107,4 +112,3 @@ App 自己的 `:root`（在 `m.html`），名稱比官網短，不要引用官�
 | `ef`、`first` | 登入頁 Email 表單與「第一次使用」說明的版位，跟 `.login` 一起使用 |
 | `host-page` | 主辦頁外層容器 |
 | `sp` | 啟動畫面 `#splash` |
-| `ev`、`rw`、`serif` | 死碼：CSS 還在、App 已不使用。下次改 App 樣式時刪除，不要再引用 |

@@ -40,7 +40,7 @@ try {
       const controls = frames.flatMap(f => [...f.querySelectorAll('button,a,input,select,textarea')]).filter(el => el.getClientRects().length && el.type !== 'radio' && el.type !== 'checkbox');
       return {
         ready: doc.dataset.ready, appCss: (document.getElementById('app-css')?.textContent || '').length,
-        btnMin: getComputedStyle(document.querySelector('.sbk-frame .btn')).minHeight,
+        btnMin: getComputedStyle(document.querySelector('#actions .sbk-frame .btn')).minHeight,
         passBg: getComputedStyle(document.querySelector('.sbk-frame .pass')).backgroundColor,
         overflow: doc.scrollWidth - doc.clientWidth,
         frameOverflow: frames.filter(f => f.scrollWidth > f.clientWidth + 1).map(f => f.getAttribute('aria-label')),
