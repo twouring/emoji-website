@@ -571,16 +571,9 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
  }
 });
 
-test('organizers entering /admin land in the organizer portal; denied accounts can switch login',async()=>{
+test('非管理員登入 admin 顯示 App 主辦入口，不再載入 organizer portal',async()=>{
  const {runInNewContext}=await import('node:vm'),{readFileSync}=await import('node:fs'),source=readFileSync(new URL('../public/admin.html',import.meta.url),'utf8');
  const code=source.slice(source.indexOf('function renderLogin('),source.indexOf('/* ---------- CSV'))+source.slice(source.indexOf('async function main(){'),source.indexOf('main();\n</script>'));
- const run=async(path,state,organizer=false)=>{const replaced=[],app={innerHTML:''},context={token:'t',KEY:'tth_token',ORGANIZER_PORTAL:path.startsWith('/organizer'),app,logoutBtn:{style:{}},document:{getElementById:id=>id==='admin-password-login'?{}:null},localStorage:{removeItem(){}},esc:String,
-  location:{origin:'https://www.emoji.tw',pathname:path,search:'?task=hosts',replace:url=>replaced.push(url)},render:()=>replaced.push('render'),applyRoute(){},ensureIgScripts:async()=>{},
-  api:async p=>{if(p==='/state'){if(state instanceof Error)throw state;return state;}if(organizer)return {};throw Object.assign(new Error('需要活動主權限，請聯絡言文字授權。'),{status:403});}};
-  runInNewContext(code,context);await context.main();return {replaced,html:app.innerHTML};};
- assert.deepEqual((await run('/admin/events/e_1',{role:'invited'},true)).replaced,['/organizer/events/e_1?task=hosts']);
- assert.deepEqual((await run('/admin',{role:'admin'})).replaced,['render']);
- const stranger=await run('/admin',{role:'invited'});assert.deepEqual(stranger.replaced,[]);assert.match(stranger.html,/event-login\.html\?redirect=https%3A%2F%2Fwww\.emoji\.tw%2Fadmin"/);
- const denied=await run('/organizer/events/e_1',Object.assign(new Error('需要活動主權限，請聯絡言文字授權。'),{status:403}));
- assert.match(denied.html,/auth\/google\?redirect=https%3A%2F%2Fwww\.emoji\.tw%2Forganizer%2Fevents%2Fe_1"/);assert.match(denied.html,/使用 Email 登入/);assert.doesNotMatch(denied.html,/重新整理/);
+ const app={innerHTML:''},context={token:'t',KEY:'tth_token',app,logoutBtn:{style:{}},document:{getElementById:id=>id==='admin-password-login'?{}:null},localStorage:{removeItem(){}},esc:String,location:{origin:'https://admin.emoji.tw',pathname:'/admin',search:'',replace(){}},render(){},applyRoute(){},ensureIgScripts:async()=>{},api:async()=>({role:'organizer'})};
+ runInNewContext(code,context);await context.main();assert.match(app.innerHTML,/活動請到 App 管理/);assert.match(app.innerHTML,/https:\/\/app\.emoji\.tw\/host/);assert.doesNotMatch(source,/ORGANIZER_PORTAL/);
 });

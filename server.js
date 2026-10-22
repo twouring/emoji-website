@@ -117,7 +117,7 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 // 站台對外網址，供 Google 導回 callback；本地測試設 PUBLIC_ORIGIN=http://localhost:8080
 const SITE_BASE = (process.env.PUBLIC_ORIGIN || 'https://www.emoji.tw').replace(/\/$/, '');
 // 服務角色：SERVICE_ROLE=admin 的服務只當後台（admin.emoji.tw）——自己處理 OAuth callback、不跑任何排程（排程由官網服務負責）；
-// 未設定＝官網服務（www／pos），其 /admin 一律轉到 ADMIN_BASE；活動主入口 /organizer 屬於官網（主辦人是外部對象，不進後台網域），後台服務上的 /organizer 反向轉回 SITE_BASE。兩個服務跑同一個 image、同一個 DB。
+// 未設定＝官網服務（www／pos），其 /admin 一律轉到 ADMIN_BASE；舊活動主入口 /organizer 已搬到會員 App（APP_BASE/host），任何網域一律 302 過去。兩個服務跑同一個 image、同一個 DB。
 const ADMIN_MODE = process.env.SERVICE_ROLE === 'admin';
 const RAILWAY_MODE = !!process.env.RAILWAY_ENVIRONMENT; // Railway 備援環境：不跑任何排程（見 boot()）
 // 排程模式：CRON_MODE=scheduler 時程序內不啟動 node-cron／setInterval，改由 Cloud Scheduler 打 POST /internal/cron/*（帶 X-Cron-Secret）
@@ -154,7 +154,8 @@ const isPosHost = req => POS_HOSTS.includes(String(req.hostname || '').toLowerCa
 const APP_HOSTS = (process.env.APP_HOSTS || 'app.emoji.tw').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 const isAppHost = req => APP_HOSTS.includes(String(req.hostname || '').toLowerCase());
 // App 子站只提供 PWA 本身、API、登入與必要靜態檔；其餘頁面（活動、官網）一律回官網，避免兩個網域出現重複內容
-const APP_HOST_OWN = /^\/($|index\.html$|m($|\/|\.webmanifest$|-sw\.js$|-icon-)|api\/|auth\/|vendor\/|favicon|logo\.png$|cis\/assets\/)/;
+// /host、/host/<eventId>：會員在 App 主辦活動（列表／單場管理），同樣回 m.html 由前端路由
+const APP_HOST_OWN = /^\/($|index\.html$|host($|\/)|m($|\/|\.webmanifest$|-sw\.js$|-icon-)|api\/|auth\/|vendor\/|favicon|logo\.png$|cis\/assets\/)/;
 const ADMIN_HOSTS = (process.env.ADMIN_HOSTS || 'admin.emoji.tw').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 const isAdminHost = req => ADMIN_HOSTS.includes(String(req.hostname || '').toLowerCase());
 const DEFAULT_MEMBER_URL = (process.env.MEMBER_URL || APP_BASE + '/');
@@ -1356,7 +1357,7 @@ async function drainApplicationMail() {
   catch (e) { console.error('[application-mail]', e.message); }
   finally { applicationMailDraining = false; }
 }
-/** 申請即活動：建立草稿活動、申請人為負責人並加入主辦團隊（可進 /organizer/events 先準備頁面）；公開與否由審核決定。 */
+/** 申請即活動：建立草稿活動、申請人為負責人並加入主辦團隊（可在 App /host/<id> 先準備頁面）；公開與否由審核決定。 */
 async function createApplicationEvent(client, a) {
   const id = `e_${a.id}`, slug = `${a.visibility === 'private' ? 'private-event' : eventSlug(a.title) || 'event'}-${a.id.slice(-8)}`;
   // 退票政策存在 registration_settings.refund_policy（參加者退票 DELETE /api/events/:id/register 讀這裡）
@@ -1487,10 +1488,18 @@ app.use((req, res, next) => {
   if (req.path === '/' || req.path === '/index.html' || req.path === '/admin' || req.path === '/admin.html') return res.redirect(302, '/pos');
   next();
 });
-// app.emoji.tw：首頁直接出會員 PWA（網址維持 /）；不屬於 App 的頁面導回官網
+// 舊活動主入口 /organizer（www、admin 及任何網域）→ 會員 App 主辦頁；/organizer/events/<id>/… → /host/<id>，查詢字串原樣帶過去
+const organizerToHost = p => { const m = /^\/organizer\/events\/([^/]+)/.exec(p); return '/host' + (m ? '/' + m[1] : ''); };
+app.use((req, res, next) => {
+  if (!/^\/organizer(\/|$)/.test(req.path)) return next();
+  const qs = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+  res.set('X-Robots-Tag', 'noindex');
+  res.redirect(302, APP_BASE + organizerToHost(req.path) + qs);
+});
+// app.emoji.tw：首頁直接出會員 PWA（網址維持 /）；/host 主辦頁也是同一個 PWA；不屬於 App 的頁面導回官網
 app.use((req, res, next) => {
   if (!isAppHost(req)) return next();
-  if (req.path === '/' || req.path === '/index.html') { res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache' }); return res.sendFile(path.join(PUB, 'm.html')); }
+  if (req.path === '/' || req.path === '/index.html' || /^\/host(\/|$)/.test(req.path)) { res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache' }); return res.sendFile(path.join(PUB, 'm.html')); }
   if (!APP_HOST_OWN.test(req.path)) return res.redirect(302, SITE_BASE + req.originalUrl);
   next();
 });
@@ -1501,19 +1510,12 @@ app.use((req, res, next) => {
   next();
 });
 // 官網服務不再提供後台畫面：正式網域（SITE_HOST）上的 /admin 轉到 ADMIN_BASE，保留路徑與查詢字串。
-// 活動管理（活動主入口 /organizer）留在官網，不轉：主辦人是外部對象，邀請信、/events、會員頁都連到 www 的 /organizer。
 // 只在正式 https 網域生效：本機開發（PUBLIC_ORIGIN=http://…）與 admin 子網域暫由官網服務代管時都不轉，避免迴圈。
 // /api/admin/* 不在此限（AI agent 以 ADMIN_API_KEY 打 www 的管理 API 仍可用）。
 app.use((req, res, next) => {
   if (ADMIN_MODE || !SITE_BASE.startsWith('https://') || String(req.hostname || '').toLowerCase() !== SITE_HOST) return next();
   if (req.path === '/admin.html') return res.redirect(301, ADMIN_BASE + '/admin');
   if (/^\/admin(\/|$)/.test(req.path)) return res.redirect(302, ADMIN_BASE + req.originalUrl);
-  next();
-});
-// 反向：後台服務（或代管中的 admin 子網域）上的 /organizer 轉回官網，活動管理只有一個家（www）。
-app.use((req, res, next) => {
-  if (!SITE_BASE.startsWith('https://') || !(ADMIN_MODE || isAdminHost(req))) return next();
-  if (/^\/organizer(\/|$)/.test(req.path)) return res.redirect(302, SITE_BASE + req.originalUrl);
   next();
 });
 // 導流歸因：帶 utm_source 的到訪按日計數，並記首次來源 cookie（只存來源字串、不追蹤個人），結帳時寫進 Stripe metadata
@@ -2131,6 +2133,8 @@ async function zoomAccessToken(userId){
  await q("UPDATE event_meeting_connections SET access_token=$3,refresh_token=$4,expires_at=now()+($5::int*interval '1 second'),updated_at=now() WHERE user_id=$1 AND provider=$2",[userId,'zoom',encSecret(token.access_token),encSecret(token.refresh_token||refresh),Number(token.expires_in)||3600]);return token.access_token;
 }
 
+// Meet／Zoom 授權完成後回到發起處：主辦人（舊 /organizer 或 App /host）回 App 主辦頁，管理員回後台
+const meetingReturnUrl = st => [`/organizer/events/${encodeURIComponent(st.e)}`, `${APP_BASE}/host/${encodeURIComponent(st.e)}`].includes(st.r) ? `${APP_BASE}/host/${encodeURIComponent(st.e)}` : `/admin/events/${encodeURIComponent(st.e)}`;
 app.get('/integrations/google-meet/callback',wrap(async(req,res)=>{
  const state=String(req.query.state||''),st=verifyToken(state,{purpose:'oauth'}),cookie=(req.headers.cookie||'').split(';').map(value=>value.trim()).find(value=>value.startsWith('meeting_oauth_state='))?.slice(20);
  res.clearCookie('meeting_oauth_state',{path:'/integrations',httpOnly:true,sameSite:'lax',secure:SITE_BASE.startsWith('https://')});
@@ -2140,7 +2144,7 @@ app.get('/integrations/google-meet/callback',wrap(async(req,res)=>{
  const token=await response.json().catch(()=>({}));if(!response.ok||!token.access_token||!token.refresh_token)return res.status(400).send('Google Meet 授權失敗，請重新連接並允許離線存取。');
  await q(`INSERT INTO event_meeting_connections(user_id,provider,access_token,refresh_token,expires_at) VALUES($1,'google-meet',$2,$3,now()+($4::int*interval '1 second'))
   ON CONFLICT(user_id,provider) DO UPDATE SET access_token=$2,refresh_token=$3,expires_at=EXCLUDED.expires_at,updated_at=now()`,[st.sub,encSecret(token.access_token),encSecret(token.refresh_token),Number(token.expires_in)||3600]);
- const path=st.r===`/organizer/events/${encodeURIComponent(st.e)}`?st.r:`/admin/events/${encodeURIComponent(st.e)}`;res.redirect(path+'?task=details&meeting=connected');
+ res.redirect(meetingReturnUrl(st)+'?task=details&meeting=connected');
 }));
 app.get('/integrations/zoom/callback',wrap(async(req,res)=>{
  const state=String(req.query.state||''),st=verifyToken(state,{purpose:'oauth'}),cookie=(req.headers.cookie||'').split(';').map(value=>value.trim()).find(value=>value.startsWith('meeting_oauth_state='))?.slice(20);
@@ -2151,7 +2155,7 @@ app.get('/integrations/zoom/callback',wrap(async(req,res)=>{
  const token=await response.json().catch(()=>({}));if(!response.ok||!token.access_token||!token.refresh_token)return res.status(400).send('Zoom 授權失敗，請重新連接。');
  await q(`INSERT INTO event_meeting_connections(user_id,provider,access_token,refresh_token,expires_at) VALUES($1,'zoom',$2,$3,now()+($4::int*interval '1 second'))
   ON CONFLICT(user_id,provider) DO UPDATE SET access_token=$2,refresh_token=$3,expires_at=EXCLUDED.expires_at,updated_at=now()`,[st.sub,encSecret(token.access_token),encSecret(token.refresh_token),Number(token.expires_in)||3600]);
- const path=st.r===`/organizer/events/${encodeURIComponent(st.e)}`?st.r:`/admin/events/${encodeURIComponent(st.e)}`;res.redirect(path+'?task=details&meeting=connected');
+ res.redirect(meetingReturnUrl(st)+'?task=details&meeting=connected');
 }));
 
 // 網站內容（首頁公告等）：讀成 { key: value } 物件
@@ -2588,6 +2592,33 @@ app.get('/api/me/event-applications', auth, requireDb, wrap(async (req, res) => 
     [req.auth.sub])).rows;
   await attachApplicationUpdates(applications);
   res.json({ applications });
+}));
+
+/* ---- 從其他活動平台匯入（規格 4.5）：抓網址讀 JSON-LD／Open Graph，回傳欄位給 App 建立表單預填；不寫入資料、不下載圖片 ---- */
+const eventImport = require('./lib/event-import');
+const eventImportLimit = rateLimit({ max: 20, windowMs: 3600000 });
+// 每個帳號每小時 20 次（rateLimit 依 req.ip 分桶，這裡改用會員 id 當鍵）
+const perAccountImportLimit = (req, res, next) => eventImportLimit({ ip: 'import:' + req.auth.sub, socket: {} }, res, next);
+app.post('/api/me/event-import', auth, requireDb, (req, res, next) => req.auth.sub ? next() : res.status(403).json({ error: '請使用個人帳號登入。' }), perAccountImportLimit, wrap(async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const raw = typeof req.body?.url === 'string' ? req.body.url.trim() : '';
+  const source_url = eventImport.normalizeSourceUrl(raw);
+  if (!source_url) return res.status(400).json({ error: '請貼上完整的活動網址（https:// 開頭）。' });
+  // 同一使用者重複匯入同一原網址：source_url 欄位由場地費分支新增；欄位還不存在時查詢失敗就當作沒有
+  let duplicate = null;
+  try {
+    duplicate = (await q(`SELECT id AS application_id,event_id,title,status FROM event_applications WHERE user_id=$1 AND source_url=$2 ORDER BY created_at DESC LIMIT 1`, [req.auth.sub, source_url])).rows[0] || null;
+  } catch (e) { if (e.code !== '42703') console.warn('[event-import] 重複檢查失敗：', e.message); }
+  const empty = { title: '', description: '', starts_at: '', ends_at: '', location: '', image_url: '', organizer: '', timezone_assumed: false, fields_found: [] };
+  try {
+    const page = await eventImport.fetchEventPage(source_url);
+    res.json({ ...eventImport.parseEventHtml(page.html, page.final_url), source_url, duplicate });
+  } catch (e) {
+    // 被擋的位址（內網／http／metadata）明確拒絕；抓不到資料、逾時、非 HTML 一律回 200＋空欄位，前端改顯示「請手動填寫」
+    if (e instanceof eventImport.ImportError && ['blocked', 'invalid_url'].includes(e.code)) return res.status(400).json({ error: e.message, code: e.code });
+    if (!(e instanceof eventImport.ImportError)) console.warn('[event-import]', e.message);
+    res.json({ ...empty, source_url, duplicate, reason: e instanceof eventImport.ImportError ? e.code : 'unreachable' });
+  }
 }));
 
 app.get('/api/admin/event-applications', auth, adminOnly, requireDb, wrap(async (_req, res) => {
@@ -3449,7 +3480,7 @@ app.post('/api/admin/events/:id/hosts', auth, requireDb, eventEditor, wrap(async
    await client.query(`INSERT INTO event_hosts(event_id,email,name,is_visible,can_manage,can_checkin,checkin_ticket_ids) VALUES($1,$2,$3,$4,$5,$6,$7)
     ON CONFLICT(event_id,email) DO UPDATE SET name=$3,is_visible=$4,can_manage=$5,can_checkin=$6,checkin_ticket_ids=$7`,[req.params.id,email,name,b.is_visible,b.can_manage,b.can_checkin===true,JSON.stringify(b.can_checkin===true&&!b.can_manage?ticketIds:[])]);
    await recordEventActivity(client,req.params.id,null,req.auth.sub||null,'host_updated');
-   if(!exists&&process.env.RESEND_API_KEY){const role=b.can_manage?'manager':b.can_checkin?'checkin':'host';await require('./lib/event-mailer').queueHostInvitation((sql,args)=>client.query(sql,args),{event,email,name,role,origin:SITE_BASE,ics:eventCalendar(event,SITE_BASE)});invitation_queued=true;}
+   if(!exists&&process.env.RESEND_API_KEY){const role=b.can_manage?'manager':b.can_checkin?'checkin':'host';await require('./lib/event-mailer').queueHostInvitation((sql,args)=>client.query(sql,args),{event,email,name,role,origin:SITE_BASE,appOrigin:APP_BASE,ics:eventCalendar(event,SITE_BASE)});invitation_queued=true;}
    await client.query('COMMIT');
   }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
   res.json({ok:true,invitation_queued,notice:exists?'已更新主辦團隊。':invitation_queued?'已新增主辦人，邀請與行事曆附件已排入寄送。':'已新增主辦人；寄信服務未設定，尚未寄出邀請，請分享活動主入口。'});
@@ -3617,7 +3648,7 @@ app.get(['/api/admin/events/:id/check-in','/api/integrations/events/:id/check-in
    WHERE r.event_id=$1 AND r.quantity>1 ORDER BY created_at DESC,name`,[req.params.id])).rows;
  const allowed=req.eventCheckin.ticket_ids;
  res.json({event:{title:event.title,status:event.status},mode:event.checkin_mode,locked:event.checkin_mode_locked,can_manage:req.eventCheckin.can_manage,
-   management_url:req.eventCheckin.can_manage?(req.auth.role==='admin'?'/admin/events/':'/organizer/events/')+encodeURIComponent(req.params.id):null,
+   management_url:req.eventCheckin.can_manage?(req.auth.role==='admin'?'/admin/events/':APP_BASE+'/host/')+encodeURIComponent(req.params.id):null,
    tickets:(event.tickets||[]).map(ticket=>({id:ticket.id,name:ticket.name})),allowed_ticket_ids:allowed,
    guests:rows.map(row=>({...row,can_checkin:allowed.length===0||allowed.includes(row.ticket_id)}))});
 }));
@@ -6664,7 +6695,7 @@ app.get(['/menu', '/menu/', '/en/menu', '/en/menu/', '/ja/menu', '/ja/menu/'], m
 // 舊 /admin.html 轉 301 至 /admin（瀏覽器保留 #hash，前端再轉為路徑）
 const ADMIN_PAGE = path.join(PUB, 'admin.html');
 app.get('/admin.html', (_req, res) => res.redirect(301, '/admin'));
-app.get(['/admin', '/admin/*', '/organizer', '/organizer/*'], (_req, res) => { res.set('X-Robots-Tag', 'noindex'); res.sendFile(ADMIN_PAGE); });
+app.get(['/admin', '/admin/*'], (_req, res) => { res.set('X-Robots-Tag', 'noindex'); res.sendFile(ADMIN_PAGE); });
 // 平板 POS（純瀏覽器，Star webPRNT Browser）：/pos、/pos/orders、/pos/soldout、/pos/inventory、/pos/reservations、/pos/history、/pos/sales、/pos/products、/pos/customers、/pos/clock、/pos/shifts 皆回同一頁（pos.emoji.tw 與 www 都可用，API 同網域）
 const POS_PAGE = path.join(PUB, 'pos.html');
 app.get('/pos.html', (_req, res) => res.redirect(301, '/pos'));

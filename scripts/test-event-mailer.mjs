@@ -48,7 +48,7 @@ test('registration messages validate custom templates and retain localized defau
 });
 test('host invitations include the management link and calendar attachment',async()=>{
  const {queueHostInvitation}=createRequire(import.meta.url)('../lib/event-mailer');let call;await queueHostInvitation(async(sql,args)=>(call={sql,args},{rows:[{id:args[0]}]}),{event:{id:'event_1',title:'Test event'},email:'host@example.test',name:'Host',role:'manager',origin:'https://emoji.test',ics:'BEGIN:VCALENDAR'});
- assert.match(call.args[0],/^host_invite_/);assert.match(call.args[4],/https:\/\/emoji\.test\/organizer\/events\/event_1/);assert.equal(JSON.parse(call.args[5])[0].filename,'event.ics');
+ assert.match(call.args[0],/^host_invite_/);assert.match(call.args[4],/https:\/\/app\.emoji\.tw\/host\/event_1/);assert.equal(JSON.parse(call.args[5])[0].filename,'event.ics');
 });
 test('critical event updates notify only affected registered languages and attach the new calendar',async()=>{
  const {criticalEventChanges,queueEventUpdate}=createRequire(import.meta.url)('../lib/event-mailer'),previous={id:'event_1',slug:'demo',title:'中文活動',description:'內容',location:'台北',starts_at:'2026-10-31T10:00:00Z',ends_at:'2026-10-31T12:00:00Z',status:'報名中',translations:{en:{title:'English event',location:'Taipei'},ja:{title:'日本語イベント',location:'台北'}}},event={...previous,translations:{...previous.translations,en:{...previous.translations.en,title:'Updated event'}}};
