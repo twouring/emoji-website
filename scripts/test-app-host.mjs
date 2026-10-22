@@ -49,8 +49,14 @@ test('舊 /organizer 無論網域都轉 App /host，單場路徑保留活動 id'
 });
 
 test('前端含 App 主辦路由、建立三步、匯入與管理錨點', () => {
-  const h = read('public/m.html');
-  for (const needle of ['/api/organizer/state', '/api/me/event-applications', '/api/venue-fee/quote', '/api/event-applications', '/api/me/event-import', 'hostPath', '建立活動：基本資料', '開啟相機簽到']) assert.ok(h.includes(needle), needle);
+  const h = read('public/m.html'), host=read('public/m-host.js');
+  assert.match(h, /<script src="\/m-host\.js"><\/script>/);
+  for (const needle of ['/api/organizer/state', '/api/me/event-applications', '/api/venue-fee/quote', '/api/event-applications', '/api/me/event-import', 'hostPath', '開啟相機簽到']) assert.ok(host.includes(needle), needle);
+  assert.match(host, /HOST_I18N=.*zh:.*en:.*ja:/s);
+  assert.match(host, /unlock_code/); assert.match(host, /PAYOUT_ACCOUNT_REQUIRED/);
+  assert.match(host, /\/api\/me\/payout-account/); assert.match(host, /\/payments/);
+  assert.match(read('public/m-sw.js'), /m-host\.js/);
+  assert.match(read('server.js'), /m-host\\\.js\$/);
   assert.match(h, /https:\/\/app\.emoji\.tw\/host|href="\/host"/);
   assert.match(read('public/event-checkin.html'), /https:\/\/app\.emoji\.tw\/host/);
   assert.match(read('lib/event-mailer.js'), /appOrigin\+'\/host\/'/);
