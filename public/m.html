@@ -220,6 +220,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 <script src="/vendor/qrcode.min.js"></script>
 <script src="/menu-lib.js"></script>
 <script src="/order-lib.js"></script>
+<script src="/m-event.js"></script>
 <script>
 (function(){
   const KEY='tth_token', CACHE='m_cache', LANG_KEY='m_lang';
@@ -317,8 +318,8 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   function toast(m){const t=document.getElementById('toast');t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,2800);}
   async function get(path){const r=await fetch(path,{headers:{authorization:'Bearer '+token()}});if(r.status===401){const e=new Error('401');e.status=401;throw e;}if(!r.ok)throw new Error(r.status);return r.json();}
   async function post(path,body,method){const r=await fetch(path,{method:method||'POST',headers:{authorization:'Bearer '+token(),'content-type':'application/json'},body:body==null&&method?undefined:JSON.stringify(body||{})});const d=await r.json().catch(()=>({}));if(!r.ok){const e=new Error(d.error||r.status);e.status=r.status;throw e;}return d;}
-  /* 活動詳情在官網：帶 token 過去，報名不用再登入一次 */
-  const eventUrl=e=>SITE+BASE+'/events/'+encodeURIComponent(e.slug||e.id)+'#token='+encodeURIComponent(token()||'');
+  /* 活動詳情與報名都在 App 內（規格 v2 §4.1）：/e/<slug>，由 m-event.js 渲染 */
+  const eventUrl=e=>'/e/'+encodeURIComponent(e.slug||e.id)+(LANG==='zh'?'':'?lang='+LANG);
   /* ---- 安裝到主畫面 ---- */
   function installKind(s){
     if(s.standalone)return null;
@@ -669,6 +670,9 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   }
   /* ---- App 主辦後台（/host、/host/<eventId>）----
      不做新的登入或後台 shell：沿用 App token 與 API。舊 /organizer 已由伺服器 302 到這裡。 */
+  /* /e/<slug>：App 活動報名頁（未登入也可瀏覽與訪客報名）；不是活動頁回 null */
+  const eventPath=()=>window.MEvent?MEvent.slugFromPath(location.pathname):null;
+  function eventDetail(slug){MEvent.mount({app,tabs,esc,toast,lang:LANG,slug,token,site:SITE,home:ROOT+(LANG==='zh'?'':'?lang='+LANG),me:data&&data.me,openTicket});}
   const hostPath=()=>{const m=location.pathname.match(/^\/host(?:\/([^/?#]+))?\/?$/);return m?decodeURIComponent(m[1]||''):null;};
   const hostGo=id=>{location.href='/host'+(id?'/'+encodeURIComponent(id):'');};
   const hostEsc=esc;
@@ -712,7 +716,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   function hostEdit(e){const d={...e};hostShell('編輯：'+e.title,`<form class="sec" id="he"><label class="field">名稱<input id="he-title" value="${hostEsc(d.title||'')}"></label><label class="field">開始時間<input id="he-start" type="datetime-local" value="${hostEsc(String(d.starts_at_iso||d.starts_at||'').slice(0,16))}"></label><label class="field">結束時間<input id="he-end" type="datetime-local" value="${hostEsc(String(d.ends_at_iso||d.ends_at||'').slice(0,16))}"></label><label class="field">地點<input id="he-location" value="${hostEsc(d.location||'')}"></label><label class="field">介紹<textarea id="he-desc">${hostEsc(d.description||'')}</textarea></label><button class="btn solid">儲存變更</button></form>`);document.getElementById('he').onsubmit=async x=>{x.preventDefault();const title=document.getElementById('he-title').value,starts_at=document.getElementById('he-start').value,location=document.getElementById('he-location').value;if(e.status!=='草稿'&&(title!==e.title||starts_at!==String(e.starts_at_iso||e.starts_at||'').slice(0,16)||location!==e.location)&&!confirm(`已報名的 ${Number(e.reg_count||0)} 位會收到異動通知，仍要儲存嗎？`))return;try{await post(hostApi(e.id,''),{...e,title,starts_at,ends_at:document.getElementById('he-end').value,location,description:document.getElementById('he-desc').value});toast('已儲存');hostDetail(e.id);}catch(z){toast(z.message);}};}
   function hostMessages(e){hostShell('通知：'+e.title,`<form class="sec" id="hm"><label class="field">訊息內容<textarea id="hm-text" required maxlength="5000"></textarea></label><label class="field">排程時間（留空立即發送）<input id="hm-at" type="datetime-local"></label><button class="btn solid">發送／排程</button></form>`);document.getElementById('hm').onsubmit=async x=>{x.preventDefault();try{await post(hostApi(e.id,'/messages'),{content:document.getElementById('hm-text').value,scheduled_at:document.getElementById('hm-at').value||null,publish:true});toast('通知已送出');hostDetail(e.id);}catch(z){toast(z.message);}};}
   function hostTickets(e){hostShell('票種：'+e.title,`<section class="sec"><p class="hint">票種可設定價格、名額、銷售期間與隱藏狀態。</p><button class="btn" id="ht-load">載入票種</button></section>`);document.getElementById('ht-load').onclick=async()=>{try{const x=await get(hostApi(e.id,'/tickets'));toast('已載入 '+((x.tickets||[]).length)+' 種票種');}catch(z){toast(z.message);}};}
-  function paint(){const hp=hostPath();if(hp!==null){return hp?hostDetail(hp):hostHome();}tabs.hidden=false;[...tabs.children].forEach(b=>b.setAttribute('aria-current',b.dataset.tab===tab));({home,book,plan,events,me})[tab]();window.scrollTo(0,0);}
+  function paint(){const ep=eventPath();if(ep)return eventDetail(ep);const hp=hostPath();if(hp!==null){return hp?hostDetail(hp):hostHome();}tabs.hidden=false;[...tabs.children].forEach(b=>b.setAttribute('aria-current',b.dataset.tab===tab));({home,book,plan,events,me})[tab]();window.scrollTo(0,0);}
   tabs.onclick=e=>{const b=e.target.closest('button');if(!b)return;tab=b.dataset.tab;editing=false;paint();};
   /* 全螢幕 QR：會員卡（結帳累點）與進出 QR 共用；亮度靠白底、30 秒更新 */
   const ov=document.getElementById('ov');let qrKind='card';
@@ -788,8 +792,10 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     }
     paint();
   }
-  if(!token())login();else load();
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&token())load();});
+  // /e/<slug> 要在 login() 前分流：訪客可直接瀏覽與報名；已登入時先取會員資料再畫（以 xxx 報名）
+  if(eventPath()){if(token())get('/api/state?lang='+LANG).then(s=>{data={me:s.me};}).catch(()=>{}).finally(()=>eventDetail(eventPath()));else eventDetail(eventPath());}
+  else if(!token())login();else load();
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&token()&&!eventPath())load();});
   if('serviceWorker' in navigator)navigator.serviceWorker.register('/m-sw.js',{scope:ROOT}).catch(()=>{});
 })();
 </script>
