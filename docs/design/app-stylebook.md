@@ -93,6 +93,7 @@ App 自己的 `:root`（在 `m.html`），名稱比官網短，不要引用官�
 - 不寫 inline style（`test-app-stylebook` 會擋）；唯一允許的是 `.bar > i` 的動態寬度。間距已內建：連續 `.btn` 相隔 8px，`.field`／`.fld`／`.chk` 後的按鈕相隔 16px；`.hello` 內的 `.btn`／`.quiet` 自動寬度自動。
 - 顯示／隱藏用 `hidden` 屬性，不改 `style.display`。
 - 不用 inline 事件（`onclick="…"`），一律在 JS 綁定。
+- `<button>` 一律寫 `type`（表單送出 `submit`，其他 `button`）；文字欄位一律設 `maxlength`，並依內容設 `autocomplete`、`inputmode`（測試會擋）。
 - 三語：文字放進 `T`（zh／en／ja）對照表，不在樣板寫死中文。主辦頁（`m-host.js`）目前只有中文。
 - 動畫要能被 `prefers-reduced-motion` 關掉。
 - 圖片給寬高或 `aspect-ratio`；裝飾圖 `alt=""`。

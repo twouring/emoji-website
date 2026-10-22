@@ -77,3 +77,11 @@ test('主辦工作台：黃色 .host-action.primary 一頁只有一個（簽到�
   const host = read('public/m-host.js');
   for (const chunk of host.split('uxShell(').slice(1)) assert.ok((chunk.match(/host-action primary/g) || []).length <= 1);
 });
+
+test('App 樣板：按鈕都寫 type；文字欄位都設 maxlength（停用、數字、日期除外）', () => {
+  for (const [f, src] of [['public/m.html', m.split('<body>')[1]], ['public/m-event.js', ev], ['public/m-host.js', read('public/m-host.js')]]) {
+    assert.deepEqual(src.match(/<button (?![^>]*\btype=)[^>]*>/g) || [], [], f + '：<button> 要寫 type="button" 或 type="submit"');
+    const loose = (src.match(/<(?:input|textarea)\b[^>]*>/g) || []).filter(x => !/type="(checkbox|radio|number|date|datetime-local|hidden)"|\bdisabled\b|maxlength=/.test(x));
+    assert.deepEqual(loose, [], f + '：文字欄位要設 maxlength（docs §4 欄位）');
+  }
+});
