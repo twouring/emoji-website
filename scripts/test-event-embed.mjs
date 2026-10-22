@@ -35,11 +35,21 @@ test('embed navigation accepts only its own frame and uses the configured event 
  const source=readFileSync(new URL('../public/event-embed.js',import.meta.url),'utf8');
  const code=source.slice(source.indexOf(' function navigateFromFrame('),source.indexOf(' const parameters='));
  const assigned=[],frame={contentWindow:{}},full='https://events.example.test/en/events/demo?tt=free';
- const context={origin:'https://events.example.test',location:{assign:url=>assigned.push(url)}};
+ const context={origin:'https://events.example.test',appOrigin:'https://app.example.test',location:{assign:url=>assigned.push(url)}};
  runInNewContext(code,context);
  const valid={origin:context.origin,source:frame.contentWindow,data:{type:'emoji:open-event',url:'https://attacker.example'}};
  for(const event of [{...valid,origin:'https://attacker.example'},{...valid,source:{}},{...valid,data:{type:'other'}}])context.navigateFromFrame(event,frame,full);
  assert.equal(assigned.length,0);context.navigateFromFrame(valid,frame,full);assert.deepEqual(assigned,[full]);
+ // 報名搬到 App 後，iframe 內容來自 App origin，也要放行
+ context.navigateFromFrame({...valid,origin:context.appOrigin},frame,full);assert.equal(assigned.length,2);
+});
+test('embed loads the member App /e/<slug>?embed=1 and derives the App origin from www',async()=>{
+ const {readFileSync}=await import('node:fs'),{runInNewContext}=await import('node:vm');
+ const source=readFileSync(new URL('../public/event-embed.js',import.meta.url),'utf8');
+ assert.match(source,/'\/e\/'/);assert.match(source,/searchParams\.set\('embed','1'\)/);assert.doesNotMatch(source,/\/embed\/events\//);
+ const context={URL};runInNewContext(source.slice(source.indexOf(' const appOriginOf='),source.indexOf(' const appOrigin='))+';this.appOriginOf=appOriginOf;',context);
+ assert.equal(context.appOriginOf('https://www.emoji.tw'),'https://app.emoji.tw');assert.equal(context.appOriginOf('https://emoji.tw'),'https://app.emoji.tw');
+ assert.equal(context.appOriginOf('http://localhost:8099'),'http://localhost:8099');assert.equal(context.appOriginOf('https://www.emoji.tw','https://app.example.test/x'),'https://app.example.test');
 });
 test('email sign-in exposes busy state and restores retry after failure',async()=>{
  const {readFileSync}=await import('node:fs'),{runInNewContext}=await import('node:vm');
