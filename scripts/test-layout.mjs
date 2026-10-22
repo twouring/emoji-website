@@ -278,9 +278,9 @@ test('system ja page structure', () => {
 
 test('plan choices, venue enquiries and account limits are explicit in all locales', () => {
   const pages = [
-    ['system.html', 'data-label="適合情境"', '現場辦理', '/events?apply=1#ev-apply', '24 小時（條件式啟用）'],
-    [path.join('en', 'system.html'), 'data-label="Best for"', 'Available on site', '/en/events?apply=1#ev-apply', '24-hour access (conditional)'],
-    [path.join('ja', 'system.html'), 'data-label="おすすめ"', '現地で利用開始', '/ja/events?apply=1#ev-apply', '24時間利用（条件付き）'],
+    ['system.html', 'data-label="適合情境"', '現場辦理', 'https://app.emoji.tw/host', '24 小時（條件式啟用）'],
+    [path.join('en', 'system.html'), 'data-label="Best for"', 'Available on site', 'https://app.emoji.tw/host', '24-hour access (conditional)'],
+    [path.join('ja', 'system.html'), 'data-label="おすすめ"', '現地で利用開始', 'https://app.emoji.tw/host', '24時間利用（条件付き）'],
   ];
   for (const [rel, situation, availability, application, conditionalAccess] of pages) {
     const html = fs.readFileSync(path.join(PUB, rel), 'utf8');
@@ -315,7 +315,7 @@ test('events page carries the venue guide in all three languages and routes both
   }
   assert.match(html, /id="venue"/);
   assert.match(html, /id="notes"/);
-  assert.match(html, /base\+'\/events\?apply=1#ev-apply'/);
+  assert.match(html, /getElementById\('ev-apply-link'\)\.href='https:\/\/app\.emoji\.tw\/host'/);
   assert.match(html, /id="ea-root"/);
 });
 
