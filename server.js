@@ -657,7 +657,7 @@ async function migrate() {
   await q(`ALTER TABLE event_applications ADD COLUMN IF NOT EXISTS visibility TEXT,
     ADD COLUMN IF NOT EXISTS registration_mode TEXT, ADD COLUMN IF NOT EXISTS registration_url TEXT NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS event_id TEXT REFERENCES events(id)`);
-  // 私人活動場地費：deposit_twd 在送件時定額（舊申請為 0＝免收），付款後記 deposit_paid_at；退款於 Stripe 後台人工處理。
+  // 包場活動場地費：deposit_twd 在送件時定額（舊申請為 0＝免收），付款後記 deposit_paid_at；退款於 Stripe 後台人工處理。
   await q(`ALTER TABLE event_applications ADD COLUMN IF NOT EXISTS deposit_twd INT NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS deposit_paid_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS deposit_payment_intent TEXT`);
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS registration_mode TEXT NOT NULL DEFAULT 'native',
@@ -2550,7 +2550,7 @@ app.post('/api/event-applications', auth, requireDb, wrap(async (req, res) => {
   finally { client.release(); }
 }));
 
-// 主辦人場地費（私人活動場地費、公開外部售票預付茶飲費；舊稱訂金）：Stripe Checkout；webhook 與 verify 皆走同一個冪等入帳。
+// 主辦人場地費（包場活動場地費、公開外部售票預付茶飲費；舊稱訂金）：Stripe Checkout；webhook 與 verify 皆走同一個冪等入帳。
 async function fulfillApplicationDeposit(session) {
   const meta = session && session.metadata;
   if (!meta || meta.kind !== 'application-deposit' || session.payment_status !== 'paid' || !meta.application_id) return { ignored: true };
@@ -2571,7 +2571,7 @@ app.post('/api/event-applications/:id/deposit/checkout', auth, requireDb, wrap(a
   const base = ['en','ja'].includes(req.body?.lang) ? '/' + req.body.lang : '';
   const session = await stripe.checkout.sessions.create({
     mode: 'payment', payment_method_types: ['card'], customer_email: a.contact_email,
-    line_items: [{ price_data: { currency: 'twd', product_data: { name: `${a.visibility === 'private' ? '言文字私人活動場地費' : '言文字場地茶飲費'}｜${a.title}`.slice(0, 250) }, unit_amount: a.deposit_twd * 100 }, quantity: 1 }],
+    line_items: [{ price_data: { currency: 'twd', product_data: { name: `${a.visibility === 'private' ? '言文字包場活動場地費' : '言文字場地茶飲費'}｜${a.title}`.slice(0, 250) }, unit_amount: a.deposit_twd * 100 }, quantity: 1 }],
     success_url: `${SITE_BASE}${base}/events?apply=1&deposit_paid={CHECKOUT_SESSION_ID}`,
     cancel_url: `${SITE_BASE}${base}/events?apply=1`,
     metadata: { kind: 'application-deposit', application_id: a.id, user_id: req.auth.sub },
@@ -2642,7 +2642,7 @@ app.post('/api/admin/event-applications/:id/review', auth, adminOnly, requireDb,
     return res.status(400).json({ error: '請填寫給申請人的審核回覆（2000 字以內）。' });
   const actor = req.auth.agent ? 'admin-api-key' : req.auth.sub;
   if (b.status === 'approved' && (await q('SELECT 1 FROM event_applications WHERE id=$1 AND deposit_twd>0 AND deposit_paid_at IS NULL', [req.params.id])).rowCount)
-    return res.status(409).json({ error: '私人活動場地費尚未付款，付款後才可通過。' });
+    return res.status(409).json({ error: '包場活動場地費尚未付款，付款後才可通過。' });
   const publishPublic = b.status === 'approved' && b.publish_public === true;
   const client = await pool.connect();
   let application, event = null, buyoutClosed = null;
@@ -2685,7 +2685,7 @@ app.post('/api/admin/event-applications/:id/review', auth, adminOnly, requireDb,
   finally { client.release(); }
   if (buyoutClosed) {
     const slots = Object.entries(buyoutClosed).map(([date, times]) => `${date}：${times[0]}–${times.at(-1)}（${times.length} 個時段）`).join('\n') || '（該時段原本就不開放訂位）';
-    sendMailQuietly({ to: NOTIFY_EMAIL, subject: `[包場] 在咖啡／三點水餐飲空間私人活動已通過：${application.title}（${fmtTaipei(application.starts_at)}）——請排班`,
+    sendMailQuietly({ to: NOTIFY_EMAIL, subject: `[包場] 在咖啡／三點水餐飲空間包場活動已通過：${application.title}（${fmtTaipei(application.starts_at)}）——請排班`,
       text: `在咖啡／三點水餐飲空間包場已審核通過，當天停止對外營業，請店長安排排班。\n\n活動：${application.title}\n時段：${fmtTaipei(application.starts_at)} – ${fmtTaipei(application.ends_at)}\n人數：${application.attendees}\n聯絡：${application.contact_name} ${application.contact_email} ${application.contact_phone || ''}\n場地費：NT$${Number(application.deposit_twd).toLocaleString('en-US')}（可全額折抵當場餐飲，含酒水、不折現）\n\n已自動關閉的訂位時段（POS 訂位 → 不可訂位設定）：\n${slots}\n\n既有已成立的訂位不會自動取消，請到 POS 訂位頁確認是否需要聯絡客人改期。`, replyTo: application.contact_email });
   }
   await attachApplicationUpdates([application], { admin: true });
@@ -3205,7 +3205,7 @@ app.post('/api/admin/events/:id/cancel',auth,requireDb,eventEditor,wrap(async(re
   // 主辦人不能直接觸發統一收款帳戶退款：有已付款參加者時記一筆「待平台退款」並通知言文字，由管理員到票款紀錄執行全額退款
   if(!req.body?.refund_paid)pendingPlatformRefunds=Number((await client.query(`SELECT (SELECT COUNT(*) FROM event_regs WHERE event_id=$1 AND amount_paid>0 AND stripe_payment_intent_id IS NOT NULL AND status IN ('registered','refund_pending','pending_approval'))+(SELECT COUNT(*) FROM event_ticket_orders o JOIN event_regs r ON r.id=o.registration_id WHERE r.event_id=$1 AND o.amount_paid>0 AND o.status IN ('registered','refund_pending')) AS n`,[event.id])).rows[0].n);
   if(pendingPlatformRefunds>0)await client.query("INSERT INTO event_activity(event_id,actor_id,action) VALUES($1,$2,$3)",[event.id,req.auth.sub||null,'refund_requested:'+pendingPlatformRefunds]);
-  // A. 私人活動場地費：依取消日計算應退金額，由管理員到 Stripe 退回原付款卡
+  // A. 包場活動場地費：依取消日計算應退金額，由管理員到 Stripe 退回原付款卡
   const app=(await client.query('SELECT id,deposit_twd,deposit_paid_at,visibility,registration_mode FROM event_applications WHERE event_id=$1',[event.id])).rows[0];
   if(app?.deposit_paid_at&&app.deposit_twd>0)privateFee={paid_twd:app.deposit_twd,refund_twd:venueFees.privateRefundAmount(app.deposit_twd,days,{forceMajeure}),days_before:days};
   if(pendingPlatformRefunds>0||hostCharge>0||privateFee)cancelNotice={event,days,ticketGross,hostCharge,pendingPlatformRefunds,privateFee,actor:req.auth.agent?'admin-api-key':actorOf(req.auth)||'admin'};
@@ -4201,7 +4201,7 @@ app.get('/api/admin/ig/insights', auth, adminOnly, requireDb, wrap(async (_req, 
 
 /* ---- 活動前台：公開列表、私人連結、報名付款與票券 ---- */
 function publicEvent(event,lang){
- if(event.registration_mode==='closed')return {id:event.id,slug:event.slug,title:{en:'Private event',ja:'非公開イベント'}[lang]||'私人活動',visibility:'private',registration_mode:'closed',status:event.status,location:publicText(event.location),starts_at:event.starts_at,ends_at:event.ends_at,starts_at_iso:event.starts_at_iso,ends_at_iso:event.ends_at_iso};
+ if(event.registration_mode==='closed')return {id:event.id,slug:event.slug,title:{en:'Buyout event',ja:'貸切イベント'}[lang]||'包場活動',visibility:'private',registration_mode:'closed',status:event.status,location:publicText(event.location),starts_at:event.starts_at,ends_at:event.ends_at,starts_at_iso:event.starts_at_iso,ends_at_iso:event.ends_at_iso};
  const out=publicEventCopy(localizeEvent(event,lang));out.can_contact_host=!!(event.owner_id||event.event_details?.contact_email);delete out.owner_id;if(out.event_details)delete out.event_details.contact_email;return out;
 }
 function eventReferralToken(registrationId,event){
@@ -5160,7 +5160,7 @@ app.get('/api/venue/schedule', requireDb, wrap(async (_req, res) => {
      WHERE status='approved' AND NOT EXISTS(SELECT 1 FROM events e WHERE e.id=event_id AND e.status IN ('預告','報名中')) AND ends_at > now() - interval '1 day' AND starts_at < now() + interval '90 days'
      ORDER BY starts_at`)).rows;
   const events = (await q(
-    `SELECT CASE WHEN registration_mode='closed' THEN '私人活動' ELSE title END AS title,slug,location,starts_at,ends_at,
+    `SELECT CASE WHEN registration_mode='closed' THEN '包場活動' ELSE title END AS title,slug,location,starts_at,ends_at,
        (SELECT a.venue FROM event_applications a WHERE a.event_id=events.id LIMIT 1) AS venue FROM events
      WHERE status IN ('預告','報名中') AND (visibility='public' OR registration_mode='closed') AND starts_at IS NOT NULL
        AND starts_at > now() - interval '1 day' AND starts_at < now() + interval '90 days'
