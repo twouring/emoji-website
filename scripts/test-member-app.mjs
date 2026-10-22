@@ -66,7 +66,7 @@ test('登入預設導回會員 App；App 網域在導回白名單；Stripe 會�
 test('/api/state 會員資料依 ?lang= 回活動語系', () => {
   assert.match(server, /const lang = \['en', 'ja'\]\.includes\(String\(req\.query\.lang \|\| ''\)\) \? String\(req\.query\.lang\) : 'zh';/);
   assert.match(server, /events:events\.map\(e=>publicEventCopy\(localizeEvent\(e,lang\)\)\)/);
-  assert.match(m, /get\('\/api\/state\?lang='\+LANG\)/);
+  assert.match(m, /get\('\/api\/state\?view=member&lang='\+LANG\)/);
 });
 
 test('App 含官網會員頁搬過來的全部功能：會籍狀態與購買、進出 QR、活動與會員動態、資料編輯、LINE 綁定、三語', () => {

@@ -2248,13 +2248,15 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
   const bond = { target_amount: TARGET, raised };
   const updates = numify((await q(`SELECT ${SEL_UPD} FROM updates ORDER BY published_at DESC`)).rows);
 
-  if (req.auth.role === 'admin' && req.auth.brands && !req.auth.brands.includes('SPACE')) {
+  // 會員 App（?view=member）：管理員也拿會員資料，不拿後台總表；活動管理走 App /host
+  const memberView = req.query.view === 'member' && !req.auth.operator_staff_id;
+  if (!memberView && req.auth.role === 'admin' && req.auth.brands && !req.auth.brands.includes('SPACE')) {
     // 餐飲子帳號：只需菜單內容，不帶會員、金流、活動資料。操作人員（PIN 登入）沒有 users 列，身分直接用 token 裡的姓名
     const me = req.auth.operator_staff_id ? { id: req.auth.sub, name: req.auth.name || '', email: '', is_admin: true, operator: true }
       : pubUser((await q(`SELECT ${SEL_USER} FROM users WHERE id=$1`, [req.auth.sub])).rows[0]);
     return res.json({ role: 'admin', super: false, brands: req.auth.brands, me, bond, users: [], commitments: [], entitlements: [], events: [], content: await readContent(), updates: [], invoice: { provider: 'ezpay', configured: ezpayInvoice.configured() }, payment_methods: await paymentMethodsList() });
   }
-  if (req.auth.role === 'admin') {
+  if (!memberView && req.auth.role === 'admin') {
     const users = (await q(`SELECT ${SEL_USER} FROM users ORDER BY created_at`)).rows.map(pubUser);
     const commitments = numify((await q(`SELECT ${SEL_C} FROM commitments ORDER BY created_at`)).rows);
     const now = new Date();
@@ -2310,7 +2312,7 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
      ORDER BY e.starts_at ASC NULLS LAST`, [me.id, access.active])).rows;
   res.json({
     role: commitments.length ? 'participant' : 'invited',
-    organizer: req.auth.role === 'organizer',
+    organizer: req.auth.role === 'organizer' || (req.auth.role === 'admin' && !req.auth.brands),
     me, bond, users: [me], commitments, events:events.map(e=>publicEventCopy(localizeEvent(e,lang))), updates:updates.map(publicEventCopy),
     access: {
       active: access.active,
@@ -2456,7 +2458,7 @@ app.get('/api/organizer/state', auth, requireDb, eventEditor, wrap(async (req,re
   const events = (await q(`SELECT ${SEL_EVENT},
     (SELECT COALESCE(SUM(r.quantity),0)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS reg_count,
     (SELECT COALESCE(SUM(CASE WHEN r.quantity>1 THEN (SELECT COUNT(*) FROM event_attendees a WHERE a.registration_id=r.id AND a.checked_in_at IS NOT NULL) ELSE (r.checked_in_at IS NOT NULL)::int END),0)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS checkin_count
-    FROM events e WHERE e.owner_id=$1 OR EXISTS(SELECT 1 FROM event_hosts h WHERE h.event_id=e.id AND h.email=lower($2) AND h.can_manage=true) ORDER BY e.created_at DESC`,[req.auth.sub,req.auth.email])).rows;
+    FROM events e WHERE $3 OR e.owner_id=$1 OR EXISTS(SELECT 1 FROM event_hosts h WHERE h.event_id=e.id AND h.email=lower($2) AND h.can_manage=true) ORDER BY e.created_at DESC`,[req.auth.sub,req.auth.email,req.auth.role==='admin'&&!req.auth.brands])).rows;
   const applications = (await q(`SELECT ${APPLICATION_FIELDS} FROM event_applications WHERE user_id=$1 ORDER BY created_at DESC`,[req.auth.sub])).rows;
   await attachApplicationUpdates(applications);
   res.json({role:req.auth.role,organizer:true,can_create_events:req.auth.can_create_events,me,events,applications,users:[],commitments:[],updates:[],content:{}});

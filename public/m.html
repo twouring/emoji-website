@@ -666,7 +666,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       <div class="btn2"><button class="btn${emailBind.ticket?'':' solid'}" id="ebs" type="button">${esc(T.ebSend)}</button>${emailBind.ticket?`<button class="btn solid" id="ebv" type="button">${esc(T.ebConfirm)}</button>`:''}</div></section>`:''}
     ${editing?'':`<section class="sec"><button class="btn" id="line-link">${esc(T.lineLink)}</button></section>
     ${kindNow(true)?`<section class="sec"><h2>${esc(T.home)}</h2><button class="btn" id="inst2" data-k="${kindNow(true)}">${esc(T.installLabel[kindNow(true)])}</button></section>`:''}
-    ${data.role==='admin'||data.organizer?`<section class="sec"><h2>${esc(T.manage)}</h2>${data.role==='admin'?`<a class="btn" href="https://admin.emoji.tw/admin">${esc(T.admin)}</a>`:''}${data.organizer?`<a class="btn" href="/host" style="margin-top:10px">${esc(T.organizer)}</a>`:''}</section>`:''}
+    ${data.organizer?`<section class="sec"><h2>${esc(T.manage)}</h2><a class="btn" href="/host">${esc(T.organizer)}</a></section>`:''}
     <section class="sec"><h2>${esc(T.language)}</h2>${langBar()}</section>
     <section class="sec"><button class="quiet" id="out">${esc(T.logout)}</button></section>`}`;
     if(editing){
@@ -749,7 +749,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   async function load(){
     try{
       await fulfillPlanIfNeeded();
-      const s=await get('/api/state?lang='+LANG);let y={balance:0,phone:''},rw={items:[],space:[]};try{y=await get('/api/me/yan');}catch(e){}try{rw=await get('/api/me/rewards');}catch(e){}
+      const s=await get('/api/state?view=member&lang='+LANG);let y={balance:0,phone:''},rw={items:[],space:[]};try{y=await get('/api/me/yan');}catch(e){}try{rw=await get('/api/me/rewards');}catch(e){}
       let rv=[],pk={pickups:[],dates:[],slots:{}},rg=[];try{rv=(await get('/api/me/reservations')).reservations||[];}catch(e){}try{pk=await get('/api/me/pickups');}catch(e){}try{rg=(await get('/api/me/registrations')).registrations||[];}catch(e){}
       s.events=(s.events||[]);
       data={me:s.me,events:s.events,updates:s.updates||[],access:s.access||{},commitments:(s.commitments||[]).filter(c=>!s.me||c.user_id===s.me.id),yan:y,rewards:rw,reservations:rv,pickups:pk.pickups||[],pickupMeta:{dates:pk.dates||[],slots:pk.slots||{},prep_min:pk.prep_min},registrations:rg,role:s.role,organizer:!!s.organizer};offline=false;
@@ -763,7 +763,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     paint();
   }
   // /e/<slug> 要在 login() 前分流：訪客可直接瀏覽與報名；已登入時先取會員資料再畫（以 xxx 報名）
-  if(eventPath()){if(token())get('/api/state?lang='+LANG).then(s=>{data={me:s.me};}).catch(()=>{}).finally(()=>eventDetail(eventPath()));else eventDetail(eventPath());}
+  if(eventPath()){if(token())get('/api/state?view=member&lang='+LANG).then(s=>{data={me:s.me};}).catch(()=>{}).finally(()=>eventDetail(eventPath()));else eventDetail(eventPath());}
   else if(!token())login();else load();
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&token()&&!eventPath())load();});
   if('serviceWorker' in navigator)navigator.serviceWorker.register('/m-sw.js',{scope:ROOT}).catch(()=>{});
