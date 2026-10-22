@@ -179,6 +179,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 .ecard .cv{aspect-ratio:16/9;width:100%;object-fit:cover;display:block;background:var(--accent)}
 .ecard .cv.ph{display:flex;align-items:center;justify-content:center}.ecard .cv.ph svg{width:48px;height:48px}
 .ecard .bd{padding:14px 16px 16px}
+.ecard.past{opacity:.6;filter:grayscale(1)}
 .ecard h3{font-size:1.1rem;margin-bottom:4px}
 .ecard .meta2{color:var(--muted)}
 .ecard .foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
@@ -240,7 +241,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       hintPhone:'也可以直接報手機號碼。',hintNoPhone:'到「我的」填寫手機，結帳報號碼就能累點。',hintEarn:'消費每滿 100 元得 1 點，1 點可兌換 NT$10 的餐飲。',
       reserve:'訂位',signup:'報名活動',menu:'菜單',redeem:'可以兌換',redeemBtn:'兌換',scanTitle:'掃描桌上的點菜條碼',scanSub:n=>'兌換「'+n+'」：對準桌上的 QR，會自動加進點菜清單。',scanCancel:'取消',scanNoCam:'無法開啟相機，請允許相機權限。',scanBad:'這不是桌上的點菜條碼。',redeemDone:(n,t)=>'已加入「'+n+'」（兌換，桌 '+t+'），剩餘點數 ',redeemConfirm:(n,p)=>'用 '+p+' 點兌換「'+n+'」？',canRedeem:'現在就能兌換',short:n=>'還差 '+n+' 點',pts:n=>n+' 點',redeemHint:'點「兌換」後掃桌上的點菜條碼。空間時數請到櫃檯。',
       install:'把會員卡放到主畫面',installSub:'結帳時一點就開，不用再找網址。',later:'稍後',installed:'已加到主畫面',home:'主畫面',
-      nextEvent:'下一場活動',noEvents:'目前沒有開放報名的活動',registered:'已報名',pendingPay:'等待付款',full:'名額已滿',free:'免費',cap:(r,c)=>'名額 '+r+'／'+c,regCount:n=>'已報名 '+n+' 人',timeTbd:'時間待定',updates:'會員動態',noUpdates:'目前尚無會員動態。',events:'活動',
+      nextEvent:'下一場活動',noEvents:'目前沒有開放報名的活動',registered:'已報名',evEnded:'已結束',pendingPay:'等待付款',full:'名額已滿',free:'免費',cap:(r,c)=>'名額 '+r+'／'+c,regCount:n=>'已報名 '+n+' 人',timeTbd:'時間待定',updates:'會員動態',noUpdates:'目前尚無會員動態。',events:'活動',
       plan:'會籍',statusLabel:'目前狀態',statusActive:p=>p+'會籍有效',statusPending:'待首次進場啟用',statusExpired:'會籍已到期',statusNone:'尚未有會籍',daysLeft:n=>'還有 '+n+' 天',
       plans:{day_4h:'單日 4 小時',day_12h:'單日 12 小時',month:'月會員',quarter:'季會員',year:'年會員',year_promo:'開幕優惠 年會員 18 個月',founding:'創始會員',fallback:'權益'},
       accessTitle:'進出等等空間',accessOn:'可進出等等空間',accessPending:'待啟用',accessOff:'目前不可進出',accessQr:'顯示進出 QR',accessNote:'持有效會籍即可進出等等空間。',needPlan:'尚無可用方案，請先加入會員方案。',qrPending:'（待首次進場啟用）',qrUntil:'有效至 ',qrFail:'目前無法產生進出 QR',qrOffline:'需要網路才能顯示 QR',
@@ -263,7 +264,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       hintPhone:'You can also just give your phone number.',hintNoPhone:'Add your phone under “Me” to earn points by number.',hintEarn:'Earn 1 point per NT$100; 1 point redeems NT$10 of food or drinks.',
       reserve:'Reserve',signup:'Events',menu:'Menu',redeem:'Rewards',redeemBtn:'Redeem',scanTitle:'Scan the QR on your table',scanSub:n=>'Redeeming “'+n+'”: point at the table QR and it is added to your order automatically.',scanCancel:'Cancel',scanNoCam:'Cannot open the camera. Please allow camera access.',scanBad:'That is not a table ordering QR.',redeemDone:(n,t)=>'Added “'+n+'” (redeemed, table '+t+'). Points left: ',redeemConfirm:(n,p)=>'Redeem “'+n+'” for '+p+' points?',canRedeem:'Redeem now',short:n=>n+' more points',pts:n=>n+' pts',redeemHint:'Tap Redeem, then scan the table QR. Space hours: at the counter.',
       install:'Add the card to your home screen',installSub:'One tap at checkout — no URL to find.',later:'Later',installed:'Added to home screen',home:'Home screen',
-      nextEvent:'Next event',noEvents:'No open events right now',registered:'Registered',pendingPay:'Payment pending',full:'Full',free:'Free',cap:(r,c)=>r+' / '+c+' seats',regCount:n=>n+' registered',timeTbd:'Time TBD',updates:'Member updates',noUpdates:'No member updates yet.',events:'Events',
+      nextEvent:'Next event',noEvents:'No open events right now',registered:'Registered',evEnded:'Ended',pendingPay:'Payment pending',full:'Full',free:'Free',cap:(r,c)=>r+' / '+c+' seats',regCount:n=>n+' registered',timeTbd:'Time TBD',updates:'Member updates',noUpdates:'No member updates yet.',events:'Events',
       plan:'Membership',statusLabel:'Current status',statusActive:p=>p+' valid',statusPending:'Activates on first entry',statusExpired:'Membership expired',statusNone:'No membership yet',daysLeft:n=>n+' days left',
       plans:{day_4h:'Day pass · 4 hrs',day_12h:'Day pass · 12 hrs',month:'Monthly',quarter:'Quarterly',year:'Annual',year_promo:'Opening offer · Annual 18 months',founding:'Founding Member',fallback:'Plan'},
       accessTitle:'Stay Square access',accessOn:'Stay Square access',accessPending:'Pending',accessOff:'No access',accessQr:'Show access QR',accessNote:'A valid membership gets you into Stay Square.',needPlan:'No valid membership yet — join a plan first.',qrPending:' (pending first entry)',qrUntil:'valid until ',qrFail:'Could not generate access QR',qrOffline:'Network needed to show the QR',
@@ -286,7 +287,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       hintPhone:'携帯電話番号を伝えるだけでもOKです。',hintNoPhone:'「マイページ」で携帯番号を登録すると、番号だけでポイントが貯まります。',hintEarn:'100元ごとに1ポイント。1ポイントでNT$10分の飲食と交換できます。',
       reserve:'予約',signup:'イベント',menu:'メニュー',redeem:'交換できるもの',redeemBtn:'交換',scanTitle:'テーブルの注文QRをスキャン',scanSub:n=>'「'+n+'」を交換：テーブルのQRに向けると注文リストに自動で追加されます。',scanCancel:'キャンセル',scanNoCam:'カメラを起動できません。カメラの許可をご確認ください。',scanBad:'テーブルの注文QRではありません。',redeemDone:(n,t)=>'「'+n+'」を追加しました（交換・テーブル '+t+'）。残りポイント：',redeemConfirm:(n,p)=>p+' ポイントで「'+n+'」を交換しますか？',canRedeem:'今すぐ交換可',short:n=>'あと '+n+' ポイント',pts:n=>n+' pt',redeemHint:'「交換」を押してテーブルのQRをスキャン。スペース利用はカウンターで。',
       install:'会員カードをホーム画面に追加',installSub:'会計時にワンタップで開けます。',later:'あとで',installed:'ホーム画面に追加しました',home:'ホーム画面',
-      nextEvent:'次のイベント',noEvents:'現在申し込み可能なイベントはありません',registered:'申込済',pendingPay:'支払い待ち',full:'満席',free:'無料',cap:(r,c)=>'定員 '+r+'／'+c,regCount:n=>'申込 '+n+' 人',timeTbd:'日時未定',updates:'会員向けお知らせ',noUpdates:'お知らせはまだありません。',events:'イベント',
+      nextEvent:'次のイベント',noEvents:'現在申し込み可能なイベントはありません',registered:'申込済',evEnded:'終了',pendingPay:'支払い待ち',full:'満席',free:'無料',cap:(r,c)=>'定員 '+r+'／'+c,regCount:n=>'申込 '+n+' 人',timeTbd:'日時未定',updates:'会員向けお知らせ',noUpdates:'お知らせはまだありません。',events:'イベント',
       plan:'会員資格',statusLabel:'現在のステータス',statusActive:p=>p+'：有効',statusPending:'初回入場で有効化',statusExpired:'期限切れ',statusNone:'まだ会員プランがありません',daysLeft:n=>'残り '+n+' 日',
       plans:{day_4h:'デイ（4時間）',day_12h:'デイ（12時間）',month:'月会員',quarter:'四半期会員',year:'年会員',year_promo:'オープン特典 年会員18か月',founding:'創始会員',fallback:'プラン'},
       accessTitle:'Stay Square 入退室',accessOn:'Stay Square 利用可',accessPending:'保留中',accessOff:'現在利用不可',accessQr:'入退室 QR を表示',accessNote:'有効な会員資格があれば Stay Square に入場できます。',needPlan:'有効なプランがありません。先に会員プランに加入してください。',qrPending:'（初回入場で有効化）',qrUntil:'有効期限 ',qrFail:'入退室 QR を生成できません',qrOffline:'QR の表示にはネットワークが必要です',
@@ -465,10 +466,11 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     const tags=[e.registered?`<span class="tag">${esc(T.registered)}</span>`:'',e.registration_status==='pending_payment'?`<span class="tag">${esc(T.pendingPay)}</span>`:'',full?`<span class="tag">${esc(T.full)}</span>`:''].join('');
     const cover=(e.event_details&&e.event_details.cover_url)||'';
     const cv=cover?`<img class="cv" src="${esc(imgUrl(cover))}" alt="" loading="lazy">`:'';
-    return `<a class="ecard" href="${eventUrl(e)}">${cv}<div class="bd"><h3>${esc(e.title)}</h3><div class="meta2">${esc(fmt(e.starts_at)||T.timeTbd)}${e.location?' · '+esc(e.location):''}</div>${e.description?`<p>${esc(e.description)}</p>`:''}<div class="foot"><span class="price">${esc(price)}</span><span>${tags}</span></div></div></a>`;
+    const past=e.status==='已結束';
+    return `<a class="ecard${past?' past':''}" href="${eventUrl(e)}">${cv}<div class="bd"><h3>${esc(e.title)}</h3><div class="meta2">${esc(fmt(e.starts_at)||T.timeTbd)}${e.location?' · '+esc(e.location):''}</div>${e.description?`<p>${esc(e.description)}</p>`:''}<div class="foot"><span class="price">${past?esc(T.evEnded):esc(price)}</span><span>${tags}</span></div></div></a>`;
   }
   function events(){
-    const list=data.events||[],ups=data.updates||[];
+    const all=data.events||[],list=all.filter(e=>e.status!=='已結束').concat(all.filter(e=>e.status==='已結束').reverse()),ups=data.updates||[];
     app.innerHTML=`<div class="hello"><h1>${esc(T.events)}</h1></div>${list.length?list.map(evRow).join(''):`<p class="empty">${esc(T.noEvents)}</p>`}
     <section class="sec"><h2>${esc(T.updates)}</h2>${ups.length?ups.map(u=>`<div class="upd mute"><b style="color:var(--ink)">${esc(u.title)}</b><time>${esc(u.published_at)}</time>${u.content?`<p>${esc(u.content)}</p>`:''}</div>`).join(''):`<p class="empty">${esc(T.noUpdates)}</p>`}</section>`;
   }

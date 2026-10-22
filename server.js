@@ -2297,6 +2297,7 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
   const access = await memberAccessFor(me.id);
   const lang = ['en', 'ja'].includes(String(req.query.lang || '')) ? String(req.query.lang) : 'zh';
   // 會員 App：報名中的活動 + 我是否已報名（活動標題依 ?lang= 回對應語系）
+  await autoEndEvents.maybe();
   const events = (await q(
     `SELECT ${SEL_EVENT},
        (SELECT COALESCE(SUM(r.quantity),0)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS reg_count,
@@ -2992,6 +2993,15 @@ async function eventTicketLedger(client,eventId){
 
 /** 活動結束後自動建立待撥款（scheduled，due_on＝結束日隔天起算第 10 個工作日）。只處理會員活動，冪等：每場活動只有一筆 kind='auto'。
  *  金額＝（票價實收−已退款）×90%，扣掉管理員已手動排定／已撥的金額，再扣抵同一主辦人尚未扣款的手續費扣款（金額足夠才扣）。 */
+// 已辦完的活動自動改「已結束」：預告／報名中且結束時間已過（沒填結束時間＝開始後 6 小時）。
+// 排程每 5 分鐘跑；公開讀取（活動列表、單場、會員 state）前也以 60 秒節流補跑一次，不必等排程。
+async function closeEndedEvents(){
+ const ended=(await q(`UPDATE events SET status='已結束' WHERE status IN ('預告','報名中') AND COALESCE(ends_at,starts_at+interval '6 hours')<=now() RETURNING id`)).rows;
+ for(const {id} of ended){try{await q('INSERT INTO event_activity(event_id,action) VALUES($1,$2)',[id,'event_ended_auto']);}catch(e){console.warn('[event-auto-end] activity',e.message);}}
+ if(ended.length){snapshotCache={at:0,value:null,pending:null};console.log('[event-auto-end] 已結束',ended.length,'場');}
+ return ended.length;
+}
+const autoEndEvents=cronJobs.createLazyReloader({reload:()=>closeEndedEvents().catch(e=>console.error('[event-auto-end]',e.message)),ttlMs:60000});
 async function scheduleEndedEventSettlements(){
  const due=(await q(`SELECT e.id FROM events e WHERE e.review_status IS NOT NULL AND e.status<>'已取消' AND e.ends_at<=now() AND e.ends_at>now()-interval '120 days'
    AND NOT EXISTS(SELECT 1 FROM event_settlements s WHERE s.event_id=e.id AND s.kind='auto')
@@ -4287,6 +4297,7 @@ function eventInviteToken(registrationId,event){
 }
 function eventInviteClaims(token,eventId){const value=verifyAccessToken(String(token||''),SECRET);return value?.plan==='event-invite'&&value.event===eventId?value:null;}
 app.get('/api/events', optionalAuth, requireDb, wrap(async (req, res) => {
+  await autoEndEvents.maybe();
   const member = req.auth?.sub ? (await memberAccessFor(req.auth.sub)).active : false;
   const events = (await q(
     `SELECT ${SEL_EVENT},
@@ -4294,7 +4305,11 @@ app.get('/api/events', optionalAuth, requireDb, wrap(async (req, res) => {
      FROM events e WHERE status IN ('預告','報名中') AND (visibility='public' OR registration_mode='closed' OR (visibility='members' AND $1))
      ORDER BY starts_at ASC NULLS LAST`, [member]
   )).rows;
-  res.json({ events: events.map(e => publicEvent(e, req.query.lang)) });
+  // ?past=1：再附最近 90 天已結束的公開活動（最多 12 場、新到舊），官網列表放在最下方弱化顯示
+  const past = req.query.past === '1' ? (await q(
+    `SELECT ${SEL_EVENT}, 0 AS reg_count FROM events e WHERE status='已結束' AND visibility='public' AND COALESCE(registration_mode,'native')<>'closed'
+       AND COALESCE(ends_at,starts_at)>now()-interval '90 days' ORDER BY starts_at DESC NULLS LAST LIMIT 12`)).rows : null;
+  res.json({ events: events.map(e => publicEvent(e, req.query.lang)), ...(past ? { past: past.map(e => publicEvent(e, req.query.lang)) } : {}) });
 }));
 
 function ownsEventCheckout(session,auth){
@@ -4498,6 +4513,7 @@ app.post('/api/events/:id/view',requireDb,wrap(async(req,res)=>{
 }));
 
 app.get('/api/events/:slug', optionalAuth, requireDb, wrap(async (req, res) => {
+  await autoEndEvents.maybe();
   const userId = req.auth?.sub || null;
   const ev = (await q(
     `SELECT ${SEL_EVENT},
@@ -5327,6 +5343,7 @@ app.get(['/halloween-2026.html','/en/halloween-2026.html','/ja/halloween-2026.ht
 const SNAPSHOT_TTL_MS = 60_000;
 let snapshotCache = { at: 0, value: null, pending: null };
 async function loadPublicSnapshot() {
+  await autoEndEvents.maybe();
   const updates = numify((await q(`SELECT ${SEL_UPD} FROM updates ORDER BY published_at DESC`)).rows);
   const events = (await q(`SELECT ${SEL_EVENT} FROM events e WHERE status IN ('預告','報名中') AND visibility='public' ORDER BY starts_at ASC NULLS LAST`)).rows;
   const content = await readContent();
@@ -5433,6 +5450,7 @@ function shouldSendToApp(req, event) {
 app.get(['/events/:slug', '/en/events/:slug', '/ja/events/:slug'], async (req, res) => {
   let event = null;
   if (dbReady) {
+    await autoEndEvents.maybe();
     try {
       event = (await q(
         `SELECT ${SEL_EVENT} FROM events e WHERE (e.slug=$1 OR (e.id=(SELECT event_id FROM event_slug_redirects WHERE old_slug=$1) AND NOT EXISTS(SELECT 1 FROM events current WHERE current.slug=$1))) AND e.status<>'草稿' ORDER BY (e.slug=$1) DESC LIMIT 1`,
@@ -6942,6 +6960,7 @@ cronRunner.define('line-delivery', () => lineDelivery.run(), { onError: () => co
 // 預約取餐：取餐前 PREP_MIN 分鐘自動送單；過期未取自動收掉
 cronRunner.define('pickup', () => placeDuePickups(), { onError: e => console.error('[pickup]', e.message) });
 // 會員活動結束後自動建立待撥款（冪等，每小時檢查）
+cronRunner.define('event-auto-end', () => closeEndedEvents(), { onError: e => console.error('[event-auto-end]', e.message) });
 cronRunner.define('event-settlements', () => scheduleEndedEventSettlements(), { onError: e => console.error('[event-settlements]', e.message) });
 // LINE 訂位前一日提醒：一筆只提醒一次
 cronRunner.define('line-reminders', () => lineService.sendReminders(), { onError: e => console.error('[line] 提醒失敗：', e.message) });
@@ -7002,6 +7021,8 @@ async function boot() {
     cron.schedule('* * * * *',()=>cronRunner.run('line-delivery'));
     // 預約取餐：每分鐘檢查
     cron.schedule('* * * * *',()=>cronRunner.run('pickup'));
+    // 已辦完的活動自動改「已結束」：每 5 分鐘
+    cron.schedule('*/5 * * * *', () => cronRunner.run('event-auto-end'));
     // 會員活動自動待撥款：每小時 15 分
     cron.schedule('15 * * * *', () => cronRunner.run('event-settlements'), { timezone: 'Asia/Taipei' });
     // LINE 訂位前一日提醒：每天 18:00（台北）

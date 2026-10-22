@@ -170,3 +170,15 @@ test('官網活動詳情頁：真人直接 302 到 App（帶語言與查詢字�
   assert.equal((await get('/events/talk', { ...human, host: '127.0.0.1' })).status, 200, '本機不轉');
   assert.equal((await get('/events/none', human)).status, 200, '找不到活動不轉');
 });
+
+test('已辦完的活動自動改「已結束」：排程每 5 分鐘、公開讀取前節流補跑；App 活動頁顯示活動已結束', () => {
+  const src = read('server.js');
+  assert.match(src, /UPDATE events SET status='已結束' WHERE status IN \('預告','報名中'\) AND COALESCE\(ends_at,starts_at\+interval '6 hours'\)<=now\(\)/);
+  assert.match(src, /cronRunner\.define\('event-auto-end'/);
+  assert.match(src, /cron\.schedule\('\*\/5 \* \* \* \*', \(\) => cronRunner\.run\('event-auto-end'\)\)/);
+  assert.ok((src.match(/await autoEndEvents\.maybe\(\)/g) || []).length >= 5, '公開列表、單場、官網快照、詳情頁、會員 state 都先補跑');
+  const cron = require('../lib/cron-jobs');
+  assert.ok(cron.dueJobs(new Date('2026-10-22T02:05:00Z')).includes('event-auto-end'));
+  const ev = read('public/m-event.js');
+  assert.match(ev, /if\(e\.status==='已結束'\)return notice\(T\.over\);/);
+});

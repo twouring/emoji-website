@@ -200,3 +200,15 @@ test('no sub-16px text in the redesigned styles', () => {
     assert.ok(/^(\d*\.?\d+)rem$/.test(v) ? parseFloat(v) >= 1 : /clamp|max\(/.test(v) || v === 'inherit', `font-size ${v}`);
   }
 });
+
+test('已結束活動：列表卡片弱化（灰階、已結束標籤、不顯示價格與報名人數），CTA 改「查看活動」', () => {
+  const c = ctx('zh');
+  const html = c.eventCard({ ...baseEvent, status: '已結束', reg_count: 12, price_twd: 500 });
+  assert.match(html, /ev-card--past/);
+  assert.match(html, /ev-pill--past">已結束</);
+  assert.match(html, /查看活動 →/);
+  assert.doesNotMatch(html, /NT\$500/);
+  assert.doesNotMatch(html, /已報名 12 人/);
+  assert.match(source, /\.ev-card--past\{opacity:\.6;filter:grayscale\(1\)\}/);
+  assert.match(source, /api\('\/events\?past=1&lang='\+lang\)/);
+});
