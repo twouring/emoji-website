@@ -14,9 +14,9 @@
   var htmlLang=String(document.documentElement.lang||'zh').toLowerCase();
   var LANG=htmlLang.indexOf('zh')===0?'zh':htmlLang.slice(0,2);
   var DICT={
-    zh:{cafe:'在咖啡',bar:'三點水',cafeHours:'08:00–17:00',barHours:'17:00–03:00',closedDay:'這天沒有開放訂位的時段，請改選其他日期。',allPast:'今天的時段都已過，請改選明天或之後的日期。',pick:'請點選一個時段。',sending:'送出中，請稍候…',fail:'送出失敗，請稍後再試。',id:'訂位編號：',time:'時間：',guests:'人數：',unit:' 位',hold:'座位保留至：',mail:'確認信：',po:'（',pc:'）'},
-    en:{cafe:'at cafe',bar:'3AM',cafeHours:'café · 08:00–17:00',barHours:'bar · 17:00–03:00',closedDay:'No bookable slots on this day. Please pick another date.',allPast:'All of today’s slots have passed. Please pick tomorrow or later.',pick:'Please choose a time slot.',sending:'Sending…',fail:'Something went wrong. Please try again.',id:'Booking no.: ',time:'Time: ',guests:'Guests: ',unit:'',hold:'Table held until: ',mail:'Confirmation sent to: ',po:' (',pc:')'},
-    ja:{cafe:'在咖啡 at cafe',bar:'三點水 3AM',cafeHours:'カフェ · 08:00–17:00',barHours:'バー · 17:00–03:00',closedDay:'この日はご予約枠がありません。別の日をお選びください。',allPast:'本日の枠はすべて終了しました。明日以降の日付をお選びください。',pick:'時間枠を選んでください。',sending:'送信中…',fail:'送信に失敗しました。しばらくしてからもう一度お試しください。',id:'予約番号：',time:'日時：',guests:'人数：',unit:' 名',hold:'お席の確保：',mail:'確認メール：',po:'（',pc:'）'}
+    zh:{cafe:'在咖啡',bar:'三點水',cafeHours:'08:00–17:00',barHours:'17:00–03:00',closedDay:'這天沒有開放訂位的時段，請改選其他日期。',nextOpen:'最近可訂：',jumped:'今天已沒有可訂時段，已幫你換到最近可訂的日期。',wd:['日','一','二','三','四','五','六'],allPast:'今天的時段都已過，請改選明天或之後的日期。',pick:'請點選一個時段。',sending:'送出中，請稍候…',fail:'送出失敗，請稍後再試。',id:'訂位編號：',time:'時間：',guests:'人數：',unit:' 位',hold:'座位保留至：',mail:'確認信：',po:'（',pc:'）'},
+    en:{cafe:'at cafe',bar:'3AM',cafeHours:'café · 08:00–17:00',barHours:'bar · 17:00–03:00',closedDay:'No bookable slots on this day. Please pick another date.',nextOpen:'Next available: ',jumped:'No slots left today. We moved you to the next available date.',wd:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],allPast:'All of today’s slots have passed. Please pick tomorrow or later.',pick:'Please choose a time slot.',sending:'Sending…',fail:'Something went wrong. Please try again.',id:'Booking no.: ',time:'Time: ',guests:'Guests: ',unit:'',hold:'Table held until: ',mail:'Confirmation sent to: ',po:' (',pc:')'},
+    ja:{cafe:'在咖啡 at cafe',bar:'三點水 3AM',cafeHours:'カフェ · 08:00–17:00',barHours:'バー · 17:00–03:00',closedDay:'この日はご予約枠がありません。別の日をお選びください。',nextOpen:'直近の予約可能日：',jumped:'本日は予約枠がないため、直近の予約可能日に切り替えました。',wd:['日','月','火','水','木','金','土'],allPast:'本日の枠はすべて終了しました。明日以降の日付をお選びください。',pick:'時間枠を選んでください。',sending:'送信中…',fail:'送信に失敗しました。しばらくしてからもう一度お試しください。',id:'予約番号：',time:'日時：',guests:'人数：',unit:' 名',hold:'お席の確保：',mail:'確認メール：',po:'（',pc:'）'}
   };
   var T=DICT[LANG]||DICT.zh;
 
@@ -59,16 +59,49 @@
     });
     if(isToday&&!anyEnabled&&!(OPEN&&!OPEN.length)){var p=document.createElement('p');p.className='hint';p.textContent=T.allPast;slotHost.appendChild(p);}
     if(OPEN&&!OPEN.length){var c=document.createElement('p');c.className='hint';c.textContent=T.closedDay;slotHost.appendChild(c);}
+    return anyEnabled&&!(OPEN&&!OPEN.length);
   }
   // 店家設定的可訂位時間：換日期時向伺服器取當天開放的時段；取不到就當全部開放（送出時伺服器仍會把關）
-  function loadOpen(){
-    var d=date.value;
-    fetch('/api/reservations/slots?date='+encodeURIComponent(d),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(j){
-      if(date.value!==d)return;OPEN=j&&Array.isArray(j.slots)?j.slots:null;render();
-    }).catch(function(){OPEN=null;render();});
+  function fetchSlots(d){
+    return fetch('/api/reservations/slots?date='+encodeURIComponent(d),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(j){return j&&Array.isArray(j.slots)?j.slots:null;}).catch(function(){return null;});
   }
-  date.addEventListener('change',function(){OPEN=null;render();loadOpen();});
-  render();loadOpen();
+  function addDays(iso,n){var t=new Date(iso+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10);}
+  function label(iso){var t=new Date(iso+'T12:00:00Z');return (t.getUTCMonth()+1)+'/'+t.getUTCDate()+(LANG==='en'?' ('+T.wd[t.getUTCDay()]+')':'（'+T.wd[t.getUTCDay()]+'）');}
+  // 往後找最近一天有開放時段的日期（最多 14 天）；找不到回 ''
+  function findNext(from){
+    var i=0;
+    function step(){
+      if(++i>14)return Promise.resolve('');
+      var d=addDays(from,i);
+      return fetchSlots(d).then(function(s){return s===null||s.length?d:step();});
+    }
+    return step();
+  }
+  function jumpTo(d,note){
+    date.value=d;OPEN=null;render();
+    loadOpen(false).then(function(){if(note){var p=document.createElement('p');p.className='hint';p.textContent=note;slotHost.insertBefore(p,slotHost.firstChild);}});
+  }
+  function suggest(from){
+    findNext(from).then(function(d){
+      if(!d||date.value!==from)return;
+      var b=document.createElement('button');b.type='button';b.className='btn btn-ghost';b.style.marginTop='10px';b.style.width='100%';
+      b.textContent=T.nextOpen+label(d)+' →';
+      b.addEventListener('click',function(){jumpTo(d,'');});
+      slotHost.appendChild(b);
+    });
+  }
+  function loadOpen(auto){
+    var d=date.value;
+    return fetchSlots(d).then(function(slots){
+      if(date.value!==d)return;OPEN=slots;
+      var ok=render();
+      if(ok)return;
+      if(auto)return findNext(d).then(function(n){if(n&&date.value===d)jumpTo(n,T.jumped);});
+      suggest(d);
+    });
+  }
+  date.addEventListener('change',function(){OPEN=null;render();loadOpen(false);});
+  render();loadOpen(true);
 
   function msg(text,kind){status.textContent=text;status.className='status '+kind;}
   function val(name){return String(form.elements[name]?.value||'').trim();}

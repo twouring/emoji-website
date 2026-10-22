@@ -331,3 +331,21 @@
     .hero h1{font-size:1.85rem}
     .stat .n{font-size:1.7rem}
   }
+
+  /* ---------- 2026-10 手機優化：首屏按鈕、橫滑卡片、圖片高度 ---------- */
+  .hero__note{display:flex;flex-wrap:wrap;gap:6px 22px}
+  @media(max-width:620px){
+    .journey-card figure img{aspect-ratio:3/2}
+  }
+  @media(max-width:560px){
+    .hero{padding:32px 0 44px}
+    .hero__brandline{margin-bottom:.7em}
+    .hero__cta{gap:10px;margin-top:26px}
+    .hero__cta .btn{flex:1 1 100%;justify-content:center}
+    .hero__media--trio{gap:10px}
+    /* 情境卡片改橫向滑動，省下兩三個螢幕高 */
+    .scenes{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:12px;margin:0 -18px;padding:0 18px 8px;scrollbar-width:none}
+    .scenes::-webkit-scrollbar{display:none}
+    .scenes .entry{flex:0 0 78%;scroll-snap-align:start;padding:22px 20px}
+  }
+  .keep{white-space:nowrap}

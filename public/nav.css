@@ -130,3 +130,25 @@ footer.site-foot .foot__bot{display:flex;justify-content:space-between;flex-wrap
 }
 
 @media print{header.site-nav,footer.site-foot{display:none}}
+
+/* ── 手機底部常駐列：訂位／菜單／導航（訂位頁、活動頁自有 CTA，由 nav.js 移除）── */
+.m-bar{display:none}
+@media(max-width:760px){
+  .m-bar{position:fixed;left:0;right:0;bottom:0;z-index:75;display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:8px;
+    padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:#FBFAF6;border-top:1px solid #E4E0D6;
+    font-family:"Noto Sans TC",system-ui,-apple-system,sans-serif;transform:translateY(110%);transition:transform .2s ease}
+  .m-bar.show{transform:none}
+  .m-bar a{display:flex;align-items:center;justify-content:center;min-height:48px;border:1px solid #1B1A17;border-radius:4px;
+    font-size:1rem;font-weight:500;color:#1B1A17;text-decoration:none;background:#FFFFFF}
+  .m-bar a.m-bar__main{background:#1B1A17;color:#FBFAF6}
+  body.has-m-bar footer.site-foot{padding-bottom:calc(112px + env(safe-area-inset-bottom))}
+}
+@media print{.m-bar{display:none}}
+/* ── 菜單分類跳轉列（品牌頁，nav.js 依實際分類產生）── */
+.menu-jump{position:sticky;top:70px;z-index:20;display:flex;gap:8px;overflow-x:auto;margin:0 0 20px;padding:10px 0;
+  background:#FBFAF6;border-bottom:1px solid #E4E0D6;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.menu-jump::-webkit-scrollbar{display:none}
+.menu-jump a{flex:0 0 auto;padding:7px 14px;border:1px solid #D8D2C5;border-radius:4px;font-size:1rem;color:#3A362E;
+  text-decoration:none;white-space:nowrap;background:#FFFFFF}
+.menu-jump a:hover,.menu-jump a:focus-visible{border-color:#1B1A17;color:#1B1A17}
+.menu-group{scroll-margin-top:140px}

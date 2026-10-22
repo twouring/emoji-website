@@ -37,3 +37,11 @@ test('public rich-content locales cannot restore legacy level copy',()=>{
   assert.equal(JSON.stringify(event),original);
   assert.equal(out.id,'4F');
 });
+test('space copy from the CMS never calls the night brand a bar',()=>{
+  const {publicContent}=require('../lib/public-copy');
+  const out=publicContent({space_1f_zh:'入夜燈光轉暖，成為深夜食堂與酒吧。',space_1f_en:'warm — late-night shokudō and bar.',space_1f_ja:'夜は灯りを落とし、深夜食堂とバーへ。',menu:'{"bar":1}'});
+  assert.equal(out.space_1f_zh,'入夜燈光轉暖，成為深夜食堂與餐酒館。');
+  assert.equal(out.space_1f_en,'warm — late-night shokudō and bistro.');
+  assert.equal(out.space_1f_ja,'夜は灯りを落とし、深夜食堂・ビストロへ。');
+  assert.equal(out.menu,'{"bar":1}');
+});
