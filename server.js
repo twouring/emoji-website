@@ -155,7 +155,7 @@ const APP_HOSTS = (process.env.APP_HOSTS || 'app.emoji.tw').split(',').map(s => 
 const isAppHost = req => APP_HOSTS.includes(String(req.hostname || '').toLowerCase());
 // App 子站只提供 PWA 本身、API、登入與必要靜態檔；其餘頁面（活動、官網）一律回官網，避免兩個網域出現重複內容
 // /host、/host/<eventId>：會員在 App 主辦活動（列表／單場管理），同樣回 m.html 由前端路由
-const APP_HOST_OWN = /^\/($|index\.html$|host($|\/)|m($|\/|\.webmanifest$|-sw\.js$|-icon-)|api\/|auth\/|vendor\/|favicon|logo\.png$|cis\/assets\/)/;
+const APP_HOST_OWN = /^\/($|index\.html$|host($|\/)|m-host\.js$|m($|\/|\.webmanifest$|-sw\.js$|-icon-)|api\/|auth\/|vendor\/|favicon|logo\.png$|cis\/assets\/)/;
 const ADMIN_HOSTS = (process.env.ADMIN_HOSTS || 'admin.emoji.tw').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 const isAdminHost = req => ADMIN_HOSTS.includes(String(req.hostname || '').toLowerCase());
 const DEFAULT_MEMBER_URL = (process.env.MEMBER_URL || APP_BASE + '/');
