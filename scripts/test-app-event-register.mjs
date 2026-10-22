@@ -78,3 +78,13 @@ test('m.html：/e/<slug> 在 login() 前分流，訪客可報名', () => {
   assert.match(m, /if\(eventPath\(\)\)\{if\(token\(\)\)/);
   assert.match(m, /else if\(!token\(\)\)login\(\);else load\(\);/);
 });
+
+test('報名完成（免費、訪客、付款回傳）一律進結果頁，不留在表單', () => {
+  const ev = read('public/m-event.js');
+  assert.match(ev, /function renderResult\(e,status,guest\)/);
+  assert.match(ev, /if\(result\)return renderResult\(e,result\);/);
+  assert.match(ev, /if\(out\.guest\)\{[^}]*return renderResult\(e,e\.registration_status,true\);\}/);
+  assert.match(ev, /result=out\.status\|\|'registered';await load\(\);/);
+  assert.match(ev, /result=v\.paid\|\|v\.status==='registered'\?'paid':'checking'/);
+  for (const k of ['backEvent', 'home']) for (const l of ['zh', 'en', 'ja']) assert.ok(MEvent.L[l][k], l + '.' + k);
+});

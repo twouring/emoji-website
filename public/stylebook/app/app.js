@@ -141,6 +141,9 @@ const GROUPS = [
   { name: '報名結果 .mev .alert／.ok（含 .sum、.facts、.desc、.cover）', src: 'm-event.js',
     rules: ['錯誤用 .alert（紅框）並以「錯誤：」開頭；成功用 .ok（黃底）。', '.facts 是時間地點清單，.desc 保留換行，.sum 是金額小計列。'],
     html: '<div class="mev" style="padding-bottom:0">\n  <div class="facts"><p><b>時間</b> 10/31 19:00 – 22:00</p><p><b>地點</b> 言文字</p></div>\n  <p class="desc">變裝入場。\n現場有 DJ。</p>\n  <div class="sum"><span>小計</span><b>NT$600</b></div>\n  <div class="alert" role="alert">錯誤：名額已滿，請改選其他票種。</div>\n  <div class="ok" role="status" style="margin-top:8px">完成：報名成功，票券已寄到信箱。</div>\n</div>', inlineOk: true },
+  { name: '報名結果頁 .mev-result／.mev-mark', src: 'm-event.js renderResult()',
+    rules: ['報名送出、訪客報名、付款回傳後一律換成結果頁，不留在表單。', '.mev-mark 成功加 .ok（黃底勾），確認中不加。', '主按鈕：會員「出示票券」、訪客「用這個 Email 登入 App」；次按鈕回活動頁。'],
+    html: '<div class="mev" style="padding-bottom:0">\n  <section class="mev-result" role="status">\n    <div class="mev-mark ok" aria-hidden="true">✓</div>\n    <h1>報名完成</h1>\n    <p class="note">確認信與票券資訊會寄到你的 Email。</p>\n    <div class="sec tile"><b>萬聖節之夜</b><p>10/31 19:00 – 22:00</p><p>言文字</p></div>\n    <button class="btn solid" type="button">出示票券</button>\n    <button class="btn" type="button">回活動頁</button>\n  </section>\n</div>', inlineOk: true },
  ]},
  { id: 'host', title: '07 主辦工作台（/host）', items: [
   { name: '活動摘要 .host-top／.host-status', src: 'm-host.js',

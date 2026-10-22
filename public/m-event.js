@@ -16,7 +16,7 @@ const L={
   pending_approval:'報名已送出，等待主辦人審核',waitlisted:'已加入候補；取得名額前尚未報名成功',declined:'主辦人未核准此次報名',approved:'已核准，請在 24 小時內付款完成報名',pending_payment:'等待付款',refund_pending:'退款處理中，票券暫停使用',capture_pending:'信用卡請款處理中，完成後才會核發票券',refunded:'已退款，原票券已失效',
   guestLogin:'用這個 Email 登入 App 查看票券',mine:'我的報名',show:'出示票券',cancel:'取消報名',refund:'退票',
   cancelConfirm:'確定取消報名？',refundConfirm:'確定退票？依退票規則，票價扣 10% 手續費後退回；場地茶飲費依規則處理。活動開始前 8 日內不可自助退票。',refundDone:(r,f)=>'已申請退票：退回 NT$'+r+'（手續費 NT$'+f+'）',cancelDone:'已取消報名',
-  inviteBad:'這個邀請連結無效、已過期或已回覆。',invitedFor:'這封邀請是給',checked:'已完成簽到'},
+  inviteBad:'這個邀請連結無效、已過期或已回覆。',invitedFor:'這封邀請是給',checked:'已完成簽到',backEvent:'回活動頁',home:'回 App 首頁'},
  en:{loading:'Loading…',notFound:'Event not found.',loadFail:'Events are temporarily unavailable.',back:'‹ Back',site:'Full details on the website ↗',host:'Hosted by',when:'When',where:'Where',tba:'Time TBA',placeTba:'Location TBA',free:'Free',
   ticket:'Ticket type',onSale:d=>'On sale '+d,ended:'Sales ended',until:d=>'Until '+d,approval:'Approval required',unlock:'Have a hidden ticket code?',unlockLabel:'Hidden ticket code',unlockBtn:'Unlock tickets',unlocked:'Available tickets updated',flex:'Your amount (flexible price)',flexHint:'Blank uses suggested price',
   details:'Your details',name:'Name',first:'First name',last:'Last name',email:'Email',guestHint:'We will create a free member account with this email (no password). Sign in to the App with it to view your ticket.',as:n=>'Registering as '+n,qty:'Number of tickets',qtyHint:'All tickets use the buyer’s details first and can be transferred after registration.',
@@ -29,7 +29,7 @@ const L={
   pending_approval:'Request submitted. Awaiting host approval.',waitlisted:'You are on the waitlist. Your place is not confirmed yet.',declined:'The host declined this registration.',approved:'Approved. Pay within 24 hours to confirm.',pending_payment:'Payment pending',refund_pending:'Refund processing. Your ticket is inactive.',capture_pending:'Card capture is processing.',refunded:'Refunded. Your original ticket is no longer valid.',
   guestLogin:'Sign in to the App with this email to view your ticket',mine:'Your registration',show:'Show ticket',cancel:'Cancel registration',refund:'Request refund',
   cancelConfirm:'Cancel your registration?',refundConfirm:'Request a refund? Per policy, the ticket price is refunded minus a 10% fee; the venue fee follows the policy. Self-service refunds close 8 days before the event.',refundDone:(r,f)=>'Refund requested: NT$'+r+' (fee NT$'+f+')',cancelDone:'Registration cancelled',
-  inviteBad:'This invitation link is invalid, expired, or already answered.',invitedFor:'This invitation is for',checked:'Checked in'},
+  inviteBad:'This invitation link is invalid, expired, or already answered.',invitedFor:'This invitation is for',checked:'Checked in',backEvent:'Back to event',home:'App home'},
  ja:{loading:'読み込み中…',notFound:'イベントが見つかりません。',loadFail:'現在イベントを読み込めません。',back:'‹ 戻る',site:'公式サイトで詳細を見る ↗',host:'主催',when:'日時',where:'場所',tba:'日時未定',placeTba:'場所未定',free:'無料',
   ticket:'チケット種類',onSale:d=>d+' 販売開始',ended:'販売終了',until:d=>d+' まで',approval:'承認制',unlock:'非公開チケットコードをお持ちですか？',unlockLabel:'非公開チケットコード',unlockBtn:'チケットを表示',unlocked:'選択可能なチケットを更新しました',flex:'希望金額（自由料金）',flexHint:'空欄は推奨料金',
   details:'申込情報',name:'氏名',first:'名',last:'姓',email:'メール',guestHint:'このメールで会員アカウント（パスワード不要）を作成します。App にログインするとチケットを確認できます。',as:n=>n+' として申し込む',qty:'チケット枚数',qtyHint:'すべてのチケットは購入者情報で発行され、申込後に個別譲渡できます。',
@@ -42,7 +42,7 @@ const L={
   pending_approval:'申込済み・主催者の承認待ち',waitlisted:'キャンセル待ちです。参加はまだ確定していません。',declined:'今回の申込は承認されませんでした。',approved:'承認済みです。24時間以内に支払いを完了してください。',pending_payment:'支払い待ち',refund_pending:'返金処理中のため、チケットは無効です。',capture_pending:'決済処理中です。',refunded:'返金済みです。元のチケットは無効です。',
   guestLogin:'このメールで App にログインしてチケットを確認',mine:'申込状況',show:'チケットを表示',cancel:'申込を取り消す',refund:'払い戻し',
   cancelConfirm:'申込を取り消しますか？',refundConfirm:'払い戻しを申請しますか？規定によりチケット代から手数料10%を差し引いて返金します。開催8日前以降はセルフ払い戻しできません。',refundDone:(r,f)=>'払い戻しを申請しました：NT$'+r+'（手数料 NT$'+f+'）',cancelDone:'申込を取り消しました',
-  inviteBad:'この招待リンクは無効、期限切れ、または回答済みです。',invitedFor:'この招待の宛先',checked:'チェックイン済み'}
+  inviteBad:'この招待リンクは無効、期限切れ、または回答済みです。',invitedFor:'この招待の宛先',checked:'チェックイン済み',backEvent:'イベントに戻る',home:'App ホーム'}
 };
 const VENUE_FEE_TWD=150,INVITE_KEY='tth_event_invite';
 const ATTR_KEYS=['utm_source','utm_medium','utm_campaign','utm_content','utm_term','ref','gclid','fbclid','li_fat_id'];
@@ -72,7 +72,7 @@ function buildRegisterBody(e,get,getAll,ctx){const qs=e.registration_settings?.q
   answers:Object.fromEntries(qs.map(q=>[q.id,q.type==='multiple'?getAll(q.id):q.type==='terms'&&q.terms?{accepted:!!get(q.id),reviewed:get(q.id+'__reviewed')==='1',signature:get(q.id+'__signature')||''}:['checkbox','terms'].includes(q.type)?!!get(q.id):get(q.id)||'']))};}
 
 /* ---- 畫面 ---- */
-const CSS=`.mev{padding-bottom:110px}.mev .cover{width:100%;border-radius:16px;margin-bottom:14px;aspect-ratio:16/9;object-fit:cover;background:var(--alt)}.mev h1{font-size:1.5rem;margin:6px 0 10px}.mev .facts{color:var(--soft)}.mev .facts p{margin:4px 0}.mev .desc{white-space:pre-wrap;color:var(--soft)}.mev .tk{display:flex;gap:12px;align-items:flex-start;min-height:56px;border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:8px;background:#fff}.mev .tk input{width:22px;height:22px;margin-top:2px}.mev .tk.off{opacity:.55}.mev .tk span{flex:1}.mev .tk small{display:block;color:var(--muted)}.mev .tk:has(input:checked){border-color:var(--ink)}.mev .field textarea,.mev .field select{display:block;width:100%;margin-top:6px;min-height:52px;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;font:inherit;font-size:1rem;background:#fff;color:var(--ink)}.mev .field textarea{min-height:110px}.mev fieldset{border:0;padding:0;margin:14px 0 0}.mev legend{color:var(--soft);padding:0}.mev .chk{display:flex;gap:10px;align-items:center;min-height:44px}.mev .chk input{width:22px;height:22px}.mev .req{color:#B3261E}.mev .note{color:var(--muted);font-size:1rem}.mev .alert{border:1.5px solid #B3261E;border-radius:12px;padding:12px 14px;color:#B3261E;background:#fff}.mev .ok{border:1.5px solid var(--ink);border-radius:16px;padding:16px;background:var(--accent)}.mev .sum{display:flex;justify-content:space-between;margin-top:8px}.mev details{margin-top:12px}.mev summary{min-height:44px;display:flex;align-items:center;cursor:pointer}.mev-bar{position:fixed;left:0;right:0;bottom:0;z-index:40;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:rgba(251,250,246,.97);border-top:1px solid var(--line)}.mev-bar .btn{max-width:480px;margin:0 auto}`;
+const CSS=`.mev{padding-bottom:110px}.mev-result{text-align:center;padding-top:24px}.mev-result .btn,.mev-result .quiet{display:block;width:100%;margin-top:12px;text-align:center}.mev-result .tile{text-align:left;margin:18px 0}.mev-result .tile p{margin:4px 0;color:var(--soft)}.mev-mark{width:72px;height:72px;border-radius:50%;margin:0 auto 12px;display:grid;place-items:center;font-size:2.25rem;background:var(--alt);color:var(--ink)}.mev-mark.ok{background:var(--accent);color:var(--ink)}.mev .cover{width:100%;border-radius:16px;margin-bottom:14px;aspect-ratio:16/9;object-fit:cover;background:var(--alt)}.mev h1{font-size:1.5rem;margin:6px 0 10px}.mev .facts{color:var(--soft)}.mev .facts p{margin:4px 0}.mev .desc{white-space:pre-wrap;color:var(--soft)}.mev .tk{display:flex;gap:12px;align-items:flex-start;min-height:56px;border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:8px;background:#fff}.mev .tk input{width:22px;height:22px;margin-top:2px}.mev .tk.off{opacity:.55}.mev .tk span{flex:1}.mev .tk small{display:block;color:var(--muted)}.mev .tk:has(input:checked){border-color:var(--ink)}.mev .field textarea,.mev .field select{display:block;width:100%;margin-top:6px;min-height:52px;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;font:inherit;font-size:1rem;background:#fff;color:var(--ink)}.mev .field textarea{min-height:110px}.mev fieldset{border:0;padding:0;margin:14px 0 0}.mev legend{color:var(--soft);padding:0}.mev .chk{display:flex;gap:10px;align-items:center;min-height:44px}.mev .chk input{width:22px;height:22px}.mev .req{color:#B3261E}.mev .note{color:var(--muted);font-size:1rem}.mev .alert{border:1.5px solid #B3261E;border-radius:12px;padding:12px 14px;color:#B3261E;background:#fff}.mev .ok{border:1.5px solid var(--ink);border-radius:16px;padding:16px;background:var(--accent)}.mev .sum{display:flex;justify-content:space-between;margin-top:8px}.mev details{margin-top:12px}.mev summary{min-height:44px;display:flex;align-items:center;cursor:pointer}.mev-bar{position:fixed;left:0;right:0;bottom:0;z-index:40;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:rgba(251,250,246,.97);border-top:1px solid var(--line)}.mev-bar .btn{max-width:480px;margin:0 auto}`;
 function mount(o){
  const {app,tabs,esc,toast}=o,lang=['en','ja'].includes(o.lang)?o.lang:'zh',T=L[lang],locale=lang==='zh'?'zh-TW':lang==='ja'?'ja-JP':'en-US',slug=o.slug;
  const query=new URLSearchParams(location.search),embedded=query.get('embed')==='1',attribution=attributionFrom(query,document.referrer);
@@ -85,7 +85,7 @@ function mount(o){
  async function api(path,opt={}){const h={'content-type':'application/json'};if(tok())h.authorization='Bearer '+tok();const r=await fetch('/api'+path,{method:opt.method||'GET',headers:h,body:opt.body?JSON.stringify(opt.body):undefined});let d={};try{d=await r.json();}catch{}if(!r.ok){const err=new Error(d.error||T.loadFail);err.status=r.status;throw err;}return d;}
  const siteUrl=()=>(o.site||'')+(lang==='zh'?'':'/'+lang)+'/events/'+encodeURIComponent(slug);
  const shell=(inner,bar)=>{app.innerHTML=`<div class="mev"><div class="hello"><button class="btn" id="mev-back" type="button" style="width:auto;min-height:44px;padding:0 14px">${esc(T.back)}</button></div>${inner}</div>${bar?`<div class="mev-bar">${bar}</div>`:''}`;const b=document.getElementById('mev-back');if(b){b.hidden=embedded;b.onclick=()=>{if(history.length>1)history.back();else location.href=o.home||'/';};}window.scrollTo(0,0);};
- let banner='';
+ let banner='',result='';
  async function load(){
   shell(`<p class="empty">${esc(T.loading)}</p>`);
   let e;try{e=(await api('/events/'+encodeURIComponent(slug)+'?lang='+lang+(attribution.referral?'&ref='+encodeURIComponent(attribution.referral):''))).event;}catch(err){return shell(`<p class="empty">${esc(err.status===404?T.notFound:err.message)}</p>`);}
@@ -93,6 +93,7 @@ function mount(o){
   // 舊網址（slug 已改）→ 換成目前網址
   if(e.slug&&e.slug!==slug)history.replaceState(null,'','/e/'+encodeURIComponent(e.slug)+location.search);
   if(inviteToken){try{const inv=await api('/events/'+e.id+'/invitation',{method:'POST',body:{token:inviteToken,action:'preview'}});if(['invited','pending_payment'].includes(inv.status)){e.viewer=inv.viewer;e.registration_status=inv.status;e.invited_via_link=inv.status==='invited';}else if(inv.status==='registered'){e.viewer=inv.viewer;e.guest_submitted=true;e.registration_status='registered';}else throw 0;}catch{e.invite_error=T.inviteBad;inviteToken='';try{sessionStorage.removeItem(INVITE_KEY);}catch{}}}
+  if(result)return renderResult(e,result);
   render(e);
  }
  function head(e){const d=e.event_details||{};return `${d.cover_url?`<img class="cover" src="${esc(d.cover_url)}" alt="">`:''}<h1>${esc(e.title)}</h1><div class="facts"><p><b>${esc(T.when)}</b> ${esc([e.starts_at,e.ends_at].filter(Boolean).join(' – ')||T.tba)}</p><p><b>${esc(T.where)}</b> ${esc(e.location||T.placeTba)}</p>${e.host_names?.length?`<p><b>${esc(T.host)}</b> ${e.host_names.map(esc).join(' · ')}</p>`:''}</div>${e.description?`<p class="desc">${esc(e.description)}</p>`:''}<p><a href="${esc(siteUrl())}" target="_blank" rel="noopener">${esc(T.site)}</a></p>`;}
@@ -157,9 +158,19 @@ function mount(o){
   try{const out=await api('/events/'+encodeURIComponent(e.id)+'/register',{method:'POST',body});
    if(out.url){if(embedded){window.open(out.url,'_blank','noopener');go.textContent=label;go.disabled=false;go.setAttribute('aria-busy','false');return;}location.href=out.url;return;}
    inviteToken='';try{sessionStorage.removeItem(INVITE_KEY);}catch{}
-   if(out.guest){e.guest_submitted=true;e.registration_status=out.status||'registered';e.registered=e.registration_status==='registered';return render(e);}
-   banner=resultBanner(out.status||'registered');await load();
+   if(out.guest){e.registration_status=out.status||'registered';return renderResult(e,e.registration_status,true);}
+   result=out.status||'registered';await load();
   }catch(err){go.disabled=false;go.setAttribute('aria-busy','false');go.textContent=label;showError(err.message);}
+ }
+ // 報名結果頁（免費報名、訪客報名、Stripe 付款回傳共用）：取代活動頁，給明確下一步
+ function renderResult(e,status,guest){
+  const ok=status==='registered'||status==='paid',title=ok?T.done:status==='checking'?T.paidCheck:(T[status]||T.done),sub=ok?T.doneSub:'',signedIn=!guest&&!!tok();
+  const when=[e.starts_at,e.ends_at].filter(Boolean).join(' – ')||T.tba;
+  const primary=ok&&signedIn?`<button class="btn solid" id="mev-ticket" type="button">${esc(T.show)}</button>`:!signedIn?`<a class="btn solid" href="${esc(o.home||'/')}">${esc(T.guestLogin)}</a>`:'';
+  shell(`<section class="mev-result" role="status" aria-live="polite"><div class="mev-mark${ok?' ok':''}" aria-hidden="true">${ok?'✓':'…'}</div><h1>${esc(title)}</h1>${sub?`<p class="note">${esc(sub)}</p>`:''}<div class="sec tile"><b>${esc(e.title)}</b><p>${esc(when)}</p><p>${esc(e.location||T.placeTba)}</p></div>${primary}<button class="btn" id="mev-back-event" type="button">${esc(T.backEvent)}</button>${signedIn?`<a class="quiet" href="${esc(o.home||'/')}">${esc(T.home)}</a>`:''}</section>`);
+  const back=document.getElementById('mev-back');if(back)back.hidden=true;
+  document.getElementById('mev-ticket')?.addEventListener('click',()=>o.openTicket&&o.openTicket(e.id));
+  document.getElementById('mev-back-event').onclick=()=>{result='';banner='';if(guest){e.guest_submitted=true;e.registered=ok;render(e);}else load();};
  }
  function resultBanner(status){if(status==='registered'||status==='paid')return `<section class="sec ok" role="status"><h2>${esc(T.done)}</h2><p>${esc(T.doneSub)}</p></section>`;if(status==='canceled')return `<section class="sec tile" role="status"><h2>${esc(T.canceledPay)}</h2><p>${esc(T.canceledSub)}</p></section>`;if(status==='checking')return `<section class="sec tile" role="status"><p>${esc(T.paidCheck)}</p></section>`;return T[status]?`<section class="sec tile" role="status"><p>${esc(T[status])}</p></section>`:'';}
  function bindStatus(e){
@@ -167,7 +178,7 @@ function mount(o){
   const c=document.getElementById('mev-cancel');if(c)c.onclick=async()=>{if(!confirm(c.dataset.paid?T.refundConfirm:T.cancelConfirm))return;c.disabled=true;try{const out=await api('/events/'+encodeURIComponent(e.id)+'/register',{method:'DELETE'});toast(out.refund_twd>0||out.fee_twd>0?T.refundDone(Number(out.refund_twd||0).toLocaleString('en-US'),Number(out.fee_twd||0).toLocaleString('en-US')):T.cancelDone);banner='';await load();}catch(err){toast(err.message);c.disabled=false;}};
  }
  // 付款回傳：?result=paid&s=<session> → 核對後顯示「報名完成」；?result=canceled → 已取消付款；其他狀態（舊結果頁轉來）直接顯示文案
- (async()=>{const result=query.get('result');if(result){const sid=query.get('s');if(result==='paid'&&sid){try{const v=await api('/events/checkout/verify',{method:'POST',body:{session_id:sid}});banner=resultBanner(v.paid||v.status==='registered'?'paid':'checking');}catch{banner=resultBanner('checking');}}else banner=resultBanner(result==='paid'?'checking':result);
+ (async()=>{result=query.get('result')||'';if(result){const sid=query.get('s');if(result==='paid'&&sid){try{const v=await api('/events/checkout/verify',{method:'POST',body:{session_id:sid}});result=v.paid||v.status==='registered'?'paid':'checking';}catch{result='checking';}}else if(result==='paid')result='checking';else if(result==='canceled'||!T[result]){banner=resultBanner(result);result='';}
   const q=new URLSearchParams(location.search);q.delete('result');q.delete('s');history.replaceState(null,'',location.pathname+(q.toString()?'?'+q:''));}
   await load();})();
 }
