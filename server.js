@@ -4605,8 +4605,9 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
     if(!approved)price+=venueFeeTwd;
     const ticketTotalTwd=price-venueFeeTwd;
     const settings=registrationSettings;
-    const requiresApproval=!invited&&(settings.requires_approval||selectedTicket?.requires_approval);
-    let captureRequired=!approved&&price>0&&requiresApproval&&settings.payment_approval==='authorize';
+    const requiresApproval=Boolean(!invited&&(settings.requires_approval||selectedTicket?.requires_approval));
+    // 一定要是 boolean：registration_settings 缺 requires_approval 時會得到 undefined，寫進 NOT NULL 欄位直接 500。
+    let captureRequired=Boolean(!approved&&price>0&&requiresApproval&&settings.payment_approval==='authorize');
     if((settings.opens_at&&Date.now()<Date.parse(settings.opens_at))||(settings.closes_at&&Date.now()>=Date.parse(settings.closes_at))){
       await client.query('ROLLBACK');return res.status(409).json({error:'目前不在報名期間。'});
     }
