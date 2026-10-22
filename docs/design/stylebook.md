@@ -4,6 +4,7 @@
 
 ## 01 使用與責任
 
+- 會員 App（app.emoji.tw、`m.html`／`m-event.js`／`m-host.js`）有自己的元件與 token，見 `docs/design/app-stylebook.md` 與展示頁 `/stylebook/app/`，不套用本文件的 `ui-*`。
 - 展示頁：`/stylebook/`。可重用元件：`/stylebook/components.css`，依序載入 `/style.css`、元件 CSS、頁面 CSS。
 - `public/style.css` 是既有網站的基礎 token 來源。元件 CSS 直接引用它，不複製色碼；`--ui-*` 僅補間距與控制尺寸。`ui-` 為 opt-in 命名空間，包在 `.ui-scope` 裡使用。
 - 新頁面與新元件遵循本規範。舊頁面以本文件末尾的接軌表逐頁處理；本次展示頁通過檢查不代表所有既有頁面已遷移或驗收。

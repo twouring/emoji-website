@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>會員 App Stylebook｜言文字</title>
+<link rel="icon" href="/favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700;900&display=swap" rel="stylesheet">
+<!-- App 樣式由 app.js 從 /m.html 與 /m-event.js 即時載入（插在最前面），下方 sbk-* 只負責文件版面與把固定定位元件關進展示框。 -->
+<style>
+body{padding:0!important;min-height:0!important;overscroll-behavior-y:auto!important}
+.sbk-shell{max-width:1180px;margin:0 auto;padding:32px 24px 80px}
+.sbk-head{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:8px}
+.sbk-kicker{color:var(--muted);letter-spacing:.12em;margin:0 0 8px}
+.sbk-title{font-size:clamp(1.8rem,4vw,2.6rem);line-height:1.3;margin:0 0 12px}
+.sbk-p{color:var(--soft);max-width:65ch;margin:8px 0}
+.sbk-toc{display:flex;flex-wrap:wrap;gap:8px;position:sticky;top:0;z-index:5;background:rgba(251,250,246,.96);padding:12px 0;border-bottom:1px solid var(--line)}
+.sbk-toc a{min-height:44px;display:inline-flex;align-items:center;padding:0 14px;border:1px solid var(--line);border-radius:999px;color:var(--ink);text-decoration:none;background:var(--card)}
+.sbk-toc a:focus-visible,.sbk-code summary:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.sbk-sec{padding-top:48px}
+.sbk-h2{font-size:1.6rem;margin:0 0 16px!important}
+.sbk-item{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,400px);gap:24px;padding:24px 0;border-top:1px solid var(--line)}
+.sbk-doc{min-width:0}
+.sbk-h3{font-size:1.15rem;margin:0 0 6px!important;overflow-wrap:anywhere}
+.sbk-src{color:var(--muted);margin:0 0 8px}
+.sbk-src code,.sbk-p code,.sbk-sw code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1rem;overflow-wrap:anywhere}
+.sbk-rules{margin:0 0 12px;padding-left:1.2em;color:var(--soft)}
+.sbk-rules li{margin:4px 0}
+.sbk-code summary{min-height:44px;display:flex;align-items:center;cursor:pointer;color:var(--ink);font-weight:500}
+.sbk-code pre{margin:0;background:var(--ink);color:var(--paper);border-radius:12px;padding:14px;overflow:auto;max-height:420px}
+.sbk-code code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1rem;white-space:pre-wrap;overflow-wrap:anywhere}
+/* 展示框：模擬 App 的 480px 單欄 */
+.sbk-frame{background:var(--paper);border:1px solid var(--line);border-radius:24px;padding:20px 18px;min-width:0;align-self:start;position:relative;overflow:hidden}
+.sbk-frame .pg,.sbk-frame nav.tabs,.sbk-frame .toast,.sbk-frame .mev-bar{position:relative;inset:auto;left:auto;right:auto;top:auto;bottom:auto;transform:none;animation:none;z-index:auto}
+.sbk-frame .pg{border:1px solid var(--line);border-radius:16px;overflow:hidden;min-height:0}
+.sbk-frame .pg>header{position:relative}
+.sbk-frame--tabs{padding:20px 0 0}
+.sbk-frame--toast{display:flex;justify-content:center}
+.sbk-frame .sticky{position:relative;bottom:auto}
+.sbk-frame .scan-frame video{background:#222}
+.sbk-swatches{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:12px;margin:16px 0}
+.sbk-sw{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.sbk-sw small{color:var(--muted);font-size:1rem}
+.sbk-chip{display:block;height:48px;border-radius:10px;border:1px solid var(--line);margin-bottom:8px}
+.sbk-table{width:100%;border-collapse:collapse;margin-top:16px}
+.sbk-table caption{text-align:left;font-weight:700;padding-bottom:8px}
+.sbk-table th,.sbk-table td{text-align:left;vertical-align:top;padding:10px 12px 10px 0;border-top:1px solid var(--line)}
+.sbk-table th{white-space:nowrap;color:var(--muted);font-weight:500}
+.sbk-status{background:var(--alt);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:12px 0 0}
+@media (max-width:860px){.sbk-item{grid-template-columns:minmax(0,1fr)}.sbk-frame{max-width:440px}}
+@media (max-width:560px){.sbk-shell{padding:20px 18px 64px}.sbk-table th{white-space:normal}}
+</style>
+</head>
+<body>
+<div class="sbk-shell">
+<header class="sbk-head">
+<p class="sbk-kicker">EMOJI · MEMBER APP STYLEBOOK　／　v1.0　／　2026.10.22</p>
+<h1 class="sbk-title">會員 App 元件手冊</h1>
+<p class="sbk-p">app.emoji.tw（<code>public/m.html</code>、<code>m-event.js</code>、<code>m-host.js</code>）目前使用的全部 UI 元件。每個範例都直接套正式 App 的樣式，改了 App，這頁就跟著變。開發規則見 <code>docs/design/app-stylebook.md</code>。</p>
+<p class="sbk-p">官網、後台元件請看 <a href="/stylebook/">前端 Stylebook</a>。本頁範例資料皆為示意，不呼叫 API。</p>
+<p class="sbk-status" id="sbk-status" role="status">載入 App 樣式中…</p>
+</header>
+<nav class="sbk-toc" id="sbk-toc" aria-label="元件目錄"></nav>
+<main id="sbk-body"></main>
+</div>
+<script src="/stylebook/app/app.js"></script>
+</body>
+</html>
