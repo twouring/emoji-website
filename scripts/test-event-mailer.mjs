@@ -30,12 +30,12 @@ test('text and push invitations retain the signed reply link',async()=>{
 test('event invitations use the selected event language and stay bound to invited status',async()=>{
  const {queueEventInvitation}=createRequire(import.meta.url)('../lib/event-mailer');let call;
  const count=await queueEventInvitation(async(sql,args)=>(call={sql,args},{rows:[{id:args[0]}]}),{event:{id:'event_1',slug:'demo',title:'中文活動',translations:{en:{title:'English event'}}},registrationId:'registration_1',email:'guest@example.test',name:'Guest',language:'en',origin:'https://emoji.test',token:'signed-token',message:'Bring a friend'});
- assert.equal(count,1);assert.match(call.sql,/expected_status/);assert.equal(call.args[0],'invite_registration_1');assert.equal(call.args[3],"You're invited · English event");assert.match(call.args[4],/Bring a friend/);assert.match(call.args[4],/https:\/\/emoji\.test\/en\/events\/demo#invite=signed-token$/);assert.equal(call.args[8],'invited');
+ assert.equal(count,1);assert.match(call.sql,/expected_status/);assert.equal(call.args[0],'invite_registration_1');assert.equal(call.args[3],"You're invited · English event");assert.match(call.args[4],/Bring a friend/);assert.match(call.args[4],/https:\/\/emoji\.test\/e\/demo\?lang=en#invite=signed-token$/);assert.equal(call.args[8],'invited');
 });
 test('re-invitations keep a new delivery id per ticket version and carry the preselected ticket query',async()=>{
  const {queueEventInvitation}=createRequire(import.meta.url)('../lib/event-mailer');let call;
  const count=await queueEventInvitation(async(sql,args)=>(call={sql,args},{rows:[{id:args[0]}]}),{event:{id:'event_1',slug:'demo',title:'中文活動'},registrationId:'registration_1',ticketVersion:3,email:'guest@example.test',name:'Guest',origin:'https://emoji.test',token:'signed-token',query:'?tt=t_makeup&unlock_code=EB700ABC'});
- assert.equal(count,1);assert.equal(call.args[0],'invite_registration_1_v3');assert.equal(call.args[7],3);assert.match(call.args[4],/https:\/\/emoji\.test\/events\/demo\?tt=t_makeup&unlock_code=EB700ABC#invite=signed-token$/);
+ assert.equal(count,1);assert.equal(call.args[0],'invite_registration_1_v3');assert.equal(call.args[7],3);assert.match(call.args[4],/https:\/\/emoji\.test\/e\/demo\?tt=t_makeup&unlock_code=EB700ABC#invite=signed-token$/);
  await queueEventInvitation(async(sql,args)=>(call={sql,args},{rows:[{id:args[0]}]}),{event:{id:'event_1',slug:'demo',title:'中文活動'},registrationId:'registration_1',email:'guest@example.test',name:'Guest',origin:'https://emoji.test',token:'t',query:'"><script>'});
  assert.equal(call.args[0],'invite_registration_1');assert.doesNotMatch(call.args[4],/script/);
 });
