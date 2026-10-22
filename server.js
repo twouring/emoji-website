@@ -49,7 +49,8 @@ const posInventory=require('./lib/pos-inventory');
 const posPaymentMethods=require('./lib/pos-payment-methods');
 const eventQuestions = require('./lib/event-questions');
 const { eventSlug, normalizeEventInput, localizeEvent, normalizeAttribution } = require('./lib/events');
-const { normalizeEventApplication, safeHttpUrl, applicationDeposit, venueLabel, venuesOfLocation } = require('./lib/event-applications');
+const { normalizeEventApplication, safeHttpUrl, applicationDeposit, approvalVenueFee, venueLabel, venuesOfLocation } = require('./lib/event-applications');
+const venueFees = require('./lib/venue-fees');
 const { sendMail, sendMailQuietly, NOTIFY_EMAIL } = require('./lib/mail');
 const { PLAN_PRICE_TWD } = require('./lib/plans');
 const { FEATURED_ID, eventPage, featuredEvent } = require('./lib/event-page');
@@ -654,6 +655,28 @@ async function migrate() {
     ADD COLUMN IF NOT EXISTS deposit_paid_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS deposit_payment_intent TEXT`);
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS registration_mode TEXT NOT NULL DEFAULT 'native',
     ADD COLUMN IF NOT EXISTS registration_url TEXT NOT NULL DEFAULT ''`);
+  // 會員活動場地費與退費（規格 v2 §4.6–§4.8）：deposit_twd 改存「主辦人應付場地費」（私人＝送件時定額；公開外部售票＝審核通過時設定 150×人數）。
+  // refund_policy 同步寫入 events.registration_settings.refund_policy；source_url 為匯入來源網址（選填）。
+  await q(`ALTER TABLE event_applications ADD COLUMN IF NOT EXISTS refund_policy TEXT NOT NULL DEFAULT 'accept',
+    ADD COLUMN IF NOT EXISTS source_url TEXT NOT NULL DEFAULT ''`);
+  // 每筆報名／加購內含的場地茶飲費（元，150×張數；平台自建活動為 0）與參加者自行退票扣下的 10% 手續費（元）
+  await q(`ALTER TABLE event_regs ADD COLUMN IF NOT EXISTS venue_fee_twd INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS refund_fee_twd INTEGER NOT NULL DEFAULT 0`);
+  await q(`ALTER TABLE event_ticket_orders ADD COLUMN IF NOT EXISTS venue_fee_twd INTEGER NOT NULL DEFAULT 0`);
+  // 自動建立的待撥款（kind='auto'）每場活動只一筆
+  await q(`ALTER TABLE event_settlements ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'manual'`);
+  await q(`CREATE UNIQUE INDEX IF NOT EXISTS event_settlements_auto_uidx ON event_settlements(event_id) WHERE kind='auto'`);
+  // 主辦人手續費扣款（活動前 7 日內取消公開活動＝已售票款 10%）；之後的自動撥款優先扣抵（deducted），沒有後續撥款由主辦人支付（paid）
+  await q(`CREATE TABLE IF NOT EXISTS event_host_charges (
+    id TEXT PRIMARY KEY,event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,user_id TEXT,
+    kind TEXT NOT NULL DEFAULT 'cancellation',amount_twd INTEGER NOT NULL CHECK(amount_twd>0),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','deducted','paid','waived')),
+    settlement_id TEXT,note TEXT NOT NULL DEFAULT '',created_at TIMESTAMPTZ NOT NULL DEFAULT now(),updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE(event_id,kind))`);
+  // 主辦人撥款帳戶：帳號 AES-GCM 加密，只存末 4 碼明文供遮罩顯示；完整帳號只回給平台管理員
+  await q(`CREATE TABLE IF NOT EXISTS member_payout_accounts (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,account_name TEXT NOT NULL,bank_code TEXT NOT NULL,
+    account_number_enc TEXT NOT NULL,account_last4 TEXT NOT NULL,updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
 
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS translations JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS embed_origins JSONB NOT NULL DEFAULT '[]'::jsonb`);
@@ -1336,9 +1359,10 @@ async function drainApplicationMail() {
 /** 申請即活動：建立草稿活動、申請人為負責人並加入主辦團隊（可進 /organizer/events 先準備頁面）；公開與否由審核決定。 */
 async function createApplicationEvent(client, a) {
   const id = `e_${a.id}`, slug = `${a.visibility === 'private' ? 'private-event' : eventSlug(a.title) || 'event'}-${a.id.slice(-8)}`;
-  await client.query(`INSERT INTO events(id,slug,title,description,location,starts_at,ends_at,capacity,price_twd,visibility,status,owner_id,registration_mode,registration_url,review_status)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,0,$9,'草稿',$10,$11,$12,$13)`,
-    [id, slug, a.title, a.description, appVenue(a), a.starts_at, a.ends_at, a.attendees, a.visibility || 'public', a.user_id, a.registration_mode || 'native', a.registration_url || '', a.status || 'pending']);
+  // 退票政策存在 registration_settings.refund_policy（參加者退票 DELETE /api/events/:id/register 讀這裡）
+  await client.query(`INSERT INTO events(id,slug,title,description,location,starts_at,ends_at,capacity,price_twd,visibility,status,owner_id,registration_mode,registration_url,review_status,registration_settings)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,0,$9,'草稿',$10,$11,$12,$13,$14)`,
+    [id, slug, a.title, a.description, appVenue(a), a.starts_at, a.ends_at, a.attendees, a.visibility || 'public', a.user_id, a.registration_mode || 'native', a.registration_url || '', a.status || 'pending', JSON.stringify({ refund_policy: a.refund_policy === 'none' ? 'none' : 'accept' })]);
   await client.query('UPDATE event_applications SET event_id=$2 WHERE id=$1', [a.id, id]);
   const applicant = (await client.query('SELECT email,name FROM users WHERE id=$1', [a.user_id])).rows[0];
   await client.query(`INSERT INTO event_hosts(event_id,email,name,is_visible,can_manage,can_checkin) VALUES($1,lower($2),$3,false,true,true) ON CONFLICT(event_id,email) DO UPDATE SET can_manage=true,can_checkin=true`,
@@ -2446,7 +2470,19 @@ app.delete('/api/admin/updates/:id', auth, adminOnly, requireDb, wrap(async (req
 
 /* ---- 場地與活動統一申請，通過後建立對應活動 ---- */
 const APPLICATION_FIELDS = `id,user_id,kind,venue,visibility,registration_mode,registration_url,event_id,community_name,contact_name,contact_email,contact_phone,
-  title,description,starts_at,ends_at,attendees,requirements,status,review_note,created_at,reviewed_at,deposit_twd,deposit_paid_at`;
+  title,description,starts_at,ends_at,attendees,requirements,status,review_note,created_at,reviewed_at,deposit_twd,deposit_paid_at,refund_policy,source_url`;
+
+/** 申請的場地費試算（顯示用）：舊申請沒有 visibility 時視為公開外部。 */
+function applicationVenueQuote(a) {
+  return venueFees.quoteVenueFee({ venue: a.venue, visibility: a.visibility || 'public', attendees: Number(a.attendees), registration_mode: a.registration_mode === 'native' ? 'native' : 'external' });
+}
+
+// 場地費試算（公開，不需登入）：建立活動表單即時顯示用；error 為 400，warning（三樓 >60 人）不擋送出。
+app.get('/api/venue-fee/quote', (req, res) => {
+  const quote = venueFees.quoteVenueFee({ venue: String(req.query.venue || ''), visibility: String(req.query.visibility || ''), attendees: String(req.query.attendees ?? ''), registration_mode: String(req.query.registration_mode || '') });
+  res.set('Cache-Control', 'public, max-age=300');
+  res.status(quote.error ? 400 : 200).json(quote);
+});
 
 app.post('/api/event-applications', auth, requireDb, wrap(async (req, res) => {
   if (!req.auth.sub) return res.status(403).json({ error: '請使用個人帳號登入後申請。' });
@@ -2488,10 +2524,10 @@ app.post('/api/event-applications', auth, requireDb, wrap(async (req, res) => {
     const application = (await client.query(
       `INSERT INTO event_applications
        (id,user_id,request_id,request_hash,community_name,contact_name,contact_email,contact_phone,
-        title,description,starts_at,ends_at,attendees,requirements,kind,venue,visibility,registration_mode,registration_url,deposit_twd)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING ${APPLICATION_FIELDS}`,
+        title,description,starts_at,ends_at,attendees,requirements,kind,venue,visibility,registration_mode,registration_url,deposit_twd,refund_policy,source_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) RETURNING ${APPLICATION_FIELDS}`,
       [uid('ea_'),req.auth.sub,requestId,hash,v.community_name,v.contact_name,v.contact_email,v.contact_phone,
-        v.title,v.description,v.starts_at,v.ends_at,v.attendees,v.requirements,v.kind,v.venue,v.visibility||null,v.registration_mode||null,v.registration_url||'',applicationDeposit(v)])).rows[0];
+        v.title,v.description,v.starts_at,v.ends_at,v.attendees,v.requirements,v.kind,v.venue,v.visibility||null,v.registration_mode||null,v.registration_url||'',applicationDeposit(v),v.refund_policy||'accept',v.source_url||''])).rows[0];
     // 收件確認與狀態同一交易寫入佇列：申請成立就一定有對應通知，寄送由背景工作保證完成。
     await createApplicationEvent(client, application);
     const update = await queueApplicationUpdate(client, { application, kind: 'submitted', actor: req.auth.sub });
@@ -2499,12 +2535,12 @@ app.post('/api/event-applications', auth, requireDb, wrap(async (req, res) => {
     application.updates = [applicationMail.publicUpdate(update)];
     notifyAdminApplication(application);
     drainApplicationMail();
-    res.status(201).json({ ok: true, application });
+    res.status(201).json({ ok: true, application, venue_fee: applicationVenueQuote(application) });
   } catch (err) { await client.query('ROLLBACK'); throw err; }
   finally { client.release(); }
 }));
 
-// 私人活動訂金：Stripe Checkout；webhook 與 verify 皆走同一個冪等入帳。
+// 主辦人場地費（私人活動場地費、公開外部售票預付茶飲費；舊稱訂金）：Stripe Checkout；webhook 與 verify 皆走同一個冪等入帳。
 async function fulfillApplicationDeposit(session) {
   const meta = session && session.metadata;
   if (!meta || meta.kind !== 'application-deposit' || session.payment_status !== 'paid' || !meta.application_id) return { ignored: true };
@@ -2518,14 +2554,14 @@ async function fulfillApplicationDeposit(session) {
 }
 
 app.post('/api/event-applications/:id/deposit/checkout', auth, requireDb, wrap(async (req, res) => {
-  if (!stripe) return res.status(503).json({ error: '線上付款尚未開通，請來信 us@emoji.tw 安排訂金。' });
-  const a = (await q(`SELECT id,title,status,deposit_twd,deposit_paid_at,contact_email FROM event_applications WHERE id=$1 AND user_id=$2`, [req.params.id, req.auth.sub])).rows[0];
+  if (!stripe) return res.status(503).json({ error: '線上付款尚未開通，請來信 us@emoji.tw 安排場地費付款。' });
+  const a = (await q(`SELECT id,title,status,visibility,deposit_twd,deposit_paid_at,contact_email FROM event_applications WHERE id=$1 AND user_id=$2`, [req.params.id, req.auth.sub])).rows[0];
   if (!a) return res.status(404).json({ error: '找不到這筆申請。' });
-  if (!a.deposit_twd || a.deposit_paid_at || a.status === 'rejected') return res.status(409).json({ error: '這筆申請目前不需要支付訂金。' });
+  if (!a.deposit_twd || a.deposit_paid_at || a.status === 'rejected') return res.status(409).json({ error: '這筆申請目前不需要支付場地費。' });
   const base = ['en','ja'].includes(req.body?.lang) ? '/' + req.body.lang : '';
   const session = await stripe.checkout.sessions.create({
     mode: 'payment', payment_method_types: ['card'], customer_email: a.contact_email,
-    line_items: [{ price_data: { currency: 'twd', product_data: { name: `言文字私人活動訂金｜${a.title}`.slice(0, 250) }, unit_amount: a.deposit_twd * 100 }, quantity: 1 }],
+    line_items: [{ price_data: { currency: 'twd', product_data: { name: `${a.visibility === 'private' ? '言文字私人活動場地費' : '言文字場地茶飲費'}｜${a.title}`.slice(0, 250) }, unit_amount: a.deposit_twd * 100 }, quantity: 1 }],
     success_url: `${SITE_BASE}${base}/events?apply=1&deposit_paid={CHECKOUT_SESSION_ID}`,
     cancel_url: `${SITE_BASE}${base}/events?apply=1`,
     metadata: { kind: 'application-deposit', application_id: a.id, user_id: req.auth.sub },
@@ -2569,10 +2605,10 @@ app.post('/api/admin/event-applications/:id/review', auth, adminOnly, requireDb,
     return res.status(400).json({ error: '請填寫給申請人的審核回覆（2000 字以內）。' });
   const actor = req.auth.agent ? 'admin-api-key' : req.auth.sub;
   if (b.status === 'approved' && (await q('SELECT 1 FROM event_applications WHERE id=$1 AND deposit_twd>0 AND deposit_paid_at IS NULL', [req.params.id])).rowCount)
-    return res.status(409).json({ error: '私人活動訂金尚未付款，付款後才可通過。' });
+    return res.status(409).json({ error: '私人活動場地費尚未付款，付款後才可通過。' });
   const publishPublic = b.status === 'approved' && b.publish_public === true;
   const client = await pool.connect();
-  let application, event = null;
+  let application, event = null, buyoutClosed = null;
   try {
     await client.query('BEGIN');
     application = (await client.query(
@@ -2589,15 +2625,35 @@ app.post('/api/admin/event-applications/:id/review', auth, adminOnly, requireDb,
     event = (await client.query(`UPDATE events SET review_status=$2,status=CASE WHEN $3 THEN $4 ELSE status END WHERE id=$1 RETURNING id,slug,status`,
       [application.event_id, b.status, !!publish, application.registration_mode === 'native' ? '報名中' : '預告'])).rows[0] || null;
     if (!publish) event = null;
+    // 公開外部售票：審核通過後主辦人依預估人數先付場地茶飲費（150×人數），金額寫進 deposit_twd 並沿用場地費付款流程。
+    let feeNote = '';
+    const dueAfterApproval = b.status === 'approved' && !application.deposit_twd ? approvalVenueFee(application) : 0;
+    if (dueAfterApproval > 0) {
+      application = (await client.query(`UPDATE event_applications SET deposit_twd=$2 WHERE id=$1 AND deposit_paid_at IS NULL RETURNING ${APPLICATION_FIELDS}`, [application.id, dueAfterApproval])).rows[0];
+      feeNote = `\n\n場地茶飲費：NT$${dueAfterApproval.toLocaleString('en-US')}（NT$150 × 預估 ${application.attendees} 人），請登入後於申請紀錄線上付款；當天實到超過的人數，請在櫃檯每人補 NT$150。`;
+    }
+    // 一樓包場：審核通過即關閉該時段的訂位（POS「不可訂位設定」的特定日期），同一交易寫入，避免客人訂到包場時段。
+    if (b.status === 'approved' && application.venue === '1F' && application.visibility === 'private') {
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,3))', ['reservation_hours']);
+      const current = reservationHours.parse((await client.query("SELECT value FROM site_content WHERE key='reservation_hours'")).rows[0]?.value || '');
+      const result = reservationHours.closeRange(current, application.starts_at, application.ends_at);
+      await client.query(`INSERT INTO site_content (key,value,updated_at) VALUES ('reservation_hours',$1,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`, [JSON.stringify(result.cfg)]);
+      buyoutClosed = result.closed;
+    }
     // 審核、公開預告與通知佇列同一交易完成，不會出現只有部分成功的狀態。
     const publicLink=event?`\n\n活動資訊：${SITE_BASE}/events/${encodeURIComponent(event.slug)}`:'';
-    await queueApplicationUpdate(client, { application, kind: b.status, message: application.review_note+publicLink, actor });
+    await queueApplicationUpdate(client, { application, kind: b.status, message: application.review_note+feeNote+publicLink, actor });
     await client.query('COMMIT');
   } catch (err) { await client.query('ROLLBACK'); throw err; }
   finally { client.release(); }
+  if (buyoutClosed) {
+    const slots = Object.entries(buyoutClosed).map(([date, times]) => `${date}：${times[0]}–${times.at(-1)}（${times.length} 個時段）`).join('\n') || '（該時段原本就不開放訂位）';
+    sendMailQuietly({ to: NOTIFY_EMAIL, subject: `[包場] 一樓私人包場已通過：${application.title}（${fmtTaipei(application.starts_at)}）——請排班`,
+      text: `一樓在咖啡／三點水包場已審核通過，當天停止對外營業，請店長安排排班。\n\n活動：${application.title}\n時段：${fmtTaipei(application.starts_at)} – ${fmtTaipei(application.ends_at)}\n人數：${application.attendees}\n聯絡：${application.contact_name} ${application.contact_email} ${application.contact_phone || ''}\n場地費：NT$${Number(application.deposit_twd).toLocaleString('en-US')}（可全額折抵當場餐飲，含酒水、不折現）\n\n已自動關閉的訂位時段（POS 訂位 → 不可訂位設定）：\n${slots}\n\n既有已成立的訂位不會自動取消，請到 POS 訂位頁確認是否需要聯絡客人改期。`, replyTo: application.contact_email });
+  }
   await attachApplicationUpdates([application], { admin: true });
   drainApplicationMail();
-  res.json({ ok: true, application, event });
+  res.json({ ok: true, application, event, venue_fee: applicationVenueQuote(application), reservations_closed: buyoutClosed || undefined });
 }));
 
 // 其他進度更新（補件、檔期／費用確認、場地安排…）：寫入紀錄並寄信通知申請者，任何狀態皆可。
@@ -2805,6 +2861,95 @@ app.post('/api/admin/events', auth, requireDb, eventEditor, wrap(async (req, res
   }
 }));
 
+/** 會員活動票款帳（規格 §4.7）：逐筆付款拆出票價、場地茶飲費、稅金與已退款；撥款基數只算票價。
+ *  退款先沖票價（保守，不會多撥）；整張已退（含自行退票扣手續費後退完）的票不計入撥款。金額單位：元。 */
+async function eventTicketLedger(client,eventId){
+ const rows=(await client.query(`SELECT r.amount_paid AS paid,r.venue_fee_twd AS venue,r.refund_fee_twd AS kept,COALESCE((r.tax_snapshot->>'tax_twd')::int,0) AS tax,
+   COALESCE((SELECT SUM(f.amount) FROM event_refunds f WHERE f.payment_intent=r.stripe_payment_intent_id AND f.status='succeeded'),0)::bigint/100 AS refunded
+   FROM event_regs r WHERE r.event_id=$1 AND r.amount_paid>0 AND r.stripe_payment_intent_id IS NOT NULL
+  UNION ALL SELECT o.amount_paid,o.venue_fee_twd,0,COALESCE((o.tax_snapshot->>'tax_twd')::int,0),
+   COALESCE((SELECT SUM(f.amount) FROM event_refunds f WHERE f.payment_intent=o.stripe_payment_intent_id AND f.status='succeeded'),0)::bigint/100
+   FROM event_ticket_orders o JOIN event_regs r ON r.id=o.registration_id WHERE r.event_id=$1 AND o.amount_paid>0 AND o.stripe_payment_intent_id IS NOT NULL`,[eventId])).rows;
+ const out={ticket_gross_twd:0,ticket_refunded_twd:0,venue_fee_twd:0,tax_twd:0,refund_fee_kept_twd:0,refunded_twd:0};
+ for(const row of rows){
+  const paid=Number(row.paid),venue=Number(row.venue),tax=Number(row.tax),kept=Number(row.kept),refunded=Number(row.refunded),ticket=Math.max(0,paid-venue-tax);
+  out.ticket_gross_twd+=ticket;out.venue_fee_twd+=venue;out.tax_twd+=tax;out.refunded_twd+=refunded;out.refund_fee_kept_twd+=kept;
+  out.ticket_refunded_twd+=refunded+kept>=paid?ticket:Math.min(ticket,refunded);
+ }
+ out.settlement_twd=venueFees.settlementAmount({gross:out.ticket_gross_twd,refunded:out.ticket_refunded_twd});
+ return out;
+}
+
+/** 活動結束後自動建立待撥款（scheduled，due_on＝結束日隔天起算第 10 個工作日）。只處理會員活動，冪等：每場活動只有一筆 kind='auto'。
+ *  金額＝（票價實收−已退款）×90%，扣掉管理員已手動排定／已撥的金額，再扣抵同一主辦人尚未扣款的手續費扣款（金額足夠才扣）。 */
+async function scheduleEndedEventSettlements(){
+ const due=(await q(`SELECT e.id FROM events e WHERE e.review_status IS NOT NULL AND e.status<>'已取消' AND e.ends_at<=now() AND e.ends_at>now()-interval '120 days'
+   AND NOT EXISTS(SELECT 1 FROM event_settlements s WHERE s.event_id=e.id AND s.kind='auto')
+   AND EXISTS(SELECT 1 FROM event_regs r WHERE r.event_id=e.id AND r.amount_paid>0) ORDER BY e.ends_at LIMIT 50`)).rows;
+ let created=0;
+ for(const {id} of due){
+  const client=await pool.connect();
+  try{await client.query('BEGIN');
+   const event=(await client.query('SELECT id,owner_id,ends_at FROM events WHERE id=$1 FOR UPDATE',[id])).rows[0];
+   if(!event||(await client.query("SELECT 1 FROM event_settlements WHERE event_id=$1 AND kind='auto'",[id])).rowCount){await client.query('ROLLBACK');continue;}
+   // 退款處理中就先不結算，下次排程再看
+   if((await client.query("SELECT 1 FROM event_regs WHERE event_id=$1 AND status='refund_pending' LIMIT 1",[id])).rowCount){await client.query('ROLLBACK');continue;}
+   const ledger=await eventTicketLedger(client,id),manual=Number((await client.query("SELECT COALESCE(SUM(amount_twd),0)::bigint AS n FROM event_settlements WHERE event_id=$1 AND status IN ('scheduled','paid')",[id])).rows[0].n);
+   let amount=ledger.settlement_twd-manual;const notes=[`自動結算：票價實收 NT$${ledger.ticket_gross_twd}－已退款 NT$${ledger.ticket_refunded_twd}，×90%＝NT$${ledger.settlement_twd}`];
+   if(manual)notes.push(`扣除已排定／已撥 NT$${manual}`);
+   const charges=event.owner_id?(await client.query("SELECT id,amount_twd,event_id FROM event_host_charges WHERE user_id=$1 AND status='pending' AND event_id<>$2 ORDER BY created_at FOR UPDATE",[event.owner_id,id])).rows:[],deducted=[];
+   for(const c of charges)if(c.amount_twd<amount){amount-=c.amount_twd;deducted.push(c);notes.push(`扣抵手續費 NT$${c.amount_twd}（活動 ${c.event_id} 取消）`);}
+   if(amount<=0){await client.query('ROLLBACK');continue;}
+   const sid=uid('settlement_'),dueOn=venueFees.taiwanBusinessDayAfter(event.ends_at,venueFees.PAYOUT_BUSINESS_DAYS);
+   await client.query("INSERT INTO event_settlements(id,event_id,amount_twd,due_on,note,created_by,kind) VALUES($1,$2,$3,$4,$5,'system','auto')",[sid,id,amount,dueOn,notes.join('；').slice(0,1000)]);
+   for(const c of deducted)await client.query("UPDATE event_host_charges SET status='deducted',settlement_id=$2,updated_at=now() WHERE id=$1",[c.id,sid]);
+   await client.query("INSERT INTO event_activity(event_id,actor_id,action) VALUES($1,NULL,'settlement_scheduled')",[id]);
+   await client.query('COMMIT');created++;
+  }catch(e){await client.query('ROLLBACK');if(e.code!=='23505')console.error('[event-settlements]',id,e.message);}finally{client.release();}
+ }
+ return created;
+}
+
+/** 主辦人撥款帳戶：本人只看得到末 4 碼；完整帳號只回給平台管理員。 */
+async function payoutAccountOf(userId,{full=false}={}){
+ const row=(await q('SELECT account_name,bank_code,account_number_enc,account_last4,updated_at FROM member_payout_accounts WHERE user_id=$1',[userId])).rows[0];
+ if(!row)return null;
+ return {account_name:row.account_name,bank_code:row.bank_code,account_number_masked:'*'.repeat(6)+row.account_last4,account_last4:row.account_last4,...(full?{account_number:decPII(row.account_number_enc)}:{}),updated_at:row.updated_at};
+}
+function normalizePayoutAccount(body){
+ const name=typeof body?.account_name==='string'?body.account_name.trim():'',bank=typeof body?.bank_code==='string'?body.bank_code.trim():'',number=typeof body?.account_number==='string'?body.account_number.replace(/[\s-]/g,''):'';
+ if(!name||name.length>60||name.includes('\0'))return {error:'請填寫戶名（60 字以內）。'};
+ if(!/^\d{3}$/.test(bank))return {error:'銀行代碼為 3 碼數字。'};
+ if(!/^\d{10,16}$/.test(number))return {error:'帳號為 10–16 碼數字。'};
+ return {value:{account_name:name,bank_code:bank,account_number:number}};
+}
+const hasPayoutAccount=async userId=>!!userId&&(await q('SELECT 1 FROM member_payout_accounts WHERE user_id=$1',[userId])).rowCount>0;
+
+app.get('/api/me/payout-account',auth,requireDb,wrap(async(req,res)=>{
+ if(!req.auth.sub)return res.status(403).json({error:'請使用個人帳號登入。'});
+ res.set('Cache-Control','no-store');res.json({account:await payoutAccountOf(req.auth.sub)});
+}));
+app.put('/api/me/payout-account',auth,requireDb,wrap(async(req,res)=>{
+ if(!req.auth.sub)return res.status(403).json({error:'請使用個人帳號登入。'});
+ const parsed=normalizePayoutAccount(req.body);if(parsed.error)return res.status(400).json({error:parsed.error});const v=parsed.value;
+ await q(`INSERT INTO member_payout_accounts(user_id,account_name,bank_code,account_number_enc,account_last4,updated_at) VALUES($1,$2,$3,$4,$5,now())
+   ON CONFLICT(user_id) DO UPDATE SET account_name=EXCLUDED.account_name,bank_code=EXCLUDED.bank_code,account_number_enc=EXCLUDED.account_number_enc,account_last4=EXCLUDED.account_last4,updated_at=now()`,
+  [req.auth.sub,v.account_name,v.bank_code,encSecret(v.account_number),v.account_number.slice(-4)]);
+ res.set('Cache-Control','no-store');res.json({ok:true,account:await payoutAccountOf(req.auth.sub)});
+}));
+app.get('/api/admin/users/:id/payout-account',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+ res.set('Cache-Control','no-store');res.json({account:await payoutAccountOf(req.params.id,{full:true})});
+}));
+
+function notifyMemberEventCancelled(n,reason){
+ const lines=[`會員活動已取消：${n.event.title}`,`活動時間：${fmtTaipei(n.event.starts_at)}（取消時距活動 ${n.days} 日）`,`取消者：${n.actor}`,`原因：${reason}`,''];
+ if(n.pendingPlatformRefunds)lines.push(`待平台退款：${n.pendingPlatformRefunds} 筆已付款報名，請到票款紀錄逐筆全額退款（含場地茶飲費，非消費者因素不收手續費）。`);
+ if(n.hostCharge)lines.push(`主辦人手續費扣款：NT$${n.hostCharge}（已售票款 NT$${n.ticketGross} × 10%），已記入 event_host_charges，將從主辦人之後的撥款扣除。`);
+ if(n.privateFee)lines.push(`場地費：已收 NT$${n.privateFee.paid_twd}，依取消規則應退 NT$${n.privateFee.refund_twd}（14 日前全退、8–13 日退 50%、7 日內不退；不可抗力全退），請到 Stripe 退回原付款卡。`);
+ lines.push('',`票款紀錄：${ADMIN_BASE}/admin/events`);
+ sendMailQuietly({to:NOTIFY_EMAIL,subject:`[活動取消] ${n.event.title}${n.pendingPlatformRefunds?`｜待退款 ${n.pendingPlatformRefunds} 筆`:''}`,text:lines.join('\n')});
+}
+
 async function eventSettlementSummary(client,eventId){
  const row=(await client.query(`WITH payment_rows AS (
    SELECT stripe_payment_intent_id AS payment_intent,amount_paid FROM event_regs WHERE event_id=$1 AND amount_paid>0
@@ -2831,7 +2976,14 @@ app.get('/api/admin/events/:id/payments',auth,requireDb,eventEditor,wrap(async(r
   const additional=(await q(`SELECT r.id AS registration_id,o.id AS order_id,u.name,u.email,o.status,o.amount_due,o.amount_paid,o.tax_snapshot,o.stripe_payment_intent_id,o.paid_at,COALESCE((SELECT jsonb_agg(f ORDER BY f.created_at) FROM event_refunds f WHERE f.payment_intent=o.stripe_payment_intent_id),'[]') AS refunds FROM event_ticket_orders o JOIN event_regs r ON r.id=o.registration_id JOIN users u ON u.id=r.user_id WHERE r.event_id=$1 ORDER BY o.created_at DESC`,[req.params.id])).rows;
   const settlements=(await q(`SELECT id,amount_twd,status,due_on::text AS due_on,reference,note,paid_at,created_at,updated_at FROM event_settlements WHERE event_id=$1 ORDER BY created_at DESC`,[req.params.id])).rows;
   const settlement_summary=await eventSettlementSummary({query:q},req.params.id);
-  res.json({collector:'言文字',currency:'TWD',can_refund:req.auth.role==='admin',can_manage_settlement:req.auth.role==='admin',settlement_status:settlements.some(row=>row.status==='scheduled')?'scheduled':settlements.some(row=>row.status==='paid')?'paid':'none',settlement_summary,settlements,payments:[...payments,...historical,...additional]});
+  // 會員活動：代收金流手續費 10%、預計撥款（金額與日期）、撥款帳戶是否已設定、主辦人手續費扣款
+  const feeEvent=(await q('SELECT owner_id,ends_at,review_status FROM events WHERE id=$1',[req.params.id])).rows[0];
+  const member=feeEvent?.review_status!=null,ledger=member?await eventTicketLedger({query:q},req.params.id):null;
+  const payout=member?{fee_rate:venueFees.FEE_RATE,ticket_ledger:ledger,estimated_payout_twd:ledger.settlement_twd,
+    expected_payout_on:feeEvent.ends_at?venueFees.taiwanBusinessDayAfter(feeEvent.ends_at,venueFees.PAYOUT_BUSINESS_DAYS):null,
+    payout_account_set:await hasPayoutAccount(feeEvent.owner_id),
+    host_charges:(await q('SELECT id,kind,amount_twd,status,note,created_at FROM event_host_charges WHERE event_id=$1 ORDER BY created_at',[req.params.id])).rows}:{};
+  res.json({...payout,collector:'言文字',currency:'TWD',can_refund:req.auth.role==='admin',can_manage_settlement:req.auth.role==='admin',settlement_status:settlements.some(row=>row.status==='scheduled')?'scheduled':settlements.some(row=>row.status==='paid')?'paid':'none',settlement_summary,settlements,payments:[...payments,...historical,...additional]});
 }));
 
 app.post('/api/admin/events/:id/settlements',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -2980,6 +3132,8 @@ app.post('/api/admin/events/:id/cancel',auth,requireDb,eventEditor,wrap(async(re
  if(req.body?.refund_paid&&!stripe)return res.status(503).json({error:'Stripe 尚未設定，不能自動退款。'});
  const reason=String(req.body?.reason||'').trim();if(!reason||reason.length>1000)return res.status(400).json({error:'請填寫取消原因（最多 1000 字）。'});
  const translations=req.body?.reason_translations??{};if(typeof translations!=='object'||Array.isArray(translations)||Object.keys(translations).some(lang=>!['en','ja'].includes(lang)||typeof translations[lang]!=='string'||translations[lang].length>1000))return res.status(400).json({error:'取消原因翻譯僅支援 en／ja，各最多 1000 字。'});
+ if(req.body?.force_majeure!==undefined&&typeof req.body.force_majeure!=='boolean')return res.status(400).json({error:'不可抗力選項格式不正確。'});
+ let cancelNotice=null;
  const client=await pool.connect();try{await client.query('BEGIN');
  const event=(await client.query('SELECT * FROM events WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
  if(!event){await client.query('ROLLBACK');return res.status(404).json({error:'找不到活動。'});}
@@ -2994,14 +3148,34 @@ app.post('/api/admin/events/:id/cancel',auth,requireDb,eventEditor,wrap(async(re
  const queued=req.body?.notify?await require('./lib/event-mailer').queueCancellation((sql,args)=>client.query(sql,args),event,reason,SITE_BASE,translations):0;
  let refunds=0;
  if(req.body?.refund_paid){
-  const regs=(await client.query('SELECT * FROM event_regs WHERE event_id=$1 AND stripe_payment_intent_id IS NOT NULL AND amount_paid>0 FOR UPDATE',[event.id])).rows;
+  // 參加者已自行退票（refund_fee_twd>0）的票不再退回扣下的手續費
+  const regs=(await client.query('SELECT * FROM event_regs WHERE event_id=$1 AND stripe_payment_intent_id IS NOT NULL AND amount_paid>0 AND refund_fee_twd=0 FOR UPDATE',[event.id])).rows;
   for(const reg of regs){const previous=(await client.query('SELECT * FROM event_refunds WHERE payment_intent=$1',[reg.stripe_payment_intent_id])).rows,amount=refundTotals(reg.amount_paid*100,previous).remaining;if(amount<=0)continue;const key=reg.stripe_payment_intent_id+':cancel-'+event.id,refund=await stripe.refunds.create({payment_intent:reg.stripe_payment_intent_id,amount,metadata:{kind:'event-registration',registration_id:reg.id,event_cancelled:'true'}},{idempotencyKey:'event-refund-'+key});await saveEventRefund(client,reg,refund,key);refunds++;}
   const orders=(await client.query('SELECT o.* FROM event_ticket_orders o JOIN event_regs r ON r.id=o.registration_id WHERE r.event_id=$1 AND o.stripe_payment_intent_id IS NOT NULL AND o.amount_paid>0 FOR UPDATE OF o',[event.id])).rows;
   for(const order of orders){const previous=(await client.query('SELECT * FROM event_refunds WHERE payment_intent=$1',[order.stripe_payment_intent_id])).rows,amount=refundTotals(order.amount_paid*100,previous).remaining;if(amount<=0)continue;const key=order.stripe_payment_intent_id+':cancel-'+event.id,refund=await stripe.refunds.create({payment_intent:order.stripe_payment_intent_id,amount,metadata:{kind:'event-additional-tickets',order_id:order.id,event_cancelled:'true'}},{idempotencyKey:'event-refund-'+key});await saveAdditionalRefund(client,order,refund,key);refunds++;}
  }
  await client.query("UPDATE events SET status='已取消',event_details=event_details || jsonb_build_object('cancellation_reason',$2::text,'cancelled_at',now(),'cancellation_translations',$3::jsonb) WHERE id=$1",[event.id,reason,JSON.stringify(translations)]);
  await recordEventActivity(client,event.id,null,req.auth.sub||null,'event_cancelled');
- await client.query('COMMIT');res.json({ok:true,notifications_queued:queued,refunds_requested:refunds,notice:'活動已取消。'+(req.body?.refund_paid?'已送出 '+refunds+' 筆可退款餘額；請在票款紀錄確認最終狀態。':'已付款票款尚未退款，請由言文字平台辦理。')+(req.body?.notify?'取消通知已排入佇列 '+queued+' 封，寄送狀態請見來賓通知。':'本次未發送取消通知。')});
+ // 會員活動（review_status 非 NULL）取消的金流處理（規格 §4.8 A、C）
+ let hostCharge=0,pendingPlatformRefunds=0,privateFee=null;
+ if(event.review_status!=null){
+  const days=event.starts_at?venueFees.daysBefore(new Date(),event.starts_at):0,forceMajeure=req.body?.force_majeure===true&&req.auth.role==='admin';
+  // C. 公開活動：活動前 7 日內取消，按已售票款（不含場地茶飲費與稅金、不含已自行退票）10% 記主辦人手續費扣款，從之後的撥款扣除
+  const ticketGross=(await eventTicketLedger(client,event.id)).ticket_gross_twd;
+  hostCharge=event.visibility==='public'?venueFees.hostCancellationCharge({ticketGross,daysBefore:days,forceMajeure}):0;
+  if(hostCharge>0)await client.query(`INSERT INTO event_host_charges(id,event_id,user_id,kind,amount_twd,note) VALUES($1,$2,$3,'cancellation',$4,$5) ON CONFLICT(event_id,kind) DO NOTHING`,
+   [uid('hc_'),event.id,event.owner_id,hostCharge,`活動前 ${days} 日取消，已售票款 NT$${ticketGross} × 10%`]);
+  // 主辦人不能直接觸發統一收款帳戶退款：有已付款參加者時記一筆「待平台退款」並通知言文字，由管理員到票款紀錄執行全額退款
+  if(!req.body?.refund_paid)pendingPlatformRefunds=Number((await client.query(`SELECT (SELECT COUNT(*) FROM event_regs WHERE event_id=$1 AND amount_paid>0 AND stripe_payment_intent_id IS NOT NULL AND status IN ('registered','refund_pending','pending_approval'))+(SELECT COUNT(*) FROM event_ticket_orders o JOIN event_regs r ON r.id=o.registration_id WHERE r.event_id=$1 AND o.amount_paid>0 AND o.status IN ('registered','refund_pending')) AS n`,[event.id])).rows[0].n);
+  if(pendingPlatformRefunds>0)await client.query("INSERT INTO event_activity(event_id,actor_id,action) VALUES($1,$2,$3)",[event.id,req.auth.sub||null,'refund_requested:'+pendingPlatformRefunds]);
+  // A. 私人活動場地費：依取消日計算應退金額，由管理員到 Stripe 退回原付款卡
+  const app=(await client.query('SELECT id,deposit_twd,deposit_paid_at,visibility,registration_mode FROM event_applications WHERE event_id=$1',[event.id])).rows[0];
+  if(app?.deposit_paid_at&&app.deposit_twd>0)privateFee={paid_twd:app.deposit_twd,refund_twd:venueFees.privateRefundAmount(app.deposit_twd,days,{forceMajeure}),days_before:days};
+  if(pendingPlatformRefunds>0||hostCharge>0||privateFee)cancelNotice={event,days,ticketGross,hostCharge,pendingPlatformRefunds,privateFee,actor:req.auth.agent?'admin-api-key':actorOf(req.auth)||'admin'};
+ }
+ await client.query('COMMIT');
+ if(cancelNotice)notifyMemberEventCancelled(cancelNotice,reason);
+ res.json({ok:true,notifications_queued:queued,refunds_requested:refunds,pending_platform_refunds:pendingPlatformRefunds,host_charge_twd:hostCharge,venue_fee_refund:privateFee||undefined,notice:'活動已取消。'+(req.body?.refund_paid?'已送出 '+refunds+' 筆可退款餘額；請在票款紀錄確認最終狀態。':pendingPlatformRefunds?'已通知言文字為 '+pendingPlatformRefunds+' 筆已付款報名辦理全額退款（含場地茶飲費）。':'已付款票款尚未退款，請由言文字平台辦理。')+(hostCharge?'活動前 7 日內取消，手續費 NT$'+hostCharge+'（已售票款 10%）將從之後的撥款扣除。':'')+(req.body?.notify?'取消通知已排入佇列 '+queued+' 封，寄送狀態請見來賓通知。':'本次未發送取消通知。')});
  }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
 }));
 
@@ -3133,6 +3307,11 @@ app.get('/api/admin/events/:id/insights',auth,requireDb,eventEditor,wrap(async(r
 
 app.post('/api/admin/events/:id/tickets',auth,requireDb,eventEditor,wrap(async(req,res)=>{
  let tickets;try{tickets=normalizeTickets(req.body?.tickets);}catch(e){return res.status(400).json({error:e.message});}
+ // 主辦人開賣付費票前要先填撥款帳戶（規格 §4.7）；免費票與平台管理員不受影響
+ if(req.auth.role==='organizer'&&tickets.some(t=>t.price_twd>0)){
+  const ev=(await q('SELECT owner_id,review_status FROM events WHERE id=$1',[req.params.id])).rows[0];
+  if(ev&&ev.review_status!=null&&!(await hasPayoutAccount(ev.owner_id)))return res.status(409).json({error:'開賣付費票前，請先在 App 填寫撥款帳戶（戶名、銀行代碼、帳號）。',code:'PAYOUT_ACCOUNT_REQUIRED'});
+ }
  await eventMutation(req,req.params.id,'tickets_updated','UPDATE events SET tickets=$2 WHERE id=$1',[req.params.id,JSON.stringify(tickets)]);
  res.json({ok:true,tickets});
 }));
@@ -3537,9 +3716,12 @@ async function saveEventRefund(client,reg,refund,requestId=null){
  await client.query(`INSERT INTO event_refunds(id,registration_id,payment_intent,amount,status,request_id) VALUES($1,$2,$3,$4,$5,$6)
  ON CONFLICT(id) DO UPDATE SET status=EXCLUDED.status,request_id=COALESCE(event_refunds.request_id,EXCLUDED.request_id)`,[refund.id,reg.id,reg.stripe_payment_intent_id,refund.amount,refund.status,requestId]);
  const rows=(await client.query('SELECT amount,status FROM event_refunds WHERE payment_intent=$1',[reg.stripe_payment_intent_id])).rows;
- const totals=refundTotals(reg.amount_paid*100,rows);
+ // 參加者自行退票扣下的手續費（refund_fee_twd）不退：應退總額＝實收−手續費，退完即視為 refunded。
+ const keptFee=Math.max(0,Number(reg.refund_fee_twd||0));
+ const totals=refundTotals((reg.amount_paid-keptFee)*100,rows);
  if(totals.status==='registered'&&!['registered','refund_pending','refunded'].includes(reg.status))totals.status=reg.status;
- await client.query('UPDATE event_regs SET status=$2,refunded_at=now(),stripe_refund_id=$3,refund_status=$4 WHERE id=$1 AND stripe_payment_intent_id=$5',[reg.id,totals.status,refund.id,refund.status,reg.stripe_payment_intent_id]);
+ // 自行退票失敗（Stripe 回 failed／canceled 且沒有任何成功退款）時清掉手續費，回到一般已付款票券
+ await client.query('UPDATE event_regs SET status=$2,refunded_at=now(),stripe_refund_id=$3,refund_status=$4,refund_fee_twd=CASE WHEN $6 THEN 0 ELSE refund_fee_twd END WHERE id=$1 AND stripe_payment_intent_id=$5',[reg.id,totals.status,refund.id,refund.status,reg.stripe_payment_intent_id,keptFee>0&&totals.status==='registered'&&totals.succeeded===0&&totals.pending===0]);
  return totals;
 }
 app.post('/api/admin/events/:id/regs/:registrationId/refund',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -4058,15 +4240,17 @@ app.post('/api/events/:id/additional-tickets',auth,requireDb,wrap(async(req,res)
   await client.query("UPDATE event_ticket_orders SET status='expired' WHERE id=$1",[pending.id]);
  }
  let ticket=null,price,taxSnapshot;try{ticket=event.tickets.length?selectTicket(event.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code):null;if(ticket?.requires_approval)throw Error('需審核票種不可自行加購，請聯絡主辦人。');const priced=taxPrice(event.registration_settings?.tax,(ticket?ticketPrice(ticket,req.body?.amount_twd):event.price_twd)*quantity);price=priced.price;taxSnapshot=priced.tax;}catch(e){return res.status(400).json({error:e.message});}
+ // 會員公開活動：加購的每張票同樣加收場地茶飲費
+ const venueFeeTwd=venueFees.attendeeVenueFeePerTicket(event)*quantity,ticketTotalTwd=price;price+=venueFeeTwd;
  if(event.capacity>0&&(await reservedEventSeats(client,event.id))+quantity>event.capacity)return res.status(409).json({error:'剩餘名額不足。'});
  if(ticket?.capacity>0&&(await reservedEventSeats(client,event.id,ticket.id))+quantity>ticket.capacity)return res.status(409).json({error:'此票種剩餘名額不足。'});
  if(price>0&&(!stripe||!STRIPE_WEBHOOK_SECRET))return res.status(503).json({error:'付款服務尚未設定。'});
  const id=uid('order_'),attendees=Array.from({length:quantity},()=>({name:reg.name,email:reg.email}));
- await client.query('INSERT INTO event_ticket_orders(id,registration_id,ticket_version,ticket_snapshot,quantity,attendees,amount_due,status,tax_snapshot) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[id,reg.id,reg.ticket_version,ticket?JSON.stringify(ticket):null,quantity,JSON.stringify(attendees),price,price?'pending_payment':'registered',taxSnapshot?JSON.stringify(taxSnapshot):null]);
+ await client.query('INSERT INTO event_ticket_orders(id,registration_id,ticket_version,ticket_snapshot,quantity,attendees,amount_due,status,tax_snapshot,venue_fee_twd) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',[id,reg.id,reg.ticket_version,ticket?JSON.stringify(ticket):null,quantity,JSON.stringify(attendees),price,price?'pending_payment':'registered',taxSnapshot?JSON.stringify(taxSnapshot):null,venueFeeTwd]);
  if(!price){await activateAdditionalOrder(client,{id,quantity,attendees},reg);await client.query('COMMIT');return res.json({ok:true});}
  const lang=['en','ja'].includes(req.body?.lang)?'/'+req.body.lang:'',url=SITE_BASE+lang+'/events/'+encodeURIComponent(event.slug);
  const session=await stripe.checkout.sessions.create({mode:'payment',payment_method_types:['card'],customer_email:reg.email,expires_at:Math.floor(Date.now()/1000)+1800,
- line_items:[{price_data:{currency:'twd',unit_amount:price*100,product_data:{name:event.title+' · 加購 '+quantity+' 張票'}},quantity:1}],success_url:SITE_BASE+lang+'/events/result/paid?event='+encodeURIComponent(event.slug)+'&s={CHECKOUT_SESSION_ID}',cancel_url:SITE_BASE+lang+'/events/result/canceled?event='+encodeURIComponent(event.slug),metadata:{kind:'event-additional-tickets',order_id:id,registration_id:reg.id,event_id:event.id,user_id:req.auth.sub}});
+ line_items:[...(ticketTotalTwd>0?[{price_data:{currency:'twd',unit_amount:ticketTotalTwd*100,product_data:{name:event.title+' · 加購 '+quantity+' 張票'}},quantity:1}]:[]),...(venueFeeTwd>0?[{price_data:{currency:'twd',unit_amount:venueFees.PUBLIC_PER_PERSON_TWD*100,product_data:{name:'場地茶飲費（每張票 NT$'+venueFees.PUBLIC_PER_PERSON_TWD+'，附茶飲一杯）'}},quantity}]:[])],success_url:SITE_BASE+lang+'/events/result/paid?event='+encodeURIComponent(event.slug)+'&s={CHECKOUT_SESSION_ID}',cancel_url:SITE_BASE+lang+'/events/result/canceled?event='+encodeURIComponent(event.slug),metadata:{kind:'event-additional-tickets',order_id:id,registration_id:reg.id,event_id:event.id,user_id:req.auth.sub}});
  await client.query('UPDATE event_ticket_orders SET stripe_session_id=$2,expires_at=to_timestamp($3) WHERE id=$1',[id,session.id,session.expires_at]);await client.query('COMMIT');res.json({url:session.url,session_id:session.id,order_id:id});
  }finally{await client.query('ROLLBACK');client.release();}
 }));
@@ -4313,6 +4497,11 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
         if(usage>=couponSnapshot.max_uses){await client.query('ROLLBACK');return res.status(409).json({error:'優惠碼使用次數已達上限。'});}
       }
     }
+    // 會員活動（review_status 非 NULL）＋公開＋言文字售票：每張票加收場地茶飲費 NT$150（不打折、不課稅；免費票也要付，因此走 Stripe）。
+    // 平台自建活動 review_status 為 NULL，venueFeeTwd＝0，金額與行為完全不變。核准後付款（approved）沿用報名當時的快照。
+    const venueFeeTwd=approved?Number(mine.venue_fee_twd||0):venueFees.attendeeVenueFeePerTicket(ev)*quantity;
+    if(!approved)price+=venueFeeTwd;
+    const ticketTotalTwd=price-venueFeeTwd;
     const settings=registrationSettings;
     const requiresApproval=!invited&&(settings.requires_approval||selectedTicket?.requires_approval);
     let captureRequired=!approved&&price>0&&requiresApproval&&settings.payment_approval==='authorize';
@@ -4348,7 +4537,7 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
       if(referral?.plan==='event-referral'&&referral.event===ev.id&&referral.ent!==regId&&(await client.query("SELECT 1 FROM event_regs WHERE id=$1 AND event_id=$2 AND status='registered'",[referral.ent,ev.id])).rowCount)savedAttribution.referral='guest:'+referral.ent;
     }
     async function saveDetails(){
-      await client.query("UPDATE event_regs SET answers=$2,ticket_snapshot=$3,coupon_snapshot=$4,quantity=$5,confirmation_queued=false,language=$6,attribution=$7,capture_required=$8,authorization_expires_at=NULL,entry_source=$9,tax_snapshot=$10,wallet_chain=$11,wallet_address=$12,solana_wallet_address=$13,nft_contract=$14,nft_token_id=$15 WHERE id=$1",[regId,JSON.stringify(answerSnapshot),selectedTicket?JSON.stringify(selectedTicket):null,couponSnapshot?JSON.stringify(couponSnapshot):null,quantity,['en','ja'].includes(req.body?.lang)?req.body.lang:'zh',JSON.stringify(savedAttribution),captureRequired,invited?'invited':'self_service',taxSnapshot?JSON.stringify(taxSnapshot):null,walletSnapshot?.chain||null,walletSnapshot?.address||null,solanaWallet||null,nft?.contract||null,nft?.token_id||null]);
+      await client.query("UPDATE event_regs SET answers=$2,ticket_snapshot=$3,coupon_snapshot=$4,quantity=$5,confirmation_queued=false,language=$6,attribution=$7,capture_required=$8,authorization_expires_at=NULL,entry_source=$9,tax_snapshot=$10,wallet_chain=$11,wallet_address=$12,solana_wallet_address=$13,nft_contract=$14,nft_token_id=$15,venue_fee_twd=$16,refund_fee_twd=0 WHERE id=$1",[regId,JSON.stringify(answerSnapshot),selectedTicket?JSON.stringify(selectedTicket):null,couponSnapshot?JSON.stringify(couponSnapshot):null,quantity,['en','ja'].includes(req.body?.lang)?req.body.lang:'zh',JSON.stringify(savedAttribution),captureRequired,invited?'invited':'self_service',taxSnapshot?JSON.stringify(taxSnapshot):null,walletSnapshot?.chain||null,walletSnapshot?.address||null,solanaWallet||null,nft?.contract||null,nft?.token_id||null,venueFeeTwd]);
       if(!approved){await client.query('DELETE FROM event_attendees WHERE registration_id=$1',[regId]);for(const [i,a] of attendees.entries())await client.query('INSERT INTO event_attendees(id,registration_id,name,email,ordinal) VALUES($1,$2,$3,$4,$5)',[uid('att_'),regId,a.name,a.email,i]);}
     }
 
@@ -4396,14 +4585,21 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
       payment_method_types: ['card'],
       customer_email: buyer.email,
       client_reference_id: regId,
-      line_items: [{
-        price_data: {
-          currency: 'twd',
-          product_data: { name: ev.title+(selectedTicket?' · '+selectedTicket.name:'')+(quantity>1?' · '+quantity+' 張票':''), description: ev.description || undefined },
-          unit_amount: price * 100,
-        },
-        quantity: 1,
-      }],
+      // 明細分兩行：票價（含優惠與稅金）＋場地茶飲費（NT$150 × 張數）；免費票只出茶飲費一行。平台活動維持單行。
+      line_items: [
+        ...(ticketTotalTwd>0?[{
+          price_data: {
+            currency: 'twd',
+            product_data: { name: ev.title+(selectedTicket?' · '+selectedTicket.name:'')+(quantity>1?' · '+quantity+' 張票':''), description: ev.description || undefined },
+            unit_amount: ticketTotalTwd * 100,
+          },
+          quantity: 1,
+        }]:[]),
+        ...(venueFeeTwd>0?[{
+          price_data: { currency: 'twd', product_data: { name: '場地茶飲費（每張票 NT$'+venueFees.PUBLIC_PER_PERSON_TWD+'，附茶飲一杯）'+(ticketTotalTwd>0?'':'｜'+ev.title) }, unit_amount: venueFees.PUBLIC_PER_PERSON_TWD * 100 },
+          quantity: venueFeeTwd / venueFees.PUBLIC_PER_PERSON_TWD,
+        }]:[]),
+      ],
       success_url: `${SITE_BASE}${langPrefix}/events/result/paid?event=${encodeURIComponent(ev.slug)}&s={CHECKOUT_SESSION_ID}`,
       cancel_url: `${SITE_BASE}${langPrefix}/events/result/canceled?event=${encodeURIComponent(ev.slug)}`,
       metadata: { kind: 'event-registration', registration_id: regId, event_id: ev.id, user_id:userId,guest_registration:String(guest),capture_required:String(captureRequired) },
@@ -4427,12 +4623,32 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
 
 app.delete('/api/events/:id/register', auth, requireDb, wrap(async (req, res) => {
   if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
-  const client=await pool.connect();try{await client.query('BEGIN');const q=(sql,args)=>client.query(sql,args);await q('SELECT id FROM events WHERE id=$1 FOR UPDATE',[req.params.id]);
+  const client=await pool.connect();try{await client.query('BEGIN');const q=(sql,args)=>client.query(sql,args);const ev=(await q('SELECT * FROM events WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
   const reg = (await q(`SELECT * FROM event_regs WHERE event_id=$1 AND user_id=$2 FOR UPDATE`, [req.params.id, req.auth.sub])).rows[0];
   if (!reg) return res.json({ ok: true, already: true });
+  if (reg.status==='refund_pending') return res.json({ ok: true, already: true, status: 'refund_pending' });
   if((await q("SELECT 1 FROM event_ticket_orders WHERE registration_id=$1 AND ticket_version=$2 AND (status IN ('pending_payment','refund_pending') OR (status='registered' AND amount_paid>0)) LIMIT 1",[reg.id,reg.ticket_version])).rowCount)return res.status(409).json({error:'尚有加購付款或付費票，請先由言文字處理加購退款。'});
   if (reg.status==='declined') return res.status(409).json({error:'此報名未獲核准，請聯絡主辦人。'});
   if (reg.checked_in_at||(await q('SELECT 1 FROM event_attendees WHERE registration_id=$1 AND checked_in_at IS NOT NULL LIMIT 1',[reg.id])).rowCount) return res.status(409).json({ error: '已有參加者完成簽到，請聯絡主辦單位處理。' });
+  // 會員活動付費票自行退票（規格 §4.8 B）：活動設定「接受退票」且活動開始前 8 日（含）以前，票價扣 10% 手續費、場地茶飲費全退，名額釋出。
+  const selfRefund=ev&&ev.review_status!=null&&reg.status==='registered'&&Number(reg.amount_paid)>0&&reg.stripe_payment_intent_id&&ev.status!=='已取消'&&ev.starts_at
+    ?venueFees.attendeeRefund({ticketPrice:Number(reg.amount_paid)-Number(reg.venue_fee_twd||0),venueFee:Number(reg.venue_fee_twd||0),daysBefore:venueFees.daysBefore(new Date(),ev.starts_at),policy:ev.registration_settings?.refund_policy==='none'?'none':'accept'}):null;
+  if(selfRefund?.allowed){
+    if(!stripe)return res.status(503).json({error:'退款服務暫時無法使用，請稍後再試。'});
+    const previous=(await q('SELECT * FROM event_refunds WHERE payment_intent=$1',[reg.stripe_payment_intent_id])).rows;
+    if(previous.some(r=>!['failed','canceled'].includes(r.status)))return res.status(409).json({error:'這張票已有退款紀錄，請聯絡言文字處理。'});
+    const amount=Math.min(selfRefund.refund_twd*100,refundTotals(reg.amount_paid*100,previous).remaining);
+    if(amount<=0)return res.status(409).json({error:'沒有可退的金額。'});
+    // 冪等：同一筆付款、同一版票券只會送出一次自行退票
+    const key=reg.stripe_payment_intent_id+':self-'+reg.ticket_version,refund=await stripe.refunds.create({payment_intent:reg.stripe_payment_intent_id,amount,metadata:{kind:'event-registration',registration_id:reg.id,self_service:'true'}},{idempotencyKey:'event-refund-'+key});
+    // 扣下的 10% 手續費歸言文字，記在 refund_fee_twd：saveEventRefund 以「實收−手續費」判斷是否退完，退完即 refunded（名額隨之釋出）；撥款不計這張票。
+    await q('UPDATE event_regs SET refund_fee_twd=$2 WHERE id=$1',[reg.id,selfRefund.fee_twd]);
+    const totals=await saveEventRefund(client,{...reg,refund_fee_twd:selfRefund.fee_twd},refund,key);
+    await recordEventActivity(client,ev.id,reg.id,req.auth.sub,'refund_'+refund.status+':'+amount);
+    await client.query('COMMIT');
+    if(totals.status==='registered')return res.status(502).json({error:'退款未成功，請稍後再試或聯絡言文字。'});
+    return res.json({ok:true,status:totals.status,refund_twd:amount/100,fee_twd:selfRefund.fee_twd});
+  }
   if (Number(reg.amount_paid) > 0 || (Number(reg.amount_due) > 0 && !['pending_approval','waitlisted','approved'].includes(reg.status)))
     return res.status(409).json({ error: '付費票請聯絡主辦單位辦理退款。' });
   if(reg.capture_required&&reg.stripe_payment_intent_id){
@@ -6560,6 +6776,8 @@ cronRunner.define('event-mail', async () => {
 cronRunner.define('line-delivery', () => lineDelivery.run(), { onError: () => console.error('[line-delivery] scheduler_failed') });
 // 預約取餐：取餐前 PREP_MIN 分鐘自動送單；過期未取自動收掉
 cronRunner.define('pickup', () => placeDuePickups(), { onError: e => console.error('[pickup]', e.message) });
+// 會員活動結束後自動建立待撥款（冪等，每小時檢查）
+cronRunner.define('event-settlements', () => scheduleEndedEventSettlements(), { onError: e => console.error('[event-settlements]', e.message) });
 // LINE 訂位前一日提醒：一筆只提醒一次
 cronRunner.define('line-reminders', () => lineService.sendReminders(), { onError: e => console.error('[line] 提醒失敗：', e.message) });
 // 會籍到期前 7 天提醒
@@ -6619,6 +6837,8 @@ async function boot() {
     cron.schedule('* * * * *',()=>cronRunner.run('line-delivery'));
     // 預約取餐：每分鐘檢查
     cron.schedule('* * * * *',()=>cronRunner.run('pickup'));
+    // 會員活動自動待撥款：每小時 15 分
+    cron.schedule('15 * * * *', () => cronRunner.run('event-settlements'), { timezone: 'Asia/Taipei' });
     // LINE 訂位前一日提醒：每天 18:00（台北）
     cron.schedule('0 18 * * *', () => cronRunner.run('line-reminders'), { timezone: 'Asia/Taipei' });
     // 會籍到期前 7 天提醒：每日 09:00（台北）

@@ -196,7 +196,7 @@ Google 授權回呼，簽發會員 token 並導回。
 每筆另含 `updates`：依時間排序的進度紀錄 `[{ id, kind, message, actor, created_at, mail_state, mail_sent_at, mail_attempts, mail_error }]`。`kind` 為 `submitted`（送出）／`approved`／`rejected`／`update`（其他進度）；`mail_state` 為 `queued`（待寄）／`retry`（寄失敗、排程重試）／`sent`／`failed`（重試 10 次仍失敗）。
 
 ### POST /api/admin/event-applications/:id/review
-審核待審申請。body：`{ status: "approved" | "rejected", review_note, expected_status: "pending", publish_public? }`，回 `{ ok, application, event? }`。回覆必填、最多 2000 字，申請人可見。活動在送件時已建立；審核只更新該活動的 `review_status`，通過時依 `visibility`、`registration_mode` 同一交易把它由草稿翻成對外狀態：公開 `native` 為 `報名中`、`external` 為外部連結預告、私人 `closed` 僅顯示占用時段且 API 禁止報名。舊申請未填 `visibility` 時才使用 `publish_public`：true 公開為預告，false 維持草稿由主辦人自行發布。未通過一律維持草稿不公開。回應的 `event` 只在本次有公開時回傳。私人活動訂金未付（`deposit_twd>0` 且無 `deposit_paid_at`）不可通過，回 409。不存在回 404；已審核或其他管理員先完成時回 409，不覆蓋既有結果。保存審核者與時間。審核通過仍不代表場地已保留或完成收費；檔期、費用與合作條件仍須書面確認。
+審核待審申請。body：`{ status: "approved" | "rejected", review_note, expected_status: "pending", publish_public? }`，回 `{ ok, application, event? }`。回覆必填、最多 2000 字，申請人可見。活動在送件時已建立；審核只更新該活動的 `review_status`，通過時依 `visibility`、`registration_mode` 同一交易把它由草稿翻成對外狀態：公開 `native` 為 `報名中`、`external` 為外部連結預告、私人 `closed` 僅顯示占用時段且 API 禁止報名。舊申請未填 `visibility` 時才使用 `publish_public`：true 公開為預告，false 維持草稿由主辦人自行發布。未通過一律維持草稿不公開。回應的 `event` 只在本次有公開時回傳。私人活動場地費未付（`deposit_twd>0` 且無 `deposit_paid_at`）不可通過，回 409。公開外部售票通過時同一交易把 `deposit_twd` 設為 150×預估人數，通知信附付款說明。一樓私人包場通過時，同一交易把活動時段（台北時間 30 分鐘格，凌晨歸前一天）從 POS「不可訂位設定」的特定日期移除（`site_content.reservation_hours`），回應含 `reservations_closed: { 'YYYY-MM-DD': [時段] }`，並寄信給 `NOTIFY_EMAIL` 請店長排班；既有已成立訂位不會自動取消。不存在回 404；已審核或其他管理員先完成時回 409，不覆蓋既有結果。保存審核者與時間。審核通過仍不代表場地已保留或完成收費；檔期、費用與合作條件仍須書面確認。
 審核結果通知與狀態變更在同一交易寫入進度紀錄，之後立即寄給申請人；寄失敗自動退避重試，回應的 `application.updates` 可看寄送狀態。
 
 ### POST /api/admin/event-applications/:id/updates
@@ -765,10 +765,13 @@ X 貼文 AI 起草：body `{ topic }`，回 `{ ok, draft: { title, caption, capt
 ### POST /api/event-applications
 登入帳號提出場地申請（社群活動或企業包場），不需付費會籍；agent 金鑰沒有申請人身分，回 403。申請即活動：同一交易建立一場 `草稿` 活動（`events.review_status='pending'`、申請人為 `owner_id` 並加入主辦團隊），`application.event_id` 即該活動；申請人可立刻在 `/organizer/events` 準備內容，但審核通過前不能公開、改時間地點或刪除（409）。聯絡資料只存在 `event_applications`，不進 `events`。
 
-body：`{ request_id, visibility, registration_mode, registration_url?, kind?, venue?, community_name, contact_name, contact_email, contact_phone?, title, description, starts_at, ends_at, attendees, requirements?, consent: true }`。
+body：`{ request_id, visibility, registration_mode, registration_url?, refund_policy?, source_url?, kind?, venue?, community_name, contact_name, contact_email, contact_phone?, title, description, starts_at, ends_at, attendees, requirements?, consent: true }`。
 
-- `visibility`：`public` 或 `private`。公開活動必填不含帳密的 HTTP(S) `registration_url`（活動網址，最多 2000 字），伺服器固定 `registration_mode='external'`，忽略傳入的 `native`。私人強制 `closed`、清除連結，並記 `deposit_twd=1000`（訂金）。僅為重試舊草稿相容，允許省略 visibility。
-- `kind`：`community`（社群活動，預設）或 `business`（企業／團隊／客戶包場）。`venue`：`3F`（三樓共享空間）、`4F`（閣樓休憩空間）、`2F`（二樓交誼廳）或 `1F`（一樓咖啡餐酒館）；社群活動固定為 `3F`，企業包場必填。
+- `visibility`：`public` 或 `private`。僅為重試舊草稿相容，允許省略 visibility。
+- 公開活動 `registration_mode`：`native`（透過言文字售票，不存外部網址；審核通過後活動為 `報名中`，每張票自動加收場地茶飲費 NT$150 由參加者付）或 `external`（前往其他售票平台，必填不含帳密的 HTTP(S) `registration_url`，最多 2000 字）。未指定時視為 `external`（舊表單相容）。私人強制 `closed`、清除連結。
+- `refund_policy`：言文字售票的參加者退票政策，`accept`（預設，活動開始前 8 日前可自行退票，扣票價 10%）或 `none`（不可退、可轉票），寫入活動 `registration_settings.refund_policy`。`source_url`：從其他平台匯入時的原網址（選填，HTTP(S)）。
+- `deposit_twd`（主辦人應付場地費，規格 v2 §4.6）：私人活動送件時依空間與人數定額（三樓 1–10 人 5,000／11–20 人 10,000／21–30 人 15,000／31–40 人 20,000／41 人以上每人 500；二樓 10,000；一樓包場 30,000），取代舊訂金 NT$1,000，付款後才可審核通過。公開活動送件時為 0；外部售票在審核通過時設定為 150×預估人數。回應另含 `venue_fee`（同 `GET /api/venue-fee/quote` 的試算，含三樓 >60 人的 `warning`）。
+- `kind`：`community`（社群活動，預設）或 `business`（企業／團隊／客戶包場）。`venue`：`1F`（一樓在咖啡／三點水包場，至多 50 人）、`2F`（二樓交誼廳，至多 10 人）或 `3F`（三樓等等空間共享活動區，不設硬上限）；`4F` 不開放會員申請（400）。社群活動未填預設 `3F`，企業包場必填。超過空間人數上限回 400。
 
 - `request_id`：前端產生的 UUID；相同帳號與識別碼重試只會保存一次。同內容回原申請（200），不同內容回 409；新申請回 201。回應為 `{ ok, application }`。
 - 名稱長度上限：社群 120、聯絡人 80、Email 254、電話 40、活動名稱 160；活動內容 5000、需求 2000 字。電話與需求可留空，其餘必填；Email 必須有效。
@@ -778,23 +781,35 @@ body：`{ request_id, visibility, registration_mode, registration_url?, kind?, v
 - 申請成立時在同一交易寫入 `submitted` 進度紀錄並寄收件確認給 `contact_email`；同時通知後台 `NOTIFY_EMAIL`。之後審核結果與每次進度更新都會再寄信給申請人。
 - 每帳號每小時最多新增 10 筆，超過回 429；同筆重試不佔額度。資料庫未就緒回 503，不回報成功。
 
+### GET /api/venue-fee/quote
+場地費試算（公開、免登入），供建立活動表單即時顯示。query：`venue`（`1F`／`2F`／`3F`）、`visibility`（`public`／`private`）、`attendees`（1–10000）、`registration_mode`（公開活動 `native`／`external`）。回 `{ venue, visibility, attendees, registration_mode, fee_twd, per_person_twd, overtime_per_hour_twd, slot_hours, tier, payer, due, warning? }`：`fee_twd` 為主辦人應付金額（公開言文字售票為 0、`per_person_twd=150` 由參加者每張票付，`payer='attendee'`；外部售票 `fee_twd=150×人數`、`due='approval'`）；私人活動 `overtime_per_hour_twd` 為超時每小時費用（三樓 2,000／3,000／4,000／5,000／6,000 對應五個人數級距、二樓 3,000、一樓 10,000），1 時段＝2 小時。不合法輸入、四樓、二樓 >10 人、一樓 >50 人回 400 `{ error }`；三樓 >60 人回 200 並帶 `warning`。快取 5 分鐘。
+
 ### POST /api/event-applications/:id/deposit/checkout
-私人活動訂金（NT$1,000）。申請人本人對尚未付訂金、未被退件的申請建立 Stripe Checkout，body：`{ lang? }`，回 `{ url }`。非本人 404；不需訂金、已付或已退件 409；未設定 Stripe 回 503。付款由 webhook（`metadata.kind='application-deposit'`）入帳，寫入 `deposit_paid_at`；金額、幣別與申請不符不入帳。退款於 Stripe 後台人工處理。
+主辦人場地費（私人活動場地費、公開外部售票審核通過後的場地茶飲費；舊稱訂金）。申請人本人對尚未付款、未被退件且 `deposit_twd>0` 的申請建立 Stripe Checkout，body：`{ lang? }`，回 `{ url }`。非本人 404；不需付款、已付或已退件 409；未設定 Stripe 回 503。付款由 webhook（`metadata.kind='application-deposit'`）入帳，寫入 `deposit_paid_at`；金額、幣別與申請不符不入帳。退款於 Stripe 後台人工處理。
 
 ### POST /api/event-applications/deposit/verify
 付款導回頁補入帳用。body：`{ session_id }`；session 須屬於目前帳號且已付款，與 webhook 同一個冪等入帳，回 `{ ok }`。未付款 402。
+
+### GET /api/me/payout-account
+主辦人讀取自己的撥款帳戶，回 `{ account: null | { account_name, bank_code, account_number_masked, account_last4, updated_at } }`；帳號只回末 4 碼（`******1234`）。agent 金鑰回 403。
+
+### PUT /api/me/payout-account
+設定或更新撥款帳戶。body：`{ account_name（60 字內）, bank_code（3 碼數字）, account_number（10–16 碼數字，可含空白或 -） }`，回 `{ ok, account }`（遮罩）。帳號以 AES-GCM 加密保存。格式錯誤回 400。
+
+### GET /api/admin/users/:id/payout-account
+僅平台管理員：讀取指定會員的完整撥款帳戶（含 `account_number`），供人工匯款。
 
 ### GET /api/me/event-applications
 讀取登入帳號自己的申請，回 `{ applications }`，包含申請內容、`id`、`status`（`pending`／`approved`／`rejected`）、`review_note`、`created_at`、`reviewed_at`，以及進度紀錄 `updates: [{ id, kind, message, created_at, mail_state, mail_sent_at }]`（不含審核者與寄信錯誤細節）。不接受指定其他使用者，agent 金鑰回 403；不在公開 API 提供申請或聯絡資料。
 
 ### POST /api/events/:id/register
-報名活動。新來賓不需先登入，body 需傳 `{ name,email,lang? }`；啟用姓名拆分時改傳 `{ first_name,last_name,email,lang? }`。有效 Bearer token 會綁定目前帳號並忽略 body 的 Email。受邀者可改傳邀請連結中的 `invite_token`，後端從已鎖定的受邀紀錄取得身分、略過活動／票種審核，並在成功回覆後使同一連結失效；仍須通過問題、名額、票價、錢包與付款檢查。團體報名可傳 `quantity`（1–1000，且不得超過活動／票種剩餘名額）與 `additional_attendees`（不含第一位購買者）；未提供的參加者先沿用購買者資料，之後可逐張轉票。舊版等長 `attendees` 仍相容。啟用錢包收集時另傳 `ethereum_wallet_proof`／`solana_wallet_proof`；ERC-721 票種另傳十進位 `nft_token_id`。免費票立即成立；付費票建立或沿用未過期的 Stripe Checkout，回 `{ url }`。付費活動未設定 `STRIPE_WEBHOOK_SECRET` 時 fail closed 回 503。
+報名活動。會員申請建立的活動（`review_status` 非 NULL）若為公開且言文字售票，每張票自動加收場地茶飲費 NT$150（不打折、不課稅），`amount_due` 含茶飲費、報名記 `venue_fee_twd`；Stripe Checkout 明細分兩行（票價、場地茶飲費 × 張數），免費票也要付 150 因此走 Stripe。平台自建活動（`review_status` NULL）不加收。新來賓不需先登入，body 需傳 `{ name,email,lang? }`；啟用姓名拆分時改傳 `{ first_name,last_name,email,lang? }`。有效 Bearer token 會綁定目前帳號並忽略 body 的 Email。受邀者可改傳邀請連結中的 `invite_token`，後端從已鎖定的受邀紀錄取得身分、略過活動／票種審核，並在成功回覆後使同一連結失效；仍須通過問題、名額、票價、錢包與付款檢查。團體報名可傳 `quantity`（1–1000，且不得超過活動／票種剩餘名額）與 `additional_attendees`（不含第一位購買者）；未提供的參加者先沿用購買者資料，之後可逐張轉票。舊版等長 `attendees` 仍相容。啟用錢包收集時另傳 `ethereum_wallet_proof`／`solana_wallet_proof`；ERC-721 票種另傳十進位 `nft_token_id`。免費票立即成立；付費票建立或沿用未過期的 Stripe Checkout，回 `{ url }`。付費活動未設定 `STRIPE_WEBHOOK_SECRET` 時 fail closed 回 503。
 
 ### POST /api/events/:id/invitation
 使用邀請連結中的短期簽章 token 預覽受邀姓名與 Email，body 為 `{ token,action:'preview' }`；婉拒時傳 `action:'decline'`。只接受綁定本活動及受邀紀錄的 token，不接受草稿或已取消活動。婉拒可安全重試，其他已完成回覆的邀請不能再次改寫。
 
 ### DELETE /api/events/:id/register
-取消免費且尚未簽到的報名。付費票須由後台退款，不可直接取消。
+取消免費且尚未簽到的報名。會員活動的已付款票：活動 `registration_settings.refund_policy` 不是 `none`、活動未取消、距活動日（台北日曆日，不含當日）≥ 8 日時，參加者可自行退票：退款＝票價 × 90% ＋ 場地茶飲費（例：300＋150 退 420），扣下的 10% 記在 `refund_fee_twd` 歸言文字、不計入撥款。以 `event-refund-<payment_intent>:self-<ticket_version>` 冪等金鑰呼叫 Stripe，退款成功為 `refunded` 並釋出名額，處理中為 `refund_pending`；回 `{ ok, status, refund_twd, fee_twd }`。Stripe 未設定回 503，Stripe 回失敗回 502（票券維持有效）；已有退款紀錄回 409。其他付費票（平台活動、不接受退票、7 日內）維持 409「付費票請聯絡主辦單位辦理退款」。
 
 ### POST /api/events/checkout/verify
 付款回站補查。body：`{ session_id }`；登入結帳須符合目前帳號，免登入結帳須由 Stripe Session metadata 明確標記為訪客報名，才會呼叫同一個冪等核銷流程。webhook 仍是可靠核銷主路徑。
@@ -919,7 +934,9 @@ Twilio 訊息狀態 callback。以 `X-Twilio-Signature` 驗證請求，將 accep
 
 ### GET /api/admin/events/:id/payments
 
-平台管理員或該活動管理者可取得該活動付費報名、已收款、Stripe 付款與退款識別碼，以及結算摘要與結算台帳。`collector` 為言文字；每筆含稅交易回傳成交當下的 `tax_snapshot`，`settlement_summary` 分開列出累計已收、成功退款、待結算、已結算、淨收與尚可安排金額。系統不自行推算分潤或手續費，也不代替法定報稅或發票流程。
+平台管理員或該活動管理者可取得該活動付費報名、已收款、Stripe 付款與退款識別碼，以及結算摘要與結算台帳。`collector` 為言文字；每筆含稅交易回傳成交當下的 `tax_snapshot`，`settlement_summary` 分開列出累計已收、成功退款、待結算、已結算、淨收與尚可安排金額。系統不代替法定報稅或發票流程。會員活動（`review_status` 非 NULL）另回：`fee_rate: 0.1`（代收金流手續費）、`ticket_ledger`（`ticket_gross_twd` 票價實收、`ticket_refunded_twd` 已退票價、`venue_fee_twd` 場地茶飲費、`tax_twd`、`refund_fee_kept_twd` 退票手續費、`settlement_twd`）、`estimated_payout_twd`＝（票價實收−已退款）×90%（不含場地茶飲費與稅金）、`expected_payout_on`（活動結束日隔天起算第 10 個台灣工作日，依人事總處 2026–2027 辦公日曆表）、`payout_account_set`、`host_charges`（主辦人手續費扣款）。
+
+會員活動結束後，排程 `event-settlements`（每小時 15 分；Cloud Scheduler 模式由 `/internal/cron/tick` 分派）自動建立一筆 `kind='auto'` 的待撥款（`scheduled`，`created_by='system'`，每場活動只建一次），金額扣除管理員已排定／已撥金額，並扣抵同一主辦人尚未扣款的取消手續費；有退款處理中的報名時延後。實際匯款仍由管理員執行後以 PATCH 登錄。
 
 ### POST /api/admin/events/:id/settlements
 
@@ -935,7 +952,7 @@ Twilio 訊息狀態 callback。以 `X-Twilio-Signature` 驗證請求，將 accep
 
 ### POST /api/admin/events/:id/tickets
 
-活動管理者設定 tickets 陣列（最多 30 種）：id、name、description、price_twd、capacity、active、opens_at、closes_at。可選的 `token_gate` 支援 ERC-20 `{enabled,type,contract,name,minimum,decimals}` 與 ERC-721 `{enabled,type,contract,name}`。自訂票種活動報名須送 ticket_id；後端依票種計價並鎖定活動驗證票種、Token 資格及全場名額，報名保存票種快照與已驗證錢包地址。
+活動管理者設定 tickets 陣列（最多 30 種）。主辦人（organizer）在會員活動設定任何 `price_twd>0` 的票種時，活動負責人須先設定撥款帳戶（`PUT /api/me/payout-account`），否則回 409 `{ code: 'PAYOUT_ACCOUNT_REQUIRED' }`；免費票與平台管理員不受影響。欄位：id、name、description、price_twd、capacity、active、opens_at、closes_at。可選的 `token_gate` 支援 ERC-20 `{enabled,type,contract,name,minimum,decimals}` 與 ERC-721 `{enabled,type,contract,name}`。自訂票種活動報名須送 ticket_id；後端依票種計價並鎖定活動驗證票種、Token 資格及全場名額，報名保存票種快照與已驗證錢包地址。
 
 現場簽到權限：主辦團隊可設定 `can_checkin`，不授予名單、金流或活動編輯權。簽到人員使用 `/event-checkin.html?event=<活動 id>`；驗票與取消簽到端點每次查驗該活動權限，移除後立即失效。
 
@@ -998,6 +1015,8 @@ Twilio 訊息狀態 callback。以 `X-Twilio-Signature` 驗證請求，將 accep
 ### POST /api/admin/events/:id/cancel
 
 傳入公開 reason，關閉 Stripe 待付款結帳並解除預授權後取消活動；可傳 `notify` 排入取消通知。平台管理員可傳 `refund_paid: true`，從言文字統一收款帳戶將原始票與加購票的剩餘可退款金額逐筆原路退回，沿用退款台帳與冪等鍵；外部活動主無權啟動統一收款退款。取消後禁止報名與票券簽到。
+
+會員活動（`review_status` 非 NULL）另依規格 §4.8：主辦人取消且有已付款報名時，不直接退款，改記活動紀錄 `refund_requested:<筆數>` 並寄信 `NOTIFY_EMAIL`，由管理員到票款紀錄全額退款（含場地茶飲費）；回 `pending_platform_refunds`。公開活動在活動前 7 日內（台北日曆日）取消，於 `event_host_charges` 記一筆 `cancellation` 手續費扣款＝已售票款（不含茶飲費與稅金）× 10%，從主辦人之後的自動撥款扣抵；回 `host_charge_twd`。私人活動已付場地費時回 `venue_fee_refund: { paid_twd, refund_twd, days_before }`（14 日前全退、8–13 日退 50%、7 日內不退），由管理員到 Stripe 退回原卡。平台管理員可傳 `force_majeure: true`（颱風停班停課、言文字因素）免收手續費並全退場地費。參加者已自行退票的票不再重退。
 
 ### POST /api/events/:id/ticket-options
 

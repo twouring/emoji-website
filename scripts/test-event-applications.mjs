@@ -8,7 +8,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import test from 'node:test';
 
 const require = createRequire(import.meta.url);
-const { normalizeEventApplication, applicationDeposit, venuesOfLocation } = require('../lib/event-applications.js');
+const { normalizeEventApplication, applicationDeposit, approvalVenueFee, venuesOfLocation } = require('../lib/event-applications.js');
 const { Pool } = require('pg');
 const valid = {
   community_name: '測試社群', contact_name: '測試聯絡人', contact_email: 'organizer@example.test',
@@ -47,15 +47,25 @@ test('application rejects impossible dates, reversed ranges and implicit timezon
   assert.ok(normalizeEventApplication({ ...valid, starts_at: '2096-02-29T10:00' }).value);
 });
 
-test('application kind defaults to community on 3F; business hire must pick one of the four venues', () => {
+test('application kind defaults to community on 3F; both kinds pick 1F/2F/3F (4F closed to members)', () => {
   assert.deepEqual([normalizeEventApplication(valid).value.kind, normalizeEventApplication(valid).value.venue], ['community', '3F']);
-  assert.equal(normalizeEventApplication({ ...valid, kind: 'community', venue: '2F' }).value.venue, '3F');
+  // 社群活動也可選一樓／二樓／三樓（規格 v2 §4.6）；二樓至多 10 人
+  assert.equal(normalizeEventApplication({ ...valid, kind: 'community', venue: '2F', attendees: 10 }).value.venue, '2F');
+  assert.ok(normalizeEventApplication({ ...valid, kind: 'community', venue: '4F' }).error, '四樓不開放會員申請');
   assert.ok(normalizeEventApplication({ ...valid, kind: 'business' }).error);
   assert.ok(normalizeEventApplication({ ...valid, kind: 'business', venue: '5F' }).error);
   assert.ok(normalizeEventApplication({ ...valid, kind: 'business', venue: 'toString' }).error);
+  assert.ok(normalizeEventApplication({ ...valid, kind: 'business', venue: '4F' }).error);
   assert.deepEqual([venuesOfLocation('三樓共享空間'), venuesOfLocation('1F＋閣樓'), venuesOfLocation('台北市中正區重慶南路一段 11 號').length], [['3F'], ['1F', '4F'], 4]);
   assert.ok(normalizeEventApplication({ ...valid, kind: 'vip' }).error);
-  for (const venue of ['1F', '2F', '3F', '4F']) assert.equal(normalizeEventApplication({ ...valid, kind: 'business', venue }).value.venue, venue);
+  for (const venue of ['1F', '2F', '3F']) assert.equal(normalizeEventApplication({ ...valid, kind: 'business', venue, attendees: 10 }).value.venue, venue);
+});
+
+test('application enforces venue headcount: 2F ≤ 10, 1F ≤ 50, 3F has no hard cap', () => {
+  assert.match(normalizeEventApplication({ ...valid, venue: '2F', attendees: 11 }).error, /三樓/);
+  assert.ok(normalizeEventApplication({ ...valid, venue: '1F', attendees: 50 }).value);
+  assert.ok(normalizeEventApplication({ ...valid, venue: '1F', attendees: 51 }).error);
+  assert.ok(normalizeEventApplication({ ...valid, venue: '3F', attendees: 61 }).value, '三樓超過 60 人只提示、不擋送出');
 });
 
 test('application requires explicit consent and bounded integer attendance', () => {
@@ -66,17 +76,33 @@ test('application requires explicit consent and bounded integer attendance', () 
   for (const attendees of [1, 10000]) assert.ok(normalizeEventApplication({ ...valid, attendees }).value);
 });
 
-test('unified applications validate visibility and external links', () => {
+test('unified applications validate visibility, ticketing mode, refund policy and links', () => {
   for(const registration_url of ['javascript:alert(1)','data:text/html,test','https://user:pass@example.com',{}])
     assert.ok(normalizeEventApplication({...valid,visibility:'public',registration_mode:'external',registration_url}).error);
   assert.ok(normalizeEventApplication({...valid,visibility:'secret'}).error);
   assert.ok(normalizeEventApplication({...valid,visibility:'public',registration_mode:'closed'}).error);
   assert.equal(normalizeEventApplication({...valid,visibility:'private',registration_mode:'external',registration_url:'https://example.com'}).value.registration_mode,'closed');
-  // 外部申請的公開活動一律附活動網址，不開站內報名；私人活動收訂金 1000。
-  assert.ok(normalizeEventApplication({...valid,visibility:'public',registration_mode:'native'}).error);
-  assert.equal(normalizeEventApplication({...valid,visibility:'public',registration_mode:'native',registration_url:'https://example.com/e'}).value.registration_mode,'external');
-  assert.equal(applicationDeposit({visibility:'private'}),1000);
-  assert.equal(applicationDeposit({visibility:'public'}),0);
+  // 公開活動可選言文字售票（native，不需外部網址）或外部售票（external，需網址）；未指定沿用舊表單＝外部售票
+  const native=normalizeEventApplication({...valid,visibility:'public',registration_mode:'native'}).value;
+  assert.deepEqual([native.registration_mode,native.registration_url,native.refund_policy],['native','','accept']);
+  assert.equal(normalizeEventApplication({...valid,visibility:'public',registration_mode:'native',registration_url:'https://example.com/e'}).value.registration_url,'','言文字售票不存外部網址');
+  assert.ok(normalizeEventApplication({...valid,visibility:'public'}).error,'未指定售票方式＝外部，需附網址');
+  assert.equal(normalizeEventApplication({...valid,visibility:'public',registration_url:'https://example.com/e'}).value.registration_mode,'external');
+  assert.equal(normalizeEventApplication({...valid,visibility:'public',registration_mode:'native',refund_policy:'none'}).value.refund_policy,'none');
+  assert.ok(normalizeEventApplication({...valid,visibility:'public',registration_mode:'native',refund_policy:'maybe'}).error);
+  assert.equal(normalizeEventApplication({...valid,source_url:'https://lu.ma/abc'}).value.source_url,'https://lu.ma/abc');
+  assert.ok(normalizeEventApplication({...valid,source_url:'javascript:alert(1)'}).error);
+  // 私人活動送件時收場地費（取代舊訂金 1000）：三樓 20 人＝10,000、25 人＝15,000；二樓 10,000；一樓 30,000
+  assert.equal(applicationDeposit({visibility:'private',venue:'3F',attendees:20}),10000);
+  assert.equal(applicationDeposit({visibility:'private',venue:'3F',attendees:25}),15000);
+  assert.equal(applicationDeposit({visibility:'private',venue:'2F',attendees:8}),10000);
+  assert.equal(applicationDeposit({visibility:'private',venue:'1F',attendees:40}),30000);
+  assert.equal(applicationDeposit({visibility:'private',attendees:41}),20500,'未填空間視為三樓');
+  // 公開活動送件時 0；外部售票審核通過後才設定 150×預估人數，言文字售票由參加者付
+  assert.equal(applicationDeposit({visibility:'public',venue:'3F',attendees:20}),0);
+  assert.equal(approvalVenueFee({visibility:'public',registration_mode:'external',venue:'3F',attendees:20}),3000);
+  assert.equal(approvalVenueFee({visibility:'public',registration_mode:'native',venue:'3F',attendees:20}),0);
+  assert.equal(approvalVenueFee({visibility:'private',registration_mode:'closed',venue:'3F',attendees:20}),0);
 });
 
 const databaseUrl = process.env.EVENT_APPLICATION_TEST_DATABASE_URL;
@@ -328,7 +354,7 @@ test('application API persists private submissions and serializes retry/review r
         assert.equal(created.status,201,JSON.stringify(created.body));
         const appId=created.body.application.id;
         if(mode==='closed'){
-          assert.equal(created.body.application.deposit_twd,1000);
+          assert.equal(created.body.application.deposit_twd,10000,'私人三樓 20 人場地費');
           assert.equal((await api(`/api/admin/event-applications/${appId}/review`,adminKey,{status:'approved',expected_status:'pending',review_note:'訂金未付'})).status,409);
           await pool.query('UPDATE event_applications SET deposit_paid_at=now() WHERE id=$1',[appId]);
         }
@@ -339,14 +365,16 @@ test('application API persists private submissions and serializes retry/review r
         assert.equal((await api(`/api/admin/event-applications/${appId}/review`,adminKey,{status:'approved',expected_status:'pending',review_note:'重複'})).status,409);
         const listed=(await api('/api/events')).body.events.find(e=>e.id===event.id);
         assert.ok(listed);
-        assert.equal(listed.registration_mode,mode==='native'?'external':mode);
-        {
+        assert.equal(listed.registration_mode,mode);
+        if(mode==='external')assert.equal(reviewed.body.application.deposit_twd,3000,'外部售票通過後應付 150×20');
+        if(mode!=='native'){
           assert.equal((await api(`/api/events/${event.id}/register`,memberB,{})).status,403);
           // Even changing lifecycle status cannot accidentally enable private/external registration.
           await pool.query("UPDATE events SET status='報名中' WHERE id=$1",[event.id]);
           assert.equal((await api(`/api/events/${event.id}/register`,null,{})).status,403);
         }
-        if(mode!=='closed')assert.equal(listed.registration_url,'https://example.com/register');
+        if(mode==='external')assert.equal(listed.registration_url,'https://example.com/register');
+        if(mode==='native')assert.equal(listed.registration_url,'','言文字售票不帶外部網址');
         if(mode==='closed'){
           assert.equal(listed.title,'私人活動');
           assert.equal(listed.description,undefined);
