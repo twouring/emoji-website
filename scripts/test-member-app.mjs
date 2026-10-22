@@ -79,7 +79,9 @@ test('App 含官網會員頁搬過來的全部功能：會籍狀態與購買、�
   for (const lang of ['zh', 'en', 'ja']) assert.match(m, new RegExp(`\\n\\s+${lang}:\\{locale:'`), lang + ' i18n');
   assert.match(m, /\/api\/auth\/email\/start/, 'Email 登入直接在 App 內寄連結');
   // 活動詳情連回官網並帶 token，不用再登入
-  assert.match(m, /SITE\+BASE\+'\/events\/'\+encodeURIComponent\(e\.slug\|\|e\.id\)\+'#token='/);
+  // 規格 v2 §4.1：活動詳情與報名在 App 內部路由 /e/<slug>，不再帶 token 跳官網
+  assert.match(m, /const eventUrl=e=>'\/e\/'\+encodeURIComponent\(e\.slug\|\|e\.id\)/);
+  assert.doesNotMatch(m, /'#token='\+encodeURIComponent\(token\(\)/);
   // 不再連回已刪除的官網會員頁
   assert.doesNotMatch(m, /\/member\b/);
   // 使用者資料一律 esc()

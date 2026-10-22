@@ -152,7 +152,7 @@ test('bottom CTA bar: shown for native/external open events, hidden when embedde
     const side = { scrollIntoView() {}, querySelector: () => null, offsetHeight: 600, classList: { toggle() {} } };
     const context = ctx('zh', {
       embedded,
-      document: { body, getElementById: id => id === 'ev-cta-bar' ? bar : id === 'ev-register' ? (hasRegister ? {} : null) : el(id), querySelector: s => s === '.ev-side' ? side : null, addEventListener() {} },
+      document: { body, getElementById: id => id === 'ev-cta-bar' ? bar : id === 'ev-register' ? null : id === 'ev-app-go' ? (hasRegister ? { href: 'https://app.emoji.tw/e/demo' } : null) : el(id), querySelector: s => s === '.ev-side' ? side : null, addEventListener() {} },
       IntersectionObserver: class { constructor(cb) { this.cb = cb; } observe() { this.cb([{ isIntersecting: false }]); } disconnect() {} },
       matchMedia: () => ({ matches: false }), innerHeight: 844, window: { open() {} },
     });

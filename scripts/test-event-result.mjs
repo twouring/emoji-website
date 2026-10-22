@@ -39,26 +39,31 @@ async function boot(t) {
   });
 }
 
-test('結果頁三語可開、noindex、含站台頁首頁尾；未知狀態不回結果頁', async t => {
+test('舊結果頁（規格 v2 §4.1）三語皆 302 到 App 活動頁並保留查詢字串；未知狀態不轉', async t => {
   const get = await boot(t);
   for (const status of ['registered', 'pending_approval', 'waitlisted', 'failed', 'paid', 'canceled']) {
     for (const pre of ['', '/en', '/ja']) {
-      const res = await get(`${pre}/events/result/${status}?event=demo`);
-      assert.equal(res.status, 200, pre + status);
+      const res = await get(`${pre}/events/result/${status}?event=demo&s=cs_1`);
+      assert.equal(res.status, 302, pre + status);
       assert.equal(res.headers.get('x-robots-tag'), 'noindex');
       assert.equal(res.headers.get('cache-control'), 'no-store');
-      assert.doesNotMatch(res.body, /<!--SITE_HEADER-->/, '頁首應已組裝');
-      assert.match(res.body, /id="er-actions"/);
+      const to = new URL(res.headers.get('location'));
+      assert.equal(to.pathname, '/e/demo');
+      assert.equal(to.searchParams.get('result'), status);
+      assert.equal(to.searchParams.get('s'), 'cs_1');
+      assert.equal(to.searchParams.get('lang'), pre ? pre.slice(1) : null);
     }
   }
   const bad = await get('/events/result/whatever');
   assert.notEqual(bad.status, 200);
 });
 
-test('Stripe 付款成功／取消導回獨立結果頁，不再帶 ?paid=1 回活動頁', () => {
-  assert.match(server, /success_url: `\$\{SITE_BASE\}\$\{langPrefix\}\/events\/result\/paid\?event=\$\{encodeURIComponent\(ev\.slug\)\}&s=\{CHECKOUT_SESSION_ID\}`/);
-  assert.match(server, /cancel_url: `\$\{SITE_BASE\}\$\{langPrefix\}\/events\/result\/canceled\?event=\$\{encodeURIComponent\(ev\.slug\)\}`/);
-  assert.match(server, /'\/events\/result\/paid\?event='\+encodeURIComponent\(event\.slug\)\+'&s=\{CHECKOUT_SESSION_ID\}'/);
+test('Stripe 付款成功／取消導回 App 活動頁（規格 v2 §4.1），不再回官網', () => {
+  assert.doesNotMatch(server, /success_url: `\$\{SITE_BASE\}[^`]*\/events\/result/);
+  assert.doesNotMatch(server, /SITE_BASE\+lang\+'\/events\/result\/paid/);
+  assert.match(server, /appEventUrl\(/);
+  assert.match(server, /result=paid&s=\{CHECKOUT_SESSION_ID\}/);
+  assert.match(server, /result=canceled/);
   assert.doesNotMatch(server, /\?paid=1&s=\{CHECKOUT_SESSION_ID\}/);
   assert.doesNotMatch(events, /showResult\(|ev-result\{/, '活動頁不再有彈窗');
   assert.match(events, /function goResult\(status,e,extra\)/);
