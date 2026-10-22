@@ -18,6 +18,7 @@ function ctx(lang = 'zh', extra = {}) {
     previewLabel: 'PREVIEW', externalEventLabel: 'EXTERNAL', privateEventLabel: 'PRIVATE', embedded: false,
     money: n => n > 0 ? 'NT$' + Number(n).toLocaleString('en-US') : { zh: '免費', en: 'Free', ja: '無料' }[lang],
     taxedPrice: (e, p) => p, eventPath: e => '/events/' + e.slug,
+    inApp: e => (e.registration_mode || 'native') === 'native', appUrlFor: e => 'https://app.emoji.tw/e/' + e.slug,
     location: { origin: 'https://www.emoji.tw', host: 'www.emoji.tw' }, document: { getElementById: () => null, querySelector: () => null, addEventListener() {} }, navigator: {}, toast() {},
     ...extra,
   });
@@ -43,6 +44,7 @@ test('list card: date block, month grouping key, clamped description, escaped ti
   assert.equal(ctx('en').monthLabel(baseEvent), 'November 2026');
   assert.equal(ctx('ja').monthLabel(baseEvent), '2026年11月');
   assert.equal(c.monthKey({ ...baseEvent, starts_at_iso: null }), '9999', 'untimed events sort last');
+  assert.match(html, /href="https:\/\/app\.emoji\.tw\/e\/demo"/, '官網列表卡片直接連 App 活動頁');
   const plain = c.eventCard(baseEvent);
   assert.match(plain, /ev-card--plain/);
   assert.doesNotMatch(plain, /ev-card__art/);

@@ -156,12 +156,15 @@ const isAppHost = req => APP_HOSTS.includes(String(req.hostname || '').toLowerCa
 // App 子站只提供 PWA 本身、API、登入與必要靜態檔；其餘頁面（活動、官網）一律回官網，避免兩個網域出現重複內容
 // /host、/host/<eventId>：會員在 App 主辦活動（列表／單場管理），同樣回 m.html 由前端路由
 // /e/<slug>：活動報名頁（規格 v2 §4.1：報名一律在 App），由下方 /e/:slug 路由回 m.html（可訪客瀏覽與報名）
-const APP_HOST_OWN = /^\/($|index\.html$|host($|\/)|e\/[^/]+\/?$|m-host\.js$|m-event\.js$|m($|\/|\.webmanifest$|-sw\.js$|-icon-)|api\/|auth\/|vendor\/|favicon|logo\.png$|cis\/assets\/)/;
+const APP_HOST_OWN = /^\/($|index\.html$|host($|\/)|e\/[^/]+\/?$|m-host\.js$|m-event\.js$|event-rich\.css$|m($|\/|\.webmanifest$|-sw\.js$|-icon-)|api\/|auth\/|vendor\/|favicon|logo\.png$|cis\/assets\/)/;
 // 會員 App 活動頁網址：APP_BASE/e/<slug>，可帶 lang（en/ja）與額外查詢字串（例：result=paid&s=…）；Stripe 的 {CHECKOUT_SESSION_ID} 佔位符不可編碼
 const appEventUrl = (slug, lang, extra) => {
   const qs = [['en', 'ja'].includes(lang) ? 'lang=' + lang : '', extra || ''].filter(Boolean).join('&');
   return APP_BASE + '/e/' + encodeURIComponent(slug) + (qs ? '?' + qs : '');
 };
+// admin 子網域／後台服務只提供：後台 SPA、API、登入與 OAuth callback、Email 登入頁、簽到工作台、後台用到的模擬頁、
+// puppeteer 本機截圖頁（IG／LINE 圖文選單），以及靜態資源（任何 .css/.js/圖檔/字型與資源目錄）
+const ADMIN_HOST_OWN = /^\/(admin($|\/|\.html$)|api\/|auth\/|integrations\/|internal\/|event-(login|checkin)\.html$|access-mock(\.html)?$|ig-render\.html$|line-richmenu\.html$|robots\.txt$|vendor\/|cis\/|stylebook\/|uploads\/|ig-media\/|fonts?\/|[^/]+\.(css|js|mjs|map|svg|png|jpe?g|webp|gif|ico|woff2?|ttf|json|webmanifest)$)/;
 const ADMIN_HOSTS = (process.env.ADMIN_HOSTS || 'admin.emoji.tw').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 const isAdminHost = req => ADMIN_HOSTS.includes(String(req.hostname || '').toLowerCase());
 const DEFAULT_MEMBER_URL = (process.env.MEMBER_URL || APP_BASE + '/');
@@ -1506,14 +1509,19 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   if (!isAppHost(req)) return next();
   if (req.path === '/' || req.path === '/index.html' || /^\/host(\/|$)/.test(req.path)) { res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache' }); return res.sendFile(path.join(PUB, 'm.html')); }
+  if (/^\/admin(\/|\.html$|$)/.test(req.path)) return res.redirect(302, ADMIN_BASE + (req.path === '/admin.html' ? '/admin' : req.originalUrl));
   if (!APP_HOST_OWN.test(req.path)) return res.redirect(302, SITE_BASE + req.originalUrl);
   next();
 });
-// 後台服務（SERVICE_ROLE=admin）或 admin.emoji.tw：首頁就是後台（/admin）；官網首頁不在這裡提供
+// 後台服務（SERVICE_ROLE=admin）或 admin.emoji.tw：只給管理者用。首頁就是後台（/admin）；
+// 只放行後台頁、API、登入、簽到工作台與靜態資源（ADMIN_HOST_OWN），官網公開頁一律轉回官網、會員頁（/e、/host）轉 App
 app.use((req, res, next) => {
   if (!ADMIN_MODE && !isAdminHost(req)) return next();
   if (req.path === '/' || req.path === '/index.html') return res.redirect(302, '/admin');
-  next();
+  if (ADMIN_HOST_OWN.test(req.path)) return next();
+  res.set('X-Robots-Tag', 'noindex');
+  if (/^\/(e|host)(\/|$)/.test(req.path)) return res.redirect(302, APP_BASE + req.originalUrl);
+  res.redirect(302, SITE_BASE + req.originalUrl);
 });
 // 官網服務不再提供後台畫面：正式網域（SITE_HOST）上的 /admin 轉到 ADMIN_BASE，保留路徑與查詢字串。
 // 只在正式 https 網域生效：本機開發（PUBLIC_ORIGIN=http://…）與 admin 子網域暫由官網服務代管時都不轉，避免迴圈。
@@ -5413,6 +5421,15 @@ app.get('/e/:slug', wrap(async (req, res) => {
   }
   res.sendFile(path.join(PUB, 'm.html'));
 }));
+// 官網只當入口：活動詳情頁（正式網域）對真人直接 302 到 App 活動頁 /e/<slug>，免得要在官網再點一次「前往報名」。
+// 例外：爬蟲與社群連結預覽（保留官網 SEO 與 og 預覽）、需要錢包簽章的活動（App 尚未支援，報名表留官網）、本機開發（http）。
+const PREVIEW_BOT_RE = /bot|crawl|spider|slurp|facebookexternalhit|facebookcatalog|embedly|preview|whatsapp|telegram|skype|discord|pinterest|vkshare|quora|outbrain|lighthouse|inspectiontool|headless/i;
+const eventNeedsWallet = e => { const w = e?.registration_settings?.wallet_collection || {}; return !!(w.ethereum || w.solana || (e?.tickets || []).some(t => t && t.active && t.token_gate?.enabled)); };
+function shouldSendToApp(req, event) {
+  if (!SITE_BASE.startsWith('https://') || String(req.hostname || '').toLowerCase() !== SITE_HOST) return false;
+  if (PREVIEW_BOT_RE.test(String(req.get('user-agent') || ''))) return false;
+  return !eventNeedsWallet(event);
+}
 app.get(['/events/:slug', '/en/events/:slug', '/ja/events/:slug'], async (req, res) => {
   let event = null;
   if (dbReady) {
@@ -5426,6 +5443,12 @@ app.get(['/events/:slug', '/en/events/:slug', '/ja/events/:slug'], async (req, r
     }
   }
   if(event&&event.slug!==req.params.slug){const lang=/^\/(en|ja)\//.exec(req.path)?.[1],query=req.originalUrl.includes('?')?req.originalUrl.slice(req.originalUrl.indexOf('?')):'';return res.redirect(302,(lang?'/'+lang:'')+'/events/'+encodeURIComponent(event.slug)+query);}
+  if (event && shouldSendToApp(req, event)) {
+    const lang = /^\/(en|ja)\//.exec(req.path)?.[1], extra = new URLSearchParams();
+    for (const [k, v] of Object.entries(req.query || {})) if (typeof v === 'string' && k !== 'lang') extra.set(k, v.slice(0, 256));
+    res.set({ 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' });
+    return res.redirect(302, appEventUrl(event.slug, lang, extra.toString()));
+  }
   if (!event || event.visibility !== 'public') res.set('X-Robots-Tag', 'noindex');
   sendPage(res, EVENTS_PAGE, req.path, event ? html => composeEventMeta(html, publicEvent(event, req.path.split('/')[1]), req.path) : null);
 });
@@ -6802,7 +6825,11 @@ app.get(['/menu', '/menu/', '/en/menu', '/en/menu/', '/ja/menu', '/ja/menu/'], m
 // 舊 /admin.html 轉 301 至 /admin（瀏覽器保留 #hash，前端再轉為路徑）
 const ADMIN_PAGE = path.join(PUB, 'admin.html');
 app.get('/admin.html', (_req, res) => res.redirect(301, '/admin'));
-app.get(['/admin', '/admin/*'], (_req, res) => { res.set('X-Robots-Tag', 'noindex'); res.sendFile(ADMIN_PAGE); });
+// 後台只在後台服務／admin 子網域提供；官網服務（www、app、pos 等）上的 /admin 一律轉 ADMIN_BASE，本機開發（http）同源提供
+app.get(['/admin', '/admin/*'], (req, res) => {
+  if (!ADMIN_MODE && !isAdminHost(req) && /(^|\.)emoji\.tw$/i.test(String(req.hostname || ''))) return res.redirect(302, ADMIN_BASE + req.originalUrl);
+  res.set('X-Robots-Tag', 'noindex'); res.sendFile(ADMIN_PAGE);
+});
 // 平板 POS（純瀏覽器，Star webPRNT Browser）：/pos、/pos/orders、/pos/soldout、/pos/inventory、/pos/reservations、/pos/history、/pos/sales、/pos/products、/pos/customers、/pos/clock、/pos/shifts 皆回同一頁（pos.emoji.tw 與 www 都可用，API 同網域）
 const POS_PAGE = path.join(PUB, 'pos.html');
 app.get('/pos.html', (_req, res) => res.redirect(301, '/pos'));
