@@ -12,7 +12,7 @@ const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
 // KK 2026-11-02：admin 不分品牌、以手機為主，主要使用者是言文字高管，首頁一次看所有品牌並挑出問題
 test('後台不再分品牌工作區：沒有工作區切換、只有一組分頁', () => {
   assert.doesNotMatch(html, /const WORKSPACES = \{|id="a-workspaces"|data-scope=|tth_scope|BRAND_TABS|ROOT_TABS\b/);
-  assert.match(html, /const ADMIN_TABS = \['overview','sales','staff','events','calendar','members','commitments','updates','menu','social','ads','outreach','permissions','system','logs'\]/);
+  assert.match(html, /const ADMIN_TABS = \['overview','sales','staff','events','calendar','members','commitments','updates','menu','social','ads','outreach','partners','permissions','system','logs'\]/);
   assert.match(html, /const SCOPE = '';/, 'pos-ops.js 共用的 SCOPE 固定為所有品牌');
   assert.doesNotMatch(html, /tabCounter|paintCounter|COUNTER_UID/);
 });

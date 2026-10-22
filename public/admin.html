@@ -739,6 +739,7 @@ function tabEvents(d){
       </div><h3>票券與報名</h3><p class="hint">付費票款進入平台 Stripe；退款由平台管理員處理，外部活動款項結算另行確認。</p><div class="a-form"><label>名額（0＝不限）<input id="ev-cap" type="number" min="0" value="0" style="width:120px"></label>
       <label>可見性<select id="ev-visibility"><option value="public">公開</option><option value="private">私人連結</option><option value="members">會員限定</option></select></label>
       <label>狀態<select id="ev-status"><option>草稿</option><option>預告</option><option>報名中</option><option>已結束</option></select></label>
+      <label id="ev-partner-wrap" hidden>合作夥伴活動<select id="ev-partner"><option value="">（不是夥伴活動）</option></select></label>
       <label id="ev-reg-url-wrap" hidden>外部報名網址（留空＝站內報名）<input id="ev-reg-url" type="url" maxlength="2000" placeholder="https://" style="width:360px"></label>
       <p id="ev-critical-update-note" class="ui-notice" role="status" style="width:100%" hidden>活動名稱、時間或地點有變更；儲存後會通知已報名來賓，並附上更新後的行事曆。</p>
     </div>
@@ -777,6 +778,7 @@ function openEventEditor(e,d){
   document.getElementById('ev-status').value=e.status||'報名中';
   document.getElementById('ev-reg-url').value=e.registration_url||'';document.getElementById('ev-reg-url-wrap').hidden=e.registration_mode==='closed';
   document.getElementById('ev-desc').value=e.description||'';
+  fillEventPartner(e);
   ['ev-title','ev-when','ev-end','ev-loc'].forEach(id=>{const el=document.getElementById(id);el.dataset.saved=el.value;});
   document.querySelectorAll('[data-event-lang]').forEach(el=>{el.value=e.translations?.[el.dataset.eventLang]?.[el.dataset.eventField]||'';});
   document.getElementById('ev-save').textContent='更新活動';
@@ -784,6 +786,15 @@ function openEventEditor(e,d){
   document.getElementById('ev-reset').style.display='';
   syncCriticalEventUpdateNote();
   document.getElementById('event-editor').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// 活動標註合作夥伴：只在編輯既有活動時出現，存檔時若有變更另打 /partner
+async function fillEventPartner(e){
+  const wrap=document.getElementById('ev-partner-wrap'),sel=document.getElementById('ev-partner');if(!wrap||!sel)return;
+  sel.dataset.saved=e.partner_id||'';
+  try{ if(PARTNERS===null){const out=await api('/admin/partners');PARTNERS=out.partners||[];PARTNER_LEVELS=out.levels||[];} }catch(x){wrap.hidden=true;return;}
+  sel.innerHTML='<option value="">（不是夥伴活動）</option>'+PARTNERS.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
+  sel.value=e.partner_id||'';wrap.hidden=false;
 }
 
 function syncCriticalEventUpdateNote(){
@@ -1303,7 +1314,7 @@ function tabAdmins(d){
    - 首頁「總覽」＝高管總覽（GET /api/admin/exec）：所有品牌今天的營收、帳本、桌況、在班人力，並挑出需要處理的問題。
    - 只給總公司（言文字管理員）使用；品牌子帳號登入直接擋回，門市一律用 pos.emoji.tw。日結報表、排班打卡看全部品牌（SCOPE＝''）。
    - 現場營運（櫃檯結帳、出餐、訂位、估清）仍在 pos.emoji.tw。員工新增／編輯與出勤修正刻意留在 admin（平板四位數密碼登入的現場人員不能改）。 */
-const ADMIN_TABS = ['overview','sales','staff','events','calendar','members','commitments','updates','menu','social','ads','outreach','permissions','system','logs'];
+const ADMIN_TABS = ['overview','sales','staff','events','calendar','members','commitments','updates','menu','social','ads','outreach','partners','permissions','system','logs'];
 const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水', STAY:'等等空間', REST:'約書旅' };
 const SCOPE = '';   // pos-ops.js 共用：空字串＝所有品牌
 const OLD_WORKSPACE_SLUGS = ['shared','cafe','bar','space'];
@@ -1328,6 +1339,7 @@ const TABS = [
   { id:'social',      label:'社群經營', render:tabSocial },
   { id:'ads',         label:'廣告總覽', render:tabAds },
   { id:'outreach',    label:'合作開發', render:tabOutreach, outreach:true },
+  { id:'partners',    label:'合作夥伴', render:tabPartners },
   { id:'permissions', label:'權限管理',   render:tabAdmins },
   { id:'system',      label:'系統設定', render:tabSystem },
   { id:'logs',        label:'操作紀錄', render:tabLogs, super:true },
@@ -1337,7 +1349,7 @@ const NAV_GROUPS = [
   ['活動', ['events','calendar']],
   ['會員', ['members','commitments']],
   ['內容', ['updates','menu']],
-  ['行銷', ['social','ads','outreach']],
+  ['行銷', ['social','ads','outreach','partners']],
   ['系統', ['permissions','system','logs']],
 ];
 // 側欄 icon：線條 SVG（Lucide 風格），不用 emoji
@@ -1361,6 +1373,7 @@ const ICONS = {
   social:       '<path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z"/>',
   ads:          '<path d="M12 20V10M18 20V4M6 20v-4"/>',
   outreach:     '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/>',
+  partners:     '<path d="M11 17l-1.5 1.5a2.1 2.1 0 0 1-3-3L9 13"/><path d="M13 7l1.5-1.5a2.1 2.1 0 0 1 3 3L15 11"/><path d="M8 16l8-8"/><circle cx="5" cy="5" r="2"/><circle cx="19" cy="19" r="2"/>',
   permissions:  '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
 };
 const ico = id => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[id] || ''}</svg>`;
@@ -1464,6 +1477,7 @@ function applyRoute(){
   if (tab === 'system') { if(DATA?.super)loadSystemSettings(); return; }
   if (tab === 'ads') { paintAds(); return; }
   if (tab === 'outreach') { loadOutreach(); return; }
+  if (tab === 'partners') { loadPartners(); return; }
   if (tab === 'events') { if(APPLICATIONS===null&&!false)loadApplications(); if(parts[1]==='applications'){go('events',true);const f=document.getElementById('ev-list-status');if(f&&!false){f.value='待審';f.dispatchEvent(new Event('change'));}return;} else if(parts[1]&&!showEventManager(parts[1],DATA)){toast('找不到這場活動');go('events',true);} else if(!parts[1])showEventList(); return; }
   if (tab !== 'social') return;
   const v = parts[1] || SOCIAL_VIEW;
@@ -1521,7 +1535,7 @@ function bind(d, x){
       registration_url: editing&&!document.getElementById('ev-reg-url-wrap').hidden?document.getElementById('ev-reg-url').value.trim():undefined,
       description: document.getElementById('ev-desc').value.trim(),
       translations: Object.fromEntries(['zh','en','ja'].map(lang=>[lang,Object.fromEntries([...document.querySelectorAll(`[data-event-lang="${lang}"]`)].map(el=>[el.dataset.eventField,el.value.trim()]))])),
-    }}), editing?out=>out.notice||'已更新活動':'已建立活動'); });
+    }}).then(async out=>{const sel=document.getElementById('ev-partner');if(editing&&sel&&!document.getElementById('ev-partner-wrap').hidden&&sel.value!==(sel.dataset.saved||''))await api('/admin/events/'+encodeURIComponent(document.getElementById('ev-id').value)+'/partner',{method:'POST',body:{partner_id:sel.value||null}});return out;}), editing?out=>out.notice||'已更新活動':'已建立活動'); });
   ['ev-title','ev-when','ev-end','ev-loc'].forEach(id=>on(id,'input',syncCriticalEventUpdateNote));
   on('ev-reset','click',()=>resetEventForm());
   const filterEvents=()=>{if(!document.getElementById('ev-search'))return;const query=document.getElementById('ev-search').value.trim().toLowerCase(),status=document.getElementById('ev-list-status').value,rows=[...document.querySelectorAll('[data-event-row]')];let visible=0;for(const row of rows){row.hidden=!!((query&&!row.dataset.eventSearch.includes(query))||(status&&row.dataset.eventStatus!==status));if(!row.hidden)visible++;}document.getElementById('ev-list-count').textContent='顯示 '+visible+'／'+rows.length+' 場';document.getElementById('ev-list-empty').hidden=visible>0||rows.length===0;};
@@ -1815,6 +1829,7 @@ function resetEventForm(){
   ['ev-title','ev-when','ev-end','ev-loc'].forEach(id=>{const el=document.getElementById(id);if(el)delete el.dataset.saved;});
   document.getElementById('ev-cap').value=0;
   document.getElementById('ev-visibility').value='public';
+  const ptw=document.getElementById('ev-partner-wrap');if(ptw)ptw.hidden=true;
   document.getElementById('ev-reg-url').value='';document.getElementById('ev-reg-url-wrap').hidden=true;
   document.getElementById('ev-status').value='草稿';
   document.getElementById('ev-save').textContent='建立活動';
@@ -2782,6 +2797,75 @@ const ADS_STATUS_META = { planned:['規劃中','pill-wait'], running:['投放中
 const OUT_MOBILE = () => matchMedia('(max-width:760px)').matches;
 let OUT_FILTERS = false;
 let OUT = null, OUT_VIEW = '', OUT_OPEN = null, OUT_Q = '', OUT_CAT = '', OUT_STAGE = 'open', OUT_SORT = 'score', OUT_LOGS = [], OUT_ME = null, OUT_LIMIT = 40;
+/* ===== 合作夥伴：官網首頁顯示；夥伴信箱底下會員建立的活動可在 App 標註為夥伴活動，參加者依場數累積徽章 ===== */
+let PARTNERS = null, PARTNER_LEVELS = [], PARTNER_EDIT = null;
+function tabPartners(){ return '<div class="a-sec" id="partners-body"><h2>合作夥伴</h2><p class="a-sub">載入資料…</p></div>'; }
+async function loadPartners(){
+  const host = document.getElementById('partners-body'); if (!host) return;
+  try { const out = await api('/admin/partners'); PARTNERS = out.partners || []; PARTNER_LEVELS = out.levels || []; }
+  catch(e){ host.innerHTML = `<h2>合作夥伴</h2><p class="a-empty">${esc(e.message)}</p>`; return; }
+  paintPartners();
+}
+function paintPartners(){
+  const on = (id,ev,fn)=>{ const el=document.getElementById(id); if(el) el.addEventListener(ev,fn); };
+  const host = document.getElementById('partners-body'); if (!host || PARTNERS === null) return;
+  const p = PARTNER_EDIT || {};
+  const rows = PARTNERS.map(x => `<tr>
+      <td>${x.logo_url ? `<img src="${esc(x.logo_url)}" alt="" style="width:44px;height:44px;object-fit:contain;display:block">` : ''}</td>
+      <td><b style="font-weight:500">${esc(x.name)}</b>${x.url ? `<br><a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--muted)">${esc(x.url)}</a>` : ''}</td>
+      <td class="a-mono">${(x.emails||[]).map(esc).join('<br>') || '<span class="hint">未設定</span>'}</td>
+      <td class="num">${x.event_count||0}</td>
+      <td>${x.visible ? '<span class="pill pill-ok">官網顯示</span>' : '<span class="pill pill-wait">隱藏</span>'}</td>
+      <td style="white-space:nowrap"><button class="btn btn--ghost btn-sm" type="button" data-pt-edit="${esc(x.id)}">編輯</button> <button class="btn btn--ghost btn-sm" type="button" data-pt-del="${esc(x.id)}">刪除</button></td>
+    </tr>`).join('') || '<tr><td colspan="6" class="a-empty">尚無合作夥伴</td></tr>';
+  const levels = PARTNER_LEVELS.map(l => `${esc(l.name.zh)}（${l.min} 場）`).join('、');
+  host.innerHTML = `<h2>合作夥伴</h2>
+    <p class="hint">設為「官網顯示」的夥伴會出現在官網首頁。「所屬信箱」可填完整 Email 或 @網域（例：@example.com），這些信箱的會員在 App 建立的活動可標註為該夥伴活動；管理員也可在活動編輯頁直接標註。參加者每參加一場夥伴活動（已簽到，或報名有效且活動已結束）累積一次，徽章等級：${levels}。</p>
+    <div class="a-form">
+      <input type="hidden" id="pt-id" value="${esc(p.id||'')}">
+      <label>名稱<input id="pt-name" maxlength="80" value="${esc(p.name||'')}" placeholder="例：台灣數位遊牧者協會"></label>
+      <label>網址<input id="pt-url" type="url" maxlength="500" value="${esc(p.url||'')}" placeholder="https://"></label>
+      <label>排序（小的在前）<input id="pt-sort" type="number" step="1" value="${esc(p.sort??0)}" style="width:110px"></label>
+      <label><input id="pt-visible" type="checkbox" ${p.visible===false?'':'checked'}> 官網顯示</label>
+    </div>
+    <div class="a-form">
+      <label style="flex:1 1 280px">Logo<input id="pt-logo" maxlength="500" value="${esc(p.logo_url||'')}" placeholder="上傳或貼 https 圖片網址"></label>
+      <label class="btn btn--ghost btn-sm" style="cursor:pointer">上傳 Logo<input type="file" accept="image/jpeg,image/png,image/webp" id="pt-logo-file" style="display:none"></label>
+      <img id="pt-logo-prev" src="${esc(p.logo_url||'')}" alt="" style="width:44px;height:44px;object-fit:contain;${p.logo_url?'':'display:none'}">
+    </div>
+    <div class="a-form">
+      <label style="flex:1 1 280px">所屬信箱（每行一個）<textarea id="pt-emails" placeholder="someone@example.com&#10;@example.com">${esc((p.emails||[]).join('\n'))}</textarea></label>
+      <label style="flex:1 1 280px">簡介（選填，300 字內）<textarea id="pt-desc" maxlength="300">${esc(p.description||'')}</textarea></label>
+    </div>
+    <div class="a-form"><button class="btn btn--solid btn-sm" type="button" id="pt-save">${p.id?'更新夥伴':'新增夥伴'}</button>${p.id?'<button class="btn btn--ghost btn-sm" type="button" id="pt-cancel">取消編輯</button>':''}</div>
+    <div class="a-wrap2"><table class="a-tbl">
+      <thead><tr><th>Logo</th><th>夥伴</th><th>所屬信箱</th><th class="num">標註活動</th><th>官網</th><th>操作</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
+  on('pt-save','click',async()=>{
+    const name=document.getElementById('pt-name').value.trim(); if(!name){toast('請輸入名稱');return;}
+    try{
+      await api('/admin/partners',{method:'POST',body:{id:document.getElementById('pt-id').value||undefined,name,
+        url:document.getElementById('pt-url').value.trim(),logo_url:document.getElementById('pt-logo').value.trim(),
+        emails:document.getElementById('pt-emails').value,description:document.getElementById('pt-desc').value.trim(),
+        sort:Number(document.getElementById('pt-sort').value)||0,visible:document.getElementById('pt-visible').checked}});
+      toast(PARTNER_EDIT?'已更新合作夥伴':'已新增合作夥伴'); PARTNER_EDIT=null; loadPartners();
+    }catch(e){toast(e.message);}
+  });
+  on('pt-cancel','click',()=>{PARTNER_EDIT=null;paintPartners();});
+  on('pt-logo','input',()=>{const v=document.getElementById('pt-logo').value.trim(),img=document.getElementById('pt-logo-prev');img.src=v;img.style.display=v?'':'none';});
+  on('pt-logo-file','change',async e=>{
+    const file=e.target.files&&e.target.files[0]; if(!file)return;
+    try{const fd=new FormData();fd.append('file',file);
+      const r=await fetch('/api/admin/upload/space',{method:'POST',headers:token?{Authorization:'Bearer '+token}:{},body:fd});
+      const out=await r.json().catch(()=>({})); if(!r.ok)throw new Error(out.error||('上傳失敗（'+r.status+'）'));
+      document.getElementById('pt-logo').value=out.url; const img=document.getElementById('pt-logo-prev'); img.src=out.url; img.style.display='';
+      toast('已上傳 Logo，記得按「'+(PARTNER_EDIT?'更新':'新增')+'夥伴」');
+    }catch(x){toast(x.message);}finally{e.target.value='';}
+  });
+  host.querySelectorAll('[data-pt-edit]').forEach(b=>b.onclick=()=>{PARTNER_EDIT=PARTNERS.find(x=>x.id===b.dataset.ptEdit)||null;paintPartners();host.scrollIntoView({behavior:'smooth',block:'start'});});
+  host.querySelectorAll('[data-pt-del]').forEach(b=>b.onclick=async()=>{const x=PARTNERS.find(y=>y.id===b.dataset.ptDel);if(!x||!confirm(`刪除「${x.name}」？已標註的 ${x.event_count||0} 場活動會取消標註，參加者的這個徽章也會消失。`))return;try{await api('/admin/partners/'+encodeURIComponent(x.id),{method:'DELETE'});toast('已刪除');loadPartners();}catch(e){toast(e.message);}});
+}
+
 function tabOutreach(){ return '<div class="a-sec" id="out-body"><h2>合作開發</h2><p class="a-sub">載入資料…</p></div>'; }
 const outToday = () => new Date(Date.now()+8*3600e3).toISOString().slice(0,10);
 const outDue = l => l.next_action_date && !['已合作','暫不合作'].includes(l.stage) && l.next_action_date <= outToday();

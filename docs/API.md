@@ -153,6 +153,9 @@ TapPay Pay by Prime 結帳。body：`{ prime, lines?[], name, phone?, email? }`�
 ### POST /api/orders/:id/push
 付款後訂閱取餐推播（不登入）。body：`{ order_id, subscription }`（Push API `PushSubscription.toJSON()`）。每張出餐單最多 5 個裝置。
 
+### GET /api/partners
+官網顯示中的合作夥伴，回 `{ partners: [{ id, name, slug, logo_url, url, description }] }`（不含所屬信箱），依排序與名稱。快取 60 秒。
+
 ### GET /api/events
 可用 `?lang=zh|en|ja` 取得名稱、說明與地點的對應語系；未填翻譯沿用中文。公開列表包含預告與報名中。
 公開活動列表。未登入只回 `visibility=public`；有效會員帶 Bearer token 時另回 `visibility=members`，皆限「預告／報名中」並包含已成立報名數。
@@ -263,6 +266,21 @@ POS「紀錄」分頁：現場操作紀錄，`?day=YYYY-MM-DD`（營業日，凌
 ### GET /api/admin/events/:id/integration
 
 活動管理者讀取 API 整合啟用狀態、金鑰前綴與可用端點，不回傳完整金鑰。
+
+### GET /api/admin/partners
+管理員列出全部合作夥伴（含 `emails` 所屬信箱、`visible`、`sort`、`event_count` 已標註活動數），另回徽章等級門檻 `levels`。
+
+### POST /api/admin/partners
+管理員新增或更新合作夥伴（帶 `id` 即更新）。body：`name`（必填，≤80 字）、`url`、`logo_url`（`/uploads/…` 或 https）、`emails`（陣列或換行分隔字串；完整 Email 或 `@網域`，最多 200 筆）、`description`（≤300 字）、`visible`、`sort`。
+
+### DELETE /api/admin/partners/:id
+管理員刪除合作夥伴；已標註的活動自動取消標註（`events.partner_id` 設為 NULL），參加者該夥伴的徽章隨之消失。
+
+### POST /api/admin/events/:id/partner
+標註／取消標註活動所屬合作夥伴，body `{ partner_id }`（空值＝取消）。平台管理員可選任何夥伴；活動主辦人只能選自己或活動負責人信箱符合夥伴 `emails` 的夥伴，否則 403。`/api/organizer/state` 回 `partners` 為目前帳號可選的夥伴；活動資料含 `partner_id` 與 `partner: {id,name,slug,logo_url,url}`。
+
+### GET /api/me/badges
+會員的合作夥伴徽章：每參加一場夥伴活動（報名有效，且已簽到或活動已結束）累積一次。回 `{ badges: [{ partner_id, partner_name, logo_url, count, level, name:{zh,en,ja}, next_level, to_next }], levels }`。`GET /api/state`（會員）同時回 `badges`。
 
 ### POST /api/admin/events/:id/integration/key
 

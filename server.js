@@ -58,6 +58,7 @@ const { eventSlug, normalizeEventInput, localizeEvent, normalizeAttribution } = 
 const { zoneSlots: zoneSlotsOf } = require('./lib/event-applications');
 const { normalizeEventApplication, safeHttpUrl, applicationDeposit, approvalVenueFee, venueLabel, applicationVenueText, venuesOfLocation } = require('./lib/event-applications');
 const venueFees = require('./lib/venue-fees');
+const partnersLib = require('./lib/partners');
 const { sendMail, sendMailQuietly, NOTIFY_EMAIL } = require('./lib/mail');
 const { PLAN_PRICE_TWD } = require('./lib/plans');
 const { FEATURED_ID, eventPage, featuredEvent } = require('./lib/event-page');
@@ -992,6 +993,13 @@ async function migrate() {
   await q(`ALTER TABLE dining_reservations ADD CONSTRAINT dining_reservations_status_check CHECK (status IN ('new','confirmed','arrived','cancelled','no_show'))`);
   // 場地申請＝待審的活動：申請送出即建立草稿活動，review_status 記審核結果（NULL＝平台自建）。舊申請補建。
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS review_status TEXT CHECK (review_status IN ('pending','approved','rejected'))`);
+  // 合作夥伴：管理員設定；夥伴信箱（完整 Email 或 @網域）底下的會員建立的活動可標註為該夥伴活動，參加者依場數累積夥伴徽章
+  await q(`CREATE TABLE IF NOT EXISTS partners (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL DEFAULT '', url TEXT NOT NULL DEFAULT '', logo_url TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '', emails JSONB NOT NULL DEFAULT '[]'::jsonb, visible BOOLEAN NOT NULL DEFAULT true, sort INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS partner_id TEXT REFERENCES partners(id) ON DELETE SET NULL`);
+  await q(`CREATE INDEX IF NOT EXISTS events_partner_idx ON events(partner_id) WHERE partner_id IS NOT NULL`);
   await q(`UPDATE events e SET review_status=a.status FROM event_applications a WHERE a.event_id=e.id AND e.review_status IS NULL`);
   for (const a of (await q(`SELECT * FROM event_applications WHERE event_id IS NULL ORDER BY created_at`)).rows) {
     const client = await pool.connect();
@@ -1210,7 +1218,7 @@ const SEL_C = `id,user_id,amount::bigint,interest_rate,term_years,
   to_char(maturity_date,'YYYY/MM/DD') AS maturity_date,
   contract_status,payment_status,membership_status,cert_no`;
 const SEL_UPD = `id,title,content,type,to_char(published_at,'YYYY/MM/DD') AS published_at`;
-const SEL_EVENT = `e.id,e.slug,e.title,e.description,e.location,e.translations,e.rich_content,e.event_details,e.tickets,e.registration_settings,e.owner_id,(SELECT name FROM users WHERE id=e.owner_id) AS organizer_name,COALESCE((SELECT jsonb_agg(h.name ORDER BY h.name) FROM event_hosts h WHERE h.event_id=e.id AND h.is_visible=true),'[]'::jsonb) AS host_names,e.capacity,e.price_twd,e.visibility,e.registration_mode,e.registration_url,e.status,e.review_status,
+const SEL_EVENT = `e.id,e.slug,e.title,e.description,e.location,e.translations,e.rich_content,e.event_details,e.tickets,e.registration_settings,e.owner_id,(SELECT name FROM users WHERE id=e.owner_id) AS organizer_name,COALESCE((SELECT jsonb_agg(h.name ORDER BY h.name) FROM event_hosts h WHERE h.event_id=e.id AND h.is_visible=true),'[]'::jsonb) AS host_names,e.capacity,e.price_twd,e.visibility,e.registration_mode,e.registration_url,e.status,e.review_status,e.partner_id,(SELECT jsonb_build_object('id',p.id,'name',p.name,'slug',p.slug,'logo_url',p.logo_url,'url',p.url) FROM partners p WHERE p.id=e.partner_id) AS partner,
   to_char(e.starts_at AT TIME ZONE 'Asia/Taipei','YYYY/MM/DD HH24:MI') AS starts_at,
   to_char(e.starts_at AT TIME ZONE 'Asia/Taipei','YYYY-MM-DD"T"HH24:MI') AS starts_at_iso,
   to_char(e.ends_at AT TIME ZONE 'Asia/Taipei','YYYY/MM/DD HH24:MI') AS ends_at,
@@ -2558,6 +2566,7 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
     role: commitments.length ? 'participant' : 'invited',
     organizer: req.auth.role === 'organizer' || (req.auth.role === 'admin' && !req.auth.brands),
     me, bond, users: [me], commitments, events:events.map(e=>publicEventCopy(localizeEvent(e,lang))), updates:updates.map(publicEventCopy),
+    badges: await partnerBadgesFor(me.id),
     access: {
       active: access.active,
       entitlements: access.entitlements,
@@ -2697,6 +2706,77 @@ app.post('/api/commitments', auth, requireDb, wrap(async (req, res) => {
   res.json({ commitment: row });
 }));
 
+/* ---- 合作夥伴與徽章 ---- */
+const PARTNER_FIELDS = `id,name,slug,url,logo_url,description,emails,visible,sort,to_char(created_at AT TIME ZONE 'Asia/Taipei','YYYY/MM/DD') AS created_at`;
+async function loadPartners(onlyVisible){
+  return (await q(`SELECT ${PARTNER_FIELDS} FROM partners ${onlyVisible?'WHERE visible=true':''} ORDER BY sort,name`)).rows;
+}
+/** 這個帳號（或活動負責人）可標註哪些夥伴：管理員＝全部；其他人＝信箱符合夥伴所屬信箱者 */
+async function partnersFor(auth, extraEmails=[]){
+  const all=await loadPartners(false);
+  if(eventAdmin({auth}))return all;
+  const emails=[auth.email,...extraEmails].filter(Boolean);
+  return all.filter(p=>emails.some(e=>partnersLib.emailMatches(p.emails,e)));
+}
+/** 會員的夥伴徽章：已報名且（已簽到，或活動已結束）的夥伴活動，每場算一次 */
+async function partnerBadgesFor(userId){
+  if(!userId)return [];
+  const counts=(await q(`SELECT e.partner_id,COUNT(DISTINCT e.id)::int AS count FROM event_regs r JOIN events e ON e.id=r.event_id
+    WHERE r.user_id=$1 AND r.status='registered' AND e.partner_id IS NOT NULL AND (r.checked_in_at IS NOT NULL OR e.status='已結束'
+      OR EXISTS(SELECT 1 FROM event_attendees a WHERE a.registration_id=r.id AND a.checked_in_at IS NOT NULL))
+    GROUP BY e.partner_id`,[userId])).rows;
+  if(!counts.length)return [];
+  return partnersLib.buildBadges(await loadPartners(false),counts);
+}
+app.get('/api/partners', requireDb, wrap(async (req,res) => {
+  res.set('Cache-Control','public, max-age=60');
+  res.json({ partners:(await loadPartners(true)).map(partnersLib.publicPartner) });
+}));
+app.get('/api/admin/partners', auth, adminOnly, requireDb, wrap(async (req,res) => {
+  const partners=await loadPartners(false);
+  const stats=(await q(`SELECT partner_id,COUNT(*)::int AS events FROM events WHERE partner_id IS NOT NULL GROUP BY partner_id`)).rows;
+  const by=new Map(stats.map(r=>[r.partner_id,r.events]));
+  res.json({ partners:partners.map(p=>({...p,event_count:by.get(p.id)||0})), levels:partnersLib.LEVELS });
+}));
+app.post('/api/admin/partners', auth, adminOnly, requireDb, wrap(async (req,res) => {
+  const parsed=partnersLib.normalizePartnerInput(req.body);
+  if(parsed.error)return res.status(400).json({error:parsed.error});
+  const v=parsed.value,id=req.body?.id;
+  if(id){
+    const r=await q(`UPDATE partners SET name=$2,slug=$3,url=$4,logo_url=$5,description=$6,emails=$7,visible=$8,sort=$9,updated_at=now() WHERE id=$1 RETURNING id`,
+      [id,v.name,v.slug,v.url,v.logo_url,v.description,JSON.stringify(v.emails),v.visible,v.sort]);
+    if(!r.rowCount)return res.status(404).json({error:'找不到合作夥伴。'});
+    snapshotCache.at=0;
+    return res.json({ok:true,id});
+  }
+  const newId=uid('pt_');
+  await q(`INSERT INTO partners(id,name,slug,url,logo_url,description,emails,visible,sort) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [newId,v.name,v.slug,v.url,v.logo_url,v.description,JSON.stringify(v.emails),v.visible,v.sort]);
+  snapshotCache.at=0;
+  res.json({ok:true,id:newId});
+}));
+app.delete('/api/admin/partners/:id', auth, adminOnly, requireDb, wrap(async (req,res) => {
+  const r=await q(`DELETE FROM partners WHERE id=$1`,[req.params.id]);
+  if(!r.rowCount)return res.status(404).json({error:'找不到合作夥伴。'});
+  snapshotCache.at=0;
+  res.json({ok:true});
+}));
+// 活動標註合作夥伴：管理員可選任何夥伴；主辦人只能選自己（或活動負責人）信箱所屬的夥伴。partner_id 空值＝取消標註
+app.post('/api/admin/events/:id/partner', auth, requireDb, eventEditor, wrap(async (req,res) => {
+  const ev=(await q(`SELECT e.id,u.email AS owner_email FROM events e LEFT JOIN users u ON u.id=e.owner_id WHERE e.id=$1`,[req.params.id])).rows[0];
+  if(!ev)return res.status(404).json({error:'找不到活動。'});
+  const pid=req.body?.partner_id?String(req.body.partner_id):null;
+  if(pid&&!(await partnersFor(req.auth,[ev.owner_email])).some(p=>p.id===pid))return res.status(403).json({error:'你的信箱不屬於這個合作夥伴，無法標註。'});
+  await q(`UPDATE events SET partner_id=$2 WHERE id=$1`,[ev.id,pid]);
+  try{await q('INSERT INTO event_activity(event_id,action) VALUES($1,$2)',[ev.id,pid?'partner_tagged':'partner_untagged']);}catch(e){}
+  snapshotCache.at=0;
+  res.json({ok:true,partner_id:pid});
+}));
+app.get('/api/me/badges', auth, requireDb, wrap(async (req,res) => {
+  if(!req.auth.sub)return res.status(403).json({error:'請以會員身分登入。'});
+  res.json({ badges:await partnerBadgesFor(req.auth.sub), levels:partnersLib.LEVELS });
+}));
+
 app.get('/api/organizer/state', auth, requireDb, eventEditor, wrap(async (req,res) => {
   const me = (await q(`SELECT id,name,email FROM users WHERE id=$1`,[req.auth.sub])).rows[0] || null;
   const events = (await q(`SELECT ${SEL_EVENT},
@@ -2705,7 +2785,8 @@ app.get('/api/organizer/state', auth, requireDb, eventEditor, wrap(async (req,re
     FROM events e WHERE $3 OR e.owner_id=$1 OR EXISTS(SELECT 1 FROM event_hosts h WHERE h.event_id=e.id AND h.email=lower($2) AND h.can_manage=true) ORDER BY e.created_at DESC`,[req.auth.sub,req.auth.email,req.auth.role==='admin'&&!req.auth.brands])).rows;
   const applications = (await q(`SELECT ${APPLICATION_FIELDS} FROM event_applications WHERE user_id=$1 ORDER BY created_at DESC`,[req.auth.sub])).rows;
   await attachApplicationUpdates(applications);
-  res.json({role:req.auth.role,organizer:true,can_create_events:req.auth.can_create_events,me,events,applications,users:[],commitments:[],updates:[],content:{}});
+  const partners=(await partnersFor(req.auth)).map(partnersLib.publicPartner);
+  res.json({role:req.auth.role,organizer:true,can_create_events:req.auth.can_create_events,me,events,applications,partners,users:[],commitments:[],updates:[],content:{}});
 }));
 
 require('./lib/outreach').register(app, { auth, adminOnly, requireDb, wrap, q, uid, actorOf, superOnly });
@@ -5768,7 +5849,8 @@ async function loadPublicSnapshot() {
   const updates = numify((await q(`SELECT ${SEL_UPD} FROM updates ORDER BY published_at DESC`)).rows);
   const events = (await q(`SELECT ${SEL_EVENT} FROM events e WHERE status IN ('預告','報名中') AND visibility='public' ORDER BY starts_at ASC NULLS LAST`)).rows;
   const content = await readContent();
-  return { updates, events, content };
+  const partners = (await loadPartners(true)).map(partnersLib.publicPartner);
+  return { updates, events, content, partners };
 }
 async function publicSnapshot() {
   if (!pool || !dbReady) return null;
