@@ -31,7 +31,7 @@ test('§8-20 三樓不設硬上限：61 人出現容量提示但可送出；60 �
 test('§8-20 二樓至多 10 人（11 人不能送出）；一樓至多 50 人（51 人不能送出）', () => {
   assert.equal(priv('2F', 10).fee_twd, 10000);
   assert.equal(priv('2F', 10).overtime_per_hour_twd, 3000);
-  assert.match(priv('2F', 11).error, /三樓/);
+  assert.match(priv('2F', 11).error, /等等空間共享活動區/);
   assert.equal(priv('1F', 50).fee_twd, 30000);
   assert.equal(priv('1F', 1).fee_twd, 30000);
   assert.equal(priv('1F', 50).overtime_per_hour_twd, 10000);

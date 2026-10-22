@@ -657,7 +657,7 @@ async function migrate() {
   await q(`ALTER TABLE event_applications ADD COLUMN IF NOT EXISTS visibility TEXT,
     ADD COLUMN IF NOT EXISTS registration_mode TEXT, ADD COLUMN IF NOT EXISTS registration_url TEXT NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS event_id TEXT REFERENCES events(id)`);
-  // 私人活動訂金：deposit_twd 在送件時定額（舊申請為 0＝免收），付款後記 deposit_paid_at；退款於 Stripe 後台人工處理。
+  // 私人活動場地費：deposit_twd 在送件時定額（舊申請為 0＝免收），付款後記 deposit_paid_at；退款於 Stripe 後台人工處理。
   await q(`ALTER TABLE event_applications ADD COLUMN IF NOT EXISTS deposit_twd INT NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS deposit_paid_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS deposit_payment_intent TEXT`);
   await q(`ALTER TABLE events ADD COLUMN IF NOT EXISTS registration_mode TEXT NOT NULL DEFAULT 'native',
@@ -2487,7 +2487,7 @@ function applicationVenueQuote(a) {
   return venueFees.quoteVenueFee({ venue: a.venue, visibility: a.visibility || 'public', attendees: Number(a.attendees), registration_mode: a.registration_mode === 'native' ? 'native' : 'external' });
 }
 
-// 場地費試算（公開，不需登入）：建立活動表單即時顯示用；error 為 400，warning（三樓 >60 人）不擋送出。
+// 場地費試算（公開，不需登入）：建立活動表單即時顯示用；error 為 400，等等空間共享活動區超過 60 人的 warning 不擋送出。
 app.get('/api/venue-fee/quote', (req, res) => {
   const quote = venueFees.quoteVenueFee({ venue: String(req.query.venue || ''), visibility: String(req.query.visibility || ''), attendees: String(req.query.attendees ?? ''), registration_mode: String(req.query.registration_mode || '') });
   res.set('Cache-Control', 'public, max-age=300');
@@ -2669,7 +2669,7 @@ app.post('/api/admin/event-applications/:id/review', auth, adminOnly, requireDb,
       application = (await client.query(`UPDATE event_applications SET deposit_twd=$2 WHERE id=$1 AND deposit_paid_at IS NULL RETURNING ${APPLICATION_FIELDS}`, [application.id, dueAfterApproval])).rows[0];
       feeNote = `\n\n場地茶飲費：NT$${dueAfterApproval.toLocaleString('en-US')}（NT$150 × 預估 ${application.attendees} 人），請登入後於申請紀錄線上付款；當天實到超過的人數，請在櫃檯每人補 NT$150。`;
     }
-    // 一樓包場：審核通過即關閉該時段的訂位（POS「不可訂位設定」的特定日期），同一交易寫入，避免客人訂到包場時段。
+    // 在咖啡／三點水餐飲空間包場：審核通過即關閉該時段的訂位（POS「不可訂位設定」的特定日期），同一交易寫入，避免客人訂到包場時段。
     if (b.status === 'approved' && application.venue === '1F' && application.visibility === 'private') {
       await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,3))', ['reservation_hours']);
       const current = reservationHours.parse((await client.query("SELECT value FROM site_content WHERE key='reservation_hours'")).rows[0]?.value || '');
@@ -2685,8 +2685,8 @@ app.post('/api/admin/event-applications/:id/review', auth, adminOnly, requireDb,
   finally { client.release(); }
   if (buyoutClosed) {
     const slots = Object.entries(buyoutClosed).map(([date, times]) => `${date}：${times[0]}–${times.at(-1)}（${times.length} 個時段）`).join('\n') || '（該時段原本就不開放訂位）';
-    sendMailQuietly({ to: NOTIFY_EMAIL, subject: `[包場] 一樓私人包場已通過：${application.title}（${fmtTaipei(application.starts_at)}）——請排班`,
-      text: `一樓在咖啡／三點水包場已審核通過，當天停止對外營業，請店長安排排班。\n\n活動：${application.title}\n時段：${fmtTaipei(application.starts_at)} – ${fmtTaipei(application.ends_at)}\n人數：${application.attendees}\n聯絡：${application.contact_name} ${application.contact_email} ${application.contact_phone || ''}\n場地費：NT$${Number(application.deposit_twd).toLocaleString('en-US')}（可全額折抵當場餐飲，含酒水、不折現）\n\n已自動關閉的訂位時段（POS 訂位 → 不可訂位設定）：\n${slots}\n\n既有已成立的訂位不會自動取消，請到 POS 訂位頁確認是否需要聯絡客人改期。`, replyTo: application.contact_email });
+    sendMailQuietly({ to: NOTIFY_EMAIL, subject: `[包場] 在咖啡／三點水餐飲空間私人活動已通過：${application.title}（${fmtTaipei(application.starts_at)}）——請排班`,
+      text: `在咖啡／三點水餐飲空間包場已審核通過，當天停止對外營業，請店長安排排班。\n\n活動：${application.title}\n時段：${fmtTaipei(application.starts_at)} – ${fmtTaipei(application.ends_at)}\n人數：${application.attendees}\n聯絡：${application.contact_name} ${application.contact_email} ${application.contact_phone || ''}\n場地費：NT$${Number(application.deposit_twd).toLocaleString('en-US')}（可全額折抵當場餐飲，含酒水、不折現）\n\n已自動關閉的訂位時段（POS 訂位 → 不可訂位設定）：\n${slots}\n\n既有已成立的訂位不會自動取消，請到 POS 訂位頁確認是否需要聯絡客人改期。`, replyTo: application.contact_email });
   }
   await attachApplicationUpdates([application], { admin: true });
   drainApplicationMail();

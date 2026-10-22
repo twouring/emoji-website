@@ -61,8 +61,8 @@ test('application kind defaults to community on 3F; both kinds pick 1F/2F/3F (4F
   for (const venue of ['1F', '2F', '3F']) assert.equal(normalizeEventApplication({ ...valid, kind: 'business', venue, attendees: 10 }).value.venue, venue);
 });
 
-test('application enforces venue headcount: 2F ≤ 10, 1F ≤ 50, 3F has no hard cap', () => {
-  assert.match(normalizeEventApplication({ ...valid, venue: '2F', attendees: 11 }).error, /三樓/);
+test('application enforces venue headcount: social room ≤ 10, dining-room buyout ≤ 50, shared space has no hard cap', () => {
+  assert.match(normalizeEventApplication({ ...valid, venue: '2F', attendees: 11 }).error, /等等空間共享活動區/);
   assert.ok(normalizeEventApplication({ ...valid, venue: '1F', attendees: 50 }).value);
   assert.ok(normalizeEventApplication({ ...valid, venue: '1F', attendees: 51 }).error);
   assert.ok(normalizeEventApplication({ ...valid, venue: '3F', attendees: 61 }).value, '三樓超過 60 人只提示、不擋送出');
