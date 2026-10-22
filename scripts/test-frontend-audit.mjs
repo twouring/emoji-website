@@ -51,7 +51,7 @@ function eventContext(lang = 'zh', storageBlocked = false) {
   let cleanURL;
   const context = vm.createContext({
     URLSearchParams,
-    location: { pathname: (lang === 'zh' ? '' : '/' + lang) + '/events/demo', hash: '#token=test-token', search: '?paid=1&s=test-session' },
+    location: { pathname: (lang === 'zh' ? '' : '/' + lang) + '/events/demo', hash: '#token=test-token', search: '?paid=1&s=test-session', hostname: 'www.emoji.tw', origin: 'https://www.emoji.tw' },
     history: { replaceState(_a, _b, url) { cleanURL = url; } },
     localStorage: {
       setItem(k, v) { if (storageBlocked) throw new Error('blocked'); values.set(k, v); },
@@ -72,13 +72,19 @@ test('event OAuth callback works in all locales and preserves payment verificati
     assert.equal(values.has('tth_name'), false);
     assert.match(cleanURL, /\?paid=1&s=test-session$/);
     assert.doesNotMatch(cleanURL, /token=/);
-    assert.match(vm.runInContext("actionFor({ status: '報名中', capacity: 0 })", context), /id="ev-register"/);
+    // 規格 v2 §4.1：原生報名活動在官網只放「前往 App 報名」連結（帶原查詢參數）
+    const cta = vm.runInContext("actionFor({ id: 'e1', slug: 'demo', status: '報名中', capacity: 0 })", context);
+    assert.match(cta, /id="ev-app-go"/);
+    assert.match(cta, /href="[^"]*\/e\/demo/);
+    assert.doesNotMatch(cta, /id="ev-register"/);
     for (const status of ['已結束', '草稿']) {
       assert.match(vm.runInContext(`actionFor({ status: ${JSON.stringify(status)}, capacity: 0 })`, context), /disabled/);
     }
-    assert.match(vm.runInContext("actionFor({ status: '已結束', registered: true })", context), /id="ev-ticket"/);
+    // 已報名者的票券在 App 出示
+    assert.match(vm.runInContext("actionFor({ slug: 'demo', status: '已結束', registered: true })", context), /id="ev-app-go"[^>]*\/e\/demo/);
   }
-  assert.match(vm.runInContext("actionFor({ status: '報名中', capacity: 0 })", eventContext('zh', true).context), /id="ev-register"/);
+  // 儲存被封鎖（私密模式）時仍能產生 App 報名連結
+  assert.match(vm.runInContext("actionFor({ slug: 'demo', status: '報名中', capacity: 0 })", eventContext('zh', true).context), /id="ev-app-go"/);
 });
 
 test('space markdown passes parsed HTML to the sanitizer and fails closed without it', () => {

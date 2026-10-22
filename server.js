@@ -155,7 +155,13 @@ const APP_HOSTS = (process.env.APP_HOSTS || 'app.emoji.tw').split(',').map(s => 
 const isAppHost = req => APP_HOSTS.includes(String(req.hostname || '').toLowerCase());
 // App 子站只提供 PWA 本身、API、登入與必要靜態檔；其餘頁面（活動、官網）一律回官網，避免兩個網域出現重複內容
 // /host、/host/<eventId>：會員在 App 主辦活動（列表／單場管理），同樣回 m.html 由前端路由
-const APP_HOST_OWN = /^\/($|index\.html$|host($|\/)|m-host\.js$|m($|\/|\.webmanifest$|-sw\.js$|-icon-)|api\/|auth\/|vendor\/|favicon|logo\.png$|cis\/assets\/)/;
+// /e/<slug>：活動報名頁（規格 v2 §4.1：報名一律在 App），由下方 /e/:slug 路由回 m.html（可訪客瀏覽與報名）
+const APP_HOST_OWN = /^\/($|index\.html$|host($|\/)|e\/[^/]+\/?$|m-host\.js$|m-event\.js$|m($|\/|\.webmanifest$|-sw\.js$|-icon-)|api\/|auth\/|vendor\/|favicon|logo\.png$|cis\/assets\/)/;
+// 會員 App 活動頁網址：APP_BASE/e/<slug>，可帶 lang（en/ja）與額外查詢字串（例：result=paid&s=…）；Stripe 的 {CHECKOUT_SESSION_ID} 佔位符不可編碼
+const appEventUrl = (slug, lang, extra) => {
+  const qs = [['en', 'ja'].includes(lang) ? 'lang=' + lang : '', extra || ''].filter(Boolean).join('&');
+  return APP_BASE + '/e/' + encodeURIComponent(slug) + (qs ? '?' + qs : '');
+};
 const ADMIN_HOSTS = (process.env.ADMIN_HOSTS || 'admin.emoji.tw').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 const isAdminHost = req => ADMIN_HOSTS.includes(String(req.hostname || '').toLowerCase());
 const DEFAULT_MEMBER_URL = (process.env.MEMBER_URL || APP_BASE + '/');
@@ -1402,7 +1408,7 @@ async function notifyRegistration(userId,eventId){
  if(!row||row.confirmation_queued)return;
  const reg={id:row.booking_id,ticket_version:row.ticket_version};
  const lang=['en','ja'].includes(row.language)?row.language:'zh',event=localizeEvent({...row,registered:true},lang);
- const mail=require('./lib/event-mailer').registrationMail({event,settings:row.registration_settings,lang,status:'registered',name:row.name,origin:SITE_BASE});
+ const mail=require('./lib/event-mailer').registrationMail({event,settings:row.registration_settings,lang,status:'registered',name:row.name,origin:APP_BASE});
  const attachments=event.starts_at?[{filename:'event.ics',content:Buffer.from(eventCalendar(event,SITE_BASE)).toString('base64')}]:[];
  await require('./lib/event-mailer').queueEventMail(q,{id:'confirmation_'+reg.id+'_'+reg.ticket_version,eventId,registrationId:reg.id,ticketVersion:reg.ticket_version,email:row.email,...mail,attachments});
  await q('UPDATE event_regs SET confirmation_queued=true WHERE id=$1 AND ticket_version=$2',[reg.id,reg.ticket_version]);
@@ -1410,7 +1416,7 @@ async function notifyRegistration(userId,eventId){
 }
 async function notifyRegistrationStatus(userId,eventId,status){
  try{const row=(await q(`SELECT r.id AS booking_id,r.ticket_version,r.language,u.email,u.name,e.* FROM event_regs r JOIN users u ON u.id=r.user_id JOIN events e ON e.id=r.event_id WHERE r.user_id=$1 AND r.event_id=$2 AND r.status=$3 AND e.status<>'已取消'`,[userId,eventId,status])).rows[0];if(!row)return;
-  const lang=['en','ja'].includes(row.language)?row.language:'zh',event=localizeEvent(row,lang),mail=require('./lib/event-mailer').registrationMail({event,settings:row.registration_settings,lang,status,name:row.name,origin:SITE_BASE});
+  const lang=['en','ja'].includes(row.language)?row.language:'zh',event=localizeEvent(row,lang),mail=require('./lib/event-mailer').registrationMail({event,settings:row.registration_settings,lang,status,name:row.name,origin:APP_BASE});
   await require('./lib/event-mailer').queueEventMail(q,{id:'status_initial_'+row.booking_id+'_'+row.ticket_version+'_'+status,eventId,registrationId:row.booking_id,ticketVersion:row.ticket_version,expectedStatus:status,email:row.email,...mail});
  }catch(e){console.error('[event-status-mail]',e.message);}
 }
@@ -2871,7 +2877,7 @@ app.post('/api/admin/events', auth, requireDb, eventEditor, wrap(async (req, res
       if(regUrl!==undefined)await client.query(`UPDATE events SET registration_url=$2,registration_mode=CASE WHEN $2='' THEN 'native' ELSE 'external' END WHERE id=$1 AND registration_mode<>'closed'`,[b.id,safeHttpUrl(regUrl)]);
       if(old.slug!==slug)await client.query(`INSERT INTO event_slug_redirects(old_slug,event_id) VALUES($1,$2) ON CONFLICT(old_slug) DO UPDATE SET event_id=EXCLUDED.event_id,created_at=now()`,[old.slug,b.id]);
       const updateId=await recordEventActivity(client,b.id,null,req.auth.sub||null,'event_updated');
-      const event=(await client.query('SELECT * FROM events WHERE id=$1',[b.id])).rows[0],notification=await require('./lib/event-mailer').queueEventUpdate((sql,args)=>client.query(sql,args),{previous:old,event,origin:SITE_BASE,emailEnabled:!!process.env.RESEND_API_KEY,updateId});
+      const event=(await client.query('SELECT * FROM events WHERE id=$1',[b.id])).rows[0],notification=await require('./lib/event-mailer').queueEventUpdate((sql,args)=>client.query(sql,args),{previous:old,event,origin:APP_BASE,emailEnabled:!!process.env.RESEND_API_KEY,updateId});
       await client.query('COMMIT');
       const notice=!notification.changes.length?'已更新活動。':notification.recipients===0?'已更新活動；目前沒有已報名來賓需要通知。':notification.deliveries>0?`已更新活動；已為 ${notification.recipients} 位來賓排入活動更新與行事曆通知。`:`已更新活動；通知服務尚未設定或來賓沒有可用通路，${notification.recipients} 位已報名來賓尚未收到更新。`;
       return res.json({ok:true,id:b.id,slug,notice,notification_recipients:notification.recipients,notification_deliveries:notification.deliveries,critical_changes:notification.changes,redirected_from:old.slug!==slug?old.slug:null});
@@ -3176,7 +3182,7 @@ app.post('/api/admin/events/:id/cancel',auth,requireDb,eventEditor,wrap(async(re
  if(held.length&&!stripe){await client.query('ROLLBACK');return res.status(503).json({error:'須連線 Stripe 解除預授權，再取消活動。'});}
  for(const r of held){const intent=await stripe.paymentIntents.retrieve(r.stripe_payment_intent_id);if(intent.status==='requires_capture')await stripe.paymentIntents.cancel(intent.id);}
 
- const queued=req.body?.notify?await require('./lib/event-mailer').queueCancellation((sql,args)=>client.query(sql,args),event,reason,SITE_BASE,translations):0;
+ const queued=req.body?.notify?await require('./lib/event-mailer').queueCancellation((sql,args)=>client.query(sql,args),event,reason,APP_BASE,translations):0;
  let refunds=0;
  if(req.body?.refund_paid){
   // 參加者已自行退票（refund_fee_twd>0）的票不再退回扣下的手續費
@@ -3427,7 +3433,7 @@ app.post('/api/admin/events/:id/regs/:registrationId/status',auth,requireDb,even
     await recordEventActivity(client,ev.id,reg.id,req.auth.sub||null,status);
     if(req.body?.notify){
       const user=(await client.query('SELECT email,name FROM users WHERE id=$1',[reg.user_id])).rows[0];
-      const lang=['en','ja'].includes(reg.language)?reg.language:'zh',localized={...ev,title:ev.translations?.[lang]?.title||ev.title},mail=require('./lib/event-mailer').registrationMail({event:localized,settings:ev.registration_settings,lang,status,name:user.name,message:req.body.message,origin:SITE_BASE});
+      const lang=['en','ja'].includes(reg.language)?reg.language:'zh',localized={...ev,title:ev.translations?.[lang]?.title||ev.title},mail=require('./lib/event-mailer').registrationMail({event:localized,settings:ev.registration_settings,lang,status,name:user.name,message:req.body.message,origin:APP_BASE});
       await require('./lib/event-mailer').queueEventMail((sql,args)=>client.query(sql,args),{id:uid('status_'),eventId:ev.id,registrationId:reg.id,ticketVersion:reg.ticket_version,expectedStatus:status,email:user.email,...mail});
     }
     await client.query('COMMIT');res.json({ok:true,status});
@@ -3547,7 +3553,7 @@ app.post('/api/admin/events/:id/guests/import',auth,requireDb,eventEditor,wrap(a
    await client.query('INSERT INTO event_registration_history(event_id,registration_id,user_id,snapshot) VALUES($1,$2,$3,$4)',[event.id,existing.id,user.id,JSON.stringify(existing)]);
    const version=(await client.query("UPDATE event_regs SET status='invited',amount_due=0,amount_paid=0,ticket_version=ticket_version+1,stripe_session_id=NULL,stripe_payment_intent_id=NULL,checkout_expires_at=NULL,paid_at=NULL,language=$2 WHERE id=$1 RETURNING ticket_version",[existing.id,language])).rows[0].ticket_version;
    await recordEventActivity(client,event.id,existing.id,req.auth.sub||null,'guest_reinvited');updated++;
-   const count=await require('./lib/event-mailer').queueEventInvitation((sql,args)=>client.query(sql,args),{event,registrationId:existing.id,ticketVersion:version,email:guest.email,name:guest.name,language,origin:SITE_BASE,token:eventInviteToken(existing.id,event),message:inviteMessage,query:inviteQuery,emailEnabled:invitationProviders.email});
+   const count=await require('./lib/event-mailer').queueEventInvitation((sql,args)=>client.query(sql,args),{event,registrationId:existing.id,ticketVersion:version,email:guest.email,name:guest.name,language,origin:APP_BASE,token:eventInviteToken(existing.id,event),message:inviteMessage,query:inviteQuery,emailEnabled:invitationProviders.email});
    if(!count){await client.query('ROLLBACK');return res.status(409).json({error:`${guest.email} 沒有目前可用的邀請通知通路，整批未匯入。`});}queued++;deliveries+=count;continue;
   }
   if(existing){if(b.update_existing&&ticket){const changed=await changeRegistrationTicket(client,event,existing,ticket);if(changed.error){await client.query('ROLLBACK');return res.status(409).json({error:changed.error});}if(changed.changed){await recordEventActivity(client,event.id,existing.id,req.auth.sub||null,'guest_ticket_updated');updated++;continue;}}skipped++;continue;}
@@ -3558,7 +3564,7 @@ app.post('/api/admin/events/:id/guests/import',auth,requireDb,eventEditor,wrap(a
   }
   const regId=uid('r_');await client.query("INSERT INTO event_regs(id,event_id,user_id,status,amount_due,amount_paid,ticket_snapshot,note,entry_source,language) VALUES($1,$2,$3,$4,$5,0,$6,$7,$8,$9)",[regId,event.id,user.id,status,status==='invited'?0:price,ticket?JSON.stringify(ticket):null,'主辦人手動匯入',status==='invited'?'invited':'imported',language]);
   await recordEventActivity(client,event.id,regId,req.auth.sub||null,'guest_imported:'+status);added++;
-  if(sendInvites){const count=await require('./lib/event-mailer').queueEventInvitation((sql,args)=>client.query(sql,args),{event,registrationId:regId,email:guest.email,name:guest.name,language,origin:SITE_BASE,token:eventInviteToken(regId,event),message:inviteMessage,query:inviteQuery,emailEnabled:invitationProviders.email});if(!count){await client.query('ROLLBACK');return res.status(409).json({error:`${guest.email} 沒有目前可用的邀請通知通路，整批未匯入。`});}queued++;deliveries+=count;}
+  if(sendInvites){const count=await require('./lib/event-mailer').queueEventInvitation((sql,args)=>client.query(sql,args),{event,registrationId:regId,email:guest.email,name:guest.name,language,origin:APP_BASE,token:eventInviteToken(regId,event),message:inviteMessage,query:inviteQuery,emailEnabled:invitationProviders.email});if(!count){await client.query('ROLLBACK');return res.status(409).json({error:`${guest.email} 沒有目前可用的邀請通知通路，整批未匯入。`});}queued++;deliveries+=count;}
  }
  await client.query('COMMIT');res.json({ok:true,added,updated,skipped,queued,deliveries,notice:sendInvites?`已排入 ${queued} 位來賓、${deliveries} 則通知；重複來賓不會重寄${b.reinvite_expired?'（逾期／取消的來賓已重新邀請）':''}。`:'已匯入，未寄送任何通知。'});
  }catch(e){await client.query('ROLLBACK');if(e.code==='AMBIGUOUS_EMAIL')return res.status(409).json({error:e.message});throw e;}finally{client.release();}
@@ -4281,7 +4287,7 @@ app.post('/api/events/:id/additional-tickets',auth,requireDb,wrap(async(req,res)
  if(!price){await activateAdditionalOrder(client,{id,quantity,attendees},reg);await client.query('COMMIT');return res.json({ok:true});}
  const lang=['en','ja'].includes(req.body?.lang)?'/'+req.body.lang:'',url=SITE_BASE+lang+'/events/'+encodeURIComponent(event.slug);
  const session=await stripe.checkout.sessions.create({mode:'payment',payment_method_types:['card'],customer_email:reg.email,expires_at:Math.floor(Date.now()/1000)+1800,
- line_items:[...(ticketTotalTwd>0?[{price_data:{currency:'twd',unit_amount:ticketTotalTwd*100,product_data:{name:event.title+' · 加購 '+quantity+' 張票'}},quantity:1}]:[]),...(venueFeeTwd>0?[{price_data:{currency:'twd',unit_amount:venueFees.PUBLIC_PER_PERSON_TWD*100,product_data:{name:'場地茶飲費（每張票 NT$'+venueFees.PUBLIC_PER_PERSON_TWD+'，附茶飲一杯）'}},quantity}]:[])],success_url:SITE_BASE+lang+'/events/result/paid?event='+encodeURIComponent(event.slug)+'&s={CHECKOUT_SESSION_ID}',cancel_url:SITE_BASE+lang+'/events/result/canceled?event='+encodeURIComponent(event.slug),metadata:{kind:'event-additional-tickets',order_id:id,registration_id:reg.id,event_id:event.id,user_id:req.auth.sub}});
+ line_items:[...(ticketTotalTwd>0?[{price_data:{currency:'twd',unit_amount:ticketTotalTwd*100,product_data:{name:event.title+' · 加購 '+quantity+' 張票'}},quantity:1}]:[]),...(venueFeeTwd>0?[{price_data:{currency:'twd',unit_amount:venueFees.PUBLIC_PER_PERSON_TWD*100,product_data:{name:'場地茶飲費（每張票 NT$'+venueFees.PUBLIC_PER_PERSON_TWD+'，附茶飲一杯）'}},quantity}]:[])],success_url:appEventUrl(event.slug,req.body?.lang,'result=paid&s={CHECKOUT_SESSION_ID}'),cancel_url:appEventUrl(event.slug,req.body?.lang,'result=canceled'),metadata:{kind:'event-additional-tickets',order_id:id,registration_id:reg.id,event_id:event.id,user_id:req.auth.sub}});
  await client.query('UPDATE event_ticket_orders SET stripe_session_id=$2,expires_at=to_timestamp($3) WHERE id=$1',[id,session.id,session.expires_at]);await client.query('COMMIT');res.json({url:session.url,session_id:session.id,order_id:id});
  }finally{await client.query('ROLLBACK');client.release();}
 }));
@@ -4631,8 +4637,9 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
           quantity: venueFeeTwd / venueFees.PUBLIC_PER_PERSON_TWD,
         }]:[]),
       ],
-      success_url: `${SITE_BASE}${langPrefix}/events/result/paid?event=${encodeURIComponent(ev.slug)}&s={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${SITE_BASE}${langPrefix}/events/result/canceled?event=${encodeURIComponent(ev.slug)}`,
+      // 付款回傳：回到會員 App 的活動頁（/e/<slug>）顯示結果，不再回官網
+      success_url: appEventUrl(ev.slug, req.body?.lang, 'result=paid&s={CHECKOUT_SESSION_ID}'),
+      cancel_url: appEventUrl(ev.slug, req.body?.lang, 'result=canceled'),
       metadata: { kind: 'event-registration', registration_id: regId, event_id: ev.id, user_id:userId,guest_registration:String(guest),capture_required:String(captureRequired) },
       ...(captureRequired?{custom_text:{submit:{message:'信用卡先預授權，主辦人核准後才請款。Card authorization only; charged after approval.'}},payment_intent_data:{capture_method:'manual',metadata:{kind:'event-registration',registration_id:regId,event_id:ev.id,user_id:userId}}}:{}),
     });
@@ -5301,11 +5308,39 @@ app.get(['/embed/events/:slug','/en/embed/events/:slug','/ja/embed/events/:slug'
 }));
 // 報名結果頁：每種結果一個獨立網址（registered／pending_approval／waitlisted／failed／paid／canceled），方便用頁面路徑追蹤轉換
 const EVENT_RESULT_PAGE = path.join(PUB, 'event-result.html'), EVENT_RESULT_STATUSES = ['registered', 'pending_approval', 'waitlisted', 'failed', 'paid', 'canceled'];
+// 舊結果頁（官網 /events/result/:status）：報名已搬到 App，302 到 App 活動頁並保留查詢字串（event= 轉成 /e/<slug>、其餘原樣），未帶活動則到 App 首頁
 app.get(['/events/result/:status', '/en/events/result/:status', '/ja/events/result/:status'], (req, res, next) => {
   if (!EVENT_RESULT_STATUSES.includes(req.params.status)) return next();
   res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-store' });
-  sendPage(res, EVENT_RESULT_PAGE, req.path);
+  res.redirect(302, legacyEventResultUrl(req.params.status, req.query, /^\/(en|ja)\//.exec(req.path)?.[1]));
 });
+function legacyEventResultUrl(status, query, lang) {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(query || {})) if (k !== 'event' && k !== 'result' && typeof v === 'string') params.set(k, v);
+  if (lang && !params.has('lang')) params.set('lang', lang);
+  const slug = typeof query?.event === 'string' ? query.event : '';
+  if (!slug) return APP_BASE + '/' + (params.toString() ? '?' + params : '');
+  const qs = 'result=' + encodeURIComponent(status) + (params.toString() ? '&' + params : '');
+  return APP_BASE + '/e/' + encodeURIComponent(slug) + '?' + qs;
+}
+// 會員 App 活動報名頁 /e/<slug>：回 m.html 由前端（m-event.js）渲染；?embed=1 時依活動嵌入來源放行 iframe（與 /embed/events/:slug 共用 embed_origins 清單）
+// 官網正式網域上的 /e/ 一律轉到 App；本機開發（http）同源提供，方便測試
+app.get('/e/:slug', wrap(async (req, res) => {
+  if (!isAppHost(req) && SITE_BASE.startsWith('https://') && String(req.hostname || '').toLowerCase() === SITE_HOST) return res.redirect(302, APP_BASE + req.originalUrl);
+  res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache' });
+  if (req.query.embed === '1') {
+    let origins = [];
+    if (dbReady) {
+      const ev = (await q(`SELECT e.embed_origins FROM events e WHERE (e.slug=$1 OR e.id=(SELECT event_id FROM event_slug_redirects WHERE old_slug=$1)) AND e.status<>'草稿' ORDER BY (e.slug=$1) DESC LIMIT 1`, [req.params.slug]).catch(() => ({ rows: [] }))).rows[0];
+      try { origins = ev?.embed_origins?.length ? embedOrigins(ev.embed_origins, /^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(SITE_BASE)) : []; } catch { origins = []; }
+    }
+    if (origins.length) {
+      res.removeHeader('X-Frame-Options');
+      res.set('Content-Security-Policy', "object-src 'none'; base-uri 'self'; frame-ancestors 'self' " + origins.join(' ') + "; form-action 'self' https://checkout.stripe.com");
+    }
+  }
+  res.sendFile(path.join(PUB, 'm.html'));
+}));
 app.get(['/events/:slug', '/en/events/:slug', '/ja/events/:slug'], async (req, res) => {
   let event = null;
   if (dbReady) {
@@ -6802,7 +6837,7 @@ cronRunner.define('wallet-sync', () => cronJobs.drain(syncIssuedWalletPasses, { 
 cronRunner.define('authorization-expiry', async () => { await expireEventAuthorizations(); await reconcileExpiredEventCheckouts(); },
   { enabled: () => !!stripe, onError: e => console.error('[authorization-expiry]', e.message) });
 cronRunner.define('event-mail', async () => {
-  await drainApplicationMail();const pending=(await q("SELECT r.user_id,r.event_id FROM event_regs r JOIN events e ON e.id=r.event_id WHERE r.status='registered' AND e.status<>'已取消' AND r.confirmation_queued=false LIMIT 100")).rows;if(process.env.RESEND_API_KEY){for(const r of pending)await notifyRegistration(r.user_id,r.event_id);await require('./lib/event-mailer').queueFeedbackRequests(q,SITE_BASE);}await require('./lib/event-mailer').queueReminders(q,SITE_BASE);const twilio=eventChannels.twilioConfig(),push=eventChannels.pushConfig(),providers={email:process.env.RESEND_API_KEY?sendMail:null,text:twilio?options=>eventChannels.sendText(twilio,options):null,push:push?(subscription,payload)=>eventChannels.sendPush(push,subscription,payload):null};for(let i=0;i<30;i++){if(!await require('./lib/event-mailer').deliverDue(q,providers,SITE_BASE,SECRET))break;}
+  await drainApplicationMail();const pending=(await q("SELECT r.user_id,r.event_id FROM event_regs r JOIN events e ON e.id=r.event_id WHERE r.status='registered' AND e.status<>'已取消' AND r.confirmation_queued=false LIMIT 100")).rows;if(process.env.RESEND_API_KEY){for(const r of pending)await notifyRegistration(r.user_id,r.event_id);await require('./lib/event-mailer').queueFeedbackRequests(q,SITE_BASE);}await require('./lib/event-mailer').queueReminders(q,APP_BASE);const twilio=eventChannels.twilioConfig(),push=eventChannels.pushConfig(),providers={email:process.env.RESEND_API_KEY?sendMail:null,text:twilio?options=>eventChannels.sendText(twilio,options):null,push:push?(subscription,payload)=>eventChannels.sendPush(push,subscription,payload):null};for(let i=0;i<30;i++){if(!await require('./lib/event-mailer').deliverDue(q,providers,SITE_BASE,SECRET))break;}
 }, { enabled: eventMailEnabled, onError: e => console.error('[event-mail]', e.message) });
 cronRunner.define('line-delivery', () => lineDelivery.run(), { onError: () => console.error('[line-delivery] scheduler_failed') });
 // 預約取餐：取餐前 PREP_MIN 分鐘自動送單；過期未取自動收掉
