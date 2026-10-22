@@ -117,7 +117,7 @@ function mount(o){
  function render(e){
   const s=e.registration_settings||{},mode=e.registration_mode||'native',top=head(e)+(banner||'')+(e.invite_error?`<p class="alert" role="alert">${esc(e.invite_error)}</p>`:'');
   if(mode==='closed')return shell(`<h1>${esc(T.private)}</h1>`);
-  if(mode==='external'){const u=(()=>{try{const x=new URL(e.registration_url);if(!x.searchParams.has('utm_source'))x.searchParams.set('utm_source','emoji');return x.href;}catch{return '';}})();return shell(top+`<p class="note">${esc(T.externalNote)}</p>`,u&&['預告','報名中'].includes(e.status)?`<a class="btn solid" href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(T.external)}</a>`:'');}
+  if(mode==='external'){const u=(()=>{try{const x=new URL(e.registration_url);if(!x.searchParams.has('utm_source'))x.searchParams.set('utm_source','emoji');return x.href;}catch{return '';}})();return shell(top+(e.status==='已結束'?`<p class="tile" role="status">${esc(T.over)}</p>`:`<p class="note">${esc(T.externalNote)}</p>`),u&&['預告','報名中'].includes(e.status)?`<a class="btn solid" href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(T.external)}</a>`:'');}
   const sv=statusView(e);if(sv)return bindStatus(e,shell((sv.includes('class="sec ok"')?top.replace(banner,''):top)+sv));
   const notice=t=>shell(top+`<p class="tile" role="status">${esc(t)}</p>`);
   if(e.status==='已取消')return notice(T.cancelled);

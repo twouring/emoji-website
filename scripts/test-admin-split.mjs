@@ -181,4 +181,9 @@ test('已辦完的活動自動改「已結束」：排程每 5 分鐘、公開�
   assert.ok(cron.dueJobs(new Date('2026-10-22T02:05:00Z')).includes('event-auto-end'));
   const ev = read('public/m-event.js');
   assert.match(ev, /if\(e\.status==='已結束'\)return notice\(T\.over\);/);
+  assert.ok(ev.includes("e.status==='已結束'?`<p class=\"tile\" role=\"status\">${esc(T.over)}"), '外部報名活動結束後也顯示已結束');
+});
+
+test('官網 /events/（結尾斜線）出活動頁，不是首頁', () => {
+  assert.match(read('server.js'), /const isEvents = \/\\\/events\\\/\?\$\/\.test\(req\.path\)/);
 });

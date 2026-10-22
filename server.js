@@ -5366,7 +5366,7 @@ const langOfPath = p => /^\/(en|ja)(?:\/|$)/.exec(p)?.[1] || 'zh';
 app.get(['/', '/en', '/ja', '/en/', '/ja/', '/events', '/en/events', '/ja/events'], wrap(async (req,res) => {
   const [event, snapshot] = await Promise.all([featuredRow(), publicSnapshot()]);
   const pre = /^\/(en|ja)(?:\/|$)/.exec(req.path)?.[1];
-  const isEvents = req.path.endsWith('/events');
+  const isEvents = /\/events\/?$/.test(req.path); // /events/（結尾斜線）也是活動頁，不可落到首頁
   const file = isEvents ? EVENTS_PAGE : path.join(PUB,pre || '', 'index.html');
   publicPageCache(req, res);
   sendPage(res,file,req.path,html => {
