@@ -244,7 +244,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       plans:{day_4h:'單日 4 小時',day_12h:'單日 12 小時',month:'月會員',quarter:'季會員',year:'年會員',year_promo:'開幕優惠 年會員 18 個月',founding:'創始會員',fallback:'權益'},
       accessTitle:'進出等等空間',accessOn:'可進出等等空間',accessPending:'待啟用',accessOff:'目前不可進出',accessQr:'顯示進出 QR',accessNote:'持有效會籍即可進出等等空間。',needPlan:'尚無可用方案，請先加入會員方案。',qrPending:'（待首次進場啟用）',qrUntil:'有效至 ',qrFail:'目前無法產生進出 QR',qrOffline:'需要網路才能顯示 QR',
       buy:'購買會籍',renew:'續訂／升級',plansTitle:'方案',buyBtn:p=>'線上購買 NT$'+p.toLocaleString('en-US'),promoTag:'開幕優惠',promoName:'年會員 18 個月',promoNote:'同年會員價，多送 6 個月（共 18 個月）。優惠至 2026/12/31。',founderYes:'創始會員',planPaid:'會籍已購買，首次進場時啟用。',planCanceled:'已取消付款。',planVerifying:'確認付款中…',planFail:'目前無法線上購買，請到現場辦理。',
-      me:'我的',name:'姓名',emailL:'Email',phone:'手機',phoneHint:'手機（09 開頭，結帳報號碼就能累點）',noPhone:'尚未填寫',edit:'更新資料',editBtn:'編輯',cancelEdit:'取消',save:'儲存',saved:'已儲存',saveFail:'儲存失敗',
+      me:'我的',name:'姓名',emailL:'Email',ebBind:'補上 Email',ebBindHint:'LINE 沒有提供信箱。補上 Email 才能報名活動、收票券；若這個信箱已有會員帳號，會自動合併。',ebSend:'寄驗證碼',ebCode:'6 位數驗證碼',ebConfirm:'確認',ebSent:'驗證碼已寄出，請收信',ebDone:'Email 已綁定',ebMerged:'已合併到這個 Email 的會員帳號',phone:'手機',phoneHint:'手機（09 開頭，結帳報號碼就能累點）',noPhone:'尚未填寫',edit:'更新資料',editBtn:'編輯',cancelEdit:'取消',save:'儲存',saved:'已儲存',saveFail:'儲存失敗',
       lineLink:'綁定 LINE・接收活動票券與訂位提醒',lineFail:'LINE 綁定失敗',
       manage:'管理',admin:'前往後台',organizer:'管理我的活動',language:'語言',logout:'登出',offline:'目前離線，顯示上次的資料',netFail:'連線失敗，請稍後再試',reload:'重新整理',
       sheetInapp:['點畫面角落的「⋯」選單','選「用預設瀏覽器開啟」，或<span class="nb">「在 Safari／Chrome 開啟」</span>','開啟後，再依畫面提示加到主畫面'],sheetIos:['點瀏覽器的「分享」圖示（方框加向上箭頭）','在選單裡找到並點「加入主畫面」（要往上滑才看得到）','按右上角「新增」，之後從主畫面開啟即可'],
@@ -267,7 +267,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       plans:{day_4h:'Day pass · 4 hrs',day_12h:'Day pass · 12 hrs',month:'Monthly',quarter:'Quarterly',year:'Annual',year_promo:'Opening offer · Annual 18 months',founding:'Founding Member',fallback:'Plan'},
       accessTitle:'Stay Square access',accessOn:'Stay Square access',accessPending:'Pending',accessOff:'No access',accessQr:'Show access QR',accessNote:'A valid membership gets you into Stay Square.',needPlan:'No valid membership yet — join a plan first.',qrPending:' (pending first entry)',qrUntil:'valid until ',qrFail:'Could not generate access QR',qrOffline:'Network needed to show the QR',
       buy:'Buy membership',renew:'Renew / upgrade',plansTitle:'Plans',buyBtn:p=>'Buy online NT$'+p.toLocaleString('en-US'),promoTag:'Opening offer',promoName:'Annual · 18 months',promoNote:'Annual price, 6 extra months (18 total). Until Dec 31, 2026.',founderYes:'Founding Member',planPaid:'Membership purchased — activates on first entry.',planCanceled:'Payment cancelled.',planVerifying:'Confirming payment…',planFail:'Online purchase unavailable — please ask on-site.',
-      me:'Me',name:'Name',emailL:'Email',phone:'Phone',phoneHint:'Phone (Taiwan mobile; give it at checkout to earn points)',noPhone:'Not set',edit:'Update profile',editBtn:'Edit',cancelEdit:'Cancel',save:'Save',saved:'Saved',saveFail:'Could not save',
+      me:'Me',name:'Name',emailL:'Email',ebBind:'Add your email',ebBindHint:'LINE did not share an email. Add one to register for events and receive tickets. If it already has an account, the two will be merged.',ebSend:'Send code',ebCode:'6-digit code',ebConfirm:'Confirm',ebSent:'Code sent. Check your inbox.',ebDone:'Email added',ebMerged:'Merged into the account for this email',phone:'Phone',phoneHint:'Phone (Taiwan mobile; give it at checkout to earn points)',noPhone:'Not set',edit:'Update profile',editBtn:'Edit',cancelEdit:'Cancel',save:'Save',saved:'Saved',saveFail:'Could not save',
       lineLink:'Link LINE · tickets & booking reminders',lineFail:'LINE linking failed',
       manage:'Manage',admin:'Open admin',organizer:'Manage my events',language:'Language',logout:'Sign out',offline:'Offline — showing last data',netFail:'Connection failed. Please try again.',reload:'Reload',
       sheetInapp:['Tap the “⋯” menu in the corner','Choose “Open in browser” (Safari / Chrome)','Then follow the prompt to add to home screen'],sheetIos:['Tap the browser Share icon (box with arrow)','Scroll and tap “Add to Home Screen”','Tap “Add” — open it from your home screen next time'],
@@ -290,7 +290,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       plans:{day_4h:'デイ（4時間）',day_12h:'デイ（12時間）',month:'月会員',quarter:'四半期会員',year:'年会員',year_promo:'オープン特典 年会員18か月',founding:'創始会員',fallback:'プラン'},
       accessTitle:'Stay Square 入退室',accessOn:'Stay Square 利用可',accessPending:'保留中',accessOff:'現在利用不可',accessQr:'入退室 QR を表示',accessNote:'有効な会員資格があれば Stay Square に入場できます。',needPlan:'有効なプランがありません。先に会員プランに加入してください。',qrPending:'（初回入場で有効化）',qrUntil:'有効期限 ',qrFail:'入退室 QR を生成できません',qrOffline:'QR の表示にはネットワークが必要です',
       buy:'会員プランを購入',renew:'更新／アップグレード',plansTitle:'プラン',buyBtn:p=>'オンライン購入 NT$'+p.toLocaleString('en-US'),promoTag:'オープン特典',promoName:'年会員 18か月',promoNote:'年会員と同価格で6か月分おトク（計18か月）。2026/12/31まで。',founderYes:'創始会員',planPaid:'購入完了。初回入場時に有効化されます。',planCanceled:'支払いをキャンセルしました。',planVerifying:'支払いを確認中…',planFail:'オンライン購入は現在利用できません。現地でお申し込みください。',
-      me:'マイページ',name:'氏名',emailL:'メール',phone:'携帯電話',phoneHint:'携帯電話（会計時に伝えるとポイントが貯まります）',noPhone:'未登録',edit:'プロフィールを更新',editBtn:'編集',cancelEdit:'キャンセル',save:'保存',saved:'保存しました',saveFail:'保存できませんでした',
+      me:'マイページ',name:'氏名',emailL:'メール',ebBind:'メールを登録',ebBindHint:'LINE からメールが提供されませんでした。イベント申込やチケット受取にはメール登録が必要です。既存アカウントのメールなら自動で統合します。',ebSend:'コードを送信',ebCode:'6桁の認証コード',ebConfirm:'確認',ebSent:'認証コードを送信しました',ebDone:'メールを登録しました',ebMerged:'このメールのアカウントに統合しました',phone:'携帯電話',phoneHint:'携帯電話（会計時に伝えるとポイントが貯まります）',noPhone:'未登録',edit:'プロフィールを更新',editBtn:'編集',cancelEdit:'キャンセル',save:'保存',saved:'保存しました',saveFail:'保存できませんでした',
       lineLink:'LINE 連携・チケットと予約リマインド',lineFail:'LINE 連携に失敗しました',
       manage:'管理',admin:'管理画面へ',organizer:'イベントを管理',language:'言語',logout:'ログアウト',offline:'オフライン：前回のデータを表示中',netFail:'接続に失敗しました。しばらくしてから再度お試しください。',reload:'再読み込み',
       sheetInapp:['画面隅の「⋯」メニューをタップ','「ブラウザで開く」（Safari／Chrome）を選択','開いたら案内に従ってホーム画面に追加'],sheetIos:['ブラウザの「共有」アイコン（矢印付きの四角）をタップ','下にスクロールして「ホーム画面に追加」をタップ','右上の「追加」をタップ。次回からホーム画面から開けます'],
@@ -645,7 +645,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
     try{const d=await post('/api/me/plans/verify',{session_id:s});if(d.ok===true){clean();toast(T.planPaid);tab='plan';}}
     catch(e){toast(e.message||T.netFail);}
   }
-  let editing=false;
+  let editing=false,emailBind={email:'',ticket:''};
   function me(){
     const m=data.me||{},phone=(data.yan&&data.yan.phone)||m.phone||'';
     const view=`<div class="row view"><span>${esc(T.name)}</span><b>${esc(m.name||'')}</b></div>
@@ -657,6 +657,10 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       <div class="btn2" style="margin-top:12px"><button class="btn" id="ecancel" type="button">${esc(T.cancelEdit)}</button><button class="btn solid" id="save" type="button">${esc(T.save)}</button></div></section>`;
     app.innerHTML=`<div class="hello"><h1>${esc(T.me)}</h1>${editing?'':`<button class="btn" id="eedit" type="button" style="width:auto;min-height:44px;padding:0 18px">${esc(T.editBtn)}</button>`}</div>
     ${editing?form:view}
+    ${!editing&&!m.email?`<section class="sec" id="eb"><h2>${esc(T.ebBind)}</h2><p class="hint">${esc(T.ebBindHint)}</p>
+      <label class="field">${esc(T.emailL)}<input id="ebm" type="email" inputmode="email" autocomplete="email" maxlength="254" value="${esc(emailBind.email)}"></label>
+      ${emailBind.ticket?`<label class="field">${esc(T.ebCode)}<input id="ebc" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*"></label>`:''}
+      <div class="btn2"><button class="btn${emailBind.ticket?'':' solid'}" id="ebs" type="button">${esc(T.ebSend)}</button>${emailBind.ticket?`<button class="btn solid" id="ebv" type="button">${esc(T.ebConfirm)}</button>`:''}</div></section>`:''}
     ${editing?'':`<section class="sec"><button class="btn" id="line-link">${esc(T.lineLink)}</button></section>
     ${kindNow(true)?`<section class="sec"><h2>${esc(T.home)}</h2><button class="btn" id="inst2" data-k="${kindNow(true)}">${esc(T.installLabel[kindNow(true)])}</button></section>`:''}
     ${data.role==='admin'||data.organizer?`<section class="sec"><h2>${esc(T.manage)}</h2>${data.role==='admin'?`<a class="btn" href="https://admin.emoji.tw/admin">${esc(T.admin)}</a>`:''}${data.organizer?`<a class="btn" href="/host" style="margin-top:10px">${esc(T.organizer)}</a>`:''}</section>`:''}
@@ -668,6 +672,10 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
       return;
     }
     document.getElementById('eedit').onclick=()=>{editing=true;me();window.scrollTo(0,0);};
+    if(!m.email){
+      document.getElementById('ebs').onclick=async function(){const email=document.getElementById('ebm').value.trim();this.disabled=true;try{const d=await post('/api/me/email/start',{email,lang:LANG});emailBind={email,ticket:d.ticket};toast(T.ebSent);me();const c=document.getElementById('ebc');if(c)c.focus();}catch(e){toast(e.message||T.netFail);this.disabled=false;}};
+      const v=document.getElementById('ebv');if(v)v.onclick=async function(){this.disabled=true;try{const d=await post('/api/me/email/verify',{ticket:emailBind.ticket,code:document.getElementById('ebc').value.trim()});try{localStorage.setItem(KEY,d.token);}catch(e){}emailBind={email:'',ticket:''};toast(d.merged?T.ebMerged:T.ebDone);await load();}catch(e){toast(e.message||T.netFail);this.disabled=false;}};
+    }
     document.getElementById('line-link').onclick=async function(){this.disabled=true;try{const out=await post('/api/me/line-link');location.assign(out.url);}catch(e){toast(e.message||T.lineFail);this.disabled=false;}};
     bindInstall();bindLang();
     document.getElementById('out').onclick=()=>{try{localStorage.removeItem(KEY);localStorage.removeItem(CACHE);}catch(e){}location.reload();};

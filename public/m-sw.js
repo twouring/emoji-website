@@ -1,5 +1,5 @@
 /* 言文字會員 PWA service worker：只快取 App 殼；/api、/auth 一律走網路。改版時換 VERSION。 */
-const VERSION = 'm-v21';
+const VERSION = 'm-v22';
 const SHELL = ['/m', '/', '/vendor/qrcode.min.js', '/menu-lib.js', '/order-lib.js', '/m-host.js', '/m-event.js', '/m.webmanifest', '/m-icon-192.png', '/m-icon-512.png'];
 self.addEventListener('install', e => e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim())));

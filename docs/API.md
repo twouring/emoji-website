@@ -850,6 +850,12 @@ Apple Wallet 以 `ApplePass` 認證下載重新簽署的最新票券。支援 `I
 
 接收 Apple Wallet 裝置診斷訊息，每分鐘最多 30 次；單次最多記錄 20 行、每行 500 字。
 
+### POST /api/me/email/start
+會員（多為 LINE 登入、LINE 沒給信箱的帳號）補綁 Email：寄 6 位數驗證碼到 `email`，回 `{ok, ticket}`。`ticket` 是 15 分鐘有效的簽章票券（只含驗證碼雜湊），驗證時要一起送回。帳號已有 Email 回 409；每小時 5 次。body：`{email, lang?}`。
+
+### POST /api/me/email/verify
+送 `{ticket, code}` 完成綁定。信箱沒人用就寫進目前帳號；信箱已屬另一個會員帳號時，保留那個帳號並把目前帳號（LINE、點數、訂位、活動等）合併過去，留紀錄在 `pos_member_merges`（actor `member-email-verify`），兩邊資料衝突（如不同 LINE／手機、管理員帳號）回 409。成功回 `{ok, email, merged, token}`，前端要以新 token 取代舊 token。
+
 ### POST /api/me/phone/verify/start
 
 登入會員以 E.164 電話（例如 `+886912345678`）與 `sms`／`whatsapp` 通路向 Twilio Verify 申請驗證碼。每小時最多 5 次；未設定 Twilio 時回 503。

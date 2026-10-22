@@ -1965,6 +1965,71 @@ app.post('/api/auth/email/verify',rateLimit({max:20}),requireDb,wrap(async(req,r
  }catch(e){if(e.code==='AMBIGUOUS_EMAIL')return res.status(409).json({error:e.message});throw e;}finally{await client.query('ROLLBACK');client.release();}
 }));
 
+/* ---- 會員補綁 Email：LINE 登入沒給信箱的帳號，在 App 寄 6 位數驗證碼到信箱，驗證後寫入。
+   不新增資料表：驗證碼的 HMAC 放在簽章票券裡交給前端，伺服器只比對。信箱已屬另一個會員帳號時，把目前帳號併過去（保留原帳號）。 */
+const EMAIL_BIND_TTL_MS = 15 * 60_000;
+const emailBindHash = (sub, email, code) => crypto.createHmac('sha256', SECRET).update(`email-bind:${sub}:${email}:${code}`).digest('hex');
+async function memberSessionToken(u) {
+  const isSuper = !!u.email && String(u.email).toLowerCase() === SUPER_ADMIN_EMAIL;
+  const isAdmin = isSuper || (await q('SELECT is_admin FROM users WHERE id=$1', [u.id])).rows[0]?.is_admin === true;
+  const n = (await q('SELECT COUNT(*)::int AS n FROM commitments WHERE user_id=$1', [u.id])).rows[0].n;
+  return signToken({ role: isAdmin ? 'admin' : (n > 0 ? 'participant' : 'invited'), sub: u.id, super: isSuper, name: u.name || '' });
+}
+app.post('/api/me/email/start', auth, requireDb, rateLimit({ max: 5, windowMs: 3600000 }), wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  if (!process.env.RESEND_API_KEY) return res.status(503).json({ error: '寄信服務尚未設定，請洽櫃檯。' });
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return res.status(400).json({ error: '請輸入有效 Email。' });
+  const me = (await q('SELECT id,email FROM users WHERE id=$1', [req.auth.sub])).rows[0];
+  if (!me) return res.status(404).json({ error: '找不到帳號。' });
+  if (me.email) return res.status(409).json({ error: '這個帳號已有 Email。' });
+  const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0'), exp = Date.now() + EMAIL_BIND_TTL_MS;
+  const ticket = signToken({ sub: me.id, email, h: emailBindHash(me.id, email, code), x: exp }, { purpose: 'email-bind' });
+  const lang = ['en', 'ja'].includes(req.body?.lang) ? req.body.lang : 'zh';
+  const copy = { zh: ['言文字 Email 驗證碼', '您的驗證碼是', '15 分鐘內有效。若不是您提出的請求，請忽略此信。'],
+    en: ['Your emoji verification code', 'Your code is', 'It expires in 15 minutes. Ignore this email if you did not request it.'],
+    ja: ['言文字 メール認証コード', '認証コード：', '有効期限は15分です。心当たりがなければ無視してください。'] }[lang];
+  await sendMail({ to: email, subject: copy[0], text: `${copy[1]} ${code}\n\n${copy[2]}`, idempotencyKey: 'email-bind/' + crypto.createHash('sha256').update(ticket).digest('hex') });
+  res.set('Cache-Control', 'no-store'); res.json({ ok: true, ticket });
+}));
+app.post('/api/me/email/verify', auth, requireDb, rateLimit({ max: 10, windowMs: 3600000 }), wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  res.set('Cache-Control', 'no-store');
+  const t = verifyToken(String(req.body?.ticket || ''), { purpose: 'email-bind' }), code = String(req.body?.code || '').trim();
+  if (!t || t.sub !== req.auth.sub || !(t.x > Date.now()) || !/^\d{6}$/.test(code) || !safeEqual(t.h, emailBindHash(t.sub, t.email, code)))
+    return res.status(400).json({ error: '驗證碼不正確或已過期。' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [t.email]);
+    const me = (await client.query(`SELECT ${MERGE_USER_SEL} FROM users WHERE id=$1 FOR UPDATE`, [t.sub])).rows[0];
+    if (!me) { await client.query('ROLLBACK'); return res.status(404).json({ error: '找不到帳號。' }); }
+    if (me.email) { await client.query('ROLLBACK'); return res.status(409).json({ error: '這個帳號已有 Email。' }); }
+    const owners = (await client.query(`SELECT ${MERGE_USER_SEL} FROM users WHERE lower(email)=$1 AND id<>$2 FOR UPDATE`, [t.email, t.sub])).rows;
+    if (owners.length > 1) { await client.query('ROLLBACK'); return res.status(409).json({ error: '此信箱存在重複帳號，請洽櫃檯處理。' }); }
+    let keep = me, merged = false;
+    if (!owners.length) {
+      await client.query('UPDATE users SET email=$2 WHERE id=$1', [me.id, t.email]);
+      keep = { ...me, email: t.email };
+    } else {
+      // 信箱已是另一個會員（例如先前用 Google／Email 登入）：保留那個帳號，把目前帳號的 LINE、點數、訂位等併過去
+      const owner = owners[0], blocker = memberMerge.mergeBlocker(owner, me);
+      if (blocker) { await client.query('ROLLBACK'); return res.status(409).json({ error: blocker }); }
+      for (const id of [owner.id, me.id].sort()) await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,2))', [id]);
+      const snap = u => ({ id: u.id, name: u.name, email: u.email, phone: u.phone, phone_e164: u.phone_e164, line_user_id: u.line_user_id, created_at: u.created_at });
+      let out;
+      try { out = await memberMerge.mergeMembers(client, owner, me); }
+      catch (e) { await client.query('ROLLBACK'); if (e.status) return res.status(e.status).json({ error: e.message }); throw e; }
+      await client.query(`INSERT INTO pos_member_merges(id,keep_id,drop_id,drop_snapshot,keep_before,moved,operator_id,operator_name,actor) VALUES($1,$2,$3,$4,$5,$6,NULL,'',$7)`,
+        [uid('mm_'), owner.id, me.id, JSON.stringify(snap(me)), JSON.stringify(snap(owner)), JSON.stringify(out.moved), 'member-email-verify']);
+      keep = { ...owner, ...out.profile, id: owner.id }; merged = true;
+    }
+    await client.query('COMMIT');
+    res.json({ ok: true, email: t.email, merged, token: await memberSessionToken(keep) });
+  } catch (e) { await client.query('ROLLBACK').catch(() => {}); throw e; }
+  finally { client.release(); }
+}));
+
 /* ---- Google 登入（OAuth 2.0 授權碼流程；重用既有 signToken 與 users 表） ---- */
 app.get('/auth/google', (req, res) => {
   if (!GOOGLE_CLIENT_ID) return res.status(503).send('Google 登入尚未開通（未設定 GOOGLE_CLIENT_ID）。');
