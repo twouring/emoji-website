@@ -5325,6 +5325,12 @@ function legacyEventResultUrl(status, query, lang) {
 }
 // 會員 App 活動報名頁 /e/<slug>：回 m.html 由前端（m-event.js）渲染；?embed=1 時依活動嵌入來源放行 iframe（與 /embed/events/:slug 共用 embed_origins 清單）
 // 官網正式網域上的 /e/ 一律轉到 App；本機開發（http）同源提供，方便測試
+// 主辦後台 /host、/host/<eventId>：官網正式網域轉到 App；本機開發（http）同源提供 m.html（App 網域已由上方 middleware 處理）
+app.get(['/host', '/host/:eventId'], (req, res) => {
+  if (SITE_BASE.startsWith('https://') && String(req.hostname || '').toLowerCase() === SITE_HOST) return res.redirect(302, APP_BASE + req.originalUrl);
+  res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache' });
+  res.sendFile(path.join(PUB, 'm.html'));
+});
 app.get('/e/:slug', wrap(async (req, res) => {
   if (!isAppHost(req) && SITE_BASE.startsWith('https://') && String(req.hostname || '').toLowerCase() === SITE_HOST) return res.redirect(302, APP_BASE + req.originalUrl);
   res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache' });
