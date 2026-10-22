@@ -14,7 +14,7 @@ const L={
   closed:'目前不開放報名',notOpen:'目前不在報名期間',preview:'預告・報名尚未開放',full:'名額已滿',cancelled:'活動已取消',
   done:'報名完成',doneSub:'確認信與票券資訊會寄到你的 Email。',paidCheck:'付款確認中，稍後會寄出確認信。',canceledPay:'已取消付款',canceledSub:'名額會保留到結帳連結到期，可重新報名。',retry:'重新報名',
   pending_approval:'報名已送出，等待主辦人審核',waitlisted:'已加入候補；取得名額前尚未報名成功',declined:'主辦人未核准此次報名',approved:'已核准，請在 24 小時內付款完成報名',pending_payment:'等待付款',refund_pending:'退款處理中，票券暫停使用',capture_pending:'信用卡請款處理中，完成後才會核發票券',refunded:'已退款，原票券已失效',
-  guestLogin:'用這個 Email 登入 App 查看票券',mine:'我的報名',show:'出示票券',cancel:'取消報名',refund:'退票',
+  guestLogin:'用這個 Email 登入 App 查看票券',addMore:'加購票券',addHint:'新票先用你的姓名，之後可個別轉給同行者；需審核票種與優惠碼不適用。',addGo:'確認加購',addDone:'已加購',mine:'我的報名',show:'出示票券',cancel:'取消報名',refund:'退票',
   cancelConfirm:'確定取消報名？',refundConfirm:'確定退票？依退票規則，票價扣 10% 手續費後退回；場地茶飲費依規則處理。活動開始前 8 日內不可自助退票。',refundDone:(r,f)=>'已申請退票：退回 NT$'+r+'（手續費 NT$'+f+'）',cancelDone:'已取消報名',
   inviteBad:'這個邀請連結無效、已過期或已回覆。',invitedFor:'這封邀請是給',checked:'已完成簽到',backEvent:'回活動頁',home:'回 App 首頁'},
  en:{loading:'Loading…',notFound:'Event not found.',loadFail:'Events are temporarily unavailable.',back:'‹ Back',site:'Full details on the website ↗',host:'Hosted by',when:'When',where:'Where',tba:'Time TBA',placeTba:'Location TBA',free:'Free',
@@ -27,7 +27,7 @@ const L={
   closed:'Registration is closed',notOpen:'Registration is not currently open',preview:'Preview · Registration coming soon',full:'Sold out',cancelled:'Event cancelled',
   done:'Registration complete',doneSub:'Confirmation and ticket details will be emailed to you.',paidCheck:'Confirming payment. A confirmation email will follow.',canceledPay:'Payment canceled',canceledSub:'Your spot is held until checkout expires. You can register again.',retry:'Register again',
   pending_approval:'Request submitted. Awaiting host approval.',waitlisted:'You are on the waitlist. Your place is not confirmed yet.',declined:'The host declined this registration.',approved:'Approved. Pay within 24 hours to confirm.',pending_payment:'Payment pending',refund_pending:'Refund processing. Your ticket is inactive.',capture_pending:'Card capture is processing.',refunded:'Refunded. Your original ticket is no longer valid.',
-  guestLogin:'Sign in to the App with this email to view your ticket',mine:'Your registration',show:'Show ticket',cancel:'Cancel registration',refund:'Request refund',
+  guestLogin:'Sign in to the App with this email to view your ticket',addMore:'Get more tickets',addHint:'New tickets use your name and can be transferred later. Approval-only tickets and coupons are not available.',addGo:'Continue',addDone:'Tickets added',mine:'Your registration',show:'Show ticket',cancel:'Cancel registration',refund:'Request refund',
   cancelConfirm:'Cancel your registration?',refundConfirm:'Request a refund? Per policy, the ticket price is refunded minus a 10% fee; the venue fee follows the policy. Self-service refunds close 8 days before the event.',refundDone:(r,f)=>'Refund requested: NT$'+r+' (fee NT$'+f+')',cancelDone:'Registration cancelled',
   inviteBad:'This invitation link is invalid, expired, or already answered.',invitedFor:'This invitation is for',checked:'Checked in',backEvent:'Back to event',home:'App home'},
  ja:{loading:'読み込み中…',notFound:'イベントが見つかりません。',loadFail:'現在イベントを読み込めません。',back:'‹ 戻る',site:'公式サイトで詳細を見る ↗',host:'主催',when:'日時',where:'場所',tba:'日時未定',placeTba:'場所未定',free:'無料',
@@ -40,7 +40,7 @@ const L={
   closed:'申込受付は終了しました',notOpen:'現在は申込受付期間外です',preview:'予告・申込受付前',full:'満席',cancelled:'イベント中止',
   done:'申込が完了しました',doneSub:'確認とチケット情報をメールでお送りします。',paidCheck:'支払いを確認中です。確認メールをお送りします。',canceledPay:'支払いはキャンセルされました',canceledSub:'Checkout の期限まで枠を確保します。再度お申し込みいただけます。',retry:'もう一度申し込む',
   pending_approval:'申込済み・主催者の承認待ち',waitlisted:'キャンセル待ちです。参加はまだ確定していません。',declined:'今回の申込は承認されませんでした。',approved:'承認済みです。24時間以内に支払いを完了してください。',pending_payment:'支払い待ち',refund_pending:'返金処理中のため、チケットは無効です。',capture_pending:'決済処理中です。',refunded:'返金済みです。元のチケットは無効です。',
-  guestLogin:'このメールで App にログインしてチケットを確認',mine:'申込状況',show:'チケットを表示',cancel:'申込を取り消す',refund:'払い戻し',
+  guestLogin:'このメールで App にログインしてチケットを確認',addMore:'チケットを追加',addHint:'追加チケットは購入者名で発行され、後で個別に譲渡できます。承認制チケットとクーポンは対象外です。',addGo:'続ける',addDone:'追加しました',mine:'申込状況',show:'チケットを表示',cancel:'申込を取り消す',refund:'払い戻し',
   cancelConfirm:'申込を取り消しますか？',refundConfirm:'払い戻しを申請しますか？規定によりチケット代から手数料10%を差し引いて返金します。開催8日前以降はセルフ払い戻しできません。',refundDone:(r,f)=>'払い戻しを申請しました：NT$'+r+'（手数料 NT$'+f+'）',cancelDone:'申込を取り消しました',
   inviteBad:'この招待リンクは無効、期限切れ、または回答済みです。',invitedFor:'この招待の宛先',checked:'チェックイン済み',backEvent:'イベントに戻る',home:'App ホーム'}
 };
@@ -111,14 +111,14 @@ function mount(o){
  function statusView(e){
   const s=e.registration_status,ok=e.registered||s==='registered';
   if(e.guest_submitted)return `<section class="sec ok" role="status"><h2>${esc(ok?T.done:T[s]||T.done)}</h2><p>${esc(T.doneSub)}</p><a class="btn solid" href="${esc(o.home||'/')}">${esc(T.guestLogin)}</a></section>`;
-  if(ok){const paid=Number(e.amount_paid||0)>0,canSelf=!e.recipient_only&&!e.checked_in_at;return `<section class="sec"><h2>${esc(T.mine)}</h2>${e.checked_in_at?`<p><span class="pill on">${esc(T.checked)}</span></p>`:''}<button class="btn solid" id="mev-ticket" type="button">${esc(T.show)}</button>${canSelf?`<button class="quiet" id="mev-cancel" type="button" data-paid="${paid?1:''}">${esc(paid?T.refund:T.cancel)}</button>`:''}</section>`;}
+  if(ok){const paid=Number(e.amount_paid||0)>0,canSelf=!e.recipient_only&&!e.checked_in_at;return `<section class="sec"><h2>${esc(T.mine)}</h2>${e.checked_in_at?`<p><span class="pill on">${esc(T.checked)}</span></p>`:''}<button class="btn solid" id="mev-ticket" type="button">${esc(T.show)}</button>${canAddMore(e)?`<button class="btn" id="mev-add" type="button" style="margin-top:10px">${esc(T.addMore)}</button>`:''}${canSelf?`<button class="quiet" id="mev-cancel" type="button" data-paid="${paid?1:''}">${esc(paid?T.refund:T.cancel)}</button>`:''}</section>`;}
   if(['pending_approval','waitlisted','declined','refund_pending','capture_pending','refunded'].includes(s))return `<section class="sec tile" role="status"><p>${esc(T[s])}</p>${['pending_approval','waitlisted'].includes(s)&&tok()?`<button class="quiet" id="mev-cancel" type="button">${esc(T.cancel)}</button>`:''}</section>`;
   return '';}
  function render(e){
   const s=e.registration_settings||{},mode=e.registration_mode||'native',top=head(e)+(banner||'')+(e.invite_error?`<p class="alert" role="alert">${esc(e.invite_error)}</p>`:'');
   if(mode==='closed')return shell(`<h1>${esc(T.private)}</h1>`);
   if(mode==='external'){const u=(()=>{try{const x=new URL(e.registration_url);if(!x.searchParams.has('utm_source'))x.searchParams.set('utm_source','emoji');return x.href;}catch{return '';}})();return shell(top+`<p class="note">${esc(T.externalNote)}</p>`,u&&['預告','報名中'].includes(e.status)?`<a class="btn solid" href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(T.external)}</a>`:'');}
-  const sv=statusView(e);if(sv)return bindStatus(e,shell(top+sv));
+  const sv=statusView(e);if(sv)return bindStatus(e,shell((sv.includes('class="sec ok"')?top.replace(banner,''):top)+sv));
   const notice=t=>shell(top+`<p class="tile" role="status">${esc(t)}</p>`);
   if(e.status==='已取消')return notice(T.cancelled);
   if(e.status==='預告')return notice(T.preview);
@@ -175,7 +175,30 @@ function mount(o){
  function resultBanner(status){if(status==='registered'||status==='paid')return `<section class="sec ok" role="status"><h2>${esc(T.done)}</h2><p>${esc(T.doneSub)}</p></section>`;if(status==='canceled')return `<section class="sec tile" role="status"><h2>${esc(T.canceledPay)}</h2><p>${esc(T.canceledSub)}</p></section>`;if(status==='checking')return `<section class="sec tile" role="status"><p>${esc(T.paidCheck)}</p></section>`;return T[status]?`<section class="sec tile" role="status"><p>${esc(T[status])}</p></section>`:'';}
  function bindStatus(e){
   document.getElementById('mev-ticket')?.addEventListener('click',()=>o.openTicket&&o.openTicket(e.id));
+  document.getElementById('mev-add')?.addEventListener('click',()=>renderAddMore(e));
   const c=document.getElementById('mev-cancel');if(c)c.onclick=async()=>{if(!confirm(c.dataset.paid?T.refundConfirm:T.cancelConfirm))return;c.disabled=true;try{const out=await api('/events/'+encodeURIComponent(e.id)+'/register',{method:'DELETE'});toast(out.refund_twd>0||out.fee_twd>0?T.refundDone(Number(out.refund_twd||0).toLocaleString('en-US'),Number(out.fee_twd||0).toLocaleString('en-US')):T.cancelDone);banner='';await load();}catch(err){toast(err.message);c.disabled=false;}};
+ }
+
+ // 加購票券（已報名的登入會員）：POST /api/events/:id/additional-tickets，付費走 Stripe 後回 ?result=paid
+ function canAddMore(e){const s=e.registration_settings||{};return !!tok()&&!e.recipient_only&&e.status==='報名中'&&s.group_registration!==false&&!s.requires_approval&&!needsWallet(e)&&(!s.closes_at||Date.now()<Date.parse(s.closes_at));}
+ function renderAddMore(e){
+  const tickets=(e.tickets||[]).filter(t=>t.active&&!t.requires_approval),hasTickets=!!(e.has_ticket_types||tickets.length),fee=venueFeePerTicket(e),max=e.capacity>0?Math.max(1,Math.min(1000,e.capacity-e.reg_count)):1000;
+  const form=`<form id="mev-add-form" novalidate><section class="sec"><h1>${esc(T.addMore)}</h1><p class="note">${esc(T.addHint)}</p></section>${hasTickets?`<fieldset class="sec"><legend><h2>${esc(T.ticket)}</h2></legend><div>${ticketCards(e,tickets)}</div><label class="field" id="mev-add-flex" hidden>${esc(T.flex)}<input name="amount_twd" type="number" min="0" step="1" inputmode="numeric" placeholder="${esc(T.flexHint)}"></label></fieldset>`:''}<section class="sec"><label class="field">${esc(T.qty)}<input name="quantity" type="number" inputmode="numeric" min="1" max="${max}" value="1" required></label></section><section class="sec" id="mev-add-sum"></section><p class="alert" id="mev-err" role="alert" hidden></p></form>`;
+  shell(`<p><b>${esc(e.title)}</b></p>`+form,`<button class="btn solid" id="mev-add-go" type="submit" form="mev-add-form">${esc(T.addGo)}</button>`);
+  const back=document.getElementById('mev-back');if(back){back.hidden=false;back.onclick=()=>render(e);}
+  const f=document.getElementById('mev-add-form'),go=document.getElementById('mev-add-go');
+  const selected=()=>tickets.find(t=>t.id===f.querySelector('[name="ticket_id"]:checked')?.value)||null;
+  const sync=()=>{const t=selected(),flex=document.getElementById('mev-add-flex');if(flex){flex.hidden=!t?.flexible_price;flex.querySelector('input').disabled=!t?.flexible_price;flex.querySelector('input').min=t?.minimum_twd||0;}
+   const qty=Math.max(1,Number(f.elements.quantity.value)||1),amount=hasTickets&&!t?0:orderTotal(e,hasTickets?t:null,qty,f.elements.amount_twd?.value);
+   document.getElementById('mev-add-sum').innerHTML=(fee?`<p class="note">${esc(T.venue)}</p>`:'')+`<div class="sum"><b>${esc(T.total)}</b><b>${esc(hasTickets&&!t?'—':money(amount,T.free))}</b></div>`;
+   go.textContent=amount>0?T.pay+' · '+money(amount):T.addGo;};
+  f.addEventListener('change',sync);f.addEventListener('input',sync);sync();
+  f.onsubmit=async ev=>{ev.preventDefault();if(go.disabled)return;const bad=firstInvalid(f);if(bad)return showError(bad.validationMessage||T.req,bad);
+   const label=go.textContent,data=new FormData(f);go.disabled=true;go.setAttribute('aria-busy','true');go.textContent=T.busy;
+   try{const out=await api('/events/'+encodeURIComponent(e.id)+'/additional-tickets',{method:'POST',body:{lang,quantity:Number(data.get('quantity')||1),ticket_id:data.get('ticket_id')||undefined,amount_twd:data.get('amount_twd')||undefined}});
+    if(out.url){if(embedded){window.open(out.url,'_blank','noopener');go.disabled=false;go.setAttribute('aria-busy','false');go.textContent=label;return;}location.href=out.url;return;}
+    toast(T.addDone);await load();
+   }catch(err){go.disabled=false;go.setAttribute('aria-busy','false');go.textContent=label;showError(err.message);}};
  }
  // 付款回傳：?result=paid&s=<session> → 核對後顯示「報名完成」；?result=canceled → 已取消付款；其他狀態（舊結果頁轉來）直接顯示文案
  (async()=>{result=query.get('result')||'';if(result){const sid=query.get('s');if(result==='paid'&&sid){try{const v=await api('/events/checkout/verify',{method:'POST',body:{session_id:sid}});result=v.paid||v.status==='registered'?'paid':'checking';}catch{result='checking';}}else if(result==='paid')result='checking';else if(result==='canceled'||!T[result]){banner=resultBanner(result);result='';}
