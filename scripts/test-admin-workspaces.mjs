@@ -28,7 +28,8 @@ test('POS 相關分頁從 admin 移除，品牌工作區只剩日結報表；活
 });
 
 test('品牌子帳號也能進言文字共用工作區，但權限／系統設定／記錄仍限言文字管理員', () => {
-  assert.match(html, /const scopesOf = d => d\?\.organizer \? \[''\] : d\?\.brands \? \['', \.\.\.d\.brands\]\.filter\(s => WORKSPACES\[s\]\) : \['', \.\.\.Object\.keys\(BRAND_LABEL\)\]/);
+  assert.match(html, /const scopesOf = d => false \? \[''\] : d\?\.brands \? \['', \.\.\.d\.brands\]\.filter\(s => WORKSPACES\[s\]\) : \['', \.\.\.Object\.keys\(BRAND_LABEL\)\]/);
+  assert.doesNotMatch(html, /d\.organizer|ORGANIZER_PORTAL/, 'admin 不再保留主辦模式分支');
   // ROOT_TABS_BRAND（品牌子帳號在言文字工作區可見的分頁）不含這三頁
   assert.doesNotMatch(html.match(/ROOT_TABS_BRAND = \[[^\]]*\]/)[0], /permissions|system|logs/);
 });

@@ -759,6 +759,9 @@ X 貼文 AI 起草：body `{ topic }`，回 `{ ok, draft: { title, caption, capt
 ### POST /api/me/plans/verify
 結帳導回時驗證並開通。body：`{ session_id }`，回 `{ ok, already, plan }`；session 不屬於本人回 404、未付款回 402。與 webhook 重複執行不會重複開通。
 
+### POST /api/me/event-import
+會員 App 從其他平台預填建立活動表單。body：`{ url }`，只接受 `https://`、標準 443 連接埠且不可含帳密；伺服器每一跳 DNS 解析後拒絕 loopback、私網、link-local、metadata（含 `169.254.169.254`）與 IPv6 私網，連線釘選已驗證 IP，手動處理最多 3 次轉址、5 秒逾時、最大 2MB。每個會員每小時最多 20 次。依序讀 schema.org Event JSON-LD、Open Graph、`<title>`，回 `{ title, description, starts_at, ends_at, location, image_url, organizer, source_url, fields_found }`；不下載圖片。無法自動讀取時仍回 200 與空 `fields_found`，前端改讓主辦手填；內網／非 HTTPS 回 400。
+
 ### POST /api/commitments
 送出參與（創始會籍）申請。Email 必須為目前已驗證的 Google 登入信箱，此表單不會更動登入身分。
 

@@ -42,17 +42,16 @@ async function server(t, env = {}) {
 }
 const stateOf = res => require('../lib/security').verifyToken(new URL(res.headers.get('location')).searchParams.get('state'), SECRET, { purpose: 'oauth' });
 
-test('官網服務：正式網域的 /admin 轉到 admin.emoji.tw（保留路徑與查詢字串）；活動管理 /organizer 留在官網；本機、pos、admin 子網域不轉', async t => {
+test('官網服務：正式網域的 /admin 轉到 admin.emoji.tw（保留路徑與查詢字串）；活動管理 /organizer 一律轉會員 App；本機、pos、admin 子網域不轉', async t => {
   const get = await server(t);
   const cases = [['/admin', '/admin'], ['/admin/members?tab=points', '/admin/members?tab=points']];
   for (const [url, expected] of cases) {
     const res = await get(url, { host: 'www.emoji.tw' });
     assert.equal(res.status, 302, url); assert.equal(res.headers.get('location'), 'https://admin.emoji.tw' + expected, url);
   }
-  // 活動管理（活動主入口）在官網：www 直接出頁，不轉後台網域
-  for (const url of ['/organizer', '/organizer/events/abc?task=hosts']) {
-    const res = await get(url, { host: 'www.emoji.tw' });
-    assert.equal(res.status, 200, url); assert.equal(res.headers.get('x-robots-tag'), 'noindex', url);
+  // 舊活動主入口一律交給會員 App
+  for (const [url, target] of [['/organizer','https://app.emoji.tw/host'],['/organizer/events/abc?task=hosts','https://app.emoji.tw/host/abc?task=hosts']]) {
+    const res = await get(url, { host: 'www.emoji.tw' }); assert.equal(res.status, 302, url); assert.equal(res.headers.get('location'), target, url);
   }
   const legacy = await get('/admin.html', { host: 'www.emoji.tw' });
   assert.equal(legacy.status, 301); assert.equal(legacy.headers.get('location'), 'https://admin.emoji.tw/admin');
@@ -62,9 +61,9 @@ test('官網服務：正式網域的 /admin 轉到 admin.emoji.tw（保留路徑
   assert.equal((await get('/', { host: 'admin.emoji.tw' })).headers.get('location'), '/admin');
   // 代管中的 admin 子網域上的 /organizer 反向轉回官網（活動管理只有 www 一個家）
   const back = await get('/organizer/events/abc?task=hosts', { host: 'admin.emoji.tw' });
-  assert.equal(back.status, 302); assert.equal(back.headers.get('location'), 'https://www.emoji.tw/organizer/events/abc?task=hosts');
+  assert.equal(back.status, 302); assert.equal(back.headers.get('location'), 'https://app.emoji.tw/host/abc?task=hosts');
   assert.equal((await get('/admin', { host: '127.0.0.1' })).status, 200, '本機開發不轉');
-  assert.equal((await get('/organizer', { host: '127.0.0.1' })).status, 200, '本機開發不轉');
+  assert.equal((await get('/organizer', { host: '127.0.0.1' })).headers.get('location'), 'https://app.emoji.tw/host', '本機舊入口也轉 App');
   assert.equal((await get('/admin', { host: 'pos.emoji.tw' })).headers.get('location'), '/pos', 'POS 子網域維持轉 /pos');
   // 管理 API 不轉（AI agent 以 ADMIN_API_KEY 打 www）
   assert.notEqual((await get('/api/admin/users', { host: 'www.emoji.tw' })).status, 302);
@@ -86,17 +85,17 @@ test('官網服務：代管的 admin 子網域發起 Google 登入先跳回 www�
   assert.equal((await get('/api/health', { origin: 'https://admin.emoji.tw' })).headers.get('access-control-allow-origin'), 'https://admin.emoji.tw');
 });
 
-test('後台服務（SERVICE_ROLE=admin）：任何 host 首頁都是 /admin、不轉出去、/organizer 轉回官網、Google callback 綁 admin.emoji.tw、公開頁連結仍指 www', async t => {
+test('後台服務（SERVICE_ROLE=admin）：任何 host 首頁都是 /admin、不轉出去、/organizer 轉 App、Google callback 綁 admin.emoji.tw、公開頁連結仍指 www', async t => {
   const get = await server(t, { SERVICE_ROLE: 'admin' });
   for (const host of ['admin.emoji.tw', 'emoji-admin-abc.a.run.app', '127.0.0.1']) {
     assert.equal((await get('/', { host })).headers.get('location'), '/admin', host);
     assert.equal((await get('/admin/members', { host })).status, 200, host);
     const org = await get('/organizer/events/x?task=hosts', { host });
-    assert.equal(org.status, 302, host); assert.equal(org.headers.get('location'), 'https://www.emoji.tw/organizer/events/x?task=hosts', host + '：活動管理在官網');
+    assert.equal(org.status, 302, host); assert.equal(org.headers.get('location'), 'https://app.emoji.tw/host/x?task=hosts', host + '：活動管理在官網');
   }
-  // 本機開發的後台服務（PUBLIC_ORIGIN=http://…）不轉，避免把本機 /organizer 丟到正式站
+  // 舊入口即使在本機也明確指向 App 主辦頁
   const local = await server(t, { SERVICE_ROLE: 'admin', PUBLIC_ORIGIN: 'http://localhost:8080', ADMIN_ORIGIN: 'http://localhost:8081' });
-  assert.equal((await local('/organizer/events/x', { host: 'localhost' })).status, 200);
+  assert.equal((await local('/organizer/events/x', { host: 'localhost' })).headers.get('location'), 'https://app.emoji.tw/host/x');
   const target = 'https://admin.emoji.tw/admin';
   const start = await get('/auth/google?redirect=' + encodeURIComponent(target), { host: 'admin.emoji.tw' });
   const google = new URL(start.headers.get('location'));

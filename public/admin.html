@@ -436,8 +436,8 @@ let token = localStorage.getItem(KEY);
 
 /* 路由：一般路徑（/admin、/admin/members、/admin/social/edit/:id…），伺服器對 /admin/* 皆回本頁。
    舊 #hash 網址（/admin#members）進站時轉成路徑，書籤不失效。 */
-const ORGANIZER_PORTAL = location.pathname.startsWith('/organizer');
-const BASE = ORGANIZER_PORTAL ? '/organizer' : '/admin';
+// 活動主辦後台已移至會員 App 的 /host；admin 僅供管理員使用。
+const BASE = '/admin';
 if (location.hash.length > 1 && !hash.get('token')) history.replaceState(null, '', BASE + '/' + location.hash.slice(1).replace(/^\/+/, ''));
 function routePath(){
   let p = location.pathname;
@@ -447,7 +447,6 @@ function routePath(){
 }
 function scopedRoute(route, scope=SCOPE){
   const clean=String(route||'').replace(/^\/+|\/+$/g,'');
-  if (ORGANIZER_PORTAL) return clean;
   if (clean && Object.prototype.hasOwnProperty.call(SCOPE_BY_SLUG, clean.split('/')[0])) return clean;
   const slug=(WORKSPACES[scope]||WORKSPACES['']).slug;
   return slug+(clean?'/'+clean:'');
@@ -462,14 +461,13 @@ function go(route, replace){
 }
 // 站內後台連結一律走前端路由，不整頁重載
 document.addEventListener('click', e => {
-  const a = e.target.closest('a[href^="/admin"],a[href^="/organizer"]');
+  const a = e.target.closest('a[href^="/admin"]');
   if (!a || a.target || a.dataset.reload!==undefined || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
   e.preventDefault();
   go(new URL(a.href).pathname.slice(BASE.length).replace(/^\/+/, ''));
 });
 
 async function api(path, { method='GET', body } = {}) {
-  if(ORGANIZER_PORTAL && path==='/state')path='/organizer/state';
   const res = await fetch('/api'+path, {
     method, headers:{ ...(body instanceof FormData?{}:{'Content-Type':'application/json'}), ...(token?{Authorization:'Bearer '+token}:{}) },
     body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
@@ -489,19 +487,19 @@ function renderLogin(msg){
   app.innerHTML = `<div class="a-login"><div class="a-login-card">
     <div class="a-brand"><img src="/cis/assets/emoji-h.svg" alt="言文字 emoji" width="120" height="40" style="object-fit:contain"><span>後台管理</span></div>
     <h1 class="a-h1">登入後台</h1>
-    <p class="a-sub">${msg || (ORGANIZER_PORTAL ? '請用主辦團隊登記的 Email 登入。' : '請使用管理員 Email 與密碼，或選擇 Google 登入。')}</p>
-    ${ORGANIZER_PORTAL ? '' : `<form id="admin-password-login" style="display:grid;gap:12px;text-align:left;margin-bottom:20px">
+    <p class="a-sub">${msg || '請使用管理員 Email 與密碼，或選擇 Google 登入。'}</p>
+    <form id="admin-password-login" style="display:grid;gap:12px;text-align:left;margin-bottom:20px">
       <label for="admin-login-email">Email</label>
       <input class="input" id="admin-login-email" name="email" type="email" autocomplete="username" maxlength="254" required>
       <label for="admin-login-password">密碼</label>
       <input class="input" id="admin-login-password" name="password" type="password" autocomplete="current-password" required>
       <p id="admin-login-error" role="alert" style="color:var(--danger,#b42318);margin:0" hidden></p>
       <button class="btn btn--solid" type="submit">使用密碼登入</button>
-    </form>`}
+    </form>
     <a class="btn btn--solid" href="/auth/google?redirect=${redirect}">使用 Google 登入</a>
-    <a class="btn btn--ghost" href="/event-login.html?redirect=${redirect}">使用 Email 登入連結</a>
+    <a class="btn btn--ghost" href="/event-login.html?redirect=${redirect}">使用 Email 登入連結</a>${msg==='活動請到 App 管理。'?'<a class="btn btn--ghost" href="https://app.emoji.tw/host">前往 App 活動管理</a>':''}
   </div></div>`;
-  if(!ORGANIZER_PORTAL){
+  {
     const form=document.getElementById('admin-password-login');
     form.onsubmit=async event=>{
       event.preventDefault();
@@ -593,8 +591,8 @@ function overviewTodoHTML(d, x){
   const item = (href, n, label) => `<a class="a-todo-item" href="${href}"><span class="n${n===0?' zero':''}">${n===null?'…':n}</span><span class="l">${label}</span></a>`;
   return `<h2>今日待辦</h2>
     <div class="a-todo">
-      ${d.organizer?'':item(BASE+'/shared/events/applications', apps, '待審場地申請')}
-      ${d.organizer?'':item(BASE+'/shared/commitments', pendingPay, '待入帳會費')}
+      ${false?'':item(BASE+'/shared/events/applications', apps, '待審場地申請')}
+      ${false?'':item(BASE+'/shared/commitments', pendingPay, '待入帳會費')}
       ${item(BASE+'/shared/events', upcoming.length, '7 天內活動')}
     </div>
     ${upcoming.length?`<ul class="a-todo-list">${upcoming.map(({e})=>`<li><a href="${BASE}/shared/events/${encodeURIComponent(e.id)}">${esc(e.title)}</a><span class="meta">${esc(e.starts_at||'')} · ${esc(e.location||'')}</span><span class="meta">報名 ${e.reg_count||0}${e.capacity>0?'／'+e.capacity:''} · 已到 ${e.checkin_count||0}</span></li>`).join('')}</ul>`:'<p class="hint" style="margin:10px 0 0">未來 7 天沒有進行中的活動。</p>'}`;
@@ -673,8 +671,8 @@ function tabEvents(d){
     <div id="event-list-view">
     <div class="event-list-head"><div><h2>活動管理</h2>
     <p class="hint">場地申請送出後就是清單裡一場「待審」活動，點「管理」審核；通過後原地轉為公開活動。預告會公開顯示但不接受報名；草稿不公開。切換報名中後，0 元為免費票，付費票經 Stripe 確認後成立。請先確認票價與活動須知。</p></div>
-    ${d.organizer&&!d.can_create_events?'<a class="ui-button" href="/events?apply=1#ev-apply">申請新活動 →</a>':''}
-    <details id="event-editor" ${d.organizer&&!d.can_create_events?'hidden':''}><summary id="event-editor-title">建立新活動</summary><p id="event-editor-context" class="hint">建立活動後，再設定票種、報名表與公開頁內容。</p><div class="a-form">
+    ${false&&!d.can_create_events?'<a class="ui-button" href="/events?apply=1#ev-apply">申請新活動 →</a>':''}
+    <details id="event-editor" ${false&&!d.can_create_events?'hidden':''}><summary id="event-editor-title">建立新活動</summary><p id="event-editor-context" class="hint">建立活動後，再設定票種、報名表與公開頁內容。</p><div class="a-form">
       <input type="hidden" id="ev-id">
       <h3 style="width:100%">活動資訊</h3>
       <label>活動名稱<input id="ev-title" placeholder="例：七月社群沙龍"></label>
@@ -692,7 +690,7 @@ function tabEvents(d){
     <div class="a-form"><label style="width:100%">中文活動說明<textarea id="ev-desc" placeholder="活動說明（可換行）"></textarea></label></div>
     <h3>活動介紹與多語內容</h3><div id="ev-translations">${['zh','en','ja'].map(lang=>`<details class="a-sec"><summary>${{zh:'中文專屬頁內容',en:'English 活動內容',ja:'日本語 活動內容'}[lang]}</summary><p class="hint">純文字，可換行；英日文空白時沿用中文。專屬頁欄位只用於百鬼夜行頁面。</p><div class="a-form">${(lang==='zh'?[]:[['title','活動名稱'],['description','活動說明'],['location','地點']]).concat(EVENT_FIELDS).map(([key,label])=>`<label style="width:100%">${label}<textarea data-event-lang="${lang}" data-event-field="${key}" aria-label="${lang} ${label}" maxlength="10000" rows="2"></textarea></label>`).join('')}</div></details>`).join('')}</div>
     <div class="a-form ev-savebar" style="align-items:center">
-      <button class="btn btn--solid btn-sm" id="ev-save" ${d.organizer&&!d.can_create_events?'disabled':''}>建立活動</button>
+      <button class="btn btn--solid btn-sm" id="ev-save" ${false&&!d.can_create_events?'disabled':''}>建立活動</button>
       <button class="btn btn--ghost btn-sm" id="ev-reset" style="display:none">取消編輯</button>
     </div>
     </details></div><div class="ui-scope ui-row event-list-tools"><label class="ui-field">搜尋活動<input id="ev-search" type="search" placeholder="名稱、地點或網址"></label><label class="ui-field">活動狀態<select id="ev-list-status"><option value="">全部狀態</option><option>待審</option><option>未通過</option><option>草稿</option><option>預告</option><option>報名中</option><option>已結束</option><option>已取消</option></select></label><span id="ev-list-count" role="status" aria-live="polite"></span></div><p id="ev-list-empty" class="ui-scope ui-notice" hidden>沒有符合條件的活動，請調整搜尋或狀態。</p><div class="a-wrap2" tabindex="0" role="region" aria-label="活動清單，可橫向捲動"><table class="a-tbl a-events-table">
@@ -741,7 +739,7 @@ function syncCriticalEventUpdateNote(){
 
 /* 場地申請＝這場活動的審核面板：平台管理員審核與寄進度；主辦人只讀自己的進度。 */
 function showEventApplication(id,d){
-  if(!d.organizer){APPLICATION_EVENT=id;document.getElementById('applications-body').hidden=false;paintApplications();if(APPLICATIONS===null)loadApplications();return;}
+  if(!false){APPLICATION_EVENT=id;document.getElementById('applications-body').hidden=false;paintApplications();if(APPLICATIONS===null)loadApplications();return;}
   const a=(d.applications||[]).find(item=>item.event_id===id),host=document.getElementById('ev-hosts');host.hidden=false;
   host.innerHTML=a?`<h2>場地申請 <span class="pill ${a.status==='approved'?'pill-ok':'pill-wait'}">${esc({pending:'審核中',approved:'已通過',rejected:'未通過'}[a.status]||a.status)}</span></h2>
     <p class="hint">${a.status==='approved'?'場地申請已通過。檔期與費用仍以書面確認為準。':a.status==='pending'?'審核期間可以先準備票種、報名表與活動頁內容；通過前不能公開，也不能改時間與地點。':'這次申請未通過；可依回覆調整後，用「更多 → 複製並申請新場次」重新送件。'}</p>
@@ -794,7 +792,7 @@ function showEventManager(id,d){
   const link=event.id==='e_halloween_2026'?'/halloween-2026':'/events/'+encodeURIComponent(event.slug||event.id);
   const task=(name,label,danger=false)=>`<button type="button" class="event-task${danger?' event-task--danger':''}" data-event-task="${name}">${eico(name)}<span class="l">${label}</span></button>`;
   const group=(label,items)=>`<div class="event-task-group"><span class="event-task-group__label">${label}</span><div class="event-task-group__items">${items}</div></div>`;
-  manager.hidden=false;manager.innerHTML=`<div class="ui-scope ui-stack"><div class="event-manager-head"><div><p class="hint" style="margin:0">正在管理</p><h2>${esc(event.title)}</h2><p class="event-manager-meta"><span class="ui-badge">${esc(REVIEW_LABEL[event.review_status]||event.status)}</span><span>報名 <b id="ev-meta-count">${event.reg_count||0}${event.capacity>0?'／'+event.capacity:'／不限'}</b></span><span>已到 <b id="ev-meta-checkin">${event.checkin_count||0}</b></span><span>${esc(event.starts_at||'時間未定')}</span><span>${esc(event.location||'')}</span></p></div><div class="event-manager-head__actions"><a class="ui-button ui-button--secondary" href="${BASE}/events" data-event-manager-close>返回活動清單</a><a class="ui-button ui-button--secondary" href="${link}" target="_blank" rel="noopener">預覽活動頁 ↗</a></div></div><nav class="event-task-nav" aria-label="活動管理項目">${event.review_status?group('場地審核',task('application','場地申請'+(REVIEW_LABEL[event.review_status]?'｜'+REVIEW_LABEL[event.review_status]:''))):''}${group('報名與來賓',task('regs','名單／簽到')+task('import','新增／匯入來賓')+task('messages','來賓通知')+task('hosts','主辦團隊'))}${group('票券與報名流程',task('tickets','票種管理')+task('coupons','優惠碼')+task('questions','報名表')+task('settings','進階設定'))}${group('活動頁與分享',task('edit','基本資料')+task('details','頁面與地點')+task('content','詳細內容')+task('links','分享連結'))}${group('成效與紀錄',task('insights','活動數據')+task('payments','票款紀錄')+task('feedback','活動回饋')+task('activity','操作紀錄')+task('integration','API 與 Webhook'))}<details class="event-task-more"><summary>更多</summary><div class="event-task-group__items">${task('duplicate',d.organizer?'複製並申請新場次':'複製為新草稿')}${task('delete','刪除活動',true)}</div></details></nav></div>`;
+  manager.hidden=false;manager.innerHTML=`<div class="ui-scope ui-stack"><div class="event-manager-head"><div><p class="hint" style="margin:0">正在管理</p><h2>${esc(event.title)}</h2><p class="event-manager-meta"><span class="ui-badge">${esc(REVIEW_LABEL[event.review_status]||event.status)}</span><span>報名 <b id="ev-meta-count">${event.reg_count||0}${event.capacity>0?'／'+event.capacity:'／不限'}</b></span><span>已到 <b id="ev-meta-checkin">${event.checkin_count||0}</b></span><span>${esc(event.starts_at||'時間未定')}</span><span>${esc(event.location||'')}</span></p></div><div class="event-manager-head__actions"><a class="ui-button ui-button--secondary" href="${BASE}/events" data-event-manager-close>返回活動清單</a><a class="ui-button ui-button--secondary" href="${link}" target="_blank" rel="noopener">預覽活動頁 ↗</a></div></div><nav class="event-task-nav" aria-label="活動管理項目">${event.review_status?group('場地審核',task('application','場地申請'+(REVIEW_LABEL[event.review_status]?'｜'+REVIEW_LABEL[event.review_status]:''))):''}${group('報名與來賓',task('regs','名單／簽到')+task('import','新增／匯入來賓')+task('messages','來賓通知')+task('hosts','主辦團隊'))}${group('票券與報名流程',task('tickets','票種管理')+task('coupons','優惠碼')+task('questions','報名表')+task('settings','進階設定'))}${group('活動頁與分享',task('edit','基本資料')+task('details','頁面與地點')+task('content','詳細內容')+task('links','分享連結'))}${group('成效與紀錄',task('insights','活動數據')+task('payments','票款紀錄')+task('feedback','活動回饋')+task('activity','操作紀錄')+task('integration','API 與 Webhook'))}<details class="event-task-more"><summary>更多</summary><div class="event-task-group__items">${task('duplicate',false?'複製並申請新場次':'複製為新草稿')}${task('delete','刪除活動',true)}</div></details></nav></div>`;
   const crumb=document.getElementById('a-crumb-cur');if(crumb)crumb.textContent='活動｜'+event.title;document.title=event.title+' · 活動管理 · 言文字';
   const actions={application:()=>showEventApplication(id,d),edit:()=>openEventEditor(event,d),regs:()=>showRegs(id,d),import:()=>showGuestImport(id,d),messages:()=>showEventMessages(id),hosts:()=>showEventHosts(id),tickets:()=>showEventTickets(id,d),coupons:()=>showEventCoupons(id),questions:()=>showEventQuestions(id,d),settings:()=>showRegistrationSettings(id,d),details:()=>showEventDetails(id,d),content:()=>showEventRichContent(id,api,document.getElementById('ev-hosts'),async()=>Object.assign(event,await api('/admin/events/'+id+'/content'))).catch(e=>toast(e.message)),links:()=>showEventLinks(id,d),insights:()=>showEventInsights(id),payments:()=>showEventPayments(id),feedback:()=>showEventFeedback(id),activity:()=>showEventActivity(id),integration:()=>showEventIntegration(id),duplicate:()=>showEventDuplicate(id,d),delete:()=>{if(confirm('確定刪除此活動？已有報名紀錄的活動不能刪除。'))doThen(async()=>{const out=await api('/admin/events/'+id,{method:'DELETE'});go('events',true);return out;},'已刪除活動');}};
   manager.querySelectorAll('[data-event-task]').forEach(button=>button.onclick=()=>{manager.querySelectorAll('[data-event-task]').forEach(item=>item.removeAttribute('aria-pressed'));button.setAttribute('aria-pressed','true');document.getElementById('ev-hosts').hidden=true;document.getElementById('ev-regs').style.display='none';document.getElementById('applications-body').hidden=true;APPLICATION_EVENT='';actions[button.dataset.eventTask]?.();});
@@ -1236,7 +1234,7 @@ function tabAdmins(d){
   return `<div class="a-sec">
     <h2>權限管理</h2>
     ${createForm}
-    <p class="hint">只有超管可授予管理員。品牌全不勾＝言文字管理員，可進全部工作區；勾選一個以上＝品牌子帳號，除了勾選的品牌工作區（在咖啡／三點水只剩「日結報表」「排班打卡」，現場營運請改用 pos.emoji.tw），也會一併進入言文字工作區的共用分頁（會員、會費、消息、社群、廣告、活動、行事曆），但「權限管理」「系統設定」「操作紀錄」僅言文字管理員可用。外部主辦人不在這裡設定：到「言文字 → 活動」開啟該場活動的「主辦團隊」，加入對方 Email 並勾選「共同管理本活動」，對方即可從 /organizer/events 管理那一場。</p>
+    <p class="hint">只有超管可授予管理員。品牌全不勾＝言文字管理員，可進全部工作區；勾選一個以上＝品牌子帳號，除了勾選的品牌工作區（在咖啡／三點水只剩「日結報表」「排班打卡」，現場營運請改用 pos.emoji.tw），也會一併進入言文字工作區的共用分頁（會員、會費、消息、社群、廣告、活動、行事曆），但「權限管理」「系統設定」「操作紀錄」僅言文字管理員可用。外部主辦人不在這裡設定：到「言文字 → 活動」開啟該場活動的「主辦團隊」，加入對方 Email 並勾選「共同管理本活動」，對方即可從會員 App 的 /host 管理那一場。</p>
     <div class="a-wrap2"><table class="a-tbl">
       <thead><tr><th>姓名</th><th>Email</th><th>目前</th><th>操作</th></tr></thead>
       <tbody>${body}</tbody></table></div>
@@ -1260,10 +1258,10 @@ const WORKSPACES = {
 };
 const SCOPE_BY_SLUG = Object.fromEntries(Object.entries(WORKSPACES).map(([scope,w])=>[w.slug,scope]));
 let SCOPE = ''; try { SCOPE = localStorage.getItem('tth_scope') || ''; } catch (e) {}
-const scopesOf = d => d?.organizer ? [''] : d?.brands ? ['', ...d.brands].filter(s => WORKSPACES[s]) : ['', ...Object.keys(BRAND_LABEL)];
+const scopesOf = d => false ? [''] : d?.brands ? ['', ...d.brands].filter(s => WORKSPACES[s]) : ['', ...Object.keys(BRAND_LABEL)];
 const scopeTabs = () => SCOPE === '' && DATA && DATA.brands ? ROOT_TABS_BRAND : WORKSPACES[SCOPE].tabs;
 function setScope(s){ SCOPE = s; try { localStorage.setItem('tth_scope', s); } catch (e) {} }
-const homeTab = d => d?.organizer ? 'events' : scopeTabs()[0];
+const homeTab = d => false ? 'events' : scopeTabs()[0];
 const TABS = [
   { id:'overview',    label:'總覽',     render:tabOverview },
   { id:'members',     label:'會員',     render:tabMembers },
@@ -1336,10 +1334,10 @@ function render(d){
   const x = derived(d);
   const scopes = scopesOf(d);
   if (!scopes.includes(SCOPE)) setScope(scopes[0]);
-  const tabs = TABS.filter(t => d.organizer ? t.id==='events' : scopeTabs().includes(t.id) && (!t.super || d.super) && (!t.outreach || d.outreach));
+  const tabs = TABS.filter(t => false ? t.id==='events' : scopeTabs().includes(t.id) && (!t.super || d.super) && (!t.outreach || d.outreach));
   if (!tabs.find(t=>t.id===TAB)) TAB=homeTab(d);
   const navBtn = t => {
-    const badge = t.id==='events' ? ((d.events||[]).length ? `<span class="badge">${d.events.length}</span>` : '')+(d.organizer?'':'<span class="badge" data-application-count data-nav-badge hidden></span>') : '';
+    const badge = t.id==='events' ? ((d.events||[]).length ? `<span class="badge">${d.events.length}</span>` : '')+(false?'':'<span class="badge" data-application-count data-nav-badge hidden></span>') : '';
     return `<button data-tab="${t.id}" class="${t.id===TAB?'on':''}" aria-current="${t.id===TAB?'page':'false'}">${ico(t.id)}<span class="l">${t.label}</span>${badge}</button>`;
   };
   const nav = NAV_GROUPS.map(([g, ids]) => {
@@ -1350,7 +1348,7 @@ function render(d){
   // innerHTML 內容全部來自本檔的 WORKSPACES 常數（label／note／mark），不含任何使用者輸入
   const workspaceHost = document.getElementById('a-workspaces');
   if (workspaceHost) {
-    const show = !d.organizer && scopes.length > 1;
+    const show = !false && scopes.length > 1;
     workspaceHost.classList.toggle('on', show);
     workspaceHost.innerHTML = show ? scopes.map(s=>{
       const w=WORKSPACES[s];
@@ -1368,8 +1366,8 @@ function render(d){
   const crumb = document.getElementById('a-crumb');
   if (crumb) {
     crumb.hidden = false;
-    document.getElementById('a-crumb-workspace').textContent = d.organizer ? '活動主後台' : WORKSPACES[SCOPE].label;
-    document.getElementById('a-role').textContent = d.organizer ? '活動主' : d.super ? '言文字 · 超級管理員' : d.brands ? d.brands.map(b=>BRAND_LABEL[b]||b).join('＋')+' · 子帳號' : '言文字 · 管理員';
+    document.getElementById('a-crumb-workspace').textContent = false ? '活動主後台' : WORKSPACES[SCOPE].label;
+    document.getElementById('a-role').textContent = false ? '活動主' : d.super ? '言文字 · 超級管理員' : d.brands ? d.brands.map(b=>BRAND_LABEL[b]||b).join('＋')+' · 子帳號' : '言文字 · 管理員';
   }
   document.querySelectorAll('[data-scope]').forEach(button=>button.onclick=()=>{
     setScope(button.dataset.scope); TAB=homeTab(d); render(DATA); go(TAB,true);
@@ -1391,7 +1389,7 @@ function activateTab(t){
   document.querySelectorAll('[data-tab]').forEach(n=>{ const on = n.dataset.tab===TAB; n.classList.toggle('on',on); n.setAttribute('aria-current', on?'page':'false'); });
   document.querySelectorAll('[data-panel]').forEach(p=>p.classList.toggle('on',p.dataset.panel===TAB));
   const label = (TABS.find(x=>x.id===TAB)||{}).label || '';
-  const workspace = ORGANIZER_PORTAL ? '活動主後台' : WORKSPACES[SCOPE].label;
+  const workspace = WORKSPACES[SCOPE].label;
   const cur = document.getElementById('a-crumb-cur'); if (cur) cur.textContent = label;
   const ws = document.getElementById('a-crumb-workspace'); if (ws) ws.textContent = workspace;
   document.title = `${label} · ${workspace} · 後台管理`;
@@ -1400,7 +1398,7 @@ function activateTab(t){
 function applyRoute(){
   let h = routePath();
   let explicitScope = false;
-  if (!ORGANIZER_PORTAL) {
+  if (true) {
     const routeParts = h.split('/').filter(Boolean);
     if (routeParts.length && Object.prototype.hasOwnProperty.call(SCOPE_BY_SLUG, routeParts[0])) {
       explicitScope = true;
@@ -1425,13 +1423,13 @@ function applyRoute(){
   const tab = parts[0];
   if (!document.querySelector(`[data-panel="${CSS.escape(tab)}"]`)) {
     // 舊網址相容：未帶工作區或工作區不符時，切到第一個擁有該功能且有權限的工作區。
-    const s = DATA && !DATA.organizer && scopesOf(DATA).find(s => s !== SCOPE && WORKSPACES[s].tabs.includes(tab));
+    const s = DATA && !false && scopesOf(DATA).find(s => s !== SCOPE && WORKSPACES[s].tabs.includes(tab));
     if (s === undefined || s === false || s === null) { go('', true); return; }
     setScope(s); TAB = tab; render(DATA); go(h, true); return;
   }
-  if (!ORGANIZER_PORTAL && !explicitScope) { go(h || tab, true); return; }
+  if (!explicitScope) { go(h || tab, true); return; }
   activateTab(tab);
-  if (tab === 'overview') { if (APPLICATIONS===null && !DATA?.organizer) loadApplications().then(paintOverviewTodo); return; }
+  if (tab === 'overview') { if (APPLICATIONS===null && !false) loadApplications().then(paintOverviewTodo); return; }
   if (tab === 'calendar') { if (APPLICATIONS===null) loadApplications().then(paintCalendar); paintCalendar(); return; }
   if (tab === 'orders') { loadOrders(); return; }
   if (tab === 'pos') { loadPos(); return; }
@@ -1443,7 +1441,7 @@ function applyRoute(){
   if (tab === 'system') { if(DATA?.super)loadSystemSettings(); return; }
   if (tab === 'ads') { paintAds(); return; }
   if (tab === 'outreach') { loadOutreach(); return; }
-  if (tab === 'events') { if(APPLICATIONS===null&&!DATA?.organizer)loadApplications(); if(parts[1]==='applications'){go('events',true);const f=document.getElementById('ev-list-status');if(f&&!DATA?.organizer){f.value='待審';f.dispatchEvent(new Event('change'));}return;} else if(parts[1]&&!showEventManager(parts[1],DATA)){toast('找不到這場活動');go('events',true);} else if(!parts[1])showEventList(); return; }
+  if (tab === 'events') { if(APPLICATIONS===null&&!false)loadApplications(); if(parts[1]==='applications'){go('events',true);const f=document.getElementById('ev-list-status');if(f&&!false){f.value='待審';f.dispatchEvent(new Event('change'));}return;} else if(parts[1]&&!showEventManager(parts[1],DATA)){toast('找不到這場活動');go('events',true);} else if(!parts[1])showEventList(); return; }
   if (tab !== 'social') return;
   const v = parts[1] || SOCIAL_VIEW;
   if (['igstudio','xstudio'].includes(v)) {
@@ -1794,7 +1792,7 @@ function resetEventForm(){
   document.getElementById('ev-reg-url').value='';document.getElementById('ev-reg-url-wrap').hidden=true;
   document.getElementById('ev-status').value='草稿';
   document.getElementById('ev-save').textContent='建立活動';
-  document.getElementById('ev-save').disabled=!!DATA?.organizer&&!DATA?.can_create_events;
+  document.getElementById('ev-save').disabled=!!false&&!DATA?.can_create_events;
   document.getElementById('ev-reset').style.display='none';
   syncCriticalEventUpdateNote();
 }
@@ -1836,7 +1834,7 @@ async function showEventLinks(id,d){
 
 async function showEventDetails(id,d){
  const event=d.events.find(e=>e.id===id),details=event.event_details||{},host=document.getElementById('ev-hosts');host.hidden=false;let meeting;try{meeting=await api('/admin/events/'+id+'/meeting');}catch(error){toast(error.message);return;}
- host.innerHTML=`<h2>頁面與地點 · ${esc(event.title)}</h2><div class="a-form"><label>形式<select id="detail-mode">${Object.entries({offline:'現場',online:'線上',hybrid:'現場＋線上'}).map(([v,l])=>`<option value="${v}" ${(details.mode||'offline')===v?'selected':''}>${l}</option>`).join('')}</select></label><label>版型<select id="detail-theme">${Object.entries({minimal:'簡約',gradient:'漸層',dots:'圓點',grid:'格線',confetti:'慶典',emoji:'表情圖案',seasonal:'季節',polaroid:'拍立得'}).map(([v,l])=>`<option value="${v}" ${(details.theme||'minimal')===v?'selected':''}>${l}</option>`).join('')}</select></label><label>明暗<select id="detail-appearance"><option value="light">淺色</option><option value="dark" ${details.appearance==='dark'?'selected':''}>深色</option></select></label><label>活動主色<input id="detail-accent" type="color" value="${esc(details.accent||'#FFDE34')}"></label><label>封面圖片網址<input id="detail-cover" value="${esc(details.cover_url||'')}" placeholder="https://…"></label><label>上傳封面（PNG／JPEG／WebP，最多 5 MB）<input id="detail-cover-file" type="file" accept="image/png,image/jpeg,image/webp"></label><img id="detail-cover-preview" src="${esc(details.cover_url||'')}" alt="活動封面預覽" style="max-width:260px" ${details.cover_url?'':'hidden'}><label>線上會議連結（報名成功後提供）<input id="detail-online" value="${esc(details.online_url||'')}"></label><label>備用收件 Email（不公開）<input id="detail-email" type="email" value="${esc(details.contact_email||'')}"></label><label><input id="detail-hide" type="checkbox" ${details.hide_location?'checked':''}>報名成功後才顯示地點欄位</label><label><input id="detail-guests" type="checkbox" ${details.show_guest_list?'checked':''}>公開已同意顯示姓名的來賓名單</label><button class="btn btn--solid" id="detail-save">儲存頁面設定</button></div><p class="hint">聯絡表單會寄給活動建立者；只有沒有建立者帳號時才使用備用收件 Email，地址不會公開。隱藏地點只控制專用地點欄位與行事曆。若活動說明或封面自行寫了地址，仍會公開，請一併檢查。線上連結只提供給有效報名者。</p><section class="ui-scope ui-card ui-stack" aria-labelledby="meeting-title"><h3 id="meeting-title">Google Meet</h3><p id="meeting-status" role="status">${!meeting.google_meet.configured?'網站尚未設定 Google Calendar OAuth。':!meeting.google_meet.connected?'連接你的 Google 帳號後，可在主要行事曆建立專屬 Meet。':meeting.meeting.provider==='google-meet'?(meeting.meeting.pending?'會議正在建立；請同步狀態。':'這場活動已使用 Google Meet。'):'Google Meet 已連接，可建立這場活動的專屬會議。'}</p><div class="ui-card__actions">${!meeting.google_meet.configured?'':!meeting.google_meet.connected?'<button type="button" class="ui-button ui-button--secondary" id="meeting-connect">連接 Google Meet</button>':`<button type="button" class="ui-button" id="meeting-create">${meeting.meeting.provider==='google-meet'?'同步 Google Meet 狀態':'建立 Google Meet'}</button><button type="button" class="ui-button ui-button--secondary" id="meeting-disconnect">中斷我的 Google Meet 連接</button>`}</div><p class="hint">會議建立在目前管理者的 Google 主要行事曆。加入連結只提供給有效報名者；中斷連接不會刪除既有 Google Calendar 活動。</p></section><section class="ui-scope ui-card ui-stack" aria-labelledby="zoom-title"><h3 id="zoom-title">Zoom</h3><p id="zoom-status" role="status">${!meeting.zoom.configured?'網站尚未設定 Zoom OAuth。':!meeting.zoom.connected?'連接你的 Zoom 帳號後，可建立 Meeting 或 Webinar。':meeting.meeting.provider==='zoom'?`這場活動已使用 Zoom ${meeting.meeting.kind==='webinar'?'Webinar':'Meeting'}。`:'Zoom 已連接，可建立這場活動的線上空間。'}</p><div class="ui-card__actions">${!meeting.zoom.configured?'':!meeting.zoom.connected?'<button type="button" class="ui-button ui-button--secondary" id="zoom-connect">連接 Zoom</button>':`<label class="ui-field">Zoom 類型<select id="zoom-kind"><option value="meeting" ${meeting.meeting.kind==='meeting'?'selected':''}>Meeting</option><option value="webinar" ${meeting.meeting.kind==='webinar'?'selected':''}>Webinar</option></select></label><button type="button" class="ui-button" id="zoom-create">${meeting.meeting.provider==='zoom'?'同步 Zoom 狀態':'建立 Zoom'}</button><button type="button" class="ui-button ui-button--secondary" id="zoom-disconnect">中斷我的 Zoom 連接</button>`}</div><p class="hint">Webinar 需要 Zoom 帳號方案與對應權限。加入連結只提供給有效報名者；中斷連接不會刪除既有 Zoom 會議。</p></section><details class="ui-scope ui-details"><summary>取消活動</summary><p>取消後不接受報名或簽到，並關閉現有待付款結帳。${d.organizer?'已付款票款由言文字平台另行退款。':'可選擇由言文字統一收款帳戶退回所有可退款餘額。'}也可將取消通知排入郵件佇列。</p><label class="ui-field">公開取消原因（必填）<textarea id="detail-cancel-reason" maxlength="1000" required aria-describedby="detail-message"></textarea></label><label class="ui-field">取消原因 English（選填）<textarea id="detail-cancel-en" maxlength="1000"></textarea></label><label class="ui-field">取消原因 日本語（選填）<textarea id="detail-cancel-ja" maxlength="1000"></textarea></label><label class="ui-check"><input type="checkbox" id="detail-cancel-notify">寄送取消通知給已報名、待處理與候補來賓</label>${!d.organizer?'<label class="ui-check"><input type="checkbox" id="detail-cancel-refund">由言文字統一收款帳戶退回所有可退款餘額</label>':''}<button type="button" class="ui-button ui-button--secondary" id="detail-cancel">確認取消活動</button></details><p role="status" id="detail-message"></p>`;
+ host.innerHTML=`<h2>頁面與地點 · ${esc(event.title)}</h2><div class="a-form"><label>形式<select id="detail-mode">${Object.entries({offline:'現場',online:'線上',hybrid:'現場＋線上'}).map(([v,l])=>`<option value="${v}" ${(details.mode||'offline')===v?'selected':''}>${l}</option>`).join('')}</select></label><label>版型<select id="detail-theme">${Object.entries({minimal:'簡約',gradient:'漸層',dots:'圓點',grid:'格線',confetti:'慶典',emoji:'表情圖案',seasonal:'季節',polaroid:'拍立得'}).map(([v,l])=>`<option value="${v}" ${(details.theme||'minimal')===v?'selected':''}>${l}</option>`).join('')}</select></label><label>明暗<select id="detail-appearance"><option value="light">淺色</option><option value="dark" ${details.appearance==='dark'?'selected':''}>深色</option></select></label><label>活動主色<input id="detail-accent" type="color" value="${esc(details.accent||'#FFDE34')}"></label><label>封面圖片網址<input id="detail-cover" value="${esc(details.cover_url||'')}" placeholder="https://…"></label><label>上傳封面（PNG／JPEG／WebP，最多 5 MB）<input id="detail-cover-file" type="file" accept="image/png,image/jpeg,image/webp"></label><img id="detail-cover-preview" src="${esc(details.cover_url||'')}" alt="活動封面預覽" style="max-width:260px" ${details.cover_url?'':'hidden'}><label>線上會議連結（報名成功後提供）<input id="detail-online" value="${esc(details.online_url||'')}"></label><label>備用收件 Email（不公開）<input id="detail-email" type="email" value="${esc(details.contact_email||'')}"></label><label><input id="detail-hide" type="checkbox" ${details.hide_location?'checked':''}>報名成功後才顯示地點欄位</label><label><input id="detail-guests" type="checkbox" ${details.show_guest_list?'checked':''}>公開已同意顯示姓名的來賓名單</label><button class="btn btn--solid" id="detail-save">儲存頁面設定</button></div><p class="hint">聯絡表單會寄給活動建立者；只有沒有建立者帳號時才使用備用收件 Email，地址不會公開。隱藏地點只控制專用地點欄位與行事曆。若活動說明或封面自行寫了地址，仍會公開，請一併檢查。線上連結只提供給有效報名者。</p><section class="ui-scope ui-card ui-stack" aria-labelledby="meeting-title"><h3 id="meeting-title">Google Meet</h3><p id="meeting-status" role="status">${!meeting.google_meet.configured?'網站尚未設定 Google Calendar OAuth。':!meeting.google_meet.connected?'連接你的 Google 帳號後，可在主要行事曆建立專屬 Meet。':meeting.meeting.provider==='google-meet'?(meeting.meeting.pending?'會議正在建立；請同步狀態。':'這場活動已使用 Google Meet。'):'Google Meet 已連接，可建立這場活動的專屬會議。'}</p><div class="ui-card__actions">${!meeting.google_meet.configured?'':!meeting.google_meet.connected?'<button type="button" class="ui-button ui-button--secondary" id="meeting-connect">連接 Google Meet</button>':`<button type="button" class="ui-button" id="meeting-create">${meeting.meeting.provider==='google-meet'?'同步 Google Meet 狀態':'建立 Google Meet'}</button><button type="button" class="ui-button ui-button--secondary" id="meeting-disconnect">中斷我的 Google Meet 連接</button>`}</div><p class="hint">會議建立在目前管理者的 Google 主要行事曆。加入連結只提供給有效報名者；中斷連接不會刪除既有 Google Calendar 活動。</p></section><section class="ui-scope ui-card ui-stack" aria-labelledby="zoom-title"><h3 id="zoom-title">Zoom</h3><p id="zoom-status" role="status">${!meeting.zoom.configured?'網站尚未設定 Zoom OAuth。':!meeting.zoom.connected?'連接你的 Zoom 帳號後，可建立 Meeting 或 Webinar。':meeting.meeting.provider==='zoom'?`這場活動已使用 Zoom ${meeting.meeting.kind==='webinar'?'Webinar':'Meeting'}。`:'Zoom 已連接，可建立這場活動的線上空間。'}</p><div class="ui-card__actions">${!meeting.zoom.configured?'':!meeting.zoom.connected?'<button type="button" class="ui-button ui-button--secondary" id="zoom-connect">連接 Zoom</button>':`<label class="ui-field">Zoom 類型<select id="zoom-kind"><option value="meeting" ${meeting.meeting.kind==='meeting'?'selected':''}>Meeting</option><option value="webinar" ${meeting.meeting.kind==='webinar'?'selected':''}>Webinar</option></select></label><button type="button" class="ui-button" id="zoom-create">${meeting.meeting.provider==='zoom'?'同步 Zoom 狀態':'建立 Zoom'}</button><button type="button" class="ui-button ui-button--secondary" id="zoom-disconnect">中斷我的 Zoom 連接</button>`}</div><p class="hint">Webinar 需要 Zoom 帳號方案與對應權限。加入連結只提供給有效報名者；中斷連接不會刪除既有 Zoom 會議。</p></section><details class="ui-scope ui-details"><summary>取消活動</summary><p>取消後不接受報名或簽到，並關閉現有待付款結帳。${false?'已付款票款由言文字平台另行退款。':'可選擇由言文字統一收款帳戶退回所有可退款餘額。'}也可將取消通知排入郵件佇列。</p><label class="ui-field">公開取消原因（必填）<textarea id="detail-cancel-reason" maxlength="1000" required aria-describedby="detail-message"></textarea></label><label class="ui-field">取消原因 English（選填）<textarea id="detail-cancel-en" maxlength="1000"></textarea></label><label class="ui-field">取消原因 日本語（選填）<textarea id="detail-cancel-ja" maxlength="1000"></textarea></label><label class="ui-check"><input type="checkbox" id="detail-cancel-notify">寄送取消通知給已報名、待處理與候補來賓</label>${!false?'<label class="ui-check"><input type="checkbox" id="detail-cancel-refund">由言文字統一收款帳戶退回所有可退款餘額</label>':''}<button type="button" class="ui-button ui-button--secondary" id="detail-cancel">確認取消活動</button></details><p role="status" id="detail-message"></p>`;
  document.getElementById('detail-cover-file').onchange=async()=>{const file=document.getElementById('detail-cover-file').files[0];if(!file)return;const form=new FormData();form.append('file',file);try{const response=await fetch('/api/admin/events/'+id+'/cover',{method:'POST',headers:{Authorization:'Bearer '+token},body:form}),out=await response.json();if(!response.ok)throw Error(out.error);document.getElementById('detail-cover').value=out.url;event.event_details={...event.event_details,cover_url:out.url};const image=document.getElementById('detail-cover-preview');image.src=out.url;image.hidden=false;document.getElementById('detail-message').textContent='封面已上傳並儲存';}catch(e){toast(e.message);}};
  document.getElementById('detail-save').onclick=async()=>{try{const out=await api('/admin/events/'+id+'/details',{method:'POST',body:{mode:document.getElementById('detail-mode').value,theme:document.getElementById('detail-theme').value,appearance:document.getElementById('detail-appearance').value,accent:document.getElementById('detail-accent').value,cover_url:document.getElementById('detail-cover').value,online_url:document.getElementById('detail-online').value,contact_email:document.getElementById('detail-email').value,hide_location:document.getElementById('detail-hide').checked,show_guest_list:document.getElementById('detail-guests').checked}});event.event_details=out.details;document.getElementById('detail-message').textContent='已儲存頁面設定';}catch(e){toast(e.message);}};
  document.getElementById('meeting-connect')?.addEventListener('click',async action=>{const button=action.currentTarget;button.disabled=true;try{const out=await api('/admin/events/'+id+'/meeting/connect',{method:'POST',body:{redirect:location.pathname}});location.assign(out.url);}catch(error){document.getElementById('meeting-status').textContent=error.message;button.disabled=false;}});
@@ -2006,15 +2004,15 @@ async function showRegistrationSettings(id,d){
     <label>開始接受報名<input id="rs-open" type="datetime-local" value="${esc(toLocalInput(settings.opens_at))}"></label>
     <label>截止報名<input id="rs-close" type="datetime-local" value="${esc(toLocalInput(settings.closes_at))}"></label>
     <label><input id="rs-group" type="checkbox" ${settings.group_registration!==false?'checked':''}>開放團體報名與加購票券</label><label><input id="rs-split-name" type="checkbox" ${settings.split_name?'checked':''}>報名時分開填寫姓與名</label><label><input id="rs-approval" type="checkbox" ${settings.requires_approval?'checked':''}>需要主辦人審核</label>
-    <label>付費審核方式<select id="rs-payment"><option value="after_approval">先審核，核准後 24 小時內付款</option><option value="authorize" ${settings.payment_approval==='authorize'?'selected':''}>先預授權，核准後請款</option></select></label><p class="hint">預授權尚未扣款，也不保證名額。請在 24 小時內審核；銀行期限更短時以銀行為準，逾時自動解除。</p><label><input id="rs-waitlist" type="checkbox" ${settings.waitlist?'checked':''}>額滿開放候補</label><fieldset><legend>收集錢包地址</legend><label><input id="rs-wallet-ethereum" type="checkbox" ${settings.wallet_collection?.ethereum?'checked':''}>報名時驗證 Ethereum 錢包</label><label><input id="rs-wallet-solana" type="checkbox" ${settings.wallet_collection?.solana?'checked':''}>報名時驗證 Solana 錢包</label><p class="hint">參加者需用錢包簽署限時訊息，證明地址由本人持有；同一錢包每場活動只能使用一次。</p></fieldset><fieldset><legend>稅金（由言文字統一收款）</legend><label><input id="rs-tax-enabled" type="checkbox" ${settings.tax?.enabled?'checked':''} ${d.organizer?'disabled':''}>向付費票收取稅金</label><label>稅金名稱<input id="rs-tax-name" maxlength="80" value="${esc(settings.tax?.name||'')}" ${d.organizer?'disabled':''}></label><label>稅率（%）<input id="rs-tax-rate" type="number" min="0.01" max="100" step="0.01" value="${settings.tax?.rate_bps?settings.tax.rate_bps/100:''}" ${d.organizer?'disabled':''}></label><p class="hint">前台會先顯示含稅總額，付款明細保留未稅金額與稅額。因款項由言文字收取，稅金名稱與稅率僅平台管理員可調整。</p></fieldset>
+    <label>付費審核方式<select id="rs-payment"><option value="after_approval">先審核，核准後 24 小時內付款</option><option value="authorize" ${settings.payment_approval==='authorize'?'selected':''}>先預授權，核准後請款</option></select></label><p class="hint">預授權尚未扣款，也不保證名額。請在 24 小時內審核；銀行期限更短時以銀行為準，逾時自動解除。</p><label><input id="rs-waitlist" type="checkbox" ${settings.waitlist?'checked':''}>額滿開放候補</label><fieldset><legend>收集錢包地址</legend><label><input id="rs-wallet-ethereum" type="checkbox" ${settings.wallet_collection?.ethereum?'checked':''}>報名時驗證 Ethereum 錢包</label><label><input id="rs-wallet-solana" type="checkbox" ${settings.wallet_collection?.solana?'checked':''}>報名時驗證 Solana 錢包</label><p class="hint">參加者需用錢包簽署限時訊息，證明地址由本人持有；同一錢包每場活動只能使用一次。</p></fieldset><fieldset><legend>稅金（由言文字統一收款）</legend><label><input id="rs-tax-enabled" type="checkbox" ${settings.tax?.enabled?'checked':''} ${false?'disabled':''}>向付費票收取稅金</label><label>稅金名稱<input id="rs-tax-name" maxlength="80" value="${esc(settings.tax?.name||'')}" ${false?'disabled':''}></label><label>稅率（%）<input id="rs-tax-rate" type="number" min="0.01" max="100" step="0.01" value="${settings.tax?.rate_bps?settings.tax.rate_bps/100:''}" ${false?'disabled':''}></label><p class="hint">前台會先顯示含稅總額，付款明細保留未稅金額與稅額。因款項由言文字收取，稅金名稱與稅率僅平台管理員可調整。</p></fieldset>
     <label><input id="rs-reminder-24" type="checkbox" ${(settings.reminders||[]).includes(24)?'checked':''}>活動前 24 小時寄送提醒</label><label><input id="rs-reminder-1" type="checkbox" ${(settings.reminders||[]).includes(1)?'checked':''}>活動前 1 小時寄送提醒</label><p class="hint">需啟用寄信服務。提醒寄給預定提醒時間之前已報名的購買者；發送狀態可在來賓通知查詢。</p><fieldset><legend>自動報名通知</legend><p class="hint">可自訂報名成功、待審核／候補及未獲核准通知；留白時依收件人語系使用系統預設。自訂文字會套用於所有語系。</p><label>報名成功主旨<input id="rs-email-confirmation-subject" maxlength="160" value="${esc(settings.email_templates?.confirmation?.subject||'')}"></label><label>報名成功內容<textarea id="rs-email-confirmation-body" maxlength="5000">${esc(settings.email_templates?.confirmation?.body||'')}</textarea></label><label>待審核／候補主旨<input id="rs-email-pending-subject" maxlength="160" value="${esc(settings.email_templates?.pending?.subject||'')}"></label><label>待審核／候補內容<textarea id="rs-email-pending-body" maxlength="5000">${esc(settings.email_templates?.pending?.body||'')}</textarea></label><label>未獲核准主旨<input id="rs-email-declined-subject" maxlength="160" value="${esc(settings.email_templates?.declined?.subject||'')}"></label><label>未獲核准內容<textarea id="rs-email-declined-body" maxlength="5000">${esc(settings.email_templates?.declined?.body||'')}</textarea></label></fieldset><fieldset><legend>活動後回饋邀請</legend><label><input id="rs-feedback" type="checkbox" ${settings.feedback?.enabled?'checked':''}>活動結束後寄送回饋邀請</label><label>結束後幾小時寄送<input id="rs-feedback-hours" type="number" min="0" max="168" value="${settings.feedback?.delay_hours||0}"></label><label>自訂主旨（留白使用來賓語系預設）<input id="rs-feedback-subject" maxlength="160" value="${esc(settings.feedback?.subject||'')}"></label><label>自訂內容（留白使用來賓語系預設）<textarea id="rs-feedback-body" maxlength="5000">${esc(settings.feedback?.body||'')}</textarea></label><p class="hint">需設定活動結束時間及寄信服務。每筆有效報名最多一封；已填回饋者不寄送。</p></fieldset><button class="btn btn--solid" id="rs-save">儲存報名設定</button></div><p id="rs-message" role="status"></p>`;
   bindTicketWorkspaceNav(host);
-  const syncTax=()=>{const disabled=d.organizer||!document.getElementById('rs-tax-enabled').checked;document.getElementById('rs-tax-name').disabled=disabled;document.getElementById('rs-tax-rate').disabled=disabled;};document.getElementById('rs-tax-enabled').onchange=syncTax;syncTax();
+  const syncTax=()=>{const disabled=false||!document.getElementById('rs-tax-enabled').checked;document.getElementById('rs-tax-name').disabled=disabled;document.getElementById('rs-tax-rate').disabled=disabled;};document.getElementById('rs-tax-enabled').onchange=syncTax;syncTax();
   document.getElementById('rs-save').onclick=async()=>{
     const button=document.getElementById('rs-save');button.disabled=true;
     try{
       const date=id=>document.getElementById(id).value?document.getElementById(id).value+':00+08:00':null;
-      const out=await api('/admin/events/'+id+'/registration-settings',{method:'POST',body:{opens_at:date('rs-open'),closes_at:date('rs-close'),group_registration:document.getElementById('rs-group').checked,split_name:document.getElementById('rs-split-name').checked,requires_approval:document.getElementById('rs-approval').checked,waitlist:document.getElementById('rs-waitlist').checked,wallet_collection:{ethereum:document.getElementById('rs-wallet-ethereum').checked,solana:document.getElementById('rs-wallet-solana').checked},payment_approval:document.getElementById('rs-payment').value,reminders:[24,1].filter(h=>document.getElementById('rs-reminder-'+h).checked),email_templates:Object.fromEntries(['confirmation','pending','declined'].map(kind=>[kind,{subject:document.getElementById('rs-email-'+kind+'-subject').value,body:document.getElementById('rs-email-'+kind+'-body').value}])),feedback:{enabled:document.getElementById('rs-feedback').checked,delay_hours:Number(document.getElementById('rs-feedback-hours').value),subject:document.getElementById('rs-feedback-subject').value,body:document.getElementById('rs-feedback-body').value},...(!d.organizer?{tax:{enabled:document.getElementById('rs-tax-enabled').checked,name:document.getElementById('rs-tax-name').value,rate_bps:Math.round(Number(document.getElementById('rs-tax-rate').value)*100)}}:{})}});
+      const out=await api('/admin/events/'+id+'/registration-settings',{method:'POST',body:{opens_at:date('rs-open'),closes_at:date('rs-close'),group_registration:document.getElementById('rs-group').checked,split_name:document.getElementById('rs-split-name').checked,requires_approval:document.getElementById('rs-approval').checked,waitlist:document.getElementById('rs-waitlist').checked,wallet_collection:{ethereum:document.getElementById('rs-wallet-ethereum').checked,solana:document.getElementById('rs-wallet-solana').checked},payment_approval:document.getElementById('rs-payment').value,reminders:[24,1].filter(h=>document.getElementById('rs-reminder-'+h).checked),email_templates:Object.fromEntries(['confirmation','pending','declined'].map(kind=>[kind,{subject:document.getElementById('rs-email-'+kind+'-subject').value,body:document.getElementById('rs-email-'+kind+'-body').value}])),feedback:{enabled:document.getElementById('rs-feedback').checked,delay_hours:Number(document.getElementById('rs-feedback-hours').value),subject:document.getElementById('rs-feedback-subject').value,body:document.getElementById('rs-feedback-body').value},...(!false?{tax:{enabled:document.getElementById('rs-tax-enabled').checked,name:document.getElementById('rs-tax-name').value,rate_bps:Math.round(Number(document.getElementById('rs-tax-rate').value)*100)}}:{})}});
       event.registration_settings={...event.registration_settings,...out.settings};document.getElementById('rs-message').textContent='已儲存報名設定';
     }catch(e){document.getElementById('rs-message').textContent=e.message;}finally{button.disabled=false;}
   };
@@ -2030,7 +2028,7 @@ async function showEventHosts(eventId){
     <div class="a-form"><label>姓名<input id="host-name" maxlength="120"></label><label>Email<input id="host-email" type="email" maxlength="254"></label>
     <label><input id="host-visible" type="checkbox">顯示在活動頁</label><label><input id="host-manage" type="checkbox">共同管理本活動</label><label><input id="host-checkin" type="checkbox">允許現場簽到</label><fieldset id="host-ticket-scope"><legend>可簽到票種（未勾選＝全部）</legend>${tickets.length?tickets.map(ticket=>`<label><input type="checkbox" data-checkin-ticket="${esc(ticket.id)}">${esc(ticket.name)}</label>`).join(''):'目前沒有票種，將接受本活動所有有效票券。'}</fieldset></div>
     <p class="hint">填入對方將用於登入的 Email，即可授予本活動權限。新增主辦人時，若寄信服務已設定，系統會寄出活動邀請與行事曆附件；未設定時會明確提示。</p>
-    <div class="a-form"><button class="btn btn--solid btn-sm" id="host-save">新增／更新主辦人</button><a class="btn btn--ghost btn-sm" href="/organizer/events" target="_blank" rel="noopener">活動主入口 ↗</a><a class="btn btn--ghost btn-sm" href="/event-checkin.html?event=${encodeURIComponent(eventId)}" target="_blank" rel="noopener">現場簽到入口 ↗</a><button class="btn btn--ghost btn-sm" id="host-close">關閉團隊</button></div>
+    <div class="a-form"><button class="btn btn--solid btn-sm" id="host-save">新增／更新主辦人</button><a class="btn btn--ghost btn-sm" href="https://app.emoji.tw/host" target="_blank" rel="noopener">活動主入口 ↗</a><a class="btn btn--ghost btn-sm" href="/event-checkin.html?event=${encodeURIComponent(eventId)}" target="_blank" rel="noopener">現場簽到入口 ↗</a><button class="btn btn--ghost btn-sm" id="host-close">關閉團隊</button></div>
     <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>主辦人</th><th>公開顯示</th><th>管理權限</th><th>簽到票種</th><th>操作</th></tr></thead><tbody>${hosts.map((h,i)=>`<tr><td>${esc(h.name)}<br>${esc(h.email)}</td><td>${h.is_visible?'公開':'隱藏'}</td><td>${h.can_manage?'共同管理':h.can_checkin?'僅簽到':'僅列名'}</td><td>${h.can_checkin&&!h.can_manage?(h.checkin_ticket_ids?.length?h.checkin_ticket_ids.map(id=>esc(tickets.find(ticket=>ticket.id===id)?.name||id)).join('、'):'全部票種'):'—'}</td><td><button class="btn btn--ghost btn-sm" data-host-edit="${i}">編輯主辦人</button><button class="btn btn--ghost btn-sm" data-host-remove="${i}">移除主辦人</button></td></tr>`).join('')||'<tr><td colspan="5">尚未加入共同主辦人</td></tr>'}</tbody></table></div>`;
     document.getElementById('host-close').onclick=()=>{host.hidden=true;};
     const syncHostScope=()=>{document.getElementById('host-ticket-scope').disabled=!document.getElementById('host-checkin').checked||document.getElementById('host-manage').checked;};
@@ -2077,7 +2075,7 @@ async function showRegs(eventId, d){
         ?`<button class="btn btn--ghost btn-sm" data-uncheckin="${r.id}">取消簽到</button>`
         :`<button class="btn btn--solid btn-sm" data-checkin="${r.id}">簽到</button>`):''}
         ${['pending_approval','waitlisted'].includes(r.status)?`<button class="btn btn--solid btn-sm" data-guest-approve="${r.id}">${r.capture_required?'核准並請款 '+NT(r.amount_due):'核准'}</button><button class="btn btn--ghost btn-sm" data-guest-decline="${r.id}">拒絕</button>`:''}
-        ${!d.organizer&&['registered','pending_approval'].includes(r.status)&&r.amount_paid>0?`<button class="btn btn--ghost btn-sm" data-refund="${r.id}" data-refund-amount="${Math.max(0,r.amount_paid-Number(r.amount_refunded||0))}">辦理退款</button>`:''}</td></tr>`).join('')
+        ${!false&&['registered','pending_approval'].includes(r.status)&&r.amount_paid>0?`<button class="btn btn--ghost btn-sm" data-refund="${r.id}" data-refund-amount="${Math.max(0,r.amount_paid-Number(r.amount_refunded||0))}">辦理退款</button>`:''}</td></tr>`).join('')
       || '<tr><td colspan="8" class="a-empty">尚無報名</td></tr>';
     host.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;flex-wrap:wrap">
         <b>「${esc(ev.title||'')}」名單（${regs.length} 筆／${regs.reduce((n,r)=>n+(r.quantity||1),0)} 人）</b>
@@ -3367,25 +3365,22 @@ async function ensureIgScripts() {
   await load('/social-ads-lib.js');
 }
 
-async function refresh(){ const d=await api('/state'); if(!d.organizer)await ensureIgScripts(); render(d); applyRoute(); }
+async function refresh(){ const d=await api('/state'); await ensureIgScripts(); render(d); applyRoute(); }
 
 async function main(){
   if (!token) return renderLogin();
   try {
     const d = await api('/state');
-    if (!['admin','organizer'].includes(d.role)) {
-      // 活動主辦人從 /admin 進來：轉到活動主入口（同一頁、同一組登入），不要卡在登入頁
-      if (!ORGANIZER_PORTAL && await api('/organizer/state').then(() => true, () => false))
-        return location.replace(location.pathname.replace(/^\/admin/, '/organizer') + location.search);
-      return renderLogin('此帳號沒有後台權限，請改用已授權的帳號登入；活動主辦人請用主辦團隊登記的 Email。');
+    if (d.role !== 'admin') {
+      return renderLogin('活動請到 App 管理。');
     }
-    if(!d.organizer)await ensureIgScripts();
+    await ensureIgScripts();
     render(d);
     applyRoute();
   } catch(e){
     if (String(e.message).includes('登入') || String(e.message).includes('401')) { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); return renderLogin(); }
     // 已登入但沒有可管理的活動（多半是登錯帳號）：給登入鈕換帳號
-    if (e.status === 403) return renderLogin('此帳號沒有活動管理權限，請改用主辦團隊登記的 Email 登入。簽到人員請改用主辦人提供的「現場簽到入口」連結。');
+    if (e.status === 403) return renderLogin('活動請到 App 管理。');
     app.innerHTML = `<p class="a-center">暫時無法連線：${esc(e.message)}<br><button class="btn btn--ghost btn-sm" style="margin-top:1rem" onclick="location.reload()">重新整理</button></p>`;
   }
 }

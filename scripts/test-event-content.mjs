@@ -176,7 +176,7 @@ test('event management opens one task-based panel instead of expanding every act
  assert.match(source,/id="rs-email-confirmation-subject"/);assert.match(source,/id="rs-email-pending-body"/);assert.match(source,/email_templates:Object\.fromEntries/);assert.match(source,/toast\(out\.notice/);
  assert.match(source,/id="share-qr-image"/);assert.match(source,/QRCode\.toDataURL\(host\.querySelector\('#share-url'\)\.value/);
  assert.match(source,/a\.dataset\.reload!==undefined/);assert.match(source,/data-reload href=.*管理第/);assert.match(source,/id=\"meeting-connect\"/);assert.match(source,/id=\"meeting-create\"/);assert.match(source,/id=\"zoom-connect\"/);assert.match(source,/id=\"zoom-kind\"/);assert.match(source,/provider:'zoom',kind/);assert.match(source,/meeting\/connection\?provider=zoom/);assert.match(fs.readFileSync(new URL('../server.js',import.meta.url),'utf8'),/event_details=event_details \|\| \$2::jsonb/);
- context.BASE='/organizer';assert.match(context.tabEvents({events:[{id:'event-1',title:'Example',status:'草稿'}],organizer:true}),/href="\/organizer\/events\/event-1"/);context.BASE='/admin';
+ assert.doesNotMatch(source,/ORGANIZER_PORTAL|d\.organizer|\/organizer\/events/,'admin 不再提供主辦模式；主辦入口在 App /host');
  const manager={hidden:true,innerHTML:'',querySelector:()=>({}),querySelectorAll:()=>[],scrollIntoView(){}},listView={hidden:false};
  context.document={title:'',querySelectorAll:()=>[],getElementById:id=>id==='ev-manager'?manager:id==='event-list-view'?listView:{hidden:false,style:{}}};
  runInNewContext(source.slice(source.indexOf('function showEventApplication('),source.indexOf('function applicationTime(')),context);
@@ -184,7 +184,7 @@ test('event management opens one task-based panel instead of expanding every act
  assert.doesNotMatch(list,/events\/applications/);assert.match(list,/id="applications-body" hidden/);
  const pendingList=context.tabEvents({events:[{id:'event-2',slug:'event-two',title:'Pending',status:'草稿',review_status:'pending',visibility:'public',capacity:0,reg_count:0,price_twd:0}],users:[]});
  assert.match(pendingList,/data-event-status="待審"/);assert.match(pendingList,/pill-wait">待審</);
- assert.match(context.tabEvents({events:[],organizer:true}),/href="\/events\?apply=1#ev-apply">申請新活動/);
+ assert.doesNotMatch(context.tabEvents({events:[]}),/events\/applications|申請新活動/,'admin 空清單不再帶主辦申請入口');
  context.showEventManager('event-1',{events:[{id:'event-1',slug:'event-one',title:'Example',status:'報名中',capacity:10,reg_count:2,checkin_count:1}],can_create_events:true});
  assert.equal(manager.hidden,false);assert.equal(listView.hidden,true);assert.match(manager.innerHTML,/返回活動清單/);assert.match(manager.innerHTML,/報名與來賓/);assert.match(manager.innerHTML,/票券與報名流程/);assert.match(manager.innerHTML,/活動頁與分享/);assert.match(manager.innerHTML,/成效與紀錄/);assert.match(manager.innerHTML,/API 與 Webhook/);assert.match(manager.innerHTML,/<nav class="event-task-nav" aria-label="活動管理項目">/);assert.equal((manager.innerHTML.match(/data-event-task="regs"/g)||[]).length,1);assert.match(manager.innerHTML,/class="event-task event-task--danger" data-event-task="delete"/);assert.doesNotMatch(manager.innerHTML,/ui-card/);
  assert.match(source,/function showEventIntegration\(id\)/);assert.match(source,/Authorization: Bearer 活動金鑰/);assert.match(source,/離開後無法再次查看完整金鑰/);assert.match(source,/完成並顯示端點/);assert.match(source,/data-webhook-action=/);assert.match(source,/id="webhook-secret"/);assert.match(source,/HTTP 410/);

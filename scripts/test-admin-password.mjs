@@ -62,14 +62,14 @@ test('super-only provisioning creates unrestricted DB admin and rotates password
  assert.equal((await call('/api/auth/admin/password',{email:user.email,password:body.password})).status,401);
  assert.equal((await call('/api/auth/admin/password',{email:user.email,password:'rotated-test-only-password'})).status,200);
 });
-test('admin login offers accessible password form alongside Google; organizers keep magic links',()=>{
+test('admin login offers accessible password form alongside Google; organizer mode is removed',()=>{
  const html=readFileSync(path.join(root,'public/admin.html'),'utf8');
  const source=html.slice(html.indexOf('function renderLogin('),html.indexOf('/* ---------- CSV'));
  assert.match(source,/id="admin-password-login"/);
  assert.match(source,/autocomplete="username"/);assert.match(source,/autocomplete="current-password"/);
  assert.match(source,/api\('\/auth\/admin\/password'/);
  assert.match(source,/localStorage\.setItem\(KEY/);
- assert.match(source,/if\(!ORGANIZER_PORTAL\)/);
+ assert.doesNotMatch(source,/ORGANIZER_PORTAL/);
 });
 test('permissions tab lets super admin create an Email/password admin directly (no prior Google login)',()=>{
  const html=readFileSync(path.join(root,'public/admin.html'),'utf8');

@@ -22,8 +22,8 @@ test('安裝引導：Android／桌面用系統安裝視窗，iOS 教學，LINE �
   assert.equal(installKind(base), null, '不支援也沒有安裝事件就不打擾');
 });
 
-test('App「我的」頁：管理員有「前往後台」、主辦有「管理我的活動」', () => {
-  assert.match(m, /https:\/\/admin\.emoji\.tw\/admin/); assert.match(m, /\/organizer\/events/);
+test('App「我的」頁：管理員有「前往後台」、主辦有 App「管理我的活動」', () => {
+  assert.match(m, /https:\/\/admin\.emoji\.tw\/admin/); assert.match(m, /href="\/host"/);
   assert.match(m, /role:s\.role,organizer:!!s\.organizer/);
 });
 test('官網不再有會員頁：member.html 三語已刪除、App 不再連回「完整會員專區」', () => {
