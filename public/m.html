@@ -254,7 +254,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
       plan:'會籍',statusLabel:'目前狀態',statusActive:p=>p+'會籍有效',statusPending:'待首次進場啟用',statusExpired:'會籍已到期',statusNone:'尚未有會籍',daysLeft:n=>'還有 '+n+' 天',
       plans:{day_4h:'單日 4 小時',day_12h:'單日 12 小時',month:'月會員',quarter:'季會員',year:'年會員',year_promo:'開幕優惠 年會員 18 個月',founding:'創始會員',fallback:'權益'},
       accessTitle:'進出等等空間',accessOn:'可進出等等空間',accessPending:'待啟用',accessOff:'目前不可進出',accessQr:'顯示進出 QR',accessNote:'持有效會籍即可進出等等空間。',needPlan:'尚無可用方案，請先加入會員方案。',qrPending:'（待首次進場啟用）',qrUntil:'有效至 ',qrFail:'目前無法產生進出 QR',qrOffline:'需要網路才能顯示 QR',
-      buy:'購買會籍',renew:'續訂／升級',plansTitle:'方案',buyBtn:p=>'線上購買 NT$'+p.toLocaleString('en-US'),promoTag:'開幕優惠',promoName:'年會員 18 個月',promoNote:'同年會員價，多送 6 個月（共 18 個月）。優惠至 2026/12/31。',founderYes:'創始會員',planPaid:'會籍已購買，首次進場時啟用。',planCanceled:'已取消付款。',planVerifying:'確認付款中…',planFail:'目前無法線上購買，請到現場辦理。',
+      lgAgree:'購買即表示同意',lgLogin:'登入即表示同意',lgTerms:'服務條款',lgPrivacy:'隱私權政策',lgRefund:'退費政策',lgAnd:'、',lgEnd:'。',guestPlan:'不用登入也能先看方案與價格；按下購買後再登入並付款。',loginToBuy:'請先登入，登入後會直接前往付款。',buy:'購買會籍',renew:'續訂／升級',plansTitle:'方案',buyBtn:p=>'線上購買 NT$'+p.toLocaleString('en-US'),promoTag:'開幕優惠',promoName:'年會員 18 個月',promoNote:'同年會員價，多送 6 個月（共 18 個月）。優惠至 2026/12/31。',founderYes:'創始會員',planPaid:'會籍已購買，首次進場時啟用。',planCanceled:'已取消付款。',planVerifying:'確認付款中…',planFail:'目前無法線上購買，請到現場辦理。',
       me:'我的',name:'姓名',emailL:'Email',ebBind:'補上 Email',ebBindHint:'LINE 沒有提供信箱。補上 Email 才能報名活動、收票券；若這個信箱已有會員帳號，會自動合併。',ebSend:'寄驗證碼',ebCode:'6 位數驗證碼',ebConfirm:'確認',ebSent:'驗證碼已寄出，請收信',ebDone:'Email 已綁定',ebMerged:'已合併到這個 Email 的會員帳號',phone:'手機',phoneHint:'手機（09 開頭，結帳報號碼就能累點）',noPhone:'尚未填寫',edit:'更新資料',editBtn:'編輯',cancelEdit:'取消',save:'儲存',saved:'已儲存',saveFail:'儲存失敗',
       lineLink:'綁定 LINE・接收活動票券與訂位提醒',lineFail:'LINE 綁定失敗',
       manage:'管理',admin:'前往後台',organizer:'管理我的活動',language:'語言',logout:'登出',offline:'目前離線，顯示上次的資料',netFail:'連線失敗，請稍後再試',reload:'重新整理',
@@ -277,7 +277,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
       plan:'Membership',statusLabel:'Current status',statusActive:p=>p+' valid',statusPending:'Activates on first entry',statusExpired:'Membership expired',statusNone:'No membership yet',daysLeft:n=>n+' days left',
       plans:{day_4h:'Day pass · 4 hrs',day_12h:'Day pass · 12 hrs',month:'Monthly',quarter:'Quarterly',year:'Annual',year_promo:'Opening offer · Annual 18 months',founding:'Founding Member',fallback:'Plan'},
       accessTitle:'Stay Square access',accessOn:'Stay Square access',accessPending:'Pending',accessOff:'No access',accessQr:'Show access QR',accessNote:'A valid membership gets you into Stay Square.',needPlan:'No valid membership yet — join a plan first.',qrPending:' (pending first entry)',qrUntil:'valid until ',qrFail:'Could not generate access QR',qrOffline:'Network needed to show the QR',
-      buy:'Buy membership',renew:'Renew / upgrade',plansTitle:'Plans',buyBtn:p=>'Buy online NT$'+p.toLocaleString('en-US'),promoTag:'Opening offer',promoName:'Annual · 18 months',promoNote:'Annual price, 6 extra months (18 total). Until Dec 31, 2026.',founderYes:'Founding Member',planPaid:'Membership purchased — activates on first entry.',planCanceled:'Payment cancelled.',planVerifying:'Confirming payment…',planFail:'Online purchase unavailable — please ask on-site.',
+      lgAgree:'By purchasing you agree to the',lgLogin:'By signing in you agree to the',lgTerms:'Terms',lgPrivacy:'Privacy Policy',lgRefund:'Refund Policy',lgAnd:', ',lgEnd:'.',guestPlan:'Browse plans and prices without signing in. You will sign in when you buy.',loginToBuy:'Please sign in. You will go straight to payment afterwards.',buy:'Buy membership',renew:'Renew / upgrade',plansTitle:'Plans',buyBtn:p=>'Buy online NT$'+p.toLocaleString('en-US'),promoTag:'Opening offer',promoName:'Annual · 18 months',promoNote:'Annual price, 6 extra months (18 total). Until Dec 31, 2026.',founderYes:'Founding Member',planPaid:'Membership purchased — activates on first entry.',planCanceled:'Payment cancelled.',planVerifying:'Confirming payment…',planFail:'Online purchase unavailable — please ask on-site.',
       me:'Me',name:'Name',emailL:'Email',ebBind:'Add your email',ebBindHint:'LINE did not share an email. Add one to register for events and receive tickets. If it already has an account, the two will be merged.',ebSend:'Send code',ebCode:'6-digit code',ebConfirm:'Confirm',ebSent:'Code sent. Check your inbox.',ebDone:'Email added',ebMerged:'Merged into the account for this email',phone:'Phone',phoneHint:'Phone (Taiwan mobile; give it at checkout to earn points)',noPhone:'Not set',edit:'Update profile',editBtn:'Edit',cancelEdit:'Cancel',save:'Save',saved:'Saved',saveFail:'Could not save',
       lineLink:'Link LINE · tickets & booking reminders',lineFail:'LINE linking failed',
       manage:'Manage',admin:'Open admin',organizer:'Manage my events',language:'Language',logout:'Sign out',offline:'Offline — showing last data',netFail:'Connection failed. Please try again.',reload:'Reload',
@@ -300,7 +300,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
       plan:'会員資格',statusLabel:'現在のステータス',statusActive:p=>p+'：有効',statusPending:'初回入場で有効化',statusExpired:'期限切れ',statusNone:'まだ会員プランがありません',daysLeft:n=>'残り '+n+' 日',
       plans:{day_4h:'デイ（4時間）',day_12h:'デイ（12時間）',month:'月会員',quarter:'四半期会員',year:'年会員',year_promo:'オープン特典 年会員18か月',founding:'創始会員',fallback:'プラン'},
       accessTitle:'Stay Square 入退室',accessOn:'Stay Square 利用可',accessPending:'保留中',accessOff:'現在利用不可',accessQr:'入退室 QR を表示',accessNote:'有効な会員資格があれば Stay Square に入場できます。',needPlan:'有効なプランがありません。先に会員プランに加入してください。',qrPending:'（初回入場で有効化）',qrUntil:'有効期限 ',qrFail:'入退室 QR を生成できません',qrOffline:'QR の表示にはネットワークが必要です',
-      buy:'会員プランを購入',renew:'更新／アップグレード',plansTitle:'プラン',buyBtn:p=>'オンライン購入 NT$'+p.toLocaleString('en-US'),promoTag:'オープン特典',promoName:'年会員 18か月',promoNote:'年会員と同価格で6か月分おトク（計18か月）。2026/12/31まで。',founderYes:'創始会員',planPaid:'購入完了。初回入場時に有効化されます。',planCanceled:'支払いをキャンセルしました。',planVerifying:'支払いを確認中…',planFail:'オンライン購入は現在利用できません。現地でお申し込みください。',
+      lgAgree:'購入により次に同意したものとみなします：',lgLogin:'ログインにより次に同意したものとみなします：',lgTerms:'利用規約',lgPrivacy:'プライバシーポリシー',lgRefund:'返金ポリシー',lgAnd:'、',lgEnd:'。',guestPlan:'ログインしなくてもプランと料金を確認できます。購入時にログインします。',loginToBuy:'ログインしてください。ログイン後そのまま支払いに進みます。',buy:'会員プランを購入',renew:'更新／アップグレード',plansTitle:'プラン',buyBtn:p=>'オンライン購入 NT$'+p.toLocaleString('en-US'),promoTag:'オープン特典',promoName:'年会員 18か月',promoNote:'年会員と同価格で6か月分おトク（計18か月）。2026/12/31まで。',founderYes:'創始会員',planPaid:'購入完了。初回入場時に有効化されます。',planCanceled:'支払いをキャンセルしました。',planVerifying:'支払いを確認中…',planFail:'オンライン購入は現在利用できません。現地でお申し込みください。',
       me:'マイページ',name:'氏名',emailL:'メール',ebBind:'メールを登録',ebBindHint:'LINE からメールが提供されませんでした。イベント申込やチケット受取にはメール登録が必要です。既存アカウントのメールなら自動で統合します。',ebSend:'コードを送信',ebCode:'6桁の認証コード',ebConfirm:'確認',ebSent:'認証コードを送信しました',ebDone:'メールを登録しました',ebMerged:'このメールのアカウントに統合しました',phone:'携帯電話',phoneHint:'携帯電話（会計時に伝えるとポイントが貯まります）',noPhone:'未登録',edit:'プロフィールを更新',editBtn:'編集',cancelEdit:'キャンセル',save:'保存',saved:'保存しました',saveFail:'保存できませんでした',
       lineLink:'LINE 連携・チケットと予約リマインド',lineFail:'LINE 連携に失敗しました',
       manage:'管理',admin:'管理画面へ',organizer:'イベントを管理',language:'言語',logout:'ログアウト',offline:'オフライン：前回のデータを表示中',netFail:'接続に失敗しました。しばらくしてから再度お試しください。',reload:'再読み込み',
@@ -394,6 +394,15 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
   };
   const langBar=()=>`<div class="lang" role="group" aria-label="Language">${['zh','en','ja'].map(l=>`<button type="button" data-lang="${l}" aria-pressed="${l===LANG}">${{zh:'中文',en:'English',ja:'日本語'}[l]}</button>`).join('')}</div>`;
   function bindLang(){document.querySelectorAll('[data-lang]').forEach(b=>b.onclick=()=>{applyLang(b.dataset.lang);location.replace(location.pathname+'?lang='+b.dataset.lang);});}
+  const PEND='m_pending_plan';
+  const legalUrl=p=>SITE+(LANG==='zh'?'':'/'+LANG)+'/'+p;
+  const legalNote=kind=>{const a=(p,t)=>`<a href="${legalUrl(p)}" target="_blank" rel="noopener">${esc(t)}</a>`;return kind==='login'?`${esc(T.lgLogin)} ${a('terms',T.lgTerms)}${esc(T.lgAnd)}${a('privacy',T.lgPrivacy)}${esc(T.lgEnd)}`:`${esc(T.lgAgree)} ${a('terms',T.lgTerms)}${esc(T.lgAnd)}${a('refund',T.lgRefund)}${esc(T.lgEnd)}`;};
+  const guestData=()=>({guest:true,me:null,events:[],updates:[],access:{},commitments:[],yan:{balance:0,phone:''},rewards:{items:[],space:[]},reservations:[],pickups:[],pickupMeta:{dates:[],slots:{}},registrations:[],organizer:false});
+  async function guest(){
+    data=guestData();
+    try{const d=await fetch('/api/events?past=1&lang='+LANG).then(r=>r.json());data.events=(d.events||[]).concat(d.past||[]);}catch(e){}
+    paint();
+  }
   function login(){
     tabs.hidden=true;
     const back=location.origin+ROOT+(LANG==='zh'?'':'?lang='+LANG), r=encodeURIComponent(back);
@@ -408,7 +417,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
         <label class="field">Email<input name="email" type="email" required maxlength="254" autocomplete="email" inputmode="email"></label>
         <button class="btn solid" id="efs" type="submit">${esc(T.emailSend)}</button>
       </form>
-      <p class="first">${esc(T.firstTime)}</p>${langBar()}</div>`;
+      <p class="first">${esc(T.firstTime)}</p><p class="hint">${legalNote('login')}</p>${langBar()}</div>`;
     bindLang();
     fetch('/api/auth/methods').then(r=>r.json()).then(j=>{const b=document.getElementById('line-login');if(b&&j&&j.line)b.hidden=false;}).catch(()=>{});
     const ef=document.getElementById('ef'),eb=document.getElementById('email-login');
@@ -481,7 +490,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
   function events(){
     const all=data.events||[],list=all.filter(e=>e.status!=='已結束').concat(all.filter(e=>e.status==='已結束').reverse()),ups=data.updates||[];
     app.innerHTML=`<div class="hello"><h1>${esc(T.events)}</h1></div>${list.length?list.map(evRow).join(''):`<p class="empty">${esc(T.noEvents)}</p>`}
-    <section class="sec"><h2>${esc(T.updates)}</h2>${ups.length?ups.map(u=>`<div class="upd mute"><b style="color:var(--ink)">${esc(u.title)}</b><time>${esc(u.published_at)}</time>${u.content?`<p>${esc(u.content)}</p>`:''}</div>`).join(''):`<p class="empty">${esc(T.noUpdates)}</p>`}</section>`;
+    ${data.guest?'':`<section class="sec"><h2>${esc(T.updates)}</h2>${ups.length?ups.map(u=>`<div class="upd mute"><b style="color:var(--ink)">${esc(u.title)}</b><time>${esc(u.published_at)}</time>${u.content?`<p>${esc(u.content)}</p>`:''}</div>`).join(''):`<p class="empty">${esc(T.noUpdates)}</p>`}</section>`}`;
   }
   /* ---- 預約：我的訂位／預約取餐／我的報名（上游 f68960f 移植，改三語） ---- */
   let sub='list', PK={date:'',time:'',qty:{},combos:[],note:''}, RV={date:'',time:'',party:2,note:''}, MENU=null;
@@ -612,7 +621,17 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
     const c=(data.commitments||[])[0]||null;
     return {active:!!a.active,act,pend,ents,c,canIssue:act.length>0||pend.length>0};
   }
+  function planRows(){
+    const promo=promoOpen()?`<div class="plan promo"><span><b class="tag">${esc(T.promoTag)}</b> ${esc(T.promoName)}<br><small style="color:var(--muted)">${esc(T.promoNote)}</small></span><button type="button" data-plan="year_promo">${esc(T.buyBtn(PLAN_PRICES.year_promo))}</button></div>`:'';
+    return promo+['day_4h','day_12h','month','quarter','year'].map(id=>`<div class="plan"><span>${esc(T.plans[id])}</span><button type="button" data-plan="${id}">${esc(T.buyBtn(PLAN_PRICES[id]))}</button></div>`).join('')+`<p class="hint">${legalNote('buy')}</p>`;
+  }
+  function guestPlan(){
+    app.innerHTML=`<div class="hello"><h1>${esc(T.plan)}</h1></div>
+    <section class="panel"><div class="eyebrow">${esc(T.plansTitle)}</div><p class="hint">${esc(T.guestPlan)}</p>${planRows()}</section>`;
+    document.querySelectorAll('[data-plan]').forEach(b=>b.onclick=()=>buyPlan(b.dataset.plan,b));
+  }
   function plan(){
+    if(data.guest)return guestPlan();
     const {active,act,pend,ents,c,canIssue}=accessInfo();
     const primary=act[0]||pend[0]||null;
     const label=primary?planName(primary.plan):(c?planName('founding'):'');
@@ -627,8 +646,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
     const period=s&&e&&!Number.isNaN(+s)&&!Number.isNaN(+e)?fmtDate(s)+' – '+fmtDate(e):'';
     const right=[label,period].filter(Boolean).join(' · ');
     const chipLabel=active?T.accessOn:pend.length?T.accessPending:T.accessOff;
-    const promo=promoOpen()?`<div class="plan promo"><span><b class="tag">${esc(T.promoTag)}</b> ${esc(T.promoName)}<br><small style="color:var(--muted)">${esc(T.promoNote)}</small></span><button type="button" data-plan="year_promo">${esc(T.buyBtn(PLAN_PRICES.year_promo))}</button></div>`:'';
-    const rows=promo+['day_4h','day_12h','month','quarter','year'].map(id=>`<div class="plan"><span>${esc(T.plans[id])}</span><button type="button" data-plan="${id}">${esc(T.buyBtn(PLAN_PRICES[id]))}</button></div>`).join('');
+    const rows=planRows();
     app.innerHTML=`<div class="hello"><h1>${esc(T.plan)}</h1></div>
     <section class="panel"><div class="eyebrow">${esc(T.statusLabel)}</div><div class="status">${esc(title)}</div>${bar}${left||right?`<div class="meta"><span>${esc(left)}</span><span>${esc(right)}</span></div>`:''}
       <div class="btn2"><button class="btn solid" id="plans-toggle">${esc(had?T.renew:T.buy)}</button><button class="chip" id="access-chip"${canIssue?'':' data-blocked="1"'}><span class="dot${active?' on':''}"></span>${esc(chipLabel)}</button></div>
@@ -643,9 +661,17 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
     document.getElementById('access-qr').onclick=openAccess;
   }
   async function buyPlan(id,btn){
-    btn.disabled=true;
+    if(!token()){lsSet(PEND,JSON.stringify({id,at:Date.now()}));toast(T.loginToBuy);tab='home';paint();return;}
+    if(btn)btn.disabled=true;
     try{const d=await post('/api/me/plans/checkout',{plan:id,lang:LANG});location.href=d.url;}
-    catch(e){toast(e.status===503?T.planFail:(e.message||T.netFail));btn.disabled=false;}
+    catch(e){toast(e.status===503?T.planFail:(e.message||T.netFail));if(btn)btn.disabled=false;}
+  }
+  // 訪客按購買→登入→回到 App 後自動接續付款（30 分鐘內有效，只接續一次）
+  function resumePendingPlan(){
+    let p=null;try{p=JSON.parse(lsGet(PEND)||'null');}catch(e){}
+    try{localStorage.removeItem(PEND);}catch(e){}
+    if(p&&PLAN_PRICES[p.id]&&Date.now()-p.at<30*60000){tab='plan';buyPlan(p.id);return true;}
+    return false;
   }
   async function fulfillPlanIfNeeded(){
     const q=new URLSearchParams(location.search);
@@ -695,7 +721,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
   window.__mApp={get,post,esc,toast,fmt,parseT,app,tabs,SITE,token,get LANG(){return LANG;},data:()=>data,openTicket,makeDetector};
   const eventPath=()=>window.MEvent?MEvent.slugFromPath(location.pathname):null;
   function eventDetail(slug){MEvent.mount({app,tabs,esc,toast,lang:LANG,slug,token,site:SITE,home:ROOT+(LANG==='zh'?'':'?lang='+LANG),me:data&&data.me,openTicket});}
-  function paint(){const ep=eventPath();if(ep)return eventDetail(ep);if(window.MHost&&window.MHost.hostPath()!==null)return window.MHost.mount(window.__mApp);tabs.hidden=false;[...tabs.children].forEach(b=>b.setAttribute('aria-current',b.dataset.tab===tab));({home,book,plan,events,me})[tab]();window.scrollTo(0,0);}
+  function paint(){const ep=eventPath();if(ep)return eventDetail(ep);if(window.MHost&&window.MHost.hostPath()!==null)return window.MHost.mount(window.__mApp);tabs.hidden=false;[...tabs.children].forEach(b=>b.setAttribute('aria-current',b.dataset.tab===tab));if(data&&data.guest&&!['plan','events'].includes(tab)){login();tabs.hidden=false;}else ({home,book,plan,events,me})[tab]();window.scrollTo(0,0);}
   tabs.onclick=e=>{const b=e.target.closest('button');if(!b)return;tab=b.dataset.tab;editing=false;paint();};
   /* 全螢幕 QR：會員卡（結帳累點）與進出 QR 共用；亮度靠白底、30 秒更新 */
   const ov=document.getElementById('ov');let qrKind='card';
@@ -763,8 +789,9 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
       s.events=(s.events||[]);
       data={me:s.me,events:s.events,updates:s.updates||[],access:s.access||{},commitments:(s.commitments||[]).filter(c=>!s.me||c.user_id===s.me.id),yan:y,rewards:rw,reservations:rv,pickups:pk.pickups||[],pickupMeta:{dates:pk.dates||[],slots:pk.slots||{},prep_min:pk.prep_min},registrations:rg,role:s.role,organizer:!!s.organizer};offline=false;
       try{localStorage.setItem(CACHE,JSON.stringify(data));}catch(e){}
+      if(resumePendingPlan()){paint();return;}
     }catch(e){
-      if(e.status===401){try{localStorage.removeItem(KEY);}catch(x){}return login();}
+      if(e.status===401){try{localStorage.removeItem(KEY);}catch(x){}return guest();}
       try{data=JSON.parse(localStorage.getItem(CACHE)||'null');}catch(x){data=null;}
       if(!data){app.innerHTML=`<p class="empty">${esc(T.netFail)}<br><br><button class="btn" onclick="location.reload()">${esc(T.reload)}</button></p>`;return;}
       offline=true;
@@ -773,7 +800,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
   }
   // /e/<slug> 要在 login() 前分流：訪客可直接瀏覽與報名；已登入時先取會員資料再畫（以 xxx 報名）
   if(eventPath()){if(token())get('/api/state?view=member&lang='+LANG).then(s=>{data={me:s.me};}).catch(()=>{}).finally(()=>eventDetail(eventPath()));else eventDetail(eventPath());}
-  else if(!token())login();else load();
+  else{if(PLAN_PRICES[query.get('plan')])tab='plan';if(!token())guest();else load();}
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&token()&&!eventPath())load();});
   if('serviceWorker' in navigator)navigator.serviceWorker.register('/m-sw.js',{scope:ROOT}).catch(()=>{});
 })();

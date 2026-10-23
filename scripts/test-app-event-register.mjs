@@ -76,7 +76,7 @@ test('App 報名頁純函式：路徑、場地茶飲費、合計、按鈕金額�
 
 test('m.html：/e/<slug> 在 login() 前分流，訪客可報名', () => {
   assert.match(m, /if\(eventPath\(\)\)\{if\(token\(\)\)/);
-  assert.match(m, /else if\(!token\(\)\)login\(\);else load\(\);/);
+  assert.match(m, /if\(!token\(\)\)guest\(\);else load\(\);/);
 });
 
 test('報名完成（免費、訪客、付款回傳）一律進結果頁，不留在表單', () => {

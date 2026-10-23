@@ -9,7 +9,7 @@ const L={
   details:'報名資料',name:'姓名',first:'名',last:'姓',email:'Email',guestHint:'送出後會用這個 Email 建立言文字會員帳號（免密碼），之後用此 Email 登入 App 就能看票券。',as:n=>'以 '+n+' 報名',qty:'票數',qtyHint:'所有票券先使用購買者資料，報名後可逐張轉票。',
   about:'報名問題',select:'請選擇',agree:'我同意上述條款',terms:'查看條款',sign:'輸入簽名',coupon:'優惠碼（選填）',couponHint:'有優惠碼請輸入後按「套用」，下方會顯示折扣後金額。',apply:'套用',applyBusy:'確認中…',applied:(c,d)=>'已套用 '+c+'，折抵 NT$'+d.toLocaleString('en-US'),couponPickTicket:'請先選擇票種再套用優惠碼。',couponNone:'這個優惠碼目前沒有折抵金額。',orig:'原價',discount:'優惠折抵',
   venue:'＋場地茶飲費 NT$150／張（附茶飲一杯）',total:'合計',req:'標示 * 的為必填。',
-  register:'立即報名',pay:'前往付款',request:'申請報名',waitlist:'加入候補',resume:'繼續付款',busy:'處理中…',
+  legal:'報名即表示同意',lgTerms:'服務條款',lgRefund:'退費政策',lgPrivacy:'隱私權政策',register:'立即報名',pay:'前往付款',request:'申請報名',waitlist:'加入候補',resume:'繼續付款',busy:'處理中…',
   wallet:'此活動需要錢包驗證，請在官網活動頁報名',walletBtn:'前往官網報名 ↗',external:'前往報名 ↗',externalNote:'此活動由主辦方在外部網站售票',private:'包場活動，不開放報名',
   closed:'目前不開放報名',over:'活動已結束，感謝參與',notOpen:'尚未開賣',preview:'預告・報名尚未開放',full:'名額已滿',cancelled:'活動已取消',
   done:'報名完成',doneSub:'確認信與票券資訊會寄到你的 Email。',paidCheck:'付款確認中，稍後會寄出確認信。',canceledPay:'已取消付款',canceledSub:'名額會保留到結帳連結到期，可重新報名。',retry:'重新報名',
@@ -22,7 +22,7 @@ const L={
   details:'Your details',name:'Name',first:'First name',last:'Last name',email:'Email',guestHint:'We will create a free member account with this email (no password). Sign in to the App with it to view your ticket.',as:n=>'Registering as '+n,qty:'Number of tickets',qtyHint:'All tickets use the buyer’s details first and can be transferred after registration.',
   about:'Questions',select:'Select…',agree:'I agree to these terms',terms:'Review terms',sign:'Type your signature',coupon:'Promo code (optional)',couponHint:'Enter your code and tap Apply to see the discounted total below.',apply:'Apply',applyBusy:'Checking…',applied:(c,d)=>c+' applied: NT$'+d.toLocaleString('en-US')+' off',couponPickTicket:'Choose a ticket before applying a code.',couponNone:'This code gives no discount on this order.',orig:'Original',discount:'Discount',
   venue:'+ Venue & tea fee NT$150 per ticket (one drink included)',total:'Total',req:'Fields marked * are required.',
-  register:'Register',pay:'Continue to payment',request:'Request to join',waitlist:'Join waitlist',resume:'Resume payment',busy:'Processing…',
+  legal:'By registering you agree to the',lgTerms:'Terms',lgRefund:'Refund Policy',lgPrivacy:'Privacy Policy',register:'Register',pay:'Continue to payment',request:'Request to join',waitlist:'Join waitlist',resume:'Resume payment',busy:'Processing…',
   wallet:'This event requires wallet verification. Please register on the website.',walletBtn:'Register on the website ↗',external:'Register ↗',externalNote:'Tickets are sold on an external website',private:'Buyout event — registration is not open',
   closed:'Registration is closed',over:'This event has ended. Thanks for joining!',notOpen:'Tickets are not on sale yet',preview:'Preview · Registration coming soon',full:'Sold out',cancelled:'Event cancelled',
   done:'Registration complete',doneSub:'Confirmation and ticket details will be emailed to you.',paidCheck:'Confirming payment. A confirmation email will follow.',canceledPay:'Payment canceled',canceledSub:'Your spot is held until checkout expires. You can register again.',retry:'Register again',
@@ -35,7 +35,7 @@ const L={
   details:'申込情報',name:'氏名',first:'名',last:'姓',email:'メール',guestHint:'このメールで会員アカウント（パスワード不要）を作成します。App にログインするとチケットを確認できます。',as:n=>n+' として申し込む',qty:'チケット枚数',qtyHint:'すべてのチケットは購入者情報で発行され、申込後に個別譲渡できます。',
   about:'質問',select:'選択してください',agree:'上記の規約に同意します',terms:'規約を確認',sign:'署名を入力',coupon:'割引コード（任意）',couponHint:'コードを入力して「適用」を押すと、割引後の金額が表示されます。',apply:'適用',applyBusy:'確認中…',applied:(c,d)=>c+' を適用：NT$'+d.toLocaleString('en-US')+' 割引',couponPickTicket:'先にチケットを選んでください。',couponNone:'このコードでは割引がありません。',orig:'通常価格',discount:'割引',
   venue:'＋会場・お茶代 NT$150／枚（ドリンク付き）',total:'合計',req:'* は必須項目です。',
-  register:'申し込む',pay:'支払いへ進む',request:'参加を申請',waitlist:'キャンセル待ちに登録',resume:'支払いを続ける',busy:'処理中…',
+  legal:'申込により次に同意したものとみなします：',lgTerms:'利用規約',lgRefund:'返金ポリシー',lgPrivacy:'プライバシーポリシー',register:'申し込む',pay:'支払いへ進む',request:'参加を申請',waitlist:'キャンセル待ちに登録',resume:'支払いを続ける',busy:'処理中…',
   wallet:'このイベントはウォレット認証が必要です。公式サイトで申し込んでください。',walletBtn:'公式サイトで申し込む ↗',external:'申し込む ↗',externalNote:'外部サイトでチケットを販売しています',private:'貸切イベントのため申込できません',
   closed:'申込受付は終了しました',over:'このイベントは終了しました',notOpen:'チケット販売開始前です',preview:'予告・申込受付前',full:'満席',cancelled:'イベント中止',
   done:'申込が完了しました',doneSub:'確認とチケット情報をメールでお送りします。',paidCheck:'支払いを確認中です。確認メールをお送りします。',canceledPay:'支払いはキャンセルされました',canceledSub:'Checkout の期限まで枠を確保します。再度お申し込みいただけます。',retry:'もう一度申し込む',
@@ -135,7 +135,7 @@ function mount(o){
   const coupon=(query.get('coupon')||query.get('coupon_code')||'').slice(0,64);
   const paid=e.registration_status!=='approved'&&tickets.some(t=>t.price_twd>0||t.flexible_price);
   const couponBlock=paid?`<section class="sec" id="mev-coupon"><h2>${esc(T.coupon)}</h2><div class="mev-coupon"><label class="field"><input name="coupon_code" aria-label="${esc(T.coupon)}" maxlength="64" autocomplete="off" autocapitalize="characters" spellcheck="false" value="${esc(coupon)}"></label><button class="btn" type="button" id="mev-apply">${esc(T.apply)}</button></div><p class="note" id="mev-coupon-msg" role="status" aria-live="polite">${esc(T.couponHint)}</p></section>`:'';
-  const form=`<form id="mev-form" novalidate><p class="note">${esc(T.req)}</p>${ticketBlock}<section class="sec"><h2>${esc(T.details)}</h2>${idBlock}${qtyBlock}</section>${qs?`<section class="sec"><h2>${esc(T.about)}</h2>${qs}</section>`:''}${couponBlock}<section class="sec" id="mev-sum"></section><p class="alert" id="mev-err" role="alert" hidden></p></form>`;
+  const form=`<form id="mev-form" novalidate><p class="note">${esc(T.req)}</p>${ticketBlock}<section class="sec"><h2>${esc(T.details)}</h2>${idBlock}${qtyBlock}</section>${qs?`<section class="sec"><h2>${esc(T.about)}</h2>${qs}</section>`:''}${couponBlock}<section class="sec" id="mev-sum"></section><p class="alert" id="mev-err" role="alert" hidden></p><p class="note">${esc(T.legal)} ${[['terms',T.lgTerms],['refund',T.lgRefund],['privacy',T.lgPrivacy]].map(([p,t])=>`<a href="${esc((o.site||'')+(lang==='zh'?'':'/'+lang)+'/'+p)}" target="_blank" rel="noopener">${esc(t)}</a>`).join(' · ')}</p></form>`;
   shell(top+form,`<button class="btn solid" id="mev-go" type="submit" form="mev-form">${esc(T.register)}</button>`);
   const f=document.getElementById('mev-form'),go=document.getElementById('mev-go');
   const selected=()=>(e.tickets||[]).find(t=>t.id===f.querySelector('[name="ticket_id"]:checked')?.value)||null;
