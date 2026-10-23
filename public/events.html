@@ -318,7 +318,7 @@ const app=document.getElementById('ev-app');
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const previewLabel={zh:'預告・報名尚未開放',en:'Preview · Registration coming soon',ja:'予告・申込受付前'}[lang];
 const taxedPrice=(e,price)=>e.registration_settings?.tax?.enabled?price+Math.round(price*e.registration_settings.tax.rate_bps/10000):price;
-const eventPrice=e=>e.status==='預告'?previewLabel:e.registration_id&&e.amount_due!=null?money(e.amount_due):(e.tickets||[]).filter(t=>t.active).length===1?money(taxedPrice(e,e.tickets.find(t=>t.active).price_twd)):(e.has_ticket_types||e.tickets?.length)?{zh:'依票種',en:'By ticket type',ja:'券種による'}[lang]:money(0);
+const eventPrice=e=>e.status==='預告'?previewLabel:e.registration_id&&e.amount_due!=null?money(e.amount_due):(e.tickets||[]).filter(t=>t.active).length===1?money(taxedPrice(e,e.tickets.find(t=>t.active).price_twd)):(e.tickets||[]).some(t=>t.active)?{zh:'依票種',en:'By ticket type',ja:'券種による'}[lang]:T2.notOnSale;
 const money=n=>n>0?'NT$'+Number(n).toLocaleString('en-US'):T.free;
 function showReceipt(receipt,providerUrl){
  if(!receipt)return toast(T.error);
@@ -346,9 +346,9 @@ function meta(e){const when=[e.starts_at,e.ends_at].filter(Boolean).join(' – '
 /* ---- 2026-10 改版：日期塊、月份分組、社會證明、分享列、訂閱行事曆、手機底部 CTA ----
    所有來自 API 的字串（標題、說明、地點、封面網址、票種名）都經 esc() 再放進樣板，與本頁既有做法一致；innerHTML 只接收這些已逸出的樣板。 */
 const T2={
- zh:{pastTitle:'已結束的活動',pastCta:'查看活動',ended:'已結束',subscribe:'訂閱活動行事曆',subGoogle:'Google 日曆',subApple:'Apple／Outlook 行事曆',subCopy:'複製訂閱網址',subNote:'新活動會自動出現在你的行事曆',copied:'已複製',registered:n=>`已報名 ${n} 人`,left:n=>`剩 ${n} 席`,full:'名額已滿',waitlist:'可候補',from:'起',today:'今天',tomorrow:'明天',tba:'時間待定',external:'外部報名',preview:'預告',share:'分享',copyLink:'複製連結',more:'更多',igLabel:'Instagram 限動',igDone:'圖片已儲存、連結已複製，到 Instagram 貼上連結貼紙',igShared:'已開啟分享',igFail:'無法產生圖片',igSite:'台灣人才聚落',map:'Google 地圖',cal:'加入行事曆',calGoogle:'Google 日曆',hiddenPlace:'報名後顯示地點',onlineOnly:'線上活動',endsSoon:d=>`${d} 截止`,earlyBird:(n,d)=>`${n} 售至 ${d}`,ctaGo:'立即報名',ctaPay:'前往付款',ctaExternal:'前往報名',when:'時間',where:'地點',tz:'台北時間'},
- en:{pastTitle:'Past events',pastCta:'View event',ended:'Ended',subscribe:'Subscribe to calendar',subGoogle:'Google Calendar',subApple:'Apple / Outlook calendar',subCopy:'Copy subscription URL',subNote:'New events appear in your calendar automatically',copied:'Copied',registered:n=>`${n} registered`,left:n=>`${n} spots left`,full:'Sold out',waitlist:'Waitlist open',from:'from',today:'Today',tomorrow:'Tomorrow',tba:'Time TBA',external:'External registration',preview:'Preview',share:'Share',copyLink:'Copy link',more:'More',igLabel:'Instagram story',igDone:'Image saved and link copied. Add it as a link sticker in Instagram.',igShared:'Share opened',igFail:'Could not create the image',igSite:'Taiwan Talent Hub',map:'Google Maps',cal:'Add to calendar',calGoogle:'Google Calendar',hiddenPlace:'Location shared after registration',onlineOnly:'Online event',endsSoon:d=>`Ends ${d}`,earlyBird:(n,d)=>`${n} until ${d}`,ctaGo:'Register',ctaPay:'Get tickets',ctaExternal:'Register',when:'When',where:'Where',tz:'Taipei time (UTC+8)'},
- ja:{pastTitle:'終了したイベント',pastCta:'イベントを見る',ended:'終了',subscribe:'カレンダーを購読',subGoogle:'Google カレンダー',subApple:'Apple／Outlook カレンダー',subCopy:'購読URLをコピー',subNote:'新しいイベントが自動で追加されます',copied:'コピーしました',registered:n=>`申込 ${n} 名`,left:n=>`残り ${n} 席`,full:'満席',waitlist:'キャンセル待ち可',from:'〜',today:'今日',tomorrow:'明日',tba:'日時未定',external:'外部サイトで申込',preview:'予告',share:'シェア',copyLink:'リンクをコピー',more:'その他',igLabel:'Instagram ストーリーズ',igDone:'画像を保存しリンクをコピーしました。Instagram でリンクスタンプに貼り付けてください',igShared:'シェアを開きました',igFail:'画像を作成できませんでした',igSite:'台湾タレントハブ',map:'Google マップ',cal:'カレンダーに追加',calGoogle:'Google カレンダー',hiddenPlace:'申込後に場所を表示',onlineOnly:'オンライン開催',endsSoon:d=>`${d} 締切`,earlyBird:(n,d)=>`${n} は ${d} まで`,ctaGo:'申し込む',ctaPay:'チケットを購入',ctaExternal:'申し込む',when:'日時',where:'場所',tz:'台北時間 (UTC+8)'}
+ zh:{pastTitle:'已結束的活動',pastCta:'查看活動',ended:'已結束',subscribe:'訂閱活動行事曆',subGoogle:'Google 日曆',subApple:'Apple／Outlook 行事曆',subCopy:'複製訂閱網址',subNote:'新活動會自動出現在你的行事曆',copied:'已複製',registered:n=>`已報名 ${n} 人`,left:n=>`剩 ${n} 席`,full:'名額已滿',waitlist:'可候補',from:'起',notOnSale:'尚未開賣',today:'今天',tomorrow:'明天',tba:'時間待定',external:'外部報名',preview:'預告',share:'分享',copyLink:'複製連結',more:'更多',igLabel:'Instagram 限動',igDone:'圖片已儲存、連結已複製，到 Instagram 貼上連結貼紙',igShared:'已開啟分享',igFail:'無法產生圖片',igSite:'台灣人才聚落',map:'Google 地圖',cal:'加入行事曆',calGoogle:'Google 日曆',hiddenPlace:'報名後顯示地點',onlineOnly:'線上活動',endsSoon:d=>`${d} 截止`,earlyBird:(n,d)=>`${n} 售至 ${d}`,ctaGo:'立即報名',ctaPay:'前往付款',ctaExternal:'前往報名',when:'時間',where:'地點',tz:'台北時間'},
+ en:{pastTitle:'Past events',pastCta:'View event',ended:'Ended',subscribe:'Subscribe to calendar',subGoogle:'Google Calendar',subApple:'Apple / Outlook calendar',subCopy:'Copy subscription URL',subNote:'New events appear in your calendar automatically',copied:'Copied',registered:n=>`${n} registered`,left:n=>`${n} spots left`,full:'Sold out',waitlist:'Waitlist open',from:'from',notOnSale:'Not on sale yet',today:'Today',tomorrow:'Tomorrow',tba:'Time TBA',external:'External registration',preview:'Preview',share:'Share',copyLink:'Copy link',more:'More',igLabel:'Instagram story',igDone:'Image saved and link copied. Add it as a link sticker in Instagram.',igShared:'Share opened',igFail:'Could not create the image',igSite:'Taiwan Talent Hub',map:'Google Maps',cal:'Add to calendar',calGoogle:'Google Calendar',hiddenPlace:'Location shared after registration',onlineOnly:'Online event',endsSoon:d=>`Ends ${d}`,earlyBird:(n,d)=>`${n} until ${d}`,ctaGo:'Register',ctaPay:'Get tickets',ctaExternal:'Register',when:'When',where:'Where',tz:'Taipei time (UTC+8)'},
+ ja:{pastTitle:'終了したイベント',pastCta:'イベントを見る',ended:'終了',subscribe:'カレンダーを購読',subGoogle:'Google カレンダー',subApple:'Apple／Outlook カレンダー',subCopy:'購読URLをコピー',subNote:'新しいイベントが自動で追加されます',copied:'コピーしました',registered:n=>`申込 ${n} 名`,left:n=>`残り ${n} 席`,full:'満席',waitlist:'キャンセル待ち可',from:'〜',notOnSale:'販売開始前',today:'今日',tomorrow:'明日',tba:'日時未定',external:'外部サイトで申込',preview:'予告',share:'シェア',copyLink:'リンクをコピー',more:'その他',igLabel:'Instagram ストーリーズ',igDone:'画像を保存しリンクをコピーしました。Instagram でリンクスタンプに貼り付けてください',igShared:'シェアを開きました',igFail:'画像を作成できませんでした',igSite:'台湾タレントハブ',map:'Google マップ',cal:'カレンダーに追加',calGoogle:'Google カレンダー',hiddenPlace:'申込後に場所を表示',onlineOnly:'オンライン開催',endsSoon:d=>`${d} 締切`,earlyBird:(n,d)=>`${n} は ${d} まで`,ctaGo:'申し込む',ctaPay:'チケットを購入',ctaExternal:'申し込む',when:'日時',where:'場所',tz:'台北時間 (UTC+8)'}
 }[lang];
 const TZ='Asia/Taipei';
 function startDate(e){return e.starts_at_iso?new Date(e.starts_at_iso+':00+08:00'):null;}
@@ -364,6 +364,7 @@ function shortDate(e){const s=startDate(e);return s?new Intl.DateTimeFormat(loca
 function listPrice(e){
  if(e.registration_mode==='external')return T2.external;
  if(e.status==='預告')return previewLabel;
+ if(!(e.tickets||[]).some(t=>t.active))return T2.notOnSale;
  const now=Date.now(),open=(e.tickets||[]).filter(t=>t.active&&!(t.opens_at&&now<Date.parse(t.opens_at))&&!(t.closes_at&&now>=Date.parse(t.closes_at)));
  if(open.length){const prices=open.map(t=>taxedPrice(e,t.price_twd));const min=Math.min(...prices),max=Math.max(...prices);return min===max?money(min):money(min)+' '+T2.from;}
  // 沒有銷售中的票：顯示啟用中（未隱藏）票種的最低價，不再退回活動層級票價
@@ -382,7 +383,6 @@ function closingTicket(e){
  const now=Date.now(),soon=now+7*86400000,fmt=iso=>new Date(Date.parse(iso)-60000).toLocaleDateString(locale,{month:'numeric',day:'numeric',timeZone:TZ});
  const t=(e.tickets||[]).find(t=>t.active&&t.closes_at&&Date.parse(t.closes_at)>now&&Date.parse(t.closes_at)<=soon);
  if(t)return T2.earlyBird(t.name,fmt(t.closes_at));
- const c=e.registration_settings?.closes_at;if(c&&Date.parse(c)>now&&Date.parse(c)<=soon)return T2.endsSoon(fmt(c));
  return '';
 }
 function cardPills(e){const pills=[];if(e.status==='已結束')return `<span class="ev-pill ev-pill--past">${T2.ended}</span>`;if(e.status==='預告')pills.push(`<span class="ev-pill">${T2.preview}</span>`);else if(e.status==='報名中'&&e.registration_mode!=='external')pills.push(`<span class="ev-pill ev-pill--open">${T[e.visibility]||T.public}</span>`);if(e.registration_mode==='external')pills.push(`<span class="ev-pill ev-pill--ext">${T2.external}</span>`);if(e.visibility==='members')pills.push(`<span class="ev-pill">${T.members}</span>`);return pills.join('');}
@@ -542,6 +542,7 @@ function appAction(e){
   if(mine)return `<a class="ui-button" id="ev-app-go" href="${url}">${L[1]} ↗</a>`;
   if(e.status==='預告')return `<p>${previewLabel}</p>`;
   if(e.status!=='報名中')return `<button class="ui-button ui-button--secondary" disabled>${L[3]}</button>`;
+  if(!(e.tickets||[]).some(t=>t.active))return `<button class="ui-button ui-button--secondary" disabled>${T2.notOnSale}</button>`;
   return `<a class="ui-button" id="ev-app-go" href="${url}">${L[0]} ↗</a><p class="ev-note">${L[4]}</p>`;
 }
 function actionFor(e){
@@ -560,7 +561,7 @@ function actionFor(e){
     return `<p role="status">${labels[lang][e.registration_status]}${e.capture_required?'<br>'+{zh:'信用卡已預授權，核准後才請款。審核截止：',en:'Your card is authorized; it will be charged only after approval. Review deadline: ',ja:'カードは仮承認済みです。承認後に請求されます。審査期限：'}[lang]+esc(e.authorization_expires_at?new Date(e.authorization_expires_at).toLocaleString(locale,{timeZone:'Asia/Taipei'})+' (UTC+8)':''):''}</p>${e.registration_status!=='declined'?`<button type="button" class="ui-button ui-button--secondary" id="ev-cancel">${T.cancel}</button>`:''}`;
   }
   const settings=e.registration_settings||{};
-  if((settings.opens_at&&Date.now()<Date.parse(settings.opens_at))||(settings.closes_at&&Date.now()>=Date.parse(settings.closes_at)))return `<p>${{zh:'目前不在報名期間',en:'Registration is not currently open',ja:'現在は申込受付期間外です'}[lang]}</p>`;
+  if(!(e.tickets||[]).some(t=>t.active)&&e.registration_status!=='approved')return `<p>${T2.notOnSale}</p>`;
   if(e.registration_status==='approved')return `<p>${{zh:'已核准。請在核准後 24 小時內付款，付款完成才會核發票券。',en:'Approved. Pay within 24 hours of approval to confirm your ticket.',ja:'承認済みです。承認後24時間以内に支払いを完了してください。'}[lang]}</p><button class="ui-button" id="ev-register">${T.pay} · ${money(e.amount_due)}</button><button type="button" class="ui-button ui-button--secondary" id="ev-cancel">${T.cancel}</button>`;
   if(e.status==='預告')return `<p>${previewLabel}</p>`;
   if(e.status!=='報名中')return `<button class="ui-button ui-button--secondary" disabled>${{zh:'目前不開放報名',en:'Registration is closed',ja:'申込受付は終了しました'}[lang]}</button>`;

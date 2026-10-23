@@ -28,7 +28,9 @@ test('three-language landing renders safe editable copy and preview never advert
 test('registration state and price control CTA; private/draft events never appear as featured',()=>{
  assert.match(eventPage('{{actions}}',{...event,status:'報名中',tickets:[{id:'t_default',name:'一般票',active:true,price_twd:800}]},'/en/halloween-2026'),/NT\$800/);
  assert.doesNotMatch(eventPage('{{actions}}',{...event,status:'報名中',price_twd:800,tickets:[{id:'t_default',name:'一般票',active:true,price_twd:0}]},'/en/halloween-2026'),/NT\$800/,'活動層級 price_twd 不再影響價格');
- assert.match(eventPage('{{actions}}',{...event,status:'報名中'},'/ja/halloween-2026'),/\/ja\/events\/halloween-2026/);
+ assert.match(eventPage('{{actions}}',{...event,status:'報名中',tickets:[{id:'t1',name:'一般票',active:true,price_twd:0}]},'/ja/halloween-2026'),/\/ja\/events\/halloween-2026/);
+ assert.match(eventPage('{{actions}}',{...event,status:'報名中',tickets:[]},'/halloween-2026'),/尚未開賣/,'沒有票種＝尚未開賣');
+ assert.match(eventPage('{{actions}}',{...event,status:'報名中',tickets:[{id:'t1',name:'一般票',active:false,price_twd:0}]},'/halloween-2026'),/尚未開賣/,'票種全停用＝尚未開賣');
  for(const e of [null,{...event,status:'草稿'},{...event,visibility:'private'},{...event,status:'已結束'}])assert.equal(featuredEvent('<!--FEATURED_EVENT-->',e,'/'),'');
  assert.match(featuredEvent('<!--FEATURED_EVENT-->',event,'/en/'),/\/en\/halloween-2026/);
 });

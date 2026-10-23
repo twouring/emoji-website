@@ -73,7 +73,8 @@ test('event OAuth callback works in all locales and preserves payment verificati
     assert.match(cleanURL, /\?paid=1&s=test-session$/);
     assert.doesNotMatch(cleanURL, /token=/);
     // 規格 v2 §4.1：原生報名活動在官網只放「前往 App 報名」連結（帶原查詢參數）
-    const cta = vm.runInContext("actionFor({ id: 'e1', slug: 'demo', status: '報名中', capacity: 0 })", context);
+    const cta = vm.runInContext("actionFor({ id: 'e1', slug: 'demo', status: '報名中', capacity: 0, tickets: [{ id: 't1', active: true, price_twd: 0 }] })", context);
+    assert.match(vm.runInContext("actionFor({ id: 'e1', slug: 'demo', status: '報名中', capacity: 0, tickets: [] })", context), /disabled/, '沒有票種＝尚未開賣');
     assert.match(cta, /id="ev-app-go"/);
     assert.match(cta, /href="[^"]*\/e\/demo/);
     assert.doesNotMatch(cta, /id="ev-register"/);
@@ -84,7 +85,7 @@ test('event OAuth callback works in all locales and preserves payment verificati
     assert.match(vm.runInContext("actionFor({ slug: 'demo', status: '已結束', registered: true })", context), /id="ev-app-go"[^>]*\/e\/demo/);
   }
   // 儲存被封鎖（私密模式）時仍能產生 App 報名連結
-  assert.match(vm.runInContext("actionFor({ slug: 'demo', status: '報名中', capacity: 0 })", eventContext('zh', true).context), /id="ev-app-go"/);
+  assert.match(vm.runInContext("actionFor({ slug: 'demo', status: '報名中', capacity: 0, tickets: [{ id: 't1', active: true, price_twd: 0 }] })", eventContext('zh', true).context), /id="ev-app-go"/);
 });
 
 test('space markdown passes parsed HTML to the sanitizer and fails closed without it', () => {

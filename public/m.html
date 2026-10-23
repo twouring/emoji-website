@@ -471,7 +471,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
     const full=e.capacity>0&&e.reg_count>=e.capacity&&!e.registered&&e.registration_status!=='pending_payment';
       const ts=(e.tickets||[]).filter(t=>t.active&&!t.hidden).map(t=>t.flexible_price?Number(t.minimum_twd??t.price_twd):Number(t.price_twd));
       const lo=ts.length?Math.min(...ts):0,multi=ts.length>1&&Math.max(...ts)!==lo;
-      const price=lo>0?'NT$'+lo.toLocaleString('en-US')+(multi?(LANG==='en'?' & up':LANG==='ja'?' ～':' 起'):''):T.free;
+      const price=!ts.length?(LANG==='en'?'Not on sale yet':LANG==='ja'?'販売開始前':'尚未開賣'):lo>0?'NT$'+lo.toLocaleString('en-US')+(multi?(LANG==='en'?' & up':LANG==='ja'?' ～':' 起'):''):T.free;
     const tags=[e.registered?`<span class="tag">${esc(T.registered)}</span>`:'',e.registration_status==='pending_payment'?`<span class="tag">${esc(T.pendingPay)}</span>`:'',full?`<span class="tag">${esc(T.full)}</span>`:''].join('');
     const cover=(e.event_details&&e.event_details.cover_url)||'';
     const cv=cover?`<img class="cv" src="${esc(imgUrl(cover))}" alt="" loading="lazy">`:'';

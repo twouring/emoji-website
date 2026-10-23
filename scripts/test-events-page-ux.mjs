@@ -92,7 +92,8 @@ test('closing hints only within seven days and only from real ticket or registra
   assert.equal(c.closingTicket(baseEvent), '');
   assert.match(c.closingTicket({ ...baseEvent, tickets: [{ active: true, name: '早鳥票', closes_at: soon.toISOString() }] }), /早鳥票 售至 \d+\/\d+/);
   assert.equal(c.closingTicket({ ...baseEvent, tickets: [{ active: true, name: '早鳥票', closes_at: new Date(Date.now() + 30 * 86400000).toISOString() }] }), '', 'a month away is not urgent');
-  assert.match(c.closingTicket({ ...baseEvent, registration_settings: { closes_at: soon.toISOString() } }), /截止/);
+  assert.equal(c.closingTicket({ ...baseEvent, registration_settings: { closes_at: soon.toISOString() } }), '', '截止時間只看票種，不看活動層級 closes_at');
+  assert.equal(c.listPrice({ ...baseEvent, tickets: [] }), '尚未開賣', '沒有票種＝尚未開賣');
 });
 
 test('facts block: date block + full date + calendar links, location with Google Maps, hidden/online variants', () => {

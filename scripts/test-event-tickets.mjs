@@ -27,7 +27,7 @@ test('every event uses ticket types: default ticket, at least one ticket, single
  const d=normalizeTickets([defaultTicket(150)]);
  assert.equal(d[0].id,'t_default');assert.equal(d[0].name,'一般票');assert.equal(d[0].price_twd,150);assert.equal(d[0].minimum_twd,150);assert.equal(d[0].capacity,0);
  assert.equal(defaultTicket(-5).price_twd,0);assert.equal(defaultTicket('x').price_twd,0);
- assert.throws(()=>normalizeTickets([]),/至少要保留一張票種/);
+ assert.deepEqual(normalizeTickets([]),[],'沒有票種＝尚未開賣，允許清空');
  assert.equal(selectTicket(d,undefined).id,'t_default');
  const two=normalizeTickets([defaultTicket(150),{id:'t_vip',name:'VIP',price_twd:500,capacity:0,active:true}]);
  assert.throws(()=>selectTicket(two,undefined),/請選擇有效票種/);

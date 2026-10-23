@@ -945,12 +945,7 @@ async function migrate() {
     try { await client.query('BEGIN'); await createApplicationEvent(client, a); await client.query('COMMIT'); }
     catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
   }
-  // 統一用票種：沒有票種的舊活動補一張「一般票」（票價＝原活動票價），既有報名補上同一張票的快照
-  for(const ev of (await q(`SELECT id,price_twd FROM events WHERE jsonb_typeof(tickets)<>'array' OR jsonb_array_length(tickets)=0`)).rows){
-   const t=JSON.stringify([defaultTicket(ev.price_twd)]);
-   await q(`UPDATE events SET tickets=$2::jsonb WHERE id=$1 AND jsonb_array_length(tickets)=0`,[ev.id,t]);
-   await q(`UPDATE event_regs SET ticket_snapshot=($2::jsonb)->0 WHERE event_id=$1 AND ticket_snapshot IS NULL`,[ev.id,t]).catch(()=>{});
-  }
+  // 票種是唯一售票來源：沒有票種＝尚未開賣（不再自動補「一般票」）；開賣／截止時間只看各票種
 }
 
 async function seedBond() {
@@ -1378,7 +1373,7 @@ async function createApplicationEvent(client, a) {
   // 退票政策存在 registration_settings.refund_policy（參加者退票 DELETE /api/events/:id/register 讀這裡）
   await client.query(`INSERT INTO events(id,slug,title,description,location,starts_at,ends_at,capacity,price_twd,visibility,status,owner_id,registration_mode,registration_url,review_status,registration_settings,tickets)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,0,$9,'草稿',$10,$11,$12,$13,$14,$15)`,
-    [id, slug, a.title, a.description, appVenue(a), a.starts_at, a.ends_at, a.attendees, a.visibility || 'public', a.user_id, a.registration_mode || 'native', a.registration_url || '', a.status || 'pending', JSON.stringify({ refund_policy: a.refund_policy === 'none' ? 'none' : 'accept' }), JSON.stringify([defaultTicket(0)])]);
+    [id, slug, a.title, a.description, appVenue(a), a.starts_at, a.ends_at, a.attendees, a.visibility || 'public', a.user_id, a.registration_mode || 'native', a.registration_url || '', a.status || 'pending', JSON.stringify({ refund_policy: a.refund_policy === 'none' ? 'none' : 'accept' }), '[]']);
   await client.query('UPDATE event_applications SET event_id=$2 WHERE id=$1', [a.id, id]);
   const applicant = (await client.query('SELECT email,name FROM users WHERE id=$1', [a.user_id])).rows[0];
   await client.query(`INSERT INTO event_hosts(event_id,email,name,is_visible,can_manage,can_checkin) VALUES($1,lower($2),$3,false,true,true) ON CONFLICT(event_id,email) DO UPDATE SET can_manage=true,can_checkin=true`,
@@ -2971,7 +2966,7 @@ app.post('/api/admin/events', auth, requireDb, eventEditor, wrap(async (req, res
       `INSERT INTO events (id,slug,title,description,location,starts_at,ends_at,capacity,price_twd,visibility,status,translations,owner_id,tickets)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
       [id, slug, v.title, v.description, v.location, v.startsAt, v.endsAt,
-        v.capacity, v.priceTwd, v.visibility, v.status, JSON.stringify(v.translations || {}), owner === undefined ? req.auth.sub : owner, JSON.stringify([defaultTicket(v.priceTwd)])]
+        v.capacity, v.priceTwd, v.visibility, v.status, JSON.stringify(v.translations || {}), owner === undefined ? req.auth.sub : owner, '[]']
     );
     res.json({ ok: true, id, slug });
   } catch (e) {
@@ -3462,11 +3457,8 @@ app.post('/api/admin/events/:id/registration-settings', auth, requireDb, eventEd
   if(b.feedback!==undefined){const f=b.feedback;if(!f||typeof f.enabled!=='boolean'||!Number.isInteger(f.delay_hours)||f.delay_hours<0||f.delay_hours>168||typeof f.subject!=='string'||f.subject.length>160||typeof f.body!=='string'||f.body.length>5000)return res.status(400).json({error:'回饋邀請需設定開關、活動結束後 0–168 小時、有效主旨與內容。'});settings.feedback={enabled:f.enabled,delay_hours:f.delay_hours,subject:f.subject.trim(),body:f.body.trim()};}
   if(b.email_templates!==undefined){try{settings.email_templates=require('./lib/event-mailer').normalizeRegistrationEmails(b.email_templates);}catch(error){return res.status(400).json({error:error.message});}}
   if(b.reminders!==undefined){if(!Array.isArray(b.reminders)||b.reminders.some(h=>![1,24].includes(h)))return res.status(400).json({error:'提醒時間只可選活動前 24 小時或 1 小時。'});settings.reminders=[...new Set(b.reminders)];}
-  for(const key of ['opens_at','closes_at']){
-    if(b[key] && (typeof b[key]!=='string'||!Number.isFinite(Date.parse(b[key]))))return res.status(400).json({error:'報名時間格式不正確。'});
-    settings[key]=b[key]?new Date(b[key]).toISOString():null;
-  }
-  if(settings.opens_at&&settings.closes_at&&settings.opens_at>=settings.closes_at)return res.status(400).json({error:'截止時間必須晚於開放時間。'});
+  // 開賣／截止時間只在票種設定；清掉舊的活動層級時間
+  settings.opens_at=null;settings.closes_at=null;
   await eventMutation(req,req.params.id,'registration_settings_updated','UPDATE events SET registration_settings=registration_settings || $2::jsonb WHERE id=$1',[req.params.id,JSON.stringify(settings)]);
   res.json({ok:true,settings});
 }));
@@ -3543,7 +3535,7 @@ app.post('/api/admin/events/:id/duplicate', auth, requireDb, eventEditor, wrap(a
    const coupons=(source.coupons||[]).map(coupon=>({...coupon,expires_at:null})),events=[],submitted=[];
    for(const time of times){const id=uid('e_'),slug=(eventSlug(source.slug)||'event')+'-'+crypto.randomBytes(4).toString('hex');
     await client.query(`INSERT INTO events(id,slug,title,description,location,starts_at,ends_at,capacity,price_twd,visibility,status,translations,owner_id,registration_settings,tickets,event_details,coupons,rich_content,checkin_mode,checkin_mode_locked)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'草稿',$11,$12,$13,$14,$15,$16,$17,$18,$19)`,[id,slug,requested===undefined?source.title+'（副本）':source.title,source.description,source.location,time.starts_at,time.ends_at,source.capacity,source.price_twd,visibility||source.visibility,JSON.stringify(source.translations||{}),source.owner_id,JSON.stringify(source.registration_settings||{}),JSON.stringify(source.tickets?.length?source.tickets:[defaultTicket(source.price_twd)]),JSON.stringify(details),JSON.stringify(coupons),JSON.stringify(source.rich_content||{}),source.checkin_mode,source.checkin_mode_locked]);
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'草稿',$11,$12,$13,$14,$15,$16,$17,$18,$19)`,[id,slug,requested===undefined?source.title+'（副本）':source.title,source.description,source.location,time.starts_at,time.ends_at,source.capacity,source.price_twd,visibility||source.visibility,JSON.stringify(source.translations||{}),source.owner_id,JSON.stringify(source.registration_settings||{}),JSON.stringify(source.tickets||[]),JSON.stringify(details),JSON.stringify(coupons),JSON.stringify(source.rich_content||{}),source.checkin_mode,source.checkin_mode_locked]);
     await client.query(`INSERT INTO event_hosts(event_id,email,name,is_visible,can_manage,can_checkin,checkin_ticket_ids) SELECT $1,email,name,is_visible,can_manage,can_checkin,checkin_ticket_ids FROM event_hosts WHERE event_id=$2`,[id,source.id]);
     if(req.auth.role!=='admin'){
      const base=(await client.query('SELECT * FROM event_applications WHERE event_id=$1',[source.id])).rows[0]||{},me=(await client.query('SELECT name,email FROM users WHERE id=$1',[req.auth.sub])).rows[0]||{};
@@ -4364,7 +4356,7 @@ app.post('/api/events/:id/additional-tickets',auth,requireDb,wrap(async(req,res)
  const reg=(await client.query('SELECT r.*,u.name,u.email FROM event_regs r JOIN users u ON u.id=r.user_id WHERE event_id=$1 AND user_id=$2 FOR UPDATE OF r',[req.params.id,req.auth.sub])).rows[0];
  if(!event||event.status!=='報名中'||!reg||reg.status!=='registered')return res.status(409).json({error:'僅有效報名的購買者可加購開放中的活動。'});
  const settings=event.registration_settings||{};
- if(settings.group_registration===false||settings.requires_approval||settings.opens_at&&Date.parse(settings.opens_at)>Date.now()||settings.closes_at&&Date.parse(settings.closes_at)<=Date.now())return res.status(409).json({error:'目前不開放加購，審核制活動請聯絡主辦人。'});
+ if(settings.group_registration===false||settings.requires_approval)return res.status(409).json({error:'目前不開放加購，審核制活動請聯絡主辦人。'});
  const pending=(await client.query("SELECT * FROM event_ticket_orders WHERE registration_id=$1 AND ticket_version=$2 AND status='pending_payment' ORDER BY created_at DESC LIMIT 1",[reg.id,reg.ticket_version])).rows[0];
  if(pending){if(!stripe)return res.status(503).json({error:'須先核對上一筆加購付款。'});const session=await stripe.checkout.sessions.retrieve(pending.stripe_session_id);
   if(session.payment_status==='paid'){await client.query('COMMIT');await fulfillAdditionalCheckout(session);return res.json({ok:true,already:true});}
@@ -4372,7 +4364,7 @@ app.post('/api/events/:id/additional-tickets',auth,requireDb,wrap(async(req,res)
   if(session.status!=='expired')return res.status(409).json({error:'上一筆付款仍在處理中。'});
   await client.query("UPDATE event_ticket_orders SET status='expired' WHERE id=$1",[pending.id]);
  }
- let ticket=null,price,taxSnapshot;try{if(!event.tickets?.length)throw Error('這場活動尚未設定票種。');ticket=selectTicket(event.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code);if(ticket?.requires_approval)throw Error('需審核票種不可自行加購，請聯絡主辦人。');const priced=taxPrice(event.registration_settings?.tax,ticketPrice(ticket,req.body?.amount_twd)*quantity);price=priced.price;taxSnapshot=priced.tax;}catch(e){return res.status(400).json({error:e.message});}
+ let ticket=null,price,taxSnapshot;try{if(!event.tickets?.some(t=>t.active))throw Error('這場活動尚未開賣。');ticket=selectTicket(event.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code);if(ticket?.requires_approval)throw Error('需審核票種不可自行加購，請聯絡主辦人。');const priced=taxPrice(event.registration_settings?.tax,ticketPrice(ticket,req.body?.amount_twd)*quantity);price=priced.price;taxSnapshot=priced.tax;}catch(e){return res.status(400).json({error:e.message});}
  // 會員公開活動：加購的每張票同樣加收場地茶飲費
  const venueFeeTwd=venueFees.attendeeVenueFeePerTicket(event)*quantity,ticketTotalTwd=price;price+=venueFeeTwd;
  if(event.capacity>0&&(await reservedEventSeats(client,event.id))+quantity>event.capacity)return res.status(409).json({error:'剩餘名額不足。'});
@@ -4483,7 +4475,7 @@ app.post('/api/events/:id/feedback',auth,requireDb,wrap(async(req,res)=>{
 
 app.post('/api/events/:id/quote',requireDb,wrap(async(req,res)=>{
  const event=(await q("SELECT * FROM events WHERE id=$1 AND status='報名中'",[req.params.id])).rows[0];if(!event)return res.status(404).json({error:'找不到開放報名的活動。'});
- try{const quantity=Number(req.body?.quantity??1);if(!Number.isInteger(quantity)||quantity<1||quantity>MAX_EVENT_TICKETS_PER_ORDER)throw new Error(`每筆可購買 1–${MAX_EVENT_TICKETS_PER_ORDER} 張票`);if(!event.tickets?.length)throw new Error('這場活動尚未設定票種。');const ticket=selectTicket(event.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code),base=ticketPrice(ticket,req.body?.amount_twd)*quantity;
+ try{const quantity=Number(req.body?.quantity??1);if(!Number.isInteger(quantity)||quantity<1||quantity>MAX_EVENT_TICKETS_PER_ORDER)throw new Error(`每筆可購買 1–${MAX_EVENT_TICKETS_PER_ORDER} 張票`);if(!event.tickets?.some(t=>t.active))throw new Error('這場活動尚未開賣。');const ticket=selectTicket(event.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code),base=ticketPrice(ticket,req.body?.amount_twd)*quantity;
  const discounted=discountPrice(event.coupons,req.body?.coupon_code,base),result=taxPrice(event.registration_settings?.tax,discounted.price);res.json({price_twd:result.price,base_twd:base,discount_twd:discounted.coupon?.discount_twd||0,tax_twd:result.tax?.tax_twd||0,tax_name:result.tax?.name||'',notice:'此報價不保留名額，實際報名仍會檢查優惠碼使用上限。'});}catch(e){res.status(400).json({error:e.message});}
 }));
 
@@ -4619,7 +4611,7 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
       attendees=attendees.map(a=>({name:a.name.trim(),email:a.email.trim().toLowerCase()}));
     }
     let selectedTicket=approved?mine.ticket_snapshot:null;
-    if(!approved){try{if(!ev.tickets?.length)throw new Error('這場活動尚未設定票種。');selectedTicket=selectTicket(ev.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code);}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}}
+    if(!approved){try{if(!ev.tickets?.some(t=>t.active))throw new Error('這場活動尚未開賣。');selectedTicket=selectTicket(ev.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code);}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}}
     const walletCollection=registrationSettings.wallet_collection||{};let walletSnapshot=approved&&mine.wallet_address?{chain:'ethereum',address:mine.wallet_address}:null,solanaWallet=approved?mine.solana_wallet_address:null,nft=approved&&mine.nft_token_id?{contract:mine.nft_contract,token_id:mine.nft_token_id}:null;
     if(!approved&&(walletCollection.ethereum||selectedTicket?.token_gate?.enabled)){try{walletSnapshot=eventCrypto.verifyEthereum(req.body?.ethereum_wallet_proof||req.body?.wallet_proof||{},ev.id,verifyToken);if(selectedTicket?.token_gate?.enabled){const balance=await eventCrypto.tokenBalance(selectedTicket.token_gate,walletSnapshot.address,process.env.ETHEREUM_RPC_URL,String(req.body?.nft_token_id??''));if(!balance.eligible){await client.query('ROLLBACK');return res.status(403).json({error:'此錢包未持有票種要求的 Token。'});}if(selectedTicket.token_gate.type==='erc721'){nft={contract:selectedTicket.token_gate.contract,token_id:balance.token_id};if((await client.query('SELECT 1 FROM event_regs WHERE event_id=$1 AND nft_contract=$2 AND nft_token_id=$3 AND user_id<>$4',[ev.id,nft.contract,nft.token_id,userId])).rowCount){await client.query('ROLLBACK');return res.status(409).json({error:'此 NFT 已用於本活動報名。'});}}}if((await client.query('SELECT 1 FROM event_regs WHERE event_id=$1 AND wallet_address=$2 AND user_id<>$3',[ev.id,walletSnapshot.address,userId])).rowCount){await client.query('ROLLBACK');return res.status(409).json({error:'此 Ethereum 錢包已用於本活動報名。'});}}catch(error){await client.query('ROLLBACK');return res.status(error.status||400).json({error:error.message});}}
     if(!approved&&walletCollection.solana){try{solanaWallet=eventCrypto.verifySolana(req.body?.solana_wallet_proof||{},ev.id,verifyToken).address;if((await client.query('SELECT 1 FROM event_regs WHERE event_id=$1 AND solana_wallet_address=$2 AND user_id<>$3',[ev.id,solanaWallet,userId])).rowCount){await client.query('ROLLBACK');return res.status(409).json({error:'此 Solana 錢包已用於本活動報名。'});}}catch(error){await client.query('ROLLBACK');return res.status(error.status||400).json({error:error.message});}}
@@ -4640,9 +4632,6 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
     const requiresApproval=Boolean(!invited&&(settings.requires_approval||selectedTicket?.requires_approval));
     // 一定要是 boolean：registration_settings 缺 requires_approval 時會得到 undefined，寫進 NOT NULL 欄位直接 500。
     let captureRequired=Boolean(!approved&&price>0&&requiresApproval&&settings.payment_approval==='authorize');
-    if((settings.opens_at&&Date.now()<Date.parse(settings.opens_at))||(settings.closes_at&&Date.now()>=Date.parse(settings.closes_at))){
-      await client.query('ROLLBACK');return res.status(409).json({error:'目前不在報名期間。'});
-    }
 
     if (Number(ev.capacity) > 0) {
       const n=await reservedEventSeats(client,ev.id,null,userId);

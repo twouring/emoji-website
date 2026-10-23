@@ -274,8 +274,8 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   assert.equal(activity.filter(x=>['pending_approval','waitlisted','registered'].includes(x.action)).length,6);
   assert.ok(activity.some(x=>x.action==='event_updated'&&x.actor_id==='org_a'));
   await call('/admin/events/'+first.id+'/activity',{as:b,status:404});
+  // 開賣時間只看票種：活動層級 opens_at 會被清掉、不擋報名
   await call('/admin/events/'+first.id+'/registration-settings',{as:a,method:'POST',body:{requires_approval:false,waitlist:false,opens_at:'2100-01-01T00:00:00Z'}});
-  await call('/events/'+first.id+'/register',{as:guest,method:'POST',status:409});
   const question={id:'q_company',label:'公司',type:'company',required:true};
   await call('/admin/events/'+first.id+'/questions',{as:b,method:'POST',body:{questions:[question]},status:404});
   await call('/admin/events/'+first.id+'/questions',{as:a,method:'POST',body:{questions:[question]}});

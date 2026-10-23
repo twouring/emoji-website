@@ -11,7 +11,7 @@ const L={
   venue:'＋場地茶飲費 NT$150／張（附茶飲一杯）',total:'合計',req:'標示 * 的為必填。',
   register:'立即報名',pay:'前往付款',request:'申請報名',waitlist:'加入候補',resume:'繼續付款',busy:'處理中…',
   wallet:'此活動需要錢包驗證，請在官網活動頁報名',walletBtn:'前往官網報名 ↗',external:'前往報名 ↗',externalNote:'此活動由主辦方在外部網站售票',private:'包場活動，不開放報名',
-  closed:'目前不開放報名',over:'活動已結束，感謝參與',notOpen:'目前不在報名期間',preview:'預告・報名尚未開放',full:'名額已滿',cancelled:'活動已取消',
+  closed:'目前不開放報名',over:'活動已結束，感謝參與',notOpen:'尚未開賣',preview:'預告・報名尚未開放',full:'名額已滿',cancelled:'活動已取消',
   done:'報名完成',doneSub:'確認信與票券資訊會寄到你的 Email。',paidCheck:'付款確認中，稍後會寄出確認信。',canceledPay:'已取消付款',canceledSub:'名額會保留到結帳連結到期，可重新報名。',retry:'重新報名',
   pending_approval:'報名已送出，等待主辦人審核',waitlisted:'已加入候補；取得名額前尚未報名成功',declined:'主辦人未核准此次報名',approved:'已核准，請在 24 小時內付款完成報名',pending_payment:'等待付款',refund_pending:'退款處理中，票券暫停使用',capture_pending:'信用卡請款處理中，完成後才會核發票券',refunded:'已退款，原票券已失效',
   guestLogin:'用這個 Email 登入 App 查看票券',addMore:'加購票券',addHint:'新票先用你的姓名，之後可個別轉給同行者；需審核票種與優惠碼不適用。',addGo:'確認加購',addDone:'已加購',mine:'我的報名',show:'出示票券',cancel:'取消報名',refund:'退票',
@@ -24,7 +24,7 @@ const L={
   venue:'+ Venue & tea fee NT$150 per ticket (one drink included)',total:'Total',req:'Fields marked * are required.',
   register:'Register',pay:'Continue to payment',request:'Request to join',waitlist:'Join waitlist',resume:'Resume payment',busy:'Processing…',
   wallet:'This event requires wallet verification. Please register on the website.',walletBtn:'Register on the website ↗',external:'Register ↗',externalNote:'Tickets are sold on an external website',private:'Buyout event — registration is not open',
-  closed:'Registration is closed',over:'This event has ended. Thanks for joining!',notOpen:'Registration is not currently open',preview:'Preview · Registration coming soon',full:'Sold out',cancelled:'Event cancelled',
+  closed:'Registration is closed',over:'This event has ended. Thanks for joining!',notOpen:'Tickets are not on sale yet',preview:'Preview · Registration coming soon',full:'Sold out',cancelled:'Event cancelled',
   done:'Registration complete',doneSub:'Confirmation and ticket details will be emailed to you.',paidCheck:'Confirming payment. A confirmation email will follow.',canceledPay:'Payment canceled',canceledSub:'Your spot is held until checkout expires. You can register again.',retry:'Register again',
   pending_approval:'Request submitted. Awaiting host approval.',waitlisted:'You are on the waitlist. Your place is not confirmed yet.',declined:'The host declined this registration.',approved:'Approved. Pay within 24 hours to confirm.',pending_payment:'Payment pending',refund_pending:'Refund processing. Your ticket is inactive.',capture_pending:'Card capture is processing.',refunded:'Refunded. Your original ticket is no longer valid.',
   guestLogin:'Sign in to the App with this email to view your ticket',addMore:'Get more tickets',addHint:'New tickets use your name and can be transferred later. Approval-only tickets and coupons are not available.',addGo:'Continue',addDone:'Tickets added',mine:'Your registration',show:'Show ticket',cancel:'Cancel registration',refund:'Request refund',
@@ -37,7 +37,7 @@ const L={
   venue:'＋会場・お茶代 NT$150／枚（ドリンク付き）',total:'合計',req:'* は必須項目です。',
   register:'申し込む',pay:'支払いへ進む',request:'参加を申請',waitlist:'キャンセル待ちに登録',resume:'支払いを続ける',busy:'処理中…',
   wallet:'このイベントはウォレット認証が必要です。公式サイトで申し込んでください。',walletBtn:'公式サイトで申し込む ↗',external:'申し込む ↗',externalNote:'外部サイトでチケットを販売しています',private:'貸切イベントのため申込できません',
-  closed:'申込受付は終了しました',over:'このイベントは終了しました',notOpen:'現在は申込受付期間外です',preview:'予告・申込受付前',full:'満席',cancelled:'イベント中止',
+  closed:'申込受付は終了しました',over:'このイベントは終了しました',notOpen:'チケット販売開始前です',preview:'予告・申込受付前',full:'満席',cancelled:'イベント中止',
   done:'申込が完了しました',doneSub:'確認とチケット情報をメールでお送りします。',paidCheck:'支払いを確認中です。確認メールをお送りします。',canceledPay:'支払いはキャンセルされました',canceledSub:'Checkout の期限まで枠を確保します。再度お申し込みいただけます。',retry:'もう一度申し込む',
   pending_approval:'申込済み・主催者の承認待ち',waitlisted:'キャンセル待ちです。参加はまだ確定していません。',declined:'今回の申込は承認されませんでした。',approved:'承認済みです。24時間以内に支払いを完了してください。',pending_payment:'支払い待ち',refund_pending:'返金処理中のため、チケットは無効です。',capture_pending:'決済処理中です。',refunded:'返金済みです。元のチケットは無効です。',
   guestLogin:'このメールで App にログインしてチケットを確認',addMore:'チケットを追加',addHint:'追加チケットは購入者名で発行され、後で個別に譲渡できます。承認制チケットとクーポンは対象外です。',addGo:'続ける',addDone:'追加しました',mine:'申込状況',show:'チケットを表示',cancel:'申込を取り消す',refund:'払い戻し',
@@ -124,7 +124,7 @@ function mount(o){
   if(e.status==='已結束')return notice(T.over);
   if(e.status==='預告')return notice(T.preview);
   if(e.status!=='報名中'&&e.registration_status!=='approved')return notice(T.closed);
-  if((s.opens_at&&Date.now()<Date.parse(s.opens_at))||(s.closes_at&&Date.now()>=Date.parse(s.closes_at)))return notice(T.notOpen);
+  if(!e.has_ticket_types&&e.registration_status!=='approved')return notice(T.notOpen);// 沒有啟用中的票種＝尚未開賣
   if(e.capacity>0&&e.reg_count>=e.capacity&&!s.waitlist&&!BLOCKED.includes(e.registration_status))return notice(T.full);
   if(needsWallet(e))return shell(top+`<section class="sec tile" role="status"><p>${esc(T.wallet)}</p><a class="btn solid" href="${esc(siteUrl())}" target="_blank" rel="noopener">${esc(T.walletBtn)}</a></section>`);
   const tickets=(e.tickets||[]).filter(t=>t.active),hasTickets=!!(e.has_ticket_types||tickets.length),viewer=e.viewer||o.me||null,req='<span class="req" aria-hidden="true"> *</span>';
