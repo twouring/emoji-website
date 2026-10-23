@@ -82,3 +82,12 @@ test('匯入轉址逐跳重做 SSRF 驗證，不會跟到內網', async () => {
   await assert.rejects(imp.fetchEventPage('https://safe.test/a', { resolve: async host => host === 'safe.test' ? [{ address: '8.8.8.8', family: 4 }] : [{ address: '127.0.0.1', family: 4 }], request: async () => { requests++; return { status: 302, headers: { location: 'https://private.test/x' }, body: '' }; } }), /內部網路/);
   assert.equal(requests, 1);
 });
+
+test('App 主辦子畫面：「‹ 返回」回上一個畫面，不直接跳回列表；按鈕文字不換行', () => {
+  const host = read('public/m-host.js');
+  assert.match(host, /function navBack\(\)/);
+  assert.match(host, /hostTickets=navScreen\('hostTickets',hostTickets\)/);
+  assert.match(host, /uxHome=navScreen\('uxHome',uxHome,true\)/);
+  assert.match(host, /id="host-back"[^`]*white-space:nowrap[^`]*‹ 返回/);
+  assert.doesNotMatch(host, /‹ 我的活動/);
+});
