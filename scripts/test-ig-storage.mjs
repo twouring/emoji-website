@@ -155,3 +155,24 @@ test('getAsset: /ig-media 代理讀物件，回 body 與 content-type；404 回 
   assert.equal(await app.getAsset('assets/missing.jpg'), null);
   assert.equal(await publisher(t, {}).getAsset('assets/site-01.jpg'), null);
 });
+
+test('MEDIA_DIR: 上傳／render／讀取／列舉都走本機目錄（GCS 掛載），不發任何 S3 請求', async t => {
+  const remote = await storage(t);
+  mkdirSync(tempRoot, { recursive: true });
+  const dir = mkdtempSync(path.join(tempRoot, 'media-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const app = publisher(t, { ...remote.env, MEDIA_DIR: dir });
+  assert.equal(await app.uploadAsset(jpeg, 'site-01.jpg', 'image/jpeg'), 'https://media.example.test/ig-media/assets/site-01.jpg');
+  assert.deepEqual(readFileSync(path.join(dir, 'assets/site-01.jpg')), jpeg);
+  const urls = await app.render();
+  assert.deepEqual(Array.from(urls), [1, 2].map(n => `https://media.example.test/ig-media/posts/ig-safeid01-p${n}.jpg`));
+  for (const n of [1, 2]) assert.deepEqual(readFileSync(path.join(dir, `posts/ig-safeid01-p${n}.jpg`)), jpeg);
+  assert.ok(app.screenshots.every(shot => !shot.path));
+  const obj = await app.getAsset('assets/site-01.jpg');
+  const chunks = []; for await (const c of obj.body) chunks.push(c);
+  assert.deepEqual(Buffer.concat(chunks), jpeg);
+  assert.equal(obj.contentLength, jpeg.length);
+  assert.equal(await app.getAsset('assets/missing.jpg'), null);
+  await assert.rejects(app.getAsset('../etc/passwd'), /非法/);
+  assert.equal(remote.requests.length, 0, 'MEDIA_DIR 優先，不打 S3');
+});

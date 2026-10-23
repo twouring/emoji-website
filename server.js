@@ -4238,6 +4238,7 @@ app.get('/api/admin/ig/status', auth, adminOnly, requireDb, wrap(async (_req, re
     hasToken: !!token,
     hasAiKey: !!process.env.ANTHROPIC_API_KEY,
     s3: !!(process.env.S3_ENDPOINT && process.env.S3_ACCESS_KEY && process.env.S3_SECRET_KEY),
+    mediaDir: !!process.env.MEDIA_DIR,
     assets: assetStats,
     banned: igPublisher.bannedList(),
     next: nextUp, errors, stale, recentPublished, utm,
@@ -6890,6 +6891,8 @@ app.get('/ig-media/*', wrap(async (req, res) => {
   if (!IMG[ext]) res.set('Content-Disposition', 'attachment');
   obj.body.on('error', () => res.destroy()).pipe(res);
 }));
+// MEDIA_DIR 放在 uploads 掛載底下時，不讓 /uploads 靜態服務繞過 /ig-media 的型別白名單
+app.use('/uploads/ig-media', (_req, res) => res.status(404).json({ error: '找不到檔案。' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   setHeaders: (res,file) => {res.set('X-Content-Type-Options', 'nosniff');if(file.endsWith('.pdf'))res.set({'Content-Disposition':'attachment','Content-Security-Policy':"sandbox; default-src 'none'"});},   // 上傳目錄防內容嗅探
 }));
