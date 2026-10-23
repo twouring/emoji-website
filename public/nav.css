@@ -134,14 +134,15 @@ footer.site-foot .foot__bot{display:flex;justify-content:space-between;flex-wrap
 /* ── 手機底部常駐列：訂位／菜單／導航（訂位頁、活動頁自有 CTA，由 nav.js 移除）── */
 .m-bar{display:none}
 @media(max-width:760px){
-  .m-bar{position:fixed;left:0;right:0;bottom:0;z-index:75;display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:8px;
-    padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:#FBFAF6;border-top:1px solid #E4E0D6;
+  /* 總高 56px＋安全區：只有主鍵實色，其餘兩鍵文字＋細框，讓視線留在主鍵 */
+  .m-bar{position:fixed;left:0;right:0;bottom:0;z-index:75;display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:6px;
+    padding:6px 12px calc(6px + env(safe-area-inset-bottom));background:rgba(251,250,246,.97);border-top:1px solid #E4E0D6;
     font-family:"Noto Sans TC",system-ui,-apple-system,sans-serif;transform:translateY(110%);transition:transform .2s ease}
   .m-bar.show{transform:none}
-  .m-bar a{display:flex;align-items:center;justify-content:center;min-height:48px;border:1px solid #1B1A17;border-radius:4px;
-    font-size:1rem;font-weight:500;color:#1B1A17;text-decoration:none;background:#FFFFFF}
-  .m-bar a.m-bar__main{background:#1B1A17;color:#FBFAF6}
-  body.has-m-bar footer.site-foot{padding-bottom:calc(112px + env(safe-area-inset-bottom))}
+  .m-bar a{display:flex;align-items:center;justify-content:center;min-height:44px;border:1px solid #E4E0D6;border-radius:4px;
+    font-size:1rem;font-weight:500;color:#1B1A17;text-decoration:none;background:transparent}
+  .m-bar a.m-bar__main{background:#1B1A17;color:#FBFAF6;border-color:#1B1A17;font-weight:700}
+  body.has-m-bar footer.site-foot{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
 }
 @media print{.m-bar{display:none}}
 /* ── 菜單分類跳轉列（品牌頁，nav.js 依實際分類產生）── */

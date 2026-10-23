@@ -79,6 +79,9 @@
   .btn--solid:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
   .btn--ghost{background:transparent;color:var(--ink)}
   .btn--ghost:hover{background:var(--ink);color:var(--paper);transform:translateY(-2px)}
+  /* 唯一黃 CTA：一個畫面只放一顆（首頁 hero 的首要操作）；墨字壓黃底 */
+  .btn--accent{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:700}
+  .btn--accent:hover{background:var(--accent-strong);border-color:var(--accent-strong);transform:translateY(-2px)}
   :focus-visible{outline:2.5px solid var(--ink);outline-offset:3px;border-radius:2px}
 
   /* ---------- NAV ---------- */
@@ -110,15 +113,18 @@
   }
 
   /* ---------- HERO ---------- */
-  .hero{position:relative;overflow:hidden;padding:clamp(56px,8vw,112px) 0 clamp(56px,7vw,88px)}
-  .hero__grid{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(320px,.92fr);gap:clamp(36px,6vw,78px);align-items:center}
-  .hero__badges{display:flex;flex-wrap:wrap;align-items:center;gap:6px 26px;margin:22px 0 0;padding-top:20px;border-top:1px solid var(--line);max-width:34em}
+  /* 上下內距收緊，讓桌機 800px 高的首屏也放得下資訊列 */
+  .hero{position:relative;overflow:hidden;padding:clamp(40px,5vw,72px) 0 clamp(48px,6vw,80px)}
+  .hero__grid{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(320px,.92fr);gap:clamp(20px,3vw,36px) clamp(36px,6vw,78px);align-items:center}
+  /* 營業時間、地址與次要連結：移出首屏文案，放在 hero 底部一條資訊列（跨兩欄） */
+  .hero__meta{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 26px;margin-top:clamp(8px,2vw,20px);padding-top:18px;border-top:1px solid var(--line)}
+  .hero__badges{display:flex;flex-wrap:wrap;align-items:center;gap:6px 26px;margin:0}
   .hero__loc,.hero__soon{display:inline-flex;align-items:center;gap:.5em;font-size:1rem;color:var(--ink-soft);line-height:1.6}
   .hero__soon{color:var(--ink);font-weight:500}
   .hero__soon .dot{width:6px;height:6px;border-radius:50%;background:var(--ink);flex:none}
   .hero__loc svg{width:15px;height:15px;color:var(--ink);flex:none}
   .hero h1{
-    font-size:clamp(2rem,5.4vw,4.1rem);font-weight:500;line-height:1.28;letter-spacing:.01em;
+    font-size:clamp(2.25rem,5.4vw,4.1rem);font-weight:700;line-height:1.24;letter-spacing:.01em;
     max-width:12.5em;text-wrap:balance;
   }
   /* 品牌名留在 H1 內（SEO），視覺退成一行小字；大標只講一件事 */
@@ -129,8 +135,8 @@
     margin:26px 0 0;max-width:42ch;font-size:clamp(1.02rem,2vw,1.18rem);
     color:var(--ink-soft);font-weight:300;line-height:1.95;
   }
-  .hero__cta{display:flex;flex-wrap:wrap;gap:14px;margin-top:34px}
-  .hero__note{margin-top:18px;color:var(--muted);font-size:1rem}
+  .hero__cta{display:flex;flex-wrap:wrap;gap:14px;margin-top:30px}
+  .hero__note{margin:0;color:var(--muted);font-size:1rem}
   .hero__note a{text-decoration:underline;text-underline-offset:3px}
   .hero__media{margin:0}
   /* 首頁 hero：三個品牌示意圖（日／夜／等等空間） */
@@ -338,11 +344,20 @@
     .journey-card figure img{aspect-ratio:3/2}
   }
   @media(max-width:560px){
-    .hero{padding:32px 0 44px}
-    .hero__brandline{margin-bottom:.7em}
-    .hero__cta{gap:10px;margin-top:26px}
+    .hero{padding:28px 0 36px}
+    .hero__grid{gap:22px}
+    .hero__brandline{margin-bottom:.6em}
+    .hero p.lead{margin-top:18px}
+    .hero__cta{gap:10px;margin-top:22px}
     .hero__cta .btn{flex:1 1 100%;justify-content:center}
-    .hero__media--trio{gap:10px}
+    /* 首屏實景帶：三張圖改成一條可橫滑的帶，不捲動就看得到「這是什麼地方」 */
+    .hero__media{max-width:none}
+    .hero__media--trio{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-left:18px;gap:10px;margin:0 -18px;padding:0 18px 4px;scrollbar-width:none}
+    .hero__media--trio::-webkit-scrollbar{display:none}
+    .hero__tile,.hero__tile--wide{flex:0 0 70%;scroll-snap-align:start}
+    .hero__tile img,.hero__tile--wide img{aspect-ratio:16/10}
+    .hero__meta{margin-top:0;padding-top:14px;gap:8px 18px}
+    .hero__note{flex-basis:100%}
     /* 情境卡片改橫向滑動，省下兩三個螢幕高 */
     .scenes{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:12px;margin:0 -18px;padding:0 18px 8px;scrollbar-width:none}
     .scenes::-webkit-scrollbar{display:none}

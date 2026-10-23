@@ -96,6 +96,21 @@
   white-space: nowrap;
 }
 
+/* 會籍方案：價格是決策資訊，字級放大；「線上購買」做成可按的鍵；推薦方案用 data-pick 標籤 */
+.membership-table .system-price { font-size: 1.5rem; line-height: 1.2; }
+.membership-table td a {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px; padding: 0 16px; margin: 2px 8px 2px 0;
+  border: 1.5px solid var(--ink); border-radius: var(--radius-sm);
+  background: var(--ink); color: var(--paper); font-weight: 500; text-decoration: none;
+}
+.membership-table tr[data-pick] td:first-child::after {
+  content: attr(data-pick);
+  display: inline-block; margin-left: 10px; padding: 2px 10px; vertical-align: middle;
+  border-radius: 999px; background: var(--accent); color: var(--on-accent);
+  font-family: var(--sans); font-size: 1rem; font-weight: 500; letter-spacing: .04em;
+}
+
 .system-note {
   margin-top: 16px;
   color: var(--muted);
@@ -126,24 +141,31 @@
 
   .membership-table { overflow: visible; }
 
-  .membership-table thead {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
+  .membership-table thead { display: none; }
 
   .membership-table tr {
     margin-bottom: 14px;
-    padding: 16px;
+    padding: 18px 16px;
     border: 1px solid var(--line);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius);
     background: var(--card);
   }
+  .membership-table tr[data-pick] { border: 1.5px solid var(--ink); }
+
+  /* 卡片首列：方案名＋大價格（價格不再排成「價格｜NT$200」的欄位列） */
+  .membership-table td.system-price {
+    display: block;
+    padding: 0 0 12px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--line);
+    font-size: 2rem;
+    line-height: 1.1;
+  }
+  .membership-table td.system-price::before { display: none; }
+  /* 「如何開始」欄：按鈕滿版在上，「現場辦理」退成一行灰色備註 */
+  .membership-table td:last-child { display: block; padding-top: 12px; color: var(--muted); text-align: center; }
+  .membership-table td:last-child::before { display: none; }
+  .membership-table td:last-child a { display: flex; width: 100%; margin: 0 0 8px; min-height: 48px; }
 
   .membership-table td {
     display: grid;
@@ -163,9 +185,9 @@
 
   .membership-table td:first-child {
     display: block;
-    padding: 0 0 12px;
-    margin-bottom: 4px;
-    border-bottom: 1px solid var(--line);
+    padding: 0 0 6px;
+    margin-bottom: 0;
+    border-bottom: 0;
     font-family: var(--serif);
     font-size: 1.2rem;
     font-weight: 600;
@@ -175,7 +197,9 @@
 }
 
 @media (max-width: 560px) {
-  .system-hero { padding: 56px 0 36px; }
+  .system-hero { padding: 36px 0 28px; }
+  .system-hero .lede { margin-top: 16px; }
+  .system-section { padding: 40px 0; }
   .system-modes { grid-template-columns: 1fr; }
   .system-table {
     display: block;
