@@ -318,7 +318,7 @@ const app=document.getElementById('ev-app');
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const previewLabel={zh:'預告・報名尚未開放',en:'Preview · Registration coming soon',ja:'予告・申込受付前'}[lang];
 const taxedPrice=(e,price)=>e.registration_settings?.tax?.enabled?price+Math.round(price*e.registration_settings.tax.rate_bps/10000):price;
-const eventPrice=e=>e.status==='預告'?previewLabel:e.registration_id&&e.amount_due!=null?money(e.amount_due):(e.has_ticket_types||e.tickets?.length)?{zh:'依票種',en:'By ticket type',ja:'券種による'}[lang]:money(taxedPrice(e,e.price_twd));
+const eventPrice=e=>e.status==='預告'?previewLabel:e.registration_id&&e.amount_due!=null?money(e.amount_due):(e.tickets||[]).filter(t=>t.active).length===1?money(taxedPrice(e,e.tickets.find(t=>t.active).price_twd)):(e.has_ticket_types||e.tickets?.length)?{zh:'依票種',en:'By ticket type',ja:'券種による'}[lang]:money(taxedPrice(e,e.price_twd));
 const money=n=>n>0?'NT$'+Number(n).toLocaleString('en-US'):T.free;
 function showReceipt(receipt,providerUrl){
  if(!receipt)return toast(T.error);

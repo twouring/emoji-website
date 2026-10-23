@@ -225,7 +225,7 @@ test('organizer isolation, scoped cohosts, translations, publication and registr
   await call('/admin/events/'+first.id+'/hosts',{as:a,method:'POST',body:{name:'Check-in staff',email:staffEmail,is_visible:false,can_manage:false,can_checkin:true,checkin_ticket_ids:[]}});
   await call('/admin/events/'+first.id+'/check-in',{as:staff,method:'POST',body:{registration_id:regs.regs[0].id}});
   await call('/admin/events/'+first.id+'/check-in/'+regs.regs[0].id,{as:staff,method:'DELETE'});
-  await call('/admin/events/'+first.id+'/tickets',{as:a,method:'POST',body:{tickets:[]}});
+  await call('/admin/events/'+first.id+'/tickets',{as:a,method:'POST',body:{tickets:[]},status:400});
   await call('/admin/events/'+first.id+'/hosts',{as:a,method:'DELETE',body:{email:staffEmail}});
   await call('/admin/events/'+first.id+'/check-in',{as:staff,status:404});
   await call('/admin/events/'+first.id+'/check-in',{as:staff,method:'POST',body:{registration_id:regs.regs[0].id},status:404});

@@ -24,7 +24,7 @@ const { safeEqual, signToken: signSession, verifyToken: verifySession,
 const {embedOrigins}=require('./lib/event-embed');
 const {richText,contentFileType}=require('./lib/event-rich-text');
 const {normalizeBlast,blastAudienceSQL}=require('./lib/event-mailer');
-const {normalizeTickets,selectTicket,ticketPrice,publicTickets,normalizeCoupons,discountPrice,normalizeTax,taxPrice} = require('./lib/event-tickets');
+const {normalizeTickets,selectTicket,ticketPrice,publicTickets,normalizeCoupons,discountPrice,normalizeTax,taxPrice,defaultTicket} = require('./lib/event-tickets');
 const {eventCalendar,eventsCalendar,googleCalendarUrl} = require('./lib/event-calendar');
 const {refundTotals}=require('./lib/event-refunds');
 const {EVENT_TYPES:EVENT_WEBHOOK_TYPES,normalizeWebhook,sendWebhook}=require('./lib/event-webhooks');
@@ -945,6 +945,12 @@ async function migrate() {
     try { await client.query('BEGIN'); await createApplicationEvent(client, a); await client.query('COMMIT'); }
     catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
   }
+  // 統一用票種：沒有票種的舊活動補一張「一般票」（票價＝原活動票價），既有報名補上同一張票的快照
+  for(const ev of (await q(`SELECT id,price_twd FROM events WHERE jsonb_typeof(tickets)<>'array' OR jsonb_array_length(tickets)=0`)).rows){
+   const t=JSON.stringify([defaultTicket(ev.price_twd)]);
+   await q(`UPDATE events SET tickets=$2::jsonb WHERE id=$1 AND jsonb_array_length(tickets)=0`,[ev.id,t]);
+   await q(`UPDATE event_regs SET ticket_snapshot=($2::jsonb)->0 WHERE event_id=$1 AND ticket_snapshot IS NULL`,[ev.id,t]).catch(()=>{});
+  }
 }
 
 async function seedBond() {
@@ -1370,9 +1376,9 @@ async function drainApplicationMail() {
 async function createApplicationEvent(client, a) {
   const id = `e_${a.id}`, slug = `${a.visibility === 'private' ? 'private-event' : eventSlug(a.title) || 'event'}-${a.id.slice(-8)}`;
   // 退票政策存在 registration_settings.refund_policy（參加者退票 DELETE /api/events/:id/register 讀這裡）
-  await client.query(`INSERT INTO events(id,slug,title,description,location,starts_at,ends_at,capacity,price_twd,visibility,status,owner_id,registration_mode,registration_url,review_status,registration_settings)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,0,$9,'草稿',$10,$11,$12,$13,$14)`,
-    [id, slug, a.title, a.description, appVenue(a), a.starts_at, a.ends_at, a.attendees, a.visibility || 'public', a.user_id, a.registration_mode || 'native', a.registration_url || '', a.status || 'pending', JSON.stringify({ refund_policy: a.refund_policy === 'none' ? 'none' : 'accept' })]);
+  await client.query(`INSERT INTO events(id,slug,title,description,location,starts_at,ends_at,capacity,price_twd,visibility,status,owner_id,registration_mode,registration_url,review_status,registration_settings,tickets)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,0,$9,'草稿',$10,$11,$12,$13,$14,$15)`,
+    [id, slug, a.title, a.description, appVenue(a), a.starts_at, a.ends_at, a.attendees, a.visibility || 'public', a.user_id, a.registration_mode || 'native', a.registration_url || '', a.status || 'pending', JSON.stringify({ refund_policy: a.refund_policy === 'none' ? 'none' : 'accept' }), JSON.stringify([defaultTicket(0)])]);
   await client.query('UPDATE event_applications SET event_id=$2 WHERE id=$1', [a.id, id]);
   const applicant = (await client.query('SELECT email,name FROM users WHERE id=$1', [a.user_id])).rows[0];
   await client.query(`INSERT INTO event_hosts(event_id,email,name,is_visible,can_manage,can_checkin) VALUES($1,lower($2),$3,false,true,true) ON CONFLICT(event_id,email) DO UPDATE SET can_manage=true,can_checkin=true`,
@@ -2962,10 +2968,10 @@ app.post('/api/admin/events', auth, requireDb, eventEditor, wrap(async (req, res
     const id = uid('e_');
     const slug = v.slug || `${eventSlug(v.title) || 'event'}-${crypto.randomBytes(3).toString('hex')}`;
     await eventMutation(req,id,'event_created',
-      `INSERT INTO events (id,slug,title,description,location,starts_at,ends_at,capacity,price_twd,visibility,status,translations,owner_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      `INSERT INTO events (id,slug,title,description,location,starts_at,ends_at,capacity,price_twd,visibility,status,translations,owner_id,tickets)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
       [id, slug, v.title, v.description, v.location, v.startsAt, v.endsAt,
-        v.capacity, v.priceTwd, v.visibility, v.status, JSON.stringify(v.translations || {}), owner === undefined ? req.auth.sub : owner]
+        v.capacity, v.priceTwd, v.visibility, v.status, JSON.stringify(v.translations || {}), owner === undefined ? req.auth.sub : owner, JSON.stringify([defaultTicket(v.priceTwd)])]
     );
     res.json({ ok: true, id, slug });
   } catch (e) {
@@ -3537,7 +3543,7 @@ app.post('/api/admin/events/:id/duplicate', auth, requireDb, eventEditor, wrap(a
    const coupons=(source.coupons||[]).map(coupon=>({...coupon,expires_at:null})),events=[],submitted=[];
    for(const time of times){const id=uid('e_'),slug=(eventSlug(source.slug)||'event')+'-'+crypto.randomBytes(4).toString('hex');
     await client.query(`INSERT INTO events(id,slug,title,description,location,starts_at,ends_at,capacity,price_twd,visibility,status,translations,owner_id,registration_settings,tickets,event_details,coupons,rich_content,checkin_mode,checkin_mode_locked)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'草稿',$11,$12,$13,$14,$15,$16,$17,$18,$19)`,[id,slug,requested===undefined?source.title+'（副本）':source.title,source.description,source.location,time.starts_at,time.ends_at,source.capacity,source.price_twd,visibility||source.visibility,JSON.stringify(source.translations||{}),source.owner_id,JSON.stringify(source.registration_settings||{}),JSON.stringify(source.tickets||[]),JSON.stringify(details),JSON.stringify(coupons),JSON.stringify(source.rich_content||{}),source.checkin_mode,source.checkin_mode_locked]);
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'草稿',$11,$12,$13,$14,$15,$16,$17,$18,$19)`,[id,slug,requested===undefined?source.title+'（副本）':source.title,source.description,source.location,time.starts_at,time.ends_at,source.capacity,source.price_twd,visibility||source.visibility,JSON.stringify(source.translations||{}),source.owner_id,JSON.stringify(source.registration_settings||{}),JSON.stringify(source.tickets?.length?source.tickets:[defaultTicket(source.price_twd)]),JSON.stringify(details),JSON.stringify(coupons),JSON.stringify(source.rich_content||{}),source.checkin_mode,source.checkin_mode_locked]);
     await client.query(`INSERT INTO event_hosts(event_id,email,name,is_visible,can_manage,can_checkin,checkin_ticket_ids) SELECT $1,email,name,is_visible,can_manage,can_checkin,checkin_ticket_ids FROM event_hosts WHERE event_id=$2`,[id,source.id]);
     if(req.auth.role!=='admin'){
      const base=(await client.query('SELECT * FROM event_applications WHERE event_id=$1',[source.id])).rows[0]||{},me=(await client.query('SELECT name,email FROM users WHERE id=$1',[req.auth.sub])).rows[0]||{};

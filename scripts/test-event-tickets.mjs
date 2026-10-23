@@ -22,3 +22,14 @@ test('tax is added after discounts with an auditable TWD breakdown',()=>{
  assert.deepEqual(normalizeTax({enabled:false,name:'ignored',rate_bps:999}),{enabled:false,name:'',rate_bps:0});
  assert.throws(()=>normalizeTax({enabled:true,name:'',rate_bps:500}),/稅金/);assert.throws(()=>normalizeTax({enabled:true,name:'VAT',rate_bps:10001}),/稅率/);
 });
+test('every event uses ticket types: default ticket, at least one ticket, single-ticket auto select',()=>{
+ const {defaultTicket,lowestTicketPrice}=require('../lib/event-tickets');
+ const d=normalizeTickets([defaultTicket(150)]);
+ assert.equal(d[0].id,'t_default');assert.equal(d[0].name,'一般票');assert.equal(d[0].price_twd,150);assert.equal(d[0].minimum_twd,150);assert.equal(d[0].capacity,0);
+ assert.equal(defaultTicket(-5).price_twd,0);assert.equal(defaultTicket('x').price_twd,0);
+ assert.throws(()=>normalizeTickets([]),/至少要保留一張票種/);
+ assert.equal(selectTicket(d,undefined).id,'t_default');
+ const two=normalizeTickets([defaultTicket(150),{id:'t_vip',name:'VIP',price_twd:500,capacity:0,active:true}]);
+ assert.throws(()=>selectTicket(two,undefined),/請選擇有效票種/);
+ assert.equal(lowestTicketPrice(two),150);assert.equal(lowestTicketPrice([]),0);
+});
