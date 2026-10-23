@@ -158,7 +158,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 .plan.promo .tag{display:inline-block;padding:2px 8px;border-radius:999px;background:#FFDE34;color:#1a1a1a;font-size:1rem;font-weight:600}
   /* 方案列：一律「名稱左、購買鍵右」同一列（長方案名在左欄自行換行）；窄於 360px 才整列堆疊、按鈕滿版 */
   .plan{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
-.plan>span{min-width:0}
+.plan>span{min-width:0}.plan.promo>span{word-break:keep-all}
 .plan button,.plan a{min-height:44px;padding:0 14px;border:1.5px solid var(--ink);border-radius:12px;background:transparent;color:var(--ink);font-weight:500;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}
 @media (max-width:359px){.plan{grid-template-columns:1fr}.plan button,.plan a{width:100%}}
 .ev{display:block;padding:14px 0;border-top:1px solid var(--line);color:inherit;text-decoration:none}
