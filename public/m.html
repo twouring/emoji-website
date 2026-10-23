@@ -163,6 +163,13 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 .field{display:block;color:var(--soft);margin-top:12px}
 .field input{display:block;width:100%;margin-top:6px;min-height:52px;padding:0 14px;border:1.5px solid var(--line);border-radius:12px;font-family:inherit;font-size:1rem;background:#fff;color:var(--ink)}
 .field input:disabled{background:var(--alt);color:var(--muted)}
+.field select,.field textarea{display:block;width:100%;margin-top:6px;min-height:52px;padding:0 14px;border:1.5px solid var(--line);border-radius:12px;font-family:inherit;font-size:1rem;background:#fff;color:var(--ink)}
+.field textarea{min-height:180px;padding:12px 14px;line-height:1.6;resize:vertical}
+.field input[type=datetime-local],.field input[type=date],.field input[type=time]{-webkit-appearance:none;appearance:none;min-width:0;max-width:100%;text-align:left}
+.field input::-webkit-date-and-time-value{text-align:left}
+.field:has(>input[type=checkbox]){display:flex;align-items:center;gap:8px;color:var(--ink)}
+.field input[type=checkbox],.field input[type=radio]{width:22px;height:22px;min-height:0;margin:0;flex:none}
+.field+.btn{margin-top:20px}
 .lang{display:flex;gap:8px}.lang button{flex:1;min-height:44px;border:1.5px solid var(--line);border-radius:12px;background:transparent}.lang button[aria-pressed=true]{border-color:var(--ink);font-weight:700;background:var(--accent)}
 .ov .sub{color:var(--muted);margin:6px 0 0}
 .rgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
