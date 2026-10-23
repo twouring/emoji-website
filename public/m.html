@@ -509,7 +509,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
   }
   async function openTicket(eventId){
     const img=document.getElementById('ovimg'),meta=document.getElementById('ovmeta'),sub2=document.getElementById('ovsub');
-    try{const d=await get('/api/events/'+encodeURIComponent(eventId)+'/ticket');clearInterval(qrTimer);showOv();img.style.display='';QRCode.toDataURL(d.token,{width:320,margin:1},(err,url)=>{if(!err)img.src=url;});meta.textContent=T.ticketMeta((d.tickets||[]).length);sub2.textContent='';}
+    try{const d=await get('/api/events/'+encodeURIComponent(eventId)+'/ticket');clearInterval(qrTimer);showOv();img.style.display='';const list=(d.tickets&&d.tickets.length)?d.tickets:[{token:d.token}];let i=0;meta.textContent=T.ticketMeta(list.length);const draw=()=>{const t=list[i];QRCode.toDataURL(t.token,{width:320,margin:1},(err,url)=>{if(!err)img.src=url;});if(list.length<2){sub2.textContent='';return;}sub2.innerHTML=`<span style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:8px"><button class="quiet" type="button" id="ovprev" style="width:auto;min-height:44px" aria-label="‹" ${i?'':'disabled'}>‹</button><span>${i+1} / ${list.length}${t.name?' · '+esc(t.name):''}${t.checked_in_at?' · '+esc(T.checkedIn):''}</span><button class="quiet" type="button" id="ovnext" style="width:auto;min-height:44px" aria-label="›" ${i<list.length-1?'':'disabled'}>›</button></span>`;document.getElementById('ovprev').onclick=()=>{if(i>0){i--;draw();}};document.getElementById('ovnext').onclick=()=>{if(i<list.length-1){i++;draw();}};};draw();}
     catch(e){toast(T.ticketFail);}
   }
   let RV_OPEN={date:'',slots:null};

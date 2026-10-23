@@ -53,6 +53,9 @@ test('前端含 App 主辦路由、建立三步、匯入與管理錨點', () => 
   assert.match(h, /<script src="\/m-host\.js"><\/script>/);
   for (const needle of ['/api/organizer/state', '/api/me/event-applications', '/api/venue-fee/quote', '/api/event-applications', '/api/me/event-import', 'hostPath', '開啟相機簽到']) assert.ok(host.includes(needle), needle);
   for (const needle of ['uxGuests', 'uxInvite', 'uxCheckin', 'uxCheckinMode', 'data-ug-filter', '/check-in/lookup', "'/guests/import'", '快速模式']) assert.ok(host.includes(needle), needle);
+  // 一筆報名多張票：來賓清單拆成每位參加者，簽到／撤銷要帶 attendee_id，否則後端回「請選擇一位參加者」。
+  assert.match(host, /attendee_id:r\.attendee_id/); assert.match(host, /\?attendee_id='\+encodeURIComponent\(r\.attendee_id\)/);
+  assert.match(h, /id="ovnext"/);
   assert.match(host, /HOST_I18N=.*zh:.*en:.*ja:/s);
   assert.match(host, /unlock_code/); assert.match(host, /PAYOUT_ACCOUNT_REQUIRED/);
   assert.match(host, /\/api\/me\/payout-account/); assert.match(host, /\/payments/);
