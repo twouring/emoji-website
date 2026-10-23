@@ -26,7 +26,8 @@ test('three-language landing renders safe editable copy and preview never advert
  assert.match(out,/&lt;script&gt;/);assert.ok(out.includes(seed.zh.section_title));
 });
 test('registration state and price control CTA; private/draft events never appear as featured',()=>{
- assert.match(eventPage('{{actions}}',{...event,status:'報名中',price_twd:800},'/en/halloween-2026'),/NT\$800/);
+ assert.match(eventPage('{{actions}}',{...event,status:'報名中',tickets:[{id:'t_default',name:'一般票',active:true,price_twd:800}]},'/en/halloween-2026'),/NT\$800/);
+ assert.doesNotMatch(eventPage('{{actions}}',{...event,status:'報名中',price_twd:800,tickets:[{id:'t_default',name:'一般票',active:true,price_twd:0}]},'/en/halloween-2026'),/NT\$800/,'活動層級 price_twd 不再影響價格');
  assert.match(eventPage('{{actions}}',{...event,status:'報名中'},'/ja/halloween-2026'),/\/ja\/events\/halloween-2026/);
  for(const e of [null,{...event,status:'草稿'},{...event,visibility:'private'},{...event,status:'已結束'}])assert.equal(featuredEvent('<!--FEATURED_EVENT-->',e,'/'),'');
  assert.match(featuredEvent('<!--FEATURED_EVENT-->',event,'/en/'),/\/en\/halloween-2026/);

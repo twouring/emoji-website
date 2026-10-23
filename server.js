@@ -2953,7 +2953,7 @@ app.post('/api/admin/events', auth, requireDb, eventEditor, wrap(async (req, res
         `UPDATE events SET slug=$2,title=$3,description=$4,location=$5,starts_at=$6,ends_at=$7,
            capacity=$8,price_twd=$9,visibility=$10,status=$11,rich_content=COALESCE((SELECT jsonb_object_agg(key,value) FROM jsonb_each(rich_content) WHERE CASE WHEN key='zh' THEN description IS NOT DISTINCT FROM $4 ELSE $12::jsonb IS NULL OR translations->key->>'description' IS NOT DISTINCT FROM $12::jsonb->key->>'description' END),'{}'::jsonb),translations=COALESCE($12::jsonb,translations),owner_id=CASE WHEN $13 THEN $14::text ELSE owner_id END WHERE id=$1 AND ($15::text IS NULL OR owner_id=$15 OR EXISTS(SELECT 1 FROM event_hosts h WHERE h.event_id=events.id AND h.email=lower($16) AND h.can_manage=true))`,
         [b.id, slug, v.title, v.description, v.location, v.startsAt, v.endsAt,
-          v.capacity, v.priceTwd, v.visibility, v.status, v.translations ? JSON.stringify(v.translations) : null, owner !== undefined, owner ?? null, req.auth.role === 'organizer' ? req.auth.sub : null, req.auth.email || null]
+          v.capacity, old.price_twd, v.visibility, v.status, v.translations ? JSON.stringify(v.translations) : null, owner !== undefined, owner ?? null, req.auth.role === 'organizer' ? req.auth.sub : null, req.auth.email || null]
       );
       if(!updated.rowCount){await client.query('ROLLBACK');return res.status(404).json({error:'找不到可管理的活動。'});}
       if(regUrl!==undefined)await client.query(`UPDATE events SET registration_url=$2,registration_mode=CASE WHEN $2='' THEN 'native' ELSE 'external' END WHERE id=$1 AND registration_mode<>'closed'`,[b.id,safeHttpUrl(regUrl)]);
@@ -3633,7 +3633,7 @@ app.post('/api/admin/events/:id/guests/import',auth,requireDb,eventEditor,wrap(a
  let ticket=null;try{if(event.tickets.length&&(status!=='invited'||sendInvites&&b.ticket_id))ticket=selectTicket(event.tickets,b.ticket_id,Date.now(),b.unlock_code);}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}
  // 邀請信可預選票種（含隱藏票解鎖碼），來賓點開即帶入。
  const inviteQuery=status==='invited'&&ticket?'?tt='+encodeURIComponent(ticket.id)+(ticket.hidden?'&unlock_code='+encodeURIComponent(ticket.unlock_code):''):'';
- const price=ticket?.price_twd??event.price_twd;
+ const price=ticket?.price_twd??0;
  if(status==='registered'&&price>0){await client.query('ROLLBACK');return res.status(409).json({error:'付費票不能以匯入標記為已付款；請先邀請來賓自行付款。'});}
  let added=0,updated=0,skipped=0,queued=0,deliveries=0;
  for(const guest of guests.sort((a,b)=>a.email.localeCompare(b.email))){
@@ -4372,7 +4372,7 @@ app.post('/api/events/:id/additional-tickets',auth,requireDb,wrap(async(req,res)
   if(session.status!=='expired')return res.status(409).json({error:'上一筆付款仍在處理中。'});
   await client.query("UPDATE event_ticket_orders SET status='expired' WHERE id=$1",[pending.id]);
  }
- let ticket=null,price,taxSnapshot;try{ticket=event.tickets.length?selectTicket(event.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code):null;if(ticket?.requires_approval)throw Error('需審核票種不可自行加購，請聯絡主辦人。');const priced=taxPrice(event.registration_settings?.tax,(ticket?ticketPrice(ticket,req.body?.amount_twd):event.price_twd)*quantity);price=priced.price;taxSnapshot=priced.tax;}catch(e){return res.status(400).json({error:e.message});}
+ let ticket=null,price,taxSnapshot;try{if(!event.tickets?.length)throw Error('這場活動尚未設定票種。');ticket=selectTicket(event.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code);if(ticket?.requires_approval)throw Error('需審核票種不可自行加購，請聯絡主辦人。');const priced=taxPrice(event.registration_settings?.tax,ticketPrice(ticket,req.body?.amount_twd)*quantity);price=priced.price;taxSnapshot=priced.tax;}catch(e){return res.status(400).json({error:e.message});}
  // 會員公開活動：加購的每張票同樣加收場地茶飲費
  const venueFeeTwd=venueFees.attendeeVenueFeePerTicket(event)*quantity,ticketTotalTwd=price;price+=venueFeeTwd;
  if(event.capacity>0&&(await reservedEventSeats(client,event.id))+quantity>event.capacity)return res.status(409).json({error:'剩餘名額不足。'});
@@ -4483,7 +4483,7 @@ app.post('/api/events/:id/feedback',auth,requireDb,wrap(async(req,res)=>{
 
 app.post('/api/events/:id/quote',requireDb,wrap(async(req,res)=>{
  const event=(await q("SELECT * FROM events WHERE id=$1 AND status='報名中'",[req.params.id])).rows[0];if(!event)return res.status(404).json({error:'找不到開放報名的活動。'});
- try{const quantity=Number(req.body?.quantity??1);if(!Number.isInteger(quantity)||quantity<1||quantity>MAX_EVENT_TICKETS_PER_ORDER)throw new Error(`每筆可購買 1–${MAX_EVENT_TICKETS_PER_ORDER} 張票`);const ticket=event.tickets.length?selectTicket(event.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code):null,base=(ticket?ticketPrice(ticket,req.body?.amount_twd):event.price_twd)*quantity;
+ try{const quantity=Number(req.body?.quantity??1);if(!Number.isInteger(quantity)||quantity<1||quantity>MAX_EVENT_TICKETS_PER_ORDER)throw new Error(`每筆可購買 1–${MAX_EVENT_TICKETS_PER_ORDER} 張票`);if(!event.tickets?.length)throw new Error('這場活動尚未設定票種。');const ticket=selectTicket(event.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code),base=ticketPrice(ticket,req.body?.amount_twd)*quantity;
  const discounted=discountPrice(event.coupons,req.body?.coupon_code,base),result=taxPrice(event.registration_settings?.tax,discounted.price);res.json({price_twd:result.price,base_twd:base,discount_twd:discounted.coupon?.discount_twd||0,tax_twd:result.tax?.tax_twd||0,tax_name:result.tax?.name||'',notice:'此報價不保留名額，實際報名仍會檢查優惠碼使用上限。'});}catch(e){res.status(400).json({error:e.message});}
 }));
 
@@ -4619,11 +4619,11 @@ app.post('/api/events/:id/register', optionalAuth, requireDb, wrap(async (req, r
       attendees=attendees.map(a=>({name:a.name.trim(),email:a.email.trim().toLowerCase()}));
     }
     let selectedTicket=approved?mine.ticket_snapshot:null;
-    if(!approved&&ev.tickets?.length){try{selectedTicket=selectTicket(ev.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code);}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}}
+    if(!approved){try{if(!ev.tickets?.length)throw new Error('這場活動尚未設定票種。');selectedTicket=selectTicket(ev.tickets,req.body?.ticket_id,Date.now(),req.body?.unlock_code);}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}}
     const walletCollection=registrationSettings.wallet_collection||{};let walletSnapshot=approved&&mine.wallet_address?{chain:'ethereum',address:mine.wallet_address}:null,solanaWallet=approved?mine.solana_wallet_address:null,nft=approved&&mine.nft_token_id?{contract:mine.nft_contract,token_id:mine.nft_token_id}:null;
     if(!approved&&(walletCollection.ethereum||selectedTicket?.token_gate?.enabled)){try{walletSnapshot=eventCrypto.verifyEthereum(req.body?.ethereum_wallet_proof||req.body?.wallet_proof||{},ev.id,verifyToken);if(selectedTicket?.token_gate?.enabled){const balance=await eventCrypto.tokenBalance(selectedTicket.token_gate,walletSnapshot.address,process.env.ETHEREUM_RPC_URL,String(req.body?.nft_token_id??''));if(!balance.eligible){await client.query('ROLLBACK');return res.status(403).json({error:'此錢包未持有票種要求的 Token。'});}if(selectedTicket.token_gate.type==='erc721'){nft={contract:selectedTicket.token_gate.contract,token_id:balance.token_id};if((await client.query('SELECT 1 FROM event_regs WHERE event_id=$1 AND nft_contract=$2 AND nft_token_id=$3 AND user_id<>$4',[ev.id,nft.contract,nft.token_id,userId])).rowCount){await client.query('ROLLBACK');return res.status(409).json({error:'此 NFT 已用於本活動報名。'});}}}if((await client.query('SELECT 1 FROM event_regs WHERE event_id=$1 AND wallet_address=$2 AND user_id<>$3',[ev.id,walletSnapshot.address,userId])).rowCount){await client.query('ROLLBACK');return res.status(409).json({error:'此 Ethereum 錢包已用於本活動報名。'});}}catch(error){await client.query('ROLLBACK');return res.status(error.status||400).json({error:error.message});}}
     if(!approved&&walletCollection.solana){try{solanaWallet=eventCrypto.verifySolana(req.body?.solana_wallet_proof||{},ev.id,verifyToken).address;if((await client.query('SELECT 1 FROM event_regs WHERE event_id=$1 AND solana_wallet_address=$2 AND user_id<>$3',[ev.id,solanaWallet,userId])).rowCount){await client.query('ROLLBACK');return res.status(409).json({error:'此 Solana 錢包已用於本活動報名。'});}}catch(error){await client.query('ROLLBACK');return res.status(error.status||400).json({error:error.message});}}
-    let price,taxSnapshot=approved?mine.tax_snapshot:null;try{price=approved?Number(mine.amount_due):(selectedTicket?ticketPrice(selectedTicket,req.body?.amount_twd):Number(ev.price_twd))*quantity;}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}
+    let price,taxSnapshot=approved?mine.tax_snapshot:null;try{price=approved?Number(mine.amount_due):ticketPrice(selectedTicket,req.body?.amount_twd)*quantity;}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}
     let couponSnapshot=approved?mine.coupon_snapshot:null;
     if(!approved){try{const discounted=discountPrice(ev.coupons||[],req.body?.coupon_code,price),taxed=taxPrice(registrationSettings.tax,discounted.price);price=taxed.price;couponSnapshot=discounted.coupon;taxSnapshot=taxed.tax;}catch(e){await client.query('ROLLBACK');return res.status(400).json({error:e.message});}
       if(couponSnapshot?.max_uses>0){

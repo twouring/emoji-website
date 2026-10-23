@@ -62,7 +62,7 @@ function ticketSale(t,now,locale){const day=(iso,ex)=>new Date(Date.parse(iso)-(
  if(t.closes_at&&now>=Date.parse(t.closes_at))return {off:true,kind:'ended'};
  return {off:false,kind:t.closes_at?'until':'',day:t.closes_at?day(t.closes_at,true):''};}
 // 合計：票價（含稅）× 張數 ＋ 場地茶飲費 × 張數
-function orderTotal(e,ticket,qty,flexAmount){const n=Math.max(1,Number(qty)||1),base=ticket?(ticket.flexible_price&&flexAmount!==''&&flexAmount!=null?Number(flexAmount):ticket.price_twd):e.price_twd;return taxed(e,Number(base)||0)*n+venueFeePerTicket(e)*n;}
+function orderTotal(e,ticket,qty,flexAmount){const n=Math.max(1,Number(qty)||1),base=ticket?(ticket.flexible_price&&flexAmount!==''&&flexAmount!=null?Number(flexAmount):ticket.price_twd):0;return taxed(e,Number(base)||0)*n+venueFeePerTicket(e)*n;}
 function attributionFrom(params,referrer){let src='direct';try{src=referrer?new URL(referrer).hostname:'direct';}catch{}const g=k=>params.get(k)||'';return {source:g('utm_source')||src,campaign:g('utm_campaign'),referral:g('ref'),medium:g('utm_medium'),content:g('utm_content'),term:g('utm_term'),gclid:g('gclid'),fbclid:g('fbclid'),li_fat_id:g('li_fat_id')};}
 // 主按鈕文字（付費時帶金額）
 function primaryLabel(e,t,total,T){const s=e.registration_settings||{},full=e.capacity>0&&e.reg_count>=e.capacity;if(full&&s.waitlist)return T.waitlist;if(s.requires_approval||t?.requires_approval)return T.request;if(e.registration_status==='pending_payment')return T.resume+(total>0?' · '+money(total):'');return total>0?T.pay+' · '+money(total):T.register;}
@@ -133,7 +133,7 @@ function mount(o){
   const idBlock=e.invited_via_link?`<p class="tile">${esc(T.invitedFor)} <b>${esc(viewer?.name)}</b> · ${esc(viewer?.email)}</p>`:tok()&&viewer?`<p class="tile">${esc(T.as(viewer.name||viewer.email||''))}</p>`:(s.split_name?`<label class="field">${esc(T.last)}${req}<input name="last_name" maxlength="60" required autocomplete="family-name"></label><label class="field">${esc(T.first)}${req}<input name="first_name" maxlength="60" required autocomplete="given-name"></label>`:`<label class="field">${esc(T.name)}${req}<input name="name" maxlength="120" required autocomplete="name"></label>`)+`<label class="field">${esc(T.email)}${req}<input name="email" type="email" maxlength="254" required autocomplete="email" inputmode="email"></label><p class="note">${esc(T.guestHint)}</p>`;
   const qs=(s.questions||[]).map(questionField).join(''),fee=venueFeePerTicket(e);
   const coupon=(query.get('coupon')||query.get('coupon_code')||'').slice(0,64);
-  const paid=e.registration_status!=='approved'&&(hasTickets?tickets.some(t=>t.price_twd>0||t.flexible_price):e.price_twd>0);
+  const paid=e.registration_status!=='approved'&&tickets.some(t=>t.price_twd>0||t.flexible_price);
   const couponBlock=paid?`<section class="sec" id="mev-coupon"><h2>${esc(T.coupon)}</h2><div class="mev-coupon"><label class="field"><input name="coupon_code" aria-label="${esc(T.coupon)}" maxlength="64" autocomplete="off" autocapitalize="characters" spellcheck="false" value="${esc(coupon)}"></label><button class="btn" type="button" id="mev-apply">${esc(T.apply)}</button></div><p class="note" id="mev-coupon-msg" role="status" aria-live="polite">${esc(T.couponHint)}</p></section>`:'';
   const form=`<form id="mev-form" novalidate><p class="note">${esc(T.req)}</p>${ticketBlock}<section class="sec"><h2>${esc(T.details)}</h2>${idBlock}${qtyBlock}</section>${qs?`<section class="sec"><h2>${esc(T.about)}</h2>${qs}</section>`:''}${couponBlock}<section class="sec" id="mev-sum"></section><p class="alert" id="mev-err" role="alert" hidden></p></form>`;
   shell(top+form,`<button class="btn solid" id="mev-go" type="submit" form="mev-form">${esc(T.register)}</button>`);
@@ -141,7 +141,7 @@ function mount(o){
   const selected=()=>(e.tickets||[]).find(t=>t.id===f.querySelector('[name="ticket_id"]:checked')?.value)||null;
   const sync=()=>{const t=selected(),flex=document.getElementById('mev-flex');if(flex){flex.hidden=!t?.flexible_price;flex.querySelector('input').min=t?.minimum_twd||0;}
    const qty=Number(f.querySelector('[name="quantity"]')?.value||e.quantity||1)||1;let amount=e.registration_status==='approved'?Number(e.amount_due||0):orderTotal(e,hasTickets?t:null,qty,f.querySelector('[name="amount_twd"]')?.value);
-   const ticketPrice=hasTickets?(t?taxed(e,t.price_twd):null):taxed(e,e.price_twd);
+   const ticketPrice=t?taxed(e,t.price_twd):null;
    const q=quote&&quote.key===quoteKey()?quote:null,off=q?Math.max(0,amount-(q.price_twd+fee*qty)):0;amount-=off;
    const offRows=off>0?`<div class="sum"><span>${esc(T.orig)}</span><span>${esc(money(amount+off))}</span></div><div class="sum"><span>${esc(T.discount)} · ${esc(q.code)}</span><span>−${esc(money(off))}</span></div>`:'';
    document.getElementById('mev-sum').innerHTML=fee&&e.registration_status!=='approved'?`<div class="sum"><span>${esc(T.ticket)}</span><span>${ticketPrice==null?'—':esc(money(ticketPrice,T.free))} × ${qty}</span></div><p class="note">${esc(T.venue)}</p>${offRows}<div class="sum"><b>${esc(T.total)}</b><b>${esc(money(amount,T.free))}</b></div>`:amount>0||off>0?`${offRows}<div class="sum"><b>${esc(T.total)}</b><b>${esc(money(amount,T.free))}</b></div>`:'';

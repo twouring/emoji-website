@@ -115,7 +115,7 @@ test('public event detail has event metadata and safe JSON-LD', () => {
   const base = composeLayout(raw, '/en/events/demo');
   const html = composeEventMeta(base, {
     title: 'Meet <Build>', description: 'A practical meetup.', visibility: 'public', status: '報名中',
-    location: '3F', starts_at_iso: '2026-11-08T14:00', ends_at_iso: '2026-11-08T16:00', price_twd: 200,
+    location: '3F', starts_at_iso: '2026-11-08T14:00', ends_at_iso: '2026-11-08T16:00', price_twd: 999, tickets: [{ id: 't_default', name: '一般票', active: true, price_twd: 200 }],
   }, '/en/events/demo');
   assert.match(html, /<title>Meet &lt;Build&gt;｜Events/);
   assert.match(html, /property="og:type" content="event"/);

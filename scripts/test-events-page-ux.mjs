@@ -28,7 +28,7 @@ function ctx(lang = 'zh', extra = {}) {
 
 const soon = new Date(Date.now() + 3 * 86400000);
 const iso = d => d.toLocaleString('sv-SE', { timeZone: 'Asia/Taipei' }).slice(0, 16).replace(' ', 'T');
-const baseEvent = { id: 'e1', slug: 'demo', title: 'Demo <Night>', description: 'Line one\nLine two', location: '言文字', status: '報名中', visibility: 'public', registration_mode: 'native', starts_at_iso: '2026-11-01T14:00', ends_at_iso: '2026-11-01T17:00', capacity: 0, reg_count: 0, price_twd: 150, tickets: [], registration_settings: {}, event_details: {} };
+const baseEvent = { id: 'e1', slug: 'demo', title: 'Demo <Night>', description: 'Line one\nLine two', location: '言文字', status: '報名中', visibility: 'public', registration_mode: 'native', starts_at_iso: '2026-11-01T14:00', ends_at_iso: '2026-11-01T17:00', capacity: 0, reg_count: 0, tickets: [{ id: 't_default', name: '一般票', active: true, price_twd: 150 }], registration_settings: {}, event_details: {} };
 
 test('list card: date block, month grouping key, clamped description, escaped title and lazy cover', () => {
   const c = ctx('zh');
@@ -81,8 +81,9 @@ test('list price shows the lowest open ticket with 起/from and falls back to ev
   assert.equal(c.listPrice({ ...baseEvent, tickets: [{ active: true, price_twd: 700, closes_at: past }, { active: true, price_twd: 900 }] }), 'NT$900', 'closed early bird excluded');
   assert.equal(c.listPrice({ ...baseEvent, tickets: [{ active: true, price_twd: 500 }, { active: true, price_twd: 900 }] }), 'NT$500 起');
   assert.equal(ctx('en').listPrice({ ...baseEvent, tickets: [{ active: true, price_twd: 500 }, { active: true, price_twd: 900 }] }), 'NT$500 from');
-  assert.equal(c.listPrice({ ...baseEvent, tickets: [{ active: true, price_twd: 900, opens_at: future }] }), 'NT$150', 'not-yet-open ticket falls back to price_twd');
-  assert.equal(c.listPrice({ ...baseEvent, price_twd: 0 }), '免費');
+  assert.equal(c.listPrice({ ...baseEvent, tickets: [{ active: true, price_twd: 900, opens_at: future }] }), 'NT$900', 'not-yet-open ticket still shows its own price (no event-level fallback)');
+  assert.equal(c.listPrice({ ...baseEvent, tickets: [{ active: true, price_twd: 0 }] }), '免費');
+  assert.equal(c.listPrice({ ...baseEvent, price_twd: 800, tickets: [{ active: true, price_twd: 0 }] }), '免費', 'event-level price_twd is ignored');
   assert.equal(c.listPrice({ ...baseEvent, status: '預告' }), 'PREVIEW');
 });
 
@@ -164,7 +165,8 @@ test('bottom CTA bar: shown for native/external open events, hidden when embedde
   const paid = run(baseEvent);
   assert.equal(paid.hidden, false); assert.ok(paid.classes.includes('has-cta-bar')); assert.ok(paid.classes.includes('bar:is-visible'));
   assert.equal(paid.texts['ev-cta-price'], 'NT$150'); assert.equal(paid.texts['ev-cta-go'], '前往付款'); assert.match(paid.texts['ev-cta-note'], /11\/1（週日） 14:00 – 17:00/);
-  assert.equal(run({ ...baseEvent, price_twd: 0 }).texts['ev-cta-go'], '立即報名');
+  assert.equal(run({ ...baseEvent, tickets: [{ active: true, price_twd: 0 }] }).texts['ev-cta-go'], '立即報名');
+  assert.equal(run({ ...baseEvent, price_twd: 800, tickets: [{ active: true, price_twd: 0 }] }).texts['ev-cta-go'], '立即報名', 'event-level price_twd is ignored');
   const ext = run({ ...baseEvent, registration_mode: 'external', registration_url: 'https://x' }, { hasRegister: false });
   assert.equal(ext.hidden, false); assert.equal(ext.texts['ev-cta-go'], '前往報名 ↗');
   assert.equal(run(baseEvent, { embedded: true }).hidden, true, 'never inside an embed iframe');

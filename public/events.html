@@ -318,7 +318,7 @@ const app=document.getElementById('ev-app');
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const previewLabel={zh:'預告・報名尚未開放',en:'Preview · Registration coming soon',ja:'予告・申込受付前'}[lang];
 const taxedPrice=(e,price)=>e.registration_settings?.tax?.enabled?price+Math.round(price*e.registration_settings.tax.rate_bps/10000):price;
-const eventPrice=e=>e.status==='預告'?previewLabel:e.registration_id&&e.amount_due!=null?money(e.amount_due):(e.tickets||[]).filter(t=>t.active).length===1?money(taxedPrice(e,e.tickets.find(t=>t.active).price_twd)):(e.has_ticket_types||e.tickets?.length)?{zh:'依票種',en:'By ticket type',ja:'券種による'}[lang]:money(taxedPrice(e,e.price_twd));
+const eventPrice=e=>e.status==='預告'?previewLabel:e.registration_id&&e.amount_due!=null?money(e.amount_due):(e.tickets||[]).filter(t=>t.active).length===1?money(taxedPrice(e,e.tickets.find(t=>t.active).price_twd)):(e.has_ticket_types||e.tickets?.length)?{zh:'依票種',en:'By ticket type',ja:'券種による'}[lang]:money(0);
 const money=n=>n>0?'NT$'+Number(n).toLocaleString('en-US'):T.free;
 function showReceipt(receipt,providerUrl){
  if(!receipt)return toast(T.error);
@@ -366,7 +366,9 @@ function listPrice(e){
  if(e.status==='預告')return previewLabel;
  const now=Date.now(),open=(e.tickets||[]).filter(t=>t.active&&!(t.opens_at&&now<Date.parse(t.opens_at))&&!(t.closes_at&&now>=Date.parse(t.closes_at)));
  if(open.length){const prices=open.map(t=>taxedPrice(e,t.price_twd));const min=Math.min(...prices),max=Math.max(...prices);return min===max?money(min):money(min)+' '+T2.from;}
- return money(taxedPrice(e,e.price_twd));
+ // 沒有銷售中的票：顯示啟用中（未隱藏）票種的最低價，不再退回活動層級票價
+ const listed=(e.tickets||[]).filter(t=>t.active&&!t.hidden).map(t=>taxedPrice(e,t.price_twd));
+ return money(listed.length?Math.min(...listed):0);
 }
 // 社會證明只用真資料：有人報名才顯示人數；有名額上限且剩不多才顯示剩餘；額滿照實說。
 function proof(e){
@@ -453,7 +455,7 @@ function setupCtaBar(e){
  const bar=document.getElementById('ev-cta-bar');if(!bar||typeof bar.classList?.toggle!=='function')return;
  const side=document.querySelector('.ev-side'),ext=e.registration_mode==='external'&&['預告','報名中'].includes(e.status),native=!!document.getElementById('ev-register')||!!document.getElementById('ev-app-go');
  const show=!embedded&&side&&(ext||native);document.body.classList.toggle('has-cta-bar',!!show);bar.hidden=!show;if(!show){bar.classList.remove('is-visible');return;}
- const paid=e.price_twd>0||(e.tickets||[]).some(t=>t.active&&t.price_twd>0);
+ const paid=(e.tickets||[]).some(t=>t.active&&t.price_twd>0);
  document.getElementById('ev-cta-price').textContent=listPrice(e);document.getElementById('ev-cta-note').textContent=shortDate(e);
  const go=document.getElementById('ev-cta-go');go.textContent=ext?T2.ctaExternal+' ↗':paid?T2.ctaPay:T2.ctaGo;
  go.onclick=()=>{if(ext)return window.open(e.registration_url,'_blank','noopener');const appGo=document.getElementById('ev-app-go');if(appGo)return location.assign(appGo.href);side.scrollIntoView({behavior:'smooth',block:'start'});const first=side.querySelector('input:not([type=hidden]):not([readonly]),select,textarea,#ev-register');setTimeout(()=>first?.focus?.({preventScroll:true}),450);};
@@ -563,10 +565,10 @@ function actionFor(e){
   if(e.status==='預告')return `<p>${previewLabel}</p>`;
   if(e.status!=='報名中')return `<button class="ui-button ui-button--secondary" disabled>${{zh:'目前不開放報名',en:'Registration is closed',ja:'申込受付は終了しました'}[lang]}</button>`;
   if(full&&!settings.waitlist)return `<button class="ui-button ui-button--secondary" disabled>${T.full}</button>`;
-  const label=full&&settings.waitlist?{zh:'加入候補',en:'Join waitlist',ja:'キャンセル待ちに登録'}[lang]:(settings.requires_approval||e.tickets?.some(t=>t.requires_approval))?{zh:'申請報名',en:'Request to join',ja:'参加を申請'}[lang]:e.registration_status==='pending_payment'?T.resume:(e.price_twd>0||e.tickets?.some(t=>t.active&&t.price_twd>0)?T.pay:T.register);
+  const label=full&&settings.waitlist?{zh:'加入候補',en:'Join waitlist',ja:'キャンセル待ちに登録'}[lang]:(settings.requires_approval||e.tickets?.some(t=>t.requires_approval))?{zh:'申請報名',en:'Request to join',ja:'参加を申請'}[lang]:e.registration_status==='pending_payment'?T.resume:(e.tickets?.some(t=>t.active&&t.price_twd>0)?T.pay:T.register);
   // Show the per-ticket price on the CTA once a single ticket is selected (actionFor is re-rendered with tickets:[selected]).
   const chosen=e.tickets?.length===1&&e.tickets[0].active?e.tickets[0]:null,amount=label===T.pay?(quotedPrice!=null?' · '+money(quotedPrice):chosen&&!chosen.flexible_price?' · '+money(taxedPrice(e,chosen.price_twd)):''):'';
-  return `${(settings.requires_approval||e.tickets?.some(t=>t.requires_approval))&&settings.payment_approval==='authorize'&&(e.price_twd>0||e.tickets?.some(t=>t.price_twd>0))?`<p>${{zh:"付費票將先取得信用卡預授權，核准後才扣款；審核期限最多 24 小時，逾時或拒絕會解除預授權。候補不會先預授權。",en:"Paid tickets authorize your card first and charge only after approval. Review takes at most 24 hours; expired or declined requests release the hold. Waitlisted requests do not authorize your card.",ja:"有料チケットはカードの仮承認後、参加承認時に請求されます。審査は最大24時間、期限切れ・却下時は解除します。キャンセル待ちは仮承認しません。"}[lang]}</p>`:''}<button class="ui-button" id="ev-register">${label}${amount}</button>`;
+  return `${(settings.requires_approval||e.tickets?.some(t=>t.requires_approval))&&settings.payment_approval==='authorize'&&e.tickets?.some(t=>t.price_twd>0)?`<p>${{zh:"付費票將先取得信用卡預授權，核准後才扣款；審核期限最多 24 小時，逾時或拒絕會解除預授權。候補不會先預授權。",en:"Paid tickets authorize your card first and charge only after approval. Review takes at most 24 hours; expired or declined requests release the hold. Waitlisted requests do not authorize your card.",ja:"有料チケットはカードの仮承認後、参加承認時に請求されます。審査は最大24時間、期限切れ・却下時は解除します。キャンセル待ちは仮承認しません。"}[lang]}</p>`:''}<button class="ui-button" id="ev-register">${label}${amount}</button>`;
 }
 function renderDetail(e){
   quotedPrice=null;

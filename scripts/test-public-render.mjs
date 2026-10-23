@@ -19,7 +19,7 @@ const EVENT = {
   id: 'e1', slug: 'ai-night', title: '生成式 AI 之夜', description: '一起聊聊 <b>AI</b>', location: '等等空間',
   translations: { en: { title: 'Generative AI Night', description: 'An evening on AI' }, ja: { title: '生成AIナイト' } },
   starts_at: '2026/11/20 19:00', starts_at_iso: '2026-11-20T19:00', ends_at_iso: '2026-11-20T21:00',
-  price_twd: 300, status: '報名中', visibility: 'public',
+  price_twd: 999, tickets: [{ id: 't_default', name: '一般票', active: true, price_twd: 300 }], status: '報名中', visibility: 'public',
 };
 const DRAFTISH = { ...EVENT, id: 'e2', slug: 'ended', title: '已結束', status: '已結束' };
 const PRIVATE = { ...EVENT, id: 'e3', slug: 'secret', title: '私人', visibility: 'private' };

@@ -662,7 +662,7 @@ function tabEvents(d){
       <td class="a-mono">${esc(e.starts_at||'未定')}${e.ends_at?'<br>至 '+esc(e.ends_at):''}</td>
       <td>${esc(e.location||'')}</td>
       <td class="num" id="ev-cap-${e.id}">${cap}<br><span style="color:var(--muted)">已到 ${e.checkin_count||0}</span></td>
-      <td class="num">${e.status==='預告'?'尚未開放':(()=>{const ts=(e.tickets||[]).filter(t=>t.active&&!t.hidden).map(t=>Number(t.price_twd));if(!ts.length)return e.tickets?.length?'無公開票':e.price_twd>0?NT(e.price_twd):'免費';const lo=Math.min(...ts);return (lo>0?NT(lo):'免費')+(ts.length>1&&Math.max(...ts)!==lo?' 起':'');})()}</td>
+      <td class="num">${e.status==='預告'?'尚未開放':(()=>{const ts=(e.tickets||[]).filter(t=>t.active&&!t.hidden).map(t=>Number(t.price_twd));if(!ts.length)return e.tickets?.length?'無公開票':'尚未設定票種';const lo=Math.min(...ts);return (lo>0?NT(lo):'免費')+(ts.length>1&&Math.max(...ts)!==lo?' 起':'');})()}</td>
       <td><span class="pill ${shown===e.status?evStatusPill(e.status):'pill-wait'}">${esc(shown)}</span></td>
       <td><a class="ui-button ui-button--secondary event-manage-button" href="${BASE}/events/${encodeURIComponent(e.id)}" data-ev-manage="${e.id}">管理</a></td>
     </tr>`;
@@ -681,7 +681,6 @@ function tabEvents(d){
       <label>結束<input id="ev-end" type="datetime-local"></label>
       <label>地點<input id="ev-loc" placeholder="言文字三樓"></label>
       </div><h3>票券與報名</h3><p class="hint">付費票款進入平台 Stripe；退款由平台管理員處理，外部活動款項結算另行確認。</p><div class="a-form"><label>名額（0＝不限）<input id="ev-cap" type="number" min="0" value="0" style="width:120px"></label>
-      <label id="ev-price-wrap">一般票票價 NT$（0＝免費；建立後到「票種」調整）<input id="ev-price" type="number" min="0" step="1" value="0" style="width:140px"></label>
       <label>可見性<select id="ev-visibility"><option value="public">公開</option><option value="private">私人連結</option><option value="members">會員限定</option></select></label>
       <label>狀態<select id="ev-status"><option>草稿</option><option>預告</option><option>報名中</option><option>已結束</option></select></label>
       <label id="ev-reg-url-wrap" hidden>外部報名網址（留空＝站內報名）<input id="ev-reg-url" type="url" maxlength="2000" placeholder="https://" style="width:360px"></label>
@@ -718,7 +717,6 @@ function openEventEditor(e,d){
   document.getElementById('ev-end').value=toLocalInput(e.ends_at_iso);
   document.getElementById('ev-loc').value=e.location||'';
   document.getElementById('ev-cap').value=e.capacity||0;
-  document.getElementById('ev-price').value=e.price_twd||0;document.getElementById('ev-price-wrap').hidden=true;
   document.getElementById('ev-visibility').value=e.visibility||'public';
   document.getElementById('ev-status').value=e.status||'報名中';
   document.getElementById('ev-reg-url').value=e.registration_url||'';document.getElementById('ev-reg-url-wrap').hidden=e.registration_mode==='closed';
@@ -1493,7 +1491,6 @@ function bind(d, x){
       ends_at: document.getElementById('ev-end').value || undefined,
       location: document.getElementById('ev-loc').value.trim(),
       capacity: Number(document.getElementById('ev-cap').value)||0,
-      price_twd: Number(document.getElementById('ev-price').value)||0,
       visibility: document.getElementById('ev-visibility').value,
       status: document.getElementById('ev-status').value,
       registration_url: editing&&!document.getElementById('ev-reg-url-wrap').hidden?document.getElementById('ev-reg-url').value.trim():undefined,
@@ -1787,7 +1784,6 @@ function resetEventForm(){
   ['ev-id','ev-title','ev-slug','ev-when','ev-end','ev-loc','ev-desc'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   ['ev-title','ev-when','ev-end','ev-loc'].forEach(id=>{const el=document.getElementById(id);if(el)delete el.dataset.saved;});
   document.getElementById('ev-cap').value=0;
-  document.getElementById('ev-price').value=0;document.getElementById('ev-price-wrap').hidden=false;
   document.getElementById('ev-visibility').value='public';
   document.getElementById('ev-reg-url').value='';document.getElementById('ev-reg-url-wrap').hidden=true;
   document.getElementById('ev-status').value='草稿';
