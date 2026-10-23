@@ -93,7 +93,7 @@ const GROUPS = [
     rules: ['唯讀的「標籤：值」清單。左側 span 是標籤（muted），右側 b 是值。', '.row.view 的值靠右、長字串可斷行。'],
     html: '<div class="row view"><span>姓名</span><b>王小言</b></div>\n<div class="row view"><span>Email</span><b>very.long.address@example.com</b></div>' },
   { name: '方案列 .plan（含 .promo .tag）', src: 'plan()',
-    rules: ['方案名稱在左，購買鍵在右。價格從 PLAN_PRICES 讀，不要寫死在樣板。', '優惠方案加 .promo，用 .tag 標示。'],
+    rules: ['方案名稱在左，購買鍵在右，每一列都同一列（grid 兩欄，長方案名在左欄換行）；窄於 360px 才堆疊、按鈕滿版。價格從 PLAN_PRICES 讀，不要寫死在樣板。', '優惠方案加 .promo，用 .tag 標示。'],
     html: '<div class="plan promo"><span><b class="tag">開幕優惠</b> 年會員 18 個月</span><button type="button">線上購買 NT$35,000</button></div>\n<div class="plan"><span>月會員</span><button type="button">線上購買 NT$4,000</button></div>' },
   { name: '動態列 .upd（.mute）', src: 'events() 會員動態',
     rules: ['公告、通知類的時間序清單。time 在標題下方；已讀／過期加 .mute。'],

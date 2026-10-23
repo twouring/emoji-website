@@ -39,9 +39,11 @@ test('PIN 鍵盤共用樣式：.clock-pad 要 width:100%（登入卡是 grid，�
   assert.match(read('public/pos.html'), /\.p-login-card\{width:min\(100%,480px\)/);
 });
 
-test('App PWA（m.html）同樣鎖定縮放：viewport、touch-action、gesture 事件', () => {
+test('App PWA（m.html）不鎖縮放：照使用者裝置習慣允許雙指放大（WCAG 1.4.4），只用 touch-action:manipulation 擋雙擊誤放大', () => {
   const m = read('public/m.html');
-  assert.match(m, /maximum-scale=1, user-scalable=no/);
+  const v = m.match(/<meta name="viewport" content="([^"]+)">/);
+  assert.ok(v, '找不到 viewport meta');
+  assert.doesNotMatch(v[1], /maximum-scale|user-scalable=no/);
   assert.match(m, /html,body\{touch-action:manipulation\}/);
-  assert.match(m, /gesturestart/);
+  assert.doesNotMatch(m, /gesturestart/);
 });
