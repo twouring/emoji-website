@@ -29,7 +29,7 @@ test('未連接 Star、QR 失敗及列印失敗均不宣稱實體出紙成功',a
   }
 });
 test('桌位專屬 QR 自動查詢該桌，保留批次入口；查單一單一列、點開看詳情與操作',()=>{
-  assert.match(ops,/if\(typeof table==='string'\)return openOneTableQr\(table\)/);
+  assert.match(ops,/function openTableQr\(table\)\{return openOneTableQr\(String\(table\)\);\}/);
   assert.match(ops,/async function openOneTableQr\(table\)/);
   assert.match(ops,/api\('\/admin\/tables\/qr\?tables='\+encodeURIComponent\(table\)\)/);
   assert.match(ops,/await printTableQr\(t.table,t.url\)/);

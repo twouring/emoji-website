@@ -1,51 +1,65 @@
-// 掃 QR 不開桌（第一次加點才開）；這支手機結帳後鎖定，舊分頁不再開新場
+// 開桌改由外場在 POS 操作（2026-10-26）：QR 綁場次、結帳後失效；客人端不能自己開桌；桌上固定 QR 停用
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import test from 'node:test';
+const require = createRequire(import.meta.url);
+const T = require('../lib/table-orders.js');
 const server = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
 const html = readFileSync(new URL('../public/order.html', import.meta.url), 'utf8');
+const ops = readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'utf8');
 const lib = readFileSync(new URL('../public/order-lib.js', import.meta.url), 'utf8');
-const route = server.slice(server.indexOf("app.get('/api/orders/table'"), server.indexOf('async function currentTableSession('));
+const route = server.slice(server.indexOf("app.get('/api/orders/table'"), server.indexOf("app.get('/api/orders/:id'"));
 
-test('掃 QR 只讀不開桌：沒有開著的場回 id:null 空殼，不 INSERT', () => {
-  assert.doesNotMatch(route, /TABLE_SELF_OPEN/);
-  assert.doesNotMatch(route, /needs_open/);
+test('單次 QR 簽章綁場次：別場、改字、換密鑰、舊桌碼格式都不過', () => {
+  const id = 'ts_0123456789abcdef', k = T.sessionKey(id, 'sec');
+  assert.equal(T.verifySession(id, k, 'sec'), id);
+  assert.equal(T.verifySession('ts_0123456789abcdee', k, 'sec'), null);
+  assert.equal(T.verifySession(id, k.slice(0, 15) + (k[15] === 'x' ? 'y' : 'x'), 'sec'), null);
+  assert.equal(T.verifySession(id, k, 'other'), null);
+  assert.equal(T.verifySession('A3', T.tableKey('A3', 'sec'), 'sec'), null);
+  assert.notEqual(T.sessionKey(id, 'sec'), T.tableKey(id, 'sec'));
+  assert.match(T.sessionUrl('https://www.emoji.tw', id, 'sec'), /^https:\/\/www\.emoji\.tw\/order\?s=ts_0123456789abcdef&k=[A-Za-z0-9_-]{16}$/);
+});
+test('客人端只讀這一場、不開桌；桌上舊 QR 回停用', () => {
+  assert.match(route, /verifySession\(req\.query\.s,req\.query\.k,SECRET\)/);
+  assert.match(route, /QR_RETIRED/);
   assert.doesNotMatch(route, /INSERT INTO table_sessions/);
-  assert.match(route, /emptyTableSession\(table\)/);
-  assert.match(server, /const emptyTableSession=table=>\(\{id:null,/);
+  assert.doesNotMatch(server, /app\.post\('\/api\/orders\/table\/items'/);
+  assert.doesNotMatch(server, /verifyTable\(/);
 });
-test('第一次加點才開場：POST /api/orders/table/items 在同一筆交易找／開場再加品項', () => {
-  const r = server.slice(server.indexOf("app.post('/api/orders/table/items'"), server.indexOf("app.get('/api/orders/:id'"));
-  assert.match(r, /verifyTable\(req\.body\?\.t,req\.body\?\.k,SECRET\)/);
-  assert.match(r, /assertNotPaused/);
-  assert.match(r, /currentTableSession\(client,table\)\)\|\|\(await client\.query\('INSERT INTO table_sessions\(id,table_no\)/);
-  assert.match(server, /async function mutateItems\(req,res,fn,resolve\)/);
-  assert.ok(server.indexOf("app.post('/api/orders/table/items'") < server.indexOf("app.post('/api/orders/:id/items'"), '要排在 :id 路由前');
+test('會員兌換只接本場 QR，已結束的場 409，不自動開場', () => {
+  const r = server.slice(server.indexOf("app.post('/api/me/redeem'"), server.indexOf("app.get('/api/me/yan'"));
+  assert.match(r, /verifySession\(req\.body\?\.s, req\.body\?\.k, SECRET\)/);
+  assert.match(r, /s\.status !== 'open'[\s\S]{0,120}409/);
+  assert.doesNotMatch(r, /INSERT INTO table_sessions/);
 });
-test('前端：尚未開桌時加點走 /orders/table/items 帶 t/k，開場後接上即時同步', () => {
-  assert.match(html, /api\(S\.id\?'\/orders\/'\+S\.id\+'\/items':'\/orders\/table\/items'/);
-  assert.match(html, /Object\.assign\(\{item_id:CURRENT_ITEM\.id,t:T,k:K,/);
-  assert.match(html, /if\(!S\.id\)return load\(\)/);
-  assert.match(html, /\|\|!S\|\|!S\.id\)return;/);
+test('POS 開桌回 qr_url 並自動印；可一次開多桌；補印只給開著的桌', () => {
+  const open = server.slice(server.indexOf("app.post('/api/admin/orders/sessions',"), server.indexOf('async function issueEzpayForOrder'));
+  assert.match(open, /qr_url:takeout\?undefined:tableOrders\.sessionUrl\(SITE_BASE,s\.id,SECRET\)/);
+  const qr = server.slice(server.indexOf("app.get('/api/admin/tables/qr'"));
+  assert.match(qr.slice(0, 900), /尚未開桌，請先開桌再印 QR/);
+  assert.match(ops, /if\(out\.created&&out\.qr_url\)await printOpenedQr\(out\.table,out\.qr_url\)/);
+  assert.equal((ops.match(/printOpenedQr\(out\.table,out\.qr_url\)/g) || []).length, 2, '點空桌、有訂位的空桌兩條都要印');
+  assert.match(ops, /id="pos-open-many"/);
+  assert.match(ops, /async function openManyTables\(/);
+  assert.match(ops, /await printTableQr\(o\.table,o\.qr_url\)/);
 });
-test('結帳關桌後的場，加菜／送單都回「這桌已結束」', () => {
-  const m = server.slice(server.indexOf('async function mutateItems('), server.indexOf("app.post('/api/orders/:id/items'"));
-  assert.match(m, /s\.status!=='open'[\s\S]*這桌已結束/);
+test('前端：只認 s/k，加點只打 /orders/:id/items；場已結束顯示感謝頁、不能自己重開', () => {
+  assert.match(html, /SID=qs\.get\('s'\)/);
+  assert.match(html, /api\('\/orders\/table\?s='/);
+  assert.match(html, /api\('\/orders\/'\+S\.id\+'\/items'/);
+  assert.doesNotMatch(html, /\/orders\/table\/items/);
+  assert.match(html, /ENDED_KEY='order_ended_'\+SID/);
+  assert.match(html, /if\(s\.status!=='open'\)\{sessionClosed\(s\);return null;\}/);
+  assert.match(html, /id="thanks-again"[^>]*hidden/);
+  assert.match(html, /桌上的 QR 已停用/);
+  for (const key of ['thanks', 'thanks_hint', 'thanks_again']) assert.equal((lib.match(new RegExp(`\\b${key}: '`, 'g')) || []).length, 3, `${key} 三語都要有`);
+  assert.doesNotMatch(lib, /重新掃描桌上的 QR/);
 });
-test('加菜與送單有 rate limit', () => {
+test('加菜與送單有 rate limit；結帳關桌後加菜回「這桌已結束」', () => {
   assert.match(server, /app\.post\('\/api\/orders\/:id\/items',rateLimit/);
   assert.match(server, /app\.post\('\/api\/orders\/:id\/place',rateLimit/);
-});
-test('同裝置鎖定：場結束寫 localStorage，不再打 /orders/table；感謝頁可重新點餐', () => {
-  assert.match(html, /id="thanks"/);
-  assert.match(html, /id="thanks-again"/);
-  assert.match(html, /ENDED_KEY='order_ended_'\+T/);
-  assert.match(html, /function sessionClosed\(s\)\{setEnded/);
-  assert.match(html, /if\(endedId\(\)\)\{showThanks\(\);return Promise\.resolve\(null\);\}/);
-  assert.match(html, /s\.status!=='open'[\s\S]{0,80}sessionClosed\(s\)/);
-  assert.match(html, /\$\('#thanks-again'\)\.onclick=function\(\)\{\s*clearEnded\(\)/);
-  assert.doesNotMatch(html, /if\(s\.status!=='open'\)\{return load\(\);\}/);
-  for (const key of ['thanks', 'thanks_hint', 'thanks_again']) {
-    assert.equal((lib.match(new RegExp(`\\b${key}: '`, 'g')) || []).length, 3, `${key} 三語都要有`);
-  }
+  const m = server.slice(server.indexOf('async function mutateItems('), server.indexOf("app.post('/api/orders/:id/items'"));
+  assert.match(m, /s\.status!=='open'[\s\S]*這桌已結束/);
 });

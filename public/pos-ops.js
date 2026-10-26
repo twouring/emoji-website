@@ -859,7 +859,7 @@ async function loadOrders(){
     ?card(o,o.placed_at,o.served?`部分出餐 ${o.served}/${o.items.length}`:'',`<button class="btn btn--solid" data-serve="${esc(o.ticket)}" data-session="${esc(o.session_id)}">整筆出餐</button>${printBtn(o)}`)
     :card(o,o.paid_at,o.status==='ready'?'可取餐':'已結帳',o.status==='paid'?`<button class="btn btn--solid" data-order="${esc(o.id)}" data-status="ready">出餐並通知</button>${printBtn(o)}`:`<button class="btn btn--ghost" data-order="${esc(o.id)}" data-status="done">已取餐</button>`)).join('')||'<p class="a-empty kds-empty">目前沒有待出餐的單</p>';
   const pending=board.filter(o=>o.status!=='ready').length;
-  host.innerHTML=`<div class="ops-head"><h2>出餐${pending?` <span class="kds-count">${pending}</span>`:''}</h2>${opsHelp(`客人掃桌上 QR 點餐，按「送出點餐」後會直接出現在這裡；做好一道按那一道的「出餐」，全部好了按「整筆出餐」，客人手機會跳通知；用餐完到 <a href="${opsHref('pos')}" data-tab="pos">櫃檯結帳</a>。櫃檯先收款的單（外帶、先結後做）也在這裡，按「出餐並通知」會推播給客人到櫃檯取餐。卡頭的分鐘數＝等候時間，8 分轉黃、15 分轉紅；深色規格＝客人有改、※＝自由需求。每 10 秒自動更新，有新單會響一聲。`)}</div>${document.getElementById('p-nav')?kitchenPrintStatusHtml():''}
+  host.innerHTML=`<div class="ops-head"><h2>出餐${pending?` <span class="kds-count">${pending}</span>`:''}</h2>${opsHelp(`客人掃帳本夾裡的本桌 QR 點餐，按「送出點餐」後會直接出現在這裡；做好一道按那一道的「出餐」，全部好了按「整筆出餐」，客人手機會跳通知；用餐完到 <a href="${opsHref('pos')}" data-tab="pos">櫃檯結帳</a>。櫃檯先收款的單（外帶、先結後做）也在這裡，按「出餐並通知」會推播給客人到櫃檯取餐。卡頭的分鐘數＝等候時間，8 分轉黃、15 分轉紅；深色規格＝客人有改、※＝自由需求。每 10 秒自動更新，有新單會響一聲。`)}</div>${document.getElementById('p-nav')?kitchenPrintStatusHtml():''}
     <div class="kds-grid">${cards}</div>`;
   const reload=()=>{host.dataset.sig='';return loadOrders();};bindPrintStatus(host,reload);
   host.querySelectorAll('[data-order]').forEach(b=>b.onclick=()=>opsThen(()=>api('/admin/orders/'+b.dataset.order+'/status',{method:'POST',body:{status:b.dataset.status}}),out=>out.status==='ready'?`已出餐，推播 ${out.notified} 台裝置`:'已標記取餐',reload));
@@ -885,11 +885,13 @@ function bindPosPause(host,reload){
     opsThen(()=>api('/admin/orders/pause',{method:'POST',body:{venue,paused:true,message}}),'已暫停點餐，客人掃碼會看到你的文案',reload);
   });
 }
+// 本桌點餐 QR（單次）：開桌時伺服器發一張綁這一場的 QR，結帳清桌後失效；一個帳本夾配一張，按桌送餐
 async function openOneTableQr(table){
   const ov=document.createElement('div');ov.className='op-overlay';document.body.appendChild(ov);
   const close=()=>{if(ov.parentNode)ov.parentNode.removeChild(ov);};
   ov.innerHTML=`<div class="op-card" role="dialog" aria-label="桌號 ${esc(table)} QR" style="text-align:center"><h2>桌號 ${esc(table)}</h2>
     <div id="qr-one" class="qr-grid" style="grid-template-columns:minmax(0,360px);justify-content:center"></div>
+    <p class="hint">本次用餐專用，結帳清桌後失效。請夾進帳本，帶客人入座。</p>
     <div class="op-card-actions"><button type="button" class="btn btn--ghost" id="qr-close">關閉</button><button type="button" class="btn btn--solid" id="qr-print1" hidden>列印</button></div></div>`;
   ov.querySelector('#qr-close').onclick=close;ov.addEventListener('click',e=>{if(e.target===ov)close();});
   try{
@@ -905,29 +907,49 @@ async function printTableQr(table,url){
   if(!starReady()){await starOpenHere();return false;}
   const q=await new Promise(resolve=>{if(!url||typeof QRCode==='undefined'||!QRCode.toCanvas)return resolve(null);const c=document.createElement('canvas');QRCode.toCanvas(c,String(url),{width:300,margin:4},err=>resolve(err?null:c));});
   if(!q){toast('QR 產生失敗');return false;}
-  const W=STAR_DOTS,c=document.createElement('canvas');c.width=W;c.height=470;const g=c.getContext('2d');
+  const W=STAR_DOTS,c=document.createElement('canvas');c.width=W;c.height=500;const g=c.getContext('2d');
   g.fillStyle='#fff';g.fillRect(0,0,W,c.height);g.fillStyle='#000';g.textBaseline='top';g.textAlign='center';
   g.font='bold 26px sans-serif';g.fillText('言文字',W/2,8);
   g.drawImage(q,(W-300)/2,44,300,300);
   g.font='bold 44px sans-serif';g.fillText('桌號 '+table,W/2,358);
   g.font='20px sans-serif';g.fillText('掃碼點餐 · Scan to order',W/2,418);
+  g.font='18px sans-serif';g.fillText('本次用餐專用・結帳後失效',W/2,450);
   const ok=await starSend({canvas:c});toast(ok?'桌號 QR 已送出列印':'桌號 QR 列印失敗');return ok;
 }
-function openTableQr(table){
-  if(typeof table==='string')return openOneTableQr(table);
-  const ov=document.createElement('div');ov.className='op-overlay';document.body.appendChild(ov);
-  const close=()=>{if(ov.parentNode)ov.parentNode.removeChild(ov);};
-  ov.innerHTML=`<div class="op-card op-card--wide" role="dialog" aria-label="桌號 QR"><h2>桌號 QR（列印貼桌）</h2>
-    <div class="a-toolbar"><input id="qr-tables" placeholder="例：A1,A2,A3,B1" style="min-width:220px"><button type="button" class="btn btn--ghost btn-sm" id="qr-all">全部固定桌</button><button class="btn btn--solid btn-sm" id="qr-make">產生</button><button class="btn btn--ghost btn-sm" id="qr-print" hidden>列印</button></div>
-    <div id="qr-grid" class="qr-grid"></div>
-    <div class="op-card-actions"><button type="button" class="btn btn--ghost" id="qr-close">關閉</button></div></div>`;
-  const host=ov;
-  ov.querySelector('#qr-close').onclick=close;ov.addEventListener('click',e=>{if(e.target===ov)close();});
-  ov.querySelector('#qr-tables').value=typeof table==='string'?table:DEFAULT_TABLES.join(',');
-  host.querySelector('#qr-make').onclick=async()=>{const tables=host.querySelector('#qr-tables').value.trim();if(!tables)return;try{const out=await api('/admin/tables/qr?tables='+encodeURIComponent(tables));const grid=host.querySelector('#qr-grid');grid.innerHTML='';for(const t of out.tables){const url=await new Promise((ok,no)=>QRCode.toDataURL(t.url,{width:360,margin:1},(e,u)=>e?no(e):ok(u)));grid.insertAdjacentHTML('beforeend',`<div class="qr-card"><img src="${url}" alt="桌號 ${esc(t.table)}"><b>桌號 ${esc(t.table)}</b><small>掃碼點餐 · 言文字</small></div>`);}host.querySelector('#qr-print').hidden=false;}catch(e){toast(e.message);}};
-  host.querySelector('#qr-print').onclick=()=>{const w=window.open('','_blank');w.document.write('<title>桌號 QR</title><style>body{font-family:sans-serif;margin:0}.g{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px}.g>div{break-inside:avoid;text-align:center;border:1px solid #ccc;border-radius:10px;padding:12px}img{width:100%}b{display:block;font-size:1.6em;font-weight:700}small{display:block;color:#555}</style><div class="g">'+host.querySelector('#qr-grid').innerHTML+'</div>');w.document.close();w.focus();w.print();};
-  host.querySelector('#qr-all').onclick=()=>{host.querySelector('#qr-tables').value=DEFAULT_TABLES.join(',');host.querySelector('#qr-make').click();};
-  if(typeof table==='string')host.querySelector('#qr-make').click();
+// 開桌後自動出 QR：在 Star webPRNT Browser 裡直接印；不在（電腦／一般瀏覽器）就開面板顯示，可拿平板給客人掃或再按列印
+async function printOpenedQr(table,url){
+  if(!url)return false;
+  if(starReady()){try{if(await printTableQr(table,url))return true;}catch(e){toast('桌號 QR 列印失敗：'+e.message);}}
+  await openOneTableQr(table);return false;
+}
+function openTableQr(table){return openOneTableQr(String(table));}
+// 一次開多桌（大組分桌）：勾選空桌 → 一次認人 → 逐桌開桌並各印一張 QR（一個帳本夾一張）
+function pickTables({title,options}){
+  return new Promise(resolve=>{
+    const sel=new Set();
+    const {ov,close}=pickOverlay(`<h3>${esc(title)}${tipIcon('點選要開的桌，可多選。每桌各印一張點餐 QR，一個帳本夾一張，按桌送餐。')}</h3><div class="pos-move-grid" style="grid-template-columns:repeat(4,1fr)">${options.map(t=>`<button type="button" class="pos-move-opt" data-mt="${esc(t)}" aria-pressed="false"><b>${esc(t)}</b></button>`).join('')}</div><div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-cancel>取消</button><button type="button" class="btn btn--solid" data-ok disabled>開桌並印 QR</button></div>`,'一次開多桌');
+    const done=v=>{close();resolve(v);};
+    ov.onclick=e=>{if(e.target===ov)done(null);};
+    const ok=ov.querySelector('[data-ok]');
+    ov.querySelectorAll('[data-mt]').forEach(b=>b.onclick=()=>{const t=b.dataset.mt;sel.has(t)?sel.delete(t):sel.add(t);b.setAttribute('aria-pressed',String(sel.has(t)));b.classList.toggle('busy',sel.has(t));ok.disabled=!sel.size;ok.textContent=sel.size?`開 ${sel.size} 桌並印 QR`:'開桌並印 QR';});
+    ov.querySelector('[data-cancel]').onclick=()=>done(null);
+    ok.onclick=()=>{if(sel.size)done(options.filter(t=>sel.has(t)));};
+  });
+}
+async function openManyTables(empty,reload){
+  if(!empty.length){toast('目前沒有空桌');return;}
+  const tables=await pickTables({title:'一次開多桌',options:empty});if(!tables)return;
+  await ensureOperator(async()=>{
+    const opened=[];
+    for(const t of tables){
+      try{const out=await api('/admin/orders/sessions',{method:'POST',body:{table_no:t,operator_id:OPERATOR?.id}});opened.push(out);}
+      catch(e){toast(`${t} 開桌失敗：${e.message}`);}
+    }
+    if(!opened.length)return;
+    toast(`已開桌 ${opened.map(o=>o.table).join('、')}`);
+    POS_TABLE='';await reload();
+    for(const o of opened){if(!starReady()){await openOneTableQr(o.table);break;}await printTableQr(o.table,o.qr_url);}   // 沒接 mPOP 時只顯示第一桌，其餘到各桌按 QR 補
+  });
 }
 async function loadPos(){
   const host=document.getElementById('pos-body');if(!host)return;
@@ -1184,7 +1206,7 @@ function paintPos(){
   }
   // 櫃檯開桌／外帶：加開固定清單以外的桌號、或外帶單
   // 空桌直接點桌況格就開桌；「加開桌號」＝桌牌上沒有的桌號（點區＋數字鍵）；都不打字
-  const opener=`<div class="pos-open"><button type="button" class="btn btn--solid" id="pos-takeout">＋ 外帶</button><button type="button" class="btn btn--ghost" id="pos-open-extra">＋ 加開桌號</button><button type="button" class="btn btn--ghost" id="pos-edit-tables">編輯桌位</button></div>`;
+  const opener=`<div class="pos-open"><button type="button" class="btn btn--solid" id="pos-takeout">＋ 外帶</button><button type="button" class="btn btn--ghost" id="pos-open-many">＋ 一次開多桌</button><button type="button" class="btn btn--ghost" id="pos-open-extra">＋ 加開桌號</button><button type="button" class="btn btn--ghost" id="pos-edit-tables">編輯桌位</button></div>`;
   let panel='',picked=[],subtotal=0,total=0,priceOf=l=>l.price,mixed=false,splitList=[],splitLeft=0,cashDue=0,cash=false,aa=null;
   const reload=()=>{host.dataset.sig='';return loadPos();};
   if(cur){
@@ -1248,12 +1270,12 @@ function paintPos(){
       </div>
     </div>`;
   }
-  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="pos-tables-row"><div class="pos-tables-main"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('客人掃桌上 QR 點餐後，點該桌看帳、結帳；外帶按「＋ 外帶」；客人沒掃碼要櫃檯點餐時，直接點空桌開桌。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div><div class="pos-board">${floor}<div class="pos-grid">${grid}</div></div></div><aside class="pos-takeouts" aria-label="外帶單" data-slot="${TAKEOUT_SLOT}"><div class="ops-head"><h2>外帶${takeouts.length?` <span class="kds-count">${takeouts.length}</span>`:''}</h2></div><div class="pos-takeout-list">${takeouts.length?takeouts.map(cardHtml).join(''):'<p class="hint">沒有外帶單</p>'}</div></aside></div>${opener}<div class="pos-sub">${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">錢櫃</button></div>'}</div></div>${panel}</div>`;
+  host.innerHTML=`<div class="pos-layout ${cur?'has-panel':''}"><div class="a-sec pos-tables"><div class="pos-tables-row"><div class="pos-tables-main"><div class="ops-head"><h2>櫃檯結帳</h2>${opsHelp('客人進門時點空桌開桌，會自動印出這桌的點餐 QR（本次用餐專用、結帳後失效），夾進帳本帶位；大組分桌按「＋ 一次開多桌」，一個帳本夾一張 QR。點該桌看帳、結帳；外帶按「＋ 外帶」。印發票／開錢櫃：iPad 用 USB-C 線接 mPOP，並用 Star webPRNT Browser 開這個網址。')}</div><div class="pos-board">${floor}<div class="pos-grid">${grid}</div></div></div><aside class="pos-takeouts" aria-label="外帶單" data-slot="${TAKEOUT_SLOT}"><div class="ops-head"><h2>外帶${takeouts.length?` <span class="kds-count">${takeouts.length}</span>`:''}</h2></div><div class="pos-takeout-list">${takeouts.length?takeouts.map(cardHtml).join(''):'<p class="hint">沒有外帶單</p>'}</div></aside></div>${opener}<div class="pos-sub">${document.getElementById('p-drawer')?'':'<div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="pos-cash-drawer">錢櫃</button></div>'}</div></div>${panel}</div>`;
   {const m=host.querySelector('.pos-menu');if(m&&POS_MENU_SCROLL)m.scrollTop=POS_MENU_SCROLL;const c=host.querySelector('.pos-cats');if(c&&POS_CATS_LEFT)c.scrollLeft=POS_CATS_LEFT;const l=host.querySelector('.pos-mid');if(l&&POS_LEFT_SCROLL){l.scrollTop=POS_LEFT_SCROLL;if(POS_LEFT_SCROLL===1e9)POS_LEFT_SCROLL=l.scrollTop;}}
   if(!document.getElementById('p-drawer'))bindCashDrawerButton(host.querySelector('#pos-cash-drawer'));
   host.querySelectorAll('[data-pos-table]').forEach(b=>b.onclick=()=>{POS_TABLE=b.dataset.posTable;POS_OPT=null;POS_MENU_SCROLL=0;POS_LEFT_SCROLL=0;POS_PICK=null;POS_QTY={};POS_PAYREQ=null;POS_YAN={phone:'',name:'',balance:null};POS_MEMBER=false;POS_SPLIT={};POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_DISC_OPEN=false;POS_INV_VALS={};POS_RECEIVED='';POS_AA=null;paintPos();});
   // 開桌／外帶：每次都先輸入 PIN 認人，記這桌是誰開的（與結帳、作廢、開錢櫃一致）
-  const openSession=body=>ensureOperator(()=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{...body,operator_id:OPERATOR?.id}}),out=>out.takeout?`外帶單 ${out.table} 已開，請加入品項`:out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,out=>{POS_TABLE=out.table;POS_PICK=null;POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_RECEIVED='';return reload();}));
+  const openSession=body=>ensureOperator(()=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{...body,operator_id:OPERATOR?.id}}),out=>out.takeout?`外帶單 ${out.table} 已開，請加入品項`:out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,async out=>{POS_TABLE=out.table;POS_PICK=null;POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_RECEIVED='';await reload();if(out.created&&out.qr_url)await printOpenedQr(out.table,out.qr_url);}));
   // 空桌格：直接點就開桌，不用再打字輸入桌號；這桌有已確認的訂位時，開桌後順手問要不要把訂位標成「已到」（訂位頁就不用再點一次）
   host.querySelectorAll('[data-open-table]').forEach(b=>b.onclick=async()=>{
     const table=b.dataset.openTable,r=((POS_DATA?.reservations||{})[table]||[]).find(x=>x.status==='confirmed');
@@ -1262,7 +1284,7 @@ function paintPos(){
     ensureOperator(()=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{table_no:table,operator_id:OPERATOR?.id}}),out=>out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,async out=>{
       POS_TABLE=out.table;POS_PICK=null;POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_RECEIVED='';
       if(arrive){try{await api('/admin/reservations/'+r.id+'/status',{method:'POST',body:{status:'arrived',notify:false}});toast(`訂位 ${r.name} 已標記「已到」`);}catch(e){toast('訂位狀態沒更新：'+e.message);}}
-      return reload();
+      await reload();if(out.created&&out.qr_url)await printOpenedQr(out.table,out.qr_url);
     }));
   });
   // 拖單換桌：按住單卡拖到別的桌位放開（滑鼠移動 6px 起拖；觸控長按 0.3 秒起拖，才不會跟捲動打架）；目標桌有單＝併桌，先問一次
@@ -1286,6 +1308,7 @@ function paintPos(){
   // 加開桌號：點區＋號碼，不打字（桌牌上有的桌號直接點桌況格或「開桌」）
   host.querySelector('#pos-open-extra').onclick=async()=>{const t=await pickTableNo({title:'加開桌號',hint:'桌牌上沒有的桌號、戶外或臨時桌才用這裡；已開著的桌會直接切過去。'});if(t)openSession({table_no:t});};
   host.querySelector('#pos-takeout').onclick=()=>openSession({takeout:true});
+  host.querySelector('#pos-open-many').onclick=()=>openManyTables(slots.filter(x=>x.empty&&!x.takeout).map(x=>x.table),reload);
   // 桌號 QR／暫停點餐在工具列，沒選桌也要能按，所以綁在 if(!cur)return 之前
   if(!cur)return;
   // 這桌的點餐 QR：桌號旁的「QR」鈕，開面板直接顯示這桌（要印全部桌還是按面板裡的「全部固定桌」）

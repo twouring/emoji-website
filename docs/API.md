@@ -110,10 +110,7 @@ PY
 客人端輪詢用：`{ venue, paused }`。`paused` 為 null（可點）或店家在後台設定的暫停文案（例「今日最後點餐 22:30」）。設定存於 `site_content.ordering_pause`，依店別分開。
 
 ### GET /api/orders/table
-掃桌上 QR 進入：query `t`（桌號）、`k`（簽章，由後台產生 QR 時附上）。回這桌目前的場 `{ id, table, status, items[], orders[], total_unpaid }`；沒有開著的場、或上一組客人已全部取餐（或 4 小時無動靜，順手關掉），回 `id: null` 的空殼——**只讀，不開桌**（掃碼、重新載入、已離開客人的舊分頁都不會在 POS 上開出空桌）。第一次加點走 `POST /api/orders/table/items` 才開場。簽章錯誤回 403。
-
-### POST /api/orders/table/items
-尚未開桌（`GET /api/orders/table` 回 `id: null`）時的第一次加點。body 同 `POST /api/orders/:id/items` 再加 `t`、`k`（桌牌 QR 簽章）。同一筆交易裡找這桌開著的場、沒有才開新場，再加品項；加點失敗（售完、過時段、暫停點餐 423）整筆回滾，不留空桌。回更新後的場（含新 `id`）。簽章錯誤回 403。
+掃帳本夾裡的本桌點餐 QR 進入（2026-10-26 起為單次 QR）：query `s`（場次 id）、`k`（簽章，`HMAC(APP_SECRET,'session:'+s)` 前 16 碼）。QR 只在外場於 POS 開桌（`POST /api/admin/orders/sessions`）時產生，綁這一場；回這一場 `{ id, table, status, items[], orders[], total_unpaid }`，已結帳清桌的場 `status:'closed'`（前端顯示感謝頁，不能再加點）。客人端**不能自己開桌**；桌上舊固定 QR（`t`/`k`）一律回 403「這個 QR 已停用」。簽章錯誤 403、場次不存在 404。
 
 ### GET /api/orders/:id
 同桌購物車現況（供輪詢）。query `g`＝自己的 guest 識別碼，回應以 `mine` 標記自己的行（不外露他人識別碼）。`items[]` 每行含 `line, zh, price, qty, by, mine, order_id`；`order_id` 非空＝已付款。`orders[]` 為出餐單 `{ id, amount, status: paid|ready|done, lines[] }`。
@@ -390,7 +387,7 @@ POS 用點數兌換空間時數。body `{ plan: day_4h|day_12h, user_id, operato
 補開 ezPay 電子發票。用於結帳時 ezPay 暫時失敗或當下未設定憑證的單。body 可帶 `{ invoice }`，未帶時使用訂單內已保存的發票要求；`invoice` 格式同櫃檯結帳的 `invoice` 欄位。作廢單不能補開；已開立且有號碼則直接回原發票資料。若狀態是已開立但 `number` 空白（ezPay 回應沒解析到號碼），不會重開，而是以 `invoice_search`（自訂編號＋金額）向 ezPay 查回號碼並更新訂單，回 `{ ok, invoice, synced: true }`；查不到回 404。回 `{ ok, invoice }`。
 
 ### POST /api/admin/orders/sessions
-櫃檯開桌／外帶：客人沒掃桌上 QR（走進來直接在櫃檯點）也能開一桌。body `{ table_no }` 開內用桌（英數字與 -，8 字內；該桌已開著就直接回那一桌，`created:false`），或 `{ takeout: true }` 開外帶單（自動取 `W01`–`W99` 最小空號；用完回 409）。`W01`–`W99` 保留給外帶，不能當內用桌號。可選 `operator_id`（`POST /api/admin/staff/verify` 認出的員工 id，記這桌是誰開的，查不到就忽略不擋）。回 `{ ok, id, table, created, takeout, operator? }`（新開 201）。外帶單結完帳且取餐完成後，由 `GET /api/admin/orders` 自動收掉並釋出號碼；內用桌採離場前結帳，POS 整桌結清且具整桌權限時自動清桌；`GET /api/admin/orders` 回的 `sessions[].operator` 就是開桌的員工姓名。
+櫃檯開桌／外帶：開桌只能由外場在 POS 操作（客人進門 → 選桌開桌 → 自動印本桌點餐 QR → 夾進帳本帶位）。body `{ table_no }` 開內用桌（英數字與 -，8 字內；該桌已開著就直接回那一桌，`created:false`），或 `{ takeout: true }` 開外帶單（自動取 `W01`–`W99` 最小空號；用完回 409）。`W01`–`W99` 保留給外帶，不能當內用桌號。可選 `operator_id`（`POST /api/admin/staff/verify` 認出的員工 id，記這桌是誰開的，查不到就忽略不擋）。回 `{ ok, id, table, created, takeout, operator?, qr_url }`（新開 201）；`qr_url` 為這一場的單次點餐 QR（外帶不回），POS 收到後自動列印。大組分桌就逐桌呼叫，各印一張。外帶單結完帳且取餐完成後，由 `GET /api/admin/orders` 自動收掉並釋出號碼；內用桌採離場前結帳，POS 整桌結清且具整桌權限時自動清桌；`GET /api/admin/orders` 回的 `sessions[].operator` 就是開桌的員工姓名。
 
 ### POST /api/admin/orders/sessions/:id/items
 櫃檯代客加菜。body `{ item_id, qty, note?, price? }`；`by` 固定「櫃檯」。可加任何已發布品項（含估清、非營業時段、僅供 POS 的 `pos_only` 品項如「其他」），但品牌子帳號不得加其他店別的品項（403）。`price` 只在該品項 `custom_price:true` 時才採信（店員現場輸入金額，0–100000 的整數；超出範圍或缺漏回 400），其餘品項一律用菜單定價、忽略 `price`。回更新後的場。
@@ -623,7 +620,7 @@ POS 庫存（`/pos/inventory`）。query `venue=`。回 `{ items[], recipes{菜�
 刪除訂位（含已取消的，讓畫面不再雜亂）。軟刪除（`deleted_at`），`GET /api/admin/reservations` 一律過濾掉，保留紀錄供日後查帳；無法復原畫面（資料庫仍有紀錄）。品牌子帳號只能刪自己店別時段的訂位（404）。回 `{ ok }`。
 
 ### GET /api/admin/tables/qr
-query `tables=A1,A2`（最多 100 桌，英數字與 -，8 字內）。回 `{ tables: [{ table, url }] }`，`url` 即桌上 QR 內容（含簽章，換 `APP_SECRET` 後須重印）。
+補印本桌點餐 QR。query `tables=A1,A2`（最多 100 桌，英數字與 -，8 字內）。只給開著的桌，回 `{ tables: [{ table, session_id, url }] }`，`url` 綁該桌目前這一場（結帳清桌後失效）；有桌尚未開桌回 409。
 
 ### POST /api/admin/content
 寫入網站內容（key-value，含菜單 `menu` 與空間文案）。body：`{ key, value }`。
@@ -745,7 +742,7 @@ X 貼文 AI 起草：body `{ topic }`，回 `{ ok, draft: { title, caption, capt
 會員卡「可以兌換」清單（只讀）。回 `{ ok, items:[{id,venue,zh,en,ja,points,image}], space:[{plan,zh,points}] }`：`items` 為菜單中已發布、非 POS 專用、今天未估清且 `points>0` 的品項（點數由低到高）；`space` 為後台 `yan_rewards` 設定的空間時數。餐飲品項由 App 掃桌碼兌換（`POST /api/me/redeem`），空間時數仍在櫃檯掃會員碼。agent 金鑰 403。
 
 ### POST /api/me/redeem
-會員用點數兌換餐飲品項（1 點＝NT$10，點數由菜單 `points` 決定）。App 點「兌換」後開相機掃桌上點菜 QR（`/order?t=桌號&k=驗證碼`），body：`{ t, k, item_id }`。伺服器驗桌碼、檢查品項開放兌換且未估清／暫停點餐、點數足夠，在同一交易扣點（ledger `redeem`，`ref_id='rl_'+行號`）並把一行 0 元兌換品項（`app_redeem`、`regular_price`、`redeem_points`，備註「點數兌換」）加進該桌點菜清單。回 `{ ok, table, item, points, balance }`。該行在送出前被移除、清桌或作廢時自動退點。桌碼無效 403、點數不足／不開放 400、暫停點餐 423。agent 金鑰 403。
+會員用點數兌換餐飲品項（1 點＝NT$10，點數由菜單 `points` 決定）。App 點「兌換」後開相機掃本桌點餐 QR（`/order?s=場次&k=驗證碼`），body：`{ s, k, item_id }`。伺服器驗場次簽章（該場須未結束，否則 409；桌上舊 QR 帶 `t` 回 403）、檢查品項開放兌換且未估清／暫停點餐、點數足夠，在同一交易扣點（ledger `redeem`，`ref_id='rl_'+行號`）並把一行 0 元兌換品項（`app_redeem`、`regular_price`、`redeem_points`，備註「點數兌換」）加進該桌點菜清單。回 `{ ok, table, item, points, balance }`。該行在送出前被移除、清桌或作廢時自動退點。桌碼無效 403、點數不足／不開放 400、暫停點餐 423。agent 金鑰 403。
 
 ### GET /api/me/card
 數位會員卡 QR（120 秒）。回 `{ token, exp, name, phone }`。現場 POS 掃描或報手機即可累點。agent 金鑰 403。

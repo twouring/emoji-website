@@ -75,8 +75,7 @@ test('說明文字：用 .hint--tight／--end／--row 變體，不寫 style="mar
   assert.doesNotMatch(ops, /<label style="flex:1;min-width:200px">/);
   // 兩個 class 才壓得過宿主頁排在後面的 .hint{margin…}（同權重後者勝）；量測過單 class 版本 margin 仍是 0 0 12px
   assert.match(css, /\.hint\.hint--tight\{margin:0\}\.hint\.hint--end\{margin:0 0 0 auto;font-weight:400\}\.hint\.hint--row\{flex:1 1 100%;margin:0\}\.a-form \.f-grow\{flex:1;min-width:200px\}/);
-  assert.match(ops, /<div id="qr-grid" class="qr-grid"><\/div>/);
-  assert.match(ops, /<div class="qr-card"><img src="\$\{url\}" alt="桌號 \$\{esc\(t\.table\)\}"><b>桌號 \$\{esc\(t\.table\)\}<\/b><small>掃碼點餐 · 言文字<\/small><\/div>/);
+  assert.match(ops, /<div class="qr-card"><img src="\$\{img\}" alt="桌號 \$\{esc\(t\.table\)\}"><small>掃碼點餐 · 言文字<\/small><\/div>/);
 });
 
 test('字級：pos-ops.css 與 pos.html 的 font-size 用 rem／em 尺度，不混 px', () => {

@@ -4872,8 +4872,8 @@ async function refundAppRedeems(client, lines) {
 }
 app.post('/api/me/redeem', auth, requireDb, rateLimit({ max: 30, windowMs: 3600000 }), wrap(async (req, res) => {
   if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
-  const table = tableOrders.verifyTable(req.body?.t, req.body?.k, SECRET);
-  if (!table) return res.status(403).json({ error: '這不是桌上的點菜條碼，請對準桌上的 QR。' });
+  const sid = tableOrders.verifySession(req.body?.s, req.body?.k, SECRET);
+  if (!sid) return res.status(403).json({ error: req.body?.t ? '桌上舊 QR 已停用，請掃服務人員給的本桌點餐 QR。' : '這不是本桌點餐 QR，請對準服務人員給的 QR。' });
   try { await assertNotPaused(); } catch (e) { return res.status(e.status || 423).json({ error: e.message }); }
   const menu = await currentMenu();
   const it = menu.get(String(req.body?.item_id || ''));
@@ -4884,9 +4884,9 @@ app.post('/api/me/redeem', auth, requireDb, rateLimit({ max: 30, windowMs: 36000
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, ['table:' + table]);
-    let s = (await client.query("SELECT * FROM table_sessions WHERE table_no=$1 AND status='open' ORDER BY created_at DESC LIMIT 1 FOR UPDATE", [table])).rows[0];
-    if (!s) s = (await client.query('INSERT INTO table_sessions(id,table_no) VALUES($1,$2) RETURNING *', [uid('ts_'), table])).rows[0];
+    const s = (await client.query("SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE", [sid])).rows[0];
+    if (!s || s.status !== 'open') { await client.query('ROLLBACK'); return res.status(409).json({ error: '這桌已結帳結束，請向服務人員索取新的點餐 QR。' }); }
+    const table = s.table_no;
     await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,2))', [me.id]);
     const before = await yanRowsFor(client, me.id);
     const bal = yan.balance(before);
@@ -5516,34 +5516,13 @@ app.get('/api/orders/config',(req,res)=>{const tp=tableOrders.tappayConfig(),pus
 // 客人端輪詢用：目前營業品牌是否暫停點餐（文案由店家設定）
 app.get('/api/orders/pause',requireDb,wrap(async(req,res)=>{res.set('Cache-Control','no-store');const venue=tableOrders.MenuLib.orderWindow().venue;res.json({venue,paused:tableOrders.pauseFor(await contentValue('ordering_pause'),venue)});}));
 
-// 掃桌上 QR：回這桌目前的場；沒有開著的場（或上一組已結束）就回「尚未開桌」的空殼（id:null），不寫入資料庫——
-// 掃碼／手機重新載入／已離開的客人重開舊分頁都不會在 POS 上開出空桌，第一次加點（POST /api/orders/table/items）才開場
-const emptyTableSession=table=>({id:null,table,status:'open',items:[],orders:[],total_unpaid:0,pay_request:null});
+// 掃帳本夾上的單次 QR（2026-10-26 起）：外場在 POS 開桌時印出，QR 綁這一場（s=場次 id、k=簽章），結帳清桌後即失效。
+// 桌上固定 QR（t/k）一律 403，客人不能自己開桌——避免離店後或店外拿舊 QR 惡意點餐。回這一場（已結束也回，前端顯示感謝頁）
+const QR_RETIRED='這個 QR 已停用。請向服務人員索取本桌點餐 QR。';
 app.get('/api/orders/table',requireDb,wrap(async(req,res)=>{
-  const table=tableOrders.verifyTable(req.query.t,req.query.k,SECRET);if(!table)return res.status(403).json({error:'QR 無效，請重新掃描桌上的 QR。'});
-  const client=await pool.connect();
-  try{await client.query('BEGIN');
-    const s=await currentTableSession(client,table);
-    await client.query('COMMIT');res.set('Cache-Control','no-store');res.json(s?publicSession(s,String(req.query.g||'')):emptyTableSession(table));
-  }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
-}));
-// 這桌目前開著的場（交易內、已上桌號鎖）；上一組已結束或 4 小時無動靜就關掉，回 null（不開新場）
-async function currentTableSession(client,table){
-  await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,['table:'+table]);
-  let s=(await client.query("SELECT * FROM table_sessions WHERE table_no=$1 AND status='open' ORDER BY created_at DESC LIMIT 1 FOR UPDATE",[table])).rows[0];
-  if(s){s.orders=(await client.query('SELECT id,items,amount,status,paid_at,ready_at,done_at FROM table_orders WHERE session_id=$1 ORDER BY paid_at',[s.id])).rows;
-    // ponytail: 4 小時無動靜視同離席；未付品項直接作廢
-    const stale=Date.now()-new Date(s.updated_at).getTime()>4*3600e3;
-    if(tableOrders.sessionFinished(s.items,s.orders)||stale){await refundAppRedeems(client,s.items);await client.query("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=$1",[s.id]);s=null;}}
-  return s||null;
-}
-// 尚未開桌的客人第一次加點：同一筆交易裡找／開場再加品項——加點失敗（售完、過時段）整筆回滾，不留空桌
-app.post('/api/orders/table/items',rateLimit({max:60}),requireDb,wrap(async(req,res)=>{
-  const table=tableOrders.verifyTable(req.body?.t,req.body?.k,SECRET);if(!table)return res.status(403).json({error:'QR 無效，請重新掃描桌上的 QR。'});
-  try{await assertNotPaused();}catch(e){return res.status(e.status||423).json({error:e.message});}
-  const menu=await currentMenu();const iid=String(req.body?.item_id||'');
-  if(!menu.has(iid)&&tableOrders.menuIndex(await contentValue('menu'),undefined).has(iid))return res.status(423).json({error:'這個品項目前已過最後點餐時間。'});
-  return mutateItems(req,res,items=>tableOrders.addLine(items,menu,req.body||{}),async client=>(await currentTableSession(client,table))||(await client.query('INSERT INTO table_sessions(id,table_no) VALUES($1,$2) RETURNING *',[uid('ts_'),table])).rows[0]);
+  const id=tableOrders.verifySession(req.query.s,req.query.k,SECRET);if(!id)return res.status(403).json({error:req.query.t?QR_RETIRED:'QR 無效，請向服務人員索取本桌點餐 QR。'});
+  const s=await loadSession(id);if(!s)return res.status(404).json({error:'找不到這桌的點餐，請洽服務人員。'});
+  res.set('Cache-Control','no-store');res.json(publicSession(s,String(req.query.g||'')));
 }));
 app.get('/api/orders/:id',requireDb,wrap(async(req,res)=>{const s=await loadSession(req.params.id);if(!s)return res.status(404).json({error:'找不到這桌的點餐。'});res.json(publicSession(s,String(req.query.g||'')));}));
 // 即時同步（SSE）：連上先推一份目前狀態，之後同桌任何異動（別人加點、送單、出餐、櫃檯收款）即刻推新狀態；斷線瀏覽器自動重連
@@ -5692,7 +5671,7 @@ app.post('/api/admin/orders/sessions',auth,adminOnly,requireDb,wrap(async(req,re
     if(takeout){const used=new Set((await client.query("SELECT table_no FROM table_sessions WHERE status='open' AND table_no ~ '^W[0-9]{2}$'")).rows.map(r=>r.table_no));table=tableOrders.nextTakeoutTable(used);if(!table){await client.query('ROLLBACK');return res.status(409).json({error:'外帶單號已用完（W01–W99），請先清掉已完成的外帶單。'});}}
     let s=(await client.query("SELECT id,table_no FROM table_sessions WHERE table_no=$1 AND status='open' ORDER BY created_at DESC LIMIT 1",[table])).rows[0],created=false;
     if(!s){s=(await client.query('INSERT INTO table_sessions(id,table_no,opened_by_staff_id,opened_by_staff_name) VALUES($1,$2,$3,$4) RETURNING id,table_no',[uid('ts_'),table,operator?.id||null,operator?.name||null])).rows[0];created=true;}
-    await client.query('COMMIT');res.status(created?201:200).json({ok:true,id:s.id,table:s.table_no,created,takeout,operator:operator||undefined});
+    await client.query('COMMIT');res.status(created?201:200).json({ok:true,id:s.id,table:s.table_no,created,takeout,operator:operator||undefined,qr_url:takeout?undefined:tableOrders.sessionUrl(SITE_BASE,s.id,SECRET)});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 async function issueEzpayForOrder(order, invoice) {
@@ -6823,7 +6802,7 @@ app.post('/api/admin/orders/:id/status',auth,adminOnly,requireDb,wrap(async(req,
   const o=(await q(status==='ready'?"UPDATE table_orders SET status='ready',ready_at=now() WHERE id=$1 AND status='paid' RETURNING *":"UPDATE table_orders SET status='done',done_at=now() WHERE id=$1 AND status IN ('paid','ready') RETURNING *",[req.params.id])).rows[0];
   if(!o)return res.status(409).json({error:'出餐單狀態已變更，請重新整理。'});
   let notified=0;const push=eventChannels.pushConfig();
-  if(status==='ready'&&push){const payload={title:`桌號 ${o.table_no}｜餐點好了`,body:o.items.map(l=>l.zh+'×'+l.qty).join('、').slice(0,120)+'，請至櫃檯取餐。',url:tableOrders.tableUrl(SITE_BASE,o.table_no,SECRET)};
+  if(status==='ready'&&push){const payload={title:`桌號 ${o.table_no}｜餐點好了`,body:o.items.map(l=>l.zh+'×'+l.qty).join('、').slice(0,120)+'，請至櫃檯取餐。',url:tableOrders.sessionUrl(SITE_BASE,o.session_id,SECRET)};
     for(const sub of o.push){try{await eventChannels.sendPush(push,sub,payload);notified++;}catch(e){console.warn('[table-push]',e.statusCode||e.message);}}}
   res.json({ok:true,status,notified});
 }));
@@ -6849,10 +6828,13 @@ app.post('/api/admin/orders/sessions/:id/close',auth,adminOnly,requireDb,wrap(as
   const r=await q("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=$1 AND status='open'",[req.params.id]);
   res.json({ok:true,closed:r.rowCount>0});
 }));
-app.get('/api/admin/tables/qr',auth,adminOnly,wrap(async(req,res)=>{
+// 本桌點餐 QR（單次）：只給開著的桌，QR 綁這一場，結帳清桌後失效；補印／遺失帳本夾 QR 用（開桌回應已附 qr_url）
+app.get('/api/admin/tables/qr',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const tables=[...new Set(String(req.query.tables||'').split(',').map(t=>t.trim().toUpperCase()).filter(Boolean))].slice(0,100);
   const bad=tables.find(t=>!tableOrders.TABLE_RE.test(t));if(bad)return res.status(400).json({error:`桌號「${bad}」只能用英數字與 -，最長 8 字。`});
-  res.json({tables:tables.map(t=>({table:t,url:tableOrders.tableUrl(SITE_BASE,t,SECRET)}))});
+  const open=new Map((await q("SELECT DISTINCT ON (table_no) id,table_no FROM table_sessions WHERE status='open' AND table_no=ANY($1) ORDER BY table_no,created_at DESC",[tables])).rows.map(r=>[r.table_no,r.id]));
+  const closed=tables.filter(t=>!open.has(t));if(closed.length)return res.status(409).json({error:`${closed.join('、')} 尚未開桌，請先開桌再印 QR。`});
+  res.json({tables:tables.map(t=>({table:t,session_id:open.get(t),url:tableOrders.sessionUrl(SITE_BASE,open.get(t),SECRET)}))});
 }));
 
 // /menu 舊頁改版為空間介紹：301 導至 /space（保留語系前綴），需先於 static 攔截

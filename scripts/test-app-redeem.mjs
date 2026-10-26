@@ -29,7 +29,7 @@ test('扣點與退點：以 rl_<行號> 為 ref，各只一次', () => {
 test('伺服器：/api/me/redeem 驗桌碼並在移除／清桌時退點；菜單回填 1 點＝NT$10', () => {
   const s = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
   assert.match(s, /app\.post\('\/api\/me\/redeem'/);
-  assert.match(s, /verifyTable\(req\.body\?\.t, req\.body\?\.k, SECRET\)/);
+  assert.match(s, /verifySession\(req\.body\?\.s, req\.body\?\.k, SECRET\)/);
   assert.match(s, /refundAppRedeems\(client,s\.items\.filter/);
   assert.match(s, /Math\.ceil\(it\.price \/ 10\)/);
   assert.match(s, /menu_points_seed_v1/);
