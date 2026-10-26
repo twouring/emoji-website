@@ -165,6 +165,9 @@ const appEventUrl = (slug, lang, extra) => {
 // admin 子網域／後台服務只提供：後台 SPA、API、登入與 OAuth callback、Email 登入頁、簽到工作台、後台用到的模擬頁、
 // puppeteer 本機截圖頁（IG／LINE 圖文選單），以及靜態資源（任何 .css/.js/圖檔/字型與資源目錄）
 const ADMIN_HOST_OWN = /^\/(admin($|\/|\.html$)|api\/|auth\/|integrations\/|internal\/|event-(login|checkin)\.html$|access-mock(\.html)?$|ig-render\.html$|line-richmenu\.html$|robots\.txt$|vendor\/|cis\/|stylebook\/|uploads\/|ig-media\/|fonts?\/|[^/]+\.(css|js|mjs|map|svg|png|jpe?g|webp|gif|ico|woff2?|ttf|json|webmanifest)$)/;
+// 子品牌獨立站 host → 頁面 slug（public/brand-sites/<slug>.html）；BRAND_HOST_OWN＝這些子網域自己提供的路徑（資源與 API）
+const BRAND_HOSTS = { 'atcafe.emoji.tw': 'at-cafe', '3am.emoji.tw': '3am', 'staysquare.emoji.tw': 'stay-square' };
+const BRAND_HOST_OWN = /^\/(api\/|vendor\/|cis\/assets\/|assets\/|brand-sites\/|ig-media\/|uploads\/|fonts?\/|[^/]+\.(css|js|svg|png|jpe?g|webp|ico|woff2?)$)/;
 const ADMIN_HOSTS = (process.env.ADMIN_HOSTS || 'admin.emoji.tw').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 const isAdminHost = req => ADMIN_HOSTS.includes(String(req.hostname || '').toLowerCase());
 const DEFAULT_MEMBER_URL = (process.env.MEMBER_URL || APP_BASE + '/');
@@ -1513,6 +1516,28 @@ app.use((req, res, next) => {
   if (/^\/admin(\/|\.html$|$)/.test(req.path)) return res.redirect(302, ADMIN_BASE + (req.path === '/admin.html' ? '/admin' : req.originalUrl));
   if (!APP_HOST_OWN.test(req.path)) return res.redirect(302, SITE_BASE + req.originalUrl);
   next();
+});
+// 子品牌獨立站（atcafe／3am／staysquare.emoji.tw）：同一支服務依 host 分流，首頁是 public/brand-sites/<slug>.html，
+// 菜單與空間文案由 renderSpace 伺服器端填入；只放行靜態資源與 /api，其餘路徑（訂位、活動、會員…）一律導回官網同路徑。
+app.use((req, res, next) => {
+  const slug = BRAND_HOSTS[String(req.hostname || '').toLowerCase()];
+  if (!slug) {
+    // 官網上的模板原檔（未填菜單）不直接提供，導到對應子網域
+    const m = /^\/brand-sites\/(at-cafe|3am|stay-square)(?:\.html)?$/.exec(req.path);
+    if (!m) return next();
+    const host = Object.keys(BRAND_HOSTS).find(h => BRAND_HOSTS[h] === m[1]);
+    return res.redirect(301, 'https://' + host + '/');
+  }
+  if (req.path === '/' || req.path === '/index.html') {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    return publicSnapshot().then(snapshot => {
+      publicPageCache(req, res);
+      sendPage(res, path.join(PUB, 'brand-sites', slug + '.html'), '/' + slug, html => publicRender.renderSpace(html, snapshot, 'zh', slug));
+    }, next);
+  }
+  if (req.path === '/robots.txt') return res.type('text/plain').send(`User-agent: *\nAllow: /\nSitemap: https://www.emoji.tw/sitemap.xml\n`);
+  if (BRAND_HOST_OWN.test(req.path)) return next();
+  res.redirect(302, SITE_BASE + req.originalUrl);
 });
 // 後台服務（SERVICE_ROLE=admin）或 admin.emoji.tw：只給管理者用。首頁就是後台（/admin）；
 // 只放行後台頁、API、登入、簽到工作台與靜態資源（ADMIN_HOST_OWN），官網公開頁一律轉回官網、會員頁（/e、/host）轉 App

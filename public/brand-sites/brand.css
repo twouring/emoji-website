@@ -1,0 +1,182 @@
+/* 子品牌獨立站（atcafe／3am／staysquare.emoji.tw）
+ * 依 cis.emoji.tw/brands：每個子品牌只有一個品牌色，搭配母品牌的紙與墨；黃 #FFDE34 屬母品牌，不用在子品牌版面。
+ * 標誌只用品牌色、白色反白、墨色三種；放在紙、白或品牌色底上。品牌色不當小字色（#6B8FAB 對比不足）。 */
+.bs { --brand: #1B1A17; --on-brand: #fff; background: var(--paper); }
+.bs--at-cafe { --brand: #984C37; }
+.bs--3am { --brand: #6B8FAB; --on-brand: #1B1A17; }
+.bs--stay-square { --brand: #2B4064; }
+.bs section { padding: clamp(56px, 8vw, 104px) 0; }
+.bs ::selection { background: var(--brand); color: var(--on-brand); }
+
+/* ——— 頁首：子品牌標誌｜1px 線｜母品牌（不組 lockup） ——— */
+.bs-head { position: sticky; top: 0; z-index: 40; background: rgba(251, 250, 246, .94); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.bs-head__in { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 68px; }
+.bs-head__brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.bs-head__logo img { height: 40px; width: auto; }
+.bs-head__sep { width: 1px; height: 28px; background: var(--line); flex: 0 0 auto; }
+.bs-head__parent { font-family: var(--serif); font-size: 1rem; letter-spacing: .12em; color: var(--muted); white-space: nowrap; }
+.bs-head__nav { display: flex; align-items: center; gap: 22px; }
+.bs-head__nav a { font-size: 1rem; color: var(--ink-soft); white-space: nowrap; }
+.bs-head__nav a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+.bs-head__nav .bs-btn { color: var(--on-brand); }
+.bs-head__nav .bs-btn:hover { text-decoration: none; }
+
+/* ——— 按鈕：主動作用品牌色底（白字），次要用墨線 ——— */
+.bs-btn { display: inline-flex; align-items: center; justify-content: center; gap: .5em; min-height: 44px; padding: .7em 1.4em; border-radius: var(--radius-sm); border: 1.5px solid var(--brand); background: var(--brand); color: var(--on-brand); font-weight: 500; font-size: 1rem; letter-spacing: .03em; transition: transform .18s ease, filter .18s ease; }
+.bs-btn:hover { transform: translateY(-2px); filter: brightness(1.06); }
+.bs-btn--line { background: transparent; color: var(--ink); border-color: var(--ink); }
+.bs-btn--on { background: #fff; color: var(--brand); border-color: #fff; }
+.bs-btn--on-line { background: transparent; color: #fff; border-color: rgba(255, 255, 255, .8); }
+
+/* ——— Hero ——— */
+.bs-hero { padding: clamp(48px, 7vw, 96px) 0 clamp(56px, 8vw, 104px); border-bottom: 1px solid var(--line); }
+.bs-hero__grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: clamp(32px, 6vw, 80px); align-items: center; }
+.bs-hero__kicker { display: inline-flex; align-items: center; gap: .7em; font-size: 1rem; letter-spacing: .14em; color: var(--muted); }
+.bs-hero__kicker::before { content: ""; width: 28px; height: 2px; background: var(--brand); }
+.bs-hero h1 { margin: 18px 0 0; font-size: clamp(2.2rem, 5.2vw, 3.8rem); line-height: 1.2; font-weight: 500; text-wrap: balance; }
+.bs-hero h1 .en { display: block; margin-top: .3em; font-family: var(--latin); font-size: max(1rem, .48em); letter-spacing: .08em; color: var(--muted); }
+.bs-hero__lede { margin: 22px 0 0; max-width: 32em; font-size: clamp(1.05rem, 1.6vw, 1.18rem); line-height: 1.9; color: var(--ink-soft); text-wrap: pretty; }
+.bs-hero__actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+.bs-hero__mark { margin: 0; display: flex; justify-content: center; }
+.bs-hero__mark img { width: min(100%, 440px); height: auto; }
+.bs-hero__open { margin-top: 26px; display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 1rem; color: var(--ink-soft); }
+.bs-hero__open b { font-family: var(--latin); font-size: 1.15rem; font-weight: 600; color: var(--ink); margin-right: .35em; font-variant-numeric: tabular-nums; }
+
+/* 品牌色底 Hero（三點水、等等空間）：白色反白標誌 */
+.bs-hero--brand { background: var(--brand); color: #fff; border-bottom: 0; }
+.bs-hero--brand .bs-hero__kicker, .bs-hero--brand h1 .en { color: rgba(255, 255, 255, .86); }
+.bs-hero--brand .bs-hero__kicker::before { background: #fff; }
+.bs-hero--brand h1 { color: #fff; }
+.bs-hero--brand .bs-hero__lede, .bs-hero--brand .bs-hero__open { color: rgba(255, 255, 255, .92); }
+.bs-hero--brand .bs-hero__open b { color: #fff; }
+/* 三點水品牌色 #6B8FAB 對白字只有 3.4:1，不放內文：Hero 用紙色替代階，品牌色只給標誌與線 */
+.bs-hero--night { background: var(--paper-alt); }
+
+/* ——— 區塊標題 ——— */
+.bs-sec__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; margin-bottom: clamp(24px, 4vw, 40px); padding-bottom: 14px; border-bottom: 1.5px solid var(--ink); }
+.bs-sec__head h2 { font-size: clamp(1.6rem, 3.2vw, 2.3rem); line-height: 1.25; }
+.bs-sec__head h2 .en { margin-left: .5em; font-family: var(--latin); font-size: max(1rem, .5em); letter-spacing: .1em; color: var(--muted); font-weight: 500; }
+.bs-sec__head p { color: var(--muted); font-size: 1rem; }
+.bs-alt { background: var(--paper-alt); }
+
+/* ——— 事實列 ——— */
+.bs-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--card); }
+.bs-facts > div { padding: 20px 22px; border-left: 1px solid var(--line); }
+.bs-facts > div:first-child { border-left: 0; }
+.bs-facts dt { font-size: 1rem; letter-spacing: .1em; color: var(--muted); }
+.bs-facts dd { margin-top: 6px; font-family: var(--serif); font-size: 1.12rem; line-height: 1.55; color: var(--ink); text-wrap: pretty; }
+
+/* ——— 特色三欄（moji） ——— */
+.bs-feat { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: clamp(28px, 5vw, 72px); align-items: center; }
+.bs-feat--gap { margin-top: clamp(36px, 5vw, 56px); }
+.bs-feat__moji { margin: 0; text-align: center; }
+.bs-feat__moji img { width: min(70%, 260px); height: auto; margin: 0 auto; }
+.bs-feat__moji figcaption { margin-top: 10px; color: var(--muted); font-size: 1rem; }
+.bs-points { list-style: none; padding: 0; display: grid; gap: 0; }
+.bs-points li { display: grid; grid-template-columns: 3.2em minmax(0, 1fr); gap: 0 14px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+.bs-points li:first-child { border-top: 1px solid var(--line); }
+.bs-points .n { font-family: var(--latin); font-size: 1.6rem; font-weight: 600; line-height: 1.2; color: var(--brand); }
+.bs--3am .bs-points .n { color: var(--ink); }
+.bs-points b { display: block; font-family: var(--serif); font-weight: 500; font-size: 1.18rem; }
+.bs-points span { display: block; margin-top: 4px; color: var(--ink-soft); line-height: 1.8; }
+
+/* ——— 菜單（沿用官網 menu-* 元件） ——— */
+.bs-menu .menu-venue__title { display: none; }
+.bs-menu section { padding: 0; }
+.bs-menu .menu-group { margin-bottom: 36px; }
+.bs-menu .menu-group__head { border-bottom-color: var(--brand); }
+.bs-menu__cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+
+/* ——— 等等空間：空間與方案 ——— */
+.bs-rooms { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.bs-room { display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+.bs-room figure { margin: 0; }
+.bs-room figure img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-bottom: 1px solid var(--line); }
+.bs-room figure figcaption { display: none; }
+.bs-room__body { padding: 20px 22px 24px; }
+.bs-room h3 { font-size: 1.25rem; margin-bottom: 8px; }
+.bs-room h3::before { content: ""; display: block; width: 24px; height: 3px; background: var(--brand); margin-bottom: 12px; }
+.bs-room p { color: var(--ink-soft); line-height: 1.8; }
+.bs-room .md-content { margin-top: 10px; font-size: 1rem; line-height: 1.8; color: var(--ink-soft); font-weight: 300; }
+.bs-room .md-content[hidden] { display: none; }
+.bs-room .md-content ul { padding-left: 1.1em; }
+.bs-plans { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); }
+.bs-plans th, .bs-plans td { padding: 16px 18px; text-align: left; border-bottom: 1px solid var(--line); font-size: 1rem; vertical-align: top; }
+.bs-plans thead th { background: var(--brand); color: #fff; font-weight: 500; letter-spacing: .06em; }
+.bs-plans td:first-child { font-family: var(--serif); font-weight: 500; color: var(--ink); white-space: nowrap; }
+.bs-plans td.p { font-family: var(--latin); font-size: 1.2rem; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bs-note { margin-top: 14px; color: var(--muted); font-size: 1rem; line-height: 1.75; }
+
+/* ——— 交通 ——— */
+.bs-visit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: clamp(28px, 5vw, 64px); align-items: start; }
+.bs-visit address { font-style: normal; font-family: var(--serif); font-size: 1.3rem; line-height: 1.6; }
+.bs-visit address small { display: block; margin-top: 8px; font-family: var(--sans); font-size: 1rem; color: var(--muted); }
+.bs-visit dl { margin-top: 22px; display: grid; gap: 10px; }
+.bs-visit dl div { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); gap: 10px; }
+.bs-visit dt { color: var(--muted); }
+.bs-visit .bs-hero__actions { margin-top: 26px; }
+.bs-map { width: 100%; aspect-ratio: 4 / 3; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper-alt); }
+
+/* ——— 姊妹品牌（固定順序、同高等距） ——— */
+.bs-sisters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.bs-sisters a { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 28px 16px; border-left: 1px solid var(--line); text-align: center; transition: background .18s ease; }
+.bs-sisters a:first-child { border-left: 0; }
+.bs-sisters a:hover { background: var(--card); }
+.bs-sisters img { height: 72px; width: auto; max-width: 100%; object-fit: contain; }
+.bs-sisters span { font-size: 1rem; color: var(--ink-soft); }
+.bs-sisters a[aria-current] { background: var(--card); }
+.bs-sisters a[aria-current] span::after { content: "・目前所在"; color: var(--muted); }
+
+/* ——— 頁尾（母品牌至少出現一次） ——— */
+.bs-foot { padding: 44px 0 56px; background: var(--paper); color: var(--ink-soft); border-top: 1px solid var(--line); }
+.bs-foot a { color: var(--ink-soft); }
+.bs-foot__grid { display: grid; grid-template-columns: minmax(0, 1.2fr) repeat(2, minmax(0, 1fr)); gap: 28px; }
+.bs-foot__parent img { height: 44px; width: auto; }
+.bs-foot__parent p { margin-top: 12px; color: var(--muted); font-size: 1rem; line-height: 1.75; }
+.bs-foot h4 { font-family: var(--serif); font-weight: 500; font-size: 1rem; letter-spacing: .12em; color: var(--muted); margin-bottom: 10px; }
+.bs-foot ul { list-style: none; padding: 0; display: grid; gap: 6px; }
+.bs-foot a:hover { text-decoration: underline; text-underline-offset: 4px; }
+.bs-foot__legal { margin-top: 32px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 1rem; line-height: 1.75; }
+
+/* 手機底部固定動作列 */
+.bs-dock { display: none; }
+
+@media (max-width: 900px) {
+  .bs-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bs-facts > div:nth-child(3) { border-left: 0; }
+  .bs-facts > div:nth-child(n+3) { border-top: 1px solid var(--line); }
+  .bs-rooms { grid-template-columns: 1fr; }
+  .bs-room { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); }
+  .bs-room figure img { height: 100%; border-bottom: 0; border-right: 1px solid var(--line); }
+}
+@media (max-width: 760px) {
+  .bs-head__nav a:not(.bs-btn) { display: none; }
+  .bs-head__parent { display: none; }
+  .bs-head__sep { display: none; }
+  .bs-head__logo img { height: 34px; }
+  .bs-hero__grid, .bs-feat, .bs-visit, .bs-foot__grid { grid-template-columns: 1fr; }
+  .bs-hero__mark { order: -1; }
+  .bs-hero__mark img { width: min(78%, 320px); }
+  .bs-feat__moji img { width: min(46%, 180px); }
+  .bs-room { display: flex; }
+  .bs-room figure img { height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+  .bs-plans thead { display: none; }
+  .bs-plans, .bs-plans tbody, .bs-plans tr, .bs-plans td { display: block; width: 100%; }
+  .bs-plans tr { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .bs-plans td { padding: 2px 0; border: 0; }
+  .bs-plans td.p { margin: 4px 0; }
+  .bs-sisters img { height: 52px; }
+  .bs-sisters a { padding: 20px 8px; }
+  .bs-sisters a[aria-current] span::after { content: ""; }
+  .bs-foot { padding-bottom: 104px; }
+  .bs-dock { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: rgba(251, 250, 246, .97); border-top: 1px solid var(--line); transform: translateY(110%); transition: transform .2s ease; }
+  .bs-dock.is-on { transform: none; }
+  .bs-dock .bs-btn { width: 100%; padding: .6em .8em; }
+}
+@media (max-width: 380px) {
+  .bs-facts { grid-template-columns: 1fr; }
+  .bs-facts > div { border-left: 0; border-top: 1px solid var(--line); }
+  .bs-facts > div:first-child { border-top: 0; }
+  .bs-sisters span { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .bs-btn { transition: none; } .bs-btn:hover { transform: none; } }
