@@ -39,11 +39,11 @@ test('POS 開桌回 qr_url 並自動印；可一次開多桌；補印只給開�
   assert.match(open, /qr_url:takeout\?undefined:tableOrders\.sessionUrl\(SITE_BASE,s\.id,SECRET\)/);
   const qr = server.slice(server.indexOf("app.get('/api/admin/tables/qr'"));
   assert.match(qr.slice(0, 900), /尚未開桌，請先開桌再印 QR/);
-  assert.match(ops, /if\(out\.created&&out\.qr_url\)await printOpenedQr\(out\.table,out\.qr_url\)/);
-  assert.equal((ops.match(/printOpenedQr\(out\.table,out\.qr_url\)/g) || []).length, 2, '點空桌、有訂位的空桌兩條都要印');
+  assert.match(ops, /if\(out\.created&&out\.qr_url\)await printOpenedQr\(out\.table,out\.qr_url,out\)/);
+  assert.equal((ops.match(/printOpenedQr\(out\.table,out\.qr_url,out\)/g) || []).length, 2, '點空桌、有訂位的空桌兩條都要印');
   assert.match(ops, /id="pos-open-many"/);
   assert.match(ops, /async function openManyTables\(/);
-  assert.match(ops, /await printTableQr\(o\.table,o\.qr_url\)/);
+  assert.match(ops, /await printTableQr\(o\.table,o\.qr_url,o\)/);
 });
 test('前端：只認 s/k，加點只打 /orders/:id/items；場已結束顯示感謝頁、不能自己重開', () => {
   assert.match(html, /SID=qs\.get\('s'\)/);
