@@ -65,7 +65,7 @@ function paintSongs(){
   const queue = (up.items.length
     ? `<ol class="song-list song-queue">${up.items.map(t => songRow(t, t.kind === 'request' ? `${t.pos > 1 ? `<button type="button" class="btn btn--ghost btn-sm" data-song-top="${esc(t.id)}">移到最前</button>` : ''}<button type="button" class="btn btn--ghost btn-sm song-danger" data-song-del="${esc(t.id)}">移除</button>` : '', { rank: t.pos })).join('')}</ol>`
     : '<p class="a-empty">沒有接下來的歌。到「設定 → 點歌」匯入常態歌單。</p>')
-    + (up.shuffle ? `<p class="hint">常態歌單（${esc(up.playlist_count)} 首）為隨機播放，客人點的歌播完後隨機接續。</p>` : '');
+    + (up.shuffle ? `<p class="hint">常態歌單 ${esc(up.playlist_count)} 首隨機播放，以上是這一輪已洗好的順序。</p>` : '');
   const hist = d.history.length ? `<details class="song-hist"><summary>最近播過（${Math.min(8, d.history.length)}）</summary><ul class="song-list">${d.history.slice(0, 8).map(t => songRow(t, t.result === 'error' ? '<span class="pill pill-wait">無法播放已跳過</span>' : t.result === 'skip' ? '<span class="pill pill-draft">跳過</span>' : '')).join('')}</ul></details>` : '';
   host.innerHTML = `
   <div class="ops-head song-head"><h2>點歌</h2><div class="song-head-act">${status}${player}${me ? '<button type="button" class="btn btn--ghost btn-sm" data-song-release>停止在這台播放</button>' : '<button type="button" class="btn btn--solid btn-sm" data-song-claim>在這台播放</button>'}<button type="button" class="btn btn--ghost btn-sm" data-song-settings>點歌設定</button></div></div>

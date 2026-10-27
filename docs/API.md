@@ -450,7 +450,7 @@ body `{attempt_id}`。只取消 `prepared`（尚未送出）意圖；已送出�
 點歌（客人端）。body `{ s, k, video_id, guest, by }`。伺服器重新查影片（可嵌入、長度上限），排進待播並在這桌加一行 `cat:'SONG'`、`item_id:'song'` 的品項（單價取點歌設定，預設 NT$10；`placed_at`／`served_at` 同時寫入＝不進出餐看板、不印出餐單，客人不能自己刪），用餐完和餐點一起在櫃檯結帳。同一首已在待播 409、本桌待播達上限 409、暫停點餐或非營業時段 423。回 201 與最新待播。
 
 ### GET /api/admin/orders/songs
-POS 點歌分頁狀態：`settings`（`enabled` 預設 false、`price`、`max_per_table`、`max_minutes`、`shuffle`、`playlist` 常態歌單、`player_device`）、`now`（正在播放，`kind` 為 `request` 或 `playlist`）、`queue`、`upcoming`（接下來完整播放順序：`items` 先列待播、再接常態歌單從下一首起的整份順序，每首帶 `pos`、`kind`；常態歌單為隨機時只列待播並回 `shuffle:true`）、`history`、`youtube`（是否已綁定、頻道名稱、OAuth 是否可用、是否有 API Key）。
+POS 點歌分頁狀態：`settings`（`enabled` 預設 false、`price`、`max_per_table`、`max_minutes`、`shuffle`、`playlist` 常態歌單、`player_device`）、`now`（正在播放，`kind` 為 `request` 或 `playlist`）、`queue`、`upcoming`（接下來完整播放順序：`items` 先列待播、再接常態歌單從下一首起的整份順序，每首帶 `pos`、`kind`；常態歌單為隨機時列出這一輪已洗好的順序（存在 `song_state.shuffle_bag`，每首各播一次，播完再洗）並回 `shuffle:true`）、`history`、`youtube`（是否已綁定、頻道名稱、OAuth 是否可用、是否有 API Key）。
 
 ### POST /api/admin/orders/songs/settings
 修改點歌設定。body 可帶 `enabled`、`shuffle`（boolean）、`price`（0–1000）、`max_per_table`（1–20）、`max_minutes`（1–60）、`playlist`（常態歌單整份取代，最多 300 首）。範圍外 400。

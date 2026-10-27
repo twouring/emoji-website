@@ -206,8 +206,17 @@ test('接下來：待播優先，再接常態歌單從下一首起的整份順�
   const up = songs.upcoming(st, songs.normalizeSettings({ playlist: pl }));
   assert.deepEqual(up.items.map(t => [t.pos, t.kind, t.video_id]), [[1, 'request', ID(1)], [2, 'playlist', ID(8)], [3, 'playlist', ID(9)], [4, 'playlist', ID(7)]]);
   assert.equal(up.items[0].table, 'A3'); assert.equal(up.items[0].by, '小明');
-  const sh = songs.upcoming(st, songs.normalizeSettings({ playlist: pl, shuffle: true }));
-  assert.equal(sh.items.length, 1); assert.equal(sh.shuffle, true);
+  // 隨機：列出洗好的一輪，實際播放順序與列出的一致，每首各一次
+  const set = songs.normalizeSettings({ playlist: pl, shuffle: true });
+  let s2 = { ...songs.normalizeState(''), shuffle_bag: songs.shuffleBag(pl, [], () => 0.3) };
+  const listed = songs.upcoming(s2, set).items.map(t => t.video_id);
+  assert.equal(listed.length, 3); assert.deepEqual([...listed].sort(), [ID(7), ID(8), ID(9)]);
+  const played = [];
+  for (let i = 0; i < 3; i++) { const r = songs.advance(s2, set, { current: s2.now && s2.now.id }); s2 = r.state; played.push(r.song.video_id); }
+  assert.deepEqual(played, listed, '照列出的順序播');
+  assert.equal(songs.upcoming(s2, set).items.length, 3, '一輪播完自動再洗一輪');
+  // 歌單刪掉一首：袋子剔除
+  assert.deepEqual(songs.shuffleBag([T(ID(7)), T(ID(9))], [ID(8), ID(9), ID(7)]), [ID(9), ID(7)]);
 });
 
 test('POS：顯示哪桌誰點的、接下來全部歌曲；播放器可拖移、縮到最小、記住位置；歌名不截斷', () => {
