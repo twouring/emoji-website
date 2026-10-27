@@ -62,8 +62,8 @@ test('POS 圖示 script 與導覽圖示接線，未知名稱不能注入 SVG',()
   assert.equal(ctx.window.POSIcon('toString'),'');
   assert.match(html,/POSIcon\(t.icon\)/);assert.match(html,/POSIcon\('calendar'\)/);
 });
-test('桌號 QR 單上方留白給帳本夾（≥20mm），標題從留白下方開始',()=>{
-  const m=ops.match(/const QR_CLIP_TOP=(\d+);/);assert.ok(m,'要有 QR_CLIP_TOP');assert.ok(Number(m[1])>=160,'留白至少 20mm（160 點）');
+test('桌號 QR 單上方留白給帳本夾（10mm），標題從留白下方開始',()=>{
+  const m=ops.match(/const QR_CLIP_TOP=(\d+);/);assert.ok(m,'要有 QR_CLIP_TOP');assert.equal(Number(m[1]),80,'留白 10mm（80 點）');
   const fn=ops.match(/async function printTableQr\(table,url\)\{[\s\S]*?\n\}/)[0];assert.match(fn,/let y=QR_CLIP_TOP;/);
 });
 test('桌號 QR 單留白以下壓在 90mm 內（QR_BODY_MAX=720 點），插圖與小語左右並排',async()=>{

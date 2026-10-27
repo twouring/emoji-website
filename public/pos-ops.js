@@ -407,7 +407,7 @@ const PRINT_CSS='body{font-family:sans-serif;width:72mm;margin:0;padding:4mm;fon
 function printWindow(title,html,css=PRINT_CSS){const w=window.open('','_blank');if(!w){toast('瀏覽器擋下列印視窗，請允許彈出視窗');return false;}w.document.write(`<title>${esc(title)}</title><style>${css}</style>${html}`);w.document.close();w.focus();w.print();return true;}
 // Star mPOP POP10CI（沒有藍牙）：iPad 用 USB-C 線接 mPOP，POS 在 Star webPRNT Browser 裡開，網頁經 localhost:8001 送列印／開錢櫃指令（SDK 在 /vendor/StarWebPrint*.js，只有 pos.html 載入）
 const STAR_WEBPRNT_URL='https://localhost:8001/StarWebPRNT/SendMessage';
-const QR_CLIP_TOP=200; // 桌號 QR 單上方留白 25mm，給帳本夾夾
+const QR_CLIP_TOP=80; // 桌號 QR 單上方留白 10mm（KK 2026-10-27 指定），給帳本夾夾
 const QR_BODY_MAX=720; // 留白以下內容上限 90mm
 const STAR_DOTS=384; // mPOP 58mm 紙、203dpi：可列印寬 48mm = 384 點
 const inStarBrowser=()=>/StarWebPRNTBrowser/i.test(navigator.userAgent);
