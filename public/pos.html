@@ -311,6 +311,7 @@
 <script src="/song-picks.js"></script>
 <script src="/pos-songs.js"></script>
 <script src="/pos-service-calls.js"></script>
+<script src="/pos-live.js"></script>
 <script src="/pos-tips.js"></script>
 <script src="/pos-icons.js"></script>
 <script>
@@ -635,6 +636,7 @@ async function main(){
     refreshPending();
     songBoot();
     serviceCallBoot();
+    posLiveBoot();
     tipBoot();
     renewToken();
   } catch(e){

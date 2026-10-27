@@ -307,6 +307,9 @@ POS「紀錄」分頁：現場操作紀錄，`?day=YYYY-MM-DD`（營業日，凌
 ### POST /api/admin/events/:id/regs/:registrationId/refund
 對已成立的付費票執行 Stripe 全額退款並立即使票券失效。以 registration id 作 Stripe idempotency key，重送不會重複退款。
 
+### GET /api/admin/orders/live
+POS／KDS 即時同步（Server-Sent Events，需後台登入，`Authorization: Bearer`；品牌子帳號可用）。任何一桌 `table_sessions`／`table_orders` 異動（客人掃碼加點、送單、出餐、收款、作廢、清桌）即推 `event: changed`、`data: {"id":"<session id>"}`，只帶場次 id，前端收到後重拉 `GET /api/admin/orders`。每 25 秒送註解行當心跳；Cloud Run 逾時斷線後前端自動重連（2 秒起、指數退避到 30 秒）。EventSource 無法帶 Authorization，前端用 `fetch` 讀串流（`public/pos-live.js`）；連線正常時原輪詢放慢為 60 秒，斷線退回 10／15 秒。
+
 ### GET /api/admin/orders
 出餐看板＋桌況：`{ orders[], tickets[], sessions[], reservations{}, pause, active_venue, payment_methods[] }`。`reservations` 為今天營業日（三點水到翌日 03:00，凌晨時段算前一營業日）已排桌號、狀態 `new`／`confirmed` 的訂位，依桌號分組：`{ "A3": [{ id, time:'19:00', name, party_size, status }] }`，只給桌況格標「預約」提示用，不會自動開桌；品牌子帳號只看自己時段的。`payment_methods` 格式同 `GET /api/state`（見「收款帳戶」），POS 畫面每 15 秒輪詢這支 API 順便帶回，後台新增／改名／停用自訂收款帳戶後，已開著的 POS 不用重新整理頁面即可在下一次輪詢看到。`tickets` 為桌邊送單（客人按「送出點餐」、尚未結帳也還沒出餐）：`{ id, ticket, session_id, table_no, status:'placed', placed_at, items[], amount, stations }`，形狀比照出餐單，從桌的 `items` 現算、不另存表。`orders` 預設只回 `paid`／`ready`；`?all=1` 回最近一天全部（含 `void`）；每張單附 `stations: { bar[], kitchen[] }`（飲品酒水／餐點分站）。`sessions` 為使用中的桌：`{ id, table, unpaid, unpaid_amount, lines[](未結帳品項明細，不含 guest), mixed(含其他品牌品項), state: open|preparing|ready|idle, updated_at, pay_requests[] }`。`pay_requests` 為客人手機送出的結帳需求 `{ id, name, scope: all|mine, lines[], count, amount, at }`（只含本店別可見且仍未付的品項；見 `POST /api/orders/:id/pay-request`）。`pause` 為各店別暫停點餐設定。`?venue=` 只看單一店別；品牌子帳號只回自己品牌的單與品項。
 

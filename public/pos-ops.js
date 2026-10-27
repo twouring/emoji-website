@@ -865,13 +865,13 @@ async function loadOrders(){
   const host=document.getElementById('orders-body');if(!host)return;
   clearTimeout(ORDERS_TIMER);
   if(!host.dataset.init){host.dataset.init='1';host.innerHTML='<h2>出餐</h2><p class="hint">載入中…</p>';}
-  let d;try{d=await api('/admin/orders'+scopeQuery());}catch(e){if(host.querySelector('.kds-grid'))toast('更新失敗：'+e.message);else host.innerHTML=`<h2>出餐</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`;ORDERS_TIMER=setTimeout(()=>{if(document.getElementById('orders-body')&&TAB==='orders')loadOrders();},10000);return;}
+  let d;try{d=await api('/admin/orders'+scopeQuery());}catch(e){if(host.querySelector('.kds-grid'))toast('更新失敗：'+e.message);else host.innerHTML=`<h2>出餐</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`;ORDERS_TIMER=setTimeout(()=>{if(document.getElementById('orders-body')&&TAB==='orders')loadOrders();},globalThis.POS_LIVE_OK?60000:10000);return;}
   // 看板＝桌邊送單（客人按「送出點餐」，未結帳）＋已結帳的出餐單，依時間排；新單（含送單）響一聲
   const board=[...(d.tickets||[]).map(t=>({...t,at:t.placed_at})),...d.orders.map(o=>({...o,at:o.paid_at}))].sort((a,b)=>a.at<b.at?-1:1);
   const ids=new Set(board.map(o=>o.id));if(ORDERS_SEEN&&[...ids].some(id=>!ORDERS_SEEN.has(id)))ordersBeep();ORDERS_SEEN=ids;
   // 資料沒變就不重繪，避免自動更新時把正要按的按鈕換掉（經過時間每分鐘更新一次）
   const sig=JSON.stringify([board.map(o=>[o.id,o.status,o.push_count,o.items.length,o.served||0]),Math.floor(Date.now()/60000),kitchenPrintStatus().state]);
-  const again=()=>{ORDERS_TIMER=setTimeout(()=>{if(document.getElementById('orders-body')&&TAB==='orders')loadOrders();},10000);};
+  const again=()=>{ORDERS_TIMER=setTimeout(()=>{if(document.getElementById('orders-body')&&TAB==='orders')loadOrders();},globalThis.POS_LIVE_OK?60000:10000);};
   if(host.dataset.sig===sig&&host.querySelector('#qr-tables')){again();return;}
   host.dataset.sig=sig;
     const cancelBtn=(o,l)=>o.status!=='placed'?` <button type="button" class="btn btn--ghost btn-xs" data-cancel-item="${esc(o.id)}" data-cancel-line="${esc(l.line)}" data-cancel-name="${esc(l.zh)}">取消</button>`:'';
@@ -1051,7 +1051,7 @@ async function loadPos(){
   const host=document.getElementById('pos-body');if(!host)return;
   clearTimeout(POS_TIMER);
   if(!host.dataset.init){host.dataset.init='1';host.innerHTML='<div class="a-sec"><h2>櫃檯結帳</h2><p class="hint">載入中…</p></div>';}
-  try{[POS_DATA,REG_DATA]=await Promise.all([api('/admin/orders'+scopeQuery('all=1')),api('/admin/registers'+scopeQuery()).catch(()=>null)]);}catch(e){if(host.querySelector('.pos-grid'))toast('更新失敗：'+e.message);else host.innerHTML=`<div class="a-sec"><h2>櫃檯結帳</h2><p class="a-empty">載入失敗：${esc(e.message)}</p></div>`;POS_TIMER=setTimeout(()=>{if(document.getElementById('pos-body')&&TAB==='pos')loadPos();},15000);return;}
+  try{[POS_DATA,REG_DATA]=await Promise.all([api('/admin/orders'+scopeQuery('all=1')),api('/admin/registers'+scopeQuery()).catch(()=>null)]);}catch(e){if(host.querySelector('.pos-grid'))toast('更新失敗：'+e.message);else host.innerHTML=`<div class="a-sec"><h2>櫃檯結帳</h2><p class="a-empty">載入失敗：${esc(e.message)}</p></div>`;POS_TIMER=setTimeout(()=>{if(document.getElementById('pos-body')&&TAB==='pos')loadPos();},globalThis.POS_LIVE_OK?60000:15000);return;}
   // 後台系統設定新增／停用自訂收款帳戶後，這台 POS 不用重新整理頁面，最慢 15 秒內跟著這支輪詢更新
   if(POS_DATA.payment_methods)DATA.payment_methods=POS_DATA.payment_methods;
   applyLiveStock(POS_DATA.stock);
@@ -1059,9 +1059,9 @@ async function loadPos(){
   // 客人手機按「通知櫃檯我要結帳」：第一次看到的需求響一聲（和新單同一個音）
   const reqIds=new Set(POS_DATA.sessions.flatMap(s=>(s.pay_requests||[]).map(r=>r.id)));if(PAYREQ_SEEN&&[...reqIds].some(id=>!PAYREQ_SEEN.has(id)))ordersBeep();PAYREQ_SEEN=reqIds;
   // 開帳表單打開時不要被 15 秒自動刷新重畫（會清掉正在填的張數）
-  if(POS_EDIT&&host.querySelector('.pos-floor-edit')){POS_TIMER=setTimeout(()=>{if(document.getElementById('pos-body')&&TAB==='pos')loadPos();},15000);return;}
+  if(POS_EDIT&&host.querySelector('.pos-floor-edit')){POS_TIMER=setTimeout(()=>{if(document.getElementById('pos-body')&&TAB==='pos')loadPos();},globalThis.POS_LIVE_OK?60000:15000);return;}
   if(!CHECKOUT_BUSY.size&&((host.dataset.sig!==sig&&!(REG_OPEN_FORM&&host.querySelector('.reg-open-form')))||!host.querySelector('.pos-grid'))){host.dataset.sig=sig;paintPos();}
-  POS_TIMER=setTimeout(()=>{if(document.getElementById('pos-body')&&TAB==='pos')loadPos();},15000);
+  POS_TIMER=setTimeout(()=>{if(document.getElementById('pos-body')&&TAB==='pos')loadPos();},globalThis.POS_LIVE_OK?60000:15000);
 }
 // 品項縮圖：有圖顯示圖，沒圖或載入失敗用品名首字佔位，POS 磚與已點品項共用
 const itemThumb=(it,cls)=>{const ch=esc(Array.from((it&&it.zh)||'')[0]||'');const ph=`<span class="${cls} ${cls}--ph" aria-hidden="true">${ch}</span>`;return it&&it.image?`<img class="${cls}" src="${esc(it.image)}" alt="" loading="lazy" decoding="async" data-ch="${ch}" data-cls="${cls}">`:ph;};

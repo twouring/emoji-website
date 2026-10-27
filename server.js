@@ -5663,6 +5663,9 @@ app.post('/api/admin/orders/kitchen-print-jobs/:id/claim',auth,adminOnly,require
   if(!out)return res.status(404).json({error:'找不到列印工作。'});
   res.json({ok:true,...out});
 }));
+// POS／KDS 即時同步（SSE）：任何一桌異動（客人掃碼加點、送單、出餐、收款、清桌）推 event: changed {id}；
+// 前端用 fetch 讀串流（EventSource 帶不了 Authorization），收到就重拉 /api/admin/orders，原輪詢保留當備援
+app.get('/api/admin/orders/live',auth,adminOnly,requireDb,(req,res)=>{liveHub.subscribeStaff(req,res);});
 app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const all=req.query.all==='1';
   // 品牌後台用 ?venue= 只看單一店別；子帳號不得超出自己的品牌（判斷集中在 lib/table-orders.js，可單測）
