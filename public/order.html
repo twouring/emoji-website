@@ -108,6 +108,10 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 @media (max-width:380px){.wrap{padding:10px}.top{padding-left:12px;padding-right:12px}.bar{padding-left:8px;padding-right:8px}.btn{padding-left:9px;padding-right:9px}.btn.sm{min-height:42px}.menu-grid{gap:6px}.item img,.item .ph{width:56px;height:56px}.item .tap{display:none}.top .t{padding-left:8px;padding-right:8px}.choice-grid{grid-template-columns:1fr 1fr}.sheet .in{padding-left:12px;padding-right:12px}}
 /* 320px：底部列按鈕藏圖示只留文字、內距再縮；上一步／加入兩顆鍵各半；語言鍵縮小 */
 @media (max-width:320px){.bar{grid-template-columns:minmax(72px,1fr) auto auto;gap:4px}.bar .btn{padding:9px 9px}.bar .ico{display:none}.top b{font-size:1rem}.top small{display:block}.lang{min-width:42px;padding:4px 8px}.choice-grid{grid-template-columns:1fr}.sheet-actions .btn{padding:10px 8px}.name-actions .btn{padding-left:8px;padding-right:8px}}
+.site-info{margin:28px 0 8px;color:var(--soft)}.site-info h3{font-size:1rem;margin:0 0 6px}.site-info .card p{margin:0 0 4px}.site-info a{color:inherit;text-underline-offset:3px}
+.price-table{width:100%;border-collapse:collapse;margin:6px 0}.price-table td{padding:6px 0;border-bottom:1px dashed var(--line);vertical-align:top}.price-table td:last-child{text-align:right;white-space:nowrap;padding-left:12px;font-weight:700}.price-table .grp td{text-align:left;font-weight:700;color:var(--muted);border-bottom:0;padding-top:12px}
+.site-info details summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
+.pay-by{display:flex;align-items:center;gap:6px;color:var(--muted);margin:8px 0 0}
 </style>
 </head>
 <body>
@@ -144,13 +148,21 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
       <p class="notice" id="alcohol-notice" data-i18n="alcohol" hidden>未滿十八歲禁止飲酒。禁止酒駕。</p>
     </div>
   </section>
+  <!-- 店家資訊（金流審核必備）：公司名稱＋統編、收費表、客服、退款政策、TapPay 字樣。放在 #app 外，錯誤 QR／已結束畫面也看得到 -->
+  <footer class="site-info" id="site-info">
+    <div class="card"><h3 data-i18n="info_title">店家資訊</h3><p><b data-i18n="info_company">言文字股份有限公司</b></p><p data-i18n="info_tax_id">統一編號 93537055</p><p data-i18n="info_address">台北市中正區重慶南路一段 11 號</p></div>
+    <div class="card" id="price-card"><details id="price-details"><summary data-i18n="info_prices">收費表（目前菜單）</summary><table class="price-table" id="price-table"></table></details><p class="muted" data-i18n="info_price_note">標價為新台幣、含 5% 營業稅；依點餐明細於櫃檯結帳。</p><p class="muted" id="price-policy" hidden></p></div>
+    <div class="card"><h3 data-i18n="info_support">客服聯繫</h3><p data-i18n="info_support_hours">營業時間 08:00–翌日 03:00 可洽現場人員，或來電／來信。</p><p><span data-i18n="info_tel">電話</span> <a href="tel:+886921102067">+886 921 102 067</a></p><p>Email <a href="mailto:us@emoji.tw">us@emoji.tw</a></p></div>
+    <div class="card"><h3 data-i18n="info_refund">退款政策</h3><p data-i18n="info_refund_text">現場點用的餐點製作後恕不退換；品質問題請當場告知店員處理。退款以原付款方式退回，並依法作廢原發票或開立折讓單。</p><p><a href="/refund" target="_blank" rel="noopener" data-i18n="info_refund_link">完整退費政策</a> · <a href="/terms" target="_blank" rel="noopener" data-i18n="info_terms">服務條款</a> · <a href="/privacy" target="_blank" rel="noopener" data-i18n="info_privacy">隱私權政策</a></p></div>
+    <p class="pay-by" id="tappay-note"><span data-i18n="info_tappay">本服務由 TapPay 提供金流服務。</span></p>
+  </footer>
 </main>
 
 <!-- 底部列：已點清單＋送出點餐。桌邊不提供結帳鍵：客人用餐完到櫃檯告知，現場人員在 POS 結帳 -->
 <div class="bar" id="bar" hidden><div class="s"><b id="bar-total">NT$0</b><small id="bar-count"></small></div><button class="btn ghost with-icon" id="open-cart"><svg class="ico" aria-hidden="true"><use href="#i-cart"></use></svg><span data-i18n="cart">已點清單</span></button><button class="btn y with-icon" id="bar-place" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span data-i18n="place">送出點餐</span></button></div>
 
 <div class="sheet" id="cart"><div class="in">
-  <div class="sheet-body" id="cart-body"><h3 class="title-icon"><svg class="ico lg" aria-hidden="true"><use href="#i-cart"></use></svg><span data-i18n="table_order">這桌的點餐</span></h3><div id="cart-lines"></div><div class="tot"><span data-i18n="unpaid_total">未結帳合計</span><span id="cart-total"></span></div><p class="place-hint" id="place-hint" hidden></p><p class="muted" id="pay-reminder" data-i18n="pay_reminder" hidden>離席前請到櫃檯結帳，工作人員會依這桌的明細收款。</p></div>
+  <div class="sheet-body" id="cart-body"><h3 class="title-icon"><svg class="ico lg" aria-hidden="true"><use href="#i-cart"></use></svg><span data-i18n="table_order">這桌的點餐</span></h3><div id="cart-lines"></div><div class="tot"><span data-i18n="unpaid_total">未結帳合計</span><span id="cart-total"></span></div><p class="place-hint" id="place-hint" hidden></p><p class="muted" id="pay-reminder" data-i18n="pay_reminder" hidden>離席前請到櫃檯結帳，工作人員會依這桌的明細收款。</p><p class="pay-by" id="cart-tappay"><span data-i18n="info_tappay">本服務由 TapPay 提供金流服務。</span></p></div>
   <div class="row sheet-actions"><button class="btn ghost" data-close data-i18n="continue">繼續點</button><button class="btn y with-icon" id="cart-place" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span data-i18n="place">送出點餐</span></button></div>
 </div></div>
 
@@ -261,6 +273,18 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     $('#alcohol-notice').hidden=!items.some(function(i){return i.alcohol;});
     $('#bar-policy-notice').hidden=!(VENUE==='BAR'&&MenuLib.barPolicyActive&&MenuLib.barPolicyActive());
     renderSongs();
+    renderPriceTable(items);
+  }
+  // 收費表：目前可點品項＋點歌單價＋三點水低消／服務費（與菜單同一份資料，金額不另寫死）
+  var PRICE_ITEMS=[];
+  function renderPriceTable(items){
+    if(items)PRICE_ITEMS=items;else items=PRICE_ITEMS;
+    var rows='',cat='';
+    items.forEach(function(it){if(it.cat!==cat){cat=it.cat;var c=MenuLib.CAT_LABEL[cat]||{zh:cat,en:cat,ja:cat};rows+='<tr class="grp"><td colspan="2">'+esc(label(c))+'</td></tr>';}rows+='<tr><td>'+esc(label(it))+'</td><td>'+money(it.price)+'</td></tr>';});
+    if(SONG&&SONG.enabled&&VENUE)rows+='<tr><td>'+esc(tr('info_song'))+'</td><td>'+money(SONG.price)+'</td></tr>';
+    $('#price-table').innerHTML=rows||'<tr><td colspan="2" class="muted">'+esc(tr('menu_unavailable'))+'</td></tr>';
+    var bar=VENUE==='BAR'&&MenuLib.barPolicyActive&&MenuLib.barPolicyActive();
+    $('#price-policy').hidden=!bar;if(bar)$('#price-policy').textContent=tr('bar_policy');
   }
 
   function optionGroups(it){return it&&it.cat==='COMBO'?OrderLib.comboGroups(it,MENU,LANG):OrderLib.optionGroups(it,LANG);}
@@ -429,7 +453,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   var SONG_VIEWS=['popular','recent','chart','search','queue'];
   function songQs(){return 's='+encodeURIComponent(SID)+'&k='+encodeURIComponent(K);}
   function songDur(x){return x?Math.floor(x/60)+':'+String(x%60).padStart(2,'0'):'';}
-  function loadSongs(){if(!S)return Promise.resolve();return api('/songs?'+songQs()).then(function(d){SONG=d;renderSongs();}).catch(function(){SONG=null;renderSongs();});}
+  function loadSongs(){if(!S)return Promise.resolve();return api('/songs?'+songQs()).then(function(d){SONG=d;renderSongs();renderPriceTable();}).catch(function(){SONG=null;renderSongs();renderPriceTable();});}
   function loadDiscover(){return api('/songs/discover?'+songQs()).then(function(d){SONG_DISC=d;if(!SONG_VIEW)SONG_VIEW=d.popular&&d.popular.length?'popular':d.chart&&d.chart.length?'chart':'search';renderSongs();}).catch(function(){SONG_DISC={popular:[],recent:[],chart:[]};if(!SONG_VIEW)SONG_VIEW='search';renderSongs();});}
   function songMeta(t){return [t.channel,songDur(t.duration),t.mine?tr('song_mine'):(t.table?tr('table')+' '+t.table:''),t.kind==='playlist'?tr('song_playlist'):'',t.count?tr('song_times',{n:t.count}):''].filter(Boolean).map(esc).join('・');}
   function songRow(t,btn,rank){return '<li class="song-row">'+(rank?'<span class="song-rank">'+rank+'</span>':'')+(t.thumb?'<img src="'+esc(t.thumb)+'" alt="" loading="lazy">':'')+'<span class="n"><b>'+esc(t.title)+'</b><small>'+songMeta(t)+'</small></span>'+(btn||'')+'</li>';}
