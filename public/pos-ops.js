@@ -500,8 +500,6 @@ async function invoiceProofCanvas(o){
   if(qrs.length){const size=160,gap=24,x0=Math.floor((W-(size*qrs.length+gap*(qrs.length-1)))/2);qrs.forEach((q,i)=>g.drawImage(q,x0+i*(size+gap),y,size,size));y+=size+10;}
   else{center('ezPay 未回傳 QR code；請以發票號碼查驗',18);}
   center(`${isTakeoutNo(o.table_no)?'外帶':'桌號'} ${o.table_no||''} · 單號 ${o.id||o.order_id||''}`,18);
-  const centerWrapped=(text,size)=>{g.font=size+'px sans-serif';let line='';for(const ch of text){if(g.measureText(line+ch).width>W-16){center(line,size);line=ch;}else line+=ch;}if(line)center(line,size);};
-  const encouragement=PosEncouragement.pick();y+=8;centerWrapped(encouragement.zh,22);centerWrapped(encouragement.en,18);
   const out=document.createElement('canvas');out.width=W;out.height=Math.ceil(y+8);const og=out.getContext('2d');og.fillStyle='#fff';og.fillRect(0,0,W,out.height);og.drawImage(c,0,0);return out;
 }
 // 列印與開錢櫃完全分開，補印永遠不觸發開櫃。
@@ -897,7 +895,7 @@ async function openOneTableQr(table){
   try{
     const out=await api('/admin/tables/qr?tables='+encodeURIComponent(table));const t=out.tables?.[0];if(!t)throw Error('找不到這桌');
     const img=await new Promise((ok,no)=>QRCode.toDataURL(t.url,{width:360,margin:1},(e,u)=>e?no(e):ok(u)));
-    ov.querySelector('#qr-one').innerHTML=`<div class="qr-card"><img src="${img}" alt="桌號 ${esc(t.table)}"><small>掃碼點餐 · 言文字</small></div>`;
+    ov.querySelector('#qr-one').innerHTML=`<div class="qr-card"><img src="${img}" alt="桌號 ${esc(t.table)}"><small>掃碼點餐 Scan to order · 用餐完請到櫃檯結帳 Pay at the counter</small></div>`;
     const pb=ov.querySelector('#qr-print1');pb.hidden=false;
     pb.onclick=async()=>{if(pb.disabled)return;pb.disabled=true;try{await printTableQr(t.table,t.url);}catch(e){toast('桌號 QR 列印失敗：'+e.message);}finally{pb.disabled=false;}};
   }catch(e){toast(e.message);}
@@ -907,14 +905,22 @@ async function printTableQr(table,url){
   if(!starReady()){await starOpenHere();return false;}
   const q=await new Promise(resolve=>{if(!url||typeof QRCode==='undefined'||!QRCode.toCanvas)return resolve(null);const c=document.createElement('canvas');QRCode.toCanvas(c,String(url),{width:300,margin:4},err=>resolve(err?null:c));});
   if(!q){toast('QR 產生失敗');return false;}
-  const W=STAR_DOTS,c=document.createElement('canvas');c.width=W;c.height=500;const g=c.getContext('2d');
-  g.fillStyle='#fff';g.fillRect(0,0,W,c.height);g.fillStyle='#000';g.textBaseline='top';g.textAlign='center';
-  g.font='bold 26px sans-serif';g.fillText('言文字',W/2,8);
-  g.drawImage(q,(W-300)/2,44,300,300);
-  g.font='bold 44px sans-serif';g.fillText('桌號 '+table,W/2,358);
-  g.font='20px sans-serif';g.fillText('掃碼點餐 · Scan to order',W/2,418);
-  g.font='18px sans-serif';g.fillText('本次用餐專用・結帳後失效',W/2,450);
-  const ok=await starSend({canvas:c});toast(ok?'桌號 QR 已送出列印':'桌號 QR 列印失敗');return ok;
+  // 中英雙語，外國客人也看得懂；鼓勵小語印在這張（發票證明聯不印）
+  const W=STAR_DOTS,c=document.createElement('canvas');c.width=W;c.height=1000;const g=c.getContext('2d');
+  g.fillStyle='#fff';g.fillRect(0,0,W,c.height);g.fillStyle='#000';g.textBaseline='top';g.textAlign='center';let y=8;
+  const line=(t,size,bold,gap=8)=>{g.font=(bold?'bold ':'')+size+'px sans-serif';g.fillText(t,W/2,y);y+=size+gap;};
+  // 自動換行：英文以單字切、中文以字切
+  const wrap=(t,size,bold)=>{g.font=(bold?'bold ':'')+size+'px sans-serif';const parts=/\s/.test(t)?t.split(/(\s+)/):[...t];let cur='';const fit=s=>!g.measureText||g.measureText(s).width<=W-16;for(const p of parts){if(cur&&!fit(cur+p)){line(cur.trim(),size,bold);cur=p.trimStart();}else cur+=p;}if(cur.trim())line(cur.trim(),size,bold);};
+  line('言文字',26,true,10);
+  g.drawImage(q,(W-300)/2,y,300,300);y+=308;
+  line('桌號 '+table,44,true,4);line('Table '+table,24,true,14);
+  line('掃碼點餐',26,true,4);line('Scan to order',20,false,12);
+  wrap('用餐完請到櫃檯結帳',20);wrap('Please pay at the counter after your meal',18);y+=4;
+  wrap('本次用餐專用・結帳後失效',18);wrap('Valid for this visit only; expires once you pay',16);
+  const enc=typeof PosEncouragement!=='undefined'&&PosEncouragement.pick?PosEncouragement.pick():null;
+  if(enc){y+=6;g.fillRect(40,y,W-80,2);y+=14;wrap(enc.zh,22);wrap(enc.en,18);}
+  const out=document.createElement('canvas');out.width=W;out.height=Math.ceil(y+12);const og=out.getContext('2d');og.fillStyle='#fff';og.fillRect(0,0,W,out.height);og.drawImage(c,0,0);
+  const ok=await starSend({canvas:out});toast(ok?'桌號 QR 已送出列印':'桌號 QR 列印失敗');return ok;
 }
 // 開桌後自動出 QR：在 Star webPRNT Browser 裡直接印；不在（電腦／一般瀏覽器）就開面板顯示，可拿平板給客人掃或再按列印
 async function printOpenedQr(table,url){

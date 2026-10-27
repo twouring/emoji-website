@@ -26,8 +26,7 @@ test('company invoice canvas includes buyer tax ID and name',async()=>{
  const {c,texts}=printContext();await vm.runInContext("invoiceProofCanvas({invoice:{status:'issued',number:'AB12345678',buyer_ubn:'12345678',buyer_name:'測試公司'},items:[],amount:100})",c);
  assert.ok(texts.includes('12345678'));assert.ok(texts.includes('測試公司'));
  assert.ok(texts.includes('言文字股份有限公司'));
- assert.ok(texts.includes('測試鼓勵語'));
- assert.ok(texts.includes('Keep going.'));
+ assert.ok(!texts.includes('測試鼓勵語'),'鼓勵小語改印在開桌 QR 單，不印在發票證明聯');
 });
 test('kitchen and receipt use mPOP with all items and long notes',async()=>{
  const {c,texts,sent}=printContext();c.o={id:'o1',table_no:'A1',amount:100,paid_at:'now',items:[{zh:'咖啡',qty:1,price:100,cat:'COFFEE',note:'少冰少糖'.repeat(30)}]};
