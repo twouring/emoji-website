@@ -7009,7 +7009,7 @@ app.get('/api/admin/orders/songs/search',auth,adminOnly,requireDb,wrap(async(req
 // 店員代點（不收費）
 app.post('/api/admin/orders/songs/queue',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   try{const video=await songPlayable(req.body?.video_id,null);
-    res.json(await withSongs(async(client,{settings,state})=>{const {state:next}=songs.enqueue(state,video,{by:'櫃檯',source:'pos'});await saveSongState(client,next);return songAdminView(settings,next);}));
+    res.json(await withSongs(async(client,{settings,state})=>{const {state:next}=songs.enqueue(state,video,{by:'櫃檯',source:'pos',front:req.body?.front===true});await saveSongState(client,next);return songAdminView(settings,next);}));
   }catch(e){return songErr(res,e);}
 }));
 app.delete('/api/admin/orders/songs/queue/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -7017,6 +7017,10 @@ app.delete('/api/admin/orders/songs/queue/:id',auth,adminOnly,requireDb,wrap(asy
 }));
 app.post('/api/admin/orders/songs/queue/:id/top',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   try{res.json(await withSongs(async(client,{settings,state})=>{const next=songs.moveToFront(state,String(req.params.id));await saveSongState(client,next);return songAdminView(settings,next);}));}catch(e){return songErr(res,e);}
+}));
+// 店員排序：移到第 to 個位置（0＝下一首）
+app.post('/api/admin/orders/songs/queue/:id/move',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  try{res.json(await withSongs(async(client,{settings,state})=>{const next=songs.moveTo(state,String(req.params.id),req.body?.to);await saveSongState(client,next);return songAdminView(settings,next);}));}catch(e){return songErr(res,e);}
 }));
 // 常態歌單：從 YouTube 播放清單（網址或綁定帳號的清單）匯入；mode=append 接在後面，否則整份取代
 app.post('/api/admin/orders/songs/playlist/import',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -7120,7 +7124,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
 }));
 // 靜態官網（無標記 HTML／資產）：圖片／字型／vendor 可快取一天，css／js 十分鐘（保留 ETag 供再驗證）
 app.use(express.static(PUB, { extensions: ['html'], setHeaders: (res, file) => {
-  if (/\.(?:png|jpe?g|webp|gif|svg|ico|avif|woff2?|ttf|otf|mp4|webm|pdf)$/i.test(file) || file.includes(`${path.sep}vendor${path.sep}`)) res.set('Cache-Control', 'public, max-age=86400');
+  if (/\.(?:png|jpe?g|webp|gif|svg|ico|avif|woff2?|ttf|otf|mp3|mp4|webm|pdf)$/i.test(file) || file.includes(`${path.sep}vendor${path.sep}`)) res.set('Cache-Control', 'public, max-age=86400');
   else if (/\.(?:css|js|mjs)$/i.test(file)) res.set('Cache-Control', 'public, max-age=600');
 } }));
 // JSON/parser/路由錯誤不可回傳 Express 預設的 stack trace 或伺服器路徑。

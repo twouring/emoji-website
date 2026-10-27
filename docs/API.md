@@ -468,13 +468,16 @@ POS 點歌分頁的熱門／最近點過／排行榜，格式同 `GET /api/songs
 POS 搜尋 YouTube。query `q`。回同客人端搜尋（不篩長度）。
 
 ### POST /api/admin/orders/songs/queue
-櫃檯代點（不收費）。body `{ video_id }`。
+櫃檯代點（不收費）。body `{ video_id, front }`；`front:true` 為插播，排在待播最前面（下一首）。
 
 ### DELETE /api/admin/orders/songs/queue/:id
 從待播移除。客人點的歌若還沒結帳，一併從桌上帳單拿掉（`refunded:true`）。
 
 ### POST /api/admin/orders/songs/queue/:id/top
 把待播中的歌移到最前面。
+
+### POST /api/admin/orders/songs/queue/:id/move
+調整待播順序。body `{ to }`，0 起算（0＝下一首），超出範圍夾到頭尾。
 
 ### POST /api/admin/orders/songs/playlist/import
 匯入常態歌單。body `{ playlist, mode }`；`playlist` 為 YouTube 播放清單網址或 ID，`mode:'append'` 接在現有歌單後，否則整份取代。只匯入可嵌入的影片，回 `imported` 筆數。

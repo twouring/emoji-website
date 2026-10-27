@@ -39,7 +39,28 @@ function songRow(t, actions, { rank = null } = {}){
 const SONG_VIEWS = [['popular', '熱門'], ['recent', '最近點過'], ['chart', '排行榜'], ['search', '搜尋']];
 function songListHtml(list, ranked){
   const D = SONGS.data, queued = new Set([...(D.queue || []).map(t => t.video_id), D.now && D.now.kind === 'request' ? D.now.video_id : ''].filter(Boolean));
-  return `<ul class="song-list">${list.map((t, i) => songRow(t, queued.has(t.video_id) ? '<span class="pill pill-draft">已在待播</span>' : `<button type="button" class="btn btn--ghost btn-sm" data-song-queue="${esc(t.video_id)}">代點</button>`, { rank: ranked ? i + 1 : null })).join('')}</ul>`;
+  return `<ul class="song-list">${list.map((t, i) => songRow(t, queued.has(t.video_id) ? '<span class="pill pill-draft">已在待播</span>' : `<button type="button" class="btn btn--ghost btn-sm" data-song-queue="${esc(t.video_id)}">代點</button><button type="button" class="btn btn--solid btn-sm" data-song-queue="${esc(t.video_id)}" data-song-front>插播</button>`, { rank: ranked ? i + 1 : null })).join('')}</ul>`;
+}
+/* 待播排序：↑／↓ 一次挪一格、「下一首播」直接排到最前；第一首與最後一首對應的按鈕停用 */
+function songQueueActs(t, n){
+  const i = t.pos - 1, id = esc(t.id), dis = c => c ? ' disabled' : '';
+  return `<button type="button" class="btn btn--ghost btn-sm song-mv" data-song-move="${id}" data-to="${i - 1}" aria-label="往前移 ${esc(t.title)}"${dis(i === 0)}>↑</button>`
+    + `<button type="button" class="btn btn--ghost btn-sm song-mv" data-song-move="${id}" data-to="${i + 1}" aria-label="往後移 ${esc(t.title)}"${dis(i >= n - 1)}>↓</button>`
+    + (i > 0 ? `<button type="button" class="btn btn--ghost btn-sm" data-song-top="${id}">下一首播</button>` : '')
+    + `<button type="button" class="btn btn--ghost btn-sm song-danger" data-song-del="${id}">移除</button>`;
+}
+/* KTV 音效：在按下的這台平板播放（接音響的播放裝置上按，聲音就從音響出來），和歌曲混音、不打斷播放。音檔 CC0（BigSoundBank）放 /sfx */
+const SONG_SFX = [['applause', '掌聲'], ['applause-big', '熱烈掌聲'], ['cheer', '歡呼'], ['cheer-scream', '尖叫歡呼'], ['wow', '哇～'], ['laugh', '笑聲'], ['drumroll', '鼓聲'], ['rimshot', '冷笑話鼓'], ['party-horn', '派對喇叭'], ['kiss', '親親']];
+const SONG_SFX_AUDIO = {};
+function songSfx(id){
+  let a = SONG_SFX_AUDIO[id];
+  if (!a) { a = SONG_SFX_AUDIO[id] = new Audio('/sfx/' + id + '.mp3'); a.preload = 'auto'; }
+  try { a.pause(); a.currentTime = 0; } catch (e) {}
+  const p = a.play(); if (p && p.catch) p.catch(() => toast('音效無法播放，請再按一次'));
+}
+function songSfxStop(){ Object.values(SONG_SFX_AUDIO).forEach(a => { try { a.pause(); a.currentTime = 0; } catch (e) {} }); }
+function songSfxPanel(me){
+  return `<section class="song-sfx" aria-labelledby="song-sfx-h"><h3 id="song-sfx-h">音效 <small>${me ? '從這台（音響）播放' : '從這台平板播放；要從音響出聲請在播放裝置上按'}</small></h3><div class="song-sfx-grid">${SONG_SFX.map(([k, l]) => `<button type="button" class="song-sfx-btn" data-song-sfx="${k}">${esc(l)}</button>`).join('')}<button type="button" class="song-sfx-btn is-stop" data-song-sfx-stop>停止音效</button></div></section>`;
 }
 function songFindList(){
   const v = SONGS.view;
@@ -63,13 +84,14 @@ function paintSongs(){
   const up = d.upcoming || { items: d.queue.map((t, i) => ({ ...t, kind: 'request', pos: i + 1 })), shuffle: false };
   const reqN = d.queue.length;
   const queue = (up.items.length
-    ? `<ol class="song-list song-queue">${up.items.map(t => songRow(t, t.kind === 'request' ? `${t.pos > 1 ? `<button type="button" class="btn btn--ghost btn-sm" data-song-top="${esc(t.id)}">移到最前</button>` : ''}<button type="button" class="btn btn--ghost btn-sm song-danger" data-song-del="${esc(t.id)}">移除</button>` : '', { rank: t.pos })).join('')}</ol>`
+    ? `<ol class="song-list song-queue">${up.items.map(t => songRow(t, t.kind === 'request' ? songQueueActs(t, reqN) : '', { rank: t.pos })).join('')}</ol>`
     : '<p class="a-empty">沒有接下來的歌。到「設定 → 點歌」匯入常態歌單。</p>')
     + (up.shuffle ? `<p class="hint">常態歌單 ${esc(up.playlist_count)} 首隨機播放，以上是這一輪已洗好的順序。</p>` : '');
   const hist = d.history.length ? `<details class="song-hist"><summary>最近播過（${Math.min(8, d.history.length)}）</summary><ul class="song-list">${d.history.slice(0, 8).map(t => songRow(t, t.result === 'error' ? '<span class="pill pill-wait">無法播放已跳過</span>' : t.result === 'skip' ? '<span class="pill pill-draft">跳過</span>' : '')).join('')}</ul></details>` : '';
   host.innerHTML = `
   <div class="ops-head song-head"><h2>點歌</h2><div class="song-head-act">${status}${player}${me ? '<button type="button" class="btn btn--ghost btn-sm" data-song-release>停止在這台播放</button>' : '<button type="button" class="btn btn--solid btn-sm" data-song-claim>在這台播放</button>'}<button type="button" class="btn btn--ghost btn-sm" data-song-settings>點歌設定</button></div></div>
   ${nowCard}
+  ${songSfxPanel(me)}
   <div class="song-grid">
     <section aria-labelledby="song-q-h"><h3 id="song-q-h">接下來 <span class="song-count">${up.items.length}</span>${reqN ? `<small>客人／櫃檯點歌 ${reqN} 首優先</small>` : ''}</h3>${queue}${hist}</section>
     <section aria-labelledby="song-f-h"><h3 id="song-f-h">找歌代點 <small>店員代點不收費</small></h3>
@@ -88,6 +110,9 @@ function songRelease(){ songPlayerStop(); return songDo(() => api('/admin/orders
 document.addEventListener('click', async e => {
   if (!e.target.closest('#songs-body')) return;
   const b = e.target.closest('button'); if (!b) return; const D = SONGS.data; if (!D) return;
+  if (b.dataset.songSfx) return songSfx(b.dataset.songSfx);
+  if (b.matches('[data-song-sfx-stop]')) return songSfxStop();
+  if (b.dataset.songMove) return songDo(() => api('/admin/orders/songs/queue/' + encodeURIComponent(b.dataset.songMove) + '/move', { method: 'POST', body: { to: Number(b.dataset.to) } }));
   if (b.dataset.songView) { SONGS.view = b.dataset.songView; SONGS.focus = SONGS.view === 'search'; return paintSongs(); }
   if (b.matches('[data-song-settings]')) { SONG_SET_FOCUS = true; return go('settings'); }
   if (b.matches('[data-song-claim]')) return songClaim();
@@ -99,7 +124,7 @@ document.addEventListener('click', async e => {
     if (!await posConfirm(`移除「${t.title}」？${t.source === 'guest' && t.price ? `\n客人點的歌會一併從桌 ${t.table} 的帳上拿掉（NT$${t.price}）。` : ''}`, { ok: '移除', danger: true })) return;
     return songDo(() => api('/admin/orders/songs/queue/' + encodeURIComponent(t.id), { method: 'DELETE' }), d => d.refunded ? '已移除，並從桌上帳單拿掉' : '已移除');
   }
-  if (b.dataset.songQueue) { b.disabled = true; return songDo(() => api('/admin/orders/songs/queue', { method: 'POST', body: { video_id: b.dataset.songQueue } }), '已排進待播'); }
+  if (b.dataset.songQueue) { const front = b.hasAttribute('data-song-front'); b.disabled = true; return songDo(() => api('/admin/orders/songs/queue', { method: 'POST', body: { video_id: b.dataset.songQueue, front } }), front ? '已插播，下一首播放' : '已排進待播'); }
 });
 document.addEventListener('submit', async e => {
   const f = e.target; if (!f.closest('#songs-body')) return; e.preventDefault();

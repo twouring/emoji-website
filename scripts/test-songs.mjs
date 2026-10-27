@@ -228,3 +228,25 @@ test('POS：顯示哪桌誰點的、接下來全部歌曲；播放器可拖移�
   const t = pos.match(/\.song-dock-bar span\{[^}]*\}/)[0];
   assert.doesNotMatch(t, /nowrap|ellipsis|line-clamp/, '播放器歌名不截斷');
 });
+
+test('待播排序：移到指定位置（夾頭尾）；插播 front 排到下一首', () => {
+  let st = songs.normalizeState('');
+  for (const n of [1, 2, 3, 4]) st = songs.enqueue(st, T(ID(n)), { source: 'pos' }).state;
+  const ids = () => st.queue.map(e => e.video_id), id = n => st.queue.find(e => e.video_id === ID(n)).id;
+  st = songs.moveTo(st, id(4), 1); assert.deepEqual(ids(), [ID(1), ID(4), ID(2), ID(3)]);
+  st = songs.moveTo(st, id(1), 99); assert.deepEqual(ids(), [ID(4), ID(2), ID(3), ID(1)]);
+  st = songs.moveTo(st, id(3), -5); assert.deepEqual(ids(), [ID(3), ID(4), ID(2), ID(1)]);
+  assert.throws(() => songs.moveTo(st, 'nope', 0), /不在待播/);
+  st = songs.enqueue(st, T(ID(5)), { source: 'pos', front: true }).state; assert.equal(st.queue[0].video_id, ID(5));
+  // 插播的歌在 upcoming 排第一
+  assert.equal(songs.upcoming(st, songs.normalizeSettings('')).items[0].video_id, ID(5));
+});
+
+test('POS：排序鍵、插播、KTV 音效（CC0 音檔都在 public/sfx）', () => {
+  const ps = read('public/pos-songs.js'), srv = read('server.js'), doc = read('docs/API.md');
+  assert.match(ps, /data-song-move/); assert.match(ps, /data-song-front/); assert.match(ps, /下一首播/);
+  assert.match(srv, /\/api\/admin\/orders\/songs\/queue\/:id\/move/); assert.match(doc, /### POST \/api\/admin\/orders\/songs\/queue\/:id\/move/);
+  const ids = [...ps.match(/const SONG_SFX = (.*);/)[1].matchAll(/\['([a-z-]+)', '[^']+'\]/g)].map(m => m[1]);
+  for (const k of ['applause', 'cheer', 'laugh', 'drumroll']) assert.ok(ids.includes(k), k);
+  for (const k of ids) assert.ok(fs.existsSync(new URL('../public/sfx/' + k + '.mp3', import.meta.url)), k + '.mp3');
+});
