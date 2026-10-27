@@ -18,7 +18,7 @@ test('order.html 有店家資訊區塊，且在 #app 之外（錯誤／結束畫
   assert.match(html, /93537055/);
   assert.match(html, /id="price-table"/);
   assert.match(html, /function renderPriceTable/);
-  assert.match(html, /href="tel:\+886921102067"/);
+  assert.match(html, /href="tel:\+886983665352">\+886 983-665352</);
   assert.match(html, /href="mailto:us@emoji\.tw"/);
   assert.match(html, /href="\/refund"/);
 });
