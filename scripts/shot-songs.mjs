@@ -11,8 +11,9 @@ const type = f => ({ '.js': 'application/javascript', '.css': 'text/css', '.html
 const th = 'https://i.ytimg.com/vi/x/mqdefault.jpg';
 const T = (i, title, ch, d, extra = {}) => ({ id: 'sr_' + i, video_id: ('v' + i).padEnd(11, 'x'), title, channel: ch, duration: d, thumb: '', ...extra });
 const playlist = [T(1, 'Lo-fi Café Morning', 'Chill Beats', 214), T(2, 'Bossa Nova Afternoon', 'Jazz Lounge', 245), T(3, '夜晚的城市散步', 'City Pop TW', 198)];
+const longT = '告白氣球 Love Confession（官方完整版 MV）- 周杰倫 Jay Chou【高音質 HD】';
 const admin = { settings: { enabled: true, price: 10, max_per_table: 3, max_minutes: 10, shuffle: false, playlist, player_device: 'dev-1' },
-  now: { ...T(9, '晴天', '周杰倫 Jay Chou', 269), kind: 'request', table: 'A3', by: '小明', source: 'guest', price: 10 },
+  now: { ...T(9, longT, '周杰倫 Jay Chou', 269), kind: 'request', table: 'A3', by: '小明', source: 'guest', price: 10 },
   queue: [T(10, '小幸運', '田馥甄 Hebe', 265, { table: 'B1', by: 'Amy', source: 'guest', price: 10 }), T(11, 'Shape of You', 'Ed Sheeran', 263, { table: 'A3', by: '小明', source: 'guest', price: 10 }), T(12, '告白氣球', '周杰倫 Jay Chou', 215, { by: '櫃檯', source: 'pos' })],
   history: [{ ...playlist[0], kind: 'playlist', result: 'preempt' }], youtube: { connected: true, channel: { title: '言文字 emoji' }, connected_by: 'kk@emoji.tw', oauth_ready: true, api_key: false } };
 const guest = { enabled: true, price: 10, max_per_table: 3, max_minutes: 10, now: { ...admin.now, mine: false }, queue: [{ ...admin.queue[0], mine: false }, { ...admin.queue[1], mine: true }, { ...admin.queue[2], table: '' }] };
@@ -27,6 +28,8 @@ function api(u) {
   if (p === '/api/admin/orders/songs') return admin;
   if (p === '/api/admin/orders/songs/search' || p === '/api/songs/search') return search;
   if (p === '/api/songs') return guest;
+  if (p === '/api/songs/discover' || p === '/api/admin/orders/songs/discover') return { popular: [{ ...T(30, '告白氣球 Love Confession（官方完整版 MV）- 周杰倫 Jay Chou', '周杰倫 Jay Chou', 215), count: 12 }, { ...T(31, '小幸運 A Little Happiness（電影《我的少女時代》主題曲）', '田馥甄 Hebe', 265), count: 8 }, { ...T(32, '晴天', '周杰倫', 269), count: 5 }], recent: [T(33, 'APT.', 'ROSÉ & Bruno Mars', 170)], chart: [T(34, '排行榜第一名歌曲 Official Music Video', 'Artist', 230), T(35, 'Chart #2', 'Artist 2', 200)] };
+  if (p === '/api/payment-methods' || p === '/api/admin/payment-methods') return { payment_methods: [] };
   if (p === '/api/orders/table' || p.startsWith('/api/orders/ts_')) return session;
   if (p === '/api/orders/config') return { tappay: null, vapid_public_key: null };
   if (p === '/api/orders/pause') return { venue: 'BAR', paused: null };
@@ -61,20 +64,26 @@ async function shot(url, w, h, name, { mobile = false, prep = null, act = null }
     const navSongs = document.querySelector('#p-nav [data-tab=songs]');
     const panel = document.querySelector('#songs-body') || document.querySelector('#songs.on');
     const card = document.querySelector('#song-open');
+    const titles = [...document.querySelectorAll('.song-meta b,.song-row .n b,.song-now-main b,.song-now .n b')].filter(vis).map(b => { const cs = getComputedStyle(b); return { lines: Math.round(b.getBoundingClientRect().height / parseFloat(cs.lineHeight)), nowrap: cs.whiteSpace === 'nowrap' }; });
     const clipped = [...document.querySelectorAll('.song-row')].filter(vis).filter(r => r.scrollWidth > r.clientWidth + 1).length;
     return { nav: navSongs ? navSongs.textContent.trim() + (navSongs.querySelector('svg') ? '+icon' : '') : null, songCard: card ? (vis(card) ? card.innerText.replace(/\n/g, ' / ') : 'hidden') : null,
-      panelText: panel && vis(panel) ? panel.innerText.replace(/\s+/g, ' ').slice(0, 420) : null, rowsClipped: clipped, smallControls: small.slice(0, 8) };
+      panelText: panel && vis(panel) ? panel.innerText.replace(/\s+/g, ' ').slice(0, 420) : null, rowsClipped: clipped, titleLines: titles.map(t => t.lines).join(','), nowrap: titles.filter(t => t.nowrap).length, tabs: [...document.querySelectorAll('.song-tabs [role=tab]')].map(b => b.textContent.trim()).join('|'), smallControls: small.slice(0, 8) };
   });
   console.log(name, JSON.stringify(probe));
+  const extra = await page.evaluate(() => { const set = document.getElementById('set-songs-body'); const L = [...document.querySelectorAll('.song-meta b,.song-row .n b,.song-now-main b,.song-now .n b')].filter(b => b.offsetHeight).map(b => b.textContent.slice(0, 18) + '=' + Math.round(b.offsetHeight / parseFloat(getComputedStyle(b).lineHeight)) + 'L/' + (b.scrollHeight > b.clientHeight + 1 ? 'clamped' : 'full')); return { setSongs: set ? set.innerText.replace(/\s+/g, ' ').slice(0, 260) : 'NO-SECTION', lines: L.slice(0, 6) }; });
+  console.log(name, 'EXTRA', JSON.stringify(extra));
   await page.screenshot({ path: path.join(OUT, name + '.png'), fullPage: true });
   console.log(name, 'overflow=' + overflow, errs.length ? 'ERR ' + errs.join(' | ') : 'no-errors');
   await page.close();
 }
 await shot('https://pos.test/pos/songs', 1280, 900, 'pos-songs-1280');
 await shot('https://pos.test/pos/songs', 390, 844, 'pos-songs-390', { mobile: true });
+await shot('https://pos.test/pos/settings', 1280, 900, 'pos-settings-songs-1280', { act: async p => { await new Promise(r => setTimeout(r, 500)); await p.evaluate(() => document.getElementById('set-songs')?.scrollIntoView()); } });
 const order = 'https://pos.test/order?s=ts_0000000000000001&k=0123456789abcdef';
 await shot(order, 390, 844, 'order-menu-390', { mobile: true });
-const openSongs = async page => { await page.click('#song-open'); await page.type('#song-q', '晴天'); await page.click('#song-go'); await new Promise(r => setTimeout(r, 400)); };
+const openSongs = async page => { await page.click('#song-open'); await new Promise(r => setTimeout(r, 400)); };
+const searchSongs = async page => { await openSongs(page); await page.click('[data-song-view=search]'); await page.type('#song-q', '晴天'); await page.click('#song-go'); await new Promise(r => setTimeout(r, 400)); };
 await shot(order, 390, 844, 'order-songs-390', { mobile: true, act: openSongs });
 await shot(order, 320, 640, 'order-songs-320', { mobile: true, act: openSongs });
+await shot(order, 390, 844, 'order-songs-search-390', { mobile: true, act: searchSongs });
 await browser.close();

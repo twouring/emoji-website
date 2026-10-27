@@ -443,6 +443,9 @@ body `{attempt_id}`。只取消 `prepared`（尚未送出）意圖；已送出�
 ### GET /api/songs/search
 點歌搜尋（客人端）。query `s`、`k`、`q`（歌名、歌手或 YouTube 影片網址）。只回可嵌入、非直播、長度在上限內的影片 `{ items:[{ video_id, title, channel, thumb, duration }] }`。綁定的 YouTube 帳號優先，否則用 `YOUTUBE_API_KEY`；兩者都沒有回 503。同關鍵字 30 分鐘內共用結果（YouTube 搜尋一次耗 100 單位額度）。點歌關閉 423。
 
+### GET /api/songs/discover
+點歌推薦清單（客人端）。query `s`、`k`。回 `{ popular, recent, chart }`：`popular` 為店內客人累計點播次數最多的歌（含 `count`），`recent` 為最近被點過的歌（含 `last_at`），兩者來自 `site_content.song_stats`（客人點歌成功時累計，最多保留 500 首）；`chart` 為 YouTube 台灣音樂類熱門影片（`chart=mostPopular`、`videoCategoryId=10`，伺服器快取 6 小時，讀取失敗回空陣列）。皆已過濾超過單首長度上限的歌。點歌關閉 423。
+
 ### POST /api/songs/request
 點歌（客人端）。body `{ s, k, video_id, guest, by }`。伺服器重新查影片（可嵌入、長度上限），排進待播並在這桌加一行 `cat:'SONG'`、`item_id:'song'` 的品項（單價取點歌設定，預設 NT$10；`placed_at`／`served_at` 同時寫入＝不進出餐看板、不印出餐單，客人不能自己刪），用餐完和餐點一起在櫃檯結帳。同一首已在待播 409、本桌待播達上限 409、暫停點餐或非營業時段 423。回 201 與最新待播。
 
@@ -457,6 +460,9 @@ POS 點歌分頁狀態：`settings`（`enabled` 預設 false、`price`、`max_pe
 
 ### POST /api/admin/orders/songs/next
 換下一首。body `{ result, current, device }`；`result` 為 `ended`（播完）、`error`（影片無法播放）、`preempt`（有人點歌時切掉常態歌單）、`skip`（店員按下一首）。`skip` 以外只接受播放裝置；`current` 與伺服器正在播放的不同時回 `stale:true` 不動作（避免重複換歌）。有人點歌先播最早那首，沒有就播常態歌單（依序或隨機）。客人點的歌因 `error` 被跳過時，尚未結帳的點歌品項自動從這桌帳上拿掉（`refunded:true`）。
+
+### GET /api/admin/orders/songs/discover
+POS 點歌分頁的熱門／最近點過／排行榜，格式同 `GET /api/songs/discover`（不篩長度）。
 
 ### GET /api/admin/orders/songs/search
 POS 搜尋 YouTube。query `q`。回同客人端搜尋（不篩長度）。

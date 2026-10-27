@@ -6942,9 +6942,28 @@ app.post('/api/songs/request',rateLimit({max:20}),requireDb,wrap(async(req,res)=
       const line=songs.songLine(entry,{venue,guest:b.guest});entry.line=line.line;
       await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[ss.id,JSON.stringify(ss.items.concat([line]))]);
       await saveSongState(client,next);
+      await client.query(`INSERT INTO site_content(key,value) VALUES('song_stats','{}') ON CONFLICT(key) DO NOTHING`);
+      const stats=songs.normalizeStats((await client.query(`SELECT value FROM site_content WHERE key='song_stats' FOR UPDATE`)).rows[0]?.value);
+      await client.query(`UPDATE site_content SET value=$1,updated_at=now() WHERE key='song_stats'`,[JSON.stringify(songs.bumpStats(stats,video))]);
       return {entry,view:songs.publicView(next,settings,ss.table_no)};
     });
     res.status(201).json({ok:true,request_id:out.entry.id,price:out.entry.price,...out.view});
+  }catch(e){return songErr(res,e);}
+}));
+// 熱門（店內累計點播次數）／最近點過／排行榜（YouTube 台灣音樂熱門，快取 6 小時；額度不足或未設定時回空陣列）
+let SONG_CHART={at:0,items:[]};
+async function songChart(){
+  if(SONG_CHART.at>Date.now()-6*3600e3&&SONG_CHART.items.length)return SONG_CHART.items;
+  try{SONG_CHART={at:Date.now(),items:await youtube.chart(30)};}catch(e){console.warn('[songs] 排行榜讀取失敗',e.message);if(!SONG_CHART.items.length)return [];}
+  return SONG_CHART.items;
+}
+async function songDiscover(maxSeconds){
+  const lists=songs.discoverLists(songs.normalizeStats(await contentValue('song_stats')),{maxSeconds});
+  return {...lists,chart:(await songChart()).filter(v=>!maxSeconds||!v.duration||v.duration<=maxSeconds)};
+}
+app.get('/api/songs/discover',rateLimit({max:30}),requireDb,wrap(async(req,res)=>{
+  try{await songGuestSession(req.query);const settings=await songSettings();if(!settings.enabled)return res.status(423).json({error:'點歌目前沒有開放。'});
+    res.set('Cache-Control','no-store');res.json(await songDiscover(settings.max_minutes*60));
   }catch(e){return songErr(res,e);}
 }));
 // POS「點歌」分頁（路徑掛在 /api/admin/orders 底下＝品牌子帳號可用）
@@ -6975,6 +6994,9 @@ app.post('/api/admin/orders/songs/next',auth,adminOnly,requireDb,wrap(async(req,
     await saveSongState(client,out.state);
     return {...await songAdminView(settings,out.state),refunded};
   }));}catch(e){return songErr(res,e);}
+}));
+app.get('/api/admin/orders/songs/discover',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  res.set('Cache-Control','no-store');res.json(await songDiscover(0));
 }));
 app.get('/api/admin/orders/songs/search',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   try{res.json({items:await songSearch(req.query.q)});}catch(e){return songErr(res,e);}

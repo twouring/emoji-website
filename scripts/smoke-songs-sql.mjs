@@ -68,6 +68,9 @@ test('點歌：預設關閉、開啟後掃碼點歌進帳單、常態歌單、�
     let its = await items(); assert.equal(its.length, 1); assert.equal(its[0].price, 10); assert.equal(its[0].cat, 'SONG'); assert.ok(its[0].placed_at && its[0].served_at);
     // 重複點同一首 409
     assert.equal((await call('POST', '/api/songs/request', { s: S, k: K, video_id: ID(1), guest: 'abcdefgh12' })).status, 409);
+    // 點播統計：熱門／最近點過
+    r = await call('GET', '/api/songs/discover?' + QS);
+    assert.equal(r.status, 200, JSON.stringify(r.body)); assert.equal(r.body.popular[0].video_id, ID(1)); assert.equal(r.body.popular[0].count, 1); assert.equal(r.body.recent[0].video_id, ID(1)); assert.ok(Array.isArray(r.body.chart));
     // 不可嵌入的影片 400
     assert.equal((await call('POST', '/api/songs/request', { s: S, k: K, video_id: ID(9), guest: 'abcdefgh12' })).status, 400);
     // 播放裝置看到有人點歌 → preempt 切掉常態歌單

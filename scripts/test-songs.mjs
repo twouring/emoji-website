@@ -156,3 +156,45 @@ test('接線：POS 分頁、客人菜單卡片、操作紀錄、品牌子帳號�
   assert.ok(!require('../lib/security.js').PUBLIC_CONTENT_KEYS.some(k => /^song/.test(k)), 'song_* 不可進公開內容');
   assert.match(server, /access_token:encSecret\(t\.access_token\),refresh_token:encSecret\(t\.refresh_token\)/, 'YouTube token 加密保存');
 });
+
+test('點播統計：熱門依次數、最近依時間、長度上限過濾、最多 500 首', () => {
+  let st = songs.normalizeStats('');
+  st = songs.bumpStats(st, T(ID(1)), Date.parse('2026-10-27T10:00:00Z'));
+  st = songs.bumpStats(st, T(ID(2)), Date.parse('2026-10-27T11:00:00Z'));
+  st = songs.bumpStats(st, T(ID(1)), Date.parse('2026-10-27T09:00:00Z'));
+  st = songs.bumpStats(st, T(ID(3), { duration: 900 }), Date.parse('2026-10-27T12:00:00Z'));
+  const d = songs.discoverLists(st, { maxSeconds: 600 });
+  assert.deepEqual(d.popular.map(t => [t.video_id, t.count]), [[ID(1), 2], [ID(2), 1]]);
+  assert.deepEqual(d.recent.map(t => t.video_id), [ID(2), ID(1)]);
+  let big = songs.normalizeStats('');
+  for (let i = 0; i < 510; i++) big = songs.bumpStats(big, T(('z' + i).padEnd(11, 'q')), 1e12 + i);
+  assert.equal(Object.keys(big.songs).length, 500);
+  assert.ok(!big.songs['z0'.padEnd(11, 'q')], '最舊的被淘汰');
+});
+
+test('排行榜：YouTube 台灣音樂熱門（chart=mostPopular、videoCategoryId=10），過濾不可嵌入', async () => {
+  let url = '';
+  const yt = songs.createYouTube({ apiKey: 'K', fetchImpl: async u => { url = u; return { ok: true, json: async () => ({ items: [
+    { id: ID(1), snippet: { title: 'Hit', channelTitle: 'A', liveBroadcastContent: 'none' }, contentDetails: { duration: 'PT3M' }, status: { embeddable: true } },
+    { id: ID(2), snippet: { title: 'No' }, contentDetails: { duration: 'PT3M' }, status: { embeddable: false } }] }) }; } });
+  const out = await yt.chart(30);
+  assert.deepEqual(out.map(v => v.video_id), [ID(1)]);
+  assert.match(url, /chart=mostPopular/); assert.match(url, /regionCode=TW/); assert.match(url, /videoCategoryId=10/);
+});
+
+test('UI：設定移到設定頁、分頁有熱門／最近點過／排行榜／搜尋、標題完整顯示不截斷', () => {
+  const ps = read('public/pos-songs.js'), set = read('public/pos-settings.js'), pos = read('public/pos.html'), order = read('public/order.html');
+  assert.match(set, /songSettingsSection\(\)/); assert.match(set, /bindSongSettings\(\)/);
+  assert.match(ps, /function paintSongSettings/);
+  // 分頁本身不再有開關與價格表單
+  const paint = ps.slice(ps.indexOf('function paintSongs'), ps.indexOf('async function songDo'));
+  assert.doesNotMatch(paint, /data-song-enabled|data-song-set[ >]|data-song-yt-on|data-song-import/);
+  assert.match(ps, /\['popular', '熱門'\], \['recent', '最近點過'\], \['chart', '排行榜'\], \['search', '搜尋'\]/);
+  assert.match(order, /var SONG_VIEWS=\['popular','recent','chart','search','queue'\]/);
+  assert.match(order, /\/songs\/discover\?/);
+  for (const css of [pos, order]) {
+    const row = css.match(/\.song-(?:meta|row \.n) b\{[^}]*\}/)[0];
+    assert.match(row, /overflow-wrap:anywhere/, '長標題換行');
+    assert.doesNotMatch(row, /white-space:nowrap|text-overflow|line-clamp/, '標題完整顯示，不可截斷');
+  }
+});

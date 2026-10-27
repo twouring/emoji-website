@@ -29,7 +29,7 @@ h3{font-size:1.05rem;margin:0 0 6px}
 .item{display:flex;flex-direction:row;align-items:center;min-width:0;width:100%;padding:6px;gap:10px;overflow:hidden;border:1px solid var(--line);border-radius:14px;background:#fff;text-align:left}
 .item:active{transform:translateY(1px)}
 .item img,.item .ph{width:60px;height:60px;aspect-ratio:1/1;border-radius:10px;object-fit:cover;flex:none;background:linear-gradient(135deg,#eee9da,#faf8f3);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:1.4rem}
-.item .n{padding:0 4px 0 0;min-width:0;flex:1;display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;align-items:center}.item .n>b,.item .n>small{grid-column:1}.item .n>.meta{grid-column:2;grid-row:1/span 3;flex-direction:column;align-items:flex-end;gap:2px;margin:0!important}.item .n b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.35}.item .n small{color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.item .n small.note{display:none}
+.item .n{padding:0 4px 0 0;min-width:0;flex:1;display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;align-items:center}.item .n>b,.item .n>small{grid-column:1}.item .n>.meta{grid-column:2;grid-row:1/span 3;flex-direction:column;align-items:flex-end;gap:2px;margin:0!important}.item .n b{word-break:normal;line-height:1.35}.item .n small{color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.item .n small.note{display:none}
 .item .meta{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px}.item .p{font-weight:800;white-space:nowrap}.item .left,.detail-price .left{font-size:1rem;font-weight:700;color:#8a5a00;white-space:nowrap}.item .tap{font-size:1rem;color:var(--muted)}
 .add{border:0;background:transparent;color:inherit;text-align:left}
 #name-gate{border-color:var(--yellow);box-shadow:0 0 0 1px var(--yellow)}#name-gate h3{margin-top:0}
@@ -71,13 +71,18 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 .st.paid{background:#EEE9DA}.st.ready{background:var(--yellow)}.st.done{background:var(--line);color:var(--muted)}
 /* 已點清單每行的送單狀態：未送出（白底黃框）、已送出（米底）、已出餐（灰字） */
 .song-card{display:flex;align-items:center;gap:12px;width:100%;margin:0 0 12px;padding:12px 14px;border:1.5px solid var(--ink);border-radius:14px;background:#fff;text-align:left;color:var(--ink)}
-.song-card .n{flex:1;min-width:0;display:flex;flex-direction:column}.song-card small{color:var(--muted);line-height:1.4}.song-card .song-card-now{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.song-card .p{font-weight:700;white-space:nowrap}
+.song-card .n{flex:1;min-width:0;display:flex;flex-direction:column}.song-card small{color:var(--muted);line-height:1.4}.song-card .song-card-now{overflow-wrap:anywhere;word-break:normal}.song-card .p{font-weight:700;white-space:nowrap}
+.song-now{display:flex;align-items:center;gap:10px;padding:10px;margin:0 0 12px;border-radius:12px;background:var(--ink);color:#fff}.song-now img{width:80px;height:45px;border-radius:6px;object-fit:cover;flex:none}.song-now .n{flex:1;min-width:0;display:flex;flex-direction:column}.song-now .n small{opacity:.8}.song-now .n b{line-height:1.35;overflow-wrap:anywhere;word-break:normal}
+.song-tabs{display:flex;gap:6px;margin:0 0 12px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}.song-tabs::-webkit-scrollbar{display:none}
+.song-tabs button{flex:none;min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);white-space:nowrap}.song-tabs button[aria-selected=true]{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:700}
 .song-form{display:flex;gap:8px;margin:0 0 12px}.song-form .f{flex:1;min-width:0;min-height:48px}
 .song-list{list-style:none;margin:0 0 14px;padding:0;display:flex;flex-direction:column;gap:6px}
-.song-row{display:flex;align-items:center;gap:10px;padding:6px;border:1px solid var(--line);border-radius:10px;background:#fff;min-width:0}
-.song-row img{width:72px;height:40px;object-fit:cover;border-radius:6px;flex:none}.song-row .n{flex:1;min-width:0;display:flex;flex-direction:column}.song-row .n b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.song-row .n small{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.song-row .btn{flex:none;min-height:44px}
-.song-h{margin:14px 0 6px;font-size:1rem}
+.song-row{display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--line);border-radius:12px;background:#fff;min-width:0}
+.song-rank{flex:none;width:22px;text-align:center;font-weight:700;color:var(--muted)}
+.song-row img{width:72px;height:40px;object-fit:cover;border-radius:6px;flex:none}.song-row .n{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.song-row .n b{line-height:1.35;overflow-wrap:anywhere;word-break:normal}.song-row .n small{color:var(--muted);line-height:1.4;overflow-wrap:anywhere}
+.song-row .btn{flex:none;min-height:44px}.song-row .tag{flex:none;margin:0}
+@media (max-width:360px){.song-row img{display:none}}
 .tag{display:inline-block;padding:1px 8px;border-radius:999px;border:1px solid var(--line);margin-left:6px;vertical-align:middle;color:var(--muted)}
 .tag.pending{border-color:var(--yellow);background:#fffbe8;color:var(--ink)}.tag.placed{background:#EEE9DA;color:var(--ink)}
 /* 別人加了還沒送出的品項：整行黃底，讓人一眼看到「我按送出會連這些一起送」；剛出現的行閃一下 */
@@ -157,8 +162,10 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 
 <div class="sheet" id="songs" role="dialog" aria-labelledby="songs-title"><div class="in">
   <div class="sheet-body"><h3 class="title-icon" id="songs-title"><svg class="ico lg" aria-hidden="true"><use href="#i-music"></use></svg><span data-i18n="song_title">點歌</span></h3><p class="muted" id="song-sub"></p>
-    <form class="song-form" id="song-form"><input class="f" id="song-q" type="search" maxlength="80" autocomplete="off" enterkeyhint="search" data-i18n-placeholder="song_search" placeholder="搜尋歌名或歌手"><button class="btn y" type="submit" id="song-go" data-i18n="song_search_btn">搜尋</button></form>
-    <div id="song-results"></div><div id="song-board"></div></div>
+    <div id="song-now-box"></div>
+    <div class="song-tabs" role="tablist" id="song-tabs"></div>
+    <form class="song-form" id="song-form" hidden><input class="f" id="song-q" type="search" maxlength="80" autocomplete="off" enterkeyhint="search" data-i18n-placeholder="song_search" placeholder="搜尋歌名或歌手"><button class="btn y" type="submit" id="song-go" data-i18n="song_search_btn">搜尋</button></form>
+    <div id="song-results"></div></div>
   <div class="row sheet-actions"><button class="btn ghost with-icon" type="button" data-close><svg class="ico" aria-hidden="true"><use href="#i-back"></use></svg><span data-i18n="back_menu">返回菜單</span></button></div>
 </div></div>
 
@@ -417,12 +424,18 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
       .then(function(){placing=false;btns.forEach(function(b){b.disabled=false;});});};
 
 
-  /* ---- 點歌：店家在 POS 開放後，菜單上方出現「點歌」卡片；搜尋 YouTube、點一首（記在這桌帳上），POS 播放裝置自動播放 ---- */
-  var SONG=null,SONG_ITEMS=null,SONG_BUSY=false;
+  /* ---- 點歌：店家在 POS 開放後，菜單上方出現「點歌」卡片；分頁看熱門（店內點播次數）、最近點過、排行榜（YouTube 台灣音樂熱門）、搜尋、待播；點一首記在這桌帳上 ---- */
+  var SONG=null,SONG_DISC=null,SONG_ITEMS=null,SONG_BUSY=false,SONG_VIEW='';
+  var SONG_VIEWS=['popular','recent','chart','search','queue'];
   function songQs(){return 's='+encodeURIComponent(SID)+'&k='+encodeURIComponent(K);}
   function songDur(x){return x?Math.floor(x/60)+':'+String(x%60).padStart(2,'0'):'';}
   function loadSongs(){if(!S)return Promise.resolve();return api('/songs?'+songQs()).then(function(d){SONG=d;renderSongs();}).catch(function(){SONG=null;renderSongs();});}
-  function songRow(t,btn){return '<li class="song-row">'+(t.thumb?'<img src="'+esc(t.thumb)+'" alt="" loading="lazy">':'')+'<span class="n"><b>'+esc(t.title)+'</b><small>'+esc([t.channel,songDur(t.duration),t.mine?tr('song_mine'):(t.table?tr('table')+' '+t.table:''),t.kind==='playlist'?tr('song_playlist'):''].filter(Boolean).join('・'))+'</small></span>'+(btn||'')+'</li>';}
+  function loadDiscover(){return api('/songs/discover?'+songQs()).then(function(d){SONG_DISC=d;if(!SONG_VIEW)SONG_VIEW=d.popular&&d.popular.length?'popular':d.chart&&d.chart.length?'chart':'search';renderSongs();}).catch(function(){SONG_DISC={popular:[],recent:[],chart:[]};if(!SONG_VIEW)SONG_VIEW='search';renderSongs();});}
+  function songMeta(t){return [t.channel,songDur(t.duration),t.mine?tr('song_mine'):(t.table?tr('table')+' '+t.table:''),t.kind==='playlist'?tr('song_playlist'):'',t.count?tr('song_times',{n:t.count}):''].filter(Boolean).map(esc).join('・');}
+  function songRow(t,btn,rank){return '<li class="song-row">'+(rank?'<span class="song-rank">'+rank+'</span>':'')+(t.thumb?'<img src="'+esc(t.thumb)+'" alt="" loading="lazy">':'')+'<span class="n"><b>'+esc(t.title)+'</b><small>'+songMeta(t)+'</small></span>'+(btn||'')+'</li>';}
+  function songQueued(){var m={};(SONG&&SONG.queue||[]).forEach(function(t){m[t.video_id]=true;});if(SONG&&SONG.now&&SONG.now.kind==='request')m[SONG.now.video_id]=true;return m;}
+  function songPickList(list,ranked){var q=songQueued();return '<ul class="song-list">'+list.map(function(t,i){return songRow(t,q[t.video_id]?'<span class="tag">'+esc(tr('song_queued'))+'</span>':'<button class="btn y sm" type="button" data-song-pick="'+esc(t.video_id)+'">'+esc(tr('song_pick'))+'</button>',ranked?i+1:0);}).join('')+'</ul>';}
+  function songFind(id){var all=[].concat(SONG_ITEMS||[],SONG_DISC&&SONG_DISC.popular||[],SONG_DISC&&SONG_DISC.recent||[],SONG_DISC&&SONG_DISC.chart||[]);for(var i=0;i<all.length;i++)if(all[i].video_id===id)return all[i];return null;}
   function renderSongs(){
     var on=!!(SONG&&SONG.enabled&&VENUE);
     $('#song-open').classList.toggle('hidden',!on);
@@ -430,20 +443,27 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     $('#song-card-sub').textContent=tr('song_card');$('#song-card-price').textContent=money(SONG.price)+(LANG==='en'?' / song':LANG==='ja'?'／曲':'／首');
     var nowEl=$('#song-card-now');nowEl.hidden=!SONG.now;if(SONG.now)nowEl.textContent='♪ '+SONG.now.title;
     $('#song-sub').textContent=tr('song_price',{price:SONG.price})+'　'+tr('song_hint',{min:SONG.max_minutes,max:SONG.max_per_table});
-    var res='';
-    if(SONG_ITEMS)res=SONG_ITEMS.length?'<ul class="song-list">'+SONG_ITEMS.map(function(t){return songRow(t,'<button class="btn y sm" type="button" data-song-pick="'+esc(t.video_id)+'">'+esc(tr('song_pick'))+'</button>');}).join('')+'</ul>':'<p class="muted">'+esc(tr('song_none'))+'</p>';
-    $('#song-results').innerHTML=res;
-    $('#song-board').innerHTML=(SONG.now?'<h4 class="song-h">'+esc(tr('song_now'))+'</h4><ul class="song-list">'+songRow(SONG.now)+'</ul>':'')+'<h4 class="song-h">'+esc(tr('song_queue'))+'</h4>'+(SONG.queue.length?'<ul class="song-list">'+SONG.queue.map(function(t){return songRow(t);}).join('')+'</ul>':'<p class="muted">'+esc(tr('song_queue_empty'))+'</p>');
+    $('#song-now-box').innerHTML=SONG.now?'<div class="song-now">'+(SONG.now.thumb?'<img src="'+esc(SONG.now.thumb)+'" alt="">':'')+'<span class="n"><small>'+esc(tr('song_now'))+'</small><b>'+esc(SONG.now.title)+'</b></span></div>':'';
+    var v=SONG_VIEW||'popular',labels={popular:tr('song_popular'),recent:tr('song_recent'),chart:tr('song_chart'),search:tr('song_search_btn'),queue:tr('song_queue')+(SONG.queue.length?' '+SONG.queue.length:'')};
+    $('#song-tabs').innerHTML=SONG_VIEWS.map(function(k){return '<button type="button" role="tab" aria-selected="'+(k===v)+'" data-song-view="'+k+'">'+esc(labels[k])+'</button>';}).join('');
+    $('#song-form').hidden=v!=='search';
+    var html='';
+    if(v==='search')html=SONG_ITEMS?(SONG_ITEMS.length?songPickList(SONG_ITEMS,false):'<p class="muted">'+esc(tr('song_none'))+'</p>'):'';
+    else if(v==='queue')html=SONG.queue.length?'<ul class="song-list">'+SONG.queue.map(function(t,i){return songRow(t,'',i+1);}).join('')+'</ul>':'<p class="muted">'+esc(tr('song_queue_empty'))+'</p>';
+    else if(!SONG_DISC)html='<p class="muted">'+esc(tr('loading'))+'</p>';
+    else{var list=SONG_DISC[v]||[];html=list.length?songPickList(list,v!=='recent'):'<p class="muted">'+esc(tr(v==='chart'?'song_chart_empty':'song_none_yet'))+'</p>';}
+    $('#song-results').innerHTML=html;
   }
-  $('#song-open').onclick=function(){loadSongs();openSheet('#songs');};
+  $('#song-open').onclick=function(){loadSongs();loadDiscover();openSheet('#songs');};
+  $('#song-tabs').addEventListener('click',function(e){var b=e.target.closest('[data-song-view]');if(!b)return;SONG_VIEW=b.dataset.songView;renderSongs();if(SONG_VIEW==='search')$('#song-q').focus();});
   $('#song-form').onsubmit=function(e){e.preventDefault();var q=$('#song-q').value.trim();if(!q||SONG_BUSY)return;SONG_BUSY=true;var b=$('#song-go');b.disabled=true;b.textContent=tr('song_searching');
     api('/songs/search?'+songQs()+'&q='+encodeURIComponent(q)).then(function(d){SONG_ITEMS=d.items||[];renderSongs();}).catch(function(err){toast(err.message);})
       .then(function(){SONG_BUSY=false;b.disabled=false;b.textContent=tr('song_search_btn');});};
   document.addEventListener('click',function(e){var p=e.target.closest('[data-song-pick]');if(!p||SONG_BUSY)return;if(!NAME){closeSheets();showGate();return;}
-    var t=(SONG_ITEMS||[]).find(function(x){return x.video_id===p.dataset.songPick;});if(!t)return;
+    var t=songFind(p.dataset.songPick);if(!t)return;
     if(!confirm(tr('song_confirm',{title:t.title,price:SONG.price})))return;
     SONG_BUSY=true;p.disabled=true;
-    api('/songs/request',{method:'POST',body:{s:SID,k:K,video_id:t.video_id,guest:GUEST,by:NAME}}).then(function(d){SONG=d;SONG_ITEMS=null;$('#song-q').value='';renderSongs();toast(tr('song_picked',{n:d.queue.length}),5000);refresh();})
+    api('/songs/request',{method:'POST',body:{s:SID,k:K,video_id:t.video_id,guest:GUEST,by:NAME}}).then(function(d){SONG=d;SONG_VIEW='queue';renderSongs();toast(tr('song_picked',{n:d.queue.length}),5000);refresh();loadDiscover();})
       .catch(function(err){toast(err.message);p.disabled=false;}).then(function(){SONG_BUSY=false;});});
   setInterval(function(){if(S&&!document.hidden)loadSongs();},20000);
   /* ---- 取餐推播（不登入） ---- */
