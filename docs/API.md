@@ -437,6 +437,57 @@ body `{attempt_id}`。只取消 `prepared`（尚未送出）意圖；已送出�
 ### POST /api/admin/orders/pause
 暫停點餐開關（依店別）。body `{ venue: CAFE|BAR, paused: boolean, message? }`（文案 80 字內，客人掃碼會看到）。存 `site_content.ordering_pause`。回 `{ ok, pause }`。
 
+### GET /api/songs
+點歌（客人端）。query `s`、`k`（桌邊單次 QR 的場次與簽章）。回 `{ enabled, price, max_per_table, max_minutes, now, queue }`；`queue[].mine` 標示是不是本桌點的。點歌預設關閉（`enabled:false`），POS「點歌」分頁開啟後菜單才會出現點歌卡片。QR 無效 403、已清桌 409。
+
+### GET /api/songs/search
+點歌搜尋（客人端）。query `s`、`k`、`q`（歌名、歌手或 YouTube 影片網址）。只回可嵌入、非直播、長度在上限內的影片 `{ items:[{ video_id, title, channel, thumb, duration }] }`。綁定的 YouTube 帳號優先，否則用 `YOUTUBE_API_KEY`；兩者都沒有回 503。同關鍵字 30 分鐘內共用結果（YouTube 搜尋一次耗 100 單位額度）。點歌關閉 423。
+
+### POST /api/songs/request
+點歌（客人端）。body `{ s, k, video_id, guest, by }`。伺服器重新查影片（可嵌入、長度上限），排進待播並在這桌加一行 `cat:'SONG'`、`item_id:'song'` 的品項（單價取點歌設定，預設 NT$10；`placed_at`／`served_at` 同時寫入＝不進出餐看板、不印出餐單，客人不能自己刪），用餐完和餐點一起在櫃檯結帳。同一首已在待播 409、本桌待播達上限 409、暫停點餐或非營業時段 423。回 201 與最新待播。
+
+### GET /api/admin/orders/songs
+POS 點歌分頁狀態：`settings`（`enabled` 預設 false、`price`、`max_per_table`、`max_minutes`、`shuffle`、`playlist` 常態歌單、`player_device`）、`now`（正在播放，`kind` 為 `request` 或 `playlist`）、`queue`、`history`、`youtube`（是否已綁定、頻道名稱、OAuth 是否可用、是否有 API Key）。
+
+### POST /api/admin/orders/songs/settings
+修改點歌設定。body 可帶 `enabled`、`shuffle`（boolean）、`price`（0–1000）、`max_per_table`（1–20）、`max_minutes`（1–60）、`playlist`（常態歌單整份取代，最多 300 首）。範圍外 400。
+
+### POST /api/admin/orders/songs/player
+指定播放裝置。body `{ device }`（POS 平板的裝置代碼）或 `{ release:true }` 取消。只有播放裝置會自動播放與換歌。
+
+### POST /api/admin/orders/songs/next
+換下一首。body `{ result, current, device }`；`result` 為 `ended`（播完）、`error`（影片無法播放）、`preempt`（有人點歌時切掉常態歌單）、`skip`（店員按下一首）。`skip` 以外只接受播放裝置；`current` 與伺服器正在播放的不同時回 `stale:true` 不動作（避免重複換歌）。有人點歌先播最早那首，沒有就播常態歌單（依序或隨機）。客人點的歌因 `error` 被跳過時，尚未結帳的點歌品項自動從這桌帳上拿掉（`refunded:true`）。
+
+### GET /api/admin/orders/songs/search
+POS 搜尋 YouTube。query `q`。回同客人端搜尋（不篩長度）。
+
+### POST /api/admin/orders/songs/queue
+櫃檯代點（不收費）。body `{ video_id }`。
+
+### DELETE /api/admin/orders/songs/queue/:id
+從待播移除。客人點的歌若還沒結帳，一併從桌上帳單拿掉（`refunded:true`）。
+
+### POST /api/admin/orders/songs/queue/:id/top
+把待播中的歌移到最前面。
+
+### POST /api/admin/orders/songs/playlist/import
+匯入常態歌單。body `{ playlist, mode }`；`playlist` 為 YouTube 播放清單網址或 ID，`mode:'append'` 接在現有歌單後，否則整份取代。只匯入可嵌入的影片，回 `imported` 筆數。
+
+### GET /api/admin/orders/songs/youtube/playlists
+列出已綁定 YouTube 帳號的播放清單 `{ playlists:[{ id, title, count }] }`。未綁定 409。
+
+### POST /api/admin/orders/songs/youtube/connect
+綁定 YouTube 帳號。body `{ redirect }`（授權後回到的 POS 網址）。回 `{ url }`（`/auth/youtube?state=…`），瀏覽器前往後走 Google OAuth（scope `youtube.readonly`、離線存取）。沒有 `GOOGLE_CLIENT_ID`／`SECRET` 回 503。
+
+### DELETE /api/admin/orders/songs/youtube
+解除綁定 YouTube 帳號（刪除伺服器端加密保存的 token）。
+
+### GET /auth/youtube
+綁定 YouTube 的起點：驗 state、設 `youtube_oauth_state` cookie，轉到 Google 授權頁。
+
+### GET /auth/youtube/callback
+Google 授權完成：以授權碼換 token，access／refresh token 以 PII 金鑰加密存 `site_content.song_youtube`（不在公開內容白名單），導回 POS 並帶 `?youtube=connected|cancelled|failed`。redirect URI `https://www.emoji.tw/auth/youtube/callback` 須在 Google Cloud Console 的 OAuth client 登記，並啟用 YouTube Data API v3。
+
 ### POST /api/admin/menu/sold-out
 估清快速鍵。body `{ item_id, sold_out: boolean }`。只改該品項的 `sold_out`（記營業日），不覆蓋其他欄位；當個營業日結束（翌日 03:00）自動恢復。估清或恢復供應都會一併清除剩餘份數。品牌子帳號只能估清自己店別（403）。
 

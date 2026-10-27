@@ -10,10 +10,10 @@ function tabs() {
   const src = pos.slice(pos.indexOf('const TABS = ['), pos.indexOf('];', pos.indexOf('const TABS = [')) + 2);
   return JSON.parse(vm.runInNewContext(src.replace('const TABS =', 'TABS =') + ';JSON.stringify(TABS)', {}));
 }
-test('頂欄只留常用分頁，庫存／排班／銷量／客群／紀錄移到設定', () => {
+test('頂欄只留常用分頁（點歌營業中常用、留在頂欄），庫存／排班／銷量／客群／紀錄移到設定', () => {
   const T = tabs();
   const top = T.filter(t => !t.group).map(t => t.id);
-  assert.deepEqual(top, ['pos', 'orders', 'soldout', 'reservations', 'members', 'history', 'clock', 'sales', 'settings']);
+  assert.deepEqual(top, ['pos', 'orders', 'soldout', 'reservations', 'songs', 'members', 'history', 'clock', 'sales', 'settings']);
   assert.deepEqual(T.filter(t => t.group === 'settings').map(t => t.id).sort(), ['customers', 'inventory', 'logs', 'products', 'shifts']);
   for (const t of T.filter(t => t.group)) assert.ok(t.desc, t.id + ' 要有設定頁說明');
   assert.match(pos, /TABS\.filter\(t => !t\.group\)\.map/);

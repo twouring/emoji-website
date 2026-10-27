@@ -33,6 +33,7 @@ const eventWallets=require('./lib/event-wallets');
 const eventCrypto=require('./lib/event-crypto');
 const eventChannels=require('./lib/event-channels');
 const tableOrders=require('./lib/table-orders');
+const songs=require('./lib/songs');
 const yan=require('./lib/yan');
 const line = require('./lib/line');
 const { createLineService } = require('./lib/line-service');
@@ -6858,6 +6859,179 @@ function menuToSpace(req, res) {
   res.redirect(301, `${base}#menu`);
 }
 app.get(['/menu', '/menu/', '/en/menu', '/en/menu/', '/ja/menu', '/ja/menu/'], menuToSpace);
+
+/* ---- 點歌（lib/songs.js）：客人掃桌邊 QR 搜尋 YouTube 點歌（每首計價、掛進這桌帳單），POS「點歌」分頁的播放裝置依序播放；
+   沒人點歌時播常態歌單。預設關閉，由 POS 開啟。狀態存 site_content（song_settings／song_state），綁定的 YouTube 帳號存 song_youtube（加密）。 */
+const SONG_KEYS=['song_settings','song_state'];
+const songErr=(res,e)=>{if(e&&e.status)return res.status(e.status).json({error:e.message});throw e;};
+const songJson=raw=>{try{return raw?JSON.parse(raw):{};}catch{return {};}};
+async function songSettings(){return songs.normalizeSettings(await contentValue('song_settings'));}
+async function withSongs(fn){
+  const client=await pool.connect();
+  try{await client.query('BEGIN');
+    await client.query(`INSERT INTO site_content(key,value) VALUES('song_settings','{}'),('song_state','{}') ON CONFLICT(key) DO NOTHING`);
+    const m=Object.fromEntries((await client.query('SELECT key,value FROM site_content WHERE key=ANY($1::text[]) ORDER BY key FOR UPDATE',[SONG_KEYS])).rows.map(r=>[r.key,r.value]));
+    const out=await fn(client,{settings:songs.normalizeSettings(m.song_settings),state:songs.normalizeState(m.song_state)});
+    await client.query('COMMIT');return out;
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
+}
+const saveSongState=(client,state)=>client.query(`UPDATE site_content SET value=$1,updated_at=now() WHERE key='song_state'`,[JSON.stringify(state)]);
+const saveSongSettings=(client,settings)=>client.query(`UPDATE site_content SET value=$1,updated_at=now() WHERE key='song_settings'`,[JSON.stringify(settings)]);
+// 客人點的歌因影片無法播放被跳過、或店員從待播移除：這首還沒結帳就從桌上帳單拿掉（已結帳的不動，由櫃檯另行處理）
+async function songRefund(client,entry){
+  if(!entry||entry.source!=='guest'||!entry.session_id||!entry.line)return false;
+  const s=(await client.query('SELECT id,items FROM table_sessions WHERE id=$1 FOR UPDATE',[entry.session_id])).rows[0];
+  const l=s&&s.items.find(x=>x.line===entry.line);if(!l||l.order_id)return false;
+  await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(s.items.filter(x=>x.line!==entry.line))]);return true;
+}
+// YouTube：綁了帳號就用帳號 token 呼叫 Data API，否則用 YOUTUBE_API_KEY
+const YOUTUBE_REDIRECT_URI=OWN_BASE+'/auth/youtube/callback';
+async function youtubeToken(){
+  const c=songJson(await contentValue('song_youtube'));if(!c.refresh_token)return null;
+  const access=decPII(c.access_token);if(access&&access!=='***'&&+new Date(c.expires_at)>Date.now()+60000)return access;
+  const refresh=decPII(c.refresh_token);if(!refresh||refresh==='***'||!GOOGLE_CLIENT_ID)return null;
+  try{const t=await songs.tokenRequest(fetch,{client_id:GOOGLE_CLIENT_ID,client_secret:GOOGLE_CLIENT_SECRET,refresh_token:refresh,grant_type:'refresh_token'});
+    await q(`UPDATE site_content SET value=$1,updated_at=now() WHERE key='song_youtube'`,[JSON.stringify({...c,access_token:encSecret(t.access_token),expires_at:new Date(Date.now()+(Number(t.expires_in)||3600)*1000).toISOString()})]);
+    return t.access_token;
+  }catch(e){console.warn('[songs] YouTube token 更新失敗',e.message);return null;}
+}
+const youtube=songs.createYouTube({apiKey:()=>process.env.YOUTUBE_API_KEY||'',getToken:youtubeToken});
+// 搜尋一次耗 100 單位額度（每日預設 10,000）：同一關鍵字 30 分鐘內共用結果
+const SONG_SEARCH_CACHE=new Map();
+async function songSearch(term){
+  const k=String(term||'').trim().toLowerCase().slice(0,80);if(!k)return [];
+  const hit=SONG_SEARCH_CACHE.get(k);if(hit&&hit.at>Date.now()-30*60e3)return hit.items;
+  const items=await youtube.search(k);SONG_SEARCH_CACHE.set(k,{at:Date.now(),items});
+  if(SONG_SEARCH_CACHE.size>500)SONG_SEARCH_CACHE.delete(SONG_SEARCH_CACHE.keys().next().value);
+  return items;
+}
+async function songGuestSession(src){
+  const id=tableOrders.verifySession(src?.s,src?.k,SECRET);if(!id)throw Object.assign(Error('QR 無效，請向服務人員索取本桌點餐 QR。'),{status:403});
+  const s=(await q('SELECT id,table_no,status FROM table_sessions WHERE id=$1',[id])).rows[0];
+  if(!s||s.status!=='open')throw Object.assign(Error('這桌已結束，請洽服務人員。'),{status:409});
+  return s;
+}
+async function songPlayable(videoId,settings){
+  const id=songs.parseVideoId(videoId),v=id&&(await youtube.videos([id]))[0];
+  if(!v||!v.embeddable||v.live)throw Object.assign(Error('這首歌無法在店內播放，請換一首。'),{status:400});
+  if(settings&&v.duration&&v.duration>settings.max_minutes*60)throw Object.assign(Error(`歌曲長度超過 ${settings.max_minutes} 分鐘，請換一首。`),{status:400});
+  return v;
+}
+// 客人端：看待播／搜尋／點歌（掃單次 QR 帶 s、k）
+app.get('/api/songs',requireDb,wrap(async(req,res)=>{
+  res.set('Cache-Control','no-store');
+  try{const s=await songGuestSession(req.query);res.json(songs.publicView(songs.normalizeState(await contentValue('song_state')),await songSettings(),s.table_no));}catch(e){return songErr(res,e);}
+}));
+app.get('/api/songs/search',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
+  try{await songGuestSession(req.query);const settings=await songSettings();if(!settings.enabled)return res.status(423).json({error:'點歌目前沒有開放。'});
+    res.json({items:(await songSearch(req.query.q)).filter(v=>!v.duration||v.duration<=settings.max_minutes*60)});
+  }catch(e){return songErr(res,e);}
+}));
+app.post('/api/songs/request',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
+  const b=req.body||{};
+  if(!/^[a-z0-9]{8,32}$/.test(String(b.guest||'')))return res.status(400).json({error:'缺少來賓識別。'});
+  try{const s=await songGuestSession(b);await assertNotPaused();
+    const settings0=await songSettings();if(!settings0.enabled)return res.status(423).json({error:'點歌目前沒有開放。'});
+    const venue=tableOrders.MenuLib.orderWindow().venue;if(!venue)return res.status(423).json({error:'目前非營業時段，暫不開放點歌。'});
+    const video=await songPlayable(b.video_id,settings0);
+    const out=await withSongs(async(client,{settings,state})=>{
+      if(!settings.enabled)throw Object.assign(Error('點歌目前沒有開放。'),{status:423});
+      const ss=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[s.id])).rows[0];
+      if(!ss||ss.status!=='open')throw Object.assign(Error('這桌已結束，請洽服務人員。'),{status:409});
+      const {state:next,entry}=songs.enqueue(state,video,{table:ss.table_no,by:tableOrders.cleanText(b.by,20)||'客人',source:'guest',session_id:ss.id,price:settings.price,maxPerTable:settings.max_per_table});
+      const line=songs.songLine(entry,{venue,guest:b.guest});entry.line=line.line;
+      await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[ss.id,JSON.stringify(ss.items.concat([line]))]);
+      await saveSongState(client,next);
+      return {entry,view:songs.publicView(next,settings,ss.table_no)};
+    });
+    res.status(201).json({ok:true,request_id:out.entry.id,price:out.entry.price,...out.view});
+  }catch(e){return songErr(res,e);}
+}));
+// POS「點歌」分頁（路徑掛在 /api/admin/orders 底下＝品牌子帳號可用）
+async function songAdminView(settings,state){
+  const yt=songJson(await contentValue('song_youtube'));
+  return {settings,now:state.now,queue:state.queue,history:state.history.slice(0,20),
+    youtube:{connected:!!yt.refresh_token,channel:yt.channel||null,connected_at:yt.connected_at||null,connected_by:yt.connected_by||'',oauth_ready:!!(GOOGLE_CLIENT_ID&&GOOGLE_CLIENT_SECRET),api_key:!!process.env.YOUTUBE_API_KEY}};
+}
+app.get('/api/admin/orders/songs',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  res.set('Cache-Control','no-store');res.json(await songAdminView(await songSettings(),songs.normalizeState(await contentValue('song_state'))));
+}));
+app.post('/api/admin/orders/songs/settings',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  try{res.json(await withSongs(async(client,{settings,state})=>{const next=songs.patchSettings(settings,req.body);await saveSongSettings(client,next);return songAdminView(next,state);}));}catch(e){return songErr(res,e);}
+}));
+// 指定這台平板當播放裝置（接音響的那台）；同一時間只有一台會自動播
+app.post('/api/admin/orders/songs/player',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const device=tableOrders.cleanText(req.body?.device,64);
+  try{res.json(await withSongs(async(client,{settings,state})=>{const next={...settings,player_device:req.body?.release===true?'':device};await saveSongSettings(client,next);return songAdminView(next,state);}));}catch(e){return songErr(res,e);}
+}));
+// 換下一首：播放裝置在播完（ended）、影片無法播放（error）、有人點歌時切掉常態歌單（preempt）時呼叫；任何一台都能按「下一首」（skip）
+app.post('/api/admin/orders/songs/next',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const result=['ended','error','preempt','skip'].includes(req.body?.result)?req.body.result:'skip';
+  try{res.json(await withSongs(async(client,{settings,state})=>{
+    if(result!=='skip'&&settings.player_device&&req.body?.device!==settings.player_device)throw Object.assign(Error('這台不是播放裝置。'),{status:409});
+    const out=songs.advance(state,settings,{result,current:req.body?.current?String(req.body.current):null});
+    if(out.stale)return {...await songAdminView(settings,state),stale:true};
+    const refunded=out.refund?await songRefund(client,out.refund):false;
+    await saveSongState(client,out.state);
+    return {...await songAdminView(settings,out.state),refunded};
+  }));}catch(e){return songErr(res,e);}
+}));
+app.get('/api/admin/orders/songs/search',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  try{res.json({items:await songSearch(req.query.q)});}catch(e){return songErr(res,e);}
+}));
+// 店員代點（不收費）
+app.post('/api/admin/orders/songs/queue',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  try{const video=await songPlayable(req.body?.video_id,null);
+    res.json(await withSongs(async(client,{settings,state})=>{const {state:next}=songs.enqueue(state,video,{by:'櫃檯',source:'pos'});await saveSongState(client,next);return songAdminView(settings,next);}));
+  }catch(e){return songErr(res,e);}
+}));
+app.delete('/api/admin/orders/songs/queue/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  try{res.json(await withSongs(async(client,{settings,state})=>{const {state:next,entry}=songs.removeFromQueue(state,String(req.params.id));const refunded=await songRefund(client,entry);await saveSongState(client,next);return {...await songAdminView(settings,next),refunded};}));}catch(e){return songErr(res,e);}
+}));
+app.post('/api/admin/orders/songs/queue/:id/top',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  try{res.json(await withSongs(async(client,{settings,state})=>{const next=songs.moveToFront(state,String(req.params.id));await saveSongState(client,next);return songAdminView(settings,next);}));}catch(e){return songErr(res,e);}
+}));
+// 常態歌單：從 YouTube 播放清單（網址或綁定帳號的清單）匯入；mode=append 接在後面，否則整份取代
+app.post('/api/admin/orders/songs/playlist/import',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const pid=songs.parsePlaylistId(req.body?.playlist||'');if(!pid)return res.status(400).json({error:'請貼上 YouTube 播放清單網址（含 list=）。'});
+  try{const list=await youtube.playlistItems(pid);if(!list.length)return res.status(400).json({error:'這個播放清單沒有可在店內播放的影片（可能是私人清單或影片不允許嵌入）。'});
+    res.json(await withSongs(async(client,{settings,state})=>{const next=songs.normalizeSettings({...settings,playlist:req.body?.mode==='append'?settings.playlist.concat(list):list});await saveSongSettings(client,next);return {...await songAdminView(next,state),imported:list.length};}));
+  }catch(e){return songErr(res,e);}
+}));
+app.get('/api/admin/orders/songs/youtube/playlists',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  try{res.json({playlists:await youtube.myPlaylists()});}catch(e){return songErr(res,e);}
+}));
+// 綁定 YouTube 帳號：回 OWN_BASE 上的起始網址（state cookie 與 callback 必須同一個 host），授權完成導回 POS 點歌分頁
+app.post('/api/admin/orders/songs/youtube/connect',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!GOOGLE_CLIENT_ID||!GOOGLE_CLIENT_SECRET)return res.status(503).json({error:'尚未設定 Google OAuth（GOOGLE_CLIENT_ID／SECRET），無法綁定 YouTube。'});
+  const state=signToken({p:'youtube',a:String(actorOf(req.auth)||'').slice(0,120),r:safeRedirect(req.body?.redirect)||'https://pos.emoji.tw/pos/songs',n:crypto.randomBytes(24).toString('hex')},{purpose:'oauth'});
+  res.json({url:OWN_BASE+'/auth/youtube?state='+encodeURIComponent(state)});
+}));
+app.delete('/api/admin/orders/songs/youtube',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  await q(`DELETE FROM site_content WHERE key='song_youtube'`);res.json({ok:true});
+}));
+app.get('/auth/youtube',(req,res)=>{
+  const state=String(req.query.state||''),st=verifyToken(state,{purpose:'oauth'});
+  if(!st||st.p!=='youtube')return res.status(400).send('綁定連結已失效，請回 POS 重新按「綁定 YouTube 帳號」。');
+  if(!GOOGLE_CLIENT_ID)return res.status(503).send('尚未設定 Google OAuth。');
+  res.cookie('youtube_oauth_state',state,{httpOnly:true,sameSite:'lax',secure:SITE_BASE.startsWith('https://'),path:'/auth/youtube',maxAge:10*60*1000});
+  res.redirect(songs.authUrl({clientId:GOOGLE_CLIENT_ID,redirectUri:YOUTUBE_REDIRECT_URI,state}));
+});
+app.get('/auth/youtube/callback',wrap(async(req,res)=>{
+  const state=String(req.query.state||''),st=verifyToken(state,{purpose:'oauth'}),cookie=(req.headers.cookie||'').split(';').map(v=>v.trim()).find(v=>v.startsWith('youtube_oauth_state='))?.slice(20);
+  res.clearCookie('youtube_oauth_state',{path:'/auth/youtube',httpOnly:true,sameSite:'lax',secure:SITE_BASE.startsWith('https://')});
+  if(!st||st.p!=='youtube'||!safeEqual(state,cookie))return res.status(400).send('綁定連結已失效，請回 POS 重新操作。');
+  const back=(safeRedirect(st.r)||'https://pos.emoji.tw/pos/songs').split('?')[0];
+  if(!req.query.code)return res.redirect(back+'?youtube=cancelled');
+  if(!pool||!dbReady)return res.status(503).send('資料庫尚未就緒，請稍後再試。');
+  let t;try{t=await songs.tokenRequest(fetch,{code:String(req.query.code),client_id:GOOGLE_CLIENT_ID,client_secret:GOOGLE_CLIENT_SECRET,redirect_uri:YOUTUBE_REDIRECT_URI,grant_type:'authorization_code'});}catch(e){return res.redirect(back+'?youtube=failed');}
+  if(!t.refresh_token)return res.redirect(back+'?youtube=failed');
+  const value={access_token:encSecret(t.access_token),refresh_token:encSecret(t.refresh_token),expires_at:new Date(Date.now()+(Number(t.expires_in)||3600)*1000).toISOString(),connected_at:new Date().toISOString(),connected_by:st.a||''};
+  await q(`INSERT INTO site_content(key,value,updated_at) VALUES('song_youtube',$1,now()) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=now()`,[JSON.stringify(value)]);
+  try{const ch=await youtube.myChannel();if(ch)await q(`UPDATE site_content SET value=$1 WHERE key='song_youtube'`,[JSON.stringify({...value,channel:ch})]);}catch(e){console.warn('[songs] 讀取頻道名稱失敗',e.message);}
+  res.redirect(back+'?youtube=connected');
+}));
+/* ---- 點歌 end ---- */
 // 後台 SPA：一般路徑路由（/admin/members、/admin/social/edit/:id…）皆回同一頁，前端依 pathname 切換分頁；
 // 舊 /admin.html 轉 301 至 /admin（瀏覽器保留 #hash，前端再轉為路徑）
 const ADMIN_PAGE = path.join(PUB, 'admin.html');

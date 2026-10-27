@@ -70,6 +70,14 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 .st{display:inline-block;padding:2px 10px;border-radius:999px;font-weight:700}
 .st.paid{background:#EEE9DA}.st.ready{background:var(--yellow)}.st.done{background:var(--line);color:var(--muted)}
 /* 已點清單每行的送單狀態：未送出（白底黃框）、已送出（米底）、已出餐（灰字） */
+.song-card{display:flex;align-items:center;gap:12px;width:100%;margin:0 0 12px;padding:12px 14px;border:1.5px solid var(--ink);border-radius:14px;background:#fff;text-align:left;color:var(--ink)}
+.song-card .n{flex:1;min-width:0;display:flex;flex-direction:column}.song-card small{color:var(--muted);line-height:1.4}.song-card .song-card-now{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.song-card .p{font-weight:700;white-space:nowrap}
+.song-form{display:flex;gap:8px;margin:0 0 12px}.song-form .f{flex:1;min-width:0;min-height:48px}
+.song-list{list-style:none;margin:0 0 14px;padding:0;display:flex;flex-direction:column;gap:6px}
+.song-row{display:flex;align-items:center;gap:10px;padding:6px;border:1px solid var(--line);border-radius:10px;background:#fff;min-width:0}
+.song-row img{width:72px;height:40px;object-fit:cover;border-radius:6px;flex:none}.song-row .n{flex:1;min-width:0;display:flex;flex-direction:column}.song-row .n b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.song-row .n small{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.song-row .btn{flex:none;min-height:44px}
+.song-h{margin:14px 0 6px;font-size:1rem}
 .tag{display:inline-block;padding:1px 8px;border-radius:999px;border:1px solid var(--line);margin-left:6px;vertical-align:middle;color:var(--muted)}
 .tag.pending{border-color:var(--yellow);background:#fffbe8;color:var(--ink)}.tag.placed{background:#EEE9DA;color:var(--ink)}
 /* 別人加了還沒送出的品項：整行黃底，讓人一眼看到「我按送出會連這些一起送」；剛出現的行閃一下 */
@@ -110,6 +118,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   <symbol id="i-bell" viewBox="0 0 24 24"><path d="M5 17h14l-2-3v-4a5 5 0 0 0-10 0v4l-2 3Z"/><path d="M10 20h4"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></symbol>
   <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
 </svg>
 <div class="ready-banner" id="ready-banner"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -124,6 +133,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
       <div class="card" id="orders-card"></div>
       <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px"><span class="muted"><span data-i18n="ordering_as">點餐稱呼</span>：<b id="name-display"></b></span><button class="btn ghost sm" type="button" id="name-edit-btn" data-i18n="name_edit">更改</button></div>
       <div class="menu-status" id="menu-shift"><div><b class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-clock"></use></svg><span id="menu-shift-title">最後點餐</span></b><small id="menu-hours">依台北時間顯示目前供應品項</small></div></div>
+      <button class="song-card hidden" type="button" id="song-open"><svg class="ico lg" aria-hidden="true"><use href="#i-music"></use></svg><span class="n"><b data-i18n="song_title">點歌</b><small id="song-card-sub"></small><small class="song-card-now" id="song-card-now" hidden></small></span><span class="p" id="song-card-price"></span></button>
       <div id="menu"></div>
       <p class="notice" id="bar-policy-notice" data-i18n="bar_policy" hidden>三點水低消每人平日 NT$300、假日 NT$600，另加 10% 服務費（外帶不收）。</p>
       <p class="notice" id="alcohol-notice" data-i18n="alcohol" hidden>未滿十八歲禁止飲酒。禁止酒駕。</p>
@@ -143,6 +153,13 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 <div class="sheet" id="review" role="dialog" aria-labelledby="review-title"><div class="in">
   <div class="sheet-body"><p class="review-stars" aria-hidden="true">★★★★★</p><h3 id="review-title" data-i18n="review_title">喜歡今天的餐點嗎？</h3><p class="muted" data-i18n="review_hint">在 Google 地圖留下評論，結帳時把評論出示給櫃檯人員，就送你 5 點會員點數（每位會員限領一次）。</p></div>
   <div class="row sheet-actions"><button class="btn ghost" type="button" id="review-cart" data-i18n="review_view_cart">查看已點清單</button><a class="btn y" id="review-go" data-review-link href="https://maps.app.goo.gl/ZKdyKqwXjVA5x6JF6?g_st=ic" target="_blank" rel="noopener" data-i18n="review_go">寫 Google 評論</a></div>
+</div></div>
+
+<div class="sheet" id="songs" role="dialog" aria-labelledby="songs-title"><div class="in">
+  <div class="sheet-body"><h3 class="title-icon" id="songs-title"><svg class="ico lg" aria-hidden="true"><use href="#i-music"></use></svg><span data-i18n="song_title">點歌</span></h3><p class="muted" id="song-sub"></p>
+    <form class="song-form" id="song-form"><input class="f" id="song-q" type="search" maxlength="80" autocomplete="off" enterkeyhint="search" data-i18n-placeholder="song_search" placeholder="搜尋歌名或歌手"><button class="btn y" type="submit" id="song-go" data-i18n="song_search_btn">搜尋</button></form>
+    <div id="song-results"></div><div id="song-board"></div></div>
+  <div class="row sheet-actions"><button class="btn ghost with-icon" type="button" data-close><svg class="ico" aria-hidden="true"><use href="#i-back"></use></svg><span data-i18n="back_menu">返回菜單</span></button></div>
 </div></div>
 
 <div class="sheet" id="item-detail"><div class="in">
@@ -236,6 +253,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     $('#menu').innerHTML=html||'<p class="muted">'+esc(VENUE?tr('menu_unavailable'):tr('closed_message'))+'</p>';
     $('#alcohol-notice').hidden=!items.some(function(i){return i.alcohol;});
     $('#bar-policy-notice').hidden=!(VENUE==='BAR'&&MenuLib.barPolicyActive&&MenuLib.barPolicyActive());
+    renderSongs();
   }
 
   function optionGroups(it){return it&&it.cat==='COMBO'?OrderLib.comboGroups(it,MENU,LANG):OrderLib.optionGroups(it,LANG);}
@@ -312,7 +330,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     ['#bar-place','#cart-place'].forEach(function(id){var el=$(id+' span[data-i18n]')||$(id+' span');if(el)el.textContent=placeText;});
     var hint=$('#place-hint');if(hint){hint.hidden=!op.length;hint.textContent=tr('others_pending_hint');}
     // 已點清單：依人分組；每行標示未送出／已送出／已出餐
-    var tag=function(l){return l.served_at?'<span class="tag">'+esc(tr('served'))+'</span>':l.placed_at?'<span class="tag placed">'+esc(tr('placed'))+'</span>':'<span class="tag pending">'+esc(tr('not_sent'))+'</span>';};
+    var tag=function(l){return l.song?'':l.served_at?'<span class="tag">'+esc(tr('served'))+'</span>':l.placed_at?'<span class="tag placed">'+esc(tr('placed'))+'</span>':'<span class="tag pending">'+esc(tr('not_sent'))+'</span>';};
     var groups={},order=[];u.forEach(function(l){var k=l.by+(l.mine?'#me':'');if(!groups[k]){groups[k]={by:l.by,mine:l.mine,lines:[]};order.push(k);}groups[k].lines.push(l);});
     $('#cart-lines').innerHTML=order.length?order.map(function(k){var g=groups[k];return '<div class="who"><span>'+esc(g.by)+(g.mine?'（'+esc(tr('me'))+'）':'')+'</span><span>'+money(sum(g.lines))+'</span></div>'+g.lines.map(function(l){var itemName=LANG==='en'?(l.en||l.zh):LANG==='ja'?(l.ja||l.zh):l.zh;var cls='line'+(!l.mine&&!l.placed_at?' others-pending':'')+(FRESH[l.line]?' fresh':'');return '<div class="'+cls+'"><span>'+esc(itemName)+' ×'+l.qty+tag(l)+partsLines(l)+(l.note?' <span class="by">'+esc(l.note)+'</span>':'')+'</span><span>'+money(l.price*l.qty)+(l.mine&&!l.placed_at?' <button class="x" data-del="'+esc(l.line)+'" aria-label="'+esc(tr('remove'))+'">✕</button>':'')+'</span></div>';}).join('');}).join(''):'<p class="muted">'+esc(tr('no_orders'))+'</p>';
     $('#cart-total').textContent=money(sum(u));
@@ -398,6 +416,36 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
       .catch(function(err){toast(err.message);if(/已結束/.test(err.message))sessionClosed();if(err.status===423){PAUSED=err.message;renderMenu();}})
       .then(function(){placing=false;btns.forEach(function(b){b.disabled=false;});});};
 
+
+  /* ---- 點歌：店家在 POS 開放後，菜單上方出現「點歌」卡片；搜尋 YouTube、點一首（記在這桌帳上），POS 播放裝置自動播放 ---- */
+  var SONG=null,SONG_ITEMS=null,SONG_BUSY=false;
+  function songQs(){return 's='+encodeURIComponent(SID)+'&k='+encodeURIComponent(K);}
+  function songDur(x){return x?Math.floor(x/60)+':'+String(x%60).padStart(2,'0'):'';}
+  function loadSongs(){if(!S)return Promise.resolve();return api('/songs?'+songQs()).then(function(d){SONG=d;renderSongs();}).catch(function(){SONG=null;renderSongs();});}
+  function songRow(t,btn){return '<li class="song-row">'+(t.thumb?'<img src="'+esc(t.thumb)+'" alt="" loading="lazy">':'')+'<span class="n"><b>'+esc(t.title)+'</b><small>'+esc([t.channel,songDur(t.duration),t.mine?tr('song_mine'):(t.table?tr('table')+' '+t.table:''),t.kind==='playlist'?tr('song_playlist'):''].filter(Boolean).join('・'))+'</small></span>'+(btn||'')+'</li>';}
+  function renderSongs(){
+    var on=!!(SONG&&SONG.enabled&&VENUE);
+    $('#song-open').classList.toggle('hidden',!on);
+    if(!on){if($('#songs').classList.contains('on'))closeSheets();return;}
+    $('#song-card-sub').textContent=tr('song_card');$('#song-card-price').textContent=money(SONG.price)+(LANG==='en'?' / song':LANG==='ja'?'／曲':'／首');
+    var nowEl=$('#song-card-now');nowEl.hidden=!SONG.now;if(SONG.now)nowEl.textContent='♪ '+SONG.now.title;
+    $('#song-sub').textContent=tr('song_price',{price:SONG.price})+'　'+tr('song_hint',{min:SONG.max_minutes,max:SONG.max_per_table});
+    var res='';
+    if(SONG_ITEMS)res=SONG_ITEMS.length?'<ul class="song-list">'+SONG_ITEMS.map(function(t){return songRow(t,'<button class="btn y sm" type="button" data-song-pick="'+esc(t.video_id)+'">'+esc(tr('song_pick'))+'</button>');}).join('')+'</ul>':'<p class="muted">'+esc(tr('song_none'))+'</p>';
+    $('#song-results').innerHTML=res;
+    $('#song-board').innerHTML=(SONG.now?'<h4 class="song-h">'+esc(tr('song_now'))+'</h4><ul class="song-list">'+songRow(SONG.now)+'</ul>':'')+'<h4 class="song-h">'+esc(tr('song_queue'))+'</h4>'+(SONG.queue.length?'<ul class="song-list">'+SONG.queue.map(function(t){return songRow(t);}).join('')+'</ul>':'<p class="muted">'+esc(tr('song_queue_empty'))+'</p>');
+  }
+  $('#song-open').onclick=function(){loadSongs();openSheet('#songs');};
+  $('#song-form').onsubmit=function(e){e.preventDefault();var q=$('#song-q').value.trim();if(!q||SONG_BUSY)return;SONG_BUSY=true;var b=$('#song-go');b.disabled=true;b.textContent=tr('song_searching');
+    api('/songs/search?'+songQs()+'&q='+encodeURIComponent(q)).then(function(d){SONG_ITEMS=d.items||[];renderSongs();}).catch(function(err){toast(err.message);})
+      .then(function(){SONG_BUSY=false;b.disabled=false;b.textContent=tr('song_search_btn');});};
+  document.addEventListener('click',function(e){var p=e.target.closest('[data-song-pick]');if(!p||SONG_BUSY)return;if(!NAME){closeSheets();showGate();return;}
+    var t=(SONG_ITEMS||[]).find(function(x){return x.video_id===p.dataset.songPick;});if(!t)return;
+    if(!confirm(tr('song_confirm',{title:t.title,price:SONG.price})))return;
+    SONG_BUSY=true;p.disabled=true;
+    api('/songs/request',{method:'POST',body:{s:SID,k:K,video_id:t.video_id,guest:GUEST,by:NAME}}).then(function(d){SONG=d;SONG_ITEMS=null;$('#song-q').value='';renderSongs();toast(tr('song_picked',{n:d.queue.length}),5000);refresh();})
+      .catch(function(err){toast(err.message);p.disabled=false;}).then(function(){SONG_BUSY=false;});});
+  setInterval(function(){if(S&&!document.hidden)loadSongs();},20000);
   /* ---- 取餐推播（不登入） ---- */
   function subscribePush(orderId,btn){
     if(!('serviceWorker'in navigator)||!('PushManager'in window)){toast(tr('notification_unsupported'));return;}
@@ -416,7 +464,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     $('#thanks').classList.add('hidden');$('#boot').classList.add('hidden');$('#app').classList.remove('hidden');
     if(NAME){hideGate();$('#order-content').classList.remove('hidden');$('#name-display').textContent=NAME;}else{showGate();}
     askNotify();
-    renderMenu();renderState();live();poll();
+    renderMenu();renderState();live();poll();loadSongs();
   }
   $('#thanks-again').onclick=function(){
     clearEnded();$('#thanks').classList.add('hidden');$('#boot').classList.remove('hidden');

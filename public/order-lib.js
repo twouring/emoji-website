@@ -2,6 +2,7 @@
 (function (global) {
   const TEXT = {
     zh: {
+      song_title: '點歌', song_card: '點一首歌在店裡播放', song_price: '每首 NT${price}，記在這桌帳上', song_search: '搜尋歌名或歌手', song_search_btn: '搜尋', song_searching: '搜尋中…', song_now: '正在播放', song_queue: '待播清單', song_queue_empty: '目前沒有人點歌。', song_pick: '點這首', song_picked: '已點歌！排在第 {n} 首。', song_confirm: '點「{title}」？NT${price} 會記在這桌帳上，用餐完一起結帳。', song_mine: '本桌', song_none: '找不到可以播放的歌，換個關鍵字試試。', song_hint: '長度上限 {min} 分鐘；每桌同時最多排 {max} 首。', song_playlist: '店內歌單',
       order: '桌邊點餐', loading: '載入中…', name_placeholder: '你的稱呼（讓同桌知道誰點了什麼）', confirm: '好',
       name_gate_title: '先告訴我們怎麼稱呼您', name_gate_submit: '查看菜單', name_skip: '略過', ordering_as: '點餐稱呼', name_edit: '更改', back_step: '上一步', served_banner: '桌號 {table}｜{items} 已送到桌上',
       shared_hint: '同桌的人掃同一個 QR 就能一起點；加入已點清單後按「送出點餐」，用餐完再到櫃檯結帳，可全部付款、各付各的，或平均分攤。',
@@ -21,6 +22,7 @@
       stock_left: '剩 {n} 份', view_detail: '查看細項', back_menu: '返回菜單', add_to_cart: '加入已點清單', added: '已加入', quantity: '數量', required: '必選', optional: '選填', special_request: '其他需求', special_placeholder: '例如：不要蔥、醬另外放', sugar: '糖度', ice: '冰塊', temperature: '溫度', rice_amount: '飯量', noodle_amount: '麵量', notification_prompt: '餐點好了通知我', notification_on: '已開啟通知', notification_unsupported: '此瀏覽器不支援通知；請留在這個頁面，餐點好了會在畫面上提示。', notification_error: '無法開啟通知：{message}。請留在此頁，餐點好了會在畫面上提示。',
     },
     en: {
+      song_title: 'Song request', song_card: 'Request a song to play in the shop', song_price: 'NT${price} per song, added to your table bill', song_search: 'Search a song or artist', song_search_btn: 'Search', song_searching: 'Searching…', song_now: 'Now playing', song_queue: 'Up next', song_queue_empty: 'No requests yet.', song_pick: 'Request', song_picked: 'Requested! It is #{n} in the queue.', song_confirm: 'Request "{title}"? NT${price} will be added to your table bill.', song_mine: 'Your table', song_none: 'No playable songs found. Try another keyword.', song_hint: 'Up to {min} min per song; up to {max} songs per table in the queue.', song_playlist: 'House playlist',
       order: 'Table ordering', loading: 'Loading…', name_placeholder: 'Your name (so your table knows what you ordered)', confirm: 'Save',
       name_gate_title: 'Tell us your name first', name_gate_submit: 'View menu', name_skip: 'Skip', ordering_as: 'Ordering as', name_edit: 'Change', back_step: 'Back', served_banner: 'Table {table} | {items} served',
       shared_hint: 'Everyone at the table can scan the same QR code. Add items, tap "Send order", and pay at the counter after dining—together, by ordered items, or split evenly.',
@@ -40,6 +42,7 @@
       stock_left: 'Only {n} left', view_detail: 'Details', back_menu: 'Back to menu', add_to_cart: 'Add to order list', added: 'Added', quantity: 'Quantity', required: 'Required', optional: 'Optional', special_request: 'Other requests', special_placeholder: 'e.g. no scallions, sauce on the side', sugar: 'Sweetness', ice: 'Ice', temperature: 'Temperature', rice_amount: 'Rice amount', noodle_amount: 'Noodle amount', notification_prompt: 'Notify me when ready', notification_on: 'Notifications on', notification_unsupported: 'This browser does not support notifications. Keep this page open and we will show an on-screen alert when your order is ready.', notification_error: 'Could not enable notifications: {message}. Keep this page open for the on-screen alert.',
     },
     ja: {
+      song_title: 'リクエスト曲', song_card: '店内で流す曲をリクエスト', song_price: '1曲 NT${price}、テーブルのお会計に加算', song_search: '曲名・アーティストで検索', song_search_btn: '検索', song_searching: '検索中…', song_now: '再生中', song_queue: '再生待ち', song_queue_empty: 'まだリクエストはありません。', song_pick: 'リクエスト', song_picked: 'リクエストしました。{n} 番目に再生します。', song_confirm: '「{title}」をリクエストしますか？NT${price} がお会計に加算されます。', song_mine: 'このテーブル', song_none: '再生できる曲が見つかりません。別のキーワードでお試しください。', song_hint: '1曲 {min} 分まで／1テーブル同時 {max} 曲まで。', song_playlist: '店内プレイリスト',
       order: 'テーブル注文', loading: '読み込み中…', name_placeholder: 'お名前（同じテーブルで確認するため）', confirm: '保存',
       name_gate_title: 'まずお名前を教えてください', name_gate_submit: 'メニューを見る', name_skip: 'スキップ', ordering_as: 'ご注文者', name_edit: '変更', back_step: '戻る', served_banner: 'テーブル {table}｜{items} をお届けしました',
       shared_hint: '同じテーブルの方は同じQRから注文できます。注文リストに入れて「注文を送る」を押し、お食事後にカウンターでまとめて・自分の分だけ・割り勘でお支払いできます。',
