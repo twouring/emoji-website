@@ -1240,7 +1240,7 @@ async function linepayCheckout(cur,host){
   }).finally(()=>loadPos());
 }
 /* 桌邊點餐已登入的會員（客人在 /order 用 Google／LINE 登入）：一點帶入，等同掃會員條碼 */
-function tableMembersHtml(cur){const ms=(cur&&cur.members)||[];if(!ms.length)return '';return `<div class="pos-table-members" style="margin:10px 0"><p class="hint hint--tight" style="margin-bottom:6px">這桌手機已登入的會員，點一下帶入：</p><div style="display:flex;flex-wrap:wrap;gap:8px">${ms.map(m=>`<button type="button" class="btn ${POS_YAN.id===m.id?'btn--solid':'btn--ghost'} btn-xs" data-table-member="${esc(m.id)}" aria-pressed="${POS_YAN.id===m.id}">${esc(m.name||'會員')}</button>`).join('')}</div></div>`;}
+function tableMembersHtml(cur){const ms=(cur&&cur.members)||[];if(!ms.length)return '';return `<div class="pos-table-members"><p class="hint hint--tight">這桌手機已登入的會員，點一下帶入：</p><div class="pos-table-members__list">${ms.map(m=>`<button type="button" class="btn ${POS_YAN.id===m.id?'btn--solid':'btn--ghost'} btn-xs" data-table-member="${esc(m.id)}" aria-pressed="${POS_YAN.id===m.id}">${esc(m.name||'會員')}</button>`).join('')}</div></div>`;}
 function memberStatusText(){ if(POS_YAN.id)return POS_MEMBER?'有效會籍 · 已套聚落價':'註冊會員 · 無有效會籍，不適用聚落價'; return POS_YAN.created?'新會員 · 已用手機建立，結帳累點':POS_YAN.name?'手機會員 · 結帳累點':POS_YAN.phone?'結帳時查會員，沒有就自動新增並累點':''; }
 // 會員彈窗：查詢、掃描、移除與完整會籍／點數資訊都在這裡；結帳主畫面只留一個精簡入口
 function openMemberDialog(cur){

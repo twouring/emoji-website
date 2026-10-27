@@ -686,6 +686,7 @@ tr.lp-refund td{color:var(--danger)}
 .pos-member-bar #pos-yan-phone{flex:1;min-width:6em;min-height:48px;font:inherit;font-size:1.05rem;padding:8px 12px;border:1px solid var(--ink);border-radius:8px;background:var(--card);color:var(--ink);font-variant-numeric:tabular-nums}
 .pos-member-bar .btn{flex:none;min-height:48px;padding:0 12px}
 .pos-member-who{padding:8px 12px;border:1px solid var(--ok-line);border-radius:8px;background:var(--ok-soft);color:var(--ok)}
+.pos-table-members{margin:10px 0}.pos-table-members__list{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
 .pos-lp>summary{list-style:none;cursor:pointer;min-height:44px;display:flex;align-items:center;gap:8px}.pos-lp>summary::-webkit-details-marker{display:none}
 .pos-pay>.pos-lp{margin:0;padding:4px 12px}.pos-pay>.pos-lp h3{margin:0}
 @media(min-width:1000px){
