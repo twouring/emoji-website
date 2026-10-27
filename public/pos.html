@@ -58,6 +58,8 @@
   /* 分頁容器：與 /admin 共用 #orders-body / #pos-body / #resv-body / #sales-body / #soldout-body 的 id，pos-ops.js 直接對這些容器繪製 */
   .p-tab{display:none;padding:0}.p-tab.on{display:block}
   /* 點歌分頁＋設定頁點歌區塊＋右下角播放器（標題最多兩行，不截成一行） */
+  /* pos 內的 <section> 會吃到 style.css 的 section{padding:72px+}（點歌頁中段大空白的來源），點歌頁一律歸零 */
+  #songs-body section{padding:0}
   .song-head{flex-wrap:wrap!important;gap:8px 12px!important}
   .song-head-act{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-left:auto}
   .song-now{display:flex;align-items:center;gap:16px;padding:14px;margin:4px 0 18px;border-radius:12px;background:var(--ink);color:var(--paper)}
@@ -72,10 +74,30 @@
   .song-sfx{margin:0 0 18px}.song-sfx h3{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 8px}.song-sfx h3 small{color:var(--muted);font-weight:400;font-size:1rem}
   .song-sfx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
   .song-sfx-btn{min-height:52px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);font:inherit;font-weight:600;cursor:pointer;touch-action:manipulation}
-  .song-sfx-btn:active{background:var(--ink);color:var(--paper)}.song-sfx-btn.is-stop{color:var(--muted);font-weight:400}
+  .song-sfx-btn:active{background:var(--ink);color:var(--paper)}.song-sfx-btn.is-stop{color:var(--danger);border-color:var(--danger)}.song-sfx-btn.is-stop:active{background:var(--danger);color:var(--paper)}
   .song-mv{min-width:40px;padding-inline:0}.song-mv:disabled{opacity:.35}
   .song-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
   @media (max-width:900px){.song-grid{grid-template-columns:minmax(0,1fr)}}
+  .song-col{min-width:0}.song-col .song-now{margin:0 0 14px}
+  /* 平板橫放：音效一排排滿；兩欄撐到視窗底（高度由 songFit 算）、各自捲動；正在播放固定在左欄頂端 */
+  @media (min-width:1000px) and (min-height:600px){
+    .song-head{margin-bottom:10px}
+    .song-sfx{display:flex;align-items:center;gap:12px;margin:0 0 14px}
+    .song-sfx h3{flex:none;flex-direction:column;gap:0;margin:0;width:7.5em;line-height:1.3}.song-sfx h3 small{line-height:1.3}
+    .song-sfx-grid{flex:1;min-width:0;grid-template-columns:repeat(11,minmax(0,1fr));gap:6px}
+    .song-sfx-btn{min-height:48px;padding:4px}
+    .song-grid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;min-height:360px}
+    .song-col{display:flex;flex-direction:column;min-height:0;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--paper)}
+    .song-col h3{margin:0 0 10px}
+    .song-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;margin-right:-6px;padding-right:6px}
+    .song-now{padding:12px;gap:14px}.song-now img,.song-now .song-ph.lg{width:128px;height:72px}.song-now-main b{font-size:1.125rem}
+    .song-col .song-row img,.song-col .song-ph{width:72px;height:40px}
+    /* 點歌分頁已有正在播放大卡與「下一首」：播放器自動縮成一條（影片高度 0 仍在播，不可 display:none），不擋找歌的代點／插播；離開分頁恢復原狀 */
+    body:has([data-panel=songs].on) #song-dock{width:300px}
+    body:has([data-panel=songs].on) #song-dock .song-dock-video{height:0;overflow:hidden}
+    body:has([data-panel=songs].on) #song-dock .song-dock-grip{display:none}
+    .song-scroll{padding-bottom:120px}
+  }
   .song-grid h3{display:flex;align-items:baseline;gap:8px;margin-top:0}.song-grid h3 small{color:var(--muted);font-weight:400;font-size:1rem}
   .song-count{display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 8px;border-radius:999px;background:var(--paper-alt);font-size:1rem}
   .song-tabs{display:flex;gap:6px;margin:0 0 12px;overflow-x:auto;scrollbar-width:none}.song-tabs::-webkit-scrollbar{display:none}

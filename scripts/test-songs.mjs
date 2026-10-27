@@ -250,3 +250,14 @@ test('POS：排序鍵、插播、KTV 音效（CC0 音檔都在 public/sfx）', (
   for (const k of ['applause', 'cheer', 'laugh', 'drumroll']) assert.ok(ids.includes(k), k);
   for (const k of ids) assert.ok(fs.existsSync(new URL('../public/sfx/' + k + '.mp3', import.meta.url)), k + '.mp3');
 });
+
+test('POS 平板橫放：兩欄各自捲動不捲整頁、正在播放在左欄頂端、播放器在點歌頁縮成一條、停止音效排第一', () => {
+  const ps = read('public/pos-songs.js'), pos = read('public/pos.html');
+  assert.match(pos, /#songs-body section\{padding:0\}/, 'style.css 的 section padding 不可撐出空白');
+  assert.match(ps, /<section class="song-col"[^`]*\$\{nowCard\}/, '正在播放放在左欄');
+  assert.equal((ps.match(/class="song-scroll"/g) || []).length, 2);
+  assert.match(ps, /function songFit/); assert.match(ps, /min-width:1000px\) and \(min-height:600px/);
+  assert.match(pos, /body:has\(\[data-panel=songs\]\.on\) #song-dock \.song-dock-video\{height:0;overflow:hidden\}/, '縮小不可 display:none');
+  assert.match(ps, /<div class="song-sfx-grid"><button[^>]*data-song-sfx-stop>/);
+  assert.match(ps, /JSON\.stringify\(SONGS\.data\) !== before/, '輪詢沒變不重繪');
+});

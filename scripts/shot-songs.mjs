@@ -78,9 +78,11 @@ async function shot(url, w, h, name, { mobile = false, prep = null, act = null }
   await page.close();
 }
 await shot('https://pos.test/pos/songs', 1280, 900, 'pos-songs-1280');
+await shot('https://pos.test/pos/songs', 1180, 820, 'pos-songs-1180');
 await shot('https://pos.test/pos/songs', 390, 844, 'pos-songs-390', { mobile: true });
 // 播放器：拖移、縮到最小、重新整理後記得位置
-await shot('https://pos.test/pos/songs', 1280, 900, 'pos-dock-drag-min', { act: async p => {
+// 點歌頁寬螢幕播放器自動縮成一條（把手隱藏），拖移在其他分頁測
+await shot('https://pos.test/pos/orders', 1280, 900, 'pos-dock-drag-min', { act: async p => {
   await p.waitForSelector('#song-dock', { timeout: 4000 });
   const before = await p.evaluate(() => { const r = document.getElementById('song-dock').getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.height)]; });
   const g = await p.$('[data-song-dock-grip]'); const b = await g.boundingBox();

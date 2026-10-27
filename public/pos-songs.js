@@ -60,7 +60,7 @@ function songSfx(id){
 }
 function songSfxStop(){ Object.values(SONG_SFX_AUDIO).forEach(a => { try { a.pause(); a.currentTime = 0; } catch (e) {} }); }
 function songSfxPanel(me){
-  return `<section class="song-sfx" aria-labelledby="song-sfx-h"><h3 id="song-sfx-h">音效 <small>${me ? '從這台（音響）播放' : '從這台平板播放；要從音響出聲請在播放裝置上按'}</small></h3><div class="song-sfx-grid">${SONG_SFX.map(([k, l]) => `<button type="button" class="song-sfx-btn" data-song-sfx="${k}">${esc(l)}</button>`).join('')}<button type="button" class="song-sfx-btn is-stop" data-song-sfx-stop>停止音效</button></div></section>`;
+  return `<section class="song-sfx" aria-labelledby="song-sfx-h"><h3 id="song-sfx-h">音效 <small>${me ? '從這台（音響）播放' : '只從這台平板出聲'}</small></h3><div class="song-sfx-grid"><button type="button" class="song-sfx-btn is-stop" data-song-sfx-stop>停止音效</button>${SONG_SFX.map(([k, l]) => `<button type="button" class="song-sfx-btn" data-song-sfx="${k}">${esc(l)}</button>`).join('')}</div></section>`;
 }
 function songFindList(){
   const v = SONGS.view;
@@ -88,19 +88,33 @@ function paintSongs(){
     : '<p class="a-empty">沒有接下來的歌。到「設定 → 點歌」匯入常態歌單。</p>')
     + (up.shuffle ? `<p class="hint">常態歌單 ${esc(up.playlist_count)} 首隨機播放，以上是這一輪已洗好的順序。</p>` : '');
   const hist = d.history.length ? `<details class="song-hist"><summary>最近播過（${Math.min(8, d.history.length)}）</summary><ul class="song-list">${d.history.slice(0, 8).map(t => songRow(t, t.result === 'error' ? '<span class="pill pill-wait">無法播放已跳過</span>' : t.result === 'skip' ? '<span class="pill pill-draft">跳過</span>' : '')).join('')}</ul></details>` : '';
+  // 重繪會換掉整個 DOM：先記下兩欄捲動位置，畫完還原（找歌換分頁才回到頂端），輪詢時才不會一直跳回最上面
+  const keep = [...host.querySelectorAll('.song-scroll')].map(e => e.scrollTop), sameView = SONGS.painted === SONGS.view; SONGS.painted = SONGS.view;
   host.innerHTML = `
   <div class="ops-head song-head"><h2>點歌</h2><div class="song-head-act">${status}${player}${me ? '<button type="button" class="btn btn--ghost btn-sm" data-song-release>停止在這台播放</button>' : '<button type="button" class="btn btn--solid btn-sm" data-song-claim>在這台播放</button>'}<button type="button" class="btn btn--ghost btn-sm" data-song-settings>點歌設定</button></div></div>
-  ${nowCard}
   ${songSfxPanel(me)}
   <div class="song-grid">
-    <section aria-labelledby="song-q-h"><h3 id="song-q-h">接下來 <span class="song-count">${up.items.length}</span>${reqN ? `<small>客人／櫃檯點歌 ${reqN} 首優先</small>` : ''}</h3>${queue}${hist}</section>
-    <section aria-labelledby="song-f-h"><h3 id="song-f-h">找歌代點 <small>店員代點不收費</small></h3>
+    <section class="song-col" aria-labelledby="song-q-h">${nowCard}<h3 id="song-q-h">接下來 <span class="song-count">${up.items.length}</span>${reqN ? `<small>客人／櫃檯點歌 ${reqN} 首優先</small>` : ''}</h3><div class="song-scroll">${queue}${hist}</div></section>
+    <section class="song-col" aria-labelledby="song-f-h"><h3 id="song-f-h">找歌代點 <small>店員代點不收費</small></h3>
       <div class="song-tabs" role="tablist" aria-label="找歌方式">${SONG_VIEWS.map(([k, l]) => `<button type="button" role="tab" aria-selected="${SONGS.view === k}" data-song-view="${k}">${l}</button>`).join('')}</div>
-      ${songFindList()}
+      <div class="song-scroll">${songFindList()}</div>
     </section>
   </div>`;
+  const sc = host.querySelectorAll('.song-scroll'); if (sc[0]) sc[0].scrollTop = keep[0] || 0; if (sc[1] && sameView) sc[1].scrollTop = keep[1] || 0;
+  songFit();
   if (SONGS.view === 'search' && SONGS.focus) { const i = host.querySelector('[data-song-search] input'); if (i) i.focus(); SONGS.focus = false; }
 }
+/* 平板橫放／桌機（寬 ≥1000、高 ≥600）：兩欄撐到視窗底、各自捲動，正在播放與找歌都不用捲整頁；直放與手機維持上下堆疊 */
+const SONG_WIDE = matchMedia('(min-width:1000px) and (min-height:600px)');
+function songFit(){
+  const g = document.querySelector('#songs-body .song-grid'), m = document.querySelector('body>main'); if (!g || !m) return;
+  if (!SONG_WIDE.matches) { g.style.height = ''; return; }
+  const sec = document.getElementById('songs-body'), cs = getComputedStyle(sec), ms = getComputedStyle(m);
+  const top = g.getBoundingClientRect().top - m.getBoundingClientRect().top + m.scrollTop;
+  const below = (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderBottomWidth) || 0) + (parseFloat(cs.marginBottom) || 0) + (parseFloat(ms.paddingBottom) || 0);
+  g.style.height = Math.max(360, Math.floor(m.clientHeight - top - below)) + 'px';
+}
+addEventListener('resize', () => { if (TAB === 'songs') songFit(); });
 async function songDo(fn, msg){
   try { const d = await fn(); if (d && d.settings) SONGS.data = d; if (msg) toast(typeof msg === 'function' ? msg(d) : msg); } catch (e) { toast(e.message); }
   if (TAB === 'songs') paintSongs(); if (TAB === 'settings') paintSongSettings(); songPlayerSync();
@@ -265,7 +279,7 @@ function songPlayerSync(){
 async function songPoll(){
   SONG_TIMER = null;
   if (!SONGS.data || !isSongPlayer()) return;
-  try { SONGS.data = await api('/admin/orders/songs'); if (TAB === 'songs' && !document.querySelector('#songs-body input:focus')) paintSongs(); } catch (e) {}
+  try { const before = JSON.stringify(SONGS.data); SONGS.data = await api('/admin/orders/songs'); if (TAB === 'songs' && JSON.stringify(SONGS.data) !== before && !document.querySelector('#songs-body input:focus')) paintSongs(); } catch (e) {}
   songPlayerSync();
 }
 // 開機：這台若被指定為播放裝置就自動接手播放（iPad 需使用者點一下畫面才會出聲，播放器上會顯示 YouTube 的播放鍵）
