@@ -275,3 +275,18 @@ test('即時搜尋：客人端與 POS 打字自動搜（0.5 秒防抖、組字�
   assert.match(ps, /if \(seq !== SONG_SEARCH_SEQ\) return;/);
   assert.match(ps, /function paintSongResults/, '只重畫結果區，輸入框不被換掉');
 });
+
+test('快速選：選歌手／選歌分組，點了帶入關鍵字搜尋；客人端與 POS 都載入 song-picks.js', async () => {
+  const pos = read('public/pos.html'), order = read('public/order.html'), ps = read('public/pos-songs.js');
+  for (const h of [pos, order]) assert.match(h, /<script src="\/song-picks\.js"><\/script>/);
+  assert.match(order, /SongPicks\.html\(SONG_PICK,LANG,esc\)/); assert.match(ps, /SongPicks\.html\(SONG_PICK, 'zh', esc\)/);
+  const ctx = {}; (await import('node:vm')).runInNewContext(read('public/song-picks.js'), ctx);
+  const P = ctx.SongPicks, esc = s => String(s).replace(/[&<>"]/g, c => '&#' + c.charCodeAt(0) + ';');
+  const seen = new Set(); for (const [, a] of P.ARTISTS) for (const x of a) { assert.ok(!seen.has(x), '歌手重複 ' + x); seen.add(x); }
+  for (const [, list] of P.SONGS) for (const x of list) assert.equal(x.length, 2);
+  const a = P.html({ mode: 'artist' }, 'zh', esc); assert.match(a, /data-pick-q="周杰倫"/); assert.match(a, /選歌手/);
+  const so = P.html({ mode: 'song', group: 'taigi' }, 'en', esc); assert.match(so, /data-pick-q="家後 江蕙"/); assert.match(so, /Taiwanese/);
+  const st = { mode: 'artist', group: '' }, btn = q => ({ closest: () => ({ hasAttribute: () => false, dataset: q }) });
+  assert.equal(P.click(btn({ pickMode: 'song' }), st), true); assert.equal(st.mode, 'song');
+  assert.deepEqual({ ...P.click(btn({ pickQ: '晴天 周杰倫' }), st) }, { q: '晴天 周杰倫' });
+});

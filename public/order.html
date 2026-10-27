@@ -75,6 +75,10 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 .song-now{display:flex;align-items:center;gap:10px;padding:10px;margin:0 0 12px;border-radius:12px;background:var(--ink);color:#fff}.song-now img{width:80px;height:45px;border-radius:6px;object-fit:cover;flex:none}.song-now .n{flex:1;min-width:0;display:flex;flex-direction:column}.song-now .n small{opacity:.8}.song-now .n b{line-height:1.35;overflow-wrap:anywhere;word-break:normal}
 .song-tabs{display:flex;gap:6px;margin:0 0 12px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}.song-tabs::-webkit-scrollbar{display:none}
 .song-tabs button{flex:none;min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);white-space:nowrap}.song-tabs button[aria-selected=true]{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:700}
+.song-picks{margin:0 0 12px}.pick-seg{display:flex;gap:6px;margin:0 0 10px}.pick-seg button{flex:1;min-height:44px;border-radius:10px;border:1px solid var(--ink);background:#fff;color:var(--ink);font:inherit;font-weight:700}.pick-seg button[aria-pressed=true]{background:var(--ink);color:#fff}
+.pick-groups{display:flex;gap:6px;margin:0 0 10px;overflow-x:auto;scrollbar-width:none}.pick-groups::-webkit-scrollbar{display:none}.pick-groups button{flex:none;min-height:40px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);font:inherit;white-space:nowrap}.pick-groups button[aria-pressed=true]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);font-weight:700}
+.pick-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}.pick-chips button{min-height:48px;padding:6px 10px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--ink);font:inherit;text-align:left;overflow-wrap:anywhere}.pick-chips.is-song button b,.pick-chips.is-song button small{display:block}.pick-chips.is-song button small{color:var(--muted,#666);line-height:1.3}
+.pick-hint{margin:10px 0 0;color:var(--muted,#666);line-height:1.4}.pick-back{display:block;min-height:44px;margin:0 0 8px;padding:0 4px;border:0;background:none;color:var(--ink);font:inherit;text-decoration:underline}
 .song-form{display:flex;gap:8px;margin:0 0 12px}.song-form .f{flex:1;min-width:0;min-height:48px}
 .song-list{list-style:none;margin:0 0 14px;padding:0;display:flex;flex-direction:column;gap:6px}
 .song-row{display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--line);border-radius:12px;background:#fff;min-width:0}
@@ -240,6 +244,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 
 <script src="/menu-lib.js"></script>
 <script src="/order-lib.js"></script>
+<script src="/song-picks.js"></script>
 <script>
 (function(){
   var $=function(s){return document.querySelector(s);};
@@ -525,7 +530,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     $('#song-tabs').innerHTML=SONG_VIEWS.map(function(k){return '<button type="button" role="tab" aria-selected="'+(k===v)+'" data-song-view="'+k+'">'+esc(labels[k])+'</button>';}).join('');
     $('#song-form').hidden=v!=='search';
     var html='';
-    if(v==='search')html=SONG_SEARCHING?'<p class="muted">'+esc(tr('song_searching'))+'</p>':SONG_ITEMS?(SONG_ITEMS.length?songPickList(SONG_ITEMS,false):'<p class="muted">'+esc(tr('song_none'))+'</p>'):'';
+    if(v==='search')html=SONG_SEARCHING?'<p class="muted">'+esc(tr('song_searching'))+'</p>':SONG_ITEMS?SongPicks.back(LANG,esc)+(SONG_ITEMS.length?songPickList(SONG_ITEMS,false):'<p class="muted">'+esc(tr('song_none'))+'</p>'):SongPicks.html(SONG_PICK,LANG,esc);
     else if(v==='queue')html=SONG.queue.length?'<ul class="song-list">'+SONG.queue.map(function(t,i){return songRow(t,'',i+1);}).join('')+'</ul>':'<p class="muted">'+esc(tr('song_queue_empty'))+'</p>';
     else if(!SONG_DISC)html='<p class="muted">'+esc(tr('loading'))+'</p>';
     else{var list=SONG_DISC[v]||[];html=list.length?songPickList(list,v!=='recent'):'<p class="muted">'+esc(tr(v==='chart'?'song_chart_empty':'song_none_yet'))+'</p>';}
@@ -534,7 +539,12 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   $('#song-open').onclick=function(){loadSongs();loadDiscover();openSheet('#songs');};
   $('#song-tabs').addEventListener('click',function(e){var b=e.target.closest('[data-song-view]');if(!b)return;SONG_VIEW=b.dataset.songView;renderSongs();if(SONG_VIEW==='search')$('#song-q').focus();});
   /* 即時搜尋：停止打字 0.5 秒自動搜（不逐字打 YouTube 額度），輸入法組字中不送，舊回應丟棄；Enter 立即搜 */
-  var SONG_SEARCHING=false,SONG_Q='',SONG_T=0,SONG_SEQ=0;
+  var SONG_SEARCHING=false,SONG_Q='',SONG_T=0,SONG_SEQ=0,SONG_PICK={mode:'artist',group:''};
+  /* 快速選歌手／歌曲（public/song-picks.js）：點了帶進搜尋框立即搜；「回到選歌手／選歌」清空搜尋 */
+  $('#song-results').addEventListener('click',function(e){var r=SongPicks.click(e.target,SONG_PICK);if(!r)return;
+    if(r.back){$('#song-q').value='';songSearch('');return;}
+    if(r.q){$('#song-q').value=r.q;songSearch(r.q);$('#songs .sheet-body').scrollTop=0;return;}
+    renderSongs();});
   function songSearch(raw){clearTimeout(SONG_T);var q=String(raw||'').trim();if(q===SONG_Q&&(SONG_ITEMS||SONG_SEARCHING))return;SONG_Q=q;var seq=++SONG_SEQ;
     if(!q){SONG_ITEMS=null;SONG_SEARCHING=false;renderSongs();return;}
     SONG_SEARCHING=true;renderSongs();

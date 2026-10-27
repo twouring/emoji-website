@@ -40,7 +40,7 @@ function api(u) {
   return {};
 }
 const SEARCH_HITS = [];
-const browser = await puppeteer.launch({ executablePath: '/workspace/local/brand-chrome/chrome-linux64/chrome', args: ['--no-sandbox', '--font-render-hinting=none'] });
+const browser = await puppeteer.launch({ executablePath: process.env.CHROME || '/workspace/local/brand-chrome/chrome-linux64/chrome', args: ['--no-sandbox', '--font-render-hinting=none'] });
 async function shot(url, w, h, name, { mobile = false, prep = null, act = null } = {}) {
   const page = await browser.newPage();
   await page.setViewport({ width: w, height: h, isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1 });
@@ -113,4 +113,9 @@ const searchSongs = async page => { await openSongs(page); await page.click('[da
 await shot(order, 390, 844, 'order-songs-390', { mobile: true, act: openSongs });
 await shot(order, 320, 640, 'order-songs-320', { mobile: true, act: openSongs });
 await shot(order, 390, 844, 'order-songs-search-390', { mobile: true, act: searchSongs });
+await shot(order, 390, 844, 'order-picks-artist-390', { mobile: true, act: async p => { await openSongs(p); await p.click('[data-song-view=search]'); await new Promise(r => setTimeout(r, 300)); } });
+await shot(order, 320, 640, 'order-picks-song-320', { mobile: true, act: async p => { await openSongs(p); await p.click('[data-song-view=search]'); await p.click('[data-pick-mode=song]'); await new Promise(r => setTimeout(r, 300)); } });
+await shot(order, 390, 844, 'order-picks-click-390', { mobile: true, act: async p => { await openSongs(p); await p.click('[data-song-view=search]'); SEARCH_HITS.length = 0; await p.click('[data-pick-q="周杰倫"]'); await new Promise(r => setTimeout(r, 500)); console.log('PICK order', JSON.stringify({ hits: SEARCH_HITS, input: await p.$eval('#song-q', i => i.value), back: !!(await p.$('[data-pick-back]')), rows: await p.$$eval('#song-results .song-row', x => x.length) })); } });
+await shot('https://pos.test/pos/songs', 1180, 820, 'pos-picks-1180', { act: async p => { await p.click('[data-song-view=search]'); await p.click('[data-pick-mode=song]'); await p.click('[data-pick-group=taigi]'); SEARCH_HITS.length = 0; await p.click('[data-pick-q="家後 江蕙"]'); await new Promise(r => setTimeout(r, 500)); console.log('PICK pos', JSON.stringify({ hits: SEARCH_HITS, input: await p.$eval('[data-song-search] input', i => i.value), rows: await p.$$eval('[data-song-results] .song-row', x => x.length) })); } });
+await shot('https://pos.test/pos/songs', 1180, 820, 'pos-picks-artist-1180', { act: async p => { await p.click('[data-song-view=search]'); await new Promise(r => setTimeout(r, 300)); } });
 await browser.close();

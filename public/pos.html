@@ -117,6 +117,10 @@
   .song-meta small{color:var(--muted);font-size:1rem;line-height:1.45;overflow-wrap:anywhere}.song-meta small i{font-style:normal;opacity:.6}
   .song-act{display:flex;gap:6px;flex:none;flex-wrap:wrap;justify-content:flex-end;align-items:center}
   .song-btns{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px}
+  .song-picks{margin:0 0 12px}.pick-seg{display:flex;gap:6px;margin:0 0 10px}.pick-seg button{all:unset;box-sizing:border-box;cursor:pointer;flex:1;text-align:center;min-height:44px;border-radius:8px;border:1px solid var(--ink);font-size:1rem;font-weight:600}.pick-seg button[aria-pressed=true]{background:var(--ink);color:var(--paper)}
+  .pick-groups{display:flex;gap:6px;margin:0 0 10px;overflow-x:auto;scrollbar-width:none}.pick-groups::-webkit-scrollbar{display:none}.pick-groups button{all:unset;box-sizing:border-box;cursor:pointer;flex:none;min-height:40px;padding:0 12px;border-radius:999px;border:1px solid var(--line);font-size:1rem;white-space:nowrap}.pick-groups button[aria-pressed=true]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);font-weight:600}
+  .pick-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}.pick-chips button{all:unset;box-sizing:border-box;cursor:pointer;min-height:48px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);font-size:1rem;overflow-wrap:anywhere}.pick-chips button:active{background:var(--line)}.pick-chips.is-song button b,.pick-chips.is-song button small{display:block}.pick-chips.is-song button small{color:var(--ink-soft)}
+  .pick-hint{margin:10px 0 0;color:var(--ink-soft)}.pick-back{all:unset;box-sizing:border-box;cursor:pointer;display:block;min-height:44px;line-height:44px;margin:0 0 4px;text-decoration:underline;font-size:1rem}
   .song-search{display:flex;gap:8px;margin:0 0 12px}.song-search input{flex:1;min-width:0;min-height:48px;font:inherit;font-size:1rem;padding:0 12px;border:1px solid var(--line);border-radius:8px}
   .song-set{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end;margin-bottom:14px}
   .song-set label{display:flex;flex-direction:column;gap:4px;font-size:1rem;color:var(--muted)}.song-set input{min-height:44px;font:inherit;font-size:1rem;padding:0 10px;border:1px solid var(--line);border-radius:8px;color:var(--ink)}
@@ -304,6 +308,7 @@
 <script src="/pos-members.js"></script>
 <script src="/pos-inventory.js"></script>
 <script src="/pos-settings.js"></script>
+<script src="/song-picks.js"></script>
 <script src="/pos-songs.js"></script>
 <script src="/pos-service-calls.js"></script>
 <script src="/pos-tips.js"></script>

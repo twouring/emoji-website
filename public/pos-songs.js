@@ -74,9 +74,10 @@ function songFindList(){
   return list.length ? songListHtml(list, v !== 'recent') : `<p class="a-empty">${esc(empty)}</p>`;
 }
 /* 即時搜尋：打字停 0.5 秒自動搜（YouTube 搜尋一次 100 額度，不逐字送）；注音／倉頡組字中不送；只重畫結果區，不換掉輸入框 */
+let SONG_PICK = { mode: 'artist', group: '' }; // 快速選歌手／歌曲（public/song-picks.js）
 function songSearchResults(){
   if (SONGS.searching) return '<p class="hint">搜尋中…</p>';
-  return SONGS.results == null ? '' : SONGS.results.length ? songListHtml(SONGS.results, false) : '<p class="a-empty">找不到可在店內播放的歌曲。</p>';
+  return SONGS.results == null ? SongPicks.html(SONG_PICK, 'zh', esc) : SongPicks.back('zh', esc) + (SONGS.results.length ? songListHtml(SONGS.results, false) : '<p class="a-empty">找不到可在店內播放的歌曲。</p>');
 }
 function paintSongResults(){ const r = document.querySelector('#songs-body [data-song-results]'); if (r) r.innerHTML = songSearchResults(); }
 let SONG_SEARCH_T = 0, SONG_SEARCH_SEQ = 0;
@@ -145,6 +146,11 @@ function songRelease(){ songPlayerStop(); return songDo(() => api('/admin/orders
 document.addEventListener('click', async e => {
   if (!e.target.closest('#songs-body')) return;
   const b = e.target.closest('button'); if (!b) return; const D = SONGS.data; if (!D) return;
+  const pk = SongPicks.click(b, SONG_PICK);
+  if (pk) { const i = document.querySelector('#songs-body [data-song-search] input');
+    if (pk.back) { if (i) i.value = ''; return songRunSearch(''); }
+    if (pk.q) { if (i) i.value = pk.q; const sc = document.querySelectorAll('#songs-body .song-scroll')[1]; if (sc) sc.scrollTop = 0; return songRunSearch(pk.q); }
+    return paintSongResults(); }
   if (b.dataset.songSfx) return songSfx(b.dataset.songSfx);
   if (b.matches('[data-song-sfx-stop]')) return songSfxStop();
   if (b.dataset.songMove) return songDo(() => api('/admin/orders/songs/queue/' + encodeURIComponent(b.dataset.songMove) + '/move', { method: 'POST', body: { to: Number(b.dataset.to) } }));
