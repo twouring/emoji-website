@@ -6,7 +6,7 @@ const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const ops=read('public/pos-ops.js');
 function qrContext({ready=true,success=true,qrError=false,enc=true}={}){
   const calls=[], texts=[], canvases=[];
-  const context={console,STAR_DOTS:384,...(enc?{PosEncouragement:{pick:()=>({zh:'測試鼓勵語',en:'Keep going.'})}}:{}),toast:m=>calls.push(['toast',m]),starReady:()=>ready,starOpenHere:async()=>calls.push(['setup']),starSend:async job=>{calls.push(['send',job]);return success;},QRCode:{toCanvas:(c,url,options,cb)=>{calls.push(['qr',url,options]);cb(qrError?Error('qr'):null);}},document:{createElement:()=>{const c={getContext:()=>({fillRect(){},fillText:t=>texts.push(t),drawImage:(...a)=>calls.push(['image',...a])})};canvases.push(c);return c;}}};
+  const context={console,STAR_DOTS:384,...(enc?{PosEncouragement:{pick:()=>({zh:'測試鼓勵語',en:'Keep going.',m:'coffee/dot'})},PosMoji:{ratio:0.875,draw:(...a)=>{calls.push(['moji',...a.slice(1)]);return true;}}}:{}),toast:m=>calls.push(['toast',m]),starReady:()=>ready,starOpenHere:async()=>calls.push(['setup']),starSend:async job=>{calls.push(['send',job]);return success;},QRCode:{toCanvas:(c,url,options,cb)=>{calls.push(['qr',url,options]);cb(qrError?Error('qr'):null);}},document:{createElement:()=>{const c={getContext:()=>({fillRect(){},fillText:t=>texts.push(t),drawImage:(...a)=>calls.push(['image',...a])})};canvases.push(c);return c;}}};
   vm.createContext(context);
   const match=ops.match(/async function printTableQr\(table,url\)\{[\s\S]*?\n\}/);
   assert.ok(match,'單桌 QR 列印 helper 必須存在');
@@ -22,10 +22,11 @@ test('單桌 QR 直接走 384-dot mPOP 並保留 QR 留白，不開錢櫃或重�
   const fn=ops.match(/async function printTableQr\(table,url\)\{[\s\S]*?\n\}/)[0];
   assert.doesNotMatch(fn,/drawer|checkout|window\.open|api\(/);
 });
-test('開桌 QR 單中英雙語，並印鼓勵小語',async()=>{
-  const {context,texts}=qrContext();
+test('開桌 QR 單中英雙語，並印鼓勵小語與吉祥物插圖',async()=>{
+  const {context,texts,calls}=qrContext();
   assert.equal(await context.printTableQr('A1','https://example.test/order?s=1&k=x'),true);
   for(const t of ['桌號 A1','Table A1','掃碼點餐','Scan to order','用餐完請到櫃檯結帳','Please pay at the counter after your meal','測試鼓勵語','Keep going.'])assert.ok(texts.includes(t),'缺少：'+t);
+  const moji=calls.find(c=>c[0]==='moji');assert.ok(moji,'要畫 moji 插圖');assert.equal(moji[1],'coffee/dot');assert.equal(moji[4],200);
   const {context:c2,texts:t2}=qrContext({enc:false});
   assert.equal(await c2.printTableQr('A1','url'),true,'沒載入鼓勵小語也要能印');assert.ok(t2.includes('Table A1'));
 });

@@ -20,7 +20,7 @@ test('browser global supplies exactly 100 unique, compact, frozen bilingual phra
   const zh = new Set();
   const en = new Set();
   for (const pair of api.phrases) {
-    assert.deepEqual(Object.keys(pair).sort(), ['en', 'zh']);
+    assert.deepEqual(Object.keys(pair).sort(), ['en', 'm', 'zh']);
     assert.ok(Object.isFrozen(pair));
     assert.equal(typeof pair.zh, 'string');
     assert.equal(typeof pair.en, 'string');
@@ -62,4 +62,24 @@ test('pick defaults to Math.random and samples anew on each call', () => {
   assert.strictEqual(api.pick(), api.phrases[50]);
   assert.strictEqual(api.pick(), api.phrases[99]);
   assert.equal(calls, 3);
+});
+
+test('each phrase has its own valid moji scene (100 unique illustrations)', () => {
+  const api = load();
+  const mojiPath = fileURLToPath(new URL('../public/pos-moji.js', import.meta.url));
+  const ctx = vm.createContext({ Math });
+  vm.runInContext(readFileSync(mojiPath, 'utf8'), ctx, { filename: mojiPath });
+  const moji = ctx.PosMoji;
+  assert.ok(moji, 'sets globalThis.PosMoji');
+  const scenes = new Set();
+  for (const pair of api.phrases) {
+    assert.ok(moji.valid(pair.m), 'invalid scene: ' + pair.m + ' for ' + pair.zh);
+    scenes.add(pair.m);
+  }
+  assert.equal(scenes.size, 100, 'every phrase gets a different illustration');
+  assert.equal(moji.draw({}, api.phrases[0].m, 0, 0, 200), false, 'no Path2D => skip drawing, not throw');
+  for (const h of ['public/pos.html', 'public/admin.html']) {
+    const html = readFileSync(fileURLToPath(new URL('../' + h, import.meta.url)), 'utf8');
+    assert.match(html, /<script src="\/pos-moji.js"><\/script>/, h + ' loads pos-moji.js');
+  }
 });

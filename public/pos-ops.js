@@ -917,7 +917,10 @@ async function printTableQr(table,url){
   line('掃碼點餐',26,true,4);line('Scan to order',20,false,12);
   wrap('用餐完請到櫃檯結帳',20);wrap('Please pay at the counter after your meal',18);
   const enc=typeof PosEncouragement!=='undefined'&&PosEncouragement.pick?PosEncouragement.pick():null;
-  if(enc){y+=6;g.fillRect(40,y,W-80,2);y+=14;wrap(enc.zh,22);wrap(enc.en,18);}
+  if(enc){y+=6;g.fillRect(40,y,W-80,2);y+=14;
+    // moji 吉祥物插圖：每句配一個場景（pos-moji.js），沒載入或不支援 Path2D 就只印文字
+    if(enc.m&&typeof PosMoji!=='undefined'&&PosMoji.draw){const mw=200,mh=Math.round(mw*PosMoji.ratio);if(PosMoji.draw(g,enc.m,(W-mw)/2,y,mw))y+=mh+10;}
+    wrap(enc.zh,22);wrap(enc.en,18);}
   const out=document.createElement('canvas');out.width=W;out.height=Math.ceil(y+12);const og=out.getContext('2d');og.fillStyle='#fff';og.fillRect(0,0,W,out.height);og.drawImage(c,0,0);
   const ok=await starSend({canvas:out});toast(ok?'桌號 QR 已送出列印':'桌號 QR 列印失敗');return ok;
 }
