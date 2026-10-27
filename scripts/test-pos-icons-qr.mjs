@@ -36,7 +36,7 @@ test('開桌 QR 單中英雙語，並印鼓勵小語與吉祥物插圖',async()=
   assert.ok(!texts.some(t=>t.includes('櫃檯結帳')||/pay at the counter/i.test(t)),'QR 單不印櫃檯結帳（KK 10/27）');
   assert.ok(texts.some(t=>t.includes('送出點餐')),'要印點餐步驟（按「送出點餐」）');
   assert.ok(texts.some(t=>/開桌 \d{4}\/\d{2}\/\d{2} \d{2}:\d{2}$/.test(t)),'要印開桌時間');
-  const moji=calls.find(c=>c[0]==='moji');assert.ok(moji,'要畫 moji 插圖');assert.equal(moji[1],'coffee/dot');assert.equal(moji[4],96);
+  const moji=calls.find(c=>c[0]==='moji');assert.ok(moji,'要畫 moji 插圖');assert.equal(moji[1],'coffee/dot');assert.equal(moji[4],80);
   const {context:c2,texts:t2}=qrContext({enc:false});
   assert.equal(await c2.printTableQr('A1','url'),true,'沒載入鼓勵小語也要能印');assert.ok(t2.includes('A1'));
 });
@@ -84,11 +84,11 @@ test('桌號 QR 單：桌號在 QR 上方；印人數、單號、開桌時間；
     assert.ok(calls.findIndex(c=>c[0]==='image')>=0);
     assert.ok(texts.includes('大人 3　・　小孩 1'),texts.join('|'));
     assert.ok(texts.includes('桌次 ABC123　・　開桌 2026/11/01 18:06'),'桌次＋開桌時間（台北時間）放最底');
-    assert.ok(texts.includes('低消每人 NT$600，4 位共 NT$2,400'));assert.ok(texts.includes('另收 10% 服務費'));
-    assert.ok(texts.includes('最後點餐：餐點 02:00／酒水 02:30'));}
+    assert.ok(texts.includes('低消每人 600・服務費 10%'),texts.join('|'));
+    assert.ok(texts.includes('最後點餐 餐點 02:00／酒水 02:30'));}
   {const {context,texts}=mk('BAR',false);await context.printTableQr('B2','url',{});
     assert.ok(!texts.some(t=>t.includes('低消')||t.includes('服務費')),'11/1 前不印低消、服務費');}
   {const {context,texts}=mk('CAFE');await context.printTableQr('A1','url',{party_size:2});
-    assert.ok(texts.includes('最後點餐：餐點 16:00／飲品 16:30'));assert.ok(!texts.some(t=>t.includes('低消')),'在咖啡不印低消');
+    assert.ok(texts.includes('最後點餐 餐點 16:00／飲品 16:30'));assert.ok(!texts.some(t=>t.includes('低消')),'在咖啡不印低消');
     assert.ok(texts.includes('大人 2　・　小孩 0'));}
 });
