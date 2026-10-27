@@ -111,6 +111,16 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 .site-info{margin:28px 0 8px;color:var(--soft)}.site-info h3{font-size:1rem;margin:0 0 6px}.site-info .card p{margin:0 0 4px}.site-info a{color:inherit;text-underline-offset:3px}
 .price-table{width:100%;border-collapse:collapse;margin:6px 0}.price-table td{padding:6px 0;border-bottom:1px dashed var(--line);vertical-align:top}.price-table td:last-child{text-align:right;white-space:nowrap;padding-left:12px;font-weight:700}.price-table .grp td{text-align:left;font-weight:700;color:var(--muted);border-bottom:0;padding-top:12px}
 .site-info details summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
+/* 呼叫服務：頁首常駐鈕＋底部面板選項目（不進購物車）；送出後菜單上方顯示狀態 */
+.call-btn{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:4px 12px;border:1px solid var(--yellow);border-radius:999px;background:transparent;color:var(--yellow);font-weight:700;white-space:nowrap;flex-shrink:0}
+.call-btn[hidden]{display:none}.call-btn.on{background:var(--yellow);color:var(--ink)}
+.call-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.call-grid button{min-height:56px;border:1.5px solid var(--line);border-radius:14px;background:#fff;color:var(--ink);font-weight:700;padding:8px}
+.call-grid button[aria-pressed=true]{border-color:var(--ink);background:var(--yellow)}
+#call-note{width:100%;min-height:48px;margin:0 0 6px}
+.call-status{display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:10px 14px;border-radius:12px;background:#fff6c2;border:1.5px solid var(--yellow)}
+.call-status.done{background:#E6F2EB;border-color:var(--ok)}.call-status[hidden]{display:none}.call-status span{flex:1;min-width:0;overflow-wrap:anywhere}
+@media (max-width:380px){.call-btn{padding:4px 10px}.call-btn .ico{display:none}}
 .pay-by{display:flex;align-items:center;gap:6px;color:var(--muted);margin:8px 0 0}
 </style>
 </head>
@@ -131,7 +141,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 </svg>
 <div class="ready-banner" id="ready-banner"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<header class="top"><div><b id="brand">言文字</b> <small data-i18n="order">桌邊點餐</small></div><div class="actions"><button class="lang with-icon" id="lang-toggle" type="button" aria-label="Switch language"><svg class="ico" aria-hidden="true"><use href="#i-globe"></use></svg><span id="lang-label">EN</span></button><span class="t" id="table-no">—</span></div></header>
+<header class="top"><div><b id="brand">言文字</b> <small data-i18n="order">桌邊點餐</small></div><div class="actions"><button class="call-btn" id="call-open" type="button" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span data-i18n="call_btn">呼叫</span></button><button class="lang with-icon" id="lang-toggle" type="button" aria-label="Switch language"><svg class="ico" aria-hidden="true"><use href="#i-globe"></use></svg><span id="lang-label">EN</span></button><span class="t" id="table-no">—</span></div></header>
 <main class="wrap">
   <div class="card" id="boot"><p class="muted" data-i18n="loading">載入中…</p></div>
   <div class="card hidden" id="thanks"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-check"></use></svg><span data-i18n="thanks">感謝用餐，期待再次光臨。</span></h3><p class="muted" data-i18n="thanks_hint">這次點餐已結束。若要再點，請洽服務人員。</p><button class="btn y" type="button" id="thanks-again" data-i18n="thanks_again" hidden>重新點餐</button><div class="review-box"><b data-i18n="review_title">喜歡今天的餐點嗎？</b><p class="muted" data-i18n="review_hint">在 Google 地圖留下評論，結帳時把評論出示給櫃檯人員，就送你 5 點會員點數（每位會員限領一次）。</p><a class="btn ghost" data-review-link href="https://maps.app.goo.gl/ZKdyKqwXjVA5x6JF6?g_st=ic" target="_blank" rel="noopener" data-i18n="review_go">寫 Google 評論</a></div></div>
@@ -142,6 +152,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
       <div class="card" id="orders-card"></div>
       <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px"><span class="muted"><span data-i18n="ordering_as">點餐稱呼</span>：<b id="name-display"></b></span><button class="btn ghost sm" type="button" id="name-edit-btn" data-i18n="name_edit">更改</button></div>
       <div class="menu-status" id="menu-shift"><div><b class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-clock"></use></svg><span id="menu-shift-title">最後點餐</span></b><small id="menu-hours">依台北時間顯示目前供應品項</small></div></div>
+      <div class="call-status" id="call-status" role="status" aria-live="polite" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span id="call-status-text"></span></div>
       <button class="song-card hidden" type="button" id="song-open"><svg class="ico lg" aria-hidden="true"><use href="#i-music"></use></svg><span class="n"><b data-i18n="song_title">點歌</b><small id="song-card-sub"></small><small class="song-card-now" id="song-card-now" hidden></small></span><span class="p" id="song-card-price"></span></button>
       <div id="menu"></div>
       <p class="notice" id="bar-policy-notice" data-i18n="bar_policy" hidden>三點水低消每人平日 NT$300、假日 NT$600，另加 10% 服務費（外帶不收）。</p>
@@ -181,6 +192,14 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   <div class="row sheet-actions"><button class="btn ghost with-icon" type="button" data-close><svg class="ico" aria-hidden="true"><use href="#i-back"></use></svg><span data-i18n="back_menu">返回菜單</span></button></div>
 </div></div>
 
+<div class="sheet" id="call" role="dialog" aria-labelledby="call-title"><div class="in">
+  <div class="sheet-body"><h3 class="title-icon" id="call-title"><svg class="ico lg" aria-hidden="true"><use href="#i-bell"></use></svg><span data-i18n="call_title">呼叫服務</span></h3><p class="muted" data-i18n="call_hint">選一項，店員馬上過來。不會加進帳單。</p>
+    <div class="call-grid" id="call-grid"></div>
+    <input class="f" id="call-note" type="text" maxlength="40" autocomplete="off" enterkeyhint="send" data-i18n-placeholder="call_note" placeholder="想請店員幫什麼？（選填）" hidden>
+    <p class="err" id="call-err"></p></div>
+  <div class="row sheet-actions"><button class="btn ghost" type="button" data-close data-i18n="back_menu">返回菜單</button><button class="btn y with-icon" type="button" id="call-send"><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span data-i18n="call_send">通知店員</span></button></div>
+</div></div>
+
 <div class="sheet" id="item-detail"><div class="in">
   <div id="detail-body"></div>
   <div class="row sheet-actions"><button class="btn ghost with-icon" type="button" data-close><svg class="ico" aria-hidden="true"><use href="#i-back"></use></svg><span data-i18n="back_step">上一步</span></button><button class="btn y" id="detail-add" type="button" data-i18n="add_to_cart">加入已點清單</button></div>
@@ -207,12 +226,12 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     document.querySelectorAll('[data-i18n]').forEach(function(el){el.textContent=tr(el.dataset.i18n);});
     document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el){el.placeholder=tr(el.dataset.i18nPlaceholder);});
     $('#lang-label').textContent=LANG==='zh'?'EN':(LANG==='en'?'日本語':'中文');
-    if(S){renderMenu();renderState();}
+    if(S){renderMenu();renderState();if(typeof renderCalls==='function'){renderCalls();renderCallSheet();}}
   }
   $('#lang-toggle').onclick=function(){LANG=LANG==='zh'?'en':(LANG==='en'?'ja':'zh');try{localStorage.setItem('order_lang',LANG);}catch(e){}applyLanguage();};
   applyLanguage();
   if(!GUEST){GUEST=Math.random().toString(36).slice(2,14)+Math.random().toString(36).slice(2,6);try{localStorage.setItem('order_guest',GUEST);}catch(e){}}
-  var api=function(path,opt){opt=opt||{};return fetch('/api'+path,{method:opt.method||'GET',headers:opt.body?{'Content-Type':'application/json'}:{},body:opt.body?JSON.stringify(opt.body):undefined}).then(function(r){return r.json().catch(function(){return {};}).then(function(d){if(!r.ok){var e=Error(d.error||('伺服器錯誤 '+r.status));e.status=r.status;throw e;}return d;});});};
+  var api=function(path,opt){opt=opt||{};return fetch('/api'+path,{method:opt.method||'GET',headers:opt.body?{'Content-Type':'application/json'}:{},body:opt.body?JSON.stringify(opt.body):undefined}).then(function(r){return r.json().catch(function(){return {};}).then(function(d){if(!r.ok){var e=Error(d.error||('伺服器錯誤 '+r.status));e.status=r.status;if(d.wait)e.wait=d.wait;throw e;}return d;});});};
   var fail=function(msg){$('#boot').innerHTML='<p class="err">'+esc(msg)+'</p>';$('#boot').classList.remove('hidden');};
 
   // 先輸入稱呼才看得到菜單：掃碼進來先過這關，點餐那一刻就不用再補填
@@ -398,7 +417,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   function clearEnded(){try{localStorage.removeItem(ENDED_KEY);}catch(e){}}
   function showThanks(){
     if(ES){ES.close();ES=null;}S=null;clearTimeout(pollTimer);
-    closeSheets(true);$('#bar').hidden=true;$('#app').classList.add('hidden');$('#boot').classList.add('hidden');
+    closeSheets(true);$('#bar').hidden=true;$('#call-open').hidden=true;$('#app').classList.add('hidden');$('#boot').classList.add('hidden');
     $('#thanks').classList.remove('hidden');
   }
   function sessionClosed(s){setEnded((s&&s.id)||(S&&S.id)||'1');showThanks();}
@@ -490,6 +509,37 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     api('/songs/request',{method:'POST',body:{s:SID,k:K,video_id:t.video_id,guest:GUEST,by:NAME}}).then(function(d){SONG=d;SONG_VIEW='queue';renderSongs();toast(tr('song_picked',{n:d.queue.length}),5000);refresh();loadDiscover();})
       .catch(function(err){toast(err.message);p.disabled=false;}).then(function(){SONG_BUSY=false;});});
   setInterval(function(){if(S&&!document.hidden)loadSongs();},20000);
+  /* ---- 呼叫服務：頁首常駐鈕 → 選項目 → 一鍵通知，不經購物車；20 秒輪詢本桌狀態 ---- */
+  var CALL=null,CALL_KIND='',CALL_BUSY=false,CALL_LEFT=0,CALL_TICK=null;
+  var CALL_KINDS=[{id:'water',zh:'加水',en:'Water',ja:'お水'},{id:'utensils',zh:'餐具',en:'Utensils',ja:'カトラリー'},{id:'pack',zh:'打包',en:'To-go box',ja:'持ち帰り'},{id:'clear',zh:'收桌',en:'Clear table',ja:'片付け'},{id:'other',zh:'其他',en:'Other',ja:'その他'}];
+  function callKinds(){return (CALL&&CALL.kinds&&CALL.kinds.length)?CALL.kinds:CALL_KINDS;}
+  function callLabel(id){var k=callKinds().filter(function(x){return x.id===id;})[0];return k?label(k):id;}
+  function loadCalls(){if(!S)return Promise.resolve();return api('/service-calls?'+songQs()).then(function(d){CALL=d;setCallWait(d.cooldown||0);renderCalls();}).catch(function(){});}
+  function setCallWait(n){CALL_LEFT=n;clearInterval(CALL_TICK);if(n>0)CALL_TICK=setInterval(function(){CALL_LEFT--;if(CALL_LEFT<=0){CALL_LEFT=0;clearInterval(CALL_TICK);}renderCallSheet();},1000);renderCallSheet();}
+  function renderCalls(){
+    var openBtn=$('#call-open');openBtn.hidden=!S||S.status!=='open';
+    var open=CALL&&CALL.open||[],done=CALL&&CALL.recent_done||[],box=$('#call-status');
+    openBtn.classList.toggle('on',open.length>0);
+    if(open.length){box.hidden=false;box.classList.remove('done');$('#call-status-text').textContent=tr('call_waiting',{kinds:open.map(function(c){return callLabel(c.kind)+(c.note?'（'+c.note+'）':'');}).join('、')});}
+    else if(done.length){box.hidden=false;box.classList.add('done');$('#call-status-text').textContent=tr('call_done',{kinds:done.map(function(c){return callLabel(c.kind);}).join('、')});}
+    else box.hidden=true;
+  }
+  function renderCallSheet(){
+    $('#call-grid').innerHTML=callKinds().map(function(k){return '<button type="button" data-call-kind="'+esc(k.id)+'" aria-pressed="'+(k.id===CALL_KIND)+'">'+esc(label(k))+'</button>';}).join('');
+    $('#call-note').hidden=CALL_KIND!=='other';
+    var b=$('#call-send');b.disabled=CALL_BUSY||CALL_LEFT>0;b.querySelector('span').textContent=CALL_LEFT>0?tr('call_wait',{n:CALL_LEFT}):tr('call_send');
+  }
+  $('#call-open').onclick=function(){CALL_KIND='';$('#call-note').value='';$('#call-err').textContent='';renderCallSheet();openSheet('#call');loadCalls();};
+  $('#call-grid').addEventListener('click',function(e){var b=e.target.closest('[data-call-kind]');if(!b)return;CALL_KIND=b.dataset.callKind;$('#call-err').textContent='';renderCallSheet();if(CALL_KIND==='other')$('#call-note').focus();});
+  $('#call-send').onclick=function(){
+    if(!CALL_KIND){$('#call-err').textContent=tr('call_pick');return;}
+    if(CALL_BUSY||CALL_LEFT>0)return;CALL_BUSY=true;renderCallSheet();
+    api('/service-calls',{method:'POST',body:{s:SID,k:K,kind:CALL_KIND,note:CALL_KIND==='other'?$('#call-note').value.trim():'',name:NAME}})
+      .then(function(){closeSheets();toast(tr('call_sent'),5000);return loadCalls();})
+      .catch(function(err){if(err.wait)setCallWait(err.wait);$('#call-err').textContent=err.message;})
+      .then(function(){CALL_BUSY=false;renderCallSheet();});
+  };
+  setInterval(function(){if(S&&!document.hidden)loadCalls();},20000);
   /* ---- 取餐推播（不登入） ---- */
   function subscribePush(orderId,btn){
     if(!('serviceWorker'in navigator)||!('PushManager'in window)){toast(tr('notification_unsupported'));return;}
@@ -508,7 +558,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     $('#thanks').classList.add('hidden');$('#boot').classList.add('hidden');$('#app').classList.remove('hidden');
     if(NAME){hideGate();$('#order-content').classList.remove('hidden');$('#name-display').textContent=NAME;}else{showGate();}
     askNotify();
-    renderMenu();renderState();live();poll();loadSongs();
+    renderMenu();renderState();live();poll();loadSongs();loadCalls();
   }
   $('#thanks-again').onclick=function(){
     clearEnded();$('#thanks').classList.add('hidden');$('#boot').classList.remove('hidden');

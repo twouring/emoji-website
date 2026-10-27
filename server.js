@@ -34,6 +34,7 @@ const eventCrypto=require('./lib/event-crypto');
 const eventChannels=require('./lib/event-channels');
 const tableOrders=require('./lib/table-orders');
 const songs=require('./lib/songs');
+const serviceCalls=require('./lib/service-calls');
 const yan=require('./lib/yan');
 const line = require('./lib/line');
 const { createLineService } = require('./lib/line-service');
@@ -7065,6 +7066,50 @@ app.get('/auth/youtube/callback',wrap(async(req,res)=>{
   res.redirect(back+'?youtube=connected');
 }));
 /* ---- 點歌 end ---- */
+
+/* ---- 呼叫服務（lib/service-calls.js）：客人在桌邊點餐頁按「呼叫服務」選項目送出，不進購物車；POS 各台輪詢跳通知，店員按「處理」結案。
+   狀態存 site_content.service_calls，不開新表。已離場（清桌）的桌，未處理呼叫在 POS 讀取時自動結案。 */
+async function withServiceCalls(fn){
+  const client=await pool.connect();
+  try{await client.query('BEGIN');
+    await client.query(`INSERT INTO site_content(key,value) VALUES('service_calls','{}') ON CONFLICT(key) DO NOTHING`);
+    const raw=(await client.query(`SELECT value FROM site_content WHERE key='service_calls' FOR UPDATE`)).rows[0]?.value;
+    const {state,out}=await fn(client,serviceCalls.normalize(raw));
+    await client.query(`UPDATE site_content SET value=$1,updated_at=now() WHERE key='service_calls'`,[JSON.stringify(state)]);
+    await client.query('COMMIT');return out;
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
+}
+const serviceErr=(res,e)=>{if(e&&e.status)return res.status(e.status).json({error:e.message,wait:e.wait});throw e;};
+// 客人端：看這桌的呼叫狀態／送出呼叫（掃單次 QR 帶 s、k）
+app.get('/api/service-calls',requireDb,wrap(async(req,res)=>{
+  res.set('Cache-Control','no-store');
+  try{const s=await songGuestSession(req.query);res.json(serviceCalls.publicView(serviceCalls.normalize(await contentValue('service_calls')),s.id));}catch(e){return serviceErr(res,e);}
+}));
+app.post('/api/service-calls',rateLimit({max:10}),requireDb,wrap(async(req,res)=>{
+  const b=req.body||{};
+  try{const s=await songGuestSession(b);
+    const call=await withServiceCalls(async(_c,st)=>{const r=serviceCalls.create(st,{id:uid('sc_'),session_id:s.id,table:s.table_no,kind:String(b.kind||''),note:b.note,by:b.name});return {state:r.state,out:r.call};});
+    res.status(201).json({ok:true,call:{id:call.id,kind:call.kind,at:call.at}});
+  }catch(e){return serviceErr(res,e);}
+}));
+// POS：未處理的呼叫（含最近處理的，供「剛剛誰處理」），每 5 秒輪詢
+app.get('/api/admin/orders/service-calls',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  res.set('Cache-Control','no-store');
+  let st=serviceCalls.normalize(await contentValue('service_calls'));
+  const open=serviceCalls.pending(st);
+  if(open.length){
+    const live=new Set((await q(`SELECT id FROM table_sessions WHERE id=ANY($1::text[]) AND status='open'`,[[...new Set(open.map(c=>c.session_id))]])).rows.map(r=>r.id));
+    const gone=[...new Set(open.filter(c=>!live.has(c.session_id)).map(c=>c.session_id))];
+    if(gone.length)st=await withServiceCalls(async(_c,s0)=>{let s1=s0;for(const id of gone)s1=serviceCalls.closeSession(s1,id).state;return {state:s1,out:s1};});
+  }
+  res.json({pending:serviceCalls.pending(st),kinds:serviceCalls.KINDS});
+}));
+app.post('/api/admin/orders/service-calls/:id/done',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  try{const call=await withServiceCalls(async(_c,st)=>{const r=serviceCalls.resolve(st,String(req.params.id),actorOf(req.auth)||'');return {state:r.state,out:r.call};});
+    res.json({ok:true,call});
+  }catch(e){return serviceErr(res,e);}
+}));
+/* ---- 呼叫服務 end ---- */
 // 後台 SPA：一般路徑路由（/admin/members、/admin/social/edit/:id…）皆回同一頁，前端依 pathname 切換分頁；
 // 舊 /admin.html 轉 301 至 /admin（瀏覽器保留 #hash，前端再轉為路徑）
 const ADMIN_PAGE = path.join(PUB, 'admin.html');

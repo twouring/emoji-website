@@ -497,6 +497,18 @@ POS 搜尋 YouTube。query `q`。回同客人端搜尋（不篩長度）。
 ### GET /auth/youtube/callback
 Google 授權完成：以授權碼換 token，access／refresh token 以 PII 金鑰加密存 `site_content.song_youtube`（不在公開內容白名單），導回 POS 並帶 `?youtube=connected|cancelled|failed`。redirect URI `https://www.emoji.tw/auth/youtube/callback` 須在 Google Cloud Console 的 OAuth client 登記，並啟用 YouTube Data API v3。
 
+### GET /api/service-calls
+呼叫服務（客人端）。query `s`、`k`（桌邊單次 QR）。回 `{ kinds:[{id,zh,en,ja}], open:[{id,kind,note,at}], recent_done:[{id,kind,done_at}], cooldown }`：只含本桌；`recent_done` 為 10 分鐘內處理完的，`cooldown` 為還要等幾秒才能再呼叫。項目：`water` 加水、`utensils` 餐具、`pack` 打包、`clear` 收桌、`other` 其他。狀態存 `site_content.service_calls`。QR 無效 403、桌已結束 409。
+
+### POST /api/service-calls
+送出呼叫（客人端，不進購物車、不計價）。body `{ s, k, kind, note?, name? }`；`note` 只在 `kind:'other'` 時保留（40 字內）。同一桌 60 秒內只能呼叫一次，冷卻中回 429 `{ error, wait }`。成功 201 `{ ok, call:{id,kind,at} }`。每 IP 每分鐘 10 次。
+
+### GET /api/admin/orders/service-calls
+POS 輪詢未處理的呼叫（每 5 秒）。回 `{ pending:[{id,session_id,table,kind,note,by,at}], kinds }`，依呼叫時間舊到新。已清桌（`table_sessions.status!='open'`）的桌，未處理呼叫在這裡自動結案（`done_by:'清桌'`）。已處理的保留 12 小時。
+
+### POST /api/admin/orders/service-calls/:id/done
+店員按「處理」結案，記 `done_at`／`done_by`（登入者或 PIN 員工）。已處理過的重複按回原資料（兩台同時按不報錯）；找不到 404。記入 POS 操作紀錄「處理客人呼叫服務」。
+
 ### POST /api/admin/menu/sold-out
 估清快速鍵。body `{ item_id, sold_out: boolean }`。只改該品項的 `sold_out`（記營業日），不覆蓋其他欄位；當個營業日結束（翌日 03:00）自動恢復。估清或恢復供應都會一併清除剩餘份數。品牌子帳號只能估清自己店別（403）。
 

@@ -240,6 +240,19 @@
   .p-regwarn button{all:unset;box-sizing:border-box;cursor:pointer;min-height:44px;padding:0 16px;border-radius:999px;background:#fff;color:var(--danger);font-weight:700;white-space:nowrap}
   .p-regwarn button:focus-visible{outline:3px solid #fff;outline-offset:2px}
   body.has-regwarn .p-top{padding-top:0}
+  /* 客人呼叫服務：右上角常駐，任何分頁都看得到；等超過 3 分鐘轉紅 */
+  #svc-calls{position:fixed;top:76px;right:max(12px,env(safe-area-inset-right));z-index:9000;width:300px;max-width:calc(100vw - 24px);max-height:calc(100vh - 100px);overflow:auto;background:var(--ink,#1B1A17);color:#fff;border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.35);padding:8px}
+  #svc-calls[hidden]{display:none}
+  #svc-calls .svc-head{display:flex;align-items:center;gap:6px;padding:4px 6px 8px;font-size:1rem}
+  #svc-calls .svc-head svg{width:20px;height:20px}
+  #svc-calls .svc-card{display:flex;align-items:center;gap:10px;padding:10px;margin-top:6px;border-radius:10px;background:#FFDE34;color:#111}
+  #svc-calls .svc-card.is-late{background:#B3261E;color:#fff}
+  #svc-calls .svc-table{flex:none;min-width:48px;text-align:center;font-size:1.5rem;font-weight:800}
+  #svc-calls .svc-main{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.35}
+  #svc-calls .svc-main b{font-size:1.15rem}#svc-calls .svc-main small{font-size:1rem;opacity:.85;overflow-wrap:anywhere}
+  #svc-calls button{all:unset;box-sizing:border-box;cursor:pointer;flex:none;min-width:64px;min-height:48px;padding:0 12px;border-radius:10px;background:#111;color:#fff;font-weight:700;text-align:center;display:grid;place-items:center}
+  #svc-calls .is-late button{background:#fff;color:#B3261E}
+  #svc-calls button:disabled{opacity:.5}
   @media(max-width:999px){body.has-regwarn .p-top{padding-top:8px}}
   @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -277,6 +290,7 @@
 <script src="/pos-inventory.js"></script>
 <script src="/pos-settings.js"></script>
 <script src="/pos-songs.js"></script>
+<script src="/pos-service-calls.js"></script>
 <script src="/pos-icons.js"></script>
 <script>
 /* 平板 POS 子站（pos.emoji.tw）：只做餐飲現場的事——櫃檯結帳、出餐、估清、訂位、查單、日結、打卡、排班。
@@ -597,6 +611,7 @@ async function main(){
     render();
     refreshPending();
     songBoot();
+    serviceCallBoot();
     renewToken();
   } catch(e){
     if (e.status === 401) return;   // api() 已轉到登入畫面
