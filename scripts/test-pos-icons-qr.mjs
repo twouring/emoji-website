@@ -6,7 +6,7 @@ const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const ops=read('public/pos-ops.js');
 function qrContext({ready=true,success=true,qrError=false,enc=true}={}){
   const calls=[], texts=[], canvases=[];
-  const context={console,STAR_DOTS:384,...(enc?{PosEncouragement:{pick:()=>({zh:'測試鼓勵語',en:'Keep going.',m:'coffee/dot'})},PosMoji:{ratio:0.875,draw:(...a)=>{calls.push(['moji',...a.slice(1)]);return true;}}}:{}),toast:m=>calls.push(['toast',m]),starReady:()=>ready,starOpenHere:async()=>calls.push(['setup']),starSend:async job=>{calls.push(['send',job]);return success;},QRCode:{toCanvas:(c,url,options,cb)=>{calls.push(['qr',url,options]);cb(qrError?Error('qr'):null);}},document:{createElement:()=>{const c={getContext:()=>({fillRect(){},fillText:t=>texts.push(t),drawImage:(...a)=>calls.push(['image',...a])})};canvases.push(c);return c;}}};
+  const context={console,STAR_DOTS:384,QR_CLIP_TOP:200,...(enc?{PosEncouragement:{pick:()=>({zh:'測試鼓勵語',en:'Keep going.',m:'coffee/dot'})},PosMoji:{ratio:0.875,draw:(...a)=>{calls.push(['moji',...a.slice(1)]);return true;}}}:{}),toast:m=>calls.push(['toast',m]),starReady:()=>ready,starOpenHere:async()=>calls.push(['setup']),starSend:async job=>{calls.push(['send',job]);return success;},QRCode:{toCanvas:(c,url,options,cb)=>{calls.push(['qr',url,options]);cb(qrError?Error('qr'):null);}},document:{createElement:()=>{const c={getContext:()=>({fillRect(){},fillText:t=>texts.push(t),drawImage:(...a)=>calls.push(['image',...a])})};canvases.push(c);return c;}}};
   vm.createContext(context);
   const match=ops.match(/async function printTableQr\(table,url\)\{[\s\S]*?\n\}/);
   assert.ok(match,'單桌 QR 列印 helper 必須存在');
@@ -54,4 +54,8 @@ test('POS 圖示 script 與導覽圖示接線，未知名稱不能注入 SVG',()
   assert.equal(ctx.window.POSIcon('<img onerror=alert(1)>'),'');
   assert.equal(ctx.window.POSIcon('toString'),'');
   assert.match(html,/POSIcon\(t.icon\)/);assert.match(html,/POSIcon\('calendar'\)/);
+});
+test('桌號 QR 單上方留白給帳本夾（≥20mm），標題從留白下方開始',()=>{
+  const m=ops.match(/const QR_CLIP_TOP=(\d+);/);assert.ok(m,'要有 QR_CLIP_TOP');assert.ok(Number(m[1])>=160,'留白至少 20mm（160 點）');
+  const fn=ops.match(/async function printTableQr\(table,url\)\{[\s\S]*?\n\}/)[0];assert.match(fn,/let y=QR_CLIP_TOP;/);
 });

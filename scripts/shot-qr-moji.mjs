@@ -8,6 +8,7 @@ const out = path.resolve(process.argv[2] || 'qr-moji-shots');
 fs.mkdirSync(out, { recursive: true });
 const pub = p => fs.readFileSync(new URL('../public/' + p, import.meta.url), 'utf8');
 const ops = pub('pos-ops.js');
+const clipTop = Number((/const QR_CLIP_TOP=(\d+);/.exec(ops) || [])[1] || 0);
 const fn = ops.match(/async function printTableQr\(table,url\)\{[\s\S]*?\n\}/)[0];
 
 const html = `<!doctype html><meta charset="utf-8"><body style="margin:0;background:#ddd">
@@ -15,7 +16,7 @@ const html = `<!doctype html><meta charset="utf-8"><body style="margin:0;backgro
 <script>${pub('pos-encouragement.js')}</script>
 <script>${pub('pos-moji.js')}</script>
 <script>
-const STAR_DOTS=384;let LAST=null;
+const STAR_DOTS=384,QR_CLIP_TOP=${clipTop};let LAST=null;
 const starReady=()=>true,starOpenHere=async()=>{},toast=()=>{};
 const starSend=async({canvas})=>{LAST=canvas.toDataURL('image/png');return true;};
 ${fn}

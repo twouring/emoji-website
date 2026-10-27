@@ -407,6 +407,7 @@ const PRINT_CSS='body{font-family:sans-serif;width:72mm;margin:0;padding:4mm;fon
 function printWindow(title,html,css=PRINT_CSS){const w=window.open('','_blank');if(!w){toast('瀏覽器擋下列印視窗，請允許彈出視窗');return false;}w.document.write(`<title>${esc(title)}</title><style>${css}</style>${html}`);w.document.close();w.focus();w.print();return true;}
 // Star mPOP POP10CI（沒有藍牙）：iPad 用 USB-C 線接 mPOP，POS 在 Star webPRNT Browser 裡開，網頁經 localhost:8001 送列印／開錢櫃指令（SDK 在 /vendor/StarWebPrint*.js，只有 pos.html 載入）
 const STAR_WEBPRNT_URL='https://localhost:8001/StarWebPRNT/SendMessage';
+const QR_CLIP_TOP=200; // 桌號 QR 單上方留白 25mm，給帳本夾夾
 const STAR_DOTS=384; // mPOP 58mm 紙、203dpi：可列印寬 48mm = 384 點
 const inStarBrowser=()=>/StarWebPRNTBrowser/i.test(navigator.userAgent);
 const starReady=()=>inStarBrowser()&&typeof StarWebPrintBuilder!=='undefined'&&typeof StarWebPrintTrader!=='undefined';
@@ -906,8 +907,9 @@ async function printTableQr(table,url){
   const q=await new Promise(resolve=>{if(!url||typeof QRCode==='undefined'||!QRCode.toCanvas)return resolve(null);const c=document.createElement('canvas');QRCode.toCanvas(c,String(url),{width:300,margin:4},err=>resolve(err?null:c));});
   if(!q){toast('QR 產生失敗');return false;}
   // 中英雙語，外國客人也看得懂；鼓勵小語印在這張（發票證明聯不印）
-  const W=STAR_DOTS,c=document.createElement('canvas');c.width=W;c.height=1000;const g=c.getContext('2d');
-  g.fillStyle='#fff';g.fillRect(0,0,W,c.height);g.fillStyle='#000';g.textBaseline='top';g.textAlign='center';let y=8;
+  // 上方留白給帳本夾夾住，不壓到「言文字」與 QR（203dpi：8 點＝1mm）
+  const W=STAR_DOTS,c=document.createElement('canvas');c.width=W;c.height=1400;const g=c.getContext('2d');
+  g.fillStyle='#fff';g.fillRect(0,0,W,c.height);g.fillStyle='#000';g.textBaseline='top';g.textAlign='center';let y=QR_CLIP_TOP;
   const line=(t,size,bold,gap=8)=>{g.font=(bold?'bold ':'')+size+'px sans-serif';g.fillText(t,W/2,y);y+=size+gap;};
   // 自動換行：英文以單字切、中文以字切
   const wrap=(t,size,bold)=>{g.font=(bold?'bold ':'')+size+'px sans-serif';const parts=/\s/.test(t)?t.split(/(\s+)/):[...t];let cur='';const fit=s=>!g.measureText||g.measureText(s).width<=W-16;for(const p of parts){if(cur&&!fit(cur+p)){line(cur.trim(),size,bold);cur=p.trimStart();}else cur+=p;}if(cur.trim())line(cur.trim(),size,bold);};
