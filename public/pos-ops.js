@@ -915,8 +915,7 @@ async function printTableQr(table,url){
   g.drawImage(q,(W-300)/2,y,300,300);y+=308;
   line('桌號 '+table,44,true,4);line('Table '+table,24,true,14);
   line('掃碼點餐',26,true,4);line('Scan to order',20,false,12);
-  wrap('用餐完請到櫃檯結帳',20);wrap('Please pay at the counter after your meal',18);y+=4;
-  wrap('本次用餐專用・結帳後失效',18);wrap('Valid for this visit only; expires once you pay',16);
+  wrap('用餐完請到櫃檯結帳',20);wrap('Please pay at the counter after your meal',18);
   const enc=typeof PosEncouragement!=='undefined'&&PosEncouragement.pick?PosEncouragement.pick():null;
   if(enc){y+=6;g.fillRect(40,y,W-80,2);y+=14;wrap(enc.zh,22);wrap(enc.en,18);}
   const out=document.createElement('canvas');out.width=W;out.height=Math.ceil(y+12);const og=out.getContext('2d');og.fillStyle='#fff';og.fillRect(0,0,W,out.height);og.drawImage(c,0,0);
