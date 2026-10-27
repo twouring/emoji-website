@@ -907,13 +907,13 @@ async function printTableQr(table,url){
   const q=await new Promise(resolve=>{if(!url||typeof QRCode==='undefined'||!QRCode.toCanvas)return resolve(null);const c=document.createElement('canvas');QRCode.toCanvas(c,String(url),{width:300,margin:4},err=>resolve(err?null:c));});
   if(!q){toast('QR 產生失敗');return false;}
   // 中英雙語，外國客人也看得懂；鼓勵小語印在這張（發票證明聯不印）
-  // 上方留白給帳本夾夾住，不壓到「言文字」與 QR（203dpi：8 點＝1mm）
+  // 上方留白給帳本夾夾住，不壓到店名與 QR（203dpi：8 點＝1mm）
   const W=STAR_DOTS,c=document.createElement('canvas');c.width=W;c.height=1400;const g=c.getContext('2d');
   g.fillStyle='#fff';g.fillRect(0,0,W,c.height);g.fillStyle='#000';g.textBaseline='top';g.textAlign='center';let y=QR_CLIP_TOP;
   const line=(t,size,bold,gap=8)=>{g.font=(bold?'bold ':'')+size+'px sans-serif';g.fillText(t,W/2,y);y+=size+gap;};
   // 自動換行：英文以單字切、中文以字切
   const wrap=(t,size,bold)=>{g.font=(bold?'bold ':'')+size+'px sans-serif';const parts=/\s/.test(t)?t.split(/(\s+)/):[...t];let cur='';const fit=s=>!g.measureText||g.measureText(s).width<=W-16;for(const p of parts){if(cur&&!fit(cur+p)){line(cur.trim(),size,bold);cur=p.trimStart();}else cur+=p;}if(cur.trim())line(cur.trim(),size,bold);};
-  line('言文字',26,true,10);
+  line('在咖啡、三點水',26,true,10);  // 桌子兩個品牌共用，印兩個店名（不印母公司言文字）
   g.drawImage(q,(W-300)/2,y,300,300);y+=308;
   line('桌號 '+table,44,true,4);line('Table '+table,24,true,14);
   line('掃碼點餐',26,true,4);line('Scan to order',20,false,12);

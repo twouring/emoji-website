@@ -18,7 +18,7 @@ test('單桌 QR 直接走 384-dot mPOP 並保留 QR 留白，不開錢櫃或重�
   assert.equal(await context.printTableQr('A1','https://example.test/order?t=A1'),true);
   const qr=calls.find(c=>c[0]==='qr');assert.equal(qr[1],'https://example.test/order?t=A1');assert.ok(qr[2].margin>=4);
   assert.equal(calls.filter(c=>c[0]==='send').length,1);
-  assert.equal(canvases.at(-1).width,384);assert.ok(texts.includes('桌號 A1'));assert.ok(texts.includes('言文字'));
+  assert.equal(canvases.at(-1).width,384);assert.ok(texts.includes('桌號 A1'));assert.ok(texts.includes('在咖啡、三點水'));assert.ok(!texts.includes('言文字'),'桌號 QR 不印母公司名');
   const fn=ops.match(/async function printTableQr\(table,url\)\{[\s\S]*?\n\}/)[0];
   assert.doesNotMatch(fn,/drawer|checkout|window\.open|api\(/);
 });
