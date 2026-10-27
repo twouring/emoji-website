@@ -1983,7 +1983,7 @@ async function loadSales(){
   const methods=Object.entries(d.by_method||{}).sort((a,b)=>b[1]-a[1]).map(([m,v])=>`<tr><td>${esc(payMethodLabel(m))}</td><td class="num">${num(v)}</td><td class="num">${d.amount?Math.round(v/d.amount*100):0}%</td></tr>`).join('')||'<tr><td colspan="3" class="a-empty">這天沒有營收</td></tr>';
   const hours=Object.entries(d.by_hour||{}).sort(),maxH=Math.max(1,...hours.map(h=>h[1]));
   const hourBars=hours.map(([h,v])=>`<div class="sales-bar"><span class="a-mono">${esc(h)}:00</span><i style="width:${Math.round(v/maxH*100)}%"></i><span class="num">${num(v)}</span></div>`).join('')||'<p class="a-empty">—</p>';
-  const hasProducts=!!document.getElementById('products-body');   // POS 平板有「銷量」分頁：品項銷量整合到那邊，日結只留捷徑
+  const hasProducts=!!document.getElementById('analytics-body');   // POS 平板有「分析」分頁：品項銷量整合到那邊，日結只留捷徑
   const items=(d.items||[]).map(it=>`<tr><td>${esc(it.zh)}</td>${SCOPE?'':`<td>${esc(BRAND_LABEL[it.venue]||'')}</td>`}<td class="num">${it.qty}</td><td class="num">${num(it.amount)}</td></tr>`).join('')||`<tr><td colspan="${SCOPE?3:4}" class="a-empty">—</td></tr>`;
   // LINE Pay 對帳：LINE Pay 後台實收（每日 04:30 同步）vs POS 登記為 LINE Pay 的單；差額非 0 標紅
   const lp=d.linepay||{},lpPos=lp.pos||{},lpLp=lp.linepay||{},diff=Number(lp.diff)||0;
@@ -2009,7 +2009,7 @@ async function loadSales(){
     <div class="a-kpis sales-kpis"><div class="a-kpi"><div class="kl">營收</div><div class="kv"><span class="u">NT$</span>${num(d.amount)}</div><div class="ks">折扣後實收</div></div><div class="a-kpi"><div class="kl">成立單數</div><div class="kv">${num(d.orders)}<span class="u"> 單</span></div><div class="ks">平均每單 NT$${num(d.orders?Math.round(d.amount/d.orders):0)}</div></div><div class="a-kpi"><div class="kl">折扣</div><div class="kv"><span class="u">NT$</span>${num(d.discount_amount)}</div><div class="ks">${num(d.discount_count)} 單${d.comp_count?` · 贈送 ${num(d.comp_count)} 項`:''}</div></div>${d.redeem_points?`<div class="a-kpi"><div class="kl">點數兌換</div><div class="kv">${num(d.redeem_points)}<span class="u"> 點</span></div><div class="ks">${num(d.redeem_count)} 單 · 折抵 NT$${num(d.redeem_value)}</div></div>`:''}<div class="a-kpi"><div class="kl">作廢</div><div class="kv">${num(d.voided)}<span class="u"> 單</span></div><div class="ks">NT$${num(d.void_amount)} 不計營收</div></div></div>
     ${REG_DATA?accountConfirmBlock(REG_DATA,d)+registerBlock(REG_DATA):''}
     <div class="sales-cols"><div><h3>付款方式</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>方式</th><th class="num">金額</th><th class="num">占比</th></tr></thead><tbody>${methods}</tbody></table></div></div><div><h3>時段分布</h3><div class="sales-bars">${hourBars}</div></div></div>
-    ${hasProducts?`<div class="a-toolbar"><a class="btn btn--ghost btn-sm" id="sales-items-go" data-tab="products" href="${esc(opsHref('products'))}">品項銷量 → 銷量分頁（${esc(d.day)}）</a></div>`:`<h3>品項銷量</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>品項</th>${SCOPE?'':'<th>店別</th>'}<th class="num">數量</th><th class="num">金額</th></tr></thead><tbody>${items}</tbody></table></div>`}
+    ${hasProducts?`<div class="a-toolbar"><a class="btn btn--ghost btn-sm" id="sales-items-go" data-tab="analytics" href="${esc(opsHref('analytics'))}">品項銷量 → 分析（${esc(d.day)}）</a></div>`:`<h3>品項銷量</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>品項</th>${SCOPE?'':'<th>店別</th>'}<th class="num">數量</th><th class="num">金額</th></tr></thead><tbody>${items}</tbody></table></div>`}
     <details><summary>帳務參考（另行逐項確認）</summary><p class="hint">LINE Pay 依開關帳時間歸屬店別，台新手填紀錄為全店實收；請核對商家紀錄後，在上方關帳流程逐一填寫本品牌實收。</p>${lpBlock}${tsBlock}</details>`;
   bindAccountConfirm(host,d,loadSales);bindRegisterBlock(host,loadSales);bindReasonChips(host);bindFillChips(host);
   const shift=n=>{const t=new Date(SALES_DAY+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);SALES_DAY=t.toISOString().slice(0,10);REG_CASH_OPEN=false;REG_CLOSE_OPEN=false;REG_COUNT_OPEN=false;REG_OPEN_FORM='';loadSales();};
@@ -2029,7 +2029,7 @@ async function loadSales(){
   host.querySelector('#sales-prev').onclick=()=>shift(-1);
   host.querySelector('#sales-next').onclick=()=>shift(1);
   host.querySelector('#sales-today').onclick=()=>{SALES_DAY=MenuLib.businessDay();loadSales();};
-  const ig=host.querySelector('#sales-items-go');if(ig)ig.onclick=()=>{ANALYTICS_FROM=d.day;ANALYTICS_TO=d.day;};   // 宿主頁的 a[data-tab] 點擊處理會切到銷量分頁，帶這個營業日
+  const ig=host.querySelector('#sales-items-go');if(ig)ig.onclick=()=>{ANALYTICS_FROM=d.day;ANALYTICS_TO=d.day;ANALYTICS_KIND='products';};   // 宿主頁的 a[data-tab] 點擊處理會切到分析（銷量），帶這個營業日
   host.querySelector('#sales-csv').onclick=()=>downloadCSV(`日結_${d.day}${SCOPE?'_'+(BRAND_LABEL[SCOPE]||SCOPE):''}.csv`,d.csv||[]);
 }
 
@@ -2421,9 +2421,12 @@ function analyticsCharts(kind,d){
   return `<div class="chart-grid">${chartCard('會員 vs 非會員（單數）',donut(pair('member','guest','會員','非會員'),{center:num(d.orders)+' 單'}))}${chartCard('內用 vs 外帶（單數）',donut(pair('dinein','takeout','內用','外帶'),{center:num(d.orders)+' 單'}))}${chartCard('點餐方式（單數）',donut(pair('counter','qr','櫃檯點餐','含 QR 點餐'),{center:num(d.orders)+' 單'}))}${chartCard('付款方式（金額）',donut(methods,{center:'NT$'+num(d.amount)}))}${chartCard('時段來客（營收）',vbars(hourRows))}${chartCard('星期分布（營收）',vbars(wdRows))}${chartCard('每日營收',vbars(dayRows))}${chartCard('平均每單：會員 vs 非會員',hbars([['會員',c.member_avg_ticket||0],['非會員',c.guest_avg_ticket||0]],{fmt:v=>'NT$'+num(v)}))}</div>`;
 }
 
+// 「分析」分頁：銷量與客群合在同一頁，上方切換、共用日期區間（POS 平板）；/admin 仍可各自掛 products-body／customers-body
 function tabProducts(){return '<div class="a-sec" id="products-body"></div>';}
 function tabCustomers(){return '<div class="a-sec" id="customers-body"></div>';}
-let ANALYTICS_FROM='',ANALYTICS_TO='';
+function tabAnalytics(){return '<div class="a-sec" id="analytics-body"></div>';}
+let ANALYTICS_FROM='',ANALYTICS_TO='',ANALYTICS_KIND='products';
+const ANALYTICS_KINDS=[['products','銷量'],['customers','客群']];
 /* 常用日期區間：以營業日（03:00 分界）為「今天」；週一為一週第一天。「同期」＝上一期從頭算到與今天相同的第幾天（月底不足時截到該月最後一天）。 */
 const ANALYTICS_PRESETS=[['today','今天'],['yesterday','昨天'],['week','當週'],['lastweek_td','上週同期'],['month','當月'],['lastmonth_td','上月同期'],['last7','近七天'],['last30','近三十天']];
 function analyticsPresetRange(key,today){
@@ -2447,22 +2450,27 @@ function analyticsPresetRange(key,today){
 function loadProducts(){return loadAnalytics('products');}
 function loadCustomers(){return loadAnalytics('customers');}
 async function loadAnalytics(kind){
-  const host=document.getElementById(kind+'-body');if(!host)return;
-  const title=kind==='products'?'銷量分析':'客群分析';
+  const merged=document.getElementById('analytics-body');
+  if(merged&&!kind)kind=ANALYTICS_KIND;
+  if(merged)ANALYTICS_KIND=kind;
+  const host=merged||document.getElementById(kind+'-body');if(!host)return;
+  const title=merged?'分析':kind==='products'?'銷量分析':'客群分析';
+  const switcher=merged?`<div class="a-toolbar an-kinds" role="tablist" aria-label="分析類型">${ANALYTICS_KINDS.map(([k,l])=>`<button type="button" class="btn ${k===kind?'btn--solid':'btn--ghost'}" role="tab" data-an-kind="${k}" aria-selected="${k===kind}">${l}</button>`).join('')}</div>`:'';
   const query=new URLSearchParams();if(ANALYTICS_FROM)query.set('from',ANALYTICS_FROM);if(ANALYTICS_TO)query.set('to',ANALYTICS_TO);if(SCOPE)query.set('venue',SCOPE);
-  host.innerHTML=`<h2>${title}</h2><p class="hint">載入中…</p>`;
+  host.innerHTML=`<h2>${title}</h2>${switcher}<p class="hint">載入中…</p>`;
   let d;try{d=await api('/admin/analytics?'+query);}catch(e){host.innerHTML=`<h2>${title}</h2><p class="a-empty">${esc(e.message)}</p>`;return;}
   ANALYTICS_FROM=d.from;ANALYTICS_TO=d.to;
   const table=(heads,rows)=>`<div class="a-wrap2"><table class="a-tbl"><thead><tr>${heads.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.length?rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${heads.length}" class="a-empty">這段期間沒有資料</td></tr>`}</tbody></table></div>`;
   const productRows=(d.items||[]).map(i=>[i.zh,BRAND_LABEL[i.venue]||i.venue,catLabel(i.cat),i.qty,num(i.amount),i.orders]);
   const c=d.customers||{},segments=[['member','會員'],['guest','非會員'],['takeout','外帶'],['dinein','內用'],['qr','含 QR 點餐'],['counter','櫃檯點餐']];
   const customerRows=segments.map(([key,label])=>[label,c[key]?.orders||0,num(c[key]?.amount||0)]);
-  host.innerHTML=`<div class="ops-head"><h2>${title}</h2>${opsHelp('營業日以凌晨 03:00 分界，最多查 93 天。作廢單不計；品項金額為品項小計，不分攤整單折扣。單數是付款單數（含預收與分攤），不是來客人數；會員、內外帶與點餐方式為不同維度，不可相加。新會員依全店首次付款判定；無會員識別碼的聚落價單不計入不重複會員。')}</div>
+  host.innerHTML=`<div class="ops-head"><h2>${title}</h2>${opsHelp('營業日以凌晨 03:00 分界，最多查 93 天。作廢單不計；品項金額為品項小計，不分攤整單折扣。單數是付款單數（含預收與分攤），不是來客人數；會員、內外帶與點餐方式為不同維度，不可相加。新會員依全店首次付款判定；無會員識別碼的聚落價單不計入不重複會員。')}</div>${switcher}
     <form class="a-toolbar" id="analytics-range"><label>起日 <input type="date" name="from" value="${esc(d.from)}" required></label><label>迄日 <input type="date" name="to" value="${esc(d.to)}" required></label><button class="btn btn--solid" type="submit">查詢</button><button class="btn btn--ghost" type="button" id="analytics-csv">匯出 CSV</button></form>
     <div class="a-toolbar" id="analytics-presets">${(()=>{const td=MenuLib.businessDay();return ANALYTICS_PRESETS.map(([k,l])=>{const r=analyticsPresetRange(k,td),on=r&&r[0]===d.from&&r[1]===d.to;return `<button class="btn ${on?'btn--solid':'btn--ghost'} btn-sm" type="button" data-preset="${k}" aria-pressed="${on}">${l}</button>`;}).join('');})()}</div>
     <div class="a-kpis"><div class="a-kpi"><div class="kl">營收</div><div class="kv">NT$${num(d.amount)}</div></div><div class="a-kpi"><div class="kl">付款單數</div><div class="kv">${num(d.orders)}</div></div><div class="a-kpi"><div class="kl">平均每單</div><div class="kv">NT$${num(d.avg_ticket)}</div></div></div>
     ${analyticsCharts(kind,d)}
     ${kind==='products'?`<h3>品項銷量</h3>${table(['品項','店別','類別','數量','品項金額','單數'],productRows)}<h3>每日營收</h3>${table(['營業日','付款單數','營收'],(d.by_day||[]).map(r=>[r.day,r.orders,num(r.amount)]))}<h3>類別銷量</h3>${table(['類別','數量','品項金額'],(d.categories||[]).map(r=>[catLabel(r.cat),r.qty,num(r.amount)]))}`:`<h3>付款單客群</h3>${table(['分類','單數','營收'],customerRows)}<h3>會員回訪</h3>${table(['指標','數值'],[['不重複會員',c.unique_members],['區間內至少兩單',c.repeat_members],['首次付款會員',c.new_members],['會員平均每單',num(c.member_avg_ticket)],['非會員平均每單',num(c.guest_avg_ticket)]])}`}`;
+  host.querySelectorAll('[data-an-kind]').forEach(b=>b.onclick=()=>{if(b.dataset.anKind===kind)return;ANALYTICS_KIND=b.dataset.anKind;if(typeof tabUrl==='function'&&location.pathname!==tabUrl('analytics'))history.replaceState(null,'',tabUrl('analytics'));loadAnalytics(ANALYTICS_KIND);});
   host.querySelector('#analytics-range').onsubmit=e=>{e.preventDefault();ANALYTICS_FROM=host.querySelector('[name=from]').value;ANALYTICS_TO=host.querySelector('[name=to]').value;loadAnalytics(kind);};
   host.querySelectorAll('#analytics-presets [data-preset]').forEach(b=>b.onclick=()=>{const r=analyticsPresetRange(b.dataset.preset,MenuLib.businessDay());if(!r)return;[ANALYTICS_FROM,ANALYTICS_TO]=r;loadAnalytics(kind);});
   host.querySelector('#analytics-csv').onclick=()=>downloadCSV(`${title}_${d.from}_${d.to}.csv`,kind==='products'?[['品項','店別','類別','數量','品項金額','單數'],...productRows]:[['分類','單數','營收'],...customerRows]);

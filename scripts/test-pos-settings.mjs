@@ -13,8 +13,8 @@ function tabs() {
 test('頂欄只留常用分頁（點歌營業中常用、留在頂欄），庫存／排班／銷量／客群／紀錄移到設定', () => {
   const T = tabs();
   const top = T.filter(t => !t.group).map(t => t.id);
-  assert.deepEqual(top, ['pos', 'orders', 'soldout', 'reservations', 'songs', 'members', 'history', 'clock', 'sales', 'settings']);
-  assert.deepEqual(T.filter(t => t.group === 'settings').map(t => t.id).sort(), ['customers', 'inventory', 'logs', 'products', 'shifts']);
+  assert.deepEqual(top, ['pos', 'orders', 'soldout', 'reservations', 'songs', 'members', 'history', 'clock', 'sales', 'analytics', 'settings']);
+  assert.deepEqual(T.filter(t => t.group === 'settings').map(t => t.id).sort(), ['inventory', 'logs', 'shifts']);
   for (const t of T.filter(t => t.group)) assert.ok(t.desc, t.id + ' 要有設定頁說明');
   assert.match(pos, /TABS\.filter\(t => !t\.group\)\.map/);
   assert.match(pos, /const navTab = TABS\.find\(t => t\.id === TAB\)\?\.group \|\| TAB/);
@@ -38,4 +38,8 @@ test('後端：GET 清單、POST/PATCH 超管或店長識別碼、API.md 有文�
   assert.match(server, /app\.get\('\/api\/admin\/payment-methods',auth,adminOnly,requireDb,/);
   assert.match(api, /### GET \/api\/admin\/payment-methods/);
   assert.match(api, /X-Manager-Pin/);
+});
+test('舊網址 /pos/products、/pos/customers 轉到 /pos/analytics', () => {
+  assert.match(pos, /const LEGACY_ANALYTICS = \{ products:'products', customers:'customers' \}/);
+  assert.match(pos, /history\.replaceState\(null, '', '\/pos\/analytics\/' \+ ANALYTICS_KIND\)/);
 });

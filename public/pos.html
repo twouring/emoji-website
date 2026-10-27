@@ -152,6 +152,8 @@
   @media(min-width:601px) and (max-width:999px){:root{--p-top:108px}.p-nav-wrap{order:3;flex:1 1 100%}.p-nav{overflow-x:visible;flex-wrap:wrap}}
   /* 手機（≤600px）：若分頁跟平板一樣換行會疊成 4 行、頂欄佔掉近一半螢幕（KK 回報「上半部佔比太多」）→ 分頁維持單行橫向滑動，右側漸層＋固定「›」提示還有更多（比單純淡化邊緣更明顯），並在切換分頁時自動把目前分頁捲進視野，不靠隱藏捲軸讓人自己猜 */
   @media(max-width:600px){:root{--p-top:108px}.p-nav-wrap{order:3;flex:1 1 100%}.p-nav{overflow-x:auto;flex-wrap:nowrap}}
+  /* iPad 橫放（1000–1279px）：11 個分頁要一行放得下，縮按鈕左右內距與圖示間距，觸控高度不變 */
+  @media(min-width:1000px) and (max-width:1279px){.p-nav{gap:2px}.p-nav button{padding:0 8px}.p-nav button .ic{margin-right:3px;width:18px;height:18px}.p-scope button{padding:0 10px}.p-top{gap:8px}}
   @media(max-width:720px){.p-ver-wrap{display:none}.p-scope button,.p-nav button{padding:0 12px}}
   /* 手機（≤600px，以 375 寬為準）：店別＋錢櫃／登出併成第一行、分頁第二行；錢櫃／登出只留圖示（文字仍是無障礙名稱），不再上下疊成第三行 */
   @media(max-width:600px){.p-brand{display:none}.p-scope{min-width:0}.p-tools button:not(.p-net){display:inline-flex;align-items:center;justify-content:flex-start;width:44px;padding:0 0 0 11px;overflow:hidden;white-space:nowrap}.p-tools #p-drawer .ic,.p-tools #p-logout .ic{margin-right:12px}
@@ -231,16 +233,15 @@ const TABS = [
   { id:'history', icon:'search',      label:'查單' },
   { id:'clock', icon:'clock',        label:'打卡' },
   { id:'sales', icon:'receipt',      label:'日結' },
+  { id:'analytics', icon:'chart',    label:'分析' },
   { id:'settings', icon:'gear',      label:'設定' },
   // group:'settings'＝不放頂欄，從「設定」進入（網址 /pos/<id> 照舊可直接開）
   { id:'inventory', icon:'box',    label:'庫存', group:'settings', desc:'進貨、盤點與菜單配方' },
   { id:'shifts', icon:'users',       label:'排班', group:'settings', desc:'班表、排休、自動排班' },
-  { id:'products', icon:'chart',     label:'銷量', group:'settings', desc:'品項銷售排行與趨勢' },
-  { id:'customers', icon:'pie',      label:'客群', group:'settings', desc:'來客組成與會員消費分析' },
   { id:'logs', icon:'history',      label:'紀錄', group:'settings', desc:'操作紀錄（限店長）' },
 ];
 // 員工管理（新增／編輯／停用、出勤修正）刻意不放平板：只在 admin.emoji.tw 品牌工作區「排班打卡」，現場人員改不到
-const PANEL = { pos:tabPos, members:tabPosMembers, orders:tabOrders, soldout:tabSoldOut, inventory:tabInventory, reservations:tabReservations, history:tabHistory, logs:tabLogs, sales:tabSales, products:tabProducts, customers:tabCustomers, clock:tabClock, shifts:tabShifts, settings:tabSettings, songs:tabSongs };
+const PANEL = { pos:tabPos, members:tabPosMembers, orders:tabOrders, soldout:tabSoldOut, inventory:tabInventory, reservations:tabReservations, history:tabHistory, logs:tabLogs, sales:tabSales, analytics:tabAnalytics, clock:tabClock, shifts:tabShifts, settings:tabSettings, songs:tabSongs };
 let toastT, DATA = null, TAB = 'pos', SCOPE = '', MENU_DOC = null, PENDING = 0;
 try { SCOPE = localStorage.getItem('tth_pos_scope') || ''; } catch (e) {}
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2400); }
@@ -249,8 +250,8 @@ function downloadCSV(filename, rows){
   const csv = rows.map(r => r.map(c => { let s = c == null ? '' : String(c); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; }).join(',')).join('\r\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'})); a.download = filename; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
 }
-// 分頁網址：/pos（結帳）、/pos/orders、/pos/soldout、/pos/reservations、/pos/history、/pos/sales、/pos/clock、/pos/settings（底下 /pos/inventory、/pos/shifts、/pos/products、/pos/customers、/pos/logs）；pos.emoji.tw 與 www.emoji.tw 皆可
-const tabUrl = tab => '/pos' + (tab === 'pos' ? '' : '/' + tab);
+// 分頁網址：/pos（結帳）、/pos/orders、/pos/soldout、/pos/reservations、/pos/history、/pos/sales、/pos/clock、/pos/analytics（/pos/analytics/customers＝客群）、/pos/settings（底下 /pos/inventory、/pos/shifts、/pos/logs）；pos.emoji.tw 與 www.emoji.tw 皆可
+const tabUrl = tab => '/pos' + (tab === 'pos' ? '' : '/' + tab) + (tab === 'analytics' && typeof ANALYTICS_KIND !== 'undefined' && ANALYTICS_KIND !== 'products' ? '/' + ANALYTICS_KIND : '');
 function opsHref(tab){ return tabUrl(tab); }
 // Google 登入的 callback 綁在官網網域（PUBLIC_ORIGIN），state cookie 也在那裡：子網域一律先到 www 發起，登入完成再以 #token 導回本站
 const AUTH_ORIGIN = /^pos\./i.test(location.hostname) ? location.origin.replace(/\/\/pos\./i, '//www.') : location.origin;
@@ -381,7 +382,14 @@ function renderBrandChoice(pin, d){
 const scopesOf = d => d?.me?.operator ? (d.brands || []).filter(b => BRAND_LABEL[b]).slice(0,1) : d?.brands ? d.brands.filter(b => BRAND_LABEL[b]) : ['', ...Object.keys(BRAND_LABEL)];
 function setScope(s){ if (DATA?.me?.operator && s !== scopesOf(DATA)[0]) return; SCOPE = s; try { localStorage.setItem('tth_pos_scope', s); } catch (e) {} }
 
-function routeTab(){ const p = location.pathname.replace(/^\/pos\/?/, '').replace(/\/+$/,'').split('/')[0]; return TABS.some(t=>t.id===p) ? p : 'pos'; }
+// 舊網址 /pos/products、/pos/customers 併入「分析」：/pos/analytics/products|customers
+const LEGACY_ANALYTICS = { products:'products', customers:'customers' };
+function routeTab(){
+  const seg = location.pathname.replace(/^\/pos\/?/, '').replace(/\/+$/,'').split('/');
+  if (LEGACY_ANALYTICS[seg[0]]) { ANALYTICS_KIND = LEGACY_ANALYTICS[seg[0]]; history.replaceState(null, '', '/pos/analytics/' + ANALYTICS_KIND); return 'analytics'; }
+  if (seg[0] === 'analytics' && LEGACY_ANALYTICS[seg[1]]) ANALYTICS_KIND = seg[1];
+  return TABS.some(t=>t.id===seg[0]) ? seg[0] : 'pos';
+}
 function go(tab, replace){
   TAB = tab;
   const url = tabUrl(tab);
@@ -432,8 +440,7 @@ function activate(){
   else if (TAB === 'reservations') loadReservations();
   else if (TAB === 'history') loadHistory();
   else if (TAB === 'sales') loadSales();
-  else if (TAB === 'products') loadProducts();
-  else if (TAB === 'customers') loadCustomers();
+  else if (TAB === 'analytics') loadAnalytics();
   else if (TAB === 'clock') loadClock();
   else if (TAB === 'logs') loadLogs();
   else if (TAB === 'shifts') loadShifts();

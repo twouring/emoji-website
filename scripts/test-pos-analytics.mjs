@@ -53,7 +53,10 @@ test('brand middleware admits analytics and both tabs have reachable loaders',()
  const s=fs.readFileSync(new URL('../server.js',import.meta.url),'utf8');
  const re=vm.runInNewContext(s.match(/const FOOD_API = ([^;]+);/)[1]);assert.equal(re.test('/api/admin/analytics'),true);
  const h=fs.readFileSync(new URL('../public/pos.html',import.meta.url),'utf8'),js=fs.readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');
- for(const [id,fn] of [['products','Products'],['customers','Customers']]){assert.match(h,new RegExp(id+':tab'+fn));assert.match(h,new RegExp('load'+fn+'\\(\\)'));assert.match(js,new RegExp('function load'+fn+'\\('));}
+ // POS 平板：銷量與客群合併成「分析」分頁（上方切換），/admin 仍可各自呼叫 loadProducts／loadCustomers
+ assert.match(h,/analytics:tabAnalytics/);assert.match(h,/else if \(TAB === 'analytics'\) loadAnalytics\(\)/);assert.match(h,/\{ id:'analytics', icon:'chart',\s+label:'分析' \}/);
+ assert.match(js,/function tabAnalytics\(\)/);assert.match(js,/data-an-kind=/);assert.match(js,/ANALYTICS_KINDS=\[\['products','銷量'\],\['customers','客群'\]\]/);
+ for(const fn of ['Products','Customers'])assert.match(js,new RegExp('function load'+fn+'\\('));
 });
 test('sales charts and tables show category labels, never raw cat codes',()=>{
  const js=fs.readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');
