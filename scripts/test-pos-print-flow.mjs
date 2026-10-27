@@ -107,7 +107,7 @@ test('帳本夾：內用送單（在咖啡、三點水）多印一張點餐明�
   const {c,texts,sent}=printContext();c.o={id:'tk_1',table_no:table,placed_at:'now',items:[{zh:'烏龍麵',qty:2,price:320,cat:'MAIN',venue,note:'麵量：少麵'}]};
   await vm.runInContext('printOrder(o,{auto:true,slip:true});',c);
   assert.equal(sent.length,want,`${venue} ${table}`);
-  if(want===2){assert.ok(texts.includes('點餐明細'));assert.ok(texts.includes('□ 烏龍麵'));assert.ok(texts.includes('320 × 2')&&texts.includes('640'),'單價×數量＋小計');assert.ok(texts.some(t=>String(t).includes('[少麵]')));}
+  if(want===2){assert.ok(texts.includes('點餐明細 Order Details'));assert.ok(texts.includes('□ 烏龍麵'));assert.ok(texts.includes('320 × 2')&&texts.includes('640'),'單價×數量＋小計');assert.ok(texts.some(t=>String(t).includes('[少麵')));}
  }
  const {c,sent}=printContext();c.o={id:'tk_2',table_no:'A1',items:[{zh:'烏龍麵',qty:1,price:320,cat:'MAIN',venue:'BAR'}]};
  await vm.runInContext('printOrder(o);',c);assert.equal(sent.length,1,'補印出餐單不附明細');
@@ -117,8 +117,20 @@ test('點餐明細：套餐內容各帶 □、桌號人數、整桌累計含服�
  c.o={id:'tk_abc123',table_no:'B1',placed_at:'now',table_total:{amount:1448,service:145,total:1593,count:9,party:4},items:[
   {zh:'98套餐',qty:1,price:98,cat:'MAIN',venue:'BAR',by:'小明',parts:[{slot:'湯品',zh:'奶油蘑菇湯'},{slot:'麵包',zh:'餐包'}]}]};
  await vm.runInContext('ticketCanvas(orderSlipSpec(o))',c);
- for(const t of ['桌 B1','4 位','□ 98套餐','　□ 湯品：奶油蘑菇湯','　□ 麵包：餐包','整桌消費','1,448','服務費 10%','NT$1,593','點餐：小明'])assert.ok(texts.some(x=>String(x)===t||String(x).replace(/,/g,'')===t.replace(/,/g,'')),t+' 未印出：'+JSON.stringify(texts));
+ for(const t of ['桌 Table B1','4 位 pax','□ 98套餐','　□ 湯品：奶油蘑菇湯','　□ 麵包：餐包','整桌 Table subtotal','1,448','服務費 Service 10%','NT$1,593','點餐 By：小明','Please pay at the counter. Thank you!'])assert.ok(texts.join('').replace(/,/g,'').includes(t.replace(/,/g,'')),t+' 未印出：'+JSON.stringify(texts));
 });
 test('自動出單佇列送單時附點餐明細', () => {
  assert.ok(src.includes('printOrder(claim.job,{auto:true,slip:true})'));
+});
+
+test('點餐明細英文：品名印 en、規格附英文對照、套餐內容附英文', async () => {
+ const {c,texts}=printContext();
+ vm.runInContext(readFileSync(new URL('../public/order-lib.js',import.meta.url),'utf8'),c);
+ c.o={id:'tk_en1',table_no:'A2',placed_at:'now',items:[
+  {zh:'拿鐵',en:'Latte',qty:1,price:120,cat:'COFFEE',venue:'CAFE',note:'冰塊：少冰'},
+  {zh:'98套餐',en:'Set +98',qty:1,price:98,cat:'COMBO',venue:'BAR',parts:[{slot:'飲品',zh:'紅茶',en:'Black tea'}]}]};
+ await vm.runInContext('ticketCanvas(orderSlipSpec(o))',c);
+ assert.ok(texts.includes('　Latte'),JSON.stringify(texts));
+ assert.ok(texts.join('').includes('[少冰 Less ice]'));
+ assert.ok(texts.includes('　　Black tea'));
 });

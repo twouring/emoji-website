@@ -186,5 +186,7 @@
     return (groups || []).filter(g => !g.when || [].concat(g.when).every(w => picks?.[w.key] === w.value));
   }
 
-  global.OrderLib = { TEXT, text, splitBill, optionGroups, activeOptionGroups, comboGroups, comboPayload, slotLabel };
+  /* 規格中文 → 英文（POS 帳本夾點餐明細用）；不在對照表的自由備註回空字串 */
+  function optionEn(zh) { for (const k of Object.keys(OPT.zh)) { const i = OPT.zh[k].indexOf(zh); if (i >= 0) return OPT.en[k][i]; } return ''; }
+  global.OrderLib = { TEXT, text, splitBill, optionEn, optionGroups, activeOptionGroups, comboGroups, comboPayload, slotLabel };
 })(typeof window !== 'undefined' ? window : globalThis);

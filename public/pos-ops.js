@@ -519,8 +519,18 @@ function ticketLineMark(l){return l.cancelled?'（已取消）':l.comp_reason?'�
 function spaceRewards(){try{const v=DATA?.content?.yan_rewards;const j=typeof v==='string'&&v?JSON.parse(v):{};return {day_4h:Math.max(0,Math.floor(Number(j.day_4h))||0),day_12h:Math.max(0,Math.floor(Number(j.day_12h))||0)};}catch(e){return {day_4h:0,day_12h:0};}}
 const lineShown=l=>l.redeem_points>0?(Number(l.regular_price)||0)*l.qty:l.price*l.qty;
 function redeemOf(o){let points=0,value=0;for(const l of o.items||[])if(l.redeem_points>0&&!l.cancelled){points+=Number(l.redeem_points)||0;value+=(Number(l.regular_price)||0)*l.qty;}return {points,value};}
+// 斷行：中文逐字、英文以單字為單位（單字本身比整行長才逐字切）；續行沿用開頭的全形空白縮排，行首空白去掉
 function wrapTicketText(g,text,maxW){
-  const out=[];let row='';for(const ch of String(text??'')){if(ch==='\n'||(row&&g.measureText(row+ch).width>maxW)){out.push(row);row=ch==='\n'?'':ch;}else row+=ch;}if(row)out.push(row);return out.length?out:[''];
+  const str=String(text??''),indent=(str.match(/^　+/)||[''])[0];
+  const out=[];let row='';
+  const push=()=>{out.push(row);row=out.length?indent:'';};
+  for(const tok of str.match(/\n|[A-Za-z0-9$.,'’!?()\-+/%&:]+|./gu)||[]){
+    if(tok==='\n'){out.push(row);row='';continue;}
+    if(row.trim()&&g.measureText(row+tok).width>maxW){push();if(tok===' ')continue;}
+    if(g.measureText(row+tok).width>maxW&&tok.length>1){for(const ch of tok){if(row.trim()&&g.measureText(row+ch).width>maxW)push();row+=ch;}continue;}
+    row+=tok;
+  }
+  if(row.trim()||!out.length)out.push(row);return out;
 }
 function ticketCanvas(spec){
   const W=STAR_DOTS,maxW=W-16,c=document.createElement('canvas');c.width=W;c.height=2400;const g=c.getContext('2d');
@@ -615,34 +625,42 @@ function kitchenTicketSpec(o,kind,total=1){
 // 每項「□ 品名」一行、下一行「單價 × 數量　小計」靠右；套餐內容與規格縮排各帶 □，送到一項劃一項。
 // 底部：本次小計＋整桌累計（含三點水服務費，伺服器 claim 時算好放 table_total）。不是收據、不含付款。
 function orderSlipSpec(o){
+  // 中英雙語（KK 10/27：有外國客人）：標籤「中 English」、品名下一行印英文、規格附英文；自由備註照原文
   const lines=orderLines(o).filter(l=>!l.cancelled),takeout=isTakeoutNo(o.table_no),tt=o.table_total||null;
+  const optEn=t=>(typeof OrderLib!=='undefined'&&OrderLib.optionEn)?OrderLib.optionEn(t):'';
   const who=[...new Set(lines.map(ordererOf).filter(Boolean))].join('、')||(lines.some(l=>String(l.by||'').trim()==='櫃檯')?'櫃檯':'客人');
-  const spec=[{kind:'center',text:'點餐明細',size:22,bold:true},{kind:'center',text:ticketShop(o),size:18},
-    {kind:'row',left:(takeout?'外帶 ':'桌 ')+(o.table_no||''),right:tt&&tt.party?tt.party+' 位':'',size:44,bold:true},
-    {kind:'row',left:'點餐：'+who,right:'單號 '+String(o.id||o.order_id||'').slice(-6),size:18},
+  const spec=[{kind:'center',text:'點餐明細 Order Details',size:22,bold:true},{kind:'center',text:ticketShop(o),size:18},
+    {kind:'row',left:(takeout?'外帶 ':'桌 Table ')+(o.table_no||''),right:tt&&tt.party?tt.party+' 位 pax':'',size:32,bold:true},
+    {kind:'row',left:'點餐 By：'+who,right:'No. '+String(o.id||o.order_id||'').slice(-6),size:18},
     {kind:'left',text:applicationTime(o.placed_at||o.paid_at),size:18},'dash'];
   let total=0,count=0;
   for(const l of lines){
     const price=l.comp_reason?0:Number(l.price)||0,amt=price*l.qty;total+=amt;count+=l.qty;
-    spec.push({kind:'wrap',text:`□ ${l.zh}${l.comp_reason?'（贈）':''}`,size:26,bold:true});
+    spec.push({kind:'wrap',text:`□ ${l.zh}${l.comp_reason?'（贈 Free）':''}`,size:26,bold:true});
+    if(l.en&&l.en!==l.zh)spec.push({kind:'wrap',text:'　'+l.en,size:20});
     spec.push({kind:'cols',mid:`${num(price)} × ${l.qty}`,right:num(amt),size:22});
-    for(const p of partsOf(l))spec.push({kind:'wrap',text:'　□ '+partText(p)+(p.note?'（'+p.note.replace(/；/g,'／')+'）':''),size:20});
+    for(const p of partsOf(l)){
+      spec.push({kind:'wrap',text:'　□ '+partText(p)+(p.note?'（'+p.note.replace(/；/g,'／')+'）':''),size:20});
+      if(p.en&&p.en!==p.zh)spec.push({kind:'wrap',text:'　　'+p.en,size:18});
+    }
     const opts=specParts(l).filter(p=>p.kind!=='default').map(p=>p.text);
-    if(opts.length)spec.push({kind:'wrap',text:'　['+opts.join('] [')+']',size:20});
+    if(opts.length)spec.push({kind:'wrap',text:'　'+opts.map(t=>{const e=optEn(t);return '['+t+(e?' '+e:'')+']';}).join(' '),size:20});
     spec.push('dash');
   }
-  spec.push({kind:'row',left:`本次 ${count} 件`,right:num(total),size:22,bold:true});
+  spec.push({kind:'row',left:`本次 This order ×${count}`,right:num(total),size:22,bold:true});
   if(tt){
-    spec.push({kind:'row',left:'整桌消費',right:num(tt.amount),size:22});
-    if(tt.service)spec.push({kind:'row',left:'服務費 10%',right:num(tt.service),size:22});
-    spec.push({kind:'row',left:'目前合計',right:'NT$'+num(tt.total),size:30,bold:true});
+    spec.push({kind:'row',left:'整桌 Table subtotal',right:num(tt.amount),size:20});
+    if(tt.service)spec.push({kind:'row',left:'服務費 Service 10%',right:num(tt.service),size:20});
+    spec.push({kind:'row',left:'合計 Total',right:'NT$'+num(tt.total),size:30,bold:true});
   }else{
     const svc=MenuLib.serviceCharge?MenuLib.serviceCharge(lines.map(l=>l.comp_reason?{...l,price:0}:l),{takeout}):null;
-    if(svc)spec.push({kind:'left',text:'三點水另加 10% 服務費，結帳時計算',size:16});
+    if(svc)spec.push({kind:'wrap',text:'另加 10% 服務費，結帳時計算 10% service charge added at checkout',size:16});
   }
   spec.push('dash');
   spec.push({kind:'center',text:'送到一項劃一項；加點會再印一張',size:16});
+  spec.push({kind:'center',text:'Items are checked off as served.',size:16});
   spec.push({kind:'center',text:'用餐完請到櫃檯結帳，謝謝',size:18,bold:true});
+  spec.push({kind:'center',text:'Please pay at the counter. Thank you!',size:18,bold:true});
   return spec;
 }
 function receiptTicketSpec(o){
