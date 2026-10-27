@@ -65,14 +65,34 @@ function songSfxPanel(me){
 function songFindList(){
   const v = SONGS.view;
   if (v === 'search') {
-    const form = `<form class="song-search" data-song-search><input type="search" name="q" value="${esc(SONGS.q)}" placeholder="歌名、歌手，或貼 YouTube 網址" maxlength="80" autocomplete="off" enterkeyhint="search"><button type="submit" class="btn btn--solid" ${SONGS.searching ? 'disabled' : ''}>${SONGS.searching ? '搜尋中…' : '搜尋'}</button></form>`;
-    return form + (SONGS.results == null ? '' : SONGS.results.length ? songListHtml(SONGS.results, false) : '<p class="a-empty">找不到可在店內播放的歌曲。</p>');
+    const form = `<form class="song-search" data-song-search><input type="search" name="q" value="${esc(SONGS.q)}" placeholder="輸入歌名、歌手，或貼 YouTube 網址" maxlength="80" autocomplete="off" enterkeyhint="search" aria-label="搜尋歌曲"></form>`;
+    return form + `<div data-song-results aria-live="polite">${songSearchResults()}</div>`;
   }
   if (!SONGS.disc) return '<p class="hint">載入中…</p>';
   const list = SONGS.disc[v] || [];
   const empty = { popular: '還沒有客人點過歌，累積後會依點播次數排行。', recent: '還沒有客人點過歌。', chart: '排行榜暫時讀不到（需要綁定 YouTube 帳號或設定 API 金鑰）。' }[v];
   return list.length ? songListHtml(list, v !== 'recent') : `<p class="a-empty">${esc(empty)}</p>`;
 }
+/* 即時搜尋：打字停 0.5 秒自動搜（YouTube 搜尋一次 100 額度，不逐字送）；注音／倉頡組字中不送；只重畫結果區，不換掉輸入框 */
+function songSearchResults(){
+  if (SONGS.searching) return '<p class="hint">搜尋中…</p>';
+  return SONGS.results == null ? '' : SONGS.results.length ? songListHtml(SONGS.results, false) : '<p class="a-empty">找不到可在店內播放的歌曲。</p>';
+}
+function paintSongResults(){ const r = document.querySelector('#songs-body [data-song-results]'); if (r) r.innerHTML = songSearchResults(); }
+let SONG_SEARCH_T = 0, SONG_SEARCH_SEQ = 0;
+async function songRunSearch(q){
+  clearTimeout(SONG_SEARCH_T); q = String(q || '').trim();
+  if (q === SONGS.lastQ && (SONGS.results != null || SONGS.searching)) return; // 同一個關鍵字已搜過或正在搜
+  const seq = ++SONG_SEARCH_SEQ; SONGS.q = q; SONGS.lastQ = q;
+  if (!q) { SONGS.results = null; SONGS.searching = false; return paintSongResults(); }
+  SONGS.searching = true; paintSongResults();
+  let items = null; try { items = (await api('/admin/orders/songs/search?q=' + encodeURIComponent(q))).items; } catch (err) { if (seq === SONG_SEARCH_SEQ) toast(err.message); }
+  if (seq !== SONG_SEARCH_SEQ) return; // 已有更新的關鍵字，丟掉舊回應
+  SONGS.searching = false; if (items) SONGS.results = items; else SONGS.lastQ = ''; paintSongResults();
+}
+function songSearchSoon(q){ clearTimeout(SONG_SEARCH_T); SONGS.q = String(q || '').trim(); SONG_SEARCH_T = setTimeout(() => songRunSearch(q), 500); }
+document.addEventListener('input', e => { const i = e.target; if (!i.matches || !i.matches('#songs-body [data-song-search] input') || e.isComposing) return; songSearchSoon(i.value); });
+document.addEventListener('compositionend', e => { const i = e.target; if (i.matches && i.matches('#songs-body [data-song-search] input')) songSearchSoon(i.value); });
 function paintSongs(){
   const host = document.getElementById('songs-body'); if (!host || !SONGS.data) return;
   const d = SONGS.data, s = d.settings, me = isSongPlayer(), now = d.now;
@@ -90,6 +110,7 @@ function paintSongs(){
   const hist = d.history.length ? `<details class="song-hist"><summary>最近播過（${Math.min(8, d.history.length)}）</summary><ul class="song-list">${d.history.slice(0, 8).map(t => songRow(t, t.result === 'error' ? '<span class="pill pill-wait">無法播放已跳過</span>' : t.result === 'skip' ? '<span class="pill pill-draft">跳過</span>' : '')).join('')}</ul></details>` : '';
   // 重繪會換掉整個 DOM：先記下兩欄捲動位置，畫完還原（找歌換分頁才回到頂端），輪詢時才不會一直跳回最上面
   const keep = [...host.querySelectorAll('.song-scroll')].map(e => e.scrollTop), sameView = SONGS.painted === SONGS.view; SONGS.painted = SONGS.view;
+  const qIn = host.querySelector('[data-song-search] input'); if (qIn && document.activeElement === qIn) SONGS.focus = true;
   host.innerHTML = `
   <div class="ops-head song-head"><h2>點歌</h2><div class="song-head-act">${status}${player}${me ? '<button type="button" class="btn btn--ghost btn-sm" data-song-release>停止在這台播放</button>' : '<button type="button" class="btn btn--solid btn-sm" data-song-claim>在這台播放</button>'}<button type="button" class="btn btn--ghost btn-sm" data-song-settings>點歌設定</button></div></div>
   ${songSfxPanel(me)}
@@ -102,7 +123,7 @@ function paintSongs(){
   </div>`;
   const sc = host.querySelectorAll('.song-scroll'); if (sc[0]) sc[0].scrollTop = keep[0] || 0; if (sc[1] && sameView) sc[1].scrollTop = keep[1] || 0;
   songFit();
-  if (SONGS.view === 'search' && SONGS.focus) { const i = host.querySelector('[data-song-search] input'); if (i) i.focus(); SONGS.focus = false; }
+  if (SONGS.view === 'search' && SONGS.focus) { const i = host.querySelector('[data-song-search] input'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } SONGS.focus = false; }
 }
 /* 平板橫放／桌機（寬 ≥1000、高 ≥600）：兩欄撐到視窗底、各自捲動，正在播放與找歌都不用捲整頁；直放與手機維持上下堆疊 */
 const SONG_WIDE = matchMedia('(min-width:1000px) and (min-height:600px)');
@@ -143,9 +164,7 @@ document.addEventListener('click', async e => {
 document.addEventListener('submit', async e => {
   const f = e.target; if (!f.closest('#songs-body')) return; e.preventDefault();
   if (f.matches('[data-song-search]')) {
-    SONGS.q = f.q.value.trim(); if (!SONGS.q) return; SONGS.searching = true; paintSongs();
-    try { SONGS.results = (await api('/admin/orders/songs/search?q=' + encodeURIComponent(SONGS.q))).items; } catch (err) { toast(err.message); }
-    SONGS.searching = false; return paintSongs();
+    return songRunSearch(f.q.value); // Enter 立即搜，不等 0.5 秒
   }
 });
 

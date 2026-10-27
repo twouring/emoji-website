@@ -187,7 +187,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   <div class="sheet-body"><h3 class="title-icon" id="songs-title"><svg class="ico lg" aria-hidden="true"><use href="#i-music"></use></svg><span data-i18n="song_title">點歌</span></h3><p class="muted" id="song-sub"></p>
     <div id="song-now-box"></div>
     <div class="song-tabs" role="tablist" id="song-tabs"></div>
-    <form class="song-form" id="song-form" hidden><input class="f" id="song-q" type="search" maxlength="80" autocomplete="off" enterkeyhint="search" data-i18n-placeholder="song_search" placeholder="搜尋歌名或歌手"><button class="btn y" type="submit" id="song-go" data-i18n="song_search_btn">搜尋</button></form>
+    <form class="song-form" id="song-form" hidden><input class="f" id="song-q" type="search" maxlength="80" autocomplete="off" enterkeyhint="search" data-i18n-placeholder="song_search" placeholder="搜尋歌名或歌手"></form>
     <div id="song-results"></div></div>
   <div class="row sheet-actions"><button class="btn ghost with-icon" type="button" data-close><svg class="ico" aria-hidden="true"><use href="#i-back"></use></svg><span data-i18n="back_menu">返回菜單</span></button></div>
 </div></div>
@@ -491,7 +491,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     $('#song-tabs').innerHTML=SONG_VIEWS.map(function(k){return '<button type="button" role="tab" aria-selected="'+(k===v)+'" data-song-view="'+k+'">'+esc(labels[k])+'</button>';}).join('');
     $('#song-form').hidden=v!=='search';
     var html='';
-    if(v==='search')html=SONG_ITEMS?(SONG_ITEMS.length?songPickList(SONG_ITEMS,false):'<p class="muted">'+esc(tr('song_none'))+'</p>'):'';
+    if(v==='search')html=SONG_SEARCHING?'<p class="muted">'+esc(tr('song_searching'))+'</p>':SONG_ITEMS?(SONG_ITEMS.length?songPickList(SONG_ITEMS,false):'<p class="muted">'+esc(tr('song_none'))+'</p>'):'';
     else if(v==='queue')html=SONG.queue.length?'<ul class="song-list">'+SONG.queue.map(function(t,i){return songRow(t,'',i+1);}).join('')+'</ul>':'<p class="muted">'+esc(tr('song_queue_empty'))+'</p>';
     else if(!SONG_DISC)html='<p class="muted">'+esc(tr('loading'))+'</p>';
     else{var list=SONG_DISC[v]||[];html=list.length?songPickList(list,v!=='recent'):'<p class="muted">'+esc(tr(v==='chart'?'song_chart_empty':'song_none_yet'))+'</p>';}
@@ -499,9 +499,18 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   }
   $('#song-open').onclick=function(){loadSongs();loadDiscover();openSheet('#songs');};
   $('#song-tabs').addEventListener('click',function(e){var b=e.target.closest('[data-song-view]');if(!b)return;SONG_VIEW=b.dataset.songView;renderSongs();if(SONG_VIEW==='search')$('#song-q').focus();});
-  $('#song-form').onsubmit=function(e){e.preventDefault();var q=$('#song-q').value.trim();if(!q||SONG_BUSY)return;SONG_BUSY=true;var b=$('#song-go');b.disabled=true;b.textContent=tr('song_searching');
-    api('/songs/search?'+songQs()+'&q='+encodeURIComponent(q)).then(function(d){SONG_ITEMS=d.items||[];renderSongs();}).catch(function(err){toast(err.message);})
-      .then(function(){SONG_BUSY=false;b.disabled=false;b.textContent=tr('song_search_btn');});};
+  /* 即時搜尋：停止打字 0.5 秒自動搜（不逐字打 YouTube 額度），輸入法組字中不送，舊回應丟棄；Enter 立即搜 */
+  var SONG_SEARCHING=false,SONG_Q='',SONG_T=0,SONG_SEQ=0;
+  function songSearch(raw){clearTimeout(SONG_T);var q=String(raw||'').trim();if(q===SONG_Q&&(SONG_ITEMS||SONG_SEARCHING))return;SONG_Q=q;var seq=++SONG_SEQ;
+    if(!q){SONG_ITEMS=null;SONG_SEARCHING=false;renderSongs();return;}
+    SONG_SEARCHING=true;renderSongs();
+    api('/songs/search?'+songQs()+'&q='+encodeURIComponent(q)).then(function(d){if(seq!==SONG_SEQ)return;SONG_ITEMS=d.items||[];})
+      .catch(function(err){if(seq!==SONG_SEQ)return;SONG_Q='';toast(err.message);})
+      .then(function(){if(seq!==SONG_SEQ)return;SONG_SEARCHING=false;renderSongs();});}
+  function songSearchSoon(){clearTimeout(SONG_T);SONG_T=setTimeout(function(){songSearch($('#song-q').value);},500);}
+  $('#song-q').addEventListener('input',function(e){if(!e.isComposing)songSearchSoon();});
+  $('#song-q').addEventListener('compositionend',songSearchSoon);
+  $('#song-form').onsubmit=function(e){e.preventDefault();$('#song-q').blur();songSearch($('#song-q').value);};
   document.addEventListener('click',function(e){var p=e.target.closest('[data-song-pick]');if(!p||SONG_BUSY)return;if(!NAME){closeSheets();showGate();return;}
     var t=songFind(p.dataset.songPick);if(!t)return;
     if(!confirm(tr('song_confirm',{title:t.title,price:SONG.price})))return;

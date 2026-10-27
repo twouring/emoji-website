@@ -39,6 +39,7 @@ function api(u) {
   if (p.startsWith('/api/admin/registers')) return { current: {}, wait: {}, active_venue: 'BAR' };
   return {};
 }
+const SEARCH_HITS = [];
 const browser = await puppeteer.launch({ executablePath: '/workspace/local/brand-chrome/chrome-linux64/chrome', args: ['--no-sandbox', '--font-render-hinting=none'] });
 async function shot(url, w, h, name, { mobile = false, prep = null, act = null } = {}) {
   const page = await browser.newPage();
@@ -49,6 +50,7 @@ async function shot(url, w, h, name, { mobile = false, prep = null, act = null }
   page.on('request', r => {
     const u = new URL(r.url());
     if (u.hostname !== 'pos.test') return r.respond({ status: 404, body: '' });   // 擋外部（YouTube、Google Fonts）
+    if (/\/songs\/search$/.test(u.pathname)) SEARCH_HITS.push(u.searchParams.get('q'));
     if (u.pathname.startsWith('/api/')) return r.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(api(u)) });
     let f = u.pathname === '/pos' || u.pathname.startsWith('/pos/') ? 'pos.html' : u.pathname === '/order' ? 'order.html' : u.pathname.slice(1);
     const fp = path.join(PUB, f); if (!fs.existsSync(fp)) return r.respond({ status: 404, body: '' });
@@ -80,6 +82,12 @@ async function shot(url, w, h, name, { mobile = false, prep = null, act = null }
 await shot('https://pos.test/pos/songs', 1280, 900, 'pos-songs-1280');
 await shot('https://pos.test/pos/songs', 1180, 820, 'pos-songs-1180');
 await shot('https://pos.test/pos/songs', 390, 844, 'pos-songs-390', { mobile: true });
+await shot('https://pos.test/pos/songs', 1180, 820, 'pos-songs-search-1180', { act: async p => {
+  await p.click('[data-song-view=search]'); SEARCH_HITS.length = 0;
+  await p.type('[data-song-search] input', '告白氣球', { delay: 80 }); await new Promise(r => setTimeout(r, 900));
+  const st = await p.evaluate(() => { const i = document.querySelector('[data-song-search] input'); return { focused: document.activeElement === i, value: i.value, rows: document.querySelectorAll('[data-song-results] .song-row').length, submitBtn: !!document.querySelector('[data-song-search] button') }; });
+  console.log('LIVE-SEARCH pos', JSON.stringify({ hits: SEARCH_HITS, ...st }));
+} });
 // 播放器：拖移、縮到最小、重新整理後記得位置
 // 點歌頁寬螢幕播放器自動縮成一條（把手隱藏），拖移在其他分頁測
 await shot('https://pos.test/pos/orders', 1280, 900, 'pos-dock-drag-min', { act: async p => {
@@ -101,7 +109,7 @@ await shot('https://pos.test/pos/settings', 1280, 900, 'pos-settings-songs-1280'
 const order = 'https://pos.test/order?s=ts_0000000000000001&k=0123456789abcdef';
 await shot(order, 390, 844, 'order-menu-390', { mobile: true });
 const openSongs = async page => { await page.click('#song-open'); await new Promise(r => setTimeout(r, 400)); };
-const searchSongs = async page => { await openSongs(page); await page.click('[data-song-view=search]'); await page.type('#song-q', '晴天'); await page.click('#song-go'); await new Promise(r => setTimeout(r, 400)); };
+const searchSongs = async page => { await openSongs(page); await page.click('[data-song-view=search]'); SEARCH_HITS.length = 0; await page.type('#song-q', '晴天', { delay: 80 }); await new Promise(r => setTimeout(r, 900)); console.log('LIVE-SEARCH order', JSON.stringify({ hits: SEARCH_HITS, rows: await page.$$eval('#song-results .song-row', x => x.length), button: !!(await page.$('#song-go')) })); };
 await shot(order, 390, 844, 'order-songs-390', { mobile: true, act: openSongs });
 await shot(order, 320, 640, 'order-songs-320', { mobile: true, act: openSongs });
 await shot(order, 390, 844, 'order-songs-search-390', { mobile: true, act: searchSongs });

@@ -261,3 +261,17 @@ test('POS 平板橫放：兩欄各自捲動不捲整頁、正在播放在左欄�
   assert.match(ps, /<div class="song-sfx-grid"><button[^>]*data-song-sfx-stop>/);
   assert.match(ps, /JSON\.stringify\(SONGS\.data\) !== before/, '輪詢沒變不重繪');
 });
+
+test('即時搜尋：客人端與 POS 打字自動搜（0.5 秒防抖、組字中不送、丟棄舊回應），不需搜尋按鈕', () => {
+  const ps = read('public/pos-songs.js'), order = read('public/order.html');
+  assert.doesNotMatch(order, /id="song-go"/, '客人端不再有搜尋按鈕');
+  assert.match(order, /\$\('#song-q'\)\.addEventListener\('input',function\(e\)\{if\(!e\.isComposing\)songSearchSoon\(\);\}\)/);
+  assert.match(order, /addEventListener\('compositionend',songSearchSoon\)/);
+  assert.match(order, /if\(seq!==SONG_SEQ\)return;/);
+  const form = ps.slice(ps.indexOf("if (v === 'search')"), ps.indexOf("if (!SONGS.disc)"));
+  assert.doesNotMatch(form, /type="submit"|>搜尋</, 'POS 不再有搜尋按鈕');
+  assert.match(ps, /setTimeout\(\(\) => songRunSearch\(q\), 500\)/);
+  assert.match(ps, /e\.isComposing/); assert.match(ps, /compositionend/);
+  assert.match(ps, /if \(seq !== SONG_SEARCH_SEQ\) return;/);
+  assert.match(ps, /function paintSongResults/, '只重畫結果區，輸入框不被換掉');
+});
