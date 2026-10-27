@@ -18,7 +18,7 @@ button{font:inherit;cursor:pointer;touch-action:manipulation}input,textarea{font
 .svg-sprite{position:absolute;width:0;height:0;overflow:hidden}.ico{width:1.15em;height:1.15em;display:inline-block;vertical-align:-.18em;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}.ico.lg{width:1.35em;height:1.35em}.with-icon{display:inline-flex;align-items:center;justify-content:center;gap:7px}.title-icon{display:inline-flex;align-items:center;gap:8px}
 .top{position:sticky;top:0;z-index:5;background:var(--ink);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;display:flex;justify-content:space-between;align-items:center;gap:12px}
 .top b{font-size:1.15rem}.top .actions{display:flex;align-items:center;gap:8px}.top .t{background:var(--yellow);color:var(--ink);padding:4px 12px;border-radius:999px;font-weight:700;white-space:nowrap}.lang{min-width:48px;min-height:38px;border:1px solid #777;background:transparent;color:#fff;border-radius:999px;padding:4px 10px;font-weight:700}
-.top small{color:#cfc9bb;white-space:nowrap}.top>div:first-child{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.top .actions{flex-shrink:0}.lang{white-space:nowrap;flex-shrink:0}.menu-status[hidden]{display:none}
+.top small{color:#cfc9bb;white-space:nowrap}@media (max-width:420px){.top small{display:none}}.top>div:first-child{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.top .actions{flex-shrink:0}.lang{white-space:nowrap;flex-shrink:0}.menu-status[hidden]{display:none}
 .wrap{padding:14px;max-width:640px;margin:0 auto}
 .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
 h2{font-size:1rem;margin:22px 0 8px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
@@ -111,7 +111,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 @media (max-width:400px){.bar{grid-template-columns:minmax(84px,1fr) auto auto;gap:6px;padding-left:10px;padding-right:10px}.bar .btn{padding:10px 12px}.bar .with-icon{gap:5px}.bar .s b{font-size:1.05rem}.sheet-actions .btn{padding-left:10px;padding-right:10px}}
 @media (max-width:380px){.wrap{padding:10px}.top{padding-left:12px;padding-right:12px}.bar{padding-left:8px;padding-right:8px}.btn{padding-left:9px;padding-right:9px}.btn.sm{min-height:42px}.menu-grid{gap:6px}.item img,.item .ph{width:56px;height:56px}.item .tap{display:none}.top .t{padding-left:8px;padding-right:8px}.choice-grid{grid-template-columns:1fr 1fr}.sheet .in{padding-left:12px;padding-right:12px}}
 /* 320px：底部列按鈕藏圖示只留文字、內距再縮；上一步／加入兩顆鍵各半；語言鍵縮小 */
-@media (max-width:320px){.bar{grid-template-columns:minmax(72px,1fr) auto auto;gap:4px}.bar .btn{padding:9px 9px}.bar .ico{display:none}.top b{font-size:1rem}.top small{display:block}.lang{min-width:42px;padding:4px 8px}.choice-grid{grid-template-columns:1fr}.sheet-actions .btn{padding:10px 8px}.name-actions .btn{padding-left:8px;padding-right:8px}}
+@media (max-width:320px){.bar{grid-template-columns:minmax(72px,1fr) auto auto;gap:4px}.bar .btn{padding:9px 9px}.bar .ico{display:none}.top b{font-size:1rem}.lang{min-width:42px;padding:4px 8px}.choice-grid{grid-template-columns:1fr}.sheet-actions .btn{padding:10px 8px}.name-actions .btn{padding-left:8px;padding-right:8px}}
 .site-info{margin:28px 0 8px;color:var(--soft)}.site-info h3{font-size:1rem;margin:0 0 6px}.site-info .card p{margin:0 0 4px}.site-info a{color:inherit;text-underline-offset:3px}
 .price-table{width:100%;border-collapse:collapse;margin:6px 0}.price-table td{padding:6px 0;border-bottom:1px dashed var(--line);vertical-align:top}.price-table td:last-child{text-align:right;white-space:nowrap;padding-left:12px;font-weight:700}.price-table .grp td{text-align:left;font-weight:700;color:var(--muted);border-bottom:0;padding-top:12px}
 .site-info details summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
@@ -139,13 +139,22 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 .call-status{display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:10px 14px;border-radius:12px;background:#fff6c2;border:1.5px solid var(--yellow)}
 .call-status.done{background:#E6F2EB;border-color:var(--ok)}.call-status[hidden]{display:none}.call-status span{flex:1;min-width:0;overflow-wrap:anywhere}
 @media (max-width:380px){.call-btn{padding:4px 10px}.call-btn .ico{display:none}}
-.gate-login:empty{display:none}.gate-login{margin:0 0 4px}.gate-login p{margin:0 0 8px}
-.gate-or{display:flex;align-items:center;gap:10px;color:var(--muted);margin:12px 0 10px}.gate-or[hidden]{display:none}.gate-or::before,.gate-or::after{content:"";flex:1;border-top:1px solid var(--line)}
-.member-card[hidden]{display:none}.member-card h3{margin:0 0 4px}.member-card p{margin:0 0 10px}
-.member-ways{display:flex;gap:10px;flex-wrap:wrap}.member-ways .btn{flex:1 1 140px;min-width:0;text-align:center;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
-.member-who{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.member-who b{overflow-wrap:anywhere}
-.redeem-list{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}.redeem-list li{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--line);padding-top:8px}.redeem-list li span{min-width:0;overflow-wrap:anywhere}.redeem-list .btn{flex:none;min-height:44px}
-.item .mp{color:var(--ok);font-weight:700;margin-left:6px}
+.gate-login:empty{display:none}.gate-login{margin:0}.gate-login .gate-perks{margin:0 0 10px;color:var(--ink);line-height:1.5}
+.gate-or{display:flex;align-items:center;gap:12px;color:var(--ink);font-weight:700;margin:18px 0 14px}.gate-or[hidden]{display:none}.gate-or::before,.gate-or::after{content:"";flex:1;border-top:1.5px solid var(--line)}
+.name-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px}.name-row[hidden]{display:none}
+.member-card[hidden]{display:none}.member-card h3{margin:0 0 6px}.member-card>p{margin:0 0 12px;line-height:1.5}
+.member-ways{display:flex;flex-direction:column;gap:10px}
+.sso{position:relative;display:flex;align-items:center;justify-content:center;width:100%;min-height:50px;padding:0 48px;border-radius:999px;border:1.5px solid var(--line);background:#fff;color:var(--ink);font-weight:700;text-decoration:none;white-space:nowrap}
+.sso svg{position:absolute;left:16px;top:50%;width:22px;height:22px;transform:translateY(-50%)}.sso.line{background:#06C755;border-color:#06C755;color:#fff}
+.member-terms{margin:10px 0 0;color:var(--muted);line-height:1.5}.member-terms a{color:inherit}
+.member-head{display:flex;align-items:center;gap:12px}.member-head .pts{margin-left:auto;text-align:right;line-height:1.1}.member-head .pts b{display:block;font-size:1.75rem;font-weight:800}.member-head .pts small{color:var(--ink)}
+.member-head .who{min-width:0}.member-head .who b{display:block;overflow-wrap:anywhere;font-size:1.15rem}.member-head .who small{display:block;color:var(--muted)}
+.badge{display:inline-block;border-radius:999px;padding:2px 10px;font-weight:700;background:#E6F2EB;color:var(--ok);margin-top:6px}.badge.plain{background:#f1efe8;color:var(--ink)}
+.member-links{display:flex;gap:28px;margin-top:6px}.member-links button{background:none;border:0;padding:8px 0;min-height:44px;color:var(--muted);text-decoration:underline;font:inherit;cursor:pointer}
+.redeem-title{margin:14px 0 0;padding-top:12px;border-top:1px solid var(--line);font-weight:800}
+.redeem-list{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:4px}.redeem-list li{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:52px}.redeem-list .rn{min-width:0;overflow-wrap:anywhere}.redeem-list .rn small{display:block;color:var(--muted)}
+.redeem-list .btn{flex:none;min-height:44px}.redeem-list .need{flex:none;color:var(--muted);font-weight:400;white-space:nowrap}
+.item .p.has-mp{display:flex;flex-direction:column;align-items:flex-end;line-height:1.25}.item .p s{color:var(--muted);font-weight:500}.item .mp{color:var(--ok);font-weight:800;white-space:nowrap}
 .pay-by{display:flex;align-items:center;gap:6px;color:var(--muted);margin:8px 0 0}
 </style>
 </head>
@@ -174,10 +183,10 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   <div class="card hidden" id="thanks"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-check"></use></svg><span data-i18n="thanks">感謝用餐，期待再次光臨。</span></h3><p class="muted" data-i18n="thanks_hint">這次點餐已結束。若要再點，請洽服務人員。</p><button class="btn y" type="button" id="thanks-again" data-i18n="thanks_again" hidden>重新點餐</button><div class="review-box"><b data-i18n="review_title">喜歡今天的餐點嗎？</b><p class="muted" data-i18n="review_hint">在 Google 地圖留下評論，結帳時把評論出示給櫃檯人員，就送你 5 點會員點數（每位會員限領一次）。</p><a class="btn ghost" data-review-link href="https://maps.app.goo.gl/ZKdyKqwXjVA5x6JF6?g_st=ic" target="_blank" rel="noopener" data-i18n="review_go">寫 Google 評論</a></div></div>
 
   <section id="app" class="hidden">
-    <div class="card" id="name-gate"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-user"></use></svg><span data-i18n="name_gate_title">先告訴我們怎麼稱呼您</span></h3><p class="muted" style="margin-top:0" data-i18n="shared_hint">同桌的人掃同一個 QR 就能一起點；用餐完再到櫃檯結帳，可全部付款、各付各的，或平均分攤。</p><div class="gate-login" id="gate-login"></div><p class="gate-or" id="gate-or" hidden><span data-i18n="gate_or">或輸入稱呼</span></p><form id="name-form" class="name-form"><input class="f" id="name-in" data-i18n-placeholder="name_placeholder" placeholder="你的稱呼（讓同桌知道誰點了什麼）" maxlength="20" autocomplete="off"><div class="row name-actions"><button class="btn ghost" type="button" id="name-skip" data-i18n="name_skip">略過</button><button class="btn y" type="submit" data-i18n="name_gate_submit">查看菜單</button></div></form></div>
+    <div class="card" id="name-gate"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-user"></use></svg><span data-i18n="name_gate_title">先告訴我們怎麼稱呼您</span></h3><div class="gate-login" id="gate-login"></div><p class="gate-or" id="gate-or" hidden><span data-i18n="gate_or">或輸入稱呼</span></p><form id="name-form" class="name-form"><input class="f" id="name-in" data-i18n-placeholder="name_placeholder" placeholder="你的稱呼（讓同桌知道誰點了什麼）" maxlength="20" autocomplete="off"><div class="row name-actions"><button class="btn ghost" type="button" id="name-skip" data-i18n="name_skip">略過</button><button class="btn y" type="submit" data-i18n="name_gate_submit">查看菜單</button></div></form></div>
     <div id="order-content" class="hidden">
       <div class="card" id="orders-card"></div>
-      <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px"><span class="muted"><span data-i18n="ordering_as">點餐稱呼</span>：<b id="name-display"></b></span><button class="btn ghost sm" type="button" id="name-edit-btn" data-i18n="name_edit">更改</button></div>
+      <div class="card name-row" id="name-row"><span class="muted"><span data-i18n="ordering_as">點餐稱呼</span>：<b id="name-display"></b></span><button class="btn ghost sm" type="button" id="name-edit-btn" data-i18n="name_edit">更改</button></div>
       <div class="card member-card" id="member-card" hidden></div>
       <div class="menu-status" id="menu-shift"><div><b class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-clock"></use></svg><span id="menu-shift-title">最後點餐</span></b><small id="menu-hours">依台北時間顯示目前供應品項</small></div></div>
       <div class="call-status" id="call-status" role="status" aria-live="polite" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span id="call-status-text"></span></div>
@@ -284,7 +293,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     NAME=v;try{localStorage.setItem('order_name',NAME);}catch(x){}
     $('#name-in').blur();hideGate();unlockAudio();
     $('#order-content').classList.remove('hidden');$('#name-display').textContent=NAME;
-    if(S)renderState();
+    if(S)renderState();if(ME&&typeof renderMember==='function')renderMember();
   }
   $('#name-form').onsubmit=function(e){
     e.preventDefault();
@@ -325,7 +334,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
       if(it.cat!==cat){cat=it.cat;var c=MenuLib.CAT_LABEL[cat]||{zh:cat,en:cat,ja:cat};html+='<h2>'+esc(label(c))+'</h2><div class="menu-grid">';}
       var next=items[items.indexOf(it)+1];
       var primary=label(it),secondary=LANG==='zh'?it.en:it.zh;
-      html+='<button class="item add" data-open-item="'+esc(it.id)+'" aria-label="'+esc(tr('view_detail'))+' '+esc(primary)+'">'+(it.image?'<img src="'+esc(it.image)+'" alt="'+esc(primary)+'" loading="lazy">':'<div class="ph" aria-hidden="true">🍽</div>')+'<div class="n"><b>'+esc(primary)+'</b>'+(secondary?'<small>'+esc(secondary)+'</small>':'')+(noteOf(it)?'<small class="note">'+esc(noteOf(it))+'</small>':'')+'<div class="meta"><span class="p">'+money(it.price)+(ME&&ME.active&&it.cat!=='COMBO'&&MenuLib.memberPrice(it)<it.price?'<span class="mp">'+esc(tr('member_price'))+' '+money(MenuLib.memberPrice(it))+'</span>':'')+'</span>'+(MenuLib.stockLeft(it)!==null?'<span class="left">'+esc(tr('stock_left').replace('{n}',MenuLib.stockLeft(it)))+'</span>':'<span class="tap">'+esc(tr('view_detail'))+'</span>')+'</div></div></button>';
+      html+='<button class="item add" data-open-item="'+esc(it.id)+'" aria-label="'+esc(tr('view_detail'))+' '+esc(primary)+'">'+(it.image?'<img src="'+esc(it.image)+'" alt="'+esc(primary)+'" loading="lazy">':'<div class="ph" aria-hidden="true">🍽</div>')+'<div class="n"><b>'+esc(primary)+'</b>'+(secondary?'<small>'+esc(secondary)+'</small>':'')+(noteOf(it)?'<small class="note">'+esc(noteOf(it))+'</small>':'')+'<div class="meta">'+(ME&&ME.active&&it.cat!=='COMBO'&&MenuLib.memberPrice(it)<it.price?'<span class="p has-mp"><s>'+money(it.price)+'</s><span class="mp">'+esc(tr('member_price'))+' '+money(MenuLib.memberPrice(it))+'</span></span>':'<span class="p">'+money(it.price)+'</span>')+(MenuLib.stockLeft(it)!==null?'<span class="left">'+esc(tr('stock_left').replace('{n}',MenuLib.stockLeft(it)))+'</span>':'<span class="tap">'+esc(tr('view_detail'))+'</span>')+'</div></div></button>';
       if(!next||next.cat!==cat){html+='</div>';}
     });
     if(venue)html+='</div>';
@@ -651,25 +660,29 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   (function(){var h=new URLSearchParams(location.hash.slice(1));if(h.get('token')){try{localStorage.setItem(TOKEN_KEY,h.get('token'));}catch(e){}history.replaceState(null,'',location.pathname+location.search);}})();
   function token(){try{return localStorage.getItem(TOKEN_KEY)||'';}catch(e){return '';}}
   function authApi(path,body){return fetch('/api'+path,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify(body)}).then(function(r){return r.json().catch(function(){return {};}).then(function(d){if(!r.ok){var e=Error(d.error||('伺服器錯誤 '+r.status));e.status=r.status;throw e;}return d;});});}
-  function memberLogout(){try{localStorage.removeItem(TOKEN_KEY);}catch(e){}ME=null;renderMember();renderMenu();}
+  function memberLogout(){try{localStorage.removeItem(TOKEN_KEY);}catch(e){}ME=null;renderMember();renderMenu();syncNameRow();}
+  function syncNameRow(){var r=$('#name-row');if(r)r.hidden=!!ME;}   // 已登入：稱呼併進會員卡，不另佔一列
   function joinMember(){
     if(!token()||!S)return Promise.resolve();
     return authApi('/orders/table/member',{s:SID,k:K}).then(function(d){ME=d;if(!NAME)setName(((d.member&&d.member.name)||tr('member_title')).slice(0,20));renderMember();renderMenu();})
       .catch(function(e){if(e.status===401||e.status===403&&/會員身分/.test(e.message)){try{localStorage.removeItem(TOKEN_KEY);}catch(x){}}ME=null;renderMember();if(!NAME)showGate();});
   }
   function redeemables(){return MENU.filter(function(it){return Number(it.points)>0&&MenuLib.orderableInWindow(it,MenuLib.orderWindow());});}
-  function loginWays(){var back=encodeURIComponent(location.origin+location.pathname+location.search);return '<div class="member-ways"><a class="btn ghost" href="/auth/google?redirect='+back+'">'+esc(tr('member_google'))+'</a>'+(LINE_OK?'<a class="btn ghost" href="/auth/line?redirect='+back+'">'+esc(tr('member_line'))+'</a>':'')+'</div>';}
-  function renderGateLogin(){var g=$('#gate-login');if(!g)return;g.innerHTML=ME?'':'<p class="muted">'+esc(tr('gate_login_hint'))+'</p>'+loginWays();$('#gate-or').hidden=!!ME;}
+  var SSO_G='<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.6 12.23c0-.68-.06-1.33-.17-1.96H12v3.7h5.38a4.6 4.6 0 0 1-2 3.02v2.5h3.24c1.9-1.75 2.98-4.32 2.98-7.26z"/><path fill="#34A853" d="M12 21.6c2.7 0 4.96-.9 6.62-2.42l-3.24-2.5c-.9.6-2.04.95-3.38.95-2.6 0-4.8-1.76-5.59-4.12H3.07v2.58A9.99 9.99 0 0 0 12 21.6z"/><path fill="#FBBC05" d="M6.41 13.5A6 6 0 0 1 6.1 11.6c0-.66.11-1.3.31-1.9V7.12H3.07A9.99 9.99 0 0 0 2 11.6c0 1.61.39 3.14 1.07 4.48l3.34-2.58z"/><path fill="#EA4335" d="M12 5.98c1.47 0 2.79.5 3.83 1.5l2.87-2.87C16.96 2.99 14.7 2 12 2 8.09 2 4.72 4.24 3.07 7.12l3.34 2.58C7.2 7.74 9.4 5.98 12 5.98z"/></svg>',SSO_L='<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M12 3C6.48 3 2 6.64 2 11.13c0 4.02 3.57 7.39 8.39 8.03.33.07.77.22.88.5.1.26.07.66.03.92l-.14.85c-.04.26-.2 1 .88.55 1.08-.46 5.83-3.43 7.95-5.88C21.46 14.49 22 12.9 22 11.13 22 6.64 17.52 3 12 3zM8.6 13.6H6.4a.5.5 0 0 1-.5-.5V9.1a.5.5 0 0 1 1 0v3.5h1.7a.5.5 0 0 1 0 1zm1.9-.5a.5.5 0 0 1-1 0V9.1a.5.5 0 0 1 1 0v4zm4.8 0a.5.5 0 0 1-.9.3l-2-2.7v2.4a.5.5 0 0 1-1 0V9.1a.5.5 0 0 1 .9-.3l2 2.7V9.1a.5.5 0 0 1 1 0v4zm3.2-2.5a.5.5 0 0 1 0 1h-1.7v1h1.7a.5.5 0 0 1 0 1h-2.2a.5.5 0 0 1-.5-.5V9.1a.5.5 0 0 1 .5-.5h2.2a.5.5 0 0 1 0 1h-1.7v1h1.7z"/></svg>';
+  function loginWays(){var back=encodeURIComponent(location.origin+location.pathname+location.search);return '<div class="member-ways">'+(LINE_OK?'<a class="sso line" href="/auth/line?redirect='+back+'">'+SSO_L+'<span>'+esc(tr('member_line'))+'</span></a>':'')+'<a class="sso" href="/auth/google?redirect='+back+'">'+SSO_G+'<span>'+esc(tr('member_google'))+'</span></a></div><p class="member-terms">'+esc(tr('member_terms'))+' <a href="/terms" target="_blank" rel="noopener">'+esc(tr('info_terms'))+'</a>・<a href="/privacy" target="_blank" rel="noopener">'+esc(tr('info_privacy'))+'</a></p>';}
+  function renderGateLogin(){var g=$('#gate-login');if(!g)return;g.innerHTML=ME?'':'<p class="gate-perks">'+esc(tr('gate_login_hint'))+'</p>'+loginWays();$('#gate-or').hidden=!!ME;}
   function renderMember(){
     var el=$('#member-card');if(!el)return;el.hidden=false;renderGateLogin();
     if(!ME){
-      el.innerHTML='<h3 class="title-icon">'+icon('user')+'<span>'+esc(tr('member_title'))+'</span></h3><p class="muted">'+esc(tr('member_hint'))+'</p>'+loginWays();
+      el.innerHTML='<h3 class="title-icon">'+icon('user')+'<span>'+esc(tr('member_hint'))+'</span></h3>'+loginWays();
       return;
     }
-    var m=ME.member||{},list=redeemables();
-    el.innerHTML='<div class="member-who"><span>'+icon('user')+' <b>'+esc(m.name||tr('member_title'))+'</b> · '+esc(tr('member_points',{n:ME.balance||0}))+'</span><button class="btn ghost sm" type="button" id="member-out">'+esc(tr('member_logout'))+'</button></div><p class="muted" style="margin:6px 0 0">'+esc(ME.active?tr('member_active'):tr('member_plain'))+'</p>'
-      +(list.length?'<ul class="redeem-list">'+list.map(function(it){var ok=(ME.balance||0)>=it.points;return '<li><span>'+esc(label(it))+' · '+esc(tr('member_points',{n:it.points}))+'</span><button class="btn '+(ok?'y':'ghost')+' sm" type="button" data-redeem="'+esc(it.id)+'"'+(ok&&!PAUSED?'':' disabled')+'>'+esc(tr('member_redeem'))+'</button></li>';}).join('')+'</ul>':'');
-    $('#member-out').onclick=memberLogout;
+    var m=ME.member||{},bal=ME.balance||0,list=redeemables().sort(function(a,b){return a.points-b.points;});
+    el.innerHTML='<div class="member-head"><div class="who"><small>'+esc(tr('ordering_as'))+'</small><b>'+esc(NAME||m.name||tr('member_title'))+'</b><span class="badge'+(ME.active?'':' plain')+'">'+esc(ME.active?tr('member_active'):tr('member_plain'))+'</span></div><div class="pts"><b>'+bal+'</b><small>'+esc(tr('member_pts_label'))+'</small></div></div>'
+      +(list.length?'<p class="redeem-title">'+esc(tr('member_redeem_title'))+'</p><ul class="redeem-list">'+list.map(function(it){var ok=bal>=it.points;return '<li><span class="rn">'+esc(label(it))+'<small>'+esc(tr('member_need',{n:it.points}))+'</small></span>'+(ok?'<button class="btn y sm" type="button" data-redeem="'+esc(it.id)+'"'+(PAUSED?' disabled':'')+'>'+esc(tr('member_redeem'))+'</button>':'<span class="need">'+esc(tr('member_short',{n:it.points-bal}))+'</span>')+'</li>';}).join('')+'</ul>':'')
+      +'<div class="member-links"><button type="button" id="member-rename">'+esc(tr('name_edit'))+'</button><button type="button" id="member-out">'+esc(tr('member_logout'))+'</button></div>';
+    $('#member-out').onclick=function(){if(confirm(tr('member_logout_confirm')))memberLogout();};$('#member-rename').onclick=function(){showGate();};
+    syncNameRow();
     el.querySelectorAll('[data-redeem]').forEach(function(b){b.onclick=function(){
       var it=MENU.find(function(x){return x.id===b.dataset.redeem;});if(!it||!confirm(tr('member_redeem_confirm',{name:label(it),n:it.points})))return;
       b.disabled=true;authApi('/me/redeem',{s:SID,k:K,item_id:it.id}).then(function(d){ME.balance=d.balance;toast(tr('member_redeemed',{name:label(it),n:d.balance}));renderMember();return refresh();}).catch(function(e){toast(e.message);b.disabled=false;});
