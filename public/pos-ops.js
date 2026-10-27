@@ -408,6 +408,7 @@ function printWindow(title,html,css=PRINT_CSS){const w=window.open('','_blank');
 // Star mPOP POP10CI（沒有藍牙）：iPad 用 USB-C 線接 mPOP，POS 在 Star webPRNT Browser 裡開，網頁經 localhost:8001 送列印／開錢櫃指令（SDK 在 /vendor/StarWebPrint*.js，只有 pos.html 載入）
 const STAR_WEBPRNT_URL='https://localhost:8001/StarWebPRNT/SendMessage';
 const QR_CLIP_TOP=200; // 桌號 QR 單上方留白 25mm，給帳本夾夾
+const QR_BODY_MAX=720; // 留白以下內容上限 90mm
 const STAR_DOTS=384; // mPOP 58mm 紙、203dpi：可列印寬 48mm = 384 點
 const inStarBrowser=()=>/StarWebPRNTBrowser/i.test(navigator.userAgent);
 const starReady=()=>inStarBrowser()&&typeof StarWebPrintBuilder!=='undefined'&&typeof StarWebPrintTrader!=='undefined';
@@ -907,25 +908,30 @@ async function printTableQr(table,url){
   const q=await new Promise(resolve=>{if(!url||typeof QRCode==='undefined'||!QRCode.toCanvas)return resolve(null);const c=document.createElement('canvas');QRCode.toCanvas(c,String(url),{width:300,margin:4},err=>resolve(err?null:c));});
   if(!q){toast('QR 產生失敗');return false;}
   // 中英雙語，外國客人也看得懂；鼓勵小語印在這張（發票證明聯不印）
-  // 上方留白給帳本夾夾住，不壓到店名與 QR（203dpi：8 點＝1mm）
+  // 上方留白給帳本夾夾住，不壓到店名與 QR（203dpi：8 點＝1mm）；留白以下壓在 90mm（QR_BODY_MAX）內
   const W=STAR_DOTS,c=document.createElement('canvas');c.width=W;c.height=1400;const g=c.getContext('2d');
   g.fillStyle='#fff';g.fillRect(0,0,W,c.height);g.fillStyle='#000';g.textBaseline='top';g.textAlign='center';let y=QR_CLIP_TOP;
-  const line=(t,size,bold,gap=8)=>{g.font=(bold?'bold ':'')+size+'px sans-serif';g.fillText(t,W/2,y);y+=size+gap;};
-  // 自動換行：英文以單字切、中文以字切
-  const wrap=(t,size,bold)=>{g.font=(bold?'bold ':'')+size+'px sans-serif';const parts=/\s/.test(t)?t.split(/(\s+)/):[...t];let cur='';const fit=s=>!g.measureText||g.measureText(s).width<=W-16;for(const p of parts){if(cur&&!fit(cur+p)){line(cur.trim(),size,bold);cur=p.trimStart();}else cur+=p;}if(cur.trim())line(cur.trim(),size,bold);};
+  const font=(size,bold)=>{g.font=(bold?'bold ':'')+size+'px sans-serif';};
+  const line=(t,size,bold,gap=6,x=W/2)=>{font(size,bold);g.fillText(t,x,y);y+=size+gap;};
+  // 自動換行：英文以單字切、中文以字切；maxW 預設整張寬
+  const wrap=(t,size,bold,maxW=W-16,x=W/2,gap=4)=>{font(size,bold);const parts=/\s/.test(t)?t.split(/(\s+)/):[...t];let cur='';const fit=s=>!g.measureText||g.measureText(s).width<=maxW;for(const p of parts){if(cur&&!fit(cur+p)){line(cur.trim(),size,bold,gap,x);cur=p.trimStart();}else cur+=p;}if(cur.trim())line(cur.trim(),size,bold,gap,x);};
   // 店名依掃碼點餐時段（MenuLib.orderWindow：16:30 起換三點水菜單）決定，與客人掃到的菜單一致；非點餐時段才印兩店名。不印母公司言文字
   const qv=typeof MenuLib!=='undefined'&&MenuLib.orderWindow?MenuLib.orderWindow().venue:null;
-  line((qv&&typeof BRAND_LABEL!=='undefined'&&BRAND_LABEL[qv])||'在咖啡、三點水',26,true,10);
-  g.drawImage(q,(W-300)/2,y,300,300);y+=308;
-  line('桌號 '+table,44,true,4);line('Table '+table,24,true,14);
-  line('掃碼點餐',26,true,4);line('Scan to order',20,false,12);
-  wrap('用餐完請到櫃檯結帳',20);wrap('Please pay at the counter after your meal',18);
+  line((qv&&typeof BRAND_LABEL!=='undefined'&&BRAND_LABEL[qv])||'在咖啡、三點水',24,true,6);
+  const QS=288;g.drawImage(q,(W-QS)/2,y,QS,QS);y+=QS+4;
+  line('桌號 '+table,40,true,4);line('Table '+table,22,true,8);
+  line('掃碼點餐',22,true,2);line('Scan to order',18,false,6);
+  wrap('用餐完請到櫃檯結帳',18);wrap('Please pay at the counter after your meal',16);
   const enc=typeof PosEncouragement!=='undefined'&&PosEncouragement.pick?PosEncouragement.pick():null;
-  if(enc){y+=6;g.fillRect(40,y,W-80,2);y+=14;
-    // moji 吉祥物插圖：每句配一個場景（pos-moji.js），沒載入或不支援 Path2D 就只印文字
-    if(enc.m&&typeof PosMoji!=='undefined'&&PosMoji.draw){const mw=200,mh=Math.round(mw*PosMoji.ratio);if(PosMoji.draw(g,enc.m,(W-mw)/2,y,mw))y+=mh+10;}
-    wrap(enc.zh,22);wrap(enc.en,18);}
-  const out=document.createElement('canvas');out.width=W;out.height=Math.ceil(y+12);const og=out.getContext('2d');og.fillStyle='#fff';og.fillRect(0,0,W,out.height);og.drawImage(c,0,0);
+  if(enc){y+=4;g.fillRect(40,y,W-80,2);y+=16;
+    // moji 吉祥物插圖在左、鼓勵小語在右（pos-moji.js），沒載入或不支援 Path2D 就整行印文字
+    const mw=144,mh=Math.round(mw*(typeof PosMoji!=='undefined'?PosMoji.ratio:1));
+    const drew=!!(enc.m&&typeof PosMoji!=='undefined'&&PosMoji.draw&&PosMoji.draw(g,enc.m,4,y,mw));
+    if(drew){const top=y,tw=W-mw-28,tx=mw+8+tw/2;g.textAlign='center';wrap(enc.zh,20,false,tw,tx);y+=2;wrap(enc.en,15,false,tw,tx,3);
+      // 文字比插圖短時，往下對齊插圖底；文字較長就照文字高度
+      const used=y-top;if(used<mh){const shift=Math.floor((mh-used)/2);const img=g.getImageData?g.getImageData(mw+4,top,W-mw-4,used):null;if(img&&g.putImageData){g.fillStyle='#fff';g.fillRect(mw+4,top,W-mw-4,used);g.putImageData(img,mw+4,top+shift);g.fillStyle='#000';}y=top+mh;}}
+    else{wrap(enc.zh,20);wrap(enc.en,16);}}
+  const out=document.createElement('canvas');out.width=W;out.height=Math.ceil(y+16);const og=out.getContext('2d');og.fillStyle='#fff';og.fillRect(0,0,W,out.height);og.drawImage(c,0,0);
   const ok=await starSend({canvas:out});toast(ok?'桌號 QR 已送出列印':'桌號 QR 列印失敗');return ok;
 }
 // 開桌後自動出 QR：在 Star webPRNT Browser 裡直接印；不在（電腦／一般瀏覽器）就開面板顯示，可拿平板給客人掃或再按列印

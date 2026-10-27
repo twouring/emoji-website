@@ -54,5 +54,19 @@ for (const i of [0, 29, 97]) {
   }, i);
   fs.writeFileSync(path.join(out, `qr-slip-${String(i + 1).padStart(3, '0')}.png`), Buffer.from(png.split(',')[1], 'base64'));
 }
+// 3) 100 句全部實印一次，量留白以下的高度（mm，8 點＝1mm）
+const heights = await page.evaluate(async clip => {
+  const P = PosEncouragement.phrases, orig = PosEncouragement.pick, hs = [];
+  for (let i = 0; i < P.length; i++) {
+    window.PosEncouragement = { phrases: P, pick: () => P[i] };
+    await printTableQr('A12', 'https://www.emoji.tw/order?s=demo&k=demo');
+    const im = new Image(); im.src = LAST; await im.decode(); hs.push((im.height - clip) / 8);
+  }
+  window.PosEncouragement = { phrases: P, pick: orig };
+  return hs;
+}, clipTop);
+const max = Math.max(...heights);
+console.log('body mm max', max, 'min', Math.min(...heights), 'longest #', heights.indexOf(max) + 1);
+fs.writeFileSync(path.join(out, 'heights.json'), JSON.stringify(heights));
 await browser.close();
 console.log('saved to', out);
