@@ -138,6 +138,8 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 .call-status{display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:10px 14px;border-radius:12px;background:#fff6c2;border:1.5px solid var(--yellow)}
 .call-status.done{background:#E6F2EB;border-color:var(--ok)}.call-status[hidden]{display:none}.call-status span{flex:1;min-width:0;overflow-wrap:anywhere}
 @media (max-width:380px){.call-btn{padding:4px 10px}.call-btn .ico{display:none}}
+.gate-login:empty{display:none}.gate-login{margin:0 0 4px}.gate-login p{margin:0 0 8px}
+.gate-or{display:flex;align-items:center;gap:10px;color:var(--muted);margin:12px 0 10px}.gate-or[hidden]{display:none}.gate-or::before,.gate-or::after{content:"";flex:1;border-top:1px solid var(--line)}
 .member-card[hidden]{display:none}.member-card h3{margin:0 0 4px}.member-card p{margin:0 0 10px}
 .member-ways{display:flex;gap:10px;flex-wrap:wrap}.member-ways .btn{flex:1 1 140px;min-width:0;text-align:center;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
 .member-who{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.member-who b{overflow-wrap:anywhere}
@@ -171,7 +173,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   <div class="card hidden" id="thanks"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-check"></use></svg><span data-i18n="thanks">感謝用餐，期待再次光臨。</span></h3><p class="muted" data-i18n="thanks_hint">這次點餐已結束。若要再點，請洽服務人員。</p><button class="btn y" type="button" id="thanks-again" data-i18n="thanks_again" hidden>重新點餐</button><div class="review-box"><b data-i18n="review_title">喜歡今天的餐點嗎？</b><p class="muted" data-i18n="review_hint">在 Google 地圖留下評論，結帳時把評論出示給櫃檯人員，就送你 5 點會員點數（每位會員限領一次）。</p><a class="btn ghost" data-review-link href="https://maps.app.goo.gl/ZKdyKqwXjVA5x6JF6?g_st=ic" target="_blank" rel="noopener" data-i18n="review_go">寫 Google 評論</a></div></div>
 
   <section id="app" class="hidden">
-    <div class="card" id="name-gate"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-user"></use></svg><span data-i18n="name_gate_title">先告訴我們怎麼稱呼您</span></h3><p class="muted" style="margin-top:0" data-i18n="shared_hint">同桌的人掃同一個 QR 就能一起點；用餐完再到櫃檯結帳，可全部付款、各付各的，或平均分攤。</p><form id="name-form" class="name-form"><input class="f" id="name-in" data-i18n-placeholder="name_placeholder" placeholder="你的稱呼（讓同桌知道誰點了什麼）" maxlength="20" autocomplete="off"><div class="row name-actions"><button class="btn ghost" type="button" id="name-skip" data-i18n="name_skip">略過</button><button class="btn y" type="submit" data-i18n="name_gate_submit">查看菜單</button></div></form></div>
+    <div class="card" id="name-gate"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-user"></use></svg><span data-i18n="name_gate_title">先告訴我們怎麼稱呼您</span></h3><p class="muted" style="margin-top:0" data-i18n="shared_hint">同桌的人掃同一個 QR 就能一起點；用餐完再到櫃檯結帳，可全部付款、各付各的，或平均分攤。</p><div class="gate-login" id="gate-login"></div><p class="gate-or" id="gate-or" hidden><span data-i18n="gate_or">或輸入稱呼</span></p><form id="name-form" class="name-form"><input class="f" id="name-in" data-i18n-placeholder="name_placeholder" placeholder="你的稱呼（讓同桌知道誰點了什麼）" maxlength="20" autocomplete="off"><div class="row name-actions"><button class="btn ghost" type="button" id="name-skip" data-i18n="name_skip">略過</button><button class="btn y" type="submit" data-i18n="name_gate_submit">查看菜單</button></div></form></div>
     <div id="order-content" class="hidden">
       <div class="card" id="orders-card"></div>
       <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px"><span class="muted"><span data-i18n="ordering_as">點餐稱呼</span>：<b id="name-display"></b></span><button class="btn ghost sm" type="button" id="name-edit-btn" data-i18n="name_edit">更改</button></div>
@@ -645,15 +647,16 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   function memberLogout(){try{localStorage.removeItem(TOKEN_KEY);}catch(e){}ME=null;renderMember();renderMenu();}
   function joinMember(){
     if(!token()||!S)return Promise.resolve();
-    return authApi('/orders/table/member',{s:SID,k:K}).then(function(d){ME=d;if(!NAME&&d.member&&d.member.name){$('#name-in').value=d.member.name.slice(0,20);}renderMember();renderMenu();})
-      .catch(function(e){if(e.status===401||e.status===403&&/會員身分/.test(e.message)){try{localStorage.removeItem(TOKEN_KEY);}catch(x){}}ME=null;renderMember();});
+    return authApi('/orders/table/member',{s:SID,k:K}).then(function(d){ME=d;if(!NAME)setName(((d.member&&d.member.name)||tr('member_title')).slice(0,20));renderMember();renderMenu();})
+      .catch(function(e){if(e.status===401||e.status===403&&/會員身分/.test(e.message)){try{localStorage.removeItem(TOKEN_KEY);}catch(x){}}ME=null;renderMember();if(!NAME)showGate();});
   }
   function redeemables(){return MENU.filter(function(it){return Number(it.points)>0&&MenuLib.orderableInWindow(it,MenuLib.orderWindow());});}
+  function loginWays(){var back=encodeURIComponent(location.origin+location.pathname+location.search);return '<div class="member-ways"><a class="btn ghost" href="/auth/google?redirect='+back+'">'+esc(tr('member_google'))+'</a>'+(LINE_OK?'<a class="btn ghost" href="/auth/line?redirect='+back+'">'+esc(tr('member_line'))+'</a>':'')+'</div>';}
+  function renderGateLogin(){var g=$('#gate-login');if(!g)return;g.innerHTML=ME?'':'<p class="muted">'+esc(tr('gate_login_hint'))+'</p>'+loginWays();$('#gate-or').hidden=!!ME;}
   function renderMember(){
-    var el=$('#member-card');if(!el)return;el.hidden=false;
+    var el=$('#member-card');if(!el)return;el.hidden=false;renderGateLogin();
     if(!ME){
-      var back=encodeURIComponent(location.origin+location.pathname+location.search);
-      el.innerHTML='<h3 class="title-icon">'+icon('user')+'<span>'+esc(tr('member_title'))+'</span></h3><p class="muted">'+esc(tr('member_hint'))+'</p><div class="member-ways"><a class="btn ghost" href="/auth/google?redirect='+back+'">'+esc(tr('member_google'))+'</a>'+(LINE_OK?'<a class="btn ghost" href="/auth/line?redirect='+back+'">'+esc(tr('member_line'))+'</a>':'')+'</div>';
+      el.innerHTML='<h3 class="title-icon">'+icon('user')+'<span>'+esc(tr('member_title'))+'</span></h3><p class="muted">'+esc(tr('member_hint'))+'</p>'+loginWays();
       return;
     }
     var m=ME.member||{},list=redeemables();
@@ -670,7 +673,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     CFG=r[0];var content=(r[1]&&r[1].content)||{};PAUSED=(r[3]&&r[3].paused)||null;
     MENU_DOC=MenuLib.parseMenuDoc(content.menu||'');MENU_DOC.__raw=content.menu||'';
     $('#thanks').classList.add('hidden');$('#boot').classList.add('hidden');$('#app').classList.remove('hidden');
-    if(NAME){hideGate();$('#order-content').classList.remove('hidden');$('#name-display').textContent=NAME;}else{showGate();}
+    if(NAME){hideGate();$('#order-content').classList.remove('hidden');$('#name-display').textContent=NAME;}else if(!token()){showGate();}   // 已登入會員：等 joinMember 用會員名直接進菜單，失敗才出稱呼關卡
     askNotify();
     renderMenu();renderState();live();poll();loadSongs();loadCalls();loadTips();
     renderMember();fetch('/api/auth/methods').then(function(x){return x.json();}).then(function(j){LINE_OK=!!(j&&j.line);if(!ME)renderMember();}).catch(function(){});joinMember();

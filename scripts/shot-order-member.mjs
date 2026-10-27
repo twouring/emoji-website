@@ -40,12 +40,12 @@ function api(u) {
   return {};
 }
 const browser = await puppeteer.launch({ executablePath: '/workspace/local/brand-chrome/chrome-linux64/chrome', args: ['--no-sandbox', '--font-render-hinting=none'] });
-async function shot(url, w, h, name, { mobile = false, login = false, act = null, full = false } = {}) {
+async function shot(url, w, h, name, { mobile = false, login = false, act = null, full = false, noName = false } = {}) {
   const page = await browser.newPage();
   await page.setViewport({ width: w, height: h, isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1 });
-  await page.evaluateOnNewDocument((n, login) => { localStorage.setItem('tth_token', 'x'); localStorage.setItem('tth_pos_device', 'dev-1'); localStorage.setItem('order_name', '小明'); localStorage.setItem('order_guest', 'abcdefabcdef1234'); localStorage.setItem('order_lang', 'zh');
+  await page.evaluateOnNewDocument((n, login, noName) => { localStorage.setItem('tth_token', 'x'); localStorage.setItem('tth_pos_device', 'dev-1'); localStorage.setItem('order_name', '小明'); localStorage.setItem('order_guest', 'abcdefabcdef1234'); localStorage.setItem('order_lang', 'zh');
     if (login) localStorage.setItem('order_member_token', 'tok'); else localStorage.removeItem('order_member_token');
-    const R = Date; globalThis.Date = class extends R { constructor(...a) { super(...(a.length ? a : [n])); } static now() { return n; } }; }, NOW, login);
+    const R = Date; globalThis.Date = class extends R { constructor(...a) { super(...(a.length ? a : [n])); } static now() { return n; } };     if (noName) localStorage.removeItem('order_name'); }, NOW, login, noName);
   await page.setRequestInterception(true);
   page.on('request', r => {
     const u = new URL(r.url());
@@ -64,6 +64,7 @@ async function shot(url, w, h, name, { mobile = false, login = false, act = null
     card: document.querySelector('#member-card')?.innerText.replace(/\s+/g, ' ').slice(0, 200) || null,
     memberPrice: [...document.querySelectorAll('.item .mp')].map(e => e.innerText),
     posMembers: [...document.querySelectorAll('[data-table-member]')].map(b => b.innerText),
+    gate: (() => { const g = document.querySelector('#name-gate'); return g && !g.classList.contains('hidden') ? g.innerText.replace(/\s+/g, ' ').slice(0, 200) : null; })(), nameShown: document.querySelector('#name-display')?.innerText || '',
     posWho: document.querySelector('.pos-member-who')?.innerText.replace(/\s+/g, ' ') || null }));
   await page.screenshot({ path: path.join(OUT, name + '.png'), fullPage: full });
   console.log(name, JSON.stringify(m), errs.length ? 'ERR ' + errs.join(' | ') : 'no-errors');
@@ -71,6 +72,8 @@ async function shot(url, w, h, name, { mobile = false, login = false, act = null
 }
 const order = 'https://pos.test/order?s=ts_0000000000000001&k=k';
 for (const w of [390, 320]) {
+  await shot(order, w, 760, `order-${w}-gate`, { mobile: true, noName: true });
+  await shot(order, w, 760, `order-${w}-gate-login`, { mobile: true, noName: true, login: true });
   await shot(order, w, 900, `order-${w}-guest`, { mobile: true });
   await shot(order, w, 1400, `order-${w}-member`, { mobile: true, login: true, full: true });
 }

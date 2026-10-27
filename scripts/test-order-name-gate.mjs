@@ -23,7 +23,11 @@ test('桌邊點餐：掃碼先輸入稱呼，確認後才看得到菜單', () =>
 });
 
 test('桌邊點餐：開機時沒有稱呼就顯示關卡，有稱呼（localStorage）就直接看菜單', () => {
-  assert.match(html, /if\(NAME\)\{hideGate\(\);\$\('#order-content'\)\.classList\.remove\('hidden'\);\$\('#name-display'\)\.textContent=NAME;\}else\{showGate\(\);\}/);
+  assert.match(html, /if\(NAME\)\{hideGate\(\);\$\('#order-content'\)\.classList\.remove\('hidden'\);\$\('#name-display'\)\.textContent=NAME;\}else if\(!token\(\)\)\{showGate\(\);\}/);
+  // 掃碼第一個畫面：會員登入（Google／LINE）或輸入稱呼二選一；已登入會員直接用會員名進菜單，登入失敗才回關卡
+  assert.match(html, /id="name-gate"[\s\S]*id="gate-login"[\s\S]*id="gate-or"[\s\S]*id="name-form"/);
+  assert.match(html, /if\(!NAME\)setName\(/);
+  assert.match(html, /ME=null;renderMember\(\);if\(!NAME\)showGate\(\);/);
   assert.match(html, /function showGate\(\)\{\$\('#name-gate'\)\.classList\.remove\('hidden'\)/);
   assert.match(html, /function hideGate\(\)\{\$\('#name-gate'\)\.classList\.add\('hidden'\)/);
 });
