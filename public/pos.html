@@ -258,6 +258,17 @@
   #svc-calls .is-late button{background:#fff;color:#B3261E}
   #svc-calls button:disabled{opacity:.5}
   @media(max-width:999px){body.has-regwarn .p-top{padding-top:8px}}
+  /* 打賞待確認：右上角常駐（與呼叫服務並排時往下排） */
+  #tip-req{position:fixed;top:76px;right:max(12px,env(safe-area-inset-right));z-index:9000;width:320px;max-width:calc(100vw - 24px);max-height:calc(100vh - 100px);overflow:auto;background:var(--ink,#1B1A17);color:#fff;border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.35);padding:8px}
+  #svc-calls:not([hidden])~#tip-req{top:auto;bottom:max(20px,env(safe-area-inset-bottom))}
+  #tip-req[hidden]{display:none}
+  #tip-req .tip-req-head{display:flex;align-items:center;gap:6px;padding:4px 6px 8px;font-size:1rem}#tip-req .tip-req-head svg{width:20px;height:20px}
+  #tip-req .tip-req-card{display:flex;align-items:center;gap:10px;padding:10px;margin-top:6px;border-radius:10px;background:#FFDE34;color:#111}
+  #tip-req .tip-req-table{flex:none;min-width:44px;text-align:center;font-size:1.4rem;font-weight:800}
+  #tip-req .tip-req-main{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.35}#tip-req .tip-req-main b{font-size:1.2rem}#tip-req .tip-req-main small{font-size:1rem;opacity:.85;overflow-wrap:anywhere}
+  #tip-req .tip-req-acts{flex:none;display:flex;flex-direction:column;gap:6px}
+  #tip-req button{all:unset;box-sizing:border-box;cursor:pointer;min-width:64px;min-height:44px;padding:0 10px;border-radius:10px;background:#fff;color:#111;font-weight:700;text-align:center;display:grid;place-items:center;border:1px solid rgba(0,0,0,.25)}
+  #tip-req button.is-ok{background:#111;color:#fff;border-color:#111}#tip-req button:disabled{opacity:.5}
   /* 打賞：右下角跳通知 8 秒（播放裝置同時播客人選的音效） */
   #tip-pop{position:fixed;left:50%;transform:translateX(-50%);bottom:max(20px,env(safe-area-inset-bottom));z-index:9001;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;width:min(420px,calc(100vw - 24px))}
   #tip-pop .tip-pop-card{display:flex;align-items:center;gap:10px;width:100%;padding:12px 16px;border-radius:14px;background:#FFDE34;color:#111;box-shadow:0 12px 32px rgba(0,0,0,.3);animation:tipIn .25s ease-out}

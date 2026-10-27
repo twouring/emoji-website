@@ -495,8 +495,9 @@ async function invoiceProofCanvas(o){
   center('言文字股份有限公司',28,true);center(shop,22,true);center('電子發票證明聯',24,true);center(invoicePeriodText(inv),24,true);center(no?no.replace(/^([A-Z]{2})(\d{8})$/,'$1-$2'):'發票已開立',36,true);
   row('日期',invoiceDateText(inv));row('時間',invoiceTimeText(inv));row('隨機碼',random||'');
   if(seller)row('賣方統編',seller);
-  if(ubn){row('買方統編',ubn);if(inv.buyer_name&&inv.buyer_name!=='買受人')center(inv.buyer_name,20);const total=Math.round(Number(o.amount)||0),amt=Math.round(total/1.05);row('銷售額','NT$'+num(amt));row('營業稅','NT$'+num(total-amt));}
-  row('總計','NT$'+num(o.amount),28);y+=6;
+  const invTotal=Math.round(Number(o.amount)||0)-(Number(o.payer?.tip_amount)||0);   // 打賞代收不開發票
+  if(ubn){row('買方統編',ubn);if(inv.buyer_name&&inv.buyer_name!=='買受人')center(inv.buyer_name,20);const total=invTotal,amt=Math.round(total/1.05);row('銷售額','NT$'+num(amt));row('營業稅','NT$'+num(total-amt));}
+  row('總計','NT$'+num(invTotal),28);y+=6;
   if(bar){drawCode39(g,bar,8,y,64);y+=70;g.font='18px monospace';g.textAlign='center';g.fillText(bar,W/2,y);y+=26;}
   const qrs=(await Promise.all([qrCanvas(ql,160),qrCanvas(qr,160)])).filter(Boolean);
   if(qrs.length){const size=160,gap=24,x0=Math.floor((W-(size*qrs.length+gap*(qrs.length-1)))/2);qrs.forEach((q,i)=>g.drawImage(q,x0+i*(size+gap),y,size,size));y+=size+10;}
@@ -1074,7 +1075,8 @@ function posTotals(cur){
   const picked=cur.lines.filter(l=>!POS_PICK||POS_PICK.has(l.line)).map(l=>POS_QTY[l.line]>0&&POS_QTY[l.line]<l.qty?{...l,qty:POS_QTY[l.line],full_qty:l.qty}:l);
   const regular=picked.reduce((a,l)=>a+(l.comp_reason?0:l.price)*l.qty,0);
   const subtotal=picked.reduce((a,l)=>a+priceOf(l)*l.qty,0);
-  let discount=0;if(POS_DISCOUNT){discount=POS_DISCOUNT.type==='percent'?Math.round(subtotal*POS_DISCOUNT.value/100):Math.min(subtotal,POS_DISCOUNT.value);}
+  const tipAmt=picked.filter(l=>l.tip&&!l.cancelled).reduce((a,l)=>a+l.price*l.qty,0),discBase=subtotal-tipAmt;   // 打賞代收：不打折
+  let discount=0;if(POS_DISCOUNT){discount=POS_DISCOUNT.type==='percent'?Math.round(discBase*POS_DISCOUNT.value/100):Math.min(discBase,POS_DISCOUNT.value);}
   // 三點水服務費 10%（11/1 起；外帶、在咖啡不收）：跟伺服器同一套 MenuLib.serviceCharge；客訴免收時 svc 記原本該收多少
   const svcCalc=MenuLib.serviceCharge?MenuLib.serviceCharge(picked.map(l=>({...l,price:priceOf(l)})),{takeout:cur.takeout,discount}):null;
   const svc=svcCalc?(POS_SVC_WAIVE?{...svcCalc,would:svcCalc.amount,amount:0,waived:true,reason:POS_SVC_WAIVE.reason}:svcCalc):null;
@@ -1879,7 +1881,7 @@ function registerReportSpec(rep,kind){
   sec('營收');row('成立單數',n(rep.orders)+' 單');row('營收（折扣後）','NT$'+n(rep.amount),true);
   for(const [m,v] of Object.entries(rep.by_method||{}))row(payMethodLabel(m),n(v));
   if(rep.discount_amount)row('折扣合計','−'+n(rep.discount_amount));
-  if(rep.tip_amount)row(`打賞代收 ${n(rep.tip_count)} 筆`,n(rep.tip_amount));
+  if(rep.tip_amount)row(`打賞代收 ${n(rep.tip_count)} 筆（不計營收）`,n(rep.tip_amount));
   if(rep.service_amount||rep.service_waived)row('服務費（含在營收）',n(rep.service_amount||0)+(rep.service_waived?`（免收 ${rep.service_waived} 單）`:''));
   if(rep.redeem_points)row(`點數兌換 ${n(rep.redeem_count)} 單`,`${n(rep.redeem_points)} 點／−${n(rep.redeem_value)}`);
   if(rep.voided)row('作廢',`${n(rep.voided)} 單 ${n(rep.void_amount)}`);
@@ -1913,7 +1915,7 @@ function printRegisterReportWindow(rep,kind){
   return printWindow(`${kind} ${rep.venue}`,`<h1>${esc(BRAND_LABEL[rep.venue]||rep.venue)}</h1><div class="m">${kind} · 營業日 ${esc(rep.day)}</div><div class="m">開帳 ${esc(applicationTime(rep.opened_at))} ${esc(rep.opened_by||'')}</div>${closed?`<div class="m">關帳 ${esc(applicationTime(rep.closed_at))} ${esc(rep.closed_by||'')}</div>`:rep.counted_at?`<div class="m">點驗 ${esc(applicationTime(rep.counted_at))}</div>`:''}
     <h2>現金</h2>${line('零用金',num(rep.opening_cash))}${line('現金營收',num(rep.cash_sales))}${line('臨時收入','+'+num(rep.cash_in))}${line('臨時支出','−'+num(rep.cash_out))}${line('應有現金','NT$'+num(rep.expected_cash),'t')}
     ${rep.counted_cash!=null?`${line(closed?'點鈔現金':'點驗現金','NT$'+num(rep.counted_cash),'t')}${line(rep.diff>0?'溢':rep.diff<0?'短':'差額',(rep.diff>0?'+':'')+num(rep.diff),'t big')}${closed?`${line('留存金（下一班）',num(rep.keep_cash))}${line('收走',num(rep.take_cash))}`:''}${rep.note?`<div class="n">${esc(rep.note)}</div>`:''}`:''}
-    <h2>營收</h2>${line('成立單數',num(rep.orders)+' 單')}${line('營收（折扣後）','NT$'+num(rep.amount),'t')}${methods}${rep.discount_amount?line('折扣合計','−'+num(rep.discount_amount)):''}${rep.tip_amount?line(`打賞代收 ${num(rep.tip_count)} 筆（含在營收）`,num(rep.tip_amount)):''}${rep.service_amount||rep.service_waived?line('服務費（含在營收）',num(rep.service_amount||0)+(rep.service_waived?`（免收 ${rep.service_waived} 單）`:'')):''}${rep.redeem_points?line(`點數兌換 ${num(rep.redeem_count)} 單`,`${num(rep.redeem_points)} 點／折抵 −${num(rep.redeem_value)}`):''}${rep.voided?line('作廢',`${num(rep.voided)} 單 ${num(rep.void_amount)}`):''}
+    <h2>營收</h2>${line('成立單數',num(rep.orders)+' 單')}${line('營收（折扣後）','NT$'+num(rep.amount),'t')}${methods}${rep.discount_amount?line('折扣合計','−'+num(rep.discount_amount)):''}${rep.tip_amount?line(`打賞代收 ${num(rep.tip_count)} 筆（不計營收、不開發票）`,num(rep.tip_amount)):''}${rep.service_amount||rep.service_waived?line('服務費（含在營收）',num(rep.service_amount||0)+(rep.service_waived?`（免收 ${rep.service_waived} 單）`:'')):''}${rep.redeem_points?line(`點數兌換 ${num(rep.redeem_count)} 單`,`${num(rep.redeem_points)} 點／折抵 −${num(rep.redeem_value)}`):''}${rep.voided?line('作廢',`${num(rep.voided)} 單 ${num(rep.void_amount)}`):''}
     ${rep.accounts?`<h2>逐項帳戶核對</h2>${line('現金實收',num(rep.cash_actual))}${Object.entries(rep.accounts).map(([code,a])=>`${line(a.label||payMethodLabel(code),'POS '+num(a.pos)+'／實收 '+num(a.actual))}${line('差異',(a.diff>0?'+':'')+num(a.diff))}${a.reason?`<div class="n">${esc(a.reason)}</div>`:''}`).join('')}<h2>最後核對總額</h2>${line('訂單總額',num(rep.total_pos))}${line('帳戶總額',num(rep.total_actual))}${line('總差異',(rep.total_diff>0?'+':'')+num(rep.total_diff))}${rep.total_reason?`<div class="n">總差異原因：${esc(rep.total_reason)}</div>`:''}`:''}
     <h2>臨時收支</h2>${moves}<div class="c">${esc(kind)}完成</div>`);
 }
@@ -1982,13 +1984,13 @@ function closeChecks(r){
   const accounts=items.filter(x=>x.code!=='cash'),cash=items[0];
   const allOk=items.every(x=>x.ok);
   const actual=allOk?cash.a.actual-r.opening_cash-r.cash_in+r.cash_out+accounts.reduce((t,x)=>t+x.a.actual,0):null;
-  return {items,allOk,actual,totalDiff:actual==null?null:actual-r.sales.amount};
+  return {items,allOk,actual,totalDiff:actual==null?null:actual-(r.sales.collected??r.sales.amount)};   // 收款總額＝營收＋打賞代收
 }
 function dailyCloseForm(r){
   const c=closeChecks(r),pending=c.items.filter(x=>!x.ok).map(x=>x.name);
-  return `<div class="reg-close-form" data-register-id="${esc(r.id)}"><h4>確認關帳 · ${esc(BRAND_LABEL[r.venue])}</h4><p>訂單總額 <b>NT$${num(r.sales?.amount)}</b>（本品牌、同一營業日；非全店實收）</p>
+  return `<div class="reg-close-form" data-register-id="${esc(r.id)}"><h4>確認關帳 · ${esc(BRAND_LABEL[r.venue])}</h4><p>訂單總額 <b>NT$${num(r.sales?.collected??r.sales?.amount)}</b>（本品牌、同一營業日；非全店實收${r.sales?.tip_amount?`；含打賞代收 NT$${num(r.sales.tip_amount)}，不計營收`:''}）</p>
     ${pending.length?`<p class="hint" id="reg-close-pending">上方「各帳戶確認」還有 ${esc(pending.join('、'))} 沒有核對，請先按「核對」完成後再關帳。</p>`:`<div class="a-wrap2"><table class="a-tbl reg-acct"><thead><tr><th>帳戶</th><th class="num">應收</th><th class="num">實收</th><th class="num">差額</th></tr></thead><tbody>${c.items.map(x=>`<tr class="${x.diff?'lp-diff':''}"><td>${esc(x.name)}</td><td class="num">NT$${num(x.exp)}</td><td class="num">NT$${num(x.a.actual)}</td><td class="num">${x.diff>0?'+':''}${num(x.diff)}</td></tr>`).join('')}</tbody></table></div>
-    <div class="reg-close-sum"><span>訂單總額 <b>NT$${num(r.sales?.amount)}</b></span><span>帳戶總額 <b>NT$${num(c.actual)}</b></span><span>總差異 <b>${c.totalDiff>0?'+':''}${num(c.totalDiff)}</b></span></div>
+    <div class="reg-close-sum"><span>訂單總額 <b>NT$${num(r.sales?.collected??r.sales?.amount)}</b></span><span>帳戶總額 <b>NT$${num(c.actual)}</b></span><span>總差異 <b>${c.totalDiff>0?'+':''}${num(c.totalDiff)}</b></span></div>
     <div class="a-form"><label>留存金（下一班）<input id="reg-keep" type="number" inputmode="numeric" min="0" step="1" value="${esc(r.opening_cash)}"></label></div>${fillChips('reg-keep',[[r.opening_cash,'同零用金 $'+num(r.opening_cash)],[0,'全部收走'],[3000,'$3,000'],[5000,'$5,000']])}`}
     <p id="reg-close-status" role="status" aria-live="polite">${pending.length?'帳戶尚未全部核對。':'上方帳戶皆已核對，可以關帳。'}</p><div class="a-toolbar"><button type="button" class="btn btn--solid" id="reg-close-go" disabled>確認關帳</button><button type="button" class="btn btn--ghost" id="reg-close-cancel">取消</button></div></div>`;
 }
@@ -2062,7 +2064,7 @@ function bindDailyClose(form,r,reload){
     if(submitting||!show())return;
     const body=read();
     submitting=true;show();
-    if(!await posConfirm(`關帳 ${BRAND_LABEL[r.venue]}：訂單總額 NT$${num(r.sales.amount)}，帳戶總額 NT$${num(c.actual)}。\n關帳後今天不能再結帳。`,{ok:'關帳'})){submitting=false;show();return;}
+    if(!await posConfirm(`關帳 ${BRAND_LABEL[r.venue]}：訂單總額 NT$${num(r.sales.collected??r.sales.amount)}，帳戶總額 NT$${num(c.actual)}。\n關帳後今天不能再結帳。`,{ok:'關帳'})){submitting=false;show();return;}
     return ensureOperator(()=>opsThen(async()=>{try{return await api('/admin/registers/'+r.id+'/close',{method:'POST',body:{...body,operator_id:OPERATOR?.id}});}catch(e){await reload();throw e;}},async out=>{try{const printed=await printRegisterReport(out.report,'關帳單');return printed===false?'日結關帳完成；列印未完成，請按「重印關帳單」':'日結關帳完成';}catch(e){return '日結關帳完成；列印失敗，請按「重印關帳單」';}},()=>{ACCT_CONFIRMED.delete(r.id);REG_CLOSE_DRAFTS.delete(r.id);REG_CLOSE_OPEN=false;if(typeof refreshRegWarn==='function')refreshRegWarn();return reload();}).finally(()=>{submitting=false;if(REG_CLOSE_OPEN===r.id)show();})).finally(()=>{submitting=false;if(REG_CLOSE_OPEN===r.id)show();});
   };
   show();

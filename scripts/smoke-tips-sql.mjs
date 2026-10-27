@@ -1,5 +1,5 @@
 // Local-only SQL acceptance（not in CI: needs PGLITE_MODULE_PATH）：打賞全流程，跑真的 server.js 路由（vm 切出）＋PGlite
-// 關閉時 423 → 開啟設定 → 客人打賞（掛桌上、寫事件）→ 壞金額 400 → 結帳後統計 → 現金支付（無開帳 409／有開帳記錢櫃支出）→ 未付餘額歸零
+// 關閉時 423 → 開啟設定 → 客人打賞（待確認，不掛帳）→ 店員不收／確認（才掛帳）→ 結帳代收不計營收與發票→ 壞金額 400 → 結帳後統計 → 現金支付（無開帳 409／有開帳記錢櫃支出）→ 未付餘額歸零
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -51,19 +51,37 @@ test('打賞：客人打賞、POS 統計、支付給表演者', async () => {
     assert.equal((await call('POST', '/api/tips', { s: S1, k: '0000000000000000', guest: G, amount: 100 })).status, 403);
 
     r = await call('POST', '/api/tips', { s: S1, k: K1, guest: G, by: '阿明', amount: 168, sfx: 'kiss' });
-    assert.equal(r.status, 201); assert.equal(r.body.amount, 168); assert.equal(r.body.sfx, 'kiss');
-    const items = (await q('SELECT items FROM table_sessions WHERE id=$1', [S1])).rows[0].items;
-    assert.equal(items.length, 1); assert.equal(items[0].cat, 'TIP'); assert.equal(items[0].zh, '打賞｜小安'); assert.ok(items[0].served_at);
-
+    assert.equal(r.status, 201); assert.equal(r.body.status, 'pending'); const rid = r.body.id;
+    assert.equal((await q('SELECT items FROM table_sessions WHERE id=$1', [S1])).rows[0].items.length, 0);   // 確認前不掛帳
     r = await call('GET', '/api/admin/orders/tips/events');
-    assert.deepEqual(r.body.events.map(e => [e.table, e.by, e.amount, e.sfx, e.performer]), [['A1', '阿明', 168, 'kiss', '小安']]);
+    assert.deepEqual(r.body.pending.map(e => [e.table, e.by, e.amount, e.sfx]), [['A1', '阿明', 168, 'kiss']]); assert.deepEqual(r.body.events, []);
+    // 另一筆被店員不收
+    const r2 = (await call('POST', '/api/tips', { s: S1, k: K1, guest: G, amount: 50, sfx: 'wow' })).body.id;
+    assert.equal((await call('POST', `/api/admin/orders/tips/${r2}/reject`, {})).body.request.status, 'rejected');
+    r = await call('POST', `/api/admin/orders/tips/${rid}/confirm`, {});
+    assert.equal(r.status, 200); assert.equal(r.body.request.status, 'confirmed'); assert.equal(r.body.request.decided_by, 'pos@test');
+    assert.equal((await call('POST', `/api/admin/orders/tips/${rid}/confirm`, {})).status, 200);   // 兩台同時按不重複掛帳
+    const items = (await q('SELECT items FROM table_sessions WHERE id=$1', [S1])).rows[0].items;
+    assert.equal(items.length, 1); assert.equal(items[0].cat, 'TIP'); assert.equal(items[0].zh, '打賞｜小安'); assert.equal(items[0].tip.id, rid);
+    r = await call('GET', '/api/admin/orders/tips/events');
+    assert.deepEqual(r.body.pending, []); assert.deepEqual(r.body.events.map(e => [e.id, e.amount]), [[rid, 168]]);
+    r = await call('GET', `/api/tips?s=${S1}&k=${K1}`);
+    assert.ok(r.body.requests.some(x => x.id === rid && x.status === 'confirmed'));
 
     r = await call('GET', '/api/admin/orders/tips');
     assert.equal(r.body.pending_unpaid_bills, 168); assert.equal(r.body.total, 0);
 
-    // 櫃檯結帳（模擬）：品項搬進 table_orders
-    await q(`INSERT INTO table_orders(id,session_id,table_no,items,amount) VALUES('o1',$1,'A1',$2,168)`, [S1, JSON.stringify(items.map(l => ({ ...l, order_id: 'o1' })))]);
-    await q(`UPDATE table_sessions SET items=$2 WHERE id=$1`, [S1, JSON.stringify(items.map(l => ({ ...l, order_id: 'o1' })))]);
+    // 櫃檯結帳：用真的 posCheckout 算（含一杯咖啡），打賞代收不計營收／發票
+    const coffee = { line: 'c1', item_id: 'x', venue: 'BAR', cat: 'BEER', zh: '啤酒', price: 200, qty: 1, placed_at: 'x', served_at: 'x' };
+    const co = tableOrders.posCheckout(items.concat([coffee]), { method: 'cash' }, new Map(), [], { table: 'A1', now: Date.parse('2026-10-28T13:00:00Z') });
+    assert.equal(co.amount, 368); assert.equal(co.revenue, 200); assert.equal(co.payer.tip_amount, 168);
+    const ez = require('./lib/ezpay-invoice');
+    assert.equal(ez.invoiceOrder({ amount: co.amount, items: co.lines, payer: co.payer }).amount, 200);
+    const done = co.lines.map(l => ({ ...l, order_id: 'o1' }));
+    await q(`INSERT INTO table_orders(id,session_id,table_no,items,amount,payer) VALUES('o1',$1,'A1',$2,$3,$4)`, [S1, JSON.stringify(done), co.amount, JSON.stringify(co.payer)]);
+    await q(`UPDATE table_sessions SET items=$2 WHERE id=$1`, [S1, JSON.stringify(done)]);
+    const day = tableOrders.salesSummary((await q('SELECT * FROM table_orders')).rows, {});
+    assert.equal(day.amount, 200); assert.equal(day.collected, 368); assert.equal(day.tip_amount, 168); assert.equal(day.by_method.cash, 368);
     r = await call('GET', '/api/admin/orders/tips');
     assert.equal(r.body.total, 168); assert.equal(r.body.unpaid, 168); assert.equal(r.body.pending_unpaid_bills, 0);
     assert.deepEqual(r.body.by_performer.map(x => [x.performer, x.amount, x.unpaid]), [['小安', 168, 168]]);
@@ -86,8 +104,12 @@ test('打賞：客人打賞、POS 統計、支付給表演者', async () => {
     r = await call('GET', '/api/admin/orders/tips');
     assert.equal(r.body.total, 0); assert.equal(r.body.unpaid, -168);
 
-    // 清桌後不能再打賞
+    // 清桌：待確認的自動結案、不能再確認
+    await q(`UPDATE table_sessions SET status='open' WHERE id=$1`, [S1]);
+    const r3 = (await call('POST', '/api/tips', { s: S1, k: K1, guest: G, amount: 70 })).body.id;
     await q(`UPDATE table_sessions SET status='closed' WHERE id=$1`, [S1]);
+    assert.deepEqual((await call('GET', '/api/admin/orders/tips/events')).body.pending, []);
+    assert.equal((await call('POST', `/api/admin/orders/tips/${r3}/confirm`, {})).body.request.status, 'rejected');
     assert.equal((await call('POST', '/api/tips', { s: S1, k: K1, guest: G, amount: 100 })).status, 409);
   } finally { if (listener) listener.close(); await db.close(); }
 });

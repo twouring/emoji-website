@@ -33,7 +33,7 @@ test('close route uses authoritative brand sales and stale guard; reprints store
  const server=fs.readFileSync(new URL('../server.js',import.meta.url),'utf8');
  const close=server.slice(server.indexOf("app.post('/api/admin/registers/:id/close'"),server.indexOf("app.post('/api/admin/registers/:id/reopen'"));
  assert.match(close,/req\.body\?\.reconciliation_version!==version/);
- assert.match(close,/accounts:s\.summary\.reconciliation_accounts,labels:s\.summary\.account_labels,order_total:s\.sales\.amount/);
+ assert.match(close,/accounts:s\.summary\.reconciliation_accounts,labels:s\.summary\.account_labels,order_total:s\.sales\.collected/);
  assert.match(close,/JSON\.stringify\(report\)/);
  assert.match(server,/r\.closed_at\?r\.report:s\.report/);
  const ui=fs.readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');

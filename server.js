@@ -5714,8 +5714,8 @@ async function issueEzpayForOrder(order, invoice) {
 }
 async function storeInvoiceResult(order, invoice, { throwOnError=false } = {}) {
   if(!invoice?.requested)return invoice||{};
-  // 0 元單（全額招待／折抵）不送 ezPay：不開票、不標失敗，查單顯示「未開發票」
-  if(!(Math.round(Number(order.amount)||0)>0)){
+  // 0 元單（全額招待／折抵；或整張只有打賞＝代收轉付）不送 ezPay：不開票、不標失敗，查單顯示「未開發票」
+  if(!(Math.round(Number(ezpayInvoice.invoiceOrder(order).amount)||0)>0)){
     if(throwOnError)throw Object.assign(Error('0 元訂單不開立發票。'),{status:400});
     const skipped={...invoice,requested:false,skipped:'zero_amount',skipped_at:new Date().toISOString()};
     await q('UPDATE table_orders SET invoice=$2 WHERE id=$1',[order.id,JSON.stringify(skipped)]).catch(()=>{});
@@ -5861,7 +5861,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     if(!out.lines.every(l=>tableOrders.itemInVenues(l,venues))){await client.query('ROLLBACK');return res.status(403).json({error:'這桌含有其他品牌品項，請只勾選自己店別的品項結帳，或由言文字管理員處理。'});}
     if(memberUser){out.payer={...out.payer,member:memberActive,member_id:memberUser.id,member_phone:memberUser.phone_e164||memberUser.phone||''};}
     const orderId=uid('to_'),set=new Set(out.lines.map(l=>l.line)),orderLines=out.lines.map(l=>({...l,order_id:orderId})),items=tableOrders.settleItems(s.items,out.lines,orderId,out.credit);
-    if(memberUser){try{yanOut=await applyYanForCheckout(client,{user:memberUser,orderId,amount:out.amount,brand:(out.lines.find(l=>l.venue)||{}).venue||'',prepay:!!out.payer.prepay,redeemPoints:out.payer.yan_redeem_points});}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}if(yanOut.redeemed)out.payer={...out.payer,yan_redeemed:yanOut.redeemed,yan_earned:yanOut.earned};else out.payer={...out.payer,yan_earned:yanOut.earned};}
+    if(memberUser){try{yanOut=await applyYanForCheckout(client,{user:memberUser,orderId,amount:out.revenue,brand:(out.lines.find(l=>l.venue)||{}).venue||'',prepay:!!out.payer.prepay,redeemPoints:out.payer.yan_redeem_points});}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}if(yanOut.redeemed)out.payer={...out.payer,yan_redeemed:yanOut.redeemed,yan_earned:yanOut.earned};else out.payer={...out.payer,yan_earned:yanOut.earned};}
     // 桌邊送單且全部已出餐的品項，結帳時直接記為已取餐（不再回到出餐看板）；有還沒出的照舊進看板
     const served=out.lines.every(l=>l.served_at);
     await client.query('INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,invoice,status,done_at,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',[orderId,s.id,s.table_no,JSON.stringify(orderLines),out.amount,JSON.stringify(out.payer),JSON.stringify(invoice||{}),served?'done':'paid',served?new Date():null,memberUser?.id||null]);
@@ -5873,7 +5873,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     await stockConsume(client.query.bind(client),orderLines.filter(l=>!l.placed_at));
     await inventoryConsume(client.query.bind(client),orderLines.filter(l=>!l.placed_at),{ref_id:orderId,actor:actorOf(req.auth)||''});
     await client.query('COMMIT');
-    const invoiceOut=await storeInvoiceResult({id:orderId,table_no:s.table_no,items:orderLines,amount:out.amount,discount:out.discount,service_charge:out.service},invoice);
+    const invoiceOut=await storeInvoiceResult({id:orderId,table_no:s.table_no,items:orderLines,amount:out.amount,payer:out.payer,discount:out.discount,service_charge:out.service},invoice);
     res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,service_charge:out.service||undefined,received:out.payer.received,change:out.payer.change,method:out.payer.method,payments:out.payer.payments,prepay:!!out.payer.prepay,member:out.payer.member,yan:memberUser?yanOut:undefined,member_created:!!memberUser?.created,closed,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut,warning:regWarn||undefined});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
@@ -6345,7 +6345,7 @@ app.get('/api/admin/registers',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
   const day=dayParam(req.query.day);
   const rows=(await q('SELECT * FROM pos_registers WHERE day=$1 ORDER BY opened_at',[day])).rows.map(regDay).filter(r=>!venues||venues.includes(r.venue));
-  const out=[];for(const r of rows){const s=await registerSummary(r);out.push({...r,...s.summary,cash_sales:s.summary.cash_sales,moves:s.moves,counts:s.counts,last_count:s.counts[0]||null,sales:{orders:s.sales.orders,amount:s.sales.amount,by_method:s.sales.by_method,voided:s.sales.voided,void_amount:s.sales.void_amount},report:r.closed_at?r.report:s.report});}
+  const out=[];for(const r of rows){const s=await registerSummary(r);out.push({...r,...s.summary,cash_sales:s.summary.cash_sales,moves:s.moves,counts:s.counts,last_count:s.counts[0]||null,sales:{orders:s.sales.orders,amount:s.sales.amount,collected:s.sales.collected,tip_amount:s.sales.tip_amount,by_method:s.sales.by_method,voided:s.sales.voided,void_amount:s.sales.void_amount},report:r.closed_at?r.report:s.report});}
   const byVenue={};for(const v of posRegister.VENUES){if(venues&&!venues.includes(v))continue;byVenue[v]=out.filter(r=>r.venue===v).slice(-1)[0]||null;}
   // 共用抽屜帳：總覽要看全店（含子帳號看不到的另一品牌），否則三點水子帳號不知道在咖啡還沒關帳
   const all=(await q('SELECT id,venue,opened_at,closed_at,keep_cash FROM pos_registers WHERE day=$1',[day])).rows;
@@ -6406,7 +6406,7 @@ app.post('/api/admin/registers/:id/close',auth,adminOnly,requireDb,wrap(async(re
   const s=await registerSummary(r);
   const version=JSON.stringify([s.summary.expected,s.summary.opening_cash,s.summary.cash_in,s.summary.cash_out,s.sales.amount,s.summary.reconciliation_accounts]);
   if(req.body?.reconciliation_version!==version)return res.status(409).json({error:'營收或帳戶已變更，請重新載入日結並逐項確認。'});
-  let c;try{c=posRegister.closeRegister(req.body,s.summary,{accounts:s.summary.reconciliation_accounts,labels:s.summary.account_labels,order_total:s.sales.amount});}catch(e){return res.status(e.status||400).json({error:e.message});}
+  let c;try{c=posRegister.closeRegister(req.body,s.summary,{accounts:s.summary.reconciliation_accounts,labels:s.summary.account_labels,order_total:s.sales.collected});/* 收款總額（營收＋打賞代收），帳戶實收對得起來 */}catch(e){return res.status(e.status||400).json({error:e.message});}
   const operator=await resolveOperator(req,req.body?.operator_id);
   if(!operator)return res.status(400).json({error:'關帳須輸入員工 PIN，請先選擇有效的操作人員。'});
   const closedBy=operator.name,closedAt=new Date().toISOString();
@@ -7141,7 +7141,8 @@ app.post('/api/admin/orders/service-calls/:id/done',auth,adminOnly,requireDb,wra
 }));
 /* ---- 呼叫服務 end ---- */
 
-/* ---- 打賞（lib/tips.js）：客人掃桌邊 QR 自填金額＋選音效 → 記在這桌帳上（結帳一起收）；POS 播放裝置播音效、各台跳通知。
+/* ---- 打賞（lib/tips.js）：客人掃桌邊 QR 自填金額＋選音效送出 → POS 跳「待確認」→ 店員確認才掛這桌帳（結帳一起收）、播放裝置播音效。
+   代收轉付：不計營收、不開發票、不算服務費／低消／折扣／會員點數。
    店家代收後支付給表演者：「設定 → 打賞」看期間已收／已支付／未付餘額並登記支付（現金同時記錢櫃支出）。
    不開新表：site_content 的 tip_settings／tip_events／tip_payouts。 */
 async function tipSettings(){return tips.normalizeSettings(await contentValue('tip_settings'));}
@@ -7159,8 +7160,9 @@ async function tipTx(fn){
 const tipErr=(res,e)=>{if(e&&e.status)return res.status(e.status).json({error:e.message});throw e;};
 app.get('/api/tips',requireDb,wrap(async(req,res)=>{
   res.set('Cache-Control','no-store');
-  try{await songGuestSession(req.query);res.json(tips.publicView(await tipSettings()));}catch(e){return tipErr(res,e);}
+  try{const s=await songGuestSession(req.query);res.json({...tips.publicView(await tipSettings()),requests:tips.guestRequests(tips.normalizeEvents(await contentValue('tip_events')),s.id)});}catch(e){return tipErr(res,e);}
 }));
+// 客人送出打賞：先建一筆待確認的請求（還沒掛帳、不播音效），店員在 POS 按「確認」才生效
 app.post('/api/tips',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
   const b=req.body||{};
   if(!/^[a-z0-9]{8,32}$/.test(String(b.guest||'')))return res.status(400).json({error:'缺少來賓識別。'});
@@ -7168,21 +7170,38 @@ app.post('/api/tips',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
     const settings=await tipSettings();if(!settings.enabled)return res.status(423).json({error:'打賞目前沒有開放。'});
     const venue=tableOrders.MenuLib.orderWindow().venue;if(!venue)return res.status(423).json({error:'目前非營業時段，暫不開放打賞。'});
     const t=tips.parseTip(b,settings),by=tableOrders.cleanText(b.by,20)||'客人';
-    const out=await tipTx(async client=>{
-      const ss=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[s.id])).rows[0];
-      if(!ss||ss.status!=='open')throw Object.assign(Error('這桌已結束，請洽服務人員。'),{status:409});
-      const line=tips.tipLine({...t,performer:settings.performer,venue,guest:b.guest,by});
-      await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[ss.id,JSON.stringify(ss.items.concat([line]))]);
-      await withTipKey('tip_events',client,async raw=>({state:tips.pushEvent(tips.normalizeEvents(raw),{id:line.tip.id,table:ss.table_no,by,amount:t.amount,sfx:t.sfx,performer:settings.performer}),out:null}));
-      return line;
-    });
-    res.status(201).json({ok:true,id:out.tip.id,amount:out.price,sfx:out.tip.sfx,performer:out.tip.performer});
+    const r=await tipTx(client=>withTipKey('tip_events',client,async raw=>{const o=tips.createRequest(tips.normalizeEvents(raw),{session_id:s.id,table:s.table_no,guest:b.guest,by,amount:t.amount,sfx:t.sfx,performer:settings.performer,venue});return {state:o.state,out:o.request};}));
+    res.status(201).json({ok:true,id:r.id,status:r.status,amount:r.amount,sfx:r.sfx,performer:r.performer});
   }catch(e){return tipErr(res,e);}
 }));
-// POS：最近 12 小時的打賞事件（每 5 秒輪詢；播放裝置播音效、各台跳通知）
+// POS：待確認＋最近 12 小時已確認的打賞（每 5 秒輪詢）；已清桌的待確認自動結案
 app.get('/api/admin/orders/tips/events',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  res.set('Cache-Control','no-store');res.json(tips.normalizeEvents(await contentValue('tip_events')));
+  res.set('Cache-Control','no-store');
+  let st=tips.normalizeEvents(await contentValue('tip_events'));const open=tips.pendingRequests(st);
+  if(open.length){
+    const live=new Set((await q(`SELECT id FROM table_sessions WHERE id=ANY($1::text[]) AND status='open'`,[[...new Set(open.map(e=>e.session_id))]])).rows.map(r=>r.id));
+    if(open.some(e=>!live.has(e.session_id)))st=await tipTx(client=>withTipKey('tip_events',client,async raw=>{const o=tips.closeSessions(tips.normalizeEvents(raw),live);return {state:o.state,out:o.state};}));
+  }
+  res.json({pending:tips.pendingRequests(st),events:st.events.filter(e=>e.status==='confirmed')});
 }));
+// POS 確認：掛上這桌帳單（之後播音效）；不收：結案。同一筆重複按回原狀態
+const tipDecideRoute=ok=>wrap(async(req,res)=>{
+  const who=actorOf(req.auth)||'';
+  try{const out=await tipTx(async client=>withTipKey('tip_events',client,async raw=>{
+      const st=tips.normalizeEvents(raw),cur=st.events.find(e=>e.id===String(req.params.id));
+      if(ok&&cur&&cur.status==='pending'){
+        const ss=(await client.query('SELECT id,items,status FROM table_sessions WHERE id=$1 FOR UPDATE',[cur.session_id])).rows[0];
+        if(!ss||ss.status!=='open')throw Object.assign(Error('這桌已結束（已清桌），不能再掛打賞。'),{status:409});
+        const line=tips.tipLine({amount:cur.amount,sfx:cur.sfx,performer:cur.performer,venue:cur.venue,guest:cur.guest,by:cur.by,id:cur.id});
+        await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[ss.id,JSON.stringify(ss.items.concat([line]))]);
+      }
+      const d=tips.decide(st,String(req.params.id),ok,who);return {state:d.state,out:d.request};
+    }));
+    res.json({ok:true,request:out});
+  }catch(e){return tipErr(res,e);}
+});
+app.post('/api/admin/orders/tips/:id/confirm',auth,adminOnly,requireDb,tipDecideRoute(true));
+app.post('/api/admin/orders/tips/:id/reject',auth,adminOnly,requireDb,tipDecideRoute(false));
 // POS：設定＋統計（from／to 營業日，預設近 7 天）
 app.get('/api/admin/orders/tips',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   res.set('Cache-Control','no-store');

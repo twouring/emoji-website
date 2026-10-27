@@ -122,6 +122,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 #tip .sheet-body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:16px 16px 8px}
 #tip .sheet-actions{flex:none;margin:0;padding:10px 16px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--paper)}
 #tip .sheet-actions .btn{flex:1 1 0;min-width:0;white-space:nowrap}
+.tip-card-st{color:var(--ink)!important;font-weight:700}
 .tip-lbl{display:block;margin:14px 0 6px;font-weight:700}
 .tip-amt{display:flex;align-items:center;gap:8px}.tip-amt span{font-weight:700}.tip-amt .f{flex:1;min-width:0;min-height:52px;font-size:1.25rem;font-weight:700}
 .tip-presets{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0}
@@ -181,7 +182,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
       <div class="menu-status" id="menu-shift"><div><b class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-clock"></use></svg><span id="menu-shift-title">最後點餐</span></b><small id="menu-hours">依台北時間顯示目前供應品項</small></div></div>
       <div class="call-status" id="call-status" role="status" aria-live="polite" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span id="call-status-text"></span></div>
       <button class="song-card hidden" type="button" id="song-open"><svg class="ico lg" aria-hidden="true"><use href="#i-music"></use></svg><span class="n"><b data-i18n="song_title">點歌</b><small id="song-card-sub"></small><small class="song-card-now" id="song-card-now" hidden></small></span><span class="p" id="song-card-price"></span></button>
-      <button class="song-card hidden" type="button" id="tip-open"><svg class="ico lg" aria-hidden="true"><use href="#i-gift"></use></svg><span class="n"><b data-i18n="tip_title">打賞</b><small id="tip-card-sub"></small></span></button>
+      <button class="song-card hidden" type="button" id="tip-open"><svg class="ico lg" aria-hidden="true"><use href="#i-gift"></use></svg><span class="n"><b data-i18n="tip_title">打賞</b><small id="tip-card-sub"></small><small class="tip-card-st" id="tip-card-st" hidden></small></span></button>
       <div id="menu"></div>
       <p class="notice" id="bar-policy-notice" data-i18n="bar_policy" hidden>三點水低消每人平日 NT$300、假日 NT$600，另加 10% 服務費（外帶不收）。</p>
       <p class="notice" id="alcohol-notice" data-i18n="alcohol" hidden>未滿十八歲禁止飲酒。禁止酒駕。</p>
@@ -603,6 +604,11 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     $('#tip-open').classList.toggle('hidden',!on);
     if(!on){if($('#tip').classList.contains('on'))closeSheets();return;}
     $('#tip-card-sub').textContent=TIP.performer?tr('tip_card_to',{name:TIP.performer}):tr('tip_card');
+    var rq=TIP.requests||[],pend=rq.filter(function(r){return r.status==='pending';}),last=rq[rq.length-1],st=$('#tip-card-st');
+    if(pend.length){st.hidden=false;st.textContent=tr('tip_pending',{amt:money(pend.reduce(function(a,r){return a+r.amount;},0))});}
+    else if(last&&last.status==='confirmed'&&Date.now()-Date.parse(last.at)<10*60e3){st.hidden=false;st.textContent=tr('tip_confirmed',{amt:money(last.amount)});}
+    else if(last&&last.status==='rejected'&&Date.now()-Date.parse(last.at)<10*60e3){st.hidden=false;st.textContent=tr('tip_rejected');}
+    else st.hidden=true;
     $('#tip-sub').textContent=(TIP.performer?tr('tip_to',{name:TIP.performer})+'　':'')+tr('tip_hint',{max:Number(TIP.max).toLocaleString('en-US')});
     $('#tip-amt').max=TIP.max;
     var amt=Number($('#tip-amt').value);
@@ -611,6 +617,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     var b=$('#tip-send');b.disabled=TIP_BUSY;$('#tip-send-text').textContent=amt>0?tr('tip_send_amt',{amt:money(amt)}):tr('tip_send');
   }
   function tipPreview(id){try{if(TIP_AUDIO){TIP_AUDIO.pause();}TIP_AUDIO=new Audio('/sfx/'+id+'.mp3');TIP_AUDIO.volume=.6;var p=TIP_AUDIO.play();if(p&&p.catch)p.catch(function(){});setTimeout(function(){try{TIP_AUDIO&&TIP_AUDIO.pause();}catch(e){}},2500);}catch(e){}}
+  setInterval(function(){if(S&&!document.hidden&&TIP&&TIP.enabled)loadTips().then(function(){var rq=TIP&&TIP.requests||[];if(rq.some(function(r){return r.status==='confirmed';}))refresh();});},15000);
   $('#tip-open').onclick=function(){$('#tip-err').textContent='';renderTip();openSheet('#tip');loadTips();};
   $('#tip-presets').addEventListener('click',function(e){var b=e.target.closest('[data-tip-amt]');if(!b)return;$('#tip-amt').value=b.dataset.tipAmt;$('#tip-err').textContent='';renderTip();});
   $('#tip-amt').addEventListener('input',function(){$('#tip-err').textContent='';renderTip();});
@@ -624,7 +631,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     if(!confirm(tr('tip_confirm',{amt:money(amt),sfx:snd?label(snd):''})))return;
     TIP_BUSY=true;renderTip();
     api('/tips',{method:'POST',body:{s:SID,k:K,guest:GUEST,by:NAME,amount:amt,sfx:TIP_SFX}})
-      .then(function(){closeSheets();$('#tip-amt').value='';toast(tr('tip_done'),5000);refresh();})
+      .then(function(){closeSheets();$('#tip-amt').value='';toast(tr('tip_done'),5000);loadTips();})
       .catch(function(err){$('#tip-err').textContent=err.message;})
       .then(function(){TIP_BUSY=false;renderTip();});
   };

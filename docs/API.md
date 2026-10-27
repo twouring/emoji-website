@@ -516,10 +516,18 @@ POS 輪詢未處理的呼叫（每 5 秒）。回 `{ pending:[{id,session_id,tab
 打賞（客人端）設定。query `s`、`k`（桌邊單次 QR）。回 `{ enabled, performer, presets:[金額], max, sounds:[{id,zh,en,ja}] }`。設定存 `site_content.tip_settings`（預設關閉）。QR 無效 403、桌已結束 409。
 
 ### POST /api/tips
-客人打賞。body `{ s, k, guest, by?, amount, sfx }`；`amount` 為 1–`max` 的整數（預設上限 10,000），`sfx` 不在白名單時用 `applause`。在這桌加一行 `cat:'TIP'`、`item_id:'tip'`、`tip:{id,sfx,performer}`（已送出、已完成：不上出餐看板與出餐單、客人不能刪、不計服務費與低消），同時寫一筆事件到 `site_content.tip_events` 供 POS 播音效。成功 201 `{ ok, id, amount, sfx, performer }`。未開放／非營業時段 423；每 IP 每分鐘 20 次。
+客人送出打賞（**待店員確認**，還沒掛帳、不播音效）。body `{ s, k, guest, by?, amount, sfx }`；`amount` 為 1–`max` 的整數（預設上限 10,000），`sfx` 不在白名單時用 `applause`。建立 `site_content.tip_events` 一筆 `status:'pending'`；同桌同時最多 3 筆待確認（429）。成功 201 `{ ok, id, status, amount, sfx, performer }`。`GET /api/tips` 另回 `requests:[{id,status,amount,sfx,at}]`（本桌最近 5 筆）。未開放／非營業時段 423；每 IP 每分鐘 20 次。
 
 ### GET /api/admin/orders/tips/events
-POS 每 5 秒輪詢最近 12 小時的打賞事件 `{ events:[{id,table,by,amount,sfx,performer,at}] }`。新事件出現時各台跳通知，只有點歌播放裝置那台播 `/sfx/<sfx>.mp3`（沒指定播放裝置就不出聲）。
+POS 每 5 秒輪詢。回 `{ pending:[{id,session_id,table,by,amount,sfx,performer,at}], events:[已確認…] }`。`pending` 顯示在 POS 右上角「打賞待確認」（新的一筆響鈴）；已清桌的待確認自動結案（`rejected`，`decided_by:'清桌'`）。新出現的已確認事件：各台跳通知，只有點歌播放裝置那台播 `/sfx/<sfx>.mp3`（沒指定播放裝置就不出聲）。
+
+### POST /api/admin/orders/tips/:id/confirm
+店員確認：在這桌加一行 `cat:'TIP'`、`item_id:'tip'`、`tip:{id,sfx,performer}`（已送出、已完成：不上出餐看板與出餐單、客人不能刪），狀態改 `confirmed`。已清桌 409；已處理過的重複按回原狀態；找不到 404。
+
+### POST /api/admin/orders/tips/:id/reject
+店員不收：狀態改 `rejected`，不掛帳、不播音效。
+
+**打賞是代收轉付**：結帳時 `payer.tip_amount` 記打賞金額，`amount` 為實收（含打賞）；日結 `amount`（營收）與分析營收扣除打賞，另回 `tip_amount`／`tip_count` 與 `collected`（收款總額，關帳對帳用）；ezPay 發票排除打賞行並扣除金額（整張只有打賞則不開）；整單折扣、服務費、低消、會員點數都不計打賞。
 
 ### GET /api/admin/orders/tips
 打賞設定與統計。query `from`、`to`（營業日，預設近 7 天，最多 93 天）。回 `{ settings, sounds, pay_methods, pending_unpaid_bills, total, count, paid, unpaid, by_performer:[{performer,amount,count,paid,unpaid}], tips:[…], payouts:[…] }`：`total` 為期間已結帳的打賞（作廢單、已取消品項不算），`paid` 為期間支付給表演者，`unpaid`／`by_performer[].unpaid` 為全部期間已收減已付；`pending_unpaid_bills` 為還掛在開著的桌上、尚未結帳的打賞。

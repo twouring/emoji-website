@@ -74,6 +74,43 @@ test('支付：表演者、正整數、方式白名單', () => {
   assert.throws(() => tips.parsePayout({ performer: 'x', amount: 1, method: 'btc' }), /支付方式/);
 });
 
+test('請求：待確認 → 確認／不收；同桌最多 3 筆；清桌結案；客人只看自己這桌', () => {
+  const T = Date.parse('2026-11-01T12:00:00Z');
+  let st = { events: [] };
+  for (let i = 0; i < 3; i++) st = tips.createRequest(st, { id: 'r' + i, session_id: 's1', table: 'A1', amount: 100, sfx: 'kiss' }, T).state;
+  assert.throws(() => tips.createRequest(st, { id: 'r9', session_id: 's1', table: 'A1', amount: 100 }, T), e => e.status === 429);
+  st = tips.createRequest(st, { id: 'b1', session_id: 's2', table: 'B1', amount: 50 }, T).state;
+  assert.equal(tips.pendingRequests(st).length, 4);
+  let d = tips.decide(st, 'r0', true, '阿美', T + 1000); st = d.state;
+  assert.equal(d.request.status, 'confirmed'); assert.equal(d.request.decided_by, '阿美');
+  assert.equal(tips.decide(st, 'r0', false, '別人').request.status, 'confirmed');   // 重複按不改
+  st = tips.decide(st, 'r1', false, '阿美').state;
+  assert.throws(() => tips.decide(st, 'nope', true, 'x'), e => e.status === 404);
+  st = tips.closeSessions(st, new Set(['s2'])).state;   // s1 已清桌
+  assert.deepEqual(tips.pendingRequests(st).map(e => e.id), ['b1']);
+  assert.deepEqual(tips.guestRequests(st, 's2').map(r => r.status), ['pending']);
+});
+
+test('代收轉付：結帳不打折、payer.tip_amount 記打賞、revenue 不含打賞；發票排除打賞；日結營收不含、collected 含', () => {
+  const now = Date.parse('2026-11-02T13:00:00Z');
+  const food = { line: 'a', item_id: 'x', venue: 'CAFE', cat: 'COFFEE', zh: '拿鐵', price: 200, qty: 1, served_at: 'x' };
+  const tip = tips.tipLine({ amount: 300, sfx: 'wow', performer: '小安', venue: 'CAFE', guest: 'g', by: 'b' });
+  const out = tableOrders.posCheckout([food, tip], { method: 'cash', discount: { type: 'percent', value: 50, reason: '測試' } }, new Map(), [], { table: 'A1', now });
+  assert.equal(out.discount.amount, 100);              // 只打 200 的折
+  assert.equal(out.amount, 400); assert.equal(out.tip, 300); assert.equal(out.revenue, 100); assert.equal(out.payer.tip_amount, 300);
+  const ez = require('../lib/ezpay-invoice.js');
+  const inv = ez.invoiceOrder({ id: 'o1', amount: 400, items: [food, tip], payer: out.payer });
+  assert.equal(inv.amount, 100); assert.ok(!inv.items.some(l => l.tip));
+  assert.equal(ez.invoiceOrder({ id: 'o2', amount: 300, items: [tip], payer: { tip_amount: 300 } }).amount, 0);
+  const f = ez.issueFields({ order: { id: 'o1', table_no: 'A1', amount: 400, items: [food, tip], payer: out.payer, discount: out.discount }, invoice: { requested: true, mode: 'paper' }, cfg: { version: '1.5' }, now });
+  assert.equal(f.TotalAmt, 100); assert.ok(!f.ItemName.includes('打賞'));
+  assert.equal(f.ItemAmt.split('|').map(Number).reduce((a, b) => a + b, 0), 100);   // 明細加總＝總額
+  const sum = tableOrders.salesSummary([{ id: 'o1', status: 'paid', amount: 400, paid_at: new Date(now).toISOString(), items: [food, tip], payer: out.payer }], { now });
+  assert.equal(sum.amount, 100); assert.equal(sum.collected, 400); assert.equal(sum.by_method.cash, 400); assert.equal(sum.tip_amount, 300);
+  const an = tableOrders.analyticsSummary([{ id: 'o1', status: 'paid', amount: 400, paid_at: new Date(now).toISOString(), items: [food, tip], payer: out.payer }], {});
+  assert.equal(an.amount, 100);
+});
+
 test('事件：只留 12 小時、音效白名單', () => {
   const T = Date.parse('2026-11-01T12:00:00Z');
   let st = tips.pushEvent({ events: [] }, { id: 'a', table: 'A1', amount: 100, sfx: 'nope' }, T);
@@ -84,10 +121,13 @@ test('事件：只留 12 小時、音效白名單', () => {
 
 test('接線：server 路由、FOOD_API 涵蓋、操作紀錄、API 文件、POS 分頁、客人頁、低消排除', () => {
   const server = read('server.js'), api = read('docs/API.md'), pos = read('public/pos.html'), ops = read('public/pos-ops.js'), order = read('public/order.html'), log = read('lib/pos-log.js'), ptips = read('public/pos-tips.js');
-  for (const r of ["app.get('/api/tips'", "app.post('/api/tips'", "app.get('/api/admin/orders/tips/events'", "app.get('/api/admin/orders/tips'", "app.post('/api/admin/orders/tips/settings'", "app.post('/api/admin/orders/tips/payouts'"]) assert.ok(server.includes(r), r);
+  assert.match(server, /amount:out\.revenue,/);   // 會員點數只算營收
+  assert.match(server, /order_total:s\.sales\.collected/);   // 關帳對帳用收款總額
+  assert.match(ptips, /data-tip-act="confirm"/);
+  for (const r of ["app.post('/api/admin/orders/tips/:id/confirm'", "app.post('/api/admin/orders/tips/:id/reject'", "app.get('/api/tips'", "app.post('/api/tips'", "app.get('/api/admin/orders/tips/events'", "app.get('/api/admin/orders/tips'", "app.post('/api/admin/orders/tips/settings'", "app.post('/api/admin/orders/tips/payouts'"]) assert.ok(server.includes(r), r);
   assert.match(server, /tips\/payouts',rateLimit\(\{max:20\}\),auth,adminOnly,requireDb,superOrManagerPin/);
   assert.match(server, /INSERT INTO pos_cash_moves[^;]+'out',p\.amount/);
-  for (const h of ['### GET /api/tips', '### POST /api/tips', '### GET /api/admin/orders/tips', '### POST /api/admin/orders/tips/settings', '### POST /api/admin/orders/tips/payouts', '### GET /api/admin/orders/tips/events']) assert.ok(api.includes(h), h);
+  for (const h of ['### GET /api/tips', '### POST /api/tips', '### GET /api/admin/orders/tips', '### POST /api/admin/orders/tips/settings', '### POST /api/admin/orders/tips/payouts', '### GET /api/admin/orders/tips/events', '### POST /api/admin/orders/tips/:id/confirm', '### POST /api/admin/orders/tips/:id/reject']) assert.ok(api.includes(h), h);
   assert.match(log, /tips\\\/payouts/);
   assert.match(pos, /id:'tips'[^}]+group:'settings'/);
   assert.match(pos, /tips:tabTips/); assert.match(pos, /tipBoot\(\)/); assert.match(pos, /pos-tips\.js/);
@@ -97,5 +137,5 @@ test('接線：server 路由、FOOD_API 涵蓋、操作紀錄、API 文件、POS
   assert.match(order, /id="tip-open"/); assert.match(order, /id="tip-amt" type="number" inputmode="numeric"/); assert.match(order, /data-tip-sfx/);
   assert.match(order, /api\('\/tips',\{method:'POST'/);
   require('../public/order-lib.js'); const L = globalThis.OrderLib;
-  for (const lang of ['zh', 'en', 'ja']) for (const k of ['tip_title', 'tip_hint', 'tip_send', 'tip_confirm', 'tip_done', 'tip_bad', 'info_tip_free']) assert.notEqual(L.text(lang, k), k, lang + ':' + k);
+  for (const lang of ['zh', 'en', 'ja']) for (const k of ['tip_title', 'tip_hint', 'tip_send', 'tip_confirm', 'tip_done', 'tip_bad', 'info_tip_free', 'tip_pending', 'tip_confirmed', 'tip_rejected']) assert.notEqual(L.text(lang, k), k, lang + ':' + k);
 });
