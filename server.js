@@ -6969,7 +6969,7 @@ app.get('/api/songs/discover',rateLimit({max:30}),requireDb,wrap(async(req,res)=
 // POS「點歌」分頁（路徑掛在 /api/admin/orders 底下＝品牌子帳號可用）
 async function songAdminView(settings,state){
   const yt=songJson(await contentValue('song_youtube'));
-  return {settings,now:state.now,queue:state.queue,history:state.history.slice(0,20),
+  return {settings,now:state.now,queue:state.queue,upcoming:songs.upcoming(state,settings),history:state.history.slice(0,20),
     youtube:{connected:!!yt.refresh_token,channel:yt.channel||null,connected_at:yt.connected_at||null,connected_by:yt.connected_by||'',oauth_ready:!!(GOOGLE_CLIENT_ID&&GOOGLE_CLIENT_SECRET),api_key:!!process.env.YOUTUBE_API_KEY}};
 }
 app.get('/api/admin/orders/songs',auth,adminOnly,requireDb,wrap(async(req,res)=>{

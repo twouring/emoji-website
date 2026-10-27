@@ -23,11 +23,18 @@ async function songLoadDiscover(){
 }
 /* 歌曲列：標題最多兩行（不再截成一行），次要資訊另起一行並可換行 */
 function songMeta(t){
-  return [t.channel, songDur(t.duration), t.table ? `桌 ${t.table}` : '', t.by && t.source !== 'pos' ? t.by : '', t.source === 'pos' ? '櫃檯代點' : '', t.source === 'guest' && t.price ? `NT$${t.price}` : '', t.count ? `點過 ${t.count} 次` : '']
+  return [t.channel, songDur(t.duration), t.source === 'guest' && t.price ? `NT$${t.price}` : '', t.count ? `點過 ${t.count} 次` : '']
     .filter(Boolean).map(esc).join('<i aria-hidden="true">・</i>');
 }
+/* 誰點的：客人點歌＝「桌 A3・小明」、櫃檯代點、常態歌單 */
+function songWho(t){
+  if (t.kind === 'playlist') return '<span class="song-who is-pl">常態歌單</span>';
+  if (t.source === 'pos') return '<span class="song-who is-pos">櫃檯代點</span>';
+  if (t.source === 'guest' || t.table) return `<span class="song-who is-guest"><b>桌 ${esc(t.table || '—')}</b>${t.by ? `・${esc(t.by)}` : ''}</span>`;
+  return '';
+}
 function songRow(t, actions, { rank = null } = {}){
-  return `<li class="song-row">${rank != null ? `<span class="song-rank">${rank}</span>` : ''}${t.thumb ? `<img src="${esc(t.thumb)}" alt="" loading="lazy">` : '<span class="song-ph" aria-hidden="true">♪</span>'}<div class="song-meta"><b title="${esc(t.title)}">${esc(t.title)}</b><small>${songMeta(t)}</small></div>${actions ? `<div class="song-act">${actions}</div>` : ''}</li>`;
+  return `<li class="song-row">${rank != null ? `<span class="song-rank">${rank}</span>` : ''}${t.thumb ? `<img src="${esc(t.thumb)}" alt="" loading="lazy">` : '<span class="song-ph" aria-hidden="true">♪</span>'}<div class="song-meta">${t.kind || t.source ? songWho(t) : ''}<b>${esc(t.title)}</b><small>${songMeta(t)}</small></div>${actions ? `<div class="song-act">${actions}</div>` : ''}</li>`;
 }
 const SONG_VIEWS = [['popular', '熱門'], ['recent', '最近點過'], ['chart', '排行榜'], ['search', '搜尋']];
 function songListHtml(list, ranked){
@@ -51,17 +58,20 @@ function paintSongs(){
   const status = !s.enabled ? '<span class="pill pill-draft">客人點歌：關閉</span>' : `<span class="pill pill-ok">客人點歌：開放中・每首 NT$${esc(s.price)}</span>`;
   const player = s.player_device ? (me ? '<span class="pill pill-ok">這台播放中</span>' : '<span class="pill pill-wait">另一台播放中</span>') : '<span class="pill pill-bad">未指定播放裝置</span>';
   const nowCard = now
-    ? `<div class="song-now">${now.thumb ? `<img src="${esc(now.thumb)}" alt="">` : '<span class="song-ph lg" aria-hidden="true">♪</span>'}<div class="song-now-main"><span class="song-now-tag">${now.kind === 'playlist' ? '常態歌單' : '客人點歌'}</span><b>${esc(now.title)}</b><small>${songMeta(now)}</small></div><button type="button" class="btn btn--solid" data-song-skip>下一首</button></div>`
+    ? `<div class="song-now">${now.thumb ? `<img src="${esc(now.thumb)}" alt="">` : '<span class="song-ph lg" aria-hidden="true">♪</span>'}<div class="song-now-main">${songWho(now)}<b>${esc(now.title)}</b><small>${songMeta(now)}</small></div><button type="button" class="btn btn--solid" data-song-skip>下一首</button></div>`
     : `<div class="song-now is-empty"><span class="song-ph lg" aria-hidden="true">♪</span><div class="song-now-main"><b>目前沒有在播放</b><small>${s.playlist.length ? (s.player_device ? '播放裝置會自動開始播常態歌單。' : '先在接音響的平板按「在這台播放」。') : '到「設定 → 點歌」匯入常態歌單，沒人點歌時會自動播放。'}</small></div>${d.queue.length || s.playlist.length ? '<button type="button" class="btn btn--solid" data-song-skip>開始播放</button>' : ''}</div>`;
-  const queue = d.queue.length
-    ? `<ol class="song-list song-queue">${d.queue.map((t, i) => songRow(t, `${i ? `<button type="button" class="btn btn--ghost btn-sm" data-song-top="${esc(t.id)}">移到最前</button>` : ''}<button type="button" class="btn btn--ghost btn-sm song-danger" data-song-del="${esc(t.id)}">移除</button>`, { rank: i + 1 })).join('')}</ol>`
-    : '<p class="a-empty">沒有人點歌，會播常態歌單。</p>';
+  const up = d.upcoming || { items: d.queue.map((t, i) => ({ ...t, kind: 'request', pos: i + 1 })), shuffle: false };
+  const reqN = d.queue.length;
+  const queue = (up.items.length
+    ? `<ol class="song-list song-queue">${up.items.map(t => songRow(t, t.kind === 'request' ? `${t.pos > 1 ? `<button type="button" class="btn btn--ghost btn-sm" data-song-top="${esc(t.id)}">移到最前</button>` : ''}<button type="button" class="btn btn--ghost btn-sm song-danger" data-song-del="${esc(t.id)}">移除</button>` : '', { rank: t.pos })).join('')}</ol>`
+    : '<p class="a-empty">沒有接下來的歌。到「設定 → 點歌」匯入常態歌單。</p>')
+    + (up.shuffle ? `<p class="hint">常態歌單（${esc(up.playlist_count)} 首）為隨機播放，客人點的歌播完後隨機接續。</p>` : '');
   const hist = d.history.length ? `<details class="song-hist"><summary>最近播過（${Math.min(8, d.history.length)}）</summary><ul class="song-list">${d.history.slice(0, 8).map(t => songRow(t, t.result === 'error' ? '<span class="pill pill-wait">無法播放已跳過</span>' : t.result === 'skip' ? '<span class="pill pill-draft">跳過</span>' : '')).join('')}</ul></details>` : '';
   host.innerHTML = `
   <div class="ops-head song-head"><h2>點歌</h2><div class="song-head-act">${status}${player}${me ? '<button type="button" class="btn btn--ghost btn-sm" data-song-release>停止在這台播放</button>' : '<button type="button" class="btn btn--solid btn-sm" data-song-claim>在這台播放</button>'}<button type="button" class="btn btn--ghost btn-sm" data-song-settings>點歌設定</button></div></div>
   ${nowCard}
   <div class="song-grid">
-    <section aria-labelledby="song-q-h"><h3 id="song-q-h">待播清單 <span class="song-count">${d.queue.length}</span></h3>${queue}${hist}</section>
+    <section aria-labelledby="song-q-h"><h3 id="song-q-h">接下來 <span class="song-count">${up.items.length}</span>${reqN ? `<small>客人／櫃檯點歌 ${reqN} 首優先</small>` : ''}</h3>${queue}${hist}</section>
     <section aria-labelledby="song-f-h"><h3 id="song-f-h">找歌代點 <small>店員代點不收費</small></h3>
       <div class="song-tabs" role="tablist" aria-label="找歌方式">${SONG_VIEWS.map(([k, l]) => `<button type="button" role="tab" aria-selected="${SONGS.view === k}" data-song-view="${k}">${l}</button>`).join('')}</div>
       ${songFindList()}
@@ -163,9 +173,45 @@ function songEnsureApi(){
   window.onYouTubeIframeAPIReady = () => { SONG_YT_READY = true; if (typeof prev === 'function') prev(); songPlayerSync(); };
   const s = document.createElement('script'); s.id = 'yt-iframe-api'; s.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(s);
 }
+/* 播放器小視窗：按住頂部把手拖移（滑鼠與觸控都可），「－」縮到最小（只留一列：歌名＋下一首＋展開），位置與狀態記在這台平板 */
+const SONG_DOCK_KEY = 'tth_song_dock';
+function songDockPref(){ try { return JSON.parse(localStorage.getItem(SONG_DOCK_KEY) || '{}') || {}; } catch (e) { return {}; } }
+function songDockSave(p){ try { localStorage.setItem(SONG_DOCK_KEY, JSON.stringify({ ...songDockPref(), ...p })); } catch (e) {} }
+function songDockPlace(dock, x, y){
+  const r = dock.getBoundingClientRect(), mx = Math.max(0, innerWidth - r.width), my = Math.max(0, innerHeight - r.height);
+  x = Math.min(mx, Math.max(0, x)); y = Math.min(my, Math.max(0, y));
+  dock.style.left = x + 'px'; dock.style.top = y + 'px'; dock.style.right = 'auto'; dock.style.bottom = 'auto';
+  return { x, y };
+}
+function songDockMin(dock, min){
+  dock.classList.toggle('is-min', !!min);
+  const b = dock.querySelector('[data-song-dock-min]'); if (b) { b.textContent = min ? '＋' : '－'; b.setAttribute('aria-label', min ? '展開播放器' : '縮到最小'); b.setAttribute('aria-expanded', String(!min)); }
+  songDockSave({ min: !!min });
+  const p = songDockPref(); if (p.x != null) requestAnimationFrame(() => songDockPlace(dock, p.x, p.y));
+}
 function songDock(){
   let dock = document.getElementById('song-dock');
-  if (!dock) { dock = document.createElement('div'); dock.id = 'song-dock'; dock.innerHTML = '<div id="song-yt"></div><div class="song-dock-bar"><span id="song-dock-title">點歌播放器</span><button type="button" data-song-dock-next aria-label="下一首">下一首</button></div>'; document.body.appendChild(dock); dock.querySelector('[data-song-dock-next]').onclick = () => songNext('skip'); }
+  if (dock) return dock;
+  dock = document.createElement('div'); dock.id = 'song-dock'; dock.setAttribute('role', 'region'); dock.setAttribute('aria-label', '點歌播放器');
+  dock.innerHTML = '<div class="song-dock-grip" data-song-dock-grip><span class="song-dock-handle" aria-hidden="true"></span><span class="song-dock-label">點歌播放器・按住拖移</span><button type="button" data-song-dock-min aria-label="縮到最小" aria-expanded="true">－</button></div><div class="song-dock-video"><div id="song-yt"></div></div><div class="song-dock-bar"><span id="song-dock-title">點歌播放器</span><button type="button" data-song-dock-next aria-label="下一首">下一首</button></div>';
+  document.body.appendChild(dock);
+  dock.querySelector('[data-song-dock-next]').onclick = () => songNext('skip');
+  dock.querySelector('[data-song-dock-min]').onclick = e => { e.stopPropagation(); songDockMin(dock, !dock.classList.contains('is-min')); };
+  // 拖移：pointer events（iPad 觸控、滑鼠都可）；按在按鈕上不拖
+  // 展開時拖頂部把手；縮小時整條都能拖（影片區與按鈕不拖）
+  let drag = null;
+  dock.addEventListener('pointerdown', e => {
+    if (e.target.closest('button') || e.target.closest('.song-dock-video')) return;
+    if (!e.target.closest('[data-song-dock-grip]') && !dock.classList.contains('is-min')) return;
+    const r = dock.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, id: e.pointerId };
+    try { dock.setPointerCapture(e.pointerId); } catch (x) {} dock.classList.add('is-drag'); e.preventDefault();
+  });
+  dock.addEventListener('pointermove', e => { if (!drag || e.pointerId !== drag.id) return; songDockPlace(dock, e.clientX - drag.dx, e.clientY - drag.dy); });
+  const end = e => { if (!drag || e.pointerId !== drag.id) return; drag = null; dock.classList.remove('is-drag'); const r = dock.getBoundingClientRect(); songDockSave({ x: Math.round(r.left), y: Math.round(r.top) }); };
+  dock.addEventListener('pointerup', end); dock.addEventListener('pointercancel', end);
+  addEventListener('resize', () => { const p = songDockPref(); if (p.x != null) songDockPlace(dock, p.x, p.y); });
+  const p = songDockPref(); songDockMin(dock, !!p.min);
+  if (p.x != null) requestAnimationFrame(() => songDockPlace(dock, p.x, p.y));
   return dock;
 }
 function songPlayerStop(){ clearTimeout(SONG_TIMER); SONG_TIMER = null; try { SONG_YT && SONG_YT.destroy(); } catch (e) {} SONG_YT = null; SONG_LOADED = ''; const d = document.getElementById('song-dock'); if (d) d.remove(); }

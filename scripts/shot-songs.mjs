@@ -25,7 +25,8 @@ function api(u) {
   const p = u.pathname;
   if (p === '/api/state') return state;
   if (p.startsWith('/api/pos-devices/')) return { bound: true };
-  if (p === '/api/admin/orders/songs') return admin;
+  if (p === '/api/admin/orders/songs') return { ...admin, upcoming: { shuffle: false, playlist_count: playlist.length, items: [...admin.queue.map((t, i) => ({ ...t, kind: 'request', pos: i + 1 })), ...playlist.map((t, i) => ({ ...t, kind: 'playlist', pos: admin.queue.length + i + 1 }))] } };
+  if (p === '/api/admin/orders/songs/next') return admin;
   if (p === '/api/admin/orders/songs/search' || p === '/api/songs/search') return search;
   if (p === '/api/songs') return guest;
   if (p === '/api/songs/discover' || p === '/api/admin/orders/songs/discover') return { popular: [{ ...T(30, '告白氣球 Love Confession（官方完整版 MV）- 周杰倫 Jay Chou', '周杰倫 Jay Chou', 215), count: 12 }, { ...T(31, '小幸運 A Little Happiness（電影《我的少女時代》主題曲）', '田馥甄 Hebe', 265), count: 8 }, { ...T(32, '晴天', '周杰倫', 269), count: 5 }], recent: [T(33, 'APT.', 'ROSÉ & Bruno Mars', 170)], chart: [T(34, '排行榜第一名歌曲 Official Music Video', 'Artist', 230), T(35, 'Chart #2', 'Artist 2', 200)] };
@@ -42,7 +43,7 @@ const browser = await puppeteer.launch({ executablePath: '/workspace/local/brand
 async function shot(url, w, h, name, { mobile = false, prep = null, act = null } = {}) {
   const page = await browser.newPage();
   await page.setViewport({ width: w, height: h, isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1 });
-  await page.evaluateOnNewDocument(() => { localStorage.setItem('tth_token', 'x'); localStorage.setItem('tth_pos_device', 'dev-1'); localStorage.setItem('order_name', '小明'); localStorage.setItem('order_guest', 'abcdefgh12'); localStorage.setItem('order_lang', 'zh');
+  await page.evaluateOnNewDocument(() => { localStorage.setItem('tth_token', 'x'); localStorage.setItem('tth_pos_device', 'dev-1'); localStorage.setItem('order_name', '小明'); localStorage.setItem('order_guest', 'abcdefgh12'); localStorage.setItem('order_lang', 'zh'); window.YT = { PlayerState: { ENDED: 0 }, Player: function (id) { const el = document.getElementById(id); if (el) el.outerHTML = '<iframe id="' + id + '" src="about:blank"></iframe>'; this.playVideo = () => {}; this.loadVideoById = () => {}; this.stopVideo = () => {}; this.destroy = () => {}; } };
     const R = Date; const fixed = new R('2026-11-01T12:30:00Z').getTime(); globalThis.Date = class extends R { constructor(...a) { super(...(a.length ? a : [fixed])); } static now() { return fixed; } }; });
   await page.setRequestInterception(true);
   page.on('request', r => {
@@ -70,7 +71,7 @@ async function shot(url, w, h, name, { mobile = false, prep = null, act = null }
       panelText: panel && vis(panel) ? panel.innerText.replace(/\s+/g, ' ').slice(0, 420) : null, rowsClipped: clipped, titleLines: titles.map(t => t.lines).join(','), nowrap: titles.filter(t => t.nowrap).length, tabs: [...document.querySelectorAll('.song-tabs [role=tab]')].map(b => b.textContent.trim()).join('|'), smallControls: small.slice(0, 8) };
   });
   console.log(name, JSON.stringify(probe));
-  const extra = await page.evaluate(() => { const set = document.getElementById('set-songs-body'); const L = [...document.querySelectorAll('.song-meta b,.song-row .n b,.song-now-main b,.song-now .n b')].filter(b => b.offsetHeight).map(b => b.textContent.slice(0, 18) + '=' + Math.round(b.offsetHeight / parseFloat(getComputedStyle(b).lineHeight)) + 'L/' + (b.scrollHeight > b.clientHeight + 1 ? 'clamped' : 'full')); return { setSongs: set ? set.innerText.replace(/\s+/g, ' ').slice(0, 260) : 'NO-SECTION', lines: L.slice(0, 6) }; });
+  const extra = await page.evaluate(() => { const set = document.getElementById('set-songs-body'); const L = [...document.querySelectorAll('.song-meta b,.song-meta small,.song-row .n b,.song-now-main b,.song-now .n b,#song-dock-title,.song-who')].filter(b => b.offsetHeight).map(b => b.textContent.slice(0, 18) + '=' + Math.round(b.offsetHeight / parseFloat(getComputedStyle(b).lineHeight)) + 'L/' + (b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1 ? 'CUT' : 'full') + '/' + getComputedStyle(b).whiteSpace + '/' + getComputedStyle(b).textOverflow); const q = document.getElementById('song-q-h'); const who = [...document.querySelectorAll('#songs-body .song-queue .song-who')].map(w => w.textContent); return { upcomingHead: q ? q.textContent : null, upcomingRows: document.querySelectorAll('#songs-body .song-queue > li').length, who: who.slice(0, 6), setSongs: set ? set.innerText.replace(/\s+/g, ' ').slice(0, 260) : 'NO-SECTION', lines: L.filter(x => /CUT|nowrap|ellipsis/.test(x)).slice(0, 12) }; });
   console.log(name, 'EXTRA', JSON.stringify(extra));
   await page.screenshot({ path: path.join(OUT, name + '.png'), fullPage: true });
   console.log(name, 'overflow=' + overflow, errs.length ? 'ERR ' + errs.join(' | ') : 'no-errors');
@@ -78,6 +79,22 @@ async function shot(url, w, h, name, { mobile = false, prep = null, act = null }
 }
 await shot('https://pos.test/pos/songs', 1280, 900, 'pos-songs-1280');
 await shot('https://pos.test/pos/songs', 390, 844, 'pos-songs-390', { mobile: true });
+// 播放器：拖移、縮到最小、重新整理後記得位置
+await shot('https://pos.test/pos/songs', 1280, 900, 'pos-dock-drag-min', { act: async p => {
+  await p.waitForSelector('#song-dock', { timeout: 4000 });
+  const before = await p.evaluate(() => { const r = document.getElementById('song-dock').getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.height)]; });
+  const g = await p.$('[data-song-dock-grip]'); const b = await g.boundingBox();
+  await p.mouse.move(b.x + 40, b.y + 20); await p.mouse.down(); await p.mouse.move(b.x - 600, b.y - 500, { steps: 8 }); await p.mouse.up();
+  const moved = await p.evaluate(() => { const r = document.getElementById('song-dock').getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top)]; });
+  await p.click('[data-song-dock-min]');
+  const min = await p.evaluate(() => { const d = document.getElementById('song-dock'), r = d.getBoundingClientRect(); return { cls: d.className, h: Math.round(r.height), title: document.getElementById('song-dock-title').textContent, titleCut: (t => t.scrollWidth > t.clientWidth + 1 || t.scrollHeight > t.clientHeight + 1)(document.getElementById('song-dock-title')) }; });
+  const bar = await (await p.$('.song-dock-bar')).boundingBox();
+  await p.mouse.move(bar.x + 30, bar.y + bar.height / 2); await p.mouse.down(); await p.mouse.move(bar.x + 230, bar.y + 120, { steps: 6 }); await p.mouse.up();
+  const moved2 = await p.evaluate(() => { const r = document.getElementById('song-dock').getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top)]; });
+  await p.reload({ waitUntil: 'networkidle0' }); await p.waitForSelector('#song-dock', { timeout: 4000 }); await new Promise(r => setTimeout(r, 300));
+  const after = await p.evaluate(() => { const d = document.getElementById('song-dock'), r = d.getBoundingClientRect(); return { min: d.classList.contains('is-min'), pos: [Math.round(r.left), Math.round(r.top)] }; });
+  console.log('DOCK', JSON.stringify({ before, moved, min, moved2, after }));
+} });
 await shot('https://pos.test/pos/settings', 1280, 900, 'pos-settings-songs-1280', { act: async p => { await new Promise(r => setTimeout(r, 500)); await p.evaluate(() => document.getElementById('set-songs')?.scrollIntoView()); } });
 const order = 'https://pos.test/order?s=ts_0000000000000001&k=0123456789abcdef';
 await shot(order, 390, 844, 'order-menu-390', { mobile: true });

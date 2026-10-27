@@ -198,3 +198,24 @@ test('UI：設定移到設定頁、分頁有熱門／最近點過／排行榜／
     assert.doesNotMatch(row, /white-space:nowrap|text-overflow|line-clamp/, '標題完整顯示，不可截斷');
   }
 });
+
+test('接下來：待播優先，再接常態歌單從下一首起的整份順序；隨機只列待播', () => {
+  const pl = [T(ID(7)), T(ID(8)), T(ID(9))];
+  let st = { ...songs.normalizeState(''), fallback_index: 1 };
+  st = songs.enqueue(st, T(ID(1)), { table: 'A3', by: '小明' }).state;
+  const up = songs.upcoming(st, songs.normalizeSettings({ playlist: pl }));
+  assert.deepEqual(up.items.map(t => [t.pos, t.kind, t.video_id]), [[1, 'request', ID(1)], [2, 'playlist', ID(8)], [3, 'playlist', ID(9)], [4, 'playlist', ID(7)]]);
+  assert.equal(up.items[0].table, 'A3'); assert.equal(up.items[0].by, '小明');
+  const sh = songs.upcoming(st, songs.normalizeSettings({ playlist: pl, shuffle: true }));
+  assert.equal(sh.items.length, 1); assert.equal(sh.shuffle, true);
+});
+
+test('POS：顯示哪桌誰點的、接下來全部歌曲；播放器可拖移、縮到最小、記住位置；歌名不截斷', () => {
+  const ps = read('public/pos-songs.js'), pos = read('public/pos.html');
+  assert.match(ps, /function songWho/); assert.match(ps, /<b>桌 \$\{esc\(t\.table \|\| '—'\)\}<\/b>\$\{t\.by \? `・\$\{esc\(t\.by\)\}` : ''\}/);
+  assert.match(ps, /d\.upcoming/); assert.match(ps, /接下來 <span class="song-count">/);
+  assert.match(ps, /data-song-dock-min/); assert.match(ps, /pointermove/); assert.match(ps, /tth_song_dock/);
+  assert.match(pos, /#song-dock\.is-min \.song-dock-video\{height:0;overflow:hidden\}/, '縮小時影片收起但不停止播放');
+  const t = pos.match(/\.song-dock-bar span\{[^}]*\}/)[0];
+  assert.doesNotMatch(t, /nowrap|ellipsis|line-clamp/, '播放器歌名不截斷');
+});
