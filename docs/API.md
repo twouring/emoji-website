@@ -509,6 +509,24 @@ POS 輪詢未處理的呼叫（每 5 秒）。回 `{ pending:[{id,session_id,tab
 ### POST /api/admin/orders/service-calls/:id/done
 店員按「處理」結案，記 `done_at`／`done_by`（登入者或 PIN 員工）。已處理過的重複按回原資料（兩台同時按不報錯）；找不到 404。記入 POS 操作紀錄「處理客人呼叫服務」。
 
+### GET /api/tips
+打賞（客人端）設定。query `s`、`k`（桌邊單次 QR）。回 `{ enabled, performer, presets:[金額], max, sounds:[{id,zh,en,ja}] }`。設定存 `site_content.tip_settings`（預設關閉）。QR 無效 403、桌已結束 409。
+
+### POST /api/tips
+客人打賞。body `{ s, k, guest, by?, amount, sfx }`；`amount` 為 1–`max` 的整數（預設上限 10,000），`sfx` 不在白名單時用 `applause`。在這桌加一行 `cat:'TIP'`、`item_id:'tip'`、`tip:{id,sfx,performer}`（已送出、已完成：不上出餐看板與出餐單、客人不能刪、不計服務費與低消），同時寫一筆事件到 `site_content.tip_events` 供 POS 播音效。成功 201 `{ ok, id, amount, sfx, performer }`。未開放／非營業時段 423；每 IP 每分鐘 20 次。
+
+### GET /api/admin/orders/tips/events
+POS 每 5 秒輪詢最近 12 小時的打賞事件 `{ events:[{id,table,by,amount,sfx,performer,at}] }`。新事件出現時各台跳通知，點歌播放裝置（沒指定就每台）播 `/sfx/<sfx>.mp3`。
+
+### GET /api/admin/orders/tips
+打賞設定與統計。query `from`、`to`（營業日，預設近 7 天，最多 93 天）。回 `{ settings, sounds, pay_methods, pending_unpaid_bills, total, count, paid, unpaid, by_performer:[{performer,amount,count,paid,unpaid}], tips:[…], payouts:[…] }`：`total` 為期間已結帳的打賞（作廢單、已取消品項不算），`paid` 為期間支付給表演者，`unpaid`／`by_performer[].unpaid` 為全部期間已收減已付；`pending_unpaid_bills` 為還掛在開著的桌上、尚未結帳的打賞。
+
+### POST /api/admin/orders/tips/settings
+改打賞設定。body 可含 `enabled`（boolean）、`performer`（30 字）、`presets`（陣列或逗號分隔，1–max 的整數，最多 6 個）、`max`（1–10000）。記入 POS 操作紀錄。
+
+### POST /api/admin/orders/tips/payouts
+登記支付給表演者（超管直接過，其餘帶 `X-Manager-Pin` 店長識別碼）。body `{ performer, amount, method:'cash'|'transfer'|'other', note? }`。`cash` 會同時在目前開著的帳本記一筆 `pos_cash_moves` 臨時支出（沒開帳回 409）。紀錄存 `site_content.tip_payouts`。成功 201 `{ ok, payout:{id,performer,amount,method,note,by,cash_move,at} }`。
+
 ### POST /api/admin/menu/sold-out
 估清快速鍵。body `{ item_id, sold_out: boolean }`。只改該品項的 `sold_out`（記營業日），不覆蓋其他欄位；當個營業日結束（翌日 03:00）自動恢復。估清或恢復供應都會一併清除剩餘份數。品牌子帳號只能估清自己店別（403）。
 

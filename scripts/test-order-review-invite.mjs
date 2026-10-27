@@ -16,7 +16,7 @@ test('送單後提示用餐完到櫃檯結帳（三語）', () => {
 test('結帳意圖時跳 Google 評論邀請：餐都出完、沒有未送品項、打開已點清單；每場一次', () => {
   assert.match(html, /id="review"/);
   assert.equal(html.split(URL_).length - 1, 3);
-  assert.match(html, /function checkoutIntent\(\)\{if\(!S\|\|!S\.id\)return false;var u=unpaid\(\);return u\.length>0&&!pending\(\)\.length&&u\.every\(function\(l\)\{return l\.served_at;\}\);\}/);
+  assert.match(html, /function checkoutIntent\(\)\{if\(!S\|\|!S\.id\)return false;var u=unpaid\(\)\.filter\(function\(l\)\{return !l\.song&&!l\.tip;\}\);return u\.length>0&&!pending\(\)\.length&&u\.every\(function\(l\)\{return l\.served_at;\}\);\}/);   // 點歌／打賞不算餐點
   assert.match(html, /\$\('#open-cart'\)\.onclick=function\(\)\{\$\('#cart-body'\)\.scrollTop=0;if\(maybeReview\(\)\)return;openSheet\('#cart'\);\}/);
   assert.match(html, /order_review_/);
   // 櫃檯結帳後的感謝頁也有評論入口

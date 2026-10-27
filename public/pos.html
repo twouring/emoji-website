@@ -254,6 +254,21 @@
   #svc-calls .is-late button{background:#fff;color:#B3261E}
   #svc-calls button:disabled{opacity:.5}
   @media(max-width:999px){body.has-regwarn .p-top{padding-top:8px}}
+  /* 打賞：右下角跳通知 8 秒（播放裝置同時播客人選的音效） */
+  #tip-pop{position:fixed;left:50%;transform:translateX(-50%);bottom:max(20px,env(safe-area-inset-bottom));z-index:9001;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;width:min(420px,calc(100vw - 24px))}
+  #tip-pop .tip-pop-card{display:flex;align-items:center;gap:10px;width:100%;padding:12px 16px;border-radius:14px;background:#FFDE34;color:#111;box-shadow:0 12px 32px rgba(0,0,0,.3);animation:tipIn .25s ease-out}
+  #tip-pop .tip-pop-card svg{flex:none;width:28px;height:28px}
+  #tip-pop .tip-pop-card span{display:flex;flex-direction:column;min-width:0;line-height:1.35}#tip-pop b{font-size:1.15rem;overflow-wrap:anywhere}#tip-pop small{font-size:1rem}
+  @keyframes tipIn{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
+  .tip-set{flex-wrap:wrap}
+  .tip-range{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 12px;margin:0 0 12px}.tip-range label{display:flex;flex-direction:column;gap:4px}
+  .tip-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:0 0 14px}
+  .tip-kpis>div{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+  .tip-kpis b{font-size:1.4rem}.tip-kpis small{color:var(--muted);font-size:1rem}.tip-kpis .is-owe{border-color:var(--danger)}.tip-kpis .is-owe b{color:var(--danger)}
+  .tip-tbl small{color:var(--muted);margin-left:4px}
+  .tip-pay{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px 12px;align-items:end;margin:16px 0;padding:14px;border:1px solid var(--line);border-radius:12px}
+  .tip-pay h4,.tip-pay .hint{grid-column:1/-1;margin:0}.tip-pay label{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .tip-pay input,.tip-pay select,.tip-range input{min-height:44px;font:inherit;font-size:1rem;padding:0 10px;border:1px solid var(--line);border-radius:8px;color:var(--ink);background:var(--paper);min-width:0}
   @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -291,6 +306,7 @@
 <script src="/pos-settings.js"></script>
 <script src="/pos-songs.js"></script>
 <script src="/pos-service-calls.js"></script>
+<script src="/pos-tips.js"></script>
 <script src="/pos-icons.js"></script>
 <script>
 /* 平板 POS 子站（pos.emoji.tw）：只做餐飲現場的事——櫃檯結帳、出餐、估清、訂位、查單、日結、打卡、排班。
@@ -319,10 +335,11 @@ const TABS = [
   // group:'settings'＝不放頂欄，從「設定」進入（網址 /pos/<id> 照舊可直接開）
   { id:'inventory', icon:'box',    label:'庫存', group:'settings', desc:'進貨、盤點與菜單配方' },
   { id:'shifts', icon:'users',       label:'排班', group:'settings', desc:'班表、排休、自動排班' },
+  { id:'tips', icon:'sparkles',     label:'打賞', group:'settings', desc:'客人打賞設定、統計、支付給表演者' },
   { id:'logs', icon:'history',      label:'紀錄', group:'settings', desc:'操作紀錄（限店長）' },
 ];
 // 員工管理（新增／編輯／停用、出勤修正）刻意不放平板：只在 admin.emoji.tw 品牌工作區「排班打卡」，現場人員改不到
-const PANEL = { pos:tabPos, members:tabPosMembers, orders:tabOrders, soldout:tabSoldOut, inventory:tabInventory, reservations:tabReservations, history:tabHistory, logs:tabLogs, sales:tabSales, analytics:tabAnalytics, clock:tabClock, shifts:tabShifts, settings:tabSettings, songs:tabSongs };
+const PANEL = { pos:tabPos, members:tabPosMembers, orders:tabOrders, soldout:tabSoldOut, inventory:tabInventory, reservations:tabReservations, history:tabHistory, logs:tabLogs, sales:tabSales, analytics:tabAnalytics, clock:tabClock, shifts:tabShifts, settings:tabSettings, songs:tabSongs, tips:tabTips };
 let toastT, DATA = null, TAB = 'pos', SCOPE = '', MENU_DOC = null, PENDING = 0;
 try { SCOPE = localStorage.getItem('tth_pos_scope') || ''; } catch (e) {}
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2400); }
@@ -526,6 +543,7 @@ function activate(){
   else if (TAB === 'logs') loadLogs();
   else if (TAB === 'shifts') loadShifts();
   else if (TAB === 'songs') loadSongs();
+  else if (TAB === 'tips') loadTips();
   else if (TAB === 'settings') loadSettings();
   if (TAB !== 'settings') resetSettings(); // 店長識別碼只留在設定頁，離開就清空
 }
@@ -612,6 +630,7 @@ async function main(){
     refreshPending();
     songBoot();
     serviceCallBoot();
+    tipBoot();
     renewToken();
   } catch(e){
     if (e.status === 401) return;   // api() 已轉到登入畫面

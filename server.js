@@ -35,6 +35,7 @@ const eventChannels=require('./lib/event-channels');
 const tableOrders=require('./lib/table-orders');
 const songs=require('./lib/songs');
 const serviceCalls=require('./lib/service-calls');
+const tips=require('./lib/tips');
 const yan=require('./lib/yan');
 const line = require('./lib/line');
 const { createLineService } = require('./lib/line-service');
@@ -6445,6 +6446,7 @@ async function superOrManagerPin(req,res,next){
     const mgr=staffRow((await q(`SELECT ${STAFF_SEL} FROM pos_staff WHERE pin=$1 AND active`,[pin])).rows[0]);
     if(!mgr||!isManagerRole(mgr.role))return res.status(403).json({error:'識別碼不正確或不是店長。',need_manager_pin:true});
     if(req.body&&typeof req.body==='object')req.body.operator_id=mgr.id;
+    req.managerPin=mgr;
     next();
   }catch(e){next(e);}
 }
@@ -7135,6 +7137,87 @@ app.post('/api/admin/orders/service-calls/:id/done',auth,adminOnly,requireDb,wra
   }catch(e){return serviceErr(res,e);}
 }));
 /* ---- 呼叫服務 end ---- */
+
+/* ---- 打賞（lib/tips.js）：客人掃桌邊 QR 自填金額＋選音效 → 記在這桌帳上（結帳一起收）；POS 播放裝置播音效、各台跳通知。
+   店家代收後支付給表演者：「設定 → 打賞」看期間已收／已支付／未付餘額並登記支付（現金同時記錢櫃支出）。
+   不開新表：site_content 的 tip_settings／tip_events／tip_payouts。 */
+async function tipSettings(){return tips.normalizeSettings(await contentValue('tip_settings'));}
+async function withTipKey(key,client,fn){
+  await client.query(`INSERT INTO site_content(key,value) VALUES($1,'{}') ON CONFLICT(key) DO NOTHING`,[key]);
+  const raw=(await client.query('SELECT value FROM site_content WHERE key=$1 FOR UPDATE',[key])).rows[0]?.value;
+  const {state,out}=await fn(raw);
+  await client.query('UPDATE site_content SET value=$2,updated_at=now() WHERE key=$1',[key,JSON.stringify(state)]);return out;
+}
+async function tipTx(fn){
+  const client=await pool.connect();
+  try{await client.query('BEGIN');const out=await fn(client);await client.query('COMMIT');return out;}
+  catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
+}
+const tipErr=(res,e)=>{if(e&&e.status)return res.status(e.status).json({error:e.message});throw e;};
+app.get('/api/tips',requireDb,wrap(async(req,res)=>{
+  res.set('Cache-Control','no-store');
+  try{await songGuestSession(req.query);res.json(tips.publicView(await tipSettings()));}catch(e){return tipErr(res,e);}
+}));
+app.post('/api/tips',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
+  const b=req.body||{};
+  if(!/^[a-z0-9]{8,32}$/.test(String(b.guest||'')))return res.status(400).json({error:'缺少來賓識別。'});
+  try{const s=await songGuestSession(b);await assertNotPaused();
+    const settings=await tipSettings();if(!settings.enabled)return res.status(423).json({error:'打賞目前沒有開放。'});
+    const venue=tableOrders.MenuLib.orderWindow().venue;if(!venue)return res.status(423).json({error:'目前非營業時段，暫不開放打賞。'});
+    const t=tips.parseTip(b,settings),by=tableOrders.cleanText(b.by,20)||'客人';
+    const out=await tipTx(async client=>{
+      const ss=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[s.id])).rows[0];
+      if(!ss||ss.status!=='open')throw Object.assign(Error('這桌已結束，請洽服務人員。'),{status:409});
+      const line=tips.tipLine({...t,performer:settings.performer,venue,guest:b.guest,by});
+      await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[ss.id,JSON.stringify(ss.items.concat([line]))]);
+      await withTipKey('tip_events',client,async raw=>({state:tips.pushEvent(tips.normalizeEvents(raw),{id:line.tip.id,table:ss.table_no,by,amount:t.amount,sfx:t.sfx,performer:settings.performer}),out:null}));
+      return line;
+    });
+    res.status(201).json({ok:true,id:out.tip.id,amount:out.price,sfx:out.tip.sfx,performer:out.tip.performer});
+  }catch(e){return tipErr(res,e);}
+}));
+// POS：最近 12 小時的打賞事件（每 5 秒輪詢；播放裝置播音效、各台跳通知）
+app.get('/api/admin/orders/tips/events',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  res.set('Cache-Control','no-store');res.json(tips.normalizeEvents(await contentValue('tip_events')));
+}));
+// POS：設定＋統計（from／to 營業日，預設近 7 天）
+app.get('/api/admin/orders/tips',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  res.set('Cache-Control','no-store');
+  let r;try{r=tableOrders.analyticsRange(req.query);}catch(e){return res.status(e.status||400).json({error:e.message});}
+  const sql=`SELECT id,table_no,items,status,paid_at FROM table_orders WHERE status<>'void' AND items @> '[{"cat":"TIP"}]'::jsonb`;
+  const orders=(await q(sql+' AND paid_at>=$1 AND paid_at<$2',[r.start,r.end])).rows;
+  const all=(await q(sql)).rows;
+  const payouts=tips.normalizePayouts(await contentValue('tip_payouts')).payouts;
+  const pending=(await q(`SELECT table_no,items FROM table_sessions WHERE status='open' AND items @> '[{"cat":"TIP"}]'::jsonb`)).rows
+    .reduce((a,s)=>a+s.items.filter(l=>tips.isTip(l)&&!l.order_id&&!l.cancelled).reduce((x,l)=>x+(Number(l.price)||0)*(Number(l.qty)||1),0),0);
+  res.json({settings:await tipSettings(),sounds:tips.SOUNDS,pay_methods:tips.PAY_METHODS,pending_unpaid_bills:pending,
+    ...tips.summarize({orders,payouts,allOrders:all,allPayouts:payouts,businessDay:tableOrders.MenuLib.businessDay,from:r.from,to:r.to})});
+}));
+app.post('/api/admin/orders/tips/settings',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  try{const out=await tipTx(client=>withTipKey('tip_settings',client,async raw=>{const next=tips.patchSettings(tips.normalizeSettings(raw),req.body);return {state:next,out:next};}));
+    res.json({ok:true,settings:out});
+  }catch(e){return tipErr(res,e);}
+}));
+// 支付給表演者：要店長識別碼；現金從錢櫃付 → 同時在開著的帳本記一筆臨時支出（沒開帳就擋）
+app.post('/api/admin/orders/tips/payouts',rateLimit({max:20}),auth,adminOnly,requireDb,superOrManagerPin,wrap(async(req,res)=>{
+  let p;try{p=tips.parsePayout(req.body);}catch(e){return tipErr(res,e);}
+  const by=(req.managerPin&&req.managerPin.name)||actorOf(req.auth)||'';
+  try{const out=await tipTx(async client=>{
+      let cash_move=null;
+      if(p.method==='cash'){
+        const reg=(await client.query('SELECT id,venue FROM pos_registers WHERE closed_at IS NULL ORDER BY opened_at DESC LIMIT 1 FOR UPDATE')).rows[0];
+        if(!reg)throw Object.assign(Error('現在沒有開著的帳本，現金支付要先開帳（或改選轉帳／其他）。'),{status:409});
+        cash_move=uid('cm_');
+        await client.query('INSERT INTO pos_cash_moves(id,register_id,type,amount,reason,staff) VALUES($1,$2,$3,$4,$5,$6)',[cash_move,reg.id,'out',p.amount,('支付打賞給 '+p.performer+(p.note?'（'+p.note+'）':'')).slice(0,80),by]);
+      }
+      const row={id:uid('tpo_'),...p,by,cash_move,at:new Date().toISOString()};
+      await withTipKey('tip_payouts',client,async raw=>{const st=tips.normalizePayouts(raw);return {state:{payouts:st.payouts.concat([row])},out:null};});
+      return row;
+    });
+    res.status(201).json({ok:true,payout:out});
+  }catch(e){return tipErr(res,e);}
+}));
+/* ---- 打賞 end ---- */
 // 後台 SPA：一般路徑路由（/admin/members、/admin/social/edit/:id…）皆回同一頁，前端依 pathname 切換分頁；
 // 舊 /admin.html 轉 301 至 /admin（瀏覽器保留 #hash，前端再轉為路徑）
 const ADMIN_PAGE = path.join(PUB, 'admin.html');

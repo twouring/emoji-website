@@ -1084,7 +1084,7 @@ function posTotals(cur){
 // 低消（三點水 11/1 起，每人平日 300／假日 600）：看整桌三點水品項（不含贈送／取消／預收），人數用 POS 設定的來客人數；只提醒、不自動補收
 function minSpendState(cur){
   if(!MenuLib.minSpendOf||cur.takeout)return null;
-  const goods=cur.lines.filter(l=>!l.credit_of&&!l.prepay&&!l.cancelled&&l.venue==='BAR');
+  const goods=cur.lines.filter(l=>!l.credit_of&&!l.prepay&&!l.cancelled&&!l.tip&&l.venue==='BAR');   // 打賞不算低消
   if(!goods.length)return null;
   const spent=goods.reduce((a,l)=>a+(l.comp_reason?0:l.price)*l.qty,0);
   if(!MenuLib.barPolicyActive())return null;
@@ -1879,6 +1879,7 @@ function registerReportSpec(rep,kind){
   sec('營收');row('成立單數',n(rep.orders)+' 單');row('營收（折扣後）','NT$'+n(rep.amount),true);
   for(const [m,v] of Object.entries(rep.by_method||{}))row(payMethodLabel(m),n(v));
   if(rep.discount_amount)row('折扣合計','−'+n(rep.discount_amount));
+  if(rep.tip_amount)row(`打賞代收 ${n(rep.tip_count)} 筆`,n(rep.tip_amount));
   if(rep.service_amount||rep.service_waived)row('服務費（含在營收）',n(rep.service_amount||0)+(rep.service_waived?`（免收 ${rep.service_waived} 單）`:''));
   if(rep.redeem_points)row(`點數兌換 ${n(rep.redeem_count)} 單`,`${n(rep.redeem_points)} 點／−${n(rep.redeem_value)}`);
   if(rep.voided)row('作廢',`${n(rep.voided)} 單 ${n(rep.void_amount)}`);
@@ -1912,7 +1913,7 @@ function printRegisterReportWindow(rep,kind){
   return printWindow(`${kind} ${rep.venue}`,`<h1>${esc(BRAND_LABEL[rep.venue]||rep.venue)}</h1><div class="m">${kind} · 營業日 ${esc(rep.day)}</div><div class="m">開帳 ${esc(applicationTime(rep.opened_at))} ${esc(rep.opened_by||'')}</div>${closed?`<div class="m">關帳 ${esc(applicationTime(rep.closed_at))} ${esc(rep.closed_by||'')}</div>`:rep.counted_at?`<div class="m">點驗 ${esc(applicationTime(rep.counted_at))}</div>`:''}
     <h2>現金</h2>${line('零用金',num(rep.opening_cash))}${line('現金營收',num(rep.cash_sales))}${line('臨時收入','+'+num(rep.cash_in))}${line('臨時支出','−'+num(rep.cash_out))}${line('應有現金','NT$'+num(rep.expected_cash),'t')}
     ${rep.counted_cash!=null?`${line(closed?'點鈔現金':'點驗現金','NT$'+num(rep.counted_cash),'t')}${line(rep.diff>0?'溢':rep.diff<0?'短':'差額',(rep.diff>0?'+':'')+num(rep.diff),'t big')}${closed?`${line('留存金（下一班）',num(rep.keep_cash))}${line('收走',num(rep.take_cash))}`:''}${rep.note?`<div class="n">${esc(rep.note)}</div>`:''}`:''}
-    <h2>營收</h2>${line('成立單數',num(rep.orders)+' 單')}${line('營收（折扣後）','NT$'+num(rep.amount),'t')}${methods}${rep.discount_amount?line('折扣合計','−'+num(rep.discount_amount)):''}${rep.service_amount||rep.service_waived?line('服務費（含在營收）',num(rep.service_amount||0)+(rep.service_waived?`（免收 ${rep.service_waived} 單）`:'')):''}${rep.redeem_points?line(`點數兌換 ${num(rep.redeem_count)} 單`,`${num(rep.redeem_points)} 點／折抵 −${num(rep.redeem_value)}`):''}${rep.voided?line('作廢',`${num(rep.voided)} 單 ${num(rep.void_amount)}`):''}
+    <h2>營收</h2>${line('成立單數',num(rep.orders)+' 單')}${line('營收（折扣後）','NT$'+num(rep.amount),'t')}${methods}${rep.discount_amount?line('折扣合計','−'+num(rep.discount_amount)):''}${rep.tip_amount?line(`打賞代收 ${num(rep.tip_count)} 筆（含在營收）`,num(rep.tip_amount)):''}${rep.service_amount||rep.service_waived?line('服務費（含在營收）',num(rep.service_amount||0)+(rep.service_waived?`（免收 ${rep.service_waived} 單）`:'')):''}${rep.redeem_points?line(`點數兌換 ${num(rep.redeem_count)} 單`,`${num(rep.redeem_points)} 點／折抵 −${num(rep.redeem_value)}`):''}${rep.voided?line('作廢',`${num(rep.voided)} 單 ${num(rep.void_amount)}`):''}
     ${rep.accounts?`<h2>逐項帳戶核對</h2>${line('現金實收',num(rep.cash_actual))}${Object.entries(rep.accounts).map(([code,a])=>`${line(a.label||payMethodLabel(code),'POS '+num(a.pos)+'／實收 '+num(a.actual))}${line('差異',(a.diff>0?'+':'')+num(a.diff))}${a.reason?`<div class="n">${esc(a.reason)}</div>`:''}`).join('')}<h2>最後核對總額</h2>${line('訂單總額',num(rep.total_pos))}${line('帳戶總額',num(rep.total_actual))}${line('總差異',(rep.total_diff>0?'+':'')+num(rep.total_diff))}${rep.total_reason?`<div class="n">總差異原因：${esc(rep.total_reason)}</div>`:''}`:''}
     <h2>臨時收支</h2>${moves}<div class="c">${esc(kind)}完成</div>`);
 }

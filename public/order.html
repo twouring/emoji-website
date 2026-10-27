@@ -114,6 +114,19 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 /* 呼叫服務：頁首常駐鈕＋底部面板選項目（不進購物車）；送出後菜單上方顯示狀態 */
 .call-btn{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:4px 12px;border:1px solid var(--yellow);border-radius:999px;background:transparent;color:var(--yellow);font-weight:700;white-space:nowrap;flex-shrink:0}
 .call-btn[hidden]{display:none}.call-btn.on{background:var(--yellow);color:var(--ink)}
+#tip .in{display:flex;flex-direction:column;padding:0;overflow:hidden}
+#tip .sheet-body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:16px 16px 8px}
+#tip .sheet-actions{flex:none;margin:0;padding:10px 16px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--paper)}
+#tip .sheet-actions .btn{flex:1 1 0;min-width:0;white-space:nowrap}
+.tip-lbl{display:block;margin:14px 0 6px;font-weight:700}
+.tip-amt{display:flex;align-items:center;gap:8px}.tip-amt span{font-weight:700}.tip-amt .f{flex:1;min-width:0;min-height:52px;font-size:1.25rem;font-weight:700}
+.tip-presets{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0}
+.tip-presets button{min-height:44px;padding:0 16px;border:1.5px solid var(--line);border-radius:999px;background:#fff;color:var(--ink);font-weight:700}
+.tip-presets button[aria-pressed=true]{border-color:var(--ink);background:var(--yellow)}
+.tip-sfx{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tip-sfx button{display:flex;align-items:center;justify-content:center;gap:6px;min-height:52px;border:1.5px solid var(--line);border-radius:14px;background:#fff;color:var(--ink);font-weight:700;padding:8px}
+.tip-sfx button[aria-checked=true]{border-color:var(--ink);background:var(--yellow)}
+.tip-sfx .ico{width:16px;height:16px;flex:none}
 .call-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
 .call-grid button{min-height:56px;border:1.5px solid var(--line);border-radius:14px;background:#fff;color:var(--ink);font-weight:700;padding:8px}
 .call-grid button[aria-pressed=true]{border-color:var(--ink);background:var(--yellow)}
@@ -143,6 +156,8 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></symbol>
   <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
   <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+  <symbol id="i-gift" viewBox="0 0 24 24"><path d="M4 11h16v10H4zM3 7h18v4H3zM12 7v14"/><path d="M12 7c-1.5-3-5-3.5-5-1.2C7 7 9.5 7 12 7Zm0 0c1.5-3 5-3.5 5-1.2C17 7 14.5 7 12 7Z"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7-11-7Z"/></symbol>
 </svg>
 <div class="ready-banner" id="ready-banner"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -160,6 +175,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
       <div class="menu-status" id="menu-shift"><div><b class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-clock"></use></svg><span id="menu-shift-title">最後點餐</span></b><small id="menu-hours">依台北時間顯示目前供應品項</small></div></div>
       <div class="call-status" id="call-status" role="status" aria-live="polite" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span id="call-status-text"></span></div>
       <button class="song-card hidden" type="button" id="song-open"><svg class="ico lg" aria-hidden="true"><use href="#i-music"></use></svg><span class="n"><b data-i18n="song_title">點歌</b><small id="song-card-sub"></small><small class="song-card-now" id="song-card-now" hidden></small></span><span class="p" id="song-card-price"></span></button>
+      <button class="song-card hidden" type="button" id="tip-open"><svg class="ico lg" aria-hidden="true"><use href="#i-gift"></use></svg><span class="n"><b data-i18n="tip_title">打賞</b><small id="tip-card-sub"></small></span></button>
       <div id="menu"></div>
       <p class="notice" id="bar-policy-notice" data-i18n="bar_policy" hidden>三點水低消每人平日 NT$300、假日 NT$600，另加 10% 服務費（外帶不收）。</p>
       <p class="notice" id="alcohol-notice" data-i18n="alcohol" hidden>未滿十八歲禁止飲酒。禁止酒駕。</p>
@@ -196,6 +212,17 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     <form class="song-form" id="song-form" hidden><input class="f" id="song-q" type="search" maxlength="80" autocomplete="off" enterkeyhint="search" data-i18n-placeholder="song_search" placeholder="搜尋歌名或歌手"></form>
     <div id="song-results"></div></div>
   <div class="row sheet-actions"><button class="btn ghost with-icon" type="button" data-close><svg class="ico" aria-hidden="true"><use href="#i-back"></use></svg><span data-i18n="back_menu">返回菜單</span></button></div>
+</div></div>
+
+<div class="sheet" id="tip" role="dialog" aria-labelledby="tip-title"><div class="in">
+  <div class="sheet-body"><h3 class="title-icon" id="tip-title"><svg class="ico lg" aria-hidden="true"><use href="#i-gift"></use></svg><span data-i18n="tip_title">打賞</span></h3><p class="muted" id="tip-sub"></p>
+    <label class="tip-lbl" for="tip-amt" data-i18n="tip_amount">金額</label>
+    <div class="tip-amt"><span aria-hidden="true">NT$</span><input class="f" id="tip-amt" type="number" inputmode="numeric" min="1" step="1" autocomplete="off" enterkeyhint="done"></div>
+    <div class="tip-presets" id="tip-presets"></div>
+    <p class="tip-lbl" data-i18n="tip_sound">選一個音效（點一下試聽）</p>
+    <div class="tip-sfx" id="tip-sfx" role="radiogroup"></div>
+    <p class="err" id="tip-err"></p></div>
+  <div class="row sheet-actions"><button class="btn ghost" type="button" data-close data-i18n="back_menu">返回菜單</button><button class="btn y with-icon" type="button" id="tip-send"><svg class="ico" aria-hidden="true"><use href="#i-gift"></use></svg><span id="tip-send-text" data-i18n="tip_send">送出打賞</span></button></div>
 </div></div>
 
 <div class="sheet" id="call" role="dialog" aria-labelledby="call-title"><div class="in">
@@ -297,7 +324,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     $('#menu').innerHTML=html||'<p class="muted">'+esc(VENUE?tr('menu_unavailable'):tr('closed_message'))+'</p>';
     $('#alcohol-notice').hidden=!items.some(function(i){return i.alcohol;});
     $('#bar-policy-notice').hidden=!(VENUE==='BAR'&&MenuLib.barPolicyActive&&MenuLib.barPolicyActive());
-    renderSongs();
+    renderSongs();if(typeof renderTip==="function")renderTip();
     renderPriceTable(items);
   }
   // 收費表：目前可點品項＋點歌單價＋三點水低消／服務費（與菜單同一份資料，金額不另寫死）
@@ -307,6 +334,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     var rows='',cat='';
     items.forEach(function(it){if(it.cat!==cat){cat=it.cat;var c=MenuLib.CAT_LABEL[cat]||{zh:cat,en:cat,ja:cat};rows+='<tr class="grp"><td colspan="2">'+esc(label(c))+'</td></tr>';}rows+='<tr><td>'+esc(label(it))+'</td><td>'+money(it.price)+'</td></tr>';});
     if(SONG&&SONG.enabled&&VENUE)rows+='<tr><td>'+esc(tr('info_song'))+'</td><td>'+money(SONG.price)+'</td></tr>';
+    if(typeof TIP!=='undefined'&&TIP&&TIP.enabled&&VENUE)rows+='<tr><td>'+esc(tr('tip_title'))+'</td><td>'+esc(tr('info_tip_free'))+'</td></tr>';
     $('#price-table').innerHTML=rows||'<tr><td colspan="2" class="muted">'+esc(tr('menu_unavailable'))+'</td></tr>';
     var bar=VENUE==='BAR'&&MenuLib.barPolicyActive&&MenuLib.barPolicyActive();
     $('#price-policy').hidden=!bar;if(bar)$('#price-policy').textContent=tr('bar_policy');
@@ -386,7 +414,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     ['#bar-place','#cart-place'].forEach(function(id){var el=$(id+' span[data-i18n]')||$(id+' span');if(el)el.textContent=placeText;});
     var hint=$('#place-hint');if(hint){hint.hidden=!op.length;hint.textContent=tr('others_pending_hint');}
     // 已點清單：依人分組；每行標示未送出／已送出／已出餐
-    var tag=function(l){return l.song?'':l.served_at?'<span class="tag">'+esc(tr('served'))+'</span>':l.placed_at?'<span class="tag placed">'+esc(tr('placed'))+'</span>':'<span class="tag pending">'+esc(tr('not_sent'))+'</span>';};
+    var tag=function(l){return l.song||l.tip?'':l.served_at?'<span class="tag">'+esc(tr('served'))+'</span>':l.placed_at?'<span class="tag placed">'+esc(tr('placed'))+'</span>':'<span class="tag pending">'+esc(tr('not_sent'))+'</span>';};
     var groups={},order=[];u.forEach(function(l){var k=l.by+(l.mine?'#me':'');if(!groups[k]){groups[k]={by:l.by,mine:l.mine,lines:[]};order.push(k);}groups[k].lines.push(l);});
     $('#cart-lines').innerHTML=order.length?order.map(function(k){var g=groups[k];return '<div class="who"><span>'+esc(g.by)+(g.mine?'（'+esc(tr('me'))+'）':'')+'</span><span>'+money(sum(g.lines))+'</span></div>'+g.lines.map(function(l){var itemName=LANG==='en'?(l.en||l.zh):LANG==='ja'?(l.ja||l.zh):l.zh;var cls='line'+(!l.mine&&!l.placed_at?' others-pending':'')+(FRESH[l.line]?' fresh':'');return '<div class="'+cls+'"><span>'+esc(itemName)+' ×'+l.qty+tag(l)+partsLines(l)+(l.note?' <span class="by">'+esc(l.note)+'</span>':'')+'</span><span>'+money(l.price*l.qty)+(l.mine&&!l.placed_at?' <button class="x" data-del="'+esc(l.line)+'" aria-label="'+esc(tr('remove'))+'">✕</button>':'')+'</span></div>';}).join('');}).join(''):'<p class="muted">'+esc(tr('no_orders'))+'</p>';
     $('#cart-total').textContent=money(sum(u));
@@ -458,7 +486,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   function reviewKey(){return 'order_review_'+((S&&S.id)||T);}
   function reviewShown(){try{return !!localStorage.getItem(reviewKey());}catch(e){return false;}}
   function markReview(){try{localStorage.setItem(reviewKey(),'1');}catch(e){}}
-  function checkoutIntent(){if(!S||!S.id)return false;var u=unpaid();return u.length>0&&!pending().length&&u.every(function(l){return l.served_at;});}
+  function checkoutIntent(){if(!S||!S.id)return false;var u=unpaid().filter(function(l){return !l.song&&!l.tip;});return u.length>0&&!pending().length&&u.every(function(l){return l.served_at;});}   // 點歌／打賞不是餐點，只有它們時不算吃完
   function maybeReview(){if(!checkoutIntent()||reviewShown())return false;markReview();openSheet('#review');return true;}
   $('#open-cart').onclick=function(){$('#cart-body').scrollTop=0;if(maybeReview())return;openSheet('#cart');};
   $('#review-cart').onclick=function(){$('#cart-body').scrollTop=0;openSheet('#cart');};
@@ -555,6 +583,39 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
       .then(function(){CALL_BUSY=false;renderCallSheet();});
   };
   setInterval(function(){if(S&&!document.hidden)loadCalls();},20000);
+  /* ---- 打賞：自填金額＋選音效，記在這桌帳上；店裡音響播客人選的音效（點音效可在手機上試聽） ---- */
+  var TIP=null,TIP_SFX='applause',TIP_BUSY=false,TIP_AUDIO=null;
+  function loadTips(){if(!S)return Promise.resolve();return api('/tips?'+songQs()).then(function(d){TIP=d;renderTip();renderPriceTable();}).catch(function(){TIP=null;renderTip();renderPriceTable();});}
+  function renderTip(){
+    var on=!!(TIP&&TIP.enabled&&S&&S.status==='open'&&VENUE);
+    $('#tip-open').classList.toggle('hidden',!on);
+    if(!on){if($('#tip').classList.contains('on'))closeSheets();return;}
+    $('#tip-card-sub').textContent=TIP.performer?tr('tip_card_to',{name:TIP.performer}):tr('tip_card');
+    $('#tip-sub').textContent=(TIP.performer?tr('tip_to',{name:TIP.performer})+'　':'')+tr('tip_hint',{max:Number(TIP.max).toLocaleString('en-US')});
+    $('#tip-amt').max=TIP.max;
+    var amt=Number($('#tip-amt').value);
+    $('#tip-presets').innerHTML=(TIP.presets||[]).map(function(v){return '<button type="button" data-tip-amt="'+esc(v)+'" aria-pressed="'+(amt===v)+'">'+money(v)+'</button>';}).join('');
+    $('#tip-sfx').innerHTML=(TIP.sounds||[]).map(function(x){return '<button type="button" role="radio" data-tip-sfx="'+esc(x.id)+'" aria-checked="'+(x.id===TIP_SFX)+'"><svg class="ico" aria-hidden="true"><use href="#i-play"></use></svg><span>'+esc(label(x))+'</span></button>';}).join('');
+    var b=$('#tip-send');b.disabled=TIP_BUSY;$('#tip-send-text').textContent=amt>0?tr('tip_send_amt',{amt:money(amt)}):tr('tip_send');
+  }
+  function tipPreview(id){try{if(TIP_AUDIO){TIP_AUDIO.pause();}TIP_AUDIO=new Audio('/sfx/'+id+'.mp3');TIP_AUDIO.volume=.6;var p=TIP_AUDIO.play();if(p&&p.catch)p.catch(function(){});setTimeout(function(){try{TIP_AUDIO&&TIP_AUDIO.pause();}catch(e){}},2500);}catch(e){}}
+  $('#tip-open').onclick=function(){$('#tip-err').textContent='';renderTip();openSheet('#tip');loadTips();};
+  $('#tip-presets').addEventListener('click',function(e){var b=e.target.closest('[data-tip-amt]');if(!b)return;$('#tip-amt').value=b.dataset.tipAmt;$('#tip-err').textContent='';renderTip();});
+  $('#tip-amt').addEventListener('input',function(){$('#tip-err').textContent='';renderTip();});
+  $('#tip-sfx').addEventListener('click',function(e){var b=e.target.closest('[data-tip-sfx]');if(!b)return;TIP_SFX=b.dataset.tipSfx;renderTip();tipPreview(TIP_SFX);});
+  $('#tip-send').onclick=function(){
+    if(TIP_BUSY||!TIP)return;
+    var raw=$('#tip-amt').value.trim(),amt=Number(raw);
+    if(!/^\d+$/.test(raw)||!(amt>=1)||amt>TIP.max){$('#tip-err').textContent=tr('tip_bad',{max:Number(TIP.max).toLocaleString('en-US')});$('#tip-amt').focus();return;}
+    if(!NAME){closeSheets();showGate();return;}
+    var snd=(TIP.sounds||[]).filter(function(x){return x.id===TIP_SFX;})[0];
+    if(!confirm(tr('tip_confirm',{amt:money(amt),sfx:snd?label(snd):''})))return;
+    TIP_BUSY=true;renderTip();
+    api('/tips',{method:'POST',body:{s:SID,k:K,guest:GUEST,by:NAME,amount:amt,sfx:TIP_SFX}})
+      .then(function(){closeSheets();$('#tip-amt').value='';toast(tr('tip_done'),5000);refresh();})
+      .catch(function(err){$('#tip-err').textContent=err.message;})
+      .then(function(){TIP_BUSY=false;renderTip();});
+  };
   /* ---- 取餐推播（不登入） ---- */
   function subscribePush(orderId,btn){
     if(!('serviceWorker'in navigator)||!('PushManager'in window)){toast(tr('notification_unsupported'));return;}
@@ -601,7 +662,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     $('#thanks').classList.add('hidden');$('#boot').classList.add('hidden');$('#app').classList.remove('hidden');
     if(NAME){hideGate();$('#order-content').classList.remove('hidden');$('#name-display').textContent=NAME;}else{showGate();}
     askNotify();
-    renderMenu();renderState();live();poll();loadSongs();loadCalls();
+    renderMenu();renderState();live();poll();loadSongs();loadCalls();loadTips();
     renderMember();fetch('/api/auth/methods').then(function(x){return x.json();}).then(function(j){LINE_OK=!!(j&&j.line);if(!ME)renderMember();}).catch(function(){});joinMember();
   }
   $('#thanks-again').onclick=function(){

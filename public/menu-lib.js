@@ -86,7 +86,7 @@
   function serviceCharge(lines, opts) {
     const o = opts || {};
     if (o.takeout || (!o.force && !barPolicyActive(o.now))) return null;
-    const goods = (lines || []).filter(l => l && !l.credit_of && !l.prepay && !l.cancelled);
+    const goods = (lines || []).filter(l => l && !l.credit_of && !l.prepay && !l.cancelled && !l.tip);   // 打賞是代收給表演者，不算服務費
     const total = ls => ls.reduce((a, l) => a + (Number(l.price) || 0) * (Number(l.qty) || 0), 0);
     const gross = total(goods), bar = total(goods.filter(l => l.venue === 'BAR'));
     if (!(bar > 0) || !(gross > 0)) return null;
