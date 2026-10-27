@@ -92,6 +92,7 @@ test('接線：server 路由、FOOD_API 涵蓋、操作紀錄、API 文件、POS
   assert.match(pos, /id:'tips'[^}]+group:'settings'/);
   assert.match(pos, /tips:tabTips/); assert.match(pos, /tipBoot\(\)/); assert.match(pos, /pos-tips\.js/);
   assert.match(ptips, /isSongPlayer/); assert.match(ptips, /songSfx\(ev\.sfx\)/);
+  assert.match(ptips, /function tipShouldPlay\(\)\{\s*\/\/[^\n]*\n\s*return typeof isSongPlayer === 'function' && isSongPlayer\(\);\s*\}/);   // 只有播放裝置那台響（KK 10/27）
   assert.match(ops, /!l\.tip&&l\.venue==='BAR'/);
   assert.match(order, /id="tip-open"/); assert.match(order, /id="tip-amt" type="number" inputmode="numeric"/); assert.match(order, /data-tip-sfx/);
   assert.match(order, /api\('\/tips',\{method:'POST'/);

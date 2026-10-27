@@ -516,7 +516,7 @@ POS 輪詢未處理的呼叫（每 5 秒）。回 `{ pending:[{id,session_id,tab
 客人打賞。body `{ s, k, guest, by?, amount, sfx }`；`amount` 為 1–`max` 的整數（預設上限 10,000），`sfx` 不在白名單時用 `applause`。在這桌加一行 `cat:'TIP'`、`item_id:'tip'`、`tip:{id,sfx,performer}`（已送出、已完成：不上出餐看板與出餐單、客人不能刪、不計服務費與低消），同時寫一筆事件到 `site_content.tip_events` 供 POS 播音效。成功 201 `{ ok, id, amount, sfx, performer }`。未開放／非營業時段 423；每 IP 每分鐘 20 次。
 
 ### GET /api/admin/orders/tips/events
-POS 每 5 秒輪詢最近 12 小時的打賞事件 `{ events:[{id,table,by,amount,sfx,performer,at}] }`。新事件出現時各台跳通知，點歌播放裝置（沒指定就每台）播 `/sfx/<sfx>.mp3`。
+POS 每 5 秒輪詢最近 12 小時的打賞事件 `{ events:[{id,table,by,amount,sfx,performer,at}] }`。新事件出現時各台跳通知，只有點歌播放裝置那台播 `/sfx/<sfx>.mp3`（沒指定播放裝置就不出聲）。
 
 ### GET /api/admin/orders/tips
 打賞設定與統計。query `from`、`to`（營業日，預設近 7 天，最多 93 天）。回 `{ settings, sounds, pay_methods, pending_unpaid_bills, total, count, paid, unpaid, by_performer:[{performer,amount,count,paid,unpaid}], tips:[…], payouts:[…] }`：`total` 為期間已結帳的打賞（作廢單、已取消品項不算），`paid` 為期間支付給表演者，`unpaid`／`by_performer[].unpaid` 為全部期間已收減已付；`pending_unpaid_bills` 為還掛在開著的桌上、尚未結帳的打賞。

@@ -33,7 +33,7 @@ function paintTips(){
         <label>單筆上限（NT$）<input type="number" name="max" min="1" max="10000" step="1" inputmode="numeric" value="${esc(s.max)}"></label>
         <button type="submit" class="btn btn--solid">儲存</button>
       </form>
-      <p class="hint">音效由接音響的平板播放（點歌「在這台播放」那台；沒指定時每台都會響）。換表演者時改名字，統計會依名字分開算。</p>
+      <p class="hint">音效只從播放裝置那台平板出聲（設定 → 點歌 →「在這台播放」）；沒指定時不會響，各台只跳通知。換表演者時改名字，統計會依名字分開算。</p>
     </div>
     <div class="set-sec"><h3>統計與支付</h3>
       <form class="tip-range" data-tip-range><label>從<input type="date" name="from" value="${esc(TIPS.from)}"></label><label>到<input type="date" name="to" value="${esc(TIPS.to)}"></label><button type="submit" class="btn btn--ghost btn-sm">查詢</button></form>
@@ -105,9 +105,8 @@ function tipPop(ev){
   box.appendChild(el); setTimeout(() => el.remove(), 8000);
 }
 function tipShouldPlay(){
-  // 有指定播放裝置就只有那台出聲；沒指定（或還沒載入點歌設定）就每台都出聲
-  const dev = typeof SONGS !== 'undefined' && SONGS.data && SONGS.data.settings ? SONGS.data.settings.player_device : '';
-  return !dev || (typeof isSongPlayer === 'function' && isSongPlayer());
+  // 只有設定成播放裝置（點歌「在這台播放」）的那台出聲；沒指定就都不響，只跳通知
+  return typeof isSongPlayer === 'function' && isSongPlayer();
 }
 const TIP_SFX_LABEL = { applause: '掌聲', 'applause-big': '熱烈掌聲', cheer: '歡呼', 'cheer-scream': '尖叫歡呼', wow: '哇～', drumroll: '鼓聲', 'party-horn': '派對喇叭', kiss: '親親', laugh: '笑聲', rimshot: '冷笑話鼓' };
 async function tipEventsTick(){
