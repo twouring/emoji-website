@@ -1239,6 +1239,8 @@ async function linepayCheckout(cur,host){
     }catch(e){toast('LINE Pay：'+e.message+'；如已送出，請查詢原交易，勿重新收款。');}
   }).finally(()=>loadPos());
 }
+/* 桌邊點餐已登入的會員（客人在 /order 用 Google／LINE 登入）：一點帶入，等同掃會員條碼 */
+function tableMembersHtml(cur){const ms=(cur&&cur.members)||[];if(!ms.length)return '';return `<div class="pos-table-members" style="margin:10px 0"><p class="hint hint--tight" style="margin-bottom:6px">這桌手機已登入的會員，點一下帶入：</p><div style="display:flex;flex-wrap:wrap;gap:8px">${ms.map(m=>`<button type="button" class="btn ${POS_YAN.id===m.id?'btn--solid':'btn--ghost'} btn-xs" data-table-member="${esc(m.id)}" aria-pressed="${POS_YAN.id===m.id}">${esc(m.name||'會員')}</button>`).join('')}</div></div>`;}
 function memberStatusText(){ if(POS_YAN.id)return POS_MEMBER?'有效會籍 · 已套聚落價':'註冊會員 · 無有效會籍，不適用聚落價'; return POS_YAN.created?'新會員 · 已用手機建立，結帳累點':POS_YAN.name?'手機會員 · 結帳累點':POS_YAN.phone?'結帳時查會員，沒有就自動新增並累點':''; }
 // 會員彈窗：查詢、掃描、移除與完整會籍／點數資訊都在這裡；結帳主畫面只留一個精簡入口
 function openMemberDialog(cur){
@@ -1246,7 +1248,7 @@ function openMemberDialog(cur){
   const box=ov.querySelector('.pos-move-box'),same=()=>POS_TABLE===cur.table;
   ov.onclick=e=>{if(e.target===ov)close();};
   const render=()=>{
-    box.innerHTML=`<h3>會員${tipIcon('輸入手機查會員，還不是會員會自動新增；或掃會員 App 的條碼。有效會籍自動套聚落價。')}</h3>${POS_YAN.name||POS_YAN.phone?`<div class="pos-member-who"><b>${esc(POS_YAN.name||POS_YAN.phone)}</b><br>${esc(memberStatusText())}${POS_YAN.id?`<br>點數 ${num(POS_YAN.balance||0)} 點（點品項「⋯」的「點數兌換」換餐飲或服務，不折抵金額）`:''}</div>`:'<p class="hint">還沒選會員。輸入客人手機，不是會員會自動新增；或掃描會員條碼。</p>'}<div class="pos-member-bar"><input id="pos-yan-phone" inputmode="tel" maxlength="20" placeholder="客人手機 09…" value="${esc(POS_YAN.phone||'')}" aria-label="客人手機"><button type="button" class="btn btn--ghost btn-xs" id="pos-yan-lookup">查會員</button><button type="button" class="btn btn--ghost btn-xs" id="pos-yan-scan">掃會員</button>${POS_YAN.id||POS_YAN.phone?'<button type="button" class="btn btn--ghost btn-xs" id="pos-yan-clear">移除</button>':''}</div><div class="pos-move-foot"><button type="button" class="btn btn--solid" data-done>完成</button></div>`;
+    box.innerHTML=`<h3>會員${tipIcon('輸入手機查會員，還不是會員會自動新增；或掃會員 App 的條碼。有效會籍自動套聚落價。')}</h3>${POS_YAN.name||POS_YAN.phone?`<div class="pos-member-who"><b>${esc(POS_YAN.name||POS_YAN.phone)}</b><br>${esc(memberStatusText())}${POS_YAN.id?`<br>點數 ${num(POS_YAN.balance||0)} 點（點品項「⋯」的「點數兌換」換餐飲或服務，不折抵金額）`:''}</div>`:'<p class="hint">還沒選會員。輸入客人手機，不是會員會自動新增；或掃描會員條碼。</p>'}${tableMembersHtml(cur)}<div class="pos-member-bar"><input id="pos-yan-phone" inputmode="tel" maxlength="20" placeholder="客人手機 09…" value="${esc(POS_YAN.phone||'')}" aria-label="客人手機"><button type="button" class="btn btn--ghost btn-xs" id="pos-yan-lookup">查會員</button><button type="button" class="btn btn--ghost btn-xs" id="pos-yan-scan">掃會員</button>${POS_YAN.id||POS_YAN.phone?'<button type="button" class="btn btn--ghost btn-xs" id="pos-yan-clear">移除</button>':''}</div><div class="pos-move-foot"><button type="button" class="btn btn--solid" data-done>完成</button></div>`;
     const phone=box.querySelector('#pos-yan-phone');
     phone.onchange=e=>{POS_YAN={phone:e.target.value.trim(),name:'',balance:null,sessionId:cur.id};POS_MEMBER=false;};
     const after=()=>{paintPos();render();};
@@ -1254,6 +1256,7 @@ function openMemberDialog(cur){
     box.querySelector('#pos-yan-lookup').onclick=lookup;
     phone.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();lookup();}};
     box.querySelector('#pos-yan-scan').onclick=async()=>{const pending=POS_YAN;const token=await pickMemberCard();if(!token||POS_YAN!==pending||!same())return;return opsThen(()=>api('/admin/yan/lookup',{method:'POST',body:{token}}),out=>{if(POS_YAN!==pending||!same())return '已切換帳單，未綁定會員';POS_YAN={id:out.member?.id||'',phone:out.member?.phone||'',name:out.member?.name||'',balance:out.balance||0,active:!!out.active,sessionId:cur.id,redeemSet:new Set()};POS_MEMBER=!!out.active;return `${out.member?.name||'會員'} · ${out.active?'有效會籍，已套聚落價':'註冊會員，不適用聚落價'}（${out.balance||0} 點）`;},after);};
+    box.querySelectorAll('[data-table-member]').forEach(b=>b.onclick=()=>{const pending=POS_YAN;const mid=b.dataset.tableMember;return opsThen(()=>api('/admin/yan/lookup',{method:'POST',body:{member_id:mid,session_id:cur.id}}),out=>{if(POS_YAN!==pending||!same())return '已切換帳單，未綁定會員';POS_YAN={id:out.member?.id||'',phone:out.member?.phone||'',name:out.member?.name||'',balance:out.balance||0,active:!!out.active,sessionId:cur.id,redeemSet:new Set()};POS_MEMBER=!!out.active;return `${out.member?.name||'會員'} · ${out.active?'有效會籍，已套聚落價':'註冊會員，不適用聚落價'}（${out.balance||0} 點）`;},after);});
     const clr=box.querySelector('#pos-yan-clear');if(clr)clr.onclick=()=>{POS_YAN={phone:'',name:'',balance:null};POS_MEMBER=false;after();};
     box.querySelector('[data-done]').onclick=close;
   };

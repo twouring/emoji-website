@@ -27,7 +27,7 @@ test('客人端：不顯示、不送出來客人數；伺服器不收客人送�
   assert.doesNotMatch(server, /partyVote/);
   assert.doesNotMatch(server, /const publicSession=[^\n]*party_size/);
   assert.match(server, /ADD COLUMN IF NOT EXISTS party_votes JSONB NOT NULL DEFAULT '\{\}'/);
-  assert.match(server, /pickup_placed_at,party_votes FROM/);
+  assert.match(server, /pickup_placed_at,party_votes,members FROM/);
 });
 
 test('POS：設定人數 API、桌位面板按鈕、桌況卡與明細顯示', () => {

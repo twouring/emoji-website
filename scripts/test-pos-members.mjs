@@ -14,9 +14,9 @@ test('late phone lookup and card scan cannot bind a different table or replace a
  for(const mode of ['lookup','scan']){
   let resolveLookup;const nodes={};
   const el=id=>nodes[id]||(nodes[id]={value:'0912345678',onclick:null,onchange:null,onkeydown:null});
-  const box={set innerHTML(v){},querySelector:sel=>el(sel)};
+  const box={set innerHTML(v){},querySelector:sel=>el(sel),querySelectorAll:()=>[]};
   const ov={querySelector:()=>box,classList:{add(){}}};
-  const ctx=vm.createContext({pickOverlay:()=>({ov,close(){}}),tipIcon:()=>'',esc:String,num:String,memberStatusText:()=>'',cur:null,POS_TABLE:'A1',POS_YAN:{},POS_MEMBER:false,pickMemberCard:async()=> 'QR',toast:()=>{},paintPos:()=>{},api:()=>new Promise(r=>{resolveLookup=r;}),opsThen:async(fn,done,paint)=>{done(await fn());paint();}});
+  const ctx=vm.createContext({pickOverlay:()=>({ov,close(){}}),tipIcon:()=>'',esc:String,num:String,memberStatusText:()=>'',tableMembersHtml:()=>'',cur:null,POS_TABLE:'A1',POS_YAN:{},POS_MEMBER:false,pickMemberCard:async()=> 'QR',toast:()=>{},paintPos:()=>{},api:()=>new Promise(r=>{resolveLookup=r;}),opsThen:async(fn,done,paint)=>{done(await fn());paint();}});
   vm.runInContext(ops.slice(ops.indexOf('function openMemberDialog('),ops.indexOf('function paintPos(){')),ctx);
   vm.runInContext("openMemberDialog({id:'session1',table:'A1'})",ctx);
   const pending=el(mode==='lookup'?'#pos-yan-lookup':'#pos-yan-scan').onclick();for(let i=0;i<10&&!resolveLookup;i++)await new Promise(r=>setImmediate(r));assert.ok(resolveLookup,'lookup must be pending');

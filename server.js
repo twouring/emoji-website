@@ -765,6 +765,8 @@ async function migrate() {
   await q(`ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS pay_requests JSONB NOT NULL DEFAULT '[]'`);
   // 來客人數：只由 POS 店員設定（POST /api/admin/orders/sessions/:id/party），存 { __pos: n }
   await q(`ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS party_votes JSONB NOT NULL DEFAULT '{}'`);
+  // 桌邊點餐登入的會員（[{id,name,at}]）：POS 結帳一點就帶入，不用再問手機或掃條碼
+  await q(`ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS members JSONB NOT NULL DEFAULT '[]'`);
   await q(`CREATE TABLE IF NOT EXISTS table_orders (
     id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES table_sessions(id), table_no TEXT NOT NULL, items JSONB NOT NULL,
     amount INT NOT NULL, payer JSONB NOT NULL DEFAULT '{}', tappay JSONB NOT NULL DEFAULT '{}', invoice JSONB NOT NULL DEFAULT '{}', status TEXT NOT NULL DEFAULT 'paid',
@@ -4903,6 +4905,22 @@ app.post('/api/me/redeem', auth, requireDb, rateLimit({ max: 30, windowMs: 36000
   } catch (e) { await client.query('ROLLBACK').catch(()=>{}); if (e.status) return res.status(e.status).json({ error: e.message }); throw e; }
   finally { client.release(); }
 }));
+/* 桌邊點餐整合會員：客人在 /order 用 Google／LINE 登入後打這支，把自己掛到這一場（本桌單次 QR 的 s/k）。
+   POS 結帳畫面列出這桌已登入的會員，一點帶入（等同掃會員條碼：累點、有效會籍套會員價、可兌換） */
+app.post('/api/orders/table/member', auth, requireDb, rateLimit({ max: 30, windowMs: 3600000 }), wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  const sid = tableOrders.verifySession(req.body?.s, req.body?.k, SECRET);
+  if (!sid) return res.status(403).json({ error: 'QR 無效，請向服務人員索取本桌點餐 QR。' });
+  const me = (await q('SELECT id,name FROM users WHERE id=$1', [req.auth.sub])).rows[0];
+  if (!me) return res.status(401).json({ error: '帳號不存在，請重新登入。' });
+  // 一條 SQL 原子更新：同一人重登只留最新一筆，同桌多人同時登入不互相覆蓋
+  const r = await q(`UPDATE table_sessions SET members=(SELECT COALESCE(jsonb_agg(x),'[]'::jsonb) FROM jsonb_array_elements(members) x WHERE x->>'id'<>$2)||$3::jsonb
+    WHERE id=$1 AND status='open' RETURNING table_no`, [sid, me.id, JSON.stringify([{ id: me.id, name: String(me.name || '').slice(0, 40), at: new Date().toISOString() }])]);
+  if (!r.rowCount) return res.status(409).json({ error: '這桌已結帳結束，請向服務人員索取新的點餐 QR。' });
+  const rows = await yanRowsFor({ query: (...a) => q(...a) }, me.id);
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, table: r.rows[0].table_no, member: { id: me.id, name: me.name || '' }, balance: yan.balance(rows), active: (await memberAccessFor(me.id)).active });
+}));
 app.get('/api/me/yan', auth, requireDb, wrap(async (req, res) => {
   if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
   const rows = await yanRowsFor({ query: (...a) => q(...a) }, req.auth.sub);
@@ -5047,6 +5065,13 @@ app.post('/api/admin/yan/lookup', auth, adminOnly, requireDb, wrap(async (req, r
     if (!p || p.plan !== 'yan-card') return res.status(400).json({ error: '會員卡無效或過期。' });
     user = (await q('SELECT id,name,email,phone,phone_e164 FROM users WHERE id=$1',[p.sub])).rows[0];
     if (!user) return res.status(404).json({ error: '找不到這位會員。' });
+  } else if (req.body?.member_id) {
+    // 桌邊點餐已登入的會員：只認這一桌（開著的場次）members 清單裡的人，等同掃過會員條碼
+    const mid = String(req.body.member_id).slice(0, 64), sid = String(req.body.session_id || '');
+    const ok = (await q(`SELECT 1 FROM table_sessions WHERE id=$1 AND status='open' AND members @> $2::jsonb`, [sid, JSON.stringify([{ id: mid }])])).rows[0];
+    if (!ok) return res.status(404).json({ error: '這位會員不在這桌的登入名單。' });
+    user = (await q('SELECT id,name,email,phone,phone_e164 FROM users WHERE id=$1',[mid])).rows[0];
+    if (!user) return res.status(404).json({ error: '找不到這位會員。' });
   } else {
     const client = await pool.connect();
     try {
@@ -5058,7 +5083,7 @@ app.post('/api/admin/yan/lookup', auth, adminOnly, requireDb, wrap(async (req, r
   }
   const rows = await yanRowsFor({ query: (...a) => q(...a) }, user.id);
   const active = (await memberAccessFor(user.id)).active;
-  res.json({ ok: true, member: { id: user.id, name: user.name, phone: user.phone_e164 || user.phone || '' }, balance: yan.balance(rows), active, verified: !!token, created: !!user.created });
+  res.json({ ok: true, member: { id: user.id, name: user.name, phone: user.phone_e164 || user.phone || '' }, balance: yan.balance(rows), active, verified: !!(token || req.body?.member_id), created: !!user.created });
 }));
 
 /* POS 合併會員：同一位客人有兩個帳號（店內報手機自動建立＋App 用 Google／LINE／Email 登入）時合成一個。
@@ -5644,11 +5669,11 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const orders=(await q(all?"SELECT * FROM table_orders WHERE paid_at>now()-interval '1 day' ORDER BY paid_at DESC":"SELECT * FROM table_orders WHERE status IN ('paid','ready') ORDER BY paid_at")).rows.filter(o=>tableOrders.orderOwnedByVenues(o,venues)).map(o=>({...o,push:undefined,push_count:o.push.length,stations:tableOrders.splitByStation(o)}));
   // 桌況：每桌未付品項明細（櫃檯結帳用）＋ 狀態（空桌／點餐中／準備中／可取餐）
   const live=(await q("SELECT id,session_id,status FROM table_orders WHERE status IN ('paid','ready')")).rows;
-  let rows=(await q("SELECT id,table_no,items,created_at,updated_at,opened_by_staff_name,pay_requests,pickup_at,pickup_note,pickup_placed_at,party_votes FROM table_sessions WHERE status='open' ORDER BY table_no")).rows;
+  let rows=(await q("SELECT id,table_no,items,created_at,updated_at,opened_by_staff_name,pay_requests,pickup_at,pickup_note,pickup_placed_at,party_votes,members FROM table_sessions WHERE status='open' ORDER BY table_no")).rows;
   // 外帶單（W01–W99）結完帳且取餐完成就自動收掉，號碼釋出給下一位；內用桌留「待清桌」給人員確認客人離開
   const doneTakeout=rows.filter(s=>tableOrders.isTakeout(s.table_no)&&tableOrders.takeoutFinished(s,live)).map(s=>s.id);
   if(doneTakeout.length){await q("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=ANY($1) AND status='open'",[doneTakeout]);rows=rows.filter(s=>!doneTakeout.includes(s.id));}
-  const sessions=rows.filter(s=>tableOrders.orderVisibleToVenues(s,venues)).map(s=>{const lines=tableOrders.unpaid(s.items).filter(line=>tableOrders.itemInVenues(line,venues)).map(({guest,...l})=>l);return{id:s.id,table:s.table_no,takeout:tableOrders.isTakeout(s.table_no),pickup_at:s.pickup_at||null,pickup_note:s.pickup_note||'',pickup_placed:!!s.pickup_placed_at,unpaid:lines.length,unpaid_amount:tableOrders.sum(lines),lines,mixed:!tableOrders.sessionClosableByVenues(s,venues),state:tableOrders.tableStatus(s,live),updated_at:s.updated_at,created_at:s.created_at,operator:s.opened_by_staff_name||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes),pay_requests:tableOrders.payRequestsView(s.pay_requests,s.items).map(r=>({...r,lines:r.lines.filter(l=>lines.some(x=>x.line===l))})).filter(r=>r.lines.length)};});
+  const sessions=rows.filter(s=>tableOrders.orderVisibleToVenues(s,venues)).map(s=>{const lines=tableOrders.unpaid(s.items).filter(line=>tableOrders.itemInVenues(line,venues)).map(({guest,...l})=>l);return{id:s.id,table:s.table_no,takeout:tableOrders.isTakeout(s.table_no),pickup_at:s.pickup_at||null,pickup_note:s.pickup_note||'',pickup_placed:!!s.pickup_placed_at,unpaid:lines.length,unpaid_amount:tableOrders.sum(lines),lines,mixed:!tableOrders.sessionClosableByVenues(s,venues),state:tableOrders.tableStatus(s,live),updated_at:s.updated_at,created_at:s.created_at,operator:s.opened_by_staff_name||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes),members:tableOrders.joinMember(s.members),pay_requests:tableOrders.payRequestsView(s.pay_requests,s.items).map(r=>({...r,lines:r.lines.filter(l=>lines.some(x=>x.line===l))})).filter(r=>r.lines.length)};});
   // 桌邊送單（未結帳、未出餐）：與已結帳的出餐單一起上看板；子帳號只看整張都是自己品牌的
   const tickets=rows.flatMap(s=>tableOrders.ticketsOf(s)).filter(t=>tableOrders.orderOwnedByVenues(t,venues)).map(t=>({...t,items:t.items.map(({guest,...l})=>l)}));
   const pause=tableOrders.parsePause(await contentValue('ordering_pause'));

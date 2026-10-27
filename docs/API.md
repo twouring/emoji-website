@@ -356,7 +356,7 @@ POS `/pos/members` 會員名單（`auth`＋`adminOnly`，餐飲品牌子帳號�
 POS「會員」瀏覽身分與「結帳」本次帳單身分獨立：選會員不套入帳單；給點／空間兌換每次掃同一位會員的卡、確認、輸入經手人識別碼。結帳保留手機累點、掃卡套價／兌換餐飲，切桌、換店或桌次結束清除綁定；舊查詢結果不帶到別桌。
 
 ### POST /api/admin/yan/lookup
-POS 查／建會員。body `{ phone }`（台灣手機）或 `{ token }`（會員卡 QR）。回 `{ ok, member:{id,name,phone}, balance }`。沒有帳號就用手機建立，回 `created:true`（POS 顯示「已新增會員」）。品牌子帳號可用。回傳多 `active`（是否有效會籍）與 `verified`（是否以會員條碼確認身分）。POS 流程：掃會員條碼（`token`）→ 確認身分；有效會籍才套**會籍價**；點數不看會籍，掃碼確認身分後即可兌換品項與服務、兌換空間時數；只輸入手機＝只累點。會籍價＝菜單 `emo`（>0 時）否則原價九折（四捨五入），「現場輸入金額」品項不打折。註冊會員（沒有有效會籍）也能累點、兌換，只是沒有會籍價。點數**不折抵金額**。
+POS 查／建會員。body `{ phone }`（台灣手機）、`{ token }`（會員卡 QR），或 `{ member_id, session_id }`（桌邊點餐已登入的會員；只認該場開著且 `members` 含此人，否則 404，視同已驗證身分）。回 `{ ok, member:{id,name,phone}, balance }`。沒有帳號就用手機建立，回 `created:true`（POS 顯示「已新增會員」）。品牌子帳號可用。回傳多 `active`（是否有效會籍）與 `verified`（是否以會員條碼確認身分）。POS 流程：掃會員條碼（`token`）→ 確認身分；有效會籍才套**會籍價**；點數不看會籍，掃碼確認身分後即可兌換品項與服務、兌換空間時數；只輸入手機＝只累點。會籍價＝菜單 `emo`（>0 時）否則原價九折（四捨五入），「現場輸入金額」品項不打折。註冊會員（沒有有效會籍）也能累點、兌換，只是沒有會籍價。點數**不折抵金額**。
 
 ### GET /api/admin/yan/merge-preview
 POS 會員分頁「合併會員」預覽，`auth`＋`adminOnly`（CAFE／BAR 子帳號可用）、`no-store`、只讀。query `keep_id`、`drop_id`。回 `{ keep, drop, result, blocker }`：兩邊各自的姓名、手機、Email、是否綁 LINE、點數、有效會籍、消費／會籍／活動／訂位筆數；`result` 為合併後的姓名、手機、Email（保留方有值優先，空的用刪除方補；保留方姓名只是手機號碼時改用另一方姓名）；`blocker` 不為 null 時不能合併（管理員帳號、兩邊 Email／LINE／手機各不相同）。
@@ -818,6 +818,9 @@ X 貼文 AI 起草：body `{ topic }`，回 `{ ok, draft: { title, caption, capt
 
 ### POST /api/me/redeem
 會員用點數兌換餐飲品項（1 點＝NT$10，點數由菜單 `points` 決定）。App 點「兌換」後開相機掃本桌點餐 QR（`/order?s=場次&k=驗證碼`），body：`{ s, k, item_id }`。伺服器驗場次簽章（該場須未結束，否則 409；桌上舊 QR 帶 `t` 回 403）、檢查品項開放兌換且未估清／暫停點餐、點數足夠，在同一交易扣點（ledger `redeem`，`ref_id='rl_'+行號`）並把一行 0 元兌換品項（`app_redeem`、`regular_price`、`redeem_points`，備註「點數兌換」）加進該桌點菜清單。回 `{ ok, table, item, points, balance }`。該行在送出前被移除、清桌或作廢時自動退點。桌碼無效 403、點數不足／不開放 400、暫停點餐 423。agent 金鑰 403。
+
+### POST /api/orders/table/member
+桌邊點餐整合會員。客人在 `/order` 頁用 Google／LINE 登入（token 由網址 `#token=` 帶回、存 `localStorage.tth_token`）後呼叫，`auth`（會員 token），每小時限 30 次。body：`{ s, k }`（本桌單次 QR）。把自己加進該場 `table_sessions.members`（`[{id,name,at}]`，同一人只留最新一筆，一條 SQL 原子更新）。回 `{ ok, table, member:{id,name}, balance, active }`。QR 無效 403、該場已結束 409。POS 結帳畫面的「會員」面板列出這桌已登入的會員，一點即以 `POST /api/admin/yan/lookup {member_id, session_id}` 帶入。桌邊頁登入後也可直接以 `POST /api/me/redeem` 兌換（不用另開 App 掃碼）；有效會籍時菜單卡片另顯示會員價（實際金額仍由櫃檯結帳計算）。
 
 ### GET /api/me/card
 數位會員卡 QR（120 秒）。回 `{ token, exp, name, phone }`。現場 POS 掃描或報手機即可累點。agent 金鑰 403。

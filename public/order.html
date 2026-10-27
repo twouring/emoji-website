@@ -121,6 +121,11 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 .call-status{display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:10px 14px;border-radius:12px;background:#fff6c2;border:1.5px solid var(--yellow)}
 .call-status.done{background:#E6F2EB;border-color:var(--ok)}.call-status[hidden]{display:none}.call-status span{flex:1;min-width:0;overflow-wrap:anywhere}
 @media (max-width:380px){.call-btn{padding:4px 10px}.call-btn .ico{display:none}}
+.member-card[hidden]{display:none}.member-card h3{margin:0 0 4px}.member-card p{margin:0 0 10px}
+.member-ways{display:flex;gap:10px;flex-wrap:wrap}.member-ways .btn{flex:1 1 140px;min-width:0;text-align:center;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.member-who{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.member-who b{overflow-wrap:anywhere}
+.redeem-list{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}.redeem-list li{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--line);padding-top:8px}.redeem-list li span{min-width:0;overflow-wrap:anywhere}.redeem-list .btn{flex:none;min-height:44px}
+.item .mp{color:var(--ok);font-weight:700;margin-left:6px}
 .pay-by{display:flex;align-items:center;gap:6px;color:var(--muted);margin:8px 0 0}
 </style>
 </head>
@@ -151,6 +156,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     <div id="order-content" class="hidden">
       <div class="card" id="orders-card"></div>
       <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px"><span class="muted"><span data-i18n="ordering_as">點餐稱呼</span>：<b id="name-display"></b></span><button class="btn ghost sm" type="button" id="name-edit-btn" data-i18n="name_edit">更改</button></div>
+      <div class="card member-card" id="member-card" hidden></div>
       <div class="menu-status" id="menu-shift"><div><b class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-clock"></use></svg><span id="menu-shift-title">最後點餐</span></b><small id="menu-hours">依台北時間顯示目前供應品項</small></div></div>
       <div class="call-status" id="call-status" role="status" aria-live="polite" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span id="call-status-text"></span></div>
       <button class="song-card hidden" type="button" id="song-open"><svg class="ico lg" aria-hidden="true"><use href="#i-music"></use></svg><span class="n"><b data-i18n="song_title">點歌</b><small id="song-card-sub"></small><small class="song-card-now" id="song-card-now" hidden></small></span><span class="p" id="song-card-price"></span></button>
@@ -226,7 +232,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     document.querySelectorAll('[data-i18n]').forEach(function(el){el.textContent=tr(el.dataset.i18n);});
     document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el){el.placeholder=tr(el.dataset.i18nPlaceholder);});
     $('#lang-label').textContent=LANG==='zh'?'EN':(LANG==='en'?'日本語':'中文');
-    if(S){renderMenu();renderState();if(typeof renderCalls==='function'){renderCalls();renderCallSheet();}}
+    if(S){renderMenu();renderState();if(typeof renderCalls==='function'){renderCalls();renderCallSheet();}if(typeof renderMember==='function')renderMember();}
   }
   $('#lang-toggle').onclick=function(){LANG=LANG==='zh'?'en':(LANG==='en'?'ja':'zh');try{localStorage.setItem('order_lang',LANG);}catch(e){}applyLanguage();};
   applyLanguage();
@@ -284,7 +290,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
       if(it.cat!==cat){cat=it.cat;var c=MenuLib.CAT_LABEL[cat]||{zh:cat,en:cat,ja:cat};html+='<h2>'+esc(label(c))+'</h2><div class="menu-grid">';}
       var next=items[items.indexOf(it)+1];
       var primary=label(it),secondary=LANG==='zh'?it.en:it.zh;
-      html+='<button class="item add" data-open-item="'+esc(it.id)+'" aria-label="'+esc(tr('view_detail'))+' '+esc(primary)+'">'+(it.image?'<img src="'+esc(it.image)+'" alt="'+esc(primary)+'" loading="lazy">':'<div class="ph" aria-hidden="true">🍽</div>')+'<div class="n"><b>'+esc(primary)+'</b>'+(secondary?'<small>'+esc(secondary)+'</small>':'')+(noteOf(it)?'<small class="note">'+esc(noteOf(it))+'</small>':'')+'<div class="meta"><span class="p">'+money(it.price)+'</span>'+(MenuLib.stockLeft(it)!==null?'<span class="left">'+esc(tr('stock_left').replace('{n}',MenuLib.stockLeft(it)))+'</span>':'<span class="tap">'+esc(tr('view_detail'))+'</span>')+'</div></div></button>';
+      html+='<button class="item add" data-open-item="'+esc(it.id)+'" aria-label="'+esc(tr('view_detail'))+' '+esc(primary)+'">'+(it.image?'<img src="'+esc(it.image)+'" alt="'+esc(primary)+'" loading="lazy">':'<div class="ph" aria-hidden="true">🍽</div>')+'<div class="n"><b>'+esc(primary)+'</b>'+(secondary?'<small>'+esc(secondary)+'</small>':'')+(noteOf(it)?'<small class="note">'+esc(noteOf(it))+'</small>':'')+'<div class="meta"><span class="p">'+money(it.price)+(ME&&ME.active&&it.cat!=='COMBO'&&MenuLib.memberPrice(it)<it.price?'<span class="mp">'+esc(tr('member_price'))+' '+money(MenuLib.memberPrice(it))+'</span>':'')+'</span>'+(MenuLib.stockLeft(it)!==null?'<span class="left">'+esc(tr('stock_left').replace('{n}',MenuLib.stockLeft(it)))+'</span>':'<span class="tap">'+esc(tr('view_detail'))+'</span>')+'</div></div></button>';
       if(!next||next.cat!==cat){html+='</div>';}
     });
     if(venue)html+='</div>';
@@ -560,6 +566,34 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
       .catch(function(err){toast(tr('notification_error',{message:err.message}));btn.disabled=false;});
   }
 
+  /* ---- 會員（桌邊點餐整合會員）：Google／LINE 登入 → 掛到這一場（POS 結帳一點帶入累點、會員價）→ 可直接用點數兌換 ---- */
+  var TOKEN_KEY='order_member_token',ME=null,LINE_OK=false;
+  (function(){var h=new URLSearchParams(location.hash.slice(1));if(h.get('token')){try{localStorage.setItem(TOKEN_KEY,h.get('token'));}catch(e){}history.replaceState(null,'',location.pathname+location.search);}})();
+  function token(){try{return localStorage.getItem(TOKEN_KEY)||'';}catch(e){return '';}}
+  function authApi(path,body){return fetch('/api'+path,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify(body)}).then(function(r){return r.json().catch(function(){return {};}).then(function(d){if(!r.ok){var e=Error(d.error||('伺服器錯誤 '+r.status));e.status=r.status;throw e;}return d;});});}
+  function memberLogout(){try{localStorage.removeItem(TOKEN_KEY);}catch(e){}ME=null;renderMember();renderMenu();}
+  function joinMember(){
+    if(!token()||!S)return Promise.resolve();
+    return authApi('/orders/table/member',{s:SID,k:K}).then(function(d){ME=d;if(!NAME&&d.member&&d.member.name){$('#name-in').value=d.member.name.slice(0,20);}renderMember();renderMenu();})
+      .catch(function(e){if(e.status===401||e.status===403&&/會員身分/.test(e.message)){try{localStorage.removeItem(TOKEN_KEY);}catch(x){}}ME=null;renderMember();});
+  }
+  function redeemables(){return MENU.filter(function(it){return Number(it.points)>0&&MenuLib.orderableInWindow(it,MenuLib.orderWindow());});}
+  function renderMember(){
+    var el=$('#member-card');if(!el)return;el.hidden=false;
+    if(!ME){
+      var back=encodeURIComponent(location.origin+location.pathname+location.search);
+      el.innerHTML='<h3 class="title-icon">'+icon('user')+'<span>'+esc(tr('member_title'))+'</span></h3><p class="muted">'+esc(tr('member_hint'))+'</p><div class="member-ways"><a class="btn ghost" href="/auth/google?redirect='+back+'">'+esc(tr('member_google'))+'</a>'+(LINE_OK?'<a class="btn ghost" href="/auth/line?redirect='+back+'">'+esc(tr('member_line'))+'</a>':'')+'</div>';
+      return;
+    }
+    var m=ME.member||{},list=redeemables();
+    el.innerHTML='<div class="member-who"><span>'+icon('user')+' <b>'+esc(m.name||tr('member_title'))+'</b> · '+esc(tr('member_points',{n:ME.balance||0}))+'</span><button class="btn ghost sm" type="button" id="member-out">'+esc(tr('member_logout'))+'</button></div><p class="muted" style="margin:6px 0 0">'+esc(ME.active?tr('member_active'):tr('member_plain'))+'</p>'
+      +(list.length?'<ul class="redeem-list">'+list.map(function(it){var ok=(ME.balance||0)>=it.points;return '<li><span>'+esc(label(it))+' · '+esc(tr('member_points',{n:it.points}))+'</span><button class="btn '+(ok?'y':'ghost')+' sm" type="button" data-redeem="'+esc(it.id)+'"'+(ok&&!PAUSED?'':' disabled')+'>'+esc(tr('member_redeem'))+'</button></li>';}).join('')+'</ul>':'');
+    $('#member-out').onclick=memberLogout;
+    el.querySelectorAll('[data-redeem]').forEach(function(b){b.onclick=function(){
+      var it=MENU.find(function(x){return x.id===b.dataset.redeem;});if(!it||!confirm(tr('member_redeem_confirm',{name:label(it),n:it.points})))return;
+      b.disabled=true;authApi('/me/redeem',{s:SID,k:K,item_id:it.id}).then(function(d){ME.balance=d.balance;toast(tr('member_redeemed',{name:label(it),n:d.balance}));renderMember();return refresh();}).catch(function(e){toast(e.message);b.disabled=false;});
+    };});
+  }
   function bootApp(r){
     if(endedId()||!S){if(endedId())showThanks();return;}
     CFG=r[0];var content=(r[1]&&r[1].content)||{};PAUSED=(r[3]&&r[3].paused)||null;
@@ -568,6 +602,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     if(NAME){hideGate();$('#order-content').classList.remove('hidden');$('#name-display').textContent=NAME;}else{showGate();}
     askNotify();
     renderMenu();renderState();live();poll();loadSongs();loadCalls();
+    renderMember();fetch('/api/auth/methods').then(function(x){return x.json();}).then(function(j){LINE_OK=!!(j&&j.line);if(!ME)renderMember();}).catch(function(){});joinMember();
   }
   $('#thanks-again').onclick=function(){
     clearEnded();$('#thanks').classList.add('hidden');$('#boot').classList.remove('hidden');

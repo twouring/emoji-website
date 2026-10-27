@@ -24,7 +24,7 @@ test('unknown phone creates a member and flags created; known phone does not',as
   await assert.rejects(f(client(null),'12345'),/台灣手機/);
 });
 test('lookup and checkout responses expose created flag',()=>{
-  assert.match(server,/verified: !!token, created: !!user\.created \}/);
+  assert.match(server,/verified: !!\(token \|\| req\.body\?\.member_id\), created: !!user\.created \}/);
   assert.match(server,/member_created:!!memberUser\?\.created/);
 });
 test('POS tells staff a new member was created',()=>{
