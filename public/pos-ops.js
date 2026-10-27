@@ -913,7 +913,7 @@ async function openOneTableQr(table){
   try{
     const out=await api('/admin/tables/qr?tables='+encodeURIComponent(table));const t=out.tables?.[0];if(!t)throw Error('找不到這桌');
     const img=await new Promise((ok,no)=>QRCode.toDataURL(t.url,{width:360,margin:1},(e,u)=>e?no(e):ok(u)));
-    ov.querySelector('#qr-one').innerHTML=`<div class="qr-card"><img src="${img}" alt="桌號 ${esc(t.table)}"><small>掃碼點餐 Scan to order · 用餐完請到櫃檯結帳 Pay at the counter${t.no?`<br>桌次 ${esc(t.no)}${t.party_size?` · ${Number(t.party_size)} 位${t.kids?`（小孩 ${Number(t.kids)}）`:''}`:''}`:''}</small></div>`;
+    ov.querySelector('#qr-one').innerHTML=`<div class="qr-card"><img src="${img}" alt="桌號 ${esc(t.table)}"><small>掃碼點餐 Scan to order${t.no?`<br>桌次 ${esc(t.no)}${t.party_size?` · ${Number(t.party_size)} 位${t.kids?`（小孩 ${Number(t.kids)}）`:''}`:''}`:''}</small></div>`;
     const pb=ov.querySelector('#qr-print1');pb.hidden=false;
     pb.onclick=async()=>{if(pb.disabled)return;pb.disabled=true;try{await printTableQr(t.table,t.url,t);}catch(e){toast('桌號 QR 列印失敗：'+e.message);}finally{pb.disabled=false;}};
   }catch(e){toast(e.message);}
@@ -923,7 +923,7 @@ async function printTableQr(table,url,info={}){
   if(!starReady()){await starOpenHere();return false;}
   const q=await new Promise(resolve=>{if(!url||typeof QRCode==='undefined'||!QRCode.toCanvas)return resolve(null);const c=document.createElement('canvas');QRCode.toCanvas(c,String(url),{width:300,margin:4},err=>resolve(err?null:c));});
   if(!q){toast('QR 產生失敗');return false;}
-  // 版面（參考同業開桌單）：桌號放最上面最大（帳本夾一看就認得）→ 人數／單號 → QR → 點餐步驟 → 店家規則（低消／服務費／停餐時間）→ 櫃檯結帳 → 鼓勵小語 → 開桌時間
+  // 版面（參考同業開桌單）：桌號放最上面最大（帳本夾一看就認得）→ 人數／單號 → QR → 點餐步驟 → 店家規則（低消／服務費／停餐時間）→ 鼓勵小語 → 開桌時間
   // 中英雙語，外國客人也看得懂；上方留白給帳本夾夾住（203dpi：8 點＝1mm），留白以下壓在 90mm（QR_BODY_MAX）內
   const W=STAR_DOTS,c=document.createElement('canvas');c.width=W;c.height=1600;const g=c.getContext('2d');
   g.fillStyle='#fff';g.fillRect(0,0,W,c.height);g.fillStyle='#000';g.textBaseline='top';g.textAlign='center';let y=QR_CLIP_TOP;
@@ -954,8 +954,7 @@ async function printTableQr(table,url,info={}){
   }
   if(qv==='CAFE')notes.push(['最後點餐：餐點 16:00／飲品 16:30','Last order: food 16:00 · drinks 16:30']);
   if(qv==='BAR')notes.push(['最後點餐：餐點 02:00／酒水 02:30','Last order: food 02:00 · drinks 02:30']);
-  notes.push(['用餐完請到櫃檯結帳','Please pay at the counter after your meal']);
-  rule(1,6);
+  if(notes.length)rule(1,6);
   for(const [zh,en] of notes){wrap('・'+zh,16,true,W-16,W/2,2);wrap(en,13,false,W-16,W/2,2);y+=1;}
   const enc=typeof PosEncouragement!=='undefined'&&PosEncouragement.pick?PosEncouragement.pick():null;
   if(enc){rule(2,8);
