@@ -68,3 +68,11 @@ test('every submit/payment path enqueues in its existing DB transaction and both
  }
  for(const f of ['pos.html','admin.html'])assert.match(readFileSync(new URL('../public/'+f,import.meta.url),'utf8'),/startKitchenPrinting\(\)/);
 });
+
+test('帳本夾整桌累計：含已結品項、排除取消與預收抵扣、外帶不算', () => {
+ const items=[{zh:'義麵',qty:1,price:298,venue:'BAR'},{zh:'茶',qty:2,price:160,venue:'BAR',order_id:'to_1'},{zh:'取消',qty:1,price:500,venue:'BAR',cancelled:true},{zh:'已預收',qty:1,price:-100,venue:'BAR',credit_of:''}];
+ const t=kitchenPrint.tableTotal({table_no:'B1',items,party_votes:{}},Date.parse('2026-11-02T12:00:00Z'));
+ assert.equal(t.amount,618);assert.equal(t.service,62);assert.equal(t.total,680);assert.equal(t.count,3);
+ assert.equal(kitchenPrint.tableTotal({table_no:'W01',items}),null);
+ assert.equal(kitchenPrint.tableTotal(null),null);
+});

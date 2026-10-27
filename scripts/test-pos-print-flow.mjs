@@ -102,15 +102,22 @@ test('發票證明聯與收據明細預設印賣方統編 93537055', async () =>
   assert.ok(JSON.parse(JSON.stringify(r)).some(x=>x&&x.text==='賣方統編 93537055'));
 });
 
-test('帳本夾：三點水內用送單多印一張點餐明細（□ 劃單、品項金額），在咖啡、外帶不印', async () => {
- for (const [venue, table, want] of [['BAR','A1',2],['CAFE','A1',1],['BAR','W01',1]]) {
+test('帳本夾：內用送單（在咖啡、三點水）多印一張點餐明細，外帶不印', async () => {
+ for (const [venue, table, want] of [['BAR','A1',2],['CAFE','A1',2],['BAR','W01',1]]) {
   const {c,texts,sent}=printContext();c.o={id:'tk_1',table_no:table,placed_at:'now',items:[{zh:'烏龍麵',qty:2,price:320,cat:'MAIN',venue,note:'麵量：少麵'}]};
   await vm.runInContext('printOrder(o,{auto:true,slip:true});',c);
   assert.equal(sent.length,want,`${venue} ${table}`);
-  if(want===2){assert.ok(texts.includes('點餐明細'));assert.ok(texts.some(t=>String(t).startsWith('□ 烏龍麵 ×2')));assert.ok(texts.includes('640'));assert.ok(texts.some(t=>String(t).includes('少麵')));}
+  if(want===2){assert.ok(texts.includes('點餐明細'));assert.ok(texts.includes('□ 烏龍麵'));assert.ok(texts.includes('320 × 2')&&texts.includes('640'),'單價×數量＋小計');assert.ok(texts.some(t=>String(t).includes('[少麵]')));}
  }
  const {c,sent}=printContext();c.o={id:'tk_2',table_no:'A1',items:[{zh:'烏龍麵',qty:1,price:320,cat:'MAIN',venue:'BAR'}]};
  await vm.runInContext('printOrder(o);',c);assert.equal(sent.length,1,'補印出餐單不附明細');
+});
+test('點餐明細：套餐內容各帶 □、桌號人數、整桌累計含服務費', async () => {
+ const {c,texts}=printContext();
+ c.o={id:'tk_abc123',table_no:'B1',placed_at:'now',table_total:{amount:1448,service:145,total:1593,count:9,party:4},items:[
+  {zh:'98套餐',qty:1,price:98,cat:'MAIN',venue:'BAR',by:'小明',parts:[{slot:'湯品',zh:'奶油蘑菇湯'},{slot:'麵包',zh:'餐包'}]}]};
+ await vm.runInContext('ticketCanvas(orderSlipSpec(o))',c);
+ for(const t of ['桌 B1','4 位','□ 98套餐','　□ 湯品：奶油蘑菇湯','　□ 麵包：餐包','整桌消費','1,448','服務費 10%','NT$1,593','點餐：小明'])assert.ok(texts.some(x=>String(x)===t||String(x).replace(/,/g,'')===t.replace(/,/g,'')),t+' 未印出：'+JSON.stringify(texts));
 });
 test('自動出單佇列送單時附點餐明細', () => {
  assert.ok(src.includes('printOrder(claim.job,{auto:true,slip:true})'));

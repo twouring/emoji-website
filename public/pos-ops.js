@@ -18,7 +18,7 @@ const CHECKOUT_TIP='<b>這桌的帳</b><br>品項依點餐人分組；勾選左�
  +'<b>折扣</b>：按「加折扣」選折％或折抵金額，原因必填。<br>'
  +'<b>付款</b>：選方式；現金輸入實收會算找零；「混合付款」每種方式各填金額，合計要等於應收。<br>'
  +'<b>電子發票</b>：預設不開立，可選紙本、統編、手機載具、自然人憑證、捐贈。<br>'
- +'<b>列印</b>：送單時自動印出餐單給現場（餐點單黑底橫幅、飲品單斜線橫幅，分兩張出），三點水內用再多印一張「點餐明細」夾帳本夾給客人（加點也會補印，送餐時劃掉）；「列印收據明細」是結帳用；收款後會自動出單並開錢櫃；日結核對現金時也會自動開錢櫃。<br>'
+ +'<b>列印</b>：送單時自動印出餐單給現場（餐點單黑底橫幅、飲品單斜線橫幅，分兩張出），內用再多印一張「點餐明細」夾帳本夾給客人（單價×數量、小計、整桌累計）（加點也會補印，送餐時劃掉）；「列印收據明細」是結帳用；收款後會自動出單並開錢櫃；日結核對現金時也會自動開錢櫃。<br>'
  +'<b>QR</b>：顯示這桌的點餐 QR 給客人掃。<br>下方「這桌已結帳的單」可補印、補開發票或作廢。';
 const REG_DENOMS=[1000,500,100,50,10,5,1];
 const PAY_LABEL={cash:'現金',card:'信用卡',linepay:'LINE Pay',transfer:'轉帳',taishin:'信用卡',other:'其他',tappay:'線上刷卡',mixed:'混合付款'};
@@ -550,6 +550,8 @@ function ticketCanvas(spec){
     else if(cmd.kind==='wrap')wrap(cmd.text,cmd.size||22,!!cmd.bold);
     else if(cmd.kind==='box')box(cmd.texts,cmd.size||22,!!cmd.bold);
     else if(cmd.kind==='row')row(cmd.left,cmd.right,cmd.size||22,!!cmd.bold);
+    // 兩欄靠右：「單價 × 數量」右緣固定在 W-120，小計右緣在紙邊（點餐明細用，欄位上下對齊）
+    else if(cmd.kind==='cols'){setFont(cmd.size||22,!!cmd.bold);g.textAlign='right';g.fillText(String(cmd.mid??''),W-120,y);g.fillText(String(cmd.right??''),W-8,y);g.textAlign='left';advance(cmd.size||22);}
   }
   const out=document.createElement('canvas');out.width=W;out.height=Math.ceil(y+8);const og=out.getContext('2d');og.fillStyle='#fff';og.fillRect(0,0,W,out.height);og.drawImage(c,0,0);
   // 兩側邊條：餐點單整條實心、飲品單一格一格的虛線；一疊單子裡從側邊也看得出是哪一種
@@ -609,22 +611,36 @@ function kitchenTicketSpec(o,kind,total=1){
   if(K)spec.push({kind:'banner',text:K.name,size:22,style:K.banner});
   return spec;
 }
-// 點餐明細（夾帳本夾給客人）：這次送出的品項、單價與小計，每項前面留 □ 給外場送餐時劃掉；不是收據、不含付款，結帳時另印收據明細
+// 點餐明細（夾帳本夾給客人，KK 10/27 依樣張改版）：表頭桌號大字＋人數＋單號＋時間＋點餐人；
+// 每項「□ 品名」一行、下一行「單價 × 數量　小計」靠右；套餐內容與規格縮排各帶 □，送到一項劃一項。
+// 底部：本次小計＋整桌累計（含三點水服務費，伺服器 claim 時算好放 table_total）。不是收據、不含付款。
 function orderSlipSpec(o){
-  const lines=orderLines(o).filter(l=>!l.cancelled);
-  const spec=[{kind:'center',text:'點餐明細',size:26,bold:true},{kind:'center',text:ticketShop(o),size:20,bold:true},{kind:'center',text:ticketTableLabel(o),size:30,bold:true},{kind:'center',text:applicationTime(o.placed_at||o.paid_at),size:16},'dash'];
+  const lines=orderLines(o).filter(l=>!l.cancelled),takeout=isTakeoutNo(o.table_no),tt=o.table_total||null;
+  const who=[...new Set(lines.map(ordererOf).filter(Boolean))].join('、')||(lines.some(l=>String(l.by||'').trim()==='櫃檯')?'櫃檯':'客人');
+  const spec=[{kind:'center',text:'點餐明細',size:22,bold:true},{kind:'center',text:ticketShop(o),size:18},
+    {kind:'row',left:(takeout?'外帶 ':'桌 ')+(o.table_no||''),right:tt&&tt.party?tt.party+' 位':'',size:44,bold:true},
+    {kind:'row',left:'點餐：'+who,right:'單號 '+String(o.id||o.order_id||'').slice(-6),size:18},
+    {kind:'left',text:applicationTime(o.placed_at||o.paid_at),size:18},'dash'];
   let total=0,count=0;
   for(const l of lines){
-    const amt=(l.comp_reason?0:Number(l.price)||0)*l.qty;total+=amt;count+=l.qty;
-    spec.push({kind:'row',left:`□ ${l.zh} ×${l.qty}${l.comp_reason?'（贈）':''}`,right:num(amt),size:24,bold:true});
-    for(const p of partsOf(l))spec.push({kind:'wrap',text:'　　'+partText(p),size:18});
+    const price=l.comp_reason?0:Number(l.price)||0,amt=price*l.qty;total+=amt;count+=l.qty;
+    spec.push({kind:'wrap',text:`□ ${l.zh}${l.comp_reason?'（贈）':''}`,size:26,bold:true});
+    spec.push({kind:'cols',mid:`${num(price)} × ${l.qty}`,right:num(amt),size:22});
+    for(const p of partsOf(l))spec.push({kind:'wrap',text:'　□ '+partText(p)+(p.note?'（'+p.note.replace(/；/g,'／')+'）':''),size:20});
     const opts=specParts(l).filter(p=>p.kind!=='default').map(p=>p.text);
-    if(opts.length)spec.push({kind:'wrap',text:'　　'+opts.join('／'),size:18});
+    if(opts.length)spec.push({kind:'wrap',text:'　['+opts.join('] [')+']',size:20});
+    spec.push('dash');
+  }
+  spec.push({kind:'row',left:`本次 ${count} 件`,right:num(total),size:22,bold:true});
+  if(tt){
+    spec.push({kind:'row',left:'整桌消費',right:num(tt.amount),size:22});
+    if(tt.service)spec.push({kind:'row',left:'服務費 10%',right:num(tt.service),size:22});
+    spec.push({kind:'row',left:'目前合計',right:'NT$'+num(tt.total),size:30,bold:true});
+  }else{
+    const svc=MenuLib.serviceCharge?MenuLib.serviceCharge(lines.map(l=>l.comp_reason?{...l,price:0}:l),{takeout}):null;
+    if(svc)spec.push({kind:'left',text:'三點水另加 10% 服務費，結帳時計算',size:16});
   }
   spec.push('dash');
-  spec.push({kind:'row',left:`本次 ${count} 件`,right:'NT$'+num(total),size:22,bold:true});
-  const svc=MenuLib.serviceCharge?MenuLib.serviceCharge(lines.map(l=>l.comp_reason?{...l,price:0}:l),{takeout:isTakeoutNo(o.table_no)}):null;
-  if(svc)spec.push({kind:'left',text:'三點水另加 10% 服務費，結帳時計算',size:16});
   spec.push({kind:'center',text:'送到一項劃一項；加點會再印一張',size:16});
   spec.push({kind:'center',text:'用餐完請到櫃檯結帳，謝謝',size:18,bold:true});
   return spec;
@@ -747,8 +763,8 @@ async function printOrder(o,{auto=false,slip=false}={}){
     let ok=true;
     for(const t of tickets){const r=await starSend({canvas:ticketCanvas(kitchenTicketSpec(t.order,t.kind,t.total))});if(!r){toast(TICKET_KIND[t.kind].name+'未印出，請到查單補印');ok=false;break;}}
     // 帳本夾（10/19 員工大會 K4）：每次送單（含加點）多印一張點餐明細給客人，送餐時在上面劃掉已送的品項
-    // 只給三點水內用：白天在咖啡走自助（只送餐），外帶沒有帳本夾
-    if(ok&&slip&&!isTakeoutNo(o.table_no)&&(o.items||[]).some(l=>l.venue==='BAR')){const r=await starSend({canvas:ticketCanvas(orderSlipSpec(o))});if(!r){toast('點餐明細未印出，請到查單補印');ok=false;}}
+    // 內用都印（KK 10/27：在咖啡、三點水都夾帳本）；外帶沒有帳本夾
+    if(ok&&slip&&!isTakeoutNo(o.table_no)){const r=await starSend({canvas:ticketCanvas(orderSlipSpec(o))});if(!r){toast('點餐明細未印出，請到查單補印');ok=false;}}
     return ok;
   }
   if(auto){starHint();return false;}
