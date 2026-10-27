@@ -1,0 +1,23 @@
+/* POS「設定」分頁（pos-settings.js）：入口列、收款帳戶清單；沿用 CIS token，觸控目標 ≥48px */
+.set-sec{margin:0 0 28px}
+.set-sec h3{margin:0 0 10px;font-size:1.0625rem;font-weight:600}
+.set-links{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.set-link{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:12px;min-height:64px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink)}
+.set-link:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.set-link[disabled]{opacity:.5;cursor:default}
+.set-link>.ic{flex:none}
+.set-link-main{display:flex;flex-direction:column;flex:1;min-width:0;line-height:1.35}
+.set-link-main b{font-weight:600}
+.set-link-main span{color:var(--ink-soft);text-wrap:pretty}
+.set-chev{flex:none;font-size:1.3rem;color:var(--muted)}
+.set-pm-list{list-style:none;margin:0 0 12px;padding:0;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.set-pm{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;min-height:56px;padding:8px 14px;border-top:1px solid var(--line)}
+.set-pm:first-child{border-top:0}
+.set-pm.is-off .set-pm-name{color:var(--muted);text-decoration:line-through}
+.set-pm-name{font-weight:600;min-width:0;overflow-wrap:anywhere}
+.set-pm-acts{display:flex;gap:8px;margin-left:auto}
+.set-pm-acts .btn{min-height:44px}
+.set-pm-add{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px}
+.set-pm-add label{display:flex;flex-direction:column;gap:4px;flex:1 1 220px;min-width:0}
+.set-pm-add input{min-height:48px;font-size:1rem;border-radius:10px;padding:0 12px}
+.set-pm-add .btn{min-height:48px}

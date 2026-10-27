@@ -6406,13 +6406,27 @@ async function paymentMethodsList(){
 async function activePaymentCodes(){
   return new Set((await q('SELECT code FROM pos_payment_methods WHERE active')).rows.map(r=>r.code));
 }
-app.post('/api/admin/payment-methods',auth,adminOnly,superOnly,requireDb,wrap(async(req,res)=>{
+/* POS 設定頁也能管收款帳戶：超管直接過；其他帳號（品牌子帳號／平板員工）要帶店長 4 位數識別碼（X-Manager-Pin，不進網址），
+ * 通過後把店長寫進 operator_id，POS 操作紀錄會記是哪位店長改的 */
+async function superOrManagerPin(req,res,next){
+  try{
+    if(req.auth.super===true||req.auth.agent)return next();
+    const pin=String(req.get('x-manager-pin')||'').trim();
+    if(!/^\d{4}$/.test(pin))return res.status(403).json({error:'請輸入店長識別碼。',need_manager_pin:true});
+    const mgr=staffRow((await q(`SELECT ${STAFF_SEL} FROM pos_staff WHERE pin=$1 AND active`,[pin])).rows[0]);
+    if(!mgr||!isManagerRole(mgr.role))return res.status(403).json({error:'識別碼不正確或不是店長。',need_manager_pin:true});
+    if(req.body&&typeof req.body==='object')req.body.operator_id=mgr.id;
+    next();
+  }catch(e){next(e);}
+}
+app.get('/api/admin/payment-methods',auth,adminOnly,requireDb,wrap(async(_req,res)=>{res.set('Cache-Control','no-store');res.json({payment_methods:await paymentMethodsList()});}));
+app.post('/api/admin/payment-methods',rateLimit({max:20}),auth,adminOnly,requireDb,superOrManagerPin,wrap(async(req,res)=>{
   const existing=(await q('SELECT code FROM pos_payment_methods')).rows.map(r=>r.code);
   let m;try{m=posPaymentMethods.methodInput(req.body,existing);}catch(e){return res.status(e.status||400).json({error:e.message});}
   await q('INSERT INTO pos_payment_methods(code,label,created_by) VALUES($1,$2,$3)',[m.code,m.label,actorOf(req.auth)||'']);
   res.status(201).json({ok:true,code:m.code,label:m.label,active:true,builtin:false});
 }));
-app.patch('/api/admin/payment-methods/:code',auth,adminOnly,superOnly,requireDb,wrap(async(req,res)=>{
+app.patch('/api/admin/payment-methods/:code',rateLimit({max:20}),auth,adminOnly,requireDb,superOrManagerPin,wrap(async(req,res)=>{
   const row=(await q('SELECT code,label,active FROM pos_payment_methods WHERE code=$1',[req.params.code])).rows[0];
   if(!row)return res.status(404).json({error:'找不到這個收款帳戶。'});
   const next={label:row.label,active:row.active};

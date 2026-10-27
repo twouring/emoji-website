@@ -60,8 +60,10 @@ test('CSV 匯出：自訂收款帳戶用呼叫端傳入的 methodLabels 顯示�
 test('server.js：收款帳戶表、API 路由、FOOD_API 白名單、/api/state 回傳 payment_methods', () => {
   const server = read('server.js');
   assert.match(server, /CREATE TABLE IF NOT EXISTS pos_payment_methods/);
-  assert.match(server, /app\.post\('\/api\/admin\/payment-methods',auth,adminOnly,superOnly,requireDb/, '新增收款帳戶僅超管');
-  assert.match(server, /app\.patch\('\/api\/admin\/payment-methods\/:code',auth,adminOnly,superOnly,requireDb/, '改名／停用僅超管');
+  assert.match(server, /app\.post\('\/api\/admin\/payment-methods',rateLimit\(\{max:20\}\),auth,adminOnly,requireDb,superOrManagerPin,/, '新增收款帳戶：超管或店長識別碼');
+  assert.match(server, /app\.patch\('\/api\/admin\/payment-methods\/:code',rateLimit\(\{max:20\}\),auth,adminOnly,requireDb,superOrManagerPin,/, '改名／停用：超管或店長識別碼');
+  const g = server.slice(server.indexOf('async function superOrManagerPin'), server.indexOf("app.get('/api/admin/payment-methods'"));
+  assert.match(g, /req\.auth\.super===true/); assert.match(g, /req\.get\('x-manager-pin'\)/); assert.match(g, /isManagerRole\(mgr\.role\)/); assert.match(g, /need_manager_pin:true/);
   assert.match(server, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|analytics\|registers\|staff\|shifts\|attendance\|payment-methods\|pos-devices\|yan\|reservation-hours\|inventory\)/, '品牌子帳號可讀收款帳戶清單（結帳要用）');
   assert.match(server, /payment_methods: await paymentMethodsList\(\)/, '/api/state 要帶收款帳戶清單給前端畫結帳選項');
   assert.match(server, /tableOrders\.posCheckout\(s\.items,\{[^\n]*?operator\},menuAll,await activePaymentCodes\(\),\{table:s\.table_no\}\)/, '結帳要把啟用中的自訂收款帳戶代碼傳給 posCheckout 驗證');

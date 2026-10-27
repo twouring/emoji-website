@@ -129,7 +129,7 @@ test('權限：品牌子帳號可用、每筆寫入要識別碼、操作紀錄�
 });
 
 test('POS 分頁：/pos/inventory、載入腳本、ensureOperator 認人、文件齊全', () => {
-  assert.match(html, /\{ id:'inventory', icon:'box',\s+label:'庫存' \}/);
+  assert.match(html, /\{ id:'inventory', icon:'box',\s+label:'庫存', group:'settings'/);
   assert.match(html, /inventory:tabInventory/); assert.match(html, /TAB === 'inventory'\) loadInventory\(\)/);
   assert.match(html, /<script src="\/pos-inventory\.js"><\/script>/); assert.match(html, /href="\/pos-inventory\.css"/);
   assert.ok(html.indexOf('/pos-ops.js') < html.indexOf('/pos-inventory.js'), 'pos-inventory.js 依賴 pos-ops.js');
