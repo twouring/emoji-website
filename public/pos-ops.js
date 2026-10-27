@@ -913,7 +913,9 @@ async function printTableQr(table,url){
   const line=(t,size,bold,gap=8)=>{g.font=(bold?'bold ':'')+size+'px sans-serif';g.fillText(t,W/2,y);y+=size+gap;};
   // 自動換行：英文以單字切、中文以字切
   const wrap=(t,size,bold)=>{g.font=(bold?'bold ':'')+size+'px sans-serif';const parts=/\s/.test(t)?t.split(/(\s+)/):[...t];let cur='';const fit=s=>!g.measureText||g.measureText(s).width<=W-16;for(const p of parts){if(cur&&!fit(cur+p)){line(cur.trim(),size,bold);cur=p.trimStart();}else cur+=p;}if(cur.trim())line(cur.trim(),size,bold);};
-  line('在咖啡、三點水',26,true,10);  // 桌子兩個品牌共用，印兩個店名（不印母公司言文字）
+  // 店名依掃碼點餐時段（MenuLib.orderWindow：16:30 起換三點水菜單）決定，與客人掃到的菜單一致；非點餐時段才印兩店名。不印母公司言文字
+  const qv=typeof MenuLib!=='undefined'&&MenuLib.orderWindow?MenuLib.orderWindow().venue:null;
+  line((qv&&typeof BRAND_LABEL!=='undefined'&&BRAND_LABEL[qv])||'在咖啡、三點水',26,true,10);
   g.drawImage(q,(W-300)/2,y,300,300);y+=308;
   line('桌號 '+table,44,true,4);line('Table '+table,24,true,14);
   line('掃碼點餐',26,true,4);line('Scan to order',20,false,12);

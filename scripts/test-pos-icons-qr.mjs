@@ -4,9 +4,9 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const ops=read('public/pos-ops.js');
-function qrContext({ready=true,success=true,qrError=false,enc=true}={}){
+function qrContext({ready=true,success=true,qrError=false,enc=true,venue}={}){
   const calls=[], texts=[], canvases=[];
-  const context={console,STAR_DOTS:384,QR_CLIP_TOP:200,...(enc?{PosEncouragement:{pick:()=>({zh:'測試鼓勵語',en:'Keep going.',m:'coffee/dot'})},PosMoji:{ratio:0.875,draw:(...a)=>{calls.push(['moji',...a.slice(1)]);return true;}}}:{}),toast:m=>calls.push(['toast',m]),starReady:()=>ready,starOpenHere:async()=>calls.push(['setup']),starSend:async job=>{calls.push(['send',job]);return success;},QRCode:{toCanvas:(c,url,options,cb)=>{calls.push(['qr',url,options]);cb(qrError?Error('qr'):null);}},document:{createElement:()=>{const c={getContext:()=>({fillRect(){},fillText:t=>texts.push(t),drawImage:(...a)=>calls.push(['image',...a])})};canvases.push(c);return c;}}};
+  const context={console,STAR_DOTS:384,...(venue!==undefined?{BRAND_LABEL:{CAFE:'在咖啡',BAR:'三點水'},MenuLib:{orderWindow:()=>({venue})}}:{}),QR_CLIP_TOP:200,...(enc?{PosEncouragement:{pick:()=>({zh:'測試鼓勵語',en:'Keep going.',m:'coffee/dot'})},PosMoji:{ratio:0.875,draw:(...a)=>{calls.push(['moji',...a.slice(1)]);return true;}}}:{}),toast:m=>calls.push(['toast',m]),starReady:()=>ready,starOpenHere:async()=>calls.push(['setup']),starSend:async job=>{calls.push(['send',job]);return success;},QRCode:{toCanvas:(c,url,options,cb)=>{calls.push(['qr',url,options]);cb(qrError?Error('qr'):null);}},document:{createElement:()=>{const c={getContext:()=>({fillRect(){},fillText:t=>texts.push(t),drawImage:(...a)=>calls.push(['image',...a])})};canvases.push(c);return c;}}};
   vm.createContext(context);
   const match=ops.match(/async function printTableQr\(table,url\)\{[\s\S]*?\n\}/);
   assert.ok(match,'單桌 QR 列印 helper 必須存在');
@@ -21,6 +21,13 @@ test('單桌 QR 直接走 384-dot mPOP 並保留 QR 留白，不開錢櫃或重�
   assert.equal(canvases.at(-1).width,384);assert.ok(texts.includes('桌號 A1'));assert.ok(texts.includes('在咖啡、三點水'));assert.ok(!texts.includes('言文字'),'桌號 QR 不印母公司名');
   const fn=ops.match(/async function printTableQr\(table,url\)\{[\s\S]*?\n\}/)[0];
   assert.doesNotMatch(fn,/drawer|checkout|window\.open|api\(/);
+});
+test('桌號 QR 店名依點餐時段：在咖啡／三點水，非時段印兩店名，都不印言文字',async()=>{
+  for(const [venue,want] of [['CAFE','在咖啡'],['BAR','三點水'],[null,'在咖啡、三點水']]){
+    const {context,texts}=qrContext({venue});
+    assert.equal(await context.printTableQr('A1','https://example.test/order?t=A1'),true);
+    assert.equal(texts[0],want);assert.ok(!texts.includes('言文字'));
+  }
 });
 test('開桌 QR 單中英雙語，並印鼓勵小語與吉祥物插圖',async()=>{
   const {context,texts,calls}=qrContext();
