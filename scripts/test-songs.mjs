@@ -257,7 +257,10 @@ test('POS 平板橫放：兩欄各自捲動不捲整頁、正在播放在左欄�
   assert.match(ps, /<section class="song-col"[^`]*\$\{nowCard\}/, '正在播放放在左欄');
   assert.equal((ps.match(/class="song-scroll"/g) || []).length, 2);
   assert.match(ps, /function songFit/); assert.match(ps, /min-width:1000px\) and \(min-height:600px/);
-  assert.match(pos, /body:has\(\[data-panel=songs\]\.on\) #song-dock \.song-dock-video\{height:0;overflow:hidden\}/, '縮小不可 display:none');
+  assert.match(pos, /body:has\(\[data-panel=songs\]\.on\) #song-dock:not\(\.is-expand\) \.song-dock-video\{height:0;overflow:hidden\}/, '縮小不可 display:none');
+  assert.doesNotMatch(pos, /#song-dock[^{]*\.song-dock-grip\{display:none\}/, '點歌頁也要留著「＋」鈕，否則放不大');
+  assert.match(ps, /function songDockTab/); assert.match(pos, /songDockTab\(\)/, '切分頁要收回暫時展開並重新夾位置');
+  assert.match(ps, /songDockMin\(dock, !songDockShrunk\(dock\)\)/, '按鈕依實際外觀切換（含點歌頁自動縮小）');
   assert.match(ps, /<div class="song-sfx-grid"><button[^>]*data-song-sfx-stop>/);
   assert.match(ps, /JSON\.stringify\(SONGS\.data\) !== before/, '輪詢沒變不重繪');
 });

@@ -93,9 +93,12 @@
     .song-now{padding:12px;gap:14px}.song-now img,.song-now .song-ph.lg{width:128px;height:72px}.song-now-main b{font-size:1.125rem}
     .song-col .song-row img,.song-col .song-ph{width:72px;height:40px}
     /* 點歌分頁已有正在播放大卡與「下一首」：播放器自動縮成一條（影片高度 0 仍在播，不可 display:none），不擋找歌的代點／插播；離開分頁恢復原狀 */
-    body:has([data-panel=songs].on) #song-dock{width:300px}
-    body:has([data-panel=songs].on) #song-dock .song-dock-video{height:0;overflow:hidden}
-    body:has([data-panel=songs].on) #song-dock .song-dock-grip{display:none}
+    /* 仍保留「＋」鈕：按了加 .is-expand 暫時展開（切分頁就收回），否則在點歌頁永遠放不大 */
+    body:has([data-panel=songs].on) #song-dock:not(.is-expand){width:300px}
+    body:has([data-panel=songs].on) #song-dock:not(.is-expand) .song-dock-video{height:0;overflow:hidden}
+    body:has([data-panel=songs].on) #song-dock:not(.is-expand) .song-dock-label,body:has([data-panel=songs].on) #song-dock:not(.is-expand) .song-dock-handle{display:none}
+    body:has([data-panel=songs].on) #song-dock:not(.is-expand) .song-dock-grip{position:absolute;right:0;top:0;background:transparent;padding:0;width:auto}
+    body:has([data-panel=songs].on) #song-dock:not(.is-expand) .song-dock-bar{padding-right:52px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
     .song-scroll{padding-bottom:120px}
   }
   .song-grid h3{display:flex;align-items:baseline;gap:8px;margin-top:0}.song-grid h3 small{color:var(--muted);font-weight:400;font-size:1rem}
@@ -548,6 +551,7 @@ function activate(){
   startKitchenPrinting();
   refreshRegWarn();
   document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('on', p.dataset.panel === TAB));
+  if (typeof songDockTab === 'function') songDockTab();
   clearTimeout(ORDERS_TIMER); clearTimeout(POS_TIMER);
   if (TAB !== 'logs') { LOGS_PIN = ''; LOGS_PAD = ''; LOGS_MSG = ''; } // 紀錄限店長：離開分頁就要重輸識別碼
   if (TAB === 'pos') loadPos();

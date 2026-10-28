@@ -247,12 +247,27 @@ function songDockPlace(dock, x, y){
   dock.style.left = x + 'px'; dock.style.top = y + 'px'; dock.style.right = 'auto'; dock.style.bottom = 'auto';
   return { x, y };
 }
-function songDockMin(dock, min){
-  dock.classList.toggle('is-min', !!min);
-  const b = dock.querySelector('[data-song-dock-min]'); if (b) { b.textContent = min ? '＋' : '－'; b.setAttribute('aria-label', min ? '展開播放器' : '縮到最小'); b.setAttribute('aria-expanded', String(!min)); }
-  songDockSave({ min: !!min });
-  const p = songDockPref(); if (p.x != null) requestAnimationFrame(() => songDockPlace(dock, p.x, p.y));
+// 點歌分頁（平板橫放）會用 CSS 自動縮成一條；.is-expand＝在該頁手動展開
+const songDockAuto = () => typeof TAB !== 'undefined' && TAB === 'songs' && matchMedia('(min-width:1000px) and (min-height:600px)').matches;
+const songDockShrunk = dock => dock.classList.contains('is-min') || (songDockAuto() && !dock.classList.contains('is-expand'));
+function songDockLabel(dock){
+  const min = songDockShrunk(dock), b = dock.querySelector('[data-song-dock-min]');
+  if (b) { b.textContent = min ? '＋' : '－'; b.setAttribute('aria-label', min ? '展開播放器' : '縮到最小'); b.setAttribute('aria-expanded', String(!min)); }
 }
+// 尺寸變了（展開／縮小／切分頁）就把位置夾回畫面內，否則靠底部縮小後再展開會跑出螢幕外
+function songDockFit(dock){
+  requestAnimationFrame(() => { const p = songDockPref(); if (p.x != null) songDockPlace(dock, p.x, p.y); });
+}
+function songDockMin(dock, min){
+  // 點歌頁按「－」只是收回暫時展開，不寫入縮小偏好（否則切到其他分頁也一直是縮小的）
+  if (min && songDockAuto() && dock.classList.contains('is-expand')) { dock.classList.remove('is-expand'); songDockLabel(dock); songDockFit(dock); return; }
+  dock.classList.toggle('is-min', !!min);
+  if (!min && songDockAuto()) dock.classList.add('is-expand'); else dock.classList.remove('is-expand');
+  songDockSave({ min: !!min });
+  songDockLabel(dock); songDockFit(dock);
+}
+// pos.html activate() 切分頁時呼叫：收回點歌頁的暫時展開、更新按鈕、重新夾位置
+function songDockTab(){ const d = document.getElementById('song-dock'); if (!d) return; d.classList.remove('is-expand'); songDockLabel(d); songDockFit(d); }
 function songDock(){
   let dock = document.getElementById('song-dock');
   if (dock) return dock;
@@ -260,21 +275,21 @@ function songDock(){
   dock.innerHTML = '<div class="song-dock-grip" data-song-dock-grip><span class="song-dock-handle" aria-hidden="true"></span><span class="song-dock-label">點歌播放器・按住拖移</span><button type="button" data-song-dock-min aria-label="縮到最小" aria-expanded="true">－</button></div><div class="song-dock-video"><div id="song-yt"></div></div><div class="song-dock-bar"><span id="song-dock-title">點歌播放器</span><button type="button" data-song-dock-next aria-label="下一首">下一首</button></div>';
   document.body.appendChild(dock);
   dock.querySelector('[data-song-dock-next]').onclick = () => songNext('skip');
-  dock.querySelector('[data-song-dock-min]').onclick = e => { e.stopPropagation(); songDockMin(dock, !dock.classList.contains('is-min')); };
+  dock.querySelector('[data-song-dock-min]').onclick = e => { e.stopPropagation(); songDockMin(dock, !songDockShrunk(dock)); };
   // 拖移：pointer events（iPad 觸控、滑鼠都可）；按在按鈕上不拖
   // 展開時拖頂部把手；縮小時整條都能拖（影片區與按鈕不拖）
   let drag = null;
   dock.addEventListener('pointerdown', e => {
     if (e.target.closest('button') || e.target.closest('.song-dock-video')) return;
-    if (!e.target.closest('[data-song-dock-grip]') && !dock.classList.contains('is-min')) return;
+    if (!e.target.closest('[data-song-dock-grip]') && !songDockShrunk(dock)) return;
     const r = dock.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, id: e.pointerId };
     try { dock.setPointerCapture(e.pointerId); } catch (x) {} dock.classList.add('is-drag'); e.preventDefault();
   });
   dock.addEventListener('pointermove', e => { if (!drag || e.pointerId !== drag.id) return; songDockPlace(dock, e.clientX - drag.dx, e.clientY - drag.dy); });
   const end = e => { if (!drag || e.pointerId !== drag.id) return; drag = null; dock.classList.remove('is-drag'); const r = dock.getBoundingClientRect(); songDockSave({ x: Math.round(r.left), y: Math.round(r.top) }); };
   dock.addEventListener('pointerup', end); dock.addEventListener('pointercancel', end);
-  addEventListener('resize', () => { const p = songDockPref(); if (p.x != null) songDockPlace(dock, p.x, p.y); });
-  const p = songDockPref(); songDockMin(dock, !!p.min);
+  addEventListener('resize', () => { songDockLabel(dock); const p = songDockPref(); if (p.x != null) songDockPlace(dock, p.x, p.y); });
+  const p = songDockPref(); dock.classList.toggle('is-min', !!p.min); songDockLabel(dock);
   if (p.x != null) requestAnimationFrame(() => songDockPlace(dock, p.x, p.y));
   return dock;
 }

@@ -88,6 +88,15 @@ await shot('https://pos.test/pos/songs', 1180, 820, 'pos-songs-search-1180', { a
   const st = await p.evaluate(() => { const i = document.querySelector('[data-song-search] input'); return { focused: document.activeElement === i, value: i.value, rows: document.querySelectorAll('[data-song-results] .song-row').length, submitBtn: !!document.querySelector('[data-song-search] button') }; });
   console.log('LIVE-SEARCH pos', JSON.stringify({ hits: SEARCH_HITS, ...st }));
 } });
+// 點歌頁：自動縮成一條，按「＋」要能放大、再按「－」縮回（10/28 修：之前把手整條 display:none，放不大）
+await shot('https://pos.test/pos/songs', 1180, 820, 'pos-songs-dock-expand', { act: async p => {
+  await p.waitForSelector('#song-dock', { timeout: 4000 });
+  const m = () => p.evaluate(() => { const d = document.getElementById('song-dock'), r = d.getBoundingClientRect(), b = d.querySelector('[data-song-dock-min]'); return { h: Math.round(r.height), w: Math.round(r.width), bottom: Math.round(r.bottom), vh: innerHeight, btn: b.textContent, btnVisible: !!b.offsetHeight, video: Math.round(d.querySelector('.song-dock-video').getBoundingClientRect().height) }; });
+  const a = await m(); await p.click('[data-song-dock-min]'); await new Promise(r => setTimeout(r, 200));
+  const b = await m(); await p.click('[data-song-dock-min]'); await new Promise(r => setTimeout(r, 200));
+  const c = await m();
+  console.log('DOCK-EXPAND', JSON.stringify({ auto: a, expanded: b, back: c }));
+} });
 // 播放器：拖移、縮到最小、重新整理後記得位置
 // 點歌頁寬螢幕播放器自動縮成一條（把手隱藏），拖移在其他分頁測
 await shot('https://pos.test/pos/orders', 1280, 900, 'pos-dock-drag-min', { act: async p => {
