@@ -279,11 +279,12 @@
   .tip-range{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 12px;margin:0 0 12px}.tip-range label{display:flex;flex-direction:column;gap:4px}
   .tip-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:0 0 14px}
   .tip-kpis>div{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+  .fb-tbl .fb-text{white-space:pre-wrap;overflow-wrap:anywhere;min-width:220px}
   .tip-kpis b{font-size:1.4rem}.tip-kpis small{color:var(--muted);font-size:1rem}.tip-kpis .is-owe{border-color:var(--danger)}.tip-kpis .is-owe b{color:var(--danger)}
   .tip-tbl small{color:var(--muted);margin-left:4px}
   .tip-pay{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px 12px;align-items:end;margin:16px 0;padding:14px;border:1px solid var(--line);border-radius:12px}
   .tip-pay h4,.tip-pay .hint{grid-column:1/-1;margin:0}.tip-pay label{display:flex;flex-direction:column;gap:4px;min-width:0}
-  .tip-pay input,.tip-pay select,.tip-range input{min-height:44px;font:inherit;font-size:1rem;padding:0 10px;border:1px solid var(--line);border-radius:8px;color:var(--ink);background:var(--paper);min-width:0}
+  .tip-pay input,.tip-pay select,.tip-range input,.tip-range select{min-height:44px;font:inherit;font-size:1rem;padding:0 10px;border:1px solid var(--line);border-radius:8px;color:var(--ink);background:var(--paper);min-width:0}
   @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -324,6 +325,7 @@
 <script src="/pos-service-calls.js"></script>
 <script src="/pos-live.js"></script>
 <script src="/pos-tips.js"></script>
+<script src="/pos-feedback.js"></script>
 <script src="/pos-icons.js"></script>
 <script>
 /* 平板 POS 子站（pos.emoji.tw）：只做餐飲現場的事——櫃檯結帳、出餐、估清、訂位、查單、日結、打卡、排班。
@@ -353,10 +355,11 @@ const TABS = [
   { id:'inventory', icon:'box',    label:'庫存', group:'settings', desc:'進貨、盤點與菜單配方' },
   { id:'shifts', icon:'users',       label:'排班', group:'settings', desc:'班表、排休、自動排班' },
   { id:'tips', icon:'sparkles',     label:'打賞', group:'settings', desc:'客人打賞設定、統計、支付給表演者' },
+  { id:'feedback', icon:'chat',    label:'回饋', group:'settings', desc:'客人在桌邊點餐頁留下的意見' },
   { id:'logs', icon:'history',      label:'紀錄', group:'settings', desc:'操作紀錄（限店長）' },
 ];
 // 員工管理（新增／編輯／停用、出勤修正）刻意不放平板：只在 admin.emoji.tw 品牌工作區「排班打卡」，現場人員改不到
-const PANEL = { pos:tabPos, members:tabPosMembers, orders:tabOrders, soldout:tabSoldOut, inventory:tabInventory, reservations:tabReservations, history:tabHistory, logs:tabLogs, sales:tabSales, analytics:tabAnalytics, clock:tabClock, shifts:tabShifts, settings:tabSettings, songs:tabSongs, tips:tabTips };
+const PANEL = { pos:tabPos, members:tabPosMembers, orders:tabOrders, soldout:tabSoldOut, inventory:tabInventory, reservations:tabReservations, history:tabHistory, logs:tabLogs, sales:tabSales, analytics:tabAnalytics, clock:tabClock, shifts:tabShifts, settings:tabSettings, songs:tabSongs, tips:tabTips, feedback:tabFeedback };
 let toastT, DATA = null, TAB = 'pos', SCOPE = '', MENU_DOC = null, PENDING = 0;
 try { SCOPE = localStorage.getItem('tth_pos_scope') || ''; } catch (e) {}
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2400); }
@@ -561,6 +564,7 @@ function activate(){
   else if (TAB === 'shifts') loadShifts();
   else if (TAB === 'songs') loadSongs();
   else if (TAB === 'tips') loadTips();
+  else if (TAB === 'feedback') loadFeedback();
   else if (TAB === 'settings') loadSettings();
   if (TAB !== 'settings') resetSettings(); // 店長識別碼只留在設定頁，離開就清空
 }

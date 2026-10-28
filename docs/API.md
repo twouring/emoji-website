@@ -512,6 +512,12 @@ POS 輪詢未處理的呼叫（每 5 秒）。回 `{ pending:[{id,session_id,tab
 ### POST /api/admin/orders/service-calls/:id/done
 店員按「處理」結案，記 `done_at`／`done_by`（登入者或 PIN 員工）。已處理過的重複按回原資料（兩台同時按不報錯）；找不到 404。記入 POS 操作紀錄「處理客人呼叫服務」。
 
+### POST /api/order-feedback
+桌邊點餐意見回饋（客人端）。body `{ s, k, kind, text, rating?, name?, lang? }`；`kind` 為 `app` 點餐操作、`food` 餐點飲品、`service` 服務、`space` 環境、`other` 其他；`text` 2–500 字；`rating` 1–5 或省略。存 `order_feedback` 表，不進帳、不通知 POS。同桌次最多 5 筆（超過 429），每 IP 每分鐘 5 次。QR 無效 403、桌已結束 409。成功 201 `{ ok, id }`。
+
+### GET /api/admin/orders/feedback
+POS「設定 → 回饋」。query `from`、`to`（YYYY-MM-DD，台北時間，皆可省略）。回 `{ feedback:[{id,table_no,kind,rating,text,name,lang,created_at}], kinds, count, avg_rating }`，新到舊最多 500 筆。
+
 ### GET /api/tips
 打賞（客人端）設定。query `s`、`k`（桌邊單次 QR）。回 `{ enabled, performer, presets:[金額], max, sounds:[{id,zh,en,ja}] }`。設定存 `site_content.tip_settings`（預設關閉）。QR 無效 403、桌已結束 409。
 

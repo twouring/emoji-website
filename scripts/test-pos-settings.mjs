@@ -14,7 +14,7 @@ test('頂欄只留常用分頁（點歌營業中常用、留在頂欄），庫�
   const T = tabs();
   const top = T.filter(t => !t.group).map(t => t.id);
   assert.deepEqual(top, ['pos', 'orders', 'soldout', 'reservations', 'songs', 'members', 'history', 'clock', 'sales', 'analytics', 'settings']);
-  assert.deepEqual(T.filter(t => t.group === 'settings').map(t => t.id).sort(), ['inventory', 'logs', 'shifts', 'tips']);
+  assert.deepEqual(T.filter(t => t.group === 'settings').map(t => t.id).sort(), ['feedback', 'inventory', 'logs', 'shifts', 'tips']);
   for (const t of T.filter(t => t.group)) assert.ok(t.desc, t.id + ' 要有設定頁說明');
   assert.match(pos, /TABS\.filter\(t => !t\.group\)\.map/);
   assert.match(pos, /const navTab = TABS\.find\(t => t\.id === TAB\)\?\.group \|\| TAB/);

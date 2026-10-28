@@ -35,6 +35,7 @@ const eventChannels=require('./lib/event-channels');
 const tableOrders=require('./lib/table-orders');
 const songs=require('./lib/songs');
 const serviceCalls=require('./lib/service-calls');
+const orderFeedback=require('./lib/order-feedback');
 const tips=require('./lib/tips');
 const yan=require('./lib/yan');
 const line = require('./lib/line');
@@ -768,6 +769,11 @@ async function migrate() {
   await q(`ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS party_votes JSONB NOT NULL DEFAULT '{}'`);
   // 桌邊點餐登入的會員（[{id,name,at}]）：POS 結帳一點就帶入，不用再問手機或掃條碼
   await q(`ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS members JSONB NOT NULL DEFAULT '[]'`);
+  // 桌邊點餐意見回饋（lib/order-feedback.js）：客人在 /order 送出，POS「設定 → 回饋」查看
+  await q(`CREATE TABLE IF NOT EXISTS order_feedback (
+    id TEXT PRIMARY KEY, session_id TEXT NOT NULL, table_no TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL, rating INT, text TEXT NOT NULL,
+    name TEXT NOT NULL DEFAULT '', lang TEXT NOT NULL DEFAULT 'zh', created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE INDEX IF NOT EXISTS order_feedback_created_idx ON order_feedback(created_at DESC)`);
   await q(`CREATE TABLE IF NOT EXISTS table_orders (
     id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES table_sessions(id), table_no TEXT NOT NULL, items JSONB NOT NULL,
     amount INT NOT NULL, payer JSONB NOT NULL DEFAULT '{}', tappay JSONB NOT NULL DEFAULT '{}', invoice JSONB NOT NULL DEFAULT '{}', status TEXT NOT NULL DEFAULT 'paid',
@@ -7140,6 +7146,28 @@ app.post('/api/admin/orders/service-calls/:id/done',auth,adminOnly,requireDb,wra
   }catch(e){return serviceErr(res,e);}
 }));
 /* ---- 呼叫服務 end ---- */
+
+/* ---- 意見回饋（lib/order-feedback.js）：客人在桌邊點餐頁送出，不響鈴、不進帳；POS「設定 → 回饋」查看。同桌次最多 5 筆。 */
+app.post('/api/order-feedback',rateLimit({max:5}),requireDb,wrap(async(req,res)=>{
+  const b=req.body||{};
+  try{const s=await songGuestSession(b);const f=orderFeedback.validate(b);
+    const n=(await q('SELECT count(*)::int n FROM order_feedback WHERE session_id=$1',[s.id])).rows[0].n;
+    if(n>=orderFeedback.MAX_PER_SESSION)return res.status(429).json({error:'已收到這桌的回饋，謝謝！'});
+    const id=uid('fb_');
+    await q('INSERT INTO order_feedback(id,session_id,table_no,kind,rating,text,name,lang) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[id,s.id,s.table_no,f.kind,f.rating,f.text,f.name,f.lang]);
+    res.status(201).json({ok:true,id});
+  }catch(e){if(e&&e.status)return res.status(e.status).json({error:e.message});throw e;}
+}));
+app.get('/api/admin/orders/feedback',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  res.set('Cache-Control','no-store');
+  const day=v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v||''))?String(v):null;const from=day(req.query.from),to=day(req.query.to);
+  const rows=(await q(`SELECT f.id,f.table_no,f.kind,f.rating,f.text,f.name,f.lang,f.created_at FROM order_feedback f
+    WHERE ($1::date IS NULL OR f.created_at>=($1::date::timestamp AT TIME ZONE 'Asia/Taipei')) AND ($2::date IS NULL OR f.created_at<(($2::date+1)::timestamp AT TIME ZONE 'Asia/Taipei'))
+    ORDER BY f.created_at DESC LIMIT 500`,[from,to])).rows;
+  const rated=rows.filter(r=>r.rating);
+  res.json({feedback:rows,kinds:orderFeedback.KINDS,count:rows.length,avg_rating:rated.length?Math.round(rated.reduce((a,r)=>a+r.rating,0)/rated.length*10)/10:null});
+}));
+/* ---- 意見回饋 end ---- */
 
 /* ---- 打賞（lib/tips.js）：客人掃桌邊 QR 自填金額＋選音效送出 → POS 跳「待確認」→ 店員確認才掛這桌帳（結帳一起收）、播放裝置播音效。
    代收轉付：不計營收、不開發票、不算服務費／低消／折扣／會員點數。

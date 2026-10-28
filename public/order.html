@@ -136,6 +136,9 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 .call-grid button{min-height:56px;border:1.5px solid var(--line);border-radius:14px;background:#fff;color:var(--ink);font-weight:700;padding:8px}
 .call-grid button[aria-pressed=true]{border-color:var(--ink);background:var(--yellow)}
 #call-note{width:100%;min-height:48px;margin:0 0 6px}
+#fb-text{width:100%;min-height:120px;margin:0 0 6px;resize:vertical}
+.fb-stars{display:flex;gap:6px;margin:4px 0 12px}.fb-stars button{flex:1;min-height:48px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--muted);font-size:1.4rem;line-height:1}.fb-stars button[aria-pressed=true]{border-color:var(--ink);background:var(--yellow);color:var(--ink)}
+.fb-lbl{margin:12px 0 4px;font-weight:700}
 .call-status{display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:10px 14px;border-radius:12px;background:#fff6c2;border:1.5px solid var(--yellow)}
 .call-status.done{background:#E6F2EB;border-color:var(--ok)}.call-status[hidden]{display:none}.call-status span{flex:1;min-width:0;overflow-wrap:anywhere}
 @media (max-width:380px){.call-btn{padding:4px 10px}.call-btn .ico{display:none}}
@@ -174,6 +177,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
   <symbol id="i-gift" viewBox="0 0 24 24"><path d="M4 11h16v10H4zM3 7h18v4H3zM12 7v14"/><path d="M12 7c-1.5-3-5-3.5-5-1.2C7 7 9.5 7 12 7Zm0 0c1.5-3 5-3.5 5-1.2C17 7 14.5 7 12 7Z"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7-11-7Z"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5Z"/><path d="M8 9h8M8 12h5"/></symbol>
 </svg>
 <div class="ready-banner" id="ready-banner"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -195,6 +199,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
       <div id="menu"></div>
       <p class="notice" id="bar-policy-notice" data-i18n="bar_policy" hidden>三點水低消每人平日 NT$300、假日 NT$600，另加 10% 服務費（外帶不收）。</p>
       <p class="notice" id="alcohol-notice" data-i18n="alcohol" hidden>未滿十八歲禁止飲酒。禁止酒駕。</p>
+      <button class="song-card" type="button" id="fb-open"><svg class="ico lg" aria-hidden="true"><use href="#i-chat"></use></svg><span class="n"><b data-i18n="fb_title">意見回饋</b><small data-i18n="fb_card">點餐好不好用、餐點、服務，都歡迎告訴我們</small></span></button>
     </div>
   </section>
   <!-- 店家資訊（金流審核必備）：公司名稱＋統編、收費表、客服、退款政策、TapPay 字樣。放在 #app 外，錯誤 QR／已結束畫面也看得到 -->
@@ -247,6 +252,17 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     <input class="f" id="call-note" type="text" maxlength="40" autocomplete="off" enterkeyhint="send" data-i18n-placeholder="call_note" placeholder="想請店員幫什麼？（選填）" hidden>
     <p class="err" id="call-err"></p></div>
   <div class="row sheet-actions"><button class="btn ghost" type="button" data-close data-i18n="back_menu">返回菜單</button><button class="btn y with-icon" type="button" id="call-send"><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span data-i18n="call_send">通知店員</span></button></div>
+</div></div>
+
+<div class="sheet" id="fb" role="dialog" aria-labelledby="fb-title"><div class="in">
+  <div class="sheet-body"><h3 class="title-icon" id="fb-title"><svg class="ico lg" aria-hidden="true"><use href="#i-chat"></use></svg><span data-i18n="fb_title">意見回饋</span></h3><p class="muted" data-i18n="fb_hint">您的意見會直接送到店長，我們每天都會看。</p>
+    <p class="fb-lbl" data-i18n="fb_kind">想回饋什麼？</p>
+    <div class="call-grid" id="fb-kinds"></div>
+    <p class="fb-lbl" data-i18n="fb_rating">整體滿意度（選填）</p>
+    <div class="fb-stars" id="fb-stars" role="radiogroup"></div>
+    <textarea class="f" id="fb-text" maxlength="500" data-i18n-placeholder="fb_placeholder" placeholder="請寫下您的建議或遇到的問題"></textarea>
+    <p class="err" id="fb-err"></p></div>
+  <div class="row sheet-actions"><button class="btn ghost" type="button" data-close data-i18n="back_menu">返回菜單</button><button class="btn y with-icon" type="button" id="fb-send"><svg class="ico" aria-hidden="true"><use href="#i-chat"></use></svg><span data-i18n="fb_send">送出回饋</span></button></div>
 </div></div>
 
 <div class="sheet" id="item-detail"><div class="in">
@@ -605,6 +621,27 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
       .then(function(){CALL_BUSY=false;renderCallSheet();});
   };
   setInterval(function(){if(S&&!document.hidden)loadCalls();},20000);
+  /* ---- 意見回饋：菜單底部卡片 → 選類別＋（選填）星等＋內容，存 order_feedback，POS「設定 → 回饋」查看；不響鈴、不進帳 ---- */
+  var FB_KINDS=[{id:'app',zh:'點餐操作',en:'Ordering app',ja:'注文画面'},{id:'food',zh:'餐點飲品',en:'Food & drinks',ja:'料理・ドリンク'},{id:'service',zh:'服務',en:'Service',ja:'サービス'},{id:'space',zh:'環境',en:'Space',ja:'店内環境'},{id:'other',zh:'其他',en:'Other',ja:'その他'}];
+  var FB_KIND='',FB_RATE=0,FB_BUSY=false;
+  function renderFb(){
+    $('#fb-kinds').innerHTML=FB_KINDS.map(function(k){return '<button type="button" data-fb-kind="'+esc(k.id)+'" aria-pressed="'+(k.id===FB_KIND)+'">'+esc(label(k))+'</button>';}).join('');
+    $('#fb-stars').innerHTML=[1,2,3,4,5].map(function(n){return '<button type="button" data-fb-rate="'+n+'" aria-pressed="'+(n<=FB_RATE)+'" aria-label="'+n+'">★</button>';}).join('');
+    $('#fb-send').disabled=FB_BUSY;
+  }
+  $('#fb-open').onclick=function(){FB_KIND='';FB_RATE=0;$('#fb-text').value='';$('#fb-err').textContent='';renderFb();openSheet('#fb');};
+  $('#fb-kinds').addEventListener('click',function(e){var b=e.target.closest('[data-fb-kind]');if(!b)return;FB_KIND=b.dataset.fbKind;$('#fb-err').textContent='';renderFb();});
+  $('#fb-stars').addEventListener('click',function(e){var b=e.target.closest('[data-fb-rate]');if(!b)return;var n=Number(b.dataset.fbRate);FB_RATE=FB_RATE===n?0:n;renderFb();});
+  $('#fb-send').onclick=function(){
+    var text=$('#fb-text').value.trim();
+    if(!FB_KIND){$('#fb-err').textContent=tr('fb_pick');return;}
+    if(text.length<2){$('#fb-err').textContent=tr('fb_empty');$('#fb-text').focus();return;}
+    if(FB_BUSY)return;FB_BUSY=true;renderFb();
+    api('/order-feedback',{method:'POST',body:{s:SID,k:K,kind:FB_KIND,rating:FB_RATE||null,text:text,name:NAME,lang:LANG}})
+      .then(function(){closeSheets();toast(tr('fb_sent'),5000);})
+      .catch(function(err){$('#fb-err').textContent=err.message;})
+      .then(function(){FB_BUSY=false;renderFb();});
+  };
   /* ---- 打賞：自填金額＋選音效，記在這桌帳上；店裡音響播客人選的音效（點音效可在手機上試聽） ---- */
   var TIP=null,TIP_SFX='applause',TIP_BUSY=false,TIP_AUDIO=null;
   function loadTips(){if(!S)return Promise.resolve();return api('/tips?'+songQs()).then(function(d){TIP=d;renderTip();renderPriceTable();}).catch(function(){TIP=null;renderTip();renderPriceTable();});}
