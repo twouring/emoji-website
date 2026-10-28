@@ -117,7 +117,8 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 @media (max-width:380px){.wrap{padding:10px}.top{padding-left:12px;padding-right:12px}.bar{padding-left:8px;padding-right:8px}.btn{padding-left:9px;padding-right:9px}.btn.sm{min-height:42px}.menu-grid{gap:6px}.item img,.item .ph{width:56px;height:56px}.item .tap{display:none}.top .t{padding-left:8px;padding-right:8px}.choice-grid{grid-template-columns:1fr 1fr}.sheet .in{padding-left:12px;padding-right:12px}}
 /* 320px：底部列按鈕藏圖示只留文字、內距再縮；上一步／加入兩顆鍵各半；語言鍵縮小 */
 @media (max-width:320px){.bar{grid-template-columns:minmax(72px,1fr) auto auto;gap:4px}.bar .btn{padding:9px 9px}.bar .ico{display:none}.top b{font-size:1rem}.lang{min-width:42px;padding:4px 8px}.choice-grid{grid-template-columns:1fr}.sheet-actions .btn{padding:10px 8px}.name-actions .btn{padding-left:8px;padding-right:8px}}
-.nav-ico{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;min-width:40px;padding:0;border:1px solid #777;border-radius:999px;background:transparent;color:#fff;font-weight:700;flex-shrink:0}.nav-ico .ico{width:20px;height:20px}.nav-ico[hidden]{display:none}.nav-ico.call-btn{border-color:var(--yellow);color:var(--yellow)}.nav-ico.call-btn.on{background:var(--yellow);color:var(--ink)}.top .t{display:inline-flex;align-items:center;min-height:40px}@media (max-width:360px){.top .actions{gap:6px}.nav-ico{width:36px;height:36px;min-width:36px}.top .t{min-height:36px}}.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.nav-ico{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;min-width:40px;padding:0;border:1px solid #777;border-radius:999px;background:transparent;color:#fff;font-weight:700;flex-shrink:0}.nav-ico .ico{width:20px;height:20px}.nav-ico[hidden]{display:none}.nav-ico.call-btn{border-color:var(--yellow);color:var(--yellow)}.nav-ico.call-btn.on{background:var(--yellow);color:var(--ink)}.top .t{display:inline-flex;align-items:center;min-height:40px}@media (max-width:360px){.top .actions{gap:6px}.nav-ico{width:36px;height:36px;min-width:36px}.top .t{min-height:36px}}:lang(ko) body,html:lang(ko){word-break:keep-all}.lang-wrap{position:relative;display:inline-flex}.lang-menu{position:absolute;top:calc(100% + 8px);right:0;z-index:30;min-width:168px;padding:6px;background:#fff;color:var(--ink);border:1.5px solid var(--ink);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.25)}.lang-menu[hidden]{display:none}.lang-menu button{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:48px;padding:0 14px;border:0;border-radius:10px;background:transparent;color:var(--ink);font:inherit;font-size:1rem;font-weight:700;text-align:left}.lang-menu button[aria-checked=true]{background:var(--yellow)}
+.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .app-home{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;margin:0 4px 0 -8px;color:#fff;vertical-align:middle}.app-home[hidden]{display:none}
 .install-card[hidden]{display:none}.install-card b{font-size:1.05rem}.install-card p{margin:4px 0 12px;color:var(--soft);line-height:1.5}.inst-actions{display:flex;gap:10px;margin:0}.inst-actions .btn{flex:1 1 0;min-width:0}
 .inst-steps{margin:8px 0 0;}#inst .sheet-actions{display:flex;flex:none;margin:0;padding:10px 16px calc(14px + env(safe-area-inset-bottom))}#inst .sheet-actions .btn{flex:1 1 0;min-width:0}.inst-steps{padding-left:1.4em;line-height:1.7}.inst-steps li{margin-bottom:6px}
@@ -189,7 +190,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 </svg>
 <div class="ready-banner" id="ready-banner"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<header class="top"><div><a class="app-home" id="app-home" href="/" hidden aria-label="App"><svg class="ico" aria-hidden="true"><use href="#i-back"></use></svg></a><b id="brand">言文字</b></div><nav class="actions"><button class="nav-ico" id="fb-open" type="button"><svg class="ico" aria-hidden="true"><use href="#i-chat"></use></svg><span class="sr" data-i18n="fb_title">意見回饋</span></button><button class="nav-ico call-btn" id="call-open" type="button" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span class="sr" data-i18n="call_btn">呼叫</span></button><button class="nav-ico lang" id="lang-toggle" type="button" aria-label="Switch language"><svg class="ico" aria-hidden="true"><use href="#i-globe"></use></svg><span class="sr" id="lang-label">EN</span></button><span class="t" id="table-no">—</span></nav></header>
+<header class="top"><div><a class="app-home" id="app-home" href="/" hidden aria-label="App"><svg class="ico" aria-hidden="true"><use href="#i-back"></use></svg></a><b id="brand">言文字</b></div><nav class="actions"><button class="nav-ico" id="fb-open" type="button"><svg class="ico" aria-hidden="true"><use href="#i-chat"></use></svg><span class="sr" data-i18n="fb_title">意見回饋</span></button><button class="nav-ico call-btn" id="call-open" type="button" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span class="sr" data-i18n="call_btn">呼叫</span></button><span class="lang-wrap"><button class="nav-ico lang" id="lang-toggle" type="button" aria-label="Language / 語言" aria-haspopup="menu" aria-expanded="false"><svg class="ico" aria-hidden="true"><use href="#i-globe"></use></svg><span class="sr" id="lang-label">EN</span></button><div class="lang-menu" id="lang-menu" role="menu" hidden></div></span><span class="t" id="table-no">—</span></nav></header>
 <main class="wrap">
   <div class="card" id="boot"><p class="muted" data-i18n="loading">載入中…</p></div>
   <div class="card hidden" id="thanks"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-check"></use></svg><span data-i18n="thanks">感謝用餐，期待再次光臨。</span></h3><p class="muted" data-i18n="thanks_hint">這次點餐已結束。若要再點，請洽服務人員。</p><button class="btn y" type="button" id="thanks-again" data-i18n="thanks_again" hidden>重新點餐</button><div class="review-box"><b data-i18n="review_title">喜歡今天的餐點嗎？</b><p class="muted" data-i18n="review_hint">在 Google 地圖留下評論，結帳時把評論出示給櫃檯人員，就送你 5 點會員點數（每位會員限領一次）。</p><a class="btn ghost" data-review-link href="https://maps.app.goo.gl/ZKdyKqwXjVA5x6JF6?g_st=ic" target="_blank" rel="noopener" data-i18n="review_go">寫 Google 評論</a></div></div>
@@ -297,18 +298,25 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   var qs=new URLSearchParams(location.search),SID=qs.get('s')||'',T=qs.get('t')||'',K=qs.get('k')||'';   // s＝本場單次 QR（POS 開桌印出）；t＝桌上舊固定 QR，已停用
   var S=null,MENU=[],MENU_DOC=null,VENUE=null,CFG={},GUEST,NAME,seenReady={},pollTimer,LANG='zh',CURRENT_ITEM=null,CURRENT_QTY=1,PAUSED=null,WIN_KEY='';
   try{GUEST=localStorage.getItem('order_guest');NAME=localStorage.getItem('order_name')||'';LANG=localStorage.getItem('order_lang')||'';}catch(e){}
-  if(!LANG){var ql=qs.get('lang'),nl=(navigator.language||'').toLowerCase();LANG=ql==='en'||ql==='ja'?ql:(!ql&&/^ja/.test(nl)?'ja':(!ql&&!/^zh/i.test(nl)?'en':'zh'));}
+  if(!LANG){var ql=qs.get('lang'),nl=(navigator.language||'').toLowerCase();LANG=ql==='en'||ql==='ja'||ql==='ko'?ql:(!ql&&/^ja/.test(nl)?'ja':(!ql&&/^ko/.test(nl)?'ko':(!ql&&!/^zh/i.test(nl)?'en':'zh')));}
   var tr=function(key,vars){return OrderLib.text(LANG,key,vars);};
-  var label=function(obj){return LANG==='en'?(obj.en||obj.zh):LANG==='ja'?(obj.ja||obj.zh):obj.zh;};
-  var noteOf=function(it){return LANG==='en'?(it.note_en||''):LANG==='ja'?(it.note_ja||''):it.note;};
+  // 韓文：有 ko 用 ko，沒有退回英文（菜單目前沒有韓文欄位），再退回中文
+  var label=function(obj){return LANG==='en'?(obj.en||obj.zh):LANG==='ja'?(obj.ja||obj.zh):LANG==='ko'?(obj.ko||obj.en||obj.zh):obj.zh;};
+  var noteOf=function(it){return LANG==='en'?(it.note_en||''):LANG==='ja'?(it.note_ja||''):LANG==='ko'?(it.note_ko||it.note_en||''):it.note;};
   function applyLanguage(){
-    document.documentElement.lang=LANG==='en'?'en':(LANG==='ja'?'ja':'zh-Hant');
+    document.documentElement.lang=LANG==='zh'?'zh-Hant':LANG;
     document.querySelectorAll('[data-i18n]').forEach(function(el){el.textContent=tr(el.dataset.i18n);});
     document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el){el.placeholder=tr(el.dataset.i18nPlaceholder);});
-    $('#lang-label').textContent=LANG==='zh'?'EN':(LANG==='en'?'日本語':'中文');
+    $('#lang-label').textContent=LANG==='zh'?'EN':(LANG==='en'?'日本語':'中文');   // 只給螢幕閱讀器
+    $('#lang-menu').innerHTML=OrderLib.LANGS.map(function(l){return '<button type="button" role="menuitemradio" lang="'+l.id+'" data-lang="'+l.id+'" aria-checked="'+(l.id===LANG)+'"><span>'+esc(l.name)+'</span>'+(l.id===LANG?'<svg class="ico" aria-hidden="true"><use href="#i-check"></use></svg>':'')+'</button>';}).join('');
     if(S){renderMenu();renderState();if(typeof renderCalls==='function'){renderCalls();renderCallSheet();}if(typeof renderMember==='function')renderMember();}
   }
-  $('#lang-toggle').onclick=function(){LANG=LANG==='zh'?'en':(LANG==='en'?'ja':'zh');try{localStorage.setItem('order_lang',LANG);}catch(e){}applyLanguage();};
+  // 語言鈕：點了跳出選單（中文／English／日本語／한국어），點外面或 Esc 關閉
+  function langMenu(open){$('#lang-menu').hidden=!open;$('#lang-toggle').setAttribute('aria-expanded',String(open));}
+  $('#lang-toggle').onclick=function(e){e.stopPropagation();langMenu($('#lang-menu').hidden);};
+  $('#lang-menu').addEventListener('click',function(e){var b=e.target.closest('[data-lang]');if(!b)return;e.stopPropagation();LANG=b.dataset.lang;try{localStorage.setItem('order_lang',LANG);}catch(x){}langMenu(false);applyLanguage();});
+  document.addEventListener('click',function(e){if(!$('#lang-menu').hidden&&!e.target.closest('#lang-menu'))langMenu(false);});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!$('#lang-menu').hidden){langMenu(false);$('#lang-toggle').focus();}});
   applyLanguage();
   if(!GUEST){GUEST=Math.random().toString(36).slice(2,14)+Math.random().toString(36).slice(2,6);try{localStorage.setItem('order_guest',GUEST);}catch(e){}}
   var api=function(path,opt){opt=opt||{};return fetch('/api'+path,{method:opt.method||'GET',headers:opt.body?{'Content-Type':'application/json'}:{},body:opt.body?JSON.stringify(opt.body):undefined}).then(function(r){return r.json().catch(function(){return {};}).then(function(d){if(!r.ok){var e=Error(d.error||('伺服器錯誤 '+r.status));e.status=r.status;if(d.wait)e.wait=d.wait;throw e;}return d;});});};
@@ -426,14 +434,14 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   }
 
   // 套餐內容：「主餐：明太子美式炒蛋可頌／飲品：拿鐵咖啡（溫度：熱）」逐項列在套餐名稱下面
-  var partsLines=function(l){return (l.parts||[]).map(function(p){var nm=LANG==='en'?(p.en||p.zh):LANG==='ja'?(p.ja||p.zh):p.zh;var sl=(OrderLib.slotLabel?OrderLib.slotLabel(p.slot,LANG):p.slot);return '<br><span class="by">'+esc(sl+'：'+nm+(p.note?'（'+p.note+'）':''))+'</span>';}).join('');};
+  var partsLines=function(l){return (l.parts||[]).map(function(p){var nm=label(p);var sl=(OrderLib.slotLabel?OrderLib.slotLabel(p.slot,LANG):p.slot);return '<br><span class="by">'+esc(sl+'：'+nm+(p.note?'（'+p.note+'）':''))+'</span>';}).join('');};
   var unpaid=function(){return (S.items||[]).filter(function(l){return !l.order_id;});};
   var pending=function(){return unpaid().filter(function(l){return !l.placed_at;});};   // 加了還沒送出的
   var othersPending=function(){return pending().filter(function(l){return !l.mine;});};   // 別人加了還沒送出的（我按送出會一起送）
-  var itemName=function(l){return LANG==='en'?(l.en||l.zh):LANG==='ja'?(l.ja||l.zh):l.zh;};
-  var joinItems=function(ls){return ls.map(function(l){return itemName(l)+'×'+l.qty;}).join(LANG==='en'?', ':'、');};
+  var itemName=function(l){return label(l);};
+  var joinItems=function(ls){return ls.map(function(l){return itemName(l)+'×'+l.qty;}).join(LANG==='en'||LANG==='ko'?', ':'、');};
   // 「小華 2 項、阿明 1 項」
-  var othersSummary=function(ls){var by={},order=[];ls.forEach(function(l){if(!by[l.by]){by[l.by]=0;order.push(l.by);}by[l.by]+=1;});return order.map(function(n){return n+' '+tr('n_items',{count:by[n]});}).join(LANG==='en'?', ':'、');};
+  var othersSummary=function(ls){var by={},order=[];ls.forEach(function(l){if(!by[l.by]){by[l.by]=0;order.push(l.by);}by[l.by]+=1;});return order.map(function(n){return n+' '+tr('n_items',{count:by[n]});}).join(LANG==='en'||LANG==='ko'?', ':'、');};
   // 別人剛加／剛移除的品項：吐司提示＋該行閃一下（第一次載入只記錄）
   var KNOWN=null,FRESH={};
   function diffOthers(prev,next){
@@ -463,19 +471,19 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     // 已點清單：依人分組；每行標示未送出／已送出／已出餐
     var tag=function(l){return l.song||l.tip?'':l.served_at?'<span class="tag">'+esc(tr('served'))+'</span>':l.placed_at?'<span class="tag placed">'+esc(tr('placed'))+'</span>':'<span class="tag pending">'+esc(tr('not_sent'))+'</span>';};
     var groups={},order=[];u.forEach(function(l){var k=l.by+(l.mine?'#me':'');if(!groups[k]){groups[k]={by:l.by,mine:l.mine,lines:[]};order.push(k);}groups[k].lines.push(l);});
-    $('#cart-lines').innerHTML=order.length?order.map(function(k){var g=groups[k];return '<div class="who"><span>'+esc(g.by)+(g.mine?'（'+esc(tr('me'))+'）':'')+'</span><span>'+money(sum(g.lines))+'</span></div>'+g.lines.map(function(l){var itemName=LANG==='en'?(l.en||l.zh):LANG==='ja'?(l.ja||l.zh):l.zh;var cls='line'+(!l.mine&&!l.placed_at?' others-pending':'')+(FRESH[l.line]?' fresh':'');return '<div class="'+cls+'"><span>'+esc(itemName)+' ×'+l.qty+tag(l)+partsLines(l)+(l.note?' <span class="by">'+esc(l.note)+'</span>':'')+'</span><span>'+money(l.price*l.qty)+(l.mine&&!l.placed_at?' <button class="x" data-del="'+esc(l.line)+'" aria-label="'+esc(tr('remove'))+'">✕</button>':'')+'</span></div>';}).join('');}).join(''):'<p class="muted">'+esc(tr('no_orders'))+'</p>';
+    $('#cart-lines').innerHTML=order.length?order.map(function(k){var g=groups[k];return '<div class="who"><span>'+esc(g.by)+(g.mine?'（'+esc(tr('me'))+'）':'')+'</span><span>'+money(sum(g.lines))+'</span></div>'+g.lines.map(function(l){var itemName=label(l);var cls='line'+(!l.mine&&!l.placed_at?' others-pending':'')+(FRESH[l.line]?' fresh':'');return '<div class="'+cls+'"><span>'+esc(itemName)+' ×'+l.qty+tag(l)+partsLines(l)+(l.note?' <span class="by">'+esc(l.note)+'</span>':'')+'</span><span>'+money(l.price*l.qty)+(l.mine&&!l.placed_at?' <button class="x" data-del="'+esc(l.line)+'" aria-label="'+esc(tr('remove'))+'">✕</button>':'')+'</span></div>';}).join('');}).join(''):'<p class="muted">'+esc(tr('no_orders'))+'</p>';
     $('#cart-total').textContent=money(sum(u));
     // 有已送出但未結帳的品項：已點清單固定提醒離席前到櫃檯結帳
     $('#pay-reminder').hidden=!u.some(function(l){return l.placed_at;});
     // 出餐單
     var os=S.orders||[],byId={};(S.items||[]).forEach(function(l){byId[l.line]=l;});
     $('#orders-card').classList.toggle('hidden',!os.length);
-    $('#orders-card').innerHTML='<h3 class="title-icon">'+icon('receipt')+'<span>'+esc(tr('paid'))+'</span></h3>'+os.map(function(o){var st={paid:tr('preparing'),ready:tr('ready'),done:tr('done')}[o.status]||o.status,statusIcon=o.status==='paid'?'bell':'check';return '<div class="line"><span><span class="st '+esc(o.status)+'">'+icon(statusIcon)+esc(st)+'</span> '+o.lines.map(function(id){var l=byId[id];return l?esc(LANG==='en'?(l.en||l.zh):LANG==='ja'?(l.ja||l.zh):l.zh)+'×'+l.qty:'';}).filter(Boolean).join(LANG==='en'?', ':'、')+'</span><span>'+money(o.amount)+'</span></div>'+(o.status==='paid'&&CFG.vapid_public_key&&!o._pushed?'<div class="row"><button class="btn ghost sm with-icon" data-push="'+esc(o.id)+'">'+icon('bell')+'<span>'+esc(tr('notification_prompt'))+'</span></button></div>':'');}).join('');
+    $('#orders-card').innerHTML='<h3 class="title-icon">'+icon('receipt')+'<span>'+esc(tr('paid'))+'</span></h3>'+os.map(function(o){var st={paid:tr('preparing'),ready:tr('ready'),done:tr('done')}[o.status]||o.status,statusIcon=o.status==='paid'?'bell':'check';return '<div class="line"><span><span class="st '+esc(o.status)+'">'+icon(statusIcon)+esc(st)+'</span> '+o.lines.map(function(id){var l=byId[id];return l?esc(label(l))+'×'+l.qty:'';}).filter(Boolean).join(LANG==='en'||LANG==='ko'?', ':'、')+'</span><span>'+money(o.amount)+'</span></div>'+(o.status==='paid'&&CFG.vapid_public_key&&!o._pushed?'<div class="row"><button class="btn ghost sm with-icon" data-push="'+esc(o.id)+'">'+icon('bell')+'<span>'+esc(tr('notification_prompt'))+'</span></button></div>':'');}).join('');
     os.forEach(function(o){if(o.status==='ready'&&!seenReady[o.id]){seenReady[o.id]=true;notifyGuest(tr('ready_banner',{table:S.table}));}});
     // 桌邊送單出餐（品項層級）：POS 按某一道「出餐」→ 輪詢到該行新出現 served_at → 頁內橫幅＋提示音＋系統通知（有授權才會響）
     var newlyServed=[];(S.items||[]).forEach(function(l){if(l.served_at&&!l.order_id&&!seenServed[l.line]){seenServed[l.line]=true;if(SERVED_READY)newlyServed.push(l);}});
     SERVED_READY=true;   // 第一次載入只記錄、不通知（之前就出過的不該再響）
-    if(newlyServed.length){var names=newlyServed.map(function(l){return (LANG==='en'?(l.en||l.zh):LANG==='ja'?(l.ja||l.zh):l.zh)+'×'+l.qty;}).join(LANG==='en'?', ':'、');notifyGuest(tr('served_banner',{table:S.table,items:names}));}
+    if(newlyServed.length){var names=newlyServed.map(function(l){return label(l)+'×'+l.qty;}).join(LANG==='en'||LANG==='ko'?', ':'、');notifyGuest(tr('served_banner',{table:S.table,items:names}));}
   }
   var seenServed={},SERVED_READY=false,AUDIO_CTX=null;
   // iOS 要先在使用者點擊時建立／恢復 AudioContext，之後才准播聲音；確認稱呼時叫一次
@@ -564,7 +572,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     var on=!!(SONG&&SONG.enabled&&VENUE);
     $('#song-open').classList.toggle('hidden',!on);
     if(!on){if($('#songs').classList.contains('on'))closeSheets();return;}
-    $('#song-card-sub').textContent=tr('song_card');$('#song-card-price').textContent=money(SONG.price)+(LANG==='en'?' / song':LANG==='ja'?'／曲':'／首');
+    $('#song-card-sub').textContent=tr('song_card');$('#song-card-price').textContent=money(SONG.price)+(LANG==='en'?' / song':LANG==='ja'?'／曲':LANG==='ko'?' / 곡':'／首');
     var nowEl=$('#song-card-now');nowEl.hidden=!SONG.now;if(SONG.now)nowEl.textContent='♪ '+SONG.now.title;
     $('#song-sub').textContent=tr('song_price',{price:SONG.price})+'　'+tr('song_hint',{min:SONG.max_minutes,max:SONG.max_per_table});
     $('#song-now-box').innerHTML=SONG.now?'<div class="song-now">'+(SONG.now.thumb?'<img src="'+esc(SONG.now.thumb)+'" alt="">':'')+'<span class="n"><small>'+esc(tr('song_now'))+'</small><b>'+esc(SONG.now.title)+'</b></span></div>':'';
@@ -606,7 +614,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   setInterval(function(){if(S&&!document.hidden)loadSongs();},20000);
   /* ---- 呼叫服務：頁首常駐鈕 → 選項目 → 一鍵通知，不經購物車；20 秒輪詢本桌狀態 ---- */
   var CALL=null,CALL_KIND='',CALL_BUSY=false,CALL_LEFT=0,CALL_TICK=null;
-  var CALL_KINDS=[{id:'water',zh:'加水',en:'Water',ja:'お水'},{id:'utensils',zh:'餐具',en:'Utensils',ja:'カトラリー'},{id:'pack',zh:'打包',en:'To-go box',ja:'持ち帰り'},{id:'clear',zh:'收桌',en:'Clear table',ja:'片付け'},{id:'other',zh:'其他',en:'Other',ja:'その他'}];
+  var CALL_KINDS=[{id:'water',zh:'加水',en:'Water',ja:'お水',ko:'물'},{id:'utensils',zh:'餐具',en:'Utensils',ja:'カトラリー',ko:'수저·식기'},{id:'pack',zh:'打包',en:'To-go box',ja:'持ち帰り',ko:'포장 용기'},{id:'clear',zh:'收桌',en:'Clear table',ja:'片付け',ko:'테이블 정리'},{id:'other',zh:'其他',en:'Other',ja:'その他',ko:'기타'}];
   function callKinds(){return (CALL&&CALL.kinds&&CALL.kinds.length)?CALL.kinds:CALL_KINDS;}
   function callLabel(id){var k=callKinds().filter(function(x){return x.id===id;})[0];return k?label(k):id;}
   function loadCalls(){if(!S)return Promise.resolve();return api('/service-calls?'+songQs()).then(function(d){CALL=d;setCallWait(d.cooldown||0);renderCalls();}).catch(function(){});}
@@ -636,7 +644,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   };
   setInterval(function(){if(S&&!document.hidden)loadCalls();},20000);
   /* ---- 意見回饋：菜單底部卡片 → 選類別＋（選填）星等＋內容，存 order_feedback，POS「設定 → 回饋」查看；不響鈴、不進帳 ---- */
-  var FB_KINDS=[{id:'app',zh:'點餐操作',en:'Ordering app',ja:'注文画面'},{id:'food',zh:'餐點飲品',en:'Food & drinks',ja:'料理・ドリンク'},{id:'service',zh:'服務',en:'Service',ja:'サービス'},{id:'space',zh:'環境',en:'Space',ja:'店内環境'},{id:'other',zh:'其他',en:'Other',ja:'その他'}];
+  var FB_KINDS=[{id:'app',zh:'點餐操作',en:'Ordering app',ja:'注文画面',ko:'주문 화면'},{id:'food',zh:'餐點飲品',en:'Food & drinks',ja:'料理・ドリンク',ko:'음식·음료'},{id:'service',zh:'服務',en:'Service',ja:'サービス',ko:'서비스'},{id:'space',zh:'環境',en:'Space',ja:'店内環境',ko:'매장 환경'},{id:'other',zh:'其他',en:'Other',ja:'その他',ko:'기타'}];
   var FB_KIND='',FB_RATE=0,FB_BUSY=false;
   function renderFb(){
     $('#fb-kinds').innerHTML=FB_KINDS.map(function(k){return '<button type="button" data-fb-kind="'+esc(k.id)+'" aria-pressed="'+(k.id===FB_KIND)+'">'+esc(label(k))+'</button>';}).join('');

@@ -17,7 +17,7 @@ function paintFeedback(){
   if (FB.err && !FB.data) { host.innerHTML = `<div class="ops-head"><h2>意見回饋</h2></div><p class="a-empty">載入失敗：${esc(FB.err)}</p>`; return; }
   const d = FB.data, K = d.kinds || {}, rows = fbRows();
   const counts = {}; (d.feedback || []).forEach(r => { counts[r.kind] = (counts[r.kind] || 0) + 1; });
-  const lang = { zh: '中', en: 'EN', ja: '日' };
+  const lang = { zh: '中', en: 'EN', ja: '日', ko: '韓' };
   host.innerHTML = `<div class="ops-head"><h2>意見回饋</h2><button type="button" class="btn btn--ghost btn-sm" data-fb-back>‹ 設定</button></div>
     <div class="set-sec">
       <form class="tip-range" data-fb-range><label>從<input type="date" name="from" value="${esc(FB.from)}"></label><label>到<input type="date" name="to" value="${esc(FB.to)}"></label>

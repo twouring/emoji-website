@@ -66,7 +66,7 @@ async function shot(url, w, h, name, { mobile = false, act = null, lang = 'zh' }
     const vis = el => { if (!el) return false; const r = el.getBoundingClientRect(), cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden'; };
     const rect = s => { const el = document.querySelector(s); if (!vis(el)) return null; const r = el.getBoundingClientRect(); return { y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height), text: el.innerText.replace(/\s+/g, ' ').slice(0, 120) }; };
     const small = [...document.querySelectorAll('#fb button, #fb-open')].filter(vis).filter(b => { const r = b.getBoundingClientRect(); return r.height < 38 || r.width < 38; }).length;
-    return { overflow: document.documentElement.scrollWidth - innerWidth, card: rect('#fb-open'), sheet: rect('#fb.on .in'), toast: rect('#toast'), fbBody: rect('#fb-body'), smallButtons: small };
+    return { lang: document.documentElement.lang, menu: rect('#lang-menu'), overflow: document.documentElement.scrollWidth - innerWidth, card: rect('#fb-open'), sheet: rect('#fb.on .in'), toast: rect('#toast'), fbBody: rect('#fb-body'), smallButtons: small };
   });
   await page.screenshot({ path: path.join(OUT, name + '.png') });
   console.log(name, JSON.stringify(m), errs.length ? 'ERR ' + errs.join(' | ') : 'no-errors');
@@ -80,6 +80,10 @@ for (const w of [390, 320]) {
   await shot(order, w, 760, `order-${w}-sheet`, { mobile: true, act: fill });
   await shot(order, w, 760, `order-${w}-sent`, { mobile: true, act: async p => { await fill(p); await p.click('#fb-send'); await new Promise(r => setTimeout(r, 400)); } });
 }
+const pickKo = async p => { await p.click('#lang-toggle'); await new Promise(r => setTimeout(r, 200)); await p.click('[data-lang=ko]'); };
+for (const w of [390, 320]) await shot(order, w, 760, `lang-${w}-menu`, { mobile: true, act: async p => { await p.click('#lang-toggle'); } });
+await shot(order, 390, 760, 'lang-390-ko', { mobile: true, act: pickKo });
+await shot(order, 390, 760, 'lang-390-ko-fb', { mobile: true, act: async p => { await pickKo(p); await p.click('#fb-open'); } });
 await shot(order, 390, 760, 'order-390-sheet-en', { mobile: true, lang: 'en', act: fill });
 await shot('https://pos.test/pos/feedback', 1180, 820, 'pos-1180');
 await shot('https://pos.test/pos/feedback', 390, 844, 'pos-390', { mobile: true });
