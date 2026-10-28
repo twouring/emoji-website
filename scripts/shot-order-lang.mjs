@@ -11,7 +11,7 @@ const PUB = path.join(ROOT, 'public');
 const type = f => ({ '.js': 'application/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp' }[path.extname(f)] || 'application/octet-stream');
 const NOW = Date.parse('2026-11-01T04:30:00Z'); // 台北 12:30，在咖啡供應中
 const menuDoc = JSON.stringify({ version: 1, items: [
-  { id: 'm1', venue: 'CAFE', cat: 'FOOD', zh: '鮭魚貝果', en: 'Salmon bagel', price: 220, emo: 190, points: 0, published: true, note: '酸種貝果夾燻鮭魚', note_ja: 'サーモンのベーグル', ja: 'サーモンベーグル' },
+  { id: 'm1', venue: 'CAFE', cat: 'FOOD', zh: '鮭魚貝果', en: 'Salmon bagel', price: 220, emo: 190, points: 0, published: true, note: '酸種貝果夾燻鮭魚', note_ja: 'サーモンのベーグル', note_en: 'Sourdough bagel with smoked salmon', ja: 'サーモンベーグル' },
   { id: 'm2', venue: 'CAFE', cat: 'DRINK', zh: '美式咖啡', en: 'Americano', price: 120, points: 12, published: true },
   { id: 'm3', venue: 'CAFE', cat: 'DESSERT', zh: '巴斯克乳酪蛋糕', en: 'Basque cheesecake', price: 160, points: 60, published: true }] });
 const session = { id: 'ts_0000000000000001', table: 'A3', status: 'open', items: [], orders: [], total_unpaid: 0, pay_request: null };

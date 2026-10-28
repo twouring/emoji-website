@@ -182,6 +182,7 @@
       points: Math.max(0, Math.min(100000, Math.floor(Number(raw.points)) || 0)),   // 兌換所需點數；0＝不開放點數兌換（餐飲或服務品項都可設）
       note: String(raw.note || '').trim(),
       note_ja: String(raw.note_ja || '').trim(),
+      note_en: String(raw.note_en || '').trim(),
       image: String(raw.image || '').trim(),
       combo: cat === 'COMBO' ? normalizeCombo(raw.combo) : [],   // 套餐內容（只有 COMBO 類別有效）
       alcohol: coerceAlcohol({ ...raw, cat }),
@@ -312,7 +313,7 @@
       '<div class="menu-item__names">' +
       '<span class="menu-item__zh">' + esc(lang === 'ja' && item.ja ? item.ja : item.zh) + '</span>' +
       (lang === 'ja' ? (item.ja ? '<span class="menu-item__en">' + esc(item.zh) + '</span>' : '') : (item.en ? '<span class="menu-item__en">' + esc(item.en) + '</span>' : '')) +
-      (function (n) { return n ? '<div class="menu-item__note">' + esc(n) + '</div>' : ''; })(lang === 'ja' && item.note_ja ? item.note_ja : item.note) +
+      (function (n) { return n ? '<div class="menu-item__note">' + esc(n) + '</div>' : ''; })(lang === 'ja' && item.note_ja ? item.note_ja : lang === 'en' && item.note_en ? item.note_en : item.note) +
       (item.cat === 'COMBO' && item.combo && item.combo.length ? '<div class="menu-item__note">' + item.combo.map(function (s) { return esc(s.label + '：' + s.choices.map(function (c) { return c.zh + (c.add ? '（+' + c.add + '）' : ''); }).join(' / ')); }).join('<br>') + '</div>' : '') +
       '</div><div class="menu-item__price">' + priceHtml + '</div></li>';
   }

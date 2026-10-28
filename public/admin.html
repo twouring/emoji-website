@@ -1019,6 +1019,7 @@ function tabMenu(d){
       <label title="換這個品項（餐飲或服務）要幾點，每份；留 0＝不開放點數兌換。點數只能換品項，不折抵金額">兌換點數<input id="mi-points" type="number" min="0" value="0" style="width:90px"></label>
       <label>排序<input id="mi-sort" type="number" value="0" style="width:80px"></label>
       <label style="flex:1;min-width:180px">備註<input id="mi-note" placeholder="例：含酒精 / 黑糖 / 焦糖"></label>
+      <label style="flex:1;min-width:180px">備註（英文）<input id="mi-note-en" placeholder="Description (English)"></label>
       <label style="flex:1;min-width:180px">備註（日文）<input id="mi-note-ja" placeholder="説明（日本語）"></label>
       <label>供應起<input id="mi-from" type="date" title="留空＝不限；特餐／限時菜單用"></label>
       <label>供應迄<input id="mi-to" type="date" title="留空＝不限"></label>
@@ -1636,7 +1637,7 @@ function resetMenuForm(){
   document.getElementById('mi-id').value = '';
   document.getElementById('mi-venue').value = SCOPE || 'CAFE';
   document.getElementById('mi-cat').value = 'FOOD';
-  ['mi-zh','mi-en','mi-ja','mi-note','mi-note-ja','mi-image','mi-from','mi-to'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  ['mi-zh','mi-en','mi-ja','mi-note','mi-note-en','mi-note-ja','mi-image','mi-from','mi-to'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   const pv=document.getElementById('prev-mi-image'); if(pv){ pv.src=''; pv.style.display='none'; }
   document.getElementById('mi-price').value = 0;
   document.getElementById('mi-emo').value = 0; document.getElementById('mi-points').value = 0;
@@ -1680,6 +1681,7 @@ function bindMenu(){
       emo: Number(document.getElementById('mi-emo').value) || 0,
       points: Number(document.getElementById('mi-points').value) || 0,
       note: document.getElementById('mi-note').value.trim(),
+      note_en: document.getElementById('mi-note-en').value.trim(),
       note_ja: document.getElementById('mi-note-ja').value.trim(),
       image: document.getElementById('mi-image').value.trim(),
       alcohol: document.getElementById('mi-alcohol').checked,
@@ -1710,6 +1712,7 @@ function bindMenu(){
     document.getElementById('mi-emo').value = it.emo; document.getElementById('mi-points').value = it.points || 0;
     document.getElementById('mi-sort').value = it.sort;
     document.getElementById('mi-note').value = it.note;
+    document.getElementById('mi-note-en').value = it.note_en || '';
     document.getElementById('mi-note-ja').value = it.note_ja || '';
     document.getElementById('mi-image').value = it.image || '';
     document.getElementById('mi-from').value = it.available_from || '';
