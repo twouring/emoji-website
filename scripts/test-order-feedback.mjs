@@ -26,7 +26,8 @@ test('客人頁：菜單底部回饋卡＋底部表單，三語字串齊全，�
   const block = h.slice(h.indexOf('/* ---- 意見回饋'), h.indexOf("$('#fb-send').onclick"));
   assert.ok(block.length > 0); assert.doesNotMatch(block, /addLine|items/);
   assert.match(h, /api\('\/order-feedback',\{method:'POST'/);
-  for (const k of ['fb_title', 'fb_card', 'fb_hint', 'fb_kind', 'fb_rating', 'fb_placeholder', 'fb_send', 'fb_sent', 'fb_pick', 'fb_empty']) {
+  assert.match(h, /<header class="top">[\s\S]*?id="fb-open"[\s\S]*?<\/header>/, '回饋鈕在頁首導覽列');
+  for (const k of ['fb_title', 'fb_hint', 'fb_kind', 'fb_rating', 'fb_placeholder', 'fb_send', 'fb_sent', 'fb_pick', 'fb_empty']) {
     assert.equal(lib.split(k + ':').length - 1, 3, k + ' 要有中英日三語');
   }
   for (const id of fb.KIND_IDS) assert.match(h, new RegExp("id:'" + id + "'"), '前台類別要跟 lib 一致：' + id);

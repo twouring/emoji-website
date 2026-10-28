@@ -117,6 +117,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 @media (max-width:380px){.wrap{padding:10px}.top{padding-left:12px;padding-right:12px}.bar{padding-left:8px;padding-right:8px}.btn{padding-left:9px;padding-right:9px}.btn.sm{min-height:42px}.menu-grid{gap:6px}.item img,.item .ph{width:56px;height:56px}.item .tap{display:none}.top .t{padding-left:8px;padding-right:8px}.choice-grid{grid-template-columns:1fr 1fr}.sheet .in{padding-left:12px;padding-right:12px}}
 /* 320px：底部列按鈕藏圖示只留文字、內距再縮；上一步／加入兩顆鍵各半；語言鍵縮小 */
 @media (max-width:320px){.bar{grid-template-columns:minmax(72px,1fr) auto auto;gap:4px}.bar .btn{padding:9px 9px}.bar .ico{display:none}.top b{font-size:1rem}.lang{min-width:42px;padding:4px 8px}.choice-grid{grid-template-columns:1fr}.sheet-actions .btn{padding:10px 8px}.name-actions .btn{padding-left:8px;padding-right:8px}}
+.nav-ico{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;min-width:40px;padding:0;border:1px solid #777;border-radius:999px;background:transparent;color:#fff;font-weight:700;flex-shrink:0}.nav-ico .ico{width:20px;height:20px}.nav-ico[hidden]{display:none}.nav-ico.call-btn{border-color:var(--yellow);color:var(--yellow)}.nav-ico.call-btn.on{background:var(--yellow);color:var(--ink)}.top .t{display:inline-flex;align-items:center;min-height:40px}@media (max-width:360px){.top .actions{gap:6px}.nav-ico{width:36px;height:36px;min-width:36px}.top .t{min-height:36px}}.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .app-home{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;margin:0 4px 0 -8px;color:#fff;vertical-align:middle}.app-home[hidden]{display:none}
 .install-card[hidden]{display:none}.install-card b{font-size:1.05rem}.install-card p{margin:4px 0 12px;color:var(--soft);line-height:1.5}.inst-actions{display:flex;gap:10px;margin:0}.inst-actions .btn{flex:1 1 0;min-width:0}
 .inst-steps{margin:8px 0 0;}#inst .sheet-actions{display:flex;flex:none;margin:0;padding:10px 16px calc(14px + env(safe-area-inset-bottom))}#inst .sheet-actions .btn{flex:1 1 0;min-width:0}.inst-steps{padding-left:1.4em;line-height:1.7}.inst-steps li{margin-bottom:6px}
@@ -124,8 +125,6 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 .price-table{width:100%;border-collapse:collapse;margin:6px 0}.price-table td{padding:6px 0;border-bottom:1px dashed var(--line);vertical-align:top}.price-table td:last-child{text-align:right;white-space:nowrap;padding-left:12px;font-weight:700}.price-table .grp td{text-align:left;font-weight:700;color:var(--muted);border-bottom:0;padding-top:12px}
 .site-info details summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
 /* 呼叫服務：頁首常駐鈕＋底部面板選項目（不進購物車）；送出後菜單上方顯示狀態 */
-.call-btn{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:4px 12px;border:1px solid var(--yellow);border-radius:999px;background:transparent;color:var(--yellow);font-weight:700;white-space:nowrap;flex-shrink:0}
-.call-btn[hidden]{display:none}.call-btn.on{background:var(--yellow);color:var(--ink)}
 #tip .in{display:flex;flex-direction:column;padding:0;overflow:hidden}
 #tip .sheet-body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:16px 16px 8px}
 #tip .sheet-actions{flex:none;margin:0;padding:10px 16px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--paper)}
@@ -149,7 +148,6 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 .fb-lbl{margin:12px 0 4px;font-weight:700}
 .call-status{display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:10px 14px;border-radius:12px;background:#fff6c2;border:1.5px solid var(--yellow)}
 .call-status.done{background:#E6F2EB;border-color:var(--ok)}.call-status[hidden]{display:none}.call-status span{flex:1;min-width:0;overflow-wrap:anywhere}
-@media (max-width:380px){.call-btn{padding:4px 10px}.call-btn .ico{display:none}}
 .gate-login:empty{display:none}.gate-login{margin:0}.gate-login .gate-perks{margin:0 0 10px;color:var(--ink);line-height:1.5}
 .gate-or{display:flex;align-items:center;gap:12px;color:var(--ink);font-weight:700;margin:18px 0 14px}.gate-or[hidden]{display:none}.gate-or::before,.gate-or::after{content:"";flex:1;border-top:1.5px solid var(--line)}
 .name-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px}.name-row[hidden]{display:none}
@@ -191,7 +189,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 </svg>
 <div class="ready-banner" id="ready-banner"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<header class="top"><div><a class="app-home" id="app-home" href="/" hidden aria-label="App"><svg class="ico" aria-hidden="true"><use href="#i-back"></use></svg></a><b id="brand">言文字</b> <small data-i18n="order">桌邊點餐</small></div><div class="actions"><button class="call-btn" id="call-open" type="button" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span data-i18n="call_btn">呼叫</span></button><button class="lang with-icon" id="lang-toggle" type="button" aria-label="Switch language"><svg class="ico" aria-hidden="true"><use href="#i-globe"></use></svg><span id="lang-label">EN</span></button><span class="t" id="table-no">—</span></div></header>
+<header class="top"><div><a class="app-home" id="app-home" href="/" hidden aria-label="App"><svg class="ico" aria-hidden="true"><use href="#i-back"></use></svg></a><b id="brand">言文字</b></div><nav class="actions"><button class="nav-ico" id="fb-open" type="button"><svg class="ico" aria-hidden="true"><use href="#i-chat"></use></svg><span class="sr" data-i18n="fb_title">意見回饋</span></button><button class="nav-ico call-btn" id="call-open" type="button" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span class="sr" data-i18n="call_btn">呼叫</span></button><button class="nav-ico lang" id="lang-toggle" type="button" aria-label="Switch language"><svg class="ico" aria-hidden="true"><use href="#i-globe"></use></svg><span class="sr" id="lang-label">EN</span></button><span class="t" id="table-no">—</span></nav></header>
 <main class="wrap">
   <div class="card" id="boot"><p class="muted" data-i18n="loading">載入中…</p></div>
   <div class="card hidden" id="thanks"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-check"></use></svg><span data-i18n="thanks">感謝用餐，期待再次光臨。</span></h3><p class="muted" data-i18n="thanks_hint">這次點餐已結束。若要再點，請洽服務人員。</p><button class="btn y" type="button" id="thanks-again" data-i18n="thanks_again" hidden>重新點餐</button><div class="review-box"><b data-i18n="review_title">喜歡今天的餐點嗎？</b><p class="muted" data-i18n="review_hint">在 Google 地圖留下評論，結帳時把評論出示給櫃檯人員，就送你 5 點會員點數（每位會員限領一次）。</p><a class="btn ghost" data-review-link href="https://maps.app.goo.gl/ZKdyKqwXjVA5x6JF6?g_st=ic" target="_blank" rel="noopener" data-i18n="review_go">寫 Google 評論</a></div></div>
@@ -210,7 +208,6 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
       <p class="notice" id="bar-policy-notice" data-i18n="bar_policy" hidden>三點水低消每人平日 NT$300、假日 NT$600，另加 10% 服務費（外帶不收）。</p>
       <p class="notice" id="alcohol-notice" data-i18n="alcohol" hidden>未滿十八歲禁止飲酒。禁止酒駕。</p>
       <div class="card install-card" id="install-card" hidden><b data-i18n="inst_title">把言文字 App 加到主畫面</b><p data-i18n="inst_sub">會員卡、點數、訂位都在這裡，下次點餐也從這裡開。</p><div class="row inst-actions"><button class="btn y" type="button" id="inst-go"><span data-i18n="inst_btn">加到主畫面</span></button><button class="btn ghost" type="button" id="inst-later"><span data-i18n="inst_later">稍後</span></button></div></div>
-      <button class="song-card" type="button" id="fb-open"><svg class="ico lg" aria-hidden="true"><use href="#i-chat"></use></svg><span class="n"><b data-i18n="fb_title">意見回饋</b><small data-i18n="fb_card">點餐好不好用、餐點、服務，都歡迎告訴我們</small></span></button>
     </div>
   </section>
   <!-- 店家資訊（金流審核必備）：公司名稱＋統編、收費表、客服、退款政策、TapPay 字樣。放在 #app 外，錯誤 QR／已結束畫面也看得到 -->

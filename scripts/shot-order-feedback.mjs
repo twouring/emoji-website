@@ -73,7 +73,7 @@ async function shot(url, w, h, name, { mobile = false, act = null, lang = 'zh' }
   await page.close();
 }
 const order = 'https://pos.test/order?s=ts_0000000000000001&k=k';
-const toCard = async p => { await p.evaluate(() => document.querySelector('#fb-open').scrollIntoView({ block: 'center' })); };
+const toCard = async () => {};
 const fill = async p => { await toCard(p); await p.click('#fb-open'); await new Promise(r => setTimeout(r, 300)); await p.click('[data-fb-kind=app]'); await p.click('[data-fb-rate="4"]'); await p.type('#fb-text', '加點時找不到已點清單，按鈕可以再大一點'); };
 for (const w of [390, 320]) {
   await shot(order, w, 760, `order-${w}-card`, { mobile: true, act: toCard });
