@@ -270,7 +270,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   if(!LANG){var ql=qs.get('lang'),nl=(navigator.language||'').toLowerCase();LANG=ql==='en'||ql==='ja'?ql:(!ql&&/^ja/.test(nl)?'ja':(!ql&&!/^zh/i.test(nl)?'en':'zh'));}
   var tr=function(key,vars){return OrderLib.text(LANG,key,vars);};
   var label=function(obj){return LANG==='en'?(obj.en||obj.zh):LANG==='ja'?(obj.ja||obj.zh):obj.zh;};
-  var noteOf=function(it){return LANG==='ja'&&it.note_ja?it.note_ja:it.note;};
+  var noteOf=function(it){return LANG==='en'?(it.note_en||''):LANG==='ja'?(it.note_ja||''):it.note;};
   function applyLanguage(){
     document.documentElement.lang=LANG==='en'?'en':(LANG==='ja'?'ja':'zh-Hant');
     document.querySelectorAll('[data-i18n]').forEach(function(el){el.textContent=tr(el.dataset.i18n);});
@@ -330,11 +330,11 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     renderShift();
     var items=MenuLib.sortItems(MENU.filter(function(it){return MenuLib.orderableInWindow(it,WIN);})),html='',venue='',cat='';
     items.forEach(function(it){
-      if(it.venue!==venue){if(venue)html+='</div>';venue=it.venue;cat='';var v=MenuLib.VENUE_LABEL[venue]||{zh:venue,en:'',ja:venue};html+='<div class="venue">'+esc(label(v))+'<small>'+esc(LANG==='zh'?v.en:v.zh)+'</small></div><div>';}
+      if(it.venue!==venue){if(venue)html+='</div>';venue=it.venue;cat='';var v=MenuLib.VENUE_LABEL[venue]||{zh:venue,en:'',ja:venue};html+='<div class="venue">'+esc(label(v))+'</div><div>';}
       if(it.cat!==cat){cat=it.cat;var c=MenuLib.CAT_LABEL[cat]||{zh:cat,en:cat,ja:cat};html+='<h2>'+esc(label(c))+'</h2><div class="menu-grid">';}
       var next=items[items.indexOf(it)+1];
-      var primary=label(it),secondary=LANG==='zh'?it.en:it.zh;
-      html+='<button class="item add" data-open-item="'+esc(it.id)+'" aria-label="'+esc(tr('view_detail'))+' '+esc(primary)+'">'+(it.image?'<img src="'+esc(it.image)+'" alt="'+esc(primary)+'" loading="lazy">':'<div class="ph" aria-hidden="true">🍽</div>')+'<div class="n"><b>'+esc(primary)+'</b>'+(secondary?'<small>'+esc(secondary)+'</small>':'')+(noteOf(it)?'<small class="note">'+esc(noteOf(it))+'</small>':'')+'<div class="meta">'+(ME&&ME.active&&it.cat!=='COMBO'&&MenuLib.memberPrice(it)<it.price?'<span class="p has-mp"><s>'+money(it.price)+'</s><span class="mp">'+esc(tr('member_price'))+' '+money(MenuLib.memberPrice(it))+'</span></span>':'<span class="p">'+money(it.price)+'</span>')+(MenuLib.stockLeft(it)!==null?'<span class="left">'+esc(tr('stock_left').replace('{n}',MenuLib.stockLeft(it)))+'</span>':'<span class="tap">'+esc(tr('view_detail'))+'</span>')+'</div></div></button>';
+      var primary=label(it);
+      html+='<button class="item add" data-open-item="'+esc(it.id)+'" aria-label="'+esc(tr('view_detail'))+' '+esc(primary)+'">'+(it.image?'<img src="'+esc(it.image)+'" alt="'+esc(primary)+'" loading="lazy">':'<div class="ph" aria-hidden="true">🍽</div>')+'<div class="n"><b>'+esc(primary)+'</b>'+(noteOf(it)?'<small class="note">'+esc(noteOf(it))+'</small>':'')+'<div class="meta">'+(ME&&ME.active&&it.cat!=='COMBO'&&MenuLib.memberPrice(it)<it.price?'<span class="p has-mp"><s>'+money(it.price)+'</s><span class="mp">'+esc(tr('member_price'))+' '+money(MenuLib.memberPrice(it))+'</span></span>':'<span class="p">'+money(it.price)+'</span>')+(MenuLib.stockLeft(it)!==null?'<span class="left">'+esc(tr('stock_left').replace('{n}',MenuLib.stockLeft(it)))+'</span>':'<span class="tap">'+esc(tr('view_detail'))+'</span>')+'</div></div></button>';
       if(!next||next.cat!==cat){html+='</div>';}
     });
     if(venue)html+='</div>';
@@ -360,8 +360,8 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   function optionGroups(it){return it&&it.cat==='COMBO'?OrderLib.comboGroups(it,MENU,LANG):OrderLib.optionGroups(it,LANG);}
   function openItem(id){
     CURRENT_ITEM=MENU.find(function(it){return it.id===id;});CURRENT_QTY=1;if(!CURRENT_ITEM)return;
-    var primary=label(CURRENT_ITEM),secondary=LANG==='zh'?CURRENT_ITEM.en:CURRENT_ITEM.zh,groups=optionGroups(CURRENT_ITEM);
-    var html=(CURRENT_ITEM.image?'<img class="detail-img" src="'+esc(CURRENT_ITEM.image)+'" alt="'+esc(primary)+'">':'')+'<h3>'+esc(primary)+'</h3>'+(secondary?'<p class="muted" style="margin:0 0 6px">'+esc(secondary)+'</p>':'')+'<p class="detail-price">'+money(CURRENT_ITEM.price)+(MenuLib.stockLeft(CURRENT_ITEM)!==null?' <span class="left">'+esc(tr('stock_left').replace('{n}',MenuLib.stockLeft(CURRENT_ITEM)))+'</span>':'')+'</p>'+(noteOf(CURRENT_ITEM)?'<p class="detail-note">'+esc(noteOf(CURRENT_ITEM))+'</p>':'')+'<div class="opt"><div class="opt-title"><span>'+esc(tr('quantity'))+'</span></div><div class="qty"><button type="button" data-qty="-1">−</button><b id="detail-qty">1</b><button type="button" data-qty="1">＋</button></div></div>';
+    var primary=label(CURRENT_ITEM),groups=optionGroups(CURRENT_ITEM);
+    var html=(CURRENT_ITEM.image?'<img class="detail-img" src="'+esc(CURRENT_ITEM.image)+'" alt="'+esc(primary)+'">':'')+'<h3>'+esc(primary)+'</h3>'+'<p class="detail-price">'+money(CURRENT_ITEM.price)+(MenuLib.stockLeft(CURRENT_ITEM)!==null?' <span class="left">'+esc(tr('stock_left').replace('{n}',MenuLib.stockLeft(CURRENT_ITEM)))+'</span>':'')+'</p>'+(noteOf(CURRENT_ITEM)?'<p class="detail-note">'+esc(noteOf(CURRENT_ITEM))+'</p>':'')+'<div class="opt"><div class="opt-title"><span>'+esc(tr('quantity'))+'</span></div><div class="qty"><button type="button" data-qty="-1">−</button><b id="detail-qty">1</b><button type="button" data-qty="1">＋</button></div></div>';
     html+=groups.map(function(g){return '<div class="opt" data-opt="'+esc(g.key)+'"><div class="opt-title"><span>'+esc(g.label)+'</span><small class="muted">'+esc(tr('required'))+'</small></div><div class="choice-grid">'+g.choices.map(function(c,i){return '<label><input type="radio" name="opt_'+esc(g.key)+'" value="'+esc(c)+'" '+(i===0?'checked':'')+'><span>'+esc(c)+'</span></label>';}).join('')+'</div></div>';}).join('');
     html+='<label class="opt note-field"><div class="opt-title"><span>'+esc(tr('special_request'))+'</span><small class="muted">'+esc(tr('optional'))+'</small></div><textarea id="detail-note" maxlength="80" placeholder="'+esc(tr('special_placeholder'))+'"></textarea></label>';
     $('#detail-body').innerHTML=html;$('#detail-body').scrollTop=0;openSheet('#item-detail');$('#detail-add').disabled=!!PAUSED;$('#detail-add').textContent=PAUSED?PAUSED:tr('add_to_cart');
