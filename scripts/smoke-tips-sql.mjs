@@ -50,11 +50,11 @@ test('打賞：客人打賞、POS 統計、支付給表演者', async () => {
     assert.equal((await call('POST', '/api/tips', { s: S1, k: K1, guest: G, amount: 12.5 })).status, 400);
     assert.equal((await call('POST', '/api/tips', { s: S1, k: '0000000000000000', guest: G, amount: 100 })).status, 403);
 
-    r = await call('POST', '/api/tips', { s: S1, k: K1, guest: G, by: '阿明', amount: 168, sfx: 'kiss' });
+    r = await call('POST', '/api/tips', { s: S1, k: K1, guest: G, by: '阿明', amount: 168, sfx: 'laugh' });
     assert.equal(r.status, 201); assert.equal(r.body.status, 'pending'); const rid = r.body.id;
     assert.equal((await q('SELECT items FROM table_sessions WHERE id=$1', [S1])).rows[0].items.length, 0);   // 確認前不掛帳
     r = await call('GET', '/api/admin/orders/tips/events');
-    assert.deepEqual(r.body.pending.map(e => [e.table, e.by, e.amount, e.sfx]), [['A1', '阿明', 168, 'kiss']]); assert.deepEqual(r.body.events, []);
+    assert.deepEqual(r.body.pending.map(e => [e.table, e.by, e.amount, e.sfx]), [['A1', '阿明', 168, 'laugh']]); assert.deepEqual(r.body.events, []);
     // 另一筆被店員不收
     const r2 = (await call('POST', '/api/tips', { s: S1, k: K1, guest: G, amount: 50, sfx: 'wow' })).body.id;
     assert.equal((await call('POST', `/api/admin/orders/tips/${r2}/reject`, {})).body.request.status, 'rejected');

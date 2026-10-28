@@ -147,7 +147,7 @@ function tipShouldPlay(){
   // 只有設定成播放裝置（點歌「在這台播放」）的那台出聲；沒指定就都不響，只跳通知
   return typeof isSongPlayer === 'function' && isSongPlayer();
 }
-const TIP_SFX_LABEL = { applause: '掌聲', 'applause-big': '熱烈掌聲', cheer: '歡呼', 'cheer-scream': '尖叫歡呼', wow: '哇～', drumroll: '鼓聲', 'party-horn': '派對喇叭', kiss: '親親', laugh: '笑聲', rimshot: '冷笑話鼓' };
+const TIP_SFX_LABEL = { applause: '掌聲', cheer: '歡呼', wow: '哇～', laugh: '笑聲', drumroll: '鼓聲' };
 async function tipEventsTick(){
   if (!DATA || document.hidden) return;
   let d; try { d = await api('/admin/orders/tips/events'); } catch (e) { return; }

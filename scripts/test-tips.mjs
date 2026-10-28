@@ -22,7 +22,7 @@ test('設定：預設關閉；快捷金額去重排序、不超過上限；patch
 
 test('客人金額：整數 1–上限；音效不在白名單改掌聲', () => {
   const s = tips.normalizeSettings({ enabled: true, max: 1000 });
-  assert.deepEqual(tips.parseTip({ amount: 168, sfx: 'kiss' }, s), { amount: 168, sfx: 'kiss' });
+  assert.deepEqual(tips.parseTip({ amount: 168, sfx: 'laugh' }, s), { amount: 168, sfx: 'laugh' });
   assert.equal(tips.parseTip({ amount: '50', sfx: '../etc' }, s).sfx, 'applause');
   for (const a of [0, -5, 1.5, 1001, '', null, 'abc', true]) assert.throws(() => tips.parseTip({ amount: a }, s), /打賞金額/);
   for (const id of tips.SOUND_IDS) assert.ok(fs.existsSync(new URL('../public/sfx/' + id + '.mp3', import.meta.url)), id + '.mp3 存在');
@@ -77,7 +77,7 @@ test('支付：表演者、正整數、方式白名單', () => {
 test('請求：待確認 → 確認／不收；同桌最多 3 筆；清桌結案；客人只看自己這桌', () => {
   const T = Date.parse('2026-11-01T12:00:00Z');
   let st = { events: [] };
-  for (let i = 0; i < 3; i++) st = tips.createRequest(st, { id: 'r' + i, session_id: 's1', table: 'A1', amount: 100, sfx: 'kiss' }, T).state;
+  for (let i = 0; i < 3; i++) st = tips.createRequest(st, { id: 'r' + i, session_id: 's1', table: 'A1', amount: 100, sfx: 'laugh' }, T).state;
   assert.throws(() => tips.createRequest(st, { id: 'r9', session_id: 's1', table: 'A1', amount: 100 }, T), e => e.status === 429);
   st = tips.createRequest(st, { id: 'b1', session_id: 's2', table: 'B1', amount: 50 }, T).state;
   assert.equal(tips.pendingRequests(st).length, 4);
@@ -115,7 +115,7 @@ test('事件：只留 12 小時、音效白名單', () => {
   const T = Date.parse('2026-11-01T12:00:00Z');
   let st = tips.pushEvent({ events: [] }, { id: 'a', table: 'A1', amount: 100, sfx: 'nope' }, T);
   assert.equal(st.events[0].sfx, 'applause');
-  st = tips.pushEvent(st, { id: 'b', table: 'A2', amount: 50, sfx: 'kiss' }, T + 13 * 3600e3);
+  st = tips.pushEvent(st, { id: 'b', table: 'A2', amount: 50, sfx: 'laugh' }, T + 13 * 3600e3);
   assert.deepEqual(st.events.map(e => e.id), ['b']);
 });
 

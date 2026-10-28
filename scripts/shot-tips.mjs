@@ -19,10 +19,10 @@ const tipSettings = { enabled: true, performer: '今晚駐唱 小安', presets: 
 const tipLine = { ...tipsLib.tipLine({ amount: 300, sfx: 'cheer', performer: '今晚駐唱 小安', venue: 'BAR', guest: 'abcdefgh12', by: '小明' }) };
 const tipStats = { settings: tipSettings, sounds: tipsLib.SOUNDS, pay_methods: tipsLib.PAY_METHODS, pending_unpaid_bills: 300, from: '2026-10-26', to: '2026-11-01', total: 4280, count: 17, paid: 2000, unpaid: 3480,
   by_performer: [{ performer: '今晚駐唱 小安', amount: 3280, count: 13, paid: 2000, unpaid: 2480 }, { performer: '萬聖節 DJ Moji', amount: 1000, count: 4, paid: 0, unpaid: 1000 }],
-  tips: [{ order_id: 'o1', table: 'A3', paid_at: new Date(NOW - 3600e3).toISOString(), amount: 500, performer: '今晚駐唱 小安', by: 'Amy', sfx: 'applause-big' }, { order_id: 'o2', table: 'B1', paid_at: new Date(NOW - 7200e3).toISOString(), amount: 168, performer: '今晚駐唱 小安', by: '小明', sfx: 'kiss' }],
+  tips: [{ order_id: 'o1', table: 'A3', paid_at: new Date(NOW - 3600e3).toISOString(), amount: 500, performer: '今晚駐唱 小安', by: 'Amy', sfx: 'applause' }, { order_id: 'o2', table: 'B1', paid_at: new Date(NOW - 7200e3).toISOString(), amount: 168, performer: '今晚駐唱 小安', by: '小明', sfx: 'kiss' }],
   payouts: [{ id: 'p1', performer: '今晚駐唱 小安', amount: 2000, method: 'cash', note: '10/31 萬聖節場', by: 'KK', at: new Date(NOW - 86400e3).toISOString() }] };
 let tipEvents = [];
-let tipPending = [{ id: 'tp_p1', table: 'A3', by: '小明', amount: 300, sfx: 'cheer', performer: '今晚駐唱 小安', at: new Date(NOW - 20e3).toISOString() }, { id: 'tp_p2', table: 'B1', by: 'Amy', amount: 1000, sfx: 'applause-big', performer: '今晚駐唱 小安', at: new Date(NOW - 5e3).toISOString() }];
+let tipPending = [{ id: 'tp_p1', table: 'A3', by: '小明', amount: 300, sfx: 'cheer', performer: '今晚駐唱 小安', at: new Date(NOW - 20e3).toISOString() }, { id: 'tp_p2', table: 'B1', by: 'Amy', amount: 1000, sfx: 'applause', performer: '今晚駐唱 小安', at: new Date(NOW - 5e3).toISOString() }];
 let guestTipped = false;
 const pending = [];
 let guestCalls = { kinds: Object.entries(kinds).map(([id, v]) => ({ id, ...v })), open: [], recent_done: [], cooldown: 0 };

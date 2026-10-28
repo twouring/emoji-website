@@ -50,7 +50,7 @@ function songQueueActs(t, n){
     + `<button type="button" class="btn btn--ghost btn-sm song-danger" data-song-del="${id}">移除</button>`;
 }
 /* KTV 音效：在按下的這台平板播放（接音響的播放裝置上按，聲音就從音響出來），和歌曲混音、不打斷播放。音檔 CC0（BigSoundBank）放 /sfx */
-const SONG_SFX = [['applause', '掌聲'], ['applause-big', '熱烈掌聲'], ['cheer', '歡呼'], ['cheer-scream', '尖叫歡呼'], ['wow', '哇～'], ['laugh', '笑聲'], ['drumroll', '鼓聲'], ['rimshot', '冷笑話鼓'], ['party-horn', '派對喇叭'], ['kiss', '親親']];
+const SONG_SFX = [['applause', '掌聲'], ['cheer', '歡呼'], ['wow', '哇～'], ['laugh', '笑聲'], ['drumroll', '鼓聲']];
 const SONG_SFX_AUDIO = {};
 function songSfx(id){
   let a = SONG_SFX_AUDIO[id];
