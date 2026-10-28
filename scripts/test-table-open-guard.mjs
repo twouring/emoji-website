@@ -36,7 +36,7 @@ test('會員兌換只接本場 QR，已結束的場 409，不自動開場', () =
 });
 test('POS 開桌回 qr_url 並自動印；可一次開多桌；補印只給開著的桌', () => {
   const open = server.slice(server.indexOf("app.post('/api/admin/orders/sessions',"), server.indexOf('async function issueEzpayForOrder'));
-  assert.match(open, /qr_url:takeout\?undefined:tableOrders\.sessionUrl\(SITE_BASE,s\.id,SECRET\)/);
+  assert.match(open, /qr_url:takeout\?undefined:tableOrders\.sessionUrl\(APP_BASE,s\.id,SECRET\)/);
   const qr = server.slice(server.indexOf("app.get('/api/admin/tables/qr'"));
   assert.match(qr.slice(0, 900), /尚未開桌，請先開桌再印 QR/);
   assert.match(ops, /if\(out\.created&&out\.qr_url\)await printOpenedQr\(out\.table,out\.qr_url,out\)/);

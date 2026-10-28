@@ -15,7 +15,7 @@ test('開桌才有 QR；QR 綁場次，清桌即失效；桌上舊 QR 403；大�
   const db = new PGlite(); let listener;
   try {
     await db.exec(`CREATE TABLE table_sessions(id TEXT PRIMARY KEY,table_no TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'open',items JSONB NOT NULL DEFAULT '[]',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),opened_by_staff_id TEXT,opened_by_staff_name TEXT,pay_requests JSONB NOT NULL DEFAULT '[]');
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),opened_by_staff_id TEXT,opened_by_staff_name TEXT,pay_requests JSONB NOT NULL DEFAULT '[]',party_votes JSONB NOT NULL DEFAULT '{}',members JSONB NOT NULL DEFAULT '[]');
       CREATE TABLE table_orders(id TEXT PRIMARY KEY,session_id TEXT,table_no TEXT,items JSONB,amount INT,status TEXT,paid_at TIMESTAMPTZ DEFAULT now(),ready_at TIMESTAMPTZ,done_at TIMESTAMPTZ);`);
     const q = (sql, args) => db.query(sql, args);
     let n = 0; const uid = p => p + (++n).toString(16).padStart(16, '0');
@@ -23,7 +23,7 @@ test('開桌才有 QR；QR 綁場次，清桌即失效；桌上舊 QR 403；大�
     const menuDoc = JSON.stringify({ version: 1, items: [{ id: 'm_x', venue: 'BAR', cat: 'FOOD', zh: '炸物', price: 200, published: true }, { id: 'm_y', venue: 'CAFE', cat: 'FOOD', zh: '三明治', price: 200, published: true }] });
     const app = express(); app.use(express.json());
     const noop = async () => 0;
-    const ctx = vm.createContext({ app, require, q, pool: { connect: async () => ({ query: q, release() {} }) }, uid, tableOrders, SECRET: 'test-secret', SITE_BASE: 'https://www.emoji.tw',
+    const ctx = vm.createContext({ app, require, q, pool: { connect: async () => ({ query: q, release() {} }) }, uid, tableOrders, SECRET: 'test-secret', SITE_BASE: 'https://www.emoji.tw', APP_BASE: 'https://app.emoji.tw',
       auth: (req, res, next) => { req.auth = { role: 'admin', email: 'pos@test', brands: null }; next(); }, adminOnly: (r, s, nx) => nx(), requireDb: (r, s, nx) => nx(), rateLimit: () => (r, s, nx) => nx(),
       wrap: fn => (req, res) => fn(req, res).catch(e => res.status(500).json({ error: e.message })),
       resolveOperator: async (req, id) => (id === 's1' ? { id: 's1', name: '店員甲' } : null),
@@ -54,7 +54,7 @@ test('開桌才有 QR；QR 綁場次，清桌即失效；桌上舊 QR 403；大�
     // 外場開桌：需認人；開好回 qr_url
     assert.equal((await call('POST', '/api/admin/orders/sessions', { table_no: 'A1' })).status, 400);
     r = await call('POST', '/api/admin/orders/sessions', { table_no: 'A1', operator_id: 's1' });
-    assert.equal(r.status, 201); assert.match(r.body.qr_url, /^https:\/\/www\.emoji\.tw\/order\?s=ts_[0-9a-f]{16}&k=/);
+    assert.equal(r.status, 201); assert.match(r.body.qr_url, /^https:\/\/app\.emoji\.tw\/order\?s=ts_[0-9a-f]{16}&k=/);
     const a1 = qsOf(r.body.qr_url);
     // 大組分桌：再開 A2、A3，各一張不同 QR
     const a2url = (await call('POST', '/api/admin/orders/sessions', { table_no: 'A2', operator_id: 's1' })).body.qr_url;
@@ -64,7 +64,7 @@ test('開桌才有 QR；QR 綁場次，清桌即失效；桌上舊 QR 403；大�
     assert.equal((await call('POST', '/api/admin/orders/sessions', { takeout: true, operator_id: 's1' })).body.qr_url, undefined);
     // 補印回同一張
     r = await call('GET', '/api/admin/tables/qr?tables=A1,A2');
-    assert.equal(r.status, 200); assert.equal(r.body.tables[0].url, `https://www.emoji.tw/order?s=${a1.s}&k=${a1.k}`); assert.equal(r.body.tables[1].url, a2url);
+    assert.equal(r.status, 200); assert.equal(r.body.tables[0].url, `https://app.emoji.tw/order?s=${a1.s}&k=${a1.k}`); assert.equal(r.body.tables[1].url, a2url);
 
     // 客人掃 QR：看到這一場；簽章竄改 403；拿 A1 的 k 配 A2 的 s 也 403
     r = await call('GET', `/api/orders/table?s=${a1.s}&k=${a1.k}&g=guest00001`);

@@ -160,7 +160,7 @@ const isAppHost = req => APP_HOSTS.includes(String(req.hostname || '').toLowerCa
 // App 子站只提供 PWA 本身、API、登入與必要靜態檔；其餘頁面（活動、官網）一律回官網，避免兩個網域出現重複內容
 // /host、/host/<eventId>：會員在 App 主辦活動（列表／單場管理），同樣回 m.html 由前端路由
 // /e/<slug>：活動報名頁（規格 v2 §4.1：報名一律在 App），由下方 /e/:slug 路由回 m.html（可訪客瀏覽與報名）
-const APP_HOST_OWN = /^\/($|index\.html$|host($|\/)|e\/[^/]+\/?$|m-host\.js$|m-event\.js$|event-rich\.css$|m($|\/|\.webmanifest$|-sw\.js$|-icon-)|api\/|auth\/|vendor\/|favicon|logo\.png$|cis\/assets\/)/;
+const APP_HOST_OWN = /^\/($|index\.html$|host($|\/)|e\/[^/]+\/?$|m-host\.js$|m-event\.js$|event-rich\.css$|m($|\/|\.webmanifest$|-sw\.js$|-icon-)|order\/?$|menu-lib\.js$|order-lib\.js$|song-picks\.js$|event-push-sw\.js$|sfx\/|uploads\/|api\/|auth\/|vendor\/|favicon|logo\.png$|cis\/assets\/)/;
 // 會員 App 活動頁網址：APP_BASE/e/<slug>，可帶 lang（en/ja）與額外查詢字串（例：result=paid&s=…）；Stripe 的 {CHECKOUT_SESSION_ID} 佔位符不可編碼
 const appEventUrl = (slug, lang, extra) => {
   const qs = [['en', 'ja'].includes(lang) ? 'lang=' + lang : '', extra || ''].filter(Boolean).join('&');
@@ -5710,7 +5710,7 @@ app.post('/api/admin/orders/sessions',auth,adminOnly,requireDb,wrap(async(req,re
     // 內用開桌時一併帶來客人數（大人＋小孩，POS 開桌就選）；外帶不記
     let votes={};if(!takeout&&req.body?.party_size!=null){try{votes=tableOrders.partySetByPos({},req.body.party_size,req.body.kids);}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}}
     if(!s){s=(await client.query('INSERT INTO table_sessions(id,table_no,opened_by_staff_id,opened_by_staff_name,party_votes) VALUES($1,$2,$3,$4,$5) RETURNING id,table_no,created_at,party_votes',[uid('ts_'),table,operator?.id||null,operator?.name||null,JSON.stringify(votes)])).rows[0];created=true;}
-    await client.query('COMMIT');res.status(created?201:200).json({ok:true,id:s.id,table:s.table_no,created,takeout,operator:operator||undefined,qr_url:takeout?undefined:tableOrders.sessionUrl(SITE_BASE,s.id,SECRET),no:tableOrders.sessionNo(s.id),opened_at:s.created_at||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes)});
+    await client.query('COMMIT');res.status(created?201:200).json({ok:true,id:s.id,table:s.table_no,created,takeout,operator:operator||undefined,qr_url:takeout?undefined:tableOrders.sessionUrl(APP_BASE,s.id,SECRET),no:tableOrders.sessionNo(s.id),opened_at:s.created_at||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes)});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 async function issueEzpayForOrder(order, invoice) {
@@ -6856,7 +6856,7 @@ app.post('/api/admin/orders/:id/status',auth,adminOnly,requireDb,wrap(async(req,
   const o=(await q(status==='ready'?"UPDATE table_orders SET status='ready',ready_at=now() WHERE id=$1 AND status='paid' RETURNING *":"UPDATE table_orders SET status='done',done_at=now() WHERE id=$1 AND status IN ('paid','ready') RETURNING *",[req.params.id])).rows[0];
   if(!o)return res.status(409).json({error:'出餐單狀態已變更，請重新整理。'});
   let notified=0;const push=eventChannels.pushConfig();
-  if(status==='ready'&&push){const payload={title:`桌號 ${o.table_no}｜餐點好了`,body:o.items.map(l=>l.zh+'×'+l.qty).join('、').slice(0,120)+'，請至櫃檯取餐。',url:tableOrders.sessionUrl(SITE_BASE,o.session_id,SECRET)};
+  if(status==='ready'&&push){const payload={title:`桌號 ${o.table_no}｜餐點好了`,body:o.items.map(l=>l.zh+'×'+l.qty).join('、').slice(0,120)+'，請至櫃檯取餐。',url:tableOrders.sessionUrl(APP_BASE,o.session_id,SECRET)};
     for(const sub of o.push){try{await eventChannels.sendPush(push,sub,payload);notified++;}catch(e){console.warn('[table-push]',e.statusCode||e.message);}}}
   res.json({ok:true,status,notified});
 }));
@@ -6888,7 +6888,7 @@ app.get('/api/admin/tables/qr',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const bad=tables.find(t=>!tableOrders.TABLE_RE.test(t));if(bad)return res.status(400).json({error:`桌號「${bad}」只能用英數字與 -，最長 8 字。`});
   const open=new Map((await q("SELECT DISTINCT ON (table_no) id,table_no,created_at,party_votes FROM table_sessions WHERE status='open' AND table_no=ANY($1) ORDER BY table_no,created_at DESC",[tables])).rows.map(r=>[r.table_no,r]));
   const closed=tables.filter(t=>!open.has(t));if(closed.length)return res.status(409).json({error:`${closed.join('、')} 尚未開桌，請先開桌再印 QR。`});
-  res.json({tables:tables.map(t=>{const s=open.get(t);return{table:t,session_id:s.id,url:tableOrders.sessionUrl(SITE_BASE,s.id,SECRET),no:tableOrders.sessionNo(s.id),opened_at:s.created_at||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes)};})});
+  res.json({tables:tables.map(t=>{const s=open.get(t);return{table:t,session_id:s.id,url:tableOrders.sessionUrl(APP_BASE,s.id,SECRET),no:tableOrders.sessionNo(s.id),opened_at:s.created_at||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes)};})});
 }));
 
 // /menu 舊頁改版為空間介紹：301 導至 /space（保留語系前綴），需先於 static 攔截
@@ -7294,6 +7294,11 @@ app.get(['/member', '/member.html', '/en/member', '/en/member.html', '/ja/member
   const qs = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
   res.set('X-Robots-Tag', 'noindex');
   res.redirect(302, APP_BASE + '/' + qs);
+});
+// 桌邊點餐收進會員 App：開桌 QR 印 app.emoji.tw/order；舊的 www.emoji.tw/order 連結（已印的 QR、推播）帶查詢字串轉過去
+app.get(['/order', '/order/'], (req, res, next) => {
+  if (isAppHost(req) || !APP_BASE.startsWith('https://') || String(req.hostname || '').toLowerCase() !== SITE_HOST) return next();
+  res.set('X-Robots-Tag', 'noindex'); res.redirect(302, APP_BASE + req.originalUrl);
 });
 // 會員 PWA（手機）：/m 回同一頁；scope 只到 /m，不影響官網其他頁
 app.get(['/m', '/m/*'], (_req, res) => { res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache' }); res.sendFile(path.join(PUB, 'm.html')); });

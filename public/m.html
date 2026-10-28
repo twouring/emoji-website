@@ -44,6 +44,7 @@ h1,h2,h3{font-family:"Noto Serif TC",serif;font-weight:700;margin:0}
 .pass .who i{font-style:normal;opacity:.85}.pass .pts span{opacity:.85}
 .show{margin-top:14px;width:100%;min-height:56px;border:0;border-radius:16px;background:var(--accent);color:var(--ink);font-weight:700;font-size:1.1rem;display:flex;align-items:center;justify-content:center;gap:10px}
 .show:active{transform:scale(.98)}
+.order-scan{margin-top:14px;gap:10px;font-weight:700;background:var(--card)}
 .hint{color:var(--soft);font-size:1rem;margin:10px 2px 0;text-wrap:pretty}.nb{white-space:nowrap}
 /* 區塊 */
 .sec{margin-top:26px}
@@ -251,7 +252,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
       loginTitle:'言文字 會員',loginSub:'登入後，用一張卡在所有空間累積點數、查看會籍、報名活動。',google:'使用 Google 登入',lineLogin:'使用 LINE 登入',email:'使用 Email 登入',needName:'請先輸入名字',emailSend:'寄送登入連結',emailSent:'登入連結已寄出',emailSentTo:e=>'請到 '+e+' 收信，點開連結即可登入。連結 20 分鐘內有效。',emailFail:'目前無法寄送登入連結，請改用 Google 登入',firstTime:'第一次使用？用任一方式登入，就會自動建立帳號。',
       hi:n=>'嗨，'+n,welcome:'歡迎回來',morning:'早安',noon:'午安',evening:'晚安',brand:'言文字',myPts:'我的點數',showCard:'結帳時出示會員卡',scanMe:'請出示給店員掃描',
       hintPhone:'也可以直接報手機號碼。',hintNoPhone:'到「我的」填寫手機，結帳報號碼就能累點。',hintEarn:'消費每滿 100 元得 1 點，1 點可兌換 NT$10 的餐飲。',
-      reserve:'訂位',signup:'報名活動',menu:'菜單',redeem:'可以兌換',redeemBtn:'兌換',scanTitle:'掃描本桌點餐 QR',scanSub:n=>'兌換「'+n+'」：對準服務人員給的本桌點餐 QR，會自動加進點菜清單。',scanCancel:'取消',scanNoCam:'無法開啟相機，請允許相機權限。',scanBad:'這不是桌上的點菜條碼。',redeemDone:(n,t)=>'已加入「'+n+'」（兌換，桌 '+t+'），剩餘點數 ',redeemConfirm:(n,p)=>'用 '+p+' 點兌換「'+n+'」？',canRedeem:'現在就能兌換',short:n=>'還差 '+n+' 點',pts:n=>n+' 點',redeemHint:'點「兌換」後掃桌上的點菜條碼。空間時數請到櫃檯。',
+      reserve:'訂位',signup:'報名活動',menu:'菜單',redeem:'可以兌換',redeemBtn:'兌換',scanTitle:'掃描本桌點餐 QR',orderScan:'掃碼點餐',orderScanSub:'對準服務人員給的本桌點餐 QR，就會在 App 裡開啟點餐。',scanSub:n=>'兌換「'+n+'」：對準服務人員給的本桌點餐 QR，會自動加進點菜清單。',scanCancel:'取消',scanNoCam:'無法開啟相機，請允許相機權限。',scanBad:'這不是桌上的點菜條碼。',redeemDone:(n,t)=>'已加入「'+n+'」（兌換，桌 '+t+'），剩餘點數 ',redeemConfirm:(n,p)=>'用 '+p+' 點兌換「'+n+'」？',canRedeem:'現在就能兌換',short:n=>'還差 '+n+' 點',pts:n=>n+' 點',redeemHint:'點「兌換」後掃桌上的點菜條碼。空間時數請到櫃檯。',
       install:'把會員卡放到主畫面',installSub:'結帳時一點就開，不用再找網址。',later:'稍後',installed:'已加到主畫面',home:'主畫面',
       nextEvent:'下一場活動',noEvents:'目前沒有開放報名的活動',registered:'已報名',evEnded:'已結束',pendingPay:'等待付款',full:'名額已滿',free:'免費',cap:(r,c)=>'名額 '+r+'／'+c,regCount:n=>'已報名 '+n+' 人',timeTbd:'時間待定',updates:'會員動態',noUpdates:'目前尚無會員動態。',events:'活動',
       plan:'會籍',statusLabel:'目前狀態',statusActive:p=>p+'會籍有效',statusPending:'待首次進場啟用',statusExpired:'會籍已到期',statusNone:'尚未有會籍',daysLeft:n=>'還有 '+n+' 天',
@@ -274,7 +275,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
       loginTitle:'emoji Member',loginSub:'Sign in to earn points at every space, view your membership and register for events.',google:'Sign in with Google',lineLogin:'Sign in with LINE',email:'Sign in with Email',needName:'Please enter your name',emailSend:'Send sign-in link',emailSent:'Link sent',emailSentTo:e=>'Check '+e+' and open the link to sign in. It expires in 20 minutes.',emailFail:'Could not send the link — try Google instead',firstTime:'New here? Sign in with any option and your account is created automatically.',
       hi:n=>'Hi, '+n,welcome:'Welcome back',morning:'Good morning',noon:'Good afternoon',evening:'Good evening',brand:'emoji',myPts:'My points',showCard:'Show card at checkout',scanMe:'Show this to staff to scan',
       hintPhone:'You can also just give your phone number.',hintNoPhone:'Add your phone under “Me” to earn points by number.',hintEarn:'Earn 1 point per NT$100; 1 point redeems NT$10 of food or drinks.',
-      reserve:'Reserve',signup:'Events',menu:'Menu',redeem:'Rewards',redeemBtn:'Redeem',scanTitle:'Scan your order QR',scanSub:n=>'Redeeming “'+n+'”: point at the order QR from our staff and it is added to your order automatically.',scanCancel:'Cancel',scanNoCam:'Cannot open the camera. Please allow camera access.',scanBad:'That is not a table ordering QR.',redeemDone:(n,t)=>'Added “'+n+'” (redeemed, table '+t+'). Points left: ',redeemConfirm:(n,p)=>'Redeem “'+n+'” for '+p+' points?',canRedeem:'Redeem now',short:n=>n+' more points',pts:n=>n+' pts',redeemHint:'Tap Redeem, then scan the table QR. Space hours: at the counter.',
+      reserve:'Reserve',signup:'Events',menu:'Menu',redeem:'Rewards',redeemBtn:'Redeem',scanTitle:'Scan your order QR',orderScan:'Scan to order',orderScanSub:'Point at the order QR from our staff to start ordering in the app.',scanSub:n=>'Redeeming “'+n+'”: point at the order QR from our staff and it is added to your order automatically.',scanCancel:'Cancel',scanNoCam:'Cannot open the camera. Please allow camera access.',scanBad:'That is not a table ordering QR.',redeemDone:(n,t)=>'Added “'+n+'” (redeemed, table '+t+'). Points left: ',redeemConfirm:(n,p)=>'Redeem “'+n+'” for '+p+' points?',canRedeem:'Redeem now',short:n=>n+' more points',pts:n=>n+' pts',redeemHint:'Tap Redeem, then scan the table QR. Space hours: at the counter.',
       install:'Add the card to your home screen',installSub:'One tap at checkout — no URL to find.',later:'Later',installed:'Added to home screen',home:'Home screen',
       nextEvent:'Next event',noEvents:'No open events right now',registered:'Registered',evEnded:'Ended',pendingPay:'Payment pending',full:'Full',free:'Free',cap:(r,c)=>r+' / '+c+' seats',regCount:n=>n+' registered',timeTbd:'Time TBD',updates:'Member updates',noUpdates:'No member updates yet.',events:'Events',
       plan:'Membership',statusLabel:'Current status',statusActive:p=>p+' valid',statusPending:'Activates on first entry',statusExpired:'Membership expired',statusNone:'No membership yet',daysLeft:n=>n+' days left',
@@ -297,7 +298,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
       loginTitle:'言文字 会員',loginSub:'ログインすると、すべての空間でポイントを貯め、会員資格の確認やイベント申込ができます。',google:'Google でログイン',lineLogin:'LINE でログイン',email:'メールでログイン',needName:'名前を入力してください',emailSend:'ログインリンクを送信',emailSent:'送信しました',emailSentTo:e=>e+' に届いたリンクを開くとログインできます。有効期限は20分です。',emailFail:'送信できませんでした。Google でログインしてください',firstTime:'初めての方も、いずれかの方法でログインすると自動で登録されます。',
       hi:n=>n+' さん、こんにちは',welcome:'おかえりなさい',morning:'おはようございます',noon:'こんにちは',evening:'こんばんは',brand:'言文字',myPts:'ポイント',showCard:'会計時に会員カードを提示',scanMe:'スタッフに提示してスキャン',
       hintPhone:'携帯電話番号を伝えるだけでもOKです。',hintNoPhone:'「マイページ」で携帯番号を登録すると、番号だけでポイントが貯まります。',hintEarn:'100元ごとに1ポイント。1ポイントでNT$10分の飲食と交換できます。',
-      reserve:'予約',signup:'イベント',menu:'メニュー',redeem:'交換できるもの',redeemBtn:'交換',scanTitle:'注文QRをスキャン',scanSub:n=>'「'+n+'」を交換：スタッフからお渡しした注文QRに向けると注文リストに自動で追加されます。',scanCancel:'キャンセル',scanNoCam:'カメラを起動できません。カメラの許可をご確認ください。',scanBad:'テーブルの注文QRではありません。',redeemDone:(n,t)=>'「'+n+'」を追加しました（交換・テーブル '+t+'）。残りポイント：',redeemConfirm:(n,p)=>p+' ポイントで「'+n+'」を交換しますか？',canRedeem:'今すぐ交換可',short:n=>'あと '+n+' ポイント',pts:n=>n+' pt',redeemHint:'「交換」を押してテーブルのQRをスキャン。スペース利用はカウンターで。',
+      reserve:'予約',signup:'イベント',menu:'メニュー',redeem:'交換できるもの',redeemBtn:'交換',scanTitle:'注文QRをスキャン',orderScan:'QRで注文',orderScanSub:'スタッフからお渡しした注文QRに向けると、アプリで注文を始められます。',scanSub:n=>'「'+n+'」を交換：スタッフからお渡しした注文QRに向けると注文リストに自動で追加されます。',scanCancel:'キャンセル',scanNoCam:'カメラを起動できません。カメラの許可をご確認ください。',scanBad:'テーブルの注文QRではありません。',redeemDone:(n,t)=>'「'+n+'」を追加しました（交換・テーブル '+t+'）。残りポイント：',redeemConfirm:(n,p)=>p+' ポイントで「'+n+'」を交換しますか？',canRedeem:'今すぐ交換可',short:n=>'あと '+n+' ポイント',pts:n=>n+' pt',redeemHint:'「交換」を押してテーブルのQRをスキャン。スペース利用はカウンターで。',
       install:'会員カードをホーム画面に追加',installSub:'会計時にワンタップで開けます。',later:'あとで',installed:'ホーム画面に追加しました',home:'ホーム画面',
       nextEvent:'次のイベント',noEvents:'現在申し込み可能なイベントはありません',registered:'申込済',evEnded:'終了',pendingPay:'支払い待ち',full:'満席',free:'無料',cap:(r,c)=>'定員 '+r+'／'+c,regCount:n=>'申込 '+n+' 人',timeTbd:'日時未定',updates:'会員向けお知らせ',noUpdates:'お知らせはまだありません。',events:'イベント',
       plan:'会員資格',statusLabel:'現在のステータス',statusActive:p=>p+'：有効',statusPending:'初回入場で有効化',statusExpired:'期限切れ',statusNone:'まだ会員プランがありません',daysLeft:n=>'残り '+n+' 日',
@@ -463,6 +464,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
     <section class="pass" aria-label="${esc(T.tabHome)}"><div class="brand">${esc(T.brand)}</div><div class="pts"><span>${esc(T.myPts)}</span><b>${esc(pts)}</b></div><div class="who"><span>${esc(me.name||'')}</span><i>${esc(phone?phone.replace(/^\+886(\d{2})\d{4}(\d{3})$/,'0$1-****-$2'):'')}</i></div></section>
     <button class="show" id="show"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17h3v4h-4v-3h4M18 14h3v3"/></svg>${esc(T.showCard)}</button>
     <p class="hint ghost">${esc(phone?'':T.hintNoPhone+' ')}${esc(T.hintEarn)}</p>
+    <button class="btn order-scan" id="order-scan" type="button"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M4 12h16"/></svg>${esc(T.orderScan)}</button>
     <nav class="quick" aria-label="quick">
       <button data-go="resv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M17 3c-2 2-3 5-3 8h3v10"/></svg>${esc(T.reserve)}</button>
       <button data-go="pickup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 9h16l-1.5 11h-13zM8 9V6a4 4 0 0 1 8 0v3"/></svg>${esc(T.pickupShort)}</button>
@@ -473,6 +475,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
     ${upcomingSec()}
     <section class="sec"><h2>${esc(T.nextEvent)}</h2>${ev?evTile(ev):`<p class="empty">${esc(T.noEvents)}</p>`}</section>`;
     document.getElementById('show').onclick=openCard;
+    document.getElementById('order-scan').onclick=startOrder;
     app.querySelectorAll('[data-rw]').forEach(b=>b.onclick=()=>startRedeem(b.dataset.rw,b.dataset.n,Number(b.dataset.p)));
     app.querySelectorAll('[data-go]').forEach(b=>b.onclick=e=>{e.preventDefault();go(b.dataset.go);});
     bindInstall();
@@ -754,11 +757,11 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
     return async v=>{const w=v.videoWidth,h=v.videoHeight;if(!w||!h)return '';c.width=w;c.height=h;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(v,0,0,w,h);const r=await zx.readBarcodes(x.getImageData(0,0,w,h),{formats:['QRCode'],textMode:'Plain',maxNumberOfSymbols:1}).catch(()=>[]);return r[0]&&r[0].text||'';};
   }
   function parseTable(raw){try{const u=new URL(raw);if(!/\/order\/?$/.test(u.pathname))return null;const s=u.searchParams.get('s'),t=u.searchParams.get('t'),k=u.searchParams.get('k');return k&&(s||t)?{s,t,k}:null;}catch(e){return null;}}   // s＝服務人員給的本桌單次 QR；t＝桌上舊 QR（伺服器回停用訊息）
-  async function startRedeem(id,name,pts){
-    if(!confirm(T.redeemConfirm(name,pts)))return;
+  /* 開相機掃本桌點餐 QR；sub＝說明文字，onTable(tb) 收到有效 QR 後處理 */
+  async function scanTable(sub,onTable){
     stopScan();
     scanOv=document.createElement('div');scanOv.className='pg scanov center';
-    scanOv.innerHTML='<header><button class="back" type="button"><b>‹</b><span>'+esc(T.back)+'</span></button><h3>'+esc(T.scanTitle)+'</h3></header><div class="body"><video playsinline muted></video><p>'+esc(T.scanSub(name))+'</p></div>';
+    scanOv.innerHTML='<header><button class="back" type="button"><b>‹</b><span>'+esc(T.back)+'</span></button><h3>'+esc(T.scanTitle)+'</h3></header><div class="body"><video playsinline muted></video><p>'+esc(sub)+'</p></div>';
     document.body.appendChild(scanOv);
     scanClose=pushPg(scanOv,()=>{if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null;}scanOv=null;scanClose=null;});
     scanOv.querySelector('.back').onclick=()=>{const c=scanClose;if(c)c();};
@@ -772,15 +775,26 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
         const raw=busy?'':await detect(video);
         if(raw){const tb=parseTable(raw);
           if(!tb){if(Date.now()-warned>3000){warned=Date.now();toast(T.scanBad);}}
-          else{busy=true;stopScan();
-            try{const d=await post('/api/me/redeem',{s:tb.s,t:tb.t,k:tb.k,item_id:id});toast(T.redeemDone(nm2(d.item),d.table)+d.balance);await load();}
-            catch(e){toast(e.message||T.opFail);}
-            return;}
+          else{busy=true;stopScan();await onTable(tb);return;}
         }
         setTimeout(tick,200);
       };
       tick();
     }catch(e){stopScan();toast(T.scanNoCam);}
+  }
+  async function startRedeem(id,name,pts){
+    if(!confirm(T.redeemConfirm(name,pts)))return;
+    await scanTable(T.scanSub(name),async tb=>{
+      try{const d=await post('/api/me/redeem',{s:tb.s,t:tb.t,k:tb.k,item_id:id});toast(T.redeemDone(nm2(d.item),d.table)+d.balance);await load();}
+      catch(e){toast(e.message||T.opFail);}
+    });
+  }
+  /* 掃碼點餐：在 App 內開本桌點餐頁（同網域 /order，已登入的會員直接帶入）；不論 QR 印哪個網域都換成本站路徑 */
+  function startOrder(){
+    scanTable(T.orderScanSub,tb=>{
+      if(!tb.s){toast(T.scanBad);return;}
+      location.href='/order?s='+encodeURIComponent(tb.s)+'&k='+encodeURIComponent(tb.k)+(LANG==='zh'?'':'&lang='+LANG);
+    });
   }
   const nm2=x=>LANG==='ja'&&x.ja?x.ja:LANG==='en'&&x.en?x.en:x.zh;
   function openCard(){openQr('card');}

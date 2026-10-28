@@ -7,6 +7,11 @@
 <meta name="robots" content="noindex,nofollow">
 <title>桌邊點餐｜言文字</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="/m.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="言文字">
+<link rel="apple-touch-icon" href="/m-icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -112,6 +117,9 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 @media (max-width:380px){.wrap{padding:10px}.top{padding-left:12px;padding-right:12px}.bar{padding-left:8px;padding-right:8px}.btn{padding-left:9px;padding-right:9px}.btn.sm{min-height:42px}.menu-grid{gap:6px}.item img,.item .ph{width:56px;height:56px}.item .tap{display:none}.top .t{padding-left:8px;padding-right:8px}.choice-grid{grid-template-columns:1fr 1fr}.sheet .in{padding-left:12px;padding-right:12px}}
 /* 320px：底部列按鈕藏圖示只留文字、內距再縮；上一步／加入兩顆鍵各半；語言鍵縮小 */
 @media (max-width:320px){.bar{grid-template-columns:minmax(72px,1fr) auto auto;gap:4px}.bar .btn{padding:9px 9px}.bar .ico{display:none}.top b{font-size:1rem}.lang{min-width:42px;padding:4px 8px}.choice-grid{grid-template-columns:1fr}.sheet-actions .btn{padding:10px 8px}.name-actions .btn{padding-left:8px;padding-right:8px}}
+.app-home{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;margin:0 4px 0 -8px;color:#fff;vertical-align:middle}.app-home[hidden]{display:none}
+.install-card[hidden]{display:none}.install-card b{font-size:1.05rem}.install-card p{margin:4px 0 12px;color:var(--soft);line-height:1.5}.inst-actions{display:flex;gap:10px;margin:0}.inst-actions .btn{flex:1 1 0;min-width:0}
+.inst-steps{margin:8px 0 0;}#inst .sheet-actions{display:flex;flex:none;margin:0;padding:10px 16px calc(14px + env(safe-area-inset-bottom))}#inst .sheet-actions .btn{flex:1 1 0;min-width:0}.inst-steps{padding-left:1.4em;line-height:1.7}.inst-steps li{margin-bottom:6px}
 .site-info{margin:28px 0 8px;color:var(--soft)}.site-info h3{font-size:1rem;margin:0 0 6px}.site-info .card p{margin:0 0 4px}.site-info a{color:inherit;text-underline-offset:3px}
 .price-table{width:100%;border-collapse:collapse;margin:6px 0}.price-table td{padding:6px 0;border-bottom:1px dashed var(--line);vertical-align:top}.price-table td:last-child{text-align:right;white-space:nowrap;padding-left:12px;font-weight:700}.price-table .grp td{text-align:left;font-weight:700;color:var(--muted);border-bottom:0;padding-top:12px}
 .site-info details summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
@@ -163,6 +171,8 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 </head>
 <body>
 <svg class="svg-sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V4M8 8l4-4 4 4M6 11H5v9h14v-9h-1"/></symbol>
   <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18"/></symbol>
   <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
   <symbol id="i-cart" viewBox="0 0 24 24"><path d="M3 4h2l2.2 10.2a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 1.9-1.4L21 8H6"/><circle cx="10" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></symbol>
@@ -181,7 +191,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 </svg>
 <div class="ready-banner" id="ready-banner"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<header class="top"><div><b id="brand">言文字</b> <small data-i18n="order">桌邊點餐</small></div><div class="actions"><button class="call-btn" id="call-open" type="button" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span data-i18n="call_btn">呼叫</span></button><button class="lang with-icon" id="lang-toggle" type="button" aria-label="Switch language"><svg class="ico" aria-hidden="true"><use href="#i-globe"></use></svg><span id="lang-label">EN</span></button><span class="t" id="table-no">—</span></div></header>
+<header class="top"><div><a class="app-home" id="app-home" href="/" hidden aria-label="App"><svg class="ico" aria-hidden="true"><use href="#i-back"></use></svg></a><b id="brand">言文字</b> <small data-i18n="order">桌邊點餐</small></div><div class="actions"><button class="call-btn" id="call-open" type="button" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span data-i18n="call_btn">呼叫</span></button><button class="lang with-icon" id="lang-toggle" type="button" aria-label="Switch language"><svg class="ico" aria-hidden="true"><use href="#i-globe"></use></svg><span id="lang-label">EN</span></button><span class="t" id="table-no">—</span></div></header>
 <main class="wrap">
   <div class="card" id="boot"><p class="muted" data-i18n="loading">載入中…</p></div>
   <div class="card hidden" id="thanks"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-check"></use></svg><span data-i18n="thanks">感謝用餐，期待再次光臨。</span></h3><p class="muted" data-i18n="thanks_hint">這次點餐已結束。若要再點，請洽服務人員。</p><button class="btn y" type="button" id="thanks-again" data-i18n="thanks_again" hidden>重新點餐</button><div class="review-box"><b data-i18n="review_title">喜歡今天的餐點嗎？</b><p class="muted" data-i18n="review_hint">在 Google 地圖留下評論，結帳時把評論出示給櫃檯人員，就送你 5 點會員點數（每位會員限領一次）。</p><a class="btn ghost" data-review-link href="https://maps.app.goo.gl/ZKdyKqwXjVA5x6JF6?g_st=ic" target="_blank" rel="noopener" data-i18n="review_go">寫 Google 評論</a></div></div>
@@ -199,6 +209,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
       <div id="menu"></div>
       <p class="notice" id="bar-policy-notice" data-i18n="bar_policy" hidden>三點水低消每人平日 NT$300、假日 NT$600，另加 10% 服務費（外帶不收）。</p>
       <p class="notice" id="alcohol-notice" data-i18n="alcohol" hidden>未滿十八歲禁止飲酒。禁止酒駕。</p>
+      <div class="card install-card" id="install-card" hidden><b data-i18n="inst_title">把言文字 App 加到主畫面</b><p data-i18n="inst_sub">會員卡、點數、訂位都在這裡，下次點餐也從這裡開。</p><div class="row inst-actions"><button class="btn y" type="button" id="inst-go"><span data-i18n="inst_btn">加到主畫面</span></button><button class="btn ghost" type="button" id="inst-later"><span data-i18n="inst_later">稍後</span></button></div></div>
       <button class="song-card" type="button" id="fb-open"><svg class="ico lg" aria-hidden="true"><use href="#i-chat"></use></svg><span class="n"><b data-i18n="fb_title">意見回饋</b><small data-i18n="fb_card">點餐好不好用、餐點、服務，都歡迎告訴我們</small></span></button>
     </div>
   </section>
@@ -254,6 +265,11 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   <div class="row sheet-actions"><button class="btn ghost" type="button" data-close data-i18n="back_menu">返回菜單</button><button class="btn y with-icon" type="button" id="call-send"><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span data-i18n="call_send">通知店員</span></button></div>
 </div></div>
 
+<div class="sheet" id="inst" role="dialog" aria-labelledby="inst-sheet-title"><div class="in">
+  <div class="sheet-body"><h3 class="title-icon" id="inst-sheet-title"><svg class="ico lg" aria-hidden="true"><use href="#i-share"></use></svg><span id="inst-sheet-h"></span></h3><ol class="inst-steps" id="inst-steps"></ol></div>
+  <div class="sheet-actions"><button class="btn y" type="button" id="inst-ok"><span data-i18n="inst_ok">知道了</span></button></div>
+</div></div>
+
 <div class="sheet" id="fb" role="dialog" aria-labelledby="fb-title"><div class="in">
   <div class="sheet-body"><h3 class="title-icon" id="fb-title"><svg class="ico lg" aria-hidden="true"><use href="#i-chat"></use></svg><span data-i18n="fb_title">意見回饋</span></h3><p class="muted" data-i18n="fb_hint">您的意見會直接送到店長，我們每天都會看。</p>
     <p class="fb-lbl" data-i18n="fb_kind">想回饋什麼？</p>
@@ -280,6 +296,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   var icon=function(name){return '<svg class="ico" aria-hidden="true"><use href="#i-'+esc(name)+'"></use></svg>';};
   var toastT;var toast=function(m,ms){var t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove('on');},ms||4000);};
   var money=function(n){return 'NT$'+Number(n||0).toLocaleString('zh-TW');};
+  var ON_APP=/^app\./.test(location.hostname),STANDALONE=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;   // 點餐頁收進會員 App（app.emoji.tw/order）
   var qs=new URLSearchParams(location.search),SID=qs.get('s')||'',T=qs.get('t')||'',K=qs.get('k')||'';   // s＝本場單次 QR（POS 開桌印出）；t＝桌上舊固定 QR，已停用
   var S=null,MENU=[],MENU_DOC=null,VENUE=null,CFG={},GUEST,NAME,seenReady={},pollTimer,LANG='zh',CURRENT_ITEM=null,CURRENT_QTY=1,PAUSED=null,WIN_KEY='';
   try{GUEST=localStorage.getItem('order_guest');NAME=localStorage.getItem('order_name')||'';LANG=localStorage.getItem('order_lang')||'';}catch(e){}
@@ -686,14 +703,14 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     if(!('serviceWorker'in navigator)||!('PushManager'in window)){toast(tr('notification_unsupported'));return;}
     btn.disabled=true;
     var vapid=CFG.vapid_public_key,key=Uint8Array.from(atob(vapid.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(vapid.length/4)*4,'=')),function(c){return c.charCodeAt(0);});
-    navigator.serviceWorker.register('/event-push-sw.js').then(function(reg){return reg.pushManager.getSubscription().then(function(s){return s||reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key});});})
+    navigator.serviceWorker.register('/event-push-sw.js',{scope:'/order'}).then(function(reg){return reg.pushManager.getSubscription().then(function(s){return s||reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key});});})
       .then(function(sub){return api('/orders/'+S.id+'/push',{method:'POST',body:{order_id:orderId,subscription:sub.toJSON()}});})
       .then(function(){(S.orders||[]).forEach(function(o){if(o.id===orderId)o._pushed=true;});btn.textContent=tr('notification_on');})
       .catch(function(err){toast(tr('notification_error',{message:err.message}));btn.disabled=false;});
   }
 
   /* ---- 會員（桌邊點餐整合會員）：Google／LINE 登入 → 掛到這一場（POS 結帳一點帶入累點、會員價）→ 可直接用點數兌換 ---- */
-  var TOKEN_KEY='order_member_token',ME=null,LINE_OK=false;
+  var TOKEN_KEY=ON_APP?'tth_token':'order_member_token',ME=null,LINE_OK=false;   // App 網域與會員 App 共用登入（tth_token）；www 有後台共用網域，維持獨立 key
   (function(){var h=new URLSearchParams(location.hash.slice(1));if(h.get('token')){try{localStorage.setItem(TOKEN_KEY,h.get('token'));}catch(e){}history.replaceState(null,'',location.pathname+location.search);}})();
   function token(){try{return localStorage.getItem(TOKEN_KEY)||'';}catch(e){return '';}}
   function authApi(path,body){return fetch('/api'+path,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify(body)}).then(function(r){return r.json().catch(function(){return {};}).then(function(d){if(!r.ok){var e=Error(d.error||('伺服器錯誤 '+r.status));e.status=r.status;throw e;}return d;});});}
@@ -739,6 +756,27 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     clearEnded();$('#thanks').classList.add('hidden');$('#boot').classList.remove('hidden');
     Promise.all([api('/orders/config'),fetch('/api/public').then(function(r){return r.json();}),load(),api('/orders/pause').catch(function(){return {};})]).then(bootApp).catch(function(err){fail(err.message);});
   };
+  /* ---- 加到主畫面：裝的是會員 App（manifest start_url 為 App 首頁），不是這張單次點餐網址 ---- */
+  var INST_PROMPT=null,UA=navigator.userAgent,IOS=/iPhone|iPad|iPod/.test(UA)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),IN_APP=/Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(UA);
+  function instKind(){
+    if(STANDALONE)return null;
+    try{if(Date.now()-Number(localStorage.getItem('order_inst_x')||0)<7*864e5)return null;}catch(e){}
+    if(IN_APP)return 'inapp';if(INST_PROMPT)return 'prompt';if(IOS)return 'ios';return null;
+  }
+  function renderInstall(){var c=$('#install-card');if(c)c.hidden=!instKind();}
+  window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();INST_PROMPT=e;renderInstall();});
+  window.addEventListener('appinstalled',function(){INST_PROMPT=null;toast(tr('inst_done'));renderInstall();});
+  $('#inst-go').onclick=function(){
+    var k=instKind();
+    if(k==='prompt'){INST_PROMPT.prompt();(INST_PROMPT.userChoice||Promise.resolve()).catch(function(){}).then(function(){INST_PROMPT=null;renderInstall();});return;}
+    $('#inst-sheet-h').textContent=tr(k==='inapp'?'inst_inapp_title':'inst_ios_title');
+    $('#inst-steps').innerHTML=[1,2,3].map(function(n){return '<li>'+esc(tr((k==='inapp'?'inst_inapp_':'inst_ios_')+n))+'</li>';}).join('');
+    openSheet('#inst');
+  };
+  $('#inst-ok').onclick=function(){closeSheets();};
+  $('#inst-later').onclick=function(){try{localStorage.setItem('order_inst_x',String(Date.now()));}catch(e){}renderInstall();};
+  if(ON_APP&&STANDALONE)$('#app-home').hidden=false;   // 從 App 進來：左上角回 App 首頁
+  renderInstall();
   /* ---- 啟動 ---- */
   if(!SID||!K)return fail(T?'桌上的 QR 已停用，請向服務人員索取本桌點餐 QR。 / This table QR is no longer used. Please ask our staff for your order QR.':'請掃描服務人員給的本桌點餐 QR。 / Please scan the order QR from our staff.');
   if(endedId())showThanks();
