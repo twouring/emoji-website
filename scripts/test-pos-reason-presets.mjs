@@ -12,7 +12,7 @@ test('REASON_PRESETS：每個情境至少 3 個預設原因、不重複、不超
   const src = ops.slice(ops.indexOf('const REASON_PRESETS='), ops.indexOf('// 覆蓋式原因選單'));
   const ctx = {}; vm.runInNewContext(src.replace('const REASON_PRESETS=', 'REASON_PRESETS='), ctx);
   const P = ctx.REASON_PRESETS;
-  for (const k of ['void_order', 'void_line', 'cancel_item', 'comp', 'discount', 'cash_move', 'close_note', 'count_note', 'taishin', 'attendance_fix']) {
+  for (const k of ['void_order', 'void_line', 'cancel_item', 'comp', 'discount', 'cash_move', 'close_note', 'count_note', 'attendance_fix']) {
     assert.ok(Array.isArray(P[k]) && P[k].length >= 3, k);
     assert.equal(new Set(P[k]).size, P[k].length, k + ' 重複');
     for (const s of P[k]) assert.ok(s.length <= 12, `${k}: ${s}`);
@@ -69,8 +69,8 @@ test('每個要填原因的地方都接了預設選項：覆蓋式用 pickReason
   // 出勤修正改成一張面板（openAttendanceFix）：原因欄是表單內嵌膠囊、選填（沒有 required 檢查）
   assert.ok(ops.includes("reasonChips('fx-note',REASON_PRESETS.attendance_fix)"), '出勤修正備註選填（面板內嵌膠囊）');
   assert.match(ops.slice(ops.indexOf('function openAttendanceFix('), ops.indexOf('/* 出勤紀錄')), /if\(!tIn\)\{toast\('請選上班時間'\);return;\}/, '面板只擋上班時間，原因不擋');
-  // 表單欄位：折扣、臨時收支、關帳說明、小結說明、台新差異原因
-  for (const [id, key] of [['pos-disc-reason', 'discount'], ['reg-cash-reason', 'cash_move'], ['acct-reason', 'close_note'], ['reg-count-note', 'count_note'], ['ts-reason', 'taishin']]) {
+  // 表單欄位：折扣、臨時收支、關帳說明、小結說明
+  for (const [id, key] of [['pos-disc-reason', 'discount'], ['reg-cash-reason', 'cash_move'], ['acct-reason', 'close_note'], ['reg-count-note', 'count_note']]) {
     assert.ok(ops.includes(`\${reasonChips('${id}',REASON_PRESETS.${key})}`), id);
   }
   // 綁定：結帳面板、開關帳區塊、日結頁都呼叫 bindReasonChips

@@ -74,7 +74,7 @@ test('櫃檯結帳：付款方式必選且不含 tappay；可分帳；會員價�
   assert.equal(split.amount, 120); assert.equal(split.lines.length, 1);
   assert.throws(() => T.posCheckout(items.map(l => ({ ...l, order_id: 'to_x' })), { method: 'cash' }, menuAll), /沒有可結帳/);
   assert.equal(T.payMethod('transfer'), 'transfer');
-  assert.deepEqual(Object.keys(T.PAY_METHODS), ['cash', 'card', 'linepay', 'transfer', 'taishin', 'other', 'tappay']);
+  assert.deepEqual(Object.keys(T.PAY_METHODS), ['cash', 'card', 'linepay', 'transfer', 'taishin', 'ctbc', 'other', 'tappay']);
 });
 
 test('櫃檯代客加菜：by 固定「櫃檯」、guest 固定；逐項作廢要原因、已結帳的不能作廢', () => {

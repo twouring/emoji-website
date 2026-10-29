@@ -140,7 +140,7 @@ test('接線：結帳頁開桌／換桌／備註／客製金額／折扣／補�
   // 出餐：暫停文案膠囊、QR 一鍵全部固定桌
   assert.match(ops, /pickReason\(\{title:`暫停 \$\{label\} 點餐`,presets:PAUSE_PRESETS/); assert.ok(ops.includes('id="pos-table-qr"')); assert.ok(!ops.includes('id="qr-all"'), '固定桌 QR 批次列印已停用');
   // 錢櫃／日結
-  for (const s of ["fillChips('reg-open-total'", "fillChips('reg-cash-amount'", "fillChips('reg-keep'", "fillChips('ts-amount'"]) assert.ok(ops.includes(s), s);
+  for (const s of ["fillChips('reg-open-total'", "fillChips('reg-cash-amount'", "fillChips('reg-keep'"]) assert.ok(ops.includes(s), s);
   // 排班／員工／補打卡／出勤修正
   assert.match(ops, /data-shift-quick="\$\{s\}-\$\{e\}"/); assert.ok(ops.includes("fillChips('st-role'"));
   assert.ok(ops.includes("${stampChips('mk-in')}") && ops.includes("${stampChips('mk-out')}") && ops.includes("fillChips('mk-break'"));

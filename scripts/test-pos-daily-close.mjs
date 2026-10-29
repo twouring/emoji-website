@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import fs from 'node:fs';
 const R=createRequire(import.meta.url)('../lib/pos-register.js');
 const summary=R.expectedCash({opening_cash:1000,cash_sales:200,moves:[{type:'in',amount:50},{type:'out',amount:20}]});
-const opts={accounts:{linepay:100,taishin:300,transfer:0,custom_wallet:40},order_total:640};
+const opts={accounts:{linepay:100,ctbc:300,transfer:0,custom_wallet:40},order_total:640};
 const body=()=>({counted_cash:1230,cash_confirmed:true,accounts:Object.fromEntries(Object.entries(opts.accounts).map(([c,actual])=>[c,{actual,confirmed:true}]))});
 test('daily close requires explicit cash and every account including zero',()=>{
  assert.throws(()=>R.closeRegister({...body(),cash_confirmed:false},summary,opts),/確認/);
@@ -24,7 +24,7 @@ test('cash and account reasons cannot cancel each other; final reason is separat
  b.total_reason='短少待追查';assert.equal(R.closeRegister(b,summary,opts).total_reason,b.total_reason);
 });
 test('authoritative order amount, merged cards and frozen report preserve reconciliation',()=>{
- assert.deepEqual(R.accountsOf({cash:50,card:10,taishin:20,linepay:2}),{linepay:2,taishin:30,transfer:0});
+ assert.deepEqual(R.accountsOf({cash:50,card:10,taishin:20,linepay:2}),{linepay:2,ctbc:30,transfer:0});
  const c=R.closeRegister(body(),summary,opts);assert.equal(c.total_pos,640);assert.equal(c.total_actual,640);
  const rep=R.registerReport({closed_at:'2026-10-17',...c},summary,{amount:640},[]);
  assert.deepEqual(rep.accounts,c.accounts);assert.equal(rep.total_actual,640);assert.equal(rep.total_reason,'');

@@ -17,21 +17,21 @@ try{
  for(const m of posHTML.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g))await page.addStyleTag({content:m[1]});
  await page.exposeFunction('closeFixture',body=>{
    const s=R.expectedCash({opening_cash:1000,cash_sales:200,moves:[{type:'in',amount:50},{type:'out',amount:20}]});
-   const c=R.closeRegister(body,s,{accounts:{linepay:100,taishin:300,transfer:0,wallet:40},order_total:640});
+   const c=R.closeRegister(body,s,{accounts:{linepay:100,ctbc:300,transfer:0,wallet:40},order_total:640});
    return {...c,report:R.registerReport({venue:'CAFE',day:'2026-10-17',closed_at:'2026-10-17',...c},s,{amount:640},[])};
  });
  // Only trusted local source and fixed synthetic fixtures are injected in this isolated page.
  await page.addScriptTag({content:`
  const BRAND_LABEL={CAFE:'在咖啡',BAR:'三點水'},REG_DENOMS=[2000,1000,500,200,100,50,20,10,5,1],REASON_PRESETS={close_note:[]};
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),num=v=>Number(v||0).toLocaleString('en-US');
- const payMethodLabel=c=>({linepay:'LINE Pay',taishin:'信用卡',transfer:'轉帳',wallet:'其他帳戶'}[c]||c),tipIcon=()=>'',fillChips=()=>'',reasonChips=()=>'',applicationTime=v=>v||'',printWindow=(title,html)=>window.printed=html;
+ const payMethodLabel=c=>({linepay:'LINE Pay',ctbc:'信用卡',transfer:'轉帳',wallet:'其他帳戶'}[c]||c),tipIcon=()=>'',fillChips=()=>'',reasonChips=()=>'',applicationTime=v=>v||'',printWindow=(title,html)=>window.printed=html;
  let REG_CLOSE_OPEN='fixture';const posConfirm=async()=>true,starReady=()=>false;
  async function opsThen(fn,msg,reload){try{const out=await fn();window.lastMessage=await msg(out);await reload();}catch(e){window.lastMessage=e.message;}}
  async function api(path,{body}){window.submitted=body;return closeFixture(body);}
  ${slice('const denomGrid=', 'function openRegisterForm(')}
  ${slice('async function printRegisterReport(', 'function registerBlock(')}
  ${slice('function bindDailyClose(', '/* 日結：')}
- window.r={id:'fixture',venue:'CAFE',opening_cash:1000,cash_in:50,cash_out:20,expected:1230,sales:{amount:640},reconciliation_accounts:{linepay:100,taishin:300,transfer:0,wallet:40},account_labels:{}};
+ window.r={id:'fixture',venue:'CAFE',opening_cash:1000,cash_in:50,cash_out:20,expected:1230,sales:{amount:640},reconciliation_accounts:{linepay:100,ctbc:300,transfer:0,wallet:40},account_labels:{}};
  window.mount=()=>{document.querySelector('#host').innerHTML=dailyCloseForm(r);bindDailyClose(document.querySelector('.reg-close-form'),r,async()=>{window.reloaded=true;});};mount();
  `});
  const input=async(s,v)=>page.$eval(s,(el,v)=>{el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));},String(v));
@@ -40,13 +40,13 @@ try{
  assert.equal(await disabled('#reg-close-go'),true);
  assert.equal(await disabled('[data-account-actual="linepay"]'),true);
  await input('#reg-counted',1230);await confirm('cash');
- for(const [code,actual] of Object.entries({linepay:100,taishin:300,transfer:0,wallet:40})){await input(`[data-account-actual="${code}"]`,actual);await confirm(code);}
+ for(const [code,actual] of Object.entries({linepay:100,ctbc:300,transfer:0,wallet:40})){await input(`[data-account-actual="${code}"]`,actual);await confirm(code);}
  assert.equal(await disabled('#reg-close-go'),false);assert.equal(await page.$eval('#reg-actual-total',e=>e.textContent),'NT$640');
  // Same-data async rerender preserves the draft and confirmations.
  await page.evaluate(()=>mount());assert.equal(await disabled('#reg-close-go'),false);
  // Editing a confirmed amount clears it and all downstream confirmations.
  await input('[data-account-actual="linepay"]',110);assert.equal(await disabled('#reg-close-go'),true);assert.equal(await disabled('[data-close-confirm="linepay"]'),true);
- await input('[data-account-reason="linepay"]','跨日入帳');await confirm('linepay');for(const c of ['taishin','transfer','wallet'])await confirm(c);
+ await input('[data-account-reason="linepay"]','跨日入帳');await confirm('linepay');for(const c of ['ctbc','transfer','wallet'])await confirm(c);
  assert.equal(await disabled('#reg-close-go'),true);assert.equal(await page.$eval('#reg-total-reason-label',e=>e.hidden),false);
  await input('#reg-total-reason','總差異待追查');assert.equal(await disabled('#reg-close-go'),false);
  await page.click('#reg-close-go');await page.waitForFunction(()=>window.reloaded===true);
@@ -69,7 +69,7 @@ try{
  // Printing failure must leave the successful close final, with an explicit reprint hint.
  await page.evaluate(()=>{r={...r,id:'print-failure',sales:{amount:640}};REG_CLOSE_OPEN=r.id;window.reloaded=false;printRegisterReport=async()=>{throw new Error('printer unavailable');};mount();});
  await input('#reg-counted',1230);await confirm('cash');
- for(const [code,actual] of Object.entries({linepay:100,taishin:300,transfer:0,wallet:40})){await input(`[data-account-actual="${code}"]`,actual);await confirm(code);}
+ for(const [code,actual] of Object.entries({linepay:100,ctbc:300,transfer:0,wallet:40})){await input(`[data-account-actual="${code}"]`,actual);await confirm(code);}
  await page.click('#reg-close-go');await page.waitForFunction(()=>window.reloaded===true);
  assert.match(await page.evaluate(()=>window.lastMessage),/重印關帳單/);
  assert.equal(await page.evaluate(()=>REG_CLOSE_OPEN),false);

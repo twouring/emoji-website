@@ -21,7 +21,7 @@ test('analytics HTTP handler binds business-day edges and applies brand ownershi
  const source=fs.readFileSync(new URL('../server.js',import.meta.url),'utf8'),queries=[];let handler,result;
  const ctx={tableOrders:T,Date,Object,String,auth(){},adminOnly(){},requireDb(){},wrap:f=>f,app:{get:(...args)=>handler=args.at(-1)},q:async(sql,args)=>{queries.push({sql,args});return {rows:sql.includes('GROUP BY 1')?[{mid:'new',at:new Date('2026-10-16T04:00Z')}]:[row('1','2026-10-16T04:00Z','CAFE',{member_id:'new'}),row('2','2026-10-16T04:00Z','BAR')]};}};
  const start=source.indexOf("app.get('/api/admin/analytics'");
- vm.runInNewContext(source.slice(start,source.indexOf('/* 台新手機付日結',start)),ctx);
+ vm.runInNewContext(source.slice(start,source.indexOf('/* 查單：某營業日的全部單',start)),ctx);
  await handler({auth:{brands:['CAFE']},query:{from:'2026-10-16',to:'2026-10-16'}},{json:d=>result=d});
  assert.equal(queries[0].args[0].toISOString(),'2026-10-15T19:00:00.000Z');assert.equal(queries[0].args[1].toISOString(),'2026-10-16T19:00:00.000Z');assert.equal(result.orders,1);assert.equal(result.customers.new_members,1);
 });
@@ -32,7 +32,7 @@ test('analytics route returns HTTP 400 for invalid ranges before querying the da
  const wrapStart=source.indexOf('const wrap = fn =>');
  vm.runInContext(source.slice(wrapStart,source.indexOf("app.post('/api/twilio/events/status'",wrapStart)),ctx);
  const start=source.indexOf("app.get('/api/admin/analytics'");
- vm.runInContext(source.slice(start,source.indexOf('/* 台新手機付日結',start)),ctx);
+ vm.runInContext(source.slice(start,source.indexOf('/* 查單：某營業日的全部單',start)),ctx);
  const server=app.listen(0,'127.0.0.1');
  await new Promise(resolve=>server.once('listening',resolve));
  try{

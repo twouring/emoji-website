@@ -21,7 +21,7 @@ test('cash checkout claims recorded event before standalone drawer pulse; duplic
 });
 test('noncash, zero-value, failed/missing order never opens',async()=>{
  const {ctx,calls}=drawerContext();
- for(const method of ['card','linepay','transfer','taishin','tappay'])await ctx.autoCashDrawer({kind:'checkout',order_id:'to_'+method,method,amount:180});
+ for(const method of ['card','linepay','transfer','taishin','ctbc','tappay'])await ctx.autoCashDrawer({kind:'checkout',order_id:'to_'+method,method,amount:180});
  await ctx.autoCashDrawer({kind:'checkout',order_id:'to_free',method:'cash',amount:0});
  await ctx.autoCashDrawer({kind:'checkout',method:'cash',amount:100});
  assert.equal(calls.length,0);

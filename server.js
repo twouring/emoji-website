@@ -45,7 +45,7 @@ const tableLive=require('./lib/table-live');
 const ezpayInvoice=require('./lib/ezpay-invoice');
 const linepay=require('./lib/linepay');
 const linepayOffline=require('./lib/linepay-offline');
-const taishinManual=require('./lib/taishin-manual');
+const ctbc=require('./lib/ctbc');
 const posRegister=require('./lib/pos-register');
 const posStaff=require('./lib/pos-staff');
 const posLog=require('./lib/pos-log');
@@ -885,9 +885,15 @@ async function migrate() {
   // Cloud Scheduler 觸發的排程租約：多個 Cloud Run 執行個體同時收到觸發時只有一個在跑（程序內排程不用）
   await q(`CREATE TABLE IF NOT EXISTS cron_leases (name TEXT PRIMARY KEY, token TEXT NOT NULL, expires_at TIMESTAMPTZ NOT NULL)`);
   await q(linepayOffline.schema);
-  // 台新手機付沒有實收總額查詢 API，每個營業日手動填一次實收總額，日結報表拿來與 POS 登記為 taishin 的單對帳
-  await q(`CREATE TABLE IF NOT EXISTS pos_taishin_daily (
-    day DATE PRIMARY KEY, amount INT NOT NULL, reason TEXT NOT NULL DEFAULT '', filled_by TEXT NOT NULL DEFAULT '', updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  // 中信行動刷卡對帳（2026-10-29 取代台新手機付手填）：每日從中信 mPOS 商店管理平台抓實收明細，日結報表比對 POS 登記為信用卡的單。
+  // 舊表 pos_taishin_daily 保留不刪（歷史手填紀錄），程式不再讀寫
+  await q(`CREATE TABLE IF NOT EXISTS ctbc_transactions (
+    id TEXT PRIMARY KEY, type TEXT NOT NULL, amount INT NOT NULL, paid_at TIMESTAMPTZ NOT NULL,
+    card_no TEXT NOT NULL DEFAULT '', card_last4 TEXT NOT NULL DEFAULT '', auth_code TEXT NOT NULL DEFAULT '', biz TEXT NOT NULL DEFAULT '',
+    progress TEXT NOT NULL DEFAULT '', settle TEXT NOT NULL DEFAULT '', settle_date TEXT NOT NULL DEFAULT '', pay_date TEXT NOT NULL DEFAULT '',
+    terminal_id TEXT NOT NULL DEFAULT '', device_user TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '', raw JSONB, synced_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE INDEX IF NOT EXISTS ctbc_transactions_paid_idx ON ctbc_transactions(paid_at)`);
+  await q(`CREATE TABLE IF NOT EXISTS ctbc_sync_state (id INT PRIMARY KEY DEFAULT 1, error TEXT, failed_at TIMESTAMPTZ, ok_at TIMESTAMPTZ)`);
   // 1F 訂位申請（Google Maps／官方 LINE 連結 /reserve）：不登入、存 DB、寄通知；舊庫補建
   await q(`CREATE TABLE IF NOT EXISTS dining_reservations (
     id TEXT PRIMARY KEY,
@@ -6282,11 +6288,13 @@ app.get('/api/admin/sales',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const last=(await q('SELECT max(synced_at) AS at FROM linepay_transactions')).rows[0].at;
   const syncState=(await q('SELECT error,failed_at FROM linepay_sync_state WHERE id=1').catch(()=>({rows:[]}))).rows[0]||{};
   const lp=linepay.reconcile(orders,txs,{venues,registers});
-  // 台新手機付對帳：沒有查詢 API，用當天手動填寫的實收總額（填一次存一次，沒填過就是 null）
-  const tsRow=(await q('SELECT amount,reason,filled_by,updated_at FROM pos_taishin_daily WHERE day=$1',[day])).rows[0]||null;
-  const ts=taishinManual.reconcile(orders,tsRow,{venues});
+  // 中信行動刷卡對帳：中信商店管理平台實收（每 15 分鐘＋每日 04:40 同步）vs POS 登記為信用卡（ctbc，含歷史 taishin／card）的單
+  const ctTxs=(await q('SELECT id,type,amount,paid_at,card_no,card_last4,auth_code,biz,progress,settle,settle_date,pay_date,terminal_id,device_user,note FROM ctbc_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[from,to])).rows;
+  const ctLast=(await q('SELECT max(synced_at) AS at FROM ctbc_transactions')).rows[0].at;
+  const ctState=(await q('SELECT error,failed_at,ok_at FROM ctbc_sync_state WHERE id=1').catch(()=>({rows:[]}))).rows[0]||{};
+  const ct=ctbc.reconcile(orders,ctTxs,{venues,registers});
   const methodLabels=Object.fromEntries((await paymentMethodsList()).map(m=>[m.code,m.label]));
-  res.json({...tableOrders.salesSummary(orders,{venues,now:from}),day,csv:tableOrders.salesCsvRows(orders,{venues,methodLabels}),linepay:{...lp,configured:linepay.configured(),synced_at:last,sync_error:syncState.error||null,sync_failed_at:syncState.failed_at||null,csv:linepay.csvRows(lp.rows)},taishin:ts});
+  res.json({...tableOrders.salesSummary(orders,{venues,now:from}),day,csv:tableOrders.salesCsvRows(orders,{venues,methodLabels}),linepay:{...lp,configured:linepay.configured(),synced_at:last,sync_error:syncState.error||null,sync_failed_at:syncState.failed_at||null,csv:linepay.csvRows(lp.rows)},ctbc:{...ct,configured:ctbc.configured(),synced_at:ctState.ok_at||ctLast||null,sync_error:ctState.error||null,sync_failed_at:ctState.failed_at||null,csv:ctbc.csvRows(ct.rows)}});
 }));
 /* 銷量／客群分析（POS「銷量」「客群」分頁）：跨營業日區間，最多 93 天；作廢不計。新客＝該會員第一張成立單落在這個區間 */
 app.get('/api/admin/analytics',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -6297,20 +6305,6 @@ app.get('/api/admin/analytics',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const first=(await q(`SELECT payer->>'member_id' AS mid,min(paid_at) AS at FROM table_orders WHERE status<>'void' AND payer->>'member_id' IS NOT NULL GROUP BY 1`)).rows;
   const firstPaid=Object.fromEntries(first.map(r=>[r.mid,new Date(r.at).toISOString()]));
   res.json(tableOrders.analyticsSummary(orders,{venues,from,to,firstPaid}));
-}));
-/* 台新手機付日結對帳：手動填寫當天實收總額（無查詢 API）。差額非 0 要填差異原因（決策紀錄第 4 點）；填寫人與時間存檔供日後查詢。 */
-app.post('/api/admin/sales/taishin',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  const day=/^\d{4}-\d{2}-\d{2}$/.test(String(req.body?.day||''))?String(req.body.day):'';
-  if(!day)return res.status(400).json({error:'營業日格式不正確。'});
-  const venues=tableOrders.visibleVenues(req.auth.brands);
-  const from=new Date(day+'T03:00:00+08:00'),to=new Date(+from+86400e3);
-  const orders=(await q('SELECT amount,payer,status FROM table_orders WHERE paid_at>=$1 AND paid_at<$2',[from,to])).rows;
-  const posAmount=taishinManual.reconcile(orders,null,{venues}).pos.amount;
-  let input;try{input=taishinManual.manualInput(req.body,posAmount);}catch(e){return res.status(e.status||400).json({error:e.message});}
-  const filledBy=actorOf(req.auth)||'';
-  await q(`INSERT INTO pos_taishin_daily(day,amount,reason,filled_by,updated_at) VALUES($1,$2,$3,$4,now())
-    ON CONFLICT (day) DO UPDATE SET amount=EXCLUDED.amount,reason=EXCLUDED.reason,filled_by=EXCLUDED.filled_by,updated_at=now()`,[day,input.amount,input.reason,filledBy]);
-  res.json({ok:true,day,amount:input.amount,reason:input.reason,diff:input.amount-posAmount});
 }));
 /* 查單：某營業日的全部單（含作廢），可用桌號／金額／發票號碼搜尋；給櫃檯重印收據明細、補開發票、作廢 */
 app.get('/api/admin/orders/history',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -6341,7 +6335,7 @@ async function registerSummary(reg){
   const counts=(await q('SELECT id,counted_cash,expected_cash,diff,denominations,note,counted_by,created_at FROM pos_register_counts WHERE register_id=$1 ORDER BY created_at DESC',[reg.id])).rows;
   const summary=posRegister.expectedCash({opening_cash:reg.opening_cash,cash_sales:sales.by_method.cash||0,moves});
   const methods=await paymentMethodsList(),accounts=posRegister.accountsOf(sales.by_method),labels={};
-  for(const m of methods){labels[m.code]=m.label;if(m.active&&m.code!=='cash'&&m.code!=='card')accounts[m.code]??=0;}
+  for(const m of methods){labels[m.code]=m.label;if(m.active&&m.code!=='cash'&&!posRegister.LEGACY_CARD.includes(m.code))accounts[m.code]??=0;}
   summary.reconciliation_accounts=accounts;summary.account_labels=labels;
   return {sales,moves,counts,summary,report:posRegister.registerReport({...reg,day:String(reg.day instanceof Date?reg.day.toISOString().slice(0,10):reg.day).slice(0,10),note:reg.close_note||reg.note},summary,sales,moves,counts[0]||null)};
 }
@@ -6434,11 +6428,11 @@ app.post('/api/admin/registers/:id/reopen',auth,adminOnly,superOnly,requireDb,wr
 /* ===== 收款帳戶：現金／刷卡／LINE Pay／轉帳為內建（table-orders.PAY_METHODS，不給改／不給停用）；
  * 言文字管理員可另外新增自訂收款帳戶（例如街口支付、另一組轉帳帳號），結帳時一併出現在付款方式選項。
  * 全部品牌子帳號都能讀（櫃檯結帳要用），只有超管能新增／改名／停用。 */
-// 2026-10-14 決策：信用卡實際上走同一台台新收單機、同一包對帳，結帳畫面只留一個合併選項（代碼仍用 taishin，沿用既有對帳機制）；
-// 歷史單據原本各自的 card／taishin 紀錄不回頭改，payMethodLabel() 查歷史單仍會顯示原本各自的名稱
-const MERGED_PAY_LABEL={taishin:'信用卡'};
+// 2026-10-29 決策：信用卡改用中信行動刷卡（代碼 ctbc，自動抓中信實收對帳），移除台新手機付；
+// 結帳畫面只留一個「信用卡」選項。歷史單據的 card／taishin 紀錄不回頭改，標籤仍顯示「信用卡」，日結併入 ctbc 對帳
+const MERGED_PAY_LABEL={ctbc:'信用卡'};
 async function paymentMethodsList(){
-  const builtin=Object.entries(tableOrders.PAY_METHODS).filter(([code])=>code!=='tappay'&&code!=='card').map(([code,label])=>({code,label:MERGED_PAY_LABEL[code]||label,active:true,builtin:true}));
+  const builtin=Object.entries(tableOrders.PAY_METHODS).filter(([code])=>code!=='tappay'&&!posRegister.LEGACY_CARD.includes(code)).map(([code,label])=>({code,label:MERGED_PAY_LABEL[code]||label,active:true,builtin:true}));
   const custom=(await q('SELECT code,label,active FROM pos_payment_methods ORDER BY created_at')).rows.map(r=>({...r,builtin:false}));
   return [...builtin,...custom];
 }
@@ -6781,6 +6775,43 @@ app.post('/api/admin/sales/linepay/import',auth,adminOnly,superOnly,requireDb,wr
   if(!input.length||input.length>500)return res.status(400).json({error:'rows 須為 1–500 筆。'});
   const rows=input.map(t=>t.transactionSequence?linepay.normalize(t):(t.id&&t.paid_at?t:null)).filter(Boolean);
   res.json({ok:true,count:await upsertLinepay(rows),skipped:input.length-rows.length});
+}));
+/* 中信行動刷卡同步：背景每 15 分鐘抓昨今兩天、每日 04:40 抓最近 7 天（退貨會回補），也可從日結頁手動按。
+ * 中信後台要登入（含驗證碼），一次約 15–30 秒，所以頻率比 LINE Pay 低 */
+let ctbcSyncing=false;
+async function upsertCtbc(rows){
+  let n=0;
+  for(const t of rows){
+    await q(`INSERT INTO ctbc_transactions(id,type,amount,paid_at,card_no,card_last4,auth_code,biz,progress,settle,settle_date,pay_date,terminal_id,device_user,note,raw,synced_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,now())
+      ON CONFLICT (id) DO UPDATE SET type=EXCLUDED.type,amount=EXCLUDED.amount,paid_at=EXCLUDED.paid_at,card_no=EXCLUDED.card_no,card_last4=EXCLUDED.card_last4,auth_code=EXCLUDED.auth_code,biz=EXCLUDED.biz,progress=EXCLUDED.progress,settle=EXCLUDED.settle,settle_date=EXCLUDED.settle_date,pay_date=EXCLUDED.pay_date,terminal_id=EXCLUDED.terminal_id,device_user=EXCLUDED.device_user,note=EXCLUDED.note,raw=EXCLUDED.raw,synced_at=now()`,
+      [t.id,t.type,t.amount,t.paid_at,t.card_no||'',t.card_last4||'',t.auth_code||'',t.biz||'',t.progress||'',t.settle||'',t.settle_date||'',t.pay_date||'',t.terminal_id||'',t.device_user||'',t.note||'',t.raw?JSON.stringify(t.raw):null]);
+    n++;
+  }
+  return n;
+}
+async function syncCtbc(start,end){
+  const cfg=ctbc.config();
+  if(!cfg)throw Object.assign(Error('尚未設定中信 mPOS 商店管理平台帳密，請到後台「系統設定」填入。'),{status:503});
+  if(ctbcSyncing)throw Object.assign(Error('中信刷卡同步正在進行中，請稍候。'),{status:409});
+  ctbcSyncing=true;
+  try{
+    const rows=await ctbc.fetchTransactions(cfg,start,end,{log:m=>console.log('[ctbc]',m)});
+    const n=await upsertCtbc(rows);
+    console.log(`[ctbc] 同步 ${start}~${end}：${n} 筆`);
+    await q(`INSERT INTO ctbc_sync_state(id,error,failed_at,ok_at) VALUES(1,NULL,NULL,now()) ON CONFLICT (id) DO UPDATE SET error=NULL,failed_at=NULL,ok_at=now()`).catch(()=>{});
+    return {start,end,count:n};
+  }catch(e){
+    await q(`INSERT INTO ctbc_sync_state(id,error,failed_at) VALUES(1,$1,now()) ON CONFLICT (id) DO UPDATE SET error=$1,failed_at=now()`,[String(e.message||e).slice(0,500)]).catch(()=>{});
+    throw e;
+  }finally{ctbcSyncing=false;}
+}
+app.post('/api/admin/sales/ctbc/sync',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const [defStart,defEnd]=ctbc.syncWindow();
+  const ok=v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v||''));
+  const start=ok(req.body?.start)?String(req.body.start):defStart,end=ok(req.body?.end)?String(req.body.end):defEnd;
+  if(start>end||(new Date(end)-new Date(start))>400*86400e3)return res.status(400).json({error:'區間無效（最多 400 天）。'});
+  try{res.json({ok:true,...await syncCtbc(start,end)});}
+  catch(e){res.status(e.status||502).json({error:e.message});}
 }));
 /* 訂位：依日期列出（餐飲子帳號只看自己時段的）、改狀態（確認／婉拒會寄信給留 Email 的客人）、排桌與店內備註 */
 app.get('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -7407,6 +7438,11 @@ cronRunner.define('linepay-daily', () => syncLinepay(...linepay.syncWindow()),
   { enabled: () => linepay.configured(), onError: e => console.error('[linepay] 同步失敗：', e.message), lockKey: 'linepay', leaseSec: 900 });
 cronRunner.define('linepay-recent', () => { if (linepaySyncing) return 'busy'; return syncLinepay(...linepay.syncWindow(Date.now(), 1)); },
   { enabled: () => linepay.configured(), onError: e => console.error('[linepay] 5 分鐘同步失敗：', e.message), lockKey: 'linepay', leaseSec: 900 });
+// 中信刷卡對帳：每日 04:40 抓最近 7 天；每 15 分鐘抓昨今兩天（正在同步就跳過）。失敗不寄信，錯誤記在 ctbc_sync_state，日結頁顯示
+cronRunner.define('ctbc-daily', () => syncCtbc(...ctbc.syncWindow()),
+  { enabled: () => ctbc.configured(), onError: e => console.error('[ctbc] 同步失敗：', e.message), lockKey: 'ctbc', leaseSec: 900 });
+cronRunner.define('ctbc-recent', () => { if (ctbcSyncing) return 'busy'; return syncCtbc(...ctbc.syncWindow(Date.now(), 1)); },
+  { enabled: () => ctbc.configured(), onError: e => console.error('[ctbc] 15 分鐘同步失敗：', e.message), lockKey: 'ctbc', leaseSec: 900 });
 // IG 自動發佈：env IG_AUTOPUBLISH=1 才啟用（本機開發預設不跑，避免誤發）；失敗即寄信（2026-09-20 失敗篇躺 7 天沒人發現）；改回「已排程」即重試
 const igAlert = (subject, text) => sendMailQuietly({ to: NOTIFY_EMAIL, subject: `[IG] ${subject}`, text });
 const igEnabled = () => process.env.IG_AUTOPUBLISH === '1';
@@ -7470,6 +7506,9 @@ async function boot() {
     cron.schedule('*/5 * * * *', () => cronRunner.run('linepay-recent'), { timezone: 'Asia/Taipei' });
     if (linepay.configured()) console.log('[linepay] 對帳同步已啟用（每 5 分鐘抓昨今兩天、每日 04:30 抓最近 7 天）');
     else console.warn('[warn] LINE Pay 商家後台帳密未設定（後台「系統設定」可填），對帳同步待設定後自動啟用。');
+    cron.schedule('40 4 * * *', () => cronRunner.run('ctbc-daily'), { timezone: 'Asia/Taipei' });
+    cron.schedule('*/15 * * * *', () => cronRunner.run('ctbc-recent'), { timezone: 'Asia/Taipei' });
+    if (ctbc.configured()) console.log('[ctbc] 中信刷卡對帳同步已啟用（每 15 分鐘抓昨今兩天、每日 04:40 抓最近 7 天）');
   }
 
   // IG 自動發佈 cron：env IG_AUTOPUBLISH=1 才啟用（本機開發預設不跑，避免誤發）

@@ -1149,7 +1149,7 @@ function paintCalendar(){
 /* ===== 操作紀錄（超管） ===== */
 function paymentMethodsBlock(d){
   const rows=(d.payment_methods||[]).map(m=>`<tr><td>${esc(m.label)}</td><td>${m.builtin?'<span class="pill pill-draft">內建</span>':m.active?'<span class="pill pill-ok">啟用中</span>':'<span class="pill pill-bad">已停用</span>'}</td><td class="ops-actions">${m.builtin?'':`<div class="ops-btns"><button class="btn btn--ghost btn-sm" data-pm-rename="${esc(m.code)}">改名</button><button class="btn btn--ghost btn-sm" data-pm-toggle="${esc(m.code)}" data-on="${m.active?'0':'1'}">${m.active?'停用':'恢復'}</button></div>`}</td></tr>`).join('')||'<tr><td colspan="3" class="a-empty">尚無收款帳戶</td></tr>';
-  return `<div class="a-sec"><h2>收款帳戶</h2><p class="hint">現金／信用卡（合併一個選項，同一台台新收單機對帳）／LINE Pay／轉帳為內建付款方式，不能改名或停用。這裡可以新增額外的收款帳戶（例如街口支付、另一組轉帳帳號），結帳時會一併出現在付款方式選項；停用後既有單據的付款方式標籤仍正常顯示，只是結帳時不能再選它。</p>
+  return `<div class="a-sec"><h2>收款帳戶</h2><p class="hint">現金／信用卡（中信行動刷卡，自動對帳）／LINE Pay／轉帳為內建付款方式，不能改名或停用。這裡可以新增額外的收款帳戶（例如街口支付、另一組轉帳帳號），結帳時會一併出現在付款方式選項；停用後既有單據的付款方式標籤仍正常顯示，只是結帳時不能再選它。</p>
     <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>名稱</th><th>狀態</th><th class="ops-th">操作</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="a-form"><label style="flex:1;min-width:200px">新增收款帳戶<input id="pm-label" maxlength="20" placeholder="例：街口支付"></label><button type="button" class="btn btn--solid btn-sm" id="pm-add">新增</button></div>
   </div>`;

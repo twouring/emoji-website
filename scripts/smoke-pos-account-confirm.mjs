@@ -11,7 +11,7 @@ for(const f of ['style.css','pos-ops.css'])await page.addStyleTag({content:fs.re
 await page.addScriptTag({content:`
 const BRAND_LABEL={CAFE:'在咖啡',BAR:'三點水'},REG_DENOMS=[1000,500,100,50,10,5,1],REASON_PRESETS={close_note:['找錯錢','點鈔誤差']},SCOPE='';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),num=v=>Number(v||0).toLocaleString('en-US');
-const payMethodLabel=c=>({linepay:'LINE Pay',taishin:'信用卡',transfer:'轉帳'}[c]||c),tipIcon=()=>'',applicationTime=v=>v||'',opsHelp=()=>'',toast=m=>{window.toasts=(window.toasts||[]).concat(m);};
+const payMethodLabel=c=>({linepay:'LINE Pay',ctbc:'信用卡',transfer:'轉帳'}[c]||c),tipIcon=()=>'',applicationTime=v=>v||'',opsHelp=()=>'',toast=m=>{window.toasts=(window.toasts||[]).concat(m);};
 const bindOpenForm=()=>{};let SALES_DAY='2026-10-17';const todayTaipei=()=>'2026-10-17';
 window.apiCalls=[];async function api(path,opts){window.apiCalls.push([path,opts?.body||null]);if(path.includes('/linepay/sync'))return {start:'2026-10-14',end:'2026-10-17',count:3};if(path.startsWith('/admin/sales?'))return {linepay:{synced_at:'2026-10-17T11:00:00Z',configured:true,linepay:{amount:999},by_venue:{CAFE:{linepay:{amount:120}},BAR:{linepay:{amount:879}}}}};throw new Error('unexpected '+path);}const PAY_LABEL={};const DATA={};
 ${slice('const reasonChips=','function pickOverlay(')}
@@ -19,7 +19,7 @@ ${slice('function pickOverlay(','function pickFrom(')}
 ${slice('const denomGrid=','function openRegisterForm(')}
 ${slice('const REG_CLOSE_DRAFTS=','function registerBlock(')}
 ${slice('function bindDailyClose(','/* 日結：')}
-window.r={id:'fx',venue:'CAFE',opening_cash:1000,cash_in:50,cash_out:20,expected:1230,sales:{amount:640},reconciliation_accounts:{linepay:100,taishin:300,transfer:0},account_labels:{}};
+window.r={id:'fx',venue:'CAFE',opening_cash:1000,cash_in:50,cash_out:20,expected:1230,sales:{amount:640},reconciliation_accounts:{linepay:100,ctbc:300,transfer:0},account_labels:{}};
 window.REG_DATA={registers:[r],current:{CAFE:r}};window.sales={linepay:{synced_at:'2026-10-17T04:30:00Z',configured:true,linepay:{amount:999},by_venue:{CAFE:{linepay:{amount:110}},BAR:{linepay:{amount:889}}}}};
 window.mount=()=>{document.querySelector('#host').innerHTML=accountConfirmBlock(REG_DATA,sales);bindAccountConfirm(document.querySelector('#host'),sales,async()=>{window.reloads=(window.reloads||0)+1;mount();});};mount();
 `});
@@ -48,13 +48,13 @@ await page.click('[data-reason-chip],.reason-chips button');assert.equal(await d
 await page.click('[data-ok]');await page.waitForFunction(()=>!document.querySelector('.pos-move-box'));
 assert.equal(await txt('.pill'),'2/4 已確認');
 // 刷卡：手填 300 相符；轉帳 0
-await page.click('[data-acct-open="taishin"]');await page.waitForSelector('.pos-move-box');await input('#acct-actual',300);await page.click('[data-ok]');await page.waitForFunction(()=>!document.querySelector('.pos-move-box'));
+await page.click('[data-acct-open="ctbc"]');await page.waitForSelector('.pos-move-box');await input('#acct-actual',300);await page.click('[data-ok]');await page.waitForFunction(()=>!document.querySelector('.pos-move-box'));
 await page.click('[data-acct-open="transfer"]');await page.waitForSelector('.pos-move-box');await input('#acct-actual',0);assert.equal(await disabled('[data-ok]'),false);await page.click('[data-ok]');await page.waitForFunction(()=>!document.querySelector('.pos-move-box'));
 assert.equal(await txt('.pill'),'4/4 已確認');assert.ok((await page.$eval('.pill',e=>e.className)).includes('pill-ok'));
 // 重開現金對話框：帶回先前面額；取消不改
 await page.click('[data-acct-open="cash"]');await page.waitForSelector('.pos-move-box');assert.equal(await page.$eval('[data-denom="100"]',e=>e.value),'2');await page.click('[data-cancel]');
 await page.click('[data-acct-open="linepay"]');await page.waitForSelector('.pos-move-box');assert.equal(await page.$eval('#acct-actual',e=>e.value),'110');assert.match(await txt('#acct-lp-hint'),/可修改/);await page.click('[data-cancel]');await page.waitForFunction(()=>!document.querySelector('.pos-move-box'));
-// 關帳表單帶入：點鈔 1230、linepay 110 + 原因、taishin 300、transfer 0
+// 關帳表單帶入：點鈔 1230、linepay 110 + 原因、ctbc 300、transfer 0
 await page.evaluate(()=>{document.querySelector('#host').insertAdjacentHTML('beforeend',dailyCloseForm(r));bindDailyClose(document.querySelector('.reg-close-form'),r,async()=>{});});
 assert.equal(await page.$eval('#reg-counted',e=>e.value),'1230');assert.equal(await page.$eval('.reg-close-form [data-denom="1000"]',e=>e.value),'1');
 assert.equal(await page.$eval('[data-account-actual="linepay"]',e=>e.value),'110');assert.equal(await page.$eval('[data-account-reason="linepay"]',e=>e.value),'找錯錢');

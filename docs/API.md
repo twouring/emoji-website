@@ -343,7 +343,7 @@ POS 結帳輸入統編時查抬頭。`:ubn` 為 8 碼數字（否則 400）。�
 預設只作帳務調整，不表示現金已交付。僅 `refund_cash === true` 且這張單有收現金（`payer.method === 'cash'` 全額，或混合付款 `payer.payments[]` 的現金部分；`cash_refund` 不超過實收現金）、剩餘訂單金額大於 0，才在同一筆交易保存 `payer.drawer_refunds[event_key]` 並回正數 `cash_refund`；否則為 0、不回 `event_key`。回 `{ ok:true, reason, method, cash_refund, event_key? }`，事件代碼為 `refund:<order_id>`。請在送出前明確詢問是否退還現金，再透過 drawer-events 取得開櫃資格；此回應不是退款成功的證明。交易先鎖定訂單再檢查與變更（包含 ezPay 作廢），重複／同時作廢回 409，避免重複退款意圖。
 
 ### POST /api/admin/orders/:id/pay-method
-更正已結帳單的付款方式（現場人員點錯時用）。body `{ method, operator_id? }`；`method` 為內建（`cash`／`card`／`linepay`／`transfer`／`taishin`）或已啟用的自訂收款帳戶代碼。整張單改成單一付款方式（混合付款會被取代），只動 `payer`，不動金額、品項、發票。現金改其他方式會清掉 `received／change`；改成現金視為實收等於應收。每次更正附加到 `payer.method_changes[]`（`from／to／at／by／operator`，保留最近 10 筆）。限制：只能改當個營業日的單；已作廢、線上刷卡（TapPay）、部分付款（預收）單回 409；新舊方式相同回 400。回 `{ ok, payer }`。此操作不開錢櫃；日結以更正後的付款方式計算。
+更正已結帳單的付款方式（現場人員點錯時用）。body `{ method, operator_id? }`；`method` 為內建（`cash`／`ctbc`／`linepay`／`transfer`；歷史 `card`／`taishin` 仍接受）或已啟用的自訂收款帳戶代碼。整張單改成單一付款方式（混合付款會被取代），只動 `payer`，不動金額、品項、發票。現金改其他方式會清掉 `received／change`；改成現金視為實收等於應收。每次更正附加到 `payer.method_changes[]`（`from／to／at／by／operator`，保留最近 10 筆）。限制：只能改當個營業日的單；已作廢、線上刷卡（TapPay）、部分付款（預收）單回 409；新舊方式相同回 400。回 `{ ok, payer }`。此操作不開錢櫃；日結以更正後的付款方式計算。
 
 ### POST /api/admin/orders/:id/items/:line/void
 取消已結帳單裡的「單一品項」（做不出來／客人退菜），不必作廢整張單。body `{ reason, refund_cash?:boolean, operator_id? }`（`reason` 必填）。比照贈送把該行單價歸零（原價留在 `regular_price`）、`cancelled: true`、`cancel_reason`、`cancelled_at`，並從整張單 `amount` 扣掉這項小計，回 `{ ok, reason, refund, amount, method, cash_refund, event_key? }`；`refund` 不超過此次訂單實際扣減金額。限制：只能取消當個營業日的單；線上刷卡（TapPay）或已開立 ezPay 電子發票的單無法只動一項（金額對不起來），須整張作廢；這張單只剩最後一項未取消時也不行，請改用「作廢整張單」。取消後的品項仍留在單上（出餐看板顯示劃線＋取消原因），日結熱銷統計與 CSV 不再計入，但仍留下稽核紀錄。
@@ -556,7 +556,7 @@ POS 每 5 秒輪詢。回 `{ pending:[{id,session_id,table,by,amount,sfx,perform
 ### GET /api/admin/sales
 日結報表。query `day=YYYY-MM-DD`（營業日，預設今天；03:00 起算 24 小時）、`venue=`。回 `{ day, orders, amount, by_method{}, by_hour{}, items[]{zh,venue,qty,amount}, voided, void_amount, discount_amount, discount_count, comp_count, redeem_points, redeem_count, redeem_value, csv[][], linepay }`；`redeem_points / redeem_count / redeem_value` 為點數兌換的點數合計、單數與折抵原價合計（像折扣一樣另列，CSV 該品項標「點數兌換 N 點，折抵 NT$X」）；`amount` 為折扣後實收，`discount_amount / discount_count` 為整單折扣合計與單數，`comp_count` 為贈送件數。現金對帳走開關帳（見 `/api/admin/registers`），舊的交班結算已移除。`csv` 為每品項一列的明細（表頭：營業日、付款時間、桌號、品項、數量、單價、小計、付款方式、會員價、發票狀態、發票號碼、狀態、作廢原因），整單折扣另列一列負數讓小計欄加總＝營收，贈送品項名稱後綴「（贈送：原因）」。作廢的單不計營收。
 `linepay` 為 LINE Pay 對帳：`{ configured, synced_at, pos:{count,amount}（POS 登記為 LINE Pay 的成立單）, linepay:{count,amount,refunds,refund_amount,by_method{}}（LINE Pay 商家後台同日實收，退款已扣）, diff（實收－POS 登記；>0 漏登或登成其他方式，<0 登了但沒收到）, by_venue{CAFE,BAR}（各店 `{label,pos:{count,amount},linepay:{count,amount},diff}`）, rows[]（當日每筆實收：id,type,amount,paid_at,method,card_last4,confirm_no,order_no,venue,venue_label）, csv[][] }`。LINE Pay 商家後台只有一個商店 ID、交易沒有店別欄位，所以依交易時間歸屬：以當天 `pos_registers` 的開帳～關帳時間判斷是哪一店開著（關帳後一律算下一本帳——客人提早在開帳前付款；最後一本帳關帳後算輪到的另一店：在咖啡→三點水、三點水→在咖啡）；當天沒有開關帳紀錄才退回固定時段：台北 08:00–17:00 為在咖啡（CAFE），17:00 起到隔天凌晨為三點水（BAR）；`?venue=` 與品牌帳號的店別範圍會同時限制 POS 側與 LINE Pay 側。
-`taishin` 為信用卡對帳（兩者同一台台新收單機、沒有實收查詢 API，手動填寫）：`{ pos:{count,amount}（POS 登記為刷卡或台新手機付的成立單，2026-10-14 決策合併；結帳畫面已合併成一個選項、代碼一律寫 taishin，但仍把歷史單據可能留著的舊 card 紀錄一起算入）, manual（還沒填過是 null；填過是 {amount,reason,filled_by,updated_at}）, diff（manual.amount－POS 登記；還沒填是 null）}`。填寫走 `POST /api/admin/sales/taishin`。
+`ctbc` 為信用卡（中信行動刷卡）對帳：`{ configured, synced_at, sync_error, sync_failed_at, pos:{count,amount}（POS 登記為信用卡的成立單：`ctbc`，含歷史 `taishin`／`card`）, ctbc:{count,amount,refunds,refund_amount}（中信 mPOS 商店管理平台實收，銷售取消／退貨記負數；交易進度為失敗者不計）, diff（中信－POS）, by_venue{CAFE,BAR}（店別依開關帳時間歸屬，同 LINE Pay）, rows[]{id,type,amount,paid_at,card_no,card_last4,auth_code,progress,settle,pay_date,terminal_id,device_user,venue,venue_label,type_label}, csv }`。2026-10-29 起取代台新手機付手填對帳。
 
 ### GET /api/admin/analytics
 銷量／客群分析（POS「銷量」「客群」分頁；不改動既有日結帳務）。query `from=YYYY-MM-DD`、`to=YYYY-MM-DD`（營業日區間，含頭尾；預設 `to`＝今天、`from`＝6 天前，最長 93 天）、`venue=`。作廢單不計。回 `{ from, to, orders, amount, qty, avg_ticket, avg_items, by_day[]{day,orders,amount}, by_hour{HH:{orders,amount}}, by_weekday{0–6:{orders,amount}}（以營業日算星期，0＝日）, by_method{code:{orders,amount}}, items[]{id,zh,cat,venue,qty,amount,orders}（依數量排序）, categories[]{cat,qty,amount}, customers:{ member:{orders,amount}, guest:{…}, takeout:{…}, dinein:{…}, qr:{…}（桌邊 QR 自助點餐的單）, counter:{…}, unique_members, repeat_members（區間內 ≥2 單）, new_members（第一張成立單落在區間內）, member_avg_ticket, guest_avg_ticket } }`。會員單＝結帳有帶會員或套聚落價；外帶＝桌號 W01–W99。品牌子帳號只看自己店別。
@@ -579,13 +579,13 @@ POS 每 5 秒輪詢。回 `{ pending:[{id,session_id,table,by,amount,sfx,perform
 ### POST /api/admin/registers/:id/close
 關帳改為逐項日結確認。body `{ counted_cash?, denominations?:{ "1000":3, "500":1, … }, cash_confirmed:true, keep_cash?, note?, accounts:{ code:{actual,confirmed:true,reason?} }, total_reason?, reconciliation_version }`。
 
-- 先讀 `GET /api/admin/registers`：每本帳的 `reconciliation_accounts` 是伺服器依**該品牌、該營業日**計算的 POS 帳戶金額（歷史 `card` 併入 `taishin`）；固定 LINE Pay、刷卡／台新、轉帳，另含啟用的自訂帳戶與當日曾收款的已停用帳戶。即使 POS 為 0，也必須明確填 `actual:0` 並確認；不接受缺漏、未知帳戶、空白、null、布林或非整數金額。
+- 先讀 `GET /api/admin/registers`：每本帳的 `reconciliation_accounts` 是伺服器依**該品牌、該營業日**計算的 POS 帳戶金額（歷史 `card`／`taishin` 併入 `ctbc`）；固定 LINE Pay、信用卡（中信）、轉帳，另含啟用的自訂帳戶與當日曾收款的已停用帳戶。即使 POS 為 0，也必須明確填 `actual:0` 並確認；不接受缺漏、未知帳戶、空白、null、布林或非整數金額。
 - `reconciliation_version = JSON.stringify([expected,opening_cash,cash_in,cash_out,sales.amount,reconciliation_accounts])`；送出前營收／帳戶變更回 409，須重新載入並確認。舊版只送現金的客戶端不再允許關帳。
 - 現金可按面額或總額點鈔；`cash_confirmed:true` 必填。現金差額非 0 時 `note` 必填；每個非現金帳戶 `actual − POS` 非 0 時各自 `reason` 必填，即使差額互抵也不能省略。
 - `cash_actual = counted_cash − opening_cash − cash_in + cash_out`。`total_pos` 取伺服器訂單營收原值；`total_actual = cash_actual + 各非現金帳戶實收`。總額不同也可關帳，`total_reason` 選填（各帳戶原因已在逐項核對填寫）。
 - `keep_cash` 為抽屜留存金，預設零用金。回傳原現金欄位加 `cash_confirmed, accounts, cash_actual, total_pos, total_actual, total_diff, total_reason, report`。所有核對金額、標籤、原因與總額凍結在 `report` JSON，重印沿用原紀錄，不需新增資料表。舊關帳單仍可重印。
 
-LINE Pay 同步依開關帳時間歸屬店別，保留既有品牌篩選、分店明細與 CSV；`/sales/taishin` 手填紀錄仍為全店。兩者保留為參考與原操作，不自動當作逐項已確認實收。關帳後該品牌當日不可再結帳與記臨時收支。
+LINE Pay 與中信刷卡同步都依開關帳時間歸屬店別，保留品牌篩選、分店明細與 CSV。兩者保留為參考與原操作，不自動當作逐項已確認實收。關帳後該品牌當日不可再結帳與記臨時收支。
 
 ### POST /api/admin/registers/:id/reopen
 重開補單（僅超級管理員）。關帳紀錄保留，以留存金為零用金另開一本新帳接著記；當日任何品牌還有開著的帳回 409（另一品牌開著時訊息會說要先關誰）。回 `{ ok, id, day, venue, opening_cash }`（201）。
@@ -656,11 +656,11 @@ LINE Pay 同步依開關帳時間歸屬店別，保留既有品牌篩選、分�
 ### POST /api/admin/sales/linepay/sync
 從 LINE Pay 商家後台抓實收明細寫入 `linepay_transactions`（以交易號碼 upsert）。body 可帶 `{ start, end }`（YYYY-MM-DD，最多 400 天），預設最近 7 天（退款會回補到幾天前的交易）。伺服器背景每 5 分鐘自動抓昨天～今天營業日（正在同步就跳過），每日 04:30（台北）另抓最近 7 天；未設定 `LINEPAY_MERCHANT_ID` / `LINEPAY_MERCHANT_PW` 回 503，正在同步中回 409。回 `{ ok, start, end, count }`。
 
-### POST /api/admin/sales/taishin
-台新手機付日結對帳：手動填寫當天（`day=YYYY-MM-DD`）實收總額（台新沒有實收查詢 API）。body `{ day, amount, reason? }`；`amount` 為 0 以上整數，與系統登記（POS 選「台新手機付」的成立單合計）差額非 0 時 `reason` 必填（400）。同一天重複填寫＝覆蓋（upsert），記填寫人與時間供日後查詢。回 `{ ok, day, amount, reason, diff }`。
-
 ### POST /api/admin/sales/linepay/import
 歷史匯入（僅超級管理員／`ADMIN_API_KEY`）。body `{ rows: [] }`，1–500 筆，每筆為 LINE Pay 後台原始交易物件（含 `transactionSequence`）或已正規化的列（`{ id, type, amount, paid_at, method, ... }`）。回 `{ ok, count, skipped }`。
+
+### POST /api/admin/sales/ctbc/sync
+從中信 mPOS 商店管理平台（`mpos.ctbcbank.com:8443`，無查詢 API，以無頭瀏覽器登入、驗證碼由 `lib/ctbc-captcha.js` 辨識）抓交易資料寫入 `ctbc_transactions`（以交易序號 upsert）。body 可帶 `{ start, end }`（YYYY-MM-DD，最多 400 天，依自然月切段查詢），預設最近 7 天。伺服器背景每 15 分鐘抓昨天～今天營業日、每日 04:40 抓最近 7 天；失敗錯誤記在 `ctbc_sync_state`，日結報表 `ctbc.sync_error` 顯示。帳密 `CTBC_MPOS_MERCHANT_ID`／`CTBC_MPOS_USER`／`CTBC_MPOS_PASSWORD`（系統設定可填）；未設定回 503，同步中回 409，中信端錯誤回 502。回 `{ ok, start, end, count }`。
 
 ### GET /api/reservations/slots
 客人端某天可訂的時段（`/reserve` 與會員 App 換日期時呼叫；免登入）。query `date=YYYY-MM-DD`。回 `{ ok, date, slots[] }`（`'HH:MM'`，沒設定＝全部 30 分鐘時段）。依 `GET /api/admin/reservation-hours` 的設定：特定日期優先於每週設定，空陣列＝該日公休。`Cache-Control: no-store`；每 IP 每小時 300 次。

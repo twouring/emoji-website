@@ -7,7 +7,7 @@ const inputs = [...ops.matchAll(/<input[^>]*>/g)].map(m => m[0]);
 const find = re => inputs.find(i => re.test(i));
 
 test('POS 純數字欄位（金額、張數、人數、分鐘）一律 type=number', () => {
-  for (const re of [/data-split=/, /id="pos-disc-value"/, /id="pos-received"/, /data-denom=/, /id="reg-open-total"/, /id="acct-actual"/, /id="reg-keep"/, /id="reg-cash-amount"/, /id="reg-count-total"/, /data-f="headcount"/, /id="mk-break"/, /id="fx-break"/, /id="ts-amount"/, /id="resv-new-party"/, /id="re-party"/]) {
+  for (const re of [/data-split=/, /id="pos-disc-value"/, /id="pos-received"/, /data-denom=/, /id="reg-open-total"/, /id="acct-actual"/, /id="reg-keep"/, /id="reg-cash-amount"/, /id="reg-count-total"/, /data-f="headcount"/, /id="mk-break"/, /id="fx-break"/, /id="resv-new-party"/, /id="re-party"/]) {
     const el = find(re); assert.ok(el, String(re));
     assert.match(el, /type="number"/, el); assert.match(el, /inputmode="numeric"/, el);
   }

@@ -80,9 +80,9 @@ test('應有現金 ＝ 零用金 ＋ 現金營收 ＋ 臨時收入 － 臨時支
 
 test('關帳：點鈔可填總額或面額；差額非 0 要說明；預設留零用金當下一班留存金', () => {
   const s = R.expectedCash({ opening_cash: 3000, cash_sales: 10000, moves: [] });
-  const close = body => R.closeRegister({cash_confirmed:true,accounts:{linepay:{actual:0,confirmed:true},taishin:{actual:0,confirmed:true},transfer:{actual:0,confirmed:true}},total_reason:body.note||'',...body},s);
+  const close = body => R.closeRegister({cash_confirmed:true,accounts:{linepay:{actual:0,confirmed:true},ctbc:{actual:0,confirmed:true},transfer:{actual:0,confirmed:true}},total_reason:body.note||'',...body},s);
   const ok = close({ counted_cash: 13000 });
-  assert.deepEqual({ ...ok, denominations: undefined }, { counted_cash: 13000, expected_cash: 13000, diff: 0, note: '', keep_cash: 3000, take_cash: 10000, denominations: undefined, cash_confirmed:true, accounts:{linepay:{pos:0,actual:0,diff:0,reason:'',confirmed:true,label:'linepay'},taishin:{pos:0,actual:0,diff:0,reason:'',confirmed:true,label:'taishin'},transfer:{pos:0,actual:0,diff:0,reason:'',confirmed:true,label:'transfer'}},cash_actual:10000,total_pos:10000,total_actual:10000,total_diff:0,total_reason:'' });
+  assert.deepEqual({ ...ok, denominations: undefined }, { counted_cash: 13000, expected_cash: 13000, diff: 0, note: '', keep_cash: 3000, take_cash: 10000, denominations: undefined, cash_confirmed:true, accounts:{linepay:{pos:0,actual:0,diff:0,reason:'',confirmed:true,label:'linepay'},ctbc:{pos:0,actual:0,diff:0,reason:'',confirmed:true,label:'ctbc'},transfer:{pos:0,actual:0,diff:0,reason:'',confirmed:true,label:'transfer'}},cash_actual:10000,total_pos:10000,total_actual:10000,total_diff:0,total_reason:'' });
   assert.throws(() => close({ counted_cash: 12950 }), /差 -50，請填寫說明/);
   const short = close({ counted_cash: 12950, note: '找零少 50' });
   assert.equal(short.diff, -50);

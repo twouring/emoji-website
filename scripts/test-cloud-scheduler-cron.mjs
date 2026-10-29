@@ -32,9 +32,10 @@ test('dueJobs：依台北時間分派，與原 node-cron 表示式一致', () =>
   assert.deepEqual(cronJobs.dueJobs(at('2026-10-21T00:05:00+08:00')), ['event-auto-end', ...minute, 'linepay-recent', 'ig-publish']);
   assert.deepEqual(cronJobs.dueJobs(at('2026-10-21T04:10:00+08:00')), ['ig-token-refresh', 'event-auto-end', ...minute, 'linepay-recent', 'ig-publish']);
   // 04:30 每日 7 天對帳排在 5 分鐘那次之前，先拿到同步鎖
-  assert.deepEqual(cronJobs.dueJobs(at('2026-10-21T04:30:00+08:00')), ['linepay-daily', 'event-auto-end', ...minute, 'linepay-recent', 'ig-publish']);
-  assert.deepEqual(cronJobs.dueJobs(at('2026-10-21T09:00:00+08:00')), ['membership-reminders', 'event-auto-end', ...minute, 'linepay-recent', 'ig-publish']);
-  assert.deepEqual(cronJobs.dueJobs(at('2026-10-21T18:00:30+08:00')), ['line-reminders', 'event-auto-end', ...minute, 'linepay-recent', 'ig-publish']);
+  assert.deepEqual(cronJobs.dueJobs(at('2026-10-21T04:30:00+08:00')), ['linepay-daily', 'event-auto-end', ...minute, 'linepay-recent', 'ig-publish', 'ctbc-recent']);
+  assert.deepEqual(cronJobs.dueJobs(at('2026-10-21T04:40:00+08:00')), ['ctbc-daily', 'event-auto-end', ...minute, 'linepay-recent', 'ig-publish'], '04:40 中信 7 天對帳');
+  assert.deepEqual(cronJobs.dueJobs(at('2026-10-21T09:00:00+08:00')), ['membership-reminders', 'event-auto-end', ...minute, 'linepay-recent', 'ig-publish', 'ctbc-recent']);
+  assert.deepEqual(cronJobs.dueJobs(at('2026-10-21T18:00:30+08:00')), ['line-reminders', 'event-auto-end', ...minute, 'linepay-recent', 'ig-publish', 'ctbc-recent']);
   assert.ok(cronJobs.dueJobs(at('2026-10-21T10:00:00Z')).includes('line-reminders'), 'UTC 10:00＝台北 18:00');
   assert.ok(!cronJobs.dueJobs(at('2026-10-21T18:00:00Z')).includes('line-reminders'), 'UTC 18:00 不是台北 18:00');
 });
