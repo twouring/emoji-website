@@ -91,7 +91,7 @@ test('付款方式：信用卡＝ctbc；結帳選項不列 card／taishin，歷�
   assert.ok(require('../lib/pos-payment-methods').RESERVED_CODES.has('ctbc'));
   const server = read('server.js');
   assert.match(server, /MERGED_PAY_LABEL=\{ctbc:'信用卡'\}/);
-  assert.match(server, /filter\(\(\[code\]\)=>code!=='tappay'&&!posRegister\.LEGACY_CARD\.includes\(code\)\)/);
+  assert.match(server, /filter\(\(\[code\]\)=>code!=='tappay'&&code!=='stripe'&&!posRegister\.LEGACY_CARD\.includes\(code\)\)/);
   const ops = read('public/pos-ops.js');
   assert.match(ops, /\['ctbc','信用卡'\]/);
   assert.doesNotMatch(ops, /\['taishin','信用卡'\]/);

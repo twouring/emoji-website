@@ -28,7 +28,7 @@ function api(u) {
   if (p === '/api/me/reservations') return { reservations: [] };
   if (p === '/api/me/pickups') return { pickups: [], dates: [], slots: {} };
   if (p === '/api/me/registrations') return { registrations: [] };
-  if (p === '/api/me/shop') return { ok: true, orders: shopOrders };
+  if (p === '/api/me/shop') return { ok: true, orders: shopOrders, stripe: true };
   if (p === '/api/public') return { content: { menu: menuDoc } };
   return {};
 }
@@ -56,7 +56,7 @@ async function shot(w, name, { lang = 'zh', act = null, full = false } = {}) {
   const m = await page.evaluate(() => ({ overflow: document.documentElement.scrollWidth - innerWidth,
     quick: [...document.querySelectorAll('.quick button')].map(b => b.innerText.trim()),
     items: [...document.querySelectorAll('#shm .mi .nm')].map(x => x.innerText.replace(/\s+/g, ' ')),
-    go: document.querySelector('#shgo')?.innerText || null, goDisabled: document.querySelector('#shgo')?.disabled ?? null,
+    go: document.querySelector('#shgo')?.innerText || null, ctr: document.querySelector('#shctr:not([hidden])')?.innerText || null, payBtn: document.querySelector('[data-pay-shop]')?.innerText || null, goDisabled: document.querySelector('#shgo')?.disabled ?? null,
     shopSec: [...document.querySelectorAll('.sec h2')].map(h => h.innerText) }));
   await page.screenshot({ path: path.join(OUT, name + '.png'), fullPage: full });
   console.log(name, JSON.stringify(m), errs.length ? 'ERR ' + errs.join(' | ') : 'no-errors');

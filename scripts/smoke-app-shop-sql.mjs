@@ -35,7 +35,7 @@ test('商店下單開外帶單、限 3 張、只收 SHOP、取消、48 小時未
       requireDb: (r, s, nx) => nx(), rateLimit: () => (r, s, nx) => nx(),
       wrap: fn => (req, res) => fn(req, res).catch(e => res.status(500).json({ error: e.message })),
       contentValue: async () => MENU, pickup: require('./lib/pickup'), uid: p => p + String(++n).padStart(16, '0'),
-      ORDER_ID_RE: /^ts_[A-Za-z0-9]{8,40}$/, lineService: { notifyStaff: t => notes.push(t) }, console });
+      ORDER_ID_RE: /^ts_[A-Za-z0-9]{8,40}$/, lineService: { notifyStaff: t => notes.push(t) }, console, stripe: null });
     vm.runInContext(slice('/* ---- 會員 App 商店', '/* 會員卡「可兌換」清單'), ctx);
     listener = app.listen(0, '127.0.0.1'); await new Promise(r => listener.once('listening', r));
     const base = `http://127.0.0.1:${listener.address().port}`;
@@ -71,4 +71,47 @@ test('商店下單開外帶單、限 3 張、只收 SHOP、取消、48 小時未
     assert.equal(await ctx.expireShopOrders(), 1);
     assert.equal((await q("SELECT status FROM table_sessions WHERE id=$1", [paid])).rows[0].status, 'open');
   } finally { listener?.close(); await db.close(); }
+});
+
+test('Stripe 付款入帳：開 ready 單、去重、櫃檯已結帳不入帳並通知退款', async () => {
+  const db = new PGlite(); const notes = [];
+  try {
+    await db.exec(`CREATE TABLE users(id TEXT PRIMARY KEY,name TEXT,phone TEXT,phone_e164 TEXT);
+      INSERT INTO users VALUES('u_a','小明',NULL,'+886912000001');
+      CREATE TABLE table_sessions(id TEXT PRIMARY KEY,table_no TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'open',items JSONB NOT NULL DEFAULT '[]',user_id TEXT,shop_at TIMESTAMPTZ,updated_at TIMESTAMPTZ DEFAULT now());
+      CREATE TABLE table_orders(id TEXT PRIMARY KEY,session_id TEXT,table_no TEXT,items JSONB,amount INT,payer JSONB NOT NULL DEFAULT '{}',status TEXT,ready_at TIMESTAMPTZ,user_id TEXT,paid_at TIMESTAMPTZ DEFAULT now());
+      CREATE UNIQUE INDEX table_orders_stripe_session_uidx ON table_orders((payer->>'stripe_session')) WHERE payer->>'stripe_session' IS NOT NULL;`);
+    const items = [{ line: 'l1', item_id: 'brush', cat: 'SHOP', venue: 'CAFE', zh: '牙刷牙膏組', price: 60, qty: 2, order_id: null }, { line: 'l2', item_id: 'towel', cat: 'SHOP', venue: 'CAFE', zh: '浴巾', price: 350, qty: 1, order_id: null }];
+    await db.query("INSERT INTO table_sessions(id,table_no,items,user_id,shop_at) VALUES('ts_shop00000000001','W02',$1,'u_a',now()),('ts_shop00000000002','W03',$1,'u_a',now())", [JSON.stringify(items)]);
+    const q = (sql, args) => db.query(sql, args);
+    let n = 0; const earned = [];
+    const ctx = vm.createContext({ app: { get() {}, post() {}, delete() {} }, require, q, pool: { connect: async () => ({ query: q, release() {} }) }, tableOrders: require('./lib/table-orders'),
+      auth: null, requireDb: null, rateLimit: () => null, wrap: f => f, contentValue: async () => MENU, pickup: require('./lib/pickup'), uid: p => p + String(++n).padStart(16, '0'),
+      ORDER_ID_RE: /^[a-z0-9_]{6,32}$/, lineService: { notifyStaff: t => notes.push(t) }, console, stripe: null, APP_BASE: 'https://app.test',
+      applyYanForCheckout: async (c, o) => { earned.push(o); return { earned: 4 }; }, stockConsume: async () => {}, inventoryConsume: async () => 0 });
+    vm.runInContext(slice('/* ---- 會員 App 商店', '/* 會員卡「可兌換」清單'), ctx);
+    const sess = (id, ts, amount = 470) => ({ id, payment_status: 'paid', currency: 'twd', amount_total: amount * 100, payment_intent: 'pi_' + id, metadata: { kind: 'shop', session_id: ts, user_id: 'u_a', table: 'W02', lines: 'l1,l2' } });
+
+    let r = await ctx.fulfillShopCheckout(sess('cs_1', 'ts_shop00000000001'));
+    assert.equal(r.ok, true);
+    const o = (await q('SELECT * FROM table_orders')).rows[0];
+    assert.equal(o.status, 'ready'); assert.equal(o.amount, 470); assert.equal(o.payer.method, 'stripe'); assert.equal(o.payer.stripe_session, 'cs_1'); assert.equal(o.payer.yan_earned, 4);
+    assert.equal(earned[0].amount, 470);
+    const s1 = (await q("SELECT items FROM table_sessions WHERE id='ts_shop00000000001'")).rows[0].items;
+    assert.ok(s1.every(l => l.order_id === o.id));
+    assert.match(notes.at(-1), /已線上付款 NT\$470/);
+    // webhook 與回跳重複：不重複入帳
+    r = await ctx.fulfillShopCheckout(sess('cs_1', 'ts_shop00000000001'));
+    assert.equal(r.already, true); assert.equal((await q('SELECT COUNT(*)::int n FROM table_orders')).rows[0].n, 1);
+    // 第二筆付款同一張已付的單（例如櫃檯先結）→ 不入帳、通知退款
+    r = await ctx.fulfillShopCheckout(sess('cs_2', 'ts_shop00000000001'));
+    assert.equal(r.mismatch, true); assert.match(notes.at(-1), /請到 Stripe 後台退款/);
+    // 金額不符也不入帳
+    r = await ctx.fulfillShopCheckout(sess('cs_3', 'ts_shop00000000002', 999));
+    assert.equal(r.mismatch, true);
+    // 不是商店付款、未付款：忽略
+    assert.equal((await ctx.fulfillShopCheckout({ ...sess('cs_4', 'ts_shop00000000002'), metadata: { kind: 'plan' } })).ignored, true);
+    assert.equal((await ctx.fulfillShopCheckout({ ...sess('cs_5', 'ts_shop00000000002'), payment_status: 'unpaid' })).ignored, true);
+    assert.equal((await q('SELECT COUNT(*)::int n FROM table_orders')).rows[0].n, 1);
+  } finally { await db.close(); }
 });

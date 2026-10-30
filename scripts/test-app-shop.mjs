@@ -86,3 +86,16 @@ test('App：首頁與預約分頁有商店入口、三語字串齊全、改版�
   for (const k of [',shop:', 'shopTitle:', 'shopHint:', 'shopSubmit:', 'shopOk:', 'shopStates:', 'cancelShop:']) assert.equal(m.split(k).length - 1, 3, k + ' 要有中英日三語');
   assert.doesNotMatch(read('public/m-sw.js'), /m-v42'/);
 });
+
+test('Stripe 線上付款：路由、webhook、去重索引、櫃檯不可選 stripe、日結標籤、App 回跳', () => {
+  const s = read('server.js'), m = read('public/m.html');
+  for (const r of ["app.post('/api/me/shop/:id/checkout'", "app.post('/api/me/shop/verify'"]) assert.ok(s.includes(r), r);
+  assert.match(s, /await fulfillShopCheckout\(event\.data\.object\);/);
+  assert.match(s, /table_orders_stripe_session_uidx ON table_orders\(\(payer->>'stripe_session'\)\)/);
+  assert.match(s, /metadata: \{ kind: 'shop', session_id: s\.id/);
+  assert.match(s, /labels\.stripe='Stripe 線上刷卡'/);
+  assert.throws(() => T.payMethod('stripe'), /付款方式/);
+  assert.match(m, /await fulfillShopIfNeeded\(\);/);
+  assert.match(m, /post\('\/api\/me\/shop\/'\+encodeURIComponent\(id\)\+'\/checkout'/);
+  for (const k of [',shopPayOnline:', ',shopPayCounter:', ',shopPaid:', ',shopPayCanceled:']) assert.equal(m.split(k).length - 1, 3, k);
+});

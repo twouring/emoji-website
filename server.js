@@ -929,6 +929,7 @@ async function migrate() {
   await q(`CREATE INDEX IF NOT EXISTS table_sessions_pickup_idx ON table_sessions(pickup_at) WHERE status='open' AND pickup_at IS NOT NULL`);
   // 會員 App 商店：零售品訂單也是一張外帶單（W 號），shop_at＝下單時間；到櫃檯付款取貨
   await q(`ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS shop_at TIMESTAMPTZ`);
+  await q(`CREATE UNIQUE INDEX IF NOT EXISTS table_orders_stripe_session_uidx ON table_orders((payer->>'stripe_session')) WHERE payer->>'stripe_session' IS NOT NULL`);
   await q(require('./lib/line-delivery').SCHEMA);
   await q(`CREATE INDEX IF NOT EXISTS line_deliveries_due_idx ON line_deliveries(available_at) WHERE state='pending'`);
   await q(`CREATE TABLE IF NOT EXISTS line_events (id TEXT PRIMARY KEY, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
@@ -1618,6 +1619,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json', limit: '
       await fulfillAdditionalCheckout(event.data.object);
       await fulfillPlanCheckout(event.data.object);
       await fulfillApplicationDeposit(event.data.object);
+      await fulfillShopCheckout(event.data.object);
     } else if (['refund.created','refund.updated','refund.failed'].includes(event.type)) {
       if(!pool||!dbReady)return res.status(503).send('database not ready');
       // Read the current provider state: webhook events may arrive out of order.
@@ -5033,11 +5035,82 @@ const shop = require('./lib/shop');
 const shopView = s => ({ id: s.id, table: s.table_no, status: s.status, created_at: s.shop_at || s.created_at, note: s.pickup_note || '',
   items: (s.items || []).filter(l => !l.cancelled).map(({ guest, ...l }) => l), amount: tableOrders.sum((s.items || []).filter(l => !l.cancelled)),
   paid: (s.items || []).length > 0 && tableOrders.unpaid(s.items || []).length === 0 });
+/* Stripe 線上付款（同會籍：Emoji 言文字 Stripe 帳號）：付款完成由 webhook 或 App 回跳 /verify 入帳（冪等，以 Checkout Session id 去重）。
+   入帳＝開一張 table_orders（付款方式 stripe、狀態 ready），POS 出餐看板顯示「可取餐」，交貨按「已取餐」外帶單就自動收掉。
+   付款前店員已在櫃檯收過款（或單已取消／過期）→ 不重複入帳，LINE 通知員工到 Stripe 後台退款。 */
+async function fulfillShopCheckout(session) {
+  const meta = session && session.metadata;
+  if (!meta || meta.kind !== 'shop' || session.payment_status !== 'paid' || !meta.session_id) return { ignored: true };
+  const wanted = String(meta.lines || '').split(',').filter(Boolean), amountPaid = Math.round(Number(session.amount_total) / 100);
+  const intent = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id || null;
+  const client = await pool.connect();
+  let out;
+  try {
+    await client.query('BEGIN');
+    const dup = (await client.query("SELECT id FROM table_orders WHERE payer->>'stripe_session'=$1", [session.id])).rows[0];
+    if (dup) { await client.query('COMMIT'); return { already: true, order_id: dup.id }; }
+    const s = (await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE', [meta.session_id])).rows[0];
+    const lines = s ? tableOrders.unpaid(s.items).filter(l => wanted.includes(l.line)) : [];
+    const ok = s && s.status === 'open' && s.user_id === meta.user_id && session.currency === 'twd' && lines.length === wanted.length && lines.length > 0 && tableOrders.sum(lines) === amountPaid;
+    if (!ok) {
+      await client.query('ROLLBACK');
+      console.error(`[shop-stripe] 已收款但無法入帳：session=${session.id} pi=${intent} ts=${meta.session_id} amount=${amountPaid}`);
+      lineService.notifyStaff(`⚠️ 商店訂單 ${s?.table_no || ''} Stripe 已收款 NT$${amountPaid}，但訂單已結帳／取消或金額不符，未入帳。請到 Stripe 後台退款（${intent || session.id}）`);
+      return { mismatch: true };
+    }
+    const orderId = uid('to_'), now = new Date(), set = new Set(lines.map(l => l.line));
+    const user = (await client.query('SELECT id,name,phone,phone_e164 FROM users WHERE id=$1', [s.user_id])).rows[0];
+    const payer = { method: 'stripe', name: user?.name || '', stripe_session: session.id, payment_intent: intent, online: true, member_id: s.user_id, member_phone: user?.phone_e164 || user?.phone || '' };
+    const orderLines = lines.map(l => ({ ...l, order_id: orderId }));
+    let yanOut = { earned: 0 };
+    if (user) { try { yanOut = await applyYanForCheckout(client, { user, orderId, amount: amountPaid, brand: lines[0].venue || '' }); payer.yan_earned = yanOut.earned; } catch (e) { console.warn('[shop-stripe] 累點失敗', e.message); } }
+    await client.query(`INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,status,ready_at,user_id) VALUES($1,$2,$3,$4,$5,$6,'ready',now(),$7)`, [orderId, s.id, s.table_no, JSON.stringify(orderLines), amountPaid, JSON.stringify(payer), s.user_id]);
+    await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1', [s.id, JSON.stringify(s.items.map(l => set.has(l.line) ? { ...l, order_id: orderId } : l))]);
+    await stockConsume(client.query.bind(client), orderLines);
+    await inventoryConsume(client.query.bind(client), orderLines, { ref_id: orderId, actor: '會員 App' });
+    await client.query('COMMIT');
+    out = { ok: true, order_id: orderId, table: s.table_no };
+    lineService.notifyStaff(`💳 商店訂單 ${s.table_no} 已線上付款 NT$${amountPaid}（Stripe）｜${user?.name || ''}\n${lines.map(l => `${l.zh} ×${l.qty}`).join('、')}\n請備貨，交貨後在出餐看板按「已取餐」`);
+  } catch (e) { await client.query('ROLLBACK').catch(() => {}); if (e.code === '23505') return { already: true }; throw e; } finally { client.release(); }
+  return out;
+}
+app.post('/api/me/shop/:id/checkout', auth, requireDb, rateLimit({ max: 20, windowMs: 3600000 }), wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  if (!stripe) return res.status(503).json({ error: '線上付款尚未開通，請到櫃檯付款取貨。' });
+  if (!ORDER_ID_RE.test(req.params.id)) return res.status(404).json({ error: '找不到這張訂單。' });
+  const s = (await q(`SELECT * FROM table_sessions WHERE id=$1 AND user_id=$2 AND shop_at IS NOT NULL`, [req.params.id, req.auth.sub])).rows[0];
+  if (!s) return res.status(404).json({ error: '找不到這張訂單。' });
+  const lines = tableOrders.unpaid(s.items || []);
+  if (s.status !== 'open' || !lines.length) return res.status(409).json({ error: '這張訂單已付款或已結束。' });
+  const user = (await q('SELECT email FROM users WHERE id=$1', [req.auth.sub])).rows[0];
+  const lang = ['en', 'ja'].includes(req.body?.lang) ? req.body.lang : 'zh';
+  const session = await stripe.checkout.sessions.create({
+    mode: 'payment', payment_method_types: ['card'], customer_email: user?.email || undefined,
+    line_items: lines.map(l => ({ price_data: { currency: 'twd', product_data: { name: (lang === 'en' && l.en) || (lang === 'ja' && l.ja) || l.zh }, unit_amount: l.price * 100 }, quantity: l.qty })),
+    expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+    success_url: `${APP_BASE}/?shop_paid=1&s={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${APP_BASE}/?shop_canceled=1`,
+    metadata: { kind: 'shop', session_id: s.id, user_id: req.auth.sub, table: s.table_no, lines: lines.map(l => l.line).join(',') },
+  });
+  res.json({ url: session.url });
+}));
+app.post('/api/me/shop/verify', auth, requireDb, wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  if (!stripe) return res.status(503).json({ error: 'Stripe 未設定。' });
+  const sessionId = String(req.body?.session_id || '');
+  if (!/^cs_[A-Za-z0-9_]+$/.test(sessionId)) return res.status(400).json({ error: 'session 不正確。' });
+  const session = await stripe.checkout.sessions.retrieve(sessionId);
+  if (session.metadata?.kind !== 'shop' || session.metadata.user_id !== req.auth.sub) return res.status(404).json({ error: '找不到這筆付款。' });
+  if (session.payment_status !== 'paid') return res.status(402).json({ error: '尚未付款。' });
+  const r = await fulfillShopCheckout(session);
+  if (r.mismatch) return res.status(409).json({ error: '付款已收到，但訂單已在櫃檯結帳或已取消，店家會為你退款。' });
+  res.json({ ok: true, already: r.already === true, table: session.metadata.table });
+}));
 app.get('/api/me/shop', auth, requireDb, wrap(async (req, res) => {
   if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
   const rows = (await q(`SELECT * FROM table_sessions WHERE user_id=$1 AND shop_at IS NOT NULL AND (status='open' OR updated_at>now()-interval '3 day') ORDER BY shop_at DESC LIMIT 10`, [req.auth.sub])).rows;
   res.set('Cache-Control', 'no-store');
-  res.json({ ok: true, orders: rows.map(shopView) });
+  res.json({ ok: true, orders: rows.map(shopView), stripe: !!stripe });
 }));
 app.post('/api/me/shop', auth, requireDb, rateLimit({ max: 20, windowMs: 3600000 }), wrap(async (req, res) => {
   if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
@@ -6387,6 +6460,7 @@ async function registerSummary(reg){
   const summary=posRegister.expectedCash({opening_cash:reg.opening_cash,cash_sales:sales.by_method.cash||0,moves});
   const methods=await paymentMethodsList(),accounts=posRegister.accountsOf(sales.by_method),labels={};
   for(const m of methods){labels[m.code]=m.label;if(m.active&&m.code!=='cash'&&!posRegister.LEGACY_CARD.includes(m.code))accounts[m.code]??=0;}
+  labels.stripe='Stripe 線上刷卡';   // 會員 App 商店線上付款，對 Stripe 後台實收
   summary.reconciliation_accounts=accounts;summary.account_labels=labels;
   return {sales,moves,counts,summary,report:posRegister.registerReport({...reg,day:String(reg.day instanceof Date?reg.day.toISOString().slice(0,10):reg.day).slice(0,10),note:reg.close_note||reg.note},summary,sales,moves,counts[0]||null)};
 }
@@ -6483,7 +6557,7 @@ app.post('/api/admin/registers/:id/reopen',auth,adminOnly,superOnly,requireDb,wr
 // 結帳畫面只留一個「信用卡」選項。歷史單據的 card／taishin 紀錄不回頭改，標籤仍顯示「信用卡」，日結併入 ctbc 對帳
 const MERGED_PAY_LABEL={ctbc:'信用卡'};
 async function paymentMethodsList(){
-  const builtin=Object.entries(tableOrders.PAY_METHODS).filter(([code])=>code!=='tappay'&&!posRegister.LEGACY_CARD.includes(code)).map(([code,label])=>({code,label:MERGED_PAY_LABEL[code]||label,active:true,builtin:true}));
+  const builtin=Object.entries(tableOrders.PAY_METHODS).filter(([code])=>code!=='tappay'&&code!=='stripe'&&!posRegister.LEGACY_CARD.includes(code)).map(([code,label])=>({code,label:MERGED_PAY_LABEL[code]||label,active:true,builtin:true}));
   const custom=(await q('SELECT code,label,active FROM pos_payment_methods ORDER BY created_at')).rows.map(r=>({...r,builtin:false}));
   return [...builtin,...custom];
 }
