@@ -8,7 +8,7 @@
     'COLD_APP', 'HOT_APP', 'FRIED', 'GRILL', 'MAIN', 'SOUP',
     'COFFEE', 'BEVERAGE', 'TEA', 'SPARKLING',
     'SAKE', 'LIQUEUR', 'WINE', 'BEER', 'BOTTLE', 'ALCOHOL',
-    'FOOD', 'SNACK', 'OTHER',
+    'FOOD', 'SNACK', 'SHOP', 'OTHER',
   ];
   const ALCOHOL_CATS = ['ALCOHOL', 'SAKE', 'LIQUEUR', 'WINE', 'BEER', 'BOTTLE'];
   const VENUE_LABEL = {
@@ -39,6 +39,7 @@
     SOUP: { zh: '湯品', en: 'Soup', ja: 'スープ', ko: '수프' },
     FOOD: { zh: '餐點', en: 'Food', ja: 'フード', ko: '음식' },
     SNACK: { zh: '點心', en: 'Snack', ja: 'おやつ', ko: '간식' },
+    SHOP: { zh: '商店', en: 'Shop', ja: 'ショップ', ko: '숍' },
     OTHER: { zh: '其他', en: 'Other', ja: 'その他', ko: '기타' },
   };
   /* 當下營業品牌（台北時間，UTC+8 無日光節約）：08:00–17:00 在咖啡、17:00–翌日 03:00 三點水、其餘 null。
@@ -86,7 +87,7 @@
   function serviceCharge(lines, opts) {
     const o = opts || {};
     if (o.takeout || (!o.force && !barPolicyActive(o.now))) return null;
-    const goods = (lines || []).filter(l => l && !l.credit_of && !l.prepay && !l.cancelled && !l.tip);   // 打賞是代收給表演者，不算服務費
+    const goods = (lines || []).filter(l => l && !l.credit_of && !l.prepay && !l.cancelled && !l.tip && !isShop(l));   // 商店零售品不收服務費   // 打賞是代收給表演者，不算服務費
     const total = ls => ls.reduce((a, l) => a + (Number(l.price) || 0) * (Number(l.qty) || 0), 0);
     const gross = total(goods), bar = total(goods.filter(l => l.venue === 'BAR'));
     if (!(bar > 0) || !(gross > 0)) return null;
@@ -207,8 +208,12 @@
   function soldOutToday(item, now) { return (!!item.sold_out && item.sold_out === businessDay(now)) || stockLeft(item, now) === 0; }
   /* ctx.posOnly=true 時才把 pos_only 品項算進可點範圍（POS／後台代客加點用）；
    * 客人掃碼點餐（/order）與任何沒傳 ctx 的呼叫，一律看不到 pos_only 品項。 */
+  /* 商店（SHOP）：牙刷、毛巾、耳機等零售品。只在會員 App 商店（ctx.shop）與 POS（ctx.posOnly）出現，
+   * 不進桌邊點餐、預約取餐、官網菜單；不上出餐單、不收服務費、不套會員價。 */
+  function isShop(item) { return !!item && item.cat === 'SHOP'; }
   function isOrderable(item, now, ctx) {
     if (!item.published || soldOutToday(item, now)) return false;
+    if (isShop(item) && !(ctx && (ctx.shop || ctx.posOnly))) return false;
     if (item.pos_only && !(ctx && ctx.posOnly)) return false;
     const day = businessDay(now);
     if (item.available_from && day < item.available_from) return false;
@@ -262,7 +267,7 @@
 
   /* 對外可見（官網菜單頁、IG）：已發布且非 POS 限定；pos_only 品項（例：其他）只在 POS／後台加點出現 */
   function publishedOnly(doc) {
-    return (doc.items || []).filter(x => x.published && !x.pos_only);
+    return (doc.items || []).filter(x => x.published && !x.pos_only && !isShop(x));
   }
 
   function fromSeedRows(rows) {
@@ -363,6 +368,6 @@
 
   global.MenuLib = {
     CATS, VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, MEMBER_RATE, BAR_POLICY_FROM, SERVICE_RATE, MIN_SPEND, barPolicyActive, minSpendOf, serviceCharge, memberPrice, activeVenue, orderWindow, orderableInWindow, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
-    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, soldOutToday, stockLeft, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
+    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, isShop, soldOutToday, stockLeft, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

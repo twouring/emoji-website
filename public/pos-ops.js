@@ -1085,7 +1085,7 @@ function posTotals(cur){
 // 低消（三點水 11/1 起，每人平日 300／假日 600）：看整桌三點水品項（不含贈送／取消／預收），人數用 POS 設定的來客人數；只提醒、不自動補收
 function minSpendState(cur){
   if(!MenuLib.minSpendOf||cur.takeout)return null;
-  const goods=cur.lines.filter(l=>!l.credit_of&&!l.prepay&&!l.cancelled&&!l.tip&&l.venue==='BAR');   // 打賞不算低消
+  const goods=cur.lines.filter(l=>!l.credit_of&&!l.prepay&&!l.cancelled&&!l.tip&&l.venue==='BAR'&&l.cat!=='SHOP');   // 打賞、商店零售品不算低消
   if(!goods.length)return null;
   const spent=goods.reduce((a,l)=>a+(l.comp_reason?0:l.price)*l.qty,0);
   if(!MenuLib.barPolicyActive())return null;
@@ -1320,7 +1320,7 @@ function paintPos(){
     // 品項依點餐人分組（同桌各自掃碼點的名字）：組頭列出稱呼、幾項、小計與「只結這組」；只有一個人點的就不加組頭
     const groups=lineGroups(cur.lines),multi=groups.filter(g=>g.key!=='credit').length>1;
     const lineRows=groups.map(g=>{const ids=g.lines.map(l=>l.line);const on=!!POS_PICK&&POS_PICK.size===ids.length&&ids.every(id=>POS_PICK.has(id));const sub=g.lines.reduce((a,l)=>a+priceOf(l)*l.qty,0);const head=multi?`<tr class="pos-group ${on?'on':''}"><td colspan="5"><div class="pos-group-wrap"><span class="pos-group-name">${esc(g.label)}</span><span class="pos-group-meta">${g.lines.length} 項 · NT$${g.key==='credit'?'−'+num(-sub):num(sub)}</span>${g.key!=='credit'?`<button type="button" class="btn btn--ghost btn-xs" data-pick-group="${esc(g.key)}">${on?'已選這組':'只結這組'}</button>`:''}</div></td></tr>`:'';return head+g.lines.map(rowOf).join('');}).join('')||'<tr><td colspan="5" class="a-empty">尚未加入餐點，請從中間菜單選擇</td></tr>';
-    const menuItems=MenuLib.sortItems((MENU_DOC?.items||[]).filter(it=>it.published&&(!SCOPE||it.venue===SCOPE)));
+    const menuItems=MenuLib.sortItems((MENU_DOC?.items||[]).filter(it=>it.published&&(!SCOPE||it.venue===SCOPE||it.cat==='SHOP')));   // 商店零售品兩店共用
     if(POS_OPT&&(POS_OPT.table!==cur.table||(POS_OPT.line&&!cur.lines.some(l=>l.line===POS_OPT.line))))POS_OPT=null;
     const cats=[...new Set(menuItems.map(it=>it.cat))];if(POS_CAT&&!cats.includes(POS_CAT))POS_CAT='';
     const catChips=`<div class="pos-cats" role="tablist" aria-label="分類"><button type="button" data-cat="" aria-pressed="${!POS_CAT}">全部</button>${cats.map(c=>`<button type="button" data-cat="${esc(c)}" aria-pressed="${c===POS_CAT}">${esc(MenuLib.CAT_LABEL[c]?.zh||c)}</button>`).join('')}</div>`;
@@ -2180,7 +2180,7 @@ async function loadSoldOut(refresh){
   if(SO_PAUSE===null||refresh===true){try{SO_PAUSE=(await api('/admin/orders/pause'+scopeQuery())).pause||{};}catch(e){SO_PAUSE=SO_PAUSE||{};toast('暫停點餐狀態載入失敗：'+e.message);}}
   if(refresh!=='paint'){try{const d=await api('/admin/orders'+scopeQuery());applyLiveStock(d.stock);}catch(e){}}
   if(!document.getElementById('soldout-body'))return;
-  const items=MenuLib.sortItems((MENU_DOC?.items||[]).filter(it=>it.published&&!it.pos_only&&(!SCOPE||it.venue===SCOPE)));   // 「其他」這類 POS 限定品項沒有估清的意義
+  const items=MenuLib.sortItems((MENU_DOC?.items||[]).filter(it=>it.published&&!it.pos_only&&(!SCOPE||it.venue===SCOPE||it.cat==='SHOP')));   // 「其他」這類 POS 限定品項沒有估清的意義
   const groups=new Map();for(const it of items){if(!groups.has(it.cat))groups.set(it.cat,[]);groups.get(it.cat).push(it);}
   const cards=[...groups].map(([cat,list])=>`<h3>${esc(MenuLib.CAT_LABEL[cat]?.zh||cat)}</h3><div class="so-grid">${list.map(it=>{const st=soState(it),off=st.cls==='off';return `<button type="button" class="so-item ${st.cls}" data-so="${esc(it.id)}" aria-pressed="${off?'true':'false'}">${itemThumb(it,'so-item__img')}<b>${esc(it.zh)}</b><span>NT$${num(it.price)}${SCOPE?'':' · '+esc(BRAND_LABEL[it.venue]||it.venue)}</span><small>${esc(st.text)}</small></button>`;}).join('')}</div>`).join('')||'<p class="a-empty">沒有已發布的菜單項目，請先在後台「菜單」儲存菜單。</p>';
   const sig=JSON.stringify([SO_PAUSE,items.map(it=>[it.id,it.image,soState(it).text])]);

@@ -242,7 +242,7 @@ function invConvertDialog(it){
 function invRecipesHtml(){
   if(typeof MENU_DOC==='undefined'||!MENU_DOC?.items?.length)return '<p class="a-empty">菜單還沒載入，請重新整理。</p>';
   const recipes=INV.data?.recipes||{},q=(INV.rq||'').trim().toLowerCase(),mode=INV.rfilter||'all';
-  const items=MenuLib.sortItems(MENU_DOC.items.filter(it=>(!SCOPE||it.venue===SCOPE)&&(it.published||it.pos_only)));
+  const items=MenuLib.sortItems(MENU_DOC.items.filter(it=>(!SCOPE||it.venue===SCOPE||it.cat==='SHOP')&&(it.published||it.pos_only)));
   const shown=items.filter(it=>!q||String(it.zh).toLowerCase().includes(q)).filter(it=>mode==='all'||(mode==='set'?recipes[it.id]?.length:!recipes[it.id]?.length));
   const setN=items.filter(it=>recipes[it.id]?.length).length;
   const groups=new Map();for(const it of shown){if(!groups.has(it.cat))groups.set(it.cat,[]);groups.get(it.cat).push(it);}

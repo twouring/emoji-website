@@ -927,6 +927,8 @@ async function migrate() {
   await q(`CREATE INDEX IF NOT EXISTS dining_reservations_user_idx ON dining_reservations(user_id) WHERE user_id IS NOT NULL`);
   await q(`ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS user_id TEXT, ADD COLUMN IF NOT EXISTS pickup_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS pickup_note TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS pickup_placed_at TIMESTAMPTZ`);
   await q(`CREATE INDEX IF NOT EXISTS table_sessions_pickup_idx ON table_sessions(pickup_at) WHERE status='open' AND pickup_at IS NOT NULL`);
+  // 會員 App 商店：零售品訂單也是一張外帶單（W 號），shop_at＝下單時間；到櫃檯付款取貨
+  await q(`ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS shop_at TIMESTAMPTZ`);
   await q(require('./lib/line-delivery').SCHEMA);
   await q(`CREATE INDEX IF NOT EXISTS line_deliveries_due_idx ON line_deliveries(available_at) WHERE state='pending'`);
   await q(`CREATE TABLE IF NOT EXISTS line_events (id TEXT PRIMARY KEY, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
@@ -5025,12 +5027,60 @@ async function placeDuePickups(now = new Date()) {
   return { placed: n, expired: stale.rowCount };
 }
 
+/* ---- 會員 App 商店（lib/shop.js）：牙刷、毛巾、耳機等零售品。App 下單＝開一張外帶單（W 號，記會員），
+   店員在 POS 看到、到櫃檯付款取貨；不進出餐看板、不收服務費、不套會員價。未付款的單 SHOP_EXPIRE_HOURS 後自動收掉 ---- */
+const shop = require('./lib/shop');
+const shopView = s => ({ id: s.id, table: s.table_no, status: s.status, created_at: s.shop_at || s.created_at, note: s.pickup_note || '',
+  items: (s.items || []).filter(l => !l.cancelled).map(({ guest, ...l }) => l), amount: tableOrders.sum((s.items || []).filter(l => !l.cancelled)),
+  paid: (s.items || []).length > 0 && tableOrders.unpaid(s.items || []).length === 0 });
+app.get('/api/me/shop', auth, requireDb, wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  const rows = (await q(`SELECT * FROM table_sessions WHERE user_id=$1 AND shop_at IS NOT NULL AND (status='open' OR updated_at>now()-interval '3 day') ORDER BY shop_at DESC LIMIT 10`, [req.auth.sub])).rows;
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, orders: rows.map(shopView) });
+}));
+app.post('/api/me/shop', auth, requireDb, rateLimit({ max: 20, windowMs: 3600000 }), wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  const me = (await q('SELECT id,name FROM users WHERE id=$1', [req.auth.sub])).rows[0];
+  if (!me) return res.status(401).json({ error: '帳號不存在，請重新登入。' });
+  let p; try { p = shop.normalizeOrder(req.body); } catch (e) { return res.status(e.status || 400).json({ error: e.message }); }
+  const menuJson = await contentValue('menu'), menu = shop.menuOf(menuJson), venue = shop.venueFor(null);
+  let items = [];
+  try { for (const x of p.items) { if (!menu.has(x.item_id)) throw Object.assign(Error('商品不存在、已售完或已下架。'), { status: 400 }); items = tableOrders.addLine(items, menu, { item_id: x.item_id, qty: x.qty, by: me.name || '會員', guest: pickup.guestOf(me.id), venue }); } }
+  catch (e) { return res.status(e.status || 400).json({ error: e.message }); }
+  { const short = tableOrders.stockShortage(menuJson, items); if (short.length) return res.status(409).json({ error: tableOrders.stockMessage(short) }); }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN'); await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, ['table:takeout']);
+    const open = Number((await client.query("SELECT COUNT(*)::int AS n FROM table_sessions WHERE user_id=$1 AND status='open' AND shop_at IS NOT NULL", [me.id])).rows[0].n);
+    if (open >= shop.MAX_OPEN_PER_USER) { await client.query('ROLLBACK'); return res.status(409).json({ error: `你已有 ${shop.MAX_OPEN_PER_USER} 張未取貨的商店訂單，請先到櫃檯取貨或取消。` }); }
+    const used = new Set((await client.query("SELECT table_no FROM table_sessions WHERE status='open' AND table_no ~ '^W[0-9]{2}$'")).rows.map(r => r.table_no));
+    const table = tableOrders.nextTakeoutTable(used);
+    if (!table) { await client.query('ROLLBACK'); return res.status(409).json({ error: '目前訂單已滿，請稍後再試或直接到櫃檯購買。' }); }
+    const s = (await client.query(`INSERT INTO table_sessions(id,table_no,items,user_id,shop_at,pickup_note,opened_by_staff_name) VALUES($1,$2,$3,$4,now(),$5,$6) RETURNING *`, [uid('ts_'), table, JSON.stringify(items), me.id, p.note, '會員 App 商店'])).rows[0];
+    await client.query('COMMIT');
+    lineService.notifyStaff(`🛍️ 商店訂單 ${table}（會員 App）｜${me.name || ''}\n${items.map(l => `${l.zh} ×${l.qty}`).join('、')}｜NT$${tableOrders.sum(items)}${p.note ? '\n備註：' + p.note : ''}\n客人到櫃檯付款取貨`);
+    res.status(201).json({ ok: true, order: shopView(s) });
+  } catch (e) { await client.query('ROLLBACK').catch(() => {}); throw e; } finally { client.release(); }
+}));
+app.delete('/api/me/shop/:id', auth, requireDb, wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  if (!ORDER_ID_RE.test(req.params.id)) return res.status(404).json({ error: '找不到這張訂單。' });
+  const r = (await q(`UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=$1 AND user_id=$2 AND status='open' AND shop_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(items) l WHERE l->>'order_id' IS NOT NULL AND l->>'order_id'<>'') RETURNING table_no`, [req.params.id, req.auth.sub])).rows[0];
+  if (!r) return res.status(409).json({ error: '這張訂單已結帳或已結束，無法取消。' });
+  lineService.notifyStaff(`❌ 商店訂單 ${r.table_no} 已由客人取消`);
+  res.json({ ok: true });
+}));
+async function expireShopOrders() {
+  return (await q(`UPDATE table_sessions SET status='closed',updated_at=now() WHERE status='open' AND shop_at IS NOT NULL AND shop_at<now()-make_interval(hours=>$1) AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(items) l WHERE l->>'order_id' IS NOT NULL AND l->>'order_id'<>'')`, [shop.EXPIRE_HOURS])).rowCount;
+}
+
 /* 會員卡「可兌換」清單：菜單有設兌換點數的品項＋後台設定的空間時數；只讀、與兌換結帳邏輯無關（實際兌換仍在櫃檯掃碼） */
 app.get('/api/me/rewards', auth, requireDb, wrap(async (req, res) => {
   if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
   const doc = tableOrders.MenuLib.parseMenuDoc(await contentValue('menu'));
   const day = tableOrders.MenuLib.businessDay(new Date());
-  const items = (doc.items || []).filter(it => it.published && !it.pos_only && it.points > 0 && !tableOrders.MenuLib.soldOutToday(it))
+  const items = (doc.items || []).filter(it => it.published && !it.pos_only && !tableOrders.MenuLib.isShop(it) && it.points > 0 && !tableOrders.MenuLib.soldOutToday(it))
     .sort((a, b) => a.points - b.points || a.sort - b.sort)
     .map(it => ({ id: it.id, venue: it.venue, zh: it.zh, en: it.en, ja: it.ja, points: it.points, image: it.image }));
   const sp = yan.parseSpaceRewards(await contentValue('yan_rewards'));
@@ -5749,8 +5799,9 @@ app.post('/api/admin/orders/sessions/:id/items',auth,adminOnly,requireDb,wrap(as
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
   const venues=tableOrders.visibleVenues(req.auth.brands);
   const menuAll=tableOrders.menuIndex(await contentValue('menu'),undefined,{posOnly:true});   // 櫃檯可替客人加任何已發布品項（含估清、非營業時段、POS 限定如「其他」），但不得跨品牌
-  const it=menuAll.get(String(req.body?.item_id||''));if(it&&!tableOrders.itemInVenues(it,venues))return res.status(403).json({error:'只能加自己店別的品項。'});
-  return mutateItems(req,res,items=>tableOrders.posAddLine(items,menuAll,req.body||{}));
+  const it=menuAll.get(String(req.body?.item_id||''));const shopItem=tableOrders.MenuLib.isShop(it);if(it&&!shopItem&&!tableOrders.itemInVenues(it,venues))return res.status(403).json({error:'只能加自己店別的品項。'});
+  // 商店零售品兩店共用：記在這台 POS 的店別（言文字管理員記當下營業品牌）
+  return mutateItems(req,res,items=>tableOrders.posAddLine(items,menuAll,{...(req.body||{}),venue:shopItem?shop.venueFor(venues):undefined}));
 }));
 app.post('/api/admin/orders/sessions/:id/place',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
@@ -7425,7 +7476,7 @@ cronRunner.define('event-mail', async () => {
 }, { enabled: eventMailEnabled, onError: e => console.error('[event-mail]', e.message) });
 cronRunner.define('line-delivery', () => lineDelivery.run(), { onError: () => console.error('[line-delivery] scheduler_failed') });
 // 預約取餐：取餐前 PREP_MIN 分鐘自動送單；過期未取自動收掉
-cronRunner.define('pickup', () => placeDuePickups(), { onError: e => console.error('[pickup]', e.message) });
+cronRunner.define('pickup', async () => ({ ...(await placeDuePickups()), shop_expired: await expireShopOrders() }), { onError: e => console.error('[pickup]', e.message) });
 // 會員活動結束後自動建立待撥款（冪等，每小時檢查）
 cronRunner.define('event-auto-end', () => closeEndedEvents(), { onError: e => console.error('[event-auto-end]', e.message) });
 cronRunner.define('event-settlements', () => scheduleEndedEventSettlements(), { onError: e => console.error('[event-settlements]', e.message) });

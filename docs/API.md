@@ -848,6 +848,15 @@ X 貼文 AI 起草：body `{ topic }`，回 `{ ok, draft: { title, caption, capt
 ### DELETE /api/me/pickups/:id
 取消預約取餐：只限還沒自動送單（`pickup_placed_at` 空）且沒結帳的，否則 409 請聯絡店家。回 `{ ok }`。agent 金鑰 403。
 
+### GET /api/me/shop
+會員 App 商店：我的商店訂單（開著的＋三天內結束的，最多 10 筆）。回 `{ ok, orders:[{ id, table, status, created_at, note, items, amount, paid }] }`。商品清單不在這裡，前台讀 `/api/public` 的菜單、只取分類 `SHOP`。agent 金鑰 403。
+
+### POST /api/me/shop
+商店下單。body `{ items:[{ item_id, qty(1–20) }], note? }`，最多 20 種 40 件、同商品不可重複列。只收菜單分類 `SHOP`、已發布、未估清、在供應期間內的品項（不受營業時段限制；剩餘份數不足 409）。開一張外帶單（`table_sessions` W01–W99，`user_id`、`shop_at`、`pickup_note`），行的 `venue` 記當下營業品牌（03–08 記 CAFE），一加入就 `served_at`（不進出餐看板、不印出餐單）；客人到櫃檯付款取貨，POS 照外帶單結帳。不收服務費、不算低消、不套會員價。同一會員最多 3 張未取貨（409）、號碼用完 409。通知員工 LINE 群組。下單 48 小時未結帳由 `pickup` 排程自動取消。回 `{ ok, order }`。限 20 次／小時。agent 金鑰 403。
+
+### DELETE /api/me/shop/:id
+取消商店訂單：只限自己的、還開著且沒結帳的，否則 409。回 `{ ok }`。agent 金鑰 403。
+
 ### GET /api/me/rewards
 會員卡「可以兌換」清單（只讀）。回 `{ ok, items:[{id,venue,zh,en,ja,points,image}], space:[{plan,zh,points}] }`：`items` 為菜單中已發布、非 POS 專用、今天未估清且 `points>0` 的品項（點數由低到高）；`space` 為後台 `yan_rewards` 設定的空間時數。餐飲品項由 App 掃桌碼兌換（`POST /api/me/redeem`），空間時數仍在櫃檯掃會員碼。agent 金鑰 403。
 
