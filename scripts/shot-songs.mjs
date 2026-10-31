@@ -73,7 +73,7 @@ async function shot(url, w, h, name, { mobile = false, prep = null, act = null }
       panelText: panel && vis(panel) ? panel.innerText.replace(/\s+/g, ' ').slice(0, 420) : null, rowsClipped: clipped, titleLines: titles.map(t => t.lines).join(','), nowrap: titles.filter(t => t.nowrap).length, tabs: [...document.querySelectorAll('.song-tabs [role=tab]')].map(b => b.textContent.trim()).join('|'), smallControls: small.slice(0, 8) };
   });
   console.log(name, JSON.stringify(probe));
-  const extra = await page.evaluate(() => { const set = document.getElementById('set-songs-body'); const L = [...document.querySelectorAll('.song-meta b,.song-meta small,.song-row .n b,.song-now-main b,.song-now .n b,#song-dock-title,.song-who')].filter(b => b.offsetHeight).map(b => b.textContent.slice(0, 18) + '=' + Math.round(b.offsetHeight / parseFloat(getComputedStyle(b).lineHeight)) + 'L/' + (b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1 ? 'CUT' : 'full') + '/' + getComputedStyle(b).whiteSpace + '/' + getComputedStyle(b).textOverflow); const q = document.getElementById('song-q-h'); const who = [...document.querySelectorAll('#songs-body .song-queue .song-who')].map(w => w.textContent); return { upcomingHead: q ? q.textContent : null, upcomingRows: document.querySelectorAll('#songs-body .song-queue > li').length, who: who.slice(0, 6), setSongs: set ? set.innerText.replace(/\s+/g, ' ').slice(0, 260) : 'NO-SECTION', lines: L.filter(x => /CUT|nowrap|ellipsis/.test(x)).slice(0, 12) }; });
+  const extra = await page.evaluate(() => { const set = document.getElementById('set-songs-body'); const L = [...document.querySelectorAll('.song-meta b,.song-meta small,.song-row .n b,.song-now-main b,.song-now .n b,.song-who')].filter(b => b.offsetHeight).map(b => b.textContent.slice(0, 18) + '=' + Math.round(b.offsetHeight / parseFloat(getComputedStyle(b).lineHeight)) + 'L/' + (b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1 ? 'CUT' : 'full') + '/' + getComputedStyle(b).whiteSpace + '/' + getComputedStyle(b).textOverflow); const q = document.getElementById('song-q-h'); const who = [...document.querySelectorAll('#songs-body .song-queue .song-who')].map(w => w.textContent); return { upcomingHead: q ? q.textContent : null, upcomingRows: document.querySelectorAll('#songs-body .song-queue > li').length, who: who.slice(0, 6), setSongs: set ? set.innerText.replace(/\s+/g, ' ').slice(0, 260) : 'NO-SECTION', lines: L.filter(x => /CUT|nowrap|ellipsis/.test(x)).slice(0, 12) }; });
   console.log(name, 'EXTRA', JSON.stringify(extra));
   await page.screenshot({ path: path.join(OUT, name + '.png'), fullPage: true });
   console.log(name, 'overflow=' + overflow, errs.length ? 'ERR ' + errs.join(' | ') : 'no-errors');
@@ -88,31 +88,11 @@ await shot('https://pos.test/pos/songs', 1180, 820, 'pos-songs-search-1180', { a
   const st = await p.evaluate(() => { const i = document.querySelector('[data-song-search] input'); return { focused: document.activeElement === i, value: i.value, rows: document.querySelectorAll('[data-song-results] .song-row').length, submitBtn: !!document.querySelector('[data-song-search] button') }; });
   console.log('LIVE-SEARCH pos', JSON.stringify({ hits: SEARCH_HITS, ...st }));
 } });
-// 點歌頁：自動縮成一條，按「＋」要能放大、再按「－」縮回（10/28 修：之前把手整條 display:none，放不大）
-await shot('https://pos.test/pos/songs', 1180, 820, 'pos-songs-dock-expand', { act: async p => {
+// KK 10/31：播放器不佔畫面——各分頁都不可在視窗內看到 #song-dock，但 iframe 仍存在（照常播放）
+for (const u of ['songs', 'orders']) await shot('https://pos.test/pos/' + u, 1180, 820, 'pos-nodock-' + u, { act: async p => {
   await p.waitForSelector('#song-dock', { timeout: 4000 });
-  const m = () => p.evaluate(() => { const d = document.getElementById('song-dock'), r = d.getBoundingClientRect(), b = d.querySelector('[data-song-dock-min]'); return { h: Math.round(r.height), w: Math.round(r.width), bottom: Math.round(r.bottom), vh: innerHeight, btn: b.textContent, btnVisible: !!b.offsetHeight, video: Math.round(d.querySelector('.song-dock-video').getBoundingClientRect().height) }; });
-  const a = await m(); await p.click('[data-song-dock-min]'); await new Promise(r => setTimeout(r, 200));
-  const b = await m(); await p.click('[data-song-dock-min]'); await new Promise(r => setTimeout(r, 200));
-  const c = await m();
-  console.log('DOCK-EXPAND', JSON.stringify({ auto: a, expanded: b, back: c }));
-} });
-// 播放器：拖移、縮到最小、重新整理後記得位置
-// 點歌頁寬螢幕播放器自動縮成一條（把手隱藏），拖移在其他分頁測
-await shot('https://pos.test/pos/orders', 1280, 900, 'pos-dock-drag-min', { act: async p => {
-  await p.waitForSelector('#song-dock', { timeout: 4000 });
-  const before = await p.evaluate(() => { const r = document.getElementById('song-dock').getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.height)]; });
-  const g = await p.$('[data-song-dock-grip]'); const b = await g.boundingBox();
-  await p.mouse.move(b.x + 40, b.y + 20); await p.mouse.down(); await p.mouse.move(b.x - 600, b.y - 500, { steps: 8 }); await p.mouse.up();
-  const moved = await p.evaluate(() => { const r = document.getElementById('song-dock').getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top)]; });
-  await p.click('[data-song-dock-min]');
-  const min = await p.evaluate(() => { const d = document.getElementById('song-dock'), r = d.getBoundingClientRect(); return { cls: d.className, h: Math.round(r.height), title: document.getElementById('song-dock-title').textContent, titleCut: (t => t.scrollWidth > t.clientWidth + 1 || t.scrollHeight > t.clientHeight + 1)(document.getElementById('song-dock-title')) }; });
-  const bar = await (await p.$('.song-dock-bar')).boundingBox();
-  await p.mouse.move(bar.x + 30, bar.y + bar.height / 2); await p.mouse.down(); await p.mouse.move(bar.x + 230, bar.y + 120, { steps: 6 }); await p.mouse.up();
-  const moved2 = await p.evaluate(() => { const r = document.getElementById('song-dock').getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top)]; });
-  await p.reload({ waitUntil: 'networkidle0' }); await p.waitForSelector('#song-dock', { timeout: 4000 }); await new Promise(r => setTimeout(r, 300));
-  const after = await p.evaluate(() => { const d = document.getElementById('song-dock'), r = d.getBoundingClientRect(); return { min: d.classList.contains('is-min'), pos: [Math.round(r.left), Math.round(r.top)] }; });
-  console.log('DOCK', JSON.stringify({ before, moved, min, moved2, after }));
+  const r = await p.evaluate(() => { const d = document.getElementById('song-dock'), b = d.getBoundingClientRect(); return { inView: b.right > 0 && b.left < innerWidth && b.bottom > 0 && b.top < innerHeight, display: getComputedStyle(d).display, yt: !!document.getElementById('song-yt') }; });
+  console.log('NO-DOCK', u, JSON.stringify(r));
 } });
 await shot('https://pos.test/pos/settings', 1280, 900, 'pos-settings-songs-1280', { act: async p => { await new Promise(r => setTimeout(r, 500)); await p.evaluate(() => document.getElementById('set-songs')?.scrollIntoView()); } });
 const order = 'https://pos.test/order?s=ts_0000000000000001&k=0123456789abcdef';

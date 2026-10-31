@@ -237,60 +237,14 @@ function songEnsureApi(){
   window.onYouTubeIframeAPIReady = () => { SONG_YT_READY = true; if (typeof prev === 'function') prev(); songPlayerSync(); };
   const s = document.createElement('script'); s.id = 'yt-iframe-api'; s.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(s);
 }
-/* 播放器小視窗：按住頂部把手拖移（滑鼠與觸控都可），「－」縮到最小（只留一列：歌名＋下一首＋展開），位置與狀態記在這台平板 */
-const SONG_DOCK_KEY = 'tth_song_dock';
-function songDockPref(){ try { return JSON.parse(localStorage.getItem(SONG_DOCK_KEY) || '{}') || {}; } catch (e) { return {}; } }
-function songDockSave(p){ try { localStorage.setItem(SONG_DOCK_KEY, JSON.stringify({ ...songDockPref(), ...p })); } catch (e) {} }
-function songDockPlace(dock, x, y){
-  const r = dock.getBoundingClientRect(), mx = Math.max(0, innerWidth - r.width), my = Math.max(0, innerHeight - r.height);
-  x = Math.min(mx, Math.max(0, x)); y = Math.min(my, Math.max(0, y));
-  dock.style.left = x + 'px'; dock.style.top = y + 'px'; dock.style.right = 'auto'; dock.style.bottom = 'auto';
-  return { x, y };
-}
-// 點歌分頁（平板橫放）會用 CSS 自動縮成一條；.is-expand＝在該頁手動展開
-const songDockAuto = () => typeof TAB !== 'undefined' && TAB === 'songs' && matchMedia('(min-width:1000px) and (min-height:600px)').matches;
-const songDockShrunk = dock => dock.classList.contains('is-min') || (songDockAuto() && !dock.classList.contains('is-expand'));
-function songDockLabel(dock){
-  const min = songDockShrunk(dock), b = dock.querySelector('[data-song-dock-min]');
-  if (b) { b.textContent = min ? '＋' : '－'; b.setAttribute('aria-label', min ? '展開播放器' : '縮到最小'); b.setAttribute('aria-expanded', String(!min)); }
-}
-// 尺寸變了（展開／縮小／切分頁）就把位置夾回畫面內，否則靠底部縮小後再展開會跑出螢幕外
-function songDockFit(dock){
-  requestAnimationFrame(() => { const p = songDockPref(); if (p.x != null) songDockPlace(dock, p.x, p.y); });
-}
-function songDockMin(dock, min){
-  // 點歌頁按「－」只是收回暫時展開，不寫入縮小偏好（否則切到其他分頁也一直是縮小的）
-  if (min && songDockAuto() && dock.classList.contains('is-expand')) { dock.classList.remove('is-expand'); songDockLabel(dock); songDockFit(dock); return; }
-  dock.classList.toggle('is-min', !!min);
-  if (!min && songDockAuto()) dock.classList.add('is-expand'); else dock.classList.remove('is-expand');
-  songDockSave({ min: !!min });
-  songDockLabel(dock); songDockFit(dock);
-}
-// pos.html activate() 切分頁時呼叫：收回點歌頁的暫時展開、更新按鈕、重新夾位置
-function songDockTab(){ const d = document.getElementById('song-dock'); if (!d) return; d.classList.remove('is-expand'); songDockLabel(d); songDockFit(d); }
+/* 播放器不佔畫面（KK 10/31）：YouTube iframe 放在畫面外常駐播放，不可 display:none 或 destroy；
+   正在播放／下一首在「點歌」分頁的大卡操作 */
 function songDock(){
   let dock = document.getElementById('song-dock');
   if (dock) return dock;
-  dock = document.createElement('div'); dock.id = 'song-dock'; dock.setAttribute('role', 'region'); dock.setAttribute('aria-label', '點歌播放器');
-  dock.innerHTML = '<div class="song-dock-grip" data-song-dock-grip><span class="song-dock-handle" aria-hidden="true"></span><span class="song-dock-label">點歌播放器・按住拖移</span><button type="button" data-song-dock-min aria-label="縮到最小" aria-expanded="true">－</button></div><div class="song-dock-video"><div id="song-yt"></div></div><div class="song-dock-bar"><span id="song-dock-title">點歌播放器</span><button type="button" data-song-dock-next aria-label="下一首">下一首</button></div>';
+  dock = document.createElement('div'); dock.id = 'song-dock'; dock.setAttribute('aria-hidden', 'true');
+  dock.innerHTML = '<div id="song-yt"></div>';
   document.body.appendChild(dock);
-  dock.querySelector('[data-song-dock-next]').onclick = () => songNext('skip');
-  dock.querySelector('[data-song-dock-min]').onclick = e => { e.stopPropagation(); songDockMin(dock, !songDockShrunk(dock)); };
-  // 拖移：pointer events（iPad 觸控、滑鼠都可）；按在按鈕上不拖
-  // 展開時拖頂部把手；縮小時整條都能拖（影片區與按鈕不拖）
-  let drag = null;
-  dock.addEventListener('pointerdown', e => {
-    if (e.target.closest('button') || e.target.closest('.song-dock-video')) return;
-    if (!e.target.closest('[data-song-dock-grip]') && !songDockShrunk(dock)) return;
-    const r = dock.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, id: e.pointerId };
-    try { dock.setPointerCapture(e.pointerId); } catch (x) {} dock.classList.add('is-drag'); e.preventDefault();
-  });
-  dock.addEventListener('pointermove', e => { if (!drag || e.pointerId !== drag.id) return; songDockPlace(dock, e.clientX - drag.dx, e.clientY - drag.dy); });
-  const end = e => { if (!drag || e.pointerId !== drag.id) return; drag = null; dock.classList.remove('is-drag'); const r = dock.getBoundingClientRect(); songDockSave({ x: Math.round(r.left), y: Math.round(r.top) }); };
-  dock.addEventListener('pointerup', end); dock.addEventListener('pointercancel', end);
-  addEventListener('resize', () => { songDockLabel(dock); const p = songDockPref(); if (p.x != null) songDockPlace(dock, p.x, p.y); });
-  const p = songDockPref(); dock.classList.toggle('is-min', !!p.min); songDockLabel(dock);
-  if (p.x != null) requestAnimationFrame(() => songDockPlace(dock, p.x, p.y));
   return dock;
 }
 function songPlayerStop(){ clearTimeout(SONG_TIMER); SONG_TIMER = null; try { SONG_YT && SONG_YT.destroy(); } catch (e) {} SONG_YT = null; SONG_LOADED = ''; const d = document.getElementById('song-dock'); if (d) d.remove(); }
@@ -304,7 +258,6 @@ function songPlayerSync(){
   clearTimeout(SONG_TIMER); SONG_TIMER = setTimeout(songPoll, SONG_POLL_MS);
   songEnsureApi(); if (!SONG_YT_READY) return;
   const d = SONGS.data, now = d.now; songDock();
-  document.getElementById('song-dock-title').textContent = now ? (now.kind === 'request' ? `♪ ${now.title}${now.table ? '（桌 ' + now.table + '）' : ''}` : now.title) : '沒有可播放的歌';
   // 沒在播但有歌可播 → 換下一首；正在播常態歌單、有人點歌 → 立刻切過去
   if (!now && (d.queue.length || d.settings.playlist.length)) return songNext('ended');
   if (now && now.kind === 'playlist' && d.queue.length) return songNext('preempt');

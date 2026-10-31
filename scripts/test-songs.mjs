@@ -219,14 +219,15 @@ test('接下來：待播優先，再接常態歌單從下一首起的整份順�
   assert.deepEqual(songs.shuffleBag([T(ID(7)), T(ID(9))], [ID(8), ID(9), ID(7)]), [ID(9), ID(7)]);
 });
 
-test('POS：顯示哪桌誰點的、接下來全部歌曲；播放器可拖移、縮到最小、記住位置；歌名不截斷', () => {
+test('POS：顯示哪桌誰點的、接下來全部歌曲；播放器不佔畫面（無子母畫面）', () => {
   const ps = read('public/pos-songs.js'), pos = read('public/pos.html');
   assert.match(ps, /function songWho/); assert.match(ps, /<b>桌 \$\{esc\(t\.table \|\| '—'\)\}<\/b>\$\{t\.by \? `・\$\{esc\(t\.by\)\}` : ''\}/);
   assert.match(ps, /d\.upcoming/); assert.match(ps, /接下來 <span class="song-count">/);
-  assert.match(ps, /data-song-dock-min/); assert.match(ps, /pointermove/); assert.match(ps, /tth_song_dock/);
-  assert.match(pos, /#song-dock\.is-min \.song-dock-video\{height:0;overflow:hidden\}/, '縮小時影片收起但不停止播放');
-  const t = pos.match(/\.song-dock-bar span\{[^}]*\}/)[0];
-  assert.doesNotMatch(t, /nowrap|ellipsis|line-clamp/, '播放器歌名不截斷');
+  // KK 10/31：POS 不要歌曲子母畫面；iframe 放畫面外照常播放（不可 display:none／destroy），操作在點歌分頁大卡
+  const dock = pos.match(/#song-dock\{[^}]*\}/)[0];
+  assert.match(dock, /left:-10000px/); assert.match(dock, /pointer-events:none/); assert.doesNotMatch(dock, /display:none/);
+  assert.doesNotMatch(ps, /data-song-dock-min|data-song-dock-next|song-dock-grip|pointermove/, '不再有可見播放器視窗');
+  assert.match(ps, /data-song-skip/, '下一首在點歌分頁');
 });
 
 test('待播排序：移到指定位置（夾頭尾）；插播 front 排到下一首', () => {
@@ -251,16 +252,12 @@ test('POS：排序鍵、插播、KTV 音效（CC0 音檔都在 public/sfx）', (
   for (const k of ids) assert.ok(fs.existsSync(new URL('../public/sfx/' + k + '.mp3', import.meta.url)), k + '.mp3');
 });
 
-test('POS 平板橫放：兩欄各自捲動不捲整頁、正在播放在左欄頂端、播放器在點歌頁縮成一條、停止音效排第一', () => {
+test('POS 平板橫放：兩欄各自捲動不捲整頁、正在播放在左欄頂端、停止音效排第一', () => {
   const ps = read('public/pos-songs.js'), pos = read('public/pos.html');
   assert.match(pos, /#songs-body section\{padding:0\}/, 'style.css 的 section padding 不可撐出空白');
   assert.match(ps, /<section class="song-col"[^`]*\$\{nowCard\}/, '正在播放放在左欄');
   assert.equal((ps.match(/class="song-scroll"/g) || []).length, 2);
   assert.match(ps, /function songFit/); assert.match(ps, /min-width:1000px\) and \(min-height:600px/);
-  assert.match(pos, /body:has\(\[data-panel=songs\]\.on\) #song-dock:not\(\.is-expand\) \.song-dock-video\{height:0;overflow:hidden\}/, '縮小不可 display:none');
-  assert.doesNotMatch(pos, /#song-dock[^{]*\.song-dock-grip\{display:none\}/, '點歌頁也要留著「＋」鈕，否則放不大');
-  assert.match(ps, /function songDockTab/); assert.match(pos, /songDockTab\(\)/, '切分頁要收回暫時展開並重新夾位置');
-  assert.match(ps, /songDockMin\(dock, !songDockShrunk\(dock\)\)/, '按鈕依實際外觀切換（含點歌頁自動縮小）');
   assert.match(ps, /<div class="song-sfx-grid"><button[^>]*data-song-sfx-stop>/);
   assert.match(ps, /JSON\.stringify\(SONGS\.data\) !== before/, '輪詢沒變不重繪');
 });
