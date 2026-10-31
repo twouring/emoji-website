@@ -591,7 +591,7 @@ setInterval(() => { if (DATA) refreshPending(); }, 60000);
 let REGWARN_SEQ = 0;
 function paintRegWarn(d){
   const bar = document.getElementById('p-regwarn');
-  const v = d ? (SCOPE || d.active_venue || 'CAFE') : '';
+  const v = d ? (SCOPE || d.next_venue || d.active_venue || 'CAFE') : '';   // 在咖啡關帳後立刻提醒開三點水，不等 17:00
   const r = d?.current?.[v];
   const show = !!(DATA && d && BRAND_LABEL[v] && !(r && !r.closed_at));
   if (!show) { bar.hidden = true; bar.innerHTML = ''; document.body.classList.remove('has-regwarn'); return; }

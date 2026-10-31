@@ -36,7 +36,7 @@ test('開帳零用金沒填時承接上一本關帳的留存金；有填（總�
 
 test('帳本總覽：有開著的帳 → 兩品牌都不能開、另一品牌要等它關；都關了 → handover 是最後關的那本（含留存金）', () => {
   const none = R.registerOverview([]);
-  assert.deepEqual(none, { open_venue: null, handover: null, can_open: { CAFE: true, BAR: true }, wait: { CAFE: '', BAR: '' } });
+  assert.deepEqual(none, { open_venue: null, handover: null, can_open: { CAFE: true, BAR: true }, wait: { CAFE: '', BAR: '' }, next_venue: null });
   const cafeOpen = R.registerOverview([{ id: 'r1', venue: 'CAFE', opened_at: '2026-10-16T00:00:00Z', closed_at: null, keep_cash: null }]);
   assert.equal(cafeOpen.open_venue, 'CAFE'); assert.deepEqual(cafeOpen.can_open, { CAFE: false, BAR: false }); assert.deepEqual(cafeOpen.wait, { CAFE: '', BAR: '在咖啡' });
   const cafeClosed = R.registerOverview([
@@ -50,6 +50,20 @@ test('帳本總覽：有開著的帳 → 兩品牌都不能開、另一品牌要
     { id: 'r2', venue: 'BAR', opened_at: '2026-10-16T09:10:00Z', closed_at: null, keep_cash: null },
   ]);
   assert.equal(barOpen.open_venue, 'BAR'); assert.equal(barOpen.wait.CAFE, '三點水'); assert.equal(barOpen.wait.BAR, '');
+});
+
+test('關帳後另一店立刻可開，不等時段（KK 10/31）：next_venue 指向另一店，同日已關過的品牌也能再開', () => {
+  assert.equal(R.registerOverview([]).next_venue, null);
+  const cafeClosed = R.registerOverview([{ id: 'c', venue: 'CAFE', opened_at: '2026-10-31T03:00:00Z', closed_at: '2026-10-31T08:45:00Z', keep_cash: 2882 }]);
+  assert.equal(cafeClosed.next_venue, 'BAR'); assert.equal(cafeClosed.can_open.BAR, true);
+  const barClosedFirst = R.registerOverview([
+    { id: 'b', venue: 'BAR', opened_at: '2026-10-31T00:48:00Z', closed_at: '2026-10-31T03:36:00Z', keep_cash: 3000 },
+    { id: 'c', venue: 'CAFE', opened_at: '2026-10-31T03:41:00Z', closed_at: '2026-10-31T08:45:00Z', keep_cash: 2882 },
+  ]);
+  assert.equal(barClosedFirst.next_venue, 'BAR'); assert.equal(barClosedFirst.can_open.BAR, true);
+  assert.equal(R.registerOverview([{ id: 'b', venue: 'BAR', opened_at: '2026-10-31T00:00:00Z', closed_at: '2026-10-31T01:00:00Z' }]).next_venue, 'CAFE');
+  assert.equal(R.registerOverview([{ id: 'c', venue: 'CAFE', opened_at: '2026-10-31T00:00:00Z', closed_at: null }]).next_venue, 'CAFE');
+  assert.doesNotThrow(() => R.openRegister({}, { venue: 'BAR', open: null, handover: { keep_cash: 2882 } }));
 });
 
 test('開帳：零用金也可按面額填張數，不必直接填總額', () => {

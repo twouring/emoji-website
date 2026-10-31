@@ -13,7 +13,7 @@ test('未開帳警示條在頂欄上方', () => {
 
 test('依目前品牌判斷：沒有開著的帳就顯示，開帳後隱藏', () => {
   assert.match(html, /function paintRegWarn\(d\)/);
-  assert.match(html, /SCOPE \|\| d\.active_venue/);
+  assert.match(html, /SCOPE \|\| d\.next_venue \|\| d\.active_venue/);   // 關帳後立刻提醒開另一店，不等時段
   assert.match(html, /!\(r && !r\.closed_at\)/);
   assert.match(html, /api\('\/admin\/registers' \+ scopeQuery\(\)\)/);
   assert.match(html, /setInterval\(\(\) => \{ if \(DATA && !document\.hidden\) refreshRegWarn\(\); \}, 30000\)/);
