@@ -518,6 +518,18 @@ POS 輪詢未處理的呼叫（每 5 秒）。回 `{ pending:[{id,session_id,tab
 ### GET /api/admin/orders/feedback
 POS「設定 → 回饋」。query `from`、`to`（YYYY-MM-DD，台北時間，皆可省略）。回 `{ feedback:[{id,table_no,kind,rating,text,name,lang,created_at}], kinds, count, avg_rating }`，新到舊最多 500 筆。
 
+### GET /api/me/bug-reports
+大家來找碴（會員 App）。回登入會員自己的回報 `{ reports:[{id,kind,location,text,photos,status,review_note,created_at,reviewed_at}], points, pending, kinds }`，新到舊最多 100 筆。`points`＝認可件數（找碴點數，獨立計數，不進會員點數帳本）。非會員身分 403。
+
+### POST /api/me/bug-reports
+送出回報（multipart/form-data）。欄位 `kind`（`unfinished` 還沒完成、`ux` 體驗不好、`better` 可以更好）、`location`（必填，60 字內）、`text`（500 字內）、`lang`，檔案欄位 `photos` 0–4 張（JPEG／PNG／WebP，每張 8 MB 內，以檔頭驗證）。照片或說明（≥2 字）至少要有一項。照片存物件儲存（`igPublisher.uploadAsset`，失敗才落 `uploads/bugs/`）。每位會員 24 小時內最多 40 筆（429），每 IP 每分鐘 20 次。成功 201 `{ ok, id, photos }`。
+
+### GET /api/admin/bug-reports
+POS「設定 → 找碴」。query `from`、`to`（YYYY-MM-DD，台北時間，皆可省略）。回 `{ reports:[…含 user_id,user_name,reviewed_by], kinds, statuses, counts, count, leaderboard:[{user_id,name,points}] }`，新到舊最多 500 筆；排行依認可件數，同分先達成者在前。
+
+### POST /api/admin/bug-reports/:id/review
+審核一筆回報。body `{ status, note? }`，`status` 為 `pending` 待審核、`accepted` 認可（＝1 點）、`rejected` 不認可、`duplicate` 重複；`note` 200 字內，會顯示在會員 App。可重複改判。回 `{ ok, report, user_points }`。找不到 404。
+
 ### GET /api/tips
 打賞（客人端）設定。query `s`、`k`（桌邊單次 QR）。回 `{ enabled, performer, presets:[金額], max, sounds:[{id,zh,en,ja}] }`。設定存 `site_content.tip_settings`（預設關閉）。QR 無效 403、桌已結束 409。
 

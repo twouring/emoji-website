@@ -117,6 +117,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 .fld textarea{min-height:72px}
 .seg{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
 .seg button{min-height:48px;padding:0 16px;border:1.5px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem}
+.shots{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:18px}.shots:empty{display:none}.shots>div{position:relative}.shots img{display:block;width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;background:var(--alt)}.shots button{position:absolute;top:-8px;right:-8px;width:44px;height:44px;border:0;border-radius:999px;background:var(--ink);color:var(--paper);font-size:1.2rem;line-height:1}
 .seg button[aria-pressed=true]{border-color:var(--ink);background:var(--ink);color:var(--paper)}
 .seg#pkd button{white-space:nowrap;padding:6px 4px;border-radius:16px;line-height:1.35}
 .seg button{flex:1 1 calc(33.333% - 8px)}.seg.two button{flex:1 1 calc(50% - 8px)}
@@ -252,7 +253,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
   const PLAN_PRICES={day_4h:200,day_12h:500,month:4000,quarter:10000,year:35000,year_promo:35000};
   const PROMO_END='2026-12-31',promoOpen=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei'}).format(new Date())<=PROMO_END;
   const I18N={
-    zh:{locale:'zh-TW',back:'返回',tabHome:'會員卡',tabPlan:'會籍',tabEvents:'活動',tabMe:'我的',loading:'載入中…',
+    zh:{locale:'zh-TW',bugEntry:'大家來找碴',bugTitle:'大家來找碴',bugIntro:'看到還沒完成、不好用、可以更好的地方，拍照、寫位置送出。我們認可一件＝1 點。',bugPts:n=>'找碴點數 '+n+' 點',bugPending:n=>n+' 件審核中',bugKind:'類型',bugKinds:{unfinished:'還沒完成',ux:'體驗不好',better:'可以更好'},bugPhotos:'照片（最多 4 張）',bugCam:'拍照',bugPick:'選照片',bugDel:'移除照片',bugLoc:'位置',bugLocPh:'例：2F 淋浴間門口',bugText:'說明（選填）',bugTextPh:'哪裡怪、怎麼改比較好',bugSend:'送出',bugSending:'上傳中…',bugSent:'收到了，謝謝你',bugNeedKind:'請選擇類型',bugNeedLoc:'請寫下位置',bugNeedAny:'請拍照或寫一下狀況',bugMax:'照片最多 4 張',bugMine:'我的回報',bugNone:'還沒有回報，去找找看',bugStatus:{pending:'審核中',accepted:'認可 +1',rejected:'不認可',duplicate:'重複'},bugNote:'回覆：',back:'返回',tabHome:'會員卡',tabPlan:'會籍',tabEvents:'活動',tabMe:'我的',loading:'載入中…',
       loginTitle:'言文字 會員',loginSub:'登入後，用一張卡在所有空間累積點數、查看會籍、報名活動。',google:'使用 Google 登入',lineLogin:'使用 LINE 登入',email:'使用 Email 登入',needName:'請先輸入名字',emailSend:'寄送登入連結',emailSent:'登入連結已寄出',emailSentTo:e=>'請到 '+e+' 收信，點開連結即可登入。連結 20 分鐘內有效。',emailFail:'目前無法寄送登入連結，請改用 Google 登入',firstTime:'第一次使用？用任一方式登入，就會自動建立帳號。',
       hi:n=>'嗨，'+n,welcome:'歡迎回來',morning:'早安',noon:'午安',evening:'晚安',brand:'言文字',myPts:'我的點數',showCard:'結帳時出示會員卡',scanMe:'請出示給店員掃描',
       hintPhone:'也可以直接報手機號碼。',hintNoPhone:'到「我的」填寫手機，結帳報號碼就能累點。',hintEarn:'消費每滿 100 元得 1 點，1 點可兌換 NT$10 的餐飲。',
@@ -275,7 +276,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
       resvTitle:'訂位',back:'返回',date:'日期',party:'人數',partyN:n=>(n===6?'6+':n)+' 位',slotLabel:'時段',venues:['在咖啡 08:00–17:00','三點水 17:00–03:00'],noteOpt:'備註（選填）',resvHint:()=>'座位保留 10 分鐘。',submitResv:'送出訂位',pickSlot:'請選一個時段',noOpenSlots:'這天沒有開放訂位的時段，請改選其他日期',resvOk:id=>'訂位成立 '+id,
       pickupTitle:'預約取餐',pickupShort:'預約取餐',shop:'商店',newShop:'＋ 商店',shopTitle:'商店',shopHint:'可線上刷卡，或到在咖啡／三點水櫃檯付款，再到櫃檯取貨。未付款的訂單保留 48 小時。',shopPayOnline:(n,a)=>'線上付款（'+n+' 件・NT$'+a+'）',shopPayCounter:'到櫃檯付款',shopPayNow:'線上付款',shopPaying:'正在確認付款…',shopPaid:'付款完成，請到櫃檯取貨',shopPayCanceled:'已取消付款，訂單仍保留，可到櫃檯付款',shopEmpty:'目前沒有上架的商品',shopSubmit:(n,a)=>'送出訂單（'+n+' 件・NT$'+a+'）',shopSubmit0:'選好商品再送出',shopOk:t=>'已下單（'+t+'），請到櫃檯付款取貨',shopSec:'商店訂單',noShop:'還沒有商店訂單',shopLabel:'商店訂單 ',shopStates:{open:'待付款取貨',paid:'已付款・待取貨',done:'已完成',cancel:'已取消'},cancelShop:'取消訂單',confirmCancelShop:'確定取消這張商店訂單？',shopLeft:n=>'剩 '+n+' 件',pickupHint:n=>'先選時間再選餐點，到店付款。',pickupDay:'取餐日',today:'今天',tomorrow:'明天',dayAfter:'後天',pickupTime:'取餐時間',noSlots:'這天已沒有可預約的時段，請改選其他日期',loadingMenu:'載入菜單…',pickTimeFirst:'選好時間後會顯示該時段的菜單。',submitPickup:'送出預約',comboQty:'數量',comboPick:'選擇內容',comboAdd:'加入預約',comboRemove:'移除',comboSet:'套餐',itemsN:n=>'（'+n+' 件）',menuFail:'菜單載入失敗',noItems:'這個時段沒有可預約的品項',dec:'減少',inc:'增加',pickupOk:'預約成立，取餐前會開始準備',cafe:'在咖啡',bar:'三點水',opFail:'操作失敗，請稍後再試',
       installLabel:{prompt:'安裝到主畫面',ios:'看怎麼加到主畫面',inapp:'看怎麼用瀏覽器開啟'}},
-    en:{locale:'en-US',back:'Back',tabHome:'Card',tabPlan:'Plan',tabEvents:'Events',tabMe:'Me',loading:'Loading…',
+    en:{locale:'en-US',bugEntry:'Bug Hunt',bugTitle:'Bug Hunt',bugIntro:'Spot something unfinished, awkward, or that could be better? Snap a photo, note where, send it. Each one we accept = 1 point.',bugPts:n=>'Bug Hunt points: '+n,bugPending:n=>n+' under review',bugKind:'Type',bugKinds:{unfinished:'Unfinished',ux:'Bad experience',better:'Could be better'},bugPhotos:'Photos (up to 4)',bugCam:'Take photo',bugPick:'Choose photos',bugDel:'Remove photo',bugLoc:'Where',bugLocPh:'e.g. 2F, shower room door',bugText:'Details (optional)',bugTextPh:"What's off, and how to make it better",bugSend:'Send',bugSending:'Uploading…',bugSent:'Got it. Thank you.',bugNeedKind:'Choose a type',bugNeedLoc:'Tell us where',bugNeedAny:'Add a photo or a few words',bugMax:'Up to 4 photos',bugMine:'My reports',bugNone:'No reports yet. Go take a look.',bugStatus:{pending:'Reviewing',accepted:'Accepted +1',rejected:'Not accepted',duplicate:'Duplicate'},bugNote:'Reply: ',back:'Back',tabHome:'Card',tabPlan:'Plan',tabEvents:'Events',tabMe:'Me',loading:'Loading…',
       loginTitle:'emoji Member',loginSub:'Sign in to earn points at every space, view your membership and register for events.',google:'Sign in with Google',lineLogin:'Sign in with LINE',email:'Sign in with Email',needName:'Please enter your name',emailSend:'Send sign-in link',emailSent:'Link sent',emailSentTo:e=>'Check '+e+' and open the link to sign in. It expires in 20 minutes.',emailFail:'Could not send the link — try Google instead',firstTime:'New here? Sign in with any option and your account is created automatically.',
       hi:n=>'Hi, '+n,welcome:'Welcome back',morning:'Good morning',noon:'Good afternoon',evening:'Good evening',brand:'emoji',myPts:'My points',showCard:'Show card at checkout',scanMe:'Show this to staff to scan',
       hintPhone:'You can also just give your phone number.',hintNoPhone:'Add your phone under “Me” to earn points by number.',hintEarn:'Earn 1 point per NT$100; 1 point redeems NT$10 of food or drinks.',
@@ -298,7 +299,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
       resvTitle:'Reserve a table',back:'Back',date:'Date',party:'Guests',partyN:n=>(n===6?'6+':n),slotLabel:'Time',venues:['at cafe 08:00–17:00','3AM 17:00–03:00'],noteOpt:'Note (optional)',resvHint:()=>'Tables are held for 10 minutes.',submitResv:'Reserve',pickSlot:'Pick a time',noOpenSlots:'No bookable slots on this day. Pick another date.',resvOk:id=>'Reserved · '+id,
       pickupTitle:'Order for pickup',comboQty:'Quantity',comboPick:'Choose',comboAdd:'Add to order',comboRemove:'Remove',comboSet:'Set',pickupShort:'Pickup',shop:'Shop',newShop:'+ Shop',shopTitle:'Shop',shopHint:'Pay online by card, or pay at the at cafe / 3AM counter, then pick up at the counter. Unpaid orders are held for 48 hours.',shopPayOnline:(n,a)=>'Pay online ('+n+' items · NT$'+a+')',shopPayCounter:'Pay at counter',shopPayNow:'Pay online',shopPaying:'Confirming payment…',shopPaid:'Paid. Please pick up at the counter.',shopPayCanceled:'Payment cancelled. Your order is kept; you can pay at the counter.',shopEmpty:'Nothing in the shop right now',shopSubmit:(n,a)=>'Place order ('+n+' items · NT$'+a+')',shopSubmit0:'Choose items first',shopOk:t=>'Order placed ('+t+'). Pay and pick up at the counter.',shopSec:'Shop orders',noShop:'No shop orders yet',shopLabel:'Shop order ',shopStates:{open:'Unpaid',paid:'Paid · ready for pickup',done:'Completed',cancel:'Cancelled'},cancelShop:'Cancel order',confirmCancelShop:'Cancel this shop order?',shopLeft:n=>n+' left',pickupHint:n=>'Pick a time, then your items. Pay in store.',pickupDay:'Pickup day',today:'Today',tomorrow:'Tomorrow',dayAfter:'In 2 days',pickupTime:'Pickup time',noSlots:'No more slots that day — pick another date',loadingMenu:'Loading menu…',pickTimeFirst:'Pick a time to see that period’s menu.',submitPickup:'Place order',itemsN:n=>' ('+n+' items)',menuFail:'Could not load the menu',noItems:'Nothing available for this slot',dec:'Less',inc:'More',pickupOk:'Order placed — we’ll start preparing before pickup',cafe:'at cafe',bar:'3AM',opFail:'Action failed. Please try again.',
       installLabel:{prompt:'Install',ios:'How to add to home screen',inapp:'How to open in a browser'}},
-    ja:{locale:'ja-JP',back:'戻る',tabHome:'カード',tabPlan:'会員',tabEvents:'イベント',tabMe:'設定',loading:'読み込み中…',
+    ja:{locale:'ja-JP',bugEntry:'間違い探し',bugTitle:'間違い探し',bugIntro:'未完成、使いにくい、もっと良くできる所を見つけたら、写真と場所を送ってください。認められた1件＝1ポイント。',bugPts:n=>'間違い探しポイント '+n,bugPending:n=>n+' 件審査中',bugKind:'種類',bugKinds:{unfinished:'未完成',ux:'使いにくい',better:'改善できる'},bugPhotos:'写真（最大4枚）',bugCam:'撮影',bugPick:'写真を選ぶ',bugDel:'写真を削除',bugLoc:'場所',bugLocPh:'例：2F シャワー室の入口',bugText:'説明（任意）',bugTextPh:'どこが気になるか、どうすれば良いか',bugSend:'送信',bugSending:'アップロード中…',bugSent:'受け付けました。ありがとう',bugNeedKind:'種類を選んでください',bugNeedLoc:'場所を書いてください',bugNeedAny:'写真か説明を入れてください',bugMax:'写真は最大4枚です',bugMine:'自分の報告',bugNone:'まだ報告はありません',bugStatus:{pending:'審査中',accepted:'承認 +1',rejected:'不承認',duplicate:'重複'},bugNote:'返信：',back:'戻る',tabHome:'カード',tabPlan:'会員',tabEvents:'イベント',tabMe:'設定',loading:'読み込み中…',
       loginTitle:'言文字 会員',loginSub:'ログインすると、すべての空間でポイントを貯め、会員資格の確認やイベント申込ができます。',google:'Google でログイン',lineLogin:'LINE でログイン',email:'メールでログイン',needName:'名前を入力してください',emailSend:'ログインリンクを送信',emailSent:'送信しました',emailSentTo:e=>e+' に届いたリンクを開くとログインできます。有効期限は20分です。',emailFail:'送信できませんでした。Google でログインしてください',firstTime:'初めての方も、いずれかの方法でログインすると自動で登録されます。',
       hi:n=>n+' さん、こんにちは',welcome:'おかえりなさい',morning:'おはようございます',noon:'こんにちは',evening:'こんばんは',brand:'言文字',myPts:'ポイント',showCard:'会計時に会員カードを提示',scanMe:'スタッフに提示してスキャン',
       hintPhone:'携帯電話番号を伝えるだけでもOKです。',hintNoPhone:'「マイページ」で携帯番号を登録すると、番号だけでポイントが貯まります。',hintEarn:'100元ごとに1ポイント。1ポイントでNT$10分の飲食と交換できます。',
@@ -469,6 +470,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
     <button class="show" id="show"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17h3v4h-4v-3h4M18 14h3v3"/></svg>${esc(T.showCard)}</button>
     <p class="hint ghost">${esc(phone?'':T.hintNoPhone+' ')}${esc(T.hintEarn)}</p>
     <button class="btn order-scan" id="order-scan" type="button"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M4 12h16"/></svg>${esc(T.orderScan)}</button>
+    <button class="btn" id="bug-open" type="button">${esc(T.bugEntry)}</button>
     <nav class="quick" aria-label="quick">
       <button data-go="resv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M17 3c-2 2-3 5-3 8h3v10"/></svg>${esc(T.reserve)}</button>
       <button data-go="pickup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 9h16l-1.5 11h-13zM8 9V6a4 4 0 0 1 8 0v3"/></svg>${esc(T.pickupShort)}</button>
@@ -481,6 +483,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
     <section class="sec"><h2>${esc(T.nextEvent)}</h2>${ev?evTile(ev):`<p class="empty">${esc(T.noEvents)}</p>`}</section>`;
     document.getElementById('show').onclick=openCard;
     document.getElementById('order-scan').onclick=startOrder;
+    document.getElementById('bug-open').onclick=openBug;
     app.querySelectorAll('[data-rw]').forEach(b=>b.onclick=()=>startRedeem(b.dataset.rw,b.dataset.n,Number(b.dataset.p)));
     app.querySelectorAll('[data-go]').forEach(b=>b.onclick=e=>{e.preventDefault();go(b.dataset.go);});
     bindInstall();
@@ -859,6 +862,49 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
     });
   }
   const nm2=x=>LANG==='ja'&&x.ja?x.ja:LANG==='en'&&x.en?x.en:x.zh;
+  /* ---- 大家來找碴：拍照／選照片＋類型＋位置＋說明 → POST /api/me/bug-reports（multipart）。照片先在手機縮到長邊 1600px JPEG 再上傳 ---- */
+  const BUG_MAX=4;
+  function shrinkPhoto(file){return new Promise(ok=>{const u=URL.createObjectURL(file),im=new Image();im.onload=()=>{const sc=Math.min(1,1600/Math.max(im.naturalWidth,im.naturalHeight)),c=document.createElement('canvas');c.width=Math.round(im.naturalWidth*sc);c.height=Math.round(im.naturalHeight*sc);c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);c.toBlob(b=>ok(b&&(b.size<file.size||!/^image\/(jpeg|png|webp)$/.test(file.type))?b:file),'image/jpeg',.82);};im.onerror=()=>{URL.revokeObjectURL(u);ok(file);};im.src=u;});}
+  function bugTile(r){return `<div class="tile"><h3>${esc(r.location)}<span class="pill${r.status==='accepted'?' on':''}">${esc(T.bugStatus[r.status]||r.status)}</span></h3><div class="meta">${esc(T.bugKinds[r.kind]||r.kind)} · ${esc(fmt(r.created_at))}${r.text?'<br>'+esc(r.text):''}${r.review_note?'<br>'+esc(T.bugNote+r.review_note):''}</div>${(r.photos||[]).length?`<div class="shots">${r.photos.map(u=>`<div><img src="${esc(imgUrl(u))}" alt="" loading="lazy"></div>`).join('')}</div>`:''}</div>`;}
+  async function openBug(){
+    try{localStorage.removeItem('m_open_bug');}catch(e){}
+    if(!token()){lsSet('m_open_bug',String(Date.now()));tab='home';data=data||guestData();login();return;}
+    const st={kind:'',shots:[]};
+    const el=document.createElement('div');el.className='pg';
+    el.innerHTML=`<header><button class="back" type="button"><b>‹</b><span>${esc(T.back)}</span></button><h3>${esc(T.bugTitle)}</h3></header><div class="body">
+      <p class="hint">${esc(T.bugIntro)}</p><p class="hint" id="bgsum"></p>
+      <form id="bgf" novalidate>
+        <div class="fld">${esc(T.bugKind)}<div class="seg" id="bgk">${['unfinished','ux','better'].map(k=>`<button type="button" data-k="${k}" aria-pressed="false">${esc(T.bugKinds[k])}</button>`).join('')}</div></div>
+        <div class="fld">${esc(T.bugPhotos)}<div class="btn2"><label class="btn">${esc(T.bugCam)}<input type="file" accept="image/*" capture="environment" id="bgc" hidden></label><label class="btn">${esc(T.bugPick)}<input type="file" accept="image/*" multiple id="bgp" hidden></label></div><div class="shots" id="bgs"></div></div>
+        <label class="field">${esc(T.bugLoc)}<input id="bgl" maxlength="60" autocomplete="off" placeholder="${esc(T.bugLocPh)}"></label>
+        <label class="field">${esc(T.bugText)}<textarea id="bgt" maxlength="500" autocomplete="off" placeholder="${esc(T.bugTextPh)}"></textarea></label>
+        <button class="btn solid" id="bgo" type="submit">${esc(T.bugSend)}</button>
+      </form>
+      <section class="sec"><h2>${esc(T.bugMine)}</h2><div id="bgm"><p class="empty">${esc(T.loading)}</p></div></section></div>`;
+    document.body.appendChild(el);
+    const close=pushPg(el,()=>st.shots.forEach(x=>URL.revokeObjectURL(x.url)));
+    el.querySelector('.back').onclick=close;
+    const $=id=>el.querySelector('#'+id);
+    const drawShots=()=>{$('bgs').innerHTML=st.shots.map((x,i)=>`<div><img src="${x.url}" alt=""><button type="button" data-del="${i}" aria-label="${esc(T.bugDel)}">×</button></div>`).join('');};
+    $('bgs').onclick=e=>{const b=e.target.closest('[data-del]');if(!b)return;const [x]=st.shots.splice(Number(b.dataset.del),1);if(x)URL.revokeObjectURL(x.url);drawShots();};
+    $('bgk').onclick=e=>{const b=e.target.closest('[data-k]');if(!b)return;st.kind=b.dataset.k;$('bgk').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));};
+    const addFiles=async inp=>{const fs=[...(inp.files||[])];inp.value='';for(const f of fs){if(st.shots.length>=BUG_MAX){toast(T.bugMax);break;}const blob=await shrinkPhoto(f);st.shots.push({blob,url:URL.createObjectURL(blob)});}drawShots();};
+    $('bgc').onchange=e=>addFiles(e.target);$('bgp').onchange=e=>addFiles(e.target);
+    async function loadMine(){try{const d=await get('/api/me/bug-reports');$('bgsum').textContent=T.bugPts(d.points)+(d.pending?' · '+T.bugPending(d.pending):'');$('bgm').innerHTML=d.reports.length?d.reports.map(bugTile).join(''):`<p class="empty">${esc(T.bugNone)}</p>`;}catch(e){$('bgm').innerHTML=`<p class="empty">${esc(T.netFail)}</p>`;}}
+    $('bgf').onsubmit=async e=>{
+      e.preventDefault();const loc=$('bgl').value.trim(),text=$('bgt').value.trim(),b=$('bgo');
+      if(!st.kind)return toast(T.bugNeedKind);if(!loc)return toast(T.bugNeedLoc);if(!st.shots.length&&text.length<2)return toast(T.bugNeedAny);
+      const fd=new FormData();fd.append('kind',st.kind);fd.append('location',loc);fd.append('text',text);fd.append('lang',LANG);
+      st.shots.forEach((x,i)=>fd.append('photos',x.blob,'photo-'+(i+1)+'.jpg'));
+      b.disabled=true;b.textContent=T.bugSending;
+      try{const r=await fetch('/api/me/bug-reports',{method:'POST',headers:{authorization:'Bearer '+token()},body:fd});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||T.netFail);
+        toast(T.bugSent);st.shots.forEach(x=>URL.revokeObjectURL(x.url));st.shots=[];st.kind='';drawShots();$('bgl').value='';$('bgt').value='';$('bgk').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));loadMine();
+      }catch(x){toast(x.message||T.netFail);}
+      b.disabled=false;b.textContent=T.bugSend;
+    };
+    loadMine();
+  }
+  const bugPending=()=>{const t=Number(lsGet('m_open_bug')||0);return t&&Date.now()-t<30*60e3;};
   function openCard(){openQr('card');}
   function closeQr(){if(ovClose&&pgStack.some(x=>x.el===ov))ovClose();}
   document.getElementById('ovx').onclick=closeQr;
@@ -872,6 +918,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
       data={me:s.me,events:s.events,updates:s.updates||[],access:s.access||{},commitments:(s.commitments||[]).filter(c=>!s.me||c.user_id===s.me.id),yan:y,rewards:rw,reservations:rv,pickups:pk.pickups||[],pickupMeta:{dates:pk.dates||[],slots:pk.slots||{},prep_min:pk.prep_min},registrations:rg,shopOrders:so,shopStripe:sst,role:s.role,organizer:!!s.organizer};offline=false;
       try{localStorage.setItem(CACHE,JSON.stringify(data));}catch(e){}
       if(resumePendingPlan()){paint();return;}
+      if(bugPending()){paint();openBug();return;}
     }catch(e){
       if(e.status===401){try{localStorage.removeItem(KEY);}catch(x){}return guest();}
       try{data=JSON.parse(localStorage.getItem(CACHE)||'null');}catch(x){data=null;}
@@ -882,7 +929,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
   }
   // /e/<slug> 要在 login() 前分流：訪客可直接瀏覽與報名；已登入時先取會員資料再畫（以 xxx 報名）
   if(eventPath()){if(token())get('/api/state?view=member&lang='+LANG).then(s=>{data={me:s.me};}).catch(()=>{}).finally(()=>eventDetail(eventPath()));else eventDetail(eventPath());}
-  else{if(PLAN_PRICES[query.get('plan')]||!token())tab='plan';if(!token())guest();else load();}// 訪客一進站先看方案與價格（櫃檯），按購買才登入
+  else{if(query.get('bug'))lsSet('m_open_bug',String(Date.now()));if(bugPending()){tab='home';if(!token())openBug();else load();}else{if(PLAN_PRICES[query.get('plan')]||!token())tab='plan';if(!token())guest();else load();}}// 訪客一進站先看方案與價格（櫃檯），按購買才登入
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&token()&&!eventPath())load();});
   if('serviceWorker' in navigator)navigator.serviceWorker.register('/m-sw.js',{scope:ROOT}).catch(()=>{});
 })();

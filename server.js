@@ -36,6 +36,7 @@ const tableOrders=require('./lib/table-orders');
 const songs=require('./lib/songs');
 const serviceCalls=require('./lib/service-calls');
 const orderFeedback=require('./lib/order-feedback');
+const bugReports=require('./lib/bug-reports');
 const tips=require('./lib/tips');
 const yan=require('./lib/yan');
 const line = require('./lib/line');
@@ -774,6 +775,13 @@ async function migrate() {
     id TEXT PRIMARY KEY, session_id TEXT NOT NULL, table_no TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL, rating INT, text TEXT NOT NULL,
     name TEXT NOT NULL DEFAULT '', lang TEXT NOT NULL DEFAULT 'zh', created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE INDEX IF NOT EXISTS order_feedback_created_idx ON order_feedback(created_at DESC)`);
+  // 大家來找碴（lib/bug-reports.js）：會員在 App 拍照回報，POS「設定 → 找碴」審核；認可一件＝1 點（獨立計數，不進會員點數帳本）
+  await q(`CREATE TABLE IF NOT EXISTS bug_reports (
+    id TEXT PRIMARY KEY, user_id TEXT NOT NULL, user_name TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL, location TEXT NOT NULL, text TEXT NOT NULL DEFAULT '',
+    photos JSONB NOT NULL DEFAULT '[]', lang TEXT NOT NULL DEFAULT 'zh', status TEXT NOT NULL DEFAULT 'pending', review_note TEXT NOT NULL DEFAULT '',
+    reviewed_by TEXT NOT NULL DEFAULT '', reviewed_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE INDEX IF NOT EXISTS bug_reports_created_idx ON bug_reports(created_at DESC)`);
+  await q(`CREATE INDEX IF NOT EXISTS bug_reports_user_idx ON bug_reports(user_id, created_at DESC)`);
   await q(`CREATE TABLE IF NOT EXISTS table_orders (
     id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES table_sessions(id), table_no TEXT NOT NULL, items JSONB NOT NULL,
     amount INT NOT NULL, payer JSONB NOT NULL DEFAULT '{}', tappay JSONB NOT NULL DEFAULT '{}', invoice JSONB NOT NULL DEFAULT '{}', status TEXT NOT NULL DEFAULT 'paid',
@@ -7324,6 +7332,62 @@ app.get('/api/admin/orders/feedback',auth,adminOnly,requireDb,wrap(async(req,res
   res.json({feedback:rows,kinds:orderFeedback.KINDS,count:rows.length,avg_rating:rated.length?Math.round(rated.reduce((a,r)=>a+r.rating,0)/rated.length*10)/10:null});
 }));
 /* ---- 意見回饋 end ---- */
+
+/* ---- 大家來找碴（lib/bug-reports.js）：會員在 App 拍照／選照片＋位置＋說明送出（multipart，照片 0–4 張、每張 8MB 內），
+   POS「設定 → 找碴」審核：認可一件＝1 點，另有不認可／重複。照片走 igPublisher.uploadAsset（正式站＝GCS），失敗才落本機 uploads/bugs。 */
+const UPLOAD_BUG_DIR=path.join(__dirname,'uploads','bugs');fs.mkdirSync(UPLOAD_BUG_DIR,{recursive:true});
+const bugUpload=multer({storage:multer.memoryStorage(),limits:{fileSize:bugReports.MAX_PHOTO_BYTES,files:bugReports.MAX_PHOTOS,fields:8,parts:bugReports.MAX_PHOTOS+8}});
+const bugView=r=>({id:r.id,kind:r.kind,location:r.location,text:r.text,photos:r.photos||[],status:r.status,review_note:r.review_note,created_at:r.created_at,reviewed_at:r.reviewed_at});
+app.get('/api/me/bug-reports',auth,requireDb,wrap(async(req,res)=>{
+  if(!req.auth.sub)return res.status(403).json({error:'請以會員身分登入。'});
+  res.set('Cache-Control','no-store');
+  const rows=(await q('SELECT * FROM bug_reports WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100',[req.auth.sub])).rows;
+  res.json({reports:rows.map(bugView),points:rows.filter(r=>r.status==='accepted').length,pending:rows.filter(r=>r.status==='pending').length,kinds:bugReports.KINDS});
+}));
+app.post('/api/me/bug-reports',rateLimit({max:20}),auth,requireDb,(req,res,next)=>{
+  if(!req.auth.sub)return res.status(403).json({error:'請以會員身分登入。'});
+  bugUpload.array('photos',bugReports.MAX_PHOTOS)(req,res,async err=>{
+    if(err)return res.status(400).json({error:err.code==='LIMIT_FILE_SIZE'?'每張照片上限 8 MB。':err.code==='LIMIT_FILE_COUNT'?`照片最多 ${bugReports.MAX_PHOTOS} 張。`:'上傳失敗，請重新選擇照片。'});
+    try{
+      const files=req.files||[];
+      let f;try{f=bugReports.validate(req.body||{},files.length);}catch(e){return res.status(e.status||400).json({error:e.message});}
+      const types=files.map(x=>sniffImageType(x.buffer));
+      if(types.some(t=>!t))return res.status(400).json({error:'只接受 JPEG、PNG 或 WebP 照片。'});
+      const n=(await q(`SELECT count(*)::int n FROM bug_reports WHERE user_id=$1 AND created_at>now()-interval '1 day'`,[req.auth.sub])).rows[0].n;
+      if(n>=bugReports.MAX_PER_DAY)return res.status(429).json({error:'今天回報的數量已達上限，謝謝你。'});
+      const id=uid('bug_'),photos=[];
+      for(let i=0;i<files.length;i++){
+        const ext={'image/jpeg':'.jpg','image/png':'.png','image/webp':'.webp'}[types[i]];
+        const filename='bug-'+id.slice(4)+'-'+i+'-'+crypto.randomBytes(4).toString('hex')+ext;
+        let url=await igPublisher.uploadAsset(files[i].buffer,filename,types[i]).catch(e=>{console.error('[bug-upload]',e.message);return null;});
+        if(!url){await fs.promises.writeFile(path.join(UPLOAD_BUG_DIR,filename),files[i].buffer,{flag:'wx'});url='/uploads/bugs/'+filename;}
+        photos.push(url);
+      }
+      const user=(await q('SELECT name FROM users WHERE id=$1',[req.auth.sub])).rows[0]||{};
+      await q('INSERT INTO bug_reports(id,user_id,user_name,kind,location,text,photos,lang) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[id,req.auth.sub,String(user.name||'').slice(0,80),f.kind,f.location,f.text,JSON.stringify(photos),f.lang]);
+      res.status(201).json({ok:true,id,photos});
+    }catch(e){next(e);}
+  });
+});
+app.get('/api/admin/bug-reports',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  res.set('Cache-Control','no-store');
+  const day=v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v||''))?String(v):null;const from=day(req.query.from),to=day(req.query.to);
+  const rows=(await q(`SELECT * FROM bug_reports
+    WHERE ($1::date IS NULL OR created_at>=($1::date::timestamp AT TIME ZONE 'Asia/Taipei')) AND ($2::date IS NULL OR created_at<(($2::date+1)::timestamp AT TIME ZONE 'Asia/Taipei'))
+    ORDER BY created_at DESC LIMIT 500`,[from,to])).rows;
+  const counts={};for(const r of rows)counts[r.status]=(counts[r.status]||0)+1;
+  res.json({reports:rows.map(r=>({...bugView(r),user_id:r.user_id,user_name:r.user_name,reviewed_by:r.reviewed_by})),kinds:bugReports.KINDS,statuses:bugReports.STATUS,counts,count:rows.length,leaderboard:bugReports.leaderboard(rows)});
+}));
+app.post('/api/admin/bug-reports/:id/review',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  let status;try{status=bugReports.reviewStatus(req.body?.status);}catch(e){return res.status(400).json({error:e.message});}
+  const note=String(req.body?.note||'').replace(/[\u0000-\u001f]/g,' ').trim().slice(0,200);
+  const by=String(actorOf(req.auth)||'').slice(0,120);
+  const r=(await q(`UPDATE bug_reports SET status=$2,review_note=$3,reviewed_by=$4,reviewed_at=CASE WHEN $2='pending' THEN NULL ELSE now() END WHERE id=$1 RETURNING *`,[String(req.params.id),status,note,status==='pending'?'':by])).rows[0];
+  if(!r)return res.status(404).json({error:'找不到這筆回報。'});
+  const points=(await q(`SELECT count(*)::int n FROM bug_reports WHERE user_id=$1 AND status='accepted'`,[r.user_id])).rows[0].n;
+  res.json({ok:true,report:{...bugView(r),user_id:r.user_id,user_name:r.user_name,reviewed_by:r.reviewed_by},user_points:points});
+}));
+/* ---- 大家來找碴 end ---- */
 
 /* ---- 打賞（lib/tips.js）：客人掃桌邊 QR 自填金額＋選音效送出 → POS 跳「待確認」→ 店員確認才掛這桌帳（結帳一起收）、播放裝置播音效。
    代收轉付：不計營收、不開發票、不算服務費／低消／折扣／會員點數。
