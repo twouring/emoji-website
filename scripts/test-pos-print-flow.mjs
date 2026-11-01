@@ -91,7 +91,7 @@ test('every checkout starts with paper invoice and no-invoice is last',()=>{
 test('table panel offers pre-checkout kitchen and receipt printing',()=>{
  assert.match(src,/<div class="pos-table-actions"><button[^>]*id="pos-place"[\s\S]{0,400}id="pos-move"[\s\S]{0,200}id="pos-close"/,'列印出餐單→換桌／併桌→清桌在左欄底部同一排');assert.doesNotMatch(src,/pos-prepay/);
  assert.match(src,/id="pos-place"[\s\S]{0,120}>列印出餐單<\/button>/);assert.doesNotMatch(src,/送出點餐／列印出餐單/);assert.match(src,/id="pos-print-receipt"/);
- assert.match(src,/printOrder\(tableTicket\(\)\)/);assert.match(src,/sessions\/'\+cur\.id\+'\/place/);assert.match(src,/printReceipt\(tableTicket\(\)\)/);
+ assert.doesNotMatch(src,/printOrder\(tableTicket\(\)\)/,'都送過時不可整桌重印（KK 11/1：加點單混入前面的餐點）');assert.match(src,/const t=lastTicket\(\);if\(t\)await printOrder\(t\)/);assert.match(src,/reprint:true/);assert.match(src,/o\.reprint\)spec\.push\(\{kind:'center',text:'【補印】最近一次送單'/);assert.match(src,/sessions\/'\+cur\.id\+'\/place/);assert.match(src,/printReceipt\(tableTicket\(\)\)/);
 });
 
 test('發票證明聯與收據明細預設印賣方統編 93537055', async () => {

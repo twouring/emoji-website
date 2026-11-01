@@ -598,6 +598,7 @@ function ticketParts(o){
 function kitchenTicketSpec(o,kind,total=1){
   const takeout=isTakeoutNo(o.table_no),K=TICKET_KIND[kind];
   const spec=K?[{kind:'edge',style:K.banner},{kind:'center',text:'出餐單',size:22,bold:true},{kind:'banner',text:K.label,size:40,style:K.banner}]:[{kind:'center',text:'出餐單',size:22,bold:true}];
+  if(o.reprint)spec.push({kind:'center',text:'【補印】最近一次送單',size:24,bold:true});
   spec.push({kind:'center',text:takeout?'外帶':'桌號',size:20},{kind:'center',text:String(o.table_no||''),size:54,bold:true},{kind:'center',text:applicationTime(o.paid_at||o.placed_at),size:18});
   spec.push('rule');
   let count=0;
@@ -1354,7 +1355,7 @@ function paintPos(){
       <div class="a-wrap2 pos-lines-wrap"><table class="a-tbl pos-lines"><thead><tr><th aria-label="分帳選取"></th><th>品項</th><th class="pos-qty-col">點了幾份</th><th class="num">小計（元）</th><th class="ops-th">操作</th></tr></thead><tbody>${lineRows}</tbody></table></div>
       ${live.length?`<h3>這桌已結帳的單</h3><div class="a-wrap2"><table class="a-tbl pos-paid"><thead><tr><th>品項 · 時間 · 狀態</th><th>付款</th><th class="num">金額</th><th class="ops-th">操作</th></tr></thead><tbody>${liveRows}</tbody></table></div>`:''}
       </div>
-      <div class="pos-table-actions"><button class="btn btn--ghost" id="pos-place" ${cur.lines.some(l=>!l.credit_of)?'':'disabled'} title="有還沒送出的品項就先送單再印；都送過了就整桌重印">列印出餐單</button>${cur.takeout?'':`<button class="btn btn--ghost" id="pos-party">${cur.party_size?`人數 ${Number(cur.party_size)} 位${cur.kids?`（小孩 ${Number(cur.kids)}）`:''}`:'設定人數'}</button>`}<button class="btn btn--ghost" id="pos-move">${cur.takeout?'轉內用':'換桌／併桌'}</button><button class="btn btn--ghost btn--danger" id="pos-close">${cur.takeout?'收掉外帶單':'清桌'}</button></div>
+      <div class="pos-table-actions"><button class="btn btn--ghost" id="pos-place" ${cur.lines.some(l=>!l.credit_of)?'':'disabled'} title="有還沒送出的品項就先送單再印；都送過了只補印最近一次送單">列印出餐單</button>${cur.takeout?'':`<button class="btn btn--ghost" id="pos-party">${cur.party_size?`人數 ${Number(cur.party_size)} 位${cur.kids?`（小孩 ${Number(cur.kids)}）`:''}`:'設定人數'}</button>`}<button class="btn btn--ghost" id="pos-move">${cur.takeout?'轉內用':'換桌／併桌'}</button><button class="btn btn--ghost btn--danger" id="pos-close">${cur.takeout?'收掉外帶單':'清桌'}</button></div>
       </div>
       <div class="pos-menu-box"><div class="pos-menu-body">${POS_OPT?optionPaneHtml(POS_OPT):catChips+`<div class="pos-menu">${tiles}</div>`}</div></div>
       <div class="pos-pay">
@@ -1554,10 +1555,12 @@ function paintPos(){
   // 結帳前直接從這桌列印：出餐單＝整桌品項；收據明細＝目前帳單（含會員價／折扣試算，標「尚未結帳」）。不開錢櫃、不影響帳務。
   const tableTicket=()=>{const t=posTotals({...cur,lines:cur.lines.filter(l=>!l.credit_of)});const items=cur.lines.filter(l=>!l.credit_of&&!l.cancelled).map(l=>({...l,price:t.priceOf(l)}));const gross=items.reduce((a,l)=>a+l.price*l.qty,0);const disc=POS_DISCOUNT?(POS_DISCOUNT.type==='percent'?Math.round(gross*POS_DISCOUNT.value/100):Math.min(gross,POS_DISCOUNT.value)):0;const sv=MenuLib.serviceCharge?MenuLib.serviceCharge(items,{takeout:cur.takeout,discount:disc}):null,svc=sv?(POS_SVC_WAIVE?{...sv,would:sv.amount,amount:0,waived:true,reason:POS_SVC_WAIVE.reason}:sv):null;return {id:cur.id,table_no:cur.table,placed_at:new Date().toISOString(),amount:gross-disc+(svc?svc.amount:0),items,preview:true,payer:{...(disc?{discount:{type:POS_DISCOUNT.type,value:POS_DISCOUNT.value,reason:POS_DISCOUNT.reason,amount:disc}}:{}),...(svc?{service_charge:svc}:{})}};};
   const pr=host.querySelector('#pos-print-receipt');if(pr)pr.onclick=async()=>{if(pr.disabled)return;pr.disabled=true;try{await printReceipt(tableTicket());}finally{pr.disabled=false;}};
-  // 列印出餐單＝送單＋印：還有沒送出的品項就先送單（進出餐看板、自動出單只印新送的那張）；全都送過了就整桌重印一張
+  // 列印出餐單＝送單＋印：還有沒送出的品項就先送單（進出餐看板、自動出單只印新送的那張）；
+  // 全都送過了只補印「最近一次送單」，標「補印」（KK 11/1：整桌重印會把之前的餐點混進加點單，現場會重做）
+  const lastTicket=()=>{const ls=cur.lines.filter(l=>l.ticket&&l.placed_at&&!l.cancelled&&!l.credit_of&&!l.song&&!l.tip&&l.cat!=='SHOP');if(!ls.length)return null;const last=ls.reduce((a,l)=>l.placed_at>a.placed_at?l:a);const items=ls.filter(l=>l.ticket===last.ticket);return {id:last.ticket,table_no:cur.table,placed_at:last.placed_at,items,reprint:true};};
   const place=host.querySelector('#pos-place');if(place)place.onclick=async()=>{if(place.disabled)return;place.disabled=true;try{
     if(cur.lines.some(l=>!l.placed_at))await opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/place',{method:'POST',body:{}}),async()=>{await pollKitchenPrinting();return starReady()?'已送出點餐並列印出餐單':'已送出點餐，出餐單由連接印表機的 Star Browser 自動列印';},reload);
-    else await printOrder(tableTicket());
+    else{const t=lastTicket();if(t)await printOrder(t);else toast('這桌沒有已送出的餐點可補印');}
   }finally{place.disabled=false;}};
   // 來客人數：客人端不填，統一由現場人員在這裡攤開 1–20 點選，點一下就存
   const pty=host.querySelector('#pos-party');if(pty)pty.onclick=async()=>{
