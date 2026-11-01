@@ -92,3 +92,11 @@ test('桌號 QR 單：桌號在 QR 上方；印人數、單號、開桌時間；
     assert.ok(texts.includes('最後點餐 餐點 16:00／飲品 16:30'));assert.ok(!texts.some(t=>t.includes('低消')),'在咖啡不印低消');
     assert.ok(texts.includes('大人 2　・　小孩 0'));}
 });
+
+test('桌號 QR 單印 Wi-Fi 名稱與密碼（KK 11/1），字級最小 16 點、QR 至少 224 點（28mm）',async()=>{
+  const {context,texts}=qrContext();await context.printTableQr('A1','url');
+  assert.ok(texts.includes('emoji'),'Wi-Fi 名稱');assert.ok(texts.includes('meetfriends'),'Wi-Fi 密碼');
+  const fn=ops.match(/async function printTableQr\(table,url,info=\{\}\)\{[\s\S]*?\n\}/)[0];
+  assert.match(fn,/const QS=(\d+);/);assert.ok(Number(fn.match(/const QS=(\d+);/)[1])>=224,'QR 至少 28mm');
+  for(const m of fn.matchAll(/(?:line|wrap)\([^;]*?,(\d+),(?:true|false)/g))assert.ok(Number(m[1])>=16,'字太小：'+m[0]);
+});

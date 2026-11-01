@@ -942,8 +942,9 @@ async function printTableQr(table,url,info={}){
   const q=await new Promise(resolve=>{if(!url||typeof QRCode==='undefined'||!QRCode.toCanvas)return resolve(null);const c=document.createElement('canvas');QRCode.toCanvas(c,String(url),{width:300,margin:4},err=>resolve(err?null:c));});
   if(!q){toast('QR 產生失敗');return false;}
   // 版面（參考同業開桌單）：桌號最大放最上面（帳本夾一看就認得）→ 人數 → QR → 點餐步驟 → 店家規則（低消／服務費／最後點餐，左對齊懸掛縮排）→ 鼓勵小語 → 桌次＋開桌時間
-  // 字級四級：桌號 60／標題 22／內文 17／英文輔助 14；分隔線內縮 24 點（熱感紙邊緣有公差）
+  // 字級（KK 11/1 嫌字小，整體放大）：桌號 64／標題 24／內文 20／英文輔助 17（203dpi 下最小約 2.1mm）；QR 224 點＝28mm；分隔線內縮 24 點（熱感紙邊緣有公差）
   // 中英雙語，外國客人也看得懂；上方留白給帳本夾夾住（203dpi：8 點＝1mm），留白以下壓在 90mm（QR_BODY_MAX）內
+  const WIFI={ssid:'emoji',pass:'meetfriends'}; // 店內 Wi-Fi（KK 11/1：QR 單要印帳密），換密碼改這裡
   const W=STAR_DOTS,M=24,c=document.createElement('canvas');c.width=W;c.height=1600;const g=c.getContext('2d');
   g.fillStyle='#fff';g.fillRect(0,0,W,c.height);g.fillStyle='#000';g.textBaseline='top';g.textAlign='center';let y=QR_CLIP_TOP;
   const font=(size,bold)=>{g.font=(bold?'bold ':'')+size+'px sans-serif';};
@@ -953,42 +954,49 @@ async function printTableQr(table,url,info={}){
   const rule=(h=2,pad=14)=>{y+=pad-6;g.fillRect(M,y,W-2*M,h);y+=h+pad;};
   // 店名依掃碼點餐時段（MenuLib.orderWindow：16:30 起換三點水菜單）決定，與客人掃到的菜單一致；非點餐時段才印兩店名。不印母公司言文字
   const qv=typeof MenuLib!=='undefined'&&MenuLib.orderWindow?MenuLib.orderWindow().venue:null;
-  line((qv&&typeof BRAND_LABEL!=='undefined'&&BRAND_LABEL[qv])||'在咖啡、三點水',20,true,12);
-  line('桌號 Table',15,false,4);line(String(table),60,true,8);
+  line((qv&&typeof BRAND_LABEL!=='undefined'&&BRAND_LABEL[qv])||'在咖啡、三點水',22,true,6);
+  line('桌號 Table',18,false,2);line(String(table),60,true,2);
   // 人數（開桌時在 POS 選的）；桌次、開桌時間屬系統資訊，放最底
   const n=Number(info.party_size)||0,kids=Math.max(0,Number(info.kids)||0);
-  if(n)line(`大人 ${n-kids}　・　小孩 ${kids}`,17,false,4);
-  rule(2,14);
-  const QS=192;g.drawImage(q,(W-QS)/2,y,QS,QS);y+=QS+12;
-  line('掃碼點餐 Scan to order',22,true,10);
+  if(n)line(`大人 ${n-kids}　・　小孩 ${kids}`,20,false,2);
+  rule(2,8);
+  const QS=224;g.drawImage(q,(W-QS)/2,y,QS,QS);y+=QS+4;
+  line('掃碼點餐 Scan to order',24,true,6);
   // 點餐步驟：加進清單後要按「送出點餐」（order.html 按鈕字）才會進廚房，避免客人以為加了就算點了
-  wrap('選好後按「送出點餐」才會送進廚房',17,false,W-2*M,W/2,6);wrap('Tap "Send order" when ready',14,false,W-2*M,W/2,4);
+  wrap('選好後按「送出點餐」才會送進廚房',20,false,W-2*M,W/2,2);wrap('Tap "Send order" when ready',17,false,W-2*M,W/2,2);
+  // Wi-Fi 單行：Wi-Fi 名稱 ＋ 密碼（黑底白字反白）；寬度不夠時自動縮字，不換行
+  rule(1,8);{let fs=24;const lab=18,parts=()=>{font(lab,false);const a=g.measureText?g.measureText('Wi-Fi ').width:52,c=g.measureText?g.measureText('  密碼 ').width:60;font(fs,true);const b=g.measureText?g.measureText(WIFI.ssid).width:60,d=g.measureText?g.measureText(WIFI.pass).width:150;return [a,b,c,d];};
+    let w=parts();while(fs>18&&w.reduce((x,v)=>x+v,0)+12>W-2*M){fs--;w=parts();}
+    let x=(W-(w.reduce((x,v)=>x+v,0)+12))/2;g.textAlign='left';
+    font(lab,false);g.fillText('Wi-Fi ',x,y+(fs-lab));x+=w[0];font(fs,true);g.fillText(WIFI.ssid,x,y);x+=w[1];
+    font(lab,false);g.fillText('  密碼 ',x,y+(fs-lab));x+=w[2];font(fs,true);g.fillRect(x,y-4,w[3]+12,fs+8);g.fillStyle='#fff';g.fillText(WIFI.pass,x+6,y);g.fillStyle='#000';
+    y+=fs+4;g.textAlign='center';}
   // 店家規則：三點水低消與服務費（MenuLib.barPolicyActive，11/1 起）；兩店的最後點餐時間（與 orderWindow 一致）
   const notes=[];
   if(qv==='BAR'&&typeof MenuLib!=='undefined'&&MenuLib.barPolicyActive&&MenuLib.barPolicyActive()){
     const ms=n&&MenuLib.minSpendOf?MenuLib.minSpendOf(n):null,per=ms?ms.per:null;
     const sv=Math.round(MenuLib.SERVICE_RATE*100);
     // 低消與服務費同一條（省紙長、留行距）：中文一行、英文一行，都不換行
-    notes.push(ms?[`低消每人 ${per}・服務費 ${sv}%`,`Min. NT$${per}/person · ${sv}% service charge`]:[`低消 平日 ${MenuLib.MIN_SPEND.weekday}／假日 ${MenuLib.MIN_SPEND.weekend}・服務費 ${sv}%`,`Min. ${MenuLib.MIN_SPEND.weekday} / ${MenuLib.MIN_SPEND.weekend} (wknd) pp · ${sv}% service`]);
+    notes.push(ms?[`低消每人 ${per}・服務費 ${sv}%`,`Min. NT$${per} pp · ${sv}% service`]:[`低消 平日 ${MenuLib.MIN_SPEND.weekday}／假日 ${MenuLib.MIN_SPEND.weekend}・服務費 ${sv}%`,`Min. ${MenuLib.MIN_SPEND.weekday} / ${MenuLib.MIN_SPEND.weekend} (wknd) pp · ${sv}% service`]);
   }
   if(qv==='CAFE')notes.push(['最後點餐 餐點 16:00／飲品 16:30','Last order 16:00 food · 16:30 drinks']);
   if(qv==='BAR')notes.push(['最後點餐 餐點 02:00／酒水 02:30','Last order 02:00 food · 02:30 drinks']);
   // 左對齊＋懸掛縮排：方塊符號在 M，文字從 M+16 起；同一條中英間 4、條與條之間空 12
-  if(notes.length){rule(1,14);g.textAlign='left';const tx=M+16,tw=W-tx-M;
-    notes.forEach(([zh,en],i)=>{if(i)y+=12;g.fillRect(M+2,y+6,6,6);wrap(zh,17,true,tw,tx,4);wrap(en,14,false,tw,tx,2);});
+  if(notes.length){rule(1,8);g.textAlign='left';const tx=M+16,tw=W-tx-M;
+    notes.forEach(([zh,en],i)=>{if(i)y+=8;g.fillRect(M+2,y+7,7,7);wrap(zh,20,true,tw,tx,2);wrap(en,17,false,tw,tx,2);});
     g.textAlign='center';y+=2;}
   const enc=typeof PosEncouragement!=='undefined'&&PosEncouragement.pick?PosEncouragement.pick():null;
-  if(enc){rule(1,14);
+  if(enc){rule(1,8);
     // moji 吉祥物插圖在左、鼓勵小語在右（pos-moji.js），沒載入或不支援 Path2D 就整行印文字
     const mw=80,mh=Math.round(mw*(typeof PosMoji!=='undefined'?PosMoji.ratio:1));
     const drew=!!(enc.m&&typeof PosMoji!=='undefined'&&PosMoji.draw&&PosMoji.draw(g,enc.m,M-4,y,mw));
-    if(drew){const top=y,tw=W-mw-M-12,tx=M-4+mw+8+tw/2;g.textAlign='center';wrap(enc.zh,17,false,tw,tx,5);y+=2;wrap(enc.en,14,false,tw,tx,4);
+    if(drew){const top=y,tw=W-2*M-mw-4,tx=M+mw+4+tw/2;g.textAlign='center';wrap(enc.zh,20,false,tw,tx,2);wrap(enc.en,17,false,tw,tx,2);
       // 文字比插圖短時，往下對齊插圖底；文字較長就照文字高度
       const used=y-top;if(used<mh){const shift=Math.floor((mh-used)/2),t0=top-4,h0=used+4;const img=g.getImageData?g.getImageData(M+mw,t0,W-mw-M,h0):null;if(img&&g.putImageData){g.fillStyle='#fff';g.fillRect(M+mw,t0,W-mw-M,h0);g.putImageData(img,M+mw,t0+shift);g.fillStyle='#000';}y=top+mh;}}
-    else{wrap(enc.zh,18);wrap(enc.en,14);}}
+    else{wrap(enc.zh,20);wrap(enc.en,17);}}
   // 系統資訊（對帳、查客訴、算用餐時間用）：桌次＋開桌時間置中一行；沒有開桌時間就用列印當下
   {const d=new Date(info.opened_at||Date.now()),p=v=>String(v).padStart(2,'0'),t=new Date(d.getTime()+8*3600e3);
-    rule(1,12);line([info.no?`桌次 ${info.no}`:'',`開桌 ${t.getUTCFullYear()}/${p(t.getUTCMonth()+1)}/${p(t.getUTCDate())} ${p(t.getUTCHours())}:${p(t.getUTCMinutes())}`].filter(Boolean).join('　・　'),14,false,2);}
+    rule(1,8);line([info.no?`桌次 ${info.no}`:'',`開桌 ${t.getUTCFullYear()}/${p(t.getUTCMonth()+1)}/${p(t.getUTCDate())} ${p(t.getUTCHours())}:${p(t.getUTCMinutes())}`].filter(Boolean).join('　・　'),16,false,2);}
   const out=document.createElement('canvas');out.width=W;out.height=Math.ceil(y+24);const og=out.getContext('2d');og.fillStyle='#fff';og.fillRect(0,0,W,out.height);og.drawImage(c,0,0);
   const ok=await starSend({canvas:out});toast(ok?'桌號 QR 已送出列印':'桌號 QR 列印失敗');return ok;
 }
