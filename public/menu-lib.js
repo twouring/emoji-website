@@ -311,6 +311,19 @@
     return order.map(k => [k, map[k]]);
   }
 
+  /* 套餐內容（前台菜單）：欄位名與選項依語系顯示，選項名從同一份菜單找對應品項的 en/ja，找不到才退回中文 */
+  const COMBO_SLOT = {
+    en: { 主餐: 'Main', 飲品: 'Drink', 貝果: 'Bagel', 飯糰: 'Onigiri', 甜點: 'Dessert', 麵: 'Noodles' },
+    ja: { 主餐: 'メイン', 飲品: 'ドリンク', 貝果: 'ベーグル', 飯糰: 'おにぎり', 甜點: 'デザート', 麵: '麺' },
+  };
+  const comboSlotLabel = (zh, lang) => (COMBO_SLOT[lang] && COMBO_SLOT[lang][zh]) || zh;
+  function comboChoiceName(c, lang, items) {
+    if (lang !== 'en' && lang !== 'ja') return c.zh;
+    const m = (items || []).find(x => (c.id && x.id === c.id) || x.zh === c.zh);
+    return (m && m[lang]) || (lang === 'ja' && m && m.en) || c.zh;
+  }
+  let ctxItems = [];
+
   function renderItem(item, lang) {
     const mp = memberPrice(item);
     const showOrig = mp > 0 && mp < item.price;
@@ -323,7 +336,7 @@
       '<span class="menu-item__zh">' + esc(lang === 'ja' && item.ja ? item.ja : item.zh) + '</span>' +
       (lang === 'ja' ? (item.ja ? '<span class="menu-item__en">' + esc(item.zh) + '</span>' : '') : (item.en ? '<span class="menu-item__en">' + esc(item.en) + '</span>' : '')) +
       (function (n) { return n ? '<div class="menu-item__note">' + esc(n) + '</div>' : ''; })(lang === 'ja' && item.note_ja ? item.note_ja : lang === 'en' && item.note_en ? item.note_en : item.note) +
-      (item.cat === 'COMBO' && item.combo && item.combo.length ? '<div class="menu-item__note">' + item.combo.map(function (s) { return esc(s.label + '：' + s.choices.map(function (c) { return c.zh + (c.add ? '（+' + c.add + '）' : ''); }).join(' / ')); }).join('<br>') + '</div>' : '') +
+      (item.cat === 'COMBO' && item.combo && item.combo.length ? '<div class="menu-item__note">' + item.combo.map(function (s) { return esc(comboSlotLabel(s.label, lang) + (lang === 'en' ? ': ' : '：') + s.choices.map(function (c) { var n = comboChoiceName(c, lang, ctxItems); return n + (c.add ? (lang === 'en' ? ' (+' + c.add + ')' : '（+' + c.add + '）') : ''); }).join(' / ')); }).join('<br>') + '</div>' : '') +
       '</div><div class="menu-item__price">' + priceHtml + '</div></li>';
   }
 
@@ -338,7 +351,7 @@
 
   // items 須已 sortItems；依店別（在咖啡／三點水）再依分類分組
   function renderMenuHtml(items, lang, emptyText) {
-    lang = lang || 'zh';
+    lang = lang || 'zh'; ctxItems = items || [];
     if (!items || !items.length) return '<p class="menu-empty">' + esc(emptyText || '') + '</p>';
     let html = groupBy(items, 'venue').map(([venue, list]) => {
       const label = VENUE_LABEL[venue] || { zh: venue, en: '' };

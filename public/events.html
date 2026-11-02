@@ -190,8 +190,8 @@
 .ev-cta-bar{position:fixed;left:0;right:0;bottom:0;z-index:70;display:none;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--ink);box-shadow:0 -8px 24px rgba(0,0,0,.08);transform:translateY(110%);transition:transform .2s ease}
 .ev-cta-bar.is-visible{transform:none}
 .ev-cta-bar__info{min-width:0;display:grid;line-height:1.35}
-.ev-cta-bar__info b{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ev-cta-bar__info span{color:var(--ink-soft);font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev-cta-bar__info b{font-weight:700;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.ev-cta-bar__info span{color:var(--ink-soft);font-size:1rem;overflow-wrap:anywhere}
 .ev-cta-bar .ui-button{white-space:nowrap;padding-inline:18px}
 @media(max-width:760px){.ev-cta-bar:not([hidden]){display:grid}body.has-cta-bar .ev-main{padding-bottom:120px}}
 </style>

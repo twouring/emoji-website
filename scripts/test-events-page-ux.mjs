@@ -215,3 +215,8 @@ test('已結束活動：列表卡片弱化（灰階、已結束標籤、不顯�
   assert.match(source, /\.ev-card--past\{opacity:\.6;filter:grayscale\(1\)\}/);
   assert.match(source, /api\('\/events\?past=1&lang='\+lang\)/);
 });
+
+test('mobile CTA bar never truncates price/date with ellipsis (long en/ja strings wrap)', () => {
+  const css = source.match(/\.ev-cta-bar__info b\{[^}]*\}\n\.ev-cta-bar__info span\{[^}]*\}/)[0];
+  assert.doesNotMatch(css, /ellipsis|nowrap/);
+});

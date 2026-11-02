@@ -165,3 +165,16 @@ test('activeVenue 依台北時間切品牌：08–17 在咖啡、17–03 三點�
   assert.equal(at('02:59'), 'BAR');
   assert.equal(at('03:00'), null);
 });
+
+test('combo contents follow page language on en/ja menus (zh stays zh)', () => {
+  const items = M.sortItems([
+    M.normalizeItem({ id: 'b1', venue: 'CAFE', cat: 'FOOD', zh: '原味貝果', en: 'Plain Bagel', ja: 'プレーンベーグル', price: 80, published: true }),
+    M.normalizeItem({ id: 'd1', venue: 'CAFE', cat: 'COFFEE', zh: '拿鐵咖啡', en: 'Latte', ja: 'カフェラテ', price: 150, published: true }),
+    M.normalizeItem({ venue: 'CAFE', cat: 'COMBO', zh: '貝果套餐', en: 'Bagel Set', price: 200, published: true,
+      combo: [{ key: 'main', label: '貝果', choices: [{ id: 'b1', zh: '原味貝果', add: 0 }] }, { key: 'drink', label: '飲品', choices: [{ id: 'd1', zh: '拿鐵咖啡', add: 30 }] }] }),
+  ]);
+  const en = M.renderMenuHtml(items, 'en', ''), ja = M.renderMenuHtml(items, 'ja', ''), zh = M.renderMenuHtml(items, 'zh', '');
+  assert.ok(en.includes('Bagel: Plain Bagel') && en.includes('Drink: Latte (+30)'), en);
+  assert.ok(ja.includes('ベーグル：プレーンベーグル') && ja.includes('ドリンク：カフェラテ（+30）'));
+  assert.ok(zh.includes('貝果：原味貝果') && zh.includes('飲品：拿鐵咖啡（+30）'));
+});
