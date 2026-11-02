@@ -2,13 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const html = readFileSync(new URL('../public/order.html', import.meta.url), 'utf8');
-// KK 11/2：兌換不再是會員卡裡的獨立清單，整合進下方菜單品項卡片
-test('兌換整合到菜單品項，會員卡不再有兌換清單', () => {
-  assert.match(html, /function redeemRow\(it\)/);
-  assert.match(html, /var rd=redeemRow\(it\),card=/);
-  assert.match(html, /class="item-cell">'\+card\+rd/);
-  assert.match(html, /closest\('\[data-redeem\]'\)/);
-  assert.doesNotMatch(html, /redeem-toggle|redeem-list|REDEEM_OPEN|redeemables\(/);
+// KK 11/2：掃碼後先看到菜單；兌換從會員列點開才顯示，不在每道菜下方塞兌換框
+test('兌換由會員列點開，菜單品項不附兌換框', () => {
+  assert.match(html, /function redeemables\(\)/);
+  assert.match(html, /id="member-redeem"/);
+  assert.match(html, /REDEEM_OPEN=!REDEEM_OPEN/);
+  assert.match(html, /class="member-rewards"/);
+  assert.doesNotMatch(html, /function redeemRow\(it\)/);
+  assert.doesNotMatch(html, /class="item-cell">'\+card\+rd/);
 });
 
 // KK 11/2：「最後點餐」提示壓成一行（標題＋時間同列，長語系才換行），讓菜單多露出一兩道
