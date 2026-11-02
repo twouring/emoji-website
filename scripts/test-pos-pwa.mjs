@@ -85,7 +85,7 @@ test('pos.html：只做餐飲五件事、與 /admin 共用 pos-ops.js、登入�
   assert.doesNotMatch(html, /rel="manifest"|apple-mobile-web-app|apple-touch-icon|installHint|beforeinstallprompt/, '純瀏覽器：不留 PWA 安裝提示');
   assert.match(html, /getRegistrations\(\)\.then\(rs => rs\.forEach\(r => r\.unregister\(\)\)\)/, '註銷舊版殘留的 service worker');
   assert.doesNotMatch(html, /serviceWorker\.register/);
-  assert.match(html, /\{ id:'pos',(?: icon:'wallet',)?\s+label:'結帳' \}/); assert.match(html, /\{ id:'orders',(?: icon:'utensils',)?\s+label:'出餐' \}/); assert.match(html, /\{ id:'soldout',(?: icon:'ban',)?\s+label:'估清' \}/);
+  assert.match(html, /\{ id:'pos',(?: icon:'wallet',)?\s+label:'結帳' \}/); assert.doesNotMatch(html, /\{ id:'orders'/, '出餐分頁已移除（KK 11/2，只用紙本）'); assert.match(html, /seg\[0\] === 'orders'\) \{ history\.replaceState\(null, '', '\/pos'\)/); assert.match(html, /\{ id:'soldout',(?: icon:'ban',)?\s+label:'估清' \}/);
   assert.match(html, /\{ id:'reservations',(?: icon:'calendar',)?\s+label:'訂位' \}/); assert.match(html, /\{ id:'history',(?: icon:'search',)?\s+label:'查單' \}/); assert.match(html, /\{ id:'sales',(?: icon:'(?:chart|receipt)',)?\s+label:'日結' \}/);
   assert.match(html, /else if \(TAB === 'history'\) loadHistory\(\);/);
   assert.doesNotMatch(html, /commitments|social|permissions/, 'POS 不帶後台其他分頁');

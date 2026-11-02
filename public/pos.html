@@ -339,7 +339,6 @@ const num = n => Number(n || 0).toLocaleString('en-US');
 const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水' };
 const TABS = [
   { id:'pos', icon:'wallet',          label:'結帳' },
-  { id:'orders', icon:'utensils',       label:'出餐' },
   { id:'soldout', icon:'ban',      label:'估清' },
   { id:'reservations', icon:'calendar', label:'訂位' },
   { id:'songs', icon:'music',          label:'點歌' },
@@ -505,6 +504,8 @@ function routeTab(){
   const seg = location.pathname.replace(/^\/pos\/?/, '').replace(/\/+$/,'').split('/');
   if (LEGACY_ANALYTICS[seg[0]]) { ANALYTICS_KIND = LEGACY_ANALYTICS[seg[0]]; history.replaceState(null, '', '/pos/analytics/' + ANALYTICS_KIND); return 'analytics'; }
   if (seg[0] === 'analytics' && LEGACY_ANALYTICS[seg[1]]) ANALYTICS_KIND = seg[1];
+  // 出餐分頁已移除（KK 11/2：只用紙本出餐單），舊網址 /pos/orders 轉回結帳
+  if (seg[0] === 'orders') { history.replaceState(null, '', '/pos'); return 'pos'; }
   return TABS.some(t=>t.id===seg[0]) ? seg[0] : 'pos';
 }
 function go(tab, replace){
