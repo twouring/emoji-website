@@ -34,7 +34,7 @@ test('開桌 QR 單中英雙語，並印鼓勵小語與吉祥物插圖',async()=
   assert.equal(await context.printTableQr('A1','https://example.test/order?s=1&k=x'),true);
   for(const t of ['桌號 Table','A1','掃碼點餐 Scan to order','測試鼓勵語','Keep going.'])assert.ok(texts.includes(t),'缺少：'+t);
   assert.ok(!texts.some(t=>t.includes('櫃檯結帳')||/pay at the counter/i.test(t)),'QR 單不印櫃檯結帳（KK 10/27）');
-  assert.ok(texts.some(t=>t.includes('送出點餐')),'要印點餐步驟（按「送出點餐」）');
+  assert.ok(texts.includes('用餐完結帳')&&texts.includes('Pay after your meal'),'要印「用餐完結帳」（KK 11/2）');assert.ok(!texts.some(t=>t.includes('送出點餐')),'不再印送出點餐步驟');
   assert.ok(texts.some(t=>/開桌 \d{4}\/\d{2}\/\d{2} \d{2}:\d{2}$/.test(t)),'要印開桌時間');
   const moji=calls.find(c=>c[0]==='moji');assert.ok(moji,'要畫 moji 插圖');assert.equal(moji[1],'coffee/dot');assert.equal(moji[4],80);
   const {context:c2,texts:t2}=qrContext({enc:false});

@@ -965,8 +965,8 @@ async function printTableQr(table,url,info={}){
   rule(2,8);
   const QS=224;g.drawImage(q,(W-QS)/2,y,QS,QS);y+=QS+4;
   line('掃碼點餐 Scan to order',24,true,6);
-  // 點餐步驟：加進清單後要按「送出點餐」（order.html 按鈕字）才會進廚房，避免客人以為加了就算點了
-  wrap('選好後按「送出點餐」才會送進廚房',20,false,W-2*M,W/2,2);wrap('Tap "Send order" when ready',17,false,W-2*M,W/2,2);
+  // 付款方式：桌邊點餐先吃後付，用餐完再結帳（KK 11/2：取代原本「按送出點餐」步驟說明）
+  wrap('用餐完結帳',20,false,W-2*M,W/2,2);wrap('Pay after your meal',17,false,W-2*M,W/2,2);
   // Wi-Fi 單行：Wi-Fi 名稱 ＋ 密碼（黑底白字反白）；寬度不夠時自動縮字，不換行
   rule(1,8);{let fs=24;const lab=18,parts=()=>{font(lab,false);const a=g.measureText?g.measureText('Wi-Fi ').width:52,c=g.measureText?g.measureText('  密碼 ').width:60;font(fs,true);const b=g.measureText?g.measureText(WIFI.ssid).width:60,d=g.measureText?g.measureText(WIFI.pass).width:150;return [a,b,c,d];};
     let w=parts();while(fs>18&&w.reduce((x,v)=>x+v,0)+12>W-2*M){fs--;w=parts();}
