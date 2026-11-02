@@ -21,6 +21,9 @@ test('結帳意圖時跳 Google 評論邀請：餐都出完、沒有未送品項
   assert.match(html, /order_review_/);
   // 櫃檯結帳後的感謝頁也有評論入口
   assert.match(html, /id="thanks"[\s\S]*?data-review-link/);
+  // 結帳完成感謝頁：評論之外也引導回 App 首頁（KK 11/2）
+  assert.match(html, /id="thanks"[\s\S]*?id="thanks-home" href="https:\/\/app\.emoji\.tw\/"/);
+  assert.equal(lib.split('thanks_home').length - 1, 4);
   for (const k of ['review_title', 'review_hint', 'review_go', 'review_view_cart']) assert.equal(lib.split(k + ':').length - 1, 3, k);
   assert.match(lib, /5 點會員點數/);
   assert.match(html, /rel="noopener"/);
