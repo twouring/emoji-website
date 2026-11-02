@@ -74,7 +74,7 @@ test('server：/api/me/shop 三條路由、排程自動取消、POS 加點不擋
   for (const r of ["app.get('/api/me/shop'", "app.post('/api/me/shop'", "app.delete('/api/me/shop/:id'"]) assert.ok(s.includes(r), r);
   assert.match(s, /ADD COLUMN IF NOT EXISTS shop_at TIMESTAMPTZ/);
   assert.match(s, /shop_expired: await expireShopOrders\(\)/);
-  assert.match(s, /const shopItem=tableOrders\.MenuLib\.isShop\(it\);if\(it&&!shopItem&&!tableOrders\.itemInVenues/);
+  assert.match(s, /const shopItem=tableOrders\.MenuLib\.isShared\(it\);if\(it&&!shopItem&&!tableOrders\.itemInVenues/);
   assert.match(s, /!tableOrders\.MenuLib\.isShop\(it\) && it\.points > 0/);
 });
 

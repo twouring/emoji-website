@@ -215,6 +215,9 @@
   /* 商店（SHOP）：牙刷、毛巾、耳機等零售品。只在會員 App 商店（ctx.shop）與 POS（ctx.posOnly）出現，
    * 不進桌邊點餐、預約取餐、官網菜單；不上出餐單、不收服務費、不套會員價。 */
   function isShop(item) { return !!item && item.cat === 'SHOP'; }
+  /* 兩店共用（KK 11/2）：商店零售品與甜點在兩店 POS 都能點，賣出時記在當下店別（三點水賣的甜點才收服務費、進三點水日結） */
+  const SHARED_CATS = ['SHOP', 'DESSERT'];
+  function isShared(item) { return !!item && SHARED_CATS.includes(item.cat); }
   function isOrderable(item, now, ctx) {
     if (!item.published || soldOutToday(item, now)) return false;
     if (isShop(item) && !(ctx && (ctx.shop || ctx.posOnly))) return false;
@@ -385,6 +388,6 @@
 
   global.MenuLib = {
     CATS, VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, BAR_STATION_CATS, MEMBER_RATE, BAR_POLICY_FROM, SERVICE_RATE, MIN_SPEND, barPolicyActive, minSpendOf, serviceCharge, memberPrice, activeVenue, orderWindow, orderableInWindow, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
-    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, isShop, soldOutToday, stockLeft, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
+    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, isShop, isShared, SHARED_CATS, soldOutToday, stockLeft, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

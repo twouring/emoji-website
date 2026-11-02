@@ -5884,7 +5884,7 @@ app.post('/api/admin/orders/sessions/:id/items',auth,adminOnly,requireDb,wrap(as
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
   const venues=tableOrders.visibleVenues(req.auth.brands);
   const menuAll=tableOrders.menuIndex(await contentValue('menu'),undefined,{posOnly:true});   // 櫃檯可替客人加任何已發布品項（含估清、非營業時段、POS 限定如「其他」），但不得跨品牌
-  const it=menuAll.get(String(req.body?.item_id||''));const shopItem=tableOrders.MenuLib.isShop(it);if(it&&!shopItem&&!tableOrders.itemInVenues(it,venues))return res.status(403).json({error:'只能加自己店別的品項。'});
+  const it=menuAll.get(String(req.body?.item_id||''));const shopItem=tableOrders.MenuLib.isShared(it);if(it&&!shopItem&&!tableOrders.itemInVenues(it,venues))return res.status(403).json({error:'只能加自己店別的品項。'});
   // 商店零售品兩店共用：記在這台 POS 的店別（言文字管理員記當下營業品牌）
   return mutateItems(req,res,items=>tableOrders.posAddLine(items,menuAll,{...(req.body||{}),venue:shopItem?shop.venueFor(venues):undefined}));
 }));
