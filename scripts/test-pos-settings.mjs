@@ -1,4 +1,4 @@
-// scripts/test-pos-settings.mjs — POS「設定」分頁：不常用分頁收進設定、收款帳戶可在 POS 管理（店長識別碼）
+// scripts/test-pos-settings.mjs — POS「設定」分頁：不常用分頁收進設定、只有管理員能用的功能不放 POS
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -24,14 +24,14 @@ test('頂欄只留常用分頁（點歌營業中常用、留在頂欄），庫�
   assert.match(pos, /<script src="\/pos-settings\.js"><\/script>/);
   assert.match(pos, /href="\/pos-settings\.css"/);
 });
-test('設定頁：收款帳戶清單、新增、改名、停用；非超管帶店長識別碼 header', () => {
-  assert.match(set, /api\('\/admin\/payment-methods'\)/);
-  assert.match(set, /pmWrite\('\/admin\/payment-methods','POST',\{label\}\)/);
-  assert.match(set, /'X-Manager-Pin':SET_PIN/);
+test('只有管理員能用的功能只在 admin，不放 POS（KK 11/2）', () => {
+  const ops = read('public/pos-ops.js'), admin = read('public/admin.html');
+  assert.doesNotMatch(set, /payment-methods|pm-form|pm-label|data-pm-toggle|data-pm-rename/, 'POS 設定頁不得管理收款帳戶');
+  assert.match(admin, /paymentMethodsBlock\(d\)/, '收款帳戶管理在 admin 系統設定');
+  assert.match(ops, /function onPosPage\(\)/);
+  assert.match(ops, /DATA\?\.super&&!onPosPage\(\)\?`<button type="button" class="btn btn--ghost" data-reg-reopen/, '重開補單只在 admin');
+  assert.match(ops, /!DATA\.brands&&!onPosPage\(\)&&await posConfirm\(/, '強制清桌只在 admin');
   assert.doesNotMatch(set, /localStorage/, '店長識別碼不得寫入儲存');
-  assert.doesNotMatch(set, /payment-methods\?[^'"`]*pin/i, '識別碼不走網址');
-  assert.match(set, /id="pm-label" maxlength="20"/);
-  assert.match(set, /data-pm-toggle/); assert.match(set, /data-pm-rename/);
   assert.doesNotMatch(set, /\bconfirm\(|\bprompt\(/, '一律用 posConfirm／pickReason');
 });
 test('後端：GET 清單、POST/PATCH 超管或店長識別碼、API.md 有文件', () => {

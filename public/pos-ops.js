@@ -6,6 +6,8 @@
 function tabOrders(){ return '<div class="a-sec" id="orders-body"></div>'; }
 function tabPos(){ return '<div id="pos-body"></div>'; }
 function tabReservations(){ return '<div class="a-sec" id="resv-body"></div>'; }
+/* 只有管理員能用的功能（如重開補單）只放 admin，POS 平板不顯示（KK 11/2）；pos-ops.js 兩頁共用，用網址判斷 */
+function onPosPage(){return typeof location!=='undefined'&&/^\/pos(\/|$)/.test(location.pathname);}
 function tabSales(){ return '<div class="a-sec" id="sales-body"></div>'; }
 function tabHistory(){ return '<div class="a-sec" id="history-body"></div>'; }
 function tabLogs(){ return '<div class="a-sec" id="logs-body"></div>'; }
@@ -1640,8 +1642,8 @@ function paintPos(){
     if(!await posConfirm(cur.takeout?`收掉外帶單 ${cur.table}？`:`清桌 ${cur.table}？未取餐的單會標記已取餐，下一組客人掃碼會開新的一桌。`,{ok:cur.takeout?'收掉':'清桌',danger:true}))return;
     try{await api('/admin/orders/sessions/'+cur.id+'/close',{method:'POST',body:{}});toast('已清桌');POS_TABLE='';await reload();}
     catch(e){
-      // 有未結帳品項：子帳號要先結帳或逐項作廢；言文字管理員可強制清桌（作廢全部未結）
-      if(e.status===409&&DATA&&!DATA.brands&&await posConfirm(e.message+'\n以言文字管理員身分強制清桌並作廢這些品項？',{ok:'強制清桌',danger:true})){try{await api('/admin/orders/sessions/'+cur.id+'/close',{method:'POST',body:{force:true}});toast('已強制清桌');POS_TABLE='';await reload();}catch(e2){toast(e2.message);}}
+      // 有未結帳品項：要先結帳或逐項作廢；強制清桌（作廢全部未結）只限言文字管理員、只在 admin，POS 不顯示
+      if(e.status===409&&DATA&&!DATA.brands&&!onPosPage()&&await posConfirm(e.message+'\n以言文字管理員身分強制清桌並作廢這些品項？',{ok:'強制清桌',danger:true})){try{await api('/admin/orders/sessions/'+cur.id+'/close',{method:'POST',body:{force:true}});toast('已強制清桌');POS_TABLE='';await reload();}catch(e2){toast(e2.message);}}
       else toast(e.message);
     }
   };
@@ -2076,7 +2078,7 @@ function registerBlock(d){
       ${done&&r.close_note?`<p class="hint">${esc(r.close_note)}</p>`:lc&&lc.note?`<p class="hint">點驗：${esc(lc.note)}</p>`:''}
       <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>時間</th><th>類型</th><th>原因</th><th class="num">金額</th></tr></thead><tbody>${moves}</tbody></table></div>
       ${cashForm}${countForm}${closeForm}${done&&REG_OPEN_FORM===v&&REG_DATA?.can_open?.[v]?openRegisterForm(v):''}
-      ${!REG_CASH_OPEN&&!REG_CLOSE_OPEN&&!REG_COUNT_OPEN?`<div class="a-toolbar reg-actions">${done?`${REG_DATA?.can_open?.[v]?`<button type="button" class="btn btn--solid" data-reg-open="${esc(v)}">開帳</button>`:''}<button type="button" class="btn btn--ghost" data-reg-print="${esc(r.id)}" data-kind="關帳單">重印關帳單</button>${DATA?.super?`<button type="button" class="btn btn--ghost" data-reg-reopen="${esc(r.id)}">重開補單</button>`:''}`:`<button type="button" class="btn btn--ghost" data-reg-cash="${esc(r.id)}">＋ 臨時收支</button><button type="button" class="btn btn--ghost" data-reg-count="${esc(r.id)}">小結點驗</button><button type="button" class="btn btn--ghost" data-reg-print="${esc(r.id)}" data-kind="小結單">印小結單</button><button type="button" class="btn btn--solid" data-reg-close="${esc(r.id)}">關帳</button>`}</div>`:''}
+      ${!REG_CASH_OPEN&&!REG_CLOSE_OPEN&&!REG_COUNT_OPEN?`<div class="a-toolbar reg-actions">${done?`${REG_DATA?.can_open?.[v]?`<button type="button" class="btn btn--solid" data-reg-open="${esc(v)}">開帳</button>`:''}<button type="button" class="btn btn--ghost" data-reg-print="${esc(r.id)}" data-kind="關帳單">重印關帳單</button>${DATA?.super&&!onPosPage()?`<button type="button" class="btn btn--ghost" data-reg-reopen="${esc(r.id)}">重開補單</button>`:''}`:`<button type="button" class="btn btn--ghost" data-reg-cash="${esc(r.id)}">＋ 臨時收支</button><button type="button" class="btn btn--ghost" data-reg-count="${esc(r.id)}">小結點驗</button><button type="button" class="btn btn--ghost" data-reg-print="${esc(r.id)}" data-kind="小結單">印小結單</button><button type="button" class="btn btn--solid" data-reg-close="${esc(r.id)}">關帳</button>`}</div>`:''}
     </div>`;}).join('');
   return `<div class="ops-head"><h3>開關帳</h3>${opsHelp('在咖啡與三點水共用同一個抽屜帳，各記一本但同一時間只能一本開著：在咖啡關帳後三點水就能開帳，反之亦然，不用等時間到（零用金預設承接上一本的留存金）。開店放零用金按「開帳」，營業中從抽屜拿錢要記「臨時收支」、交班或隨時可「小結點驗」核對現金，打烊點鈔按「關帳」；關帳後該品牌當天不能再結帳。應有現金＝零用金＋現金營收＋臨時收入－臨時支出。')}</div><div class="reg-cards">${cards}</div>`;
 }
