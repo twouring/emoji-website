@@ -346,9 +346,11 @@ const groupByCat=lines=>{const g=new Map();for(const l of byCat(lines)){const k=
 // 規格：note 由桌邊／櫃檯加點寫成「溫度：熱；糖度：無糖；冰塊：去冰；自由文字」。拆成一顆顆標籤：預設值（正常冰、正常糖…）淡化、非預設值深色加粗、
 // 沒有「標籤：」的自由需求標 ※ 琥珀底——現場看一眼就知道哪些要特別處理，減少做錯。預設值來自 order-lib 同一份規格定義（沒載到就全部當非預設）。
 const specTone=label=>({溫度:'temperature',Temperature:'temperature','温度':'temperature',糖度:'sugar',Sweetness:'sugar','甘さ':'sugar',冰塊:'ice',Ice:'ice','氷':'ice',飯量:'rice','Rice amount':'rice','ご飯の量':'rice',麵量:'noodle','Noodle amount':'noodle','麺の量':'noodle'})[String(label||'')]||'custom';
-function specParts(l){
+/* 店內畫面與出餐單一律中文（KK 11/2）：外國客人點的規格先經 OrderLib.optionZh 轉回中文；給客人的點餐明細傳 keep=true 保留原語系 */
+const noteZh=t=>(typeof OrderLib!=='undefined'&&OrderLib.optionZh)?OrderLib.optionZh(t):String(t||'');
+function specParts(l,keep){
   const defaults={};try{for(const g of (typeof OrderLib!=='undefined'&&OrderLib.optionGroups)?OrderLib.optionGroups({cat:l.cat,zh:l.zh},'zh'):[])defaults[g.label]=g.choices[0];}catch(e){}
-  return String(l.note||'').split(/[；;]/).map(s=>s.trim()).filter(Boolean).flatMap(s=>{
+  return String(keep?(l.note||''):noteZh(l.note)).split(/[；;]/).map(s=>s.trim()).filter(Boolean).flatMap(s=>{
     const m=s.match(/^([^：:]{1,6})[：:](.+)$/);
     if(!m)return s.split(/[、,，]/).map(t=>t.trim()).filter(Boolean).map(text=>({text,kind:'custom',tone:'custom'})); // 常用備註膠囊以「、」連接，一顆一籤
     const text=m[2].trim();return [{text,kind:defaults[m[1]]===text?'default':'option',tone:specTone(m[1])}];
@@ -607,7 +609,7 @@ function kitchenTicketSpec(o,kind,total=1){
     for(const l of lines){
       spec.push({kind:'row',left:`${l.zh}${l.comp_reason?'（贈）':''}`,right:'×'+l.qty,size:52,bold:true});
       if(ordererOf(l))spec.push({kind:'left',text:'　'+ordererOf(l),size:16});
-      for(const p of partsOf(l)){spec.push({kind:'wrap',text:'　'+partText(p),size:34,bold:true});if(p.note)spec.push({kind:'wrap',text:'　　'+p.note.replace(/；/g,'／'),size:26});}
+      for(const p of partsOf(l)){spec.push({kind:'wrap',text:'　'+partText(p),size:34,bold:true});if(p.note)spec.push({kind:'wrap',text:'　　'+noteZh(p.note).replace(/；/g,'／'),size:26});}
       // 品名 52 號大字；規格一行（熱／無糖／去冰）、自由需求各自一行加 ※，整組備註加框；點餐人弱化成小字
       const parts=specParts(l),opts=parts.filter(p=>p.kind!=='custom').map(p=>p.text),custom=parts.filter(p=>p.kind==='custom').map(p=>p.text);
       const notes=[...(opts.length?[opts.join('／')]:[]),...custom.map(t=>'※ '+t)];
@@ -644,7 +646,7 @@ function orderSlipSpec(o){
       spec.push({kind:'wrap',text:'　□ '+partText(p)+(p.note?'（'+p.note.replace(/；/g,'／')+'）':''),size:20});
       if(p.en&&p.en!==p.zh)spec.push({kind:'wrap',text:'　　'+p.en,size:18});
     }
-    const opts=specParts(l).filter(p=>p.kind!=='default').map(p=>p.text);
+    const opts=specParts(l,true).filter(p=>p.kind!=='default').map(p=>p.text);
     if(opts.length)spec.push({kind:'wrap',text:'　'+opts.map(t=>{const e=optEn(t);return '['+t+(e?' '+e:'')+']';}).join(' '),size:20});
     spec.push('dash');
   }
@@ -792,7 +794,7 @@ async function printOrder(o,{auto=false,slip=false}={}){
   return true;
 }
 function kitchenTicketHtml(o){
-  const sections=ticketGroups(o).map(([cat,lines])=>`<h2>${esc(catLabel(cat))}</h2>`+lines.map(l=>{const parts=specParts(l),opts=parts.filter(p=>p.kind!=='custom').map(p=>p.text),custom=parts.filter(p=>p.kind==='custom').map(p=>p.text);return `<div class="l k"><span>${esc(l.zh)}${l.comp_reason?'（贈）':''}</span><span>×${l.qty}</span></div>${partsOf(l).map(p=>`<div class="l k"><span>　${esc(partText(p))}</span></div>${p.note?`<div class="n">　${esc(p.note)}</div>`:''}`).join('')}${ordererOf(l)?`<div class="n">${esc(ordererOf(l))}</div>`:''}${opts.length?`<div class="n">${esc(opts.join('／'))}</div>`:''}${custom.map(t=>`<div class="n">※ ${esc(t)}</div>`).join('')}`;}).join('')).join('');
+  const sections=ticketGroups(o).map(([cat,lines])=>`<h2>${esc(catLabel(cat))}</h2>`+lines.map(l=>{const parts=specParts(l),opts=parts.filter(p=>p.kind!=='custom').map(p=>p.text),custom=parts.filter(p=>p.kind==='custom').map(p=>p.text);return `<div class="l k"><span>${esc(l.zh)}${l.comp_reason?'（贈）':''}</span><span>×${l.qty}</span></div>${partsOf(l).map(p=>`<div class="l k"><span>　${esc(partText(p))}</span></div>${p.note?`<div class="n">　${esc(noteZh(p.note))}</div>`:''}`).join('')}${ordererOf(l)?`<div class="n">${esc(ordererOf(l))}</div>`:''}${opts.length?`<div class="n">${esc(opts.join('／'))}</div>`:''}${custom.map(t=>`<div class="n">※ ${esc(t)}</div>`).join('')}`;}).join('')).join('');
   const count=(o.items||[]).filter(l=>!l.cancelled).reduce((a,l)=>a+l.qty,0);
   return `<h1 class="k">${isTakeoutNo(o.table_no)?'外帶':'桌號'} ${esc(o.table_no)}</h1><div class="m c">${esc(applicationTime(o.paid_at||o.placed_at))}</div>${sections}<hr class="sep"><div class="c">共 ${count} 件<br>單號 ${esc(o.id||o.order_id||'')}</div>`;
 }

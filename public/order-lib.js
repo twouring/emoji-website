@@ -421,6 +421,24 @@
 
   /* 規格中文 → 英文（POS 帳本夾點餐明細用）；不在對照表的自由備註回空字串 */
   function optionEn(zh) { for (const k of Object.keys(OPT.zh)) { const i = OPT.zh[k].indexOf(zh); if (i >= 0) return OPT.en[k][i]; } return ''; }
+  /* 規格任一語言 → 中文（KK 11/2：出餐單統一中文）。外國客人點餐時 note 會寫成「Temperature：Hot；Ice：Less ice」，
+   * 依標籤認出是哪一組再換回中文值；認不出的自由備註原樣保留。 */
+  const OPT_KEY = { temperature: 'temp', ice: 'ice', rice_amount: 'rice', noodle_amount: 'noodle' };
+  function optionZh(note) {
+    return String(note || '').split(/[；;]/).map(s => s.trim()).filter(Boolean).map(s => {
+      const m = s.match(/^([^：:]{1,20})[：:](.+)$/);
+      if (!m) return s;
+      const label = m[1].trim(), val = m[2].trim();
+      for (const l of ['zh', 'en', 'ja', 'ko']) {
+        for (const [tk, ok] of Object.entries(OPT_KEY)) {
+          if ((TEXT[l] || {})[tk] !== label) continue;
+          const i = OPT[l][ok].indexOf(val);
+          return TEXT.zh[tk] + '：' + (i >= 0 ? OPT.zh[ok][i] : val);
+        }
+      }
+      return s;
+    }).join('；');
+  }
   const LANGS = [{ id: 'zh', name: '中文' }, { id: 'en', name: 'English' }, { id: 'ja', name: '日本語' }, { id: 'ko', name: '한국어' }];
-  global.OrderLib = { LANGS, TEXT, text, splitBill, optionEn, optionGroups, activeOptionGroups, comboGroups, comboPayload, slotLabel };
+  global.OrderLib = { LANGS, TEXT, text, splitBill, optionEn, optionZh, optionGroups, activeOptionGroups, comboGroups, comboPayload, slotLabel };
 })(typeof window !== 'undefined' ? window : globalThis);
