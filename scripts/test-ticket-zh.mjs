@@ -18,7 +18,13 @@ test('出餐單、點餐明細、店內畫面一律中文，規格只印值', ()
   assert.doesNotMatch(slip, /Order Details|Table|pax|Total|Service|Thank|Please|optEn|l\.en|p\.en/);
   assert.match(slip, /noteVals\(p\)/);
   const ticket = src.slice(src.indexOf('function kitchenTicketSpec'), src.indexOf('function orderSlipSpec'));
-  assert.match(ticket, /noteVals\(p\)/);
+  assert.match(ticket, /specParts\(\{cat:p\.cat,zh:p\.zh,note:p\.note\}\)/);
+  // 冰／熱（溫度、冰塊）要反白大字標籤，單品與套餐內飲品都要（KK 11/2：出單紙冰熱不明顯）
+  assert.match(src, /const isIceHot=p=>p\.tone==='temperature'\|\|p\.tone==='ice'/);
+  assert.equal((ticket.match(/kind:'tags'/g) || []).length, 2);
+  const sizes = [...ticket.matchAll(/kind:'tags'[^}]*size:(\d+)/g)].map(m => +m[1]);
+  assert.ok(sizes.every(n => n >= 40), 'tags size >= 40');
+  assert.match(src, /cmd\.kind==='tags'\)tags\(/);
   const html = src.slice(src.indexOf('function kitchenTicketHtml'));
   assert.match(html.slice(0, 2000), /noteVals\(p\)/);
 });

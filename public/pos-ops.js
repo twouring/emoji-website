@@ -350,6 +350,7 @@ const specTone=label=>({溫度:'temperature',Temperature:'temperature','温度':
 const noteZh=t=>(typeof OrderLib!=='undefined'&&OrderLib.optionZh)?OrderLib.optionZh(t):String(t||'');
 /* 規格只取值：「溫度：熱；冰塊：少冰」→「熱／少冰」（套餐內容用） */
 const noteVals=p=>specParts({cat:p.cat,zh:p.zh,note:p.note}).map(x=>x.text).join('／');
+const isIceHot=p=>p.tone==='temperature'||p.tone==='ice';
 function specParts(l){
   const defaults={};try{for(const g of (typeof OrderLib!=='undefined'&&OrderLib.optionGroups)?OrderLib.optionGroups({cat:l.cat,zh:l.zh},'zh'):[])defaults[g.label]=g.choices[0];}catch(e){}
   return String(noteZh(l.note)).split(/[；;]/).map(s=>s.trim()).filter(Boolean).flatMap(s=>{
@@ -547,6 +548,8 @@ function ticketCanvas(spec){
   const row=(l,r,size,bold)=>{setFont(size,bold);const right=String(r??'');const rw=g.measureText(right).width;g.textAlign='right';g.fillText(right,W-8,y);g.textAlign='left';const leftMax=Math.max(40,maxW-rw-12);const lines=wrapTicketText(g,l,leftMax);lines.forEach((s,i)=>{g.fillText(s,8,y);if(i<lines.length-1)advance(size);});advance(size);};
   // 備註加框：每行文字包進同一個外框（廚房一眼看到客製重點）
   const box=(texts,size,bold)=>{setFont(size,bold);g.textAlign='left';const rows=texts.flatMap(t=>wrapTicketText(g,t,maxW-20));const top=y+2,h=rows.length*(size+6)+8;y=top+6;rows.forEach(r=>{g.fillText(r,14,y);y+=size+6;});g.lineWidth=2;g.strokeRect(9,top,W-18,h);g.lineWidth=1;y=top+h+8;};
+  /* 冰熱標籤：黑底白字粗體，一行並排（KK 11/2：冰／熱要一眼看到） */
+  const tags=(texts,size,indent)=>{setFont(size,true);g.textAlign='left';let x=8+(indent||0);const h=size+14,top=y+2;for(const t of texts){const tw=g.measureText(t).width+24;if(x>8+(indent||0)&&x+tw>W-8){x=8+(indent||0);y+=h+6;}g.fillRect(x,y+2,tw,h);g.fillStyle='#fff';g.fillText(t,x+12,y+9);g.fillStyle='#000';x+=tw+10;}y+=h+12;};
   const rule=dashed=>{g.beginPath();if(dashed)g.setLineDash([4,4]);g.moveTo(8,y+4);g.lineTo(W-8,y+4);g.stroke();g.setLineDash([]);y+=12;};
   // 分單橫幅：solid＝整條黑底白字（餐點單）；hatch＝斜線底、中間白框黑字（飲品單）。熱感應紙只有黑白，靠底紋區分
   const banner=(t,size,style)=>{const h=size+28,top=y;setFont(size,true);g.textAlign='center';
@@ -563,6 +566,7 @@ function ticketCanvas(spec){
     else if(cmd.kind==='left')left(cmd.text,cmd.size||22,!!cmd.bold);
     else if(cmd.kind==='wrap')wrap(cmd.text,cmd.size||22,!!cmd.bold);
     else if(cmd.kind==='box')box(cmd.texts,cmd.size||22,!!cmd.bold);
+    else if(cmd.kind==='tags')tags(cmd.texts||[],cmd.size||40,cmd.indent||0);
     else if(cmd.kind==='row')row(cmd.left,cmd.right,cmd.size||22,!!cmd.bold);
     // 兩欄靠右：「單價 × 數量」右緣固定在 W-120，小計右緣在紙邊（點餐明細用，欄位上下對齊）
     else if(cmd.kind==='cols'){setFont(cmd.size||22,!!cmd.bold);g.textAlign='right';g.fillText(String(cmd.mid??''),W-120,y);g.fillText(String(cmd.right??''),W-8,y);g.textAlign='left';advance(cmd.size||22);}
@@ -611,9 +615,10 @@ function kitchenTicketSpec(o,kind,total=1){
     for(const l of lines){
       spec.push({kind:'row',left:`${l.zh}${l.comp_reason?'（贈）':''}`,right:'×'+l.qty,size:52,bold:true});
       if(ordererOf(l))spec.push({kind:'left',text:'　'+ordererOf(l),size:16});
-      for(const p of partsOf(l)){spec.push({kind:'wrap',text:'　'+partText(p),size:34,bold:true});if(p.note&&noteVals(p))spec.push({kind:'wrap',text:'　　'+noteVals(p),size:26});}
-      // 品名 52 號大字；規格一行（熱／無糖／去冰）、自由需求各自一行加 ※，整組備註加框；點餐人弱化成小字
-      const parts=specParts(l),opts=parts.filter(p=>p.kind!=='custom').map(p=>p.text),custom=parts.filter(p=>p.kind==='custom').map(p=>p.text);
+      for(const p of partsOf(l)){spec.push({kind:'wrap',text:'　'+partText(p),size:34,bold:true});if(p.note){const ps=specParts({cat:p.cat,zh:p.zh,note:p.note}),hi=ps.filter(isIceHot).map(x=>x.text),rest=ps.filter(x=>!isIceHot(x)).map(x=>x.text);if(hi.length)spec.push({kind:'tags',texts:hi,size:40,indent:34});if(rest.length)spec.push({kind:'wrap',text:'　　'+rest.join('／'),size:26});}}
+      // 品名 52 號大字；冰／熱反白大字標籤；其餘規格一行、自由需求各自一行加 ※，整組備註加框；點餐人弱化成小字
+      const parts=specParts(l),hot=parts.filter(isIceHot).map(p=>p.text),opts=parts.filter(p=>p.kind!=='custom'&&!isIceHot(p)).map(p=>p.text),custom=parts.filter(p=>p.kind==='custom').map(p=>p.text);
+      if(hot.length)spec.push({kind:'tags',texts:hot,size:40});
       const notes=[...(opts.length?[opts.join('／')]:[]),...custom.map(t=>'※ '+t)];
       if(notes.length)spec.push({kind:'box',texts:notes,size:24,bold:true});
       count+=l.qty;
