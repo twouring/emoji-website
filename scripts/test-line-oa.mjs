@@ -195,6 +195,27 @@ test('會員綁定 state 鎖定已登入會員，callback 不會以另一個 Ema
   assert.ok(!sql.some(x=>x.text.includes('lower(email)')));
 });
 
+test('LINE 登入回跳到另一個瀏覽器（沒有 line_state cookie）仍可登入；綁定、逾時、偽造仍拒絕',async t=>{
+  const {signToken}=require('../lib/security');
+  const run=async text=>{
+    if(text.includes('line_user_id'))return {rows:[{id:'u1',name:'LINE',email:null}],rowCount:1};
+    if(text.includes('COUNT(*)'))return {rows:[{n:0}],rowCount:1};
+    return {rows:[],rowCount:0};
+  };
+  const base=await boot(t,{...env,LINE_LOGIN_CHANNEL_ID:'1234567890',LINE_LOGIN_CHANNEL_SECRET:'x'},run);
+  const oldExchange=line.exchangeCode;line.exchangeCode=async()=>({sub:'U'+'b'.repeat(32),email:'',name:'LINE'});
+  t.after(()=>{line.exchangeCode=oldExchange;});
+  const start=await fetch(base+'/auth/line?redirect='+encodeURIComponent('http://127.0.0.1/m'),{redirect:'manual'});
+  const state=new URL(start.headers.get('location')).searchParams.get('state');
+  const cb=s=>fetch(base+'/auth/line/callback?state='+encodeURIComponent(s)+'&code=test',{redirect:'manual'});
+  const ok=await cb(state);assert.equal(ok.status,302);assert.match(ok.headers.get('location'),/#token=/);
+  const old=signToken({r:'http://127.0.0.1/m',n:'x',v:''},'test-secret',{purpose:'line-oauth',now:Date.now()-11*60*1000});
+  assert.equal((await cb(old)).status,400);
+  const bind=signToken({b:'someone',r:'http://127.0.0.1/m',n:'x'},'test-secret',{purpose:'line-oauth'});
+  assert.equal((await cb(bind)).status,400);
+  assert.equal((await cb(state.slice(0,-2)+'xx')).status,400);
+});
+
 test('POST /api/line/webhook：未設定 503、簽章錯 401、簽章對 200', async t => {
   const none = await boot(t);
   assert.equal((await fetch(none + '/api/line/webhook', { method: 'POST', body: '{}' })).status, 503);

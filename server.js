@@ -2208,7 +2208,10 @@ app.get('/auth/line/callback', wrap(async (req, res) => {
   const st = verifyToken(state, { purpose: 'line-oauth' });
   const cookieState = (req.headers.cookie || '').split(';').map(s => s.trim()).find(s => s.startsWith('line_state='))?.slice(11);
   res.clearCookie('line_state', { path: '/auth/line', httpOnly: true, sameSite: 'lax', secure: SITE_BASE.startsWith('https://') });
-  if (!st || !st.r || !safeEqual(state, cookieState)) return res.status(400).send('登入連結已失效，請重新登入。');
+  // 手機上 LINE 會改用 LINE App 授權，回跳時常落在另一個瀏覽器（LINE 內建瀏覽器、主畫面 App 與 Safari 不共用 cookie），
+  // 拿不到 line_state。單純登入（非綁定既有帳號、非訂位綁定）在 10 分鐘內仍放行：state 有 HMAC 簽章，nonce 由 LINE id_token 驗證。
+  const crossBrowser = !cookieState && st && !st.b && !st.v && Date.now() - st.iat <= 10 * 60 * 1000;
+  if (!st || !st.r || !(crossBrowser || safeEqual(state, cookieState))) return res.status(400).send('登入連結已失效，請重新登入。');
   if (!req.query.code) return res.status(400).send('登入未完成。');
   const prof = await line.exchangeCode(lc, { code: String(req.query.code), redirectUri: LINE_REDIRECT_URI, nonce: st.n });
   if (!prof) return res.status(400).send('LINE 驗證失敗，請重試。');
