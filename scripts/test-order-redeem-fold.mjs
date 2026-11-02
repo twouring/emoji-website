@@ -11,3 +11,9 @@ test('兌換清單預設收合，點標題才展開', () => {
   assert.match(html, /REDEEM_OPEN=!REDEEM_OPEN/);
   assert.doesNotMatch(html, /class="redeem-title"/);
 });
+
+// KK 11/2：「最後點餐」提示壓成一行（標題＋時間同列，長語系才換行），讓菜單多露出一兩道
+test('最後點餐提示為單行', () => {
+  assert.match(html, /\.menu-status>div\{display:flex;flex-wrap:wrap/);
+  assert.match(html, /\.menu-status small\{display:inline/);
+});
