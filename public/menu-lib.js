@@ -61,7 +61,7 @@
     return { venue: null, food: false, drink: false };
   }
   function orderableInWindow(item, w) {
-    if (!item || !w || !w.venue || item.venue !== w.venue) return false;
+    if (!item || !w || !w.venue || (item.venue !== w.venue && !isShared(item))) return false;   // 甜點兩店共用：三點水時段客人也點得到
     return BAR_CATS.includes(item.cat) ? w.drink : w.food;
   }
   /* 營業日：三點水營業到翌日 03:00，凌晨的單算前一天；以台北時間減 3 小時取日期（估清、日結都用這個） */

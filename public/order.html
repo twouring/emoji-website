@@ -366,7 +366,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     var venueLabel=MenuLib.VENUE_LABEL[VENUE]||{zh:'言文字',en:'Emoji',ja:'言文字'};
     $('#brand').textContent=label(venueLabel);
     renderShift();
-    var items=MenuLib.sortItems(MENU.filter(function(it){return MenuLib.orderableInWindow(it,WIN);})),html='',venue='',cat='';
+    var items=MenuLib.sortItems(MENU.filter(function(it){return MenuLib.orderableInWindow(it,WIN);}).map(function(it){return MenuLib.isShared(it)&&WIN.venue?Object.assign({},it,{venue:WIN.venue}):it;})),html='',venue='',cat='';
     items.forEach(function(it){
       if(it.venue!==venue){if(venue)html+='</div>';venue=it.venue;cat='';var v=MenuLib.VENUE_LABEL[venue]||{zh:venue,en:'',ja:venue};html+=(venue===VENUE?'':'<div class="venue">'+esc(label(v))+'</div>')+'<div>';}
       if(it.cat!==cat){cat=it.cat;var c=MenuLib.CAT_LABEL[cat]||{zh:cat,en:cat,ja:cat};html+='<h2>'+esc(label(c))+'</h2><div class="menu-grid">';}

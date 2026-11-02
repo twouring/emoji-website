@@ -29,3 +29,21 @@ test('三點水 POS 加在咖啡的甜點：行記 BAR（收服務費、進三�
   const kept = tableOrders.posAddLine([], menu, { item_id: 'd1', qty: 1 });
   assert.equal(kept[0].venue, 'CAFE');
 });
+
+test('客人掃碼：三點水時段也點得到甜點，記在 BAR；商店品仍不進桌邊', () => {
+  const bar = { venue: 'BAR', food: true, drink: true };
+  assert.ok(MenuLib.orderableInWindow({ venue: 'CAFE', cat: 'DESSERT' }, bar));
+  assert.ok(!MenuLib.orderableInWindow({ venue: 'CAFE', cat: 'SALAD' }, bar));
+  assert.ok(!MenuLib.orderableInWindow({ venue: 'CAFE', cat: 'DESSERT' }, { venue: 'BAR', food: false, drink: true }));
+  const doc = JSON.stringify({ items: [
+    { id: 'd1', venue: 'CAFE', cat: 'DESSERT', zh: '檸檬塔', en: 'Lemon Tart', price: 130, published: true },
+    { id: 's1', venue: 'CAFE', cat: 'SHOP', zh: '牙刷', en: 'Brush', price: 60, published: true },
+  ] });
+  const m = tableOrders.menuIndex(doc, 'BAR');
+  assert.ok(m.has('d1'));
+  assert.ok(!m.has('s1'));
+  const out = tableOrders.addLine([], m, { item_id: 'd1', qty: 1, guest: 'abcdefgh', venue: 'BAR' });
+  assert.equal(out[0].venue, 'BAR');
+  const srv = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+  assert.ok(srv.includes("addLine(items,menu,{...(req.body||{}),venue:tableOrders.MenuLib.orderWindow().venue})"));
+});

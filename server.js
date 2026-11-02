@@ -5002,7 +5002,7 @@ app.post('/api/me/pickups', auth, requireDb, rateLimit({ max: 20, windowMs: 3600
   // 菜單依取餐時段的品牌（不是現在的營業品牌）；客人端看不到 pos_only
   const menu = tableOrders.menuIndex(await contentValue('menu'), p.venue, { now: p.pickupAt });
   let items = [];
-  try { for (const x of p.items) items = tableOrders.addLine(items, menu, { item_id: x.item_id, qty: x.qty, by: me.name || '會員', guest: pickup.guestOf(me.id), note: x.note, combo: x.combo }); }
+  try { for (const x of p.items) items = tableOrders.addLine(items, menu, { item_id: x.item_id, qty: x.qty, by: me.name || '會員', guest: pickup.guestOf(me.id), note: x.note, combo: x.combo, venue: p.venue }); }
   catch (e) { return res.status(e.status || 400).json({ error: e.message }); }
   { const short = tableOrders.stockShortage(await contentValue('menu'), items, p.pickupAt); if (short.length) return res.status(409).json({ error: tableOrders.stockMessage(short) }); }
   const client = await pool.connect();
@@ -5741,7 +5741,7 @@ async function mutateItems(req,res,fn,resolve){
     await client.query('COMMIT');const out=await loadSession(s.id);res.json(publicSession(out,String(req.body?.guest||'')));
   }catch(e){await client.query('ROLLBACK');if(e.status)return res.status(e.status).json({error:e.message});throw e;}finally{client.release();}
 }
-app.post('/api/orders/:id/items',rateLimit({max:60}),requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});try{await assertNotPaused();}catch(e){return res.status(e.status||423).json({error:e.message});}const menu=await currentMenu();const iid=String(req.body?.item_id||'');if(!menu.has(iid)&&tableOrders.menuIndex(await contentValue('menu'),undefined).has(iid))return res.status(423).json({error:'這個品項目前已過最後點餐時間。'});return mutateItems(req,res,items=>tableOrders.addLine(items,menu,req.body||{}));}));
+app.post('/api/orders/:id/items',rateLimit({max:60}),requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});try{await assertNotPaused();}catch(e){return res.status(e.status||423).json({error:e.message});}const menu=await currentMenu();const iid=String(req.body?.item_id||'');if(!menu.has(iid)&&tableOrders.menuIndex(await contentValue('menu'),undefined).has(iid))return res.status(423).json({error:'這個品項目前已過最後點餐時間。'});return mutateItems(req,res,items=>tableOrders.addLine(items,menu,{...(req.body||{}),venue:tableOrders.MenuLib.orderWindow().venue}));}));
 app.delete('/api/orders/:id/items/:line',requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});return mutateItems(req,res,items=>tableOrders.removeLine(items,String(req.params.line),String(req.body?.guest||'')));}));
 // 送出點餐：購物車裡還沒送的品項一起進出餐看板（未結帳，用餐完再到櫃檯結）；暫停點餐（最後點餐）時一樣擋
 app.post('/api/orders/:id/place',rateLimit({max:60}),requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});try{await assertNotPaused();}catch(e){return res.status(e.status||423).json({error:e.message});}return mutateItems(req,res,items=>{assertLinesInWindow(items);return tableOrders.placeLines(items).items;});}));
