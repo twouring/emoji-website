@@ -104,6 +104,9 @@ const GROUPS = [
   { name: '品項列 .mi（含 .nm、.q）＋分類 .cat', src: 'renderPickMenu()',
     rules: ['點餐品項。數量鈕 44×44 圓形，數字 tabular-nums。數量為 0 時減號 disabled。', '分類標題用 .cat，不用 h2。'],
     html: '<div class="cat">咖啡</div>\n<div class="mi">\n  <div class="nm">拿鐵<small>NT$150 · 可換燕麥奶</small></div>\n  <div class="q"><button type="button" aria-label="減少" disabled>−</button><b>0</b><button type="button" aria-label="增加">＋</button></div>\n</div>' },
+  { name: '消費與點數紀錄 .hist-*', src: 'openHistory()（首頁 #hist-open、我的 #hist-open2）',
+    rules: ['入口 .hist-open 是 .btn，放在會員卡按鈕提示下方；「我的」頁另有一顆。', '整頁 .pg：頂端 .hist-bal 餘額，.seg.two 切「消費紀錄／點數明細」。', '消費卡 .hist-card：.hist-top（時間・店別＋金額），.hist-items 品項，.hist-foot 標籤與點數；作廢加 .void（半透明、金額刪除線）。', '點數列 .row.hist-pt，右側 .hist-delta，扣點加 .neg。品名一律完整顯示，不截斷。'],
+    html: '<button class="btn hist-open" type="button">消費與點數紀錄</button>\n<div class="hist-bal"><span>我的點數</span><b>128</b></div>\n<div class="hist-list">\n  <article class="hist-card"><div class="hist-top"><span class="hist-when">11/2（一）19:20 · 三點水</span><b class="hist-amt">NT$660</b></div>\n    <ul class="hist-items"><li><span>琴通寧</span><span>×2</span></li></ul>\n    <div class="hist-foot"><span class="hist-pts">+66 點</span></div></article>\n  <article class="hist-card void"><div class="hist-top"><span class="hist-when">11/1（日）10:05 · 在咖啡</span><b class="hist-amt">NT$150</b></div>\n    <ul class="hist-items"><li><span>拿鐵</span><span>×1</span></li></ul>\n    <div class="hist-foot"><span class="tag">已作廢</span></div></article>\n  <div class="row hist-pt"><div><b>兌換</b><small>11/2 19:30</small></div><b class="hist-delta neg">-70</b></div>\n</div>' },
  ]},
  { id: 'forms', title: '05 表單', items: [
   { name: '欄位 .field（登入、我的、活動報名）', src: 'login()、me()、m-event.js',

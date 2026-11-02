@@ -854,6 +854,9 @@ X 貼文 AI 起草：body `{ topic }`，回 `{ ok, draft: { title, caption, capt
 ### GET /api/me/registrations
 我的報名：已成立（`registered`）或待付款（`pending_payment`）的活動，活動結束一天內仍列出。回 `{ ok, registrations:[{ id, slug, title, location, starts_at, event_status, registration_id, status, quantity, amount_paid, checked_in_at, ticket }] }`；`ticket:true` 表示可用 `GET /api/events/:id/ticket` 取 QR。agent 金鑰 403。
 
+### GET /api/me/history
+會員 App「歷史紀錄」：消費紀錄＋點數明細（只讀）。消費＝結帳時有帶會員的單（`table_orders.user_id`，最近 100 筆，含作廢）；點數＝`yan_ledger` 全部（新的在前，最多 200 筆）。回 `{ ok, balance, orders:[{ id, at, venue, venue_zh, amount, void, online, items:[{ zh, en, ja, ko, qty, price }], earned, redeemed }], points:[{ id, at, type(earn|redeem|grant|review|void), delta, brand, brand_zh, reason, expires_at, ref }] }`。品項不含點歌、打賞、取消行；`reason` 只回櫃檯手動贈點的原因。agent 金鑰 403。
+
 ### GET /api/me/pickups
 預約取餐：我的預約（開著的＋一天內結束的，最多 10 筆）與可選時段。回 `{ ok, pickups:[{ id, table, pickup_at, pickup_time, note, placed, status, state, items, amount, paid }], dates:[今天,明天], slots:{ 日期:[{ time, venue }] }, prep_min }`。時段 08:00–23:45 每 15 分鐘，今天只列「現在 + 20 分鐘」之後；`state` 同 POS 桌況（open／ordered／preparing／ready）。agent 金鑰 403。
 

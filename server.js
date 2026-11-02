@@ -4955,6 +4955,15 @@ app.get('/api/me/yan', auth, requireDb, wrap(async (req, res) => {
   const rows = await yanRowsFor({ query: (...a) => q(...a) }, req.auth.sub);
   res.json({ ok: true, balance: yan.balance(rows), phone: (await q('SELECT phone_e164 FROM users WHERE id=$1',[req.auth.sub])).rows[0]?.phone_e164 || '' });
 }));
+/* 會員 App「歷史紀錄」：消費紀錄（結帳有帶會員的單）＋點數明細；整理在 lib/member-history.js */
+const memberHistory = require('./lib/member-history');
+app.get('/api/me/history', auth, requireDb, wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  const ledger = await yanRowsFor({ query: (...a) => q(...a) }, req.auth.sub);
+  const orders = (await q(`SELECT id,items,amount,payer,status,paid_at FROM table_orders WHERE user_id=$1 ORDER BY paid_at DESC LIMIT 100`, [req.auth.sub])).rows;
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, balance: yan.balance(ledger), orders: orders.map(o => memberHistory.orderView(o, ledger)), points: memberHistory.ledgerView(ledger).slice(0, 200) });
+}));
 /* 會員 App「我的報名」：已成立報名（含待付款）的活動，過去 1 天內到未來；票券 QR 由 /api/events/:id/ticket 取 */
 app.get('/api/me/registrations', auth, requireDb, wrap(async (req, res) => {
   if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
