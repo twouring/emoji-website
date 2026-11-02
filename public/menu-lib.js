@@ -95,9 +95,11 @@
     const amount = Math.round(base * SERVICE_RATE);
     return amount > 0 ? { rate: SERVICE_RATE, base, amount } : null;
   }
-  /* 出餐站：飲品／酒水在吧檯，其餘進廚房 */
+  /* 飲品／酒水類別（點餐時段「只剩飲品」用這份） */
   const BAR_CATS = ['COFFEE', 'TEA', 'BEVERAGE', 'SPARKLING', 'SAKE', 'LIQUEUR', 'WINE', 'BEER', 'BOTTLE', 'ALCOHOL'];
-  function stationOf(item) { return BAR_CATS.includes(item && item.cat) ? 'bar' : 'kitchen'; }
+  /* 出餐站（KK 11/2）：飲品、酒水、甜點走吧台單，其餘進廚房單。甜點只改出單站，不影響點餐時段 */
+  const BAR_STATION_CATS = [...BAR_CATS, 'DESSERT'];
+  function stationOf(item) { return BAR_STATION_CATS.includes(item && item.cat) ? 'bar' : 'kitchen'; }
   const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   const dateOrEmpty = v => (DATE_RE.test(String(v || '')) ? String(v) : '');
   const uid = () => 'm_' + Math.random().toString(36).slice(2, 10);
@@ -367,7 +369,7 @@
   }
 
   global.MenuLib = {
-    CATS, VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, MEMBER_RATE, BAR_POLICY_FROM, SERVICE_RATE, MIN_SPEND, barPolicyActive, minSpendOf, serviceCharge, memberPrice, activeVenue, orderWindow, orderableInWindow, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
+    CATS, VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, BAR_STATION_CATS, MEMBER_RATE, BAR_POLICY_FROM, SERVICE_RATE, MIN_SPEND, barPolicyActive, minSpendOf, serviceCharge, memberPrice, activeVenue, orderWindow, orderableInWindow, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
     normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, isShop, soldOutToday, stockLeft, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

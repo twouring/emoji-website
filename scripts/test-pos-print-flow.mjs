@@ -46,7 +46,7 @@ test('kitchen ticket groups by menu category (food first) and omits cancelled it
  assert.ok(texts.includes('出餐單'));assert.ok(texts.includes('【麵包主食】'));assert.ok(texts.includes('【咖啡】'));assert.ok(!texts.includes('【主食】'),'取消的品項連類別標題都不印');
  assert.ok(texts.indexOf('【麵包主食】')<texts.indexOf('【咖啡】'),'依菜單類別順序：餐點在前、飲品在後');
  assert.ok(texts.includes('拿鐵'));assert.ok(texts.includes('吐司'));assert.ok(!texts.includes('已退的菜'));
- assert.ok(texts.some(t=>String(t).includes('去冰')),'規格印在品名下一行');assert.ok(texts.includes('餐點單 共 1 件')&&texts.includes('飲品單 共 2 件'),'餐點與飲品分兩張');
+ assert.ok(texts.some(t=>String(t).includes('去冰')),'規格印在品名下一行');assert.ok(texts.includes('廚房單 共 1 件')&&texts.includes('吧台單 共 2 件'),'餐點與飲品分兩張');
  assert.ok(!texts.some(t=>/現金|合計|NT\$|實收/.test(String(t))));
 });
 test('receipt detail shows guest totals, payment and invoice',async()=>{

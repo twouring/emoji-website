@@ -18,7 +18,7 @@ const CHECKOUT_TIP='<b>這桌的帳</b><br>品項依點餐人分組；勾選左�
  +'<b>折扣</b>：按「加折扣」選折％或折抵金額，原因必填。<br>'
  +'<b>付款</b>：選方式；現金輸入實收會算找零；「混合付款」每種方式各填金額，合計要等於應收。<br>'
  +'<b>電子發票</b>：預設不開立，可選紙本、統編、手機載具、自然人憑證、捐贈。<br>'
- +'<b>列印</b>：送單時自動印出餐單給現場（餐點單黑底橫幅、飲品單斜線橫幅，分兩張出），內用再多印一張「點餐明細」夾帳本夾給客人（單價×數量、小計、整桌累計）（加點也會補印，送餐時劃掉）；「列印收據明細」是結帳用；收款後會自動出單並開錢櫃；日結核對現金時也會自動開錢櫃。<br>'
+ +'<b>列印</b>：送單時自動印出餐單給現場（廚房單黑底橫幅、吧台單斜線橫幅，分兩張出；飲品、甜點走吧台單），內用再多印一張「點餐明細」夾帳本夾給客人（單價×數量、小計、整桌累計）（加點也會補印，送餐時劃掉）；「列印收據明細」是結帳用；收款後會自動出單並開錢櫃；日結核對現金時也會自動開錢櫃。<br>'
  +'<b>QR</b>：顯示這桌的點餐 QR 給客人掃。<br>下方「這桌已結帳的單」可補印、補開發票或作廢。';
 const REG_DENOMS=[1000,500,100,50,10,5,1];
 const PAY_LABEL={cash:'現金',card:'信用卡',linepay:'LINE Pay',transfer:'轉帳',taishin:'信用卡',ctbc:'信用卡',other:'其他',tappay:'線上刷卡',stripe:'Stripe 線上刷卡',mixed:'混合付款'};
@@ -551,7 +551,7 @@ function ticketCanvas(spec){
   /* 冰熱標籤：黑底白字粗體，一行並排（KK 11/2：冰／熱要一眼看到） */
   const tags=(texts,size,indent)=>{setFont(size,true);g.textAlign='left';let x=8+(indent||0);const h=size+14,top=y+2;for(const t of texts){const tw=g.measureText(t).width+24;if(x>8+(indent||0)&&x+tw>W-8){x=8+(indent||0);y+=h+6;}g.fillRect(x,y+2,tw,h);g.fillStyle='#fff';g.fillText(t,x+12,y+9);g.fillStyle='#000';x+=tw+10;}y+=h+12;};
   const rule=dashed=>{g.beginPath();if(dashed)g.setLineDash([4,4]);g.moveTo(8,y+4);g.lineTo(W-8,y+4);g.stroke();g.setLineDash([]);y+=12;};
-  // 分單橫幅：solid＝整條黑底白字（餐點單）；hatch＝斜線底、中間白框黑字（飲品單）。熱感應紙只有黑白，靠底紋區分
+  // 分單橫幅：solid＝整條黑底白字（廚房單）；hatch＝斜線底、中間白框黑字（吧台單）。熱感應紙只有黑白，靠底紋區分
   const banner=(t,size,style)=>{const h=size+28,top=y;setFont(size,true);g.textAlign='center';
     if(style==='hatch'){g.save();g.beginPath();g.rect(0,top,W,h);g.clip();g.lineWidth=5;for(let x=-h;x<W+h;x+=16){g.beginPath();g.moveTo(x,top+h);g.lineTo(x+h,top);g.stroke();}g.restore();g.lineWidth=1;const tw=g.measureText(t).width+28;g.fillStyle='#fff';g.fillRect((W-tw)/2,top+6,tw,h-12);g.fillStyle='#000';g.lineWidth=3;g.strokeRect((W-tw)/2,top+6,tw,h-12);g.lineWidth=1;g.fillText(t,W/2,top+14);}
     else{g.fillRect(0,top,W,h);g.fillStyle='#fff';g.fillText(t,W/2,top+14);g.fillStyle='#000';}
@@ -572,7 +572,7 @@ function ticketCanvas(spec){
     else if(cmd.kind==='cols'){setFont(cmd.size||22,!!cmd.bold);g.textAlign='right';g.fillText(String(cmd.mid??''),W-120,y);g.fillText(String(cmd.right??''),W-8,y);g.textAlign='left';advance(cmd.size||22);}
   }
   const out=document.createElement('canvas');out.width=W;out.height=Math.ceil(y+8);const og=out.getContext('2d');og.fillStyle='#fff';og.fillRect(0,0,W,out.height);og.drawImage(c,0,0);
-  // 兩側邊條：餐點單整條實心、飲品單一格一格的虛線；一疊單子裡從側邊也看得出是哪一種
+  // 兩側邊條：廚房單整條實心、吧台單一格一格的虛線；一疊單子裡從側邊也看得出是哪一種
   if(edge){og.fillStyle='#000';const ew=4;if(edge==='solid'){og.fillRect(0,0,ew,out.height);og.fillRect(W-ew,0,ew,out.height);}else for(let yy=0;yy<out.height;yy+=20){og.fillRect(0,yy,ew,10);og.fillRect(W-ew,yy,ew,10);}}
   return out;
 }
@@ -580,10 +580,10 @@ function ticketCanvas(spec){
 const ordererOf=l=>{const n=String(l.by||'').trim();return n&&n!=='櫃檯'?n:'';};
 // 結帳頁品項依點餐人分組（各付各的時一組就是一個人的帳）：依第一次出現的順序；櫃檯代點自成一組；預收抵扣行放最後一組
 const lineGroups=lines=>{const m=new Map();for(const l of lines){const key=l.credit_of?'credit':ordererOf(l)||(String(l.by||'').trim()==='櫃檯'?'櫃檯':'');if(!m.has(key))m.set(key,{key,label:key==='credit'?'已預收':key==='櫃檯'?'櫃檯點的':key||'客人',lines:[]});m.get(key).lines.push(l);}const gs=[...m.values()];return gs.filter(g=>g.key!=='credit').concat(gs.filter(g=>g.key==='credit'));};
-// 出餐單分兩張：餐點單（廚房）與飲品單（吧檯），依 MenuLib.stationOf（BAR_CATS＝飲品／酒水）。
-// 套餐拆開：主餐留在餐點單，套餐裡的飲品印到飲品單（標原套餐名）。只有一種就只印一張。
+// 出餐單分兩張：廚房單與吧台單（KK 11/2），依 MenuLib.stationOf（BAR_STATION_CATS＝飲品／酒水／甜點）。
+// 套餐拆開：主餐留在廚房單，套餐裡的飲品、甜點印到吧台單（標原套餐名）。只有一種就只印一張。
 const isDrinkCat=cat=>typeof MenuLib!=='undefined'&&MenuLib.stationOf?MenuLib.stationOf({cat})==='bar':false;
-const TICKET_KIND={food:{label:'餐 點',name:'餐點單',banner:'solid'},drink:{label:'飲 品',name:'飲品單',banner:'hatch'}};
+const TICKET_KIND={food:{label:'廚 房',name:'廚房單',banner:'solid'},drink:{label:'吧 台',name:'吧台單',banner:'hatch'}};
 function splitTicketLines(lines){
   const food=[],drink=[];
   for(const l of lines){
@@ -591,7 +591,7 @@ function splitTicketLines(lines){
     if(parts.length){const dp=parts.filter(p=>isDrinkCat(p.cat)),fp=parts.filter(p=>!isDrinkCat(p.cat));
       if(isDrinkCat(l.cat)){drink.push(l);continue;}
       if(fp.length||!dp.length)food.push(dp.length?{...l,parts:fp}:l);
-      if(dp.length)drink.push({...l,parts:dp}); /* 套餐整份的客人備註兩張都印（KK 11/2：如「不要咖啡改可可」吧檯要看到） */
+      if(dp.length)drink.push({...l,parts:dp}); /* 套餐整份的客人備註兩張都印（KK 11/2：如「不要咖啡改可可」吧台要看到） */
       continue;}
     (isDrinkCat(l.cat)?drink:food).push(l);
   }
@@ -779,7 +779,7 @@ function checkoutHardware(drawer,order,paidText){
   return CHECKOUT_HW;
 }
 // 出餐單（給現場）：桌號大字、依類別分段列品項與備註；不印價錢與付款，避免出餐時分心。
-// 餐點與飲品分兩張印（餐點單黑底橫幅＋實心邊條、飲品單斜線橫幅＋虛線邊條）；任一張失敗就回 false，交給自動出單暫停流程
+// 廚房、吧台分兩張印（廚房單黑底橫幅＋實心邊條、吧台單斜線橫幅＋虛線邊條）；任一張失敗就回 false，交給自動出單暫停流程
 async function printOrder(o,{auto=false,slip=false}={}){
   const tickets=ticketParts(o);
   if(starReady()){

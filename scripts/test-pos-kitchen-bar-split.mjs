@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
-// 出餐單分兩張：餐點單（黑底橫幅＋實心邊條）與飲品單（斜線橫幅＋虛線邊條）
+// 出餐單分兩張：廚房單（黑底橫幅＋實心邊條）與吧台單（斜線橫幅＋虛線邊條）
 const src=readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');
 const menuLib=readFileSync(new URL('../public/menu-lib.js',import.meta.url),'utf8');
 function ctx(){
@@ -29,15 +29,15 @@ test('mixed order prints two tickets: food first, then drinks',async()=>{
   ['food',['午餐套餐|咖哩飯','咖哩飯|']],
   ['drink',['午餐套餐|紅茶','拿鐵|','清酒|']],
  ]);
- assert.ok(texts.includes('餐 點')&&texts.includes('飲 品'),'兩種橫幅字');
- assert.ok(texts.includes('餐點單 共 2 件')&&texts.includes('飲品單 共 4 件'));
- assert.ok(texts.includes('同單另有飲品單')&&texts.includes('同單另有餐點單'));
+ assert.ok(texts.includes('廚 房')&&texts.includes('吧 台'),'兩種橫幅字');
+ assert.ok(texts.includes('廚房單 共 2 件')&&texts.includes('吧台單 共 4 件'));
+ assert.ok(texts.includes('同單另有吧台單')&&texts.includes('同單另有廚房單'));
  assert.ok(!texts.includes('已退'));
 });
 test('drink-only order prints one ticket without cross reference',async()=>{
  const {c,texts,sent}=ctx();c.o={id:'o1',table_no:'B1',items:[{zh:'拿鐵',qty:1,price:90,cat:'COFFEE'}]};
  await vm.runInContext('printOrder(o)',c);
- assert.equal(sent.length,1);assert.ok(texts.includes('飲 品'));assert.ok(!texts.includes('餐 點'));
+ assert.equal(sent.length,1);assert.ok(texts.includes('吧 台'));assert.ok(!texts.includes('廚 房'));
  assert.ok(!texts.some(t=>String(t).startsWith('同單另有')));
 });
 test('food and drink tickets render visibly different marks',()=>{
@@ -64,4 +64,20 @@ test('combo-level customer note prints on both food and drink tickets (KK 11/2)'
  const {c}=ctx();c.o={id:'o7',table_no:'A5',items:[{zh:'貝果套餐',qty:1,price:250,cat:'COMBO',note:'No coffee. Cocoa instead',parts:[{slot:'貝果',zh:'原味貝果',cat:'BREAD'},{slot:'飲品',zh:'美式咖啡',cat:'COFFEE',note:'溫度：冰'}]}]};
  const notes=JSON.parse(JSON.stringify(vm.runInContext('ticketParts(o).map(t=>[t.kind,t.order.items[0].note])',c)));
  assert.deepEqual(notes,[['food','No coffee. Cocoa instead'],['drink','No coffee. Cocoa instead']]);
+});
+
+test('dessert goes to the bar ticket, including dessert inside a set (KK 11/2)',()=>{
+ const {c}=ctx();
+ c.o={id:'o5',table_no:'A2',items:[
+  {zh:'可麗露',qty:1,price:90,cat:'DESSERT'},
+  {zh:'咖哩飯',qty:1,price:200,cat:'MAIN'},
+  {zh:'下午茶套餐',qty:1,price:280,cat:'COMBO',parts:[{zh:'檸檬塔',cat:'DESSERT'},{zh:'拿鐵',cat:'COFFEE'}]},
+ ]};
+ const parts=vm.runInContext('ticketParts(o).map(t=>[t.kind,t.order.items.map(l=>l.zh+"|"+(l.parts||[]).map(p=>p.zh).join(","))])',c);
+ assert.deepEqual(JSON.parse(JSON.stringify(parts)),[
+  ['food',['咖哩飯|']],
+  ['drink',['下午茶套餐|檸檬塔,拿鐵','可麗露|']],
+ ]);
+ assert.equal(vm.runInContext("MenuLib.stationOf({cat:'DESSERT'})",c),'bar');
+ assert.ok(!vm.runInContext("MenuLib.BAR_CATS.includes('DESSERT')",c),'點餐時段的飲品清單不含甜點');
 });
