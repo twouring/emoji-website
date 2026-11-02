@@ -702,8 +702,9 @@ function kitchenPrintStatus(){
 function kitchenPrintStatusHtml(){
   const st=kitchenPrintStatus().state;
   if(st==='paused')return `<div class="a-toolbar pos-print-status pos-print-paused"><span class="pill pill-bad">自動出單已暫停</span><span class="hint hint--tight">檢查紙張、補印後</span><button type="button" class="btn btn--ghost btn-xs" id="pos-print-resume">恢復自動出單</button></div>`;
-  if(st==='running')return `<div class="a-toolbar pos-print-status"><span class="pill pill-ok">自動出單運行中</span><span class="hint hint--tight">已接 mPOP：送單後自動印紙本出餐單</span><button type="button" class="btn btn--ghost btn-xs" id="pos-print-test">測試列印</button></div>`;
-  return `<div class="a-toolbar pos-print-status"><span class="pill pill-draft">這台未自動出單</span><span class="hint hint--tight">沒接 mPOP，不會印紙本出餐單：請用 Star webPRNT Browser 開 POS 並接上 mPOP</span></div>`;
+  // 運行中／未接：弱化成一行小字（KK 11/2），說明放 title；暫停才用醒目樣式
+  if(st==='running')return `<div class="pos-print-status pos-print-mini" title="已接 mPOP：送單後自動印紙本出餐單"><span class="pos-print-dot is-ok" aria-hidden="true"></span>自動出單運行中<button type="button" class="pos-print-link" id="pos-print-test">測試列印</button></div>`;
+  return `<div class="pos-print-status pos-print-mini" title="沒接 mPOP，不會印紙本出餐單：請用 Star webPRNT Browser 開 POS 並接上 mPOP"><span class="pos-print-dot" aria-hidden="true"></span>這台未自動出單</div>`;
 }
 async function printTestTicket(){
   if(!starReady()){starHint();return false;}

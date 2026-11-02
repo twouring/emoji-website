@@ -917,3 +917,8 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 /* 編輯桌位：完成／還原／取消放在標題列（iPad 橫放 .pos-tables 鎖一個畫面高，按鈕放在平面圖下方會被裁掉，KK 11/2）；靠左，避開右上角客人呼叫卡；平面圖過高時整區可捲動 */
 .pos-edit-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px}.pos-edit-acts{display:flex;flex-wrap:wrap;gap:8px}
 @media(min-width:1000px){.pos-layout .pos-tables.pos-editing{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}.pos-layout .pos-tables.pos-editing .pos-floor-edit{flex:none}.pos-layout .pos-tables.pos-editing .pos-edit-bar{position:sticky;top:0;z-index:6;background:var(--card,var(--paper));padding:6px 0;margin-top:-6px}}
+
+/* 自動出單狀態（結帳頁底部）：運行中／未接只是一行小字，不佔版面（KK 11/2）；暫停維持醒目 */
+.pos-sub .pos-print-mini{display:inline-flex;align-items:center;gap:6px;width:auto;margin:0 auto 0 0;font-size:1rem;color:#9a958a;line-height:1.3;white-space:nowrap}
+.pos-print-dot{width:7px;height:7px;border-radius:50%;background:#b9b4a6;flex:none}.pos-print-dot.is-ok{background:#2e9e5b}
+.pos-print-link{background:none;border:0;padding:4px 2px;margin-left:4px;font:inherit;color:inherit;text-decoration:underline;cursor:pointer}
