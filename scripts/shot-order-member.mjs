@@ -76,7 +76,7 @@ for (const w of [390, 320]) {
   await shot(order, w, 760, `order-${w}-gate-login`, { mobile: true, noName: true, login: true });
   await shot(order, w, 900, `order-${w}-guest`, { mobile: true });
   await shot(order, w, 844, `order-${w}-member`, { mobile: true, login: true });
-  await shot(order, w, 844, `order-${w}-member-redeem-open`, { mobile: true, login: true, act: async p => { await p.evaluate(() => document.querySelector('#redeem-toggle')?.click()); } });
+  await shot(order, w, 844, `order-${w}-member-redeem`, { mobile: true, login: true, act: async p => { await p.evaluate(() => document.querySelector('.redeem-row')?.scrollIntoView()); } });
 }
 await shot('https://pos.test/pos', 1180, 820, 'pos-1180-member', { act: async p => {
   await p.evaluate(() => document.querySelector('[data-pos-table="A3"]')?.click()); await new Promise(r => setTimeout(r, 500));
