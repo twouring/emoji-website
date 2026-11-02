@@ -724,7 +724,9 @@ function startKitchenPrinting(){
 let POS_AUDIO=null;
 function posAudio(){try{if(!POS_AUDIO)POS_AUDIO=new (window.AudioContext||window.webkitAudioContext)();if(POS_AUDIO.state==='suspended')POS_AUDIO.resume();return POS_AUDIO;}catch(e){return null;}}
 if(typeof document!=='undefined'&&document.addEventListener)document.addEventListener('pointerdown',()=>{posAudio();},{once:true,capture:true});
-function newTicketChime(){const c=posAudio();if(!c)return;[0,.3,.6].forEach((d,i)=>{try{const o=c.createOscillator(),g=c.createGain(),t=c.currentTime+d;o.type='sine';o.frequency.value=i===2?988:784;o.connect(g);g.connect(c.destination);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.6,t+.02);g.gain.exponentialRampToValueAtTime(.0001,t+.25);o.start(t);o.stop(t+.27);}catch(e){}});}
+/* 新單提示音（KK 11/2：越大聲越好）：方波滿刻度（數位最大音量）、2–3kHz（人耳最敏感、iPad 喇叭最響）、三組各三聲約 2.6 秒；iOS 17+ 設 playback 讓靜音鍵不擋 */
+try{if(typeof navigator!=='undefined'&&navigator.audioSession)navigator.audioSession.type='playback';}catch(e){}
+function newTicketChime(){const c=posAudio();if(!c)return;const NOTES=[2093,2637,3136];for(let r=0;r<3;r++)NOTES.forEach((f,i)=>{try{const o=c.createOscillator(),g=c.createGain(),t=c.currentTime+r*.9+i*.22;o.type='square';o.frequency.value=f;o.connect(g);g.connect(c.destination);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(1,t+.01);g.gain.setValueAtTime(1,t+.17);g.gain.exponentialRampToValueAtTime(.0001,t+.2);o.start(t);o.stop(t+.21);}catch(e){}});}
 function notifyNewTickets(jobs){
   if(!jobs.length||typeof document==='undefined'||!document.body)return;
   newTicketChime();
