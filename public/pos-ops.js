@@ -983,6 +983,8 @@ async function printTableQr(table,url,info={}){
     notes.push(ms?[`低消每人 ${per}・服務費 ${sv}%`,`Min. NT$${per} pp · ${sv}% service`]:[`低消 平日 ${MenuLib.MIN_SPEND.weekday}／假日 ${MenuLib.MIN_SPEND.weekend}・服務費 ${sv}%`,`Min. ${MenuLib.MIN_SPEND.weekday} / ${MenuLib.MIN_SPEND.weekend} (wknd) pp · ${sv}% service`]);
   }
   if(qv==='CAFE')notes.push(['最後點餐 餐點 16:00／飲品 16:30','Last order 16:00 food · 16:30 drinks']);
+  /* 在咖啡自助（KK 11/2）：餐具與水自取、用餐完自助回收 */
+  if(qv==='CAFE')notes.push(['餐具、水自取・用餐完自助回收','Self-serve cutlery, water · bus dishes']);
   if(qv==='BAR')notes.push(['最後點餐 餐點 02:00／酒水 02:30','Last order 02:00 food · 02:30 drinks']);
   // 左對齊＋懸掛縮排：方塊符號在 M，文字從 M+16 起；同一條中英間 4、條與條之間空 12
   if(notes.length){rule(1,8);g.textAlign='left';const tx=M+16,tw=W-tx-M;

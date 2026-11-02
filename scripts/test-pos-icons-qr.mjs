@@ -100,3 +100,8 @@ test('桌號 QR 單印 Wi-Fi 名稱與密碼（KK 11/1），字級最小 16 點�
   assert.match(fn,/const QS=(\d+);/);assert.ok(Number(fn.match(/const QS=(\d+);/)[1])>=224,'QR 至少 28mm');
   for(const m of fn.matchAll(/(?:line|wrap)\([^;]*?,(\d+),(?:true|false)/g))assert.ok(Number(m[1])>=16,'字太小：'+m[0]);
 });
+
+test('在咖啡 QR 單印自助規則：餐具、水自取・用餐完自助回收（KK 11/2）',()=>{
+  const src=fs.readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');
+  assert.match(src,/if\(qv==='CAFE'\)notes\.push\(\['餐具、水自取・用餐完自助回收'/);
+});
