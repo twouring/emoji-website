@@ -698,17 +698,47 @@ async function resumeKitchenPrinting(){
   KITCHEN_PRINT_PAUSED=false;toast('已恢復新單自動列印；前一張結果不明的單請檢查後手動補印。');return true;
 }
 const KITCHEN_PRINT_UNKNOWN=new Set();
-// 結帳頁狀態列：運行中（Star Browser＋mPOP SDK 就緒、未暫停）／已暫停（只有這時才有恢復鍵）／未自動出單（一般瀏覽器或結果未明）
+// 結帳頁狀態列：運行中（Star Browser＋mPOP 實際有回應、未暫停）／已暫停（只有這時才有恢復鍵）／mPOP 未連接（有回應但離線、沒紙、上蓋開或連不到）／檢測中／未自動出單（一般瀏覽器或結果未明）
+// mPOP 連線檢測（KK 11/2）：送空請求只取狀態、不出紙，15 秒一次；未連接時不領取出餐單，工作留在伺服器，接回後自動補印
+let STAR_LINK={ok:null,reason:'',at:0};
+const STAR_LINK_TTL=15000;
+function starProbe(){const r=STAR_PRINT_QUEUE.then(()=>starProbeNow());STAR_PRINT_QUEUE=r.catch(()=>false);return r;}
+function starProbeNow(){
+  if(!starReady()||STAR_NATIVE_UNCERTAIN)return Promise.resolve(null);
+  return new Promise(resolve=>{
+    const t=new StarWebPrintTrader({url:STAR_WEBPRNT_URL,timeout:5000});
+    let settled=false;
+    const finish=v=>{if(STAR_NATIVE_UNCERTAIN===t)STAR_NATIVE_UNCERTAIN=null;if(settled)return;settled=true;clearTimeout(deadline);resolve(v);};
+    const deadline=setTimeout(()=>{if(settled)return;if(typeof _handlerCallback!=='undefined'&&_handlerCallback[STAR_WEBPRNT_URL]===t)STAR_NATIVE_UNCERTAIN=t;settled=true;resolve({ok:false,reason:'mPOP 沒有回應'});},6000);
+    t.onReceive=r=>{let reason='';try{reason=t.isOffLine(r)?'mPOP 離線':t.isCoverOpen(r)?'mPOP 上蓋沒關':t.isPaperEnd(r)?'mPOP 沒紙了':'';}catch(e){}finish({ok:!reason,reason});};
+    t.onError=()=>finish({ok:false,reason:'連不到 mPOP'});
+    t.onTimeout=()=>finish({ok:false,reason:'mPOP 沒有回應'});
+    try{t.sendMessage({request:''});}catch(e){finish({ok:false,reason:'連不到 mPOP'});}
+  });
+}
+function repaintPrintStatus(){if(typeof document==='undefined')return;const pb=document.getElementById?.('pos-body');if(pb?.querySelector?.('.pos-grid')){pb.dataset.sig='';paintPos();}}
+async function starCheckLink(force=false){
+  if(!starReady())return false;
+  if(!force&&STAR_LINK.ok!==null&&Date.now()-STAR_LINK.at<STAR_LINK_TTL)return STAR_LINK.ok;
+  const out=await starProbe();if(!out)return false;
+  const prev=STAR_LINK.ok;STAR_LINK={ok:out.ok,reason:out.reason||'',at:Date.now()};
+  if(prev!==out.ok){if(prev===false&&out.ok)toast('mPOP 已重新連線，自動出單恢復');else if(prev===true&&!out.ok)toast(out.reason+'：暫停領取出餐單，接回後會自動補印');repaintPrintStatus();}
+  return out.ok;
+}
 function kitchenPrintStatus(){
   if(KITCHEN_PRINT_PAUSED)return {state:'paused'};
   if(!starReady()||STAR_NATIVE_UNCERTAIN)return {state:'unavailable'};
+  if(STAR_LINK.ok===false)return {state:'offline',reason:STAR_LINK.reason};
+  if(STAR_LINK.ok===null)return {state:'checking'};
   return {state:'running'};
 }
 function kitchenPrintStatusHtml(){
-  const st=kitchenPrintStatus().state;
+  const ks=kitchenPrintStatus(),st=ks.state;
   if(st==='paused')return `<div class="a-toolbar pos-print-status pos-print-paused"><span class="pill pill-bad">自動出單已暫停</span><span class="hint hint--tight">檢查紙張、補印後</span><button type="button" class="btn btn--ghost btn-xs" id="pos-print-resume">恢復自動出單</button></div>`;
   // 運行中／未接：弱化成一行小字（KK 11/2），說明放 title；暫停才用醒目樣式
-  if(st==='running')return `<div class="pos-print-status pos-print-mini" title="已接 mPOP：送單後自動印紙本出餐單"><span class="pos-print-dot is-ok" aria-hidden="true"></span>自動出單運行中<button type="button" class="pos-print-link" id="pos-print-test">測試列印</button></div>`;
+  if(st==='running')return `<div class="pos-print-status pos-print-mini" title="已接 mPOP：送單後自動印紙本出餐單（每 15 秒檢測連線）"><span class="pos-print-dot is-ok" aria-hidden="true"></span>自動出單運行中・mPOP 已連接<button type="button" class="pos-print-link" id="pos-print-test">測試列印</button></div>`;
+  if(st==='offline')return `<div class="pos-print-status pos-print-mini pos-print-off" title="mPOP 沒連上，出餐單先留在系統，接回後自動補印：請確認 USB-C 線、電源、紙與上蓋"><span class="pos-print-dot is-bad" aria-hidden="true"></span>${ks.reason||'mPOP 未連接'}，出餐單等待中<button type="button" class="pos-print-link" id="pos-print-recheck">重新檢測</button></div>`;
+  if(st==='checking')return `<div class="pos-print-status pos-print-mini" title="正在確認 mPOP 是否連接"><span class="pos-print-dot" aria-hidden="true"></span>檢測 mPOP 連線中</div>`;
   return `<div class="pos-print-status pos-print-mini" title="沒接 mPOP，不會印紙本出餐單：請用 Star webPRNT Browser 開 POS 並接上 mPOP"><span class="pos-print-dot" aria-hidden="true"></span>這台未自動出單</div>`;
 }
 async function printTestTicket(){
@@ -718,6 +748,7 @@ async function printTestTicket(){
 }
 function bindPrintStatus(host,repaint){
   const resume=host.querySelector('#pos-print-resume');if(resume)resume.onclick=async()=>{if(!await resumeKitchenPrinting())return;repaint();return pollKitchenPrinting();};
+  const re=host.querySelector('#pos-print-recheck');if(re)re.onclick=async()=>{if(re.disabled)return;re.disabled=true;try{const ok=await starCheckLink(true);if(!ok)toast((STAR_LINK.reason||'mPOP 未連接')+'：請確認 USB-C 線、電源、紙與上蓋');repaint();if(ok)await pollKitchenPrinting();}finally{re.disabled=false;}};
   const test=host.querySelector('#pos-print-test');if(test)test.onclick=async()=>{if(test.disabled)return;test.disabled=true;try{await printTestTicket();}finally{test.disabled=false;}};
 }
 function startKitchenPrinting(){
@@ -746,6 +777,7 @@ async function pollKitchenPrinting(){
   if(KITCHEN_PRINT_BUSY||KITCHEN_PRINT_PAUSED||!DATA||!starReady()||STAR_NATIVE_UNCERTAIN)return;
   KITCHEN_PRINT_BUSY=true;
   try{
+    if(!await starCheckLink())return;
     const out=await api('/admin/orders/kitchen-print-jobs'+scopeQuery());
     notifyNewTickets((out.jobs||[]).filter(j=>!KITCHEN_PRINT_UNKNOWN.has(j.id)));
     for(const job of out.jobs||[]){

@@ -35,7 +35,7 @@ function browser({ready=true,fail=false}={}){
   calls.push(path);if(!opt)return {jobs:[{id:'tk_one',items:[]}]};
   if(db.has(path))return {claimed:false};db.add(path);return {claimed:true,job:{id:'tk_one',items:[]}};
  }});
- vm.runInContext(src,c);vm.runInContext('StarWebPrintBuilder=function(){};StarWebPrintTrader=function(){};',c);
+ vm.runInContext(src,c);vm.runInContext('StarWebPrintBuilder=function(){};link={online:true,cover:false,paper:true,error:false,calls:0};StarWebPrintTrader=function(){};StarWebPrintTrader.prototype.sendMessage=function(m){link.calls++;link.last=m;const r={traderSuccess:"true",traderStatus:"x"};if(link.error)this.onError({status:0});else this.onReceive(r);};StarWebPrintTrader.prototype.isOffLine=()=>!link.online;StarWebPrintTrader.prototype.isCoverOpen=()=>link.cover;StarWebPrintTrader.prototype.isPaperEnd=()=>!link.paper;',c);
  c.prints=[];c.fail=fail;vm.runInContext('printOrder=async o=>{prints.push(o.id);if(fail)throw Error("timeout");return true;}',c);
  return {c,db,calls,messages};
 }
@@ -57,9 +57,11 @@ test('resume control is hidden unless paused and requires explicit confirmation'
  await vm.runInContext('resumeKitchenPrinting()',c);assert.equal(vm.runInContext('KITCHEN_PRINT_PAUSED',c),true);
  vm.runInContext('posConfirm=async()=>true',c);await vm.runInContext('resumeKitchenPrinting()',c);assert.equal(vm.runInContext('KITCHEN_PRINT_PAUSED',c),false);
 });
-test('checkout page (pos-sub) shows a running/paused/unavailable auto-print status label (KK 11/2: 出餐分頁移除)',()=>{
+test('checkout page (pos-sub) shows a running/paused/unavailable auto-print status label (KK 11/2: 出餐分頁移除)',async()=>{
  assert.match(src,/<div class="pos-sub">\$\{document\.getElementById\(.p-nav.\)\?kitchenPrintStatusHtml\(\):..\}/);assert.match(src,/bindPrintStatus\(host,\(\)=>\{host\.dataset\.sig='';paintPos\(\);\}\)/);assert.match(src,/data-serve-pos=/);
  const {c}=browser();
+ assert.equal(vm.runInContext('kitchenPrintStatus().state',c),'checking');
+ await vm.runInContext('starCheckLink()',c);
  assert.equal(vm.runInContext('kitchenPrintStatus().state',c),'running');assert.match(vm.runInContext('kitchenPrintStatusHtml()',c),/自動出單運行中/);
  vm.runInContext('KITCHEN_PRINT_PAUSED=true',c);assert.equal(vm.runInContext('kitchenPrintStatus().state',c),'paused');assert.match(vm.runInContext('kitchenPrintStatusHtml()',c),/id="pos-print-resume"/);
  const off=browser({ready:false}).c;assert.equal(vm.runInContext('kitchenPrintStatus().state',off),'unavailable');assert.match(vm.runInContext('kitchenPrintStatusHtml()',off),/未自動出單/);assert.doesNotMatch(vm.runInContext('kitchenPrintStatusHtml()',off),/pos-print-resume/);
@@ -81,4 +83,25 @@ test('SDK false outcome is not silently successful and native quarantine consume
 test('ambiguous hardware failure is claimed once and warns to manually inspect, no automatic retry',async()=>{
  const {c,messages}=browser({fail:true});await vm.runInContext('pollKitchenPrinting()',c);await vm.runInContext('pollKitchenPrinting()',c);
  assert.equal(c.prints.length,1);assert.ok(messages.some(m=>m.includes('補印')));
+});
+
+test('mPOP link probe (KK 11/2): offline printer never claims jobs, shows reason, resumes automatically when reconnected',async()=>{
+ const {c,calls}=browser();
+ vm.runInContext('link.online=false',c);
+ assert.equal(vm.runInContext('kitchenPrintStatus().state',c),'checking');
+ await vm.runInContext('pollKitchenPrinting()',c);
+ assert.equal(calls.length,0);assert.deepEqual([...c.prints],[]);
+ assert.equal(vm.runInContext('link.last.request',c),'');
+ assert.equal(vm.runInContext('kitchenPrintStatus().state',c),'offline');
+ const html=vm.runInContext('kitchenPrintStatusHtml()',c);assert.match(html,/mPOP 離線/);assert.match(html,/id="pos-print-recheck"/);assert.doesNotMatch(html,/pos-print-resume/);
+ vm.runInContext('link.online=true',c);await vm.runInContext('starCheckLink(true)',c);
+ assert.equal(vm.runInContext('kitchenPrintStatus().state',c),'running');assert.match(vm.runInContext('kitchenPrintStatusHtml()',c),/mPOP 已連接/);
+ await vm.runInContext('pollKitchenPrinting()',c);assert.deepEqual([...c.prints],['tk_one']);
+});
+test('mPOP link probe: paper end / cover open / unreachable are reported, probe is cached 15s',async()=>{
+ for(const [set,re] of [['link.paper=false',/沒紙/],['link.cover=true',/上蓋/],['link.error=true',/連不到 mPOP/]]){
+  const {c}=browser();vm.runInContext(set,c);await vm.runInContext('starCheckLink(true)',c);
+  assert.equal(vm.runInContext('kitchenPrintStatus().state',c),'offline');assert.match(vm.runInContext('kitchenPrintStatusHtml()',c),re);
+ }
+ const {c}=browser();await vm.runInContext('starCheckLink()',c);await vm.runInContext('starCheckLink()',c);assert.equal(vm.runInContext('link.calls',c),1);
 });
