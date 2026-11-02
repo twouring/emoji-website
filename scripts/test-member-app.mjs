@@ -42,9 +42,13 @@ async function boot(t, env = {}) {
 test('官網會員頁已刪除；/member 三語（含舊 .html）302 到會員 App 並保留查詢字串', async t => {
   for (const f of ['public/member.html', 'public/en/member.html', 'public/ja/member.html', 'lib/member-ui.js']) assert.equal(fs.existsSync(path.join(root, f)), false, f);
   const get = await boot(t);
-  for (const url of ['/member', '/member.html', '/en/member', '/ja/member', '/en/member.html']) {
+  for (const url of ['/member', '/member.html', '/login', '/signin']) {
     const res = await get(url, { host: 'www.emoji.tw' });
     assert.equal(res.status, 302, url); assert.equal(res.headers.get('location'), 'https://app.emoji.tw/', url); assert.equal(res.headers.get('x-robots-tag'), 'noindex', url);
+  }
+  for (const [url, lang] of [['/en/member', 'en'], ['/ja/member', 'ja'], ['/en/member.html', 'en'], ['/en/login', 'en'], ['/ja/login', 'ja']]) {
+    const res = await get(url, { host: 'www.emoji.tw' });
+    assert.equal(res.status, 302, url); assert.equal(res.headers.get('location'), 'https://app.emoji.tw/?lang=' + lang, url);
   }
   const paid = await get('/member?plan_paid=1&s=cs_x', { host: 'www.emoji.tw' });
   assert.equal(paid.headers.get('location'), 'https://app.emoji.tw/?plan_paid=1&s=cs_x', 'Stripe 舊導回連結仍能到 App 驗證付款');
@@ -57,7 +61,7 @@ test('登入預設導回會員 App；App 網域在導回白名單；Stripe 會�
   assert.match(server, /success_url: `\$\{APP_BASE\}\/\?plan_paid=1&s=\{CHECKOUT_SESSION_ID\}`/);
   assert.match(server, /cancel_url: `\$\{APP_BASE\}\/\?plan_canceled=1`/);
   assert.doesNotMatch(server, /\$\{SITE_BASE\}\/member|memberBase|lang === 'en' \? '\/en\/member'/);
-  assert.match(server, /app\.get\(\['\/member', '\/member\.html', '\/en\/member', '\/en\/member\.html', '\/ja\/member', '\/ja\/member\.html'\]/, '舊網址 302 轉址路由');
+  assert.match(server, /app\.get\(\['\/member', '\/member\.html', '\/en\/member', '\/en\/member\.html', '\/ja\/member', '\/ja\/member\.html', '\/login'/, '舊網址 302 轉址路由');
   // 通知信也改指 App
   assert.doesNotMatch(server, /會員專區：\$\{SITE_BASE\}/);
   assert.match(server, /會員 App：\$\{APP_BASE\}\//);

@@ -61,7 +61,7 @@ h1,h2,h3{font-family:"Noto Serif TC",serif;font-weight:700;margin:0}
 .btn.solid{background:var(--ink);color:var(--paper)}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 /* 安裝引導 */
-.install{background:var(--card);border:1.5px solid var(--ink);border-radius:18px;padding:16px;margin-top:18px}
+.install{background:var(--card);border:1.5px solid var(--ink);border-radius:18px;padding:16px;margin:0 0 18px;text-align:left}
 .install h3{font-size:1.05rem}
 .install p{margin:4px 0 12px;color:var(--soft)}
 .install .irow{display:flex;gap:10px;align-items:center}
@@ -95,6 +95,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 .toast[hidden]{display:none}
 /* 登入 */
 .login{min-height:80vh;display:flex;flex-direction:column;justify-content:center;text-align:center;gap:10px}
+.install+.login{min-height:0;justify-content:flex-start}
 .login .mark{width:88px;height:88px;margin:0 auto 4px}
 .login h1{font-size:1.7rem}
 .login p{color:var(--muted);margin:0;text-wrap:balance}
@@ -359,7 +360,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
   const isStandalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
   let deferred=null;
   const kindNow=ignoreDismiss=>installKind({standalone:isStandalone(),dismissedAt:ignoreDismiss?0:Number(lsGet('m_inst_x')||0),now:Date.now(),hasPrompt:!!deferred,ios:ENV.ios,inApp:ENV.inApp});
-  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;if(data&&tab==='home')paint();});
+  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;if(data&&(tab==='home'||tab==='plan')&&!document.querySelector('#ef:not([hidden])'))paint();});
   window.addEventListener('appinstalled',()=>{deferred=null;toast(T.installed);if(data)paint();});
   function installCard(){
     const k=kindNow(false);if(!k)return '';
@@ -415,7 +416,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
   function login(){
     tabs.hidden=true;
     const back=location.origin+ROOT+(LANG==='zh'?'':'?lang='+LANG), r=encodeURIComponent(back);
-    app.innerHTML=`<div class="login">${MARK}<h1>${esc(T.loginTitle)}</h1><p>${esc(T.loginSub)}</p>
+    app.innerHTML=`${installCard()}<div class="login">${MARK}<h1>${esc(T.loginTitle)}</h1><p>${esc(T.loginSub)}</p>
       <div class="ways">
         <a class="way google" href="/auth/google?redirect=${r}">${ICON.google}${esc(T.google)}</a>
         <a class="way line" id="line-login" hidden href="/auth/line?redirect=${r}">${ICON.line}${esc(T.lineLogin)}</a>
@@ -427,7 +428,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
         <button class="btn solid" id="efs" type="submit">${esc(T.emailSend)}</button>
       </form>
       <p class="first">${esc(T.firstTime)}</p><p class="hint">${legalNote('login')}</p>${langBar()}</div>`;
-    bindLang();
+    bindLang();bindInstall();
     fetch('/api/auth/methods').then(r=>r.json()).then(j=>{const b=document.getElementById('line-login');if(b&&j&&j.line)b.hidden=false;}).catch(()=>{});
     const ef=document.getElementById('ef'),eb=document.getElementById('email-login');
     eb.onclick=()=>{ef.hidden=false;eb.setAttribute('aria-expanded','true');ef.querySelector('input[name=name]').focus();};
@@ -465,6 +466,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
     const phone=(data.yan&&data.yan.phone)||'';
     const h=new Date().getHours();
     app.innerHTML=`${offline?`<div class="offline">${esc(T.offline)}</div>`:''}
+    ${installCard()}
     <div class="hello"><div><h1>${esc(me.name?T.hi(me.name):T.welcome)}</h1><small>${esc(h<12?T.morning:h<18?T.noon:T.evening)}</small></div>${MARK}</div>
     <section class="pass" aria-label="${esc(T.tabHome)}"><div class="brand">${esc(T.brand)}</div><div class="pts"><span>${esc(T.myPts)}</span><b>${esc(pts)}</b></div><div class="who"><span>${esc(me.name||'')}</span><i>${esc(phone?phone.replace(/^\+886(\d{2})\d{4}(\d{3})$/,'0$1-****-$2'):'')}</i></div></section>
     <button class="show" id="show"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17h3v4h-4v-3h4M18 14h3v3"/></svg>${esc(T.showCard)}</button>
@@ -477,7 +479,6 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
       <button data-go="events"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>${esc(T.signup)}</button>
     </nav>
     ${rewardsSec(pts)}
-    ${installCard()}
     ${upcomingSec()}
     <section class="sec"><h2>${esc(T.nextEvent)}</h2>${ev?evTile(ev):`<p class="empty">${esc(T.noEvents)}</p>`}</section>`;
     document.getElementById('show').onclick=openCard;
@@ -696,9 +697,10 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
   }
   // 訪客的「櫃檯」：進站先看方案與價格；右上保留登入入口給已有帳號的人
   function guestPlan(){
-    app.innerHTML=`<div class="hello"><h1>${esc(T.plan)}</h1><button class="quiet" id="guest-login" type="button">${esc(T.guestSignIn)}</button></div>
+    app.innerHTML=`${installCard()}<div class="hello"><h1>${esc(T.plan)}</h1><button class="quiet" id="guest-login" type="button">${esc(T.guestSignIn)}</button></div>
     <section class="panel"><div class="eyebrow">${esc(T.plansTitle)}</div><p class="hint">${esc(T.guestPlan)}</p>${planRows()}</section>`;
     document.getElementById('guest-login').onclick=()=>{tab='home';paint();};
+    bindInstall();
     document.querySelectorAll('[data-plan]').forEach(b=>b.onclick=()=>buyPlan(b.dataset.plan,b));
   }
   function plan(){

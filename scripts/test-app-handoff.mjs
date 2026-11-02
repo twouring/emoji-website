@@ -35,3 +35,14 @@ test('app 子站收到 #token= 後存起並清掉網址（沿用既有行為）�
   assert.match(m, /hash\.get\('token'\)/);
   assert.match(read('public/m-sw.js'), /VERSION = 'm-v([5-9]|\d{2,})'/);
 });
+
+test('官網導覽「會員登入」連到 App；安裝引導在進入畫面最上方（訪客方案頁、登入頁、首頁），不在最下面', () => {
+  for (const [l, label] of [['zh', '會員登入'], ['en', 'Sign in'], ['ja', 'ログイン']]) {
+    assert.match(read(`views/partials/header-${l}.html`), new RegExp(`href="https://app\\.emoji\\.tw/[^"]*" id="navMember">${label}</a>`), l);
+  }
+  assert.match(m, /function guestPlan\(\)\{\n    app\.innerHTML=`\$\{installCard\(\)\}<div class="hello">/);
+  assert.match(m, /app\.innerHTML=`\$\{installCard\(\)\}<div class="login">/);
+  const home = m.slice(m.indexOf('  function home(){'), m.indexOf('  function evTile('));
+  assert.ok(home.indexOf('${installCard()}') > -1 && home.indexOf('${installCard()}') < home.indexOf('class="hello"'), '首頁安裝卡要在問候列之前');
+  assert.equal((home.match(/installCard\(\)/g) || []).length, 1);
+});

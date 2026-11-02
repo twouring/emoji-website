@@ -7523,8 +7523,11 @@ app.get(['/pos', '/pos/*'], (_req, res) => {
   res.send(POS_HTML_CACHE);
 });
 // 舊的官網會員頁（/member 三語）已全部移到會員 App：保留轉址給舊連結、通知信與書籤（查詢字串原樣帶過去）
-app.get(['/member', '/member.html', '/en/member', '/en/member.html', '/ja/member', '/ja/member.html'], (req, res) => {
-  const qs = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+app.get(['/member', '/member.html', '/en/member', '/en/member.html', '/ja/member', '/ja/member.html', '/login', '/signin', '/en/login', '/en/signin', '/ja/login', '/ja/signin'], (req, res) => {
+  let qs = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+  // 官網「會員登入」：/en、/ja 路徑帶語系過去（App 首頁會先引導加到主畫面）
+  const lang = /^\/(en|ja)\//.exec(req.path)?.[1];
+  if (lang && !/[?&]lang=/.test(qs)) qs = (qs ? qs + '&' : '?') + 'lang=' + lang;
   res.set('X-Robots-Tag', 'noindex');
   res.redirect(302, APP_BASE + '/' + qs);
 });
