@@ -77,7 +77,7 @@
       checkout_title: 'お食事後にカウンターで会計', checkout_hint: 'まずお食事をお楽しみください。退店前にこの画面をカウンターで提示してください。',
       whole_table: 'まとめて支払う', my_items: '自分の分だけ支払う', split_evenly: '割り勘', people: '人数', people_suffix: '人', my_items_hint: '自分が注文した品のみ', split_hint: 'テーブル合計を人数で均等に分け、カウンターで一人ずつ会計',
       counter_amount: 'カウンター会計金額', keep_screen: '会計時にスタッフへこの画面を提示してください。', back: '戻る',
-      notify_counter: 'カウンターに会計を知らせる', notify_done: 'カウンターに通知しました。カウンターでお支払いください。', notify_sent: '通知済み：{count} 件 {amount}', notify_sent_split: '通知済み：{people} 人で割り勘、一人 {each}', notify_cancel: '取消',
+      notify_counter: 'カウンターに会計を知らせる', notify_done: 'カウンターに通知しました。カウンターでお支払いください。', notify_sent: '通知済み：{count} 件 {amount}', notify_sent_split: '通知済み：{people} 人で割り勘、一人 {each}', notify_cancel: 'キャンセル',
       split_each: '一人あたり', split_remainder: '{count} 人が NT$1 多く支払います（端数はスタッフが調整）', table: 'テーブル', unpaid_items: '未会計 {count} 件', empty: 'まだ注文はありません',
       no_orders: 'まだ注文はありません。', me: '自分', paid: '支払い済み', preparing: '準備中', ready: '受け取り可', done: '受け取り済み',
       bar_policy: '三點水（3AM）は最低ご利用額 平日お一人様 NT$300・週末 NT$600、別途サービス料 10%（お持ち帰りは除く）。',

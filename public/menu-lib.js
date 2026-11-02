@@ -180,12 +180,14 @@
       zh: String(raw.zh || '').trim(),
       en: String(raw.en || '').trim(),
       ja: String(raw.ja || '').trim(),
+      ko: String(raw.ko || '').trim(),
       price: Number.isFinite(price) ? price : 0,
       emo: Number.isFinite(emo) ? emo : 0,
       points: Math.max(0, Math.min(100000, Math.floor(Number(raw.points)) || 0)),   // 兌換所需點數；0＝不開放點數兌換（餐飲或服務品項都可設）
       note: String(raw.note || '').trim(),
       note_ja: String(raw.note_ja || '').trim(),
       note_en: String(raw.note_en || '').trim(),
+      note_ko: String(raw.note_ko || '').trim(),
       image: String(raw.image || '').trim(),
       combo: cat === 'COMBO' ? normalizeCombo(raw.combo) : [],   // 套餐內容（只有 COMBO 類別有效）
       alcohol: coerceAlcohol({ ...raw, cat }),
