@@ -14,6 +14,13 @@ test('安裝引導：已安裝不顯示；7 天內按過「稍後」不顯示；
   assert.equal(installKind({ ...base, hasPrompt: true, dismissedAt: 1e12 - 6 * 864e5 }), null);
   assert.equal(installKind({ ...base, hasPrompt: true, dismissedAt: 1e12 - 8 * 864e5 }), 'prompt');
 });
+test('安裝引導：裝過（記在 m_installed，或系統回報已安裝）就算從瀏覽器開也不再顯示', () => {
+  for (const k of [{ hasPrompt: true }, { ios: true }, { inApp: true }]) assert.equal(installKind({ ...base, ...k, installed: true }), null);
+  assert.match(m, /if\(isStandalone\(\)\)markInstalled\(\)/);
+  assert.match(m, /'appinstalled',\(\)=>\{deferred=null;markInstalled\(\)/);
+  assert.match(m, /navigator\.getInstalledRelatedApps/);
+  assert.equal(JSON.parse(read('public/m.webmanifest')).related_applications[0].platform, 'webapp');
+});
 test('安裝引導：Android／桌面用系統安裝視窗，iOS 教學，LINE 等內建瀏覽器要先換瀏覽器', () => {
   assert.equal(installKind({ ...base, hasPrompt: true }), 'prompt');
   assert.equal(installKind({ ...base, ios: true }), 'ios');

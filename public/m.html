@@ -347,7 +347,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
   const eventUrl=e=>'/e/'+encodeURIComponent(e.slug||e.id)+(LANG==='zh'?'':'?lang='+LANG);
   /* ---- 安裝到主畫面 ---- */
   function installKind(s){
-    if(s.standalone)return null;
+    if(s.standalone||s.installed)return null;
     if(s.dismissedAt&&s.now-s.dismissedAt<7*864e5)return null;
     if(s.inApp)return 'inapp';
     if(s.hasPrompt)return 'prompt';
@@ -357,11 +357,17 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
   /* install-end */
   const UA=navigator.userAgent;
   const ENV={ios:/iPhone|iPad|iPod/.test(UA)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),inApp:/Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(UA)};
-  const isStandalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+  const isStandalone=()=>['standalone','fullscreen','minimal-ui','window-controls-overlay'].some(m=>matchMedia('(display-mode: '+m+')').matches)||navigator.standalone===true;
+  /* 已安裝就不再引導：從主畫面開過、裝好當下、或系統回報已安裝（Android Chrome getInstalledRelatedApps）都記在 m_installed */
+  let installed=lsGet('m_installed')==='1';
+  const markInstalled=()=>{installed=true;lsSet('m_installed','1');};
+  if(isStandalone())markInstalled();
   let deferred=null;
-  const kindNow=ignoreDismiss=>installKind({standalone:isStandalone(),dismissedAt:ignoreDismiss?0:Number(lsGet('m_inst_x')||0),now:Date.now(),hasPrompt:!!deferred,ios:ENV.ios,inApp:ENV.inApp});
-  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;if(data&&(tab==='home'||tab==='plan')&&!document.querySelector('#ef:not([hidden])'))paint();});
-  window.addEventListener('appinstalled',()=>{deferred=null;toast(T.installed);if(data)paint();});
+  const kindNow=ignoreDismiss=>installKind({standalone:isStandalone(),installed,dismissedAt:ignoreDismiss?0:Number(lsGet('m_inst_x')||0),now:Date.now(),hasPrompt:!!deferred,ios:ENV.ios,inApp:ENV.inApp});
+  const repaintInstall=()=>{if(data&&!document.querySelector('#ef:not([hidden])'))paint();};
+  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;if(installed){installed=false;lsSet('m_installed','0');}if(tab==='home'||tab==='plan'||tab==='me')repaintInstall();});
+  window.addEventListener('appinstalled',()=>{deferred=null;markInstalled();toast(T.installed);repaintInstall();});
+  if(!installed&&navigator.getInstalledRelatedApps)navigator.getInstalledRelatedApps().then(a=>{if(a&&a.length){markInstalled();if(document.getElementById('install')||document.getElementById('inst2'))repaintInstall();}}).catch(()=>{});
   function installCard(){
     const k=kindNow(false);if(!k)return '';
     return `<section class="install" id="install"><h3>${esc(T.install)}</h3><p>${esc(T.installSub)}</p><div class="irow"><button class="btn solid" id="inst" data-k="${k}">${esc(T.installLabel[k])}</button><button class="later" id="instx">${esc(T.later)}</button></div></section>`;
