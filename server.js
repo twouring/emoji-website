@@ -6009,8 +6009,8 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     // 桌邊送單且全部已出餐的品項，結帳時直接記為已取餐（不再回到出餐看板）；有還沒出的照舊進看板
     const served=out.lines.every(l=>l.served_at);
     await client.query('INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,invoice,status,done_at,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',[orderId,s.id,s.table_no,JSON.stringify(orderLines),out.amount,JSON.stringify(out.payer),JSON.stringify(invoice||{}),served?'done':'paid',served?new Date():null,memberUser?.id||null]);
-    // 內用採離場結帳：整桌結清即清桌；分帳、跨品牌權限與外帶取餐流程保留。
-    const closed=!tableOrders.isTakeout(s.table_no)&&tableOrders.unpaid(items).length===0&&tableOrders.sessionClosableByVenues(s,venues);
+    // 整桌結清即清桌（內用離場結帳；外帶 KK 11/2：收款完就收掉單，W 號釋出）；分帳未結清、跨品牌權限照舊。
+    const closed=tableOrders.unpaid(items).length===0&&tableOrders.sessionClosableByVenues(s,venues);
     if(closed)await client.query("UPDATE table_orders SET status='done',done_at=now() WHERE session_id=$1 AND status IN ('paid','ready')",[s.id]);
     await client.query('UPDATE table_sessions SET items=$2,status=$3,pay_requests=$4,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),closed?'closed':'open',JSON.stringify(tableOrders.prunePayRequests(s.pay_requests,items))]);
     // 庫存：櫃檯直接結帳、沒先送單的品項（先結後做）在這裡依配方扣；已送單的品項送單時就扣過了

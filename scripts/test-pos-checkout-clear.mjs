@@ -23,7 +23,12 @@ test('fully settled dine-in closes atomically and finishes outstanding paid orde
   assert.ok(close>0);assert.ok(close<calls.findIndex(c=>c.sql==='COMMIT'));
   assert.ok(calls.some(c=>c.sql.includes("UPDATE table_orders SET status='done'")));
 });
-for(const [name,opts] of [['split bill',{partial:true}],['mixed brand',{mixed:true}],['takeout',{table:'W01'}]])test(name+' does not auto-clear',async()=>{
+test('fully settled takeout closes too (KK 11/2: 收款完就收掉外帶單)',async()=>{
+  const {calls,res}=await checkout({table:'W01'});
+  assert.equal(res.body.closed,true);
+  assert.ok(calls.some(c=>c.sql.includes("status=$3")&&c.args?.[2]==='closed'));
+});
+for(const [name,opts] of [['split bill',{partial:true}],['mixed brand',{mixed:true}],['split takeout',{table:'W01',partial:true}]])test(name+' does not auto-clear',async()=>{
   const {calls,res}=await checkout(opts);assert.equal(res.body.closed,false);
   assert.ok(!calls.some(c=>c.sql.includes("UPDATE table_orders SET status='done'")));
 });
