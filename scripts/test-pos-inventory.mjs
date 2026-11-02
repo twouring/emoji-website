@@ -105,6 +105,14 @@ test('接線：送單（mutateItems）、預約取餐排程、櫃檯結帳、線
   assert.ok(mutate.indexOf('inventoryConsume') < mutate.indexOf("'COMMIT'"), '扣庫存與送單同一個交易');
   const pickup = server.slice(server.indexOf('async function placeDuePickups('), server.indexOf('async function placeDuePickups(') + 2500);
   assert.match(pickup, /inventoryConsume\(client\.query\.bind\(client\), placed\.lines/);
+  // 會員兌換先加入同一張未送出訂單；之後由 mutateItems 的送單交易統一扣庫存，不能在購物車階段預扣。
+  const redeem = server.slice(server.indexOf("app.post('/api/me/redeem'"), server.indexOf("app.post('/api/orders/table/member'"));
+  assert.match(redeem, /tableOrders\.addRedeemLine\(s\.items, menu/, '會員兌換必須成為同一張可送出的點餐行');
+  assert.doesNotMatch(redeem, /inventoryConsume\(/, '尚未送出的購物車不可預扣庫存');
+  const tablePay = server.slice(server.indexOf("app.post('/api/orders/:id/pay'"), server.indexOf("/* 後台：出餐看板、清桌、桌號 QR */"));
+  assert.match(tablePay, /inventoryConsume\(client\.query\.bind\(client\),lines\.filter\(l=>!l\.placed_at\),\{ref_id:orderId\}\)/, '桌邊線上付款的未送出品項要扣庫存');
+  const shopStripe = server.slice(server.indexOf('async function fulfillShopCheckout('), server.indexOf("app.post('/api/me/shop/:id/checkout'"));
+  assert.match(shopStripe, /inventoryConsume\(client\.query\.bind\(client\), orderLines, \{ ref_id: orderId, actor: '會員 App' \}\)/, '商店 Stripe 成單要扣庫存');
   const checkout = server.slice(server.indexOf("app.post('/api/admin/orders/sessions/:id/checkout'"), server.indexOf("app.post('/api/admin/orders/:id/invoice/issue'"));
   assert.match(checkout, /inventoryConsume\(client\.query\.bind\(client\),orderLines\.filter\(l=>!l\.placed_at\)/, '已送單的不重扣');
   assert.ok(checkout.indexOf('inventoryConsume') < checkout.indexOf("await client.query('COMMIT')"));
