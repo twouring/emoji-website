@@ -108,13 +108,28 @@ test('fetchRange：帶 x-atom-api-version、翻頁到底；非 SUCCESS 擲錯並
 test('fetchTransactions：按月抓、去重、session 失效重登；瀏覽器一定關', async () => {
   let launched = 0, closed = 0, logins = 0, fails = 1;
   const pages = [];
-  const mkPage = () => ({ evaluate: async (fn, args) => { if (!args) return; const body = args[1]; if (fails-- > 0) return { json: { code: 'G_REFRESH_SESSION' } }; return { json: { code: 'SUCCESS', info: { totalCount: 1, totalPageCount: 1, paymentTransactionList: [{ ...raw, transactionYmdt: body.startDateTime.slice(0, 10) + 'T10:00:00', transactionSequence: '2025' + body.startDateTime.slice(5, 7) + '0000000000' }, raw] } } }; }, close: async () => {}, setViewport: async () => {}, goto: async () => { logins++; }, waitForSelector: async () => {}, type: async () => {}, waitForFunction: async () => {} });
+  const mkPage = () => ({ evaluate: async (fn, args) => { if (!args) return; const body = args[1]; if (fails-- > 0) return { json: { code: 'G_REFRESH_SESSION' } }; return { json: { code: 'SUCCESS', info: { totalCount: 1, totalPageCount: 1, paymentTransactionList: [{ ...raw, transactionYmdt: body.startDateTime.slice(0, 10) + 'T10:00:00', transactionSequence: '2025' + body.startDateTime.slice(5, 7) + '0000000000' }, raw] } } }; }, close: async () => {}, setViewport: async () => {}, goto: async () => { logins++; }, waitForSelector: async () => {}, type: async () => {}, waitForFunction: async () => {}, url: () => 'https://pay.line.me/portal/tw/auth/login/id' });
   const puppeteer = { launch: async () => { launched++; return { newPage: async () => { const p = mkPage(); pages.push(p); return p; }, close: async () => { closed++; } }; } };
   const cfg = L.config({ LINEPAY_MERCHANT_ID: 'CR.1', LINEPAY_MERCHANT_PW: 'x' });
   const rows = await L.fetchTransactions(cfg, '2026-01-10', '2026-03-05', { puppeteer });
   assert.equal(launched, 1); assert.equal(closed, 1);
   assert.equal(pages.length, 2, '第一頁 session 失效 → 重登一次');
   assert.deepEqual(rows.map(r => r.id).sort(), ['2025010000000000', '2025020000000000', '2025030000000000', raw.transactionSequence], '每月一筆＋重複的 raw 只留一筆');
+});
+
+test('login：密碼頁沒出現會重試，三次都失敗時錯誤附上 LINE Pay 畫面文字', async () => {
+  let opened = 0, closed = 0, waits = [];
+  const mk = ok => ({ setViewport: async () => {}, goto: async () => {}, type: async () => {}, waitForFunction: async () => {}, close: async () => { closed++; },
+    url: () => 'https://pay.line.me/portal/tw/auth/login/id?locale=zh_TW',
+    evaluate: async fn => String(fn).includes('innerText') ? '請稍後再試' : undefined,
+    waitForSelector: async sel => { if (sel.includes('password') && !ok) throw Error('Waiting for selector `input[type="password"]` failed'); } });
+  const cfg = L.config({ LINEPAY_MERCHANT_ID: 'CR.1', LINEPAY_MERCHANT_PW: 'x' });
+  let n = 0;
+  const flaky = { newPage: async () => { opened++; return mk(++n >= 2); } };
+  const page = await L.login(flaky, cfg, { wait: async ms => { waits.push(ms); } });
+  assert.ok(page); assert.equal(opened, 2, '第一次失敗、第二次成功'); assert.equal(closed, 1, '失敗的分頁要關掉'); assert.deepEqual(waits, [3000]);
+  const dead = { newPage: async () => mk(false) };
+  await assert.rejects(L.login(dead, cfg, { wait: async () => {} }), e => e.loginFailed && /password/.test(e.message) && /請稍後再試/.test(e.message) && /auth\/login\/id/.test(e.message));
 });
 
 test('server.js 接線：資料表、日結回 linepay、同步／匯入端點、每日排程', () => {
