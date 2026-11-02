@@ -591,7 +591,7 @@ function splitTicketLines(lines){
     if(parts.length){const dp=parts.filter(p=>isDrinkCat(p.cat)),fp=parts.filter(p=>!isDrinkCat(p.cat));
       if(isDrinkCat(l.cat)){drink.push(l);continue;}
       if(fp.length||!dp.length)food.push(dp.length?{...l,parts:fp}:l);
-      if(dp.length)drink.push({...l,parts:dp,note:fp.length?'':l.note});
+      if(dp.length)drink.push({...l,parts:dp}); /* 套餐整份的客人備註兩張都印（KK 11/2：如「不要咖啡改可可」吧檯要看到） */
       continue;}
     (isDrinkCat(l.cat)?drink:food).push(l);
   }

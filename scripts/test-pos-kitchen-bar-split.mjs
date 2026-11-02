@@ -60,3 +60,8 @@ test('browser fallback prints both tickets with page break and distinct banners'
  assert.equal(html.length,1);assert.match(html[0],/tk-food[\s\S]*tk-drink/);assert.match(html[0],/page-break-after:always/);
  assert.match(html[0],/bn-food\{background:#000/);assert.match(html[0],/bn-drink\{background:repeating-linear-gradient/);
 });
+test('combo-level customer note prints on both food and drink tickets (KK 11/2)',()=>{
+ const {c}=ctx();c.o={id:'o7',table_no:'A5',items:[{zh:'貝果套餐',qty:1,price:250,cat:'COMBO',note:'No coffee. Cocoa instead',parts:[{slot:'貝果',zh:'原味貝果',cat:'BREAD'},{slot:'飲品',zh:'美式咖啡',cat:'COFFEE',note:'溫度：冰'}]}]};
+ const notes=JSON.parse(JSON.stringify(vm.runInContext('ticketParts(o).map(t=>[t.kind,t.order.items[0].note])',c)));
+ assert.deepEqual(notes,[['food','No coffee. Cocoa instead'],['drink','No coffee. Cocoa instead']]);
+});
