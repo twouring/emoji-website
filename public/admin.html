@@ -649,44 +649,9 @@ async function loadExec(manual){
   // 停在總覽且畫面可見時每分鐘自動更新
   EXEC_TIMER = setTimeout(()=>{ if (TAB==='overview' && !document.hidden) loadExec(); }, 60000);
 }
-document.addEventListener('visibilitychange', ()=>{ if (!document.hidden && TAB==='overview' && DATA && !DATA.brands) loadExec(); });
+document.addEventListener('visibilitychange', ()=>{ if (!document.hidden && TAB==='overview' && DATA) loadExec(); });
 
-function tabOverview(d, x){
-  if (!d.brands) return '<div id="exec-body"></div>';
-  return `
-  <div class="a-kpis">
-    <div class="a-kpi"><div class="kl">已收會費</div><div class="kv"><span class="u">NT$</span>${num(d.bond.raised)}</div></div>
-    <div class="a-kpi"><div class="kl">創始名額</div><div class="kv">${x.joined}<span class="u"> ／100</span></div></div>
-    <div class="a-kpi"><div class="kl">待入帳</div><div class="kv"><span class="u">NT$</span>${num(x.pending)}</div></div>
-    <div class="a-kpi"><div class="kl">入會人數</div><div class="kv">${x.people}<span class="u"> 人</span></div></div>
-    <div class="a-kpi"><div class="kl">使用者</div><div class="kv">${(d.users||[]).length}<span class="u"> 人</span></div></div>
-    <div class="a-kpi"><div class="kl">活動場次</div><div class="kv">${(d.events||[]).length}<span class="u"> 場</span></div></div>
-  </div>
-  <div class="a-sec" id="overview-todo">${overviewTodoHTML(d, x)}</div>
-  <div class="a-sec">
-    <h2>快速指引</h2>
-    <p class="hint">這裡管理所有品牌共用的會員、會費、官網消息、社群、廣告、活動與行事曆——在咖啡／三點水的品牌子帳號也能使用這些共用分頁。品牌現場營運（櫃檯結帳、點餐出餐、訂位、菜單）已全部移到 <b>pos.emoji.tw</b>，後台品牌列只保留<b>在咖啡</b>與<b>三點水</b>的日結報表與排班打卡（員工管理只能在這裡做，平板上的現場人員改不到）；「權限管理」「系統設定」「操作紀錄」僅言文字管理員可用。每個工作區與分頁都有獨立網址，可直接加入書籤。<a href="/access-mock" target="_blank" rel="noopener">門禁 Mock</a> 可協助手動驗簽與掃碼啟用。</p>
-  </div>`;
-}
-
-function overviewTodoHTML(d, x){
-  const now = Date.now(), week = now + 7*86400000;
-  const upcoming = (d.events||[]).map(e=>({e, t:Date.parse(e.starts_at_iso||e.starts_at)})).filter(({e,t})=>!isNaN(t) && t>=now-3*3600000 && t<=week && !['草稿','已取消','已結束'].includes(e.status)).sort((a,b)=>a.t-b.t);
-  const pendingPay = (d.commitments||[]).filter(c=>c.payment_status!=='已付款').length;
-  const apps = APPLICATIONS===null ? null : APPLICATIONS.filter(a=>a.status==='pending').length;
-  const item = (href, n, label) => `<a class="a-todo-item" href="${href}"><span class="n${n===0?' zero':''}">${n===null?'…':n}</span><span class="l">${label}</span></a>`;
-  return `<h2>今日待辦</h2>
-    <div class="a-todo">
-      ${false?'':item(BASE+'/events/applications', apps, '待審場地申請')}
-      ${false?'':item(BASE+'/commitments', pendingPay, '待入帳會費')}
-      ${item(BASE+'/events', upcoming.length, '7 天內活動')}
-    </div>
-    ${upcoming.length?`<ul class="a-todo-list">${upcoming.map(({e})=>`<li><a href="${BASE}/events/${encodeURIComponent(e.id)}">${esc(e.title)}</a><span class="meta">${esc(e.starts_at||'')} · ${esc(e.location||'')}</span><span class="meta">報名 ${e.reg_count||0}${e.capacity>0?'／'+e.capacity:''} · 已到 ${e.checkin_count||0}</span></li>`).join('')}</ul>`:'<p class="hint" style="margin:10px 0 0">未來 7 天沒有進行中的活動。</p>'}`;
-}
-function paintOverviewTodo(){
-  const host = document.getElementById('overview-todo'); if (!host || !DATA) return;
-  host.innerHTML = overviewTodoHTML(DATA, derived(DATA));
-}
+function tabOverview(){ return '<div id="exec-body"></div>'; }
 
 function tabMembers(d, x){
   const body = (d.users||[]).map(u=>{
@@ -1321,7 +1286,7 @@ function tabAdmins(d){
   return `<div class="a-sec">
     <h2>權限管理</h2>
     ${createForm}
-    <p class="hint">只有超管可授予管理員。品牌全不勾＝言文字管理員，可進全部工作區；勾選一個以上＝品牌子帳號，除了勾選的品牌工作區（在咖啡／三點水只剩「日結報表」「排班打卡」，現場營運請改用 pos.emoji.tw），也會一併進入言文字工作區的共用分頁（會員、會費、消息、社群、廣告、活動、行事曆），但「權限管理」「系統設定」「操作紀錄」僅言文字管理員可用。外部主辦人不在這裡設定：到「言文字 → 活動」開啟該場活動的「主辦團隊」，加入對方 Email 並勾選「共同管理本活動」，對方即可從會員 App 的 /host 管理那一場。</p>
+    <p class="hint">只有超管可授予管理員。品牌全不勾＝言文字管理員（總公司），可用 admin.emoji.tw 與 pos.emoji.tw；勾選一個以上＝品牌子帳號（門市），只能用 pos.emoji.tw，登入 admin 會被擋回。外部主辦人不在這裡設定：到「活動」開啟該場活動的「主辦團隊」，加入對方 Email 並勾選「共同管理本活動」，對方即可從會員 App 的 /host 管理那一場。</p>
     <div class="a-wrap2"><table class="a-tbl">
       <thead><tr><th>姓名</th><th>Email</th><th>目前</th><th>操作</th></tr></thead>
       <tbody>${body}</tbody></table></div>
@@ -1331,15 +1296,14 @@ function tabAdmins(d){
 /* 後台不分品牌（KK 2026-11-02）：主要使用者是言文字高管，用手機一次看所有品牌。
    - 只有一組分頁，網址 /admin/<分頁>；舊的 /admin/shared|cafe|bar|space/<分頁> 自動轉成新網址。
    - 首頁「總覽」＝高管總覽（GET /api/admin/exec）：所有品牌今天的營收、帳本、桌況、在班人力，並挑出需要處理的問題。
-   - 日結報表、排班打卡一律看全部品牌（SCOPE＝''）；品牌子帳號由伺服器依帳號限縮資料，看不到「權限管理」「系統設定」「操作紀錄」「合作開發」。
+   - 只給總公司（言文字管理員）使用；品牌子帳號登入直接擋回，門市一律用 pos.emoji.tw。日結報表、排班打卡看全部品牌（SCOPE＝''）。
    - 現場營運（櫃檯結帳、出餐、訂位、估清）仍在 pos.emoji.tw。員工新增／編輯與出勤修正刻意留在 admin（平板四位數密碼登入的現場人員不能改）。 */
 const ADMIN_TABS = ['overview','sales','staff','events','calendar','members','commitments','updates','menu','social','ads','outreach','permissions','system','logs'];
-const BRAND_HIDDEN = ['permissions','system','logs','outreach'];
 const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水' };
 const SCOPE = '';   // pos-ops.js 共用：空字串＝所有品牌
 const OLD_WORKSPACE_SLUGS = ['shared','cafe','bar','space'];
-const scopeTabs = () => DATA && DATA.brands ? ADMIN_TABS.filter(t => !BRAND_HIDDEN.includes(t)) : ADMIN_TABS;
-const homeTab = d => d && d.brands ? 'sales' : 'overview';
+const scopeTabs = () => ADMIN_TABS;
+const homeTab = () => 'overview';
 // 手機底部固定分頁（其餘收在「更多」）
 const DOCK_TABS = ['overview','sales','staff','events'];
 const TABS = [
@@ -1440,7 +1404,7 @@ function render(d){
   if (crumb) {
     crumb.hidden = false;
     document.getElementById('a-crumb-workspace').textContent = '言文字';
-    document.getElementById('a-role').textContent = false ? '活動主' : d.super ? '言文字 · 超級管理員' : d.brands ? d.brands.map(b=>BRAND_LABEL[b]||b).join('＋')+' · 子帳號' : '言文字 · 管理員';
+    document.getElementById('a-role').textContent = false ? '活動主' : d.super ? '言文字 · 超級管理員' : '言文字 · 管理員';
   }
   const more = document.querySelector('[data-more]'), side = document.getElementById('a-nav');
   if (more && side) more.onclick = () => { const open = !side.classList.contains('open'); side.classList.toggle('open', open); more.setAttribute('aria-expanded', String(open)); more.classList.toggle('on', open); document.querySelectorAll('.a-dock [data-tab]').forEach(b => b.classList.toggle('on', !open && b.dataset.tab === TAB)); };
@@ -1483,7 +1447,7 @@ function applyRoute(){
   const tab = parts[0];
   if (!document.querySelector(`[data-panel="${CSS.escape(tab)}"]`)) { go('', true); return; }
   activateTab(tab);
-  if (tab === 'overview') { if (DATA && DATA.brands) { if (APPLICATIONS===null) loadApplications().then(paintOverviewTodo); } else loadExec(); return; }
+  if (tab === 'overview') { loadExec(); return; }
   if (tab === 'calendar') { if (APPLICATIONS===null) loadApplications().then(paintCalendar); paintCalendar(); return; }
   if (tab === 'orders') { loadOrders(); return; }
   if (tab === 'pos') { loadPos(); return; }
@@ -3428,6 +3392,8 @@ async function main(){
     if (d.role !== 'admin') {
       return renderLogin('活動請到 App 管理。');
     }
+    // admin 只給總公司（KK 2026-11-02）：品牌子帳號（店長／現場）一律用 pos.emoji.tw
+    if (d.brands) return renderLogin('後台只開放總公司帳號；門市請使用 <a href="https://pos.emoji.tw/pos">pos.emoji.tw</a>。');
     await ensureIgScripts();
     render(d);
     applyRoute();

@@ -17,9 +17,11 @@ test('後台不再分品牌工作區：沒有工作區切換、只有一組分�
   assert.doesNotMatch(html, /tabCounter|paintCounter|COUNTER_UID/);
 });
 
-test('品牌子帳號看不到權限／系統設定／操作紀錄／合作開發，首頁落在日結', () => {
-  assert.match(html, /const BRAND_HIDDEN = \['permissions','system','logs','outreach'\]/);
-  assert.match(html, /const homeTab = d => d && d\.brands \? 'sales' : 'overview'/);
+test('admin 只給總公司：品牌子帳號登入直接擋回 POS，沒有子帳號分支', () => {
+  assert.match(html, /if \(d\.brands\) return renderLogin\('後台只開放總公司帳號/);
+  assert.match(html, /const scopeTabs = \(\) => ADMIN_TABS;/);
+  assert.match(html, /const homeTab = \(\) => 'overview';/);
+  assert.doesNotMatch(html, /BRAND_HIDDEN|DATA\.brands|overviewTodoHTML/);
   assert.doesNotMatch(html, /d\.organizer|ORGANIZER_PORTAL/, 'admin 不再保留主辦模式分支');
 });
 
@@ -48,7 +50,7 @@ test('舊網址（/admin/shared|cafe|bar|space/…）拿掉工作區前綴', () 
 
 test('總覽＝高管總覽：讀 /api/admin/exec、每分鐘自動更新、底部總覽鈕有問題數', () => {
   assert.match(html, /EXEC = await api\('\/admin\/exec'\)/);
-  assert.match(html, /if \(tab === 'overview'\) \{ if \(DATA && DATA\.brands\)/);
+  assert.match(html, /if \(tab === 'overview'\) \{ loadExec\(\); return; \}/);
   assert.match(html, /EXEC_TIMER = setTimeout\(/);
   assert.match(html, /data-exec-dot/);
   assert.match(html, /function execIssue\(i\)/);
