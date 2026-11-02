@@ -165,7 +165,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 .pay-by{display:flex;align-items:center;gap:6px;color:var(--muted);margin:8px 0 0}
 
 /* 長字語系（英／日／韓）按鈕不破版（KK 11/2）：主按鈕可換行，返回鍵依內容寬 */
-.sheet-actions .btn,#item-detail .sheet-actions .btn,#tip .sheet-actions .btn{white-space:normal;line-height:1.2}.sheet-actions .btn.ghost,#item-detail .sheet-actions .btn.ghost{flex:0 1 auto}
+.sheet-actions .btn,#item-detail .sheet-actions .btn,#tip .sheet-actions .btn{white-space:normal;line-height:1.2}#cart .sheet-actions .btn,.bar .btn{white-space:nowrap}.sheet-actions .btn.ghost,#item-detail .sheet-actions .btn.ghost{flex:0 1 auto}
 </style>
 </head>
 <body>
@@ -466,9 +466,9 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     // 有還沒送出的品項才出現「送出點餐」；桌邊沒有結帳鍵，用餐完到櫃檯由現場人員在 POS 結帳
     $('#bar').classList.toggle('has-place',p.length>0);$('#bar-place').hidden=!p.length;$('#cart-place').hidden=!p.length;
     // 送出鍵寫清楚會送幾項、有沒有包到別人的：「送出 5 項（含小華 2 項）」
-    var op=othersPending(),placeText=op.length?tr('place_with_others',{count:p.length,others:othersSummary(op)}):tr('place_n',{count:p.length});
+    var op=othersPending(),placeText=tr('place_n',{count:p.length});   // 按鈕一律單行；含別人的品項寫在上方提示列
     ['#bar-place','#cart-place'].forEach(function(id){var el=$(id+' span[data-i18n]')||$(id+' span');if(el)el.textContent=placeText;});
-    var hint=$('#place-hint');if(hint){hint.hidden=!op.length;hint.textContent=tr('others_pending_hint');}
+    var hint=$('#place-hint');if(hint){hint.hidden=!op.length;hint.textContent=op.length?tr('place_with_others',{count:p.length,others:othersSummary(op)})+'｜'+tr('others_pending_hint'):'';}
     // 已點清單：依人分組；每行標示未送出／已送出／已出餐
     var tag=function(l){return l.song||l.tip?'':l.served_at?'<span class="tag">'+esc(tr('served'))+'</span>':l.placed_at?'<span class="tag placed">'+esc(tr('placed'))+'</span>':'<span class="tag pending">'+esc(tr('not_sent'))+'</span>';};
     var groups={},order=[];u.forEach(function(l){var k=l.by+(l.mine?'#me':'');if(!groups[k]){groups[k]={by:l.by,mine:l.mine,lines:[]};order.push(k);}groups[k].lines.push(l);});

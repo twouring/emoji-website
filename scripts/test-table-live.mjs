@@ -79,7 +79,9 @@ test('客人端：別人加／移除品項吐司提示並閃該行；送出鍵�
   assert.match(html, /\.line\.fresh\{animation:line-in/);
   assert.match(html, /\.line\.others-pending\{background:#fff6c2/);
   assert.match(html, /!l\.mine&&!l\.placed_at\?' others-pending'/);
-  assert.match(html, /tr\('place_with_others',\{count:p\.length,others:othersSummary\(op\)\}\):tr\('place_n',\{count:p\.length\}\)/);
+  assert.match(html, /placeText=tr\('place_n',\{count:p\.length\}\)/);   // 送出鈕單行（KK 11/3），含別人的品項寫在提示列
+  assert.match(html, /hint\.textContent=op\.length\?tr\('place_with_others',\{count:p\.length,others:othersSummary\(op\)\}\)/);
+  assert.match(html, /#cart \.sheet-actions \.btn,\.bar \.btn\{white-space:nowrap\}/);
   assert.match(html, /var op=othersPending\(\);if\(op\.length&&!confirm\(tr\('place_confirm',\{others:joinItems\(op\)\}\)\)\)return;/);
   assert.match(html, /id="place-hint"/);
   for (const key of ['place_n', 'place_with_others', 'place_confirm', 'someone_added', 'someone_removed', 'others_pending_hint', 'n_items']) {
