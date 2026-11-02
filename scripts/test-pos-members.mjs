@@ -8,7 +8,7 @@ test('switching tables clears bill identity and redemption selection',()=>{
  let click;
  const ctx=vm.createContext({host:{querySelectorAll:()=>[{dataset:{posTable:'A2'},set onclick(fn){click=fn;}}]},POS_YAN:{id:'u1',redeemSet:new Set(['line1'])},POS_MEMBER:true,paintPos:()=>{}});
  const line=ops.split('\n').find(l=>l.includes("host.querySelectorAll('[data-pos-table]')"));
- vm.runInContext(line,ctx);click();assert.equal(ctx.POS_YAN.id,undefined);assert.equal(ctx.POS_MEMBER,false);
+ vm.runInContext(ops.split('\n').find(l=>l.startsWith('function posSelectTable(')),ctx);vm.runInContext(line,ctx);click();assert.equal(ctx.POS_TABLE,'A2');assert.equal(ctx.POS_YAN.id,undefined);assert.equal(ctx.POS_MEMBER,false);
 });
 test('late phone lookup and card scan cannot bind a different table or replace a newer choice',async()=>{
  for(const mode of ['lookup','scan']){

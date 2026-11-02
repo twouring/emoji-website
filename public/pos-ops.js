@@ -1057,6 +1057,11 @@ async function openManyTables(empty,reload){
     for(const o of opened){if(!starReady()){await openOneTableQr(o.table);break;}await printTableQr(o.table,o.qr_url,o);}   // 沒接 mPOP 時只顯示第一桌，其餘到各桌按 QR 補
   });
 }
+/* 桌號獨立網址（KK 11/2）：/pos/table/<桌號>；只在 /pos 生效（/admin 共用本檔，不動網址）。
+   進桌 push（上一頁回桌況）；桌已清掉／不存在用 replace，網址退回 /pos。 */
+const posTableUrl=t=>'/pos'+(t?'/table/'+encodeURIComponent(t):'');
+function syncPosTableUrl(replace){if(typeof location==='undefined'||typeof history==='undefined'||!/^\/pos(\/|$)/.test(location.pathname)||typeof TAB==='undefined'||TAB!=='pos')return;const url=posTableUrl(POS_TABLE);if(location.pathname!==url)history[replace?'replaceState':'pushState'](null,'',url);}
+function posSelectTable(t){POS_TABLE=t||'';POS_OPT=null;POS_MENU_SCROLL=0;POS_LEFT_SCROLL=0;POS_PICK=null;POS_QTY={};POS_PAYREQ=null;POS_YAN={phone:'',name:'',balance:null};POS_MEMBER=false;POS_SPLIT={};POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_DISC_OPEN=false;POS_INV_VALS={};POS_RECEIVED='';POS_AA=null;paintPos();}
 async function loadPos(){
   const host=document.getElementById('pos-body');if(!host)return;
   clearTimeout(POS_TIMER);
@@ -1278,7 +1283,8 @@ function paintPos(){
   if(!document.querySelector?.('.pos-scan-full'))stopPosInvoiceScanner(); // 全螢幕掃載具開著時，背景輪詢重繪不能把相機關掉
   {const m=host.querySelector('.pos-menu');if(m&&typeof m.scrollTop==='number')POS_MENU_SCROLL=m.scrollTop;const c=host.querySelector('.pos-cats');if(c&&typeof c.scrollLeft==='number')POS_CATS_LEFT=c.scrollLeft;const l=host.querySelector('.pos-mid');if(l&&typeof l.scrollTop==='number'&&POS_LEFT_SCROLL!==1e9)POS_LEFT_SCROLL=l.scrollTop;}
   const sessions=d.sessions;
-  if(POS_TABLE&&!sessions.find(s=>s.table===POS_TABLE))POS_TABLE='';
+  const tableGone=!!POS_TABLE&&!sessions.find(s=>s.table===POS_TABLE);if(tableGone)POS_TABLE='';
+  syncPosTableUrl(tableGone);
   const cur=sessions.find(s=>s.table===POS_TABLE)||null;
   if(POS_YAN.sessionId&&POS_YAN.sessionId!==cur?.id){POS_YAN={phone:'',name:'',balance:null};POS_MEMBER=false;}
   // 桌況格固定先列出現場的 16 桌（不管有沒有開桌，方便現場人員直接點選開桌），已開桌/外帶但不在固定桌號清單裡的（例如外帶、加開的桌）排在後面
@@ -1384,7 +1390,7 @@ function paintPos(){
   {const m=host.querySelector('.pos-menu');if(m&&POS_MENU_SCROLL)m.scrollTop=POS_MENU_SCROLL;const c=host.querySelector('.pos-cats');if(c&&POS_CATS_LEFT)c.scrollLeft=POS_CATS_LEFT;const l=host.querySelector('.pos-mid');if(l&&POS_LEFT_SCROLL){l.scrollTop=POS_LEFT_SCROLL;if(POS_LEFT_SCROLL===1e9)POS_LEFT_SCROLL=l.scrollTop;}}
   if(!document.getElementById('p-drawer'))bindCashDrawerButton(host.querySelector('#pos-cash-drawer'));
   bindPrintStatus(host,()=>{host.dataset.sig='';paintPos();});
-  host.querySelectorAll('[data-pos-table]').forEach(b=>b.onclick=()=>{POS_TABLE=b.dataset.posTable;POS_OPT=null;POS_MENU_SCROLL=0;POS_LEFT_SCROLL=0;POS_PICK=null;POS_QTY={};POS_PAYREQ=null;POS_YAN={phone:'',name:'',balance:null};POS_MEMBER=false;POS_SPLIT={};POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_DISC_OPEN=false;POS_INV_VALS={};POS_RECEIVED='';POS_AA=null;paintPos();});
+  host.querySelectorAll('[data-pos-table]').forEach(b=>b.onclick=()=>posSelectTable(b.dataset.posTable));
   // 開桌／外帶：每次都先輸入 PIN 認人，記這桌是誰開的（與結帳、作廢、開錢櫃一致）
   // 內用開桌先選人數（大人／小孩），外帶不用
   const openSession=async body=>{if(!body.takeout){const p=await pickParty(`${body.table_no} 開桌`);if(!p)return;body={...body,...p};}

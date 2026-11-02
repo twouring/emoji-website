@@ -367,7 +367,7 @@ function downloadCSV(filename, rows){
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'})); a.download = filename; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
 }
 // 分頁網址：/pos（結帳）、/pos/orders、/pos/soldout、/pos/reservations、/pos/history、/pos/sales、/pos/clock、/pos/analytics（/pos/analytics/customers＝客群）、/pos/settings（底下 /pos/inventory、/pos/shifts、/pos/logs）；pos.emoji.tw 與 www.emoji.tw 皆可
-const tabUrl = tab => '/pos' + (tab === 'pos' ? '' : '/' + tab) + (tab === 'analytics' && typeof ANALYTICS_KIND !== 'undefined' && ANALYTICS_KIND !== 'products' ? '/' + ANALYTICS_KIND : '');
+const tabUrl = tab => (tab === 'pos' ? posTableUrl(POS_TABLE) : '/pos/' + tab) + (tab === 'analytics' && typeof ANALYTICS_KIND !== 'undefined' && ANALYTICS_KIND !== 'products' ? '/' + ANALYTICS_KIND : '');
 function opsHref(tab){ return tabUrl(tab); }
 // Google 登入的 callback 綁在官網網域（PUBLIC_ORIGIN），state cookie 也在那裡：子網域一律先到 www 發起，登入完成再以 #token 導回本站
 const AUTH_ORIGIN = /^pos\./i.test(location.hostname) ? location.origin.replace(/\/\/pos\./i, '//www.') : location.origin;
@@ -500,12 +500,16 @@ function setScope(s){ if (DATA?.me?.operator && s !== scopesOf(DATA)[0]) return;
 
 // 舊網址 /pos/products、/pos/customers 併入「分析」：/pos/analytics/products|customers
 const LEGACY_ANALYTICS = { products:'products', customers:'customers' };
+let ROUTE_TABLE = '';
 function routeTab(){
   const seg = location.pathname.replace(/^\/pos\/?/, '').replace(/\/+$/,'').split('/');
   if (LEGACY_ANALYTICS[seg[0]]) { ANALYTICS_KIND = LEGACY_ANALYTICS[seg[0]]; history.replaceState(null, '', '/pos/analytics/' + ANALYTICS_KIND); return 'analytics'; }
   if (seg[0] === 'analytics' && LEGACY_ANALYTICS[seg[1]]) ANALYTICS_KIND = seg[1];
   // 出餐分頁已移除（KK 11/2：只用紙本出餐單），舊網址 /pos/orders 轉回結帳
   if (seg[0] === 'orders') { history.replaceState(null, '', '/pos'); return 'pos'; }
+  // 桌號獨立網址 /pos/table/<桌號>：直接開或上一頁／下一頁時切到該桌；桌沒開會在 paintPos 退回 /pos
+  ROUTE_TABLE = seg[0] === 'table' ? decodeURIComponent(seg[1] || '') : '';
+  if (seg[0] === 'table') return 'pos';
   return TABS.some(t=>t.id===seg[0]) ? seg[0] : 'pos';
 }
 function go(tab, replace){
@@ -518,7 +522,7 @@ document.addEventListener('click', e => {
   const a = e.target.closest('a[data-tab]'); if (!a) return;
   e.preventDefault(); go(a.dataset.tab);
 });
-window.addEventListener('popstate', () => { TAB = routeTab(); paintNav(); activate(); });
+window.addEventListener('popstate', () => { TAB = routeTab(); if (TAB === 'pos' && POS_TABLE !== ROUTE_TABLE) posSelectTable(ROUTE_TABLE); paintNav(); activate(); });
 
 // 分頁列（手機單行可滑動時）還能往右滑就亮「›」提示：淡化邊緣太不明顯，10/13 就是因為使用者完全看不出還有分頁而漏用「打卡」「排班」，這次用明確的提示而不是只靠邊緣效果
 const navEl = document.getElementById('p-nav');
@@ -647,6 +651,7 @@ async function main(){
     DATA = d;
     MENU_DOC = (typeof d.content?.menu === 'string' && d.content.menu.trim()) ? MenuLib.parseMenuDoc(d.content.menu) : MenuLib.parseMenuDoc('');
     TAB = routeTab();
+    if (TAB === 'pos') POS_TABLE = ROUTE_TABLE;
     if (d.me?.operator) setScope(scopesOf(d)[0] || '');
     render();
     refreshPending();

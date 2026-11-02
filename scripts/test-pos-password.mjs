@@ -70,7 +70,7 @@ for (const [label,state,allowed] of [
   const paths=[],screens=[];
   const ctx={token:'signed-session',DEVICE_ID:'test-device',DEVICE_BOUND:false,justLoggedInByAdmin:true,
     BRAND_LABEL:{CAFE:'在咖啡',BAR:'三點水'},api:async path=>{paths.push(path);return path==='/state'?state:{};},
-    showLoginScreen:msg=>screens.push(msg),MenuLib:{parseMenuDoc:()=>({})},routeTab:()=> 'pos',
+    showLoginScreen:msg=>screens.push(msg),MenuLib:{parseMenuDoc:()=>({})},routeTab:()=> 'pos',ROUTE_TABLE:'',POS_TABLE:'',
     render:()=>{ctx.rendered=true;},refreshPending(){},renewToken(){},app:{},esc:String};
   runInNewContext(boot,ctx);
   await ctx.main();
