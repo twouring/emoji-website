@@ -1,4 +1,4 @@
-// 大家來找碴（lib/bug-reports.js、server.js 路由、App 畫面、POS 審核頁）
+// 大家來找碴（lib/bug-reports.js、server.js 路由、POS 審核頁）
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
@@ -44,15 +44,9 @@ test('server.js：建表、會員送出走 multipart＋檔頭驗證、後台審�
   assert.match(s, /app\.post\('\/api\/admin\/bug-reports\/:id\/review',auth,adminOnly,requireDb/);
 });
 
-test('App：首頁入口、拍照與選照片兩個輸入、照片先縮圖、?bug=1 直達', () => {
+test('App：不提供大家來找碴入口或直達參數', () => {
   const m = read('public/m.html');
-  assert.match(m, /id="bug-open" type="button"/);
-  assert.match(m, /accept="image\/\*" capture="environment" id="bgc"/);
-  assert.match(m, /accept="image\/\*" multiple id="bgp"/);
-  assert.match(m, /function shrinkPhoto\(file\)/);
-  assert.match(m, /query\.get\('bug'\)/);
-  assert.match(m, /fetch\('\/api\/me\/bug-reports',\{method:'POST'/);
-  for (const l of ['zh', 'en', 'ja']) assert.match(m, new RegExp(l + ":\\{locale:'[^']+',bugEntry:"));
+  for (const marker of ['bug-open', 'openBug', "query.get('bug')", '/api/me/bug-reports']) assert.doesNotMatch(m, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 });
 
 test('POS：設定裡有「找碴」，審核鍵四種狀態', () => {
