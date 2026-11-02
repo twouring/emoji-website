@@ -57,6 +57,8 @@ test('點餐頁：App 網域共用會員登入、可加到主畫面（裝的是 
   assert.match(h, /id="install-card"/); assert.match(h, /id="inst"/); assert.match(h, /beforeinstallprompt/);
   assert.match(h, /register\('\/event-push-sw\.js',\{scope:'\/order'\}\)/);   // 不可佔用 App 的根 scope（m-sw.js）
   assert.match(h, /id="app-home"/);
+  assert.match(h, /id="app-home" href="https:\/\/app\.emoji\.tw\/"/);   // 一律顯示，任何網域都能跳到 App（KK 11/2）
+  assert.doesNotMatch(h, /id="app-home"[^>]*hidden/);
   require(path.join(root, 'public/order-lib.js')); const L = globalThis.OrderLib;
   for (const lang of ['zh', 'en', 'ja']) for (const k of ['inst_title', 'inst_sub', 'inst_btn', 'inst_later', 'inst_ios_1', 'inst_ios_2', 'inst_ios_3', 'inst_inapp_1']) {
     const v = L.text(lang, k); assert.ok(v && v !== k, lang + ' ' + k);
