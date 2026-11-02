@@ -775,7 +775,7 @@ async function migrate() {
     id TEXT PRIMARY KEY, session_id TEXT NOT NULL, table_no TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL, rating INT, text TEXT NOT NULL,
     name TEXT NOT NULL DEFAULT '', lang TEXT NOT NULL DEFAULT 'zh', created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE INDEX IF NOT EXISTS order_feedback_created_idx ON order_feedback(created_at DESC)`);
-  // 大家來找碴（lib/bug-reports.js）：會員在 App 拍照回報，POS「設定 → 找碴」審核；認可一件＝1 點（獨立計數，不進會員點數帳本）
+  // 大家來找碴（lib/bug-reports.js）：會員在 App 拍照回報，POS「設定 → 找碴」審核；認可一件＝會員點數 +1（yan_ledger，取消認可沖回）
   await q(`CREATE TABLE IF NOT EXISTS bug_reports (
     id TEXT PRIMARY KEY, user_id TEXT NOT NULL, user_name TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL, location TEXT NOT NULL, text TEXT NOT NULL DEFAULT '',
     photos JSONB NOT NULL DEFAULT '[]', lang TEXT NOT NULL DEFAULT 'zh', status TEXT NOT NULL DEFAULT 'pending', review_note TEXT NOT NULL DEFAULT '',
@@ -7334,7 +7334,7 @@ app.get('/api/admin/orders/feedback',auth,adminOnly,requireDb,wrap(async(req,res
 /* ---- 意見回饋 end ---- */
 
 /* ---- 大家來找碴（lib/bug-reports.js）：會員在 App 拍照／選照片＋位置＋說明送出（multipart，照片 0–4 張、每張 8MB 內），
-   POS「設定 → 找碴」審核：認可一件＝1 點，另有不認可／重複。照片走 igPublisher.uploadAsset（正式站＝GCS），失敗才落本機 uploads/bugs。 */
+   POS「設定 → 找碴」審核：認可一件＝會員點數 +1，另有不認可／重複。照片走 igPublisher.uploadAsset（正式站＝GCS），失敗才落本機 uploads/bugs。 */
 const UPLOAD_BUG_DIR=path.join(__dirname,'uploads','bugs');fs.mkdirSync(UPLOAD_BUG_DIR,{recursive:true});
 const bugUpload=multer({storage:multer.memoryStorage(),limits:{fileSize:bugReports.MAX_PHOTO_BYTES,files:bugReports.MAX_PHOTOS,fields:8,parts:bugReports.MAX_PHOTOS+8}});
 const bugView=r=>({id:r.id,kind:r.kind,location:r.location,text:r.text,photos:r.photos||[],status:r.status,review_note:r.review_note,created_at:r.created_at,reviewed_at:r.reviewed_at});
@@ -7382,10 +7382,23 @@ app.post('/api/admin/bug-reports/:id/review',auth,adminOnly,requireDb,wrap(async
   let status;try{status=bugReports.reviewStatus(req.body?.status);}catch(e){return res.status(400).json({error:e.message});}
   const note=String(req.body?.note||'').replace(/[\u0000-\u001f]/g,' ').trim().slice(0,200);
   const by=String(actorOf(req.auth)||'').slice(0,120);
-  const r=(await q(`UPDATE bug_reports SET status=$2,review_note=$3,reviewed_by=$4,reviewed_at=CASE WHEN $2='pending' THEN NULL ELSE now() END WHERE id=$1 RETURNING *`,[String(req.params.id),status,note,status==='pending'?'':by])).rows[0];
-  if(!r)return res.status(404).json({error:'找不到這筆回報。'});
-  const points=(await q(`SELECT count(*)::int n FROM bug_reports WHERE user_id=$1 AND status='accepted'`,[r.user_id])).rows[0].n;
-  res.json({ok:true,report:{...bugView(r),user_id:r.user_id,user_name:r.user_name,reviewed_by:r.reviewed_by},user_points:points});
+  // 認可＝會員點數帳本 +1（yan.applyBugPoint）；從認可改成其他狀態就沖回。狀態與點數同一個交易。
+  const client=await pool.connect();let r,points,balance=null;
+  try{
+    await client.query('BEGIN');
+    r=(await client.query(`UPDATE bug_reports SET status=$2,review_note=$3,reviewed_by=$4,reviewed_at=CASE WHEN $2='pending' THEN NULL ELSE now() END WHERE id=$1 RETURNING *`,[String(req.params.id),status,note,status==='pending'?'':by])).rows[0];
+    if(!r){await client.query('ROLLBACK');return res.status(404).json({error:'找不到這筆回報。'});}
+    if((await client.query('SELECT 1 FROM users WHERE id=$1',[r.user_id])).rows[0]){
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,2))',[r.user_id]);
+      const before=await yanRowsFor(client,r.user_id);
+      const y=yan.applyBugPoint(before,{userId:r.user_id,reportId:r.id,accepted:status==='accepted',location:r.location,actor:by});
+      await persistYanDiff(client,before,y.rows);balance=yan.balance(y.rows);
+    }
+    points=(await client.query(`SELECT count(*)::int n FROM bug_reports WHERE user_id=$1 AND status='accepted'`,[r.user_id])).rows[0].n;
+    await client.query('COMMIT');
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}
+  finally{client.release();}
+  res.json({ok:true,report:{...bugView(r),user_id:r.user_id,user_name:r.user_name,reviewed_by:r.reviewed_by},user_points:points,balance});
 }));
 /* ---- 大家來找碴 end ---- */
 

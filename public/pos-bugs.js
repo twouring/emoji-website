@@ -1,4 +1,4 @@
-/* POS 大家來找碴（「設定 → 找碴」，網址 /pos/bugs）：會員在 App 拍照回報的問題，逐筆審核（認可＝1 點／不認可／重複），
+/* POS 大家來找碴（「設定 → 找碴」，網址 /pos/bugs）：會員在 App 拍照回報的問題，逐筆審核（認可＝會員點數 +1，取消認可會扣回／不認可／重複），
  * 右側排行依認可件數。開幕活動現場用：每 10 秒自動更新。依賴 pos.html 的 esc/api/toast/go/downloadCSV。 */
 let BG = { data: null, status: 'pending', err: '', timer: null, from: '', to: '' };
 function tabBugs(){ return '<div class="a-sec" id="bg-body"></div>'; }
@@ -31,7 +31,7 @@ function paintBugs(){
         <label>狀態<select name="status"><option value="">全部（${d.count}）</option>${Object.entries(S).map(([k, v]) => `<option value="${esc(k)}" ${BG.status === k ? 'selected' : ''}>${esc(v)}（${c[k] || 0}）</option>`).join('')}</select></label>
         <button type="submit" class="btn btn--ghost btn-sm">查詢</button>${(d.reports || []).length ? '<button type="button" class="btn btn--ghost btn-sm" data-bg-csv>匯出 CSV</button>' : ''}</form>
       <div class="bg-grid"><div>${rows.length ? rows.map(card).join('') : '<p class="a-empty">沒有符合的回報。</p>'}</div>
-        <aside class="bg-board"><h3>排行（認可件數＝點數）</h3>${(d.leaderboard || []).length ? `<ol>${d.leaderboard.map(x => `<li><span>${esc(x.name || '會員')}</span><b>${x.points}</b></li>`).join('')}</ol>` : '<p class="a-empty">還沒有認可的回報。</p>'}
+        <aside class="bg-board"><h3>排行（認可件數）</h3>${(d.leaderboard || []).length ? `<ol>${d.leaderboard.map(x => `<li><span>${esc(x.name || '會員')}</span><b>${x.points}</b></li>`).join('')}</ol>` : '<p class="a-empty">還沒有認可的回報。</p>'}
           <p class="hint">待審核 ${c.pending || 0}・認可 ${c.accepted || 0}・重複 ${c.duplicate || 0}・不認可 ${c.rejected || 0}</p></aside></div>
     </div>`;
 }
@@ -43,7 +43,7 @@ document.addEventListener('click', async e => {
   if (b.dataset.review) {
     const cardEl = b.closest('[data-id]'), note = cardEl.querySelector('[data-note]').value;
     b.disabled = true;
-    try { const out = await api('/admin/bug-reports/' + encodeURIComponent(cardEl.dataset.id) + '/review', { method: 'POST', body: { status: b.dataset.review, note } }); toast(b.dataset.review === 'accepted' ? `已認可，${out.report.user_name || '會員'} 目前 ${out.user_points} 點` : '已更新'); await loadBugs(); }
+    try { const out = await api('/admin/bug-reports/' + encodeURIComponent(cardEl.dataset.id) + '/review', { method: 'POST', body: { status: b.dataset.review, note } }); toast(b.dataset.review === 'accepted' ? `已認可，${out.report.user_name || '會員'} 會員點數 +1${out.balance != null ? `（可用 ${out.balance} 點）` : ''}` : '已更新'); await loadBugs(); }
     catch (x) { toast(x.message || '更新失敗'); b.disabled = false; }
   }
 });

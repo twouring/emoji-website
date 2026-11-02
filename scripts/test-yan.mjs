@@ -201,3 +201,20 @@ test('手動給點 API 與 POS 按鈕存在，且走操作者驗證', () => {
   assert.match(pos, /operator_id:OPERATOR\?\.id/);
   assert.doesNotMatch(read('public/pos-ops.js'), /pos-yan-grant|pos-yan-space/);
 });
+
+test('大家來找碴：認可＝會員點數 +1，重複認可不重複加，取消認可沖回，再認可重新給點', () => {
+  const at = '2026-11-02T05:00:00Z', now = new Date('2026-11-03T00:00:00Z');
+  let r = Y.applyBugPoint([], { userId: 'u1', reportId: 'bug_a', accepted: true, location: '2F 淋浴間', actor: 'staff', at });
+  assert.equal(r.delta, 1); assert.equal(Y.balance(r.rows, now), 1);
+  assert.equal(r.rows[0].kind, 'grant'); assert.equal(r.rows[0].ref_type, 'bug'); assert.equal(r.rows[0].ref_id, 'bug_a#1'); assert.match(r.rows[0].reason, /2F 淋浴間/);
+  r = Y.applyBugPoint(r.rows, { userId: 'u1', reportId: 'bug_a', accepted: true, at });
+  assert.equal(r.delta, 0); assert.equal(Y.balance(r.rows, now), 1);
+  r = Y.applyBugPoint(r.rows, { userId: 'u1', reportId: 'bug_a', accepted: false, at });
+  assert.equal(r.delta, -1); assert.equal(Y.balance(r.rows, now), 0); assert.equal(r.rows.at(-1).ref_id, 'bug_a#1');
+  r = Y.applyBugPoint(r.rows, { userId: 'u1', reportId: 'bug_a', accepted: false, at });
+  assert.equal(r.delta, 0);
+  r = Y.applyBugPoint(r.rows, { userId: 'u1', reportId: 'bug_a', accepted: true, at });
+  assert.equal(r.delta, 1); assert.equal(r.rows.at(-1).ref_id, 'bug_a#2'); assert.equal(Y.balance(r.rows, now), 1);
+  r = Y.applyBugPoint(r.rows, { userId: 'u1', reportId: 'bug_ab', accepted: true, at });
+  assert.equal(r.delta, 1); assert.equal(Y.balance(r.rows, now), 2);
+});

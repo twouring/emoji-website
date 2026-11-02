@@ -42,6 +42,8 @@ test('server.js：建表、會員送出走 multipart＋檔頭驗證、後台審�
   assert.match(s, /sniffImageType\(x\.buffer\)/);
   assert.match(s, /app\.get\('\/api\/admin\/bug-reports',auth,adminOnly,requireDb/);
   assert.match(s, /app\.post\('\/api\/admin\/bug-reports\/:id\/review',auth,adminOnly,requireDb/);
+  assert.match(s, /yan\.applyBugPoint\(before,\{userId:r\.user_id,reportId:r\.id,accepted:status==='accepted'/);
+  assert.doesNotMatch(s, /不進會員點數帳本/);
 });
 
 test('App：不提供大家來找碴入口或直達參數', () => {
