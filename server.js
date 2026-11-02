@@ -49,6 +49,7 @@ const linepayOffline=require('./lib/linepay-offline');
 const ctbc=require('./lib/ctbc');
 const posRegister=require('./lib/pos-register');
 const posStaff=require('./lib/pos-staff');
+const execBoard=require('./lib/exec-board');
 const posLog=require('./lib/pos-log');
 const posInventory=require('./lib/pos-inventory');
 const posPaymentMethods=require('./lib/pos-payment-methods');
@@ -6407,6 +6408,54 @@ app.post('/api/admin/orders/pause',auth,adminOnly,requireDb,wrap(async(req,res)=
   await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('ordering_pause',$1,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,[next]);
   res.json({ok:true,pause:tableOrders.parsePause(next)});
 }));
+/* ---- 高管總覽（lib/exec-board.js）：admin 首頁一次看所有品牌狀態並挑出問題；只給言文字管理員（品牌子帳號由 brandDenied 擋） ---- */
+app.get('/api/admin/exec',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const now=Date.now(),day=tableOrders.MenuLib.businessDay(now);
+  const yday=new Date(Date.parse(day+'T00:00:00Z')-864e5).toISOString().slice(0,10);
+  const from=new Date(Date.parse(day+'T03:00:00+08:00')-8*864e5);
+  const failed={},src={failed};
+  // 每個來源各自 try：一個壞掉不拖垮整頁，壞掉的照實列在問題清單
+  const grab=async(label,fn)=>{try{return await fn();}catch(e){failed[label]=e.message;return null;}};
+  const reconDays=async(table,stateTable,lib,methods)=>{
+    const st=(await q(`SELECT error,ok_at FROM ${stateTable} WHERE id=1`).catch(()=>({rows:[]}))).rows[0]||{};
+    const last=(await q(`SELECT max(synced_at) AS at FROM ${table}`)).rows[0].at;
+    const days={};
+    for(const d of [yday,day]){
+      const [a,b]=[new Date(d+'T03:00:00+08:00'),new Date(Date.parse(d+'T03:00:00+08:00')+864e5)];
+      const orders=(await q('SELECT id,items,amount,payer,tappay,status,paid_at FROM table_orders WHERE paid_at>=$1 AND paid_at<$2',[a,b])).rows;
+      const regs=(await q('SELECT venue,opened_at,closed_at FROM pos_registers WHERE day=$1 ORDER BY opened_at',[d])).rows;
+      const txs=(await q(`SELECT * FROM ${table} WHERE paid_at>=$1 AND paid_at<$2`,[a,b])).rows;
+      const r=lib.reconcile(orders,txs,{venues:null,registers:regs});days[d]={diff:r.diff,by_venue:r.by_venue};
+    }
+    return {configured:lib.configured(),sync_error:st.error||null,synced_at:st.ok_at||last||null,days};
+  };
+  await Promise.all([
+    grab('營收',async()=>{src.orders=(await q('SELECT id,items,amount,payer,tappay,status,paid_at FROM table_orders WHERE paid_at>=$1',[from])).rows;}),
+    grab('帳本',async()=>{src.registers=(await q('SELECT id,day,venue,opened_at,closed_at,expected_cash,counted_cash,diff,close_note FROM pos_registers WHERE day>=$1 OR closed_at IS NULL ORDER BY opened_at',[yday])).rows;}),
+    grab('LINE Pay 對帳',async()=>{(src.recon||={}).linepay=await reconDays('linepay_transactions','linepay_sync_state',linepay);}),
+    grab('中信對帳',async()=>{(src.recon||={}).ctbc=await reconDays('ctbc_transactions','ctbc_sync_state',ctbc);}),
+    grab('桌況',async()=>{src.sessions=(await q("SELECT id,table_no,items,created_at FROM table_sessions WHERE status='open'")).rows;}),
+    grab('出餐單佇列',async()=>{src.print_jobs=(await q('SELECT count(*)::int AS count,min(created_at) AS oldest FROM pos_kitchen_print_jobs WHERE claimed_at IS NULL')).rows[0];}),
+    grab('呼叫服務',async()=>{src.service_calls=serviceCalls.pending(serviceCalls.normalize(await contentValue('service_calls'))).map(c=>({...c,kind_label:serviceCalls.KINDS[c.kind]?.zh}));}),
+    grab('點餐暫停',async()=>{src.pause=tableOrders.parsePause(await contentValue('ordering_pause'));}),
+    grab('菜單',async()=>{src.menu_items=tableOrders.MenuLib.parseMenuDoc(await contentValue('menu')).items||[];}),
+    grab('出勤',async()=>{
+      src.working=(await q('SELECT a.staff_id,p.name,a.venue,a.clock_in FROM pos_attendance a JOIN pos_staff p ON p.id=a.staff_id WHERE a.clock_out IS NULL ORDER BY a.clock_in')).rows;
+      src.attendance_today=(await q('SELECT staff_id FROM pos_attendance WHERE day=$1',[day])).rows;
+      src.shifts=(await q('SELECT s.staff_id,p.name,s.day,s.venue,s.start_time,s.end_time FROM pos_shifts s JOIN pos_staff p ON p.id=s.staff_id WHERE s.day=$1 AND p.active',[day])).rows;}),
+    grab('庫存',async()=>{src.inventory=(await q('SELECT name,unit,qty::float AS qty,safety_qty::float AS safety_qty,active FROM pos_inventory_items WHERE active')).rows;}),
+    grab('訂位',async()=>{src.reservations=(await q(`SELECT to_char(reserve_date,'YYYY-MM-DD') AS reserve_date,reserve_time,party_size,status FROM dining_reservations WHERE deleted_at IS NULL AND reserve_date>=CURRENT_DATE AND reserve_date<CURRENT_DATE+14`)).rows.map(r=>({...r,venue:tableOrders.reservationVenue(r.reserve_time)}));}),
+    grab('場地申請',async()=>{src.applications_pending=(await q("SELECT id,title,starts_at FROM event_applications WHERE status='pending' ORDER BY starts_at")).rows;}),
+    grab('活動',async()=>{src.events=(await q(`SELECT e.id,e.title,e.starts_at,e.status,e.capacity,(SELECT COALESCE(SUM(r.quantity),0)::int FROM event_regs r WHERE r.event_id=e.id AND r.status='registered') AS reg_count FROM events e WHERE e.starts_at>=now()-interval '3 hours' AND e.starts_at<=now()+interval '7 days' AND COALESCE(e.status,'')<>'已取消'`)).rows;}),
+    grab('IG 排程',async()=>{src.ig={errors:(await q("SELECT id,title FROM social_posts WHERE platform='ig' AND status='error' ORDER BY updated_at DESC LIMIT 5")).rows,
+      stale:(await q(`SELECT id,title,to_char(scheduled_at AT TIME ZONE 'Asia/Taipei','YYYY-MM-DD HH24:MI') AS at FROM social_posts WHERE platform='ig' AND status='scheduled' AND scheduled_at<=now()-interval '24 hours' ORDER BY scheduled_at`)).rows};}),
+    grab('客人回饋',async()=>{src.feedback=(await q("SELECT table_no,rating,text,created_at FROM order_feedback WHERE created_at>now()-interval '3 days' ORDER BY created_at DESC")).rows;}),
+    grab('找碴回報',async()=>{src.bugs_pending=(await q("SELECT count(*)::int AS n FROM bug_reports WHERE status='pending'")).rows[0].n;}),
+  ]);
+  res.set('Cache-Control','no-store');
+  res.json(execBoard.build(src,{now,salesSummary:tableOrders.salesSummary}));
+}));
+/* ---- 高管總覽 end ---- */
 /* 日結報表：依營業日（凌晨 03:00 前算前一天）彙總營收、付款方式、品項銷量、時段；CSV 由前端組 */
 app.get('/api/admin/sales',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));

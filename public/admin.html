@@ -46,17 +46,46 @@
   .a-nav-foot{margin-top:auto;padding:12px 10px 0;border-top:1px solid var(--line);font-size:1rem;color:var(--muted);line-height:1.45;overflow-wrap:anywhere}
   .a-nav-foot b{display:block;color:var(--ink-soft);font-weight:500}
   .a-tab-nav{display:flex;flex-direction:column;gap:16px}
-  /* 品牌切換：攤開在頂欄中央的膠囊按鈕（言文字／在咖啡／三點水），一鍵切換不用展開選單 */
-  .a-workspaces{display:none;align-items:center;gap:6px;flex:none;max-width:50vw;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:4px 0}
-  .a-workspaces::-webkit-scrollbar{display:none}
-  .a-workspaces.on{display:flex}
-  .a-workspaces button.a-workspace{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:0 14px 0 8px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--ink-soft);font-size:1rem;line-height:1.2;white-space:nowrap;transition:background .15s,color .15s,border-color .15s}
-  .a-workspaces button.a-workspace:hover{background:var(--paper-alt);color:var(--ink)}
-  .a-workspaces button.a-workspace:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
-  .a-workspace-mark{width:26px;height:26px;border-radius:999px;background:var(--paper-alt);display:grid;place-items:center;flex:none;font-weight:700;font-size:.95rem;line-height:1}
-  .a-workspace-copy b{font-weight:500}
-  .a-workspaces button.a-workspace.on{background:var(--ink);border-color:var(--ink);color:var(--paper);font-weight:500}
-  .a-workspaces button.a-workspace.on .a-workspace-mark{background:var(--accent);color:var(--ink)}
+  .a-dock{display:none}
+  /* 高管總覽：手機優先單欄，桌面兩欄品牌卡 */
+  #exec-body{max-width:960px}
+  .ex-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
+  .ex-head h2{font-size:1.25rem;font-weight:700;margin:0}
+  .ex-muted{color:var(--muted);font-size:1rem;margin:0}
+  .ex-warn{color:#B3261E}
+  .ex-sum{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:8px;margin-bottom:14px}
+  .ex-sum>div{background:var(--card);border:1px solid var(--line);border-radius:var(--a-r);padding:10px 12px;min-width:0}
+  .ex-sum span{display:block;color:var(--muted);font-size:1rem;white-space:nowrap}
+  .ex-sum b{font-size:1.25rem;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .ex-sum .bad{border-color:#B3261E;background:#FCEEEE}.ex-sum .bad b{color:#B3261E}
+  .ex-sum .warn{border-color:#B26A00;background:#FFF6E5}.ex-sum .warn b{color:#8A5200}
+  .ex-delta{font-size:1rem;font-weight:600;margin-left:6px;white-space:nowrap}.ex-delta.up{color:#1E7A3C}.ex-delta.down{color:#B3261E}
+  .ex-prob h2{margin-bottom:8px}
+  .ex-issues{display:flex;flex-direction:column;gap:8px}
+  .ex-issue{display:flex;flex-direction:column;gap:2px;padding:10px 12px 10px 14px;border:1px solid var(--line);border-left:5px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);text-decoration:none;min-height:44px;line-height:1.45}
+  a.ex-issue:hover{border-color:var(--ink)}
+  .ex-issue.lv-high{border-left-color:#B3261E;background:#FCEEEE}
+  .ex-issue.lv-mid{border-left-color:#D98A00}
+  .ex-issue b{font-weight:600}
+  .ex-tag{color:var(--ink-soft);font-size:1rem}
+  .ex-lv{font-style:normal;font-weight:600;margin-right:.5em}.lv-high .ex-lv{color:#B3261E}.lv-mid .ex-lv{color:#8A5200}.lv-low .ex-lv{color:var(--muted)}
+  .ex-issue.lv-low{border-left-color:#B5ADA3}
+  .ex-detail{color:var(--ink-soft);font-size:1rem;overflow-wrap:anywhere}
+  .ex-allgood{margin:0;padding:12px;border-radius:6px;background:#EAF6EE;color:#1E5E33;font-weight:600}
+  .ex-checks{margin-top:10px}.ex-checks summary{cursor:pointer;color:var(--ink-soft);min-height:44px;display:flex;align-items:center}
+  .ex-checks ul{margin:0;padding-left:0;list-style:none;color:var(--ink-soft)}
+  .ex-brands{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:14px;margin-bottom:14px}
+  .ex-brand{background:var(--card);border:1px solid var(--line);border-radius:var(--a-r);padding:14px 16px}
+  .ex-brand header{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .ex-brand h3{font-size:1.125rem;font-weight:700;margin:0}
+  .ex-state{font-size:1rem;padding:2px 10px;border-radius:999px;background:var(--paper-alt);color:var(--ink-soft);white-space:nowrap}.ex-state.on{background:#EAF6EE;color:#1E5E33;font-weight:600}
+  .ex-money{margin-top:6px}.ex-money b{font-size:1.75rem;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .ex-sub{color:var(--muted);font-size:1rem;margin:0 0 10px}
+  .ex-facts{display:grid;grid-template-columns:3.2em 1fr;gap:6px 10px;margin:0;border-top:1px solid var(--line);padding-top:10px}
+  .ex-facts dt{color:var(--muted)}.ex-facts dd{margin:0;min-width:0;overflow-wrap:anywhere}
+  .ex-person{white-space:nowrap}.ex-person.miss{color:#B3261E}
+  .ex-events{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}.ex-events li{display:flex;flex-direction:column}.ex-events a{color:var(--ink);font-weight:500}
+  @media(max-width:560px){.ex-sum{grid-template-columns:1fr 1fr 1fr}.ex-sum>div:first-child{grid-column:1/-1}}
 
   /* 內容區 */
   .a-main{margin-left:var(--a-side);padding:calc(var(--a-top) + 20px) 24px 60px;min-width:0;max-width:1480px}
@@ -248,7 +277,7 @@
   @media(max-width:1020px){
     .xs-grid,.sp-edit{grid-template-columns:1fr}.sp-side{position:static}
     /* 平板：以手指操作為基準，點擊目標不低於 48px，表格明確可橫滑 */
-    .btn,.ui-button,.event-task,.ticket-workspace-tab,.a-nav button,.a-workspaces button.a-workspace{min-height:48px}
+    .btn,.ui-button,.event-task,.ticket-workspace-tab,.a-nav button{min-height:48px}
     .a-form input,.a-form select,.a-form textarea,.a-toolbar input,.a-toolbar select,
     .sp-page-form input,.sp-page-form select,.sp-page-form textarea,.xs-form input,.xs-form textarea,#social-body select{min-height:48px;font-size:16px}
     table.a-tbl th,table.a-tbl td{padding:10px 12px}
@@ -258,20 +287,20 @@
   @media(max-width:860px){
     .a-brand{width:auto}
     .a-brand span,.a-crumb{display:none}
-    /* 頂欄只剩 logo＋品牌切換＋操作鈕：品牌膠囊可左滑，吸附對齊 */
-    .a-workspaces{max-width:calc(100vw - 270px);gap:8px;scroll-snap-type:x proximity}
-    .a-workspaces button.a-workspace{scroll-snap-align:start}
     .a-shell{padding-top:var(--a-top)}
-    .a-nav{position:sticky;top:var(--a-top);bottom:auto;width:auto;display:flex;flex-direction:row;align-items:center;gap:8px;overflow-x:auto;padding:10px 12px;border-right:0;border-bottom:1px solid var(--line);scrollbar-width:none;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;z-index:20}
-    .a-nav::-webkit-scrollbar{display:none}
-    /* 右緣漸層提示分頁列可左滑；捲到底時它排在最後一顆之後，不會蓋到文字 */
-    .a-nav::after{content:"";position:sticky;right:0;flex:none;width:28px;align-self:stretch;background:linear-gradient(to right,transparent,var(--card));pointer-events:none}
-    .a-tab-nav{display:contents}
-    .a-nav-g{flex-direction:row;gap:8px;flex:none}
-    .a-nav-gl,.a-nav-foot{display:none}
-    .a-nav button{width:auto;white-space:nowrap;border:1px solid var(--line);padding:0 14px;scroll-snap-align:start}
-    .a-nav button.on{border-color:var(--ink)}
-    .a-main{margin-left:0;padding:16px 16px 40px}
+    /* 手機以高管為主：底部固定 5 顆（總覽／日結／排班／活動／更多），其餘分頁收進「更多」整頁清單 */
+    .a-nav{position:fixed;top:var(--a-top);left:0;right:0;bottom:calc(64px + env(safe-area-inset-bottom));width:auto;display:none;border-right:0;padding:16px 16px 24px;z-index:25;overflow-y:auto}
+    .a-nav.open{display:flex}
+    .a-nav .a-tab-nav{display:grid;grid-template-columns:1fr 1fr;gap:16px 12px}
+    .a-nav .a-nav-g{gap:4px}
+    .a-nav-foot{display:none}
+    .a-dock{position:fixed;left:0;right:0;bottom:0;z-index:30;display:grid;grid-template-columns:repeat(5,1fr);background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+    .a-dock button{all:unset;box-sizing:border-box;cursor:pointer;min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--muted);font-size:1rem;line-height:1.2}
+    .a-dock button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+    .a-dock button.on{color:var(--ink);font-weight:600}
+    .a-dock button:focus-visible{outline:3px solid var(--ink);outline-offset:-3px}
+    .a-dock .dot{position:absolute;margin:-34px 0 0 34px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#B3261E;color:#fff;font-size:1rem;line-height:20px;text-align:center;font-weight:600}
+    .a-main{margin-left:0;padding:16px 16px calc(88px + env(safe-area-inset-bottom))}
     .a-sec{border-radius:10px;margin-bottom:16px}
     .a-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
     .a-toolbar{gap:10px}.a-form{gap:12px}.a-form label,.sp-page-form label,.xs-form label{width:100%;min-width:min(100%,260px)}
@@ -281,7 +310,7 @@
     .a-wrap2 table.a-tbl td{white-space:nowrap}
   }
   /* 手機：logo 縮小、品牌列只留單字圓標並可左滑；品牌列用 flex 收縮，右側「回前台／登出」永遠留在畫面內 */
-  @media(max-width:560px){.a-kpis{grid-template-columns:1fr}.a-top{padding:0 12px;gap:8px}.a-brand img{width:88px!important;height:30px!important}.a-workspaces{flex:1 1 auto;min-width:0;max-width:none;gap:6px}.a-workspaces button.a-workspace{padding:0;min-height:40px;width:40px;justify-content:center}.a-workspace-mark{width:40px;height:40px;font-size:1rem}.a-workspace-copy{display:none}.a-top-act{flex:none;gap:6px}.a-top-act .btn{padding-left:10px;padding-right:10px;min-height:40px}.a-main{padding-left:12px;padding-right:12px}}
+  @media(max-width:560px){.a-kpis{grid-template-columns:1fr}.a-top{padding:0 12px;gap:8px}.a-brand img{width:88px!important;height:30px!important}.a-top-act{flex:none;gap:6px}.a-top-act .btn{padding-left:10px;padding-right:10px;min-height:40px}.a-main{padding-left:12px;padding-right:12px}}
   /* 手機：表單控制項一律撐滿一列，蓋掉桌面用的固定寬度（width:360px、min-width:260px…），不再超出畫面 */
   @media(max-width:640px){
     .a-form{gap:12px}
@@ -365,7 +394,6 @@
 <header class="a-top">
   <a class="a-brand" href="/admin" aria-label="後台首頁"><img src="/cis/assets/emoji-h.svg" alt="言文字 emoji" width="120" height="40" style="width:120px;height:40px;object-fit:contain"><span>後台管理</span></a>
   <div class="a-crumb" id="a-crumb" hidden><span id="a-crumb-workspace">言文字</span> <span aria-hidden="true">/</span> <b id="a-crumb-cur">總覽</b> <span class="a-role" id="a-role"></span></div>
-  <div class="a-workspaces" id="a-workspaces" role="group" aria-label="切換工作區"></div>
   <div class="a-top-act">
     <a class="btn btn--ghost btn-sm" href="/" target="_blank" rel="noopener">回前台</a>
     <button class="btn btn--ghost btn-sm" id="logout" style="display:none">登出</button>
@@ -446,11 +474,11 @@ function routePath(){
   if (p === '.html') p = '';
   return p.replace(/^\/+|\/+$/g, '').split('/').map(s => { try { return decodeURIComponent(s); } catch (_) { return s; } }).join('/');
 }
-function scopedRoute(route, scope=SCOPE){
-  const clean=String(route||'').replace(/^\/+|\/+$/g,'');
-  if (clean && Object.prototype.hasOwnProperty.call(SCOPE_BY_SLUG, clean.split('/')[0])) return clean;
-  const slug=(WORKSPACES[scope]||WORKSPACES['']).slug;
-  return slug+(clean?'/'+clean:'');
+// 舊網址的工作區前綴（/admin/shared|cafe|bar|space/…）一律拿掉
+function scopedRoute(route){
+  const parts=String(route||'').replace(/^\/+|\/+$/g,'').split('/').filter(Boolean);
+  if (parts.length && OLD_WORKSPACE_SLUGS.includes(parts[0])) parts.shift();
+  return parts.join('/');
 }
 // pos-ops.js 共用：產生站內連到某個餐飲分頁的網址（平板 POS 子站有自己的版本）
 function opsHref(tab){ return BASE + '/' + scopedRoute(tab); }
@@ -567,7 +595,64 @@ function syncWindowMenuData() {
 }
 
 /* ---------- 各分頁 ---------- */
+/* ---------- 高管總覽（不分品牌；資料 GET /api/admin/exec，判斷在 lib/exec-board.js） ---------- */
+let EXEC = null, EXEC_ERR = '', EXEC_TIMER = null, EXEC_LOADING = false;
+const EXEC_LEVEL = { high:'立即處理', mid:'今天處理', low:'留意' };
+const EXEC_AREA = { register:'帳本', sales:'營收', payment:'對帳', floor:'現場', staff:'人力', inventory:'庫存', reservation:'訂位', events:'活動', social:'社群', feedback:'回饋', system:'系統' };
+function execPct(a, b){ if (!b) return ''; const p = Math.round((a - b) / b * 100); return `<span class="ex-delta ${p<0?'down':'up'}">${p>0?'+':''}${p}%</span>`; }
+function execHm(iso){ return iso ? new Date(iso).toLocaleTimeString('zh-TW',{timeZone:'Asia/Taipei',hour:'2-digit',minute:'2-digit',hour12:false}) : ''; }
+function execIssue(i){
+  const ext = /^https?:/.test(i.href||'');
+  const body = `<span class="ex-tag"><i class="ex-lv">${EXEC_LEVEL[i.level]||''}</i>${esc(i.brand_label)}・${esc(EXEC_AREA[i.area]||i.area)}</span><b>${esc(i.title)}</b>${i.detail?`<span class="ex-detail">${esc(i.detail)}</span>`:''}`;
+  return i.href ? `<a class="ex-issue lv-${i.level}" href="${esc(i.href)}"${ext?' target="_blank" rel="noopener"':''}>${body}</a>` : `<div class="ex-issue lv-${i.level}">${body}</div>`;
+}
+function execBrand(b){
+  const reg = b.register||{}, t = b.today||{};
+  const regText = reg.state==='open' ? `開帳中（${execHm(reg.opened_at)} 起）` : reg.state==='closed' ? `已關帳 ${execHm(reg.closed_at)}${reg.diff?`・短溢 ${reg.diff>0?'+':''}${num(reg.diff)}`:''}` : '今天還沒開帳';
+  const staff = (b.staff||[]).map(p=>`<span class="ex-person ${p.in?'':'miss'}">${esc(p.name)}${p.in?'':'（未打卡）'}</span>`).join('、') || '現在沒有排班';
+  return `<section class="ex-brand">
+    <header><h3>${esc(b.label)}</h3><span class="ex-state ${b.active?'on':''}">${b.active?'營業中':'未營業'}</span></header>
+    <div class="ex-money"><b>NT$${num(t.amount)}</b>${execPct(t.amount, (b.last_week||{}).amount)}</div>
+    <p class="ex-sub">${num(t.orders)} 單・昨天 NT$${num((b.yesterday||{}).amount)}・上週同時段 NT$${num((b.last_week||{}).amount)}</p>
+    <dl class="ex-facts">
+      <dt>帳本</dt><dd>${esc(regText)}</dd>
+      <dt>桌況</dt><dd>${(b.tables||{}).open ? `${b.tables.open} 桌開著・未結 NT$${num(b.tables.unpaid_amount)}` : '沒有開著的桌'}</dd>
+      <dt>在班</dt><dd class="ex-people">${staff}</dd>
+      <dt>訂位</dt><dd>${(b.reservations||{}).count ? `今天 ${b.reservations.count} 組 ${b.reservations.people} 位` : '今天沒有訂位'}</dd>
+      <dt>估清</dt><dd>${(b.sold_out||[]).length ? `${b.sold_out.length} 項：${esc(b.sold_out.slice(0,4).join('、'))}${b.sold_out.length>4?' 等':''}` : '沒有'}</dd>
+    </dl>
+  </section>`;
+}
+function execHTML(){
+  if (!EXEC) return EXEC_ERR ? `<div class="a-sec"><h2>高管總覽</h2><p class="a-empty">載入失敗：${esc(EXEC_ERR)}</p><button type="button" class="btn btn--ghost btn-sm" data-exec-reload>重新載入</button></div>` : '<p class="a-center">載入所有品牌狀態…</p>';
+  const e = EXEC, c = e.counts||{}, total = (e.brands||[]).reduce((a,b)=>a+((b.today||{}).amount||0),0), lw = (e.brands||[]).reduce((a,b)=>a+((b.last_week||{}).amount||0),0);
+  const head = `<div class="ex-head"><div><h2>今天 ${esc(e.day.slice(5).replace('-','/'))}</h2><p class="ex-muted">所有品牌・${execHm(e.generated_at)} 更新${EXEC_ERR?`・<span class="ex-warn">更新失敗：${esc(EXEC_ERR)}</span>`:''}</p></div><button type="button" class="btn btn--ghost btn-sm" data-exec-reload ${EXEC_LOADING?'disabled':''}>${EXEC_LOADING?'更新中…':'重新整理'}</button></div>`;
+  const sum = `<div class="ex-sum"><div><span>營收合計</span><b>NT$${num(total)}</b>${execPct(total,lw)}</div><div class="${c.high?'bad':''}"><span>立即處理</span><b>${c.high||0}</b></div><div class="${c.mid?'warn':''}"><span>今天處理</span><b>${c.mid||0}</b></div><div><span>留意</span><b>${c.low||0}</b></div></div>`;
+  const issues = (e.issues||[]).length ? `<div class="ex-issues">${e.issues.map(execIssue).join('')}</div>` : '<p class="ex-allgood">目前沒有需要處理的問題</p>';
+  const checks = (e.checks||[]).length ? `<details class="ex-checks"><summary>沒有問題的檢查（${e.checks.length}）</summary><ul>${e.checks.map(x=>`<li>✓ ${esc(x.label)}</li>`).join('')}</ul></details>` : '';
+  const events = (e.events||[]).length ? `<section class="a-sec"><h2>7 天內活動</h2><ul class="ex-events">${e.events.map(v=>`<li><a href="${BASE}/events/${encodeURIComponent(v.id)}">${esc(v.title)}</a><span class="ex-muted">${esc(new Date(v.starts_at).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',month:'numeric',day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false}))}・${esc(v.status||'')}・報名 ${num(v.reg)}${v.capacity>0?'／'+num(v.capacity):''}</span></li>`).join('')}</ul></section>` : '';
+  return `${head}${sum}<section class="a-sec ex-prob"><h2>問題</h2>${issues}${checks}</section><div class="ex-brands">${(e.brands||[]).map(execBrand).join('')}</div>${events}`;
+}
+function paintExec(){
+  const host = document.getElementById('exec-body'); if (!host) return;
+  host.innerHTML = execHTML();
+  host.querySelectorAll('[data-exec-reload]').forEach(b=>b.onclick=()=>loadExec(true));
+  const dot = document.querySelector('[data-exec-dot]');
+  if (dot && EXEC) { const n = (EXEC.counts.high||0)+(EXEC.counts.mid||0); dot.hidden = !n; dot.textContent = n>99?'99+':String(n); }
+}
+async function loadExec(manual){
+  clearTimeout(EXEC_TIMER);
+  if (EXEC_LOADING) return; EXEC_LOADING = true; if (manual) paintExec();
+  try { EXEC = await api('/admin/exec'); EXEC_ERR = ''; }
+  catch (e) { EXEC_ERR = e.message; }
+  EXEC_LOADING = false; paintExec();
+  // 停在總覽且畫面可見時每分鐘自動更新
+  EXEC_TIMER = setTimeout(()=>{ if (TAB==='overview' && !document.hidden) loadExec(); }, 60000);
+}
+document.addEventListener('visibilitychange', ()=>{ if (!document.hidden && TAB==='overview' && DATA && !DATA.brands) loadExec(); });
+
 function tabOverview(d, x){
+  if (!d.brands) return '<div id="exec-body"></div>';
   return `
   <div class="a-kpis">
     <div class="a-kpi"><div class="kl">已收會費</div><div class="kv"><span class="u">NT$</span>${num(d.bond.raised)}</div></div>
@@ -592,11 +677,11 @@ function overviewTodoHTML(d, x){
   const item = (href, n, label) => `<a class="a-todo-item" href="${href}"><span class="n${n===0?' zero':''}">${n===null?'…':n}</span><span class="l">${label}</span></a>`;
   return `<h2>今日待辦</h2>
     <div class="a-todo">
-      ${false?'':item(BASE+'/shared/events/applications', apps, '待審場地申請')}
-      ${false?'':item(BASE+'/shared/commitments', pendingPay, '待入帳會費')}
-      ${item(BASE+'/shared/events', upcoming.length, '7 天內活動')}
+      ${false?'':item(BASE+'/events/applications', apps, '待審場地申請')}
+      ${false?'':item(BASE+'/commitments', pendingPay, '待入帳會費')}
+      ${item(BASE+'/events', upcoming.length, '7 天內活動')}
     </div>
-    ${upcoming.length?`<ul class="a-todo-list">${upcoming.map(({e})=>`<li><a href="${BASE}/shared/events/${encodeURIComponent(e.id)}">${esc(e.title)}</a><span class="meta">${esc(e.starts_at||'')} · ${esc(e.location||'')}</span><span class="meta">報名 ${e.reg_count||0}${e.capacity>0?'／'+e.capacity:''} · 已到 ${e.checkin_count||0}</span></li>`).join('')}</ul>`:'<p class="hint" style="margin:10px 0 0">未來 7 天沒有進行中的活動。</p>'}`;
+    ${upcoming.length?`<ul class="a-todo-list">${upcoming.map(({e})=>`<li><a href="${BASE}/events/${encodeURIComponent(e.id)}">${esc(e.title)}</a><span class="meta">${esc(e.starts_at||'')} · ${esc(e.location||'')}</span><span class="meta">報名 ${e.reg_count||0}${e.capacity>0?'／'+e.capacity:''} · 已到 ${e.checkin_count||0}</span></li>`).join('')}</ul>`:'<p class="hint" style="margin:10px 0 0">未來 7 天沒有進行中的活動。</p>'}`;
 }
 function paintOverviewTodo(){
   const host = document.getElementById('overview-todo'); if (!host || !DATA) return;
@@ -1243,27 +1328,20 @@ function tabAdmins(d){
   </div>`;
 }
 
-/* 後台分成三個工作區：言文字管理所有品牌共用事務（含會員、會費、消息、社群、廣告、活動、行事曆），
-   在咖啡／三點水各自只剩日結報表與排班打卡（員工管理）；現場營運（櫃檯結帳、點餐出餐、訂位）全部搬到 pos.emoji.tw，不再進 admin；菜單（品項、聚落價、兌換點數、空間兌換點數）留在言文字工作區。
-   員工的新增／編輯／停用與出勤修正刻意留在 admin：平板上用四位數密碼登入的現場人員不能自己改員工資料（伺服器端同步把關）。
-   言文字管理員（brands 為空）可進全部工作區；品牌子帳號除了自己的品牌工作區，也能進言文字工作區的共用分頁，
-   但「權限管理」「系統設定」「操作紀錄」三頁僅言文字管理員可用（伺服器端同步把關）。
-   等等空間工作區已於 2026-10 移除：原本的「活動」「行事曆」併入言文字；「櫃檯」（現場開通會籍）功能一併下架。 */
-const ROOT_TABS = ['overview','members','commitments','updates','menu','social','ads','outreach','events','calendar','permissions','system','logs'];
-const ROOT_TABS_BRAND = ['overview','members','commitments','updates','menu','social','ads','events','calendar'];
-const BRAND_TABS = { CAFE:['sales','staff'], BAR:['sales','staff'] };
+/* 後台不分品牌（KK 2026-11-02）：主要使用者是言文字高管，用手機一次看所有品牌。
+   - 只有一組分頁，網址 /admin/<分頁>；舊的 /admin/shared|cafe|bar|space/<分頁> 自動轉成新網址。
+   - 首頁「總覽」＝高管總覽（GET /api/admin/exec）：所有品牌今天的營收、帳本、桌況、在班人力，並挑出需要處理的問題。
+   - 日結報表、排班打卡一律看全部品牌（SCOPE＝''）；品牌子帳號由伺服器依帳號限縮資料，看不到「權限管理」「系統設定」「操作紀錄」「合作開發」。
+   - 現場營運（櫃檯結帳、出餐、訂位、估清）仍在 pos.emoji.tw。員工新增／編輯與出勤修正刻意留在 admin（平板四位數密碼登入的現場人員不能改）。 */
+const ADMIN_TABS = ['overview','sales','staff','events','calendar','members','commitments','updates','menu','social','ads','outreach','permissions','system','logs'];
+const BRAND_HIDDEN = ['permissions','system','logs','outreach'];
 const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水' };
-const WORKSPACES = {
-  '':{ slug:'shared', label:'言文字', note:'所有品牌共用', mark:'言', tabs:ROOT_TABS },
-  CAFE:{ slug:'cafe', label:'在咖啡', note:'日結報表、排班打卡', mark:'咖', tabs:BRAND_TABS.CAFE },
-  BAR:{ slug:'bar', label:'三點水', note:'日結報表、排班打卡', mark:'水', tabs:BRAND_TABS.BAR },
-};
-const SCOPE_BY_SLUG = Object.fromEntries(Object.entries(WORKSPACES).map(([scope,w])=>[w.slug,scope]));
-let SCOPE = ''; try { SCOPE = localStorage.getItem('tth_scope') || ''; } catch (e) {}
-const scopesOf = d => false ? [''] : d?.brands ? ['', ...d.brands].filter(s => WORKSPACES[s]) : ['', ...Object.keys(BRAND_LABEL)];
-const scopeTabs = () => SCOPE === '' && DATA && DATA.brands ? ROOT_TABS_BRAND : WORKSPACES[SCOPE].tabs;
-function setScope(s){ SCOPE = s; try { localStorage.setItem('tth_scope', s); } catch (e) {} }
-const homeTab = d => false ? 'events' : scopeTabs()[0];
+const SCOPE = '';   // pos-ops.js 共用：空字串＝所有品牌
+const OLD_WORKSPACE_SLUGS = ['shared','cafe','bar','space'];
+const scopeTabs = () => DATA && DATA.brands ? ADMIN_TABS.filter(t => !BRAND_HIDDEN.includes(t)) : ADMIN_TABS;
+const homeTab = d => d && d.brands ? 'sales' : 'overview';
+// 手機底部固定分頁（其餘收在「更多」）
+const DOCK_TABS = ['overview','sales','staff','events'];
 const TABS = [
   { id:'overview',    label:'總覽',     render:tabOverview },
   { id:'members',     label:'會員',     render:tabMembers },
@@ -1286,7 +1364,9 @@ const TABS = [
   { id:'logs',        label:'操作紀錄', render:tabLogs, super:true },
 ];
 const NAV_GROUPS = [
-  ['營運', ['overview','members','commitments','events','calendar','pos','orders','reservations','history','sales','staff']],
+  ['營運', ['overview','sales','staff']],
+  ['活動', ['events','calendar']],
+  ['會員', ['members','commitments']],
   ['內容', ['updates','menu']],
   ['行銷', ['social','ads','outreach']],
   ['系統', ['permissions','system','logs']],
@@ -1334,46 +1414,36 @@ function render(d){
   if (d.me && d.me.name) try { localStorage.setItem('tth_name', d.me.name); } catch (e) {}
   logoutBtn.style.display='';
   const x = derived(d);
-  const scopes = scopesOf(d);
-  if (!scopes.includes(SCOPE)) setScope(scopes[0]);
-  const tabs = TABS.filter(t => false ? t.id==='events' : scopeTabs().includes(t.id) && (!t.super || d.super) && (!t.outreach || d.outreach));
+  const tabs = scopeTabs().map(id => TABS.find(t => t.id === id)).filter(t => t && (!t.super || d.super) && (!t.outreach || d.outreach));
   if (!tabs.find(t=>t.id===TAB)) TAB=homeTab(d);
   const navBtn = t => {
     const badge = t.id==='events' ? ((d.events||[]).length ? `<span class="badge">${d.events.length}</span>` : '')+(false?'':'<span class="badge" data-application-count data-nav-badge hidden></span>') : '';
     return `<button data-tab="${t.id}" class="${t.id===TAB?'on':''}" aria-current="${t.id===TAB?'page':'false'}">${ico(t.id)}<span class="l">${t.label}</span>${badge}</button>`;
   };
+  const dockIco = { more:'<path d="M4 6h16M4 12h16M4 18h16"/>' };
+  const dock = DOCK_TABS.map(id => tabs.find(t=>t.id===id)).filter(Boolean).map(t=>`<button type="button" data-tab="${t.id}" class="${t.id===TAB?'on':''}" aria-current="${t.id===TAB?'page':'false'}">${ico(t.id)}<span>${t.label}</span>${t.id==='overview'?'<b class="dot" data-exec-dot hidden></b>':''}</button>`).join('')
+    + `<button type="button" data-more aria-expanded="false" aria-controls="a-nav">${'<svg viewBox="0 0 24 24" aria-hidden="true">'+dockIco.more+'</svg>'}<span>更多</span></button>`;
   const nav = NAV_GROUPS.map(([g, ids]) => {
     const btns = ids.map(id => tabs.find(t=>t.id===id)).filter(Boolean).map(navBtn).join('');
     return btns ? `<div class="a-nav-g"><div class="a-nav-gl">${g}</div>${btns}</div>` : '';
   }).join('');
-  // 品牌切換攤開在頂欄：只有一個工作區可進（品牌子帳號／活動主）時整排隱藏
-  // innerHTML 內容全部來自本檔的 WORKSPACES 常數（label／note／mark），不含任何使用者輸入
-  const workspaceHost = document.getElementById('a-workspaces');
-  if (workspaceHost) {
-    const show = !false && scopes.length > 1;
-    workspaceHost.classList.toggle('on', show);
-    workspaceHost.innerHTML = show ? scopes.map(s=>{
-      const w=WORKSPACES[s];
-      return `<button type="button" class="a-workspace ${s===SCOPE?'on':''}" data-scope="${s}" aria-pressed="${s===SCOPE?'true':'false'}" title="${w.label}｜${w.note}"><span class="a-workspace-mark" aria-hidden="true">${w.mark}</span><span class="a-workspace-copy"><b>${w.label}</b></span></button>`;
-    }).join('') : '';
-  }
   const panels = tabs.map(t=>`<div class="a-tab ${t.id===TAB?'on':''}" data-panel="${t.id}">${t.render(d,x)}</div>`).join('');
   const me = d.me || {};
   app.innerHTML = `<div class="a-shell">
-    <nav class="a-nav" aria-label="後台分頁"><div class="a-tab-nav">${nav}</div>
+    <nav class="a-nav" id="a-nav" aria-label="後台分頁"><div class="a-tab-nav">${nav}</div>
       <div class="a-nav-foot"><b>${esc(me.name||'')}</b>${esc(me.email||'')}</div>
     </nav>
     <div class="a-main">${panels}</div>
+    <nav class="a-dock" aria-label="常用分頁">${dock}</nav>
   </div>`;
   const crumb = document.getElementById('a-crumb');
   if (crumb) {
     crumb.hidden = false;
-    document.getElementById('a-crumb-workspace').textContent = false ? '活動主後台' : WORKSPACES[SCOPE].label;
+    document.getElementById('a-crumb-workspace').textContent = '言文字';
     document.getElementById('a-role').textContent = false ? '活動主' : d.super ? '言文字 · 超級管理員' : d.brands ? d.brands.map(b=>BRAND_LABEL[b]||b).join('＋')+' · 子帳號' : '言文字 · 管理員';
   }
-  document.querySelectorAll('[data-scope]').forEach(button=>button.onclick=()=>{
-    setScope(button.dataset.scope); TAB=homeTab(d); render(DATA); go(TAB,true);
-  });
+  const more = document.querySelector('[data-more]'), side = document.getElementById('a-nav');
+  if (more && side) more.onclick = () => { const open = !side.classList.contains('open'); side.classList.toggle('open', open); more.setAttribute('aria-expanded', String(open)); more.classList.toggle('on', open); document.querySelectorAll('.a-dock [data-tab]').forEach(b => b.classList.toggle('on', !open && b.dataset.tab === TAB)); };
   bindNav(); bind(d, x);
 }
 
@@ -1391,7 +1461,9 @@ function activateTab(t){
   document.querySelectorAll('[data-tab]').forEach(n=>{ const on = n.dataset.tab===TAB; n.classList.toggle('on',on); n.setAttribute('aria-current', on?'page':'false'); });
   document.querySelectorAll('[data-panel]').forEach(p=>p.classList.toggle('on',p.dataset.panel===TAB));
   const label = (TABS.find(x=>x.id===TAB)||{}).label || '';
-  const workspace = WORKSPACES[SCOPE].label;
+  const workspace = '言文字';
+  const side = document.getElementById('a-nav'); if (side) side.classList.remove('open');
+  const more = document.querySelector('[data-more]'); if (more) { more.classList.remove('on'); more.setAttribute('aria-expanded','false'); }
   const cur = document.getElementById('a-crumb-cur'); if (cur) cur.textContent = label;
   const ws = document.getElementById('a-crumb-workspace'); if (ws) ws.textContent = workspace;
   document.title = `${label} · ${workspace} · 後台管理`;
@@ -1399,22 +1471,8 @@ function activateTab(t){
 
 function applyRoute(){
   let h = routePath();
-  let explicitScope = false;
-  if (true) {
-    const routeParts = h.split('/').filter(Boolean);
-    if (routeParts.length && Object.prototype.hasOwnProperty.call(SCOPE_BY_SLUG, routeParts[0])) {
-      explicitScope = true;
-      const requestedScope = SCOPE_BY_SLUG[routeParts.shift()];
-      const allowedScopes = DATA ? scopesOf(DATA) : [];
-      if (DATA && !allowedScopes.includes(requestedScope)) {
-        setScope(allowedScopes[0] || ''); TAB=homeTab(DATA); render(DATA); go(TAB,true); return;
-      }
-      if (requestedScope !== SCOPE) {
-        setScope(requestedScope); TAB=homeTab(DATA); render(DATA); applyRoute(); return;
-      }
-      h = routeParts.join('/');
-    }
-  }
+  // 舊網址（/admin/shared|cafe|bar|space/…）：拿掉工作區前綴、改寫網址列
+  { const clean = scopedRoute(h); if (clean !== h) { history.replaceState(null, '', BASE + (clean ? '/' + clean.split('/').map(encodeURIComponent).join('/') : '')); h = clean; } }
   if (h === 'ig') h = 'social/igstudio';   // 舊網址相容：IG 產生器已併入社群經營
   if (h === 'social/ads') h = 'ads';       // 廣告總覽已獨立成分頁
   if (h === 'admins') { go('permissions', true); return; }   // 舊網址 /admin/admins 改為 /admin/permissions
@@ -1423,15 +1481,9 @@ function applyRoute(){
   if (!document.querySelector('[data-panel]')) return;
   const parts = (h || homeTab(DATA)).split('/');
   const tab = parts[0];
-  if (!document.querySelector(`[data-panel="${CSS.escape(tab)}"]`)) {
-    // 舊網址相容：未帶工作區或工作區不符時，切到第一個擁有該功能且有權限的工作區。
-    const s = DATA && !false && scopesOf(DATA).find(s => s !== SCOPE && WORKSPACES[s].tabs.includes(tab));
-    if (s === undefined || s === false || s === null) { go('', true); return; }
-    setScope(s); TAB = tab; render(DATA); go(h, true); return;
-  }
-  if (!explicitScope) { go(h || tab, true); return; }
+  if (!document.querySelector(`[data-panel="${CSS.escape(tab)}"]`)) { go('', true); return; }
   activateTab(tab);
-  if (tab === 'overview') { if (APPLICATIONS===null && !false) loadApplications().then(paintOverviewTodo); return; }
+  if (tab === 'overview') { if (DATA && DATA.brands) { if (APPLICATIONS===null) loadApplications().then(paintOverviewTodo); } else loadExec(); return; }
   if (tab === 'calendar') { if (APPLICATIONS===null) loadApplications().then(paintCalendar); paintCalendar(); return; }
   if (tab === 'orders') { loadOrders(); return; }
   if (tab === 'pos') { loadPos(); return; }

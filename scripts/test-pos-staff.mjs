@@ -204,7 +204,7 @@ test('接線：POS 多「排班」「打卡」分頁、後台餐飲工作區多�
   assert.doesNotMatch(ops, /\$\{CLOCK_PIN\}|esc\(CLOCK_PIN\)/, '識別碼不可印到畫面');
   // 2026-10-15 決策：員工管理（新增／編輯／停用、出勤修正）只在 admin 品牌工作區「排班打卡」，平板 POS 不放「員工」分頁，
   // 且伺服器端把用四位數密碼登入的現場人員（operator_staff_id）擋在這些寫入端點之外，避免現場亂動
-  assert.match(admin, /BRAND_TABS = \{ CAFE:\['sales','staff'\], BAR:\['sales','staff'\] \}/);
+  assert.match(admin, /const ADMIN_TABS = \['overview','sales','staff',/);   // 2026-11-02 admin 不分品牌：日結、排班打卡看全部品牌
   assert.match(admin, /\{ id:'staff',\s+label:'排班打卡',\s+render:tabStaff \}/); assert.match(admin, /if \(tab === 'staff'\) \{ loadStaff\(\); return; \}/);
   assert.doesNotMatch(pos, /id:'staff'/, '平板 POS 不放員工管理分頁'); assert.doesNotMatch(ops, /loadStaffPage/);
   assert.match(server, /function notOperator\(req, res, next\) \{\s*if \(req\.auth\.operator_staff_id\) return res\.status\(403\)/);
