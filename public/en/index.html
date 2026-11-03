@@ -89,7 +89,7 @@
         { "@type": "Offer", "name": "Monthly membership", "category": "Membership", "price": "4000", "priceCurrency": "TWD", "availability": "https://schema.org/PreOrder", "url": "https://www.emoji.tw/en/system" },
         { "@type": "Offer", "name": "Quarterly membership", "category": "Membership", "price": "10000", "priceCurrency": "TWD", "availability": "https://schema.org/PreOrder", "url": "https://www.emoji.tw/en/system" },
         { "@type": "Offer", "name": "Annual membership", "category": "Membership", "price": "35000", "priceCurrency": "TWD", "availability": "https://schema.org/PreOrder", "url": "https://www.emoji.tw/en/system" },
-        { "@type": "Offer", "name": "Stay Square: capsule rest seats & game & manga room (members only, free to use)", "category": "Stay Square", "price": "0", "priceCurrency": "TWD", "availability": "https://schema.org/PreOrder", "url": "https://www.emoji.tw/en/system" }
+        { "@type": "Offer", "name": "Rest Book: rest rooms & lounge (members only, free to use)", "category": "Stay Square", "price": "0", "priceCurrency": "TWD", "availability": "https://schema.org/PreOrder", "url": "https://www.emoji.tw/en/system" }
 
       ]
     },
@@ -117,7 +117,7 @@
           "name": "What is emoji — Taiwan Talent Hub?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "A multi-brand space by Taipei Main Station. 在咖啡 (at cafe) and 三點水 (3AM) welcome dining and client meetings without a membership; Stay Square brings together coworking, reading, rest, member facilities and event space."
+            "text": "A multi-brand space by Taipei Main Station. 在咖啡 (at cafe) and 三點水 (3AM) welcome dining and client meetings without a membership; Rest Book offers reading and books for sale, personal study seats, showers and a lounge; Stay Square offers coworking, meeting rooms, phone booths, a tatami corner and event space."
           }
         },
         {
@@ -141,7 +141,7 @@
           "name": "Is the hub open 24 hours?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "The hub uses a split schedule, and 24-hour use of the Stay Square member space is conditional. Staffed hours are 08:00–17:00 and 17:00–03:00, when Dining with at cafe or 3AM and Stay Square coworking and event space are open. From 03:00–08:00 the hub is unstaffed, and members can access member-access areas by face recognition."
+            "text": "The hub uses a split schedule, and 24-hour use of the Rest Book member space is conditional. Staffed hours are 08:00–17:00 and 17:00–03:00, when Dining with at cafe or 3AM and Stay Square coworking and event space are open. From 03:00–08:00 the hub is unstaffed, and members can access member-access areas by face recognition."
           }
         },
         {
@@ -149,7 +149,7 @@
           "name": "How do I apply for a community event or enquire about a private event?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Create your event in the emoji App (app.emoji.tw/host) and submit it for review; it is published after approval. Public events charge each guest a NT$150 venue and tea fee (one drink included). Buyout events are priced by space and group size: the Stay Square shared space from NT$5,000 (tiers of 10 guests, NT$500 per guest above 40), the Stay Square social room NT$10,000 (up to 10 guests), and an at cafe / 3AM dining room buyout NT$30,000 (up to 50 guests), per 2-hour slot and fully creditable toward same-day food and drink. Tickets sold through emoji carry a 10% payment-collection fee."
+            "text": "Create your event in the emoji App (app.emoji.tw/host) and submit it for review; it is published after approval. Public events charge each guest a NT$150 venue and tea fee (one drink included). Buyout events are priced by space and group size: the Stay Square shared space from NT$5,000 (tiers of 10 guests, NT$500 per guest above 40), the Rest Book lounge NT$10,000 (up to 10 guests), and an at cafe / 3AM dining room buyout NT$30,000 (up to 50 guests), per 2-hour slot and fully creditable toward same-day food and drink. Tickets sold through emoji carry a 10% payment-collection fee."
           }
         }
       ]
@@ -163,6 +163,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Serif+TC:wght@500;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/nav.css">
+<link rel="stylesheet" href="/hub.css">
 <script defer src="/nav.js"></script>
 <style>
   /* en 版行寬校正：拉丁字母的 ch 寬度較窄，放寬標題與內文行寬 */
@@ -179,54 +180,75 @@
 
 <main id="content">
 
-<!-- ===== HERO ===== -->
-<section class="hero" id="top">
-  <div class="wrap hero__grid">
-    <div class="hero__copy">
-      <h1><span class="hero__brandline">emoji — Taiwan Talent Hub</span>Work, meet a client, or <span class="swash keep">stay all day</span>,<br><em>right by <span class="keep">Taipei Main Station.</span></em></h1>
-      <p class="lead">A café, a late-night kitchen and a coworking space in one building. Dining and meetings need no membership; focused work at Stay Square starts at NT$200 for 4 hours.</p>
-      <div class="hero__cta">
-        <a href="/en/reserve" class="btn btn--accent">Book a table</a>
-        <a href="/en/system" class="btn btn--ghost">Passes &amp; menu prices</a>
-      </div>
-    </div>
-    <div class="hero__media hero__media--trio">
-      <a class="hero__tile" href="/en/at-cafe"><img src="/assets/space/1f-concept.jpg" alt="at cafe dining area · concept rendering" width="1200" height="746" decoding="async" fetchpriority="high"><span>at cafe · daytime meals & coffee (rendering)</span></a>
-      <a class="hero__tile" href="/en/3am"><img src="/assets/space/1f-night.jpg" alt="3AM at night · concept rendering" width="1400" height="867" decoding="async" fetchpriority="high"><span>3AM · late-night food & drinks (rendering)</span></a>
-      <a class="hero__tile hero__tile--wide" href="/en/stay-square"><img src="/assets/space/3f-concept.jpg" alt="Stay Square coworking and event space · concept rendering" width="1400" height="845" decoding="async" loading="lazy"><span>Stay Square · work, rest & events (rendering)</span></a>
-    </div>
+<!-- HUB:START 由 tools/build-home-hub.py 產生，勿手改 -->
+<!-- ===== HERO：聚落入口 ===== -->
+<section class="hub-hero" id="top">
+  <div class="wrap">
+    <p class="hub-hero__brand">emoji — Taiwan Talent Hub</p>
+    <h1>One building, four gates.<br><em>Meet the people you wouldn't normally meet, right by <span class="swash">Taipei Main Station</span>.</em></h1>
+    <p class="lead">Coffee by day, late-night food after dark, reading and rest at Rest Book, work and meetings at Stay Square. Every brand is a gate — come in your own way, and meet your next collaborator here.</p>
+    <nav class="hub-pick" aria-label="What would you like to do today?"><span class="hub-pick__q">What would you like to do today?</span><a href="#gate-cafe">Brunch & coffee</a><a href="#gate-bar">Late-night bites & drinks</a><a href="#gate-book">Read & recharge</a><a href="#gate-stay">Work & meet</a><a href="/en/events">Join an event</a></nav>
     <div class="hero__meta">
       <div class="hero__badges">
         <span class="hero__soon"><span class="dot" aria-hidden="true"></span><span>Daily · <span class="keep">at cafe 08:00–17:00</span> <span class="keep">· 3AM 17:00–03:00</span></span></span>
         <span class="hero__loc"><svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>By Taipei Main Station · No. 11 Chongqing S. Rd.</span>
       </div>
-      <p class="hero__note"><a href="/en/access">Directions from Exit Z10 →</a><a href="/en/system#booking">Events &amp; buyout prices →</a></p>
+      <p class="hero__note"><a href="/en/access">Directions from Exit Z10 →</a></p>
     </div>
   </div>
 </section>
 
 <!--FEATURED_EVENT-->
-<!-- ===== STATS ===== -->
-<section class="stats" style="padding:54px 0">
-  <div class="wrap stats__grid">
-    <div class="stat reveal"><div class="n">Z10</div><div class="l">Find us diagonally across from this exit</div></div>
-    <div class="stat reveal"><div class="n">Dining</div><div class="l">Dining and client meetings need no membership</div></div>
-    <div class="stat reveal"><div class="n">4<small>hours</small></div><div class="l">NT$200 includes Stay Square access</div></div>
-    <div class="stat reveal"><div class="n">12<small>hours</small></div><div class="l">NT$500 includes Stay Square access</div></div>
-  </div>
-</section>
-<!-- ===== FLOORS ===== -->
-<section id="floors">
+<!-- ===== 聚落理念 ===== -->
+<section class="hub-idea" id="idea">
   <div class="wrap">
-    <div class="sec-head reveal"><span class="eyebrow">Choose by your agenda</span><h2>What kind of space do you need?</h2><p>A meal or a meeting, a full day of work, or an event. Each has its own way in.</p>
+    <div class="sec-head reveal">
+      <span class="eyebrow">Our idea</span>
+      <h2>Taiwan's densest hub of talent</h2>
+      <p>Things happen when talented people gather. We put eating, reading, working and meeting under one roof so people from different fields cross paths naturally.</p>
     </div>
-    <div class="journey-grid">
-      <article class="journey-card reveal"><figure><img src="/assets/space/1f-concept.jpg" alt="Concept rendering of the at cafe dining area" width="1200" height="746" loading="lazy" decoding="async"><figcaption>at cafe dining area · concept rendering</figcaption></figure><div class="journey-card__body"><span class="journey-card__kicker">Client meeting · transfer gap</span><h3>Meet a client or work between trains</h3><p>Dining with at cafe or 3AM and client meetings need no membership. For focused work at Stay Square, choose the 4-hour pass.</p><div class="journey-card__actions"><a href="/en/space#menu">See the brand menus →</a><a href="/en/system#membership">See the 4-hour pass</a></div></div></article>
-      <article class="journey-card reveal"><figure><img src="/assets/space/2f-concept.jpg" alt="Concept rendering of the Stay Square capsule rest seats" width="1200" height="743" loading="lazy" decoding="async"><figcaption>Stay Square capsule rest seats · concept rendering</figcaption></figure><div class="journey-card__body"><span class="journey-card__kicker">4 hours · full day</span><h3>Work for a few hours or stay into the evening</h3><p>A 4-hour pass is NT$200 and a 12-hour pass is NT$500. Both include Stay Square access. Stay Square 24-hour access is conditional.</p><div class="journey-card__actions"><a href="/en/system">Compare workspace passes →</a></div></div></article>
-      <article class="journey-card reveal"><figure><img src="/assets/space/3f-concept.jpg" alt="Concept rendering of the Stay Square coworking and event space" width="1400" height="845" loading="lazy" decoding="async"><figcaption>Stay Square coworking and event space · concept rendering</figcaption></figure><div class="journey-card__body"><span class="journey-card__kicker">Events · private hire</span><h3>Create an event in the App, or check buyout prices</h3><p>Talks, workshops, meetups and company buyouts are all created and submitted for review in the emoji App. Public events charge each guest a NT$150 venue and tea fee; private events are priced by space and group size.</p><div class="journey-card__actions"><a href="https://app.emoji.tw/host">Create an event in the emoji App →</a><a href="/en/system#booking">Venue fees and buyout prices</a><a href="/en/events">See public events</a></div></div></article>
+    <ol class="hub-idea__steps reveal"><li><b>Meet</b><span>Over a meal, a book or a laptop, the person next to you may be an engineer, designer, founder or remote worker based in Taiwan.</span></li><li><b>Collaborate</b><span>Community meetups, talks and workshops give new acquaintances a reason to talk again.</span></li><li><b>Build</b><span>Need a base, a test bed or advice? The hub is your first stop in Taipei.</span></li></ol>
+  </div>
+</section>
+
+<!-- ===== 入口（樓層導覽） ===== -->
+<section class="hub-gates" id="floors">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">Hub map</span>
+      <h2>Pick a gate to enter</h2>
+      <p>Tap the map to jump to a gate. Dining needs no membership; see each gate for how to use Rest Book and Stay Square.</p>
+    </div>
+    <div class="hub-layout">
+      <div class="hub-map" role="navigation" aria-label="emoji hub map"><ol class="hub-map__list">
+        <li><span class="hub-map__annex"><span class="hub-map__lv">＋</span><b>Annex</b><small>Laundry · smoking area</small></span></li>
+        <li><a class="f-stay" href="#gate-stay"><span class="hub-map__lv">04</span><b>等等空間 Stay Square</b><small>Coworking · meeting rooms · tatami</small></a></li>
+        <li><a class="f-book" href="#gate-book"><span class="hub-map__lv">03</span><b>約書旅 Rest Book</b><small>Reading · showers · lounge</small></a></li>
+        <li><a class="f-bar" href="#gate-bar"><span class="hub-map__lv">02</span><b>三點水 3AM</b><small>Late-night kitchen & bar</small></a></li>
+        <li><a class="f-cafe" href="#gate-cafe"><span class="hub-map__lv">01</span><b>在咖啡 at cafe</b><small>Japanese set meals · pour-over</small></a></li>
+      </ol><p class="hub-map__start"><i aria-hidden="true"></i><span>You are here: Chongqing S. Rd. entrance, across from Exit Z10</span></p></div>
+      <div class="gate-grid">
+      <article class="gate gate--cafe reveal" id="gate-cafe">
+        <a class="gate__media" href="/en/at-cafe" tabindex="-1" aria-hidden="true"><img src="/assets/space/1f-concept.jpg" alt="at cafe dining area · concept rendering" width="1200" height="746" decoding="async" fetchpriority="high"><span class="gate__tag">Rendering</span></a>
+        <div class="gate__body"><p class="gate__no"><span class="gate__num">GATE <b>01</b></span><span>08:00–17:00</span></p><span class="gate__moji" aria-hidden="true"></span><h3>在咖啡<span class="en">at cafe</span></h3><p>Japanese-style set meals, pour-over coffee and takeaway. Good for client meetings or work between trains. No membership needed.</p><div class="gate__actions"><a href="/en/reserve" class="btn btn--accent">Book a table</a><a href="/en/at-cafe">About at cafe</a></div></div>
+      </article>
+      <article class="gate gate--bar reveal" id="gate-bar">
+        <a class="gate__media" href="/en/3am" tabindex="-1" aria-hidden="true"><img src="/assets/space/1f-night.jpg" alt="3AM at night · concept rendering" width="1400" height="867" loading="lazy" decoding="async"><span class="gate__tag">Rendering</span></a>
+        <div class="gate__body"><p class="gate__no"><span class="gate__num">GATE <b>02</b></span><span>17:00–03:00</span></p><span class="gate__moji" aria-hidden="true"></span><h3>三點水<span class="en">3AM</span></h3><p>A late-night kitchen and bistro open until 3 a.m. Drop in after work or a meeting. No membership needed.</p><div class="gate__actions"><a href="/en/reserve" class="btn btn--solid">Book a table</a><a href="/en/3am">About 3AM</a></div></div>
+      </article>
+      <article class="gate gate--book reveal" id="gate-book">
+        <a class="gate__media" href="/en/space#f2" tabindex="-1" aria-hidden="true"><img src="/assets/space/2f-concept.jpg" alt="Rest Book reading and rest area · concept rendering" width="1200" height="743" loading="lazy" decoding="async"><span class="gate__tag">Rendering</span></a>
+        <div class="gate__body"><p class="gate__no"><span class="gate__num">GATE <b>03</b></span><span>Members</span></p><span class="gate__moji" aria-hidden="true"></span><h3>約書旅<span class="en">Rest Book</span></h3><p>Read or buy books, settle into a personal study seat, and use the showers and lounge. Take a break here before heading back out.</p><div class="gate__actions"><a href="/en/system" class="btn btn--solid">See passes</a><a href="/en/space#f2">About Rest Book</a></div></div>
+      </article>
+      <article class="gate gate--stay reveal" id="gate-stay">
+        <a class="gate__media" href="/en/stay-square" tabindex="-1" aria-hidden="true"><img src="/assets/space/3f-concept.jpg" alt="Stay Square coworking and meeting rooms · concept rendering" width="1400" height="845" loading="lazy" decoding="async"><span class="gate__tag">Rendering</span></a>
+        <div class="gate__body"><p class="gate__no"><span class="gate__num">GATE <b>04</b></span><span>approx. 08:00–03:00</span></p><span class="gate__moji" aria-hidden="true"></span><h3>等等空間<span class="en">Stay Square</span></h3><p>A six-metre-high coworking space with meeting rooms, phone booths and a tatami corner — for focused work, meetings, talks and private events.</p><div class="gate__actions"><a href="/en/system" class="btn btn--solid">See passes</a><a href="/en/stay-square">About Stay Square</a><a href="/en/system#booking">Venue & buyout prices</a></div></div>
+      </article>
+      </div>
     </div>
   </div>
 </section>
+<!-- HUB:END -->
 
 <!-- ===== PARTNERS ===== -->
 <section id="partners">
@@ -280,7 +302,7 @@
     <div class="faq__list reveal">
       <details class="faq__item">
         <summary>What is emoji — Taiwan Talent Hub?</summary>
-        <div class="faq__a"><p>A multi-brand space by Taipei Main Station. 在咖啡 (at cafe) and 三點水 (3AM) welcome dining and client meetings without a membership; Stay Square brings together coworking, reading, rest, member facilities and event space.</p></div>
+        <div class="faq__a"><p>A multi-brand space by Taipei Main Station. 在咖啡 (at cafe) and 三點水 (3AM) welcome dining and client meetings without a membership; Rest Book offers reading and books for sale, personal study seats, showers and a lounge; Stay Square offers coworking, meeting rooms, phone booths, a tatami corner and event space.</p></div>
       </details>
       <details class="faq__item">
         <summary>Where is it?</summary>
@@ -292,11 +314,11 @@
       </details>
       <details class="faq__item">
         <summary>Is the hub open 24 hours?</summary>
-        <div class="faq__a"><p>The hub uses a split schedule, and 24-hour use of the Stay Square member space is conditional. Staffed hours are 08:00–17:00 and 17:00–03:00, when Dining with at cafe or 3AM and Stay Square coworking and event space are open. From 03:00–08:00 the hub is unstaffed, and members can access member-access areas by face recognition.</p></div>
+        <div class="faq__a"><p>The hub uses a split schedule, and 24-hour use of the Rest Book member space is conditional. Staffed hours are 08:00–17:00 and 17:00–03:00, when Dining with at cafe or 3AM and Stay Square coworking and event space are open. From 03:00–08:00 the hub is unstaffed, and members can access member-access areas by face recognition.</p></div>
       </details>
       <details class="faq__item">
         <summary>How do I apply for a community event or enquire about a private event?</summary>
-        <div class="faq__a"><p>Create your event in the emoji App (app.emoji.tw/host) and submit it for review; it is published after approval. Public events charge each guest a NT$150 venue and tea fee (one drink included). Buyout events are priced by space and group size: the Stay Square shared space from NT$5,000 (tiers of 10 guests, NT$500 per guest above 40), the Stay Square social room NT$10,000 (up to 10 guests), and an at cafe / 3AM dining room buyout NT$30,000 (up to 50 guests), per 2-hour slot and fully creditable toward same-day food and drink. Tickets sold through emoji carry a 10% payment-collection fee.</p></div>
+        <div class="faq__a"><p>Create your event in the emoji App (app.emoji.tw/host) and submit it for review; it is published after approval. Public events charge each guest a NT$150 venue and tea fee (one drink included). Buyout events are priced by space and group size: the Stay Square shared space from NT$5,000 (tiers of 10 guests, NT$500 per guest above 40), the Rest Book lounge NT$10,000 (up to 10 guests), and an at cafe / 3AM dining room buyout NT$30,000 (up to 50 guests), per 2-hour slot and fully creditable toward same-day food and drink. Tickets sold through emoji carry a 10% payment-collection fee.</p></div>
       </details>
     </div>
   </div>

@@ -382,11 +382,19 @@ test('homepages no longer ship #about section', () => {
   }
 });
 
-test('homepage directs first-time visitors by task with labeled concept images', () => {
+test('homepage is a hub entrance: idea, task picker, floor map and four gates', () => {
   for (const rel of ['index.html', path.join('en', 'index.html'), path.join('ja', 'index.html')]) {
     const html = fs.readFileSync(path.join(PUB, rel), 'utf8');
     assert.match(html, /id="floors"/);
-    assert.equal((html.match(/class="journey-card reveal"/g) || []).length, 3);
+    // 2026-11-04 首頁改「聚落入口」：理念＋今天想做什麼＋樓層導覽圖＋四個入口（1F 在咖啡／三點水、2F 約書旅、3F 以上等等空間）
+    assert.match(html, /id="idea"/);
+    assert.match(html, /class="hub-pick"/);
+    assert.match(html, /class="hub-map"/);
+    assert.equal((html.match(/class="gate gate--[a-z]+ reveal"/g) || []).length, 4);
+    for (const id of ['cafe', 'bar', 'book', 'stay']) assert.match(html, new RegExp('id="gate-' + id + '"'));
+    assert.match(html, /約書旅/);
+    assert.match(html, /Rest Book/);
+    assert.match(html, /<link rel="stylesheet" href="\/hub\.css">/);
     assert.match(html, /assets\/space\/1f-concept\.jpg/);
     assert.match(html, /assets\/space\/2f-concept\.jpg/);
     assert.match(html, /assets\/space\/3f-concept\.jpg/);

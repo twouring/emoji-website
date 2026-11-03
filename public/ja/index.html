@@ -89,7 +89,7 @@
         { "@type": "Offer", "name": "月会員", "category": "会員", "price": "4000", "priceCurrency": "TWD", "availability": "https://schema.org/PreOrder", "url": "https://www.emoji.tw/ja/system" },
         { "@type": "Offer", "name": "四半期会員", "category": "会員", "price": "10000", "priceCurrency": "TWD", "availability": "https://schema.org/PreOrder", "url": "https://www.emoji.tw/ja/system" },
         { "@type": "Offer", "name": "年会員", "category": "会員", "price": "35000", "priceCurrency": "TWD", "availability": "https://schema.org/PreOrder", "url": "https://www.emoji.tw/ja/system" },
-        { "@type": "Offer", "name": "Stay Square カプセル休憩席／ソーシャルルーム（会員限定・自由に利用可）", "category": "Stay Square", "price": "0", "priceCurrency": "TWD", "availability": "https://schema.org/PreOrder", "url": "https://www.emoji.tw/ja/system" }
+        { "@type": "Offer", "name": "約書旅 Rest Book 休憩室／ラウンジ（会員限定・自由に利用可）", "category": "Stay Square", "price": "0", "priceCurrency": "TWD", "availability": "https://schema.org/PreOrder", "url": "https://www.emoji.tw/ja/system" }
 
       ]
     },
@@ -141,7 +141,7 @@
           "name": "24時間利用できますか？",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "時間帯ごとの運営で、Stay Square会員スペースの24時間利用は条件付きです。08:00〜17:00と17:00〜27:00（翌03:00）はスタッフが常駐し、在咖啡・三點水の飲食とStay Squareのコワーキング・イベントスペースが利用できます。03:00〜08:00は無人となり、会員は顔認証で会員向けスペースを利用できます。"
+            "text": "時間帯ごとの運営で、約書旅会員スペースの24時間利用は条件付きです。08:00〜17:00と17:00〜27:00（翌03:00）はスタッフが常駐し、在咖啡・三點水の飲食とStay Squareのコワーキング・イベントスペースが利用できます。03:00〜08:00は無人となり、会員は顔認証で会員向けスペースを利用できます。"
           }
         },
         {
@@ -149,7 +149,7 @@
           "name": "コミュニティイベントの申請と企業貸切の相談方法は？",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "言文字 App（app.emoji.tw/host）でイベントを作成して審査に提出し、承認後に公開されます。公開イベントは参加者1名ごとに会場・お茶代 NT$150（ドリンク1杯付き）。貸切イベントはスペースと人数で料金が決まります：Stay Square共有スペース NT$5,000〜（10名ごと、41名以上は1名 NT$500）、Stay Squareソーシャルルーム NT$10,000（10名まで）、在咖啡・三點水の飲食スペース貸切 NT$30,000（50名まで）、いずれも2時間枠で当日の飲食に全額充当できます。言文字でのチケット販売には決済代行手数料10%がかかります。"
+            "text": "言文字 App（app.emoji.tw/host）でイベントを作成して審査に提出し、承認後に公開されます。公開イベントは参加者1名ごとに会場・お茶代 NT$150（ドリンク1杯付き）。貸切イベントはスペースと人数で料金が決まります：Stay Square共有スペース NT$5,000〜（10名ごと、41名以上は1名 NT$500）、約書旅ラウンジ NT$10,000（10名まで）、在咖啡・三點水の飲食スペース貸切 NT$30,000（50名まで）、いずれも2時間枠で当日の飲食に全額充当できます。言文字でのチケット販売には決済代行手数料10%がかかります。"
           }
         }
       ]
@@ -163,6 +163,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Noto+Sans+JP:wght@300;400;500;700&family=Noto+Serif+JP:wght@500;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/nav.css">
+<link rel="stylesheet" href="/hub.css">
 <script defer src="/nav.js"></script>
 <style>
   /* ja 版：日本語グリフのため JP フォントを優先し、行幅も調整 */
@@ -182,54 +183,75 @@
 
 <main id="content">
 
-<!-- ===== HERO ===== -->
-<section class="hero" id="top">
-  <div class="wrap hero__grid">
-    <div class="hero__copy">
-      <h1><span class="hero__brandline">言文字｜台湾タレントハブ</span>台北駅のそばで、<br><em>仕事、<span class="keep">打ち合わせ、</span><span class="keep"><span class="swash">一日利用</span>。</span></em></h1>
-      <p class="lead">カフェ、深夜食堂、コワーキングが同じ建物に。食事と打ち合わせは会員登録不要。集中して仕事をするなら、Stay Squareが4時間NT$200から。</p>
-      <div class="hero__cta">
-        <a href="/ja/reserve" class="btn btn--accent">席を予約</a>
-        <a href="/ja/system" class="btn btn--ghost">プランとメニュー価格</a>
-      </div>
-    </div>
-    <div class="hero__media hero__media--trio">
-      <a class="hero__tile" href="/ja/at-cafe"><img src="/assets/space/1f-concept.jpg" alt="在咖啡 飲食エリア · 完成イメージ" width="1200" height="746" decoding="async" fetchpriority="high"><span>在咖啡 at cafe · 定食とコーヒー（イメージ）</span></a>
-      <a class="hero__tile" href="/ja/3am"><img src="/assets/space/1f-night.jpg" alt="三點水 3AM 夜間・三點水 完成イメージ" width="1400" height="867" decoding="async" fetchpriority="high"><span>三點水 3AM · 深夜食堂とビストロ（イメージ）</span></a>
-      <a class="hero__tile hero__tile--wide" href="/ja/stay-square"><img src="/assets/space/3f-concept.jpg" alt="Stay Square 等等空間 コワーキング・イベントスペース · 完成イメージ" width="1400" height="845" decoding="async" loading="lazy"><span>等等空間 Stay Square · 仕事・休憩・イベント（イメージ）</span></a>
-    </div>
+<!-- HUB:START 由 tools/build-home-hub.py 產生，勿手改 -->
+<!-- ===== HERO：聚落入口 ===== -->
+<section class="hub-hero" id="top">
+  <div class="wrap">
+    <p class="hub-hero__brand">言文字｜台湾タレントハブ</p>
+    <h1>ひとつの建物に、4つの入口。<br><em>普段は出会えない人と、<span class="keep"><span class="swash">台北駅のそば</span>で出会う。</span></em></h1>
+    <p class="lead">昼はコーヒー、夜は深夜ごはん。約書旅で本を読んでひと休み、等等空間で仕事や打ち合わせ。どのブランドも入口です。好きな入り方で、次の仕事仲間に出会ってください。</p>
+    <nav class="hub-pick" aria-label="今日は何をしますか？"><span class="hub-pick__q">今日は何をしますか？</span><a href="#gate-cafe">ブランチ・コーヒー</a><a href="#gate-bar">夜ごはん・一杯</a><a href="#gate-book">読書・ひと休み</a><a href="#gate-stay">仕事・打ち合わせ</a><a href="/ja/events">イベントに参加</a></nav>
     <div class="hero__meta">
       <div class="hero__badges">
-        <span class="hero__soon"><span class="dot" aria-hidden="true"></span><span>毎日 <span class="keep">在咖啡 08:00–17:00</span> <span class="keep">· 三點水 17:00–翌03:00</span></span></span>
-        <span class="hero__loc"><svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>台北駅すぐ · 重慶南路一段11号</span>
+        <span class="hero__soon"><span class="dot" aria-hidden="true"></span><span>毎日 <span class="keep">在咖啡 08:00〜17:00</span> <span class="keep">· 三點水 17:00〜27:00</span><span class="keep">（翌03:00）</span></span></span>
+        <span class="hero__loc"><svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>台北駅そば · 重慶南路一段11号</span>
       </div>
-      <p class="hero__note"><a href="/ja/access">Z10出口からの行き方 →</a><a href="/ja/system#booking">イベント・貸切料金 →</a></p>
+      <p class="hero__note"><a href="/ja/access">台北駅Z10出口からの行き方 →</a></p>
     </div>
   </div>
 </section>
 
 <!--FEATURED_EVENT-->
-<!-- ===== STATS ===== -->
-<section class="stats" style="padding:54px 0">
-  <div class="wrap stats__grid">
-    <div class="stat reveal"><div class="n">Z10</div><div class="l">この出口の斜め向かいへ</div></div>
-    <div class="stat reveal"><div class="n">飲食</div><div class="l">食事・打ち合わせは会員登録不要</div></div>
-    <div class="stat reveal"><div class="n">4<small>時間</small></div><div class="l">NT$200でStay Squareを利用</div></div>
-    <div class="stat reveal"><div class="n">12<small>時間</small></div><div class="l">NT$500でStay Squareを利用</div></div>
-  </div>
-</section>
-<!-- ===== FLOORS ===== -->
-<section id="floors">
+<!-- ===== 聚落理念 ===== -->
+<section class="hub-idea" id="idea">
   <div class="wrap">
-    <div class="sec-head reveal"><span class="eyebrow">予定から選ぶ</span><h2>どんなスペースが必要ですか？</h2><p>食事や打ち合わせ、一日の仕事、イベント開催。目的ごとに入口があります。</p>
+    <div class="sec-head reveal">
+      <span class="eyebrow">コンセプト</span>
+      <h2><span class="keep">台湾で最も</span><span class="keep">人材密度の高い拠点へ</span></h2>
+      <p>人が集まれば、何かが始まる。食事・読書・仕事・交流をひとつの建物にまとめ、分野の違う人が自然に出会える場所をつくります。</p>
     </div>
-    <div class="journey-grid">
-      <article class="journey-card reveal"><figure><img src="/assets/space/1f-concept.jpg" alt="在咖啡の飲食エリアの完成イメージ" width="1200" height="746" loading="lazy" decoding="async"><figcaption>在咖啡の飲食エリア · 完成イメージ</figcaption></figure><div class="journey-card__body"><span class="journey-card__kicker">打ち合わせ・乗り換えの空き時間</span><h3>取引先との打ち合わせや、乗り換え前の仕事に</h3><p>在咖啡・三點水の食事・打ち合わせは会員登録不要。Stay Squareで集中して仕事をするなら4時間プランを選べます。</p><div class="journey-card__actions"><a href="/ja/space#menu">ブランドのメニューを見る →</a><a href="/ja/system#membership">4時間プランを見る</a></div></div></article>
-      <article class="journey-card reveal"><figure><img src="/assets/space/2f-concept.jpg" alt="Stay Squareカプセル休憩席の完成イメージ" width="1200" height="743" loading="lazy" decoding="async"><figcaption>Stay Squareカプセル休憩席 · 完成イメージ</figcaption></figure><div class="journey-card__body"><span class="journey-card__kicker">4時間・一日利用</span><h3>短時間の仕事から夜までの利用に</h3><p>4時間プランはNT$200、12時間プランはNT$500。どちらもStay Squareを利用できます。Stay Squareの24時間利用は条件付きです。</p><div class="journey-card__actions"><a href="/ja/system">仕事プランを比較 →</a></div></div></article>
-      <article class="journey-card reveal"><figure><img src="/assets/space/3f-concept.jpg" alt="Stay Squareコワーキング・イベントスペースの完成イメージ" width="1400" height="845" loading="lazy" decoding="async"><figcaption>Stay Squareコワーキング・イベントスペース · 完成イメージ</figcaption></figure><div class="journey-card__body"><span class="journey-card__kicker">イベント・企業貸切</span><h3>App でイベントを作成、または貸切料金を確認</h3><p>講座、ワークショップ、交流会、企業貸切は、すべて言文字 App で作成して審査に提出します。公開イベントは参加者1名ごとに会場・お茶代 NT$150、貸切イベントはスペースと人数で料金が決まります。</p><div class="journey-card__actions"><a href="https://app.emoji.tw/host">言文字 App でイベントを作成 →</a><a href="/ja/system#booking">会場費・貸切料金</a><a href="/ja/events">公開イベントを見る</a></div></div></article>
+    <ol class="hub-idea__steps reveal"><li><b>出会う</b><span>食事や読書、仕事の隣席にいるのは、エンジニア、デザイナー、起業家、台湾に滞在するリモートワーカーかもしれません。</span></li><li><b>協働する</b><span>コミュニティの集まり、講座やワークショップが、出会った人ともう一度話すきっかけになります。</span></li><li><b>起業する</b><span>拠点、実証の場、相談相手が必要なら、ここが台北での最初の一歩です。</span></li></ol>
+  </div>
+</section>
+
+<!-- ===== 入口（樓層導覽） ===== -->
+<section class="hub-gates" id="floors">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">ハブマップ</span>
+      <h2>入口を選んでください</h2>
+      <p>マップを押すと各入口へ移動します。飲食は会員登録不要。約書旅・等等空間の利用方法は各入口をご覧ください。</p>
+    </div>
+    <div class="hub-layout">
+      <div class="hub-map" role="navigation" aria-label="言文字 ハブマップ"><ol class="hub-map__list">
+        <li><span class="hub-map__annex"><span class="hub-map__lv">＋</span><b>付属設備</b><small>ランドリー・喫煙所</small></span></li>
+        <li><a class="f-stay" href="#gate-stay"><span class="hub-map__lv">04</span><b>等等空間 Stay Square</b><small>コワーキング・会議室・畳</small></a></li>
+        <li><a class="f-book" href="#gate-book"><span class="hub-map__lv">03</span><b>約書旅 Rest Book</b><small>読書・シャワー・ラウンジ</small></a></li>
+        <li><a class="f-bar" href="#gate-bar"><span class="hub-map__lv">02</span><b>三點水 3AM</b><small>深夜食堂・ビストロ</small></a></li>
+        <li><a class="f-cafe" href="#gate-cafe"><span class="hub-map__lv">01</span><b>在咖啡 at cafe</b><small>和定食・ハンドドリップ</small></a></li>
+      </ol><p class="hub-map__start"><i aria-hidden="true"></i><span>現在地：重慶南路側入口・台北駅Z10出口の斜め向かい</span></p></div>
+      <div class="gate-grid">
+      <article class="gate gate--cafe reveal" id="gate-cafe">
+        <a class="gate__media" href="/ja/at-cafe" tabindex="-1" aria-hidden="true"><img src="/assets/space/1f-concept.jpg" alt="在咖啡の飲食エリアの完成イメージ" width="1200" height="746" decoding="async" fetchpriority="high"><span class="gate__tag">イメージ</span></a>
+        <div class="gate__body"><p class="gate__no"><span class="gate__num">GATE <b>01</b></span><span>08:00〜17:00</span></p><span class="gate__moji" aria-hidden="true"></span><h3>在咖啡<span class="en">at cafe</span></h3><p>和風の定食、ハンドドリップコーヒー、テイクアウト。打ち合わせや乗り換えの合間の作業に。会員登録不要。</p><div class="gate__actions"><a href="/ja/reserve" class="btn btn--accent">席を予約</a><a href="/ja/at-cafe">在咖啡について</a></div></div>
+      </article>
+      <article class="gate gate--bar reveal" id="gate-bar">
+        <a class="gate__media" href="/ja/3am" tabindex="-1" aria-hidden="true"><img src="/assets/space/1f-night.jpg" alt="三點水の夜の完成イメージ" width="1400" height="867" loading="lazy" decoding="async"><span class="gate__tag">イメージ</span></a>
+        <div class="gate__body"><p class="gate__no"><span class="gate__num">GATE <b>02</b></span><span>17:00〜27:00</span></p><span class="gate__moji" aria-hidden="true"></span><h3>三點水<span class="en">3AM</span></h3><p>夜から深夜3時まで営業する深夜食堂・ビストロ。仕事帰りや打ち合わせの後に。会員登録不要。</p><div class="gate__actions"><a href="/ja/reserve" class="btn btn--solid">席を予約</a><a href="/ja/3am">三點水について</a></div></div>
+      </article>
+      <article class="gate gate--book reveal" id="gate-book">
+        <a class="gate__media" href="/ja/space#f2" tabindex="-1" aria-hidden="true"><img src="/assets/space/2f-concept.jpg" alt="約書旅の読書・休憩エリアの完成イメージ" width="1200" height="743" loading="lazy" decoding="async"><span class="gate__tag">イメージ</span></a>
+        <div class="gate__body"><p class="gate__no"><span class="gate__num">GATE <b>03</b></span><span>会員利用</span></p><span class="gate__moji" aria-hidden="true"></span><h3>約書旅<span class="en">Rest Book</span></h3><p>本を読む・買う、個人の読書席、シャワーとラウンジ。仕事に疲れたら、ここで一冊読んでひと休み。</p><div class="gate__actions"><a href="/ja/system" class="btn btn--solid">会員プランを見る</a><a href="/ja/space#f2">約書旅について</a></div></div>
+      </article>
+      <article class="gate gate--stay reveal" id="gate-stay">
+        <a class="gate__media" href="/ja/stay-square" tabindex="-1" aria-hidden="true"><img src="/assets/space/3f-concept.jpg" alt="等等空間のコワーキング・会議室の完成イメージ" width="1400" height="845" loading="lazy" decoding="async"><span class="gate__tag">イメージ</span></a>
+        <div class="gate__body"><p class="gate__no"><span class="gate__num">GATE <b>04</b></span><span>約 08:00〜03:00</span></p><span class="gate__moji" aria-hidden="true"></span><h3>等等空間<span class="en">Stay Square</span></h3><p>天井高6メートルのコワーキング、会議室、電話ブース、畳スペース。集中作業、会議、講座、貸切に。</p><div class="gate__actions"><a href="/ja/system" class="btn btn--solid">会員プランを見る</a><a href="/ja/stay-square">等等空間について</a><a href="/ja/system#booking">会場・貸切料金</a></div></div>
+      </article>
+      </div>
     </div>
   </div>
 </section>
+<!-- HUB:END -->
 
 <!-- ===== PARTNERS ===== -->
 <section id="partners">
@@ -295,11 +317,11 @@
       </details>
       <details class="faq__item">
         <summary>24時間利用できますか？</summary>
-        <div class="faq__a"><p>時間帯ごとの運営で、Stay Square会員スペースの24時間利用は条件付きです。08:00〜17:00と17:00〜27:00（翌03:00）はスタッフが常駐し、在咖啡・三點水の飲食とStay Squareのコワーキング・イベントスペースが利用できます。03:00〜08:00は無人となり、会員は顔認証で会員向けスペースを利用できます。</p></div>
+        <div class="faq__a"><p>時間帯ごとの運営で、約書旅会員スペースの24時間利用は条件付きです。08:00〜17:00と17:00〜27:00（翌03:00）はスタッフが常駐し、在咖啡・三點水の飲食とStay Squareのコワーキング・イベントスペースが利用できます。03:00〜08:00は無人となり、会員は顔認証で会員向けスペースを利用できます。</p></div>
       </details>
       <details class="faq__item">
         <summary>コミュニティイベントの申請と企業貸切の相談方法は？</summary>
-        <div class="faq__a"><p>言文字 App（app.emoji.tw/host）でイベントを作成して審査に提出し、承認後に公開されます。公開イベントは参加者1名ごとに会場・お茶代 NT$150（ドリンク1杯付き）。貸切イベントはスペースと人数で料金が決まります：Stay Square共有スペース NT$5,000〜（10名ごと、41名以上は1名 NT$500）、Stay Squareソーシャルルーム NT$10,000（10名まで）、在咖啡・三點水の飲食スペース貸切 NT$30,000（50名まで）、いずれも2時間枠で当日の飲食に全額充当できます。言文字でのチケット販売には決済代行手数料10%がかかります。</p></div>
+        <div class="faq__a"><p>言文字 App（app.emoji.tw/host）でイベントを作成して審査に提出し、承認後に公開されます。公開イベントは参加者1名ごとに会場・お茶代 NT$150（ドリンク1杯付き）。貸切イベントはスペースと人数で料金が決まります：Stay Square共有スペース NT$5,000〜（10名ごと、41名以上は1名 NT$500）、約書旅ラウンジ NT$10,000（10名まで）、在咖啡・三點水の飲食スペース貸切 NT$30,000（50名まで）、いずれも2時間枠で当日の飲食に全額充当できます。言文字でのチケット販売には決済代行手数料10%がかかります。</p></div>
       </details>
     </div>
   </div>

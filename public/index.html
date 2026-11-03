@@ -90,7 +90,7 @@
         { "@type": "Offer", "name": "月會員", "category": "會員", "price": "4000", "priceCurrency": "TWD", "availability": "https://schema.org/PreOrder", "url": "https://www.emoji.tw/system" },
         { "@type": "Offer", "name": "季會員", "category": "會員", "price": "10000", "priceCurrency": "TWD", "availability": "https://schema.org/PreOrder", "url": "https://www.emoji.tw/system" },
         { "@type": "Offer", "name": "年會員", "category": "會員", "price": "35000", "priceCurrency": "TWD", "availability": "https://schema.org/PreOrder", "url": "https://www.emoji.tw/system" },
-        { "@type": "Offer", "name": "等等空間膠囊休憩席／交誼廳（會員限定，自由使用）", "category": "會員休憩空間", "price": "0", "priceCurrency": "TWD", "availability": "https://schema.org/PreOrder", "url": "https://www.emoji.tw/system" }
+        { "@type": "Offer", "name": "約書旅休憩室／交誼廳（會員限定，自由使用）", "category": "約書旅 Rest Book", "price": "0", "priceCurrency": "TWD", "availability": "https://schema.org/PreOrder", "url": "https://www.emoji.tw/system" }
 
       ]
     },
@@ -118,7 +118,7 @@
           "name": "言文字｜台灣人才聚落是什麼？",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "位於台北車站旁，結合餐飲、工作與交流的聚落。在咖啡 at cafe 提供日式簡餐與咖啡；三點水 3AM 提供深夜餐食與餐酒，兩者皆不需會員。等等空間 Stay Square 提供會員共享辦公、看書休憩、設備使用與活動場地。"
+            "text": "位於台北車站旁，結合餐飲、工作與交流的聚落。在咖啡 at cafe 提供日式簡餐與咖啡；三點水 3AM 提供深夜餐食與餐酒，兩者皆不需會員。約書旅 Rest Book 提供書籍閱讀與購買、個人讀書空間、淋浴與交誼廳；等等空間 Stay Square 提供共享空間、會議室、電話亭、榻榻米區與活動場地。"
           }
         },
         {
@@ -142,7 +142,7 @@
           "name": "聚落是 24 小時開放嗎？",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "採分時營運，等等空間會員空間的 24 小時使用為條件式啟用。08:00–17:00 與 17:00–27:00（翌日 03:00）為有人服務時段，在咖啡／三點水餐飲與 等等空間共享辦公、活動空間開放；03:00–08:00 為無人時段，會員可透過人臉辨識進出會員開放空間。"
+            "text": "採分時營運，約書旅會員空間的 24 小時使用為條件式啟用。08:00–17:00 與 17:00–27:00（翌日 03:00）為有人服務時段，在咖啡／三點水餐飲與 等等空間共享辦公、活動空間開放；03:00–08:00 為無人時段，會員可透過人臉辨識進出會員開放空間。"
           }
         },
         {
@@ -150,7 +150,7 @@
           "name": "如何申請社群活動或洽詢企業包場？",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "在言文字 App（app.emoji.tw/host）建立活動並送出審核，審核通過才公開。公開活動每位參加者 NT$150 場地茶飲費（附茶飲一杯）；包場活動依空間與人數計費：等等空間共享活動區 NT$5,000 起（每 10 人一級，41 人以上每人 NT$500）、等等空間交誼廳 NT$10,000（至多 10 人）、在咖啡／三點水餐飲空間包場 NT$30,000（至多 50 人），每時段 2 小時，可全額折抵當場餐飲。透過言文字售票收 10% 代收金流手續費。"
+            "text": "在言文字 App（app.emoji.tw/host）建立活動並送出審核，審核通過才公開。公開活動每位參加者 NT$150 場地茶飲費（附茶飲一杯）；包場活動依空間與人數計費：等等空間共享活動區 NT$5,000 起（每 10 人一級，41 人以上每人 NT$500）、約書旅交誼廳 NT$10,000（至多 10 人）、在咖啡／三點水餐飲空間包場 NT$30,000（至多 50 人），每時段 2 小時，可全額折抵當場餐飲。透過言文字售票收 10% 代收金流手續費。"
           }
         }
       ]
@@ -164,6 +164,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Serif+TC:wght@500;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/nav.css">
+<link rel="stylesheet" href="/hub.css">
 <script defer src="/nav.js"></script>
 <link rel="stylesheet" href="/halloween-2026.css">
 </head>
@@ -177,66 +178,75 @@
 <!-- ===== 公告橫幅（後台「網站內容」可編輯；無內容則隱藏） ===== -->
 <div id="site-notice" hidden style="background:var(--ink,#1B1A17);color:var(--paper,#EDE9E0);text-align:center;padding:11px 20px;font-size:1rem;line-height:1.5"></div>
 
-<!-- ===== HERO ===== -->
-<section class="hero" id="top">
-  <div class="wrap hero__grid">
-    <div class="hero__copy">
-      <h1><span class="hero__brandline"><span class="keep">言文字｜台灣人才聚落</span> Taiwan Talent Hub</span><span class="nobr">台北車站旁，</span><br><em><span class="keep">工作、會客，</span><span class="keep">或<span class="swash">待上一整天</span>。</span></em></h1>
-      <p class="lead">咖啡廳、深夜食堂、共享工作空間，在<span class="keep">同一棟樓</span>。用餐、會客不需會員；要專心工作，<span class="keep">等等空間</span> <span class="keep">4 小時 NT$200 起</span>。</p>
-      <div class="hero__cta">
-        <a href="/reserve" class="btn btn--accent">線上訂位</a>
-        <a href="/system" class="btn btn--ghost">看方案與菜單價格</a>
-      </div>
-    </div>
-    <div class="hero__media hero__media--trio">
-      <a class="hero__tile" href="/at-cafe"><img src="/assets/space/1f-concept.jpg" alt="在咖啡用餐區規劃示意" width="1200" height="746" decoding="async" fetchpriority="high"><span>在咖啡 at cafe · 日式簡餐與咖啡（示意圖）</span></a>
-      <a class="hero__tile" href="/3am"><img src="/assets/space/1f-night.jpg" alt="三點水夜間餐飲規劃示意" width="1400" height="867" decoding="async" fetchpriority="high"><span>三點水 3AM · 深夜食堂與餐酒（示意圖）</span></a>
-      <a class="hero__tile hero__tile--wide" href="/stay-square"><img src="/assets/space/3f-concept.jpg" alt="等等空間共享辦公與活動空間規劃示意" width="1400" height="845" decoding="async" loading="lazy"><span>等等空間 Stay Square · 工作、休憩與活動（示意圖）</span></a>
-    </div>
+<!-- HUB:START 由 tools/build-home-hub.py 產生，勿手改 -->
+<!-- ===== HERO：聚落入口 ===== -->
+<section class="hub-hero" id="top">
+  <div class="wrap">
+    <p class="hub-hero__brand"><span class="keep">言文字｜台灣人才聚落</span> <span class="keep">Taiwan Talent Hub</span></p>
+    <h1>一棟樓，四個入口。<br><em>讓你平常不會遇到的人，<span class="keep">在台北車站旁<span class="swash">相遇</span>。</span></em></h1>
+    <p class="lead">白天喝咖啡、晚上吃宵夜，在約書旅看書休息，到等等空間工作開會。每個品牌都是一個入口，用你習慣的方式走進來，在這裡遇見下一個合作對象。</p>
+    <nav class="hub-pick" aria-label="今天想做什麼？"><span class="hub-pick__q">今天想做什麼？</span><a href="#gate-cafe">吃早午餐・喝咖啡</a><a href="#gate-bar">吃宵夜・喝一杯</a><a href="#gate-book">看書・休息一下</a><a href="#gate-stay">工作・開會</a><a href="/events">參加活動</a></nav>
     <div class="hero__meta">
       <div class="hero__badges">
         <span class="hero__soon"><span class="dot" aria-hidden="true"></span><span>每天 <span class="keep">在咖啡 08:00–17:00</span> <span class="keep">· 三點水 17:00–27:00</span><span class="keep">（翌日 03:00）</span></span></span>
         <span class="hero__loc"><svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>台北車站旁 · 重慶南路一段 11 號</span>
       </div>
-      <p class="hero__note"><a href="/access">從台北車站 Z10 出口怎麼走 →</a><a href="/system#booking">辦活動、包場價目 →</a></p>
+      <p class="hero__note"><a href="/access">從台北車站 Z10 出口怎麼走 →</a></p>
     </div>
   </div>
 </section>
 
 <!--FEATURED_EVENT-->
-<!-- ===== STATS ===== -->
-<section class="stats" style="padding:54px 0">
-  <div class="wrap stats__grid">
-    <div class="stat reveal"><div class="n">Z10</div><div class="l">從出口斜對面即可抵達</div></div>
-    <div class="stat reveal"><div class="n">餐飲</div><div class="l">用餐、會客不需會員</div></div>
-    <div class="stat reveal"><div class="n">4<small>小時</small></div><div class="l">NT$200 可使用等等空間</div></div>
-    <div class="stat reveal"><div class="n">12<small>小時</small></div><div class="l">NT$500 可使用等等空間</div></div>
-  </div>
-</section>
-<!-- ===== FLOORS ===== -->
-<section id="floors">
+<!-- ===== 聚落理念 ===== -->
+<section class="hub-idea" id="idea">
   <div class="wrap">
     <div class="sec-head reveal">
-      <span class="eyebrow">依行程選</span>
-      <h2>你需要哪一種空間？</h2>
-      <p>吃飯會客、工作一整天，或辦一場活動，各有入口。</p>
+      <span class="eyebrow">聚落理念</span>
+      <h2>打造<span class="keep">台灣人才</span><span class="keep">密度最高的聚落</span></h2>
+      <p>人才聚在一起，事情才會發生。我們把吃飯、閱讀、工作、交流放進同一棟樓，讓不同領域的人自然碰面。</p>
     </div>
-    <div class="journey-grid">
-      <article class="journey-card reveal">
-        <figure><img src="/assets/space/1f-concept.jpg" alt="餐飲空間規劃示意" width="1200" height="746" loading="lazy" decoding="async"><figcaption>餐飲空間規劃示意</figcaption></figure>
-        <div class="journey-card__body"><span class="journey-card__kicker">會客・轉乘空檔</span><h3>約客戶碰面，或趁等車處理工作</h3><p>在咖啡／三點水用餐與會客不需會員；要在等等空間工作，可選 4 小時方案。</p><div class="journey-card__actions"><a href="/space#menu">看品牌菜單 →</a><a href="/system#membership">查看 4 小時方案</a></div></div>
+    <ol class="hub-idea__steps reveal"><li><b>相遇</b><span>用餐、看書、工作時，坐在你旁邊的可能是工程師、設計師、創業者或旅居台灣的遠端工作者。</span></li><li><b>合作</b><span>社群小聚、講座與工作坊，讓剛認識的人有理由再聊一次。</span></li><li><b>創業</b><span>需要據點、場域驗證或顧問時，聚落是你在台北的第一站。</span></li></ol>
+  </div>
+</section>
+
+<!-- ===== 入口（樓層導覽） ===== -->
+<section class="hub-gates" id="floors">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">聚落地圖</span>
+      <h2>選一個入口進場</h2>
+      <p>點地圖直接跳到入口；用餐不需會員，約書旅與等等空間的使用方式請看各入口說明。</p>
+    </div>
+    <div class="hub-layout">
+      <div class="hub-map" role="navigation" aria-label="言文字 聚落地圖"><ol class="hub-map__list">
+        <li><span class="hub-map__annex"><span class="hub-map__lv">＋</span><b>附屬設施</b><small>洗衣・吸菸區</small></span></li>
+        <li><a class="f-stay" href="#gate-stay"><span class="hub-map__lv">04</span><b>等等空間 Stay Square</b><small>共享空間・會議室・<span class="keep">榻榻米區</span></small></a></li>
+        <li><a class="f-book" href="#gate-book"><span class="hub-map__lv">03</span><b>約書旅 Rest Book</b><small>閱讀・淋浴・交誼廳</small></a></li>
+        <li><a class="f-bar" href="#gate-bar"><span class="hub-map__lv">02</span><b>三點水 3AM</b><small>深夜食堂・餐酒館</small></a></li>
+        <li><a class="f-cafe" href="#gate-cafe"><span class="hub-map__lv">01</span><b>在咖啡 at cafe</b><small>日式簡餐・手沖咖啡</small></a></li>
+      </ol><p class="hub-map__start"><i aria-hidden="true"></i><span>你在這裡：<span class="keep">重慶南路入口</span>・台北車站 Z10 出口斜對面</span></p></div>
+      <div class="gate-grid">
+      <article class="gate gate--cafe reveal" id="gate-cafe">
+        <a class="gate__media" href="/at-cafe" tabindex="-1" aria-hidden="true"><img src="/assets/space/1f-concept.jpg" alt="在咖啡用餐區規劃示意" width="1200" height="746" decoding="async" fetchpriority="high"><span class="gate__tag">示意圖</span></a>
+        <div class="gate__body"><p class="gate__no"><span class="gate__num">GATE <b>01</b></span><span>08:00–17:00</span></p><span class="gate__moji" aria-hidden="true"></span><h3>在咖啡<span class="en">at cafe</span></h3><p>日式簡餐、手沖咖啡與外帶。約客戶碰面、等車空檔處理工作都適合，<span class="keep">不需會員</span>。</p><div class="gate__actions"><a href="/reserve" class="btn btn--accent">線上訂位</a><a href="/at-cafe">認識在咖啡</a></div></div>
       </article>
-      <article class="journey-card reveal">
-        <figure><img src="/assets/space/2f-concept.jpg" alt="等等空間膠囊休憩席規劃示意" width="1200" height="743" loading="lazy" decoding="async"><figcaption>等等空間膠囊休憩席規劃示意</figcaption></figure>
-        <div class="journey-card__body"><span class="journey-card__kicker">4 小時・一整天</span><h3>短時工作，或從白天待到晚上</h3><p>4 小時 NT$200、12 小時 NT$500，皆可使用等等空間；等等空間休憩區 24 小時使用為條件式啟用。</p><div class="journey-card__actions"><a href="/system">比較工作方案 →</a></div></div>
+      <article class="gate gate--bar reveal" id="gate-bar">
+        <a class="gate__media" href="/3am" tabindex="-1" aria-hidden="true"><img src="/assets/space/1f-night.jpg" alt="三點水夜間餐飲規劃示意" width="1400" height="867" loading="lazy" decoding="async"><span class="gate__tag">示意圖</span></a>
+        <div class="gate__body"><p class="gate__no"><span class="gate__num">GATE <b>02</b></span><span>17:00–27:00</span></p><span class="gate__moji" aria-hidden="true"></span><h3>三點水<span class="en">3AM</span></h3><p>入夜後的深夜食堂與餐酒館，營業到<span class="keep">凌晨三點</span>。下班、散會後來吃點東西，<span class="keep">不需會員</span>。</p><div class="gate__actions"><a href="/reserve" class="btn btn--solid">線上訂位</a><a href="/3am">認識三點水</a></div></div>
       </article>
-      <article class="journey-card reveal">
-        <figure><img src="/assets/space/3f-concept.jpg" alt="等等空間共享辦公與活動空間規劃示意" width="1400" height="845" loading="lazy" decoding="async"><figcaption>等等空間共享辦公與活動空間規劃示意</figcaption></figure>
-        <div class="journey-card__body"><span class="journey-card__kicker">社群活動・企業包場</span><h3>在 App 建立活動，或查看包場價目</h3><p>講座、工作坊、交流與企業包場，都在言文字 App 建立並送審。公開活動每位參加者 NT$150 場地茶飲費；包場活動依空間與人數計費。</p><div class="journey-card__actions"><a href="https://app.emoji.tw/host">在言文字 App 建立活動 →</a><a href="/system#booking">場地費與包場價目</a><a href="/events">查看公開活動</a></div></div>
+      <article class="gate gate--book reveal" id="gate-book">
+        <a class="gate__media" href="/space#f2" tabindex="-1" aria-hidden="true"><img src="/assets/space/2f-concept.jpg" alt="約書旅閱讀休憩空間規劃示意" width="1200" height="743" loading="lazy" decoding="async"><span class="gate__tag">示意圖</span></a>
+        <div class="gate__body"><p class="gate__no"><span class="gate__num">GATE <b>03</b></span><span>會員使用</span></p><span class="gate__moji" aria-hidden="true"></span><h3>約書旅<span class="en">Rest Book</span></h3><p>書籍閱讀與購買、個人讀書空間，還有淋浴與交誼廳。工作累了上來看本書、休息一下再出發。</p><div class="gate__actions"><a href="/system" class="btn btn--solid">看會員方案</a><a href="/space#f2">認識約書旅</a></div></div>
       </article>
+      <article class="gate gate--stay reveal" id="gate-stay">
+        <a class="gate__media" href="/stay-square" tabindex="-1" aria-hidden="true"><img src="/assets/space/3f-concept.jpg" alt="等等空間共享空間與會議室規劃示意" width="1400" height="845" loading="lazy" decoding="async"><span class="gate__tag">示意圖</span></a>
+        <div class="gate__body"><p class="gate__no"><span class="gate__num">GATE <b>04</b></span><span>約 08:00–03:00</span></p><span class="gate__moji" aria-hidden="true"></span><h3>等等空間<span class="en">Stay Square</span></h3><p>挑高六米的共享空間、會議室、電話亭與<span class="keep">榻榻米區</span>。專心工作、開會、辦講座或包場都在這裡。</p><div class="gate__actions"><a href="/system" class="btn btn--solid">看會員方案</a><a href="/stay-square">認識等等空間</a><a href="/system#booking">場地與包場價目</a></div></div>
+      </article>
+      </div>
     </div>
   </div>
 </section>
+<!-- HUB:END -->
 
 <!-- ===== PARTNERS ===== -->
 <section id="partners">
@@ -290,7 +300,7 @@
     <div class="faq__list reveal">
       <details class="faq__item">
         <summary>言文字｜台灣人才聚落是什麼？</summary>
-        <div class="faq__a"><p>位於台北車站旁，結合餐飲、工作與交流的聚落。在咖啡 at cafe 提供日式簡餐與咖啡；三點水 3AM 提供深夜餐食與餐酒，兩者皆不需會員。等等空間 Stay Square 提供會員共享辦公、看書休憩、設備使用與活動場地。</p></div>
+        <div class="faq__a"><p>位於台北車站旁，結合餐飲、工作與交流的聚落。在咖啡 at cafe 提供日式簡餐與咖啡；三點水 3AM 提供深夜餐食與餐酒，兩者皆不需會員。約書旅 Rest Book 提供書籍閱讀與購買、個人讀書空間、淋浴與交誼廳；等等空間 Stay Square 提供共享空間、會議室、電話亭、榻榻米區與活動場地。</p></div>
       </details>
       <details class="faq__item">
         <summary>台灣人才聚落在哪裡？</summary>
@@ -302,11 +312,11 @@
       </details>
       <details class="faq__item">
         <summary>聚落是 24 小時開放嗎？</summary>
-        <div class="faq__a"><p>採分時營運，等等空間會員空間的 24 小時使用為條件式啟用。08:00–17:00 與 17:00–27:00（翌日 03:00）為有人服務時段，在咖啡／三點水餐飲與 等等空間共享辦公、活動空間開放；03:00–08:00 為無人時段，會員可透過人臉辨識進出會員開放空間。</p></div>
+        <div class="faq__a"><p>採分時營運，約書旅會員空間的 24 小時使用為條件式啟用。08:00–17:00 與 17:00–27:00（翌日 03:00）為有人服務時段，在咖啡／三點水餐飲與 等等空間共享辦公、活動空間開放；03:00–08:00 為無人時段，會員可透過人臉辨識進出會員開放空間。</p></div>
       </details>
       <details class="faq__item">
         <summary>如何申請社群活動或洽詢企業包場？</summary>
-        <div class="faq__a"><p>在言文字 App（app.emoji.tw/host）建立活動並送出審核，審核通過才公開。公開活動每位參加者 NT$150 場地茶飲費（附茶飲一杯）；包場活動依空間與人數計費：等等空間共享活動區 NT$5,000 起（每 10 人一級，41 人以上每人 NT$500）、等等空間交誼廳 NT$10,000（至多 10 人）、在咖啡／三點水餐飲空間包場 NT$30,000（至多 50 人），每時段 2 小時，可全額折抵當場餐飲。透過言文字售票收 10% 代收金流手續費。</p></div>
+        <div class="faq__a"><p>在言文字 App（app.emoji.tw/host）建立活動並送出審核，審核通過才公開。公開活動每位參加者 NT$150 場地茶飲費（附茶飲一杯）；包場活動依空間與人數計費：等等空間共享活動區 NT$5,000 起（每 10 人一級，41 人以上每人 NT$500）、約書旅交誼廳 NT$10,000（至多 10 人）、在咖啡／三點水餐飲空間包場 NT$30,000（至多 50 人），每時段 2 小時，可全額折抵當場餐飲。透過言文字售票收 10% 代收金流手續費。</p></div>
       </details>
     </div>
   </div>
