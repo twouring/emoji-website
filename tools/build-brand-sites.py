@@ -368,98 +368,57 @@ def page_3am():
 def page_stay():
     s = 'stay-square'
     app = app_url()
-    book = www('/system#booking')
-    out = head(s, t('等等空間 Stay Square｜台北車站旁的會員休息與工作空間',
-                    '等等空間 Stay Square | Members’ space for rest and work by Taipei Main Station',
-                    '等等空間 Stay Square｜台北駅そばの会員向け休憩・ワークスペース'),
-               t('等等空間（Stay Square）是台北車站旁的會員休息與工作空間：共享辦公、看書休憩、交誼與淋浴，也是講座與社群活動的場地。單日 4 小時 NT$200 起，台北車站站前地下街 Z10 出口斜對面。',
-                 'Stay Square is the members’ space for rest and work by Taipei Main Station: coworking, reading and resting, socializing and showers, and the venue for talks and community events. Day pass from NT$200 for 4 hours. Diagonally across from Exit Z10.',
-                 '等等空間（Stay Square）は台北駅そばの会員のための休憩と仕事のスペース。コワーキング、読書や休憩、交流、シャワー。講座やコミュニティイベントの会場にもなります。1日4時間 NT$200 から。台北駅地下街 Z10 出口の斜め向かい。'))
-    out += header(s, [(t('空間', 'Spaces', 'スペース'), '#rooms'), (t('會員方案', 'Membership', '会員プラン'), '#plans'), (t('活動與包場', 'Events & venue', 'イベント・貸切'), '#booking'), (t('怎麼來', 'Visit', 'アクセス'), '#visit'), (t('加入會員', 'Join', '会員になる'), app)])
-    concept = t('規劃示意', 'Concept rendering', '完成イメージ')
-    out += f'''<main id="content">
-<section class="bs-hero bs-hero--brand"><div class="wrap bs-hero__grid">
-  <div>
-    <span class="bs-hero__kicker">{t('會員的休息與工作空間 · 台北車站旁', 'Members’ space for rest and work · by Taipei Main Station', '会員のための休憩と仕事のスペース · 台北駅そば')}</span>
-    <h1>等等空間<span class="en">Stay Square</span></h1>
-    <p class="bs-hero__lede">{t('在台北車站旁，等一下也能好好待著。共享辦公、看書休憩、交誼與淋浴，也是講座與社群活動的場地。',
-                                 'Right by Taipei Main Station, a good place to stay a while. Coworking, reading and resting, socializing and showers, and the venue for talks and community events.',
-                                 '台北駅のそばで、ちょっとの時間も心地よく過ごせる場所。コワーキング、読書や休憩、交流、シャワー。講座やコミュニティイベントの会場にもなります。')}</p>
-    <div class="bs-hero__open"><span><b>NT$200</b>{t('單日 4 小時起', 'Day pass, from 4 hours', '1日 4時間から')}</span><span>{t('24 小時為條件式啟用', '24-hour access is conditional', '24時間利用は条件付き')}</span></div>
-    <div class="bs-hero__actions"><a class="bs-btn bs-btn--on" href="#plans">{t('比較會員方案', 'Compare memberships', '会員プランを比較')}</a><a class="bs-btn bs-btn--on-line" href="{app}">{t('在會員 App 加入', 'Join in the member app', '会員アプリで加入')}</a></div>
+    apply = www('/events?apply=1#ev-apply')
+    out = head(s, t('等等空間 Stay Square｜台北車站旁的共享工作與會議空間',
+                    'Stay Square | Shared work and meeting space by Taipei Main Station',
+                    '等等空間 Stay Square｜台北駅そばの共有ワーク・ミーティングスペース'),
+               t('等等空間（Stay Square）是台北車站旁的會員共享工作與會議空間。自助吧、會議室、電話亭與工作區都包含在方案內；單日 4 小時 NT$200 起。',
+                 'Stay Square is a members’ shared work and meeting space by Taipei Main Station. The self-serve bar, meeting room, phone booth and work areas are included; day passes start at NT$200 for 4 hours.',
+                 '等等空間（Stay Square）は台北駅そばの会員向け共有ワーク・ミーティングスペース。セルフサービスバー、会議室、電話ブース、ワークエリアはすべてプランに含まれ、1日4時間 NT$200からです。'))
+    out += header(s, [(t('空間', 'Spaces', 'スペース'), '#spaces'), (t('使用方式', 'How it works', '利用方法'), '#use'), (t('會員方案', 'Membership', '会員プラン'), '#plans'), (t('包場', 'Venue hire', '貸切'), '#venue'), (t('加入會員', 'Join', '会員になる'), app)])
+    out += f'''<main id="content" class="sq">
+<section class="sq-hero" id="top"><div class="sq-copy">
+  <div class="sq-topline"><a href="#spaces" class="sq-toplink">{t('空間', 'Spaces', 'スペース')}</a><img src="/brand-sites/assets/stay-square-logo-h.webp" alt="{e(BRANDS[s]['alt'][L])}"><a href="#venue" class="sq-toplink">{t('包場', 'Venue hire', '貸切')}</a></div>
+  <div class="sq-hero__body">
+    <h1>{t('等一下，\n也能好好工作。', 'Stay a while.\nWork well.', '少し待つ時間も、\n心地よく働く。')}</h1>
+    <p>{t('在台北車站旁，給會員一張可以長時間坐下來的桌子。工作、開會、打電話、喝一杯咖啡；下一段行程之前，先在這裡待著。', 'By Taipei Main Station, a table for members to settle into. Work, meet, take a call, make a coffee — stay here before the next thing begins.', '台北駅のそばで、会員がじっくり座れる一つのテーブルを。仕事、会議、電話、コーヒー。次の予定まで、ここで過ごせます。')}</p>
+    <a class="sq-action" href="#plans">{t('查看會員方案', 'See memberships', '会員プランを見る')}</a>
   </div>
-  <figure class="bs-hero__mark"><img src="/brand-sites/assets/stay-square-logo-white.webp" alt="{e(BRANDS[s]['alt'][L])}" width="845" height="590" decoding="async" fetchpriority="high"></figure>
+  <p class="sq-note">{t('共享工作與會議空間｜台北車站 Z10 出口斜對面', 'Shared work and meeting space · across from Taipei Main Station Exit Z10', '共有ワーク・ミーティングスペース｜台北駅 Z10 出口の斜め向かい')}</p>
+</div><div class="sq-stage" aria-label="{t('等等空間規劃示意', 'Stay Square concept renderings', 'Stay Square 完成イメージ')}">
+  <img class="is-active" src="/brand-sites/assets/stay/roof.webp" alt="{t('挑高共享工作空間規劃示意', 'High-ceiling shared workspace, concept rendering', '吹き抜けの共有ワークスペース、完成イメージ')}" width="1600" height="966" fetchpriority="high">
+  <img src="/brand-sites/assets/stay/window.webp" alt="" width="1600" height="966">
+  <img src="/brand-sites/assets/stay/bar.webp" alt="" width="1594" height="991">
+  <div class="sq-stage__caption"><span>{t('規劃示意', 'Concept rendering', '完成イメージ')}</span><span>08:00–03:00</span></div>
 </div></section>
 
-<section id="rooms" aria-labelledby="rooms-h"><div class="wrap">
-  <div class="bs-sec__head">{sec_h2('rooms-h', '空間', 'Spaces', 'スペース')}<p>{t('持有效會籍的會員使用；所有設備自由使用', 'For members with a valid membership; all facilities free to use', '有効な会員資格を持つ会員向け。設備はすべて自由に利用可')}</p></div>
-  <div class="bs-rooms">
-    <article class="bs-room"><figure data-image="2"><img src="/assets/space/2f-concept.jpg" alt="{t('等等空間膠囊休憩席規劃示意', 'Stay Square capsule rest seats, concept rendering', 'Stay Square カプセル休憩席の完成イメージ')}" width="1200" height="743" loading="lazy" decoding="async"><figcaption>{concept}</figcaption></figure>
-      <div class="bs-room__body"><h3>{t('休息與淋浴', 'Rest and showers', '休憩とシャワー')}</h3><p>{t('看書休憩、膠囊休憩席、交誼廳與淋浴。', 'Reading and rest seats, capsule rest seats, social room and showers.', '読書・休憩席、カプセル休憩席、ソーシャルルーム、シャワー。')}</p><div class="md-content" data-md="2"></div></div></article>
-    <article class="bs-room"><figure data-image="3"><img src="/assets/space/3f-concept.jpg" alt="{t('等等空間共享辦公與活動空間規劃示意', 'Stay Square coworking and event space, concept rendering', 'Stay Square コワーキング・イベントスペースの完成イメージ')}" width="1400" height="845" loading="lazy" decoding="async"><figcaption>{concept}</figcaption></figure>
-      <div class="bs-room__body"><h3>{t('共享工作與活動', 'Coworking and events', 'コワーキングとイベント')}</h3><p>{t('共享辦公；講座、工作坊、社群交流與企業包場。約 08:00–翌日 03:00。', 'Coworking; talks, workshops, community gatherings and business private hire. About 08:00–03:00 next day.', 'コワーキング。講座、ワークショップ、交流会、企業貸切。約 08:00–翌03:00。')}</p><div class="md-content" data-md="3"></div></div></article>
-    <article class="bs-room"><figure data-image="4"><img src="/assets/space/4f-concept.jpg" alt="{t('等等空間洗衣區規劃示意', 'Stay Square laundry area, concept rendering', 'Stay Square ランドリーの完成イメージ')}" width="1400" height="867" loading="lazy" decoding="async"><figcaption>{concept}</figcaption></figure>
-      <div class="bs-room__body"><h3>{t('洗衣與戶外吸菸區', 'Laundry and outdoor smoking area', 'ランドリーと屋外喫煙エリア')}</h3><p>{t('洗脫烘與戶外吸菸區，會員免費使用。', 'Wash-and-dry laundry and an outdoor smoking area, free for members.', '洗濯乾燥と屋外喫煙エリア。会員は無料。')}</p><div class="md-content" data-md="4"></div></div></article>
-  </div>
-  <div class="bs-feat bs-feat--gap">
-    <figure class="bs-feat__moji"><img src="/brand-sites/assets/moji-rest.svg" alt="" width="200" height="200" loading="lazy"><figcaption>{t('moji · 休憩', 'moji · rest', 'moji · 休憩')}</figcaption></figure>
-    {points([(t('轉乘空檔', 'Transfer gaps', '乗り換えの空き時間'),
-              t('高鐵、台鐵、客運之間的幾個小時，有地方坐、有地方洗澡。', 'A few hours between HSR, TRA and the bus: somewhere to sit and somewhere to shower.', '高鉄・台鉄・バスの間の数時間。座れる場所、シャワーを浴びられる場所。')),
-             (t('工作據點', 'A work base', '仕事の拠点'),
-              t('固定在台北車站周邊工作，選月、季或年會籍。', 'Working around Taipei Main Station regularly? Choose a monthly, quarterly or annual membership.', '台北駅周辺で定期的に働くなら、月・四半期・年会員を。')),
-             (t('休息與轉換', 'Rest and reset', '休憩と切り替え'),
-              t('工作告一段落，看書、使用休憩席，或到交誼廳玩 Switch、看漫畫、玩桌遊。', 'When work is done: read, take a rest seat, or unwind in the social room with Switch, manga and board games.', '仕事が一段落したら、読書や休憩席、ソーシャルルームで Switch・マンガ・ボードゲームを。'))])}
-  </div>
-</div></section>
-'''
-    out += story('story-h', '關於等等空間', 'About Stay Square', '等等空間について', [
-        ('等等空間在台北車站旁一棟民國 58 年的老屋裡，老屋斜屋頂與木樑下是共享辦公與活動場，另有看書休憩、膠囊休憩席、交誼廳、淋浴與洗脫烘。',
-         'Stay Square is in a 1969 house by Taipei Main Station. Under the old pitched roof and timber beams are the coworking and event space, plus reading and rest seats, capsule rest seats, a social room, showers and laundry.',
-         '等等空間は、台北駅そばの 1969 年築の古い建物にあります。古い斜め屋根と木梁の下にコワーキングとイベントスペース、ほかに読書・休憩席、カプセル休憩席、ソーシャルルーム、シャワー、洗濯乾燥があります。'),
-        ('「等等」是等一下的意思。轉乘之間、兩個會議之間、下班到末班車之間，等一下也能好好待著。',
-         '“等等” means “just a moment”. Between transfers, between meetings, between the end of work and the last train: a good place to stay a while.',
-         '「等等」は「ちょっと待って」の意味。乗り換えの間、会議と会議の間、仕事終わりから終電までの間、少しの時間を心地よく。'),
-        ('會員以人臉辨識進出，席位掃 QR 自助登記計時；24 小時使用為條件式啟用。會員方案一次付費、不自動續約。',
-         'Members enter by face recognition and check in at each seat by QR code; 24-hour access is conditional. Plans are one-time payments with no auto-renewal.',
-         '会員は顔認証で入退室し、席ごとに QR でチェックイン。24 時間利用は条件付きです。会員プランは一回払いで自動更新はありません。'),
-    ])
-    out += f'''<section class="bs-alt" id="plans" aria-labelledby="plans-h"><div class="wrap">
-  <div class="bs-sec__head">{sec_h2('plans-h', '會員方案', 'Membership', '会員プラン')}<p>{t('價格皆含稅；一次付費，不自動續約', 'All prices include tax; one-time payment, no auto-renewal', '価格はすべて税込。一回払いで自動更新なし')}</p></div>
-  <table class="bs-plans">
-    <thead><tr><th scope="col">{t('方案', 'Plan', 'プラン')}</th><th scope="col">{t('價格', 'Price', '価格')}</th><th scope="col">{t('適合情境', 'Best for', 'おすすめ')}</th><th scope="col">{t('包含內容', 'Includes', '内容')}</th></tr></thead>
-    <tbody>
-      <tr><td>{t('單日 4 小時', 'Day pass · 4 hours', '1日 4時間')}</td><td class="p">NT$200</td><td>{t('轉乘空檔、半天會議或短時工作', 'A transfer gap, half-day meeting or short work session', '乗り換えの空き時間、半日の打ち合わせ、短時間の仕事')}</td><td>{t('可使用等等空間、所有設備；超時每小時 NT$100', 'Stay Square access and all facilities; extra time NT$100 per hour', 'Stay Squareと全設備を利用可。延長は1時間 NT$100')}</td></tr>
-      <tr><td>{t('單日 12 小時', 'Day pass · 12 hours', '1日 12時間')}</td><td class="p">NT$500</td><td>{t('從白天工作到晚上', 'Working from daytime into the evening', '昼から夜までの仕事')}</td><td>{t('可使用等等空間、所有設備；超時每小時 NT$100', 'Stay Square access and all facilities; extra time NT$100 per hour', 'Stay Squareと全設備を利用可。延長は1時間 NT$100')}</td></tr>
-      <tr><td>{t('月會員', 'Monthly', '月会員')}</td><td class="p">NT$4,000</td><td>{t('一個月內常在台北車站周邊工作', 'Frequent work near Taipei Main Station during one month', '台北駅周辺で1か月間よく仕事する')}</td><td>{t('等等空間通行、所有設備自由使用', 'Stay Square access; all facilities free to use', 'Stay Squareを利用可。全設備を自由に利用')}</td></tr>
-      <tr><td>{t('季會員', 'Quarterly', '四半期会員')}</td><td class="p">NT$10,000</td><td>{t('一季內持續使用', 'Consistent use through one quarter', '四半期を通じた継続利用')}</td><td>{t('等等空間通行、所有設備自由使用', 'Stay Square access; all facilities free to use', 'Stay Squareを利用可。全設備を自由に利用')}</td></tr>
-      <tr><td>{t('年會員', 'Annual', '年会員')}</td><td class="p">NT$35,000</td><td>{t('把這裡當長期工作據點', 'A long-term work base in Taipei', '台北での長期的な仕事拠点')}</td><td>{t('等等空間通行、所有設備自由使用', 'Stay Square access; all facilities free to use', 'Stay Squareを利用可。全設備を自由に利用')}</td></tr>
-    </tbody>
-  </table>
-  <p class="bs-note">{t('線上購買後首次進場時啟用；也可以現場辦理。', 'Online purchases activate on your first visit; you can also sign up on site.', 'オンライン購入後、初回入場時に有効化。現地でも申し込めます。')}</p>
-  <div class="bs-menu__cta"><a class="bs-btn" href="{app}">{t('在會員 App 購買', 'Buy in the member app', '会員アプリで購入')}</a><a class="bs-btn bs-btn--line" href="{www('/system#membership')}">{t('完整消費方式', 'Full pricing guide', '料金のご案内')}</a></div>
-</div></section>
+<section class="sq-intro" id="spaces"><div class="sq-reading">
+  <h2>{t('一個等待的地方，\n也是一個工作的地方。', 'A place to wait,\nand a place to work.', '待つ場所であり、\n働く場所でもある。')}</h2>
+  <p>{t('「等等」是等一下的意思。轉乘之間、兩個會議之間、下班到末班車之間，等一下不必找地方消磨。把電腦打開，讓事情往前。', '“等等” means “just a moment.” Between transfers, meetings, work and the last train, a little time does not have to be spent killing time. Open the laptop and move something forward.', '「等等」は「ちょっと待って」の意味。乗り換えの間、会議と会議の間、仕事終わりから終電まで。少しの時間を持て余さず、PCを開いて前に進める場所です。')}</p>
+  <p>{t('長桌、靠窗座位、和室、四人會議室與電話亭，讓同一段下午容得下不同的工作方式。咖啡、茶飲與零食在自助吧，包含在有效會籍裡。', 'Long tables, window seats, a tatami room, a four-person meeting room and phone booths make room for different ways of working through the same afternoon. Coffee, tea and snacks at the self-serve bar are included with a valid membership.', 'ロングテーブル、窓際席、和室、4人用会議室、電話ブース。同じ午後にも異なる働き方を受け止めます。セルフサービスバーのコーヒー、茶、軽食は有効な会員資格に含まれます。')}</p>
+  <p>{t('單日使用適合一段空檔；月、季與年會籍給常在台北車站周邊工作的人。', 'A day pass works for a gap in the day; monthly, quarterly and annual memberships are for those who work around Taipei Main Station often.', '1日利用はちょっとした空き時間に。月・四半期・年会員は台北駅周辺でよく働く人のために。')}</p>
+</div><figure class="sq-inline-photo"><img src="/brand-sites/assets/stay/long-table.webp" alt="{t('長桌共享工作區規劃示意', 'Long-table shared work area, concept rendering', 'ロングテーブルの共有ワークエリア、完成イメージ')}" width="1600" height="969" loading="lazy"><figcaption>{t('規劃示意', 'Concept rendering', '完成イメージ')}</figcaption></figure></section>
 
-<section id="booking" aria-labelledby="booking-h"><div class="wrap">
-  <div class="bs-sec__head">{sec_h2('booking-h', '活動與包場', 'Events & venue', 'イベント・貸切')}<p>{t('等等空間共享活動區、等等空間交誼廳', 'Stay Square shared event space and social room', 'Stay Square 共有スペースとソーシャルルーム')}</p></div>
-  {facts([(t('包場場地費', 'Private hire', '貸切会場費'), t('1–10 人 NT$5,000／時段起，依人數計', 'From NT$5,000 per slot for 1–10 guests, priced by group size', '1〜10名 NT$5,000／枠から。人数により変動')),
-          (t('時段', 'Slot', '時間枠'), t('2 小時，贈前後各 30 分鐘場佈場復', '2 hours, with 30 minutes before and after for setup and reset', '2時間。前後各30分の設営・撤収時間込み')),
-          (t('折抵', 'Credit', '充当'), t('場地費可全額折抵當場餐飲', 'The venue fee can be used in full as same-day food and drink', '会場費は全額を当日の飲食に充当可')),
-          (t('公開活動', 'Public events', '公開イベント'), t('不收場地費；參加者付 NT$150 場地茶飲費', 'No venue fee; each guest pays a NT$150 venue and tea fee', '会場費なし。参加者1名 NT$150 の会場・お茶代'))])}
-  {faq([(t('怎麼加入會員？', 'How do I join?', '会員になるには？'),
-         t('在會員 App 選方案線上購買，首次進場時啟用；也可以現場辦理。', 'Pick a plan in the member app and buy online; it activates on your first visit. You can also sign up on site.', '会員アプリでプランを選んでオンライン購入。初回入場時に有効化されます。現地でも申し込めます。')),
-        (t('可以過夜或住宿嗎？', 'Can I stay overnight?', '宿泊はできますか？'),
-         t('等等空間是看書休憩與工作空間，不提供住宿。膠囊休憩席非密閉、不可上鎖。', 'Stay Square is a reading, rest and work space, not accommodation. Capsule rest seats are open pods and not lockable.', '等等空間は読書・休憩と仕事のスペースで、宿泊施設ではありません。カプセル休憩席は密閉されず、施錠もできません。')),
-        (t('24 小時都能用嗎？', 'Is it open 24 hours?', '24 時間使えますか？'),
-         t('24 小時使用為條件式啟用，以現場公告為準。', '24-hour access is conditional; see notices on site.', '24 時間利用は条件付きです。現地の案内をご確認ください。')),
-        (t('非會員可以辦活動嗎？', 'Can non-members host events?', '非会員でもイベントを開けますか？'),
-         t('可以。社群活動與企業包場請填申請表；包場場地費可全額折抵當場餐飲。', 'Yes. Apply with the event form for community events and private hire; the venue fee can be used in full as same-day food and drink.', 'はい。コミュニティイベントや企業貸切は申請フォームからどうぞ。会場費は全額を当日の飲食に充当できます。'))])}
-  <div class="bs-menu__cta"><a class="bs-btn" href="{www('/events?apply=1#ev-apply')}">{t('申請活動或包場', 'Apply for an event or private hire', 'イベント・貸切を申請')}</a><a class="bs-btn bs-btn--line" href="{book}">{t('場地費與包場價目', 'Venue fees and buyout prices', '会場費・貸切料金')}</a></div>
-</div></section>
-'''
-    out += visit([(t('使用時間', 'Hours', '利用時間'), t('會員使用；24 小時為條件式啟用', 'Members only; 24-hour access is conditional', '会員利用。24時間利用は条件付き')),
-                  (t('進出', 'Entry', '入退室'), t('人臉辨識；席位掃 QR 登記', 'Face recognition; QR check-in per seat', '顔認証。席ごとに QR でチェックイン'))], s)
-    out += '</main>\n'
-    out += footer_html(s, [(t('加入會員', 'Join', '会員になる'), app), (t('會員方案', 'Memberships', '会員プラン'), '#plans')])
+<section class="sq-collection" aria-labelledby="space-list"><div class="sq-collection__head"><h2 id="space-list">{t('今天，\n你需要哪一種座位？', 'What kind of seat\ndo you need today?', '今日、\nどんな席が必要ですか？')}</h2><p>{t('所有區域都在有效會籍內；依現場情況使用。', 'All areas are included with a valid membership and available according to on-site conditions.', 'すべてのエリアは有効な会員資格に含まれ、現地の状況に応じて利用できます。')}</p></div>
+  <div class="sq-places">
+    <article><img src="/brand-sites/assets/stay/roof.webp" alt="{t('共享工作區規劃示意', 'Shared workspace, concept rendering', '共有ワークスペース、完成イメージ')}" width="1600" height="966" loading="lazy"><div><h3>{t('共享工作區', 'Shared work area', '共有ワークエリア')}</h3><p>{t('挑高、長桌、靠窗座位。適合把一段工作拉長。', 'High ceilings, long tables and window seats for a longer stretch of work.', '吹き抜け、ロングテーブル、窓際席。まとまった作業時間に。')}</p></div></article>
+    <article><img src="/brand-sites/assets/stay/window.webp" alt="{t('榻榻米與投影空間規劃示意', 'Tatami and projection area, concept rendering', '畳と投影スペース、完成イメージ')}" width="1600" height="966" loading="lazy"><div><h3>{t('和室與投影', 'Tatami and projection', '和室と投影')}</h3><p>{t('小組討論、分享、一起把畫面看清楚。', 'For small-group discussion, sharing and seeing the work together.', '小グループの議論、共有、画面を一緒に見るために。')}</p><div class="md-content" data-md="3"></div></div></article>
+    <article><img src="/brand-sites/assets/stay/meeting.webp" alt="{t('四人會議室規劃示意', 'Four-person meeting room, concept rendering', '4人用会議室、完成イメージ')}" width="1593" height="988" loading="lazy"><div><h3>{t('會議室與電話亭', 'Meeting room and phone booth', '会議室と電話ブース')}</h3><p>{t('預約會議、重要通話，讓聲音留在該留的地方。', 'Reserve a meeting or take an important call, keeping sound where it belongs.', '会議の予約や大切な通話に。音をあるべき場所に。')}</p></div></article>
+    <article><img src="/brand-sites/assets/stay/bar.webp" alt="{t('自助吧規劃示意', 'Self-serve bar, concept rendering', 'セルフサービスバー、完成イメージ')}" width="1594" height="991" loading="lazy"><div><h3>{t('自助吧', 'Self-serve bar', 'セルフサービスバー')}</h3><p>{t('咖啡、茶飲、零食。工作中間，自己補一杯。', 'Coffee, tea and snacks. Help yourself between tasks.', 'コーヒー、お茶、軽食。作業の合間にどうぞ。')}</p></div></article>
+  </div></section>
+
+<section class="sq-use" id="use"><div><h2>{t('把時間\n留給正在做的事。', 'Keep your time\nfor what you are doing.', '時間を\nいま取り組むことへ。')}</h2><p>{t('進場後選一個位置；需要安靜時去電話亭，需要一起工作時去長桌或和室。會議室可預約。', 'Choose a seat when you arrive. Use a phone booth when you need quiet; choose the long table or tatami room when you need to work together. The meeting room can be reserved.', '入場後、好きな席を選んでください。静かに話したい時は電話ブースへ。一緒に働くならロングテーブルか和室へ。会議室は予約できます。')}</p></div><ol><li><b>{t('加入或選擇方案', 'Join or choose a plan', '会員になる・プランを選ぶ')}</b><span>{t('單日、月、季或年會籍。', 'Day, monthly, quarterly or annual.', '1日・月・四半期・年会員。')}</span></li><li><b>{t('進場後開始使用', 'Enter and settle in', '入場して利用開始')}</b><span>{t('有效會籍可使用工作區與設施。', 'A valid membership includes work areas and facilities.', '有効な会員資格でワークエリアと設備を利用できます。')}</span></li><li><b>{t('把空檔用完再走', 'Leave when you are ready', '準備ができたら出発')}</b><span>{t('下一段行程以前，讓這裡接住你。', 'Let this place hold the time before your next stop.', '次の予定まで、ここで過ごせます。')}</span></li></ol></section>
+
+<section class="sq-plans" id="plans"><article class="sq-plan sq-plan--day"><h2>{t('單日使用', 'Day pass', '1日利用')}</h2><p>{t('給轉乘、短時工作或半天會議。', 'For a transfer, short work session or half-day meeting.', '乗り換え、短時間の作業、半日の会議に。')}</p><strong>NT$200</strong><span>{t('4 小時起｜超時每小時 NT$100', 'from 4 hours · NT$100 per extra hour', '4時間から｜延長は1時間 NT$100')}</span><a href="{app}">{t('在會員 App 購買', 'Buy in the member app', '会員アプリで購入')}</a></article><article class="sq-plan sq-plan--member"><h2>{t('常用會籍', 'Regular membership', '継続会員')}</h2><p>{t('給把台北車站周邊當工作據點的人。', 'For people who use Taipei Main Station as a work base.', '台北駅周辺を仕事の拠点にする人へ。')}</p><strong>NT$4,000</strong><span>{t('月會員｜季 NT$10,000｜年 NT$35,000', 'monthly · quarterly NT$10,000 · annual NT$35,000', '月会員｜四半期 NT$10,000｜年 NT$35,000')}</span><a href="{app}">{t('在會員 App 加入', 'Join in the member app', '会員アプリで加入')}</a></article></section>
+
+<section class="sq-venue" id="venue"><div><h2>{t('把一段時間，\n留給一群人。', 'Give a stretch of time\nto a group.', 'ある時間を、\n一つの集まりへ。')}</h2><p>{t('講座、工作坊、團隊討論或社群聚會，可申請使用不同區域或整體空間。每個時段兩小時；未租用區域仍保留給會員。', 'For talks, workshops, team sessions or community gatherings, apply for an area or the whole space. Each slot is two hours; areas not hired remain for members.', '講座、ワークショップ、チームの話し合い、コミュニティの集まりに。エリア単位または全体の利用を申請できます。1枠は2時間。利用されないエリアは会員のために残ります。')}</p><a class="sq-action sq-action--light" href="{apply}">{t('申請活動或包場', 'Apply for an event or venue hire', 'イベント・貸切を申請')}</a></div><figure><img src="/brand-sites/assets/stay/loft.webp" alt="{t('活動與交流空間規劃示意', 'Event and social space, concept rendering', 'イベント・交流スペース、完成イメージ')}" width="1594" height="987" loading="lazy"><figcaption>{t('規劃示意', 'Concept rendering', '完成イメージ')}</figcaption></figure></section>
+
+<section class="sq-faq" aria-labelledby="faq-h"><h2 id="faq-h">{t('常見問題', 'Questions', 'よくある質問')}</h2><div><p><b>{t('會員方案包含哪些空間？', 'What does membership include?', '会員プランには何が含まれますか？')}</b> {t('有效會籍可使用共享工作區、會議室、電話亭與自助吧；依現場使用規則與預約狀況為準。', 'A valid membership includes shared work areas, the meeting room, phone booth and self-serve bar, subject to on-site rules and reservations.', '有効な会員資格で共有ワークエリア、会議室、電話ブース、セルフサービスバーを利用できます。現地のルールと予約状況に従います。')}</p><p><b>{t('非會員可以包場嗎？', 'Can non-members hire the venue?', '非会員でも貸切できますか？')}</b> {t('可以。請填活動或包場申請，送出不代表保留場地，將由團隊確認。', 'Yes. Submit an event or venue-hire application. Submission does not reserve the space; our team will confirm it.', 'はい。イベント・貸切申請を送ってください。送信だけでは予約確定にならず、チームが確認します。')}</p><p><b>{t('可以使用多久？', 'How long can I use it?', 'どれくらい利用できますか？')}</b> {t('單日方案依購買時數使用；常用會籍依方案有效期間。實際開放時間以現場公告為準。', 'Day passes follow the time purchased; regular memberships follow their validity. Actual opening times follow on-site notices.', '1日プランは購入時間内、継続会員は有効期間内で利用できます。実際の利用時間は現地の案内に従います。')}</p></div></section>
+
+<section class="sq-contact"><p>{t('想談包場、合作或會員方案，寫信給', 'For venue hire, partnerships or membership questions, write to', '貸切、提携、会員プランについては')}</p><a href="mailto:us@emoji.tw">us@emoji.tw</a><div><span>{e(ADDRESS[L])}</span><span><a href="https://www.instagram.com/{BRANDS[s]['ig']}" target="_blank" rel="noopener">Instagram @{BRANDS[s]['ig']}</a></span></div></section>
+</main>
+<script>(function(){{var stage=document.querySelector('.sq-stage'), imgs=stage&&stage.querySelectorAll('img');if(!imgs||imgs.length<2||matchMedia('(prefers-reduced-motion: reduce)').matches)return;var i=0;setInterval(function(){{imgs[i].classList.remove('is-active');i=(i+1)%imgs.length;imgs[i].classList.add('is-active')}},5600)}})()</script>\n'''
+    out += footer_html(s, [(t('加入會員', 'Join', '会員になる'), app), (t('申請包場', 'Venue hire', '貸切を申請'), apply)])
     return out
 
 
