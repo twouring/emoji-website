@@ -110,7 +110,9 @@ PY
 客人端輪詢用：`{ venue, paused }`。`paused` 為 null（可點）或店家在後台設定的暫停文案（例「今日最後點餐 22:30」）。設定存於 `site_content.ordering_pause`，依店別分開。
 
 ### GET /api/orders/table
-掃帳本夾裡的本桌點餐 QR 進入（2026-10-26 起為單次 QR）：query `s`（場次 id）、`k`（簽章，`HMAC(APP_SECRET,'session:'+s)` 前 16 碼）。QR 只在外場於 POS 開桌（`POST /api/admin/orders/sessions`）時產生，綁這一場；回這一場 `{ id, table, status, items[], orders[], total_unpaid }`，已結帳清桌的場 `status:'closed'`（前端顯示感謝頁，不能再加點）。客人端**不能自己開桌**；桌上舊固定 QR（`t`/`k`）一律回 403「這個 QR 已停用」。簽章錯誤 403、場次不存在 404。
+掃帳本夾裡的本桌點餐 QR 進入（2026-10-26 起為單次 QR）：query `s`（場次 id）、`k`（簽章，`HMAC(APP_SECRET,'session:'+s)` 前 16 碼）。QR 只在外場於 POS 開桌（`POST /api/admin/orders/sessions`）時產生，綁這一場；回這一場 `{ id, table, status, items[], orders[], total_unpaid }`，已結帳清桌的場 `status:'closed'`（前端顯示感謝頁，不能再加點）。三點水時段客人端**不能自己開桌**。簽章錯誤 403、場次不存在 404。
+
+**在咖啡桌邊固定 QR（2026-11-03 起）**：query 改帶 `t`（桌號）、`k`（`HMAC(APP_SECRET,'table:'+t)` 前 16 碼），不帶 `s`。只在在咖啡點餐時段（`MenuLib.orderWindow().venue==='CAFE'`，08:00–16:30）可用，其他時段 403。這桌有開著的場就併入；沒有、或上一組已全部結清出餐就開新的一場（客人自開的場 30 分鐘沒點東西，`GET /api/admin/orders` 會收掉）；4 小時沒動靜但仍有未付回 409。回應同上，另帶 `k`（本場簽章）與 `fixed:true`，之後點歌、呼叫、回饋、會員、兌換一律用 `s=id`＋這個 `k`。
 
 ### GET /api/orders/:id
 同桌購物車現況（供輪詢）。query `g`＝自己的 guest 識別碼，回應以 `mine` 標記自己的行（不外露他人識別碼）。`items[]` 每行含 `line, zh, price, qty, by, mine, order_id`；`order_id` 非空＝已付款。`orders[]` 為出餐單 `{ id, amount, status: paid|ready|done, lines[] }`。
@@ -745,7 +747,7 @@ POS 庫存（`/pos/inventory`）。query `venue=`。回 `{ items[], recipes{菜�
 刪除訂位（含已取消的，讓畫面不再雜亂）。軟刪除（`deleted_at`），`GET /api/admin/reservations` 一律過濾掉，保留紀錄供日後查帳；無法復原畫面（資料庫仍有紀錄）。品牌子帳號只能刪自己店別時段的訂位（404）。回 `{ ok }`。
 
 ### GET /api/admin/tables/qr
-補印本桌點餐 QR。query `tables=A1,A2`（最多 100 桌，英數字與 -，8 字內）。只給開著的桌，回 `{ tables: [{ table, session_id, url }] }`，`url` 綁該桌目前這一場（結帳清桌後失效）；有桌尚未開桌回 409。
+補印本桌點餐 QR。query `tables=A1,A2`（最多 100 桌，英數字與 -，8 字內）。只給開著的桌，回 `{ tables: [{ table, session_id, url }] }`，`url` 綁該桌目前這一場（結帳清桌後失效）；有桌尚未開桌回 409。加 `fixed=1` 改回在咖啡桌邊固定 QR `{ tables: [{ table, fixed:true, url }] }`（`url`＝`/order?t=&k=`，不綁場次、不需開桌）。
 
 ### POST /api/admin/content
 寫入網站內容（key-value，含菜單 `menu` 與空間文案）。body：`{ key, value }`。

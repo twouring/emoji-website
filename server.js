@@ -5704,10 +5704,30 @@ app.get('/api/orders/pause',requireDb,wrap(async(req,res)=>{res.set('Cache-Contr
 // 桌上固定 QR（t/k）一律 403，客人不能自己開桌——避免離店後或店外拿舊 QR 惡意點餐。回這一場（已結束也回，前端顯示感謝頁）
 const QR_RETIRED='這個 QR 已停用。請向服務人員索取本桌點餐 QR。';
 app.get('/api/orders/table',requireDb,wrap(async(req,res)=>{
+  if(req.query.t&&!req.query.s)return fixedTableQr(req,res);
   const id=tableOrders.verifySession(req.query.s,req.query.k,SECRET);if(!id)return res.status(403).json({error:req.query.t?QR_RETIRED:'QR 無效，請向服務人員索取本桌點餐 QR。'});
   const s=await loadSession(id);if(!s)return res.status(404).json({error:'找不到這桌的點餐，請洽服務人員。'});
   res.set('Cache-Control','no-store');res.json(publicSession(s,String(req.query.g||'')));
 }));
+// 在咖啡桌邊固定 QR（KK 11/3）：t=桌號、k=HMAC('table:'+桌號)。只在在咖啡點餐時段可用；這桌有開著的場就併進去，沒有（或上一組已結清）就由客人開新的一場。
+// 回這一場＋本場簽章 k，之後點歌／呼叫／回饋／會員都照單次 QR 的 s/k 走。三點水時段一律 403，請外場開桌印單次 QR
+const FIXED_QR_CLOSED='桌上 QR 只在在咖啡點餐時間（08:00–16:30）使用，三點水請向服務人員索取本桌點餐 QR。 / This table QR works during café hours only. Please ask our staff for your order QR.';
+async function fixedTableQr(req,res){
+  const table=tableOrders.verifyTable(req.query.t,req.query.k,SECRET);if(!table)return res.status(403).json({error:'QR 無效，請洽服務人員。'});
+  if(!tableOrders.fixedQrOpen())return res.status(403).json({error:FIXED_QR_CLOSED});
+  if(tableOrders.isTakeout(table))return res.status(403).json({error:'QR 無效，請洽服務人員。'});
+  const client=await pool.connect();let id;
+  try{await client.query('BEGIN');await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,['table:'+table]);
+    let s=(await client.query("SELECT id,items,updated_at FROM table_sessions WHERE table_no=$1 AND status='open' ORDER BY created_at DESC LIMIT 1 FOR UPDATE",[table])).rows[0];
+    const d=s?tableOrders.fixedQrDecision(s,(await client.query('SELECT status FROM table_orders WHERE session_id=$1',[s.id])).rows):'renew';
+    if(d==='blocked'){await client.query('ROLLBACK');return res.status(409).json({error:'這桌上一組還沒結帳，請洽服務人員。 / Please ask our staff.'});}
+    if(s&&d==='renew'){await client.query("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=$1",[s.id]);s=null;}
+    if(!s)s=(await client.query('INSERT INTO table_sessions(id,table_no) VALUES($1,$2) RETURNING id',[uid('ts_'),table])).rows[0];
+    id=s.id;await client.query('COMMIT');
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
+  const s=await loadSession(id);res.set('Cache-Control','no-store');
+  res.json({...publicSession(s,String(req.query.g||'')),k:tableOrders.sessionKey(id,SECRET),fixed:true});
+}
 app.get('/api/orders/:id',requireDb,wrap(async(req,res)=>{const s=await loadSession(req.params.id);if(!s)return res.status(404).json({error:'找不到這桌的點餐。'});res.json(publicSession(s,String(req.query.g||'')));}));
 // 即時同步（SSE）：連上先推一份目前狀態，之後同桌任何異動（別人加點、送單、出餐、櫃檯收款）即刻推新狀態；斷線瀏覽器自動重連
 const liveHub=tableLive.createHub({load:async id=>{const s=await loadSession(id);return s?guest=>publicSession(s,guest):null;},log:console.warn});
@@ -5832,6 +5852,9 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   let rows=(await q("SELECT id,table_no,items,created_at,updated_at,opened_by_staff_name,pay_requests,pickup_at,pickup_note,pickup_placed_at,party_votes,members FROM table_sessions WHERE status='open' ORDER BY table_no")).rows;
   // 外帶單（W01–W99）結完帳且取餐完成就自動收掉，號碼釋出給下一位；內用桌留「待清桌」給人員確認客人離開
   const doneTakeout=rows.filter(s=>tableOrders.isTakeout(s.table_no)&&tableOrders.takeoutFinished(s,live)).map(s=>s.id);
+  // 客人掃在咖啡固定 QR 開的場（沒有開桌人員）30 分鐘都沒點東西就收掉，不在桌況留空桌
+  const ghost=rows.filter(s=>!s.opened_by_staff_name&&!s.pickup_at&&!tableOrders.isTakeout(s.table_no)&&!(s.items||[]).length&&Date.now()-new Date(s.updated_at).getTime()>30*60e3).map(s=>s.id);
+  if(ghost.length){await q("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=ANY($1) AND status='open' AND items='[]'::jsonb",[ghost]);rows=rows.filter(s=>!ghost.includes(s.id));}
   if(doneTakeout.length){await q("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=ANY($1) AND status='open'",[doneTakeout]);rows=rows.filter(s=>!doneTakeout.includes(s.id));}
   const sessions=rows.filter(s=>tableOrders.orderVisibleToVenues(s,venues)).map(s=>{const lines=tableOrders.unpaid(s.items).filter(line=>tableOrders.itemInVenues(line,venues)).map(({guest,...l})=>l);return{id:s.id,table:s.table_no,takeout:tableOrders.isTakeout(s.table_no),pickup_at:s.pickup_at||null,pickup_note:s.pickup_note||'',pickup_placed:!!s.pickup_placed_at,unpaid:lines.length,unpaid_amount:tableOrders.sum(lines),lines,mixed:!tableOrders.sessionClosableByVenues(s,venues),state:tableOrders.tableStatus(s,live),updated_at:s.updated_at,created_at:s.created_at,operator:s.opened_by_staff_name||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes),foreign:tableOrders.partyForeign(s.party_votes),members:tableOrders.joinMember(s.members),pay_requests:tableOrders.payRequestsView(s.pay_requests,s.items).map(r=>({...r,lines:r.lines.filter(l=>lines.some(x=>x.line===l))})).filter(r=>r.lines.length)};});
   // 桌邊送單（未結帳、未出餐）：與已結帳的出餐單一起上看板；子帳號只看整張都是自己品牌的
@@ -7113,6 +7136,8 @@ app.post('/api/admin/orders/sessions/:id/close',auth,adminOnly,requireDb,wrap(as
 app.get('/api/admin/tables/qr',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const tables=[...new Set(String(req.query.tables||'').split(',').map(t=>t.trim().toUpperCase()).filter(Boolean))].slice(0,100);
   const bad=tables.find(t=>!tableOrders.TABLE_RE.test(t));if(bad)return res.status(400).json({error:`桌號「${bad}」只能用英數字與 -，最長 8 字。`});
+  // ?fixed=1：在咖啡桌邊固定 QR（貼桌上，不綁場次，只在在咖啡點餐時段可用）
+  if(req.query.fixed==='1')return res.json({tables:tables.map(t=>({table:t,fixed:true,url:tableOrders.tableUrl(APP_BASE,t,SECRET)}))});
   const open=new Map((await q("SELECT DISTINCT ON (table_no) id,table_no,created_at,party_votes FROM table_sessions WHERE status='open' AND table_no=ANY($1) ORDER BY table_no,created_at DESC",[tables])).rows.map(r=>[r.table_no,r]));
   const closed=tables.filter(t=>!open.has(t));if(closed.length)return res.status(409).json({error:`${closed.join('、')} 尚未開桌，請先開桌再印 QR。`});
   res.json({tables:tables.map(t=>{const s=open.get(t);return{table:t,session_id:s.id,url:tableOrders.sessionUrl(APP_BASE,s.id,SECRET),no:tableOrders.sessionNo(s.id),opened_at:s.created_at||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes),foreign:tableOrders.partyForeign(s.party_votes)};})});

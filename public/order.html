@@ -295,7 +295,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   var toastT;var toast=function(m,ms){var t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove('on');},ms||4000);};
   var money=function(n){return 'NT$'+Number(n||0).toLocaleString('zh-TW');};
   var ON_APP=/^app\./.test(location.hostname),STANDALONE=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;   // 點餐頁收進會員 App（app.emoji.tw/order）
-  var qs=new URLSearchParams(location.search),SID=qs.get('s')||'',T=qs.get('t')||'',K=qs.get('k')||'';   // s＝本場單次 QR（POS 開桌印出）；t＝桌上舊固定 QR，已停用
+  var qs=new URLSearchParams(location.search),SID=qs.get('s')||'',T=qs.get('t')||'',K=qs.get('k')||'',FIXED=!SID&&!!T,TK=FIXED?K:'';   // s＝本場單次 QR（POS 開桌印出）；t＝在咖啡桌邊固定 QR（KK 11/3），掃到後換成這一場的 s/k   // s＝本場單次 QR（POS 開桌印出）；t＝桌上舊固定 QR，已停用
   var S=null,MENU=[],MENU_DOC=null,VENUE=null,CFG={},GUEST,NAME,seenReady={},pollTimer,LANG='zh',CURRENT_ITEM=null,CURRENT_QTY=1,PAUSED=null,WIN_KEY='';
   try{GUEST=localStorage.getItem('order_guest');NAME=localStorage.getItem('order_name')||'';LANG=localStorage.getItem('order_lang')||'';}catch(e){}
   if(!LANG){var ql=qs.get('lang'),nl=(navigator.language||'').toLowerCase();LANG=ql==='en'||ql==='ja'||ql==='ko'?ql:(!ql&&/^ja/.test(nl)?'ja':(!ql&&/^ko/.test(nl)?'ko':(!ql&&!/^zh/i.test(nl)?'en':'zh')));}
@@ -501,20 +501,21 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   function askNotify(){try{if('Notification'in window&&Notification.permission==='default')Notification.requestPermission().catch(function(){});}catch(e){}}
 
   // 同裝置結帳後鎖定：這支手機的場結束後，舊分頁／書籤不再打 /orders/table（會自動開新場或併進下一組）
-  var ENDED_KEY='order_ended_'+SID;
-  function endedId(){try{return localStorage.getItem(ENDED_KEY)||'';}catch(e){return '';}}
-  function setEnded(id){try{if(id)localStorage.setItem(ENDED_KEY,id);}catch(e){}}
-  function clearEnded(){try{localStorage.removeItem(ENDED_KEY);}catch(e){}}
+  var ENDED_KEY='order_ended_'+(FIXED?'t_':'')+(SID||T);
+  // 固定 QR：結束鎖 2 小時（重新整理不會馬上開出空桌），之後同一支手機再掃就是新的一組；感謝頁有「重新點餐」
+  function endedId(){try{var v=localStorage.getItem(ENDED_KEY)||'';if(FIXED){var at=Number(localStorage.getItem(ENDED_KEY+'_at')||0);if(Date.now()-at>2*3600e3)return '';}return v;}catch(e){return '';}}
+  function setEnded(id){try{if(id){localStorage.setItem(ENDED_KEY,id);localStorage.setItem(ENDED_KEY+'_at',String(Date.now()));}}catch(e){}}
+  function clearEnded(){try{localStorage.removeItem(ENDED_KEY);localStorage.removeItem(ENDED_KEY+'_at');}catch(e){}}
   function showThanks(){
     if(ES){ES.close();ES=null;}S=null;clearTimeout(pollTimer);
     closeSheets(true);$('#bar').hidden=true;$('#call-open').hidden=true;$('#app').classList.add('hidden');$('#boot').classList.add('hidden');
-    $('#thanks').classList.remove('hidden');
+    $('#thanks').classList.remove('hidden');$('#thanks-again').hidden=!FIXED;
   }
   function sessionClosed(s){setEnded((s&&s.id)||(S&&S.id)||'1');showThanks();}
 
   function load(){
     if(endedId()){showThanks();return Promise.resolve(null);}
-    return api('/orders/table?s='+encodeURIComponent(SID)+'&k='+encodeURIComponent(K)+'&g='+GUEST).then(function(s){if(s.status!=='open'){sessionClosed(s);return null;}var sid=S&&S.id;applyState(s);if(s.id!==sid)live();return s;});
+    return api('/orders/table?'+(FIXED?'t='+encodeURIComponent(T)+'&k='+encodeURIComponent(TK):'s='+encodeURIComponent(SID)+'&k='+encodeURIComponent(K))+'&g='+GUEST).then(function(s){if(FIXED){SID=s.id;K=s.k;}if(s.status!=='open'){sessionClosed(s);return null;}var sid=S&&S.id;applyState(s);if(s.id!==sid)live();return s;});
   }
   function refresh(){if(!S)return Promise.resolve();return api('/orders/'+S.id+'?g='+GUEST).then(function(s){if(s.status!=='open'){sessionClosed(s);return;}applyState(s);}).catch(function(){});}
   // 即時同步：SSE 連上就推目前狀態，之後同桌任何異動（別人加點、送單、出餐、櫃檯收款）伺服器立刻推；瀏覽器自動重連。
@@ -785,7 +786,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   $('#inst-later').onclick=function(){try{localStorage.setItem('order_inst_x',String(Date.now()));}catch(e){}renderInstall();};
   renderInstall();
   /* ---- 啟動 ---- */
-  if(!SID||!K)return fail(T?'桌上的 QR 已停用，請向服務人員索取本桌點餐 QR。 / This table QR is no longer used. Please ask our staff for your order QR.':'請掃描服務人員給的本桌點餐 QR。 / Please scan the order QR from our staff.');
+  if(!K||(!SID&&!T))return fail('請掃描桌上或服務人員給的點餐 QR。 / Please scan the order QR.');
   if(endedId())showThanks();
   else Promise.all([api('/orders/config'),fetch('/api/public').then(function(r){return r.json();}),load(),api('/orders/pause').catch(function(){return {};})]).then(bootApp).catch(function(err){fail(err.message);});
   setInterval(function(){if(!S)return;if(JSON.stringify(MenuLib.orderWindow())!==WIN_KEY)renderMenu();else renderShift();},30000); // 16:00／16:30／02:00／02:30／08:00 換時段

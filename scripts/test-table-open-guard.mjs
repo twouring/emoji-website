@@ -21,12 +21,32 @@ test('單次 QR 簽章綁場次：別場、改字、換密鑰、舊桌碼格式�
   assert.notEqual(T.sessionKey(id, 'sec'), T.tableKey(id, 'sec'));
   assert.match(T.sessionUrl('https://www.emoji.tw', id, 'sec'), /^https:\/\/www\.emoji\.tw\/order\?s=ts_0123456789abcdef&k=[A-Za-z0-9_-]{16}$/);
 });
-test('客人端只讀這一場、不開桌；桌上舊 QR 回停用', () => {
+test('單次 QR 只讀這一場；桌上固定 QR 只在在咖啡時段（KK 11/3）', () => {
   assert.match(route, /verifySession\(req\.query\.s,req\.query\.k,SECRET\)/);
-  assert.match(route, /QR_RETIRED/);
-  assert.doesNotMatch(route, /INSERT INTO table_sessions/);
+  assert.match(route, /if\(req\.query\.t&&!req\.query\.s\)return fixedTableQr\(req,res\)/);
+  assert.doesNotMatch(route.slice(0, route.indexOf('async function fixedTableQr(')), /INSERT INTO table_sessions/);
   assert.doesNotMatch(server, /app\.post\('\/api\/orders\/table\/items'/);
-  assert.doesNotMatch(server, /verifyTable\(/);
+  const fx = server.slice(server.indexOf('async function fixedTableQr('), server.indexOf("app.get('/api/orders/:id'"));
+  assert.match(fx, /if\(!tableOrders\.fixedQrOpen\(\)\)return res\.status\(403\)/);
+  assert.match(fx, /k:tableOrders\.sessionKey\(id,SECRET\)/);
+  const W = (h, m) => Date.UTC(2026, 10, 3, h - 8, m);
+  assert.equal(T.fixedQrOpen(W(8, 0)), true); assert.equal(T.fixedQrOpen(W(16, 29)), true);
+  assert.equal(T.fixedQrOpen(W(16, 30)), false); assert.equal(T.fixedQrOpen(W(20, 0)), false); assert.equal(T.fixedQrOpen(W(7, 59)), false);
+});
+test('固定 QR：同桌併入、上一組結清開新場、久無動靜有未付不讓新客人併入', () => {
+  const now = Date.now(), fresh = new Date(now - 60e3).toISOString(), old = new Date(now - 5 * 3600e3).toISOString();
+  assert.equal(T.fixedQrDecision(null, [], now), 'renew');
+  assert.equal(T.fixedQrDecision({ items: [], updated_at: fresh }, [], now), 'join');
+  assert.equal(T.fixedQrDecision({ items: [{ line: 'l1', price: 100, qty: 1 }], updated_at: fresh }, [], now), 'join');
+  assert.equal(T.fixedQrDecision({ items: [{ line: 'l1', price: 100, qty: 1, order_id: 'o1' }], updated_at: fresh }, [{ status: 'done' }], now), 'renew');
+  assert.equal(T.fixedQrDecision({ items: [{ line: 'l1', price: 100, qty: 1, order_id: 'o1' }], updated_at: fresh }, [{ status: 'ready' }], now), 'join');
+  assert.equal(T.fixedQrDecision({ items: [{ line: 'l1', price: 100, qty: 1 }], updated_at: old }, [], now), 'blocked');
+  assert.equal(T.fixedQrDecision({ items: [], updated_at: old }, [], now), 'renew');
+});
+test('POS：在咖啡時段開桌不印 QR 單，三點水照印', () => {
+  assert.match(ops, /function cafeFixedQr\(\)\{return [^}]*orderWindow\(\)\.venue==='CAFE'/);
+  assert.match(ops, /if\(!url\|\|cafeFixedQr\(\)\)return false;/);
+  assert.match(ops, /if\(!cafeFixedQr\(\)\)for\(const o of opened\)/);
 });
 test('會員兌換只接本場 QR，已結束的場 409，不自動開場', () => {
   const r = server.slice(server.indexOf("app.post('/api/me/redeem'"), server.indexOf("app.get('/api/me/yan'"));
@@ -47,13 +67,14 @@ test('POS 開桌回 qr_url 並自動印；可一次開多桌；補印只給開�
 });
 test('前端：只認 s/k，加點只打 /orders/:id/items；場已結束顯示感謝頁、不能自己重開', () => {
   assert.match(html, /SID=qs\.get\('s'\)/);
-  assert.match(html, /api\('\/orders\/table\?s='/);
+  assert.match(html, /api\('\/orders\/table\?'\+\(FIXED\?'t='/);
   assert.match(html, /api\('\/orders\/'\+S\.id\+'\/items'/);
   assert.doesNotMatch(html, /\/orders\/table\/items/);
-  assert.match(html, /ENDED_KEY='order_ended_'\+SID/);
+  assert.match(html, /ENDED_KEY='order_ended_'\+\(FIXED\?'t_':''\)\+\(SID\|\|T\)/);
+  assert.match(html, /if\(FIXED\)\{SID=s\.id;K=s\.k;\}/);
   assert.match(html, /if\(s\.status!=='open'\)\{sessionClosed\(s\);return null;\}/);
   assert.match(html, /id="thanks-again"[^>]*hidden/);
-  assert.match(html, /桌上的 QR 已停用/);
+  assert.match(html, /\$\('#thanks-again'\)\.hidden=!FIXED/);
   for (const key of ['thanks', 'thanks_hint', 'thanks_again']) assert.equal((lib.match(new RegExp(`\\b${key}: '`, 'g')) || []).length, 3, `${key} 三語都要有`);
   assert.doesNotMatch(lib, /重新掃描桌上的 QR/);
 });

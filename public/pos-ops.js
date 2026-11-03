@@ -1043,8 +1043,10 @@ async function printTableQr(table,url,info={}){
   const ok=await starSend({canvas:out});toast(ok?'桌號 QR 已送出列印':'桌號 QR 列印失敗');return ok;
 }
 // 開桌後自動出 QR：在 Star webPRNT Browser 裡直接印；不在（電腦／一般瀏覽器）就開面板顯示，可拿平板給客人掃或再按列印
+/* 在咖啡改用桌邊固定 QR（KK 11/3）：在咖啡點餐時段開桌不印單次 QR 單，客人掃桌上的 QR 會併進這一場；三點水維持開桌印 QR */
+function cafeFixedQr(){return typeof MenuLib!=='undefined'&&MenuLib.orderWindow&&MenuLib.orderWindow().venue==='CAFE';}
 async function printOpenedQr(table,url,info={}){
-  if(!url)return false;
+  if(!url||cafeFixedQr())return false;
   if(starReady()){try{if(await printTableQr(table,url,info))return true;}catch(e){toast('桌號 QR 列印失敗：'+e.message);}}
   await openOneTableQr(table);return false;
 }
@@ -1095,7 +1097,7 @@ async function openManyTables(empty,reload){
     if(!opened.length)return;
     toast(`已開桌 ${opened.map(o=>o.table).join('、')}`);
     POS_TABLE='';await reload();
-    for(const o of opened){if(!starReady()){await openOneTableQr(o.table);break;}await printTableQr(o.table,o.qr_url,o);}   // 沒接 mPOP 時只顯示第一桌，其餘到各桌按 QR 補
+    if(!cafeFixedQr())for(const o of opened){if(!starReady()){await openOneTableQr(o.table);break;}await printTableQr(o.table,o.qr_url,o);}   // 沒接 mPOP 時只顯示第一桌，其餘到各桌按 QR 補
   });
 }
 /* 桌號獨立網址（KK 11/2）：/pos/table/<桌號>；只在 /pos 生效（/admin 共用本檔，不動網址）。
