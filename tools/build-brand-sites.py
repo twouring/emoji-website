@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""產生子品牌獨立站 public/brand-sites/{,en/,ja/}{at-cafe,3am,stay-square}.html（三語）。
-網域：atcafe.emoji.tw／3am.emoji.tw／staysquare.emoji.tw（server.js BRAND_HOSTS 依 host 分流）；
+"""產生子品牌獨立站 public/brand-sites/{,en/,ja/}{at-cafe,3am,stay-square,rest-book}.html（三語）。
+網域：atcafe.emoji.tw／3am.emoji.tw／staysquare.emoji.tw／restbook.emoji.tw（server.js BRAND_HOSTS 依 host 分流）；
 語系路徑：中文 /、英文 /en、日文 /ja。
 原則（KK 2026-11-03）：每站只完整介紹自己的品牌，不放姊妹品牌區塊、不互導；母品牌只在頁尾法律行出現一次（CIS：母品牌至少出現一次）。
 識別依 cis.emoji.tw/brands；菜單（data-menu）與空間文案（data-md／data-image）由 lib/public-render.renderSpace 依語系伺服器端填入。
@@ -34,6 +34,9 @@ BRANDS = {
                 alt={'zh': '三點水 3AM Bistro 標誌', 'en': '3AM Bistro logo', 'ja': '三點水 3AM Bistro ロゴ'}, venue='BAR', schema='BarOrPub'),
     'stay-square': dict(host='staysquare.emoji.tw', zh='等等空間', en='Stay Square', color='#2B4064', ig='emoji.staysquare',
                         alt={'zh': '等等空間 Stay Square 標誌', 'en': 'Stay Square logo', 'ja': '等等空間 Stay Square ロゴ'}, venue=None, schema=None),
+    # 2026-11-04 KK：2F 自等等空間分出；會員方案不含；日文同中文；IG 帳號未定（ig=None 不顯示）；標誌為暫用文字標誌（tools/build-rest-book-logo.py）
+    'rest-book': dict(host='restbook.emoji.tw', zh='約書旅', en='Rest Book', color='#5A4632', ig=None,
+                      alt={'zh': '約書旅 Rest Book 標誌', 'en': 'Rest Book logo', 'ja': '約書旅 Rest Book ロゴ'}, venue=None, schema=None),
 }
 e = html.escape
 L = 'zh'  # 目前產生中的語系（build() 設定）
@@ -143,6 +146,7 @@ def header(slug, nav):
 def visit(hours_rows, slug):
     rows = ''.join(f'<div><dt>{e(k)}</dt><dd>{e(v)}</dd></div>' for k, v in hours_rows)
     b = BRANDS[slug]
+    ig_row = f'<div><dt>Instagram</dt><dd><a href="https://www.instagram.com/{b["ig"]}" target="_blank" rel="noopener">@{b["ig"]}</a></dd></div>' if b['ig'] else ''
     near = t('台北車站站前地下街 Z10 出口斜對面', 'Diagonally across from Exit Z10, Taipei Main Station underground mall', '台北駅地下街 Z10 出口の斜め向かい')
     small = t('台北車站站前地下街 Z10 出口斜對面；捷運、台鐵、高鐵都在步行範圍內。',
               'Diagonally across from Exit Z10 of the Taipei Main Station underground mall; MRT, TRA and HSR are all within walking distance.',
@@ -152,7 +156,7 @@ def visit(hours_rows, slug):
   <div class="bs-visit">
     <div>
       <address>{e(ADDRESS[L])}<small>{e(small)}</small></address>
-      <dl>{rows}<div><dt>{t('電話', 'Phone', '電話')}</dt><dd><a href="{TEL_HREF}">{e(TEL_TEXT)}</a></dd></div><div><dt>Email</dt><dd><a href="mailto:us@emoji.tw">us@emoji.tw</a></dd></div><div><dt>Instagram</dt><dd><a href="https://www.instagram.com/{b['ig']}" target="_blank" rel="noopener">@{b['ig']}</a></dd></div></dl>
+      <dl>{rows}<div><dt>{t('電話', 'Phone', '電話')}</dt><dd><a href="{TEL_HREF}">{e(TEL_TEXT)}</a></dd></div><div><dt>Email</dt><dd><a href="mailto:us@emoji.tw">us@emoji.tw</a></dd></div>{ig_row}</dl>
       <div class="bs-hero__actions"><a class="bs-btn bs-btn--line" href="{MAP}" target="_blank" rel="noopener">{t('Google 地圖', 'Google Maps', 'Google マップ')}</a><a class="bs-btn bs-btn--line" href="{www('/access')}">{t('交通與抵達方式', 'Directions', 'アクセス・行き方')}</a></div>
     </div>
     <iframe class="bs-map" src="https://www.google.com/maps?q=25.046198,121.51342&amp;hl={MAP_HL[L]}&amp;z=17&amp;output=embed" title="{e(b['zh'])} {e(b['en'])} {t('地圖位置', 'map location', '地図')}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
@@ -169,10 +173,11 @@ def footer_html(slug, dock):
     b = BRANDS[slug]
     dock_html = ''.join(f'<a class="bs-btn{" bs-btn--line" if i else ""}" href="{h}">{x}</a>' for i, (x, h) in enumerate(dock))
     legal = f'© 2026 {b["zh"]} {b["en"]} · {COMPANY[L]} · {PARENT[L]}'
+    ig_li = f'<li><a href="https://www.instagram.com/{b["ig"]}" target="_blank" rel="noopener">Instagram @{b["ig"]}</a></li>' if b['ig'] else ''
     return f'''<footer class="bs-foot"><div class="wrap">
   <div class="bs-foot__grid">
     <div class="bs-foot__brand"><img src="/brand-sites/assets/{slug}-logo.webp" alt="{e(b['alt'][L])}" loading="lazy" decoding="async"></div>
-    <div><h4>{t('聯絡', 'Contact', 'お問い合わせ')}</h4><ul><li>{e(ADDRESS[L])}</li><li><a href="{TEL_HREF}">{e(TEL_TEXT)}</a></li><li><a href="mailto:us@emoji.tw">us@emoji.tw</a></li><li><a href="https://www.instagram.com/{b['ig']}" target="_blank" rel="noopener">Instagram @{b['ig']}</a></li></ul></div>
+    <div><h4>{t('聯絡', 'Contact', 'お問い合わせ')}</h4><ul><li>{e(ADDRESS[L])}</li><li><a href="{TEL_HREF}">{e(TEL_TEXT)}</a></li><li><a href="mailto:us@emoji.tw">us@emoji.tw</a></li>{ig_li}</ul></div>
     <div><h4>{t('更多', 'More', 'その他')}</h4><ul><li><a href="{www('/reserve')}">{t('線上訂位', 'Reservations', 'オンライン予約')}</a></li><li><a href="{app_url()}">{t('會員 App', 'Member app', '会員アプリ')}</a></li><li><a href="{www('/terms')}">{t('服務條款', 'Terms', '利用規約')}</a></li><li><a href="{www('/privacy')}">{t('隱私權政策', 'Privacy', 'プライバシー')}</a></li><li><a href="{www('/refund')}">{t('退費政策', 'Refunds', '返金ポリシー')}</a></li></ul></div>
   </div>
   <div class="bs-foot__bottom"><p class="bs-foot__legal">{e(legal)}</p>{lang_switch(b['host'], ' bs-lang--foot')}</div>
@@ -483,12 +488,92 @@ def page_stay():
     return out
 
 
+# ---------------------------------------------------------------- 約書旅（2026-11-04）
+def page_book():
+    s = 'rest-book'
+    contact = 'mailto:us@emoji.tw?subject=' + t('約書旅洽詢', 'Rest%20Book%20enquiry', '約書旅のお問い合わせ')
+    out = head(s, t('約書旅 Rest Book｜台北車站旁的閱讀、讀書與休憩空間',
+                    '約書旅 Rest Book | Reading, study and rest by Taipei Main Station',
+                    '約書旅 Rest Book｜台北駅そばの読書・勉強・休憩スペース'),
+               t('約書旅（Rest Book）在台北車站旁：書籍閱讀與購買、個人讀書空間、淋浴與交誼廳。工作累了來看本書、休息一下再出發。台北車站站前地下街 Z10 出口斜對面。',
+                 'Rest Book by Taipei Main Station: read and buy books, personal study seats, showers and a lounge. Take a break with a book before heading back out. Diagonally across from Exit Z10.',
+                 '約書旅（Rest Book）は台北駅のそば。本を読む・買う、個人の読書席、シャワーとラウンジ。仕事に疲れたら一冊読んでひと休み。台北駅地下街 Z10 出口の斜め向かい。'))
+    out += header(s, [(t('空間', 'Spaces', 'スペース'), '#rooms'), (t('書', 'Books', '本'), '#books'), (t('常見問題', 'FAQ', 'よくある質問'), '#faq'), (t('怎麼來', 'Visit', 'アクセス'), '#visit'), (t('洽詢', 'Contact', 'お問い合わせ'), contact)])
+    concept = t('規劃示意', 'Concept rendering', '完成イメージ')
+    out += f"""<main id="content">
+<section class="bs-hero bs-hero--brand"><div class="wrap bs-hero__grid">
+  <div>
+    <span class="bs-hero__kicker">{t('閱讀・讀書・休憩 · 台北車站旁', 'Reading · study · rest · by Taipei Main Station', '読書・勉強・休憩 · 台北駅そば')}</span>
+    <h1>約書旅<span class="en">Rest Book</span></h1>
+    <p class="bs-hero__lede">{t('和一本書約在車站旁。書籍閱讀與購買、個人讀書空間，還有淋浴與交誼廳；工作累了上來看本書，休息一下再出發。',
+                                 'Meet a book by the station. Read and buy books, settle into a personal study seat, and use the showers and lounge. Tired from work? Read a little, rest a little, then head back out.',
+                                 '駅のそばで、一冊の本と待ち合わせ。本を読む・買う、個人の読書席、シャワーとラウンジ。仕事に疲れたら少し読んで、ひと休みしてから出発。')}</p>
+    <div class="bs-hero__open"><span><b>{t('書・席・淋浴', 'Books · seats · showers', '本・席・シャワー')}</b>{t('另行計費，不含於會員方案', 'Priced separately; not included in membership', '別料金。会員プランには含まれません')}</span><span>{t('台北車站 Z10 出口斜對面', 'Across from Taipei Main Station Exit Z10', '台北駅 Z10 出口の斜め向かい')}</span></div>
+    <div class="bs-hero__actions"><a class="bs-btn bs-btn--on" href="#rooms">{t('看看空間', 'See the spaces', 'スペースを見る')}</a><a class="bs-btn bs-btn--on-line" href="{contact}">{t('來信洽詢', 'Email us', 'メールで問い合わせ')}</a></div>
+  </div>
+  <figure class="bs-hero__mark"><img src="/brand-sites/assets/rest-book-logo-white.webp" alt="{e(BRANDS[s]['alt'][L])}" width="592" height="527" decoding="async" fetchpriority="high"></figure>
+</div></section>
+
+<section id="rooms" aria-labelledby="rooms-h"><div class="wrap">
+  <div class="bs-sec__head">{sec_h2('rooms-h', '空間', 'Spaces', 'スペース')}<p>{t('費用另計，不含於會員方案；價格以現場公告為準', 'Priced separately, not included in membership; see on-site prices', '別料金で会員プランには含まれません。料金は現地の案内に準じます')}</p></div>
+  {facts([(t('用途', 'Use', '用途'), t('閱讀、讀書、休憩與梳洗', 'Reading, study, rest and freshening up', '読書、勉強、休憩、身支度')),
+          (t('使用資格', 'Access', '利用条件'), t('所有訪客，另行計費', 'Open to everyone; priced separately', 'どなたでも利用可。別料金')),
+          (t('書', 'Books', '本'), t('可閱讀，也可購買；售價依每本書標示', 'Read or buy; each book is individually priced', '読むことも買うこともできます。価格は一冊ごとに表示')),
+          (t('設施', 'Facilities', '設備'), t('個人讀書席、休憩室、淋浴、交誼廳', 'Personal study seats, rest rooms, showers, lounge', '個人読書席、休憩室、シャワー、ラウンジ'))])}
+  <div class="bs-rooms">
+    <article class="bs-room"><figure data-image="2"><img src="/assets/space/2f-concept.jpg" alt="{t('約書旅閱讀與休憩空間規劃示意', 'Rest Book reading and rest area, concept rendering', '約書旅の読書・休憩エリアの完成イメージ')}" width="1200" height="743" loading="lazy" decoding="async"><figcaption>{concept}</figcaption></figure>
+      <div class="bs-room__body"><h3>{t('讀書與休憩', 'Study and rest', '読書と休憩')}</h3><p>{t('書牆旁的個人讀書空間與休憩室，帶本書進去，看累了就閉眼休息一下。', 'Personal study seats and rest rooms beside the book wall. Take a book in, and close your eyes when you need to.', '本棚のそばの個人読書席と休憩室。本を持って入り、疲れたら目を閉じてひと休み。')}</p><div class="md-content" data-md="2"></div></div></article>
+    <article class="bs-room"><figure><img src="/brand-sites/assets/moji-rest.svg" alt="" width="200" height="200" loading="lazy"><figcaption>{t('moji · 休憩', 'moji · rest', 'moji · 休憩')}</figcaption></figure>
+      <div class="bs-room__body"><h3>{t('淋浴與交誼廳', 'Showers and lounge', 'シャワーとラウンジ')}</h3><p>{t('兩間淋浴，趕下一班車前梳洗一下。交誼廳約十人，有大螢幕、Switch、漫畫與桌遊。', 'Two showers for a quick freshen-up before the next train. The lounge seats about ten, with a big screen, Switch, manga and board games.', 'シャワー2室で、次の電車の前に身支度を。ラウンジは約10名、大型スクリーン、Switch、マンガ、ボードゲーム。')}</p></div></article>
+  </div>
+</div></section>
+"""
+    out += story('story-h', '關於約書旅', 'About Rest Book', '約書旅について', [
+        ('約書旅開在台北車站旁一棟民國 58 年的老屋裡。名字是「和書約好的一段旅程」：轉乘之間、會議之後，給自己一段讀書和休息的時間。',
+         'Rest Book is in a 1969 house by Taipei Main Station. The Chinese name means “a journey arranged with a book”: between transfers or after meetings, a stretch of time to read and rest.',
+         '約書旅は、台北駅そばの 1969 年築の古い建物にあります。名前は「本と約束した小さな旅」。乗り換えの合間や会議のあとに、読書と休憩の時間を。'),
+        ('書架上的書可以在現場看，喜歡就帶走；每本書的售價各自標示。',
+         'Books on the shelves can be read on site, and taken home if you like them; each book is priced individually.',
+         '棚の本はその場で読めて、気に入れば購入できます。価格は一冊ごとに表示しています。'),
+        ('約書旅是閱讀與休憩空間，不提供住宿；休憩室非密閉、不可上鎖。',
+         'Rest Book is a reading and rest space, not accommodation; rest rooms are open and not lockable.',
+         '約書旅は読書と休憩のためのスペースで、宿泊施設ではありません。休憩室は密閉されず、施錠もできません。'),
+    ])
+    out += f"""<section class="bs-alt" id="books" aria-labelledby="books-h"><div class="wrap">
+  <div class="bs-sec__head">{sec_h2('books-h', '書', 'Books', '本')}<p>{t('選書會持續更換；想找哪本書，歡迎來信', 'The selection changes over time; email us if you are looking for a title', '選書は随時入れ替わります。お探しの本があればご連絡ください')}</p></div>
+  <div class="bs-feat">
+    <figure class="bs-feat__moji"><img src="/brand-sites/assets/moji-rest.svg" alt="" width="200" height="200" loading="lazy"><figcaption>{t('moji · 讀書', 'moji · reading', 'moji · 読書')}</figcaption></figure>
+    {points([(t('現場閱讀', 'Read on site', 'その場で読む'), t('從書架拿一本，在讀書席或交誼廳看完。', 'Take one from the shelf and read it at a study seat or in the lounge.', '棚から一冊取って、読書席やラウンジで。')),
+             (t('喜歡就帶走', 'Take it home', '気に入れば購入'), t('每本書的售價各自標示，到櫃檯結帳。', 'Each book has its own price; pay at the counter.', '価格は一冊ごとに表示。カウンターでお会計。')),
+             (t('旅途上的書', 'Books for the road', '旅のための本'), t('工作、創業、旅行與在台灣生活的書，給路過台北的人。', 'Books on work, starting up, travel and life in Taiwan, for people passing through Taipei.', '仕事、起業、旅、台湾での暮らしの本を、台北を通る人へ。'))])}
+  </div>
+</div></section>
+
+<section id="faq" aria-labelledby="faq-h"><div class="wrap">
+  <div class="bs-sec__head">{sec_h2('faq-h', '常見問題', 'FAQ', 'よくある質問')}</div>
+  {faq([(t('會員方案包含約書旅嗎？', 'Is Rest Book included in membership?', '会員プランに約書旅は含まれますか？'),
+         t('不包含。約書旅另行計費，價格以現場公告為準。', 'No. Rest Book is priced separately; see on-site prices.', 'いいえ。約書旅は別料金で、料金は現地の案内に準じます。')),
+        (t('書可以買嗎？', 'Can I buy the books?', '本は買えますか？'),
+         t('可以，每本書的售價各自標示。', 'Yes; each book is individually priced.', 'はい。価格は一冊ごとに表示しています。')),
+        (t('可以過夜或住宿嗎？', 'Can I stay overnight?', '宿泊はできますか？'),
+         t('約書旅是閱讀與休憩空間，不提供住宿。', 'Rest Book is a reading and rest space, not accommodation.', '約書旅は読書と休憩のスペースで、宿泊施設ではありません。')),
+        (t('可以淋浴嗎？', 'Can I take a shower?', 'シャワーは使えますか？'),
+         t('可以，現場有兩間淋浴；費用與備品以現場公告為準。', 'Yes, there are two showers; see on-site prices and amenities.', 'はい。シャワーは2室あります。料金と備品は現地の案内に準じます。'))])}
+</div></section>
+"""
+    out += visit([(t('使用時間', 'Hours', '利用時間'), t('以現場公告為準', 'As posted on site', '現地の案内に準じます')),
+                  (t('費用', 'Price', '料金'), t('另行計費，不含於會員方案', 'Priced separately; not included in membership', '別料金。会員プランには含まれません'))], s)
+    out += '</main>\n'
+    out += footer_html(s, [(t('看看空間', 'Spaces', 'スペース'), '#rooms'), (t('洽詢', 'Contact', 'お問い合わせ'), contact)])
+    return out
+
+
 def build():
     global L
     for L in LANGS:
         d = OUT if L == 'zh' else OUT / L
         d.mkdir(parents=True, exist_ok=True)
-        for slug, fn in (('at-cafe', page_cafe), ('3am', page_3am), ('stay-square', page_stay)):
+        for slug, fn in (('at-cafe', page_cafe), ('3am', page_3am), ('stay-square', page_stay), ('rest-book', page_book)):
             (d / f'{slug}.html').write_text(fn(), encoding='utf-8')
             print('wrote', d / f'{slug}.html')
 

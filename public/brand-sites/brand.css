@@ -5,6 +5,7 @@
 .bs--at-cafe { --brand: #984C37; }
 .bs--3am { --brand: #6B8FAB; --on-brand: #1B1A17; }
 .bs--stay-square { --brand: #2B4064; }
+.bs--rest-book { --brand: #5A4632; }
 .bs section { padding: clamp(56px, 8vw, 104px) 0; }
 .bs ::selection { background: var(--brand); color: var(--on-brand); }
 

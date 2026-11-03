@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { renderSpace } = require('../lib/public-render.js');
 
-const SITES = { 'at-cafe': ['atcafe.emoji.tw', '#984C37', 'CAFE'], '3am': ['3am.emoji.tw', '#6B8FAB', 'BAR'], 'stay-square': ['staysquare.emoji.tw', '#2B4064', null] };
+const SITES = { 'at-cafe': ['atcafe.emoji.tw', '#984C37', 'CAFE'], '3am': ['3am.emoji.tw', '#6B8FAB', 'BAR'], 'stay-square': ['staysquare.emoji.tw', '#2B4064', null], 'rest-book': ['restbook.emoji.tw', '#5A4632', null] };
 const LANGS = { zh: ['', 'zh-Hant', 'zh_TW'], en: ['en/', 'en', 'en_US'], ja: ['ja/', 'ja', 'ja_JP'] };
 const floors = /[一二三四五]樓|樓上|樓下|樓層|[1-5]F\b|\bfloor\b|階/i;
 const stay = /住宿|過夜|入住|旅館|床位|hotel|hostel|overnight|accommodation|宿泊|ホテル|ベッド/i;
@@ -19,7 +19,7 @@ test('server 依 host 分流三個子品牌站，三語路徑，模板原檔不�
   for (const [slug, [host]] of Object.entries(SITES)) assert.match(server, new RegExp(`'${host.replace(/\./g, '\\.')}': '${slug}'`));
   assert.match(server, /path\.join\(PUB, 'brand-sites', lang === 'zh' \? '' : lang, slug \+ '\.html'\)/);
   assert.match(server, /publicRender\.renderSpace\(html, snapshot, lang, slug\)/);
-  assert.match(server, /\^\\\/brand-sites\\\/\(at-cafe\|3am\|stay-square\)/);
+  assert.match(server, /\^\\\/brand-sites\\\/\(at-cafe\|3am\|stay-square\|rest-book\)/);
 });
 
 for (const [slug, [host, color, venue]] of Object.entries(SITES)) {
@@ -51,7 +51,7 @@ for (const [slug, [host, color, venue]] of Object.entries(SITES)) {
       if (venue) assert.ok(html.includes(`<div data-menu="${venue}"></div>`));
       if (slug === '3am') assert.ok(/未滿十八歲|under 18|18 歳未満/.test(body), '三點水必附飲酒警語');
       if (lang === 'en') {
-        const han = body.replace(/在咖啡|三點水|等等空間|言文字股份有限公司|統一編號|台北市中正區重慶南路一段 11 號|言文字 App|中文|日本語/g, '').match(/[\u4e00-\u9fff]{3,}/g) || [];
+        const han = body.replace(/在咖啡|三點水|等等空間|約書旅|言文字股份有限公司|統一編號|台北市中正區重慶南路一段 11 號|言文字 App|中文|日本語/g, '').match(/[\u4e00-\u9fff]{3,}/g) || [];
         assert.deepEqual(han, [], '英文頁殘留中文：' + han.join('、'));
       }
     });
