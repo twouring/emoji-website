@@ -46,6 +46,7 @@ for (const [slug, [host, color, venue]] of Object.entries(SITES)) {
       assert.ok(!html.includes('bs-sisters'), '沒有姊妹品牌區塊');
       assert.doesNotMatch(body, floors, '不寫樓層');
       assert.doesNotMatch(body.replace(/不提供住宿|not accommodation|宿泊施設ではありません|過夜或住宿|stay overnight|宿泊はできますか/g, ''), stay, '不寫住宿');
+      if (slug === 'stay-square') assert.doesNotMatch(body, /淋浴|交誼廳|膠囊|休憩席|shower|capsule|social room|シャワー|カプセル|ソーシャルルーム|約書旅|Rest Book/i, '等等空間只含 3F 以上（KK 2026-11-04），不寫 2F／約書旅設施');
       assert.ok(!/style="/.test(html));
       if (venue) assert.ok(html.includes(`<div data-menu="${venue}"></div>`));
       if (slug === '3am') assert.ok(/未滿十八歲|under 18|18 歳未満/.test(body), '三點水必附飲酒警語');

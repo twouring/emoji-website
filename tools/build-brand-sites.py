@@ -260,7 +260,7 @@ def page_cafe():
   {faq([(t('需要會員才能進來嗎？', 'Do I need a membership?', '会員でないと入れませんか？'),
          t('不需要。在咖啡對所有訪客開放，一人一杯飲料就能入座。', 'No. at cafe is open to everyone; one drink per person and you can take a seat.', 'いいえ。在咖啡はどなたでも利用でき、お一人一杯のドリンクで席に着けます。')),
         (t('可以帶電腦工作嗎？', 'Can I work here on my laptop?', 'パソコンで仕事をしてもいいですか？'),
-         t('可以。白天的座位歡迎工作；如果需要更長時間或淋浴、休憩，可詢問會員方案。', 'Yes. The daytime seats welcome work; if you need longer hours, showers or rest, ask about membership plans.', 'はい。昼の席は仕事にお使いいただけます。長時間の利用やシャワー、休憩が必要な場合は会員プランをお尋ねください。')),
+         t('可以。白天的座位歡迎工作；一人一杯飲料就能坐。', 'Yes. The daytime seats welcome work; one drink per person and the seat is yours.', 'はい。昼の席は仕事にお使いいただけます。お一人一杯のドリンクで席に着けます。')),
         (t('可以外帶嗎？', 'Is takeaway available?', 'テイクアウトはできますか？'),
          t('可以。飲品與餐點都能外帶，趕時間的人從外帶窗口拿了就走。', 'Yes. Drinks and food are available to go; grab them from the takeaway window.', 'はい。ドリンクも料理もテイクアウトでき、急ぐ方はテイクアウト窓口で受け取れます。')),
         (t('怎麼訂位？', 'How do I book?', '予約はどうすればいいですか？'),
