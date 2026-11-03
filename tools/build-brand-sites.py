@@ -73,6 +73,7 @@ def head(slug, title, desc):
     b = BRANDS[slug]
     url = page_url(b['host'], L)
     root = f"https://{b['host']}/"
+    extra_css = '\n<link rel="stylesheet" href="/brand-sites/3am-dark-room.css">' if slug == '3am' else ''
     ld = ''
     if b['schema']:
         ld = ('<script type="application/ld+json">{"@context":"https://schema.org","@type":"%s","name":"%s %s",'
@@ -106,7 +107,7 @@ def head(slug, title, desc):
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Serif+TC:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/space-dir.css">
-<link rel="stylesheet" href="/brand-sites/brand.css">
+<link rel="stylesheet" href="/brand-sites/brand.css">{extra_css}
 </head>
 <body class="bs bs--{slug}">
 <a href="#content" class="skip-link">{t('跳至主要內容', 'Skip to main content', '本文へスキップ')}</a>
@@ -174,9 +175,9 @@ def facts(rows):
     return '<dl class="bs-facts">' + ''.join(f'<div><dt>{e(k)}</dt><dd>{e(v)}</dd></div>' for k, v in rows) + '</dl>'
 
 
-def points(items):
+def points(items, show_number=True):
     return '<ol class="bs-points">' + ''.join(
-        f'<li><span class="n" aria-hidden="true">{i:02d}</span><div><b>{e(x)}</b><span>{e(d)}</span></div></li>'
+        f'<li>{("<span class=\"n\" aria-hidden=\"true\">" + str(i).zfill(2) + "</span>") if show_number else ""}<div><b>{e(x)}</b><span>{e(d)}</span></div></li>'
         for i, (x, d) in enumerate(items, 1)) + '</ol>'
 
 
@@ -288,16 +289,14 @@ def page_3am():
     out += header(s, [(t('介紹', 'About', '紹介'), '#about'), (t('菜單', 'Menu', 'メニュー'), '#menu'), (t('用餐須知', 'Before you come', 'ご利用案内'), '#policy'), (t('怎麼來', 'Visit', 'アクセス'), '#visit'), (t('訂位', 'Reserve', '予約'), reserve)])
     out += f'''<main id="content">
 <section class="bs-hero bs-hero--night"><div class="wrap bs-hero__grid">
-  <div>
-    <span class="bs-hero__kicker">{t('深夜食堂與餐酒館 · 台北車站旁', 'Late-night diner & bistro · by Taipei Main Station', '深夜食堂・ビストロ · 台北駅そば')}</span>
-    <h1>三點水<span class="en">3AM Bistro</span></h1>
-    <p class="bs-hero__lede">{t('夜間的深夜食堂與餐酒館。晚餐、宵夜、餐食佐酒，有人服務到凌晨三點。不需會員。',
-                                 'The late-night diner and bistro for the evening. Dinner, late-night food and meals with drinks, staffed until 3 a.m. No membership needed.',
-                                 '夜の深夜食堂・ビストロ。夕食、夜食、お酒に合う料理を、深夜3時までスタッフが対応します。会員登録は不要です。')}</p>
-    <div class="bs-hero__open"><span><b>17:00–03:00</b>{t('每日營業（翌日 03:00）', 'Open daily, until 03:00 next day', '毎日営業（翌日 03:00 まで）')}</span><span>{t('台北車站 Z10 出口斜對面', 'Across from Taipei Main Station Exit Z10', '台北駅 Z10 出口の斜め向かい')}</span></div>
-    <div class="bs-hero__actions"><a class="bs-btn bs-btn--line" href="#menu">{t('查看菜單', 'View menu', 'メニューを見る')}</a><a class="bs-btn" href="{reserve}">{t('立即訂位', 'Book a table', '席を予約')}</a></div>
+  <div class="bs-hero__copy">
+    <h1>{t('醒著，就來。', 'Still awake? Come in.', '起きているなら、どうぞ。')}<span class="en">三點水 3AM</span></h1>
+    <p class="bs-hero__lede">{t('台北車站旁的深夜食堂與餐酒館。晚餐、宵夜、餐食佐酒，營業到凌晨三點。', 'A late-night diner and bistro by Taipei Main Station. Dinner, late-night food and drinks until 3 a.m.', '台北駅そばの深夜食堂・ビストロ。夕食、夜食、お酒に合う料理を深夜3時まで。')}</p>
+    <div class="bs-hero__actions"><a class="bs-btn" href="{reserve}">{t('訂一張桌', 'Book a table', '予約する')}</a><a class="bs-text-link" href="#menu">{t('先看菜單', 'See the menu', 'メニューを見る')}</a></div>
   </div>
-  <figure class="bs-hero__mark"><img src="/brand-sites/assets/3am-logo.webp" alt="{e(BRANDS[s]['alt'][L])}" width="862" height="434" decoding="async" fetchpriority="high"></figure>
+  <figure class="bs-hero__photo bs-hero__photo--main"><img src="/brand-sites/assets/3am/exterior-night.png" alt="{t('三點水夜間燈箱', '3AM at night', '夜の三點水')}" width="540" height="960" decoding="async" fetchpriority="high"></figure>
+  <figure class="bs-hero__photo bs-hero__photo--small"><img src="/brand-sites/assets/3am/sake-shelf.png" alt="{t('三點水酒架', '3AM sake shelf', '三點水の酒棚')}" width="540" height="960" decoding="async"></figure>
+  <p class="bs-hero__meta"><b>17:00–03:00</b><span>{t('每天 · 台北車站 Z10 出口斜對面', 'Daily · across from Exit Z10', '毎日 · Z10出口の斜め向かい')}</span></p>
 </div></section>
 
 <section id="about" aria-labelledby="about-h"><div class="wrap">
@@ -313,7 +312,7 @@ def page_3am():
              (t('宵夜', 'Late night', '夜食'),
               t('過了午夜還在營業，有人服務到凌晨三點。', 'Still open past midnight, staffed until 3 a.m.', '深夜 0 時を過ぎても営業。深夜 3 時までスタッフが対応します。')),
              (t('餐食佐酒', 'Meals with drinks', '食事とお酒'),
-              t('以餐為主、酒為輔：啤酒、清酒與調酒。一個人坐吧檯，或幾個人一桌都行。', 'Food first, drinks alongside: beer, sake and cocktails. A seat at the counter on your own, or a table with friends.', '料理が主役、お酒は添えて。ビール、日本酒、カクテル。ひとりでカウンターでも、数人でテーブルでも。'))])}
+              t('以餐為主、酒為輔：啤酒、清酒與調酒。一個人坐吧檯，或幾個人一桌都行。', 'Food first, drinks alongside: beer, sake and cocktails. A seat at the counter on your own, or a table with friends.', '料理が主役、お酒は添えて。ビール、日本酒、カクテル。ひとりでカウンターでも、数人でテーブルでも。'))], False)}
   </div>
 </div></section>
 '''
@@ -328,7 +327,15 @@ def page_3am():
          'Menu prices include tax, with a standard rate and a Hub rate for Hub members. No membership is needed to visit. No alcohol under 18; don’t drink and drive.',
          'メニュー価格は税込で、通常価格とハブ価格があります。会員でなくてもご利用いただけます。18 歳未満の飲酒は禁止。飲酒運転は禁止です。'),
     ])
-    out += f'''<section class="bs-alt bs-menu" id="menu" aria-labelledby="menu-h"><div class="wrap">
+    out += f'''<section class="bs-gallery" aria-labelledby="gallery-h"><div class="wrap">
+  <div class="bs-sec__head">{sec_h2('gallery-h', '今晚，坐哪裡？', 'Find your seat tonight', '今夜、どこに座る？')}<p>{t('長吧檯、黑膠、桌上的一盞燈。', 'A long counter, records and a light on the table.', '長いカウンター、レコード、テーブルの灯り。')}</p></div>
+  <div class="bs-gallery__grid">
+    <figure><img src="/brand-sites/assets/3am/vinyl-room.png" alt="{t('三點水黑膠牆與桌席', 'Records and tables at 3AM', '三點水のレコード壁とテーブル席')}" width="540" height="960" loading="lazy"><figcaption>{t('一個人坐下來也剛好', 'A good seat for one', 'ひとりにも、ちょうどいい席')}</figcaption></figure>
+    <figure><img src="/brand-sites/assets/3am/table-light.png" alt="{t('三點水木桌上的小燈', 'A table light at 3AM', '三點水のテーブルランプ')}" width="540" height="960" loading="lazy"><figcaption>{t('讓晚餐慢一點', 'Let dinner take its time', '夕食を、少しゆっくり')}</figcaption></figure>
+  </div>
+</div></section>
+
+<section class="bs-alt bs-menu" id="menu" aria-labelledby="menu-h"><div class="wrap">
   <div class="bs-sec__head">{sec_h2('menu-h', '菜單', 'Menu', 'メニュー')}<p>{t('價格含稅；聚落價限已加入聚落者', 'Prices include tax; Hub rates are for Hub members', '価格は税込。ハブ価格はハブ参加者のみ')}</p></div>
   <div data-menu="BAR"></div>
 </div></section>
