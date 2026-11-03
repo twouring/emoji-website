@@ -411,6 +411,8 @@ test('正式官網不得宣告低於 16px 的有意義文字', () => {
     if (!EXTENSIONS.has(path.extname(file))) continue;
     const relative = path.relative(ROOT, file).split(path.sep).join('/');
     if (EXCLUDED.has(relative)) continue;
+    // CIS 設計系統與 kit 是字級樣張（展示 12px 註解等 token），不是一般公開內文；2026-11-04 自 cis.emoji.tw 搬來
+    if (/^public\/cis\/(?:(?:en|ja)\/)?(?:kit|design-system)\//.test(relative)) continue;
 
     violations.push(...sourceViolations(relative, readFileSync(file, 'utf8')));
   }

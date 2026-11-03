@@ -173,7 +173,7 @@ const appEventUrl = (slug, lang, extra) => {
 const ADMIN_HOST_OWN = /^\/(admin($|\/|\.html$)|api\/|auth\/|integrations\/|internal\/|event-(login|checkin)\.html$|access-mock(\.html)?$|ig-render\.html$|line-richmenu\.html$|robots\.txt$|vendor\/|cis\/|stylebook\/|uploads\/|ig-media\/|fonts?\/|[^/]+\.(css|js|mjs|map|svg|png|jpe?g|webp|gif|ico|woff2?|ttf|json|webmanifest)$)/;
 // 子品牌獨立站 host → 頁面 slug（public/brand-sites/<slug>.html）；BRAND_HOST_OWN＝這些子網域自己提供的路徑（資源與 API）
 const BRAND_HOSTS = { 'atcafe.emoji.tw': 'at-cafe', '3am.emoji.tw': '3am', 'staysquare.emoji.tw': 'stay-square', 'restbook.emoji.tw': 'rest-book' };
-const BRAND_HOST_OWN = /^\/(api\/|vendor\/|cis\/assets\/|assets\/|brand-sites\/|ig-media\/|uploads\/|fonts?\/|[^/]+\.(css|js|svg|png|jpe?g|webp|ico|woff2?)$)/;
+const BRAND_HOST_OWN = /^\/(api\/|vendor\/|cis\/(assets|brands\/assets|logo|moji)\/|cis\/brands\/styles\.css$|assets\/|brand-sites\/|ig-media\/|uploads\/|fonts?\/|[^/]+\.(css|js|svg|png|jpe?g|webp|ico|woff2?)$)/;
 const ADMIN_HOSTS = (process.env.ADMIN_HOSTS || 'admin.emoji.tw').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 const isAdminHost = req => ADMIN_HOSTS.includes(String(req.hostname || '').toLowerCase());
 const DEFAULT_MEMBER_URL = (process.env.MEMBER_URL || APP_BASE + '/');
@@ -1568,6 +1568,14 @@ app.use((req, res, next) => {
       publicPageCache(req, res);
       sendPage(res, file, '/' + slug, html => publicRender.renderSpace(html, snapshot, lang, slug));
     }, next);
+  }
+  // 子品牌 CIS（2026-11-04 自 cis.emoji.tw 搬來）：<子品牌網站>/cis、/en/cis、/ja/cis，頁面由 tools/build-cis-brands.py 產生
+  const cisM = /^\/(?:(en|ja)\/)?cis\/?$/.exec(req.path);
+  if (cisM && (req.method === 'GET' || req.method === 'HEAD')) {
+    const want = (cisM[1] ? '/' + cisM[1] : '') + '/cis';
+    if (req.path !== want) return res.redirect(301, want);
+    publicPageCache(req, res);
+    return res.sendFile(path.join(PUB, cisM[1] || '', 'cis', 'brands', slug, 'index.html'));
   }
   if (req.path === '/robots.txt') return res.type('text/plain').send(`User-agent: *\nAllow: /\nSitemap: https://${req.hostname}/sitemap.xml\n`);
   if (req.path === '/sitemap.xml') {
@@ -5530,6 +5538,13 @@ for (const prog of PROGRAMS) {
   }
 }
 // CIS 品牌識別頁（中/en/ja）；無斜線路徑直接 200
+// 有獨立網站的子品牌，CIS 在 <子品牌網站>/cis；官網上的同一頁永久轉過去（約書旅沒有子網域，留在 /cis/brands/rest-book/）
+for (const [host, slug] of Object.entries(BRAND_HOSTS)) {
+  for (const pre of ['', '/en', '/ja']) {
+    const base = `${pre}/cis/brands/${slug}`;
+    app.get([base, base + '/', base + '/index.html'], (req, res) => res.redirect(301, `https://${host}${pre}/cis`));
+  }
+}
 for (const pre of ['', 'en', 'ja']) {
   const parts = pre ? [pre, 'cis'] : ['cis'];
   const route = '/' + parts.join('/');

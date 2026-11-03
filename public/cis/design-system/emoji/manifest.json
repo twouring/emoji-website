@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "od-design-system-project/v1",
+  "id": "emoji",
+  "name": "言文字｜台灣人才聚落 · emoji — Taiwan Talent Hub",
+  "category": "Brands",
+  "description": "CIS v1.2 (Logo 2026 · moji) of the talent hub by Taipei Main Station. Yohaku 余白 as structure: warm ink on warm paper, Noto Serif TC display, Cormorant Garamond for Latin and numerals, Noto Sans TC body, and one yellow hit per view (#FFDE34, always a ground with ink on top). Includes the moji elephant line-mark family.",
+  "source": {
+    "type": "local",
+    "origin": "cis.emoji.tw / design-system/emoji (github.com/twouring/emoji-cis)"
+  },
+  "files": {
+    "design": "DESIGN.md",
+    "tokens": "tokens.css",
+    "tailwind": "tailwind-v4.css",
+    "components": "components.html"
+  },
+  "usage": "USAGE.md",
+  "importMode": "hybrid",
+  "craft": {
+    "applies": ["color", "type", "layout", "accessibility-baseline"],
+    "suggested": ["motion"],
+    "exemptions": []
+  },
+  "assetsDir": "assets",
+  "preview": {
+    "dir": "preview",
+    "pages": [
+      { "path": "preview/colors.html", "role": "colors", "title": "Colours" },
+      { "path": "preview/typography.html", "role": "typography", "title": "Typography" },
+      { "path": "preview/spacing.html", "role": "spacing", "title": "Spacing, radius and elevation" },
+      { "path": "preview/logo.html", "role": "brand", "title": "Logo and moji" },
+      { "path": "preview/components-buttons.html", "role": "buttons", "title": "Buttons and badges" },
+      { "path": "preview/components-inputs.html", "role": "inputs", "title": "Inputs" },
+      { "path": "preview/app.html", "role": "app", "title": "App preview" }
+    ]
+  }
+}

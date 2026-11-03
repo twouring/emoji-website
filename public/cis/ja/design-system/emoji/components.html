@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>emoji 参照コンポーネント</title>
+<!-- i18n:alternates --><link rel="alternate" hreflang="zh-Hant" href="https://www.emoji.tw/cis/design-system/emoji/components.html" /><link rel="alternate" hreflang="en" href="https://www.emoji.tw/cis/en/design-system/emoji/components.html" /><link rel="alternate" hreflang="ja" href="https://www.emoji.tw/cis/ja/design-system/emoji/components.html" /><link rel="alternate" hreflang="x-default" href="https://www.emoji.tw/cis/design-system/emoji/components.html" /><!-- /i18n:alternates -->
+    <meta name="description" content="Reference fixture for design-systems/emoji: ink and paper, one yellow hit per view, Noto Serif TC + Cormorant Garamond + Noto Sans TC, hairlines, moji." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Serif+TC:wght@500;700;900&display=swap" rel="stylesheet" />
+    <style>
+/* design-system/emoji/tokens.css
+ * 言文字｜台灣人才聚落 · emoji — Taiwan Talent Hub. CIS v1.2 (Logo 2026 · moji)
+ * bound to the OpenDesign token contract. Source: cis.emoji.tw (github.com/twouring/emoji-cis).
+ * Ink and paper carry everything; yellow is one hit per view, always a ground with ink on top.
+ */
+
+:root {
+  /* ─── Surface ─── warm paper page, white cards, paper-alt for alternate bands */
+  --bg: #FBFAF6;
+  --surface: #FFFFFF;
+  --surface-warm: #F4F1EA;
+
+  /* ─── Foreground ─── warm near-black ink; ink-soft for body copy */
+  --fg: #1B1A17;
+  --fg-2: #3A362E;
+  --muted: #6B6558;
+  --meta: var(--muted);
+
+  /* ─── Border ─── 1px hairlines */
+  --border: #E4E0D6;
+  --border-soft: #ECE8DE;
+
+  /* ─── Accent ─── actions are INK, not yellow. Yellow lives in --emoji-yellow as a highlight only */
+  --accent: #1B1A17;
+  --accent-on: #FBFAF6;
+  --accent-hover: #3A362E;
+  --accent-active: #16150F;
+
+  /* ─── Semantic ─── quiet, earth-toned; all pass 4.5:1 on paper */
+  --success: #3F6B3A;
+  --warn: #8A5A00;
+  --danger: #A3352B;
+
+  /* ─── Typography ─── Mincho display, classical Latin serif for Latin + numerals, sans body */
+  --font-display: "Noto Serif TC", "Songti TC", "PMingLiU", serif;
+  --font-body: "Noto Sans TC", system-ui, -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* type scale — 16px body is the floor for running text */
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 30px;
+  --text-3xl: 42px;
+  --text-4xl: 64px;
+  --leading-body: 1.9;
+  --leading-tight: 1.25;
+  --tracking-display: 0.06em;
+
+  /* ─── Spacing ─── 4px grid; yohaku means sections breathe: 96px+ on desktop */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --section-y-desktop: 120px;
+  --section-y-tablet: 88px;
+  --section-y-phone: 64px;
+
+  /* ─── Radius ─── */
+  --radius-sm: 4px;
+  --radius-md: 12px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  /* ─── Elevation ─── hairline ring; one soft paper shadow for lifted cards. No glow, no glass */
+  --elev-flat: none;
+  --elev-ring: 0 0 0 1px var(--border);
+  --elev-raised: 0 18px 40px -24px rgba(27, 26, 23, 0.28);
+
+  /* ─── Focus ─── ink ring with a paper gap */
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--fg);
+
+  /* ─── Motion ─── slow and small: opacity and 8px rise only */
+  --motion-fast: 160ms;
+  --motion-base: 420ms;
+  --ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
+
+  /* ─── Layout ─── */
+  --container-max: 1120px;
+  --container-gutter-desktop: 40px;
+  --container-gutter-tablet: 28px;
+  --container-gutter-phone: 20px;
+
+  /* ─── emoji extensions (--emoji-*) ─── */
+  --emoji-ink: #1B1A17;
+  --emoji-paper: #FBFAF6;
+  --emoji-yellow: #FFDE34;        /* the one hit: underline highlight, small badge, ::selection, moji's eye */
+  --emoji-yellow-strong: #F2CB00; /* hover / pressed state of that same hit, never a second hit */
+  --emoji-yellow-soft: #FFF3BF;
+  --emoji-on-yellow: #1B1A17;
+  --emoji-ink-surface: #16150F;   /* footer and ink bands */
+  --emoji-on-ink: #EDE9E0;
+  --emoji-on-ink-soft: #B7B0A2;
+  --emoji-paper-deep: #ECE8DE;
+  --emoji-logo-fill: #231815;     /* vector ink inside the logo files; do not use for text */
+  --emoji-font-latin: "Cormorant Garamond", "Noto Serif TC", serif;
+  --emoji-tracking-label: 0.18em;
+  --emoji-moji-stroke: 8;         /* viewBox 200; use 10 under 40px. Round caps, round joins */
+}
+
+/* Dark = ink surface. Logos switch to the *-reverse files; yellow keeps its value. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16150F; --surface: #1B1A17; --surface-warm: #23211B;
+    --fg: #EDE9E0; --fg-2: #D6D1C5; --muted: #B7B0A2;
+    --border: #3A362E; --border-soft: #2A2822;
+    --accent: #EDE9E0; --accent-on: #16150F; --accent-hover: #FBFAF6; --accent-active: #D6D1C5;
+    --success: #9CC794; --warn: #E2B45C; --danger: #E58C80;
+    --elev-raised: 0 18px 40px -24px rgba(0, 0, 0, 0.6);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16150F; --surface: #1B1A17; --surface-warm: #23211B;
+  --fg: #EDE9E0; --fg-2: #D6D1C5; --muted: #B7B0A2;
+  --border: #3A362E; --border-soft: #2A2822;
+  --accent: #EDE9E0; --accent-on: #16150F; --accent-hover: #FBFAF6; --accent-active: #D6D1C5;
+  --success: #9CC794; --warn: #E2B45C; --danger: #E58C80;
+  --elev-raised: 0 18px 40px -24px rgba(0, 0, 0, 0.6);
+}
+
+      *{box-sizing:border-box}
+      body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:var(--text-base);line-height:var(--leading-body);-webkit-font-smoothing:antialiased}
+      ::selection{background:var(--emoji-yellow);color:var(--emoji-on-yellow)}
+      img{display:block;max-width:100%}
+      a{color:inherit;text-underline-offset:3px}
+      .wrap{max-width:var(--container-max);margin:0 auto;padding:0 var(--container-gutter-desktop)}
+      .latin{font-family:var(--emoji-font-latin)}
+      .label{font-size:var(--text-xs);letter-spacing:var(--emoji-tracking-label);text-transform:uppercase;color:var(--muted);font-weight:500}
+      /* page shell */
+      .hdr{position:sticky;top:0;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:saturate(1.2);border-bottom:1px solid var(--border);z-index:5}
+      .hdr .wrap{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);height:64px}
+      .hdr img{height:34px;width:auto}
+      .hdr nav{display:flex;gap:var(--space-6);font-size:var(--text-sm)}
+      .hdr nav a{text-decoration:none;color:var(--fg-2)} .hdr nav a:hover{color:var(--fg)}
+      /* hero: the view's single yellow hit is the .hl underline */
+      .hero{padding:var(--section-y-desktop) 0 var(--section-y-tablet);display:grid;grid-template-columns:1.1fr .9fr;gap:var(--space-12);align-items:end}
+      .hero h1{font-family:var(--font-display);font-weight:700;font-size:clamp(var(--text-3xl),7vw,var(--text-4xl));line-height:var(--leading-tight);letter-spacing:var(--tracking-display);margin:var(--space-4) 0 0}
+      .hl{background:var(--emoji-yellow);color:var(--emoji-on-yellow);padding:0 .12em;white-space:nowrap}
+      .hero p.lede{color:var(--fg-2);font-size:var(--text-lg);font-weight:300;margin:0 0 var(--space-6)}
+      .meta{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-5);font-size:var(--text-sm);color:var(--muted)}
+      .meta span+span{padding-left:var(--space-5);border-left:1px solid var(--border)}
+      /* section head */
+      .sec{padding:var(--section-y-tablet) 0;border-top:1px solid var(--border)}
+      .sec-head{display:grid;grid-template-columns:auto 1fr 1.2fr;gap:var(--space-6);align-items:baseline;margin-bottom:var(--space-12)}
+      .sec-head .num{font-family:var(--emoji-font-latin);font-size:var(--text-2xl);color:var(--muted)}
+      .sec-head h2{font-family:var(--font-display);font-weight:700;font-size:var(--text-2xl);letter-spacing:var(--tracking-display);margin:0;line-height:var(--leading-tight)}
+      .sec-head p{margin:0;color:var(--fg-2);font-weight:300}
+      /* buttons: actions are ink, never yellow */
+      .btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 var(--space-6);border-radius:var(--radius-pill);border:1px solid var(--accent);font:500 var(--text-sm)/1 var(--font-body);letter-spacing:.06em;text-decoration:none;cursor:pointer;transition:background var(--motion-fast) var(--ease-standard),color var(--motion-fast) var(--ease-standard)}
+      .btn-primary{background:var(--accent);color:var(--accent-on)} .btn-primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+      .btn-secondary{background:transparent;color:var(--fg);border-color:var(--border)} .btn-secondary:hover{border-color:var(--fg)}
+      .btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+      .btn[disabled]{opacity:.4;cursor:not-allowed}
+      .link{text-decoration:underline}
+      .row{display:flex;flex-wrap:wrap;gap:var(--space-3);align-items:center}
+      /* badge */
+      .badge{display:inline-flex;align-items:center;height:26px;padding:0 var(--space-3);border:1px solid var(--border);border-radius:var(--radius-pill);font-size:var(--text-xs);letter-spacing:.12em;color:var(--fg-2);background:var(--surface)}
+      .badge-hit{background:var(--emoji-yellow);border-color:var(--emoji-yellow);color:var(--emoji-on-yellow)} /* only when nothing else on the view is yellow */
+      /* cards */
+      .grid{display:grid;gap:var(--space-6)} .g3{grid-template-columns:repeat(3,minmax(0,1fr))} .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-8);min-width:0}
+      .card h3{font-family:var(--font-display);font-weight:700;font-size:var(--text-xl);letter-spacing:var(--tracking-display);margin:var(--space-3) 0 var(--space-2);line-height:var(--leading-tight)}
+      .card p{margin:0;color:var(--fg-2);font-weight:300}
+      .card .hours{font-family:var(--emoji-font-latin);font-size:var(--text-xl);margin-top:var(--space-4)}
+      /* form */
+      .field{display:grid;gap:var(--space-2);margin-bottom:var(--space-5)}
+      .field label{font-size:var(--text-sm);font-weight:500}
+      .field input,.field select,.field textarea{font:400 var(--text-base)/1.5 var(--font-body);color:var(--fg);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:var(--space-3) var(--space-4);min-height:48px;width:100%}
+      .field small{color:var(--muted);font-size:var(--text-sm)}
+      .field.err input{border-color:var(--danger)} .field.err small{color:var(--danger)}
+      /* table */
+      table{width:100%;border-collapse:collapse;font-size:var(--text-base)}
+      th{text-align:left;font-size:var(--text-xs);letter-spacing:var(--emoji-tracking-label);text-transform:uppercase;color:var(--muted);font-weight:500;padding:var(--space-3) 0;border-bottom:1px solid var(--fg)}
+      td{padding:var(--space-4) 0;border-bottom:1px solid var(--border)} td.n{font-family:var(--emoji-font-latin);font-size:var(--text-lg);text-align:right} th.n{text-align:right}
+      /* moji notice */
+      .notice{display:grid;grid-template-columns:72px 1fr;gap:var(--space-5);align-items:center;background:var(--emoji-paper-deep);color:var(--emoji-ink);border-radius:var(--radius-md);padding:var(--space-6)}
+      .notice p{margin:0;font-family:var(--font-display);font-size:var(--text-lg);letter-spacing:var(--tracking-display)}
+      /* ink footer */
+      .ftr{background:var(--emoji-ink-surface);color:var(--emoji-on-ink);padding:var(--section-y-phone) 0;margin-top:var(--section-y-tablet)}
+      .ftr .wrap{display:grid;grid-template-columns:1fr auto;gap:var(--space-8);align-items:end}
+      .ftr img.lock{height:40px;width:auto} .ftr img.mj{width:56px}
+      .ftr p{margin:var(--space-5) 0 0;color:var(--emoji-on-ink-soft);font-size:var(--text-sm)}
+      @media (max-width:820px){.wrap{padding:0 var(--container-gutter-phone)}.hero{grid-template-columns:1fr;padding:var(--section-y-phone) 0}.sec{padding:var(--section-y-phone) 0}.sec-head{grid-template-columns:auto 1fr;margin-bottom:var(--space-8)}.sec-head p{grid-column:1/-1}.g3,.g2{grid-template-columns:1fr}.hdr nav{display:none}.ftr .wrap{grid-template-columns:1fr}.meta span+span{padding-left:0;border-left:0}}
+      @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+    
+/* i18n:lang-switch */.lang-switch{display:flex;justify-content:flex-end;gap:20px;padding:10px var(--container-gutter-desktop,32px);background:var(--bg);color:var(--fg);font:400 1rem/1.5 var(--font-body);border-bottom:1px solid var(--border)}.lang-switch a{color:var(--muted);text-decoration:none}.lang-switch a:hover{color:var(--fg)}.lang-switch a[aria-current=page]{color:var(--fg);text-decoration:underline;text-underline-offset:4px}/* /i18n:lang-switch */
+</style>
+  </head>
+  <body>
+<nav class="lang-switch" aria-label="Language"><a href="../../../design-system/emoji/components.html" hreflang="zh-Hant" lang="zh-Hant">中文</a><a href="../../../en/design-system/emoji/components.html" hreflang="en" lang="en">English</a><a href="components.html" hreflang="ja" lang="ja" aria-current="page">日本語</a></nav>
+    <header class="hdr"><div class="wrap"><a href="#"><picture><source media="(prefers-color-scheme: dark)" srcset="../../../design-system/emoji/assets/logo/emoji-mark-reverse.svg" /><img src="../../../design-system/emoji/assets/logo/emoji-mark.svg" alt="言文字｜台湾タレントハブ" /></picture></a><nav><a href="#">在咖啡</a><a href="#">三點水</a><a href="#">等等空間</a><a href="#">イベント</a></nav><a class="btn btn-primary" href="#">会員になる</a></div></header>
+    <main class="wrap">
+      <section class="hero"><div><p class="label latin">emoji — Taiwan Talent Hub</p><h1>普段は出会えない人と、<br />台北駅のそばで<span class="hl">出会う</span>。</h1></div><div><p class="lede">言文字は台北駅そばのタレントハブ。在咖啡は軽食とコーヒー、三點水は深夜食堂、等等空間は会員と講座のための場所。</p><div class="row"><a class="btn btn-primary" href="#">会員になる</a><a class="btn btn-secondary" href="#">イベントを見る</a></div></div></section>
+      <section class="sec"><div class="sec-head"><span class="num">01</span><h2>サブブランド · Sub-brands</h2><p>カード：紙の地に白いカード、罫線、角丸 12px。見出しは明朝体、時間は Cormorant。</p></div>
+        <div class="grid g3">
+          <article class="card"><span class="label">昼</span><h3>在咖啡 <span class="latin">at cafe</span></h3><p>昼の軽食とコーヒー。腰を下ろして、書きかけの一節を書き終える。</p><p class="hours">08:00 – 17:00</p></article>
+          <article class="card"><span class="label">夜</span><h3>三點水 <span class="latin">3AM</span></h3><p>深夜食堂。遅く来ても、温かいものが食べられる。</p><p class="hours">17:00 – 27:00</p></article>
+          <article class="card"><span class="label">会員</span><h3>等等空間 <span class="latin">Stay Square</span></h3><p>会員の共有スペース。仕事、休憩、小さな講座。</p><p class="hours">会員</p></article>
+        </div>
+      </section>
+      <section class="sec"><div class="sec-head"><span class="num">02</span><h2>ボタンとバッジ · Actions</h2><p>主な操作は墨のピル型、副次的な操作は罫線。このページの黄は見出しの下線に使っているので、バッジは中立のまま。</p></div>
+        <div class="row"><button class="btn btn-primary">会員になる</button><button class="btn btn-secondary">イベントを見る</button><button class="btn btn-primary" disabled>満席</button><a class="link" href="#">会員制度について</a></div>
+        <div class="row" style="margin-top:var(--space-6)"><span class="badge">象談</span><span class="badge">夜象</span><span class="badge">会員限定</span></div>
+      </section>
+      <section class="sec"><div class="sec-head"><span class="num">03</span><h2>フォーム · Form</h2><p>ラベルは上、罫線の入力欄、墨の focus ring。エラーは色だけでなく文章で説明する。</p></div>
+        <form class="grid g2" onsubmit="return false" style="max-width:760px">
+          <div class="field"><label for="n">氏名</label><input id="n" placeholder="山田 花子" /></div>
+          <div class="field"><label for="e">Email</label><input id="e" type="email" placeholder="you@example.com" /><small>イベントのお知らせはここに届きます。</small></div>
+          <div class="field"><label for="s">会場</label><select id="s"><option>想像室（等等空間の会議室）</option><option>等等空間の交流スペース</option></select></div>
+          <div class="field err"><label for="d">日付</label><input id="d" value="2026/02/30" aria-invalid="true" aria-describedby="dh" /><small id="dh">この日付は存在しません。選び直してください。</small></div>
+          <div class="field" style="grid-column:1/-1"><label for="m">ひとこと</label><textarea id="m" rows="3"></textarea></div>
+          <div><button class="btn btn-primary">申し込む</button></div>
+        </form>
+      </section>
+      <section class="sec"><div class="sec-head"><span class="num">04</span><h2>表 · Table</h2><p>行は罫線で区切り、縞模様にしない。数字は Cormorant で右揃え。</p></div>
+        <table><thead><tr><th>品目（例）</th><th>説明</th><th class="n">NT$</th></tr></thead><tbody>
+          <tr><td>ハンドドリップコーヒー</td><td>本日の豆</td><td class="n">160</td></tr>
+          <tr><td>深夜のお茶漬け</td><td>三點水 · 17:00 以降</td><td class="n">220</td></tr>
+          <tr><td>1日会員</td><td>会員はすべてのスペースと設備を利用できます</td><td class="n">200</td></tr></tbody></table>
+      </section>
+      <section class="sec"><div class="sec-head"><span class="num">05</span><h2>卓上サイン · moji notice</h2><p>空間のルールは象がやわらかい口調で伝える。短い文、感嘆符なし。</p></div>
+        <div class="notice"><img src="../../../design-system/emoji/assets/moji/moji-rest.svg" alt="" width="72" height="72" /><p>この席では、誰かが休んでいます。</p></div>
+      </section>
+    </main>
+    <footer class="ftr"><div class="wrap"><div><img class="lock" src="../../../design-system/emoji/assets/logo/emoji-h-reverse.svg" alt="言文字｜台湾タレントハブ" /><p>台北市中正区重慶南路一段11号 · <span class="latin">us@emoji.tw · @emoji0701 · +886 921 102 067</span></p></div><img class="mj" src="../../../design-system/emoji/assets/moji/moji-mark-reverse.svg" alt="moji" /></div></footer>
+  </body>
+</html>

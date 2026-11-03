@@ -1,0 +1,125 @@
+/* design-system/emoji/tokens.css
+ * 言文字｜台灣人才聚落 · emoji — Taiwan Talent Hub. CIS v1.2 (Logo 2026 · moji)
+ * bound to the OpenDesign token contract. Source: cis.emoji.tw (github.com/twouring/emoji-cis).
+ * Ink and paper carry everything; yellow is one hit per view, always a ground with ink on top.
+ */
+
+:root {
+  /* ─── Surface ─── warm paper page, white cards, paper-alt for alternate bands */
+  --bg: #FBFAF6;
+  --surface: #FFFFFF;
+  --surface-warm: #F4F1EA;
+
+  /* ─── Foreground ─── warm near-black ink; ink-soft for body copy */
+  --fg: #1B1A17;
+  --fg-2: #3A362E;
+  --muted: #6B6558;
+  --meta: var(--muted);
+
+  /* ─── Border ─── 1px hairlines */
+  --border: #E4E0D6;
+  --border-soft: #ECE8DE;
+
+  /* ─── Accent ─── actions are INK, not yellow. Yellow lives in --emoji-yellow as a highlight only */
+  --accent: #1B1A17;
+  --accent-on: #FBFAF6;
+  --accent-hover: #3A362E;
+  --accent-active: #16150F;
+
+  /* ─── Semantic ─── quiet, earth-toned; all pass 4.5:1 on paper */
+  --success: #3F6B3A;
+  --warn: #8A5A00;
+  --danger: #A3352B;
+
+  /* ─── Typography ─── Mincho display, classical Latin serif for Latin + numerals, sans body */
+  --font-display: "Noto Serif TC", "Songti TC", "PMingLiU", serif;
+  --font-body: "Noto Sans TC", system-ui, -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* type scale — 16px body is the floor for running text */
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 30px;
+  --text-3xl: 42px;
+  --text-4xl: 64px;
+  --leading-body: 1.9;
+  --leading-tight: 1.25;
+  --tracking-display: 0.06em;
+
+  /* ─── Spacing ─── 4px grid; yohaku means sections breathe: 96px+ on desktop */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --section-y-desktop: 120px;
+  --section-y-tablet: 88px;
+  --section-y-phone: 64px;
+
+  /* ─── Radius ─── */
+  --radius-sm: 4px;
+  --radius-md: 12px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  /* ─── Elevation ─── hairline ring; one soft paper shadow for lifted cards. No glow, no glass */
+  --elev-flat: none;
+  --elev-ring: 0 0 0 1px var(--border);
+  --elev-raised: 0 18px 40px -24px rgba(27, 26, 23, 0.28);
+
+  /* ─── Focus ─── ink ring with a paper gap */
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--fg);
+
+  /* ─── Motion ─── slow and small: opacity and 8px rise only */
+  --motion-fast: 160ms;
+  --motion-base: 420ms;
+  --ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
+
+  /* ─── Layout ─── */
+  --container-max: 1120px;
+  --container-gutter-desktop: 40px;
+  --container-gutter-tablet: 28px;
+  --container-gutter-phone: 20px;
+
+  /* ─── emoji extensions (--emoji-*) ─── */
+  --emoji-ink: #1B1A17;
+  --emoji-paper: #FBFAF6;
+  --emoji-yellow: #FFDE34;        /* the one hit: underline highlight, small badge, ::selection, moji's eye */
+  --emoji-yellow-strong: #F2CB00; /* hover / pressed state of that same hit, never a second hit */
+  --emoji-yellow-soft: #FFF3BF;
+  --emoji-on-yellow: #1B1A17;
+  --emoji-ink-surface: #16150F;   /* footer and ink bands */
+  --emoji-on-ink: #EDE9E0;
+  --emoji-on-ink-soft: #B7B0A2;
+  --emoji-paper-deep: #ECE8DE;
+  --emoji-logo-fill: #231815;     /* vector ink inside the logo files; do not use for text */
+  --emoji-font-latin: "Cormorant Garamond", "Noto Serif TC", serif;
+  --emoji-tracking-label: 0.18em;
+  --emoji-moji-stroke: 8;         /* viewBox 200; use 10 under 40px. Round caps, round joins */
+}
+
+/* Dark = ink surface. Logos switch to the *-reverse files; yellow keeps its value. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16150F; --surface: #1B1A17; --surface-warm: #23211B;
+    --fg: #EDE9E0; --fg-2: #D6D1C5; --muted: #B7B0A2;
+    --border: #3A362E; --border-soft: #2A2822;
+    --accent: #EDE9E0; --accent-on: #16150F; --accent-hover: #FBFAF6; --accent-active: #D6D1C5;
+    --success: #9CC794; --warn: #E2B45C; --danger: #E58C80;
+    --elev-raised: 0 18px 40px -24px rgba(0, 0, 0, 0.6);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16150F; --surface: #1B1A17; --surface-warm: #23211B;
+  --fg: #EDE9E0; --fg-2: #D6D1C5; --muted: #B7B0A2;
+  --border: #3A362E; --border-soft: #2A2822;
+  --accent: #EDE9E0; --accent-on: #16150F; --accent-hover: #FBFAF6; --accent-active: #D6D1C5;
+  --success: #9CC794; --warn: #E2B45C; --danger: #E58C80;
+  --elev-raised: 0 18px 40px -24px rgba(0, 0, 0, 0.6);
+}
