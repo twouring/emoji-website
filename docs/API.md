@@ -114,6 +114,9 @@ PY
 
 **在咖啡桌邊固定 QR（2026-11-03 起）**：query 改帶 `t`（桌號）、`k`（`HMAC(APP_SECRET,'table:'+t)` 前 16 碼），不帶 `s`。只在在咖啡點餐時段（`MenuLib.orderWindow().venue==='CAFE'`，08:00–16:30）可用，其他時段 403。這桌有開著的場就併入；沒有、或上一組已全部結清出餐就開新的一場（客人自開的場 30 分鐘沒點東西，`GET /api/admin/orders` 會收掉）；4 小時沒動靜但仍有未付回 409。回應同上，另帶 `k`（本場簽章）與 `fixed:true`，之後點歌、呼叫、回饋、會員、兌換一律用 `s=id`＋這個 `k`。
 
+### POST /api/orders/party
+客人自開的桌（在咖啡桌邊固定 QR，沒有開桌人員）填來客人數，KK 11/3。body `{ s, k, adults, kids }`（大人 ≥1、小孩 0–5，總數 ≤20）。`GET /api/orders/table` 回 `need_party:true` 時前端先出人數畫面；POS 開的桌或已填過回 `{ ok, already:true }` 不覆寫，之後改人數走 POS。簽章錯 403、桌已結束 409。
+
 ### GET /api/orders/:id
 同桌購物車現況（供輪詢）。query `g`＝自己的 guest 識別碼，回應以 `mine` 標記自己的行（不外露他人識別碼）。`items[]` 每行含 `line, zh, price, qty, by, mine, order_id`；`order_id` 非空＝已付款。`orders[]` 為出餐單 `{ id, amount, status: paid|ready|done, lines[] }`。
 

@@ -5687,7 +5687,7 @@ async function loadSession(id){
   s.orders=(await q('SELECT id,items,amount,status,paid_at,ready_at,done_at FROM table_orders WHERE session_id=$1 ORDER BY paid_at',[id])).rows;return s;
 }
 // 不外露各行的 guest 識別碼（否則同桌可互刪）；帶 ?g= 或 body.guest 時只標記 mine
-const publicSession=(s,guest)=>{const mine=guest?tableOrders.prunePayRequests(s.pay_requests,s.items).find(r=>r.guest===guest):null;return {id:s.id,table:s.table_no,status:s.status,items:s.items.map(({guest:g,...l})=>({...l,mine:!!guest&&g===guest})),orders:s.orders.map(o=>({id:o.id,amount:o.amount,status:o.status,paid_at:o.paid_at,ready_at:o.ready_at,lines:o.items.map(l=>l.line)})),total_unpaid:tableOrders.sum(tableOrders.unpaid(s.items)),pay_request:mine?{scope:mine.scope,lines:mine.lines,people:mine.people||undefined,at:mine.at}:null};};
+const publicSession=(s,guest)=>{const mine=guest?tableOrders.prunePayRequests(s.pay_requests,s.items).find(r=>r.guest===guest):null;return {id:s.id,table:s.table_no,status:s.status,items:s.items.map(({guest:g,...l})=>({...l,mine:!!guest&&g===guest})),orders:s.orders.map(o=>({id:o.id,amount:o.amount,status:o.status,paid_at:o.paid_at,ready_at:o.ready_at,lines:o.items.map(l=>l.line)})),total_unpaid:tableOrders.sum(tableOrders.unpaid(s.items)),need_party:s.status==='open'&&!s.opened_by_staff_name&&!tableOrders.partySize(s.party_votes),pay_request:mine?{scope:mine.scope,lines:mine.lines,people:mine.people||undefined,at:mine.at}:null};};
 const contentValue=async key=>(await q('SELECT value FROM site_content WHERE key=$1',[key])).rows[0]?.value||'';
 /* 客人掃碼點餐的菜單：依點餐時段（MenuLib.orderWindow）——在咖啡 16:00 停餐點、16:30 停飲品並換三點水；三點水 02:00 停餐點、02:30 停酒水 */
 async function currentMenu(opt){const w=tableOrders.MenuLib.orderWindow(),m=tableOrders.menuIndex(await contentValue('menu'),w.venue,opt);for(const [k,it] of m)if(!tableOrders.MenuLib.orderableInWindow(it,w))m.delete(k);return m;}
@@ -5728,6 +5728,18 @@ async function fixedTableQr(req,res){
   const s=await loadSession(id);res.set('Cache-Control','no-store');
   res.json({...publicSession(s,String(req.query.g||'')),k:tableOrders.sessionKey(id,SECRET),fixed:true});
 }
+// 客人掃在咖啡固定 QR 自己開的桌（沒有開桌人員）：第一位進來的客人填人數（大人＋小孩），只能填一次；之後要改由 POS「人數」
+app.post('/api/orders/party',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
+  const id=tableOrders.verifySession(req.body?.s,req.body?.k,SECRET);if(!id)return res.status(403).json({error:'QR 無效，請洽服務人員。'});
+  const s=(await q("SELECT id,status,opened_by_staff_name,party_votes FROM table_sessions WHERE id=$1",[id])).rows[0];
+  if(!s||s.status!=='open')return res.status(409).json({error:'這桌已結束，請洽服務人員。'});
+  if(s.opened_by_staff_name||tableOrders.partySize(s.party_votes))return res.json({ok:true,already:true});
+  const adults=Math.floor(Number(req.body?.adults)),kids=Math.floor(Number(req.body?.kids)||0);
+  if(!(adults>=1))return res.status(400).json({error:'至少要 1 位大人。'});
+  let votes;try{votes=tableOrders.partySetByPos(s.party_votes,adults+kids,kids);}catch(e){return res.status(e.status||400).json({error:e.message});}
+  await q("UPDATE table_sessions SET party_votes=$2,updated_at=now() WHERE id=$1 AND status='open' AND (party_votes->>'__pos') IS NULL",[s.id,JSON.stringify(votes)]);
+  res.json({ok:true});
+}));
 app.get('/api/orders/:id',requireDb,wrap(async(req,res)=>{const s=await loadSession(req.params.id);if(!s)return res.status(404).json({error:'找不到這桌的點餐。'});res.json(publicSession(s,String(req.query.g||'')));}));
 // 即時同步（SSE）：連上先推一份目前狀態，之後同桌任何異動（別人加點、送單、出餐、櫃檯收款）即刻推新狀態；斷線瀏覽器自動重連
 const liveHub=tableLive.createHub({load:async id=>{const s=await loadSession(id);return s?guest=>publicSession(s,guest):null;},log:console.warn});

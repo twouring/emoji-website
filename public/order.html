@@ -103,6 +103,9 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 .err{color:var(--bad);min-height:1.2em}.muted{color:var(--muted)}
 .notice{color:var(--muted);margin:20px 0}
 .hidden{display:none!important}
+/* 客人自開桌填人數（KK 11/3）：全螢幕蓋住菜單，填完才點餐 */
+#party{position:fixed;inset:0;z-index:4;background:var(--paper);overflow:auto;padding:calc(88px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom))}#party .in{max-width:520px;margin:0 auto}#party h3{font-size:1.3rem;margin:0 0 14px}#party p{margin:14px 0 8px;font-weight:700}
+.party-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}.party-grid button{min-height:48px;border:1px solid var(--line);background:#fff;border-radius:12px;font-weight:700;font-size:1.1rem;color:var(--ink)}.party-grid button[aria-pressed=true]{background:var(--yellow);border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}#party-ok{width:100%;margin-top:22px}body.party-on #bar,body.party-on #call-open{display:none!important}
 #thanks .btn{margin-top:12px;width:100%}#thanks a.btn{display:flex;align-items:center;justify-content:center;text-decoration:none}
 /* Google 評論邀請：判定有結帳意圖（餐都出完了打開已點清單、或櫃檯已結帳）才出現，每場最多跳一次 */
 #review .in{display:flex;flex-direction:column;padding:0;overflow:hidden}
@@ -195,6 +198,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   <div class="card" id="boot"><p class="muted" data-i18n="loading">載入中…</p></div>
   <div class="card hidden" id="thanks"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-check"></use></svg><span data-i18n="thanks">感謝用餐，期待再次光臨。</span></h3><p class="muted" data-i18n="thanks_hint">這次點餐已結束。若要再點，請洽服務人員。</p><button class="btn y" type="button" id="thanks-again" data-i18n="thanks_again" hidden>重新點餐</button><div class="review-box"><b data-i18n="review_title">喜歡今天的餐點嗎？</b><p class="muted" data-i18n="review_hint">在 Google 地圖留下評論，結帳時把評論出示給櫃檯人員，就送你 5 點會員點數（每位會員限領一次）。</p><a class="btn ghost" data-review-link href="https://maps.app.goo.gl/ZKdyKqwXjVA5x6JF6?g_st=ic" target="_blank" rel="noopener" data-i18n="review_go">寫 Google 評論</a></div><a class="btn ghost" id="thanks-home" href="https://app.emoji.tw/" data-i18n="thanks_home">回到 App 首頁</a></div>
 
+  <div id="party" class="hidden" role="dialog" aria-labelledby="party-h"><div class="in"><h3 class="title-icon" id="party-h"><svg class="ico" aria-hidden="true"><use href="#i-user"></use></svg><span data-i18n="party_title">請問幾位用餐？</span></h3><p data-i18n="party_adults">大人</p><div class="party-grid" id="party-a"></div><p data-i18n="party_kids">小孩</p><div class="party-grid" id="party-k"></div><button class="btn y" type="button" id="party-ok"></button></div></div>
   <section id="app" class="hidden">
     <div class="card" id="name-gate"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-user"></use></svg><span data-i18n="name_gate_title">先告訴我們怎麼稱呼您</span></h3><div class="gate-login" id="gate-login"></div><p class="gate-or" id="gate-or" hidden><span data-i18n="gate_or">或輸入稱呼</span></p><form id="name-form" class="name-form"><input class="f" id="name-in" data-i18n-placeholder="name_placeholder" placeholder="你的稱呼（讓同桌知道誰點了什麼）" maxlength="20" autocomplete="off"><div class="row name-actions"><button class="btn ghost" type="button" id="name-skip" data-i18n="name_skip">略過</button><button class="btn y" type="submit" data-i18n="name_gate_submit">查看菜單</button></div></form></div>
     <div id="order-content" class="hidden">
@@ -307,6 +311,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     document.documentElement.lang=LANG==='zh'?'zh-Hant':LANG;
     document.querySelectorAll('[data-i18n]').forEach(function(el){el.textContent=tr(el.dataset.i18n);});
     document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el){el.placeholder=tr(el.dataset.i18nPlaceholder);});
+    if(PARTY_ON)paintParty();
     $('#lang-label').textContent=LANG==='zh'?'EN':(LANG==='en'?'日本語':'中文');   // 只給螢幕閱讀器
     $('#lang-menu').innerHTML=OrderLib.LANGS.map(function(l){return '<button type="button" role="menuitemradio" lang="'+l.id+'" data-lang="'+l.id+'" aria-checked="'+(l.id===LANG)+'"><span>'+esc(l.name)+'</span>'+(l.id===LANG?'<svg class="ico" aria-hidden="true"><use href="#i-check"></use></svg>':'')+'</button>';}).join('');
     if(S){renderMenu();renderState();if(typeof renderCalls==='function'){renderCalls();renderCallSheet();}if(typeof renderMember==='function')renderMember();}
@@ -456,7 +461,17 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     var msg=[added.length?byName(added,'someone_added'):'',removed.length?byName(removed,'someone_removed'):''].filter(Boolean).join('\n');
     if(msg)toast(msg,3500);
   }
-  function applyState(s){var prev=S&&S.items;S=s;diffOthers(prev,s.items||[]);renderState();}
+  function applyState(s){var prev=S&&S.items;S=s;diffOthers(prev,s.items||[]);renderState();if(PARTY_ON&&!s.need_party)hideParty();}
+  /* 客人自開桌（在咖啡固定 QR）先填人數：同桌別人填過（need_party 變 false）就自動關 */
+  var PARTY_ON=false,PA=2,PK=0;
+  function paintParty(){
+    var g=function(from,to,cur,key){var h='';for(var n=from;n<=to;n++)h+='<button type="button" data-'+key+'="'+n+'" aria-pressed="'+(n===cur)+'">'+n+'</button>';return h;};
+    $('#party-a').innerHTML=g(1,12,PA,'pa');$('#party-k').innerHTML=g(0,5,PK,'pk');$('#party-ok').textContent=tr('party_submit',{n:PA+PK});
+  }
+  function showParty(){PARTY_ON=true;paintParty();$('#party').classList.remove('hidden');document.body.classList.add('party-on');}
+  function hideParty(){PARTY_ON=false;$('#party').classList.add('hidden');document.body.classList.remove('party-on');}
+  $('#party').addEventListener('click',function(e){var a=e.target.closest('[data-pa]'),k=e.target.closest('[data-pk]');if(a)PA=Number(a.dataset.pa);if(k)PK=Number(k.dataset.pk);if(a||k)paintParty();});
+  $('#party-ok').onclick=function(){var b=this;b.disabled=true;api('/orders/party',{method:'POST',body:{s:SID,k:K,adults:PA,kids:PK}}).then(function(){hideParty();if(S)S.need_party=false;}).catch(function(err){toast(err.message);}).then(function(){b.disabled=false;});};
   var sum=function(ls){return ls.reduce(function(a,l){return a+l.price*l.qty;},0);};
 
   function renderState(){
@@ -759,6 +774,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     if(NAME){hideGate();$('#order-content').classList.remove('hidden');$('#name-display').textContent=NAME;}else if(!token()){showGate();}   // 已登入會員：等 joinMember 用會員名直接進菜單，失敗才出稱呼關卡
     askNotify();
     renderMenu();renderState();live();poll();loadSongs();loadCalls();loadTips();
+    if(S.need_party)showParty();
     renderMember();fetch('/api/auth/methods').then(function(x){return x.json();}).then(function(j){LINE_OK=!!(j&&j.line);if(!ME)renderMember();}).catch(function(){});joinMember();
   }
   $('#thanks-again').onclick=function(){

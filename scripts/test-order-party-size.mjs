@@ -21,9 +21,15 @@ test('來客人數：只看 POS 設定，未設定為 null', () => {
   for (const n of [0, -1, 21, 'x', null]) assert.throws(() => T.partySetByPos({}, n), /人數請選/);
 });
 
-test('客人端：不顯示、不送出來客人數；伺服器不收客人送的人數', () => {
-  assert.doesNotMatch(html, /party-pick|party_size|PARTY/);
-  assert.doesNotMatch(lib, /party_title/);
+test('客人端：只有客人自開的桌（在咖啡固定 QR，KK 11/3）要填人數，POS 開的桌不問', () => {
+  assert.match(server, /need_party:s\.status==='open'&&!s\.opened_by_staff_name&&!tableOrders\.partySize\(s\.party_votes\)/);
+  const r = server.slice(server.indexOf("app.post('/api/orders/party'"), server.indexOf("app.get('/api/orders/:id'"));
+  assert.match(r, /verifySession\(req\.body\?\.s,req\.body\?\.k,SECRET\)/);
+  assert.match(r, /if\(s\.opened_by_staff_name\|\|tableOrders\.partySize\(s\.party_votes\)\)return res\.json\(\{ok:true,already:true\}\)/, 'POS 開的桌、已填過都不覆寫');
+  assert.match(html, /if\(S\.need_party\)showParty\(\);/);
+  assert.match(html, /api\('\/orders\/party',\{method:'POST',body:\{s:SID,k:K,adults:PA,kids:PK\}\}\)/);
+  assert.match(html, /if\(PARTY_ON&&!s\.need_party\)hideParty\(\)/, '同桌別人填過就自動關');
+  for (const k of ['party_title', 'party_adults', 'party_kids', 'party_submit']) assert.equal((lib.match(new RegExp(`\\b${k}: '`, 'g')) || []).length, 3, k);
   assert.doesNotMatch(server, /partyVote/);
   assert.doesNotMatch(server, /const publicSession=[^\n]*party_size/);
   assert.match(server, /ADD COLUMN IF NOT EXISTS party_votes JSONB NOT NULL DEFAULT '\{\}'/);
