@@ -2,6 +2,7 @@
 (function (global) {
   const TEXT = {
     zh: {
+      policy_title: '三點水用餐須知', policy_min: '低消每人', policy_min_v: '平日 NT${wd}／週六日 NT${we}', policy_svc: '服務費', policy_svc_v: '另加 10%（外帶不收）', policy_today_wd: '今天是平日：每人低消 NT${n}。', policy_today_we: '今天是週末：每人低消 NT${n}。', policy_ok: '我知道了，開始點餐', pick_required: '請先選擇「{label}」',
       party_title: '請問幾位用餐？', party_adults: '大人', party_kids: '小孩', party_submit: '確認 {n} 位',
       gate_or: '或輸入稱呼', member_terms: '登入即同意', member_pts_label: '可用點數', member_rename: '更改稱呼', member_redeem_title: '用點數兌換', member_need: '需 {n} 點', member_short: '還差 {n} 點', member_logout_confirm: '確定登出會員？已點的餐點不受影響。', gate_login_hint: '會員累點・享會員價', member_title: '會員', member_hint: '登入會員，累點享會員價', member_google: '使用 Google 登入', member_line: '使用 LINE 登入', member_logout: '登出', member_points: '{n} 點', member_active: '會員價適用', member_plain: '結帳自動累點', member_redeem: '兌換', member_redeem_confirm: '用 {n} 點兌換「{name}」？會直接加進這桌已點清單。', member_redeemed: '已兌換「{name}」，剩 {n} 點', member_price: '會員',
       tip_title: '打賞', info_tip_free: '自由金額', tip_card: '喜歡今晚的表演？打賞一下', tip_card_to: '打賞給 {name}', tip_to: '打賞給 {name}。', tip_hint: '金額自己填（上限 NT${max}）。送出後由店員確認，確認後記在這桌帳上、用餐完一起結帳，店裡會播你選的音效。打賞全額轉交表演者，不開發票。', tip_amount: '金額', tip_sound: '選一個音效（點一下試聽）', tip_send: '送出打賞', tip_send_amt: '打賞 {amt}', tip_bad: '請填 1–{max} 元的整數。', tip_confirm: '打賞 {amt}，播放「{sfx}」？店員確認後會記在這桌帳上，用餐完一起結帳。', tip_done: '已送出，等店員確認後播放音效。謝謝你的打賞！', tip_pending: '等店員確認：{amt}', tip_confirmed: '已確認 {amt}，謝謝你的打賞！', tip_rejected: '店員未收這筆打賞，有問題請洽服務人員。',
@@ -30,9 +31,10 @@
       alcohol: '未滿十八歲禁止飲酒。禁止酒駕。', add: '加入', remove: '移除', ready_banner: '桌號 {table}｜餐點好了，請至櫃檯取餐',
       thanks: '感謝用餐，期待再次光臨。', thanks_hint: '這次點餐已結束。若要再點，請洽服務人員。', thanks_again: '重新點餐', thanks_home: '回到 App 首頁',
       review_title: '喜歡今天的餐點嗎？', review_hint: '在 Google 地圖留下評論，結帳時把評論出示給櫃檯人員，就送你 5 點會員點數（每位會員限領一次）。', review_go: '寫 Google 評論', review_view_cart: '查看已點清單', review_later: '下次再說',
-      stock_left: '剩 {n} 份', view_detail: '查看細項', back_menu: '返回菜單', add_to_cart: '加入已點清單', added: '已加入', quantity: '數量', required: '必選', optional: '選填', special_request: '其他需求', special_placeholder: '例如：不要蔥、醬另外放', sugar: '糖度', ice: '冰塊', temperature: '溫度', rice_amount: '飯量', noodle_amount: '麵量', notification_prompt: '餐點好了通知我', notification_on: '已開啟通知', notification_unsupported: '此瀏覽器不支援通知；請留在這個頁面，餐點好了會在畫面上提示。', notification_error: '無法開啟通知：{message}。請留在此頁，餐點好了會在畫面上提示。',
+      stock_left: '剩 {n} 份', view_detail: '查看細項', back_menu: '返回菜單', add_to_cart: '加入已點清單', added: '已加入', quantity: '數量', required: '必選', optional: '選填', special_request: '其他需求', special_placeholder: '例如：不要蔥、醬另外放', sugar: '糖度', ice: '冰塊', temperature: '溫度', serve_timing: '上餐時間', rice_amount: '飯量', noodle_amount: '麵量', notification_prompt: '餐點好了通知我', notification_on: '已開啟通知', notification_unsupported: '此瀏覽器不支援通知；請留在這個頁面，餐點好了會在畫面上提示。', notification_error: '無法開啟通知：{message}。請留在此頁，餐點好了會在畫面上提示。',
     },
     en: {
+      policy_title: 'Dining at 3AM', policy_min: 'Minimum spend per person', policy_min_v: 'Weekdays NT${wd} / Sat–Sun NT${we}', policy_svc: 'Service charge', policy_svc_v: '+10% (not for takeout)', policy_today_wd: 'Today is a weekday: NT${n} minimum per person.', policy_today_we: 'Today is a weekend day: NT${n} minimum per person.', policy_ok: 'Got it, start ordering', pick_required: 'Please choose “{label}” first',
       party_title: 'How many in your party?', party_adults: 'Adults', party_kids: 'Kids', party_submit: 'Confirm ({n})',
       gate_or: 'or enter a name', member_terms: 'By signing in you agree to our', member_pts_label: 'points', member_rename: 'Change name', member_redeem_title: 'Redeem with points', member_need: '{n} pts', member_short: '{n} pts short', member_logout_confirm: 'Sign out? Your order stays as is.', gate_login_hint: 'Members earn points & get member prices', member_title: 'Member', member_hint: 'Sign in to earn points', member_google: 'Continue with Google', member_line: 'Continue with LINE', member_logout: 'Sign out', member_points: '{n} pts', member_active: 'Member prices on', member_plain: 'Earning points', member_redeem: 'Redeem', member_redeem_confirm: 'Redeem “{name}” for {n} points? It will be added to this table.', member_redeemed: 'Redeemed “{name}”. {n} points left', member_price: 'Member',
       tip_title: 'Tip the performer', info_tip_free: 'Any amount', tip_card: 'Enjoying the show? Leave a tip', tip_card_to: 'Tip {name}', tip_to: 'Tip for {name}.', tip_hint: 'Enter any amount (up to NT${max}). Staff will confirm it, then it is added to your table bill and your sound effect plays in the shop. Tips go in full to the performer; no invoice is issued for them.', tip_amount: 'Amount', tip_sound: 'Pick a sound effect (tap to preview)', tip_send: 'Send tip', tip_send_amt: 'Tip {amt}', tip_bad: 'Please enter a whole number from 1 to {max}.', tip_confirm: 'Tip {amt} and play "{sfx}"? Once staff confirm, it will be added to your table bill.', tip_done: 'Sent! Your sound will play once staff confirm. Thank you!', tip_pending: 'Waiting for staff: {amt}', tip_confirmed: 'Confirmed {amt}. Thank you!', tip_rejected: 'Staff did not accept this tip. Please ask a staff member.',
@@ -61,9 +63,10 @@
       alcohol: 'No alcohol under 18. Do not drink and drive.', add: 'Add', remove: 'Remove', ready_banner: 'Table {table} | Your order is ready. Please pick it up at the counter.',
       thanks: 'Thanks for dining with us. See you next time.', thanks_hint: 'This order has ended. Please ask our staff if you would like to order again.', thanks_again: 'Order again', thanks_home: 'Go to app home',
       review_title: 'Enjoying your visit?', review_hint: 'Leave us a Google Maps review and show it to our staff when you pay. Members get 5 points (once per member).', review_go: 'Write a Google review', review_view_cart: 'View my order', review_later: 'Maybe later',
-      stock_left: 'Only {n} left', view_detail: 'Details', back_menu: 'Back to menu', add_to_cart: 'Add to order list', added: 'Added', quantity: 'Quantity', required: 'Required', optional: 'Optional', special_request: 'Other requests', special_placeholder: 'e.g. no scallions, sauce on the side', sugar: 'Sweetness', ice: 'Ice', temperature: 'Temperature', rice_amount: 'Rice amount', noodle_amount: 'Noodle amount', notification_prompt: 'Notify me when ready', notification_on: 'Notifications on', notification_unsupported: 'This browser does not support notifications. Keep this page open and we will show an on-screen alert when your order is ready.', notification_error: 'Could not enable notifications: {message}. Keep this page open for the on-screen alert.',
+      stock_left: 'Only {n} left', view_detail: 'Details', back_menu: 'Back to menu', add_to_cart: 'Add to order list', added: 'Added', quantity: 'Quantity', required: 'Required', optional: 'Optional', special_request: 'Other requests', special_placeholder: 'e.g. no scallions, sauce on the side', sugar: 'Sweetness', ice: 'Ice', temperature: 'Temperature', serve_timing: 'Serving', rice_amount: 'Rice amount', noodle_amount: 'Noodle amount', notification_prompt: 'Notify me when ready', notification_on: 'Notifications on', notification_unsupported: 'This browser does not support notifications. Keep this page open and we will show an on-screen alert when your order is ready.', notification_error: 'Could not enable notifications: {message}. Keep this page open for the on-screen alert.',
     },
     ja: {
+      policy_title: '三點水（3AM）ご利用案内', policy_min: 'お一人様の最低ご利用額', policy_min_v: '平日 NT${wd}／土日 NT${we}', policy_svc: 'サービス料', policy_svc_v: '別途 10%（お持ち帰りは除く）', policy_today_wd: '本日は平日：お一人様 NT${n} から。', policy_today_we: '本日は週末：お一人様 NT${n} から。', policy_ok: '確認しました。注文する', pick_required: '「{label}」を選んでください',
       party_title: '何名様ですか？', party_adults: '大人', party_kids: 'お子様', party_submit: '{n} 名で確定',
       gate_or: 'または名前を入力', member_terms: 'ログインで同意：', member_pts_label: 'ポイント', member_rename: '名前を変更', member_redeem_title: 'ポイントで交換', member_need: '{n} pt 必要', member_short: 'あと {n} pt', member_logout_confirm: 'ログアウトしますか？注文はそのままです。', gate_login_hint: '会員はポイント・会員価格', member_title: '会員', member_hint: 'ログインでポイント', member_google: 'Google でログイン', member_line: 'LINE でログイン', member_logout: 'ログアウト', member_points: '{n} pt', member_active: '会員価格適用', member_plain: 'ポイント加算', member_redeem: '交換', member_redeem_confirm: '{n} ポイントで「{name}」を交換しますか？このテーブルの注文に追加されます。', member_redeemed: '「{name}」を交換しました。残り {n} pt', member_price: '会員',
       tip_title: '投げ銭', info_tip_free: '金額自由', tip_card: '演奏が気に入ったら投げ銭を', tip_card_to: '{name} に投げ銭', tip_to: '{name} への投げ銭。', tip_hint: '金額は自由（上限 NT${max}）。スタッフが確認後、テーブルのお会計に加算され、選んだ効果音が店内で流れます。投げ銭は全額演者に渡し、レシート（発票）は発行しません。', tip_amount: '金額', tip_sound: '効果音を選ぶ（タップで試聴）', tip_send: '投げ銭する', tip_send_amt: '{amt} を投げ銭', tip_bad: '1〜{max} の整数で入力してください。', tip_confirm: '{amt} を投げ銭して「{sfx}」を流しますか？スタッフ確認後、お会計に加算されます。', tip_done: '送信しました。スタッフ確認後に効果音が流れます。ありがとうございます！', tip_pending: 'スタッフ確認待ち：{amt}', tip_confirmed: '{amt} 確認済み。ありがとうございます！', tip_rejected: 'この投げ銭は受け付けられませんでした。スタッフにお声がけください。',
@@ -92,11 +95,20 @@
       alcohol: '20歳未満の飲酒は禁止です。飲酒運転禁止。', add: '追加', remove: '削除', ready_banner: 'テーブル {table}｜ご注文の品ができました。カウンターでお受け取りください。',
       thanks: 'ご来店ありがとうございました。', thanks_hint: '今回のご注文は終了しました。追加のご注文はスタッフにお声がけください。', thanks_again: 'もう一度注文する', thanks_home: 'アプリのホームへ',
       review_title: '本日のお食事はいかがでしたか？', review_hint: 'Google マップにレビューを投稿し、お会計の際にスタッフへお見せいただくと、会員ポイントを 5 点進呈します（会員様お一人につき 1 回）。', review_go: 'Google でレビューを書く', review_view_cart: '注文リストを見る', review_later: 'また今度',
-      stock_left: '残り {n} 点', view_detail: '詳細を見る', back_menu: 'メニューに戻る', add_to_cart: '注文リストに追加', added: '追加しました', quantity: '数量', required: '必須', optional: '任意', special_request: 'その他の希望', special_placeholder: '例：ねぎ抜き、ソース別添え', sugar: '甘さ', ice: '氷', temperature: '温度', rice_amount: 'ご飯の量', noodle_amount: '麺の量', notification_prompt: '出来上がりを通知', notification_on: '通知を有効にしました', notification_unsupported: 'このブラウザは通知に対応していません。このページを開いたままにしてください。出来上がり時に画面でお知らせします。', notification_error: '通知を有効にできません：{message}。このページを開いたままにしてください。',
+      stock_left: '残り {n} 点', view_detail: '詳細を見る', back_menu: 'メニューに戻る', add_to_cart: '注文リストに追加', added: '追加しました', quantity: '数量', required: '必須', optional: '任意', special_request: 'その他の希望', special_placeholder: '例：ねぎ抜き、ソース別添え', sugar: '甘さ', ice: '氷', temperature: '温度', serve_timing: '提供タイミング', rice_amount: 'ご飯の量', noodle_amount: '麺の量', notification_prompt: '出来上がりを通知', notification_on: '通知を有効にしました', notification_unsupported: 'このブラウザは通知に対応していません。このページを開いたままにしてください。出来上がり時に画面でお知らせします。', notification_error: '通知を有効にできません：{message}。このページを開いたままにしてください。',
     },
   };
   // 韓文（KK 10/28）：介面字串；菜單品名／產品內容沒有韓文時退回英文
   TEXT.ko = {
+   "policy_title": "3AM 이용 안내",
+   "policy_min": "1인 최소 주문 금액",
+   "policy_min_v": "평일 NT${wd} / 토·일 NT${we}",
+   "policy_svc": "봉사료",
+   "policy_svc_v": "별도 10% (포장 제외)",
+   "policy_today_wd": "오늘은 평일: 1인 NT${n}부터.",
+   "policy_today_we": "오늘은 주말: 1인 NT${n}부터.",
+   "policy_ok": "확인했어요, 주문하기",
+   "pick_required": "\"{label}\"을(를) 먼저 선택해 주세요",
    "party_title": "몇 분이신가요?",
    "party_adults": "성인",
    "party_kids": "어린이",
@@ -306,6 +318,7 @@
    "sugar": "당도",
    "ice": "얼음",
    "temperature": "온도",
+   "serve_timing": "제공 시점",
    "rice_amount": "밥 양",
    "noodle_amount": "면 양",
    "notification_prompt": "준비되면 알림 받기",
@@ -333,6 +346,7 @@
       temp: ['冰', '熱'],
       rice: ['正常飯', '少飯', '飯多'],
       noodle: ['正常麵', '少麵', '麵多'],
+      serve: ['先上', '後上'],
     },
     en: {
       sugar: ['Regular', 'Less sugar', 'Half sugar', 'Light sugar', 'No sugar'],
@@ -340,6 +354,7 @@
       temp: ['Iced', 'Hot'],
       rice: ['Regular rice', 'Less rice', 'Extra rice'],
       noodle: ['Regular noodles', 'Less noodles', 'Extra noodles'],
+      serve: ['Serve first', 'Serve after meal'],
     },
     ko: {
       sugar: ['보통', '적게', '반', '약간', '무설탕'],
@@ -347,6 +362,7 @@
       temp: ['아이스', '핫'],
       rice: ['보통', '적게', '많이'],
       noodle: ['보통', '적게', '많이'],
+      serve: ['먼저', '식후'],
     },
     ja: {
       sugar: ['通常', '少なめ', '半分', '微糖', '無糖'],
@@ -354,6 +370,7 @@
       temp: ['アイス', 'ホット'],
       rice: ['通常', '少なめ', '多め'],
       noodle: ['通常', '少なめ', '多め'],
+      serve: ['先に', '食後'],
     },
   };
   function optionGroups(item, lang) {
@@ -375,11 +392,9 @@
     } else if ((cat === 'COFFEE' || cat === 'BEVERAGE' || cat === 'TEA' || cat === 'SPARKLING') && fixedCold) {
       ice(false);
     }
-    // 只依品名判斷主食份量；麵優先，避免 MAIN/JAPANESE 麵類同時出現「加飯」。
-    const hasNoodle = /麵|noodle|pasta|udon|soba|義大利/.test(title);
-    const hasRice = /飯|rice|丼|咖哩|curry|onigiri|ochazuke/.test(title);
-    if (hasNoodle) groups.push({ key: 'noodle', label: labels.noodle_amount, choices: OPT[l].noodle });
-    else if (hasRice) groups.push({ key: 'rice', label: labels.rice_amount, choices: OPT[l].rice });
+    // 麵量、飯量不再提供（KK 11/4：份量固定，不能少麵／麵多、少飯／飯多）；OPT.rice/noodle 只留給舊單據的 optionZh 翻譯。
+    // 甜點必選先上／後上（KK 11/4）：沒有預選，客人與櫃檯都要點一個才能加入（required＝無預設值）。
+    if (cat === 'DESSERT') groups.push({ key: 'serve', label: labels.serve_timing, choices: OPT[l].serve, required: true });
     return groups;
   }
   /* 套餐：每個選擇欄（主餐／飲品）一組單選，選到的品項再帶出它自己的規格（溫度／糖度／冰塊／飯量…），
@@ -423,6 +438,10 @@
     });
     return out;
   }
+  /* 必選且沒有預設值（required:true）的規格組，客人／櫃檯還沒點選的那幾組；送出前檢查用 */
+  function missingRequired(groups, picks) {
+    return activeOptionGroups(groups, picks).filter(g => g.required && !(picks && g.choices.includes(picks[g.key])));
+  }
   function activeOptionGroups(groups, picks) {
     return (groups || []).filter(g => !g.when || [].concat(g.when).every(w => picks?.[w.key] === w.value));
   }
@@ -431,7 +450,7 @@
   function optionEn(zh) { for (const k of Object.keys(OPT.zh)) { const i = OPT.zh[k].indexOf(zh); if (i >= 0) return OPT.en[k][i]; } return ''; }
   /* 規格任一語言 → 中文（KK 11/2：出餐單統一中文）。外國客人點餐時 note 會寫成「Temperature：Hot；Ice：Less ice」，
    * 依標籤認出是哪一組再換回中文值；認不出的自由備註原樣保留。 */
-  const OPT_KEY = { temperature: 'temp', ice: 'ice', rice_amount: 'rice', noodle_amount: 'noodle' };
+  const OPT_KEY = { temperature: 'temp', ice: 'ice', rice_amount: 'rice', noodle_amount: 'noodle', serve_timing: 'serve' };
   function optionZh(note) {
     return String(note || '').split(/[；;]/).map(s => s.trim()).filter(Boolean).map(s => {
       const m = s.match(/^([^：:]{1,20})[：:](.+)$/);
@@ -448,5 +467,5 @@
     }).join('；');
   }
   const LANGS = [{ id: 'zh', name: '中文' }, { id: 'en', name: 'English' }, { id: 'ja', name: '日本語' }, { id: 'ko', name: '한국어' }];
-  global.OrderLib = { LANGS, TEXT, text, splitBill, optionEn, optionZh, optionGroups, activeOptionGroups, comboGroups, comboPayload, slotLabel };
+  global.OrderLib = { LANGS, TEXT, text, splitBill, optionEn, optionZh, optionGroups, activeOptionGroups, missingRequired, comboGroups, comboPayload, slotLabel };
 })(typeof window !== 'undefined' ? window : globalThis);

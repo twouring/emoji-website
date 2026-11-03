@@ -205,7 +205,7 @@ tr.pos-comp td{background:var(--ok-faint)}
 .ops-spec-default{border-color:var(--line);color:var(--muted);font-weight:400}
 .ops-spec-custom{border-color:var(--warn);background:var(--warn-soft);color:var(--warn-ink);font-weight:700}
 /* 規格固定色碼：溫度紅、糖度黃、冰塊藍、飯量綠、麵量紫、自由需求琥珀；出餐時不必逐字讀標籤 */
-.ops-spec-temperature{border-color:#e5a39a;background:#ffe7e2;color:#7f2d22}.ops-spec-sugar{border-color:#ddbd45;background:#fff3bd;color:#6f5300}.ops-spec-ice{border-color:#92c5e8;background:#e1f2ff;color:#155378}.ops-spec-rice{border-color:#9dc68d;background:#e6f4df;color:#315e27}.ops-spec-noodle{border-color:#b9a0dd;background:#f0e7ff;color:#563487}
+.ops-spec-temperature{border-color:#e5a39a;background:#ffe7e2;color:#7f2d22}.ops-spec-sugar{border-color:#ddbd45;background:#fff3bd;color:#6f5300}.ops-spec-ice{border-color:#92c5e8;background:#e1f2ff;color:#155378}.ops-spec-rice{border-color:#9dc68d;background:#e6f4df;color:#315e27}.ops-spec-noodle{border-color:#b9a0dd;background:#f0e7ff;color:#563487}.ops-spec-serve{border-color:#e0a35c;background:#ffeedd;color:#7a3d00}
 /* 類別籤維持單行；品名與規格可能來自菜單／自由備註，必須在卡片邊界換行，否則會被 .kds-card 的 overflow:hidden 裁掉。
    直向平板（≤1000px）類別籤改放品名上方，品名才有整行可用。 */
 .ops-cat{white-space:nowrap}
@@ -355,7 +355,7 @@ tr.lp-refund td{color:var(--danger)}
 .pos-opt-choices{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .pos-opt-choices label{position:relative;display:flex;align-items:center;justify-content:center;min-height:48px;text-align:center;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:8px 10px;line-height:1.25;cursor:pointer}
 .pos-opt-choices label:has(input:checked){border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);background:var(--accent-soft)}
-.pos-opt-group[data-opt=temperature] label:has(input:checked){background:#ffe7e2}.pos-opt-group[data-opt=sugar] label:has(input:checked){background:#fff3bd}.pos-opt-group[data-opt=ice] label:has(input:checked){background:#e1f2ff}.pos-opt-group[data-opt=rice] label:has(input:checked){background:#e6f4df}.pos-opt-group[data-opt=noodle] label:has(input:checked){background:#f0e7ff}
+.pos-opt-group[data-opt=temperature] label:has(input:checked){background:#ffe7e2}.pos-opt-group[data-opt=sugar] label:has(input:checked){background:#fff3bd}.pos-opt-group[data-opt=ice] label:has(input:checked){background:#e1f2ff}.pos-opt-group[data-opt=rice] label:has(input:checked){background:#e6f4df}.pos-opt-group[data-opt=noodle] label:has(input:checked){background:#f0e7ff}.pos-opt-group[data-opt=serve] label:has(input:checked){background:#ffeedd}
 .pos-opt-choices input{position:absolute;opacity:0;pointer-events:none}
 .pos-opt-qty{display:flex;align-items:center;gap:12px}.pos-opt-qty button{all:unset;box-sizing:border-box;cursor:pointer;width:48px;height:48px;border-radius:50%;border:1.5px solid var(--ink);background:var(--card);font-size:1.3rem;display:grid;place-items:center}.pos-opt-qty button:active{background:var(--paper-alt)}.pos-opt-qty b{min-width:2ch;text-align:center;font-size:1.2rem}
 .pos-opt textarea{width:100%;min-height:64px;padding:10px 12px;border:1px solid var(--muted);border-radius:8px;background:var(--card);resize:vertical;font:inherit}

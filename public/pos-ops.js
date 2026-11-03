@@ -349,7 +349,7 @@ const orderLines=o=>byCat(o.stations&&(o.stations.bar?.length||o.stations.kitche
 const groupByCat=lines=>{const g=new Map();for(const l of byCat(lines)){const k=l.cat||'';if(!g.has(k))g.set(k,[]);g.get(k).push(l);}return [...g];};
 // 規格：note 由桌邊／櫃檯加點寫成「溫度：熱；糖度：無糖；冰塊：去冰；自由文字」。拆成一顆顆標籤：預設值（正常冰、正常糖…）淡化、非預設值深色加粗、
 // 沒有「標籤：」的自由需求標 ※ 琥珀底——現場看一眼就知道哪些要特別處理，減少做錯。預設值來自 order-lib 同一份規格定義（沒載到就全部當非預設）。
-const specTone=label=>({溫度:'temperature',Temperature:'temperature','温度':'temperature',糖度:'sugar',Sweetness:'sugar','甘さ':'sugar',冰塊:'ice',Ice:'ice','氷':'ice',飯量:'rice','Rice amount':'rice','ご飯の量':'rice',麵量:'noodle','Noodle amount':'noodle','麺の量':'noodle'})[String(label||'')]||'custom';
+const specTone=label=>({溫度:'temperature',Temperature:'temperature','温度':'temperature',糖度:'sugar',Sweetness:'sugar','甘さ':'sugar',冰塊:'ice',Ice:'ice','氷':'ice',飯量:'rice','Rice amount':'rice','ご飯の量':'rice',麵量:'noodle','Noodle amount':'noodle','麺の量':'noodle',上餐時間:'serve',Serving:'serve','提供タイミング':'serve'})[String(label||'')]||'custom';
 /* 店內畫面與所有出餐單據一律中文（KK 11/2）：外國客人點的規格先經 OrderLib.optionZh 轉回中文 */
 const noteZh=t=>(typeof OrderLib!=='undefined'&&OrderLib.optionZh)?OrderLib.optionZh(t):String(t||'');
 /* 規格只取值：「溫度：熱；冰塊：少冰」→「熱／少冰」（套餐內容用） */
@@ -2384,14 +2384,14 @@ function optionPaneHtml(o){
     <div class="pos-opt-body">
       <h2>${o.line?'編輯：':''}${esc(it.zh)}</h2><p class="hint hint--tight">NT$${num(it.price)}${it.en?' · '+esc(it.en):''}</p>
       <div class="pos-opt-group"><div class="pos-opt-title"><span>數量</span></div><div class="pos-opt-qty"><button type="button" data-oq="-1" aria-label="減少">−</button><b id="pos-opt-qty">${o.qty}</b><button type="button" data-oq="1" aria-label="增加">＋</button></div></div>
-      ${groups.map(g=>`<div class="pos-opt-group" data-opt="${esc(g.key)}"><div class="pos-opt-title"><span>${esc(g.label)}</span><small class="hint hint--tight">必選</small></div><div class="pos-opt-choices">${g.choices.map((c,i)=>`<label><input type="radio" name="pos_opt_${esc(g.key)}" value="${esc(c)}" ${(o.picks[g.key]||g.choices[0])===c?'checked':''}><span>${esc(c)}</span></label>`).join('')}</div></div>`).join('')}
+      ${groups.map(g=>`<div class="pos-opt-group" data-opt="${esc(g.key)}"><div class="pos-opt-title"><span>${esc(g.label)}</span><small class="hint hint--tight">必選</small></div><div class="pos-opt-choices">${g.choices.map((c,i)=>`<label><input type="radio" name="pos_opt_${esc(g.key)}" value="${esc(c)}" ${(g.required?o.picks[g.key]:(o.picks[g.key]||g.choices[0]))===c?'checked':''}><span>${esc(c)}</span></label>`).join('')}</div></div>`).join('')}
       <label class="pos-opt-group"><div class="pos-opt-title"><span>其他需求</span><small class="hint hint--tight">選填，點常用的或自己補</small></div>${noteChips('pos-opt-note',itemNotePresets(groups))}<textarea id="pos-opt-note" maxlength="80" placeholder="例如：不要蔥、醬另外放">${esc(o.extra||'')}</textarea></label>
     </div>
     <div class="op-card-actions pos-opt-actions"><button type="button" class="btn btn--ghost" id="pos-opt-cancel">取消</button><button type="button" class="btn btn--solid" id="pos-opt-add">確定</button></div>
   </div>`;
 }
 function openItemOptions(it,groups,note0,onDone,editing){
-  const picks={}; groups.forEach(g=>{ picks[g.key]=g.choices[0]; });
+  const picks={}; groups.forEach(g=>{ if(!g.required)picks[g.key]=g.choices[0]; });   // 必選無預設（甜點先上／後上）要店員自己點
   POS_OPT={table:POS_TABLE,it,groups,picks,qty:1,extra:note0||'',onDone,line:null,...(editing||{})};
   paintPos();
 }
@@ -2405,12 +2405,12 @@ function bindOptionPane(host){
   syncGroups();
   const ta=q('#pos-opt-note');ta.addEventListener('input',()=>{o.extra=ta.value;});
   q('#pos-opt-cancel').onclick=()=>{ POS_OPT=null; paintPos(); };
-  q('#pos-opt-add').onclick=()=>{ const isCombo=groups.some(g=>g.combo); const note=isCombo?String(ta.value||'').trim().slice(0,80):itemOptionNote(groups,o.picks,ta.value); const done=o.onDone; const body={item_id:o.it.id,qty:o.qty,note}; if(isCombo)body.combo=OrderLib.comboPayload(groups,o.picks); POS_OPT=null; paintPos(); done(body); };
+  q('#pos-opt-add').onclick=()=>{ const miss=(typeof OrderLib!=='undefined'&&OrderLib.missingRequired)?OrderLib.missingRequired(groups,o.picks):[]; if(miss.length){ toast('請先選「'+miss.map(g=>g.label).join('、')+'」'); const el=pane.querySelector(`[data-opt="${miss[0].key}"]`); if(el)el.scrollIntoView({block:'center'}); return; } const isCombo=groups.some(g=>g.combo); const note=isCombo?String(ta.value||'').trim().slice(0,80):itemOptionNote(groups,o.picks,ta.value); const done=o.onDone; const body={item_id:o.it.id,qty:o.qty,note}; if(isCombo)body.combo=OrderLib.comboPayload(groups,o.picks); POS_OPT=null; paintPos(); done(body); };
 }
 // 把已存的備註字串（「糖度：半糖；冰塊：去冰；其他」）拆回規格選項與其他需求，編輯既有品項時帶入
 function itemOptionParse(groups,note){
   const picks={},rest=[];const parts=String(note||'').split('；').map(x=>x.trim()).filter(Boolean);
-  groups.forEach(g=>{picks[g.key]=g.choices[0];});
+  groups.forEach(g=>{if(!g.required)picks[g.key]=g.choices[0];});
   for(const p of parts){const g=groups.find(x=>p.startsWith(x.label+'：')&&x.choices.includes(p.slice(x.label.length+1)));if(g)picks[g.key]=p.slice(g.label.length+1);else rest.push(p);}
   return {picks,extra:rest.join('；')};
 }

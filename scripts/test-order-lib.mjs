@@ -51,11 +51,10 @@ test('現行完整菜單逐品檢查：麵類無飯量、固定熱飲無冰塊�
   }
 });
 
-test('主食只依品名提供飯量或麵量，麵類絕不再出現飯量', () => {
-  assert.deepEqual(O.optionGroups({ cat: 'JAPANESE', zh: '柚香紫蘇雞腿冷蕎麥麵' }, 'zh').map(g => g.key), ['noodle']);
-  assert.deepEqual(O.optionGroups({ cat: 'MAIN', zh: '濃香味噌肉醬烏龍麵附溫泉蛋' }, 'zh').map(g => g.key), ['noodle']);
-  assert.deepEqual(O.optionGroups({ cat: 'MAIN', zh: '炙燒明太子烤飯糰茶泡飯' }, 'zh').map(g => g.key), ['rice']);
-  assert.deepEqual(O.optionGroups({ cat: 'MAIN', zh: '牛肉麵飯' }, 'zh').map(g => g.key), ['noodle'], '品名同時命中時麵量優先，不可同時問加飯');
+test('麵量、飯量固定（KK 11/4）：主食一律不問份量', () => {
+  for (const [cat, zh] of [['JAPANESE','柚香紫蘇雞腿冷蕎麥麵'],['MAIN','濃香味噌肉醬烏龍麵附溫泉蛋'],['MAIN','醬香野菇蕎麥麵附溫泉蛋'],['MAIN','炙燒明太子烤飯糰茶泡飯'],['MAIN','太陽蛋番茄雞肉乾咖哩飯'],['JAPANESE','鹽烤雞腿昆布飯糰']])
+    assert.deepEqual(O.optionGroups({ cat, zh }, 'zh'), [], zh + ' 不可再有麵量／飯量');
+  assert.equal(O.optionZh('Noodle amount：Extra noodles'), '麵量：麵多', '舊單據的麵量仍能翻回中文');
   assert.deepEqual(O.optionGroups({ cat: 'MAIN', zh: '烤雞腿排' }, 'zh'), [], 'MAIN 類別本身不等於有飯');
   assert.deepEqual(O.optionGroups({ cat: 'BREAD', zh: '開放式三明治', note: '使用酸種麵包' }, 'zh'), [], '產品說明中的「麵包」不等於麵量');
 });

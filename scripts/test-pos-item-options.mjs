@@ -22,7 +22,7 @@ test('加點：有選項的品項先跳面板（數量＋每組必選＋其他�
   assert.match(ops, /function optionPaneHtml\(o\)/, '細項在中欄畫面，不是彈窗');
   assert.match(ops, /class="pos-opt pos-opt-pane" role="group"/, '細項畫面取代中欄菜單');
   assert.match(ops, /data-oq="-1"[\s\S]*id="pos-opt-qty"[\s\S]*data-oq="1"/, '數量 ±');
-  assert.match(ops, /name="pos_opt_\$\{esc\(g\.key\)\}" value="\$\{esc\(c\)\}" \$\{\(o\.picks\[g\.key\]\|\|g\.choices\[0\]\)===c\?'checked':''\}/, '每組預設選第一個（正常）＝必選；編輯時帶入既有選項');
+  assert.match(ops, /name="pos_opt_\$\{esc\(g\.key\)\}" value="\$\{esc\(c\)\}" \$\{\(g\.required\?o\.picks\[g\.key\]:\(o\.picks\[g\.key\]\|\|g\.choices\[0\]\)\)===c\?'checked':''\}/, '每組預設選第一個（正常）；required（甜點先上／後上）沒有預設；編輯時帶入既有選項');
   assert.match(ops, /const syncGroups=\(\)=>\{const active=.*OrderLib\.activeOptionGroups/, '選熱飲時即時隱藏冰塊組');
   assert.match(ops, /const active=groups\.filter\(g=>!g\.when\|\|picks\[g\.when\.key\]===g\.when\.value\)/, '送出備註前再次排除不適用規格');
   assert.match(ops, /id="pos-opt-note" maxlength="80"/, '其他需求 80 字，與桌邊點餐相同');

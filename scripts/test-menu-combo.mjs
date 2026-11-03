@@ -128,13 +128,13 @@ test('order.html 接線：套餐走 comboGroups／送 combo，購物車列出內
   assert.match(h, /partsLines\(l\)/);
 });
 
-test('麵套餐：冷蕎麥麵＋飲品，選了麵會帶出「麵量」規格，價 400', () => {
+test('麵套餐：冷蕎麥麵＋飲品，麵量固定不再問（KK 11/4），價 400', () => {
   const it = combo('麵套餐');
   assert.equal(it.price, 400);
   const g = O.comboGroups(it, items, 'zh');
   assert.equal(g.find(x => x.key === 'main').label, '麵');
   const picks = {}; g.forEach(x => { picks[x.key] = x.choices[0]; });
-  assert.ok(O.activeOptionGroups(g, picks).some(x => x.sub && /麵量/.test(x.label)), '要問麵量');
+  assert.ok(!O.activeOptionGroups(g, picks).some(x => x.sub && /麵量|飯量/.test(x.label)), '麵量固定，不可再問');
   const [l] = T.posAddLine([], menu, { item_id: it.id, qty: 1, combo: { main: { zh: '柚香紫蘇雞腿冷蕎麥麵', note: '麵量：少麵' }, drink: { zh: '美式咖啡' } } });
   assert.equal(l.price, 400);
   assert.equal(l.parts[0].note, '麵量：少麵');

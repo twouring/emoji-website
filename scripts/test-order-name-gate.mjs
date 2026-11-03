@@ -35,7 +35,7 @@ test('桌邊點餐：開機時沒有稱呼就顯示關卡，有稱呼（localSto
 test('桌邊點餐：確認稱呼才解鎖點餐（送出前再次防呆，不再依賴輸入框現場取值）', () => {
   assert.match(html, /var needName=function\(\)\{if\(NAME\)return true;showGate\(\);return false;\}/);
   assert.doesNotMatch(html, /detail-add'\)\.onclick=function\(\)\{if\(!CURRENT_ITEM\)return;NAME=\$\('#name-in'\)/);
-  assert.match(html, /detail-add'\)\.onclick=function\(\)\{if\(!CURRENT_ITEM\)return;if\(!needName\(\)\)return;/);
+  assert.match(html, /detail-add'\)\.onclick=function\(\)\{if\(!CURRENT_ITEM\)return;var miss=OrderLib\.missingRequired[^\n]*?return;\}if\(!needName\(\)\)return;/, '先檢查必選規格（甜點先上／後上），再確認稱呼');
 });
 
 test('桌邊點餐：名字沒確認前，下方結帳列也不顯示', () => {
