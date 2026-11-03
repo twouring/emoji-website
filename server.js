@@ -5833,7 +5833,7 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   // 外帶單（W01–W99）結完帳且取餐完成就自動收掉，號碼釋出給下一位；內用桌留「待清桌」給人員確認客人離開
   const doneTakeout=rows.filter(s=>tableOrders.isTakeout(s.table_no)&&tableOrders.takeoutFinished(s,live)).map(s=>s.id);
   if(doneTakeout.length){await q("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=ANY($1) AND status='open'",[doneTakeout]);rows=rows.filter(s=>!doneTakeout.includes(s.id));}
-  const sessions=rows.filter(s=>tableOrders.orderVisibleToVenues(s,venues)).map(s=>{const lines=tableOrders.unpaid(s.items).filter(line=>tableOrders.itemInVenues(line,venues)).map(({guest,...l})=>l);return{id:s.id,table:s.table_no,takeout:tableOrders.isTakeout(s.table_no),pickup_at:s.pickup_at||null,pickup_note:s.pickup_note||'',pickup_placed:!!s.pickup_placed_at,unpaid:lines.length,unpaid_amount:tableOrders.sum(lines),lines,mixed:!tableOrders.sessionClosableByVenues(s,venues),state:tableOrders.tableStatus(s,live),updated_at:s.updated_at,created_at:s.created_at,operator:s.opened_by_staff_name||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes),members:tableOrders.joinMember(s.members),pay_requests:tableOrders.payRequestsView(s.pay_requests,s.items).map(r=>({...r,lines:r.lines.filter(l=>lines.some(x=>x.line===l))})).filter(r=>r.lines.length)};});
+  const sessions=rows.filter(s=>tableOrders.orderVisibleToVenues(s,venues)).map(s=>{const lines=tableOrders.unpaid(s.items).filter(line=>tableOrders.itemInVenues(line,venues)).map(({guest,...l})=>l);return{id:s.id,table:s.table_no,takeout:tableOrders.isTakeout(s.table_no),pickup_at:s.pickup_at||null,pickup_note:s.pickup_note||'',pickup_placed:!!s.pickup_placed_at,unpaid:lines.length,unpaid_amount:tableOrders.sum(lines),lines,mixed:!tableOrders.sessionClosableByVenues(s,venues),state:tableOrders.tableStatus(s,live),updated_at:s.updated_at,created_at:s.created_at,operator:s.opened_by_staff_name||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes),foreign:tableOrders.partyForeign(s.party_votes),members:tableOrders.joinMember(s.members),pay_requests:tableOrders.payRequestsView(s.pay_requests,s.items).map(r=>({...r,lines:r.lines.filter(l=>lines.some(x=>x.line===l))})).filter(r=>r.lines.length)};});
   // 桌邊送單（未結帳、未出餐）：與已結帳的出餐單一起上看板；子帳號只看整張都是自己品牌的
   const tickets=rows.flatMap(s=>tableOrders.ticketsOf(s)).filter(t=>tableOrders.orderOwnedByVenues(t,venues)).map(t=>({...t,items:t.items.map(({guest,...l})=>l)}));
   const pause=tableOrders.parsePause(await contentValue('ordering_pause'));
@@ -5858,9 +5858,9 @@ app.post('/api/admin/orders/sessions',auth,adminOnly,requireDb,wrap(async(req,re
     if(takeout){const used=new Set((await client.query("SELECT table_no FROM table_sessions WHERE status='open' AND table_no ~ '^W[0-9]{2}$'")).rows.map(r=>r.table_no));table=tableOrders.nextTakeoutTable(used);if(!table){await client.query('ROLLBACK');return res.status(409).json({error:'外帶單號已用完（W01–W99），請先清掉已完成的外帶單。'});}}
     let s=(await client.query("SELECT id,table_no,created_at,party_votes FROM table_sessions WHERE table_no=$1 AND status='open' ORDER BY created_at DESC LIMIT 1",[table])).rows[0],created=false;
     // 內用開桌時一併帶來客人數（大人＋小孩，POS 開桌就選）；外帶不記
-    let votes={};if(!takeout&&req.body?.party_size!=null){try{votes=tableOrders.partySetByPos({},req.body.party_size,req.body.kids);}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}}
+    let votes={};if(!takeout&&req.body?.party_size!=null){try{votes=tableOrders.partySetByPos({},req.body.party_size,req.body.kids,req.body.foreign);}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}}
     if(!s){s=(await client.query('INSERT INTO table_sessions(id,table_no,opened_by_staff_id,opened_by_staff_name,party_votes) VALUES($1,$2,$3,$4,$5) RETURNING id,table_no,created_at,party_votes',[uid('ts_'),table,operator?.id||null,operator?.name||null,JSON.stringify(votes)])).rows[0];created=true;}
-    await client.query('COMMIT');res.status(created?201:200).json({ok:true,id:s.id,table:s.table_no,created,takeout,operator:operator||undefined,qr_url:takeout?undefined:tableOrders.sessionUrl(APP_BASE,s.id,SECRET),no:tableOrders.sessionNo(s.id),opened_at:s.created_at||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes)});
+    await client.query('COMMIT');res.status(created?201:200).json({ok:true,id:s.id,table:s.table_no,created,takeout,operator:operator||undefined,qr_url:takeout?undefined:tableOrders.sessionUrl(APP_BASE,s.id,SECRET),no:tableOrders.sessionNo(s.id),opened_at:s.created_at||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes),foreign:tableOrders.partyForeign(s.party_votes)});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 async function issueEzpayForOrder(order, invoice) {
@@ -5954,9 +5954,9 @@ app.post('/api/admin/orders/sessions/:id/move',auth,adminOnly,requireDb,wrap(asy
 app.post('/api/admin/orders/sessions/:id/party',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
   const s=(await q("SELECT id,party_votes FROM table_sessions WHERE id=$1 AND status='open'",[req.params.id])).rows[0];if(!s)return res.status(404).json({error:'找不到這桌。'});
-  let votes;try{votes=tableOrders.partySetByPos(s.party_votes,req.body?.party_size,req.body?.kids);}catch(e){return res.status(e.status||400).json({error:e.message});}
+  let votes;try{votes=tableOrders.partySetByPos(s.party_votes,req.body?.party_size,req.body?.kids,req.body?.foreign);}catch(e){return res.status(e.status||400).json({error:e.message});}
   await q('UPDATE table_sessions SET party_votes=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(votes)]);
-  res.json({ok:true,party_size:tableOrders.partySize(votes),kids:tableOrders.partyKids(votes)});
+  res.json({ok:true,party_size:tableOrders.partySize(votes),kids:tableOrders.partyKids(votes),foreign:tableOrders.partyForeign(votes)});
 }));
 // POS 關掉某筆結帳需求（客人改口、或已用別的方式處理）：只拿掉那一筆，品項不動
 app.delete('/api/admin/orders/sessions/:id/pay-requests/:rid',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -6497,7 +6497,9 @@ app.get('/api/admin/analytics',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const orders=(await q(`SELECT id,table_no,items,amount,payer,tappay,status,paid_at FROM table_orders WHERE status<>'void' AND paid_at>=$1 AND paid_at<$2 ORDER BY paid_at`,[start,end])).rows;
   const first=(await q(`SELECT payer->>'member_id' AS mid,min(paid_at) AS at FROM table_orders WHERE status<>'void' AND payer->>'member_id' IS NOT NULL GROUP BY 1`)).rows;
   const firstPaid=Object.fromEntries(first.map(r=>[r.mid,new Date(r.at).toISOString()]));
-  res.json(tableOrders.analyticsSummary(orders,{venues,from,to,firstPaid}));
+  // 來客受眾：開桌場次的人數／小孩／外國人（POS 開桌時選）
+  const sess=(await q(`SELECT table_no,party_votes,created_at FROM table_sessions WHERE created_at>=$1 AND created_at<$2 AND party_votes ? '__pos'`,[start,end])).rows;
+  res.json({...tableOrders.analyticsSummary(orders,{venues,from,to,firstPaid}),visitors:tableOrders.visitorSummary(sess,{venues,from,to})});
 }));
 /* 查單：某營業日的全部單（含作廢），可用桌號／金額／發票號碼搜尋；給櫃檯重印收據明細、補開發票、作廢 */
 app.get('/api/admin/orders/history',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -7113,7 +7115,7 @@ app.get('/api/admin/tables/qr',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const bad=tables.find(t=>!tableOrders.TABLE_RE.test(t));if(bad)return res.status(400).json({error:`桌號「${bad}」只能用英數字與 -，最長 8 字。`});
   const open=new Map((await q("SELECT DISTINCT ON (table_no) id,table_no,created_at,party_votes FROM table_sessions WHERE status='open' AND table_no=ANY($1) ORDER BY table_no,created_at DESC",[tables])).rows.map(r=>[r.table_no,r]));
   const closed=tables.filter(t=>!open.has(t));if(closed.length)return res.status(409).json({error:`${closed.join('、')} 尚未開桌，請先開桌再印 QR。`});
-  res.json({tables:tables.map(t=>{const s=open.get(t);return{table:t,session_id:s.id,url:tableOrders.sessionUrl(APP_BASE,s.id,SECRET),no:tableOrders.sessionNo(s.id),opened_at:s.created_at||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes)};})});
+  res.json({tables:tables.map(t=>{const s=open.get(t);return{table:t,session_id:s.id,url:tableOrders.sessionUrl(APP_BASE,s.id,SECRET),no:tableOrders.sessionNo(s.id),opened_at:s.created_at||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes),foreign:tableOrders.partyForeign(s.party_votes)};})});
 }));
 
 // /menu 舊頁改版為空間介紹：301 導至 /space（保留語系前綴），需先於 static 攔截

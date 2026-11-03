@@ -379,7 +379,7 @@ const tableDetailHtml=s=>{
   const who=[...new Set(ls.map(l=>l.by).filter(Boolean))];
   const prog=qty?[`共 ${qty} 份`,served?`已出 ${served}`:'',waiting?`待出 ${waiting}`:'',unsent>0?`未送單 ${unsent}`:''].filter(Boolean).join(' · '):'';
   const times=[s.created_at?`${s.takeout?'開單':'開桌'} ${clockText(s.created_at)}`:'',s.updated_at?`最後動作 ${clockText(s.updated_at)}`:''].filter(Boolean).join(' · ');
-  return `<span class="pos-detail">${names?`<small class="pos-detail-items">${names}</small>`:''}${prog?`<small>${prog}</small>`:''}${s.party_size?`<small>來客 ${Number(s.party_size)} 位${s.kids?`（小孩 ${Number(s.kids)}）`:''}</small>`:''}${who.length?`<small>點餐：${who.map(esc).join('、')}</small>`:''}${times?`<small>${times}</small>`:''}${s.operator?`<small>開桌：${esc(s.operator)}</small>`:''}</span>`;
+  return `<span class="pos-detail">${names?`<small class="pos-detail-items">${names}</small>`:''}${prog?`<small>${prog}</small>`:''}${s.party_size?`<small>來客 ${Number(s.party_size)} 位${s.kids?`（小孩 ${Number(s.kids)}）`:''}${s.foreign?`・外國 ${Number(s.foreign)}`:''}</small>`:''}${who.length?`<small>點餐：${who.map(esc).join('、')}</small>`:''}${times?`<small>${times}</small>`:''}${s.operator?`<small>開桌：${esc(s.operator)}</small>`:''}</span>`;
 };
 const elapsedShort=iso=>{const m=Math.max(0,Math.floor((Date.now()-new Date(iso))/60000));return m<60?`${m}分`:`${Math.floor(m/60)}時${m%60}分`;};
 const elapsedText=iso=>{const m=Math.max(0,Math.floor((Date.now()-new Date(iso))/60000));return m<60?`${m} 分`:`${Math.floor(m/60)} 時 ${m%60} 分`;};
@@ -1049,21 +1049,22 @@ async function printOpenedQr(table,url,info={}){
   await openOneTableQr(table);return false;
 }
 function openTableQr(table){return openOneTableQr(String(table));}
-// 開桌選人數（大人＋小孩，參考同業開桌單）：印在 QR 單、算三點水低消；回 {party_size,kids} 或 null（取消）
-const PARTY_ADULTS=12,PARTY_KIDS=5;
-function pickParty(title,{adults=2,kids=0,ok:okLabel='開桌'}={}){
+// 開桌選人數（大人＋小孩，參考同業開桌單）：印在 QR 單、算三點水低消；外國人數（含小孩）進分析「來客受眾」。回 {party_size,kids,foreign} 或 null（取消）
+const PARTY_ADULTS=12,PARTY_KIDS=5,PARTY_FOREIGN=12;
+function pickParty(title,{adults=2,kids=0,foreign=0,ok:okLabel='開桌'}={}){
   return new Promise(resolve=>{
-    let a=Math.min(PARTY_ADULTS,Math.max(1,Number(adults)||2)),k=Math.min(PARTY_KIDS,Math.max(0,Number(kids)||0));
+    let a=Math.min(PARTY_ADULTS,Math.max(1,Number(adults)||2)),k=Math.min(PARTY_KIDS,Math.max(0,Number(kids)||0)),f=Math.min(a+k,PARTY_FOREIGN,Math.max(0,Number(foreign)||0));
     const grid=(key,from,to,cur)=>`<div class="pos-move-grid pos-party-grid" data-row="${key}">${Array.from({length:to-from+1},(_,i)=>i+from).map(n=>`<button type="button" class="pos-move-opt ${n===cur?'on':''}" data-${key}="${n}" aria-pressed="${n===cur}"><b>${n}</b></button>`).join('')}</div>`;
-    const {ov,close}=pickOverlay(`<h3>${esc(title)}${tipIcon('開桌前先選人數，會印在點餐 QR 單上，三點水也用來算低消。之後可在桌位面板「人數」再改。')}</h3><p class="hint hint--tight">大人</p>${grid('adults',1,PARTY_ADULTS,a)}<p class="hint hint--tight">小孩</p>${grid('kids',0,PARTY_KIDS,k)}<div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-cancel>取消</button><button type="button" class="btn btn--solid" data-ok></button></div>`,'開桌人數');
+    const {ov,close}=pickOverlay(`<h3>${esc(title)}${tipIcon('開桌前先選人數，會印在點餐 QR 單上，三點水也用來算低消。之後可在桌位面板「人數」再改。')}</h3><p class="hint hint--tight">大人</p>${grid('adults',1,PARTY_ADULTS,a)}<p class="hint hint--tight">小孩</p>${grid('kids',0,PARTY_KIDS,k)}<p class="hint hint--tight">其中外國人（含小孩）</p>${grid('foreign',0,PARTY_FOREIGN,f)}<div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-cancel>取消</button><button type="button" class="btn btn--solid" data-ok></button></div>`,'開桌人數');
     const ok=ov.querySelector('[data-ok]');
-    const paint=()=>{ov.querySelectorAll('[data-adults]').forEach(b=>{const on=Number(b.dataset.adults)===a;b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on));});ov.querySelectorAll('[data-kids]').forEach(b=>{const on=Number(b.dataset.kids)===k;b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on));});ok.textContent=`${okLabel}（${a+k} 位${k?`，含小孩 ${k}`:''}）`;};
+    const paint=()=>{ov.querySelectorAll('[data-adults]').forEach(b=>{const on=Number(b.dataset.adults)===a;b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on));});ov.querySelectorAll('[data-kids]').forEach(b=>{const on=Number(b.dataset.kids)===k;b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on));});f=Math.min(f,a+k);ov.querySelectorAll('[data-foreign]').forEach(b=>{const v=Number(b.dataset.foreign),on=v===f;b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on));b.disabled=v>a+k;});ok.textContent=`${okLabel}（${a+k} 位${k?`，含小孩 ${k}`:''}${f?`，外國 ${f}`:''}）`;};
     const done=v=>{close();resolve(v);};
     ov.onclick=e=>{if(e.target===ov)done(null);};
     ov.querySelector('[data-cancel]').onclick=()=>done(null);
     ov.querySelectorAll('[data-adults]').forEach(b=>b.onclick=()=>{a=Number(b.dataset.adults);paint();});
     ov.querySelectorAll('[data-kids]').forEach(b=>b.onclick=()=>{k=Number(b.dataset.kids);paint();});
-    ok.onclick=()=>done({party_size:a+k,kids:k});
+    ov.querySelectorAll('[data-foreign]').forEach(b=>b.onclick=()=>{f=Number(b.dataset.foreign);paint();});
+    ok.onclick=()=>done({party_size:a+k,kids:k,foreign:f});
     paint();
   });
 }
@@ -1406,7 +1407,7 @@ function paintPos(){
       <div class="a-wrap2 pos-lines-wrap"><table class="a-tbl pos-lines"><thead><tr><th aria-label="分帳選取"></th><th>品項</th><th class="pos-qty-col">點了幾份</th><th class="num">小計（元）</th><th class="ops-th">操作</th></tr></thead><tbody>${lineRows}</tbody></table></div>
       ${live.length?`<h3>這桌已結帳的單</h3><div class="a-wrap2"><table class="a-tbl pos-paid"><thead><tr><th>品項 · 時間 · 狀態</th><th>付款</th><th class="num">金額</th><th class="ops-th">操作</th></tr></thead><tbody>${liveRows}</tbody></table></div>`:''}
       </div>
-      <div class="pos-table-actions"><button class="btn btn--ghost" id="pos-place" ${cur.lines.some(l=>!l.credit_of)?'':'disabled'} title="有還沒送出的品項就先送單再印；都送過了只補印最近一次送單">列印出餐單</button>${cur.takeout?'':`<button class="btn btn--ghost" id="pos-party">${cur.party_size?`人數 ${Number(cur.party_size)} 位${cur.kids?`（小孩 ${Number(cur.kids)}）`:''}`:'設定人數'}</button>`}<button class="btn btn--ghost" id="pos-move">${cur.takeout?'轉內用':'換桌／併桌'}</button><button class="btn btn--ghost btn--danger" id="pos-close">${cur.takeout?'收掉外帶單':'清桌'}</button></div>
+      <div class="pos-table-actions"><button class="btn btn--ghost" id="pos-place" ${cur.lines.some(l=>!l.credit_of)?'':'disabled'} title="有還沒送出的品項就先送單再印；都送過了只補印最近一次送單">列印出餐單</button>${cur.takeout?'':`<button class="btn btn--ghost" id="pos-party">${cur.party_size?`人數 ${Number(cur.party_size)} 位${cur.kids?`（小孩 ${Number(cur.kids)}）`:''}${cur.foreign?`・外國 ${Number(cur.foreign)}`:''}`:'設定人數'}</button>`}<button class="btn btn--ghost" id="pos-move">${cur.takeout?'轉內用':'換桌／併桌'}</button><button class="btn btn--ghost btn--danger" id="pos-close">${cur.takeout?'收掉外帶單':'清桌'}</button></div>
       </div>
       <div class="pos-menu-box"><div class="pos-menu-body">${POS_OPT?optionPaneHtml(POS_OPT):catChips+`<div class="pos-menu">${tiles}</div>`}</div></div>
       <div class="pos-pay">
@@ -1621,8 +1622,8 @@ function paintPos(){
   // 來客人數：客人端不填，統一由現場人員在這裡攤開 1–20 點選，點一下就存
   const pty=host.querySelector('#pos-party');if(pty)pty.onclick=async()=>{
     const n=Number(cur.party_size)||0,k=Number(cur.kids)||0;
-    const p=await pickParty(`${cur.table} 來客人數`,{adults:n?n-k:2,kids:k,ok:'儲存'});if(!p)return;
-    opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/party',{method:'POST',body:{party_size:p.party_size,kids:p.kids}}),out=>`${cur.table} 已改為 ${out.party_size} 位${out.kids?`（小孩 ${out.kids}）`:''}`,reload);
+    const p=await pickParty(`${cur.table} 來客人數`,{adults:n?n-k:2,kids:k,foreign:Number(cur.foreign)||0,ok:'儲存'});if(!p)return;
+    opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/party',{method:'POST',body:{party_size:p.party_size,kids:p.kids,foreign:p.foreign}}),out=>`${cur.table} 已改為 ${out.party_size} 位${out.kids?`（小孩 ${out.kids}）`:''}${out.foreign?`，外國 ${out.foreign}`:''}`,reload);
   };
   const mv=host.querySelector('#pos-move');if(mv)mv.onclick=()=>{
     const doMove=table=>opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/move',{method:'POST',body:{table_no:table}}),out=>out.merged?`已併到 ${out.table}`:`已換到 ${out.table}`,out=>{POS_TABLE=out.table;POS_PICK=null;return reload();});
@@ -2585,7 +2586,9 @@ function analyticsCharts(kind,d){
     return `<div class="chart-grid">${chartCard('每日營收',vbars(dayRows))}${chartCard('類別營收占比',donut(cats,{center:'NT$'+num(d.amount)}))}${chartCard('熱銷品項 Top 10（數量）',hbars(top))}${chartCard('品項營收 Top 10（金額）',hbars(topAmt,{fmt:v=>'NT$'+num(v)}))}${chartCard('各類別銷量',hbars(catQty))}${chartCard('時段營收',vbars(hourRows))}</div>`;
   }
   const methods=Object.entries(d.by_method||{}).map(([k,v])=>[payMethodLabel(k),v.amount,'NT$'+num(v.amount)]).sort((a,b)=>b[1]-a[1]);
-  return `<div class="chart-grid">${chartCard('會員 vs 非會員（單數）',donut(pair('member','guest','會員','非會員'),{center:num(d.orders)+' 單'}))}${chartCard('內用 vs 外帶（單數）',donut(pair('dinein','takeout','內用','外帶'),{center:num(d.orders)+' 單'}))}${chartCard('點餐方式（單數）',donut(pair('counter','qr','櫃檯點餐','含 QR 點餐'),{center:num(d.orders)+' 單'}))}${chartCard('付款方式（金額）',donut(methods,{center:'NT$'+num(d.amount)}))}${chartCard('時段來客（營收）',vbars(hourRows))}${chartCard('星期分布（營收）',vbars(wdRows))}${chartCard('每日營收',vbars(dayRows))}${chartCard('平均每單：會員 vs 非會員',hbars([['會員',c.member_avg_ticket||0],['非會員',c.guest_avg_ticket||0]],{fmt:v=>'NT$'+num(v)}))}</div>`;
+  const vz=d.visitors||{},vzLocal=Math.max(0,(vz.recorded_guests||0)-(vz.foreign||0));
+  const vzCharts=vz.tables?`${chartCard('來客：本國 vs 外國（人數）',vz.recorded_guests?donut([['本國',vzLocal,vzLocal+' 位'],['外國',vz.foreign||0,(vz.foreign||0)+' 位']],{center:num(vz.recorded_guests)+' 位'}):'<p class="a-empty">這段期間的桌次還沒記外國人數</p>')}${chartCard('每日外國人數',vbars((vz.by_day||[]).map(r=>[r.day.slice(5),r.foreign||0])))}`:'';
+  return `<div class="chart-grid">${vzCharts}${chartCard('會員 vs 非會員（單數）',donut(pair('member','guest','會員','非會員'),{center:num(d.orders)+' 單'}))}${chartCard('內用 vs 外帶（單數）',donut(pair('dinein','takeout','內用','外帶'),{center:num(d.orders)+' 單'}))}${chartCard('點餐方式（單數）',donut(pair('counter','qr','櫃檯點餐','含 QR 點餐'),{center:num(d.orders)+' 單'}))}${chartCard('付款方式（金額）',donut(methods,{center:'NT$'+num(d.amount)}))}${chartCard('時段來客（營收）',vbars(hourRows))}${chartCard('星期分布（營收）',vbars(wdRows))}${chartCard('每日營收',vbars(dayRows))}${chartCard('平均每單：會員 vs 非會員',hbars([['會員',c.member_avg_ticket||0],['非會員',c.guest_avg_ticket||0]],{fmt:v=>'NT$'+num(v)}))}</div>`;
 }
 
 // 「分析」分頁：銷量與客群合在同一頁，上方切換、共用日期區間（POS 平板）；/admin 仍可各自掛 products-body／customers-body
@@ -2636,7 +2639,7 @@ async function loadAnalytics(kind){
     <div class="a-toolbar" id="analytics-presets">${(()=>{const td=MenuLib.businessDay();return ANALYTICS_PRESETS.map(([k,l])=>{const r=analyticsPresetRange(k,td),on=r&&r[0]===d.from&&r[1]===d.to;return `<button class="btn ${on?'btn--solid':'btn--ghost'} btn-sm" type="button" data-preset="${k}" aria-pressed="${on}">${l}</button>`;}).join('');})()}</div>
     <div class="a-kpis"><div class="a-kpi"><div class="kl">營收</div><div class="kv">NT$${num(d.amount)}</div></div><div class="a-kpi"><div class="kl">付款單數</div><div class="kv">${num(d.orders)}</div></div><div class="a-kpi"><div class="kl">平均每單</div><div class="kv">NT$${num(d.avg_ticket)}</div></div></div>
     ${analyticsCharts(kind,d)}
-    ${kind==='products'?`<h3>品項銷量</h3>${table(['品項','店別','類別','數量','品項金額','單數'],productRows)}<h3>每日營收</h3>${table(['營業日','付款單數','營收'],(d.by_day||[]).map(r=>[r.day,r.orders,num(r.amount)]))}<h3>類別銷量</h3>${table(['類別','數量','品項金額'],(d.categories||[]).map(r=>[catLabel(r.cat),r.qty,num(r.amount)]))}`:`<h3>付款單客群</h3>${table(['分類','單數','營收'],customerRows)}<h3>會員回訪</h3>${table(['指標','數值'],[['不重複會員',c.unique_members],['區間內至少兩單',c.repeat_members],['首次付款會員',c.new_members],['會員平均每單',num(c.member_avg_ticket)],['非會員平均每單',num(c.guest_avg_ticket)]])}`}`;
+    ${kind==='products'?`<h3>品項銷量</h3>${table(['品項','店別','類別','數量','品項金額','單數'],productRows)}<h3>每日營收</h3>${table(['營業日','付款單數','營收'],(d.by_day||[]).map(r=>[r.day,r.orders,num(r.amount)]))}<h3>類別銷量</h3>${table(['類別','數量','品項金額'],(d.categories||[]).map(r=>[catLabel(r.cat),r.qty,num(r.amount)]))}`:`${(()=>{const v=d.visitors||{},rate=x=>x==null?'—':x+'%',row=(l,x)=>[l,x.tables||0,x.guests||0,x.kids||0,x.recorded_tables?x.foreign||0:'—',rate(x.foreign_rate)];return `<h3>來客受眾（開桌人數）</h3>${table(['店別','桌數','來客','小孩','外國人','外國占比'],[row('全部',v),...Object.entries(v.by_venue||{}).map(([k,x])=>row(BRAND_LABEL[k]||k,x))])}${v.tables&&v.recorded_tables<v.tables?`<p class="hint">外國占比只算有記外國人數的 ${v.recorded_tables} 桌（共 ${v.tables} 桌）。</p>`:''}`;})()}<h3>付款單客群</h3>${table(['分類','單數','營收'],customerRows)}<h3>會員回訪</h3>${table(['指標','數值'],[['不重複會員',c.unique_members],['區間內至少兩單',c.repeat_members],['首次付款會員',c.new_members],['會員平均每單',num(c.member_avg_ticket)],['非會員平均每單',num(c.guest_avg_ticket)]])}`}`;
   host.querySelectorAll('[data-an-kind]').forEach(b=>b.onclick=()=>{if(b.dataset.anKind===kind)return;ANALYTICS_KIND=b.dataset.anKind;if(typeof tabUrl==='function'&&location.pathname!==tabUrl('analytics'))history.replaceState(null,'',tabUrl('analytics'));loadAnalytics(ANALYTICS_KIND);});
   host.querySelector('#analytics-range').onsubmit=e=>{e.preventDefault();ANALYTICS_FROM=host.querySelector('[name=from]').value;ANALYTICS_TO=host.querySelector('[name=to]').value;loadAnalytics(kind);};
   host.querySelectorAll('#analytics-presets [data-preset]').forEach(b=>b.onclick=()=>{const r=analyticsPresetRange(b.dataset.preset,MenuLib.businessDay());if(!r)return;[ANALYTICS_FROM,ANALYTICS_TO]=r;loadAnalytics(kind);});
