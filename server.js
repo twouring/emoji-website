@@ -1557,14 +1557,24 @@ app.use((req, res, next) => {
     const host = Object.keys(BRAND_HOSTS).find(h => BRAND_HOSTS[h] === m[1]);
     return res.redirect(301, 'https://' + host + '/');
   }
-  if (req.path === '/' || req.path === '/index.html') {
+  // 三語：/ 中文、/en、/ja（public/brand-sites/<lang>/<slug>.html）；菜單與空間文案依語系填入
+  const langM = /^\/(?:index\.html|(en|ja)\/?(?:index\.html)?)?$/.exec(req.path);
+  if (langM) {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    const lang = langM[1] || 'zh';
+    if (langM[1] && req.path !== '/' + langM[1]) return res.redirect(301, '/' + langM[1]);
+    const file = path.join(PUB, 'brand-sites', lang === 'zh' ? '' : lang, slug + '.html');
     return publicSnapshot().then(snapshot => {
       publicPageCache(req, res);
-      sendPage(res, path.join(PUB, 'brand-sites', slug + '.html'), '/' + slug, html => publicRender.renderSpace(html, snapshot, 'zh', slug));
+      sendPage(res, file, '/' + slug, html => publicRender.renderSpace(html, snapshot, lang, slug));
     }, next);
   }
-  if (req.path === '/robots.txt') return res.type('text/plain').send(`User-agent: *\nAllow: /\nSitemap: https://www.emoji.tw/sitemap.xml\n`);
+  if (req.path === '/robots.txt') return res.type('text/plain').send(`User-agent: *\nAllow: /\nSitemap: https://${req.hostname}/sitemap.xml\n`);
+  if (req.path === '/sitemap.xml') {
+    const base = 'https://' + String(req.hostname).toLowerCase();
+    const urls = ['', '/en', '/ja'].map(p => `  <url>\n    <loc>${base}${p}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>${p ? '0.8' : '1.0'}</priority>\n  </url>`).join('\n');
+    return res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
+  }
   if (BRAND_HOST_OWN.test(req.path)) return next();
   res.redirect(302, SITE_BASE + req.originalUrl);
 });

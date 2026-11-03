@@ -8,14 +8,18 @@
 .bs section { padding: clamp(56px, 8vw, 104px) 0; }
 .bs ::selection { background: var(--brand); color: var(--on-brand); }
 
-/* ——— 頁首：子品牌標誌｜1px 線｜母品牌（不組 lockup） ——— */
+/* ——— 頁首：只有子品牌標誌、主選單、語言切換（每站只講自己的品牌） ——— */
 .bs-head { position: sticky; top: 0; z-index: 40; background: rgba(251, 250, 246, .94); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
 .bs-head__in { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 68px; }
-.bs-head__brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.bs-head__logo { display: flex; flex: 0 0 auto; }
 .bs-head__logo img { height: 40px; width: auto; }
-.bs-head__sep { width: 1px; height: 28px; background: var(--line); flex: 0 0 auto; }
-.bs-head__parent { font-family: var(--serif); font-size: 1rem; letter-spacing: .12em; color: var(--muted); white-space: nowrap; }
-.bs-head__nav { display: flex; align-items: center; gap: 22px; }
+.bs-head__nav { display: flex; align-items: center; gap: 22px; margin-left: auto; }
+/* 語言切換：三個連結、目前語系墨字底線 */
+.bs-lang { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+.bs-lang a { font-size: 1rem; color: var(--muted); padding: 6px 8px; border-radius: var(--radius-sm); white-space: nowrap; min-height: 44px; display: inline-flex; align-items: center; }
+.bs-lang a:hover { color: var(--ink); }
+.bs-lang a[aria-current] { color: var(--ink); text-decoration: underline; text-underline-offset: 5px; text-decoration-thickness: 1.5px; }
+.bs-lang--foot { margin-top: 0; }
 .bs-head__nav a { font-size: 1rem; color: var(--ink-soft); white-space: nowrap; }
 .bs-head__nav a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
 .bs-head__nav .bs-btn { color: var(--on-brand); }
@@ -117,26 +121,32 @@
 .bs-visit .bs-hero__actions { margin-top: 26px; }
 .bs-map { width: 100%; aspect-ratio: 4 / 3; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper-alt); }
 
-/* ——— 姊妹品牌（固定順序、同高等距） ——— */
-.bs-sisters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.bs-sisters a { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 28px 16px; border-left: 1px solid var(--line); text-align: center; transition: background .18s ease; }
-.bs-sisters a:first-child { border-left: 0; }
-.bs-sisters a:hover { background: var(--card); }
-.bs-sisters img { height: 72px; width: auto; max-width: 100%; object-fit: contain; }
-.bs-sisters span { font-size: 1rem; color: var(--ink-soft); }
-.bs-sisters a[aria-current] { background: var(--card); }
-.bs-sisters a[aria-current] span::after { content: "・目前所在"; color: var(--muted); }
+/* ——— 品牌故事：窄欄、襯線、兩欄（標題｜內文） ——— */
+.bs-story__in { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.6fr); gap: clamp(24px, 5vw, 64px); align-items: start; }
+.bs-sec__head--plain { border-bottom: 0; padding-bottom: 0; margin-bottom: 0; }
+.bs-story__body p { font-family: var(--serif); font-size: clamp(1.08rem, 1.5vw, 1.22rem); line-height: 1.95; color: var(--ink); text-wrap: pretty; }
+.bs-story__body p + p { margin-top: 1.1em; }
 
-/* ——— 頁尾（母品牌至少出現一次） ——— */
+/* ——— 常見問題 ——— */
+.bs-faq { margin-top: clamp(24px, 4vw, 36px); border-top: 1px solid var(--line); }
+.bs-faq details { border-bottom: 1px solid var(--line); }
+.bs-faq summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 18px 0; font-family: var(--serif); font-size: 1.12rem; font-weight: 500; color: var(--ink); min-height: 44px; }
+.bs-faq summary::-webkit-details-marker { display: none; }
+.bs-faq summary::after { content: "+"; flex: 0 0 auto; font-family: var(--latin); font-size: 1.4rem; line-height: 1; color: var(--brand); }
+.bs--3am .bs-faq summary::after { color: var(--ink); }
+.bs-faq details[open] summary::after { content: "–"; }
+.bs-faq p { padding: 0 0 18px; color: var(--ink-soft); line-height: 1.85; max-width: 60em; }
+
+/* ——— 頁尾（自家標誌；母品牌只在法律行出現一次） ——— */
 .bs-foot { padding: 44px 0 56px; background: var(--paper); color: var(--ink-soft); border-top: 1px solid var(--line); }
 .bs-foot a { color: var(--ink-soft); }
-.bs-foot__grid { display: grid; grid-template-columns: minmax(0, 1.2fr) repeat(2, minmax(0, 1fr)); gap: 28px; }
-.bs-foot__parent img { height: 44px; width: auto; }
-.bs-foot__parent p { margin-top: 12px; color: var(--muted); font-size: 1rem; line-height: 1.75; }
+.bs-foot__grid { display: grid; grid-template-columns: minmax(0, 1.2fr) repeat(2, minmax(0, 1fr)); gap: 28px; align-items: start; }
+.bs-foot__brand img { height: 96px; width: auto; max-width: 100%; object-fit: contain; }
 .bs-foot h4 { font-family: var(--serif); font-weight: 500; font-size: 1rem; letter-spacing: .12em; color: var(--muted); margin-bottom: 10px; }
 .bs-foot ul { list-style: none; padding: 0; display: grid; gap: 6px; }
 .bs-foot a:hover { text-decoration: underline; text-underline-offset: 4px; }
-.bs-foot__legal { margin-top: 32px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 1rem; line-height: 1.75; }
+.bs-foot__bottom { margin-top: 32px; padding-top: 18px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px 24px; }
+.bs-foot__legal { color: var(--muted); font-size: 1rem; line-height: 1.75; }
 
 /* 手機底部固定動作列 */
 .bs-dock { display: none; }
@@ -150,11 +160,11 @@
   .bs-room figure img { height: 100%; border-bottom: 0; border-right: 1px solid var(--line); }
 }
 @media (max-width: 760px) {
-  .bs-head__nav a:not(.bs-btn) { display: none; }
-  .bs-head__parent { display: none; }
-  .bs-head__sep { display: none; }
+  .bs-head__nav { display: none; } /* 手機：頁首只留標誌＋語言切換；主動作在 hero 與底部動作列 */
   .bs-head__logo img { height: 34px; }
-  .bs-hero__grid, .bs-feat, .bs-visit, .bs-foot__grid { grid-template-columns: 1fr; }
+  .bs-head .bs-lang a { padding: 6px 5px; }
+  .bs-hero__grid, .bs-feat, .bs-visit, .bs-foot__grid, .bs-story__in { grid-template-columns: 1fr; }
+  .bs-foot__brand img { height: 72px; }
   .bs-hero__mark { order: -1; }
   .bs-hero__mark img { width: min(78%, 320px); }
   .bs-feat__moji img { width: min(46%, 180px); }
@@ -165,9 +175,6 @@
   .bs-plans tr { padding: 14px 16px; border-bottom: 1px solid var(--line); }
   .bs-plans td { padding: 2px 0; border: 0; }
   .bs-plans td.p { margin: 4px 0; }
-  .bs-sisters img { height: 52px; }
-  .bs-sisters a { padding: 20px 8px; }
-  .bs-sisters a[aria-current] span::after { content: ""; }
   .bs-foot { padding-bottom: 104px; }
   .bs-dock { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: rgba(251, 250, 246, .97); border-top: 1px solid var(--line); transform: translateY(110%); transition: transform .2s ease; }
   .bs-dock.is-on { transform: none; }
@@ -177,6 +184,7 @@
   .bs-facts { grid-template-columns: 1fr; }
   .bs-facts > div { border-left: 0; border-top: 1px solid var(--line); }
   .bs-facts > div:first-child { border-top: 0; }
-  .bs-sisters span { display: none; }
+  .bs-head .bs-lang a { padding: 6px 3px; }
+  .bs-head__logo img { height: 28px; } /* 在咖啡橫式標誌最寬（137px@34px），320px 要縮到 28px 才不超出 */
 }
 @media (prefers-reduced-motion: reduce) { .bs-btn { transition: none; } .bs-btn:hover { transform: none; } }

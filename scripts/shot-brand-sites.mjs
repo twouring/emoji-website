@@ -20,10 +20,12 @@ const fontFiles = fs.existsSync(FONT_DIR) ? fs.readdirSync(FONT_DIR) : [];
 const local = name => fontFiles.find(f => f.toLowerCase().includes(name));
 const browser = await puppeteer.launch({ executablePath: '/workspace/local/brand-chrome/chrome-linux64/chrome', args: ['--no-sandbox'] });
 const report = [];
-for (const slug of ['at-cafe', '3am', 'stay-square']) {
-  const html = renderSpace(composeLayout(fs.readFileSync(path.join(PUB, 'brand-sites', slug + '.html'), 'utf8'), '/' + slug), snapshot, 'zh', slug);
+const LANGS = (process.env.LANGS || 'zh,en,ja').split(',');
+for (const lang of LANGS) for (const slug0 of ['at-cafe', '3am', 'stay-square']) {
+  const slug = lang === 'zh' ? slug0 : lang + '-' + slug0;
+  const html = renderSpace(composeLayout(fs.readFileSync(path.join(PUB, 'brand-sites', lang === 'zh' ? '' : lang, slug0 + '.html'), 'utf8'), '/' + slug0), snapshot, lang, slug0);
   fs.writeFileSync(path.join(out, slug + '.rendered.html'), html);
-  for (const [w, h] of [[1280, 900], [390, 844], [320, 700]]) {
+  for (const [w, h] of (process.env.WIDTHS ? process.env.WIDTHS.split(',').map(x => [+x, 900]) : [[1280, 900], [390, 844], [320, 700]])) {
     const page = await browser.newPage();
     await page.setViewport({ width: w, height: h, isMobile: w < 500, deviceScaleFactor: 1 });
     await page.setRequestInterception(true);
@@ -50,8 +52,11 @@ for (const slug of ['at-cafe', '3am', 'stay-square']) {
       yellow: [...document.querySelectorAll('*')].filter(e => /255, 222, 52/.test(getComputedStyle(e).backgroundColor + getComputedStyle(e).color)).length,
       brokenImg: [...document.querySelectorAll('img')].filter(i => i.naturalWidth === 0).map(i => i.src).slice(0, 8),
       imgs: document.images.length,
-      sisters: [...document.querySelectorAll('.bs-sisters img')].map(i => Math.round(i.getBoundingClientRect().height)).join('/'),
+      langSwitch: document.querySelectorAll('.bs-lang').length,
+      otherBrands: [...document.querySelectorAll('a[href]')].filter(a => /atcafe|3am\.emoji|staysquare/.test(a.host) && a.host !== location.host && location.host !== 'brand.test').length,
       headLogo: Math.round(document.querySelector('.bs-head__logo img').getBoundingClientRect().height),
+      headRight: Math.max(...[...document.querySelectorAll('.bs-head__in > *')].map(e => Math.round(e.getBoundingClientRect().right))),
+      footLogo: (i => [Math.round(i.getBoundingClientRect().width), Math.round(i.getBoundingClientRect().height), i.naturalWidth])(document.querySelector('.bs-foot__brand img')),
       footLink: getComputedStyle(document.querySelector('.bs-foot ul a')).color,
       small: [...document.querySelectorAll('body *')].filter(e => e.childNodes.length && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()) && parseFloat(getComputedStyle(e).fontSize) < 16).map(e => e.tagName + '.' + e.className).slice(0, 5),
       smallTargets: [...document.querySelectorAll('.bs-btn')].filter(b => b.offsetParent && b.getBoundingClientRect().height < 44).length,
