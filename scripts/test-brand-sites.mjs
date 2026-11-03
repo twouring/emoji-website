@@ -68,3 +68,21 @@ test('菜單由 renderSpace 伺服器端依語系填入，只放該店品項', (
   const bar = renderSpace(read('en', '3am'), { content: { menu } }, 'en', '3am');
   assert.ok(bar.includes('Late ramen') && !bar.includes('Americano'));
 });
+
+test('在咖啡站：引用的實拍照與樣式檔都存在、三語同一組照片、圖片都有 alt 與尺寸', () => {
+  const sets = Object.keys(LANGS).map(lang => {
+    const html = read(lang, 'at-cafe');
+    assert.ok(html.includes('href="/brand-sites/at-cafe.css"'));
+    const imgs = html.match(/<img [^>]*>/g) || [];
+    for (const tag of imgs) {
+      assert.match(tag, /alt="/, 'img 缺 alt：' + tag.slice(0, 80));
+      if (tag.includes('/atcafe/')) assert.match(tag, /width="\d+" height="\d+"/, 'img 缺尺寸：' + tag.slice(0, 80));
+    }
+    const refs = [...new Set((html.match(/\/brand-sites\/assets\/atcafe\/[\w-]+\.webp/g) || []))].sort();
+    assert.ok(refs.length >= 10, '至少 10 張在咖啡照片');
+    for (const r of refs) assert.ok(fs.existsSync('public' + r), '缺檔 ' + r);
+    return refs.join();
+  });
+  assert.ok(sets.every(x => x === sets[0]), '三語引用同一組照片');
+  assert.ok(fs.existsSync('public/brand-sites/at-cafe.css'));
+});

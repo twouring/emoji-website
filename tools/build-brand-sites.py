@@ -69,11 +69,24 @@ def sec_h2(hid, zh, en, ja):
     return f'<h2 id="{hid}">{e(t(zh, en, ja))}{sub}</h2>'
 
 
+FONTS_DEFAULT = 'family=Cormorant+Garamond:wght@500;600&family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Serif+TC:wght@500;700'
+# 在咖啡：標題與內文同一家無襯線（Noto Sans TC），拉丁數字 Outfit
+FONTS_CAFE = 'family=Noto+Sans+TC:wght@400;500;700&family=Outfit:wght@400;500;600'
+
+
 def head(slug, title, desc):
     b = BRANDS[slug]
     url = page_url(b['host'], L)
     root = f"https://{b['host']}/"
+    cafe = slug == 'at-cafe'
     extra_css = '\n<link rel="stylesheet" href="/brand-sites/3am-dark-room.css">' if slug == '3am' else ''
+    if cafe:  # 在咖啡專用樣式＋首圖預載＋js 旗標（捲動淡入）
+        extra_css = ('\n<link rel="stylesheet" href="/brand-sites/at-cafe.css">'
+                     '\n<link rel="preload" as="image" href="/brand-sites/assets/atcafe/matcha-800.webp" '
+                     'imagesrcset="/brand-sites/assets/atcafe/matcha-800.webp 643w, /brand-sites/assets/atcafe/matcha-1400.webp 1125w" imagesizes="(max-width: 760px) 100vw, 44vw">'
+                     '\n<script>document.documentElement.classList.add("js")</script>')
+    fonts = FONTS_CAFE if cafe else FONTS_DEFAULT
+    og_img = 'brand-sites/assets/atcafe/matcha-1400.webp' if cafe else f'brand-sites/assets/{slug}-avatar.webp'
     ld = ''
     if b['schema']:
         ld = ('<script type="application/ld+json">{"@context":"https://schema.org","@type":"%s","name":"%s %s",'
@@ -100,11 +113,11 @@ def head(slug, title, desc):
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="{b['zh']} {b['en']}">
 <meta property="og:locale" content="{OG_LOCALE[L]}">
-<meta property="og:image" content="{root}brand-sites/assets/{slug}-avatar.webp">
-<meta name="twitter:card" content="summary">
+<meta property="og:image" content="{root}{og_img}">
+<meta name="twitter:card" content="{'summary_large_image' if cafe else 'summary'}">
 {ld}<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Serif+TC:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?{fonts}&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/space-dir.css">
 <link rel="stylesheet" href="/brand-sites/brand.css">{extra_css}
@@ -191,72 +204,118 @@ def story(hid, zh_t, en_t, ja_t, paras):
 
 
 # ---------------------------------------------------------------- 在咖啡
+# 2026-11 改版（taste-skill 規則）：真實店內照與試菜照（public/brand-sites/assets/atcafe/）、無襯線標題、
+# 每區不同版型（分割 hero／時間軸／餐點拼貼／空間相片組／菜單／FAQ／交通）、捲動淡入（尊重 prefers-reduced-motion）。
+# 照片來源：IG素材/2026-11月/在咖啡短影音_素材（4K 原片抽格）、IG素材/260823_試菜/美化。
+ATC = '/brand-sites/assets/atcafe/'
+ATC_SIZES = {'matcha': (643, 1125, 1400, 800), 'pour': (514, 804, 1000, 640), 'records': (900, 1600, 1600, 900),
+             'moji-wall': (514, 804, 1000, 640), 'player': (514, 804, 1000, 640), 'seats': (900, 1600, 1600, 900),
+             'toast': (560, 900, 900, 560), 'croissant': (560, 900, 900, 560), 'pudding': (560, 900, 900, 560),
+             'bagel': (560, 900, 900, 560)}
+ATC_RATIO = {'matcha': (1125, 1400), 'pour': (804, 1000), 'records': (1600, 1067), 'moji-wall': (804, 1000),
+             'player': (804, 1000), 'seats': (1600, 1067), 'toast': (900, 900), 'croissant': (900, 900),
+             'pudding': (900, 900), 'bagel': (900, 900)}  # seats（座位）偏暗未採用
+
+
+def atc_img(name, alt, sizes, eager=False):
+    small_w, big_w, big, small = ATC_SIZES[name]
+    w, h = ATC_RATIO[name]
+    load = 'fetchpriority="high" decoding="async"' if eager else 'loading="lazy" decoding="async"'
+    return (f'<img src="{ATC}{name}-{small}.webp" srcset="{ATC}{name}-{small}.webp {small_w}w, {ATC}{name}-{big}.webp {big_w}w" '
+            f'sizes="{sizes}" width="{w}" height="{h}" alt="{e(alt)}" {load}>')
+
+
 def page_cafe():
     s = 'at-cafe'
     reserve = www('/reserve')
+    book = t('訂位', 'Book a table', '予約する')
+    see_menu = t('查看菜單', 'View menu', 'メニューを見る')
     out = head(s, t('在咖啡 at cafe｜台北車站旁的日式簡餐與工作咖啡',
                     '在咖啡 at cafe | Japanese set meals and working coffee by Taipei Main Station',
                     '在咖啡 at cafe｜台北駅そばの定食とワーキングコーヒー'),
                t('在咖啡（at cafe）是台北車站旁的日式簡餐與工作咖啡，08:00–17:00。早餐、午餐、下午的咖啡，或約人碰面，不需會員。台北車站站前地下街 Z10 出口斜對面。',
                  'at cafe: Japanese set meals and working coffee by Taipei Main Station, 08:00–17:00. Breakfast, lunch, an afternoon coffee or a meeting, no membership needed. Diagonally across from Exit Z10.',
                  '在咖啡（at cafe）は台北駅そばの日本式の定食とワーキングコーヒー。08:00–17:00。朝食、ランチ、午後のコーヒー、待ち合わせに。会員登録不要。台北駅地下街 Z10 出口の斜め向かい。'))
-    out += header(s, [(t('介紹', 'About', '紹介'), '#about'), (t('菜單', 'Menu', 'メニュー'), '#menu'), (t('常見問題', 'FAQ', 'よくある質問'), '#faq'), (t('怎麼來', 'Visit', 'アクセス'), '#visit'), (t('訂位', 'Reserve', '予約'), reserve)])
-    out += f'''<main id="content">
-<section class="bs-hero"><div class="wrap bs-hero__grid">
-  <div>
-    <span class="bs-hero__kicker">{t('日式簡餐與工作咖啡 · 台北車站旁', 'Japanese set meals & working coffee · by Taipei Main Station', '日本式の定食とワーキングコーヒー · 台北駅そば')}</span>
-    <h1>在咖啡<span class="en">at cafe</span></h1>
-    <p class="bs-hero__lede">{t('白天的日式簡餐與工作咖啡。早餐、午餐、下午的咖啡，或約人碰面。一人一杯飲料，就可以坐下來；不需會員。',
-                                 'Japanese set meals and working coffee by day. Breakfast, lunch, an afternoon coffee, or a place to meet. One drink per person and the table is yours; no membership needed.',
-                                 '昼の日本式の定食とワーキングコーヒー。朝食、ランチ、午後のコーヒー、待ち合わせにも。ドリンク一杯で席に着けます。会員登録は不要です。')}</p>
-    <div class="bs-hero__open"><span><b>08:00–17:00</b>{t('每日營業', 'Open daily', '毎日営業')}</span><span>{t('台北車站 Z10 出口斜對面', 'Across from Taipei Main Station Exit Z10', '台北駅 Z10 出口の斜め向かい')}</span></div>
-    <div class="bs-hero__actions"><a class="bs-btn" href="#menu">{t('查看菜單', 'View menu', 'メニューを見る')}</a><a class="bs-btn bs-btn--line" href="{reserve}">{t('立即訂位', 'Book a table', '席を予約')}</a></div>
-  </div>
-  <figure class="bs-hero__mark"><img src="/brand-sites/assets/at-cafe-logo.webp" alt="{e(BRANDS[s]['alt'][L])}" width="624" height="595" decoding="async" fetchpriority="high"></figure>
-</div></section>
+    out += header(s, [(t('一天', 'A day', '一日'), '#day'), (t('餐點', 'Food', '料理'), '#food'), (t('空間', 'The room', '店内'), '#room'),
+                      (t('菜單', 'Menu', 'メニュー'), '#menu'), (t('怎麼來', 'Visit', 'アクセス'), '#visit'), (book, reserve)])
 
-<section id="about" aria-labelledby="about-h"><div class="wrap">
-  <div class="bs-sec__head">{sec_h2('about-h', '白天在這裡', 'By day', '昼はここで')}</div>
-  {facts([(t('用途', 'Use', '用途'), t('用餐、外帶與會客', 'Dining, takeaway and meetings', '飲食、テイクアウト、打ち合わせ')),
-          (t('時段', 'Hours', '営業時間'), '08:00–17:00'),
-          (t('使用資格', 'Access', '利用条件'), t('所有訪客，不需會員', 'Open to everyone; no membership required', 'どなたでも利用可。会員登録不要')),
-          (t('費用', 'Price', '料金'), t('依菜單；分一般價與聚落價', 'See menu; standard and Hub rates', 'メニュー参照。通常価格とハブ価格'))])}
-  <div class="bs-feat bs-feat--gap">
-    <figure class="bs-feat__moji"><img src="/brand-sites/assets/moji-coffee.svg" alt="" width="200" height="200" loading="lazy"><figcaption>{t('moji · 白日咖啡', 'moji · daytime coffee', 'moji · 昼のコーヒー')}</figcaption></figure>
-    {points([(t('早餐與日式簡餐', 'Breakfast and Japanese set meals', '朝食と日本式の定食'),
-              t('開放式三明治、貝果、飯糰、冷蕎麥麵；自製布丁、巴斯克與可麗露。早上一杯咖啡、中午一份簡餐，在台北車站旁把一餐好好吃完。',
-                'Open sandwiches, bagels, onigiri and cold soba; house pudding, Basque cheesecake and canelé. A coffee in the morning, a set meal at noon, right by Taipei Main Station.',
-                'オープンサンド、ベーグル、おにぎり、冷たいそば。自家製プリン、バスクチーズケーキ、カヌレ。朝は一杯のコーヒー、昼は定食を、台北駅のそばで。')),
-             (t('工作咖啡', 'Working coffee', 'ワーキングコーヒー'),
-              t('帶著電腦來，咖啡、茶或氣泡飲，配一段專心的工作時間。座位給不趕時間的人。',
-                'Bring your laptop. Coffee, tea or a sparkling drink, and a stretch of focused work. The seats are for those not in a hurry.',
-                'パソコンを持ち込んで。コーヒー、お茶、スパークリングドリンクと、集中の時間を。席は急がない人のために。')),
-             (t('約人碰面與外帶', 'Meetings and takeaway', '待ち合わせとテイクアウト'),
-              t('跟客戶、朋友約在車站旁，出站斜對面就到。趕車的人從外帶窗口拿了就走。',
-                'Meet clients or friends by the station, diagonally across from the exit. In a hurry? Grab it from the takeaway window and go.',
-                '取引先や友人と駅のそばで。出口の斜め向かいです。急ぐ人はテイクアウト窓口で受け取って、そのまま。'))])}
+    # —— Hero：左文字、右兩張實拍（主圖＋錯位小圖） ——
+    out += f'''<main id="content">
+<section class="bs-hero atc-hero"><div class="wrap atc-hero__grid">
+  <div class="atc-hero__copy">
+    <h1>在咖啡<span class="en">at cafe</span></h1>
+    <p class="atc-hero__lede">{t('台北車站旁的日式簡餐與工作咖啡。<span class="nb">一人一杯飲料，</span><span class="nb">就可以坐下來。</span>',
+                                 'Japanese set meals and working coffee by Taipei Main Station. One drink each, and the table is yours.',
+                                 '台北駅そばの定食とワーキングコーヒー。ドリンク一杯で、席に着けます。')}</p>
+    <p class="atc-hero__open"><b>08:00–17:00</b><span>{t('每日營業 · 16:30 最後點餐', 'Open daily · last orders 16:30', '毎日営業 · ラストオーダー 16:30')}</span></p>
+    <div class="atc-hero__actions"><a class="bs-btn" href="#menu">{see_menu}</a><a class="bs-btn bs-btn--line" href="{reserve}">{book}</a></div>
+  </div>
+  <div class="atc-hero__media">
+    <figure class="atc-hero__main">{atc_img('matcha', t('吧檯上的冰抹茶拿鐵', 'An iced matcha latte on the counter', 'カウンターのアイス抹茶ラテ'), '(max-width: 760px) 100vw, 44vw', eager=True)}</figure>
+    <figure class="atc-hero__sub">{atc_img('croissant', t('明太子美式炒蛋可頌', 'Mentaiko Scrambled Egg Croissant', '明太子スクランブルエッグのクロワッサン'), '(max-width: 760px) 40vw, 18vw', eager=True)}</figure>
   </div>
 </div></section>
 '''
-    out += story('story-h', '關於在咖啡', 'About at cafe', '在咖啡について', [
-        ('在咖啡開在台北車站旁一棟民國 58 年的老屋裡，白天是明亮的日式簡餐與手沖咖啡，設有外帶視窗。約 25 坪、內用 32 席、長吧檯。',
-         'at cafe sits in a 1969 house by Taipei Main Station. By day it is a bright room for Japanese set meals and pour-over coffee, with a takeaway window. About 25 ping, 32 seats and a long counter.',
-         '在咖啡は、台北駅そばの 1969 年築の古い建物にあります。昼は明るい日本式の定食とハンドドリップコーヒー、テイクアウト窓口もあります。約 25 坪、32 席、ロングカウンター。'),
-        ('台北車站每天有很多人經過。我們的目標很小：讓其中一個人坐下來，把這杯喝完。你今天會遇到誰，我們不保證；但桌子是同一張。',
-         'A great many people pass Taipei Main Station every day. Our goal is small: get one of them to sit down and finish the cup. We can’t promise who you’ll meet today, but the table is the same one.',
-         '台北駅を通る人はとても多い。私たちの目標は小さくて、そのうちの一人に座って一杯を飲み終えてもらうこと。今日誰と出会うかは約束できませんが、テーブルは同じです。'),
-        ('菜單價格含稅，分一般價與聚落價；聚落價給已加入聚落的會員。不需會員也能來。',
-         'Menu prices include tax, with a standard rate and a Hub rate; the Hub rate is for Hub members. No membership is needed to visit.',
-         'メニュー価格は税込で、通常価格とハブ価格があります。ハブ価格はハブ参加者向け。会員でなくてもご利用いただけます。'),
+
+    # —— 一天：時間軸（四個時刻） ——
+    day = [('08:00', t('第一杯拿鐵。趕車的人從外帶窗口拿了就走。', 'The first latte. Commuters grab it from the takeaway window and go.', '最初のラテ。急ぐ人はテイクアウト窓口で受け取って、そのまま駅へ。')),
+           ('10:30', t('有人打開筆電，點了一個鹽烤雞腿昆布飯糰，說只待一下。', 'Someone opens a laptop, orders a salt-grilled chicken and kombu onigiri, and says it’s just for a bit.', 'ノートパソコンを開いた人が、塩焼きチキンと昆布のおにぎりを注文。「少しだけ」と言って。')),
+           ('13:00', t('他還在。旁邊那桌也在遠端工作。', 'Still here. The next table is working remotely too.', 'まだいます。隣の席もリモートワーク。')),
+           ('16:30', t('最後點餐。17:00 打烊。', 'Last orders. We close at 17:00.', 'ラストオーダー。17:00 閉店。'))]
+    steps = ''.join(f'<li class="reveal"><time>{h}</time><p>{e(x)}</p></li>' for h, x in day)
+    out += f'''<section class="atc-day" id="day" aria-labelledby="day-h"><div class="wrap">
+  {sec_h2('day-h', '在咖啡的一天', 'A day here', '在咖啡の一日')}
+  <ol class="atc-day__list">{steps}</ol>
+</div></section>
+'''
+
+    # —— 餐點：非對稱拼貼（4 張試菜照＋1 格文字） ——
+    dish = lambda name, zh, en, ja, cls: (f'<figure class="atc-dish {cls} reveal">{atc_img(name, t(zh, en, ja), "(max-width: 760px) 100vw, 33vw")}'
+                                          f'<figcaption>{e(t(zh, en, ja))}</figcaption></figure>')
+    out += f'''<section class="bs-alt atc-food" id="food" aria-labelledby="food-h"><div class="wrap">
+  {sec_h2('food-h', '白天吃什麼', 'What we serve', '昼の料理')}
+  <div class="atc-food__grid">
+    {dish('toast', '奶油松露野菇炒蛋開放式三明治', 'Truffle Mushroom & Egg Open Sandwich', 'トリュフバターきのこ玉子のオープンサンド', 'atc-dish--lg')}
+    {dish('pour', '抹茶拿鐵', 'Matcha Latte', '抹茶ラテ', '')}
+    {dish('bagel', '柚子胡椒雞腿貝果', 'Yuzu Kosho Chicken Bagel', '柚子胡椒チキンのベーグル', '')}
+    {dish('pudding', '自製布丁（下午茶套餐）', 'House pudding (Tea Time Set)', '自家製プリン（ティータイムセット）', '')}
+    <div class="atc-food__note reveal"><p>{t('開放式三明治、貝果、飯糰、冷蕎麥麵；自製布丁、巴斯克與可麗露。咖啡、茶與氣泡飲。',
+                                            'Open sandwiches, bagels, onigiri and cold soba; house pudding, Basque cheesecake and canelé. Coffee, tea and sparkling drinks.',
+                                            'オープンサンド、ベーグル、おにぎり、冷たいそば。自家製プリン、バスクチーズケーキ、カヌレ。コーヒー、お茶、スパークリングドリンク。')}</p>
+      <a class="atc-link" href="#menu">{see_menu}</a></div>
+  </div>
+  <p class="atc-food__src">{t('照片為試菜實拍，實際擺盤以現場為準。', 'Photos are from our tasting session; plating may vary.', '写真は試食会のものです。盛り付けは異なる場合があります。')}</p>
+</div></section>
+'''
+
+    # —— 空間：寬幅照＋三張直幅＋故事 ——
+    story_p = ''.join(f'<p>{e(t(*p))}</p>' for p in [
+        ('在咖啡開在台北車站旁一棟民國 58 年的老屋裡。白天是明亮的日式簡餐與咖啡，設有外帶窗口；約 25 坪、內用 32 席、一張長吧檯。',
+         'at cafe sits in a 1969 house by Taipei Main Station. By day it is a bright room for Japanese set meals and coffee, with a takeaway window: about 25 ping, 32 seats and a long counter.',
+         '在咖啡は、台北駅そばの 1969 年築の古い建物にあります。昼は明るい定食とコーヒーの店で、テイクアウト窓口もあります。約 25 坪、32 席、ロングカウンター。'),
+        ('牆上有一整面黑膠，也藏了一隻大象 moji。台北車站每天有很多人經過；我們的目標很小，讓其中一個人坐下來，把這杯喝完。',
+         'There is a wall of vinyl, and an elephant named moji hiding on another. A great many people pass Taipei Main Station every day; our goal is small: get one of them to sit down and finish the cup.',
+         '壁一面のレコードと、どこかに隠れた象の moji。台北駅を通る人はとても多い。私たちの目標は小さくて、そのうちの一人に座って一杯を飲み終えてもらうこと。'),
     ])
-    out += f'''<section class="bs-alt bs-menu" id="menu" aria-labelledby="menu-h"><div class="wrap">
+    out += f'''<section class="atc-room" id="room" aria-labelledby="room-h"><div class="wrap">
+  <div class="atc-room__grid">
+    <div class="atc-room__copy reveal">{sec_h2('room-h', '空間', 'The room', '店内')}{story_p}</div>
+    <figure class="atc-room__tall reveal">{atc_img('moji-wall', t('牆上的 moji 線條插畫', 'moji line drawings on the wall', '壁に飾られた moji の線画'), '(max-width: 760px) 50vw, 22vw')}</figure>
+    <figure class="atc-room__tall atc-room__tall--low reveal">{atc_img('player', t('門口的播放器造型看板', 'The music-player sign by the door', '入口の音楽プレーヤー風サイン'), '(max-width: 760px) 50vw, 22vw')}</figure>
+  </div>
+  <figure class="atc-room__wide reveal">{atc_img('records', t('整面黑膠唱片牆', 'The vinyl record wall', 'レコードの壁'), '(max-width: 1240px) 100vw, 1200px')}</figure>
+</div></section>
+'''
+
+    # —— 菜單（伺服器端填入） ——
+    out += f'''<section class="bs-alt bs-menu atc-menu" id="menu" aria-labelledby="menu-h"><div class="wrap">
   <div class="bs-sec__head">{sec_h2('menu-h', '菜單', 'Menu', 'メニュー')}<p>{t('價格含稅；聚落價限已加入聚落者', 'Prices include tax; Hub rates are for Hub members', '価格は税込。ハブ価格はハブ参加者のみ')}</p></div>
   <div data-menu="CAFE"></div>
-  <div class="bs-menu__cta"><a class="bs-btn" href="{reserve}">{t('立即訂位', 'Book a table', '席を予約')}</a></div>
+  <div class="bs-menu__cta"><a class="bs-btn" href="{reserve}">{book}</a></div>
 </div></section>
 
-<section id="faq" aria-labelledby="faq-h"><div class="wrap">
-  <div class="bs-sec__head">{sec_h2('faq-h', '常見問題', 'FAQ', 'よくある質問')}</div>
+<section id="faq" class="atc-faq" aria-labelledby="faq-h"><div class="wrap atc-faq__in">
+  {sec_h2('faq-h', '常見問題', 'FAQ', 'よくある質問')}
   {faq([(t('需要會員才能進來嗎？', 'Do I need a membership?', '会員でないと入れませんか？'),
          t('不需要。在咖啡對所有訪客開放，一人一杯飲料就能入座。', 'No. at cafe is open to everyone; one drink per person and you can take a seat.', 'いいえ。在咖啡はどなたでも利用でき、お一人一杯のドリンクで席に着けます。')),
         (t('可以帶電腦工作嗎？', 'Can I work here on my laptop?', 'パソコンで仕事をしてもいいですか？'),
@@ -270,9 +329,11 @@ def page_cafe():
 </div></section>
 '''
     out += visit([(t('營業時間', 'Hours', '営業時間'), t('每日 08:00–17:00', 'Daily 08:00–17:00', '毎日 08:00–17:00')),
-                  (t('最後點餐', 'Last orders', 'ラストオーダー'), t('以現場公告為準', 'As posted on site', '店内の案内に準じます'))], s)
+                  (t('最後點餐', 'Last orders', 'ラストオーダー'), '16:30')], s)
     out += '</main>\n'
-    out += footer_html(s, [(t('查看菜單', 'View menu', 'メニュー'), '#menu'), (t('訂位', 'Book', '予約'), reserve)])
+    out += footer_html(s, [(see_menu, '#menu'), (book, reserve)])
+    # 捲動淡入：IntersectionObserver（不用 scroll 事件）；未支援或減少動態時直接顯示
+    out = out.replace('</body>', '<script>(function(){var r=document.querySelectorAll(".reveal");if(!("IntersectionObserver" in window)||matchMedia("(prefers-reduced-motion: reduce)").matches){r.forEach(function(x){x.classList.add("is-in")});return}var o=new IntersectionObserver(function(es){es.forEach(function(x){if(x.isIntersecting){x.target.classList.add("is-in");o.unobserve(x.target)}})},{rootMargin:"0px 0px -8% 0px",threshold:.12});r.forEach(function(x){o.observe(x)})})()</script>\n</body>')
     return out
 
 

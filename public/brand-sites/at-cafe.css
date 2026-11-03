@@ -1,0 +1,143 @@
+/* 在咖啡 atcafe.emoji.tw 專用（2026-11 改版，依 tasteskill.dev 規則）
+ * Design read：台北車站旁輕食咖啡的品牌形象頁，對象是通勤、遠端工作與約人碰面的人；明亮、安靜、照片主導。
+ * 刻度：DESIGN_VARIANCE 7 / MOTION_INTENSITY 4 / VISUAL_DENSITY 3。
+ * 色彩：只用 CIS 品牌色 #984C37（一個強調色）＋母品牌的紙與墨；不用母品牌黃。
+ * 字體：標題與內文同一家無襯線（Noto Sans TC），拉丁數字 Outfit；不用襯線。
+ * 形狀：照片 18px 圓角、按鈕全圓角；全頁一致。
+ * 動態：只動 transform／opacity；IntersectionObserver 淡入；prefers-reduced-motion 時完全靜止。 */
+.bs--at-cafe {
+  --atc-r: 18px;
+  --atc-ease: cubic-bezier(.16, 1, .3, 1);
+  --sans: "Noto Sans TC", system-ui, -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --serif: var(--sans);
+  --latin: "Outfit", var(--sans);
+  --atc-shadow: 0 1px 2px rgba(80, 50, 30, .06), 0 18px 40px -22px rgba(80, 50, 30, .28);
+  font-family: var(--sans);
+}
+.bs--at-cafe h1, .bs--at-cafe h2, .bs--at-cafe h3 { font-family: var(--sans); font-weight: 700; letter-spacing: -.01em; }
+.bs--at-cafe section { padding: clamp(64px, 9vw, 128px) 0; }
+.bs--at-cafe img { display: block; }
+.bs--at-cafe .bs-menu section { padding: 0; } /* 菜單內的巢狀 section 不吃區塊留白 */
+.bs--at-cafe main > section[id] { scroll-margin-top: 72px; }
+.bs--at-cafe:lang(ja) main :is(p, h1, h2, figcaption, time, li) { word-break: auto-phrase; } /* 日文依詞組換行 */
+
+/* 按鈕：全圓角膠囊、按下微縮 */
+.bs--at-cafe .bs-btn { border-radius: 999px; padding: .72em 1.5em; font-weight: 500; letter-spacing: .02em; transition: transform .35s var(--atc-ease), background-color .25s var(--atc-ease), color .25s var(--atc-ease); }
+.bs--at-cafe .bs-btn:hover { transform: translateY(-2px); filter: none; }
+.bs--at-cafe .bs-btn:active { transform: scale(.98); }
+.bs--at-cafe .bs-btn--line:hover { background: var(--ink); color: var(--paper); }
+.bs--at-cafe .bs-head__nav { gap: 22px; }
+.bs--at-cafe .bs-head__nav a:not(.bs-btn) { min-height: 44px; display: inline-flex; align-items: center; }
+.bs--at-cafe .bs-head__nav .bs-btn { min-height: 40px; padding: .45em 1.2em; }
+.bs--at-cafe .bs-head .bs-lang { margin-left: 8px; padding-left: 14px; border-left: 1px solid var(--line); }
+
+/* 區塊標題：不加大寫小標；中文主標＋拉丁副標同一行 */
+.bs--at-cafe h2 { font-size: clamp(1.75rem, 3.4vw, 2.6rem); line-height: 1.2; margin-bottom: clamp(28px, 4vw, 48px); }
+.bs--at-cafe h2 .en { margin-left: .55em; font-family: var(--latin); font-weight: 400; font-size: max(1rem, .46em); letter-spacing: .04em; color: var(--muted); }
+.bs--at-cafe .bs-sec__head { border-bottom: 0; padding-bottom: 0; }
+.bs--at-cafe .bs-sec__head h2 { margin-bottom: 0; }
+
+/* ——— Hero：左文字、右照片疊放 ——— */
+.atc-hero { border-bottom: 0; padding: clamp(28px, 5vw, 72px) 0 clamp(56px, 8vw, 104px); overflow: hidden; }
+.atc-hero__grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: clamp(32px, 6vw, 96px); align-items: center; }
+.atc-hero h1 { margin: 0; font-size: clamp(3rem, 7.4vw, 5.6rem); line-height: 1.04; letter-spacing: -.03em; }
+.atc-hero h1 .en { display: block; margin-top: .22em; font-family: var(--latin); font-weight: 500; font-size: clamp(1.4rem, 3.2vw, 2.4rem); letter-spacing: -.01em; color: var(--brand); }
+.atc-hero__lede { margin: 28px 0 0; max-width: 24em; font-size: clamp(1.08rem, 1.5vw, 1.25rem); line-height: 1.75; color: var(--ink-soft); text-wrap: pretty; }
+.atc-hero__open { margin: 22px 0 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; color: var(--ink-soft); font-size: 1rem; }
+.atc-hero__open b { font-family: var(--latin); font-weight: 500; font-size: 1.35rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+.atc-hero__actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+.atc-hero__media { position: relative; padding: 0 0 9% 0; }
+.nb { white-space: nowrap; }
+.atc-hero__main { margin: 0 0 0 auto; width: min(82%, calc(min(64vh, 600px) * 1125 / 1400)); border-radius: var(--atc-r); overflow: hidden; box-shadow: var(--atc-shadow); }
+.atc-hero__main img { width: 100%; height: auto; aspect-ratio: 1125 / 1400; object-fit: cover; }
+.atc-hero__sub { position: absolute; left: 4%; bottom: 0; width: 36%; margin: 0; border-radius: var(--atc-r); overflow: hidden; outline: 5px solid var(--paper); box-shadow: var(--atc-shadow); }
+.atc-hero__sub img { width: 100%; height: auto; aspect-ratio: 1; object-fit: cover; }
+/* 首屏進場：文字與照片依序淡入（僅在允許動態時） */
+@media (prefers-reduced-motion: no-preference) {
+  .js .atc-hero__copy > *, .js .atc-hero__main, .js .atc-hero__sub { animation: atc-in .9s var(--atc-ease) both; }
+  .js .atc-hero__copy > :nth-child(2) { animation-delay: .08s; }
+  .js .atc-hero__copy > :nth-child(3) { animation-delay: .14s; }
+  .js .atc-hero__copy > :nth-child(4) { animation-delay: .2s; }
+  .js .atc-hero__main { animation-delay: .1s; }
+  .js .atc-hero__sub { animation-delay: .32s; }
+  .js .reveal { opacity: 0; transform: translateY(22px); transition: opacity .9s var(--atc-ease), transform .9s var(--atc-ease); }
+  .js .reveal.is-in { opacity: 1; transform: none; }
+}
+@keyframes atc-in { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+
+/* ——— 一天：橫向時間軸 ——— */
+.atc-day { border-top: 1px solid var(--line); }
+.atc-day__list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-top: 1.5px solid var(--ink); }
+.atc-day__list li { position: relative; padding: 26px 28px 0 0; }
+.atc-day__list li::before { content: ""; position: absolute; top: -6px; left: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--brand); }
+.atc-day__list time { display: block; font-family: var(--latin); font-size: clamp(1.6rem, 2.6vw, 2.1rem); font-weight: 500; letter-spacing: -.02em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.atc-day__list p { margin-top: 10px; color: var(--ink-soft); line-height: 1.85; max-width: 18em; }
+.js .atc-day__list li:nth-child(2) { transition-delay: .08s; }
+.js .atc-day__list li:nth-child(3) { transition-delay: .16s; }
+.js .atc-day__list li:nth-child(4) { transition-delay: .24s; }
+
+/* ——— 餐點：非對稱拼貼（大圖 2×2＋文字格＋三張小圖） ——— */
+.atc-food__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: auto; gap: clamp(12px, 1.6vw, 20px); }
+.atc-dish { margin: 0; position: relative; border-radius: var(--atc-r); overflow: hidden; background: var(--paper-deep); }
+.atc-dish img { width: 100%; height: 100%; aspect-ratio: 1; object-fit: cover; transition: transform 1.2s var(--atc-ease); }
+.atc-dish:hover img { transform: scale(1.03); }
+.atc-dish figcaption { position: absolute; left: 10px; right: 10px; bottom: 10px; padding: 8px 12px; border-radius: 12px; background: rgba(251, 250, 246, .94); color: var(--ink); font-size: 1rem; line-height: 1.45; font-weight: 500; }
+.atc-dish--lg { grid-column: span 2; grid-row: span 2; }
+.atc-food__note { grid-column: span 1; display: flex; flex-direction: column; justify-content: center; gap: 18px; padding: clamp(20px, 3vw, 40px); border-radius: var(--atc-r); background: var(--brand); color: #fff; }
+.atc-food__note p { font-size: 1.06rem; line-height: 1.8; text-wrap: pretty; }
+.atc-link { align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; color: #fff; font-weight: 500; text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 1.5px; }
+.atc-link::after { content: "→"; margin-left: .45em; transition: transform .35s var(--atc-ease); }
+.atc-link:hover::after { transform: translateX(4px); }
+.atc-food__src { margin-top: 16px; color: var(--ink-soft); font-size: 1rem; }
+
+/* ——— 空間：寬幅＋文字與兩張直幅錯位＋寬幅 ——— */
+.atc-room figure { margin: 0; border-radius: var(--atc-r); overflow: hidden; }
+.atc-room figure img { width: 100%; height: 100%; object-fit: cover; }
+.atc-room__wide img { aspect-ratio: 2 / 1; object-position: 50% 45%; }
+.atc-room__grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, .8fr) minmax(0, .8fr); gap: clamp(16px, 2.4vw, 32px); align-items: start; margin: 0 0 clamp(32px, 5vw, 64px); }
+.atc-room__copy { padding-right: clamp(0px, 2vw, 32px); }
+.atc-room__copy p { color: var(--ink-soft); font-size: clamp(1.04rem, 1.3vw, 1.14rem); line-height: 1.95; max-width: 30em; text-wrap: pretty; }
+.atc-room__copy p + p { margin-top: 1em; }
+.atc-room__tall img { aspect-ratio: 4 / 5; }
+.atc-room__tall--low { margin-top: clamp(32px, 5vw, 72px) !important; }
+
+/* ——— 菜單：沿用官網元件，只調照片圓角與分隔線色 ——— */
+.atc-menu .menu-item__img { border-radius: 12px; }
+.atc-menu .menu-group__head { border-bottom-color: var(--brand); }
+
+/* ——— FAQ：窄欄置中 ——— */
+.atc-faq__in { max-width: 860px; }
+.bs--at-cafe .bs-faq summary { font-family: var(--sans); font-weight: 500; }
+
+/* ——— 交通：地圖圓角 ——— */
+.bs--at-cafe .bs-map { border-radius: var(--atc-r); }
+.bs--at-cafe .bs-visit address { font-family: var(--sans); font-weight: 500; }
+
+@media (max-width: 900px) {
+  .atc-day__list { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 36px; border-top: 0; }
+  .atc-day__list li { border-top: 1.5px solid var(--ink); }
+  .atc-food__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .atc-room__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .atc-room__copy { grid-column: 1 / -1; padding-right: 0; }
+  .atc-room__tall--low { margin-top: 48px !important; }
+}
+@media (max-width: 760px) {
+  .atc-hero__grid { grid-template-columns: 1fr; }
+  .atc-hero__media { order: -1; padding-bottom: 18%; }
+  .atc-hero__main { width: 84%; }
+  .bs--at-cafe .bs-head .bs-lang { margin-left: 0; padding-left: 0; border-left: 0; }
+  .atc-hero__main img { aspect-ratio: 4 / 4.4; }
+  .atc-hero__sub { width: 40%; left: 0; }
+  .atc-hero h1 { font-size: clamp(2.6rem, 13vw, 3.4rem); }
+  .atc-day__list { grid-template-columns: 1fr; row-gap: 0; }
+  .atc-day__list li { border-top: 0; border-left: 1.5px solid var(--ink); padding: 0 0 28px 24px; }
+  .atc-day__list li::before { top: 8px; left: -6px; }
+  .atc-dish--lg { grid-column: 1 / -1; }
+  .atc-dish--lg { grid-row: auto; }
+  .atc-dish { background: transparent; border-radius: 0; overflow: visible; }
+  .atc-dish img { border-radius: var(--atc-r); height: auto; }
+  .atc-dish figcaption { position: static; padding: 8px 2px 0; background: none; font-size: 1rem; }
+  .atc-dish:last-of-type, .atc-food__note { grid-column: 1 / -1; }
+  .atc-room__wide img { aspect-ratio: 4 / 3; }
+  .atc-room__tall--low { margin-top: 32px !important; }
+}
