@@ -48,12 +48,14 @@ const opsHelp=tipIcon;
 // 標題與操作說明同一列（.ops-head：標題靠左、說明鍵靠右），不另佔一列；展開時說明文字換到整列寬
 /* 原因預設選項：現場不打字——每個要填原因的地方先列常見原因，一按就送；真的選不到才在「其他」手動填寫。
    覆蓋式（作廢整張單／作廢品項／取消品項／贈送／出勤修正）用 pickReason()，表單內嵌欄位（折扣／臨時收支／關帳說明／小結說明）用 reasonChips()+bindReasonChips()。 */
+const DISCOUNT_PRESETS=[{type:'percent',value:20,reason:'員工',label:'員工 8 折'},{type:'percent',value:20,reason:'股東',label:'股東 8 折'},{type:'percent',value:20,reason:'親友',label:'親友 8 折'}];
 const REASON_PRESETS={
   void_order:['客人取消','點錯單','重複結帳','金額錯誤','付款失敗'],
   void_line:['點錯品項','客人取消','重複點餐','今日估清'],
   cancel_item:['做不出來／估清','客人退菜','點錯品項','重複點餐','等太久'],
   comp:['招待','生日','補償（出錯／等太久）','員工餐','試吃','熟客'],
   discount:['熟客','活動優惠','員工','會員活動','補償'],
+  /* 常用折扣（KK 11/3）：結帳面板一鍵套用＝類型＋數值＋原因一次帶入；用「幾折」標示，避免把 8 折填成 8％ */
   cash_move:['買食材','補零錢','雜費','代墊','運費'],
   close_note:['找錯錢','點鈔誤差','臨時支出忘了記','小費','交接事項'],
   count_note:['午班交接','晚班交接','中途點驗'],
@@ -397,7 +399,9 @@ const cashPaidOf=o=>{const p=o?.payer||{},n=Math.max(0,Number(o?.amount)||0);if(
 const invoiceText=o=>{const inv=o.invoice||{};if(inv.status==='issued')return `發票 ${inv.number||'已開立'}`;if(inv.status==='failed')return `發票失敗：${inv.error||'待補開'}`;if(inv.status==='void')return `發票已作廢 ${inv.number||''}`;if(inv.requested)return '發票待補開';return '未開發票';};
 // 表格用：發票異常（失敗／待補開）用色標，正常的只放灰字
 const invoiceHtml=o=>{const inv=o.invoice||{};const fix=o.status==='void'?'':` <button type="button" class="btn btn--ghost btn-xs" data-invoice-issue="${esc(o.id)}">補開發票</button>`;if(inv.status==='failed')return `<span class="inv-fix"><span class="pill pill-bad" title="${esc(inv.error||'')}">發票失敗</span>${fix}</span>`;if(inv.requested&&!['issued','void'].includes(inv.status))return `<span class="inv-fix"><span class="pill pill-wait">發票待補開</span>${fix}</span>`;return `<span class="hint hint--tight">${esc(invoiceText(o))}</span>${!['issued','void'].includes(inv.status)?fix:''}`;};
-const discountText=d=>d?`${d.type==='percent'?d.value+'％':'NT$'+num(d.value)}${d.reason?'・'+d.reason:''}`:'';
+/* 百分比折扣顯示成台灣習慣的「幾折」：20％→8 折、15％→85 折，避免店員把 8 折誤填成 8％ */
+const zheText=v=>{const z=100-Number(v);return z<=0?'免費':z%10===0?`${z/10} 折`:`${z} 折`;};
+const discountText=d=>d?`${d.type==='percent'?zheText(d.value):'NT$'+num(d.value)}${d.reason?'・'+d.reason:''}`:'';
 const isTakeoutNo=t=>/^W\d{2}$/.test(String(t||''));
 function invoiceBody(host){
   const mode=host.querySelector('input[name=pos-invoice]:checked')?.value||'';POS_INVOICE.mode=mode;
@@ -1421,6 +1425,7 @@ function paintPos(){
 
           ${aa?`<div class="pos-sum-aa"><span><span class="pill pill-wait">平均分攤</span> ${aa.people} 人 · 每人 NT$${num(aa.each)}${aa.gross%aa.people?`，尾差 NT$${num(aa.gross%aa.people)} 併入最後一人`:''}</span><span><b>${aa.last?'最後一人':`第 ${aa.index}／${aa.people} 人`}</b> <button type="button" class="btn btn--ghost btn-xs" id="pos-aa-clear">取消分攤</button></span></div>`:`<div class="pos-sum-aa"><span>平均分攤</span><button type="button" class="btn btn--ghost btn-xs" id="pos-aa-open" ${cur.lines.some(l=>!l.credit_of)?'':'disabled'}>分次收款</button></div>`}
           <div class="pos-sum-disc" ${aa?'hidden':''}><span>折扣 ${POS_DISCOUNT?`<span class="pill pill-ok">${esc(discountText(POS_DISCOUNT))}</span> <button type="button" class="btn btn--ghost btn-xs" id="pos-disc-clear">移除</button>`:`<button type="button" class="btn btn--ghost btn-xs" id="pos-disc-open">${POS_DISC_OPEN?'收起':'加折扣'}</button>`}</span><span>${discount?'−'+num(discount):'—'}</span></div>
+          ${!aa&&!POS_DISCOUNT&&!POS_DISC_OPEN?`<div class="reason-chips pos-disc-presets" role="group" aria-label="常用折扣">${DISCOUNT_PRESETS.map((d,i)=>`<button type="button" data-disc-preset="${i}">${esc(d.label)}</button>`).join('')}</div>`:''}
           ${discountUI}
           ${svc&&!aa?`<div class="pos-sum-svc"><span>服務費 10% ${svc.waived?`<span class="pill pill-wait">免收：${esc(svc.reason)}</span> <button type="button" class="btn btn--ghost btn-xs" id="pos-svc-restore">恢復收取</button>`:`<button type="button" class="btn btn--ghost btn-xs" id="pos-svc-open">${POS_SVC_OPEN?'收起':'免收（客訴）'}</button>`}</span><span>${svc.waived?`<s>${num(svc.would)}</s> 0`:'+'+num(svc.amount)}</span></div>${POS_SVC_OPEN&&!svc.waived?`<div class="pos-discount-form" id="pos-svc-form"><input id="pos-svc-reason" maxlength="40" placeholder="免收原因（例如：客訴、上菜太慢）" aria-label="免收服務費原因"><button type="button" class="btn btn--solid btn-sm" id="pos-svc-apply">免收服務費</button></div>`:''}`:svc&&aa?`<div class="pos-sum-svc"><span>服務費 10%</span><span>已含在分攤金額</span></div>`:''}
           ${minSpendHtml(ms)}
@@ -1534,6 +1539,7 @@ function paintPos(){
   bindReasonChips(host);bindNoteChips(host);
   // 常用折扣：一鍵帶入類型與數值，原因仍要選（按「套用」才生效）
   host.querySelectorAll('[data-disc-quick]').forEach(b=>b.onclick=()=>{const [t,v]=b.dataset.discQuick.split(':');host.querySelector('#pos-disc-type').value=t;host.querySelector('#pos-disc-value').value=v;host.querySelectorAll('[data-disc-quick]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));});
+  host.querySelectorAll('[data-disc-preset]').forEach(b=>b.onclick=()=>{const d=DISCOUNT_PRESETS[Number(b.dataset.discPreset)];if(!d)return;POS_DISCOUNT={type:d.type,value:d.value,reason:d.reason};POS_DISC_OPEN=false;paintPos();});
   const discOpen=host.querySelector('#pos-disc-open');if(discOpen)discOpen.onclick=()=>{POS_DISC_OPEN=!POS_DISC_OPEN;paintPos();host.querySelector('#pos-disc-value')?.focus();};
   const svcOpen=host.querySelector('#pos-svc-open');if(svcOpen)svcOpen.onclick=()=>{POS_SVC_OPEN=!POS_SVC_OPEN;paintPos();host.querySelector('#pos-svc-reason')?.focus();};
   const svcRestore=host.querySelector('#pos-svc-restore');if(svcRestore)svcRestore.onclick=()=>{POS_SVC_WAIVE=null;POS_SVC_OPEN=false;paintPos();};
