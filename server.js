@@ -7479,21 +7479,27 @@ app.get(['/menu', '/menu/', '/en/menu', '/en/menu/', '/ja/menu', '/ja/menu/'], m
 
 /* ---- 點歌（lib/songs.js）：客人掃桌邊 QR 搜尋 YouTube 點歌（每首計價、掛進這桌帳單），POS「點歌」分頁的播放裝置依序播放；
    沒人點歌時播常態歌單。預設關閉，由 POS 開啟。狀態存 site_content（song_settings／song_state），綁定的 YouTube 帳號存 song_youtube（加密）。 */
-const SONG_KEYS=['song_settings','song_state'];
+/* 各品牌 POS 各自一份（KK 11/4）：song_settings:<VENUE>／song_state:<VENUE>。客人端看點餐當下營業的品牌，POS 端看網址品牌（query venue）。 */
+const SONG_VENUES=['CAFE','BAR','STAY','REST'];
+const songKeys=v=>({settings:'song_settings:'+v,state:'song_state:'+v});
+function songVenue(req){const v=pinVenue(req,req.query?.venue||req.body?.venue);return SONG_VENUES.includes(v)?v:(tableOrders.MenuLib.activeVenue()||'BAR');}
+const guestSongVenue=()=>tableOrders.MenuLib.orderWindow().venue||tableOrders.MenuLib.activeVenue()||'BAR';
 const songErr=(res,e)=>{if(e&&e.status)return res.status(e.status).json({error:e.message});throw e;};
 const songJson=raw=>{try{return raw?JSON.parse(raw):{};}catch{return {};}};
-async function songSettings(){return songs.normalizeSettings(await contentValue('song_settings'));}
-async function withSongs(fn){
+async function songSettings(v){return songs.normalizeSettings(await contentValue(songKeys(v).settings)||await contentValue('song_settings'));}
+async function withSongs(v,fn){const K=songKeys(v);
   const client=await pool.connect();
   try{await client.query('BEGIN');
-    await client.query(`INSERT INTO site_content(key,value) VALUES('song_settings','{}'),('song_state','{}') ON CONFLICT(key) DO NOTHING`);
-    const m=Object.fromEntries((await client.query('SELECT key,value FROM site_content WHERE key=ANY($1::text[]) ORDER BY key FOR UPDATE',[SONG_KEYS])).rows.map(r=>[r.key,r.value]));
-    const out=await fn(client,{settings:songs.normalizeSettings(m.song_settings),state:songs.normalizeState(m.song_state)});
+    // 第一次用到某品牌時，設定沿用舊的共用 song_settings（開關、價格、播放裝置、常態歌單），待播從空的開始
+    await client.query(`INSERT INTO site_content(key,value) SELECT $1,COALESCE((SELECT value FROM site_content WHERE key='song_settings'),'{}') ON CONFLICT(key) DO NOTHING`,[K.settings]);
+    await client.query(`INSERT INTO site_content(key,value) VALUES($1,'{}') ON CONFLICT(key) DO NOTHING`,[K.state]);
+    const m=Object.fromEntries((await client.query('SELECT key,value FROM site_content WHERE key=ANY($1::text[]) ORDER BY key FOR UPDATE',[[K.settings,K.state]])).rows.map(r=>[r.key,r.value]));
+    const out=await fn(client,{venue:v,settings:songs.normalizeSettings(m[K.settings]),state:songs.normalizeState(m[K.state])});
     await client.query('COMMIT');return out;
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }
-const saveSongState=(client,state)=>client.query(`UPDATE site_content SET value=$1,updated_at=now() WHERE key='song_state'`,[JSON.stringify(state)]);
-const saveSongSettings=(client,settings)=>client.query(`UPDATE site_content SET value=$1,updated_at=now() WHERE key='song_settings'`,[JSON.stringify(settings)]);
+const saveSongState=(client,state,v)=>client.query(`UPDATE site_content SET value=$1,updated_at=now() WHERE key=$2`,[JSON.stringify(state),songKeys(v).state]);
+const saveSongSettings=(client,settings,v)=>client.query(`UPDATE site_content SET value=$1,updated_at=now() WHERE key=$2`,[JSON.stringify(settings),songKeys(v).settings]);
 // 客人點的歌因影片無法播放被跳過、或店員從待播移除：這首還沒結帳就從桌上帳單拿掉（已結帳的不動，由櫃檯另行處理）
 async function songRefund(client,entry){
   if(!entry||entry.source!=='guest'||!entry.session_id||!entry.line)return false;
@@ -7537,10 +7543,10 @@ async function songPlayable(videoId,settings){
 // 客人端：看待播／搜尋／點歌（掃單次 QR 帶 s、k）
 app.get('/api/songs',requireDb,wrap(async(req,res)=>{
   res.set('Cache-Control','no-store');
-  try{const s=await songGuestSession(req.query);res.json(songs.publicView(songs.normalizeState(await contentValue('song_state')),await songSettings(),s.table_no));}catch(e){return songErr(res,e);}
+  try{const s=await songGuestSession(req.query);const v=guestSongVenue();res.json(songs.publicView(songs.normalizeState(await contentValue(songKeys(v).state)),await songSettings(v),s.table_no));}catch(e){return songErr(res,e);}
 }));
 app.get('/api/songs/search',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
-  try{await songGuestSession(req.query);const settings=await songSettings();if(!settings.enabled)return res.status(423).json({error:'點歌目前沒有開放。'});
+  try{await songGuestSession(req.query);const settings=await songSettings(guestSongVenue());if(!settings.enabled)return res.status(423).json({error:'點歌目前沒有開放。'});
     res.json({items:(await songSearch(req.query.q)).filter(v=>!v.duration||v.duration<=settings.max_minutes*60)});
   }catch(e){return songErr(res,e);}
 }));
@@ -7548,17 +7554,17 @@ app.post('/api/songs/request',rateLimit({max:20}),requireDb,wrap(async(req,res)=
   const b=req.body||{};
   if(!/^[a-z0-9]{8,32}$/.test(String(b.guest||'')))return res.status(400).json({error:'缺少來賓識別。'});
   try{const s=await songGuestSession(b);await assertNotPaused();
-    const settings0=await songSettings();if(!settings0.enabled)return res.status(423).json({error:'點歌目前沒有開放。'});
     const venue=tableOrders.MenuLib.orderWindow().venue;if(!venue)return res.status(423).json({error:'目前非營業時段，暫不開放點歌。'});
+    const settings0=await songSettings(venue);if(!settings0.enabled)return res.status(423).json({error:'點歌目前沒有開放。'});
     const video=await songPlayable(b.video_id,settings0);
-    const out=await withSongs(async(client,{settings,state})=>{
+    const out=await withSongs(venue,async(client,{venue:sv,settings,state})=>{
       if(!settings.enabled)throw Object.assign(Error('點歌目前沒有開放。'),{status:423});
       const ss=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[s.id])).rows[0];
       if(!ss||ss.status!=='open')throw Object.assign(Error('這桌已結束，請洽服務人員。'),{status:409});
       const {state:next,entry}=songs.enqueue(state,video,{table:ss.table_no,by:tableOrders.cleanText(b.by,20)||'客人',source:'guest',session_id:ss.id,price:settings.price,maxPerTable:settings.max_per_table});
       const line=songs.songLine(entry,{venue,guest:b.guest});entry.line=line.line;
       await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[ss.id,JSON.stringify(ss.items.concat([line]))]);
-      await saveSongState(client,next);
+      await saveSongState(client,next,sv);
       await client.query(`INSERT INTO site_content(key,value) VALUES('song_stats','{}') ON CONFLICT(key) DO NOTHING`);
       const stats=songs.normalizeStats((await client.query(`SELECT value FROM site_content WHERE key='song_stats' FOR UPDATE`)).rows[0]?.value);
       await client.query(`UPDATE site_content SET value=$1,updated_at=now() WHERE key='song_stats'`,[JSON.stringify(songs.bumpStats(stats,video))]);
@@ -7579,7 +7585,7 @@ async function songDiscover(maxSeconds){
   return {...lists,chart:(await songChart()).filter(v=>!maxSeconds||!v.duration||v.duration<=maxSeconds)};
 }
 app.get('/api/songs/discover',rateLimit({max:30}),requireDb,wrap(async(req,res)=>{
-  try{await songGuestSession(req.query);const settings=await songSettings();if(!settings.enabled)return res.status(423).json({error:'點歌目前沒有開放。'});
+  try{await songGuestSession(req.query);const settings=await songSettings(guestSongVenue());if(!settings.enabled)return res.status(423).json({error:'點歌目前沒有開放。'});
     res.set('Cache-Control','no-store');res.json(await songDiscover(settings.max_minutes*60));
   }catch(e){return songErr(res,e);}
 }));
@@ -7591,30 +7597,30 @@ async function songAdminView(settings,state){
 }
 app.get('/api/admin/orders/songs',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   res.set('Cache-Control','no-store');
-  const settings=await songSettings();let state=songs.normalizeState(await contentValue('song_state'));
+  const v=songVenue(req),settings=await songSettings(v);let state=songs.normalizeState(await contentValue(songKeys(v).state));
   // 隨機播放：還沒洗牌（或歌單換過、袋子用完）就先洗好一輪存起來，列出的「接下來」才會跟實際播放順序一致
   const activeList=songs.activePlaylist(settings).playlist;
   if(settings.shuffle&&activeList.length&&!songs.shuffleBag(activeList,state.shuffle_bag).every((id,i)=>id===state.shuffle_bag[i]))
-    state=await withSongs(async(client,{settings:s2,state:st})=>{const next={...st,shuffle_bag:songs.shuffleBag(songs.activePlaylist(s2).playlist,st.shuffle_bag)};await saveSongState(client,next);return next;});
+    state=await withSongs(songVenue(req),async(client,{venue:sv,settings:s2,state:st})=>{const next={...st,shuffle_bag:songs.shuffleBag(songs.activePlaylist(s2).playlist,st.shuffle_bag)};await saveSongState(client,next,sv);return next;});
   res.json(await songAdminView(settings,state));
 }));
 app.post('/api/admin/orders/songs/settings',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  try{res.json(await withSongs(async(client,{settings,state})=>{const next=songs.patchSettings(settings,req.body);await saveSongSettings(client,next);return songAdminView(next,state);}));}catch(e){return songErr(res,e);}
+  try{res.json(await withSongs(songVenue(req),async(client,{venue:sv,settings,state})=>{const next=songs.patchSettings(settings,req.body);await saveSongSettings(client,next,sv);return songAdminView(next,state);}));}catch(e){return songErr(res,e);}
 }));
 // 指定這台平板當播放裝置（接音響的那台）；同一時間只有一台會自動播
 app.post('/api/admin/orders/songs/player',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const device=tableOrders.cleanText(req.body?.device,64);
-  try{res.json(await withSongs(async(client,{settings,state})=>{const next={...settings,player_device:req.body?.release===true?'':device};await saveSongSettings(client,next);return songAdminView(next,state);}));}catch(e){return songErr(res,e);}
+  try{res.json(await withSongs(songVenue(req),async(client,{venue:sv,settings,state})=>{const next={...settings,player_device:req.body?.release===true?'':device};await saveSongSettings(client,next,sv);return songAdminView(next,state);}));}catch(e){return songErr(res,e);}
 }));
 // 換下一首：播放裝置在播完（ended）、影片無法播放（error）、有人點歌時切掉常態歌單（preempt）時呼叫；任何一台都能按「下一首」（skip）
 app.post('/api/admin/orders/songs/next',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const result=['ended','error','preempt','skip'].includes(req.body?.result)?req.body.result:'skip';
-  try{res.json(await withSongs(async(client,{settings,state})=>{
+  try{res.json(await withSongs(songVenue(req),async(client,{venue:sv,settings,state})=>{
     if(result!=='skip'&&settings.player_device&&req.body?.device!==settings.player_device)throw Object.assign(Error('這台不是播放裝置。'),{status:409});
     const out=songs.advance(state,settings,{result,current:req.body?.current?String(req.body.current):null});
     if(out.stale)return {...await songAdminView(settings,state),stale:true};
     const refunded=out.refund?await songRefund(client,out.refund):false;
-    await saveSongState(client,out.state);
+    await saveSongState(client,out.state,sv);
     return {...await songAdminView(settings,out.state),refunded};
   }));}catch(e){return songErr(res,e);}
 }));
@@ -7627,24 +7633,24 @@ app.get('/api/admin/orders/songs/search',auth,adminOnly,requireDb,wrap(async(req
 // 店員代點（不收費）
 app.post('/api/admin/orders/songs/queue',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   try{const video=await songPlayable(req.body?.video_id,null);
-    res.json(await withSongs(async(client,{settings,state})=>{const {state:next}=songs.enqueue(state,video,{by:'櫃檯',source:'pos',front:req.body?.front===true});await saveSongState(client,next);return songAdminView(settings,next);}));
+    res.json(await withSongs(songVenue(req),async(client,{venue:sv,settings,state})=>{const {state:next}=songs.enqueue(state,video,{by:'櫃檯',source:'pos',front:req.body?.front===true});await saveSongState(client,next,sv);return songAdminView(settings,next);}));
   }catch(e){return songErr(res,e);}
 }));
 app.delete('/api/admin/orders/songs/queue/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  try{res.json(await withSongs(async(client,{settings,state})=>{const {state:next,entry}=songs.removeFromQueue(state,String(req.params.id));const refunded=await songRefund(client,entry);await saveSongState(client,next);return {...await songAdminView(settings,next),refunded};}));}catch(e){return songErr(res,e);}
+  try{res.json(await withSongs(songVenue(req),async(client,{venue:sv,settings,state})=>{const {state:next,entry}=songs.removeFromQueue(state,String(req.params.id));const refunded=await songRefund(client,entry);await saveSongState(client,next,sv);return {...await songAdminView(settings,next),refunded};}));}catch(e){return songErr(res,e);}
 }));
 app.post('/api/admin/orders/songs/queue/:id/top',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  try{res.json(await withSongs(async(client,{settings,state})=>{const next=songs.moveToFront(state,String(req.params.id));await saveSongState(client,next);return songAdminView(settings,next);}));}catch(e){return songErr(res,e);}
+  try{res.json(await withSongs(songVenue(req),async(client,{venue:sv,settings,state})=>{const next=songs.moveToFront(state,String(req.params.id));await saveSongState(client,next,sv);return songAdminView(settings,next);}));}catch(e){return songErr(res,e);}
 }));
 // 店員排序：移到第 to 個位置（0＝下一首）
 app.post('/api/admin/orders/songs/queue/:id/move',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  try{res.json(await withSongs(async(client,{settings,state})=>{const next=songs.moveTo(state,String(req.params.id),req.body?.to);await saveSongState(client,next);return songAdminView(settings,next);}));}catch(e){return songErr(res,e);}
+  try{res.json(await withSongs(songVenue(req),async(client,{venue:sv,settings,state})=>{const next=songs.moveTo(state,String(req.params.id),req.body?.to);await saveSongState(client,next,sv);return songAdminView(settings,next);}));}catch(e){return songErr(res,e);}
 }));
 // 常態歌單：從 YouTube 播放清單（網址或綁定帳號的清單）匯入；mode=append 接在後面，否則整份取代
 app.post('/api/admin/orders/songs/playlist/import',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const pid=songs.parsePlaylistId(req.body?.playlist||'');if(!pid)return res.status(400).json({error:'請貼上 YouTube 播放清單網址（含 list=）。'});
   try{const list=await youtube.playlistItems(pid);if(!list.length)return res.status(400).json({error:'這個播放清單沒有可在店內播放的影片（可能是私人清單或影片不允許嵌入）。'});
-    res.json(await withSongs(async(client,{settings,state})=>{const next=songs.normalizeSettings({...settings,playlist:req.body?.mode==='append'?settings.playlist.concat(list):list});await saveSongSettings(client,next);return {...await songAdminView(next,state),imported:list.length};}));
+    res.json(await withSongs(songVenue(req),async(client,{venue:sv,settings,state})=>{const next=songs.normalizeSettings({...settings,playlist:req.body?.mode==='append'?settings.playlist.concat(list):list});await saveSongSettings(client,next,sv);return {...await songAdminView(next,state),imported:list.length};}));
   }catch(e){return songErr(res,e);}
 }));
 app.get('/api/admin/orders/songs/youtube/playlists',auth,adminOnly,requireDb,wrap(async(req,res)=>{

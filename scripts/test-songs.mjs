@@ -316,3 +316,13 @@ test('時段歌單接線：設定頁列出、可移除、播放器有時段歌�
   assert.match(js, /時段歌單/); assert.match(js, /data-song-sch-del/); assert.match(js, /settings\.schedules/);
   assert.match(read('server.js'), /songs\.activePlaylist\(settings\)/);
 });
+test('點歌各品牌一份：site_content key 帶品牌、POS 呼叫帶 venue、客人端看營業品牌', () => {
+  const srv = read('server.js'), blk = srv.slice(srv.indexOf('/* ---- 點歌（lib/songs.js）'), srv.indexOf('/* ---- 點歌 end ---- */'));
+  assert.match(blk, /song_settings:'\+v/); assert.match(blk, /song_state:'\+v/);
+  assert.doesNotMatch(blk, /key='song_state'/);
+  assert.equal((blk.match(/withSongs\(async/g) || []).length, 0);
+  assert.match(blk, /guestSongVenue\(\)/);
+  const js = read('public/pos-songs.js');
+  assert.doesNotMatch(js, /[^g]api\('\/admin\/orders\/songs/);
+  assert.match(js, /function songApi\(path, opt\)\{ return api\(path \+ \(SCOPE/);
+});

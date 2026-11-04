@@ -3,6 +3,8 @@
  * 開關、價格、上限、常態歌單、播放裝置、YouTube 帳號放在「設定」頁的點歌區塊（songSettingsSection／bindSongSettings，由 pos-settings.js 呼叫）。
  * 播放裝置：接音響的那台按「在這台播放」，播放器常駐右下角（切分頁也繼續播），播完自動換下一首；有人點歌時若在播常態歌單，立刻切過去。
  * 動態文字一律經 esc() 再進 innerHTML（與其他 POS 分頁相同）。 */
+/* 點歌各品牌一份（KK 11/4）：每個呼叫帶網址品牌 SCOPE */
+function songApi(path, opt){ return api(path + (SCOPE ? (path.includes('?') ? '&' : '?') + 'venue=' + SCOPE : ''), opt); }
 let SONGS = { data: null, view: 'popular', disc: null, results: null, q: '', searching: false, mine: null, focus: false };
 const SONG_POLL_MS = 5000;
 const songDur = s => s ? Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') : '';
@@ -13,12 +15,12 @@ function isSongPlayer(){ return !!(SONGS.data && SONGS.data.settings.player_devi
 async function loadSongs(){
   const host = document.getElementById('songs-body'); if (!host) return;
   if (!SONGS.data) host.innerHTML = '<div class="ops-head"><h2>點歌</h2></div><p class="hint">載入中…</p>';
-  try { SONGS.data = await api('/admin/orders/songs'); } catch (e) { host.innerHTML = `<div class="ops-head"><h2>點歌</h2></div><p class="a-empty">載入失敗：${esc(e.message)}</p>`; return; }
+  try { SONGS.data = await songApi('/admin/orders/songs'); } catch (e) { host.innerHTML = `<div class="ops-head"><h2>點歌</h2></div><p class="a-empty">載入失敗：${esc(e.message)}</p>`; return; }
   paintSongs(); songPlayerSync();
   if (!SONGS.disc) songLoadDiscover();
 }
 async function songLoadDiscover(){
-  try { SONGS.disc = await api('/admin/orders/songs/discover'); } catch (e) { SONGS.disc = { popular: [], recent: [], chart: [], error: e.message }; }
+  try { SONGS.disc = await songApi('/admin/orders/songs/discover'); } catch (e) { SONGS.disc = { popular: [], recent: [], chart: [], error: e.message }; }
   if (TAB === 'songs') paintSongs();
 }
 /* 歌曲列：標題最多兩行（不再截成一行），次要資訊另起一行並可換行 */
@@ -87,7 +89,7 @@ async function songRunSearch(q){
   const seq = ++SONG_SEARCH_SEQ; SONGS.q = q; SONGS.lastQ = q;
   if (!q) { SONGS.results = null; SONGS.searching = false; return paintSongResults(); }
   SONGS.searching = true; paintSongResults();
-  let items = null; try { items = (await api('/admin/orders/songs/search?q=' + encodeURIComponent(q))).items; } catch (err) { if (seq === SONG_SEARCH_SEQ) toast(err.message); }
+  let items = null; try { items = (await songApi('/admin/orders/songs/search?q=' + encodeURIComponent(q))).items; } catch (err) { if (seq === SONG_SEARCH_SEQ) toast(err.message); }
   if (seq !== SONG_SEARCH_SEQ) return; // 已有更新的關鍵字，丟掉舊回應
   SONGS.searching = false; if (items) SONGS.results = items; else SONGS.lastQ = ''; paintSongResults();
 }
@@ -141,8 +143,8 @@ async function songDo(fn, msg){
   try { const d = await fn(); if (d && d.settings) SONGS.data = d; if (msg) toast(typeof msg === 'function' ? msg(d) : msg); } catch (e) { toast(e.message); }
   if (TAB === 'songs') paintSongs(); if (TAB === 'settings') paintSongSettings(); songPlayerSync();
 }
-function songClaim(){ songUnlock(); return songDo(() => api('/admin/orders/songs/player', { method: 'POST', body: { device: DEVICE_ID } }), '這台平板開始播放'); }
-function songRelease(){ songPlayerStop(); return songDo(() => api('/admin/orders/songs/player', { method: 'POST', body: { release: true } }), '已停止在這台播放'); }
+function songClaim(){ songUnlock(); return songDo(() => songApi('/admin/orders/songs/player', { method: 'POST', body: { device: DEVICE_ID } }), '這台平板開始播放'); }
+function songRelease(){ songPlayerStop(); return songDo(() => songApi('/admin/orders/songs/player', { method: 'POST', body: { release: true } }), '已停止在這台播放'); }
 document.addEventListener('click', async e => {
   if (!e.target.closest('#songs-body')) return;
   const b = e.target.closest('button'); if (!b) return; const D = SONGS.data; if (!D) return;
@@ -153,19 +155,19 @@ document.addEventListener('click', async e => {
     return paintSongResults(); }
   if (b.dataset.songSfx) return songSfx(b.dataset.songSfx);
   if (b.matches('[data-song-sfx-stop]')) return songSfxStop();
-  if (b.dataset.songMove) return songDo(() => api('/admin/orders/songs/queue/' + encodeURIComponent(b.dataset.songMove) + '/move', { method: 'POST', body: { to: Number(b.dataset.to) } }));
+  if (b.dataset.songMove) return songDo(() => songApi('/admin/orders/songs/queue/' + encodeURIComponent(b.dataset.songMove) + '/move', { method: 'POST', body: { to: Number(b.dataset.to) } }));
   if (b.dataset.songView) { SONGS.view = b.dataset.songView; SONGS.focus = SONGS.view === 'search'; return paintSongs(); }
   if (b.matches('[data-song-settings]')) { SONG_SET_FOCUS = true; return go('settings'); }
   if (b.matches('[data-song-claim]')) return songClaim();
   if (b.matches('[data-song-release]')) return songRelease();
-  if (b.matches('[data-song-skip]')) return songDo(() => api('/admin/orders/songs/next', { method: 'POST', body: { result: 'skip', current: D.now && D.now.id } }));
-  if (b.dataset.songTop) return songDo(() => api('/admin/orders/songs/queue/' + encodeURIComponent(b.dataset.songTop) + '/top', { method: 'POST' }));
+  if (b.matches('[data-song-skip]')) return songDo(() => songApi('/admin/orders/songs/next', { method: 'POST', body: { result: 'skip', current: D.now && D.now.id } }));
+  if (b.dataset.songTop) return songDo(() => songApi('/admin/orders/songs/queue/' + encodeURIComponent(b.dataset.songTop) + '/top', { method: 'POST' }));
   if (b.dataset.songDel) {
     const t = D.queue.find(x => x.id === b.dataset.songDel); if (!t) return;
     if (!await posConfirm(`移除「${t.title}」？${t.source === 'guest' && t.price ? `\n客人點的歌會一併從桌 ${t.table} 的帳上拿掉（NT$${t.price}）。` : ''}`, { ok: '移除', danger: true })) return;
-    return songDo(() => api('/admin/orders/songs/queue/' + encodeURIComponent(t.id), { method: 'DELETE' }), d => d.refunded ? '已移除，並從桌上帳單拿掉' : '已移除');
+    return songDo(() => songApi('/admin/orders/songs/queue/' + encodeURIComponent(t.id), { method: 'DELETE' }), d => d.refunded ? '已移除，並從桌上帳單拿掉' : '已移除');
   }
-  if (b.dataset.songQueue) { const front = b.hasAttribute('data-song-front'); b.disabled = true; return songDo(() => api('/admin/orders/songs/queue', { method: 'POST', body: { video_id: b.dataset.songQueue, front } }), front ? '已插播，下一首播放' : '已排進待播'); }
+  if (b.dataset.songQueue) { const front = b.hasAttribute('data-song-front'); b.disabled = true; return songDo(() => songApi('/admin/orders/songs/queue', { method: 'POST', body: { video_id: b.dataset.songQueue, front } }), front ? '已插播，下一首播放' : '已排進待播'); }
 });
 document.addEventListener('submit', async e => {
   const f = e.target; if (!f.closest('#songs-body')) return; e.preventDefault();
@@ -178,7 +180,7 @@ document.addEventListener('submit', async e => {
 let SONG_SET_FOCUS = false;
 function songSettingsSection(){ return '<div class="set-sec" id="set-songs" aria-labelledby="set-songs-h"><h3 id="set-songs-h">點歌</h3><div id="set-songs-body"><p class="hint">載入中…</p></div></div>'; }
 async function bindSongSettings(){
-  if (!SONGS.data) { try { SONGS.data = await api('/admin/orders/songs'); } catch (e) { const h = document.getElementById('set-songs-body'); if (h) h.innerHTML = `<p class="a-empty">載入失敗：${esc(e.message)}</p>`; return; } }
+  if (!SONGS.data) { try { SONGS.data = await songApi('/admin/orders/songs'); } catch (e) { const h = document.getElementById('set-songs-body'); if (h) h.innerHTML = `<p class="a-empty">載入失敗：${esc(e.message)}</p>`; return; } }
   paintSongSettings();
   if (SONG_SET_FOCUS) { SONG_SET_FOCUS = false; const sec = document.getElementById('set-songs'); if (sec) sec.scrollIntoView({ block: 'start' }); }
 }
@@ -209,29 +211,29 @@ function paintSongSettings(){
       ? `<p class="hint">已綁定${yt.channel ? `：<b>${esc(yt.channel.title)}</b>` : ''}${yt.connected_by ? `（${esc(yt.connected_by)} 綁定）` : ''}。搜尋、排行榜與匯入使用這個帳號。</p><div class="song-btns"><button type="button" class="btn btn--ghost btn-sm song-danger" data-song-yt-off>解除綁定</button></div>`
       : `<p class="hint">${yt.api_key ? '目前用系統金鑰搜尋。' : '尚未綁定，客人與店員都無法搜尋。'}綁定後也可匯入帳號裡的播放清單。</p><div class="song-btns"><button type="button" class="btn btn--solid btn-sm" data-song-yt-on ${yt.oauth_ready ? '' : 'disabled'}>綁定 YouTube 帳號</button></div>`}`;
 }
-function songSavePlaylist(list){ return songDo(() => api('/admin/orders/songs/settings', { method: 'POST', body: { playlist: list } }), '常態歌單已更新'); }
+function songSavePlaylist(list){ return songDo(() => songApi('/admin/orders/songs/settings', { method: 'POST', body: { playlist: list } }), '常態歌單已更新'); }
 document.addEventListener('click', async e => {
   if (!e.target.closest('#set-songs-body')) return;
   const b = e.target.closest('button'); if (!b) return; const D = SONGS.data; if (!D) return;
   if (b.matches('[data-song-claim]')) return songClaim();
   if (b.matches('[data-song-release]')) return songRelease();
   if (b.dataset.songPlDel != null && b.dataset.songPlDel !== '') { const i = Number(b.dataset.songPlDel); return songSavePlaylist(D.settings.playlist.filter((_, j) => j !== i)); }
-  if (b.dataset.songSchDel != null && b.dataset.songSchDel !== '') { const i = Number(b.dataset.songSchDel), x = D.settings.schedules[i]; if (!x || !await posConfirm(`移除時段歌單「${x.name}」？`, { ok: '移除', danger: true })) return; return songDo(() => api('/admin/orders/songs/settings', { method: 'POST', body: { schedules: D.settings.schedules.filter((_, j) => j !== i) } }), '時段歌單已更新'); }
+  if (b.dataset.songSchDel != null && b.dataset.songSchDel !== '') { const i = Number(b.dataset.songSchDel), x = D.settings.schedules[i]; if (!x || !await posConfirm(`移除時段歌單「${x.name}」？`, { ok: '移除', danger: true })) return; return songDo(() => songApi('/admin/orders/songs/settings', { method: 'POST', body: { schedules: D.settings.schedules.filter((_, j) => j !== i) } }), '時段歌單已更新'); }
   if (b.matches('[data-song-pl-clear]')) { if (!await posConfirm('清空常態歌單？沒有人點歌時會變成安靜無聲。', { ok: '清空', danger: true })) return; return songSavePlaylist([]); }
-  if (b.matches('[data-song-mine]')) { try { SONGS.mine = (await api('/admin/orders/songs/youtube/playlists')).playlists; } catch (err) { toast(err.message); } return paintSongSettings(); }
-  if (b.dataset.songMineImport || b.dataset.songMineAppend) { const id = b.dataset.songMineImport || b.dataset.songMineAppend; b.disabled = true; return songDo(() => api('/admin/orders/songs/playlist/import', { method: 'POST', body: { playlist: id, mode: b.dataset.songMineAppend ? 'append' : 'replace' } }), d => `已匯入 ${d.imported} 首`); }
-  if (b.matches('[data-song-yt-on]')) { try { const r = await api('/admin/orders/songs/youtube/connect', { method: 'POST', body: { redirect: location.origin + POS_BASE + '/settings' } }); location.href = r.url; } catch (err) { toast(err.message); } return; }
-  if (b.matches('[data-song-yt-off]')) { if (!await posConfirm('解除綁定 YouTube 帳號？', { ok: '解除', danger: true })) return; try { await api('/admin/orders/songs/youtube', { method: 'DELETE' }); SONGS.data = await api('/admin/orders/songs'); } catch (err) { toast(err.message); } return paintSongSettings(); }
+  if (b.matches('[data-song-mine]')) { try { SONGS.mine = (await songApi('/admin/orders/songs/youtube/playlists')).playlists; } catch (err) { toast(err.message); } return paintSongSettings(); }
+  if (b.dataset.songMineImport || b.dataset.songMineAppend) { const id = b.dataset.songMineImport || b.dataset.songMineAppend; b.disabled = true; return songDo(() => songApi('/admin/orders/songs/playlist/import', { method: 'POST', body: { playlist: id, mode: b.dataset.songMineAppend ? 'append' : 'replace' } }), d => `已匯入 ${d.imported} 首`); }
+  if (b.matches('[data-song-yt-on]')) { try { const r = await songApi('/admin/orders/songs/youtube/connect', { method: 'POST', body: { redirect: location.origin + POS_BASE + '/settings' } }); location.href = r.url; } catch (err) { toast(err.message); } return; }
+  if (b.matches('[data-song-yt-off]')) { if (!await posConfirm('解除綁定 YouTube 帳號？', { ok: '解除', danger: true })) return; try { await songApi('/admin/orders/songs/youtube', { method: 'DELETE' }); SONGS.data = await songApi('/admin/orders/songs'); } catch (err) { toast(err.message); } return paintSongSettings(); }
 });
 document.addEventListener('change', e => {
   if (!e.target.closest('#set-songs-body')) return;
-  if (e.target.matches('[data-song-enabled]')) return songDo(() => api('/admin/orders/songs/settings', { method: 'POST', body: { enabled: e.target.checked } }), e.target.checked ? '已開放客人點歌' : '已關閉點歌');
-  if (e.target.matches('[data-song-shuffle]')) return songDo(() => api('/admin/orders/songs/settings', { method: 'POST', body: { shuffle: e.target.checked } }));
+  if (e.target.matches('[data-song-enabled]')) return songDo(() => songApi('/admin/orders/songs/settings', { method: 'POST', body: { enabled: e.target.checked } }), e.target.checked ? '已開放客人點歌' : '已關閉點歌');
+  if (e.target.matches('[data-song-shuffle]')) return songDo(() => songApi('/admin/orders/songs/settings', { method: 'POST', body: { shuffle: e.target.checked } }));
 });
 document.addEventListener('submit', async e => {
   const f = e.target; if (!f.closest('#set-songs-body')) return; e.preventDefault();
-  if (f.matches('[data-song-import]')) { const v = f.pl.value.trim(); if (!v) return; return songDo(() => api('/admin/orders/songs/playlist/import', { method: 'POST', body: { playlist: v, mode: 'replace' } }), d => `已匯入 ${d.imported} 首`); }
-  if (f.matches('[data-song-set]')) return songDo(() => api('/admin/orders/songs/settings', { method: 'POST', body: { price: Number(f.price.value), max_per_table: Number(f.max_per_table.value), max_minutes: Number(f.max_minutes.value) } }), '設定已儲存');
+  if (f.matches('[data-song-import]')) { const v = f.pl.value.trim(); if (!v) return; return songDo(() => songApi('/admin/orders/songs/playlist/import', { method: 'POST', body: { playlist: v, mode: 'replace' } }), d => `已匯入 ${d.imported} 首`); }
+  if (f.matches('[data-song-set]')) return songDo(() => songApi('/admin/orders/songs/settings', { method: 'POST', body: { price: Number(f.price.value), max_per_table: Number(f.max_per_table.value), max_minutes: Number(f.max_minutes.value) } }), '設定已儲存');
 });
 
 /* ---- 播放器（只在播放裝置上運作）：YouTube IFrame API，常駐右下角 ---- */
@@ -257,7 +259,7 @@ function songDock(){
 function songPlayerStop(){ clearTimeout(SONG_TIMER); SONG_TIMER = null; try { SONG_YT && SONG_YT.destroy(); } catch (e) {} SONG_YT = null; SONG_LOADED = ''; const d = document.getElementById('song-dock'); if (d) d.remove(); }
 async function songNext(result){
   if (SONG_BUSY) return; SONG_BUSY = true;
-  try { SONGS.data = await api('/admin/orders/songs/next', { method: 'POST', body: { result, current: SONGS.data && SONGS.data.now ? SONGS.data.now.id : null, device: DEVICE_ID } }); if (SONGS.data.refunded) toast('客人點的歌無法播放，已跳過並從帳上拿掉'); } catch (e) { toast(e.message); }
+  try { SONGS.data = await songApi('/admin/orders/songs/next', { method: 'POST', body: { result, current: SONGS.data && SONGS.data.now ? SONGS.data.now.id : null, device: DEVICE_ID } }); if (SONGS.data.refunded) toast('客人點的歌無法播放，已跳過並從帳上拿掉'); } catch (e) { toast(e.message); }
   SONG_BUSY = false; if (TAB === 'songs') paintSongs(); songPlayerSync();
 }
 function songPlayerSync(){
@@ -279,9 +281,9 @@ function songPlayerSync(){
 async function songPoll(){
   SONG_TIMER = null;
   if (!SONGS.data || !isSongPlayer()) return;
-  try { const before = JSON.stringify(SONGS.data); SONGS.data = await api('/admin/orders/songs'); if (TAB === 'songs' && JSON.stringify(SONGS.data) !== before && !document.querySelector('#songs-body input:focus')) paintSongs(); } catch (e) {}
+  try { const before = JSON.stringify(SONGS.data); SONGS.data = await songApi('/admin/orders/songs'); if (TAB === 'songs' && JSON.stringify(SONGS.data) !== before && !document.querySelector('#songs-body input:focus')) paintSongs(); } catch (e) {}
   songPlayerSync();
 }
 // 開機：這台若被指定為播放裝置就自動接手播放（iPad 需使用者點一下畫面才會出聲，播放器上會顯示 YouTube 的播放鍵）
-async function songBoot(){ try { SONGS.data = await api('/admin/orders/songs'); songPlayerSync(); } catch (e) {} }
+async function songBoot(){ try { SONGS.data = await songApi('/admin/orders/songs'); songPlayerSync(); } catch (e) {} }
 (function(){ const p = new URLSearchParams(location.search).get('youtube'); if (p) { if (p === 'connected') SONG_SET_FOCUS = true; setTimeout(() => toast({ connected: 'YouTube 帳號已綁定', cancelled: '已取消綁定 YouTube', failed: 'YouTube 綁定失敗，請再試一次' }[p] || ''), 600); history.replaceState(null, '', location.pathname); } })();

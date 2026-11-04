@@ -36,13 +36,15 @@ test('點歌：預設關閉、開啟後掃碼點歌進帳單、常態歌單、�
       auth: (req, res, next) => { req.auth = { role: 'admin', email: 'pos@test', brands: null }; next(); }, adminOnly: (r, s, nx) => nx(), requireDb: (r, s, nx) => nx(), rateLimit: () => (r, s, nx) => nx(),
       wrap: fn => (req, res) => fn(req, res).catch(e => res.status(500).json({ error: e.message })),
       contentValue: async k => (await q('SELECT value FROM site_content WHERE key=$1', [k])).rows[0]?.value || '',
-      assertNotPaused: async () => {}, decPII: v => v, encSecret: v => v, signToken: () => 'st', verifyToken: () => null, safeEqual: () => false, safeRedirect: () => null, actorOf: a => a.email,
+      assertNotPaused: async () => {}, pinVenue: (req, v) => String(v || '').toUpperCase(), decPII: v => v, encSecret: v => v, signToken: () => 'st', verifyToken: () => null, safeEqual: () => false, safeRedirect: () => null, actorOf: a => a.email,
       console, Buffer, URL, URLSearchParams, Date, JSON, Math, Object, Array, Number, String, Error, Map, Set, Promise, AbortSignal });
     globalThis.fetch = fakeFetch;   // lib/songs.js 的 createYouTube 預設用全域 fetch
     vm.runInContext(slice('/* ---- 點歌（lib/songs.js）', '/* ---- 點歌 end ---- */'), ctx);
     listener = app.listen(0, '127.0.0.1'); await new Promise(r => listener.once('listening', r));
     const base = `http://127.0.0.1:${listener.address().port}`;
-    const call = async (method, path, body) => { const r = await realFetch(base + path, { method, headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }); return { status: r.status, body: await r.json().catch(() => ({})) }; };
+    const ML = tableOrders.MenuLib, V = ML.orderWindow().venue || ML.activeVenue() || 'BAR', OTHER = V === 'CAFE' ? 'BAR' : 'CAFE';
+    const vq = p => p.startsWith('/api/admin/') && !/[?&]venue=/.test(p) ? p + (p.includes('?') ? '&' : '?') + 'venue=' + V : p;
+    const call = async (method, path, body) => { const r = await realFetch(base + vq(path), { method, headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }); return { status: r.status, body: await r.json().catch(() => ({})) }; };
     const S = 'ts_00000000000000a1', K = tableOrders.sessionKey(S, 'test-secret'), QS = `s=${S}&k=${K}`;
     const items = async () => (await q('SELECT items FROM table_sessions WHERE id=$1', [S])).rows[0].items;
 
@@ -57,6 +59,9 @@ test('點歌：預設關閉、開啟後掃碼點歌進帳單、常態歌單、�
     r = await call('POST', '/api/admin/orders/songs/settings', { enabled: true, playlist: [{ video_id: ID(7), title: 'BGM7' }, { video_id: ID(8), title: 'BGM8' }] });
     assert.equal(r.status, 200); assert.equal(r.body.settings.enabled, true); assert.equal(r.body.settings.price, 10);
     await call('POST', '/api/admin/orders/songs/player', { device: 'dev-1' });
+    // 各品牌一份：另一個品牌看不到這份設定
+    r = await call('GET', '/api/admin/orders/songs?venue=' + OTHER);
+    assert.equal(r.status, 200); assert.equal(r.body.settings.enabled, false); assert.equal(r.body.settings.playlist.length, 0); assert.equal(r.body.settings.player_device, '');
     // 沒人點歌：播常態歌單
     r = await call('POST', '/api/admin/orders/songs/next', { result: 'ended', device: 'dev-1' });
     assert.equal(r.body.now.kind, 'playlist'); assert.equal(r.body.now.video_id, ID(7));
