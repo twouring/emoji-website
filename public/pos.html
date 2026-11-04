@@ -669,7 +669,7 @@ async function renewToken(){
 }
 setInterval(renewToken, 3600e3);
 // 登出也清 sso.emoji.tw 的登入，否則平板上會被單一登入自動登回
-document.getElementById('p-logout').onclick = () => { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); if (!(globalThis.EmojiSSO && EmojiSSO.logout(location.origin + POS_BASE))) location.reload(); };
+document.getElementById('p-logout').onclick = () => { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); /* 登出一律回 pos.emoji.tw 首頁（選品牌）KK 11/4 */ if (!(globalThis.EmojiSSO && EmojiSSO.logout(location.origin + '/'))) location.replace('/'); };
 
 async function main(){
   try { const dv = await api('/pos-devices/' + encodeURIComponent(DEVICE_ID)); DEVICE_BOUND = !!dv.bound; } catch (e) {}

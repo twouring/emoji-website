@@ -175,3 +175,11 @@ test('sso-client logout：sso.emoji.tw 連不上（DNS／憑證未就緒）時�
   assert.deepEqual(await run(() => Promise.reject(new TypeError('TLS'))), ['https://pos.emoji.tw/3am']);
   assert.deepEqual(await run(() => Promise.resolve({})), ['https://sso.emoji.tw/logout?redirect=' + encodeURIComponent('https://pos.emoji.tw/3am')]);
 });
+
+test('POS 登出回 pos.emoji.tw 首頁（選品牌），不留在品牌頁（KK 11/4）', () => {
+  const p = read('public/pos.html');
+  const line = p.split('\n').find(l => l.includes("getElementById('p-logout').onclick"));
+  assert.match(line, /EmojiSSO\.logout\(location\.origin \+ '\/'\)/);
+  assert.match(line, /location\.replace\('\/'\)/);
+  assert.doesNotMatch(line, /location\.reload\(\)/);
+});
