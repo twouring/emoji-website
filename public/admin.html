@@ -3403,7 +3403,7 @@ async function main(){
     render(d);
     applyRoute();
   } catch(e){
-    if (String(e.message).includes('登入') || String(e.message).includes('401')) { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); return renderLogin(); }
+    if (String(e.message).includes('登入') || String(e.message).includes('401')) { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); token = null; if (globalThis.EmojiSSO && await EmojiSSO.silent(KEY)) return; return renderLogin(); }   // 本機 token 過期：先向 SSO 靜默換新
     // 已登入但沒有可管理的活動（多半是登錯帳號）：給登入鈕換帳號
     if (e.status === 403) return renderLogin('活動請到 App 管理。');
     app.innerHTML = `<p class="a-center">暫時無法連線：${esc(e.message)}<br><button class="btn btn--ghost btn-sm" style="margin-top:1rem" onclick="location.reload()">重新整理</button></p>`;

@@ -423,7 +423,7 @@ async function api(path, { method='GET', body, headers } = {}) {
     body: body ? JSON.stringify(body) : undefined,
   });
   let d={}; try{ d=await res.json(); }catch(e){}
-  if (res.status === 401 && token) { localStorage.removeItem(KEY); token = null; showLoginScreen('登入已過期，請重新登入。'); }
+  if (res.status === 401 && token) { localStorage.removeItem(KEY); token = null; if (!DEVICE_BOUND && globalThis.EmojiSSO && await EmojiSSO.silent(KEY)) throw Object.assign(new Error('重新登入中…'), {status:401}); showLoginScreen('登入已過期，請重新登入。'); }   // 未綁定裝置：先向 SSO 靜默換新
   if (!res.ok) throw Object.assign(new Error(d.error || ('伺服器錯誤（'+res.status+'）')), {status:res.status});
   return d;
 }
