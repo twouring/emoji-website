@@ -66,3 +66,14 @@ test('App 每個購買／預約畫面標明品牌：會籍＝等等空間、訂�
   assert.match(srv, /等等空間 Stay Square 會籍｜/, 'Stripe 會籍品名要寫品牌');
   assert.match(srv, /'言文字商店｜'/, 'Stripe 商店品名要寫品牌');
 });
+
+test('品牌館：首頁列出四個品牌，各有品牌頁；會員卡與點數共用', () => {
+  const m = fs.readFileSync(new URL('../public/m.html', import.meta.url), 'utf8');
+  for (const k of ['cafe', 'bar', 'stay', 'rest']) assert.match(m, new RegExp("\\{k:'" + k + "'"), k);
+  assert.match(m, /\$\{brandsSec\(\)\}/, '首頁要有品牌館');
+  assert.match(m, /function openBrand\(k\)/);
+  for (const k of ['brandsTitle', 'bMenu', 'bMine', 'bCard']) assert.equal((m.match(new RegExp(k + ':', 'g')) || []).length, 3, k + ' 三語');
+  for (const z of [...m.matchAll(/tag:\{zh:'([^']*)'/g)].map(x => x[1])) assert.ok(z.length <= 4, '品牌卡短類型中文 ≤4 字：' + z);
+  const srv = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+  assert.match(srv, /brand-sites\\\/assets\\\/\[\\w-\]\+-avatar\\\.webp\$/, 'app.emoji.tw 要能讀品牌頭像');
+});

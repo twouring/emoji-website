@@ -174,7 +174,7 @@ const isAppHost = req => APP_HOSTS.includes(String(req.hostname || '').toLowerCa
 // App 子站只提供 PWA 本身、API、登入與必要靜態檔；其餘頁面（活動、官網）一律回官網，避免兩個網域出現重複內容
 // /host、/host/<eventId>：會員在 App 主辦活動（列表／單場管理），同樣回 m.html 由前端路由
 // /e/<slug>：活動報名頁（規格 v2 §4.1：報名一律在 App），由下方 /e/:slug 路由回 m.html（可訪客瀏覽與報名）
-const APP_HOST_OWN = /^\/($|index\.html$|host($|\/)|e\/[^/]+\/?$|m-host\.js$|m-event\.js$|event-rich\.css$|m($|\/|\.webmanifest$|-sw\.js$|-icon-)|order\/?$|menu-lib\.js$|order-lib\.js$|song-picks\.js$|line-handoff\.js$|sso-client\.js$|event-push-sw\.js$|sfx\/|uploads\/|api\/|auth\/|vendor\/|favicon|logo\.png$|cis\/assets\/)/;
+const APP_HOST_OWN = /^\/($|index\.html$|host($|\/)|e\/[^/]+\/?$|m-host\.js$|m-event\.js$|event-rich\.css$|m($|\/|\.webmanifest$|-sw\.js$|-icon-)|order\/?$|menu-lib\.js$|order-lib\.js$|song-picks\.js$|line-handoff\.js$|sso-client\.js$|event-push-sw\.js$|sfx\/|uploads\/|api\/|auth\/|vendor\/|favicon|logo\.png$|cis\/assets\/|brand-sites\/assets\/[\w-]+-avatar\.webp$)/;
 // 會員 App 活動頁網址：APP_BASE/e/<slug>，可帶 lang（en/ja）與額外查詢字串（例：result=paid&s=…）；Stripe 的 {CHECKOUT_SESSION_ID} 佔位符不可編碼
 const appEventUrl = (slug, lang, extra) => {
   const qs = [['en', 'ja'].includes(lang) ? 'lang=' + lang : '', extra || ''].filter(Boolean).join('&');

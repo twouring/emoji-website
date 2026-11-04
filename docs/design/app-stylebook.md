@@ -30,7 +30,7 @@ App 自己的 `:root`（在 `m.html`），名稱比官網短，不要引用官�
 
 規則：
 
-- 新程式只用 `var(--token)`，不寫色碼。目前允許的固定色只有：LINE 綠 #06C755、Google 標誌四色、錯誤紅 #B3261E、主辦狀態膠囊與掃描結果的淡綠／淡黃／淡紅。要加新語意色，先改本表。
+- 新程式只用 `var(--token)`，不寫色碼。目前允許的固定色只有：LINE 綠 #06C755、Google 標誌四色、錯誤紅 #B3261E、主辦狀態膠囊與掃描結果的淡綠／淡黃／淡紅。品牌館 `.bp` 的四個品牌色（在咖啡 #984C37、三點水 #6B8FAB、等等空間 #2B4064、約書旅 #5A4632，依 cis.emoji.tw/brands）只用在品牌頁頂線，不當字色。要加新語意色，先改本表。
 - 黃色每個畫面只出現一處主要強調（`.show`、`.pill.on`、`.tag`、`.host-action.primary` 都算）。
 - 字級最小 1rem，含 small、按鈕、標籤（`test-member-pwa`、`test-login-screen` 會擋）。標題用 Noto Serif TC 700；點數、金額大字用 Cormorant Garamond＋`tabular-nums`。
 - 觸控區最小 44×44px；主要按鈕 52px；登入與出示卡片 56px。

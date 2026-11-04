@@ -44,7 +44,7 @@ test('App token 與文件表格一致', () => {
 });
 
 test('App 不新增色碼（新顏色先改 docs §2 再放進允許清單）', () => {
-  const allowed = new Set(['#06c755', '#1b1a17', '#1a1a1a', '#34a853', '#3a362e', '#3e681a', '#4285f4', '#5a5448', '#715800', '#e4e0d6', '#ea4335', '#f4f1ea', '#fbbc05', '#fbfaf6', '#ffde34', '#eaf5dc', '#eef6df', '#fee9e5', '#fff4c8', '#b3261e', '#fff', '#000', '#111', '#222']);
+  const allowed = new Set(['#06c755', '#1b1a17', '#1a1a1a', '#34a853', '#3a362e', '#3e681a', '#4285f4', '#5a5448', '#715800', '#e4e0d6', '#ea4335', '#f4f1ea', '#fbbc05', '#fbfaf6', '#ffde34', '#eaf5dc', '#eef6df', '#fee9e5', '#fff4c8', '#b3261e', '#fff', '#000', '#111', '#222', '#984c37', '#6b8fab', '#2b4064', '#5a4632']);
   for (const [f, src] of [['public/m.html', m], ['public/m-event.js', ev], ['public/m-host.js', read('public/m-host.js')]]) {
     const extra = [...new Set([...src.matchAll(/#[0-9a-f]{6}\b|#[0-9a-f]{3}\b(?![0-9a-f])/gi)].map(x => x[0].toLowerCase()))].filter(h => !allowed.has(h));
     assert.deepEqual(extra, [], f);
