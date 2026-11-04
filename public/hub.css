@@ -1,96 +1,118 @@
-/* 首頁「聚落入口」版型（2026-11-04）：理念 → 今天想做什麼 → 樓層導覽圖＋入口卡。
-   沿用 style.css token；子品牌色只用在入口卡頂線與樓層標，不當小字色。 */
-.hub-hero{padding:clamp(40px,7vw,88px) 0 clamp(28px,5vw,56px)}
-.hub-hero__brand{margin:0 0 1.1em;font-size:1rem;font-weight:500;letter-spacing:.14em;color:var(--muted);line-height:1.6}
-.hub-hero h1{font-family:var(--serif);font-weight:900;font-size:clamp(1.9rem,5.2vw,3.6rem);line-height:1.28;margin:0;max-width:16em}
-.hub-hero h1 em{font-style:normal}
-.hub-hero .lead{margin:22px 0 0;max-width:36em;font-size:clamp(1.02rem,1.6vw,1.15rem);line-height:1.85;color:var(--ink-soft)}
-.hub-pick{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:30px 0 0}
-.hub-pick__q{flex-basis:100%;font-weight:700;font-size:1rem;color:var(--ink)}
-.hub-pick a{display:inline-flex;align-items:center;min-height:44px;padding:0 18px;border:1px solid var(--ink);border-radius:999px;font-size:1rem;color:var(--ink);background:var(--card);text-decoration:none;transition:background .15s,color .15s}
-.hub-pick a:hover,.hub-pick a:focus-visible{background:var(--ink);color:var(--on-ink)}
-.hub-hero .hero__meta{margin-top:clamp(24px,4vw,40px)}
+/* 首頁「聚落」版型 v2（2026-11-04，KK 裁示）：商場／樂園式品牌導覽，導流到各品牌官網；不寫消費方式。
+   日系質感：紙與墨、留白、明體、細線、方角、直書。CIS：黃只出現在 h1 的 swash 底色（每屏一次）；
+   子品牌色只用在品牌標誌、色條與時間軸，不當小字色，也不與黃並置。公開文字一律 ≥1rem。 */
 
-.hub-idea{padding:clamp(48px,7vw,80px) 0;background:var(--paper-alt);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
-.hub-idea__steps{list-style:none;margin:28px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:22px;counter-reset:step}
-.hub-idea__steps li{counter-increment:step;padding:22px 22px 24px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius)}
-.hub-idea__steps li::before{content:counter(step,decimal-leading-zero);display:block;font-family:var(--latin);font-size:1.6rem;line-height:1;color:var(--muted);margin-bottom:12px}
-.hub-idea__steps b{display:block;font-family:var(--serif);font-size:1.25rem;margin-bottom:6px}
-.hub-idea__steps span{display:block;color:var(--ink-soft);line-height:1.75}
+.vl-eye{display:inline-flex;align-items:center;gap:.8em;font-size:1rem;font-weight:500;letter-spacing:.2em;color:var(--muted)}
+.vl-eye::before{content:"";width:32px;height:1px;background:var(--ink)}
+.vl-head{max-width:40em}
+.vl-head h2{margin:18px 0 0;font-family:var(--serif);font-weight:500;font-size:clamp(1.6rem,3.4vw,2.5rem);line-height:1.45;letter-spacing:.04em}
+.vl-head p{margin:16px 0 0;color:var(--ink-soft);line-height:1.95;text-wrap:pretty}
 
-.hub-gates{padding:clamp(56px,8vw,96px) 0}
-.hub-layout{display:grid;grid-template-columns:minmax(260px,.38fr) 1fr;gap:clamp(24px,4vw,48px);align-items:start;margin-top:28px}
-.hub-map__list{list-style:none;margin:0;padding:0}
-.hub-map{min-width:0;margin:0;padding:14px;border:1px solid var(--ink);border-radius:var(--radius);background:var(--card);position:sticky;top:96px}
-.hub-map li{display:flex;gap:8px;min-width:0;border-top:1px dashed var(--line)}
-.hub-map li:first-child{border-top:0}
-.hub-map a,.hub-map__annex{flex:1;min-width:0;display:grid;grid-template-columns:44px minmax(0,1fr);align-items:center;column-gap:10px;min-height:56px;padding:8px 6px;color:var(--ink);text-decoration:none;border-radius:var(--radius-sm)}
-.hub-map a:hover,.hub-map a:focus-visible{background:var(--paper-alt)}
-.hub-map__lv{grid-row:span 2;display:grid;place-items:center;height:36px;border-radius:var(--radius-sm);font-family:var(--latin);font-weight:600;font-size:1.05rem;color:var(--on-ink);background:var(--g,var(--ink))}
-.hub-map b{font-family:var(--serif);font-size:1.05rem;line-height:1.3}
-.hub-map small{font-size:1rem;color:var(--muted);line-height:1.45}
-.hub-map__annex{color:var(--muted)}
-.hub-map__annex .hub-map__lv{background:var(--paper-deep);color:var(--ink)}
-.hub-map__split a+a{grid-template-columns:1fr;border-left:1px dashed var(--line);padding-left:12px}
+/* ===== HERO ===== */
+.vl-hero{padding:clamp(48px,9vw,120px) 0 clamp(48px,7vw,96px);border-bottom:1px solid var(--line)}
+.vl-hero__grid{display:grid;grid-template-columns:auto minmax(0,1.25fr) minmax(280px,.75fr);gap:clamp(24px,5vw,72px);align-items:start}
+.vl-tate{margin:0;writing-mode:vertical-rl;font-family:var(--serif);font-size:1rem;letter-spacing:.5em;color:var(--muted);padding-left:clamp(12px,2vw,24px);border-left:1px solid var(--line);line-height:1.6;white-space:nowrap}
+.vl-hero__brand{margin:0 0 1.4em;font-size:1rem;font-weight:500;letter-spacing:.18em;color:var(--muted);line-height:1.6}
+.vl-hero h1{margin:0;font-family:var(--serif);font-weight:500;font-size:clamp(2rem,5.4vw,3.9rem);line-height:1.4;letter-spacing:.04em;word-break:auto-phrase}
+.vl-hero__lead{margin:28px 0 0;max-width:30em;font-size:clamp(1.02rem,1.5vw,1.12rem);line-height:2.05;color:var(--ink-soft);text-wrap:pretty}
+.vl-hero__loc{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline;margin:32px 0 0;padding-top:18px;border-top:1px solid var(--line);font-size:1rem;color:var(--muted);line-height:1.7;max-width:34em}
+.vl-hero__loc a{color:var(--ink);text-decoration:underline;text-underline-offset:4px;white-space:nowrap}
 
-.gate-grid{display:grid;gap:22px}
-.gate{--g:var(--ink);display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);background:var(--card);border:1px solid var(--line);border-top:4px solid var(--g);border-radius:var(--radius);overflow:hidden;scroll-margin-top:96px}
-.gate--cafe,.hub-map .f-cafe{--g:#984C37}
-.gate--bar,.hub-map .f-bar{--g:#6B8FAB}
-.gate--book,.hub-map .f-book{--g:#3A362E}
-.gate--stay,.hub-map .f-stay{--g:#2B4064}
-.gate__media{position:relative;display:block;min-height:100%}
-.gate__media img{width:100%;height:100%;min-height:220px;object-fit:cover;display:block}
-.gate__tag{position:absolute;left:10px;bottom:10px;padding:2px 10px;border-radius:999px;background:rgba(251,250,246,.92);font-size:1rem;color:var(--ink-soft)}
-.gate__body{position:relative;padding:22px 24px 24px;border-left:1px dashed var(--line)}
-.gate__body::before,.gate__body::after{content:"";position:absolute;left:-9px;width:16px;height:16px;border-radius:50%;background:var(--paper);border:1px solid var(--line)}
-.gate__body::before{top:-9px}
-.gate__body::after{bottom:-9px}
-.gate__no{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 14px;margin:0 0 10px;font-size:1rem;color:var(--muted)}
-.gate__no span:first-child{font-family:var(--latin);font-weight:600;letter-spacing:.08em;color:var(--ink)}
-.gate h3{font-family:var(--serif);font-size:clamp(1.35rem,2.4vw,1.7rem);margin:0 0 8px;line-height:1.3}
-.gate h3 .en{display:inline-block;margin-left:.4em;font-family:var(--latin);font-weight:500;font-size:1rem;color:var(--muted)}
-.gate p{margin:0;color:var(--ink-soft);line-height:1.8}
-.gate__actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;margin-top:18px}
-.gate__actions a:not(.btn){min-height:44px;display:inline-flex;align-items:center;text-decoration:underline;text-underline-offset:3px}
+/* 聚落案內（樓層指南板風格，但只寫品牌、不寫樓層） */
+.vl-dir{border:1px solid var(--ink);background:var(--card)}
+.vl-dir__label{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:0;padding:12px 18px;background:var(--ink);color:var(--on-ink);font-family:var(--serif);font-size:1rem;letter-spacing:.3em}
+.vl-dir__label span{font-family:var(--latin);letter-spacing:.12em;color:var(--on-ink-soft)}
+.vl-dir ol{list-style:none;margin:0;padding:0}
+.vl-dir li+li{border-top:1px solid var(--line)}
+.vl-dir a{display:grid;grid-template-columns:2.4em 6px minmax(0,1fr);grid-template-rows:auto auto;column-gap:14px;align-items:center;padding:14px 18px;color:var(--ink);text-decoration:none;transition:background .2s}
+.vl-dir a:hover,.vl-dir a:focus-visible{background:var(--paper-alt)}
+.vl-dir__no{grid-row:span 2;font-family:var(--latin);font-weight:600;font-size:1.15rem;color:var(--muted);font-variant-numeric:lining-nums tabular-nums}
+.vl-dir i{grid-row:span 2;align-self:stretch;background:var(--brand)}
+.vl-dir b{font-family:var(--serif);font-weight:500;font-size:1.12rem;line-height:1.4}
+.vl-dir b span,.vl-brand h3 span,.vl-day b span{margin-left:.6em;font-family:var(--latin);font-weight:500;font-size:1rem;color:var(--muted);letter-spacing:.04em}
+.vl-dir small{font-size:1rem;color:var(--muted);line-height:1.5}
 
-@media (max-width:900px){
-  .hub-layout{grid-template-columns:minmax(0,1fr)}
-  .hub-map{position:static}
-  .hub-idea__steps{grid-template-columns:1fr}
+/* ===== 進駐品牌 ===== */
+.vl-tenants{padding:clamp(64px,9vw,128px) 0}
+.vl-brands{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(40px,5vw,64px) clamp(24px,4vw,48px);margin-top:clamp(36px,5vw,56px)}
+.vl-brand{display:flex;flex-direction:column;scroll-margin-top:96px;border-top:3px solid var(--brand)}
+.vl-brand:nth-child(even){margin-top:clamp(0px,6vw,88px)}
+.vl-brand__media{position:relative;display:block;overflow:hidden;aspect-ratio:3/2;background:var(--paper-deep)}
+.vl-brand__media img,.vl-brand__media img[width][height]{width:100%;height:100%;object-fit:cover;transition:transform .8s cubic-bezier(.2,.7,.2,1)}
+.vl-brand:hover .vl-brand__media img{transform:scale(1.03)}
+.vl-brand__tag{position:absolute;left:0;bottom:0;padding:2px 10px;background:var(--paper);color:var(--ink-soft);font-size:1rem;line-height:1.6}
+.vl-brand__body{position:relative;display:flex;flex-direction:column;flex:1;padding:26px 0 0}
+.vl-brand__logo{position:absolute;top:-60px;right:16px;width:120px;height:120px;object-fit:contain;padding:6px;background:var(--card);border:1px solid var(--line)}
+.vl-brand__meta{display:flex;align-items:baseline;gap:14px;margin:0;padding-right:140px;font-size:1rem;color:var(--muted);letter-spacing:.06em}
+.vl-brand__no{font-family:var(--latin);font-weight:600;font-size:1.15rem;color:var(--ink);font-variant-numeric:lining-nums tabular-nums}
+.vl-brand h3{margin:10px 0 0;font-family:var(--serif);font-weight:500;font-size:clamp(1.6rem,2.8vw,2.1rem);line-height:1.35;letter-spacing:.06em}
+.vl-brand__copy{margin:14px 0 0;color:var(--ink-soft);line-height:1.95;text-wrap:pretty}
+.vl-brand dl{display:flex;gap:14px;margin:18px 0 0;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-size:1rem}
+.vl-brand dt{color:var(--muted);letter-spacing:.12em}
+.vl-brand dd{margin:0;color:var(--ink);font-variant-numeric:lining-nums tabular-nums}
+.vl-brand__go{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:auto;padding:18px 0 4px;color:var(--ink);text-decoration:none}
+.vl-brand dl+.vl-brand__go{margin-top:6px}
+.vl-brand__go span{display:flex;flex-direction:column;font-family:var(--serif);font-size:1.08rem;line-height:1.5}
+.vl-brand__go small{font-family:var(--latin);font-size:1rem;color:var(--muted);letter-spacing:.06em}
+.vl-brand__go svg{flex:none;width:44px;height:44px;padding:11px;border:1px solid var(--ink);transition:background .2s,color .2s}
+.vl-brand__go:hover svg,.vl-brand__go:focus-visible svg{background:var(--ink);color:var(--on-ink)}
+.vl-brand__go:hover span{text-decoration:underline;text-underline-offset:4px}
+
+/* ===== 聚落的一日（營業時間軸，08 → 翌日 08） ===== */
+.vl-dayband{padding:clamp(64px,9vw,120px) 0;background:var(--paper-alt);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.vl-day{--label:13em;margin-top:clamp(36px,5vw,56px)}
+.vl-day__axis{position:relative;height:1.8em;margin-left:var(--label);margin-right:12em;border-bottom:1px solid var(--ink)}
+.vl-day__axis span:last-child{transform:translateX(-100%)}
+.vl-day__axis span:first-child{transform:none}
+.vl-day__axis span{position:absolute;left:calc(var(--h) / 24 * 100%);bottom:6px;transform:translateX(-50%);white-space:nowrap;font-family:var(--latin);font-weight:600;font-size:1rem;color:var(--muted);font-variant-numeric:lining-nums tabular-nums}
+.vl-day ol{list-style:none;margin:0;padding:0}
+.vl-day li{display:grid;grid-template-columns:var(--label) minmax(0,1fr) 12em;align-items:center;min-height:64px;border-bottom:1px solid var(--line)}
+.vl-day b{font-family:var(--serif);font-weight:500;font-size:1.08rem}
+.vl-day__track{position:relative;height:100%;min-height:60px;background:repeating-linear-gradient(90deg,var(--line) 0 1px,transparent 1px calc(100% / 24))}
+.vl-day__track i{position:absolute;top:50%;height:16px;transform:translateY(-50%);left:calc(var(--s) / 24 * 100%);width:calc((var(--e) - var(--s)) / 24 * 100%);background:var(--brand)}
+.vl-day small{padding-left:20px;font-size:1rem;color:var(--ink-soft);font-variant-numeric:lining-nums tabular-nums;white-space:nowrap}
+.vl-day__tz{margin:12px 0 0;text-align:right;font-size:1rem;color:var(--muted)}
+
+/* ===== 聚落理念 ===== */
+.vl-idea{padding:clamp(64px,9vw,120px) 0}
+.vl-idea__steps{list-style:none;margin:clamp(36px,5vw,56px) 0 0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));counter-reset:step;border-top:1px solid var(--ink)}
+.vl-idea__steps li{counter-increment:step;padding:28px clamp(16px,2.4vw,32px) 8px 0}
+.vl-idea__steps li+li{padding-left:clamp(16px,2.4vw,32px);border-left:1px solid var(--line)}
+.vl-idea__steps li::before{content:counter(step,decimal-leading-zero);display:block;margin-bottom:18px;font-family:var(--latin);font-weight:500;font-size:1.6rem;line-height:1;color:var(--muted)}
+.vl-idea__steps b{display:block;font-family:var(--serif);font-weight:500;font-size:1.4rem;letter-spacing:.1em}
+.vl-idea__steps span{display:block;margin-top:10px;color:var(--ink-soft);line-height:1.95;text-wrap:pretty}
+
+/* ===== 聚落裡的事 ===== */
+.vl-more{padding:0 0 clamp(64px,9vw,120px)}
+.vl-more__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin-top:clamp(28px,4vw,44px);border:1px solid var(--ink)}
+.vl-more__item{position:relative;display:flex;flex-direction:column;gap:8px;min-height:200px;padding:26px 26px 64px;color:var(--ink);text-decoration:none;background:var(--card);transition:background .2s}
+.vl-more__item+.vl-more__item{border-left:1px solid var(--ink)}
+.vl-more__item:hover,.vl-more__item:focus-visible{background:var(--paper-alt)}
+.vl-more__en{font-family:var(--latin);font-size:1rem;letter-spacing:.14em;color:var(--muted)}
+.vl-more__item b{font-family:var(--serif);font-weight:500;font-size:1.35rem;letter-spacing:.06em}
+.vl-more__item span:not(.vl-more__en){color:var(--ink-soft);line-height:1.85}
+.vl-more__item svg{position:absolute;right:22px;bottom:22px;width:28px;height:28px}
+
+@media (max-width:1000px){
+  .vl-hero__grid{grid-template-columns:auto minmax(0,1fr)}
+  .vl-dir{grid-column:1/-1}
+  .vl-day{--label:9.5em}
+  .vl-day__axis{margin-right:0}
+  .vl-day li{grid-template-columns:var(--label) minmax(0,1fr)}
+  .vl-day small{grid-column:2;padding:0 0 10px;white-space:normal}
 }
-@media (max-width:640px){
-  .gate{grid-template-columns:1fr}
-  .gate__media img{min-height:0;aspect-ratio:16/9}
-  .gate__body{border-left:0;border-top:1px dashed var(--line)}
-  .gate__body::before{top:-9px;left:-9px}
-  .gate__body::after{top:-9px;bottom:auto;left:auto;right:-9px}
-  .hub-pick a{padding:0 14px}
+@media (max-width:760px){
+  .vl-hero__grid{grid-template-columns:minmax(0,1fr)}
+  .vl-tate{display:none}
+  .vl-brands{grid-template-columns:minmax(0,1fr)}
+  .vl-brand:nth-child(even){margin-top:0}
+  .vl-brand__logo{width:84px;height:84px;top:-42px;right:12px;padding:8px}
+  .vl-brand__meta{padding-right:100px}
+  .vl-idea__steps,.vl-more__grid{grid-template-columns:minmax(0,1fr)}
+  .vl-idea__steps li+li{padding-left:0;border-left:0;border-top:1px solid var(--line)}
+  .vl-more__item+.vl-more__item{border-left:0;border-top:1px solid var(--ink)}
+  .vl-more__item{min-height:0}
+  .vl-day{--label:6.5em}
+  .vl-day b span{display:block;margin-left:0}
 }
-
-/* 樂園導覽感：每個入口配 moji 角色（CIS 素材），地圖樓層色塊＝品牌色 */
-.gate__body{padding-right:96px}
-.gate__moji{position:absolute;top:18px;right:18px;width:64px;height:64px;border:1px solid var(--line);border-radius:50%;background:var(--paper) center/50px no-repeat}
-.gate--cafe .gate__moji{background-image:url('/cis/assets/moji/moji-coffee.svg')}
-.gate--bar .gate__moji{background-image:url('/cis/assets/moji/moji-night.svg')}
-.gate--book .gate__moji{background-image:url('/cis/assets/moji/moji-rest.svg')}
-.gate--stay .gate__moji{background-image:url('/cis/assets/moji/moji-remote.svg')}
-.hub-map__start{display:flex;align-items:center;gap:10px;margin:10px 0 0;padding:10px 6px 2px;border-top:1px solid var(--ink);font-size:1rem;color:var(--ink-soft)}
-.hub-map__start i{width:28px;height:28px;flex:none;background:url('/cis/assets/moji/moji-footprint.svg') center/contain no-repeat}
-@media (max-width:640px){.gate__body{padding-right:24px;padding-top:26px}.gate__moji{top:-34px;right:14px;width:56px;height:56px;background-size:44px}}
-
-/* 入口編號做成票根：品牌色底、大號數字 */
-.gate__no{align-items:center}
-.gate__num{display:inline-flex;align-items:baseline;gap:6px;padding:4px 12px;border-radius:var(--radius-sm);background:var(--g);color:var(--on-ink)!important;font-family:var(--latin);letter-spacing:.12em}
-.gate__num b{font-size:1.6rem;line-height:1;letter-spacing:0}
-.gate--bar .gate__num{color:var(--ink)!important}
-.hub-map .f-bar .hub-map__lv{color:var(--ink)}
-.gate__body::before,.gate__body::after{border-color:var(--ink)}
-.hub-idea .sec-head p,.hub-gates .sec-head p,.hub-idea__steps span,.gate p{text-wrap:pretty}
-
-/* 圖片填滿左欄；數字用等高字 */
-.gate__media{overflow:hidden;background:var(--paper-deep)}
-.gate__media img[width][height]{position:absolute;inset:0;width:100%;height:100%;min-height:0;object-fit:cover}
-.gate__num,.hub-map__lv{font-variant-numeric:lining-nums tabular-nums}
-.hub-map__start span{min-width:0}
-@media (max-width:640px){.gate__media{aspect-ratio:16/9}.gate__media img{position:absolute;aspect-ratio:auto}}
+@media (prefers-reduced-motion:reduce){.vl-brand__media img,.vl-brand__go svg{transition:none}.vl-brand:hover .vl-brand__media img{transform:none}}

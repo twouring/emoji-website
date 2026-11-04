@@ -165,20 +165,24 @@ test('resolvePublicHtml resolves known pages', () => {
   assert.equal(resolvePublicHtml(PUB, '/fellow'), null, '創始會員頁已下架');
 });
 
-test('header partials prioritize visitor tasks and keep brand material in the footer', () => {
+test('header and footer partials guide to brand sites and never show 消費方式 (KK 2026-11-04)', () => {
   const expect = {
-    zh: { label: '消費方式', prefix: '' },
-    en: { label: 'Membership', prefix: '/en' },
-    ja: { label: '会員プラン', prefix: '/ja' },
+    zh: { label: '進駐品牌', prefix: '' },
+    en: { label: 'Brands', prefix: '/en' },
+    ja: { label: '入居ブランド', prefix: '/ja' },
   };
   for (const lang of ['zh', 'en', 'ja']) {
     const h = fs.readFileSync(path.join(__dirname, '..', 'views', 'partials', `header-${lang}.html`), 'utf8');
+    const f = fs.readFileSync(path.join(__dirname, '..', 'views', 'partials', `footer-${lang}.html`), 'utf8');
     assert.doesNotMatch(h, /href="[^"]*\/menu/);
     assert.doesNotMatch(h, /#floors/);
     assert.doesNotMatch(h, /\/cis\/|Programs|聚落計畫|プログラム/);
-    assert.match(h, /NAV_SYSTEM_CURRENT/);
-    assert.match(h, new RegExp(`href="${expect[lang].prefix}/system"[^>]*>\\s*${expect[lang].label}`));
-    const positions = ['about', 'system', 'events', 'access'].map(slug => h.indexOf(`href="${expect[lang].prefix}/${slug}"`));
+    for (const html of [h, f]) {
+      assert.doesNotMatch(html, /href="[^"]*\/system"|消費方式|>Membership<|会員プラン/);
+      for (const host of ['atcafe', '3am', 'staysquare', 'restbook']) assert.match(html, new RegExp(`href="https://${host}\\.emoji\\.tw${expect[lang].prefix}"`), `${lang} ${host}`);
+    }
+    assert.match(h, new RegExp(`href="${expect[lang].prefix}/#brands"[^>]*>\\s*${expect[lang].label}`));
+    const positions = [`${expect[lang].prefix}/about"`, `${expect[lang].prefix}/#brands"`, `${expect[lang].prefix}/events"`, `${expect[lang].prefix}/access"`].map(href => h.indexOf(`href="${href}`));
     assert.ok(positions.every((position, index) => position >= 0 && (!index || position > positions[index - 1])), `${lang} nav order`);
   }
 });
@@ -382,36 +386,29 @@ test('homepages no longer ship #about section', () => {
   }
 });
 
-test('homepage is a hub entrance: idea, task picker, floor map and four gates', () => {
-  for (const rel of ['index.html', path.join('en', 'index.html'), path.join('ja', 'index.html')]) {
+test('homepage is a village directory: hero, four brand cards linking out to each brand site, no consumption info (KK 2026-11-04)', () => {
+  const site = { 'index.html': '', [path.join('en', 'index.html')]: '/en', [path.join('ja', 'index.html')]: '/ja' };
+  for (const [rel, pre] of Object.entries(site)) {
     const html = fs.readFileSync(path.join(PUB, rel), 'utf8');
-    assert.match(html, /id="floors"/);
-    // 2026-11-04 首頁改「聚落入口」：理念＋今天想做什麼＋樓層導覽圖＋四個入口（1F 在咖啡／三點水、2F 約書旅、3F 以上等等空間）
-    assert.match(html, /id="idea"/);
-    assert.match(html, /class="hub-pick"/);
-    assert.match(html, /class="hub-map"/);
-    assert.equal((html.match(/class="gate gate--[a-z]+ reveal"/g) || []).length, 4);
-    for (const id of ['cafe', 'bar', 'book', 'stay']) assert.match(html, new RegExp('id="gate-' + id + '"'));
-    assert.match(html, /約書旅/);
-    assert.match(html, /Rest Book/);
     assert.match(html, /<link rel="stylesheet" href="\/hub\.css">/);
+    for (const id of ['top', 'brands', 'day', 'idea', 'community']) assert.match(html, new RegExp('id="' + id + '"'), rel + ' #' + id);
+    assert.match(html, /class="vl-dir"/);
+    assert.equal((html.match(/<article class="vl-brand reveal"/g) || []).length, 4);
+    // CIS 順序：在咖啡 → 三點水 → 等等空間 → 約書旅，各自導到品牌官網並用品牌主標誌
+    const order = ['atcafe', '3am', 'staysquare', 'restbook'].map(h => html.indexOf(`class="vl-brand__go" href="https://${h}.emoji.tw${pre}"`));
+    assert.ok(order.every((n, i) => n > 0 && (!i || n > order[i - 1])), rel + ' brand order');
+    for (const slug of ['at-cafe', '3am', 'stay-square', 'rest-book']) assert.match(html, new RegExp(`/cis/brands/assets/${slug}/preview/logo-01\\.webp`));
     assert.match(html, /assets\/space\/1f-concept\.jpg/);
     assert.match(html, /assets\/space\/2f-concept\.jpg/);
     assert.match(html, /assets\/space\/3f-concept\.jpg/);
-    assert.match(html, /\/system/);
-    assert.match(html, /\/space/);
-    assert.match(html, /\/events/);
+    assert.match(html, new RegExp(`href="${pre}/events"`));
+    // 官網不寫任何消費方式：價格、會籍方案、低消、場地費、Offer
+    assert.doesNotMatch(html, /NT\$|\/system|makesOffer|"Offer"|priceRange|會員方案|會籍|單日會|月會員|会員プラン|Membership|membership|低消|場地費|包場|貸切|buyout/, rel);
+    // 子品牌色不與母品牌黃並置：黃只用在 h1 swash
+    const hub = html.slice(html.indexOf('<!-- HUB:START'), html.indexOf('<!-- HUB:END'));
+    assert.equal((hub.match(/class="swash"/g) || []).length, 1, rel + ' one swash in the hub block');
+    assert.doesNotMatch(html, /#FFDE34/i);
   }
-});
-
-test('homepage Offer urls point to /system', () => {
-  const zh = fs.readFileSync(path.join(PUB, 'index.html'), 'utf8');
-  assert.match(zh, /emoji\.tw\/system"/);
-  assert.doesNotMatch(zh, /emoji\.tw\/#floors"/);
-  const en = fs.readFileSync(path.join(PUB, 'en', 'index.html'), 'utf8');
-  assert.match(en, /emoji\.tw\/en\/system"/);
-  const ja = fs.readFileSync(path.join(PUB, 'ja', 'index.html'), 'utf8');
-  assert.match(ja, /emoji\.tw\/ja\/system"/);
 });
 
 test('sitemap includes about locales', () => {
