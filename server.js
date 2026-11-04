@@ -55,7 +55,8 @@ const posInventory=require('./lib/pos-inventory');
 const posPaymentMethods=require('./lib/pos-payment-methods');
 const eventQuestions = require('./lib/event-questions');
 const { eventSlug, normalizeEventInput, localizeEvent, normalizeAttribution } = require('./lib/events');
-const { normalizeEventApplication, safeHttpUrl, applicationDeposit, approvalVenueFee, venueLabel, venuesOfLocation } = require('./lib/event-applications');
+const { zoneSlots: zoneSlotsOf } = require('./lib/event-applications');
+const { normalizeEventApplication, safeHttpUrl, applicationDeposit, approvalVenueFee, venueLabel, applicationVenueText, venuesOfLocation } = require('./lib/event-applications');
 const venueFees = require('./lib/venue-fees');
 const { sendMail, sendMailQuietly, NOTIFY_EMAIL } = require('./lib/mail');
 const { PLAN_PRICE_TWD } = require('./lib/plans');
@@ -685,6 +686,8 @@ async function migrate() {
     ADD COLUMN IF NOT EXISTS registration_url TEXT NOT NULL DEFAULT ''`);
   // 會員活動場地費與退費（規格 v2 §4.6–§4.8）：deposit_twd 改存「主辦人應付場地費」（私人＝送件時定額；公開外部售票＝審核通過時設定 150×人數）。
   // refund_policy 同步寫入 events.registration_settings.refund_policy；source_url 為匯入來源網址（選填）。
+  // 等等空間分區包場（staysquare.emoji.tw）：A–E 單區或組合，NULL＝舊式依人數級距
+  await q(`ALTER TABLE event_applications ADD COLUMN IF NOT EXISTS zone TEXT`);
   await q(`ALTER TABLE event_applications ADD COLUMN IF NOT EXISTS refund_policy TEXT NOT NULL DEFAULT 'accept',
     ADD COLUMN IF NOT EXISTS source_url TEXT NOT NULL DEFAULT ''`);
   // 每筆報名／加購內含的場地茶飲費（元，150×張數；平台自建活動為 0）與參加者自行退票扣下的 10% 手續費（元）
@@ -1390,7 +1393,7 @@ const PLAN_LABEL = { day_4h: '單日 4 小時', day_12h: '單日 12 小時', mon
 const fmtTaipei = d => d ? new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(d)) : '';
 const fmtTaipeiDate = d => d ? new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(d)) : '';
 const appKind = a => a.kind === 'business' ? '企業包場' : '社群活動';
-const appVenue = a => venueLabel(a.venue);
+const appVenue = a => applicationVenueText(a);
 async function userContact(userId) {
   return (await q(`SELECT name,email FROM users WHERE id=$1`, [userId])).rows[0] || null;
 }
@@ -2750,10 +2753,11 @@ app.delete('/api/admin/updates/:id', auth, adminOnly, requireDb, wrap(async (req
 
 /* ---- 場地與活動統一申請，通過後建立對應活動 ---- */
 const APPLICATION_FIELDS = `id,user_id,kind,venue,visibility,registration_mode,registration_url,event_id,community_name,contact_name,contact_email,contact_phone,
-  title,description,starts_at,ends_at,attendees,requirements,status,review_note,created_at,reviewed_at,deposit_twd,deposit_paid_at,refund_policy,source_url`;
+  title,description,starts_at,ends_at,attendees,requirements,status,review_note,created_at,reviewed_at,deposit_twd,deposit_paid_at,refund_policy,source_url,zone`;
 
 /** 申請的場地費試算（顯示用）：舊申請沒有 visibility 時視為公開外部。 */
 function applicationVenueQuote(a) {
+  if (a.zone) return { ...venueFees.quoteZoneFee({ zone: a.zone, slots: zoneSlotsOf(a) }), fee_twd: a.deposit_twd, payer: 'organizer', due: 'submission' };
   return venueFees.quoteVenueFee({ venue: a.venue, visibility: a.visibility || 'public', attendees: Number(a.attendees), registration_mode: a.registration_mode === 'native' ? 'native' : 'external' });
 }
 
@@ -2774,6 +2778,8 @@ app.post('/api/event-applications', auth, requireDb, wrap(async (req, res) => {
   const v = parsed.value;
   if(v.status==='已取消')return res.status(400).json({error:'請使用取消活動功能，以關閉待付款結帳。'});
   const hash = crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex');
+  // 分區包場：E 會議室會員免費，以送出當下的有效會籍判定（交易外先查，避免交易中另開連線）
+  const zoneMember = v.zone ? (await memberAccessFor(req.auth.sub)).active : false;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -2804,10 +2810,11 @@ app.post('/api/event-applications', auth, requireDb, wrap(async (req, res) => {
     const application = (await client.query(
       `INSERT INTO event_applications
        (id,user_id,request_id,request_hash,community_name,contact_name,contact_email,contact_phone,
-        title,description,starts_at,ends_at,attendees,requirements,kind,venue,visibility,registration_mode,registration_url,deposit_twd,refund_policy,source_url)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) RETURNING ${APPLICATION_FIELDS}`,
+        title,description,starts_at,ends_at,attendees,requirements,kind,venue,visibility,registration_mode,registration_url,deposit_twd,refund_policy,source_url,zone)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23) RETURNING ${APPLICATION_FIELDS}`,
       [uid('ea_'),req.auth.sub,requestId,hash,v.community_name,v.contact_name,v.contact_email,v.contact_phone,
-        v.title,v.description,v.starts_at,v.ends_at,v.attendees,v.requirements,v.kind,v.venue,v.visibility||null,v.registration_mode||null,v.registration_url||'',applicationDeposit(v),v.refund_policy||'accept',v.source_url||''])).rows[0];
+        v.title,v.description,v.starts_at,v.ends_at,v.attendees,v.requirements,v.kind,v.venue,v.visibility||null,v.registration_mode||null,v.registration_url||'',
+        applicationDeposit(v,{member:zoneMember}),v.refund_policy||'accept',v.source_url||'',v.zone||null])).rows[0];
     // 收件確認與狀態同一交易寫入佇列：申請成立就一定有對應通知，寄送由背景工作保證完成。
     await createApplicationEvent(client, application);
     const update = await queueApplicationUpdate(client, { application, kind: 'submitted', actor: req.auth.sub });
@@ -2835,15 +2842,15 @@ async function fulfillApplicationDeposit(session) {
 
 app.post('/api/event-applications/:id/deposit/checkout', auth, requireDb, wrap(async (req, res) => {
   if (!stripe) return res.status(503).json({ error: '線上付款尚未開通，請來信 us@emoji.tw 安排場地費付款。' });
-  const a = (await q(`SELECT id,title,status,visibility,deposit_twd,deposit_paid_at,contact_email FROM event_applications WHERE id=$1 AND user_id=$2`, [req.params.id, req.auth.sub])).rows[0];
+  const a = (await q(`SELECT id,title,status,visibility,deposit_twd,deposit_paid_at,contact_email,zone FROM event_applications WHERE id=$1 AND user_id=$2`, [req.params.id, req.auth.sub])).rows[0];
   if (!a) return res.status(404).json({ error: '找不到這筆申請。' });
   if (!a.deposit_twd || a.deposit_paid_at || a.status === 'rejected') return res.status(409).json({ error: '這筆申請目前不需要支付場地費。' });
   const base = ['en','ja'].includes(req.body?.lang) ? '/' + req.body.lang : '';
   const session = await stripe.checkout.sessions.create({
     mode: 'payment', payment_method_types: ['card'], customer_email: a.contact_email,
-    line_items: [{ price_data: { currency: 'twd', product_data: { name: `${a.visibility === 'private' ? '言文字包場活動場地費' : '言文字場地茶飲費'}｜${a.title}`.slice(0, 250) }, unit_amount: a.deposit_twd * 100 }, quantity: 1 }],
-    success_url: `${SITE_BASE}${base}/events?apply=1&deposit_paid={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${SITE_BASE}${base}/events?apply=1`,
+    line_items: [{ price_data: { currency: 'twd', product_data: { name: `${a.zone ? '等等空間包場場地費' : a.visibility === 'private' ? '言文字包場活動場地費' : '言文字場地茶飲費'}｜${a.title}`.slice(0, 250) }, unit_amount: a.deposit_twd * 100 }, quantity: 1 }],
+    success_url: brandReturnBase(req.body) ? `${brandReturnBase(req.body)}?deposit_paid={CHECKOUT_SESSION_ID}` : `${SITE_BASE}${base}/events?apply=1&deposit_paid={CHECKOUT_SESSION_ID}`,
+    cancel_url: brandReturnBase(req.body) ? `${brandReturnBase(req.body)}?deposit_canceled=1` : `${SITE_BASE}${base}/events?apply=1`,
     metadata: { kind: 'application-deposit', application_id: a.id, user_id: req.auth.sub },
   });
   res.json({ url: session.url });
@@ -5545,6 +5552,24 @@ app.post('/api/me/profile', auth, requireDb, wrap(async (req, res) => {
   res.json({ ok: true, me: row });
 }));
 
+/** 結帳完成要回到的子品牌站（body.return_host 須為已知子品牌網域、在 WEB_ORIGINS 內）；否則回 null 走原本的 App／官網。 */
+function brandReturnBase(body) {
+  const host = String(body?.return_host || '').toLowerCase();
+  if (!BRAND_HOSTS[host] || !WEB_ORIGINS.includes('https://' + host)) return null;
+  return 'https://' + host + (['en', 'ja'].includes(body?.lang) ? '/' + body.lang : '/');
+}
+// 會員摘要（子品牌站登入後顯示姓名與會籍狀態用；不含點數與活動）
+app.get('/api/me/summary', auth, requireDb, wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  res.set('Cache-Control', 'no-store');
+  const me = (await q('SELECT name,email FROM users WHERE id=$1', [req.auth.sub])).rows[0];
+  if (!me) return res.status(401).json({ error: '帳號不存在，請重新登入。' });
+  const access = await memberAccessFor(req.auth.sub);
+  const plan = e => ({ plan: e.plan, ends_at: e.ends_at || null });
+  res.json({ name: me.name || '', email: me.email || '', active: !!access.active,
+    plans: (access.activeEntitlements || []).map(plan), pending: (access.pending || []).map(plan), promo_open: promoOpen() });
+}));
+
 app.post('/api/me/plans/checkout', auth, requireDb, wrap(async (req, res) => {
   if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
   if (!stripe) return res.status(503).json({ error: '購買功能尚未開通（未設定 Stripe）。' });
@@ -5565,8 +5590,8 @@ app.post('/api/me/plans/checkout', auth, requireDb, wrap(async (req, res) => {
       quantity: 1,
     }],
     // 付款完成／取消都回會員 App（App 讀 ?plan_paid=1&s= 後向 /api/me/plans/verify 確認）
-    success_url: `${APP_BASE}/?plan_paid=1&s={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${APP_BASE}/?plan_canceled=1`,
+    success_url: `${brandReturnBase(req.body) || APP_BASE + '/'}?plan_paid=1&s={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${brandReturnBase(req.body) || APP_BASE + '/'}?plan_canceled=1`,
     metadata: { kind: 'plan', plan, user_id: req.auth.sub, src: srcOf(req) || undefined },
   });
   res.json({ url: session.url });

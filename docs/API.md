@@ -911,8 +911,11 @@ App 付款回跳確認。body `{ session_id }`；與 webhook（`checkout.session
 ### POST /api/me/profile
 更新自己的姓名與電話。body：`{ name, phone? }`（姓名 1–80 字、電話 40 字以內），回 `{ ok, me }`。Email 由 Google 登入決定，不可改。
 
+### GET /api/me/summary
+子品牌站（staysquare.emoji.tw）登入後的會員摘要。回 `{ name, email, active, plans: [{ plan, ends_at }], pending: [{ plan, ends_at }], promo_open }`；不含點數、活動與個資以外欄位。未登入 401，agent 金鑰 403。
+
 ### POST /api/me/plans/checkout
-線上購買一般會籍。body：`{ plan: "day_4h" | "day_12h" | "month" | "quarter" | "year" | "year_promo", lang? }`，回 `{ url }`（Stripe Checkout）。牌價：200／500／4,000／10,000／35,000；`year_promo`（開幕優惠，年會員價、會籍 18 個月）35,000，至 2026-12-31 止，逾期回 410。付款完成後導回會員 App `https://app.emoji.tw/?plan_paid=1&s=<session>`（取消：`?plan_canceled=1`），由 webhook 或 `/api/me/plans/verify` 建立 entitlement（`source: "stripe"`，以 session id 去重）；會籍於首次進場啟用，7 天未進場自動起算。未設 Stripe 回 503。
+線上購買一般會籍。body：`{ plan: "day_4h" | "day_12h" | "month" | "quarter" | "year" | "year_promo", lang?, return_host? }`；`return_host` 為已知子品牌網域且在 `WEB_ORIGINS` 內（目前 `staysquare.emoji.tw`）時，付款完成／取消改回該站 `/{lang}?plan_paid=1&s=…`（`?plan_canceled=1`），回 `{ url }`（Stripe Checkout）。牌價：200／500／4,000／10,000／35,000；`year_promo`（開幕優惠，年會員價、會籍 18 個月）35,000，至 2026-12-31 止，逾期回 410。付款完成後導回會員 App `https://app.emoji.tw/?plan_paid=1&s=<session>`（取消：`?plan_canceled=1`），由 webhook 或 `/api/me/plans/verify` 建立 entitlement（`source: "stripe"`，以 session id 去重）；會籍於首次進場啟用，7 天未進場自動起算。未設 Stripe 回 503。
 
 ### POST /api/me/plans/verify
 結帳導回時驗證並開通。body：`{ session_id }`，回 `{ ok, already, plan }`；session 不屬於本人回 404、未付款回 402。與 webhook 重複執行不會重複開通。
@@ -926,9 +929,10 @@ App 付款回跳確認。body `{ session_id }`；與 webhook（`checkout.session
 ### POST /api/event-applications
 登入帳號提出場地申請（社群活動或企業包場），不需付費會籍；agent 金鑰沒有申請人身分，回 403。申請即活動：同一交易建立一場 `草稿` 活動（`events.review_status='pending'`、申請人為 `owner_id` 並加入主辦團隊），`application.event_id` 即該活動；申請人可立刻在 `/organizer/events` 準備內容，但審核通過前不能公開、改時間地點或刪除（409）。聯絡資料只存在 `event_applications`，不進 `events`。
 
-body：`{ request_id, visibility, registration_mode, registration_url?, refund_policy?, source_url?, kind?, venue?, community_name, contact_name, contact_email, contact_phone?, title, description, starts_at, ends_at, attendees, requirements?, consent: true }`。
+body：`{ request_id, visibility, registration_mode, registration_url?, refund_policy?, source_url?, kind?, venue?, zone?, community_name, contact_name, contact_email, contact_phone?, title, description, starts_at, ends_at, attendees, requirements?, consent: true }`。
 
 - `visibility`：`public` 或 `private`。僅為重試舊草稿相容，允許省略 visibility。
+- `zone`（等等空間分區包場，staysquare.emoji.tw 使用）：`A` `B` `C` `D` `E` `AB` `ABC` `ABCD` `ALL`，只限 `venue:'3F'`＋`visibility:'private'`。開始須整點、長度為 2 小時倍數（最多 6 時段），人數不得超過該區有桌椅上限（A–C 15、D 10、E 4、AB 30、ABC 45、ABCD 55、ALL 59）。場地費＝每時段單價（A 1,800／B、C 1,400／D 1,200／E 600／AB 3,000／ABC 4,200／ABCD 5,200／ALL 6,400）× 時段數；E 會議室送出時有有效會籍免費（`deposit_twd=0`）。場地費付款 `POST /api/event-applications/:id/deposit/checkout` 帶 `return_host` 時回該站 `?deposit_paid=<session>`。
 - 公開活動 `registration_mode`：`native`（透過言文字售票，不存外部網址；審核通過後活動為 `報名中`，每張票自動加收場地茶飲費 NT$150 由參加者付）或 `external`（前往其他售票平台，必填不含帳密的 HTTP(S) `registration_url`，最多 2000 字）。未指定時視為 `external`（舊表單相容）。私人強制 `closed`、清除連結。
 - `refund_policy`：言文字售票的參加者退票政策，`accept`（預設，活動開始前 8 日前可自行退票，扣票價 10%）或 `none`（不可退、可轉票），寫入活動 `registration_settings.refund_policy`。`source_url`：從其他平台匯入時的原網址（選填，HTTP(S)）。
 - `deposit_twd`（主辦人應付場地費，規格 v2 §4.6）：私人活動送件時依空間與人數定額（三樓 1–10 人 5,000／11–20 人 10,000／21–30 人 15,000／31–40 人 20,000／41 人以上每人 500；二樓 10,000；一樓包場 30,000），取代舊訂金 NT$1,000，付款後才可審核通過。公開活動送件時為 0；外部售票在審核通過時設定為 150×預估人數。回應另含 `venue_fee`（同 `GET /api/venue-fee/quote` 的試算，含三樓 >60 人的 `warning`）。
