@@ -227,8 +227,9 @@ def atc_img(name, alt, sizes, eager=False):
     small_w, big_w, big, small = ATC_SIZES[name]
     w, h = ATC_RATIO[name]
     load = 'fetchpriority="high" decoding="async"' if eager else 'loading="lazy" decoding="async"'
+    photo_label = t(f'放大查看：{alt}', f'View larger: {alt}', f'拡大して見る：{alt}')
     return (f'<img src="{ATC}{name}-{small}.webp" srcset="{ATC}{name}-{small}.webp {small_w}w, {ATC}{name}-{big}.webp {big_w}w" '
-            f'sizes="{sizes}" width="{w}" height="{h}" alt="{e(alt)}" {load}>')
+            f'sizes="{sizes}" width="{w}" height="{h}" alt="{e(alt)}" data-atc-photo tabindex="0" role="button" aria-label="{e(photo_label)}" {load}>')
 
 
 def page_cafe():
@@ -337,7 +338,9 @@ def page_cafe():
     out += '</main>\n'
     out += footer_html(s, [(see_menu, '#menu'), (book, reserve)])
     # 捲動淡入：IntersectionObserver（不用 scroll 事件）；未支援或減少動態時直接顯示
-    out = out.replace('</body>', '<script>(function(){var r=document.querySelectorAll(".reveal");if(!("IntersectionObserver" in window)||matchMedia("(prefers-reduced-motion: reduce)").matches){r.forEach(function(x){x.classList.add("is-in")});return}var o=new IntersectionObserver(function(es){es.forEach(function(x){if(x.isIntersecting){x.target.classList.add("is-in");o.unobserve(x.target)}})},{rootMargin:"0px 0px -8% 0px",threshold:.12});r.forEach(function(x){o.observe(x)})})()</script>\n</body>')
+    out = out.replace('</body>', '''<script>(function(){var d=document.createElement("dialog"),lang=document.documentElement.lang,close=lang==="ja"?"閉じる":lang==="en"?"Close":"關閉",caption=lang==="ja"?"写真を閉じる":lang==="en"?"Close photo":"關閉照片",last;d.className="atc-lightbox";d.innerHTML='<figure class="atc-lightbox__frame"><img alt=""><button class="atc-lightbox__close" type="button" aria-label="'+close+'">×</button><figcaption class="atc-lightbox__caption"></figcaption></figure>';var img=d.querySelector("img"),cap=d.querySelector("figcaption");document.body.appendChild(d);function open(el){last=el;var sources=(el.getAttribute("srcset")||"").split(",");img.src=sources.length?sources[sources.length-1].trim().split(/\\s+/)[0]:(el.currentSrc||el.src);img.alt=el.alt;cap.textContent=el.alt;d.showModal()}function closeDialog(){d.close();if(last)last.focus()}document.addEventListener("click",function(e){var el=e.target.closest("img[data-atc-photo]");if(el)open(el)});document.addEventListener("keydown",function(e){var el=e.target.closest("img[data-atc-photo]");if(el&&(e.key==="Enter"||e.key===" ")){e.preventDefault();open(el)}});d.querySelector("button").addEventListener("click",closeDialog);d.addEventListener("click",function(e){if(e.target===d)closeDialog()});d.addEventListener("close",function(){if(last)last.focus()})})()</script>
+<script>(function(){var r=document.querySelectorAll(".reveal");if(!("IntersectionObserver" in window)||matchMedia("(prefers-reduced-motion: reduce)").matches){r.forEach(function(x){x.classList.add("is-in")});return}var o=new IntersectionObserver(function(es){es.forEach(function(x){if(x.isIntersecting){x.target.classList.add("is-in");o.unobserve(x.target)}})},{rootMargin:"0px 0px -8% 0px",threshold:.12});r.forEach(function(x){o.observe(x)})})()</script>
+</body>''')
     return out
 
 

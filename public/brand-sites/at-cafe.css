@@ -17,6 +17,17 @@
 .bs--at-cafe h1, .bs--at-cafe h2, .bs--at-cafe h3 { font-family: var(--sans); font-weight: 700; letter-spacing: -.01em; }
 .bs--at-cafe section { padding: clamp(64px, 9vw, 128px) 0; }
 .bs--at-cafe img { display: block; }
+/* 實拍可放大：明確保留鍵盤焦點與操作提示，手機也可直接點。 */
+.bs--at-cafe img[data-atc-photo] { cursor: zoom-in; }
+.bs--at-cafe img[data-atc-photo]:focus-visible { outline: 3px solid var(--brand); outline-offset: 4px; }
+.atc-lightbox { width: min(96vw, 1120px); max-width: none; max-height: 94dvh; margin: auto; padding: 12px; border: 0; border-radius: var(--atc-r); background: var(--paper); color: var(--ink); box-shadow: var(--atc-shadow); }
+.atc-lightbox::backdrop { background: var(--ink); opacity: .78; }
+.atc-lightbox__frame { position: relative; margin: 0; }
+.atc-lightbox img { display: block; max-width: 100%; max-height: calc(94dvh - 24px); margin: 0 auto; border-radius: calc(var(--atc-r) - 6px); object-fit: contain; }
+.atc-lightbox__close { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--paper); color: var(--ink); font-family: var(--latin); font-size: 1.5rem; font-weight: 500; line-height: 1; cursor: pointer; }
+.atc-lightbox__close:hover { background: var(--ink); color: var(--paper); }
+.atc-lightbox__close:focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; }
+.atc-lightbox__caption { margin: 12px 4px 2px; font-size: 1rem; line-height: 1.5; font-weight: 500; text-align: center; }
 .bs--at-cafe .bs-menu section { padding: 0; } /* 菜單內的巢狀 section 不吃區塊留白 */
 .bs--at-cafe main > section[id] { scroll-margin-top: 72px; }
 .bs--at-cafe:lang(ja) main :is(p, h1, h2, figcaption, time, li) { word-break: auto-phrase; } /* 日文依詞組換行 */
