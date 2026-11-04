@@ -51,7 +51,7 @@ test('舊 /organizer 無論網域都轉 App /host，單場路徑保留活動 id'
 test('前端含 App 主辦路由、建立三步、匯入與管理錨點', () => {
   const h = read('public/m.html'), host=read('public/m-host.js');
   assert.match(h, /<script src="\/m-host\.js"><\/script>/);
-  for (const needle of ['/api/organizer/state', '/api/me/event-applications', '/api/venue-fee/quote', '/api/event-applications', '/api/me/event-import', 'hostPath', '開啟相機簽到']) assert.ok(host.includes(needle), needle);
+  for (const needle of ['/api/organizer/state', '/api/me/event-applications', '/api/venue-fee/quote', '/api/event-applications', '/api/me/event-import', 'hostPath', '掃描 QR 簽到']) assert.ok(host.includes(needle), needle);
   for (const needle of ['uxGuests', 'uxInvite', 'uxCheckin', 'uxCheckinMode', 'data-ug-filter', '/check-in/lookup', "'/guests/import'", '快速模式']) assert.ok(host.includes(needle), needle);
   // 一筆報名多張票：來賓清單拆成每位參加者，簽到／撤銷要帶 attendee_id，否則後端回「請選擇一位參加者」。
   assert.match(host, /attendee_id:r\.attendee_id/); assert.match(host, /\?attendee_id='\+encodeURIComponent\(r\.attendee_id\)/);
@@ -88,6 +88,7 @@ test('App 主辦子畫面：「‹ 返回」回上一個畫面，不直接跳回
   assert.match(host, /function navBack\(\)/);
   assert.match(host, /hostTickets=navScreen\('hostTickets',hostTickets\)/);
   assert.match(host, /uxHome=navScreen\('uxHome',uxHome,true\)/);
-  assert.match(host, /id="host-back"[^`]*white-space:nowrap[^`]*‹ 返回/);
+  assert.match(host, /class="hello host-nav"><button class="btn" id="host-back" type="button">‹ 返回/);
+  assert.match(read('public/m.html'), /\.hello \.btn\{[^}]*white-space:nowrap/, '頁首按鈕不換行（樣式放 m.html，不寫 inline）');
   assert.doesNotMatch(host, /‹ 我的活動/);
 });
