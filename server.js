@@ -6502,6 +6502,30 @@ app.post('/api/admin/orders/:id/void',auth,adminOnly,requireDb,wrap(async(req,re
   }finally{if(!committed)await client.query('ROLLBACK').catch(()=>{});client.release();}
 }));
 /* 取消已結帳單裡的單一品項（做不出來／客人退菜），不必作廢整張單：單價歸零、從單上金額扣除這項小計 */
+/* 查單補入會員（KK 11/5）：body { phone | token, operator_id }；把會員綁到已結帳單、補累點（依實收扣掉打賞），不改金額／發票／會員價 */
+app.post('/api/admin/orders/:id/member',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這筆出餐單。'});
+  const venues=posScope(req);
+  const operator=await resolveOperator(req,req.body?.operator_id);
+  const token=String(req.body?.token||'').trim(),phoneRaw=String(req.body?.phone||'').trim();
+  if(!token&&!phoneRaw)return res.status(400).json({error:'請輸入會員手機或掃會員條碼。'});
+  const client=await pool.connect();let committed=false;
+  try{
+    await client.query('BEGIN');
+    const o=(await client.query('SELECT id,items,amount,status,payer,paid_at,user_id FROM table_orders WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+    if(!o||!tableOrders.orderOwnedByVenues(o,venues))return res.status(404).json({error:'找不到這筆出餐單。'});
+    try{tableOrders.attachMemberCheck(o);}catch(e){return res.status(e.status||400).json({error:e.message});}
+    let user;
+    if(token){const p=verifyAccessToken(token,process.env.ACCESS_QR_SECRET||SECRET);if(!p||p.plan!=='yan-card')return res.status(400).json({error:'會員卡無效或過期。'});user=(await client.query('SELECT id,name,phone,phone_e164 FROM users WHERE id=$1',[p.sub])).rows[0];if(!user)return res.status(404).json({error:'找不到這位會員。'});}
+    else{try{user=await findOrCreateMemberByPhone(client,phoneRaw,req.body?.name);}catch(e){return res.status(e.status||400).json({error:e.message});}}
+    const amount=(Number(o.amount)||0)-tableOrders.orderTip(o);
+    const yanOut=await applyYanForCheckout(client,{user,orderId:o.id,amount,brand:(o.items||[]).find(l=>l.venue)?.venue||'',prepay:false});
+    const payer={...(o.payer||{}),member_id:user.id,member_phone:user.phone_e164||user.phone||'',yan_earned:yanOut.earned,member_added:{at:new Date().toISOString(),by:actorOf(req.auth)||'',operator:operator?(operator.name||operator.id):''}};
+    await client.query('UPDATE table_orders SET user_id=$2,payer=$3 WHERE id=$1',[o.id,user.id,JSON.stringify(payer)]);
+    await client.query('COMMIT');committed=true;
+    res.json({ok:true,member:{id:user.id,name:user.name,phone:payer.member_phone},earned:yanOut.earned,balance:yanOut.balance,created:!!user.created});
+  }finally{if(!committed)await client.query('ROLLBACK').catch(()=>{});client.release();}
+}));
 /* 更正已結帳單的付款方式（現場點錯）：body { method, operator_id }；只動 payer，不動金額／發票／品項 */
 app.post('/api/admin/orders/:id/pay-method',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這筆出餐單。'});
@@ -6857,7 +6881,7 @@ app.get('/api/admin/orders/history',auth,adminOnly,requireDb,wrap(async(req,res)
   const day=/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.day||''))?String(req.query.day):tableOrders.MenuLib.businessDay();
   const from=new Date(day+'T03:00:00+08:00'),to=new Date(+from+86400e3);
   const needle=tableOrders.cleanText(req.query.q,40).toUpperCase();
-  const orders=(await ordersOfDay(day,'id,session_id,table_no,items,amount,payer,tappay,invoice,status,paid_at,ready_at,done_at,void_reason,voided_by')).reverse()
+  const orders=(await ordersOfDay(day,'id,session_id,table_no,items,amount,payer,tappay,invoice,status,paid_at,ready_at,done_at,void_reason,voided_by,user_id')).reverse()
     .filter(o=>tableOrders.orderOwnedByVenues(o,venues))
     .filter(o=>!needle||String(o.table_no).toUpperCase().includes(needle)||String(o.amount)===needle||String(o.invoice?.number||'').toUpperCase().includes(needle)||o.id.toUpperCase().endsWith(needle))
     .map(o=>({...o,paid_at:new Date(o.paid_at).toISOString(),stations:tableOrders.splitByStation(o)}));

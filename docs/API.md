@@ -374,6 +374,9 @@ POS 結帳輸入統編時查抬頭。`:ubn` 為 8 碼數字（否則 400）。�
 
 預設只作帳務調整，不表示現金已交付。僅 `refund_cash === true` 且這張單有收現金（`payer.method === 'cash'` 全額，或混合付款 `payer.payments[]` 的現金部分；`cash_refund` 不超過實收現金）、剩餘訂單金額大於 0，才在同一筆交易保存 `payer.drawer_refunds[event_key]` 並回正數 `cash_refund`；否則為 0、不回 `event_key`。回 `{ ok:true, reason, method, cash_refund, event_key? }`，事件代碼為 `refund:<order_id>`。請在送出前明確詢問是否退還現金，再透過 drawer-events 取得開櫃資格；此回應不是退款成功的證明。交易先鎖定訂單再檢查與變更（包含 ezPay 作廢），重複／同時作廢回 409，避免重複退款意圖。
 
+### POST /api/admin/orders/:id/member
+查單補入會員：結帳時忘了帶會員，事後把會員綁到這張已結帳單並補累點。body `{ phone?, token?, name?, operator_id? }`（`token`＝會員 App 會員卡 QR；否則用台灣手機，查無會員會自動新增）。依 `amount − 打賞` 補累點（每 NT$100 一點，冪等），寫 `user_id`、`payer.member_id／member_phone／yan_earned／member_added`；不改金額、品項、發票，也不回溯套會員價。限制：已作廢、部分付款（預收）、已有會員回 409；只能補 7 天內的單。依 `venue` 只能改自己品牌的單。作廢這張單時點數照常沖回。回 `{ ok, member:{id,name,phone}, earned, balance, created }`。
+
 ### POST /api/admin/orders/:id/pay-method
 更正已結帳單的付款方式（現場人員點錯時用）。body `{ method, operator_id? }`；`method` 為內建（`cash`／`ctbc`／`linepay`／`transfer`；歷史 `card`／`taishin` 仍接受）或已啟用的自訂收款帳戶代碼。整張單改成單一付款方式（混合付款會被取代），只動 `payer`，不動金額、品項、發票。現金改其他方式會清掉 `received／change`；改成現金視為實收等於應收。每次更正附加到 `payer.method_changes[]`（`from／to／at／by／operator`，保留最近 10 筆）。限制：只能改當個營業日的單；已作廢、線上刷卡（TapPay）、部分付款（預收）單回 409；新舊方式相同回 400。回 `{ ok, payer }`。此操作不開錢櫃；日結以更正後的付款方式計算。
 

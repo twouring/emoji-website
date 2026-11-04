@@ -891,6 +891,16 @@ function pickPayMethod(current){
     ov.querySelectorAll('[data-pm]').forEach(b=>b.onclick=()=>finish(b.dataset.pm));
   });
 }
+// 查單補入會員（KK 11/5）：結帳時忘了帶會員，事後輸入手機或掃會員條碼綁到這張單、補累點；不改金額與發票。7 天內、未作廢、非預收、還沒有會員才顯示
+const canAttachMember=o=>!!o&&o.status!=='void'&&!o.payer?.prepay&&!o.payer?.member_id&&!o.user_id&&Date.now()-new Date(o.paid_at).getTime()<=7*86400e3;
+async function attachMemberPrompt(o,reload){
+  if(!o)return;
+  const how=await pickFrom({title:`這張單 NT$${num(o.amount)} 入會員`,hint:'補累點（每 NT$100 一點），不改金額與發票',options:[{value:'phone',label:'輸入手機'},{value:'scan',label:'掃會員條碼'}],cols:2});if(!how)return;
+  let body;
+  if(how==='scan'){const token=await pickMemberCard();if(!token)return;body={token};}
+  else{const phone=await pickAmount({title:'會員手機',hint:'09 開頭 10 碼；還不是會員會自動新增',digits:10,unit:''});if(!phone)return;body={phone};}
+  return ensureOperator(()=>opsThen(()=>api('/admin/orders/'+o.id+'/member',{method:'POST',body:{...body,operator_id:OPERATOR?.id}}),out=>`已入會員 ${out.member?.name||out.member?.phone||''}${out.created?'（新會員）':''}，補 ${num(out.earned||0)} 點，現有 ${num(out.balance||0)} 點`,reload));
+}
 async function changePayMethodPrompt(o,reload){
   if(!o)return;
   const code=await pickPayMethod(payText(o));if(!code)return;
@@ -1704,7 +1714,7 @@ async function loadHistory(){
   const histState=o=>{const p=o.payer||{};if(o.status==='void')return `<span class="pill pill-bad">已作廢</span>`;if(p.prepay)return `<span class="pill pill-wait">部分付款</span>`;return `<span class="pill pill-ok">已結帳</span>`;};
   const histInvShort=o=>{const inv=o.invoice||{};if(inv.status==='failed')return '<span class="pill pill-bad">發票失敗</span>';if(inv.requested&&!['issued','void'].includes(inv.status))return '<span class="pill pill-wait">待補開</span>';if(inv.status==='issued')return `<span class="a-mono">${esc(inv.number||'已開立')}</span>`;if(inv.status==='void')return '<span class="hint hint--tight">已作廢</span>';return '<span class="hint hint--tight">未開</span>';};
   const histLine=(l,multiBy)=>{const tags=specParts(l).map(t=>`<span class="ops-spec ops-spec-${t.kind} ops-spec-${t.tone}">${t.kind==='custom'?'※ ':''}${esc(t.text)}</span>`).join('');const flag=l.cancelled?'已取消':l.comp_reason?'贈送':l.redeem_points>0?'點數兌換':'';const sub=Number.isFinite(Number(l.price))?(l.cancelled?`<s>${num(Number(l.price)*l.qty)}</s>`:num(Number(l.price)*l.qty)):'';return `<li class="hist-line${l.cancelled?' is-off':''}"><span class="hist-qty${l.qty>1?' many':''}">×${l.qty}</span><span class="hist-name"><b>${esc(l.zh)}</b>${flag?` <span class="pill pill-draft">${flag}</span>`:''}${partsOf(l).length?partsHtml(l):''}${tags?`<span class="ops-specs">${tags}</span>`:''}${multiBy&&l.by?`<span class="hint hint--tight">由 ${esc(l.by)} 點</span>`:''}</span><span class="hist-sub">${sub}</span></li>`;};
-  const histActions=(o,allowVoid)=>{const canPay=allowVoid&&o.status!=='void'&&!o.payer?.prepay&&!o.tappay?.rec_trade_id&&o.payer?.method!=='stripe';/* 線上付款的單要到 Stripe 退款，櫃檯不改付款方式 */return `<div class="hist-actions"><button class="btn btn--solid btn-sm" data-receipt="${esc(o.id)}">補印收據明細</button>${invoicePrintable(o.invoice)?`<button class="btn btn--ghost btn-sm" data-invoice-print="${esc(o.id)}">補印發票</button>`:''}${o.status==='void'?'':`<button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">補印出餐單</button>`}${canPay?`<button class="btn btn--ghost btn-sm" data-paymethod="${esc(o.id)}">改付款方式</button>`:''}${o.status!=='void'&&allowVoid?`<button class="btn btn--ghost btn--danger btn-sm" data-void="${esc(o.id)}">作廢</button>`:''}</div>`;};
+  const histActions=(o,allowVoid)=>{const canPay=allowVoid&&o.status!=='void'&&!o.payer?.prepay&&!o.tappay?.rec_trade_id&&o.payer?.method!=='stripe';/* 線上付款的單要到 Stripe 退款，櫃檯不改付款方式 */return `<div class="hist-actions"><button class="btn btn--solid btn-sm" data-receipt="${esc(o.id)}">補印收據明細</button>${invoicePrintable(o.invoice)?`<button class="btn btn--ghost btn-sm" data-invoice-print="${esc(o.id)}">補印發票</button>`:''}${o.status==='void'?'':`<button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">補印出餐單</button>`}${canPay?`<button class="btn btn--ghost btn-sm" data-paymethod="${esc(o.id)}">改付款方式</button>`:''}${canAttachMember(o)?`<button class="btn btn--ghost btn-sm" data-hist-member="${esc(o.id)}">入會員</button>`:''}${o.status!=='void'&&allowVoid?`<button class="btn btn--ghost btn--danger btn-sm" data-void="${esc(o.id)}">作廢</button>`:''}</div>`;};
   const rows=d.orders.map(o=>{
     const lines=(o.items||[]).filter(l=>!l.prepay&&!l.credit_of);
     const live=lines.filter(l=>!l.cancelled);
@@ -1727,7 +1737,7 @@ async function loadHistory(){
       <ul class="hist-lines">${lines.map(l=>histLine(l,bys.length>1)).join('')||'<li class="hint">（無品項）</li>'}</ul>
       ${p.discount?`<div class="hint hint--tight">折扣 ${esc(discountText(p.discount))}</div>`:''}${red.points?`<div class="hint hint--tight">點數兌換 ${num(red.points)} 點　折抵 −${num(red.value)}</div>`:''}
       ${o.status==='void'?`<div class="hist-void">作廢原因：${esc(o.void_reason||'未填')}${o.voided_by?' · '+esc(o.voided_by):''}</div>`:''}
-      <div class="hist-pay"><span>${esc(payText(o))}${p.member?' · 聚落價':''}${p.received!=null?`　實收 ${num(p.received)}　找零 ${num(p.change)}`:''}</span><span class="hist-inv">${invoiceHtml(o)}</span></div>
+      <div class="hist-pay"><span>${esc(payText(o))}${p.member?' · 聚落價':''}${p.member_id?` · 會員 ${esc(p.member_phone||'')}${p.yan_earned?`（+${num(p.yan_earned)} 點）`:''}${p.member_added?'・補登':''}`:''}${p.received!=null?`　實收 ${num(p.received)}　找零 ${num(p.change)}`:''}</span><span class="hist-inv">${invoiceHtml(o)}</span></div>
       <div class="hint hint--tight hist-meta">${[esc(applicationTime(o.paid_at)),`單號 ${id}`,meta].filter(Boolean).join(' · ')}</div>
       ${histActions(o,MenuLib.businessDay(o.paid_at)===today)}</div></td></tr>`;}).join('');
   const table=rows?`<table class="hist-sheet"><thead><tr><th>時間</th><th>桌號</th><th>單號</th><th>品項</th><th>付款</th><th>發票</th><th class="hist-amount">金額</th><th>狀態</th></tr></thead><tbody>${rows}</tbody></table>`:'<p class="a-empty">這天沒有符合的單</p>';
@@ -1742,6 +1752,7 @@ async function loadHistory(){
   host.querySelector('#hist-go').onclick=search;
   host.querySelector('#hist-scan').onclick=()=>PosInvoiceScan.open({onScan:number=>{HIST_Q=number;HIST_DAY=MenuLib.businessDay();loadHistory();}});
   host.querySelector('#hist-q').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();search();}};
+  host.querySelectorAll('[data-hist-member]').forEach(b=>b.onclick=e=>{e.stopPropagation();attachMemberPrompt(d.orders.find(o=>o.id===b.dataset.histMember),loadHistory);});
   bindOrderButtons(host,d.orders,loadHistory);
 }
 
