@@ -59,3 +59,13 @@ test('點餐頁：固定 QR 重新掃碼（navigate）不看結束鎖，伺服�
   assert.match(o, /if\(FIXED\)\{SID=s\.id;K=s\.k;if\(s\.status==='open'\)clearEnded\(\);\}/);
   assert.match(o, /function sessionClosed\(s\)\{FRESH_SCAN=false;/);
 });
+test('已登入會員再掃碼：只有 401 才清登入，429／暫時錯誤重試；掛桌中不顯示登入鈕（KK 11/4）', () => {
+  const o = read('public/order.html'), s = read('server.js');
+  assert.match(o, /if\(e\.status===401\|\|e\.status===403&&\/會員身分\/\.test\(e\.message\)\)\{try\{localStorage\.removeItem\(TOKEN_KEY\);\}catch\(x\)\{\}ME=null;renderMember\(\);if\(!NAME\)showGate\(\);return;\}/);
+  assert.match(o, /setTimeout\(joinMember,1500\*JOIN_TRIES\)/);
+  assert.match(o, /function joinPending\(\)\{return !ME&&!!token\(\)&&!JOIN_FAILED;\}/);
+  assert.match(s, /app\.post\('\/api\/orders\/table\/member', auth, requireDb, rateLimit\(\{ max: 600,/);
+});
+test('稱呼關卡：沒填稱呼按「查看菜單」照略過自動命名，不可沒反應（KK 11/4）', () => {
+  assert.match(read('public/order.html'), /if\(!v\)\{\$\('#name-skip'\)\.click\(\);return;\}/);
+});

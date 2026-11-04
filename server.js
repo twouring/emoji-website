@@ -4994,7 +4994,7 @@ app.post('/api/me/redeem', auth, requireDb, rateLimit({ max: 30, windowMs: 36000
 }));
 /* 桌邊點餐整合會員：客人在 /order 用 Google／LINE 登入後打這支，把自己掛到這一場（本桌單次 QR 的 s/k）。
    POS 結帳畫面列出這桌已登入的會員，一點帶入（等同掃會員條碼：累點、有效會籍套會員價、可兌換） */
-app.post('/api/orders/table/member', auth, requireDb, rateLimit({ max: 30, windowMs: 3600000 }), wrap(async (req, res) => {
+app.post('/api/orders/table/member', auth, requireDb, rateLimit({ max: 600, windowMs: 3600000 }), /* 冪等；店內 Wi-Fi 全店共用一個 IP，30 次／時會讓整店會員掃碼被當成登出（KK 11/4） */ wrap(async (req, res) => {
   if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
   const sid = tableOrders.verifySession(req.body?.s, req.body?.k, SECRET);
   if (!sid) return res.status(403).json({ error: 'QR 無效，請向服務人員索取本桌點餐 QR。' });
