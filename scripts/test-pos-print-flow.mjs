@@ -91,7 +91,7 @@ test('every checkout starts with paper invoice and no-invoice is last',()=>{
 test('table panel offers pre-checkout kitchen and receipt printing',()=>{
  assert.match(src,/<div class="pos-table-actions"><button[^>]*id="pos-place"[\s\S]{0,400}id="pos-move"[\s\S]{0,200}id="pos-close"/,'列印出餐單→換桌／併桌→清桌在左欄底部同一排');assert.doesNotMatch(src,/pos-prepay/);
  assert.match(src,/id="pos-place"[\s\S]{0,120}>列印出餐單<\/button>/);assert.doesNotMatch(src,/送出點餐／列印出餐單/);assert.match(src,/id="pos-print-receipt"/);
- assert.doesNotMatch(src,/printOrder\(tableTicket\(\)\)/,'都送過時不可整桌重印（KK 11/1：加點單混入前面的餐點）');assert.match(src,/const t=lastTicket\(\);if\(t\)await printOrder\(t\)/);assert.match(src,/reprint:true/);assert.match(src,/o\.reprint\)spec\.push\(\{kind:'center',text:'【補印】最近一次送單'/);assert.match(src,/sessions\/'\+cur\.id\+'\/place/);assert.match(src,/printReceipt\(tableTicket\(\)\)/);
+ assert.doesNotMatch(src,/printOrder\(tableTicket\(\)\)/,'都送過時不可整桌重印（KK 11/1：加點單混入前面的餐點）');assert.match(src,/const t=lastTicket\(\);if\(t\)await printOrder\(t\)/);assert.match(src,/reprint:true/);assert.match(src,/o\.reprint\)spec\.push\(\{kind:'center',text:'【補印】最近一次送單'/);assert.match(src,/sessions\/'\+cur\.id\+'\/place/);
 });
 
 test('發票證明聯與收據明細預設印賣方統編 93537055', async () => {
@@ -135,4 +135,19 @@ test('點餐明細全中文（KK 11/2）：不印英文品名，外語規格轉�
  assert.ok(!/[A-Za-z]{3,}/.test(all.replace(/tk_en1|now/g,'')),'不得有英文：'+all);
  assert.ok(all.includes('[熱]')&&all.includes('[少冰]'),all);
  assert.ok(all.includes('　□ 飲品：紅茶（冰）'),all);
+});
+
+test('各別結帳時「列印明細」只印這次要結的品項；出餐單仍印整桌；平均分攤標本次應收', () => {
+ assert.match(src,/const receiptTicket=\(\)=>\{const partial=!!POS_PICK\|\|Object\.keys\(POS_QTY\)\.length>0;/);
+ assert.match(src,/return tableTicketOf\(t\.picked\.filter/);
+ assert.match(src,/printReceipt\(receiptTicket\(\)\)/);
+ assert.match(src,/share:`平均分攤 \$\{aa\.people\} 人/);
+ assert.match(src,/if\(o\.share\)spec\.push/);
+});
+
+test('收據明細 spec：share 字樣印在「尚未結帳」上方', () => {
+ const {c}=printContext();
+ const r=JSON.parse(JSON.stringify(vm.runInContext("receiptTicketSpec({id:'o9',table_no:'A1',amount:300,items:[],preview:true,share:'平均分攤 3 人・第 1 人應收 NT$100',payer:{method:'cash'},invoice:{}})",c)));
+ const i=r.findIndex(x=>x&&x.text==='平均分攤 3 人・第 1 人應收 NT$100'),j=r.findIndex(x=>x&&x.text==='【尚未結帳・僅供核對】');
+ assert.ok(i>=0&&j>i);
 });
