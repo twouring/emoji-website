@@ -5523,7 +5523,10 @@ app.post('/api/admin/yan/lookup', auth, adminOnly, requireDb, wrap(async (req, r
   }
   const rows = await yanRowsFor({ query: (...a) => q(...a) }, user.id);
   const active = (await memberAccessFor(user.id)).active;
-  res.json({ ok: true, member: { id: user.id, name: user.name, phone: user.phone_e164 || user.phone || '' }, balance: yan.balance(rows), active, verified: !!(token || req.body?.member_id), created: !!user.created });
+  const verified = !!(token || req.body?.member_id);
+  // 載具自動帶入（KK 11/5）：只對驗證過身分的會員（掃會員卡／桌邊登入），帶出他上一次結帳用的手機載具或自然人憑證；只報手機不帶，避免把別人的載具帶出來
+  const carrier = verified ? ezpayInvoice.lastCarrier((await q(`SELECT invoice FROM table_orders WHERE user_id=$1 AND invoice->>'mode' IN ('mobile','citizen') AND COALESCE(invoice->>'carrier_num','')<>'' ORDER BY paid_at DESC LIMIT 1`, [user.id])).rows[0]?.invoice) : null;
+  res.json({ ok: true, member: { id: user.id, name: user.name, phone: user.phone_e164 || user.phone || '' }, balance: yan.balance(rows), active, verified, created: !!user.created, carrier });
 }));
 
 /* POS 合併會員：同一位客人有兩個帳號（店內報手機自動建立＋App 用 Google／LINE／Email 登入）時合成一個。
