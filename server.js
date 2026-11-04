@@ -5253,7 +5253,7 @@ app.post('/api/me/shop/:id/checkout', auth, requireDb, rateLimit({ max: 20, wind
   const lang = ['en', 'ja'].includes(req.body?.lang) ? req.body.lang : 'zh';
   const session = await stripe.checkout.sessions.create({
     mode: 'payment', payment_method_types: ['card'], customer_email: user?.email || undefined,
-    line_items: lines.map(l => ({ price_data: { currency: 'twd', product_data: { name: (lang === 'en' && l.en) || (lang === 'ja' && l.ja) || l.zh }, unit_amount: l.price * 100 }, quantity: l.qty })),
+    line_items: lines.map(l => ({ price_data: { currency: 'twd', product_data: { name: (lang === 'en' ? 'emoji store｜' : lang === 'ja' ? '言文字ストア｜' : '言文字商店｜') + ((lang === 'en' && l.en) || (lang === 'ja' && l.ja) || l.zh) }, unit_amount: l.price * 100 }, quantity: l.qty })),
     expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
     success_url: `${APP_BASE}/?shop_paid=1&s={CHECKOUT_SESSION_ID}`,
     cancel_url: `${APP_BASE}/?shop_canceled=1`,
@@ -5588,7 +5588,7 @@ app.post('/api/me/plans/checkout', auth, requireDb, wrap(async (req, res) => {
     line_items: [{
       price_data: {
         currency: 'twd',
-        product_data: { name: `言文字會籍 ${PLAN_LABEL[plan]}`, description: plan.startsWith('day_') ? '單日方案，首次進場啟用' : '會員可自由使用 2F／3F 所有設備' },
+        product_data: { name: `等等空間 Stay Square 會籍｜${PLAN_LABEL[plan]}`, description: plan.startsWith('day_') ? '等等空間單日方案，首次進場啟用' : '會員可自由使用等等空間所有設備' },
         unit_amount: PLAN_PRICE_TWD[plan] * 100,
       },
       quantity: 1,

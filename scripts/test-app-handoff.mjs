@@ -47,9 +47,22 @@ test('官網導覽「會員登入」連到 App；安裝引導在進入畫面最�
   for (const [l, label] of [['zh', '會員登入'], ['en', 'Sign in'], ['ja', 'ログイン']]) {
     assert.match(read(`views/partials/header-${l}.html`), new RegExp(`href="https://app\\.emoji\\.tw/[^"]*" id="navMember">${label}</a>`), l);
   }
-  assert.match(m, /function guestPlan\(\)\{\n    app\.innerHTML=`\$\{installCard\(\)\}<div class="hello">/);
+  assert.match(m, /function guestPlan\(\)\{\n    app\.innerHTML=`\$\{installCard\(\)\}\$\{head\(T\.plan,T\.byPlan/);
   assert.match(m, /app\.innerHTML=`\$\{installCard\(\)\}<div class="login">/);
   const home = m.slice(m.indexOf('  function home(){'), m.indexOf('  function evTile('));
   assert.ok(home.indexOf('${installCard()}') > -1 && home.indexOf('${installCard()}') < home.indexOf('class="hello"'), '首頁安裝卡要在問候列之前');
   assert.equal((home.match(/installCard\(\)/g) || []).length, 1);
+});
+
+test('App 每個購買／預約畫面標明品牌：會籍＝等等空間、訂位與取餐＝在咖啡／三點水、商店＝言文字商店', () => {
+  const m = fs.readFileSync(new URL('../public/m.html', import.meta.url), 'utf8');
+  for (const k of ['byPlan', 'byDine', 'byShop']) assert.equal((m.match(new RegExp(k + ":'", 'g')) || []).length, 3, k + ' 要有中英日三語');
+  assert.match(m, /head\(T\.resvTitle,T\.byDine/);
+  assert.match(m, /head\(T\.pickupTitle,T\.byDine/);
+  assert.match(m, /head\(T\.shopTitle,T\.byShop/);
+  assert.equal((m.match(/head\(T\.plan,T\.byPlan/g) || []).length, 2, '會籍頁（訪客與會員）都要標等等空間');
+  assert.ok((m.match(/venueName\(/g) || []).length >= 4, '訂位／取餐清單卡片要標店名');
+  const srv = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+  assert.match(srv, /等等空間 Stay Square 會籍｜/, 'Stripe 會籍品名要寫品牌');
+  assert.match(srv, /'言文字商店｜'/, 'Stripe 商店品名要寫品牌');
 });
