@@ -126,7 +126,8 @@ footer.site-foot .foot__bot{display:flex;justify-content:space-between;flex-wrap
 @media(max-width:1000px){footer.site-foot .foot__top{grid-template-columns:1fr 1fr}}
 @media(max-width:760px){
   footer.site-foot .foot__top{grid-template-columns:1fr;gap:32px}
-  footer.site-foot .foot__col a{padding:6px 0;margin-bottom:4px}
+  footer.site-foot .foot__col a{display:flex;align-items:center;min-height:44px;padding:0;margin-bottom:0}
+  footer.site-foot .foot__bot a{display:inline-flex;align-items:center;min-height:44px}
 }
 
 @media print{header.site-nav,footer.site-foot{display:none}}

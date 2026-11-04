@@ -137,7 +137,7 @@
   }
   .hero__cta{display:flex;flex-wrap:wrap;gap:14px;margin-top:30px}
   .hero__note{margin:0;color:var(--muted);font-size:1rem}
-  .hero__note a{text-decoration:underline;text-underline-offset:3px}
+  .hero__note a{display:inline-flex;align-items:center;min-height:44px;text-decoration:underline;text-underline-offset:3px}
   .hero__media{margin:0}
   /* 首頁 hero：三個品牌示意圖（日／夜／等等空間） */
   .hero__media--trio{display:grid;grid-template-columns:1fr 1fr;gap:14px}

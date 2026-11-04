@@ -24,7 +24,7 @@
 .bs-head__nav a { font-size: 1rem; color: var(--ink-soft); white-space: nowrap; }
 .bs-head__nav a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
 .bs-head__nav .bs-btn { color: var(--on-brand); }
-.bs-head__nav .bs-btn:hover { text-decoration: none; }
+.bs-head__nav .bs-btn:hover, .bs-head__nav .bs-btn:focus-visible { text-decoration: none; color: var(--on-brand); }
 
 /* ——— 按鈕：主動作用品牌色底（白字），次要用墨線 ——— */
 .bs-btn { display: inline-flex; align-items: center; justify-content: center; gap: .5em; min-height: 44px; padding: .7em 1.4em; border-radius: var(--radius-sm); border: 1.5px solid var(--brand); background: var(--brand); color: var(--on-brand); font-weight: 500; font-size: 1rem; letter-spacing: .03em; transition: transform .18s ease, filter .18s ease; }
@@ -91,6 +91,22 @@
 .bs-menu .menu-group { margin-bottom: 36px; }
 .bs-menu .menu-group__head { border-bottom-color: var(--brand); }
 .bs-menu__cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+/* 菜單分類跳轉列（由頁尾 script 依 .menu-group 產生）：手機長菜單不用一路滑 */
+.bs-menu__jump { display: flex; gap: 8px; overflow-x: auto; margin: 0 0 28px; padding: 10px 0; scrollbar-width: none; overscroll-behavior-x: contain; }
+.bs-menu__jump::-webkit-scrollbar { display: none; }
+.bs-menu__jump a { flex: 0 0 auto; display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--ink); font-size: 1rem; white-space: nowrap; }
+.bs-menu__jump a:hover, .bs-menu__jump a:focus-visible { border-color: var(--brand); }
+.bs-menu .menu-group { scroll-margin-top: 140px; }
+/* 手機：菜品說明預設兩行，點該道菜展開（script 只在真的被截斷時加 .is-clamp） */
+@media (max-width: 640px) {
+  .bs-menu .menu-item { row-gap: 0; }
+  .bs-menu .menu-item.is-clamp { cursor: pointer; }
+  .bs-menu .menu-item.is-clamp:not(.is-open) .menu-item__note { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  .bs-menu .menu-item.is-clamp:not(.is-open) .menu-item__note + .menu-item__note { display: none; }
+  .bs-menu .menu-item__more { order: 3; grid-column: 1 / -1; justify-self: start; min-height: 44px; margin: 0; padding: 0; border: 0; background: none; color: var(--ink); font: inherit; font-size: 1rem; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
+  .bs-menu .menu-item.is-open .menu-item__more { display: none; }
+}
+@media (min-width: 641px) { .bs-menu .menu-item__more { display: none; } }
 
 /* ——— 等等空間：空間與方案 ——— */
 .bs-rooms { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
@@ -177,6 +193,9 @@
   .bs-plans td { padding: 2px 0; border: 0; }
   .bs-plans td.p { margin: 4px 0; }
   .bs-foot { padding-bottom: 104px; }
+  .bs-foot ul { gap: 0; }
+  .bs-foot li a { display: inline-flex; align-items: center; min-height: 44px; }
+  .bs-menu__jump { position: sticky; top: 0; z-index: 30; background: var(--paper-alt); box-shadow: 0 0 0 100vmax var(--paper-alt); clip-path: inset(0 -100vmax); }
   .bs-dock { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: rgba(251, 250, 246, .97); border-top: 1px solid var(--line); transform: translateY(110%); transition: transform .2s ease; }
   .bs-dock.is-on { transform: none; }
   .bs-dock .bs-btn { width: 100%; padding: .6em .8em; }

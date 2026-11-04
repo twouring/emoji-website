@@ -159,4 +159,22 @@
   .atc-dish:last-of-type, .atc-food__note { grid-column: 1 / -1; }
   .atc-room__wide img { aspect-ratio: 4 / 3; }
   .atc-room__tall--low { margin-top: 32px !important; }
+  /* 首屏：主圖縮一點，讓「查看菜單／訂位」完整落在第一屏 */
+  .atc-hero { padding-top: 16px; }
+  .atc-hero__main { width: 76%; }
+  .atc-hero__main img { aspect-ratio: 1 / 1; }
+  .atc-hero__media { padding-bottom: 14%; }
+  .atc-hero__sub { width: 36%; }
+  .bs--at-cafe .bs-menu__jump { top: 68px; }
+  .bs--at-cafe .bs-menu .menu-group { scroll-margin-top: 150px; }
+}
+/* 手機菜單：88px 縮圖＋右側品名價格，說明跨整列（原本每道菜滿版大圖，整頁兩萬多 px） */
+@media (max-width: 640px) {
+  .atc-menu .menu-item { grid-template-columns: 88px minmax(0, 1fr); column-gap: 16px; padding: 16px 0; }
+  .atc-menu .menu-item:not(.menu-item--img) { grid-template-columns: minmax(0, 1fr); }
+  .atc-menu .menu-item__img { grid-column: 1; grid-row: 1 / span 4; width: 88px; height: 88px; aspect-ratio: 1 / 1; margin: 0; align-self: start; }
+  .atc-menu .menu-item--img .menu-item__names > *, .atc-menu .menu-item--img .menu-item__price { grid-column: 2; }
+  .atc-menu .menu-item--img .menu-item__names > .menu-item__note { grid-column: 1 / -1; }
+  .atc-menu .menu-item__zh { font-size: 1.08rem; }
+  .atc-menu .menu-item__note { line-height: 1.6; }
 }
