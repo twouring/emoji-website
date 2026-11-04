@@ -59,14 +59,15 @@ test('real close handler rejects stale or invalid bodies without writing and fre
  const server=fs.readFileSync(new URL('../server.js',import.meta.url),'utf8');
  const start=server.indexOf("app.post('/api/admin/registers/:id/close'");
  const route=server.slice(start,server.indexOf("/* 重開",start));
- let handler,writes=[];
+ let handler,writes=[],openTables=[];
  const fixture={sales:{amount:640},moves:[],summary:{...summary,reconciliation_accounts:opts.accounts,account_labels:{custom_wallet:'錢包'}}};
  const ctx=vm.createContext({app:{post:(...args)=>{handler=args.at(-1);}},auth:0,adminOnly:0,requireDb:0,wrap:fn=>fn,
-  loadOpenRegister:async()=>({id:'reg',venue:'CAFE',day:'2026-10-17',opening_cash:1000}),registerSummary:async()=>fixture,
+  loadOpenRegister:async()=>({id:'reg',venue:'CAFE',day:'2026-10-17',opening_cash:1000}),registerSummary:async()=>fixture,openTablesBlockingClose:async()=>openTables,
   posRegister:R,actorOf:()=> 'test-operator',resolveOperator:async()=>({id:'op',name:'test-operator'}),q:async(sql,params)=>{writes.push({sql,params});return {rowCount:1};}});
  vm.runInContext(route,ctx);
  const call=async payload=>{let status=200,result;const res={status(n){status=n;return this;},json(v){result=v;return this;}};await handler({body:payload,auth:{}},res);return {status,result};};
  const version=JSON.stringify([summary.expected,summary.opening_cash,summary.cash_in,summary.cash_out,640,opts.accounts]);
+ openTables=['A3','W01'];const blocked=await call({...body(),reconciliation_version:version});assert.equal(blocked.status,409);assert.deepEqual(blocked.result.open_tables,['A3','W01']);assert.match(blocked.result.error,/A3、W01/);assert.equal(writes.length,0);openTables=[];
  assert.equal((await call({...body(),reconciliation_version:'old'})).status,409);assert.equal(writes.length,0);
  assert.equal((await call({...body(),cash_confirmed:false,reconciliation_version:version})).status,400);assert.equal(writes.length,0);
  const out=await call({...body(),reconciliation_version:version});assert.equal(out.status,200);assert.equal(writes.length,1);

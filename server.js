@@ -6607,7 +6607,7 @@ app.get('/api/admin/registers',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const byVenue={};for(const v of posRegister.VENUES){if(venues&&!venues.includes(v))continue;byVenue[v]=out.filter(r=>r.venue===v).slice(-1)[0]||null;}
   // 共用抽屜帳：總覽要看全店（含子帳號看不到的另一品牌），否則三點水子帳號不知道在咖啡還沒關帳
   const all=(await q('SELECT id,venue,opened_at,closed_at,keep_cash FROM pos_registers WHERE day=$1',[day])).rows;
-  res.json({day,registers:out,current:byVenue,active_venue:tableOrders.MenuLib.activeVenue(),...posRegister.registerOverview(all)});
+  res.json({day,registers:out,current:byVenue,active_venue:tableOrders.MenuLib.activeVenue(),open_tables:await openTablesBlockingClose(),...posRegister.registerOverview(all)});
 }));
 /* 開帳：body { venue, opening_cash?, note?, day? }；當日任何品牌還有開著的帳回 409（共用抽屜帳，在咖啡關帳後三點水才能開）；沒填零用金就承接上一本的留存金 */
 app.post('/api/admin/registers/open',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -6623,6 +6623,10 @@ app.post('/api/admin/registers/open',auth,adminOnly,requireDb,wrap(async(req,res
     await client.query('COMMIT');res.status(201).json({ok:true,id,day,venue,opening_cash:row.opening_cash,denominations:row.denominations});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
+/* 關帳前要清桌（KK 11/4）：回還沒清的桌號（規則在 posRegister.blockingTables） */
+async function openTablesBlockingClose(){
+  return posRegister.blockingTables((await q("SELECT table_no,items,pickup_at,pickup_placed_at,shop_at FROM table_sessions WHERE status='open'")).rows);
+}
 async function loadOpenRegister(req,res){
   if(!ORDER_ID_RE.test(String(req.params.id||'')))return res.status(404).json({error:'找不到這本帳。'})&&null;
   const venues=tableOrders.visibleVenues(req.auth.brands);
@@ -6661,6 +6665,8 @@ app.post('/api/admin/registers/:id/count',auth,adminOnly,requireDb,wrap(async(re
 app.post('/api/admin/registers/:id/close',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const r=await loadOpenRegister(req,res);if(!r)return;
   if(r.closed_at)return res.status(409).json({error:'這本帳已經關過了。'});
+  const openTables=await openTablesBlockingClose();
+  if(openTables.length)return res.status(409).json({error:`還有 ${openTables.length} 桌沒清（${openTables.join('、')}），請先結帳清桌再關帳。`,open_tables:openTables});
   const s=await registerSummary(r);
   const version=JSON.stringify([s.summary.expected,s.summary.opening_cash,s.summary.cash_in,s.summary.cash_out,s.sales.amount,s.summary.reconciliation_accounts]);
   if(req.body?.reconciliation_version!==version)return res.status(409).json({error:'營收或帳戶已變更，請重新載入日結並逐項確認。'});

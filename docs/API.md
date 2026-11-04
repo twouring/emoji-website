@@ -599,6 +599,7 @@ POS 每 5 秒輪詢。回 `{ pending:[{id,session_id,table,by,amount,sfx,perform
 ### POST /api/admin/registers/:id/close
 關帳改為逐項日結確認。body `{ counted_cash?, denominations?:{ "1000":3, "500":1, … }, cash_confirmed:true, keep_cash?, note?, accounts:{ code:{actual,confirmed:true,reason?} }, total_reason?, reconciliation_version }`。
 
+- **關帳前要清桌（KK 11/4）**：還有開著的桌（內用、外帶）回 409 `{error, open_tables:[桌號]}`；未到時間的預約取餐與 App 商店未付款單不擋。`GET /api/admin/registers` 另回 `open_tables`，POS 關帳表單據此停用「確認關帳」並列出桌號。
 - 先讀 `GET /api/admin/registers`：每本帳的 `reconciliation_accounts` 是伺服器依**該品牌、該營業日**計算的 POS 帳戶金額（歷史 `card`／`taishin` 併入 `ctbc`）；固定 LINE Pay、信用卡（中信）、轉帳，另含啟用的自訂帳戶與當日曾收款的已停用帳戶。即使 POS 為 0，也必須明確填 `actual:0` 並確認；不接受缺漏、未知帳戶、空白、null、布林或非整數金額。
 - `reconciliation_version = JSON.stringify([expected,opening_cash,cash_in,cash_out,sales.amount,reconciliation_accounts])`；送出前營收／帳戶變更回 409，須重新載入並確認。舊版只送現金的客戶端不再允許關帳。
 - 現金可按面額或總額點鈔；`cash_confirmed:true` 必填。現金差額非 0 時 `note` 必填；每個非現金帳戶 `actual − POS` 非 0 時各自 `reason` 必填，即使差額互抵也不能省略。
