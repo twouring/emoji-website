@@ -13,14 +13,27 @@ test('新增收款帳戶：名稱必填、清理控制字元與長度；code 隨
   assert.throws(() => P.methodInput({ label: '' }), /請填寫收款帳戶名稱/);
   assert.throws(() => P.methodInput({ label: '   ' }), /請填寫收款帳戶名稱/);
   assert.throws(() => P.methodInput({}), /請填寫收款帳戶名稱/);
-  const m = P.methodInput({ label: ' 街口支付\x00 ' });
+  assert.throws(() => P.methodInput({ label: '街口支付' }), /適用的店別/, '沒選組別要擋');
+  assert.throws(() => P.methodInput({ label: '街口支付', group: 'CAFE' }), /適用的店別/, '組別只能是 FNB／SPACE，不是品牌');
+  const m = P.methodInput({ label: ' 街口支付\x00 ', group: 'fnb' });
   assert.equal(m.label, '街口支付');
+  assert.equal(m.group, 'FNB');
   assert.match(m.code, /^m[0-9a-f]{8}$/);
   assert.ok(!P.RESERVED_CODES.has(m.code));
   // code 不會跟既有自訂代碼衝突（機率極低，但邏輯要擋）
-  const again = P.methodInput({ label: '另一組轉帳' }, [m.code]);
+  const again = P.methodInput({ label: '另一組轉帳', group: 'SPACE' }, [m.code]);
   assert.notEqual(again.code, m.code);
-  assert.equal(P.methodInput({ label: '名稱超過二十個字的收款帳戶名稱測試看看會不會被裁切掉' }).label.length, 20);
+  assert.equal(P.methodInput({ label: '名稱超過二十個字的收款帳戶名稱測試看看會不會被裁切掉', group: 'FNB' }).label.length, 20);
+});
+
+test('收款帳戶分組（KK 11/5）：在咖啡＋三點水一組、等等空間＋約書旅一組；不分品牌＝全部組', () => {
+  assert.equal(P.groupOf('CAFE'), 'FNB'); assert.equal(P.groupOf('BAR'), 'FNB');
+  assert.equal(P.groupOf('STAY'), 'SPACE'); assert.equal(P.groupOf('REST'), 'SPACE');
+  assert.equal(P.groupOf('X'), null);
+  assert.deepEqual(P.groupsOf(['CAFE']), ['FNB']);
+  assert.deepEqual(P.groupsOf(['BAR', 'STAY']), ['FNB', 'SPACE']);
+  assert.equal(P.groupsOf(null), null, '言文字管理員不分品牌');
+  assert.equal(P.groupsOf([]), null);
 });
 
 test('編輯收款帳戶：改名清理同新增；沒給名稱要擋', () => {
@@ -66,7 +79,11 @@ test('server.js：收款帳戶表、API 路由、FOOD_API 白名單、/api/state
   assert.match(g, /req\.auth\.super===true/); assert.match(g, /req\.get\('x-manager-pin'\)/); assert.match(g, /isManagerRole\(mgr\.role\)/); assert.match(g, /need_manager_pin:true/);
   assert.match(server, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|analytics\|registers\|staff\|shifts\|attendance\|payment-methods\|pos-devices\|yan\|reservation-hours\|inventory\)/, '品牌子帳號可讀收款帳戶清單（結帳要用）');
   assert.match(server, /payment_methods: await paymentMethodsList\(\)/, '/api/state 要帶收款帳戶清單給前端畫結帳選項');
-  assert.match(server, /tableOrders\.posCheckout\(s\.items,\{[^\n]*?operator\},menuAll,await activePaymentCodes\(\),\{table:s\.table_no\}\)/, '結帳要把啟用中的自訂收款帳戶代碼傳給 posCheckout 驗證');
+  assert.match(server, /tableOrders\.posCheckout\(s\.items,\{[^\n]*?operator\},menuAll,await activePaymentCodes\(posPaymentMethods\.groupsOf\(venues\|\|posRegister\.sessionVenues\(s\)\)\),\{table:s\.table_no\}\)/, '結帳只認這桌品牌所屬組的自訂收款帳戶');
+  assert.match(server, /ALTER TABLE pos_payment_methods ADD COLUMN IF NOT EXISTS pm_group TEXT NOT NULL DEFAULT 'FNB'/);
+  assert.match(server, /payment_methods:await paymentMethodsList\(posPaymentMethods\.groupsOf\(venues\)\)/, 'POS 輪詢只拿該品牌所屬組的帳戶');
+  assert.match(server, /paymentMethodsList\(posPaymentMethods\.groupsOf\(\[reg\.venue\]\)\)/, '日結對帳帳戶只列該品牌所屬組');
+  assert.match(server, /extraCodes:await activePaymentCodes\(posPaymentMethods\.groupsOf\(/, '更正付款方式也只認該組');
 });
 
 test('docs/API.md 有記錄新端點與 /api/state 新欄位', () => {
@@ -92,6 +109,7 @@ test('admin.html：系統設定分頁只有超管看得到收款帳戶管理區�
   assert.match(admin, /on\('pm-add','click'/);
   assert.match(admin, /data-pm-toggle/);
   assert.match(admin, /data-pm-rename/);
-  assert.match(admin, /api\('\/admin\/payment-methods',\{method:'POST',body:\{label\}\}\)/);
+  assert.match(admin, /api\('\/admin\/payment-methods',\{method:'POST',body:\{label,group\}\}\)/);
+  assert.match(admin, /id="pm-group"/, '新增時要選適用店別組');
   assert.match(admin, /api\('\/admin\/payment-methods\/'\+b\.dataset\.pmToggle,\{method:'PATCH'/);
 });

@@ -871,6 +871,8 @@ async function migrate() {
   // 收款帳戶：言文字管理員自訂新增的付款方式（現金／刷卡／LINE Pay／轉帳為內建，寫死在 table-orders.js，不存這張表）
   await q(`CREATE TABLE IF NOT EXISTS pos_payment_methods (
     code TEXT PRIMARY KEY, label TEXT NOT NULL, active BOOLEAN NOT NULL DEFAULT true, created_by TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  // 收款帳戶分組共用（KK 11/5）：FNB＝在咖啡＋三點水、SPACE＝等等空間＋約書旅；既有帳戶都是餐飲時期建的，預設 FNB
+  await q(`ALTER TABLE pos_payment_methods ADD COLUMN IF NOT EXISTS pm_group TEXT NOT NULL DEFAULT 'FNB'`);
   // 排班與打卡：員工（4 位數識別碼，不綁登入帳號）、排班（員工 × 營業日 × 店別 × 起訖）、出勤（上班開一筆、下班補 clock_out）
   await require('./lib/outreach').init(q, uid);
   await q(`CREATE TABLE IF NOT EXISTS pos_staff (
@@ -6187,7 +6189,7 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   // payment_methods 一起回傳：已開著的 POS 畫面每 15 秒輪詢這支 API，新增的自訂收款帳戶才會即時出現在結帳選項，不用重新整理
   const pendingLinepay=(await q("SELECT id,session_id,state,amount,mode FROM linepay_payments WHERE state NOT IN ('failed','cancelled','settled')")).rows;
   for(const s of sessions){if(!s.mixed)s.linepay=pendingLinepay.find(a=>a.session_id===s.id)||null;}
-  res.json({orders,tickets,sessions,reservations,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue(),table_layout:tableLayoutParse(await contentValue('pos_table_layout')),payment_methods:await paymentMethodsList(),linepay:linepayOfflineStatus(),stock:tableOrders.MenuLib.parseMenuDoc(await contentValue('menu')).items.filter(it=>tableOrders.MenuLib.stockLeft(it)!==null||tableOrders.MenuLib.soldOutToday(it)).map(it=>({id:it.id,sold_out:it.sold_out,stock_day:it.stock_day,stock_left:it.stock_left}))});
+  res.json({orders,tickets,sessions,reservations,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue(),table_layout:tableLayoutParse(await contentValue('pos_table_layout')),payment_methods:await paymentMethodsList(posPaymentMethods.groupsOf(venues)),linepay:linepayOfflineStatus(),stock:tableOrders.MenuLib.parseMenuDoc(await contentValue('menu')).items.filter(it=>tableOrders.MenuLib.stockLeft(it)!==null||tableOrders.MenuLib.soldOutToday(it)).map(it=>({id:it.id,sold_out:it.sold_out,stock_day:it.stock_day,stock_left:it.stock_left}))});
 }));
 /* 櫃檯開桌／外帶：客人沒掃 QR（走進來直接在櫃檯點）也能開一桌；外帶自動取 W01–W99 最小空號。已開著的桌直接回那一桌 */
 app.post('/api/admin/orders/sessions',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -6355,7 +6357,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     // 掃會員條碼（或 member_id，來自掃碼那一步）才算驗證過身分：只有驗證過、且會籍有效的會員才套會籍價、才能用點數折抵；只報手機只累點
     const verified=!!(cardTok||memberIdRaw),memberActive=verified&&memberUser?(await memberAccessFor(memberUser.id)).active:false;
     if(req.body?.redeem_lines?.length&&!verified){await client.query('ROLLBACK');return res.status(400).json({error:'點數兌換請先掃會員條碼確認身分。'});}
-    let out,invoice,regWarn='',yanOut={earned:0,redeemed:0,balance:0};try{out=tableOrders.posCheckout(s.items,{...req.body,member:memberActive,staff:actorOf(req.auth)||'',operator},menuAll,await activePaymentCodes(),{table:s.table_no});invoice=ezpayInvoice.invoiceForm(req.body?.invoice||{});
+    let out,invoice,regWarn='',yanOut={earned:0,redeemed:0,balance:0};try{out=tableOrders.posCheckout(s.items,{...req.body,member:memberActive,staff:actorOf(req.auth)||'',operator},menuAll,await activePaymentCodes(posPaymentMethods.groupsOf(venues||posRegister.sessionVenues(s))),{table:s.table_no});invoice=ezpayInvoice.invoiceForm(req.body?.invoice||{});
       // 開關帳：品項所屬品牌今天的帳要開著（關帳後不能再結；沒開帳時超管放行但回警告，子帳號擋）
       regWarn=posRegister.checkoutAllowed(out.lines,await registersOpenMap(client,tableOrders.MenuLib.businessDay()),{strict:!!venues}).warning;
     }catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
@@ -6507,7 +6509,7 @@ app.post('/api/admin/orders/:id/pay-method',auth,adminOnly,requireDb,wrap(async(
     await client.query('BEGIN');
     const o=(await client.query('SELECT id,items,amount,status,payer,paid_at,tappay FROM table_orders WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
     if(!o||!tableOrders.orderOwnedByVenues(o,venues))return res.status(404).json({error:'找不到這筆出餐單。'});
-    let payer;try{payer=tableOrders.changePayMethod(o,req.body?.method,{extraCodes:await activePaymentCodes(),by:actorOf(req.auth)||'',operator});}catch(e){return res.status(e.status||400).json({error:e.message});}
+    let payer;try{payer=tableOrders.changePayMethod(o,req.body?.method,{extraCodes:await activePaymentCodes(posPaymentMethods.groupsOf(venues||posRegister.sessionVenues({items:o.items,created_at:o.paid_at}))),by:actorOf(req.auth)||'',operator});}catch(e){return res.status(e.status||400).json({error:e.message});}
     await client.query('UPDATE table_orders SET payer=$2 WHERE id=$1',[o.id,JSON.stringify(payer)]);
     await client.query('COMMIT');committed=true;
     res.json({ok:true,payer});
@@ -6874,7 +6876,7 @@ async function registerSummary(reg){
   const moves=(await q('SELECT id,type,amount,reason,staff,created_at FROM pos_cash_moves WHERE register_id=$1 ORDER BY created_at',[reg.id])).rows;
   const counts=(await q('SELECT id,counted_cash,expected_cash,diff,denominations,note,counted_by,created_at FROM pos_register_counts WHERE register_id=$1 ORDER BY created_at DESC',[reg.id])).rows;
   const summary=posRegister.expectedCash({opening_cash:reg.opening_cash,cash_sales:sales.by_method.cash||0,moves});
-  const methods=await paymentMethodsList(),accounts=posRegister.accountsOf(sales.by_method),labels={};
+  const methods=await paymentMethodsList(posPaymentMethods.groupsOf([reg.venue])),accounts=posRegister.accountsOf(sales.by_method),labels={};
   for(const m of methods){labels[m.code]=m.label;if(m.active&&m.code!=='cash'&&!posRegister.LEGACY_CARD.includes(m.code))accounts[m.code]??=0;}
   labels.stripe='Stripe 線上刷卡';   // 會員 App 商店線上付款，對 Stripe 後台實收
   summary.reconciliation_accounts=accounts;summary.account_labels=labels;
@@ -6979,13 +6981,14 @@ app.post('/api/admin/registers/:id/reopen',auth,adminOnly,superOnly,requireDb,wr
 // 2026-10-29 決策：信用卡改用中信行動刷卡（代碼 ctbc，自動抓中信實收對帳），移除台新手機付；
 // 結帳畫面只留一個「信用卡」選項。歷史單據的 card／taishin 紀錄不回頭改，標籤仍顯示「信用卡」，日結併入 ctbc 對帳
 const MERGED_PAY_LABEL={ctbc:'信用卡'};
-async function paymentMethodsList(){
+/* groups：posPaymentMethods.groupsOf(venues)；null＝全部組（言文字管理員／標籤查詢）。內建付款方式不分組 */
+async function paymentMethodsList(groups=null){
   const builtin=Object.entries(tableOrders.PAY_METHODS).filter(([code])=>code!=='tappay'&&code!=='stripe'&&!posRegister.LEGACY_CARD.includes(code)).map(([code,label])=>({code,label:MERGED_PAY_LABEL[code]||label,active:true,builtin:true}));
-  const custom=(await q('SELECT code,label,active FROM pos_payment_methods ORDER BY created_at')).rows.map(r=>({...r,builtin:false}));
+  const custom=(await q('SELECT code,label,active,pm_group AS "group" FROM pos_payment_methods ORDER BY created_at')).rows.filter(r=>!groups||groups.includes(r.group)).map(r=>({...r,builtin:false}));
   return [...builtin,...custom];
 }
-async function activePaymentCodes(){
-  return new Set((await q('SELECT code FROM pos_payment_methods WHERE active')).rows.map(r=>r.code));
+async function activePaymentCodes(groups=null){
+  return new Set((await q('SELECT code,pm_group FROM pos_payment_methods WHERE active')).rows.filter(r=>!groups||groups.includes(r.pm_group)).map(r=>r.code));
 }
 /* POS 設定頁也能管收款帳戶：超管直接過；其他帳號（品牌子帳號／平板員工）要帶店長 4 位數識別碼（X-Manager-Pin，不進網址），
  * 通過後把店長寫進 operator_id，POS 操作紀錄會記是哪位店長改的 */
@@ -7001,21 +7004,21 @@ async function superOrManagerPin(req,res,next){
     next();
   }catch(e){next(e);}
 }
-app.get('/api/admin/payment-methods',auth,adminOnly,requireDb,wrap(async(_req,res)=>{res.set('Cache-Control','no-store');res.json({payment_methods:await paymentMethodsList()});}));
+app.get('/api/admin/payment-methods',auth,adminOnly,requireDb,wrap(async(req,res)=>{res.set('Cache-Control','no-store');res.json({groups:posPaymentMethods.GROUPS,payment_methods:await paymentMethodsList(posPaymentMethods.groupsOf(posScope(req)))});}));
 app.post('/api/admin/payment-methods',rateLimit({max:20}),auth,adminOnly,requireDb,superOrManagerPin,wrap(async(req,res)=>{
   const existing=(await q('SELECT code FROM pos_payment_methods')).rows.map(r=>r.code);
   let m;try{m=posPaymentMethods.methodInput(req.body,existing);}catch(e){return res.status(e.status||400).json({error:e.message});}
-  await q('INSERT INTO pos_payment_methods(code,label,created_by) VALUES($1,$2,$3)',[m.code,m.label,actorOf(req.auth)||'']);
-  res.status(201).json({ok:true,code:m.code,label:m.label,active:true,builtin:false});
+  await q('INSERT INTO pos_payment_methods(code,label,pm_group,created_by) VALUES($1,$2,$3,$4)',[m.code,m.label,m.group,actorOf(req.auth)||'']);
+  res.status(201).json({ok:true,code:m.code,label:m.label,group:m.group,active:true,builtin:false});
 }));
 app.patch('/api/admin/payment-methods/:code',rateLimit({max:20}),auth,adminOnly,requireDb,superOrManagerPin,wrap(async(req,res)=>{
-  const row=(await q('SELECT code,label,active FROM pos_payment_methods WHERE code=$1',[req.params.code])).rows[0];
+  const row=(await q('SELECT code,label,active,pm_group AS "group" FROM pos_payment_methods WHERE code=$1',[req.params.code])).rows[0];
   if(!row)return res.status(404).json({error:'找不到這個收款帳戶。'});
   const next={label:row.label,active:row.active};
   if(req.body?.label!==undefined){try{next.label=posPaymentMethods.labelInput(req.body.label);}catch(e){return res.status(e.status||400).json({error:e.message});}}
   if(req.body?.active!==undefined)next.active=req.body.active===true;
   await q('UPDATE pos_payment_methods SET label=$2,active=$3 WHERE code=$1',[row.code,next.label,next.active]);
-  res.json({ok:true,code:row.code,...next,builtin:false});
+  res.json({ok:true,code:row.code,...next,group:row.group,builtin:false});
 }));
 /* ===== POS 裝置綁定＋操作人員密碼登入：店長 Gmail 登入一次綁定該台 iPad，之後員工改用自己的 4 位數密碼登入（不用再經過 Gmail）=====
  * 登入後的身分＝pos_staff（操作人員），依其 venues（所屬品牌）過濾資料，不是靠裝置本身的品牌（裝置可兩店共用）。 */

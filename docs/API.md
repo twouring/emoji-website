@@ -197,7 +197,7 @@ Google 授權回呼，簽發會員 token 並導回。
   users[], commitments[], entitlements[], events[], content{}, updates[], payment_methods[] }
 ```
 
-`payment_methods[]`（管理員皆可見，POS 結帳與系統設定管理共用）：`[{ code, label, active, builtin }]`，現金／刷卡／LINE Pay／轉帳為 `builtin:true` 固定在前（恆 `active:true`），之後接自訂收款帳戶（`builtin:false`，見 `POST/PATCH /api/admin/payment-methods`）。結帳付款方式選項只取 `active:true` 的；停用的自訂帳戶仍會列出（`active:false`）供系統設定頁重新啟用。
+`payment_methods[]`（管理員皆可見，POS 結帳與系統設定管理共用）：`[{ code, label, group?, active, builtin }]`（`/api/state` 回全部組；POS 的 `GET /api/admin/orders` 只回該品牌所屬組的自訂帳戶，結帳與日結也只認該組），現金／刷卡／LINE Pay／轉帳為 `builtin:true` 固定在前（恆 `active:true`），之後接自訂收款帳戶（`builtin:false`，見 `POST/PATCH /api/admin/payment-methods`）。結帳付款方式選項只取 `active:true` 的；停用的自訂帳戶仍會列出（`active:false`）供系統設定頁重新啟用。
 
 `users[]` 每筆含 `access_active`、`access_summary`。
 會員身分則只回自己的資料（`me`、`commitments`、`access`、報名中活動、`updates`）；query `lang=en|ja` 時活動標題／說明回對應語系（會員 App 用）。
@@ -642,13 +642,13 @@ LINE Pay 與中信刷卡同步都依開關帳時間歸屬店別，保留品牌�
 重開補單（僅超級管理員）。關帳紀錄保留，以留存金為零用金另開一本新帳接著記；當日任何品牌還有開著的帳回 409（另一品牌開著時訊息會說要先關誰）。回 `{ ok, id, day, venue, opening_cash }`（201）。
 
 ### GET /api/admin/payment-methods
-收款帳戶清單（管理員與品牌子帳號皆可讀，POS「設定」頁用）。回 `{ payment_methods[]{ code, label, active, builtin } }`，格式同 `GET /api/state`。
+收款帳戶清單（管理員與品牌子帳號皆可讀）。query `venue=`（品牌 POS 自動帶）→ 只回該品牌所屬組的自訂帳戶；不帶＝全部。回 `{ groups:{FNB,SPACE}, payment_methods[]{ code, label, group?, active, builtin } }`。自訂帳戶分兩組共用（KK 11/5）：`FNB`＝在咖啡＋三點水、`SPACE`＝等等空間＋約書旅；內建付款方式（`builtin:true`）全部品牌共用、沒有 `group`。
 
 ### POST /api/admin/payment-methods
-新增收款帳戶（超級管理員；其他帳號——品牌子帳號、平板員工——須帶 header `X-Manager-Pin`＝在職店長的 4 位數識別碼，錯碼 403 `need_manager_pin:true`，操作紀錄記該店長）。現金／刷卡／LINE Pay／轉帳為內建付款方式，不經這支 API 管理；這裡新增的是額外的自訂收款帳戶（例如街口支付、另一組轉帳帳號），結帳時會一併出現在付款方式選項。body `{ label }`（1–20 字，必填）；`code` 由系統隨機產生，不可自訂。回 `{ ok, code, label, active:true, builtin:false }`（201）。品牌子帳號沒帶店長識別碼時只能讀。
+新增收款帳戶（超級管理員；其他帳號——品牌子帳號、平板員工——須帶 header `X-Manager-Pin`＝在職店長的 4 位數識別碼，錯碼 403 `need_manager_pin:true`，操作紀錄記該店長）。現金／刷卡／LINE Pay／轉帳為內建付款方式，不經這支 API 管理；這裡新增的是額外的自訂收款帳戶（例如街口支付、另一組轉帳帳號），結帳時會一併出現在付款方式選項。body `{ label, group }`（名稱 1–20 字必填；`group` 為 `FNB`｜`SPACE`，必填）；`code` 由系統隨機產生，不可自訂。回 `{ ok, code, label, group, active:true, builtin:false }`（201）。品牌子帳號沒帶店長識別碼時只能讀。
 
 ### PATCH /api/admin/payment-methods/:code
-改名或停用／恢復一個自訂收款帳戶（權限同 POST：超級管理員，或帶 `X-Manager-Pin` 店長識別碼）；內建付款方式沒有對應的 `:code` 可改。body `{ label? , active? }`，兩者都可選填。停用後既有歷史單據的付款方式標籤仍可正常顯示，只是結帳時不再能選它。回 `{ ok, code, label, active, builtin:false }`。
+改名或停用／恢復一個自訂收款帳戶（權限同 POST：超級管理員，或帶 `X-Manager-Pin` 店長識別碼）；內建付款方式沒有對應的 `:code` 可改。body `{ label? , active? }`，兩者都可選填；`group` 不能改（歷史單據以 code 關聯，要換組就停用後另建）。停用後既有歷史單據的付款方式標籤仍可正常顯示，只是結帳時不再能選它。回 `{ ok, code, label, group, active, builtin:false }`。
 
 ### GET /api/admin/staff
 員工名單（排班與打卡用）。員工不綁登入帳號，每位一組不重複的 4 位數識別碼，在共用平板打卡時輸入。query `venue=`。回 `{ staff[]{ id, name, venues（null＝在咖啡與三點水都可）, role, note, active, pin? }, count }`；`pin` 只有言文字管理員看得到，品牌子帳號只看到店別含自己品牌（或不限店別）的員工。停用（`active:false`）的員工排在後面。
