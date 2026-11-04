@@ -13,7 +13,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent / 'public'
 T = {
  'zh': dict(
   base='', brand='<span class="keep">言文字｜台灣人才聚落</span> <span class="keep">Taiwan Talent Hub</span>',
-  h1='一棟樓，四個入口。<br><em>讓你平常不會遇到的人，<span class="keep">在台北車站旁<span class="swash">相遇</span>。</span></em>',
+  h1='<em>讓你平常不會遇到的人，<span class="keep">在台北車站旁<span class="swash">相遇</span>。</span></em>',
   lead='白天喝咖啡、晚上吃宵夜，在約書旅看書休息，到等等空間工作開會。每個品牌都是一個入口，用你習慣的方式走進來，在這裡遇見下一個合作對象。',
   pickq='今天想做什麼？',
   picks=[('#gate-cafe','吃早午餐・喝咖啡'),('#gate-bar','吃宵夜・喝一杯'),('#gate-book','看書・休息一下'),('#gate-stay','工作・開會'),('/events','參加活動')],
@@ -48,7 +48,7 @@ T = {
   img_tag='示意圖'),
  'en': dict(
   base='/en', brand='emoji — Taiwan Talent Hub',
-  h1='One building, four gates.<br><em>Meet the people you wouldn\'t normally meet, right by <span class="swash">Taipei Main Station</span>.</em>',
+  h1='<em>Meet the people you wouldn\'t normally meet, right by <span class="swash">Taipei Main Station</span>.</em>',
   lead='Coffee by day, late-night food after dark, reading and rest at Rest Book, work and meetings at Stay Square. Every brand is a gate — come in your own way, and meet your next collaborator here.',
   pickq='What would you like to do today?',
   picks=[('#gate-cafe','Brunch & coffee'),('#gate-bar','Late-night bites & drinks'),('#gate-book','Read & recharge'),('#gate-stay','Work & meet'),('/en/events','Join an event')],
@@ -83,7 +83,7 @@ T = {
   img_tag='Rendering'),
  'ja': dict(
   base='/ja', brand='言文字｜台湾タレントハブ',
-  h1='ひとつの建物に、4つの入口。<br><em>普段は出会えない人と、<span class="keep"><span class="swash">台北駅のそば</span>で出会う。</span></em>',
+  h1='<em>普段は出会えない人と、<span class="keep"><span class="swash">台北駅のそば</span>で出会う。</span></em>',
   lead='昼はコーヒー、夜は深夜ごはん。約書旅で本を読んでひと休み、等等空間で仕事や打ち合わせ。どのブランドも入口です。好きな入り方で、次の仕事仲間に出会ってください。',
   pickq='今日は何をしますか？',
   picks=[('#gate-cafe','ブランチ・コーヒー'),('#gate-bar','夜ごはん・一杯'),('#gate-book','読書・ひと休み'),('#gate-stay','仕事・打ち合わせ'),('/ja/events','イベントに参加')],
