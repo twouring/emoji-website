@@ -96,19 +96,29 @@ async function songRunSearch(q){
 function songSearchSoon(q){ clearTimeout(SONG_SEARCH_T); SONGS.q = String(q || '').trim(); SONG_SEARCH_T = setTimeout(() => songRunSearch(q), 500); }
 document.addEventListener('input', e => { const i = e.target; if (!i.matches || !i.matches('#songs-body [data-song-search] input') || e.isComposing) return; songSearchSoon(i.value); });
 document.addEventListener('compositionend', e => { const i = e.target; if (i.matches && i.matches('#songs-body [data-song-search] input')) songSearchSoon(i.value); });
+/* 播放裝置在點歌分頁：把畫面外的播放器疊到大卡左邊（不移動 DOM，iframe 不會重載），iPad 才點得到 YouTube 的播放鍵 */
+function songPlaceDock(){
+  const dock = document.getElementById('song-dock'), slot = TAB === 'songs' && document.querySelector('#songs-body [data-song-slot]');
+  if (!dock) return;
+  if (!slot) { dock.classList.remove('on-card'); dock.style.left = dock.style.top = dock.style.width = dock.style.height = ''; return; }
+  const r = slot.getBoundingClientRect();
+  dock.classList.add('on-card'); dock.style.left = r.left + 'px'; dock.style.top = r.top + 'px'; dock.style.width = r.width + 'px'; dock.style.height = r.height + 'px';
+}
+window.addEventListener('resize', songPlaceDock); document.addEventListener('scroll', songPlaceDock, true);
 function paintSongs(){
   const host = document.getElementById('songs-body'); if (!host || !SONGS.data) return;
-  const d = SONGS.data, s = d.settings, me = isSongPlayer(), now = d.now;
+  const d = SONGS.data, s = d.settings, me = isSongPlayer(), now = d.now, up0 = d.upcoming || { items: d.queue };
   const status = !s.enabled ? '<span class="pill pill-draft">客人點歌：關閉</span>' : `<span class="pill pill-ok">客人點歌：開放中・每首 NT$${esc(s.price)}</span>`;
   const player = s.player_device ? (me ? '<span class="pill pill-ok">這台播放中</span>' : '<span class="pill pill-wait">另一台播放中</span>') : '<span class="pill pill-bad">未指定播放裝置</span>';
+  const art = me ? '<div class="song-slot" data-song-slot></div>' : now && now.thumb ? `<img src="${esc(now.thumb)}" alt="">` : '<span class="song-ph lg" aria-hidden="true">♪</span>';
   const nowCard = now
-    ? `<div class="song-now">${now.thumb ? `<img src="${esc(now.thumb)}" alt="">` : '<span class="song-ph lg" aria-hidden="true">♪</span>'}<div class="song-now-main">${songWho(now)}<b>${esc(now.title)}</b><small>${songMeta(now)}</small></div><button type="button" class="btn btn--solid" data-song-skip>下一首</button></div>`
-    : `<div class="song-now is-empty"><span class="song-ph lg" aria-hidden="true">♪</span><div class="song-now-main"><b>目前沒有在播放</b><small>${(s.playlist.length || (s.schedules || []).length) ? (s.player_device ? '播放裝置會自動開始播常態歌單。' : '先在接音響的平板按「在這台播放」。') : '到「設定 → 點歌」匯入常態歌單，沒人點歌時會自動播放。'}</small></div>${d.queue.length || s.playlist.length ? '<button type="button" class="btn btn--solid" data-song-skip>開始播放</button>' : ''}</div>`;
+    ? `<div class="song-now${me ? ' is-player' : ''}">${art}<div class="song-now-main">${songWho(now)}<b>${esc(now.title)}</b><small>${songMeta(now)}</small>${me ? `<small class="song-blocked" data-song-blocked ${SONG_PLAYING ? 'hidden' : ''}>沒有聲音？點一下左邊的播放器或「播放」。</small>` : '<small>播放與暫停在播放裝置（接音響的平板）上操作。</small>'}</div><div class="song-now-act">${me ? `<button type="button" class="btn btn--solid" data-song-toggle>${SONG_PLAYING ? '暫停' : '播放'}</button>` : ''}<button type="button" class="btn btn--solid" data-song-skip>下一首</button></div></div>`
+    : `<div class="song-now is-empty"><span class="song-ph lg" aria-hidden="true">♪</span><div class="song-now-main"><b>目前沒有在播放</b><small>${up0.items.length ? (s.player_device ? '按「開始播放」。' : '先在接音響的平板按「在這台播放」。') : '現在不在任何時段歌單內，也沒有人點歌。'}</small></div>${up0.items.length ? '<button type="button" class="btn btn--solid" data-song-skip>開始播放</button>' : ''}</div>`;
   const up = d.upcoming || { items: d.queue.map((t, i) => ({ ...t, kind: 'request', pos: i + 1 })), shuffle: false };
   const reqN = d.queue.length;
   const queue = (up.items.length
     ? `<ol class="song-list song-queue">${up.items.map(t => songRow(t, t.kind === 'request' ? songQueueActs(t, reqN) : '', { rank: t.pos })).join('')}</ol>`
-    : '<p class="a-empty">沒有接下來的歌。到「設定 → 點歌」匯入常態歌單。</p>')
+    : '<p class="a-empty">沒有接下來的歌。時段歌單與常態歌單在「設定 → 點歌」。</p>')
     + (up.shuffle ? `<p class="hint">${esc(up.playlist_name || '常態歌單')} ${esc(up.playlist_count)} 首隨機播放，以上是這一輪已洗好的順序。</p>` : '');
   const hist = d.history.length ? `<details class="song-hist"><summary>最近播過（${Math.min(8, d.history.length)}）</summary><ul class="song-list">${d.history.slice(0, 8).map(t => songRow(t, t.result === 'error' ? '<span class="pill pill-wait">無法播放已跳過</span>' : t.result === 'skip' ? '<span class="pill pill-draft">跳過</span>' : '')).join('')}</ul></details>` : '';
   // 重繪會換掉整個 DOM：先記下兩欄捲動位置，畫完還原（找歌換分頁才回到頂端），輪詢時才不會一直跳回最上面
@@ -125,7 +135,7 @@ function paintSongs(){
     </section>
   </div>`;
   const sc = host.querySelectorAll('.song-scroll'); if (sc[0]) sc[0].scrollTop = keep[0] || 0; if (sc[1] && sameView) sc[1].scrollTop = keep[1] || 0;
-  songFit();
+  songFit(); songPlaceDock();
   if (SONGS.view === 'search' && SONGS.focus) { const i = host.querySelector('[data-song-search] input'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } SONGS.focus = false; }
 }
 /* 平板橫放／桌機（寬 ≥1000、高 ≥600）：兩欄撐到視窗底、各自捲動，正在播放與找歌都不用捲整頁；直放與手機維持上下堆疊 */
@@ -160,6 +170,7 @@ document.addEventListener('click', async e => {
   if (b.matches('[data-song-settings]')) { SONG_SET_FOCUS = true; return go('settings'); }
   if (b.matches('[data-song-claim]')) return songClaim();
   if (b.matches('[data-song-release]')) return songRelease();
+  if (b.matches('[data-song-toggle]')) return songToggle();
   if (b.matches('[data-song-skip]')) return songDo(() => songApi('/admin/orders/songs/next', { method: 'POST', body: { result: 'skip', current: D.now && D.now.id } }));
   if (b.dataset.songTop) return songDo(() => songApi('/admin/orders/songs/queue/' + encodeURIComponent(b.dataset.songTop) + '/top', { method: 'POST' }));
   if (b.dataset.songDel) {
@@ -237,7 +248,10 @@ document.addEventListener('submit', async e => {
 });
 
 /* ---- 播放器（只在播放裝置上運作）：YouTube IFrame API，常駐右下角 ---- */
-let SONG_YT = null, SONG_YT_READY = false, SONG_LOADED = '', SONG_TIMER = null, SONG_BUSY = false;
+let SONG_YT = null, SONG_YT_READY = false, SONG_LOADED = '', SONG_TIMER = null, SONG_BUSY = false, SONG_PLAYING = false;
+/* 播放／暫停狀態反映到大卡按鈕（不整頁重繪） */
+function songPaintPlaying(){ const b = document.querySelector('#songs-body [data-song-toggle]'); if (b) b.textContent = SONG_PLAYING ? '暫停' : '播放'; const h = document.querySelector('#songs-body [data-song-blocked]'); if (h) h.hidden = SONG_PLAYING; }
+function songToggle(){ songEnsureApi(); if (!SONG_YT) return songPlayerSync(); try { SONG_PLAYING ? SONG_YT.pauseVideo() : SONG_YT.playVideo(); } catch (e) {} }
 function songUnlock(){ songEnsureApi(); }
 function songEnsureApi(){
   if (window.YT && window.YT.Player) { SONG_YT_READY = true; return; }
@@ -256,7 +270,7 @@ function songDock(){
   document.body.appendChild(dock);
   return dock;
 }
-function songPlayerStop(){ clearTimeout(SONG_TIMER); SONG_TIMER = null; try { SONG_YT && SONG_YT.destroy(); } catch (e) {} SONG_YT = null; SONG_LOADED = ''; const d = document.getElementById('song-dock'); if (d) d.remove(); }
+function songPlayerStop(){ clearTimeout(SONG_TIMER); SONG_TIMER = null; try { SONG_YT && SONG_YT.destroy(); } catch (e) {} SONG_YT = null; SONG_LOADED = ''; SONG_PLAYING = false; const d = document.getElementById('song-dock'); if (d) d.remove(); }
 async function songNext(result){
   if (SONG_BUSY) return; SONG_BUSY = true;
   try { SONGS.data = await songApi('/admin/orders/songs/next', { method: 'POST', body: { result, current: SONGS.data && SONGS.data.now ? SONGS.data.now.id : null, device: DEVICE_ID } }); if (SONGS.data.refunded) toast('客人點的歌無法播放，已跳過並從帳上拿掉'); } catch (e) { toast(e.message); }
@@ -266,7 +280,7 @@ function songPlayerSync(){
   if (!isSongPlayer()) { if (SONG_YT || document.getElementById('song-dock')) songPlayerStop(); return; }
   clearTimeout(SONG_TIMER); SONG_TIMER = setTimeout(songPoll, SONG_POLL_MS);
   songEnsureApi(); if (!SONG_YT_READY) return;
-  const d = SONGS.data, now = d.now; songDock();
+  const d = SONGS.data, now = d.now; songDock(); songPlaceDock();
   // 沒在播但有歌可播 → 換下一首；正在播常態歌單、有人點歌 → 立刻切過去
   if (!now && (d.queue.length || d.settings.playlist.length || (d.settings.schedules || []).length)) return songNext('ended');
   if (now && now.kind === 'playlist' && d.queue.length) return songNext('preempt');
@@ -275,7 +289,7 @@ function songPlayerSync(){
   SONG_LOADED = now.id;
   if (!SONG_YT) {
     SONG_YT = new YT.Player('song-yt', { width: '320', height: '180', videoId: now.video_id, playerVars: { autoplay: 1, playsinline: 1, rel: 0, modestbranding: 1 },
-      events: { onReady: ev => { try { ev.target.playVideo(); } catch (e) {} }, onStateChange: ev => { if (ev.data === YT.PlayerState.ENDED) songNext('ended'); }, onError: () => songNext('error') } });
+      events: { onReady: ev => { try { ev.target.playVideo(); } catch (e) {} }, onStateChange: ev => { SONG_PLAYING = ev.data === YT.PlayerState.PLAYING || ev.data === YT.PlayerState.BUFFERING; songPaintPlaying(); if (ev.data === YT.PlayerState.ENDED) songNext('ended'); }, onError: () => songNext('error') } });
   } else { try { SONG_YT.loadVideoById(now.video_id); } catch (e) { songNext('error'); } }
 }
 async function songPoll(){

@@ -326,3 +326,12 @@ test('點歌各品牌一份：site_content key 帶品牌、POS 呼叫帶 venue�
   assert.doesNotMatch(js, /[^g]api\('\/admin\/orders\/songs/);
   assert.match(js, /function songApi\(path, opt\)\{ return api\(path \+ \(SCOPE/);
 });
+
+test('播放裝置在點歌分頁看得到播放器與播放／暫停（KK 11/4）', () => {
+  const js = read('public/pos-songs.js'), html = read('public/pos.html');
+  assert.match(js, /data-song-slot/); assert.match(js, /data-song-toggle/); assert.match(js, /function songPlaceDock\(\)/);
+  assert.match(js, /pauseVideo\(\)/); assert.match(js, /SONG_PLAYING = ev\.data === YT\.PlayerState\.PLAYING/);
+  assert.match(html, /#song-dock\.on-card\{opacity:1;pointer-events:auto/);
+  assert.match(html, /songPlaceDock\(\); \/\/ 離開點歌分頁/);
+  assert.doesNotMatch(js, /播放裝置會自動開始播常態歌單/);
+});

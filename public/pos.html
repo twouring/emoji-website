@@ -284,6 +284,10 @@
   .tip-pay input,.tip-pay select,.tip-range input,.tip-range select{min-height:44px;font:inherit;font-size:1rem;padding:0 10px;border:1px solid var(--line);border-radius:8px;color:var(--ink);background:var(--paper);min-width:0}
   @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
   #song-dock{position:fixed;left:-10000px;top:0;width:320px;height:180px;overflow:hidden;opacity:0;pointer-events:none}
+  #song-dock.on-card{opacity:1;pointer-events:auto;z-index:5;border-radius:8px;background:#000}#song-dock.on-card iframe{width:100%!important;height:100%!important;display:block}
+  .song-now .song-slot{width:240px;aspect-ratio:16/9;border-radius:8px;background:#000;flex:none}
+  .song-now-act{display:flex;flex-direction:column;gap:8px;flex:none}
+  @media (max-width:600px){.song-now .song-slot{width:100%}.song-now-act{width:100%;flex-direction:row}.song-now-act .btn{flex:1}}
 
 .bg-grid{display:grid;grid-template-columns:1fr 280px;gap:20px;align-items:start;margin-top:14px}
 @media (max-width:900px){.bg-grid{grid-template-columns:1fr}}
@@ -589,6 +593,7 @@ function activate(){
   startKitchenPrinting();
   refreshRegWarn();
   document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('on', p.dataset.panel === TAB));
+  if (typeof songPlaceDock === 'function') songPlaceDock(); // 離開點歌分頁：播放器回畫面外繼續播
   clearTimeout(ORDERS_TIMER); clearTimeout(POS_TIMER);
   if (TAB !== 'logs') { LOGS_PIN = ''; LOGS_PAD = ''; LOGS_MSG = ''; } // 紀錄限店長：離開分頁就要重輸識別碼
   if (TAB === 'pos') loadPos();
