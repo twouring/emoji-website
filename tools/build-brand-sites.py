@@ -185,6 +185,7 @@ def footer_html(slug, dock):
   <div class="bs-foot__bottom"><p class="bs-foot__legal">{e(legal)}</p>{lang_switch(b['host'], ' bs-lang--foot')}</div>
 </div></footer>
 <nav class="bs-dock" aria-label="{t('快速動作', 'Quick actions', 'クイック操作')}">{dock_html}</nav>
+<script>(function(){{var n=document.querySelector('.bs-head');if(!n)return;function f(){{n.classList.toggle('is-scrolled',scrollY>8)}}addEventListener('scroll',f,{{passive:true}});f()}})()</script>
 <script>(function(){{var d=document.querySelector('.bs-dock'),h=document.querySelector('.bs-hero,.sq-hero');if(!d||!h||!('IntersectionObserver' in window))return;new IntersectionObserver(function(e){{d.classList.toggle('is-on',!e[0].isIntersecting)}}).observe(h)}})()</script>
 </body>
 </html>
