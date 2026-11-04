@@ -11,7 +11,7 @@ function harness(request) {
   const elements = { 'p-logout':{}, 'p-nav':{}, 'p-scope':{}, 'pos-password-login':form, 'pos-login-error':error };
   const saved = [], app = { innerHTML:'' };
   const ctx = { document:{ getElementById:id=>elements[id] || null }, app, esc:String, DEVICE_BOUND:false,
-    AUTH_ORIGIN:'https://www.emoji.tw', location:{ origin:'https://pos.emoji.tw' }, encodeURIComponent,
+    AUTH_ORIGIN:'https://www.emoji.tw', location:{ origin:'https://pos.emoji.tw' }, POS_BASE:'/pos', POS_URL_VENUE:'', encodeURIComponent,
     api:request, KEY:'tth_token', token:null, justLoggedInByAdmin:false,
     localStorage:{ setItem:(...args)=>saved.push(args) }, main:async()=>{ctx.booted=true;}, renderPinLogin(){} };
   runInNewContext(login, ctx);
@@ -68,7 +68,7 @@ for (const [label,state,allowed] of [
   ['non-admin session',{role:'invited',me:{}},false],
 ]) test(`password bootstrap preserves brand/role gate: ${label}`,async()=>{
   const paths=[],screens=[];
-  const ctx={token:'signed-session',DEVICE_ID:'test-device',DEVICE_BOUND:false,justLoggedInByAdmin:true,
+  const ctx={POS_URL_VENUE:'',POS_VENUE_BASE:{CAFE:'/atcafe',BAR:'/3am'},token:'signed-session',DEVICE_ID:'test-device',DEVICE_BOUND:false,justLoggedInByAdmin:true,
     BRAND_LABEL:{CAFE:'在咖啡',BAR:'三點水'},api:async path=>{paths.push(path);return path==='/state'?state:{};},
     showLoginScreen:msg=>screens.push(msg),MenuLib:{parseMenuDoc:()=>({})},routeTab:()=> 'pos',ROUTE_TABLE:'',POS_TABLE:'',
     render:()=>{ctx.rendered=true;},refreshPending(){},renewToken(){},app:{},esc:String};

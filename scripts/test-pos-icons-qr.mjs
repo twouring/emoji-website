@@ -49,7 +49,7 @@ test('未連接 Star、QR 失敗及列印失敗均不宣稱實體出紙成功',a
 test('桌位專屬 QR 自動查詢該桌，保留批次入口；查單一單一列、點開看詳情與操作',()=>{
   assert.match(ops,/function openTableQr\(table\)\{return openOneTableQr\(String\(table\)\);\}/);
   assert.match(ops,/async function openOneTableQr\(table\)/);
-  assert.match(ops,/api\('\/admin\/tables\/qr\?tables='\+encodeURIComponent\(table\)\)/);
+  assert.match(ops,/api\('\/admin\/tables\/qr\?tables='\+encodeURIComponent\(table\)\+\(SCOPE\?'&venue='\+SCOPE:''\)\)/);
   assert.match(ops,/await printTableQr\(t.table,t.url,t\)/);
   assert.match(ops,/pb.disabled=true/);assert.match(ops,/finally\{pb.disabled=false/);
   assert.ok(ops.includes('class="hist-list"'));assert.ok(ops.includes('<table class="hist-sheet">'));assert.match(ops,/data-hist-row=/);assert.match(ops,/data-hist-detail=/);

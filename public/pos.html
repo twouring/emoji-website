@@ -18,6 +18,14 @@
 <style>
   /* 平板 POS：單欄、頂欄分頁、48px 以上觸控目標；沿用 CIS token（/style.css）與 /pos-ops.css 的餐飲營運樣式 */
   :root{--p-top:60px}
+  /* 店別主色（KK 11/4，CIS：cis.emoji.tw/brands）：在咖啡 #984C37（白字 6.1:1）、三點水 #6B8FAB（白字只有 3.4:1，配墨字 5.1:1）。
+     店別網址（/atcafe、/3am）整頁換主色，頂欄加品牌色條，一眼分得出是哪家店的平板 */
+  html[data-venue=CAFE]{--accent:#984C37;--accent-strong:#7E3E2C;--accent-soft:#F3E4DE;--on-accent:#FFFFFF;--venue:#984C37}
+  html[data-venue=BAR]{--accent:#6B8FAB;--accent-strong:#57778F;--accent-soft:#E3EBF2;--on-accent:#1B1A17;--venue:#6B8FAB}
+  html[data-venue] .p-top{border-top:6px solid var(--venue)}
+  html[data-venue] .p-brand i{background:var(--venue);color:var(--on-accent)}
+  html[data-venue] .p-nav button[aria-pressed=true]{background:var(--venue);color:var(--on-accent)}
+  html[data-venue] .btn--solid{background:var(--venue);border-color:var(--venue);color:var(--on-accent)}
   html{background:var(--paper);height:100%;overflow:hidden;overscroll-behavior:none}
   /* 全站鎖定尺寸：不可雙指縮放、不可雙擊放大（touch-action 擋雙擊，gesturestart 擋雙指，見下方 script） */
   html,body{touch-action:manipulation}
@@ -288,7 +296,7 @@
 <body>
 <div class="p-regwarn" id="p-regwarn" role="alert" hidden></div>
 <header class="p-top">
-  <a class="p-brand" href="/" aria-label="言文字 POS"><i>言</i><span class="p-ver-wrap"><b>POS</b><small class="p-ver" title="v<!--POS_VERSION_FULL-->">v<!--POS_VERSION--></small></span></a>
+  <a class="p-brand" href="/" aria-label="言文字 POS" id="p-brand"><i>言</i><span class="p-ver-wrap"><b>POS</b><small class="p-ver" title="v<!--POS_VERSION_FULL-->">v<!--POS_VERSION--></small></span></a>
   <div class="p-scope" id="p-scope" role="group" aria-label="切換店別"></div>
   <div class="p-nav-wrap" id="p-nav-wrap">
     <nav class="p-nav" id="p-nav" aria-label="功能"></nav>
@@ -337,6 +345,15 @@ const esc = s => (s == null ? '' : String(s)).replace(/[&<>"]/g, c => ({'&':'&am
 const NT = n => 'NT$' + Number(n || 0).toLocaleString('en-US');
 const num = n => Number(n || 0).toLocaleString('en-US');
 const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水' };
+/* 店別網址（KK 11/4）：pos.emoji.tw/atcafe＝在咖啡、/3am＝三點水，網址就鎖定店別與 CIS 主色；/pos 給管理員看全部（可切換） */
+const POS_VENUE_BASE = { CAFE:'/atcafe', BAR:'/3am' };
+const POS_URL_VENUE = /^\/atcafe(\/|$)/.test(location.pathname) ? 'CAFE' : /^\/3am(\/|$)/.test(location.pathname) ? 'BAR' : '';
+const POS_BASE = POS_URL_VENUE ? POS_VENUE_BASE[POS_URL_VENUE] : '/pos';
+if (POS_URL_VENUE) {
+  document.documentElement.dataset.venue = POS_URL_VENUE; document.title = BRAND_LABEL[POS_URL_VENUE] + ' POS';
+  const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = POS_URL_VENUE === 'CAFE' ? '#984C37' : '#6B8FAB';
+  const brand = document.getElementById('p-brand'); if (brand) { brand.href = POS_BASE; brand.setAttribute('aria-label', BRAND_LABEL[POS_URL_VENUE] + ' POS'); brand.querySelector('i').textContent = BRAND_LABEL[POS_URL_VENUE][0]; brand.querySelector('b').textContent = BRAND_LABEL[POS_URL_VENUE]; }
+}
 const TABS = [
   { id:'pos', icon:'wallet',          label:'結帳' },
   { id:'soldout', icon:'ban',      label:'估清' },
@@ -359,7 +376,7 @@ const TABS = [
 // 員工管理（新增／編輯／停用、出勤修正）刻意不放平板：只在 admin.emoji.tw 品牌工作區「排班打卡」，現場人員改不到
 const PANEL = { pos:tabPos, members:tabPosMembers, orders:tabOrders, soldout:tabSoldOut, inventory:tabInventory, reservations:tabReservations, history:tabHistory, logs:tabLogs, sales:tabSales, analytics:tabAnalytics, clock:tabClock, shifts:tabShifts, settings:tabSettings, songs:tabSongs, tips:tabTips, feedback:tabFeedback, bugs:tabBugs };
 let toastT, DATA = null, TAB = 'pos', SCOPE = '', MENU_DOC = null, PENDING = 0;
-try { SCOPE = localStorage.getItem('tth_pos_scope') || ''; } catch (e) {}
+try { SCOPE = POS_URL_VENUE || localStorage.getItem('tth_pos_scope') || ''; } catch (e) {}
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2400); }
 function applicationTime(iso){ const d=iso?new Date(iso):null; return d&&!isNaN(d)?d.toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false}):'—'; }
 function downloadCSV(filename, rows){
@@ -367,7 +384,7 @@ function downloadCSV(filename, rows){
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'})); a.download = filename; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
 }
 // 分頁網址：/pos（結帳）、/pos/orders、/pos/soldout、/pos/reservations、/pos/history、/pos/sales、/pos/clock、/pos/analytics（/pos/analytics/customers＝客群）、/pos/settings（底下 /pos/inventory、/pos/shifts、/pos/logs）；pos.emoji.tw 與 www.emoji.tw 皆可
-const tabUrl = tab => (tab === 'pos' ? posTableUrl(POS_TABLE) : '/pos/' + tab) + (tab === 'analytics' && typeof ANALYTICS_KIND !== 'undefined' && ANALYTICS_KIND !== 'products' ? '/' + ANALYTICS_KIND : '');
+const tabUrl = tab => (tab === 'pos' ? posTableUrl(POS_TABLE) : POS_BASE + '/' + tab) + (tab === 'analytics' && typeof ANALYTICS_KIND !== 'undefined' && ANALYTICS_KIND !== 'products' ? '/' + ANALYTICS_KIND : '');
 function opsHref(tab){ return tabUrl(tab); }
 // Google 登入的 callback 綁在官網網域（PUBLIC_ORIGIN），state cookie 也在那裡：子網域一律先到 www 發起，登入完成再以 #token 導回本站
 const AUTH_ORIGIN = /^pos\./i.test(location.hostname) ? location.origin.replace(/\/\/pos\./i, '//www.') : location.origin;
@@ -375,7 +392,7 @@ const AUTH_ORIGIN = /^pos\./i.test(location.hostname) ? location.origin.replace(
 // token：登入完成由 /auth/google 或 Email 連結以 #token= 帶回，讀取後立即從網址移除
 const hash = new URLSearchParams(location.hash.slice(1));
 let justLoggedInByAdmin = !!hash.get('token');
-if (hash.get('token')) { localStorage.setItem(KEY, hash.get('token')); history.replaceState(null,'',location.pathname.startsWith('/pos') ? location.pathname : '/pos'); }
+if (hash.get('token')) { localStorage.setItem(KEY, hash.get('token')); history.replaceState(null,'',/^\/(pos|atcafe|3am)(\/|$)/.test(location.pathname) ? location.pathname : POS_BASE); }
 let token = localStorage.getItem(KEY);
 
 // 裝置綁定：每台 iPad 存一個隨機代碼，POS 專用帳號登入一次完成綁定後，之後員工才能用四位數密碼登入（換裝置／重設瀏覽器資料要重新綁定）
@@ -401,7 +418,7 @@ function renderLogin(msg){
   const drawer = document.getElementById('p-drawer'); if (drawer) drawer.hidden = true;
   document.getElementById('p-logout').hidden = true;
   document.getElementById('p-nav').innerHTML = ''; document.getElementById('p-scope').innerHTML = '';
-  const redirect = encodeURIComponent(location.origin + '/pos');
+  const redirect = encodeURIComponent(location.origin + POS_BASE);
   app.innerHTML = `<div class="p-login"><div class="p-login-card">
     <div class="p-login-brand"><small>EMOJI</small><h1>言文字 POS</h1></div>
     <p class="p-login-msg${msg ? ' err' : ''}">${esc(msg || '管理員登入一次，本裝置之後就能用四位數密碼。')}</p>
@@ -474,7 +491,7 @@ function renderPinLogin(msg){
     if (pin.length === 4) {
       keysEl.classList.add('busy');
       try {
-        const d = await api('/pos-devices/' + encodeURIComponent(DEVICE_ID) + '/pin-login', { method:'POST', body:{ pin } });
+        const d = await api('/pos-devices/' + encodeURIComponent(DEVICE_ID) + '/pin-login', { method:'POST', body:{ pin, ...(POS_URL_VENUE ? { venue:POS_URL_VENUE } : {}) } });
         if (d.choose) return renderBrandChoice(pin, d);
         localStorage.setItem(KEY, d.token); location.reload();
       } catch (e) { renderPinLogin(e.message || '密碼錯誤，請重新輸入。'); }
@@ -495,18 +512,18 @@ function renderBrandChoice(pin, d){
 }
 
 /* 店別：員工鎖定登入時的品牌（單一）；管理員可切在咖啡／三點水／全部 */
-const scopesOf = d => d?.me?.operator ? (d.brands || []).filter(b => BRAND_LABEL[b]).slice(0,1) : d?.brands ? d.brands.filter(b => BRAND_LABEL[b]) : ['', ...Object.keys(BRAND_LABEL)];
-function setScope(s){ if (DATA?.me?.operator && s !== scopesOf(DATA)[0]) return; SCOPE = s; try { localStorage.setItem('tth_pos_scope', s); } catch (e) {} }
+const scopesOf = d => POS_URL_VENUE ? [POS_URL_VENUE] : d?.me?.operator ? (d.brands || []).filter(b => BRAND_LABEL[b]).slice(0,1) : d?.brands ? d.brands.filter(b => BRAND_LABEL[b]) : ['', ...Object.keys(BRAND_LABEL)];
+function setScope(s){ if (POS_URL_VENUE && s !== POS_URL_VENUE) return; if (DATA?.me?.operator && s !== scopesOf(DATA)[0]) return; SCOPE = s; if (!POS_URL_VENUE) try { localStorage.setItem('tth_pos_scope', s); } catch (e) {} }
 
 // 舊網址 /pos/products、/pos/customers 併入「分析」：/pos/analytics/products|customers
 const LEGACY_ANALYTICS = { products:'products', customers:'customers' };
 let ROUTE_TABLE = '';
 function routeTab(){
-  const seg = location.pathname.replace(/^\/pos\/?/, '').replace(/\/+$/,'').split('/');
-  if (LEGACY_ANALYTICS[seg[0]]) { ANALYTICS_KIND = LEGACY_ANALYTICS[seg[0]]; history.replaceState(null, '', '/pos/analytics/' + ANALYTICS_KIND); return 'analytics'; }
+  const seg = location.pathname.replace(/^\/(pos|atcafe|3am)\/?/, '').replace(/\/+$/,'').split('/');
+  if (LEGACY_ANALYTICS[seg[0]]) { ANALYTICS_KIND = LEGACY_ANALYTICS[seg[0]]; history.replaceState(null, '', POS_BASE + '/analytics/' + ANALYTICS_KIND); return 'analytics'; }
   if (seg[0] === 'analytics' && LEGACY_ANALYTICS[seg[1]]) ANALYTICS_KIND = seg[1];
   // 出餐分頁已移除（KK 11/2：只用紙本出餐單），舊網址 /pos/orders 轉回結帳
-  if (seg[0] === 'orders') { history.replaceState(null, '', '/pos'); return 'pos'; }
+  if (seg[0] === 'orders') { history.replaceState(null, '', POS_BASE); return 'pos'; }
   // 桌號獨立網址 /pos/table/<桌號>：直接開或上一頁／下一頁時切到該桌；桌沒開會在 paintPos 退回 /pos
   ROUTE_TABLE = seg[0] === 'table' ? decodeURIComponent(seg[1] || '') : '';
   if (seg[0] === 'table') return 'pos';
@@ -643,6 +660,8 @@ async function main(){
     const d = await api('/state');
     if (d.role !== 'admin') return showLoginScreen('此帳號沒有後台權限，請改用在咖啡／三點水的管理員帳號登入。');
     if (d.brands && !d.brands.some(b => BRAND_LABEL[b])) return showLoginScreen('此帳號不是餐飲品牌的管理員（等等空間請用 /admin）。');
+    // 店別網址：登入的人不能操作這家店就擋下；員工 PIN 鎖定另一家店時引導到對的網址
+    if (POS_URL_VENUE && d.brands && !d.brands.includes(POS_URL_VENUE)) { const other = d.brands.find(b => POS_VENUE_BASE[b]); return showLoginScreen(`目前登入的是${other ? BRAND_LABEL[other] : '其他品牌'}，這台是${BRAND_LABEL[POS_URL_VENUE]} POS。請登出後重新登入，或改開 ${other ? location.origin + POS_VENUE_BASE[other] : '/pos'}。`); }
     if (justLoggedInByAdmin && !d.me?.operator) {
       // 只有 POS 專用帳號能綁定裝置；綁完立刻登出，裝置只留員工四位數密碼入口（POS 帳號不留在平板上）
       const isPosAccount = String(d.me?.email || '').toLowerCase() === 'pos@emoji.tw';

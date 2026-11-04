@@ -151,7 +151,9 @@ if (!GOOGLE_CLIENT_ID) console.warn('[warn] GOOGLE_CLIENT_ID 未設定，Google 
 // 官網與後台自己的 origin 一律納入（環境變數漏列 admin.emoji.tw 曾讓後台登入後被退回 /member）
 const WEB_ORIGINS = [...new Set([...(process.env.WEB_ORIGINS ||
   'https://www.emoji.tw,https://emoji.tw,https://pos.emoji.tw,https://admin.emoji.tw,https://app.emoji.tw,http://localhost:5500,http://127.0.0.1:5500')
-  .split(',').map(s => s.trim()).filter(Boolean), SITE_BASE, ADMIN_BASE, APP_BASE])];
+  .split(',').map(s => s.trim()).filter(Boolean), SITE_BASE, ADMIN_BASE, APP_BASE,
+  // 掃碼點餐分店網域（atcafe／3am.emoji.tw/order）：會員登入完成要能導回點餐頁
+  ...Object.values(tableOrders.ORDER_HOSTS).map(h => 'https://' + h)])];
 // 平板 POS 子站（pos.emoji.tw）：同一支服務依 host 分流到 public/pos.html；逗號分隔可覆寫
 const POS_HOSTS = (process.env.POS_HOSTS || 'pos.emoji.tw').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 const isPosHost = req => POS_HOSTS.includes(String(req.hostname || '').toLowerCase());
@@ -1530,6 +1532,8 @@ app.post('/internal/cron/:job', async (req, res) => {
 app.use((req, res, next) => {
   if (!isPosHost(req)) return next();
   if (req.path === '/' || req.path === '/index.html' || req.path === '/admin' || req.path === '/admin.html') return res.redirect(302, '/pos');
+  // POS 依店別分網址（KK 11/4）：/atcafe＝在咖啡、/3am＝三點水（含子分頁 /atcafe/sales…）；要在官網 /3am 品牌頁路由之前攔下
+  if ((req.method === 'GET' || req.method === 'HEAD') && /^\/(atcafe|3am)(\/|$)/.test(req.path)) return sendPosPage(res);
   next();
 });
 // 舊活動主入口 /organizer（www、admin 及任何網域）→ 會員 App 主辦頁；/organizer/events/<id>/… → /host/<id>，查詢字串原樣帶過去
@@ -1585,6 +1589,8 @@ app.use((req, res, next) => {
     const urls = ['', '/en', '/ja'].map(p => `  <url>\n    <loc>${base}${p}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>${p ? '0.8' : '1.0'}</priority>\n  </url>`).join('\n');
     return res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
   }
+  // 掃碼點餐分店網域（KK 11/4）：atcafe.emoji.tw/order、3am.emoji.tw/order 回桌邊點餐頁（主色依 CIS 店別），點餐頁音效 /sfx 一併放行
+  if (tableOrders.ORDER_HOST_VENUE[String(req.hostname || '').toLowerCase()] && /^\/(order\/?$|sfx\/|line-handoff\.js$|event-push-sw\.js$)/.test(req.path)) return next();
   if (BRAND_HOST_OWN.test(req.path)) return next();
   res.redirect(302, SITE_BASE + req.originalUrl);
 });
@@ -5960,7 +5966,7 @@ app.post('/api/admin/orders/sessions',auth,adminOnly,requireDb,wrap(async(req,re
     // 內用開桌時一併帶來客人數（大人＋小孩，POS 開桌就選）；外帶不記
     let votes={};if(!takeout&&req.body?.party_size!=null){try{votes=tableOrders.partySetByPos({},req.body.party_size,req.body.kids,req.body.foreign);}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}}
     if(!s){s=(await client.query('INSERT INTO table_sessions(id,table_no,opened_by_staff_id,opened_by_staff_name,party_votes) VALUES($1,$2,$3,$4,$5) RETURNING id,table_no,created_at,party_votes',[uid('ts_'),table,operator?.id||null,operator?.name||null,JSON.stringify(votes)])).rows[0];created=true;}
-    await client.query('COMMIT');res.status(created?201:200).json({ok:true,id:s.id,table:s.table_no,created,takeout,operator:operator||undefined,qr_url:takeout?undefined:tableOrders.sessionUrl(APP_BASE,s.id,SECRET),no:tableOrders.sessionNo(s.id),opened_at:s.created_at||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes),foreign:tableOrders.partyForeign(s.party_votes)});
+    await client.query('COMMIT');res.status(created?201:200).json({ok:true,id:s.id,table:s.table_no,created,takeout,operator:operator||undefined,qr_url:takeout?undefined:tableOrders.sessionUrl(tableOrders.orderBase(req.body?.venue||req.auth?.pos_venue,s.created_at),s.id,SECRET),no:tableOrders.sessionNo(s.id),opened_at:s.created_at||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes),foreign:tableOrders.partyForeign(s.party_votes)});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 async function issueEzpayForOrder(order, invoice) {
@@ -7190,7 +7196,7 @@ app.post('/api/admin/orders/:id/status',auth,adminOnly,requireDb,wrap(async(req,
   const o=(await q(status==='ready'?"UPDATE table_orders SET status='ready',ready_at=now() WHERE id=$1 AND status='paid' RETURNING *":"UPDATE table_orders SET status='done',done_at=now() WHERE id=$1 AND status IN ('paid','ready') RETURNING *",[req.params.id])).rows[0];
   if(!o)return res.status(409).json({error:'出餐單狀態已變更，請重新整理。'});
   let notified=0;const push=eventChannels.pushConfig();
-  if(status==='ready'&&push){const payload={title:`桌號 ${o.table_no}｜餐點好了`,body:o.items.map(l=>l.zh+'×'+l.qty).join('、').slice(0,120)+'，請至櫃檯取餐。',url:tableOrders.sessionUrl(APP_BASE,o.session_id,SECRET)};
+  if(status==='ready'&&push){const payload={title:`桌號 ${o.table_no}｜餐點好了`,body:o.items.map(l=>l.zh+'×'+l.qty).join('、').slice(0,120)+'，請至櫃檯取餐。',url:tableOrders.sessionUrl(tableOrders.orderBase((o.items||[]).find(l=>l.venue)?.venue),o.session_id,SECRET)};
     for(const sub of o.push){try{await eventChannels.sendPush(push,sub,payload);notified++;}catch(e){console.warn('[table-push]',e.statusCode||e.message);}}}
   res.json({ok:true,status,notified});
 }));
@@ -7221,10 +7227,10 @@ app.get('/api/admin/tables/qr',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const tables=[...new Set(String(req.query.tables||'').split(',').map(t=>t.trim().toUpperCase()).filter(Boolean))].slice(0,100);
   const bad=tables.find(t=>!tableOrders.TABLE_RE.test(t));if(bad)return res.status(400).json({error:`桌號「${bad}」只能用英數字與 -，最長 8 字。`});
   // ?fixed=1：在咖啡桌邊固定 QR（貼桌上，不綁場次，只在在咖啡點餐時段可用）
-  if(req.query.fixed==='1')return res.json({tables:tables.map(t=>({table:t,fixed:true,url:tableOrders.tableUrl(APP_BASE,t,SECRET)}))});
+  if(req.query.fixed==='1')return res.json({tables:tables.map(t=>({table:t,fixed:true,url:tableOrders.tableUrl(tableOrders.orderBase('CAFE'),t,SECRET)}))});
   const open=new Map((await q("SELECT DISTINCT ON (table_no) id,table_no,created_at,party_votes FROM table_sessions WHERE status='open' AND table_no=ANY($1) ORDER BY table_no,created_at DESC",[tables])).rows.map(r=>[r.table_no,r]));
   const closed=tables.filter(t=>!open.has(t));if(closed.length)return res.status(409).json({error:`${closed.join('、')} 尚未開桌，請先開桌再印 QR。`});
-  res.json({tables:tables.map(t=>{const s=open.get(t);return{table:t,session_id:s.id,url:tableOrders.sessionUrl(APP_BASE,s.id,SECRET),no:tableOrders.sessionNo(s.id),opened_at:s.created_at||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes),foreign:tableOrders.partyForeign(s.party_votes)};})});
+  res.json({tables:tables.map(t=>{const s=open.get(t);return{table:t,session_id:s.id,url:tableOrders.sessionUrl(tableOrders.orderBase(req.query.venue||req.auth?.pos_venue,s.created_at),s.id,SECRET),no:tableOrders.sessionNo(s.id),opened_at:s.created_at||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes),foreign:tableOrders.partyForeign(s.party_votes)};})});
 }));
 
 // /menu 舊頁改版為空間介紹：301 導至 /space（保留語系前綴），需先於 static 攔截
@@ -7689,11 +7695,13 @@ app.get('/pos.html', (_req, res) => res.redirect(301, '/pos'));
 const APP_VERSION = (() => { try { return fs.readFileSync(path.join(__dirname, 'VERSION'), 'utf8').trim() || 'dev'; } catch (_) { return 'dev'; } })();
 let POS_HTML_CACHE = null;
 app.get('/api/version', (_req, res) => res.set('Cache-Control', 'no-store').json({ version: APP_VERSION }));
-app.get(['/pos', '/pos/*'], (_req, res) => {
+// POS 店別網址 pos.emoji.tw/atcafe、/3am 在上方 POS 子網域中介層提供（官網 www 的 /3am 是三點水品牌頁，不可蓋掉）
+function sendPosPage(res) {
   res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache', 'Content-Type': 'text/html; charset=utf-8' });
   if (!POS_HTML_CACHE) POS_HTML_CACHE = fs.readFileSync(POS_PAGE, 'utf8').replace('<!--POS_VERSION_FULL-->', APP_VERSION).replace('<!--POS_VERSION-->', APP_VERSION.replace(/^\d{4}(?=\d{4}-)/, ''));
   res.send(POS_HTML_CACHE);
-});
+}
+app.get(['/pos', '/pos/*'], (_req, res) => sendPosPage(res));
 // 舊的官網會員頁（/member 三語）已全部移到會員 App：保留轉址給舊連結、通知信與書籤（查詢字串原樣帶過去）
 app.get(['/member', '/member.html', '/en/member', '/en/member.html', '/ja/member', '/ja/member.html', '/login', '/signin', '/en/login', '/en/signin', '/ja/login', '/ja/signin'], (req, res) => {
   let qs = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';

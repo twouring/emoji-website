@@ -59,7 +59,7 @@ test('共用座位：混桌送單只送自己品牌，對方品項保持未送',
 });
 test('畫面：員工只見品牌標籤、不顯示姓名、無切換、雙品牌有選擇畫面',()=>{
   const src=pos.slice(pos.indexOf('const scopesOf ='),pos.indexOf('function routeTab'));
-  const ctx={DATA:{me:{operator:true,name:'小明'},brands:['BAR']},SCOPE:'CAFE',BRAND_LABEL:{CAFE:'在咖啡',BAR:'三點水'},localStorage:{setItem(){}}};
+  const ctx={POS_URL_VENUE:'',DATA:{me:{operator:true,name:'小明'},brands:['BAR']},SCOPE:'CAFE',BRAND_LABEL:{CAFE:'在咖啡',BAR:'三點水'},localStorage:{setItem(){}}};
   vm.runInNewContext(src+'\nsetScope(scopesOf(DATA)[0]);setScope("CAFE");',ctx);assert.equal(ctx.SCOPE,'BAR');
   const nav=pos.slice(pos.indexOf('function paintNav(){'),pos.indexOf('function resetPanels(){'));
   const scopeEl={innerHTML:'',querySelectorAll:()=>[]},navEl={innerHTML:'',querySelectorAll:()=>[]};

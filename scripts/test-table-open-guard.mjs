@@ -56,9 +56,9 @@ test('會員兌換只接本場 QR，已結束的場 409，不自動開場', () =
 });
 test('POS 開桌回 qr_url 並自動印；可一次開多桌；補印只給開著的桌', () => {
   const open = server.slice(server.indexOf("app.post('/api/admin/orders/sessions',"), server.indexOf('async function issueEzpayForOrder'));
-  assert.match(open, /qr_url:takeout\?undefined:tableOrders\.sessionUrl\(APP_BASE,s\.id,SECRET\)/);
+  assert.match(open, /qr_url:takeout\?undefined:tableOrders\.sessionUrl\(tableOrders\.orderBase\(req\.body\?\.venue\|\|req\.auth\?\.pos_venue,s\.created_at\),s\.id,SECRET\)/);   // 掃碼點餐依店別分網域（KK 11/4）
   const qr = server.slice(server.indexOf("app.get('/api/admin/tables/qr'"));
-  assert.match(qr.slice(0, 900), /尚未開桌，請先開桌再印 QR/);
+  assert.match(qr.slice(0, 1100), /尚未開桌，請先開桌再印 QR/);
   assert.match(ops, /if\(out\.created&&out\.qr_url\)await printOpenedQr\(out\.table,out\.qr_url,out\)/);
   assert.equal((ops.match(/printOpenedQr\(out\.table,out\.qr_url,out\)/g) || []).length, 2, '點空桌、有訂位的空桌兩條都要印');
   assert.match(ops, /id="pos-open-many"/);

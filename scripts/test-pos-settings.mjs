@@ -41,5 +41,5 @@ test('後端：GET 清單、POST/PATCH 超管或店長識別碼、API.md 有文�
 });
 test('舊網址 /pos/products、/pos/customers 轉到 /pos/analytics', () => {
   assert.match(pos, /const LEGACY_ANALYTICS = \{ products:'products', customers:'customers' \}/);
-  assert.match(pos, /history\.replaceState\(null, '', '\/pos\/analytics\/' \+ ANALYTICS_KIND\)/);
+  assert.match(pos, /history\.replaceState\(null, '', POS_BASE \+ '\/analytics\/' \+ ANALYTICS_KIND\)/);
 });

@@ -44,10 +44,12 @@ test('桌邊點餐收進 App：app.emoji.tw/order 回點餐頁與所需資源；
   assert.equal((await get('/menu', { host: 'app.emoji.tw' })).status, 302);
 });
 
-test('開桌 QR、補印、取餐推播的網址都指向 App', () => {
+test('開桌 QR、補印、取餐推播的網址依店別分網域（KK 11/4：atcafe／3am.emoji.tw/order）', () => {
   const s = read('server.js');
   assert.equal((s.match(/sessionUrl\(SITE_BASE/g) || []).length, 0);
-  assert.equal((s.match(/sessionUrl\(APP_BASE/g) || []).length, 3);
+  assert.equal((s.match(/sessionUrl\(APP_BASE/g) || []).length, 0);
+  assert.equal((s.match(/sessionUrl\(tableOrders\.orderBase\(/g) || []).length, 3);
+  assert.match(s, /tableUrl\(tableOrders\.orderBase\('CAFE'\)/);
 });
 
 test('點餐頁：App 網域共用會員登入、可加到主畫面（裝的是 App）、從 App 開有返回鍵', () => {

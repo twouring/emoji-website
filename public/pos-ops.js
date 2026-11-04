@@ -7,7 +7,7 @@ function tabOrders(){ return '<div class="a-sec" id="orders-body"></div>'; }
 function tabPos(){ return '<div id="pos-body"></div>'; }
 function tabReservations(){ return '<div class="a-sec" id="resv-body"></div>'; }
 /* 只有管理員能用的功能（如重開補單）只放 admin，POS 平板不顯示（KK 11/2）；pos-ops.js 兩頁共用，用網址判斷 */
-function onPosPage(){return typeof location!=='undefined'&&/^\/pos(\/|$)/.test(location.pathname);}
+function onPosPage(){return typeof location!=='undefined'&&/^\/(pos|atcafe|3am)(\/|$)/.test(location.pathname);}
 function tabSales(){ return '<div class="a-sec" id="sales-body"></div>'; }
 function tabHistory(){ return '<div class="a-sec" id="history-body"></div>'; }
 function tabLogs(){ return '<div class="a-sec" id="logs-body"></div>'; }
@@ -975,7 +975,7 @@ async function openOneTableQr(table){
     <div class="op-card-actions"><button type="button" class="btn btn--ghost" id="qr-close">關閉</button><button type="button" class="btn btn--solid" id="qr-print1" hidden>列印</button></div></div>`;
   ov.querySelector('#qr-close').onclick=close;ov.addEventListener('click',e=>{if(e.target===ov)close();});
   try{
-    const out=await api('/admin/tables/qr?tables='+encodeURIComponent(table));const t=out.tables?.[0];if(!t)throw Error('找不到這桌');
+    const out=await api('/admin/tables/qr?tables='+encodeURIComponent(table)+(SCOPE?'&venue='+SCOPE:''));const t=out.tables?.[0];if(!t)throw Error('找不到這桌');
     const img=await new Promise((ok,no)=>QRCode.toDataURL(t.url,{width:360,margin:1},(e,u)=>e?no(e):ok(u)));
     ov.querySelector('#qr-one').innerHTML=`<div class="qr-card"><img src="${img}" alt="桌號 ${esc(t.table)}"><small>掃碼點餐 Scan to order${t.no?`<br>桌次 ${esc(t.no)}${t.party_size?` · ${Number(t.party_size)} 位${t.kids?`（小孩 ${Number(t.kids)}）`:''}`:''}`:''}</small></div>`;
     const pb=ov.querySelector('#qr-print1');pb.hidden=false;
@@ -1097,7 +1097,7 @@ async function openManyTables(empty,reload){
   await ensureOperator(async()=>{
     const opened=[];
     for(const t of tables){
-      try{const out=await api('/admin/orders/sessions',{method:'POST',body:{table_no:t,...party[t],operator_id:OPERATOR?.id}});opened.push(out);}
+      try{const out=await api('/admin/orders/sessions',{method:'POST',body:{table_no:t,...party[t],venue:SCOPE||undefined,operator_id:OPERATOR?.id}});opened.push(out);}
       catch(e){toast(`${t} 開桌失敗：${e.message}`);}
     }
     if(!opened.length)return;
@@ -1108,8 +1108,8 @@ async function openManyTables(empty,reload){
 }
 /* 桌號獨立網址（KK 11/2）：/pos/table/<桌號>；只在 /pos 生效（/admin 共用本檔，不動網址）。
    進桌 push（上一頁回桌況）；桌已清掉／不存在用 replace，網址退回 /pos。 */
-const posTableUrl=t=>'/pos'+(t?'/table/'+encodeURIComponent(t):'');
-function syncPosTableUrl(replace){if(typeof location==='undefined'||typeof history==='undefined'||!/^\/pos(\/|$)/.test(location.pathname)||typeof TAB==='undefined'||TAB!=='pos')return;const url=posTableUrl(POS_TABLE);if(location.pathname!==url)history[replace?'replaceState':'pushState'](null,'',url);}
+const posTableUrl=t=>(typeof POS_BASE!=='undefined'?POS_BASE:'/pos')+(t?'/table/'+encodeURIComponent(t):'');
+function syncPosTableUrl(replace){if(typeof location==='undefined'||typeof history==='undefined'||!/^\/(pos|atcafe|3am)(\/|$)/.test(location.pathname)||typeof TAB==='undefined'||TAB!=='pos')return;const url=posTableUrl(POS_TABLE);if(location.pathname!==url)history[replace?'replaceState':'pushState'](null,'',url);}
 function posSelectTable(t){POS_TABLE=t||'';POS_OPT=null;POS_MENU_SCROLL=0;POS_LEFT_SCROLL=0;POS_PICK=null;POS_QTY={};POS_PAYREQ=null;POS_YAN={phone:'',name:'',balance:null};POS_MEMBER=false;POS_SPLIT={};POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_DISC_OPEN=false;POS_INV_VALS={};POS_RECEIVED='';POS_AA=null;paintPos();}
 async function loadPos(){
   const host=document.getElementById('pos-body');if(!host)return;
@@ -1448,14 +1448,14 @@ function paintPos(){
   // 開桌／外帶：每次都先輸入 PIN 認人，記這桌是誰開的（與結帳、作廢、開錢櫃一致）
   // 內用開桌先選人數（大人／小孩），外帶不用
   const openSession=async body=>{if(!body.takeout){const p=await pickParty(`${body.table_no} 開桌`);if(!p)return;body={...body,...p};}
-    return ensureOperator(()=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{...body,operator_id:OPERATOR?.id}}),out=>out.takeout?`外帶單 ${out.table} 已開，請加入品項`:out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,async out=>{POS_TABLE=out.table;POS_PICK=null;POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_RECEIVED='';await reload();if(out.created&&out.qr_url)await printOpenedQr(out.table,out.qr_url,out);}));};
+    return ensureOperator(()=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{...body,venue:SCOPE||undefined,operator_id:OPERATOR?.id}}),out=>out.takeout?`外帶單 ${out.table} 已開，請加入品項`:out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,async out=>{POS_TABLE=out.table;POS_PICK=null;POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_RECEIVED='';await reload();if(out.created&&out.qr_url)await printOpenedQr(out.table,out.qr_url,out);}));};
   // 空桌格：直接點就開桌，不用再打字輸入桌號；這桌有已確認的訂位時，開桌後順手問要不要把訂位標成「已到」（訂位頁就不用再點一次）
   host.querySelectorAll('[data-open-table]').forEach(b=>b.onclick=async()=>{
     const table=b.dataset.openTable,r=((POS_DATA?.reservations||{})[table]||[]).find(x=>x.status==='confirmed');
     if(!r)return openSession({table_no:table});
     const arrive=await posConfirm(`${table} 有訂位：${r.time} ${r.name} ${r.party_size} 位。\n開桌並把這筆訂位標成「已到」？`,{ok:'已到，開桌',cancel:'只開桌'});
     const p=await pickParty(`${table} 開桌（訂位 ${r.party_size} 位）`,{adults:r.party_size});if(!p)return;
-    ensureOperator(()=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{table_no:table,...p,operator_id:OPERATOR?.id}}),out=>out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,async out=>{
+    ensureOperator(()=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{table_no:table,...p,venue:SCOPE||undefined,operator_id:OPERATOR?.id}}),out=>out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,async out=>{
       POS_TABLE=out.table;POS_PICK=null;POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_RECEIVED='';
       if(arrive){try{await api('/admin/reservations/'+r.id+'/status',{method:'POST',body:{status:'arrived',notify:false}});toast(`訂位 ${r.name} 已標記「已到」`);}catch(e){toast('訂位狀態沒更新：'+e.message);}}
       await reload();if(out.created&&out.qr_url)await printOpenedQr(out.table,out.qr_url,out);

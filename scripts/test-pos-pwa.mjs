@@ -85,7 +85,7 @@ test('pos.html：只做餐飲五件事、與 /admin 共用 pos-ops.js、登入�
   assert.doesNotMatch(html, /rel="manifest"|apple-mobile-web-app|apple-touch-icon|installHint|beforeinstallprompt/, '純瀏覽器：不留 PWA 安裝提示');
   assert.match(html, /getRegistrations\(\)\.then\(rs => rs\.forEach\(r => r\.unregister\(\)\)\)/, '註銷舊版殘留的 service worker');
   assert.doesNotMatch(html, /serviceWorker\.register/);
-  assert.match(html, /\{ id:'pos',(?: icon:'wallet',)?\s+label:'結帳' \}/); assert.doesNotMatch(html, /\{ id:'orders'/, '出餐分頁已移除（KK 11/2，只用紙本）'); assert.match(html, /seg\[0\] === 'orders'\) \{ history\.replaceState\(null, '', '\/pos'\)/); assert.match(html, /\{ id:'soldout',(?: icon:'ban',)?\s+label:'估清' \}/);
+  assert.match(html, /\{ id:'pos',(?: icon:'wallet',)?\s+label:'結帳' \}/); assert.doesNotMatch(html, /\{ id:'orders'/, '出餐分頁已移除（KK 11/2，只用紙本）'); assert.match(html, /seg\[0\] === 'orders'\) \{ history\.replaceState\(null, '', POS_BASE\)/); assert.match(html, /\{ id:'soldout',(?: icon:'ban',)?\s+label:'估清' \}/);
   assert.match(html, /\{ id:'reservations',(?: icon:'calendar',)?\s+label:'訂位' \}/); assert.match(html, /\{ id:'history',(?: icon:'search',)?\s+label:'查單' \}/); assert.match(html, /\{ id:'sales',(?: icon:'(?:chart|receipt)',)?\s+label:'日結' \}/);
   assert.match(html, /else if \(TAB === 'history'\) loadHistory\(\);/);
   assert.doesNotMatch(html, /commitments|social|permissions/, 'POS 不帶後台其他分頁');
@@ -109,7 +109,7 @@ test('pos-ops.js：共用模組不碰 /admin 專屬狀態；估清分頁只動 s
   assert.doesNotMatch(ops, /\bWORKSPACES\b|\bscopedRoute\(|\brender\(DATA\)|\bgo\(/, '共用模組不可依賴 /admin 的路由與工作區');
   assert.match(ops, /opsHref\('pos'\)/);
   // 現場作業：櫃檯開桌／外帶、櫃檯登記訂位（電話／現場）、ezPay 電子發票
-  assert.doesNotMatch(ops, /id="pos-open"/); assert.doesNotMatch(ops, /id="pos-open-table"/); assert.match(ops, /id="pos-takeout"/); assert.match(ops, /api\('\/admin\/orders\/sessions',\{method:'POST',body:\{\.\.\.body,operator_id:OPERATOR\?\.id\}\}\)/);
+  assert.doesNotMatch(ops, /id="pos-open"/); assert.doesNotMatch(ops, /id="pos-open-table"/); assert.match(ops, /id="pos-takeout"/); assert.match(ops, /api\('\/admin\/orders\/sessions',\{method:'POST',body:\{\.\.\.body,venue:SCOPE\|\|undefined,operator_id:OPERATOR\?\.id\}\}\)/);
   assert.match(ops, /id="resv-form"/); assert.match(ops, /api\('\/admin\/reservations',\{method:'POST',body\}\)/);
   assert.match(ops, /電子發票/); assert.match(ops, /name="pos-invoice"/); assert.match(ops, /buyer_ubn/); assert.match(ops, /carrier_num/); assert.match(ops, /love_code/);
   assert.match(ops, /invoice:invoiceBody\(host\)/); assert.match(ops, /\/invoice\/issue/);
