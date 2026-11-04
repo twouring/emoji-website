@@ -5,9 +5,9 @@
    - EmojiSSO.login(back)：直接前往 SSO 登入（已登入就立刻帶 token 回來）。
    - EmojiSSO.logout(back)：全站登出（清 SSO），回到 back；SSO 未啟用時回 false。
    只在 *.emoji.tw 正式網域啟用；本機開發與主畫面 App（standalone，iOS 與 Safari 不共用 cookie）一律不啟用，維持原本各站自己的登入。
-   sso.emoji.tw 連不上（DNS 未生效等）時自動停用，不影響原本登入。 */
+   sso.emoji.tw 連不上（DNS／憑證未生效等）時自動停用，不影響原本登入；載入時就先探測，確認連得上（sso_up）才把登入交給 SSO。 */
 (function (g) {
-  var BASE = 'https://sso.emoji.tw', TRY = 'sso_tried', DOWN = 'sso_down';
+  var BASE = 'https://sso.emoji.tw', TRY = 'sso_tried', DOWN = 'sso_down', UP = 'sso_up';
   function standalone() { try { return navigator.standalone === true || matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches; } catch (e) { return false; } }
   var host = String(location.hostname || '').toLowerCase();
   var on = /(^|\.)emoji\.tw$/.test(host) && host !== 'sso.emoji.tw' && location.protocol === 'https:' && !standalone();
@@ -17,13 +17,21 @@
   // #sso=none 處理完就從網址拿掉，避免重新整理時誤判
   if (hashHas('sso')) { ss(TRY, String(Date.now())); try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
   // 先確認 sso.emoji.tw 連得上（2.5 秒內），失敗就本分頁停用 SSO
+  // 結果記在 sessionStorage：成功記 sso_up、失敗記 sso_down；同一頁只探一次
+  var probe = null;
   function reachable() {
     if (ss(DOWN)) return Promise.resolve(false);
+    if (ss(UP)) return Promise.resolve(true);
+    if (probe) return probe;
     var c = typeof AbortController === 'function' ? new AbortController() : null, t = c && setTimeout(function () { c.abort(); }, 2500);
-    return fetch(BASE + '/api/health', { mode: 'no-cors', cache: 'no-store', signal: c ? c.signal : undefined })
-      .then(function () { return true; }, function () { ss(DOWN, '1'); return false; })
+    probe = fetch(BASE + '/api/health', { mode: 'no-cors', cache: 'no-store', signal: c ? c.signal : undefined })
+      .then(function () { ss(UP, '1'); return true; }, function () { ss(DOWN, '1'); return false; })
       .then(function (ok) { if (t) clearTimeout(t); return ok; });
+    return probe;
   }
+  // 沒確認連得上之前，登入鈕一律不導向 SSO（Safari 遇到憑證未生效會整頁打不開）
+  function up() { return on && !ss(DOWN) && !!ss(UP); }
+  if (on) reachable();
   function authorize(back, silent) {
     var lang = (document.documentElement.lang || '').slice(0, 2);
     return BASE + '/authorize?' + (silent ? 'prompt=none&' : '') + (lang === 'en' || lang === 'ja' ? 'lang=' + lang + '&' : '') + 'redirect=' + encodeURIComponent(clean(back));
@@ -40,9 +48,10 @@
         ss(TRY, String(Date.now())); location.replace(authorize(location.href, true)); return true;
       });
     },
-    wrap: function (back) { return on && !ss(DOWN) ? BASE + '/callback?r=' + encodeURIComponent(clean(back)) : clean(back); },
-    login: function (back) { if (!on) return false; ss(TRY, null); location.href = authorize(back || location.href, false); return true; },
-    loginUrl: function (back) { return on ? authorize(back || location.href, false) : ''; },
+    ready: reachable,
+    wrap: function (back) { return up() ? BASE + '/callback?r=' + encodeURIComponent(clean(back)) : clean(back); },
+    login: function (back) { if (!up()) return false; ss(TRY, null); location.href = authorize(back || location.href, false); return true; },
+    loginUrl: function (back) { return up() ? authorize(back || location.href, false) : ''; },
     // 回傳 false＝SSO 未啟用，呼叫端照原本方式登出（例如重新整理）。
     // 已登入的頁面從沒跑過 silent()，不知道 SSO 通不通：先探測，連不上就直接回 back（本站 token 呼叫端已清），不跳到打不開的 sso.emoji.tw
     logout: function (back) {

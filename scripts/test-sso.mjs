@@ -129,21 +129,28 @@ test('前端：app／admin／pos／order 都載入 sso-client.js 並接上靜默
   assert.match(c, /emoji\\\.tw\$/, '只在 *.emoji.tw 啟用');
 });
 
-test('sso-client：*.emoji.tw 啟用、本機與主畫面 App 停用；wrap 包 callback', () => {
-  const load = (href, { standalone = false } = {}) => {
+test('sso-client：*.emoji.tw 啟用、本機與主畫面 App 停用；確認連得上才包 callback', async () => {
+  const load = (href, { standalone = false, fetchOk = true } = {}) => {
     const u = new URL(href), store = {}, ss = {};
     const g = {
       location: { href, hostname: u.hostname, protocol: u.protocol, hash: u.hash, pathname: u.pathname, search: u.search, replace() {} },
       navigator: { standalone }, matchMedia: () => ({ matches: false }), history: { replaceState() {} },
       localStorage: { getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = v; } },
       sessionStorage: { getItem: k => ss[k] ?? null, setItem: (k, v) => { ss[k] = v; }, removeItem: k => { delete ss[k]; } },
-      document: { documentElement: { lang: 'zh-Hant' } }, URLSearchParams, fetch: () => Promise.resolve({}),
+      document: { documentElement: { lang: 'zh-Hant' } }, URLSearchParams, fetch: () => fetchOk ? Promise.resolve({}) : Promise.reject(new Error('TLS')),
     };
     g.window = g; vm.runInNewContext(read('public/sso-client.js'), g); return g.EmojiSSO;
   };
   const on = load('https://pos.emoji.tw/pos');
   assert.equal(on.enabled, true);
+  // 探測完成前不包 SSO（憑證未生效時 Safari 會整頁打不開）
+  assert.equal(on.wrap('https://pos.emoji.tw/pos#x'), 'https://pos.emoji.tw/pos');
+  await on.ready();
   assert.equal(on.wrap('https://pos.emoji.tw/pos#x'), 'https://sso.emoji.tw/callback?r=' + encodeURIComponent('https://pos.emoji.tw/pos'));
+  const down = load('https://atcafe.emoji.tw/order', { fetchOk: false });
+  assert.equal(await down.ready(), false);
+  assert.equal(down.wrap('https://atcafe.emoji.tw/order'), 'https://atcafe.emoji.tw/order');
+  assert.equal(down.logout('https://atcafe.emoji.tw/order'), false);
   assert.equal(load('http://localhost:8080/m').enabled, false);
   assert.equal(load('https://app.emoji.tw/', { standalone: true }).enabled, false);
   assert.equal(load('https://sso.emoji.tw/').enabled, false);
