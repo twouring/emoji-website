@@ -162,7 +162,7 @@ const isAppHost = req => APP_HOSTS.includes(String(req.hostname || '').toLowerCa
 // App 子站只提供 PWA 本身、API、登入與必要靜態檔；其餘頁面（活動、官網）一律回官網，避免兩個網域出現重複內容
 // /host、/host/<eventId>：會員在 App 主辦活動（列表／單場管理），同樣回 m.html 由前端路由
 // /e/<slug>：活動報名頁（規格 v2 §4.1：報名一律在 App），由下方 /e/:slug 路由回 m.html（可訪客瀏覽與報名）
-const APP_HOST_OWN = /^\/($|index\.html$|host($|\/)|e\/[^/]+\/?$|m-host\.js$|m-event\.js$|event-rich\.css$|m($|\/|\.webmanifest$|-sw\.js$|-icon-)|order\/?$|menu-lib\.js$|order-lib\.js$|song-picks\.js$|event-push-sw\.js$|sfx\/|uploads\/|api\/|auth\/|vendor\/|favicon|logo\.png$|cis\/assets\/)/;
+const APP_HOST_OWN = /^\/($|index\.html$|host($|\/)|e\/[^/]+\/?$|m-host\.js$|m-event\.js$|event-rich\.css$|m($|\/|\.webmanifest$|-sw\.js$|-icon-)|order\/?$|menu-lib\.js$|order-lib\.js$|song-picks\.js$|line-handoff\.js$|event-push-sw\.js$|sfx\/|uploads\/|api\/|auth\/|vendor\/|favicon|logo\.png$|cis\/assets\/)/;
 // 會員 App 活動頁網址：APP_BASE/e/<slug>，可帶 lang（en/ja）與額外查詢字串（例：result=paid&s=…）；Stripe 的 {CHECKOUT_SESSION_ID} 佔位符不可編碼
 const appEventUrl = (slug, lang, extra) => {
   const qs = [['en', 'ja'].includes(lang) ? 'lang=' + lang : '', extra || ''].filter(Boolean).join('&');
@@ -1984,6 +1984,7 @@ app.post('/api/auth/email/start',rateLimit({max:10}),requireDb,wrap(async(req,re
  await sendMail({to:email,subject:copy[0],text:copy[1]+'\n\n'+url,idempotencyKey:'email-login/'+hash});res.json({ok:true});
 }));
 const { hashPassword, verifyPassword, validPassword } = require('./lib/admin-password');
+const authHandoff = require('./lib/auth-handoff');
 // Shared DB buckets enforce limits across both services and all Cloud Run replicas.
 async function adminPasswordLimit(req, res, next) {
   try {
@@ -2217,7 +2218,8 @@ app.get('/auth/line', (req, res) => {
   if (resvTok && !verifyToken(resvTok, { purpose: 'line-resv' })) return res.status(400).send('連結已失效，請重新訂位。');
   const redirect = safeRedirect(req.query.redirect) || DEFAULT_MEMBER_URL;
   const nonce = crypto.randomBytes(16).toString('hex');
-  const state = signToken({ r: redirect, n: nonce, v: resvTok }, { purpose: 'line-oauth' });
+  const handoff = authHandoff.valid(String(req.query.handoff || '')) ? String(req.query.handoff) : undefined;   // 主畫面 App 發起（public/line-handoff.js）
+  const state = signToken({ r: redirect, n: nonce, v: resvTok, ...(handoff ? { h: handoff } : {}) }, { purpose: 'line-oauth' });
   res.cookie('line_state', state, { httpOnly: true, sameSite: 'lax', secure: SITE_BASE.startsWith('https://'), path: '/auth/line', maxAge: 10 * 60 * 1000 });
   res.redirect(line.authorizeUrl(lc, { redirectUri: LINE_REDIRECT_URI, state, nonce }));
 });
@@ -2261,7 +2263,43 @@ app.get('/auth/line/callback', wrap(async (req, res) => {
   const n = (await q('SELECT COUNT(*)::int AS n FROM commitments WHERE user_id=$1', [u.id])).rows[0].n;
   const token = signToken({ role: isAdmin ? 'admin' : (n > 0 ? 'participant' : 'invited'), sub: u.id, super: isSuper, name: u.name || prof.name || '' });
   const redirect = safeRedirect(st.r) || DEFAULT_MEMBER_URL;
+  // 主畫面 App 按 LINE 登入、回跳落在 Safari（沒有 line_state cookie）：token 暫存給 App 取回，Safari 頁請使用者核對號碼後確認
+  if (crossBrowser && authHandoff.valid(st.h)) {
+    const c = await withHandoffs(m => authHandoff.put(m, st.h, encSecret(token), Date.now()));
+    if (c) return res.set('Cache-Control', 'no-store').type('html').send(handoffPage(st.h, c, redirect + (redirect.includes('#') ? '&' : '#') + 'token=' + encodeURIComponent(token)));
+  }
   res.redirect(redirect + (redirect.includes('#') ? '&' : '#') + 'token=' + encodeURIComponent(token));
+}));
+/* ---- LINE 登入帶回主畫面 App（lib/auth-handoff.js）：暫存在 site_content.auth_handoffs（不公開），10 分鐘、只能取一次 ---- */
+async function withHandoffs(fn){
+  const client=await pool.connect();
+  try{await client.query('BEGIN');
+    await client.query(`INSERT INTO site_content(key,value) VALUES('auth_handoffs','{}') ON CONFLICT(key) DO NOTHING`);
+    let m={};try{m=JSON.parse((await client.query(`SELECT value FROM site_content WHERE key='auth_handoffs' FOR UPDATE`)).rows[0]?.value||'{}')||{};}catch{m={};}
+    authHandoff.prune(m,Date.now());const out=fn(m);
+    await client.query(`UPDATE site_content SET value=$1,updated_at=now() WHERE key='auth_handoffs'`,[JSON.stringify(m)]);
+    await client.query('COMMIT');return out;
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
+}
+function handoffPage(h,c,here){
+  const e=s=>String(s).replace(/[&<>"]/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[x]));
+  return `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>LINE 登入</title>
+<style>body{font:1rem/1.6 system-ui,-apple-system,"PingFang TC",sans-serif;background:#FBFAF6;color:#1B1A17;margin:0;padding:32px 20px;text-align:center}main{max-width:420px;margin:auto}.code{font-size:3rem;font-weight:700;letter-spacing:.2em;margin:8px 0}button{font:inherit;font-weight:700;width:100%;min-height:52px;border:0;border-radius:12px;background:#FFDE34;color:#1B1A17;margin-top:16px}a{color:#1B1A17}.muted{color:#6b665c}#ok{display:none}</style></head><body><main>
+<h1>LINE 登入成功</h1><div id="ask"><p>請確認言文字 App 畫面上的號碼與這裡相同：</p><p class="code">${e(authHandoff.code(h))}</p><button type="button" id="go">號碼相同，登入 App</button><p class="muted">Confirm the number matches the one shown in the emoji app.</p></div>
+<div id="ok"><p class="code">✓</p><p>已完成，請切回<b>言文字 App</b>（主畫面圖示）。</p><p class="muted">Done. Please switch back to the emoji app.</p></div>
+<p class="muted"><a href="${e(here)}">改在這個瀏覽器繼續</a></p></main>
+<script>document.getElementById('go').onclick=function(){var b=this;b.disabled=true;fetch('/api/auth/handoff/confirm',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({h:${JSON.stringify(h)},c:${JSON.stringify(c)}})}).then(function(r){if(!r.ok)throw 0;document.getElementById('ask').style.display='none';document.getElementById('ok').style.display='block';}).catch(function(){b.disabled=false;alert('已逾時，請回 App 重新登入。');});};</script></body></html>`;
+}
+app.post('/api/auth/handoff/confirm',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
+  res.set('Cache-Control','no-store');
+  const ok=await withHandoffs(m=>authHandoff.confirm(m,String(req.body?.h||''),String(req.body?.c||''),Date.now()));
+  ok?res.json({ok:true}):res.status(400).json({error:'登入已逾時，請回 App 重新登入。'});
+}));
+app.post('/api/auth/handoff',rateLimit({max:40}),requireDb,wrap(async(req,res)=>{
+  res.set('Cache-Control','no-store');
+  const h=String(req.body?.h||'');if(!authHandoff.valid(h))return res.status(400).json({error:'參數錯誤。'});
+  const enc=await withHandoffs(m=>authHandoff.take(m,h,Date.now()));
+  const token=enc?decPII(enc):null;res.json(token&&token!=='***'?{token}:{pending:true});
 }));
 app.get('/api/admin/line/status', auth, adminOnly, superOnly, requireDb, wrap(async (_req, res) => res.json(await lineService.status())));
 app.post('/api/admin/line/broadcast', auth, adminOnly, superOnly, requireDb, rateLimit({ max: 10, windowMs: 3600000 }), wrap(async (req, res) => {

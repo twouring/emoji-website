@@ -68,7 +68,7 @@ test('點餐頁：App 網域共用會員登入、可加到主畫面（裝的是 
 test('會員 App 首頁有「掃碼點餐」：掃到本桌 QR 在 App 內開 /order', () => {
   const m = read('public/m.html');
   assert.match(m, /id="order-scan"/); assert.match(m, /function startOrder\(\)/);
-  assert.match(m, /location\.href='\/order\?s='/);
+  assert.match(m, /location\.href='\/order\?'\+\(tb\.s\?'s='/);
   assert.match(m, /async function scanTable\(sub,onTable\)/);
   for (const k of ["orderScan:'掃碼點餐'", "orderScan:'Scan to order'", "orderScan:'QRで注文'"]) assert.ok(m.includes(k), k);
 });

@@ -71,7 +71,7 @@ test('前端：只認 s/k，加點只打 /orders/:id/items；場已結束顯示�
   assert.match(html, /api\('\/orders\/'\+S\.id\+'\/items'/);
   assert.doesNotMatch(html, /\/orders\/table\/items/);
   assert.match(html, /ENDED_KEY='order_ended_'\+\(FIXED\?'t_':''\)\+\(SID\|\|T\)/);
-  assert.match(html, /if\(FIXED\)\{SID=s\.id;K=s\.k;\}/);
+  assert.match(html, /if\(FIXED\)\{SID=s\.id;K=s\.k;/);
   assert.match(html, /if\(s\.status!=='open'\)\{sessionClosed\(s\);return null;\}/);
   assert.match(html, /id="thanks-again"[^>]*hidden/);
   assert.match(html, /\$\('#thanks-again'\)\.hidden=!FIXED/);

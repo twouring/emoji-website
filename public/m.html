@@ -252,6 +252,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
 </div>
 <div class="toast" id="toast" hidden role="status"></div>
 <script src="/vendor/qrcode.min.js"></script>
+<script src="/line-handoff.js"></script>
 <script src="/menu-lib.js"></script>
 <script src="/order-lib.js"></script>
 <script src="/m-host.js"></script>
@@ -924,8 +925,8 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
   /* 掃碼點餐：在 App 內開本桌點餐頁（同網域 /order，已登入的會員直接帶入）；不論 QR 印哪個網域都換成本站路徑 */
   function startOrder(){
     scanTable(T.orderScanSub,tb=>{
-      if(!tb.s){toast(T.scanBad);return;}
-      location.href='/order?s='+encodeURIComponent(tb.s)+'&k='+encodeURIComponent(tb.k)+(LANG==='zh'?'':'&lang='+LANG);
+      // s＝三點水單次 QR；t＝在咖啡桌邊固定 QR（KK 11/3）
+      location.href='/order?'+(tb.s?'s='+encodeURIComponent(tb.s):'t='+encodeURIComponent(tb.t))+'&k='+encodeURIComponent(tb.k)+(LANG==='zh'?'':'&lang='+LANG);
     });
   }
   const nm2=x=>LANG==='ja'&&x.ja?x.ja:LANG==='en'&&x.en?x.en:x.zh;
@@ -955,6 +956,8 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
   else{if(PLAN_PRICES[query.get('plan')]||!token())tab='plan';if(!token())guest();else load();}// 訪客一進站先看方案與價格（櫃檯），按購買才登入
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&token()&&!eventPath())load();});
   if('serviceWorker' in navigator)navigator.serviceWorker.register('/m-sw.js',{scope:ROOT}).catch(()=>{});
+  /* LINE 登入帶回主畫面 App（public/line-handoff.js）：回跳落在 Safari 時，App 回前景自動取回登入 */
+  if(window.LineHandoff)LineHandoff.init(KEY,()=>{location.replace(location.pathname+location.search);});
 })();
 </script>
 <script>(function(){var s=document.getElementById('splash'),a=document.getElementById('app'),t0=Date.now(),d=false;function hide(){if(d)return;d=true;mo.disconnect();setTimeout(function(){s.classList.add('out');setTimeout(function(){s.remove()},450)},Math.max(0,1000-(Date.now()-t0)))}var mo=new MutationObserver(function(){if(a.childNodes.length)hide()});mo.observe(a,{childList:true});if(a.childNodes.length)hide();setTimeout(hide,10000)})();</script>

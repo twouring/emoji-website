@@ -293,6 +293,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 <script src="/menu-lib.js"></script>
 <script src="/order-lib.js"></script>
 <script src="/song-picks.js"></script>
+<script src="/line-handoff.js"></script>
 <script>
 (function(){
   var $=function(s){return document.querySelector(s);};
@@ -527,8 +528,10 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 
   // 同裝置結帳後鎖定：這支手機的場結束後，舊分頁／書籤不再打 /orders/table（會自動開新場或併進下一組）
   var ENDED_KEY='order_ended_'+(FIXED?'t_':'')+(SID||T);
-  // 固定 QR：結束鎖 2 小時（重新整理不會馬上開出空桌），之後同一支手機再掃就是新的一組；感謝頁有「重新點餐」
-  function endedId(){try{var v=localStorage.getItem(ENDED_KEY)||'';if(FIXED){var at=Number(localStorage.getItem(ENDED_KEY+'_at')||0);if(Date.now()-at>2*3600e3)return '';}return v;}catch(e){return '';}}
+  // 固定 QR：結束鎖只擋「重新整理／上一頁」（不會馬上開出空桌）；重新掃碼（新的一次導覽）就是新的一組，直接問伺服器（KK 11/4：會員再次用餐掃碼還卡在用餐完畢）
+  var NAV_TYPE=(function(){try{var n=performance.getEntriesByType('navigation')[0];return n?n.type:'navigate';}catch(e){return 'navigate';}})();
+  var FRESH_SCAN=FIXED&&NAV_TYPE==='navigate';
+  function endedId(){try{var v=localStorage.getItem(ENDED_KEY)||'';if(FIXED){if(FRESH_SCAN)return '';var at=Number(localStorage.getItem(ENDED_KEY+'_at')||0);if(Date.now()-at>2*3600e3)return '';}return v;}catch(e){return '';}}
   function setEnded(id){try{if(id){localStorage.setItem(ENDED_KEY,id);localStorage.setItem(ENDED_KEY+'_at',String(Date.now()));}}catch(e){}}
   function clearEnded(){try{localStorage.removeItem(ENDED_KEY);localStorage.removeItem(ENDED_KEY+'_at');}catch(e){}}
   function showThanks(){
@@ -536,11 +539,11 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     closeSheets(true);$('#bar').hidden=true;$('#call-open').hidden=true;$('#app').classList.add('hidden');$('#boot').classList.add('hidden');
     $('#thanks').classList.remove('hidden');$('#thanks-again').hidden=!FIXED;
   }
-  function sessionClosed(s){setEnded((s&&s.id)||(S&&S.id)||'1');showThanks();}
+  function sessionClosed(s){FRESH_SCAN=false;setEnded((s&&s.id)||(S&&S.id)||'1');showThanks();}
 
   function load(){
     if(endedId()){showThanks();return Promise.resolve(null);}
-    return api('/orders/table?'+(FIXED?'t='+encodeURIComponent(T)+'&k='+encodeURIComponent(TK):'s='+encodeURIComponent(SID)+'&k='+encodeURIComponent(K))+'&g='+GUEST).then(function(s){if(FIXED){SID=s.id;K=s.k;}if(s.status!=='open'){sessionClosed(s);return null;}var sid=S&&S.id;applyState(s);if(s.id!==sid)live();return s;});
+    return api('/orders/table?'+(FIXED?'t='+encodeURIComponent(T)+'&k='+encodeURIComponent(TK):'s='+encodeURIComponent(SID)+'&k='+encodeURIComponent(K))+'&g='+GUEST).then(function(s){if(FIXED){SID=s.id;K=s.k;if(s.status==='open')clearEnded();}if(s.status!=='open'){sessionClosed(s);return null;}var sid=S&&S.id;applyState(s);if(s.id!==sid)live();return s;});
   }
   function refresh(){if(!S)return Promise.resolve();return api('/orders/'+S.id+'?g='+GUEST).then(function(s){if(s.status!=='open'){sessionClosed(s);return;}applyState(s);}).catch(function(){});}
   // 即時同步：SSE 連上就推目前狀態，之後同桌任何異動（別人加點、送單、出餐、櫃檯收款）伺服器立刻推；瀏覽器自動重連。
@@ -746,6 +749,8 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   var TOKEN_KEY=ON_APP?'tth_token':'order_member_token',ME=null,LINE_OK=false;   // App 網域與會員 App 共用登入（tth_token）；www 有後台共用網域，維持獨立 key
   (function(){var h=new URLSearchParams(location.hash.slice(1));if(h.get('token')){try{localStorage.setItem(TOKEN_KEY,h.get('token'));}catch(e){}history.replaceState(null,'',location.pathname+location.search);}})();
   function token(){try{return localStorage.getItem(TOKEN_KEY)||'';}catch(e){return '';}}
+  // 主畫面 App 按 LINE 登入、回跳落在 Safari：回前景自動取回登入並掛到這一桌（public/line-handoff.js）
+  if(window.LineHandoff)LineHandoff.init(TOKEN_KEY,function(){joinMember();});
   function authApi(path,body){return fetch('/api'+path,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify(body)}).then(function(r){return r.json().catch(function(){return {};}).then(function(d){if(!r.ok){var e=Error(d.error||('伺服器錯誤 '+r.status));e.status=r.status;throw e;}return d;});});}
   function memberLogout(){try{localStorage.removeItem(TOKEN_KEY);}catch(e){}ME=null;renderMember();renderMenu();syncNameRow();}
   function syncNameRow(){var r=$('#name-row');if(r)r.hidden=!!ME;}   // 已登入：稱呼併進會員卡，不另佔一列

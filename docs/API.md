@@ -1223,6 +1223,14 @@ Twilio 訊息狀態 callback。以 `X-Twilio-Signature` 驗證請求，將 accep
 
 一次性 Email 登入。body `{name,email,redirect,lang}`，redirect 限允許官網來源。驗證姓名／Email；每 IP 每分鐘 10 次、每信箱每分鐘 1 次及每小時 6 次。登入碼只有 SHA-256 雜湊存入資料庫，有效 20 分鐘。缺寄信服務回 503，絕不假裝已寄出。
 
+### POST /api/auth/handoff/confirm
+
+LINE 登入帶回主畫面 App（KK 11/4，`lib/auth-handoff.js`）。主畫面 App 按 LINE 登入時帶 `handoff`（32 碼亂數，只存在 App 本機）給 `/auth/line`；LINE 回跳若落在另一個瀏覽器（沒有 `line_state` cookie），callback 不直接帶 token 轉址，而是把 token 加密暫存 10 分鐘並顯示核對號碼頁。body `{h,c}`，`c` 只出現在該頁，按「號碼相同」才標記可取回。錯誤或逾時回 400。
+
+### POST /api/auth/handoff
+
+主畫面 App 回前景時輪詢。body `{h}`，已確認回 `{token}`（只能取一次，取完即刪），否則回 `{pending:true}`；格式錯誤 400。暫存在 `site_content.auth_handoffs`（不在公開鍵），最多 300 筆。
+
 ### POST /api/auth/email/verify
 
 body `{code}`，原子消耗一次性登入碼，回傳 `{token,redirect}`。已使用／過期／無效回 400。連結以 fragment 攜帶登入碼，確認按鈕才兌換，避免郵件預覽機器人消耗。帳號依已驗證信箱沿用，不接受請求指定角色；每次 API 授權仍以資料庫角色為準。測試以隔離資料庫建立一次性碼，未寄送真實郵件。
