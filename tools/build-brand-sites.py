@@ -83,6 +83,7 @@ def head(slug, title, desc):
     root = f"https://{b['host']}/"
     cafe = slug == 'at-cafe'
     extra_css = {'3am': '\n<link rel="stylesheet" href="/brand-sites/3am-dark-room.css">',
+                 'stay-square': '\n<link rel="stylesheet" href="/brand-sites/stay-square.css">',
                  'rest-book': '\n<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">\n<link rel="stylesheet" href="/brand-sites/rest-book.css">'}.get(slug, '')
     if cafe:  # 在咖啡專用樣式＋首圖預載＋js 旗標（捲動淡入）
         extra_css = ('\n<link rel="stylesheet" href="/brand-sites/at-cafe.css">'
@@ -184,7 +185,7 @@ def footer_html(slug, dock):
   <div class="bs-foot__bottom"><p class="bs-foot__legal">{e(legal)}</p>{lang_switch(b['host'], ' bs-lang--foot')}</div>
 </div></footer>
 <nav class="bs-dock" aria-label="{t('快速動作', 'Quick actions', 'クイック操作')}">{dock_html}</nav>
-<script>(function(){{var d=document.querySelector('.bs-dock'),h=document.querySelector('.bs-hero');if(!d||!h||!('IntersectionObserver' in window))return;new IntersectionObserver(function(e){{d.classList.toggle('is-on',!e[0].isIntersecting)}}).observe(h)}})()</script>
+<script>(function(){{var d=document.querySelector('.bs-dock'),h=document.querySelector('.bs-hero,.sq-hero');if(!d||!h||!('IntersectionObserver' in window))return;new IntersectionObserver(function(e){{d.classList.toggle('is-on',!e[0].isIntersecting)}}).observe(h)}})()</script>
 </body>
 </html>
 '''
