@@ -348,3 +348,19 @@ test('時段歌單播完輪播、播放卡住自動重試（KK 11/5）', () => {
   assert.match(js, /function songWatch\(\)/); assert.match(js, /SONG_YT\.mute\(\); SONG_MUTED = true; SONG_YT\.loadVideoById/); assert.match(js, /開啟聲音/); assert.match(js, /自動\$\{up\.shuffle \? '重新洗牌' : '從頭'\}輪播/);
   assert.match(js, /width: '356', height: '200'/);
 });
+
+test('沒有常態歌單、不在任何時段：沿用最近結束的時段歌單，播放器不會空轉狂閃（KK 11/5）', () => {
+  const at = t => new Date(t + '+08:00').getTime();
+  const s = songs.normalizeSettings({ schedules: [
+    { name: '咖啡', days: [1,2,3,4,5], start: '08:00', end: '17:00', playlist: [T(ID(1))] },
+    { name: '深夜', days: [0,1,2,3,4,5,6], start: '02:30', end: '03:00', playlist: [T(ID(2))] } ] });
+  assert.equal(songs.activePlaylist(s, at('2026-11-05T03:16:00')).name, '深夜');
+  assert.equal(songs.activePlaylist(s, at('2026-11-05T03:16:00')).fallback, true);
+  assert.equal(songs.activePlaylist(s, at('2026-11-05T18:00:00')).name, '咖啡');
+  assert.equal(songs.activePlaylist(s, at('2026-11-05T09:00:00')).fallback, undefined);
+  const out = songs.advance(songs.normalizeState(''), s, { now: at('2026-11-05T03:16:00') });
+  assert.equal(out.song.video_id, ID(2));
+  assert.equal(songs.activePlaylist(songs.normalizeSettings({}), Date.now()).playlist.length, 0);
+  const js = read('public/pos-songs.js');
+  assert.match(js, /SONG_EMPTY_AT/); assert.doesNotMatch(js, /settings\.schedules \|\| \[\]\)\.length\)\) return songNext/);
+});

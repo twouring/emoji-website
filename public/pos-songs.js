@@ -248,7 +248,7 @@ document.addEventListener('submit', async e => {
 });
 
 /* ---- 播放器（只在播放裝置上運作）：YouTube IFrame API，常駐右下角 ---- */
-let SONG_YT = null, SONG_YT_READY = false, SONG_LOADED = '', SONG_TIMER = null, SONG_BUSY = false, SONG_PLAYING = false, SONG_MUTED = false, SONG_WATCH = null, SONG_RETRY = '';
+let SONG_YT = null, SONG_YT_READY = false, SONG_LOADED = '', SONG_TIMER = null, SONG_BUSY = false, SONG_PLAYING = false, SONG_MUTED = false, SONG_WATCH = null, SONG_RETRY = '', SONG_EMPTY_AT = 0;
 /* 播放／暫停狀態反映到大卡按鈕（不整頁重繪） */
 function songToggleLabel(){ return SONG_PLAYING && SONG_MUTED ? '開啟聲音' : SONG_PLAYING ? '暫停' : '播放'; }
 function songPaintPlaying(){ const b = document.querySelector('#songs-body [data-song-toggle]'); if (b) b.textContent = songToggleLabel(); const h = document.querySelector('#songs-body [data-song-blocked]'); if (h) { h.hidden = SONG_PLAYING && !SONG_MUTED; h.textContent = SONG_PLAYING && SONG_MUTED ? '靜音播放中：按「開啟聲音」，或點播放器上的喇叭。' : '沒有聲音？點一下左邊的播放器或「播放」。'; } }
@@ -293,9 +293,10 @@ function songDock(){
 }
 function songPlayerStop(){ clearTimeout(SONG_TIMER); SONG_TIMER = null; try { SONG_YT && SONG_YT.destroy(); } catch (e) {} SONG_YT = null; SONG_LOADED = ''; SONG_PLAYING = false; clearTimeout(SONG_WATCH); SONG_WATCH = null; const d = document.getElementById('song-dock'); if (d) d.remove(); }
 async function songNext(result){
-  if (SONG_BUSY) return; SONG_BUSY = true;
+  if (SONG_BUSY) return; SONG_BUSY = true; const before = JSON.stringify(SONGS.data);
   try { SONGS.data = await songApi('/admin/orders/songs/next', { method: 'POST', body: { result, current: SONGS.data && SONGS.data.now ? SONGS.data.now.id : null, device: DEVICE_ID } }); if (SONGS.data.refunded) toast('客人點的歌無法播放，已跳過並從帳上拿掉'); } catch (e) { toast(e.message); }
-  SONG_BUSY = false; if (TAB === 'songs') paintSongs(); songPlayerSync();
+  SONG_BUSY = false; if (result === 'ended' && SONGS.data && !SONGS.data.now) SONG_EMPTY_AT = Date.now();
+  if (TAB === 'songs' && JSON.stringify(SONGS.data) !== before) paintSongs(); songPlayerSync();
 }
 function songPlayerSync(){
   if (!isSongPlayer()) { if (SONG_YT || document.getElementById('song-dock')) songPlayerStop(); return; }
@@ -303,7 +304,8 @@ function songPlayerSync(){
   songEnsureApi(); if (!SONG_YT_READY) return;
   const d = SONGS.data, now = d.now; songDock(); songPlaceDock();
   // 沒在播但有歌可播 → 換下一首；正在播常態歌單、有人點歌 → 立刻切過去
-  if (!now && (d.queue.length || d.settings.playlist.length || (d.settings.schedules || []).length)) return songNext('ended');
+  // 只看伺服器算好的「接下來」（已依時段挑歌單）；伺服器換不出歌時 60 秒內不再要，避免一直重畫狂閃（KK 11/5）
+  if (!now && (d.upcoming ? d.upcoming.items.length : d.queue.length) && Date.now() - SONG_EMPTY_AT > 60000) return songNext('ended');
   if (now && now.kind === 'playlist' && d.queue.length) return songNext('preempt');
   if (!now) { try { SONG_YT && SONG_YT.stopVideo(); } catch (e) {} SONG_LOADED = ''; return; }
   if (SONG_LOADED === now.id) return;
