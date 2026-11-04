@@ -24,7 +24,7 @@
     var v = read(), el = document.getElementById('line-handoff-bar');
     if (!v) { if (el) el.remove(); return; }
     if (!el) { el = document.createElement('div'); el.id = 'line-handoff-bar'; el.setAttribute('role', 'status');
-      el.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:9999;background:#1B1A17;color:#fff;border-radius:14px;padding:12px 16px;font:1rem/1.5 system-ui,-apple-system,"PingFang TC",sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.25)';
+      el.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:9999;background:#1B1A17;color:#fff;border-radius:14px;padding:12px 16px;font-size:1rem;line-height:1.5;font-family:system-ui,-apple-system,"PingFang TC",sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.25)';
       document.body.appendChild(el); }
     el.innerHTML = 'LINE 登入中・核對號碼 <b style="font-size:1.4rem;letter-spacing:.15em;color:#FFDE34">' + code(v.h) + '</b><br>在 LINE／Safari 頁確認號碼相同後，回到這裡即可。<span style="display:block;opacity:.75">Signing in with LINE · code ' + code(v.h) + '</span>';
   }
