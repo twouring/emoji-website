@@ -84,7 +84,7 @@ def head(slug, title, desc):
     cafe = slug == 'at-cafe'
     extra_css = {'3am': '\n<link rel="preload" as="image" href="/brand-sites/assets/3am/clam-soup-1800.webp" media="(min-width: 761px)">\n<link rel="stylesheet" href="/brand-sites/3am-dark-room.css">',
                  'stay-square': '\n<link rel="stylesheet" href="/brand-sites/stay-square.css">',
-                 'rest-book': '\n<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">\n<link rel="stylesheet" href="/brand-sites/rest-book.css">'}.get(slug, '')
+                 'rest-book': '\n<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=' + ('Shippori+Mincho:wght@400;500;600' if L == 'ja' else 'Noto+Serif+TC:wght@400;500;600') + '&display=swap" rel="stylesheet">\n<link rel="stylesheet" href="/brand-sites/rest-book.css">'}.get(slug, '')
     if cafe:  # 在咖啡專用樣式＋首圖預載＋js 旗標（捲動淡入）
         extra_css = ('\n<link rel="stylesheet" href="/brand-sites/at-cafe.css">'
                      '\n<link rel="preload" as="image" href="/brand-sites/assets/atcafe/matcha-800.webp" '
@@ -658,7 +658,7 @@ def sq_login():
             f'<button type="button" class="sq-login__close" data-sq-close aria-label="{t("關閉", "Close", "閉じる")}">×</button></dialog>\n')
 
 
-# ---------------------------------------------------------------- 約書旅（2026-11-04；Taste Skill v2 direction「uneven-photographs」seed 750199525）
+# ---------------------------------------------------------------- 約書旅（2026-11-04 改版：ui-ux-pro-max「日系質感書店」— 紙與墨、明朝體、直排標題、細線、目次與奧付）
 # 構想：兩班車之間的空檔，變成一張閱讀時刻表。互動：選「離下一班車還有多久」→ 給出怎麼用這段時間（無 JS 時全部列出）。
 # 圖片：Wikimedia Commons 公有領域／CC 授權（頁尾標註來源）＋本案 2F 規劃示意；統一暖墨單色處理。
 RB_IMG = {
@@ -734,14 +734,22 @@ def page_book():
     credit = t('圖片：台北車站與學生（約 1930，公有領域）、台北車站月台（4300streetcar，CC BY 4.0）、巴黎書店（Janko Ferlič，CC0）、書商的店（Johannes Jelgerhuis，公有領域），皆取自 Wikimedia Commons；室內為規劃示意。',
                'Pictures: Taipei Railway Station and students, c. 1930 (public domain); Taipei Main Station platform (4300streetcar, CC BY 4.0); a Paris bookshop (Janko Ferlič, CC0); The Bookshop of Pieter Meijer Warnars (Johannes Jelgerhuis, public domain); all via Wikimedia Commons. The interior is a concept rendering.',
                '画像：台北駅と学生（1930年頃、パブリックドメイン）、台北駅のホーム（4300streetcar、CC BY 4.0）、パリの書店（Janko Ferlič、CC0）、書籍商の店（Johannes Jelgerhuis、パブリックドメイン）。いずれも Wikimedia Commons。室内は完成イメージです。')
+    def kick(n, zh, en, ja):  # 書店的章節標示：一　時刻表／01 Timetable
+        num = f'{n:02d}' if L == 'en' else '一二三四五六七八九'[n - 1]
+        return f'<p class="rb-kicker" aria-hidden="true"><span>{num}</span>{e(t(zh, en, ja))}</p>'
+
+    toc = [('#gap', t('空檔時刻表', 'Timetable', 'すき間の時刻表')), ('#price', t('價目', 'Prices', '料金')), ('#hire', t('交誼廳包場', 'Lounge hire', 'ラウンジ貸切')),
+           ('#here', t('這裡有什麼', 'What’s here', 'あるもの')), ('#faq', t('常見問題', 'FAQ', 'よくある質問'))]
+    toc_html = ''.join(f'<li><a href="{h}"><span>{e(x)}</span></a></li>' for h, x in toc)
     out += f"""<main id="content" class="rb">
 <section class="rb-hero" aria-labelledby="rb-title">
-  <figure class="rb-hero__small">{rb_img('station', t('約 1930 年的台北車站前廣場', 'The square in front of Taipei Railway Station, c. 1930', '1930年頃の台北駅前'), lazy=False)}</figure>
-  <h1 id="rb-title" class="rb-title"><span class="rb-line"><span>{t('等車，', 'A book', '電車まで、')}</span></span><span class="rb-line rb-line--step"><span>{t('讀一本書', 'between trains', '一冊の本を')}</span></span></h1>
-  <figure class="rb-hero__tall">{rb_img('bookshop', t('一面放滿書的書架', 'Shelves full of books', '本でいっぱいの本棚'), lazy=False)}</figure>
+  <h1 id="rb-title" class="rb-title"><span class="rb-line">{t('等車，', 'A book', '電車まで、')}</span><span class="rb-line rb-line--step">{t('讀一本書', 'between trains', '一冊の本を')}</span></h1>
+  <figure class="rb-hero__photo">{rb_img('bookshop', t('一面放滿書的書架', 'Shelves full of books', '本でいっぱいの本棚'), lazy=False)}<figcaption>{t('書架　參考', 'Shelves — reference', '本棚　参考')}</figcaption></figure>
   <div class="rb-hero__say">
+    <p class="rb-hero__where">{t('台北車站　Z10 出口斜對面', 'Taipei Main Station · across from Exit Z10', '台北駅　Z10 出口の斜め向かい')}</p>
     <p>{t('約書旅在台北車站 Z10 出口斜對面。書可以讀也可以買，還有讀書席、休憩室、淋浴與交誼廳。', 'Rest Book is across from Exit Z10 of Taipei Main Station. Books to read or buy, study seats, rest rooms, showers and a lounge.', '約書旅は台北駅 Z10 出口の斜め向かい。読める・買える本、読書席、休憩室、シャワー、ラウンジ。')}</p>
     <a class="rb-btn" href="#gap">{t('排你的空檔時間', 'Plan your gap', 'すき間の過ごし方を見る')}</a>
+    <nav class="rb-toc" aria-label="{t('目次', 'Contents', '目次')}"><p class="rb-toc__h" aria-hidden="true">{t('目次', 'Contents', '目次')}</p><ol>{toc_html}</ol></nav>
   </div>
 </section>
 
@@ -753,11 +761,12 @@ def page_book():
       <p>{t('車站每天有很多人經過；我們只想讓其中一個人坐下來，讀完一章。', 'Crowds pass the station every day; we only want one of them to sit down and finish a chapter.', '駅を通る人は多い。そのうちの一人に、座って一章を読み終えてほしい。')}</p>
     </div>
   </div>
-  <figure class="rb-intro__wide">{rb_img('platform', t('台北車站的月台', 'A platform at Taipei Main Station', '台北駅のホーム'))}</figure>
+  <figure class="rb-intro__wide">{rb_img('platform', t('台北車站的月台', 'A platform at Taipei Main Station', '台北駅のホーム'))}<figcaption>{t('台北車站的月台', 'A platform at Taipei Main Station', '台北駅のホーム')}</figcaption></figure>
 </section>
 
 <section class="rb-gap" id="gap" aria-labelledby="gap-h">
   <div class="rb-gap__head">
+    {kick(1, '時刻表', 'Timetable', '時刻表')}
     <h2 id="gap-h">{t('你的空檔時刻表', 'Your timetable for the gap', 'すき間の時刻表')}</h2>
     <p>{t('選一個時間，看看這段空檔可以怎麼過。', 'Pick a time and see how the gap could go.', '時間を選ぶと、すき間の過ごし方が見られます。')}</p>
   </div>
@@ -765,22 +774,24 @@ def page_book():
     <div class="rb-gap__picks" role="group" aria-label="{t('離下一班車還有多久', 'Time until your train', '次の電車までの時間')}">{picks}</div>
     <ul class="rb-gap__plans" aria-live="polite">{plans}</ul>
   </div>
-  <figure class="rb-gap__photo">{rb_img('students', t('約 1930 年，台北車站前的學生', 'Students in front of Taipei Railway Station, 1930s', '1930年代、台北駅前の学生たち'))}</figure>
+  <figure class="rb-gap__photo">{rb_img('students', t('約 1930 年，台北車站前的學生', 'Students in front of Taipei Railway Station, 1930s', '1930年代、台北駅前の学生たち'))}<figcaption>{t('台北車站前的學生，約 1930 年', 'Students at Taipei Railway Station, c. 1930', '台北駅前の学生、1930年頃')}</figcaption></figure>
 </section>
 
 <section class="rb-run" aria-labelledby="run-h">
   <div class="rb-run__side">
+    {kick(2, '書架', 'Shelves', '本棚')}
     <h2 id="run-h">{t('書架、讀書席與休憩', 'Shelves, seats and rest', '本棚、読書席、休憩')}</h2>
     <a href="#here">{t('看這裡有什麼', 'See what’s here', 'あるものを見る')}</a>
   </div>
   <div class="rb-run__frames">
     <figure>{rb_img('bookseller', t('十八世紀荷蘭書商的店（畫作）', 'An eighteenth-century Dutch bookshop (painting)', '18世紀オランダの書籍商の店（絵画）'))}<figcaption><span>{t('書商的店', 'A bookshop', '書籍商の店')}</span><span>{t('畫作', 'Painting', '絵画')}</span></figcaption></figure>
     <figure class="rb-run__lift">{rb_img('room', t('約書旅閱讀與休憩空間規劃示意', 'Rest Book reading and rest area, concept rendering', '約書旅の読書・休憩エリアの完成イメージ'))}<figcaption><span>{t('約書旅', 'Rest Book', '約書旅')}</span><span>{t('規劃示意', 'Concept rendering', '完成イメージ')}</span></figcaption></figure>
-    <figure>{rb_img('bookshop', t('一面放滿書的書架', 'Shelves full of books', '本でいっぱいの本棚'))}<figcaption><span>{t('書架', 'Shelves', '本棚')}</span><span>{t('參考', 'Reference', '参考')}</span></figcaption></figure>
+    <figure>{rb_img('station', t('約 1930 年的台北車站前廣場', 'The square in front of Taipei Railway Station, c. 1930', '1930年頃の台北駅前'))}<figcaption><span>{t('台北車站前', 'Taipei Station', '台北駅前')}</span><span>{t('約 1930 年', 'c. 1930', '1930年頃')}</span></figcaption></figure>
   </div>
 </section>
 
 <section class="rb-price" id="price" aria-labelledby="price-h">
+  {kick(3, '價目', 'Prices', '料金')}
   <h2 id="price-h">{t('價目', 'Prices', '料金')}</h2>
   <p class="rb-price__lede">{t('讀書席與休憩室同價，以完整小時計費。價格含稅。', 'Study seats and rest rooms cost the same, charged by the full hour. Prices include tax.', '読書席と休憩室は同じ料金で、1時間単位の計算です。税込。')}</p>
   <div class="rb-price__grid">
@@ -791,44 +802,50 @@ def page_book():
 </section>
 
 <section class="rb-hire" id="hire" aria-labelledby="hire-h">
-  <h2 id="hire-h">{t('交誼廳包場', 'Hire the lounge', 'ラウンジの貸切')}</h2>
-  <p class="rb-price__lede">{t('約十人的小廳，有 100 吋大螢幕、環繞音響、Switch 與桌遊。生日、球賽或演唱會直播、讀書會都合適。', 'A small room for about ten, with a 100-inch screen, surround sound, Switch and board games. Good for birthdays, match or concert screenings, and reading groups.', '約10名の小さな部屋。100インチの大型画面、サラウンド音響、Switch、ボードゲーム。誕生日、試合やライブの観賞、読書会に。')}</p>
-  <div class="rb-price__grid">
-    <div class="rb-price__block"><h3>{t('場地費', 'Fee', '料金')}<span>{t('每時段 2 小時', 'per 2-hour slot', '1枠2時間')}</span></h3>{dl(hire_rows)}</div>
+  <div class="rb-hire__head">
+    {kick(4, '包場', 'Lounge hire', '貸切')}
+    <h2 id="hire-h">{t('交誼廳包場', 'Hire the lounge', 'ラウンジの貸切')}</h2>
+    <p class="rb-price__lede">{t('約十人的小廳，有 100 吋大螢幕、環繞音響、Switch 與桌遊。生日、球賽或演唱會直播、讀書會都合適。', 'A small room for about ten, with a 100-inch screen, surround sound, Switch and board games. Good for birthdays, match or concert screenings, and reading groups.', '約10名の小さな部屋。100インチの大型画面、サラウンド音響、Switch、ボードゲーム。誕生日、試合やライブの観賞、読書会に。')}</p>
+    <a class="rb-btn" href="{hire_mail}">{t('來信預約包場', 'Email to book', 'メールで予約')}</a>
   </div>
-  <ul class="rb-price__rules">{hire_rules}</ul>
-  <a class="rb-btn" href="{hire_mail}">{t('來信預約包場', 'Email to book', 'メールで予約')}</a>
+  <div class="rb-hire__body">
+    <div class="rb-price__block"><h3>{t('場地費', 'Fee', '料金')}<span>{t('每時段 2 小時', 'per 2-hour slot', '1枠2時間')}</span></h3>{dl(hire_rows)}</div>
+    <ul class="rb-price__rules">{hire_rules}</ul>
+  </div>
 </section>
 
 <section class="rb-here" id="here" aria-labelledby="here-h">
+  {kick(5, '設施', 'Facilities', '設備')}
   <h2 id="here-h">{t('這裡有什麼，怎麼收費', 'What’s here, and what it costs', 'あるものと料金')}</h2>
-  <div class="rb-here__grid">
-    <figure>{rb_img('station', t('約 1930 年的台北車站前廣場', 'The square in front of Taipei Railway Station, c. 1930', '1930年頃の台北駅前'))}</figure>
-    <table class="rb-table"><caption>{t('約書旅的設施', 'Rest Book facilities', '約書旅の設備')}</caption><tbody>{table}</tbody></table>
-  </div>
+  <table class="rb-table"><caption>{t('約書旅的設施', 'Rest Book facilities', '約書旅の設備')}</caption><tbody>{table}</tbody></table>
 </section>
 
 <section class="rb-faq" id="faq" aria-labelledby="faq-h">
-  <h2 id="faq-h">{t('出發前想知道的', 'Before you come', '来る前に')}</h2>
+  <div class="rb-faq__head">
+    {kick(6, '問答', 'FAQ', '問答')}
+    <h2 id="faq-h">{t('出發前想知道的', 'Before you come', '来る前に')}</h2>
+  </div>
   <div class="rb-faq__list">{faq_html}</div>
 </section>
 
-<section class="rb-contact" aria-label="{t('洽詢', 'Contact', 'お問い合わせ')}">
-  <p class="rb-contact__say">{t('想找某一本書、想寄賣、或想在這裡辦讀書會，寫信給我們。', 'Looking for a title, want to consign books, or hold a reading group here? Write to us.', '探している本、委託販売、読書会の相談は、メールでどうぞ。')}</p>
-  <figure>{rb_img('room', t('約書旅規劃示意', 'Rest Book, concept rendering', '約書旅の完成イメージ'))}</figure>
-  <div class="rb-contact__links">
-    <b>{t('怎麼聯絡？', 'How to reach us', '連絡先')}</b>
-    <a href="{contact}">us@emoji.tw</a>
-    <a href="{MAP}" target="_blank" rel="noopener">{t('Google 地圖', 'Google Maps', 'Google マップ')}</a>
-    <span>{e(ADDRESS[L])}</span>
+<section class="rb-contact" aria-labelledby="contact-h">
+  <div class="rb-contact__say">
+    <h2 id="contact-h">{t('洽詢', 'Contact', 'お問い合わせ')}</h2>
+    <p>{t('想找某一本書、想寄賣、或想在這裡辦讀書會，寫信給我們。', 'Looking for a title, want to consign books, or hold a reading group here? Write to us.', '探している本、委託販売、読書会の相談は、メールでどうぞ。')}</p>
   </div>
+  <dl class="rb-colophon">
+    <div><dt>{t('店名', 'Name', '店名')}</dt><dd>約書旅 Rest Book</dd></div>
+    <div><dt>{t('所在', 'Address', '所在地')}</dt><dd>{e(ADDRESS[L])}</dd></div>
+    <div><dt>{t('來信', 'Email', 'メール')}</dt><dd><a href="{contact}">us@emoji.tw</a></dd></div>
+    <div><dt>{t('地圖', 'Map', '地図')}</dt><dd><a href="{MAP}" target="_blank" rel="noopener">{t('Google 地圖', 'Google Maps', 'Google マップ')}</a></dd></div>
+  </dl>
 </section>
 <p class="rb-credit">{e(credit)}</p>
 </main>
 <script>(function(){{var r=document.documentElement;if(!matchMedia('(prefers-reduced-motion: reduce)').matches)r.classList.add('rb-anim');
 var p=document.querySelectorAll('.rb-gap__pick'),l=document.querySelectorAll('.rb-gap__plans li');function show(k){{p.forEach(function(b){{b.setAttribute('aria-pressed',b.dataset.gap===k?'true':'false')}});l.forEach(function(x){{x.hidden=x.dataset.gap!==k}})}}
 if(p.length){{r.classList.add('rb-js');p.forEach(function(b){{b.addEventListener('click',function(){{show(b.dataset.gap)}})}});show('60')}}
-if(!('IntersectionObserver' in window))return;var io=new IntersectionObserver(function(es){{es.forEach(function(x){{if(x.isIntersecting){{x.target.classList.add('is-in');io.unobserve(x.target)}}}})}},{{rootMargin:'0px 0px -10% 0px'}});document.querySelectorAll('.rb section').forEach(function(x){{io.observe(x)}})}})()</script>
+if(!('IntersectionObserver' in window))return;var io=new IntersectionObserver(function(es){{es.forEach(function(x){{if(x.isIntersecting){{x.target.classList.add('is-in');io.unobserve(x.target)}}}})}},{{rootMargin:'0px 0px -8% 0px'}});document.querySelectorAll('.rb section').forEach(function(x){{io.observe(x)}})}})()</script>
 """
     out += footer_html(s, [(t('價目', 'Prices', '料金'), '#price'), (t('洽詢', 'Contact', 'お問い合わせ'), contact)])
     return out
