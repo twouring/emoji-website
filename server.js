@@ -5163,7 +5163,18 @@ async function reverseYanForOrder(client, orderId) {
   await persistYanDiff(client, before, rows);
 }
 
-/* App 掃桌碼兌換：點數在加進點菜清單當下就扣（ref_id='rl_'+行號），行被移除／作廢／清桌時由 refundAppRedeems 退回 */
+/* App 掃桌碼兌換（KK 11/5）：加進購物車時只檢查餘額、不扣；送出點餐（或櫃檯先結後做）時才由 chargeAppRedeems 扣（ref_id='rl_'+行號，冪等）。
+   送出後被作廢／清桌由 refundAppRedeems 退回；沒扣過的行退點是空操作。 */
+async function chargeAppRedeems(client, lines) {
+  for (const l of lines || []) {
+    if (!l.app_redeem || !l.redeem_user || !(Number(l.redeem_points) > 0)) continue;
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,2))',[l.redeem_user]);
+    const before = await yanRowsFor(client, l.redeem_user);
+    let r; try { r = yan.applyRedeem(before, { orderId: 'rl_' + l.line, points: Number(l.redeem_points), userId: l.redeem_user, refType: 'line' }); }
+    catch (e) { throw Object.assign(Error(`「${l.zh}」兌換點數不足（需要 ${l.redeem_points} 點，目前 ${yan.balance(before)} 點），請先移除再送出。`), { status: 400 }); }
+    await persistYanDiff(client, before, r.rows);
+  }
+}
 async function refundAppRedeems(client, lines) {
   for (const l of lines || []) {
     if (!l.app_redeem || !l.redeem_user) continue;
@@ -5193,14 +5204,14 @@ app.post('/api/me/redeem', auth, requireDb, rateLimit({ max: 30, windowMs: 36000
     await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,2))', [me.id]);
     const before = await yanRowsFor(client, me.id);
     const bal = yan.balance(before);
-    if (bal < per) { await client.query('ROLLBACK'); return res.status(400).json({ error: `點數不足（需要 ${per} 點，目前 ${bal} 點）。` }); }
-    const added = tableOrders.addRedeemLine(s.items, menu, { item_id: it.id, by: me.name || '會員', guest: pickup.guestOf(me.id), userId: me.id });
-    const r = yan.applyRedeem(before, { orderId: 'rl_' + added.line.line, points: per, userId: me.id, refType: 'line' });
-    await persistYanDiff(client, before, r.rows);
+    // 還沒送出的兌換也算進去（還沒扣），避免加進購物車的總點數超過餘額
+    const pending = s.items.filter(l => l.app_redeem && l.redeem_user === me.id && !l.order_id && !l.placed_at).reduce((a, l) => a + (Number(l.redeem_points) || 0), 0);
+    if (bal - pending < per) { await client.query('ROLLBACK'); return res.status(400).json({ error: `點數不足（需要 ${per} 點，目前 ${bal} 點${pending ? `，購物車已有 ${pending} 點兌換` : ''}）。` }); }
+    const added = tableOrders.addRedeemLine(s.items, menu, { item_id: it.id, by: me.name || '會員', guest: pickup.guestOf(me.id), userId: me.id, venue: tableOrders.MenuLib.orderWindow().venue });
     await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1', [s.id, JSON.stringify(added.items)]);
     await client.query('COMMIT');
     res.set('Cache-Control', 'no-store');
-    res.json({ ok: true, table, item: { id: it.id, zh: it.zh, en: it.en, ja: it.ja }, points: per, balance: yan.balance(r.rows) });
+    res.json({ ok: true, table, item: { id: it.id, zh: it.zh, en: it.en, ja: it.ja }, points: per, pending: pending + per, balance: bal });
   } catch (e) { await client.query('ROLLBACK').catch(()=>{}); if (e.status) return res.status(e.status).json({ error: e.message }); throw e; }
   finally { client.release(); }
 }));
@@ -6060,6 +6071,7 @@ async function mutateItems(req,res,fn,resolve){
     const newlyPlaced=items.filter(l=>l.ticket&&!previousTickets.has(l.ticket));
     // 剩餘份數：客人加進購物車就先比對（購物車＋這次送出的不得超過剩餘份數），送單才真正扣；櫃檯不擋
     if(!req.auth&&req.method==='POST'){const short=tableOrders.stockShortage(await contentValue('menu'),items.filter(l=>!l.order_id&&(!l.placed_at||newlyPlaced.includes(l))));if(short.length)throw Object.assign(Error(tableOrders.stockMessage(short)),{status:409});}
+    await chargeAppRedeems(client,newlyPlaced);   // 點數兌換：送出才扣（KK 11/5）
     await stockConsume(client.query.bind(client),newlyPlaced,{strict:!req.auth});
     await stockRestore(client.query.bind(client),posInventory.restorableRemoved(s.items,items));
     await kitchenPrint.enqueue(client.query.bind(client),[{...s,items:newlyPlaced}]);
@@ -6113,6 +6125,7 @@ app.post('/api/orders/:id/pay',rateLimit({max:10}),requireDb,wrap(async(req,res)
     await client.query('INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,tappay) VALUES($1,$2,$3,$4,$5,$6,$7)',[orderId,s.id,s.table_no,JSON.stringify(lines.map(l=>({...l,order_id:orderId}))),amount,JSON.stringify(who),JSON.stringify({rec_trade_id:paid.rec_trade_id,bank_transaction_id:paid.bank_transaction_id,auth_code:paid.auth_code,last_four:paid.card_info?.last_four})]);
     await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items)]);
     await kitchenPrint.enqueue(client.query.bind(client),[{id:orderId,session_id:s.id,table_no:s.table_no,items:lines.filter(l=>!l.ticket),status:'paid'}]);
+    await chargeAppRedeems(client,lines.filter(l=>!l.placed_at));
     await stockConsume(client.query.bind(client),lines.filter(l=>!l.placed_at));
     await inventoryConsume(client.query.bind(client),lines.filter(l=>!l.placed_at),{ref_id:orderId});
     await client.query('COMMIT');
@@ -6358,6 +6371,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     if(closed)await client.query("UPDATE table_orders SET status='done',done_at=now() WHERE session_id=$1 AND status IN ('paid','ready')",[s.id]);
     await client.query('UPDATE table_sessions SET items=$2,status=$3,pay_requests=$4,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),closed?'closed':'open',JSON.stringify(tableOrders.prunePayRequests(s.pay_requests,items))]);
     // 庫存：櫃檯直接結帳、沒先送單的品項（先結後做）在這裡依配方扣；已送單的品項送單時就扣過了
+    try{await chargeAppRedeems(client,orderLines.filter(l=>!l.placed_at));}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
     await stockConsume(client.query.bind(client),orderLines.filter(l=>!l.placed_at));
     await inventoryConsume(client.query.bind(client),orderLines.filter(l=>!l.placed_at),{ref_id:orderId,actor:actorOf(req.auth)||''});
     await client.query('COMMIT');

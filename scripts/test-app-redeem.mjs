@@ -34,3 +34,29 @@ test('伺服器：/api/me/redeem 驗桌碼並在移除／清桌時退點；菜�
   assert.match(s, /Math\.ceil\(it\.price \/ 10\)/);
   assert.match(s, /menu_points_seed_v1/);
 });
+
+test('addRedeemLine：共用甜點記當下店別（三點水時段兌換要出在三點水的單，KK 11/5）', () => {
+  const m = new Map([['d', { id: 'd', venue: 'CAFE', cat: 'DESSERT', zh: '原味費南雪', price: 90, points: 9 }], ['a', menu.get('a')]]);
+  assert.equal(T.addRedeemLine([], m, { item_id: 'd', guest: 'app12345678', userId: 'u1', venue: 'BAR' }).line.venue, 'BAR');
+  assert.equal(T.addRedeemLine([], m, { item_id: 'a', guest: 'app12345678', userId: 'u1', venue: 'BAR' }).line.venue, 'CAFE', '非共用品項維持原店別');
+});
+test('伺服器：兌換加進購物車不扣點，送出／結帳才扣（KK 11/5）', () => {
+  const s = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+  const r = s.slice(s.indexOf("app.post('/api/me/redeem'"), s.indexOf("app.post('/api/orders/table/member'"));
+  assert.doesNotMatch(r, /applyRedeem|persistYanDiff/, '加進購物車時不可扣點');
+  assert.match(r, /bal - pending < per/, '要扣掉購物車裡未送出的兌換再比餘額');
+  assert.match(r, /venue: tableOrders\.MenuLib\.orderWindow\(\)\.venue/);
+  const mut = s.slice(s.indexOf('async function mutateItems('), s.indexOf("app.post('/api/orders/:id/items'"));
+  assert.match(mut, /await chargeAppRedeems\(client,newlyPlaced\)/);
+  const pay = s.slice(s.indexOf("app.post('/api/orders/:id/pay'"), s.indexOf("app.get('/api/admin/orders/kitchen-print-jobs'"));
+  assert.match(pay, /chargeAppRedeems\(client,lines\.filter\(l=>!l\.placed_at\)\)/);
+  const co = s.slice(s.indexOf("/sessions/:id/checkout'"));
+  assert.match(co.slice(0, 12000), /chargeAppRedeems\(client,orderLines\.filter\(l=>!l\.placed_at\)\)/);
+  assert.match(s, /function chargeAppRedeems[\s\S]{0,600}applyRedeem\(before, \{ orderId: 'rl_' \+ l\.line/);
+});
+test('前端：可用點數扣掉購物車裡未送出的兌換、送出後重抓餘額', () => {
+  const h = fs.readFileSync(new URL('../public/order.html', import.meta.url), 'utf8');
+  assert.match(h, /function pendingRedeem\(\)/);
+  assert.match(h, /bal=Math\.max\(0,\(ME\.balance\|\|0\)-pendingRedeem\(\)\)/);
+  assert.match(h, /\/place',\{method:'POST'[^;]*\.then\(function\(s\)\{applyState\(s\);if\(ME\)joinMember\(\);/);
+});

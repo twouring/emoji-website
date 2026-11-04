@@ -28,7 +28,7 @@ test('開桌才有 QR；QR 綁場次，清桌即失效；桌上舊 QR 403；大�
       auth: (req, res, next) => { req.auth = { role: 'admin', email: 'pos@test', brands: null }; next(); }, adminOnly: (r, s, nx) => nx(), requireDb: (r, s, nx) => nx(), rateLimit: () => (r, s, nx) => nx(),
       wrap: fn => (req, res) => fn(req, res).catch(e => res.status(500).json({ error: e.message })),
       resolveOperator: async (req, id) => (id === 's1' ? { id: 's1', name: '店員甲' } : null),
-      refundAppRedeems: noop, stockConsume: noop, stockRestore: noop, inventoryConsume: noop, inventoryRestore: noop, posInventory: { restorableRemoved: () => [] }, kitchenPrint: { enqueue: noop },
+      refundAppRedeems: noop, chargeAppRedeems: noop, stockConsume: noop, stockRestore: noop, inventoryConsume: noop, inventoryRestore: noop, posInventory: { restorableRemoved: () => [] }, kitchenPrint: { enqueue: noop },
       tableLive: { createHub: () => ({ subscribe() {}, write() {} }) }, eventChannels: { pushConfig: () => null }, console, Buffer });
     // contentValue 在切片內讀 site_content：換成固定菜單
     vm.runInContext(slice('const ORDER_ID_RE=', '// 結帳需求：').replace(/const contentValue=async key=>[^\n]*\n/, 'const contentValue=async k=>k==="menu"?' + JSON.stringify(menuDoc).replace(/\$/g, '$$$$') + ':"";\n'), ctx);
