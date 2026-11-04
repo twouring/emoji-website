@@ -893,12 +893,29 @@ function pickPayMethod(current){
 }
 // 查單補入會員（KK 11/5）：結帳時忘了帶會員，事後輸入手機或掃會員條碼綁到這張單、補累點；不改金額與發票。7 天內、未作廢、非預收、還沒有會員才顯示
 const canAttachMember=o=>!!o&&o.status!=='void'&&!o.payer?.prepay&&!o.payer?.member_id&&!o.user_id&&Date.now()-new Date(o.paid_at).getTime()<=7*86400e3;
+// 選會員：預設列這桌登入過的會員；輸入姓名／手機即時搜尋整個會員列表（/admin/yan/members），點一下就選。查不到可新增手機或掃會員卡。回傳 body 或 null
+function pickHistMember(o){
+  return new Promise(resolve=>{
+    const tm=(o.table_members||[]).map(m=>({id:m.id,name:m.name||'',phone:'',sub:'這桌登入'}));
+    const {ov,close}=pickOverlay(`<h3>這張單 NT$${num(o.amount)} 入會員${tipIcon('點一下就入會員並補累點（每 NT$100 一點），不改金額與發票')}</h3><div class="members-tools"><input type="search" maxlength="80" placeholder="搜尋姓名或手機" aria-label="搜尋姓名或手機" autocomplete="off" data-hm-q></div><div class="members-list" data-hm-list></div><div class="pos-move-foot"><span><button type="button" class="btn btn--ghost" data-hm-scan>掃會員條碼</button></span><button type="button" class="btn btn--ghost" data-cancel>取消</button></div>`,'入會員');
+    const done=v=>{close();resolve(v);};let seq=0,timer=0;
+    ov.onclick=e=>{if(e.target===ov)done(null);};ov.querySelector('[data-cancel]').onclick=()=>done(null);
+    ov.querySelector('[data-hm-scan]').onclick=async()=>{close();const token=await pickMemberCard();resolve(token?{token}:null);};
+    const list=ov.querySelector('[data-hm-list]'),input=ov.querySelector('[data-hm-q]');
+    const card=m=>`<button type="button" class="members-card" data-hm-pick="${esc(m.id)}"><b>${esc(m.name||'未填姓名')}</b><span>${esc(m.sub||m.phone||'未填手機')}</span></button>`;
+    const bind=()=>list.querySelectorAll('[data-hm-pick]').forEach(b=>b.onclick=()=>done({member_id:b.dataset.hmPick}));
+    const phoneOf=q=>{const d=q.replace(/\D/g,'');return /^09\d{8}$/.test(d)?d:'';};
+    const paint=(rows,q)=>{const ph=phoneOf(q);list.innerHTML=(rows.map(card).join('')||`<p class="hint">${q?'沒有符合的會員。':'輸入姓名或手機搜尋會員。'}</p>`)+(ph&&!rows.some(m=>String(m.phone).replace(/\D/g,'').endsWith(ph.slice(1)))?`<button type="button" class="members-card" data-hm-new="${esc(ph)}"><b>新增會員</b><span>${esc(ph)}</span></button>`:'');bind();const nb=list.querySelector('[data-hm-new]');if(nb)nb.onclick=()=>done({phone:nb.dataset.hmNew});};
+    const search=async()=>{const q=input.value.trim();const my=++seq;if(!q){paint(tm,'');return;}
+      try{const out=await api('/admin/yan/members?q='+encodeURIComponent(q));if(my!==seq)return;paint(out.members||[],q);}catch(err){if(my===seq)list.innerHTML=`<p role="alert">${esc(err.message)}</p>`;}};
+    input.oninput=()=>{clearTimeout(timer);timer=setTimeout(search,300);};
+    input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();clearTimeout(timer);search();}};
+    paint(tm,'');setTimeout(()=>input.focus(),0);
+  });
+}
 async function attachMemberPrompt(o,reload){
   if(!o)return;
-  const how=await pickFrom({title:`這張單 NT$${num(o.amount)} 入會員`,hint:'補累點（每 NT$100 一點），不改金額與發票',options:[{value:'phone',label:'輸入手機'},{value:'scan',label:'掃會員條碼'}],cols:2});if(!how)return;
-  let body;
-  if(how==='scan'){const token=await pickMemberCard();if(!token)return;body={token};}
-  else{const phone=await pickAmount({title:'會員手機',hint:'09 開頭 10 碼；還不是會員會自動新增',digits:10,unit:''});if(!phone)return;body={phone};}
+  const body=await pickHistMember(o);if(!body)return;
   return ensureOperator(()=>opsThen(()=>api('/admin/orders/'+o.id+'/member',{method:'POST',body:{...body,operator_id:OPERATOR?.id}}),out=>`已入會員 ${out.member?.name||out.member?.phone||''}${out.created?'（新會員）':''}，補 ${num(out.earned||0)} 點，現有 ${num(out.balance||0)} 點`,reload));
 }
 async function changePayMethodPrompt(o,reload){

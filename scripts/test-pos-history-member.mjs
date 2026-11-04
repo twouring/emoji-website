@@ -34,6 +34,8 @@ test('server：路由分品牌、鎖單、補累點扣打賞、寫 user_id', () 
   assert.match(r, /SET user_id=\$2,payer=\$3/);
   assert.doesNotMatch(r, /SET[^']*amount=/);
   assert.match(route("app.get('/api/admin/orders/history'"), /voided_by,user_id'/);
+  assert.match(route("app.get('/api/admin/orders/history'"), /o\.table_members=/);
+  assert.match(r, /memberId/);
 });
 test('文件與操作紀錄', () => {
   assert.match(api, /### POST \/api\/admin\/orders\/:id\/member/);
@@ -45,5 +47,9 @@ test('POS 查單：入會員鈕＋手機／掃碼＋顯示會員', () => {
   assert.match(ops, /const canAttachMember=/);
   assert.match(ops, /api\('\/admin\/orders\/'\+o\.id\+'\/member'/);
   assert.match(ops, /pickMemberCard\(\)/);
+  assert.match(ops, /o\.table_members\|\|\[\]/);
+  assert.match(ops, /api\('\/admin\/yan\/members\?q='/, '從會員列表搜尋');
+  assert.match(ops, /done\(\{member_id:b\.dataset\.hmPick\}\)/);
+  assert.match(ops, /data-hm-new=/, '查不到可直接用手機新增');
   assert.match(ops, /p\.member_added\?'・補登'/);
 });
