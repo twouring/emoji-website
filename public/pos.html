@@ -312,6 +312,7 @@
   <div id="app"><p class="p-center">載入中…</p></div>
 </main>
 <div class="a-toast" id="toast" role="status"></div>
+<script src="/sso-client.js"></script>
 <script src="/vendor/StarWebPrintBuilder.js"></script>
 <script src="/vendor/StarWebPrintTrader.js"></script>
 <script src="/vendor/qrcode.min.js"></script>
@@ -418,7 +419,8 @@ function renderLogin(msg){
   const drawer = document.getElementById('p-drawer'); if (drawer) drawer.hidden = true;
   document.getElementById('p-logout').hidden = true;
   document.getElementById('p-nav').innerHTML = ''; document.getElementById('p-scope').innerHTML = '';
-  const redirect = encodeURIComponent(location.origin + POS_BASE);
+  // 單一登入：Google／Email 登入經 sso.emoji.tw 記住登入再回 POS（員工四位數密碼不進 SSO）
+  const redirect = encodeURIComponent(globalThis.EmojiSSO ? EmojiSSO.wrap(location.origin + POS_BASE) : location.origin + POS_BASE);
   app.innerHTML = `<div class="p-login"><div class="p-login-card">
     <div class="p-login-brand"><small>EMOJI</small><h1>言文字 POS</h1></div>
     <p class="p-login-msg${msg ? ' err' : ''}">${esc(msg || '管理員登入一次，本裝置之後就能用四位數密碼。')}</p>
@@ -651,10 +653,13 @@ async function renewToken(){
   try { const d = await api('/auth/renew', { method:'POST', body:{} }); if (d.token) { token = d.token; localStorage.setItem(KEY, token); } } catch (e) {}
 }
 setInterval(renewToken, 3600e3);
-document.getElementById('p-logout').onclick = () => { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); location.reload(); };
+// 登出也清 sso.emoji.tw 的登入，否則平板上會被單一登入自動登回
+document.getElementById('p-logout').onclick = () => { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); if (!(globalThis.EmojiSSO && EmojiSSO.logout(location.origin + POS_BASE))) location.reload(); };
 
 async function main(){
   try { const dv = await api('/pos-devices/' + encodeURIComponent(DEVICE_ID)); DEVICE_BOUND = !!dv.bound; } catch (e) {}
+  // 單一登入：只在尚未綁定的裝置（顯示管理員登入畫面時）向 sso.emoji.tw 靜默取登入；已綁定的平板走員工四位數密碼
+  if (!token && !DEVICE_BOUND && globalThis.EmojiSSO && await EmojiSSO.silent(KEY)) return;
   if (!token) return showLoginScreen();
   try {
     const d = await api('/state');
@@ -665,7 +670,7 @@ async function main(){
     if (justLoggedInByAdmin && !d.me?.operator) {
       // 只有 POS 專用帳號能綁定裝置；綁完立刻登出，裝置只留員工四位數密碼入口（POS 帳號不留在平板上）
       const isPosAccount = String(d.me?.email || '').toLowerCase() === 'pos@emoji.tw';
-      api('/admin/pos-devices/bind', { method:'POST', body:{ device_id: DEVICE_ID } }).then(() => { DEVICE_BOUND = true; if (isPosAccount) { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); location.reload(); } }).catch(() => {});
+      api('/admin/pos-devices/bind', { method:'POST', body:{ device_id: DEVICE_ID } }).then(() => { DEVICE_BOUND = true; if (isPosAccount) { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); if (!(globalThis.EmojiSSO && EmojiSSO.logout(location.origin + POS_BASE))) location.reload(); } }).catch(() => {});
     }
     DATA = d;
     MENU_DOC = (typeof d.content?.menu === 'string' && d.content.menu.trim()) ? MenuLib.parseMenuDoc(d.content.menu) : MenuLib.parseMenuDoc('');

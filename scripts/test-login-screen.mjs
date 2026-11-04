@@ -18,7 +18,7 @@ test('Email 登入：App 內填姓名＋Email，直接呼叫 /api/auth/email/sta
   assert.match(m, /<form class="ef" id="ef" hidden>/);
   assert.match(m, /<input name="name" required maxlength="120" autocomplete="name">/);
   assert.match(m, /<input name="email" type="email" required maxlength="254" autocomplete="email" inputmode="email">/);
-  assert.match(m, /fetch\('\/api\/auth\/email\/start',\{method:'POST',headers:\{'content-type':'application\/json'\},body:JSON\.stringify\(\{name,email,redirect:back,lang:LANG\}\)/);
+  assert.match(m, /fetch\('\/api\/auth\/email\/start',\{method:'POST',headers:\{'content-type':'application\/json'\},body:JSON\.stringify\(\{name,email,redirect:via,lang:LANG\}\)/);
   assert.match(m, /T\.emailSentTo\(email\)/);
   assert.doesNotMatch(m, /event-login\.html/, 'App 不再跳去官網 Email 登入頁');
   // 後端：登入連結導回 redirect（app.emoji.tw 在 safeRedirect 白名單內）

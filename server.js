@@ -19,7 +19,7 @@ const {
 } = require('./lib/entitlements');
 const { signAccessToken, verifyAccessToken } = require('./lib/access-token');
 const { isAdminApiKey, ADMIN_API_KEY_MIN } = require('./lib/admin-key');
-const { safeEqual, signToken: signSession, verifyToken: verifySession,
+const { SSO_TTL_MS, safeEqual, signToken: signSession, verifyToken: verifySession,
   PUBLIC_CONTENT_KEYS, rateLimit } = require('./lib/security');
 const {embedOrigins}=require('./lib/event-embed');
 const {richText,contentFileType}=require('./lib/event-rich-text');
@@ -149,11 +149,20 @@ const ZOOM_REDIRECT_URI = OWN_BASE + '/integrations/zoom/callback';
 if (!GOOGLE_CLIENT_ID) console.warn('[warn] GOOGLE_CLIENT_ID 未設定，Google 登入停用（/auth/google 回 503）。');
 // 允許的登入完成導回目標與 CORS 來源（官網子網域），防 open redirect；逗號分隔可覆寫
 // 官網與後台自己的 origin 一律納入（環境變數漏列 admin.emoji.tw 曾讓後台登入後被退回 /member）
+// 單一登入（sso.emoji.tw）：言文字會員帳號的中央登入點。sso.emoji.tw 自己的 cookie（host-only）記住「這個瀏覽器登入的是誰」，
+// 各站（app／pos／admin／www／各品牌站）沒有 token 時導到 /authorize 取一張自己的 session token（以 #token= 帶回）。
+const SSO_BASE = (process.env.SSO_ORIGIN || 'https://sso.emoji.tw').replace(/\/$/, '');
+const SSO_HOSTS = [hostOf(SSO_BASE)].filter(Boolean);
+const isSsoHost = req => SSO_HOSTS.includes(String(req.hostname || '').toLowerCase());
+// 子品牌獨立站 host → 頁面 slug（public/brand-sites/<slug>.html）；BRAND_HOST_OWN＝這些子網域自己提供的路徑（資源與 API）
+const BRAND_HOSTS = { 'atcafe.emoji.tw': 'at-cafe', '3am.emoji.tw': '3am', 'staysquare.emoji.tw': 'stay-square', 'restbook.emoji.tw': 'rest-book' };
 const WEB_ORIGINS = [...new Set([...(process.env.WEB_ORIGINS ||
   'https://www.emoji.tw,https://emoji.tw,https://pos.emoji.tw,https://admin.emoji.tw,https://app.emoji.tw,http://localhost:5500,http://127.0.0.1:5500')
   .split(',').map(s => s.trim()).filter(Boolean), SITE_BASE, ADMIN_BASE, APP_BASE,
   // 掃碼點餐分店網域（atcafe／3am.emoji.tw/order）：會員登入完成要能導回點餐頁
-  ...Object.values(tableOrders.ORDER_HOSTS).map(h => 'https://' + h)])];
+  ...Object.values(tableOrders.ORDER_HOSTS).map(h => 'https://' + h),
+  // SSO 與各品牌站：登入完成都可以導回
+  SSO_BASE, ...Object.keys(BRAND_HOSTS).map(h => 'https://' + h)])];
 // 平板 POS 子站（pos.emoji.tw）：同一支服務依 host 分流到 public/pos.html；逗號分隔可覆寫
 const POS_HOSTS = (process.env.POS_HOSTS || 'pos.emoji.tw').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 const isPosHost = req => POS_HOSTS.includes(String(req.hostname || '').toLowerCase());
@@ -164,7 +173,7 @@ const isAppHost = req => APP_HOSTS.includes(String(req.hostname || '').toLowerCa
 // App 子站只提供 PWA 本身、API、登入與必要靜態檔；其餘頁面（活動、官網）一律回官網，避免兩個網域出現重複內容
 // /host、/host/<eventId>：會員在 App 主辦活動（列表／單場管理），同樣回 m.html 由前端路由
 // /e/<slug>：活動報名頁（規格 v2 §4.1：報名一律在 App），由下方 /e/:slug 路由回 m.html（可訪客瀏覽與報名）
-const APP_HOST_OWN = /^\/($|index\.html$|host($|\/)|e\/[^/]+\/?$|m-host\.js$|m-event\.js$|event-rich\.css$|m($|\/|\.webmanifest$|-sw\.js$|-icon-)|order\/?$|menu-lib\.js$|order-lib\.js$|song-picks\.js$|line-handoff\.js$|event-push-sw\.js$|sfx\/|uploads\/|api\/|auth\/|vendor\/|favicon|logo\.png$|cis\/assets\/)/;
+const APP_HOST_OWN = /^\/($|index\.html$|host($|\/)|e\/[^/]+\/?$|m-host\.js$|m-event\.js$|event-rich\.css$|m($|\/|\.webmanifest$|-sw\.js$|-icon-)|order\/?$|menu-lib\.js$|order-lib\.js$|song-picks\.js$|line-handoff\.js$|sso-client\.js$|event-push-sw\.js$|sfx\/|uploads\/|api\/|auth\/|vendor\/|favicon|logo\.png$|cis\/assets\/)/;
 // 會員 App 活動頁網址：APP_BASE/e/<slug>，可帶 lang（en/ja）與額外查詢字串（例：result=paid&s=…）；Stripe 的 {CHECKOUT_SESSION_ID} 佔位符不可編碼
 const appEventUrl = (slug, lang, extra) => {
   const qs = [['en', 'ja'].includes(lang) ? 'lang=' + lang : '', extra || ''].filter(Boolean).join('&');
@@ -173,8 +182,6 @@ const appEventUrl = (slug, lang, extra) => {
 // admin 子網域／後台服務只提供：後台 SPA、API、登入與 OAuth callback、Email 登入頁、簽到工作台、後台用到的模擬頁、
 // puppeteer 本機截圖頁（IG／LINE 圖文選單），以及靜態資源（任何 .css/.js/圖檔/字型與資源目錄）
 const ADMIN_HOST_OWN = /^\/(admin($|\/|\.html$)|api\/|auth\/|integrations\/|internal\/|event-(login|checkin)\.html$|access-mock(\.html)?$|ig-render\.html$|line-richmenu\.html$|robots\.txt$|vendor\/|cis\/|stylebook\/|uploads\/|ig-media\/|fonts?\/|[^/]+\.(css|js|mjs|map|svg|png|jpe?g|webp|gif|ico|woff2?|ttf|json|webmanifest)$)/;
-// 子品牌獨立站 host → 頁面 slug（public/brand-sites/<slug>.html）；BRAND_HOST_OWN＝這些子網域自己提供的路徑（資源與 API）
-const BRAND_HOSTS = { 'atcafe.emoji.tw': 'at-cafe', '3am.emoji.tw': '3am', 'staysquare.emoji.tw': 'stay-square', 'restbook.emoji.tw': 'rest-book' };
 const BRAND_HOST_OWN = /^\/(api\/|vendor\/|cis\/(assets|brands\/assets|logo|moji)\/|cis\/brands\/styles\.css$|assets\/|brand-sites\/|ig-media\/|uploads\/|fonts?\/|[^/]+\.(css|js|svg|png|jpe?g|webp|ico|woff2?)$)/;
 const ADMIN_HOSTS = (process.env.ADMIN_HOSTS || 'admin.emoji.tw').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 const isAdminHost = req => ADMIN_HOSTS.includes(String(req.hostname || '').toLowerCase());
@@ -1594,6 +1601,16 @@ app.use((req, res, next) => {
   if (BRAND_HOST_OWN.test(req.path)) return next();
   res.redirect(302, SITE_BASE + req.originalUrl);
 });
+// sso.emoji.tw（單一登入）：只提供登入頁（/、/login、/callback 都回 public/sso.html 由前端分流）、/authorize、/logout、API、OAuth 與靜態資源；其餘導回首頁
+const SSO_HOST_OWN = /^\/(api\/|auth\/|authorize$|logout$|vendor\/|cis\/assets\/|fonts?\/|[^/]+\.(css|js|svg|png|jpe?g|webp|ico|woff2?)$)/;
+app.use((req, res, next) => {
+  if (!isSsoHost(req)) return next();
+  res.set('X-Robots-Tag', 'noindex');
+  if ((req.method === 'GET' || req.method === 'HEAD') && /^\/(login|callback)?$/.test(req.path)) { res.set('Cache-Control', 'no-store'); return res.sendFile(path.join(PUB, 'sso.html')); }
+  if (req.path === '/robots.txt') return res.type('text/plain').send('User-agent: *\nDisallow: /\n');
+  if (SSO_HOST_OWN.test(req.path)) return next();
+  res.redirect(302, '/');
+});
 // 後台服務（SERVICE_ROLE=admin）或 admin.emoji.tw：只給管理者用。首頁就是後台（/admin）；
 // 只放行後台頁、API、登入、簽到工作台與靜態資源（ADMIN_HOST_OWN），官網公開頁一律轉回官網、會員頁（/e、/host）轉 App
 app.use((req, res, next) => {
@@ -2121,11 +2138,65 @@ app.post('/api/me/email/verify', auth, requireDb, rateLimit({ max: 10, windowMs:
   finally { client.release(); }
 }));
 
+/* ---- 單一登入 SSO（sso.emoji.tw）----
+   sso.emoji.tw 自己的 HttpOnly cookie（host-only，30 天）只記 {sub}，不直接當 API 憑證。
+   各站沒有 token 時導到 /authorize?redirect=<自己的網址>：有 cookie 就重查 DB、核發一張該站用的 7 天 session token，以 #token= 帶回；
+   prompt=none（靜默檢查）沒登入時帶 #sso=none 回去，否則轉 /login。各站登入鈕的 redirect 包成 SSO_BASE/callback?r=<原網址>，
+   登入完成後 /callback 頁把 token 交給 POST /api/sso/session 種 cookie，再走 /authorize 回原站。登出走 /logout 清 cookie。
+   POS 操作人員（四位數密碼）與 AI agent 金鑰不進 SSO。 */
+const SSO_COOKIE = 'emoji_sso';
+const cookieOf = (req, name) => { const v = (req.headers.cookie || '').split(';').map(x => x.trim()).find(x => x.startsWith(name + '='))?.slice(name.length + 1); try { return v ? decodeURIComponent(v) : ''; } catch { return ''; } };
+const ssoCookieOpts = () => ({ httpOnly: true, sameSite: 'lax', secure: SSO_BASE.startsWith('https://'), path: '/' });
+const setSsoCookie = (res, sub) => res.cookie(SSO_COOKIE, signToken({ sub, role: 'invited' }, { purpose: 'sso' }), { ...ssoCookieOpts(), maxAge: SSO_TTL_MS });
+async function ssoUser(req) {
+  const st = verifyToken(cookieOf(req, SSO_COOKIE), { purpose: 'sso' });
+  if (!st || typeof st.sub !== 'string' || !pool || !dbReady) return null;
+  return (await q('SELECT id,name,email FROM users WHERE id=$1', [st.sub])).rows[0] || null;
+}
+const withHash = (u, kv) => u.split('#')[0] + '#' + kv;
+// /authorize 只把 token 交給 https://*.emoji.tw（白名單裡的 localhost 開發來源不給）；本機開發（SSO_ORIGIN 為 http）不限
+const ssoRedirect = u => { const r = safeRedirect(u); return r && (!SSO_BASE.startsWith('https://') || /^https:\/\/([a-z0-9-]+\.)*emoji\.tw(\/|$)/i.test(r)) ? r : null; };
+app.get('/authorize', rateLimit({ max: 120 }), wrap(async (req, res) => {
+  if (!isSsoHost(req)) return res.sendStatus(404);
+  res.set('Cache-Control', 'no-store');
+  if (!pool || !dbReady) return res.status(503).send('系統暫時無法使用，請稍後再試。');   // DB 未就緒時不可誤判成未登入而清掉 cookie
+  const redirect = ssoRedirect(String(req.query.redirect || '')) || DEFAULT_MEMBER_URL;
+  const u = await ssoUser(req);
+  if (u) { setSsoCookie(res, u.id); return res.redirect(302, withHash(redirect, 'token=' + encodeURIComponent(await memberSessionToken(u)))); }
+  if (cookieOf(req, SSO_COOKIE)) res.clearCookie(SSO_COOKIE, ssoCookieOpts());
+  if (req.query.prompt === 'none') return res.redirect(302, withHash(redirect, 'sso=none'));
+  res.redirect(302, '/login?redirect=' + encodeURIComponent(redirect) + (['en', 'ja'].includes(req.query.lang) ? '&lang=' + req.query.lang : ''));
+}));
+app.get('/logout', (req, res) => {
+  if (!isSsoHost(req)) return res.sendStatus(404);
+  res.set('Cache-Control', 'no-store');
+  res.clearCookie(SSO_COOKIE, ssoCookieOpts());
+  const redirect = ssoRedirect(String(req.query.redirect || ''));
+  res.redirect(302, redirect ? withHash(redirect, 'sso=none') : '/login');
+});
+// 登入完成（/callback 頁）：把剛拿到的 session token 換成 SSO cookie。只收 sso.emoji.tw 同源請求（防 login CSRF）
+app.post('/api/sso/session', rateLimit({ max: 30 }), requireDb, wrap(async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!isSsoHost(req) || req.headers.origin !== SSO_BASE) return res.status(403).json({ error: '請從 sso.emoji.tw 登入。' });
+  const p = verifyToken(String(req.body?.token || ''));
+  if (!p || !p.sub || p.operator_staff_id) return res.status(401).json({ error: '登入已失效，請重新登入。' });
+  const u = (await q('SELECT id FROM users WHERE id=$1', [p.sub])).rows[0];
+  if (!u) return res.status(401).json({ error: '登入已失效，請重新登入。' });
+  setSsoCookie(res, u.id); res.json({ ok: true });
+}));
+// sso.emoji.tw 帳號頁：目前這個瀏覽器以誰登入（只回顯示用的姓名與 Email）
+app.get('/api/sso/me', requireDb, wrap(async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!isSsoHost(req)) return res.status(404).json({ error: 'not found' });
+  const u = await ssoUser(req);
+  res.json(u ? { authenticated: true, user: { name: u.name || '', email: u.email || '' } } : { authenticated: false });
+}));
+
 /* ---- Google 登入（OAuth 2.0 授權碼流程；重用既有 signToken 與 users 表） ---- */
 app.get('/auth/google', (req, res) => {
   if (!GOOGLE_CLIENT_ID) return res.status(503).send('Google 登入尚未開通（未設定 GOOGLE_CLIENT_ID）。');
   // 子網域（pos；admin 由官網服務代管時）：state cookie 與 Google callback 都在 OWN_BASE，先跳回去再發起，否則 callback 讀不到 cookie
-  if ((isPosHost(req) || isAdminHost(req) || isAppHost(req)) && String(req.hostname || '').toLowerCase() !== OWN_HOST) return res.redirect(302, OWN_BASE + req.originalUrl);
+  if ((isPosHost(req) || isAdminHost(req) || isAppHost(req) || isSsoHost(req)) && String(req.hostname || '').toLowerCase() !== OWN_HOST) return res.redirect(302, OWN_BASE + req.originalUrl);
   const redirect = safeRedirect(req.query.redirect) || DEFAULT_MEMBER_URL;
   // state：HMAC 簽章保護導回目標並帶 nonce（CSRF 防護），callback 端驗章與時效
   const state = signToken({ r: redirect, n: crypto.randomBytes(24).toString('hex') }, { purpose: 'oauth' });
@@ -2219,7 +2290,7 @@ app.get('/api/auth/methods', (_req, res) => { res.set('Cache-Control', 'no-store
 app.get('/auth/line', (req, res) => {
   const lc = line.loginConfig();
   if (!lc) return res.status(503).send('LINE 登入尚未開通。');
-  if ((isPosHost(req) || isAdminHost(req) || isAppHost(req)) && String(req.hostname || '').toLowerCase() !== OWN_HOST) return res.redirect(302, OWN_BASE + req.originalUrl);
+  if ((isPosHost(req) || isAdminHost(req) || isAppHost(req) || isSsoHost(req)) && String(req.hostname || '').toLowerCase() !== OWN_HOST) return res.redirect(302, OWN_BASE + req.originalUrl);
   const resvTok = String(req.query.resv || '');
   if (resvTok && !verifyToken(resvTok, { purpose: 'line-resv' })) return res.status(400).send('連結已失效，請重新訂位。');
   const redirect = safeRedirect(req.query.redirect) || DEFAULT_MEMBER_URL;

@@ -304,6 +304,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 <script src="/order-lib.js"></script>
 <script src="/song-picks.js"></script>
 <script src="/line-handoff.js"></script>
+<script src="/sso-client.js"></script>
 <script>
 (function(){
   var $=function(s){return document.querySelector(s);};
@@ -759,10 +760,12 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   var TOKEN_KEY=ON_APP?'tth_token':'order_member_token',ME=null,LINE_OK=false;   // App 網域與會員 App 共用登入（tth_token）；www 有後台共用網域，維持獨立 key
   (function(){var h=new URLSearchParams(location.hash.slice(1));if(h.get('token')){try{localStorage.setItem(TOKEN_KEY,h.get('token'));}catch(e){}history.replaceState(null,'',location.pathname+location.search);}})();
   function token(){try{return localStorage.getItem(TOKEN_KEY)||'';}catch(e){return '';}}
+  // 單一登入：還沒登入會員時，先到 sso.emoji.tw 靜默取（在 App 或其他言文字網站登入過就自動帶入）
+  if(!token()&&globalThis.EmojiSSO)EmojiSSO.silent(TOKEN_KEY);
   // 主畫面 App 按 LINE 登入、回跳落在 Safari：回前景自動取回登入並掛到這一桌（public/line-handoff.js）
   if(window.LineHandoff)LineHandoff.init(TOKEN_KEY,function(){joinMember();});
   function authApi(path,body){return fetch('/api'+path,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify(body)}).then(function(r){return r.json().catch(function(){return {};}).then(function(d){if(!r.ok){var e=Error(d.error||('伺服器錯誤 '+r.status));e.status=r.status;throw e;}return d;});});}
-  function memberLogout(){try{localStorage.removeItem(TOKEN_KEY);}catch(e){}ME=null;renderMember();renderMenu();syncNameRow();}
+  function memberLogout(){try{localStorage.removeItem(TOKEN_KEY);}catch(e){}if(globalThis.EmojiSSO&&EmojiSSO.logout(location.href))return;ME=null;renderMember();renderMenu();syncNameRow();}
   function syncNameRow(){var r=$('#name-row');if(r)r.hidden=!!ME;}   // 已登入：稱呼併進會員卡，不另佔一列
   var JOIN_TRIES=0,JOIN_FAILED=false;
   function joinMember(){
@@ -781,7 +784,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   function doRedeem(b){var it=MENU.find(function(x){return x.id===b.dataset.redeem;});if(!it||!confirm(tr('member_redeem_confirm',{name:label(it),n:it.points})))return;
     b.disabled=true;authApi('/me/redeem',{s:SID,k:K,item_id:it.id}).then(function(d){ME.balance=d.balance;toast(tr('member_redeemed',{name:label(it),n:d.balance}));renderMember();renderMenu();return refresh();}).catch(function(e){toast(e.message);b.disabled=false;});}
   var SSO_G='<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.6 12.23c0-.68-.06-1.33-.17-1.96H12v3.7h5.38a4.6 4.6 0 0 1-2 3.02v2.5h3.24c1.9-1.75 2.98-4.32 2.98-7.26z"/><path fill="#34A853" d="M12 21.6c2.7 0 4.96-.9 6.62-2.42l-3.24-2.5c-.9.6-2.04.95-3.38.95-2.6 0-4.8-1.76-5.59-4.12H3.07v2.58A9.99 9.99 0 0 0 12 21.6z"/><path fill="#FBBC05" d="M6.41 13.5A6 6 0 0 1 6.1 11.6c0-.66.11-1.3.31-1.9V7.12H3.07A9.99 9.99 0 0 0 2 11.6c0 1.61.39 3.14 1.07 4.48l3.34-2.58z"/><path fill="#EA4335" d="M12 5.98c1.47 0 2.79.5 3.83 1.5l2.87-2.87C16.96 2.99 14.7 2 12 2 8.09 2 4.72 4.24 3.07 7.12l3.34 2.58C7.2 7.74 9.4 5.98 12 5.98z"/></svg>',SSO_L='<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M12 3C6.48 3 2 6.64 2 11.13c0 4.02 3.57 7.39 8.39 8.03.33.07.77.22.88.5.1.26.07.66.03.92l-.14.85c-.04.26-.2 1 .88.55 1.08-.46 5.83-3.43 7.95-5.88C21.46 14.49 22 12.9 22 11.13 22 6.64 17.52 3 12 3zM8.6 13.6H6.4a.5.5 0 0 1-.5-.5V9.1a.5.5 0 0 1 1 0v3.5h1.7a.5.5 0 0 1 0 1zm1.9-.5a.5.5 0 0 1-1 0V9.1a.5.5 0 0 1 1 0v4zm4.8 0a.5.5 0 0 1-.9.3l-2-2.7v2.4a.5.5 0 0 1-1 0V9.1a.5.5 0 0 1 .9-.3l2 2.7V9.1a.5.5 0 0 1 1 0v4zm3.2-2.5a.5.5 0 0 1 0 1h-1.7v1h1.7a.5.5 0 0 1 0 1h-2.2a.5.5 0 0 1-.5-.5V9.1a.5.5 0 0 1 .5-.5h2.2a.5.5 0 0 1 0 1h-1.7v1h1.7z"/></svg>';
-  function loginWays(){var back=encodeURIComponent(location.origin+location.pathname+location.search);return '<div class="member-ways">'+(LINE_OK?'<a class="sso line" href="/auth/line?redirect='+back+'">'+SSO_L+'<span>'+esc(tr('member_line'))+'</span></a>':'')+'<a class="sso" href="/auth/google?redirect='+back+'">'+SSO_G+'<span>'+esc(tr('member_google'))+'</span></a></div><p class="member-terms">'+esc(tr('member_terms'))+' <a href="/terms" target="_blank" rel="noopener">'+esc(tr('info_terms'))+'</a>・<a href="/privacy" target="_blank" rel="noopener">'+esc(tr('info_privacy'))+'</a></p>';}
+  function loginWays(){var here=location.origin+location.pathname+location.search,back=encodeURIComponent(globalThis.EmojiSSO?EmojiSSO.wrap(here):here);return '<div class="member-ways">'+(LINE_OK?'<a class="sso line" href="/auth/line?redirect='+back+'">'+SSO_L+'<span>'+esc(tr('member_line'))+'</span></a>':'')+'<a class="sso" href="/auth/google?redirect='+back+'">'+SSO_G+'<span>'+esc(tr('member_google'))+'</span></a></div><p class="member-terms">'+esc(tr('member_terms'))+' <a href="/terms" target="_blank" rel="noopener">'+esc(tr('info_terms'))+'</a>・<a href="/privacy" target="_blank" rel="noopener">'+esc(tr('info_privacy'))+'</a></p>';}
   function joinPending(){return !ME&&!!token()&&!JOIN_FAILED;}   // 有登入但還在掛到這一桌：不要畫登入鈕，看起來像被登出
   function renderGateLogin(){var g=$('#gate-login');if(!g)return;if(joinPending()){g.innerHTML='';$('#gate-or').hidden=true;return;}g.innerHTML=ME?'':'<p class="gate-perks">'+esc(tr('gate_login_hint'))+'</p>'+loginWays();$('#gate-or').hidden=!!ME;}
   function renderMember(){

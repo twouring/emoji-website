@@ -253,6 +253,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
 <div class="toast" id="toast" hidden role="status"></div>
 <script src="/vendor/qrcode.min.js"></script>
 <script src="/line-handoff.js"></script>
+<script src="/sso-client.js"></script>
 <script src="/menu-lib.js"></script>
 <script src="/order-lib.js"></script>
 <script src="/m-host.js"></script>
@@ -432,7 +433,8 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
   }
   function login(){
     tabs.hidden=true;
-    const back=location.origin+ROOT+(LANG==='zh'?'':'?lang='+LANG), r=encodeURIComponent(back);
+    // 單一登入：登入完成先到 sso.emoji.tw 記住登入，再回 App（其他言文字網站就不用再登入）
+    const back=location.origin+ROOT+(LANG==='zh'?'':'?lang='+LANG), via=globalThis.EmojiSSO?EmojiSSO.wrap(back):back, r=encodeURIComponent(via);
     app.innerHTML=`${installCard()}<div class="login">${MARK}<h1>${esc(T.loginTitle)}</h1><p>${esc(T.loginSub)}</p>
       <div class="ways">
         <a class="way google" href="/auth/google?redirect=${r}">${ICON.google}${esc(T.google)}</a>
@@ -454,7 +456,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
       const name=ef.elements.name.value.trim(),email=ef.elements.email.value.trim();
       if(!name){toast(T.needName);s.disabled=false;return;}
       try{
-        const res=await fetch('/api/auth/email/start',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name,email,redirect:back,lang:LANG})});
+        const res=await fetch('/api/auth/email/start',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name,email,redirect:via,lang:LANG})});
         const d=await res.json().catch(()=>({}));if(!res.ok)throw new Error(d.error||T.emailFail);
         ef.outerHTML=`<div class="sent" role="status"><b>${esc(T.emailSent)}</b>${esc(T.emailSentTo(email))}</div>`;
       }catch(x){toast(x.message||T.emailFail);s.disabled=false;}
@@ -857,7 +859,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
     document.getElementById('hist-open2').onclick=openHistory;
     document.getElementById('line-link').onclick=async function(){this.disabled=true;try{const out=await post('/api/me/line-link');location.assign(out.url);}catch(e){toast(e.message||T.lineFail);this.disabled=false;}};
     bindInstall();bindLang();
-    document.getElementById('out').onclick=()=>{try{localStorage.removeItem(KEY);localStorage.removeItem(CACHE);}catch(e){}location.reload();};
+    document.getElementById('out').onclick=()=>{try{localStorage.removeItem(KEY);localStorage.removeItem(CACHE);}catch(e){}if(!(globalThis.EmojiSSO&&EmojiSSO.logout(location.origin+ROOT)))location.reload();};
   }
   window.__mApp={get,post,esc,toast,fmt,parseT,app,tabs,SITE,token,get LANG(){return LANG;},data:()=>data,openTicket,makeDetector};
   const eventPath=()=>window.MEvent?MEvent.slugFromPath(location.pathname):null;
@@ -952,8 +954,12 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
     paint();
   }
   // /e/<slug> 要在 login() 前分流：訪客可直接瀏覽與報名；已登入時先取會員資料再畫（以 xxx 報名）
+  // 單一登入：本機沒有 token 時先到 sso.emoji.tw 靜默取（已在其他言文字網站登入就直接帶回），跳轉中就不畫訪客畫面
+  const boot=()=>{
   if(eventPath()){if(token())get('/api/state?view=member&lang='+LANG).then(s=>{data={me:s.me};}).catch(()=>{}).finally(()=>eventDetail(eventPath()));else eventDetail(eventPath());}
   else{if(PLAN_PRICES[query.get('plan')]||!token())tab='plan';if(!token())guest();else load();}// 訪客一進站先看方案與價格（櫃檯），按購買才登入
+  };
+  if(!token()&&globalThis.EmojiSSO)EmojiSSO.silent(KEY).then(going=>{if(!going)boot();});else boot();
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&token()&&!eventPath())load();});
   if('serviceWorker' in navigator)navigator.serviceWorker.register('/m-sw.js',{scope:ROOT}).catch(()=>{});
   /* LINE 登入帶回主畫面 App（public/line-handoff.js）：回跳落在 Safari 時，App 回前景自動取回登入 */

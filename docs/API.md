@@ -98,6 +98,15 @@ PY
 ### GET /api/auth/methods
 公開。回 `{line:boolean}`，表示 LINE 登入是否已設定；登入頁據此決定是否顯示「使用 LINE 登入」。
 
+### POST /api/sso/session
+單一登入（sso.emoji.tw）專用。登入完成頁把剛拿到的 session token（`{token}`）交給伺服器，換成 sso.emoji.tw 自己的 HttpOnly cookie `emoji_sso`（30 天，只記 `sub`）。只接受 `Origin: https://sso.emoji.tw` 的請求（其他來源 403，防 login CSRF）；token 無效、POS 操作人員 token 或帳號不存在回 401。
+
+### GET /api/sso/me
+單一登入帳號頁用。只在 sso.emoji.tw 回應：依 `emoji_sso` cookie 回 `{authenticated:true,user:{name,email}}` 或 `{authenticated:false}`。
+
+### GET /authorize
+sso.emoji.tw 專用（非 /api），參數 `redirect=<網址>`、選填 `prompt=none`。有 SSO cookie 就重查 DB、核發一張 7 天 session token，以 `#token=` 導回 redirect（只接受 `https://*.emoji.tw` 且在白名單內）；沒登入時 `prompt=none` 導回 `#sso=none`，否則轉 `/login`。`GET /logout?redirect=` 清 cookie 後導回 `#sso=none`。各站前端共用 `public/sso-client.js`（`EmojiSSO.silent／wrap／logout`）。
+
 ### GET /api/public
 公開唯讀資料，無個資：`{ raised, updates, events, content }`。活動只含「報名中」且公開的項目。
 `content` 僅回首頁公告、菜單及空間文案／圖片白名單；IG token 與內部排程資料不會傳至瀏覽器。

@@ -382,6 +382,7 @@
     [data-panel="outreach"]>.a-sec{padding:12px;border:0;background:transparent}
   }
 </style>
+<script src="/sso-client.js"></script>
 <script src="/event-csv.js"></script>
 <script src="/event-fields.js"></script>
 <script src="/event-rich-editor.js"></script>
@@ -506,12 +507,13 @@ async function api(path, { method='GET', body } = {}) {
   return d;
 }
 
-logoutBtn.onclick = () => { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); location.reload(); };
+logoutBtn.onclick = () => { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); if (!(globalThis.EmojiSSO && EmojiSSO.logout(location.origin + BASE))) location.reload(); };
 
 function renderLogin(msg){
   logoutBtn.style.display='none';
   const crumb = document.getElementById('a-crumb'); if (crumb) crumb.hidden = true;
-  const redirect = encodeURIComponent(location.origin + location.pathname);   // 登入後回到原本那頁（主辦邀請信連到單場活動）
+  const here = location.origin + location.pathname;   // 登入後回到原本那頁（主辦邀請信連到單場活動）
+  const redirect = encodeURIComponent(globalThis.EmojiSSO ? EmojiSSO.wrap(here) : here);   // 單一登入：經 sso.emoji.tw 記住登入
   // 後台服務（admin.emoji.tw）自己處理 Google callback；若後台暫由官網服務代管，/auth/google 會先在伺服器端跳到正確 host 再發起
   app.innerHTML = `<div class="a-login"><div class="a-login-card">
     <div class="a-brand"><img src="/cis/assets/emoji-h.svg" alt="言文字 emoji" width="120" height="40" style="object-fit:contain"><span>後台管理</span></div>
@@ -537,7 +539,10 @@ function renderLogin(msg){
       try{
         const result=await api('/auth/admin/password',{method:'POST',body:{email:form.elements.email.value,password:form.elements.password.value}});
         form.elements.password.value='';
-        token=result.token;localStorage.setItem(KEY,token);location.reload();
+        token=result.token;localStorage.setItem(KEY,token);
+        // 單一登入：密碼登入也交給 sso.emoji.tw 記住，再帶 token 回來
+        if(globalThis.EmojiSSO&&EmojiSSO.enabled){location.href=EmojiSSO.wrap(location.origin+location.pathname)+'#token='+encodeURIComponent(token);return;}
+        location.reload();
       }catch(e){
         form.elements.password.value='';error.textContent=e.message;error.hidden=false;button.disabled=false;
       }
@@ -3386,7 +3391,7 @@ async function ensureIgScripts() {
 async function refresh(){ const d=await api('/state'); await ensureIgScripts(); render(d); applyRoute(); }
 
 async function main(){
-  if (!token) return renderLogin();
+  if (!token) { if (globalThis.EmojiSSO && await EmojiSSO.silent(KEY)) return; return renderLogin(); }
   try {
     const d = await api('/state');
     if (d.role !== 'admin') {

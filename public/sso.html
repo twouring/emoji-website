@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#FBFAF6">
+<title>言文字帳號</title>
+<link rel="icon" href="/favicon.svg">
+<style>
+:root{--ink:#1B1A17;--paper:#FBFAF6;--line:#E4DFD3;--muted:#6B665C;--yellow:#FFDE34;--danger:#B42318}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;touch-action:manipulation}
+body{margin:0;min-height:100vh;background:var(--paper);color:var(--ink);font-family:system-ui,-apple-system,"PingFang TC","Noto Sans TC",sans-serif;font-size:1rem;line-height:1.6;display:flex;flex-direction:column}
+main{width:100%;max-width:420px;margin:auto;padding:40px 20px calc(32px + env(safe-area-inset-bottom))}
+.mark{display:block;width:64px;height:64px;margin:0 auto 12px}
+h1{font-size:1.6rem;line-height:1.3;margin:0 0 8px;text-align:center;word-break:keep-all;text-wrap:balance}
+.sub{color:var(--muted);text-align:center;margin:0 0 24px;text-wrap:pretty}
+.sub b{color:var(--ink);font-weight:600}
+.ways{display:flex;flex-direction:column;gap:12px}
+.way{position:relative;display:flex;align-items:center;justify-content:center;width:100%;min-height:56px;padding:0 56px;border-radius:16px;border:1.5px solid var(--line);background:#fff;color:var(--ink);font-family:inherit;font-size:1.05rem;font-weight:500;line-height:1.3;text-decoration:none;cursor:pointer}
+.way svg{position:absolute;left:18px;top:50%;width:24px;height:24px;transform:translateY(-50%)}
+.way.line{background:#06C755;border-color:#06C755;color:#fff}
+.way.ink{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.way:focus-visible,.lang button:focus-visible,input:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
+form{display:grid;gap:16px;margin-top:4px}
+label{display:grid;gap:6px;font-weight:500}
+input{font:inherit;font-size:1rem;min-height:48px;padding:0 14px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);width:100%}
+.note{color:var(--muted);text-align:center;margin:20px 0 0}
+.note a{color:var(--ink)}
+.status{text-align:center;margin:16px 0 0}
+.status.err{color:var(--danger)}
+.who{border:1.5px solid var(--line);border-radius:16px;background:#fff;padding:16px;margin:0 0 16px;text-align:center}
+.who b{display:block;font-size:1.15rem}
+.who span{color:var(--muted);word-break:break-all}
+.sites{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 0 0;padding:0;list-style:none}
+.sites a{display:flex;align-items:center;justify-content:center;min-height:48px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);text-decoration:none;font-weight:500}
+.ways.out{margin-top:16px}
+.lang{display:flex;justify-content:center;gap:4px;margin:28px 0 0}
+.lang button{font:inherit;min-height:44px;padding:0 14px;border:0;background:none;color:var(--muted);border-radius:10px;cursor:pointer}
+.lang button[aria-pressed=true]{color:var(--ink);font-weight:600;text-decoration:underline;text-underline-offset:6px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main id="app" aria-live="polite"></main>
+<script>
+(function(){
+  /* sso.emoji.tw：/login 登入頁、/callback 登入完成接手（換 SSO cookie 後回 /authorize 帶 token 回原站）、/ 帳號頁 */
+  var q=new URLSearchParams(location.search),h=new URLSearchParams(location.hash.slice(1));
+  var LANG=['zh','en','ja'].indexOf(q.get('lang'))>0?q.get('lang'):((navigator.language||'').indexOf('ja')===0?'ja':(navigator.language||'').indexOf('en')===0?'en':'zh');
+  if(q.get('lang')==='zh')LANG='zh';
+  var T={
+    zh:{title:'登入言文字',sub:'一個帳號，在咖啡、三點水、等等空間、約書旅、會員 App 與 POS 通用。',to:function(h){return '登入後回到 <b>'+h+'</b>';},google:'使用 Google 登入',line:'使用 LINE 登入',email:'使用 Email 登入',name:'姓名',send:'寄送登入連結',sent:function(e){return '登入連結已寄到 '+e+'，請在 20 分鐘內開啟。';},needName:'請填寫姓名與 Email。',busy:'處理中…',fail:'登入失敗，請重新登入。',back:'回到剛才的頁面',hello:'目前登入',logout:'登出所有言文字網站',goApp:'會員 App',terms:'登入即表示同意',tos:'服務條款',and:'與',pp:'隱私權政策',end:'。',done:'登入完成，正在返回…'},
+    en:{title:'Sign in to emoji',sub:'One account for at cafe, 3AM, Stay Square, Rest Book, the member app and POS.',to:function(h){return 'You will return to <b>'+h+'</b>';},google:'Sign in with Google',line:'Sign in with LINE',email:'Sign in with email',name:'Name',send:'Send sign-in link',sent:function(e){return 'We sent a sign-in link to '+e+'. It expires in 20 minutes.';},needName:'Please enter your name and email.',busy:'Processing…',fail:'Sign-in failed. Please try again.',back:'Back to the previous page',hello:'Signed in as',logout:'Sign out of all emoji sites',goApp:'Member app',terms:'By signing in you agree to the',tos:'Terms',and:' and ',pp:'Privacy Policy',end:'.',done:'Signed in. Returning…'},
+    ja:{title:'言文字にログイン',sub:'在咖啡・三點水・等等空間・約書旅・会員アプリ・POS で使える共通アカウントです。',to:function(h){return 'ログイン後 <b>'+h+'</b> に戻ります';},google:'Google でログイン',line:'LINE でログイン',email:'メールでログイン',name:'お名前',send:'ログインリンクを送信',sent:function(e){return e+' にログインリンクを送りました。20分以内に開いてください。';},needName:'お名前とメールアドレスを入力してください。',busy:'処理中…',fail:'ログインに失敗しました。もう一度お試しください。',back:'前のページに戻る',hello:'ログイン中',logout:'すべての言文字サイトからログアウト',goApp:'会員アプリ',terms:'ログインすると',tos:'利用規約',and:'と',pp:'プライバシーポリシー',end:'に同意したものとみなされます。',done:'ログインしました。戻っています…'}
+  }[LANG];
+  document.documentElement.lang=LANG==='zh'?'zh-Hant':LANG;document.title=T.title;
+  // innerHTML 內的動態值（姓名、Email、網域）一律經 esc() 轉義；其餘是本檔常數
+  var app=document.getElementById('app'),SELF=location.origin;
+  var esc=function(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+  // 只接受 *.emoji.tw（伺服器端 /authorize 會再用白名單驗一次）
+  function okUrl(u){try{var x=new URL(u);return (x.protocol==='https:'||location.protocol==='http:')&&/(^|\.)emoji\.tw$/.test(x.hostname)?x.href.split('#')[0]:'';}catch(e){return '';}}   // 本機開發（http）才接受 http
+  var MARK='<svg class="mark" viewBox="0 0 200 200" fill="none" stroke="#1B1A17" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M62 72C26 58 12 118 44 130 52 132 58 128 64 122"/><path d="M138 72C174 58 188 118 156 130 148 132 142 128 136 122"/><path d="M62 72C66 44 134 44 138 72 144 92 140 112 130 124M70 124C60 112 56 92 62 72"/><path d="M100 100C106 130 106 160 86 180"/><circle fill="#FFDE34" stroke="none" cx="84" cy="80" r="6"/><circle fill="#1B1A17" stroke="none" cx="116" cy="80" r="6"/></svg>';
+  var G='<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.6 12.23c0-.68-.06-1.33-.17-1.96H12v3.7h5.38a4.6 4.6 0 0 1-2 3.02v2.5h3.24c1.9-1.75 2.98-4.32 2.98-7.26z"/><path fill="#34A853" d="M12 21.6c2.7 0 4.96-.9 6.62-2.42l-3.24-2.5c-.9.6-2.04.95-3.38.95-2.6 0-4.8-1.76-5.59-4.12H3.07v2.58A9.99 9.99 0 0 0 12 21.6z"/><path fill="#FBBC05" d="M6.41 13.5A6 6 0 0 1 6.1 11.6c0-.66.11-1.3.31-1.9V7.12H3.07A9.99 9.99 0 0 0 2 11.6c0 1.61.39 3.14 1.07 4.48l3.34-2.58z"/><path fill="#EA4335" d="M12 5.98c1.47 0 2.79.5 3.83 1.5l2.87-2.87C16.96 2.99 14.7 2 12 2 8.09 2 4.72 4.24 3.07 7.12l3.34 2.58C7.2 7.74 9.4 5.98 12 5.98z"/></svg>';
+  var L='<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M12 3C6.48 3 2 6.64 2 11.13c0 4.02 3.57 7.39 8.39 8.03.33.07.77.22.88.5.1.26.07.66.03.92l-.14.85c-.04.26-.2 1 .88.55 1.08-.46 5.83-3.43 7.95-5.88C21.46 14.49 22 12.9 22 11.13 22 6.64 17.52 3 12 3z"/></svg>';
+  var M='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>';
+  var langBar=function(){return '<div class="lang" role="group" aria-label="Language">'+['zh','en','ja'].map(function(l){return '<button type="button" data-lang="'+l+'" aria-pressed="'+(l===LANG)+'">'+{zh:'中文',en:'English',ja:'日本語'}[l]+'</button>';}).join('')+'</div>';};
+  function bindLang(){[].forEach.call(document.querySelectorAll('[data-lang]'),function(b){b.onclick=function(){q.set('lang',b.dataset.lang);location.replace(location.pathname+'?'+q);};});}
+  var legal=function(p){return 'https://www.emoji.tw'+(LANG==='zh'?'':'/'+LANG)+'/'+p;};
+  function authorize(r){return '/authorize?redirect='+encodeURIComponent(r)+(LANG==='zh'?'':'&lang='+LANG);}
+
+  // 登入頁：Google／LINE／Email 完成後都回 /callback?r=<原網址>
+  function login(target){
+    var cb=SELF+'/callback?r='+encodeURIComponent(target||SELF+'/')+(LANG==='zh'?'':'&lang='+LANG),r=encodeURIComponent(cb),host='';
+    try{host=target?new URL(target).hostname:'';}catch(e){}
+    app.innerHTML=MARK+'<h1>'+esc(T.title)+'</h1><p class="sub">'+(host?T.to(esc(host)):esc(T.sub))+'</p>'+
+      '<div class="ways"><a class="way" href="/auth/google?redirect='+r+'">'+G+esc(T.google)+'</a>'+
+      '<a class="way line" id="line" hidden href="/auth/line?redirect='+r+'">'+L+esc(T.line)+'</a>'+
+      '<button type="button" class="way ink" id="em" aria-expanded="false" aria-controls="ef">'+M+esc(T.email)+'</button></div>'+
+      '<form id="ef" hidden><label>'+esc(T.name)+'<input name="name" required maxlength="120" autocomplete="name"></label>'+
+      '<label>Email<input name="email" type="email" required maxlength="254" autocomplete="email" inputmode="email"></label>'+
+      '<button type="submit" class="way ink" id="efs">'+esc(T.send)+'</button></form><p class="status" id="st" role="status"></p>'+
+      '<p class="note">'+esc(T.terms)+' <a href="'+legal('terms')+'" target="_blank" rel="noopener">'+esc(T.tos)+'</a>'+esc(T.and)+'<a href="'+legal('privacy')+'" target="_blank" rel="noopener">'+esc(T.pp)+'</a>'+esc(T.end)+'</p>'+
+      (host?'<p class="note"><a href="'+esc(target)+'#sso=none">'+esc(T.back)+'</a></p>':'')+langBar();
+    bindLang();
+    fetch('/api/auth/methods').then(function(x){return x.json();}).then(function(j){if(j&&j.line)document.getElementById('line').hidden=false;}).catch(function(){});
+    var ef=document.getElementById('ef'),em=document.getElementById('em'),st=document.getElementById('st');
+    em.onclick=function(){ef.hidden=false;em.setAttribute('aria-expanded','true');ef.elements.name.focus();};
+    ef.onsubmit=function(e){
+      e.preventDefault();var b=document.getElementById('efs'),name=ef.elements.name.value.trim(),email=ef.elements.email.value.trim();
+      if(!name||!email){st.textContent=T.needName;st.className='status err';return;}
+      b.disabled=true;b.textContent=T.busy;
+      fetch('/api/auth/email/start',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:name,email:email,redirect:cb,lang:LANG})})
+        .then(function(x){return x.json().catch(function(){return {};}).then(function(d){if(!x.ok)throw new Error(d.error||T.fail);});})
+        .then(function(){ef.hidden=true;em.hidden=true;st.className='status';st.textContent=T.sent(email);})
+        .catch(function(err){st.className='status err';st.textContent=err.message;b.disabled=false;b.textContent=T.send;});
+    };
+  }
+
+  // 登入完成：Google／LINE／Email 把 session token 以 #token= 帶到這裡 → 種 SSO cookie → /authorize 換一張原站的 token 帶回去
+  function callback(){
+    var tok=h.get('token'),target=okUrl(q.get('r')||'')||SELF+'/';
+    try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
+    if(!tok)return login(target);
+    app.innerHTML=MARK+'<h1>'+esc(T.done)+'</h1>';
+    fetch('/api/sso/session',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({token:tok})})
+      .then(function(x){if(!x.ok)throw 0;location.replace(authorize(target));})
+      // cookie 種不起來（如瀏覽器擋 cookie）：至少把這次登入帶回原站，不讓使用者卡住
+      .catch(function(){location.replace(target+'#token='+encodeURIComponent(tok));});
+  }
+
+  // 帳號頁：顯示目前登入身分、常用入口與全站登出
+  function account(){
+    fetch('/api/sso/me',{credentials:'same-origin'}).then(function(x){return x.json();}).then(function(d){
+      if(!d||!d.authenticated)return login('');
+      app.innerHTML=MARK+'<h1>'+esc(T.hello)+'</h1><div class="who"><b>'+esc(d.user.name||d.user.email)+'</b><span>'+esc(d.user.email||'')+'</span></div>'+
+        '<ul class="sites"><li><a href="'+authorize('https://app.emoji.tw/')+'">'+esc(T.goApp)+'</a></li><li><a href="https://www.emoji.tw/">www.emoji.tw</a></li></ul>'+
+        '<div class="ways out"><a class="way" href="/logout">'+esc(T.logout)+'</a></div>'+langBar();
+      bindLang();
+    }).catch(function(){login('');});
+  }
+
+  var p=location.pathname;
+  if(p==='/callback')callback();
+  else if(p==='/login')login(okUrl(q.get('redirect')||''));
+  else account();
+})();
+</script>
+</body>
+</html>
