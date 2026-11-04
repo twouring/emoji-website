@@ -82,7 +82,7 @@ def head(slug, title, desc):
     url = page_url(b['host'], L)
     root = f"https://{b['host']}/"
     cafe = slug == 'at-cafe'
-    extra_css = {'3am': '\n<link rel="stylesheet" href="/brand-sites/3am-dark-room.css">',
+    extra_css = {'3am': '\n<link rel="preload" as="image" href="/brand-sites/assets/3am/clam-soup-1800.webp" media="(min-width: 761px)">\n<link rel="stylesheet" href="/brand-sites/3am-dark-room.css">',
                  'stay-square': '\n<link rel="stylesheet" href="/brand-sites/stay-square.css">',
                  'rest-book': '\n<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">\n<link rel="stylesheet" href="/brand-sites/rest-book.css">'}.get(slug, '')
     if cafe:  # 在咖啡專用樣式＋首圖預載＋js 旗標（捲動淡入）
@@ -91,7 +91,7 @@ def head(slug, title, desc):
                      'imagesrcset="/brand-sites/assets/atcafe/matcha-800.webp 643w, /brand-sites/assets/atcafe/matcha-1400.webp 1125w" imagesizes="(max-width: 760px) 100vw, 44vw">'
                      '\n<script>document.documentElement.classList.add("js")</script>')
     fonts = FONTS_CAFE if cafe else FONTS_DEFAULT
-    og_img = 'brand-sites/assets/atcafe/matcha-1400.webp' if cafe else f'brand-sites/assets/{slug}-avatar.webp'
+    og_img = 'brand-sites/assets/atcafe/matcha-1400.webp' if cafe else 'brand-sites/assets/3am/clam-soup-1800.webp' if slug == '3am' else f'brand-sites/assets/{slug}-avatar.webp'
     ld = ''
     if b['schema']:
         ld = ('<script type="application/ld+json">{"@context":"https://schema.org","@type":"%s","name":"%s %s",'
@@ -119,7 +119,7 @@ def head(slug, title, desc):
 <meta property="og:site_name" content="{b['zh']} {b['en']}">
 <meta property="og:locale" content="{OG_LOCALE[L]}">
 <meta property="og:image" content="{root}{og_img}">
-<meta name="twitter:card" content="{'summary_large_image' if cafe else 'summary'}">
+<meta name="twitter:card" content="{'summary_large_image' if cafe or slug == '3am' else 'summary'}">
 {ld}<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?{fonts}&display=swap" rel="stylesheet">
@@ -346,6 +346,28 @@ def page_cafe():
 
 
 # ---------------------------------------------------------------- 三點水
+# 三點水 2026-11-04 改版（KK：更像餐酒館、主打餐點照片與藝文感）：影棚餐點照（影棚攝影-xxx.jpg → webp 兩尺寸），
+# 說明採展牌式（品名＋類別），品名須與現行菜單一致。
+TAM = '/brand-sites/assets/3am/'
+TAM_PLATES = [  # (檔名, 小寬, 大寬, 大圖寬, 大圖高, 版位, 品名 zh/en/ja, 類別 zh/en/ja)
+    ('tomato', 960, 1800, 1800, 1200, 'wide', ('酸甜梅漬焙茶番茄', 'Plum-Pickled Tomato, Hojicha', '梅漬けトマト（ほうじ茶風味）'), ('冷前菜', 'Cold starter', '冷前菜')),
+    ('karaage', 720, 1200, 1200, 1800, 'tall', ('酥炸唐揚雞淋川味美乃滋', 'Karaage, Sichuan Mayo', '唐揚げ 四川風マヨネーズ'), ('炸物', 'Fried', '揚げ物')),
+    ('salmon', 720, 1200, 1200, 1800, 'tall', ('柚香鮭魚冷盤', 'Yuzu Salmon Crudo', '柚子香るサーモンのカルパッチョ'), ('冷前菜', 'Cold starter', '冷前菜')),
+    ('shrimp', 720, 1200, 1200, 1800, 'tall', ('馬告鳳尾蝦阿根廷醬', 'Maqaw Shrimp, Chimichurri', '馬告風味の車海老 チミチュリソース'), ('烤物', 'Grilled', '焼き物')),
+    ('soba', 720, 1200, 1200, 1800, 'tall', ('醬香野菇蕎麥麵附溫泉蛋', 'Soy Mushroom Soba, Onsen Egg', '醤油きのこそば（温泉卵付き）'), ('主食', 'Mains', '主食')),
+    ('broccoli', 960, 1800, 1800, 1200, 'half', ('白味噌優格炙烤花椰菜', 'Charred Broccoli, White Miso Yogurt', 'ブロッコリーの炙り焼き（白味噌ヨーグルト）'), ('熱前菜', 'Hot starter', '温前菜')),
+    ('curry', 960, 1800, 1800, 1200, 'half', ('太陽蛋番茄雞肉乾咖哩飯', 'Tomato Chicken Dry Curry, Sunny-Side Egg', 'トマトチキンのドライカレー 目玉焼き添え'), ('主食', 'Mains', '主食')),
+]
+
+
+def tam_plate(name, sw, bw, w, h, slot, dish, kind):
+    sizes = {'wide': '(max-width: 760px) 100vw, 60vw', 'half': '(max-width: 760px) 100vw, 46vw'}.get(slot, '(max-width: 760px) 50vw, 32vw')
+    return (f'<figure class="tam-plate tam-plate--{slot}"><div class="tam-plate__img"><img src="{TAM}{name}-{sw}.webp" '
+            f'srcset="{TAM}{name}-{sw}.webp {sw}w, {TAM}{name}-{bw}.webp {bw}w" sizes="{sizes}" width="{w}" height="{h}" '
+            f'alt="{e(t(*dish))}" loading="lazy" decoding="async"></div>'
+            f'<figcaption><b>{e(t(*dish))}</b><span>{e(t(*kind))}</span></figcaption></figure>')
+
+
 def page_3am():
     s = '3am'
     reserve = www('/reserve')
@@ -355,20 +377,32 @@ def page_3am():
                t('三點水（3AM）是台北車站旁的深夜食堂與餐酒館，17:00–翌日 03:00。晚餐、宵夜、餐食佐酒，有人服務到凌晨三點，不需會員。台北車站站前地下街 Z10 出口斜對面。',
                  '3AM is the late-night diner and bistro by Taipei Main Station, 17:00–03:00 next day. Dinner, late-night food and meals with drinks, staffed until 3 a.m. No membership needed. Diagonally across from Exit Z10.',
                  '三點水（3AM）は台北駅そばの深夜食堂・ビストロ。17:00–翌03:00。夕食、夜食、お酒に合う料理を、深夜3時までスタッフが対応します。会員登録不要。台北駅地下街 Z10 出口の斜め向かい。'))
-    out += header(s, [(t('介紹', 'About', '紹介'), '#about'), (t('菜單', 'Menu', 'メニュー'), '#menu'), (t('用餐須知', 'Before you come', 'ご利用案内'), '#policy'), (t('怎麼來', 'Visit', 'アクセス'), '#visit'), (t('訂位', 'Reserve', '予約'), reserve)])
+    out += header(s, [(t('料理', 'Food', '料理'), '#food'), (t('菜單', 'Menu', 'メニュー'), '#menu'), (t('用餐須知', 'Before you come', 'ご利用案内'), '#policy'), (t('怎麼來', 'Visit', 'アクセス'), '#visit'), (t('訂位', 'Reserve', '予約'), reserve)])
+    plates = ''.join(tam_plate(*p) for p in TAM_PLATES)
     out += f'''<main id="content">
-<section class="bs-hero bs-hero--night"><div class="wrap bs-hero__grid">
-  <div class="bs-hero__copy">
-    <h1>{t('醒著，就來。', 'Still awake? Come in.', '起きているなら、どうぞ。')}<span class="en">三點水 3AM</span></h1>
-    <p class="bs-hero__lede">{t('台北車站旁的深夜食堂與餐酒館。晚餐、宵夜、餐食佐酒，營業到凌晨三點。', 'A late-night diner and bistro by Taipei Main Station. Dinner, late-night food and drinks until 3 a.m.', '台北駅そばの深夜食堂・ビストロ。夕食、夜食、お酒に合う料理を深夜3時まで。')}</p>
-    <div class="bs-hero__actions"><a class="bs-btn" href="{reserve}">{t('訂一張桌', 'Book a table', '予約する')}</a><a class="bs-text-link" href="#menu">{t('先看菜單', 'See the menu', 'メニューを見る')}</a></div>
+<section class="bs-hero tam-hero">
+  <picture class="tam-hero__photo">
+    <source media="(max-width: 760px)" srcset="{TAM}table-720.webp 720w, {TAM}table-1200.webp 1200w" sizes="100vw" width="1200" height="1788">
+    <img src="{TAM}clam-soup-1800.webp" srcset="{TAM}clam-soup-960.webp 960w, {TAM}clam-soup-1800.webp 1800w" sizes="100vw" width="1800" height="1200" alt="{t('三點水的蛤蜊料理與一杯酒', 'A clam dish and a glass at 3AM', '三點水のあさり料理と一杯')}" fetchpriority="high" decoding="async">
+  </picture>
+  <div class="wrap tam-hero__in">
+    <div class="tam-hero__copy">
+      <h1>{t('醒著，就來。', 'Still awake? Come in.', '起きているなら、どうぞ。')}<span class="en">三點水 3AM Bistro</span></h1>
+      <p class="bs-hero__lede">{t('台北車站旁的深夜餐酒館。日式 fusion 料理配一杯清酒或梅酒，營業到凌晨三點。', 'A late-night bistro by Taipei Main Station. Japanese fusion plates with sake or umeshu, until 3 a.m.', '台北駅そばの深夜ビストロ。和のフュージョン料理に日本酒や梅酒を一杯。深夜3時まで。')}</p>
+      <div class="bs-hero__actions"><a class="bs-btn" href="{reserve}">{t('訂一張桌', 'Book a table', '予約する')}</a><a class="bs-text-link" href="#food">{t('看今晚的料理', 'See tonight’s plates', '今夜の料理を見る')}</a></div>
+    </div>
+    <p class="bs-hero__meta"><b>17:00–03:00</b><span>{t('每天 · 台北車站 Z10 出口斜對面', 'Daily · across from Exit Z10', '毎日 · Z10出口の斜め向かい')}</span></p>
   </div>
-  <figure class="bs-hero__photo bs-hero__photo--main"><img src="/brand-sites/assets/3am/exterior-night.png" alt="{t('三點水夜間燈箱', '3AM at night', '夜の三點水')}" width="540" height="960" decoding="async" fetchpriority="high"></figure>
-  <figure class="bs-hero__photo bs-hero__photo--small"><img src="/brand-sites/assets/3am/sake-shelf.png" alt="{t('三點水酒架', '3AM sake shelf', '三點水の酒棚')}" width="540" height="960" decoding="async"></figure>
-  <p class="bs-hero__meta"><b>17:00–03:00</b><span>{t('每天 · 台北車站 Z10 出口斜對面', 'Daily · across from Exit Z10', '毎日 · Z10出口の斜め向かい')}</span></p>
+</section>
+
+<section class="tam-food" id="food" aria-labelledby="food-h"><div class="wrap">
+  <div class="tam-food__head">{sec_h2('food-h', '今晚的盤子', 'Tonight’s plates', '今夜の皿')}<p>{t('以餐為主、酒為輔。冷熱前菜、炸物、燒烤與麵飯，每一盤都配得上一杯酒。', 'Food first, drinks alongside. Cold and hot starters, fried and grilled plates, noodles and rice, each one made to sit next to a glass.', '料理が主役、お酒は添えて。冷・温前菜、揚げ物、焼き物、麺とご飯。どの皿も一杯に合うように。')}</p></div>
+  <div class="tam-plates">{plates}</div>
+  <div class="tam-food__cta"><a class="bs-btn" href="#menu">{t('看完整菜單', 'See the full menu', 'メニューをすべて見る')}</a></div>
 </div></section>
 
-<section id="about" aria-labelledby="about-h"><div class="wrap">
+'''
+    out += f'''<section id="about" aria-labelledby="about-h"><div class="wrap">
   <div class="bs-sec__head">{sec_h2('about-h', '入夜之後', 'After dark', '日が暮れてから')}</div>
   {facts([(t('用途', 'Use', '用途'), t('晚餐、深夜熱食與餐食佐酒', 'Dinner, late-night hot food and meals with drinks', '夕食、深夜の温かい食事、お酒に合う料理')),
           (t('時段', 'Hours', '営業時間'), t('17:00–翌日 03:00', '17:00–03:00 next day', '17:00–翌03:00')),
@@ -381,11 +415,11 @@ def page_3am():
              (t('宵夜', 'Late night', '夜食'),
               t('過了午夜還在營業，有人服務到凌晨三點。', 'Still open past midnight, staffed until 3 a.m.', '深夜 0 時を過ぎても営業。深夜 3 時までスタッフが対応します。')),
              (t('餐食佐酒', 'Meals with drinks', '食事とお酒'),
-              t('以餐為主、酒為輔：啤酒、清酒與調酒。一個人坐吧檯，或幾個人一桌都行。', 'Food first, drinks alongside: beer, sake and cocktails. A seat at the counter on your own, or a table with friends.', '料理が主役、お酒は添えて。ビール、日本酒、カクテル。ひとりでカウンターでも、数人でテーブルでも。'))], False)}
+              t('以餐為主、酒為輔：啤酒、清酒與果實酒。一個人坐吧檯，或幾個人一桌都行。', 'Food first, drinks alongside: beer, sake and fruit liqueurs. A seat at the counter on your own, or a table with friends.', '料理が主役、お酒は添えて。ビール、日本酒、果実酒。ひとりでカウンターでも、数人でテーブルでも。'))], False)}
   </div>
 </div></section>
 '''
-    out += story('story-h', '關於三點水', 'About 3AM', '三點水について', [
+    body = ''.join(f'<p>{e(t(*p))}</p>' for p in [
         ('三點水開在台北車站旁一棟民國 58 年的老屋裡。入夜燈光轉暖，長吧檯與桌席成為深夜食堂與餐酒館，有人服務到凌晨三點。',
          '3AM sits in a 1969 house by Taipei Main Station. After dark the lights warm up and the long counter and tables become a late-night diner and bistro, staffed until 3 a.m.',
          '三點水は、台北駅そばの 1969 年築の古い建物にあります。日が暮れると灯りが暖かくなり、ロングカウンターとテーブル席は深夜食堂・ビストロに。深夜 3 時までスタッフが対応します。'),
@@ -396,6 +430,11 @@ def page_3am():
          'Menu prices include tax. No membership is needed to visit. No alcohol under 18; don’t drink and drive.',
          'メニュー価格は税込です。会員でなくてもご利用いただけます。18 歳未満の飲酒は禁止。飲酒運転は禁止です。'),
     ])
+    out += f'''<section class="bs-story tam-story" aria-labelledby="story-h"><div class="wrap tam-story__in">
+  <figure class="tam-story__photo"><picture><source media="(max-width: 760px)" srcset="{TAM}clam-soup-960.webp 960w, {TAM}clam-soup-1800.webp 1800w" sizes="100vw" width="1800" height="1200"><img src="{TAM}table-720.webp" srcset="{TAM}table-720.webp 720w, {TAM}table-1200.webp 1200w" sizes="(max-width: 760px) 100vw, 42vw" width="1200" height="1788" alt="{t('三點水一桌料理與兩杯酒', 'A full table of plates and two glasses at 3AM', '三點水の料理が並ぶテーブルと二杯のグラス')}" loading="lazy" decoding="async"></picture></figure>
+  <div class="tam-story__text"><div class="bs-sec__head bs-sec__head--plain">{sec_h2('story-h', '關於三點水', 'About 3AM', '三點水について')}</div><div class="bs-story__body">{body}</div></div>
+</div></section>
+'''
     out += f'''<section class="bs-gallery" aria-labelledby="gallery-h"><div class="wrap">
   <div class="bs-sec__head">{sec_h2('gallery-h', '今晚，坐哪裡？', 'Find your seat tonight', '今夜、どこに座る？')}<p>{t('長吧檯、黑膠、桌上的一盞燈。', 'A long counter, records and a light on the table.', '長いカウンター、レコード、テーブルの灯り。')}</p></div>
   <div class="bs-gallery__grid">
