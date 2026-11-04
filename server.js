@@ -7370,6 +7370,15 @@ async function syncLinepay(start,end){
     throw e;
   }finally{linepaySyncing=false;}
 }
+/* LINE Pay 收款通知（KK 11/5）：POS 每 15 秒輪詢，最近 lookback 分鐘（預設 60、上限 720）同步進來的 LINE Pay 實收；店別依交易時間＋當天開關帳歸屬（linepay.venueOfTime），品牌 POS 只看自己的。資料來自每 5 分鐘的後台同步，非即時 */
+app.get('/api/admin/orders/linepay-alerts',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  res.set('Cache-Control','no-store');
+  const venues=posScope(req),mins=Math.min(720,Math.max(5,Number(req.query.lookback)||60));
+  const txs=(await q("SELECT id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no,synced_at FROM linepay_transactions WHERE synced_at>=now()-($1::int*interval '1 minute') AND paid_at>=now()-interval '1 day' ORDER BY paid_at",[mins])).rows;
+  const days=[...new Set(txs.map(t=>tableOrders.MenuLib.businessDay(t.paid_at)))];
+  const regs=days.length?(await q('SELECT day::text AS day,venue,opened_at,closed_at FROM pos_registers WHERE day::text=ANY($1::text[]) ORDER BY opened_at',[days])).rows:[];
+  res.json({alerts:linepay.alertRows(txs,regs,venues),synced_at:(await q('SELECT ok_at FROM linepay_sync_state WHERE id=1').catch(()=>({rows:[]}))).rows[0]?.ok_at||null});
+}));
 app.post('/api/admin/sales/linepay/sync',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const [defStart,defEnd]=linepay.syncWindow();
   const ok=v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v||''));

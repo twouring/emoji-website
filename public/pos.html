@@ -244,6 +244,23 @@
   /* 客人呼叫服務：右上角常駐，任何分頁都看得到；等超過 3 分鐘轉紅 */
   #svc-calls{position:fixed;top:76px;right:max(12px,env(safe-area-inset-right));z-index:9000;width:300px;max-width:calc(100vw - 24px);max-height:calc(100vh - 100px);overflow:auto;background:var(--ink,#1B1A17);color:#fff;border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.35);padding:8px}
   #svc-calls[hidden]{display:none}
+  /* LINE Pay 收款彈窗：蓋在所有畫面（含呼叫卡）上，只能按「我知道了」關閉 */
+  .lpa-ov{position:fixed;inset:0;z-index:9500;background:rgba(20,18,16,.6);display:grid;place-items:center;padding:16px}
+  .lpa-card{width:100%;max-width:460px;max-height:calc(100dvh - 32px);overflow:auto;background:var(--card,#fff);border-radius:16px;padding:20px;box-shadow:0 16px 48px rgba(0,0,0,.4);border-top:8px solid #06C755}
+  .lpa-card h2{margin:0 0 8px;font-size:1.375rem;font-weight:700}
+  .lpa-sum{margin:0 0 8px;font-size:1.125rem}
+  .lpa-list{display:grid;gap:10px}
+  .lpa-item{border:1px solid rgba(0,0,0,.12);border-radius:12px;padding:12px}
+  .lpa-item.is-refund{border-color:#C0392B;background:#FDF0EE}
+  .lpa-amt{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:6px}
+  .lpa-amt b{font-size:2rem;line-height:1.1;font-variant-numeric:tabular-nums}
+  .lpa-type{font-size:1rem;font-weight:600;color:#06A846}
+  .lpa-item.is-refund .lpa-type,.lpa-item.is-refund .lpa-amt b{color:#C0392B}
+  .lpa-kv{display:flex;justify-content:space-between;gap:12px;font-size:1rem;line-height:1.6}
+  .lpa-kv span{color:rgba(0,0,0,.6);flex:none}
+  .lpa-kv b{font-weight:600;text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+  .lpa-note{margin:12px 0;font-size:1rem;line-height:1.5;color:rgba(0,0,0,.6)}
+  .lpa-ok{width:100%;min-height:52px;font-size:1.125rem}
   #svc-calls .svc-head{display:flex;align-items:center;gap:6px;padding:4px 6px 8px;font-size:1rem}
   #svc-calls .svc-head svg{width:20px;height:20px}
   #svc-calls .svc-card{display:flex;align-items:center;gap:10px;padding:10px;margin-top:6px;border-radius:10px;background:#FFDE34;color:#111}
@@ -347,6 +364,7 @@
 <script src="/pos-service-calls.js"></script>
 <script src="/pos-live.js"></script>
 <script src="/pos-tips.js"></script>
+<script src="/pos-linepay-alert.js"></script>
 <script src="/pos-feedback.js"></script>
 <script src="/pos-bugs.js"></script>
 <script src="/pos-icons.js"></script>
@@ -711,6 +729,7 @@ async function main(){
     serviceCallBoot();
     posLiveBoot();
     tipBoot();
+    linepayAlertBoot();
     renewToken();
   } catch(e){
     if (e.status === 401) return;   // api() 已轉到登入畫面

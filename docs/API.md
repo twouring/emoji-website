@@ -547,6 +547,9 @@ POS 輪詢未處理的呼叫（每 5 秒）。回 `{ pending:[{id,session_id,tab
 ### POST /api/admin/orders/service-calls/:id/done
 店員按「處理」結案，記 `done_at`／`done_by`（登入者或 PIN 員工）。已處理過的重複按回原資料（兩台同時按不報錯）；找不到 404。記入 POS 操作紀錄「處理客人呼叫服務」。
 
+### GET /api/admin/orders/linepay-alerts
+POS 收款通知（每 15 秒輪詢）。query `lookback`（分鐘，預設 60、5–720）、`venue`（POS 自動帶）。回 `{ alerts:[{id,type,type_label,amount,paid_at,time,day,method,method_label,card_last4,confirm_no,order_no,origin_id,venue,venue_label,synced_at}], synced_at }`：最近 lookback 分鐘內從 LINE Pay 商家後台同步進來的實收（退款金額為負），店別依交易時間與當天開關帳歸屬，品牌 POS 只回自己的。資料由每 5 分鐘的後台同步產生，非即時。POS 以 `public/pos-linepay-alert.js` 跳出彈窗，店員按「我知道了」才關閉（每台裝置各自記錄已讀）。
+
 ### POST /api/order-feedback
 桌邊點餐意見回饋（客人端）。body `{ s, k, kind, text, rating?, name?, lang? }`；`kind` 為 `app` 點餐操作、`food` 餐點飲品、`service` 服務、`space` 環境、`other` 其他；`text` 2–500 字；`rating` 1–5 或省略。存 `order_feedback` 表，不進帳、不通知 POS。不限筆數。QR 無效 403、桌已結束 409。成功 201 `{ ok, id }`。
 
