@@ -926,6 +926,8 @@ async function migrate() {
   // 訂位後台：客人 Email（寄確認信）、排桌、店內備註、處理人；狀態多 arrived（舊庫改 CHECK）
   await q(`ALTER TABLE dining_reservations ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS table_no TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS staff_note TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS handled_by TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`);
   await q(`ALTER TABLE dining_reservations ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`);
+  // 內部備註（招待、股東、老闆朋友等）：只給店內看，不寄給客人、不回 App
+  await q(`ALTER TABLE dining_reservations ADD COLUMN IF NOT EXISTS internal_note TEXT NOT NULL DEFAULT ''`);
   await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_e164 TEXT`);
   // LINE 官方帳號：會員綁定、訂位通知／提醒、webhook 去重、推播紀錄
   await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS line_user_id TEXT, ADD COLUMN IF NOT EXISTS line_linked_at TIMESTAMPTZ`);
@@ -5898,7 +5900,7 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const tickets=rows.flatMap(s=>tableOrders.ticketsOf(s)).filter(t=>tableOrders.orderOwnedByVenues(t,venues)).map(t=>({...t,items:t.items.map(({guest,...l})=>l)}));
   const pause=tableOrders.parsePause(await contentValue('ordering_pause'));
   // 今天已排桌號、還沒到的訂位：桌況格上標「預約」提示（不自動開桌）；子帳號只看自己時段的
-  const resvRows=(await q(`SELECT id,to_char(reserve_date,'YYYY-MM-DD') AS reserve_date,reserve_time,party_size,name,status,table_no FROM dining_reservations WHERE reserve_date BETWEEN CURRENT_DATE-1 AND CURRENT_DATE+1 AND status IN ('new','confirmed') AND table_no<>'' AND deleted_at IS NULL`)).rows.filter(r=>!venues||venues.includes(tableOrders.reservationVenue(r.reserve_time)));
+  const resvRows=(await q(`SELECT id,to_char(reserve_date,'YYYY-MM-DD') AS reserve_date,reserve_time,party_size,name,status,table_no,internal_note FROM dining_reservations WHERE reserve_date BETWEEN CURRENT_DATE-1 AND CURRENT_DATE+1 AND status IN ('new','confirmed') AND table_no<>'' AND deleted_at IS NULL`)).rows.filter(r=>!venues||venues.includes(tableOrders.reservationVenue(r.reserve_time)));
   const reservations=tableOrders.reservationsByTable(resvRows);
   // payment_methods 一起回傳：已開著的 POS 畫面每 15 秒輪詢這支 API，新增的自訂收款帳戶才會即時出現在結帳選項，不用重新整理
   const pendingLinepay=(await q("SELECT id,session_id,state,amount,mode FROM linepay_payments WHERE state NOT IN ('failed','cancelled','settled')")).rows;
@@ -7074,7 +7076,7 @@ app.get('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=>
   const venues=null;   // 訂位是整間店共用：任何店別的帳號都能看與處理全部時段
   const from=/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from||''))?String(req.query.from):new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Taipei'});
   const days=Math.min(60,Math.max(1,Number(req.query.days)||7));
-  const rows=(await q(`SELECT id,request_id,to_char(reserve_date,'YYYY-MM-DD') AS reserve_date,reserve_time,period,party_size,name,phone,email,note,source,status,table_no,staff_note,COALESCE((SELECT name FROM pos_staff ps WHERE 'staff:'||ps.id=handled_by),handled_by) AS handled_by,created_at,updated_at FROM dining_reservations WHERE reserve_date>=$1::date AND reserve_date<$1::date+$2::int AND deleted_at IS NULL ORDER BY reserve_date,reserve_time`,[from,days])).rows
+  const rows=(await q(`SELECT id,request_id,to_char(reserve_date,'YYYY-MM-DD') AS reserve_date,reserve_time,period,party_size,name,phone,email,note,source,status,table_no,staff_note,internal_note,COALESCE((SELECT name FROM pos_staff ps WHERE 'staff:'||ps.id=handled_by),handled_by) AS handled_by,created_at,updated_at FROM dining_reservations WHERE reserve_date>=$1::date AND reserve_date<$1::date+$2::int AND deleted_at IS NULL ORDER BY reserve_date,reserve_time`,[from,days])).rows
     .map(r=>({...r,venue:tableOrders.reservationVenue(r.reserve_time)})).filter(r=>!venues||venues.includes(r.venue));
   const pending=Number((await q("SELECT COUNT(*)::int AS n FROM dining_reservations WHERE status='new' AND reserve_date>=CURRENT_DATE")).rows[0].n);
   res.json({reservations:rows,from,days,pending,labels:tableOrders.RESERVATION_LABEL});
@@ -7096,9 +7098,9 @@ app.post('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=
   if(venues&&!venues.includes(tableOrders.reservationVenue(r.time)))return res.status(403).json({error:'只能登記自己店別時段的訂位。'});
   const tableNo=tableOrders.cleanText(req.body?.table_no,8).toUpperCase();
   if(tableNo&&!tableOrders.TABLE_RE.test(tableNo))return res.status(400).json({error:'桌號只能用英數字與 -，最長 8 字。'});
-  const id=uid('dr_');
-  const requestId=await insertWithRequestId(rid=>q(`INSERT INTO dining_reservations(id,request_id,reserve_date,reserve_time,period,party_size,name,phone,email,lang,note,source,status,table_no,handled_by)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'confirmed',$13,$14)`,[id,rid,r.date,r.time,r.period,r.partySize,r.name,r.phone,r.email,r.lang,r.note,r.source,tableNo,actorOf(req.auth)||'']));
+  const id=uid('dr_'),internalNote=tableOrders.cleanText(req.body?.internal_note,200);
+  const requestId=await insertWithRequestId(rid=>q(`INSERT INTO dining_reservations(id,request_id,reserve_date,reserve_time,period,party_size,name,phone,email,lang,note,source,status,table_no,handled_by,internal_note)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'confirmed',$13,$14,$15)`,[id,rid,r.date,r.time,r.period,r.partySize,r.name,r.phone,r.email,r.lang,r.note,r.source,tableNo,actorOf(req.auth)||'',internalNote]));
   if(r.email)sendMailQuietly({to:r.email,subject:reservations.guestSubject(r),text:reservations.guestMail(r,requestId),replyTo:NOTIFY_EMAIL,idempotencyKey:'reservation-confirm/'+id});
   lineService.notifyStaffReservation(r,requestId,'staff');
   res.status(201).json({ok:true,id,request_id:requestId,venue:tableOrders.reservationVenue(r.time),mailed:!!r.email});
@@ -7122,7 +7124,8 @@ app.patch('/api/admin/reservations/:id',auth,adminOnly,requireDb,wrap(async(req,
   if(!cur||(venues&&!venues.includes(tableOrders.reservationVenue(cur.reserve_time))))return res.status(404).json({error:'找不到這筆訂位。'});
   let r;try{r=reservations.normalizeReservation({date:req.body?.date,time:req.body?.time,party_size:req.body?.party_size,name:req.body?.name,phone:req.body?.phone,email:req.body?.email,note:req.body?.note,lang:cur.lang,source:cur.source},new Date(),{staff:true});}catch(e){return res.status(e.status||400).json({error:e.message});}
   if(venues&&!venues.includes(tableOrders.reservationVenue(r.time)))return res.status(403).json({error:'改到的時段不屬於自己的店別。'});
-  await q('UPDATE dining_reservations SET reserve_date=$2,reserve_time=$3,period=$4,party_size=$5,name=$6,phone=$7,email=$8,note=$9,updated_at=now() WHERE id=$1',[cur.id,r.date,r.time,r.period,r.partySize,r.name,r.phone,r.email,r.note]);
+  const internalNote=req.body?.internal_note===undefined?null:tableOrders.cleanText(req.body.internal_note,200);   // 沒帶＝不動
+  await q('UPDATE dining_reservations SET reserve_date=$2,reserve_time=$3,period=$4,party_size=$5,name=$6,phone=$7,email=$8,note=$9,internal_note=COALESCE($10,internal_note),updated_at=now() WHERE id=$1',[cur.id,r.date,r.time,r.period,r.partySize,r.name,r.phone,r.email,r.note,internalNote]);
   res.json({ok:true,id:cur.id,venue:tableOrders.reservationVenue(r.time)});
 }));
 /* 刪除訂位（含已取消）：客人取消後不想再留在畫面上。軟刪除（deleted_at），列表一律過濾掉，保留紀錄供日後查帳。 */

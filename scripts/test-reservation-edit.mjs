@@ -15,7 +15,7 @@ test('PATCH /api/admin/reservations/:id 修改訂位資訊：驗證同櫃檯登�
   assert.match(server, /找不到這筆訂位。/);
   assert.match(server, /reservations\.normalizeReservation\(\{date:req\.body\?\.date,time:req\.body\?\.time,party_size:req\.body\?\.party_size,name:req\.body\?\.name,phone:req\.body\?\.phone,email:req\.body\?\.email,note:req\.body\?\.note,lang:cur\.lang,source:cur\.source\},new Date\(\),\{staff:true\}\)/, '驗證要用 staff:true（Email 可空、不擋 30 分鐘內時段），語言與來源沿用原紀錄');
   assert.match(server, /改到的時段不屬於自己的店別。/, '品牌子帳號不能把時段改到別的店別');
-  assert.match(server, /UPDATE dining_reservations SET reserve_date=\$2,reserve_time=\$3,period=\$4,party_size=\$5,name=\$6,phone=\$7,email=\$8,note=\$9,updated_at=now\(\) WHERE id=\$1/);
+  assert.match(server, /UPDATE dining_reservations SET reserve_date=\$2,reserve_time=\$3,period=\$4,party_size=\$5,name=\$6,phone=\$7,email=\$8,note=\$9,internal_note=COALESCE\(\$10,internal_note\),updated_at=now\(\) WHERE id=\$1/);
   // 編輯端點不碰狀態／桌號／店內留言，那些仍走 /status
   assert.doesNotMatch(server.match(/app\.patch\('\/api\/admin\/reservations\/:id'[\s\S]*?\}\)\);/)[0], /staff_note|table_no|status=/);
 });

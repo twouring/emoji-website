@@ -720,16 +720,16 @@ POS 庫存（`/pos/inventory`）。query `venue=`。回 `{ items[], recipes{菜�
 整份覆寫可訂位時間。body `{ weekly, dates }`，格式同上；不認得的時段丟棄、過去的日期例外與「全開」的星期自動清掉、特定日期上限 400 筆。只限制客人自助訂位（`POST /api/reservations`、`POST /api/me/reservations` 回 400「這個時段目前不開放訂位」），櫃檯登記與編修不受限。存在 `site_content.reservation_hours`。
 
 ### GET /api/admin/reservations
-訂位列表。query `from=YYYY-MM-DD`（預設台北今天）、`days`（1–60，預設 7）、`venue=`。回 `{ reservations[], from, days, pending, labels }`；每筆附 `venue`（08:00–16:59 歸 CAFE，其餘 BAR），品牌子帳號只看自己時段的。狀態：`new` 待確認、`confirmed` 已確認、`arrived` 已到、`no_show` 未到、`cancelled` 已取消。
+訂位列表。query `from=YYYY-MM-DD`（預設台北今天）、`days`（1–60，預設 7）、`venue=`。回 `{ reservations[], from, days, pending, labels }`；每筆附 `venue`（08:00–16:59 歸 CAFE，其餘 BAR）與 `internal_note`（內部備註），品牌子帳號只看自己時段的。狀態：`new` 待確認、`confirmed` 已確認、`arrived` 已到、`no_show` 未到、`cancelled` 已取消。
 
 ### POST /api/admin/reservations
-櫃檯登記訂位（電話／現場）。body 同 `POST /api/reservations`（`date`、`time`、`party_size`、`name`、`phone`、`email?`、`note?`）另可帶 `table_no?`；與客人自助訂位同一套時段與驗證，但 `email` 可留空、當天 30 分鐘內的時段也可登（客人剛打來說馬上到）。`lang` 固定 `zh`、`source` 固定 `pos`，狀態直接 `confirmed`，記 `handled_by`。有留 Email 才寄確認信。品牌子帳號只能登記自己店別時段（403）。回 `{ ok, id, request_id, venue, mailed }`（201）。
+櫃檯登記訂位（電話／現場）。body 同 `POST /api/reservations`（`date`、`time`、`party_size`、`name`、`phone`、`email?`、`note?`）另可帶 `table_no?`、`internal_note?`（內部備註，200 字內，如招待、股東；只給店內看，不寄給客人、不回會員 App）；與客人自助訂位同一套時段與驗證，但 `email` 可留空、當天 30 分鐘內的時段也可登（客人剛打來說馬上到）。`lang` 固定 `zh`、`source` 固定 `pos`，狀態直接 `confirmed`，記 `handled_by`。有留 Email 才寄確認信。品牌子帳號只能登記自己店別時段（403）。回 `{ ok, id, request_id, venue, mailed }`（201）。
 
 ### POST /api/admin/reservations/:id/status
 改訂位狀態。body `{ status, table_no?, staff_note?, notify?: boolean }`。允許的轉換：new→confirmed/cancelled；confirmed→arrived/no_show/cancelled；arrived/no_show/cancelled→confirmed（其餘 409）。改成 `confirmed` 或 `cancelled` 且客人有留 Email 時寄回覆信（含桌號與店內留言；`notify:false` 不寄）。回 `{ ok, status, mailed }`。
 
 ### PATCH /api/admin/reservations/:id
-修改訂位資訊（客人來電更改日期、時間、人數、姓名、電話、Email 或備註；桌號／店內留言／狀態仍走上面的 `/status`）。body `{ date, time, party_size, name, phone, email?, note? }`，驗證規則同 `POST /api/admin/reservations`（`staff:true`：Email 可留空、不擋 30 分鐘內的時段），語言與來源沿用原紀錄。品牌子帳號只能改自己店別時段的訂位、也不能把時段改到別的店別（403）。**不會自動寄信通知客人**，需要時請自行電話聯繫，或改完用 `/status` 的「確認並通知」補寄。回 `{ ok, id, venue }`。
+修改訂位資訊（客人來電更改日期、時間、人數、姓名、電話、Email 或備註；桌號／店內留言／狀態仍走上面的 `/status`）。body `{ date, time, party_size, name, phone, email?, note?, internal_note? }`（`internal_note` 沒帶＝不改），驗證規則同 `POST /api/admin/reservations`（`staff:true`：Email 可留空、不擋 30 分鐘內的時段），語言與來源沿用原紀錄。品牌子帳號只能改自己店別時段的訂位、也不能把時段改到別的店別（403）。**不會自動寄信通知客人**，需要時請自行電話聯繫，或改完用 `/status` 的「確認並通知」補寄。回 `{ ok, id, venue }`。
 
 ### GET /api/pos-devices/:id
 公開（免登入）。POS 開機時查這台裝置是否已綁定，決定登入畫面要顯示四位數密碼鍵盤還是 Gmail 登入。回 `{ bound }`。

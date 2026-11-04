@@ -111,6 +111,8 @@ function bindReasonChips(host){
  * noteChips／fillChips：表單內嵌，按一下填進旁邊欄位（備註可複選、數值直接帶入） */
 const NOTE_PRESETS=['去冰（有小碎冰）','少冰','熱的','不要蔥','不要香菜','不辣','加辣','醬另放','分開裝','打包','先上'];
 const RESV_NOTE_PRESETS=['靠窗','嬰兒椅','慶生','素食','輪椅','安靜位','商務聚會','包場洽詢'];
+/* 內部備註（客人看不到：不寄信、不回 App）：標注招待、股東、員工親友等 */
+const RESV_INTERNAL_PRESETS=['招待','招待飲品','股東','員工親友','老闆朋友','媒體／KOL','合作夥伴'];
 const PAUSE_PRESETS=['今日最後點餐 22:30','廚房忙碌，暫停加點 15 分鐘','包場活動中，暫停點餐'];
 const TABLE_ZONES=['A','B','C','D','E','F'];
 const BREAK_PRESETS=[[0,'沒休息'],[30,'30 分'],[45,'45 分'],[60,'60 分'],[90,'90 分']];
@@ -1348,7 +1350,7 @@ function paintPos(){
   const slots=[...placed.map(t=>({...(byTable.get(t)||{table:t,empty:true}),placed:true})),...baseNames.filter(t=>!layoutPos[t]).map(t=>byTable.get(t)||{table:t,empty:true}),...sessions.filter(s=>s.takeout)];
   // 今天這桌有排的訂位（訂位頁填了桌號）：空桌與使用中的桌都標出來，提醒現場人員這桌有人預約；只是提示，不會自動開桌
   const resvOf=t=>(d.reservations||{})[t]||[];
-  const resvHtml=t=>resvOf(t).map(r=>`<small class="pos-resv"><span class="pos-resv-tag">預約</span> ${esc(r.time)} ${esc(r.name)} ${r.party_size} 位${r.status==='new'?'（待確認）':''}</small>`).join('');
+  const resvHtml=t=>resvOf(t).map(r=>`<small class="pos-resv"><span class="pos-resv-tag">預約</span> ${esc(r.time)} ${esc(r.name)} ${r.party_size} 位${r.status==='new'?'（待確認）':''}${r.internal_note?` <span class="resv-internal">${esc(r.internal_note)}</span>`:''}</small>`).join('');
   const cardHtml=s=>{
     if(s.empty)return `<button type="button" class="pos-table empty ${s.placed?'is-placed':''} ${resvOf(s.table).length?'reserved':''}" data-open-table="${esc(s.table)}" aria-label="${esc(s.table)} 空桌，點一下開桌"><b>${esc(s.table)}</b><span class="tk-open">＋ 開桌</span>${resvHtml(s.table)}</button>`;
     const [cls,label]=TABLE_STATE[s.state]||TABLE_STATE.open;
@@ -1836,7 +1838,7 @@ async function loadReservations(){
   let day='';
   const rows=d.reservations.map(r=>{
     const head=r.reserve_date!==day?(day=r.reserve_date,`<tr class="resv-day"><td colspan="7">${esc(r.reserve_date)}（${weekday(r.reserve_date)}）<span class="pill ${r.reserve_date===todayTaipei()?'pill-ok':'pill-wait'}" style="margin-left:8px">${relDayText(r.reserve_date)}</span></td></tr>`):'';
-    return head+`<tr class="${r.status==='cancelled'?'resv-off':''}"><td class="a-mono"><b>${esc(r.reserve_time)}</b><br><span class="hint hint--tight">${esc(BRAND_LABEL[r.venue]||r.period)}</span></td><td><b>${esc(r.name)}</b> ${Number(r.party_size)} 位<br><a href="tel:${esc(r.phone)}">${esc(r.phone)}</a>${r.email?`<br><span class="hint hint--tight">${esc(r.email)}</span>`:'<br><span class="hint hint--tight">未留 Email，請電話聯繫</span>'}</td><td>${esc(r.note||'')}${r.staff_note?`<br><span class="hint hint--tight">店內：${esc(r.staff_note)}</span>`:''}</td><td><select data-resv-table="${esc(r.id)}" style="min-width:96px;min-height:44px" aria-label="桌號"><option value="">未排桌</option>${[...new Set([...DEFAULT_TABLES,...(r.table_no&&!DEFAULT_TABLES.includes(r.table_no)?[r.table_no]:[])])].map(t=>`<option value="${esc(t)}"${t===(r.table_no||'')?' selected':''}>${esc(t)}</option>`).join('')}</select></td><td><span class="pill ${PILL[r.status]||''}">${esc(L[r.status]||r.status)}</span>${r.handled_by?`<br><span class="hint hint--tight">${esc(r.handled_by)}</span>`:''}</td><td class="a-mono resv-id">${esc(r.request_id)}</td><td class="ops-actions" style="white-space:nowrap">${actions(r)} <button type="button" class="btn btn--ghost btn-sm" data-resv-edit="${esc(r.id)}">編輯</button> <button type="button" class="btn btn--ghost btn--danger btn-sm" data-resv-delete="${esc(r.id)}">刪除</button></td></tr>`;
+    return head+`<tr class="${r.status==='cancelled'?'resv-off':''}"><td class="a-mono"><b>${esc(r.reserve_time)}</b><br><span class="hint hint--tight">${esc(BRAND_LABEL[r.venue]||r.period)}</span></td><td><b>${esc(r.name)}</b> ${Number(r.party_size)} 位<br><a href="tel:${esc(r.phone)}">${esc(r.phone)}</a>${r.email?`<br><span class="hint hint--tight">${esc(r.email)}</span>`:'<br><span class="hint hint--tight">未留 Email，請電話聯繫</span>'}</td><td>${esc(r.note||'')}${r.internal_note?`${r.note?'<br>':''}<span class="resv-internal">內部：${esc(r.internal_note)}</span>`:''}${r.staff_note?`<br><span class="hint hint--tight">店內：${esc(r.staff_note)}</span>`:''}</td><td><select data-resv-table="${esc(r.id)}" style="min-width:96px;min-height:44px" aria-label="桌號"><option value="">未排桌</option>${[...new Set([...DEFAULT_TABLES,...(r.table_no&&!DEFAULT_TABLES.includes(r.table_no)?[r.table_no]:[])])].map(t=>`<option value="${esc(t)}"${t===(r.table_no||'')?' selected':''}>${esc(t)}</option>`).join('')}</select></td><td><span class="pill ${PILL[r.status]||''}">${esc(L[r.status]||r.status)}</span>${r.handled_by?`<br><span class="hint hint--tight">${esc(r.handled_by)}</span>`:''}</td><td class="a-mono resv-id">${esc(r.request_id)}</td><td class="ops-actions" style="white-space:nowrap">${actions(r)} <button type="button" class="btn btn--ghost btn-sm" data-resv-edit="${esc(r.id)}">編輯</button> <button type="button" class="btn btn--ghost btn--danger btn-sm" data-resv-delete="${esc(r.id)}">刪除</button></td></tr>`;
   }).join('')||'<tr><td colspan="7" class="a-empty">這段期間沒有訂位申請</td></tr>';
   // 櫃檯登記（電話／現場）：時段依店別 30 分鐘一格；Email 可留空（留了才寄確認信）
   const slotOf=(from,to)=>{const o=[];for(let m=from;m<to;m+=30)o.push(`${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`);return o;};
@@ -1851,6 +1853,7 @@ async function loadReservations(){
       <label>Email（可空）<input name="email" type="email" maxlength="254" placeholder="留了會寄確認信"></label>
       <label>桌號<input name="table_no" id="resv-new-table" maxlength="8" autocapitalize="characters" placeholder="A3" style="width:100px"></label>${fillChips('resv-new-table',[['','不排'],...DEFAULT_TABLES.map(t=>[t,t])])}
       <label class="f-grow">備註<input name="note" id="resv-new-note" maxlength="500" placeholder="點常用的或自己填"></label>${noteChips('resv-new-note',RESV_NOTE_PRESETS)}
+      <label class="f-grow">內部備註（客人看不到）<input name="internal_note" id="resv-new-internal" maxlength="200" placeholder="例：招待、股東"></label>${noteChips('resv-new-internal',RESV_INTERNAL_PRESETS)}
       <button class="btn btn--solid" type="submit">登記</button>
     </form></div>`;
   // 編輯訂位資訊：日期／時間／人數／姓名／電話／Email／備註（桌號、店內留言、狀態仍在各列操作）
@@ -1864,9 +1867,10 @@ async function loadReservations(){
       <label>手機<input id="re-phone" type="tel" inputmode="tel" required minlength="8" maxlength="32" value="${esc(editing.phone)}"></label>
       <label>Email（可空）<input id="re-email" type="email" maxlength="254" value="${esc(editing.email||'')}"></label>
       <label class="f-grow">備註<input id="re-note" maxlength="500" value="${esc(editing.note||'')}"></label>${noteChips('re-note',RESV_NOTE_PRESETS)}
+      <label class="f-grow">內部備註（客人看不到）<input id="re-internal" maxlength="200" value="${esc(editing.internal_note||'')}" placeholder="例：招待、股東"></label>${noteChips('re-internal',RESV_INTERNAL_PRESETS)}
       <button type="button" class="btn btn--solid" id="re-save">儲存</button><button type="button" class="btn btn--ghost" id="re-cancel">取消</button>
     </div>`:'';
-  host.innerHTML=`<div class="ops-head"><h2>訂位 ${d.pending?`<span class="badge">${d.pending} 待確認</span>`:''}</h2>${opsHelp('客人從 <a href="/reserve" target="_blank" rel="noopener">/reserve</a>（Google Maps／官方 LINE 連結）訂位，送出即成立、客人已收到確認信（座位保留至預約時間後 10 分鐘）。08:00–16:59 歸在咖啡、其餘歸三點水。這裡可填桌號、按「取消」寄婉拒信給客人（沒留 Email 的請電話聯繫）；當天到店按「已到」，沒來按「未到」。舊的「待確認」申請按「確認並通知」會補寄確認信。日期、時間、人數、姓名、電話、Email、備註打錯或客人來電更改，按該筆「編輯」修改。')}</div>
+  host.innerHTML=`<div class="ops-head"><h2>訂位 ${d.pending?`<span class="badge">${d.pending} 待確認</span>`:''}</h2>${opsHelp('客人從 <a href="/reserve" target="_blank" rel="noopener">/reserve</a>（Google Maps／官方 LINE 連結）訂位，送出即成立、客人已收到確認信（座位保留至預約時間後 10 分鐘）。08:00–16:59 歸在咖啡、其餘歸三點水。這裡可填桌號、按「取消」寄婉拒信給客人（沒留 Email 的請電話聯繫）；當天到店按「已到」，沒來按「未到」。舊的「待確認」申請按「確認並通知」會補寄確認信。日期、時間、人數、姓名、電話、Email、備註打錯或客人來電更改，按該筆「編輯」修改。「內部備註」（招待、股東等）只有店內看得到，不會寄給客人。')}</div>
     <div class="resv-actions"><button type="button" class="btn ${RESV_ADD_OPEN?'btn--solid':'btn--ghost'}" id="resv-add-toggle" aria-expanded="${RESV_ADD_OPEN}" aria-controls="resv-add">＋ 登記訂位<span class="resv-act-sub">（電話／現場）</span></button><button type="button" class="btn ${RESV_HOURS_OPEN?'btn--solid':'btn--ghost'}" id="resv-hours-toggle" aria-expanded="${RESV_HOURS_OPEN}" aria-controls="resv-hours">不可訂位設定</button></div>
     ${hoursStrip()}
     ${addForm}
@@ -1902,7 +1906,7 @@ async function loadReservations(){
   });
   const reSave=host.querySelector('#re-save');
   if(reSave)reSave.onclick=()=>{
-    const body={date:host.querySelector('#re-date').value,time:host.querySelector('#re-time').value,party_size:Number(host.querySelector('#re-party').value),name:host.querySelector('#re-name').value,phone:host.querySelector('#re-phone').value,email:host.querySelector('#re-email').value,note:host.querySelector('#re-note').value};
+    const body={date:host.querySelector('#re-date').value,time:host.querySelector('#re-time').value,party_size:Number(host.querySelector('#re-party').value),name:host.querySelector('#re-name').value,phone:host.querySelector('#re-phone').value,email:host.querySelector('#re-email').value,note:host.querySelector('#re-note').value,internal_note:host.querySelector('#re-internal').value};
     opsThen(()=>api('/admin/reservations/'+editing.id,{method:'PATCH',body}),'已更新訂位資訊',()=>{RESV_EDIT=null;return loadReservations();});
   };
   const reCancel=host.querySelector('#re-cancel');
