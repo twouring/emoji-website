@@ -7371,6 +7371,18 @@ async function syncLinepay(start,end){
   }finally{linepaySyncing=false;}
 }
 /* LINE Pay 收款通知（KK 11/5）：POS 每 15 秒輪詢，最近 lookback 分鐘（預設 60、上限 720）同步進來的 LINE Pay 實收；店別依交易時間＋當天開關帳歸屬（linepay.venueOfTime），品牌 POS 只看自己的。資料來自每 5 分鐘的後台同步，非即時 */
+/* 桌號結帳頁每 10 秒觸發（KK 11/5）：只抓今天（營業日）的 LINE Pay 交易；10 秒內同步過或排程同步中就跳過。用常駐登入分頁（linepay.fetchWarm），不寫失敗狀態（日結的同步狀態只由排程與手動同步更新） */
+let linepayQuickAt=0;
+app.post('/api/admin/orders/linepay-alerts/sync',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const cfg=linepay.config();
+  if(!cfg)return res.json({ok:false,skipped:'not_configured'});
+  if(linepaySyncing)return res.json({ok:true,skipped:'busy'});
+  if(Date.now()-linepayQuickAt<9000)return res.json({ok:true,skipped:'recent'});
+  linepayQuickAt=Date.now();
+  const day=tableOrders.MenuLib.businessDay(),now=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Taipei'});
+  try{const rows=await linepay.fetchWarm(cfg,day,now>day?now:day);res.json({ok:true,count:await upsertLinepay(rows)});}
+  catch(e){res.status(502).json({error:e.message});}
+}));
 app.get('/api/admin/orders/linepay-alerts',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   res.set('Cache-Control','no-store');
   const venues=posScope(req),mins=Math.min(720,Math.max(5,Number(req.query.lookback)||60));

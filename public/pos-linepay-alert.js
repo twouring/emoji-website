@@ -1,8 +1,9 @@
 /* POS LINE Pay 收款通知（KK 11/5）：每 15 秒輪詢 /admin/orders/linepay-alerts，有新的 LINE Pay 實收（或退款）就響鈴、
  * 跳全螢幕彈窗列出完整資訊（金額、交易時間、付款方式、卡號末四碼、驗證碼、交易號碼、店別）。
  * 只能按「我知道了」關閉：點背景、Esc 都不會關。已讀記在這台裝置（localStorage，依品牌分 key），新裝置第一次開機不補跳舊交易。
- * 資料來自 LINE Pay 商家後台每 5 分鐘同步，非即時。依賴 pos.html 的 esc/api/DATA/POS_URL_VENUE、pos-ops.js 的 newTicketChime。 */
+ * 資料來自 LINE Pay 商家後台：平常每 5 分鐘同步；停在桌號結帳頁時每 10 秒同步一次。依賴 pos.html 的 esc/api/DATA/POS_URL_VENUE、pos-ops.js 的 newTicketChime。 */
 const LPA_POLL_MS = 15000;
+const LPA_TABLE_MS = 10000;   // 在桌號結帳頁：每 10 秒叫伺服器同步 LINE Pay 後台＋檢查新交易（KK 11/5）
 const LPA_KEY = 'tth_lp_seen_' + (typeof POS_URL_VENUE === 'string' && POS_URL_VENUE ? POS_URL_VENUE : 'home').toLowerCase();
 let LPA = { timer: null, queue: [], open: false };
 
@@ -34,7 +35,7 @@ function lpaPaint(){
     <h2 id="lpa-title">收到 LINE Pay ${n > 1 ? n + ' 筆' : ''}</h2>
     ${n > 1 ? `<p class="lpa-sum">合計 <b>${esc(lpaMoney(total))}</b></p>` : ''}
     <div class="lpa-list">${LPA.queue.map(lpaCard).join('')}</div>
-    <p class="lpa-note">請到該桌結帳登記為 LINE Pay。資料由 LINE Pay 後台每 5 分鐘同步，會比客人付款晚幾分鐘。</p>
+    <p class="lpa-note">請到該桌結帳登記為 LINE Pay。在桌號結帳頁每 10 秒同步一次，其他畫面每 5 分鐘。</p>
     <button type="button" class="btn btn--solid lpa-ok" data-lpa-ok>我知道了</button>
   </div>`;
   LPA.open = true;
@@ -60,9 +61,15 @@ async function loadLinepayAlerts(){
   lpaPaint();
   try { if (typeof newTicketChime === 'function') newTicketChime(); } catch (e) {}
 }
+const lpaOnTable = () => typeof TAB !== 'undefined' && TAB === 'pos' && typeof POS_TABLE !== 'undefined' && !!POS_TABLE && !document.hidden;
+async function syncLinepayNow(){ try { await api('/admin/orders/linepay-alerts/sync', { method: 'POST', body: {} }); } catch (e) {} }
 function linepayAlertBoot(){
   if (LPA.timer) return;
-  const tick = async () => { try { await loadLinepayAlerts(); } finally { LPA.timer = setTimeout(tick, LPA_POLL_MS); } };
+  const tick = async () => {
+    const table = lpaOnTable();
+    try { if (table) await syncLinepayNow(); await loadLinepayAlerts(); }
+    finally { LPA.timer = setTimeout(tick, table ? LPA_TABLE_MS : LPA_POLL_MS); }
+  };
   tick();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) loadLinepayAlerts(); });
 }

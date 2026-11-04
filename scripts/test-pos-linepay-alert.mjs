@@ -47,3 +47,16 @@ test('POS：彈窗顯示完整資訊、只能按鈕關閉、響鈴', () => {
   assert.match(js, /newTicketChime\(\)/);
   assert.match(js, /POS_URL_VENUE/, '已讀 key 依品牌分開');
 });
+
+test('桌號結帳頁每 10 秒同步', () => {
+  const js = read('public/pos-linepay-alert.js'), server = read('server.js');
+  assert.match(js, /LPA_TABLE_MS = 10000/);
+  assert.match(js, /TAB === 'pos'[\s\S]{0,80}POS_TABLE/);
+  assert.match(js, /\/admin\/orders\/linepay-alerts\/sync/);
+  const i = server.indexOf("app.post('/api/admin/orders/linepay-alerts/sync',");
+  assert.ok(i > 0);
+  const r = server.slice(i, server.indexOf('\n}));', i));
+  assert.match(r, /linepay\.fetchWarm\(/);
+  assert.match(r, /linepaySyncing/);
+  assert.match(read('docs/API.md'), /### POST \/api\/admin\/orders\/linepay-alerts\/sync/);
+});
