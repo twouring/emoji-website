@@ -102,7 +102,7 @@ BRANDS = [
         "slug": "stay-square", "no": "03", "zh": "等等空間", "latin": "Stay Square", "logo_latin": "stay square",
         "nav": {"zh": "等等空間", "en": "Stay Square", "ja": "等等空間"},
         "role": {"zh": "會員的共享工作空間", "en": "Members’ coworking space", "ja": "会員向けのコワーキングスペース"},
-        "hours": {"zh": "約 08:00–03:00", "en": "approx. 08:00–03:00", "ja": "約 08:00〜03:00"},
+        "hours": {"zh": "24 小時", "en": "24 hours", "ja": "24時間"},
         "who": {"zh": "持有效會籍的會員；活動與包場另行申請", "en": "Members with a valid membership; events and private hire by application",
                 "ja": "有効な会員資格をお持ちの会員。イベントと貸切は別途申請"},
         "site": {"zh": "https://staysquare.emoji.tw/", "en": "https://staysquare.emoji.tw/en", "ja": "https://staysquare.emoji.tw/ja"},

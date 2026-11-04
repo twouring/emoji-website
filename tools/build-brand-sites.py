@@ -454,7 +454,7 @@ def page_stay():
   <img class="is-active" src="/brand-sites/assets/stay/roof.webp" alt="{t('挑高共享工作空間規劃示意', 'High-ceiling shared workspace, concept rendering', '吹き抜けの共有ワークスペース、完成イメージ')}" width="1600" height="966" fetchpriority="high">
   <img src="/brand-sites/assets/stay/window.webp" alt="" width="1600" height="966">
   <img src="/brand-sites/assets/stay/bar.webp" alt="" width="1594" height="991">
-  <div class="sq-stage__caption"><span>{t('規劃示意', 'Concept rendering', '完成イメージ')}</span><span>08:00–03:00</span></div>
+  <div class="sq-stage__caption"><span>{t('規劃示意', 'Concept rendering', '完成イメージ')}</span><span>{t('24 小時', '24 hours', '24時間')}</span></div>
 </div></section>
 
 <section class="sq-intro" id="spaces"><div class="sq-reading">
