@@ -2034,14 +2034,14 @@ const authHandoff = require('./lib/auth-handoff');
 async function adminPasswordLimit(req, res, next) {
   try {
     const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase().slice(0, 254) : '';
-    for (const [kind, value, max] of [['ip', req.ip || req.socket.remoteAddress || '', 40], ['email', email, 10]]) {
+    for (const [kind, value, max] of [['email', email, 10]]) {
       const bucket = crypto.createHash('sha256').update(kind + ':' + value).digest('hex');
       const row = (await q(`INSERT INTO admin_password_attempts(bucket,attempts,expires_at) VALUES($1,1,now()+interval '15 minutes')
         ON CONFLICT(bucket) DO UPDATE SET
         attempts=CASE WHEN admin_password_attempts.expires_at<=now() THEN 1 ELSE admin_password_attempts.attempts+1 END,
         expires_at=CASE WHEN admin_password_attempts.expires_at<=now() THEN now()+interval '15 minutes' ELSE admin_password_attempts.expires_at END
         RETURNING attempts`, [bucket])).rows[0];
-      if (row.attempts > max) { res.set('Retry-After', '900'); return res.status(429).json({error:'操作過於頻繁，請稍後再試。'}); }
+      if (row.attempts > max) { res.set('Retry-After', '900'); return res.status(429).json({error:'密碼錯誤次數過多，請 15 分鐘後再試。'}); }
     }
     await q('DELETE FROM admin_password_attempts WHERE expires_at < now()');
     next();

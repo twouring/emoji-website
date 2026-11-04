@@ -87,14 +87,12 @@ test('session is purpose-bound, expiring, strictly segmented and rejects non-ASC
   assert.equal(verifyAccessToken(qr.split('.')[0] + '.' + 'é'.repeat(43), secret), null);
 });
 
-test('rate limit expires and cannot grow without a bound', () => {
-  let time = 1000, accepted = 0, status;
-  const limit = rateLimit({ max: 2, windowMs: 100, now: () => time });
+test('rate limit never blocks (KK 2026-11-05)', () => {
+  let accepted = 0, status;
+  const limit = rateLimit({ max: 2, windowMs: 100 });
   const res = { set() {}, status(s) { status = s; return this; }, json() {} };
-  const req = { ip: '127.0.0.1' };
-  for (let i = 0; i < 3; i++) limit(req, res, () => accepted++);
-  assert.equal(accepted, 2); assert.equal(status, 429);
-  time += 100; limit(req, res, () => accepted++); assert.equal(accepted, 3);
+  for (let i = 0; i < 500; i++) limit({ ip: '127.0.0.1' }, res, () => accepted++);
+  assert.equal(accepted, 500); assert.equal(status, undefined);
 });
 
 test('HTTP headers and parser errors protect pages/API without leaking stack traces', async t => {
