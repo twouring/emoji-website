@@ -93,7 +93,7 @@ test('pos.html：只做餐飲五件事、與 /admin 共用 pos-ops.js、登入�
   assert.match(html, /const BRAND_LABEL = \{ CAFE:'在咖啡', BAR:'三點水', STAY:'等等空間', REST:'約書旅' \}/);
   assert.match(html, /const AUTH_ORIGIN = \/\^pos\\\.\/i\.test\(location\.hostname\)/);
   assert.match(html, /\$\{esc\(AUTH_ORIGIN\)\}\/auth\/google\?redirect=\$\{redirect\}/);
-  assert.match(html, /const KEY = 'tth_token'/);
+  assert.match(html, /const KEY = 'tth_pos_token_' \+ \(POS_URL_VENUE \|\| 'home'\)\.toLowerCase\(\);/, 'KK 11/4：各品牌登入狀態分開存');
   assert.match(html, /d\.role !== 'admin'/); assert.match(html, /d\.brands && !d\.brands\.some\(b => BRAND_LABEL\[b\]\)/, '等等空間子帳號擋在 POS 外');
   // 現場長期開著：喚醒重抓、到期前背景續期
   assert.match(html, /addEventListener\('visibilitychange', \(\) => \{ if \(!document\.hidden && DATA\) \{ activate\(\); refreshPending\(\); \} \}\)/);

@@ -119,7 +119,8 @@ test('前端：app／admin／pos／order 都載入 sso-client.js 並接上靜默
   const m = read('public/m.html'), a = read('public/admin.html'), p = read('public/pos.html'), o = read('public/order.html');
   for (const [n, s] of [['m', m], ['admin', a], ['pos', p], ['order', o]]) {
     assert.match(s, /<script src="\/sso-client\.js"><\/script>/, n);
-    assert.match(s, /EmojiSSO\.silent\(/, n);
+    if (n === 'pos') assert.doesNotMatch(s, /EmojiSSO\.silent\(/, 'POS 各品牌登入不共享（KK 11/4），不靜默登入');
+    else assert.match(s, /EmojiSSO\.silent\(/, n);
     assert.match(s, /EmojiSSO\.wrap\(/, n);
     assert.match(s, /EmojiSSO\.logout\(/, n);
   }

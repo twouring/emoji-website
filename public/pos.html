@@ -352,7 +352,6 @@
    畫面繪製全部在 /pos-ops.js（與 /admin 共用），本檔只管登入、分頁切換、店別切換。 */
 // 畫面禁止縮放：touch-action（CSS）擋雙擊放大，這裡再擋 iOS Safari 的雙指縮放手勢（gesturestart 不受 touch-action 管）
 ['gesturestart','gesturechange','gestureend'].forEach(ev => document.addEventListener(ev, e => e.preventDefault()));
-const KEY = 'tth_token';
 const app = document.getElementById('app');
 const esc = s => (s == null ? '' : String(s)).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const NT = n => 'NT$' + Number(n || 0).toLocaleString('en-US');
@@ -363,6 +362,10 @@ const POS_VENUE_BASE = { CAFE:'/atcafe', BAR:'/3am', STAY:'/staysquare', REST:'/
 const POS_VENUE_COLOR = { CAFE:'#984C37', BAR:'#6B8FAB', STAY:'#2B4064', REST:'#5A4632' };
 const POS_URL_VENUE = Object.keys(POS_VENUE_BASE).find(v => new RegExp('^' + POS_VENUE_BASE[v] + '(/|$)').test(location.pathname)) || '';
 const POS_BASE = POS_URL_VENUE ? POS_VENUE_BASE[POS_URL_VENUE] : '';   // 沒有 /pos（KK 11/4）：首頁只有品牌選擇
+/* 登入狀態依品牌分開存（KK 11/4）：同網域的分頁共用 localStorage，所以每個品牌一把 key；在咖啡的分頁登入／登出不影響三點水。
+   首頁（品牌選擇頁）不登入。舊版共用的 tth_token 一律清掉，避免被任何品牌沿用 */
+const KEY = 'tth_pos_token_' + (POS_URL_VENUE || 'home').toLowerCase();
+try { localStorage.removeItem('tth_token'); localStorage.removeItem('tth_name'); } catch (e) {}
 if (POS_URL_VENUE) {
   document.documentElement.dataset.venue = POS_URL_VENUE; document.title = BRAND_LABEL[POS_URL_VENUE] + ' POS';
   const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = POS_VENUE_COLOR[POS_URL_VENUE];
@@ -669,17 +672,15 @@ async function renewToken(){
 }
 setInterval(renewToken, 3600e3);
 // 登出也清 sso.emoji.tw 的登入，否則平板上會被單一登入自動登回
-document.getElementById('p-logout').onclick = () => { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); /* 登出一律回 pos.emoji.tw 首頁（選品牌）KK 11/4 */ if (!(globalThis.EmojiSSO && EmojiSSO.logout(location.origin + '/'))) location.replace('/'); };
+document.getElementById('p-logout').onclick = () => { localStorage.removeItem(KEY);   /* 只清這個品牌的登入（KK 11/4 各品牌不共享） */ /* 登出一律回 pos.emoji.tw 首頁（選品牌）KK 11/4 */ if (!(globalThis.EmojiSSO && EmojiSSO.logout(location.origin + '/'))) location.replace('/'); };
 
 async function main(){
   try { const dv = await api('/pos-devices/' + encodeURIComponent(DEVICE_ID)); DEVICE_BOUND = !!dv.bound; } catch (e) {}
   // 單一登入：只在尚未綁定的裝置（顯示管理員登入畫面時）向 sso.emoji.tw 靜默取登入；已綁定的平板走員工四位數密碼
-  if (!POS_URL_VENUE) {   // 首頁：員工 PIN 登入中就直接回自己的品牌，其他人選品牌
-    const op = token && (() => { try { return JSON.parse(atob(token.split('.')[0].replace(/-/g,'+').replace(/_/g,'/'))); } catch (e) { return null; } })();
-    if (op && op.operator_staff_id && POS_VENUE_BASE[op.pos_venue]) { location.replace(POS_VENUE_BASE[op.pos_venue]); return; }
+  if (!POS_URL_VENUE) {   // 首頁只選品牌，不帶任何登入
     return renderBrandPicker();
   }
-  if (!token && !DEVICE_BOUND && globalThis.EmojiSSO && await EmojiSSO.silent(KEY)) return;
+  // 不做 SSO 靜默登入（KK 11/4）：否則管理員在一個品牌登入，開另一品牌分頁也會自動登入＝共享登入狀態；每個品牌要自己按登入
   if (!token) return showLoginScreen();
   try {
     const d = await api('/state');
@@ -690,7 +691,7 @@ async function main(){
     if (justLoggedInByAdmin && !d.me?.operator) {
       // 只有 POS 專用帳號能綁定裝置；綁完立刻登出，裝置只留員工四位數密碼入口（POS 帳號不留在平板上）
       const isPosAccount = String(d.me?.email || '').toLowerCase() === 'pos@emoji.tw';
-      api('/admin/pos-devices/bind', { method:'POST', body:{ device_id: DEVICE_ID } }).then(() => { DEVICE_BOUND = true; if (isPosAccount) { localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); if (!(globalThis.EmojiSSO && EmojiSSO.logout(location.origin + POS_BASE))) location.reload(); } }).catch(() => {});
+      api('/admin/pos-devices/bind', { method:'POST', body:{ device_id: DEVICE_ID } }).then(() => { DEVICE_BOUND = true; if (isPosAccount) { localStorage.removeItem(KEY); if (!(globalThis.EmojiSSO && EmojiSSO.logout(location.origin + POS_BASE))) location.reload(); } }).catch(() => {});
     }
     DATA = d;
     MENU_DOC = (typeof d.content?.menu === 'string' && d.content.menu.trim()) ? MenuLib.parseMenuDoc(d.content.menu) : MenuLib.parseMenuDoc('');
