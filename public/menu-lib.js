@@ -308,7 +308,7 @@
   const MEMBER_LABEL = { zh: '聚落價', en: 'Hub rate', ja: 'ハブ価格' };
   const pick = (label, lang) => label[lang] || label.zh;
   // 公開菜單暫不顯示聚落價的店別（KK 2026-11-04：在咖啡官網先不放聚落價）；POS／App 結帳照常套用
-  const HIDE_MEMBER_PRICE_VENUES = ['CAFE'];
+  const HIDE_MEMBER_PRICE_VENUES = ['CAFE', 'BAR'];
   const showMemberPrice = it => !HIDE_MEMBER_PRICE_VENUES.includes(it.venue) && memberPrice(it) > 0 && memberPrice(it) < it.price;
 
   function groupBy(items, key) {
