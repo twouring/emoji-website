@@ -529,8 +529,11 @@ POS 輪詢未處理的呼叫（每 5 秒）。回 `{ pending:[{id,session_id,tab
 ### POST /api/order-feedback
 桌邊點餐意見回饋（客人端）。body `{ s, k, kind, text, rating?, name?, lang? }`；`kind` 為 `app` 點餐操作、`food` 餐點飲品、`service` 服務、`space` 環境、`other` 其他；`text` 2–500 字；`rating` 1–5 或省略。存 `order_feedback` 表，不進帳、不通知 POS。同桌次最多 5 筆（超過 429），每 IP 每分鐘 5 次。QR 無效 403、桌已結束 409。成功 201 `{ ok, id }`。
 
+### POST /api/me/feedback
+會員 App 意見回饋。需以個人會員登入；body `{ kind, text, rating?, lang? }`，欄位規則同桌邊點餐回饋：`kind` 為 `app`、`food`、`service`、`space`、`other`，`text` 2–500 字，`rating` 為 1–5 或省略。每帳號每小時最多 5 筆。成功 201 `{ ok:true }`；資料存 `member_feedback`，由 POS「設定 → 回饋」以來源「會員 App」一併查看。
+
 ### GET /api/admin/orders/feedback
-POS「設定 → 回饋」。query `from`、`to`（YYYY-MM-DD，台北時間，皆可省略）。回 `{ feedback:[{id,table_no,kind,rating,text,name,lang,created_at}], kinds, count, avg_rating }`，新到舊最多 500 筆。
+POS「設定 → 回饋」。query `from`、`to`（YYYY-MM-DD，台北時間，皆可省略）。回 `{ feedback:[{id,source,table_no,kind,rating,text,name,lang,created_at}], kinds, count, avg_rating }`，包含桌邊點餐與會員 App 回饋，新到舊最多 500 筆。
 
 ### GET /api/me/bug-reports
 大家來找碴（會員 App）。回登入會員自己的回報 `{ reports:[{id,kind,location,text,photos,status,review_note,created_at,reviewed_at}], points, pending, kinds }`，新到舊最多 100 筆。`points`＝認可件數；每認可一件已加 1 點到會員點數（`yan_ledger` grant，`ref_type=bug`），取消認可會沖回。非會員身分 403。

@@ -24,14 +24,14 @@ function paintFeedback(){
         <label>類別<select name="kind"><option value="">全部（${d.count}）</option>${Object.entries(K).map(([k, v]) => `<option value="${esc(k)}" ${FB.kind === k ? 'selected' : ''}>${esc(v.zh)}（${counts[k] || 0}）</option>`).join('')}</select></label>
         <button type="submit" class="btn btn--ghost btn-sm">查詢</button>${rows.length ? '<button type="button" class="btn btn--ghost btn-sm" data-fb-csv>匯出 CSV</button>' : ''}</form>
       <div class="tip-kpis"><div><small>期間回饋</small><b>${d.count}</b><small>筆</small></div><div><small>平均滿意度</small><b>${d.avg_rating == null ? '—' : d.avg_rating + ' / 5'}</b></div></div>
-      ${rows.length ? `<table class="a-tbl fb-tbl"><thead><tr><th>時間</th><th>桌</th><th>類別</th><th>滿意度</th><th>內容</th><th>稱呼</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(fbTime(r.created_at))}</td><td>${esc(r.table_no)}</td><td>${esc((K[r.kind] || {}).zh || r.kind)}</td><td>${r.rating ? '★'.repeat(r.rating) : '—'}</td><td class="fb-text">${esc(r.text)}${r.lang && r.lang !== 'zh' ? ` <small>（${esc(lang[r.lang] || r.lang)}）</small>` : ''}</td><td>${esc(r.name || '—')}</td></tr>`).join('')}</tbody></table>` : '<p class="a-empty">這段期間沒有回饋。</p>'}
+      ${rows.length ? `<table class="a-tbl fb-tbl"><thead><tr><th>時間</th><th>來源</th><th>桌</th><th>類別</th><th>滿意度</th><th>內容</th><th>稱呼</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(fbTime(r.created_at))}</td><td>${esc(r.source || '桌邊點餐')}</td><td>${esc(r.table_no || '—')}</td><td>${esc((K[r.kind] || {}).zh || r.kind)}</td><td>${r.rating ? '★'.repeat(r.rating) : '—'}</td><td class="fb-text">${esc(r.text)}${r.lang && r.lang !== 'zh' ? ` <small>（${esc(lang[r.lang] || r.lang)}）</small>` : ''}</td><td>${esc(r.name || '—')}</td></tr>`).join('')}</tbody></table>` : '<p class="a-empty">這段期間沒有回饋。</p>'}
     </div>`;
 }
 document.addEventListener('click', e => {
   if (!e.target.closest('#fb-body')) return;
   const b = e.target.closest('button'); if (!b) return;
   if (b.matches('[data-fb-back]')) return go('settings');
-  if (b.matches('[data-fb-csv]')) { const K = FB.data.kinds || {}; downloadCSV(`意見回饋_${FB.from}_${FB.to}.csv`, [['時間', '桌', '類別', '滿意度', '內容', '稱呼', '語言'], ...fbRows().map(r => [fbTime(r.created_at), r.table_no, (K[r.kind] || {}).zh || r.kind, r.rating || '', r.text, r.name, r.lang])]); }
+  if (b.matches('[data-fb-csv]')) { const K = FB.data.kinds || {}; downloadCSV(`意見回饋_${FB.from}_${FB.to}.csv`, [['時間', '來源', '桌', '類別', '滿意度', '內容', '稱呼', '語言'], ...fbRows().map(r => [fbTime(r.created_at), r.source || '桌邊點餐', r.table_no || '', (K[r.kind] || {}).zh || r.kind, r.rating || '', r.text, r.name, r.lang])]); }
 });
 document.addEventListener('submit', e => {
   const f = e.target; if (!f.matches('[data-fb-range]')) return; e.preventDefault();

@@ -788,6 +788,11 @@ async function migrate() {
     id TEXT PRIMARY KEY, session_id TEXT NOT NULL, table_no TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL, rating INT, text TEXT NOT NULL,
     name TEXT NOT NULL DEFAULT '', lang TEXT NOT NULL DEFAULT 'zh', created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE INDEX IF NOT EXISTS order_feedback_created_idx ON order_feedback(created_at DESC)`);
+  // 會員 App 意見回饋：已登入會員可直接送出，POS「設定 → 回饋」與桌邊點餐回饋一起查看。
+  await q(`CREATE TABLE IF NOT EXISTS member_feedback (
+    id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL, rating INT, text TEXT NOT NULL,
+    lang TEXT NOT NULL DEFAULT 'zh', created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE INDEX IF NOT EXISTS member_feedback_created_idx ON member_feedback(created_at DESC)`);
   // 大家來找碴（lib/bug-reports.js）：會員在 App 拍照回報，POS「設定 → 找碴」審核；認可一件＝會員點數 +1（yan_ledger，取消認可沖回）
   await q(`CREATE TABLE IF NOT EXISTS bug_reports (
     id TEXT PRIMARY KEY, user_id TEXT NOT NULL, user_name TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL, location TEXT NOT NULL, text TEXT NOT NULL DEFAULT '',
@@ -7611,12 +7616,24 @@ app.post('/api/order-feedback',rateLimit({max:5}),requireDb,wrap(async(req,res)=
     res.status(201).json({ok:true,id});
   }catch(e){if(e&&e.status)return res.status(e.status).json({error:e.message});throw e;}
 }));
+app.post('/api/me/feedback',auth,requireDb,rateLimit({max:5,windowMs:3600000}),wrap(async(req,res)=>{
+  if(!req.auth.sub)return res.status(403).json({error:'請以會員身分登入。'});
+  try{
+    const f=orderFeedback.validate(req.body||{});
+    const user=(await q('SELECT name FROM users WHERE id=$1',[req.auth.sub])).rows[0];
+    await q('INSERT INTO member_feedback(id,user_id,name,kind,rating,text,lang) VALUES($1,$2,$3,$4,$5,$6,$7)',[uid('mfb_'),req.auth.sub,String(user?.name||''),f.kind,f.rating,f.text,f.lang]);
+    res.status(201).json({ok:true});
+  }catch(e){if(e&&e.status)return res.status(e.status).json({error:e.message});throw e;}
+}));
 app.get('/api/admin/orders/feedback',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   res.set('Cache-Control','no-store');
   const day=v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v||''))?String(v):null;const from=day(req.query.from),to=day(req.query.to);
-  const rows=(await q(`SELECT f.id,f.table_no,f.kind,f.rating,f.text,f.name,f.lang,f.created_at FROM order_feedback f
+  const rows=(await q(`SELECT f.id,'桌邊點餐' AS source,f.table_no,f.kind,f.rating,f.text,f.name,f.lang,f.created_at FROM order_feedback f
     WHERE ($1::date IS NULL OR f.created_at>=($1::date::timestamp AT TIME ZONE 'Asia/Taipei')) AND ($2::date IS NULL OR f.created_at<(($2::date+1)::timestamp AT TIME ZONE 'Asia/Taipei'))
-    ORDER BY f.created_at DESC LIMIT 500`,[from,to])).rows;
+    UNION ALL
+    SELECT f.id,'會員 App' AS source,'' AS table_no,f.kind,f.rating,f.text,f.name,f.lang,f.created_at FROM member_feedback f
+    WHERE ($1::date IS NULL OR f.created_at>=($1::date::timestamp AT TIME ZONE 'Asia/Taipei')) AND ($2::date IS NULL OR f.created_at<(($2::date+1)::timestamp AT TIME ZONE 'Asia/Taipei'))
+    ORDER BY created_at DESC LIMIT 500`,[from,to])).rows;
   const rated=rows.filter(r=>r.rating);
   res.json({feedback:rows,kinds:orderFeedback.KINDS,count:rows.length,avg_rating:rated.length?Math.round(rated.reduce((a,r)=>a+r.rating,0)/rated.length*10)/10:null});
 }));
