@@ -101,13 +101,13 @@ function paintSongs(){
   const player = s.player_device ? (me ? '<span class="pill pill-ok">這台播放中</span>' : '<span class="pill pill-wait">另一台播放中</span>') : '<span class="pill pill-bad">未指定播放裝置</span>';
   const nowCard = now
     ? `<div class="song-now">${now.thumb ? `<img src="${esc(now.thumb)}" alt="">` : '<span class="song-ph lg" aria-hidden="true">♪</span>'}<div class="song-now-main">${songWho(now)}<b>${esc(now.title)}</b><small>${songMeta(now)}</small></div><button type="button" class="btn btn--solid" data-song-skip>下一首</button></div>`
-    : `<div class="song-now is-empty"><span class="song-ph lg" aria-hidden="true">♪</span><div class="song-now-main"><b>目前沒有在播放</b><small>${s.playlist.length ? (s.player_device ? '播放裝置會自動開始播常態歌單。' : '先在接音響的平板按「在這台播放」。') : '到「設定 → 點歌」匯入常態歌單，沒人點歌時會自動播放。'}</small></div>${d.queue.length || s.playlist.length ? '<button type="button" class="btn btn--solid" data-song-skip>開始播放</button>' : ''}</div>`;
+    : `<div class="song-now is-empty"><span class="song-ph lg" aria-hidden="true">♪</span><div class="song-now-main"><b>目前沒有在播放</b><small>${(s.playlist.length || (s.schedules || []).length) ? (s.player_device ? '播放裝置會自動開始播常態歌單。' : '先在接音響的平板按「在這台播放」。') : '到「設定 → 點歌」匯入常態歌單，沒人點歌時會自動播放。'}</small></div>${d.queue.length || s.playlist.length ? '<button type="button" class="btn btn--solid" data-song-skip>開始播放</button>' : ''}</div>`;
   const up = d.upcoming || { items: d.queue.map((t, i) => ({ ...t, kind: 'request', pos: i + 1 })), shuffle: false };
   const reqN = d.queue.length;
   const queue = (up.items.length
     ? `<ol class="song-list song-queue">${up.items.map(t => songRow(t, t.kind === 'request' ? songQueueActs(t, reqN) : '', { rank: t.pos })).join('')}</ol>`
     : '<p class="a-empty">沒有接下來的歌。到「設定 → 點歌」匯入常態歌單。</p>')
-    + (up.shuffle ? `<p class="hint">常態歌單 ${esc(up.playlist_count)} 首隨機播放，以上是這一輪已洗好的順序。</p>` : '');
+    + (up.shuffle ? `<p class="hint">${esc(up.playlist_name || '常態歌單')} ${esc(up.playlist_count)} 首隨機播放，以上是這一輪已洗好的順序。</p>` : '');
   const hist = d.history.length ? `<details class="song-hist"><summary>最近播過（${Math.min(8, d.history.length)}）</summary><ul class="song-list">${d.history.slice(0, 8).map(t => songRow(t, t.result === 'error' ? '<span class="pill pill-wait">無法播放已跳過</span>' : t.result === 'skip' ? '<span class="pill pill-draft">跳過</span>' : '')).join('')}</ul></details>` : '';
   // 重繪會換掉整個 DOM：先記下兩欄捲動位置，畫完還原（找歌換分頁才回到頂端），輪詢時才不會一直跳回最上面
   const keep = [...host.querySelectorAll('.song-scroll')].map(e => e.scrollTop), sameView = SONGS.painted === SONGS.view; SONGS.painted = SONGS.view;
@@ -189,6 +189,10 @@ function paintSongSettings(){
   const pl = s.playlist.length
     ? `<details class="song-hist"><summary>查看常態歌單（${s.playlist.length} 首）</summary><ol class="song-list song-pl">${s.playlist.map((t, i) => songRow(t, `<button type="button" class="btn btn--ghost btn-sm song-danger" data-song-pl-del="${i}" aria-label="從常態歌單移除 ${esc(t.title)}">移除</button>`, { rank: i + 1 })).join('')}</ol><div class="song-btns"><button type="button" class="btn btn--ghost btn-sm song-danger" data-song-pl-clear>清空常態歌單</button></div></details>`
     : '<p class="a-empty">還沒有常態歌單。貼 YouTube 播放清單網址匯入。</p>';
+  const DAY = '日一二三四五六', days = a => a.length === 7 ? '每天' : a.map(x => DAY[x]).join('、');
+  const sch = (s.schedules || []).length
+    ? `<ol class="song-list">${s.schedules.map((x, i) => `<li class="song-row"><div class="song-meta"><b>${esc(x.name)}</b><small>${esc(days(x.days))} ${esc(x.start)}–${esc(x.end)}・${esc(x.playlist.length)} 首</small></div><div class="song-act"><button type="button" class="btn btn--ghost btn-sm song-danger" data-song-sch-del="${i}" aria-label="移除時段歌單 ${esc(x.name)}">移除</button></div></li>`).join('')}</ol>`
+    : '<p class="a-empty">還沒有時段歌單。</p>';
   host.innerHTML = `
     <label class="song-switch"><input type="checkbox" data-song-enabled ${s.enabled ? 'checked' : ''}><span><b>開放客人點歌</b><small>${s.enabled ? `已開放：客人掃桌邊 QR 可點歌，每首 NT$${esc(s.price)}，記在這桌帳上。` : '目前關閉：客人菜單不會出現「點歌」。'}</small></span></label>
     <form class="song-set" data-song-set><label>每首價格（NT$）<input type="number" name="price" min="0" max="1000" step="1" inputmode="numeric" value="${esc(s.price)}"></label><label>每桌同時最多排（首）<input type="number" name="max_per_table" min="1" max="20" step="1" inputmode="numeric" value="${esc(s.max_per_table)}"></label><label>單首長度上限（分鐘）<input type="number" name="max_minutes" min="1" max="60" step="1" inputmode="numeric" value="${esc(s.max_minutes)}"></label><button type="submit" class="btn btn--solid">儲存</button></form>
@@ -199,6 +203,8 @@ function paintSongSettings(){
     <form class="song-search" data-song-import><input type="url" name="pl" placeholder="貼 YouTube 播放清單網址（含 list=）" autocomplete="off"><button type="submit" class="btn btn--solid">匯入（取代）</button></form>
     ${yt.connected ? '<div class="song-btns"><button type="button" class="btn btn--ghost btn-sm" data-song-mine>從我的 YouTube 播放清單匯入</button></div>' : ''}
     ${mine}${pl}
+    <h4>時段歌單</h4><p class="hint">到了設定的時段就改播這份歌單（台北時間）；都沒對到時播常態歌單。</p>
+    ${sch}
     <h4>YouTube 帳號</h4>${yt.connected
       ? `<p class="hint">已綁定${yt.channel ? `：<b>${esc(yt.channel.title)}</b>` : ''}${yt.connected_by ? `（${esc(yt.connected_by)} 綁定）` : ''}。搜尋、排行榜與匯入使用這個帳號。</p><div class="song-btns"><button type="button" class="btn btn--ghost btn-sm song-danger" data-song-yt-off>解除綁定</button></div>`
       : `<p class="hint">${yt.api_key ? '目前用系統金鑰搜尋。' : '尚未綁定，客人與店員都無法搜尋。'}綁定後也可匯入帳號裡的播放清單。</p><div class="song-btns"><button type="button" class="btn btn--solid btn-sm" data-song-yt-on ${yt.oauth_ready ? '' : 'disabled'}>綁定 YouTube 帳號</button></div>`}`;
@@ -210,6 +216,7 @@ document.addEventListener('click', async e => {
   if (b.matches('[data-song-claim]')) return songClaim();
   if (b.matches('[data-song-release]')) return songRelease();
   if (b.dataset.songPlDel != null && b.dataset.songPlDel !== '') { const i = Number(b.dataset.songPlDel); return songSavePlaylist(D.settings.playlist.filter((_, j) => j !== i)); }
+  if (b.dataset.songSchDel != null && b.dataset.songSchDel !== '') { const i = Number(b.dataset.songSchDel), x = D.settings.schedules[i]; if (!x || !await posConfirm(`移除時段歌單「${x.name}」？`, { ok: '移除', danger: true })) return; return songDo(() => api('/admin/orders/songs/settings', { method: 'POST', body: { schedules: D.settings.schedules.filter((_, j) => j !== i) } }), '時段歌單已更新'); }
   if (b.matches('[data-song-pl-clear]')) { if (!await posConfirm('清空常態歌單？沒有人點歌時會變成安靜無聲。', { ok: '清空', danger: true })) return; return songSavePlaylist([]); }
   if (b.matches('[data-song-mine]')) { try { SONGS.mine = (await api('/admin/orders/songs/youtube/playlists')).playlists; } catch (err) { toast(err.message); } return paintSongSettings(); }
   if (b.dataset.songMineImport || b.dataset.songMineAppend) { const id = b.dataset.songMineImport || b.dataset.songMineAppend; b.disabled = true; return songDo(() => api('/admin/orders/songs/playlist/import', { method: 'POST', body: { playlist: id, mode: b.dataset.songMineAppend ? 'append' : 'replace' } }), d => `已匯入 ${d.imported} 首`); }
@@ -259,7 +266,7 @@ function songPlayerSync(){
   songEnsureApi(); if (!SONG_YT_READY) return;
   const d = SONGS.data, now = d.now; songDock();
   // 沒在播但有歌可播 → 換下一首；正在播常態歌單、有人點歌 → 立刻切過去
-  if (!now && (d.queue.length || d.settings.playlist.length)) return songNext('ended');
+  if (!now && (d.queue.length || d.settings.playlist.length || (d.settings.schedules || []).length)) return songNext('ended');
   if (now && now.kind === 'playlist' && d.queue.length) return songNext('preempt');
   if (!now) { try { SONG_YT && SONG_YT.stopVideo(); } catch (e) {} SONG_LOADED = ''; return; }
   if (SONG_LOADED === now.id) return;

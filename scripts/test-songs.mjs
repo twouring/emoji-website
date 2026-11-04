@@ -290,3 +290,29 @@ test('快速選：選歌手／選歌分組，點了帶入關鍵字搜尋；客�
   assert.equal(P.click(btn({ pickMode: 'song' }), st), true); assert.equal(st.mode, 'song');
   assert.deepEqual({ ...P.click(btn({ pickQ: '晴天 周杰倫' }), st) }, { q: '晴天 周杰倫' });
 });
+
+test('時段歌單：依台北時間切換、跨午夜、都沒對到回常態歌單', () => {
+  const at = s => Date.parse(s + '+08:00');
+  const s = songs.normalizeSettings({ playlist: [T(ID(1))], schedules: [
+    { name: '平日', days: [1, 2, 3, 4, 5], start: '08:00', end: '17:00', playlist: [T(ID(2))] },
+    { name: '五六深夜', days: [5, 6], start: '21:00', end: '02:30', playlist: [T(ID(3))] },
+    { name: '壞的', days: [1], start: '25:00', end: '26:00', playlist: [T(ID(4))] },
+    { name: '空的', days: [1], start: '01:00', end: '02:00', playlist: [] },
+  ] });
+  assert.equal(s.schedules.length, 2);
+  assert.equal(songs.activePlaylist(s, at('2026-11-04T09:00:00')).name, '平日');      // 週三
+  assert.equal(songs.activePlaylist(s, at('2026-11-07T09:00:00')).index, -1);         // 週六早上→常態
+  assert.equal(songs.activePlaylist(s, at('2026-11-06T23:00:00')).name, '五六深夜');  // 週五晚
+  assert.equal(songs.activePlaylist(s, at('2026-11-08T01:00:00')).name, '五六深夜');  // 週六跨到週日凌晨
+  assert.equal(songs.activePlaylist(s, at('2026-11-09T01:00:00')).index, -1);         // 週日跨週一凌晨不算
+  const st = songs.normalizeState('');
+  assert.equal(songs.advance(st, s, { now: at('2026-11-04T09:00:00') }).song.video_id, ID(2));
+  assert.equal(songs.advance(st, s, { now: at('2026-11-04T20:00:00') }).song.video_id, ID(1));
+  assert.equal(songs.upcoming(st, s, { now: at('2026-11-04T09:00:00') }).playlist_name, '平日');
+  assert.deepEqual(songs.patchSettings(s, { schedules: [] }).schedules, []);
+});
+test('時段歌單接線：設定頁列出、可移除、播放器有時段歌單也會自動播', () => {
+  const js = read('public/pos-songs.js');
+  assert.match(js, /時段歌單/); assert.match(js, /data-song-sch-del/); assert.match(js, /settings\.schedules/);
+  assert.match(read('server.js'), /songs\.activePlaylist\(settings\)/);
+});

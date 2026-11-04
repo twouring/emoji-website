@@ -7593,8 +7593,9 @@ app.get('/api/admin/orders/songs',auth,adminOnly,requireDb,wrap(async(req,res)=>
   res.set('Cache-Control','no-store');
   const settings=await songSettings();let state=songs.normalizeState(await contentValue('song_state'));
   // 隨機播放：還沒洗牌（或歌單換過、袋子用完）就先洗好一輪存起來，列出的「接下來」才會跟實際播放順序一致
-  if(settings.shuffle&&settings.playlist.length&&!songs.shuffleBag(settings.playlist,state.shuffle_bag).every((id,i)=>id===state.shuffle_bag[i]))
-    state=await withSongs(async(client,{settings:s2,state:st})=>{const next={...st,shuffle_bag:songs.shuffleBag(s2.playlist,st.shuffle_bag)};await saveSongState(client,next);return next;});
+  const activeList=songs.activePlaylist(settings).playlist;
+  if(settings.shuffle&&activeList.length&&!songs.shuffleBag(activeList,state.shuffle_bag).every((id,i)=>id===state.shuffle_bag[i]))
+    state=await withSongs(async(client,{settings:s2,state:st})=>{const next={...st,shuffle_bag:songs.shuffleBag(songs.activePlaylist(s2).playlist,st.shuffle_bag)};await saveSongState(client,next);return next;});
   res.json(await songAdminView(settings,state));
 }));
 app.post('/api/admin/orders/songs/settings',auth,adminOnly,requireDb,wrap(async(req,res)=>{
