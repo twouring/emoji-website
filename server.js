@@ -7373,12 +7373,12 @@ app.post('/api/admin/sales/ctbc/sync',auth,adminOnly,requireDb,wrap(async(req,re
 }));
 /* 訂位：依日期列出（餐飲子帳號只看自己時段的）、改狀態（確認／婉拒會寄信給留 Email 的客人）、排桌與店內備註 */
 app.get('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  const venues=null;   // 訂位是整間店共用：任何店別的帳號都能看與處理全部時段
+  const pv=pinVenue(req,req.query.venue),venues=pv?[pv]:null;   /* 品牌 POS 帶 ?venue= 只看該品牌時段（KK 11/5）；不帶＝全部 */
   const from=/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from||''))?String(req.query.from):new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Taipei'});
   const days=Math.min(60,Math.max(1,Number(req.query.days)||7));
   const rows=(await q(`SELECT id,request_id,to_char(reserve_date,'YYYY-MM-DD') AS reserve_date,reserve_time,period,party_size,name,phone,email,note,source,status,table_no,staff_note,internal_note,COALESCE((SELECT name FROM pos_staff ps WHERE 'staff:'||ps.id=handled_by),handled_by) AS handled_by,created_at,updated_at FROM dining_reservations WHERE reserve_date>=$1::date AND reserve_date<$1::date+$2::int AND deleted_at IS NULL ORDER BY reserve_date,reserve_time`,[from,days])).rows
     .map(r=>({...r,venue:tableOrders.reservationVenue(r.reserve_time)})).filter(r=>!venues||venues.includes(r.venue));
-  const pending=Number((await q("SELECT COUNT(*)::int AS n FROM dining_reservations WHERE status='new' AND reserve_date>=CURRENT_DATE")).rows[0].n);
+  const pending=(await q("SELECT reserve_time FROM dining_reservations WHERE status='new' AND reserve_date>=CURRENT_DATE AND deleted_at IS NULL")).rows.filter(r=>!venues||venues.includes(tableOrders.reservationVenue(r.reserve_time))).length;
   res.json({reservations:rows,from,days,pending,labels:tableOrders.RESERVATION_LABEL});
 }));
 /* 可訂位時間管理：每週固定＋特定日期例外（含公休）；只限制客人端，櫃檯登記不受限 */
