@@ -102,6 +102,27 @@
 .rb-table tr:nth-child(odd) { background: var(--rb-tone); }
 .rb-table tr:nth-child(odd) th { padding-left: 12px; }
 
+/* 價目：白天淺色塊、夜間墨色塊並排；無線無陰影 */
+.rb-price { padding-top: clamp(120px, 14vw, 220px) !important; }
+.rb-price h2 { font-size: max(1rem, var(--s-head)); line-height: 1.02; }
+.rb-price__lede { margin-top: 20px; color: var(--rb-soft); }
+.rb-price__grid { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: 16px; margin-top: 56px; align-items: start; }
+.rb-price__block { grid-column: 2 / 7; padding: clamp(24px, 3vw, 40px); background: var(--rb-tone); }
+.rb-price__block--night { grid-column: 8 / 13; margin-top: 64px; background: var(--rb-ink); color: var(--rb-paper); }
+.rb-price__block h3 { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-family: var(--rb-serif); font-weight: 500; font-size: max(1rem, var(--s-lead)); }
+.rb-price__block h3 span { font-size: max(1rem, var(--s-body)); font-variant-numeric: tabular-nums; opacity: .8; }
+.rb-price__block dl { margin-top: 20px; display: grid; gap: 4px; }
+.rb-price__block dl div { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; }
+.rb-price__block dt { font-size: max(1rem, var(--s-body)); }
+.rb-price__block dd { margin: 0; font-size: max(1rem, var(--s-lead)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rb-price__rules { margin: 40px 0 0 calc((100% / 12) * 1); padding-left: 1.2em; display: grid; gap: 8px; max-width: 60ch; font-size: max(1rem, var(--s-body)); line-height: 1.6; color: var(--rb-soft); }
+@media (max-width: 760px) {
+  .rb-price__grid { grid-template-columns: 1fr; row-gap: 16px; margin-top: 32px; }
+  .rb-price__block, .rb-price__block--night { grid-column: 1; margin-top: 0; }
+  .rb-price__block--night { width: 88%; justify-self: end; }
+  .rb-price__rules { margin-left: 0; }
+}
+
 /* 寬標題，問題縮排 */
 
 .rb-faq h2 { font-size: max(1rem, var(--s-head)); line-height: 1.02; }
