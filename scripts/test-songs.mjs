@@ -335,3 +335,16 @@ test('播放裝置在點歌分頁看得到播放器與播放／暫停（KK 11/4�
   assert.match(html, /songPlaceDock\(\); \/\/ 離開點歌分頁/);
   assert.doesNotMatch(js, /播放裝置會自動開始播常態歌單/);
 });
+
+test('時段歌單播完輪播、播放卡住自動重試（KK 11/5）', () => {
+  const s = songs.normalizeSettings({ shuffle: true, schedules: [{ name: 'X', days: [0,1,2,3,4,5,6], start: '00:00', end: '24:00', playlist: [T(ID(1)), T(ID(2))] }] });
+  let st = songs.normalizeState(''); const seen = [];
+  for (let i = 0; i < 6; i++) { const r = songs.advance(st, s, { current: st.now && st.now.id }); st = r.state; seen.push(r.song.video_id); }
+  assert.equal(seen.length, 6); assert.ok(seen.every(Boolean));
+  const s2 = songs.normalizeSettings({ shuffle: false, schedules: s.schedules }); st = songs.normalizeState(''); const seq = [];
+  for (let i = 0; i < 5; i++) { const r = songs.advance(st, s2, { current: st.now && st.now.id }); st = r.state; seq.push(r.song.video_id); }
+  assert.deepEqual(seq, [ID(1), ID(2), ID(1), ID(2), ID(1)]);
+  const js = read('public/pos-songs.js');
+  assert.match(js, /function songWatch\(\)/); assert.match(js, /SONG_YT\.mute\(\); SONG_MUTED = true; SONG_YT\.loadVideoById/); assert.match(js, /開啟聲音/); assert.match(js, /自動\$\{up\.shuffle \? '重新洗牌' : '從頭'\}輪播/);
+  assert.match(js, /width: '356', height: '200'/);
+});

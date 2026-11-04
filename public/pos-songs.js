@@ -112,14 +112,14 @@ function paintSongs(){
   const player = s.player_device ? (me ? '<span class="pill pill-ok">這台播放中</span>' : '<span class="pill pill-wait">另一台播放中</span>') : '<span class="pill pill-bad">未指定播放裝置</span>';
   const art = me ? '<div class="song-slot" data-song-slot></div>' : now && now.thumb ? `<img src="${esc(now.thumb)}" alt="">` : '<span class="song-ph lg" aria-hidden="true">♪</span>';
   const nowCard = now
-    ? `<div class="song-now${me ? ' is-player' : ''}">${art}<div class="song-now-main">${songWho(now)}<b>${esc(now.title)}</b><small>${songMeta(now)}</small>${me ? `<small class="song-blocked" data-song-blocked ${SONG_PLAYING ? 'hidden' : ''}>沒有聲音？點一下左邊的播放器或「播放」。</small>` : '<small>播放與暫停在播放裝置（接音響的平板）上操作。</small>'}</div><div class="song-now-act">${me ? `<button type="button" class="btn btn--solid" data-song-toggle>${SONG_PLAYING ? '暫停' : '播放'}</button>` : ''}<button type="button" class="btn btn--solid" data-song-skip>下一首</button></div></div>`
+    ? `<div class="song-now${me ? ' is-player' : ''}">${art}<div class="song-now-main">${songWho(now)}<b>${esc(now.title)}</b><small>${songMeta(now)}</small>${me ? `<small class="song-blocked" data-song-blocked ${SONG_PLAYING ? 'hidden' : ''}>沒有聲音？點一下左邊的播放器或「播放」。</small>` : '<small>播放與暫停在播放裝置（接音響的平板）上操作。</small>'}</div><div class="song-now-act">${me ? `<button type="button" class="btn btn--solid" data-song-toggle>${songToggleLabel()}</button>` : ''}<button type="button" class="btn btn--solid" data-song-skip>下一首</button></div></div>`
     : `<div class="song-now is-empty"><span class="song-ph lg" aria-hidden="true">♪</span><div class="song-now-main"><b>目前沒有在播放</b><small>${up0.items.length ? (s.player_device ? '按「開始播放」。' : '先在接音響的平板按「在這台播放」。') : '現在不在任何時段歌單內，也沒有人點歌。'}</small></div>${up0.items.length ? '<button type="button" class="btn btn--solid" data-song-skip>開始播放</button>' : ''}</div>`;
   const up = d.upcoming || { items: d.queue.map((t, i) => ({ ...t, kind: 'request', pos: i + 1 })), shuffle: false };
   const reqN = d.queue.length;
   const queue = (up.items.length
     ? `<ol class="song-list song-queue">${up.items.map(t => songRow(t, t.kind === 'request' ? songQueueActs(t, reqN) : '', { rank: t.pos })).join('')}</ol>`
     : '<p class="a-empty">沒有接下來的歌。時段歌單與常態歌單在「設定 → 點歌」。</p>')
-    + (up.shuffle ? `<p class="hint">${esc(up.playlist_name || '常態歌單')} ${esc(up.playlist_count)} 首隨機播放，以上是這一輪已洗好的順序。</p>` : '');
+    + (up.playlist_count ? `<p class="hint">${esc(up.playlist_name || '常態歌單')} 共 ${esc(up.playlist_count)} 首${up.shuffle ? '隨機播放，以上是這一輪剩下的順序' : '依序播放'}；播完會自動${up.shuffle ? '重新洗牌' : '從頭'}輪播，直到時段結束。</p>` : '');
   const hist = d.history.length ? `<details class="song-hist"><summary>最近播過（${Math.min(8, d.history.length)}）</summary><ul class="song-list">${d.history.slice(0, 8).map(t => songRow(t, t.result === 'error' ? '<span class="pill pill-wait">無法播放已跳過</span>' : t.result === 'skip' ? '<span class="pill pill-draft">跳過</span>' : '')).join('')}</ul></details>` : '';
   // 重繪會換掉整個 DOM：先記下兩欄捲動位置，畫完還原（找歌換分頁才回到頂端），輪詢時才不會一直跳回最上面
   const keep = [...host.querySelectorAll('.song-scroll')].map(e => e.scrollTop), sameView = SONGS.painted === SONGS.view; SONGS.painted = SONGS.view;
@@ -248,10 +248,31 @@ document.addEventListener('submit', async e => {
 });
 
 /* ---- 播放器（只在播放裝置上運作）：YouTube IFrame API，常駐右下角 ---- */
-let SONG_YT = null, SONG_YT_READY = false, SONG_LOADED = '', SONG_TIMER = null, SONG_BUSY = false, SONG_PLAYING = false;
+let SONG_YT = null, SONG_YT_READY = false, SONG_LOADED = '', SONG_TIMER = null, SONG_BUSY = false, SONG_PLAYING = false, SONG_MUTED = false, SONG_WATCH = null, SONG_RETRY = '';
 /* 播放／暫停狀態反映到大卡按鈕（不整頁重繪） */
-function songPaintPlaying(){ const b = document.querySelector('#songs-body [data-song-toggle]'); if (b) b.textContent = SONG_PLAYING ? '暫停' : '播放'; const h = document.querySelector('#songs-body [data-song-blocked]'); if (h) h.hidden = SONG_PLAYING; }
-function songToggle(){ songEnsureApi(); if (!SONG_YT) return songPlayerSync(); try { SONG_PLAYING ? SONG_YT.pauseVideo() : SONG_YT.playVideo(); } catch (e) {} }
+function songToggleLabel(){ return SONG_PLAYING && SONG_MUTED ? '開啟聲音' : SONG_PLAYING ? '暫停' : '播放'; }
+function songPaintPlaying(){ const b = document.querySelector('#songs-body [data-song-toggle]'); if (b) b.textContent = songToggleLabel(); const h = document.querySelector('#songs-body [data-song-blocked]'); if (h) { h.hidden = SONG_PLAYING && !SONG_MUTED; h.textContent = SONG_PLAYING && SONG_MUTED ? '靜音播放中：按「開啟聲音」，或點播放器上的喇叭。' : '沒有聲音？點一下左邊的播放器或「播放」。'; } }
+function songToggle(){ songEnsureApi(); if (!SONG_YT) return songPlayerSync();
+  try {
+    if (SONG_PLAYING && SONG_MUTED) { SONG_YT.unMute(); SONG_YT.setVolume(100); SONG_MUTED = false; SONG_YT.playVideo(); }
+    else if (SONG_PLAYING) SONG_YT.pauseVideo();
+    else { SONG_YT.unMute(); SONG_MUTED = false; SONG_YT.playVideo(); songWatch(); }
+  } catch (e) {}
+  songPaintPlaying();
+}
+/* 卡在載入中（iPad 從外部按播放常停在緩衝 0%）：20 秒沒開始播 → 先改靜音重載一次（靜音一定能自動播），再不行就換下一首 */
+function songWatch(){
+  clearTimeout(SONG_WATCH);
+  SONG_WATCH = setTimeout(() => {
+    SONG_WATCH = null; if (!SONG_YT || !SONGS.data || !SONGS.data.now) return;
+    if (document.visibilityState === 'hidden') return songWatch();
+    let st = -1; try { st = SONG_YT.getPlayerState(); } catch (e) {}
+    if (st === 1 || st === 2 || st === 0) return;
+    const id = SONGS.data.now.id;
+    if (SONG_RETRY !== id) { SONG_RETRY = id; try { SONG_YT.mute(); SONG_MUTED = true; SONG_YT.loadVideoById(SONGS.data.now.video_id); } catch (e) {} songPaintPlaying(); return songWatch(); }
+    songNext('error');
+  }, 20000);
+}
 function songUnlock(){ songEnsureApi(); }
 function songEnsureApi(){
   if (window.YT && window.YT.Player) { SONG_YT_READY = true; return; }
@@ -270,7 +291,7 @@ function songDock(){
   document.body.appendChild(dock);
   return dock;
 }
-function songPlayerStop(){ clearTimeout(SONG_TIMER); SONG_TIMER = null; try { SONG_YT && SONG_YT.destroy(); } catch (e) {} SONG_YT = null; SONG_LOADED = ''; SONG_PLAYING = false; const d = document.getElementById('song-dock'); if (d) d.remove(); }
+function songPlayerStop(){ clearTimeout(SONG_TIMER); SONG_TIMER = null; try { SONG_YT && SONG_YT.destroy(); } catch (e) {} SONG_YT = null; SONG_LOADED = ''; SONG_PLAYING = false; clearTimeout(SONG_WATCH); SONG_WATCH = null; const d = document.getElementById('song-dock'); if (d) d.remove(); }
 async function songNext(result){
   if (SONG_BUSY) return; SONG_BUSY = true;
   try { SONGS.data = await songApi('/admin/orders/songs/next', { method: 'POST', body: { result, current: SONGS.data && SONGS.data.now ? SONGS.data.now.id : null, device: DEVICE_ID } }); if (SONGS.data.refunded) toast('客人點的歌無法播放，已跳過並從帳上拿掉'); } catch (e) { toast(e.message); }
@@ -288,9 +309,10 @@ function songPlayerSync(){
   if (SONG_LOADED === now.id) return;
   SONG_LOADED = now.id;
   if (!SONG_YT) {
-    SONG_YT = new YT.Player('song-yt', { width: '320', height: '180', videoId: now.video_id, playerVars: { autoplay: 1, playsinline: 1, rel: 0, modestbranding: 1 },
-      events: { onReady: ev => { try { ev.target.playVideo(); } catch (e) {} }, onStateChange: ev => { SONG_PLAYING = ev.data === YT.PlayerState.PLAYING || ev.data === YT.PlayerState.BUFFERING; songPaintPlaying(); if (ev.data === YT.PlayerState.ENDED) songNext('ended'); }, onError: () => songNext('error') } });
+    SONG_YT = new YT.Player('song-yt', { width: '356', height: '200', videoId: now.video_id, playerVars: { autoplay: 1, playsinline: 1, rel: 0, modestbranding: 1 },
+      events: { onReady: ev => { try { ev.target.mute(); SONG_MUTED = true; ev.target.playVideo(); } catch (e) {} songPaintPlaying(); }, onStateChange: ev => { SONG_PLAYING = ev.data === YT.PlayerState.PLAYING; try { SONG_MUTED = ev.target.isMuted(); } catch (e) {} songPaintPlaying(); if (ev.data === YT.PlayerState.ENDED) songNext('ended'); }, onError: () => songNext('error') } });
   } else { try { SONG_YT.loadVideoById(now.video_id); } catch (e) { songNext('error'); } }
+  songWatch();
 }
 async function songPoll(){
   SONG_TIMER = null;
