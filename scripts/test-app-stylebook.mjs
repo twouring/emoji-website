@@ -12,8 +12,8 @@ const page = read('public/stylebook/app/index.html'), doc = read('docs/design/ap
 const appCss = [...m.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map(x => x[1]).join('\n');
 const eventCss = ev.match(/const CSS=`([\s\S]*?)`;/)[1];
 const classesIn = css => new Set([...css.replace(/@media[^{]*\{/g, '').replace(/\{[^{}]*\}/g, '{}').matchAll(/\.([a-zA-Z][\w-]*)/g)].map(x => x[1]));
-// docs §7 例外：版位容器、啟動畫面與待刪死碼
-const EXEMPT = new Set(['ef', 'first', 'host-page', 'sp', 'ev', 'rw', 'serif']);
+// docs §7 例外：版位容器與啟動畫面
+const EXEMPT = new Set(['ef', 'first', 'host-page', 'sp']);
 const has = (src, c) => new RegExp(`(?<![\\w-])${c.replace(/[-]/g, '\\-')}(?![\\w-])`).test(src);
 
 test('App 定義的每個 class 都在 stylebook 有範例（新增元件要補 GROUPS）', () => {
@@ -44,7 +44,7 @@ test('App token 與文件表格一致', () => {
 });
 
 test('App 不新增色碼（新顏色先改 docs §2 再放進允許清單）', () => {
-  const allowed = new Set(['#06c755', '#1b1a17', '#1a1a1a', '#34a853', '#3a362e', '#3e681a', '#4285f4', '#5a5448', '#715800', '#e4e0d6', '#ea4335', '#f4f1ea', '#fbbc05', '#fbfaf6', '#ffde34', '#eaf5dc', '#eef6df', '#fee9e5', '#fff4c8', '#b3261e', '#fff', '#000', '#111', '#222', '#984c37', '#6b8fab', '#2b4064', '#5a4632']);
+  const allowed = new Set(['#06c755', '#1b1a17', '#34a853', '#3a362e', '#3e681a', '#4285f4', '#5a5448', '#715800', '#e4e0d6', '#ea4335', '#f4f1ea', '#fbbc05', '#fbfaf6', '#ffde34', '#eaf5dc', '#eef6df', '#fee9e5', '#fff4c8', '#b3261e', '#fff', '#984c37', '#6b8fab', '#2b4064', '#5a4632']);
   for (const [f, src] of [['public/m.html', m], ['public/m-event.js', ev], ['public/m-host.js', read('public/m-host.js')]]) {
     const extra = [...new Set([...src.matchAll(/#[0-9a-f]{6}\b|#[0-9a-f]{3}\b(?![0-9a-f])/gi)].map(x => x[0].toLowerCase()))].filter(h => !allowed.has(h));
     assert.deepEqual(extra, [], f);
@@ -56,4 +56,36 @@ test('stylebook 頁面：noindex、字級不低於 1rem、指向開發文件', (
   assert.doesNotMatch(page + book, /font-size\s*:\s*(\.\d+rem|0\.\d+rem|\d{1,2}px)/i);
   assert.match(page, /docs\/design\/app-stylebook\.md/);
   assert.match(read('docs/design/stylebook.md'), /app-stylebook\.md/, '官網 stylebook 要指向 App stylebook');
+});
+
+const SRC = () => [['public/m.html', m.split('<body>')[1].replace(/<path style="--i:\d+"/g, '<path')], ['public/m-event.js', ev], ['public/m-host.js', read('public/m-host.js')]];
+
+test('App 樣板不寫 inline style（唯一例外：.bar > i 的動態寬度）、不用 inline 事件、不改 style.display', () => {
+  for (const [f, src] of SRC()) {
+    const bad = [...src.matchAll(/style="([^"]*)"/g)].map(x => x[1]).filter(v => !/^width:\$\{pct/.test(v));
+    assert.deepEqual(bad, [], f);
+    assert.doesNotMatch(src, /\.style\.display\s*=/, f + '：顯示／隱藏用 hidden，不改 style.display');
+    assert.doesNotMatch(src, /<[a-z]+\b[^>]*\son[a-z]+="/, f + '：不用 onclick="…"，在 JS 綁定');
+  }
+});
+
+test('勾選框一律用 label.chk，不放進 .field 或沒有 class 的 label', () => {
+  for (const [f, src] of SRC()) {
+    assert.doesNotMatch(src, /<label class="field"><input[^>]*type="(checkbox|radio)"/, f);
+    assert.doesNotMatch(src, /<label><input[^>]*type="(checkbox|radio)"/, f);
+  }
+});
+
+test('黃色唯一：主辦工作台 .host-action.primary 一頁最多一個（簽到）；徽章 Logo 不用黃框', () => {
+  const host = read('public/m-host.js');
+  for (const chunk of host.split('uxShell(').slice(1)) assert.ok((chunk.match(/host-action primary/g) || []).length <= 1);
+  assert.doesNotMatch(appCss, /\.badge-logo\{[^}]*var\(--accent\)/);
+});
+
+test('App 樣板：按鈕都寫 type；文字欄位都設 maxlength（停用、數字、日期除外）', () => {
+  for (const [f, src] of SRC()) {
+    assert.deepEqual(src.match(/<button (?![^>]*\btype=)[^>]*>/g) || [], [], f + '：<button> 要寫 type="button" 或 type="submit"');
+    const loose = (src.match(/<(?:input|textarea)\b[^>]*>/g) || []).filter(x => !/type="(checkbox|radio|number|date|datetime-local|hidden)"|\bdisabled\b|maxlength=/.test(x));
+    assert.deepEqual(loose, [], f + '：文字欄位要設 maxlength（docs §4 欄位）');
+  }
 });
