@@ -86,3 +86,10 @@ test('在咖啡站：引用的實拍照與樣式檔都存在、三語同一組�
   assert.ok(sets.every(x => x === sets[0]), '三語引用同一組照片');
   assert.ok(fs.existsSync('public/brand-sites/at-cafe.css'));
 });
+
+test('約書旅站不提會員方案（KK 2026-11-04）：三語頁面不出現會員字樣，頁尾不放會員 App', () => {
+  for (const f of ['rest-book.html', 'en/rest-book.html', 'ja/rest-book.html']) {
+    const html = fs.readFileSync(new URL(`../public/brand-sites/${f}`, import.meta.url), 'utf8');
+    assert.doesNotMatch(html, /會員|会員|[Mm]ember/, f);
+  }
+});

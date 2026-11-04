@@ -34,7 +34,7 @@ BRANDS = {
                 alt={'zh': '三點水 3AM Bistro 標誌', 'en': '3AM Bistro logo', 'ja': '三點水 3AM Bistro ロゴ'}, venue='BAR', schema='BarOrPub'),
     'stay-square': dict(host='staysquare.emoji.tw', zh='等等空間', en='Stay Square', color='#2B4064', ig='emoji.staysquare',
                         alt={'zh': '等等空間 Stay Square 標誌', 'en': 'Stay Square logo', 'ja': '等等空間 Stay Square ロゴ'}, venue=None, schema=None),
-    # 2026-11-04 KK：2F 自等等空間分出；會員方案不含；日文同中文；IG 帳號未定（ig=None 不顯示）；標誌為暫用文字標誌（tools/build-rest-book-logo.py）
+    # 2026-11-04 KK：2F 自等等空間分出；官網不提會員方案（含頁尾會員 App、FAQ、價目附註）；日文同中文；IG 帳號未定（ig=None 不顯示）；標誌為暫用文字標誌（tools/build-rest-book-logo.py）
     'rest-book': dict(host='restbook.emoji.tw', zh='約書旅', en='Rest Book', color='#5A4632', ig=None,
                       alt={'zh': '約書旅 Rest Book 標誌', 'en': 'Rest Book logo', 'ja': '約書旅 Rest Book ロゴ'}, venue=None, schema=None),
 }
@@ -180,7 +180,7 @@ def footer_html(slug, dock):
   <div class="bs-foot__grid">
     <div class="bs-foot__brand"><img src="/brand-sites/assets/{slug}-logo.webp" alt="{e(b['alt'][L])}" loading="lazy" decoding="async"></div>
     <div><h4>{t('聯絡', 'Contact', 'お問い合わせ')}</h4><ul><li>{e(ADDRESS[L])}</li><li><a href="{TEL_HREF}">{e(TEL_TEXT)}</a></li><li><a href="mailto:us@emoji.tw">us@emoji.tw</a></li>{ig_li}</ul></div>
-    <div><h4>{t('更多', 'More', 'その他')}</h4><ul><li><a href="{www('/reserve')}">{t('線上訂位', 'Reservations', 'オンライン予約')}</a></li><li><a href="{app_url()}">{t('會員 App', 'Member app', '会員アプリ')}</a></li><li><a href="{www('/terms')}">{t('服務條款', 'Terms', '利用規約')}</a></li><li><a href="{www('/privacy')}">{t('隱私權政策', 'Privacy', 'プライバシー')}</a></li><li><a href="{www('/refund')}">{t('退費政策', 'Refunds', '返金ポリシー')}</a></li></ul></div>
+    <div><h4>{t('更多', 'More', 'その他')}</h4><ul><li><a href="{www('/reserve')}">{t('線上訂位', 'Reservations', 'オンライン予約')}</a></li>{'' if slug == 'rest-book' else f'<li><a href="{app_url()}">' + t('會員 App', 'Member app', '会員アプリ') + '</a></li>'}<li><a href="{www('/terms')}">{t('服務條款', 'Terms', '利用規約')}</a></li><li><a href="{www('/privacy')}">{t('隱私權政策', 'Privacy', 'プライバシー')}</a></li><li><a href="{www('/refund')}">{t('退費政策', 'Refunds', '返金ポリシー')}</a></li></ul></div>
   </div>
   <div class="bs-foot__bottom"><p class="bs-foot__legal">{e(legal)}</p>{lang_switch(b['host'], ' bs-lang--foot')}</div>
 </div></footer>
@@ -582,9 +582,9 @@ def page_book():
     out = head(s, t('約書旅 Rest Book｜台北車站旁，等車時讀一本書',
                     '約書旅 Rest Book | A book between trains, by Taipei Main Station',
                     '約書旅 Rest Book｜台北駅のそば、電車を待つ間に一冊'),
-               t('約書旅（Rest Book）在台北車站 Z10 出口斜對面：書可以讀也可以買，有個人讀書席、休憩室、兩間淋浴與交誼廳。白天 1 小時 NT$200 起，夜間 22:00–08:00 NT$800 起；不含於會員方案。',
-                 'Rest Book, across from Exit Z10 of Taipei Main Station: books to read or buy, personal study seats, rest rooms, two showers and a lounge. Daytime from NT$200 an hour; night (22:00–08:00) from NT$800. Not included in membership.',
-                 '約書旅（Rest Book）は台北駅 Z10 出口の斜め向かい。読める・買える本、個人の読書席、休憩室、シャワー2室、ラウンジ。日中 1時間 NT$200から、夜間（22:00–08:00）NT$800から。会員プランには含まれません。'))
+               t('約書旅（Rest Book）在台北車站 Z10 出口斜對面：書可以讀也可以買，有個人讀書席、休憩室、兩間淋浴與交誼廳。白天 1 小時 NT$200 起，夜間 22:00–08:00 NT$800 起。',
+                 'Rest Book, across from Exit Z10 of Taipei Main Station: books to read or buy, personal study seats, rest rooms, two showers and a lounge. Daytime from NT$200 an hour; night (22:00–08:00) from NT$800.',
+                 '約書旅（Rest Book）は台北駅 Z10 出口の斜め向かい。読める・買える本、個人の読書席、休憩室、シャワー2室、ラウンジ。日中 1時間 NT$200から、夜間（22:00–08:00）NT$800から。'))
     out += header(s, [(t('時刻表', 'Timetable', '時刻表'), '#gap'), (t('價目', 'Prices', '料金'), '#price'), (t('包場', 'Lounge hire', '貸切'), '#hire'), (t('這裡有什麼', 'What’s here', 'あるもの'), '#here'), (t('常見問題', 'FAQ', 'よくある質問'), '#faq'), (t('洽詢', 'Contact', 'お問い合わせ'), contact)])
     # 價目：KK 2026-11-04 定案（含稅；見 /workspace/local/約書旅/約書旅_商業模型_20261104.md）
     gaps = [
@@ -600,14 +600,14 @@ def page_book():
     dl = lambda items: '<dl>' + ''.join(f'<div><dt>{e(a)}</dt><dd>{e(b)}</dd></div>' for a, b in items) + '</dl>'
     rules = [t('超時 15 分鐘內不收費，超過 15 分鐘以 1 小時計；之後每小時同樣以 15 分鐘為界。', 'Up to 15 minutes over is free; beyond that it counts as an hour, and each further hour follows the same 15-minute rule.', '15分以内の延長は無料。15分を超えると1時間分、以降も1時間ごとに15分を境に計算します。'),
              t('23:00 後查驗證件，限 18 歲以上。', 'ID is checked after 23:00; 18 and over only.', '23:00以降は身分証を確認します。18歳以上のみ。'),
-             t('書與淋浴另計；會員方案不含約書旅。', 'Books and showers are extra; Rest Book is not included in membership.', '本とシャワーは別料金。会員プランに約書旅は含まれません。')]
+             t('書與淋浴另計。', 'Books and showers are extra.', '本とシャワーは別料金。')]
     rules_html = ''.join(f'<li>{e(x)}</li>' for x in rules)
     # 交誼廳包場：KK 2026-11-04 核准每時段 NT$2,000（11/01 提案 §4.1）；平日 18:00 後與假日；週二 me2 時段不出租。
     hire_rows = [(t('平日 18:00 後、假日', 'Weekday evenings after 18:00, weekends', '平日18:00以降・休日'), 'NT$2,000'), (t('有桌椅人數', 'Seated', '着席人数'), t('約 10 人', 'About 10', '約10名'))]
     hire_rules = ''.join(f'<li>{e(x)}</li>' for x in [
         t('平日、假日同價；平日白天與每週二 19:00–21:00（週二小聚）不出租。', 'Same price on weekdays and weekends. Not available on weekday daytimes or Tuesdays 19:00–21:00 (our weekly meetup).', '平日・休日同料金。平日の日中と毎週火曜 19:00–21:00（週例の集まり）は貸切不可。'),
         t('只租交誼廳；讀書席、休憩室與淋浴不含在內。擴音使用到 22:00。', 'The lounge only; study seats, rest rooms and showers are not included. Amplified sound until 22:00.', 'ラウンジのみ。読書席、休憩室、シャワーは含まれません。音響の使用は22:00まで。'),
-        t('包場享在咖啡、三點水餐飲 9\u00a0折，不與會員折扣併用。', '10% off food and drinks at at cafe and 3AM, not combined with member discounts.', '在咖啡・三點水の飲食が10%オフ（会員割引との併用不可）。')])
+        t('包場享在咖啡、三點水餐飲 9\u00a0折。', '10% off food and drinks at at cafe and 3AM.', '在咖啡・三點水の飲食が10%オフ。')])
     hire_mail = 'mailto:us@emoji.tw?subject=' + t('約書旅交誼廳包場', 'Rest%20Book%20lounge%20hire', '約書旅ラウンジ貸切')
     rows = [
         (t('書架', 'Shelves', '本棚'), t('現場閱讀，喜歡可購買', 'Read on site, buy what you like', 'その場で読める・買える'), t('每本另標價', 'Priced per book', '一冊ごとに価格表示')),
@@ -615,12 +615,9 @@ def page_book():
         (t('休憩室', 'Rest rooms', '休憩室'), t('非密閉、不可上鎖', 'Open, not lockable', '密閉なし・施錠なし'), t('依時段計費', 'Charged by time', '時間制')),
         (t('淋浴', 'Showers', 'シャワー'), t('兩間', 'Two rooms', '2室'), t('另行計費', 'Priced separately', '別料金')),
         (t('交誼廳', 'Lounge', 'ラウンジ'), t('約十人', 'About ten people', '約10名'), t('大螢幕、Switch、漫畫、桌遊', 'Big screen, Switch, manga, board games', '大型画面、Switch、マンガ、ボードゲーム')),
-        (t('會員方案', 'Membership', '会員プラン'), t('約書旅不含在內', 'Rest Book is not included', '約書旅は含まれません'), t('另行計費', 'Priced separately', '別料金')),
     ]
     table = ''.join(f'<tr><th scope="row">{e(a)}</th><td>{e(b)}</td><td>{e(c)}</td></tr>' for a, b, c in rows)
     faqs = [
-        (t('會員方案包含約書旅嗎？', 'Is Rest Book included in membership?', '会員プランに約書旅は含まれますか？'),
-         t('不包含。約書旅另行計費：白天 1 小時 NT$200 起，夜間 NT$800 起，詳見本頁價目。', 'No. Rest Book is priced separately: daytime from NT$200 an hour, night from NT$800. See prices on this page.', 'いいえ。約書旅は別料金です。日中1時間 NT$200から、夜間 NT$800から。このページの料金をご覧ください。')),
         (t('書可以買回家嗎？', 'Can I buy the books?', '本は買えますか？'),
          t('可以。每本書的售價各自標示，到櫃檯結帳。', 'Yes. Each book carries its own price; pay at the counter.', 'はい。価格は一冊ごとに表示しています。カウンターでお会計を。')),
         (t('書架上有哪些書？', 'What kind of books are on the shelves?', 'どんな本がありますか？'),
