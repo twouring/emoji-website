@@ -213,3 +213,9 @@
 .rb-contact__say, .rb-contact__links b, .rb-contact__links a { color: var(--rb-paper) !important; }
 .rb-contact__links span { color: #cfc6b8; }
 .rb-credit { padding-top: 32px; }
+
+/* ——— 交誼廳包場（KK 2026-11-04 核准 NT$2,000／時段） ——— */
+.rb-hire { padding-top: clamp(120px, 14vw, 220px) !important; }
+.rb-hire h2 { font-size: max(1rem, var(--s-head)); line-height: 1.02; }
+.rb-hire .rb-btn { margin-top: 40px; }
+.rb-hire dd { word-break: keep-all; }

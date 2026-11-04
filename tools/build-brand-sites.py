@@ -434,6 +434,33 @@ def page_3am():
 
 
 # ---------------------------------------------------------------- 等等空間
+# 包場場地費：KK 2026-11-04 核准 11/01 分區版（1 時段＝2 小時；包場享在咖啡／三點水餐飲 9\u00a0折，不與會員折扣併用）。
+# 人數只寫有桌椅人數（上限以消防與使用執照核定為準）；換場費、清潔費、取消規則待核准，不寫。
+SQ_ZONES = [
+    ('A', ('靠窗、大投影幕', 'Window side, large screen', '窓際・大型スクリーン'), '10–15', 'NT$1,800'),
+    ('B', ('投影幕', 'Projector screen', 'スクリーン'), '10–15', 'NT$1,400'),
+    ('C', ('投影幕', 'Projector screen', 'スクリーン'), '10–15', 'NT$1,400'),
+    ('D', ('榻榻米、小投影幕', 'Tatami, small screen', '畳・小型スクリーン'), '≤10', 'NT$1,200'),
+    ('E', ('四人會議室、電視（會員免費）', 'Four-seat meeting room with TV (free for members)', '4名用会議室・テレビ（会員は無料）'), '4', 'NT$600'),
+]
+SQ_COMBOS = [('A+B', '20–30', 'NT$3,000'), ('A+B+C', '30–45', 'NT$4,200'), ('A+B+C+D', '40–55', 'NT$5,200')]
+
+
+def sq_rates():
+    per = t('人', ' people', '名')
+    rows = ''.join(f'<tr><th scope="row">{z}</th><td>{e(t(*d))}</td><td>{n}{per}</td><td>{p}</td></tr>' for z, d, n, p in SQ_ZONES)
+    rows += ''.join(f'<tr><th scope="row">{z}</th><td>{t("組合", "Combined", "組合せ")}</td><td>{n}{per}</td><td>{p}</td></tr>' for z, n, p in SQ_COMBOS)
+    rows += f'<tr><th scope="row">{t("全區", "Whole space", "全体")}</th><td>{t("A–E 與電話亭", "A–E and phone booth", "A–E と電話ブース")}</td><td>44–59{per}</td><td>NT$6,400</td></tr>'
+    notes = [t('價格以每時段（2 小時）計，含投影或螢幕、Wi-Fi 與自助吧基本飲品；不因人數加價。', 'Prices are per two-hour slot and include the screen, Wi-Fi and basic drinks from the self-serve bar; no per-person charge.', '料金は1枠（2時間）ごと。スクリーン、Wi-Fi、セルフサービスバーの基本ドリンク込み。人数による追加料金はありません。'),
+             t('包場享在咖啡、三點水餐飲 9\u00a0折，不與會員折扣併用。', 'Hirers get 10% off food and drinks at at cafe and 3AM, not combined with member discounts.', '貸切利用者は在咖啡・三點水の飲食が10%オフ（会員割引との併用不可）。'),
+             t('平日 09:00–18:00 只開放單區與 A+B；三區以上與全區限平日 18:00 後與假日。', 'Weekdays 09:00–18:00: single areas and A+B only. Three or more areas, or the whole space, on weekday evenings after 18:00 and weekends.', '平日 09:00–18:00 は単独エリアと A+B のみ。3エリア以上・全体は平日18:00以降と休日。'),
+             t('人數為有桌椅的人數，實際上限以場地核定為準。', 'Capacities are seated with tables; the actual limit follows the approved occupancy.', '人数はテーブル・椅子ありの目安。上限は認可された収容人数に従います。')]
+    return (f'<table class="sq-rates"><caption>{t("包場場地費（每時段 2 小時）", "Venue hire fees (per two-hour slot)", "貸切料金（1枠2時間）")}</caption>'
+            f'<thead><tr><th scope="col">{t("區域", "Area", "エリア")}</th><th scope="col">{t("特色", "Features", "特徴")}</th><th scope="col">{t("人數", "Seats", "人数")}</th><th scope="col">{t("場地費", "Fee", "料金")}</th></tr></thead>'
+            f'<tbody>{rows}</tbody></table><ul class="sq-rates__notes">' + ''.join(f'<li>{e(x)}</li>' for x in notes) + '</ul>')
+
+
+
 def page_stay():
     s = 'stay-square'
     app = app_url()
@@ -480,7 +507,7 @@ def page_stay():
 
 <section class="sq-plans" id="plans"><article class="sq-plan sq-plan--day"><h2>{t('單日使用', 'Day pass', '1日利用')}</h2><p>{t('給轉乘、短時工作或半天會議。', 'For a transfer, short work session or half-day meeting.', '乗り換え、短時間の作業、半日の会議に。')}</p><strong>NT$200</strong><span>{t('4 小時起｜超時每小時 NT$100', 'from 4 hours · NT$100 per extra hour', '4時間から｜延長は1時間 NT$100')}</span><a href="{app}">{t('在會員 App 購買', 'Buy in the member app', '会員アプリで購入')}</a></article><article class="sq-plan sq-plan--member"><h2>{t('常用會籍', 'Regular membership', '継続会員')}</h2><p>{t('給把台北車站周邊當工作據點的人。', 'For people who use Taipei Main Station as a work base.', '台北駅周辺を仕事の拠点にする人へ。')}</p><strong>NT$4,000</strong><span>{t('月會員｜季 NT$10,000｜年 NT$35,000', 'monthly · quarterly NT$10,000 · annual NT$35,000', '月会員｜四半期 NT$10,000｜年 NT$35,000')}</span><a href="{app}">{t('在會員 App 加入', 'Join in the member app', '会員アプリで加入')}</a></article></section>
 
-<section class="sq-venue" id="venue"><div><h2>{t('把一段時間，\n留給一群人。', 'Give a stretch of time\nto a group.', 'ある時間を、\n一つの集まりへ。')}</h2><p>{t('講座、工作坊、團隊討論或社群聚會，可申請使用不同區域或整體空間。每個時段兩小時；未租用區域仍保留給會員。', 'For talks, workshops, team sessions or community gatherings, apply for an area or the whole space. Each slot is two hours; areas not hired remain for members.', '講座、ワークショップ、チームの話し合い、コミュニティの集まりに。エリア単位または全体の利用を申請できます。1枠は2時間。利用されないエリアは会員のために残ります。')}</p><a class="sq-action sq-action--light" href="{apply}">{t('申請活動或包場', 'Apply for an event or venue hire', 'イベント・貸切を申請')}</a></div><figure><img src="/brand-sites/assets/stay/loft.webp" alt="{t('活動與交流空間規劃示意', 'Event and social space, concept rendering', 'イベント・交流スペース、完成イメージ')}" width="1594" height="987" loading="lazy"><figcaption>{t('規劃示意', 'Concept rendering', '完成イメージ')}</figcaption></figure></section>
+<section class="sq-venue" id="venue"><div><h2>{t('把一段時間，\n留給一群人。', 'Give a stretch of time\nto a group.', 'ある時間を、\n一つの集まりへ。')}</h2><p>{t('講座、工作坊、團隊討論或社群聚會，可依區域或整體空間包場。每個時段兩小時；未租用區域仍保留給會員。', 'For talks, workshops, team sessions or community gatherings, hire an area or the whole space. Each slot is two hours; areas not hired remain for members.', '講座、ワークショップ、チームの話し合い、コミュニティの集まりに。エリア単位または全体で貸切できます。1枠は2時間。利用されないエリアは会員のために残ります。')}</p>{sq_rates()}<a class="sq-action sq-action--light" href="{apply}">{t('申請活動或包場', 'Apply for an event or venue hire', 'イベント・貸切を申請')}</a></div><figure><img src="/brand-sites/assets/stay/loft.webp" alt="{t('活動與交流空間規劃示意', 'Event and social space, concept rendering', 'イベント・交流スペース、完成イメージ')}" width="1594" height="987" loading="lazy"><figcaption>{t('規劃示意', 'Concept rendering', '完成イメージ')}</figcaption></figure></section>
 
 <section class="sq-faq" aria-labelledby="faq-h"><h2 id="faq-h">{t('常見問題', 'Questions', 'よくある質問')}</h2><div><p><b>{t('會員方案包含哪些空間？', 'What does membership include?', '会員プランには何が含まれますか？')}</b> {t('有效會籍可使用共享工作區、會議室、電話亭與自助吧；依現場使用規則與預約狀況為準。', 'A valid membership includes shared work areas, the meeting room, phone booth and self-serve bar, subject to on-site rules and reservations.', '有効な会員資格で共有ワークエリア、会議室、電話ブース、セルフサービスバーを利用できます。現地のルールと予約状況に従います。')}</p><p><b>{t('非會員可以包場嗎？', 'Can non-members hire the venue?', '非会員でも貸切できますか？')}</b> {t('可以。請填活動或包場申請，送出不代表保留場地，將由團隊確認。', 'Yes. Submit an event or venue-hire application. Submission does not reserve the space; our team will confirm it.', 'はい。イベント・貸切申請を送ってください。送信だけでは予約確定にならず、チームが確認します。')}</p><p><b>{t('可以使用多久？', 'How long can I use it?', 'どれくらい利用できますか？')}</b> {t('單日方案依購買時數使用；常用會籍依方案有效期間。實際開放時間以現場公告為準。', 'Day passes follow the time purchased; regular memberships follow their validity. Actual opening times follow on-site notices.', '1日プランは購入時間内、継続会員は有効期間内で利用できます。実際の利用時間は現地の案内に従います。')}</p></div></section>
 
@@ -519,7 +546,7 @@ def page_book():
                t('約書旅（Rest Book）在台北車站 Z10 出口斜對面：書可以讀也可以買，有個人讀書席、休憩室、兩間淋浴與交誼廳。白天 1 小時 NT$200 起，夜間 22:00–08:00 NT$800 起；不含於會員方案。',
                  'Rest Book, across from Exit Z10 of Taipei Main Station: books to read or buy, personal study seats, rest rooms, two showers and a lounge. Daytime from NT$200 an hour; night (22:00–08:00) from NT$800. Not included in membership.',
                  '約書旅（Rest Book）は台北駅 Z10 出口の斜め向かい。読める・買える本、個人の読書席、休憩室、シャワー2室、ラウンジ。日中 1時間 NT$200から、夜間（22:00–08:00）NT$800から。会員プランには含まれません。'))
-    out += header(s, [(t('時刻表', 'Timetable', '時刻表'), '#gap'), (t('價目', 'Prices', '料金'), '#price'), (t('這裡有什麼', 'What’s here', 'あるもの'), '#here'), (t('常見問題', 'FAQ', 'よくある質問'), '#faq'), (t('洽詢', 'Contact', 'お問い合わせ'), contact)])
+    out += header(s, [(t('時刻表', 'Timetable', '時刻表'), '#gap'), (t('價目', 'Prices', '料金'), '#price'), (t('包場', 'Lounge hire', '貸切'), '#hire'), (t('這裡有什麼', 'What’s here', 'あるもの'), '#here'), (t('常見問題', 'FAQ', 'よくある質問'), '#faq'), (t('洽詢', 'Contact', 'お問い合わせ'), contact)])
     # 價目：KK 2026-11-04 定案（含稅；見 /workspace/local/約書旅/約書旅_商業模型_20261104.md）
     gaps = [
         ('60', t('1 小時', '1 hour', '1時間'), 'NT$200', t('讀完一本短篇集裡的三篇，再到交誼廳坐一下。', 'Three stories from a short collection, then a sit-down in the lounge.', '短編集から三編。そのあとラウンジでひと息。')),
@@ -536,6 +563,13 @@ def page_book():
              t('23:00 後查驗證件，限 18 歲以上。', 'ID is checked after 23:00; 18 and over only.', '23:00以降は身分証を確認します。18歳以上のみ。'),
              t('書與淋浴另計；會員方案不含約書旅。', 'Books and showers are extra; Rest Book is not included in membership.', '本とシャワーは別料金。会員プランに約書旅は含まれません。')]
     rules_html = ''.join(f'<li>{e(x)}</li>' for x in rules)
+    # 交誼廳包場：KK 2026-11-04 核准每時段 NT$2,000（11/01 提案 §4.1）；平日 18:00 後與假日；週二 me2 時段不出租。
+    hire_rows = [(t('平日 18:00 後、假日', 'Weekday evenings after 18:00, weekends', '平日18:00以降・休日'), 'NT$2,000'), (t('有桌椅人數', 'Seated', '着席人数'), t('約 10 人', 'About 10', '約10名'))]
+    hire_rules = ''.join(f'<li>{e(x)}</li>' for x in [
+        t('平日、假日同價；平日白天與每週二 19:00–21:00（週二小聚）不出租。', 'Same price on weekdays and weekends. Not available on weekday daytimes or Tuesdays 19:00–21:00 (our weekly meetup).', '平日・休日同料金。平日の日中と毎週火曜 19:00–21:00（週例の集まり）は貸切不可。'),
+        t('只租交誼廳；讀書席、休憩室與淋浴不含在內。擴音使用到 22:00。', 'The lounge only; study seats, rest rooms and showers are not included. Amplified sound until 22:00.', 'ラウンジのみ。読書席、休憩室、シャワーは含まれません。音響の使用は22:00まで。'),
+        t('包場享在咖啡、三點水餐飲 9\u00a0折，不與會員折扣併用。', '10% off food and drinks at at cafe and 3AM, not combined with member discounts.', '在咖啡・三點水の飲食が10%オフ（会員割引との併用不可）。')])
+    hire_mail = 'mailto:us@emoji.tw?subject=' + t('約書旅交誼廳包場', 'Rest%20Book%20lounge%20hire', '約書旅ラウンジ貸切')
     rows = [
         (t('書架', 'Shelves', '本棚'), t('現場閱讀，喜歡可購買', 'Read on site, buy what you like', 'その場で読める・買える'), t('每本另標價', 'Priced per book', '一冊ごとに価格表示')),
         (t('讀書席', 'Study seats', '読書席'), t('一人一席，安靜閱讀', 'One person, one seat, quiet', '一人一席、静かに'), t('依時段計費', 'Charged by time', '時間制')),
@@ -617,6 +651,16 @@ def page_book():
     <div class="rb-price__block rb-price__block--night"><h3>{t('夜間', 'Night', '夜間')}<span>22:00–08:00</span></h3>{dl(night)}</div>
   </div>
   <ul class="rb-price__rules">{rules_html}</ul>
+</section>
+
+<section class="rb-hire" id="hire" aria-labelledby="hire-h">
+  <h2 id="hire-h">{t('交誼廳包場', 'Hire the lounge', 'ラウンジの貸切')}</h2>
+  <p class="rb-price__lede">{t('約十人的小廳，有 100 吋大螢幕、環繞音響、Switch 與桌遊。生日、球賽或演唱會直播、讀書會都合適。', 'A small room for about ten, with a 100-inch screen, surround sound, Switch and board games. Good for birthdays, match or concert screenings, and reading groups.', '約10名の小さな部屋。100インチの大型画面、サラウンド音響、Switch、ボードゲーム。誕生日、試合やライブの観賞、読書会に。')}</p>
+  <div class="rb-price__grid">
+    <div class="rb-price__block"><h3>{t('場地費', 'Fee', '料金')}<span>{t('每時段 2 小時', 'per 2-hour slot', '1枠2時間')}</span></h3>{dl(hire_rows)}</div>
+  </div>
+  <ul class="rb-price__rules">{hire_rules}</ul>
+  <a class="rb-btn" href="{hire_mail}">{t('來信預約包場', 'Email to book', 'メールで予約')}</a>
 </section>
 
 <section class="rb-here" id="here" aria-labelledby="here-h">

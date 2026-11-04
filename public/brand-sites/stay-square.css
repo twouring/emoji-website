@@ -166,3 +166,23 @@
   .sq-stage img, .sq-action { transition: none; }
   .sq-action:hover { transform: none; }
 }
+
+/* ——— 包場價目表（KK 2026-11-04 核准分區版） ——— */
+.sq-rates { width: 100%; max-width: 36rem; margin-top: var(--sq-s6); border-collapse: collapse; font-size: 1rem; font-variant-numeric: tabular-nums; }
+.sq-rates caption { text-align: left; padding-bottom: var(--sq-s2); font-family: "Noto Serif TC", var(--serif); font-weight: 700; font-size: 1.12rem; }
+.sq-rates th, .sq-rates td { padding: var(--sq-s2) var(--sq-s2) var(--sq-s2) 0; border-bottom: 1px solid rgba(23,35,51,.18); text-align: left; vertical-align: baseline; }
+.sq-rates thead th { font-weight: 500; color: #435161; }
+.sq-rates tbody th { font-weight: 700; white-space: nowrap; }
+.sq-rates td:last-child { padding-right: 0; text-align: right; white-space: nowrap; font-weight: 700; }
+.sq-rates td:nth-child(3) { white-space: nowrap; color: #435161; }
+.sq-rates__notes { max-width: 36rem; margin: var(--sq-s4) 0 0; padding-left: 1.2em; display: grid; gap: var(--sq-s1, 4px); font-size: 1rem; line-height: 1.6; color: #435161; }
+@media (max-width: 900px) { .sq-rates td:nth-child(2) { word-break: keep-all; overflow-wrap: anywhere; } }
+@media (max-width: 600px) {
+  .sq-rates thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .sq-rates tr { display: grid; grid-template-columns: 5.2em minmax(0, 1fr) auto; grid-template-areas: "zone feat fee" "zone seats fee"; column-gap: var(--sq-s3); padding: var(--sq-s2) 0; border-bottom: 1px solid rgba(23,35,51,.18); }
+  .sq-rates th, .sq-rates td { padding: 0; border: 0; }
+  .sq-rates tbody th { grid-area: zone; }
+  .sq-rates td:nth-child(2) { grid-area: feat; word-break: keep-all; overflow-wrap: anywhere; line-break: strict; }
+  .sq-rates td:nth-child(3) { grid-area: seats; }
+  .sq-rates td:last-child { grid-area: fee; align-self: start; }
+}
