@@ -40,6 +40,18 @@ h1,h2,h3{font-family:"Noto Serif TC",serif;font-weight:700;margin:0}
 .bcard b{font-family:"Noto Serif TC",serif;line-height:1.3;word-break:keep-all;overflow-wrap:anywhere}
 .bcard small{color:var(--muted);font-size:1rem;line-height:1.35;word-break:keep-all}
 .bcard small.st{display:flex;align-items:center;gap:6px}.bcard small.st::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--line);flex:none}.bcard small.on{color:var(--ink);font-weight:700}.bcard small.on::before{background:var(--ink)}
+.sec-h{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}.sec-h h2{margin:0}.sec-h .quiet{margin:0;width:auto;min-height:44px;min-width:44px;padding:0 8px}
+.sec-t{font-size:1.15rem;margin:26px 0 10px}
+.ag-who{color:var(--muted);font-size:1rem;line-height:1.4}
+.ag .meta{word-break:keep-all;overflow-wrap:anywhere;white-space:pre-line}
+.ag-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.ag-top h3{margin:0;word-break:keep-all;overflow-wrap:anywhere}.ag-top .pill{margin:2px 0 0;flex:none;white-space:nowrap}
+.card-acts .access-open{gap:8px}
+.pass .pts{display:block;width:100%;text-align:left;background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer}
+.pass .pts small{display:block;margin-top:8px;font-size:1rem;opacity:.85}
+.card-acts{margin-top:14px}.card-acts .show{margin-top:0}
+.card-acts.btn2{grid-template-columns:1.6fr 1fr}.card-acts .access-open{margin:0;min-height:56px;border-radius:16px;font-weight:700;background:var(--card)}
+.me-pts{display:flex;align-items:baseline;gap:10px;width:100%;min-height:64px;margin:0 0 8px;padding:12px 16px;border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--ink);text-align:left}
+.me-pts b{font-family:"Cormorant Garamond","Noto Serif TC",serif;font-size:2rem;font-variant-numeric:tabular-nums;line-height:1}.me-pts small{margin-left:auto;color:var(--muted);font-size:1rem}
 .bp{--b:var(--ink)}.bp[data-b=cafe]{--b:#984C37}.bp[data-b=bar]{--b:#6B8FAB}.bp[data-b=stay]{--b:#2B4064}.bp[data-b=rest]{--b:#5A4632}
 .bp>header{border-top:6px solid var(--b)}
 .bp-hero{display:flex;gap:16px;align-items:center;padding-bottom:16px;border-bottom:1px solid var(--line)}
@@ -162,6 +174,7 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 .cat{margin:18px 0 4px;color:var(--muted);font-weight:500}
 .tile .act{display:flex;gap:10px;margin-top:12px}.tile .act .btn{min-height:44px;flex:1}
 .tile .act .quiet{margin:0;width:auto;flex:1;min-height:44px}
+.ag .act .quiet:only-child{flex:none;padding:0 4px;text-align:left}
 .sticky{position:sticky;bottom:calc(var(--tab) + env(safe-area-inset-bottom) + 8px);background:var(--paper);padding:10px 0 2px}
 .pill{display:inline-block;border-radius:999px;padding:0 .7em;font-size:1rem;border:1px solid var(--line);margin-left:6px;color:var(--muted)}
 .pill.on{background:var(--accent);border-color:var(--ink);color:var(--ink)}
@@ -304,7 +317,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
       myRegs:'我的報名',noRegs:'還沒有報名活動',checkedIn:'已報到',tickets:n=>n+' 張',showTicket:'出示票券',eventPage:'活動頁',ticketMeta:n=>n>1?'活動票券 '+n+' 張 · 請出示給工作人員掃描':'活動票券 · 請出示給工作人員掃描',ticketFail:'票券暫時無法顯示，請到活動頁查看',
       upcoming:'即將到來',pickupLabel:'預約取餐 ',resvLabel:'訂位 ',states:{done:'已完成',ended:'已結束',ready:'可取餐',preparing:'準備中',placed:'已送單',booked:'已預約'},
       resvTitle:'訂位',back:'返回',date:'日期',party:'人數',partyN:n=>(n===6?'6+':n)+' 位',slotLabel:'時段',venues:['在咖啡 08:00–17:00','三點水 17:00–03:00'],noteOpt:'備註（選填）',resvHint:()=>'座位保留 10 分鐘。',submitResv:'送出訂位',pickSlot:'請選一個時段',noOpenSlots:'這天沒有開放訂位的時段，請改選其他日期',resvOk:id=>'訂位成立 '+id,
-      pickupTitle:'預約取餐',pickupShort:'預約取餐',shop:'商店',newShop:'＋ 商店',shopTitle:'商店',shopHint:'可線上刷卡，或到在咖啡／三點水櫃檯付款，再到櫃檯取貨。未付款的訂單保留 48 小時。',shopPayOnline:(n,a)=>'線上付款（'+n+' 件・NT$'+a+'）',shopPayCounter:'到櫃檯付款',shopPayNow:'線上付款',shopPaying:'正在確認付款…',shopPaid:'付款完成，請到櫃檯取貨',shopPayCanceled:'已取消付款，訂單仍保留，可到櫃檯付款',shopEmpty:'目前沒有上架的商品',shopSubmit:(n,a)=>'送出訂單（'+n+' 件・NT$'+a+'）',shopSubmit0:'選好商品再送出',shopOk:t=>'已下單（'+t+'），請到櫃檯付款取貨',shopSec:'商店訂單',noShop:'還沒有商店訂單',shopLabel:'商店訂單 ',shopStates:{open:'待付款取貨',paid:'已付款・待取貨',done:'已完成',cancel:'已取消'},cancelShop:'取消訂單',confirmCancelShop:'確定取消這張商店訂單？',shopLeft:n=>'剩 '+n+' 件',pickupHint:n=>'先選時間再選餐點，到店付款。',pickupDay:'取餐日',today:'今天',tomorrow:'明天',dayAfter:'後天',pickupTime:'取餐時間',noSlots:'這天已沒有可預約的時段，請改選其他日期',loadingMenu:'載入菜單…',pickTimeFirst:'選好時間後會顯示該時段的菜單。',submitPickup:'送出預約',comboQty:'數量',comboPick:'選擇內容',comboAdd:'加入預約',comboRemove:'移除',comboSet:'套餐',itemsN:n=>'（'+n+' 件）',menuFail:'菜單載入失敗',noItems:'這個時段沒有可預約的品項',dec:'減少',inc:'增加',pickupOk:'預約成立，取餐前會開始準備',cafe:'在咖啡',bar:'三點水',byPlan:'等等空間 Stay Square',brandsTitle:'品牌館',brandsSub:'同一張會員卡，四個品牌都能用',openNow:'營業中',closedNow:'休息中',bMenu:'看菜單',bResv:'訂位',bPickup:'預約取餐',bSite:'品牌網站',bPlans:'會籍方案',bAccess:'出示進出 QR',bHire:'包場預約',bMine:'我在這裡的預約',bNone:'目前沒有預約',bBarRule:(w,e)=>'低消平日 NT$'+w+'、假日 NT$'+e+'，另收 10% 服務費。',bRestNote:'書可以讀也可以買；價目與包場請看品牌網站。',bCard:'同一張會員卡、同一份點數。',byDine:'在咖啡（白天）・三點水（晚上）',byShop:'言文字商店・在咖啡／三點水櫃檯取貨',opFail:'操作失敗，請稍後再試',
+      pickupTitle:'預約取餐',pickupShort:'預約取餐',shop:'商店',newShop:'＋ 商店',shopTitle:'商店',shopHint:'可線上刷卡，或到在咖啡／三點水櫃檯付款，再到櫃檯取貨。未付款的訂單保留 48 小時。',shopPayOnline:(n,a)=>'線上付款（'+n+' 件・NT$'+a+'）',shopPayCounter:'到櫃檯付款',shopPayNow:'線上付款',shopPaying:'正在確認付款…',shopPaid:'付款完成，請到櫃檯取貨',shopPayCanceled:'已取消付款，訂單仍保留，可到櫃檯付款',shopEmpty:'目前沒有上架的商品',shopSubmit:(n,a)=>'送出訂單（'+n+' 件・NT$'+a+'）',shopSubmit0:'選好商品再送出',shopOk:t=>'已下單（'+t+'），請到櫃檯付款取貨',shopSec:'商店訂單',noShop:'還沒有商店訂單',shopLabel:'商店訂單 ',shopStates:{open:'待付款取貨',paid:'已付款・待取貨',done:'已完成',cancel:'已取消'},cancelShop:'取消訂單',confirmCancelShop:'確定取消這張商店訂單？',shopLeft:n=>'剩 '+n+' 件',pickupHint:n=>'先選時間再選餐點，到店付款。',pickupDay:'取餐日',today:'今天',tomorrow:'明天',dayAfter:'後天',pickupTime:'取餐時間',noSlots:'這天已沒有可預約的時段，請改選其他日期',loadingMenu:'載入菜單…',pickTimeFirst:'選好時間後會顯示該時段的菜單。',submitPickup:'送出預約',comboQty:'數量',comboPick:'選擇內容',comboAdd:'加入預約',comboRemove:'移除',comboSet:'套餐',itemsN:n=>'（'+n+' 件）',menuFail:'菜單載入失敗',noItems:'這個時段沒有可預約的品項',dec:'減少',inc:'增加',pickupOk:'預約成立，取餐前會開始準備',cafe:'在咖啡',bar:'三點水',byPlan:'等等空間 Stay Square',brandsTitle:'品牌館',agenda:'接下來',agendaNone:'目前沒有預約或訂單',seeAll:'全部',rwNow:n=>'現在可兌換 '+n+' 項',rwNext:(n,p)=>'再 '+p+' 點可換「'+n+'」',rwAll:'看全部兌換品項',rwTitle:'點數兌換',accessShort:'進出 QR',cardShort:'出示會員卡',newWhat:'要預約什麼？',pickupNo:t=>'取貨單號 '+t,payBy:'48 小時內付款取貨',plansOpen:'選擇方案',evMine:'我的報名',evAll:'所有活動',evPast:'已結束',ptsLine:n=>n+' 點',brandsSub:'同一張會員卡，四個品牌都能用',openNow:'營業中',closedNow:'休息中',bMenu:'看菜單',bResv:'訂位',bPickup:'預約取餐',bSite:'品牌網站',bPlans:'會籍方案',bAccess:'出示進出 QR',bHire:'包場預約',bMine:'我在這裡的預約',bNone:'目前沒有預約',bBarRule:(w,e)=>'低消平日 NT$'+w+'、假日 NT$'+e+'，另收 10% 服務費。',bRestNote:'書可以讀也可以買；價目與包場請看品牌網站。',bCard:'同一張會員卡、同一份點數。',byDine:'在咖啡（白天）・三點水（晚上）',byShop:'言文字商店・在咖啡／三點水櫃檯取貨',opFail:'操作失敗，請稍後再試',
       installLabel:{prompt:'安裝到主畫面',ios:'看怎麼加到主畫面',inapp:'看怎麼用瀏覽器開啟'}},
     en:{locale:'en-US',back:'Back',tabHome:'Card',tabPlan:'Plan',tabEvents:'Events',tabMe:'Me',loading:'Loading…',
       loginTitle:'emoji Member',loginSub:'Sign in to earn points at every space, view your membership and register for events.',google:'Sign in with Google',lineLogin:'Sign in with LINE',email:'Sign in with Email',needName:'Please enter your name',emailSend:'Send sign-in link',emailSent:'Link sent',emailSentTo:e=>'Check '+e+' and open the link to sign in. It expires in 20 minutes.',emailFail:'Could not send the link — try Google instead',firstTime:'New here? Sign in with any option and your account is created automatically.',
@@ -327,7 +340,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
       myRegs:'My registrations',noRegs:'No event registrations yet',checkedIn:'Checked in',tickets:n=>n+' tickets',showTicket:'Show ticket',eventPage:'Event page',ticketMeta:n=>n>1?n+' tickets · show to staff to scan':'Event ticket · show to staff to scan',ticketFail:'Ticket unavailable right now — see the event page',
       upcoming:'Coming up',pickupLabel:'Pickup ',resvLabel:'Reservation ',states:{done:'Done',ended:'Closed',ready:'Ready',preparing:'Preparing',placed:'Sent to kitchen',booked:'Booked'},
       resvTitle:'Reserve a table',back:'Back',date:'Date',party:'Guests',partyN:n=>(n===6?'6+':n),slotLabel:'Time',venues:['at cafe 08:00–17:00','3AM 17:00–03:00'],noteOpt:'Note (optional)',resvHint:()=>'Tables are held for 10 minutes.',submitResv:'Reserve',pickSlot:'Pick a time',noOpenSlots:'No bookable slots on this day. Pick another date.',resvOk:id=>'Reserved · '+id,
-      pickupTitle:'Order for pickup',comboQty:'Quantity',comboPick:'Choose',comboAdd:'Add to order',comboRemove:'Remove',comboSet:'Set',pickupShort:'Pickup',shop:'Shop',newShop:'+ Shop',shopTitle:'Shop',shopHint:'Pay online by card, or pay at the at cafe / 3AM counter, then pick up at the counter. Unpaid orders are held for 48 hours.',shopPayOnline:(n,a)=>'Pay online ('+n+' items · NT$'+a+')',shopPayCounter:'Pay at counter',shopPayNow:'Pay online',shopPaying:'Confirming payment…',shopPaid:'Paid. Please pick up at the counter.',shopPayCanceled:'Payment cancelled. Your order is kept; you can pay at the counter.',shopEmpty:'Nothing in the shop right now',shopSubmit:(n,a)=>'Place order ('+n+' items · NT$'+a+')',shopSubmit0:'Choose items first',shopOk:t=>'Order placed ('+t+'). Pay and pick up at the counter.',shopSec:'Shop orders',noShop:'No shop orders yet',shopLabel:'Shop order ',shopStates:{open:'Unpaid',paid:'Paid · ready for pickup',done:'Completed',cancel:'Cancelled'},cancelShop:'Cancel order',confirmCancelShop:'Cancel this shop order?',shopLeft:n=>n+' left',pickupHint:n=>'Pick a time, then your items. Pay in store.',pickupDay:'Pickup day',today:'Today',tomorrow:'Tomorrow',dayAfter:'In 2 days',pickupTime:'Pickup time',noSlots:'No more slots that day — pick another date',loadingMenu:'Loading menu…',pickTimeFirst:'Pick a time to see that period’s menu.',submitPickup:'Place order',itemsN:n=>' ('+n+' items)',menuFail:'Could not load the menu',noItems:'Nothing available for this slot',dec:'Less',inc:'More',pickupOk:'Order placed — we’ll start preparing before pickup',cafe:'at cafe',bar:'3AM',byPlan:'Stay Square',brandsTitle:'Our brands',brandsSub:'One member card for all four',openNow:'Open now',closedNow:'Closed now',bMenu:'Menu',bResv:'Reserve',bPickup:'Pickup',bSite:'Website',bPlans:'Plans',bAccess:'Show access QR',bHire:'Hire the venue',bMine:'My bookings here',bNone:'No bookings yet',bBarRule:(w,e)=>'Minimum spend NT$'+w+' weekdays, NT$'+e+' weekends, plus 10% service.',bRestNote:'Read books here or buy them. Prices and lounge hire are on the website.',bCard:'Same member card, same points.',byDine:'at cafe (day) · 3AM (night)',byShop:'emoji store · pick up at at cafe / 3AM',opFail:'Action failed. Please try again.',
+      pickupTitle:'Order for pickup',comboQty:'Quantity',comboPick:'Choose',comboAdd:'Add to order',comboRemove:'Remove',comboSet:'Set',pickupShort:'Pickup',shop:'Shop',newShop:'+ Shop',shopTitle:'Shop',shopHint:'Pay online by card, or pay at the at cafe / 3AM counter, then pick up at the counter. Unpaid orders are held for 48 hours.',shopPayOnline:(n,a)=>'Pay online ('+n+' items · NT$'+a+')',shopPayCounter:'Pay at counter',shopPayNow:'Pay online',shopPaying:'Confirming payment…',shopPaid:'Paid. Please pick up at the counter.',shopPayCanceled:'Payment cancelled. Your order is kept; you can pay at the counter.',shopEmpty:'Nothing in the shop right now',shopSubmit:(n,a)=>'Place order ('+n+' items · NT$'+a+')',shopSubmit0:'Choose items first',shopOk:t=>'Order placed ('+t+'). Pay and pick up at the counter.',shopSec:'Shop orders',noShop:'No shop orders yet',shopLabel:'Shop order ',shopStates:{open:'Unpaid',paid:'Paid · ready for pickup',done:'Completed',cancel:'Cancelled'},cancelShop:'Cancel order',confirmCancelShop:'Cancel this shop order?',shopLeft:n=>n+' left',pickupHint:n=>'Pick a time, then your items. Pay in store.',pickupDay:'Pickup day',today:'Today',tomorrow:'Tomorrow',dayAfter:'In 2 days',pickupTime:'Pickup time',noSlots:'No more slots that day — pick another date',loadingMenu:'Loading menu…',pickTimeFirst:'Pick a time to see that period’s menu.',submitPickup:'Place order',itemsN:n=>' ('+n+' items)',menuFail:'Could not load the menu',noItems:'Nothing available for this slot',dec:'Less',inc:'More',pickupOk:'Order placed — we’ll start preparing before pickup',cafe:'at cafe',bar:'3AM',byPlan:'Stay Square',brandsTitle:'Our brands',agenda:'Coming up',agendaNone:'No bookings or orders',seeAll:'All',rwNow:n=>n+' rewards available now',rwNext:(n,p)=>p+' more points for “'+n+'”',rwAll:'See all rewards',rwTitle:'Rewards',accessShort:'Access QR',cardShort:'Show card',newWhat:'What would you like to book?',pickupNo:t=>'Pickup no. '+t,payBy:'Pay and pick up within 48 hours',plansOpen:'Choose a plan',evMine:'My registrations',evAll:'All events',evPast:'Past',ptsLine:n=>n+' pts',brandsSub:'One member card for all four',openNow:'Open now',closedNow:'Closed now',bMenu:'Menu',bResv:'Reserve',bPickup:'Pickup',bSite:'Website',bPlans:'Plans',bAccess:'Show access QR',bHire:'Hire the venue',bMine:'My bookings here',bNone:'No bookings yet',bBarRule:(w,e)=>'Minimum spend NT$'+w+' weekdays, NT$'+e+' weekends, plus 10% service.',bRestNote:'Read books here or buy them. Prices and lounge hire are on the website.',bCard:'Same member card, same points.',byDine:'at cafe (day) · 3AM (night)',byShop:'emoji store · pick up at at cafe / 3AM',opFail:'Action failed. Please try again.',
       installLabel:{prompt:'Install',ios:'How to add to home screen',inapp:'How to open in a browser'}},
     ja:{locale:'ja-JP',back:'戻る',tabHome:'カード',tabPlan:'会員',tabEvents:'イベント',tabMe:'設定',loading:'読み込み中…',
       loginTitle:'言文字 会員',loginSub:'ログインすると、すべての空間でポイントを貯め、会員資格の確認やイベント申込ができます。',google:'Google でログイン',lineLogin:'LINE でログイン',email:'メールでログイン',needName:'名前を入力してください',emailSend:'ログインリンクを送信',emailSent:'送信しました',emailSentTo:e=>e+' に届いたリンクを開くとログインできます。有効期限は20分です。',emailFail:'送信できませんでした。Google でログインしてください',firstTime:'初めての方も、いずれかの方法でログインすると自動で登録されます。',
@@ -350,7 +363,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
       myRegs:'イベント申込',noRegs:'申込済みのイベントはありません',checkedIn:'チェックイン済',tickets:n=>n+' 枚',showTicket:'チケットを表示',eventPage:'イベントページ',ticketMeta:n=>n>1?'チケット '+n+' 枚 · スタッフに提示してスキャン':'イベントチケット · スタッフに提示してスキャン',ticketFail:'チケットを表示できません。イベントページをご覧ください',
       upcoming:'近日の予定',pickupLabel:'テイクアウト ',resvLabel:'予約 ',states:{done:'完了',ended:'終了',ready:'受け取り可',preparing:'準備中',placed:'調理中',booked:'予約済'},
       resvTitle:'席を予約',back:'戻る',date:'日付',party:'人数',partyN:n=>(n===6?'6+':n)+' 名',slotLabel:'時間',venues:['在咖啡 08:00–17:00','三點水 17:00–03:00'],noteOpt:'備考（任意）',resvHint:()=>'席は10分間保持します。',submitResv:'予約する',pickSlot:'時間を選んでください',noOpenSlots:'この日はご予約枠がありません。別の日をお選びください。',resvOk:id=>'予約完了 '+id,
-      pickupTitle:'テイクアウト予約',comboQty:'数量',comboPick:'内容を選ぶ',comboAdd:'予約に追加',comboRemove:'削除',comboSet:'セット',pickupShort:'お持ち帰り',shop:'ショップ',newShop:'＋ ショップ',shopTitle:'ショップ',shopHint:'オンラインでカード払い、または在咖啡／三點水のカウンターでお支払いのうえ、カウンターでお受け取りください。未払いのご注文は48時間保管します。',shopPayOnline:(n,a)=>'オンラインで支払う（'+n+'点・NT$'+a+'）',shopPayCounter:'カウンターで支払う',shopPayNow:'オンラインで支払う',shopPaying:'お支払いを確認しています…',shopPaid:'お支払い完了。カウンターでお受け取りください',shopPayCanceled:'お支払いをキャンセルしました。ご注文は保管中です。カウンターでもお支払いいただけます',shopEmpty:'現在販売中の商品はありません',shopSubmit:(n,a)=>'注文する（'+n+'点・NT$'+a+'）',shopSubmit0:'商品を選んでください',shopOk:t=>'注文しました（'+t+'）。カウンターでお支払い・お受け取りください',shopSec:'ショップ注文',noShop:'ショップ注文はまだありません',shopLabel:'ショップ注文 ',shopStates:{open:'未払い',paid:'支払い済み・お受け取り待ち',done:'完了',cancel:'キャンセル済み'},cancelShop:'注文をキャンセル',confirmCancelShop:'このショップ注文をキャンセルしますか？',shopLeft:n=>'残り'+n+'点',pickupHint:n=>'時間を選んでから料理を選びます。お支払いは店頭で。',pickupDay:'受け取り日',today:'今日',tomorrow:'明日',dayAfter:'明後日',pickupTime:'受け取り時間',noSlots:'この日の枠はもうありません。別の日を選んでください',loadingMenu:'メニューを読み込み中…',pickTimeFirst:'時間を選ぶとその時間帯のメニューが表示されます。',submitPickup:'予約する',itemsN:n=>'（'+n+' 点）',menuFail:'メニューを読み込めませんでした',noItems:'この時間帯に予約できる品はありません',dec:'減らす',inc:'増やす',pickupOk:'予約完了。受け取り前に準備を始めます',cafe:'在咖啡',bar:'三點水',byPlan:'Stay Square（等等空間）',brandsTitle:'ブランド',brandsSub:'4つのブランドで同じ会員カード',openNow:'営業中',closedNow:'営業時間外',bMenu:'メニュー',bResv:'席を予約',bPickup:'テイクアウト予約',bSite:'公式サイト',bPlans:'会員プラン',bAccess:'入退室QRを表示',bHire:'貸切予約',bMine:'このお店の予約',bNone:'予約はまだありません',bBarRule:(w,e)=>'最低利用額 平日 NT$'+w+'・休日 NT$'+e+'、別途サービス料10%。',bRestNote:'本は読むことも買うこともできます。料金と貸切は公式サイトへ。',bCard:'同じ会員カード、同じポイント。',byDine:'在咖啡（昼）・三點水（夜）',byShop:'言文字ストア・在咖啡／三點水で受け取り',opFail:'操作に失敗しました。しばらくしてから再度お試しください。',
+      pickupTitle:'テイクアウト予約',comboQty:'数量',comboPick:'内容を選ぶ',comboAdd:'予約に追加',comboRemove:'削除',comboSet:'セット',pickupShort:'お持ち帰り',shop:'ショップ',newShop:'＋ ショップ',shopTitle:'ショップ',shopHint:'オンラインでカード払い、または在咖啡／三點水のカウンターでお支払いのうえ、カウンターでお受け取りください。未払いのご注文は48時間保管します。',shopPayOnline:(n,a)=>'オンラインで支払う（'+n+'点・NT$'+a+'）',shopPayCounter:'カウンターで支払う',shopPayNow:'オンラインで支払う',shopPaying:'お支払いを確認しています…',shopPaid:'お支払い完了。カウンターでお受け取りください',shopPayCanceled:'お支払いをキャンセルしました。ご注文は保管中です。カウンターでもお支払いいただけます',shopEmpty:'現在販売中の商品はありません',shopSubmit:(n,a)=>'注文する（'+n+'点・NT$'+a+'）',shopSubmit0:'商品を選んでください',shopOk:t=>'注文しました（'+t+'）。カウンターでお支払い・お受け取りください',shopSec:'ショップ注文',noShop:'ショップ注文はまだありません',shopLabel:'ショップ注文 ',shopStates:{open:'未払い',paid:'支払い済み・お受け取り待ち',done:'完了',cancel:'キャンセル済み'},cancelShop:'注文をキャンセル',confirmCancelShop:'このショップ注文をキャンセルしますか？',shopLeft:n=>'残り'+n+'点',pickupHint:n=>'時間を選んでから料理を選びます。お支払いは店頭で。',pickupDay:'受け取り日',today:'今日',tomorrow:'明日',dayAfter:'明後日',pickupTime:'受け取り時間',noSlots:'この日の枠はもうありません。別の日を選んでください',loadingMenu:'メニューを読み込み中…',pickTimeFirst:'時間を選ぶとその時間帯のメニューが表示されます。',submitPickup:'予約する',itemsN:n=>'（'+n+' 点）',menuFail:'メニューを読み込めませんでした',noItems:'この時間帯に予約できる品はありません',dec:'減らす',inc:'増やす',pickupOk:'予約完了。受け取り前に準備を始めます',cafe:'在咖啡',bar:'三點水',byPlan:'Stay Square（等等空間）',brandsTitle:'ブランド',agenda:'今後の予定',agendaNone:'予約・注文はありません',seeAll:'すべて',rwNow:n=>'今すぐ交換できる品 '+n+' 件',rwNext:(n,p)=>'あと '+p+' ptで「'+n+'」',rwAll:'交換できる品をすべて見る',rwTitle:'ポイント交換',accessShort:'入退室QR',cardShort:'会員カード',newWhat:'何を予約しますか？',pickupNo:t=>'受取番号 '+t,payBy:'48時間以内にお支払い・お受け取り',plansOpen:'プランを選ぶ',evMine:'申込済みイベント',evAll:'すべてのイベント',evPast:'終了',ptsLine:n=>n+' pt',brandsSub:'4つのブランドで同じ会員カード',openNow:'営業中',closedNow:'営業時間外',bMenu:'メニュー',bResv:'席を予約',bPickup:'テイクアウト予約',bSite:'公式サイト',bPlans:'会員プラン',bAccess:'入退室QRを表示',bHire:'貸切予約',bMine:'このお店の予約',bNone:'予約はまだありません',bBarRule:(w,e)=>'最低利用額 平日 NT$'+w+'・休日 NT$'+e+'、別途サービス料10%。',bRestNote:'本は読むことも買うこともできます。料金と貸切は公式サイトへ。',bCard:'同じ会員カード、同じポイント。',byDine:'在咖啡（昼）・三點水（夜）',byShop:'言文字ストア・在咖啡／三點水で受け取り',opFail:'操作に失敗しました。しばらくしてから再度お試しください。',
       installLabel:{prompt:'ホーム画面にインストール',ios:'追加方法を見る',inapp:'ブラウザで開く方法を見る'}},
   };
   const lsGet=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
@@ -533,45 +546,53 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
   const imgUrl=u=>/^\//.test(u||'')?SITE+u:(u||'');
   const SVG_CUP='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h12v6a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5zM17 10h2a2 2 0 0 1 0 4h-2M8 3v2M12 3v2"/></svg>';
   const SVG_CLOCK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
-  function rewardsSec(pts){
+  function rewardList(){
     const r=data.rewards||{items:[],space:[]};
     const nm=x=>LANG==='ja'&&x.ja?x.ja:LANG==='en'&&x.en?x.en:x.zh;
-    const list=[].concat((r.items||[]).map(x=>({n:nm(x),p:x.points,id:x.id,img:x.image})),(r.space||[]).map(x=>({n:nm(x),p:x.points,space:true})));
-    if(!list.length)return '';
-    const card=x=>{const ok=pts>=x.p;const ph=x.img?`<img class="ph" src="${esc(imgUrl(x.img))}" alt="${esc(x.n)}" loading="lazy">`:`<div class="ph">${x.space?SVG_CLOCK:SVG_CUP}</div>`;
-      return `<div class="rcard${ok?'':' lock'}">${ph}<div class="bd"><span class="nm">${esc(x.n)}</span><span class="pt">${esc(T.pts(x.p))}</span>${x.id&&ok?`<button class="rwb" data-rw="${esc(x.id)}" data-n="${esc(x.n)}" data-p="${x.p}">${esc(T.redeemBtn)}</button>`:`<small class="need">${ok?'':esc(T.short(x.p-pts))}</small>`}</div></div>`;};
-    return `<section class="sec"><h2>${esc(T.redeem)}</h2><div class="rgrid">${list.map(card).join('')}</div><p class="hint ghost">${esc(T.redeemHint)}</p></section>`;
+    return [].concat((r.items||[]).map(x=>({n:nm(x),p:x.points,id:x.id,img:x.image})),(r.space||[]).map(x=>({n:nm(x),p:x.points,space:true}))).sort((a,b)=>a.p-b.p);
   }
+  const rewardCard=(x,pts)=>{const ok=pts>=x.p;const ph=x.img?`<img class="ph" src="${esc(imgUrl(x.img))}" alt="${esc(x.n)}" loading="lazy">`:`<div class="ph">${x.space?SVG_CLOCK:SVG_CUP}</div>`;
+    return `<div class="rcard${ok?'':' lock'}">${ph}<div class="bd"><span class="nm">${esc(x.n)}</span><span class="pt">${esc(T.pts(x.p))}</span>${x.id&&ok?`<button class="rwb" type="button" data-rw="${esc(x.id)}" data-n="${esc(x.n)}" data-p="${x.p}">${esc(T.redeemBtn)}</button>`:`<small class="need">${ok?'':esc(T.short(x.p-pts))}</small>`}</div></div>`;};
+  /* 首頁只放「現在能換的前 4 項」＋下一個目標，全部品項在推入頁（正式站 36 項會把首頁拉到 7000px） */
+  function rewardsSec(pts){
+    const list=rewardList();if(!list.length)return '';
+    const ok=list.filter(x=>pts>=x.p&&x.id),next=list.find(x=>pts<x.p);
+    return `<section class="sec"><div class="sec-h"><h2>${esc(T.redeem)}</h2><button class="quiet" type="button" id="rw-all">${esc(T.seeAll)}</button></div>
+      <p class="hint" style="margin-top:0">${esc(ok.length?T.rwNow(ok.length):'')}${ok.length&&next?'・':''}${next?esc(T.rwNext(next.n,next.p-pts)):''}</p>
+      ${ok.length?`<div class="rgrid">${ok.slice(0,4).map(x=>rewardCard(x,pts)).join('')}</div>`:''}</section>`;
+  }
+  function openRewards(pts){
+    const el=document.createElement('div');el.className='pg';
+    el.innerHTML=`<header><button class="back" type="button"><b>‹</b><span>${esc(T.back)}</span></button><h3>${esc(T.rwTitle)}</h3></header><div class="body"><div class="hist-bal"><span>${esc(T.myPts)}</span><b>${esc(pts)}</b></div><div class="rgrid">${rewardList().map(x=>rewardCard(x,pts)).join('')}</div><p class="hint ghost">${esc(T.redeemHint)}</p></div>`;
+    document.body.appendChild(el);const close=pushPg(el);el.querySelector('.back').onclick=close;
+    el.querySelectorAll('[data-rw]').forEach(b=>b.onclick=()=>{close();startRedeem(b.dataset.rw,b.dataset.n,Number(b.dataset.p));});
+  }
+  /* 首頁＝會員最常做的事：出示卡（進出 QR）→ 接下來 → 品牌館（各品牌入口）→ 兌換摘要 → 下一場活動 */
   function home(){
     const me=data.me||{},pts=(data.yan&&data.yan.balance)||0,ev=nextEvent();
     const phone=(data.yan&&data.yan.phone)||'';
-    const h=new Date().getHours();
+    const h=new Date().getHours(),acc=accessInfo();
     app.innerHTML=`${offline?`<div class="offline">${esc(T.offline)}</div>`:''}
     ${installCard()}
     <div class="hello"><div><h1>${esc(me.name?T.hi(me.name):T.welcome)}</h1><small>${esc(h<12?T.morning:h<18?T.noon:T.evening)}</small></div>${MARK}</div>
-    <section class="pass" aria-label="${esc(T.tabHome)}"><div class="brand">${esc(T.brand)}</div><div class="pts"><span>${esc(T.myPts)}</span><b>${esc(pts)}</b></div><div class="who"><span>${esc(me.name||'')}</span><i>${esc(phone?phone.replace(/^\+886(\d{2})\d{4}(\d{3})$/,'0$1-****-$2'):'')}</i></div></section>
-    <button class="show" id="show"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17h3v4h-4v-3h4M18 14h3v3"/></svg>${esc(T.showCard)}</button>
+    <section class="pass" aria-label="${esc(T.tabHome)}"><div class="brand">${esc(T.brand)}</div><button class="pts" type="button" id="hist-open"><span>${esc(T.myPts)}</span><b>${esc(pts)}</b><small>${esc(T.history)} ›</small></button><div class="who"><span>${esc(me.name||'')}</span><i>${esc(phone?phone.replace(/^\+886(\d{2})\d{4}(\d{3})$/,'0$1-****-$2'):'')}</i></div></section>
+    <div class="${acc.canIssue?'btn2 card-acts':'card-acts'}"><button class="show" id="show" type="button"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17h3v4h-4v-3h4M18 14h3v3"/></svg>${esc(acc.canIssue?T.cardShort:T.showCard)}</button>${acc.canIssue?`<button class="btn access-open" id="access-open" type="button"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h5v16h-5M10 8l4 4-4 4M14 12H4"/></svg>${esc(T.accessShort)}</button>`:''}</div>
     <p class="hint ghost">${esc(phone?'':T.hintNoPhone+' ')}${esc(T.hintEarn)}</p>
-    <button class="btn hist-open" id="hist-open" type="button"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2"/></svg>${esc(T.history)}</button>
     <button class="btn order-scan" id="order-scan" type="button"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M4 12h16"/></svg>${esc(T.orderScan)}</button>
-    ${brandsSec()}
-    <nav class="quick" aria-label="quick">
-      <button data-go="menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M17 3c-2 2-3 5-3 8h3v10"/></svg>${esc(T.menu)}</button>
-      <button data-go="resv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M17 3c-2 2-3 5-3 8h3v10"/></svg>${esc(T.reserve)}</button>
-      <button data-go="pickup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 9h16l-1.5 11h-13zM8 9V6a4 4 0 0 1 8 0v3"/></svg>${esc(T.pickupShort)}</button>
-      <button data-go="shop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16v13H4zM4 7l2-3h12l2 3M9 11a3 3 0 0 0 6 0"/></svg>${esc(T.shop)}</button>
-      <button data-go="events"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>${esc(T.signup)}</button>
-    </nav>
-    ${rewardsSec(pts)}
     ${upcomingSec()}
-    <section class="sec"><h2>${esc(T.nextEvent)}</h2>${ev?evTile(ev):`<p class="empty">${esc(T.noEvents)}</p>`}</section>`;
+    ${brandsSec()}
+    ${rewardsSec(pts)}
+    ${ev?`<section class="sec"><div class="sec-h"><h2>${esc(T.nextEvent)}</h2><button class="quiet" type="button" data-go="events">${esc(T.seeAll)}</button></div>${evTile(ev)}</section>`:''}`;
     document.getElementById('show').onclick=openCard;
+    const ao=document.getElementById('access-open');if(ao)ao.onclick=()=>openQr('access');
     document.getElementById('order-scan').onclick=startOrder;
     document.getElementById('hist-open').onclick=openHistory;
+    const ra=document.getElementById('rw-all');if(ra)ra.onclick=()=>openRewards(pts);
     app.querySelectorAll('[data-brand]').forEach(b=>b.onclick=()=>openBrand(b.dataset.brand));
     if(BRAND_LINK){const k=BRAND_LINK;BRAND_LINK='';openBrand(k);}
     app.querySelectorAll('[data-rw]').forEach(b=>b.onclick=()=>startRedeem(b.dataset.rw,b.dataset.n,Number(b.dataset.p)));
     app.querySelectorAll('[data-go]').forEach(b=>b.onclick=e=>{e.preventDefault();go(b.dataset.go);});
+    bindAgenda();
     bindInstall();
   }
   function evTile(e){return `<a class="tile" href="${eventUrl(e)}"><h3>${esc(e.title)}${e.registered?`<span class="tag">${esc(T.registered)}</span>`:''}</h3><div class="meta">${esc(fmt(e.starts_at)||T.timeTbd)}${e.location?' · '+esc(e.location):''}</div></a>`;}
@@ -589,8 +610,12 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
   }
   function events(){
     const all=data.events||[],list=all.filter(e=>e.status!=='已結束').concat(all.filter(e=>e.status==='已結束').reverse()),ups=data.updates||[];
-    app.innerHTML=`<div class="hello"><h1>${esc(T.events)}</h1></div>${list.length?list.map(evRow).join(''):`<p class="empty">${esc(T.noEvents)}</p>`}
+    const mine=(data.registrations||[]).filter(r=>{const d=parseT(r.starts_at);return !d||+d>Date.now()-3*36e5;});
+    app.innerHTML=`<div class="hello"><h1>${esc(T.events)}</h1></div>
+    ${mine.length?`<section class="sec" style="margin-top:0"><h2>${esc(T.evMine)}</h2>${mine.map(o=>agendaTile({kind:'reg',o},false)).join('')}</section><h2 class="sec-t">${esc(T.evAll)}</h2>`:''}
+    ${list.length?list.map(evRow).join(''):`<p class="empty">${esc(T.noEvents)}</p>`}
     ${data.guest?'':`<section class="sec"><h2>${esc(T.updates)}</h2>${ups.length?ups.map(u=>`<div class="upd mute"><b style="color:var(--ink)">${esc(u.title)}</b><time>${esc(u.published_at)}</time>${u.content?`<p>${esc(u.content)}</p>`:''}</div>`).join(''):`<p class="empty">${esc(T.noUpdates)}</p>`}</section>`}`;
+    bindAgenda();
   }
   /* ---- 預約：我的訂位／預約取餐／我的報名（上游 f68960f 移植，改三語） ---- */
   let SHOP={qty:{},note:''};
@@ -599,10 +624,40 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
   const dayLabel=d=>{const x=new Date(d+'T00:00:00+08:00');return x.toLocaleDateString(T.locale,{timeZone:'Asia/Taipei',month:'numeric',day:'numeric',weekday:'short'});};
   const itemName=it=>LANG==='ja'&&it.ja?it.ja:LANG==='en'&&it.en?it.en:it.zh;
   const linesText=ls=>ls.map(l=>itemName(l)+'×'+l.qty+(l.parts&&l.parts.length?'（'+partsText(l)+'）':'')).join('、');
+  /* 接下來：商店單、取餐、訂位、報名合成一條，依時間排；首頁與預約分頁共用（full＝含取消／付款按鈕） */
+  function agendaItems(){
+    const now=Date.now(),out=[];
+    for(const o of (data.shopOrders||[]).filter(o=>o.status==='open'))out.push({t:parseT(o.created_at)||new Date(),kind:'shop',o});
+    for(const p of (data.pickups||[]).filter(p=>p.status==='open'))out.push({t:parseT(p.pickup_at)||new Date(),kind:'pickup',o:p});
+    for(const r of (data.reservations||[]).filter(r=>['new','confirmed'].includes(r.status)))out.push({t:new Date(r.reserve_date+'T'+r.reserve_time+':00+08:00'),kind:'resv',o:r});
+    for(const r of (data.registrations||[]).filter(r=>{const d=parseT(r.starts_at);return !d||+d>now-3*36e5;}))out.push({t:parseT(r.starts_at)||new Date(),kind:'reg',o:r});
+    return out.sort((a,b)=>(a.kind==='shop'&&!a.o.paid?-1:0)-(b.kind==='shop'&&!b.o.paid?-1:0)||a.t-b.t);
+  }
+  function agendaTile(x,full){
+    const o=x.o;let h='',pill='',on=false,meta='',act='';
+    if(x.kind==='shop'){h=T.byShop.split('・')[0]+'・'+T.pickupNo(o.table);pill=shopState(o);on=o.paid;meta=linesText(o.items)+' · NT$'+o.amount;if(!o.paid)meta+='\n'+T.payBy;
+      if(full&&o.status==='open'&&!o.paid)act=`${data.shopStripe?`<button class="btn solid" type="button" data-pay-shop="${esc(o.id)}">${esc(T.shopPayNow)}</button>`:''}<button class="quiet" type="button" data-cancel-shop="${esc(o.id)}">${esc(T.cancelShop)}</button>`;}
+    else if(x.kind==='pickup'){h=venueName(venueOfTime(o.pickup_time))+'・'+T.pickupLabel+(o.pickup_at?dayLabel(new Date(o.pickup_at).toLocaleDateString('en-CA',{timeZone:'Asia/Taipei'})):'')+' '+o.pickup_time;pill=pickupState(o);on=o.state==='ready';meta=linesText(o.items)+(o.amount?' · NT$'+o.amount:'');
+      if(full&&o.status==='open'&&!o.placed)act=`<button class="quiet" type="button" data-cancel-pickup="${esc(o.id)}">${esc(T.cancelPickup)}</button>`;}
+    else if(x.kind==='resv'){h=venueName(o.venue||venueOfTime(o.reserve_time))+'・'+T.resvLabel+dayLabel(o.reserve_date)+' '+o.reserve_time;pill=o.label;on=o.status==='confirmed';meta=T.seats(o.party_size)+(o.table_no?' · '+T.tableNo+o.table_no:'');
+      if(full&&o.can_cancel)act=`<button class="quiet" type="button" data-cancel-resv="${esc(o.id)}">${esc(T.cancelResv)}</button>`;}
+    else{h=o.title;pill=o.status==='registered'?(o.checked_in_at?T.checkedIn:T.registered):T.pendingPay;on=o.status==='registered';meta=fmt(o.starts_at)+(o.location?' · '+o.location:'')+(o.quantity>1?' · '+T.tickets(o.quantity):'');
+      act=`${o.ticket?`<button class="btn solid" type="button" data-ticket="${esc(o.id)}">${esc(T.showTicket)}</button>`:''}${full?`<a class="btn" href="${eventUrl(o)}">${esc(T.eventPage)}</a>`:''}`;}
+    const [who,what]=h.includes('・')?[h.slice(0,h.indexOf('・')),h.slice(h.indexOf('・')+1)]:['',h];
+    const title=esc(what).replace(/(\d{1,2}\/\d{1,2}（[^）]+）\s?\d{1,2}:\d{2}|\d{1,2}\/\d{1,2}（[^）]+）)/,'<span class="nb">$1</span>');
+    return `<div class="tile ag">${who?`<div class="ag-who">${esc(who)}</div>`:''}<div class="ag-top"><h3>${title}</h3><span class="pill${on?' on':''}">${esc(pill)}</span></div><div class="meta">${esc(meta)}</div>${act?`<div class="act">${act}</div>`:''}</div>`;
+  }
+  function bindAgenda(){
+    app.querySelectorAll('[data-cancel-pickup]').forEach(b=>b.onclick=async()=>{if(!confirm(T.confirmCancelPickup))return;b.disabled=true;try{await post('/api/me/pickups/'+encodeURIComponent(b.dataset.cancelPickup),null,'DELETE');toast(T.canceled);await load();}catch(e){toast(e.message||T.opFail);b.disabled=false;}});
+    app.querySelectorAll('[data-pay-shop]').forEach(b=>b.onclick=()=>payShop(b.dataset.payShop,b));
+    app.querySelectorAll('[data-cancel-shop]').forEach(b=>b.onclick=async()=>{if(!confirm(T.confirmCancelShop))return;b.disabled=true;try{await post('/api/me/shop/'+encodeURIComponent(b.dataset.cancelShop),null,'DELETE');toast(T.canceled);await load();}catch(e){toast(e.message||T.opFail);b.disabled=false;}});
+    app.querySelectorAll('[data-cancel-resv]').forEach(b=>b.onclick=async()=>{if(!confirm(T.confirmCancelResv))return;b.disabled=true;try{await post('/api/me/reservations/'+encodeURIComponent(b.dataset.cancelResv),null,'DELETE');toast(T.canceled);await load();}catch(e){toast(e.message||T.opFail);b.disabled=false;}});
+    app.querySelectorAll('[data-ticket]').forEach(b=>b.onclick=()=>openTicket(b.dataset.ticket));
+  }
   function upcomingSec(){
-    const rv=(data.reservations||[]).filter(r=>r.can_cancel),pk=(data.pickups||[]).filter(p=>p.status==='open'),so=(data.shopOrders||[]).filter(o=>o.status==='open');
-    if(!rv.length&&!pk.length&&!so.length)return '';
-    return `<section class="sec"><h2>${esc(T.upcoming)}</h2>${so.map(o=>`<a class="tile" href="#" data-go="list"><h3>${esc(T.shopLabel+o.table)}<span class="pill ${o.paid?'on':''}">${esc(shopState(o))}</span></h3><div class="meta">${esc(linesText(o.items))} · NT$${esc(o.amount)}</div></a>`).join('')}${pk.map(p=>`<a class="tile" href="#" data-go="list"><h3>${esc(venueName(venueOfTime(p.pickup_time))+'・'+T.pickupLabel+p.pickup_time)}<span class="pill ${p.state==='ready'?'on':''}">${esc(pickupState(p))}</span></h3><div class="meta">${esc(linesText(p.items))}</div></a>`).join('')}${rv.map(r=>`<a class="tile" href="#" data-go="list"><h3>${esc(venueName(r.venue||venueOfTime(r.reserve_time))+'・'+T.resvLabel+dayLabel(r.reserve_date)+' '+r.reserve_time)}</h3><div class="meta">${esc(T.seats(r.party_size))}</div></a>`).join('')}</section>`;
+    const list=agendaItems();
+    if(!list.length)return '';
+    return `<section class="sec"><div class="sec-h"><h2>${esc(T.agenda)}</h2>${list.length>3?`<button class="quiet" type="button" data-go="list">${esc(T.seeAll)}</button>`:''}</div>${list.slice(0,3).map(x=>agendaTile(x,true)).join('')}</section>`;
   }
   const pickupState=p=>p.status!=='open'?(p.paid?T.states.done:T.states.ended):p.state==='ready'?T.states.ready:p.state==='preparing'?T.states.preparing:p.placed?T.states.placed:T.states.booked;
   const shopState=o=>o.paid?(o.status==='open'?T.shopStates.paid:T.shopStates.done):o.status==='open'?T.shopStates.open:T.shopStates.cancel;
@@ -631,19 +686,13 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
     if(sub==='resv')return bookResv();
     if(sub==='pickup')return bookPickup();
     if(sub==='shop')return bookShop();
-    const rv=data.reservations||[],pk=data.pickups||[],rg=data.registrations||[],so=data.shopOrders||[];
+    const list=agendaItems();
     app.innerHTML=`<div class="hello"><h1>${esc(T.tabBook)}</h1></div>
-    <nav class="quick" aria-label="new"><button data-go="resv">${esc(T.newResv)}</button><button data-go="pickup">${esc(T.newPickup)}</button><button data-go="shop">${esc(T.newShop)}</button><button data-go="events">${esc(T.signup)}</button></nav>
-    ${so.length?`<section class="sec"><h2>${esc(T.shopSec)}</h2>${so.map(o=>`<div class="tile"><h3>${esc(o.table)} · ${esc(fmt(o.created_at))}<span class="pill ${o.paid?'on':''}">${esc(shopState(o))}</span></h3><div class="meta">${esc(linesText(o.items))} · NT$${esc(o.amount)}${o.note?'<br>'+esc(o.note):''}</div>${o.status==='open'&&!o.paid?`<div class="act">${data.shopStripe?`<button class="btn solid" data-pay-shop="${esc(o.id)}">${esc(T.shopPayNow)}</button>`:''}<button class="quiet" data-cancel-shop="${esc(o.id)}">${esc(T.cancelShop)}</button></div>`:''}</div>`).join('')}</section>`:''}
-    <section class="sec"><h2>${esc(T.pickupSec)}</h2>${pk.length?pk.map(p=>`<div class="tile"><h3>${esc(venueName(venueOfTime(p.pickup_time))+'・'+T.pickupAt(p.pickup_time))}<span class="pill ${p.state==='ready'?'on':''}">${esc(pickupState(p))}</span></h3><div class="meta">${esc(linesText(p.items))} · NT$${esc(p.amount)}${p.note?'<br>'+esc(p.note):''}</div>${p.status==='open'&&!p.placed?`<div class="act"><button class="quiet" data-cancel-pickup="${esc(p.id)}">${esc(T.cancelPickup)}</button></div>`:''}</div>`).join(''):`<p class="empty">${esc(T.noPickup)}</p>`}</section>
-    <section class="sec"><h2>${esc(T.myResv)}</h2>${rv.length?rv.map(r=>`<div class="tile"><h3>${esc(venueName(r.venue||venueOfTime(r.reserve_time))+'・'+dayLabel(r.reserve_date)+' '+r.reserve_time)}<span class="pill ${r.status==='confirmed'?'on':''}">${esc(r.label)}</span></h3><div class="meta">${esc(T.seats(r.party_size))}${r.table_no?' · '+esc(T.tableNo+r.table_no):''}</div>${r.can_cancel?`<div class="act"><button class="quiet" data-cancel-resv="${esc(r.id)}">${esc(T.cancelResv)}</button></div>`:''}</div>`).join(''):`<p class="empty">${esc(T.noResv)}</p>`}</section>
-    <section class="sec"><h2>${esc(T.myRegs)}</h2>${rg.length?rg.map(r=>`<div class="tile"><h3>${esc(r.title)}<span class="pill ${r.status==='registered'?'on':''}">${esc(r.status==='registered'?(r.checked_in_at?T.checkedIn:T.registered):T.pendingPay)}</span></h3><div class="meta">${esc(fmt(r.starts_at))}${r.location?' · '+esc(r.location):''}${r.quantity>1?' · '+esc(T.tickets(r.quantity)):''}</div><div class="act">${r.ticket?`<button class="btn solid" data-ticket="${esc(r.id)}">${esc(T.showTicket)}</button>`:''}<a class="btn" href="${eventUrl(r)}">${esc(T.eventPage)}</a></div></div>`).join(''):`<p class="empty">${esc(T.noRegs)}</p>`}</section>`;
+    <p class="hint" style="margin:0 2px 8px">${esc(T.newWhat)}</p>
+    <nav class="quick" aria-label="new"><button type="button" data-go="resv">${esc(T.newResv)}</button><button type="button" data-go="pickup">${esc(T.newPickup)}</button><button type="button" data-go="shop">${esc(T.newShop)}</button><button type="button" data-go="events">${esc(T.signup)}</button></nav>
+    <section class="sec"><h2>${esc(T.agenda)}</h2>${list.length?list.map(x=>agendaTile(x,true)).join(''):`<p class="empty">${esc(T.agendaNone)}</p>`}</section>`;
     app.querySelectorAll('[data-go]').forEach(b=>b.onclick=e=>{e.preventDefault();go(b.dataset.go);});
-    app.querySelectorAll('[data-cancel-pickup]').forEach(b=>b.onclick=async()=>{if(!confirm(T.confirmCancelPickup))return;b.disabled=true;try{await post('/api/me/pickups/'+encodeURIComponent(b.dataset.cancelPickup),null,'DELETE');toast(T.canceled);await load();}catch(e){toast(e.message||T.opFail);b.disabled=false;}});
-    app.querySelectorAll('[data-pay-shop]').forEach(b=>b.onclick=()=>payShop(b.dataset.payShop,b));
-    app.querySelectorAll('[data-cancel-shop]').forEach(b=>b.onclick=async()=>{if(!confirm(T.confirmCancelShop))return;b.disabled=true;try{await post('/api/me/shop/'+encodeURIComponent(b.dataset.cancelShop),null,'DELETE');toast(T.canceled);await load();}catch(e){toast(e.message||T.opFail);b.disabled=false;}});
-    app.querySelectorAll('[data-cancel-resv]').forEach(b=>b.onclick=async()=>{if(!confirm(T.confirmCancelResv))return;b.disabled=true;try{await post('/api/me/reservations/'+encodeURIComponent(b.dataset.cancelResv),null,'DELETE');toast(T.canceled);await load();}catch(e){toast(e.message||T.opFail);b.disabled=false;}});
-    app.querySelectorAll('[data-ticket]').forEach(b=>b.onclick=()=>openTicket(b.dataset.ticket));
+    bindAgenda();
   }
   async function openTicket(eventId){
     const img=document.getElementById('ovimg'),meta=document.getElementById('ovmeta'),sub2=document.getElementById('ovsub');
@@ -829,17 +878,18 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
     const chipLabel=active?T.accessOn:pend.length?T.accessPending:T.accessOff;
     const rows=planRows();
     app.innerHTML=`${head(T.plan,T.byPlan)}
-    <section class="panel"><div class="eyebrow">${esc(T.statusLabel)}</div><div class="status">${esc(title)}</div>${bar}${left||right?`<div class="meta"><span>${esc(left)}</span><span>${esc(right)}</span></div>`:''}
-      <div class="btn2"><button class="btn solid" id="plans-toggle">${esc(had?T.renew:T.buy)}</button><button class="chip" id="access-chip"${canIssue?'':' data-blocked="1"'}><span class="dot${active?' on':''}"></span>${esc(chipLabel)}</button></div>
-      <div id="plans" hidden style="margin-top:12px"><div class="eyebrow">${esc(T.plansTitle)}</div>${rows}</div></section>
-    <section class="panel"><div class="eyebrow">${esc(T.accessTitle)}</div><p class="hint" style="margin:6px 0 12px">${esc(T.accessNote)}</p><button class="btn" id="access-qr">${esc(T.accessQr)}</button></section>
+    ${canIssue?`<button class="show" id="access-qr" type="button">${esc(T.accessQr)}</button>`:''}
+    <section class="panel"${canIssue?' style="margin-top:14px"':''}><div class="eyebrow">${esc(T.statusLabel)}</div><div class="status">${esc(title)}</div>${bar}${left||right?`<div class="meta"><span>${esc(left)}</span><span>${esc(right)}</span></div>`:''}
+      <div class="btn2"><button class="btn${canIssue?'':' solid'}" id="plans-toggle" type="button">${esc(had?T.renew:T.buy)}</button><button class="chip" id="access-chip" type="button"${canIssue?'':' data-blocked="1"'}><span class="dot${active&&!canIssue?' on':''}"></span>${esc(chipLabel)}</button></div>
+      <div id="plans"${canIssue?' hidden':''} style="margin-top:12px"><div class="eyebrow">${esc(canIssue?T.plansTitle:T.plansOpen)}</div>${rows}</div></section>
+    <p class="hint ghost">${esc(T.accessNote)}</p>
     ${c?`<p class="hint ghost">${esc(T.founderYes)}${c.cert_no?' · No. '+esc(c.cert_no):''}</p>`:''}`;
     const drawer=document.getElementById('plans');
     document.getElementById('plans-toggle').onclick=()=>{drawer.hidden=!drawer.hidden;};
     document.querySelectorAll('[data-plan]').forEach(b=>b.onclick=()=>buyPlan(b.dataset.plan,b));
     const openAccess=()=>{if(!canIssue){toast(T.needPlan);return;}openQr('access');};
     document.getElementById('access-chip').onclick=openAccess;
-    document.getElementById('access-qr').onclick=openAccess;
+    const aq=document.getElementById('access-qr');if(aq)aq.onclick=openAccess;
   }
   async function buyPlan(id,btn){
     if(!token()){lsSet(PEND,JSON.stringify({id,at:Date.now()}));toast(T.loginToBuy);tab='home';paint();return;}
@@ -909,13 +959,13 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
       <label class="field">${esc(T.phoneHint)}<input id="ph" type="tel" inputmode="tel" autocomplete="tel" maxlength="40" value="${esc(m.phone||'')}"></label>
       <div class="btn2" style="margin-top:12px"><button class="btn" id="ecancel" type="button">${esc(T.cancelEdit)}</button><button class="btn solid" id="save" type="button">${esc(T.save)}</button></div></section>`;
     app.innerHTML=`<div class="hello"><h1>${esc(T.me)}</h1>${editing?'':`<button class="btn" id="eedit" type="button" style="width:auto;min-height:44px;padding:0 18px">${esc(T.editBtn)}</button>`}</div>
+    ${editing?'':`<button class="me-pts" id="hist-open2" type="button"><span>${esc(T.myPts)}</span><b>${esc((data.yan&&data.yan.balance)||0)}</b><small>${esc(T.history)} ›</small></button>`}
     ${editing?form:view}
     ${!editing&&!m.email?`<section class="sec" id="eb"><h2>${esc(T.ebBind)}</h2><p class="hint">${esc(T.ebBindHint)}</p>
       <label class="field">${esc(T.emailL)}<input id="ebm" type="email" inputmode="email" autocomplete="email" maxlength="254" value="${esc(emailBind.email)}"></label>
       ${emailBind.ticket?`<label class="field">${esc(T.ebCode)}<input id="ebc" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*"></label>`:''}
       <div class="btn2"><button class="btn${emailBind.ticket?'':' solid'}" id="ebs" type="button">${esc(T.ebSend)}</button>${emailBind.ticket?`<button class="btn solid" id="ebv" type="button">${esc(T.ebConfirm)}</button>`:''}</div></section>`:''}
-    ${editing?'':`<section class="sec"><button class="btn" id="hist-open2" type="button">${esc(T.history)}</button></section>
-    <section class="sec"><button class="btn" id="line-link">${esc(T.lineLink)}</button></section>
+    ${editing?'':`<section class="sec"><button class="btn" id="line-link" type="button">${esc(T.lineLink)}</button></section>
     <section class="sec"><button class="btn" id="feedback" type="button">${esc(T.feedback)}</button></section>
     ${kindNow(true)?`<section class="sec"><h2>${esc(T.home)}</h2><button class="btn" id="inst2" data-k="${kindNow(true)}">${esc(T.installLabel[kindNow(true)])}</button></section>`:''}
     ${data.organizer?`<section class="sec"><h2>${esc(T.manage)}</h2><a class="btn" href="/host">${esc(T.organizer)}</a></section>`:''}

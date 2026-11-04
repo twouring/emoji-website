@@ -61,7 +61,7 @@ test('App 每個購買／預約畫面標明品牌：會籍＝等等空間、訂�
   assert.match(m, /head\(T\.pickupTitle,T\.byDine/);
   assert.match(m, /head\(T\.shopTitle,T\.byShop/);
   assert.equal((m.match(/head\(T\.plan,T\.byPlan/g) || []).length, 2, '會籍頁（訪客與會員）都要標等等空間');
-  assert.ok((m.match(/venueName\(/g) || []).length >= 4, '訂位／取餐清單卡片要標店名');
+  assert.match(m, /T\.pickupLabel\+/, '取餐卡片'); assert.match(m, /venueName\(venueOfTime\(o\.pickup_time\)\)\+'・'/, '取餐卡片要標店名'); assert.match(m, /venueName\(o\.venue\|\|venueOfTime\(o\.reserve_time\)\)\+'・'/, '訂位卡片要標店名');
   const srv = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
   assert.match(srv, /等等空間 Stay Square 會籍｜/, 'Stripe 會籍品名要寫品牌');
   assert.match(srv, /'言文字商店｜'/, 'Stripe 商店品名要寫品牌');
@@ -76,4 +76,23 @@ test('品牌館：首頁列出四個品牌，各有品牌頁；會員卡與點�
   for (const z of [...m.matchAll(/tag:\{zh:'([^']*)'/g)].map(x => x[1])) assert.ok(z.length <= 4, '品牌卡短類型中文 ≤4 字：' + z);
   const srv = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
   assert.match(srv, /brand-sites\\\/assets\\\/\[\\w-\]\+-avatar\\\.webp\$/, 'app.emoji.tw 要能讀品牌頭像');
+});
+
+test('App 重構（會員視角）：首頁先卡與進出 QR、接下來、品牌館、兌換摘要；預約分頁單一時間線；會籍進出 QR 置頂；我的點數置頂', () => {
+  const m = fs.readFileSync(new URL('../public/m.html', import.meta.url), 'utf8');
+  const home = m.slice(m.indexOf('  function home(){'), m.indexOf('  function evTile('));
+  const order = ['class="pass"', 'id="show"', '${upcomingSec()}', '${brandsSec()}', '${rewardsSec(pts)}'].map(k => home.indexOf(k));
+  assert.ok(order.every(i => i > 0) && order.every((v, i) => !i || v > order[i - 1]), '首頁順序：會員卡→出示→接下來→品牌館→兌換');
+  assert.doesNotMatch(home, /<nav class="quick"/, '首頁不再重複放快捷鍵（入口在品牌館與預約分頁）');
+  assert.match(home, /id="access-open"/, '有會籍時會員卡旁直接開進出 QR');
+  assert.match(m, /ok\.slice\(0,4\)/, '首頁兌換只放現在能換的前 4 項');
+  assert.match(m, /function openRewards\(pts\)/);
+  assert.match(m, /function agendaItems\(\)/); assert.match(m, /function agendaTile\(x,full\)/);
+  const book = m.slice(m.indexOf('  function book(){'), m.indexOf('  async function openTicket('));
+  assert.match(book, /agendaItems\(\)/); assert.doesNotMatch(book, /T\.myResv|T\.pickupSec|T\.shopSec/, '預約分頁不再分四段');
+  assert.match(m, /T\.pickupNo\(o\.table\)/, '商店單顯示取貨單號');
+  const plan = m.slice(m.indexOf('  function plan(){'), m.indexOf('  async function buyPlan('));
+  assert.ok(plan.indexOf('id="access-qr"') < plan.indexOf('class="panel"'), '會籍：進出 QR 在狀態卡之前');
+  assert.match(m, /id="hist-open2"[^`]*class|class="me-pts" id="hist-open2"/);
+  for (const k of ['agenda', 'agendaNone', 'seeAll', 'rwNow', 'accessShort', 'pickupNo', 'evMine']) assert.equal((m.match(new RegExp('[,{]' + k + ':', 'g')) || []).length, 3, k + ' 三語');
 });

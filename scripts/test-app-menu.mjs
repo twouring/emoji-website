@@ -9,7 +9,7 @@ const read = f => fs.readFileSync(path.join(root, f), 'utf8');
 
 test('App：首頁有菜單入口，菜單畫面可在兩個店別切換並讀公開菜單', () => {
   const m = read('public/m.html');
-  assert.match(m, /data-go="menu"/);
+  assert.match(m, /if\(a==='menu'\)\{APP_MENU_VENUE=b\.v;go\('menu'\);\}/, '菜單入口在品牌頁（看菜單直接切到該店）');
   assert.match(m, /if\(sub==='menu'\)return bookMenu\(\)/);
   assert.match(m, /function bookMenu\(\)/);
   assert.match(m, /MenuLib\.publishedOnly\(MENU\)/);
