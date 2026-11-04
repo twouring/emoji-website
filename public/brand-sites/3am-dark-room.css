@@ -32,10 +32,14 @@
 @media(max-width:760px){.bs--3am .bs-facts>div{padding:18px 0}.bs--3am .bs-faq summary::after{font-size:1.6rem}}
 /* menu: dark image ground; compact thumbnail rows on phones instead of full-width photos */
 .bs--3am .menu-item__img{background:var(--night-raised)}
+/* 菜單照片放大（KK 11/4）：桌機 72px → 220px、手機縮圖 88px → 128px */
+@media(min-width:641px){.bs--3am .menu-item{align-items:center}.bs--3am .menu-item--img{padding:20px 0;gap:28px}.bs--3am .menu-item__img{width:220px;height:220px;border-radius:14px}}
+@media(min-width:641px) and (max-width:900px){.bs--3am .menu-item__img{width:180px;height:180px}}
 @media(max-width:640px){
-.bs--3am .menu-item{grid-template-columns:88px minmax(0,1fr);column-gap:16px;padding:16px 0;border-bottom-color:#2a3944}
+.bs--3am .menu-item{grid-template-columns:128px minmax(0,1fr);column-gap:16px;padding:18px 0;border-bottom-color:#2a3944}
 .bs--3am .menu-item:not(.menu-item--img){grid-template-columns:minmax(0,1fr)}
-.bs--3am .menu-item__img{grid-column:1;grid-row:1/span 4;width:88px;height:88px;aspect-ratio:1/1;margin:0;align-self:start}
+.bs--3am .menu-item__img{grid-column:1;grid-row:1/span 4;width:128px;height:128px;aspect-ratio:1/1;margin:0;align-self:start;border-radius:10px}
+@media(max-width:360px){.bs--3am .menu-item{grid-template-columns:112px minmax(0,1fr)}.bs--3am .menu-item__img{width:112px;height:112px}}
 .bs--3am .menu-item--img .menu-item__names>*,.bs--3am .menu-item--img .menu-item__price{grid-column:2}
 .bs--3am .menu-item__zh{font-size:1.08rem}
 .bs--3am .menu-item__note{line-height:1.6}

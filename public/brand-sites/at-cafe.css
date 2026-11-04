@@ -101,10 +101,13 @@
 .atc-room__tall img { aspect-ratio: 4 / 5; }
 .atc-room__tall--low { margin-top: clamp(32px, 5vw, 72px) !important; }
 
-/* ——— 菜單：照片放大（桌機 72px → 168px；≤640px 維持滿版 4:3，特異性要蓋過這條） ——— */
+/* ——— 菜單：照片放大（桌機 72px → 220px，KK 11/4；≤640px 維持滿版 4:3，特異性要蓋過這條） ——— */
 .atc-menu .menu-item { align-items: center; }
-.atc-menu .menu-item--img { padding: 18px 0; }
-.atc-menu .menu-item__img { width: 168px; height: 168px; border-radius: 12px; }
+.atc-menu .menu-item--img { padding: 20px 0; gap: 28px; }
+.atc-menu .menu-item__img { width: 220px; height: 220px; border-radius: 14px; }
+@media (min-width: 641px) and (max-width: 900px) {
+  .atc-menu .menu-item__img { width: 180px; height: 180px; }
+}
 .atc-menu .menu-group__head { border-bottom-color: var(--brand); }
 @media (max-width: 640px) {
   .atc-menu .menu-item__img { width: 100%; height: auto; aspect-ratio: 4 / 3; }
