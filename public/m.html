@@ -954,6 +954,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
     document.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>{kind=b.dataset.kind;document.querySelectorAll('[data-kind]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));});
     document.querySelectorAll('[data-rating]').forEach(b=>b.onclick=()=>{rating=Number(b.dataset.rating);document.querySelectorAll('[data-rating]').forEach(x=>x.setAttribute('aria-pressed',String(Number(x.dataset.rating)===rating)));});
     document.getElementById('feedback-send').onclick=async function(){const text=document.getElementById('feedback-text').value.trim();if(!kind){toast(T.feedbackPick);return;}this.disabled=true;try{await post('/api/me/feedback',{kind,rating:rating||null,text,lang:LANG});toast(T.feedbackSent);me();}catch(e){toast(e.message||T.netFail);this.disabled=false;}};
+  }
   function badgesSec(){
     const list=Array.isArray(data.badges)?data.badges:[];
     const card=b=>{const nm=(b.name&&(b.name[LANG]||b.name.zh))||'';return `<div class="badge-card"><span class="badge-logo">${b.logo_url?`<img src="${esc(b.logo_url)}" alt="">`:esc(String(b.partner_name||b.name&&b.name.zh||'').slice(0,1))}</span><div class="badge-main"><h3>${esc(b.partner_name)}</h3><p class="meta"><span class="badge-lv lv${Number(b.level)||1}">${esc(T.badgeLv)}${Number(b.level)||1} ${esc(nm)}</span> ${esc(T.badgeTimes.replace('{n}',b.count))}</p><p class="meta">${b.next_level?esc(T.badgeNext.replace('{n}',b.to_next)):esc(T.badgeMax)}</p></div></div>`;};
@@ -1079,7 +1080,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
       const s=await get('/api/state?view=member&lang='+LANG);let y={balance:0,phone:''},rw={items:[],space:[]};try{y=await get('/api/me/yan');}catch(e){}try{rw=await get('/api/me/rewards');}catch(e){}
       let rv=[],pk={pickups:[],dates:[],slots:{}},rg=[];try{rv=(await get('/api/me/reservations')).reservations||[];}catch(e){}try{pk=await get('/api/me/pickups');}catch(e){}try{rg=(await get('/api/me/registrations')).registrations||[];}catch(e){}let so=[],sst=false;try{const r=await get('/api/me/shop');so=r.orders||[];sst=!!r.stripe;}catch(e){}
       s.events=(s.events||[]);
-      data={me:s.me,events:s.events,updates:s.updates||[],access:s.access||{},commitments:(s.commitments||[]).filter(c=>!s.me||c.user_id===s.me.id),yan:y,rewards:rw,reservations:rv,pickups:pk.pickups||[],pickupMeta:{dates:pk.dates||[],slots:pk.slots||{},prep_min:pk.prep_min},registrations:rg,shopOrders:so,shopStripe:sst,role:s.role,organizer:!!s.organizer};offline=false;
+      data={me:s.me,badges:s.badges||[],events:s.events,updates:s.updates||[],access:s.access||{},commitments:(s.commitments||[]).filter(c=>!s.me||c.user_id===s.me.id),yan:y,rewards:rw,reservations:rv,pickups:pk.pickups||[],pickupMeta:{dates:pk.dates||[],slots:pk.slots||{},prep_min:pk.prep_min},registrations:rg,shopOrders:so,shopStripe:sst,role:s.role,organizer:!!s.organizer};offline=false;
       try{localStorage.setItem(CACHE,JSON.stringify(data));}catch(e){}
       if(resumePendingPlan()){paint();return;}
     }catch(e){
