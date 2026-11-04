@@ -50,7 +50,9 @@
   var hash = new URLSearchParams(location.hash.slice(1)), fresh = hash.get('token');
   if (fresh) { store.set(KEY, fresh); history.replaceState(null, '', location.pathname + location.search); }
   var token = store.get(KEY);
-  var SSO = window.EmojiSSO && window.EmojiSSO.enabled ? window.EmojiSSO : null;
+  var SSO = window.EmojiSSO && window.EmojiSSO.enabled ? window.EmojiSSO : null, ssoOk = false;
+  // 確認 sso.emoji.tw 連得上才把登入／登出交給 SSO（DNS 未生效時退回本站 /auth/*，不讓登入鈕失效）
+  if (SSO) fetch(SSO.base + '/api/health', { mode: 'no-cors', cache: 'no-store' }).then(function () { ssoOk = true; }, function () {});
 
   function api(path, body) {
     return fetch(path, { method: body ? 'POST' : 'GET', headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { Authorization: 'Bearer ' + token } : {}), body: body ? JSON.stringify(body) : undefined })
@@ -62,7 +64,7 @@
 
   // ---- 登入對話框 ----
   var dlg = $('#sq-login'), opener = null;
-  function back() { var u = location.origin + location.pathname; return SSO ? SSO.wrap(u) : u; }
+  function back() { var u = location.origin + location.pathname; return SSO && ssoOk ? SSO.wrap(u) : u; }
   function openLogin(pending) {
     if (pending) store.set(PENDING, JSON.stringify(Object.assign({ at: Date.now() }, pending)));
     if (!dlg) return;
@@ -79,7 +81,7 @@
     dlg.addEventListener('close', function () { if (opener && opener.focus) opener.focus(); });
   }
   $$('[data-sq-login]').forEach(function (b) { b.addEventListener('click', function (e) { e.preventDefault(); openLogin(); }); });
-  $$('[data-sq-logout]').forEach(function (b) { b.addEventListener('click', function () { store.set(KEY, null); token = null; if (SSO && SSO.logout(location.origin + location.pathname)) return; render(null); }); });
+  $$('[data-sq-logout]').forEach(function (b) { b.addEventListener('click', function () { store.set(KEY, null); token = null; if (SSO && ssoOk && SSO.logout(location.origin + location.pathname)) return; render(null); }); });
 
   // ---- 會員狀態 ----
   function render(me) {

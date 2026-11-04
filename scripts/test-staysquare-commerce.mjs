@@ -73,6 +73,6 @@ test('前端只在本站存 token、結帳帶 return_host', () => {
   assert.match(js, /deposit\/checkout', \{ return_host: location\.hostname/);
   assert.match(js, /\/api\/me\/plans\/verify/);
   assert.match(js, /SSO\.silent\(KEY\)/, '沒 token 先向 SSO 靜默取');
-  assert.match(js, /SSO\.wrap\(u\)/, '登入鈕經 SSO callback');
+  assert.match(js, /SSO && ssoOk \? SSO\.wrap\(u\) : u/, '登入鈕經 SSO callback；SSO 連不上退回本站登入');
   assert.ok(!/innerHTML/.test(js), '不用 innerHTML 塞使用者資料');
 });
