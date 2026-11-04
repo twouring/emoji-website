@@ -422,6 +422,8 @@ if (!DEVICE_ID) { DEVICE_ID = (crypto.randomUUID ? crypto.randomUUID() : 'd-' + 
 let DEVICE_BOUND = false; // main() 每次開機都重新確認
 
 async function api(path, { method='GET', body, headers } = {}) {
+  // 品牌獨立（KK 11/5）：品牌 POS 打的每支 /admin/* 都帶 venue，server 依此只回／只改該品牌的資料
+  if (SCOPE && /^\/admin\//.test(path) && !/[?&]venue=/.test(path)) path += (path.includes('?') ? '&' : '?') + 'venue=' + encodeURIComponent(SCOPE);
   const res = await fetch('/api'+path, {
     method, headers:{ 'Content-Type':'application/json', ...(token?{Authorization:'Bearer '+token}:{}), ...(headers||{}) },
     body: body ? JSON.stringify(body) : undefined,

@@ -6297,7 +6297,7 @@ app.post('/api/admin/orders/sessions/:id/move',auth,adminOnly,requireDb,wrap(asy
 // POS 設定來客人數（客人端不填，統一由現場人員在 POS 點選）
 app.post('/api/admin/orders/sessions/:id/party',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
-  const s=(await q("SELECT id,party_votes FROM table_sessions WHERE id=$1 AND status='open'",[req.params.id])).rows[0];if(!s)return res.status(404).json({error:'找不到這桌。'});
+  const s=(await q("SELECT id,party_votes,items FROM table_sessions WHERE id=$1 AND status='open'",[req.params.id])).rows[0];if(!s||!tableOrders.orderVisibleToVenues(s,posScope(req)))return res.status(404).json({error:'找不到這桌。'});
   let votes;try{votes=tableOrders.partySetByPos(s.party_votes,req.body?.party_size,req.body?.kids,req.body?.foreign);}catch(e){return res.status(e.status||400).json({error:e.message});}
   await q('UPDATE table_sessions SET party_votes=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(votes)]);
   res.json({ok:true,party_size:tableOrders.partySize(votes),kids:tableOrders.partyKids(votes),foreign:tableOrders.partyForeign(votes)});
@@ -6305,7 +6305,7 @@ app.post('/api/admin/orders/sessions/:id/party',auth,adminOnly,requireDb,wrap(as
 // POS 關掉某筆結帳需求（客人改口、或已用別的方式處理）：只拿掉那一筆，品項不動
 app.delete('/api/admin/orders/sessions/:id/pay-requests/:rid',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id)||!/^pr_[a-f0-9]{12}$/.test(req.params.rid))return res.status(404).json({error:'找不到這筆結帳需求。'});
-  const s=(await q("SELECT id,items,pay_requests FROM table_sessions WHERE id=$1 AND status='open'",[req.params.id])).rows[0];if(!s)return res.status(404).json({error:'找不到這桌。'});
+  const s=(await q("SELECT id,items,pay_requests FROM table_sessions WHERE id=$1 AND status='open'",[req.params.id])).rows[0];if(!s||!tableOrders.orderVisibleToVenues(s,posScope(req)))return res.status(404).json({error:'找不到這桌。'});
   const next=tableOrders.prunePayRequests(s.pay_requests,s.items).filter(r=>r.id!==req.params.rid);
   await q('UPDATE table_sessions SET pay_requests=$2 WHERE id=$1',[s.id,JSON.stringify(next)]);
   res.json({ok:true,pay_requests:tableOrders.payRequestsView(next,s.items)});
@@ -7095,7 +7095,7 @@ app.post('/api/admin/staff/verify',rateLimit({max:12}),auth,adminOnly,requireDb,
   const pin=String(req.body?.pin||'').trim();
   if(!/^\d{4}$/.test(pin))return res.status(400).json({error:'請輸入 4 位數識別碼。'});
   const venues=tableOrders.visibleVenues(req.auth.brands);
-  const staff=await staffByPin(pin,pinVenue(req,req.body?.venue));
+  const staff=await staffByPin(pin,pinVenue(req,req.body?.venue||req.query.venue));
   if(!staff||!posStaff.staffVisible(staff,venues))return res.status(404).json({error:'識別碼不正確，請再試一次。'});
   res.json({ok:true,id:staff.id,name:staff.name});
 }));
@@ -7178,7 +7178,7 @@ app.post('/api/admin/shifts/auto',auth,adminOnly,requireDb,wrap(async(req,res)=>
 }));
 /* 排休：員工自己填（平板排班頁）或管理者代填；query from/to 預設本週起 5 週 */
 app.get('/api/admin/shifts/days-off',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const venues=posScope(req);
   const monday=posStaff.weekOf(/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from||''))?String(req.query.from):tableOrders.MenuLib.businessDay());
   const {from,to}=posStaff.dateRange(monday,req.query.to||posStaff.addDays(monday,34));
   const rows=(await q('SELECT d.id,d.staff_id,p.name,d.day,d.note,p.venues FROM pos_days_off d JOIN pos_staff p ON p.id=d.staff_id WHERE d.day>=$1 AND d.day<=$2 ORDER BY d.day,p.name',[from,to])).rows
@@ -7204,7 +7204,7 @@ app.delete('/api/admin/shifts/days-off/:id',auth,adminOnly,requireDb,wrap(async(
 }));
 /* 人力需求：各店各時段要幾個人（自動排班目標）。GET 回目前設定（沒設過回預設）；PUT 整組覆寫（子帳號只能覆寫自己店別的列） */
 app.get('/api/admin/shifts/staffing',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  res.json({staffing:await loadStaffing(tableOrders.visibleVenues(req.auth.brands))});
+  res.json({staffing:await loadStaffing(posScope(req))});
 }));
 app.put('/api/admin/shifts/staffing',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   let rows;try{rows=posStaff.staffingInput(req.body?.staffing,{own:req.auth.brands});}catch(e){return res.status(e.status||400).json({error:e.message});}
@@ -7228,7 +7228,7 @@ app.delete('/api/admin/shifts/:id',auth,adminOnly,requireDb,wrap(async(req,res)=
 app.post('/api/admin/attendance/punch',rateLimit({max:12}),auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const pin=String(req.body?.pin||'').trim();
   if(!/^\d{4}$/.test(pin))return res.status(400).json({error:'請輸入 4 位數識別碼。'});
-  const staff=await staffByPin(pin,pinVenue(req,req.body?.venue));
+  const staff=await staffByPin(pin,pinVenue(req,req.body?.venue||req.query.venue));
   const open=staff?(await q('SELECT id,staff_id,day,venue,shift_id,clock_in,breaks FROM pos_attendance WHERE staff_id=$1 AND clock_out IS NULL ORDER BY clock_in DESC LIMIT 1',[staff.id])).rows[0]||null:null;
   const today=tableOrders.MenuLib.businessDay();
   const shifts=staff?(await q('SELECT id,staff_id,day,venue,start_time,end_time FROM pos_shifts WHERE staff_id=$1 AND (day=$2 OR id=$3)',[staff.id,today,open?.shift_id||''])).rows.map(shiftRow):[];
@@ -7251,7 +7251,7 @@ app.post('/api/admin/attendance/punch',rateLimit({max:12}),auth,adminOnly,requir
 app.post('/api/admin/attendance/makeup',rateLimit({max:12}),auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const pin=String(req.body?.pin||'').trim();
   if(!/^\d{4}$/.test(pin))return res.status(400).json({error:'請輸入 4 位數識別碼。'});
-  const staff=await staffByPin(pin,pinVenue(req,req.body?.venue));
+  const staff=await staffByPin(pin,pinVenue(req,req.body?.venue||req.query.venue));
   if(!staff)return res.status(404).json({error:'識別碼不正確，請再試一次。'});
   const open=(await q('SELECT id,staff_id,day,venue,shift_id,clock_in,breaks FROM pos_attendance WHERE staff_id=$1 AND clock_out IS NULL ORDER BY clock_in DESC LIMIT 1',[staff.id])).rows[0]||null;
   const existing=(await q("SELECT id,clock_in,clock_out FROM pos_attendance WHERE staff_id=$1 AND clock_in>=now()-interval '10 days'",[staff.id])).rows;
@@ -7271,14 +7271,17 @@ app.get('/api/admin/attendance',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const {from,to}=posStaff.dateRange(req.query.from,req.query.to);
   const rows=(await q('SELECT a.id,a.staff_id,p.name,a.day,a.venue,a.shift_id,s.start_time AS shift_start,s.end_time AS shift_end,a.clock_in,a.clock_out,a.minutes,a.breaks,a.break_minutes,a.late_minutes,a.early_minutes,a.note,a.edited_by FROM pos_attendance a JOIN pos_staff p ON p.id=a.staff_id LEFT JOIN pos_shifts s ON s.id=a.shift_id WHERE a.day>=$1 AND a.day<=$2 ORDER BY a.clock_in DESC',[from,to])).rows.map(attRow)
     .filter(a=>(!req.query.staff_id||a.staff_id===String(req.query.staff_id)));
+  /* 品牌 POS（KK 11/5）：出勤不分店別（venue＝TTH），改以員工所屬品牌過濾；跨品牌員工兩邊都看得到 */
+  const av=posScope(req),sv=av?new Map((await q('SELECT id,venues FROM pos_staff')).rows.map(r=>[r.id,{venues:r.venues?r.venues.split(','):null}])):null,okStaff=a=>!av||posStaff.staffVisible(sv.get(a.staff_id)||{venues:null},av);
   const working=(await q('SELECT a.id,a.staff_id,p.name,a.day,a.venue,a.shift_id,s.start_time AS shift_start,s.end_time AS shift_end,a.clock_in,a.clock_out,a.minutes,a.breaks,a.break_minutes,a.late_minutes,a.early_minutes,a.note,a.edited_by FROM pos_attendance a JOIN pos_staff p ON p.id=a.staff_id LEFT JOIN pos_shifts s ON s.id=a.shift_id WHERE a.clock_out IS NULL ORDER BY a.clock_in')).rows.map(attRow);
-  res.json({from,to,rows,working,summary:posStaff.attendanceSummary(rows),csv:posStaff.attendanceCsv(rows)});
+  const rows2=rows.filter(okStaff),working2=working.filter(okStaff);
+  res.json({from,to,rows:rows2,working:working2,summary:posStaff.attendanceSummary(rows2),csv:posStaff.attendanceCsv(rows2)});
 }));
 /* 修正出勤（補打卡／忘了下班）：body { clock_in?, clock_out?, note? }（ISO 時間）；記修改人 */
 app.patch('/api/admin/attendance/:id',auth,adminOnly,notOperator,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(String(req.params.id||'')))return res.status(404).json({error:'找不到這筆出勤。'});
-  const r=(await q('SELECT id,staff_id,day,venue,clock_in,clock_out,break_minutes,note FROM pos_attendance WHERE id=$1',[req.params.id])).rows[0];
-  if(!r)return res.status(404).json({error:'找不到這筆出勤。'});
+  const r=(await q('SELECT a.id,a.staff_id,a.day,a.venue,a.clock_in,a.clock_out,a.break_minutes,a.note,p.venues AS staff_venues FROM pos_attendance a JOIN pos_staff p ON p.id=a.staff_id WHERE a.id=$1',[req.params.id])).rows[0];
+  if(!r||!posStaff.staffVisible({venues:r.staff_venues?r.staff_venues.split(','):null},posScope(req)))return res.status(404).json({error:'找不到這筆出勤。'});
   let f;try{f=posStaff.attendanceFix(req.body,r);}catch(e){return res.status(e.status||400).json({error:e.message});}
   await q('UPDATE pos_attendance SET clock_in=$2,clock_out=$3,minutes=$4,note=$5,day=$6,edited_by=$7,edited_at=now(),break_minutes=$8 WHERE id=$1',[r.id,f.clock_in,f.clock_out,f.minutes,f.note,f.day,actorOf(req.auth)||'',f.break_minutes]);
   res.json({ok:true,id:r.id,day:f.day,clock_in:f.clock_in,clock_out:f.clock_out,minutes:f.minutes,hours:f.minutes==null?null:posStaff.hoursDecimal(f.minutes),break_minutes:f.break_minutes,note:f.note});
@@ -7286,8 +7289,8 @@ app.patch('/api/admin/attendance/:id',auth,adminOnly,notOperator,requireDb,wrap(
 /* 刪一筆出勤（誤打） */
 app.delete('/api/admin/attendance/:id',auth,adminOnly,notOperator,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(String(req.params.id||'')))return res.status(404).json({error:'找不到這筆出勤。'});
-  const r=(await q('SELECT id,venue FROM pos_attendance WHERE id=$1',[req.params.id])).rows[0];
-  if(!r)return res.status(404).json({error:'找不到這筆出勤。'});
+  const r=(await q('SELECT a.id,a.venue,p.venues AS staff_venues FROM pos_attendance a JOIN pos_staff p ON p.id=a.staff_id WHERE a.id=$1',[req.params.id])).rows[0];
+  if(!r||!posStaff.staffVisible({venues:r.staff_venues?r.staff_venues.split(','):null},posScope(req)))return res.status(404).json({error:'找不到這筆出勤。'});
   await q('DELETE FROM pos_attendance WHERE id=$1',[r.id]);
   res.json({ok:true,id:r.id});
 }));
@@ -7384,17 +7387,21 @@ app.get('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=>
 /* 可訂位時間管理：每週固定＋特定日期例外（含公休）；只限制客人端，櫃檯登記不受限 */
 app.get('/api/admin/reservation-hours',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   res.set('Cache-Control','no-store');
+  const pv=pinVenue(req,req.query.venue);
+  if(pv)return res.json({ok:true,venue:pv,...reservationHours.venueView(await loadReservationHours(),t=>tableOrders.reservationVenue(t)===pv)});   /* 品牌 POS 只看自己品牌的時段（KK 11/5） */
   res.json({ok:true,all:reservationHours.ALL,...(await loadReservationHours())});
 }));
 app.put('/api/admin/reservation-hours',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  let cfg;try{cfg=reservationHours.normalize({weekly:req.body?.weekly,dates:req.body?.dates},new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Taipei'}));}catch(e){return res.status(e.status||400).json({error:e.message});}
+  const pv=pinVenue(req,req.body?.venue||req.query.venue),inV=t=>tableOrders.reservationVenue(t)===pv;
+  const input=pv?reservationHours.mergeVenue(await loadReservationHours(),{weekly:req.body?.weekly,dates:req.body?.dates},inV):{weekly:req.body?.weekly,dates:req.body?.dates};   /* 品牌 POS 只改自己品牌的時段，別的品牌沿用現值 */
+  let cfg;try{cfg=reservationHours.normalize(input,new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Taipei'}));}catch(e){return res.status(e.status||400).json({error:e.message});}
   await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('reservation_hours',$1,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,[JSON.stringify(cfg)]);
-  res.json({ok:true,all:reservationHours.ALL,...cfg});
+  res.json(pv?{ok:true,venue:pv,...reservationHours.venueView(cfg,inV)}:{ok:true,all:reservationHours.ALL,...cfg});
 }));
 /* 櫃檯登記訂位（電話／現場）：與 /api/reservations 同一套驗證，但 Email 可留空、不擋 30 分鐘內的時段；有 Email 才寄確認信 */
 app.post('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   let r;try{r=reservations.normalizeReservation({...req.body,lang:'zh',source:'pos'},new Date(),{staff:true});}catch(e){return res.status(e.status||400).json({error:e.message});}
-  const venues=null;   // 同上：訂位不分店別權限
+  const pv=pinVenue(req,req.body?.venue||req.query.venue),venues=pv?[pv]:null;   /* 品牌 POS 只能動自己品牌時段的訂位（KK 11/5） */
   if(venues&&!venues.includes(tableOrders.reservationVenue(r.time)))return res.status(403).json({error:'只能登記自己店別時段的訂位。'});
   const tableNo=tableOrders.cleanText(req.body?.table_no,8).toUpperCase();
   if(tableNo&&!tableOrders.TABLE_RE.test(tableNo))return res.status(400).json({error:'桌號只能用英數字與 -，最長 8 字。'});
@@ -7406,7 +7413,7 @@ app.post('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=
   res.status(201).json({ok:true,id,request_id:requestId,venue:tableOrders.reservationVenue(r.time),mailed:!!r.email});
 }));
 app.post('/api/admin/reservations/:id/status',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  const venues=null;   // 同上：訂位不分店別權限
+  const pv=pinVenue(req,req.body?.venue||req.query.venue),venues=pv?[pv]:null;   /* 品牌 POS 只能動自己品牌時段的訂位（KK 11/5） */
   const r=(await q(`SELECT id,request_id,to_char(reserve_date,'YYYY-MM-DD') AS reserve_date,reserve_time,period,party_size,name,phone,email,status,table_no FROM dining_reservations WHERE id=$1`,[String(req.params.id)])).rows[0];
   if(!r||(venues&&!venues.includes(tableOrders.reservationVenue(r.reserve_time))))return res.status(404).json({error:'找不到這筆訂位。'});
   let next;try{next=tableOrders.reservationTransition(r.status,String(req.body?.status||''));}catch(e){return res.status(e.status||400).json({error:e.message});}
@@ -7419,7 +7426,7 @@ app.post('/api/admin/reservations/:id/status',auth,adminOnly,requireDb,wrap(asyn
 }));
 /* 修改訂位資訊（客人來電改日期／時間／人數／姓名／電話／Email／備註）：驗證同櫃檯登記（staff:true），語言與來源沿用原紀錄；不自動寄信通知客人 */
 app.patch('/api/admin/reservations/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  const venues=null;   // 同上：訂位不分店別權限
+  const pv=pinVenue(req,req.body?.venue||req.query.venue),venues=pv?[pv]:null;   /* 品牌 POS 只能動自己品牌時段的訂位（KK 11/5） */
   const cur=(await q(`SELECT id,reserve_time,lang,source FROM dining_reservations WHERE id=$1`,[String(req.params.id)])).rows[0];
   if(!cur||(venues&&!venues.includes(tableOrders.reservationVenue(cur.reserve_time))))return res.status(404).json({error:'找不到這筆訂位。'});
   let r;try{r=reservations.normalizeReservation({date:req.body?.date,time:req.body?.time,party_size:req.body?.party_size,name:req.body?.name,phone:req.body?.phone,email:req.body?.email,note:req.body?.note,lang:cur.lang,source:cur.source},new Date(),{staff:true});}catch(e){return res.status(e.status||400).json({error:e.message});}
@@ -7430,7 +7437,7 @@ app.patch('/api/admin/reservations/:id',auth,adminOnly,requireDb,wrap(async(req,
 }));
 /* 刪除訂位（含已取消）：客人取消後不想再留在畫面上。軟刪除（deleted_at），列表一律過濾掉，保留紀錄供日後查帳。 */
 app.delete('/api/admin/reservations/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  const venues=null;   // 同上：訂位不分店別權限
+  const pv=pinVenue(req,req.body?.venue||req.query.venue),venues=pv?[pv]:null;   /* 品牌 POS 只能動自己品牌時段的訂位（KK 11/5） */
   const r=(await q(`SELECT id,reserve_time FROM dining_reservations WHERE id=$1 AND deleted_at IS NULL`,[String(req.params.id)])).rows[0];
   if(!r||(venues&&!venues.includes(tableOrders.reservationVenue(r.reserve_time))))return res.status(404).json({error:'找不到這筆訂位。'});
   await q('UPDATE dining_reservations SET deleted_at=now() WHERE id=$1',[r.id]);
@@ -7714,6 +7721,13 @@ async function withServiceCalls(fn){
     await client.query('COMMIT');return out;
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }
+/* 品牌獨立（KK 11/5）：一桌屬於哪個品牌＝品項的店別，沒品項看開桌時間（posRegister.sessionVenues） */
+const posScope=req=>tableOrders.visibleVenues(req.auth.brands,String(req.query?.venue||req.body?.venue||'').toUpperCase());
+async function sessionVenueMap(ids){
+  const rows=ids.length?(await q('SELECT id,items,created_at FROM table_sessions WHERE id=ANY($1::text[])',[[...new Set(ids)]])).rows:[];
+  return new Map(rows.map(r=>[r.id,posRegister.sessionVenues(r)]));
+}
+const inScope=(venues,vs)=>!venues||(vs||[]).some(v=>venues.includes(v));
 const serviceErr=(res,e)=>{if(e&&e.status)return res.status(e.status).json({error:e.message,wait:e.wait});throw e;};
 // 客人端：看這桌的呼叫狀態／送出呼叫（掃單次 QR 帶 s、k）
 app.get('/api/service-calls',requireDb,wrap(async(req,res)=>{
@@ -7737,9 +7751,13 @@ app.get('/api/admin/orders/service-calls',auth,adminOnly,requireDb,wrap(async(re
     const gone=[...new Set(open.filter(c=>!live.has(c.session_id)).map(c=>c.session_id))];
     if(gone.length)st=await withServiceCalls(async(_c,s0)=>{let s1=s0;for(const id of gone)s1=serviceCalls.closeSession(s1,id).state;return {state:s1,out:s1};});
   }
-  res.json({pending:serviceCalls.pending(st),kinds:serviceCalls.KINDS});
+  const venues=posScope(req),list=serviceCalls.pending(st),vm=venues?await sessionVenueMap(list.map(c=>c.session_id)):null;
+  res.json({pending:venues?list.filter(c=>inScope(venues,vm.get(c.session_id))):list,kinds:serviceCalls.KINDS});
 }));
 app.post('/api/admin/orders/service-calls/:id/done',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venues=posScope(req);
+  if(venues){const c=serviceCalls.normalize(await contentValue('service_calls')).calls.find(x=>x.id===String(req.params.id));
+    if(!c||!inScope(venues,(await sessionVenueMap([c.session_id])).get(c.session_id)))return res.status(404).json({error:'找不到這筆呼叫。'});}
   try{const call=await withServiceCalls(async(_c,st)=>{const r=serviceCalls.resolve(st,String(req.params.id),actorOf(req.auth)||'');return {state:r.state,out:r.call};});
     res.json({ok:true,call});
   }catch(e){return serviceErr(res,e);}
@@ -7769,14 +7787,18 @@ app.post('/api/me/feedback',auth,requireDb,rateLimit({max:5,windowMs:3600000}),w
 app.get('/api/admin/orders/feedback',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   res.set('Cache-Control','no-store');
   const day=v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v||''))?String(v):null;const from=day(req.query.from),to=day(req.query.to);
-  const rows=(await q(`SELECT f.id,'桌邊點餐' AS source,f.table_no,f.kind,f.rating,f.text,f.name,f.lang,f.created_at FROM order_feedback f
+  const venues=posScope(req);
+  /* 品牌 POS（KK 11/5）：只看在自己品牌桌次留的回饋；會員 App 的回饋不屬於任何品牌，只在不分品牌時列出 */
+  const rows=(await q(`SELECT f.id,'桌邊點餐' AS source,f.table_no,f.kind,f.rating,f.text,f.name,f.lang,f.created_at,f.session_id FROM order_feedback f
     WHERE ($1::date IS NULL OR f.created_at>=($1::date::timestamp AT TIME ZONE 'Asia/Taipei')) AND ($2::date IS NULL OR f.created_at<(($2::date+1)::timestamp AT TIME ZONE 'Asia/Taipei'))
     UNION ALL
-    SELECT f.id,'會員 App' AS source,'' AS table_no,f.kind,f.rating,f.text,f.name,f.lang,f.created_at FROM member_feedback f
-    WHERE ($1::date IS NULL OR f.created_at>=($1::date::timestamp AT TIME ZONE 'Asia/Taipei')) AND ($2::date IS NULL OR f.created_at<(($2::date+1)::timestamp AT TIME ZONE 'Asia/Taipei'))
-    ORDER BY created_at DESC LIMIT 500`,[from,to])).rows;
-  const rated=rows.filter(r=>r.rating);
-  res.json({feedback:rows,kinds:orderFeedback.KINDS,count:rows.length,avg_rating:rated.length?Math.round(rated.reduce((a,r)=>a+r.rating,0)/rated.length*10)/10:null});
+    SELECT f.id,'會員 App' AS source,'' AS table_no,f.kind,f.rating,f.text,f.name,f.lang,f.created_at,NULL AS session_id FROM member_feedback f
+    WHERE NOT $3::boolean AND ($1::date IS NULL OR f.created_at>=($1::date::timestamp AT TIME ZONE 'Asia/Taipei')) AND ($2::date IS NULL OR f.created_at<(($2::date+1)::timestamp AT TIME ZONE 'Asia/Taipei'))
+    ORDER BY created_at DESC LIMIT 500`,[from,to,!!venues])).rows;
+  const vm=venues?await sessionVenueMap(rows.map(r=>r.session_id).filter(Boolean)):null;
+  const list=rows.filter(r=>!venues||inScope(venues,vm.get(r.session_id))).map(({session_id,...r})=>r);
+  const rated=list.filter(r=>r.rating);
+  res.json({feedback:list,kinds:orderFeedback.KINDS,count:list.length,avg_rating:rated.length?Math.round(rated.reduce((a,r)=>a+r.rating,0)/rated.length*10)/10:null});
 }));
 /* ---- 意見回饋 end ---- */
 
@@ -7853,7 +7875,8 @@ app.post('/api/admin/bug-reports/:id/review',auth,adminOnly,requireDb,wrap(async
    代收轉付：不計營收、不開發票、不算服務費／低消／折扣／會員點數。
    店家代收後支付給表演者：「設定 → 打賞」看期間已收／已支付／未付餘額並登記支付（現金同時記錢櫃支出）。
    不開新表：site_content 的 tip_settings／tip_events／tip_payouts。 */
-async function tipSettings(){return tips.normalizeSettings(await contentValue('tip_settings'));}
+/* 打賞設定各品牌一份（KK 11/5）：tip_settings:<VENUE>，沒設過沿用舊的共用 tip_settings */
+async function tipSettings(v){return tips.normalizeSettings((v&&await contentValue('tip_settings:'+v))||await contentValue('tip_settings'));}
 async function withTipKey(key,client,fn){
   await client.query(`INSERT INTO site_content(key,value) VALUES($1,'{}') ON CONFLICT(key) DO NOTHING`,[key]);
   const raw=(await client.query('SELECT value FROM site_content WHERE key=$1 FOR UPDATE',[key])).rows[0]?.value;
@@ -7868,15 +7891,15 @@ async function tipTx(fn){
 const tipErr=(res,e)=>{if(e&&e.status)return res.status(e.status).json({error:e.message});throw e;};
 app.get('/api/tips',requireDb,wrap(async(req,res)=>{
   res.set('Cache-Control','no-store');
-  try{const s=await songGuestSession(req.query);res.json({...tips.publicView(await tipSettings()),requests:tips.guestRequests(tips.normalizeEvents(await contentValue('tip_events')),s.id)});}catch(e){return tipErr(res,e);}
+  try{const s=await songGuestSession(req.query);res.json({...tips.publicView(await tipSettings(guestSongVenue())),requests:tips.guestRequests(tips.normalizeEvents(await contentValue('tip_events')),s.id)});}catch(e){return tipErr(res,e);}
 }));
 // 客人送出打賞：先建一筆待確認的請求（還沒掛帳、不播音效），店員在 POS 按「確認」才生效
 app.post('/api/tips',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
   const b=req.body||{};
   if(!/^[a-z0-9]{8,32}$/.test(String(b.guest||'')))return res.status(400).json({error:'缺少來賓識別。'});
   try{const s=await songGuestSession(b);await assertNotPaused();
-    const settings=await tipSettings();if(!settings.enabled)return res.status(423).json({error:'打賞目前沒有開放。'});
     const venue=tableOrders.MenuLib.orderWindow().venue;if(!venue)return res.status(423).json({error:'目前非營業時段，暫不開放打賞。'});
+    const settings=await tipSettings(venue);if(!settings.enabled)return res.status(423).json({error:'打賞目前沒有開放。'});
     const t=tips.parseTip(b,settings),by=tableOrders.cleanText(b.by,20)||'客人';
     const r=await tipTx(client=>withTipKey('tip_events',client,async raw=>{const o=tips.createRequest(tips.normalizeEvents(raw),{session_id:s.id,table:s.table_no,guest:b.guest,by,amount:t.amount,sfx:t.sfx,performer:settings.performer,venue});return {state:o.state,out:o.request};}));
     res.status(201).json({ok:true,id:r.id,status:r.status,amount:r.amount,sfx:r.sfx,performer:r.performer});
@@ -7890,13 +7913,15 @@ app.get('/api/admin/orders/tips/events',auth,adminOnly,requireDb,wrap(async(req,
     const live=new Set((await q(`SELECT id FROM table_sessions WHERE id=ANY($1::text[]) AND status='open'`,[[...new Set(open.map(e=>e.session_id))]])).rows.map(r=>r.id));
     if(open.some(e=>!live.has(e.session_id)))st=await tipTx(client=>withTipKey('tip_events',client,async raw=>{const o=tips.closeSessions(tips.normalizeEvents(raw),live);return {state:o.state,out:o.state};}));
   }
-  res.json({pending:tips.pendingRequests(st),events:st.events.filter(e=>e.status==='confirmed')});
+  const tv=posScope(req),mine=e=>!tv||tv.includes(e.venue||'BAR');   /* 品牌 POS 只看自己品牌的打賞（KK 11/5） */
+  res.json({pending:tips.pendingRequests(st).filter(mine),events:st.events.filter(e=>e.status==='confirmed'&&mine(e))});
 }));
 // POS 確認：掛上這桌帳單（之後播音效）；不收：結案。同一筆重複按回原狀態
 const tipDecideRoute=ok=>wrap(async(req,res)=>{
   const who=actorOf(req.auth)||'';
   try{const out=await tipTx(async client=>withTipKey('tip_events',client,async raw=>{
-      const st=tips.normalizeEvents(raw),cur=st.events.find(e=>e.id===String(req.params.id));
+      const st=tips.normalizeEvents(raw),cur=st.events.find(e=>e.id===String(req.params.id)),tv=posScope(req);
+      if(cur&&tv&&!tv.includes(cur.venue||'BAR'))throw Object.assign(Error('找不到這筆打賞（可能已過期）。'),{status:404});
       if(ok&&cur&&cur.status==='pending'){
         const ss=(await client.query('SELECT id,items,status FROM table_sessions WHERE id=$1 FOR UPDATE',[cur.session_id])).rows[0];
         if(!ss||ss.status!=='open')throw Object.assign(Error('這桌已結束（已清桌），不能再掛打賞。'),{status:409});
@@ -7915,16 +7940,19 @@ app.get('/api/admin/orders/tips',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   res.set('Cache-Control','no-store');
   let r;try{r=tableOrders.analyticsRange(req.query);}catch(e){return res.status(e.status||400).json({error:e.message});}
   const sql=`SELECT id,table_no,items,status,paid_at FROM table_orders WHERE status<>'void' AND items @> '[{"cat":"TIP"}]'::jsonb`;
-  const orders=(await q(sql+' AND paid_at>=$1 AND paid_at<$2',[r.start,r.end])).rows;
-  const all=(await q(sql)).rows;
-  const payouts=tips.normalizePayouts(await contentValue('tip_payouts')).payouts;
+  /* 品牌 POS（KK 11/5）：統計只算自己品牌的打賞行（line.venue）、支付只算自己品牌登記的（payout.venue，舊資料沒記＝三點水） */
+  const tv=posScope(req),lineOk=l=>!tv||!tips.isTip(l)||tv.includes(l.venue||'BAR'),own=o=>({...o,items:(o.items||[]).filter(lineOk)});
+  const orders=(await q(sql+' AND paid_at>=$1 AND paid_at<$2',[r.start,r.end])).rows.map(own);
+  const all=(await q(sql)).rows.map(own);
+  const payouts=tips.normalizePayouts(await contentValue('tip_payouts')).payouts.filter(x=>!tv||tv.includes(x.venue||'BAR'));
   const pending=(await q(`SELECT table_no,items FROM table_sessions WHERE status='open' AND items @> '[{"cat":"TIP"}]'::jsonb`)).rows
-    .reduce((a,s)=>a+s.items.filter(l=>tips.isTip(l)&&!l.order_id&&!l.cancelled).reduce((x,l)=>x+(Number(l.price)||0)*(Number(l.qty)||1),0),0);
-  res.json({settings:await tipSettings(),sounds:tips.SOUNDS,pay_methods:tips.PAY_METHODS,pending_unpaid_bills:pending,
+    .reduce((a,s)=>a+s.items.filter(l=>tips.isTip(l)&&lineOk(l)&&!l.order_id&&!l.cancelled).reduce((x,l)=>x+(Number(l.price)||0)*(Number(l.qty)||1),0),0);
+  res.json({settings:await tipSettings(tv&&tv.length===1?tv[0]:''),sounds:tips.SOUNDS,pay_methods:tips.PAY_METHODS,pending_unpaid_bills:pending,
     ...tips.summarize({orders,payouts,allOrders:all,allPayouts:payouts,businessDay:tableOrders.MenuLib.businessDay,from:r.from,to:r.to})});
 }));
 app.post('/api/admin/orders/tips/settings',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  try{const out=await tipTx(client=>withTipKey('tip_settings',client,async raw=>{const next=tips.patchSettings(tips.normalizeSettings(raw),req.body);return {state:next,out:next};}));
+  const tv=pinVenue(req,req.body?.venue||req.query.venue),key=tv?'tip_settings:'+tv:'tip_settings',base=tv?await tipSettings(tv):null;   /* 各品牌一份（KK 11/5） */
+  try{const out=await tipTx(client=>withTipKey(key,client,async raw=>{const next=tips.patchSettings(tips.normalizeSettings(raw&&raw!=='{}'?raw:(base||raw)),req.body);return {state:next,out:next};}));
     res.json({ok:true,settings:out});
   }catch(e){return tipErr(res,e);}
 }));
@@ -7935,12 +7963,12 @@ app.post('/api/admin/orders/tips/payouts',rateLimit({max:20}),auth,adminOnly,req
   try{const out=await tipTx(async client=>{
       let cash_move=null;
       if(p.method==='cash'){
-        const reg=(await client.query("SELECT id,venue FROM pos_registers WHERE closed_at IS NULL AND ($1='' OR venue=$1) ORDER BY opened_at DESC LIMIT 1 FOR UPDATE",[pinVenue(req,req.body?.venue)])).rows[0];   /* 品牌各自的抽屜（KK 11/4） */
+        const reg=(await client.query("SELECT id,venue FROM pos_registers WHERE closed_at IS NULL AND ($1='' OR venue=$1) ORDER BY opened_at DESC LIMIT 1 FOR UPDATE",[pinVenue(req,req.body?.venue||req.query.venue)])).rows[0];   /* 品牌各自的抽屜（KK 11/4） */
         if(!reg)throw Object.assign(Error('現在沒有開著的帳本，現金支付要先開帳（或改選轉帳／其他）。'),{status:409});
         cash_move=uid('cm_');
         await client.query('INSERT INTO pos_cash_moves(id,register_id,type,amount,reason,staff) VALUES($1,$2,$3,$4,$5,$6)',[cash_move,reg.id,'out',p.amount,('支付打賞給 '+p.performer+(p.note?'（'+p.note+'）':'')).slice(0,80),by]);
       }
-      const row={id:uid('tpo_'),...p,by,cash_move,at:new Date().toISOString()};
+      const row={id:uid('tpo_'),...p,venue:pinVenue(req,req.body?.venue||req.query.venue)||undefined,by,cash_move,at:new Date().toISOString()};
       await withTipKey('tip_payouts',client,async raw=>{const st=tips.normalizePayouts(raw);return {state:{payouts:st.payouts.concat([row])},out:null};});
       return row;
     });
