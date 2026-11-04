@@ -1448,7 +1448,7 @@ function paintPos(){
   // 開桌／外帶：每次都先輸入 PIN 認人，記這桌是誰開的（與結帳、作廢、開錢櫃一致）
   // 內用開桌先選人數（大人／小孩），外帶不用
   const openSession=async body=>{if(!body.takeout){const p=await pickParty(`${body.table_no} 開桌`);if(!p)return;body={...body,...p};}
-    return ensureOperator(()=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{...body,venue:SCOPE||undefined,operator_id:OPERATOR?.id}}),out=>out.takeout?`外帶單 ${out.table} 已開，請加入品項`:out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,async out=>{POS_TABLE=out.table;POS_PICK=null;POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_RECEIVED='';await reload();if(out.created&&out.qr_url)await printOpenedQr(out.table,out.qr_url,out);}));};
+    return ensureOperator(()=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{...body,venue:SCOPE||undefined,operator_id:OPERATOR?.id}}),out=>out.takeout?`外帶單 ${out.table} 已開，請加入品項`:out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,async out=>{/* 內用新開桌印完 QR 回結帳桌況；外帶要加品項、已開的桌才切進去（KK 11/4） */POS_TABLE=(out.created&&!out.takeout)?'':out.table;POS_PICK=null;POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_RECEIVED='';await reload();if(out.created&&out.qr_url)await printOpenedQr(out.table,out.qr_url,out);}));};
   // 空桌格：直接點就開桌，不用再打字輸入桌號；這桌有已確認的訂位時，開桌後順手問要不要把訂位標成「已到」（訂位頁就不用再點一次）
   host.querySelectorAll('[data-open-table]').forEach(b=>b.onclick=async()=>{
     const table=b.dataset.openTable,r=((POS_DATA?.reservations||{})[table]||[]).find(x=>x.status==='confirmed');
@@ -1456,7 +1456,7 @@ function paintPos(){
     const arrive=await posConfirm(`${table} 有訂位：${r.time} ${r.name} ${r.party_size} 位。\n開桌並把這筆訂位標成「已到」？`,{ok:'已到，開桌',cancel:'只開桌'});
     const p=await pickParty(`${table} 開桌（訂位 ${r.party_size} 位）`,{adults:r.party_size});if(!p)return;
     ensureOperator(()=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{table_no:table,...p,venue:SCOPE||undefined,operator_id:OPERATOR?.id}}),out=>out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,async out=>{
-      POS_TABLE=out.table;POS_PICK=null;POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_RECEIVED='';
+      POS_TABLE=out.created?'':out.table;POS_PICK=null;POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_RECEIVED='';
       if(arrive){try{await api('/admin/reservations/'+r.id+'/status',{method:'POST',body:{status:'arrived',notify:false}});toast(`訂位 ${r.name} 已標記「已到」`);}catch(e){toast('訂位狀態沒更新：'+e.message);}}
       await reload();if(out.created&&out.qr_url)await printOpenedQr(out.table,out.qr_url,out);
     }));
