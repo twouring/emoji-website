@@ -7,7 +7,7 @@ function tabOrders(){ return '<div class="a-sec" id="orders-body"></div>'; }
 function tabPos(){ return '<div id="pos-body"></div>'; }
 function tabReservations(){ return '<div class="a-sec" id="resv-body"></div>'; }
 /* 只有管理員能用的功能（如重開補單）只放 admin，POS 平板不顯示（KK 11/2）；pos-ops.js 兩頁共用，用網址判斷 */
-function onPosPage(){return typeof location!=='undefined'&&/^\/(pos|atcafe|3am)(\/|$)/.test(location.pathname);}
+function onPosPage(){return typeof location!=='undefined'&&/^\/(atcafe|3am|staysquare|restbook)(\/|$)/.test(location.pathname);}
 function tabSales(){ return '<div class="a-sec" id="sales-body"></div>'; }
 function tabHistory(){ return '<div class="a-sec" id="history-body"></div>'; }
 function tabLogs(){ return '<div class="a-sec" id="logs-body"></div>'; }
@@ -1109,7 +1109,7 @@ async function openManyTables(empty,reload){
 /* 桌號獨立網址（KK 11/2）：/pos/table/<桌號>；只在 /pos 生效（/admin 共用本檔，不動網址）。
    進桌 push（上一頁回桌況）；桌已清掉／不存在用 replace，網址退回 /pos。 */
 const posTableUrl=t=>(typeof POS_BASE!=='undefined'?POS_BASE:'/pos')+(t?'/table/'+encodeURIComponent(t):'');
-function syncPosTableUrl(replace){if(typeof location==='undefined'||typeof history==='undefined'||!/^\/(pos|atcafe|3am)(\/|$)/.test(location.pathname)||typeof TAB==='undefined'||TAB!=='pos')return;const url=posTableUrl(POS_TABLE);if(location.pathname!==url)history[replace?'replaceState':'pushState'](null,'',url);}
+function syncPosTableUrl(replace){if(typeof location==='undefined'||typeof history==='undefined'||!/^\/(atcafe|3am|staysquare|restbook)(\/|$)/.test(location.pathname)||typeof TAB==='undefined'||TAB!=='pos')return;const url=posTableUrl(POS_TABLE);if(location.pathname!==url)history[replace?'replaceState':'pushState'](null,'',url);}
 function posSelectTable(t){POS_TABLE=t||'';POS_OPT=null;POS_MENU_SCROLL=0;POS_LEFT_SCROLL=0;POS_PICK=null;POS_QTY={};POS_PAYREQ=null;POS_YAN={phone:'',name:'',balance:null};POS_MEMBER=false;POS_SPLIT={};POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_DISC_OPEN=false;POS_INV_VALS={};POS_RECEIVED='';POS_AA=null;paintPos();}
 async function loadPos(){
   const host=document.getElementById('pos-body');if(!host)return;
@@ -1913,12 +1913,12 @@ async function loadReservations(){
   if(reCancel)reCancel.onclick=()=>{RESV_EDIT=null;loadReservations();};
 }
 
-/* ===== 開關帳（帳本）：在咖啡／三點水各記一本，但共用同一個抽屜帳 → 同一時間只能一本開著（在咖啡關帳後三點水才能開）。
- * 結帳頁頂端一條狀態列（沒開帳→開帳鍵／等對方關帳；開著→應有現金＋關帳捷徑）；日結頁完整區塊 ===== */
-// 另一品牌還開著 → 這個品牌現在不能開帳，顯示要等誰關帳；開帳零用金預設承接上一本的留存金
-const regWait=v=>REG_DATA?.wait?.[v]||'';
-const regWaitChip=v=>`<span class="pill pill-wait">等${esc(regWait(v))}關帳</span><span class="reg-exp">共用抽屜帳，${esc(regWait(v))}關帳後才能開${esc(BRAND_LABEL[v])}</span>`;
-const regDefaultCash=()=>REG_DATA?.handover?Number(REG_DATA.handover.keep_cash)||0:3000;
+/* ===== 開關帳（帳本）：在咖啡／三點水各自獨立（KK 11/4）：各記一本、各有各的抽屜，開關帳互不連動。
+ * 結帳頁頂端一條狀態列（沒開帳→開帳鍵；開著→應有現金＋關帳捷徑）；日結頁完整區塊 ===== */
+// 開帳零用金預設承接同品牌上一本的留存金（不承接另一店）
+const regHandover=v=>REG_DATA?.handover?.[v]||null;
+const regDefaultCash=v=>regHandover(v)?Number(regHandover(v).keep_cash)||0:3000;
+const regOpenTables=v=>REG_DATA?.open_tables_by?.[v]||[];
 // 這台平板現在要管的品牌：有鎖店別就是店別，否則依時段（08–17 在咖啡、其餘三點水）
 const registerVenue=()=>SCOPE||REG_DATA?.next_venue||REG_DATA?.active_venue||'CAFE';
 const regOf=v=>REG_DATA?.current?.[v]||null;
@@ -1927,8 +1927,8 @@ const regState=r=>!r?'closed':r.closed_at?'done':'open';
 const denomGrid=()=>`<div class="reg-denoms">${REG_DENOMS.map(f=>`<label><span>$${num(f)}</span><input type="number" inputmode="numeric" min="0" step="1" data-denom="${f}" placeholder="張"></label>`).join('')}</div>`;
 function readCount(form,directSel){const denoms={};let d=0,invalid=false,any=false;form.querySelectorAll('[data-denom]').forEach(i=>{const text=i.value.trim();if(!text)return;any=true;if(!/^\d+$/.test(text))invalid=true;const n=Number(text);denoms[i.dataset.denom]=n;d+=Number(i.dataset.denom)*n;});const direct=form.querySelector(directSel).value.trim();const total=invalid?null:any?d:(/^\d+$/.test(direct)?Number(direct):null);return {total:total!==null&&Number.isSafeInteger(total)&&total<=10000000?total:null,denoms:any?denoms:undefined};}
 function openRegisterForm(venue){
-  const h=REG_DATA?.handover,def=regDefaultCash();
-  return `<div class="reg-open-form" data-venue="${esc(venue)}"><div class="ops-head"><h4>${esc(BRAND_LABEL[venue]||venue)} 開帳</h4>${tipIcon('抽屜零用金（找零準備金）按面額填張數，或直接填總額。'+(h?`預設承接 ${esc(BRAND_LABEL[h.venue]||h.venue)} ${esc(clockText(h.closed_at))} 關帳的留存金 NT$${num(h.keep_cash)}，點過抽屜不符請改。`:''))}</div>${denomGrid()}
+  const h=regHandover(venue),def=regDefaultCash(venue);
+  return `<div class="reg-open-form" data-venue="${esc(venue)}"><div class="ops-head"><h4>${esc(BRAND_LABEL[venue]||venue)} 開帳</h4>${tipIcon('抽屜零用金（找零準備金）按面額填張數，或直接填總額。'+(h?`預設承接本店 ${esc(clockText(h.closed_at))} 關帳的留存金 NT$${num(h.keep_cash)}，點過抽屜不符請改。`:''))}</div>${denomGrid()}
     <div class="a-form"><label>零用金總額<input id="reg-open-total" type="number" inputmode="numeric" min="0" step="1" placeholder="或直接填" value="${def}"></label>${fillChips('reg-open-total',[...new Set([Number(def)||0,2000,3000,5000,10000].filter(n=>n>0))].map(n=>[n,(n===Number(def)?'承接 ':'')+'$'+num(n)]))}</div>
     <div class="reg-close-sum"><span>零用金 <b id="reg-open-show">NT$${num(def)}</b></span></div>
     <div class="a-toolbar"><button type="button" class="btn btn--solid" id="reg-open-go">確認開帳</button><button type="button" class="btn btn--ghost" id="reg-open-cancel">取消</button></div></div>`;
@@ -2066,7 +2066,7 @@ function closeChecks(r){
   return {items,allOk,actual,totalDiff:actual==null?null:actual-(r.sales.collected??r.sales.amount)};   // 收款總額＝營收＋打賞代收
 }
 function dailyCloseForm(r){
-  const c=closeChecks(r),pending=c.items.filter(x=>!x.ok).map(x=>x.name),openT=REG_DATA?.open_tables||[];
+  const c=closeChecks(r),pending=c.items.filter(x=>!x.ok).map(x=>x.name),openT=regOpenTables(r.venue);
   return `<div class="reg-close-form" data-register-id="${esc(r.id)}"><h4>確認關帳 · ${esc(BRAND_LABEL[r.venue])}</h4>${openT.length?`<p class="hint reg-open-tables" id="reg-close-tables" role="alert">還有 ${openT.length} 桌沒清：${esc(openT.join('、'))}。請先結帳清桌，才能關帳。</p>`:''}<p>訂單總額 <b>NT$${num(r.sales?.collected??r.sales?.amount)}</b>（本品牌、同一營業日；非全店實收${r.sales?.tip_amount?`；含打賞代收 NT$${num(r.sales.tip_amount)}，不計營收`:''}）</p>
     ${pending.length?`<p class="hint" id="reg-close-pending">上方「各帳戶確認」還有 ${esc(pending.join('、'))} 沒有核對，請先按「核對」完成後再關帳。</p>`:`<div class="a-wrap2"><table class="a-tbl reg-acct"><thead><tr><th>帳戶</th><th class="num">應收</th><th class="num">實收</th><th class="num">差額</th></tr></thead><tbody>${c.items.map(x=>`<tr class="${x.diff?'lp-diff':''}"><td>${esc(x.name)}</td><td class="num">NT$${num(x.exp)}</td><td class="num">NT$${num(x.a.actual)}</td><td class="num">${x.diff>0?'+':''}${num(x.diff)}</td></tr>`).join('')}</tbody></table></div>
     <div class="reg-close-sum"><span>訂單總額 <b>NT$${num(r.sales?.collected??r.sales?.amount)}</b></span><span>帳戶總額 <b>NT$${num(c.actual)}</b></span><span>總差異 <b>${c.totalDiff>0?'+':''}${num(c.totalDiff)}</b></span></div>
@@ -2076,7 +2076,7 @@ function dailyCloseForm(r){
 function registerBlock(d){
   const venues=SCOPE?[SCOPE]:Object.keys(BRAND_LABEL);
   const cards=venues.map(v=>{const r=d?.current?.[v]||null,st=regState(r);
-    if(st==='closed')return `<div class="reg-card reg-closed"><h4>${esc(BRAND_LABEL[v])}</h4>${regWait(v)?`<p class="hint">${regWaitChip(v)}</p>`:REG_OPEN_FORM===v?openRegisterForm(v):`<p class="hint">還沒開帳：放零用金後按開帳才能結帳。</p><button type="button" class="btn btn--solid" data-reg-open="${esc(v)}">開帳</button>`}</div>`;
+    if(st==='closed')return `<div class="reg-card reg-closed"><h4>${esc(BRAND_LABEL[v])}</h4>${REG_OPEN_FORM===v?openRegisterForm(v):`<p class="hint">還沒開帳：放零用金後按開帳才能結帳。</p><button type="button" class="btn btn--solid" data-reg-open="${esc(v)}">開帳</button>`}</div>`;
     const moves=(r.moves||[]).map(m=>`<tr><td class="a-mono">${esc(clockText(m.created_at))}</td><td>${m.type==='in'?'<span class="pill pill-ok">收入</span>':'<span class="pill pill-wait">支出</span>'}</td><td>${esc(m.reason)}</td><td class="num">${m.type==='in'?'+':'−'}${num(m.amount)}</td></tr>`).join('')||'<tr><td colspan="4" class="a-empty">沒有臨時收支</td></tr>';
     const cashForm=REG_CASH_OPEN===r.id?`<div class="a-form reg-cash-form"><select id="reg-cash-type" aria-label="類型"><option value="out">臨時支出（從抽屜拿錢）</option><option value="in">臨時收入（放錢進抽屜）</option></select><input id="reg-cash-amount" type="number" inputmode="numeric" min="1" step="1" placeholder="金額"><input id="reg-cash-reason" maxlength="80" placeholder="原因（必填）選下面或自己填"><button type="button" class="btn btn--solid btn-sm" id="reg-cash-save">記錄</button><button type="button" class="btn btn--ghost btn-sm" id="reg-cash-cancel">取消</button>${fillChips('reg-cash-amount',[[100,'$100'],[200,'$200'],[500,'$500'],[1000,'$1,000'],[2000,'$2,000']])}${reasonChips('reg-cash-reason',REASON_PRESETS.cash_move)}</div>`:'';
     const closeForm=REG_CLOSE_OPEN===r.id?dailyCloseForm(r):'';
@@ -2093,7 +2093,7 @@ function registerBlock(d){
       ${cashForm}${countForm}${closeForm}${done&&REG_OPEN_FORM===v&&REG_DATA?.can_open?.[v]?openRegisterForm(v):''}
       ${!REG_CASH_OPEN&&!REG_CLOSE_OPEN&&!REG_COUNT_OPEN?`<div class="a-toolbar reg-actions">${done?`${REG_DATA?.can_open?.[v]?`<button type="button" class="btn btn--solid" data-reg-open="${esc(v)}">開帳</button>`:''}<button type="button" class="btn btn--ghost" data-reg-print="${esc(r.id)}" data-kind="關帳單">重印關帳單</button>${DATA?.super&&!onPosPage()?`<button type="button" class="btn btn--ghost" data-reg-reopen="${esc(r.id)}">重開補單</button>`:''}`:`<button type="button" class="btn btn--ghost" data-reg-cash="${esc(r.id)}">＋ 臨時收支</button><button type="button" class="btn btn--ghost" data-reg-count="${esc(r.id)}">小結點驗</button><button type="button" class="btn btn--ghost" data-reg-print="${esc(r.id)}" data-kind="小結單">印小結單</button><button type="button" class="btn btn--solid" data-reg-close="${esc(r.id)}">關帳</button>`}</div>`:''}
     </div>`;}).join('');
-  return `<div class="ops-head"><h3>開關帳</h3>${opsHelp('在咖啡與三點水共用同一個抽屜帳，各記一本但同一時間只能一本開著：在咖啡關帳後三點水就能開帳，反之亦然，不用等時間到（零用金預設承接上一本的留存金）。開店放零用金按「開帳」，營業中從抽屜拿錢要記「臨時收支」、交班或隨時可「小結點驗」核對現金，打烊點鈔按「關帳」；關帳後該品牌當天不能再結帳。應有現金＝零用金＋現金營收＋臨時收入－臨時支出。')}</div><div class="reg-cards">${cards}</div>`;
+  return `<div class="ops-head"><h3>開關帳</h3>${opsHelp('在咖啡與三點水各自獨立開關帳、各用自己的抽屜，互不影響（同店當天重開時零用金預設承接上一本的留存金）。開店放零用金按「開帳」，營業中從抽屜拿錢要記「臨時收支」、交班或隨時可「小結點驗」核對現金，打烊點鈔按「關帳」；關帳後該品牌當天不能再結帳。應有現金＝零用金＋現金營收＋臨時收入－臨時支出。')}</div><div class="reg-cards">${cards}</div>`;
 }
 function bindRegisterBlock(host,reload){
   bindOpenForm(host,reload);bindReasonChips(host);bindFillChips(host);
@@ -2132,7 +2132,7 @@ function bindDailyClose(form,r,reload){
     return {counted_cash:cash.actual,denominations:cash.denoms||{},cash_confirmed:true,keep_cash:amount(q('#reg-keep')),note:cash.reason||'',accounts,reconciliation_version:stamp};
   };
   const show=()=>{
-    const go=q('#reg-close-go');if(!c.allOk||(REG_DATA?.open_tables||[]).length){go.disabled=true;return false;}
+    const go=q('#reg-close-go');if(!c.allOk||regOpenTables(r.venue).length){go.disabled=true;return false;}
     const b=read(),need=false;
     go.disabled=submitting||b.keep_cash===null||need;
     q('#reg-close-status').textContent=b.keep_cash===null?'請填留存金。':'上方帳戶皆已核對，可以關帳。';
@@ -2467,11 +2467,11 @@ async function loadShifts(host){
   const offForm=SHIFT_FORM.offDay?`<div class="a-form shift-new"><label>員工<select id="off-staff">${staff.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}</select></label><label>排休日<input type="date" id="off-day" value="${esc(SHIFT_FORM.offDay)}" min="${esc(today)}"></label><label class="shift-note">備註<input id="off-note" maxlength="80" placeholder="例：回家"></label>${noteChips('off-note',['回家','看醫生','學校','家庭事務','私人行程'])}
       <button type="button" class="btn btn--solid" id="off-save">加入排休</button><button type="button" class="btn btn--ghost" id="off-cancel">取消</button></div>`:'';
   const staffingForm=SHIFT_FORM.staffing?`<div class="a-form shift-new staffing-form"><div style="flex:1 1 100%">${opsHelp('各店各時段要幾個人；自動排班會照這個表把沒排休、不違反勞基法規則的員工排進去，排不滿會顯示警示。')}</div>
-      ${SHIFT_FORM.staffing.map((s,i)=>`<div class="staffing-row" data-i="${i}">${SCOPE?`<b>${esc(BRAND_LABEL[SCOPE])}</b>`:`<select data-f="venue">${['CAFE','BAR'].map(v=>`<option value="${v}" ${s.venue===v?'selected':''}>${esc(BRAND_LABEL[v])}</option>`).join('')}</select>`}<input type="time" data-f="start" value="${esc(s.start)}"><span>–</span><input type="time" data-f="end" value="${esc(s.end)}"><input type="number" inputmode="numeric" data-f="headcount" min="0" max="9" step="1" value="${esc(String(s.headcount))}" aria-label="人數"><span>人</span><button type="button" class="shift-del" data-staffing-del="${i}" aria-label="刪除這列">×</button></div>`).join('')}
+      ${SHIFT_FORM.staffing.map((s,i)=>`<div class="staffing-row" data-i="${i}">${SCOPE?`<b>${esc(BRAND_LABEL[SCOPE])}</b>`:`<select data-f="venue">${Object.keys(BRAND_LABEL).map(v=>`<option value="${v}" ${s.venue===v?'selected':''}>${esc(BRAND_LABEL[v])}</option>`).join('')}</select>`}<input type="time" data-f="start" value="${esc(s.start)}"><span>–</span><input type="time" data-f="end" value="${esc(s.end)}"><input type="number" inputmode="numeric" data-f="headcount" min="0" max="9" step="1" value="${esc(String(s.headcount))}" aria-label="人數"><span>人</span><button type="button" class="shift-del" data-staffing-del="${i}" aria-label="刪除這列">×</button></div>`).join('')}
       <button type="button" class="btn btn--ghost btn-sm" id="staffing-add">＋ 時段</button><button type="button" class="btn btn--solid" id="staffing-save">儲存人力需求</button><button type="button" class="btn btn--ghost" id="staffing-cancel">取消</button></div>`:'';
   const warn=(SHIFT_FORM.warnings||[]).length?`<div class="shift-warn" role="status"><b>自動排班有排不滿的時段，請手動補人：</b><ul>${SHIFT_FORM.warnings.map(w=>`<li>${esc(w.message||w)}</li>`).join('')}</ul></div>`:'';
   const form=SHIFT_FORM.day?`<div class="a-form shift-new"><label>員工<select id="sh-staff">${staff.map(s=>`<option value="${esc(s.id)}" ${s.id===SHIFT_FORM.staff_id?'selected':''}>${esc(s.name)}${s.role?'（'+esc(s.role)+'）':''}</option>`).join('')}</select></label><label>營業日<input type="date" id="sh-day" value="${esc(SHIFT_FORM.day)}"></label>
-      ${SCOPE?'':`<label>店別<select id="sh-venue">${['CAFE','BAR'].map(v=>`<option value="${v}" ${v===venue?'selected':''}>${esc(BRAND_LABEL[v])}</option>`).join('')}</select></label>`}
+      ${SCOPE?'':`<label>店別<select id="sh-venue">${Object.keys(BRAND_LABEL).map(v=>`<option value="${v}" ${v===venue?'selected':''}>${esc(BRAND_LABEL[v])}</option>`).join('')}</select></label>`}
       <label>開始<input type="time" id="sh-start" value="${esc(VENUE_HOURS[venue][0])}"></label><label>結束<input type="time" id="sh-end" value="${esc(VENUE_HOURS[venue][1])}"></label><label class="shift-note">備註<input id="sh-note" maxlength="80" placeholder="例：代班"></label>
       <div class="reason-chips reason-chips--inline" role="group" aria-label="常用班別">${[['08:00','13:00','咖啡早班'],['12:00','17:00','咖啡午班'],['08:00','17:00','咖啡全日'],['17:00','22:00','三點水前段'],['21:00','03:00','三點水後段'],['17:00','03:00','三點水全日']].map(([s,e,l])=>`<button type="button" data-shift-quick="${s}-${e}">${l} ${s}–${e}</button>`).join('')}</div>${noteChips('sh-note',['代班','新人跟班','活動支援','半天'])}
       <button type="button" class="btn btn--solid" id="sh-save">加入</button><button type="button" class="btn btn--ghost" id="sh-cancel">取消</button></div>`:'';
@@ -2521,7 +2521,7 @@ async function loadStaffList(host){
   const cur=STAFF_EDIT&&STAFF_EDIT!=='new'?staff.find(s=>s.id===STAFF_EDIT):null;
   const curVenue=cur?(cur.venues&&cur.venues.length===1?cur.venues[0]:''):(SCOPE||'');
   const form=STAFF_EDIT?`<div class="a-form staff-form"><label>姓名<input id="st-name" maxlength="40" value="${esc(cur?.name||'')}" placeholder="員工姓名"></label><label>識別碼<input id="st-pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" value="${esc(cur?.pin||'')}" placeholder="${cur?'不改就留空':'留空自動產生'}"></label>
-      <label>店別<select id="st-venues">${[['','兩店都可'],['CAFE',BRAND_LABEL.CAFE],['BAR',BRAND_LABEL.BAR]].filter(([v])=>!SCOPE||!v||v===SCOPE).map(([v,l])=>`<option value="${v}" ${curVenue===v?'selected':''}>${esc(l)}</option>`).join('')}</select></label>
+      <label>店別<select id="st-venues">${[['','所有品牌'],...Object.entries(BRAND_LABEL)].filter(([v])=>!SCOPE||!v||v===SCOPE).map(([v,l])=>`<option value="${v}" ${curVenue===v?'selected':''}>${esc(l)}</option>`).join('')}</select></label>
       <label>職稱<input id="st-role" maxlength="20" value="${esc(cur?.role||'')}" placeholder="例：店長、工讀"></label>${fillChips('st-role',[['店長','店長'],['正職','正職'],['工讀','工讀'],['實習','實習']])}<label class="shift-note">備註<input id="st-note" maxlength="120" value="${esc(cur?.note||'')}"></label>
       <button type="button" class="btn btn--solid" id="st-save">${cur?'儲存':'新增'}</button><button type="button" class="btn btn--ghost" id="st-cancel">取消</button></div>`:'';
   host.innerHTML=`<div class="ops-head"><h3>員工</h3>${tipIcon('「新增員工」填姓名與店別，系統給一組 4 位數識別碼，員工用它在 POS 打卡與確認操作人員；離職或休職按「停用」，歷史紀錄保留。員工管理只在後台，平板上改不到。')}</div><div class="a-toolbar"><button class="btn btn--solid btn-sm" id="st-new">新增員工</button></div>${form}

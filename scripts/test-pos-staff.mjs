@@ -10,7 +10,8 @@ const read = p => fs.readFileSync(new URL(p, root), 'utf8');
 
 test('員工：姓名必填、識別碼 4 位數、店別空＝兩店、子帳號只能設自己店別；部分更新保留舊值', () => {
   assert.deepEqual(S.staffInput({ name: ' 小美 ', pin: '0427', venues: 'CAFE', role: '正職' }), { name: '小美', pin: '0427', venues: ['CAFE'], role: '正職', note: '', active: true });
-  assert.equal(S.staffInput({ name: 'A', venues: ['CAFE', 'BAR'] }).venues, null, '兩店都勾＝不限');
+  assert.deepEqual(S.staffInput({ name: 'A', venues: ['CAFE', 'BAR'] }).venues, ['CAFE', 'BAR'], 'KK 11/4 四個品牌：勾兩店就只有兩店');
+  assert.equal(S.staffInput({ name: 'A', venues: ['CAFE', 'BAR', 'STAY', 'REST'] }).venues, null, '四個都勾＝不限');
   assert.equal(S.staffInput({ name: 'A' }).pin, undefined, '沒填識別碼交給系統抽');
   assert.throws(() => S.staffInput({ name: '' }), /姓名/);
   assert.throws(() => S.staffInput({ name: 'A', pin: '12a4' }), /4 位數字/);
@@ -194,7 +195,7 @@ test('接線：POS 多「排班」「打卡」分頁、後台餐飲工作區多�
   const pos = read('public/pos.html'), ops = read('public/pos-ops.js'), admin = read('public/admin.html'), server = read('server.js');
   assert.match(pos, /\{ id:'shifts',(?: icon:'users',)?\s+label:'排班', group:'settings'/); assert.match(pos, /\{ id:'clock',(?: icon:'clock',)?\s+label:'打卡' \}/);
   assert.match(pos, /else if \(TAB === 'shifts'\) loadShifts\(\);/); assert.match(pos, /else if \(TAB === 'clock'\) loadClock\(\);/);
-  assert.match(server, /app\.get\(\['\/pos', '\/pos\/\*'\]/);
+  assert.match(server, /\/\^\\\/\(atcafe\|3am\|staysquare\|restbook\)\(\\\/\|\$\)\/\.test\(req\.path\)\) return sendPosPage\(res\)/);
   assert.match(server, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|analytics\|registers\|staff\|shifts\|attendance\|payment-methods\|pos-devices\|yan\|reservation-hours\|inventory\)/, '子帳號可用排班打卡 API');
   for (const fn of ['tabShifts', 'tabClock', 'loadShifts', 'loadClock']) assert.match(ops, new RegExp(`function ${fn}\\(`), fn);
   assert.match(ops, /api\('\/admin\/attendance\/punch',\{method:'POST',body:\{pin/);

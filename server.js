@@ -842,7 +842,7 @@ async function migrate() {
     id TEXT PRIMARY KEY, day DATE NOT NULL, venue TEXT NOT NULL DEFAULT '', counted_cash INT NOT NULL, expected_cash INT NOT NULL, diff INT NOT NULL,
     note TEXT NOT NULL DEFAULT '', staff TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE INDEX IF NOT EXISTS pos_shift_closes_day_idx ON pos_shift_closes(day)`);
-  // 開關帳（帳本）：品牌 × 營業日一本；在咖啡／三點水共用 POS 與同一個抽屜帳，同一時間全店只能一本開著（在咖啡關帳後三點水才能開）；臨時收支掛在帳本下
+  // 開關帳（帳本）：品牌 × 營業日一本；在咖啡／三點水各自獨立（KK 11/4，不連動、可同時開著）；臨時收支掛在帳本下
   await q(`CREATE TABLE IF NOT EXISTS pos_registers (
     id TEXT PRIMARY KEY, day DATE NOT NULL, venue TEXT NOT NULL, opening_cash INT NOT NULL DEFAULT 0, opening_denominations JSONB, note TEXT NOT NULL DEFAULT '',
     opened_by TEXT NOT NULL DEFAULT '', opened_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -850,8 +850,8 @@ async function migrate() {
     report JSONB NOT NULL DEFAULT '{}', reopened_at TIMESTAMPTZ, reopened_by TEXT)`);
   await q(`ALTER TABLE pos_registers ADD COLUMN IF NOT EXISTS opening_denominations JSONB`);
   await q(`CREATE UNIQUE INDEX IF NOT EXISTS pos_registers_open_idx ON pos_registers(day,venue) WHERE closed_at IS NULL`);
-  // 2026-10-16：兩品牌共用同一個抽屜帳 → 同一營業日只能一本開著（不分品牌）。既有資料若兩本同時開著，索引建不起來就先略過（API 仍會擋），關掉其中一本後下次啟動補建
-  try{await q(`CREATE UNIQUE INDEX IF NOT EXISTS pos_registers_open_day_idx ON pos_registers(day) WHERE closed_at IS NULL`);}catch(e){console.warn('[pos_registers_open_day_idx]',e.message);}
+  // KK 11/4：兩品牌各自獨立開關帳（可同時開著）→ 拿掉 10/16「同日全店只能一本」的索引，只留品牌 × 營業日一本（pos_registers_open_idx）
+  await q(`DROP INDEX IF EXISTS pos_registers_open_day_idx`);
   await q(`CREATE INDEX IF NOT EXISTS pos_registers_day_idx ON pos_registers(day,venue)`);
   await q(`CREATE TABLE IF NOT EXISTS pos_cash_moves (
     id TEXT PRIMARY KEY, register_id TEXT NOT NULL REFERENCES pos_registers(id), type TEXT NOT NULL CHECK (type IN ('in','out')), amount INT NOT NULL,
@@ -870,7 +870,9 @@ async function migrate() {
   await q(`CREATE TABLE IF NOT EXISTS pos_staff (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, pin TEXT NOT NULL, venues TEXT, role TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '',
     active BOOLEAN NOT NULL DEFAULT true, created_by TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
-  await q(`CREATE UNIQUE INDEX IF NOT EXISTS pos_staff_pin_idx ON pos_staff(pin) WHERE active`);
+  // 識別碼以品牌為範圍（KK 11/4）：同品牌不可重複、跨品牌可重複 → 拿掉全域唯一索引，改由 API（posStaff.pinTaken）擋同品牌重複
+  await q(`DROP INDEX IF EXISTS pos_staff_pin_idx`);
+  await q(`CREATE INDEX IF NOT EXISTS pos_staff_pin_lookup_idx ON pos_staff(pin) WHERE active`);
   // 裝置綁定：店長在店內 iPad 用管理員帳號登入一次完成綁定，之後該裝置才能用四位數密碼登入；未綁定的裝置不給 PIN 登入
   await q(`CREATE TABLE IF NOT EXISTS pos_devices (
     device_id TEXT PRIMARY KEY, bound_by TEXT NOT NULL DEFAULT '', bound_by_email TEXT NOT NULL DEFAULT '', label TEXT NOT NULL DEFAULT '', bound_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
@@ -1541,9 +1543,11 @@ app.post('/internal/cron/:job', async (req, res) => {
 // pos.emoji.tw 的首頁就是 POS（/pos）；官網首頁與其他頁面不在這個子網域提供，避免現場平板誤入官網
 app.use((req, res, next) => {
   if (!isPosHost(req)) return next();
-  if (req.path === '/' || req.path === '/index.html' || req.path === '/admin' || req.path === '/admin.html') return res.redirect(302, '/pos');
+  // 沒有 /pos（KK 11/4）：首頁＝品牌選擇頁，品牌 POS 在 /atcafe、/3am；舊的 /pos、/pos/*、/admin 一律轉回首頁選品牌
+  if ((req.method === 'GET' || req.method === 'HEAD') && req.path === '/') return sendPosPage(res);
+  if (req.path === '/index.html' || req.path === '/admin' || req.path === '/admin.html' || /^\/pos(\/|\.html$|$)/.test(req.path)) return res.redirect(302, '/');
   // POS 依店別分網址（KK 11/4）：/atcafe＝在咖啡、/3am＝三點水（含子分頁 /atcafe/sales…）；要在官網 /3am 品牌頁路由之前攔下
-  if ((req.method === 'GET' || req.method === 'HEAD') && /^\/(atcafe|3am)(\/|$)/.test(req.path)) return sendPosPage(res);
+  if ((req.method === 'GET' || req.method === 'HEAD') && /^\/(atcafe|3am|staysquare|restbook)(\/|$)/.test(req.path)) return sendPosPage(res);
   next();
 });
 // 舊活動主入口 /organizer（www、admin 及任何網域）→ 會員 App 主辦頁；/organizer/events/<id>/… → /host/<id>，查詢字串原樣帶過去
@@ -1788,7 +1792,7 @@ async function sessionAuth(t) {
     // POS 操作人員（四位數密碼＋裝置綁定登入）：身分來自 pos_staff，不是 users；每次請求都重查 active，停用即失效
     const staff = (await q('SELECT id,name,venues,active FROM pos_staff WHERE id=$1', [p.operator_staff_id])).rows[0];
     if (!staff || !staff.active) return null;
-    const brands = staff.venues ? String(staff.venues).split(',').map(x => x.trim().toUpperCase()).filter(x => ['CAFE', 'BAR'].includes(x)) : ['CAFE', 'BAR']; // venues 為空＝兩店都可
+    const brands = staff.venues ? String(staff.venues).split(',').map(x => x.trim().toUpperCase()).filter(x => posStaff.VENUES.includes(x)) : posStaff.VENUES.slice(); // venues 為空＝所有品牌都可
     if (!brands.length) return null; // 沒設所屬品牌的操作人員：一律視為未登入（不給預設全開權限）
     // 品牌跟著登入的人走：雙品牌員工登入時選一個，token 內的 pos_venue 鎖定本次登入；舊 token 沒帶品牌時，只有單品牌員工可沿用，雙品牌須重登
     const venue = p.pos_venue ? (brands.includes(p.pos_venue) ? p.pos_venue : null) : (brands.length === 1 ? brands[0] : null);
@@ -1852,13 +1856,13 @@ function doorAuth(req, res, next) {
    「權限管理」「系統設定」「操作紀錄」刻意不在這裡，維持言文字管理員專屬。 */
 const FOOD_API = /^\/api\/admin\/(orders|tables|content|menu|reservations|sales|analytics|registers|staff|shifts|attendance|payment-methods|pos-devices|yan|reservation-hours|inventory)(\/|$)/;
 const SHARED_API = /^\/api\/admin\/(updates|commitments|events|event-applications|social|ads|upload\/social|x\/compose|ig)(\/|$)/;
-const BRAND_API = { CAFE: FOOD_API, BAR: FOOD_API };
+const BRAND_API = { CAFE: FOOD_API, BAR: FOOD_API, STAY: FOOD_API, REST: FOOD_API };   // KK 11/4：等等空間、約書旅各自有 POS
 const ADMIN_BRANDS = Object.keys(BRAND_API);
 // SPACE 僅為相容舊資料（2026-10 前的等等空間子帳號），不再是獨立工作區／品牌，也不可再被指派
 const KNOWN_BRANDS = [...ADMIN_BRANDS, 'SPACE'];
 // users.admin_brand（逗號分隔）→ 品牌陣列；空＝null＝言文字管理員
 const parseBrands = v => { const b = KNOWN_BRANDS.filter(x => String(v || '').split(',').includes(x)); return b.length ? b : null; };
-const brandDenied = req => !!req.auth.brands && !req.auth.brands.some(b => BRAND_API[b]?.test(req.path) || ((b === 'CAFE' || b === 'BAR') && req.path === '/api/admin/pos/drawer-events')) && !SHARED_API.test(req.path);
+const brandDenied = req => !!req.auth.brands && !req.auth.brands.some(b => BRAND_API[b]?.test(req.path) || (BRAND_API[b] === FOOD_API && req.path === '/api/admin/pos/drawer-events')) && !SHARED_API.test(req.path);
 const eventAdmin = req => req.auth.role === 'admin';
 function adminOnly(req, res, next) {
   if (req.auth.role !== 'admin') return res.status(403).json({ error: '需要後台權限。' });
@@ -5419,7 +5423,7 @@ app.post('/api/admin/yan/merge', rateLimit({ max: 12 }), auth, adminOnly, requir
   let operator = null;
   if (!req.auth.agent) {
     const pin = typeof req.body?.operator_pin === 'string' && /^\d{4}$/.test(req.body.operator_pin) ? req.body.operator_pin : '';
-    const mgr = pin ? staffRow((await q(`SELECT ${STAFF_SEL} FROM pos_staff WHERE pin=$1 AND active`, [pin])).rows[0]) : null;
+    const mgr = pin ? await staffByPin(pin, pinVenue(req, req.body?.venue)) : null;
     if (!mgr || !isManagerRole(mgr.role) || String(mgr.id) !== String(req.body?.operator_id || '')) return res.status(403).json({ error: '合併會員要店長的 4 位數識別碼。', need_manager_pin: true });
     operator = { id: mgr.id, name: mgr.name };
   }
@@ -5636,7 +5640,7 @@ app.get('/api/admin/pos-logs', rateLimit({ max: 30 }), auth, adminOnly, requireD
   if (!req.auth.agent) {
     const pin = String(req.get('x-manager-pin') || '').trim();
     if (!/^\d{4}$/.test(pin)) return res.status(403).json({ error: '請輸入店長識別碼。', need_manager_pin: true });
-    const mgr = staffRow((await q(`SELECT ${STAFF_SEL} FROM pos_staff WHERE pin=$1 AND active`, [pin])).rows[0]);
+    const mgr = await staffByPin(pin, pinVenue(req, req.query.venue));
     if (!mgr || !isManagerRole(mgr.role))
       return res.status(403).json({ error: '識別碼不正確或不是店長。', need_manager_pin: true });
   }
@@ -6745,27 +6749,28 @@ app.get('/api/admin/registers',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const rows=(await q('SELECT * FROM pos_registers WHERE day=$1 ORDER BY opened_at',[day])).rows.map(regDay).filter(r=>!venues||venues.includes(r.venue));
   const out=[];for(const r of rows){const s=await registerSummary(r);out.push({...r,...s.summary,cash_sales:s.summary.cash_sales,moves:s.moves,counts:s.counts,last_count:s.counts[0]||null,sales:{orders:s.sales.orders,amount:s.sales.amount,collected:s.sales.collected,tip_amount:s.sales.tip_amount,by_method:s.sales.by_method,voided:s.sales.voided,void_amount:s.sales.void_amount},report:r.closed_at?r.report:s.report});}
   const byVenue={};for(const v of posRegister.VENUES){if(venues&&!venues.includes(v))continue;byVenue[v]=out.filter(r=>r.venue===v).slice(-1)[0]||null;}
-  // 共用抽屜帳：總覽要看全店（含子帳號看不到的另一品牌），否則三點水子帳號不知道在咖啡還沒關帳
-  const all=(await q('SELECT id,venue,opened_at,closed_at,keep_cash FROM pos_registers WHERE day=$1',[day])).rows;
-  res.json({day,registers:out,current:byVenue,active_venue:tableOrders.MenuLib.activeVenue(),open_tables:await openTablesBlockingClose(),...posRegister.registerOverview(all)});
+  // 品牌各自獨立（KK 11/4）：總覽只看看得到的品牌，開關帳不受另一店影響
+  const all=(await q('SELECT id,venue,opened_at,closed_at,keep_cash FROM pos_registers WHERE day=$1',[day])).rows.filter(r=>!venues||venues.includes(r.venue));
+  const tablesBy={};for(const v of posRegister.VENUES){if(!venues||venues.includes(v))tablesBy[v]=await openTablesBlockingClose(v);}
+  res.json({day,registers:out,current:byVenue,active_venue:tableOrders.MenuLib.activeVenue(),open_tables_by:tablesBy,open_tables:[...new Set(Object.values(tablesBy).flat())],...posRegister.registerOverview(all)});
 }));
-/* 開帳：body { venue, opening_cash?, note?, day? }；當日任何品牌還有開著的帳回 409（共用抽屜帳，在咖啡關帳後三點水才能開）；沒填零用金就承接上一本的留存金 */
+/* 開帳：body { venue, opening_cash?, note?, day? }；同品牌當日還有開著的帳回 409（另一品牌開著不影響，KK 11/4）；沒填零用金就承接同品牌上一本的留存金 */
 app.post('/api/admin/registers/open',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   let venue;try{venue=posRegister.registerVenue(req.body?.venue,req.auth.brands);}catch(e){return res.status(e.status||400).json({error:e.message});}
   const day=dayParam(req.body?.day);
   const client=await pool.connect();
-  try{await client.query('BEGIN');await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,['register:'+day]);
-    const open=(await client.query('SELECT id,venue,opened_by FROM pos_registers WHERE day=$1 AND closed_at IS NULL ORDER BY opened_at LIMIT 1',[day])).rows[0];
-    const handover=(await client.query('SELECT id,venue,keep_cash FROM pos_registers WHERE day=$1 AND closed_at IS NOT NULL ORDER BY closed_at DESC LIMIT 1',[day])).rows[0]||null;
+  try{await client.query('BEGIN');await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,['register:'+day+':'+venue]);
+    const open=(await client.query('SELECT id,venue,opened_by FROM pos_registers WHERE day=$1 AND venue=$2 AND closed_at IS NULL ORDER BY opened_at LIMIT 1',[day,venue])).rows[0];
+    const handover=(await client.query('SELECT id,venue,keep_cash FROM pos_registers WHERE day=$1 AND venue=$2 AND closed_at IS NOT NULL ORDER BY closed_at DESC LIMIT 1',[day,venue])).rows[0]||null;
     let row;try{row=posRegister.openRegister(req.body,{venue,open,handover});}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
     const id=uid('rg_');
     await client.query('INSERT INTO pos_registers(id,day,venue,opening_cash,opening_denominations,note,opened_by) VALUES($1,$2,$3,$4,$5,$6,$7)',[id,day,venue,row.opening_cash,row.denominations?JSON.stringify(row.denominations):null,row.note,actorOf(req.auth)||'']);
     await client.query('COMMIT');res.status(201).json({ok:true,id,day,venue,opening_cash:row.opening_cash,denominations:row.denominations});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
-/* 關帳前要清桌（KK 11/4）：回還沒清的桌號（規則在 posRegister.blockingTables） */
-async function openTablesBlockingClose(){
-  return posRegister.blockingTables((await q("SELECT table_no,items,pickup_at,pickup_placed_at,shop_at FROM table_sessions WHERE status='open'")).rows);
+/* 關帳前要清桌（KK 11/4）：回這個品牌還沒清的桌號（規則在 posRegister.blockingTables；另一品牌的桌不擋） */
+async function openTablesBlockingClose(venue){
+  return posRegister.blockingTables((await q("SELECT table_no,items,pickup_at,pickup_placed_at,shop_at,created_at FROM table_sessions WHERE status='open'")).rows,venue);
 }
 async function loadOpenRegister(req,res){
   if(!ORDER_ID_RE.test(String(req.params.id||'')))return res.status(404).json({error:'找不到這本帳。'})&&null;
@@ -6805,7 +6810,7 @@ app.post('/api/admin/registers/:id/count',auth,adminOnly,requireDb,wrap(async(re
 app.post('/api/admin/registers/:id/close',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const r=await loadOpenRegister(req,res);if(!r)return;
   if(r.closed_at)return res.status(409).json({error:'這本帳已經關過了。'});
-  const openTables=await openTablesBlockingClose();
+  const openTables=await openTablesBlockingClose(r.venue);
   if(openTables.length)return res.status(409).json({error:`還有 ${openTables.length} 桌沒清（${openTables.join('、')}），請先結帳清桌再關帳。`,open_tables:openTables});
   const s=await registerSummary(r);
   const version=JSON.stringify([s.summary.expected,s.summary.opening_cash,s.summary.cash_in,s.summary.cash_out,s.sales.amount,s.summary.reconciliation_accounts]);
@@ -6823,8 +6828,8 @@ app.post('/api/admin/registers/:id/close',auth,adminOnly,requireDb,wrap(async(re
 app.post('/api/admin/registers/:id/reopen',auth,adminOnly,superOnly,requireDb,wrap(async(req,res)=>{
   const r=await loadOpenRegister(req,res);if(!r)return;
   if(!r.closed_at)return res.status(409).json({error:'這本帳還開著。'});
-  const open=(await q('SELECT id,venue FROM pos_registers WHERE day=$1 AND closed_at IS NULL ORDER BY opened_at LIMIT 1',[r.day])).rows[0];
-  if(open)return res.status(409).json({error:open.venue===r.venue?'今天已經另有一本開著的帳。':`${posRegister.LABEL(open.venue)}的帳還開著，兩個品牌共用同一個抽屜帳，請先關帳再重開${posRegister.LABEL(r.venue)}補單。`});
+  const open=(await q('SELECT id,venue FROM pos_registers WHERE day=$1 AND venue=$2 AND closed_at IS NULL ORDER BY opened_at LIMIT 1',[r.day,r.venue])).rows[0];
+  if(open)return res.status(409).json({error:'今天已經另有一本開著的帳。'});
   const id=uid('rg_');
   await q('INSERT INTO pos_registers(id,day,venue,opening_cash,note,opened_by,reopened_at,reopened_by) VALUES($1,$2,$3,$4,$5,$6,now(),$6)',[id,r.day,r.venue,r.keep_cash||0,'重開補單（接 '+r.id+'）',actorOf(req.auth)||'']);
   res.status(201).json({ok:true,id,day:r.day,venue:r.venue,opening_cash:r.keep_cash||0});
@@ -6850,7 +6855,7 @@ async function superOrManagerPin(req,res,next){
     if(req.auth.super===true||req.auth.agent)return next();
     const pin=String(req.get('x-manager-pin')||'').trim();
     if(!/^\d{4}$/.test(pin))return res.status(403).json({error:'請輸入店長識別碼。',need_manager_pin:true});
-    const mgr=staffRow((await q(`SELECT ${STAFF_SEL} FROM pos_staff WHERE pin=$1 AND active`,[pin])).rows[0]);
+    const mgr=await staffByPin(pin,pinVenue(req,req.body?.venue||req.query?.venue));
     if(!mgr||!isManagerRole(mgr.role))return res.status(403).json({error:'識別碼不正確或不是店長。',need_manager_pin:true});
     if(req.body&&typeof req.body==='object')req.body.operator_id=mgr.id;
     req.managerPin=mgr;
@@ -6906,15 +6911,11 @@ app.post('/api/pos-devices/:id/pin-login',rateLimit({max:12}),requireDb,wrap(asy
   const bound=id&&(await q('SELECT 1 FROM pos_devices WHERE device_id=$1 AND lower(bound_by_email)=$2',[id,POS_ACCOUNT_EMAIL])).rows[0];
   const pin=String(req.body?.pin||'').trim();
   if(!bound||!/^\d{4}$/.test(pin))return res.status(404).json({error:'密碼錯誤，請重新輸入；若是第一次使用，請先用 POS 專用帳號登入這台裝置。'});
-  const staff=(await q('SELECT id,name,venues FROM pos_staff WHERE pin=$1 AND active',[pin])).rows[0];
+  // 品牌先選（KK 11/4）：pos.emoji.tw 先選品牌，進品牌 POS（/atcafe、/3am）才輸入識別碼；識別碼只在該品牌內唯一，所以一定要帶 venue
+  const venue=String(req.body?.venue||'').toUpperCase();
+  if(!posStaff.VENUES.includes(venue))return res.status(400).json({error:'請先選擇要進入的品牌 POS。'});
+  const staff=posStaff.pinMatch((await q('SELECT id,name,venues,active FROM pos_staff WHERE pin=$1 AND active',[pin])).rows,venue);
   if(!staff)return res.status(404).json({error:'密碼錯誤，請重新輸入。'});
-  const brands=staff.venues?String(staff.venues).split(',').map(x=>x.trim().toUpperCase()).filter(x=>['CAFE','BAR'].includes(x)):['CAFE','BAR']; // venues 為空＝兩店都可（同 staffVisible）
-  if(!brands.length)return res.status(403).json({error:`${staff.name} 尚未設定所屬品牌，請管理員到「排班打卡」設定後再登入。`});
-  // 品牌跟著登入的人：單品牌直接進；雙品牌要先選（沒帶 venue 時回 choose，不發 token），選定後本次登入鎖定該品牌
-  const want=String(req.body?.venue||'').toUpperCase();
-  if(brands.length>1&&!want)return res.json({choose:true,name:staff.name,brands});
-  if(want&&!brands.includes(want))return res.status(403).json({error:'您無法操作這個品牌。'});
-  const venue=brands.length===1?brands[0]:want;
   q('INSERT INTO pos_logs(id,venue,actor,operator_id,operator_name,action,detail,method,path) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[uid('pl_'),venue,staff.name,staff.id,staff.name,'登入 POS','裝置 '+id.slice(0,8),'POST','/api/pos-devices/pin-login']).catch(e=>console.error('[pos-log]',e.message));
   res.json({token:signToken({role:'admin',sub:'staff:'+staff.id,operator_staff_id:staff.id,name:staff.name,pos_venue:venue}),name:staff.name,brands:[venue]});
 }));
@@ -6938,12 +6939,24 @@ async function resolveOperator(req, id) {
   if (!staff || !posStaff.staffVisible(staff, venues)) return null;
   return { id: staff.id, name: staff.name };
 }
+/* 識別碼以品牌為範圍（KK 11/4）：查人一定要先決定品牌。登入鎖單一品牌的人（員工 PIN／品牌子帳號）用自己的品牌；
+ * 看全部的管理員才看 requested（前端帶 SCOPE）；都沒有時只有全店唯一的識別碼才認得到（posStaff.pinMatch） */
+function pinVenue(req,requested){
+  const own=tableOrders.visibleVenues(req.auth&&req.auth.brands);
+  if(own&&own.length===1)return own[0];
+  const v=String(requested||'').trim().toUpperCase();
+  return posStaff.VENUES.includes(v)&&(!own||own.includes(v))?v:'';
+}
+async function staffByPin(pin,venue){
+  const rows=(await q(`SELECT ${STAFF_SEL} FROM pos_staff WHERE pin=$1 AND active`,[String(pin)])).rows.map(r=>staffRow(r,{pin:true}));
+  return posStaff.pinMatch(rows,venue||null);
+}
 /* 認人（不是登入）：平板已用品牌帳號登入，這裡只是疊一層「現在是誰在操作」，供結帳／開桌記錄經手人。防猜碼：每台每分鐘 12 次，同打卡 */
 app.post('/api/admin/staff/verify',rateLimit({max:12}),auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const pin=String(req.body?.pin||'').trim();
   if(!/^\d{4}$/.test(pin))return res.status(400).json({error:'請輸入 4 位數識別碼。'});
   const venues=tableOrders.visibleVenues(req.auth.brands);
-  const staff=staffRow((await q(`SELECT ${STAFF_SEL} FROM pos_staff WHERE pin=$1 AND active`,[pin])).rows[0]);
+  const staff=await staffByPin(pin,pinVenue(req,req.body?.venue));
   if(!staff||!posStaff.staffVisible(staff,venues))return res.status(404).json({error:'識別碼不正確，請再試一次。'});
   res.json({ok:true,id:staff.id,name:staff.name});
 }));
@@ -6956,9 +6969,10 @@ app.get('/api/admin/staff',auth,adminOnly,requireDb,wrap(async(req,res)=>{
 /* 新增員工：body { name, pin?, venues?, role?, note? }；沒給識別碼就抽一組沒人用的 */
 app.post('/api/admin/staff',auth,adminOnly,notOperator,requireDb,wrap(async(req,res)=>{
   let s;try{s=posStaff.staffInput(req.body,{own:req.auth.brands});}catch(e){return res.status(e.status||400).json({error:e.message});}
-  const taken=(await q('SELECT pin FROM pos_staff WHERE active')).rows.map(r=>r.pin);
-  if(s.pin&&taken.includes(s.pin))return res.status(409).json({error:'這組識別碼已有人使用，請換一組。'});
-  let pin;try{pin=s.pin||posStaff.randomPin(taken);}catch(e){return res.status(e.status||400).json({error:e.message});}
+  // 識別碼同品牌不可重複、跨品牌可重複（KK 11/4）
+  const others=(await q('SELECT id,pin,venues,active FROM pos_staff WHERE active')).rows;
+  if(s.pin&&posStaff.pinTaken(s.pin,s.venues,others))return res.status(409).json({error:'這組識別碼在同品牌已有人使用，請換一組。'});
+  let pin;try{pin=s.pin||posStaff.randomPin(posStaff.takenPins(s.venues,others));}catch(e){return res.status(e.status||400).json({error:e.message});}
   const id=uid('st_');
   await q('INSERT INTO pos_staff(id,name,pin,venues,role,note,active,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[id,s.name,pin,s.venues?s.venues.join(','):null,s.role,s.note,s.active,actorOf(req.auth)||'']);
   res.status(201).json({ok:true,id,name:s.name,pin,venues:s.venues,role:s.role,active:s.active});
@@ -6975,8 +6989,9 @@ async function loadStaff(req,res){
 app.patch('/api/admin/staff/:id',auth,adminOnly,notOperator,requireDb,wrap(async(req,res)=>{
   const cur=await loadStaff(req,res);if(!cur)return;
   let s;try{s=posStaff.staffInput(req.body,{own:req.auth.brands,existing:cur});}catch(e){return res.status(e.status||400).json({error:e.message});}
-  if(s.pin&&s.pin!==cur.pin&&(await q('SELECT 1 FROM pos_staff WHERE pin=$1 AND active AND id<>$2',[s.pin,cur.id])).rowCount)return res.status(409).json({error:'這組識別碼已有人使用，請換一組。'});
-  if(s.active&&!cur.active&&(await q('SELECT 1 FROM pos_staff WHERE pin=$1 AND active AND id<>$2',[s.pin||cur.pin,cur.id])).rowCount)return res.status(409).json({error:'原識別碼已被別人使用，請同時指定新識別碼再啟用。'});
+  // 改碼、改品牌、重新啟用都要檢查：同品牌內不可撞碼（KK 11/4）
+  const others=(await q('SELECT id,pin,venues,active FROM pos_staff WHERE active AND id<>$1',[cur.id])).rows;
+  if(s.active&&posStaff.pinTaken(s.pin||cur.pin,s.venues,others,cur.id))return res.status(409).json({error:s.pin&&s.pin!==cur.pin?'這組識別碼在同品牌已有人使用，請換一組。':'原識別碼在同品牌已被別人使用，請同時指定新識別碼。'});
   await q('UPDATE pos_staff SET name=$2,pin=$3,venues=$4,role=$5,note=$6,active=$7,updated_at=now() WHERE id=$1',[cur.id,s.name,s.pin||cur.pin,s.venues?s.venues.join(','):null,s.role,s.note,s.active]);
   res.json({ok:true,id:cur.id,name:s.name,pin:req.auth.brands?undefined:(s.pin||cur.pin),venues:s.venues,role:s.role,note:s.note,active:s.active});
 }));
@@ -7074,7 +7089,7 @@ app.delete('/api/admin/shifts/:id',auth,adminOnly,requireDb,wrap(async(req,res)=
 app.post('/api/admin/attendance/punch',rateLimit({max:12}),auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const pin=String(req.body?.pin||'').trim();
   if(!/^\d{4}$/.test(pin))return res.status(400).json({error:'請輸入 4 位數識別碼。'});
-  const staff=staffRow((await q(`SELECT ${STAFF_SEL} FROM pos_staff WHERE pin=$1 AND active`,[pin])).rows[0]);
+  const staff=await staffByPin(pin,pinVenue(req,req.body?.venue));
   const open=staff?(await q('SELECT id,staff_id,day,venue,shift_id,clock_in,breaks FROM pos_attendance WHERE staff_id=$1 AND clock_out IS NULL ORDER BY clock_in DESC LIMIT 1',[staff.id])).rows[0]||null:null;
   const today=tableOrders.MenuLib.businessDay();
   const shifts=staff?(await q('SELECT id,staff_id,day,venue,start_time,end_time FROM pos_shifts WHERE staff_id=$1 AND (day=$2 OR id=$3)',[staff.id,today,open?.shift_id||''])).rows.map(shiftRow):[];
@@ -7097,7 +7112,7 @@ app.post('/api/admin/attendance/punch',rateLimit({max:12}),auth,adminOnly,requir
 app.post('/api/admin/attendance/makeup',rateLimit({max:12}),auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const pin=String(req.body?.pin||'').trim();
   if(!/^\d{4}$/.test(pin))return res.status(400).json({error:'請輸入 4 位數識別碼。'});
-  const staff=staffRow((await q(`SELECT ${STAFF_SEL} FROM pos_staff WHERE pin=$1 AND active`,[pin])).rows[0]);
+  const staff=await staffByPin(pin,pinVenue(req,req.body?.venue));
   if(!staff)return res.status(404).json({error:'識別碼不正確，請再試一次。'});
   const open=(await q('SELECT id,staff_id,day,venue,shift_id,clock_in,breaks FROM pos_attendance WHERE staff_id=$1 AND clock_out IS NULL ORDER BY clock_in DESC LIMIT 1',[staff.id])).rows[0]||null;
   const existing=(await q("SELECT id,clock_in,clock_out FROM pos_attendance WHERE staff_id=$1 AND clock_in>=now()-interval '10 days'",[staff.id])).rows;
@@ -7512,7 +7527,7 @@ app.get('/api/admin/orders/songs/youtube/playlists',auth,adminOnly,requireDb,wra
 // 綁定 YouTube 帳號：回 OWN_BASE 上的起始網址（state cookie 與 callback 必須同一個 host），授權完成導回 POS 點歌分頁
 app.post('/api/admin/orders/songs/youtube/connect',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!GOOGLE_CLIENT_ID||!GOOGLE_CLIENT_SECRET)return res.status(503).json({error:'尚未設定 Google OAuth（GOOGLE_CLIENT_ID／SECRET），無法綁定 YouTube。'});
-  const state=signToken({p:'youtube',a:String(actorOf(req.auth)||'').slice(0,120),r:safeRedirect(req.body?.redirect)||'https://pos.emoji.tw/pos/songs',n:crypto.randomBytes(24).toString('hex')},{purpose:'oauth'});
+  const state=signToken({p:'youtube',a:String(actorOf(req.auth)||'').slice(0,120),r:safeRedirect(req.body?.redirect)||'https://pos.emoji.tw/',n:crypto.randomBytes(24).toString('hex')},{purpose:'oauth'});
   res.json({url:OWN_BASE+'/auth/youtube?state='+encodeURIComponent(state)});
 }));
 app.delete('/api/admin/orders/songs/youtube',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -7529,7 +7544,7 @@ app.get('/auth/youtube/callback',wrap(async(req,res)=>{
   const state=String(req.query.state||''),st=verifyToken(state,{purpose:'oauth'}),cookie=(req.headers.cookie||'').split(';').map(v=>v.trim()).find(v=>v.startsWith('youtube_oauth_state='))?.slice(20);
   res.clearCookie('youtube_oauth_state',{path:'/auth/youtube',httpOnly:true,sameSite:'lax',secure:SITE_BASE.startsWith('https://')});
   if(!st||st.p!=='youtube'||!safeEqual(state,cookie))return res.status(400).send('綁定連結已失效，請回 POS 重新操作。');
-  const back=(safeRedirect(st.r)||'https://pos.emoji.tw/pos/songs').split('?')[0];
+  const back=(safeRedirect(st.r)||'https://pos.emoji.tw/').split('?')[0];
   if(!req.query.code)return res.redirect(back+'?youtube=cancelled');
   if(!pool||!dbReady)return res.status(503).send('資料庫尚未就緒，請稍後再試。');
   let t;try{t=await songs.tokenRequest(fetch,{code:String(req.query.code),client_id:GOOGLE_CLIENT_ID,client_secret:GOOGLE_CLIENT_SECRET,redirect_uri:YOUTUBE_REDIRECT_URI,grant_type:'authorization_code'});}catch(e){return res.redirect(back+'?youtube=failed');}
@@ -7762,7 +7777,7 @@ app.post('/api/admin/orders/tips/payouts',rateLimit({max:20}),auth,adminOnly,req
   try{const out=await tipTx(async client=>{
       let cash_move=null;
       if(p.method==='cash'){
-        const reg=(await client.query('SELECT id,venue FROM pos_registers WHERE closed_at IS NULL ORDER BY opened_at DESC LIMIT 1 FOR UPDATE')).rows[0];
+        const reg=(await client.query("SELECT id,venue FROM pos_registers WHERE closed_at IS NULL AND ($1='' OR venue=$1) ORDER BY opened_at DESC LIMIT 1 FOR UPDATE",[pinVenue(req,req.body?.venue)])).rows[0];   /* 品牌各自的抽屜（KK 11/4） */
         if(!reg)throw Object.assign(Error('現在沒有開著的帳本，現金支付要先開帳（或改選轉帳／其他）。'),{status:409});
         cash_move=uid('cm_');
         await client.query('INSERT INTO pos_cash_moves(id,register_id,type,amount,reason,staff) VALUES($1,$2,$3,$4,$5,$6)',[cash_move,reg.id,'out',p.amount,('支付打賞給 '+p.performer+(p.note?'（'+p.note+'）':'')).slice(0,80),by]);
@@ -7786,7 +7801,7 @@ app.get(['/admin', '/admin/*'], (req, res) => {
 });
 // 平板 POS（純瀏覽器，Star webPRNT Browser）：/pos、/pos/orders、/pos/soldout、/pos/inventory、/pos/reservations、/pos/history、/pos/sales、/pos/products、/pos/customers、/pos/clock、/pos/shifts 皆回同一頁（pos.emoji.tw 與 www 都可用，API 同網域）
 const POS_PAGE = path.join(PUB, 'pos.html');
-app.get('/pos.html', (_req, res) => res.redirect(301, '/pos'));
+app.get(['/pos', '/pos/*', '/pos.html'], (_req, res) => res.redirect(302, 'https://' + POS_HOSTS[0] + '/'));   // POS 只在 pos.emoji.tw（首頁選品牌），其他網域不提供
 // 部署版本號：CI 在 build 前寫入 VERSION（日期＋當日流水號，如 20261018-03）；本機開發顯示 dev
 const APP_VERSION = (() => { try { return fs.readFileSync(path.join(__dirname, 'VERSION'), 'utf8').trim() || 'dev'; } catch (_) { return 'dev'; } })();
 let POS_HTML_CACHE = null;
@@ -7797,7 +7812,6 @@ function sendPosPage(res) {
   if (!POS_HTML_CACHE) POS_HTML_CACHE = fs.readFileSync(POS_PAGE, 'utf8').replace('<!--POS_VERSION_FULL-->', APP_VERSION).replace('<!--POS_VERSION-->', APP_VERSION.replace(/^\d{4}(?=\d{4}-)/, ''));
   res.send(POS_HTML_CACHE);
 }
-app.get(['/pos', '/pos/*'], (_req, res) => sendPosPage(res));
 // 舊的官網會員頁（/member 三語）已全部移到會員 App：保留轉址給舊連結、通知信與書籤（查詢字串原樣帶過去）
 app.get(['/member', '/member.html', '/en/member', '/en/member.html', '/ja/member', '/ja/member.html', '/login', '/signin', '/en/login', '/en/signin', '/ja/login', '/ja/signin'], (req, res) => {
   let qs = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';

@@ -66,7 +66,7 @@ async function tipPayout(body){
   const isSuper = !!(DATA && DATA.super); let msg = '支付給表演者需要店長識別碼';
   for (let i = 0; i < 3; i++) {
     if (!isSuper && !TIP_PIN) { const p = await askManagerPin(msg); if (!p) return null; TIP_PIN = p; }
-    try { return await api('/admin/orders/tips/payouts', { method: 'POST', body, headers: isSuper ? {} : { 'X-Manager-Pin': TIP_PIN } }); }
+    try { return await api('/admin/orders/tips/payouts', { method: 'POST', body: { ...body, venue: SCOPE }, headers: isSuper ? {} : { 'X-Manager-Pin': TIP_PIN } }); }
     catch (e) { if (e.status === 403 && !isSuper) { TIP_PIN = ''; msg = e.message; continue; } throw e; }
   }
   return null;

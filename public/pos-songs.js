@@ -213,7 +213,7 @@ document.addEventListener('click', async e => {
   if (b.matches('[data-song-pl-clear]')) { if (!await posConfirm('清空常態歌單？沒有人點歌時會變成安靜無聲。', { ok: '清空', danger: true })) return; return songSavePlaylist([]); }
   if (b.matches('[data-song-mine]')) { try { SONGS.mine = (await api('/admin/orders/songs/youtube/playlists')).playlists; } catch (err) { toast(err.message); } return paintSongSettings(); }
   if (b.dataset.songMineImport || b.dataset.songMineAppend) { const id = b.dataset.songMineImport || b.dataset.songMineAppend; b.disabled = true; return songDo(() => api('/admin/orders/songs/playlist/import', { method: 'POST', body: { playlist: id, mode: b.dataset.songMineAppend ? 'append' : 'replace' } }), d => `已匯入 ${d.imported} 首`); }
-  if (b.matches('[data-song-yt-on]')) { try { const r = await api('/admin/orders/songs/youtube/connect', { method: 'POST', body: { redirect: location.origin + '/pos/settings' } }); location.href = r.url; } catch (err) { toast(err.message); } return; }
+  if (b.matches('[data-song-yt-on]')) { try { const r = await api('/admin/orders/songs/youtube/connect', { method: 'POST', body: { redirect: location.origin + POS_BASE + '/settings' } }); location.href = r.url; } catch (err) { toast(err.message); } return; }
   if (b.matches('[data-song-yt-off]')) { if (!await posConfirm('解除綁定 YouTube 帳號？', { ok: '解除', danger: true })) return; try { await api('/admin/orders/songs/youtube', { method: 'DELETE' }); SONGS.data = await api('/admin/orders/songs'); } catch (err) { toast(err.message); } return paintSongSettings(); }
 });
 document.addEventListener('change', e => {

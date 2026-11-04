@@ -38,10 +38,11 @@ const T = require(path.join(root, 'lib/table-orders.js'));
 
 test('POS 子網域：/atcafe、/3am（含子分頁）回 POS 頁；www 的 /3am 仍是品牌頁', async t => {
   const get = await server(t);
-  for (const p of ['/atcafe', '/atcafe/sales', '/atcafe/table/A3', '/3am', '/3am/analytics/customers', '/pos']) {
+  for (const p of ['/', '/atcafe', '/atcafe/sales', '/atcafe/table/A3', '/3am', '/3am/analytics/customers', '/staysquare', '/restbook/sales']) {
     const r = await get(p, { host: 'pos.emoji.tw' });
     assert.equal(r.status, 200, p); assert.match(r.body, /POS_URL_VENUE/, p);
   }
+  for (const p of ['/pos', '/pos/sales', '/pos.html', '/admin']) { const r = await get(p, { host: 'pos.emoji.tw' }); assert.equal(r.status, 302, p); assert.equal(r.headers.get('location'), '/', p); }
   const w = await get('/3am', { host: 'www.emoji.tw' });
   assert.doesNotMatch(w.body || '', /POS_URL_VENUE/, 'www 的 /3am 不可變成 POS');
 });
@@ -69,7 +70,7 @@ test('orderBase：依店別給網域；沒帶店別依點餐時段', () => {
 
 test('前端：POS 網址鎖店別、主色用 CIS；點餐頁依網域換 CIS 主色', () => {
   const pos = read('public/pos.html'), order = read('public/order.html'), ops = read('public/pos-ops.js');
-  assert.match(pos, /POS_VENUE_BASE = \{ CAFE:'\/atcafe', BAR:'\/3am' \}/);
+  assert.match(pos, /POS_VENUE_BASE = \{ CAFE:'\/atcafe', BAR:'\/3am', STAY:'\/staysquare', REST:'\/restbook' \}/, 'KK 11/4：四個品牌 POS');
   assert.match(pos, /SCOPE = POS_URL_VENUE \|\|/);
   assert.match(pos, /getElementById\('p-scope'\)\.innerHTML = POS_URL_VENUE \? '' :/, '店別網址左上角不再多店別 tag');
   assert.match(pos, /const scopesOf = d => POS_URL_VENUE \? \[POS_URL_VENUE\]/);

@@ -64,14 +64,15 @@ const boot=pos.slice(pos.indexOf('async function main(){'),pos.indexOf('\nmain()
 for (const [label,state,allowed] of [
   ['unrestricted admin',{role:'admin',me:{}},true],
   ['cafe admin',{role:'admin',brands:['CAFE'],me:{}},true],
+  ['bar admin on cafe POS',{role:'admin',brands:['BAR'],me:{}},false],
   ['non-food admin',{role:'admin',brands:['SPACE'],me:{}},false],
   ['non-admin session',{role:'invited',me:{}},false],
 ]) test(`password bootstrap preserves brand/role gate: ${label}`,async()=>{
   const paths=[],screens=[];
-  const ctx={POS_URL_VENUE:'',POS_VENUE_BASE:{CAFE:'/atcafe',BAR:'/3am'},token:'signed-session',DEVICE_ID:'test-device',DEVICE_BOUND:false,justLoggedInByAdmin:true,
+  const ctx={POS_URL_VENUE:'CAFE',POS_VENUE_BASE:{CAFE:'/atcafe',BAR:'/3am'},token:'signed-session',DEVICE_ID:'test-device',DEVICE_BOUND:false,justLoggedInByAdmin:true,
     BRAND_LABEL:{CAFE:'在咖啡',BAR:'三點水'},api:async path=>{paths.push(path);return path==='/state'?state:{};},
     showLoginScreen:msg=>screens.push(msg),MenuLib:{parseMenuDoc:()=>({})},routeTab:()=> 'pos',ROUTE_TABLE:'',POS_TABLE:'',
-    render:()=>{ctx.rendered=true;},refreshPending(){},renewToken(){},app:{},esc:String};
+    render:()=>{ctx.rendered=true;},refreshPending(){},renewToken(){},app:{},esc:String,location:{origin:'https://pos.emoji.tw',pathname:'/atcafe'}};
   runInNewContext(boot,ctx);
   await ctx.main();
   assert.equal(ctx.rendered===true,allowed);

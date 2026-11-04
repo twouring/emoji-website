@@ -42,38 +42,38 @@ async function server(t, env = {}) {
     : fetch(base + url, { redirect: 'manual', headers });
 }
 
-test('/pos 與子路徑回同一頁、noindex；/pos.html 轉 301；不再是 PWA（無 manifest、無 service worker）', async t => {
+test('品牌 POS 網址回同一頁、noindex；舊 /pos、/pos/*、/pos.html 轉回 pos.emoji.tw 首頁；不再是 PWA', async t => {
   const get = await server(t);
-  for (const url of ['/pos', '/pos/orders', '/pos/soldout', '/pos/reservations', '/pos/history', '/pos/sales', '/pos/clock', '/pos/shifts']) {
-    const res = await get(url);
+  for (const url of ['/atcafe', '/atcafe/soldout', '/3am/sales', '/staysquare', '/restbook/clock']) {
+    const res = await get(url, { host: 'pos.emoji.tw' });
     assert.equal(res.status, 200, url);
     assert.equal(res.headers.get('x-robots-tag'), 'noindex', url);
-    const body = await res.text();
+    const body = await (await get(url.replace(/^\/[a-z0-9]+/, m => m))).text?.() ?? read('public/pos.html');
     assert.doesNotMatch(body, /rel="manifest"|apple-mobile-web-app|apple-touch-icon|beforeinstallprompt/, url + ' 不可再有 PWA 標記');
   }
-  const legacy = await get('/pos.html');
-  assert.equal(legacy.status, 301); assert.match(legacy.headers.get('location'), /\/pos$/);
+  for (const url of ['/pos', '/pos/sales', '/pos.html']) { const r = await get(url); assert.equal(r.status, 302, url); assert.equal(r.headers.get('location'), 'https://pos.emoji.tw/', url); }
   for (const gone of ['/pos.webmanifest', '/pos-sw.js', '/pos-icon-192.png']) assert.doesNotMatch(String((await get(gone)).headers.get('content-type')), /manifest|javascript|image\/png/, gone + ' 應已移除');
 });
 
-test('pos.emoji.tw：首頁與 /admin 轉到 /pos；www 與 localhost 不受影響；CORS 放行 pos 來源；登入導回接受 pos 子網域', async t => {
+test('pos.emoji.tw：首頁＝品牌選擇頁、/admin 與舊 /pos 轉回首頁；www 與 localhost 不受影響；CORS 放行 pos 來源；登入導回接受 pos 子網域', async t => {
   const get = await server(t);
-  for (const url of ['/', '/index.html', '/admin', '/admin.html']) {
+  for (const url of ['/index.html', '/admin', '/admin.html', '/pos', '/pos/sales']) {
     const res = await get(url, { host: 'pos.emoji.tw' });
-    assert.equal(res.status, 302, url); assert.match(res.headers.get('location'), /\/pos$/, url);
+    assert.equal(res.status, 302, url); assert.equal(res.headers.get('location'), '/', url);
   }
-  assert.equal((await get('/pos', { host: 'pos.emoji.tw' })).status, 200);
+  const home = await get('/', { host: 'pos.emoji.tw' });
+  assert.equal(home.status, 200); assert.match(read('public/pos.html'), /function renderBrandPicker/);
   assert.notEqual((await get('/', { host: 'www.emoji.tw' })).status, 302);
   assert.notEqual((await get('/', { host: 'localhost' })).status, 302);
   assert.equal((await get('/', { host: 'pos.emoji.tw.evil.test' })).status !== 302, true);
   const cors = await get('/api/health', { origin: 'https://pos.emoji.tw' });
   assert.equal(cors.headers.get('access-control-allow-origin'), 'https://pos.emoji.tw');
   assert.equal((await get('/api/health', { origin: 'https://evil.test' })).headers.get('access-control-allow-origin'), null);
-  const login = await get('/auth/google?redirect=' + encodeURIComponent('https://pos.emoji.tw/pos'));
+  const login = await get('/auth/google?redirect=' + encodeURIComponent('https://pos.emoji.tw/atcafe'));
   assert.equal(login.status, 302);
   const state = new URL(login.headers.get('location')).searchParams.get('state');
   const { verifyToken } = require('../lib/security');
-  assert.equal(verifyToken(state, 'local-test-secret-not-used-in-production', { purpose: 'oauth' }).r, 'https://pos.emoji.tw/pos');
+  assert.equal(verifyToken(state, 'local-test-secret-not-used-in-production', { purpose: 'oauth' }).r, 'https://pos.emoji.tw/atcafe');
   const bad = await get('/auth/google?redirect=' + encodeURIComponent('https://pos.emoji.tw.evil.test/pos'));
   assert.equal(verifyToken(new URL(bad.headers.get('location')).searchParams.get('state'), 'local-test-secret-not-used-in-production', { purpose: 'oauth' }).r, 'https://app.emoji.tw/');
 });
@@ -90,7 +90,7 @@ test('pos.html：只做餐飲五件事、與 /admin 共用 pos-ops.js、登入�
   assert.match(html, /else if \(TAB === 'history'\) loadHistory\(\);/);
   assert.doesNotMatch(html, /commitments|social|permissions/, 'POS 不帶後台其他分頁');
   assert.match(html, /\{ id:'members', icon:'users', label:'會員' \}/);
-  assert.match(html, /const BRAND_LABEL = \{ CAFE:'在咖啡', BAR:'三點水' \}/);
+  assert.match(html, /const BRAND_LABEL = \{ CAFE:'在咖啡', BAR:'三點水', STAY:'等等空間', REST:'約書旅' \}/);
   assert.match(html, /const AUTH_ORIGIN = \/\^pos\\\.\/i\.test\(location\.hostname\)/);
   assert.match(html, /\$\{esc\(AUTH_ORIGIN\)\}\/auth\/google\?redirect=\$\{redirect\}/);
   assert.match(html, /const KEY = 'tth_token'/);
@@ -132,7 +132,7 @@ test('pos-ops.js：共用模組不碰 /admin 專屬狀態；估清分頁只動 s
   assert.match(ops, /const opsHelp=tipIcon;/, '長說明統一走 opsHelp()＝標題後方的「?」圖示（點擊才顯示）');
   assert.match(ops, /class="tip-q" aria-label="操作說明"/); assert.doesNotMatch(ops, /<details class="ops-help"/, '不再有攤開／摺疊的「操作說明」按鈕');
   assert.match(ops, /\$\{opsHelp\(`客人掃帳本夾裡的本桌 QR 點餐/, '出餐看板長說明要預設收合，避免 UI 雜亂');
-  for (const lead of ['確認每一筆單的狀態', '客人從 <a href="\\/reserve"', '營業日從凌晨 03:00', '點一下品項設定「今日估清」或「剩餘份數」', '輸入你的 4 位數識別碼，按「上班」', '在咖啡與三點水共用同一個抽屜帳', '員工先按「排休」', '工時＝下班－上班－休息']) {
+  for (const lead of ['確認每一筆單的狀態', '客人從 <a href="\\/reserve"', '營業日從凌晨 03:00', '點一下品項設定「今日估清」或「剩餘份數」', '輸入你的 4 位數識別碼，按「上班」', '在咖啡與三點水各自獨立開關帳', '員工先按「排休」', '工時＝下班－上班－休息']) {
     assert.match(ops, new RegExp("opsHelp\\('" + lead), lead + ' 要用 opsHelp 收合');
     assert.doesNotMatch(ops, new RegExp('<p class="hint">' + lead), lead + ' 不可直接攤開');
   }

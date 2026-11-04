@@ -64,7 +64,7 @@ test('官網服務：正式網域的 /admin 轉到 admin.emoji.tw（保留路徑
   assert.equal(back.status, 302); assert.equal(back.headers.get('location'), 'https://app.emoji.tw/host/abc?task=hosts');
   assert.equal((await get('/admin', { host: '127.0.0.1' })).status, 200, '本機開發不轉');
   assert.equal((await get('/organizer', { host: '127.0.0.1' })).headers.get('location'), 'https://app.emoji.tw/host', '本機舊入口也轉 App');
-  assert.equal((await get('/admin', { host: 'pos.emoji.tw' })).headers.get('location'), '/pos', 'POS 子網域維持轉 /pos');
+  assert.equal((await get('/admin', { host: 'pos.emoji.tw' })).headers.get('location'), '/', 'POS 子網域轉首頁選品牌（KK 11/4 沒有 /pos）');
   // 管理 API 不轉（AI agent 以 ADMIN_API_KEY 打 www）
   assert.notEqual((await get('/api/admin/users', { host: 'www.emoji.tw' })).status, 302);
   // 官網首頁與其他頁不受影響

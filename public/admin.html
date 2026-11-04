@@ -1304,7 +1304,7 @@ function tabAdmins(d){
    - 只給總公司（言文字管理員）使用；品牌子帳號登入直接擋回，門市一律用 pos.emoji.tw。日結報表、排班打卡看全部品牌（SCOPE＝''）。
    - 現場營運（櫃檯結帳、出餐、訂位、估清）仍在 pos.emoji.tw。員工新增／編輯與出勤修正刻意留在 admin（平板四位數密碼登入的現場人員不能改）。 */
 const ADMIN_TABS = ['overview','sales','staff','events','calendar','members','commitments','updates','menu','social','ads','outreach','permissions','system','logs'];
-const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水' };
+const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水', STAY:'等等空間', REST:'約書旅' };
 const SCOPE = '';   // pos-ops.js 共用：空字串＝所有品牌
 const OLD_WORKSPACE_SLUGS = ['shared','cafe','bar','space'];
 const scopeTabs = () => ADMIN_TABS;
@@ -3398,7 +3398,7 @@ async function main(){
       return renderLogin('活動請到 App 管理。');
     }
     // admin 只給總公司（KK 2026-11-02）：品牌子帳號（店長／現場）一律用 pos.emoji.tw
-    if (d.brands) return renderLogin('後台只開放總公司帳號；門市請使用 <a href="https://pos.emoji.tw/pos">pos.emoji.tw</a>。');
+    if (d.brands) return renderLogin('後台只開放總公司帳號；門市請使用 <a href="https://pos.emoji.tw/">pos.emoji.tw</a>。');
     await ensureIgScripts();
     render(d);
     applyRoute();

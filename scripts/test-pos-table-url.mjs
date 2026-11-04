@@ -10,35 +10,35 @@ function routeCtx(pathname) {
   const calls = [];
   const src = ops.slice(ops.indexOf('const posTableUrl='), ops.indexOf('async function loadPos(){'))
     + pos.slice(pos.indexOf("const LEGACY_ANALYTICS"), pos.indexOf('function go(tab, replace)'));
-  const ctx = { TABS: [{ id: 'pos' }, { id: 'sales' }], ANALYTICS_KIND: 'products', POS_TABLE: '', TAB: 'pos', calls,
+  const ctx = { POS_BASE: '/atcafe', TABS: [{ id: 'pos' }, { id: 'sales' }], ANALYTICS_KIND: 'products', POS_TABLE: '', TAB: 'pos', calls,
     location: { pathname }, history: { pushState: (_a, _b, u) => { calls.push(['push', u]); ctx.location.pathname = u; }, replaceState: (_a, _b, u) => { calls.push(['replace', u]); ctx.location.pathname = u; } } };
   vm.runInNewContext(src.replace('let ROUTE_TABLE', 'var ROUTE_TABLE') + ';this.routeTab=routeTab;this.sync=syncPosTableUrl;this.url=posTableUrl;this.rt=()=>ROUTE_TABLE;', ctx);
   return ctx;
 }
 
 test('直接開 /pos/table/A3 → 結帳分頁＋該桌；中文與空白桌號可編碼往返', () => {
-  let c = routeCtx('/pos/table/A3');
+  let c = routeCtx('/atcafe/table/A3');
   assert.equal(c.routeTab(), 'pos'); assert.equal(c.rt(), 'A3');
-  c = routeCtx('/pos/table/' + encodeURIComponent('外帶 W1'));
+  c = routeCtx('/atcafe/table/' + encodeURIComponent('外帶 W1'));
   assert.equal(c.routeTab(), 'pos'); assert.equal(c.rt(), '外帶 W1');
-  assert.equal(c.url('外帶 W1'), '/pos/table/' + encodeURIComponent('外帶 W1'));
-  c = routeCtx('/pos');
+  assert.equal(c.url('外帶 W1'), '/atcafe/table/' + encodeURIComponent('外帶 W1'));
+  c = routeCtx('/atcafe');
   assert.equal(c.routeTab(), 'pos'); assert.equal(c.rt(), '');
-  c = routeCtx('/pos/sales');
+  c = routeCtx('/atcafe/sales');
   assert.equal(c.routeTab(), 'sales'); assert.equal(c.rt(), '');
 });
 
 test('進桌 push、回桌況 push、桌已清掉 replace 回 /pos；/admin 不動網址', () => {
-  const c = routeCtx('/pos');
+  const c = routeCtx('/atcafe');
   c.POS_TABLE = 'A3'; c.sync(false);
   c.POS_TABLE = ''; c.sync(false);
   c.POS_TABLE = 'B1'; c.sync(false);
   c.POS_TABLE = ''; c.sync(true);
   c.sync(false); // 沒變就不寫
-  assert.deepEqual(c.calls, [['push', '/pos/table/A3'], ['push', '/pos'], ['push', '/pos/table/B1'], ['replace', '/pos']]);
+  assert.deepEqual(c.calls, [['push', '/atcafe/table/A3'], ['push', '/atcafe'], ['push', '/atcafe/table/B1'], ['replace', '/atcafe']]);
   const a = routeCtx('/admin/cafe/pos'); a.POS_TABLE = 'A3'; a.sync(false);
   assert.deepEqual(a.calls, []);
-  const s = routeCtx('/pos/sales'); s.TAB = 'sales'; s.POS_TABLE = 'A3'; s.sync(false);
+  const s = routeCtx('/atcafe/sales'); s.TAB = 'sales'; s.POS_TABLE = 'A3'; s.sync(false);
   assert.deepEqual(s.calls, [], '別的分頁不改網址');
 });
 

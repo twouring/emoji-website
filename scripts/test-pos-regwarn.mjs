@@ -21,7 +21,7 @@ test('依目前品牌判斷：沒有開著的帳就顯示，開帳後隱藏', ()
 
 test('切分頁、開帳、關帳、重開帳都會刷新警示；登入畫面不顯示', () => {
   assert.match(html, /function activate\(\)\{\n  startKitchenPrinting\(\);\n  refreshRegWarn\(\);/);
-  assert.equal((html.match(/paintRegWarn\(null\);\n  const drawer/g) || []).length, 2);
+  assert.equal((html.match(/paintRegWarn\(null\);\n  const drawer/g) || []).length, 3);   // 品牌選擇頁、管理員登入、PIN 鍵盤
   assert.ok((ops.match(/typeof refreshRegWarn==='function'\)refreshRegWarn\(\)/g) || []).length >= 3);
 });
 

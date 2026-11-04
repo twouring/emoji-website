@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import { createRequire } from 'node:module';
+const require=createRequire(import.meta.url);
 const server=fs.readFileSync('server.js','utf8'),pos=fs.readFileSync('public/pos.html','utf8');
 const T=await import('../lib/table-orders.js').then(m=>m.default||m);
 const plain=x=>JSON.parse(JSON.stringify(x));
@@ -13,27 +15,27 @@ function handler(path,ctx){
 }
 const response=()=>({code:200,status(n){this.code=n;return this;},json(x){this.body=x;return this;}});
 async function login(venues,body){
-  let signed;const ctx={q:async sql=>({rows:sql.includes('FROM pos_devices')?[{venue:''}]:[{id:'st1',name:'小明',venues}]}),signToken:p=>(signed=p,'tok'),uid:p=>p+'x'};
+  let signed;const ctx={posStaff:require('../lib/pos-staff.js'),q:async sql=>({rows:sql.includes('FROM pos_devices')?[{venue:''}]:[{id:'st1',name:'小明',venues}]}),signToken:p=>(signed=p,'tok'),uid:p=>p+'x'};
   const res=response();await handler('/api/pos-devices/:id/pin-login',ctx)({params:{id:'d1'},body},res);return {res,signed};
 }
-test('單品牌員工直接進入，token 鎖該品牌',async()=>{
-  const {res,signed}=await login('BAR',{pin:'1234'});
+test('PIN 登入一定要帶品牌（KK 11/4：先選品牌 POS 再輸入識別碼），token 鎖該品牌',async()=>{
+  const {res,signed}=await login('BAR',{pin:'1234',venue:'BAR'});
   assert.equal(res.code,200);assert.deepEqual(plain(res.body.brands),['BAR']);assert.equal(signed.pos_venue,'BAR');
+  const r=await login('BAR',{pin:'1234'});assert.equal(r.res.code,400);assert.equal(r.signed,undefined);
 });
-test('雙品牌員工要先選：沒帶 venue 不發 token，選定後鎖定單一品牌',async()=>{
-  let r=await login('CAFE,BAR',{pin:'1234'});
-  assert.equal(r.res.body.choose,true);assert.equal(r.signed,undefined);assert.deepEqual(plain(r.res.body.brands),['CAFE','BAR']);
-  r=await login('CAFE,BAR',{pin:'1234',venue:'cafe'});
-  assert.deepEqual(plain(r.res.body.brands),['CAFE']);assert.equal(r.signed.pos_venue,'CAFE');
+test('雙品牌員工不再回 choose：在哪個品牌 POS 輸入就進哪個',async()=>{
+  const r=await login('CAFE,BAR',{pin:'1234',venue:'cafe'});
+  assert.equal(r.res.body.choose,undefined);assert.deepEqual(plain(r.res.body.brands),['CAFE']);assert.equal(r.signed.pos_venue,'CAFE');
 });
-test('選不屬於自己的品牌或無效品牌被拒絕',async()=>{
-  for(const [v,b] of [['CAFE','BAR'],['CAFE','SPACE'],['BAR','CAFE']]){
-    const r=await login(v,{pin:'1234',venue:b});assert.equal(r.res.code,403);assert.equal(r.signed,undefined);
+test('不屬於這個品牌的識別碼一律當密碼錯誤（跨品牌可重複，不洩漏）',async()=>{
+  for(const [v,b] of [['CAFE','BAR'],['BAR','CAFE'],['STAY','REST']]){
+    const r=await login(v,{pin:'1234',venue:b});assert.equal(r.res.code,404);assert.equal(r.signed,undefined);
   }
+  const r=await login('CAFE',{pin:'1234',venue:'SPACE'});assert.equal(r.res.code,400);
 });
 const authSource=server.slice(server.indexOf('async function sessionAuth('),server.indexOf('\nasync function auth('));
 async function session(payload,{venues='CAFE,BAR',active=true}={}){
-  const ctx={POS_ACCOUNT_EMAIL:'pos@emoji.tw',verifyToken:()=>payload,pool:true,dbReady:true,q:async()=>({rows:[{id:'st1',name:'小明',venues,active}]})};
+  const ctx={posStaff:require('../lib/pos-staff.js'),POS_ACCOUNT_EMAIL:'pos@emoji.tw',verifyToken:()=>payload,pool:true,dbReady:true,q:async()=>({rows:[{id:'st1',name:'小明',venues,active}]})};
   vm.runInNewContext(authSource,ctx);return ctx.sessionAuth('t');
 }
 test('每次請求只拿到 token 鎖定的單一品牌；權限被移除、停用、舊雙品牌 token 都失效',async()=>{
@@ -57,7 +59,7 @@ test('共用座位：混桌送單只送自己品牌，對方品項保持未送',
   assert.throws(()=>T.placeLines(items,new Date(),['BAR']).items.length&&T.placeLines(out,new Date(),['BAR']),e=>e.status===400);
   assert.equal(T.placeLines(items).items.filter(l=>l.placed_at).length,2,'管理員不限品牌');
 });
-test('畫面：員工只見品牌標籤、不顯示姓名、無切換、雙品牌有選擇畫面',()=>{
+test('畫面：員工只見品牌標籤、不顯示姓名、無切換、首頁是品牌選擇頁',()=>{
   const src=pos.slice(pos.indexOf('const scopesOf ='),pos.indexOf('function routeTab'));
   const ctx={POS_URL_VENUE:'',DATA:{me:{operator:true,name:'小明'},brands:['BAR']},SCOPE:'CAFE',BRAND_LABEL:{CAFE:'在咖啡',BAR:'三點水'},localStorage:{setItem(){}}};
   vm.runInNewContext(src+'\nsetScope(scopesOf(DATA)[0]);setScope("CAFE");',ctx);assert.equal(ctx.SCOPE,'BAR');
@@ -66,15 +68,14 @@ test('畫面：員工只見品牌標籤、不顯示姓名、無切換、雙品�
   Object.assign(ctx,{document:{getElementById:id=>id==='p-scope'?scopeEl:navEl,querySelector:()=>null},esc:String,TABS:[],TAB:'pos',updateNavMore(){}});
   vm.runInNewContext(nav+'\npaintNav();',ctx);
   assert.match(scopeEl.innerHTML,/>三點水</);assert.doesNotMatch(scopeEl.innerHTML,/小明| · /);assert.doesNotMatch(scopeEl.innerHTML,/<button|data-scope/);
-  assert.match(pos,/function renderBrandChoice\(pin, d\)/);assert.match(pos,/if \(d\.choose\) return renderBrandChoice\(pin, d\)/);
+  assert.match(pos,/function renderBrandPicker\(msg\)/);assert.doesNotMatch(pos,/renderBrandChoice|d\.choose/);
+  assert.match(pos,/body:\{ pin, venue:POS_URL_VENUE \}/,'PIN 登入固定帶網址的品牌');
   assert.doesNotMatch(pos,/startIdleLock|lockScreen/,'POS 不再自動鎖定螢幕');
   assert.doesNotMatch(pos,/localStorage\.setItem\([^)]*pin\b/i);
 });
 
-test('venues 為空（兩店員工）：PIN 登入視為雙品牌，要先選；sessionAuth 也放行',async()=>{
-  const r=await login(null,{pin:'1234'});
-  assert.equal(r.res.code,200);assert.equal(r.res.body.choose,true);assert.deepEqual(plain(r.res.body.brands),['CAFE','BAR']);
-  const r2=await login(null,{pin:'1234',venue:'BAR'});assert.equal(r2.signed.pos_venue,'BAR');
+test('venues 為空（所有品牌員工）：四個品牌都能登入；sessionAuth 也放行',async()=>{
+  for(const v of ['CAFE','BAR','STAY','REST']){const r=await login(null,{pin:'1234',venue:v});assert.equal(r.res.code,200,v);assert.equal(r.signed.pos_venue,v);}
   const s=await session({operator_staff_id:'st1',pos_venue:'CAFE'},{venues:null});assert.deepEqual(plain(s.brands),['CAFE']);
 });
 test('只有 pos@emoji.tw 綁定的裝置能用員工 PIN',()=>{
