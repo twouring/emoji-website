@@ -67,7 +67,7 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" https://www.emoji.tw/api/state
 ## 公開端點（免認證）
 
 ### POST /api/auth/admin/password
-後台 Email／密碼登入（`admin.emoji.tw` 與官網 API 皆可用），免 Bearer。body：`{ email, password }`。Email 會去除前後空白並轉小寫；密碼保留原樣。僅 `users.is_admin=true` 且已設定密碼的唯一帳號可登入；不依特定 Email 自動授權。成功回 `{ token }`（七天 session，`Cache-Control: no-store`），每次請求仍由 `sessionAuth` 重查 DB 的管理員與品牌權限。帳號不存在、密碼錯誤、非管理員、重複 Email 一律 `401 { error: "Email 或密碼錯誤。" }`。Postgres 共用固定 15 分鐘視窗：每 Email 10 次、每 IP 40 次（跨服務與副本共用），超過回 429 與 `Retry-After: 900`；另有程序內 IP 限流。登入不會建立帳號、不寄信、不記錄密碼。
+後台 Email／密碼登入（`admin.emoji.tw` 與官網 API 皆可用），免 Bearer。body：`{ email, password }`。Email 會去除前後空白並轉小寫；密碼保留原樣。僅 `users.is_admin=true` 且已設定密碼的唯一帳號可登入；不依特定 Email 自動授權。成功回 `{ token }`（七天 session，`Cache-Control: no-store`），每次請求仍由 `sessionAuth` 重查 DB 的管理員與品牌權限。帳號不存在、密碼錯誤、非管理員、重複 Email 一律 `401 { error: "Email 或密碼錯誤。" }`。Postgres 共用固定 15 分鐘視窗：每 Email 10 次（跨服務與副本共用），超過回 429 `{ error: "密碼錯誤次數過多，請 15 分鐘後再試。" }` 與 `Retry-After: 900`；不做 IP 限流。登入不會建立帳號、不寄信、不記錄密碼。
 
 ### POST /api/admin/users/password
 **僅超級管理員**（含 `ADMIN_API_KEY`）可建立／更新管理員密碼。後台 UI：admin.emoji.tw「權限管理」最上方的「新增帳號」表單（超管才看得到）即呼叫本端點，填 Email、密碼（至少 8 字）、選填姓名與品牌勾選；對方不必先用 Google 登入過，Email 已存在時表單會先確認再重設密碼與品牌範圍。body：`{ email, password, admin: true, brands: [], name?: string }`。`admin:true` 與 `brands` 必須明確提供；`brands:[]` 表示不限制品牌（DB `is_admin=true, admin_brand=NULL`），也可指定 `["CAFE"]`／`["BAR"]`／兩者。這是一般管理員，不授予 `super`，不修改 `SUPER_ADMIN_EMAIL`；本端點拒絕替既有超級管理員 Email 設密碼。密碼至少 8 個字元且至多 1024 UTF-8 bytes；使用 Node crypto 非同步 scrypt（N=32768,r=8,p=1、16-byte 隨機 salt、64-byte key）儲存 `users.admin_password_hash`，不存明文、不回傳 hash。既有 Email 更新密碼；新 Email 建立 users；交易與 Email advisory lock 防重複建立，重複舊資料回 409。成功 `{ ok:true, user:{ id,email,admin:true,brands } }`；錯誤參數 400、未登入 401、非超管 403。每程序 IP 每分鐘 10 次。重設密碼不會撤銷已發出的 session；撤銷管理員須移除 DB 的 is_admin。
@@ -545,10 +545,10 @@ POS 輪詢未處理的呼叫（每 5 秒）。回 `{ pending:[{id,session_id,tab
 店員按「處理」結案，記 `done_at`／`done_by`（登入者或 PIN 員工）。已處理過的重複按回原資料（兩台同時按不報錯）；找不到 404。記入 POS 操作紀錄「處理客人呼叫服務」。
 
 ### POST /api/order-feedback
-桌邊點餐意見回饋（客人端）。body `{ s, k, kind, text, rating?, name?, lang? }`；`kind` 為 `app` 點餐操作、`food` 餐點飲品、`service` 服務、`space` 環境、`other` 其他；`text` 2–500 字；`rating` 1–5 或省略。存 `order_feedback` 表，不進帳、不通知 POS。同桌次最多 5 筆（超過 429），每 IP 每分鐘 5 次。QR 無效 403、桌已結束 409。成功 201 `{ ok, id }`。
+桌邊點餐意見回饋（客人端）。body `{ s, k, kind, text, rating?, name?, lang? }`；`kind` 為 `app` 點餐操作、`food` 餐點飲品、`service` 服務、`space` 環境、`other` 其他；`text` 2–500 字；`rating` 1–5 或省略。存 `order_feedback` 表，不進帳、不通知 POS。不限筆數。QR 無效 403、桌已結束 409。成功 201 `{ ok, id }`。
 
 ### POST /api/me/feedback
-會員 App 意見回饋。需以個人會員登入；body `{ kind, text, rating?, lang? }`，欄位規則同桌邊點餐回饋：`kind` 為 `app`、`food`、`service`、`space`、`other`，`text` 2–500 字，`rating` 為 1–5 或省略。每帳號每小時最多 5 筆。成功 201 `{ ok:true }`；資料存 `member_feedback`，由 POS「設定 → 回饋」以來源「會員 App」一併查看。
+會員 App 意見回饋。需以個人會員登入；body `{ kind, text, rating?, lang? }`，欄位規則同桌邊點餐回饋：`kind` 為 `app`、`food`、`service`、`space`、`other`，`text` 2–500 字，`rating` 為 1–5 或省略。不限筆數。成功 201 `{ ok:true }`；資料存 `member_feedback`，由 POS「設定 → 回饋」以來源「會員 App」一併查看。
 
 ### GET /api/admin/orders/feedback
 POS「設定 → 回饋」。query `from`、`to`（YYYY-MM-DD，台北時間，皆可省略）。回 `{ feedback:[{id,source,table_no,kind,rating,text,name,lang,created_at}], kinds, count, avg_rating }`，包含桌邊點餐與會員 App 回饋，新到舊最多 500 筆。

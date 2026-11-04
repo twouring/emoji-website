@@ -7770,12 +7770,10 @@ app.post('/api/admin/orders/service-calls/:id/done',auth,adminOnly,requireDb,wra
 }));
 /* ---- 呼叫服務 end ---- */
 
-/* ---- 意見回饋（lib/order-feedback.js）：客人在桌邊點餐頁送出，不響鈴、不進帳；POS「設定 → 回饋」查看。同桌次最多 5 筆。 */
+/* ---- 意見回饋（lib/order-feedback.js）：客人在桌邊點餐頁送出，不響鈴、不進帳；POS「設定 → 回饋」查看。不限筆數（KK 2026-11-05）。 */
 app.post('/api/order-feedback',rateLimit({max:5}),requireDb,wrap(async(req,res)=>{
   const b=req.body||{};
   try{const s=await songGuestSession(b);const f=orderFeedback.validate(b);
-    const n=(await q('SELECT count(*)::int n FROM order_feedback WHERE session_id=$1',[s.id])).rows[0].n;
-    if(n>=orderFeedback.MAX_PER_SESSION)return res.status(429).json({error:'已收到這桌的回饋，謝謝！'});
     const id=uid('fb_');
     await q('INSERT INTO order_feedback(id,session_id,table_no,kind,rating,text,name,lang) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[id,s.id,s.table_no,f.kind,f.rating,f.text,f.name,f.lang]);
     res.status(201).json({ok:true,id});
