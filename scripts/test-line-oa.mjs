@@ -185,10 +185,18 @@ test('會員綁定 state 鎖定已登入會員，callback 不會以另一個 Ema
   const member=signToken({sub:'existing-member',role:'invited'},'test-secret');
   const start=await fetch(base+'/api/me/line-link',{method:'POST',headers:{authorization:'Bearer '+member}});
   assert.equal(start.status,200);
-  const url=new URL((await start.json()).url),state=url.searchParams.get('state'),cookie=start.headers.get('set-cookie').split(';')[0];
+  // App 在 app 網域呼叫：API 不種 cookie，回 www 的 /auth/line/bind，由 www 種 line_state（callback 同網域才讀得到）
+  assert.equal(start.headers.get('set-cookie'),null);
+  const bounce=new URL((await start.json()).url);assert.equal(bounce.pathname,'/auth/line/bind');
+  const hop=await fetch(base+bounce.pathname+bounce.search,{redirect:'manual'});assert.equal(hop.status,302);
+  assert.match(hop.headers.get('set-cookie'),/line_state=.*Path=\/auth\/line/);
+  const url=new URL(hop.headers.get('location')),state=url.searchParams.get('state'),cookie=hop.headers.get('set-cookie').split(';')[0];
   assert.equal(verifyToken(state,'test-secret',{purpose:'line-oauth'}).b,'existing-member');
   const callback=base+'/auth/line/callback?state='+encodeURIComponent(state)+'&code=test';
-  assert.equal((await fetch(callback,{redirect:'manual'})).status,400);
+  // 沒 cookie（LINE App 回跳到別的瀏覽器）：不直接綁，顯示確認頁讓本人核對帳號
+  const noCookie=await fetch(callback,{redirect:'manual'});assert.equal(noCookie.status,200);
+  const page=await noCookie.text();assert.match(page,/確認綁定/);assert.match(page,/o\*\*\*@example\.com/);
+  assert.ok(!sql.some(x=>x.text.startsWith('UPDATE users SET line_user_id')),'確認前不得綁定');
   const done=await fetch(callback,{redirect:'manual',headers:{cookie}});assert.equal(done.status,302);
   const update=sql.find(x=>x.text.startsWith('UPDATE users SET line_user_id'));
   assert.equal(update.args[0],'existing-member');
@@ -211,8 +219,8 @@ test('LINE 登入回跳到另一個瀏覽器（沒有 line_state cookie）仍可
   const ok=await cb(state);assert.equal(ok.status,302);assert.match(ok.headers.get('location'),/#token=/);
   const old=signToken({r:'http://127.0.0.1/m',n:'x',v:''},'test-secret',{purpose:'line-oauth',now:Date.now()-11*60*1000});
   assert.equal((await cb(old)).status,400);
-  const bind=signToken({b:'someone',r:'http://127.0.0.1/m',n:'x'},'test-secret',{purpose:'line-oauth'});
-  assert.equal((await cb(bind)).status,400);
+  const bind=signToken({b:'someone',r:'http://127.0.0.1/m',n:'x'},'test-secret',{purpose:'line-oauth',now:Date.now()-11*60*1000});
+  assert.equal((await cb(bind)).status,400,'逾時的綁定連結仍拒絕');
   assert.equal((await cb(state.slice(0,-2)+'xx')).status,400);
 });
 
@@ -242,4 +250,25 @@ test('原始碼不變式：webhook 在 express.json 之前、排程在 ADMIN_MOD
   const s = readFileSync(path.join(root, 'server.js'), 'utf8');
   assert.ok(s.indexOf("app.post('/api/line/webhook', express.raw") < s.indexOf("app.use(express.json({ limit: '256kb' }))"));
   assert.ok(s.indexOf("schedule('0 18 * * *'") > s.indexOf("if (ADMIN_MODE) { console.log('[boot] SERVICE_ROLE=admin"));
+});
+
+test('LINE 綁定跨瀏覽器確認：確認頁按下才綁；票券逾時、偽造、bind 起點逾時都拒絕',async t=>{
+  const {signToken}=require('../lib/security');
+  const sql=[];
+  const run=async(text,args)=>{sql.push({text,args});
+    if(text.startsWith('UPDATE users SET line_user_id'))return {rows:[],rowCount:1};
+    return {rows:[],rowCount:0};
+  };
+  const base=await boot(t,{...env,LINE_LOGIN_CHANNEL_ID:'1234567890',LINE_LOGIN_CHANNEL_SECRET:'x'},run);
+  const post=b=>fetch(base+'/auth/line/bind/confirm',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)});
+  const lid='U'+'c'.repeat(32);
+  assert.equal((await post({t:signToken({b:'m1',l:lid},'test-secret',{purpose:'line-bind-confirm',now:Date.now()-11*60*1000})})).status,400);
+  assert.equal((await post({t:signToken({b:'m1',l:lid},'wrong-secret',{purpose:'line-bind-confirm'})})).status,400);
+  assert.equal((await post({t:signToken({b:'m1',l:lid},'test-secret',{purpose:'line-oauth'})})).status,400,'不同用途的票券不能拿來綁');
+  assert.ok(!sql.some(x=>x.text.startsWith('UPDATE users SET line_user_id')));
+  const ok=await post({t:signToken({b:'m1',l:lid},'test-secret',{purpose:'line-bind-confirm'})});assert.equal(ok.status,200);
+  const up=sql.find(x=>x.text.startsWith('UPDATE users SET line_user_id'));assert.deepEqual(up.args,['m1',lid]);
+  const stale=signToken({b:'m1'},'test-secret',{purpose:'line-bind-start',now:Date.now()-6*60*1000});
+  assert.equal((await fetch(base+'/auth/line/bind?t='+encodeURIComponent(stale),{redirect:'manual'})).status,400);
+  assert.equal((await fetch(base+'/auth/line/bind?t=forged',{redirect:'manual'})).status,400);
 });

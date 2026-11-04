@@ -2280,12 +2280,24 @@ const LINE_REDIRECT_URI = OWN_BASE + '/auth/line/callback';
 app.post('/api/me/line-link', auth, requireDb, wrap(async(req,res)=>{
   if(!req.auth.sub)return res.status(403).json({error:'請先登入會員。'});
   const lc=line.loginConfig();if(!lc)return res.status(503).json({error:'LINE 登入尚未開通。'});
-  const nonce=crypto.randomBytes(16).toString('hex');
-  const state=signToken({b:req.auth.sub,r:DEFAULT_MEMBER_URL,n:nonce},{purpose:'line-oauth'});
-  res.cookie('line_state',state,{httpOnly:true,sameSite:'lax',secure:SITE_BASE.startsWith('https://'),path:'/auth/line',maxAge:10*60*1000});
+  // App 在 app.emoji.tw 呼叫這支 API，cookie 會落在 app 網域，但 LINE 回跳到 www（LINE_REDIRECT_URI），讀不到就判定「連結已失效」。
+  // 改成回傳 www 的 /auth/line/bind：先在 www 種 line_state 再轉 LINE，callback 才拿得到同網域 cookie。票券 5 分鐘內有效。
+  const t=signToken({b:req.auth.sub},{purpose:'line-bind-start'});
   res.set('Cache-Control','no-store');
-  res.json({url:line.authorizeUrl(lc,{redirectUri:LINE_REDIRECT_URI,state,nonce})});
+  res.json({url:OWN_BASE+'/auth/line/bind?t='+encodeURIComponent(t)});
 }));
+const LINE_BIND_TTL=10*60*1000;
+app.get('/auth/line/bind',(req,res)=>{
+  const lc=line.loginConfig();if(!lc)return res.status(503).send('LINE 登入尚未開通。');
+  if(String(req.hostname||'').toLowerCase()!==OWN_HOST)return res.redirect(302,OWN_BASE+req.originalUrl);
+  const t=verifyToken(String(req.query.t||''),{purpose:'line-bind-start'});
+  if(!t||!t.b||Date.now()-t.iat>5*60*1000)return res.status(400).send('綁定連結已失效，請回 App 重新按「綁定 LINE」。');
+  const nonce=crypto.randomBytes(16).toString('hex');
+  const state=signToken({b:t.b,r:DEFAULT_MEMBER_URL,n:nonce},{purpose:'line-oauth'});
+  res.cookie('line_state',state,{httpOnly:true,sameSite:'lax',secure:SITE_BASE.startsWith('https://'),path:'/auth/line',maxAge:LINE_BIND_TTL});
+  res.set('Cache-Control','no-store');
+  res.redirect(line.authorizeUrl(lc,{redirectUri:LINE_REDIRECT_URI,state,nonce}));
+});
 app.get('/api/line/qr/:token.png', requireDb, rateLimit({max:120,windowMs:60000}), wrap(async(req,res)=>{
   res.set({'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'});
   const ticket=verifyAccessToken(String(req.params.token||''),EVENT_QR_SECRET);
@@ -2322,11 +2334,20 @@ app.get('/auth/line/callback', wrap(async (req, res) => {
   // 手機上 LINE 會改用 LINE App 授權，回跳時常落在另一個瀏覽器（LINE 內建瀏覽器、主畫面 App 與 Safari 不共用 cookie），
   // 拿不到 line_state。單純登入（非綁定既有帳號、非訂位綁定）在 10 分鐘內仍放行：state 有 HMAC 簽章，nonce 由 LINE id_token 驗證。
   const crossBrowser = !cookieState && st && !st.b && !st.v && Date.now() - st.iat <= 10 * 60 * 1000;
-  if (!st || !st.r || !(crossBrowser || safeEqual(state, cookieState))) return res.status(400).send('登入連結已失效，請重新登入。');
+  // 綁定既有帳號回跳到另一個瀏覽器：不直接綁（避免被別人的綁定連結把自己的 LINE 掛到對方帳號），改顯示確認頁讓本人核對帳號
+  const bindConfirm = !cookieState && st && st.b && !st.v && Date.now() - st.iat <= LINE_BIND_TTL;
+  if (st && st.b && !bindConfirm && !safeEqual(state, cookieState)) return res.status(400).send('綁定連結已失效，請回 App 重新按「綁定 LINE」。');
+  if (!st || !st.r || !(crossBrowser || bindConfirm || safeEqual(state, cookieState))) return res.status(400).send('登入連結已失效，請重新登入。');
   if (!req.query.code) return res.status(400).send('登入未完成。');
   const prof = await line.exchangeCode(lc, { code: String(req.query.code), redirectUri: LINE_REDIRECT_URI, nonce: st.n });
   if (!prof) return res.status(400).send('LINE 驗證失敗，請重試。');
   if (!pool || !dbReady) return res.status(503).send('資料庫尚未就緒，請稍後再試。');
+  if (bindConfirm) {
+    const who = (await q('SELECT id,name,email FROM users WHERE id=$1', [st.b])).rows[0];
+    if (!who) return res.status(400).send('找不到要綁定的會員帳號，請回 App 重新操作。');
+    const ticket = signToken({ b: st.b, l: prof.sub }, { purpose: 'line-bind-confirm' });
+    return res.set('Cache-Control', 'no-store').type('html').send(lineBindConfirmPage(who, ticket));
+  }
   const accountClient = await pool.connect(); let u;
   try {
     if(st.b){
@@ -2370,6 +2391,23 @@ async function withHandoffs(fn){
     await client.query('COMMIT');return out;
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }
+const maskEmail=e=>{const m=String(e||'').match(/^(.)(.*)(@.+)$/);return m?m[1]+'***'+m[3]:'';};
+function lineBindConfirmPage(who,ticket){
+  const e=s=>String(s).replace(/[&<>"]/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[x]));
+  return `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>綁定 LINE</title>
+<style>body{font:1rem/1.6 system-ui,-apple-system,"PingFang TC",sans-serif;background:#FBFAF6;color:#1B1A17;margin:0;padding:32px 20px;text-align:center}main{max-width:420px;margin:auto}.acct{border:1px solid #E4E0D6;border-radius:16px;background:#fff;padding:16px;margin:16px 0}.acct b{display:block;font-size:1.2rem}button{font:inherit;font-weight:700;width:100%;min-height:52px;border:0;border-radius:12px;background:#1B1A17;color:#FBFAF6}.muted{color:#5A5448}#ok{display:none}</style></head><body><main>
+<h1>綁定 LINE</h1><div id="ask"><p>要把這個 LINE 綁定到下面的言文字會員帳號嗎？</p><div class="acct"><b>${e(who.name||'會員')}</b><span class="muted">${e(maskEmail(who.email))}</span></div><button type="button" id="go">確認綁定</button><p class="muted">不是你的帳號就關掉這一頁，不會綁定。</p></div>
+<div id="ok"><p style="font-size:3rem;margin:0">✓</p><p>已綁定 LINE，活動票券與訂位提醒會傳到 LINE。</p><p><a href="${e(DEFAULT_MEMBER_URL)}">回言文字 App</a></p></div></main>
+<script>document.getElementById('go').onclick=function(){var b=this;b.disabled=true;fetch('/auth/line/bind/confirm',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({t:${JSON.stringify(ticket)}})}).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'綁定失敗');});}).then(function(){document.getElementById('ask').style.display='none';document.getElementById('ok').style.display='block';}).catch(function(x){alert(x.message);b.disabled=false;});};</script></body></html>`;
+}
+app.post('/auth/line/bind/confirm',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
+  res.set('Cache-Control','no-store');
+  const t=verifyToken(String(req.body?.t||''),{purpose:'line-bind-confirm'});
+  if(!t||!t.b||!t.l||Date.now()-t.iat>LINE_BIND_TTL)return res.status(400).json({error:'綁定已逾時，請回 App 重新按「綁定 LINE」。'});
+  try{await lineService.bindUser(t.b,t.l);}catch(e){if(e.status===409)return res.status(409).json({error:e.message});throw e;}
+  await lineService.quiet('綁定後活動票券',()=>lineDelivery.enqueueTickets(t.b));
+  res.json({ok:true});
+}));
 function handoffPage(h,c,here){
   const e=s=>String(s).replace(/[&<>"]/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[x]));
   return `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>LINE 登入</title>
