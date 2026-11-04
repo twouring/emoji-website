@@ -46,13 +46,23 @@ test('renderMenuHtml groups by venue then cat', () => {
 });
 
 test('member price is shown beside the regular price without crossing either out', () => {
-  const item = M.normalizeItem({ venue: 'CAFE', cat: 'COFFEE', zh: '拿鐵', price: 180, emo: 150, published: true });
+  const item = M.normalizeItem({ venue: 'BAR', cat: 'COFFEE', zh: '拿鐵', price: 180, emo: 150, published: true });
   const labels = { zh: ['聚落價', '一般價'], en: ['Hub rate', 'Regular'], ja: ['ハブ価格', '一般価格'] };
   for (const [lang, expected] of Object.entries(labels)) {
     const html = M.renderMenuHtml([item], lang, '');
     assert.ok(expected.every(label => html.includes(label)), `${lang} price labels`);
     assert.doesNotMatch(html, /<s>/);
   }
+});
+
+test('在咖啡公開菜單不顯示聚落價（只顯示一般價、不附聚落價說明）', () => {
+  const item = M.normalizeItem({ venue: 'CAFE', cat: 'COFFEE', zh: '拿鐵', price: 180, emo: 150, published: true });
+  for (const lang of ['zh', 'en', 'ja']) {
+    const html = M.renderMenuHtml([item], lang, '');
+    assert.doesNotMatch(html, /聚落|Hub rate|ハブ価格|NT\$150/, lang);
+    assert.match(html, /NT\$180/);
+  }
+  assert.equal(M.memberPrice(item), 150, 'POS／App 結帳仍套聚落價');
 });
 
 test('image field: kept, validated, rendered', () => {

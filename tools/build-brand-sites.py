@@ -315,7 +315,7 @@ def page_cafe():
 
     # —— 菜單（伺服器端填入） ——
     out += f'''<section class="bs-alt bs-menu atc-menu" id="menu" aria-labelledby="menu-h"><div class="wrap">
-  <div class="bs-sec__head">{sec_h2('menu-h', '菜單', 'Menu', 'メニュー')}<p>{t('價格含稅；聚落價限已加入聚落者', 'Prices include tax; Hub rates are for Hub members', '価格は税込。ハブ価格はハブ参加者のみ')}</p></div>
+  <div class="bs-sec__head">{sec_h2('menu-h', '菜單', 'Menu', 'メニュー')}<p>{t('價格含稅', 'Prices include tax', '価格は税込')}</p></div>
   <div data-menu="CAFE"></div>
   <div class="bs-menu__cta"><a class="bs-btn" href="{reserve}">{book}</a></div>
 </div></section>
@@ -329,9 +329,7 @@ def page_cafe():
         (t('可以外帶嗎？', 'Is takeaway available?', 'テイクアウトはできますか？'),
          t('可以。飲品與餐點都能外帶，趕時間的人從外帶窗口拿了就走。', 'Yes. Drinks and food are available to go; grab them from the takeaway window.', 'はい。ドリンクも料理もテイクアウトでき、急ぐ方はテイクアウト窓口で受け取れます。')),
         (t('怎麼訂位？', 'How do I book?', '予約はどうすればいいですか？'),
-         t('請用線上訂位；也歡迎直接來。', 'Use the online reservation page; walk-ins are welcome too.', 'オンライン予約をご利用ください。直接のご来店も歓迎です。')),
-        (t('聚落價是什麼？', 'What is the Hub rate?', 'ハブ価格とは？'),
-         t('菜單上標示的會員價。購買會員方案或單日會員即加入聚落，點餐享聚落價。', 'The member price shown on the menu. Buying any membership plan or day pass makes you a Hub member.', 'メニューに表示される会員価格です。会員プランまたは1日会員の購入でハブに参加できます。'))])}
+         t('請用線上訂位；也歡迎直接來。', 'Use the online reservation page; walk-ins are welcome too.', 'オンライン予約をご利用ください。直接のご来店も歓迎です。'))])}
 </div></section>
 '''
     out += visit([(t('營業時間', 'Hours', '営業時間'), t('每日 08:00–17:00', 'Daily 08:00–17:00', '毎日 08:00–17:00')),

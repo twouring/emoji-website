@@ -307,6 +307,9 @@
   const REGULAR_LABEL = { zh: '一般價', en: 'Regular', ja: '一般価格' };
   const MEMBER_LABEL = { zh: '聚落價', en: 'Hub rate', ja: 'ハブ価格' };
   const pick = (label, lang) => label[lang] || label.zh;
+  // 公開菜單暫不顯示聚落價的店別（KK 2026-11-04：在咖啡官網先不放聚落價）；POS／App 結帳照常套用
+  const HIDE_MEMBER_PRICE_VENUES = ['CAFE'];
+  const showMemberPrice = it => !HIDE_MEMBER_PRICE_VENUES.includes(it.venue) && memberPrice(it) > 0 && memberPrice(it) < it.price;
 
   function groupBy(items, key) {
     const map = {}; const order = [];
@@ -329,7 +332,7 @@
 
   function renderItem(item, lang) {
     const mp = memberPrice(item);
-    const showOrig = mp > 0 && mp < item.price;
+    const showOrig = showMemberPrice(item);
     const priceHtml = showOrig
       ? '<span class="now">' + pick(MEMBER_LABEL, lang) + ' ' + money(mp) + '</span><span class="orig">' + pick(REGULAR_LABEL, lang) + ' ' + money(item.price) + '</span>'
       : '<span class="now">' + money(item.price) + '</span>';
@@ -364,7 +367,7 @@
         esc(title) + '<span class="menu-venue__sub">' + esc(sub) + '</span></h2>' +
         groupBy(list, 'cat').map(([cat, l]) => renderGroup(cat, l, lang)).join('') + '</section>';
     }).join('');
-    if (items.some(it => memberPrice(it) > 0 && memberPrice(it) < it.price)) {
+    if (items.some(showMemberPrice)) {
       const N = {
         zh: '聚落價限已加入聚落者享有。加入方式：購買等等空間會員方案或單日會員。',
         en: 'Hub rates are for Hub members only. Join by buying a Stay Square membership plan or a day pass.',
