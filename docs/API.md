@@ -12,7 +12,7 @@ Base URL：`https://www.emoji.tw`（本地：`http://localhost:8080`）
 
 ### POST /api/me/line-link
 
-會員 Bearer session 啟動 LINE 帳號綁定；body 無欄位，不接受客戶端指定會員 ID。回 `{url}`（LINE OAuth 授權網址），並設定 HttpOnly / SameSite=Lax 的短效 state cookie。前端須於同一瀏覽器轉往 `url`。callback 只綁定經驗證 session 的會員，已綁定他人時回 409，不自動解除既有綁定。未登入 401，LINE Login 未設定 503。成功後會員可接收尚有效活動的 Flex 票券；會員頁有三語綁定按鈕。此端點不是付款 API。
+會員 Bearer session 啟動 LINE 帳號綁定；body 無欄位，不接受客戶端指定會員 ID。回 `{url}`，指向 www 的 `/auth/line/bind?t=<5 分鐘票券>`（不在這支 API 種 cookie：App 在 app.emoji.tw 呼叫，cookie 會落在 app 網域，LINE 回跳 www 讀不到而顯示「連結已失效」）。前端轉往 `url`。callback 只綁定經驗證 session 的會員，已綁定他人時回 409，不自動解除既有綁定。未登入 401，LINE Login 未設定 503。成功後會員可接收尚有效活動的 Flex 票券；會員頁有三語綁定按鈕。此端點不是付款 API。
 
 ### GET /api/line/qr/:token.png
 
@@ -1386,6 +1386,12 @@ LINE Messaging API webhook（原始 body 驗 `X-Line-Signature`；未設定 503�
 
 ### GET /auth/line
 LINE Login 入口（`?resv=<簽名 token>` 為訂位完成頁帶來的綁定；`?redirect=` 為登入後導回）。帶 `bot_prompt=aggressive` 順勢加好友。
+
+### GET /auth/line/bind
+LINE 綁定起點（只接受 `/api/me/line-link` 發的 `t`，用途 `line-bind-start`，5 分鐘內有效）：在 www 種 HttpOnly `line_state` cookie（10 分鐘、Path `/auth/line`）後轉 LINE 授權。票券無效或逾時 400，LINE Login 未設定 503。
+
+### POST /auth/line/bind/confirm
+LINE 授權改在 LINE App 完成、回跳落在另一個瀏覽器（沒有 `line_state` cookie）時，callback 不直接綁定，而是顯示確認頁（會員名稱＋遮罩信箱），本人按「確認綁定」才呼叫這支。body `{t}`（用途 `line-bind-confirm`，含會員 ID 與 LINE ID，10 分鐘內有效）。成功 `{ok:true}`；票券無效或逾時 400；LINE 已綁其他帳號 409。
 
 ### GET /auth/line/callback
 LINE Login 回呼：驗 state 與 nonce、驗 id_token，完成後綁定 `users.line_user_id`；帶 `resv` 時把 LINE 掛到該筆訂位並推確認卡，導向 `/line-linked.html`。
