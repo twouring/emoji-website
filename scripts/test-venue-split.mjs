@@ -71,6 +71,7 @@ test('前端：POS 網址鎖店別、主色用 CIS；點餐頁依網域換 CIS �
   const pos = read('public/pos.html'), order = read('public/order.html'), ops = read('public/pos-ops.js');
   assert.match(pos, /POS_VENUE_BASE = \{ CAFE:'\/atcafe', BAR:'\/3am' \}/);
   assert.match(pos, /SCOPE = POS_URL_VENUE \|\|/);
+  assert.match(pos, /getElementById\('p-scope'\)\.innerHTML = POS_URL_VENUE \? '' :/, '店別網址左上角不再多店別 tag');
   assert.match(pos, /const scopesOf = d => POS_URL_VENUE \? \[POS_URL_VENUE\]/);
   assert.match(pos, /html\[data-venue=CAFE\]\{--accent:#984C37;/);
   assert.match(pos, /html\[data-venue=BAR\]\{--accent:#6B8FAB;[^}]*--on-accent:#1B1A17/, '三點水配白字對比不足，主色上用墨字');

@@ -552,7 +552,8 @@ window.addEventListener('resize', updateNavMore);
 function paintNav(){
   const scopes = scopesOf(DATA);
   if (!scopes.includes(SCOPE)) setScope(scopes[0] || '');
-  document.getElementById('p-scope').innerHTML = scopes.length > 1 ? scopes.map(s => `<button type="button" data-scope="${esc(s)}" aria-pressed="${s===SCOPE}">${esc(s ? BRAND_LABEL[s] : '全部')}</button>`).join('') : (SCOPE ? `<span class="pill pill-ok">${esc(BRAND_LABEL[SCOPE])}</span>` : '');
+  // 店別網址（/atcafe、/3am）左上角已顯示店名，不再加店別 tag（KK 11/4）
+  document.getElementById('p-scope').innerHTML = POS_URL_VENUE ? '' : scopes.length > 1 ? scopes.map(s => `<button type="button" data-scope="${esc(s)}" aria-pressed="${s===SCOPE}">${esc(s ? BRAND_LABEL[s] : '全部')}</button>`).join('') : (SCOPE ? `<span class="pill pill-ok">${esc(BRAND_LABEL[SCOPE])}</span>` : '');
   document.getElementById('p-scope').querySelectorAll('[data-scope]').forEach(b => b.onclick = () => { setScope(b.dataset.scope); resetPanels(); paintNav(); activate(); });
   const navTab = TABS.find(t => t.id === TAB)?.group || TAB; // 設定底下的分頁，頂欄亮「設定」
   document.getElementById('p-nav').innerHTML = TABS.filter(t => !t.group).map(t => `<button type="button" data-tab="${t.id}" aria-pressed="${t.id===navTab}">${POSIcon(t.icon)}${t.label}${t.id==='reservations'&&PENDING?`<span class="badge">${PENDING}</span>`:''}</button>`).join('');
