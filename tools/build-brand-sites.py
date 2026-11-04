@@ -529,10 +529,10 @@ def page_book():
     picks = ''.join(f'<button type="button" class="rb-gap__pick" data-gap="{k}" aria-pressed="{"true" if i == 0 else "false"}">{e(lbl)}</button>' for i, (k, lbl, _, _) in enumerate(gaps))
     plans = ''.join(f'<li data-gap="{k}"><b>{e(lbl)} · {price}</b><span>{e(txt)}</span></li>' for k, lbl, price, txt in gaps)
     day = [(t('1 小時', '1 hour', '1時間'), 'NT$200'), (t('4 小時', '4 hours', '4時間'), 'NT$600'),
-           (t('8 小時', '8 hours', '8時間'), 'NT$1,000'), (t('超時', 'Extra time', '延長'), t('每小時 NT$150', 'NT$150 per hour', '1時間 NT$150'))]
+           (t('8 小時', '8 hours', '8時間'), 'NT$1,000'), (t('超時每小時', 'Each extra hour', '延長 1時間ごと'), 'NT$150')]
     night = [(t('週日至週四', 'Sun–Thu', '日〜木曜'), 'NT$800'), (t('週五、週六', 'Fri, Sat', '金・土曜'), 'NT$1,000')]
     dl = lambda items: '<dl>' + ''.join(f'<div><dt>{e(a)}</dt><dd>{e(b)}</dd></div>' for a, b in items) + '</dl>'
-    rules = [t('超時 15 分鐘內不收費；超過 15 分鐘以 1 小時計，之後每小時同樣以 15 分鐘為界。', 'Up to 15 minutes over is free; beyond that it counts as an hour, and each further hour follows the same 15-minute rule.', '15分以内の延長は無料。15分を超えると1時間分、以降も1時間ごとに15分を境に計算します。'),
+    rules = [t('超時 15 分鐘內不收費，超過 15 分鐘以 1 小時計；之後每小時同樣以 15 分鐘為界。', 'Up to 15 minutes over is free; beyond that it counts as an hour, and each further hour follows the same 15-minute rule.', '15分以内の延長は無料。15分を超えると1時間分、以降も1時間ごとに15分を境に計算します。'),
              t('23:00 後查驗證件，限 18 歲以上。', 'ID is checked after 23:00; 18 and over only.', '23:00以降は身分証を確認します。18歳以上のみ。'),
              t('書與淋浴另計；會員方案不含約書旅。', 'Books and showers are extra; Rest Book is not included in membership.', '本とシャワーは別料金。会員プランに約書旅は含まれません。')]
     rules_html = ''.join(f'<li>{e(x)}</li>' for x in rules)
