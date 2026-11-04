@@ -43,11 +43,14 @@
     wrap: function (back) { return on && !ss(DOWN) ? BASE + '/callback?r=' + encodeURIComponent(clean(back)) : clean(back); },
     login: function (back) { if (!on) return false; ss(TRY, null); location.href = authorize(back || location.href, false); return true; },
     loginUrl: function (back) { return on ? authorize(back || location.href, false) : ''; },
-    // 回傳 false＝SSO 未啟用，呼叫端照原本方式登出（例如重新整理）
+    // 回傳 false＝SSO 未啟用，呼叫端照原本方式登出（例如重新整理）。
+    // 已登入的頁面從沒跑過 silent()，不知道 SSO 通不通：先探測，連不上就直接回 back（本站 token 呼叫端已清），不跳到打不開的 sso.emoji.tw
     logout: function (back) {
       ss(TRY, String(Date.now()));
       if (!on || ss(DOWN)) return false;
-      location.replace(BASE + '/logout?redirect=' + encodeURIComponent(clean(back))); return true;
+      var dest = clean(back);
+      reachable().then(function (ok) { location.replace(ok ? BASE + '/logout?redirect=' + encodeURIComponent(dest) : dest); });
+      return true;
     },
   };
 })(window);

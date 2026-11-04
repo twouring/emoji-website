@@ -149,3 +149,22 @@ test('sso-client：*.emoji.tw 啟用、本機與主畫面 App 停用；wrap 包 
   assert.equal(load('https://sso.emoji.tw/').enabled, false);
   assert.equal(load('http://localhost:8080/m').wrap('http://localhost:8080/m'), 'http://localhost:8080/m');
 });
+
+test('sso-client logout：sso.emoji.tw 連不上（DNS／憑證未就緒）時直接回原站，不跳到打不開的 SSO 登出頁（KK 11/4）', async () => {
+  const run = async fetchImpl => {
+    const href = 'https://pos.emoji.tw/3am', u = new URL(href), ss = {}, went = [];
+    const g = {
+      location: { href, hostname: u.hostname, protocol: u.protocol, hash: '', pathname: u.pathname, search: '', replace: x => went.push(x) },
+      navigator: { standalone: false }, matchMedia: () => ({ matches: false }), history: { replaceState() {} },
+      localStorage: { getItem: () => null, setItem() {} },
+      sessionStorage: { getItem: k => ss[k] ?? null, setItem: (k, v) => { ss[k] = v; }, removeItem: k => { delete ss[k]; } },
+      document: { documentElement: { lang: 'zh-Hant' } }, URLSearchParams, fetch: fetchImpl, setTimeout, clearTimeout, AbortController,
+    };
+    g.window = g; vm.runInNewContext(read('public/sso-client.js'), g);
+    assert.equal(g.EmojiSSO.logout('https://pos.emoji.tw/3am'), true);
+    await new Promise(r => setTimeout(r, 20));
+    return went;
+  };
+  assert.deepEqual(await run(() => Promise.reject(new TypeError('TLS'))), ['https://pos.emoji.tw/3am']);
+  assert.deepEqual(await run(() => Promise.resolve({})), ['https://sso.emoji.tw/logout?redirect=' + encodeURIComponent('https://pos.emoji.tw/3am')]);
+});
