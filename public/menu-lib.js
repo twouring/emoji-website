@@ -61,7 +61,7 @@
     return { venue: null, food: false, drink: false };
   }
   function orderableInWindow(item, w) {
-    if (!item || !w || !w.venue || (item.venue !== w.venue && !isShared(item))) return false;   // 甜點兩店共用：三點水時段客人也點得到
+    if (!item || !w || !w.venue || !inVenue(item, w.venue)) return false;   // 甜點兩店共用：三點水時段客人也點得到
     return BAR_CATS.includes(item.cat) ? w.drink : w.food;
   }
   /* 營業日：三點水營業到翌日 03:00，凌晨的單算前一天；以台北時間減 3 小時取日期（估清、日結都用這個） */
@@ -218,6 +218,10 @@
   /* 兩店共用（KK 11/2）：商店零售品與甜點在兩店 POS 都能點，賣出時記在當下店別（三點水賣的甜點才收服務費、進三點水日結） */
   const SHARED_CATS = ['SHOP', 'DESSERT'];
   function isShared(item) { return !!item && SHARED_CATS.includes(item.cat); }
+  /* 「這家店的菜單有沒有這項」唯一判斷（KK 11/5：資料來源要統一）。點餐頁、兌換、POS、App 菜單、預約取餐、官網菜單都走這裡，
+     不要再各自寫 it.venue===venue。forVenue 會把共用品項的 venue 換成該店，分組、出餐單、日結才會落在同一家。 */
+  function inVenue(item, venue) { return !!item && (!venue || item.venue === venue || isShared(item)); }
+  function forVenue(items, venue) { return (items || []).filter(it => inVenue(it, venue)).map(it => (venue && isShared(it) && it.venue !== venue ? Object.assign({}, it, { venue }) : it)); }
   function isOrderable(item, now, ctx) {
     if (!item.published || soldOutToday(item, now)) return false;
     if (isShop(item) && !(ctx && (ctx.shop || ctx.posOnly))) return false;
@@ -391,6 +395,6 @@
 
   global.MenuLib = {
     CATS, VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, BAR_STATION_CATS, MEMBER_RATE, BAR_POLICY_FROM, SERVICE_RATE, MIN_SPEND, barPolicyActive, minSpendOf, serviceCharge, memberPrice, activeVenue, orderWindow, orderableInWindow, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
-    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, isShop, isShared, SHARED_CATS, soldOutToday, stockLeft, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
+    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, isShop, isShared, inVenue, forVenue, SHARED_CATS, soldOutToday, stockLeft, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

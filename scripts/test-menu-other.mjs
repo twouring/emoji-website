@@ -29,7 +29,7 @@ test('「其他」只用於 POS：官網菜單（publishedOnly）與 IG 看不�
   assert.ok(M.publishedOnly(doc).some(it => it.id === 'm_latte'));
   assert.ok(T.menuIndex(menuJson, undefined, { all: true }).has('m_other'), '結帳重算價格要查得到已點的「其他」');
   const ops = fs.readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'utf8');
-  assert.match(ops, /it\.published&&!it\.pos_only&&\(!SCOPE/, '估清分頁不列 pos_only');
+  assert.match(ops, /it\.published&&!it\.pos_only&&MenuLib\.inVenue\(it,SCOPE\)/, '估清分頁不列 pos_only');
   const ig = fs.readFileSync(new URL('../public/ig-studio.js', import.meta.url), 'utf8');
   assert.match(ig, /filter\(m => !m\.pos_only\)/, 'IG 選單不列 pos_only');
 });

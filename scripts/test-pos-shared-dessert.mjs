@@ -13,7 +13,7 @@ test('甜點與商店品兩店共用（KK 11/2：三點水 POS 要放甜點）',
   for (const f of ['public/pos-ops.js', 'public/pos-inventory.js']) {
     const s = fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8');
     assert.ok(!s.includes("it.cat==='SHOP')"), f + ' 店別過濾要用 MenuLib.isShared');
-    assert.ok(s.includes('MenuLib.isShared(it)'), f);
+    assert.ok(s.includes('MenuLib.inVenue(it,SCOPE)'), f + ' 店別過濾要用 MenuLib.inVenue（KK 11/5 資料來源統一）');
   }
   const srv = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
   assert.ok(srv.includes('const shopItem=tableOrders.MenuLib.isShared(it);'));
