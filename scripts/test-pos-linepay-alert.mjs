@@ -64,9 +64,22 @@ test('桌號結帳頁每秒同步，用 setTimeout 鏈不用排程（KK 11/5）'
   assert.match(read('docs/API.md'), /### POST \/api\/admin\/orders\/linepay-alerts\/sync/);
 });
 
-test('彈窗只顯示最近一筆', () => {
-  const js = read('public/pos-linepay-alert.js');
-  assert.match(js, /lpaCard\(last\)/);
-  assert.doesNotMatch(js, /LPA\.queue\.map\(lpaCard\)/);
-  assert.match(js, /const last = LPA\.queue\[LPA\.queue\.length - 1\]/);
+test('彈窗輪播最近 8 小時（KK 11/5）', () => {
+  const server = read('server.js');
+  for (const [f, P, route] of [['public/pos-linepay-alert.js', 'lpa', 'linepay-alerts'], ['public/pos-ctbc-alert.js', 'cta', 'ctbc-alerts']]) {
+    const js = read(f);
+    assert.match(js, new RegExp(`function ${P}Slides\\(\\)`), f);
+    assert.match(js, new RegExp(`data-${P}-nav="-1"`), f);
+    assert.match(js, new RegExp(`data-${P}-nav="1"`), f);
+    assert.match(js, /ArrowRight/, f);
+    assert.match(js, /pointerup/, f);
+    assert.match(js, /最近 8 小時/, f);
+    assert.match(js, /\.recent = d\.recent \|\| \[\]/, f);
+    const i = server.indexOf(`app.get('/api/admin/orders/${route}',`);
+    const r = server.slice(i, server.indexOf('\n}));', i));
+    assert.match(r, /Number\(req\.query\.hours\)\|\|8/, route);
+    assert.match(r, /recent:/, route);
+    assert.match(r, /\.reverse\(\)\.slice\(0,50\)/, route);
+  }
 });
+

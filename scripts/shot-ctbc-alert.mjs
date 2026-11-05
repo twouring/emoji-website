@@ -31,12 +31,16 @@ function api(u, method) {
   if (p === '/api/admin/orders') return { sessions: [sess], orders, tables: ['A1', 'A2', 'A3'], tickets: [] };
   if (p === '/api/admin/orders/ctbc-alerts') return { alerts: [
     { id: 'c1', type: 'SALE', type_label: '銷售', amount: 380, paid_at: at(4), time: '2026/11/5 19:55:12', card_last4: '8812', auth_code: '503217', terminal_id: '81009123', device_user: '在咖啡櫃台', venue: 'CAFE', venue_label: '在咖啡' },
-    { id: 'c2', type: 'SALE', type_label: '銷售', amount: 520, paid_at: at(1), time: '2026/11/5 19:58:03', card_last4: '4321', auth_code: '128844', terminal_id: '81009123', device_user: '在咖啡櫃台', venue: 'CAFE', venue_label: '在咖啡' }] };
+    { id: 'c2', type: 'SALE', type_label: '銷售', amount: 520, paid_at: at(1), time: '2026/11/5 19:58:03', card_last4: '4321', auth_code: '128844', terminal_id: '81009123', device_user: '在咖啡櫃台', venue: 'CAFE', venue_label: '在咖啡' }], recent: [
+    { id: 'c2', type: 'SALE', type_label: '銷售', amount: 520, paid_at: at(1), time: '2026/11/5 19:58:03', card_last4: '4321', auth_code: '128844', terminal_id: '81009123', device_user: '在咖啡櫃台', venue: 'CAFE', venue_label: '在咖啡' },
+    { id: 'c1', type: 'SALE', type_label: '銷售', amount: 380, paid_at: at(4), time: '2026/11/5 19:55:12', card_last4: '8812', auth_code: '503217', terminal_id: '81009123', device_user: '在咖啡櫃台', venue: 'CAFE', venue_label: '在咖啡' },
+    { id: 'c0', type: 'REFUND', type_label: '退貨', amount: -150, paid_at: at(120), time: '2026/11/5 17:58:40', card_last4: '7766', auth_code: '990012', terminal_id: '81009123', device_user: '在咖啡櫃台', venue: 'CAFE', venue_label: '在咖啡' },
+    { id: 'cx', type: 'SALE', type_label: '銷售', amount: 1260, paid_at: at(300), time: '2026/11/5 14:58:10', card_last4: '0420', auth_code: '660731', terminal_id: '81009123', device_user: '在咖啡櫃台', venue: 'CAFE', venue_label: '在咖啡' }] };
   if (p.startsWith('/api/admin/orders')) return { pending: [], jobs: [], alerts: [] };
   return {};
 }
 const browser = await puppeteer.launch({ executablePath: process.env.CHROME || '/workspace/local/brand-chrome/chrome-linux64/chrome', args: ['--no-sandbox', '--font-render-hinting=none'] });
-for (const [w, h, mobile] of [[1180, 820, false], [390, 844, true]]) {
+for (const [w, h, mobile] of [[1180, 820, false], [390, 844, true], [320, 640, true]]) {
   const page = await browser.newPage();
   await page.setViewport({ width: w, height: h, isMobile: mobile, hasTouch: mobile });
   await page.evaluateOnNewDocument(n => { localStorage.setItem('tth_pos_token_cafe', 'x'); localStorage.setItem('tth_ctbc_seen_cafe', '[]'); localStorage.setItem('tth_lp_seen_cafe', '[]'); localStorage.setItem('tth_pos_device', 'dev-1'); const R = Date; globalThis.Date = class extends R { constructor(...a) { super(...(a.length ? a : [n])); } static now() { return n; } }; }, NOW);
@@ -56,6 +60,11 @@ for (const [w, h, mobile] of [[1180, 820, false], [390, 844, true]]) {
   const m = await page.evaluate(() => { const c = document.querySelector('#cta .lpa-card'); const r = c?.getBoundingClientRect(); return { text: c?.innerText.replace(/\s+/g, ' '), cardW: r?.width, cardBottom: r?.bottom, vh: innerHeight, overflow: document.documentElement.scrollWidth - innerWidth, syncPosts: 0 }; });
   m.syncPosts = calls.filter(c => c.includes('ctbc-alerts/sync')).length;
   await page.screenshot({ path: path.join(OUT, `ctbc-alert-${w}.png`) });
+  for (let k = 0; k < 2; k++) { await page.click('[data-cta-nav="1"]'); await new Promise(r => setTimeout(r, 200)); }
+  m.slide3 = await page.evaluate(() => document.querySelector('#cta .lpa-nav')?.innerText.replace(/\s+/g, ' ') + ' | ' + document.querySelector('#cta .lpa-amt')?.innerText.replace(/\s+/g, ' '));
+  await page.screenshot({ path: path.join(OUT, `ctbc-alert-${w}-slide3.png`) });
+  await page.evaluate(() => { const l = document.querySelector('#cta .lpa-list').getBoundingClientRect(); const o = document.getElementById('cta'); const ev = (t, x) => o.dispatchEvent(new PointerEvent(t, { bubbles: true, clientX: x, clientY: l.top + 20 })); document.querySelector('#cta .lpa-list').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: l.right - 20, clientY: l.top + 20 })); ev('pointerup', l.left + 20); });
+  m.afterSwipe = await page.evaluate(() => document.querySelector('#cta .lpa-pos')?.innerText.replace(/\s+/g, ' '));
   console.log(w, JSON.stringify(m), errs.length ? 'ERR ' + errs.join(' | ') : 'no-errors');
   calls.length = 0; await page.close();
 }

@@ -7476,11 +7476,13 @@ app.post('/api/admin/orders/linepay-alerts/sync',auth,adminOnly,requireDb,wrap(a
 }));
 app.get('/api/admin/orders/linepay-alerts',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   res.set('Cache-Control','no-store');
-  const venues=posScope(req),mins=Math.min(720,Math.max(5,Number(req.query.lookback)||60));
-  const txs=(await q("SELECT id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no,synced_at FROM linepay_transactions WHERE synced_at>=now()-($1::int*interval '1 minute') AND paid_at>=now()-interval '1 day' ORDER BY paid_at",[mins])).rows;
-  const days=[...new Set(txs.map(t=>tableOrders.MenuLib.businessDay(t.paid_at)))];
+  const venues=posScope(req),mins=Math.min(720,Math.max(5,Number(req.query.lookback)||60)),hrs=Math.min(24,Math.max(1,Number(req.query.hours)||8));
+  /* alerts＝最近 lookback 分鐘同步進來（判斷要不要跳）；recent＝最近 hrs 小時（預設 8）的交易，新到舊、最多 50 筆，給彈窗輪播看前幾筆（KK 11/5） */
+  const all=(await q("SELECT id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no,synced_at FROM linepay_transactions WHERE paid_at>=now()-interval '1 day' AND (synced_at>=now()-($1::int*interval '1 minute') OR paid_at>=now()-($2::int*interval '1 hour')) ORDER BY paid_at",[mins,hrs])).rows;
+  const txs=all.filter(t=>Date.now()-new Date(t.synced_at)<=mins*60e3),since=Date.now()-hrs*3600e3;
+  const days=[...new Set(all.map(t=>tableOrders.MenuLib.businessDay(t.paid_at)))];
   const regs=days.length?(await q('SELECT day::text AS day,venue,opened_at,closed_at FROM pos_registers WHERE day::text=ANY($1::text[]) ORDER BY opened_at',[days])).rows:[];
-  res.json({alerts:linepay.alertRows(txs,regs,venues),synced_at:(await q('SELECT ok_at FROM linepay_sync_state WHERE id=1').catch(()=>({rows:[]}))).rows[0]?.ok_at||null});
+  res.json({alerts:linepay.alertRows(txs,regs,venues),recent:linepay.alertRows(all.filter(t=>new Date(t.paid_at)>=since),regs,venues).reverse().slice(0,50),synced_at:(await q('SELECT ok_at FROM linepay_sync_state WHERE id=1').catch(()=>({rows:[]}))).rows[0]?.ok_at||null});
 }));
 app.post('/api/admin/sales/linepay/sync',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const [defStart,defEnd]=linepay.syncWindow();
@@ -7550,11 +7552,13 @@ app.post('/api/admin/orders/ctbc-alerts/sync',auth,adminOnly,requireDb,wrap(asyn
 }));
 app.get('/api/admin/orders/ctbc-alerts',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   res.set('Cache-Control','no-store');
-  const venues=posScope(req),mins=Math.min(720,Math.max(5,Number(req.query.lookback)||60));
-  const txs=(await q("SELECT id,type,amount,paid_at,card_last4,auth_code,progress,terminal_id,device_user,note,synced_at FROM ctbc_transactions WHERE synced_at>=now()-($1::int*interval '1 minute') AND paid_at>=now()-interval '1 day' ORDER BY paid_at",[mins])).rows;
-  const days=[...new Set(txs.map(t=>tableOrders.MenuLib.businessDay(t.paid_at)))];
+  const venues=posScope(req),mins=Math.min(720,Math.max(5,Number(req.query.lookback)||60)),hrs=Math.min(24,Math.max(1,Number(req.query.hours)||8));
+  /* alerts＝最近 lookback 分鐘同步進來（判斷要不要跳）；recent＝最近 hrs 小時（預設 8）的交易，新到舊、最多 50 筆，給彈窗輪播看前幾筆（KK 11/5） */
+  const all=(await q("SELECT id,type,amount,paid_at,card_last4,auth_code,progress,terminal_id,device_user,note,synced_at FROM ctbc_transactions WHERE paid_at>=now()-interval '1 day' AND (synced_at>=now()-($1::int*interval '1 minute') OR paid_at>=now()-($2::int*interval '1 hour')) ORDER BY paid_at",[mins,hrs])).rows;
+  const txs=all.filter(t=>Date.now()-new Date(t.synced_at)<=mins*60e3),since=Date.now()-hrs*3600e3;
+  const days=[...new Set(all.map(t=>tableOrders.MenuLib.businessDay(t.paid_at)))];
   const regs=days.length?(await q('SELECT day::text AS day,venue,opened_at,closed_at FROM pos_registers WHERE day::text=ANY($1::text[]) ORDER BY opened_at',[days])).rows:[];
-  res.json({alerts:ctbc.alertRows(txs,regs,venues),synced_at:(await q('SELECT ok_at FROM ctbc_sync_state WHERE id=1').catch(()=>({rows:[]}))).rows[0]?.ok_at||null});
+  res.json({alerts:ctbc.alertRows(txs,regs,venues),recent:ctbc.alertRows(all.filter(t=>new Date(t.paid_at)>=since),regs,venues).reverse().slice(0,50),synced_at:(await q('SELECT ok_at FROM ctbc_sync_state WHERE id=1').catch(()=>({rows:[]}))).rows[0]?.ok_at||null});
 }));
 /* 訂位：依日期列出（餐飲子帳號只看自己時段的）、改狀態（確認／婉拒會寄信給留 Email 的客人）、排桌與店內備註 */
 app.get('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=>{

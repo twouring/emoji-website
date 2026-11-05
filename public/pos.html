@@ -261,11 +261,18 @@
   .lpa-kv b{font-weight:600;text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
   .lpa-note{margin:12px 0;font-size:1rem;line-height:1.5;color:rgba(0,0,0,.6)}
   .lpa-ok{width:100%;min-height:52px;font-size:1.125rem}
+  .lpa-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px}
+  .lpa-arrow{min-width:48px;min-height:48px;border-radius:12px;border:1px solid rgba(0,0,0,.18);background:#fff;font-size:1.75rem;line-height:1;cursor:pointer;color:inherit}
+  .lpa-arrow:disabled{opacity:.3;cursor:default}
+  .lpa-pos{display:flex;align-items:center;gap:6px;font-size:1rem;font-weight:600;font-variant-numeric:tabular-nums}
+  .lpa-pos small{font-size:1rem;font-weight:400;color:rgba(0,0,0,.55)}
+  .lpa-new{background:#C0392B;color:#fff;border-radius:999px;padding:0 8px;font-size:1rem}
+  .lpa-list{touch-action:pan-y;user-select:none}
   /* 中信刷卡彈窗用中信品牌色（KK 11/5）：標誌綠 #009944 當色條；字用中信青綠 #007D7D（#009944 白底對比僅約 3.4:1）。退貨仍用 .is-refund 紅，不與中信紅混用 */
   .lpa-card.is-ctbc{border-top-color:#009944}
   .lpa-card.is-ctbc h2{color:#007D7D}
   .lpa-card.is-ctbc .lpa-item:not(.is-refund){border-color:rgba(0,153,68,.35);background:#F2FAF5}
-  .lpa-card.is-ctbc .lpa-type{color:#007D7D}
+  .lpa-card.is-ctbc .lpa-item:not(.is-refund) .lpa-type{color:#007D7D}
   #svc-calls .svc-head{display:flex;align-items:center;gap:6px;padding:4px 6px 8px;font-size:1rem}
   #svc-calls .svc-head svg{width:20px;height:20px}
   #svc-calls .svc-card{display:flex;align-items:center;gap:10px;padding:10px;margin-top:6px;border-radius:10px;background:#FFDE34;color:#111}

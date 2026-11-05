@@ -598,13 +598,13 @@ POS 停在桌號結帳頁時每秒呼叫（前端 setTimeout 鏈，上一輪回�
 
 ### GET /api/admin/orders/ctbc-alerts
 
-POS 中信刷卡收款通知：回最近 `lookback` 分鐘（預設 60、上限 720）同步進來的中信交易 `{ alerts:[{ id, type, type_label, amount, paid_at, day, time, card_last4, auth_code, terminal_id, device_user, note, venue, venue_label }], synced_at }`。失敗／拒絕的交易不列；店別依交易時間＋當天開關帳歸屬，品牌 POS 只看自己的（`venue`）。
+POS 中信刷卡收款通知：回最近 `lookback` 分鐘（預設 60、上限 720）同步進來的中信交易 `{ alerts:[{ id, type, type_label, amount, paid_at, day, time, card_last4, auth_code, terminal_id, device_user, note, venue, venue_label }], recent:[同欄位], synced_at }`；`recent`＝最近 `hours` 小時（預設 8、1–24）的交易，新到舊、最多 50 筆，給彈窗輪播。失敗／拒絕的交易不列；店別依交易時間＋當天開關帳歸屬，品牌 POS 只看自己的（`venue`）。
 
 ### POST /api/admin/orders/linepay-alerts/sync
 POS 停在桌號結帳頁時每秒呼叫（前端 setTimeout 鏈，上一輪回來才排下一輪）：同步今天（營業日）的 LINE Pay 後台交易進 `linepay_transactions`。伺服器保留已登入的後台分頁（閒置 2 分鐘關閉），之後每次只送一次查詢；0.9 秒內已同步或排程同步中回 `{ ok, skipped }`。失敗 502，不改日結的同步狀態。
 
 ### GET /api/admin/orders/linepay-alerts
-POS 收款通知（每 15 秒輪詢）。query `lookback`（分鐘，預設 60、5–720）、`venue`（POS 自動帶）。回 `{ alerts:[{id,type,type_label,amount,paid_at,time,day,method,method_label,card_last4,confirm_no,order_no,origin_id,venue,venue_label,synced_at}], synced_at }`：最近 lookback 分鐘內從 LINE Pay 商家後台同步進來的實收（退款金額為負），店別依交易時間與當天開關帳歸屬，品牌 POS 只回自己的。資料由每 5 分鐘的後台同步產生，非即時。POS 以 `public/pos-linepay-alert.js` 跳出彈窗，店員按「我知道了」才關閉（每台裝置各自記錄已讀）。
+POS 收款通知（每 15 秒輪詢）。query `lookback`（分鐘，預設 60、5–720）、`hours`（預設 8、1–24）、`venue`（POS 自動帶）。回 `{ alerts:[{id,type,type_label,amount,paid_at,time,day,method,method_label,card_last4,confirm_no,order_no,origin_id,venue,venue_label,synced_at}], recent:[同欄位], synced_at }`（`recent`＝最近 hours 小時的交易，新到舊、最多 50 筆，彈窗輪播用）：最近 lookback 分鐘內從 LINE Pay 商家後台同步進來的實收（退款金額為負），店別依交易時間與當天開關帳歸屬，品牌 POS 只回自己的。資料由每 5 分鐘的後台同步產生，非即時。POS 以 `public/pos-linepay-alert.js` 跳出彈窗，店員按「我知道了」才關閉（每台裝置各自記錄已讀）。
 
 ### POST /api/order-feedback
 桌邊點餐意見回饋（客人端）。body `{ s, k, kind, text, rating?, name?, lang? }`；`kind` 為 `app` 點餐操作、`food` 餐點飲品、`service` 服務、`space` 環境、`other` 其他；`text` 2–500 字；`rating` 1–5 或省略。存 `order_feedback` 表，不進帳、不通知 POS。不限筆數。QR 無效 403、桌已結束 409。成功 201 `{ ok, id }`。

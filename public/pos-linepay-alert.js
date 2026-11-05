@@ -1,12 +1,12 @@
 /* POS LINE Pay 收款通知（KK 11/5）：每 15 秒輪詢 /admin/orders/linepay-alerts，有新的 LINE Pay 實收（或退款）就響鈴、
- * 跳全螢幕彈窗顯示最近一筆的完整資訊（金額、交易時間、付款方式、卡號末四碼、驗證碼、交易號碼、店別）。
+ * 跳全螢幕彈窗顯示交易完整資訊（可輪播看最近 8 小時）（金額、交易時間、付款方式、卡號末四碼、驗證碼、交易號碼、店別）。
  * 只能按「我知道了」關閉：點背景、Esc 都不會關。已讀記在這台裝置（localStorage，依品牌分 key），新裝置第一次開機不補跳舊交易。
  * 資料來自 LINE Pay 商家後台：平常每 5 分鐘同步；停在桌號結帳頁時每秒同步一次（setTimeout 鏈）。依賴 pos.html 的 esc/api/DATA/POS_URL_VENUE、pos-ops.js 的 newTicketChime。 */
 const LPA_POLL_MS = 15000;
 const LPA_TABLE_MS = 1000;    // 在桌號結帳頁：每秒叫伺服器同步 LINE Pay 後台＋檢查新交易（KK 11/5：每秒、用 setTimeout 鏈，上一輪做完才排下一輪，不靠排程）
 /* 已讀 key 依品牌：本檔在 pos.html 定義 POS_URL_VENUE 之前載入，要用時才算（先前寫成常數，一律落到 _home） */
 const LPA_KEY = () => 'tth_lp_seen_' + (typeof POS_URL_VENUE === 'string' && POS_URL_VENUE ? POS_URL_VENUE : 'home').toLowerCase();
-let LPA = { timer: null, queue: [], open: false };
+let LPA = { timer: null, queue: [], recent: [], idx: 0, open: false };
 
 function lpaSeen(){ try { const v = JSON.parse(localStorage.getItem(LPA_KEY()) || 'null'); return Array.isArray(v) ? v : null; } catch (e) { return null; } }
 function lpaSaveSeen(ids){ try { localStorage.setItem(LPA_KEY(), JSON.stringify(ids.slice(-300))); } catch (e) {} }
@@ -21,6 +21,14 @@ function lpaCard(a){
     ${a.origin_id && a.origin_id !== a.id ? lpaRow('原交易號碼', a.origin_id) : ''}${lpaRow('訂單號碼', a.order_no)}
   </div>`;
 }
+/* 輪播（KK 11/5）：彈窗可看最近 8 小時交易（API recent，新到舊），從最新一筆開始；‹ › 鍵、左右滑動、鍵盤方向鍵切換，新的標「新」 */
+function lpaSlides(){
+  const fresh = new Set(LPA.queue.map(a => a.id)), seen = new Set();
+  const list = [...LPA.queue].reverse().concat(LPA.recent || []).filter(a => !seen.has(a.id) && seen.add(a.id));
+  list.sort((a, b) => String(b.paid_at).localeCompare(String(a.paid_at)));
+  return list.map(a => ({ ...a, fresh: fresh.has(a.id) }));
+}
+function lpaGo(d){ const n = lpaSlides().length; LPA.idx = Math.max(0, Math.min(n - 1, (LPA.idx || 0) + d)); lpaPaint(); }
 function lpaPaint(){
   let ov = document.getElementById('lpa');
   if (!LPA.queue.length) { if (ov) ov.remove(); LPA.open = false; return; }
@@ -28,15 +36,31 @@ function lpaPaint(){
     ov = document.createElement('div'); ov.id = 'lpa'; ov.className = 'lpa-ov';
     ov.setAttribute('role', 'alertdialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-labelledby', 'lpa-title');
     document.body.appendChild(ov);
-    ov.addEventListener('click', e => { if (e.target.closest('[data-lpa-ok]')) lpaAck(); });   // 只有按鈕能關，點背景不關
-    ov.addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); } });
+    ov.addEventListener('click', e => {   // 只有按鈕能關，點背景不關
+      if (e.target.closest('[data-lpa-ok]')) return lpaAck();
+      const nav = e.target.closest('[data-lpa-nav]'); if (nav && !nav.disabled) lpaGo(Number(nav.dataset.lpaNav));
+    });
+    ov.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); lpaGo(1); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); lpaGo(-1); }
+    });
+    let x0 = null;
+    ov.addEventListener('pointerdown', e => { if (e.target.closest('.lpa-list')) x0 = e.clientX; });
+    ov.addEventListener('pointerup', e => { if (x0 == null) return; const dx = e.clientX - x0; x0 = null; if (Math.abs(dx) > 40) lpaGo(dx < 0 ? 1 : -1); });
   }
-  // 只顯示最近一筆（KK 11/5）；同批較舊的交易按「我知道了」時一起標已讀，只提示筆數
-  const last = LPA.queue[LPA.queue.length - 1], more = LPA.queue.length - 1;
+  const slides = lpaSlides(), n = slides.length;
+  LPA.idx = Math.max(0, Math.min(n - 1, LPA.idx || 0));
+  const cur = slides[LPA.idx], newN = LPA.queue.length;
   ov.innerHTML = `<div class="lpa-card">
     <h2 id="lpa-title">收到 LINE Pay</h2>
-    <div class="lpa-list">${lpaCard(last)}</div>
-    ${more > 0 ? `<p class="lpa-sum">另有 ${more} 筆較早的交易，請到日結 LINE Pay 對帳查看</p>` : ''}
+    <div class="lpa-nav">
+      <button type="button" class="lpa-arrow" data-lpa-nav="-1" aria-label="較新一筆" ${LPA.idx ? '' : 'disabled'}>‹</button>
+      <span class="lpa-pos">${cur.fresh ? '<b class="lpa-new">新</b>' : ''}${LPA.idx + 1} / ${n}<small>最近 8 小時</small></span>
+      <button type="button" class="lpa-arrow" data-lpa-nav="1" aria-label="較早一筆" ${LPA.idx < n - 1 ? '' : 'disabled'}>›</button>
+    </div>
+    <div class="lpa-list">${lpaCard(cur)}</div>
+    ${newN > 1 ? `<p class="lpa-sum">這次收到 ${newN} 筆新交易，按 › 或左滑看較早的</p>` : ''}
     <p class="lpa-note">請到該桌結帳登記為 LINE Pay。在桌號結帳頁每秒同步一次，其他畫面每 5 分鐘。</p>
     <button type="button" class="btn btn--solid lpa-ok" data-lpa-ok>我知道了</button>
   </div>`;
@@ -46,19 +70,20 @@ function lpaPaint(){
 function lpaAck(){
   const seen = lpaSeen() || [];
   lpaSaveSeen([...new Set([...seen, ...LPA.queue.map(a => a.id)])]);
-  LPA.queue = []; lpaPaint();
+  LPA.queue = []; LPA.idx = 0; lpaPaint();
 }
 async function loadLinepayAlerts(){
   if (!DATA) return;
   let d; try { d = await api('/admin/orders/linepay-alerts'); } catch (e) { return; }
   const list = d.alerts || [];
+  LPA.recent = d.recent || [];
   const seen = lpaSeen();
   // 這台裝置第一次用：目前已有的交易只記為已讀，不補跳
   if (!seen) { lpaSaveSeen(list.map(a => a.id)); return; }
   const have = new Set([...seen, ...LPA.queue.map(a => a.id)]);
   const fresh = list.filter(a => !have.has(a.id));
-  if (!fresh.length) return;
-  LPA.queue.push(...fresh);
+  if (!fresh.length) { if (LPA.open) lpaPaint(); return; }
+  LPA.queue.push(...fresh); LPA.idx = 0;
   LPA.queue.sort((a, b) => String(a.paid_at).localeCompare(String(b.paid_at)));
   lpaPaint();
   try { if (typeof newTicketChime === 'function') newTicketChime(); } catch (e) {}
