@@ -55,5 +55,11 @@ test('POS：每秒 setTimeout 鏈、彈窗只能按鈕關、響鈴、已讀依�
   assert.doesNotMatch(js, /e\.target ?=== ?ov/);
   assert.match(js, /newTicketChime\(\)/);
   assert.match(js, /tth_ctbc_seen_/);
+  // pos.html 先載本檔才定義 POS_URL_VENUE：已讀 key 不可在載入時算成常數字串
+  for (const f of ['public/pos-ctbc-alert.js', 'public/pos-linepay-alert.js']) {
+    const s = read(f);
+    assert.match(s, /_KEY = \(\) => /, f);
+    assert.doesNotMatch(s, /localStorage\.(get|set)Item\((CTA|LPA)_KEY[,)]/, f);
+  }
   assert.match(js, /POS_URL_VENUE/);
 });

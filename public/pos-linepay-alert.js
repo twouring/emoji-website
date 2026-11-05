@@ -4,11 +4,12 @@
  * 資料來自 LINE Pay 商家後台：平常每 5 分鐘同步；停在桌號結帳頁時每秒同步一次（setTimeout 鏈）。依賴 pos.html 的 esc/api/DATA/POS_URL_VENUE、pos-ops.js 的 newTicketChime。 */
 const LPA_POLL_MS = 15000;
 const LPA_TABLE_MS = 1000;    // 在桌號結帳頁：每秒叫伺服器同步 LINE Pay 後台＋檢查新交易（KK 11/5：每秒、用 setTimeout 鏈，上一輪做完才排下一輪，不靠排程）
-const LPA_KEY = 'tth_lp_seen_' + (typeof POS_URL_VENUE === 'string' && POS_URL_VENUE ? POS_URL_VENUE : 'home').toLowerCase();
+/* 已讀 key 依品牌：本檔在 pos.html 定義 POS_URL_VENUE 之前載入，要用時才算（先前寫成常數，一律落到 _home） */
+const LPA_KEY = () => 'tth_lp_seen_' + (typeof POS_URL_VENUE === 'string' && POS_URL_VENUE ? POS_URL_VENUE : 'home').toLowerCase();
 let LPA = { timer: null, queue: [], open: false };
 
-function lpaSeen(){ try { const v = JSON.parse(localStorage.getItem(LPA_KEY) || 'null'); return Array.isArray(v) ? v : null; } catch (e) { return null; } }
-function lpaSaveSeen(ids){ try { localStorage.setItem(LPA_KEY, JSON.stringify(ids.slice(-300))); } catch (e) {} }
+function lpaSeen(){ try { const v = JSON.parse(localStorage.getItem(LPA_KEY()) || 'null'); return Array.isArray(v) ? v : null; } catch (e) { return null; } }
+function lpaSaveSeen(ids){ try { localStorage.setItem(LPA_KEY(), JSON.stringify(ids.slice(-300))); } catch (e) {} }
 function lpaMoney(n){ const a = Math.abs(Number(n) || 0).toLocaleString('zh-TW'); return (n < 0 ? '−' : '') + 'NT$' + a; }
 function lpaRow(k, v){ return v ? `<div class="lpa-kv"><span>${esc(k)}</span><b>${esc(v)}</b></div>` : ''; }
 function lpaCard(a){

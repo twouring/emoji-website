@@ -5,11 +5,12 @@
  * 樣式沿用 .lpa-*。依賴 pos.html 的 esc/api/DATA/POS_URL_VENUE、pos-ops.js 的 newTicketChime。 */
 const CTA_POLL_MS = 15000;
 const CTA_TABLE_MS = 1000;    // 在桌號結帳頁：每秒叫伺服器同步中信後台＋檢查新交易（KK 11/5）
-const CTA_KEY = 'tth_ctbc_seen_' + (typeof POS_URL_VENUE === 'string' && POS_URL_VENUE ? POS_URL_VENUE : 'home').toLowerCase();
+/* 已讀 key 依品牌：本檔在 pos.html 定義 POS_URL_VENUE 之前載入，要用時才算（先前寫成常數，一律落到 _home） */
+const CTA_KEY = () => 'tth_ctbc_seen_' + (typeof POS_URL_VENUE === 'string' && POS_URL_VENUE ? POS_URL_VENUE : 'home').toLowerCase();
 let CTA = { timer: null, queue: [], open: false };
 
-function ctaSeen(){ try { const v = JSON.parse(localStorage.getItem(CTA_KEY) || 'null'); return Array.isArray(v) ? v : null; } catch (e) { return null; } }
-function ctaSaveSeen(ids){ try { localStorage.setItem(CTA_KEY, JSON.stringify(ids.slice(-300))); } catch (e) {} }
+function ctaSeen(){ try { const v = JSON.parse(localStorage.getItem(CTA_KEY()) || 'null'); return Array.isArray(v) ? v : null; } catch (e) { return null; } }
+function ctaSaveSeen(ids){ try { localStorage.setItem(CTA_KEY(), JSON.stringify(ids.slice(-300))); } catch (e) {} }
 function ctaMoney(n){ const a = Math.abs(Number(n) || 0).toLocaleString('zh-TW'); return (n < 0 ? '−' : '') + 'NT$' + a; }
 function ctaRow(k, v){ return v ? `<div class="lpa-kv"><span>${esc(k)}</span><b>${esc(v)}</b></div>` : ''; }
 function ctaCard(a){
