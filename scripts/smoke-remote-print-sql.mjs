@@ -42,3 +42,30 @@ test('遠端列印佇列：真 SQL', async () => {
   assert.equal((await R.claim(q, 'rp_0000000000000003', 'CAFE', 's')).claimed, false);
   await db.close();
 });
+
+test('列印站：同品牌只一台、別台不能自動搶、force 才換台、兩台同時自動接手只有一台成功', async () => {
+  const db = new PGlite(), q = (s, a) => db.query(s, a);
+  await db.exec(`CREATE TABLE site_content(key TEXT PRIMARY KEY,value TEXT,updated_at TIMESTAMPTZ DEFAULT now());`);
+  // 沒接上 mPOP 不會自動成為列印站
+  assert.equal((await R.beat(q, 'CAFE', { device: 'A', name: '櫃台', link: false })).station, null);
+  // 兩台同時、都接上：只有一台成功
+  const [x, y] = await Promise.all([R.beat(q, 'CAFE', { device: 'A', name: '櫃台', link: true }), R.beat(q, 'CAFE', { device: 'B', name: '吧台', link: true })]);
+  assert.equal([x.mine, y.mine].filter(Boolean).length, 1);
+  const owner = x.mine ? 'A' : 'B', other = owner === 'A' ? 'B' : 'A';
+  assert.equal((await R.getStation(q, 'CAFE')).device, owner);
+  // 別台心跳不會改到列印站
+  const o = await R.beat(q, 'CAFE', { device: other, link: true });
+  assert.equal(o.mine, false); assert.equal(o.station.device, owner);
+  // 列印站回報 mPOP 斷線：仍是它，只是 link=false
+  const d1 = await R.beat(q, 'CAFE', { device: owner, link: false, reason: 'mPOP 沒紙了' });
+  assert.equal(d1.station.device, owner); assert.equal(d1.station.link, false); assert.equal(d1.station.reason, 'mPOP 沒紙了');
+  // 品牌隔離
+  assert.equal(await R.getStation(q, 'BAR'), null);
+  // 換台
+  const t = await R.beat(q, 'CAFE', { device: other, name: '新櫃台', link: true, force: true });
+  assert.equal(t.mine, true); assert.equal(t.station.name, '新櫃台');
+  assert.equal((await R.beat(q, 'CAFE', { device: owner, link: true })).mine, false, '舊列印站不會搶回來');
+  // 心跳逾時顯示離線，但不自動換人
+  assert.equal(R.stationView(JSON.stringify({ device: 'A', at: new Date(Date.now() - 30000).toISOString() })).online, false);
+  await db.close();
+});

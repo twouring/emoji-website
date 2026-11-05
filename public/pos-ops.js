@@ -433,39 +433,88 @@ async function starOpenHere(){if(await posConfirm('印發票／開錢櫃要在 S
 let STAR_NATIVE_UNCERTAIN=null;
 let STAR_PRINT_QUEUE=Promise.resolve();
 function starSend(job={}){if(remoteOn())return remoteSend(job);const result=STAR_PRINT_QUEUE.then(()=>starSendNow(job));STAR_PRINT_QUEUE=result.catch(()=>false);return result;}
-/* 遠端列印（KK 11/5）：POP10CI 只有 USB，伺服器送不到 mPOP；品牌 POS 上沒接 mPOP 的裝置（手機、另一台 iPad）把點陣圖排進 /admin/orders/remote-print，
-   接 mPOP 的 Star webPRNT Browser（列印站）每 5 秒領取列印並回報。20 秒沒人領就取消（避免列印站之後上線突然出紙），60 秒內不再等。 */
-const remoteOn=()=>{try{return onPosPage()&&!!SCOPE&&!inStarBrowser();}catch(e){return false;}};
-const canPrint=()=>starReady()||remoteOn();
+/* 列印站（KK 11/5）：每個品牌同時只有一台接 mPOP 的裝置。伺服器記住是哪台（/admin/orders/print-station），所有裝置都看得到；
+   只有列印站本機出紙、領出餐單與遠端工作，其他裝置（含別台 Star Browser）一律送到列印站，不因自己沒接 mPOP 視為斷線。
+   沒有列印站時，第一台實際連上 mPOP 的 Star Browser 自動成為列印站；列印站離線不自動換人，要換台在新 iPad 按「改由這台列印」。 */
+let STATION=null,STATION_LOADED=false,STATION_BUSY=false;
+const myDevice=()=>typeof DEVICE_ID!=='undefined'?String(DEVICE_ID||''):'';
+let DEVICE_NAME='';
+function deviceName(){
+  if(DEVICE_NAME)return DEVICE_NAME;
+  try{const n=localStorage.getItem('tth_pos_device_name');if(n)return n;}catch(e){}
+  const ua=typeof navigator!=='undefined'?navigator.userAgent:'';const kind=/iPad|Macintosh/.test(ua)?'iPad':/iPhone/.test(ua)?'iPhone':/Android/.test(ua)?'Android':'電腦';
+  return kind+' '+myDevice().replace(/[^a-z0-9]/gi,'').slice(-4).toUpperCase();
+}
+const posBrandPage=()=>{try{return onPosPage()&&!!SCOPE;}catch(e){return false;}};
+// 這台是不是列印站：品牌 POS 看伺服器記錄；/admin（不分品牌）維持舊行為＝有 Star Browser 就本機印
+const isStation=()=>starReady()&&(!posBrandPage()||(!!STATION&&STATION.device===myDevice()));
+const remoteOn=()=>posBrandPage()&&!isStation();
+const canPrint=()=>isStation()||remoteOn();
+const stationOnline=()=>!!STATION&&STATION.online;
+async function syncStation({force=false}={}){
+  if(!posBrandPage()||STATION_BUSY)return STATION;
+  STATION_BUSY=true;const prev=JSON.stringify([STATION?.device,STATION?.online,STATION?.link,STATION?.name]);
+  try{
+    const mine=STATION&&STATION.device===myDevice();
+    // Star Browser 只有在「自己是列印站／還沒有列印站／要接手」時才檢測 mPOP；別台是列印站就跟著它，不檢測、不算斷線
+    if(starReady()&&!STATION_NATIVE_BLOCK()&&(force||mine||!STATION_LOADED||!STATION)){
+      if(!STATION_LOADED){try{STATION=(await api('/admin/orders/print-station')).station;STATION_LOADED=true;}catch(e){}}
+      const cur=STATION&&STATION.device===myDevice();
+      if(force||cur||!STATION){
+        const link=await starCheckLink(force);
+        const out=await api('/admin/orders/print-station',{method:'POST',body:{device_id:myDevice(),name:deviceName(),link:!!link,reason:STAR_LINK.reason||'',force}});
+        STATION=out.station;
+      }
+    }else STATION=(await api('/admin/orders/print-station')).station;
+    STATION_LOADED=true;
+  }catch(e){}
+  finally{STATION_BUSY=false;}
+  if(prev!==JSON.stringify([STATION?.device,STATION?.online,STATION?.link,STATION?.name]))repaintPrintStatus();
+  return STATION;
+}
+function STATION_NATIVE_BLOCK(){return !!STAR_NATIVE_UNCERTAIN;}
+async function takeOverStation(){
+  if(!starReady())return starHint();
+  let name=deviceName();
+  const n=await pickReason({title:'這台的名稱（其他裝置會看到「列印站：…」）',presets:['櫃台 iPad','吧台 iPad','廚房 iPad'],placeholder:'自訂名稱',maxlength:40,initial:name});if(n===null)return;name=String(n).trim().slice(0,40)||name;
+  DEVICE_NAME=name;  try{localStorage.setItem('tth_pos_device_name',name);}catch(e){}
+  const st=await syncStation({force:true});
+  toast(st&&st.device===myDevice()?(STAR_LINK.ok?'這台已成為列印站，mPOP 已連接':'這台已成為列印站，但 mPOP 尚未連接：請確認 USB-C 線與電源'):'接手失敗，請再試一次');
+  repaintPrintStatus();
+}
+function stationLabel(){return STATION?(STATION.name||'未命名裝置'):'';}
 let REMOTE_DOWN_AT=0;
 const REMOTE_CLAIM_MS=20000,REMOTE_PRINT_MS=40000;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function remoteSend({canvas=null,drawer=false,label=''}={}){
   if(!canvas&&!drawer)return false;
-  if(Date.now()-REMOTE_DOWN_AT<60000){toast('櫃台列印站沒有回應：接 mPOP 的 iPad 要用 Star webPRNT Browser 開著 POS');return false;}
+  if(!STATION_LOADED)await syncStation();
+  if(!STATION){toast('目前沒有列印站：請在接 mPOP 的 iPad 用 Star webPRNT Browser 開 POS');return false;}
+  if(!STATION.online){toast('列印站「'+stationLabel()+'」離線：請確認那台 iPad 開著 POS、沒有鎖定螢幕');return false;}
+  if(Date.now()-REMOTE_DOWN_AT<60000){toast('列印站「'+stationLabel()+'」沒有回應，請確認那台 iPad');return false;}
   let id;
   try{const out=await api('/admin/orders/remote-print',{method:'POST',body:{image:canvas?canvas.toDataURL('image/png'):null,drawer:!!drawer,label:String(label||'').slice(0,60),operator_id:OPERATOR?.id}});id=out.id;}
   catch(e){toast('遠端列印送出失敗：'+e.message);return false;}
-  toast(drawer&&!canvas?'已送到櫃台開錢櫃':'已送到櫃台 mPOP 列印');
+  toast(drawer&&!canvas?'已送到「'+stationLabel()+'」開錢櫃':'已送到「'+stationLabel()+'」列印');
   const t0=Date.now();
   while(Date.now()-t0<REMOTE_CLAIM_MS+REMOTE_PRINT_MS){
     await sleep(1500);
     let st;try{st=await api('/admin/orders/remote-print/'+id);}catch(e){continue;}
     if(st.state==='printed'){REMOTE_DOWN_AT=0;return true;}
-    if(st.state==='failed'){toast('櫃台 mPOP 列印失敗'+(st.error?'：'+st.error:''));return false;}
+    if(st.state==='failed'){toast('列印站「'+stationLabel()+'」列印失敗'+(st.error?'：'+st.error:''));return false;}
     if(st.state==='cancelled')return false;
     if(st.state==='queued'&&Date.now()-t0>REMOTE_CLAIM_MS){
       try{const c=await api('/admin/orders/remote-print/'+id+'/cancel',{method:'POST',body:{}});if(!c.cancelled)continue;}catch(e){continue;}
-      REMOTE_DOWN_AT=Date.now();toast('櫃台列印站沒有回應，已取消這次列印：接 mPOP 的 iPad 要用 Star webPRNT Browser 開著 POS');return false;
+      REMOTE_DOWN_AT=Date.now();toast('列印站「'+stationLabel()+'」沒有回應，已取消這次列印：請確認那台 iPad 開著 POS、沒有鎖定螢幕');return false;
     }
   }
-  toast('櫃台 mPOP 結果未明，請到櫃台確認是否出紙');return false;
+  toast('列印站「'+stationLabel()+'」結果未明，請到那台確認是否出紙');return false;
 }
 // 列印站端：每 5 秒（跟出餐單同一個 timer）領遠端工作；圖檔還原成 canvas 後走同一個 STAR_PRINT_QUEUE
 let REMOTE_POLL_BUSY=false;
 function remoteCanvas(src){return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(img,0,0);resolve(c);};img.onerror=()=>reject(Error('圖檔無法讀取'));img.src=src;});}
 async function pollRemotePrinting(){
-  if(REMOTE_POLL_BUSY||!DATA||!SCOPE||!starReady()||STAR_NATIVE_UNCERTAIN)return;
+  if(REMOTE_POLL_BUSY||!DATA||!posBrandPage()||!isStation()||STAR_NATIVE_UNCERTAIN)return;
   REMOTE_POLL_BUSY=true;
   try{
     if(!await starCheckLink())return;
@@ -473,7 +522,7 @@ async function pollRemotePrinting(){
     for(const job of out.jobs||[]){
       let ok=false,err='';
       try{
-        const c=await api('/admin/orders/remote-print/'+encodeURIComponent(job.id)+'/claim',{method:'POST',body:{}});
+        const c=await api('/admin/orders/remote-print/'+encodeURIComponent(job.id)+'/claim',{method:'POST',body:{device_id:myDevice()}});
         if(!c.claimed)continue;
         const canvas=c.job.image?await remoteCanvas(c.job.image):null;
         ok=await starSend({canvas,drawer:!!c.job.drawer});if(!ok)err=STAR_LINK.reason||'mPOP 未回報成功';
@@ -794,6 +843,14 @@ async function starCheckLink(force=false){
   return out.ok;
 }
 function kitchenPrintStatus(){
+  // 品牌 POS 上不是列印站的裝置（含別台 Star Browser）：跟著列印站的狀態，不算自己斷線
+  if(remoteOn()){
+    if(!STATION_LOADED)return {state:'remote-checking'};
+    if(!STATION)return {state:'remote-none'};
+    if(!STATION.online)return {state:'remote-offline',name:stationLabel()};
+    if(!STATION.link)return {state:'remote-nolink',name:stationLabel(),reason:STATION.reason};
+    return {state:'remote-ok',name:stationLabel()};
+  }
   if(KITCHEN_PRINT_PAUSED)return {state:'paused'};
   if(!starReady()||STAR_NATIVE_UNCERTAIN)return {state:'unavailable'};
   if(STAR_LINK.ok===false)return {state:'offline',reason:STAR_LINK.reason};
@@ -802,12 +859,21 @@ function kitchenPrintStatus(){
 }
 function kitchenPrintStatusHtml(){
   const ks=kitchenPrintStatus(),st=ks.state;
+  if(st.startsWith('remote-')){
+    const take=starReady()?`<button type="button" class="pos-print-link" id="pos-print-takeover">改由這台列印</button>`:'';
+    const nm=esc(ks.name||'');
+    if(st==='remote-ok')return `<div class="pos-print-status pos-print-mini" title="這台沒接 mPOP：列印、開錢櫃送到列印站「${nm}」代印"><span class="pos-print-dot is-ok" aria-hidden="true"></span>列印站：${nm}・mPOP 已連接<button type="button" class="pos-print-link" id="pos-print-test">測試列印</button>${take}</div>`;
+    if(st==='remote-nolink')return `<div class="pos-print-status pos-print-mini pos-print-off" title="列印站「${nm}」開著，但 mPOP 沒連上：請確認 USB-C 線、電源、紙與上蓋"><span class="pos-print-dot is-bad" aria-hidden="true"></span>列印站：${nm}・${esc(ks.reason||'mPOP 未連接')}${take}</div>`;
+    if(st==='remote-offline')return `<div class="pos-print-status pos-print-mini pos-print-off" title="列印站「${nm}」超過 20 秒沒回應：請確認那台 iPad 開著 POS、沒有鎖定螢幕"><span class="pos-print-dot is-bad" aria-hidden="true"></span>列印站：${nm}・離線${take}</div>`;
+    if(st==='remote-none')return `<div class="pos-print-status pos-print-mini pos-print-off" title="接 mPOP 的 iPad 用 Star webPRNT Browser 開 POS，連上 mPOP 後會自動成為列印站"><span class="pos-print-dot is-bad" aria-hidden="true"></span>目前沒有列印站${take}</div>`;
+    return `<div class="pos-print-status pos-print-mini"><span class="pos-print-dot" aria-hidden="true"></span>查詢列印站中</div>`;
+  }
+  const here=posBrandPage()&&STATION&&STATION.device===myDevice()?'這台是列印站・':'';
   if(st==='paused')return `<div class="a-toolbar pos-print-status pos-print-paused"><span class="pill pill-bad">自動出單已暫停</span><span class="hint hint--tight">檢查紙張、補印後</span><button type="button" class="btn btn--ghost btn-xs" id="pos-print-resume">恢復自動出單</button></div>`;
   // 運行中／未接：弱化成一行小字（KK 11/2），說明放 title；暫停才用醒目樣式
-  if(st==='running')return `<div class="pos-print-status pos-print-mini" title="已接 mPOP：送單後自動印紙本出餐單（每 15 秒檢測連線）"><span class="pos-print-dot is-ok" aria-hidden="true"></span>自動出單運行中・mPOP 已連接<button type="button" class="pos-print-link" id="pos-print-test">測試列印</button></div>`;
-  if(st==='offline')return `<div class="pos-print-status pos-print-mini pos-print-off" title="mPOP 沒連上，出餐單先留在系統，接回後自動補印：請確認 USB-C 線、電源、紙與上蓋"><span class="pos-print-dot is-bad" aria-hidden="true"></span>${ks.reason||'mPOP 未連接'}，出餐單等待中<button type="button" class="pos-print-link" id="pos-print-recheck">重新檢測</button></div>`;
+  if(st==='running')return `<div class="pos-print-status pos-print-mini" title="已接 mPOP：送單後自動印紙本出餐單（每 15 秒檢測連線）"><span class="pos-print-dot is-ok" aria-hidden="true"></span>${here}自動出單運行中・mPOP 已連接<button type="button" class="pos-print-link" id="pos-print-test">測試列印</button></div>`;
+  if(st==='offline')return `<div class="pos-print-status pos-print-mini pos-print-off" title="mPOP 沒連上，出餐單先留在系統，接回後自動補印：請確認 USB-C 線、電源、紙與上蓋"><span class="pos-print-dot is-bad" aria-hidden="true"></span>${here}${ks.reason||'mPOP 未連接'}，出餐單等待中<button type="button" class="pos-print-link" id="pos-print-recheck">重新檢測</button></div>`;
   if(st==='checking')return `<div class="pos-print-status pos-print-mini" title="正在確認 mPOP 是否連接"><span class="pos-print-dot" aria-hidden="true"></span>檢測 mPOP 連線中</div>`;
-  if(remoteOn())return `<div class="pos-print-status pos-print-mini" title="這台沒接 mPOP：列印、開錢櫃會送到櫃台接 mPOP 的 iPad（Star webPRNT Browser 要開著 POS）代印"><span class="pos-print-dot" aria-hidden="true"></span>列印送櫃台 mPOP<button type="button" class="pos-print-link" id="pos-print-test">測試列印</button></div>`;
   return `<div class="pos-print-status pos-print-mini" title="沒接 mPOP，不會印紙本出餐單：請用 Star webPRNT Browser 開 POS 並接上 mPOP"><span class="pos-print-dot" aria-hidden="true"></span>這台未自動出單</div>`;
 }
 async function printTestTicket(){
@@ -818,12 +884,13 @@ async function printTestTicket(){
 function bindPrintStatus(host,repaint){
   const resume=host.querySelector('#pos-print-resume');if(resume)resume.onclick=async()=>{if(!await resumeKitchenPrinting())return;repaint();return pollKitchenPrinting();};
   const re=host.querySelector('#pos-print-recheck');if(re)re.onclick=async()=>{if(re.disabled)return;re.disabled=true;try{const ok=await starCheckLink(true);if(!ok)toast((STAR_LINK.reason||'mPOP 未連接')+'：請確認 USB-C 線、電源、紙與上蓋');repaint();if(ok)await pollKitchenPrinting();}finally{re.disabled=false;}};
+  const tk=host.querySelector('#pos-print-takeover');if(tk)tk.onclick=async()=>{if(tk.disabled)return;tk.disabled=true;try{await takeOverStation();}finally{tk.disabled=false;}};
   const test=host.querySelector('#pos-print-test');if(test)test.onclick=async()=>{if(test.disabled)return;test.disabled=true;try{await printTestTicket();}finally{test.disabled=false;}};
 }
 function startKitchenPrinting(){
   if(KITCHEN_PRINT_TIMER!==null)return;
   KITCHEN_PRINT_TIMER=setTimeout(async function tick(){
-    try{await pollKitchenPrinting();await pollRemotePrinting();}finally{KITCHEN_PRINT_TIMER=setTimeout(tick,5000);}
+    try{await syncStation();await pollKitchenPrinting();await pollRemotePrinting();}finally{KITCHEN_PRINT_TIMER=setTimeout(tick,5000);}
   },0);
 }
 // 收到新單：跳出置中提示（點一下關閉，8 秒後自動消失）並響三聲；iPad 需先點過畫面才允許出聲，所以第一次點擊時先解鎖音訊
@@ -843,7 +910,7 @@ function notifyNewTickets(jobs){
   clearTimeout(box._t);box._t=setTimeout(()=>box.remove(),8000);
 }
 async function pollKitchenPrinting(){
-  if(KITCHEN_PRINT_BUSY||KITCHEN_PRINT_PAUSED||!DATA||!starReady()||STAR_NATIVE_UNCERTAIN)return;
+  if(KITCHEN_PRINT_BUSY||KITCHEN_PRINT_PAUSED||!DATA||!isStation()||STAR_NATIVE_UNCERTAIN)return;
   KITCHEN_PRINT_BUSY=true;
   try{
     if(!await starCheckLink())return;

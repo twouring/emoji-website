@@ -6228,8 +6228,20 @@ app.get('/api/admin/orders/remote-print/:id',auth,adminOnly,requireDb,wrap(async
   const venue=remoteVenue(req);if(!venue||!remotePrint.ID_RE.test(req.params.id))return res.status(404).json({error:'找不到列印工作。'});
   const st=await remotePrint.status(q,req.params.id,venue);if(!st)return res.status(404).json({error:'找不到列印工作。'});res.json(st);
 }));
+app.get('/api/admin/orders/print-station',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venue=remoteVenue(req);if(!venue)return res.json({station:null});
+  res.json({station:await remotePrint.getStation(q,venue)});
+}));
+app.post('/api/admin/orders/print-station',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venue=remoteVenue(req);if(!venue)return res.status(400).json({error:'請在品牌 POS 操作（需指定品牌）。'});
+  const b=req.body||{};
+  const out=await remotePrint.beat(q,venue,{device:b.device_id,name:b.name,link:b.link===true,reason:b.reason,force:b.force===true,actor:actorOf(req.auth)||''});
+  if(out.error)return res.status(400).json({error:out.error});
+  res.json({ok:true,...out});
+}));
 app.post('/api/admin/orders/remote-print/:id/claim',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const venue=remoteVenue(req);if(!venue||!remotePrint.ID_RE.test(req.params.id))return res.status(404).json({error:'找不到列印工作。'});
+  const st=await remotePrint.getStation(q,venue);if(!st||st.device!==String(req.body?.device_id||''))return res.status(409).json({error:'這台不是目前的列印站。'});
   res.json({ok:true,...await remotePrint.claim(q,req.params.id,venue,actorOf(req.auth)||'')});
 }));
 app.post('/api/admin/orders/remote-print/:id/result',auth,adminOnly,requireDb,wrap(async(req,res)=>{

@@ -44,9 +44,17 @@ Star mPOP POP10CI 只有 USB、不支援 CloudPRNT，伺服器無法直接送到
 
 送出端查詢結果，回 `{id,state,label,error}`，`state` 為 `queued`／`claimed`／`printed`／`failed`／`cancelled`。
 
+### GET /api/admin/orders/print-station
+
+本品牌目前的列印站（同時只有一台接 mPOP 的裝置），所有裝置與瀏覽器都可查。回 `{station:{device,name,since,by,at,online,link,reason}|null}`；`online`＝20 秒內有心跳，`link`＝列印站回報 mPOP 已連接。
+
+### POST /api/admin/orders/print-station
+
+列印站心跳／接手，body `{device_id,name?,link,reason?,force?}`。目前列印站本身每 5 秒回報（更新 `link`／`reason`）；還沒有列印站時，第一台回報 `link:true` 的裝置自動成為列印站（條件式寫入，兩台同時只有一台成功）；其他裝置不帶 `force` 不會改到列印站，列印站離線也不自動換人。`force:true`（POS 的「改由這台列印」）明確換台。存在 `site_content` 的 `print_station:<VENUE>`。回 `{ok:true,station,mine}`。
+
 ### POST /api/admin/orders/remote-print/:id/claim
 
-列印站領取（原子 `UPDATE … WHERE claimed_at IS NULL`，跨裝置去重），回 `{ok:true,claimed:true,job:{id,image,drawer,label,from}}` 或 `{ok:true,claimed:false}`。
+列印站領取，body `{device_id}`；不是目前列印站回 409。原子 `UPDATE … WHERE claimed_at IS NULL`，跨裝置去重），回 `{ok:true,claimed:true,job:{id,image,drawer,label,from}}` 或 `{ok:true,claimed:false}`。
 
 ### POST /api/admin/orders/remote-print/:id/result
 

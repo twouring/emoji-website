@@ -41,22 +41,30 @@ test('server：路由掛 auth＋adminOnly、依品牌範圍、出餐單佇列不
 function fakeServer() {
   const jobs = new Map(); let n = 0;
   return { jobs, async api(path, opt = {}) {
+    if (path === '/admin/orders/print-station') {
+      if (opt.method !== 'POST') return { station: this.station || null };
+      const b = opt.body, cur = this.station;
+      if (cur && cur.device !== b.device_id && !b.force) return { station: cur, mine: false };
+      if (!cur && !b.link && !b.force) return { station: null, mine: false };
+      this.station = { device: b.device_id, name: b.name, online: true, link: b.link, reason: b.reason };
+      return { station: this.station, mine: true };
+    }
     const m = path.match(/^\/admin\/orders\/remote-print(?:\/(rp_\w+))?(?:\/(claim|result|cancel))?$/);
     if (!m) throw Error('unexpected ' + path);
     const [, id, act] = m;
     if (!id && opt.method === 'POST') { const nid = 'rp_' + String(++n).padStart(16, '0'); jobs.set(nid, { ...opt.body, state: 'queued' }); return { ok: true, id: nid }; }
     if (!id) return { jobs: [...jobs].filter(([, j]) => j.state === 'queued').map(([id, j]) => ({ id, label: j.label, drawer: j.drawer, from: 'staff:1' })) };
     const j = jobs.get(id);
-    if (act === 'claim') { if (j.state !== 'queued') return { claimed: false }; j.state = 'claimed'; return { claimed: true, job: { id, ...j } }; }
+    if (act === 'claim') { if (this.station?.device !== opt.body?.device_id) throw Object.assign(Error('這台不是目前的列印站。'), { status: 409 }); if (j.state !== 'queued') return { claimed: false }; j.state = 'claimed'; return { claimed: true, job: { id, ...j } }; }
     if (act === 'result') { j.state = opt.body.ok ? 'printed' : 'failed'; j.error = opt.body.error; return { ok: true }; }
     if (act === 'cancel') { if (j.state !== 'queued') return { cancelled: false }; j.state = 'cancelled'; return { cancelled: true }; }
     return { id, state: j.state, error: j.error || '' };
   } };
 }
-function env({ star, srv, path = '/atcafe', scope = 'CAFE', clock }) {
+function env({ star, srv, path = '/atcafe', scope = 'CAFE', clock, id = star ? 'dev-station' : 'dev-phone' }) {
   const toasts = [], sent = [];
   const c = vm.createContext({ console, Promise, Date: clock ? { now: () => clock.t } : Date, setTimeout: (f, ms) => { if (clock) { clock.t += ms; Promise.resolve().then(f); } else setTimeout(f, 0); return 1; }, clearTimeout() {},
-    location: { pathname: path }, navigator: { userAgent: star ? 'StarWebPRNTBrowser' : 'Safari' }, DATA: {}, OPERATOR: { id: 's1' }, SCOPE: scope,
+    DEVICE_ID: id, localStorage: { getItem: () => null, setItem() {} }, location: { pathname: path }, navigator: { userAgent: star ? 'StarWebPRNTBrowser' : 'Safari' }, DATA: {}, OPERATOR: { id: 's1' }, SCOPE: scope,
     toast: m => toasts.push(m), api: (p, o) => srv.api(p, o),
     Image: class { set src(v) { this.naturalWidth = 384; this.naturalHeight = 100; this._v = v; Promise.resolve().then(() => this.onload()); } },
     document: { createElement: () => ({ width: 0, height: 0, getContext: () => ({ fillRect() {}, drawImage() {}, set fillStyle(v) {} }), toDataURL: () => PNG }), getElementById: () => null } });
@@ -66,54 +74,102 @@ function env({ star, srv, path = '/atcafe', scope = 'CAFE', clock }) {
   return { c, toasts };
 }
 
+async function station(srv, id = 'dev-station') { const e = env({ star: true, srv, id }); await vm.runInContext('syncStation()', e.c); return e; }
+
 test('沒接 mPOP 的品牌 POS：starSend 改送櫃台，列印站領取列印並回報，送出端拿到成功', async () => {
   const srv = fakeServer();
-  const phone = env({ star: false, srv }), station = env({ star: true, srv });
+  const st = await station(srv), phone = env({ star: false, srv }); const station_ = st;
   assert.equal(vm.runInContext('canPrint()', phone.c), true);
   const p = vm.runInContext("starSend({canvas:document.createElement('canvas'),label:'收據明細'})", phone.c);
   await new Promise(r => setTimeout(r, 5));
   assert.equal([...srv.jobs.values()][0].state, 'queued');
-  await vm.runInContext('pollRemotePrinting()', station.c);
-  assert.equal(station.c.sent.length, 1); assert.ok(station.c.sent[0].canvas); assert.equal(station.c.sent[0].drawer, false);
+  await vm.runInContext('pollRemotePrinting()', st.c);
+  assert.equal(st.c.sent.length, 1); assert.ok(st.c.sent[0].canvas); assert.equal(st.c.sent[0].drawer, false);
   assert.equal(await p, true);
   assert.equal([...srv.jobs.values()][0].state, 'printed');
-  await vm.runInContext('pollRemotePrinting()', station.c);
-  assert.equal(station.c.sent.length, 1, '不重印');
+  await vm.runInContext('pollRemotePrinting()', st.c);
+  assert.equal(st.c.sent.length, 1, '不重印');
 });
 
 test('遠端開錢櫃：列印站送 drawer 指令', async () => {
   const srv = fakeServer();
-  const phone = env({ star: false, srv }), station = env({ star: true, srv });
+  const st = await station(srv), phone = env({ star: false, srv }); const station_ = st;
   const p = vm.runInContext('openCashDrawer({auto:true})', phone.c);
   await new Promise(r => setTimeout(r, 5));
-  await vm.runInContext('pollRemotePrinting()', station.c);
-  assert.equal(station.c.sent[0].drawer, true); assert.equal(station.c.sent[0].canvas, null);
+  await vm.runInContext('pollRemotePrinting()', st.c);
+  assert.equal(st.c.sent[0].drawer, true); assert.equal(st.c.sent[0].canvas, null);
   assert.equal(await p, true);
 });
 
-test('列印站沒開：20 秒沒人領就取消並提示，之後列印站上線也不會補印；60 秒內不再等', async () => {
+test('沒有列印站：不排工作、直接提示；列印站開著但 20 秒沒人領就取消，之後不補印、60 秒內不再等', async () => {
   const srv = fakeServer(), clock = { t: 1e12 };
   const phone = env({ star: false, srv, clock });
   assert.equal(await vm.runInContext("starSend({canvas:document.createElement('canvas')})", phone.c), false);
+  assert.equal(srv.jobs.size, 0); assert.ok(phone.toasts.some(m => m.includes('目前沒有列印站')));
+  const st = await station(srv);
+  const phone2 = env({ star: false, srv, clock });
+  vm.runInContext('pollRemotePrinting=async()=>{}', st.c);
+  assert.equal(await vm.runInContext("starSend({canvas:document.createElement('canvas')})", phone2.c), false);
   assert.equal([...srv.jobs.values()][0].state, 'cancelled');
-  assert.ok(phone.toasts.some(m => m.includes('列印站沒有回應')));
-  const station = env({ star: true, srv });
-  await vm.runInContext('pollRemotePrinting()', station.c); assert.equal(station.c.sent.length, 0);
-  assert.equal(await vm.runInContext("starSend({canvas:document.createElement('canvas')})", phone.c), false);
+  assert.ok(phone2.toasts.some(m => m.includes('沒有回應')));
+  assert.equal(await vm.runInContext("starSend({canvas:document.createElement('canvas')})", phone2.c), false);
   assert.equal(srv.jobs.size, 1, '60 秒內不再送新工作');
 });
 
-test('列印失敗回報給送出端；/admin 與一般瀏覽器非品牌頁不走遠端；Star Browser 本機照舊直送', async () => {
+test('同時只有一台列印站：第二台 Star Browser 跟著列印站，不本機印、不算斷線、不領工作', async () => {
   const srv = fakeServer();
-  const phone = env({ star: false, srv }), station = env({ star: true, srv });
-  vm.runInContext('starSendNow=async()=>false', station.c);
+  const a = await station(srv, 'ipad-A');
+  assert.equal(srv.station.device, 'ipad-A');
+  const b = env({ star: true, srv, id: 'ipad-B' });
+  let probes = 0; vm.runInContext('starCheckLink=async()=>{probe();return false;}', Object.assign(b.c, { probe: () => probes++ }));
+  await vm.runInContext('syncStation()', b.c);
+  assert.equal(srv.station.device, 'ipad-A', '不搶列印站');
+  assert.equal(probes, 0, '別台是列印站就不檢測自己的 mPOP');
+  assert.equal(vm.runInContext('isStation()', b.c), false);
+  assert.equal(vm.runInContext('remoteOn()', b.c), true);
+  assert.equal(vm.runInContext('kitchenPrintStatus().state', b.c), 'remote-ok', '不顯示 mPOP 斷線');
+  vm.runInContext('esc=s=>String(s)', b.c);
+  assert.ok(vm.runInContext('kitchenPrintStatusHtml()', b.c).includes('列印站：' + srv.station.name));
+  assert.match(vm.runInContext('kitchenPrintStatusHtml()', b.c), /改由這台列印/);
+  // B 列印 → 送到 A 印
+  const p = vm.runInContext("starSend({canvas:document.createElement('canvas')})", b.c);
+  await new Promise(r => setTimeout(r, 5));
+  await vm.runInContext('pollRemotePrinting()', b.c);
+  assert.equal(b.c.sent.length, 0, 'B 不領、不本機印');
+  await vm.runInContext('pollRemotePrinting()', a.c);
+  assert.equal(a.c.sent.length, 1); assert.equal(await p, true);
+  // B 的出餐單輪詢也不跑
+  let kitchenCalls = 0; b.c.api = async (path, o) => { if (path.includes('kitchen-print-jobs')) kitchenCalls++; return srv.api(path, o); };
+  await vm.runInContext('pollKitchenPrinting()', b.c); assert.equal(kitchenCalls, 0);
+});
+
+test('手機與一般瀏覽器看得到哪台是列印站；換台要明確按「改由這台列印」', async () => {
+  const srv = fakeServer();
+  await station(srv, 'ipad-A');
+  const phone = env({ star: false, srv });
+  await vm.runInContext('syncStation()', phone.c);
+  vm.runInContext('esc=s=>String(s)', phone.c);
+  assert.ok(vm.runInContext('kitchenPrintStatusHtml()', phone.c).includes('列印站：' + srv.station.name));
+  assert.doesNotMatch(vm.runInContext('kitchenPrintStatusHtml()', phone.c), /改由這台列印/, '沒接 mPOP 的裝置不能接手');
+  const b = env({ star: true, srv, id: 'ipad-B' });
+  vm.runInContext('pickReason=async()=>"吧台 iPad"', b.c);
+  await vm.runInContext('takeOverStation()', b.c);
+  assert.equal(srv.station.device, 'ipad-B'); assert.equal(srv.station.name, '吧台 iPad');
+  assert.equal(vm.runInContext('isStation()', b.c), true);
+});
+
+test('列印失敗回報給送出端；/admin 不分品牌維持本機 Star 直送', async () => {
+  const srv = fakeServer();
+  const st = await station(srv), phone = env({ star: false, srv });
+  vm.runInContext('starSendNow=async()=>false', st.c);
   const p = vm.runInContext("starSend({canvas:document.createElement('canvas')})", phone.c);
-  await new Promise(r => setTimeout(r, 5)); await vm.runInContext('pollRemotePrinting()', station.c);
+  await new Promise(r => setTimeout(r, 5)); await vm.runInContext('pollRemotePrinting()', st.c);
   assert.equal(await p, false); assert.ok(phone.toasts.some(m => m.includes('列印失敗')));
   const admin = env({ star: false, srv, path: '/admin/orders', scope: '' });
   assert.equal(vm.runInContext('canPrint()', admin.c), false);
-  assert.equal(vm.runInContext('remoteOn()', station.c), false, 'Star Browser 自己就是列印站，不送遠端');
-  assert.match(src, /try\{await pollKitchenPrinting\(\);await pollRemotePrinting\(\);\}/);
+  const adminStar = env({ star: true, srv, path: '/admin/orders', scope: '', id: 'x' });
+  assert.equal(vm.runInContext('isStation()', adminStar.c), true);
+  assert.match(src, /try\{await syncStation\(\);await pollKitchenPrinting\(\);await pollRemotePrinting\(\);\}/);
 });
 
 test('所有列印入口都改用 canPrint()（有接 mPOP 或可送櫃台）', () => {
