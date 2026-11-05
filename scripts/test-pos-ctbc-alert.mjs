@@ -54,6 +54,8 @@ test('POS：每秒 setTimeout 鏈、彈窗只能按鈕關、響鈴、已讀依�
   assert.match(js, /e\.key === 'Escape'\) \{ e\.preventDefault\(\)/);
   assert.doesNotMatch(js, /e\.target ?=== ?ov/);
   assert.match(js, /newTicketChime\(\)/);
+  assert.match(js, /class="lpa-card is-ctbc"/, '中信彈窗用中信色，不用 LINE 綠');
+  assert.match(pos, /\.lpa-card\.is-ctbc\{border-top-color:#009944\}/);
   assert.match(js, /tth_ctbc_seen_/);
   // pos.html 先載本檔才定義 POS_URL_VENUE：已讀 key 不可在載入時算成常數字串
   for (const f of ['public/pos-ctbc-alert.js', 'public/pos-linepay-alert.js']) {

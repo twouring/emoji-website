@@ -32,7 +32,7 @@ function ctaPaint(){
     ov.addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); } });
   }
   const last = CTA.queue[CTA.queue.length - 1], more = CTA.queue.length - 1;
-  ov.innerHTML = `<div class="lpa-card">
+  ov.innerHTML = `<div class="lpa-card is-ctbc">
     <h2 id="cta-title">收到信用卡（中信）</h2>
     <div class="lpa-list">${ctaCard(last)}</div>
     ${more > 0 ? `<p class="lpa-sum">另有 ${more} 筆較早的交易，請到日結中信對帳查看</p>` : ''}
