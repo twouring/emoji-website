@@ -7552,20 +7552,26 @@ app.post('/api/admin/sales/ctbc/sync',auth,adminOnly,requireDb,wrap(async(req,re
 app.post('/api/admin/orders/ctbc-alerts/sync',auth,adminOnly,(req,res)=>res.json({ok:true,skipped:'server-loop'}));
 /* 伺服器端收款同步迴圈（KK 11/6）：同步今天（營業日）的交易，做完等 PAY_WATCH_GAP_MS（1 秒）再做下一輪，上一輪沒做完不會開下一輪。
  * 用常駐登入分頁（fetchWarm），排程同步（linepaySyncing／ctbcSyncing）進行中就跳過這輪。
- * 失敗退避：LINE Pay 60 秒；中信登入失敗 60 秒、帳密錯誤（fatal）10 分鐘，避免每秒重登鎖帳號。不寫日結的同步狀態（由排程與手動同步負責）。 */
-const PAY_WATCH_GAP_MS=1000;
+ * 失敗退避：LINE Pay 60 秒；中信登入失敗 60 秒、帳密錯誤（fatal）10 分鐘，避免每秒重登鎖帳號。不寫日結的同步狀態（由排程與手動同步負責）。
+ * 只在有開帳時跑（KK 11/6 成本優化）：沒有任何開著的帳（同 POS 規則，liveFloor 以前的舊帳不算）就關掉常駐 Chrome、每 10 秒再檢查；
+ * 關帳後才進來的交易由排程 linepay-recent（5 分）／ctbc-recent（15 分）補上。 */
+const PAY_WATCH_GAP_MS=1000,PAY_WATCH_IDLE_MS=10000;
+const anyRegisterOpen=async()=>(await q('SELECT 1 FROM pos_registers WHERE closed_at IS NULL AND day>=$1 LIMIT 1',[liveFloor()])).rows.length>0;
 const payToday=()=>{const day=tableOrders.MenuLib.businessDay(),now=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Taipei'});return [day,now>day?now:day];};
 const PAY_WATCHERS=[
   {name:'linepay',enabled:()=>linepay.configured(),busy:()=>linepaySyncing,
-   run:async()=>upsertLinepay(await linepay.fetchWarm(linepay.config(),...payToday())),backoff:()=>60000},
+   run:async()=>upsertLinepay(await linepay.fetchWarm(linepay.config(),...payToday())),close:()=>linepay.warmClose(),backoff:()=>60000},
   {name:'ctbc',enabled:()=>ctbc.configured(),busy:()=>ctbcSyncing,
-   run:async()=>upsertCtbc(await ctbc.fetchWarm(ctbc.config(),...payToday(),{log:m=>console.log('[ctbc-warm]',m)})),backoff:e=>e.fatal?600000:60000},
+   run:async()=>upsertCtbc(await ctbc.fetchWarm(ctbc.config(),...payToday(),{log:m=>console.log('[ctbc-warm]',m)})),close:()=>ctbc.warmClose(),backoff:e=>e.fatal?600000:60000},
 ];
 const sleep=ms=>new Promise(r=>{const t=setTimeout(r,ms);t.unref?.();});
 async function payWatchLoop(w){
   for(;;){
     let wait=PAY_WATCH_GAP_MS;
-    try{ if(dbReady&&w.enabled()&&!w.busy())await w.run(); }
+    try{
+      if(!dbReady||!w.enabled()||!await anyRegisterOpen()){ if(w.idle!==true)w.close(); w.idle=true; wait=PAY_WATCH_IDLE_MS; }
+      else{ if(w.idle)console.log(`[pay-watch:${w.name}] 有開帳，開始同步`); w.idle=false; if(!w.busy())await w.run(); }
+    }
     catch(e){ wait=w.backoff(e); console.error(`[pay-watch:${w.name}] 同步失敗，${wait/1000} 秒後重試：`,e.message); }
     await sleep(wait);
   }

@@ -606,14 +606,14 @@ POS 輪詢未處理的呼叫（每 5 秒）。回 `{ pending:[{id,session_id,tab
 
 ### POST /api/admin/orders/ctbc-alerts/sync
 
-停用（2026-11-06）：一律回 `{ ok:true, skipped:'server-loop' }`，只為相容尚未重新整理的舊版 POS 頁。收款同步改由官網服務的伺服器端單一迴圈（`payWatchLoop`）負責：同步今天（營業日）的中信行動刷卡交易進 `ctbc_transactions`，做完等 1 秒再做下一輪；用常駐登入的中信 mPOS 後台分頁；排程同步中跳過；登入失敗退避 60 秒、帳密錯誤退避 10 分鐘；不改日結的同步狀態。後台服務（SERVICE_ROLE=admin）與 Railway 不跑。
+停用（2026-11-06）：一律回 `{ ok:true, skipped:'server-loop' }`，只為相容尚未重新整理的舊版 POS 頁。收款同步改由官網服務的伺服器端單一迴圈（`payWatchLoop`）負責：同步今天（營業日）的中信行動刷卡交易進 `ctbc_transactions`，做完等 1 秒再做下一輪；用常駐登入的中信 mPOS 後台分頁；只在有開帳（任一品牌有未關的帳，前一營業日以前的舊帳不算）時跑，沒開帳就關掉常駐瀏覽器、每 10 秒再檢查，關帳後的交易由排程 `ctbc-recent` 補上；排程同步中跳過；登入失敗退避 60 秒、帳密錯誤退避 10 分鐘；不改日結的同步狀態。後台服務（SERVICE_ROLE=admin）與 Railway 不跑。
 
 ### GET /api/admin/orders/ctbc-alerts
 
 POS 中信刷卡收款通知：回最近 `lookback` 分鐘（預設 60、上限 720）同步進來的中信交易 `{ alerts:[{ id, type, type_label, amount, paid_at, day, time, card_last4, auth_code, terminal_id, device_user, note, venue, venue_label }], recent:[同欄位], synced_at }`；`recent`＝最近 `hours` 小時（預設 8、1–24）的交易，新到舊、最多 50 筆，給彈窗輪播。失敗／拒絕的交易不列；店別依交易時間＋當天開關帳歸屬，品牌 POS 只看自己的（`venue`）。
 
 ### POST /api/admin/orders/linepay-alerts/sync
-停用（2026-11-06）：一律回 `{ ok:true, skipped:'server-loop' }`，只為相容尚未重新整理的舊版 POS 頁。收款同步改由官網服務的伺服器端單一迴圈（`payWatchLoop`）負責：同步今天（營業日）的 LINE Pay 後台交易進 `linepay_transactions`，做完等 1 秒再做下一輪；用常駐登入的後台分頁；排程同步中跳過；失敗退避 60 秒；不改日結的同步狀態。
+停用（2026-11-06）：一律回 `{ ok:true, skipped:'server-loop' }`，只為相容尚未重新整理的舊版 POS 頁。收款同步改由官網服務的伺服器端單一迴圈（`payWatchLoop`）負責：同步今天（營業日）的 LINE Pay 後台交易進 `linepay_transactions`，做完等 1 秒再做下一輪；用常駐登入的後台分頁；只在有開帳時跑，沒開帳就關掉常駐瀏覽器、每 10 秒再檢查，關帳後的交易由排程 `linepay-recent` 補上；排程同步中跳過；失敗退避 60 秒；不改日結的同步狀態。
 
 ### GET /api/admin/orders/linepay-alerts
 POS 收款通知（背景讀取，讀完等 1 秒再讀；只讀資料庫，不觸發同步）。query `lookback`（分鐘，預設 60、5–720）、`hours`（預設 8、1–24）、`venue`（POS 自動帶）。回 `{ alerts:[{id,type,type_label,amount,paid_at,time,day,method,method_label,card_last4,confirm_no,order_no,origin_id,venue,venue_label,synced_at}], recent:[同欄位], synced_at }`（`recent`＝最近 hours 小時的交易，新到舊、最多 50 筆，彈窗輪播用）：最近 lookback 分鐘內從 LINE Pay 商家後台同步進來的實收（退款金額為負），店別依交易時間與當天開關帳歸屬，品牌 POS 只回自己的。資料由伺服器端收款同步迴圈（同步完等 1 秒）產生。POS 以 `public/pos-linepay-alert.js` 跳出彈窗，店員按「我知道了」才關閉（每台裝置各自記錄已讀）。
