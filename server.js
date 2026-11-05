@@ -6951,8 +6951,11 @@ app.get('/api/admin/orders/history',auth,adminOnly,requireDb,wrap(async(req,res)
   res.json({day,orders,count:orders.length});
 }));
 /* ===== 開關帳（帳本）：在咖啡／三點水各自一本（品牌 × 營業日）。開帳放零用金 → 臨時收支 → 小結（只看）→ 關帳（點鈔、短溢）；關帳後該品牌不可再結帳，超管可重開 ===== */
+/* 沒關的舊帳只延到隔一個營業日（BOWEN 11/5：10/12 測試帳沒關，在咖啡 11/3 起的單全被認到 10/12，查單／日結撈不到）；再更早的開著的帳視為作廢，不吃單、不擋開帳 */
+const dayMinus1=d=>new Date(Date.parse(String(d).slice(0,10)+'T12:00:00Z')-86400e3).toISOString().slice(0,10);
+const liveFloor=()=>dayMinus1(tableOrders.MenuLib.businessDay());
 async function registersOpenMap(client,day){
-  const rows=(await (client||{query:q}).query('SELECT id,venue,opened_by,closed_at FROM pos_registers WHERE closed_at IS NULL ORDER BY opened_at',[])).rows;   /* 看帳不看時間（KK 11/5）：還開著的帳不論哪個營業日開的都算開帳中 */
+  const rows=(await (client||{query:q}).query('SELECT id,venue,opened_by,closed_at FROM pos_registers WHERE closed_at IS NULL AND day>=$1 ORDER BY opened_at',[liveFloor()])).rows;   /* 看帳不看時間（KK 11/5）：還開著的帳不論哪個營業日開的都算開帳中 */
   // 已關帳且當日沒有再開一本的品牌也要擋結帳：取當日最後一本
   const last=(await (client||{query:q}).query('SELECT DISTINCT ON (venue) id,venue,opened_by,closed_at FROM pos_registers WHERE day=$1 ORDER BY venue,opened_at DESC',[day])).rows;
   const map={};for(const r of last)map[r.venue]=r;for(const r of rows)map[r.venue]=r;return map;
@@ -6980,7 +6983,8 @@ async function ordersOfDay(day,cols){
   const regs=(await q('SELECT venue,day,opened_at,closed_at FROM pos_registers WHERE opened_at<$2 AND (closed_at IS NULL OR closed_at>$1)',[new Date(+from-pad),new Date(+to+pad)])).rows.map(regDay);
   const rows=(await q(`SELECT ${cols} FROM table_orders WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at`,[new Date(+from-pad),new Date(+to+pad)])).rows;
   return rows.filter(o=>{const t=+new Date(o.paid_at),v=orderLedgerVenue(o);
-    const r=regs.find(r=>r.venue===v&&+new Date(r.opened_at)<=t&&(!r.closed_at||t<+new Date(r.closed_at)));
+    const bd=tableOrders.MenuLib.businessDay(t),floor=dayMinus1(bd);
+    const r=regs.filter(r=>r.venue===v&&+new Date(r.opened_at)<=t&&(!r.closed_at||t<+new Date(r.closed_at))&&r.day>=floor&&r.day<=bd).sort((a,b)=>+new Date(b.opened_at)-+new Date(a.opened_at))[0];
     return (r?r.day:tableOrders.MenuLib.businessDay(t))===day;});
 }
 /* 列出某營業日兩品牌的帳本狀態（沒開＝null）＋每本的即時小結 */
@@ -6988,11 +6992,11 @@ app.get('/api/admin/registers',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
   const day=dayParam(req.query.day);
   const today=day===tableOrders.MenuLib.businessDay();   /* 看帳不看時間（KK 11/5）：看今天時，前一個營業日還沒關的帳也列進來，當成目前的帳 */
-  const rows=(await q('SELECT * FROM pos_registers WHERE day=$1 OR ($2 AND closed_at IS NULL) ORDER BY opened_at',[day,today])).rows.map(regDay).filter(r=>!venues||venues.includes(r.venue));
+  const rows=(await q('SELECT * FROM pos_registers WHERE day=$1 OR ($2 AND closed_at IS NULL AND day>=$3) ORDER BY opened_at',[day,today,liveFloor()])).rows.map(regDay).filter(r=>!venues||venues.includes(r.venue));
   const out=[];for(const r of rows){const s=await registerSummary(r);out.push({...r,...s.summary,cash_sales:s.summary.cash_sales,moves:s.moves,counts:s.counts,last_count:s.counts[0]||null,sales:{orders:s.sales.orders,amount:s.sales.amount,collected:s.sales.collected,tip_amount:s.sales.tip_amount,by_method:s.sales.by_method,voided:s.sales.voided,void_amount:s.sales.void_amount},report:r.closed_at?r.report:s.report});}
   const byVenue={};for(const v of posRegister.VENUES){if(venues&&!venues.includes(v))continue;byVenue[v]=out.filter(r=>r.venue===v).slice(-1)[0]||null;}
   // 品牌各自獨立（KK 11/4）：總覽只看看得到的品牌，開關帳不受另一店影響
-  const all=(await q('SELECT id,venue,opened_at,closed_at,keep_cash FROM pos_registers WHERE day=$1 OR ($2 AND closed_at IS NULL)',[day,today])).rows.filter(r=>!venues||venues.includes(r.venue));
+  const all=(await q('SELECT id,venue,opened_at,closed_at,keep_cash FROM pos_registers WHERE day=$1 OR ($2 AND closed_at IS NULL AND day>=$3)',[day,today,liveFloor()])).rows.filter(r=>!venues||venues.includes(r.venue));
   const tablesBy={};for(const v of posRegister.VENUES){if(!venues||venues.includes(v))tablesBy[v]=await openTablesBlockingClose(v);}
   res.json({day,registers:out,current:byVenue,active_venue:tableOrders.MenuLib.activeVenue(),open_tables_by:tablesBy,open_tables:[...new Set(Object.values(tablesBy).flat())],...posRegister.registerOverview(all)});
 }));
@@ -7003,7 +7007,7 @@ app.post('/api/admin/registers/open',auth,adminOnly,requireDb,wrap(async(req,res
   const client=await pool.connect();
   try{await client.query('BEGIN');await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,['register:'+day+':'+venue]);
     await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,['register-open:'+venue]);
-    const open=(await client.query('SELECT id,venue,opened_by FROM pos_registers WHERE venue=$1 AND closed_at IS NULL ORDER BY opened_at LIMIT 1',[venue])).rows[0];   /* 還有沒關的帳（不論哪天開的）就不能再開一本 */
+    const open=(await client.query('SELECT id,venue,opened_by FROM pos_registers WHERE venue=$1 AND closed_at IS NULL AND day>=$2 ORDER BY opened_at LIMIT 1',[venue,liveFloor()])).rows[0];   /* 還有沒關的帳（不論哪天開的）就不能再開一本 */
     const handover=(await client.query('SELECT id,venue,keep_cash FROM pos_registers WHERE day=$1 AND venue=$2 AND closed_at IS NOT NULL ORDER BY closed_at DESC LIMIT 1',[day,venue])).rows[0]||null;
     let row;try{row=posRegister.openRegister(req.body,{venue,open,handover});}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
     const id=uid('rg_');
@@ -7071,7 +7075,7 @@ app.post('/api/admin/registers/:id/close',auth,adminOnly,requireDb,wrap(async(re
 app.post('/api/admin/registers/:id/reopen',auth,adminOnly,superOnly,requireDb,wrap(async(req,res)=>{
   const r=await loadOpenRegister(req,res);if(!r)return;
   if(!r.closed_at)return res.status(409).json({error:'這本帳還開著。'});
-  const open=(await q('SELECT id,venue FROM pos_registers WHERE venue=$1 AND closed_at IS NULL ORDER BY opened_at LIMIT 1',[r.venue])).rows[0];
+  const open=(await q('SELECT id,venue FROM pos_registers WHERE venue=$1 AND closed_at IS NULL AND day>=$2 ORDER BY opened_at LIMIT 1',[r.venue,liveFloor()])).rows[0];
   if(open)return res.status(409).json({error:'已經另有一本開著的帳，請先關帳。'});
   const id=uid('rg_');
   await q('INSERT INTO pos_registers(id,day,venue,opening_cash,note,opened_by,reopened_at,reopened_by) VALUES($1,$2,$3,$4,$5,$6,now(),$6)',[id,r.day,r.venue,r.keep_cash||0,'重開補單（接 '+r.id+'）',actorOf(req.auth)||'']);
@@ -8087,7 +8091,7 @@ app.post('/api/admin/orders/tips/payouts',rateLimit({max:20}),auth,adminOnly,req
   try{const out=await tipTx(async client=>{
       let cash_move=null;
       if(p.method==='cash'){
-        const reg=(await client.query("SELECT id,venue FROM pos_registers WHERE closed_at IS NULL AND ($1='' OR venue=$1) ORDER BY opened_at DESC LIMIT 1 FOR UPDATE",[pinVenue(req,req.body?.venue||req.query.venue)])).rows[0];   /* 品牌各自的抽屜（KK 11/4） */
+        const reg=(await client.query("SELECT id,venue FROM pos_registers WHERE closed_at IS NULL AND day>=$2 AND ($1='' OR venue=$1) ORDER BY opened_at DESC LIMIT 1 FOR UPDATE",[pinVenue(req,req.body?.venue||req.query.venue),liveFloor()])).rows[0];   /* 品牌各自的抽屜（KK 11/4） */
         if(!reg)throw Object.assign(Error('現在沒有開著的帳本，現金支付要先開帳（或改選轉帳／其他）。'),{status:409});
         cash_move=uid('cm_');
         await client.query('INSERT INTO pos_cash_moves(id,register_id,type,amount,reason,staff) VALUES($1,$2,$3,$4,$5,$6)',[cash_move,reg.id,'out',p.amount,('支付打賞給 '+p.performer+(p.note?'（'+p.note+'）':'')).slice(0,80),by]);

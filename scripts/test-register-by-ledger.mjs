@@ -7,12 +7,12 @@ const fn = name => { const i = server.indexOf(name); assert.ok(i >= 0, name); re
 
 test('結帳判斷開帳：開著的帳不限營業日', () => {
   const body = fn('async function registersOpenMap(');
-  assert.match(body, /WHERE closed_at IS NULL ORDER BY opened_at/);
+  assert.match(body, /WHERE closed_at IS NULL AND day>=\$1 ORDER BY opened_at/);
   assert.doesNotMatch(body.split('\n')[1], /day=\$1/);
 });
 test('日結列帳：看今天時帶入前一天還沒關的帳', () => {
   const i = server.indexOf("app.get('/api/admin/registers',"); const body = server.slice(i, server.indexOf('}));', i));
-  assert.match(body, /day=\$1 OR \(\$2 AND closed_at IS NULL\)/);
+  assert.match(body, /day=\$1 OR \(\$2 AND closed_at IS NULL AND day>=\$3\)/);
 });
 test('日期認列依開帳日：日結、小結、歷史單都走 ordersOfDay', () => {
   const body = fn('async function ordersOfDay(');
@@ -23,4 +23,9 @@ test('日期認列依開帳日：日結、小結、歷史單都走 ordersOfDay',
 });
 test('開帳：同品牌還有沒關的帳（不論哪天）就擋', () => {
   assert.match(server, /'register-open:'\+venue/);
+});
+
+test('沒關的舊帳只延到隔一個營業日，不吃更晚的單（BOWEN 11/5：10/12 測試帳吃掉 11/3 起在咖啡的單）', () => {
+  assert.match(server, /const liveFloor=\(\)=>dayMinus1\(tableOrders\.MenuLib\.businessDay\(\)\)/);
+  assert.match(server, /r\.day>=floor&&r\.day<=bd/);
 });
