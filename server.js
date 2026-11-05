@@ -1837,10 +1837,10 @@ async function auth(req, res, next) {
     req.auth = { role: 'admin', super: true, sub: null, agent: true };
     return next();
   }
-  /* 品牌 MCP 金鑰（pmk_…）：只當該品牌的後台身分，且只放行 lib/pos-mcp.js ALLOW 白名單（唯讀查詢＋估清） */
+  /* 品牌 MCP 金鑰（pmk_…）：等同該品牌的 POS 帳號（brands:[品牌]），只放行 POS API（FOOD_API，KK 11/5 全功能開放） */
   const mcpVenue = t.startsWith('pmk_') ? posMcp.venueOfKey(t, SECRET, POS_MCP_KEY_VERSION) : null;
   if (mcpVenue) {
-    if (!posMcp.allowed(req.method, req.path)) return res.status(403).json({ error: 'MCP 金鑰不能使用這個功能。' });
+    if (!posMcp.allowed(req.method, req.path, FOOD_API)) return res.status(403).json({ error: 'MCP 金鑰只能使用 POS 功能。' });
     req.auth = { role: 'admin', super: false, sub: null, mcp: mcpVenue, brands: [mcpVenue], name: `POS MCP（${posMcp.LABEL[mcpVenue]}）` };
     return next();
   }
@@ -1943,17 +1943,23 @@ app.post('/api/twilio/events/status',express.urlencoded({extended:false,limit:'3
 /* ---- POS MCP（lib/pos-mcp.js，KK 11/5）：子租戶 AI 代理用品牌金鑰串接自己品牌的 POS ----
  * Streamable HTTP 無狀態：POST 收 JSON-RPC（單筆或批次）回 JSON；GET 不提供 SSE（405）。
  * 工具以同一把金鑰呼叫本機既有 API，權限與品牌隔離完全沿用 auth()／posScope。 */
-const posMcpCall = token => async (method, p, body) => {
-  const r = await fetch(`http://127.0.0.1:${PORT}${p}`, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+const posMcpCall = token => async (method, p, body, headers = {}) => {
+  const r = await fetch(`http://127.0.0.1:${PORT}${p}`, { method, headers: { ...headers, Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
   let data = null; try { data = await r.json(); } catch { data = null; }
   return { status: r.status, data };
 };
+/* MCP 能用的 POS API＝執行中 Express 實際註冊的路由裡符合 FOOD_API 者：POS 新增路由自動出現在 pos_endpoints */
+let posMcpRouteCache = null;
+const posMcpRoutes = () => posMcpRouteCache || (posMcpRouteCache = (app._router?.stack || []).flatMap(l => {
+  const r = l.route; if (!r) return [];
+  return (Array.isArray(r.path) ? r.path : [r.path]).filter(p => typeof p === 'string').flatMap(p => Object.keys(r.methods).filter(m => r.methods[m] && m !== '_all').map(m => ({ method: m.toUpperCase(), path: p })));
+}).filter(x => posMcp.allowed(x.method, x.path, FOOD_API) && x.path !== '/api/mcp'));
 app.get('/api/mcp', (_req, res) => res.set('Allow', 'POST, DELETE').status(405).json({ error: 'MCP 只接受 POST（Streamable HTTP，無 SSE）。' }));
 app.delete('/api/mcp', (_req, res) => res.status(204).end());   // 無狀態：用戶端結束連線時送 DELETE，直接回 204
 app.post('/api/mcp', auth, wrap(async (req, res) => {
   if (!req.auth.agent && !req.auth.mcp) return res.status(403).json({ error: '需要 POS MCP 金鑰。' });
   const token = String(req.headers.authorization || '').slice(7);
-  const ctx = { venue: req.auth.mcp || null, call: posMcpCall(token) };
+  const ctx = { venue: req.auth.mcp || null, call: posMcpCall(token), routes: posMcpRoutes };
   const body = req.body;
   if (Array.isArray(body)) {
     const out = (await Promise.all(body.map(m => posMcp.handle(m, ctx)))).filter(Boolean);

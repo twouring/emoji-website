@@ -20,25 +20,43 @@ test('金鑰：每個品牌一把、不能互換、換版本作廢', () => {
   assert.equal(M.venueOfKey(cafe, ''), null);
 });
 
-test('白名單：只有唯讀查詢＋估清，碰不到會員、員工、設定、結帳', () => {
-  assert.ok(M.allowed('GET', '/api/admin/sales'));
-  assert.ok(M.allowed('POST', '/api/admin/menu/sold-out'));
-  for (const [m, p] of [['GET', '/api/admin/yan/members'], ['POST', '/api/admin/staff'], ['GET', '/api/admin/system-settings'], ['POST', '/api/admin/orders/sessions'], ['POST', '/api/admin/sales'], ['GET', '/api/me'], ['GET', '/api/admin/sales/x']])
-    assert.ok(!M.allowed(m, p), `${m} ${p}`);
+const FOOD = new RegExp(server.match(/const FOOD_API = \/(.*)\/;/)[1]);
+
+test('權限＝品牌 POS 帳號全部功能（FOOD_API）；POS 以外碰不到', () => {
+  for (const [m, p] of [['GET', '/api/admin/sales'], ['POST', '/api/admin/menu/sold-out'], ['POST', '/api/admin/orders/sessions'], ['POST', '/api/admin/staff'], ['POST', '/api/admin/registers/open'], ['GET', '/api/admin/yan/members'], ['POST', '/api/admin/pos/drawer-events']])
+    assert.ok(M.allowed(m, p, FOOD), `${m} ${p}`);
+  for (const [m, p] of [['GET', '/api/admin/system-settings'], ['GET', '/api/admin/exec'], ['POST', '/api/admin/events'], ['GET', '/api/me'], ['GET', '/api/admin/orders/live']])
+    assert.ok(!M.allowed(m, p, FOOD), `${m} ${p}`);
+  assert.ok(!M.allowed('GET', '/api/admin/sales', null), '沒傳 FOOD_API 一律拒絕');
+});
+
+test('以後新功能自動補進 MCP：每支 POS API 都在 lib/pos-mcp-catalog.json 且有說明（新增後跑 build-pos-mcp-catalog.mjs）', async () => {
+  const { buildCatalog } = await import('./build-pos-mcp-catalog.mjs');
+  const want = buildCatalog();
+  const have = JSON.parse(fs.readFileSync(new URL('../lib/pos-mcp-catalog.json', import.meta.url), 'utf8'));
+  assert.ok(Object.keys(want).length > 100);
+  assert.deepEqual(Object.keys(have).sort(), Object.keys(want).sort(), '路由與目錄不同步：node scripts/build-pos-mcp-catalog.mjs');
+  for (const [k, v] of Object.entries(have)) { assert.ok(v, `${k} 缺 docs/API.md 說明`); assert.equal(v, want[k], `${k} 說明過期：重跑 build-pos-mcp-catalog.mjs`); }
+});
+
+test('server：pos_endpoints 讀執行中的 Express 路由（新路由自動出現）', () => {
+  assert.match(server, /app\._router\?\.stack/);
+  assert.match(server, /posMcp\.allowed\(x\.method, x\.path, FOOD_API\)/);
+  assert.match(server, /routes: posMcpRoutes/);
 });
 
 test('server：auth 認品牌金鑰、鎖品牌、套白名單；操作紀錄記 pos-mcp', () => {
   const i = server.indexOf('async function auth(req, res, next)');
   const body = server.slice(i, server.indexOf('\n}', i));
   assert.match(body, /posMcp\.venueOfKey\(t, SECRET, POS_MCP_KEY_VERSION\)/);
-  assert.match(body, /posMcp\.allowed\(req\.method, req\.path\)/);
+  assert.match(body, /posMcp\.allowed\(req\.method, req\.path, FOOD_API\)/);
   assert.match(body, /brands: \[mcpVenue\]/);
   assert.doesNotMatch(body, /mcp[^\n]*super: true/);
   assert.match(server, /'pos-mcp:' \+ req\.auth\.mcp/);
   assert.match(server, /app\.post\('\/api\/mcp', auth,/);
 });
 
-const ctx = (venue, calls = [], reply = () => ({ status: 200, data: {} })) => ({ venue, call: async (m, p, b) => { calls.push([m, p, b]); return reply(m, p, b); } });
+const ctx = (venue, calls = [], reply = () => ({ status: 200, data: {} })) => ({ venue, call: async (m, p, b, h) => { calls.push(h ? [m, p, b, h] : [m, p, b]); return reply(m, p, b); } });
 
 test('協定：initialize／tools/list／通知／未知方法', async () => {
   const init = await M.handle({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-03-26' } }, ctx('BAR'));
@@ -82,4 +100,21 @@ test('tools/call：總公司金鑰要帶 venue；pos_menu 依品牌過濾', asyn
   const out = await M.handle({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'pos_menu', arguments: {} } }, ctx('BAR', [], () => ({ status: 200, data: { content: { menu: JSON.stringify(menu) } } })));
   const ids = out.result.structuredContent.items.map(i => i.id).sort();
   assert.deepEqual(ids, ['b', 'c'], '三點水看得到自己的酒與共用甜點，看不到在咖啡咖啡');
+});
+
+test('pos_call：路徑限 /api/admin、venue 自動鎖、帶店長碼；pos_endpoints 附說明', async () => {
+  const calls = [];
+  const c = ctx('BAR', calls, () => ({ status: 200, data: { ok: true } }));
+  c.routes = () => [{ method: 'POST', path: '/api/admin/orders/sessions/:id/checkout' }, { method: 'GET', path: '/api/admin/sales' }];
+  await M.handle({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'pos_call', arguments: { method: 'POST', path: '/api/admin/orders/sessions/s1/checkout', body: { method: 'cash', venue: 'CAFE' }, query: { venue: 'CAFE' }, manager_pin: '1234' } } }, c);
+  assert.equal(calls[0][1], '/api/admin/orders/sessions/s1/checkout?venue=BAR');
+  assert.deepEqual(calls[0][2], { method: 'cash', venue: 'BAR' });
+  assert.deepEqual(calls[0][3], { 'X-Manager-Pin': '1234' });
+  for (const path of ['/api/me', '/api/admin/../me', 'https://evil/api/admin/x'])
+    assert.equal((await M.handle({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'pos_call', arguments: { method: 'GET', path } } }, c)).result.isError, true, path);
+  const ep = await M.handle({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'pos_endpoints', arguments: { keyword: '日結' } } }, c);
+  const sales = ep.result.structuredContent.endpoints.find(e => e.path === '/api/admin/sales');
+  assert.ok(sales && /日結/.test(sales.doc), '關鍵字搜得到說明');
+  const none = await M.handle({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'pos_endpoints', arguments: { keyword: 'zzz-不存在' } } }, c);
+  assert.equal(none.result.structuredContent.count, 0);
 });
