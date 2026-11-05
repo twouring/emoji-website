@@ -19,6 +19,7 @@ const {
 } = require('./lib/entitlements');
 const { signAccessToken, verifyAccessToken } = require('./lib/access-token');
 const { isAdminApiKey, ADMIN_API_KEY_MIN } = require('./lib/admin-key');
+const posMcp = require('./lib/pos-mcp');   // 品牌 AI 代理串接 POS（MCP，KK 11/5）
 const { SSO_TTL_MS, safeEqual, signToken: signSession, verifyToken: verifySession,
   PUBLIC_CONTENT_KEYS, rateLimit } = require('./lib/security');
 const {embedOrigins}=require('./lib/event-embed');
@@ -92,6 +93,8 @@ const EVENT_QR_SECRET = process.env.EVENT_QR_SECRET || ACCESS_QR_SECRET;
 // AI agent 管理金鑰：以 Authorization: Bearer <key> 取得超級管理員權限打 /api/admin/*。
 // 等同超管密碼，僅存於環境變數、勿寫入前端；外洩即全後台淪陷，換金鑰即撤銷。
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY || '';
+// POS MCP 品牌金鑰版本：改值＝所有品牌金鑰作廢（金鑰由 APP_SECRET 衍生，不存 DB）
+const POS_MCP_KEY_VERSION = process.env.POS_MCP_KEY_VERSION || 'v1';
 // 會籍預售：限量 100 名，售罄不補
 const MAX_PARTICIPANTS = Number(process.env.MAX_PARTICIPANTS || 100);
 // ponytail: 未限活動名額仍需擋單筆資源耗盡；真有千人團體訂單再改批次寫入。
@@ -1751,7 +1754,7 @@ async function recordPosLog(req, action, payload, extra = {}) {
     if (!opName && payload && typeof payload.name === 'string' && payload.name) { opName = payload.name; opId = payload.id && String(payload.id).startsWith('st_') ? payload.id : opId; }
     if (!opName && auth.operator_staff_id) { opId = auth.operator_staff_id; opName = auth.name || ''; }
     const venue = (auth.brands && auth.brands[0]) || String(body.venue || req.query?.venue || '').toUpperCase().slice(0, 10);
-    const actor = auth.agent ? 'admin-api-key' : (auth.email || auth.name || auth.sub || 'unknown');
+    const actor = auth.agent ? 'admin-api-key' : auth.mcp ? 'pos-mcp:' + auth.mcp : (auth.email || auth.name || auth.sub || 'unknown');
     await q('INSERT INTO pos_logs(id,venue,actor,operator_id,operator_name,action,detail,method,path) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',
       [uid('pl_'), venue, String(actor).slice(0, 120), opId, opName, action, extra.detail ?? posLog.summarize(body), req.method, String(req.originalUrl || '').split('?')[0].slice(0, 200)]);
   } catch (e) { console.error('[pos-log]', e.message); }
@@ -1766,7 +1769,7 @@ app.use('/api/admin', (req, res, next) => {
     if (!pool || !dbReady || !req.auth || res.statusCode >= 400) return;
     const posAction = posLog.describe(req.method, req.path);
     if (posAction) recordPosLog(req, posAction, payload);
-    const actor = req.auth.agent ? 'admin-api-key' : (req.auth.email || req.auth.sub || 'unknown');
+    const actor = req.auth.agent ? 'admin-api-key' : req.auth.mcp ? 'pos-mcp:' + req.auth.mcp : (req.auth.email || req.auth.sub || 'unknown');
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const summary = req.path === '/system-settings' ? `key=${String(body.key||'').slice(0,60)}` : Object.entries(body)
       .filter(([k]) => !/token|secret|password|key/i.test(k))
@@ -1832,6 +1835,13 @@ async function auth(req, res, next) {
   // AI agent：金鑰即超管身分，sub 為 null（不綁任何會員，故 /api/me/* 一律拒絕）
   if (isAdminApiKey(t, ADMIN_API_KEY)) {
     req.auth = { role: 'admin', super: true, sub: null, agent: true };
+    return next();
+  }
+  /* 品牌 MCP 金鑰（pmk_…）：只當該品牌的後台身分，且只放行 lib/pos-mcp.js ALLOW 白名單（唯讀查詢＋估清） */
+  const mcpVenue = t.startsWith('pmk_') ? posMcp.venueOfKey(t, SECRET, POS_MCP_KEY_VERSION) : null;
+  if (mcpVenue) {
+    if (!posMcp.allowed(req.method, req.path)) return res.status(403).json({ error: 'MCP 金鑰不能使用這個功能。' });
+    req.auth = { role: 'admin', super: false, sub: null, mcp: mcpVenue, brands: [mcpVenue], name: `POS MCP（${posMcp.LABEL[mcpVenue]}）` };
     return next();
   }
   try {
@@ -1930,6 +1940,31 @@ const wrap = fn => (req, res) => fn(req, res).catch(e => {
 });
 app.post('/api/twilio/events/status',express.urlencoded({extended:false,limit:'32kb'}),wrap(async(req,res)=>{const config=eventChannels.twilioConfig();if(!config)return res.sendStatus(503);const url=SITE_BASE+req.originalUrl;if(!eventChannels.verifyTwilioSignature(config.authToken,url,req.body,req.get('x-twilio-signature')))return res.sendStatus(401);const sid=String(req.body.MessageSid||''),status=String(req.body.MessageStatus||'');if(!/^SM[A-Za-z0-9]{20,64}$/.test(sid)||!['accepted','queued','sending','sent','delivered','undelivered','failed','read'].includes(status))return res.sendStatus(400);const state=['delivered','read'].includes(status)?'delivered':['undelivered','failed'].includes(status)?'failed':'accepted';await q('UPDATE event_deliveries SET state=$2,last_error=CASE WHEN $2=\'failed\' THEN $3 ELSE NULL END WHERE provider_id=$1',[sid,state,String(req.body.ErrorMessage||req.body.ErrorCode||'').slice(0,500)]);await q('INSERT INTO event_delivery_events(id,provider_id,event_type,occurred_at) VALUES($1,$2,$3,now()) ON CONFLICT DO NOTHING',['twilio_'+sid+'_'+status,sid,'text.'+status]);res.sendStatus(204);}));
 
+/* ---- POS MCP（lib/pos-mcp.js，KK 11/5）：子租戶 AI 代理用品牌金鑰串接自己品牌的 POS ----
+ * Streamable HTTP 無狀態：POST 收 JSON-RPC（單筆或批次）回 JSON；GET 不提供 SSE（405）。
+ * 工具以同一把金鑰呼叫本機既有 API，權限與品牌隔離完全沿用 auth()／posScope。 */
+const posMcpCall = token => async (method, p, body) => {
+  const r = await fetch(`http://127.0.0.1:${PORT}${p}`, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  let data = null; try { data = await r.json(); } catch { data = null; }
+  return { status: r.status, data };
+};
+app.get('/api/mcp', (_req, res) => res.set('Allow', 'POST, DELETE').status(405).json({ error: 'MCP 只接受 POST（Streamable HTTP，無 SSE）。' }));
+app.delete('/api/mcp', (_req, res) => res.status(204).end());   // 無狀態：用戶端結束連線時送 DELETE，直接回 204
+app.post('/api/mcp', auth, wrap(async (req, res) => {
+  if (!req.auth.agent && !req.auth.mcp) return res.status(403).json({ error: '需要 POS MCP 金鑰。' });
+  const token = String(req.headers.authorization || '').slice(7);
+  const ctx = { venue: req.auth.mcp || null, call: posMcpCall(token) };
+  const body = req.body;
+  if (Array.isArray(body)) {
+    const out = (await Promise.all(body.map(m => posMcp.handle(m, ctx)))).filter(Boolean);
+    return out.length ? res.json(out) : res.status(202).end();
+  }
+  const out = await posMcp.handle(body, ctx);
+  if (!out) return res.status(202).end();
+  if (out.result && body.method === 'initialize') res.set('Mcp-Session-Id', crypto.randomBytes(12).toString('hex'));
+  res.json(out);
+}));
+/* ---- POS MCP end ---- */
 app.get('/api/health', (req, res) =>
   res.json({ ok: true, db: dbReady, dbConfigured: !!pool }));
 

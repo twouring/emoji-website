@@ -89,6 +89,15 @@ PY
 ### GET /api/version
 回目前部署的版本號 `{ version }`，格式為台北日期＋當日流水號（如 `20261018-03`）；由 CI 部署時寫入 `VERSION`，本機開發為 `dev`。POS 左上角「POS」下方顯示同一個值。
 
+### POST /api/mcp
+POS MCP 伺服器（Model Context Protocol，Streamable HTTP 無狀態模式，JSON-RPC 2.0，單筆或批次；回 `application/json`，通知回 202）。給各品牌（子租戶）的 AI 代理串接自己品牌的 POS。`Authorization: Bearer <金鑰>`：品牌金鑰 `pmk_<cafe|bar|stay|rest>_…`（由 `APP_SECRET`＋`POS_MCP_KEY_VERSION` 衍生，產生方式 `node scripts/pos-mcp-keys.mjs`；換版本＝全部作廢）只能看／改自己品牌，工具的 `venue` 參數一律被鎖成自己品牌；`ADMIN_API_KEY` 可用並需自帶 `venue`。品牌金鑰在 `auth()` 只放行 `lib/pos-mcp.js` 的 `ALLOW` 白名單（唯讀查詢＋估清），其他 API 一律 403；寫入在操作紀錄的 actor 記 `pos-mcp:<品牌>`。方法：`initialize`、`ping`、`tools/list`、`tools/call`。工具：`pos_status`（開帳／帳上營收／開桌數）、`pos_tables`（桌況與未結品項）、`pos_sales`（日結）、`pos_orders`（查單）、`pos_analytics`（區間銷量與客群）、`pos_reservations`（訂位）、`pos_menu`（菜單、估清、剩餘份數）、`pos_inventory`（庫存，可只列低量）、`pos_feedback`（客人回饋）、`pos_set_sold_out`（估清／恢復供應）。工具結果同時放 `content[0].text`（JSON 字串）與 `structuredContent`；失敗回 `isError:true`。
+
+### GET /api/mcp
+固定回 405（本伺服器不提供 SSE 串流，只收 POST）。
+
+### DELETE /api/mcp
+MCP 用戶端結束連線時呼叫；伺服器無狀態，固定回 204。
+
 ### GET /api/health
 服務健康檢查。回 `{ ok, db, dbConfigured }`。
 
