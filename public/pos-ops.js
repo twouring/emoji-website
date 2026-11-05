@@ -286,12 +286,27 @@ function barcodeDetectorClass(){
     constructor({formats=[]}={}){this.formats=formats.map(f=>FMT[f]).filter(Boolean);}
     async detect(video){
       const w=video.videoWidth,h=video.videoHeight;if(!w||!h)return[];
-      const c=POS_BD_CANVAS||(POS_BD_CANVAS=document.createElement('canvas'));c.width=w;c.height=h;
-      const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(video,0,0,w,h);
-      const out=await zx.readBarcodes(ctx.getImageData(0,0,w,h),{formats:this.formats,textMode:'Plain',maxNumberOfSymbols:1});
+      const roi=scanRoi(video,w,h);
+      const c=POS_BD_CANVAS||(POS_BD_CANVAS=document.createElement('canvas'));c.width=roi.w;c.height=roi.h;
+      const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(video,roi.x,roi.y,roi.w,roi.h,0,0,roi.w,roi.h);
+      const out=await zx.readBarcodes(ctx.getImageData(0,0,roi.w,roi.h),{formats:this.formats,textMode:'Plain',maxNumberOfSymbols:1});
       return out.filter(r=>r.text).map(r=>({rawValue:r.text,format:r.format}));
     }
   };
+}
+// 只解黃框附近（框外各留 30% 餘裕）：全螢幕掃描的 video 是 object-fit:cover，把框的螢幕座標換算回相機影格座標；
+// 沒有框（結帳面板內嵌／LINE Pay 付款碼）就解整張。切小張後 zxing 每幀快 2 倍以上，也不會被框外的其他條碼搶走
+function scanRoi(video,w,h){
+  const full={x:0,y:0,w,h};
+  const frame=video.parentElement?.querySelector?.('.pos-scan-full-frame');if(!frame||!video.getBoundingClientRect)return full;
+  const vr=video.getBoundingClientRect(),fr=frame.getBoundingClientRect();if(!vr.width||!vr.height||!fr.width||!fr.height)return full;
+  const s=Math.max(vr.width/w,vr.height/h); // cover 的縮放倍率（螢幕 px／影格 px）
+  const offX=(w*s-vr.width)/2,offY=(h*s-vr.height)/2; // 被裁掉的邊
+  const padX=fr.width*0.3,padY=fr.height*0.3;
+  const x0=Math.max(0,Math.floor((fr.left-vr.left-padX+offX)/s)),y0=Math.max(0,Math.floor((fr.top-vr.top-padY+offY)/s));
+  const x1=Math.min(w,Math.ceil((fr.right-vr.left+padX+offX)/s)),y1=Math.min(h,Math.ceil((fr.bottom-vr.top+padY+offY)/s));
+  if(x1-x0<64||y1-y0<64)return full;
+  return {x:x0,y:y0,w:x1-x0,h:y1-y0};
 }
 // 共用掃描迴圈：開相機→逐幀辨識→掃到就停、回呼、提示。結帳與補開發票都用這一個；video 是誰的就把畫面放誰那裡
 async function startInvoiceScan(video,onCode,{raw:keepRaw=false,sensitive=false,accept=null}={}){
@@ -299,8 +314,12 @@ async function startInvoiceScan(video,onCode,{raw:keepRaw=false,sensitive=false,
   if(!BD||!navigator.mediaDevices?.getUserMedia){toast('此瀏覽器不支援相機掃碼，請直接輸入條碼。');return false;}
   try{
     stopPosInvoiceScanner();
-    POS_INV_SCAN_STREAM=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
+    // 一定要指定解析度：iPad／iPhone Safari 沒給 width/height 時預設 640×480，載具 Code 39 要占畫面寬 45% 以上才解得出來（＝要貼很近）；
+    // 1920×1080 可到 18%、1280×720 可到 22%（scripts/test-pos-scan-resolution.mjs 用本站 zxing-wasm 實測）。ideal 不會丟 OverconstrainedError，不支援就自動降
+    POS_INV_SCAN_STREAM=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}}});
     video.srcObject=POS_INV_SCAN_STREAM;video.style.display='block';await video.play();
+    // 連續對焦（iOS 17+／Android 支援；不支援就略過），避免手機螢幕在近距離失焦
+    try{await POS_INV_SCAN_STREAM.getVideoTracks()[0]?.applyConstraints({advanced:[{focusMode:'continuous'}]});}catch(e){}
     const detector=new BD({formats:['code_39','code_128','qr_code']});
     const tick=async()=>{
       if(!POS_INV_SCAN_STREAM||video.srcObject!==POS_INV_SCAN_STREAM)return;

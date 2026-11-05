@@ -119,7 +119,8 @@
             return results.map(result => ({ rawValue: result.text }));
           } };
         }
-        stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' } } });
+        // iOS Safari 沒指定解析度時預設 640×480，一維條碼要貼很近才解得出來；要求 1080p（ideal，不支援自動降）
+        stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
         if (closed) { stopCamera(); return; }
         video.srcObject = stream;
         video.hidden = false;
