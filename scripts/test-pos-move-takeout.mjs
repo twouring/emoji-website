@@ -29,7 +29,7 @@ test('TAKEOUT_SLOT 不會跟真的桌號相撞',async()=>{
   assert.equal(TABLE_RE.test('外帶'),false);
 });
 test('外帶單可轉內用：按鈕不藏、外帶單可拖回桌位、拖到外帶欄不動作',()=>{
-  assert.match(js,/id="pos-move">\$\{cur\.takeout\?'轉內用':'換桌／併桌'\}<\/button>/);
+  assert.match(js,/id="pos-move" title="\$\{cur\.takeout\?'轉內用':'換桌／併桌'\}"[^>]*><span>\$\{cur\.takeout\?'轉內用':'換桌'\}<\/span><\/button>/);
   assert.doesNotMatch(js,/id="pos-move" \$\{cur\.takeout\?'hidden':''\}/);
   assert.doesNotMatch(js,/card\.classList\.contains\('takeout'\)/);
   assert.match(js,/const board=host\.querySelector\('\.pos-tables-row'\)/);

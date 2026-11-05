@@ -89,8 +89,8 @@ test('every checkout starts with paper invoice and no-invoice is last',()=>{
  assert.match(src,/POS_INVOICE.mode='paper';return reload/);
 });
 test('table panel offers pre-checkout kitchen and receipt printing',()=>{
- assert.match(src,/<div class="pos-table-actions"><button[^>]*id="pos-place"[\s\S]{0,400}id="pos-slip"[\s\S]{0,400}id="pos-move"[\s\S]{0,200}id="pos-close"/,'列印出餐單→換桌／併桌→清桌在左欄底部同一排');assert.doesNotMatch(src,/pos-prepay/);
- assert.match(src,/id="pos-place"[\s\S]{0,120}>列印出餐單<\/button>/);assert.doesNotMatch(src,/送出點餐／列印出餐單/);assert.match(src,/id="pos-print-receipt"/);
+ assert.match(src,/<div class="pos-table-actions"><button[^>]*id="pos-place"[\s\S]{0,600}id="pos-slip"[\s\S]{0,1200}id="pos-move"[\s\S]{0,400}id="pos-close"/,'列印出餐單→換桌／併桌→清桌在左欄底部同一排');assert.doesNotMatch(src,/pos-prepay/);
+ assert.match(src,/id="pos-place"[\s\S]{0,300}aria-label="列印出餐單"><span>出餐<\/span><\/button>/);assert.doesNotMatch(src,/送出點餐／列印出餐單/);assert.match(src,/id="pos-print-receipt"/);
  assert.doesNotMatch(src,/printOrder\(tableTicket\(\)\)/,'都送過時不可整桌重印（KK 11/1：加點單混入前面的餐點）');assert.match(src,/const t=lastTicket\(\);if\(t\)await printOrder\(t\)/);assert.match(src,/reprint:true/);assert.match(src,/o\.reprint\)spec\.push\(\{kind:'center',text:'【補印】最近一次送單'/);assert.match(src,/sessions\/'\+cur\.id\+'\/place/);
 });
 
@@ -153,7 +153,7 @@ test('收據明細 spec：share 字樣印在「尚未結帳」上方', () => {
 });
 
 test('列印點餐明細（KK 11/5）：整桌已送出品項補印，排除未送出／取消／預收／點歌，合計含服務費', async () => {
- assert.match(src,/id="pos-slip"[\s\S]{0,300}>列印點餐明細<\/button>/);
+ assert.match(src,/id="pos-slip"[\s\S]{0,300}aria-label="列印點餐明細"><span>明細<\/span><\/button>/);
  assert.match(src,/\$\{cur\.takeout\?'':`<button class="btn btn--ghost" id="pos-slip"/,'外帶不顯示');
  const {c,texts,sent}=printContext();
  c.cur={id:'s1',table:'A3',party_size:3,lines:[
@@ -170,4 +170,11 @@ test('列印點餐明細（KK 11/5）：整桌已送出品項補印，排除未�
  for(const t of ['點餐明細（整桌）','□ 烏龍麵','□ 拿鐵','已送出 ×3','3 位'])assert.ok(all.includes(t),t+'：'+all);
  for(const t of ['取消品','未送出品','點歌'])assert.ok(!all.includes(t),t+' 不該印');
  assert.equal(vm.runInContext("tableSlipOrder({id:'x',table:'A1',lines:[{zh:'a',qty:1,price:1}]})",c),null,'沒送出的不印');
+});
+
+test('左欄動作鍵一排不換行（KK 11/5）：grid 單列＋圖示', () => {
+ const css=readFileSync(new URL('../public/pos-ops.css',import.meta.url),'utf8'),ic=readFileSync(new URL('../public/pos-icons.js',import.meta.url),'utf8');
+ assert.match(css,/\.pos-table-actions\{display:grid;grid-auto-flow:column/);
+ assert.doesNotMatch(css,/\.pos-table-actions #pos-place\{flex-basis:100%\}/);
+ for(const [id,n] of [['pos-place','send'],['pos-slip','receipt'],['pos-party','users'],['pos-move','swap'],['pos-close','xcircle']])assert.ok(ic.includes(`['#${id}','${n}']`),id);
 });
