@@ -41,15 +41,16 @@ test('server：路由分品牌、常駐登入、節流與退避、文件', () =>
   assert.match(api, /### POST \/api\/admin\/orders\/ctbc-alerts\/sync/);
 });
 
-test('POS：每秒 setTimeout 鏈、彈窗只能按鈕關、響鈴、已讀依品牌', () => {
+test('POS：不分頁面背景同步（同步完 1 秒再同步）、彈窗只能按鈕關、響鈴、已讀依品牌', () => {
   const js = read('public/pos-ctbc-alert.js'), pos = read('public/pos.html');
   assert.match(pos, /pos-ctbc-alert\.js/);
   assert.match(pos, /ctbcAlertBoot\(\)/);
-  assert.match(js, /CTA_TABLE_MS = 1000;/);
-  assert.match(js, /finally \{ CTA\.timer = setTimeout\(tick, table \? CTA_TABLE_MS : CTA_POLL_MS\); \}/);
+  assert.match(js, /CTA_GAP_MS = 1000;/);
+  assert.doesNotMatch(js, /CTA_TABLE_MS|CTA_POLL_MS|OnTable|POS_TABLE/, '不分頁面（KK 11/5 背景同步）');
+  assert.match(js, /finally \{ CTA\.timer = setTimeout\(tick, CTA_GAP_MS\); \}/);
+  assert.match(js, /cashInChime\(\)/, '錢進帳音效');
   assert.doesNotMatch(js, /setInterval|cron/);
-  assert.match(js, /TAB === 'pos'[\s\S]{0,80}POS_TABLE/);
-  for (const k of ['店別', '交易時間', '卡號末四碼', '授權碼']) assert.ok(js.includes(`'${k}'`), k);
+    for (const k of ['店別', '交易時間', '卡號末四碼', '授權碼']) assert.ok(js.includes(`'${k}'`), k);
   assert.match(js, /role', 'alertdialog'/);
   assert.match(js, /e\.key === 'Escape'\) \{ e\.preventDefault\(\)/);
   assert.doesNotMatch(js, /e\.target ?=== ?ov/);
@@ -64,4 +65,13 @@ test('POS：每秒 setTimeout 鏈、彈窗只能按鈕關、響鈴、已讀依�
     assert.doesNotMatch(s, /localStorage\.(get|set)Item\((CTA|LPA)_KEY[,)]/, f);
   }
   assert.match(js, /POS_URL_VENUE/);
+});
+
+test('錢進帳音效（KK 11/5）：cashInChime 播 /sfx/cash-register.mp3，失敗退回 newTicketChime', () => {
+  const ops = read('public/pos-ops.js');
+  assert.ok(fs.existsSync(new URL('../public/sfx/cash-register.mp3', import.meta.url)));
+  assert.match(ops, /function cashInChime\(\)/);
+  assert.match(ops, /'\/sfx\/cash-register\.mp3'/);
+  assert.match(ops, /catch\(\(\)=>newTicketChime\(\)\)/);
+  for (const f of ['public/pos-ctbc-alert.js', 'public/pos-linepay-alert.js']) assert.match(read(f), /cashInChime\(\)/, f);
 });

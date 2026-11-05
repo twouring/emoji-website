@@ -1,9 +1,8 @@
-/* POS LINE Pay 收款通知（KK 11/5）：每 15 秒輪詢 /admin/orders/linepay-alerts，有新的 LINE Pay 實收（或退款）就響鈴、
+/* POS LINE Pay 收款通知（KK 11/5）：不分頁面，背景同步 LINE Pay 後台並讀 /admin/orders/linepay-alerts，有新的 LINE Pay 實收（或退款）就響鈴、
  * 跳全螢幕彈窗顯示交易完整資訊（可輪播看最近 8 小時）（金額、交易時間、付款方式、卡號末四碼、驗證碼、交易號碼、店別）。
  * 只能按「我知道了」關閉：點背景、Esc 都不會關。已讀記在這台裝置（localStorage，依品牌分 key），新裝置第一次開機不補跳舊交易。
- * 資料來自 LINE Pay 商家後台：平常每 5 分鐘同步；停在桌號結帳頁時每秒同步一次（setTimeout 鏈）。依賴 pos.html 的 esc/api/DATA/POS_URL_VENUE、pos-ops.js 的 newTicketChime。 */
-const LPA_POLL_MS = 15000;
-const LPA_TABLE_MS = 1000;    // 在桌號結帳頁：每秒叫伺服器同步 LINE Pay 後台＋檢查新交易（KK 11/5：每秒、用 setTimeout 鏈，上一輪做完才排下一輪，不靠排程）
+ * 資料來自 LINE Pay 商家後台：不論在哪個頁面，一律背景同步：同步完成後 1 秒再同步（setTimeout 鏈）。依賴 pos.html 的 esc/api/DATA/POS_URL_VENUE、pos-ops.js 的 cashInChime（錢進帳音效）。 */
+const LPA_GAP_MS = 1000;      // KK 11/5：不分頁面，一律在背景同步；上一輪同步＋讀取做完後等 1 秒再同步（setTimeout 鏈：上一輪做完才排下一輪）
 /* 已讀 key 依品牌：本檔在 pos.html 定義 POS_URL_VENUE 之前載入，要用時才算（先前寫成常數，一律落到 _home） */
 const LPA_KEY = () => 'tth_lp_seen_' + (typeof POS_URL_VENUE === 'string' && POS_URL_VENUE ? POS_URL_VENUE : 'home').toLowerCase();
 let LPA = { timer: null, queue: [], recent: [], idx: 0, open: false };
@@ -61,7 +60,7 @@ function lpaPaint(){
     </div>
     <div class="lpa-list">${lpaCard(cur)}</div>
     ${newN > 1 ? `<p class="lpa-sum">這次收到 ${newN} 筆新交易，按 › 或左滑看較早的</p>` : ''}
-    <p class="lpa-note">請到該桌結帳登記為 LINE Pay。在桌號結帳頁每秒同步一次，其他畫面每 5 分鐘。</p>
+    <p class="lpa-note">請到該桌結帳登記為 LINE Pay。POS 在背景持續同步，不論停在哪個頁面。</p>
     <button type="button" class="btn btn--solid lpa-ok" data-lpa-ok>我知道了</button>
   </div>`;
   LPA.open = true;
@@ -86,16 +85,14 @@ async function loadLinepayAlerts(){
   LPA.queue.push(...fresh); LPA.idx = 0;
   LPA.queue.sort((a, b) => String(a.paid_at).localeCompare(String(b.paid_at)));
   lpaPaint();
-  try { if (typeof newTicketChime === 'function') newTicketChime(); } catch (e) {}
+  try { if (typeof cashInChime === 'function') cashInChime(); else if (typeof newTicketChime === 'function') newTicketChime(); } catch (e) {}
 }
-const lpaOnTable = () => typeof TAB !== 'undefined' && TAB === 'pos' && typeof POS_TABLE !== 'undefined' && !!POS_TABLE && !document.hidden;
 async function syncLinepayNow(){ try { await api('/admin/orders/linepay-alerts/sync', { method: 'POST', body: {} }); } catch (e) {} }
 function linepayAlertBoot(){
   if (LPA.timer) return;
   const tick = async () => {
-    const table = lpaOnTable();
-    try { if (table) await syncLinepayNow(); await loadLinepayAlerts(); }
-    finally { LPA.timer = setTimeout(tick, table ? LPA_TABLE_MS : LPA_POLL_MS); }
+    try { await syncLinepayNow(); await loadLinepayAlerts(); }
+    finally { LPA.timer = setTimeout(tick, LPA_GAP_MS); }
   };
   tick();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) loadLinepayAlerts(); });

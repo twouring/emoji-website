@@ -1,10 +1,9 @@
 /* POS 中信刷卡收款通知（KK 11/5，同 LINE Pay 機制 pos-linepay-alert.js）：有新的中信行動刷卡實收（或退貨）就響鈴、
  * 跳全螢幕彈窗顯示交易完整資訊（可輪播看最近 8 小時）（金額、交易時間、卡號末四碼、授權碼、端末機、行動裝置使用者、店別）。
  * 只能按「我知道了」關閉：點背景、Esc 都不會關。已讀記在這台裝置（localStorage，依品牌分 key），新裝置第一次開機不補跳舊交易。
- * 停在桌號結帳頁時每秒同步一次（setTimeout 鏈：上一輪做完才排下一輪，不靠固定間隔或排程）；其他畫面 15 秒只讀 DB（排程 15 分鐘同步）。
- * 樣式沿用 .lpa-*。依賴 pos.html 的 esc/api/DATA/POS_URL_VENUE、pos-ops.js 的 newTicketChime。 */
-const CTA_POLL_MS = 15000;
-const CTA_TABLE_MS = 1000;    // 在桌號結帳頁：每秒叫伺服器同步中信後台＋檢查新交易（KK 11/5）
+ * 不論在哪個頁面，一律背景同步：同步完成後 1 秒再同步（setTimeout 鏈，不靠固定間隔或排程）。
+ * 樣式沿用 .lpa-*。依賴 pos.html 的 esc/api/DATA/POS_URL_VENUE、pos-ops.js 的 cashInChime（錢進帳音效）。 */
+const CTA_GAP_MS = 1000;      // KK 11/5：不分頁面，一律在背景同步；上一輪同步＋讀取做完後等 1 秒再同步（setTimeout 鏈：上一輪做完才排下一輪）
 /* 已讀 key 依品牌：本檔在 pos.html 定義 POS_URL_VENUE 之前載入，要用時才算（先前寫成常數，一律落到 _home） */
 const CTA_KEY = () => 'tth_ctbc_seen_' + (typeof POS_URL_VENUE === 'string' && POS_URL_VENUE ? POS_URL_VENUE : 'home').toLowerCase();
 let CTA = { timer: null, queue: [], recent: [], idx: 0, open: false };
@@ -61,7 +60,7 @@ function ctaPaint(){
     </div>
     <div class="lpa-list">${ctaCard(cur)}</div>
     ${newN > 1 ? `<p class="lpa-sum">這次收到 ${newN} 筆新交易，按 › 或左滑看較早的</p>` : ''}
-    <p class="lpa-note">請到該桌結帳登記為信用卡。在桌號結帳頁約每 5 秒同步一次，其他畫面每 15 分鐘。</p>
+    <p class="lpa-note">請到該桌結帳登記為信用卡。POS 在背景持續同步，不論停在哪個頁面。</p>
     <button type="button" class="btn btn--solid lpa-ok" data-cta-ok>我知道了</button>
   </div>`;
   CTA.open = true;
@@ -85,16 +84,14 @@ async function loadCtbcAlerts(){
   CTA.queue.push(...fresh); CTA.idx = 0;
   CTA.queue.sort((a, b) => String(a.paid_at).localeCompare(String(b.paid_at)));
   ctaPaint();
-  try { if (typeof newTicketChime === 'function') newTicketChime(); } catch (e) {}
+  try { if (typeof cashInChime === 'function') cashInChime(); else if (typeof newTicketChime === 'function') newTicketChime(); } catch (e) {}
 }
-const ctaOnTable = () => typeof TAB !== 'undefined' && TAB === 'pos' && typeof POS_TABLE !== 'undefined' && !!POS_TABLE && !document.hidden;
 async function syncCtbcNow(){ try { await api('/admin/orders/ctbc-alerts/sync', { method: 'POST', body: {} }); } catch (e) {} }
 function ctbcAlertBoot(){
   if (CTA.timer) return;
   const tick = async () => {
-    const table = ctaOnTable();
-    try { if (table) await syncCtbcNow(); await loadCtbcAlerts(); }
-    finally { CTA.timer = setTimeout(tick, table ? CTA_TABLE_MS : CTA_POLL_MS); }
+    try { await syncCtbcNow(); await loadCtbcAlerts(); }
+    finally { CTA.timer = setTimeout(tick, CTA_GAP_MS); }
   };
   tick();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) loadCtbcAlerts(); });

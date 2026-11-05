@@ -48,13 +48,14 @@ test('POS：彈窗顯示完整資訊、只能按鈕關閉、響鈴', () => {
   assert.match(js, /POS_URL_VENUE/, '已讀 key 依品牌分開');
 });
 
-test('桌號結帳頁每秒同步，用 setTimeout 鏈不用排程（KK 11/5）', () => {
+test('不分頁面背景同步：同步完 1 秒再同步，用 setTimeout 鏈不用排程（KK 11/5）', () => {
   const js = read('public/pos-linepay-alert.js'), server = read('server.js');
-  assert.match(js, /LPA_TABLE_MS = 1000;/);
-  assert.match(js, /finally \{ LPA\.timer = setTimeout\(tick, table \? LPA_TABLE_MS : LPA_POLL_MS\); \}/);
+  assert.match(js, /LPA_GAP_MS = 1000;/);
+  assert.doesNotMatch(js, /LPA_TABLE_MS|LPA_POLL_MS|OnTable|POS_TABLE/, '不分頁面（KK 11/5 背景同步）');
+  assert.match(js, /finally \{ LPA\.timer = setTimeout\(tick, LPA_GAP_MS\); \}/);
+  assert.match(js, /cashInChime\(\)/, '錢進帳音效');
   assert.doesNotMatch(js, /setInterval|cron/);
   assert.match(server, /Date\.now\(\)-linepayQuickAt<900\)/);
-  assert.match(js, /TAB === 'pos'[\s\S]{0,80}POS_TABLE/);
   assert.match(js, /\/admin\/orders\/linepay-alerts\/sync/);
   const i = server.indexOf("app.post('/api/admin/orders/linepay-alerts/sync',");
   assert.ok(i > 0);

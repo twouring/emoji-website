@@ -11,3 +11,9 @@
 | wow.mp3 | 3534 Surprise Exclamation |
 | laugh.mp3 | 0490 Laughter（前 5 秒） |
 | drumroll.mp3 | 2402 Drum Roll 1 L |
+
+## POS 收款音效
+
+| 檔案 | 來源 |
+|---|---|
+| cash-register.mp3 | Wikimedia Commons「File:Cash register.ogg」（Public domain），https://commons.wikimedia.org/wiki/File:Cash_register.ogg；響度標準化 -12 LUFS、尾端淡出（2026-11-05，LINE Pay／中信收款彈窗「錢進帳」音效） |
