@@ -164,6 +164,15 @@ main{max-width:1440px;margin:0 auto;padding:20px max(16px,env(safe-area-inset-ri
 #ktv-dock.placed{z-index:5;border-radius:10px}
 #ktv-dock iframe{width:100%!important;height:100%!important;display:block;border:0}
 
+/* 點歌 QR 面板與放大顯示 */
+.k-tix{margin:0 0 16px}.k-tix h3{font-size:1.125rem;margin:14px 0 8px}
+.qr-ov{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:16px;background:rgba(22,21,15,.6)}
+.qr-card{background:var(--paper);border-radius:16px;padding:24px;text-align:center;display:grid;gap:12px;justify-items:center;max-width:min(420px,100%)}
+.qr-card h2{font-size:1.5rem}.qr-card img{width:min(320px,80vw);height:auto;image-rendering:pixelated;background:#fff}
+.tv-qr{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 16px;align-items:center;padding:14px;border-radius:14px;background:var(--paper);color:var(--ink)}
+.tv-qr img{grid-row:span 3;width:clamp(180px,11vw,240px);height:auto;image-rendering:pixelated}
+.tv-qr b{display:block;font-family:var(--serif);font-weight:500;font-size:clamp(1.5rem,2.2vw,2.75rem);line-height:1.2}
+.tv-qr small{display:block;white-space:nowrap;font-size:clamp(1rem,1.3vw,1.6rem);color:var(--ink)}
 /* 電視畫面 /tv：深墨面滿版，標誌用反白版；黃只用在「下一首」一處。字級以 3 公尺觀看為準（≥ 約 28px@1080p），留 4% 安全邊距（電視 overscan） */
 body.tv{background:var(--ink-surface);color:var(--paper);overflow:hidden}
 body.tv .k-top,body.tv main{display:none}
@@ -171,7 +180,7 @@ body.tv .k-top,body.tv main{display:none}
 .tv .prog,.tv-up .n{font-variant-numeric:lining-nums tabular-nums}
 .tv-stage{position:relative;grid-row:1/2;grid-column:1/2;background:#000;margin:var(--sy) 0 0 var(--sx);border-radius:12px;overflow:hidden}
 .tv-side{grid-row:1/3;grid-column:2/3;display:flex;flex-direction:column;gap:max(14px,1.6vh);padding:var(--sy) var(--sx) var(--sy) max(20px,2vw);min-height:0}
-.tv-side img{height:clamp(72px,11vh,132px);width:auto;align-self:flex-start;margin:0 0 max(8px,1vh)}
+.tv-side>img{height:clamp(72px,11vh,132px);width:auto;align-self:flex-start;margin:0 0 max(8px,1vh)}
 .tv-side h2{font-size:clamp(1.25rem,1.8vw,2.25rem);color:rgba(251,250,246,.85)}
 .tv-up{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:max(14px,2.2vh);overflow:hidden;flex:1;min-height:0}
 .tv-up li{display:grid;grid-template-columns:1.6em minmax(0,1fr);gap:2px 14px;align-items:baseline}
@@ -210,6 +219,7 @@ body.tv .k-top,body.tv main{display:none}
 <main id="app"><p class="hint">載入中…</p></main>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script src="/sso-client.js"></script>
+<script src="/vendor/qrcode.min.js"></script>
 <script src="/song-picks.js"></script>
 <script src="/ktv.js"></script>
 </body>

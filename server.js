@@ -36,6 +36,7 @@ const eventChannels=require('./lib/event-channels');
 const tableOrders=require('./lib/table-orders');
 const songs=require('./lib/songs');
 const ktv=require('./lib/ktv');
+const songTickets=require('./lib/song-tickets');
 const serviceCalls=require('./lib/service-calls');
 const orderFeedback=require('./lib/order-feedback');
 const bugReports=require('./lib/bug-reports');
@@ -1581,9 +1582,11 @@ app.use((req, res, next) => {
 // ktv.emoji.tw：控台（/）、電視播放畫面（/tv）、遙控（/remote）、歌單（/playlists）、統計（/stats）、設定（/settings）都回同一頁；
 // 只放行 API、登入與靜態資源，其他路徑回首頁（不在這個網域出現官網內容）
 const KTV_PAGES = /^\/($|tv\/?$|remote\/?$|playlists\/?$|stats\/?$|settings\/?$)/;
+const KTV_GUEST = /^\/s\/?$/;   // 一次性點歌 QR 的客人頁（public/ktv-song.html，不需登入）
 const KTV_OWN = /^\/(api\/|auth\/|event-login\.html$|vendor\/|sfx\/|cis\/|fonts?\/|[^/]+\.(css|js|svg|png|jpe?g|webp|ico|woff2?|webmanifest)$)/;
 app.use((req, res, next) => {
   if (!isKtvHost(req)) return next();
+  if ((req.method === 'GET' || req.method === 'HEAD') && KTV_GUEST.test(req.path)) { res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache' }); return res.sendFile(path.join(PUB, 'ktv-song.html')); }
   if ((req.method === 'GET' || req.method === 'HEAD') && KTV_PAGES.test(req.path)) return sendKtvPage(res);
   if (req.path === '/robots.txt') return res.type('text/plain').send('User-agent: *\nDisallow: /\n');
   if (!KTV_OWN.test(req.path)) return res.redirect(302, '/');
@@ -7781,34 +7784,29 @@ async function songPlayable(videoId,settings){
 // 客人端：看待播／搜尋／點歌（掃單次 QR 帶 s、k）
 app.get('/api/songs',requireDb,wrap(async(req,res)=>{
   res.set('Cache-Control','no-store');
-  try{const s=await songGuestSession(req.query);res.json(songs.publicView(songs.normalizeState(await contentValue(KTV_KEYS.state)),await songSettings(),s.table_no));}catch(e){return songErr(res,e);}
+  try{const s=await songGuestSession(req.query);const it=(await q('SELECT items FROM table_sessions WHERE id=$1',[s.id])).rows[0]?.items||[];
+    res.json({...songs.publicView(songs.normalizeState(await contentValue(KTV_KEYS.state)),await songSettings(),s.table_no),pending:songPendingOf(it).length});}catch(e){return songErr(res,e);}
 }));
-app.get('/api/songs/search',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
-  try{await songGuestSession(req.query);const settings=await songSettings();if(!settings.enabled)return res.status(423).json({error:'點歌目前沒有開放。'});
-    res.json({items:(await songSearch(req.query.q)).filter(v=>!v.duration||v.duration<=settings.max_minutes*60)});
-  }catch(e){return songErr(res,e);}
-}));
-app.post('/api/songs/request',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
-  const b=req.body||{};
+/* 點歌流程（KK 11/6）：桌邊 QR 只能「購買點歌」（桌上加 n 行待選歌的點歌品項，記在這桌帳上）→ 店員在 KTV 控台發一次性點歌 QR
+   （可顯示在接音響的裝置畫面上）→ 客人掃點歌 QR 選歌。桌邊 QR 不能直接選歌（舊的 /api/songs/request 已移除）。 */
+const songPendingOf=items=>(items||[]).filter(songTickets.isPending);
+app.post('/api/songs/buy',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
+  const b=req.body||{},n=Math.round(Number(b.n));
   if(!/^[a-z0-9]{8,32}$/.test(String(b.guest||'')))return res.status(400).json({error:'缺少來賓識別。'});
   try{const s=await songGuestSession(b);await assertNotPaused();
     const venue=tableOrders.MenuLib.orderWindow().venue;if(!venue)return res.status(423).json({error:'目前非營業時段，暫不開放點歌。'});
-    const settings0=await songSettings();if(!settings0.enabled)return res.status(423).json({error:'點歌目前沒有開放。'});
-    const video=await songPlayable(b.video_id,settings0);
-    const out=await withSongs(async(client,{settings,state})=>{
-      if(!settings.enabled)throw Object.assign(Error('點歌目前沒有開放。'),{status:423});
+    const settings=await songSettings();if(!settings.enabled)return res.status(423).json({error:'點歌目前沒有開放。'});
+    if(!(n>=1&&n<=settings.max_per_table))return res.status(400).json({error:`一次可買 1–${settings.max_per_table} 首。`});
+    const out=await withSongs(async client=>{
       const ss=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[s.id])).rows[0];
       if(!ss||ss.status!=='open')throw Object.assign(Error('這桌已結束，請洽服務人員。'),{status:409});
-      const {state:next,entry}=songs.enqueue(state,video,{table:ss.table_no,by:tableOrders.cleanText(b.by,20)||'客人',source:'guest',session_id:ss.id,price:settings.price,maxPerTable:settings.max_per_table});
-      const line=songs.songLine(entry,{venue,guest:b.guest});entry.line=line.line;
-      await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[ss.id,JSON.stringify(ss.items.concat([line]))]);
-      await saveSongState(client,next);
-      await client.query(`INSERT INTO site_content(key,value) VALUES('song_stats','{}') ON CONFLICT(key) DO NOTHING`);
-      const stats=songs.normalizeStats((await client.query(`SELECT value FROM site_content WHERE key='song_stats' FOR UPDATE`)).rows[0]?.value);
-      await client.query(`UPDATE site_content SET value=$1,updated_at=now() WHERE key='song_stats'`,[JSON.stringify(songs.bumpStats(stats,video))]);
-      return {entry,view:songs.publicView(next,settings,ss.table_no)};
+      if(songPendingOf(ss.items).length+n>20)throw Object.assign(Error('這桌還有很多首沒選歌，請先向店員索取點歌 QR 選完再買。'),{status:409});
+      const lines=songTickets.buyLines(n,{price:settings.price,venue,guest:b.guest,by:tableOrders.cleanText(b.by,20)||'客人'});
+      const items=ss.items.concat(lines);
+      await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[ss.id,JSON.stringify(items)]);
+      return {bought:n,pending:songPendingOf(items).length,price:settings.price};
     });
-    res.status(201).json({ok:true,request_id:out.entry.id,price:out.entry.price,...out.view});
+    res.status(201).json({ok:true,...out});
   }catch(e){return songErr(res,e);}
 }));
 // 熱門（店內累計點播次數）／最近點過／排行榜（YouTube 台灣音樂熱門，快取 6 小時；額度不足或未設定時回空陣列）
@@ -7822,15 +7820,11 @@ async function songDiscover(maxSeconds){
   const lists=songs.discoverLists(songs.normalizeStats(await contentValue('song_stats')),{maxSeconds});
   return {...lists,chart:(await songChart()).filter(v=>!maxSeconds||!v.duration||v.duration<=maxSeconds)};
 }
-app.get('/api/songs/discover',rateLimit({max:30}),requireDb,wrap(async(req,res)=>{
-  try{await songGuestSession(req.query);const settings=await songSettings();if(!settings.enabled)return res.status(423).json({error:'點歌目前沒有開放。'});
-    res.set('Cache-Control','no-store');res.json(await songDiscover(settings.max_minutes*60));
-  }catch(e){return songErr(res,e);}
-}));
 // POS「點歌」分頁（路徑掛在 /api/admin/orders 底下＝品牌子帳號可用）
 async function songAdminView(settings,state){
   const yt=songJson(await contentValue('song_youtube'));
-  return {settings,now:state.now,queue:state.queue,upcoming:songs.upcoming(state,settings),history:state.history.slice(0,20),
+  let board={tables:[],tickets:[]};try{board=await ticketBoard();}catch(e){console.warn('[ktv] 點歌 QR',e.message);}
+  return {settings,now:state.now,queue:state.queue,upcoming:songs.upcoming(state,settings),history:state.history.slice(0,20),song_tickets:board,
     youtube:{connected:!!yt.refresh_token,channel:yt.channel||null,connected_at:yt.connected_at||null,connected_by:yt.connected_by||'',oauth_ready:!!(GOOGLE_CLIENT_ID&&GOOGLE_CLIENT_SECRET),api_key:!!process.env.YOUTUBE_API_KEY}};
 }
 app.get('/api/admin/orders/songs',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -7926,6 +7920,80 @@ app.get('/auth/youtube/callback',wrap(async(req,res)=>{
   await q(`INSERT INTO site_content(key,value,updated_at) VALUES('song_youtube',$1,now()) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=now()`,[JSON.stringify(value)]);
   try{const ch=await youtube.myChannel();if(ch)await q(`UPDATE site_content SET value=$1 WHERE key='song_youtube'`,[JSON.stringify({...value,channel:ch})]);}catch(e){console.warn('[songs] 讀取頻道名稱失敗',e.message);}
   res.redirect(back+'?youtube=connected');
+}));
+/* ---- 一次性點歌 QR（lib/song-tickets.js，KK 11/6）：店員在 KTV 控台替已購買點歌的桌發券 → 接音響的裝置畫面（/tv）與控台顯示 QR → 客人掃 ktv.emoji.tw/s 選歌 ---- */
+const KTV_TICKETS='ktv_tickets';
+const ticketUrl=t=>KTV_BASE+'/s?t='+encodeURIComponent(t.id)+'&k='+encodeURIComponent(songTickets.sign(t.id,SECRET));
+async function withTickets(client,fn){
+  await client.query(`INSERT INTO site_content(key,value) VALUES($1,'{}') ON CONFLICT(key) DO NOTHING`,[KTV_TICKETS]);
+  const st=songTickets.prune(songTickets.normalize((await client.query('SELECT value FROM site_content WHERE key=$1 FOR UPDATE',[KTV_TICKETS])).rows[0]?.value));
+  const out=await fn(st);
+  if(out&&out.state)await client.query('UPDATE site_content SET value=$1,updated_at=now() WHERE key=$2',[JSON.stringify(out.state),KTV_TICKETS]);
+  return out;
+}
+// 控台：哪幾桌有已購買、還沒發券的點歌；目前有效的券（剩幾首）
+async function ticketBoard(){
+  const st=songTickets.normalize(await contentValue(KTV_TICKETS));
+  const rows=(await q(`SELECT id,table_no,status,items FROM table_sessions WHERE status='open' AND items @> '[{"cat":"SONG"}]'::jsonb`)).rows;
+  const byId=new Map(rows.map(r=>[r.id,r]));
+  const tables=rows.map(r=>({session_id:r.id,table:r.table_no,unissued:songTickets.unissued(r.items,st).length})).filter(x=>x.unissued>0).sort((a,b)=>String(a.table).localeCompare(String(b.table)));
+  const now=Date.now();
+  const tickets=st.tickets.map(t=>({...t,...songTickets.view(t,(byId.get(t.session_id)||{}).items,now)})).filter(t=>t.left>0).map(t=>({id:t.id,table:t.table,left:t.left,total:t.total,device:t.device,at:t.at,expires_at:t.expires_at,url:ticketUrl(t)})).reverse();
+  return {tables,tickets};
+}
+app.get('/api/admin/orders/songs/tickets',auth,adminOnly,requireDb,wrap(async(req,res)=>{res.set('Cache-Control','no-store');res.json(await ticketBoard());}));
+app.post('/api/admin/orders/songs/tickets',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const sid=String(req.body?.session_id||'');if(!sid)return res.status(400).json({error:'請選擇桌次。'});
+  const client=await pool.connect();
+  try{await client.query('BEGIN');await client.query(`SELECT pg_advisory_xact_lock(hashtext('ktv'))`);
+    const ss=(await client.query('SELECT id,table_no,status,items FROM table_sessions WHERE id=$1 FOR UPDATE',[sid])).rows[0];
+    const settings=await songSettings();
+    const out=await withTickets(client,async st=>songTickets.issue(st,{session:ss,device:String(req.body?.device||settings.player_device||''),by:actorOf(req.auth)||''}));
+    await client.query('COMMIT');
+    res.status(201).json({ticket:{id:out.ticket.id,table:out.ticket.table,left:out.ticket.lines.length,total:out.ticket.lines.length,at:out.ticket.at,url:ticketUrl(out.ticket)},...await ticketBoard()});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});return songErr(res,e);}finally{client.release();}
+}));
+// 客人端：掃一次性點歌 QR（t、k）
+async function ticketGuest(src){
+  const id=String(src?.t||'');if(!songTickets.verify(id,String(src?.k||''),SECRET))throw Object.assign(Error('點歌 QR 無效，請向店員重新索取。'),{status:403});
+  const t=songTickets.normalize(await contentValue(KTV_TICKETS)).tickets.find(x=>x.id===id);if(!t)throw Object.assign(Error('點歌 QR 已失效，請向店員重新索取。'),{status:410});
+  const ss=(await q('SELECT id,table_no,status,items FROM table_sessions WHERE id=$1',[t.session_id])).rows[0];
+  if(!ss||ss.status!=='open')throw Object.assign(Error('這桌已結帳，點歌 QR 已失效。'),{status:410});
+  return {t,ss};
+}
+app.get('/api/ktv/ticket',requireDb,wrap(async(req,res)=>{
+  res.set('Cache-Control','no-store');
+  try{const {t,ss}=await ticketGuest(req.query);const settings=await songSettings();
+    res.json({...songTickets.view(t,ss.items),...songs.publicView(songs.normalizeState(await contentValue(KTV_KEYS.state)),settings,ss.table_no)});}catch(e){return songErr(res,e);}
+}));
+app.get('/api/ktv/search',rateLimit({max:30}),requireDb,wrap(async(req,res)=>{
+  try{await ticketGuest(req.query);const settings=await songSettings();res.json({items:(await songSearch(req.query.q)).filter(v=>!v.duration||v.duration<=settings.max_minutes*60)});}catch(e){return songErr(res,e);}
+}));
+app.get('/api/ktv/discover',rateLimit({max:30}),requireDb,wrap(async(req,res)=>{
+  try{await ticketGuest(req.query);const settings=await songSettings();res.set('Cache-Control','no-store');res.json(await songDiscover(settings.max_minutes*60));}catch(e){return songErr(res,e);}
+}));
+app.post('/api/ktv/pick',rateLimit({max:30}),requireDb,wrap(async(req,res)=>{
+  const b=req.body||{};
+  try{await ticketGuest(b);const settings0=await songSettings();if(!settings0.enabled)return res.status(423).json({error:'點歌目前沒有開放。'});
+    const video=await songPlayable(b.video_id,settings0);
+    const out=await withSongs(async(client,{settings,state})=>withTickets(client,async st=>{
+      const t=st.tickets.find(x=>x.id===String(b.t));if(!t)throw Object.assign(Error('點歌 QR 已失效，請向店員重新索取。'),{status:410});
+      const ss=(await client.query('SELECT id,table_no,status,items FROM table_sessions WHERE id=$1 FOR UPDATE',[t.session_id])).rows[0];
+      if(!ss||ss.status!=='open')throw Object.assign(Error('這桌已結帳，點歌 QR 已失效。'),{status:410});
+      const left=songTickets.remaining(t,ss.items);if(!left.length)throw Object.assign(Error('這張點歌 QR 的歌都點完了。要再點請先在桌邊點餐頁購買。'),{status:409});
+      const lineId=left[0],line=ss.items.find(l=>l.line===lineId);
+      const {state:next,entry}=songs.enqueue(state,video,{table:ss.table_no,by:tableOrders.cleanText(b.by,20)||line.by||'客人',source:'guest',session_id:ss.id,line:lineId,price:line.price,maxPerTable:20});
+      const items=ss.items.map(l=>l.line===lineId?songTickets.pickLine(l,entry):l);
+      await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[ss.id,JSON.stringify(items)]);
+      await saveSongState(client,next);
+      await client.query(`INSERT INTO site_content(key,value) VALUES('song_stats','{}') ON CONFLICT(key) DO NOTHING`);
+      const stats=songs.normalizeStats((await client.query(`SELECT value FROM site_content WHERE key='song_stats' FOR UPDATE`)).rows[0]?.value);
+      await client.query(`UPDATE site_content SET value=$1,updated_at=now() WHERE key='song_stats'`,[JSON.stringify(songs.bumpStats(stats,video))]);
+      const st2=songTickets.use(st,t.id,lineId),t2=st2.tickets.find(x=>x.id===t.id);
+      return {state:st2,res:{entry,...songTickets.view(t2,items),...songs.publicView(next,settings,ss.table_no)}};
+    }));
+    res.status(201).json({ok:true,request_id:out.res.entry.id,...out.res,entry:undefined});
+  }catch(e){return songErr(res,e);}
 }));
 /* ---- KTV 遙控／播放裝置心跳／統計（lib/ktv.js，KK 11/6）：指令與心跳存 site_content ktv_live（多台 Cloud Run 共用） ---- */
 async function withKtvLive(fn){

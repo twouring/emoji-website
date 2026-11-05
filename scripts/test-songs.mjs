@@ -244,7 +244,7 @@ test('沒有常態歌單、不在任何時段：沿用最近結束的時段歌�
 
 test('接線：客人菜單卡片、操作紀錄、token 不進公開內容', () => {
   const order = read('public/order.html'), server = read('server.js');
-  assert.match(order, /id="song-open"/); assert.match(order, /\/songs\/request/);
+  assert.match(order, /id="song-open"/); assert.match(order, /\/songs\/buy/); assert.doesNotMatch(order, /\/songs\/request|data-song-pick/, '桌邊 QR 只能購買，不能直接選歌（KK 11/6）');
   assert.match(order, /song-open'\)\.classList\.toggle\('hidden',!on\)/, '關閉時隱藏點歌卡片');
   const log = require('../lib/pos-log.js');
   assert.equal(log.describe('POST', '/orders/songs/settings'), '點歌設定（開關／價格／常態歌單）');

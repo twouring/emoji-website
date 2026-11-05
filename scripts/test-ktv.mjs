@@ -51,6 +51,7 @@ test('ktv.emoji.tw：控台／電視／遙控／歌單／統計／設定回 KTV 
   const w = await get('/auth/google?redirect=' + encodeURIComponent('https://ktv.emoji.tw/'), { host: 'www.emoji.tw' });
   assert.match(w.headers.get('location'), /accounts\.google\.com/, 'ktv.emoji.tw 在登入導回白名單');
   assert.notEqual((await get('/', { host: 'pos.emoji.tw' })).body.includes('言文字 KTV'), true, 'POS 首頁不是 KTV');
+  { const r = await get('/s?t=kt_000000000000&k=x', { host: 'ktv.emoji.tw' }); assert.equal(r.status, 200, '點歌 QR 客人頁'); assert.match(r.body, /言文字 KTV 點歌/); }
   for (const p of ['/ktv', '/ktv/', '/ktv/tv', '/ktv/remote']) { const r = await get(p, { host: 'pos.emoji.tw' }); assert.equal(r.status, 200, 'pos 備用入口 ' + p); assert.match(r.body, /言文字 KTV/); }
 });
 
@@ -142,4 +143,46 @@ test('KTV 頁：言文字 CIS（墨紙、唯一黃、明體／Cormorant／Noto S
   assert.doesNotMatch(html.match(/\.row \.meta b\{[^}]*\}/)[0], /nowrap|ellipsis|line-clamp/);
   assert.doesNotMatch(js, /venue=/, '不分品牌：不帶 venue');
   assert.match(html, /#ktv-dock\{position:fixed;left:-10000px/, '播放器常駐（不可 display:none）');
+});
+
+const TK = require(path.join(root, 'lib/song-tickets.js'));
+test('一次性點歌 QR：購買待選歌、發券只綁未發過的、簽章、效期、用掉一格、被刪的品項不算', () => {
+  const t0 = Date.parse('2026-11-06T12:00:00Z');
+  const bought = TK.buyLines(3, { price: 10, venue: 'BAR', guest: 'g1', by: '小明', now: t0 });
+  assert.equal(bought.length, 3); assert.ok(bought.every(l => l.cat === 'SONG' && l.song.pending && l.price === 10 && l.placed_at && l.served_at));
+  let st = TK.normalize('');
+  const session = { id: 'ts_1', table_no: 'A3', status: 'open', items: [{ line: 'food', zh: '拿鐵' }, ...bought] };
+  let r = TK.issue(st, { session, device: 'tv1', now: t0, id: 'kt_aaaaaaaaaaaa' }); st = r.state;
+  assert.equal(r.ticket.lines.length, 3); assert.equal(r.ticket.table, 'A3');
+  assert.throws(() => TK.issue(st, { session, now: t0 }), /沒有待發/, '同一批不能重發');
+  assert.throws(() => TK.issue(st, { session: { ...session, status: 'closed' }, now: t0 }), /已結束/);
+  // 再買 1 首 → 只發新的那首
+  const more = TK.buyLines(1, { price: 10, now: t0 }); const s2 = { ...session, items: session.items.concat(more) };
+  assert.equal(TK.unissued(s2.items, st).length, 1);
+  // 簽章
+  const k = TK.sign('kt_aaaaaaaaaaaa', 'secret');
+  assert.equal(TK.verify('kt_aaaaaaaaaaaa', k, 'secret'), true); assert.equal(TK.verify('kt_aaaaaaaaaaaa', k, 'other'), false); assert.equal(TK.verify('kt_bad', k, 'secret'), false);
+  // 剩餘：用掉一格、店員刪掉一行、過期
+  const tk = st.tickets[0];
+  assert.equal(TK.remaining(tk, session.items, t0 + 1000).length, 3);
+  st = TK.use(st, tk.id, tk.lines[0]);
+  assert.equal(TK.remaining(st.tickets[0], session.items, t0).length, 2);
+  assert.equal(TK.remaining(st.tickets[0], session.items.filter(l => l.line !== tk.lines[1]), t0).length, 1, '被刪掉的品項不能再點');
+  assert.equal(TK.remaining(st.tickets[0], session.items, t0 + TK.TTL + 1).length, 0, '6 小時後失效');
+  // 選歌後換成正式點歌行
+  const picked = TK.pickLine(bought[0], { id: 'sr_1', video_id: 'abcdefghijk', title: '晴天' });
+  assert.equal(picked.zh, '點歌｜晴天'); assert.deepEqual(picked.song, { request_id: 'sr_1', video_id: 'abcdefghijk' }); assert.equal(TK.isPending(picked), false);
+});
+
+test('KK 11/6 點歌流程接線：桌邊只購買、控台發 QR、電視顯示 QR、客人頁 /s 選歌', () => {
+  const order = read('public/order.html'), srv = read('server.js'), js = read('public/ktv.js'), html = read('public/ktv.html'), guest = read('public/ktv-song.html');
+  assert.match(order, /api\('\/songs\/buy'/); assert.doesNotMatch(order, /\/songs\/request|\/songs\/search|\/songs\/discover|data-song-pick/, '桌邊 QR 不能選歌');
+  assert.doesNotMatch(srv, /app\.(post|get)\('\/api\/songs\/(request|search|discover)'/, '舊的桌邊選歌 API 已移除');
+  for (const r of ["app.post('/api/songs/buy'", "app.get('/api/admin/orders/songs/tickets'", "app.post('/api/admin/orders/songs/tickets'", "app.get('/api/ktv/ticket'", "app.get('/api/ktv/search'", "app.get('/api/ktv/discover'", "app.post('/api/ktv/pick'"]) assert.ok(srv.includes(r), r);
+  assert.match(js, /data-k-issue/); assert.match(js, /function ticketsForTv/); assert.match(js, /class="tv-qr"/);
+  assert.match(html, /\/vendor\/qrcode\.min\.js/);
+  assert.match(guest, /\/api\/ktv\/pick|'\/ktv\/pick'/); assert.match(guest, /--accent:#FFDE34/); assert.match(guest, /song-picks\.js/);
+  for (const m of guest.matchAll(/font-size:\s*([\d.]+)(rem|px)/g)) assert.ok(m[2] === 'rem' ? +m[1] >= 1 : +m[1] >= 16, m[0]);
+  require('../public/order-lib.js'); const L = globalThis.OrderLib;
+  for (const lang of ['zh', 'en', 'ja', 'ko']) for (const k of ['song_buy', 'song_buy_confirm', 'song_bought', 'song_steps', 'song_pending', 'song_pending_card']) assert.notEqual(L.text(lang, k), k, lang + ':' + k);
 });

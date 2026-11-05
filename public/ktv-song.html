@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>言文字 KTV 點歌</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#FBFAF6">
+<link rel="icon" href="/cis/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500&display=swap" rel="stylesheet">
+<style>
+/* 一次性點歌 QR 的客人頁（ktv.emoji.tw/s?t=&k=，KK 11/6）：客人在桌邊點餐頁買好首數，店員發這張 QR，掃了在這裡選歌。
+   言文字 CIS：墨 #1B1A17、紙 #FBFAF6、黃 #FFDE34 只當底色每畫面一擊；明體標題、Noto Sans 內文；字級 ≥1rem。 */
+:root{--ink:#1B1A17;--ink-soft:#3A362E;--muted:#6B6558;--paper:#FBFAF6;--paper-alt:#F4F1EA;--line:#E4E0D6;--card:#fff;--accent:#FFDE34;--accent-strong:#F2CB00;
+  --serif:"Noto Serif TC",serif;--latin:"Cormorant Garamond","Noto Serif TC",serif;--sans:"Noto Sans TC",system-ui,-apple-system,"PingFang TC",sans-serif}
+*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}
+html,body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:1rem;line-height:1.6;-webkit-tap-highlight-color:transparent}
+button,input{font:inherit;font-size:1rem;color:inherit}small{font-size:1rem}
+:focus-visible{outline:3px solid var(--ink);outline-offset:2px;border-radius:4px}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:var(--paper);border-bottom:1px solid var(--line)}
+header img{height:32px;width:auto}header b{font-family:var(--latin);font-size:1.375rem;letter-spacing:.12em}
+header .lang{margin-left:auto;display:flex;gap:4px}
+header .lang button{min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:999px;background:transparent;cursor:pointer}
+header .lang button[aria-pressed=true]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+main{max-width:640px;margin:0 auto;padding:16px 16px calc(32px + env(safe-area-inset-bottom))}
+h1{font-family:var(--serif);font-weight:500;font-size:1.5rem;margin:0 0 4px}
+.muted{color:var(--muted);margin:0 0 12px}
+.left{display:flex;align-items:center;gap:8px;padding:14px 16px;border-radius:14px;background:var(--accent);margin:0 0 16px}
+.left b{font-family:var(--latin);font-weight:600;font-size:2.5rem;line-height:1}
+.left.done{background:var(--paper-alt)}
+.now{display:flex;gap:12px;align-items:center;padding:12px;border-radius:12px;background:var(--ink);color:var(--paper);margin:0 0 16px}
+.now img{width:96px;height:54px;border-radius:6px;object-fit:cover;flex:none}.now span{min-width:0;display:flex;flex-direction:column}.now b{overflow-wrap:anywhere;line-height:1.4}.now small{opacity:.75}
+.tabs{display:flex;gap:6px;margin:0 -16px 12px;padding:0 16px;overflow-x:auto;scrollbar-width:none;scroll-padding:0 16px}.tabs::after{content:'';flex:0 0 10px}.tabs::-webkit-scrollbar{display:none}
+.tabs button{flex:none;min-height:44px;padding:0 16px;border-radius:999px;border:1px solid var(--line);background:transparent;cursor:pointer;white-space:nowrap}
+.tabs button[aria-selected=true]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.search input{width:100%;min-height:48px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:var(--card);margin:0 0 12px}
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.row{display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--card);min-width:0}
+.row img{width:80px;height:45px;border-radius:6px;object-fit:cover;flex:none}
+.row .rank{flex:none;width:1.8em;text-align:center;font-family:var(--sans);font-weight:700;font-size:1.125rem;color:var(--ink-soft,#3A362E);font-variant-numeric:tabular-nums}
+.row .n{flex:1;min-width:0;display:flex;flex-direction:column}.row .n b{font-weight:500;line-height:1.4;overflow-wrap:anywhere}.row .n small{color:var(--muted);overflow-wrap:anywhere}
+.btn{flex:none;min-height:44px;min-width:64px;padding:0 14px;border-radius:10px;border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);cursor:pointer;font-weight:500}
+.btn:disabled{opacity:.4}
+.tag{flex:none;min-height:44px;min-width:64px;display:inline-flex;align-items:center;justify-content:center;padding:0 10px;border-radius:10px;border:1.5px solid var(--line);color:var(--ink-soft,#3A362E)}
+@media (max-width:360px){.row img{display:none}}
+.song-picks{margin:0 0 12px}.pick-seg{display:flex;gap:6px;margin:0 0 10px}.pick-seg button{flex:1;min-height:44px;border-radius:10px;border:1px solid var(--ink);background:transparent;font-weight:500;cursor:pointer}
+.pick-seg button[aria-pressed=true]{background:var(--ink);color:var(--paper)}
+.pick-groups{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}.pick-groups button{min-height:44px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:transparent;cursor:pointer}
+.pick-groups button[aria-pressed=true]{border-color:var(--ink);font-weight:700}
+.pick-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}.pick-chips button{min-height:48px;padding:6px 10px;border-radius:10px;border:1px solid var(--line);background:var(--card);cursor:pointer;overflow-wrap:anywhere;text-align:left}
+.pick-chips.is-song button b,.pick-chips.is-song button small{display:block}.pick-chips.is-song button small{color:var(--muted)}
+.pick-hint{color:var(--muted);margin:10px 0 0}.pick-back{min-height:44px;margin:0 0 8px;border:0;background:none;text-decoration:underline;cursor:pointer;padding:0}
+.err{padding:24px 0;text-align:center}.err img{height:64px;margin:0 auto 16px;display:block}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translate(-50%,20px);opacity:0;background:var(--ink);color:var(--paper);padding:.7em 1.2em;border-radius:10px;transition:.2s;z-index:20;max-width:calc(100vw - 32px);pointer-events:none}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header><img src="/cis/assets/emoji-mark.svg" alt="言文字" width="32" height="32"><b>KTV</b><div class="lang" id="lang" role="group" aria-label="Language"></div></header>
+<main id="app"><p class="muted">…</p></main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="/song-picks.js"></script>
+<script>
+/* 動態字串一律經 esc() 再進 innerHTML */
+(function(){
+'use strict';
+var $=function(s){return document.querySelector(s);};
+var esc=function(s){return (s==null?'':String(s)).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
+var P=new URLSearchParams(location.search),T=P.get('t')||'',K=P.get('k')||'';
+var TX={
+  zh:{title:'選歌',table:'桌 {t}',left:'首可以點',done:'這張點歌 QR 的歌都點完了',done_hint:'要再點，請在桌邊點餐頁購買點歌，再向店員索取新的點歌 QR。',now:'正在播放',popular:'熱門',recent:'最近點過',chart:'排行榜',search:'搜尋',queue:'待播',search_ph:'歌名、歌手',pick:'點這首',queued:'已在待播',confirm:'點「{title}」？',picked:'已點歌！排在第 {n} 首。',none:'找不到可以播放的歌，換個關鍵字試試。',empty:'還沒有資料，試試搜尋。',qempty:'目前沒有人點歌。',mine:'本桌',pl:'店內歌單',searching:'搜尋中…',hint:'長度上限 {min} 分鐘。',bad:'點歌 QR 無效'},
+  en:{title:'Pick your songs',table:'Table {t}',left:'song(s) left',done:'All songs on this QR code are picked',done_hint:'To add more, buy songs on the table ordering page, then ask our staff for a new song QR code.',now:'Now playing',popular:'Popular',recent:'Recent',chart:'Charts',search:'Search',queue:'Queue',search_ph:'Song or artist',pick:'Pick',queued:'Queued',confirm:'Pick "{title}"?',picked:'Picked! #{n} in the queue.',none:'No playable songs found. Try another keyword.',empty:'Nothing yet. Try search.',qempty:'No requests yet.',mine:'Your table',pl:'Shop playlist',searching:'Searching…',hint:'Max {min} min per song.',bad:'Invalid song QR code'},
+  ja:{title:'選曲',table:'テーブル {t}',left:'曲 選べます',done:'この QR の曲はすべて選曲済みです',done_hint:'追加はテーブル注文ページで購入し、スタッフに新しいリクエスト QR をもらってください。',now:'再生中',popular:'人気',recent:'最近',chart:'ランキング',search:'検索',queue:'再生待ち',search_ph:'曲名・アーティスト',pick:'選ぶ',queued:'再生待ち',confirm:'「{title}」をリクエストしますか？',picked:'リクエストしました！{n} 番目です。',none:'再生できる曲が見つかりません。別のキーワードでお試しください。',empty:'まだありません。検索してください。',qempty:'リクエストはまだありません。',mine:'このテーブル',pl:'店内プレイリスト',searching:'検索中…',hint:'1 曲 {min} 分まで。',bad:'リクエスト QR が無効です'},
+  ko:{title:'곡 선택',table:'테이블 {t}',left:'곡 선택 가능',done:'이 QR의 곡을 모두 골랐어요',done_hint:'더 신청하려면 테이블 주문 페이지에서 구매한 뒤 직원에게 새 QR을 받으세요.',now:'지금 재생 중',popular:'인기',recent:'최근',chart:'차트',search:'검색',queue:'대기열',search_ph:'노래 제목, 가수',pick:'선택',queued:'대기 중',confirm:'"{title}"을(를) 신청할까요?',picked:'신청 완료! 대기열 {n}번째입니다.',none:'재생 가능한 노래가 없어요. 다른 검색어로 찾아보세요.',empty:'아직 없어요. 검색해 보세요.',qempty:'아직 신청곡이 없어요.',mine:'우리 테이블',pl:'매장 플레이리스트',searching:'검색 중…',hint:'곡당 최대 {min}분.',bad:'유효하지 않은 QR'}
+};
+var LANGS=['zh','en','ja','ko'],LANG=(function(){try{var s=localStorage.getItem('ktv_lang');if(LANGS.indexOf(s)>=0)return s;}catch(e){}var n=(navigator.language||'').toLowerCase();return n.indexOf('zh')===0?'zh':n.indexOf('ja')===0?'ja':n.indexOf('ko')===0?'ko':'en';})();
+function tr(k,v){var s=(TX[LANG]||TX.zh)[k]||TX.zh[k]||k;return s.replace(/\{(\w+)\}/g,function(_,x){return v&&v[x]!=null?v[x]:'';});}
+var D=null,DISC=null,RES=null,VIEW='popular',Q='',SEARCHING=false,BUSY=false,PICK={mode:'artist',group:''},TT;
+function toast(m){var t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(TT);TT=setTimeout(function(){t.classList.remove('show');},3000);}
+function api(path,opt){opt=opt||{};return fetch('/api'+path,{method:opt.method||'GET',headers:{'Content-Type':'application/json'},body:opt.body?JSON.stringify(opt.body):undefined}).then(function(r){return r.json().catch(function(){return {};}).then(function(d){if(!r.ok)throw Object.assign(new Error(d.error||('HTTP '+r.status)),{status:r.status});return d;});});}
+var QS='t='+encodeURIComponent(T)+'&k='+encodeURIComponent(K);
+function paintLang(){document.documentElement.lang=LANG==='zh'?'zh-Hant':LANG;$('#lang').innerHTML=LANGS.map(function(l){return '<button type="button" data-lang="'+l+'" aria-pressed="'+(l===LANG)+'">'+{zh:'中',en:'EN',ja:'日',ko:'한'}[l]+'</button>';}).join('');}
+function queued(){var m={};(D&&D.queue||[]).forEach(function(t){m[t.video_id]=1;});if(D&&D.now&&D.now.kind==='request')m[D.now.video_id]=1;return m;}
+function row(t,act,rank){return '<li class="row">'+(rank?'<span class="rank">'+rank+'</span>':'')+(t.thumb?'<img src="'+esc(t.thumb)+'" alt="" loading="lazy">':'')+'<span class="n"><b>'+esc(t.title)+'</b><small>'+esc([t.channel,t.mine?tr('mine'):(t.table?tr('table',{t:t.table}):''),t.kind==='playlist'?tr('pl'):''].filter(Boolean).join('・'))+'</small></span>'+(act||'')+'</li>';}
+function pickList(list,ranked){var q=queued(),can=D&&D.left>0;return '<ul class="list">'+list.map(function(t,i){return row(t,q[t.video_id]?'<span class="tag">'+esc(tr('queued'))+'</span>':(can?'<button type="button" class="btn" data-pick="'+esc(t.video_id)+'">'+esc(tr('pick'))+'</button>':''),ranked?i+1:0);}).join('')+'</ul>';}
+function results(){
+  if(VIEW==='queue')return D.queue.length?'<ul class="list">'+D.queue.map(function(t,i){return row(t,'',i+1);}).join('')+'</ul>':'<p class="muted">'+esc(tr('qempty'))+'</p>';
+  if(VIEW==='search')return SEARCHING?'<p class="muted">'+esc(tr('searching'))+'</p>':RES?SongPicks.back(LANG,esc)+(RES.length?pickList(RES,false):'<p class="muted">'+esc(tr('none'))+'</p>'):SongPicks.html(PICK,LANG,esc);
+  if(!DISC)return '<p class="muted">…</p>';var l=DISC[VIEW]||[];return l.length?pickList(l,VIEW!=='recent'):'<p class="muted">'+esc(tr('empty'))+'</p>';
+}
+function paintResults(){var r=$('#res');if(r)r.innerHTML=results();}
+function paint(){
+  paintLang();if(!D)return;var app=$('#app');
+  var foc=document.activeElement&&document.activeElement.id==='q';
+  var left=D.left>0?'<div class="left"><b>'+esc(D.left)+'</b><span>'+esc(tr('left'))+'</span></div>':'<div class="left done"><span><b style="font-size:1.125rem;font-family:var(--sans)">'+esc(tr('done'))+'</b><br>'+esc(tr('done_hint'))+'</span></div>';
+  app.innerHTML='<h1>'+esc(tr('title'))+'</h1><p class="muted">'+esc(tr('table',{t:D.table}))+'・'+esc(tr('hint',{min:D.max_minutes}))+'</p>'+left
+    +(D.now?'<div class="now">'+(D.now.thumb?'<img src="'+esc(D.now.thumb)+'" alt="">':'')+'<span><small>'+esc(tr('now'))+'</small><b>'+esc(D.now.title)+'</b></span></div>':'')
+    +'<div class="tabs" role="tablist">'+['popular','recent','chart','search','queue'].map(function(k){return '<button type="button" role="tab" data-view="'+k+'" aria-selected="'+(k===VIEW)+'">'+esc(tr(k))+(k==='queue'&&D.queue.length?' '+D.queue.length:'')+'</button>';}).join('')+'</div>'
+    +(VIEW==='search'?'<form class="search" id="sf"><input id="q" type="search" maxlength="80" autocomplete="off" enterkeyhint="search" placeholder="'+esc(tr('search_ph'))+'" value="'+esc(Q)+'" aria-label="'+esc(tr('search'))+'"></form>':'')
+    +'<div id="res" aria-live="polite">'+results()+'</div>';
+  if(foc){var i=$('#q');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length);}}
+}
+function fail(e){$('#app').innerHTML='<div class="err"><img src="/cis/assets/emoji-mark.svg" alt=""><h1>'+esc(tr('bad'))+'</h1><p class="muted">'+esc(e.message)+'</p></div>';}
+function load(){return api('/ktv/ticket?'+QS).then(function(d){var ch=JSON.stringify(d)!==JSON.stringify(D);D=d;if(ch&&!(document.activeElement&&document.activeElement.id==='q'))paint();}).catch(function(e){D=null;fail(e);});}
+var ST=0,SEQ=0,LASTQ='';
+function search(q){clearTimeout(ST);q=String(q||'').trim();if(q===LASTQ&&(RES||SEARCHING))return;LASTQ=q;Q=q;var seq=++SEQ;if(!q){RES=null;SEARCHING=false;return paintResults();}
+  SEARCHING=true;paintResults();api('/ktv/search?'+QS+'&q='+encodeURIComponent(q)).then(function(d){if(seq===SEQ)RES=d.items||[];}).catch(function(e){if(seq===SEQ){LASTQ='';toast(e.message);}}).then(function(){if(seq===SEQ){SEARCHING=false;paintResults();}});}
+document.addEventListener('input',function(e){if(e.target.id==='q'&&!e.isComposing){clearTimeout(ST);var v=e.target.value;ST=setTimeout(function(){search(v);},500);}});
+document.addEventListener('compositionend',function(e){if(e.target.id==='q'){clearTimeout(ST);var v=e.target.value;ST=setTimeout(function(){search(v);},500);}});
+document.addEventListener('submit',function(e){if(e.target.id==='sf'){e.preventDefault();search($('#q').value);$('#q').blur();}});
+document.addEventListener('click',function(e){
+  var b=e.target.closest('button');if(!b)return;
+  if(b.dataset.lang){LANG=b.dataset.lang;try{localStorage.setItem('ktv_lang',LANG);}catch(x){}return paint();}
+  if(b.dataset.view){VIEW=b.dataset.view;paint();if(VIEW==='search'){var i=$('#q');if(i)i.focus();}return;}
+  var pk=SongPicks.click(b,PICK);if(pk){if(pk.back){Q='';return search('');}if(pk.q){var i2=$('#q');if(i2)i2.value=pk.q;return search(pk.q);}return paintResults();}
+  if(b.dataset.pick&&!BUSY){var all=[].concat(RES||[],DISC&&DISC.popular||[],DISC&&DISC.recent||[],DISC&&DISC.chart||[]),t=null;for(var j=0;j<all.length;j++)if(all[j].video_id===b.dataset.pick){t=all[j];break;}
+    if(!t||!confirm(tr('confirm',{title:t.title})))return;BUSY=true;b.disabled=true;
+    api('/ktv/pick',{method:'POST',body:{t:T,k:K,video_id:t.video_id}}).then(function(d){D=d;VIEW=d.left>0?VIEW:'queue';paint();toast(tr('picked',{n:d.queue.length}));})
+      .catch(function(err){toast(err.message);b.disabled=false;}).then(function(){BUSY=false;});}
+});
+paintLang();
+if(!T||!K)fail(new Error('—'));else{load().then(function(){api('/ktv/discover?'+QS).then(function(d){DISC=d;if(!((d.popular||[]).length))VIEW=(d.chart||[]).length?'chart':'search';paint();}).catch(function(){DISC={popular:[],recent:[],chart:[]};VIEW='search';paint();});});setInterval(function(){if(!document.hidden)load();},15000);}
+})();
+</script>
+</body>
+</html>

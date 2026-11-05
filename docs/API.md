@@ -521,16 +521,28 @@ body `{attempt_id}`。只取消 `prepared`（尚未送出）意圖；已送出�
 暫停點餐開關（依店別）。body `{ venue: CAFE|BAR, paused: boolean, message? }`（文案 80 字內，客人掃碼會看到）。存 `site_content.ordering_pause`。回 `{ ok, pause }`。
 
 ### GET /api/songs
-點歌（客人端）。query `s`、`k`（桌邊單次 QR 的場次與簽章）。回 `{ enabled, price, max_per_table, max_minutes, now, queue }`；`queue[].mine` 標示是不是本桌點的。點歌預設關閉（`enabled:false`），POS「點歌」分頁開啟後菜單才會出現點歌卡片。QR 無效 403、已清桌 409。
+點歌（客人端）。query `s`、`k`（桌邊單次 QR 的場次與簽章）。回 `{ enabled, price, max_per_table, max_minutes, now, queue, pending }`（`pending`＝這桌已購買還沒選歌的首數）；`queue[].mine` 標示是不是本桌點的。點歌預設關閉（`enabled:false`），POS「點歌」分頁開啟後菜單才會出現點歌卡片。QR 無效 403、已清桌 409。
 
-### GET /api/songs/search
-點歌搜尋（客人端）。query `s`、`k`、`q`（歌名、歌手或 YouTube 影片網址）。只回可嵌入、非直播、長度在上限內的影片 `{ items:[{ video_id, title, channel, thumb, duration }] }`。綁定的 YouTube 帳號優先，否則用 `YOUTUBE_API_KEY`；兩者都沒有回 503。同關鍵字 30 分鐘內共用結果（YouTube 搜尋一次耗 100 單位額度）。點歌關閉 423。
+### POST /api/songs/buy
+購買點歌（客人端，桌邊單次 QR，KK 11/6）。body `{ s, k, n, guest, by }`，`n` 為 1 到 `max_per_table` 首。這桌加 n 行 `cat:'SONG'`、`song:{pending:true}` 的品項（單價取 KTV 設定，記在這桌帳上，用餐完一起結帳），還不能選歌：客人要向店員索取一次性點歌 QR（`POST /api/admin/orders/songs/tickets`），掃了在 `ktv.emoji.tw/s` 選歌。待選歌超過 20 首 409、點歌關閉或非營業時段 423。回 201 `{ bought, pending, price }`。桌邊 QR 不再能搜尋或直接選歌（舊的 `/api/songs/request`、`/api/songs/search`、`/api/songs/discover` 已移除）。
 
-### GET /api/songs/discover
-點歌推薦清單（客人端）。query `s`、`k`。回 `{ popular, recent, chart }`：`popular` 為店內客人累計點播次數最多的歌（含 `count`），`recent` 為最近被點過的歌（含 `last_at`），兩者來自 `site_content.song_stats`（客人點歌成功時累計，最多保留 500 首）；`chart` 為 YouTube 台灣音樂類熱門影片（`chart=mostPopular`、`videoCategoryId=10`，伺服器快取 6 小時，讀取失敗回空陣列）。皆已過濾超過單首長度上限的歌。點歌關閉 423。
+### GET /api/admin/orders/songs/tickets
+KTV 控台的點歌 QR 狀態：`tables`（已購買點歌、還沒發 QR 的桌：`session_id, table, unissued`）、`tickets`（使用中的一次性點歌 QR：`id, table, left, total, device, at, expires_at, url`）。`GET /api/admin/orders/songs` 也帶同一份 `song_tickets`。
 
-### POST /api/songs/request
-點歌（客人端）。body `{ s, k, video_id, guest, by }`。伺服器重新查影片（可嵌入、長度上限），排進待播並在這桌加一行 `cat:'SONG'`、`item_id:'song'` 的品項（單價取點歌設定，預設 NT$10；`placed_at`／`served_at` 同時寫入＝不進出餐看板、不印出餐單，客人不能自己刪），用餐完和餐點一起在櫃檯結帳。同一首已在待播 409、本桌待播達上限 409、暫停點餐或非營業時段 423。回 201 與最新待播。
+### POST /api/admin/orders/songs/tickets
+發一次性點歌 QR。body `{ session_id, device }`；把這桌所有還沒發過 QR 的待選歌品項綁進一張券（6 小時有效，`device` 預設目前播放裝置，該裝置的電視畫面會顯示這張 QR）。這桌沒有待發的點歌或已結束 409。回 201 `{ ticket:{ id, table, left, total, at, url }, tables, tickets }`；`url`＝`https://ktv.emoji.tw/s?t=<id>&k=<HMAC>`。
+
+### GET /api/ktv/ticket
+點歌 QR 客人頁狀態。query `t`、`k`。回 `{ table, left, total, expires_at, enabled, price, max_minutes, now, queue }`。簽章錯 403、券不存在或這桌已結帳 410。
+
+### GET /api/ktv/search
+點歌 QR 客人頁搜尋 YouTube。query `t`、`k`、`q`，回 `{ items }`（只回可嵌入、長度在上限內的影片）。
+
+### GET /api/ktv/discover
+點歌 QR 客人頁的熱門／最近點過／排行榜，格式同控台 `GET /api/admin/orders/songs/discover`（篩長度上限）。
+
+### POST /api/ktv/pick
+用點歌 QR 選一首。body `{ t, k, video_id }`。用掉券上一格：把那行待選歌品項換成正式點歌（品名帶歌名、`song:{request_id, video_id}`），排進待播。格數用完 409、券失效 410、影片不能播放 400、點歌關閉 423。回 201 `{ request_id, left, total, table, now, queue, … }`。
 
 ### GET /api/admin/orders/songs
 KTV（ktv.emoji.tw，言文字系統、不分品牌，KK 11/6）控台狀態；全公司一份（site_content `ktv_settings`／`ktv_state`，第一次使用時合併舊的分品牌 `song_settings:<VENUE>`），query `venue` 不再有作用。`settings`（`enabled` 預設 false、`price`、`max_per_table`、`max_minutes`、`shuffle`、`playlist` 常態歌單、`player_device`）、`now`（正在播放，`kind` 為 `request` 或 `playlist`）、`queue`、`upcoming`（接下來完整播放順序：`items` 先列待播、再接常態歌單從下一首起的整份順序，每首帶 `pos`、`kind`；常態歌單為隨機時列出這一輪已洗好的順序（存在 `song_state.shuffle_bag`，每首各播一次，播完再洗）並回 `shuffle:true`）、`history`、`youtube`（是否已綁定、頻道名稱、OAuth 是否可用、是否有 API Key）。
