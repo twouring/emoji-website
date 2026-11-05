@@ -557,7 +557,7 @@ POS 輪詢未處理的呼叫（每 5 秒）。回 `{ pending:[{id,session_id,tab
 店員按「處理」結案，記 `done_at`／`done_by`（登入者或 PIN 員工）。已處理過的重複按回原資料（兩台同時按不報錯）；找不到 404。記入 POS 操作紀錄「處理客人呼叫服務」。
 
 ### POST /api/admin/orders/linepay-alerts/sync
-POS 停在桌號結帳頁時每 10 秒呼叫：同步今天（營業日）的 LINE Pay 後台交易進 `linepay_transactions`。伺服器保留已登入的後台分頁（閒置 2 分鐘關閉），之後每次只送一次查詢；9 秒內已同步或排程同步中回 `{ ok, skipped }`。失敗 502，不改日結的同步狀態。
+POS 停在桌號結帳頁時每秒呼叫（前端 setTimeout 鏈，上一輪回來才排下一輪）：同步今天（營業日）的 LINE Pay 後台交易進 `linepay_transactions`。伺服器保留已登入的後台分頁（閒置 2 分鐘關閉），之後每次只送一次查詢；0.9 秒內已同步或排程同步中回 `{ ok, skipped }`。失敗 502，不改日結的同步狀態。
 
 ### GET /api/admin/orders/linepay-alerts
 POS 收款通知（每 15 秒輪詢）。query `lookback`（分鐘，預設 60、5–720）、`venue`（POS 自動帶）。回 `{ alerts:[{id,type,type_label,amount,paid_at,time,day,method,method_label,card_last4,confirm_no,order_no,origin_id,venue,venue_label,synced_at}], synced_at }`：最近 lookback 分鐘內從 LINE Pay 商家後台同步進來的實收（退款金額為負），店別依交易時間與當天開關帳歸屬，品牌 POS 只回自己的。資料由每 5 分鐘的後台同步產生，非即時。POS 以 `public/pos-linepay-alert.js` 跳出彈窗，店員按「我知道了」才關閉（每台裝置各自記錄已讀）。

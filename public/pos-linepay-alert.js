@@ -1,9 +1,9 @@
 /* POS LINE Pay 收款通知（KK 11/5）：每 15 秒輪詢 /admin/orders/linepay-alerts，有新的 LINE Pay 實收（或退款）就響鈴、
  * 跳全螢幕彈窗顯示最近一筆的完整資訊（金額、交易時間、付款方式、卡號末四碼、驗證碼、交易號碼、店別）。
  * 只能按「我知道了」關閉：點背景、Esc 都不會關。已讀記在這台裝置（localStorage，依品牌分 key），新裝置第一次開機不補跳舊交易。
- * 資料來自 LINE Pay 商家後台：平常每 5 分鐘同步；停在桌號結帳頁時每 10 秒同步一次。依賴 pos.html 的 esc/api/DATA/POS_URL_VENUE、pos-ops.js 的 newTicketChime。 */
+ * 資料來自 LINE Pay 商家後台：平常每 5 分鐘同步；停在桌號結帳頁時每秒同步一次（setTimeout 鏈）。依賴 pos.html 的 esc/api/DATA/POS_URL_VENUE、pos-ops.js 的 newTicketChime。 */
 const LPA_POLL_MS = 15000;
-const LPA_TABLE_MS = 10000;   // 在桌號結帳頁：每 10 秒叫伺服器同步 LINE Pay 後台＋檢查新交易（KK 11/5）
+const LPA_TABLE_MS = 1000;    // 在桌號結帳頁：每秒叫伺服器同步 LINE Pay 後台＋檢查新交易（KK 11/5：每秒、用 setTimeout 鏈，上一輪做完才排下一輪，不靠排程）
 const LPA_KEY = 'tth_lp_seen_' + (typeof POS_URL_VENUE === 'string' && POS_URL_VENUE ? POS_URL_VENUE : 'home').toLowerCase();
 let LPA = { timer: null, queue: [], open: false };
 
@@ -36,7 +36,7 @@ function lpaPaint(){
     <h2 id="lpa-title">收到 LINE Pay</h2>
     <div class="lpa-list">${lpaCard(last)}</div>
     ${more > 0 ? `<p class="lpa-sum">另有 ${more} 筆較早的交易，請到日結 LINE Pay 對帳查看</p>` : ''}
-    <p class="lpa-note">請到該桌結帳登記為 LINE Pay。在桌號結帳頁每 10 秒同步一次，其他畫面每 5 分鐘。</p>
+    <p class="lpa-note">請到該桌結帳登記為 LINE Pay。在桌號結帳頁每秒同步一次，其他畫面每 5 分鐘。</p>
     <button type="button" class="btn btn--solid lpa-ok" data-lpa-ok>我知道了</button>
   </div>`;
   LPA.open = true;
