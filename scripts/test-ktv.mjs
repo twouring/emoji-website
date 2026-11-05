@@ -51,6 +51,7 @@ test('ktv.emoji.tw：控台／電視／遙控／歌單／統計／設定回 KTV 
   const w = await get('/auth/google?redirect=' + encodeURIComponent('https://ktv.emoji.tw/'), { host: 'www.emoji.tw' });
   assert.match(w.headers.get('location'), /accounts\.google\.com/, 'ktv.emoji.tw 在登入導回白名單');
   assert.notEqual((await get('/', { host: 'pos.emoji.tw' })).body.includes('言文字 KTV'), true, 'POS 首頁不是 KTV');
+  for (const p of ['/ktv', '/ktv/', '/ktv/tv', '/ktv/remote']) { const r = await get(p, { host: 'pos.emoji.tw' }); assert.equal(r.status, 200, 'pos 備用入口 ' + p); assert.match(r.body, /言文字 KTV/); }
 });
 
 test('遙控指令：驗證、序號、30 秒過期、心跳帶 ack 只回沒做過的', () => {

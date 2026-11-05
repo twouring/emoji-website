@@ -26,9 +26,11 @@ async function api(path, { method = 'GET', body } = {}){
 const S = p => api('/admin/orders/songs' + p.replace(/^\/?/, p ? '/' : ''));
 
 /* ---------- 路由 ---------- */
-const PAGES = [['console', '/', '控台'], ['remote', '/remote', '遙控'], ['playlists', '/playlists', '歌單'], ['stats', '/stats', '統計'], ['settings', '/settings', '設定'], ['tv', '/tv', '電視畫面']];
+/* ktv.emoji.tw 在根目錄；DNS 生效前的備用入口 pos.emoji.tw/ktv 在 /ktv 底下 */
+const BASE = /^ktv\./i.test(location.hostname) ? '' : '/ktv';
+const PAGES = [['console', '/', '控台'], ['remote', '/remote', '遙控'], ['playlists', '/playlists', '歌單'], ['stats', '/stats', '統計'], ['settings', '/settings', '設定'], ['tv', '/tv', '電視畫面']].map(([k, h, l]) => [k, (BASE + h).replace(/(.)\/$/, '$1'), l]);
 let PAGE = 'console';
-const route = () => (PAGES.find(p => p[1] !== '/' && location.pathname.replace(/\/+$/, '') === p[1]) || PAGES[0])[0];
+const route = () => (PAGES.find(p => p[0] !== 'console' && location.pathname.replace(/\/+$/, '') === p[1]) || PAGES[0])[0];
 function go(page){ const p = PAGES.find(x => x[0] === page); if (!p) return; if (location.pathname !== p[1]) history.pushState(null, '', p[1]); PAGE = page; render(); }
 document.addEventListener('click', e => { const a = e.target.closest('a[data-go]'); if (!a) return; e.preventDefault(); go(a.dataset.go); });
 addEventListener('popstate', () => { PAGE = route(); render(); });
@@ -108,7 +110,7 @@ function pageConsole(){
   const note = up.playlist_count ? `<p class="hint">${esc(up.playlist_name || '常態歌單')} 共 ${esc(up.playlist_count)} 首，${up.shuffle ? '隨機播放' : '依序播放'}，播完自動輪播。</p>` : '';
   const hist = D.history.length ? `<details><summary class="hint">最近播過（${Math.min(10, D.history.length)}）</summary><ul class="list">${D.history.slice(0, 10).map(t => row(t, t.result === 'error' ? '<span class="pill">無法播放已跳過</span>' : t.result === 'skip' ? '<span class="pill">跳過</span>' : '')).join('')}</ul></details>` : '';
   return `<div class="k-head"><h1>控台</h1><span class="pill ${s.enabled ? 'on' : 'off'}">客人點歌${s.enabled ? '開放中・每首 ' + NT(s.price) : '關閉'}</span><span class="pill ${ls.on ? 'on' : 'off'}">${esc(ls.label)}</span>
-    <div class="k-act">${isPlayer() ? '' : '<button type="button" class="btn btn--sm" data-k-claim>在這台播放</button>'}<a class="btn btn--sm" href="/tv" data-go="tv">電視畫面</a></div></div>
+    <div class="k-act">${isPlayer() ? '' : '<button type="button" class="btn btn--sm" data-k-claim>在這台播放</button>'}<a class="btn btn--sm" href="${BASE}/tv" data-go="tv">電視畫面</a></div></div>
   ${sfxGrid()}
   <div class="k-grid">
     <section class="panel" aria-labelledby="h-up">${nowCard({ slot: true })}<h2 id="h-up">接下來 <span class="cnt">${up.items.length}</span>${reqN ? `<small>點歌 ${reqN} 首優先</small>` : ''}</h2><div class="scroll">${queue}${note}${hist}</div></section>
@@ -127,7 +129,7 @@ function pageRemote(){
       <button type="button" class="btn" data-k-volstep="10">音量 ＋</button>
     </div>
     ${sfxGrid()}
-    <section class="panel"><h2>接下來</h2>${up.length ? `<ol class="list">${up.map(t => row(t, '', t.pos)).join('')}</ol>` : '<p class="empty">沒有接下來的歌。</p>'}<p class="hint"><a href="/" data-go="console">到控台找歌、調整順序</a></p></section></div>`;
+    <section class="panel"><h2>接下來</h2>${up.length ? `<ol class="list">${up.map(t => row(t, '', t.pos)).join('')}</ol>` : '<p class="empty">沒有接下來的歌。</p>'}<p class="hint"><a href="${BASE}/" data-go="console">到控台找歌、調整順序</a></p></section></div>`;
 }
 
 /* ---------- 頁面：歌單 ---------- */
@@ -186,7 +188,7 @@ function pageSettings(){
     <section class="panel"><h2>播放裝置</h2>
       <p class="hint">同一時間只有一台播放：接音響的螢幕開 <b>ktv.emoji.tw/tv</b> 按一下畫面即可接手。其他平板、手機都是遙控。</p>
       <p><span class="pill ${ls.on ? 'on' : 'off'}">${esc(ls.label)}</span></p>
-      <p style="display:flex;gap:8px;flex-wrap:wrap">${me ? '<button type="button" class="btn" data-k-release>停止在這台播放</button>' : '<button type="button" class="btn btn--solid" data-k-claim>在這台播放</button>'}<a class="btn" href="/tv" data-go="tv">開電視畫面</a></p></section>
+      <p style="display:flex;gap:8px;flex-wrap:wrap">${me ? '<button type="button" class="btn" data-k-release>停止在這台播放</button>' : '<button type="button" class="btn btn--solid" data-k-claim>在這台播放</button>'}<a class="btn" href="${BASE}/tv" data-go="tv">開電視畫面</a></p></section>
     <section class="panel"><h2>YouTube 帳號</h2>${yt.connected
       ? `<p class="hint">已綁定${yt.channel ? '：<b>' + esc(yt.channel.title) + '</b>' : ''}${yt.connected_by ? `（${esc(yt.connected_by)} 綁定）` : ''}。搜尋、排行榜與歌單匯入用這個帳號。</p><button type="button" class="btn btn--danger" data-k-ytoff>解除綁定</button>`
       : `<p class="hint">${yt.api_key ? '目前用系統金鑰搜尋。' : '尚未綁定，客人與現場都無法搜尋。'}綁定後也可匯入帳號裡的播放清單。</p><button type="button" class="btn btn--solid" data-k-yton ${yt.oauth_ready ? '' : 'disabled'}>綁定 YouTube 帳號</button>`}</section>
@@ -202,7 +204,7 @@ function pageTv(){
       ${n ? '' : '<div class="tv-idle"><div><img src="/cis/assets/emoji-mark-reverse.svg" alt="言文字"><p>掃桌上的 QR，點一首歌。</p></div></div>'}
       ${TV_ARMED && isPlayer() ? '' : `<button type="button" class="tv-tap" data-k-arm><span>${isPlayer() ? '點一下開始播放' : '點一下，改由這台播放'}</span></button>`}
       <div class="tv-sfx" data-k-sfxshow aria-live="polite"></div>
-      <div class="tv-exit"><a class="btn btn--sm" href="/" data-go="console">回控台</a></div></div>
+      <div class="tv-exit"><a class="btn btn--sm" href="${BASE}/" data-go="console">回控台</a></div></div>
     <div class="tv-bar">${n ? `${who(n)}<b>${esc(n.title)}</b>${n.channel ? `<span class="tv-ch">${esc(n.channel)}</span>` : ''}<div class="prog" data-k-prog><span data-k-pos>${dur(c.pos)}</span><i><s></s></i><span>${dur(c.dur || n.duration)}</span></div>` : '<b>言文字 KTV</b><span class="tv-ch">沒有人點歌時播放店內歌單</span>'}</div>
     <aside class="tv-side"><img src="/cis/assets/emoji-h-reverse.svg" alt="言文字"><h2>接下來</h2>
       <ol class="tv-up">${up.length ? up.map((t, i) => `<li><span class="n">${esc(t.pos)}</span>${i === 0 ? '<span class="tv-next">下一首</span>' : ''}<b>${esc(t.title)}</b><small>${t.kind === 'playlist' ? '店內歌單' : t.source === 'pos' ? '現場代點' : '桌 ' + esc(t.table || '—') + (t.by ? '・' + esc(t.by) : '')}</small></li>`).join('') : '<li><small>還沒有人點歌</small></li>'}</ol></aside></div>`;
@@ -269,7 +271,7 @@ document.addEventListener('click', async e => {
   if (b.dataset.kSchdel != null && b.dataset.kSchdel !== '') { const i = Number(b.dataset.kSchdel), x = D.settings.schedules[i]; if (!x || !confirm(`移除時段歌單「${x.name}」？`)) return; return act(() => post('settings', { schedules: D.settings.schedules.filter((_, j) => j !== i) }), '時段歌單已更新'); }
   if (b.matches('[data-k-minelist]')) { try { MINE = (await api('/admin/orders/songs/youtube/playlists')).playlists; } catch (err) { toast(err.message); } return paint(); }
   if (b.dataset.kMine) { b.disabled = true; return act(() => post('playlist/import', { playlist: b.dataset.kMine, mode: b.dataset.mode }), d => `已匯入 ${d.imported} 首`); }
-  if (b.matches('[data-k-yton]')) { try { const r = await post('youtube/connect', { redirect: location.origin + '/settings' }); location.href = r.url; } catch (err) { toast(err.message); } return; }
+  if (b.matches('[data-k-yton]')) { try { const r = await post('youtube/connect', { redirect: location.origin + BASE + '/settings' }); location.href = r.url; } catch (err) { toast(err.message); } return; }
   if (b.matches('[data-k-ytoff]')) { if (!confirm('解除綁定 YouTube 帳號？')) return; try { await api('/admin/orders/songs/youtube', { method: 'DELETE' }); D = await S(''); } catch (err) { toast(err.message); } return paint(); }
 });
 document.addEventListener('submit', e => {

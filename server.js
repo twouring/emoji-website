@@ -1574,6 +1574,8 @@ app.use((req, res, next) => {
   if (req.path === '/index.html' || req.path === '/admin' || req.path === '/admin.html' || /^\/pos(\/|\.html$|$)/.test(req.path)) return res.redirect(302, '/');
   // POS 依店別分網址（KK 11/4）：/atcafe＝在咖啡、/3am＝三點水（含子分頁 /atcafe/sales…）；要在官網 /3am 品牌頁路由之前攔下
   if ((req.method === 'GET' || req.method === 'HEAD') && /^\/(atcafe|3am|staysquare|restbook)(\/|$)/.test(req.path)) return sendPosPage(res);
+  // KTV 備用入口（ktv.emoji.tw DNS 生效前，KK 11/6）：pos.emoji.tw/ktv、/ktv/tv…回 KTV 頁
+  if ((req.method === 'GET' || req.method === 'HEAD') && /^\/ktv(\/(tv|remote|playlists|stats|settings))?\/?$/.test(req.path)) return sendKtvPage(res);
   next();
 });
 // ktv.emoji.tw：控台（/）、電視播放畫面（/tv）、遙控（/remote）、歌單（/playlists）、統計（/stats）、設定（/settings）都回同一頁；
