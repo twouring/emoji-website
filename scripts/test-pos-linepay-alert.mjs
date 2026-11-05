@@ -48,20 +48,25 @@ test('POS：彈窗顯示完整資訊、只能按鈕關閉、響鈴', () => {
   assert.match(js, /POS_URL_VENUE/, '已讀 key 依品牌分開');
 });
 
-test('不分頁面背景同步：同步完 1 秒再同步，用 setTimeout 鏈不用排程（KK 11/5）', () => {
+test('同步在伺服器端單一迴圈（同步完等 1 秒），POS 只讀結果（KK 11/6）', () => {
   const js = read('public/pos-linepay-alert.js'), server = read('server.js');
   assert.match(js, /LPA_GAP_MS = 1000;/);
   assert.doesNotMatch(js, /LPA_TABLE_MS|LPA_POLL_MS|OnTable|POS_TABLE/, '不分頁面（KK 11/5 背景同步）');
   assert.match(js, /finally \{ LPA\.timer = setTimeout\(tick, LPA_GAP_MS\); \}/);
   assert.match(js, /cashInChime\(\)/, '錢進帳音效');
   assert.doesNotMatch(js, /setInterval|cron/);
-  assert.match(server, /Date\.now\(\)-linepayQuickAt<900\)/);
-  assert.match(js, /\/admin\/orders\/linepay-alerts\/sync/);
-  const i = server.indexOf("app.post('/api/admin/orders/linepay-alerts/sync',");
-  assert.ok(i > 0);
-  const r = server.slice(i, server.indexOf('\n}));', i));
-  assert.match(r, /linepay\.fetchWarm\(/);
-  assert.match(r, /linepaySyncing/);
+  assert.doesNotMatch(js, /linepay-alerts\/sync/, 'POS 不得觸發同步（11/5 每台每秒同步把 Cloud Run 塞滿）');
+  assert.match(server, /const PAY_WATCH_GAP_MS=1000;/);
+  const w = server.slice(server.indexOf('const PAY_WATCHERS=['), server.indexOf('async function payWatchLoop'));
+  assert.match(w, /linepay\.fetchWarm\(/);
+  assert.match(w, /linepaySyncing/);
+  const loop = server.slice(server.indexOf('async function payWatchLoop'), server.indexOf('\n}\n', server.indexOf('async function payWatchLoop')));
+  assert.match(loop, /await w\.run\(\)/, '上一輪做完才等下一輪');
+  assert.match(loop, /await sleep\(wait\)/);
+  assert.match(server, /for \(const w of PAY_WATCHERS\) payWatchLoop\(w\);/);
+  const b = server.indexOf('for (const w of PAY_WATCHERS)');
+  assert.ok(b > server.indexOf("if (ADMIN_MODE) { console.log('[boot] SERVICE_ROLE=admin") && b > server.indexOf('if (RAILWAY_MODE) { console.log'), '後台服務、Railway 不跑');
+  assert.match(server, /app\.post\('\/api\/admin\/orders\/linepay-alerts\/sync',auth,adminOnly,\(req,res\)=>res\.json\(\{ok:true,skipped:'server-loop'\}\)\);/, '舊版 POS 頁相容');
   assert.match(read('docs/API.md'), /### POST \/api\/admin\/orders\/linepay-alerts\/sync/);
 });
 

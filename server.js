@@ -7462,18 +7462,10 @@ async function syncLinepay(start,end){
   }finally{linepaySyncing=false;}
 }
 /* LINE Pay 收款通知（KK 11/5）：POS 每 15 秒輪詢，最近 lookback 分鐘（預設 60、上限 720）同步進來的 LINE Pay 實收；店別依交易時間＋當天開關帳歸屬（linepay.venueOfTime），品牌 POS 只看自己的。資料來自每 5 分鐘的後台同步，非即時 */
-/* 桌號結帳頁每秒觸發（KK 11/5，前端 setTimeout 鏈）：只抓今天（營業日）的 LINE Pay 交易；1 秒內同步過或排程同步中就跳過。用常駐登入分頁（linepay.fetchWarm），不寫失敗狀態（日結的同步狀態只由排程與手動同步更新） */
-let linepayQuickAt=0;
-app.post('/api/admin/orders/linepay-alerts/sync',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  const cfg=linepay.config();
-  if(!cfg)return res.json({ok:false,skipped:'not_configured'});
-  if(linepaySyncing)return res.json({ok:true,skipped:'busy'});
-  if(Date.now()-linepayQuickAt<900)return res.json({ok:true,skipped:'recent'});
-  linepayQuickAt=Date.now();
-  const day=tableOrders.MenuLib.businessDay(),now=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Taipei'});
-  try{const rows=await linepay.fetchWarm(cfg,day,now>day?now:day);res.json({ok:true,count:await upsertLinepay(rows)});}
-  catch(e){res.status(502).json({error:e.message});}
-}));
+/* 收款即時同步（KK 11/6）：伺服器端單一迴圈，同步一次做完後等 1 秒再同步（payWatchLoop，boot 啟動，只在官網服務跑）；
+ * POS 不再觸發同步，只讀 GET /api/admin/orders/linepay-alerts。原本每台 POS 每秒各打一次同步，裝置一多就把 Cloud Run 執行個體塞滿（11/5 Rate exceeded）。
+ * 這支端點保留給還沒重新整理的舊版 POS 頁，直接回 skipped，不做事。 */
+app.post('/api/admin/orders/linepay-alerts/sync',auth,adminOnly,(req,res)=>res.json({ok:true,skipped:'server-loop'}));
 app.get('/api/admin/orders/linepay-alerts',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   res.set('Cache-Control','no-store');
   const venues=posScope(req),mins=Math.min(720,Math.max(5,Number(req.query.lookback)||60)),hrs=Math.min(24,Math.max(1,Number(req.query.hours)||8));
@@ -7536,20 +7528,28 @@ app.post('/api/admin/sales/ctbc/sync',auth,adminOnly,requireDb,wrap(async(req,re
   try{res.json({ok:true,...await syncCtbc(start,end)});}
   catch(e){res.status(e.status||502).json({error:e.message});}
 }));
-/* 中信刷卡收款通知（KK 11/5，同 LINE Pay）：POS 停在桌號結帳頁每秒（前端 setTimeout 鏈）觸發同步今天的中信交易，用常駐登入分頁（ctbc.fetchWarm）；
- * 1 秒內同步過或排程同步中跳過；登入失敗退避 60 秒、帳密錯誤（fatal）退避 10 分鐘，避免每秒重登把帳號鎖住。不寫日結的同步狀態 */
-let ctbcQuickAt=0,ctbcQuickBlock=0;
-app.post('/api/admin/orders/ctbc-alerts/sync',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  const cfg=ctbc.config();
-  if(!cfg)return res.json({ok:false,skipped:'not_configured'});
-  if(ctbcSyncing)return res.json({ok:true,skipped:'busy'});
-  if(Date.now()<ctbcQuickBlock)return res.json({ok:false,skipped:'backoff'});
-  if(Date.now()-ctbcQuickAt<900)return res.json({ok:true,skipped:'recent'});
-  ctbcQuickAt=Date.now();
-  const day=tableOrders.MenuLib.businessDay(),now=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Taipei'});
-  try{const rows=await ctbc.fetchWarm(cfg,day,now>day?now:day,{log:m=>console.log('[ctbc-warm]',m)});res.json({ok:true,count:await upsertCtbc(rows)});}
-  catch(e){ctbcQuickBlock=Date.now()+(e.fatal?600000:60000);res.status(502).json({error:e.message});}
-}));
+/* 中信刷卡收款通知：同步改由伺服器端單一迴圈（payWatchLoop），這支端點只給舊版 POS 頁，直接回 skipped */
+app.post('/api/admin/orders/ctbc-alerts/sync',auth,adminOnly,(req,res)=>res.json({ok:true,skipped:'server-loop'}));
+/* 伺服器端收款同步迴圈（KK 11/6）：同步今天（營業日）的交易，做完等 PAY_WATCH_GAP_MS（1 秒）再做下一輪，上一輪沒做完不會開下一輪。
+ * 用常駐登入分頁（fetchWarm），排程同步（linepaySyncing／ctbcSyncing）進行中就跳過這輪。
+ * 失敗退避：LINE Pay 60 秒；中信登入失敗 60 秒、帳密錯誤（fatal）10 分鐘，避免每秒重登鎖帳號。不寫日結的同步狀態（由排程與手動同步負責）。 */
+const PAY_WATCH_GAP_MS=1000;
+const payToday=()=>{const day=tableOrders.MenuLib.businessDay(),now=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Taipei'});return [day,now>day?now:day];};
+const PAY_WATCHERS=[
+  {name:'linepay',enabled:()=>linepay.configured(),busy:()=>linepaySyncing,
+   run:async()=>upsertLinepay(await linepay.fetchWarm(linepay.config(),...payToday())),backoff:()=>60000},
+  {name:'ctbc',enabled:()=>ctbc.configured(),busy:()=>ctbcSyncing,
+   run:async()=>upsertCtbc(await ctbc.fetchWarm(ctbc.config(),...payToday(),{log:m=>console.log('[ctbc-warm]',m)})),backoff:e=>e.fatal?600000:60000},
+];
+const sleep=ms=>new Promise(r=>{const t=setTimeout(r,ms);t.unref?.();});
+async function payWatchLoop(w){
+  for(;;){
+    let wait=PAY_WATCH_GAP_MS;
+    try{ if(dbReady&&w.enabled()&&!w.busy())await w.run(); }
+    catch(e){ wait=w.backoff(e); console.error(`[pay-watch:${w.name}] 同步失敗，${wait/1000} 秒後重試：`,e.message); }
+    await sleep(wait);
+  }
+}
 app.get('/api/admin/orders/ctbc-alerts',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   res.set('Cache-Control','no-store');
   const venues=posScope(req),mins=Math.min(720,Math.max(5,Number(req.query.lookback)||60)),hrs=Math.min(24,Math.max(1,Number(req.query.hours)||8));
@@ -8340,6 +8340,8 @@ async function boot() {
   // Railway 專案只留作回滾備援（2026-10-12 搬到 GCP）：它的 GitHub 自動部署仍跟著 main 更新、連的是自己那顆舊資料庫（排程貼文備份）、
   // 用同一支 IG token，排程若也跑就會和 Cloud Run 各發一次（2026-10-13 IG 雙發事故）。Railway 一律不跑排程。
   if (RAILWAY_MODE) { console.log('[boot] RAILWAY_ENVIRONMENT：Railway 僅為備援，排程由 Cloud Run 官網服務負責，本服務不啟動'); return; }
+  // 收款即時同步（LINE Pay／中信）：伺服器端單一迴圈，同步完等 1 秒再同步；POS 只讀結果（KK 11/6）
+  for (const w of PAY_WATCHERS) payWatchLoop(w);
   // Cloud Scheduler 模式：程序內不啟動任何排程，由 POST /internal/cron/* 觸發（見 docs/cloud-scheduler-cron.md）
   if (CRON_SCHEDULER) {
     if (!cronJobs.secretMatches(CRON_SECRET, CRON_SECRET)) console.warn(`[warn] CRON_MODE=scheduler 但 CRON_SECRET 未設定或短於 ${cronJobs.CRON_SECRET_MIN} 字元：/internal/cron/* 停用，排程不會執行！`);

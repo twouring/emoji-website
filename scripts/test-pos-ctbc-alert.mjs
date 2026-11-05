@@ -32,22 +32,24 @@ test('server：路由分品牌、常駐登入、節流與退避、文件', () =>
   const rg = server.slice(g, server.indexOf('\n}));', g)), rp = server.slice(p, server.indexOf('\n}));', p));
   assert.match(rg, /posScope\(req\)/);
   assert.match(rg, /ctbc\.alertRows\(/);
-  assert.match(rp, /ctbc\.fetchWarm\(/);
-  assert.match(rp, /ctbcSyncing/);
-  assert.match(rp, /Date\.now\(\)-ctbcQuickAt<900\)/);
-  assert.match(rp, /ctbcQuickBlock=Date\.now\(\)\+\(e\.fatal\?600000:60000\)/, '登入失敗要退避，避免每秒重登鎖帳號');
+  assert.match(rp, /skipped:'server-loop'/, '同步改伺服器端迴圈，舊版 POS 頁打來不做事');
+  const w = server.slice(server.indexOf('const PAY_WATCHERS=['), server.indexOf('async function payWatchLoop'));
+  assert.match(w, /ctbc\.fetchWarm\(/);
+  assert.match(w, /ctbcSyncing/);
+  assert.match(w, /backoff:e=>e\.fatal\?600000:60000/, '登入失敗要退避，避免每秒重登鎖帳號');
   const api = read('docs/API.md');
   assert.match(api, /### GET \/api\/admin\/orders\/ctbc-alerts/);
   assert.match(api, /### POST \/api\/admin\/orders\/ctbc-alerts\/sync/);
 });
 
-test('POS：不分頁面背景同步（同步完 1 秒再同步）、彈窗只能按鈕關、響鈴、已讀依品牌', () => {
+test('POS：不分頁面背景讀取（讀完 1 秒再讀，不觸發同步）、彈窗只能按鈕關、響鈴、已讀依品牌', () => {
   const js = read('public/pos-ctbc-alert.js'), pos = read('public/pos.html');
   assert.match(pos, /pos-ctbc-alert\.js/);
   assert.match(pos, /ctbcAlertBoot\(\)/);
   assert.match(js, /CTA_GAP_MS = 1000;/);
   assert.doesNotMatch(js, /CTA_TABLE_MS|CTA_POLL_MS|OnTable|POS_TABLE/, '不分頁面（KK 11/5 背景同步）');
   assert.match(js, /finally \{ CTA\.timer = setTimeout\(tick, CTA_GAP_MS\); \}/);
+  assert.doesNotMatch(js, /ctbc-alerts\/sync/, 'POS 不得觸發同步');
   assert.match(js, /cashInChime\(\)/, '錢進帳音效');
   assert.doesNotMatch(js, /setInterval|cron/);
     for (const k of ['店別', '交易時間', '卡號末四碼', '授權碼']) assert.ok(js.includes(`'${k}'`), k);
