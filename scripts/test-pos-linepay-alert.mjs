@@ -60,3 +60,10 @@ test('桌號結帳頁每 10 秒同步', () => {
   assert.match(r, /linepaySyncing/);
   assert.match(read('docs/API.md'), /### POST \/api\/admin\/orders\/linepay-alerts\/sync/);
 });
+
+test('彈窗只顯示最近一筆', () => {
+  const js = read('public/pos-linepay-alert.js');
+  assert.match(js, /lpaCard\(last\)/);
+  assert.doesNotMatch(js, /LPA\.queue\.map\(lpaCard\)/);
+  assert.match(js, /const last = LPA\.queue\[LPA\.queue\.length - 1\]/);
+});
