@@ -141,6 +141,19 @@ test('點歌：預設關閉、開啟後掃碼點歌進帳單、常態歌單、�
     await q("INSERT INTO table_orders(id,table_no,items,amount,status) VALUES('o1','A1',$1,160,'paid'),('o2','A2',$1,10,'void')", [JSON.stringify([sl, { zh: '拿鐵', price: 150, qty: 1 }])]);
     r = await call('GET', '/api/admin/orders/songs/stats');
     assert.equal(r.status, 200, JSON.stringify(r.body)); assert.equal(r.body.count, 1); assert.equal(r.body.amount, 10); assert.equal(r.body.songs[0].title, '晴天');
+    // 招待兌換碼：不用先購買、不綁桌、不記帳
+    assert.equal((await call('POST', '/api/admin/orders/songs/tickets', { comp: true, n: 0 })).status, 400);
+    r = await call('POST', '/api/admin/orders/songs/tickets', { comp: true, n: 2, label: '朋友' });
+    assert.equal(r.status, 201, JSON.stringify(r.body)); const ck = r.body.ticket; assert.equal(ck.comp, true); assert.equal(ck.total, 2); assert.match(ck.code, /^\d{6}$/);
+    assert.ok(r.body.tickets.some(x => x.id === ck.id && x.comp && x.left === 2));
+    const before = (await items()).length;
+    r = await call('GET', `/api/ktv/ticket?d=${D}&code=${ck.code}`); assert.equal(r.status, 200); assert.equal(r.body.comp, true); assert.equal(r.body.left, 2); assert.equal(r.body.table, '朋友');
+    r = await call('POST', '/api/ktv/pick', { d: D, code: ck.code, video_id: ID(5) }); assert.equal(r.status, 201, JSON.stringify(r.body)); assert.equal(r.body.left, 1);
+    assert.equal((await items()).length, before, '招待不記帳');
+    const ce = r.body.queue.find(x => x.video_id === ID(5)); assert.ok(ce);
+    r = await call('DELETE', '/api/admin/orders/songs/queue/' + ce.id); assert.equal(r.status, 200); assert.equal(r.body.refunded, false);
+    r = await call('POST', '/api/ktv/pick', { d: D, code: ck.code, video_id: ID(6) }); assert.equal(r.status, 201); assert.equal(r.body.left, 0);
+    assert.equal((await call('POST', '/api/ktv/pick', { d: D, code: ck.code, video_id: ID(7) })).status, 409, '招待首數用完');
     // 關閉後客人不能買；清桌後桌邊 409、點歌 QR 410
     await call('POST', '/api/admin/orders/songs/settings', { enabled: false });
     assert.equal((await call('GET', '/api/songs?' + QS)).body.enabled, false);

@@ -187,3 +187,16 @@ test('KK 11/6 點歌流程接線：桌邊只購買、控台發兌換碼、電視
   require('../public/order-lib.js'); const L = globalThis.OrderLib;
   for (const lang of ['zh', 'en', 'ja', 'ko']) for (const k of ['song_buy', 'song_buy_confirm', 'song_bought', 'song_steps', 'song_pending', 'song_pending_card']) assert.notEqual(L.text(lang, k), k, lang + ':' + k);
 });
+
+test('招待兌換碼：控台直接產生、不綁桌、1–20 首、用完為止', () => {
+  const t0 = Date.parse('2026-11-06T12:00:00Z');
+  let st = TK.normalize('');
+  assert.throws(() => TK.issueComp(st, { n: 0 }), /1–20/); assert.throws(() => TK.issueComp(st, { n: 21 }), /1–20/);
+  const r = TK.issueComp(st, { n: 2, label: '朋友來玩很長的備註', by: 'kk', now: t0 }); st = r.state;
+  assert.equal(r.ticket.comp, true); assert.equal(r.ticket.session_id, null); assert.equal(r.ticket.table, '朋友來玩很長的備'); assert.deepEqual(r.ticket.lines, ['c1', 'c2']); assert.match(r.ticket.code, /^\d{6}$/);
+  assert.equal(TK.findByCode(st, r.ticket.code, t0).id, r.ticket.id);
+  assert.equal(TK.remaining(r.ticket, [], t0).length, 2, '招待碼不看桌上品項');
+  st = TK.use(st, r.ticket.id, 'c1'); assert.deepEqual(TK.view(st.tickets[0], [], t0).left, 1); assert.equal(TK.view(st.tickets[0], [], t0).comp, true);
+  assert.equal(TK.remaining(st.tickets[0], [], t0 + TK.TTL + 1).length, 0, '一樣 6 小時失效');
+  const js = read('public/ktv.js'); assert.match(js, /data-k-compform/); assert.match(js, /comp: true/);
+});

@@ -96,12 +96,13 @@ let SHOW_TICKET = '';
 function ticketPanel(){
   const b = ticketsOf();
   const wait = b.tables.length ? `<ul class="list">${b.tables.map(x => `<li class="row"><div class="meta"><b>桌 ${esc(x.table)}</b><small>已購買 ${esc(x.unissued)} 首，還沒發兌換碼</small></div><div class="act"><button type="button" class="btn btn--sm btn--solid" data-k-issue="${esc(x.session_id)}">發兌換碼</button></div></li>`).join('')}</ul>` : '<p class="empty">目前沒有待發兌換碼的桌。客人在桌邊點餐頁買好點歌後會出現在這裡。</p>';
-  const act = b.tickets.length ? `<ul class="list">${b.tickets.map(x => `<li class="row"><div class="meta"><b>桌 ${esc(x.table)}・<span class="k-code">${esc(fmtCode(x.code))}</span></b><small>剩 ${esc(x.left)}／${esc(x.total)} 首・有效至 ${esc(hhmm(x.expires_at))}</small></div><div class="act"><button type="button" class="btn btn--sm" data-k-showqr="${esc(x.id)}">放大</button></div></li>`).join('')}</ul>` : '';
-  return `<section class="panel k-tix" aria-labelledby="h-tix"><h2 id="h-tix">點歌兌換碼 <small>桌邊只能購買首數；把兌換碼給客人，客人掃播放裝置畫面上的 QR 後輸入</small></h2>${wait}${act ? '<h3>可使用</h3>' + act : ''}</section>`;
+  const act = b.tickets.length ? `<ul class="list">${b.tickets.map(x => `<li class="row"><div class="meta"><b>${x.comp ? '招待' + (x.table ? '・' + esc(x.table) : '') : '桌 ' + esc(x.table)}・<span class="k-code">${esc(fmtCode(x.code))}</span></b><small>剩 ${esc(x.left)}／${esc(x.total)} 首・有效至 ${esc(hhmm(x.expires_at))}</small></div><div class="act"><button type="button" class="btn btn--sm" data-k-showqr="${esc(x.id)}">放大</button></div></li>`).join('')}</ul>` : '';
+  const comp = `<form class="k-comp" data-k-compform><b>招待兌換碼</b><label>首數 <input name="n" type="number" inputmode="numeric" min="1" max="20" value="1" required></label><label>桌號／備註 <input name="label" maxlength="8" placeholder="選填"></label><button type="submit" class="btn btn--sm">產生招待碼</button><small>不用先購買、不記帳</small></form>`;
+  return `<section class="panel k-tix" aria-labelledby="h-tix"><h2 id="h-tix">點歌兌換碼 <small>桌邊只能購買首數；把兌換碼給客人，客人掃播放裝置畫面上的 QR 後輸入</small></h2>${wait}${comp}${act ? '<h3>可使用</h3>' + act : ''}</section>`;
 }
 function qrOverlay(){
   const t = ticketsOf().tickets.find(x => x.id === SHOW_TICKET); if (!t) return '';
-  return `<div class="qr-ov" role="dialog" aria-label="點歌兌換碼"><div class="qr-card"><h2>桌 ${esc(t.table)}・點歌兌換碼</h2><p class="k-bigcode">${esc(fmtCode(t.code))}</p><p>可點 ${esc(t.left)}／${esc(t.total)} 首・有效至 ${esc(hhmm(t.expires_at))}</p><p class="muted">請客人掃播放裝置畫面上的 QR，輸入這組號碼選歌</p><button type="button" class="btn btn--solid" data-k-qrclose>關閉</button></div></div>`;
+  return `<div class="qr-ov" role="dialog" aria-label="點歌兌換碼"><div class="qr-card"><h2>${t.comp ? '招待' + (t.table ? '・' + esc(t.table) : '') : '桌 ' + esc(t.table)}・點歌兌換碼</h2><p class="k-bigcode">${esc(fmtCode(t.code))}</p><p>可點 ${esc(t.left)}／${esc(t.total)} 首・有效至 ${esc(hhmm(t.expires_at))}</p><p class="muted">請客人掃播放裝置畫面上的 QR，輸入這組號碼選歌</p><button type="button" class="btn btn--solid" data-k-qrclose>關閉</button></div></div>`;
 }
 
 /* ---------- 頁面：控台 ---------- */
@@ -272,6 +273,13 @@ document.addEventListener('change', e => {
   const t = e.target;
   if (t.matches('[data-k-enabled]')) return act(() => post('settings', { enabled: t.checked }), t.checked ? '已開放客人點歌' : '已關閉客人點歌');
   if (t.matches('[data-k-shuffle]')) return act(() => post('settings', { shuffle: t.checked }));
+});
+document.addEventListener('submit', async e => {
+  const f = e.target.closest('[data-k-compform]'); if (!f) return; e.preventDefault();
+  const n = Number(f.elements.n.value), label = f.elements.label.value.trim(), btn = f.querySelector('button'); btn.disabled = true;
+  try { const r = await post('tickets', { comp: true, n, label }); D = { ...D, song_tickets: { tables: r.tables, tickets: r.tickets } }; SHOW_TICKET = r.ticket.id; toast('已產生招待兌換碼：' + r.ticket.total + ' 首'); }
+  catch (err) { toast(err.message); btn.disabled = false; return; }
+  paint();
 });
 document.addEventListener('click', async e => {
   if (e.target.matches && e.target.matches('.qr-ov')) { SHOW_TICKET = ''; return paint(); }

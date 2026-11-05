@@ -7939,18 +7939,21 @@ async function ticketBoard(){
   const byId=new Map(rows.map(r=>[r.id,r]));
   const tables=rows.map(r=>({session_id:r.id,table:r.table_no,unissued:songTickets.unissued(r.items,st).length})).filter(x=>x.unissued>0).sort((a,b)=>String(a.table).localeCompare(String(b.table)));
   const now=Date.now();
-  const tickets=st.tickets.map(t=>({...t,...songTickets.view(t,(byId.get(t.session_id)||{}).items,now)})).filter(t=>t.left>0).map(t=>({id:t.id,code:t.code,table:t.table,left:t.left,total:t.total,at:t.at,expires_at:t.expires_at})).reverse();
+  const tickets=st.tickets.map(t=>({...t,...songTickets.view(t,(byId.get(t.session_id)||{}).items,now)})).filter(t=>t.left>0).map(t=>({id:t.id,code:t.code,comp:t.comp,table:t.table,left:t.left,total:t.total,at:t.at,expires_at:t.expires_at})).reverse();
   return {tables,tickets};
 }
 app.get('/api/admin/orders/songs/tickets',auth,adminOnly,requireDb,wrap(async(req,res)=>{res.set('Cache-Control','no-store');res.json(await ticketBoard());}));
 app.post('/api/admin/orders/songs/tickets',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  const sid=String(req.body?.session_id||'');if(!sid)return res.status(400).json({error:'請選擇桌次。'});
+  // body.comp＝招待（KK 11/6）：不用先購買、不記帳，{ comp:true, n, label }；否則 { session_id } 發這桌已購買的首數
+  const comp=req.body?.comp===true,sid=String(req.body?.session_id||'');if(!comp&&!sid)return res.status(400).json({error:'請選擇桌次。'});
   const client=await pool.connect();
   try{await client.query('BEGIN');await client.query(`SELECT pg_advisory_xact_lock(hashtext('ktv'))`);
-    const ss=(await client.query('SELECT id,table_no,status,items FROM table_sessions WHERE id=$1 FOR UPDATE',[sid])).rows[0];
-    const out=await withTickets(client,async st=>songTickets.issue(st,{session:ss,by:actorOf(req.auth)||''}));
+    const by=actorOf(req.auth)||'';
+    const ss=comp?null:(await client.query('SELECT id,table_no,status,items FROM table_sessions WHERE id=$1 FOR UPDATE',[sid])).rows[0];
+    const out=await withTickets(client,async st=>comp?songTickets.issueComp(st,{n:req.body.n,label:tableOrders.cleanText(req.body.label,8),by}):songTickets.issue(st,{session:ss,by}));
     await client.query('COMMIT');
-    res.status(201).json({ticket:{id:out.ticket.id,code:out.ticket.code,table:out.ticket.table,left:out.ticket.lines.length,total:out.ticket.lines.length,at:out.ticket.at,expires_at:new Date(Date.parse(out.ticket.at)+songTickets.TTL).toISOString()},...await ticketBoard()});
+    if(comp)console.log('[ktv] 招待兌換碼',out.ticket.lines.length,'首',out.ticket.table||'-',by);
+    res.status(201).json({ticket:{id:out.ticket.id,code:out.ticket.code,comp:!!out.ticket.comp,table:out.ticket.table,left:out.ticket.lines.length,total:out.ticket.lines.length,at:out.ticket.at,expires_at:new Date(Date.parse(out.ticket.at)+songTickets.TTL).toISOString()},...await ticketBoard()});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});return songErr(res,e);}finally{client.release();}
 }));
 // 客人端：d＝播放裝置 QR 的代號（只認目前的播放裝置），code＝兌換碼
@@ -7963,6 +7966,7 @@ async function ktvDevice(src){
 async function ktvTicket(src){
   const t=songTickets.findByCode(songTickets.normalize(await contentValue(KTV_TICKETS)),src?.code);
   if(!t)throw Object.assign(Error('兌換碼不正確或已過期，請向店員確認。'),{status:404});
+  if(t.comp)return {t,ss:{id:null,table_no:t.table,status:'open',items:[]}};   // 招待碼不綁桌
   const ss=(await q('SELECT id,table_no,status,items FROM table_sessions WHERE id=$1',[t.session_id])).rows[0];
   if(!ss||ss.status!=='open')throw Object.assign(Error('這桌已結帳，兌換碼已失效。'),{status:410});
   return {t,ss};
@@ -7988,13 +7992,14 @@ app.post('/api/ktv/pick',rateLimit({max:30}),requireDb,wrap(async(req,res)=>{
     const video=await songPlayable(b.video_id,settings0);
     const out=await withSongs(async(client,{settings,state})=>withTickets(client,async st=>{
       const t=st.tickets.find(x=>x.id===t0.id);if(!t)throw Object.assign(Error('兌換碼已失效，請向店員確認。'),{status:410});
-      const ss=(await client.query('SELECT id,table_no,status,items FROM table_sessions WHERE id=$1 FOR UPDATE',[t.session_id])).rows[0];
+      const ss=t.comp?{id:null,table_no:t.table,status:'open',items:[]}:(await client.query('SELECT id,table_no,status,items FROM table_sessions WHERE id=$1 FOR UPDATE',[t.session_id])).rows[0];
       if(!ss||ss.status!=='open')throw Object.assign(Error('這桌已結帳，兌換碼已失效。'),{status:410});
-      const left=songTickets.remaining(t,ss.items);if(!left.length)throw Object.assign(Error('這組兌換碼的歌都點完了。要再點請先在桌邊點餐頁購買。'),{status:409});
-      const lineId=left[0],line=ss.items.find(l=>l.line===lineId);
-      const {state:next,entry}=songs.enqueue(state,video,{table:ss.table_no,by:tableOrders.cleanText(b.by,20)||line.by||'客人',source:'guest',session_id:ss.id,line:lineId,price:line.price,maxPerTable:20});
-      const items=ss.items.map(l=>l.line===lineId?songTickets.pickLine(l,entry):l);
-      await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[ss.id,JSON.stringify(items)]);
+      const left=songTickets.remaining(t,ss.items);if(!left.length)throw Object.assign(Error(t.comp?'這組招待兌換碼的歌都點完了。':'這組兌換碼的歌都點完了。要再點請先在桌邊點餐頁購買。'),{status:409});
+      const lineId=left[0],line=t.comp?{by:'招待',price:0}:ss.items.find(l=>l.line===lineId);
+      // 招待碼：不綁桌、不記帳（session_id/line 為 null，播放失敗或移除也不用退款）
+      const {state:next,entry}=songs.enqueue(state,video,{table:ss.table_no,by:tableOrders.cleanText(b.by,20)||line.by||'客人',source:'guest',session_id:ss.id,line:t.comp?null:lineId,price:line.price,maxPerTable:20});
+      const items=t.comp?[]:ss.items.map(l=>l.line===lineId?songTickets.pickLine(l,entry):l);
+      if(!t.comp)await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[ss.id,JSON.stringify(items)]);
       await saveSongState(client,next);
       await client.query(`INSERT INTO site_content(key,value) VALUES('song_stats','{}') ON CONFLICT(key) DO NOTHING`);
       const stats=songs.normalizeStats((await client.query(`SELECT value FROM site_content WHERE key='song_stats' FOR UPDATE`)).rows[0]?.value);

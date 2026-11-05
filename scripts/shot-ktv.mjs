@@ -14,7 +14,7 @@ const D = { settings: { enabled: true, price: 10, max_per_table: 3, max_minutes:
   now: { ...tr(5, '小幸運（電影《我的少女時代》主題曲）超長的歌名測試會不會換行而不是被截斷'), id: 'sr0', kind: 'request', source: 'guest', table: 'A1', by: '阿德' }, queue,
   upcoming: { items: queue.map((t, i) => ({ ...t, kind: 'request', pos: i + 1 })).concat([{ ...tr(7, '店內歌單一'), kind: 'playlist', pos: 4 }, { ...tr(8, '店內歌單二'), kind: 'playlist', pos: 5 }]), shuffle: true, playlist_count: 2, playlist_name: '平日午後' },
   history: [{ ...tr(6, '稻香'), kind: 'request', result: 'ended' }],
-  song_tickets: { tables: [{ session_id: 'ts_b2', table: 'B2', unissued: 2 }], tickets: [{ id: 'kt_aaaaaaaaaaaa', code: '482913', table: 'A3', left: 2, total: 3, at: '2026-11-06T12:00:00Z', expires_at: '2026-11-06T18:00:00Z' }] },
+  song_tickets: { tables: [{ session_id: 'ts_b2', table: 'B2', unissued: 2 }], tickets: [{ id: 'kt_bbbbbbbbbbbb', code: '705162', comp: true, table: '朋友', left: 3, total: 3, at: '2026-11-06T12:00:00Z', expires_at: '2026-11-06T18:00:00Z' }, { id: 'kt_aaaaaaaaaaaa', code: '482913', table: 'A3', left: 2, total: 3, at: '2026-11-06T12:00:00Z', expires_at: '2026-11-06T18:00:00Z' }] },
   device_url: 'https://ktv.emoji.tw/s?d=Ab3dEf7hJk', youtube: { connected: true, channel: { title: '言文字 emoji' }, connected_by: 'kk@emoji.tw', oauth_ready: true, api_key: true } };
 const LIVE = { online: true, seq: 3, device: 'ktv-tv', name: '電視畫面', mode: 'tv', state: 'playing', pos: 83, dur: 262, vol: 70, muted: false, video_id: id(5) };
 const DISC = { popular: [tr(1, '晴天', { count: 12 }), tr(4, '倔強', { count: 7 })], recent: [tr(1, '晴天')], chart: [] };
