@@ -51,7 +51,9 @@ test('ktv.emoji.tw：控台／電視／遙控／歌單／統計／設定回 KTV 
   const w = await get('/auth/google?redirect=' + encodeURIComponent('https://ktv.emoji.tw/'), { host: 'www.emoji.tw' });
   assert.match(w.headers.get('location'), /accounts\.google\.com/, 'ktv.emoji.tw 在登入導回白名單');
   assert.notEqual((await get('/', { host: 'pos.emoji.tw' })).body.includes('言文字 KTV'), true, 'POS 首頁不是 KTV');
-  { const r = await get('/s?d=AAAAAAAAAA', { host: 'ktv.emoji.tw' }); assert.equal(r.status, 200, '播放裝置 QR 客人頁'); assert.match(r.body, /言文字 KTV 點歌/); }
+  { const r = await get('/s?d=AAAAAAAAAA', { host: 'ktv.emoji.tw' }); assert.equal(r.status, 302, '舊播放裝置 QR 轉到 App'); assert.match(r.headers.get('location'), /^https:\/\/app\.emoji\.tw\/ktv\?d=AAAAAAAAAA$/); }
+  for (const p of ['/ktv?d=AAAAAAAAAA', '/ktv/']) { const r = await get(p, { host: 'app.emoji.tw' }); assert.equal(r.status, 200, 'App 內 KTV 點歌頁 ' + p); assert.match(r.body, /言文字 KTV 點歌/); }
+  for (const f of ['/song-picks.js', '/sso-client.js']) assert.equal((await get(f, { host: 'app.emoji.tw' })).status, 200, 'App 網域 ' + f);
   for (const p of ['/ktv', '/ktv/', '/ktv/tv', '/ktv/remote']) { const r = await get(p, { host: 'pos.emoji.tw' }); assert.equal(r.status, 200, 'pos 備用入口 ' + p); assert.match(r.body, /言文字 KTV/); }
 });
 
@@ -186,6 +188,16 @@ test('KK 11/6 點歌流程接線：桌邊只購買、控台發兌換碼、電視
   for (const m of guest.matchAll(/font-size:\s*([\d.]+)(rem|px)/g)) assert.ok(m[2] === 'rem' ? +m[1] >= 1 : +m[1] >= 16, m[0]);
   require('../public/order-lib.js'); const L = globalThis.OrderLib;
   for (const lang of ['zh', 'en', 'ja', 'ko']) for (const k of ['song_buy', 'song_buy_confirm', 'song_bought', 'song_steps', 'song_pending', 'song_pending_card']) assert.notEqual(L.text(lang, k), k, lang + ':' + k);
+});
+
+test('KK 11/6 KTV 整合進 App、鼓勵客人註冊：共用 tth_token、未登入顯示會員好處與登入、會員點歌掛桌累點', () => {
+  const srv = read('server.js'), guest = read('public/ktv-song.html'), m = read('public/m.html');
+  assert.match(srv, /const deviceUrl=device=>device\?APP_BASE\+'\/ktv\?d='/, '電視 QR 指向 App');
+  for (const r of ["app.get('/api/ktv/device',rateLimit({max:60}),optionalAuth", "app.get('/api/ktv/ticket',rateLimit({max:20}),optionalAuth", "app.post('/api/ktv/pick',rateLimit({max:30}),optionalAuth"]) assert.ok(srv.includes(r), r);
+  assert.match(srv, /async function ktvJoinTable/); assert.match(srv, /if\(m&&!t0\.comp\)await ktvJoinTable/, '會員點歌掛到這桌（招待碼不掛）');
+  assert.match(guest, /var KEY='tth_token'/); assert.match(guest, /Authorization='Bearer '/); assert.match(guest, /function memberBox\(\)/); assert.match(guest, /\/auth\/google\?redirect=/); assert.match(guest, /EmojiSSO\.silent\(KEY\)/);
+  for (const k of ['m_title', 'm_b1', 'm_b2', 'm_google', 'm_on', 'm_joined']) for (const l of ['zh:{', 'en:{', 'ja:{', 'ko:{']) assert.ok(guest.split('\n').some(x => x.includes(l) && x.includes(k + ':')), l + k);
+  assert.match(m, /return \{ktv:u\.searchParams\.get\('d'\)\}/, 'App 掃碼認得電視點歌 QR'); assert.match(m, /if\(tb\.ktv\)\{location\.href='\/ktv\?d='/); assert.match(m, /\['ktv',T\.bKtv\]/);
 });
 
 test('招待兌換碼：控台直接產生、不綁桌、1–20 首、用完為止', () => {
