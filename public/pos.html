@@ -365,6 +365,7 @@
 <script src="/pos-live.js"></script>
 <script src="/pos-tips.js"></script>
 <script src="/pos-linepay-alert.js"></script>
+<script src="/pos-ctbc-alert.js"></script>
 <script src="/pos-feedback.js"></script>
 <script src="/pos-bugs.js"></script>
 <script src="/pos-icons.js"></script>
@@ -730,6 +731,7 @@ async function main(){
     posLiveBoot();
     tipBoot();
     linepayAlertBoot();
+    ctbcAlertBoot();
     renewToken();
   } catch(e){
     if (e.status === 401) return;   // api() 已轉到登入畫面

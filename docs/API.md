@@ -584,6 +584,14 @@ POS 輪詢未處理的呼叫（每 5 秒）。回 `{ pending:[{id,session_id,tab
 ### POST /api/admin/orders/service-calls/:id/done
 店員按「處理」結案，記 `done_at`／`done_by`（登入者或 PIN 員工）。已處理過的重複按回原資料（兩台同時按不報錯）；找不到 404。記入 POS 操作紀錄「處理客人呼叫服務」。
 
+### POST /api/admin/orders/ctbc-alerts/sync
+
+POS 停在桌號結帳頁時每秒呼叫（前端 setTimeout 鏈，上一輪回來才排下一輪）：同步今天（營業日）的中信行動刷卡交易進 `ctbc_transactions`。伺服器保留已登入、停在交易查詢頁的中信 mPOS 後台分頁（閒置 2 分鐘關閉），之後每次只查一次；0.9 秒內已同步或排程同步中回 `{ ok, skipped }`。登入失敗退避 60 秒、帳密錯誤退避 10 分鐘（回 `skipped:'backoff'`），避免重登鎖帳號。失敗 502，不改日結的同步狀態。
+
+### GET /api/admin/orders/ctbc-alerts
+
+POS 中信刷卡收款通知：回最近 `lookback` 分鐘（預設 60、上限 720）同步進來的中信交易 `{ alerts:[{ id, type, type_label, amount, paid_at, day, time, card_last4, auth_code, terminal_id, device_user, note, venue, venue_label }], synced_at }`。失敗／拒絕的交易不列；店別依交易時間＋當天開關帳歸屬，品牌 POS 只看自己的（`venue`）。
+
 ### POST /api/admin/orders/linepay-alerts/sync
 POS 停在桌號結帳頁時每秒呼叫（前端 setTimeout 鏈，上一輪回來才排下一輪）：同步今天（營業日）的 LINE Pay 後台交易進 `linepay_transactions`。伺服器保留已登入的後台分頁（閒置 2 分鐘關閉），之後每次只送一次查詢；0.9 秒內已同步或排程同步中回 `{ ok, skipped }`。失敗 502，不改日結的同步狀態。
 

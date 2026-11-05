@@ -7522,6 +7522,28 @@ app.post('/api/admin/sales/ctbc/sync',auth,adminOnly,requireDb,wrap(async(req,re
   try{res.json({ok:true,...await syncCtbc(start,end)});}
   catch(e){res.status(e.status||502).json({error:e.message});}
 }));
+/* 中信刷卡收款通知（KK 11/5，同 LINE Pay）：POS 停在桌號結帳頁每秒（前端 setTimeout 鏈）觸發同步今天的中信交易，用常駐登入分頁（ctbc.fetchWarm）；
+ * 1 秒內同步過或排程同步中跳過；登入失敗退避 60 秒、帳密錯誤（fatal）退避 10 分鐘，避免每秒重登把帳號鎖住。不寫日結的同步狀態 */
+let ctbcQuickAt=0,ctbcQuickBlock=0;
+app.post('/api/admin/orders/ctbc-alerts/sync',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const cfg=ctbc.config();
+  if(!cfg)return res.json({ok:false,skipped:'not_configured'});
+  if(ctbcSyncing)return res.json({ok:true,skipped:'busy'});
+  if(Date.now()<ctbcQuickBlock)return res.json({ok:false,skipped:'backoff'});
+  if(Date.now()-ctbcQuickAt<900)return res.json({ok:true,skipped:'recent'});
+  ctbcQuickAt=Date.now();
+  const day=tableOrders.MenuLib.businessDay(),now=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Taipei'});
+  try{const rows=await ctbc.fetchWarm(cfg,day,now>day?now:day,{log:m=>console.log('[ctbc-warm]',m)});res.json({ok:true,count:await upsertCtbc(rows)});}
+  catch(e){ctbcQuickBlock=Date.now()+(e.fatal?600000:60000);res.status(502).json({error:e.message});}
+}));
+app.get('/api/admin/orders/ctbc-alerts',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  res.set('Cache-Control','no-store');
+  const venues=posScope(req),mins=Math.min(720,Math.max(5,Number(req.query.lookback)||60));
+  const txs=(await q("SELECT id,type,amount,paid_at,card_last4,auth_code,progress,terminal_id,device_user,note,synced_at FROM ctbc_transactions WHERE synced_at>=now()-($1::int*interval '1 minute') AND paid_at>=now()-interval '1 day' ORDER BY paid_at",[mins])).rows;
+  const days=[...new Set(txs.map(t=>tableOrders.MenuLib.businessDay(t.paid_at)))];
+  const regs=days.length?(await q('SELECT day::text AS day,venue,opened_at,closed_at FROM pos_registers WHERE day::text=ANY($1::text[]) ORDER BY opened_at',[days])).rows:[];
+  res.json({alerts:ctbc.alertRows(txs,regs,venues),synced_at:(await q('SELECT ok_at FROM ctbc_sync_state WHERE id=1').catch(()=>({rows:[]}))).rows[0]?.ok_at||null});
+}));
 /* 訂位：依日期列出（餐飲子帳號只看自己時段的）、改狀態（確認／婉拒會寄信給留 Email 的客人）、排桌與店內備註 */
 app.get('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const pv=pinVenue(req,req.query.venue),venues=pv?[pv]:null;   /* 品牌 POS 帶 ?venue= 只看該品牌時段（KK 11/5）；不帶＝全部 */

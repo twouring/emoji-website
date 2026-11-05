@@ -1,0 +1,59 @@
+// 中信刷卡收款彈窗（KK 11/5）：同 LINE Pay 機制——結帳頁每秒 setTimeout 鏈同步、彈窗只能按鈕關
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+require('../lib/table-orders.js');   // 設好 globalThis.MenuLib
+const ct = require('../lib/ctbc.js');
+const root = new URL('..', import.meta.url);
+const read = f => fs.readFileSync(new URL(f, root), 'utf8');
+
+test('alertRows：店別依開關帳、退貨為負、失敗交易不跳、可依品牌過濾', () => {
+  const regs = [{ day: '2026-11-05', venue: 'CAFE', opened_at: '2026-11-05T00:00:00Z', closed_at: '2026-11-05T09:00:00Z' }, { day: '2026-11-05', venue: 'BAR', opened_at: '2026-11-05T09:30:00Z', closed_at: null }];
+  const txs = [
+    { id: 'a', type: 'SALE', amount: 520, paid_at: '2026-11-05T04:12:00Z', card_last4: '4321', auth_code: '123456', terminal_id: 'T1', device_user: 'iPhone', progress: '交易成功' },
+    { id: 'b', type: 'REFUND', amount: -200, paid_at: '2026-11-05T11:00:00Z', progress: '' },
+    { id: 'c', type: 'SALE', amount: 99, paid_at: '2026-11-05T11:05:00Z', progress: '授權失敗' },
+  ];
+  const all = ct.alertRows(txs, regs);
+  assert.deepEqual(all.map(r => r.id), ['a', 'b']);
+  assert.deepEqual([all[0].venue, all[0].venue_label, all[0].card_last4, all[0].auth_code, all[0].type_label, all[0].amount], ['CAFE', '在咖啡', '4321', '123456', '銷售', 520]);
+  assert.match(all[0].time, /12:12/);
+  assert.deepEqual([all[1].venue, all[1].type_label, all[1].amount], ['BAR', '退貨', -200]);
+  assert.deepEqual(ct.alertRows(txs, regs, ['BAR']).map(r => r.id), ['b']);
+});
+
+test('server：路由分品牌、常駐登入、節流與退避、文件', () => {
+  const server = read('server.js');
+  const g = server.indexOf("app.get('/api/admin/orders/ctbc-alerts',");
+  const p = server.indexOf("app.post('/api/admin/orders/ctbc-alerts/sync',");
+  assert.ok(g > 0 && p > 0);
+  const rg = server.slice(g, server.indexOf('\n}));', g)), rp = server.slice(p, server.indexOf('\n}));', p));
+  assert.match(rg, /posScope\(req\)/);
+  assert.match(rg, /ctbc\.alertRows\(/);
+  assert.match(rp, /ctbc\.fetchWarm\(/);
+  assert.match(rp, /ctbcSyncing/);
+  assert.match(rp, /Date\.now\(\)-ctbcQuickAt<900\)/);
+  assert.match(rp, /ctbcQuickBlock=Date\.now\(\)\+\(e\.fatal\?600000:60000\)/, '登入失敗要退避，避免每秒重登鎖帳號');
+  const api = read('docs/API.md');
+  assert.match(api, /### GET \/api\/admin\/orders\/ctbc-alerts/);
+  assert.match(api, /### POST \/api\/admin\/orders\/ctbc-alerts\/sync/);
+});
+
+test('POS：每秒 setTimeout 鏈、彈窗只能按鈕關、響鈴、已讀依品牌', () => {
+  const js = read('public/pos-ctbc-alert.js'), pos = read('public/pos.html');
+  assert.match(pos, /pos-ctbc-alert\.js/);
+  assert.match(pos, /ctbcAlertBoot\(\)/);
+  assert.match(js, /CTA_TABLE_MS = 1000;/);
+  assert.match(js, /finally \{ CTA\.timer = setTimeout\(tick, table \? CTA_TABLE_MS : CTA_POLL_MS\); \}/);
+  assert.doesNotMatch(js, /setInterval|cron/);
+  assert.match(js, /TAB === 'pos'[\s\S]{0,80}POS_TABLE/);
+  for (const k of ['店別', '交易時間', '卡號末四碼', '授權碼']) assert.ok(js.includes(`'${k}'`), k);
+  assert.match(js, /role', 'alertdialog'/);
+  assert.match(js, /e\.key === 'Escape'\) \{ e\.preventDefault\(\)/);
+  assert.doesNotMatch(js, /e\.target ?=== ?ov/);
+  assert.match(js, /newTicketChime\(\)/);
+  assert.match(js, /tth_ctbc_seen_/);
+  assert.match(js, /POS_URL_VENUE/);
+});
