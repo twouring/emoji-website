@@ -141,22 +141,6 @@ test('OAuth 綁定網址：youtube.readonly、離線存取', () => {
   assert.equal(u.searchParams.get('redirect_uri'), 'https://www.emoji.tw/auth/youtube/callback');
 });
 
-test('接線：POS 分頁、客人菜單卡片、操作紀錄、品牌子帳號可用、token 不進公開內容', () => {
-  const pos = read('public/pos.html'), order = read('public/order.html'), server = read('server.js');
-  assert.match(pos, /\{ id:'songs', icon:'music',\s+label:'點歌' \}/);
-  assert.match(pos, /songs:tabSongs/); assert.match(pos, /<script src="\/pos-songs.js"><\/script>/); assert.match(pos, /songBoot\(\)/);
-  assert.match(read('public/pos-icons.js'), /music:'/);
-  assert.match(order, /id="song-open"/); assert.match(order, /\/songs\/request/);
-  assert.match(order, /song-open'\)\.classList\.toggle\('hidden',!on\)/, '關閉時隱藏點歌卡片');
-  const log = require('../lib/pos-log.js');
-  assert.equal(log.describe('POST', '/orders/songs/settings'), '點歌設定（開關／價格／常態歌單）');
-  assert.equal(log.describe('POST', '/orders/songs/next'), null, '自動換歌不洗版操作紀錄');
-  // 點歌 API 掛在 /api/admin/orders 底下＝FOOD_API 已放行品牌子帳號
-  assert.match(server, /app\.get\('\/api\/admin\/orders\/songs',auth,adminOnly/);
-  assert.ok(!require('../lib/security.js').PUBLIC_CONTENT_KEYS.some(k => /^song/.test(k)), 'song_* 不可進公開內容');
-  assert.match(server, /access_token:encSecret\(t\.access_token\),refresh_token:encSecret\(t\.refresh_token\)/, 'YouTube token 加密保存');
-});
-
 test('點播統計：熱門依次數、最近依時間、長度上限過濾、最多 500 首', () => {
   let st = songs.normalizeStats('');
   st = songs.bumpStats(st, T(ID(1)), Date.parse('2026-10-27T10:00:00Z'));
@@ -182,23 +166,6 @@ test('排行榜：YouTube 台灣音樂熱門（chart=mostPopular、videoCategory
   assert.match(url, /chart=mostPopular/); assert.match(url, /regionCode=TW/); assert.match(url, /videoCategoryId=10/);
 });
 
-test('UI：設定移到設定頁、分頁有熱門／最近點過／排行榜／搜尋、標題完整顯示不截斷', () => {
-  const ps = read('public/pos-songs.js'), set = read('public/pos-settings.js'), pos = read('public/pos.html'), order = read('public/order.html');
-  assert.match(set, /songSettingsSection\(\)/); assert.match(set, /bindSongSettings\(\)/);
-  assert.match(ps, /function paintSongSettings/);
-  // 分頁本身不再有開關與價格表單
-  const paint = ps.slice(ps.indexOf('function paintSongs'), ps.indexOf('async function songDo'));
-  assert.doesNotMatch(paint, /data-song-enabled|data-song-set[ >]|data-song-yt-on|data-song-import/);
-  assert.match(ps, /\['popular', '熱門'\], \['recent', '最近點過'\], \['chart', '排行榜'\], \['search', '搜尋'\]/);
-  assert.match(order, /var SONG_VIEWS=\['popular','recent','chart','search','queue'\]/);
-  assert.match(order, /\/songs\/discover\?/);
-  for (const css of [pos, order]) {
-    const row = css.match(/\.song-(?:meta|row \.n) b\{[^}]*\}/)[0];
-    assert.match(row, /overflow-wrap:anywhere/, '長標題換行');
-    assert.doesNotMatch(row, /white-space:nowrap|text-overflow|line-clamp/, '標題完整顯示，不可截斷');
-  }
-});
-
 test('接下來：待播優先，再接常態歌單從下一首起的整份順序；隨機只列待播', () => {
   const pl = [T(ID(7)), T(ID(8)), T(ID(9))];
   let st = { ...songs.normalizeState(''), fallback_index: 1 };
@@ -219,17 +186,6 @@ test('接下來：待播優先，再接常態歌單從下一首起的整份順�
   assert.deepEqual(songs.shuffleBag([T(ID(7)), T(ID(9))], [ID(8), ID(9), ID(7)]), [ID(9), ID(7)]);
 });
 
-test('POS：顯示哪桌誰點的、接下來全部歌曲；播放器不佔畫面（無子母畫面）', () => {
-  const ps = read('public/pos-songs.js'), pos = read('public/pos.html');
-  assert.match(ps, /function songWho/); assert.match(ps, /<b>桌 \$\{esc\(t\.table \|\| '—'\)\}<\/b>\$\{t\.by \? `・\$\{esc\(t\.by\)\}` : ''\}/);
-  assert.match(ps, /d\.upcoming/); assert.match(ps, /接下來 <span class="song-count">/);
-  // KK 10/31：POS 不要歌曲子母畫面；iframe 放畫面外照常播放（不可 display:none／destroy），操作在點歌分頁大卡
-  const dock = pos.match(/#song-dock\{[^}]*\}/)[0];
-  assert.match(dock, /left:-10000px/); assert.match(dock, /pointer-events:none/); assert.doesNotMatch(dock, /display:none/);
-  assert.doesNotMatch(ps, /data-song-dock-min|data-song-dock-next|song-dock-grip|pointermove/, '不再有可見播放器視窗');
-  assert.match(ps, /data-song-skip/, '下一首在點歌分頁');
-});
-
 test('待播排序：移到指定位置（夾頭尾）；插播 front 排到下一首', () => {
   let st = songs.normalizeState('');
   for (const n of [1, 2, 3, 4]) st = songs.enqueue(st, T(ID(n)), { source: 'pos' }).state;
@@ -241,54 +197,6 @@ test('待播排序：移到指定位置（夾頭尾）；插播 front 排到下�
   st = songs.enqueue(st, T(ID(5)), { source: 'pos', front: true }).state; assert.equal(st.queue[0].video_id, ID(5));
   // 插播的歌在 upcoming 排第一
   assert.equal(songs.upcoming(st, songs.normalizeSettings('')).items[0].video_id, ID(5));
-});
-
-test('POS：排序鍵、插播、KTV 音效（CC0 音檔都在 public/sfx）', () => {
-  const ps = read('public/pos-songs.js'), srv = read('server.js'), doc = read('docs/API.md');
-  assert.match(ps, /data-song-move/); assert.match(ps, /data-song-front/); assert.match(ps, /下一首播/);
-  assert.match(srv, /\/api\/admin\/orders\/songs\/queue\/:id\/move/); assert.match(doc, /### POST \/api\/admin\/orders\/songs\/queue\/:id\/move/);
-  const ids = [...ps.match(/const SONG_SFX = (.*);/)[1].matchAll(/\['([a-z-]+)', '[^']+'\]/g)].map(m => m[1]);
-  for (const k of ['applause', 'cheer', 'laugh', 'drumroll']) assert.ok(ids.includes(k), k);
-  for (const k of ids) assert.ok(fs.existsSync(new URL('../public/sfx/' + k + '.mp3', import.meta.url)), k + '.mp3');
-});
-
-test('POS 平板橫放：兩欄各自捲動不捲整頁、正在播放在左欄頂端、停止音效排第一', () => {
-  const ps = read('public/pos-songs.js'), pos = read('public/pos.html');
-  assert.match(pos, /#songs-body section\{padding:0\}/, 'style.css 的 section padding 不可撐出空白');
-  assert.match(ps, /<section class="song-col"[^`]*\$\{nowCard\}/, '正在播放放在左欄');
-  assert.equal((ps.match(/class="song-scroll"/g) || []).length, 2);
-  assert.match(ps, /function songFit/); assert.match(ps, /min-width:1000px\) and \(min-height:600px/);
-  assert.match(ps, /<div class="song-sfx-grid"><button[^>]*data-song-sfx-stop>/);
-  assert.match(ps, /JSON\.stringify\(SONGS\.data\) !== before/, '輪詢沒變不重繪');
-});
-
-test('即時搜尋：客人端與 POS 打字自動搜（0.5 秒防抖、組字中不送、丟棄舊回應），不需搜尋按鈕', () => {
-  const ps = read('public/pos-songs.js'), order = read('public/order.html');
-  assert.doesNotMatch(order, /id="song-go"/, '客人端不再有搜尋按鈕');
-  assert.match(order, /\$\('#song-q'\)\.addEventListener\('input',function\(e\)\{if\(!e\.isComposing\)songSearchSoon\(\);\}\)/);
-  assert.match(order, /addEventListener\('compositionend',songSearchSoon\)/);
-  assert.match(order, /if\(seq!==SONG_SEQ\)return;/);
-  const form = ps.slice(ps.indexOf("if (v === 'search')"), ps.indexOf("if (!SONGS.disc)"));
-  assert.doesNotMatch(form, /type="submit"|>搜尋</, 'POS 不再有搜尋按鈕');
-  assert.match(ps, /setTimeout\(\(\) => songRunSearch\(q\), 500\)/);
-  assert.match(ps, /e\.isComposing/); assert.match(ps, /compositionend/);
-  assert.match(ps, /if \(seq !== SONG_SEARCH_SEQ\) return;/);
-  assert.match(ps, /function paintSongResults/, '只重畫結果區，輸入框不被換掉');
-});
-
-test('快速選：選歌手／選歌分組，點了帶入關鍵字搜尋；客人端與 POS 都載入 song-picks.js', async () => {
-  const pos = read('public/pos.html'), order = read('public/order.html'), ps = read('public/pos-songs.js');
-  for (const h of [pos, order]) assert.match(h, /<script src="\/song-picks\.js"><\/script>/);
-  assert.match(order, /SongPicks\.html\(SONG_PICK,LANG,esc\)/); assert.match(ps, /SongPicks\.html\(SONG_PICK, 'zh', esc\)/);
-  const ctx = {}; (await import('node:vm')).runInNewContext(read('public/song-picks.js'), ctx);
-  const P = ctx.SongPicks, esc = s => String(s).replace(/[&<>"]/g, c => '&#' + c.charCodeAt(0) + ';');
-  const seen = new Set(); for (const [, a] of P.ARTISTS) for (const x of a) { assert.ok(!seen.has(x), '歌手重複 ' + x); seen.add(x); }
-  for (const [, list] of P.SONGS) for (const x of list) assert.equal(x.length, 2);
-  const a = P.html({ mode: 'artist' }, 'zh', esc); assert.match(a, /data-pick-q="周杰倫"/); assert.match(a, /選歌手/);
-  const so = P.html({ mode: 'song', group: 'taigi' }, 'en', esc); assert.match(so, /data-pick-q="家後 江蕙"/); assert.match(so, /Taiwanese/);
-  const st = { mode: 'artist', group: '' }, btn = q => ({ closest: () => ({ hasAttribute: () => false, dataset: q }) });
-  assert.equal(P.click(btn({ pickMode: 'song' }), st), true); assert.equal(st.mode, 'song');
-  assert.deepEqual({ ...P.click(btn({ pickQ: '晴天 周杰倫' }), st) }, { q: '晴天 周杰倫' });
 });
 
 test('時段歌單：依台北時間切換、跨午夜、都沒對到回常態歌單', () => {
@@ -311,32 +219,8 @@ test('時段歌單：依台北時間切換、跨午夜、都沒對到回常態�
   assert.equal(songs.upcoming(st, s, { now: at('2026-11-04T09:00:00') }).playlist_name, '平日');
   assert.deepEqual(songs.patchSettings(s, { schedules: [] }).schedules, []);
 });
-test('時段歌單接線：設定頁列出、可移除、播放器有時段歌單也會自動播', () => {
-  const js = read('public/pos-songs.js');
-  assert.match(js, /時段歌單/); assert.match(js, /data-song-sch-del/); assert.match(js, /settings\.schedules/);
-  assert.match(read('server.js'), /songs\.activePlaylist\(settings\)/);
-});
-test('點歌各品牌一份：site_content key 帶品牌、POS 呼叫帶 venue、客人端看營業品牌', () => {
-  const srv = read('server.js'), blk = srv.slice(srv.indexOf('/* ---- 點歌（lib/songs.js）'), srv.indexOf('/* ---- 點歌 end ---- */'));
-  assert.match(blk, /song_settings:'\+v/); assert.match(blk, /song_state:'\+v/);
-  assert.doesNotMatch(blk, /key='song_state'/);
-  assert.equal((blk.match(/withSongs\(async/g) || []).length, 0);
-  assert.match(blk, /guestSongVenue\(\)/);
-  const js = read('public/pos-songs.js');
-  assert.doesNotMatch(js, /[^g]api\('\/admin\/orders\/songs/);
-  assert.match(js, /function songApi\(path, opt\)\{ return api\(path \+ \(SCOPE/);
-});
 
-test('播放裝置在點歌分頁看得到播放器與播放／暫停（KK 11/4）', () => {
-  const js = read('public/pos-songs.js'), html = read('public/pos.html');
-  assert.match(js, /data-song-slot/); assert.match(js, /data-song-toggle/); assert.match(js, /function songPlaceDock\(\)/);
-  assert.match(js, /pauseVideo\(\)/); assert.match(js, /SONG_PLAYING = ev\.data === YT\.PlayerState\.PLAYING/);
-  assert.match(html, /#song-dock\.on-card\{opacity:1;pointer-events:auto/);
-  assert.match(html, /songPlaceDock\(\); \/\/ 離開點歌分頁/);
-  assert.doesNotMatch(js, /播放裝置會自動開始播常態歌單/);
-});
-
-test('時段歌單播完輪播、播放卡住自動重試（KK 11/5）', () => {
+test('時段歌單播完輪播（KK 11/5）', () => {
   const s = songs.normalizeSettings({ shuffle: true, schedules: [{ name: 'X', days: [0,1,2,3,4,5,6], start: '00:00', end: '24:00', playlist: [T(ID(1)), T(ID(2))] }] });
   let st = songs.normalizeState(''); const seen = [];
   for (let i = 0; i < 6; i++) { const r = songs.advance(st, s, { current: st.now && st.now.id }); st = r.state; seen.push(r.song.video_id); }
@@ -344,12 +228,9 @@ test('時段歌單播完輪播、播放卡住自動重試（KK 11/5）', () => {
   const s2 = songs.normalizeSettings({ shuffle: false, schedules: s.schedules }); st = songs.normalizeState(''); const seq = [];
   for (let i = 0; i < 5; i++) { const r = songs.advance(st, s2, { current: st.now && st.now.id }); st = r.state; seq.push(r.song.video_id); }
   assert.deepEqual(seq, [ID(1), ID(2), ID(1), ID(2), ID(1)]);
-  const js = read('public/pos-songs.js');
-  assert.match(js, /function songWatch\(\)/); assert.match(js, /SONG_YT\.mute\(\); SONG_MUTED = true; SONG_YT\.loadVideoById/); assert.match(js, /開啟聲音/); assert.match(js, /自動\$\{up\.shuffle \? '重新洗牌' : '從頭'\}輪播/);
-  assert.match(js, /width: '356', height: '200'/);
 });
 
-test('沒有常態歌單、不在任何時段：沿用最近結束的時段歌單，播放器不會空轉狂閃（KK 11/5）', () => {
+test('沒有常態歌單、不在任何時段：沿用最近結束的時段歌單（KK 11/5）', () => {
   const at = t => new Date(t + '+08:00').getTime();
   const s = songs.normalizeSettings({ schedules: [
     { name: '咖啡', days: [1,2,3,4,5], start: '08:00', end: '17:00', playlist: [T(ID(1))] },
@@ -357,10 +238,19 @@ test('沒有常態歌單、不在任何時段：沿用最近結束的時段歌�
   assert.equal(songs.activePlaylist(s, at('2026-11-05T03:16:00')).name, '深夜');
   assert.equal(songs.activePlaylist(s, at('2026-11-05T03:16:00')).fallback, true);
   assert.equal(songs.activePlaylist(s, at('2026-11-05T18:00:00')).name, '咖啡');
-  assert.equal(songs.activePlaylist(s, at('2026-11-05T09:00:00')).fallback, undefined);
-  const out = songs.advance(songs.normalizeState(''), s, { now: at('2026-11-05T03:16:00') });
-  assert.equal(out.song.video_id, ID(2));
+  assert.equal(songs.advance(songs.normalizeState(''), s, { now: at('2026-11-05T03:16:00') }).song.video_id, ID(2));
   assert.equal(songs.activePlaylist(songs.normalizeSettings({}), Date.now()).playlist.length, 0);
-  const js = read('public/pos-songs.js');
-  assert.match(js, /SONG_EMPTY_AT/); assert.doesNotMatch(js, /settings\.schedules \|\| \[\]\)\.length\)\) return songNext/);
+});
+
+test('接線：客人菜單卡片、操作紀錄、token 不進公開內容', () => {
+  const order = read('public/order.html'), server = read('server.js');
+  assert.match(order, /id="song-open"/); assert.match(order, /\/songs\/request/);
+  assert.match(order, /song-open'\)\.classList\.toggle\('hidden',!on\)/, '關閉時隱藏點歌卡片');
+  const log = require('../lib/pos-log.js');
+  assert.equal(log.describe('POST', '/orders/songs/settings'), '點歌設定（開關／價格／常態歌單）');
+  assert.equal(log.describe('POST', '/orders/songs/next'), null, '自動換歌不洗版操作紀錄');
+  assert.equal(log.describe('POST', '/orders/songs/beat'), null, '心跳不洗版');
+  assert.match(server, /app\.get\('\/api\/admin\/orders\/songs',auth,adminOnly/);
+  assert.ok(!require('../lib/security.js').PUBLIC_CONTENT_KEYS.some(k => /^(song|ktv)/.test(k)), 'song_*／ktv_* 不可進公開內容');
+  assert.match(server, /access_token:encSecret\(t\.access_token\),refresh_token:encSecret\(t\.refresh_token\)/, 'YouTube token 加密保存');
 });

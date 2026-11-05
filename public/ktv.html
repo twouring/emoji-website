@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>言文字 KTV</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#FBFAF6">
+<link rel="icon" href="/cis/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700&display=swap" rel="stylesheet">
+<style>
+/* 言文字 KTV（ktv.emoji.tw，KK 11/6）：點歌從 POS 抽出的獨立系統，屬言文字、不分品牌。
+   CIS（www.emoji.tw/cis）：墨 #1B1A17、紙 #FBFAF6；黃 #FFDE34 是唯一強調色、每畫面至多一擊、只當底色墨字壓上；
+   明體標題（Noto Serif TC）、拉丁／數字 Cormorant Garamond、內文介面 Noto Sans TC；文字一律 ≥1rem。 */
+:root{--ink:#1B1A17;--ink-surface:#16150F;--ink-soft:#3A362E;--muted:#6B6558;--paper:#FBFAF6;--paper-alt:#F4F1EA;--paper-deep:#ECE8DE;--line:#E4E0D6;--card:#FFFFFF;
+  --accent:#FFDE34;--accent-strong:#F2CB00;--accent-soft:#FFF3BF;--danger:#A3302A;
+  --serif:"Noto Serif TC",serif;--latin:"Cormorant Garamond","Noto Serif TC",serif;--sans:"Noto Sans TC",system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:1rem;line-height:1.6;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+h1,h2,h3{font-family:var(--serif);font-weight:500;letter-spacing:.01em;margin:0}
+button,input,select{font:inherit;font-size:1rem;color:inherit}
+:focus-visible{outline:3px solid var(--ink);outline-offset:2px;border-radius:4px}
+a{color:inherit}
+small{font-size:1rem}
+summary{min-height:44px;display:flex;align-items:center;cursor:pointer}
+.k-logo{min-height:44px}
+.rc .hint a{display:inline-flex;align-items:center;min-height:44px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5em;min-height:48px;padding:0 18px;border-radius:10px;border:1.5px solid var(--ink);background:transparent;color:var(--ink);font-weight:500;cursor:pointer;text-decoration:none;white-space:nowrap}
+.btn:active{background:var(--paper-deep)}
+.btn--solid{background:var(--ink);color:var(--paper)}.btn--solid:active{background:var(--ink-soft)}
+.btn--hit{background:var(--accent);border-color:var(--accent);color:var(--ink);font-weight:700}.btn--hit:active{background:var(--accent-strong)}
+.btn--danger{color:var(--danger);border-color:var(--danger)}
+.btn--sm{min-height:44px;padding:0 12px}
+.btn:disabled{opacity:.4;cursor:default}
+.hint{color:var(--muted);margin:0 0 12px}
+.empty{color:var(--muted);padding:12px 0;margin:0}
+.toast{position:fixed;left:50%;top:calc(16px + env(safe-area-inset-top));transform:translate(-50%,-20px);opacity:0;background:var(--ink);color:var(--paper);padding:.7em 1.2em;border-radius:10px;transition:.2s;z-index:90;pointer-events:none;max-width:calc(100vw - 32px)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* 頂欄：標誌＋功能＋工具 */
+.k-top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:calc(8px + env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 8px max(16px,env(safe-area-inset-left));background:var(--paper);border-bottom:1px solid var(--line)}
+.k-logo{display:flex;align-items:center;gap:10px;text-decoration:none;flex:none}
+.k-logo img{height:36px;width:auto;display:block}
+.k-logo b{font-family:var(--latin);font-weight:600;font-size:1.5rem;letter-spacing:.12em;line-height:1}
+.k-nav{display:flex;gap:4px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}.k-nav::-webkit-scrollbar{display:none}
+.k-nav a{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border-radius:999px;text-decoration:none;color:var(--ink-soft);white-space:nowrap}
+.k-nav a[aria-current=page]{background:var(--ink);color:var(--paper);font-weight:500}
+.k-tools{display:flex;gap:6px;flex:none}
+.k-ver{font-family:var(--latin);color:var(--muted);white-space:nowrap}
+main{max-width:1440px;margin:0 auto;padding:20px max(16px,env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+.k-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 16px;margin:0 0 16px}
+.k-head h1{font-size:1.75rem}
+.k-head .k-sub{color:var(--muted)}
+.k-head .k-act{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.panel h2{font-size:1.25rem;margin:0 0 12px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.panel h2 small{font-family:var(--sans);color:var(--muted);font-size:1rem;font-weight:400}
+.cnt{font-family:var(--latin);font-weight:600;font-size:1.25rem}
+
+/* 狀態膠囊 */
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--paper-alt);white-space:nowrap}
+.pill::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.pill.on::before{background:#2E7D32}.pill.off::before{background:var(--danger)}
+
+/* 控台：左欄正在播放＋接下來，右欄找歌 */
+.k-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:960px){.k-grid{grid-template-columns:minmax(0,1fr)}}
+.now{display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;align-items:center;padding:16px;border-radius:14px;background:var(--ink);color:var(--paper);margin:0 0 16px}
+.now .art{width:320px;max-width:100%;aspect-ratio:16/9;border-radius:10px;background:var(--ink-surface);object-fit:cover;display:grid;place-items:center;font-family:var(--latin);font-size:2rem;color:var(--muted)}
+.now .meta{min-width:0;display:flex;flex-direction:column;gap:6px}
+.now .meta b{font-family:var(--serif);font-weight:500;font-size:1.375rem;line-height:1.4;overflow-wrap:anywhere}
+.now .meta small{opacity:.75}
+.now .who{align-self:flex-start}
+.now.idle{background:var(--paper-alt);color:var(--ink)}
+@media (max-width:640px){.now{grid-template-columns:minmax(0,1fr)}.now .art{width:100%}}
+/* 控台左欄寬度有限：正在播放改上下排（影片在上、最寬 560px），歌名不會被擠成五行；播放器至少 200px 高才會播 */
+.k-grid .now{grid-template-columns:minmax(0,1fr)}.k-grid .now .art{width:100%;max-width:400px;min-height:200px}
+.row .act .btn--sm{min-width:44px}
+.k-tools{align-items:center;gap:10px}
+.prog{display:flex;align-items:center;gap:10px;font-size:1rem;font-variant-numeric:lining-nums tabular-nums}
+.prog i{flex:1;height:4px;border-radius:2px;background:rgba(251,250,246,.2);position:relative;overflow:hidden}
+.prog i>s{position:absolute;inset:0 auto 0 0;background:var(--paper);text-decoration:none}
+.remote{display:flex;flex-wrap:wrap;gap:8px;grid-column:1/-1}
+.now .btn{border-color:var(--paper);color:var(--paper)}.now .btn:active{background:var(--ink-soft)}
+.now .btn--hit{border-color:var(--accent);color:var(--ink)}
+.now.idle .btn{border-color:var(--ink);color:var(--ink)}.now.idle .btn--hit{color:var(--ink)}
+.vol{display:flex;align-items:center;gap:8px;flex:1 1 220px;min-width:200px}
+.vol input{flex:1;accent-color:var(--paper);min-height:44px}
+.now.idle .vol input{accent-color:var(--ink)}
+.vol output{font-family:var(--latin);font-size:1.25rem;min-width:2.5em;text-align:right}
+.sfx{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;margin:0 0 16px}
+.sfx button{min-height:52px;border-radius:10px;border:1px solid var(--line);background:var(--card);font-weight:500;cursor:pointer}
+.sfx button:active{background:var(--ink);color:var(--paper)}
+.sfx button.stop{color:var(--danger);border-color:var(--danger)}
+
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.row{display:flex;gap:12px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--card);min-width:0}
+.row .rank{flex:none;width:2em;text-align:center;font-family:var(--latin);font-weight:600;font-size:1.25rem;color:var(--muted)}
+.row img,.row .ph{flex:none;width:96px;height:54px;border-radius:6px;object-fit:cover;background:var(--paper-alt);display:grid;place-items:center;color:var(--muted)}
+.row .meta{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.row .meta b{font-weight:500;line-height:1.4;overflow-wrap:anywhere}
+.row .meta small{color:var(--muted);overflow-wrap:anywhere}
+.row .act{flex:none;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+@media (max-width:520px){.row{flex-wrap:wrap}.row .act{width:100%}}
+.who{align-self:flex-start;display:inline-flex;padding:2px 8px;border-radius:6px;background:var(--paper-alt);color:var(--ink);font-size:1rem;line-height:1.5}
+.who.guest{background:var(--ink);color:var(--paper)}
+.who.pl{background:transparent;padding-left:0;color:var(--muted)}
+.now .who.pl{color:var(--paper);opacity:.7}.now .who.guest{background:var(--paper);color:var(--ink)}
+.tabs{display:flex;gap:6px;margin:0 0 12px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs button{min-height:44px;padding:0 16px;border-radius:999px;border:1px solid var(--line);background:transparent;white-space:nowrap;cursor:pointer;color:var(--ink-soft)}
+.tabs button[aria-selected=true]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.search{display:flex;margin:0 0 12px}.search input{flex:1;min-width:0;min-height:48px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.song-picks{margin:0 0 12px}.pick-seg{display:flex;gap:6px;margin:0 0 10px}.pick-seg button{flex:1;min-height:44px;border-radius:10px;border:1px solid var(--ink);background:transparent;font-weight:500;cursor:pointer}
+.pick-seg button[aria-pressed=true]{background:var(--ink);color:var(--paper)}
+.pick-groups{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}.pick-groups button{min-height:44px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:transparent;cursor:pointer}
+.pick-groups button[aria-pressed=true]{border-color:var(--ink);font-weight:700}
+.pick-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}.pick-chips button{min-height:48px;padding:6px 10px;border-radius:10px;border:1px solid var(--line);background:var(--card);cursor:pointer;overflow-wrap:anywhere;text-align:left}
+.pick-chips.is-song button b,.pick-chips.is-song button small{display:block}.pick-chips.is-song button small{color:var(--muted)}
+.pick-hint{color:var(--muted);margin:10px 0 0}.pick-back{min-height:44px;margin:0 0 10px;border:0;background:none;text-decoration:underline;cursor:pointer;padding:0}
+.scroll{max-height:none}
+@media (min-width:961px) and (min-height:640px){.k-grid .panel{display:flex;flex-direction:column;max-height:calc(100dvh - 220px)}.k-grid .scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}}
+
+/* 表單 */
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:end}
+.form label{display:flex;flex-direction:column;gap:4px;color:var(--muted)}
+.form input,.form select{min-height:48px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
+.switch{display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:12px;margin:0 0 16px;cursor:pointer}
+.switch input{width:24px;height:24px;flex:none;margin:2px 0 0;accent-color:var(--ink)}
+.switch span{display:flex;flex-direction:column}.switch small{color:var(--muted);font-size:1rem}
+.stack{display:grid;gap:16px}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:16px;align-items:start}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.kpi{padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.kpi b{display:block;font-family:var(--latin);font-weight:600;font-size:2.25rem;line-height:1.1}
+.kpi small{color:var(--muted);font-size:1rem}
+.kpi.hit{background:var(--accent);border-color:var(--accent)}.kpi.hit small{color:var(--ink-soft)}
+.tbl{width:100%;border-collapse:collapse}.tbl th,.tbl td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}.tbl th{color:var(--muted);font-weight:500}
+.tbl td.n{text-align:right;font-family:var(--latin);font-size:1.125rem}.tbl th.n{text-align:right}
+.bar{display:block;height:6px;border-radius:3px;background:var(--ink);min-width:2px}
+
+/* 遙控（手機）：大按鈕 */
+.rc{max-width:520px;margin:0 auto;display:grid;gap:16px}
+.rc .now{grid-template-columns:minmax(0,1fr)}
+.rc-keys{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.rc-keys .btn{min-height:72px;font-size:1.125rem;flex-direction:column;gap:2px}
+.rc-keys .btn--hit{grid-column:1/-1}
+
+/* 登入 */
+.login{min-height:calc(100dvh - 120px);display:grid;place-items:center}
+.login-card{width:min(420px,100%);display:grid;gap:12px;text-align:center}
+.login-card img{height:64px;margin:0 auto 4px}
+.login-card h1{font-size:1.75rem}
+.login-card form{display:grid;gap:10px;text-align:left}
+.login-card input{min-height:48px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.login-or{color:var(--muted)}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.pad button{min-height:64px;border-radius:12px;border:1px solid var(--line);background:var(--card);font-family:var(--latin);font-size:1.5rem;cursor:pointer}
+.dots{display:flex;justify-content:center;gap:14px;margin:6px 0}.dots i{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--ink)}.dots i.on{background:var(--ink)}
+
+/* 播放器：iframe 常駐（不可 display:none／destroy，會停播）；不在播放位置時放畫面外 */
+#ktv-dock{position:fixed;left:-10000px;top:0;width:356px;height:200px;overflow:hidden;background:#000}
+#ktv-dock.placed{z-index:5;border-radius:10px}
+#ktv-dock iframe{width:100%!important;height:100%!important;display:block;border:0}
+
+/* 電視畫面 /tv：深墨面滿版，標誌用反白版；黃只用在「下一首」一處。字級以 3 公尺觀看為準（≥ 約 28px@1080p），留 4% 安全邊距（電視 overscan） */
+body.tv{background:var(--ink-surface);color:var(--paper);overflow:hidden}
+body.tv .k-top,body.tv main{display:none}
+.tv{--sx:max(24px,4vw);--sy:max(20px,4vh);position:fixed;inset:0;display:grid;grid-template-columns:minmax(0,1fr) clamp(320px,28vw,560px);grid-template-rows:minmax(0,1fr) auto;background:var(--ink-surface)}
+.tv .prog,.tv-up .n{font-variant-numeric:lining-nums tabular-nums}
+.tv-stage{position:relative;grid-row:1/2;grid-column:1/2;background:#000;margin:var(--sy) 0 0 var(--sx);border-radius:12px;overflow:hidden}
+.tv-side{grid-row:1/3;grid-column:2/3;display:flex;flex-direction:column;gap:max(14px,1.6vh);padding:var(--sy) var(--sx) var(--sy) max(20px,2vw);min-height:0}
+.tv-side img{height:clamp(72px,11vh,132px);width:auto;align-self:flex-start;margin:0 0 max(8px,1vh)}
+.tv-side h2{font-size:clamp(1.25rem,1.8vw,2.25rem);color:rgba(251,250,246,.85)}
+.tv-up{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:max(14px,2.2vh);overflow:hidden;flex:1;min-height:0}
+.tv-up li{display:grid;grid-template-columns:1.6em minmax(0,1fr);gap:2px 14px;align-items:baseline}
+.tv-up .n{grid-row:1/4;font-family:var(--latin);font-weight:600;font-size:clamp(1.75rem,2.4vw,3rem);line-height:1;color:rgba(251,250,246,.45)}
+.tv-up b{font-family:var(--serif);font-weight:500;font-size:clamp(1.25rem,1.75vw,2.25rem);line-height:1.35;overflow-wrap:anywhere}
+.tv-up small{font-size:clamp(1.125rem,1.5vw,1.9rem);color:rgba(251,250,246,.85)}
+.tv-up li:first-child .n,.tv-up li:first-child b{color:var(--paper)}
+.tv-next{justify-self:start;display:inline-block;background:var(--accent);color:var(--ink);font-weight:700;font-size:clamp(1.125rem,1.5vw,1.9rem);padding:2px 14px;border-radius:6px;margin:0 0 4px}
+.tv-bar{grid-row:2/3;grid-column:1/2;display:flex;flex-direction:column;gap:max(8px,1vh);padding:max(16px,2.4vh) 0 var(--sy) var(--sx)}
+.tv-bar .who{align-self:flex-start;font-size:clamp(1rem,1.4vw,1.75rem);padding:4px 14px;border-radius:8px}
+.tv-bar .who.guest{background:var(--paper);color:var(--ink)}.tv-bar .who.pl{color:rgba(251,250,246,.75)}
+.tv-bar b{display:block;font-family:var(--serif);font-weight:500;font-size:clamp(1.75rem,3vw,3.75rem);line-height:1.25;overflow-wrap:anywhere}
+.tv-bar .tv-ch{font-size:clamp(1rem,1.5vw,1.9rem);color:rgba(251,250,246,.78)}
+.tv-bar .prog{font-size:clamp(1.125rem,1.5vw,1.9rem);font-family:var(--sans)}
+.tv-bar .prog i{height:6px}
+.tv-idle{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px}
+.tv-idle img{height:min(24vh,200px);margin:0 auto 28px}
+.tv-idle p{font-family:var(--serif);font-size:clamp(1.5rem,2.6vw,3rem);margin:0;color:rgba(251,250,246,.85)}
+.tv-tap{position:absolute;inset:0;z-index:8;display:grid;place-items:center;background:rgba(22,21,15,.82);border:0;color:var(--paper);cursor:pointer;width:100%}
+.tv-tap span{font-family:var(--serif);font-size:clamp(1.5rem,3vw,3rem);border:1.5px solid var(--paper);border-radius:14px;padding:18px 40px;background:var(--ink-surface)}
+.tv-sfx{position:absolute;left:50%;top:12%;transform:translateX(-50%);z-index:9;background:var(--paper);color:var(--ink);font-family:var(--serif);font-size:clamp(1.75rem,3.2vw,3.5rem);padding:14px 36px;border-radius:14px;opacity:0;transition:opacity .25s}
+.tv-sfx.show{opacity:1}
+.tv-exit{position:absolute;right:16px;top:16px;z-index:9;opacity:0;transition:opacity .3s}
+.tv:hover .tv-exit,.tv-exit:focus-within{opacity:1}
+.tv-exit .btn{border-color:var(--paper);color:var(--paper);background:rgba(22,21,15,.6)}
+@media (max-aspect-ratio:4/3){.tv{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr)}.tv-stage{aspect-ratio:16/9;margin:var(--sy) var(--sx) 0}.tv-side{grid-row:3/4;grid-column:1/2;padding:0 var(--sx) var(--sy)}.tv-bar{grid-row:2/3;padding-right:var(--sx)}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header class="k-top" id="k-top" hidden>
+  <a class="k-logo" href="/" aria-label="言文字 KTV 控台"><img src="/cis/assets/emoji-mark.svg" alt="" width="36" height="36"><b>KTV</b></a>
+  <nav class="k-nav" id="k-nav" aria-label="功能"></nav>
+  <div class="k-tools"><span class="k-ver" title="v<!--KTV_VERSION-->">v<!--KTV_VERSION--></span><button type="button" class="btn btn--sm" id="k-logout">登出</button></div>
+</header>
+<main id="app"><p class="hint">載入中…</p></main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="/sso-client.js"></script>
+<script src="/song-picks.js"></script>
+<script src="/ktv.js"></script>
+</body>
+</html>

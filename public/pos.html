@@ -70,77 +70,17 @@
   .p-tab{display:none;padding:0}.p-tab.on{display:block}
   /* 點歌分頁＋設定頁點歌區塊＋右下角播放器（標題最多兩行，不截成一行） */
   /* pos 內的 <section> 會吃到 style.css 的 section{padding:72px+}（點歌頁中段大空白的來源），點歌頁一律歸零 */
-  #songs-body section{padding:0}
-  .song-head{flex-wrap:wrap!important;gap:8px 12px!important}
-  .song-head-act{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-left:auto}
-  .song-now{display:flex;align-items:center;gap:16px;padding:14px;margin:4px 0 18px;border-radius:12px;background:var(--ink);color:var(--paper)}
-  .song-now img,.song-now .song-ph.lg{width:160px;height:90px;border-radius:8px;object-fit:cover;flex:none}
-  .song-now .song-ph.lg{display:grid;place-items:center;background:rgba(255,255,255,.12);color:var(--paper);font-size:2rem}
-  .song-now-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
-  .song-now-main b{font-size:1.25rem;line-height:1.35;overflow-wrap:anywhere;word-break:normal}
-  .song-now-main small{font-size:1rem;opacity:.8;line-height:1.5}
-    .song-now .btn{flex:none;min-width:120px;background:var(--paper);color:var(--ink);border-color:var(--paper)}
-  .song-now.is-empty{background:var(--paper-alt);color:var(--ink)}.song-now.is-empty .song-ph.lg{background:var(--card);color:var(--muted)}.song-now.is-empty .btn{background:var(--ink);color:var(--paper);border-color:var(--ink)}
-  @media (max-width:600px){.song-now{flex-wrap:wrap}.song-now img,.song-now .song-ph.lg{width:120px;height:68px}.song-now .btn{width:100%}}
-  .song-sfx{margin:0 0 18px}.song-sfx h3{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 8px}.song-sfx h3 small{color:var(--muted);font-weight:400;font-size:1rem}
-  .song-sfx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
-  .song-sfx-btn{min-height:52px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);font:inherit;font-weight:600;cursor:pointer;touch-action:manipulation}
-  .song-sfx-btn:active{background:var(--ink);color:var(--paper)}.song-sfx-btn.is-stop{color:var(--danger);border-color:var(--danger)}.song-sfx-btn.is-stop:active{background:var(--danger);color:var(--paper)}
-  .song-mv{min-width:40px;padding-inline:0}.song-mv:disabled{opacity:.35}
-  .song-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
-  @media (max-width:900px){.song-grid{grid-template-columns:minmax(0,1fr)}}
-  .song-col{min-width:0}.song-col .song-now{margin:0 0 14px}
-  /* 平板橫放：音效一排排滿；兩欄撐到視窗底（高度由 songFit 算）、各自捲動；正在播放固定在左欄頂端 */
-  @media (min-width:1000px) and (min-height:600px){
-    .song-head{margin-bottom:10px}
-    .song-sfx{display:flex;align-items:center;gap:12px;margin:0 0 14px}
-    .song-sfx h3{flex:none;flex-direction:column;gap:0;margin:0;width:7.5em;line-height:1.3}.song-sfx h3 small{line-height:1.3}
-    .song-sfx-grid{flex:1;min-width:0;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
-    .song-sfx-btn{min-height:48px;padding:4px}
-    .song-grid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;min-height:360px}
-    .song-col{display:flex;flex-direction:column;min-height:0;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--paper)}
-    .song-col h3{margin:0 0 10px}
-    .song-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;margin-right:-6px;padding-right:6px}
-    .song-now{padding:12px;gap:14px}.song-now img,.song-now .song-ph.lg{width:128px;height:72px}.song-now-main b{font-size:1.125rem}
-    .song-col .song-row img,.song-col .song-ph{width:72px;height:40px}
-    .song-scroll{padding-bottom:120px}
-  }
-  .song-grid h3{display:flex;align-items:baseline;gap:8px;margin-top:0}.song-grid h3 small{color:var(--muted);font-weight:400;font-size:1rem}
-  .song-count{display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 8px;border-radius:999px;background:var(--paper-alt);font-size:1rem}
-  .song-tabs{display:flex;gap:6px;margin:0 0 12px;overflow-x:auto;scrollbar-width:none}.song-tabs::-webkit-scrollbar{display:none}
-  .song-tabs button{all:unset;box-sizing:border-box;cursor:pointer;min-height:44px;padding:0 16px;border-radius:999px;border:1px solid var(--line);font-size:1rem;white-space:nowrap;color:var(--ink-soft)}
-  .song-tabs button[aria-selected=true]{background:var(--ink);color:var(--paper);border-color:var(--ink);font-weight:600}
+  /* 點歌已移到 ktv.emoji.tw（KK 11/6）；.song-switch／.song-set／.song-hist 留給打賞設定頁共用 */
   .song-switch{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid var(--line);border-radius:10px;margin:8px 0 14px;cursor:pointer}
   .song-switch input{width:24px;height:24px;flex:none;margin:2px 0 0}
   .song-switch span{display:flex;flex-direction:column;gap:2px}.song-switch small{color:var(--muted);font-size:1rem;line-height:1.5}
   .song-switch.sm{padding:8px 12px;margin:4px 0 10px}
-  .song-list{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:6px}
-  .song-pl{max-height:480px;overflow:auto;-webkit-overflow-scrolling:touch}
-  .song-row{display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:10px;min-width:0;background:var(--card)}
-  .song-rank{flex:none;width:28px;text-align:center;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
-  .song-row img,.song-ph{width:96px;height:54px;object-fit:cover;border-radius:6px;flex:none;background:var(--paper-alt);display:grid;place-items:center;color:var(--muted)}
-  .song-meta{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-  .song-meta b{font-weight:600;line-height:1.35;overflow-wrap:anywhere;word-break:normal}
-  .song-meta small{color:var(--muted);font-size:1rem;line-height:1.45;overflow-wrap:anywhere}.song-meta small i{font-style:normal;opacity:.6}
-  .song-act{display:flex;gap:6px;flex:none;flex-wrap:wrap;justify-content:flex-end;align-items:center}
-  .song-btns{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px}
-  .song-picks{margin:0 0 12px}.pick-seg{display:flex;gap:6px;margin:0 0 10px}.pick-seg button{all:unset;box-sizing:border-box;cursor:pointer;flex:1;text-align:center;min-height:44px;border-radius:8px;border:1px solid var(--ink);font-size:1rem;font-weight:600}.pick-seg button[aria-pressed=true]{background:var(--ink);color:var(--paper)}
-  .pick-groups{display:flex;gap:6px;margin:0 0 10px;overflow-x:auto;scrollbar-width:none}.pick-groups::-webkit-scrollbar{display:none}.pick-groups button{all:unset;box-sizing:border-box;cursor:pointer;flex:none;min-height:40px;padding:0 12px;border-radius:999px;border:1px solid var(--line);font-size:1rem;white-space:nowrap}.pick-groups button[aria-pressed=true]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);font-weight:600}
-  .pick-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}.pick-chips button{all:unset;box-sizing:border-box;cursor:pointer;min-height:48px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);font-size:1rem;overflow-wrap:anywhere}.pick-chips button:active{background:var(--line)}.pick-chips.is-song button b,.pick-chips.is-song button small{display:block}.pick-chips.is-song button small{color:var(--ink-soft)}
-  .pick-hint{margin:10px 0 0;color:var(--ink-soft)}.pick-back{all:unset;box-sizing:border-box;cursor:pointer;display:block;min-height:44px;line-height:44px;margin:0 0 4px;text-decoration:underline;font-size:1rem}
-  .song-search{display:flex;gap:8px;margin:0 0 12px}.song-search input{flex:1;min-width:0;min-height:48px;font:inherit;font-size:1rem;padding:0 12px;border:1px solid var(--line);border-radius:8px}
   .song-set{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end;margin-bottom:14px}
   .song-set label{display:flex;flex-direction:column;gap:4px;font-size:1rem;color:var(--muted)}.song-set input{min-height:44px;font:inherit;font-size:1rem;padding:0 10px;border:1px solid var(--line);border-radius:8px;color:var(--ink)}
   #set-songs h4{font-size:1rem;font-weight:600;margin:16px 0 4px}
   .song-hist{margin:8px 0 12px}.song-hist summary{cursor:pointer;min-height:44px;display:flex;align-items:center;color:var(--ink-soft);font-weight:500}
   .song-danger{color:var(--danger)}
-  @media (max-width:600px){.song-row{flex-wrap:wrap}.song-row img,.song-ph{width:80px;height:45px}.song-act{width:100%;justify-content:flex-start;padding-left:0}.song-rank{width:22px}}
   /* 縮到最小：影片收起（仍在播放，只是看不到），只留拖移列＋歌名＋下一首 */
-  .song-who{align-self:flex-start;display:inline-flex;align-items:center;gap:2px;padding:2px 10px;border-radius:999px;font-size:1rem;line-height:1.5;font-weight:500}
-  .song-who.is-guest{background:var(--accent);color:var(--on-accent)}.song-who.is-guest b{font-weight:700}
-  .song-who.is-pos{background:var(--paper-alt);color:var(--ink)}
-  .song-who.is-pl{background:transparent;color:var(--muted);padding-left:0}
-  .song-now .song-who.is-pl{color:var(--paper);opacity:.75}
   #app{touch-action:pan-y}
   .a-sec{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
   .a-sec h2{font-size:1.125rem;font-weight:600;margin:0 0 .25rem;display:flex;align-items:center;gap:.5em}
@@ -312,11 +252,6 @@
   .tip-pay h4,.tip-pay .hint{grid-column:1/-1;margin:0}.tip-pay label{display:flex;flex-direction:column;gap:4px;min-width:0}
   .tip-pay input,.tip-pay select,.tip-range input,.tip-range select{min-height:44px;font:inherit;font-size:1rem;padding:0 10px;border:1px solid var(--line);border-radius:8px;color:var(--ink);background:var(--paper);min-width:0}
   @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
-  #song-dock{position:fixed;left:-10000px;top:0;width:356px;height:200px;overflow:hidden;opacity:0;pointer-events:none}
-  #song-dock.on-card{opacity:1;pointer-events:auto;z-index:5;border-radius:8px;background:#000}#song-dock.on-card iframe{width:100%!important;height:100%!important;display:block}
-  .song-now .song-slot{width:356px;max-width:100%;height:200px;border-radius:8px;background:#000;flex:none}/* YouTube 嵌入播放器至少 200×200 視窗，太小可能不播 */
-  .song-now-act{display:flex;flex-direction:column;gap:8px;flex:none}
-  @media (max-width:600px){.song-now .song-slot{width:100%}.song-now-act{width:100%;flex-direction:row}.song-now-act .btn{flex:1}}
 
 .bg-grid{display:grid;grid-template-columns:1fr 280px;gap:20px;align-items:start;margin-top:14px}
 @media (max-width:900px){.bg-grid{grid-template-columns:1fr}}
@@ -371,8 +306,6 @@
 <script src="/pos-members.js"></script>
 <script src="/pos-inventory.js"></script>
 <script src="/pos-settings.js"></script>
-<script src="/song-picks.js"></script>
-<script src="/pos-songs.js"></script>
 <script src="/pos-service-calls.js"></script>
 <script src="/pos-live.js"></script>
 <script src="/pos-tips.js"></script>
@@ -410,7 +343,6 @@ const TABS = [
   { id:'pos', icon:'wallet',          label:'結帳' },
   { id:'soldout', icon:'ban',      label:'估清' },
   { id:'reservations', icon:'calendar', label:'訂位' },
-  { id:'songs', icon:'music',          label:'點歌' },
   { id:'members', icon:'users', label:'會員' },
   { id:'history', icon:'search',      label:'查單' },
   { id:'clock', icon:'clock',        label:'打卡' },
@@ -426,7 +358,7 @@ const TABS = [
   { id:'logs', icon:'history',      label:'紀錄', group:'settings', desc:'操作紀錄（限店長）' },
 ];
 // 員工管理（新增／編輯／停用、出勤修正）刻意不放平板：只在 admin.emoji.tw 品牌工作區「排班打卡」，現場人員改不到
-const PANEL = { pos:tabPos, members:tabPosMembers, orders:tabOrders, soldout:tabSoldOut, inventory:tabInventory, reservations:tabReservations, history:tabHistory, logs:tabLogs, sales:tabSales, analytics:tabAnalytics, clock:tabClock, shifts:tabShifts, settings:tabSettings, songs:tabSongs, tips:tabTips, feedback:tabFeedback, bugs:tabBugs };
+const PANEL = { pos:tabPos, members:tabPosMembers, orders:tabOrders, soldout:tabSoldOut, inventory:tabInventory, reservations:tabReservations, history:tabHistory, logs:tabLogs, sales:tabSales, analytics:tabAnalytics, clock:tabClock, shifts:tabShifts, settings:tabSettings, tips:tabTips, feedback:tabFeedback, bugs:tabBugs };
 let toastT, DATA = null, TAB = 'pos', SCOPE = '', MENU_DOC = null, PENDING = 0;
 try { SCOPE = POS_URL_VENUE || localStorage.getItem('tth_pos_scope') || ''; } catch (e) {}
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2400); }
@@ -620,13 +552,12 @@ function resetPanels(){
   // 換店別：清掉各分頁的快取簽章與初始化旗標，讓 pos-ops.js 重新繪製
   document.querySelectorAll('[data-panel] > [id]').forEach(h => { delete h.dataset.sig; delete h.dataset.init; h.innerHTML=''; });
   POS_TABLE=''; POS_PICK=null; POS_DISCOUNT=null; POS_RECEIVED=''; HIST_Q=''; CLOCK_PIN='';
-  POS_YAN={phone:'',name:'',balance:null};POS_MEMBER=false;resetPosMembers();if(typeof resetInventory==='function')resetInventory();if(typeof resetSongs==='function')resetSongs();
+  POS_YAN={phone:'',name:'',balance:null};POS_MEMBER=false;resetPosMembers();if(typeof resetInventory==='function')resetInventory();
 }
 function activate(){
   startKitchenPrinting();
   refreshRegWarn();
   document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('on', p.dataset.panel === TAB));
-  if (typeof songPlaceDock === 'function') songPlaceDock(); // 離開點歌分頁：播放器回畫面外繼續播
   clearTimeout(ORDERS_TIMER); clearTimeout(POS_TIMER);
   if (TAB !== 'logs') { LOGS_PIN = ''; LOGS_PAD = ''; LOGS_MSG = ''; } // 紀錄限店長：離開分頁就要重輸識別碼
   if (TAB === 'pos') loadPos();
@@ -641,7 +572,6 @@ function activate(){
   else if (TAB === 'clock') loadClock();
   else if (TAB === 'logs') loadLogs();
   else if (TAB === 'shifts') loadShifts();
-  else if (TAB === 'songs') loadSongs();
   else if (TAB === 'tips') loadTips();
   else if (TAB === 'feedback') loadFeedback();
   else if (TAB === 'bugs') loadBugs();
@@ -754,7 +684,6 @@ async function main(){
     if (d.me?.operator) setScope(scopesOf(d)[0] || '');
     render();
     refreshPending();
-    songBoot();
     serviceCallBoot();
     posLiveBoot();
     tipBoot();

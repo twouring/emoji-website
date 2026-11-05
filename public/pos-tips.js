@@ -3,7 +3,7 @@
  *  2) 期間統計：已收（已結帳）／已支付給表演者／未付餘額；另列還掛在桌上未結帳的打賞
  *  3) 支付給表演者：要店長識別碼；現金從錢櫃付會同時記一筆錢櫃臨時支出
  *  4) 全店每 5 秒輪詢：客人送出的打賞先在右上角「待確認」（響鈴），店員按「確認」才掛帳；確認後只有播放裝置那台播音效，各台跳通知
- * 依賴 pos.html 的 esc/api/toast/DATA/num/NT、pos-songs.js 的 songSfx/SONGS/isSongPlayer、pos-settings.js 的 askManagerPin。 */
+ * 依賴 pos.html 的 esc/api/toast/DATA/num/NT、pos-settings.js 的 askManagerPin。 */
 const TIP_POLL_MS = 5000;
 let TIPS = { data: null, from: '', to: '', busy: false, err: '' };
 let TIP_EV = { seen: null, timer: null };
@@ -144,8 +144,8 @@ function tipPop(ev){
   box.appendChild(el); setTimeout(() => el.remove(), 8000);
 }
 function tipShouldPlay(){
-  // 只有設定成播放裝置（點歌「在這台播放」）的那台出聲；沒指定就都不響，只跳通知
-  return typeof isSongPlayer === 'function' && isSongPlayer();
+  // 音效改由 KTV 播放裝置（ktv.emoji.tw）播：確認打賞時伺服器送遙控指令（KK 11/6），POS 只跳通知不出聲
+  return false;
 }
 const TIP_SFX_LABEL = { applause: '掌聲', cheer: '歡呼', wow: '哇～', laugh: '笑聲', drumroll: '鼓聲' };
 async function tipEventsTick(){
@@ -160,7 +160,6 @@ async function tipEventsTick(){
     const fresh = list.filter(ev => !TIP_EV.seen.has(ev.id));
     fresh.forEach((ev, i) => setTimeout(() => {
       tipPop({ ...ev, sfx_label: TIP_SFX_LABEL[ev.sfx] || '' });
-      if (tipShouldPlay() && typeof songSfx === 'function') songSfx(ev.sfx);
     }, i * 3000));
     if (fresh.length && TAB === 'tips') loadTips();
   }

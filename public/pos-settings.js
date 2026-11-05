@@ -1,4 +1,4 @@
-/* POS「設定」分頁：不常用的功能（庫存、排班、紀錄）收進這裡；點歌開關／價格／常態歌單／YouTube 帳號也在這裡（pos-songs.js 提供區塊），頂欄只留每天要用的分頁；
+/* POS「設定」分頁：不常用的功能（庫存、排班、紀錄）收進這裡；點歌已獨立成 ktv.emoji.tw（KK 11/6），這裡只留入口連結，頂欄只留每天要用的分頁；
    另外是這台平板的列印、桌位設定。只有管理員能用的功能（收款帳戶管理）放在 admin「系統設定」，不放 POS（KK 11/2）。
    askManagerPin 給打賞支付（pos-tips.js）用；識別碼只留在記憶體，離開設定頁即清空。
    宿主頁（pos.html）須先定義：esc、api、toast、go、TABS、DATA、tabUrl、POSIcon；本檔用到 pos-ops.js 的 printTestTicket、starReady、POS_EDIT。 */
@@ -36,7 +36,7 @@ function paintSettings(host){
   const ver=(document.querySelector('.p-ver')?.getAttribute('title')||'').replace(/^v/,'');
   host.innerHTML=`<div class="ops-head"><h2>設定</h2></div>
     <div class="set-sec" aria-labelledby="set-more"><h3 id="set-more">更多功能</h3><div class="set-links">${links}</div></div>
-    ${typeof songSettingsSection==='function'?songSettingsSection():''}
+    <div class="set-sec" aria-labelledby="set-ktv"><h3 id="set-ktv">KTV 點歌</h3><div class="set-links"><a class="set-link" href="https://ktv.emoji.tw/" target="_blank" rel="noopener">${POSIcon('music')}<span class="set-link-main"><b>開啟言文字 KTV</b><span>點歌已獨立成 ktv.emoji.tw：控台、電視畫面、遙控、歌單、統計</span></span><span class="set-chev" aria-hidden="true">›</span></a></div></div>
     <div class="set-sec" aria-labelledby="set-dev"><h3 id="set-dev">這台平板</h3>
       <div class="set-links">
         <button type="button" class="set-link" id="set-print-test">${POSIcon('printer')}<span class="set-link-main"><b>測試列印</b><span>${typeof starReady==='function'&&starReady()?'已接 mPOP，印一張測試單確認紙張與連線':'需用 Star webPRNT Browser 開 POS 並接上 mPOP'}</span></span><span class="set-chev" aria-hidden="true">›</span></button>
@@ -45,7 +45,6 @@ function paintSettings(host){
       ${ver&&!ver.includes('<')?`<p class="hint">POS 版本 v${esc(ver)}</p>`:''}
     </div>`;
   host.querySelectorAll('[data-set-tab]').forEach(b=>b.onclick=()=>go(b.dataset.setTab));
-  if(typeof bindSongSettings==='function')bindSongSettings();   // 點歌設定（pos-songs.js）
   host.querySelector('#set-print-test').onclick=async e=>{const b=e.currentTarget;if(b.disabled)return;b.disabled=true;try{await printTestTicket();}finally{b.disabled=false;}};
   host.querySelector('#set-edit-tables').onclick=()=>{POS_EDIT=true;POS_EDIT_POS=null;const h=document.getElementById('pos-body');if(h)delete h.dataset.sig;go('pos');};
 }

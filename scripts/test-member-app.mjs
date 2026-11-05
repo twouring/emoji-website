@@ -57,7 +57,7 @@ test('官網會員頁已刪除；/member 三語（含舊 .html）302 到會員 A
 test('登入預設導回會員 App；App 網域在導回白名單；Stripe 會籍付款成功／取消都回 App', () => {
   assert.match(server, /const APP_BASE = \(process\.env\.APP_ORIGIN \|\| 'https:\/\/app\.emoji\.tw'\)/);
   assert.match(server, /const DEFAULT_MEMBER_URL = \(process\.env\.MEMBER_URL \|\| APP_BASE \+ '\/'\)/);
-  assert.match(server, /SITE_BASE, ADMIN_BASE, APP_BASE,[\s\S]{0,200}ORDER_HOSTS\)\.map\(h => 'https:\/\/' \+ h\),[\s\S]{0,200}SSO_BASE, \.\.\.Object\.keys\(BRAND_HOSTS\)\.map\(h => 'https:\/\/' \+ h\)\]\)\]/);
+  assert.match(server, /SITE_BASE, ADMIN_BASE, APP_BASE,[\s\S]{0,200}ORDER_HOSTS\)\.map\(h => 'https:\/\/' \+ h\),[\s\S]{0,200}SSO_BASE, \.\.\.Object\.keys\(BRAND_HOSTS\)\.map\(h => 'https:\/\/' \+ h\),[\s\S]{0,200}KTV_HOSTS[\s\S]{0,200}\]\)\]/);   // KTV（KK 11/6）也在導回白名單
   // 等等空間站（staysquare.emoji.tw）結帳帶 return_host 時回該站，其餘回 App
   assert.match(server, /success_url: `\$\{brandReturnBase\(req\.body\) \|\| APP_BASE \+ '\/'\}\?plan_paid=1&s=\{CHECKOUT_SESSION_ID\}`/);
   assert.match(server, /cancel_url: `\$\{brandReturnBase\(req\.body\) \|\| APP_BASE \+ '\/'\}\?plan_canceled=1`/);

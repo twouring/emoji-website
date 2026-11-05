@@ -533,7 +533,7 @@ body `{attempt_id}`。只取消 `prepared`（尚未送出）意圖；已送出�
 點歌（客人端）。body `{ s, k, video_id, guest, by }`。伺服器重新查影片（可嵌入、長度上限），排進待播並在這桌加一行 `cat:'SONG'`、`item_id:'song'` 的品項（單價取點歌設定，預設 NT$10；`placed_at`／`served_at` 同時寫入＝不進出餐看板、不印出餐單，客人不能自己刪），用餐完和餐點一起在櫃檯結帳。同一首已在待播 409、本桌待播達上限 409、暫停點餐或非營業時段 423。回 201 與最新待播。
 
 ### GET /api/admin/orders/songs
-POS 點歌分頁狀態：`settings`（`enabled` 預設 false、`price`、`max_per_table`、`max_minutes`、`shuffle`、`playlist` 常態歌單、`player_device`）、`now`（正在播放，`kind` 為 `request` 或 `playlist`）、`queue`、`upcoming`（接下來完整播放順序：`items` 先列待播、再接常態歌單從下一首起的整份順序，每首帶 `pos`、`kind`；常態歌單為隨機時列出這一輪已洗好的順序（存在 `song_state.shuffle_bag`，每首各播一次，播完再洗）並回 `shuffle:true`）、`history`、`youtube`（是否已綁定、頻道名稱、OAuth 是否可用、是否有 API Key）。
+KTV（ktv.emoji.tw，言文字系統、不分品牌，KK 11/6）控台狀態；全公司一份（site_content `ktv_settings`／`ktv_state`，第一次使用時合併舊的分品牌 `song_settings:<VENUE>`），query `venue` 不再有作用。`settings`（`enabled` 預設 false、`price`、`max_per_table`、`max_minutes`、`shuffle`、`playlist` 常態歌單、`player_device`）、`now`（正在播放，`kind` 為 `request` 或 `playlist`）、`queue`、`upcoming`（接下來完整播放順序：`items` 先列待播、再接常態歌單從下一首起的整份順序，每首帶 `pos`、`kind`；常態歌單為隨機時列出這一輪已洗好的順序（存在 `song_state.shuffle_bag`，每首各播一次，播完再洗）並回 `shuffle:true`）、`history`、`youtube`（是否已綁定、頻道名稱、OAuth 是否可用、是否有 API Key）。
 
 ### POST /api/admin/orders/songs/settings
 修改點歌設定。body 可帶 `enabled`、`shuffle`（boolean）、`price`（0–1000）、`max_per_table`（1–20）、`max_minutes`（1–60）、`playlist`（常態歌單整份取代，最多 300 首）。範圍外 400。
@@ -562,8 +562,20 @@ POS 搜尋 YouTube。query `q`。回同客人端搜尋（不篩長度）。
 ### POST /api/admin/orders/songs/queue/:id/move
 調整待播順序。body `{ to }`，0 起算（0＝下一首），超出範圍夾到頭尾。
 
+### GET /api/admin/orders/songs/live
+KTV 播放裝置狀態（給控台／遙控）：`{ online, seq, device, name, mode, state, pos, dur, vol, muted, video_id, at }`。15 秒沒心跳 `online:false`、`state:'offline'`；播放中的 `pos` 依心跳後經過時間推算。
+
+### POST /api/admin/orders/songs/remote
+KTV 遙控。body `{ cmd, arg }`，`cmd` 為 `play`、`pause`、`volume`（`arg` 0–100）、`mute`、`unmute`、`restart`（重唱）、`sfx`（`arg` 為 `applause|cheer|wow|laugh|drumroll`）、`sfx_stop`。指令存 `site_content.ktv_live`（最近 20 筆、30 秒有效），播放裝置下次心跳執行。回同 `GET …/songs/live`。不支援的指令 400。
+
+### POST /api/admin/orders/songs/beat
+KTV 播放裝置心跳（約每 2 秒）。body `{ device, name, mode, state, pos, dur, vol, muted, video_id, ack }`；`device` 不是目前指定的播放裝置回 409。回 `{ cmds, seq }`：`ack` 之後尚未執行的遙控指令。
+
+### GET /api/admin/orders/songs/stats
+KTV 統計。query `from`、`to`（營業日，預設近 7 天，最多 93 天）。回 `{ from, to, count, amount, days:[{day,count,amount}], tables:[{table,count,amount}], songs:[{video_id,title,count}], popular }`：只算已結帳、未作廢訂單中的點歌品項（`cat:'SONG'`）；`popular` 為店內累計點播排行。
+
 ### POST /api/admin/orders/songs/playlist/import
-匯入常態歌單。body `{ playlist, mode }`；`playlist` 為 YouTube 播放清單網址或 ID，`mode:'append'` 接在現有歌單後，否則整份取代。只匯入可嵌入的影片，回 `imported` 筆數。
+匯入常態歌單。body `{ playlist, mode }`；`playlist` 為 YouTube 播放清單網址或 ID，`mode:'append'` 接在現有歌單後，否則整份取代；帶 `schedule:{ name, days, start, end }` 則改為新增一個時段歌單（格式錯 400）。只匯入可嵌入的影片，回 `imported` 筆數。
 
 ### GET /api/admin/orders/songs/youtube/playlists
 列出已綁定 YouTube 帳號的播放清單 `{ playlists:[{ id, title, count }] }`。未綁定 409。
