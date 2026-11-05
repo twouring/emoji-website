@@ -19,11 +19,11 @@ const D = { settings: { enabled: true, price: 10, max_per_table: 3, max_minutes:
 const LIVE = { online: true, seq: 3, device: 'ktv-tv', name: '電視畫面', mode: 'tv', state: 'playing', pos: 83, dur: 262, vol: 70, muted: false, video_id: id(5) };
 const DISC = { popular: [tr(1, '晴天', { count: 12 }), tr(4, '倔強', { count: 7 })], recent: [tr(1, '晴天')], chart: [] };
 const STATS = { from: '2026-10-30', to: '2026-11-05', count: 46, amount: 460, days: [{ day: '2026-11-01', count: 12, amount: 120 }, { day: '2026-11-02', count: 20, amount: 200 }, { day: '2026-11-05', count: 14, amount: 140 }], tables: [{ table: 'A3', count: 9, amount: 90 }, { table: 'B1', count: 5, amount: 50 }], songs: [{ video_id: id(1), title: '晴天', count: 8 }, { video_id: id(4), title: '倔強', count: 4 }], popular: DISC.popular };
-const TICKET = { table: 'A3', left: 2, total: 3, expires_at: '2026-11-06T18:00:00Z', enabled: true, price: 10, max_minutes: 10, now: D.now, queue: queue.map(q => ({ ...q, mine: q.table === 'A3' })) };
+const TICKET = { own: true, live: { online: true, state: 'playing', vol: 70, muted: false }, table: 'A3', left: 2, total: 3, expires_at: '2026-11-06T18:00:00Z', enabled: true, price: 10, max_minutes: 10, now: D.now, queue: queue.map(q => ({ ...q, mine: q.table === 'A3' })) };
 const DEVICE = { enabled: true, price: 10, max_minutes: 10, now: D.now, queue: queue.map(q => ({ ...q })) };
 const API = { '/api/ktv/device': DEVICE, '/api/ktv/ticket': TICKET, '/api/ktv/discover': DISC, '/api/state': { role: 'admin', me: { email: 'kk@emoji.tw' } }, '/api/admin/orders/songs': D, '/api/admin/orders/songs/live': LIVE, '/api/admin/orders/songs/discover': DISC, '/api/admin/orders/songs/stats': STATS };
 const browser = await puppeteer.launch({ executablePath: process.env.CHROME || '/workspace/local/brand-chrome/chrome-linux64/chrome', args: ['--no-sandbox', '--font-render-hinting=none', '--autoplay-policy=no-user-gesture-required'] });
-const shots = [['console', '/', 1280, 800], ['console-ipad', '/', 1180, 820], ['console-390', '/', 390, 844], ['remote-390', '/remote', 390, 844], ['remote-320', '/remote', 320, 640], ['playlists', '/playlists', 1180, 820], ['playlists-390', '/playlists', 390, 844], ['stats', '/stats', 1180, 820], ['stats-390', '/stats', 390, 844], ['settings', '/settings', 1180, 820], ['tv', '/tv', 1920, 1080], ['tv-720', '/tv', 1280, 720], ['tv-4k', '/tv', 3840, 2160], ['tv-ipad', '/tv', 1180, 820], ['tv-portrait', '/tv', 820, 1180], ['login-390', '/', 390, 844, true], ['redeem-390', '/s?d=Ab3dEf7hJk', 390, 844, true], ['guest-390', '/s?d=Ab3dEf7hJk#code', 390, 844, true], ['guest-320', '/s?d=Ab3dEf7hJk#code', 320, 640, true], ['console-code', '/#bigcode', 1280, 800]];
+const shots = [['console', '/', 1280, 800], ['console-ipad', '/', 1180, 820], ['console-390', '/', 390, 844], ['remote-390', '/remote', 390, 844], ['remote-320', '/remote', 320, 640], ['playlists', '/playlists', 1180, 820], ['playlists-390', '/playlists', 390, 844], ['stats', '/stats', 1180, 820], ['stats-390', '/stats', 390, 844], ['settings', '/settings', 1180, 820], ['tv', '/tv', 1920, 1080], ['tv-720', '/tv', 1280, 720], ['tv-4k', '/tv', 3840, 2160], ['tv-ipad', '/tv', 1180, 820], ['tv-portrait', '/tv', 820, 1180], ['login-390', '/', 390, 844, true], ['redeem-390', '/s?d=Ab3dEf7hJk', 390, 844, true], ['guest-390', '/s?d=Ab3dEf7hJk#code', 390, 844, true], ['guest-320', '/s?d=Ab3dEf7hJk#code', 320, 640, true], ['console-code', '/#bigcode', 1280, 800], ['remote-guest-390', '/s?d=Ab3dEf7hJk#code#remote', 390, 844, true], ['remote-guest-320', '/s?d=Ab3dEf7hJk#code#remote', 320, 640, true]];
 for (const [name, url, w, h, anon] of shots) {
   const page = await browser.newPage(); const errs = [];
   page.on('pageerror', e => errs.push(e.message));
@@ -44,9 +44,10 @@ for (const [name, url, w, h, anon] of shots) {
   });
   if (anon) await page.evaluateOnNewDocument(() => localStorage.clear());
   else await page.evaluateOnNewDocument(me => { localStorage.setItem('tth_ktv_token', 'x.y'); if (me) localStorage.setItem('tth_ktv_device', 'ktv-me'); }, !!process.env.ME);
-  if (url.endsWith('#code')) await page.evaluateOnNewDocument(() => sessionStorage.setItem('ktv_code_Ab3dEf7hJk', '482913'));
+  if (url.includes('#code')) await page.evaluateOnNewDocument(() => sessionStorage.setItem('ktv_code_Ab3dEf7hJk', '482913'));
   if (url.startsWith('/tv')) await page.evaluateOnNewDocument(dev => localStorage.setItem('tth_ktv_device', dev), D.settings.player_device);
   await page.goto('https://ktv.test' + url, { waitUntil: 'load' });
+  if (url.endsWith('#remote')) { await new Promise(r => setTimeout(r, 1200)); await page.evaluate(() => document.querySelector('[data-view=remote]')?.click()); }
   if (url.endsWith('#bigcode')) { await new Promise(r => setTimeout(r, 1200)); await page.evaluate(() => document.querySelector('[data-k-showqr]')?.click()); }
   await new Promise(r => setTimeout(r, 1500));
   const m = await page.evaluate(() => {

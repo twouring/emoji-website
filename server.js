@@ -7978,7 +7978,34 @@ app.get('/api/ktv/device',rateLimit({max:60}),requireDb,wrap(async(req,res)=>{
 app.get('/api/ktv/ticket',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{   // 兌換碼 6 位數：限流擋暴力猜碼
   res.set('Cache-Control','no-store');
   try{const settings=await ktvDevice(req.query);const {t,ss}=await ktvTicket(req.query);
-    res.json({...songTickets.view(t,ss.items),...songs.publicView(songs.normalizeState(await contentValue(KTV_KEYS.state)),settings,ss.table_no)});}catch(e){return songErr(res,e);}
+    const state=songs.normalizeState(await contentValue(KTV_KEYS.state));
+    res.json({...songTickets.view(t,ss.items),...songs.publicView(state,settings,ss.table_no),own:ktvOwn(state,t),live:ktvGuestLive(ktv.liveView(ktv.normalizeLive(await contentValue(KTV_KEYS.live))))});}catch(e){return songErr(res,e);}
+}));
+/* 客人遙控（KK 11/6）：掃播放裝置 QR＋兌換碼（效期內，點完歌也能用）。所有人：音量、靜音、音效；只有自己點的歌正在播：重唱、暫停／播放、切歌。
+   升降調做不到：YouTube 內嵌播放器拿不到音訊，網頁無法變調。 */
+const ktvOwn=(state,t)=>!!(state.now&&state.now.kind==='request'&&state.now.ticket&&state.now.ticket===t.id);
+const ktvGuestLive=lv=>({online:lv.online,state:lv.state,vol:lv.vol??100,muted:!!lv.muted});
+app.post('/api/ktv/remote',rateLimit({max:40}),requireDb,wrap(async(req,res)=>{
+  const b=req.body||{},cmd=String(b.cmd||'');
+  try{await ktvDevice(b);const {t}=await ktvTicket(b);
+    const by='客人'+(t.table?'・'+t.table:'');
+    if(cmd==='vol_up'||cmd==='vol_down'){
+      const lv=ktv.liveView(ktv.normalizeLive(await contentValue(KTV_KEYS.live)));
+      return res.json({live:ktvGuestLive(await ktvPushCmd('volume',Math.max(0,Math.min(100,(lv.vol??100)+(cmd==='vol_up'?10:-10))),by))});
+    }
+    if(cmd==='mute'||cmd==='unmute')return res.json({live:ktvGuestLive(await ktvPushCmd(cmd,null,by))});
+    if(cmd==='sfx')return res.json({live:ktvGuestLive(await ktvPushCmd('sfx',String(b.arg||''),by))});
+    if(!['restart','pause','play','skip'].includes(cmd))return res.status(400).json({error:'不支援的遙控指令。'});
+    const state=songs.normalizeState(await contentValue(KTV_KEYS.state));
+    if(!ktvOwn(state,t))return res.status(403).json({error:'只能控制你點的歌（正在播放時）。'});
+    if(cmd!=='skip')return res.json({live:ktvGuestLive(await ktvPushCmd(cmd,null,by))});
+    const out=await withSongs(async(client,{settings,state:st})=>{
+      if(!ktvOwn(st,t))throw Object.assign(Error('只能控制你點的歌（正在播放時）。'),{status:403});
+      const r=songs.advance(st,settings,{result:'skip',current:st.now.id});if(r.stale)return st;
+      await saveSongState(client,r.state);return r.state;
+    });
+    res.json({skipped:true,...songs.publicView(out,await songSettings(),t.table),own:false});
+  }catch(e){return songErr(res,e);}
 }));
 app.get('/api/ktv/search',rateLimit({max:30}),requireDb,wrap(async(req,res)=>{
   try{const settings=await ktvDevice(req.query);await ktvTicket(req.query);res.json({items:(await songSearch(req.query.q)).filter(v=>!v.duration||v.duration<=settings.max_minutes*60)});}catch(e){return songErr(res,e);}
@@ -7998,6 +8025,7 @@ app.post('/api/ktv/pick',rateLimit({max:30}),requireDb,wrap(async(req,res)=>{
       const lineId=left[0],line=t.comp?{by:'招待',price:0}:ss.items.find(l=>l.line===lineId);
       // 招待碼：不綁桌、不記帳（session_id/line 為 null，播放失敗或移除也不用退款）
       const {state:next,entry}=songs.enqueue(state,video,{table:ss.table_no,by:tableOrders.cleanText(b.by,20)||line.by||'客人',source:'guest',session_id:ss.id,line:t.comp?null:lineId,price:line.price,maxPerTable:20});
+      next.queue=next.queue.map(e=>e.id===entry.id?{...e,ticket:t.id}:e);   // 記下哪組兌換碼點的：客人遙控只能重唱／暫停／切自己的歌
       const items=t.comp?[]:ss.items.map(l=>l.line===lineId?songTickets.pickLine(l,entry):l);
       if(!t.comp)await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[ss.id,JSON.stringify(items)]);
       await saveSongState(client,next);
@@ -8005,7 +8033,7 @@ app.post('/api/ktv/pick',rateLimit({max:30}),requireDb,wrap(async(req,res)=>{
       const stats=songs.normalizeStats((await client.query(`SELECT value FROM site_content WHERE key='song_stats' FOR UPDATE`)).rows[0]?.value);
       await client.query(`UPDATE site_content SET value=$1,updated_at=now() WHERE key='song_stats'`,[JSON.stringify(songs.bumpStats(stats,video))]);
       const st2=songTickets.use(st,t.id,lineId),t2=st2.tickets.find(x=>x.id===t.id);
-      return {state:st2,res:{entry,...songTickets.view(t2,items),...songs.publicView(next,settings,ss.table_no)}};
+      return {state:st2,res:{entry,...songTickets.view(t2,items),...songs.publicView(next,settings,ss.table_no),own:ktvOwn(next,t2)}};
     }));
     res.status(201).json({ok:true,request_id:out.res.entry.id,...out.res,entry:undefined});
   }catch(e){return songErr(res,e);}

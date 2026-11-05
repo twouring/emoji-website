@@ -33,7 +33,7 @@ h1{font-family:var(--serif);font-weight:500;font-size:1.5rem;margin:0 0 4px}
 .left.done{background:var(--paper-alt)}
 .now{display:flex;gap:12px;align-items:center;padding:12px;border-radius:12px;background:var(--ink);color:var(--paper);margin:0 0 16px}
 .now img{width:96px;height:54px;border-radius:6px;object-fit:cover;flex:none}.now span{min-width:0;display:flex;flex-direction:column}.now b{overflow-wrap:anywhere;line-height:1.4}.now small{opacity:.75}
-.tabs{display:flex;gap:6px;margin:0 -16px 12px;padding:0 16px;overflow-x:auto;scrollbar-width:none;scroll-padding:0 16px}.tabs::after{content:'';flex:0 0 10px}.tabs::-webkit-scrollbar{display:none}
+.tabs{display:flex;gap:6px;margin:0 -16px 12px;padding:0 16px;overflow-x:auto;scrollbar-width:none;scroll-padding:0 16px}.tabs::after{content:'';flex:0 0 16px}.tabs::-webkit-scrollbar{display:none}
 .tabs button{flex:none;min-height:44px;padding:0 16px;border-radius:999px;border:1px solid var(--line);background:transparent;cursor:pointer;white-space:nowrap}
 .tabs button[aria-selected=true]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .search input{width:100%;min-height:48px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:var(--card);margin:0 0 12px}
@@ -58,6 +58,12 @@ h1{font-family:var(--serif);font-weight:500;font-size:1.5rem;margin:0 0 4px}
 .redeem input{width:100%;min-height:56px;padding:0 14px;border:1.5px solid var(--ink);border-radius:10px;background:var(--paper);font-size:1.75rem;letter-spacing:.3em;text-align:center;font-variant-numeric:tabular-nums}
 .redeem .btn{min-height:52px;width:100%}
 .left .chg{margin-left:auto;min-height:44px;border:0;background:none;text-decoration:underline;cursor:pointer;padding:0 4px}
+.rc-now{padding:12px 14px;border-radius:12px;background:var(--paper-alt);margin:0 0 12px;line-height:1.5}
+.rc-keys{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 12px}
+.rc-keys .btn{min-height:56px;min-width:0;background:var(--card);color:var(--ink);font-size:1.0625rem}
+.rc-keys .btn.on{background:var(--ink);color:var(--paper)}
+.rc-keys .btn:disabled{opacity:.35}
+.rc-h{font-family:var(--serif);font-weight:500;font-size:1.125rem;margin:16px 0 8px}
 .err{padding:24px 0;text-align:center}.err img{height:64px;margin:0 auto 16px;display:block}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translate(-50%,20px);opacity:0;background:var(--ink);color:var(--paper);padding:.7em 1.2em;border-radius:10px;transition:.2s;z-index:20;max-width:calc(100vw - 32px);pointer-events:none}
 .toast.show{opacity:1;transform:translate(-50%,0)}
@@ -77,10 +83,10 @@ var $=function(s){return document.querySelector(s);};
 var esc=function(s){return (s==null?'':String(s)).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
 var P=new URLSearchParams(location.search),DEV=P.get('d')||'',CODE='';try{CODE=sessionStorage.getItem('ktv_code_'+DEV)||'';}catch(e){}
 var TX={
-  zh:{comp:'招待',code_label:'輸入店員給你的 6 位數兌換碼',code_go:'開始點歌',code_bad:'請輸入 6 位數兌換碼',code_how:'還沒有兌換碼？在桌邊點餐頁購買點歌，再向店員索取。',change:'換一組',title:'選歌',table:'桌 {t}',left:'首可以點',done:'這組兌換碼的歌都點完了',done_hint:'要再點，請在桌邊點餐頁購買點歌，再向店員索取新的兌換碼。',now:'正在播放',popular:'熱門',recent:'最近點過',chart:'排行榜',search:'搜尋',queue:'待播',search_ph:'歌名、歌手',pick:'點這首',queued:'已在待播',confirm:'點「{title}」？',picked:'已點歌！排在第 {n} 首。',none:'找不到可以播放的歌，換個關鍵字試試。',empty:'還沒有資料，試試搜尋。',qempty:'目前沒有人點歌。',mine:'本桌',pl:'店內歌單',searching:'搜尋中…',hint:'長度上限 {min} 分鐘。',bad:'無法點歌'},
-  en:{comp:'Complimentary',code_label:'Enter the 6-digit code from our staff',code_go:'Start',code_bad:'Please enter the 6-digit code',code_how:'No code yet? Buy songs on the table ordering page, then ask our staff.',change:'Change',title:'Pick your songs',table:'Table {t}',left:'song(s) left',done:'All songs on this code are picked',done_hint:'To add more, buy songs on the table ordering page, then ask our staff for a new code.',now:'Now playing',popular:'Popular',recent:'Recent',chart:'Charts',search:'Search',queue:'Queue',search_ph:'Song or artist',pick:'Pick',queued:'Queued',confirm:'Pick "{title}"?',picked:'Picked! #{n} in the queue.',none:'No playable songs found. Try another keyword.',empty:'Nothing yet. Try search.',qempty:'No requests yet.',mine:'Your table',pl:'Shop playlist',searching:'Searching…',hint:'Max {min} min per song.',bad:'Song requests unavailable'},
-  ja:{comp:'サービス',code_label:'スタッフからもらった 6 桁のコードを入力',code_go:'選曲をはじめる',code_bad:'6 桁のコードを入力してください',code_how:'コードがない場合は、テーブル注文ページで購入し、スタッフにお申し付けください。',change:'変更',title:'選曲',table:'テーブル {t}',left:'曲 選べます',done:'このコードの曲はすべて選曲済みです',done_hint:'追加はテーブル注文ページで購入し、スタッフに新しいコードをもらってください。',now:'再生中',popular:'人気',recent:'最近',chart:'ランキング',search:'検索',queue:'再生待ち',search_ph:'曲名・アーティスト',pick:'選ぶ',queued:'再生待ち',confirm:'「{title}」をリクエストしますか？',picked:'リクエストしました！{n} 番目です。',none:'再生できる曲が見つかりません。別のキーワードでお試しください。',empty:'まだありません。検索してください。',qempty:'リクエストはまだありません。',mine:'このテーブル',pl:'店内プレイリスト',searching:'検索中…',hint:'1 曲 {min} 分まで。',bad:'リクエストできません'},
-  ko:{comp:'서비스',code_label:'직원에게 받은 6자리 코드를 입력하세요',code_go:'곡 선택 시작',code_bad:'6자리 코드를 입력하세요',code_how:'코드가 없나요? 테이블 주문 페이지에서 구매한 뒤 직원에게 요청하세요.',change:'변경',title:'곡 선택',table:'테이블 {t}',left:'곡 선택 가능',done:'이 코드의 곡을 모두 골랐어요',done_hint:'더 신청하려면 테이블 주문 페이지에서 구매한 뒤 직원에게 새 코드를 받으세요.',now:'지금 재생 중',popular:'인기',recent:'최근',chart:'차트',search:'검색',queue:'대기열',search_ph:'노래 제목, 가수',pick:'선택',queued:'대기 중',confirm:'"{title}"을(를) 신청할까요?',picked:'신청 완료! 대기열 {n}번째입니다.',none:'재생 가능한 노래가 없어요. 다른 검색어로 찾아보세요.',empty:'아직 없어요. 검색해 보세요.',qempty:'아직 신청곡이 없어요.',mine:'우리 테이블',pl:'매장 플레이리스트',searching:'검색 중…',hint:'곡당 최대 {min}분.',bad:'노래 신청을 할 수 없어요'}
+  zh:{remote:'遙控',vol_down:'音量 −',vol_up:'音量 ＋',mute:'靜音',unmute:'開聲音',restart:'重唱',pause:'暫停',play:'播放',skip:'切歌',sfx_title:'音效',own_hint:'你點的歌正在播放，可以重唱、暫停或切歌。',not_own:'重唱、暫停、切歌只能在你點的歌播放時使用。',offline:'播放裝置目前離線',sent:'已送出',confirm_skip:'切掉這首，換下一首？',skipped:'已切歌',applause:'掌聲',cheer:'歡呼',wow:'哇～',laugh:'笑聲',drumroll:'鼓聲',vol:'音量 {v}',comp:'招待',code_label:'輸入店員給你的 6 位數兌換碼',code_go:'開始點歌',code_bad:'請輸入 6 位數兌換碼',code_how:'還沒有兌換碼？在桌邊點餐頁購買點歌，再向店員索取。',change:'換一組',title:'選歌',table:'桌 {t}',left:'首可以點',done:'這組兌換碼的歌都點完了',done_hint:'要再點，請在桌邊點餐頁購買點歌，再向店員索取新的兌換碼。',now:'正在播放',popular:'熱門',recent:'最近點過',chart:'排行榜',search:'搜尋',queue:'待播',search_ph:'歌名、歌手',pick:'點這首',queued:'已在待播',confirm:'點「{title}」？',picked:'已點歌！排在第 {n} 首。',none:'找不到可以播放的歌，換個關鍵字試試。',empty:'還沒有資料，試試搜尋。',qempty:'目前沒有人點歌。',mine:'本桌',pl:'店內歌單',searching:'搜尋中…',hint:'長度上限 {min} 分鐘。',bad:'無法點歌'},
+  en:{remote:'Remote',vol_down:'Vol −',vol_up:'Vol +',mute:'Mute',unmute:'Unmute',restart:'Restart',pause:'Pause',play:'Play',skip:'Skip',sfx_title:'Sound effects',own_hint:'Your song is playing — you can restart, pause or skip it.',not_own:'Restart, pause and skip work only while your own song is playing.',offline:'The player is offline',sent:'Sent',confirm_skip:'Skip this song?',skipped:'Skipped',applause:'Applause',cheer:'Cheer',wow:'Wow',laugh:'Laugh',drumroll:'Drumroll',vol:'Volume {v}',comp:'Complimentary',code_label:'Enter the 6-digit code from our staff',code_go:'Start',code_bad:'Please enter the 6-digit code',code_how:'No code yet? Buy songs on the table ordering page, then ask our staff.',change:'Change',title:'Pick your songs',table:'Table {t}',left:'song(s) left',done:'All songs on this code are picked',done_hint:'To add more, buy songs on the table ordering page, then ask our staff for a new code.',now:'Now playing',popular:'Popular',recent:'Recent',chart:'Charts',search:'Search',queue:'Queue',search_ph:'Song or artist',pick:'Pick',queued:'Queued',confirm:'Pick "{title}"?',picked:'Picked! #{n} in the queue.',none:'No playable songs found. Try another keyword.',empty:'Nothing yet. Try search.',qempty:'No requests yet.',mine:'Your table',pl:'Shop playlist',searching:'Searching…',hint:'Max {min} min per song.',bad:'Song requests unavailable'},
+  ja:{remote:'リモコン',vol_down:'音量 −',vol_up:'音量 ＋',mute:'ミュート',unmute:'ミュート解除',restart:'最初から',pause:'一時停止',play:'再生',skip:'スキップ',sfx_title:'効果音',own_hint:'あなたの曲が再生中です。最初から・一時停止・スキップができます。',not_own:'最初から・一時停止・スキップは、あなたの曲の再生中のみ使えます。',offline:'プレーヤーがオフラインです',sent:'送信しました',confirm_skip:'この曲をスキップしますか？',skipped:'スキップしました',applause:'拍手',cheer:'歓声',wow:'ワオ',laugh:'笑い声',drumroll:'ドラムロール',vol:'音量 {v}',comp:'サービス',code_label:'スタッフからもらった 6 桁のコードを入力',code_go:'選曲をはじめる',code_bad:'6 桁のコードを入力してください',code_how:'コードがない場合は、テーブル注文ページで購入し、スタッフにお申し付けください。',change:'変更',title:'選曲',table:'テーブル {t}',left:'曲 選べます',done:'このコードの曲はすべて選曲済みです',done_hint:'追加はテーブル注文ページで購入し、スタッフに新しいコードをもらってください。',now:'再生中',popular:'人気',recent:'最近',chart:'ランキング',search:'検索',queue:'再生待ち',search_ph:'曲名・アーティスト',pick:'選ぶ',queued:'再生待ち',confirm:'「{title}」をリクエストしますか？',picked:'リクエストしました！{n} 番目です。',none:'再生できる曲が見つかりません。別のキーワードでお試しください。',empty:'まだありません。検索してください。',qempty:'リクエストはまだありません。',mine:'このテーブル',pl:'店内プレイリスト',searching:'検索中…',hint:'1 曲 {min} 分まで。',bad:'リクエストできません'},
+  ko:{remote:'리모컨',vol_down:'볼륨 −',vol_up:'볼륨 ＋',mute:'음소거',unmute:'음소거 해제',restart:'처음부터',pause:'일시정지',play:'재생',skip:'건너뛰기',sfx_title:'효과음',own_hint:'신청한 곡이 재생 중이에요. 처음부터, 일시정지, 건너뛰기가 가능해요.',not_own:'처음부터, 일시정지, 건너뛰기는 내가 신청한 곡이 재생될 때만 쓸 수 있어요.',offline:'플레이어가 오프라인이에요',sent:'보냈어요',confirm_skip:'이 곡을 건너뛸까요?',skipped:'건너뛰었어요',applause:'박수',cheer:'환호',wow:'와우',laugh:'웃음',drumroll:'드럼롤',vol:'볼륨 {v}',comp:'서비스',code_label:'직원에게 받은 6자리 코드를 입력하세요',code_go:'곡 선택 시작',code_bad:'6자리 코드를 입력하세요',code_how:'코드가 없나요? 테이블 주문 페이지에서 구매한 뒤 직원에게 요청하세요.',change:'변경',title:'곡 선택',table:'테이블 {t}',left:'곡 선택 가능',done:'이 코드의 곡을 모두 골랐어요',done_hint:'더 신청하려면 테이블 주문 페이지에서 구매한 뒤 직원에게 새 코드를 받으세요.',now:'지금 재생 중',popular:'인기',recent:'최근',chart:'차트',search:'검색',queue:'대기열',search_ph:'노래 제목, 가수',pick:'선택',queued:'대기 중',confirm:'"{title}"을(를) 신청할까요?',picked:'신청 완료! 대기열 {n}번째입니다.',none:'재생 가능한 노래가 없어요. 다른 검색어로 찾아보세요.',empty:'아직 없어요. 검색해 보세요.',qempty:'아직 신청곡이 없어요.',mine:'우리 테이블',pl:'매장 플레이리스트',searching:'검색 중…',hint:'곡당 최대 {min}분.',bad:'노래 신청을 할 수 없어요'}
 };
 var LANGS=['zh','en','ja','ko'],LANG=(function(){try{var s=localStorage.getItem('ktv_lang');if(LANGS.indexOf(s)>=0)return s;}catch(e){}var n=(navigator.language||'').toLowerCase();return n.indexOf('zh')===0?'zh':n.indexOf('ja')===0?'ja':n.indexOf('ko')===0?'ko':'en';})();
 function tr(k,v){var s=(TX[LANG]||TX.zh)[k]||TX.zh[k]||k;return s.replace(/\{(\w+)\}/g,function(_,x){return v&&v[x]!=null?v[x]:'';});}
@@ -93,7 +99,18 @@ function paintLang(){document.documentElement.lang=LANG==='zh'?'zh-Hant':LANG;$(
 function queued(){var m={};(D&&D.queue||[]).forEach(function(t){m[t.video_id]=1;});if(D&&D.now&&D.now.kind==='request')m[D.now.video_id]=1;return m;}
 function row(t,act,rank){return '<li class="row">'+(rank?'<span class="rank">'+rank+'</span>':'')+(t.thumb?'<img src="'+esc(t.thumb)+'" alt="" loading="lazy">':'')+'<span class="n"><b>'+esc(t.title)+'</b><small>'+esc([t.channel,t.mine?tr('mine'):(t.table?tr('table',{t:t.table}):''),t.kind==='playlist'?tr('pl'):''].filter(Boolean).join('・'))+'</small></span>'+(act||'')+'</li>';}
 function pickList(list,ranked){var q=queued(),can=D&&D.left>0;return '<ul class="list">'+list.map(function(t,i){return row(t,q[t.video_id]?'<span class="tag">'+esc(tr('queued'))+'</span>':(can?'<button type="button" class="btn" data-pick="'+esc(t.video_id)+'">'+esc(tr('pick'))+'</button>':''),ranked?i+1:0);}).join('')+'</ul>';}
+function remoteHtml(){
+  var lv=D.live||{},own=!!D.own,on=lv.online!==false,playing=lv.state==='playing';
+  var k=function(cmd,label,dis,cls){return '<button type="button" class="btn'+(cls?' '+cls:'')+'" data-rc="'+cmd+'"'+(dis?' disabled':'')+'>'+esc(label)+'</button>';};
+  return (on?'':'<p class="rc-now">'+esc(tr('offline'))+'</p>')
+    +'<p class="rc-now">'+esc(own?tr('own_hint'):tr('not_own'))+'</p>'
+    +'<div class="rc-keys">'+k('vol_down',tr('vol_down'),!on)+k(lv.muted?'unmute':'mute',lv.muted?tr('unmute'):tr('mute'),!on,lv.muted?'on':'')+k('vol_up',tr('vol_up'),!on)
+    +k('restart',tr('restart'),!on||!own)+k(playing?'pause':'play',playing?tr('pause'):tr('play'),!on||!own)+k('skip',tr('skip'),!own)+'</div>'
+    +'<p class="muted">'+esc(tr('vol',{v:lv.vol==null?'—':lv.vol}))+'</p>'
+    +'<h2 class="rc-h">'+esc(tr('sfx_title'))+'</h2><div class="rc-keys">'+['applause','cheer','wow','laugh','drumroll'].map(function(x){return '<button type="button" class="btn" data-rc="sfx" data-arg="'+x+'"'+(on?'':' disabled')+'>'+esc(tr(x))+'</button>';}).join('')+'</div>';
+}
 function results(){
+  if(VIEW==='remote')return remoteHtml();
   if(VIEW==='queue')return D.queue.length?'<ul class="list">'+D.queue.map(function(t,i){return row(t,'',i+1);}).join('')+'</ul>':'<p class="muted">'+esc(tr('qempty'))+'</p>';
   if(VIEW==='search')return SEARCHING?'<p class="muted">'+esc(tr('searching'))+'</p>':RES?SongPicks.back(LANG,esc)+(RES.length?pickList(RES,false):'<p class="muted">'+esc(tr('none'))+'</p>'):SongPicks.html(PICK,LANG,esc);
   if(!DISC)return '<p class="muted">…</p>';var l=DISC[VIEW]||[];return l.length?pickList(l,VIEW!=='recent'):'<p class="muted">'+esc(tr('empty'))+'</p>';
@@ -111,10 +128,11 @@ function paint(){
   var left=D.left>0?'<div class="left"><b>'+esc(D.left)+'</b><span>'+esc(tr('left'))+'</span><button type="button" class="chg" data-chg>'+esc(tr('change'))+'</button></div>':'<div class="left done"><span><b style="font-size:1.125rem;font-family:var(--sans)">'+esc(tr('done'))+'</b><br>'+esc(tr('done_hint'))+'</span><button type="button" class="chg" data-chg>'+esc(tr('change'))+'</button></div>';
   app.innerHTML='<h1>'+esc(tr('title'))+'</h1><p class="muted">'+esc(D.comp?tr('comp')+(D.table?'・'+D.table:''):tr('table',{t:D.table}))+'・'+esc(tr('hint',{min:D.max_minutes}))+'</p>'+left
     +(D.now?'<div class="now">'+(D.now.thumb?'<img src="'+esc(D.now.thumb)+'" alt="">':'')+'<span><small>'+esc(tr('now'))+'</small><b>'+esc(D.now.title)+'</b></span></div>':'')
-    +'<div class="tabs" role="tablist">'+['popular','recent','chart','search','queue'].map(function(k){return '<button type="button" role="tab" data-view="'+k+'" aria-selected="'+(k===VIEW)+'">'+esc(tr(k))+(k==='queue'&&D.queue.length?' '+D.queue.length:'')+'</button>';}).join('')+'</div>'
+    +'<div class="tabs" role="tablist">'+['popular','recent','chart','search','queue','remote'].map(function(k){return '<button type="button" role="tab" data-view="'+k+'" aria-selected="'+(k===VIEW)+'">'+esc(tr(k))+(k==='queue'&&D.queue.length?' '+D.queue.length:'')+'</button>';}).join('')+'</div>'
     +(VIEW==='search'?'<form class="search" id="sf"><input id="q" type="search" maxlength="80" autocomplete="off" enterkeyhint="search" placeholder="'+esc(tr('search_ph'))+'" value="'+esc(Q)+'" aria-label="'+esc(tr('search'))+'"></form>':'')
     +'<div id="res" aria-live="polite">'+results()+'</div>';
   if(foc){var i=$('#q');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length);}}
+  var at=document.querySelector('.tabs [aria-selected=true]');if(at&&at.scrollIntoView)at.scrollIntoView({block:'nearest',inline:'nearest'});
 }
 function fail(e){$('#app').innerHTML='<div class="err"><img src="/cis/assets/emoji-mark.svg" alt=""><h1>'+esc(tr('bad'))+'</h1><p class="muted">'+esc(e.message)+'</p></div>';}
 function busyInput(){var a=document.activeElement;return a&&(a.id==='q'||a.id==='code');}
@@ -122,7 +140,8 @@ function setD(d){var ch=JSON.stringify(d)!==JSON.stringify(D);D=d;if(ch&&!busyIn
 function loadDevice(){return api('/ktv/device?d='+encodeURIComponent(DEV)).then(setD).catch(function(e){D=null;fail(e);});}
 function loadDisc(){if(DISC)return;api('/ktv/discover?'+QS()).then(function(d){DISC=d;if(!((d.popular||[]).length))VIEW=(d.chart||[]).length?'chart':'search';paint();}).catch(function(){DISC={popular:[],recent:[],chart:[]};VIEW='search';paint();});}
 /* 有兌換碼就讀這組碼的狀態；碼錯或過期（404/410）回到輸入畫面；裝置 QR 失效（403）或點歌關閉（423）整頁顯示錯誤 */
-function load(){if(!CODE)return loadDevice();return api('/ktv/ticket?'+QS()).then(function(d){setD(d);loadDisc();}).catch(function(e){if(e.status===404||e.status===410||e.status===400||e.status===429){saveCode('');toast(e.message);return loadDevice();}D=null;fail(e);});}
+var LASTLOAD=0;
+function load(){LASTLOAD=Date.now();if(!CODE)return loadDevice();return api('/ktv/ticket?'+QS()).then(function(d){setD(d);loadDisc();}).catch(function(e){if(e.status===404||e.status===410||e.status===400||e.status===429){saveCode('');toast(e.message);return loadDevice();}D=null;fail(e);});}
 var ST=0,SEQ=0,LASTQ='';
 function search(q){clearTimeout(ST);q=String(q||'').trim();if(q===LASTQ&&(RES||SEARCHING))return;LASTQ=q;Q=q;var seq=++SEQ;if(!q){RES=null;SEARCHING=false;return paintResults();}
   SEARCHING=true;paintResults();api('/ktv/search?'+QS()+'&q='+encodeURIComponent(q)).then(function(d){if(seq===SEQ)RES=d.items||[];}).catch(function(e){if(seq===SEQ){LASTQ='';toast(e.message);}}).then(function(){if(seq===SEQ){SEARCHING=false;paintResults();}});}
@@ -134,6 +153,9 @@ document.addEventListener('click',function(e){
   var b=e.target.closest('button');if(!b)return;
   if(b.dataset.lang){LANG=b.dataset.lang;try{localStorage.setItem('ktv_lang',LANG);}catch(x){}return paint();}
   if(b.hasAttribute('data-chg')){saveCode('');DISC=null;RES=null;VIEW='popular';return loadDevice().then(function(){var c=$('#code');if(c)c.focus();});}
+  if(b.dataset.rc&&!BUSY){var cmd=b.dataset.rc;if(cmd==='skip'&&!confirm(tr('confirm_skip')))return;BUSY=true;b.disabled=true;
+    api('/ktv/remote',{method:'POST',body:{d:DEV,code:CODE,cmd:cmd,arg:b.dataset.arg||''}}).then(function(r){if(r.live)D.live=r.live;if(r.skipped){D.now=r.now;D.queue=r.queue;D.own=false;toast(tr('skipped'));}else toast(tr('sent'));paint();setTimeout(load,1500);})
+      .catch(function(err){toast(err.message);}).then(function(){BUSY=false;b.disabled=false;});return;}
   if(b.dataset.view){VIEW=b.dataset.view;paint();if(VIEW==='search'){var i=$('#q');if(i)i.focus();}return;}
   var pk=SongPicks.click(b,PICK);if(pk){if(pk.back){Q='';return search('');}if(pk.q){var i2=$('#q');if(i2)i2.value=pk.q;return search(pk.q);}return paintResults();}
   if(b.dataset.pick&&!BUSY){var all=[].concat(RES||[],DISC&&DISC.popular||[],DISC&&DISC.recent||[],DISC&&DISC.chart||[]),t=null;for(var j=0;j<all.length;j++)if(all[j].video_id===b.dataset.pick){t=all[j];break;}
@@ -142,7 +164,7 @@ document.addEventListener('click',function(e){
       .catch(function(err){toast(err.message);b.disabled=false;}).then(function(){BUSY=false;});}
 });
 paintLang();
-if(!DEV)fail(new Error('—'));else{load();setInterval(function(){if(!document.hidden)load();},15000);}
+if(!DEV)fail(new Error('—'));else{load();setInterval(function(){if(!document.hidden&&(VIEW==='remote'||Date.now()-LASTLOAD>14000))load();},4000);}
 })();
 </script>
 </body>

@@ -200,3 +200,11 @@ test('招待兌換碼：控台直接產生、不綁桌、1–20 首、用完為�
   assert.equal(TK.remaining(st.tickets[0], [], t0 + TK.TTL + 1).length, 0, '一樣 6 小時失效');
   const js = read('public/ktv.js'); assert.match(js, /data-k-compform/); assert.match(js, /comp: true/);
 });
+
+test('客人遙控：/s 有遙控分頁、伺服器限制只能控制自己的歌', () => {
+  const g = read('public/ktv-song.html'), srv = read('server.js');
+  assert.match(g, /'remote'\]\.map\(/); assert.match(g, /data-rc=/); assert.match(g, /\/ktv\/remote/);
+  for (const k of ['vol_down', 'vol_up', 'restart', 'skip', 'own_hint', 'not_own']) assert.ok((g.match(new RegExp(k + ":'", 'g')) || []).length >= 4, k + ' 四語');
+  assert.ok(srv.includes("app.post('/api/ktv/remote'")); assert.match(srv, /if\(!ktvOwn\(state,t\)\)return res\.status\(403\)/);
+  assert.match(srv, /ticket:t\.id/, '點歌時記下兌換碼');
+});

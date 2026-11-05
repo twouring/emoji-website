@@ -536,7 +536,10 @@ KTV 控台的點歌兌換碼狀態：`tables`（已購買點歌、還沒發碼�
 播放裝置 QR 的客人點歌頁（`ktv.emoji.tw/s?d=`）首屏。query `d`（裝置代號＝播放裝置 id 的 HMAC，只認目前登記的播放裝置；換裝置後舊 QR 失效 403）。回 `{ enabled, price, max_minutes, now, queue }`；點歌關閉 423。
 
 ### GET /api/ktv/ticket
-輸入兌換碼。query `d`、`code`（6 位數）。回 `{ comp, table, left, total, expires_at, enabled, price, max_minutes, now, queue }`。裝置代號錯 403、碼錯或過期 404、這桌已結帳 410；每 IP 每分鐘 20 次（擋猜碼）。
+輸入兌換碼。query `d`、`code`（6 位數）。回 `{ comp, table, left, total, expires_at, own, live, enabled, price, max_minutes, now, queue }`。裝置代號錯 403、碼錯或過期 404、這桌已結帳 410；每 IP 每分鐘 20 次（擋猜碼）。
+
+### POST /api/ktv/remote
+客人遙控（KK 11/6）。body `{ d, code, cmd, arg }`；兌換碼效期內都能用（點完歌也可以）。所有人：`vol_up`／`vol_down`（±10）、`mute`、`unmute`、`sfx`（`arg`＝applause／cheer／wow／laugh／drumroll）。只有正在播放的是這組兌換碼點的歌（`GET /api/ktv/ticket` 的 `own:true`）才能：`restart`、`pause`、`play`、`skip`（切歌，換下一首）；否則 403。指令經播放裝置心跳約 2 秒內執行。回 `{ live:{ online, state, vol, muted } }`；`skip` 回 `{ skipped:true, now, queue, own:false }`。不支援升降調（YouTube 內嵌播放器無法變調）。每 IP 每分鐘 40 次。
 
 ### GET /api/ktv/search
 客人點歌頁搜尋 YouTube。query `d`、`code`、`q`，回 `{ items }`（只回可嵌入、長度在上限內的影片）。

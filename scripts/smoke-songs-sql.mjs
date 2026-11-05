@@ -141,6 +141,32 @@ test('點歌：預設關閉、開啟後掃碼點歌進帳單、常態歌單、�
     await q("INSERT INTO table_orders(id,table_no,items,amount,status) VALUES('o1','A1',$1,160,'paid'),('o2','A2',$1,10,'void')", [JSON.stringify([sl, { zh: '拿鐵', price: 150, qty: 1 }])]);
     r = await call('GET', '/api/admin/orders/songs/stats');
     assert.equal(r.status, 200, JSON.stringify(r.body)); assert.equal(r.body.count, 1); assert.equal(r.body.amount, 10); assert.equal(r.body.songs[0].title, '晴天');
+    // 客人遙控（KK 11/6）：音量／靜音／音效人人可用；重唱、暫停、切歌只限自己那組兌換碼點的歌正在播
+    {
+      await call('POST', '/api/songs/buy', { s: S, k: K, n: 1, guest: 'abcdefgh12' });
+      const rk = (await call('POST', '/api/admin/orders/songs/tickets', { session_id: S })).body.ticket;
+      const ok = await call('POST', '/api/admin/orders/songs/tickets', { comp: true, n: 1 }), other = ok.body.ticket;
+      r = await call('POST', '/api/ktv/pick', { d: D, code: rk.code, video_id: ID(11) }); assert.equal(r.status, 201, JSON.stringify(r.body)); assert.equal(r.body.own, false, '還沒輪到');
+      r = await call('POST', '/api/ktv/remote', { d: D, code: rk.code, cmd: 'restart' }); assert.equal(r.status, 403, '不是自己的歌在播');
+      r = await call('POST', '/api/ktv/remote', { d: D, code: rk.code, cmd: 'vol_down' }); assert.equal(r.status, 200, JSON.stringify(r.body)); assert.ok(r.body.live);
+      r = await call('POST', '/api/ktv/remote', { d: D, code: rk.code, cmd: 'sfx', arg: 'applause' }); assert.equal(r.status, 200);
+      assert.equal((await call('POST', '/api/ktv/remote', { d: D, code: rk.code, cmd: 'sfx', arg: 'boom' })).status, 400);
+      assert.equal((await call('POST', '/api/ktv/remote', { d: D, code: rk.code, cmd: 'eject' })).status, 400);
+      assert.equal((await call('POST', '/api/ktv/remote', { d: D, code: '999999', cmd: 'mute' })).status, 404, '兌換碼錯');
+      // 讓這首開始播
+      let cur = (await call('GET', '/api/admin/orders/songs')).body;
+      while (cur.now && !(cur.now.video_id === ID(11) && cur.now.kind === 'request')) cur = (await call('POST', '/api/admin/orders/songs/next', { result: 'skip', current: cur.now.id })).body;
+      assert.equal(cur.now.video_id, ID(11));
+      r = await call('GET', `/api/ktv/ticket?d=${D}&code=${rk.code}`); assert.equal(r.body.own, true); assert.equal(r.body.left, 0, '點完了也能遙控');
+      assert.equal((await call('POST', '/api/ktv/remote', { d: D, code: other.code, cmd: 'skip' })).status, 403, '別組兌換碼不能切');
+      r = await call('POST', '/api/ktv/remote', { d: D, code: rk.code, cmd: 'restart' }); assert.equal(r.status, 200);
+      r = await call('POST', '/api/ktv/remote', { d: D, code: rk.code, cmd: 'pause' }); assert.equal(r.status, 200);
+      const lv = (await call('POST', '/api/admin/orders/songs/beat', { device: 'dev-1', state: 'playing', ack: 0 })).body;
+      assert.ok(['volume', 'sfx', 'restart', 'pause'].every(c => lv.cmds.some(x => x.cmd === c)), '播放裝置領得到客人的指令');
+      r = await call('POST', '/api/ktv/remote', { d: D, code: rk.code, cmd: 'skip' }); assert.equal(r.status, 200, JSON.stringify(r.body)); assert.equal(r.body.skipped, true);
+      assert.notEqual((await call('GET', '/api/admin/orders/songs')).body.now?.video_id, ID(11), '切掉了');
+      assert.equal((await call('POST', '/api/ktv/remote', { d: D, code: rk.code, cmd: 'skip' })).status, 403, '切完就不是自己的歌');
+    }
     // 招待兌換碼：不用先購買、不綁桌、不記帳
     assert.equal((await call('POST', '/api/admin/orders/songs/tickets', { comp: true, n: 0 })).status, 400);
     r = await call('POST', '/api/admin/orders/songs/tickets', { comp: true, n: 2, label: '朋友' });
