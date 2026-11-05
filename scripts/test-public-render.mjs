@@ -185,7 +185,7 @@ async function server(t) {
   t.after(() => new Promise(resolve => { http.close(resolve); http.closeAllConnections(); }));
   const base = `http://127.0.0.1:${http.address().port}`;
   return (url, headers = {}) => new Promise((resolve, reject) => {
-    const req = httpRequest(base + url, { headers: { host: 'www.emoji.tw', ...headers } }, res => {
+    const req = httpRequest(base + url, { headers: { host: 'www.emoji.tw', 'accept-language': 'zh-TW', ...headers } }, res => {
       const chunks = []; res.on('data', c => chunks.push(c));
       res.on('end', () => { const buf = Buffer.concat(chunks); resolve({ status: res.statusCode, raw: buf, body: (res.headers['content-encoding'] === 'gzip' ? gunzipSync(buf) : buf).toString('utf8'), headers: { get: k => res.headers[k.toLowerCase()] ?? null } }); });
     });

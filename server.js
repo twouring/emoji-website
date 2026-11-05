@@ -63,7 +63,7 @@ const partnersLib = require('./lib/partners');
 const { sendMail, sendMailQuietly, NOTIFY_EMAIL } = require('./lib/mail');
 const { PLAN_PRICE_TWD } = require('./lib/plans');
 const { FEATURED_ID, eventPage, featuredEvent } = require('./lib/event-page');
-const { sendPage, layoutMiddleware, composeEventMeta } = require('./lib/layout');
+const { sendPage, layoutMiddleware, composeEventMeta, resolvePublicHtml } = require('./lib/layout');
 const { SPACE_SEED, missingSpaceSeedKeys } = require('./lib/space-content');
 const publicRender = require('./lib/public-render');
 const { publicText, publicContent, publicEventCopy } = require('./lib/public-copy');
@@ -1584,6 +1584,13 @@ app.use((req, res, next) => {
   if (!APP_HOST_OWN.test(req.path)) return res.redirect(302, SITE_BASE + req.originalUrl);
   next();
 });
+// 語系預設（KK 11/5）：官網與子品牌站從外部進入中文網址時，依上次選擇（cookie）→ 瀏覽器語系導向 /en、/ja；瀏覽器沒設定就英文
+app.use(require('./lib/lang-pref').langPrefMiddleware({
+  applies: req => { const h = String(req.hostname || '').toLowerCase(); return !!BRAND_HOSTS[h] || (h === SITE_HOST && !ADMIN_MODE); },
+  localized: (req, p) => BRAND_HOSTS[String(req.hostname || '').toLowerCase()]
+    ? /^\/(index\.html|cis\/?)?$/.test(p)
+    : p === '/' || /^\/(events|event-application|halloween-2026|space|menu|at-cafe|3am|stay-square)\/?$/.test(p) || !!resolvePublicHtml(path.join(PUB, 'en'), p),
+}));
 // 子品牌獨立站（atcafe／3am／staysquare／restbook.emoji.tw）：同一支服務依 host 分流，首頁是 public/brand-sites/<slug>.html，
 // 菜單與空間文案由 renderSpace 伺服器端填入；只放行靜態資源與 /api，其餘路徑（訂位、活動、會員…）一律導回官網同路徑。
 app.use((req, res, next) => {

@@ -36,7 +36,7 @@ async function server(t, env = {}, rowsFor = () => []) {
   const base = `http://127.0.0.1:${http.address().port}`;
   // fetch（undici）不允許自訂 Host 標頭：改走 node:http，回傳物件對齊 fetch 的 status/headers
   return (url, headers = {}) => new Promise((resolve, reject) => {
-    const req = httpRequest(base + url, { headers }, res => { res.resume(); res.on('end', () => resolve({ status: res.statusCode, headers: { get: k => res.headers[k.toLowerCase()] ?? null } })); });
+    const req = httpRequest(base + url, { headers: { 'accept-language': 'zh-TW', ...headers } }, res => { res.resume(); res.on('end', () => resolve({ status: res.statusCode, headers: { get: k => res.headers[k.toLowerCase()] ?? null } })); });
     req.on('error', reject); req.end();
   });
 }
