@@ -84,22 +84,24 @@ function nowCard({ slot = false, compact = false } = {}){
 function sfxGrid(){ return `<div class="sfx" role="group" aria-label="音效"><button type="button" class="stop" data-k-cmd="sfx_stop">停止音效</button>${SFX.map(([k, l]) => `<button type="button" data-k-sfx="${k}">${esc(l)}</button>`).join('')}</div>`; }
 
 
-/* ---------- 一次性點歌 QR（KK 11/6）：客人在桌邊點餐頁買好首數 → 這裡按「發點歌 QR」→ 控台與接音響的裝置畫面（/tv）顯示 QR → 客人掃 ktv.emoji.tw/s 選歌 ---------- */
+/* ---------- 點歌兌換碼（KK 11/6）：客人在桌邊點餐頁買好首數 → 這裡按「發兌換碼」→ 店員把 6 位數碼給客人
+   → 客人掃播放裝置（電視 /tv）上的 QR（綁定這台）→ 輸入兌換碼選歌 ---------- */
 function qrImg(url, size){ if (!url || typeof QRCode === 'undefined' || !QRCode.toDataURL) return ''; let out = ''; QRCode.toDataURL(url, { width: size, margin: 2 }, (e, d) => { out = e ? '' : d; }); return out; }
 const QR_CACHE = {};
 function qrSrc(url, size){ const k = size + '|' + url; if (!(k in QR_CACHE)) QR_CACHE[k] = qrImg(url, size); return QR_CACHE[k]; }
 function ticketsOf(){ return (D && D.song_tickets) || { tables: [], tickets: [] }; }
-function ticketsForTv(){ const t = ticketsOf().tickets; const mine = t.filter(x => !x.device || x.device === DEVICE); return (mine.length ? mine : t).slice(0, 1); }
+const fmtCode = c => String(c || '').replace(/^(\d{3})(\d{3})$/, '$1 $2');
+const hhmm = iso => new Date(iso).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Taipei' });
 let SHOW_TICKET = '';
 function ticketPanel(){
   const b = ticketsOf();
-  const wait = b.tables.length ? `<ul class="list">${b.tables.map(x => `<li class="row"><div class="meta"><b>桌 ${esc(x.table)}</b><small>已購買 ${esc(x.unissued)} 首，還沒發點歌 QR</small></div><div class="act"><button type="button" class="btn btn--sm btn--solid" data-k-issue="${esc(x.session_id)}">發點歌 QR</button></div></li>`).join('')}</ul>` : '<p class="empty">目前沒有待發 QR 的桌。客人在桌邊點餐頁買好點歌後會出現在這裡。</p>';
-  const act = b.tickets.length ? `<ul class="list">${b.tickets.map(x => `<li class="row"><div class="meta"><b>桌 ${esc(x.table)}</b><small>剩 ${esc(x.left)}／${esc(x.total)} 首・${esc(new Date(x.expires_at).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Taipei' }))} 前有效</small></div><div class="act"><button type="button" class="btn btn--sm" data-k-showqr="${esc(x.id)}">顯示 QR</button></div></li>`).join('')}</ul>` : '';
-  return `<section class="panel k-tix" aria-labelledby="h-tix"><h2 id="h-tix">點歌 QR <small>桌邊只能購買首數，選歌要掃這裡發的一次性 QR；也會顯示在接音響的裝置畫面上</small></h2>${wait}${act ? '<h3>使用中</h3>' + act : ''}</section>`;
+  const wait = b.tables.length ? `<ul class="list">${b.tables.map(x => `<li class="row"><div class="meta"><b>桌 ${esc(x.table)}</b><small>已購買 ${esc(x.unissued)} 首，還沒發兌換碼</small></div><div class="act"><button type="button" class="btn btn--sm btn--solid" data-k-issue="${esc(x.session_id)}">發兌換碼</button></div></li>`).join('')}</ul>` : '<p class="empty">目前沒有待發兌換碼的桌。客人在桌邊點餐頁買好點歌後會出現在這裡。</p>';
+  const act = b.tickets.length ? `<ul class="list">${b.tickets.map(x => `<li class="row"><div class="meta"><b>桌 ${esc(x.table)}・<span class="k-code">${esc(fmtCode(x.code))}</span></b><small>剩 ${esc(x.left)}／${esc(x.total)} 首・有效至 ${esc(hhmm(x.expires_at))}</small></div><div class="act"><button type="button" class="btn btn--sm" data-k-showqr="${esc(x.id)}">放大</button></div></li>`).join('')}</ul>` : '';
+  return `<section class="panel k-tix" aria-labelledby="h-tix"><h2 id="h-tix">點歌兌換碼 <small>桌邊只能購買首數；把兌換碼給客人，客人掃播放裝置畫面上的 QR 後輸入</small></h2>${wait}${act ? '<h3>可使用</h3>' + act : ''}</section>`;
 }
 function qrOverlay(){
   const t = ticketsOf().tickets.find(x => x.id === SHOW_TICKET); if (!t) return '';
-  return `<div class="qr-ov" data-k-qrclose role="dialog" aria-label="點歌 QR"><div class="qr-card"><h2>桌 ${esc(t.table)}・點歌 QR</h2><img src="${esc(qrSrc(t.url, 480))}" alt="點歌 QR" width="320" height="320"><p>剩 ${esc(t.left)}／${esc(t.total)} 首・請客人用手機掃描選歌</p><button type="button" class="btn btn--solid" data-k-qrclose>關閉</button></div></div>`;
+  return `<div class="qr-ov" role="dialog" aria-label="點歌兌換碼"><div class="qr-card"><h2>桌 ${esc(t.table)}・點歌兌換碼</h2><p class="k-bigcode">${esc(fmtCode(t.code))}</p><p>可點 ${esc(t.left)}／${esc(t.total)} 首・有效至 ${esc(hhmm(t.expires_at))}</p><p class="muted">請客人掃播放裝置畫面上的 QR，輸入這組號碼選歌</p><button type="button" class="btn btn--solid" data-k-qrclose>關閉</button></div></div>`;
 }
 
 /* ---------- 頁面：控台 ---------- */
@@ -221,12 +223,12 @@ let TV_ARMED = false;
 function pageTv(){
   const n = D.now, up = (D.upcoming || { items: [] }).items.slice(0, 6), c = cur();
   return `<div class="tv"><div class="tv-stage" data-k-slot>
-      ${n ? '' : '<div class="tv-idle"><div><img src="/cis/assets/emoji-mark-reverse.svg" alt="言文字"><p>在桌邊點餐頁購買點歌，向店員索取點歌 QR。</p></div></div>'}
+      ${n ? '' : '<div class="tv-idle"><div><img src="/cis/assets/emoji-mark-reverse.svg" alt="言文字"><p>在桌邊點餐頁購買點歌，向店員索取兌換碼，掃右邊的 QR 輸入。</p></div></div>'}
       ${TV_ARMED && isPlayer() ? '' : `<button type="button" class="tv-tap" data-k-arm><span>${isPlayer() ? '點一下開始播放' : '點一下，改由這台播放'}</span></button>`}
       <div class="tv-sfx" data-k-sfxshow aria-live="polite"></div>
       <div class="tv-exit"><a class="btn btn--sm" href="${BASE}/" data-go="console">回控台</a></div></div>
     <div class="tv-bar">${n ? `${who(n)}<b>${esc(n.title)}</b>${n.channel ? `<span class="tv-ch">${esc(n.channel)}</span>` : ''}<div class="prog" data-k-prog><span data-k-pos>${dur(c.pos)}</span><i><s></s></i><span>${dur(c.dur || n.duration)}</span></div>` : '<b>言文字 KTV</b><span class="tv-ch">沒有人點歌時播放店內歌單</span>'}</div>
-    <aside class="tv-side"><img src="/cis/assets/emoji-h-reverse.svg" alt="言文字">${ticketsForTv().map(t => `<div class="tv-qr"><img src="${esc(qrSrc(t.url, 360))}" alt="點歌 QR"><div><b>桌 ${esc(t.table)}</b><small>掃描選歌</small><small>剩 ${esc(t.left)} 首</small></div></div>`).join('')}<h2>接下來</h2>
+    <aside class="tv-side"><img src="/cis/assets/emoji-h-reverse.svg" alt="言文字">${D.device_url && isPlayer() ? `<div class="tv-qr"><img src="${esc(qrSrc(D.device_url, 480))}" alt="點歌 QR"><b>掃描點歌</b><small>輸入店員給的兌換碼</small><small>Scan, enter code</small></div>` : ''}<h2>接下來</h2>
       <ol class="tv-up">${up.length ? up.map((t, i) => `<li><span class="n">${esc(t.pos)}</span>${i === 0 ? '<span class="tv-next">下一首</span>' : ''}<b>${esc(t.title)}</b><small>${t.kind === 'playlist' ? '店內歌單' : t.source === 'pos' ? '現場代點' : '桌 ' + esc(t.table || '—') + (t.by ? '・' + esc(t.by) : '')}</small></li>`).join('') : '<li><small>還沒有人點歌</small></li>'}</ol></aside></div>`;
 }
 
@@ -282,7 +284,7 @@ document.addEventListener('click', async e => {
   if (b.matches('[data-k-claim]')) return claim();
   if (b.matches('[data-k-release]')) return release();
   if (b.matches('[data-k-arm]')) return armTv();
-  if (b.dataset.kIssue) { b.disabled = true; try { const r = await post('tickets', { session_id: b.dataset.kIssue }); D = { ...D, song_tickets: { tables: r.tables, tickets: r.tickets } }; SHOW_TICKET = r.ticket.id; toast('已發點歌 QR：桌 ' + r.ticket.table + '，' + r.ticket.total + ' 首'); } catch (err) { toast(err.message); } return paint(); }
+  if (b.dataset.kIssue) { b.disabled = true; try { const r = await post('tickets', { session_id: b.dataset.kIssue }); D = { ...D, song_tickets: { tables: r.tables, tickets: r.tickets } }; SHOW_TICKET = r.ticket.id; toast('已發兌換碼：桌 ' + r.ticket.table + '，' + r.ticket.total + ' 首'); } catch (err) { toast(err.message); } return paint(); }
   if (b.dataset.kShowqr) { SHOW_TICKET = b.dataset.kShowqr; return paint(); }
   if (b.matches('[data-k-qrclose]')) { SHOW_TICKET = ''; return paint(); }
   if (b.dataset.kView) { VIEW = b.dataset.kView; paint(); if (VIEW === 'search') { const i = $('[data-k-search] input'); if (i) i.focus(); } return; }

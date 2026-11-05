@@ -92,24 +92,31 @@ test('點歌：預設關閉、開啟後掃碼點歌進帳單、常態歌單、�
     let its = await items(); assert.equal(its.length, 2); assert.ok(its.every(l => l.cat === 'SONG' && l.price === 10 && l.song.pending && l.placed_at && l.served_at));
     assert.equal((await call('GET', '/api/songs?' + QS)).body.pending, 2);
     assert.equal((await call('POST', '/api/songs/buy', { s: S, k: K, n: 99, guest: 'abcdefgh12' })).status, 400, '超過每次上限');
-    // 控台：這桌待發 QR → 發券
+    let st;
+    // 控台：這桌待發兌換碼 → 發碼；客人掃播放裝置 QR（d＝裝置代號）輸入兌換碼
     r = await call('GET', '/api/admin/orders/songs/tickets'); assert.deepEqual(r.body.tables.map(x => [x.table, x.unissued]), [['A1', 2]]);
     r = await call('POST', '/api/admin/orders/songs/tickets', { session_id: S });
-    assert.equal(r.status, 201, JSON.stringify(r.body)); const tk = r.body.ticket; assert.equal(tk.total, 2); assert.match(tk.url, /^https:\/\/ktv\.emoji\.tw\/s\?t=kt_[a-z0-9]{12}&k=/);
+    assert.equal(r.status, 201, JSON.stringify(r.body)); const tk = r.body.ticket; assert.equal(tk.total, 2); assert.match(tk.code, /^\d{6}$/);
     assert.equal(r.body.tables.length, 0, '發過就不再列待發');
     assert.equal((await call('POST', '/api/admin/orders/songs/tickets', { session_id: S })).status, 409, '沒有新買的不能重發');
-    assert.equal((await call('GET', '/api/admin/orders/songs')).body.song_tickets.tickets[0].left, 2, '控台／電視看得到使用中的券');
-    const u = new URL(tk.url), TQ = { t: u.searchParams.get('t'), k: u.searchParams.get('k') };
-    assert.equal((await call('GET', `/api/ktv/ticket?t=${TQ.t}&k=forged`)).status, 403, '偽造簽章');
-    r = await call('GET', `/api/ktv/ticket?t=${TQ.t}&k=${TQ.k}`); assert.equal(r.status, 200); assert.equal(r.body.left, 2); assert.equal(r.body.table, 'A1');
-    r = await call('GET', `/api/ktv/discover?t=${TQ.t}&k=${TQ.k}`); assert.equal(r.status, 200); assert.ok(Array.isArray(r.body.chart));
+    st = (await call('GET', '/api/admin/orders/songs')).body;
+    assert.equal(st.song_tickets.tickets[0].left, 2, '控台看得到可用的兌換碼'); assert.equal(st.song_tickets.tickets[0].code, tk.code);
+    assert.match(st.device_url, /^https:\/\/ktv\.emoji\.tw\/s\?d=[A-Za-z0-9]{10}$/, '電視顯示播放裝置 QR');
+    const D = new URL(st.device_url).searchParams.get('d'), TQ = { d: D, code: tk.code };
+    assert.equal((await call('GET', '/api/ktv/device?d=AAAAAAAAAA')).status, 403, '不是目前播放裝置的 QR');
+    r = await call('GET', '/api/ktv/device?d=' + D); assert.equal(r.status, 200); assert.equal(r.body.enabled, true); assert.equal(r.body.table, undefined);
+    const wrong = tk.code === '000000' ? '000001' : '000000';
+    assert.equal((await call('GET', `/api/ktv/ticket?d=${D}&code=${wrong}`)).status, 404, '兌換碼錯');
+    assert.equal((await call('GET', `/api/ktv/ticket?d=AAAAAAAAAA&code=${tk.code}`)).status, 403, '裝置代號錯');
+    r = await call('GET', `/api/ktv/ticket?d=${D}&code=${tk.code.slice(0, 3)} ${tk.code.slice(3)}`); assert.equal(r.status, 200, '可含空白'); assert.equal(r.body.left, 2); assert.equal(r.body.table, 'A1');
+    r = await call('GET', `/api/ktv/discover?d=${D}&code=${tk.code}`); assert.equal(r.status, 200); assert.ok(Array.isArray(r.body.chart));
     // 選第一首
     r = await call('POST', '/api/ktv/pick', { ...TQ, video_id: ID(1) });
     assert.equal(r.status, 201, JSON.stringify(r.body)); assert.equal(r.body.left, 1); assert.equal(r.body.queue[0].video_id, ID(1)); assert.equal(r.body.queue[0].mine, true);
     its = await items(); assert.equal(its.filter(l => l.song.pending).length, 1); assert.ok(its.some(l => l.song.video_id === ID(1) && /晴天|T-/.test(l.zh)));
     assert.equal((await call('POST', '/api/ktv/pick', { ...TQ, video_id: ID(9) })).status, 400, '不可嵌入');
     // 播放裝置看到有人點歌 → preempt；播放失敗 → 那首從帳上拿掉
-    let st = (await call('GET', '/api/admin/orders/songs')).body;
+    st = (await call('GET', '/api/admin/orders/songs')).body;
     r = await call('POST', '/api/admin/orders/songs/next', { result: 'preempt', device: 'dev-1', current: st.now.id });
     assert.equal(r.body.now.kind, 'request'); assert.equal(r.body.now.video_id, ID(1));
     r = await call('POST', '/api/admin/orders/songs/next', { result: 'error', device: 'dev-1', current: r.body.now.id });
@@ -121,13 +128,14 @@ test('點歌：預設關閉、開啟後掃碼點歌進帳單、常態歌單、�
     r = await call('DELETE', '/api/admin/orders/songs/queue/' + r.body.queue[0].id); assert.equal(r.body.refunded, true); assert.equal((await items()).length, 0);
     // 已結帳的不退
     await call('POST', '/api/songs/buy', { s: S, k: K, n: 1, guest: 'abcdefgh12' });
-    const tk2 = (await call('POST', '/api/admin/orders/songs/tickets', { session_id: S })).body.ticket, u2 = new URL(tk2.url);
-    r = await call('POST', '/api/ktv/pick', { t: u2.searchParams.get('t'), k: u2.searchParams.get('k'), video_id: ID(4) });
+    const tk2 = (await call('POST', '/api/admin/orders/songs/tickets', { session_id: S })).body.ticket;
+    assert.notEqual(tk2.code, tk.code);
+    r = await call('POST', '/api/ktv/pick', { d: D, code: tk2.code, video_id: ID(4) }); assert.equal(r.status, 201, JSON.stringify(r.body));
     its = await items(); its[0].order_id = 'to_paid'; await q('UPDATE table_sessions SET items=$2 WHERE id=$1', [S, JSON.stringify(its)]);
     r = await call('DELETE', '/api/admin/orders/songs/queue/' + r.body.queue[0].id);
     assert.equal(r.body.refunded, false); assert.equal((await items()).length, 1);
-    // 點播統計：熱門／最近點過（從點歌 QR 選的歌累計）
-    r = await call('GET', `/api/ktv/discover?t=${TQ.t}&k=${TQ.k}`); assert.equal(r.body.popular.length >= 1, true);
+    // 點播統計：熱門／最近點過（從兌換碼選的歌累計）
+    r = await call('GET', `/api/ktv/discover?d=${D}&code=${tk2.code}`); assert.equal(r.body.popular.length >= 1, true);
     // 統計：結帳後的點歌行（作廢不算）
     const sl = songs.songLine({ id: 'sr1', title: '晴天', price: 10, video_id: ID(1), by: '小明' }, { venue: 'BAR', guest: 'g' });
     await q("INSERT INTO table_orders(id,table_no,items,amount,status) VALUES('o1','A1',$1,160,'paid'),('o2','A2',$1,10,'void')", [JSON.stringify([sl, { zh: '拿鐵', price: 150, qty: 1 }])]);
@@ -139,6 +147,11 @@ test('點歌：預設關閉、開啟後掃碼點歌進帳單、常態歌單、�
     assert.equal((await call('POST', '/api/songs/buy', { s: S, k: K, n: 1, guest: 'abcdefgh12' })).status, 423);
     await q("UPDATE table_sessions SET status='closed'");
     assert.equal((await call('GET', '/api/songs?' + QS)).status, 409);
-    assert.equal((await call('GET', `/api/ktv/ticket?t=${TQ.t}&k=${TQ.k}`)).status, 410);
+    assert.equal((await call('GET', `/api/ktv/device?d=${D}`)).status, 423, '關閉後裝置 QR 回 423');
+    await call('POST', '/api/admin/orders/songs/settings', { enabled: true });
+    assert.equal((await call('GET', `/api/ktv/ticket?d=${D}&code=${tk2.code}`)).status, 410, '結帳後兌換碼失效');
+    // 換播放裝置：舊 QR 失效
+    await call('POST', '/api/admin/orders/songs/player', { device: 'dev-2' });
+    assert.equal((await call('GET', `/api/ktv/device?d=${D}`)).status, 403);
   } finally { if (typeof RealDate !== 'undefined') globalThis.Date = RealDate; globalThis.fetch = REAL_FETCH; if (listener) listener.close(); await db.close(); }
 });

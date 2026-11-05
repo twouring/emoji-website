@@ -595,7 +595,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
       .then(function(){placing=false;btns.forEach(function(b){b.disabled=false;});});};
 
 
-  /* ---- 點歌（KK 11/6）：桌邊 QR 只能購買點歌（記在這桌帳上），選歌要向店員索取一次性點歌 QR（ktv.emoji.tw/s），掃了再選；這裡只看正在播放與待播 ---- */
+  /* ---- 點歌（KK 11/6）：桌邊 QR 只能購買點歌（記在這桌帳上），選歌要向店員索取兌換碼，掃電視上的播放裝置 QR（ktv.emoji.tw/s?d=）輸入後再選；這裡只看正在播放與待播 ---- */
   var SONG=null,SONG_BUSY=false,SONG_N=1;
   function songQs(){return 's='+encodeURIComponent(SID)+'&k='+encodeURIComponent(K);}
   function loadSongs(){if(!S)return Promise.resolve();return api('/songs?'+songQs()).then(function(d){SONG=d;renderSongs();renderPriceTable();}).catch(function(){SONG=null;renderSongs();renderPriceTable();});}
