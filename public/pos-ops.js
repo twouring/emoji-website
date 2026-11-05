@@ -899,10 +899,15 @@ function posAudio(){try{if(!POS_AUDIO)POS_AUDIO=new (window.AudioContext||window
 if(typeof document!=='undefined'&&document.addEventListener)document.addEventListener('pointerdown',()=>{posAudio();},{once:true,capture:true});
 /* 新單提示音（KK 11/2：越大聲越好）：方波滿刻度（數位最大音量）、2–3kHz（人耳最敏感、iPad 喇叭最響）、三組各三聲約 2.6 秒；iOS 17+ 設 playback 讓靜音鍵不擋 */
 try{if(typeof navigator!=='undefined'&&navigator.audioSession)navigator.audioSession.type='playback';}catch(e){}
-/* 收款進帳音效（KK 11/5：LINE Pay／中信彈窗改「錢進帳」收銀機聲）：/sfx/cash-register.mp3 經 posAudio() 播放（iOS 靜音鍵不擋），解碼失敗才退回 newTicketChime */
-let CASH_BUF=null,CASH_LOADING=null;
-function cashLoad(c){if(CASH_BUF)return Promise.resolve(CASH_BUF);if(!CASH_LOADING)CASH_LOADING=fetch('/sfx/cash-register.mp3').then(r=>r.arrayBuffer()).then(b=>new Promise((ok,no)=>c.decodeAudioData(b,ok,no))).then(buf=>(CASH_BUF=buf)).catch(e=>{CASH_LOADING=null;throw e;});return CASH_LOADING;}
-function cashInChime(){const c=posAudio();if(!c){newTicketChime();return;}cashLoad(c).then(buf=>{const s=c.createBufferSource(),g=c.createGain();g.gain.value=1;s.buffer=buf;s.connect(g);g.connect(c.destination);s.start();}).catch(()=>newTicketChime());}
+/* 收款進帳音效（KK 11/5：LINE Pay／中信彈窗改「錢進帳」收銀機聲；11/6：不再退回新單方波）：
+   第一次點畫面就預載並解碼 /sfx/cash-register.mp3，經 posAudio() 播放（iOS 靜音鍵不擋）；
+   Web Audio 解碼失敗時改用 <audio> 播同一檔，兩者都失敗才響新單提示音 */
+let CASH_BUF=null,CASH_LOADING=null,CASH_EL=null;
+function cashLoad(c){if(CASH_BUF)return Promise.resolve(CASH_BUF);if(!CASH_LOADING)CASH_LOADING=fetch('/sfx/cash-register.mp3').then(r=>{if(!r.ok)throw new Error('sfx '+r.status);return r.arrayBuffer();}).then(b=>new Promise((ok,no)=>{const p=c.decodeAudioData(b,ok,no);if(p&&p.catch)p.catch(no);})).then(buf=>(CASH_BUF=buf)).catch(e=>{CASH_LOADING=null;throw e;});return CASH_LOADING;}
+function cashEl(){if(!CASH_EL&&typeof Audio!=='undefined'){CASH_EL=new Audio('/sfx/cash-register.mp3');CASH_EL.preload='auto';}return CASH_EL;}
+function cashElPlay(){const a=cashEl();if(!a)return Promise.reject(new Error('no audio'));a.currentTime=0;a.volume=1;const p=a.play();return p&&p.then?p:Promise.resolve();}
+function cashInChime(){const c=posAudio();const viaEl=()=>cashElPlay().catch(()=>newTicketChime());if(!c){viaEl();return;}cashLoad(c).then(buf=>{const s=c.createBufferSource(),g=c.createGain();g.gain.value=1;s.buffer=buf;s.connect(g);g.connect(c.destination);s.start();}).catch(viaEl);}
+if(typeof document!=='undefined'&&document.addEventListener)document.addEventListener('pointerdown',()=>{const c=posAudio();if(c)cashLoad(c).catch(()=>{});cashEl();},{once:true,capture:true});
 function newTicketChime(){const c=posAudio();if(!c)return;const NOTES=[2093,2637,3136];for(let r=0;r<3;r++)NOTES.forEach((f,i)=>{try{const o=c.createOscillator(),g=c.createGain(),t=c.currentTime+r*.9+i*.22;o.type='square';o.frequency.value=f;o.connect(g);g.connect(c.destination);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(1,t+.01);g.gain.setValueAtTime(1,t+.17);g.gain.exponentialRampToValueAtTime(.0001,t+.2);o.start(t);o.stop(t+.21);}catch(e){}});}
 function notifyNewTickets(jobs){
   if(!jobs.length||typeof document==='undefined'||!document.body)return;

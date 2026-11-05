@@ -704,6 +704,22 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && DA
 
 /* 登入續期：token 有效 7 天，剩不到 2 天就在背景換新的，營業中不會突然被登出；換到的 token 失效或被移除管理員時走 401 流程回登入畫面 */
 function tokenExp(t){ try { return JSON.parse(atob(t.split('.')[0].replace(/-/g,'+').replace(/_/g,'/'))).exp || 0; } catch (e) { return 0; } }
+/* 部署新版自動重整（KK 11/6：iPad 沒重整就一直跑舊程式，收款音效改了也聽不到）：
+   每 60 秒查 /api/version，與頁面內嵌版本不同時，等畫面閒置 60 秒、沒有輸入焦點與收款彈窗才 reload */
+const POS_PAGE_VERSION = document.querySelector('.p-ver')?.getAttribute('title')?.replace(/^v/, '') || '';
+let POS_LAST_TOUCH = Date.now();
+['pointerdown','keydown'].forEach(t => document.addEventListener(t, () => { POS_LAST_TOUCH = Date.now(); }, { capture:true, passive:true }));
+function posVersionWatch(){
+  if (posVersionWatch.on || !/^\d{8}-\d+$/.test(POS_PAGE_VERSION)) return;
+  posVersionWatch.on = true;
+  let stale = false;
+  const idle = () => Date.now() - POS_LAST_TOUCH > 60000 && !document.querySelector('input:focus,textarea:focus,select:focus')
+    && !(typeof LPA !== 'undefined' && LPA.open) && !(typeof CTA !== 'undefined' && CTA.open);
+  setInterval(async () => {
+    if (!stale) { try { const r = await fetch('/api/version', { cache:'no-store' }); const v = (await r.json()).version; if (v && v !== POS_PAGE_VERSION) stale = true; } catch(e) {} }
+    if (stale && idle()) location.reload();
+  }, 60000);
+}
 async function renewToken(){
   if (!token || tokenExp(token) - Date.now() > 2 * 86400e3) return;
   try { const d = await api('/auth/renew', { method:'POST', body:{} }); if (d.token) { token = d.token; localStorage.setItem(KEY, token); } } catch (e) {}
@@ -745,6 +761,7 @@ async function main(){
     linepayAlertBoot();
     ctbcAlertBoot();
     renewToken();
+    posVersionWatch();
   } catch(e){
     if (e.status === 401) return;   // api() 已轉到登入畫面
     app.innerHTML = `<p class="p-center">暫時無法連線：${esc(e.message)}<br><button class="btn btn--ghost btn-sm" style="margin-top:1rem" onclick="location.reload()">重新整理</button></p>`;

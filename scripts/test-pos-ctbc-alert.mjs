@@ -77,3 +77,15 @@ test('錢進帳音效（KK 11/5）：cashInChime 播 /sfx/cash-register.mp3，�
   assert.match(ops, /catch\(\(\)=>newTicketChime\(\)\)/);
   for (const f of ['public/pos-ctbc-alert.js', 'public/pos-linepay-alert.js']) assert.match(read(f), /cashInChime\(\)/, f);
 });
+
+test('錢進帳音效（KK 11/6）：先預載、解碼失敗改 <audio> 播同檔，不直接退回新單方波；新版上線 POS 閒置時自動重整', () => {
+  const ops = read('public/pos-ops.js');
+  const fn = ops.slice(ops.indexOf('function cashInChime('), ops.indexOf('function newTicketChime('));
+  assert.match(fn, /cashElPlay\(\)\.catch\(\(\)=>newTicketChime\(\)\)/, '只有 <audio> 也失敗才響方波');
+  assert.doesNotMatch(fn, /\.catch\(\(\)=>newTicketChime\(\)\);\}$/m, '解碼失敗不可直接退回方波');
+  assert.match(ops, /pointerdown',\(\)=>\{const c=posAudio\(\);if\(c\)cashLoad\(c\)/, '第一次點畫面就預載');
+  const html = read('public/pos.html');
+  assert.match(html, /function posVersionWatch\(\)/);
+  assert.match(html, /posVersionWatch\(\);/);
+  assert.match(html, /fetch\('\/api\/version'/);
+});
