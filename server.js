@@ -1754,7 +1754,7 @@ async function recordPosLog(req, action, payload, extra = {}) {
     if (!opName && payload && typeof payload.name === 'string' && payload.name) { opName = payload.name; opId = payload.id && String(payload.id).startsWith('st_') ? payload.id : opId; }
     if (!opName && auth.operator_staff_id) { opId = auth.operator_staff_id; opName = auth.name || ''; }
     const venue = (auth.brands && auth.brands[0]) || String(body.venue || req.query?.venue || '').toUpperCase().slice(0, 10);
-    const actor = auth.agent ? 'admin-api-key' : auth.mcp ? 'pos-mcp:' + auth.mcp : (auth.email || auth.name || auth.sub || 'unknown');
+    const actor = auth.agent ? 'admin-api-key' : auth.mcp ? 'pos-mcp:' + auth.mcp + (auth.operator_staff_id ? ':' + auth.name : '') : (auth.email || auth.name || auth.sub || 'unknown');
     await q('INSERT INTO pos_logs(id,venue,actor,operator_id,operator_name,action,detail,method,path) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',
       [uid('pl_'), venue, String(actor).slice(0, 120), opId, opName, action, extra.detail ?? posLog.summarize(body), req.method, String(req.originalUrl || '').split('?')[0].slice(0, 200)]);
   } catch (e) { console.error('[pos-log]', e.message); }
@@ -1769,7 +1769,7 @@ app.use('/api/admin', (req, res, next) => {
     if (!pool || !dbReady || !req.auth || res.statusCode >= 400) return;
     const posAction = posLog.describe(req.method, req.path);
     if (posAction) recordPosLog(req, posAction, payload);
-    const actor = req.auth.agent ? 'admin-api-key' : req.auth.mcp ? 'pos-mcp:' + req.auth.mcp : (req.auth.email || req.auth.sub || 'unknown');
+    const actor = req.auth.agent ? 'admin-api-key' : req.auth.mcp ? 'pos-mcp:' + req.auth.mcp + (req.auth.operator_staff_id ? ':' + req.auth.name : '') : (req.auth.email || req.auth.sub || 'unknown');
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const summary = req.path === '/system-settings' ? `key=${String(body.key||'').slice(0,60)}` : Object.entries(body)
       .filter(([k]) => !/token|secret|password|key/i.test(k))
@@ -1842,6 +1842,22 @@ async function auth(req, res, next) {
   if (mcpVenue) {
     if (!posMcp.allowed(req.method, req.path, FOOD_API)) return res.status(403).json({ error: 'MCP 金鑰只能使用 POS 功能。' });
     req.auth = { role: 'admin', super: false, sub: null, mcp: mcpVenue, brands: [mcpVenue], name: `POS MCP（${posMcp.LABEL[mcpVenue]}）` };
+    /* 寫入一律要員工 4 位數識別碼（X-Staff-Pin，KK 11/5）：驗過＝等同平板上用 PIN 登入的那位員工（operator_staff_id），
+       操作紀錄記到人、body 的 operator_id 以驗證結果覆寫防冒名；notOperator 擋員工管理，與平板一致。查詢不需要。 */
+    if (req.method !== 'GET' && req.method !== 'HEAD' && req.path !== '/api/mcp') {
+      const lock = posMcp.pinLocked(mcpVenue);
+      if (lock) return res.status(429).json({ error: `員工識別碼錯誤太多次，請 ${lock} 分鐘後再試。` });
+      const pin = String(req.get('x-staff-pin') || '').trim();
+      if (!/^\d{4}$/.test(pin)) return res.status(403).json({ error: '這個動作要帶員工 4 位數識別碼（staff_pin）。', need_staff_pin: true });
+      try {
+        if (!pool || !dbReady) return requireDb(req, res, next);
+        const staff = await staffByPin(pin, mcpVenue);
+        if (!staff) { posMcp.pinFail(mcpVenue); return res.status(403).json({ error: '員工識別碼錯誤。', need_staff_pin: true }); }
+        posMcp.pinOk(mcpVenue);
+        Object.assign(req.auth, { operator_staff_id: staff.id, name: staff.name, sub: 'staff:' + staff.id });
+        if (req.body && typeof req.body === 'object' && !Array.isArray(req.body) && 'operator_id' in req.body) req.body.operator_id = staff.id;
+      } catch (e) { return next(e); }
+    }
     return next();
   }
   try {

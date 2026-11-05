@@ -82,8 +82,9 @@ test('tools/call：品牌金鑰的 venue 一律鎖自己品牌', async () => {
 
 test('tools/call：估清只送自己品牌；API 錯誤回 isError', async () => {
   const calls = [];
-  await M.handle({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'pos_set_sold_out', arguments: { item_id: 'm1', sold_out: true } } }, ctx('CAFE', calls, () => ({ status: 200, data: { ok: true } })));
-  assert.deepEqual(calls[0], ['POST', '/api/admin/menu/sold-out', { item_id: 'm1', sold_out: true, venue: 'CAFE' }]);
+  await M.handle({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'pos_set_sold_out', arguments: { item_id: 'm1', sold_out: true, staff_pin: '1111' } } }, ctx('CAFE', calls, () => ({ status: 200, data: { ok: true } })));
+  assert.deepEqual(calls[0], ['POST', '/api/admin/menu/sold-out', { item_id: 'm1', sold_out: true, venue: 'CAFE' }, { 'X-Staff-Pin': '1111' }]);
+  assert.ok(M.TOOLS.find(t => t.name === 'pos_set_sold_out').inputSchema.required.includes('staff_pin'));
   const bad = await M.handle({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'pos_set_sold_out', arguments: { item_id: 'x', sold_out: true } } }, ctx('CAFE', [], () => ({ status: 403, data: { error: '只能估清自己店別' } })));
   assert.equal(bad.result.isError, true);
   assert.match(bad.result.content[0].text, /自己店別/);
@@ -110,6 +111,8 @@ test('pos_call：路徑限 /api/admin、venue 自動鎖、帶店長碼；pos_end
   assert.equal(calls[0][1], '/api/admin/orders/sessions/s1/checkout?venue=BAR');
   assert.deepEqual(calls[0][2], { method: 'cash', venue: 'BAR' });
   assert.deepEqual(calls[0][3], { 'X-Manager-Pin': '1234' });
+  await M.handle({ jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'pos_call', arguments: { method: 'POST', path: '/api/admin/orders/sessions', staff_pin: '0420' } } }, c);
+  assert.equal(calls.at(-1)[3]['X-Staff-Pin'], '0420');
   for (const path of ['/api/me', '/api/admin/../me', 'https://evil/api/admin/x'])
     assert.equal((await M.handle({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'pos_call', arguments: { method: 'GET', path } } }, c)).result.isError, true, path);
   const ep = await M.handle({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'pos_endpoints', arguments: { keyword: '日結' } } }, c);
@@ -117,4 +120,30 @@ test('pos_call：路徑限 /api/admin、venue 自動鎖、帶店長碼；pos_end
   assert.ok(sales && /日結/.test(sales.doc), '關鍵字搜得到說明');
   const none = await M.handle({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'pos_endpoints', arguments: { keyword: 'zzz-不存在' } } }, c);
   assert.equal(none.result.structuredContent.count, 0);
+});
+
+test('員工登入：寫入要 X-Staff-Pin、驗 staffByPin（限自己品牌）、覆寫 operator_id、notOperator 擋員工管理', () => {
+  const i = server.indexOf('async function auth(req, res, next)');
+  const body = server.slice(i, server.indexOf('\n}', i));
+  assert.match(body, /req\.method !== 'GET' && req\.method !== 'HEAD'/);
+  assert.match(body, /req\.get\('x-staff-pin'\)/);
+  assert.match(body, /staffByPin\(pin, mcpVenue\)/);
+  assert.match(body, /operator_staff_id: staff\.id/);
+  assert.match(body, /req\.body\.operator_id = staff\.id/);
+  assert.match(body, /posMcp\.pinLocked\(mcpVenue\)/);
+  // notOperator 看 operator_staff_id：員工管理對 MCP 也擋
+  assert.match(server, /function notOperator[\s\S]{0,120}req\.auth\.operator_staff_id/);
+  assert.match(server, /app\.post\('\/api\/admin\/staff',auth,adminOnly,notOperator/);
+  assert.match(server, /'pos-mcp:' \+ req\.auth\.mcp \+ \(req\.auth\.operator_staff_id \? ':' \+ req\.auth\.name/);
+});
+
+test('員工識別碼防猜：同品牌錯 10 次鎖 15 分鐘，成功清零，品牌互不影響', () => {
+  const t0 = 1e12;
+  for (let n = 0; n < 9; n++) M.pinFail('REST', t0);
+  assert.equal(M.pinLocked('REST', t0), 0);
+  M.pinFail('REST', t0);
+  assert.equal(M.pinLocked('REST', t0 + 60e3), 14);
+  assert.equal(M.pinLocked('STAY', t0), 0);
+  assert.equal(M.pinLocked('REST', t0 + 16 * 60e3), 0, '過 15 分鐘解鎖');
+  M.pinFail('REST', t0); M.pinOk('REST'); assert.equal(M.pinLocked('REST', t0), 0);
 });
