@@ -6071,32 +6071,13 @@ app.get('/api/orders/pause',requireDb,wrap(async(req,res)=>{res.set('Cache-Contr
 
 // 掃帳本夾上的單次 QR（2026-10-26 起）：外場在 POS 開桌時印出，QR 綁這一場（s=場次 id、k=簽章），結帳清桌後即失效。
 // 桌上固定 QR（t/k）一律 403，客人不能自己開桌——避免離店後或店外拿舊 QR 惡意點餐。回這一場（已結束也回，前端顯示感謝頁）
-const QR_RETIRED='這個 QR 已停用。請向服務人員索取本桌點餐 QR。';
+const QR_RETIRED='這個 QR 已停用，請向服務人員索取本桌點餐 QR。 / This QR is no longer valid. Please ask our staff for your table QR.';
+// 所有品牌一律動態 QR（KK 11/5）：在咖啡桌上固定 QR（t/k，11/3 起）停用，與三點水同樣由外場開桌印單次 QR
 app.get('/api/orders/table',requireDb,wrap(async(req,res)=>{
-  if(req.query.t&&!req.query.s)return fixedTableQr(req,res);
   const id=tableOrders.verifySession(req.query.s,req.query.k,SECRET);if(!id)return res.status(403).json({error:req.query.t?QR_RETIRED:'QR 無效，請向服務人員索取本桌點餐 QR。'});
   const s=await loadSession(id);if(!s)return res.status(404).json({error:'找不到這桌的點餐，請洽服務人員。'});
   res.set('Cache-Control','no-store');res.json(publicSession(s,String(req.query.g||'')));
 }));
-// 在咖啡桌邊固定 QR（KK 11/3）：t=桌號、k=HMAC('table:'+桌號)。只在在咖啡點餐時段可用；這桌有開著的場就併進去，沒有（或上一組已結清）就由客人開新的一場。
-// 回這一場＋本場簽章 k，之後點歌／呼叫／回饋／會員都照單次 QR 的 s/k 走。三點水時段一律 403，請外場開桌印單次 QR
-const FIXED_QR_CLOSED='桌上 QR 只在在咖啡點餐時間（08:00–16:30）使用，三點水請向服務人員索取本桌點餐 QR。 / This table QR works during café hours only. Please ask our staff for your order QR.';
-async function fixedTableQr(req,res){
-  const table=tableOrders.verifyTable(req.query.t,req.query.k,SECRET);if(!table)return res.status(403).json({error:'QR 無效，請洽服務人員。'});
-  if(!tableOrders.fixedQrOpen())return res.status(403).json({error:FIXED_QR_CLOSED});
-  if(tableOrders.isTakeout(table))return res.status(403).json({error:'QR 無效，請洽服務人員。'});
-  const client=await pool.connect();let id;
-  try{await client.query('BEGIN');await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,['table:'+table]);
-    let s=(await client.query("SELECT id,items,updated_at FROM table_sessions WHERE table_no=$1 AND status='open' ORDER BY created_at DESC LIMIT 1 FOR UPDATE",[table])).rows[0];
-    const d=s?tableOrders.fixedQrDecision(s,(await client.query('SELECT status FROM table_orders WHERE session_id=$1',[s.id])).rows):'renew';
-    if(d==='blocked'){await client.query('ROLLBACK');return res.status(409).json({error:'這桌上一組還沒結帳，請洽服務人員。 / Please ask our staff.'});}
-    if(s&&d==='renew'){await client.query("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=$1",[s.id]);s=null;}
-    if(!s)s=(await client.query('INSERT INTO table_sessions(id,table_no) VALUES($1,$2) RETURNING id',[uid('ts_'),table])).rows[0];
-    id=s.id;await client.query('COMMIT');
-  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
-  const s=await loadSession(id);res.set('Cache-Control','no-store');
-  res.json({...publicSession(s,String(req.query.g||'')),k:tableOrders.sessionKey(id,SECRET),fixed:true});
-}
 // 客人掃在咖啡固定 QR 自己開的桌（沒有開桌人員）：第一位進來的客人填人數（大人＋小孩），只能填一次；之後要改由 POS「人數」
 app.post('/api/orders/party',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
   const id=tableOrders.verifySession(req.body?.s,req.body?.k,SECRET);if(!id)return res.status(403).json({error:'QR 無效，請洽服務人員。'});
@@ -7613,8 +7594,6 @@ app.post('/api/admin/orders/sessions/:id/close',auth,adminOnly,requireDb,wrap(as
 app.get('/api/admin/tables/qr',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const tables=[...new Set(String(req.query.tables||'').split(',').map(t=>t.trim().toUpperCase()).filter(Boolean))].slice(0,100);
   const bad=tables.find(t=>!tableOrders.TABLE_RE.test(t));if(bad)return res.status(400).json({error:`桌號「${bad}」只能用英數字與 -，最長 8 字。`});
-  // ?fixed=1：在咖啡桌邊固定 QR（貼桌上，不綁場次，只在在咖啡點餐時段可用）
-  if(req.query.fixed==='1')return res.json({tables:tables.map(t=>({table:t,fixed:true,url:tableOrders.tableUrl(tableOrders.orderBase('CAFE'),t,SECRET)}))});
   const open=new Map((await q("SELECT DISTINCT ON (table_no) id,table_no,created_at,party_votes FROM table_sessions WHERE status='open' AND table_no=ANY($1) ORDER BY table_no,created_at DESC",[tables])).rows.map(r=>[r.table_no,r]));
   const closed=tables.filter(t=>!open.has(t));if(closed.length)return res.status(409).json({error:`${closed.join('、')} 尚未開桌，請先開桌再印 QR。`});
   res.json({tables:tables.map(t=>{const s=open.get(t);return{table:t,session_id:s.id,url:tableOrders.sessionUrl(tableOrders.orderBase(req.query.venue||req.auth?.pos_venue,s.created_at),s.id,SECRET),no:tableOrders.sessionNo(s.id),opened_at:s.created_at||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes),foreign:tableOrders.partyForeign(s.party_votes)};})});

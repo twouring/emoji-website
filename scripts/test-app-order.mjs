@@ -49,7 +49,7 @@ test('開桌 QR、補印、取餐推播的網址依店別分網域（KK 11/4：a
   assert.equal((s.match(/sessionUrl\(SITE_BASE/g) || []).length, 0);
   assert.equal((s.match(/sessionUrl\(APP_BASE/g) || []).length, 0);
   assert.equal((s.match(/sessionUrl\(tableOrders\.orderBase\(/g) || []).length, 3);
-  assert.match(s, /tableUrl\(tableOrders\.orderBase\('CAFE'\)/);
+  assert.doesNotMatch(s, /tableUrl\(/, '桌上固定 QR 已停用（KK 11/5 所有品牌動態 QR）');
 });
 
 test('點餐頁：App 網域共用會員登入、可加到主畫面（裝的是 App）、從 App 開有返回鍵', () => {

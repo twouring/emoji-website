@@ -19,8 +19,7 @@ test('開桌才有 QR；QR 綁場次，清桌即失效；桌上舊 QR 403；大�
       CREATE TABLE table_orders(id TEXT PRIMARY KEY,session_id TEXT,table_no TEXT,items JSONB,amount INT,status TEXT,paid_at TIMESTAMPTZ DEFAULT now(),ready_at TIMESTAMPTZ,done_at TIMESTAMPTZ);`);
     const q = (sql, args) => db.query(sql, args);
     let n = 0; const uid = p => p + (++n).toString(16).padStart(16, '0');
-    const realOrders = require('./lib/table-orders'); let cafeOpen = false;
-    const tableOrders = { ...realOrders, fixedQrOpen: () => cafeOpen };
+    const tableOrders = require('./lib/table-orders');
     const menuDoc = JSON.stringify({ version: 1, items: [{ id: 'm_x', venue: 'BAR', cat: 'FOOD', zh: '炸物', price: 200, published: true }, { id: 'm_y', venue: 'CAFE', cat: 'FOOD', zh: '三明治', price: 200, published: true }] });
     const app = express(); app.use(express.json());
     const noop = async () => 0;
@@ -40,10 +39,10 @@ test('開桌才有 QR；QR 綁場次，清桌即失效；桌上舊 QR 403；大�
     const ITEM = tableOrders.MenuLib.orderWindow().venue === 'BAR' ? 'm_x' : 'm_y';
     const qsOf = url => { const u = new URL(url); return { s: u.searchParams.get('s'), k: u.searchParams.get('k') }; };
 
-    // 桌上固定 QR：三點水時段不能用
+    // 桌上固定 QR：一律停用（KK 11/5 所有品牌動態 QR）
     const oldK = tableOrders.tableKey('A1', 'test-secret');
     let r = await call('GET', `/api/orders/table?t=A1&k=${oldK}`);
-    assert.equal(r.status, 403); assert.match(r.body.error, /在咖啡點餐時間/);
+    assert.equal(r.status, 403); assert.match(r.body.error, /已停用/);
     // 客人自己開桌的舊路由不存在
     r = await call('POST', '/api/orders/table/items', { t: 'A1', k: oldK, item_id: 'm_x' });
     assert.ok(r.status === 404 || r.status === 400 || r.status === 500, '客人不能自己開桌，status=' + r.status);
@@ -55,7 +54,7 @@ test('開桌才有 QR；QR 綁場次，清桌即失效；桌上舊 QR 403；大�
     // 外場開桌：需認人；開好回 qr_url
     assert.equal((await call('POST', '/api/admin/orders/sessions', { table_no: 'A1' })).status, 400);
     r = await call('POST', '/api/admin/orders/sessions', { table_no: 'A1', operator_id: 's1' });
-    assert.equal(r.status, 201); assert.match(r.body.qr_url, /^https:\/\/app\.emoji\.tw\/order\?s=ts_[0-9a-f]{16}&k=/);
+    assert.equal(r.status, 201); assert.match(r.body.qr_url, /^https:\/\/(atcafe|3am)\.emoji\.tw\/order\?s=ts_[0-9a-f]{16}&k=/);
     const a1 = qsOf(r.body.qr_url);
     // 大組分桌：再開 A2、A3，各一張不同 QR
     const a2url = (await call('POST', '/api/admin/orders/sessions', { table_no: 'A2', operator_id: 's1' })).body.qr_url;
@@ -65,7 +64,7 @@ test('開桌才有 QR；QR 綁場次，清桌即失效；桌上舊 QR 403；大�
     assert.equal((await call('POST', '/api/admin/orders/sessions', { takeout: true, operator_id: 's1' })).body.qr_url, undefined);
     // 補印回同一張
     r = await call('GET', '/api/admin/tables/qr?tables=A1,A2');
-    assert.equal(r.status, 200); assert.equal(r.body.tables[0].url, `https://app.emoji.tw/order?s=${a1.s}&k=${a1.k}`); assert.equal(r.body.tables[1].url, a2url);
+    assert.equal(r.status, 200); assert.match(r.body.tables[0].url, new RegExp(`^https://(atcafe|3am)\\.emoji\\.tw/order\\?s=${a1.s}&k=${a1.k}$`)); assert.equal(r.body.tables[1].url, a2url);
 
     // 客人掃 QR：看到這一場；簽章竄改 403；拿 A1 的 k 配 A2 的 s 也 403
     r = await call('GET', `/api/orders/table?s=${a1.s}&k=${a1.k}&g=guest00001`);
@@ -88,31 +87,12 @@ test('開桌才有 QR；QR 綁場次，清桌即失效；桌上舊 QR 403；大�
     r = await call('GET', `/api/orders/table?s=${a1.s}&k=${a1.k}`);
     assert.equal(r.body.status, 'closed', '舊 QR 仍指向舊場，不會看到新客人的帳');
 
-    // 在咖啡桌邊固定 QR（KK 11/3）：客人掃了自己開場；同桌第二人併入同一場；拿回的 s/k 可加點
-    cafeOpen = true;
+    // 所有品牌一律動態 QR（KK 11/5）：桌上固定 QR（t/k）不分時段一律 403，不會開場
     const fk = tableOrders.tableKey('C5', 'test-secret');
-    assert.equal((await call('GET', `/api/orders/table?t=C5&k=${'x'.repeat(16)}`)).status, 403);
-    const f1 = await call('GET', `/api/orders/table?t=C5&k=${fk}&g=guest00001`);
-    assert.equal(f1.status, 200, JSON.stringify(f1.body)); assert.equal(f1.body.table, 'C5'); assert.equal(f1.body.fixed, true);
-    assert.equal(tableOrders.verifySession(f1.body.id, f1.body.k, 'test-secret'), f1.body.id);
-    const f2 = await call('GET', `/api/orders/table?t=C5&k=${fk}&g=guest00002`);
-    assert.equal(f2.body.id, f1.body.id, '同桌第二人併入同一場');
-    r = await call('POST', `/api/orders/${f1.body.id}/items`, { item_id: 'm_y', qty: 1, by: '阿華', guest: 'guest00001' });
-    assert.equal(r.status, 200, JSON.stringify(r.body));
-    // POS 已開的桌（外場開桌）：客人掃固定 QR 併進同一場
-    const pos = (await call('POST', '/api/admin/orders/sessions', { table_no: 'C6', operator_id: 's1' })).body;
-    assert.equal((await call('GET', `/api/orders/table?t=C6&k=${tableOrders.tableKey('C6', 'test-secret')}`)).body.id, pos.id);
-    // 上一組結清出完餐 → 下一位掃碼開新的一場，看不到上一組的帳
-    await q("UPDATE table_sessions SET items=jsonb_set(items,'{0,order_id}','\"o1\"') WHERE id=$1", [f1.body.id]);
-    await q("INSERT INTO table_orders(id,session_id,table_no,items,amount,status) VALUES('o1',$1,'C5','[]',200,'done')", [f1.body.id]);
-    const f3 = await call('GET', `/api/orders/table?t=C5&k=${fk}`);
-    assert.equal(f3.status, 200); assert.notEqual(f3.body.id, f1.body.id); assert.equal(f3.body.items.length, 0);
-    assert.equal((await q('SELECT status FROM table_sessions WHERE id=$1', [f1.body.id])).rows[0].status, 'closed');
-    // 補印固定 QR
-    r = await call('GET', '/api/admin/tables/qr?tables=C5,C9&fixed=1');
-    assert.equal(r.status, 200); assert.equal(r.body.tables[1].url, `https://app.emoji.tw/order?t=C9&k=${tableOrders.tableKey('C9', 'test-secret')}`);
-    // 換到三點水時段：固定 QR 不能用
-    cafeOpen = false;
-    assert.equal((await call('GET', `/api/orders/table?t=C5&k=${fk}`)).status, 403);
+    r = await call('GET', `/api/orders/table?t=C5&k=${fk}`);
+    assert.equal(r.status, 403); assert.match(r.body.error, /已停用/);
+    assert.equal((await q("SELECT count(*)::int n FROM table_sessions WHERE table_no='C5'")).rows[0].n, 0);
+    r = await call('GET', '/api/admin/tables/qr?tables=C5&fixed=1');
+    assert.equal(r.status, 409, '未開桌不給 QR，也不再有固定 QR');
   } finally { listener?.close(); await db.close(); }
 });
