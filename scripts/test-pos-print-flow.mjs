@@ -89,7 +89,7 @@ test('every checkout starts with paper invoice and no-invoice is last',()=>{
  assert.match(src,/POS_INVOICE.mode='paper';return reload/);
 });
 test('table panel offers pre-checkout kitchen and receipt printing',()=>{
- assert.match(src,/<div class="pos-table-actions"><button[^>]*id="pos-place"[\s\S]{0,400}id="pos-move"[\s\S]{0,200}id="pos-close"/,'列印出餐單→換桌／併桌→清桌在左欄底部同一排');assert.doesNotMatch(src,/pos-prepay/);
+ assert.match(src,/<div class="pos-table-actions"><button[^>]*id="pos-place"[\s\S]{0,400}id="pos-slip"[\s\S]{0,400}id="pos-move"[\s\S]{0,200}id="pos-close"/,'列印出餐單→換桌／併桌→清桌在左欄底部同一排');assert.doesNotMatch(src,/pos-prepay/);
  assert.match(src,/id="pos-place"[\s\S]{0,120}>列印出餐單<\/button>/);assert.doesNotMatch(src,/送出點餐／列印出餐單/);assert.match(src,/id="pos-print-receipt"/);
  assert.doesNotMatch(src,/printOrder\(tableTicket\(\)\)/,'都送過時不可整桌重印（KK 11/1：加點單混入前面的餐點）');assert.match(src,/const t=lastTicket\(\);if\(t\)await printOrder\(t\)/);assert.match(src,/reprint:true/);assert.match(src,/o\.reprint\)spec\.push\(\{kind:'center',text:'【補印】最近一次送單'/);assert.match(src,/sessions\/'\+cur\.id\+'\/place/);
 });
@@ -150,4 +150,24 @@ test('收據明細 spec：share 字樣印在「尚未結帳」上方', () => {
  const r=JSON.parse(JSON.stringify(vm.runInContext("receiptTicketSpec({id:'o9',table_no:'A1',amount:300,items:[],preview:true,share:'平均分攤 3 人・第 1 人應收 NT$100',payer:{method:'cash'},invoice:{}})",c)));
  const i=r.findIndex(x=>x&&x.text==='平均分攤 3 人・第 1 人應收 NT$100'),j=r.findIndex(x=>x&&x.text==='【尚未結帳・僅供核對】');
  assert.ok(i>=0&&j>i);
+});
+
+test('列印點餐明細（KK 11/5）：整桌已送出品項補印，排除未送出／取消／預收／點歌，合計含服務費', async () => {
+ assert.match(src,/id="pos-slip"[\s\S]{0,300}>列印點餐明細<\/button>/);
+ assert.match(src,/\$\{cur\.takeout\?'':`<button class="btn btn--ghost" id="pos-slip"/,'外帶不顯示');
+ const {c,texts,sent}=printContext();
+ c.cur={id:'s1',table:'A3',party_size:3,lines:[
+  {line:1,zh:'烏龍麵',qty:2,price:320,cat:'MAIN',venue:'BAR',placed_at:'t1',ticket:'k1'},
+  {line:2,zh:'拿鐵',qty:1,price:120,cat:'COFFEE',venue:'BAR',placed_at:'t2',ticket:'k2'},
+  {line:3,zh:'取消品',qty:1,price:99,cat:'MAIN',venue:'BAR',placed_at:'t1',cancelled:true},
+  {line:4,zh:'未送出品',qty:1,price:50,cat:'MAIN',venue:'BAR'},
+  {line:5,zh:'點歌',qty:1,price:10,cat:'SONG',venue:'BAR',placed_at:'t2',song:{}}]};
+ const o=vm.runInContext('tableSlipOrder(cur)',c);
+ assert.deepEqual(o.items.map(l=>l.line),[1,2]);
+ assert.equal(o.table_total.party,3);
+ await vm.runInContext('ticketCanvas(orderSlipSpec(tableSlipOrder(cur)))',c);
+ const all=texts.join('|');
+ for(const t of ['點餐明細（整桌）','□ 烏龍麵','□ 拿鐵','已送出 ×3','3 位'])assert.ok(all.includes(t),t+'：'+all);
+ for(const t of ['取消品','未送出品','點歌'])assert.ok(!all.includes(t),t+' 不該印');
+ assert.equal(vm.runInContext("tableSlipOrder({id:'x',table:'A1',lines:[{zh:'a',qty:1,price:1}]})",c),null,'沒送出的不印');
 });
