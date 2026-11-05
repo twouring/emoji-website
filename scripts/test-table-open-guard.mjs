@@ -33,7 +33,7 @@ test('單次 QR 只讀這一場；所有品牌一律動態 QR，桌上固定 QR 
 test('POS：不分品牌、不分時段，開桌都印單次 QR', () => {
   assert.doesNotMatch(ops, /cafeFixedQr/);
   assert.match(ops, /if\(!url\)return false;/);
-  assert.match(ops, /\n?\s*for\(const o of opened\)\{if\(!starReady\(\)\)/);
+  assert.match(ops, /\n?\s*for\(const o of opened\)\{if\(!canPrint\(\)\)/);
 });
 test('會員兌換只接本場 QR，已結束的場 409，不自動開場', () => {
   const r = server.slice(server.indexOf("app.post('/api/me/redeem'"), server.indexOf("app.get('/api/me/yan'"));

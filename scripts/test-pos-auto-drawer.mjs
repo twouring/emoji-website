@@ -5,7 +5,7 @@ import vm from 'node:vm';
 const source=fs.readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');
 function drawerContext(extra={}){
  const calls=[],messages=[];
- const ctx={Promise,Map,Set,Date,Number,String,crypto:{randomUUID:()=> 'manual-unique'},OPERATOR:{id:'staff1'},api:async(path,body)=>{calls.push({path,...body});return {ok:true,claimed:true};},toast:m=>messages.push(m),starReady:()=>true,starSend:async job=>{calls.push(job);return true;},starHint(){},starOpenHere(){},...extra};
+ const ctx={Promise,Map,Set,Date,Number,String,crypto:{randomUUID:()=> 'manual-unique'},OPERATOR:{id:'staff1'},api:async(path,body)=>{calls.push({path,...body});return {ok:true,claimed:true};},toast:m=>messages.push(m),starReady:()=>true,canPrint:()=>true,starSend:async job=>{calls.push(job);return true;},starHint(){},starOpenHere(){},...extra};
  vm.createContext(ctx);
  const start=source.indexOf('const DRAWER_ATTEMPTS=');
  assert.notEqual(start,-1,'drawer controller exists');
@@ -65,7 +65,7 @@ test('checkout lock survives replacement button and releases after failure',asyn
  await ctx.runCheckoutOnce('s1',async()=>n++);assert.equal(n,2);
 });
 test('invoice print/reprint cannot request drawer even when legacy caller passes drawer:true',async()=>{
- const jobs=[];const ctx={toast(){},starReady:()=>true,invoiceProofCanvas:async()=>({id:'canvas'}),starSend:async j=>{jobs.push(j);return true;}};
+ const jobs=[];const ctx={toast(){},starReady:()=>true,canPrint:()=>true,invoiceProofCanvas:async()=>({id:'canvas'}),starSend:async j=>{jobs.push(j);return true;}};
  vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('async function printInvoiceProof('),source.indexOf('// 出餐單（')),ctx);
  await ctx.printInvoiceProof({invoice:{status:'issued'}},{drawer:true});assert.equal(jobs.length,1);assert.equal(jobs[0].drawer,undefined);
 });

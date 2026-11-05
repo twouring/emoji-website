@@ -43,6 +43,7 @@ const yan=require('./lib/yan');
 const line = require('./lib/line');
 const { createLineService } = require('./lib/line-service');
 const kitchenPrint=require('./lib/pos-kitchen-print');
+const remotePrint=require('./lib/pos-remote-print');
 const tableLive=require('./lib/table-live');
 const ezpayInvoice=require('./lib/ezpay-invoice');
 const linepay=require('./lib/linepay');
@@ -6199,7 +6200,7 @@ app.post('/api/orders/:id/push',requireDb,wrap(async(req,res)=>{
 app.get('/api/admin/orders/kitchen-print-jobs',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
   // New submissions enqueue transactionally. Polling must not replay pre-release orders.
-  const rows=(await q('SELECT job FROM pos_kitchen_print_jobs WHERE claimed_at IS NULL ORDER BY created_at,id')).rows;
+  const rows=(await q("SELECT job FROM pos_kitchen_print_jobs WHERE claimed_at IS NULL AND id NOT LIKE 'rp\\_%' ORDER BY created_at,id")).rows;   /* rp_＝遠端列印，另走 /remote-print */
   res.json({jobs:rows.map(r=>r.job).filter(j=>tableOrders.orderOwnedByVenues(j,venues))});
 }));
 app.post('/api/admin/orders/kitchen-print-jobs/:id/claim',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -6209,6 +6210,35 @@ app.post('/api/admin/orders/kitchen-print-jobs/:id/claim',auth,adminOnly,require
   const out=await kitchenPrint.claim(q,req.params.id,tableOrders.visibleVenues(req.auth.brands),actorOf(req.auth)||'',operator?.id);
   if(!out)return res.status(404).json({error:'找不到列印工作。'});
   res.json({ok:true,...out});
+}));
+/* 遠端列印（KK 11/5，lib/pos-remote-print.js）：沒接 mPOP 的裝置排工作，接 mPOP 的 Star webPRNT Browser（列印站）領取列印 */
+const remoteVenue=req=>{const v=posScope(req);return v&&v.length===1?v[0]:null;};
+app.post('/api/admin/orders/remote-print',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venue=remoteVenue(req);if(!venue)return res.status(400).json({error:'請在品牌 POS 操作（需指定品牌）。'});
+  /* 開錢櫃的稽核在 drawer-events（誰、原因、去重）；這裡只負責把指令帶到列印站 */
+  const out=remotePrint.clean(req.body,venue,actorOf(req.auth)||'');if(out.error)return res.status(400).json({error:out.error});
+  const id=uid('rp_');await remotePrint.enqueue(q,id,out.job);
+  res.json({ok:true,id,state:'queued'});
+}));
+app.get('/api/admin/orders/remote-print',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venue=remoteVenue(req);if(!venue)return res.json({jobs:[]});
+  res.json({jobs:(await remotePrint.pending(q,venue)).map(j=>({id:j.id,label:j.label,drawer:j.drawer,from:j.from}))});
+}));
+app.get('/api/admin/orders/remote-print/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venue=remoteVenue(req);if(!venue||!remotePrint.ID_RE.test(req.params.id))return res.status(404).json({error:'找不到列印工作。'});
+  const st=await remotePrint.status(q,req.params.id,venue);if(!st)return res.status(404).json({error:'找不到列印工作。'});res.json(st);
+}));
+app.post('/api/admin/orders/remote-print/:id/claim',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venue=remoteVenue(req);if(!venue||!remotePrint.ID_RE.test(req.params.id))return res.status(404).json({error:'找不到列印工作。'});
+  res.json({ok:true,...await remotePrint.claim(q,req.params.id,venue,actorOf(req.auth)||'')});
+}));
+app.post('/api/admin/orders/remote-print/:id/result',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venue=remoteVenue(req);if(!venue||!remotePrint.ID_RE.test(req.params.id))return res.status(404).json({error:'找不到列印工作。'});
+  res.json({ok:await remotePrint.report(q,req.params.id,venue,req.body?.ok===true,req.body?.error)});
+}));
+app.post('/api/admin/orders/remote-print/:id/cancel',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venue=remoteVenue(req);if(!venue||!remotePrint.ID_RE.test(req.params.id))return res.status(404).json({error:'找不到列印工作。'});
+  res.json({ok:true,cancelled:await remotePrint.cancel(q,req.params.id,venue)});
 }));
 // POS／KDS 即時同步（SSE）：任何一桌異動（客人掃碼加點、送單、出餐、收款、清桌）推 event: changed {id}；
 // 前端用 fetch 讀串流（EventSource 帶不了 Authorization），收到就重拉 /api/admin/orders，原輪詢保留當備援
@@ -6868,7 +6898,7 @@ app.get('/api/admin/exec',auth,adminOnly,requireDb,wrap(async(req,res)=>{
     grab('LINE Pay 對帳',async()=>{(src.recon||={}).linepay=await reconDays('linepay_transactions','linepay_sync_state',linepay);}),
     grab('中信對帳',async()=>{(src.recon||={}).ctbc=await reconDays('ctbc_transactions','ctbc_sync_state',ctbc);}),
     grab('桌況',async()=>{src.sessions=(await q("SELECT id,table_no,items,created_at FROM table_sessions WHERE status='open'")).rows;}),
-    grab('出餐單佇列',async()=>{src.print_jobs=(await q('SELECT count(*)::int AS count,min(created_at) AS oldest FROM pos_kitchen_print_jobs WHERE claimed_at IS NULL')).rows[0];}),
+    grab('出餐單佇列',async()=>{src.print_jobs=(await q("SELECT count(*)::int AS count,min(created_at) AS oldest FROM pos_kitchen_print_jobs WHERE claimed_at IS NULL AND id NOT LIKE 'rp\\_%'")).rows[0];}),
     grab('呼叫服務',async()=>{src.service_calls=serviceCalls.pending(serviceCalls.normalize(await contentValue('service_calls'))).map(c=>({...c,kind_label:serviceCalls.KINDS[c.kind]?.zh}));}),
     grab('點餐暫停',async()=>{src.pause=tableOrders.parsePause(await contentValue('ordering_pause'));}),
     grab('菜單',async()=>{src.menu_items=tableOrders.MenuLib.parseMenuDoc(await contentValue('menu')).items||[];}),

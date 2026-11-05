@@ -28,6 +28,34 @@ LINE Flex 票券圖片（image/png），使用現有活動 `event-ticket` HMAC t
 
 領取一張工作，body `{operator_id?}`。伺服器驗證品牌所有權並以原子 `UPDATE ... WHERE claimed_at IS NULL` 跨裝置／重新整理去重，記錄 actor、操作人員與時間。回 `{ok:true,claimed:true,job}` 或 `{ok:true,claimed:false}`，無權限／不存在回 404。遇到硬體失敗會暫停本機後續領取；結帳頁狀態列顯示「自動出單運行中」／「這台未自動出單」／「自動出單已暫停」；只在暫停時顯示「恢復自動出單」，按下需再確認已檢查紙張並補印，恢復不重印結果不明的那張。領取只代表嘗試列印，不是實體紙張成功；不自動釋放或重試，逾時／失敗須檢查紙張後用既有出餐／查單按鈕明確補印。只有連接印表機的 Star webPRNT Browser 自動輪詢（每 5 秒，與分頁無關）；一般瀏覽器不領取。Star Browser 必須保持開啟、前景且網路可用，背景休眠無法保證即時。
 
+## POS 遠端列印（沒接 mPOP 的裝置 → 櫃台列印站）
+
+Star mPOP POP10CI 只有 USB、不支援 CloudPRNT，伺服器無法直接送到 mPOP。品牌 POS 上沒接 mPOP 的裝置（手機、一般瀏覽器、另一台 iPad）列印或開錢櫃時，前端把 384 點寬點陣圖（PNG data URL）排進佇列；接 mPOP 的 Star webPRNT Browser（列印站）每 5 秒領取並列印。工作存在 `pos_kitchen_print_jobs`（id 前綴 `rp_`），出餐單佇列不會領到。全部路由需品牌範圍（`venue`），只看得到自己品牌的工作；10 分鐘內沒被領取的工作失效。
+
+### POST /api/admin/orders/remote-print
+
+排一張遠端列印工作，body `{image?, drawer?, label?}`：`image` 為 `data:image/png;base64,…`（≤240,000 字元），`drawer:true` 為開錢櫃（開錢櫃稽核仍走 `/api/admin/pos/drawer-events`）。兩者至少一項。回 `{ok:true,id,state:'queued'}`；沒指定品牌回 400。
+
+### GET /api/admin/orders/remote-print
+
+列印站取本品牌待印工作（10 分鐘內、未領取），回 `{jobs:[{id,label,drawer,from}]}`，不含圖檔。
+
+### GET /api/admin/orders/remote-print/:id
+
+送出端查詢結果，回 `{id,state,label,error}`，`state` 為 `queued`／`claimed`／`printed`／`failed`／`cancelled`。
+
+### POST /api/admin/orders/remote-print/:id/claim
+
+列印站領取（原子 `UPDATE … WHERE claimed_at IS NULL`，跨裝置去重），回 `{ok:true,claimed:true,job:{id,image,drawer,label,from}}` 或 `{ok:true,claimed:false}`。
+
+### POST /api/admin/orders/remote-print/:id/result
+
+列印站回報結果，body `{ok:boolean,error?}`；只能回報一次，回報後清掉圖檔。回 `{ok:boolean}`。
+
+### POST /api/admin/orders/remote-print/:id/cancel
+
+送出端取消尚未被領取的工作（前端等 20 秒沒人領就取消，避免列印站之後上線突然出紙）。回 `{ok:true,cancelled:boolean}`。
+
 ### POST /api/admin/orders/sessions/:id/place
 
 櫃檯點餐完成後送出整桌尚未送出的未付款品項（body `{}`），建立 ticket 與列印工作但不收款；混合品牌須完整管理權限。回共用 session 格式；無待送品項回 400。結帳回呼只列印發票與收據明細，不重印出餐單；未先送單而直接付款的先結後做訂單仍由工作佇列補印一次。

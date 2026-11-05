@@ -11,7 +11,7 @@ const doc=fs.readFileSync(new URL('../docs/API.md',import.meta.url),'utf8');
 
 function drawerContext(extra={}){
  const calls=[],messages=[];
- const ctx={Promise,Map,Set,Date,Number,String,crypto:{randomUUID:()=>'x'},OPERATOR:{id:'staff1'},api:async(path,body)=>{calls.push({path,...body});return {ok:true,claimed:true};},toast:m=>messages.push(m),starReady:()=>true,starSend:async job=>{calls.push(job);return true;},starHint(){},starOpenHere(){},...extra};
+ const ctx={Promise,Map,Set,Date,Number,String,crypto:{randomUUID:()=>'x'},OPERATOR:{id:'staff1'},api:async(path,body)=>{calls.push({path,...body});return {ok:true,claimed:true};},toast:m=>messages.push(m),starReady:()=>true,canPrint:()=>true,starSend:async job=>{calls.push(job);return true;},starHint(){},starOpenHere(){},...extra};
  vm.createContext(ctx);
  const start=front.indexOf('const DRAWER_ATTEMPTS=');
  vm.runInContext(front.slice(start,front.indexOf('const c39=',start)),ctx);

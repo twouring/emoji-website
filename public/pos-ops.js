@@ -432,7 +432,58 @@ async function starOpenHere(){if(await posConfirm('印發票／開錢櫃要在 S
 // a late callback would otherwise be attributed to the next job. Fail closed until it drains.
 let STAR_NATIVE_UNCERTAIN=null;
 let STAR_PRINT_QUEUE=Promise.resolve();
-function starSend(job={}){const result=STAR_PRINT_QUEUE.then(()=>starSendNow(job));STAR_PRINT_QUEUE=result.catch(()=>false);return result;}
+function starSend(job={}){if(remoteOn())return remoteSend(job);const result=STAR_PRINT_QUEUE.then(()=>starSendNow(job));STAR_PRINT_QUEUE=result.catch(()=>false);return result;}
+/* 遠端列印（KK 11/5）：POP10CI 只有 USB，伺服器送不到 mPOP；品牌 POS 上沒接 mPOP 的裝置（手機、另一台 iPad）把點陣圖排進 /admin/orders/remote-print，
+   接 mPOP 的 Star webPRNT Browser（列印站）每 5 秒領取列印並回報。20 秒沒人領就取消（避免列印站之後上線突然出紙），60 秒內不再等。 */
+const remoteOn=()=>{try{return onPosPage()&&!!SCOPE&&!inStarBrowser();}catch(e){return false;}};
+const canPrint=()=>starReady()||remoteOn();
+let REMOTE_DOWN_AT=0;
+const REMOTE_CLAIM_MS=20000,REMOTE_PRINT_MS=40000;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function remoteSend({canvas=null,drawer=false,label=''}={}){
+  if(!canvas&&!drawer)return false;
+  if(Date.now()-REMOTE_DOWN_AT<60000){toast('櫃台列印站沒有回應：接 mPOP 的 iPad 要用 Star webPRNT Browser 開著 POS');return false;}
+  let id;
+  try{const out=await api('/admin/orders/remote-print',{method:'POST',body:{image:canvas?canvas.toDataURL('image/png'):null,drawer:!!drawer,label:String(label||'').slice(0,60),operator_id:OPERATOR?.id}});id=out.id;}
+  catch(e){toast('遠端列印送出失敗：'+e.message);return false;}
+  toast(drawer&&!canvas?'已送到櫃台開錢櫃':'已送到櫃台 mPOP 列印');
+  const t0=Date.now();
+  while(Date.now()-t0<REMOTE_CLAIM_MS+REMOTE_PRINT_MS){
+    await sleep(1500);
+    let st;try{st=await api('/admin/orders/remote-print/'+id);}catch(e){continue;}
+    if(st.state==='printed'){REMOTE_DOWN_AT=0;return true;}
+    if(st.state==='failed'){toast('櫃台 mPOP 列印失敗'+(st.error?'：'+st.error:''));return false;}
+    if(st.state==='cancelled')return false;
+    if(st.state==='queued'&&Date.now()-t0>REMOTE_CLAIM_MS){
+      try{const c=await api('/admin/orders/remote-print/'+id+'/cancel',{method:'POST',body:{}});if(!c.cancelled)continue;}catch(e){continue;}
+      REMOTE_DOWN_AT=Date.now();toast('櫃台列印站沒有回應，已取消這次列印：接 mPOP 的 iPad 要用 Star webPRNT Browser 開著 POS');return false;
+    }
+  }
+  toast('櫃台 mPOP 結果未明，請到櫃台確認是否出紙');return false;
+}
+// 列印站端：每 5 秒（跟出餐單同一個 timer）領遠端工作；圖檔還原成 canvas 後走同一個 STAR_PRINT_QUEUE
+let REMOTE_POLL_BUSY=false;
+function remoteCanvas(src){return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(img,0,0);resolve(c);};img.onerror=()=>reject(Error('圖檔無法讀取'));img.src=src;});}
+async function pollRemotePrinting(){
+  if(REMOTE_POLL_BUSY||!DATA||!SCOPE||!starReady()||STAR_NATIVE_UNCERTAIN)return;
+  REMOTE_POLL_BUSY=true;
+  try{
+    if(!await starCheckLink())return;
+    const out=await api('/admin/orders/remote-print');
+    for(const job of out.jobs||[]){
+      let ok=false,err='';
+      try{
+        const c=await api('/admin/orders/remote-print/'+encodeURIComponent(job.id)+'/claim',{method:'POST',body:{}});
+        if(!c.claimed)continue;
+        const canvas=c.job.image?await remoteCanvas(c.job.image):null;
+        ok=await starSend({canvas,drawer:!!c.job.drawer});if(!ok)err=STAR_LINK.reason||'mPOP 未回報成功';
+      }catch(e){err=e.message;}
+      try{await api('/admin/orders/remote-print/'+encodeURIComponent(job.id)+'/result',{method:'POST',body:{ok,error:err}});}catch(e){}
+      if(ok&&job.from)toast('已代印遠端單據（'+job.from+(job.label?'・'+job.label:'')+'）');
+    }
+  }catch(e){/* 下一輪再試；沒領到的工作 10 分鐘後失效 */}
+  finally{REMOTE_POLL_BUSY=false;}
+}
 function starSendNow({canvas=null,drawer=false}={}){
   if(!canvas&&!drawer)return Promise.resolve(false);
   if(!starReady())return Promise.resolve(false);
@@ -453,7 +504,7 @@ function starSendNow({canvas=null,drawer=false}={}){
 }
 const DRAWER_ATTEMPTS=new Set(),CHECKOUT_BUSY=new Set();
 async function runCheckoutOnce(id,fn){if(CHECKOUT_BUSY.has(id))return;CHECKOUT_BUSY.add(id);try{return await fn();}finally{CHECKOUT_BUSY.delete(id);}}
-async function openCashDrawer({auto=false}={}){if(starReady()){const ok=await starSend({drawer:true});if(ok)toast('開櫃指令已送出');return ok;}if(auto)starHint();else starOpenHere();return false;}
+async function openCashDrawer({auto=false}={}){if(canPrint()){const ok=await starSend({drawer:true});if(ok)toast('開櫃指令已送出');return ok;}if(auto)starHint();else starOpenHere();return false;}
 async function claimCashDrawer(event){
   const out=await api('/admin/pos/drawer-events',{method:'POST',body:{...event,operator_id:OPERATOR?.id}});
   if(!out.claimed)return false;
@@ -520,7 +571,7 @@ async function invoiceProofCanvas(o){
 // 列印與開錢櫃完全分開，補印永遠不觸發開櫃。
 async function printInvoiceProof(o,{auto=false}={}){
   if(!o?.invoice||o.invoice.status!=='issued'){toast('這筆沒有可列印的已開立發票');return;}
-  if(starReady()){const canvas=await invoiceProofCanvas(o);const ok=await starSend({canvas});if(ok)toast('發票已印出');return ok;}
+  if(canPrint()){const canvas=await invoiceProofCanvas(o);const ok=await starSend({canvas,label:'發票證明聯'});if(ok)toast('發票已印出');return ok;}
   if(auto)starHint();else starOpenHere();
 }
 // 出餐單／收據明細 58mm 點陣排版。出餐單給現場：桌號大字、依類別分段、品名×數量、備註（不印價錢）。收據明細給客人：品項金額、折扣、付款、發票。
@@ -756,10 +807,11 @@ function kitchenPrintStatusHtml(){
   if(st==='running')return `<div class="pos-print-status pos-print-mini" title="已接 mPOP：送單後自動印紙本出餐單（每 15 秒檢測連線）"><span class="pos-print-dot is-ok" aria-hidden="true"></span>自動出單運行中・mPOP 已連接<button type="button" class="pos-print-link" id="pos-print-test">測試列印</button></div>`;
   if(st==='offline')return `<div class="pos-print-status pos-print-mini pos-print-off" title="mPOP 沒連上，出餐單先留在系統，接回後自動補印：請確認 USB-C 線、電源、紙與上蓋"><span class="pos-print-dot is-bad" aria-hidden="true"></span>${ks.reason||'mPOP 未連接'}，出餐單等待中<button type="button" class="pos-print-link" id="pos-print-recheck">重新檢測</button></div>`;
   if(st==='checking')return `<div class="pos-print-status pos-print-mini" title="正在確認 mPOP 是否連接"><span class="pos-print-dot" aria-hidden="true"></span>檢測 mPOP 連線中</div>`;
+  if(remoteOn())return `<div class="pos-print-status pos-print-mini" title="這台沒接 mPOP：列印、開錢櫃會送到櫃台接 mPOP 的 iPad（Star webPRNT Browser 要開著 POS）代印"><span class="pos-print-dot" aria-hidden="true"></span>列印送櫃台 mPOP<button type="button" class="pos-print-link" id="pos-print-test">測試列印</button></div>`;
   return `<div class="pos-print-status pos-print-mini" title="沒接 mPOP，不會印紙本出餐單：請用 Star webPRNT Browser 開 POS 並接上 mPOP"><span class="pos-print-dot" aria-hidden="true"></span>這台未自動出單</div>`;
 }
 async function printTestTicket(){
-  if(!starReady()){starHint();return false;}
+  if(!canPrint()){starHint();return false;}
   const spec=[{kind:'center',text:'測試列印',size:22,bold:true},{kind:'center',text:'mPOP 連線正常',size:20},{kind:'center',text:applicationTime(new Date().toISOString()),size:18},{kind:'center',text:'這張不是出餐單，可直接丟棄',size:18}];
   const ok=await starSend({canvas:ticketCanvas(spec)});toast(ok?'測試列印已送出，請看 mPOP 是否出紙':'測試列印失敗，請檢查 USB-C 線與 mPOP 電源');return ok;
 }
@@ -771,7 +823,7 @@ function bindPrintStatus(host,repaint){
 function startKitchenPrinting(){
   if(KITCHEN_PRINT_TIMER!==null)return;
   KITCHEN_PRINT_TIMER=setTimeout(async function tick(){
-    try{await pollKitchenPrinting();}finally{KITCHEN_PRINT_TIMER=setTimeout(tick,5000);}
+    try{await pollKitchenPrinting();await pollRemotePrinting();}finally{KITCHEN_PRINT_TIMER=setTimeout(tick,5000);}
   },0);
 }
 // 收到新單：跳出置中提示（點一下關閉，8 秒後自動消失）並響三聲；iPad 需先點過畫面才允許出聲，所以第一次點擊時先解鎖音訊
@@ -831,7 +883,7 @@ function checkoutHardware(drawer,order,paidText){
 // 廚房、吧台分兩張印（廚房單黑底橫幅＋實心邊條、吧台單斜線橫幅＋虛線邊條）；任一張失敗就回 false，交給自動出單暫停流程
 async function printOrder(o,{auto=false,slip=false}={}){
   const tickets=ticketParts(o);
-  if(starReady()){
+  if(canPrint()){
     if(!tickets.length)return true;
     let ok=true;
     for(const t of tickets){const r=await starSend({canvas:ticketCanvas(kitchenTicketSpec(t.order,t.kind,t.total))});if(!r){toast(TICKET_KIND[t.kind].name+'未印出，請到查單補印');ok=false;break;}}
@@ -852,7 +904,7 @@ function kitchenTicketHtml(o){
 }
 // 客人收據明細：店名、品項、小計／折扣／合計、付款方式、實收找零、發票號碼、單號（查單可重印）
 async function printReceipt(o,{auto=false}={}){
-  if(starReady()){const ok=await starSend({canvas:ticketCanvas(receiptTicketSpec(o))});if(!ok)toast('收據明細未印出，請再補印');return ok;}
+  if(canPrint()){const ok=await starSend({canvas:ticketCanvas(receiptTicketSpec(o)),label:'收據明細'});if(!ok)toast('收據明細未印出，請再補印');return ok;}
   if(auto){starHint();return false;}
   const p=o.payer||{},d=p.discount,sc=p.service_charge,svcAmt=Number(sc?.amount)||0,inv=o.invoice||{},rd=redeemOf(o),sub=Number(o.amount)+(d?Number(d.amount)||0:0)+rd.value-svcAmt;
   const shop=ticketShop(o);
@@ -1020,7 +1072,7 @@ async function openOneTableQr(table){
 }
 // 單一桌號 QR：只顯示該桌，列印走 mPOP（58mm 點陣圖）
 async function printTableQr(table,url,info={}){
-  if(!starReady()){await starOpenHere();return false;}
+  if(!canPrint()){await starOpenHere();return false;}
   const q=await new Promise(resolve=>{if(!url||typeof QRCode==='undefined'||!QRCode.toCanvas)return resolve(null);const c=document.createElement('canvas');QRCode.toCanvas(c,String(url),{width:300,margin:4},err=>resolve(err?null:c));});
   if(!q){toast('QR 產生失敗');return false;}
   // 版面（參考同業開桌單）：桌號最大放最上面（帳本夾一看就認得）→ 人數 → QR → 點餐步驟 → 店家規則（低消／服務費／最後點餐，左對齊懸掛縮排）→ 鼓勵小語 → 桌次＋開桌時間
@@ -1088,7 +1140,7 @@ async function printTableQr(table,url,info={}){
 /* 所有品牌一律動態 QR（KK 11/5）：開桌就印這一場的單次 QR，在咖啡桌上固定 QR 已停用 */
 async function printOpenedQr(table,url,info={}){
   if(!url)return false;
-  if(starReady()){try{if(await printTableQr(table,url,info))return true;}catch(e){toast('桌號 QR 列印失敗：'+e.message);}}
+  if(canPrint()){try{if(await printTableQr(table,url,info))return true;}catch(e){toast('桌號 QR 列印失敗：'+e.message);}}
   await openOneTableQr(table);return false;
 }
 function openTableQr(table){return openOneTableQr(String(table));}
@@ -1138,7 +1190,7 @@ async function openManyTables(empty,reload){
     if(!opened.length)return;
     toast(`已開桌 ${opened.map(o=>o.table).join('、')}`);
     POS_TABLE='';await reload();
-    for(const o of opened){if(!starReady()){await openOneTableQr(o.table);break;}await printTableQr(o.table,o.qr_url,o);}   // 沒接 mPOP 時只顯示第一桌，其餘到各桌按 QR 補
+    for(const o of opened){if(!canPrint()){await openOneTableQr(o.table);break;}await printTableQr(o.table,o.qr_url,o);}   // 沒接 mPOP 時只顯示第一桌，其餘到各桌按 QR 補
   });
 }
 /* 桌號獨立網址（KK 11/2）：/pos/table/<桌號>；只在 /pos 生效（/admin 共用本檔，不動網址）。
@@ -1667,7 +1719,7 @@ function paintPos(){
   // 全都送過了只補印「最近一次送單」，標「補印」（KK 11/1：整桌重印會把之前的餐點混進加點單，現場會重做）
   const lastTicket=()=>{const ls=cur.lines.filter(l=>l.ticket&&l.placed_at&&!l.cancelled&&!l.credit_of&&!l.song&&!l.tip&&l.cat!=='SHOP');if(!ls.length)return null;const last=ls.reduce((a,l)=>l.placed_at>a.placed_at?l:a);const items=ls.filter(l=>l.ticket===last.ticket);return {id:last.ticket,table_no:cur.table,placed_at:last.placed_at,items,reprint:true};};
   // 列印點餐明細（KK 11/5）：客人改單、帳本夾明細遺失時，補印整桌目前已送出的品項（排除取消／預收抵扣／點歌／打賞），底部整桌合計
-  const slipBtn=host.querySelector('#pos-slip');if(slipBtn)slipBtn.onclick=async()=>{if(slipBtn.disabled)return;slipBtn.disabled=true;try{const o=tableSlipOrder(cur);if(!o)return toast('這桌沒有已送出的餐點');if(!starReady())return starHint();const ok=await starSend({canvas:ticketCanvas(orderSlipSpec(o))});toast(ok?'已列印點餐明細':'點餐明細未印出，請再試一次');}finally{slipBtn.disabled=false;}};
+  const slipBtn=host.querySelector('#pos-slip');if(slipBtn)slipBtn.onclick=async()=>{if(slipBtn.disabled)return;slipBtn.disabled=true;try{const o=tableSlipOrder(cur);if(!o)return toast('這桌沒有已送出的餐點');if(!canPrint())return starHint();const ok=await starSend({canvas:ticketCanvas(orderSlipSpec(o))});toast(ok?'已列印點餐明細':'點餐明細未印出，請再試一次');}finally{slipBtn.disabled=false;}};
   const place=host.querySelector('#pos-place');if(place)place.onclick=async()=>{if(place.disabled)return;place.disabled=true;try{
     if(cur.lines.some(l=>!l.placed_at))await opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/place',{method:'POST',body:{}}),async()=>{await pollKitchenPrinting();return starReady()?'已送出點餐並列印出餐單':'已送出點餐，出餐單由連接印表機的 Star Browser 自動列印';},reload);
     else{const t=lastTicket();if(t)await printOrder(t);else toast('這桌沒有已送出的餐點可補印');}
@@ -2027,7 +2079,7 @@ function registerReportSpec(rep,kind){
 }
 // 有接 mPOP 就直接出紙；沒接就退回瀏覽器列印視窗。回傳 Promise<boolean>
 async function printRegisterReport(rep,kind){
-  if(starReady()){const ok=await starSend({canvas:ticketCanvas(registerReportSpec(rep,kind))});toast(ok?kind+'已印出':kind+'未印出，請按「重印關帳單」');return ok;}
+  if(canPrint()){const ok=await starSend({canvas:ticketCanvas(registerReportSpec(rep,kind)),label:kind});toast(ok?kind+'已印出':kind+'未印出，請按「重印關帳單」');return ok;}
   return printRegisterReportWindow(rep,kind);
 }
 function printRegisterReportWindow(rep,kind){
