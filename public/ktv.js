@@ -223,11 +223,11 @@ function pageSettings(){
 let TV_ARMED = false;
 function pageTv(){
   const n = D.now, up = (D.upcoming || { items: [] }).items.slice(0, 6), c = cur();
-  return `<div class="tv"><div class="tv-stage" data-k-slot>
+  return `<div class="tv"><div class="tv-box"><div class="tv-stage" data-k-slot>
       ${n ? '' : '<div class="tv-idle"><div><img src="/cis/assets/emoji-mark-reverse.svg" alt="言文字"><p>在桌邊點餐頁購買點歌，向店員索取兌換碼，掃右邊的 QR 輸入。</p></div></div>'}
       ${TV_ARMED && isPlayer() ? '' : `<button type="button" class="tv-tap" data-k-arm><span>${isPlayer() ? '點一下開始播放' : '點一下，改由這台播放'}</span></button>`}
       <div class="tv-sfx" data-k-sfxshow aria-live="polite"></div>
-      <div class="tv-exit"><a class="btn btn--sm" href="${BASE}/" data-go="console">回控台</a></div></div>
+      <div class="tv-exit"><a class="btn btn--sm" href="${BASE}/" data-go="console">回控台</a></div></div></div>
     <div class="tv-bar">${n ? `${who(n)}<b>${esc(n.title)}</b>${n.channel ? `<span class="tv-ch">${esc(n.channel)}</span>` : ''}<div class="prog" data-k-prog><span data-k-pos>${dur(c.pos)}</span><i><s></s></i><span>${dur(c.dur || n.duration)}</span></div>` : '<b>言文字 KTV</b><span class="tv-ch">沒有人點歌時播放店內歌單</span>'}</div>
     <aside class="tv-side"><img src="/cis/assets/emoji-h-reverse.svg" alt="言文字">${D.device_url && isPlayer() ? `<div class="tv-qr"><img src="${esc(qrSrc(D.device_url, 480))}" alt="點歌 QR"><b>掃描點歌</b><small>輸入店員給的兌換碼</small><small>Scan, enter code</small></div>` : ''}<h2>接下來</h2>
       <ol class="tv-up">${up.length ? up.map((t, i) => `<li><span class="n">${esc(t.pos)}</span>${i === 0 ? '<span class="tv-next">下一首</span>' : ''}<b>${esc(t.title)}</b><small>${t.kind === 'playlist' ? '店內歌單' : t.source === 'pos' ? '現場代點' : '桌 ' + esc(t.table || '—') + (t.by ? '・' + esc(t.by) : '')}</small></li>`).join('') : '<li><small>還沒有人點歌</small></li>'}</ol></aside></div>`;
