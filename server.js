@@ -6340,7 +6340,8 @@ async function storeInvoiceResult(order, invoice, { throwOnError=false } = {}) {
     return skipped;
   }
   try{
-    const issued=await issueEzpayForOrder(order,invoice);
+    let issued=await issueEzpayForOrder(order,invoice);
+    if(invoice.replaced?.length)issued={...issued,replaced:invoice.replaced};
     await q('UPDATE table_orders SET invoice=$2 WHERE id=$1',[order.id,JSON.stringify(issued)]);
     return issued;
   }catch(e){
@@ -6514,8 +6515,50 @@ app.post('/api/admin/orders/:id/invoice/issue',auth,adminOnly,requireDb,wrap(asy
   }
   let invoice;try{invoice=ezpayInvoice.invoiceForm(req.body?.invoice&&Object.keys(req.body.invoice).length?req.body.invoice:o.invoice);}catch(e){return res.status(e.status||400).json({error:e.message});}
   if(!invoice.requested)return res.status(400).json({error:'請先選擇發票類型。'});
+  // 改開發票時新票開失敗：沿用那次的新自訂編號與被取代的舊票紀錄（原編號在 ezPay 已用過，不能再開）
+  if(o.invoice?.merchant_order_no&&o.invoice?.replaced?.length)invoice={...invoice,merchant_order_no:o.invoice.merchant_order_no,replaced:o.invoice.replaced};
   try{const out=await storeInvoiceResult(o,invoice,{throwOnError:true});res.json({ok:true,invoice:out});}
   catch(e){res.status(e.status||502).json({error:e.message});}
+}));
+/* 改開發票（BOWEN 11/6：客人結完帳才說要統編）：同一張單作廢原 ezPay 發票，再以同金額開新發票（類型可換：紙本→統編等）。
+ * 不動付款、品項、會員點數；新票用「原自訂編號＋R序號」避免與作廢的舊票撞號。舊票作廢後若新票開失敗，標 failed，查單會出現「補開發票」沿用同一新編號重試。
+ * 整筆在訂單列鎖內做，連按兩次不會作廢兩次。跨發票期別（單月 1–2、3–4…）不能作廢，請改開折讓。 */
+const invPeriod=t=>{const d=new Date(+new Date(t)+8*3600e3);return d.getUTCFullYear()*6+Math.floor(d.getUTCMonth()/2);};
+app.post('/api/admin/orders/:id/invoice/reissue',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這筆出餐單。'});
+  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const operator=await resolveOperator(req,req.body?.operator_id);
+  let form;try{form=ezpayInvoice.invoiceForm(req.body?.invoice||{});}catch(e){return res.status(e.status||400).json({error:e.message});}
+  if(!form.requested)return res.status(400).json({error:'請選擇新發票的類型。'});
+  const cfg=ezpayInvoice.config();
+  if(!cfg)return res.status(503).json({error:'尚未設定 ezPay 電子發票憑證（後台「系統設定」）。'});
+  const client=await pool.connect();let committed=false;
+  try{
+    await client.query('BEGIN');
+    const o=(await client.query('SELECT id,session_id,table_no,items,amount,status,invoice,payer,paid_at FROM table_orders WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+    if(!o||!tableOrders.orderOwnedByVenues(o,venues))return res.status(404).json({error:'找不到這筆出餐單。'});
+    if(o.status==='void')return res.status(409).json({error:'作廢的單不能改開發票。'});
+    if(o.invoice?.status!=='issued')return res.status(409).json({error:'這張單還沒有開立發票，請按「補開發票」。'});
+    if(!(Math.round(Number(ezpayInvoice.invoiceOrder(o).amount)||0)>0))return res.status(400).json({error:'0 元訂單不開立發票。'});
+    if(invPeriod(o.invoice.issued_at||o.paid_at)!==invPeriod(Date.now()))return res.status(409).json({error:'原發票已跨期別（每兩個月一期），不能作廢改開，請到 ezPay 後台開折讓。'});
+    o.discount=o.payer?.discount||null;o.service_charge=o.payer?.service_charge||null;
+    let old=o.invoice;
+    if(!old.number){try{old=await ezpayInvoice.searchInvoice(cfg,o,old);}catch(e){return res.status(e.status||502).json({error:e.message});}}
+    const reason=tableOrders.cleanText(req.body?.reason,20)||'改開發票';
+    // 先作廢舊票（ezPay 端已是作廢就直接往下開）；這步失敗就整筆不動
+    if(old.status==='issued'){try{old=await ezpayInvoice.invalidInvoice(cfg,o,old,reason);}catch(e){return res.status(e.status||502).json({error:'原發票作廢失敗，沒有改開：'+e.message});}}
+    const {result,invalid_result,replaced:prev,...oldKeep}=old;
+    const replaced=[...(o.invoice.replaced||[]),{...oldKeep,voided_at:old.voided_at||new Date().toISOString(),void_reason:reason,by:actorOf(req.auth)||'',operator:operator?.name||''}].slice(-10);
+    const base=String(old.merchant_order_no||o.id).replace(/[^A-Za-z0-9]/g,'').replace(/R\d+$/,'').slice(0,20);
+    const invoice={...form,merchant_order_no:base+'R'+replaced.length,replaced};
+    let next,ok=true;
+    try{next={...(await ezpayInvoice.issueInvoice(cfg,o,invoice)),replaced};}
+    catch(e){ok=false;next={...invoice,provider:'ezpay',status:'failed',error:e.message,failed_at:new Date().toISOString()};}
+    await client.query('UPDATE table_orders SET invoice=$2 WHERE id=$1',[o.id,JSON.stringify(next)]);
+    await client.query('COMMIT');committed=true;
+    if(!ok)return res.status(502).json({error:`原發票 ${old.number||''} 已作廢，但新發票開立失敗：${next.error}。請在查單按「補開發票」重試。`,invoice:next,voided:old.number||''});
+    res.json({ok:true,invoice:next,voided:old.number||''});
+  }finally{if(!committed)await client.query('ROLLBACK').catch(()=>{});client.release();}
 }));
 // 統編查抬頭（經濟部商工公開資料，公司→商業登記兩個資料集）；查不到或服務異常回 found:false，不擋開立
 const UBN_CACHE=new Map();
@@ -6593,6 +6636,10 @@ app.post('/api/admin/orders/:id/void',auth,adminOnly,requireDb,wrap(async(req,re
   let reason;try{reason=tableOrders.voidOrder(o,req.body?.reason);}catch(e){return res.status(e.status||400).json({error:e.message});}
   // 部分付款（預收）單：抵扣已經用在後面那張結帳單上就不能單獨作廢，要先作廢那張
   if(o.payer?.prepay){const sess=(await client.query('SELECT items FROM table_sessions WHERE id=$1',[o.session_id])).rows[0];if(sess&&(sess.items||[]).some(l=>l.credit_of===o.id&&l.order_id))return res.status(409).json({error:'這筆預收已抵扣在後面的結帳單，請先作廢那張單。'});}
+  // 回到桌上：要在 ezPay 作廢「之前」確認同桌號沒有新開的一桌，否則回 409 時發票已作廢、本地卻沒作廢
+  const wantReopen=!!(s&&s.status!=='open'&&req.body?.reopen===true&&!o.payer?.prepay);
+  if(wantReopen){const busy=(await client.query("SELECT id FROM table_sessions WHERE table_no=$1 AND status='open' AND id<>$2 LIMIT 1",[s.table_no||o.table_no,s.id])).rows[0];
+    if(busy)return res.status(409).json({error:`${o.table_no} 已經開了新的一桌，品項無法回到桌上；請改選「只作廢」，再到那桌加點。`});}
   let nextInvoice=o.invoice||{};
   if(nextInvoice.status==='issued'){
     const cfg=ezpayInvoice.config();
@@ -6609,9 +6656,14 @@ app.post('/api/admin/orders/:id/void',auth,adminOnly,requireDb,wrap(async(req,re
     await client.query("UPDATE table_orders SET status='void',void_reason=$2,voided_by=$3,voided_at=now(),invoice=$4,payer=$5 WHERE id=$1",[o.id,reason,actorOf(req.auth)||'',JSON.stringify(nextInvoice),JSON.stringify(payer)]);
     // 退回未結帳：會員價還原為原價；贈送（comp_reason）維持贈送
     // 部分付款（預收）單作廢：這張單的「部分付款」行與桌上的「已預收」抵扣行一起拿掉，不退回未結帳
-    if(s&&s.status==='open')await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(o.payer?.prepay?s.items.filter(l=>l.order_id!==o.id&&l.credit_of!==o.id):s.items.map(l=>l.order_id!==o.id?l:l.comp_reason||l.app_redeem?{...l,order_id:null}:{...l,order_id:null,price:l.regular_price||l.price,regular_price:undefined,redeem_points:undefined}))]);
+    // 已清桌的單：reopen=true 時把那一場重新打開、品項回到桌上重結（BOWEN 11/6）；同桌號已有新客人就不動，回 409
+    let reopened=false;const backItems=s?JSON.stringify(o.payer?.prepay?s.items.filter(l=>l.order_id!==o.id&&l.credit_of!==o.id):s.items.map(l=>l.order_id!==o.id?l:l.comp_reason||l.app_redeem?{...l,order_id:null}:{...l,order_id:null,price:l.regular_price||l.price,regular_price:undefined,redeem_points:undefined})):null;
+    if(wantReopen){
+      await client.query("UPDATE table_sessions SET status='open',items=$2,updated_at=now() WHERE id=$1",[s.id,backItems]);reopened=true;
+    }
+    else if(s&&s.status==='open')await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,backItems]);
     await client.query('COMMIT');committed=true;
-  res.json({ok:true,reason,method,cash_refund,event_key});
+  res.json({ok:true,reason,method,cash_refund,event_key,reopened,returned:!!(s&&!o.payer?.prepay&&(reopened||s.status==='open')),table_no:o.table_no});
   }finally{if(!committed)await client.query('ROLLBACK').catch(()=>{});client.release();}
 }));
 /* 取消已結帳單裡的單一品項（做不出來／客人退菜），不必作廢整張單：單價歸零、從單上金額扣除這項小計 */
@@ -7002,8 +7054,9 @@ app.get('/api/admin/orders/history',auth,adminOnly,requireDb,wrap(async(req,res)
     .map(o=>({...o,paid_at:new Date(o.paid_at).toISOString(),stations:tableOrders.splitByStation(o)}));
   /* 查單補入會員用（KK 11/5）：附上這桌登入過的會員，店員直接點選 */
   const sids=[...new Set(orders.map(o=>o.session_id).filter(Boolean))];
-  const mem=sids.length?new Map((await q('SELECT id,members FROM table_sessions WHERE id=ANY($1)',[sids])).rows.map(r=>[r.id,(r.members||[]).map(m=>({id:m.id,name:m.name||''}))])):new Map();
-  for(const o of orders)o.table_members=mem.get(o.session_id)||[];
+  const srows=sids.length?(await q('SELECT id,members,status FROM table_sessions WHERE id=ANY($1)',[sids])).rows:[];
+  const mem=new Map(srows.map(r=>[r.id,(r.members||[]).map(m=>({id:m.id,name:m.name||''}))])),sopen=new Map(srows.map(r=>[r.id,r.status==='open']));
+  for(const o of orders){o.table_members=mem.get(o.session_id)||[];o.session_open=sopen.get(o.session_id)??false;}
   res.json({day,orders,count:orders.length});
 }));
 /* ===== 開關帳（帳本）：在咖啡／三點水各自一本（品牌 × 營業日）。開帳放零用金 → 臨時收支 → 小結（只看）→ 關帳（點鈔、短溢）；關帳後該品牌不可再結帳，超管可重開 ===== */

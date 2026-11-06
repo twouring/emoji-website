@@ -415,12 +415,12 @@ POS 結帳輸入統編時查抬頭。`:ubn` 為 8 碼數字（否則 400）。�
 **前端只能在 `claimed === true` 後送出一次硬體指令**；任何錯誤或 `claimed:false` 都不能送。稽核只代表請求曾被領取，不表示錢櫃實際開啟，也不表示已交付退款。領取後若硬體失敗，不可換交易代碼重送；檢查錢櫃後改走附原因與人員的手動開櫃。不提供自動重試，以避免重複開櫃。
 
 ### POST /api/admin/orders/:id/void
-作廢已結帳的出餐單。body `{ reason, refund_cash?:boolean, operator_id? }`（`reason` 必填）。只能作廢當個營業日的單；線上刷卡（TapPay）的單須先在 TapPay 後台退款。若該單已透過 ezPay 開立電子發票，會先呼叫 ezPay 作廢成功後才把 POS 訂單標成 void（已開立但沒記到號碼時，先用 `invoice_search` 查回號碼再作廢；ezPay 端已是作廢狀態就直接同步）；未設定 ezPay 環境變數或 ezPay 作廢失敗時回 503/502，不會先作廢本地訂單。作廢後該單不計營收，品項退回這桌「未結帳」（可重結或清桌作廢）。記 `void_reason / voided_by / voided_at`。
+作廢已結帳的出餐單。body `{ reason, refund_cash?:boolean, operator_id? }`（`reason` 必填）。只能作廢當個營業日的單；線上刷卡（TapPay）的單須先在 TapPay 後台退款。若該單已透過 ezPay 開立電子發票，會先呼叫 ezPay 作廢成功後才把 POS 訂單標成 void（已開立但沒記到號碼時，先用 `invoice_search` 查回號碼再作廢；ezPay 端已是作廢狀態就直接同步）；未設定 ezPay 環境變數或 ezPay 作廢失敗時回 503/502，不會先作廢本地訂單。作廢後該單不計營收，品項退回這桌「未結帳」（可重結或清桌作廢）。這桌已清桌時，body 帶 `reopen: true` 會把同一場重新打開、品項回到未結帳可重結（部分付款單不適用；同桌號已開了新的一桌回 409、整筆不作廢）；不帶則只作廢、品項不回桌。記 `void_reason / voided_by / voided_at`。
 
-預設只作帳務調整，不表示現金已交付。僅 `refund_cash === true` 且這張單有收現金（`payer.method === 'cash'` 全額，或混合付款 `payer.payments[]` 的現金部分；`cash_refund` 不超過實收現金）、剩餘訂單金額大於 0，才在同一筆交易保存 `payer.drawer_refunds[event_key]` 並回正數 `cash_refund`；否則為 0、不回 `event_key`。回 `{ ok:true, reason, method, cash_refund, event_key? }`，事件代碼為 `refund:<order_id>`。請在送出前明確詢問是否退還現金，再透過 drawer-events 取得開櫃資格；此回應不是退款成功的證明。交易先鎖定訂單再檢查與變更（包含 ezPay 作廢），重複／同時作廢回 409，避免重複退款意圖。
+預設只作帳務調整，不表示現金已交付。僅 `refund_cash === true` 且這張單有收現金（`payer.method === 'cash'` 全額，或混合付款 `payer.payments[]` 的現金部分；`cash_refund` 不超過實收現金）、剩餘訂單金額大於 0，才在同一筆交易保存 `payer.drawer_refunds[event_key]` 並回正數 `cash_refund`；否則為 0、不回 `event_key`。回 `{ ok:true, reason, method, cash_refund, event_key?, reopened, returned, table_no }`（`reopened`＝這次重新開桌；`returned`＝品項已回到桌上未結帳），事件代碼為 `refund:<order_id>`。請在送出前明確詢問是否退還現金，再透過 drawer-events 取得開櫃資格；此回應不是退款成功的證明。交易先鎖定訂單再檢查與變更（包含 ezPay 作廢），重複／同時作廢回 409，避免重複退款意圖。
 
 ### POST /api/admin/orders/:id/member
-查單補入會員：結帳時忘了帶會員，事後把會員綁到這張已結帳單並補累點。body `{ member_id?, phone?, token?, name?, operator_id? }`：`member_id`＝POS 從會員列表（`GET /api/admin/yan/members` 搜尋，預設先列這桌登入過的會員）點選的會員；`token`＝會員 App 會員卡 QR；否則用台灣手機，查無會員會自動新增。`GET /api/admin/orders/history` 每張單附 `table_members:[{id,name}]` 供點選。依 `amount − 打賞` 補累點（每 NT$100 一點，冪等），寫 `user_id`、`payer.member_id／member_phone／yan_earned／member_added`；不改金額、品項、發票，也不回溯套會員價。限制：已作廢、部分付款（預收）、已有會員回 409；只能補 7 天內的單。依 `venue` 只能改自己品牌的單。作廢這張單時點數照常沖回。回 `{ ok, member:{id,name,phone}, earned, balance, created }`。
+查單補入會員：結帳時忘了帶會員，事後把會員綁到這張已結帳單並補累點。body `{ member_id?, phone?, token?, name?, operator_id? }`：`member_id`＝POS 從會員列表（`GET /api/admin/yan/members` 搜尋，預設先列這桌登入過的會員）點選的會員；`token`＝會員 App 會員卡 QR；否則用台灣手機，查無會員會自動新增。`GET /api/admin/orders/history` 每張單附 `table_members:[{id,name}]` 供點選，以及 `session_open`（那一桌是否還開著，作廢時決定要不要問「回到桌上」）。依 `amount − 打賞` 補累點（每 NT$100 一點，冪等），寫 `user_id`、`payer.member_id／member_phone／yan_earned／member_added`；不改金額、品項、發票，也不回溯套會員價。限制：已作廢、部分付款（預收）、已有會員回 409；只能補 7 天內的單。依 `venue` 只能改自己品牌的單。作廢這張單時點數照常沖回。回 `{ ok, member:{id,name,phone}, earned, balance, created }`。
 
 ### POST /api/admin/orders/:id/pay-method
 更正已結帳單的付款方式（現場人員點錯時用）。body `{ method, operator_id? }`；`method` 為內建（`cash`／`ctbc`／`linepay`／`transfer`；歷史 `card`／`taishin` 仍接受）或已啟用的自訂收款帳戶代碼。整張單改成單一付款方式（混合付款會被取代），只動 `payer`，不動金額、品項、發票。現金改其他方式會清掉 `received／change`；改成現金視為實收等於應收。每次更正附加到 `payer.method_changes[]`（`from／to／at／by／operator`，保留最近 10 筆）。限制：只能改當個營業日的單；已作廢、線上刷卡（TapPay）、部分付款（預收）單回 409；新舊方式相同回 400。回 `{ ok, payer }`。此操作不開錢櫃；日結以更正後的付款方式計算。
@@ -468,6 +468,9 @@ POS 用點數兌換空間時數。body `{ plan: day_4h|day_12h, user_id, operato
 
 ### POST /api/admin/orders/:id/invoice/issue
 補開 ezPay 電子發票。用於結帳時 ezPay 暫時失敗或當下未設定憑證的單。body 可帶 `{ invoice }`，未帶時使用訂單內已保存的發票要求；`invoice` 格式同櫃檯結帳的 `invoice` 欄位。作廢單不能補開；已開立且有號碼則直接回原發票資料。若狀態是已開立但 `number` 空白（ezPay 回應沒解析到號碼），不會重開，而是以 `invoice_search`（自訂編號＋金額）向 ezPay 查回號碼並更新訂單，回 `{ ok, invoice, synced: true }`；查不到回 404。回 `{ ok, invoice }`。
+
+### POST /api/admin/orders/:id/invoice/reissue
+改開發票：已開立 ezPay 發票的單（例如客人結完帳才說要統編），先作廢原發票，再以同金額開新發票，類型可換（紙本／統編／手機載具／自然人憑證／捐贈）。body `{ invoice, reason?, operator_id? }`，`invoice` 格式同結帳。不動付款、品項、會員點數與報表營收。新發票的自訂編號為原編號加 `R<次數>`（ezPay 不允許重複），被作廢的舊票記在 `invoice.replaced[]`（號碼、作廢時間、原因、經手人，最多 10 筆）。原發票作廢失敗回 502、整筆不動；原發票已作廢但新發票開立失敗時，`invoice.status='failed'` 並回 502，之後用 `invoice/issue` 補開（沿用同一新編號）。限制：已作廢的單、尚未開立發票的單回 409；原發票與今天不同發票期別（每兩個月一期）回 409，請改到 ezPay 後台開折讓；0 元單回 400。回 `{ ok, invoice, voided }`（`voided`＝被作廢的原發票號碼）。
 
 ### POST /api/admin/orders/sessions
 櫃檯開桌／外帶：開桌只能由外場在 POS 操作（客人進門 → 選桌開桌 → 自動印本桌點餐 QR → 夾進帳本帶位）。body `{ table_no }` 開內用桌（英數字與 -，8 字內；該桌已開著就直接回那一桌，`created:false`），或 `{ takeout: true }` 開外帶單（自動取 `W01`–`W99` 最小空號；用完回 409）。`W01`–`W99` 保留給外帶，不能當內用桌號。可選 `operator_id`（`POST /api/admin/staff/verify` 認出的員工 id，記這桌是誰開的，查不到就忽略不擋）。回 `{ ok, id, table, created, takeout, operator?, qr_url }`（新開 201）；`qr_url` 為這一場的單次點餐 QR（外帶不回），POS 收到後自動列印。大組分桌就逐桌呼叫，各印一張。外帶單結完帳且取餐完成後，由 `GET /api/admin/orders` 自動收掉並釋出號碼；內用桌採離場前結帳，POS 整桌結清且具整桌權限時自動清桌；`GET /api/admin/orders` 回的 `sessions[].operator` 就是開桌的員工姓名。

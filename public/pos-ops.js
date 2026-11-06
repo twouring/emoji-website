@@ -204,8 +204,8 @@ function pickNote({title,presets=NOTE_PRESETS,initial='',maxlength=160,placehold
   });
 }
 // 補開發票：與結帳同樣五種（紙本／統編／手機載具／自然人憑證／捐贈）；回傳 invoice 物件，null＝取消，格式錯誤會提示後回 null
-async function askInvoice(){
-  const kind=await pickFrom({title:'補開發票',hint:'一般客人開紙本；公司報帳選統編；會員載具或捐贈也可補開。',options:[{value:'paper',label:'紙本',sub:'不需統編'},{value:'company',label:'統編',sub:'公司報帳'},{value:'mobile',label:'手機載具',sub:'/ 開頭 8 碼'},{value:'citizen',label:'自然人憑證',sub:'2 英文＋14 數字'},{value:'donate',label:'捐贈',sub:'愛心碼'}],cols:3});
+async function askInvoice({title='補開發票',hint='一般客人開紙本；公司報帳選統編；會員載具或捐贈也可補開。'}={}){
+  const kind=await pickFrom({title,hint,options:[{value:'paper',label:'紙本',sub:'不需統編'},{value:'company',label:'統編',sub:'公司報帳'},{value:'mobile',label:'手機載具',sub:'/ 開頭 8 碼'},{value:'citizen',label:'自然人憑證',sub:'2 英文＋14 數字'},{value:'donate',label:'捐贈',sub:'愛心碼'}],cols:3});
   if(kind===null)return null;
   if(kind==='paper')return {mode:'paper'};
   if(kind==='company'){
@@ -1013,10 +1013,13 @@ async function printReceipt(o,{auto=false}={}){
     ${o.share?`<div class="t">${esc(o.share)}</div>`:''}${o.preview?'<div class="t">【尚未結帳・僅供核對】</div>':''}${o.status==='void'?'<div class="t">【此單已作廢】</div>':''}
     <div class="c">單號 ${esc(o.id)}<br>謝謝光臨</div>`);
 }
+// 已清桌的單作廢時可選「品項回到桌上」：重新打開那一桌，品項回未結帳可重結（BOWEN 11/6）；查單才知道桌是否還開著（session_open）
 async function voidOrderPrompt(id,reload,order){
   const reason=await pickReason({title:'作廢原因（會記在日結與操作紀錄）',presets:REASON_PRESETS.void_order});if(reason===null)return;
+  let reopen=false;
+  if(order&&order.session_open===false&&!order.payer?.prepay){const v=await pickFrom({title:`${order.table_no} 已清桌，品項要回到桌上嗎？`,hint:'回到桌上：重新打開這一桌，品項退回未結帳，可直接重新結帳。只作廢：這張單不計營收，品項不回桌。',cols:2,options:[{value:'reopen',label:'回到桌上',sub:'重新結帳'},{value:'only',label:'只作廢',sub:'品項不回桌'}]});if(v===null)return;reopen=v==='reopen';}
   const refundCash=cashPaidOf(order)>0&&await posConfirm('這次作廢要退現金給客人嗎？',{ok:'退現金並開錢櫃',cancel:'只更正帳務'});
-  return ensureOperator(()=>opsThen(()=>api('/admin/orders/'+id+'/void',{method:'POST',body:{reason,refund_cash:refundCash,operator_id:OPERATOR?.id}}),async out=>{const ok=await autoCashDrawer({kind:'refund',order_id:id,cash_refund:out.cash_refund});return '已作廢，品項退回未結帳'+(out.cash_refund>0?`；請退現金 NT$${num(out.cash_refund)}`:'')+(ok===false?'；未確認開櫃成功，請按「錢櫃」重試':'');},reload));
+  return ensureOperator(()=>opsThen(()=>api('/admin/orders/'+id+'/void',{method:'POST',body:{reason,reopen,refund_cash:refundCash,operator_id:OPERATOR?.id}}),async out=>{const ok=await autoCashDrawer({kind:'refund',order_id:id,cash_refund:out.cash_refund});return (out.reopened?`已作廢，${out.table_no||''} 已重新開桌、品項回到未結帳`:out.returned===false?'已作廢':'已作廢，品項退回未結帳')+(out.cash_refund>0?`；請退現金 NT$${num(out.cash_refund)}`:'')+(ok===false?'；未確認開櫃成功，請按「錢櫃」重試':'');},reload));
 }
 // 已結帳單取消單一品項（做不出來／客人退菜），不必整張作廢；金額從這張單扣除
 async function cancelOrderItemPrompt(orderId,line,name,reload,order){
@@ -1035,6 +1038,22 @@ async function issueOrderInvoice(o,reload){
   const detail=invoice.mode==='company'?'統編 '+invoice.buyer_ubn:invoice.mode==='mobile'||invoice.mode==='citizen'?(INV_LABEL[invoice.mode]||'')+' '+(invoice.carrier_num||''):invoice.mode==='donate'?'捐贈 '+(invoice.love_code||''):'紙本';
   if(!await posConfirm(`補開${detail}發票，金額 NT$${num(o.amount)}？`,{ok:'補開發票'}))return;
   await opsThen(()=>api('/admin/orders/'+o.id+'/invoice/issue',{method:'POST',body:{invoice}}),async out=>{if(invoicePrintable(out.invoice))await printInvoiceProof({...o,invoice:out.invoice},{auto:true});return `已補開發票 ${out.invoice?.number||''}`;},reload);
+}
+// 改開發票（BOWEN 11/6）：已開立的發票作廢後，同金額重開成別的類型（最常見：紙本→統編）；不動付款、品項、點數
+const canReissueInvoice=o=>!!o&&o.status!=='void'&&o.invoice?.status==='issued'&&!o.payer?.prepay&&Number(o.amount)>0;
+async function reissueInvoicePrompt(o,reload){
+  if(!canReissueInvoice(o))return;
+  const invoice=await askInvoice({title:`改開發票（原 ${o.invoice.number||'發票'}）`,hint:'原發票會先作廢，再用同一筆金額開新發票。客人忘了說統編就選「統編」。請收回客人手上的原紙本發票。'});
+  if(!invoice)return;
+  const detail=invoice.mode==='company'?'統編 '+invoice.buyer_ubn:invoice.mode==='mobile'||invoice.mode==='citizen'?(INV_LABEL[invoice.mode]||'')+' '+(invoice.carrier_num||''):invoice.mode==='donate'?'捐贈 '+(invoice.love_code||''):'紙本';
+  if(!await posConfirm(`作廢原發票 ${o.invoice.number||''}，改開${detail}發票，金額 NT$${num(o.amount)}？`,{ok:'作廢並改開',danger:true}))return;
+  return ensureOperator(async()=>{
+    try{const out=await api('/admin/orders/'+o.id+'/invoice/reissue',{method:'POST',body:{invoice,operator_id:OPERATOR?.id}});
+      if(invoicePrintable(out.invoice))await printInvoiceProof({...o,invoice:out.invoice},{auto:true});
+      toast(`已作廢 ${out.voided||'原發票'}，改開 ${out.invoice?.number||''}`);}
+    catch(e){toast(e.message);}
+    if(reload)await reload();
+  });
 }
 // 更正付款方式：現場點錯時改成正確的（只限當個營業日、不動金額與發票）；現金實收／找零會一併重算
 function pickPayMethod(current){
@@ -1086,9 +1105,10 @@ function bindOrderButtons(host,orders,reload){
   host.querySelectorAll('[data-paymethod]').forEach(b=>b.onclick=()=>changePayMethodPrompt(orders.find(o=>o.id===b.dataset.paymethod),reload));
   host.querySelectorAll('[data-void]').forEach(b=>b.onclick=()=>voidOrderPrompt(b.dataset.void,reload,orders.find(o=>o.id===b.dataset.void)));
   host.querySelectorAll('[data-invoice-issue]').forEach(b=>b.onclick=async()=>{if(b.disabled)return;b.disabled=true;try{await issueOrderInvoice(orders.find(x=>x.id===b.dataset.invoiceIssue),reload);}finally{b.disabled=false;}});
+  host.querySelectorAll('[data-invoice-reissue]').forEach(b=>b.onclick=async e=>{e.stopPropagation?.();if(b.disabled)return;b.disabled=true;try{await reissueInvoicePrompt(orders.find(x=>x.id===b.dataset.invoiceReissue),reload);}finally{b.disabled=false;}});
 }
 // 已結帳單的操作列（櫃檯「這桌已結帳的單」與查單共用）：發票證明聯只在 ezPay 已開立時顯示；作廢固定紅字
-const orderActions=(o,{allowVoid=true}={})=>`<div class="ops-btns">${allowVoid&&o.status!=='void'&&!o.payer?.prepay&&!o.tappay?.rec_trade_id&&o.payer?.method!=='stripe'?`<button class="btn btn--ghost btn-sm" data-paymethod="${esc(o.id)}">改付款方式</button>`:''}<button class="btn btn--ghost btn-sm" data-receipt="${esc(o.id)}">補印收據明細</button>${invoicePrintable(o.invoice)?`<button class="btn btn--ghost btn-sm" data-invoice-print="${esc(o.id)}">補印發票</button>`:''}${o.status==='void'?'':`<button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">出餐單</button>${allowVoid?`<button class="btn btn--ghost btn--danger btn-sm" data-void="${esc(o.id)}">作廢</button>`:''}`}</div>`;
+const orderActions=(o,{allowVoid=true}={})=>`<div class="ops-btns">${allowVoid&&o.status!=='void'&&!o.payer?.prepay&&!o.tappay?.rec_trade_id&&o.payer?.method!=='stripe'?`<button class="btn btn--ghost btn-sm" data-paymethod="${esc(o.id)}">改付款方式</button>`:''}<button class="btn btn--ghost btn-sm" data-receipt="${esc(o.id)}">補印收據明細</button>${invoicePrintable(o.invoice)?`<button class="btn btn--ghost btn-sm" data-invoice-print="${esc(o.id)}">補印發票</button>`:''}${allowVoid&&canReissueInvoice(o)?`<button class="btn btn--ghost btn-sm" data-invoice-reissue="${esc(o.id)}">改開發票</button>`:''}${o.status==='void'?'':`<button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">出餐單</button>${allowVoid?`<button class="btn btn--ghost btn--danger btn-sm" data-void="${esc(o.id)}">作廢</button>`:''}`}</div>`;
 
 async function loadOrders(){
   const host=document.getElementById('orders-body');if(!host)return;
@@ -1889,7 +1909,7 @@ async function loadHistory(){
   const histState=o=>{const p=o.payer||{};if(o.status==='void')return `<span class="pill pill-bad">已作廢</span>`;if(p.prepay)return `<span class="pill pill-wait">部分付款</span>`;return `<span class="pill pill-ok">已結帳</span>`;};
   const histInvShort=o=>{const inv=o.invoice||{};if(inv.status==='failed')return '<span class="pill pill-bad">發票失敗</span>';if(inv.requested&&!['issued','void'].includes(inv.status))return '<span class="pill pill-wait">待補開</span>';if(inv.status==='issued')return `<span class="a-mono">${esc(inv.number||'已開立')}</span>`;if(inv.status==='void')return '<span class="hint hint--tight">已作廢</span>';return '<span class="hint hint--tight">未開</span>';};
   const histLine=(l,multiBy)=>{const tags=specParts(l).map(t=>`<span class="ops-spec ops-spec-${t.kind} ops-spec-${t.tone}">${t.kind==='custom'?'※ ':''}${esc(t.text)}</span>`).join('');const flag=l.cancelled?'已取消':l.comp_reason?'贈送':l.redeem_points>0?'點數兌換':'';const sub=Number.isFinite(Number(l.price))?(l.cancelled?`<s>${num(Number(l.price)*l.qty)}</s>`:num(Number(l.price)*l.qty)):'';return `<li class="hist-line${l.cancelled?' is-off':''}"><span class="hist-qty${l.qty>1?' many':''}">×${l.qty}</span><span class="hist-name"><b>${esc(l.zh)}</b>${flag?` <span class="pill pill-draft">${flag}</span>`:''}${partsOf(l).length?partsHtml(l):''}${tags?`<span class="ops-specs">${tags}</span>`:''}${multiBy&&l.by?`<span class="hint hint--tight">由 ${esc(l.by)} 點</span>`:''}</span><span class="hist-sub">${sub}</span></li>`;};
-  const histActions=(o,allowVoid)=>{const canPay=allowVoid&&o.status!=='void'&&!o.payer?.prepay&&!o.tappay?.rec_trade_id&&o.payer?.method!=='stripe';/* 線上付款的單要到 Stripe 退款，櫃檯不改付款方式 */return `<div class="hist-actions"><button class="btn btn--solid btn-sm" data-receipt="${esc(o.id)}">補印收據明細</button>${invoicePrintable(o.invoice)?`<button class="btn btn--ghost btn-sm" data-invoice-print="${esc(o.id)}">補印發票</button>`:''}${o.status==='void'?'':`<button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">補印出餐單</button>`}${canPay?`<button class="btn btn--ghost btn-sm" data-paymethod="${esc(o.id)}">改付款方式</button>`:''}${canAttachMember(o)?`<button class="btn btn--ghost btn-sm" data-hist-member="${esc(o.id)}">入會員</button>`:''}${o.status!=='void'&&allowVoid?`<button class="btn btn--ghost btn--danger btn-sm" data-void="${esc(o.id)}">作廢</button>`:''}</div>`;};
+  const histActions=(o,allowVoid)=>{const canPay=allowVoid&&o.status!=='void'&&!o.payer?.prepay&&!o.tappay?.rec_trade_id&&o.payer?.method!=='stripe';/* 線上付款的單要到 Stripe 退款，櫃檯不改付款方式 */return `<div class="hist-actions"><button class="btn btn--solid btn-sm" data-receipt="${esc(o.id)}">補印收據明細</button>${invoicePrintable(o.invoice)?`<button class="btn btn--ghost btn-sm" data-invoice-print="${esc(o.id)}">補印發票</button>`:''}${canReissueInvoice(o)?`<button class="btn btn--ghost btn-sm" data-invoice-reissue="${esc(o.id)}">改開發票</button>`:''}${o.status==='void'?'':`<button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">補印出餐單</button>`}${canPay?`<button class="btn btn--ghost btn-sm" data-paymethod="${esc(o.id)}">改付款方式</button>`:''}${canAttachMember(o)?`<button class="btn btn--ghost btn-sm" data-hist-member="${esc(o.id)}">入會員</button>`:''}${o.status!=='void'&&allowVoid?`<button class="btn btn--ghost btn--danger btn-sm" data-void="${esc(o.id)}">作廢</button>`:''}</div>`;};
   const rows=d.orders.map(o=>{
     const lines=(o.items||[]).filter(l=>!l.prepay&&!l.credit_of);
     const live=lines.filter(l=>!l.cancelled);
@@ -1916,7 +1936,7 @@ async function loadHistory(){
       <div class="hint hint--tight hist-meta">${[esc(applicationTime(o.paid_at)),`單號 ${id}`,meta].filter(Boolean).join(' · ')}</div>
       ${histActions(o,MenuLib.businessDay(o.paid_at)===today)}</div></td></tr>`;}).join('');
   const table=rows?`<table class="hist-sheet"><thead><tr><th>時間</th><th>桌號</th><th>單號</th><th>品項</th><th>付款</th><th>發票</th><th class="hist-amount">金額</th><th>狀態</th></tr></thead><tbody>${rows}</tbody></table>`:'<p class="a-empty">這天沒有符合的單</p>';
-  host.innerHTML=`<div class="ops-head"><h2>查單</h2>${opsHelp('確認每一筆單的狀態：一單一列，點一下展開品項與操作（補印收據明細、補開發票、改付款方式、作廢退款；只能改／作廢當個營業日的單，作廢後品項退回該桌未結帳）。')}</div>
+  host.innerHTML=`<div class="ops-head"><h2>查單</h2>${opsHelp('確認每一筆單的狀態：一單一列，點一下展開品項與操作（補印收據明細、補開發票、改開發票（已開的發票作廢後改開統編等）、改付款方式、作廢退款；只能改／作廢當個營業日的單，作廢後品項退回該桌未結帳，已清桌的可選「回到桌上」重新結帳）。')}</div>
     <div class="a-toolbar"><label>營業日 <input type="date" id="hist-day" value="${esc(d.day)}"></label><button class="btn btn--ghost btn-sm" id="hist-today">今天</button><input id="hist-q" placeholder="桌號／金額／發票號碼" value="${esc(HIST_Q)}" style="min-width:200px" aria-label="搜尋"><button class="btn btn--solid btn-sm" id="hist-go">搜尋</button><button type="button" class="btn btn--ghost btn-sm" id="hist-scan">掃發票找單／作廢</button><span class="hint hint--end">${num(d.count)} 單</span></div>
     <div class="hist-list">${table}</div>`;
   const toggle=tr=>{const id=tr.dataset.histRow,det=host.querySelector(`[data-hist-detail="${CSS.escape(id)}"]`);const open=!HIST_OPEN.has(id);if(open)HIST_OPEN.add(id);else HIST_OPEN.delete(id);tr.classList.toggle('is-open',open);tr.setAttribute('aria-expanded',String(open));if(det)det.hidden=!open;};
