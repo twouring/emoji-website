@@ -23,10 +23,14 @@ test('服務費：11/1 起三點水內用外加 10%，四捨五入；10/31 前�
   assert.equal(M.serviceCharge([bar(300, 1, { cancelled: true })], { now: NOV_WED }), null, '取消的品項不算');
 });
 
-test('低消：平日每人 300、假日（營業日週六日）600；凌晨的單算前一天；10/31 前不檢查', () => {
+test('低消：週日至週四每人 300、週五週六（營業日）600；凌晨的單算前一天；10/31 前不檢查', () => {
   assert.deepEqual(M.minSpendOf(2, NOV_WED), { per: 300, people: 2, total: 600, weekend: false });
   assert.deepEqual(M.minSpendOf(3, NOV_SAT), { per: 600, people: 3, total: 1800, weekend: true });
   assert.equal(M.minSpendOf(1, NOV_SAT_LATE).per, 600, '週日凌晨 01:30 仍算週六營業日');
+  assert.equal(M.minSpendOf(1, at('2026-11-06T20:00:00')).per, 600, '週五 600');
+  assert.equal(M.minSpendOf(1, at('2026-11-08T20:00:00')).per, 300, '週日 300（KK 11/7：週末＝週五週六）');
+  assert.equal(M.minSpendOf(1, at('2026-11-07T02:00:00')).per, 600, '週六凌晨 02:00 算週五營業日');
+  assert.equal(M.minSpendOf(1, at('2026-11-09T01:00:00')).per, 300, '週一凌晨算週日營業日');
   assert.equal(M.minSpendOf(2, OCT), null);
   assert.equal(M.minSpendOf(0, NOV_WED), null, '沒設人數＝無法判斷');
 });

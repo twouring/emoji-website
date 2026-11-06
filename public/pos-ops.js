@@ -1206,7 +1206,7 @@ async function printTableQr(table,url,info={}){
     const ms=n&&MenuLib.minSpendOf?MenuLib.minSpendOf(n):null,per=ms?ms.per:null;
     const sv=Math.round(MenuLib.SERVICE_RATE*100);
     // 低消與服務費同一條（省紙長、留行距）：中文一行、英文一行，都不換行
-    notes.push(ms?[`低消每人 ${per}・服務費 ${sv}%`,`Min. NT$${per} pp · ${sv}% service`]:[`低消 平日 ${MenuLib.MIN_SPEND.weekday}／假日 ${MenuLib.MIN_SPEND.weekend}・服務費 ${sv}%`,`Min. ${MenuLib.MIN_SPEND.weekday} / ${MenuLib.MIN_SPEND.weekend} (wknd) pp · ${sv}% service`]);
+    notes.push(ms?[`低消每人 ${per}・服務費 ${sv}%`,`Min. NT$${per} pp · ${sv}% service`]:[`低消 日–四 ${MenuLib.MIN_SPEND.weekday}／五六 ${MenuLib.MIN_SPEND.weekend}・服務費 ${sv}%`,`Min. ${MenuLib.MIN_SPEND.weekday} / ${MenuLib.MIN_SPEND.weekend} (Fri–Sat) pp · ${sv}% service`]);
   }
   if(qv==='CAFE')notes.push(['最後點餐 餐點 16:00／飲品 16:30','Last order 16:00 food · 16:30 drinks']);
   /* 在咖啡自助（KK 11/2）：餐具與水自取、用餐完自助回收 */
@@ -1342,7 +1342,7 @@ function minSpendState(cur){
 function minSpendHtml(ms){
   if(!ms)return '';
   if(ms.needParty)return `<div class="pos-sum-min"><span><span class="pill pill-wait">低消</span> 請先按「設定人數」，才能核對低消</span><span></span></div>`;
-  return `<div class="pos-sum-min ${ms.short?'short':''}"><span><span class="pill ${ms.short?'pill-bad':'pill-ok'}">低消</span> ${ms.weekend?'假日':'平日'}每人 ${num(ms.per)} × ${ms.people} 位＝${num(ms.total)}${ms.short?`，還差 NT$${num(ms.short)}`:'，已達'}</span><span></span></div>`;
+  return `<div class="pos-sum-min ${ms.short?'short':''}"><span><span class="pill ${ms.short?'pill-bad':'pill-ok'}">低消</span> ${ms.weekend?'週五六':'日至四'}每人 ${num(ms.per)} × ${ms.people} 位＝${num(ms.total)}${ms.short?`，還差 NT$${num(ms.short)}`:'，已達'}</span><span></span></div>`;
 }
 // 進入平均分攤：全桌一起算（取消勾選與份數）、清掉折扣（分攤不套折扣）；人數記在 POS_AA，第幾人由桌上的抵扣行數推算
 function startAA(people){POS_AA={people};POS_PICK=null;POS_QTY={};POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_DISC_OPEN=false;POS_RECEIVED='';POS_SPLIT={};}

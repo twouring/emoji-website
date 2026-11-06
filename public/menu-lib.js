@@ -70,7 +70,7 @@
   }
   /* 三點水服務費與低消（10/19 員工大會 K3；KK 會後確認 11/1 起實施）。POS 畫面與伺服器結帳共用這一份。
    * - 服務費：三點水內用品項外加 10%，以折扣後金額按比例計、四捨五入到元；在咖啡、外帶不收。
-   * - 低消：三點水每人平日 300、假日（營業日週六、週日）600；POS 只提醒差額，不自動補收。
+   * - 低消：三點水每人平日 300、週五、週六（以營業日計）600；POS 只提醒差額，不自動補收。
    * 生效日看營業日（凌晨 03:00 前的單算前一天）。 */
   const BAR_POLICY_FROM = '2026-11-01';
   const SERVICE_RATE = 0.1;
@@ -80,7 +80,7 @@
     const n = Math.floor(Number(people));
     if (!barPolicyActive(now) || !(n >= 1)) return null;
     const dow = new Date(businessDay(now) + 'T12:00:00Z').getUTCDay();
-    const per = dow === 0 || dow === 6 ? MIN_SPEND.weekend : MIN_SPEND.weekday;
+    const per = dow === 5 || dow === 6 ? MIN_SPEND.weekend : MIN_SPEND.weekday;
     return { per, people: n, total: per * n, weekend: per === MIN_SPEND.weekend };
   }
   /* lines：這次要結的行（price 已是實收單價）；discount：整單折扣金額。force＝不看生效日（作廢品項時重算已收的單） */
@@ -381,9 +381,9 @@
     }
     if (items.some(it => it.venue === 'BAR') && barPolicyActive()) {
       const B = {
-        zh: '三點水低消每人平日 NT$300、假日 NT$600，另加 10% 服務費（外帶不收）。',
-        en: '3AM minimum spend: NT$300 per person on weekdays, NT$600 on weekends, plus a 10% service charge (not for takeout).',
-        ja: '三點水（3AM）は最低ご利用額 平日お一人様 NT$300・週末 NT$600、別途サービス料 10%（お持ち帰りは除く）。',
+        zh: '三點水低消每人週日至週四 NT$300、週五週六 NT$600，另加 10% 服務費（外帶不收）。',
+        en: '3AM minimum spend: NT$300 per person Sun–Thu, NT$600 on Fri–Sat, plus a 10% service charge (not for takeout).',
+        ja: '三點水（3AM）は最低ご利用額 お一人様 日〜木 NT$300・金土 NT$600、別途サービス料 10%（お持ち帰りは除く）。',
       };
       html += '<p class="menu-notice">' + esc(pick(B, lang)) + '</p>';
     }

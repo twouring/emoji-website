@@ -453,7 +453,7 @@ def page_3am():
 
 <section id="policy" aria-labelledby="policy-h"><div class="wrap">
   <div class="bs-sec__head">{sec_h2('policy-h', '用餐須知', 'Before you come', 'ご利用案内')}</div>
-  {facts([(t('低消（2026/11/1 起）', 'Minimum spend (from 1 Nov 2026)', '最低ご利用額（2026/11/1 から）'), t('每人平日 NT$300、週六日 NT$600', 'NT$300 per person on weekdays, NT$600 on weekends', 'お一人様 平日 NT$300・土日 NT$600')),
+  {facts([(t('低消（2026/11/1 起）', 'Minimum spend (from 1 Nov 2026)', '最低ご利用額（2026/11/1 から）'), t('每人週日至週四 NT$300、週五週六 NT$600', 'NT$300 per person Sun–Thu, NT$600 on Fri–Sat', 'お一人様 日〜木 NT$300・金土 NT$600')),
           (t('服務費（2026/11/1 起）', 'Service charge (from 1 Nov 2026)', 'サービス料（2026/11/1 から）'), t('內用另加 10%；外帶不收', '10% for dine-in; none for takeaway', '店内飲食は 10%。お持ち帰りは不要')),
           (t('酒類', 'Alcohol', 'アルコール'), t('未滿十八歲禁止飲酒；禁止酒駕', 'No alcohol under 18; don’t drink and drive', '18 歳未満の飲酒は禁止。飲酒運転は禁止')),
           (t('結帳', 'Payment', 'お会計'), t('用餐完到櫃檯結帳', 'Pay at the counter after your meal', 'お食事の後、カウンターでお会計'))])}
