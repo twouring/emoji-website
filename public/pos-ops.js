@@ -2174,6 +2174,20 @@ function registerReportSpec(rep,kind){
   sp.push('dash',{kind:'center',text:`${kind}完成`,size:20});
   return sp;
 }
+// 單筆臨時收支憑單：記錄成功立刻出紙，讓錢櫃每一筆進出都有紙本可對。
+function cashMoveReceiptSpec(move){
+  const kind=move.type==='in'?'臨時收入':'臨時支出',sign=move.type==='in'?'+':'−',sp=[];
+  sp.push({kind:'center',text:BRAND_LABEL[move.venue]||move.venue||'言文字',size:30,bold:true},{kind:'center',text:kind,size:26,bold:true},{kind:'left',text:applicationTime(move.created_at||new Date().toISOString()),size:18});
+  sp.push('dash',{kind:'row',left:'原因',right:move.reason,size:22},{kind:'row',left:'金額',right:`${sign}NT$${num(move.amount)}`,size:28,bold:true});
+  if(move.staff)sp.push({kind:'left',text:`記錄人 ${move.staff}`,size:18});
+  if(move.expected_cash!=null)sp.push({kind:'left',text:`記錄後應有現金 NT$${num(move.expected_cash)}`,size:20});
+  sp.push('dash',{kind:'center',text:'收銀臨時收支憑單',size:18});return sp;
+}
+async function printCashMoveReceipt(move){
+  const kind=move.type==='in'?'臨時收入':'臨時支出';
+  if(canPrint()){const ok=await starSend({canvas:ticketCanvas(cashMoveReceiptSpec(move)),label:kind});toast(ok?kind+'憑單已印出':kind+'已記錄，但憑單未印出');return ok;}
+  return printWindow(kind,`<h1>${esc(BRAND_LABEL[move.venue]||move.venue||'言文字')}</h1><div class="c">${esc(kind)}</div><div class="m">${esc(applicationTime(move.created_at||new Date().toISOString()))}</div><h2>臨時收支</h2><div class="l"><span>原因</span><span>${esc(move.reason)}</span></div><div class="l t"><span>金額</span><span>${move.type==='in'?'+':'−'}NT$${num(move.amount)}</span></div>${move.staff?`<div class="m">記錄人 ${esc(move.staff)}</div>`:''}${move.expected_cash!=null?`<div class="m">記錄後應有現金 NT$${num(move.expected_cash)}</div>`:''}<div class="c">收銀臨時收支憑單</div>`);
+}
 // 有接 mPOP 就直接出紙；沒接就退回瀏覽器列印視窗。回傳 Promise<boolean>
 async function printRegisterReport(rep,kind){
   if(canPrint()){const ok=await starSend({canvas:ticketCanvas(registerReportSpec(rep,kind)),label:kind});toast(ok?kind+'已印出':kind+'未印出，請按「重印關帳單」');return ok;}
@@ -2299,7 +2313,7 @@ function bindRegisterBlock(host,reload){
   const cs=host.querySelector('#reg-cash-save');if(cs)cs.onclick=()=>{const amount=host.querySelector('#reg-cash-amount').value.trim(),reason=host.querySelector('#reg-cash-reason').value.trim(),type=host.querySelector('#reg-cash-type').value;
     if(!/^\d+$/.test(amount)||Number(amount)<1){toast('金額請輸入正整數');host.querySelector('#reg-cash-amount').focus();return;}
     if(!reason){toast('請填寫原因');host.querySelector('#reg-cash-reason').focus();return;}
-    opsThen(()=>api('/admin/registers/'+REG_CASH_OPEN+'/cash',{method:'POST',body:{type,amount:Number(amount),reason}}),out=>`已記錄${out.type==='in'?'收入':'支出'} NT$${num(out.amount)}，應有現金 NT$${num(out.expected_cash)}`,()=>{REG_CASH_OPEN=false;return reload();});};
+    opsThen(()=>api('/admin/registers/'+REG_CASH_OPEN+'/cash',{method:'POST',body:{type,amount:Number(amount),reason}}),async out=>{await printCashMoveReceipt(out);return `已記錄${out.type==='in'?'收入':'支出'} NT$${num(out.amount)}，應有現金 NT$${num(out.expected_cash)}`;},()=>{REG_CASH_OPEN=false;return reload();});};
   const xc=host.querySelector('#reg-close-cancel');if(xc)xc.onclick=()=>{REG_CLOSE_OPEN=false;reload();};
   const cf=host.querySelector('.reg-count-form');
   if(cf){const r=(REG_DATA?.registers||[]).find(x=>x.id===REG_COUNT_OPEN);const expected=Number(r?.expected)||0;

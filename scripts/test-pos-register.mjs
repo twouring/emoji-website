@@ -74,6 +74,13 @@ test('現金臨時收支：進／出、正整數、原因必填', () => {
   assert.throws(() => R.cashMove({ type: 'in', amount: 100 }), /原因/);
 });
 
+test('POS 記錄臨時收支後立即列印該筆憑單（mPOP 或瀏覽器列印）', () => {
+  const ops = require('node:fs').readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'utf8');
+  assert.match(ops, /function cashMoveReceiptSpec\(move\)/, '須有單筆收支憑單的 mPOP 版面');
+  assert.match(ops, /async function printCashMoveReceipt\(move\)/, '須有 mPOP／瀏覽器列印處理');
+  assert.match(ops, /await printCashMoveReceipt\(out\)/, '記錄成功後必須立即列印，不等小結或關帳');
+});
+
 test('面額點鈔：合計正確、無效面額擋下；沒填回 null 改用總額', () => {
   assert.equal(R.denominationTotal({ 1000: 3, 500: 1, 100: 4, 10: 5, 1: 7 }), 3957);
   assert.equal(R.denominationTotal(undefined), null);

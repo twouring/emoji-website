@@ -716,7 +716,7 @@ POS 每 5 秒輪詢。回 `{ pending:[{id,session_id,table,by,amount,sfx,perform
 小結點驗：核對目前抽屜現金，**不關帳**、可多次記錄。body `{ counted_cash?, denominations?:{ "1000":3, … }, note? }`，點鈔可填總額或按面額填張數；`diff = counted − expected`，差額非 0 不擋、`note` 選填；關帳後 409。回 `{ ok, id, counted_cash, expected_cash, diff, denominations, note, counted_by, report }`（201），`report` 為帶上這次點驗的小結單。
 
 ### POST /api/admin/registers/:id/cash
-現金臨時收支。body `{ type:'in'|'out', amount, reason }`，金額正整數、原因必填；關帳後 409。回 `{ ok, id, type, amount, reason, expected_cash }`（201）。
+現金臨時收支。body `{ type:'in'|'out', amount, reason }`，金額正整數、原因必填；關帳後 409。回 `{ ok, id, type, amount, reason, staff, created_at, venue, day, expected_cash }`（201）。POS 寫入成功立即列印單筆收支憑單（mPOP；未連接時開瀏覽器列印），內容含店別、時間、收支類型、原因、金額、記錄人與記錄後應有現金。
 
 ### POST /api/admin/registers/:id/close
 關帳改為逐項日結確認。body `{ counted_cash?, denominations?:{ "1000":3, "500":1, … }, cash_confirmed:true, keep_cash?, note?, accounts:{ code:{actual,confirmed:true,reason?} }, total_reason?, reconciliation_version }`。

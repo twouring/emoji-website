@@ -7087,10 +7087,10 @@ app.post('/api/admin/registers/:id/cash',auth,adminOnly,requireDb,wrap(async(req
   const r=await loadOpenRegister(req,res);if(!r)return;
   if(r.closed_at)return res.status(409).json({error:'這本帳已關帳，不能再記臨時收支。'});
   let m;try{m=posRegister.cashMove(req.body);}catch(e){return res.status(e.status||400).json({error:e.message});}
-  const id=uid('cm_');
-  await q('INSERT INTO pos_cash_moves(id,register_id,type,amount,reason,staff) VALUES($1,$2,$3,$4,$5,$6)',[id,r.id,m.type,m.amount,m.reason,actorOf(req.auth)||'']);
+  const id=uid('cm_'),staff=actorOf(req.auth)||'';
+  const created=(await q('INSERT INTO pos_cash_moves(id,register_id,type,amount,reason,staff) VALUES($1,$2,$3,$4,$5,$6) RETURNING created_at',[id,r.id,m.type,m.amount,m.reason,staff])).rows[0];
   const s=await registerSummary(r);
-  res.status(201).json({ok:true,id,...m,expected_cash:s.summary.expected});
+  res.status(201).json({ok:true,id,...m,staff,created_at:created.created_at,venue:r.venue,day:r.day,expected_cash:s.summary.expected});
 }));
 /* 小結：不關帳，只回目前應有現金、營收摘要與臨時收支（可列印小結單） */
 app.get('/api/admin/registers/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
