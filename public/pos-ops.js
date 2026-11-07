@@ -378,11 +378,13 @@ const noteVals=p=>specParts({cat:p.cat,zh:p.zh,note:p.note}).map(x=>x.text).join
 const isIceHot=p=>p.tone==='temperature'||p.tone==='ice';
 function specParts(l){
   const defaults={};try{for(const g of (typeof OrderLib!=='undefined'&&OrderLib.optionGroups)?OrderLib.optionGroups({cat:l.cat,zh:l.zh},'zh'):[])defaults[g.label]=g.choices[0];}catch(e){}
-  return String(noteZh(l.note)).split(/[；;]/).map(s=>s.trim()).filter(Boolean).flatMap(s=>{
+  const parts=String(noteZh(l.note)).split(/[；;]/).map(s=>s.trim()).filter(Boolean).flatMap(s=>{
     const m=s.match(/^([^：:]{1,6})[：:](.+)$/);
     if(!m)return s.split(/[、,，]/).map(t=>t.trim()).filter(Boolean).map(text=>({text,kind:'custom',tone:'custom'})); // 常用備註膠囊以「、」連接，一顆一籤
     const text=m[2].trim();return [{text,kind:defaults[m[1]]===text?'default':'option',tone:specTone(m[1])}];
   });
+  /* 有冰塊選項就不再列溫度「冰」：去冰／少冰已表示是冰飲，同印「冰」＋「去冰」現場會看錯（KK 11/7） */
+  return parts.some(p=>p.tone==='ice')?parts.filter(p=>!(p.tone==='temperature'&&p.text==='冰')):parts;
 }
 const TABLE_STATE={empty:['pill-draft','已開桌'],open:['pill-wait','點餐中'],ordered:['pill-wait','待出餐'],preparing:['pill-wait','準備中'],ready:['pill-ok','可取餐'],idle:['pill-draft','待清桌']};
 // 現場固定桌位（跟桌牌印刷一致，見 table-cards-20261012）：桌況格一律先列出這些桌，不管有沒有開桌，方便現場人員直接點選開桌

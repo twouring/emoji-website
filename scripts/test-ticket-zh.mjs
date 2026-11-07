@@ -13,7 +13,7 @@ test('外語規格轉回中文（KK 11/2：出餐單據統一中文）', () => {
 });
 test('出餐單、點餐明細、店內畫面一律中文，規格只印值', () => {
   const src = fs.readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'utf8');
-  assert.match(src, /return String\(noteZh\(l\.note\)\)/);
+  assert.match(src, /const parts=String\(noteZh\(l\.note\)\)/);
   const slip = src.slice(src.indexOf('function orderSlipSpec'), src.indexOf('function receiptTicketSpec'));
   assert.doesNotMatch(slip, /Order Details|Table|pax|Total|Service|Thank|Please|optEn|l\.en|p\.en/);
   assert.match(slip, /noteVals\(p\)/);
@@ -27,4 +27,17 @@ test('出餐單、點餐明細、店內畫面一律中文，規格只印值', ()
   assert.match(src, /cmd\.kind==='tags'\)tags\(/);
   const html = src.slice(src.indexOf('function kitchenTicketHtml'));
   assert.match(html.slice(0, 2000), /noteVals\(p\)/);
+});
+test('有冰塊選項時不再印溫度「冰」（KK 11/7：去冰又寫冰）', async () => {
+  const vm = await import('node:vm');
+  const src = fs.readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'utf8');
+  const pick = (a, b) => src.slice(src.indexOf(a), src.indexOf(b));
+  const code = pick('const specTone=', '/* 規格只取值') + pick('const isIceHot=', 'const TABLE_STATE=');
+  const ctx = { OrderLib: globalThis.OrderLib, String, RegExp };
+  vm.runInNewContext(code + ';this.specParts=specParts;', ctx);
+  const t = note => ctx.specParts({ cat: 'COFFEE', zh: '美式', note }).map(p => p.text).join('|');
+  assert.equal(t('溫度：冰；冰塊：去冰（有小碎冰）'), ['去冰（有小碎冰）'].join('|'));
+  assert.equal(t('Temperature：Iced；Ice：Less ice'), ['少冰'].join('|'));
+  assert.equal(t('溫度：冰'), ['冰'].join('|'));
+  assert.equal(t('溫度：熱；糖度：無糖'), ['熱', '無糖'].join('|'));
 });
