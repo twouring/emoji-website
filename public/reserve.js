@@ -27,15 +27,15 @@
       parts:{morning:'早上',noon:'中午',afternoon:'下午',evening:'晚餐',night:'晚上',late:'深夜'},
       lateOf:function(d){return '（'+d+' 凌晨）';},
       cafeInfo:'在咖啡・白天 08:00–17:00',barInfo:'三點水・晚上 17:00–03:00',bothInfo:'白天在咖啡、晚上三點水都能訂。',
-      celebrateInfo:'白天在咖啡、晚上三點水都能訂。壽星名字、蛋糕或其他安排請寫在備註。',eve:' 晚上（三點水）',workInfo:'白天在咖啡、晚上三點水，最晚可訂 23:30，有插座與 Wi-Fi。',
-      barRule:function(per,d){return d+' 低消每人 NT$'+per+'，另收 10% 服務費。';},
+      celebrateInfo:'白天在咖啡、晚上三點水都能訂。壽星名字、蛋糕或其他安排請寫在備註。',wkDay:'平日',wkEnd:'假日',eve:'晚上（三點水）',workInfo:'白天在咖啡、晚上三點水，最晚可訂 23:30，有插座與 Wi-Fi。',
+      barRule:function(per,d){return d+'低消每人 NT$'+per+'，另收 10% 服務費。';},
       submitWith:function(s){return '確認訂位・'+s;},guestsN:function(n){return n+' 位';},ics:'加入行事曆',icsTitle:'言文字訂位'},
     en:{cafe:'at cafe',bar:'3AM',closedDay:'No bookable slots on this day. Please pick another date.',jumped:'No slots left today. We moved you to the next available date.',noneAll:'No slots in the next 7 days. Pick a later date from the calendar, or call us.',wd:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],today:'Today',tomorrow:'Tmrw',pick:'Please choose a time slot.',sending:'Sending…',fail:'Something went wrong. Please try again.',id:'Booking no.: ',time:'Time: ',guests:'Guests: ',purpose:'Occasion: ',unit:'',hold:'Table held until: ',mail:'Confirmation sent to: ',po:' (',pc:')',
       p:{coffee:'Coffee & brunch',work:'Work & study',meal:'Dinner & groups',drinks:'Drinks & late bites',celebrate:'Celebration',any:'Anything'},
       parts:{morning:'Morning',noon:'Lunch',afternoon:'Afternoon',evening:'Dinner',night:'Evening',late:'Late night'},
       lateOf:function(d){return ' (early hours of '+d+')';},
       cafeInfo:'at cafe · daytime 08:00–17:00',barInfo:'3AM · evenings 17:00–03:00',bothInfo:'Book at cafe by day or 3AM by night.',
-      celebrateInfo:'Book at cafe by day or 3AM by night. Add the name, cake or anything we should prepare in the note.',eve:' evening (3AM)',workInfo:'at cafe by day, 3AM in the evening — book up to 23:30. Power outlets and Wi-Fi.',
+      celebrateInfo:'Book at cafe by day or 3AM by night. Add the name, cake or anything we should prepare in the note.',wkDay:'Weekday',wkEnd:'Weekend',eve:' evening (3AM)',workInfo:'at cafe by day, 3AM in the evening — book up to 23:30. Power outlets and Wi-Fi.',
       barRule:function(per,d){return d+': minimum spend NT$'+per+' per person, plus 10% service charge.';},
       submitWith:function(s){return 'Book · '+s;},guestsN:function(n){return n+(n===1?' guest':' guests');},ics:'Add to calendar',icsTitle:'Table at emoji'},
     ja:{cafe:'在咖啡 at cafe',bar:'三點水 3AM',closedDay:'この日はご予約枠がありません。別の日をお選びください。',jumped:'本日は予約枠がないため、直近の予約可能日に切り替えました。',noneAll:'今後7日間は予約枠がありません。カレンダーで先の日付を選ぶか、お電話ください。',wd:['日','月','火','水','木','金','土'],today:'今日',tomorrow:'明日',pick:'時間枠を選んでください。',sending:'送信中…',fail:'送信に失敗しました。しばらくしてからもう一度お試しください。',id:'予約番号：',time:'日時：',guests:'人数：',purpose:'ご利用目的：',unit:' 名',hold:'お席の確保：',mail:'確認メール：',po:'（',pc:'）',
@@ -43,8 +43,8 @@
       parts:{morning:'朝',noon:'昼',afternoon:'午後',evening:'ディナー',night:'夜',late:'深夜'},
       lateOf:function(d){return '（'+d+' 未明）';},
       cafeInfo:'在咖啡・昼 08:00–17:00',barInfo:'三點水・夜 17:00–03:00',bothInfo:'昼は在咖啡、夜は三點水をご予約いただけます。',
-      celebrateInfo:'昼は在咖啡、夜は三點水をご予約いただけます。主役のお名前やケーキなどのご要望は備考へ。',eve:' 夜（三點水）',workInfo:'昼は在咖啡、夜は三點水。23:30まで予約可、電源とWi-Fiあり。',
-      barRule:function(per,d){return d+' の最低利用額はお一人様 NT$'+per+'、別途サービス料10%。';},
+      celebrateInfo:'昼は在咖啡、夜は三點水をご予約いただけます。主役のお名前やケーキなどのご要望は備考へ。',wkDay:'平日',wkEnd:'週末',eve:'の夜（三點水）',workInfo:'昼は在咖啡、夜は三點水。23:30まで予約可、電源とWi-Fiあり。',
+      barRule:function(per,d){return d+'の最低利用額はお一人様 NT$'+per+'、別途サービス料10%。';},
       submitWith:function(s){return '予約する・'+s;},guestsN:function(n){return n+' 名';},ics:'カレンダーに追加',icsTitle:'言文字 ご予約'}
   };
   var T=DICT[LANG]||DICT.zh;
@@ -127,7 +127,7 @@
     var lines=[P==='work'?T.workInfo:V==='CAFE'?T.cafeInfo:V==='BAR'?T.barInfo:P==='celebrate'?T.celebrateInfo:T.bothInfo];
     // 三點水低消依所選營業日的星期，週五、週六較高（數字取自 MenuLib，與 POS 同一份）
     var ML=window.MenuLib;
-    if((V==='BAR'||P==='work')&&ML&&ML.MIN_SPEND){var w=dow(date.value),wk=w===5||w===6;lines.push(T.barRule(wk?ML.MIN_SPEND.weekend:ML.MIN_SPEND.weekday,dayLabel(date.value)+(P==='work'?T.eve:'')));}
+    if((V==='BAR'||P==='work')&&ML&&ML.MIN_SPEND){var w=dow(date.value),wk=w===5||w===6;lines.push(T.barRule(wk?ML.MIN_SPEND.weekend:ML.MIN_SPEND.weekday,(wk?T.wkEnd:T.wkDay)+(P==='work'?T.eve:'')));}
     lines.forEach(function(s,i){if(i)venueInfo.appendChild(document.createElement('br'));venueInfo.appendChild(document.createTextNode(s));});
   }
   function renderDates(){
