@@ -135,7 +135,7 @@ test('接線：結帳頁開桌／換桌／備註／客製金額／折扣／補�
   // 補開發票
   assert.match(ops, /invoice=await askInvoice\(\);/);
   // 訂位：日期／人數／桌號／備註膠囊；確認／婉拒留言用 pickReason
-  for (const s of ["fillChips('resv-new-date',dayChoices())", "fillChips('resv-new-party',PARTY_CHOICES)", "fillChips('resv-new-table',[['','不排'],...DEFAULT_TABLES.map(t=>[t,t])])", "noteChips('resv-new-note',RESV_NOTE_PRESETS)", "fillChips('re-date',dayChoices())", "fillChips('re-party',PARTY_CHOICES)", "noteChips('re-note',RESV_NOTE_PRESETS)"]) assert.ok(ops.includes(s), s);
+  for (const s of ["fillChips('resv-new-date',dayChoices())", "fillChips('resv-new-party',PARTY_CHOICES)", "fillChips('resv-new-table',[['','不排'],...posTables().map(t=>[t,t])])", "noteChips('resv-new-note',RESV_NOTE_PRESETS)", "fillChips('re-date',dayChoices())", "fillChips('re-party',PARTY_CHOICES)", "noteChips('re-note',RESV_NOTE_PRESETS)"]) assert.ok(ops.includes(s), s);
   assert.match(ops, /presets:status==='confirmed'\?REASON_PRESETS\.resv_confirm:REASON_PRESETS\.resv_cancel/);
   // 出餐：暫停文案膠囊、QR 一鍵全部固定桌
   assert.match(ops, /pickReason\(\{title:`暫停 \$\{label\} 點餐`,presets:PAUSE_PRESETS/); assert.ok(ops.includes('id="pos-table-qr"')); assert.ok(!ops.includes('id="qr-all"'), '固定桌 QR 批次列印已停用');

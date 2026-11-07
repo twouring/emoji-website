@@ -262,7 +262,7 @@ function scanMobileCarrier(initial=''){
 const invoicePrintable=inv=>inv?.status==='issued'&&(!inv.mode||inv.mode==='paper'||inv.mode==='company');
 // 發票欄位（統編／載具／愛心碼／備註）存在這裡：結帳面板常被重畫（點收款金額、折扣、會員、其他桌有新單），只存在畫面上會被清空
 let POS_INV_VALS={};
-let POS_EDIT=false,POS_EDIT_POS=null;
+let POS_EDIT=false,POS_EDIT_POS=null,POS_EDIT_TABLES=null,POS_EDIT_NEW='';
 let POS_INV_SCAN_STREAM=null,POS_INV_SCAN_FRAME=0;
 // 發票各類型只顯示自己要填的欄位（點選後才出現），手機載具可用相機掃描條碼代替手打
 function stopPosInvoiceScanner(video){
@@ -389,6 +389,8 @@ function specParts(l){
 const TABLE_STATE={empty:['pill-draft','已開桌'],open:['pill-wait','點餐中'],ordered:['pill-wait','待出餐'],preparing:['pill-wait','準備中'],ready:['pill-ok','可取餐'],idle:['pill-draft','待清桌']};
 // 現場固定桌位（跟桌牌印刷一致，見 table-cards-20261012）：桌況格一律先列出這些桌，不管有沒有開桌，方便現場人員直接點選開桌
 const DEFAULT_TABLES=['A1','A2','A3','A4','A5','A6','A7','A8','A9','A10','B1','B2','C1','C2','C3','C4'];
+/* 現場桌號清單（KK 11/7：編輯桌位可加減桌）：存在 table_layout.tables，全店共用；沒設定過＝預設 16 桌 */
+function posTables(d){const t=(d||(typeof POS_DATA!=='undefined'?POS_DATA:null))?.table_layout?.tables;return Array.isArray(t)&&t.length?t.slice():DEFAULT_TABLES.slice();}
 const ORDER_STATE={placed:'待出餐',paid:'準備中',ready:'可取餐',done:'已取餐',void:'已作廢'};
 const IDLE_WARN_MIN=10;
 const idleWarn=s=>!s.takeout&&s.state==='empty'&&s.created_at&&(Date.now()-new Date(s.created_at))>=IDLE_WARN_MIN*60000;
@@ -1297,7 +1299,7 @@ function pickSeatTables({title,tables,busy={},resv={},preset=[]}){
 async function seatReservation(r,after){
   let d;try{d=await api('/admin/orders'+scopeQuery('all=1'));}catch(e){toast('桌況載入失敗：'+e.message);return;}
   const sessions=(d.sessions||[]).filter(s=>!s.takeout),busy={};sessions.forEach(s=>{busy[s.table]=1;});
-  const tables=[...new Set([...DEFAULT_TABLES,...sessions.map(s=>s.table)])];
+  const tables=[...new Set([...posTables(d),...sessions.map(s=>s.table)])];
   const resv={};for(const [t,list] of Object.entries(d.reservations||{})){const o=(list||[]).find(x=>x.id!==r.id&&x.status!=='arrived');if(o)resv[t]=`預約 ${o.time}`;}
   const time=r.reserve_time||r.time||'',party=Number(r.party_size)||2;
   const pick=await pickSeatTables({title:`帶位：${time} ${r.name} ${party} 位`,tables,busy,resv,preset:r.table_no?[r.table_no]:[]});
@@ -1450,9 +1452,10 @@ function bindTableDrag(host){
   const floor=host.querySelector('.pos-floor-edit');if(!floor)return;
   const pct=n=>Math.max(0,Math.min(100,Math.round(n/2)*2)); // 吸附 2% 格，擺起來比較整齊
   const read=()=>{const o={};for(const e of floor.querySelectorAll('[data-drag-table]'))o[e.dataset.dragTable]=e.dataset.w?[Number(e.dataset.x),Number(e.dataset.y),Number(e.dataset.w),Number(e.dataset.h)]:[Number(e.dataset.x),Number(e.dataset.y)];return o;};
-  const exit=()=>{POS_EDIT=false;POS_EDIT_POS=null;host.dataset.sig='';paintPos();loadPos();};
+  const exit=()=>{POS_EDIT=false;POS_EDIT_POS=null;POS_EDIT_TABLES=null;POS_EDIT_NEW='';host.dataset.sig='';paintPos();loadPos();};
   let drag=null;
   floor.addEventListener('pointerdown',ev=>{
+    if(ev.target.closest('[data-del-table]'))return;
     const el=ev.target.closest('[data-drag-table]');if(!el||ev.button>0)return;
     ev.preventDefault();el.setPointerCapture(ev.pointerId);
     const r=el.getBoundingClientRect();
@@ -1476,16 +1479,34 @@ function bindTableDrag(host){
   const end=ev=>{if(!drag||ev.pointerId!==drag.id)return;drag.el.classList.remove('dragging');drag=null;POS_EDIT_POS=read();};
   floor.addEventListener('pointerup',end);floor.addEventListener('pointercancel',end);
   host.querySelector('#pos-edit-cancel').onclick=exit;
+  // 加減桌（KK 11/7）：只改編輯中的清單，按「完成」才存；使用中的桌不能移除
+  const inUse=t=>(POS_DATA?.sessions||[]).some(s=>!s.takeout&&s.table===t);
+  floor.addEventListener('click',async ev=>{
+    const b=ev.target.closest('[data-del-table]');if(!b)return;ev.stopPropagation();const t=b.dataset.delTable;
+    if(inUse(t)){toast(`${t} 使用中，先結帳清桌再移除`);return;}
+    if(POS_EDIT_TABLES.length<=1){toast('至少要留一桌');return;}
+    if(!await posConfirm(`移除桌 ${t}？按「完成」後才會生效。`,{ok:'移除'}))return;
+    const p=read();delete p[t];POS_EDIT_POS=p;POS_EDIT_TABLES=POS_EDIT_TABLES.filter(x=>x!==t);paintPos();
+  });
+  host.querySelector('#pos-edit-add').onclick=async()=>{
+    const t=await pickTableNo({title:'加哪一桌？',hint:'先點區再點號碼；按「完成」後全店 iPad 都會出現這桌。',exclude:[]});if(!t)return;
+    if(POS_EDIT_TABLES.includes(t)){toast(`${t} 已經在桌位上`);return;}
+    if(POS_EDIT_TABLES.length>=200){toast('最多 200 桌');return;}
+    const p=read();p[t]=freeTableSpot(p);POS_EDIT_POS=p;POS_EDIT_TABLES=[...POS_EDIT_TABLES,t];POS_EDIT_NEW=t;paintPos();toast(`已加 ${t}（黑框那張），拖到現場位置後按「完成」`);
+  };
   host.querySelector('#pos-edit-reset').onclick=async()=>{if(!await posConfirm('還原成預設的排排站格子？目前擺的位置會清掉。',{ok:'還原'}))return;POS_EDIT_POS={};paintPos();};
   host.querySelector('#pos-edit-done').onclick=async()=>{
     const btn=host.querySelector('#pos-edit-done');btn.disabled=true;
-    const pos=POS_EDIT_POS&&Object.keys(POS_EDIT_POS).length?POS_EDIT_POS:(POS_EDIT_POS?{}:read());
-    try{await api('/admin/orders/table-layout',{method:'POST',body:{pos}});if(POS_DATA)POS_DATA.table_layout={pos};toast('桌位擺放已儲存');exit();}
+    const raw=POS_EDIT_POS&&Object.keys(POS_EDIT_POS).length?read():(POS_EDIT_POS?{}:read());
+    const tables=POS_EDIT_TABLES.slice(),pos=Object.fromEntries(Object.entries(raw).filter(([k])=>tables.includes(k)));
+    try{await api('/admin/orders/table-layout',{method:'POST',body:{pos,tables}});if(POS_DATA)POS_DATA.table_layout={...(POS_DATA.table_layout||{}),pos,tables};toast('桌位已儲存');exit();}
     catch(e){btn.disabled=false;toast('儲存失敗：'+e.message);}
   };
 }
 // 沒擺過位置的桌，編輯時先照順序排成格子（4 欄），再讓人拖去現場位置
 function defaultTablePos(names,pos){const out={...pos};const rows=Math.max(4,Math.ceil(names.length/4));const at=i=>[1+(i%4)*25,Math.round(Math.floor(i/4)*76/(rows-1))];let i=0;for(const t of names){if(out[t])continue;while(Object.values(out).some(([x,y])=>x===at(i)[0]&&y===at(i)[1]))i++;out[t]=at(i++);}return out;}
+/* 加桌（KK 11/7）：新桌找畫布上沒壓到別桌的第一個位置（桌牌約 23%×18%），都滿了放右下角讓人拖開 */
+function freeTableSpot(pos){const near=([a,b])=>Object.values(pos).some(([x,y])=>Math.abs(x-a)<23&&Math.abs(y-b)<18);for(let y=0;y<=76;y+=2)for(let x=0;x<=76;x+=2)if(!near([x,y]))return [x,y];return [76,76];}
 function linepayPanelHtml(cur,config){
   const a=cur.linepay,pending=!!a,enabled=!!config?.enabled&&!cur.mixed;
   const hint=pending?`原交易 ${a.id}：${a.state==='prepared'?'尚未送出，可繼續掃碼或取消':'結果待確認；禁止改用其他方式收款'}`:(cur.mixed?'跨品牌整桌帳單請由言文字管理員處理':config?.blockers?.join('；')||'整桌原價單一付款；付款時邀請加入 @338ymhys，由客人自行選擇');
@@ -1572,7 +1593,8 @@ function paintPos(){
   posCarrierSync();if(cur&&typeof posAutoMember==='function')posAutoMember(cur);
   // 桌況格固定先列出現場的 16 桌（不管有沒有開桌，方便現場人員直接點選開桌），已開桌/外帶但不在固定桌號清單裡的（例如外帶、加開的桌）排在後面
   const byTable=new Map(sessions.filter(s=>!s.takeout).map(s=>[s.table,s]));
-  const baseNames=[...DEFAULT_TABLES,...sessions.filter(s=>!s.takeout&&!DEFAULT_TABLES.includes(s.table)).map(s=>s.table)];
+  const TBL=POS_EDIT&&POS_EDIT_TABLES?POS_EDIT_TABLES:posTables(d);
+  const baseNames=POS_EDIT?TBL.slice():[...TBL,...sessions.filter(s=>!s.takeout&&!TBL.includes(s.table)).map(s=>s.table)];
   // 桌位擺放（平面圖）：有座標的桌畫在畫布上，沒座標的桌與外帶單排在畫布下面；沒人擺過就是原本的格子
   const layoutPos=(POS_EDIT&&POS_EDIT_POS)?POS_EDIT_POS:((d.table_layout&&!Array.isArray(d.table_layout)&&d.table_layout.pos)||{});
   const legacyOrder=Array.isArray(d.table_layout)?d.table_layout:(d.table_layout?.order||[]);baseNames.sort((a,b)=>{const rank=t=>legacyOrder.includes(t)?legacyOrder.indexOf(t):1e6;return rank(a)-rank(b);});
@@ -1599,8 +1621,8 @@ function paintPos(){
 
   if(POS_EDIT){
     const pos=defaultTablePos(baseNames,layoutPos);
-    const cards=baseNames.map(t=>{const s=byTable.get(t);const [x,y,w,h]=pos[t];return `<div class="pos-table pos-drag" data-drag-table="${esc(t)}" data-x="${x}" data-y="${y}" ${w?`data-w="${w}" data-h="${h}"`:''} style="left:${x}%;top:${y}%${w?`;width:${w}%;height:${h}%`:''}" role="listitem" aria-label="桌 ${esc(t)}，按住拖到現場位置，拖右下角調整大小"><b>${esc(t)}</b><span class="pill ${s?'pill-wait':'pill-draft'}">${s?'使用中':'空桌'}</span><i class="pos-rz" data-rz aria-label="拖曳調整大小"></i></div>`;}).join('');
-    host.innerHTML=`<div class="pos-layout"><div class="a-sec pos-tables pos-editing"><div class="ops-head pos-edit-bar"><h2>編輯桌位擺放</h2><div class="pos-edit-acts"><button type="button" class="btn btn--solid" id="pos-edit-done">完成</button><button type="button" class="btn btn--ghost" id="pos-edit-reset">還原預設格子</button><button type="button" class="btn btn--ghost" id="pos-edit-cancel">取消</button></div></div><p class="hint">按住桌號自由拖到跟現場一樣的位置（可以不排排站）；完成後全店 iPad 都會套用。</p><div class="pos-floor pos-floor-edit" style="min-height:${Math.max(520,Math.ceil(baseNames.length/4)*130)}px" role="list">${cards}</div></div></div>`;
+    const cards=baseNames.map(t=>{const s=byTable.get(t);const [x,y,w,h]=pos[t];return `<div class="pos-table pos-drag${t===POS_EDIT_NEW?' is-new':''}" data-drag-table="${esc(t)}" data-x="${x}" data-y="${y}" ${w?`data-w="${w}" data-h="${h}"`:''} style="left:${x}%;top:${y}%${w?`;width:${w}%;height:${h}%`:''}" role="listitem" aria-label="桌 ${esc(t)}，按住拖到現場位置，拖右下角調整大小"><b>${esc(t)}</b><span class="pill ${s?'pill-wait':'pill-draft'}">${s?'使用中':'空桌'}</span><button type="button" class="pos-del-table" data-del-table="${esc(t)}" aria-label="移除桌 ${esc(t)}" title="移除這桌">×</button><i class="pos-rz" data-rz aria-label="拖曳調整大小"></i></div>`;}).join('');
+    host.innerHTML=`<div class="pos-layout"><div class="a-sec pos-tables pos-editing"><div class="ops-head pos-edit-bar"><h2>編輯桌位擺放</h2><div class="pos-edit-acts"><button type="button" class="btn btn--solid" id="pos-edit-done">完成</button><button type="button" class="btn btn--ghost" id="pos-edit-add">＋ 加桌</button><button type="button" class="btn btn--ghost" id="pos-edit-reset">還原預設格子</button><button type="button" class="btn btn--ghost" id="pos-edit-cancel">取消</button></div></div><p class="hint">按住桌號自由拖到跟現場一樣的位置（可以不排排站）；「＋ 加桌」增加桌位、桌牌右上 × 移除（使用中的桌要先清桌）。目前 ${baseNames.length} 桌，完成後全店 iPad 都會套用。</p><div class="pos-floor pos-floor-edit" style="min-height:${Math.max(520,Math.ceil(baseNames.length/4)*130)}px" role="list">${cards}</div></div></div>`;
     bindTableDrag(host);return;
   }
   // 櫃檯開桌／外帶：加開固定清單以外的桌號、或外帶單
@@ -1701,7 +1723,7 @@ function paintPos(){
     if(busy&&!await posConfirm(`${to} 已有單，把 ${from} 併到 ${to}？兩桌的品項會合在一起。`,{ok:'併桌'}))return;
     await opsThen(()=>api('/admin/orders/sessions/'+id+'/move',{method:'POST',body:{table_no:to}}),out=>out.merged?`已併到 ${out.table}`:`已換到 ${out.table}`,()=>{POS_TABLE='';return reload();});
   });
-  host.querySelector('#pos-edit-tables').onclick=()=>{POS_EDIT=true;POS_EDIT_POS=null;paintPos();};
+  host.querySelector('#pos-edit-tables').onclick=()=>{POS_EDIT=true;POS_EDIT_POS=null;POS_EDIT_TABLES=posTables();paintPos();};
   // 平面圖固定在畫面高度內（不捲動、不拉高）：每個桌位框最高只到下面那桌／畫布底；單子放不下就逐級精簡（縮時間字→藏點餐人→藏開桌時刻→再縮），一律不超出桌位框
   const fl=host.querySelector('.pos-floor');if(fl&&typeof fl.getBoundingClientRect==='function'){const fit=()=>{const fr=fl.getBoundingClientRect();if(!fr.height)return;
     const sl=[...fl.children].map(c=>({c,top:parseFloat(c.style.top)||0,left:parseFloat(c.style.left)||0,w:c.getBoundingClientRect().width/fr.width*100}));
@@ -1879,7 +1901,7 @@ function paintPos(){
   const mv=host.querySelector('#pos-move');if(mv)mv.onclick=()=>{
     const doMove=table=>opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/move',{method:'POST',body:{table_no:table}}),out=>out.merged?`已併到 ${out.table}`:`已換到 ${out.table}`,out=>{POS_TABLE=out.table;POS_PICK=null;return reload();});
     // 用選的：固定桌號＋目前已開的加開桌，點一下就換桌（目標桌已開＝併桌）；真的要別的桌號才用「其他桌號」打字
-    const names=[...DEFAULT_TABLES,...sessions.filter(s=>!s.takeout&&!DEFAULT_TABLES.includes(s.table)).map(s=>s.table)].filter(t=>t!==cur.table);
+    const TBL=posTables();const names=[...TBL,...sessions.filter(s=>!s.takeout&&!TBL.includes(s.table)).map(s=>s.table)].filter(t=>t!==cur.table);
     const ov=document.createElement('div');ov.className='pos-move-ov';
     ov.innerHTML=`<div class="pos-move-box" role="dialog" aria-label="${cur.takeout?'轉內用':'換桌／併桌'}"><h3>${cur.takeout?`外帶 ${esc(cur.table)} 轉內用，`:`${esc(cur.table)} `}要去哪一桌？${tipIcon(cur.takeout?'點空桌＝改成這桌內用；點已開的桌＝併進那桌。也可以在桌況直接把外帶單拖到桌位。':'空桌＝換桌（整桌搬過去）；已開的桌＝併桌（兩桌的品項合在一起）；「移到外帶」＝改成外帶單，自動給 W 號。也可以在桌況直接把單子拖到右邊外帶區。')}</h3><div class="pos-move-grid">${names.map(t=>{const o=byTable.get(t);return `<button type="button" class="pos-move-opt ${o?'busy':''}" data-to="${esc(t)}"><b>${esc(t)}</b><small>${o?'併桌':'換桌'}</small></button>`;}).join('')}</div><div class="pos-move-foot"><span>${cur.takeout?'':'<button type="button" class="btn btn--solid" data-takeout>移到外帶</button> '}<button type="button" class="btn btn--ghost" data-other>其他桌號…</button></span><button type="button" class="btn btn--ghost" data-cancel>取消</button></div></div>`;
     const done=()=>ov.remove();
@@ -2123,7 +2145,7 @@ async function loadReservations(){
   let day='';
   const rows=d.reservations.map(r=>{
     const head=r.reserve_date!==day?(day=r.reserve_date,`<tr class="resv-day"><td colspan="7">${esc(r.reserve_date)}（${weekday(r.reserve_date)}）<span class="pill ${r.reserve_date===todayTaipei()?'pill-ok':'pill-wait'}" style="margin-left:8px">${relDayText(r.reserve_date)}</span></td></tr>`):'';
-    return head+`<tr class="${r.status==='cancelled'?'resv-off':''}"><td class="a-mono"><b>${esc(r.reserve_time)}</b><br><span class="hint hint--tight">${esc(BRAND_LABEL[r.venue]||r.period)}</span></td><td><b>${esc(r.name)}</b> ${Number(r.party_size)} 位<br><a href="tel:${esc(r.phone)}">${esc(r.phone)}</a>${r.email?`<br><span class="hint hint--tight">${esc(r.email)}</span>`:'<br><span class="hint hint--tight">未留 Email，請電話聯繫</span>'}</td><td>${esc(r.note||'')}${r.internal_note?`${r.note?'<br>':''}<span class="resv-internal">內部：${esc(r.internal_note)}</span>`:''}${r.staff_note?`<br><span class="hint hint--tight">店內：${esc(r.staff_note)}</span>`:''}</td><td><select data-resv-table="${esc(r.id)}" style="min-width:96px;min-height:44px" aria-label="桌號"><option value="">未排桌</option>${[...new Set([...DEFAULT_TABLES,...(r.table_no&&!DEFAULT_TABLES.includes(r.table_no)?[r.table_no]:[])])].map(t=>`<option value="${esc(t)}"${t===(r.table_no||'')?' selected':''}>${esc(t)}</option>`).join('')}</select></td><td><span class="pill ${PILL[r.status]||''}">${esc(L[r.status]||r.status)}</span>${r.handled_by?`<br><span class="hint hint--tight">${esc(r.handled_by)}</span>`:''}</td><td class="a-mono resv-id">${esc(r.request_id)}</td><td class="ops-actions" style="white-space:nowrap">${actions(r)} <button type="button" class="btn btn--ghost btn-sm" data-resv-edit="${esc(r.id)}">編輯</button> <button type="button" class="btn btn--ghost btn--danger btn-sm" data-resv-delete="${esc(r.id)}">刪除</button></td></tr>`;
+    return head+`<tr class="${r.status==='cancelled'?'resv-off':''}"><td class="a-mono"><b>${esc(r.reserve_time)}</b><br><span class="hint hint--tight">${esc(BRAND_LABEL[r.venue]||r.period)}</span></td><td><b>${esc(r.name)}</b> ${Number(r.party_size)} 位<br><a href="tel:${esc(r.phone)}">${esc(r.phone)}</a>${r.email?`<br><span class="hint hint--tight">${esc(r.email)}</span>`:'<br><span class="hint hint--tight">未留 Email，請電話聯繫</span>'}</td><td>${esc(r.note||'')}${r.internal_note?`${r.note?'<br>':''}<span class="resv-internal">內部：${esc(r.internal_note)}</span>`:''}${r.staff_note?`<br><span class="hint hint--tight">店內：${esc(r.staff_note)}</span>`:''}</td><td><select data-resv-table="${esc(r.id)}" style="min-width:96px;min-height:44px" aria-label="桌號"><option value="">未排桌</option>${[...new Set([...posTables(),...(r.table_no?[r.table_no]:[])])].map(t=>`<option value="${esc(t)}"${t===(r.table_no||'')?' selected':''}>${esc(t)}</option>`).join('')}</select></td><td><span class="pill ${PILL[r.status]||''}">${esc(L[r.status]||r.status)}</span>${r.handled_by?`<br><span class="hint hint--tight">${esc(r.handled_by)}</span>`:''}</td><td class="a-mono resv-id">${esc(r.request_id)}</td><td class="ops-actions" style="white-space:nowrap">${actions(r)} <button type="button" class="btn btn--ghost btn-sm" data-resv-edit="${esc(r.id)}">編輯</button> <button type="button" class="btn btn--ghost btn--danger btn-sm" data-resv-delete="${esc(r.id)}">刪除</button></td></tr>`;
   }).join('')||'<tr><td colspan="7" class="a-empty">這段期間沒有訂位申請</td></tr>';
   // 櫃檯登記（電話／現場）：時段依店別 30 分鐘一格；Email 可留空（留了才寄確認信）
   const slotOf=(from,to)=>{const o=[];for(let m=from;m<to;m+=30)o.push(`${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`);return o;};
@@ -2136,7 +2158,7 @@ async function loadReservations(){
       <label>姓名<input name="name" required maxlength="80" placeholder="王小姐"></label>
       <label>手機<input name="phone" type="tel" inputmode="tel" required minlength="8" maxlength="32" placeholder="0912-345-678"></label>
       <label>Email（可空）<input name="email" type="email" maxlength="254" placeholder="留了會寄確認信"></label>
-      <label>桌號<input name="table_no" id="resv-new-table" maxlength="8" autocapitalize="characters" placeholder="A3" style="width:100px"></label>${fillChips('resv-new-table',[['','不排'],...DEFAULT_TABLES.map(t=>[t,t])])}
+      <label>桌號<input name="table_no" id="resv-new-table" maxlength="8" autocapitalize="characters" placeholder="A3" style="width:100px"></label>${fillChips('resv-new-table',[['','不排'],...posTables().map(t=>[t,t])])}
       <label class="f-grow">備註<input name="note" id="resv-new-note" maxlength="500" placeholder="點常用的或自己填"></label>${noteChips('resv-new-note',RESV_NOTE_PRESETS)}
       <label class="f-grow">內部備註（客人看不到）<input name="internal_note" id="resv-new-internal" maxlength="200" placeholder="例：招待、股東"></label>${noteChips('resv-new-internal',RESV_INTERNAL_PRESETS)}
       <button class="btn btn--solid" type="submit">登記</button>

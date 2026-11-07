@@ -6883,7 +6883,9 @@ function tableLayoutParse(v){
       // [x,y] 位置；[x,y,w,h] 另含桌牌寬高（皆為畫布百分比，供平板拖角調整大小）
       if(ok(xy[0],0,100)&&ok(xy[1],0,100)&&(xy.length===2||(ok(xy[2],8,60)&&ok(xy[3],6,60))))pos[k]=xy.slice();
     }
-    return {order:[...new Set(order.filter(k=>typeof k==='string'&&/^[A-Za-z0-9-]{1,8}$/.test(k)))].slice(0,200),pos};
+    // tables：桌號清單（編輯桌位可加減桌，KK 11/7）；沒存過＝不回這個欄位，前端用預設 16 桌
+    const tables=Array.isArray(o?.tables)?[...new Set(o.tables.filter(k=>typeof k==='string'&&/^[A-Za-z0-9-]{1,8}$/.test(k)))].slice(0,200):null;
+    return {order:[...new Set(order.filter(k=>typeof k==='string'&&/^[A-Za-z0-9-]{1,8}$/.test(k)))].slice(0,200),pos,...(tables&&tables.length?{tables}:{})};
   }catch(e){return {order:[],pos:{}};}
 }
 // 桌況平面圖：每桌在畫布上的位置（百分比），全店共用（現場每台 iPad 看到同一個擺法）；pos 空物件＝還原成格子
@@ -6899,8 +6901,16 @@ app.post('/api/admin/orders/table-layout',auth,adminOnly,requireDb,wrap(async(re
   const clean=tableLayoutParse(JSON.stringify({pos:src}));
   if(Object.keys(clean.pos).length!==Object.keys(src).length)return res.status(400).json({error:'桌位擺放格式不正確。'});
   const pos=clean.pos;
-  await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('pos_table_layout',$1,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,[JSON.stringify({pos})]);
-  res.json({ok:true,pos});
+  // 桌號清單：有帶就整份取代（1–200 桌、1–8 碼英數／連字號、不可重複）；沒帶沿用目前存的
+  let tables=tableLayoutParse(await contentValue('pos_table_layout')).tables;
+  if(req.body?.tables!==undefined){
+    const t=req.body.tables;
+    if(!Array.isArray(t)||!t.length||t.length>200||t.some(k=>typeof k!=='string'||!/^[A-Za-z0-9-]{1,8}$/.test(k))||new Set(t).size!==t.length)return res.status(400).json({error:'桌號清單格式不正確（1–200 桌，1–8 碼英數，不可重複）。'});
+    tables=t.slice();
+  }
+  const value=tables?{pos,tables}:{pos};
+  await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('pos_table_layout',$1,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,[JSON.stringify(value)]);
+  res.json({ok:true,...value});
 }));
 app.get('/api/admin/orders/pause',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   res.set('Cache-Control','no-store');

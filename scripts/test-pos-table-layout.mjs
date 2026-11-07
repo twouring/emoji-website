@@ -19,3 +19,17 @@ test('編輯桌位的完成／還原／取消在標題列、iPad 橫放固定在
   assert.doesNotMatch(js,/pos-floor-edit[^`]*<div class="pos-open"><button[^>]*id="pos-edit-done"/);
   assert.match(css,/\.pos-tables\.pos-editing\{overflow-y:auto/);assert.match(css,/\.pos-editing \.pos-edit-bar\{position:sticky;top:0/);
 });
+test('編輯桌位可加減桌（KK 11/7）：桌號清單存 table_layout.tables，全店共用',()=>{
+  assert.match(js,/id="pos-edit-add"/);assert.match(js,/data-del-table=/);assert.match(js,/function posTables\(d\)/);
+  assert.match(js,/body:\{pos,tables\}/);assert.match(js,/使用中，先結帳清桌再移除/);
+  assert.doesNotMatch(js,/\.\.\.DEFAULT_TABLES,\.\.\.sessions/);   // 桌況、換桌都改讀 posTables()
+  assert.match(srv,/req\.body\?\.tables!==undefined/);assert.match(srv,/new Set\(t\)\.size!==t\.length/);
+  assert.match(api,/tables:\["A1",\.\.\.\]/);
+});
+test('tableLayoutParse 讀 tables：過濾非法、去重、空清單＝不回',async()=>{
+  const m=srv.match(/function tableLayoutParse\(v\)\{[\s\S]*?\n\}/);assert.ok(m);
+  const f=new Function(m[0]+';return tableLayoutParse;')();
+  assert.deepEqual(f(JSON.stringify({pos:{},tables:['A1','A1','B2','壞','D9']})).tables,['A1','B2','D9']);
+  assert.equal(f(JSON.stringify({pos:{}})).tables,undefined);assert.equal(f(JSON.stringify({pos:{},tables:[]})).tables,undefined);
+  assert.equal(f('not json').tables,undefined);
+});
