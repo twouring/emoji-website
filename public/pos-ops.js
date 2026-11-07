@@ -1258,13 +1258,14 @@ async function printTableQr(table,url,info={}){
     // 低消與服務費同一條（省紙長、留行距）：中文一行、英文一行，都不換行
     notes.push(ms?[`低消每人 ${per}・服務費 ${sv}%`,`Min. NT$${per} pp · ${sv}% service`]:[`低消 日–四 ${MenuLib.MIN_SPEND.weekday}／五六 ${MenuLib.MIN_SPEND.weekend}・服務費 ${sv}%`,`Min. ${MenuLib.MIN_SPEND.weekday} / ${MenuLib.MIN_SPEND.weekend} (Fri–Sat) pp · ${sv}% service`]);
   }
-  if(qv==='CAFE'&&typeof MenuLib!=='undefined'&&MenuLib.cafePolicyActive&&MenuLib.cafePolicyActive()){
-    const cm=n&&MenuLib.cafeMinimumOf?MenuLib.cafeMinimumOf(n):null;
-    notes.push(cm&&cm.type==='amount'?[`低消每人 ${cm.per}`,`Min. NT$${cm.per} pp`]:['平日低消每人一杯飲料','Weekdays: one drink per person']);
-  }
+  /* 在咖啡低消：90mm 已滿（KK 10/27 上限），與「餐具、水自取」併成一條，見下方 cafeMinNote */
+  const cafeMin=qv==='CAFE'&&typeof MenuLib!=='undefined'&&MenuLib.cafePolicyActive&&MenuLib.cafePolicyActive();
+  const cafeCm=cafeMin&&n&&MenuLib.cafeMinimumOf?MenuLib.cafeMinimumOf(n):null;
+  const cafeMinNote=cafeMin?(cafeCm&&cafeCm.type==='amount'?[`低消每人 ${cafeCm.per}`,`Min. NT$${cafeCm.per} pp`]:cafeCm?['低消每人一杯飲料','Min. 1 drink pp']:[`低消 平日一杯／六日 ${MenuLib.CAFE_MIN_SPEND}`,`Min. 1 drink / NT$${MenuLib.CAFE_MIN_SPEND} wknd`]):null;
   if(qv==='CAFE')notes.push(['最後點餐 餐點 16:00／飲品 16:30','Last order 16:00 food · 16:30 drinks']);
   /* 在咖啡自助（KK 11/2）：餐具與水自取、用餐完自助回收 */
-  if(qv==='CAFE')notes.push(['餐具、水自取・用餐完自助回收','Self-serve cutlery, water · bus dishes']);
+  if(cafeMinNote)notes.push([cafeMinNote[0]+'・餐具水自取回收',cafeMinNote[1]+' · self-serve']);
+  else if(qv==='CAFE')notes.push(['餐具、水自取・用餐完自助回收','Self-serve cutlery, water · bus dishes']);
   if(qv==='BAR')notes.push(['最後點餐 餐點 02:00／酒水 02:30','Last order 02:00 food · 02:30 drinks']);
   // 左對齊＋懸掛縮排：方塊符號在 M，文字從 M+16 起；同一條中英間 4、條與條之間空 12
   if(notes.length){rule(1,8);g.textAlign='left';const tx=M+16,tw=W-tx-M;

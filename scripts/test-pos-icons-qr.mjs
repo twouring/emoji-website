@@ -77,7 +77,7 @@ test('桌號 QR 單留白以下壓在 90mm 內（QR_BODY_MAX=720 點），插圖
 });
 
 test('桌號 QR 單：桌號在 QR 上方；印人數、單號、開桌時間；三點水印低消與服務費、各店印停止點餐時間',async()=>{
-  const mk=(venue,active=true)=>{const r=qrContext({venue});r.context.MenuLib={orderWindow:()=>({venue}),barPolicyActive:()=>active,MIN_SPEND:{weekday:300,weekend:600},SERVICE_RATE:0.1,minSpendOf:n=>({per:600,people:n,total:600*n,weekend:true})};return r;};
+  const mk=(venue,active=true)=>{const r=qrContext({venue});r.context.MenuLib={orderWindow:()=>({venue}),barPolicyActive:()=>active,MIN_SPEND:{weekday:300,weekend:600},SERVICE_RATE:0.1,minSpendOf:n=>({per:600,people:n,total:600*n,weekend:true}),cafePolicyActive:()=>active,CAFE_MIN_SPEND:300,cafeMinimumOf:n=>({type:'drink',people:n,required:n,weekend:false})};return r;};
   {const {context,texts,calls}=mk('BAR');
     assert.equal(await context.printTableQr('B2','url',{party_size:4,kids:1,no:'ABC123',opened_at:'2026-11-01T10:06:47Z'}),true);
     const iTable=texts.indexOf('B2');assert.ok(iTable>=0&&iTable<=2,'桌號要在最上面（店名之後）');
@@ -89,7 +89,7 @@ test('桌號 QR 單：桌號在 QR 上方；印人數、單號、開桌時間；
   {const {context,texts}=mk('BAR',false);await context.printTableQr('B2','url',{});
     assert.ok(!texts.some(t=>t.includes('低消')||t.includes('服務費')),'11/1 前不印低消、服務費');}
   {const {context,texts}=mk('CAFE');await context.printTableQr('A1','url',{party_size:2});
-    assert.ok(texts.includes('最後點餐 餐點 16:00／飲品 16:30'));assert.ok(!texts.some(t=>t.includes('低消')),'在咖啡不印低消');
+    assert.ok(texts.includes('最後點餐 餐點 16:00／飲品 16:30'));assert.ok(texts.includes('低消每人一杯飲料・餐具水自取回收'),texts.join('|'));assert.ok(!texts.some(t=>t.includes('服務費')),'在咖啡無服務費');
     assert.ok(texts.includes('大人 2　・　小孩 0'));}
 });
 
@@ -103,5 +103,6 @@ test('桌號 QR 單印 Wi-Fi 名稱與密碼（KK 11/1），字級最小 16 點�
 
 test('在咖啡 QR 單印自助規則：餐具、水自取・用餐完自助回收（KK 11/2）',()=>{
   const src=fs.readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');
-  assert.match(src,/if\(qv==='CAFE'\)notes\.push\(\['餐具、水自取・用餐完自助回收'/);
+  assert.match(src,/else if\(qv==='CAFE'\)notes\.push\(\['餐具、水自取・用餐完自助回收'/,'低消未生效時照舊');
+  assert.match(src,/notes\.push\(\[cafeMinNote\[0\]\+'・餐具水自取回收'/,'在咖啡低消與自助規則併一條（90mm 已滿，KK 11/7）');
 });

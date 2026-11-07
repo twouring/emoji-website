@@ -18,17 +18,17 @@ const html = `<!doctype html><meta charset="utf-8"><body>
 <script>${pub('pos-moji.js')}</script>
 <script>
 const STAR_DOTS=384,QR_CLIP_TOP=${clipTop},BRAND_LABEL={CAFE:'在咖啡',BAR:'三點水'};let LAST=null;
-const starReady=()=>true,starOpenHere=async()=>{},toast=()=>{};
+const starReady=()=>true,canPrint=()=>true,starOpenHere=async()=>{},toast=()=>{};
 const starSend=async({canvas})=>{LAST=canvas.toDataURL('image/png');return true;};
 const REAL=MenuLib.orderWindow,REALP=MenuLib.barPolicyActive;
-function force(venue,policy){MenuLib.orderWindow=()=>({venue});MenuLib.barPolicyActive=()=>policy;}
+function force(venue,policy){MenuLib.orderWindow=()=>({venue});MenuLib.barPolicyActive=()=>policy;MenuLib.cafePolicyActive=()=>policy;}
 ${fn}
 </script></body>`;
 
 const browser = await puppeteer.launch({ executablePath: process.env.CHROME || '/workspace/local/brand-chrome/chrome-linux64/chrome', args: ['--no-sandbox'] });
 const page = await browser.newPage();
 await page.setContent(html);
-const cases = [['bar', 'BAR', true, { party_size: 4, kids: 1, no: 'A1B2C3', opened_at: '2026-11-01T10:06:47Z' }], ['bar-noparty', 'BAR', true, { no: 'A1B2C3' }], ['cafe', 'CAFE', true, { party_size: 2, kids: 0, no: 'D4E5F6' }]];
+const cases = [['bar', 'BAR', true, { party_size: 4, kids: 1, no: 'A1B2C3', opened_at: '2026-11-01T10:06:47Z' }], ['bar-noparty', 'BAR', true, { no: 'A1B2C3' }], ['cafe', 'CAFE', true, { party_size: 2, kids: 0, no: 'D4E5F6' }], ['cafe-noparty', 'CAFE', true, { no: 'D4E5F6' }]];
 for (const [name, venue, policy, info] of cases) {
   const { png, hs } = await page.evaluate(async (venue, policy, info, clip) => {
     force(venue, policy);
