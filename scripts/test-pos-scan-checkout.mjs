@@ -42,5 +42,5 @@ test('桌況底列有掃碼結帳鈕並接上相機掃描', () => {
   assert.match(fn('pickTableScan'), /startInvoiceScan\(video,v=>done\(v\),\{raw:true,accept:v=>\/\[\?&\]s=\/\.test\(v\)\}\)/);
   assert.match(fn('posScanCheckout'), /posSelectTable\(hit\.table\)/);
   assert.match(icons, /\['#pos-scan-checkout','camera'\]/);
-  assert.match(css, /\.pos-open\{display:grid;grid-template-columns:repeat\(4,/);
+  assert.match(css, /\.pos-open\{display:grid;grid-template-columns:repeat\(3,/);
 });

@@ -32,7 +32,7 @@ test('外帶單可轉內用：按鈕不藏、外帶單可拖回桌位、拖到�
   assert.match(js,/id="pos-move" title="\$\{cur\.takeout\?'轉內用':'換桌／併桌'\}"[^>]*><span>\$\{cur\.takeout\?'轉內用':'換桌'\}<\/span><\/button>/);
   assert.doesNotMatch(js,/id="pos-move" \$\{cur\.takeout\?'hidden':''\}/);
   assert.doesNotMatch(js,/card\.classList\.contains\('takeout'\)/);
-  assert.match(js,/const board=host\.querySelector\('\.pos-tables-row'\)/);
+  assert.match(js,/const board=host\.querySelector\('\.pos-tables:not\(\.pos-editing\)'\)/);
   assert.match(js,/if\(to===TAKEOUT_SLOT\)\{if\(src\?\.takeout\)return;/);
   // 伺服器 move 只擋「目標是 W 號」，不擋來源是外帶單
   assert.doesNotMatch(route,/isTakeout\(src\.table_no\)\)\{await client\.query\('ROLLBACK'\);return res\.status\(400\)\.json\(\{error:'外帶/);

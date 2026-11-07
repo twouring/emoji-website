@@ -58,7 +58,7 @@ test('resume control is hidden unless paused and requires explicit confirmation'
  vm.runInContext('posConfirm=async()=>true',c);await vm.runInContext('resumeKitchenPrinting()',c);assert.equal(vm.runInContext('KITCHEN_PRINT_PAUSED',c),false);
 });
 test('checkout page (pos-sub) shows a running/paused/unavailable auto-print status label (KK 11/2: 出餐分頁移除)',async()=>{
- assert.match(src,/<div class="pos-sub">\$\{document\.getElementById\(.p-nav.\)\?kitchenPrintStatusHtml\(\):..\}/);assert.match(src,/bindPrintStatus\(host,\(\)=>\{host\.dataset\.sig='';paintPos\(\);\}\)/);assert.match(src,/data-serve-pos=/);
+ assert.match(src,/id="pos-edit-tables">編輯桌位<\/button>\$\{document\.getElementById\(.p-nav.\)\?kitchenPrintStatusHtml\(\):..\}<\/div>/);assert.match(src,/bindPrintStatus\(host,\(\)=>\{host\.dataset\.sig='';paintPos\(\);\}\)/);assert.match(src,/data-serve-pos=/);
  const {c}=browser();
  assert.equal(vm.runInContext('kitchenPrintStatus().state',c),'checking');
  await vm.runInContext('starCheckLink()',c);

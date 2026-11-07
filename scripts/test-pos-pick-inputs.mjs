@@ -119,7 +119,7 @@ test('bindStampChips：點日期＋點時間組成 YYYY-MM-DDTHH:mm，並觸發 
 
 test('接線：結帳頁開桌／換桌／備註／客製金額／折扣／補開發票；訂位；出餐暫停文案；錢櫃；日結；排班；出勤修正', () => {
   // 結帳：加開桌號是按鈕不是輸入欄；換桌「其他桌號」走 pickTableNo
-  assert.match(ops, /<button type="button" class="btn btn--ghost" id="pos-open-extra">＋ 加開桌號<\/button>/);
+  assert.match(ops, /<\/div><button type="button" class="btn btn--ghost pos-extra-btn" id="pos-open-extra">＋ 加開桌號<\/button><\/aside>/);
   assert.doesNotMatch(ops, /<input id="pos-open-table"/);
   assert.match(ops, /#pos-open-extra'\)\.onclick=async\(\)=>\{const t=await pickTableNo\(/);
   assert.match(ops, /\[data-other\]'\)\.onclick=async\(\)=>\{done\(\);const table=await pickTableNo\(\{[^\n]*exclude:\[cur\.table\]/);

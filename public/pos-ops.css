@@ -769,7 +769,7 @@ tr.lp-refund td{color:var(--danger)}
 .pos-line-note{display:inline-block;margin-top:2px;padding:2px 8px;border-radius:6px;background:var(--accent-soft);font-size:1rem;font-weight:600;overflow-wrap:anywhere}
 .pos-lines tr[data-edit-line]{cursor:pointer}
 .pos-lines tr.is-editing{outline:2px solid var(--ink);outline-offset:-2px;background:var(--accent-soft)}
-.pos-cats{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x;scrollbar-width:none;padding-bottom:2px}
+.pos-cats{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;max-width:100%;-webkit-overflow-scrolling:touch;touch-action:pan-x;scrollbar-width:none;padding-bottom:2px}
 .pos-cats::-webkit-scrollbar{display:none}
 .pos-cats button{flex:0 0 auto;white-space:nowrap}
 .pos-methods{display:grid;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:6px}
@@ -857,7 +857,7 @@ tr.lp-refund td{color:var(--danger)}
 .pos-takeouts .pos-ticket .tk-head b{font-size:1rem}
 @media(max-width:700px){.pos-takeouts .pos-table{width:calc(50% - 3px)}}
 /* 最下排按鈕：等高、等寬、同一列對齊（外帶／加開桌號／編輯桌位） */
-.pos-open{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;align-items:stretch}
+.pos-open{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:stretch}
 @media (max-width:600px){.pos-open{grid-template-columns:repeat(2,minmax(0,1fr))}} /* 手機底列 2×2（寫成帶空白，避免被 test-pos-phone-375 當成主手機區塊） */
 .pos-open .btn,.pos-open .btn--solid,.pos-open .btn--ghost{flex:none;min-height:56px;padding:10px 8px;display:flex;align-items:center;justify-content:center;font-size:1rem;white-space:nowrap}
 .pos-sub{justify-content:stretch}.pos-sub .a-toolbar,.pos-sub .a-toolbar .btn{width:100%}.pos-sub .a-toolbar .btn{min-height:56px}
@@ -993,3 +993,22 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 .pos-seat-grid .pos-move-opt:disabled{opacity:.45;cursor:not-allowed;background:var(--line)}
 .pos-seat-grid .pos-move-opt.busy{background:var(--ink);border-color:var(--ink);color:var(--paper)}.pos-seat-grid .pos-move-opt.busy small{color:inherit}
 .pos-seat-foot{display:flex;flex-wrap:wrap;gap:8px}.pos-seat-foot .btn{white-space:nowrap;flex:1 1 auto}.pos-seat-foot [data-ok]{flex:1 1 100%}
+
+/* 桌況（KK 11/7）：外帶單＋「＋ 加開桌號」橫向一排可滾動，放在置底按鈕上方；底列置底；列印狀態放「編輯桌位」旁 */
+.pos-foot>.pos-takeouts{flex:none!important;display:flex;flex-direction:row!important;flex-wrap:nowrap!important;width:100%!important;align-items:center;gap:8px!important;width:auto;padding:8px 0 0!important;border-left:0!important;border-top:1px dashed var(--line);overflow:visible;min-width:0;max-width:100%}
+.pos-foot>.pos-takeouts>.ops-head{flex:none;margin:0!important;min-height:44px}
+.pos-foot>.pos-takeouts>.ops-head h2{margin:0;white-space:nowrap}
+.pos-foot>.pos-takeouts .pos-takeout-list{display:flex;flex-direction:row!important;flex-wrap:nowrap!important;align-items:stretch;gap:8px;flex:1 1 auto;min-width:0;overflow-x:auto;overflow-y:hidden;padding:2px 0 4px;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;scrollbar-width:thin}
+.pos-foot>.pos-takeouts .pos-takeout-list .pos-table{flex:0 0 auto;width:120px!important;min-height:52px;height:auto}
+.pos-foot>.pos-takeouts .pos-takeout-list .hint{margin:0;white-space:nowrap}
+.pos-foot>.pos-takeouts .pos-extra-btn{flex:0 0 auto;min-height:48px;padding:8px 14px;white-space:nowrap;margin-left:0}
+.pos-tables-row .ops-head .pos-edit-head{margin-right:0}
+.pos-tables-row .ops-head .pos-print-status{margin:0 auto 0 4px;min-width:0}
+.pos-tables-row .ops-head .pos-print-mini{display:inline-flex;align-items:center;gap:6px;font-size:1rem;color:#9a958a;line-height:1.3;white-space:nowrap}
+.pos-tables-row .ops-head .pos-print-off{color:#b03a2e}
+.pos-tables-row .ops-head .pos-print-paused{margin:0 auto 0 4px;flex-wrap:nowrap}
+.pos-foot{flex:none;margin-top:auto}.pos-foot .pos-open{margin-top:8px}
+@media (max-width:999px){.pos-layout .pos-tables:not(.pos-editing){display:flex;flex-direction:column;min-height:calc(100dvh - var(--p-top,60px) - 48px)}.pos-foot{position:sticky;bottom:0;z-index:5;background:var(--card,#fff);padding-bottom:calc(8px + env(safe-area-inset-bottom));box-shadow:0 40px 0 var(--card,#fff)}}
+@media (max-width:600px){.pos-open #pos-takeout{grid-column:1/-1}}
+@media (max-width:700px){.pos-foot>.pos-takeouts{border-top:1px dashed var(--line)!important;padding:8px 0 0!important}.pos-foot>.pos-takeouts .pos-takeout-list .pos-table{width:92px!important}.pos-tables-row .ops-head{flex-wrap:wrap;row-gap:4px}.pos-tables-row .ops-head .pos-print-mini{white-space:normal}}
+.pos-sub:empty{display:none}
