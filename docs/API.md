@@ -487,6 +487,9 @@ POS 用點數兌換空間時數。body `{ plan: day_4h|day_12h, user_id, operato
 ### POST /api/admin/orders/sessions/:id/party
 POS 改來客人數。body `{ party_size, kids?, foreign? }`（1–20；`kids` 小孩數、`foreign` 外國人數（含小孩，0–總人數），不帶就保留原值）。存在 `table_sessions.party_votes.__pos`／`__kids`／`__foreign`；開桌 `POST /api/admin/orders/sessions` 也收同樣三個欄位。客人端不填人數，桌況 `sessions[].party_size`／`kids`／`foreign` 只來自這裡（未設定為 `null`）。回 `{ ok, party_size, kids, foreign }`；超出範圍 400，桌不存在或已結束 404。
 
+### POST /api/admin/orders/sessions/:id/notice
+POS 通知這桌客人（KK 11/7）。body `{ kind, minutes?, text? }`：`kind`＝`wait`（餐點要等，需 `minutes` 1–120）｜`delay`（出餐較慢）｜`soldout`（餐點售完）｜`pickup`（請來取餐）｜`last_order`（最後點餐）｜`closing`（即將打烊）｜`custom`（自訂，需 `text`，80 字內）。存 `table_sessions.notices`（每桌留最近 20 則），客人點餐頁經 SSE 即時跳出，常用訊息依客人語系（中英日韓）顯示，自訂照原文；`GET /api/orders/table` 與 `/api/orders/:id` 回 `notices`（3 小時內，不含店員名）。桌況 `sessions[].last_notice` 為最近一則 `{kind,at,text,by}`。回 `{ ok, table, notice, text }`；內容不合法 400，桌不存在、已結束或不是本品牌 404。
+
 ### DELETE /api/admin/orders/sessions/:id/pay-requests/:rid
 POS 關掉某筆客人的結帳需求（客人改口或已另外處理）；品項不動。回 `{ ok, pay_requests[] }`。
 

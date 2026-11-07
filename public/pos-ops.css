@@ -368,6 +368,9 @@ tr.lp-refund td{color:var(--danger)}
 .pos-sum .pos-disc-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;justify-content:stretch;margin:0;padding:4px 14px 10px;background:var(--card)}
 .pos-sum .pos-disc-presets button{text-align:center;padding:8px 6px}
 .op-card.pos-reason{max-width:520px}
+.pos-notice-hint,.pos-notice-last{margin:4px 0 0;color:var(--muted,#6b6760);font-size:1rem;line-height:1.5}
+.pos-notice-preview{margin:12px 0 0;padding:12px 14px;border-radius:12px;background:var(--accent-soft);font-size:1rem;line-height:1.5;overflow-wrap:anywhere}
+.pos-notice-preview[hidden],.reason-chips[hidden],.reason-other[hidden]{display:none}
 .reason-other{display:flex;flex-direction:column;gap:6px;margin-top:12px;font-size:1rem;color:var(--muted)}
 .reason-other input{min-height:48px;font:inherit;font-size:1rem;padding:8px 12px;border:1px solid var(--muted);border-radius:8px;background:var(--card);color:var(--ink)}
 /* 加點選項面板（跟桌邊點餐同一套：溫度／糖度／冰塊／飯量／麵量）：選項多時中間可捲、按鈕固定在底部，不會被捲出畫面 */

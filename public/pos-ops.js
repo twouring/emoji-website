@@ -93,6 +93,50 @@ function pickReason({title,presets=[],placeholder='其他原因',maxlength=80,in
     ov.querySelector('#pos-reason-cancel').onclick=()=>finish(null);
   });
 }
+/* POS 通知客人（KK 11/7）：選常用訊息（餐點要等要再選分鐘）或自訂文字，預覽後送出；客人端依語系顯示，自訂照原文。
+   字串與 lib/guest-notices.js 的 zh 版一致（test-guest-notices 鎖住） */
+const GUEST_NOTICE_KINDS=[
+  {id:'wait',label:'餐點要等',zh:'不好意思，餐點需要再等約 {n} 分鐘，請稍候。'},
+  {id:'delay',label:'出餐較慢',zh:'不好意思，今天比較忙，餐點會晚一點送到，請稍候。'},
+  {id:'soldout',label:'餐點售完',zh:'不好意思，您點的餐點有一項已售完，店員會過去跟您確認。'},
+  {id:'pickup',label:'請來取餐',zh:'餐點好了，請到櫃檯取餐。'},
+  {id:'last_order',label:'最後點餐',zh:'即將最後點餐，需要加點請把握時間。'},
+  {id:'closing',label:'即將打烊',zh:'本店即將打烊，謝謝您今天的光臨。'},
+  {id:'custom',label:'自訂訊息',zh:''},
+];
+const GUEST_NOTICE_MINUTES=[5,10,15,20,30];
+function pickGuestNotice(cur){
+  return new Promise(resolve=>{
+    const ov=document.createElement('div');ov.className='op-overlay';document.body.appendChild(ov);
+    const finish=v=>{if(ov.parentNode)ov.parentNode.removeChild(ov);resolve(v);};
+    let kind='',minutes=10;
+    ov.innerHTML=`<div class="op-card pos-reason pos-notice-card" role="dialog" aria-label="通知 ${esc(cur.table)} 客人"><h2>通知 ${esc(cur.table)} 客人</h2>
+      <p class="pos-notice-hint">客人的點餐頁會立刻跳出這則訊息（自動依客人語言顯示中／英／日／韓）。</p>
+      <div class="reason-chips" data-notice-kinds>${GUEST_NOTICE_KINDS.map(k=>`<button type="button" data-notice-kind="${k.id}" aria-pressed="false">${esc(k.label)}</button>`).join('')}</div>
+      <div class="reason-chips" data-notice-min hidden>${GUEST_NOTICE_MINUTES.map(m=>`<button type="button" data-notice-m="${m}" aria-pressed="${m===minutes}">約 ${m} 分</button>`).join('')}</div>
+      <label class="reason-other" data-notice-custom hidden><span>要跟客人說什麼？（80 字內，照原文顯示）</span><input id="pos-notice-text" maxlength="80" placeholder="例：飲料機維修中，熱飲請稍候"></label>
+      <p class="pos-notice-preview" data-notice-preview hidden></p>
+      ${cur.last_notice?`<p class="pos-notice-last">上次通知（${esc(new Date(cur.last_notice.at).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',hour12:false}))}）：${esc(cur.last_notice.text)}</p>`:''}
+      <div class="op-card-actions"><button type="button" class="btn btn--ghost" data-notice-cancel>取消</button><button type="button" class="btn btn--solid" data-notice-ok disabled>送出通知</button></div></div>`;
+    const inp=ov.querySelector('#pos-notice-text'),okBtn=ov.querySelector('[data-notice-ok]');
+    const paint=()=>{
+      ov.querySelectorAll('[data-notice-kind]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.noticeKind===kind)));
+      ov.querySelectorAll('[data-notice-m]').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.noticeM)===minutes)));
+      ov.querySelector('[data-notice-min]').hidden=kind!=='wait';
+      ov.querySelector('[data-notice-custom]').hidden=kind!=='custom';
+      const k=GUEST_NOTICE_KINDS.find(x=>x.id===kind),text=kind==='custom'?inp.value.trim():(k?k.zh.replace('{n}',minutes):'');
+      const pv=ov.querySelector('[data-notice-preview]');pv.hidden=!text;pv.textContent=text?'客人會看到：'+text:'';
+      okBtn.disabled=!text;
+    };
+    ov.querySelectorAll('[data-notice-kind]').forEach(b=>b.onclick=()=>{kind=b.dataset.noticeKind;paint();if(kind==='custom')inp.focus();});
+    ov.querySelectorAll('[data-notice-m]').forEach(b=>b.onclick=()=>{minutes=Number(b.dataset.noticeM);paint();});
+    inp.oninput=paint;
+    const ok=()=>{if(okBtn.disabled)return;finish(kind==='wait'?{kind,minutes}:kind==='custom'?{kind,text:inp.value.trim()}:{kind});};
+    okBtn.onclick=ok;inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();ok();}};
+    ov.querySelector('[data-notice-cancel]').onclick=()=>finish(null);
+    ov.addEventListener('click',e=>{if(e.target===ov)finish(null);});
+  });
+}
 // 表單內嵌：在原因輸入欄旁列膠囊鍵，按一下填入該欄（再按一次清掉），仍可自己打字
 const reasonChips=(forId,presets)=>`<div class="reason-chips reason-chips--inline" data-for="${esc(forId)}" role="group" aria-label="常見原因">${presets.map(p=>`<button type="button" data-reason="${esc(p)}">${esc(p)}</button>`).join('')}</div>`;
 function bindReasonChips(host){
@@ -1667,7 +1711,7 @@ function paintPos(){
       <div class="a-wrap2 pos-lines-wrap"><table class="a-tbl pos-lines"><thead><tr><th aria-label="分帳選取"></th><th>品項</th><th class="pos-qty-col">點了幾份</th><th class="num">小計（元）</th><th class="ops-th">操作</th></tr></thead><tbody>${lineRows}</tbody></table></div>
       ${live.length?`<h3>這桌已結帳的單</h3><div class="a-wrap2"><table class="a-tbl pos-paid"><thead><tr><th>品項 · 時間 · 狀態</th><th>付款</th><th class="num">金額</th><th class="ops-th">操作</th></tr></thead><tbody>${liveRows}</tbody></table></div>`:''}
       </div>
-      <div class="pos-table-actions"><button class="btn btn--ghost" id="pos-place" ${cur.lines.some(l=>!l.credit_of)?'':'disabled'} title="列印出餐單：有還沒送出的品項就先送單再印；都送過了只補印最近一次送單" aria-label="列印出餐單"><span>出餐</span></button>${cur.takeout?'':`<button class="btn btn--ghost" id="pos-slip" ${cur.lines.some(l=>l.placed_at&&!l.cancelled&&!l.credit_of)?'':'disabled'} title="列印點餐明細：補印這桌目前所有已送出品項（帳本夾），改單或明細遺失時用" aria-label="列印點餐明細"><span>明細</span></button>`}${cur.takeout?'':`<button class="btn btn--ghost" id="pos-party" title="${cur.party_size?`人數 ${Number(cur.party_size)} 位${cur.kids?`（小孩 ${Number(cur.kids)}）`:''}${cur.foreign?`・外國 ${Number(cur.foreign)}`:''}`:'設定人數'}" aria-label="來客人數"><span>${cur.party_size?`${Number(cur.party_size)} 位`:'人數'}</span></button>`}<button class="btn btn--ghost" id="pos-move" title="${cur.takeout?'轉內用':'換桌／併桌'}" aria-label="${cur.takeout?'轉內用':'換桌／併桌'}"><span>${cur.takeout?'轉內用':'換桌'}</span></button><button class="btn btn--ghost btn--danger" id="pos-close" title="${cur.takeout?'收掉外帶單':'清桌'}" aria-label="${cur.takeout?'收掉外帶單':'清桌'}"><span>${cur.takeout?'收單':'清桌'}</span></button></div>
+      <div class="pos-table-actions"><button class="btn btn--ghost" id="pos-place" ${cur.lines.some(l=>!l.credit_of)?'':'disabled'} title="列印出餐單：有還沒送出的品項就先送單再印；都送過了只補印最近一次送單" aria-label="列印出餐單"><span>出餐</span></button>${cur.takeout?'':`<button class="btn btn--ghost" id="pos-slip" ${cur.lines.some(l=>l.placed_at&&!l.cancelled&&!l.credit_of)?'':'disabled'} title="列印點餐明細：補印這桌目前所有已送出品項（帳本夾），改單或明細遺失時用" aria-label="列印點餐明細"><span>明細</span></button>`}${cur.takeout?'':`<button class="btn btn--ghost" id="pos-party" title="${cur.party_size?`人數 ${Number(cur.party_size)} 位${cur.kids?`（小孩 ${Number(cur.kids)}）`:''}${cur.foreign?`・外國 ${Number(cur.foreign)}`:''}`:'設定人數'}" aria-label="來客人數"><span>${cur.party_size?`${Number(cur.party_size)} 位`:'人數'}</span></button>`}<button class="btn btn--ghost" id="pos-notice" title="通知客人（餐點要等、售完、請來取餐…），客人點餐頁會立刻跳出${cur.last_notice?`；上次 ${new Date(cur.last_notice.at).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',hour12:false})}：${cur.last_notice.text}`:''}" aria-label="通知客人"><span>通知</span></button><button class="btn btn--ghost" id="pos-move" title="${cur.takeout?'轉內用':'換桌／併桌'}" aria-label="${cur.takeout?'轉內用':'換桌／併桌'}"><span>${cur.takeout?'轉內用':'換桌'}</span></button><button class="btn btn--ghost btn--danger" id="pos-close" title="${cur.takeout?'收掉外帶單':'清桌'}" aria-label="${cur.takeout?'收掉外帶單':'清桌'}"><span>${cur.takeout?'收單':'清桌'}</span></button></div>
       </div>
       <div class="pos-menu-box"><div class="pos-menu-body">${POS_OPT?optionPaneHtml(POS_OPT):catChips+`<div class="pos-menu">${tiles}</div>`}</div></div>
       <div class="pos-pay">
@@ -1897,6 +1941,10 @@ function paintPos(){
     const n=Number(cur.party_size)||0,k=Number(cur.kids)||0;
     const p=await pickParty(`${cur.table} 來客人數`,{adults:n?n-k:2,kids:k,foreign:Number(cur.foreign)||0,ok:'儲存'});if(!p)return;
     opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/party',{method:'POST',body:{party_size:p.party_size,kids:p.kids,foreign:p.foreign}}),out=>`${cur.table} 已改為 ${out.party_size} 位${out.kids?`（小孩 ${out.kids}）`:''}${out.foreign?`，外國 ${out.foreign}`:''}`,reload);
+  };
+  const ntc=host.querySelector('#pos-notice');if(ntc)ntc.onclick=async()=>{
+    const n=await pickGuestNotice(cur);if(!n)return;
+    opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/notice',{method:'POST',body:n}),out=>`已通知 ${out.table}：${out.text}`,reload);
   };
   const mv=host.querySelector('#pos-move');if(mv)mv.onclick=()=>{
     const doMove=table=>opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/move',{method:'POST',body:{table_no:table}}),out=>out.merged?`已併到 ${out.table}`:`已換到 ${out.table}`,out=>{POS_TABLE=out.table;POS_PICK=null;return reload();});

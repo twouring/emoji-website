@@ -70,7 +70,7 @@ test('客人端：EventSource 連 /live、收到 session 就 applyState；SSE �
   assert.match(html, /ES\.addEventListener\('session'/);
   assert.match(html, /LIVE_OK\?30000:5000/);
   assert.match(html, /visibilitychange[\s\S]*?refresh\(\);if\(!ES\|\|ES\.readyState===2\)live\(\);/);
-  assert.match(html, /function applyState\(s\)\{var prev=S&&S\.items;S=s;diffOthers\(prev,s\.items\|\|\[\]\);renderState\(\);if\(PARTY_ON&&!s\.need_party\)hideParty\(\);\}/);
+  assert.match(html, /function applyState\(s\)\{var prev=S&&S\.items;S=s;diffOthers\(prev,s\.items\|\|\[\]\);renderState\(\);(?:renderNotices\(\);)?if\(PARTY_ON&&!s\.need_party\)hideParty\(\);\}/);
   assert.doesNotMatch(html, /S=s;renderState\(\);btn\.textContent/, '加點後也走 applyState');
 });
 

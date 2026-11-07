@@ -33,7 +33,7 @@ test('客人端：只有客人自開的桌（在咖啡固定 QR，KK 11/3）要�
   assert.doesNotMatch(server, /partyVote/);
   assert.doesNotMatch(server, /const publicSession=[^\n]*party_size/);
   assert.match(server, /ADD COLUMN IF NOT EXISTS party_votes JSONB NOT NULL DEFAULT '\{\}'/);
-  assert.match(server, /pickup_placed_at,party_votes,members FROM/);
+  assert.match(server, /pickup_placed_at,party_votes,members(,notices)? FROM/);
 });
 
 test('POS：設定人數 API、桌位面板按鈕、桌況卡與明細顯示', () => {

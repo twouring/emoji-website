@@ -56,7 +56,7 @@
     ['#p-drawer','archive'], ['#p-logout','logout'], ['#op-logout','logout'],
     // 結帳
     ['#pos-open','plus'], ['#pos-open-extra','plus'], ['#pos-takeout','bag'], ['#pos-place','send'],
-    ['#pos-checkout','cash'], ['#pos-prepay','wallet'], ['#pos-move','swap'], ['#pos-slip','receipt'], ['#pos-party','users'], ['#pos-close','xcircle'], ['#pos-cash-drawer','archive'],
+    ['#pos-checkout','cash'], ['#pos-prepay','wallet'], ['#pos-move','swap'], ['#pos-slip','receipt'], ['#pos-party','users'], ['#pos-notice','bell'], ['#pos-close','xcircle'], ['#pos-cash-drawer','archive'],
     ['#pos-table-qr','qr'], ['#qr-make','qr'], ['#qr-all','qr'], ['#qr-print','printer'], ['#qr-print1','printer'], ['#pos-yan-lookup','search'],
     ['#pos-invoice-scan','camera'], ['#pos-carrier-scan','camera'], ['#hist-scan','camera'],
     ['#pos-disc-apply','tag'], ['#pm-add','plus'], ['[data-pm-rename]','pencil'], ['#pos-print-test','printer'], ['#pos-print-resume','play'],

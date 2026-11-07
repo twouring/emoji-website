@@ -159,6 +159,11 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 #fb-text{width:100%;min-height:120px;margin:0 0 6px;resize:vertical}
 .fb-stars{display:flex;gap:6px;margin:4px 0 12px}.fb-stars button{flex:1;min-height:48px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--muted);font-size:1.4rem;line-height:1}.fb-stars button[aria-pressed=true]{border-color:var(--ink);background:var(--yellow);color:var(--ink)}
 .fb-lbl{margin:12px 0 4px;font-weight:700}
+/* POS 通知客人（KK 11/7）：頁面上方常駐最新一則；新到的另外置中跳出，按「知道了」才關 */
+.notice-bar{display:flex;align-items:flex-start;gap:10px;margin:0 0 12px;padding:12px 14px;border-radius:12px;background:#1B1A17;color:#FBFAF6}.notice-bar[hidden]{display:none}.notice-bar .ico{flex:none;margin-top:3px}.notice-bar span{flex:1;min-width:0;font-size:1rem;line-height:1.5;overflow-wrap:anywhere}.notice-bar small{display:block;font-size:1rem;opacity:.7}
+.notice-pop{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(27,26,23,.6)}.notice-pop.on{display:flex}
+.notice-pop .box{width:100%;max-width:420px;background:#FBFAF6;border-radius:18px;padding:22px 20px 18px;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.notice-pop h3{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:1.125rem}.notice-pop p{margin:0 0 18px;font-size:1.25rem;line-height:1.55;overflow-wrap:anywhere}.notice-pop .btn{width:100%}
 .call-status{display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:10px 14px;border-radius:12px;background:#fff6c2;border:1.5px solid var(--yellow)}
 .call-status.done{background:#E6F2EB;border-color:var(--ok)}.call-status[hidden]{display:none}.call-status span{flex:1;min-width:0;overflow-wrap:anywhere}
 .gate-login:empty{display:none}.gate-login{margin:0}.gate-login .gate-perks{margin:0 0 10px;color:var(--ink);line-height:1.5}
@@ -215,6 +220,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
       <div class="card name-row" id="name-row"><span class="muted"><span data-i18n="ordering_as">點餐稱呼</span>：<b id="name-display"></b></span><button class="btn ghost sm" type="button" id="name-edit-btn" data-i18n="name_edit">更改</button></div>
       <div class="card member-card" id="member-card" hidden></div>
       <div class="menu-status" id="menu-shift"><div><b class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-clock"></use></svg><span id="menu-shift-title">最後點餐</span></b><small id="menu-hours">依台北時間顯示目前供應品項</small></div></div>
+      <div class="notice-bar" id="notice-bar" role="status" aria-live="polite" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span><span id="notice-bar-text"></span><small id="notice-bar-time"></small></span></div>
       <div class="call-status" id="call-status" role="status" aria-live="polite" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span id="call-status-text"></span></div>
       <button class="song-card hidden" type="button" id="song-open"><svg class="ico lg" aria-hidden="true"><use href="#i-music"></use></svg><span class="n"><b data-i18n="song_title">點歌</b><small id="song-card-sub"></small><small class="song-card-now" id="song-card-now" hidden></small></span><span class="p" id="song-card-price"></span></button>
       <button class="song-card hidden" type="button" id="tip-open"><svg class="ico lg" aria-hidden="true"><use href="#i-gift"></use></svg><span class="n"><b data-i18n="tip_title">打賞</b><small id="tip-card-sub"></small><small class="tip-card-st" id="tip-card-st" hidden></small></span></button>
@@ -267,6 +273,12 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     <div class="tip-sfx" id="tip-sfx" role="radiogroup"></div>
     <p class="err" id="tip-err"></p></div>
   <div class="row sheet-actions"><button class="btn ghost" type="button" data-close data-i18n="back_menu">返回菜單</button><button class="btn y with-icon" type="button" id="tip-send"><svg class="ico" aria-hidden="true"><use href="#i-gift"></use></svg><span id="tip-send-text" data-i18n="tip_send">送出打賞</span></button></div>
+</div></div>
+
+<div class="notice-pop" id="notice-pop" role="alertdialog" aria-modal="true" aria-labelledby="notice-pop-title" aria-describedby="notice-pop-text"><div class="box">
+  <h3 id="notice-pop-title"><svg class="ico lg" aria-hidden="true"><use href="#i-bell"></use></svg><span data-i18n="notice_title">店員通知</span></h3>
+  <p id="notice-pop-text"></p>
+  <button class="btn y" type="button" id="notice-pop-ok"><span data-i18n="notice_ok">知道了</span></button>
 </div></div>
 
 <div class="sheet" id="call" role="dialog" aria-labelledby="call-title"><div class="in">
@@ -325,7 +337,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     if(PARTY_ON)paintParty();
     $('#lang-label').textContent=LANG==='zh'?'EN':(LANG==='en'?'日本語':'中文');   // 只給螢幕閱讀器
     $('#lang-menu').innerHTML=OrderLib.LANGS.map(function(l){return '<button type="button" role="menuitemradio" lang="'+l.id+'" data-lang="'+l.id+'" aria-checked="'+(l.id===LANG)+'"><span>'+esc(l.name)+'</span>'+(l.id===LANG?'<svg class="ico" aria-hidden="true"><use href="#i-check"></use></svg>':'')+'</button>';}).join('');
-    if(S){renderMenu();renderState();if(typeof renderCalls==='function'){renderCalls();renderCallSheet();}if(typeof renderMember==='function')renderMember();}
+    if(S){renderMenu();renderState();if(typeof renderCalls==='function'){renderCalls();renderCallSheet();}if(typeof renderMember==='function')renderMember();renderNotices();}
   }
   // 語言鈕：點了跳出選單（中文／English／日本語／한국어），點外面或 Esc 關閉
   function langMenu(open){$('#lang-menu').hidden=!open;$('#lang-toggle').setAttribute('aria-expanded',String(open));}
@@ -472,7 +484,25 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     var msg=[added.length?byName(added,'someone_added'):'',removed.length?byName(removed,'someone_removed'):''].filter(Boolean).join('\n');
     if(msg)toast(msg,3500);
   }
-  function applyState(s){var prev=S&&S.items;S=s;diffOthers(prev,s.items||[]);renderState();if(PARTY_ON&&!s.need_party)hideParty();}
+  function applyState(s){var prev=S&&S.items;S=s;diffOthers(prev,s.items||[]);renderState();renderNotices();if(PARTY_ON&&!s.need_party)hideParty();}
+  /* ---- 店員通知（POS「通知」鍵，KK 11/7）：S.notices 隨 SSE 即時更新。常用訊息依語系、自訂照原文；
+     最新一則常駐在菜單上方，沒看過且 30 分鐘內的另外跳出（響兩聲＋震動），按「知道了」記在本機不再跳 ---- */
+  var NOTICE_POP=null;
+  function noticeText(n){return n.kind==='custom'?(n.text||''):tr('notice_'+n.kind,{n:n.minutes||''});}
+  function noticeSeenKey(){return 'order_notice_seen_'+((S&&S.id)||'');}
+  function noticeSeen(){try{return JSON.parse(localStorage.getItem(noticeSeenKey())||'[]');}catch(e){return [];}}
+  function noticeMarkSeen(id){try{var a=noticeSeen();if(a.indexOf(id)<0)a.push(id);localStorage.setItem(noticeSeenKey(),JSON.stringify(a.slice(-30)));}catch(e){}}
+  function noticeTime(at){var d=new Date(at);return isNaN(d)?'':('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);}
+  function renderNotices(){
+    var list=(S&&S.notices)||[],last=list[list.length-1],bar=$('#notice-bar');
+    if(!last){bar.hidden=true;return;}
+    bar.hidden=false;$('#notice-bar-text').textContent=noticeText(last);$('#notice-bar-time').textContent=noticeTime(last.at);
+    if(NOTICE_POP===last.id)$('#notice-pop-text').textContent=noticeText(last);   // 換語言時跟著換
+    if(NOTICE_POP||noticeSeen().indexOf(last.id)>=0||Date.now()-Date.parse(last.at)>30*60e3)return;
+    NOTICE_POP=last.id;$('#notice-pop-text').textContent=noticeText(last);$('#notice-pop').classList.add('on');
+    beep();try{if(navigator.vibrate)navigator.vibrate([200,100,200]);}catch(e){}
+  }
+  $('#notice-pop-ok').onclick=function(){if(NOTICE_POP)noticeMarkSeen(NOTICE_POP);NOTICE_POP=null;$('#notice-pop').classList.remove('on');renderNotices();};
   /* 客人自開桌（在咖啡固定 QR）先填人數：同桌別人填過（need_party 變 false）就自動關 */
   var PARTY_ON=false,PA=2,PK=0;
   function paintParty(){

@@ -38,6 +38,7 @@ const songs=require('./lib/songs');
 const ktv=require('./lib/ktv');
 const songTickets=require('./lib/song-tickets');
 const serviceCalls=require('./lib/service-calls');
+const guestNotices=require('./lib/guest-notices');
 const orderFeedback=require('./lib/order-feedback');
 const bugReports=require('./lib/bug-reports');
 const tips=require('./lib/tips');
@@ -796,6 +797,8 @@ async function migrate() {
   await q(`ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS party_votes JSONB NOT NULL DEFAULT '{}'`);
   // 桌邊點餐登入的會員（[{id,name,at}]）：POS 結帳一點就帶入，不用再問手機或掃條碼
   await q(`ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS members JSONB NOT NULL DEFAULT '[]'`);
+  // POS 通知客人（lib/guest-notices.js，KK 11/7）：[{id,kind,minutes?,text?,at,by}]；改這欄觸發器就把新狀態推給客人手機
+  await q(`ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS notices JSONB NOT NULL DEFAULT '[]'`);
   // 桌邊點餐意見回饋（lib/order-feedback.js）：客人在 /order 送出，POS「設定 → 回饋」查看
   await q(`CREATE TABLE IF NOT EXISTS order_feedback (
     id TEXT PRIMARY KEY, session_id TEXT NOT NULL, table_no TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL, rating INT, text TEXT NOT NULL,
@@ -6090,7 +6093,7 @@ async function loadSession(id){
   s.orders=(await q('SELECT id,items,amount,status,paid_at,ready_at,done_at FROM table_orders WHERE session_id=$1 ORDER BY paid_at',[id])).rows;return s;
 }
 // 不外露各行的 guest 識別碼（否則同桌可互刪）；帶 ?g= 或 body.guest 時只標記 mine
-const publicSession=(s,guest)=>{const mine=guest?tableOrders.prunePayRequests(s.pay_requests,s.items).find(r=>r.guest===guest):null;return {id:s.id,table:s.table_no,status:s.status,items:s.items.map(({guest:g,...l})=>({...l,mine:!!guest&&g===guest})),orders:s.orders.map(o=>({id:o.id,amount:o.amount,status:o.status,paid_at:o.paid_at,ready_at:o.ready_at,lines:o.items.map(l=>l.line)})),total_unpaid:tableOrders.sum(tableOrders.unpaid(s.items)),need_party:s.status==='open'&&!s.opened_by_staff_name&&!tableOrders.partySize(s.party_votes),pay_request:mine?{scope:mine.scope,lines:mine.lines,people:mine.people||undefined,at:mine.at}:null};};
+const publicSession=(s,guest)=>{const mine=guest?tableOrders.prunePayRequests(s.pay_requests,s.items).find(r=>r.guest===guest):null;return {id:s.id,table:s.table_no,status:s.status,items:s.items.map(({guest:g,...l})=>({...l,mine:!!guest&&g===guest})),orders:s.orders.map(o=>({id:o.id,amount:o.amount,status:o.status,paid_at:o.paid_at,ready_at:o.ready_at,lines:o.items.map(l=>l.line)})),total_unpaid:tableOrders.sum(tableOrders.unpaid(s.items)),need_party:s.status==='open'&&!s.opened_by_staff_name&&!tableOrders.partySize(s.party_votes),pay_request:mine?{scope:mine.scope,lines:mine.lines,people:mine.people||undefined,at:mine.at}:null,notices:guestNotices.publicView(s.notices)};};
 const contentValue=async key=>(await q('SELECT value FROM site_content WHERE key=$1',[key])).rows[0]?.value||'';
 /* 客人掃碼點餐的菜單：依點餐時段（MenuLib.orderWindow）——在咖啡 16:00 停餐點、16:30 停飲品並換三點水；三點水 02:00 停餐點、02:30 停酒水 */
 async function currentMenu(opt){const w=tableOrders.MenuLib.orderWindow(),m=tableOrders.menuIndex(await contentValue('menu'),w.venue,opt);for(const [k,it] of m)if(!tableOrders.MenuLib.orderableInWindow(it,w))m.delete(k);return m;}
@@ -6288,14 +6291,14 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const orders=(await q(all?"SELECT * FROM table_orders WHERE paid_at>now()-interval '1 day' ORDER BY paid_at DESC":"SELECT * FROM table_orders WHERE status IN ('paid','ready') ORDER BY paid_at")).rows.filter(o=>tableOrders.orderOwnedByVenues(o,venues)).map(o=>({...o,push:undefined,push_count:o.push.length,stations:tableOrders.splitByStation(o)}));
   // 桌況：每桌未付品項明細（櫃檯結帳用）＋ 狀態（空桌／點餐中／準備中／可取餐）
   const live=(await q("SELECT id,session_id,status FROM table_orders WHERE status IN ('paid','ready')")).rows;
-  let rows=(await q("SELECT id,table_no,items,created_at,updated_at,opened_by_staff_name,pay_requests,pickup_at,pickup_note,pickup_placed_at,party_votes,members FROM table_sessions WHERE status='open' ORDER BY table_no")).rows;
+  let rows=(await q("SELECT id,table_no,items,created_at,updated_at,opened_by_staff_name,pay_requests,pickup_at,pickup_note,pickup_placed_at,party_votes,members,notices FROM table_sessions WHERE status='open' ORDER BY table_no")).rows;
   // 外帶單（W01–W99）結完帳且取餐完成就自動收掉，號碼釋出給下一位；內用桌留「待清桌」給人員確認客人離開
   const doneTakeout=rows.filter(s=>tableOrders.isTakeout(s.table_no)&&tableOrders.takeoutFinished(s,live)).map(s=>s.id);
   // 客人掃在咖啡固定 QR 開的場（沒有開桌人員）30 分鐘都沒點東西就收掉，不在桌況留空桌
   const ghost=rows.filter(s=>!s.opened_by_staff_name&&!s.pickup_at&&!tableOrders.isTakeout(s.table_no)&&!(s.items||[]).length&&Date.now()-new Date(s.updated_at).getTime()>30*60e3).map(s=>s.id);
   if(ghost.length){await q("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=ANY($1) AND status='open' AND items='[]'::jsonb",[ghost]);rows=rows.filter(s=>!ghost.includes(s.id));}
   if(doneTakeout.length){await q("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=ANY($1) AND status='open'",[doneTakeout]);rows=rows.filter(s=>!doneTakeout.includes(s.id));}
-  const sessions=rows.filter(s=>tableOrders.orderVisibleToVenues(s,venues)).map(s=>{const lines=tableOrders.unpaid(s.items).filter(line=>tableOrders.itemInVenues(line,venues)).map(({guest,...l})=>l);return{id:s.id,table:s.table_no,takeout:tableOrders.isTakeout(s.table_no),pickup_at:s.pickup_at||null,pickup_note:s.pickup_note||'',pickup_placed:!!s.pickup_placed_at,unpaid:lines.length,unpaid_amount:tableOrders.sum(lines),lines,mixed:!tableOrders.sessionClosableByVenues(s,venues),state:tableOrders.tableStatus(s,live),updated_at:s.updated_at,created_at:s.created_at,operator:s.opened_by_staff_name||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes),foreign:tableOrders.partyForeign(s.party_votes),members:tableOrders.joinMember(s.members),pay_requests:tableOrders.payRequestsView(s.pay_requests,s.items).map(r=>({...r,lines:r.lines.filter(l=>lines.some(x=>x.line===l))})).filter(r=>r.lines.length)};});
+  const sessions=rows.filter(s=>tableOrders.orderVisibleToVenues(s,venues)).map(s=>{const lines=tableOrders.unpaid(s.items).filter(line=>tableOrders.itemInVenues(line,venues)).map(({guest,...l})=>l);return{id:s.id,table:s.table_no,takeout:tableOrders.isTakeout(s.table_no),pickup_at:s.pickup_at||null,pickup_note:s.pickup_note||'',pickup_placed:!!s.pickup_placed_at,unpaid:lines.length,unpaid_amount:tableOrders.sum(lines),lines,mixed:!tableOrders.sessionClosableByVenues(s,venues),state:tableOrders.tableStatus(s,live),updated_at:s.updated_at,created_at:s.created_at,operator:s.opened_by_staff_name||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes),foreign:tableOrders.partyForeign(s.party_votes),members:tableOrders.joinMember(s.members),last_notice:(()=>{const n=guestNotices.normalize(s.notices).slice(-1)[0];return n?{kind:n.kind,at:n.at,text:guestNotices.textOf(n),by:n.by}:null;})(),pay_requests:tableOrders.payRequestsView(s.pay_requests,s.items).map(r=>({...r,lines:r.lines.filter(l=>lines.some(x=>x.line===l))})).filter(r=>r.lines.length)};});
   // 桌邊送單（未結帳、未出餐）：與已結帳的出餐單一起上看板；子帳號只看整張都是自己品牌的
   const tickets=rows.flatMap(s=>tableOrders.ticketsOf(s)).filter(t=>tableOrders.orderOwnedByVenues(t,venues)).map(t=>({...t,items:t.items.map(({guest,...l})=>l)}));
   const pause=tableOrders.parsePause(await contentValue('ordering_pause'));
@@ -6419,6 +6422,14 @@ app.post('/api/admin/orders/sessions/:id/party',auth,adminOnly,requireDb,wrap(as
   let votes;try{votes=tableOrders.partySetByPos(s.party_votes,req.body?.party_size,req.body?.kids,req.body?.foreign);}catch(e){return res.status(e.status||400).json({error:e.message});}
   await q('UPDATE table_sessions SET party_votes=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(votes)]);
   res.json({ok:true,party_size:tableOrders.partySize(votes),kids:tableOrders.partyKids(votes),foreign:tableOrders.partyForeign(votes)});
+}));
+// POS 通知客人（KK 11/7）：餐點要等、售完、請來取餐…或自訂文字；存 table_sessions.notices，觸發器推到客人點餐頁（SSE）
+app.post('/api/admin/orders/sessions/:id/notice',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
+  const s=(await q("SELECT id,table_no,notices,items FROM table_sessions WHERE id=$1 AND status='open'",[req.params.id])).rows[0];if(!s||!tableOrders.orderVisibleToVenues(s,posScope(req)))return res.status(404).json({error:'找不到這桌。'});
+  let r;try{r=guestNotices.add(s.notices,{id:uid('gn_'),kind:req.body?.kind,minutes:req.body?.minutes,text:req.body?.text,by:req.auth.operator_staff_name||actorOf(req.auth)||''});}catch(e){return res.status(e.status||400).json({error:e.message});}
+  await q('UPDATE table_sessions SET notices=$2,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(r.list)]);
+  res.json({ok:true,table:s.table_no,notice:r.notice,text:guestNotices.textOf(r.notice)});
 }));
 // POS 關掉某筆結帳需求（客人改口、或已用別的方式處理）：只拿掉那一筆，品項不動
 app.delete('/api/admin/orders/sessions/:id/pay-requests/:rid',auth,adminOnly,requireDb,wrap(async(req,res)=>{
