@@ -73,15 +73,26 @@
    * - 低消：三點水每人平日 300、週五、週六（以營業日計）600；POS 只提醒差額，不自動補收。
    * 生效日看營業日（凌晨 03:00 前的單算前一天）。 */
   const BAR_POLICY_FROM = '2026-11-01';
+  const CAFE_POLICY_FROM = '2026-11-07';
   const SERVICE_RATE = 0.1;
   const MIN_SPEND = { weekday: 300, weekend: 600 };
+  const CAFE_MIN_SPEND = 300;
   function barPolicyActive(now) { return businessDay(now) >= BAR_POLICY_FROM; }
+  function cafePolicyActive(now) { return businessDay(now) >= CAFE_POLICY_FROM; }
   function minSpendOf(people, now) {
     const n = Math.floor(Number(people));
     if (!barPolicyActive(now) || !(n >= 1)) return null;
     const dow = new Date(businessDay(now) + 'T12:00:00Z').getUTCDay();
     const per = dow === 5 || dow === 6 ? MIN_SPEND.weekend : MIN_SPEND.weekday;
     return { per, people: n, total: per * n, weekend: per === MIN_SPEND.weekend };
+  }
+  /* 在咖啡：週一至週五每人一杯飲料；週六、日每人最低消費 NT$300。POS 只提醒、不自動補收。 */
+  function cafeMinimumOf(people, now) {
+    const n = Math.floor(Number(people));
+    if (!cafePolicyActive(now) || !(n >= 1)) return null;
+    const dow = new Date(businessDay(now) + 'T12:00:00Z').getUTCDay();
+    if (dow === 0 || dow === 6) return { type: 'amount', people: n, per: CAFE_MIN_SPEND, total: CAFE_MIN_SPEND * n, weekend: true };
+    return { type: 'drink', people: n, required: n, weekend: false };
   }
   /* lines：這次要結的行（price 已是實收單價）；discount：整單折扣金額。force＝不看生效日（作廢品項時重算已收的單） */
   function serviceCharge(lines, opts) {
@@ -379,6 +390,14 @@
       };
       html += '<p class="menu-notice">' + esc(pick(N, lang)) + '</p>';
     }
+    if (items.some(it => it.venue === 'CAFE') && cafePolicyActive()) {
+      const C = {
+        zh: '在咖啡內用：平日每人低消一杯飲料；週六日每人低消 NT$300。外帶不適用。',
+        en: 'For dine-in at cafe: one drink per person on weekdays; NT$300 minimum spend per person on Saturday and Sunday. Not applicable to takeaway.',
+        ja: '在咖啡の店内利用は、平日お一人様1ドリンク、土日はお一人様 NT$300 の最低利用額です。テイクアウトは対象外です。',
+      };
+      html += '<p class="menu-notice">' + esc(pick(C, lang)) + '</p>';
+    }
     if (items.some(it => it.venue === 'BAR') && barPolicyActive()) {
       const B = {
         zh: '三點水低消每人週日至週四 NT$300、週五週六 NT$600，另加 10% 服務費（外帶不收）。',
@@ -394,7 +413,7 @@
   }
 
   global.MenuLib = {
-    CATS, VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, BAR_STATION_CATS, MEMBER_RATE, BAR_POLICY_FROM, SERVICE_RATE, MIN_SPEND, barPolicyActive, minSpendOf, serviceCharge, memberPrice, activeVenue, orderWindow, orderableInWindow, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
+    CATS, VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, BAR_STATION_CATS, MEMBER_RATE, BAR_POLICY_FROM, CAFE_POLICY_FROM, SERVICE_RATE, MIN_SPEND, CAFE_MIN_SPEND, barPolicyActive, cafePolicyActive, minSpendOf, cafeMinimumOf, serviceCharge, memberPrice, activeVenue, orderWindow, orderableInWindow, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
     normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, isShop, isShared, inVenue, forVenue, SHARED_CATS, soldOutToday, stockLeft, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1258,6 +1258,10 @@ async function printTableQr(table,url,info={}){
     // 低消與服務費同一條（省紙長、留行距）：中文一行、英文一行，都不換行
     notes.push(ms?[`低消每人 ${per}・服務費 ${sv}%`,`Min. NT$${per} pp · ${sv}% service`]:[`低消 日–四 ${MenuLib.MIN_SPEND.weekday}／五六 ${MenuLib.MIN_SPEND.weekend}・服務費 ${sv}%`,`Min. ${MenuLib.MIN_SPEND.weekday} / ${MenuLib.MIN_SPEND.weekend} (Fri–Sat) pp · ${sv}% service`]);
   }
+  if(qv==='CAFE'&&typeof MenuLib!=='undefined'&&MenuLib.cafePolicyActive&&MenuLib.cafePolicyActive()){
+    const cm=n&&MenuLib.cafeMinimumOf?MenuLib.cafeMinimumOf(n):null;
+    notes.push(cm&&cm.type==='amount'?[`低消每人 ${cm.per}`,`Min. NT$${cm.per} pp`]:['平日低消每人一杯飲料','Weekdays: one drink per person']);
+  }
   if(qv==='CAFE')notes.push(['最後點餐 餐點 16:00／飲品 16:30','Last order 16:00 food · 16:30 drinks']);
   /* 在咖啡自助（KK 11/2）：餐具與水自取、用餐完自助回收 */
   if(qv==='CAFE')notes.push(['餐具、水自取・用餐完自助回收','Self-serve cutlery, water · bus dishes']);
@@ -1420,21 +1424,33 @@ function posTotals(cur){
   const pts=redeemSet?picked.reduce((a,l)=>{const it=menuById.get(l.item_id);return a+(redeemSet.has(l.line)&&!l.comp_reason&&it&&it.points>0?it.points*l.qty:0);},0):0;
   return {priceOf,picked,regular,subtotal,discount,svc,pts,menuById,total:subtotal-discount+(svc?svc.amount:0)};
 }
-// 低消（三點水 11/1 起，每人平日 300／假日 600）：看整桌三點水品項（不含贈送／取消／預收），人數用 POS 設定的來客人數；只提醒、不自動補收
+// 低消：三點水金額低消；在咖啡平日每人一杯飲料、週六日每人 NT$300。POS 只提醒、不自動補收。
 function minSpendState(cur){
-  if(!MenuLib.minSpendOf||cur.takeout)return null;
-  const goods=cur.lines.filter(l=>!l.credit_of&&!l.prepay&&!l.cancelled&&!l.tip&&l.venue==='BAR'&&l.cat!=='SHOP');   // 打賞、商店零售品不算低消
-  if(!goods.length)return null;
-  const spent=goods.reduce((a,l)=>a+(l.comp_reason?0:l.price)*l.qty,0);
-  if(!MenuLib.barPolicyActive())return null;
-  const m=MenuLib.minSpendOf(cur.party_size);
-  if(!m)return {needParty:true,spent};
-  return {...m,spent,short:Math.max(0,m.total-spent)};
+  if(cur.takeout)return null;
+  const active=cur.lines.filter(l=>!l.credit_of&&!l.prepay&&!l.cancelled&&!l.tip&&l.cat!=='SHOP');
+  const bar=active.filter(l=>l.venue==='BAR');
+  if(bar.length&&MenuLib.barPolicyActive&&MenuLib.barPolicyActive()){
+    const spent=bar.reduce((a,l)=>a+(l.comp_reason?0:l.price)*l.qty,0),m=MenuLib.minSpendOf(cur.party_size);
+    if(!m)return {needParty:true,spent,venue:'BAR'};
+    return {...m,spent,short:Math.max(0,m.total-spent),venue:'BAR'};
+  }
+  const cafe=active.filter(l=>l.venue==='CAFE');
+  if(!cafe.length||!(MenuLib.cafePolicyActive&&MenuLib.cafePolicyActive()))return null;
+  const m=MenuLib.cafeMinimumOf(cur.party_size);
+  if(!m)return {needParty:true,venue:'CAFE'};
+  if(m.type==='amount'){
+    const spent=cafe.reduce((a,l)=>a+(l.comp_reason?0:l.price)*l.qty,0);
+    return {...m,spent,short:Math.max(0,m.total-spent),venue:'CAFE'};
+  }
+  const drinks=cafe.filter(l=>['COFFEE','TEA','BEVERAGE','SPARKLING','COMBO'].includes(l.cat)).reduce((a,l)=>a+l.qty,0);
+  return {...m,drinks,short:Math.max(0,m.required-drinks),venue:'CAFE'};
 }
 function minSpendHtml(ms){
   if(!ms)return '';
   if(ms.needParty)return `<div class="pos-sum-min"><span><span class="pill pill-wait">低消</span> 請先按「設定人數」，才能核對低消</span><span></span></div>`;
-  return `<div class="pos-sum-min ${ms.short?'short':''}"><span><span class="pill ${ms.short?'pill-bad':'pill-ok'}">低消</span> ${ms.weekend?'週五六':'日至四'}每人 ${num(ms.per)} × ${ms.people} 位＝${num(ms.total)}${ms.short?`，還差 NT$${num(ms.short)}`:'，已達'}</span><span></span></div>`;
+  if(ms.venue==='CAFE'&&ms.type==='drink')return `<div class="pos-sum-min ${ms.short?'short':''}"><span><span class="pill ${ms.short?'pill-bad':'pill-ok'}">低消</span> 平日每人一杯飲料：${ms.drinks}／${ms.required} 杯${ms.short?`，還差 ${ms.short} 杯`:'，已達'}</span><span></span></div>`;
+  const day=ms.venue==='CAFE'?'週六日':'週五六';
+  return `<div class="pos-sum-min ${ms.short?'short':''}"><span><span class="pill ${ms.short?'pill-bad':'pill-ok'}">低消</span> ${day}每人 ${num(ms.per)} × ${ms.people} 位＝${num(ms.total)}${ms.short?`，還差 NT$${num(ms.short)}`:'，已達'}</span><span></span></div>`;
 }
 // 進入平均分攤：全桌一起算（取消勾選與份數）、清掉折扣（分攤不套折扣）；人數記在 POS_AA，第幾人由桌上的抵扣行數推算
 function startAA(people){POS_AA={people};POS_PICK=null;POS_QTY={};POS_DISCOUNT=null;POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_DISC_OPEN=false;POS_RECEIVED='';POS_SPLIT={};}

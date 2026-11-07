@@ -133,7 +133,7 @@ test('接線：server 路由、FOOD_API 涵蓋、操作紀錄、API 文件、POS
   assert.match(pos, /tips:tabTips/); assert.match(pos, /tipBoot\(\)/); assert.match(pos, /pos-tips\.js/);
   assert.doesNotMatch(ptips, /songSfx|isSongPlayer/, 'POS 不再播音效（KK 11/6 改由 KTV 播放裝置播）');
   assert.match(server, /ktvPushCmd\('sfx',out\.sfx,'打賞'\)/, '確認打賞後送音效給 KTV 播放裝置');
-  assert.match(ops, /!l\.tip&&l\.venue==='BAR'/);
+  assert.match(ops, /!l\.tip&&l\.cat!=='SHOP'/, '打賞與商店品不算任何店別低消');
   assert.match(order, /id="tip-open"/); assert.match(order, /id="tip-amt" type="number" inputmode="numeric"/); assert.match(order, /data-tip-sfx/);
   assert.match(order, /api\('\/tips',\{method:'POST'/);
   require('../public/order-lib.js'); const L = globalThis.OrderLib;

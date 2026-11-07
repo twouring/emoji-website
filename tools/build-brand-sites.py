@@ -255,9 +255,9 @@ def page_cafe():
 <section class="bs-hero atc-hero"><div class="wrap atc-hero__grid">
   <div class="atc-hero__copy">
     <h1>在咖啡<span class="en">at cafe</span></h1>
-    <p class="atc-hero__lede">{t('台北車站旁的日式簡餐與工作咖啡。<span class="nb">一人一杯飲料，</span><span class="nb">就可以坐下來。</span>',
-                                 'Japanese set meals and working coffee by Taipei Main Station. One drink each, and the table is yours.',
-                                 '台北駅そばの定食とワーキングコーヒー。ドリンク一杯で、席に着けます。')}</p>
+    <p class="atc-hero__lede">{t('台北車站旁的日式簡餐與工作咖啡。<span class="nb">平日每人一杯飲料；</span><span class="nb">週六日每人低消 NT$300。</span>',
+                                 'Japanese set meals and working coffee by Taipei Main Station. Weekdays: one drink each; weekends: NT$300 minimum per person.',
+                                 '台北駅そばの定食とワーキングコーヒー。平日はお一人様1ドリンク、土日はお一人様 NT$300 から。')}</p>
     <p class="atc-hero__open"><b>08:00–17:00</b><span>{t('每日營業 · 16:30 最後點餐', 'Open daily · last orders 16:30', '毎日営業 · ラストオーダー 16:30')}</span></p>
     <div class="atc-hero__actions"><a class="bs-btn" href="#menu">{see_menu}</a><a class="bs-btn bs-btn--line" href="{reserve}">{book}</a></div>
   </div>
@@ -328,9 +328,9 @@ def page_cafe():
 <section id="faq" class="atc-faq" aria-labelledby="faq-h"><div class="wrap atc-faq__in">
   {sec_h2('faq-h', '常見問題', 'FAQ', 'よくある質問')}
   {faq([(t('需要會員才能進來嗎？', 'Do I need a membership?', '会員でないと入れませんか？'),
-         t('不需要。在咖啡對所有訪客開放，一人一杯飲料就能入座。', 'No. at cafe is open to everyone; one drink per person and you can take a seat.', 'いいえ。在咖啡はどなたでも利用でき、お一人一杯のドリンクで席に着けます。')),
+         t('不需要。在咖啡對所有訪客開放；平日每人一杯飲料，週六日每人低消 NT$300。', 'No. at cafe is open to everyone. On weekdays, one drink per person; on weekends, NT$300 minimum spend per person.', 'いいえ。在咖啡はどなたでも利用でき、平日はお一人様1ドリンク、土日はお一人様 NT$300 からです。')),
         (t('可以帶電腦工作嗎？', 'Can I work here on my laptop?', 'パソコンで仕事をしてもいいですか？'),
-         t('可以。白天的座位歡迎工作；一人一杯飲料就能坐。', 'Yes. The daytime seats welcome work; one drink per person and the seat is yours.', 'はい。昼の席は仕事にお使いいただけます。お一人一杯のドリンクで席に着けます。')),
+         t('可以。白天的座位歡迎工作；平日每人一杯飲料，週六日每人低消 NT$300。', 'Yes. The daytime seats welcome work. On weekdays, one drink per person; on weekends, NT$300 minimum spend per person.', 'はい。昼の席は仕事にお使いいただけます。平日はお一人様1ドリンク、土日はお一人様 NT$300 からです。')),
         (t('可以外帶嗎？', 'Is takeaway available?', 'テイクアウトはできますか？'),
          t('可以。飲品與餐點都能外帶，趕時間的人從外帶窗口拿了就走。', 'Yes. Drinks and food are available to go; grab them from the takeaway window.', 'はい。ドリンクも料理もテイクアウトでき、急ぐ方はテイクアウト窓口で受け取れます。')),
         (t('怎麼訂位？', 'How do I book?', '予約はどうすればいいですか？'),

@@ -35,6 +35,16 @@ test('低消：週日至週四每人 300、週五週六（營業日）600；凌�
   assert.equal(M.minSpendOf(0, NOV_WED), null, '沒設人數＝無法判斷');
 });
 
+test('在咖啡低消：平日每人一杯飲料、週六日每人 NT$300；外帶不適用', () => {
+  const mon = at('2026-11-09T12:00:00'), sat = at('2026-11-07T12:00:00'), sun = at('2026-11-08T12:00:00');
+  assert.deepEqual(M.cafeMinimumOf(2, mon), { type: 'drink', people: 2, required: 2, weekend: false });
+  assert.deepEqual(M.cafeMinimumOf(2, sat), { type: 'amount', people: 2, per: 300, total: 600, weekend: true });
+  assert.deepEqual(M.cafeMinimumOf(1, sun), { type: 'amount', people: 1, per: 300, total: 300, weekend: true });
+  assert.equal(M.cafeMinimumOf(0, mon), null, '沒設人數＝無法判斷');
+  assert.equal(M.cafePolicyActive(at('2026-11-06T12:00:00')), false, '生效日前不檢查');
+  assert.equal(M.cafePolicyActive(at('2026-11-07T08:00:00')), true, '11/7 起生效');
+});
+
 test('櫃檯結帳：金額含服務費並記在 payer；客訴免收要原因、記原本該收多少', () => {
   const items = [bar(320), bar(180)];
   const out = T.posCheckout(items, { method: 'cash' }, new Map(), undefined, { table: 'A1', now: NOV_WED });

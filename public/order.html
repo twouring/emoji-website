@@ -226,6 +226,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
       <button class="song-card hidden" type="button" id="tip-open"><svg class="ico lg" aria-hidden="true"><use href="#i-gift"></use></svg><span class="n"><b data-i18n="tip_title">打賞</b><small id="tip-card-sub"></small><small class="tip-card-st" id="tip-card-st" hidden></small></span></button>
       <div id="menu"></div>
       <p class="notice" id="bar-policy-notice" data-i18n="bar_policy" hidden>三點水低消每人週日至週四 NT$300、週五週六 NT$600，另加 10% 服務費（外帶不收）。</p>
+      <p class="notice" id="cafe-policy-notice" data-i18n="cafe_policy" hidden>在咖啡內用：平日每人低消一杯飲料；週六日每人低消 NT$300。外帶不適用。</p>
       <p class="notice" id="alcohol-notice" data-i18n="alcohol" hidden>未滿十八歲禁止飲酒。禁止酒駕。</p>
       <div class="card install-card" id="install-card" hidden><b data-i18n="inst_title">把言文字 App 加到主畫面</b><p data-i18n="inst_sub">會員卡、點數、訂位都在這裡，下次點餐也從這裡開。</p><div class="row inst-actions"><button class="btn y" type="button" id="inst-go"><span data-i18n="inst_btn">加到主畫面</span></button><button class="btn ghost" type="button" id="inst-later"><span data-i18n="inst_later">稍後</span></button></div></div>
     </div>
@@ -408,6 +409,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     $('#menu').innerHTML=html||'<p class="muted">'+esc(VENUE?tr('menu_unavailable'):tr('closed_message'))+'</p>';
     $('#alcohol-notice').hidden=!items.some(function(i){return i.alcohol;});
     $('#bar-policy-notice').hidden=!(VENUE==='BAR'&&MenuLib.barPolicyActive&&MenuLib.barPolicyActive());
+    $('#cafe-policy-notice').hidden=!(VENUE==='CAFE'&&MenuLib.cafePolicyActive&&MenuLib.cafePolicyActive());
     renderSongs();if(typeof renderTip==="function")renderTip();
     renderPriceTable(items);
   }
@@ -420,8 +422,8 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     if(SONG&&SONG.enabled&&VENUE)rows+='<tr><td>'+esc(tr('info_song'))+'</td><td>'+money(SONG.price)+'</td></tr>';
     if(typeof TIP!=='undefined'&&TIP&&TIP.enabled&&VENUE)rows+='<tr><td>'+esc(tr('tip_title'))+'</td><td>'+esc(tr('info_tip_free'))+'</td></tr>';
     $('#price-table').innerHTML=rows||'<tr><td colspan="2" class="muted">'+esc(tr('menu_unavailable'))+'</td></tr>';
-    var bar=VENUE==='BAR'&&MenuLib.barPolicyActive&&MenuLib.barPolicyActive();
-    $('#price-policy').hidden=!bar;if(bar)$('#price-policy').textContent=tr('bar_policy');
+    var bar=VENUE==='BAR'&&MenuLib.barPolicyActive&&MenuLib.barPolicyActive(),cafe=VENUE==='CAFE'&&MenuLib.cafePolicyActive&&MenuLib.cafePolicyActive();
+    $('#price-policy').hidden=!(bar||cafe);if(bar||cafe)$('#price-policy').textContent=tr(bar?'bar_policy':'cafe_policy');
   }
 
   function optionGroups(it){return it&&it.cat==='COMBO'?OrderLib.comboGroups(it,MENU,LANG):OrderLib.optionGroups(it,LANG);}
