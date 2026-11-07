@@ -2447,27 +2447,28 @@ function printRegisterReportWindow(rep,kind){
 const REG_CLOSE_DRAFTS=new Map();
 const regAccountLabel=(r,c)=>r.account_labels?.[c]||payMethodLabel(c);
 const regCloseStamp=r=>JSON.stringify([r.expected,r.opening_cash,r.cash_in,r.cash_out,r.sales?.amount,r.reconciliation_accounts]);
-/* 各帳戶確認：小結／關帳前，每個帳戶一顆按鈕，點開填實收（現金可按面額點鈔；LINE Pay 自動帶入後台同步實收）。
+/* 各帳戶確認：小結／關帳前，每個帳戶一顆按鈕，點開填實收（現金可按面額點鈔；LINE Pay、中信刷卡自動帶入後台同步實收）。
  * 應收≠實收必須填原因才能確認。確認結果留在本頁記憶體（ACCT_CONFIRMED），開「關帳」時自動帶入點鈔、各帳戶實收與原因；不直接寫帳務。 */
 const ACCT_CONFIRMED=new Map();
 const acctRows=r=>[['cash','現金',r.expected],...Object.entries(r.reconciliation_accounts||{}).sort(([a],[b])=>{const rk=c=>c==='linepay'?0:c==='ctbc'?1:2;return rk(a)-rk(b);}).map(([c,x])=>[c,regAccountLabel(r,c),x])];
-// LINE Pay 後台實收：單品牌頁直接用對帳結果；全店頁用 by_venue 依開關帳時間歸屬的分店金額
-function acctLinepayActual(lp,venue){if(!lp||lp.configured===false||!lp.synced_at)return null;const v=lp.by_venue?.[venue];return Number(v?v.linepay.amount:lp.linepay?.amount)||0;}
+// 第三方收款後台實收（KK 11/7：LINE Pay、中信刷卡都自動帶入）：單品牌頁直接用對帳結果；全店頁用 by_venue 依開關帳時間歸屬的分店金額。沒設定／沒同步過回 null
+const ACCT_GW={linepay:{name:'LINE Pay',sync:'/admin/sales/linepay/sync',where:'LINE Pay 商家後台'},ctbc:{name:'中信刷卡',sync:'/admin/sales/ctbc/sync',where:'中信商店管理平台'}};
+function acctGatewayActual(sales,code,venue){const g=ACCT_GW[code]&&sales?.[code];if(!g||g.configured===false||!g.synced_at)return null;const v=g.by_venue?.[venue];return Number(v?v[code]?.amount:g[code]?.amount)||0;}
 function accountConfirmBlock(d,sales){
   const venues=SCOPE?[SCOPE]:Object.keys(BRAND_LABEL);
   const cards=venues.map(v=>{const r=d?.current?.[v];if(!r||r.closed_at)return '';
     const rows=acctRows(r),done=ACCT_CONFIRMED.get(r.id)||{},n=rows.filter(x=>done[x[0]]).length;
-    return `<div class="reg-card" data-acct-card="${esc(r.id)}"><h4>${esc(BRAND_LABEL[v])} <span class="pill ${n===rows.length?'pill-ok':'pill-wait'}">${n}/${rows.length} 已確認</span></h4><div class="a-wrap2"><table class="a-tbl reg-acct"><thead><tr><th>帳戶</th><th class="num">應收</th><th class="num">實收</th><th class="num">差額</th><th></th></tr></thead><tbody>${rows.map(([c,nm,amt])=>{const a=done[c];return `<tr class="${a&&a.diff?'lp-diff':''}"><td>${esc(nm)}</td><td class="num">NT$${num(amt)}</td><td class="num">${a?'NT$'+num(a.actual):'—'}</td><td class="num">${a?(a.diff>0?'+':'')+num(a.diff):'—'}</td><td><button type="button" class="btn ${a?'btn--ghost':'btn--solid'} btn-sm" data-acct-open="${esc(c)}">${a?'✓ 已確認':'核對'}</button></td></tr>`;}).join('')}</tbody></table></div></div>`;}).join('');
-  return cards?`<div class="ops-head"><h3>各帳戶確認</h3>${opsHelp('小結或關帳前，逐一按「核對」填入每個帳戶的實收：現金可按面額點鈔或直接填總額，LINE Pay 自動帶入後台同步的實收，信用卡與其他帳戶對照機台或後台填入。應收與實收不同時要填原因才能確認。確認結果會自動帶入關帳表單，但關帳前仍可修改。')}</div><div class="reg-cards">${cards}</div>`:'';
+    return `<div class="reg-card" data-acct-card="${esc(r.id)}"><h4>${esc(BRAND_LABEL[v])} <span class="pill ${n===rows.length?'pill-ok':'pill-wait'}">${n}/${rows.length} 已確認</span></h4><div class="a-wrap2"><table class="a-tbl reg-acct"><thead><tr><th>帳戶</th><th class="num">應收</th><th class="num">實收</th><th class="num">差額</th><th></th></tr></thead><tbody>${rows.map(([c,nm,amt])=>{const a=done[c],gw=a?null:acctGatewayActual(sales,c,r.venue);return `<tr class="${a&&a.diff?'lp-diff':''}"><td>${esc(nm)}</td><td class="num">NT$${num(amt)}</td><td class="num">${a?'NT$'+num(a.actual):gw!=null?`<span class="hint hint--tight" title="${esc(ACCT_GW[c].where)}同步實收，按核對確認">系統 NT$${num(gw)}</span>`:'—'}</td><td class="num">${a?(a.diff>0?'+':'')+num(a.diff):gw!=null?`<span class="hint hint--tight">${gw-amt>0?'+':''}${num(gw-amt)}</span>`:'—'}</td><td><button type="button" class="btn ${a?'btn--ghost':'btn--solid'} btn-sm" data-acct-open="${esc(c)}">${a?'✓ 已確認':'核對'}</button></td></tr>`;}).join('')}</tbody></table></div></div>`;}).join('');
+  return cards?`<div class="ops-head"><h3>各帳戶確認</h3>${opsHelp('小結或關帳前，逐一按「核對」填入每個帳戶的實收：現金可按面額點鈔或直接填總額，LINE Pay 與中信刷卡自動帶入後台同步的實收，其他帳戶對照機台或後台填入。應收與實收不同時要填原因才能確認。確認結果會自動帶入關帳表單，但關帳前仍可修改。')}</div><div class="reg-cards">${cards}</div>`:'';
 }
 function acctDialog(r,code,sales){
   return new Promise(resolve=>{
     const [,label,expected]=acctRows(r).find(x=>x[0]===code),prev=(ACCT_CONFIRMED.get(r.id)||{})[code];
-    const lpAuto=code==='linepay'?acctLinepayActual(sales?.linepay,r.venue):null;
+    const GW=ACCT_GW[code],gw=GW?sales?.[code]:null,lpAuto=GW?acctGatewayActual(sales,code,r.venue):null;
     const cash=code==='cash';
     const {ov,close}=pickOverlay(`<h3>核對 ${esc(label)} · ${esc(BRAND_LABEL[r.venue])}</h3>
       <div class="reg-close-sum"><span>應收 <b>NT$${num(expected)}</b></span><span>實收 <b id="acct-actual-show">—</b></span><span>差額 <b id="acct-diff-show">—</b></span></div>
-      ${cash?`<p class="hint">按面額填張數，或直接填總額。應收＝零用金＋現金營收＋臨時收入－臨時支出（整個錢櫃）。</p>${denomGrid()}`:code==='linepay'?`${sales?.linepay?.sync_error?`<p class="hint" role="alert" style="color:#c0392b;font-weight:600">⚠ LINE Pay 自動同步失敗：${esc(sales.linepay.sync_error)}</p>`:''}<p class="hint" id="acct-lp-hint">${lpAuto==null?'LINE Pay 後台尚未同步：按「同步 LINE Pay」自動帶入實收，或對照商家後台手動填入。':`已自動帶入 LINE Pay 後台同步實收（${esc(applicationTime(sales.linepay.synced_at))} 同步，退款已扣），可修改；有新交易可再同步。`}</p><div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="acct-lp-sync" ${sales?.linepay?.configured===false?'disabled title="尚未設定 LINE Pay 商家後台帳密"':''}>同步 LINE Pay</button></div>`:`<p class="hint">實收預設等於應收，帳對了直接按確認；不同請對照收單機、商家後台或交接資料改填本品牌本營業日實收（退款已扣、手續費扣除前）。</p>`}
+      ${cash?`<p class="hint">按面額填張數，或直接填總額。應收＝零用金＋現金營收＋臨時收入－臨時支出（整個錢櫃）。</p>${denomGrid()}`:GW?`${gw?.sync_error?`<p class="hint" role="alert" style="color:#c0392b;font-weight:600">⚠ ${GW.name} 自動同步失敗：${esc(gw.sync_error)}</p>`:''}<p class="hint" id="acct-gw-hint">${lpAuto==null?`${GW.name} 後台尚未同步：按「同步 ${GW.name}」自動帶入實收，或對照${GW.where}手動填入。`:`已自動帶入${GW.where}同步實收（${esc(applicationTime(gw.synced_at))} 同步，退款已扣），可修改；有新交易可再同步。`}</p><div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="acct-gw-sync" ${gw?.configured===false?`disabled title="尚未設定${GW.where}帳密"`:''}>同步 ${GW.name}</button></div>`:`<p class="hint">實收預設等於應收，帳對了直接按確認；不同請對照收單機、商家後台或交接資料改填本品牌本營業日實收（退款已扣、手續費扣除前）。</p>`}
       <div class="a-form"><label>${cash?'實收總額':'實收'}<input id="acct-actual" type="number" inputmode="numeric" min="0" step="1" placeholder="${cash?'或直接填':'沒有收款請填 0'}" onfocus="this.select()" value="${prev?esc(prev.actual):lpAuto!=null?lpAuto:expected}"></label><label class="reg-note" id="acct-reason-label" hidden>差異原因（應收≠實收必填）<input id="acct-reason" maxlength="200" placeholder="差額非 0 必填" value="${esc(prev?.reason||'')}"></label></div><div id="acct-reason-options" hidden>${reasonChips('acct-reason',REASON_PRESETS.close_note)}</div>
       <div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-cancel>取消</button><button type="button" class="btn btn--solid" data-ok disabled>確認</button></div>`,'核對 '+label);
     const box=ov.querySelector('.pos-move-box');bindReasonChips(box);
@@ -2479,18 +2480,18 @@ function acctDialog(r,code,sales){
       const needsReason=diff!==null&&diff!==0;q('#acct-reason-label').hidden=!needsReason;q('#acct-reason-options').hidden=!needsReason;
       q('[data-ok]').disabled=actual==null||(needsReason&&!reason);};
     box.addEventListener('input',show,true);box.addEventListener('change',show);
-    // LINE Pay：對話框內直接同步後台（抓營業日前 3 天到隔天），重抓當日對帳結果帶入本店別實收；同步要等後台登入，約 20–60 秒
-    const sb=q('#acct-lp-sync');if(sb)sb.onclick=async()=>{sb.disabled=true;sb.textContent='同步中…（約 1 分鐘）';
+    // LINE Pay／中信：對話框內直接同步後台（抓營業日前 3 天到隔天），重抓當日對帳結果帶入本店別實收；同步要等後台登入，約 20–60 秒
+    const sb=q('#acct-gw-sync');if(sb)sb.onclick=async()=>{sb.disabled=true;sb.textContent='同步中…（約 1 分鐘）';
       const day=String(r.day||SALES_DAY||'').slice(0,10)||todayTaipei(),addDays=(d0,n)=>{const t=new Date(d0+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10);};
       const start=addDays(day,-3),end=[addDays(day,1),todayTaipei()].sort()[0];
-      try{const out=await api('/admin/sales/linepay/sync',{method:'POST',body:{start,end}});
+      try{const out=await api(GW.sync,{method:'POST',body:{start,end}});
         const fresh=await api(`/admin/sales?day=${encodeURIComponent(day)}`+(SCOPE?'&venue='+SCOPE:''));
-        if(sales&&fresh?.linepay)sales.linepay=fresh.linepay;   // 同一頁再開其他帳戶／重開對話框都用新資料
-        const v=acctLinepayActual(fresh?.linepay,r.venue);
-        if(v!=null){q('#acct-actual').value=v;q('#acct-lp-hint').textContent=`已同步 ${out.count} 筆，帶入 LINE Pay 後台實收（${applicationTime(fresh.linepay.synced_at)} 同步，退款已扣），可修改。`;}
-        else q('#acct-lp-hint').textContent='同步完成，但沒有本店別的實收資料，請對照商家後台手動填入。';
-        show();toast(`已同步 ${out.start} ～ ${out.end}，${out.count} 筆`);}
-      catch(e){toast(e.message||'同步失敗');}finally{sb.disabled=false;sb.textContent='同步 LINE Pay';}};
+        if(sales&&fresh?.[code])sales[code]=fresh[code];   // 同一頁再開其他帳戶／重開對話框都用新資料
+        const v=acctGatewayActual(fresh,code,r.venue);
+        if(v!=null){q('#acct-actual').value=v;q('#acct-gw-hint').textContent=`已同步 ${out.count??0} 筆，帶入${GW.where}實收（${applicationTime(fresh[code].synced_at)} 同步，退款已扣），可修改。`;}
+        else q('#acct-gw-hint').textContent=`同步完成，但沒有本店別的實收資料，請對照${GW.where}手動填入。`;
+        show();toast(`已同步 ${out.start||start} ～ ${out.end||end}，${out.count??0} 筆`);}
+      catch(e){toast(e.message||'同步失敗');}finally{sb.disabled=false;sb.textContent='同步 '+GW.name;}};
     const done=v=>{close();resolve(v);};
     q('[data-cancel]').onclick=()=>done(null);ov.addEventListener('click',e=>{if(e.target===ov)done(null);});
     q('[data-ok]').onclick=()=>{const {actual,denoms}=read();if(actual==null)return;const diff=actual-expected,reason=q('#acct-reason').value.trim();if(diff!==0&&!reason){toast('應收與實收不同，請填差異原因');q('#acct-reason').focus();return;}done({actual,diff,reason:diff?reason:'',denoms});};

@@ -40,13 +40,15 @@ test('close route uses authoritative brand sales and stale guard; reprints store
  assert.ok(ui.indexOf('sales-kpis')<ui.indexOf('${REG_DATA?accountConfirmBlock(REG_DATA,d)+registerBlock(REG_DATA)'));
  assert.match(ui,/各帳戶確認/); // 日結頁在開關帳前先列各帳戶逐一確認。
  assert.match(ui,/data-acct-open=/); // 每個帳戶一顆「核對」按鈕，點開對話框填實收。
- assert.match(ui,/acctLinepayActual\(sales\?\.linepay,r\.venue\)/); // LINE Pay 實收自動帶入後台同步結果（依店別歸屬）。
+ assert.match(ui,/lpAuto=GW\?acctGatewayActual\(sales,code,r\.venue\)/); // LINE Pay／中信實收自動帶入後台同步結果（依店別歸屬，KK 11/7）。
+ assert.match(ui,/const ACCT_GW=\{linepay:\{[^}]*sync:'\/admin\/sales\/linepay\/sync'[^}]*\},ctbc:\{[^}]*sync:'\/admin\/sales\/ctbc\/sync'/); // 兩家第三方都要有自動帶入與同步。
+ assert.match(ui,/gw=a\?null:acctGatewayActual\(sales,c,r\.venue\)/); // 核對清單未確認前先顯示系統實收。
  assert.match(ui,/lpAuto!=null\?lpAuto:expected/); // 實收預設等於應收，帳對了直接按確認。
  assert.match(ui,/const needsReason=diff!==null&&diff!==0;q\('#acct-reason-label'\)\.hidden=!needsReason;q\('#acct-reason-options'\)\.hidden=!needsReason/); // 差額為 0 時隱藏原因欄位與快捷選項。
  assert.match(ui,/q\('\[data-ok\]'\)\.disabled=actual==null\|\|\(needsReason&&!reason\)/); // 應收≠實收必須填原因才能確認。
  assert.match(ui,/function closeChecks\(r\)/); // 關帳只檢查上方各帳戶是否已核對，不再重填一輪。
  assert.ok(!ui.includes('data-close-step'));
- assert.match(ui,/id="acct-lp-sync"/);assert.match(ui,/api\('\/admin\/sales\/linepay\/sync',\{method:'POST',body:\{start,end\}\}\)/); // LINE Pay 對話框內可直接同步後台再帶入實收。
+ assert.match(ui,/id="acct-gw-sync"/);assert.match(ui,/api\(GW\.sync,\{method:'POST',body:\{start,end\}\}\)/); // LINE Pay／中信對話框內可直接同步後台再帶入實收。
  assert.match(ui,/帳務參考（另行逐項確認）/);
  assert.match(ui,/lpVenueTable/); // 保留 main 的 LINE Pay 店別歸屬與明細。
  const spec=ui.slice(ui.indexOf('function registerReportSpec('),ui.indexOf('// 有接 mPOP'));

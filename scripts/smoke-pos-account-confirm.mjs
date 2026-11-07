@@ -1,5 +1,5 @@
 // Run with CHROME_PATH=/path/to/chrome node scripts/smoke-pos-account-confirm.mjs.
-// 各帳戶確認：核對按鈕→對話框（現金面額點鈕、LINE Pay 自動帶入店別實收、差額必填原因）→ 帶入關帳表單。只用本機假資料，不碰正式環境。
+// 各帳戶確認：核對按鈕→對話框（現金面額點鈕、LINE Pay／中信自動帶入店別實收、差額必填原因）→ 帶入關帳表單。只用本機假資料，不碰正式環境。
 import puppeteer from 'puppeteer';import fs from 'node:fs';import assert from 'node:assert/strict';
 const source=fs.readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');
 const slice=(a,b)=>source.slice(source.indexOf(a),source.indexOf(b,source.indexOf(a)));
@@ -20,7 +20,7 @@ ${slice('const denomGrid=','function openRegisterForm(')}
 ${slice('const REG_CLOSE_DRAFTS=','function registerBlock(')}
 ${slice('function bindDailyClose(','/* 日結：')}
 window.r={id:'fx',venue:'CAFE',opening_cash:1000,cash_in:50,cash_out:20,expected:1230,sales:{amount:640},reconciliation_accounts:{linepay:100,ctbc:300,transfer:0},account_labels:{}};
-window.REG_DATA={registers:[r],current:{CAFE:r}};window.sales={linepay:{synced_at:'2026-10-17T04:30:00Z',configured:true,linepay:{amount:999},by_venue:{CAFE:{linepay:{amount:110}},BAR:{linepay:{amount:889}}}}};
+window.REG_DATA={registers:[r],current:{CAFE:r}};window.sales={linepay:{synced_at:'2026-10-17T04:30:00Z',configured:true,linepay:{amount:999},by_venue:{CAFE:{linepay:{amount:110}},BAR:{linepay:{amount:889}}}},ctbc:{synced_at:'2026-10-17T04:30:00Z',configured:true,ctbc:{amount:900},by_venue:{CAFE:{ctbc:{amount:300}},BAR:{ctbc:{amount:600}}}}};
 window.mount=()=>{document.querySelector('#host').innerHTML=accountConfirmBlock(REG_DATA,sales);bindAccountConfirm(document.querySelector('#host'),sales,async()=>{window.reloads=(window.reloads||0)+1;mount();});};mount();
 `});
 const input=async(s,v)=>page.$eval(s,(el,v)=>{el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));},String(v));
@@ -30,7 +30,7 @@ const txt=s=>page.$eval(s,e=>e.textContent.trim());
 assert.equal(await page.$$eval("[data-acct-open]",b=>b.length),4);assert.equal(await txt('.pill'),'0/4 已確認');
 // 現金：按面額點鈔 1000×1 + 100×2 + 10×3 = 1230 → 無差額可確認
 await page.click('[data-acct-open="cash"]');await page.waitForSelector('.pos-move-box');
-assert.equal(await disabled('[data-ok]'),true);
+assert.equal(await page.$eval('#acct-actual',e=>e.value),'1230');assert.equal(await disabled('[data-ok]'),false); // 實收預設等於應收
 await input('[data-denom="1000"]',1);await input('[data-denom="100"]',2);await input('[data-denom="10"]',3);
 assert.equal(await txt('#acct-actual-show'),'NT$1,230');assert.equal(await txt('#acct-diff-show'),'0');assert.equal(await disabled('[data-ok]'),false);
 await page.click('[data-ok]');await page.waitForFunction(()=>!document.querySelector('.pos-move-box'));
@@ -40,25 +40,23 @@ await page.click('[data-acct-open="linepay"]');await page.waitForSelector('.pos-
 assert.equal(await page.$eval('#acct-actual',e=>e.value),'110');assert.equal(await txt('#acct-diff-show'),'+10');
 assert.equal(await disabled('[data-ok]'),true);assert.equal(await page.$eval('#acct-reason-label',e=>e.hidden),false);
 // 對話框內「同步 LINE Pay」：呼叫 sync（營業日 -3 ～ +1，不超過今天）→ 重抓當日對帳 → 帶入本店別新實收 120（非全店 999）
-await page.click('#acct-lp-sync');await page.waitForFunction(()=>document.querySelector('#acct-actual')?.value==='120');
+await page.click('#acct-gw-sync');await page.waitForFunction(()=>document.querySelector('#acct-actual')?.value==='120');
 const calls=await page.evaluate(()=>window.apiCalls);assert.deepEqual(calls[0],['/admin/sales/linepay/sync',{start:'2026-10-14',end:'2026-10-17'}]);assert.ok(calls[1][0].startsWith('/admin/sales?day=2026-10-17'));
-assert.equal(await txt('#acct-diff-show'),'+20');assert.match(await txt('#acct-lp-hint'),/已同步 3 筆/);assert.equal(await disabled('#acct-lp-sync'),false);assert.equal(await disabled('[data-ok]'),true);
+assert.equal(await txt('#acct-diff-show'),'+20');assert.match(await txt('#acct-gw-hint'),/已同步 3 筆/);assert.equal(await disabled('#acct-gw-sync'),false);assert.equal(await disabled('[data-ok]'),true);
 await input('#acct-actual',110);assert.equal(await txt('#acct-diff-show'),'+10');
 await page.click('[data-reason-chip],.reason-chips button');assert.equal(await disabled('[data-ok]'),false);
 await page.click('[data-ok]');await page.waitForFunction(()=>!document.querySelector('.pos-move-box'));
 assert.equal(await txt('.pill'),'2/4 已確認');
-// 刷卡：手填 300 相符；轉帳 0
-await page.click('[data-acct-open="ctbc"]');await page.waitForSelector('.pos-move-box');await input('#acct-actual',300);await page.click('[data-ok]');await page.waitForFunction(()=>!document.querySelector('.pos-move-box'));
+// 中信刷卡：清單先顯示系統實收；對話框自動帶入 by_venue CAFE=300（非全店 900）相符直接確認；轉帳 0
+assert.match(await page.$eval('[data-acct-open="ctbc"]',b=>b.closest('tr').textContent),/系統 NT\$300/);
+await page.click('[data-acct-open="ctbc"]');await page.waitForSelector('.pos-move-box');assert.equal(await page.$eval('#acct-actual',e=>e.value),'300');assert.match(await txt('#acct-gw-hint'),/中信商店管理平台/);assert.equal(await txt('#acct-diff-show'),'0');await page.click('[data-ok]');await page.waitForFunction(()=>!document.querySelector('.pos-move-box'));
 await page.click('[data-acct-open="transfer"]');await page.waitForSelector('.pos-move-box');await input('#acct-actual',0);assert.equal(await disabled('[data-ok]'),false);await page.click('[data-ok]');await page.waitForFunction(()=>!document.querySelector('.pos-move-box'));
 assert.equal(await txt('.pill'),'4/4 已確認');assert.ok((await page.$eval('.pill',e=>e.className)).includes('pill-ok'));
 // 重開現金對話框：帶回先前面額；取消不改
 await page.click('[data-acct-open="cash"]');await page.waitForSelector('.pos-move-box');assert.equal(await page.$eval('[data-denom="100"]',e=>e.value),'2');await page.click('[data-cancel]');
-await page.click('[data-acct-open="linepay"]');await page.waitForSelector('.pos-move-box');assert.equal(await page.$eval('#acct-actual',e=>e.value),'110');assert.match(await txt('#acct-lp-hint'),/可修改/);await page.click('[data-cancel]');await page.waitForFunction(()=>!document.querySelector('.pos-move-box'));
-// 關帳表單帶入：點鈔 1230、linepay 110 + 原因、ctbc 300、transfer 0
-await page.evaluate(()=>{document.querySelector('#host').insertAdjacentHTML('beforeend',dailyCloseForm(r));bindDailyClose(document.querySelector('.reg-close-form'),r,async()=>{});});
-assert.equal(await page.$eval('#reg-counted',e=>e.value),'1230');assert.equal(await page.$eval('.reg-close-form [data-denom="1000"]',e=>e.value),'1');
-assert.equal(await page.$eval('[data-account-actual="linepay"]',e=>e.value),'110');assert.equal(await page.$eval('[data-account-reason="linepay"]',e=>e.value),'找錯錢');
-assert.equal(await page.$eval('[data-account-actual="transfer"]',e=>e.value),'0');
-assert.equal(await txt('#reg-counted-show'),'NT$1,230');
+await page.click('[data-acct-open="linepay"]');await page.waitForSelector('.pos-move-box');assert.equal(await page.$eval('#acct-actual',e=>e.value),'110');assert.match(await txt('#acct-gw-hint'),/可修改/);await page.click('[data-cancel]');await page.waitForFunction(()=>!document.querySelector('.pos-move-box'));
+// 關帳表單：四個帳戶都已核對 → 列出實收（linepay 110、ctbc 300），不再重填
+await page.evaluate(()=>{window.regOpenTables=()=>[];document.querySelector('#host').insertAdjacentHTML('beforeend',dailyCloseForm(r));});
+const closeTxt=await txt('.reg-close-form');assert.ok(!closeTxt.includes('沒有核對'));assert.match(closeTxt,/LINE Pay.*NT\$110/s);assert.match(closeTxt,/信用卡.*NT\$300/s);
 assert.deepEqual(errors,[]);console.log('SMOKE OK');
 }finally{await browser.close();}
