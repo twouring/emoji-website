@@ -218,6 +218,28 @@ tr.resv-day td{background:var(--paper-alt);font-weight:600}
 /* 櫃檯登記訂位：收合表單 */
 .resv-add{margin-bottom:12px}.resv-add summary{list-style:none;display:inline-flex;cursor:pointer}.resv-add summary::-webkit-details-marker{display:none}.resv-add[open] summary{margin-bottom:10px}
 .resv-add .a-form{padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+/* 訂位「今天」看板（KK 11/7） */
+.resv-today{margin:0 0 16px;padding:14px;border:2px solid var(--ink);border-radius:12px;background:var(--paper)}
+.resv-today .rt-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px}
+.resv-today .rt-head h3{margin:0;font-size:1.25rem}
+.resv-today .rt-sum{font-size:1.125rem}.resv-today .rt-sum b{font-size:1.5rem}
+.resv-today .rt-stats{display:flex;flex-wrap:wrap;gap:4px 14px;margin:6px 0 0;color:var(--muted)}
+.resv-today .rt-stats b{color:var(--ink)}.resv-today .rt-bad,.resv-today .rt-bad b{color:var(--danger)}.resv-today .rt-warn,.resv-today .rt-warn b{color:var(--warn)}.resv-today .rt-muted{opacity:.8}
+.resv-today .rt-next{margin:10px 0 0;padding:8px 12px;border-radius:8px;background:var(--paper-alt);line-height:1.5}
+.resv-today .rt-list{list-style:none;margin:10px 0 0;padding:0}
+.resv-today .rt-item{display:grid;grid-template-columns:4.2em minmax(0,1fr) auto auto;align-items:center;gap:6px 12px;padding:10px 0;border-top:1px solid var(--line)}
+.resv-today .rt-time{font-size:1.25rem;font-variant-numeric:tabular-nums}
+.resv-today .rt-who{min-width:0;overflow-wrap:anywhere;line-height:1.45}
+.resv-today .rt-note{color:var(--muted)}
+.resv-today .rt-tbl{display:inline-block;padding:0 6px;border:1px solid var(--ink);border-radius:4px;font-weight:600}
+.resv-today .rt-acts{display:flex;gap:6px;justify-content:flex-end}.resv-today .rt-acts .btn{min-height:44px;white-space:nowrap}
+.resv-today .rt-eta{white-space:nowrap;color:var(--muted)}
+.resv-today .rt-eta--soon,.resv-today .rt-eta--due{color:var(--warn);font-weight:600}
+.resv-today .rt-eta--late,.resv-today .rt-eta--bad{color:var(--danger);font-weight:600}
+.resv-today .rt-eta--ok{color:var(--ok);font-weight:600}
+.resv-today .rt-item.is-next{background:var(--warn-soft);border-radius:8px;margin:0 -8px;padding-left:8px;padding-right:8px}
+.resv-today .rt-arrived .rt-who,.resv-today .rt-arrived .rt-time,.resv-today .rt-no_show .rt-who,.resv-today .rt-no_show .rt-time{opacity:.6}
+@media(max-width:600px){.resv-today .rt-item{grid-template-columns:3.6em minmax(0,1fr);grid-template-areas:"t w" "t e" "a a";align-items:start}.resv-today .rt-time{grid-area:t}.resv-today .rt-who{grid-area:w}.resv-today .rt-eta{grid-area:e;white-space:normal}.resv-today .rt-eta--none{display:none}.resv-today .rt-acts{grid-area:a;justify-content:stretch}.resv-today .rt-acts .btn{flex:1 1 0}}
 .resv-actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
 @media(max-width:600px){.resv-actions{flex-wrap:nowrap}.resv-actions .btn{flex:1 1 0;min-width:0;padding-left:10px;padding-right:10px;white-space:nowrap}.resv-act-sub{display:none}}
 .resv-panel{margin:0 0 14px;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
