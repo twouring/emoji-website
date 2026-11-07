@@ -1805,7 +1805,7 @@ app.use('/api/admin', (req, res, next) => {
   res.on('finish', () => {
     if (!pool || !dbReady || !req.auth || res.statusCode >= 400) return;
     const posAction = posLog.describe(req.method, req.path);
-    if (posAction) recordPosLog(req, posAction, payload);
+    if (posAction) recordPosLog(req, posAction, payload, req.posLogDetail ? { detail: req.posLogDetail } : {});
     const actor = req.auth.agent ? 'admin-api-key' : req.auth.mcp ? 'pos-mcp:' + req.auth.mcp + (req.auth.operator_staff_id ? ':' + req.auth.name : '') : (req.auth.email || req.auth.sub || 'unknown');
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const summary = req.path === '/system-settings' ? `key=${String(body.key||'').slice(0,60)}` : Object.entries(body)
@@ -7048,7 +7048,8 @@ async function registerSummary(reg){
   const regDayStr=reg.day instanceof Date?reg.day.toISOString().slice(0,10):String(reg.day).slice(0,10),[from]=dayRange(regDayStr);
   const orders=await ordersOfDay(regDayStr,'id,items,amount,payer,tappay,status,paid_at');   /* 依開帳日認列（KK 11/5） */
   const sales=tableOrders.salesSummary(orders,{venues:[reg.venue],now:from});
-  const moves=(await q('SELECT id,type,amount,reason,staff,created_at FROM pos_cash_moves WHERE register_id=$1 ORDER BY created_at',[reg.id])).rows;
+  const tipMoves=await tipPayoutCashMoves();
+  const moves=(await q('SELECT id,type,amount,reason,staff,created_at FROM pos_cash_moves WHERE register_id=$1 ORDER BY created_at',[reg.id])).rows.map(m=>tipMoves.has(m.id)?{...m,locked:'tip'}:m);   /* 打賞支付產生的支出不可在日結改／刪（要對得上打賞帳） */
   const counts=(await q('SELECT id,counted_cash,expected_cash,diff,denominations,note,counted_by,created_at FROM pos_register_counts WHERE register_id=$1 ORDER BY created_at DESC',[reg.id])).rows;
   const summary=posRegister.expectedCash({opening_cash:reg.opening_cash,cash_sales:sales.by_method.cash||0,moves});
   const methods=await paymentMethodsList(posPaymentMethods.groupsOf([reg.venue])),accounts=posRegister.accountsOf(sales.by_method),labels={};
@@ -7118,6 +7119,46 @@ app.post('/api/admin/registers/:id/cash',auth,adminOnly,requireDb,wrap(async(req
   const created=(await q('INSERT INTO pos_cash_moves(id,register_id,type,amount,reason,staff) VALUES($1,$2,$3,$4,$5,$6) RETURNING created_at',[id,r.id,m.type,m.amount,m.reason,staff])).rows[0];
   const s=await registerSummary(r);
   res.status(201).json({ok:true,id,...m,staff,created_at:created.created_at,venue:r.venue,day:r.day,expected_cash:s.summary.expected});
+}));
+/* 打賞支付（現金）寫進 pos_cash_moves 的 id；這些支出不開放在日結修改／刪除 */
+async function tipPayoutCashMoves(client){
+  const raw=(await (client||{query:q}).query("SELECT value FROM site_content WHERE key='tip_payouts'")).rows[0]?.value;
+  let list=[];try{list=JSON.parse(raw||'{}').payouts||[];}catch{}
+  return new Set(list.map(p=>p&&p.cash_move).filter(Boolean));
+}
+/* 編輯／刪除臨時收支（KK 11/7）：只限開帳中的帳本；打賞支付產生的支出擋下；改前改後寫進 POS 操作紀錄 */
+async function loadCashMove(req,res,client){
+  const r=await loadOpenRegister(req,res);if(!r)return null;
+  if(r.closed_at){res.status(409).json({error:'這本帳已關帳，不能再改臨時收支。'});return null;}
+  if(!/^cm_[\w-]{1,60}$/.test(String(req.params.moveId||''))){res.status(404).json({error:'找不到這筆臨時收支。'});return null;}
+  const m=(await client.query('SELECT id,type,amount,reason,staff,created_at FROM pos_cash_moves WHERE id=$1 AND register_id=$2 FOR UPDATE',[req.params.moveId,r.id])).rows[0];
+  if(!m){res.status(404).json({error:'找不到這筆臨時收支。'});return null;}
+  if((await tipPayoutCashMoves(client)).has(m.id)){res.status(409).json({error:'這筆是支付打賞，請到「打賞」處理，不能在日結修改。'});return null;}
+  return {r,m};
+}
+const cashMoveText=m=>`${m.type==='in'?'收入':'支出'} ${m.amount} ${m.reason}`;
+app.patch('/api/admin/registers/:id/cash/:moveId',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const client=await pool.connect();
+  try{await client.query('BEGIN');
+    const got=await loadCashMove(req,res,client);if(!got){await client.query('ROLLBACK');return;}
+    let m;try{m=posRegister.cashMove({type:got.m.type,amount:got.m.amount,reason:got.m.reason,...req.body});}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
+    await client.query('UPDATE pos_cash_moves SET type=$2,amount=$3,reason=$4 WHERE id=$1',[got.m.id,m.type,m.amount,m.reason]);
+    await client.query('COMMIT');
+    req.posLogDetail=`${cashMoveText(got.m)} → ${cashMoveText(m)}`.slice(0,500);
+    const s=await registerSummary(got.r);
+    res.json({ok:true,id:got.m.id,...m,before:{type:got.m.type,amount:got.m.amount,reason:got.m.reason},staff:got.m.staff,created_at:got.m.created_at,venue:got.r.venue,day:got.r.day,expected_cash:s.summary.expected});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
+}));
+app.delete('/api/admin/registers/:id/cash/:moveId',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const client=await pool.connect();
+  try{await client.query('BEGIN');
+    const got=await loadCashMove(req,res,client);if(!got){await client.query('ROLLBACK');return;}
+    await client.query('DELETE FROM pos_cash_moves WHERE id=$1',[got.m.id]);
+    await client.query('COMMIT');
+    req.posLogDetail=`刪除 ${cashMoveText(got.m)}（${got.m.staff||'—'} 記錄）`.slice(0,500);
+    const s=await registerSummary(got.r);
+    res.json({ok:true,id:got.m.id,deleted:{type:got.m.type,amount:got.m.amount,reason:got.m.reason},expected_cash:s.summary.expected});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 /* 小結：不關帳，只回目前應有現金、營收摘要與臨時收支（可列印小結單） */
 app.get('/api/admin/registers/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
