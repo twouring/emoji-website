@@ -96,7 +96,7 @@ test('pos.html：只做餐飲五件事、與 /admin 共用 pos-ops.js、登入�
   assert.match(html, /const KEY = 'tth_pos_token_' \+ \(POS_URL_VENUE \|\| 'home'\)\.toLowerCase\(\);/, 'KK 11/4：各品牌登入狀態分開存');
   assert.match(html, /d\.role !== 'admin'/); assert.match(html, /d\.brands && !d\.brands\.some\(b => BRAND_LABEL\[b\]\)/, '等等空間子帳號擋在 POS 外');
   // 現場長期開著：喚醒重抓、到期前背景續期
-  assert.match(html, /addEventListener\('visibilitychange', \(\) => \{ if \(!document\.hidden && DATA\) \{ activate\(\); refreshPending\(\); \} \}\)/);
+  assert.match(html, /addEventListener\('visibilitychange', \(\) => \{ if \(!document\.hidden && DATA\) \{ posWake\(\); refreshPending\(\); \} \}\)/);
   assert.match(html, /api\('\/auth\/renew', \{ method:'POST'/); assert.match(html, /setInterval\(renewToken, 3600e3\)/);
   assert.match(html, /tokenExp\(token\) - Date\.now\(\) > 2 \* 86400e3\) return;/, '只在剩不到 2 天時續');
   // 宿主頁必須提供 pos-ops.js 用到的全域
