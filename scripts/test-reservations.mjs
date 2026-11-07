@@ -237,7 +237,7 @@ test('訂位以客人為出發：目的 → 日期 → 時段 → 人數（KK 11
   // 目的對應店別：咖啡→在咖啡；晚餐、小酌→三點水；工作、慶生、都可以→兩店。工作・讀書可訂到半夜（23:30），不列 00:00 後的深夜場（KK 11/7）
   assert.match(js, /&&!\(g\.k==='late'&&P==='work'\)/);
   assert.match(js, /\{k:'coffee',v:'CAFE'\},\{k:'work',v:'',noLate:true\},\{k:'meal',v:'BAR'\},\{k:'drinks',v:'BAR'\},\{k:'celebrate',v:''\},\{k:'any',v:''\}/);
-  for (const k of ['coffee', 'work', 'meal', 'drinks', 'celebrate', 'any']) assert.equal((js.match(new RegExp(`\\b${k}:'`, 'g')) || []).length, 3, `目的 ${k} 三語都要有`);
+  for (const k of ['coffee', 'work', 'meal', 'drinks', 'celebrate', 'any']) assert.equal((js.match(new RegExp(`\\b${k}:'[^<]`, 'g')) || []).length, 3, `目的 ${k} 三語都要有`);
   assert.match(js, /params\.get\('purpose'\)/, '品牌站可用 ?purpose= 或 ?venue= 直接帶入');
   assert.match(js, /ML\.MIN_SPEND\.weekend:ML\.MIN_SPEND\.weekday/, '三點水低消依所選日期顯示，不寫死金額');
   assert.match(js, /calDate=isLate\(picked\.value\)\?addDays\(bizDate,1\):bizDate/, '深夜時段送出時換成隔天日曆日');
@@ -264,4 +264,14 @@ test('伺服器：目的寫進備註、深夜時段依營業日檢查不可訂�
   assert.throws(() => normalizeReservation({ ...base, date: '2026-11-09', time: '01:00' }, now, { hours }), /不開放/);
   assert.equal(normalizeReservation({ ...base, date: '2026-11-09', time: '19:00' }, now, { hours }).period, '三點水');
   assert.throws(() => normalizeReservation({ ...base, date: '2026-11-08', time: '19:00' }, now, { hours }), /不開放/);
+});
+
+test('訂位頁線稿 icon 只輔助、不取代文字（KK 11/7）', () => {
+  for (const k of ['compass', 'calendar', 'clock', 'people', 'coffee', 'work', 'meal', 'drinks', 'celebrate', 'any', 'morning', 'noon', 'afternoon', 'evening', 'night', 'late', 'check', 'pin', 'phone']) assert.match(js, new RegExp(`\\b${k}:'<`), `icon ${k}`);
+  assert.match(js, /setAttribute\('aria-hidden','true'\)/);
+  assert.match(js, /DOMParser\(\)\.parseFromString/);
+  assert.match(js, /prependIco\(c\.querySelector\('span'\),x\.k\)/, '目的按鈕：icon＋文字');
+  assert.match(js, /prependIco\(h,g\.k\)/, '時段分組標題');
+  assert.match(js, /'hero-art','0 0 220 96'/, '頁首插圖');
+  for (const page of [html, htmlEn, htmlJa]) assert.match(page, /\.ico\{[^}]*stroke:currentColor/);
 });

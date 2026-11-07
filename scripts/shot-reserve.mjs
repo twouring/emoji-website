@@ -65,7 +65,7 @@ async function run(width, lang, scenario) {
   }));
   const name = `${scenario.id}-${lang}-${width}.png`;
   await page.screenshot({ path: path.join(out, name), fullPage: true });
-  if (scenario.id === '2-drinks' && width === 390 && lang === 'zh') { await page.evaluate(() => document.getElementById('slotGroups').scrollIntoView({ block: 'start' })); await page.screenshot({ path: path.join(out, 'viewport-' + name) }); }
+  if (width !== 1280 && lang === 'zh' && ['1-open','2-drinks'].includes(scenario.id)) { await page.screenshot({ path: path.join(out, 'top-' + name) }); await page.evaluate(() => document.getElementById('slotGroups').scrollIntoView({ block: 'start' })); await page.screenshot({ path: path.join(out, 'viewport-' + name) }); }
   await browser.close();
   console.log(name, JSON.stringify({ ...m, errors }));
 }

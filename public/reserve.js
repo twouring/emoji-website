@@ -49,6 +49,39 @@
   };
   var T=DICT[LANG]||DICT.zh;
 
+  /* 線稿 icon（24 格、currentColor、1.6 線寬）：只輔助辨識，文字一律保留；aria-hidden。用 DOMParser 組 */
+  var ICONS={
+    compass:'<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
+    calendar:'<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h2M14 14h2M8 17h2"/>',
+    clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    people:'<circle cx="9" cy="8" r="3"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.2A4.5 4.5 0 0 1 21 18.5"/>',
+    coffee:'<path d="M4 10h12v4a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M16 11h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M8 3.5c-.8 1 .8 2 0 3M12 3.5c-.8 1 .8 2 0 3M3 21h15"/>',
+    work:'<rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20M9 9.5h6M9 12h4"/>',
+    meal:'<path d="M7 3v5a2 2 0 0 0 4 0V3M9 3v18M17 21V3c-2 1.5-3 4-3 7v3h3"/>',
+    drinks:'<path d="M7 3h10l-1 6a4 4 0 0 1-8 0z"/><path d="M7.6 6.5h8.8M12 13v7M8.5 21h7"/>',
+    celebrate:'<path d="M4 21h16M5 21v-6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v6"/><path d="M5 16.5c1.5 1 3 1 4.5 0s3-1 4.5 0 3 1 4.5 0M12 13v-3"/><path d="M12 7.5c-.9-.8-.9-2 0-3.5.9 1.5.9 2.7 0 3.5z"/>',
+    any:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
+    morning:'<path d="M3 18h18M7 18a5 5 0 0 1 10 0M12 6v3M5.6 10.6l1.6 1.6M18.4 10.6l-1.6 1.6M7 21h10"/>',
+    noon:'<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+    afternoon:'<path d="M8.5 8.5a3.5 3.5 0 0 1 6.4-1M9 3v1.5M4 8.5h1.5M5.5 5l1 1"/><path d="M7 19h10a3.5 3.5 0 0 0 .3-7A5 5 0 0 0 8 13.5 3 3 0 0 0 7 19z"/>',
+    evening:'<path d="M3 15h18M6 19h12M8 15a4 4 0 0 1 8 0M12 4v4M9.5 6.5L12 9l2.5-2.5"/>',
+    night:'<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+    late:'<path d="M16 15.5A6.5 6.5 0 1 1 8.5 6a5.2 5.2 0 0 0 7.5 9.5z"/><path d="M18 3l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6z"/>',
+    check:'<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8 5.7-5.8"/>',
+    pin:'<path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
+    phone:'<path d="M5 4h3.5l1.5 4-2 1.3a10 10 0 0 0 5.7 5.7L15 13l4 1.5V18a2 2 0 0 1-2 2A14 14 0 0 1 3 6a2 2 0 0 1 2-2z"/>'
+  };
+  // 頁首插圖：白天的咖啡、工作的筆電、晚上的酒杯，太陽到月亮一條虛線——一張桌子從早用到晚
+  var HERO='<path d="M10 78h200M40 78v14M180 78v14"/><path d="M30 58h24v8a10 10 0 0 1-10 10h-4a10 10 0 0 1-10-10z"/><path d="M54 61h3a4 4 0 0 1 0 8h-3M38 46c-2 3 2 5 0 8M46 46c-2 3 2 5 0 8"/><path d="M92 50h36a2 2 0 0 1 2 2v22H90V52a2 2 0 0 1 2-2zM84 74h52l-3 4H87zM100 58h20M100 64h13"/><path d="M164 46h22l-2 12a9 9 0 0 1-18 0zM165.5 52h19M175 67v10M168 78h14"/><circle cx="30" cy="18" r="6"/><path d="M30 6v3M30 27v3M18 18h3M39 18h3M21.5 9.5l2 2M36.5 24.5l2 2M21.5 26.5l2-2M36.5 11.5l2-2"/><path d="M196 25a9 9 0 1 1-8-15 7 7 0 0 0 8 15z"/><path d="M44 16Q110 -6 176 16" stroke-dasharray="2 6"/>';
+  function svg(body,cls,vb){
+    var d=new DOMParser().parseFromString('<svg xmlns="http://www.w3.org/2000/svg" viewBox="'+(vb||'0 0 24 24')+'">'+body+'</svg>','image/svg+xml');
+    var n=document.importNode(d.documentElement,true);
+    n.setAttribute('class',cls||'ico');n.setAttribute('aria-hidden','true');n.setAttribute('focusable','false');
+    return n;
+  }
+  function ico(name){return svg(ICONS[name]||'');}
+  function prependIco(node,name){if(node&&!node.querySelector('.ico'))node.insertBefore(ico(name),node.firstChild);}
+
   // 目的 → 店別（''＝兩店都可）。key 送到伺服器，伺服器把中文標籤寫進備註給店內看（lib/reservations.js PURPOSES）
   var PURPOSES=[{k:'coffee',v:'CAFE'},{k:'work',v:'',noLate:true},{k:'meal',v:'BAR'},{k:'drinks',v:'BAR'},{k:'celebrate',v:''},{k:'any',v:''}];
 
@@ -120,7 +153,7 @@
 
   function renderPurposes(){
     purposeHost.textContent='';
-    PURPOSES.forEach(function(x){purposeHost.appendChild(chip('purpose',x.k,T.p[x.k],P===x.k,false));});
+    PURPOSES.forEach(function(x){var c=chip('purpose',x.k,T.p[x.k],P===x.k,false);prependIco(c.querySelector('span'),x.k);purposeHost.appendChild(c);});
   }
   function renderVenueInfo(){
     venueInfo.textContent='';
@@ -146,6 +179,7 @@
       var sec=el('div','slot-group');
       var h=el('h3',null,T.parts[g.k]+(g.k==='late'?T.lateOf(md(addDays(date.value,1))):''));
       if(!V)h.appendChild(el('small',null,VENUE_NAME[g.v]));
+      prependIco(h,g.k);
       sec.appendChild(h);
       var grid=el('div','chips');
       g.times.forEach(function(t){
@@ -182,6 +216,9 @@
   slotHost.addEventListener('change',updateSubmit);
   form.addEventListener('change',function(e){if(e.target.name==='party_size')updateSubmit();});
 
+  [['purposeChips','compass'],['dateChips','calendar'],['slotGroups','clock'],['partyChips','people']].forEach(function(x){var host=document.getElementById(x[0])||(x[0]==='partyChips'&&form.querySelector('.chips--party'));if(host)prependIco(host.closest('.field').querySelector('.legend'),x[1]);});
+  var heroWrap=document.querySelector('.reserve-hero .wrap');
+  if(heroWrap&&!heroWrap.querySelector('.hero-art'))heroWrap.appendChild(svg(HERO,'hero-art','0 0 220 96'));
   renderPurposes();refresh(false);
   // 先抓 7 天的開放時段，日期列才知道哪天能訂
   var ds=[];for(var i=0;i<DAYS_AHEAD;i++)ds.push(addDays(now.date,i));
@@ -201,7 +238,7 @@
     var start=new Date(calDate+'T'+time+':00+08:00'),end=new Date(start.getTime()+90*60000);
     var f=function(x){return x.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');};
     var ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//emoji.tw//reserve//'+LANG,'BEGIN:VEVENT','UID:'+(requestId||Date.now())+'@emoji.tw','DTSTAMP:'+f(new Date()),'DTSTART:'+f(start),'DTEND:'+f(end),'SUMMARY:'+T.icsTitle+' '+venue+' · '+T.guestsN(party),'LOCATION:No. 11, Sec. 1, Chongqing S. Rd., Zhongzheng Dist., Taipei','DESCRIPTION:'+T.id+(requestId||''),'END:VEVENT','END:VCALENDAR'].join('\r\n');
-    var a=el('a','btn btn-ghost',T.ics);
+    var a=el('a','btn btn-ghost',T.ics);prependIco(a,'calendar');
     a.href=URL.createObjectURL(new Blob([ics],{type:'text/calendar'}));
     a.download='emoji-reservation.ics';
     return a;
@@ -226,7 +263,9 @@
       if(data.purpose)addLine(T.purpose,T.p[data.purpose]);
       addLine(T.hold,body.hold_until||holdUntil(data.time));
       addLine(T.mail,data.email);
+      prependIco(done.querySelector('h2'),'check');
       var acts=done.querySelector('.actions');
+      if(acts)[].forEach.call(acts.querySelectorAll('a'),function(x){prependIco(x,/^tel:/.test(x.getAttribute('href')||'')?'phone':'pin');});
       if(acts)acts.appendChild(icsLink(calDate,data.time,picked.dataset.label,data.party_size,body.request_id));
       if(body.line_url){
         var L={zh:'用 LINE 收通知（前一天提醒、可直接取消）',en:'Get reminders on LINE (cancel in one tap)',ja:'LINEでリマインドを受け取る'}[LANG]||'';
