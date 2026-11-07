@@ -2370,6 +2370,14 @@ function dailyCloseForm(r){
     <div class="a-form"><label>留存金（下一班）<input id="reg-keep" type="number" inputmode="numeric" min="0" step="1" value="${esc(keepDefault)}"></label></div>${fillChips('reg-keep',[[keepDefault,'預設 $'+num(keepDefault)],[0,'全部收走'],[3000,'$3,000'],[5000,'$5,000']])}`}
     <p id="reg-close-status" role="status" aria-live="polite">${pending.length?'帳戶尚未全部核對。':'上方帳戶皆已核對，可以關帳。'}</p><div class="a-toolbar"><button type="button" class="btn btn--solid" id="reg-close-go" disabled>確認關帳</button><button type="button" class="btn btn--ghost" id="reg-close-cancel">取消</button></div></div>`;
 }
+/* 當班營收（KK 11/7）：已結帳＋開著的桌還沒結的，一起看；未結的服務費是預估，以結帳為準 */
+function shiftRevenueHtml(r){
+  const paid=Number(r.sales?.amount)||0,p=r.pending||{tables:0,amount:0,list:[]},open=Number(p.amount)||0;
+  const list=(p.list||[]).map(t=>`<li><b>${esc(t.table_no)}</b> NT$${num(t.amount)}${t.unsent?'<span class="hint">（有未送單）</span>':''}</li>`).join('');
+  return `<div class="reg-shift"><div class="ops-head"><h4>當班營收</h4>${tipIcon('已結帳＝這本帳已收的營收（折扣後、不含打賞代收）。未結帳＝目前開著的桌上還沒結的品項（含三點水預估服務費，折扣與免收以結帳為準）。')}</div>
+    <div class="reg-cash"><div><span>已結帳 ${num(r.sales?.orders||0)} 單</span><b>${num(paid)}</b></div><div><span>未結帳 ${num(p.tables)} 桌</span><b>${num(open)}</b></div><div class="reg-expected"><span>當班合計</span><b>NT$${num(paid+open)}</b></div></div>
+    ${list?`<ul class="reg-shift-list">${list}</ul>`:''}</div>`;
+}
 function registerBlock(d){
   const venues=SCOPE?[SCOPE]:Object.keys(BRAND_LABEL);
   const cards=venues.map(v=>{const r=d?.current?.[v]||null,st=regState(r);
@@ -2385,6 +2393,7 @@ function registerBlock(d){
     const done=st==='done',lc=!done&&r.last_count;
     return `<div class="reg-card reg-${st}"><h4>${esc(BRAND_LABEL[v])} ${done?'<span class="pill pill-draft">已關帳</span>':'<span class="pill pill-ok">開帳中</span>'}<span class="hint hint--end">${esc(clockText(r.opened_at))} 開帳${done?` · ${esc(clockText(r.closed_at))} 關帳`:''}</span></h4>
       <div class="reg-cash"><div><span>零用金</span><b>${num(r.opening_cash)}</b></div><div><span>現金營收</span><b>${num(r.cash_sales)}</b></div><div><span>臨時收支</span><b>${r.cash_in-r.cash_out>=0?'+':'−'}${num(Math.abs(r.cash_in-r.cash_out))}</b></div><div class="reg-expected"><span>應有現金</span><b>NT$${num(r.expected)}</b></div>${done?`<div><span>點鈔</span><b>${num(r.counted_cash)}</b></div><div class="${r.diff?'reg-diff':''}"><span>${r.diff>0?'溢':r.diff<0?'短':'差額'}</span><b>${r.diff>0?'+':''}${num(r.diff)}</b></div>`:lc?`<div><span>${esc(clockText(lc.created_at))} 點驗</span><b>${num(lc.counted_cash)}</b></div><div class="${lc.diff?'reg-diff':''}"><span>${lc.diff>0?'溢':lc.diff<0?'短':'差額'}</span><b>${lc.diff>0?'+':''}${num(lc.diff)}</b></div>`:''}</div>
+      ${done?'':shiftRevenueHtml(r)}
       ${done&&r.close_note?`<p class="hint">${esc(r.close_note)}</p>`:lc&&lc.note?`<p class="hint">點驗：${esc(lc.note)}</p>`:''}
       <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>時間</th><th>類型</th><th>原因</th><th class="num">金額</th></tr></thead><tbody>${moves}</tbody></table></div>
       ${cashForm}${countForm}${closeForm}${done&&REG_OPEN_FORM===v&&REG_DATA?.can_open?.[v]?openRegisterForm(v):''}
