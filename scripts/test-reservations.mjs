@@ -234,8 +234,9 @@ test('訂位以客人為出發：目的 → 日期 → 時段 → 人數（KK 11
     assert.match(page, /<script defer src="\/menu-lib\.js"><\/script>\n<script defer src="\/reserve\.js">/, `${lang}：低消數字取自 MenuLib`);
   }
   assert.match(html, /想做什麼？/); assert.match(htmlEn, /What brings you in\?/); assert.match(htmlJa, /ご利用目的/);
-  // 目的對應店別：咖啡、工作→在咖啡；晚餐、小酌→三點水；慶生、都可以→兩店
-  assert.match(js, /\{k:'coffee',v:'CAFE'\},\{k:'work',v:'CAFE'\},\{k:'meal',v:'BAR'\},\{k:'drinks',v:'BAR'\},\{k:'celebrate',v:''\},\{k:'any',v:''\}/);
+  // 目的對應店別：咖啡→在咖啡；晚餐、小酌→三點水；工作、慶生、都可以→兩店。工作・讀書可訂到半夜（23:30），不列 00:00 後的深夜場（KK 11/7）
+  assert.match(js, /&&!\(g\.k==='late'&&P==='work'\)/);
+  assert.match(js, /\{k:'coffee',v:'CAFE'\},\{k:'work',v:'',noLate:true\},\{k:'meal',v:'BAR'\},\{k:'drinks',v:'BAR'\},\{k:'celebrate',v:''\},\{k:'any',v:''\}/);
   for (const k of ['coffee', 'work', 'meal', 'drinks', 'celebrate', 'any']) assert.equal((js.match(new RegExp(`\\b${k}:'`, 'g')) || []).length, 3, `目的 ${k} 三語都要有`);
   assert.match(js, /params\.get\('purpose'\)/, '品牌站可用 ?purpose= 或 ?venue= 直接帶入');
   assert.match(js, /ML\.MIN_SPEND\.weekend:ML\.MIN_SPEND\.weekday/, '三點水低消依所選日期顯示，不寫死金額');

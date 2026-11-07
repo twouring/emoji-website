@@ -721,7 +721,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
     const now=new Date(),tpMin=(now.getUTCHours()+8)%24*60+now.getUTCMinutes();
     const past=t=>RV.date===today&&(Number(t.slice(0,2))*60+Number(t.slice(3)))<=tpMin+30&&Number(t.slice(0,2))>=3;
     const openOnly=ts=>RV_OPEN.date===RV.date&&RV_OPEN.slots?ts.filter(t=>RV_OPEN.slots.includes(t)):ts;
-    const RV_PV={coffee:'CAFE',work:'CAFE',meal:'BAR',drinks:'BAR'}[RV.purpose]||'';const nextMd=(()=>{const t=new Date(RV.date+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+1);return (t.getUTCMonth()+1)+'/'+t.getUTCDate();})();const groups=[['CAFE',T.venues[0],openOnly(slot(8*60,17*60))],['BAR',T.venues[1],openOnly(slot(17*60,24*60))],['BAR',T.rvLate(nextMd),openOnly(slot(0,3*60))]].filter(g=>(!RV_PV||g[0]===RV_PV)&&g[2].length).map(g=>[g[1],g[2]]);
+    const RV_PV={coffee:'CAFE',meal:'BAR',drinks:'BAR'}[RV.purpose]||'';const nextMd=(()=>{const t=new Date(RV.date+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+1);return (t.getUTCMonth()+1)+'/'+t.getUTCDate();})();const groups=[['CAFE',T.venues[0],openOnly(slot(8*60,17*60))],['BAR',T.venues[1],openOnly(slot(17*60,24*60))],['BAR',T.rvLate(nextMd),openOnly(slot(0,3*60))]].filter((g,i)=>(!RV_PV||g[0]===RV_PV)&&!(RV.purpose==='work'&&i===2)&&g[2].length).map(g=>[g[1],g[2]]);
     const ph=((data.yan&&data.yan.phone)||me.phone||'').replace(/^\+886/,'0');
     app.innerHTML=`${head(T.resvTitle,T.byDine,`<button class="quiet" id="bk" type="button">${esc(T.back)}</button>`)}
     <div class="fld">${esc(T.rvPurpose)}<div class="seg" id="rvpu">${['coffee','work','meal','drinks','celebrate','any'].map(k=>`<button type="button" data-pu="${k}" aria-pressed="${RV.purpose===k}">${esc(T.rvP[k])}</button>`).join('')}</div></div>

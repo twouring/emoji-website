@@ -73,6 +73,7 @@ async function run(width, lang, scenario) {
 const SC = [
   { id: '1-open' },
   { id: '2-drinks', steps: ['input[name=purpose][value=drinks]'] },
+  { id: '6-work', steps: ['input[name=purpose][value=work]', 'input[name=date_pick][value="2026-11-09"]'] },
   { id: '3-coffee', steps: ['input[name=purpose][value=coffee]'] },
   { id: '4-late-submit', steps: ['input[name=purpose][value=drinks]', 'input[name=time][value="01:00"]', 'input[name=party_size][value="2"]'], fill: true },
   { id: '5-query', query: '?venue=3am&date=2026-11-10' },
