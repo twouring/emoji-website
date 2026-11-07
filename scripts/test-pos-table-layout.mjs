@@ -38,3 +38,10 @@ test('編輯桌位可改桌號（KK 11/7）：沿用位置、使用中不能改�
   assert.match(js,/使用中，先結帳清桌再改號/);assert.match(js,/POS_EDIT_TABLES\.map\(x=>x===t\?n:x\)/);
   assert.match(js,/p\[n\]=p\[t\];delete p\[t\]/);assert.match(js,/closest\('\[data-del-table\],\[data-ren-table\]'\)/);
 });
+test('一排最多可排 12 桌（KK 11/7）：桌牌最窄 8%、窄桌牌按鈕直排、伺服器收 8%',()=>{
+  const css=fs.readFileSync(new URL('../public/pos-ops.css',import.meta.url),'utf8');
+  assert.match(js,/const w=Math\.max\(8,Math\.min\(60,/);assert.ok(12*8<=100);
+  assert.match(srv,/ok\(xy\[2\],8,60\)/);
+  assert.match(js,/classList\.toggle\('is-narrow'/);assert.match(css,/\.pos-drag\.is-narrow \.pos-ren-table\{/);
+  assert.match(css,/@container \(max-width:84px\)/);
+});

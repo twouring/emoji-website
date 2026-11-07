@@ -558,6 +558,7 @@ tr.lp-refund td{color:var(--danger)}
 .pos-floor-edit .pos-ren-table{position:absolute;left:-2px;bottom:-2px;right:44px;max-width:96px;height:44px;padding:0;border:0;border-radius:12px 0 12px 8px;background:var(--ink);color:var(--card);font-size:1rem;line-height:1;cursor:pointer;touch-action:manipulation;opacity:.85}
 .pos-floor-edit .pos-rz{position:absolute;right:-2px;bottom:-2px;width:44px;height:44px;border-radius:12px 0 8px 0;background:var(--ink);opacity:.85;cursor:nwse-resize;touch-action:none}
 .pos-floor-edit .pos-rz::after{content:'';position:absolute;right:9px;bottom:9px;width:14px;height:14px;border-right:3px solid var(--card);border-bottom:3px solid var(--card)}
+.pos-floor-edit .pos-drag.is-narrow{padding:4px 4px 0;min-width:0;min-height:160px}.pos-floor-edit .pos-drag.is-narrow .pill{display:none}.pos-floor-edit .pos-drag.is-narrow .pos-del-table{top:auto;bottom:88px;border-radius:12px 0 0 12px}.pos-floor-edit .pos-drag.is-narrow .pos-ren-table{left:auto;right:-2px;bottom:44px;width:44px;max-width:none;border-radius:12px 0 0 12px;font-size:1rem;white-space:normal;line-height:1.1}
 .pos-floor-slot.is-sized{display:flex}.pos-floor-slot.is-sized .pos-table{height:100%}
 .pos-floor-edit .pos-drag.is-new{z-index:4;border:3px solid var(--ink);box-shadow:0 6px 18px rgba(0,0,0,.25)}
 .pos-floor-edit .pos-drag.dragging{z-index:5;opacity:.9;box-shadow:0 8px 24px rgba(0,0,0,.25);cursor:grabbing}
@@ -1012,3 +1013,5 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 @media (max-width:600px){.pos-open #pos-takeout{grid-column:1/-1}}
 @media (max-width:700px){.pos-foot>.pos-takeouts{border-top:1px dashed var(--line)!important;padding:8px 0 0!important}.pos-foot>.pos-takeouts .pos-takeout-list .pos-table{width:92px!important}.pos-tables-row .ops-head{flex-wrap:wrap;row-gap:4px}.pos-tables-row .ops-head .pos-print-mini{white-space:normal}}
 .pos-sub:empty{display:none}
+/* 窄桌牌（一排 12 桌，iPad 直放約 60px，KK 11/7）：狀態膠囊與單卡內距收窄、文字可換行，不超出桌框 */
+@container (max-width:84px){.pos-slot{padding:3px;gap:2px}.pos-floor-slot .pos-ticket .tk-head .pill,.pos-floor-slot .pos-slot .pill{flex:0 1 auto;min-width:0;padding:0 4px;white-space:normal;max-width:100%;box-sizing:border-box;text-align:center}.pos-ticket .tk-head{padding:2px 4px;flex-wrap:wrap}.pos-ticket .tk-time,.pos-ticket .tk-who,.pos-ticket .tk-open{padding-left:4px;padding-right:4px}}

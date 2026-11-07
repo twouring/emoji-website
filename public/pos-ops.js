@@ -1532,7 +1532,7 @@ function bindTableDrag(host){
     const f=floor.getBoundingClientRect(),r=drag.el.getBoundingClientRect();
     if(drag.rz){ // 拖右下角調整大小：寬高存畫布百分比，吸附 2%
       const x=Number(drag.el.dataset.x),y=Number(drag.el.dataset.y);
-      const w=Math.max(10,Math.min(60,100-x,Math.round((ev.clientX-drag.left)/f.width*100/2)*2));
+      const w=Math.max(8,Math.min(60,100-x,Math.round((ev.clientX-drag.left)/f.width*100/2)*2));
       const h=Math.max(8,Math.min(60,100-y,Math.round((ev.clientY-drag.top)/f.height*100/2)*2));
       drag.el.dataset.w=w;drag.el.dataset.h=h;drag.el.style.width=w+'%';drag.el.style.height=h+'%';return;
     }
@@ -1541,7 +1541,10 @@ function bindTableDrag(host){
     const y=Math.min(pct((ev.clientY-drag.dy-f.top)/f.height*100),Math.floor(Math.max(0,maxY)));
     drag.el.dataset.x=x;drag.el.dataset.y=y;drag.el.style.left=x+'%';drag.el.style.top=y+'%';
   });
-  const end=ev=>{if(!drag||ev.pointerId!==drag.id)return;drag.el.classList.remove('dragging');drag=null;POS_EDIT_POS=read();};
+  /* 窄桌牌（一排排到 12 桌，KK 11/7）：寬度不夠並排 改號＋縮放角，改成右側直排三顆鈕 */
+  const narrow=el=>{const fw=floor.getBoundingClientRect().width;if(fw)el.classList.toggle('is-narrow',fw*(Number(el.dataset.w)||23)/100<96);};
+  floor.querySelectorAll('[data-drag-table]').forEach(narrow);
+  const end=ev=>{if(!drag||ev.pointerId!==drag.id)return;drag.el.classList.remove('dragging');narrow(drag.el);drag=null;POS_EDIT_POS=read();};
   floor.addEventListener('pointerup',end);floor.addEventListener('pointercancel',end);
   host.querySelector('#pos-edit-cancel').onclick=exit;
   // 加減桌（KK 11/7）：只改編輯中的清單，按「完成」才存；使用中的桌不能移除
