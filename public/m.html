@@ -179,6 +179,14 @@ nav.tabs button[aria-current=true] svg{stroke-width:2.2}
 .slots button[aria-pressed=true]{border-color:var(--ink);background:var(--ink);color:var(--paper)}
 .slots h4{grid-column:1/-1;margin:8px 0 0;font-weight:500;color:var(--muted)}
 .slots .empty{grid-column:1/-1}
+/* 訂位 icon */
+.fh{display:inline-flex;align-items:center;gap:6px}.fh .ic{width:18px;height:18px;flex:none;color:var(--muted)}
+.seg.pu{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.seg.pu button{display:inline-flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3px;min-height:64px;padding:10px 4px 8px;border-radius:16px;line-height:1.25;word-break:keep-all}.seg.pu .ic{width:22px;height:22px;flex:none}
+@media (max-width:360px){.seg.pu button{font-size:.9rem;padding-left:2px;padding-right:2px}}
+.slots h4{display:flex;align-items:center;gap:6px}.slots h4 .ic{width:18px;height:18px;flex:none}
+.rv-hint{display:flex;align-items:flex-start;gap:6px}.rv-hint .ic{width:18px;height:18px;flex:none;margin-top:3px}
+.rv-go{display:flex;align-items:center;justify-content:center;gap:8px}.rv-go .ic{width:20px;height:20px}
+.ag-who{display:flex;align-items:center;gap:6px}.ag-who .ic{width:18px;height:18px;flex:none}
 .mi{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}
 .mi .nm{flex:1}.mi .nm small{display:block;color:var(--muted);font-size:1rem}
 .mi .q{display:flex;align-items:center;gap:4px}
@@ -560,6 +568,30 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
   const imgUrl=u=>/^\//.test(u||'')?SITE+u:(u||'');
   const SVG_CUP='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h12v6a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5zM17 10h2a2 2 0 0 1 0 4h-2M8 3v2M12 3v2"/></svg>';
   const SVG_CLOCK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+  /* 預約／訂位用線條 icon（24 格、1.7 線寬，與底部分頁一致） */
+  const IC=(d,w)=>`<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w||1.7}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const RI={
+    resv:IC('<path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 2-3 5-3 8h3v10"/>'),
+    pickup:IC('<path d="M5 8h14l-1 12H6zM9 8V6a3 3 0 0 1 6 0v2"/>'),
+    shop:IC('<path d="M4 9l1.5-5h13L20 9M4 9h16v2a3 3 0 0 1-5.3 2 3 3 0 0 1-5.4 0A3 3 0 0 1 4 11zM5 13v7h14v-7M10 20v-4h4v4"/>'),
+    event:IC('<path d="M4 8a2 2 0 0 0 0 4v4h16v-4a2 2 0 0 0 0-4V4H4zM14 4v2M14 10v2M14 16v-2"/>'),
+    coffee:IC('<path d="M5 8h12v6a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5zM17 10h2a2 2 0 0 1 0 4h-2M8 3v2M12 3v2"/>'),
+    work:IC('<rect x="5" y="5" width="14" height="10" rx="1.5"/><path d="M3 19h18"/>'),
+    meal:IC('<path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 2-3 5-3 8h3v10"/>'),
+    drinks:IC('<path d="M6 4h12l-6 8zM12 12v8M8 20h8"/>'),
+    celebrate:IC('<path d="M5 11h14v9H5zM3 11h18M12 11v9M12 11c-2-4-6-5-6-2 0 2 6 2 6 2zM12 11c2-4 6-5 6-2 0 2-6 2-6 2z"/>'),
+    any:IC('<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>'),
+    date:IC('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/>'),
+    party:IC('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.3-5.5 6.5-5.5s5.7 2 6.5 5.5M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.8c1.8.8 3 2.6 3.5 5.2"/>'),
+    time:IC('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+    note:IC('<path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/>'),
+    sun:IC('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+    moon:IC('<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>'),
+    info:IC('<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>'),
+    send:IC('<path d="M5 12l15-8-6 16-2.5-6.5z"/>',1.8)
+  };
+  const lab=(k,t)=>`<span class="fh">${RI[k]}${esc(t)}</span>`;
+  const noPlus=t=>String(t).replace(/^[＋+]\s*/,'');
   function rewardList(){
     const r=data.rewards||{items:[],space:[]};
     const nm=x=>LANG==='ja'&&x.ja?x.ja:LANG==='en'&&x.en?x.en:x.zh;
@@ -658,7 +690,8 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
       act=`${o.ticket?`<button class="btn solid" type="button" data-ticket="${esc(o.id)}">${esc(T.showTicket)}</button>`:''}${full?`<a class="btn" href="${eventUrl(o)}">${esc(T.eventPage)}</a>`:''}`;}
     const [who,what]=h.includes('・')?[h.slice(0,h.indexOf('・')),h.slice(h.indexOf('・')+1)]:['',h];
     const title=esc(what).replace(/(\d{1,2}\/\d{1,2}（[^）]+）\s?\d{1,2}:\d{2}|\d{1,2}\/\d{1,2}（[^）]+）)/,'<span class="nb">$1</span>');
-    return `<div class="tile ag">${who?`<div class="ag-who">${esc(who)}</div>`:''}<div class="ag-top"><h3>${title}</h3><span class="pill${on?' on':''}">${esc(pill)}</span></div><div class="meta">${esc(meta)}</div>${act?`<div class="act">${act}</div>`:''}</div>`;
+    const kic={shop:'shop',pickup:'pickup',resv:'resv',reg:'event'}[x.kind];
+    return `<div class="tile ag ag-${x.kind}"><div class="ag-who">${RI[kic]}${esc(who||T.events)}</div><div class="ag-top"><h3>${title}</h3><span class="pill${on?' on':''}">${esc(pill)}</span></div><div class="meta">${esc(meta)}</div>${act?`<div class="act">${act}</div>`:''}</div>`;
   }
   function bindAgenda(){
     app.querySelectorAll('[data-cancel-pickup]').forEach(b=>b.onclick=async()=>{if(!confirm(T.confirmCancelPickup))return;b.disabled=true;try{await post('/api/me/pickups/'+encodeURIComponent(b.dataset.cancelPickup),null,'DELETE');toast(T.canceled);await load();}catch(e){toast(e.message||T.opFail);b.disabled=false;}});
@@ -702,7 +735,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
     const list=agendaItems();
     app.innerHTML=`<div class="hello"><h1>${esc(T.tabBook)}</h1></div>
     <p class="hint">${esc(T.newWhat)}</p>
-    <nav class="quick" aria-label="new"><button type="button" data-go="resv">${esc(T.newResv)}</button><button type="button" data-go="pickup">${esc(T.newPickup)}</button><button type="button" data-go="shop">${esc(T.newShop)}</button><button type="button" data-go="events">${esc(T.signup)}</button></nav>
+    <nav class="quick" aria-label="new"><button type="button" data-go="resv">${RI.resv}${esc(noPlus(T.newResv))}</button><button type="button" data-go="pickup">${RI.pickup}${esc(noPlus(T.newPickup))}</button><button type="button" data-go="shop">${RI.shop}${esc(noPlus(T.newShop))}</button><button type="button" data-go="events">${RI.event}${esc(T.signup)}</button></nav>
     <section class="sec"><h2>${esc(T.agenda)}</h2>${list.length?list.map(x=>agendaTile(x,true)).join(''):`<p class="empty">${esc(T.agendaNone)}</p>`}</section>`;
     app.querySelectorAll('[data-go]').forEach(b=>b.onclick=e=>{e.preventDefault();go(b.dataset.go);});
     bindAgenda();
@@ -721,16 +754,16 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
     const now=new Date(),tpMin=(now.getUTCHours()+8)%24*60+now.getUTCMinutes();
     const past=t=>RV.date===today&&(Number(t.slice(0,2))*60+Number(t.slice(3)))<=tpMin+30&&Number(t.slice(0,2))>=3;
     const openOnly=ts=>RV_OPEN.date===RV.date&&RV_OPEN.slots?ts.filter(t=>RV_OPEN.slots.includes(t)):ts;
-    const RV_PV={coffee:'CAFE',meal:'BAR',drinks:'BAR'}[RV.purpose]||'';const nextMd=(()=>{const t=new Date(RV.date+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+1);return (t.getUTCMonth()+1)+'/'+t.getUTCDate();})();const groups=[['CAFE',T.venues[0],openOnly(slot(8*60,17*60))],['BAR',T.venues[1],openOnly(slot(17*60,24*60))],['BAR',T.rvLate(nextMd),openOnly(slot(0,3*60))]].filter((g,i)=>(!RV_PV||g[0]===RV_PV)&&!(RV.purpose==='work'&&i===2)&&g[2].length).map(g=>[g[1],g[2]]);
+    const RV_PV={coffee:'CAFE',meal:'BAR',drinks:'BAR'}[RV.purpose]||'';const nextMd=(()=>{const t=new Date(RV.date+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+1);return (t.getUTCMonth()+1)+'/'+t.getUTCDate();})();const groups=[['CAFE',T.venues[0],openOnly(slot(8*60,17*60))],['BAR',T.venues[1],openOnly(slot(17*60,24*60))],['BAR',T.rvLate(nextMd),openOnly(slot(0,3*60))]].filter((g,i)=>(!RV_PV||g[0]===RV_PV)&&!(RV.purpose==='work'&&i===2)&&g[2].length).map(g=>[g[1],g[2],g[0]==='CAFE'?'sun':'moon']);
     const ph=((data.yan&&data.yan.phone)||me.phone||'').replace(/^\+886/,'0');
     app.innerHTML=`${head(T.resvTitle,T.byDine,`<button class="quiet" id="bk" type="button">${esc(T.back)}</button>`)}
-    <div class="fld">${esc(T.rvPurpose)}<div class="seg" id="rvpu">${['coffee','work','meal','drinks','celebrate','any'].map(k=>`<button type="button" data-pu="${k}" aria-pressed="${RV.purpose===k}">${esc(T.rvP[k])}</button>`).join('')}</div></div>
-    <label class="fld">${esc(T.date)}<input type="date" id="rvd" min="${today}" value="${esc(RV.date)}"></label>
-    <div class="fld">${esc(T.party)}<div class="seg" id="rvp">${[1,2,3,4,5,6].map(n=>`<button type="button" data-p="${n}" aria-pressed="${RV.party===n||(n===6&&RV.party>6)}">${esc(T.partyN(n))}</button>`).join('')}</div>${RV.party>=6?`<input type="number" id="rvpn" min="6" max="50" inputmode="numeric" value="${esc(RV.party)}" aria-label="${esc(T.party)}">`:''}</div>
-    <div class="fld">${esc(T.slotLabel)}<div class="slots" id="rvt">${groups.length?groups.map(([h,ts])=>`<h4>${esc(h)}</h4>`+ts.map(t=>`<button type="button" data-t="${t}" aria-pressed="${RV.time===t}" ${past(t)?'disabled':''}>${t}</button>`).join('')).join(''):`<p class="empty">${esc(T.noOpenSlots)}</p>`}</div></div>
-    <label class="fld">${esc(T.noteOpt)}<textarea id="rvn" maxlength="500">${esc(RV.note)}</textarea></label>
-    <p class="hint">${esc(T.resvHint(me.name||'',ph))}</p>
-    <div class="sticky"><button type="button" class="btn solid" id="rvgo">${esc(T.submitResv)}</button></div>`;
+    <div class="fld">${lab('any',T.rvPurpose)}<div class="seg pu" id="rvpu">${['coffee','work','meal','drinks','celebrate','any'].map(k=>`<button type="button" data-pu="${k}" aria-pressed="${RV.purpose===k}">${RI[k]}<span>${T.rvP[k].split('・').map(esc).join('<br>')}</span></button>`).join('')}</div></div>
+    <label class="fld">${lab('date',T.date)}<input type="date" id="rvd" min="${today}" value="${esc(RV.date)}"></label>
+    <div class="fld">${lab('party',T.party)}<div class="seg" id="rvp">${[1,2,3,4,5,6].map(n=>`<button type="button" data-p="${n}" aria-pressed="${RV.party===n||(n===6&&RV.party>6)}">${esc(T.partyN(n))}</button>`).join('')}</div>${RV.party>=6?`<input type="number" id="rvpn" min="6" max="50" inputmode="numeric" value="${esc(RV.party)}" aria-label="${esc(T.party)}">`:''}</div>
+    <div class="fld">${lab('time',T.slotLabel)}<div class="slots" id="rvt">${groups.length?groups.map(([h,ts,ic])=>`<h4>${RI[ic]}${esc(h)}</h4>`+ts.map(t=>`<button type="button" data-t="${t}" aria-pressed="${RV.time===t}" ${past(t)?'disabled':''}>${t}</button>`).join('')).join(''):`<p class="empty">${esc(T.noOpenSlots)}</p>`}</div></div>
+    <label class="fld">${lab('note',T.noteOpt)}<textarea id="rvn" maxlength="500">${esc(RV.note)}</textarea></label>
+    <p class="hint rv-hint">${RI.info}<span>${esc(T.resvHint(me.name||'',ph))}</span></p>
+    <div class="sticky"><button type="button" class="btn solid rv-go" id="rvgo">${RI.send}${esc(T.submitResv)}</button></div>`;
     document.getElementById('bk').onclick=()=>{sub='list';paint();};
     document.getElementById('rvpu').onclick=e=>{const b=e.target.closest('button');if(!b)return;RV.purpose=b.dataset.pu;RV.time='';paint();};
     document.getElementById('rvd').onchange=e=>{RV.date=e.target.value;RV.time='';paint();};
