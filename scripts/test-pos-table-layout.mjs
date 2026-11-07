@@ -33,3 +33,8 @@ test('tableLayoutParse 讀 tables：過濾非法、去重、空清單＝不回',
   assert.equal(f(JSON.stringify({pos:{}})).tables,undefined);assert.equal(f(JSON.stringify({pos:{},tables:[]})).tables,undefined);
   assert.equal(f('not json').tables,undefined);
 });
+test('編輯桌位可改桌號（KK 11/7）：沿用位置、使用中不能改、新號不可重複',()=>{
+  assert.match(js,/data-ren-table=/);assert.match(js,/const renameTable=async t=>/);
+  assert.match(js,/使用中，先結帳清桌再改號/);assert.match(js,/POS_EDIT_TABLES\.map\(x=>x===t\?n:x\)/);
+  assert.match(js,/p\[n\]=p\[t\];delete p\[t\]/);assert.match(js,/closest\('\[data-del-table\],\[data-ren-table\]'\)/);
+});

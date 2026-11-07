@@ -1517,7 +1517,7 @@ function bindTableDrag(host){
   const exit=()=>{POS_EDIT=false;POS_EDIT_POS=null;POS_EDIT_TABLES=null;POS_EDIT_NEW='';host.dataset.sig='';paintPos();loadPos();};
   let drag=null;
   floor.addEventListener('pointerdown',ev=>{
-    if(ev.target.closest('[data-del-table]'))return;
+    if(ev.target.closest('[data-del-table],[data-ren-table]'))return;
     const el=ev.target.closest('[data-drag-table]');if(!el||ev.button>0)return;
     ev.preventDefault();el.setPointerCapture(ev.pointerId);
     const r=el.getBoundingClientRect();
@@ -1544,12 +1544,21 @@ function bindTableDrag(host){
   // 加減桌（KK 11/7）：只改編輯中的清單，按「完成」才存；使用中的桌不能移除
   const inUse=t=>(POS_DATA?.sessions||[]).some(s=>!s.takeout&&s.table===t);
   floor.addEventListener('click',async ev=>{
+    const rb=ev.target.closest('[data-ren-table]');if(rb){ev.stopPropagation();renameTable(rb.dataset.renTable);return;}
     const b=ev.target.closest('[data-del-table]');if(!b)return;ev.stopPropagation();const t=b.dataset.delTable;
     if(inUse(t)){toast(`${t} 使用中，先結帳清桌再移除`);return;}
     if(POS_EDIT_TABLES.length<=1){toast('至少要留一桌');return;}
     if(!await posConfirm(`移除桌 ${t}？按「完成」後才會生效。`,{ok:'移除'}))return;
     const p=read();delete p[t];POS_EDIT_POS=p;POS_EDIT_TABLES=POS_EDIT_TABLES.filter(x=>x!==t);paintPos();
   });
+  /* 改桌號（KK 11/7）：位置、大小、排序沿用，只換名字；使用中的桌不能改（帳跟著桌號走），新號不可與現有桌或開著的桌重複 */
+  const renameTable=async t=>{
+    if(inUse(t)){toast(`${t} 使用中，先結帳清桌再改號`);return;}
+    const n=await pickTableNo({title:`${t} 改成幾號？`,hint:'先點區再點號碼；位置與大小不變，按「完成」後全店 iPad 都會套用。',exclude:[t]});if(!n||n===t)return;
+    if(POS_EDIT_TABLES.includes(n)){toast(`${n} 已經在桌位上`);return;}
+    if(inUse(n)){toast(`${n} 現在有開著的桌，換別的號碼`);return;}
+    const p=read();if(p[t]){p[n]=p[t];delete p[t];}POS_EDIT_POS=p;POS_EDIT_TABLES=POS_EDIT_TABLES.map(x=>x===t?n:x);POS_EDIT_NEW=n;paintPos();toast(`已把 ${t} 改成 ${n}，按「完成」才會儲存`);
+  };
   host.querySelector('#pos-edit-add').onclick=async()=>{
     const t=await pickTableNo({title:'加哪一桌？',hint:'先點區再點號碼；按「完成」後全店 iPad 都會出現這桌。',exclude:[]});if(!t)return;
     if(POS_EDIT_TABLES.includes(t)){toast(`${t} 已經在桌位上`);return;}
@@ -1719,8 +1728,8 @@ function paintPos(){
 
   if(POS_EDIT){
     const pos=defaultTablePos(baseNames,layoutPos);
-    const cards=baseNames.map(t=>{const s=byTable.get(t);const [x,y,w,h]=pos[t];return `<div class="pos-table pos-drag${t===POS_EDIT_NEW?' is-new':''}" data-drag-table="${esc(t)}" data-x="${x}" data-y="${y}" ${w?`data-w="${w}" data-h="${h}"`:''} style="left:${x}%;top:${y}%${w?`;width:${w}%;height:${h}%`:''}" role="listitem" aria-label="桌 ${esc(t)}，按住拖到現場位置，拖右下角調整大小"><b>${esc(t)}</b><span class="pill ${s?'pill-wait':'pill-draft'}">${s?'使用中':'空桌'}</span><button type="button" class="pos-del-table" data-del-table="${esc(t)}" aria-label="移除桌 ${esc(t)}" title="移除這桌">×</button><i class="pos-rz" data-rz aria-label="拖曳調整大小"></i></div>`;}).join('');
-    host.innerHTML=`<div class="pos-layout"><div class="a-sec pos-tables pos-editing"><div class="ops-head pos-edit-bar"><h2>編輯桌位擺放</h2><div class="pos-edit-acts"><button type="button" class="btn btn--solid" id="pos-edit-done">完成</button><button type="button" class="btn btn--ghost" id="pos-edit-add">＋ 加桌</button><button type="button" class="btn btn--ghost" id="pos-edit-reset">還原預設格子</button><button type="button" class="btn btn--ghost" id="pos-edit-cancel">取消</button></div></div><p class="hint">按住桌號自由拖到跟現場一樣的位置（可以不排排站）；「＋ 加桌」增加桌位、桌牌右上 × 移除（使用中的桌要先清桌）。目前 ${baseNames.length} 桌，完成後全店 iPad 都會套用。</p><div class="pos-floor pos-floor-edit" style="min-height:${Math.max(520,Math.ceil(baseNames.length/4)*130)}px" role="list">${cards}</div></div></div>`;
+    const cards=baseNames.map(t=>{const s=byTable.get(t);const [x,y,w,h]=pos[t];return `<div class="pos-table pos-drag${t===POS_EDIT_NEW?' is-new':''}" data-drag-table="${esc(t)}" data-x="${x}" data-y="${y}" ${w?`data-w="${w}" data-h="${h}"`:''} style="left:${x}%;top:${y}%${w?`;width:${w}%;height:${h}%`:''}" role="listitem" aria-label="桌 ${esc(t)}，按住拖到現場位置，拖右下角調整大小"><b>${esc(t)}</b><span class="pill ${s?'pill-wait':'pill-draft'}">${s?'使用中':'空桌'}</span><button type="button" class="pos-del-table" data-del-table="${esc(t)}" aria-label="移除桌 ${esc(t)}" title="移除這桌">×</button><button type="button" class="pos-ren-table" data-ren-table="${esc(t)}" aria-label="改桌號 ${esc(t)}" title="改桌號">改號</button><i class="pos-rz" data-rz aria-label="拖曳調整大小"></i></div>`;}).join('');
+    host.innerHTML=`<div class="pos-layout"><div class="a-sec pos-tables pos-editing"><div class="ops-head pos-edit-bar"><h2>編輯桌位擺放</h2><div class="pos-edit-acts"><button type="button" class="btn btn--solid" id="pos-edit-done">完成</button><button type="button" class="btn btn--ghost" id="pos-edit-add">＋ 加桌</button><button type="button" class="btn btn--ghost" id="pos-edit-reset">還原預設格子</button><button type="button" class="btn btn--ghost" id="pos-edit-cancel">取消</button></div></div><p class="hint">按住桌號自由拖到跟現場一樣的位置（可以不排排站）；「＋ 加桌」增加桌位、桌牌左下「改號」改桌號、右上 × 移除（使用中的桌要先清桌）。目前 ${baseNames.length} 桌，完成後全店 iPad 都會套用。</p><div class="pos-floor pos-floor-edit" style="min-height:${Math.max(520,Math.ceil(baseNames.length/4)*130)}px" role="list">${cards}</div></div></div>`;
     bindTableDrag(host);return;
   }
   // 櫃檯開桌／外帶：加開固定清單以外的桌號、或外帶單
