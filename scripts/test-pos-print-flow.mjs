@@ -91,7 +91,7 @@ test('every checkout starts with paper invoice and no-invoice is last',()=>{
 test('table panel offers pre-checkout kitchen and receipt printing',()=>{
  assert.match(src,/<div class="pos-table-actions"><button[^>]*id="pos-place"[\s\S]{0,600}id="pos-slip"[\s\S]{0,1200}id="pos-move"[\s\S]{0,400}id="pos-close"/,'列印出餐單→換桌／併桌→清桌在左欄底部同一排');assert.doesNotMatch(src,/pos-prepay/);
  assert.match(src,/id="pos-place"[\s\S]{0,300}aria-label="列印出餐單"><span>出餐<\/span><\/button>/);assert.doesNotMatch(src,/送出點餐／列印出餐單/);assert.match(src,/id="pos-print-receipt"/);
- assert.doesNotMatch(src,/printOrder\(tableTicket\(\)\)/,'都送過時不可整桌重印（KK 11/1：加點單混入前面的餐點）');assert.match(src,/const t=lastTicket\(\);if\(t\)await printOrder\(t\)/);assert.match(src,/reprint:true/);assert.match(src,/o\.reprint\)spec\.push\(\{kind:'center',text:'【補印】最近一次送單'/);assert.match(src,/sessions\/'\+cur\.id\+'\/place/);
+ assert.doesNotMatch(src,/printOrder\(tableTicket\(\)\)/,'都送過時不可整桌重印（KK 11/1：加點單混入前面的餐點）');assert.match(src,/const t=lastTicket\(\);if\(t\)await printOrder\(t\)/);assert.match(src,/reprint:true/);assert.match(src,/o\.reprint\)spec\.push\(\{kind:'center',text:o\.single\?'【補印】單品':'【補印】最近一次送單'/);assert.match(src,/sessions\/'\+cur\.id\+'\/place/);
 });
 
 test('發票證明聯與收據明細預設印賣方統編 93537055', async () => {
@@ -177,4 +177,16 @@ test('左欄動作鍵一排不換行（KK 11/5）：grid 單列＋圖示', () =>
  assert.match(css,/\.pos-table-actions\{display:grid;grid-auto-flow:column/);
  assert.doesNotMatch(css,/\.pos-table-actions #pos-place\{flex-basis:100%\}/);
  for(const [id,n] of [['pos-place','send'],['pos-slip','receipt'],['pos-party','users'],['pos-move','swap'],['pos-close','xcircle']])assert.ok(ic.includes(`['#${id}','${n}']`),id);
+});
+
+test('個別品項列印出餐單（KK 11/7）：已送出品項「⋯」有「印出餐單」，只印該品項並標【補印】單品', async () => {
+ assert.match(src,/data-print-line=/);
+ assert.match(src,/l\.placed_at&&!l\.cancelled&&!l\.song&&!l\.tip&&l\.cat!=='SHOP'\?`<button[^`]*data-print-line/);
+ assert.match(src,/querySelectorAll\('\[data-print-line\]'\)[\s\S]{0,400}printOrder\(\{[^}]*items:\[l\],reprint:true,single:true\}\)/);
+ const {c,texts,sent}=printContext();
+ c.o={id:'tk_1',table_no:'A3',placed_at:'now',reprint:true,single:true,items:[{line:'L2',zh:'拿鐵',qty:1,price:150,cat:'COFFEE'}]};
+ await vm.runInContext('printOrder(o);',c);
+ assert.equal(sent.length,1,'單一飲品只印一張吧台單');
+ assert.ok(texts.includes('【補印】單品'));assert.ok(!texts.includes('【補印】最近一次送單'));
+ assert.ok(texts.some(t=>String(t).includes('拿鐵')));assert.ok(!texts.some(t=>String(t).includes('點餐明細')),'單品補印不附點餐明細');
 });
