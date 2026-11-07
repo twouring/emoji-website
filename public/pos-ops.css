@@ -451,11 +451,13 @@ tr.lp-refund td{color:var(--danger)}
 .pos-move-box .reason-other{margin-top:4px}
 /* 面板在平板直式也放得下：寬一點、內容可捲 */
 .pos-move-box{max-width:600px}
-/* 開桌人數（KK 11/7）：加寬、每列一排，不捲動 */
-.pos-move-box.pos-party-box{max-width:min(960px,100%);max-height:none;overflow:visible;padding:20px 24px}
+/* 開桌人數與一次開多桌：現場先看完整桌位，不讓新桌往下堆到必須捲動 */
+.pos-move-box.pos-party-box,.pos-move-box.pos-open-tables-box{max-width:min(960px,100%);max-height:none;overflow:visible;padding:20px 24px}
 .pos-party-box .pos-party-grid[data-row]{grid-template-columns:repeat(13,minmax(0,1fr));gap:8px;margin:4px 0 10px}
-.pos-party-box .pos-move-opt{min-height:56px}
-@media (max-width:760px){.pos-party-box .pos-party-grid[data-row]{grid-template-columns:repeat(7,minmax(0,1fr))}.pos-move-box.pos-party-box{padding:16px}}
+.pos-party-box .pos-move-opt,.pos-open-tables-box .pos-move-opt{min-height:56px}
+.pos-open-tables-box .pos-open-tables-grid{grid-template-columns:repeat(8,minmax(0,1fr));gap:8px;margin:12px 0}
+@media (max-width:760px){.pos-party-box .pos-party-grid[data-row]{grid-template-columns:repeat(7,minmax(0,1fr))}.pos-open-tables-box .pos-open-tables-grid{grid-template-columns:repeat(6,minmax(0,1fr))}.pos-move-box.pos-party-box,.pos-move-box.pos-open-tables-box{padding:16px}}
+@media (max-width:480px){.pos-open-tables-box .pos-open-tables-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 
 /* 出餐頁：低頻功能（暫停點餐、桌號 QR）預設收折 */
 .ops-fold{margin:0 0 14px}.ops-fold>summary{cursor:pointer;min-height:48px;display:flex;align-items:center;color:var(--muted);font-size:1rem;list-style:none}.ops-fold>summary::-webkit-details-marker{display:none}.ops-fold[open]>summary{margin-bottom:8px}.ops-fold[open]:has(.ops-pause.on)>summary{color:var(--danger);font-weight:700}

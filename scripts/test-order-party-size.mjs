@@ -72,6 +72,9 @@ test('開桌人數彈窗加寬、不捲動（KK 11/7）', () => {
   const css = fs2.readFileSync(new URL('../public/pos-ops.css', import.meta.url), 'utf8');
   const js = fs2.readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'utf8');
   assert.match(js, /classList\.add\('pos-party-box'\)/);
-  assert.match(css, /\.pos-move-box\.pos-party-box\{max-width:min\(960px,100%\);max-height:none;overflow:visible/);
+  assert.match(js, /pos-open-tables-grid/);
+  assert.match(js, /classList\.add\('pos-open-tables-box'\)/);
+  assert.match(css, /\.pos-move-box\.pos-party-box,\.pos-move-box\.pos-open-tables-box\{max-width:min\(960px,100%\);max-height:none;overflow:visible/);
+  assert.match(css, /\.pos-open-tables-box \.pos-open-tables-grid\{grid-template-columns:repeat\(8,/);
   assert.match(css, /\.pos-party-box \.pos-party-grid\[data-row\]\{grid-template-columns:repeat\(13,/);
 });

@@ -1313,7 +1313,8 @@ function pickParty(title,{adults=2,kids=0,foreign=0,ok:okLabel='開桌'}={}){
 function pickTables({title,options}){
   return new Promise(resolve=>{
     const sel=new Set();
-    const {ov,close}=pickOverlay(`<h3>${esc(title)}${tipIcon('點選要開的桌，可多選。每桌各印一張點餐 QR，一個帳本夾一張，按桌送餐。')}</h3><div class="pos-move-grid" style="grid-template-columns:repeat(4,1fr)">${options.map(t=>`<button type="button" class="pos-move-opt" data-mt="${esc(t)}" aria-pressed="false"><b>${esc(t)}</b></button>`).join('')}</div><div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-cancel>取消</button><button type="button" class="btn btn--solid" data-ok disabled>開桌並印 QR</button></div>`,'一次開多桌');
+    const {ov,close}=pickOverlay(`<h3>${esc(title)}${tipIcon('點選要開的桌，可多選。每桌各印一張點餐 QR，一個帳本夾一張，按桌送餐。')}</h3><div class="pos-move-grid pos-open-tables-grid">${options.map(t=>`<button type="button" class="pos-move-opt" data-mt="${esc(t)}" aria-pressed="false"><b>${esc(t)}</b></button>`).join('')}</div><div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-cancel>取消</button><button type="button" class="btn btn--solid" data-ok disabled>開桌並印 QR</button></div>`,'一次開多桌');
+    ov.classList.add('pos-open-tables-ov');ov.querySelector('.pos-move-box').classList.add('pos-open-tables-box');
     const done=v=>{close();resolve(v);};
     ov.onclick=e=>{if(e.target===ov)done(null);};
     const ok=ov.querySelector('[data-ok]');

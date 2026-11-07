@@ -23,16 +23,17 @@ for (const w of [390, 1024]) {
     ${cut('function pickOverlay(', '// 從清單點一個')}
     ${cut('// 本桌點餐 QR（單次）', 'async function openManyTables(')}
   ` });
-  await page.evaluate(() => { window.p = pickTables({ title: '一次開多桌', options: ['A1','A2','A3','A4','A5','A6','A7','A8','B1','B2','C1','C2'] }); });
+  await page.evaluate(() => { window.p = pickTables({ title: '一次開多桌', options: ['A1','A2','A3','A4','A5','A6','A7','A8','B1','B2','B3','B4','C1','C2','C3','C4'] }); });
   await page.click('[data-mt="A2"]'); await page.click('[data-mt="A3"]'); await page.click('[data-mt="A4"]');
   const label = await page.$eval('[data-ok]', b => b.textContent);
   await page.screenshot({ path: `${out}/multi-${w}.png` });
+  const dialog = await page.$eval('.pos-move-box', el => ({ height: Math.round(el.getBoundingClientRect().height), bottom: Math.round(el.getBoundingClientRect().bottom), scroll: el.scrollHeight > el.clientHeight }));
   const ov1 = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
   await page.click('[data-ok]'); const picked = await page.evaluate(() => window.p);
   await page.evaluate(() => openOneTableQr('A3')); await new Promise(r => setTimeout(r, 400));
   await page.screenshot({ path: `${out}/qr-${w}.png` });
   const img = await page.$eval('#qr-one img', i => i.naturalWidth).catch(() => 0);
-  res[w] = { label, picked, img, overflow: [ov1, await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)], errors };
+  res[w] = { label, picked, img, dialog, overflow: [ov1, await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)], errors };
 }
 console.log(JSON.stringify(res));
 await browser.close();
