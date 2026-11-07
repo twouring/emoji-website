@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 const src=fs.readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');
-function checkout({method='cash',fail=false,printFail=false}={}){
+function checkout({method='cash',fail=false,printFail=false,closed=false}={}){
  const events=[],messages=[],button={disabled:false};
- const ctx={Promise,Map,Set,Date,Number,String,minSpendGate:async()=>true,priceOf:l=>l.price,printReceipt:async()=>events.push('receipt'),printOrder:async()=>events.push('kitchen'),OPERATOR:{id:'op1'},POS_METHOD:method,POS_RECEIVED:'200',POS_MEMBER:false,POS_YAN:{phone:'',name:'',balance:null},POS_DISCOUNT:null,POS_SVC_WAIVE:null,POS_SVC_OPEN:false,POS_INVOICE:{mode:''},POS_PICK:null,POS_QTY:{},POS_SPLIT:{},aa:null,mixed:false,splitList:[],splitLeft:0,cash:method==='cash',cashDue:method==='cash'?180:0,cur:{lines:[]},picked:[{zh:'測試品項',qty:1,price:180}],total:180,cur:{id:'s1',table:'A1'},host:{querySelector:sel=>sel==='#pos-checkout'?button:null},posConfirm:async()=>true,num:String,payMethodLabel:x=>x,invoiceBody:()=>({}),ensureOperator:fn=>fn(),toast:m=>messages.push(m),reload:async()=>events.push('reload'),api:async()=>{events.push('payment');if(fail)throw Error('payment rejected');return {order_id:'to_1',amount:180,change:20,method,invoice:{status:'issued',number:'AB12345678'}};},autoCashDrawer:async event=>{events.push(event);return true;},printInvoiceProof:async()=>{events.push('print');if(printFail)throw Error('canvas failed');}};
+ const ctx={Promise,Map,Set,Date,Number,String,setTimeout,POS_CLEAR_DELAY_MS:1000,minSpendGate:async()=>true,priceOf:l=>l.price,printReceipt:async()=>events.push('receipt'),printOrder:async()=>events.push('kitchen'),OPERATOR:{id:'op1'},POS_METHOD:method,POS_RECEIVED:'200',POS_MEMBER:false,POS_YAN:{phone:'',name:'',balance:null},POS_DISCOUNT:null,POS_SVC_WAIVE:null,POS_SVC_OPEN:false,POS_INVOICE:{mode:''},POS_PICK:null,POS_QTY:{},POS_SPLIT:{},aa:null,mixed:false,splitList:[],splitLeft:0,cash:method==='cash',cashDue:method==='cash'?180:0,cur:{lines:[]},picked:[{zh:'測試品項',qty:1,price:180}],total:180,cur:{id:'s1',table:'A1'},host:{querySelector:sel=>sel==='#pos-checkout'?button:null},posConfirm:async()=>true,num:String,payMethodLabel:x=>x,invoiceBody:()=>({}),ensureOperator:fn=>fn(),toast:m=>messages.push(m),reload:async()=>events.push('reload'),api:async()=>{events.push('payment');if(fail)throw Error('payment rejected');return {order_id:'to_1',amount:180,change:20,method,closed,invoice:{status:'issued',number:'AB12345678'}};},autoCashDrawer:async event=>{events.push(event);return true;},printInvoiceProof:async()=>{events.push('print');if(printFail)throw Error('canvas failed');}};
  vm.createContext(ctx);
  vm.runInContext(src.slice(src.indexOf('async function opsThen('),src.indexOf('function ordersBeep(')),ctx);
  vm.runInContext(src.slice(src.indexOf('const DRAWER_ATTEMPTS='),src.indexOf('async function openCashDrawer(')),ctx);
@@ -22,6 +22,10 @@ test('checkout UI resets and reloads without waiting for drawer or printer',asyn
  assert.equal(events[0],'payment');assert.ok(events.includes('reload'));assert.equal(button.disabled,false);
  assert.equal(events.includes('print'),false);assert.match(messages.join(' '),/已收款 NT\$180/);
  release();await hw();assert.ok(events.indexOf('print')>events.findIndex(e=>e?.kind==='checkout'));
+});
+test('KK 11/7：整桌結清自動清桌，停 1 秒才 reload',async()=>{
+ const {button,events}=checkout({closed:true});const t0=Date.now();await button.onclick();
+ assert.ok(events.includes('reload'));assert.ok(Date.now()-t0>=950,'應停 1 秒');
 });
 test('checkout failure never triggers drawer or invoice',async()=>{
  const {button,events,messages}=checkout({fail:true});await button.onclick();
