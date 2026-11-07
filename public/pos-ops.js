@@ -1271,6 +1271,46 @@ function pickTables({title,options}){
     ok.onclick=()=>{if(sel.size)done(options.filter(t=>sel.has(t)));};
   });
 }
+/* 訂位帶位（KK 11/7）：訂位按「已到」→ 跳桌位選擇（使用中的桌不能選、已排的桌預選，大組可多選）→ 人數 → PIN → 開桌印 QR，訂位標「已到」並記桌號。
+   回 {mode:'seat',tables} / {mode:'arrive'}（只標已到不開桌）/ null（取消） */
+function pickSeatTables({title,tables,busy={},resv={},preset=[]}){
+  return new Promise(resolve=>{
+    const sel=new Set(preset.filter(t=>tables.includes(t)&&!busy[t]));
+    const opt=t=>`<button type="button" class="pos-move-opt ${sel.has(t)?'busy':''}" data-st="${esc(t)}" aria-pressed="${sel.has(t)}"${busy[t]?' disabled':''}><b>${esc(t)}</b>${busy[t]?'<small>使用中</small>':resv[t]?`<small>${esc(resv[t])}</small>`:''}</button>`;
+    const {ov,close}=pickOverlay(`<h3>${esc(title)}${tipIcon('點要帶位的空桌，大組可多選（每桌各印一張點餐 QR）。使用中的桌不能選。客人已在桌上、不用開桌就按「只標已到」。')}</h3><div class="pos-move-grid pos-seat-grid">${tables.map(opt).join('')}</div><div class="pos-move-foot pos-seat-foot"><button type="button" class="btn btn--ghost" data-cancel>取消</button><button type="button" class="btn btn--ghost" data-arrive>只標已到</button><button type="button" class="btn btn--solid" data-ok></button></div>`,'安排桌位');
+    const ok=ov.querySelector('[data-ok]');
+    const paint=()=>{ov.querySelectorAll('[data-st]').forEach(b=>{const on=sel.has(b.dataset.st);b.classList.toggle('busy',on);b.setAttribute('aria-pressed',String(on));});ok.disabled=!sel.size;ok.textContent=sel.size?`開 ${[...sel].join('、')} 並印 QR`:'選桌後開桌';};
+    const done=v=>{close();resolve(v);};
+    ov.onclick=e=>{if(e.target===ov)done(null);};
+    ov.querySelector('[data-cancel]').onclick=()=>done(null);
+    ov.querySelector('[data-arrive]').onclick=()=>done({mode:'arrive'});
+    ov.querySelectorAll('[data-st]').forEach(b=>b.onclick=()=>{const t=b.dataset.st;sel.has(t)?sel.delete(t):sel.add(t);paint();});
+    ok.onclick=()=>{if(sel.size)done({mode:'seat',tables:tables.filter(t=>sel.has(t))});};
+    paint();
+  });
+}
+async function seatReservation(r,after){
+  let d;try{d=await api('/admin/orders'+scopeQuery('all=1'));}catch(e){toast('桌況載入失敗：'+e.message);return;}
+  const sessions=(d.sessions||[]).filter(s=>!s.takeout),busy={};sessions.forEach(s=>{busy[s.table]=1;});
+  const tables=[...new Set([...DEFAULT_TABLES,...sessions.map(s=>s.table)])];
+  const resv={};for(const [t,list] of Object.entries(d.reservations||{})){const o=(list||[]).find(x=>x.id!==r.id&&x.status!=='arrived');if(o)resv[t]=`預約 ${o.time}`;}
+  const time=r.reserve_time||r.time||'',party=Number(r.party_size)||2;
+  const pick=await pickSeatTables({title:`帶位：${time} ${r.name} ${party} 位`,tables,busy,resv,preset:r.table_no?[r.table_no]:[]});
+  if(!pick)return;
+  const markArrived=table_no=>api('/admin/reservations/'+r.id+'/status',{method:'POST',body:{status:'arrived',table_no:table_no||'',staff_note:r.staff_note||'',notify:false}});
+  if(pick.mode==='arrive')return opsThen(()=>markArrived(r.table_no),`訂位 ${r.name} 已標記「已到」`,after);
+  // 人數：一桌預帶訂位人數；分多桌時逐桌選（預設平均）
+  const per=Math.max(1,Math.ceil(party/pick.tables.length)),pp={};
+  for(const t of pick.tables){const p=await pickParty(pick.tables.length>1?`${t} 開桌人數（訂位共 ${party} 位）`:`${t} 開桌（訂位 ${party} 位）`,{adults:pick.tables.length>1?per:party});if(!p)return;pp[t]=p;}
+  await ensureOperator(async()=>{
+    const opened=[];
+    for(const t of pick.tables){try{const out=await api('/admin/orders/sessions',{method:'POST',body:{table_no:t,...pp[t],venue:SCOPE||undefined,operator_id:OPERATOR?.id}});opened.push(out);}catch(e){toast(`${t} 開桌失敗：${e.message}`);}}
+    if(!opened.length)return;
+    try{await markArrived(opened[0].table);toast(`已帶位 ${opened.map(o=>o.table).join('、')}，訂位 ${r.name} 標記「已到」`);}catch(e){toast(`已開桌 ${opened.map(o=>o.table).join('、')}，但訂位狀態沒更新：${e.message}`);}
+    if(typeof after==='function')await after();
+    for(const o of opened.filter(o=>o.created&&o.qr_url)){if(!canPrint()){await openOneTableQr(o.table);break;}await printTableQr(o.table,o.qr_url,o);}
+  });
+}
 async function openManyTables(empty,reload){
   if(!empty.length){toast('目前沒有空桌');return;}
   const tables=await pickTables({title:'一次開多桌',options:empty});if(!tables)return;
@@ -2132,6 +2172,7 @@ async function loadReservations(){
   host.querySelectorAll('[data-resv]').forEach(b=>b.onclick=async()=>{
     const r=d.reservations.find(x=>x.id===b.dataset.resv)||todayRows.find(x=>x.id===b.dataset.resv),status=b.dataset.resvStatus;if(!r)return;
     const table_no=host.querySelector(`[data-resv-table="${CSS.escape(r.id)}"]`)?.value.trim()||'';
+    if(status==='arrived')return seatReservation({...r,table_no:table_no||r.table_no||''},loadReservations);   /* 已到＝跳桌位帶位開桌（KK 11/7） */
     let staff_note=r.staff_note||'';
     // 確認／婉拒：店內留言用膠囊鍵選（會附在信裡），可留空
     if(['confirmed','cancelled'].includes(status)){const v=await pickReason({title:`${status==='confirmed'?'確認':'婉拒'} ${r.name} ${r.reserve_date} ${r.reserve_time}（${r.party_size} 位）${r.email?'，會寄信通知客人':'，客人未留 Email，請另行電話聯繫'}`,presets:status==='confirmed'?REASON_PRESETS.resv_confirm:REASON_PRESETS.resv_cancel,placeholder:'店內留言（會附在信裡，可留空）',initial:staff_note,required:false,maxlength:200});if(v===null)return;staff_note=v;}

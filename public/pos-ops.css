@@ -974,3 +974,7 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 /* 支付方式：LINE Pay 在五等分（約 60px）放不下一行，改成兩行字、其他鍵維持一行 */
 .pos-blk--pay .pos-method span b{white-space:normal;word-break:keep-all;text-align:center;line-height:1.05}
 .pos-blk--sum .pos-sum:not(:has(>div:not([hidden]))){display:none}
+/* 訂位帶位選桌（KK 11/7）：使用中的桌停用 */
+.pos-seat-grid .pos-move-opt:disabled{opacity:.45;cursor:not-allowed;background:var(--line)}
+.pos-seat-grid .pos-move-opt.busy{background:var(--ink);border-color:var(--ink);color:var(--paper)}.pos-seat-grid .pos-move-opt.busy small{color:inherit}
+.pos-seat-foot{display:flex;flex-wrap:wrap;gap:8px}.pos-seat-foot .btn{white-space:nowrap;flex:1 1 auto}.pos-seat-foot [data-ok]{flex:1 1 100%}
