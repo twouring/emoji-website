@@ -104,10 +104,10 @@ test('reservation frontend follows <html lang>, renders 30-minute slots per bran
   assert.match(js, /en:\{cafe:'at cafe',bar:'3AM'/);
   assert.match(js, /ja:\{cafe:'在咖啡 at cafe',bar:'三點水 3AM'/);
   assert.match(js, /lang:LANG/, '送出帶 lang 讓後端回同語言錯誤與確認信');
-  assert.match(js, /slots\(8\*60,17\*60\)/);
-  assert.match(js, /slots\(17\*60,24\*60\)\.concat\(slots\(0,3\*60\)\)/);
+  // 時段依時間帶分組（早上／中午／下午＝在咖啡；晚餐／晚上／深夜＝三點水），合起來仍是 08:00–17:00＋17:00–03:00
+  for (const r of [/slots\(8\*60,11\*60\)/, /slots\(11\*60,14\*60\)/, /slots\(14\*60,17\*60\)/, /slots\(17\*60,21\*60\)/, /slots\(21\*60,24\*60\)/, /slots\(0,3\*60\)/]) assert.match(js, r);
   assert.match(js, /timeZone:'Asia\/Taipei'/);
-  assert.match(js, /input\.disabled=true/, '今天已過的時段要鎖住');
+  assert.match(js, /absMins\(t\)<=now\.minutes\+30/, '今天已過（含 30 分鐘準備）的時段不列');
   assert.match(js, /fetch\('\/api\/reservations'/);
   assert.match(js, /method:'POST'/);
   assert.match(js, /email:val\('email'\)/);
@@ -223,4 +223,44 @@ test('現場人員（四位數密碼登入）的操作紀錄記姓名，不記 s
   assert.match(server, /const actorOf = a => a\.email \|\| \(a\.operator_staff_id && a\.name\) \|\| a\.sub/);
   assert.doesNotMatch(server, /req\.auth\.email\|\|req\.auth\.sub/);
   assert.match(server, /'staff:'\|\|ps\.id=handled_by/, '舊紀錄列表時換成姓名');
+});
+
+test('訂位以客人為出發：目的 → 日期 → 時段 → 人數（KK 11/7）', () => {
+  for (const [lang, page] of [['zh', html], ['en', htmlEn], ['ja', htmlJa]]) {
+    const iP = page.indexOf('id="purposeChips"'), iD = page.indexOf('id="dateChips"'), iT = page.indexOf('id="slotGroups"'), iN = page.indexOf('name="party_size"');
+    assert.ok(iP > 0 && iP < iD && iD < iT && iT < iN, `${lang}：順序要是 目的→日期→時段→人數`);
+    assert.match(page, /id="venueInfo"/, lang);
+    assert.match(page, /<input name="date" type="date" required>/, `${lang}：仍保留日曆選更遠的日期`);
+    assert.match(page, /<script defer src="\/menu-lib\.js"><\/script>\n<script defer src="\/reserve\.js">/, `${lang}：低消數字取自 MenuLib`);
+  }
+  assert.match(html, /想做什麼？/); assert.match(htmlEn, /What brings you in\?/); assert.match(htmlJa, /ご利用目的/);
+  // 目的對應店別：咖啡、工作→在咖啡；晚餐、小酌→三點水；慶生、都可以→兩店
+  assert.match(js, /\{k:'coffee',v:'CAFE'\},\{k:'work',v:'CAFE'\},\{k:'meal',v:'BAR'\},\{k:'drinks',v:'BAR'\},\{k:'celebrate',v:''\},\{k:'any',v:''\}/);
+  for (const k of ['coffee', 'work', 'meal', 'drinks', 'celebrate', 'any']) assert.equal((js.match(new RegExp(`\\b${k}:'`, 'g')) || []).length, 3, `目的 ${k} 三語都要有`);
+  assert.match(js, /params\.get\('purpose'\)/, '品牌站可用 ?purpose= 或 ?venue= 直接帶入');
+  assert.match(js, /ML\.MIN_SPEND\.weekend:ML\.MIN_SPEND\.weekday/, '三點水低消依所選日期顯示，不寫死金額');
+  assert.match(js, /calDate=isLate\(picked\.value\)\?addDays\(bizDate,1\):bizDate/, '深夜時段送出時換成隔天日曆日');
+  assert.match(js, /purpose:P&&P!=='any'\?P:''/);
+  assert.match(js, /text\/calendar/, '完成頁可加入行事曆');
+  assert.doesNotMatch(js, /innerHTML/);
+});
+
+test('伺服器：目的寫進備註、深夜時段依營業日檢查不可訂位設定', () => {
+  const { normalizeReservation, purposeNote, businessDate, PURPOSES } = reservations;
+  const now = new Date('2026-11-07T12:00:00+08:00');
+  const base = { date: '2026-11-08', time: '19:00', party_size: 2, name: '王小姐', phone: '0912-345-678', email: 'a@b.co' };
+  assert.equal(normalizeReservation({ ...base, purpose: 'celebrate', note: '蛋糕自帶' }, now).note, '【慶生・紀念日】 蛋糕自帶');
+  assert.equal(normalizeReservation({ ...base, purpose: 'meal' }, now).note, '【晚餐・聚餐】');
+  assert.equal(normalizeReservation({ ...base, purpose: 'hack<script>', note: 'x' }, now).note, 'x', '不認得的目的忽略');
+  assert.equal(normalizeReservation({ ...base, purpose: 'drinks' }, now).purpose, 'drinks');
+  assert.equal(purposeNote('', 'abc'), 'abc');
+  assert.equal(purposeNote('work', 'y'.repeat(600)).length, 500);
+  assert.deepEqual(Object.keys(PURPOSES).sort(), ['celebrate', 'coffee', 'drinks', 'meal', 'work']);
+  assert.equal(businessDate('2026-11-09', '01:00'), '2026-11-08');
+  assert.equal(businessDate('2026-11-09', '19:00'), '2026-11-09');
+  // 11/8（週日）營業日整晚不可訂 → 11/9 凌晨 01:00 也不能訂；11/9 營業日本身開放不影響
+  const hours = { weekly: {}, dates: { '2026-11-08': [] } };
+  assert.throws(() => normalizeReservation({ ...base, date: '2026-11-09', time: '01:00' }, now, { hours }), /不開放/);
+  assert.equal(normalizeReservation({ ...base, date: '2026-11-09', time: '19:00' }, now, { hours }).period, '三點水');
+  assert.throws(() => normalizeReservation({ ...base, date: '2026-11-08', time: '19:00' }, now, { hours }), /不開放/);
 });
