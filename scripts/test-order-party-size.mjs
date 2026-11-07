@@ -66,3 +66,12 @@ test('開桌就選人數：POS 內用開桌先問大人／小孩，伺服器開�
   assert.match(server, /INSERT INTO table_sessions\(id,table_no,opened_by_staff_id,opened_by_staff_name,party_votes\)/);
   assert.match(server, /no:tableOrders\.sessionNo\(s\.id\),opened_at:s\.created_at\|\|null,party_size:tableOrders\.partySize\(s\.party_votes\),kids:tableOrders\.partyKids\(s\.party_votes\),foreign:tableOrders\.partyForeign\(s\.party_votes\)/);
 });
+
+test('開桌人數彈窗加寬、不捲動（KK 11/7）', () => {
+  const fs2 = require('node:fs');
+  const css = fs2.readFileSync(new URL('../public/pos-ops.css', import.meta.url), 'utf8');
+  const js = fs2.readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'utf8');
+  assert.match(js, /classList\.add\('pos-party-box'\)/);
+  assert.match(css, /\.pos-move-box\.pos-party-box\{max-width:min\(960px,100%\);max-height:none;overflow:visible/);
+  assert.match(css, /\.pos-party-box \.pos-party-grid\[data-row\]\{grid-template-columns:repeat\(13,/);
+});
