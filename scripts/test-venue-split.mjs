@@ -77,7 +77,7 @@ test('前端：POS 網址鎖店別、主色用 CIS；點餐頁依網域換 CIS �
   assert.match(pos, /html\[data-venue=CAFE\]\{--accent:#984C37;/);
   assert.match(pos, /html\[data-venue=BAR\]\{--accent:#6B8FAB;[^}]*--on-accent:#1B1A17/, '三點水配白字對比不足，主色上用墨字');
   assert.match(ops, /posTableUrl=t=>\(typeof POS_BASE!=='undefined'\?POS_BASE:'\/pos'\)/);
-  assert.equal((ops.match(/venue:SCOPE\|\|undefined,operator_id/g) || []).length, 3, '三條開桌路徑都要帶店別，QR 才會印對網域');
+  assert.equal((ops.match(/venue:SCOPE\|\|undefined,operator_id/g) || []).length, 4, '四條開桌路徑（含訂位帶位）都要帶店別，QR 才會印對網域');
   assert.match(order, /\{'atcafe\.emoji\.tw':'CAFE','3am\.emoji\.tw':'BAR'\}\[location\.hostname\]/);
   assert.match(order, /html\[data-venue=CAFE\]\{--yellow:#984C37;--on-yellow:#FFFFFF/);
   assert.match(order, /html\[data-venue=BAR\]\{--yellow:#6B8FAB;--on-yellow:#1B1A17/);
