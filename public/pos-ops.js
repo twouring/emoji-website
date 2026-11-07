@@ -970,6 +970,8 @@ function checkoutHardware(drawer,order,paidText){
     let ok=null;try{ok=await autoCashDrawer(drawer);}catch(e){ok=false;}
     if(ok===false)toast(paidText+'。未確認開櫃成功，請確認錢櫃並按「錢櫃」重試，勿重複收款。');
     await printCheckoutOrder(order);
+    // 櫃檯點的視同已送單（KK 11/7）：結帳補送的出餐單＋點餐明細，列印站馬上領，不等 5 秒輪詢
+    try{await pollKitchenPrinting();}catch(e){}
   };
   CHECKOUT_HW=CHECKOUT_HW.then(run,run).catch(()=>{});
   return CHECKOUT_HW;

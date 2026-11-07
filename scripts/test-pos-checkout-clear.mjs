@@ -36,3 +36,14 @@ test('failed payment never closes the session',async()=>{
   const {calls,res}=await checkout({reject:true});assert.equal(res.statusCode,400);
   assert.ok(calls.some(c=>c.sql==='ROLLBACK'));assert.ok(!calls.some(c=>c.sql.startsWith('UPDATE')));
 });
+test('櫃檯點的視同已送單（KK 11/7）：沒送單的品項結帳時補 ticket 並排出單工作（出餐單＋點餐明細）',async()=>{
+  const {calls}=await checkout();
+  const job=calls.find(c=>c.sql.startsWith('INSERT INTO pos_kitchen_print_jobs'));
+  assert.ok(job,'要排出單工作');
+  const j=JSON.parse(job.args[1]);
+  assert.equal(j.table_no,'A1');assert.equal(j.items.length,2);
+  assert.ok(j.items.every(l=>l.ticket===j.id&&l.placed_at));
+  assert.ok(calls.indexOf(job)<calls.findIndex(c=>c.sql==='COMMIT'));
+  const upd=calls.find(c=>c.sql.startsWith('UPDATE table_sessions SET items=$2,status=$3'));
+  assert.ok(JSON.parse(upd.args[1]).every(l=>l.ticket===j.id),'桌上品項也記 ticket，之後不會再被當成未送單');
+});

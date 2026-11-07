@@ -6479,7 +6479,11 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     }catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
     if(!out.lines.every(l=>tableOrders.itemInVenues(l,venues))){await client.query('ROLLBACK');return res.status(403).json({error:'這桌含有其他品牌品項，請只勾選自己店別的品項結帳，或由言文字管理員處理。'});}
     if(memberUser){out.payer={...out.payer,member:memberActive,member_id:memberUser.id,member_phone:memberUser.phone_e164||memberUser.phone||''};}
-    const orderId=uid('to_'),set=new Set(out.lines.map(l=>l.line)),orderLines=out.lines.map(l=>({...l,order_id:orderId})),items=tableOrders.settleItems(s.items,out.lines,orderId,out.credit);
+    const orderId=uid('to_');
+    // 櫃檯點的視同已送單（KK 11/7）：結帳時還沒送單的餐點補上送單（ticket＋placed_at），進出單佇列印出餐單＋帳本夾點餐明細；平均分攤預收不送
+    const fresh=new Set(out.lines.filter(l=>!l.placed_at).map(l=>l.line));
+    if(!out.credit){const tk=uid('tk_'),at=new Date().toISOString();out.lines=out.lines.map(l=>!l.placed_at&&!l.song&&!l.tip&&l.cat!=='SHOP'?{...l,ticket:tk,placed_at:at}:l);}
+    const set=new Set(out.lines.map(l=>l.line)),orderLines=out.lines.map(l=>({...l,order_id:orderId})),items=tableOrders.settleItems(s.items,out.lines,orderId,out.credit);
     if(memberUser){try{yanOut=await applyYanForCheckout(client,{user:memberUser,orderId,amount:out.revenue,brand:(out.lines.find(l=>l.venue)||{}).venue||'',prepay:!!out.payer.prepay,redeemPoints:out.payer.yan_redeem_points});}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}if(yanOut.redeemed)out.payer={...out.payer,yan_redeemed:yanOut.redeemed,yan_earned:yanOut.earned};else out.payer={...out.payer,yan_earned:yanOut.earned};}
     // 桌邊送單且全部已出餐的品項，結帳時直接記為已取餐（不再回到出餐看板）；有還沒出的照舊進看板
     const served=out.lines.every(l=>l.served_at);
@@ -6489,9 +6493,10 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     if(closed)await client.query("UPDATE table_orders SET status='done',done_at=now() WHERE session_id=$1 AND status IN ('paid','ready')",[s.id]);
     await client.query('UPDATE table_sessions SET items=$2,status=$3,pay_requests=$4,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),closed?'closed':'open',JSON.stringify(tableOrders.prunePayRequests(s.pay_requests,items))]);
     // 庫存：櫃檯直接結帳、沒先送單的品項（先結後做）在這裡依配方扣；已送單的品項送單時就扣過了
-    try{await chargeAppRedeems(client,orderLines.filter(l=>!l.placed_at));}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
-    await stockConsume(client.query.bind(client),orderLines.filter(l=>!l.placed_at));
-    await inventoryConsume(client.query.bind(client),orderLines.filter(l=>!l.placed_at),{ref_id:orderId,actor:actorOf(req.auth)||''});
+    try{await chargeAppRedeems(client,orderLines.filter(l=>fresh.has(l.line)));}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
+    await stockConsume(client.query.bind(client),orderLines.filter(l=>fresh.has(l.line)));
+    await inventoryConsume(client.query.bind(client),orderLines.filter(l=>fresh.has(l.line)),{ref_id:orderId,actor:actorOf(req.auth)||''});
+    await kitchenPrint.enqueue(client.query.bind(client),[{id:orderId,session_id:s.id,table_no:s.table_no,items:orderLines.filter(l=>fresh.has(l.line)&&l.ticket),status:'paid'}]);
     await client.query('COMMIT');
     const invoiceOut=await storeInvoiceResult({id:orderId,table_no:s.table_no,items:orderLines,amount:out.amount,payer:out.payer,discount:out.discount,service_charge:out.service},invoice);
     res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,service_charge:out.service||undefined,received:out.payer.received,change:out.payer.change,method:out.payer.method,payments:out.payer.payments,prepay:!!out.payer.prepay,member:out.payer.member,yan:memberUser?yanOut:undefined,member_created:!!memberUser?.created,closed,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut,warning:regWarn||undefined});

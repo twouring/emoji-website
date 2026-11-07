@@ -114,7 +114,7 @@ test('接線：送單（mutateItems）、預約取餐排程、櫃檯結帳、線
   const shopStripe = server.slice(server.indexOf('async function fulfillShopCheckout('), server.indexOf("app.post('/api/me/shop/:id/checkout'"));
   assert.match(shopStripe, /inventoryConsume\(client\.query\.bind\(client\), orderLines, \{ ref_id: orderId, actor: '會員 App' \}\)/, '商店 Stripe 成單要扣庫存');
   const checkout = server.slice(server.indexOf("app.post('/api/admin/orders/sessions/:id/checkout'"), server.indexOf("app.post('/api/admin/orders/:id/invoice/issue'"));
-  assert.match(checkout, /inventoryConsume\(client\.query\.bind\(client\),orderLines\.filter\(l=>!l\.placed_at\)/, '已送單的不重扣');
+  assert.match(checkout, /inventoryConsume\(client\.query\.bind\(client\),orderLines\.filter\(l=>fresh\.has\(l\.line\)\)/, '已送單的不重扣（fresh＝結帳前還沒送單的行）');
   assert.ok(checkout.indexOf('inventoryConsume') < checkout.indexOf("await client.query('COMMIT')"));
   // 扣庫存失敗不得擋點餐／收款：SAVEPOINT + 吞錯
   const fn = server.slice(server.indexOf('async function inventoryConsume('), server.indexOf('async function inventoryRestore('));

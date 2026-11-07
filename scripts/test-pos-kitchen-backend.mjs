@@ -55,9 +55,19 @@ test('actual claim route validates IDs and operator, uses authenticated ownershi
  assert.equal((await call('tk_test',['CAFE'])).body.claimed,false);
  assert.equal(d.rows.get('tk_test').actor,'test@example.test');
 });
-test('POS checkout never creates kitchen print jobs, even for unsubmitted counter items',()=>{
+test('櫃檯點的視同已送單（KK 11/7）：結帳時沒送單的品項補 ticket＋placed_at，在同一交易進出單佇列（出餐單＋點餐明細）',()=>{
  const start=source.indexOf("app.post('/api/admin/orders/sessions/:id/checkout'");
- assert.doesNotMatch(source.slice(start,source.indexOf('\n}));',start)),/kitchenPrint.enqueue/);
+ const body=source.slice(start,source.indexOf('\n}));',start));
+ assert.match(body,/fresh=new Set\(out\.lines\.filter\(l=>!l\.placed_at\)/);
+ assert.match(body,/ticket:tk,placed_at:at/);
+ assert.match(body,/kitchenPrint\.enqueue\(client\.query\.bind\(client\),\[\{id:orderId,session_id:s\.id,table_no:s\.table_no,items:orderLines\.filter\(l=>fresh\.has\(l\.line\)&&l\.ticket\)/);
+ assert.ok(body.indexOf('kitchenPrint.enqueue')<body.lastIndexOf("query('COMMIT')"));
+ for(const fn of ['chargeAppRedeems','stockConsume','inventoryConsume'])assert.match(body,new RegExp(fn+'\\([^;]*fresh\\.has'));
+});
+test('櫃檯結帳補送單：jobsOf 以 ticket 成一張工作，claim 從已結帳單找得到',async()=>{
+ const line={line:'c1',zh:'拿鐵咖啡',qty:1,price:150,venue:'CAFE',cat:'COFFEE',by:'櫃檯',ticket:'tk_counter01',placed_at:'2026-11-07T01:16:06.825Z',order_id:'to_c1'};
+ const jobs=kitchenPrint.jobsOf([{id:'to_c1',session_id:'ts_c',table_no:'A8',items:[line],status:'paid'}]);
+ assert.equal(jobs.length,1);assert.equal(jobs[0].id,'tk_counter01');assert.equal(jobs[0].items[0].zh,'拿鐵咖啡');
 });
 test('every submit/payment path enqueues in its existing DB transaction and both hosts start independent polling',()=>{
  const mutate=source.slice(source.indexOf('async function mutateItems('),source.indexOf("app.post('/api/orders/:id/items'"));
