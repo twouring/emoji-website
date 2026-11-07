@@ -55,7 +55,7 @@ test('規格拆籤：預設值淡化、非預設值深色、自由需求 ※；�
   const run = expr => JSON.parse(JSON.stringify(vm.runInContext(expr, c)));
   c.l = { cat: 'COFFEE', zh: '拿鐵咖啡', note: '溫度：冰；冰塊：去冰；燕麥奶' };
   assert.deepEqual(run('specParts(l)'), [
-    { text: '冰', kind: 'default', tone: 'temperature' }, { text: '去冰', kind: 'option', tone: 'ice' }, { text: '燕麥奶', kind: 'custom', tone: 'custom' },
+    { text: '去冰', kind: 'option', tone: 'ice' }, { text: '燕麥奶', kind: 'custom', tone: 'custom' },
   ]);
   c.r = { cat: 'JAPANESE', zh: '鮭魚親子丼', note: '飯量：飯多' };
   assert.deepEqual(run('specParts(r)'), [{ text: '飯多', kind: 'option', tone: 'rice' }]);
@@ -63,5 +63,5 @@ test('規格拆籤：預設值淡化、非預設值深色、自由需求 ※；�
   assert.deepEqual(run('specParts({cat:"BREAD",zh:"吐司",note:"不要蔥"})'), [{ text: '不要蔥', kind: 'custom', tone: 'custom' }]);
   assert.deepEqual(run('specParts({cat:"BREAD",zh:"吐司",note:"不要蔥、醬另放"})'), [{ text: '不要蔥', kind: 'custom', tone: 'custom' }, { text: '醬另放', kind: 'custom', tone: 'custom' }], '常用備註膠囊以「、」連接，拆成一顆一籤');
   const c2 = ctx();
-  assert.deepEqual(JSON.parse(JSON.stringify(vm.runInContext('specParts({cat:"COFFEE",zh:"拿鐵",note:"溫度：冰；冰塊：正常冰"})', c2))), [{ text: '冰', kind: 'option', tone: 'temperature' }, { text: '正常冰', kind: 'option', tone: 'ice' }], '沒 OrderLib 時不知道預設，一律深色（寧可多看一眼）');
+  assert.deepEqual(JSON.parse(JSON.stringify(vm.runInContext('specParts({cat:"COFFEE",zh:"拿鐵",note:"溫度：冰；冰塊：正常冰"})', c2))), [{ text: '正常冰', kind: 'option', tone: 'ice' }], '有冰塊選項就不列溫度「冰」（KK 11/7）；沒 OrderLib 時不知道預設，一律深色（寧可多看一眼）');
 });
