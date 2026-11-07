@@ -33,6 +33,9 @@ test('POS 結帳頁：品項表依點餐人分組（多人才顯示組頭）、�
   assert.match(ops, /<tr class="pos-group \$\{on\?'on':''\}"><td colspan="5"><div class="pos-group-wrap"><span class="pos-group-name">\$\{esc\(g\.label\)\}<\/span>/);
   assert.match(ops, /data-pick-group="\$\{esc\(g\.key\)\}">\$\{on\?'已選這組':'只結這組'\}<\/button>/);
   assert.match(ops, /host\.querySelectorAll\('\[data-pick-group\]'\)\.forEach\(b=>b\.onclick=\(\)=>\{[^\n]*POS_PICK=ids\.length===cur\.lines\.length\?null:new Set\(ids\);POS_QTY=\{\};POS_PAYREQ=null;POS_AA=null;paintPos\(\);/);
+  // 「結帳全部」緊接在「只結這組」旁邊（KK 11/7）：一按回到整桌全選，清掉份數、平均分攤
+  assert.match(ops, /'只結這組'\}<\/button><button type="button" class="btn btn--ghost btn-xs" data-pick-all aria-pressed="\$\{!POS_PICK&&!POS_AA\}">\$\{!POS_PICK&&!POS_AA\?'已選全部':'結帳全部'\}<\/button>/);
+  assert.match(ops, /host\.querySelectorAll\('\[data-pick-all\]'\)\.forEach\(b=>b\.onclick=\(\)=>\{POS_PICK=null;POS_QTY=\{\};POS_PAYREQ=null;POS_AA=null;paintPos\(\);/);
   assert.match(ops, /return head\+g\.lines\.map\(rowOf\)\.join\(''\);\}\)\.join\(''\)\|\|'<tr><td colspan="5" class="a-empty">/, '沒品項時仍顯示空狀態列');
   const css = read('public/pos-ops.css');
   assert.match(css, /\.pos-lines tr\.pos-group td\{/); assert.match(css, /\.pos-lines tr\.pos-group\.on td\{/);
@@ -42,7 +45,7 @@ test('文案：三個分帳選項＝全部付款／各付各的／平均分攤�
   const html = read('public/order.html'), lib = read('public/order-lib.js'), api = read('docs/API.md');
   assert.match(lib, /my_items: '各付各的'/);   // 桌邊頁已不提供結帳面板，文案留在 order-lib.js 供舊分頁使用
   assert.match(ops, /r\.scope==='mine'\?'各付各的':'全部付款'/);
-  assert.match(ops, /組頭「只結這組」＝各付各的，「依人數分次收款」＝平均分攤；可分多次收款，全部結清自動清桌/);
+  assert.match(ops, /組頭「只結這組」＝各付各的、「結帳全部」＝整桌一起結，「依人數分次收款」＝平均分攤；可分多次收款，全部結清自動清桌/);
   assert.match(api, /`mine`＝各付各的/);
   for (const [name, s] of [['order.html', html], ['order-lib.js', lib], ['pos-ops.js', ops], ['API.md', api]]) {
     assert.doesNotMatch(s, /只付我的|各自付款|各付自己的/, name + ' 不可殘留舊稱');
