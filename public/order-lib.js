@@ -398,7 +398,12 @@
     } else if ((cat === 'COFFEE' || cat === 'BEVERAGE' || cat === 'TEA' || cat === 'SPARKLING') && fixedCold) {
       ice(false);
     }
-    // 麵量、飯量不再提供（KK 11/4：份量固定，不能少麵／麵多、少飯／飯多）；OPT.rice/noodle 只留給舊單據的 optionZh 翻譯。
+    // 麵量、飯量只能正常／減量（KK 11/7：不能加量）；OPT.rice/noodle 第 3 個「飯多／麵多」只留給舊單據的 optionZh 翻譯。
+    // 只依品名判斷主食份量；麵優先，避免 MAIN/JAPANESE 麵類同時出現飯量。
+    const hasNoodle = /麵|noodle|pasta|udon|soba|義大利/.test(title);
+    const hasRice = /飯|rice|丼|咖哩|curry|onigiri|ochazuke/.test(title);
+    if (hasNoodle) groups.push({ key: 'noodle', label: labels.noodle_amount, choices: OPT[l].noodle.slice(0, 2) });
+    else if (hasRice) groups.push({ key: 'rice', label: labels.rice_amount, choices: OPT[l].rice.slice(0, 2) });
     // 甜點必選先上／後上（KK 11/4）：沒有預選，客人與櫃檯都要點一個才能加入（required＝無預設值）。
     if (cat === 'DESSERT') groups.push({ key: 'serve', label: labels.serve_timing, choices: OPT[l].serve, required: true });
     return groups;
