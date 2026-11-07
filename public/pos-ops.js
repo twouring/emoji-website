@@ -1643,6 +1643,42 @@ function openMemberDialog(cur){
   };
   render();
 }
+/* 掃碼結帳（KK 11/7）：桌況頁「掃碼結帳」→ 全螢幕相機掃客人桌上的點餐 QR（/order?s=<場次>&k=…）→ 直接跳到那桌的結帳畫面。
+   只認本品牌開著的場次（POS_DATA.sessions 已依品牌過濾）；也接受手動輸入桌號（A3）或掃描槍。只是選桌，不改任何資料 */
+function tableFromScan(v,sessions){
+  const raw=String(v||'').trim();if(!raw)return null;
+  let sid='';
+  try{const u=new URL(raw);sid=u.searchParams.get('s')||'';}catch(e){const m=raw.match(/[?&]s=([^&#\s]+)/);if(m)sid=decodeURIComponent(m[1]);}
+  if(!sid&&/^ts_[\w-]+$/.test(raw))sid=raw;
+  const list=sessions||[];
+  if(sid)return list.find(s=>s.id===sid)||{missing:true,sid};
+  const t=raw.toUpperCase();
+  return list.find(s=>String(s.table).toUpperCase()===t)||{missing:true,table:t};
+}
+function pickTableScan(){
+  return new Promise(resolve=>{
+    const ov=document.createElement('div');ov.className='pos-scan-full';ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');ov.setAttribute('aria-label','掃桌號 QR 結帳');
+    ov.innerHTML=`<div class="pos-scan-full-head"><b>掃桌號 QR 結帳</b><button type="button" class="btn btn--ghost" data-cancel>關閉</button></div><div class="pos-scan-full-cam"><video id="pos-table-scan-video" playsinline muted></video><div class="pos-scan-full-frame pos-scan-full-frame--qr" aria-hidden="true"></div></div><p class="pos-scan-full-hint" role="status">把客人桌上的點餐 QR 對準框內</p><div class="pos-scan-full-foot"><input id="pos-table-scan-input" maxlength="200" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="或輸入桌號，例如 A3"><button type="button" class="btn btn--solid" data-ok>前往結帳</button></div>`;
+    document.body.appendChild(ov);
+    const video=ov.querySelector('video'),inp=ov.querySelector('input'),hint=ov.querySelector('.pos-scan-full-hint');
+    let closed=false;
+    const done=v=>{if(closed)return;closed=true;stopPosInvoiceScanner(video);ov.remove();document.removeEventListener('keydown',esc_);resolve(v);};
+    const esc_=e=>{if(e.key==='Escape'){e.preventDefault();done(null);}};document.addEventListener('keydown',esc_);
+    const submit=()=>{const v=inp.value.trim();if(!v){hint.textContent='請掃描點餐 QR 或輸入桌號';inp.focus();return;}done(v);};
+    ov.querySelector('[data-cancel]').onclick=()=>done(null);
+    ov.querySelector('[data-ok]').onclick=submit;
+    inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();submit();}};
+    // 只收點餐 QR（帶 s=）；掃到別的 QR（會員卡、載具）不停，繼續找
+    startInvoiceScan(video,v=>done(v),{raw:true,accept:v=>/[?&]s=/.test(v)}).then(ok=>{if(!ok&&!closed){hint.textContent='相機無法使用，請輸入桌號';inp.focus();}});
+  });
+}
+async function posScanCheckout(reload){
+  const v=await pickTableScan();if(!v)return;
+  let hit=tableFromScan(v,POS_DATA?.sessions);
+  if(hit?.missing&&reload){await reload();hit=tableFromScan(v,POS_DATA?.sessions);} // 剛開的桌可能還沒同步，重抓一次
+  if(!hit||hit.missing){toast(hit?.table?`${hit.table} 沒有開著的單`:'這張 QR 的桌已結帳清桌，或不是本店的桌');return;}
+  posSelectTable(hit.table);toast(`已切到 ${hit.table} 結帳`);
+}
 function paintPos(){
   const host=document.getElementById('pos-body'),d=POS_DATA;if(!host||!d)return;
   if(!document.querySelector?.('.pos-scan-full'))stopPosInvoiceScanner(); // 全螢幕掃載具開著時，背景輪詢重繪不能把相機關掉
@@ -1689,7 +1725,7 @@ function paintPos(){
   }
   // 櫃檯開桌／外帶：加開固定清單以外的桌號、或外帶單
   // 空桌直接點桌況格就開桌；「加開桌號」＝桌牌上沒有的桌號（點區＋數字鍵）；都不打字
-  const opener=`<div class="pos-open"><button type="button" class="btn btn--solid" id="pos-takeout">＋ 外帶</button><button type="button" class="btn btn--ghost" id="pos-open-many">＋ 一次開多桌</button><button type="button" class="btn btn--ghost" id="pos-open-extra">＋ 加開桌號</button></div>`;
+  const opener=`<div class="pos-open"><button type="button" class="btn btn--solid" id="pos-takeout">＋ 外帶</button><button type="button" class="btn btn--ghost" id="pos-open-many">＋ 一次開多桌</button><button type="button" class="btn btn--ghost" id="pos-open-extra">＋ 加開桌號</button><button type="button" class="btn btn--ghost" id="pos-scan-checkout">掃碼結帳</button></div>`;
   let panel='',picked=[],subtotal=0,total=0,priceOf=l=>l.price,mixed=false,splitList=[],splitLeft=0,cashDue=0,cash=false,aa=null;
   const reload=()=>{host.dataset.sig='';return loadPos();};
   if(cur){
@@ -1798,6 +1834,7 @@ function paintPos(){
   // 加開桌號：點區＋號碼，不打字（桌牌上有的桌號直接點桌況格或「開桌」）
   host.querySelector('#pos-open-extra').onclick=async()=>{const t=await pickTableNo({title:'加開桌號',hint:'桌牌上沒有的桌號、戶外或臨時桌才用這裡；已開著的桌會直接切過去。'});if(t)openSession({table_no:t});};
   host.querySelector('#pos-takeout').onclick=()=>openSession({takeout:true});
+  host.querySelector('#pos-scan-checkout').onclick=()=>posScanCheckout(reload);
   host.querySelector('#pos-open-many').onclick=()=>openManyTables(slots.filter(x=>x.empty&&!x.takeout).map(x=>x.table),reload);
   // 桌號 QR／暫停點餐在工具列，沒選桌也要能按，所以綁在 if(!cur)return 之前
   if(!cur)return;

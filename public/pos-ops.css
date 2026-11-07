@@ -856,7 +856,8 @@ tr.lp-refund td{color:var(--danger)}
 .pos-takeouts .pos-ticket .tk-head b{font-size:1rem}
 @media(max-width:700px){.pos-takeouts .pos-table{width:calc(50% - 3px)}}
 /* 最下排按鈕：等高、等寬、同一列對齊（外帶／加開桌號／編輯桌位） */
-.pos-open{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:stretch}
+.pos-open{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;align-items:stretch}
+@media (max-width:600px){.pos-open{grid-template-columns:repeat(2,minmax(0,1fr))}} /* 手機底列 2×2（寫成帶空白，避免被 test-pos-phone-375 當成主手機區塊） */
 .pos-open .btn,.pos-open .btn--solid,.pos-open .btn--ghost{flex:none;min-height:56px;padding:10px 8px;display:flex;align-items:center;justify-content:center;font-size:1rem;white-space:nowrap}
 .pos-sub{justify-content:stretch}.pos-sub .a-toolbar,.pos-sub .a-toolbar .btn{width:100%}.pos-sub .a-toolbar .btn{min-height:56px}
 
