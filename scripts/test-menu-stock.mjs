@@ -78,7 +78,7 @@ test('接線：送單扣、作廢回補、客人端超量 409、POS 估清頁有
   assert.match(server, /await stockConsume\(client\.query\.bind\(client\),newlyPlaced,\{strict:!req\.auth\}\)/);
   assert.match(server, /await stockRestore\(client\.query\.bind\(client\),posInventory\.restorableRemoved\(s\.items,items\)\)/);
   assert.match(server, /await stockConsume\(client\.query\.bind\(client\), placed\.lines\)/, '預約取餐排程送單也扣');
-  assert.match(server, /await stockConsume\(client\.query\.bind\(client\),orderLines\.filter\(l=>!l\.placed_at\)\)/, '先結後做也扣');
+  assert.match(server, /await stockConsume\(client\.query\.bind\(client\),orderLines\.filter\(l=>fresh\.has\(l\.line\)\)\)/, '先結後做也扣');
   assert.match(server, /tableOrders\.keepLiveMenuFields\(/);
   assert.match(server, /SELECT value FROM site_content WHERE key='menu' FOR UPDATE/);
   assert.match(ops, /itemThumb\(it,'so-item__img'\)/, '估清格有圖片');

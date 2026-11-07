@@ -51,7 +51,7 @@ test('伺服器：兌換加進購物車不扣點，送出／結帳才扣（KK 11
   const pay = s.slice(s.indexOf("app.post('/api/orders/:id/pay'"), s.indexOf("app.get('/api/admin/orders/kitchen-print-jobs'"));
   assert.match(pay, /chargeAppRedeems\(client,lines\.filter\(l=>!l\.placed_at\)\)/);
   const co = s.slice(s.indexOf("/sessions/:id/checkout'"));
-  assert.match(co.slice(0, 12000), /chargeAppRedeems\(client,orderLines\.filter\(l=>!l\.placed_at\)\)/);
+  assert.match(co.slice(0, 12000), /chargeAppRedeems\(client,orderLines\.filter\(l=>fresh\.has\(l\.line\)\)\)/);
   assert.match(s, /function chargeAppRedeems[\s\S]{0,600}applyRedeem\(before, \{ orderId: 'rl_' \+ l\.line/);
 });
 test('前端：可用點數扣掉購物車裡未送出的兌換、送出後重抓餘額', () => {
