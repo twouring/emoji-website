@@ -1428,7 +1428,7 @@ function posTotals(cur){
 // 低消：三點水金額低消；在咖啡平日每人一杯飲料、週六日每人 NT$300。POS 只提醒、不自動補收。
 function minSpendState(cur){
   if(cur.takeout)return null;
-  const active=cur.lines.filter(l=>!l.credit_of&&!l.prepay&&!l.cancelled&&!l.tip&&l.cat!=='SHOP');
+  const active=cur.lines.concat(cur.paid_lines||[]).filter(l=>!l.credit_of&&!l.prepay&&!l.cancelled&&!l.tip&&l.cat!=='SHOP');   // 含這桌已結帳的品項（分組結帳）
   const bar=active.filter(l=>l.venue==='BAR');
   if(bar.length&&MenuLib.barPolicyActive&&MenuLib.barPolicyActive()){
     const spent=bar.reduce((a,l)=>a+(l.comp_reason?0:l.price)*l.qty,0),m=MenuLib.minSpendOf(cur.party_size);
@@ -1446,6 +1446,9 @@ function minSpendState(cur){
   const drinks=cafe.filter(l=>['COFFEE','TEA','BEVERAGE','SPARKLING','COMBO'].includes(l.cat)).reduce((a,l)=>a+l.qty,0);
   return {...m,drinks,short:Math.max(0,m.required-drinks),venue:'CAFE'};
 }
+/* 結帳前低消把關（KK 11/7）：未達低消或沒設人數時先跳確認，店員可回去補點或確認後照收 */
+function minSpendCheckText(ms){if(!ms)return '';if(ms.needParty)return '這桌還沒設定人數，無法核對低消。';if(!ms.short)return '';if(ms.venue==='CAFE'&&ms.type==='drink')return `未達低消：平日每人一杯飲料，${ms.drinks}／${ms.required} 杯，還差 ${ms.short} 杯。`;return `未達低消：${ms.venue==='CAFE'?'週六日':'週五六'}每人 NT$${num(ms.per)} × ${ms.people} 位＝NT$${num(ms.total)}，目前 NT$${num(ms.spent)}，還差 NT$${num(ms.short)}。`;}
+async function minSpendGate(cur,table){const t=minSpendCheckText(minSpendState(cur));if(!t)return true;return posConfirm(`${table}：${t}\n確定照目前金額結帳？`,{title:'低消未達',ok:'仍要結帳',cancel:'返回補點',danger:true});}
 function minSpendHtml(ms){
   if(!ms)return '';
   if(ms.needParty)return `<div class="pos-sum-min"><span><span class="pill pill-wait">低消</span> 請先按「設定人數」，才能核對低消</span><span></span></div>`;
@@ -1970,6 +1973,7 @@ function paintPos(){
       if(mixed&&payments.length===1){toast('只有一種付款方式，請直接選那個方式');return;}
       const rec=cash&&POS_RECEIVED!==''?Number(POS_RECEIVED):undefined;
       if(rec!==undefined&&rec<cashDue){toast('實收不能少於應收的現金');return;}
+      if(aa.index===1&&!await minSpendGate(cur,`桌號 ${cur.table}`))return;
       if(!await posConfirm(`${cur.takeout?'外帶':'桌號'} ${cur.table}：平均分攤第 ${aa.index}／${aa.people} 人，收 NT$${num(aa.each)}（${mixed?'混合付款':payMethodLabel(method)}${POS_INVOICE.mode?'，'+INV_LABEL[POS_INVOICE.mode]+'發票':''}）？`,{ok:'收這一人'}))return;
       const zh=`平均分攤 第 ${aa.index}／${aa.people} 人`;
       return ensureOperator(()=>runCheckoutOnce(cur.id,async()=>{const checkout=host.querySelector('#pos-checkout');checkout.disabled=true;try{return await opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/checkout',{method:'POST',body:{prepay:aa.each,split:{people:aa.people,index:aa.index},method,payments,invoice:invoiceBody(host),received:rec,operator_id:OPERATOR?.id}}),async out=>{const order={id:out.order_id,order_id:out.order_id,table_no:cur.table,items:[{zh,qty:1,price:out.amount}],amount:out.amount,invoice:out.invoice,paid_at:new Date().toISOString(),payer:{method,payments:out.payments,prepay:true,received:rec,change:out.change}};const nextIdx=aa.index+1;const text=`已收第 ${aa.index}／${aa.people} 人 NT$${num(out.amount)}${out.change?`，找零 NT$${num(out.change)}`:''}${out.invoice?.status==='issued'?`，發票 ${out.invoice.number||'已開立'}`:''}；${nextIdx>=aa.people?`最後一人收 NT$${num(out.remaining)}`:`第 ${nextIdx} 人請接著收`}`;checkoutHardware({kind:'checkout',order_id:out.order_id,method:out.method||method,amount:out.amount,payments:out.payments},order,text);return text;},()=>{POS_SPLIT={};POS_RECEIVED='';POS_INV_VALS={};POS_INVOICE.mode='paper';return reload();});}finally{checkout.disabled=false;}}));
@@ -1979,6 +1983,7 @@ function paintPos(){
     if(mixed&&payments.length===1){toast('只有一種付款方式，請直接選那個方式');return;}
     const rec=cash&&POS_RECEIVED!==''?Number(POS_RECEIVED):undefined;
     if(rec!==undefined&&rec<cashDue){toast('實收不能少於應收的現金');return;}
+    if(!(aa&&aa.index>1)&&!await minSpendGate(cur,`${cur.takeout?'外帶':'桌號'} ${cur.table}`))return;
     // 收款前先確認餐點都上齊了；還沒標「已出餐」的品項會列出來提醒
     const unserved=picked.filter(l=>!l.credit_of&&!l.served_at);
     if(!await posConfirm(`${cur.takeout?'外帶':'桌號'} ${cur.table}：${aa?`平均分攤最後一人，收剩餘 NT$${num(total)}。`:''}餐點都到齊了嗎？${unserved.length?`\n尚未出餐：${unserved.map(l=>`${l.zh}×${POS_QTY[l.line]||l.qty}`).join('、')}`:''}`,{ok:'已到齊，收款'}))return;
