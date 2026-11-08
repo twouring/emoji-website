@@ -98,7 +98,7 @@ test('約書旅站法遵口徑（KK 2026-11-08）：貴賓室寫「台北車站�
   for (const f of ['rest-book.html', 'en/rest-book.html', 'ja/rest-book.html']) {
     const html = fs.readFileSync(new URL(`../public/brand-sites/${f}`, import.meta.url), 'utf8');
     const text = html.replace(/<[^>]+>/g, ' ');
-    assert.doesNotMatch(text, /房價|客房|入住|退房|休息|仮眠|宿泊プラン|room rate|check-in|[Rr]est rooms?\b/, f);
+    assert.doesNotMatch(text, /房價|客房|入住|退房|休息|休憩|仮眠|宿泊プラン|room rate|check-in|[Rr]est rooms?\b/, f);
     assert.doesNotMatch(text, /在台北車站的貴賓室|車站貴賓室|official|公式ラウンジ/, f);
     assert.match(text, /台北車站旁的貴賓室|lounge by Taipei Main Station|台北駅のそばの、あなたのラウンジ/, f);
     assert.match(text, /台鐵、高鐵、捷運都沒有關係|not affiliated with TRA|台鉄・高鉄・MRT とは関係ありません/, f);
