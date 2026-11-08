@@ -2450,6 +2450,45 @@ const regCloseStamp=r=>JSON.stringify([r.expected,r.opening_cash,r.cash_in,r.cas
 /* 各帳戶確認：小結／關帳前，每個帳戶一顆按鈕，點開填實收（現金可按面額點鈔；LINE Pay、中信刷卡自動帶入後台同步實收）。
  * 應收≠實收必須填原因才能確認。確認結果留在本頁記憶體（ACCT_CONFIRMED），開「關帳」時自動帶入點鈔、各帳戶實收與原因；不直接寫帳務。 */
 const ACCT_CONFIRMED=new Map();
+/* 日結草稿留存（KK 11/8）：頁面可以自動重整，但輸入到一半、核對到一半的要留著。
+ * 存這台平板 localStorage（各品牌分開、18 小時失效）：營業日、開著的表單、表單欄位、已核對帳戶、核對中的彈窗。
+ * 表單送出／取消後該表單不再出現，下一次重繪就清掉它的欄位草稿；關帳成功清掉該帳本。 */
+const SALES_DRAFT_TTL=18*3600e3;
+const salesDraftKey=()=>'tth_sales_draft_'+String((typeof SCOPE!=='undefined'&&SCOPE)||'all').toLowerCase();
+let SALES_DRAFT=null,SALES_DRAFT_KEY='',SALES_DRAFT_HYDRATED=false;
+function salesDraftLoad(){if(SALES_DRAFT&&SALES_DRAFT_KEY===salesDraftKey())return SALES_DRAFT;SALES_DRAFT_KEY=salesDraftKey();let d=null;try{d=JSON.parse(localStorage.getItem(salesDraftKey())||'null');}catch(e){}
+  if(!d||typeof d!=='object'||!(Date.now()-Number(d.at)<SALES_DRAFT_TTL))d={};SALES_DRAFT={day:d.day||'',panels:d.panels||{},fields:d.fields||{},acct:d.acct||{},dialog:d.dialog||null,at:d.at||0};return SALES_DRAFT;}
+function salesDraftSave(){const d=salesDraftLoad();d.at=Date.now();d.acct=SALES_DRAFT_HYDRATED?Object.fromEntries(ACCT_CONFIRMED):{...d.acct,...Object.fromEntries(ACCT_CONFIRMED)};try{localStorage.setItem(salesDraftKey(),JSON.stringify(d));}catch(e){}}
+{const set=ACCT_CONFIRMED.set.bind(ACCT_CONFIRMED),del=ACCT_CONFIRMED.delete.bind(ACCT_CONFIRMED);
+  ACCT_CONFIRMED.set=(k,v)=>{set(k,v);salesDraftSave();return ACCT_CONFIRMED;};ACCT_CONFIRMED.delete=k=>{const r=del(k);const d=salesDraftLoad();for(const f of Object.keys(d.fields))if(f.endsWith(':'+k))delete d.fields[f];if(d.dialog?.reg===k)d.dialog=null;salesDraftSave();return r;};}
+// 重新載入頁面後第一次進日結：還原營業日、開著的表單與已核對帳戶（只還原仍開帳中的帳本）
+function salesDraftHydrate(){if(SALES_DRAFT_HYDRATED)return false;SALES_DRAFT_HYDRATED=true;const d=salesDraftLoad();
+  const regs=[...(REG_DATA?.registers||[]),...Object.values(REG_DATA?.current||{})].filter(Boolean),open=id=>regs.some(r=>r.id===id&&!r.closed_at);
+  for(const [id,v] of Object.entries(d.acct||{}))if(open(id)&&!ACCT_CONFIRMED.has(id))Map.prototype.set.call(ACCT_CONFIRMED,id,v);
+  const p=d.panels||{};let changed=false;
+  if(p.cash&&open(p.cash)){REG_CASH_OPEN=p.cash;REG_CASH_EDIT=p.cashEdit?(regs.find(r=>r.id===p.cash)?.moves||[]).find(m=>m.id===p.cashEdit)||null:null;changed=true;}
+  if(p.count&&open(p.count)){REG_COUNT_OPEN=p.count;changed=true;}
+  if(p.close&&open(p.close)){REG_CLOSE_OPEN=p.close;changed=true;}
+  if(p.openForm&&!REG_OPEN_FORM){REG_OPEN_FORM=p.openForm;changed=true;}
+  return changed;}
+const SALES_FORMS='.reg-open-form,.reg-cash-form,.reg-close-form';
+function salesFormKey(f){if(f.matches('.reg-open-form'))return 'open:'+f.dataset.venue;if(f.matches('.reg-cash-form'))return 'cash:'+(REG_CASH_EDIT?.id||'new')+':'+REG_CASH_OPEN;if(f.matches('.reg-count-form'))return 'count:'+REG_COUNT_OPEN;return 'close:'+f.dataset.registerId;}
+const salesFieldKey=i=>i.dataset.denom?'denom:'+i.dataset.denom:i.id?'#'+i.id:'';
+function salesDraftCapture(host){const d=salesDraftLoad();d.day=SALES_DAY;
+  d.panels={cash:REG_CASH_OPEN||'',cashEdit:REG_CASH_EDIT?.id||'',count:REG_COUNT_OPEN||'',close:REG_CLOSE_OPEN||'',openForm:REG_OPEN_FORM||''};
+  const seen=new Set();host.querySelectorAll(SALES_FORMS).forEach(f=>{const k=salesFormKey(f);seen.add(k);const vals={};f.querySelectorAll('input,select,textarea').forEach(i=>{const fk=salesFieldKey(i);if(fk&&i.value!=='')vals[fk]=i.value;});d.fields[k]=vals;});
+  for(const k of Object.keys(d.fields))if(!seen.has(k))delete d.fields[k];
+  salesDraftSave();}
+function salesDraftRestore(host){const d=salesDraftLoad();
+  host.querySelectorAll(SALES_FORMS).forEach(f=>{const vals=d.fields[salesFormKey(f)];if(!vals)return;
+    f.querySelectorAll('input,select,textarea').forEach(i=>{const fk=salesFieldKey(i);if(fk&&vals[fk]!=null&&i.value!==vals[fk]){i.value=vals[fk];i.dispatchEvent(new Event('input',{bubbles:true}));i.dispatchEvent(new Event('change',{bubbles:true}));}});});
+  salesDraftCapture(host);   // 同步目前狀態：已關掉的表單草稿在這裡清掉
+  if(!host.dataset.draftBound){host.dataset.draftBound='1';const cap=()=>salesDraftCapture(host);host.addEventListener('input',cap);host.addEventListener('change',cap);host.addEventListener('click',()=>setTimeout(cap,0));}}
+// 核對彈窗的輸入：每次輸入就存，重整後自動重開同一個帳戶並帶回
+function salesDialogSave(v){const d=salesDraftLoad();d.dialog=v;salesDraftSave();}
+function salesDialogResume(host){const g=salesDraftLoad().dialog;if(!g||document.querySelector('.pos-move-ov'))return;
+  const b=host.querySelector(`[data-acct-card="${CSS.escape(g.reg)}"] [data-acct-open="${CSS.escape(g.code)}"]`);if(!b){salesDialogSave(null);return;}
+  b.dataset.resume='1';b.click();}
 const acctRows=r=>[['cash','現金',r.expected],...Object.entries(r.reconciliation_accounts||{}).sort(([a],[b])=>{const rk=c=>c==='linepay'?0:c==='ctbc'?1:2;return rk(a)-rk(b);}).map(([c,x])=>[c,regAccountLabel(r,c),x])];
 // 第三方收款後台實收（KK 11/7：LINE Pay、中信刷卡都自動帶入）：單品牌頁直接用對帳結果；全店頁用 by_venue 依開關帳時間歸屬的分店金額。沒設定／沒同步過回 null
 const ACCT_GW={linepay:{name:'LINE Pay',sync:'/admin/sales/linepay/sync',where:'LINE Pay 商家後台'},ctbc:{name:'中信刷卡',sync:'/admin/sales/ctbc/sync',where:'中信商店管理平台'}};
@@ -2463,7 +2502,7 @@ function accountConfirmBlock(d,sales){
 }
 function acctDialog(r,code,sales){
   return new Promise(resolve=>{
-    const [,label,expected]=acctRows(r).find(x=>x[0]===code),prev=(ACCT_CONFIRMED.get(r.id)||{})[code];
+    const [,label,expected]=acctRows(r).find(x=>x[0]===code),dg=salesDraftLoad().dialog,draft=dg&&dg.reg===r.id&&dg.code===code?dg:null,prev=draft||(ACCT_CONFIRMED.get(r.id)||{})[code];
     const GW=ACCT_GW[code],gw=GW?sales?.[code]:null,lpAuto=GW?acctGatewayActual(sales,code,r.venue):null;
     const cash=code==='cash';
     const {ov,close}=pickOverlay(`<h3>核對 ${esc(label)} · ${esc(BRAND_LABEL[r.venue])}</h3>
@@ -2480,6 +2519,7 @@ function acctDialog(r,code,sales){
       const needsReason=diff!==null&&diff!==0;q('#acct-reason-label').hidden=!needsReason;q('#acct-reason-options').hidden=!needsReason;
       q('[data-ok]').disabled=actual==null||(needsReason&&!reason);};
     box.addEventListener('input',show,true);box.addEventListener('change',show);
+    const keep=()=>{if(!ov.parentNode)return;const {actual,denoms}=read();salesDialogSave({reg:r.id,code,actual:q('#acct-actual').value,denoms:denoms||null,reason:q('#acct-reason').value});};box.addEventListener('input',keep);box.addEventListener('change',keep);box.addEventListener('click',()=>setTimeout(keep,0));
     // LINE Pay／中信：對話框內直接同步後台（抓營業日前 3 天到隔天），重抓當日對帳結果帶入本店別實收；同步要等後台登入，約 20–60 秒
     const sb=q('#acct-gw-sync');if(sb)sb.onclick=async()=>{sb.disabled=true;sb.textContent='同步中…（約 1 分鐘）';
       const day=String(r.day||SALES_DAY||'').slice(0,10)||todayTaipei(),addDays=(d0,n)=>{const t=new Date(d0+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10);};
@@ -2492,7 +2532,7 @@ function acctDialog(r,code,sales){
         else q('#acct-gw-hint').textContent=`同步完成，但沒有本店別的實收資料，請對照${GW.where}手動填入。`;
         show();toast(`已同步 ${out.start||start} ～ ${out.end||end}，${out.count??0} 筆`);}
       catch(e){toast(e.message||'同步失敗');}finally{sb.disabled=false;sb.textContent='同步 '+GW.name;}};
-    const done=v=>{close();resolve(v);};
+    const done=v=>{close();salesDialogSave(null);resolve(v);};
     q('[data-cancel]').onclick=()=>done(null);ov.addEventListener('click',e=>{if(e.target===ov)done(null);});
     q('[data-ok]').onclick=()=>{const {actual,denoms}=read();if(actual==null)return;const diff=actual-expected,reason=q('#acct-reason').value.trim();if(diff!==0&&!reason){toast('應收與實收不同，請填差異原因');q('#acct-reason').focus();return;}done({actual,diff,reason:diff?reason:'',denoms});};
     show();
@@ -2500,7 +2540,7 @@ function acctDialog(r,code,sales){
 }
 function bindAccountConfirm(host,sales,reload){
   host.querySelectorAll('[data-acct-card]').forEach(card=>{const id=card.dataset.acctCard,r=(REG_DATA?.registers||[]).find(x=>x.id===id);if(!r)return;
-    card.querySelectorAll('[data-acct-open]').forEach(b=>b.onclick=async()=>{if(b.dataset.acctOpen==='cash'&&!b.dataset.drawerBusy){b.dataset.drawerBusy='1';try{await ensureOperator(()=>manualCashDrawer('日結核對現金'));}catch(e){}finally{delete b.dataset.drawerBusy;}}const out=await acctDialog(r,b.dataset.acctOpen,sales);if(!out)return;ACCT_CONFIRMED.set(id,{...(ACCT_CONFIRMED.get(id)||{}),[b.dataset.acctOpen]:out});toast(out.diff?`已確認，${out.diff>0?'溢':'短'} NT$${num(Math.abs(out.diff))}`:'已確認，帳對了');reload();});});
+    card.querySelectorAll('[data-acct-open]').forEach(b=>b.onclick=async()=>{const resume=b.dataset.resume;delete b.dataset.resume;if(b.dataset.acctOpen==='cash'&&!b.dataset.drawerBusy&&!resume){b.dataset.drawerBusy='1';try{await ensureOperator(()=>manualCashDrawer('日結核對現金'));}catch(e){}finally{delete b.dataset.drawerBusy;}}const out=await acctDialog(r,b.dataset.acctOpen,sales);if(!out)return;ACCT_CONFIRMED.set(id,{...(ACCT_CONFIRMED.get(id)||{}),[b.dataset.acctOpen]:out});toast(out.diff?`已確認，${out.diff>0?'溢':'短'} NT$${num(Math.abs(out.diff))}`:'已確認，帳對了');reload();});});
 }
 // 關帳表單不再重填一輪帳務：只檢查上方「各帳戶確認」是否每個帳戶都已核對，再填留存金就能關帳
 function closeChecks(r){
@@ -2615,9 +2655,10 @@ function bindDailyClose(form,r,reload){
 /* 日結：依營業日（03:00 起算）彙總；現金對帳走開關帳區塊；CSV 由 downloadCSV 產生（含公式注入防護） */
 async function loadSales(){
   const host=document.getElementById('sales-body');if(!host)return;
-  if(!SALES_DAY)SALES_DAY=MenuLib.businessDay();
+  if(!SALES_DAY)SALES_DAY=(!SALES_DRAFT_HYDRATED&&salesDraftLoad().day)||MenuLib.businessDay();
   if(!host.dataset.init){host.dataset.init='1';host.innerHTML='<h2>日結報表</h2><p class="hint">載入中…</p>';}
   let d;try{[d,REG_DATA]=await Promise.all([api(`/admin/sales?day=${encodeURIComponent(SALES_DAY)}`+(SCOPE?'&venue='+SCOPE:'')),api(`/admin/registers?day=${encodeURIComponent(SALES_DAY)}`+(SCOPE?'&venue='+SCOPE:'')).catch(()=>null)]);}catch(e){host.innerHTML=`<h2>日結報表</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`;return;}
+  const resumeDialog=!SALES_DRAFT_HYDRATED;salesDraftHydrate();
   const methods=Object.entries(d.by_method||{}).sort((a,b)=>b[1]-a[1]).map(([m,v])=>`<tr><td>${esc(payMethodLabel(m))}</td><td class="num">${num(v)}</td><td class="num">${d.amount?Math.round(v/d.amount*100):0}%</td></tr>`).join('')||'<tr><td colspan="3" class="a-empty">這天沒有營收</td></tr>';
   const hours=Object.entries(d.by_hour||{}).sort(),maxH=Math.max(1,...hours.map(h=>h[1]));
   const hourBars=hours.map(([h,v])=>`<div class="sales-bar"><span class="a-mono">${esc(h)}:00</span><i style="width:${Math.round(v/maxH*100)}%"></i><span class="num">${num(v)}</span></div>`).join('')||'<p class="a-empty">—</p>';
@@ -2674,6 +2715,7 @@ async function loadSales(){
   host.querySelector('#sales-today').onclick=()=>{SALES_DAY=MenuLib.businessDay();loadSales();};
   const ig=host.querySelector('#sales-items-go');if(ig)ig.onclick=()=>{ANALYTICS_FROM=d.day;ANALYTICS_TO=d.day;ANALYTICS_KIND='products';};   // 宿主頁的 a[data-tab] 點擊處理會切到分析（銷量），帶這個營業日
   host.querySelector('#sales-csv').onclick=()=>downloadCSV(`日結_${d.day}${SCOPE?'_'+(BRAND_LABEL[SCOPE]||SCOPE):''}.csv`,d.csv||[]);
+  salesDraftRestore(host);if(resumeDialog)salesDialogResume(host);
 }
 
 /* 估清：每格點開設定「今日估清／剩幾份／恢復不限量」，直接寫伺服器（只動 sold_out／stock_*）；送單自動扣份數，扣到 0＝售完；翌日 03:00 自動恢復 */

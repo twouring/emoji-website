@@ -12,7 +12,7 @@ test('POS removes manual refresh markup, CSS, handler and icon mapping',()=>{
 });
 test('offline indicator and automatic refresh still work without a manual refresh button',()=>{
  const net={hidden:true},listeners={},calls=[];
- const ctx={DATA:{},TAB:'pos',startKitchenPrinting:()=>calls.push('print'),refreshRegWarn:()=>calls.push('warn'),navigator:{onLine:true},document:{hidden:false,getElementById:id=>{assert.equal(id,'p-net');return net;},addEventListener:(event,fn)=>listeners[event]=fn},addEventListener:(event,fn)=>listeners[event]=fn,activate:()=>calls.push('activate'),refreshPending:()=>calls.push('pending')};
+ const ctx={DATA:{},navigator:{onLine:true},document:{hidden:false,getElementById:id=>{assert.equal(id,'p-net');return net;},addEventListener:(event,fn)=>listeners[event]=fn},addEventListener:(event,fn)=>listeners[event]=fn,activate:()=>calls.push('activate'),refreshPending:()=>calls.push('pending')};
  const start=page.indexOf("const net = document.getElementById('p-net');");
  const end=page.indexOf('\n',page.indexOf("document.addEventListener('visibilitychange'",start));
  assert.ok(start>=0&&end>start);
@@ -25,18 +25,14 @@ test('offline indicator and automatic refresh still work without a manual refres
  ctx.document.hidden=true;listeners.visibilitychange();assert.equal(calls.length,3);
  ctx.document.hidden=false;ctx.DATA=null;listeners.visibilitychange();listeners.online();assert.equal(calls.length,3);
 });
-test('日結頁不自動重整（KK 11/7）：喚醒、恢復連線不重抓日結，新版上線也不 reload',()=>{
- const net={hidden:true},listeners={},calls=[];
- const ctx={DATA:{},TAB:'sales',startKitchenPrinting:()=>calls.push('print'),refreshRegWarn:()=>calls.push('warn'),navigator:{onLine:true},document:{hidden:false,getElementById:()=>net,addEventListener:(e,fn)=>listeners[e]=fn},addEventListener:(e,fn)=>listeners[e]=fn,activate:()=>calls.push('activate'),refreshPending:()=>calls.push('pending')};
- const start=page.indexOf("const net = document.getElementById('p-net');");
- const end=page.indexOf('\n',page.indexOf("document.addEventListener('visibilitychange'",start));
- vm.runInNewContext(page.slice(start,end),ctx);
- listeners.visibilitychange();listeners.online();
- assert.ok(!calls.includes('activate'),'日結頁不可 activate（會重抓 loadSales）');
- assert.deepEqual(calls,['print','warn','pending','print','warn']);
- ctx.TAB='pos';listeners.visibilitychange();assert.equal(calls.at(-2),'activate');
- const watch=page.slice(page.indexOf('function posVersionWatch(){'),page.indexOf('async function renewToken'));
- assert.match(watch,/&& !posNoAuto\(\);/,'新版自動 reload 要排除日結頁');
+test('日結頁照常自動重整，改留草稿（KK 11/8）：不得再有日結例外',()=>{
+ assert.doesNotMatch(page,/posNoAuto|posWake/);
+ const ops=fs.readFileSync(new URL('public/pos-ops.js',root),'utf8');
+ const load=ops.slice(ops.indexOf('async function loadSales(){'),ops.indexOf('\n}\n',ops.indexOf('async function loadSales(){')));
+ assert.match(load,/salesDraftHydrate\(\)/,'重整後還原開著的表單與已核對帳戶');
+ assert.match(load,/salesDraftRestore\(host\);if\(resumeDialog\)salesDialogResume\(host\);/,'重繪後帳回欄位、重開核對中的彈窗');
+ assert.match(ops,/const salesDraftKey=\(\)=>'tth_sales_draft_'\+/,'草稿依品牌分開存');
+ assert.match(ops,/const done=v=>\{close\(\);salesDialogSave\(null\);resolve\(v\);\};/,'彈窗確認／取消才清草稿');
 });
 test('logged-in POS has one right-side header drawer button, outside scrollable tabs',()=>{
  const header=page.match(/<header class="p-top">([\s\S]*?)<\/header>/)?.[1]||'';
