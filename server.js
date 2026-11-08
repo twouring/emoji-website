@@ -1623,7 +1623,7 @@ app.use((req, res, next) => {
 app.use(require('./lib/lang-pref').langPrefMiddleware({
   applies: req => { const h = String(req.hostname || '').toLowerCase(); return !!BRAND_HOSTS[h] || (h === SITE_HOST && !ADMIN_MODE); },
   localized: (req, p) => BRAND_HOSTS[String(req.hostname || '').toLowerCase()]
-    ? /^\/(index\.html|cis\/?)?$/.test(p)
+    ? /^\/(index\.html|cis\/?)?$/.test(p) || (String(req.hostname || '').toLowerCase() === 'staysquare.emoji.tw' && /^\/(about|spaces|membership|venue|access)\/?$/.test(p))
     : p === '/' || /^\/(events|event-application|halloween-2026|space|menu|at-cafe|3am|stay-square)\/?$/.test(p) || !!resolvePublicHtml(path.join(PUB, 'en'), p),
 }));
 // 子品牌獨立站（atcafe／3am／staysquare／restbook.emoji.tw）：同一支服務依 host 分流，首頁是 public/brand-sites/<slug>.html，
@@ -1637,7 +1637,16 @@ app.use((req, res, next) => {
     const host = Object.keys(BRAND_HOSTS).find(h => BRAND_HOSTS[h] === m[1]);
     return res.redirect(301, 'https://' + host + '/');
   }
-  // 三語：/ 中文、/en、/ja（public/brand-sites/<lang>/<slug>.html）；菜單與空間文案依語系填入
+  // 三語：/ 中文、/en、/ja，以及等等空間 CIC 式子頁；內容依語系伺服器端填入
+  const staySub = slug === 'stay-square' && /^(?:\/(en|ja))?\/(about|spaces|membership|venue|access)\/?$/.exec(req.path);
+  if (staySub) {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    const lang = staySub[1] || 'zh', sub = staySub[2];
+    const wanted = (lang === 'zh' ? '' : '/' + lang) + '/' + sub;
+    if (req.path !== wanted) return res.redirect(301, wanted);
+    const file = path.join(PUB, 'brand-sites', lang === 'zh' ? '' : lang, `stay-square-${sub}.html`);
+    return publicSnapshot().then(snapshot => { publicPageCache(req, res); sendPage(res, file, '/' + slug, html => publicRender.renderSpace(html, snapshot, lang, slug)); }, next);
+  }
   const langM = /^\/(?:index\.html|(en|ja)\/?(?:index\.html)?)?$/.exec(req.path);
   if (langM) {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next();
