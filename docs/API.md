@@ -1519,7 +1519,9 @@ LINE Login 回呼：驗 state 與 nonce、驗 id_token，完成後綁定 `users.
 **POST /api/reservations 新增回應欄位**：`line_url`：已設定 LINE Login 時回傳「用 LINE 收通知」連結，否則為空字串。
 
 ### GET /api/admin/line/status
-超管限定。`{ configured, login, oa_id, staff_group, webhook_url, linked, segments[], bot, quota, followers }`。
+超管限定。`{ configured, login, oa_id, staff_group, webhook_url, linked, segments[], survey, bot, quota, followers }`。`survey`＝好友問卷統計 `{ profiles, answered, opted_out, unfollowed, by_source[], by_interest[], invites_30d[] }`（`line_profiles`／`line_invites`）。`segments` 含問卷分眾 `surveyed`、`want_<cafe|bar|work|rest|events|host>`（只列未封鎖、未選「先不用通知」的好友，不必是會員）。
+
+**好友問卷與不定時邀請**（webhook，無 API）：加好友時回歡迎＋聚落輪播（依台北時間標示四品牌營業中）＋「怎麼認識言文字」quick reply（key 同 POS 結帳調查 `source`）；接著問「想做什麼」（複選，或「先不用通知」）。舊好友在第一次觸發關鍵字時附問一次，30 天內不重問；輸入「喜好」重填。排程 `line-invites` 於台北 11:05／14:05／18:05 依標籤 multicast 一則（11 點 活動→在咖啡、14 點 活動→等等空間→約書旅、18 點 活動→三點水；活動只取 3 小時後到 7 天內的公開活動），每人間隔 7–10 天，只用當月推播額度的 80%；系統設定 `LINE_INVITES_ENABLED=0` 即停。
 
 ### POST /api/admin/line/broadcast
 超管限定。body `{ segment, text, url?, preview? }`。`preview:true` 只回 `{ count }`；否則 multicast 並寫入 `line_broadcasts`，回 `{ sent }`。每小時 10 次。

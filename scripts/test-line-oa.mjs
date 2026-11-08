@@ -81,6 +81,109 @@ test('關鍵字：低消／服務費三語回覆與官網口徑一致，不搶�
   for (const l of ['zh', 'en', 'ja']) assert.match(line.T[l].help, /低消|minimum|最低料金/);
 });
 
+test('聚落卡：依台北時間標示營業中，24 小時的等等空間／約書旅永遠開著，文案同官網首頁', () => {
+  const at = h => new Date(Date.UTC(2026, 10, 8, (h - 8 + 24) % 24, 0));
+  const open = (card, l = 'zh') => card.contents.contents.slice(1).filter(b => /●/.test(b.body.contents[0].text)).map(b => b.header.contents[1].text.split(' ')[0]);
+  assert.deepEqual(open(line.hubCard({ now: at(10) })), ['在咖啡', '等等空間', '約書旅']);
+  assert.deepEqual(open(line.hubCard({ now: at(20) })), ['三點水', '等等空間', '約書旅']);
+  assert.deepEqual(open(line.hubCard({ now: at(5) })), ['等等空間', '約書旅']);
+  const c = line.hubCard({ now: at(5) });
+  assert.equal(c.contents.type, 'carousel'); assert.equal(c.contents.contents.length, 5);
+  assert.match(JSON.stringify(c), /今天 08:00 開門/); assert.match(JSON.stringify(c), /今天 17:00 開門/);
+  assert.match(JSON.stringify(line.hubCard({ now: at(20) })), /明天 08:00 開門/);
+  const home = readFileSync(path.join(root, 'public/index.html'), 'utf8'), en = readFileSync(path.join(root, 'public/en/index.html'), 'utf8');
+  for (const b of line.HUB) { assert.ok(home.includes(b.copy.zh), b.k); assert.ok(en.includes(b.copy.en.replace(/'/g, '’')) || en.includes(b.copy.en), b.k + ' en'); }
+  assert.ok(Buffer.byteLength(JSON.stringify(c.contents)) < 50000);
+  for (const l of ['en', 'ja']) for (const lbl of JSON.stringify(line.hubCard({ lang: l })).match(/"label":"[^"]+"/g)) assert.ok(lbl.length - 10 <= 20, lbl);
+  for (const q of ['現在', '現在去哪', 'what\'s open', 'now', '今どこ']) assert.equal(line.matchKeyword(q), 'hub', q);
+  assert.equal(line.matchKeyword('現在哪裡開著'), 'hub');
+  assert.equal(line.matchKeyword('營業時間'), 'hours');
+});
+
+test('問卷：加好友回歡迎＋聚落卡＋來源題；來源 key 與 POS 結帳調查一致；複選興趣、可選不收', async () => {
+  const pos = require('../lib/table-orders').SOURCE_OPTIONS.map(([k]) => k);
+  for (const [k] of line.SURVEY_SOURCES) assert.ok(pos.includes(k), k);
+  const h = harness();
+  await h.svc.handleEvent({ type: 'follow', replyToken: 'r', source: { userId: 'U' + 'a'.repeat(32) } });
+  const rep = h.calls.find(c => /reply$/.test(c.url));
+  assert.equal(rep.body.messages.length, 3);
+  assert.equal(rep.body.messages[1].contents.type, 'carousel');
+  assert.equal(rep.body.messages[2].quickReply.items.length, line.SURVEY_SOURCES.length);
+  assert.ok(h.sql.some(x => /INSERT INTO line_profiles/.test(x.text)));
+  const q2 = line.surveyInterestQuestion('zh', []);
+  assert.equal(q2.quickReply.items.at(-1).action.data, 'a=int_none');
+  const q3 = line.surveyInterestQuestion('zh', ['cafe']);
+  assert.ok(!q3.quickReply.items.some(i => i.action.data === 'a=int&id=cafe'));
+  assert.equal(q3.quickReply.items.at(-1).action.data, 'a=int_done');
+  for (const l of ['zh', 'en', 'ja']) for (const i of [...line.surveySourceQuestion(l).quickReply.items, ...line.surveyInterestQuestion(l).quickReply.items]) assert.ok(i.action.label.length <= 20, i.action.label);
+});
+
+test('問卷 postback：存來源、累加興趣、拒收；白名單外的值不寫入', async () => {
+  const uidL = 'U' + 'b'.repeat(32), sql = [], replies = [];
+  let row = { lang: 'zh', interests: [] };
+  const q = async (text, args = []) => { sql.push({ text, args }); if (/SELECT lang,interests FROM line_profiles/.test(text)) return { rows: [row], rowCount: 1 };
+    if (/SET interests=\$2/.test(text)) row = { ...row, interests: args[1] }; return { rows: [], rowCount: 1 }; };
+  const fetcher = async (url, init) => { replies.push(JSON.parse(init.body)); return { ok: true, text: async () => '{}' }; };
+  const svc = createLineService({ q, uid: p => p + 'x', origin: () => 'https://www.emoji.tw', yanBalance: async () => 0, fetcher, log: { error() {} }, env: () => env });
+  const pb = data => svc.handleEvent({ type: 'postback', replyToken: 'r', source: { userId: uidL }, postback: { data } });
+  await pb('a=src&id=friend');
+  assert.ok(sql.some(x => /SET source=\$2/.test(x.text) && x.args[1] === 'friend'));
+  assert.match(JSON.stringify(replies.at(-1)), /想在言文字做什麼/);
+  await pb('a=int&id=bar'); await pb('a=int&id=work');
+  assert.deepEqual(row.interests, ['bar', 'work']);
+  const n = sql.length; await pb('a=src&id=hacker'); await pb('a=int&id=drop');
+  assert.ok(!sql.slice(n).some(x => /UPDATE line_profiles/.test(x.text)));
+  await pb('a=int_none');
+  assert.ok(sql.some(x => /SET opted_out=true/.test(x.text)));
+  assert.match(JSON.stringify(replies.at(-1)), /不會主動傳邀請/);
+});
+
+test('邀請：依時段＋標籤挑一則；額度只用到 80%；無標籤／關閉時不送；活動邀請要有活動', async () => {
+  assert.equal(line.pickInvite(11, ['cafe']), 'cafe');
+  assert.equal(line.pickInvite(11, ['events', 'cafe']), 'cafe');
+  assert.equal(line.pickInvite(11, ['events', 'cafe'], { hasEvent: true }), 'events');
+  assert.equal(line.pickInvite(18, ['bar']), 'bar');
+  assert.equal(line.pickInvite(14, ['bar']), null);
+  assert.equal(line.pickInvite(3, ['bar']), null);
+  for (const k of ['cafe', 'work', 'rest', 'bar']) for (const l of ['zh', 'en', 'ja']) {
+    const m = line.inviteMessage(k, { lang: l, origin: 'https://www.emoji.tw' });
+    assert.match(JSON.stringify(m), /utm_campaign=invite_/); assert.match(JSON.stringify(m), /喜好|preferences|好み/);
+    for (const lbl of JSON.stringify(m).match(/"label":"[^"]+"/g)) assert.ok(lbl.length - 10 <= 20, lbl);
+  }
+  assert.throws(() => line.inviteMessage('events', {}), /沒有活動/);
+  const ev = line.inviteMessage('events', { event: { slug: 'a b', title: 'sciwork talk', starts_at: '2026-11-20T11:00:00Z' }, origin: 'https://www.emoji.tw' });
+  assert.match(JSON.stringify(ev), /events\/a%20b/); assert.match(JSON.stringify(ev), /19:00/);
+  const run = async ({ used = 0, limit = 200, e = env, people }) => {
+    const sql = [], calls = [];
+    const q = async (text, args = []) => { sql.push({ text, args });
+      if (/FROM line_profiles WHERE unfollowed_at IS NULL/.test(text)) return { rows: people, rowCount: people.length };
+      if (/FROM events/.test(text)) return { rows: [], rowCount: 0 }; return { rows: [], rowCount: 1 }; };
+    const fetcher = async (url, init) => { calls.push({ url, body: init.body ? JSON.parse(init.body) : null });
+      const body = /quota\/consumption/.test(url) ? { totalUsage: used } : /quota$/.test(url) ? { type: 'limited', value: limit } : {};
+      return { ok: true, text: async () => JSON.stringify(body) }; };
+    const svc = createLineService({ q, uid: p => p + 'x', origin: () => 'https://www.emoji.tw', yanBalance: async () => 0, fetcher, log: { error() {} }, env: () => e });
+    return { out: await svc.sendInvites({ now: new Date('2026-11-09T10:05:00Z') }), sql, calls };
+  };
+  const people = Array.from({ length: 30 }, (_, i) => ({ line_user_id: 'U' + String(i).padStart(32, '0'), lang: i % 2 ? 'en' : 'zh', interests: i < 25 ? ['bar'] : [] }));
+  const a = await run({ people });
+  assert.equal(a.out.sent, 25);
+  const mc = a.calls.filter(c => /multicast/.test(c.url));
+  assert.equal(mc.length, 2); assert.match(JSON.stringify(mc), /三點水 17:00 開門/); assert.match(JSON.stringify(mc), /3AM opens at 17:00/);
+  assert.ok(a.sql.some(x => /SET last_invited_at=now\(\)/.test(x.text)));
+  assert.ok(a.sql.some(x => /INSERT INTO line_invites/.test(x.text)));
+  const b = await run({ people, used: 150 });
+  assert.equal(b.out.sent, 10);
+  const c = await run({ people, used: 160 });
+  assert.equal(c.out.skipped, 'quota');
+  const d = await run({ people, e: { ...env, LINE_INVITES_ENABLED: '0' } });
+  assert.equal(d.out.skipped, 'disabled'); assert.equal(d.calls.length, 0);
+  assert.equal(settings.validate('LINE_INVITES_ENABLED', '0'), '0');
+  assert.throws(() => settings.validate('LINE_INVITES_ENABLED', 'yes'), /0 或 1/);
+  assert.ok(settings.isLive('LINE_INVITES_ENABLED'));
+  assert.match(line.audienceSql('want_bar'), /FROM line_profiles p/);
+  assert.match(line.audienceSql('want_bar'), /NOT p.opted_out/);
+});
+
 test('員工群組：加入或輸入「群組ID」回報 ID，不處理其他群組訊息', async () => {
   const h = harness();
   const src = { type: 'group', groupId: 'C' + 'b'.repeat(32) };
@@ -143,7 +246,9 @@ test('Flex 與圖文選單：三語都有、postback 與按鈕標籤在 LINE 限
     assert.ok(Buffer.byteLength(JSON.stringify(card.contents)) < 30000);
   }
   const spec = line.richMenuSpec('https://www.emoji.tw', {});
-  assert.equal(spec.areas.length, 6);
+  assert.equal(spec.areas.length, 7);
+  assert.deepEqual(spec.areas.slice(0, 4).map(a => a.action.label), ['在咖啡', '三點水', '等等空間', '約書旅']);
+  assert.equal(spec.areas.reduce((n, a) => n + a.bounds.width * a.bounds.height, 0), 2500 * 1686);
   for (const a of spec.areas) assert.ok(a.bounds.x + a.bounds.width <= 2500 && a.bounds.y + a.bounds.height <= 1686);
   const png = line.qrPng('https://www.emoji.tw/e/abc');
   assert.deepEqual([...png.subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47]);

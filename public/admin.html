@@ -1235,6 +1235,7 @@ async function loadLinePanel(){
   host.innerHTML=`<h2>LINE 官方帳號 ${esc(st.oa_id)}</h2>
   <p class="hint">${ok(st.configured)} Messaging API 金鑰　${ok(st.login)} LINE Login　${ok(st.staff_group)} 員工群組　已綁定會員 ${st.linked} 人${q?'<br>'+esc(q):''}${f?'　'+esc(f):''}</p>
   <p class="hint">Webhook URL（貼到 LINE Developers → Messaging API）：<code>${esc(st.webhook_url)}</code><br>金鑰在上方「系統設定 → LINE 官方帳號」填。把官方帳號加進員工群組、在群組輸入「群組ID」，bot 會回報 ID。</p>
+  ${(()=>{const sv=st.survey;if(!sv)return '';const L={walk:'路過',friend:'朋友',ig:'IG',threads:'Threads',google:'Google',event:'活動',other:'其他',cafe:'白天咖啡吃飯',bar:'晚上吃飯喝一杯',work:'工作開會',rest:'看書休息沖澡',events:'參加活動',host:'辦活動包場'};const li=a=>(a||[]).map(x=>`${esc(L[x.k]||x.k)} ${x.n}`).join('、')||'—';return `<p class="hint">問卷：建檔 ${sv.profiles||0}、填答 ${sv.answered||0}、不收邀請 ${sv.opted_out||0}<br>怎麼認識：${li(sv.by_source)}<br>想做什麼：${li(sv.by_interest)}<br>近 30 天自動邀請：${li(sv.invites_30d)}</p>`;})()}
   <div class="a-toolbar"><select id="line-seg">${st.segments.map(x=>`<option value="${esc(x.key)}">${esc(x.label)}</option>`).join('')}</select></div>
   <textarea id="line-text" rows="3" maxlength="1000" placeholder="推播內容（1–1000 字）。推播計費，事件型優於群發。" style="width:100%"></textarea>
   <input id="line-url" type="url" placeholder="連結（選填，https://）" style="width:100%;margin-top:6px">

@@ -981,6 +981,11 @@ async function migrate() {
   await q(require('./lib/line-delivery').SCHEMA);
   await q(`CREATE INDEX IF NOT EXISTS line_deliveries_due_idx ON line_deliveries(available_at) WHERE state='pending'`);
   await q(`CREATE TABLE IF NOT EXISTS line_events (id TEXT PRIMARY KEY, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  // LINE 好友問卷標籤（不必是會員）：怎麼認識我們、想做什麼 → 分眾邀請（lib/line-service.js sendInvites）
+  await q(`CREATE TABLE IF NOT EXISTS line_profiles (line_user_id TEXT PRIMARY KEY, lang TEXT NOT NULL DEFAULT 'zh', source TEXT, interests TEXT[] NOT NULL DEFAULT '{}',
+    opted_out BOOLEAN NOT NULL DEFAULT false, answered_at TIMESTAMPTZ, asked_at TIMESTAMPTZ, followed_at TIMESTAMPTZ, unfollowed_at TIMESTAMPTZ, last_invited_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`CREATE TABLE IF NOT EXISTS line_invites (id TEXT PRIMARY KEY, kind TEXT NOT NULL, lang TEXT NOT NULL, event_id TEXT, recipients INT NOT NULL DEFAULT 0, sent_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE TABLE IF NOT EXISTS line_broadcasts (id TEXT PRIMARY KEY, segment TEXT NOT NULL, text TEXT NOT NULL, url TEXT NOT NULL DEFAULT '', recipients INT NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE UNIQUE INDEX IF NOT EXISTS users_phone_e164_uidx ON users(phone_e164) WHERE phone_e164 IS NOT NULL AND phone_e164<>''`);
   await q(`CREATE TABLE IF NOT EXISTS yan_ledger (
@@ -8566,6 +8571,7 @@ cronRunner.define('event-auto-end', () => closeEndedEvents(), { onError: e => co
 cronRunner.define('event-settlements', () => scheduleEndedEventSettlements(), { onError: e => console.error('[event-settlements]', e.message) });
 // LINE 訂位前一日提醒：一筆只提醒一次
 cronRunner.define('line-reminders', () => lineService.sendReminders(), { onError: e => console.error('[line] 提醒失敗：', e.message) });
+cronRunner.define('line-invites', () => lineService.sendInvites(), { onError: e => console.error('[line] 邀請失敗：', e.message) });
 // 會籍到期前 7 天提醒
 cronRunner.define('membership-reminders', () => remindExpiringMemberships(), { onError: e => console.error('[remind] 失敗：', e.message) });
 // LINE Pay 對帳：每日抓最近 7 天；每 5 分鐘抓昨今兩天（正在同步就跳過）。失敗不寄信，錯誤記在 linepay_sync_state。兩者共用租約，跨執行個體不會同時開 puppeteer
@@ -8636,6 +8642,8 @@ async function boot() {
     cron.schedule('15 * * * *', () => cronRunner.run('event-settlements'), { timezone: 'Asia/Taipei' });
     // LINE 訂位前一日提醒：每天 18:00（台北）
     cron.schedule('0 18 * * *', () => cronRunner.run('line-reminders'), { timezone: 'Asia/Taipei' });
+    // LINE 依問卷標籤的不定時邀請：11／14／18 點（台北），每人 7–10 天最多一則
+    cron.schedule('5 11,14,18 * * *', () => cronRunner.run('line-invites'), { timezone: 'Asia/Taipei' });
     // 會籍到期前 7 天提醒：每日 09:00（台北）
     cron.schedule('0 9 * * *', () => cronRunner.run('membership-reminders'), { timezone: 'Asia/Taipei' });
     // LINE Pay 對帳：每日 04:30（三點水 03:00 收班後）抓最近 7 天；背景每 5 分鐘抓昨天～今天營業日。帳密執行時才檢查（後台存檔後自動啟用）
