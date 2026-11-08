@@ -69,6 +69,18 @@ test('webhook：點數查詢綁定會員回餘額、未綁定回登入邀請', a
   assert.match(JSON.stringify(unbound.calls[0].body), /\/m\?utm_source=line/);
 });
 
+test('關鍵字：低消／服務費三語回覆與官網口徑一致，不搶走營業時間', () => {
+  for (const q of ['請問低消多少', '有服務費嗎', 'minimum spend?', 'Is there a service charge', 'サービス料はありますか', '最低料金']) assert.equal(line.matchKeyword(q), 'minspend', q);
+  assert.equal(line.matchKeyword('營業時間'), 'hours');
+  const zh = line.keywordReply('minspend', { lang: 'zh' })[0].text;
+  assert.match(zh, /週日至週四 NT\$300、週五週六 NT\$600/); assert.match(zh, /10% 服務費/); assert.match(zh, /週六日每人低消 NT\$300/);
+  assert.match(line.keywordReply('minspend', { lang: 'en' })[0].text, /NT\$600 Fri–Sat/);
+  assert.match(line.keywordReply('minspend', { lang: 'ja' })[0].text, /金土 NT\$600/);
+  const site = readFileSync(path.join(root, 'tools/build-brand-sites.py'), 'utf8');
+  assert.match(site, /每人週日至週四 NT\$300、週五週六 NT\$600/); assert.match(site, /週六日每人低消 NT\$300/);
+  for (const l of ['zh', 'en', 'ja']) assert.match(line.T[l].help, /低消|minimum|最低料金/);
+});
+
 test('員工群組：加入或輸入「群組ID」回報 ID，不處理其他群組訊息', async () => {
   const h = harness();
   const src = { type: 'group', groupId: 'C' + 'b'.repeat(32) };
