@@ -76,7 +76,7 @@ test('前端與伺服器接線：混合付款 UI、先收部分金額、作廢�
   const ops = fs.readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'utf8');
   assert.doesNotMatch(ops, /code:'mixed',label:'混合付款'/, '結帳頁不放混合付款按鈕，每單本來就可多次收款');
   assert.match(ops, /data-split=/); assert.doesNotMatch(ops, /id="pos-prepay"/, '先收部分金額已移除：直接收款，結清自動清桌');
-  assert.match(ops, /body:\{method,payments,member:POS_MEMBER/);
+  assert.match(ops, /body:\{method,payments,source:POS_SOURCE\|\|undefined,member:POS_MEMBER/);
   assert.match(ops, /const refundCash=cashPaidOf\(order\)>0&&await posConfirm\('這次作廢/);
   assert.match(ops, /const refundCash=cashPaidOf\(order\)>0&&await posConfirm\('取消品項/);
   const server = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');

@@ -1018,3 +1018,8 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 .pos-sub:empty{display:none}
 /* 窄桌牌（一排 12 桌，iPad 直放約 60px，KK 11/7）：狀態膠囊與單卡內距收窄、文字可換行，不超出桌框 */
 @container (max-width:84px){.pos-slot{padding:3px;gap:2px}.pos-floor-slot .pos-ticket .tk-head .pill,.pos-floor-slot .pos-slot .pill{flex:0 1 auto;min-width:0;padding:0 4px;white-space:normal;max-width:100%;box-sizing:border-box;text-align:center}.pos-ticket .tk-head{padding:2px 4px;flex-wrap:wrap}.pos-ticket .tk-time,.pos-ticket .tk-who,.pos-ticket .tk-open{padding-left:4px;padding-right:4px}}
+
+/* 來源調查（KK 11/8）：一排 4 顆、選中反黑 */
+.pos-blk--source .pos-blk-h{display:flex;align-items:baseline;gap:8px}
+.pos-source-chips{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0}
+.pos-source-chips button{text-align:center;padding:8px 4px}
