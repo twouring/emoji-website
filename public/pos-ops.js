@@ -1451,13 +1451,15 @@ function minSpendState(cur){
   return {...m,drinks,short:Math.max(0,m.required-drinks),venue:'CAFE'};
 }
 /* 結帳前低消把關（KK 11/7）：未達低消或沒設人數時先跳確認，店員可回去補點或確認後照收 */
-function minSpendCheckText(ms){if(!ms)return '';if(ms.needParty)return '這桌還沒設定人數，無法核對低消。';if(!ms.short)return '';if(ms.venue==='CAFE'&&ms.type==='drink')return `未達低消：平日每人一杯飲料，${ms.drinks}／${ms.required} 杯，還差 ${ms.short} 杯。`;return `未達低消：${ms.venue==='CAFE'?'週六日':'週五六'}每人 NT$${num(ms.per)} × ${ms.people} 位＝NT$${num(ms.total)}，目前 NT$${num(ms.spent)}，還差 NT$${num(ms.short)}。`;}
+/* 金額低消的日別：在咖啡只有週六日是金額；三點水依營業日分 日–四／五六（KK 11/8：週日誤顯示「週五六」） */
+function minDayLabel(ms){return ms.venue==='CAFE'?'週六日':ms.weekend?'週五六':'日–四';}
+function minSpendCheckText(ms){if(!ms)return '';if(ms.needParty)return '這桌還沒設定人數，無法核對低消。';if(!ms.short)return '';if(ms.venue==='CAFE'&&ms.type==='drink')return `未達低消：平日每人一杯飲料，${ms.drinks}／${ms.required} 杯，還差 ${ms.short} 杯。`;return `未達低消：${minDayLabel(ms)}每人 NT$${num(ms.per)} × ${ms.people} 位＝NT$${num(ms.total)}，目前 NT$${num(ms.spent)}，還差 NT$${num(ms.short)}。`;}
 async function minSpendGate(cur,table){const t=minSpendCheckText(minSpendState(cur));if(!t)return true;return posConfirm(`${table}：${t}\n確定照目前金額結帳？`,{title:'低消未達',ok:'仍要結帳',cancel:'返回補點',danger:true});}
 function minSpendHtml(ms){
   if(!ms)return '';
   if(ms.needParty)return `<div class="pos-sum-min"><span><span class="pill pill-wait">低消</span> 請先按「設定人數」，才能核對低消</span><span></span></div>`;
   if(ms.venue==='CAFE'&&ms.type==='drink')return `<div class="pos-sum-min ${ms.short?'short':''}"><span><span class="pill ${ms.short?'pill-bad':'pill-ok'}">低消</span> 平日每人一杯飲料：${ms.drinks}／${ms.required} 杯${ms.short?`，還差 ${ms.short} 杯`:'，已達'}</span><span></span></div>`;
-  const day=ms.venue==='CAFE'?'週六日':'週五六';
+  const day=minDayLabel(ms);
   return `<div class="pos-sum-min ${ms.short?'short':''}"><span><span class="pill ${ms.short?'pill-bad':'pill-ok'}">低消</span> ${day}每人 ${num(ms.per)} × ${ms.people} 位＝${num(ms.total)}${ms.short?`，還差 NT$${num(ms.short)}`:'，已達'}</span><span></span></div>`;
 }
 // 進入平均分攤：全桌一起算（取消勾選與份數）、清掉折扣（分攤不套折扣）；人數記在 POS_AA，第幾人由桌上的抵扣行數推算

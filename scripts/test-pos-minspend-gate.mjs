@@ -58,3 +58,12 @@ test('接線：結帳鍵先過低消把關，再問餐點到齊；平均分攤�
   assert.match(body, /!\(aa&&aa\.index>1\)&&!await minSpendGate/);
   assert.match(server, /paid_lines=s\.items\.filter\(l=>l\.order_id/);
 });
+
+test('提示日別：三點水日–四顯示「日–四」、五六顯示「週五六」，在咖啡金額低消顯示「週六日」（KK 11/8）', () => {
+  const L = load();
+  const base = { per: 300, people: 2, total: 600, spent: 100, short: 500 };
+  assert.match(L.text({ ...base, venue: 'BAR', weekend: false }), /未達低消：日–四每人 NT\$300/);
+  assert.match(L.text({ ...base, per: 600, total: 1200, short: 1100, venue: 'BAR', weekend: true }), /未達低消：週五六每人 NT\$600/);
+  assert.match(L.text({ ...base, venue: 'CAFE', type: 'amount', weekend: true }), /未達低消：週六日每人 NT\$300/);
+  assert.match(ops, /const day=minDayLabel\(ms\);/);
+});
