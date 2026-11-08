@@ -7086,6 +7086,9 @@ app.get('/api/admin/registers',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const byVenue={};for(const v of posRegister.VENUES){if(venues&&!venues.includes(v))continue;byVenue[v]=out.filter(r=>r.venue===v).slice(-1)[0]||null;}
   // 品牌各自獨立（KK 11/4）：總覽只看看得到的品牌，開關帳不受另一店影響
   const all=(await q('SELECT id,venue,opened_at,closed_at,keep_cash FROM pos_registers WHERE day=$1 OR ($2 AND closed_at IS NULL AND day>=$3)',[day,today,liveFloor()])).rows.filter(r=>!venues||venues.includes(r.venue));
+  // 開帳交接（BOWEN 11/8）：每個品牌最近一次關帳（不限營業日），開帳畫面顯示「前一班留多少」
+  const lastClosed=(await q("SELECT DISTINCT ON (venue) id,venue,to_char(day,'YYYY-MM-DD') AS day,opened_at,closed_at,closed_by,keep_cash,counted_cash,take_cash FROM pos_registers WHERE closed_at IS NOT NULL ORDER BY venue,closed_at DESC")).rows.filter(r=>!venues||venues.includes(r.venue));
+  for(const l of lastClosed){const i=all.findIndex(r=>r.id===l.id);if(i>=0)all[i]=l;else all.push(l);}
   const tablesBy={};for(const v of posRegister.VENUES){if(!venues||venues.includes(v))tablesBy[v]=await openTablesBlockingClose(v);}
   res.json({day,registers:out,current:byVenue,active_venue:tableOrders.MenuLib.activeVenue(),open_tables_by:tablesBy,open_tables:[...new Set(Object.values(tablesBy).flat())],...posRegister.registerOverview(all)});
 }));
@@ -7097,7 +7100,7 @@ app.post('/api/admin/registers/open',auth,adminOnly,requireDb,wrap(async(req,res
   try{await client.query('BEGIN');await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,['register:'+day+':'+venue]);
     await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,['register-open:'+venue]);
     const open=(await client.query('SELECT id,venue,opened_by FROM pos_registers WHERE venue=$1 AND closed_at IS NULL AND day>=$2 ORDER BY opened_at LIMIT 1',[venue,liveFloor()])).rows[0];   /* 還有沒關的帳（不論哪天開的）就不能再開一本 */
-    const handover=(await client.query('SELECT id,venue,keep_cash FROM pos_registers WHERE day=$1 AND venue=$2 AND closed_at IS NOT NULL ORDER BY closed_at DESC LIMIT 1',[day,venue])).rows[0]||null;
+    const handover=(await client.query('SELECT id,venue,keep_cash FROM pos_registers WHERE venue=$1 AND closed_at IS NOT NULL ORDER BY closed_at DESC LIMIT 1',[venue])).rows[0]||null;   /* 承接同品牌最近一次關帳的留存金（不限營業日） */
     let row;try{row=posRegister.openRegister(req.body,{venue,open,handover});}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
     const id=uid('rg_');
     await client.query('INSERT INTO pos_registers(id,day,venue,opening_cash,opening_denominations,note,opened_by) VALUES($1,$2,$3,$4,$5,$6,$7)',[id,day,venue,row.opening_cash,row.denominations?JSON.stringify(row.denominations):null,row.note,actorOf(req.auth)||'']);

@@ -390,7 +390,9 @@ test('server.js 接線：改品項、換桌、查單、結帳回找零；交班�
   assert.match(server, /DROP INDEX IF EXISTS pos_registers_open_day_idx/, 'KK 11/4：兩品牌各自獨立，拿掉同日全店只能一本的索引');
   assert.match(server, /pg_advisory_xact_lock\(hashtext\(\$1\)\)`,\['register:'\+day\+':'\+venue\]\)/, '開帳鎖品牌 × 營業日（KK 11/4 品牌各自獨立）');
   assert.match(server, /FROM pos_registers WHERE venue=\$1 AND closed_at IS NULL AND day>=\$2 ORDER BY opened_at LIMIT 1',\[venue,liveFloor\(\)\]/, '開帳前只查同品牌開著的帳，不論哪個營業日開的（KK 11/5 看帳不看時間）');
-  assert.match(server, /FROM pos_registers WHERE day=\$1 AND venue=\$2 AND closed_at IS NOT NULL ORDER BY closed_at DESC LIMIT 1',\[day,venue\]/, '承接同品牌上一本關帳的留存金');
+  assert.match(server, /FROM pos_registers WHERE venue=\$1 AND closed_at IS NOT NULL ORDER BY closed_at DESC LIMIT 1',\[venue\]/, '承接同品牌最近一次關帳的留存金（不限營業日）');
+  assert.match(server, /SELECT DISTINCT ON \(venue\)[^\n]*FROM pos_registers WHERE closed_at IS NOT NULL ORDER BY venue,closed_at DESC/, '帳本總覽 handover 取各品牌最近一次關帳');
+  for (const s of ['const regHandoverHint=', '前一班留給你', 'reg-open-check', 'regHandoverCheck(keep,total)']) assert.ok(ops.includes(s), '開帳交接提示：' + s);
   assert.match(server, /posRegister\.openRegister\(req\.body,\{venue,open,handover\}\)/);
   assert.match(server, /\.\.\.posRegister\.registerOverview\(all\)/, '帳本列表附全店總覽（open_venue/handover/can_open/wait）');
   assert.match(server, /FROM pos_registers WHERE venue=\$1 AND closed_at IS NULL AND day>=\$2 ORDER BY opened_at LIMIT 1',\[r\.venue,liveFloor\(\)\]/, '重開補單只看同品牌有沒有開著的帳（不論哪天）');

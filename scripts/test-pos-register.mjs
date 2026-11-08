@@ -45,8 +45,17 @@ test('帳本總覽：各品牌各算各的 can_open／handover，wait 永遠空'
     { id: 'r2', venue: 'BAR', opened_at: '2026-10-16T08:00:00Z', closed_at: null, keep_cash: null },
   ]);
   assert.deepEqual(both.can_open, { CAFE: true, BAR: false, STAY: true, REST: true });
-  assert.deepEqual(both.handover.CAFE, { id: 'r1', venue: 'CAFE', keep_cash: 3000, closed_at: '2026-10-16T09:00:00Z' });
+  assert.deepEqual(both.handover.CAFE, { id: 'r1', venue: 'CAFE', day: null, keep_cash: 3000, counted_cash: null, take_cash: null, closed_at: '2026-10-16T09:00:00Z', closed_by: '' });
   assert.equal(both.handover.BAR, null);
+});
+
+test('開帳交接提示（BOWEN 11/8）：handover 帶前一班的營業日、點鈔、留存、收走與關帳人；跨營業日也承接', () => {
+  const o = R.registerOverview([
+    { id: 'y1', venue: 'BAR', day: '2026-11-07', opened_at: '2026-11-07T09:00:00Z', closed_at: '2026-11-07T19:00:00Z', closed_by: 'Amy', counted_cash: 12800, keep_cash: 3000, take_cash: 9800 },
+  ]);
+  assert.deepEqual(o.handover.BAR, { id: 'y1', venue: 'BAR', day: '2026-11-07', keep_cash: 3000, counted_cash: 12800, take_cash: 9800, closed_at: '2026-11-07T19:00:00Z', closed_by: 'Amy' });
+  assert.equal(o.can_open.BAR, true);
+  assert.equal(R.openRegister({}, { venue: 'BAR', open: null, handover: o.handover.BAR }).opening_cash, 3000, '前一營業日的留存金也承接');
 });
 
 test('關帳清桌只看自己品牌的桌：有品項看品項店別、空桌看開桌時間', () => {

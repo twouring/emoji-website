@@ -2353,8 +2353,12 @@ async function loadReservations(){
 
 /* ===== 開關帳（帳本）：在咖啡／三點水各自獨立（KK 11/4）：各記一本、各有各的抽屜，開關帳互不連動。
  * 結帳頁頂端一條狀態列（沒開帳→開帳鍵；開著→應有現金＋關帳捷徑）；日結頁完整區塊 ===== */
-// 開帳零用金預設承接同品牌上一本的留存金（不承接另一店）
+// 開帳零用金預設承接同品牌最近一次關帳的留存金（不限營業日、不承接另一店）
 const regHandover=v=>REG_DATA?.handover?.[v]||null;
+// 開帳提示（BOWEN 11/8）：前一班關帳留多少在抽屜；點完鈔即時比對相不相符
+const regHandoverWhen=h=>{const d=h?.closed_at?new Date(h.closed_at):null;if(!d||isNaN(d))return '';const md=d.toLocaleDateString('zh-TW',{timeZone:'Asia/Taipei',month:'numeric',day:'numeric'});return md+' '+clockText(h.closed_at);};
+const regHandoverHint=(venue,h)=>h?`<div class="reg-handover"><div class="reg-handover-main">前一班留給你 <b>NT$${num(h.keep_cash)}</b></div><div class="reg-handover-sub">${esc(BRAND_LABEL[venue]||venue)} ${esc(regHandoverWhen(h))} 關帳${h.closed_by?' · '+esc(h.closed_by):''}${h.counted_cash!=null?` · 點鈔 NT$${num(h.counted_cash)}`:''}${h.take_cash?`、收走 NT$${num(h.take_cash)}`:''}</div><div class="reg-handover-check" id="reg-open-check"></div></div>`:`<div class="reg-handover reg-handover--none">查不到本店前一次關帳紀錄，請直接點抽屜現金。</div>`;
+const regHandoverCheck=(keep,total)=>total==null?['','']:total===keep?['ok','✓ 與前一班留存金相符']:total<keep?['bad',`比前一班留存少 NT$${num(keep-total)}，請再點一次，仍不符請回報`]:['bad',`比前一班留存多 NT$${num(total-keep)}，請再點一次，仍不符請回報`];
 const regDefaultCash=v=>regHandover(v)?Number(regHandover(v).keep_cash)||0:3000;
 const regOpenTables=v=>REG_DATA?.open_tables_by?.[v]||[];
 // 這台平板現在要管的品牌：有鎖店別就是店別，否則依時段（08–17 在咖啡、其餘三點水）
@@ -2366,7 +2370,7 @@ const denomGrid=()=>`<div class="reg-denoms">${REG_DENOMS.map(f=>`<label><span>$
 function readCount(form,directSel){const denoms={};let d=0,invalid=false,any=false;form.querySelectorAll('[data-denom]').forEach(i=>{const text=i.value.trim();if(!text)return;any=true;if(!/^\d+$/.test(text))invalid=true;const n=Number(text);denoms[i.dataset.denom]=n;d+=Number(i.dataset.denom)*n;});const direct=form.querySelector(directSel).value.trim();const total=invalid?null:any?d:(/^\d+$/.test(direct)?Number(direct):null);return {total:total!==null&&Number.isSafeInteger(total)&&total<=10000000?total:null,denoms:any?denoms:undefined};}
 function openRegisterForm(venue){
   const h=regHandover(venue),def=regDefaultCash(venue);
-  return `<div class="reg-open-form" data-venue="${esc(venue)}"><div class="ops-head"><h4>${esc(BRAND_LABEL[venue]||venue)} 開帳</h4>${tipIcon('抽屜零用金（找零準備金）按面額填張數，或直接填總額。'+(h?`預設承接本店 ${esc(clockText(h.closed_at))} 關帳的留存金 NT$${num(h.keep_cash)}，點過抽屜不符請改。`:''))}</div>${denomGrid()}
+  return `<div class="reg-open-form" data-venue="${esc(venue)}"${h?` data-keep="${Number(h.keep_cash)||0}"`:''}><div class="ops-head"><h4>${esc(BRAND_LABEL[venue]||venue)} 開帳</h4>${tipIcon('先點抽屜現金，按面額填張數，或直接填總額。'+(h?'預設帶入前一班關帳的留存金；點出來不符請改成實際金額。':''))}</div>${regHandoverHint(venue,h)}${denomGrid()}
     <div class="a-form"><label>零用金總額<input id="reg-open-total" type="number" inputmode="numeric" min="0" step="1" placeholder="或直接填" value="${def}"></label>${fillChips('reg-open-total',[...new Set([Number(def)||0,2000,3000,5000,10000].filter(n=>n>0))].map(n=>[n,(n===Number(def)?'承接 ':'')+'$'+num(n)]))}</div>
     <div class="reg-close-sum"><span>零用金 <b id="reg-open-show">NT$${num(def)}</b></span></div>
     <div class="a-toolbar"><button type="button" class="btn btn--solid" id="reg-open-go">確認開帳</button><button type="button" class="btn btn--ghost" id="reg-open-cancel">取消</button></div></div>`;
@@ -2374,8 +2378,9 @@ function openRegisterForm(venue){
 function bindOpenForm(host,reload){
   host.querySelectorAll('[data-reg-open]').forEach(b=>b.onclick=()=>{REG_OPEN_FORM=b.dataset.regOpen;REG_CASH_OPEN=false;REG_CASH_EDIT=null;REG_CLOSE_OPEN=false;reload();});
   const form=host.querySelector('.reg-open-form');if(!form)return;
-  const show=()=>{const {total}=readCount(form,'#reg-open-total');form.querySelector('#reg-open-show').textContent=total==null?'—':'NT$'+num(total);};
-  form.querySelectorAll('[data-denom],#reg-open-total').forEach(i=>i.oninput=show);bindFillChips(form);
+  const keep=form.dataset.keep===undefined?null:Number(form.dataset.keep),check=form.querySelector('#reg-open-check');
+  const show=()=>{const {total}=readCount(form,'#reg-open-total');form.querySelector('#reg-open-show').textContent=total==null?'—':'NT$'+num(total);if(check&&keep!==null){const [cls,text]=regHandoverCheck(keep,total);check.className='reg-handover-check'+(cls?' is-'+cls:'');check.textContent=text;}};
+  form.querySelectorAll('[data-denom],#reg-open-total').forEach(i=>i.oninput=show);bindFillChips(form);show();
   form.querySelector('#reg-open-cancel').onclick=()=>{REG_OPEN_FORM='';reload();};
   form.querySelector('#reg-open-go').onclick=()=>{const {total,denoms}=readCount(form,'#reg-open-total');if(total==null){toast('零用金請按面額填張數，或填總額');return;}
     opsThen(()=>api('/admin/registers/open',{method:'POST',body:{venue:form.dataset.venue,opening_cash:total,denominations:denoms}}),async out=>{const ok=await registerCashDrawer(out.id);return `${BRAND_LABEL[out.venue]} 已開帳，零用金 NT$${num(out.opening_cash)}`+(ok===false?'；未確認開櫃成功，請按「錢櫃」開櫃放零用金':'');},()=>{REG_OPEN_FORM='';if(typeof refreshRegWarn==='function')refreshRegWarn();return reload();});};

@@ -176,6 +176,7 @@ tr.pos-comp td{background:var(--ok-faint)}
 .reg-denoms{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-bottom:10px}
 .reg-denoms label{display:flex;flex-direction:column;gap:4px;font-size:1rem;color:var(--muted)}.reg-denoms input{min-height:48px;font-size:1.1rem;padding:6px 10px;border:1px solid var(--muted);border-radius:8px;background:var(--card);color:var(--ink);font-variant-numeric:tabular-nums;width:100%}
 .reg-close-form .a-form,.reg-open-form .a-form{align-items:flex-end}.reg-close-form #reg-counted,.reg-close-form #reg-keep,.reg-open-form #reg-open-total{width:150px;font-size:1.1rem}.reg-close-form .reg-note{flex:1 1 220px}
+.reg-handover{margin:0 0 12px;padding:10px 12px;border-radius:10px;background:var(--card);border:1px solid var(--line)}.reg-handover-main{font-size:1.05rem}.reg-handover-main b{font-size:1.5rem;font-variant-numeric:tabular-nums;margin-left:4px}.reg-handover-sub{margin-top:2px;opacity:.75}.reg-handover-check{margin-top:6px;font-weight:600}.reg-handover-check:empty{display:none}.reg-handover-check.is-ok{color:var(--ok)}.reg-handover-check.is-bad{color:var(--danger)}.reg-handover--none{opacity:.8}
 .reg-close-sum{display:flex;flex-wrap:wrap;gap:8px 24px;margin:10px 0;font-size:1rem}.reg-close-sum b{font-size:1.2rem;font-variant-numeric:tabular-nums}
 
 /* ── 出餐看板、暫停點餐 ── */
