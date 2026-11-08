@@ -1,20 +1,26 @@
-/* 約書旅 Rest Book（restbook.emoji.tw）— 日系質感書店（ui-ux-pro-max：Minimalism／低變化・低動態・寬鬆密度）
-   生成り紙＋墨＋書皮褐；明朝體（繁中 Noto Serif TC、日文 Shippori Mincho、拉丁 EB Garamond）；
-   1px 細線取代色塊與陰影；中日文首屏標題直排；章節以「一、二、三」標示，結尾是奧付（版權頁）。
+/* 約書旅 Rest Book（restbook.emoji.tw）— 台北車站旁的貴賓室（KK 2026-11-08）
+   版型參照 The Club airport lounges：滿版首圖＋浮在下緣的試算列、整條色帶標語、圖文分割三張輪播、
+   代碼式設施清單、膠囊按鈕。書店語彙保留：明朝體（繁中 Noto Serif TC、日文 Shippori Mincho、拉丁 EB Garamond）、
+   漢數字章節、細線價目、奧付。配色：生成り紙＋暖墨＋霧苔綠（CIS）＋黃銅（按鈕；不用母品牌黃）。
    公開文字一律 ≥ 1rem：小字用顏色與字距區隔，不縮字級。 */
 .bs--rest-book {
-  --rb-paper: #f4f0e8;
-  --rb-tone: #ebe5d9;
-  --rb-ink: #231e19;
+  --rb-paper: #f6f1e7;
+  --rb-tone: #ece4d4;
+  --rb-ink: #1f1b16;
   --rb-soft: #6b5d4f;
   --rb-act: #5a4632;
+  --rb-moss: #687c70;
+  --rb-moss-deep: #3f4d45;
+  --rb-brass: #c9a55c;
+  --rb-brass-hi: #d8b876;
   --rb-line: #d6cdbd;
-  --rb-m: max(20px, 6vw);
+  --rb-m: max(20px, 5vw);
   --rb-max: 1240px;
-  --rb-sec: clamp(112px, 13vw, 200px);
+  --rb-sec: clamp(96px, 11vw, 168px);
+  --rb-r: 22px;
   --rb-serif: "EB Garamond", "Noto Serif TC", "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
-  --s-display: clamp(3rem, 6.4vw, 6rem);
-  --s-head: clamp(2.1rem, 3.6vw, 3.25rem);
+  --s-display: clamp(2.8rem, 6.2vw, 5.6rem);
+  --s-head: clamp(2rem, 3.4vw, 3.1rem);
   --s-lead: clamp(1.2rem, 1.5vw, 1.4rem);
   --s-body: 1.0625rem;
   background: var(--rb-paper);
@@ -22,117 +28,128 @@
 }
 .bs--rest-book:lang(ja) { --rb-serif: "EB Garamond", "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif TC", serif; }
 
-/* 共用外框：頁首與頁尾改為紙色＋細線，不用墨色大塊 */
-.bs--rest-book .bs-head { background: var(--rb-paper); border: 0; border-bottom: 1px solid var(--rb-line); }
-.bs--rest-book .bs-foot { background: var(--rb-paper); color: var(--rb-ink); border: 0; border-top: 1px solid var(--rb-line); }
-.bs--rest-book .bs-foot a, .bs--rest-book .bs-foot h4 { color: var(--rb-ink); }
-.bs--rest-book .bs-foot__legal { color: var(--rb-soft); }
-.bs--rest-book .bs-foot__bottom { border-top: 1px solid var(--rb-line); }
+/* 共用外框：紙色頁首＋黃銅膠囊主按鈕（對應 The Club 右上 BOOK） */
+.bs--rest-book .bs-head { background: rgba(246, 241, 231, .94); border: 0; border-bottom: 1px solid var(--rb-line); }
+.bs--rest-book .bs-head__nav a { letter-spacing: .06em; }
+.bs--rest-book .bs-btn { border-radius: 999px; background: var(--rb-brass); border-color: var(--rb-brass); color: var(--rb-ink); }
+.bs--rest-book .bs-head__nav .bs-btn, .bs--rest-book .bs-head__nav .bs-btn:hover { color: var(--rb-ink); }
+.bs--rest-book .bs-btn--line { background: var(--rb-paper); border-color: var(--rb-ink); color: var(--rb-ink); }
+.bs--rest-book .bs-foot { background: var(--rb-moss-deep); color: var(--rb-paper); border: 0; }
+.bs--rest-book .bs-foot a, .bs--rest-book .bs-foot h4, .bs--rest-book .bs-foot li { color: var(--rb-paper); }
+.bs--rest-book .bs-foot__legal, .bs--rest-book .bs-foot .bs-lang a { color: #d9d3c6; }
+.bs--rest-book .bs-foot .bs-lang a[aria-current] { color: var(--rb-paper); }
+.bs--rest-book .bs-foot__bottom { border-top: 1px solid rgba(246, 241, 231, .22); }
+.bs--rest-book .bs-foot__brand img { filter: brightness(0) invert(1); opacity: .92; }
 .bs--rest-book .bs-dock { background: var(--rb-paper); border: 0; border-top: 1px solid var(--rb-line); box-shadow: none; } /* taste-skill-ignore: 移除共用底欄陰影 */
-.bs--rest-book .bs-btn { border-radius: 0; }
 .bs--rest-book .wrap { max-width: none; padding-left: var(--rb-m); padding-right: var(--rb-m); }
-.bs--rest-book ::selection { background: var(--rb-act); color: var(--rb-paper); }
+.bs--rest-book ::selection { background: var(--rb-moss); color: var(--rb-paper); }
 .bs--rest-book { accent-color: var(--rb-act); caret-color: var(--rb-act); scrollbar-color: var(--rb-soft) var(--rb-tone); }
 
 .rb, .rb button { font-family: var(--rb-serif); }
 .rb { overflow: hidden; }
-.rb h1, .rb h2, .rb h3, .rb p, .rb figure, .rb dl, .rb dd { margin: 0; }
+.rb h1, .rb h2, .rb h3, .rb p, .rb figure, .rb dl, .rb dd, .rb ol, .rb ul { margin: 0; }
 .rb h1, .rb h2, .rb h3 { font-family: var(--rb-serif); font-weight: 500; letter-spacing: .04em; color: var(--rb-ink); text-wrap: balance; line-break: strict; }
-.rb:lang(en) h1, .rb:lang(en) h2 { letter-spacing: -.01em; }
+.rb:lang(en) h1, .rb:lang(en) h2, .rb:lang(en) h3 { letter-spacing: -.01em; }
 .rb h2 { font-size: max(1rem, var(--s-head)); line-height: 1.3 !important; }
-.rb h1, .rb h2, .rb-faq summary, .rb-price__rules li { word-break: keep-all; overflow-wrap: anywhere; }
-.rb:lang(ja) h1, .rb:lang(ja) h2 { word-break: normal; }
-.rb p, .rb li, .rb dd, .rb td { text-wrap: pretty; line-break: strict; }
+.rb h1, .rb h2, .rb h3, .rb-faq summary, .rb-price__rules li { word-break: keep-all; overflow-wrap: anywhere; }
+.rb:lang(ja) h1, .rb:lang(ja) h2, .rb:lang(ja) h3 { word-break: normal; }
+.rb p, .rb li, .rb dd { text-wrap: pretty; line-break: strict; }
 .rb p { font-size: max(1rem, var(--s-body)); line-height: 1.95; letter-spacing: .03em; max-width: 34em; }
 .rb:lang(en) p { line-height: 1.65; letter-spacing: 0; max-width: 60ch; }
 .rb a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: .3em; }
-.rb img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 0; background: var(--rb-tone); }
+.rb img { display: block; width: 100%; height: 100%; object-fit: cover; background: var(--rb-tone); }
 .rb section { width: min(100%, calc(var(--rb-max) + var(--rb-m) * 2)); margin-inline: auto; padding: 0 var(--rb-m); }
 .rb figcaption { margin-top: 12px; font-size: 1rem; line-height: 1.5; letter-spacing: .06em; color: var(--rb-soft); }
 .rb a:focus-visible, .rb button:focus-visible, .rb summary:focus-visible { outline: 2px solid var(--rb-act); outline-offset: 4px; }
 
-/* 章節標示：漢數字＋細線＋名稱（像書的扉頁） */
-.rb-kicker { display: flex; align-items: center; gap: 14px; margin-bottom: 28px !important; font-size: 1rem !important; letter-spacing: .24em !important; color: var(--rb-soft); }
-.rb-kicker span { display: inline-flex; align-items: center; gap: 14px; font-size: max(1rem, var(--s-lead)); letter-spacing: 0; color: var(--rb-act); }
+/* 章節標示：漢數字＋細線＋名稱 */
+.rb-kicker { display: flex; align-items: center; gap: 14px; margin-bottom: 24px !important; font-size: 1rem !important; letter-spacing: .24em !important; color: var(--rb-soft); }
+.rb-kicker span { display: inline-flex; align-items: center; gap: 14px; font-size: max(1rem, var(--s-lead)); letter-spacing: 0; color: var(--rb-moss); }
 .rb-kicker span::after { content: ""; width: 40px; height: 1px; background: var(--rb-line); }
 
-/* 按鈕：細框，滑過填墨 */
-.rb-btn { display: inline-flex; align-items: center; gap: 14px; min-height: 52px; margin-top: 36px; padding: 0 28px; border: 1px solid var(--rb-ink); background: transparent; color: var(--rb-ink) !important; text-decoration: none; font-size: max(1rem, var(--s-body)); letter-spacing: .12em; transition: background .25s ease, color .25s ease; }
-.rb-btn::after { content: ""; width: 22px; height: 1px; background: currentColor; transition: width .25s ease; }
-.rb-btn:hover { background: var(--rb-ink); color: var(--rb-paper) !important; }
-.rb-btn:hover::after { width: 30px; }
-.rb:lang(en) .rb-btn { letter-spacing: .02em; }
+/* 按鈕：黃銅膠囊（The Club 的 BOOK／EXPLORE） */
+.rb-btn { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 52px; padding: 0 30px; border: 1px solid var(--rb-ink); border-radius: 999px; background: transparent; color: var(--rb-ink) !important; text-decoration: none; font-size: max(1rem, var(--s-body)); letter-spacing: .12em; transition: background .25s ease, color .25s ease, border-color .25s ease; }
+.rb-btn--gold { background: var(--rb-brass); border-color: var(--rb-brass); }
+.rb-btn:hover { background: var(--rb-ink); border-color: var(--rb-ink); color: var(--rb-paper) !important; }
+.rb:lang(en) .rb-btn { letter-spacing: .04em; }
 
-/* 首屏：說明與目次（左）＋書架照片（中）＋直排標題（右）；英文改橫排 */
-.rb-hero { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 5fr) auto; column-gap: clamp(24px, 4vw, 64px); align-items: start; padding-top: clamp(48px, 7vw, 104px) !important; padding-bottom: 0 !important; }
-.rb-title { grid-column: 3; grid-row: 1; justify-self: end; writing-mode: vertical-rl; font-size: max(1rem, var(--s-display)); line-height: 1.25; letter-spacing: .14em !important; }
-.rb-line { display: block; }
-.rb-line--step { padding-top: 1.6em; }
-.rb-hero__photo { grid-column: 2; grid-row: 1; }
-.rb .rb-hero__photo img[width][height] { aspect-ratio: 4 / 5; height: auto; max-height: 76svh; }
-.rb-hero__say { grid-column: 1; grid-row: 1; align-self: end; }
-.rb-hero__where { font-size: 1rem !important; letter-spacing: .2em !important; color: var(--rb-soft); padding-bottom: 20px; margin-bottom: 24px !important; border-bottom: 1px solid var(--rb-line); }
-.rb-hero__say > p:not(.rb-hero__where) { font-size: max(1rem, var(--s-lead)); line-height: 1.9; }
-.rb-toc { margin-top: 56px; border-top: 1px solid var(--rb-ink); }
-.rb-toc__h { padding: 14px 0 6px; font-size: 1rem !important; letter-spacing: .3em !important; color: var(--rb-soft); }
-.rb-toc ol { list-style: none; margin: 0; padding: 0; counter-reset: toc; }
-.rb-toc li { counter-increment: toc; border-bottom: 1px solid var(--rb-line); }
-.rb-toc a { display: flex; align-items: center; gap: 16px; min-height: 48px; text-decoration: none; font-size: 1rem; letter-spacing: .08em; transition: padding .25s ease, color .25s ease; }
-.rb-toc a::before { content: counter(toc, cjk-ideographic); width: 1.5em; flex: none; color: var(--rb-soft); }
-.rb:lang(en) .rb-toc a::before { content: counter(toc, decimal-leading-zero); }
-.rb-toc a::after { content: ""; flex: 1; height: 1px; margin-left: 8px; background: repeating-linear-gradient(90deg, var(--rb-line) 0 2px, transparent 2px 6px); }
-.rb-toc a:hover { padding-left: 6px; color: var(--rb-act); }
-.rb:lang(en) .rb-hero { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); row-gap: 40px; }
-.rb:lang(en) .rb-title { grid-column: 1 / -1; grid-row: 1; justify-self: start; writing-mode: horizontal-tb; letter-spacing: -.01em !important; line-height: 1.05; }
-.rb:lang(en) .rb-line--step { padding-top: 0; padding-left: 1.4em; }
-.rb:lang(en) .rb-hero__photo { grid-column: 2; grid-row: 2; }
-.rb:lang(en) .rb-hero__say { grid-column: 1; grid-row: 2; }
+/* 首屏：滿版照片＋暗角，標題白字置左下；右側直排店名由來 */
+.rb .rb-hero { position: relative; width: 100%; max-width: none; min-height: min(86svh, 820px); padding: 0; display: grid; align-items: end; color: #fff; isolation: isolate; }
+.rb-hero__bg { position: absolute; inset: 0; z-index: -1; }
+.rb .rb-hero__bg img[width][height] { height: 100%; filter: sepia(.12) saturate(.9); }
+.rb-hero__bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(20, 17, 13, .18) 0%, rgba(20, 17, 13, .08) 35%, rgba(20, 17, 13, .72) 100%); }
+.rb-hero__in { width: min(100%, calc(var(--rb-max) + var(--rb-m) * 2)); margin-inline: auto; padding: 0 var(--rb-m) clamp(140px, 14vw, 190px); }
+.rb .rb-hero__where { font-size: 1rem; letter-spacing: .2em; color: rgba(255, 255, 255, .86); margin-bottom: 20px; }
+.rb .rb-title { color: #fff; font-size: max(1rem, var(--s-display)); line-height: 1.12; letter-spacing: .06em; }
+.rb-title span { display: block; }
+.rb-title span + span { font-size: 1.32em; }
+.rb:lang(en) .rb-title span + span { font-size: 1em; }
+.rb .rb-hero__sub { margin-top: 20px; font-size: max(1rem, var(--s-lead)); letter-spacing: .14em; color: rgba(255, 255, 255, .9); }
+.rb:lang(en) .rb-hero__sub { letter-spacing: .02em; }
+.rb .rb-hero__tate { position: absolute; top: clamp(32px, 5vw, 64px); right: var(--rb-m); writing-mode: vertical-rl; font-size: max(1rem, var(--s-lead)); letter-spacing: .4em; color: rgba(255, 255, 255, .82); max-width: none; }
+.rb:lang(en) .rb-hero__tate { display: none; }
 
-/* 店名的由來：兩欄短文＋全寬月台照片 */
-.rb-intro { padding-top: var(--rb-sec) !important; }
-.rb-intro__head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: clamp(24px, 6vw, 96px); align-items: end; padding-bottom: 48px; border-bottom: 1px solid var(--rb-line); }
-.rb-intro__notes { display: grid; gap: 16px; }
-.rb-intro__notes p { color: var(--rb-soft); }
-.rb-intro__wide { margin-top: 48px !important; }
-.rb .rb-intro__wide img[width][height] { aspect-ratio: 21 / 9; height: auto; object-position: center 60%; filter: sepia(.18) saturate(.85); }
+/* 試算列：浮在首屏下緣的圓角卡（The Club 訂位列） */
+.rb .rb-plan { position: relative; z-index: 2; display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 1fr) auto; align-items: center; gap: clamp(16px, 2vw, 28px); width: min(calc(100% - var(--rb-m) * 2), var(--rb-max)); margin-top: clamp(-112px, -8vw, -80px); padding: 24px clamp(20px, 2.6vw, 36px); border-radius: var(--rb-r); background: var(--rb-paper); box-shadow: 0 24px 60px -36px rgba(31, 27, 22, .55); }
+.rb-plan__h { font-size: max(1rem, var(--s-lead)) !important; letter-spacing: .1em; white-space: nowrap; }
+.rb-plan__f, .rb-plan__out { display: grid; gap: 8px; min-width: 0; }
+.rb-plan__l { font-size: 1rem; letter-spacing: .14em; color: var(--rb-soft); }
+.rb-seg { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--rb-tone); }
+.rb-seg[hidden] { display: none; }
+.rb-seg button { flex: 1 1 0; min-width: 0; min-height: 44px; padding: 0 10px; border: 0; border-radius: 999px; background: transparent; color: var(--rb-ink); font: inherit; font-size: 1rem; letter-spacing: .04em; white-space: nowrap; cursor: pointer; transition: background .2s ease, color .2s ease; }
+.rb-seg button small { display: none; }
+.rb-seg button:hover { background: rgba(255, 255, 255, .6); }
+.rb-seg button[aria-pressed="true"] { background: var(--rb-ink); color: var(--rb-paper); }
+.rb-plan__price { font-family: "EB Garamond", var(--rb-serif); font-size: clamp(1.75rem, 2.4vw, 2.2rem); line-height: 1.1; font-variant-numeric: tabular-nums lining-nums; }
+.rb .rb-plan__txt { display: none; }
+.rb-plan .rb-btn { white-space: nowrap; }
 
-/* 一　空檔時刻表 */
-.rb-gap { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: clamp(16px, 2vw, 32px); row-gap: 48px; padding-top: var(--rb-sec) !important; }
-.rb-gap__head { grid-column: 1 / 6; }
-.rb-gap__head p:not(.rb-kicker) { margin-top: 20px; color: var(--rb-soft); }
-.rb-gap__body { grid-column: 7 / 13; grid-row: 1 / 3; align-self: center; }
-.rb-gap__picks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--rb-ink); }
-.rb-gap__pick { min-height: 56px; padding: 0 12px; border: 0; border-radius: 0; background: transparent; color: var(--rb-ink); font: inherit; font-size: max(1rem, var(--s-body)); letter-spacing: .08em; cursor: pointer; transition: background .2s ease, color .2s ease; }
-.rb-gap__pick + .rb-gap__pick { border-left: 1px solid var(--rb-ink); }
-.rb-gap__pick:hover { background: var(--rb-tone); }
-.rb-gap__pick[aria-pressed="true"], .rb-gap__pick[aria-pressed="true"]:hover { background: var(--rb-ink); color: var(--rb-paper); }
-.rb-gap__plans { list-style: none; margin: 32px 0 0; padding: 0; display: grid; gap: 24px; }
-.rb-gap__plans li { display: grid; gap: 8px; padding-bottom: 24px; border-bottom: 1px solid var(--rb-line); }
-.rb-gap__plans b { font-weight: 500; font-size: max(1rem, var(--s-lead)); }
-.rb-gap__plans span { font-size: max(1rem, var(--s-body)); line-height: 1.9; }
-.rb-js .rb-gap__plans li b { display: none; }
-.rb-js .rb-gap__plans li span { font-size: max(1rem, var(--s-lead)); }
-.rb-gap__plans li[hidden] { display: none; }
-.rb-gap__photo { grid-column: 1 / 6; }
-.rb .rb-gap__photo img[width][height] { aspect-ratio: 3 / 2; height: auto; filter: sepia(.18) saturate(.85); }
+/* 色帶：霧苔綠整條（The Club 黃色標語帶） */
+.rb .rb-band { width: 100%; max-width: none; margin-top: var(--rb-sec); padding: clamp(64px, 8vw, 112px) var(--rb-m); background: var(--rb-moss); color: var(--rb-paper); text-align: center; }
+.rb .rb-band p { max-width: 24em; margin-inline: auto; font-size: clamp(1.5rem, 2.6vw, 2.25rem); line-height: 1.6; letter-spacing: .06em; text-wrap: balance; word-break: keep-all; overflow-wrap: anywhere; }
+.rb:lang(ja) .rb-band p { word-break: normal; }
+.rb:lang(en) .rb-band p { max-width: 30ch; line-height: 1.35; letter-spacing: -.005em; }
 
-/* 二　書架：三張畫框，中間一張高 */
-.rb-run { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: clamp(16px, 2vw, 32px); padding-top: var(--rb-sec) !important; }
-.rb-run__side { grid-column: 1 / 4; }
-.rb-run__side a { display: inline-flex; align-items: center; min-height: 44px; margin-top: 16px; letter-spacing: .08em; }
-.rb-run__frames { grid-column: 4 / 13; display: flex; align-items: flex-end; gap: clamp(16px, 2vw, 32px); }
-.rb-run__frames figure { flex: 1 1 0; min-width: 0; }
-.rb .rb-run__frames img[width][height] { height: 30vh; min-height: 200px; filter: sepia(.18) saturate(.85); }
-.rb-run__lift { flex-grow: 1.6 !important; }
-.rb .rb-run__lift img[width][height] { height: min(52vh, 520px); filter: none; }
-.rb-run figcaption { display: flex; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid var(--rb-line); color: var(--rb-ink); }
-.rb-run figcaption span + span { color: var(--rb-soft); }
+/* 圖文分割輪播：左大圖右文，下方 ‹ 1/3 › */
+.rb .rb-wait { width: 100%; max-width: none; padding: 0; background: var(--rb-tone); }
+.rb-wait__track { list-style: none; padding: 0; }
+.rb-slide { display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 9fr); align-items: center; }
+.rb-slide[hidden] { display: none; }
+.rb-slide figure { position: relative; }
+.rb .rb-slide img[width][height] { height: auto; aspect-ratio: 4 / 3; max-height: 82svh; }
+.rb-slide figcaption { position: absolute; left: 16px; bottom: 14px; margin: 0; padding: 4px 12px; border-radius: 999px; background: rgba(31, 27, 22, .6); color: #fff; }
+.rb-slide__say { padding: clamp(40px, 6vw, 96px) clamp(24px, 6vw, 96px) clamp(120px, 10vw, 150px); }
+.rb-slide__say h3 { font-size: max(1rem, var(--s-head)); line-height: 1.25; }
+.rb-slide__say p { margin-top: 24px; color: var(--rb-soft); }
+.rb-wait__nav { display: none; }
+.rb-js .rb-wait { position: relative; }
+.rb-js .rb-wait__nav { position: absolute; left: calc(55% + clamp(24px, 6vw, 96px)); bottom: clamp(40px, 5vw, 64px); display: flex; align-items: center; gap: 16px; }
+.rb-wait__btn { display: grid; place-items: center; width: 48px; height: 48px; padding: 0; border: 1px solid var(--rb-ink); border-radius: 50%; background: transparent; color: var(--rb-ink); cursor: pointer; transition: background .2s ease, color .2s ease; }
+.rb-wait__btn:hover { background: var(--rb-ink); color: var(--rb-paper); }
+.rb-wait__btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.rb-wait__count { font-size: 1rem; letter-spacing: .1em; font-variant-numeric: tabular-nums; }
+.rb-wait__count b { font-weight: 500; }
 
-/* 三　價目：細線表格，白天紙色、夜間墨色 */
+/* 一　設施：代碼｜名稱清單（The Club 的 ATL | Atlanta 地點清單） */
+.rb-here { padding-top: var(--rb-sec) !important; }
+.rb-here__head { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); column-gap: clamp(24px, 4vw, 64px); align-items: end; }
+.rb-here__head .rb-kicker, .rb-here__head h2 { grid-column: 1; }
+.rb-here__head > p:not(.rb-kicker) { grid-column: 2; grid-row: 2; color: var(--rb-soft); }
+.rb-rooms { list-style: none; padding: 0; margin-top: 48px !important; border-top: 1px solid var(--rb-ink); }
+.rb-rooms li { display: grid; grid-template-columns: 7.5em minmax(0, 3fr) minmax(0, 5fr) 10em; gap: 8px 24px; align-items: baseline; padding: 22px 0; border-bottom: 1px solid var(--rb-line); transition: padding .25s ease, background .25s ease; }
+.rb-rooms li:hover { padding-left: 12px; background: linear-gradient(90deg, var(--rb-tone), transparent); }
+.rb-rooms__code { font-family: "EB Garamond", var(--rb-serif); font-size: 1rem; letter-spacing: .2em; color: var(--rb-moss); }
+.rb-rooms h3 { font-size: max(1rem, var(--s-lead)); letter-spacing: .1em; }
+.rb-rooms p { color: var(--rb-soft); }
+.rb-rooms__fee { font-size: 1rem; letter-spacing: .06em; text-align: right; }
+.rb-here__wide { margin-top: 56px !important; }
+.rb .rb-here__wide img[width][height] { aspect-ratio: 21 / 9; height: auto; object-position: center 60%; border-radius: var(--rb-r); filter: sepia(.18) saturate(.85); }
+
+/* 二　價目：白天紙色、夜間暖墨 */
 .rb-price { padding-top: var(--rb-sec) !important; }
 .rb-price__lede { margin-top: 20px !important; color: var(--rb-soft); }
-.rb-price__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(16px, 2vw, 32px); margin-top: 56px; align-items: start; }
-.rb-price__block { padding: clamp(24px, 3vw, 40px); border: 1px solid var(--rb-line); background: #faf8f3; }
+.rb-price__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(16px, 2vw, 32px); margin-top: 48px; align-items: start; }
+.rb-price__block { padding: clamp(24px, 3vw, 40px); border: 1px solid var(--rb-line); border-radius: var(--rb-r); background: #fbf8f2; }
 .rb-price__block--night { background: var(--rb-ink); border-color: var(--rb-ink); color: var(--rb-paper); }
 .rb-price__block--night h3, .rb-price__block--night dt, .rb-price__block--night dd { color: var(--rb-paper); }
 .rb-price__block h3 { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid currentColor; font-size: max(1rem, var(--s-lead)); letter-spacing: .12em; }
@@ -144,27 +161,18 @@
 .rb-price__block dl div:last-child { border-bottom: 0; padding-bottom: 0; }
 .rb-price__block dt { font-size: max(1rem, var(--s-body)); letter-spacing: .06em; }
 .rb-price__block dd { font-family: "EB Garamond", var(--rb-serif); font-size: clamp(1.5rem, 2.2vw, 1.9rem); font-weight: 500; font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; word-break: keep-all; }
-.rb-price__rules { list-style: none; margin: 40px 0 0; padding: 0; display: grid; gap: 10px; max-width: 46em; font-size: max(1rem, var(--s-body)); line-height: 1.85; color: var(--rb-soft); }
+.rb-price__rules { list-style: none; margin: 32px 0 0 !important; padding: 0; display: grid; gap: 10px; max-width: 46em; font-size: max(1rem, var(--s-body)); line-height: 1.85; color: var(--rb-soft); }
 .rb-price__rules li { position: relative; padding-left: 1.4em; }
-.rb-price__rules li::before { content: "※"; position: absolute; left: 0; color: var(--rb-act); }
+.rb-price__rules li::before { content: "※"; position: absolute; left: 0; color: var(--rb-moss); }
 
-/* 四　交誼廳包場：左說明右費用 */
-.rb-hire { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: clamp(16px, 2vw, 32px); padding-top: var(--rb-sec) !important; }
-.rb-hire__head { grid-column: 1 / 6; }
-.rb-hire__body { grid-column: 7 / 13; padding-top: 8px; }
-.rb-hire .rb-price__rules { margin-top: 28px; }
+/* 三　交誼廳包場：照片＋說明分割 */
+.rb-hire { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: clamp(24px, 5vw, 80px); align-items: center; padding-top: var(--rb-sec) !important; }
+.rb .rb-hire__photo img[width][height] { aspect-ratio: 4 / 5; height: auto; border-radius: var(--rb-r); filter: sepia(.18) saturate(.85); }
+.rb-hire__say .rb-price__block { margin-top: 32px; }
+.rb-hire__say .rb-btn { margin-top: 32px; }
 
-/* 五　設施：書目式細線表 */
-.rb-here { padding-top: var(--rb-sec) !important; }
-.rb-table { width: 100%; margin-top: 48px; border-collapse: collapse; border-top: 1px solid var(--rb-ink); font-size: max(1rem, var(--s-body)); }
-.rb-table caption { caption-side: top; text-align: left; padding-bottom: 14px; font-size: 1rem; letter-spacing: .12em; color: var(--rb-soft); }
-.rb-table tr { border-bottom: 1px solid var(--rb-line); }
-.rb-table th, .rb-table td { padding: 20px 16px 20px 0; text-align: left; vertical-align: baseline; font-weight: 400; line-height: 1.7; }
-.rb-table th { width: 22%; font-weight: 500 !important; letter-spacing: .12em; }
-.rb-table td:last-child { color: var(--rb-soft); text-align: right; padding-right: 0; }
-
-/* 六　問答：生成り色紙面滿版 */
-.rb .rb-faq { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: clamp(16px, 2vw, 32px); width: 100%; margin-top: var(--rb-sec); padding: clamp(80px, 9vw, 128px) max(var(--rb-m), calc((100% - var(--rb-max)) / 2)); background: var(--rb-tone); }
+/* 四　問答 */
+.rb .rb-faq { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: clamp(16px, 2vw, 32px); width: 100%; max-width: none; margin-top: var(--rb-sec); padding: clamp(80px, 9vw, 128px) max(var(--rb-m), calc((100% - var(--rb-max)) / 2)); background: var(--rb-tone); }
 .rb-faq__head { grid-column: 1 / 5; }
 .rb-faq__list { grid-column: 5 / 13; border-top: 1px solid var(--rb-ink); }
 .rb-faq details { border-bottom: 1px solid #cbc0ad; }
@@ -175,10 +183,11 @@
 .rb-faq details[open] summary::after { transform: rotate(45deg); }
 .rb-faq details p { padding-bottom: 24px; max-width: 40em; color: var(--rb-soft); }
 
-/* 奧付（版權頁）：結尾聯絡 */
+/* 五　奧付：怎麼來 */
 .rb-contact { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: clamp(16px, 2vw, 32px); align-items: start; padding-top: var(--rb-sec) !important; padding-bottom: clamp(80px, 9vw, 128px) !important; }
 .rb-contact__say { grid-column: 1 / 6; }
-.rb-contact__say p { margin-top: 20px; font-size: max(1rem, var(--s-lead)); }
+.rb-contact__say p { margin-top: 20px; }
+.rb-contact__say .rb-btn { margin-top: 32px; }
 .rb-colophon { grid-column: 7 / 13; border-top: 1px solid var(--rb-ink); border-bottom: 1px solid var(--rb-ink); padding: 8px 0; }
 .rb-colophon div { display: grid; grid-template-columns: 6em minmax(0, 1fr); gap: 16px; align-items: baseline; padding: 12px 0; }
 .rb-colophon div + div { border-top: 1px solid var(--rb-line); }
@@ -187,44 +196,58 @@
 .rb-colophon a { display: inline-flex; align-items: center; min-height: 44px; }
 .rb .rb-credit { width: min(100%, calc(var(--rb-max) + var(--rb-m) * 2)); max-width: none; margin: 0 auto; padding: 0 var(--rb-m) 56px; font-size: 1rem; color: var(--rb-soft); }
 
-/* 動態：首屏淡入、段落浮現；其餘靜止 */
-.rb-anim .rb-title { opacity: 0; animation: rb-fade 1.2s cubic-bezier(.16, 1, .3, 1) .1s forwards; }
-.rb-anim .rb-hero__photo, .rb-anim .rb-hero__say { opacity: 0; animation: rb-fade .9s ease .45s forwards; }
-.rb-anim .rb section:not(.rb-hero) { opacity: 0; transform: translateY(16px); transition: opacity .7s ease, transform .7s cubic-bezier(.16, 1, .3, 1); }
-.rb-anim .rb section.is-in { opacity: 1; transform: none; }
-@keyframes rb-fade { to { opacity: 1; } }
+/* 動態：首屏淡入、段落浮現 */
+.rb-anim .rb-hero__in, .rb-anim .rb-hero__tate { opacity: 0; animation: rb-fade 1.1s cubic-bezier(.16, 1, .3, 1) .15s forwards; }
+.rb-anim .rb .rb-hero__bg img { animation: rb-zoom 2.4s cubic-bezier(.16, 1, .3, 1) both; }
+.rb-anim .rb section:not(.rb-hero):not(.rb-plan) { opacity: 0; transform: translateY(16px); transition: opacity .7s ease, transform .7s cubic-bezier(.16, 1, .3, 1); }
+.rb-anim .rb section:not(.rb-hero):not(.rb-plan).is-in { opacity: 1; transform: none; }
+.rb-slide:not([hidden]) .rb-slide__say { animation: rb-fade .6s ease both; }
+@keyframes rb-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rb-zoom { from { transform: scale(1.06); } to { transform: none; } }
+.rb-hero__bg { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .rb *, .rb *::after, .rb *::before { animation: none !important; transition: none !important; }
 }
 
-/* 手機：中日文標題仍直排，照片在旁；其餘單欄 */
+/* 平板：試算列改兩列 */
+@media (max-width: 1080px) {
+  .rb .rb-plan { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .rb-plan__h { grid-column: 1 / -1; }
+  .rb-plan__out { align-self: end; }
+  .rb-plan .rb-btn { align-self: end; }
+}
+
+/* 手機 */
 @media (max-width: 760px) {
-  .bs--rest-book { --s-display: clamp(2.4rem, 11vw, 3.2rem); --s-head: clamp(1.75rem, 8vw, 2.4rem); }
-  .rb-hero { grid-template-columns: minmax(0, 1fr) auto; column-gap: 16px; row-gap: 32px; padding-top: 28px !important; }
-  .rb-title { grid-column: 2; grid-row: 1; }
-  .rb-hero__photo { grid-column: 1; grid-row: 1; }
-  .rb .rb-hero__photo img[width][height] { max-height: 64svh; }
-  .rb-hero__say { grid-column: 1 / -1; grid-row: 2; }
-  .rb-toc { margin-top: 40px; }
-  .rb:lang(en) .rb-hero { grid-template-columns: minmax(0, 1fr); }
-  .rb:lang(en) .rb-title, .rb:lang(en) .rb-hero__photo, .rb:lang(en) .rb-hero__say { grid-column: 1; grid-row: auto; }
-  .rb:lang(en) .rb-line--step { padding-left: .8em; }
-  .rb-intro__head { grid-template-columns: minmax(0, 1fr); row-gap: 24px; }
-  .rb .rb-intro__wide img[width][height] { aspect-ratio: 4 / 3; }
-  .rb-gap, .rb-run, .rb-hire, .rb .rb-faq, .rb-contact { grid-template-columns: minmax(0, 1fr); row-gap: 32px; }
-  .rb-gap__body { grid-row: auto; }
-  .rb-gap__head, .rb-gap__body, .rb-gap__photo, .rb-run__side, .rb-run__frames, .rb-hire__head, .rb-hire__body, .rb-faq__head, .rb-faq__list, .rb-contact__say, .rb-colophon { grid-column: 1; }
-  .rb-gap__photo { width: 72%; justify-self: end; }
-  .rb-gap__pick { padding: 0 6px; letter-spacing: .02em; }
-  .rb-run__frames { flex-wrap: wrap; gap: 24px 12px; }
-  .rb-run__frames figure { flex: 0 0 calc(50% - 6px); }
-  .rb-run__lift { order: -1; flex: 0 0 100% !important; }
-  .rb .rb-run__frames img[width][height] { height: 44vw; min-height: 0; }
-  .rb .rb-run__lift img[width][height] { height: 64vw; }
-  .rb-run figcaption { flex-direction: column; gap: 2px; }
+  .bs--rest-book { --s-display: clamp(2.2rem, 10vw, 3rem); --s-head: clamp(1.75rem, 8vw, 2.4rem); --rb-r: 16px; }
+  .rb .rb-hero { min-height: 78svh; }
+  .rb-hero__in { padding-bottom: 120px; padding-right: calc(var(--rb-m) + 2.4em); }
+  .rb:lang(en) .rb-hero__in { padding-right: var(--rb-m); }
+  .rb .rb-hero__tate { top: 24px; letter-spacing: .3em; }
+  .rb .rb-title span:first-child { font-size: max(1rem, 1.6rem); }
+  .rb:lang(en) .rb-title span:first-child { font-size: max(1rem, var(--s-display)); }
+  .rb .rb-band p { font-size: 1.3rem; }
+  .rb .rb-plan { grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: -72px; padding: 20px; }
+  .rb-plan__h { grid-column: 1; }
+  .rb-plan__out { grid-template-columns: auto minmax(0, 1fr); align-items: baseline; column-gap: 16px; }
+  .rb-plan .rb-btn { width: 100%; }
+  .rb-slide { grid-template-columns: minmax(0, 1fr); }
+  .rb .rb-slide img[width][height] { aspect-ratio: 4 / 3; }
+  .rb-slide__say { padding: 32px var(--rb-m) 112px; }
+  .rb-js .rb-wait__nav { left: var(--rb-m); bottom: 32px; }
+  .rb-here__head { grid-template-columns: minmax(0, 1fr); }
+  .rb-here__head > p:not(.rb-kicker) { grid-column: 1; grid-row: auto; margin-top: 16px; }
+  .rb-rooms li { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; padding: 18px 0; }
+  .rb-rooms__code { grid-column: 1 / -1; }
+  .rb-rooms p { grid-column: 1 / -1; grid-row: 3; }
+  .rb .rb-here__wide img[width][height] { aspect-ratio: 4 / 3; }
   .rb-price__grid { grid-template-columns: minmax(0, 1fr); margin-top: 32px; }
-  .rb-table tr { display: grid; grid-template-columns: minmax(0, 1fr); padding: 16px 0; }
-  .rb-table th, .rb-table td { width: auto; padding: 2px 0; text-align: left !important; }
-  .rb-table th { padding-bottom: 6px; }
+  .rb-hire { grid-template-columns: minmax(0, 1fr); row-gap: 40px; }
+  .rb .rb-hire__photo img[width][height] { aspect-ratio: 3 / 2; }
+  .rb .rb-faq, .rb-contact { grid-template-columns: minmax(0, 1fr); row-gap: 32px; }
+  .rb-faq__head, .rb-faq__list, .rb-contact__say, .rb-colophon { grid-column: 1; }
   .rb-colophon div { grid-template-columns: 4.5em minmax(0, 1fr); }
+}
+@media (max-width: 360px) {
+  .rb-seg button { padding: 0 6px; letter-spacing: 0; }
 }

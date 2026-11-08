@@ -721,9 +721,11 @@ def sq_login():
             f'<button type="button" class="sq-login__close" data-sq-close aria-label="{t("關閉", "Close", "閉じる")}">×</button></dialog>\n')
 
 
-# ---------------------------------------------------------------- 約書旅（2026-11-04 改版：ui-ux-pro-max「日系質感書店」— 紙與墨、明朝體、直排標題、細線、目次與奧付）
-# 構想：兩班車之間的空檔，變成一張閱讀時刻表。互動：選「離下一班車還有多久」→ 給出怎麼用這段時間（無 JS 時全部列出）。
-# 圖片：Wikimedia Commons 公有領域／CC 授權（頁尾標註來源）＋本案 2F 規劃示意；統一暖墨單色處理。
+# ---------------------------------------------------------------- 約書旅（2026-11-08 改版：參照 The Club airport lounges 的導覽與節奏，做成「台北車站旁的貴賓室」）
+# 版型：滿版首圖＋浮在下緣的空檔試算列（對應 The Club 訂位列）→ 整條色帶標語 → 圖文分割三張輪播 → 設施清單（對應地點清單）→ 價目 → 包場 → 問答 → 奧付。
+# 保留書店語彙：明朝體、漢數字章節、細線表、奧付；按鈕改黃銅色膠囊（不用母品牌黃 #FFDE34）。
+# 法遵（KK 11/8）：寫「台北車站旁」、不寫住宿／休息／休憩／房價；英文不用 member／rest room。
+# 圖片：Wikimedia Commons 公有領域／CC 授權（頁尾標註來源）＋本案 2F 規劃示意。
 RB_IMG = {
     'station': ('/brand-sites/assets/restbook/station1930.webp', 1600, 812),
     'students': ('/brand-sites/assets/restbook/students1930.webp', 1600, 1049),
@@ -743,21 +745,31 @@ def rb_img(key, alt, cls='', lazy=True):
 def page_book():
     s = 'rest-book'
     contact = 'mailto:us@emoji.tw?subject=' + t('約書旅洽詢', 'Rest%20Book%20enquiry', '約書旅のお問い合わせ')
-    out = head(s, t('約書旅 Rest Book｜台北車站旁，等車時讀一本書',
-                    '約書旅 Rest Book | A book between trains, by Taipei Main Station',
-                    '約書旅 Rest Book｜台北駅のそば、電車を待つ間に一冊'),
+    out = head(s, t('約書旅 Rest Book｜你在台北車站旁的貴賓室',
+                    '約書旅 Rest Book | Your lounge by Taipei Main Station',
+                    '約書旅 Rest Book｜台北駅のそばの、あなたのラウンジ'),
                t('約書旅（Rest Book）是你在台北車站旁的貴賓室，就在 Z10 出口斜對面：書可以讀也可以買，有個人讀書席、靜讀室、兩間淋浴與交誼廳。白天 1 小時 NT$200 起，夜間 22:00–08:00 NT$800 起。',
                  'Rest Book is your lounge by Taipei Main Station, across from Exit Z10: books to read or buy, personal study seats, quiet rooms, two showers and a lounge. Daytime from NT$200 an hour; night (22:00–08:00) from NT$800.',
                  '約書旅（Rest Book）は台北駅のそばの、あなたのラウンジ。Z10 出口の斜め向かい。読める・買える本、個人の読書席、静読室、シャワー2室、ラウンジ。日中 1時間 NT$200から、夜間（22:00–08:00）NT$800から。'))
-    out += header(s, [(t('時刻表', 'Timetable', '時刻表'), '#gap'), (t('價目', 'Prices', '料金'), '#price'), (t('包場', 'Lounge hire', '貸切'), '#hire'), (t('這裡有什麼', 'What’s here', 'あるもの'), '#here'), (t('常見問題', 'FAQ', 'よくある質問'), '#faq'), (t('洽詢', 'Contact', 'お問い合わせ'), contact)])
+    out += header(s, [(t('這裡有什麼', 'What’s here', 'あるもの'), '#here'), (t('價目', 'Prices', '料金'), '#price'), (t('包場', 'Lounge hire', '貸切'), '#hire'),
+                      (t('常見問題', 'FAQ', 'よくある質問'), '#faq'), (t('怎麼來', 'Find us', 'アクセス'), '#visit')])
     # 價目：KK 2026-11-04 定案（含稅；見 /workspace/local/約書旅/約書旅_商業模型_20261104.md）
-    gaps = [
-        ('60', t('1 小時', '1 hour', '1時間'), 'NT$200', t('讀完一本短篇集裡的三篇，再到交誼廳坐一下。', 'Three stories from a short collection, then a sit-down in the lounge.', '短編集から三編。そのあとラウンジでひと息。')),
-        ('240', t('4 小時', '4 hours', '4時間'), 'NT$600', t('在讀書席把一本薄書讀完，放空一下、梳洗乾淨；喜歡的書就帶走。', 'Finish a slim book at a study seat, pause, freshen up, and take the book with you if you like it.', '読書席で薄い一冊を読み終え、ひと息ついて身支度。気に入った本は買って帰る。')),
-        ('480', t('8 小時', '8 hours', '8時間'), 'NT$1,000', t('一整個白天：讀一段、工作一段、放空一段，帶著一本書搭下一班車。', 'A whole day: read, work, unwind, and board the next train with a book in hand.', '丸一日。読んで、働いて、ひと息ついて。一冊を持って次の電車へ。')),
+    plan_day = [
+        ('60', t('1 小時', '1 hour', '1時間'), 'NT$200', t('讀完短篇集裡的三篇，再到交誼廳坐一下。', 'Three stories from a short collection, then a sit-down in the lounge.', '短編集から三編。そのあとラウンジでひと息。')),
+        ('240', t('4 小時', '4 hours', '4時間'), 'NT$600', t('在讀書席讀完一本薄書，梳洗一下；喜歡的書就帶走。', 'Finish a slim book at a study seat, freshen up, and take the book with you if you like it.', '読書席で薄い一冊を読み終え、身支度。気に入った本は買って帰る。')),
+        ('480', t('8 小時', '8 hours', '8時間'), 'NT$1,000', t('一整個白天：讀一段、工作一段，帶著一本書搭下一班車。', 'A whole day: read, work, and board the next train with a book in hand.', '丸一日。読んで、働いて、一冊を持って次の電車へ。')),
     ]
-    picks = ''.join(f'<button type="button" class="rb-gap__pick" data-gap="{k}" aria-pressed="{"true" if i == 0 else "false"}">{e(lbl)}</button>' for i, (k, lbl, _, _) in enumerate(gaps))
-    plans = ''.join(f'<li data-gap="{k}"><b>{e(lbl)} · {price}</b><span>{e(txt)}</span></li>' for k, lbl, price, txt in gaps)
+    plan_night = [
+        ('wk', t('週日至週四', 'Sun–Thu', '日〜木曜'), 'NT$800', t('晚班車之後的讀書席與靜讀室，比白天更安靜。', 'After the late trains, the study seats and quiet rooms are at their calmest.', '終電のあとの読書席と静読室は、日中よりも静かです。')),
+        ('we', t('週五、週六', 'Fri, Sat', '金・土曜'), 'NT$1,000', t('週末夜的交誼廳有大螢幕與桌遊，讀書席照樣安靜。', 'Weekend nights bring the big screen and board games to the lounge; the study seats stay quiet.', '週末の夜はラウンジに大型画面とボードゲーム。読書席は静かなまま。')),
+    ]
+    seg = lambda g, items, hide=False: (f'<div class="rb-seg" data-g="{g}" role="group"{" hidden" if hide else ""}>' + ''.join(
+        f'<button type="button" data-k="{k}" data-p="{p}" data-t="{e(x)}" aria-pressed="{"true" if i == 0 else "false"}">{e(lbl)}</button>'
+        for i, (k, lbl, p, x) in enumerate(items)) + '</div>')
+    when = [('day', t('白天', 'Daytime', '日中'), '', ''), ('night', t('夜間', 'Night', '夜間'), '', '')]
+    when_html = '<div class="rb-seg" data-g="when" role="group">' + ''.join(
+        f'<button type="button" data-k="{k}" aria-pressed="{"true" if i == 0 else "false"}">{e(lbl)}<small>{hrs}</small></button>'
+        for i, ((k, lbl, _, _), hrs) in enumerate(zip(when, ('08:00–22:00', '22:00–08:00')))) + '</div>'
     day = [(t('1 小時', '1 hour', '1時間'), 'NT$200'), (t('4 小時', '4 hours', '4時間'), 'NT$600'),
            (t('8 小時', '8 hours', '8時間'), 'NT$1,000'), (t('超時每小時', 'Each extra hour', '延長 1時間ごと'), 'NT$150')]
     night = [(t('週日至週四', 'Sun–Thu', '日〜木曜'), 'NT$800'), (t('週五、週六', 'Fri, Sat', '金・土曜'), 'NT$1,000')]
@@ -773,15 +785,36 @@ def page_book():
         t('只租交誼廳；讀書席、靜讀室與淋浴不含在內。擴音使用到 22:00。', 'The lounge only; study seats, quiet rooms and showers are not included. Amplified sound until 22:00.', 'ラウンジのみ。読書席、静読室、シャワーは含まれません。音響の使用は22:00まで。'),
         t('包場享在咖啡、三點水餐飲 9\u00a0折。', '10% off food and drinks at at cafe and 3AM.', '在咖啡・三點水の飲食が10%オフ。')])
     hire_mail = 'mailto:us@emoji.tw?subject=' + t('約書旅交誼廳包場', 'Rest%20Book%20lounge%20hire', '約書旅ラウンジ貸切')
-    rows = [
-        (t('書架', 'Shelves', '本棚'), t('現場閱讀，喜歡可購買', 'Read on site, buy what you like', 'その場で読める・買える'), t('每本另標價', 'Priced per book', '一冊ごとに価格表示')),
-        (t('讀書席', 'Study seats', '読書席'), t('一人一席，安靜閱讀', 'One person, one seat, quiet', '一人一席、静かに'), t('依時段計費', 'Charged by time', '時間制')),
-        (t('靜讀室', 'Quiet rooms', '静読室'), t('非密閉、不可上鎖', 'Open, not lockable', '密閉なし・施錠なし'), t('依時段計費', 'Charged by time', '時間制')),
-        (t('淋浴', 'Showers', 'シャワー'), t('兩間', 'Two rooms', '2室'), t('另行計費', 'Priced separately', '別料金')),
-        (t('交誼廳', 'Lounge', 'ラウンジ'), t('約十人', 'About ten people', '約10名'), t('大螢幕、Switch、漫畫、桌遊', 'Big screen, Switch, manga, board games', '大型画面、Switch、マンガ、ボードゲーム')),
+    # 設施清單（對應 The Club 的地點清單「代碼｜名稱」）
+    rooms = [
+        ('SHELF', t('書架', 'Shelves', '本棚'), t('現場閱讀，喜歡可購買', 'Read on site, buy what you like', 'その場で読める・買える'), t('每本另標價', 'Priced per book', '一冊ごとに価格表示')),
+        ('SEAT', t('讀書席', 'Study seats', '読書席'), t('一人一席，安靜閱讀', 'One person, one seat, quiet', '一人一席、静かに'), t('依時段計費', 'Charged by time', '時間制')),
+        ('QUIET', t('靜讀室', 'Quiet rooms', '静読室'), t('非密閉、不可上鎖', 'Open, not lockable', '密閉なし・施錠なし'), t('依時段計費', 'Charged by time', '時間制')),
+        ('SHOWER', t('淋浴', 'Showers', 'シャワー'), t('兩間', 'Two rooms', '2室'), t('另行計費', 'Priced separately', '別料金')),
+        ('LOUNGE', t('交誼廳', 'Lounge', 'ラウンジ'), t('約十人，大螢幕、Switch、漫畫、桌遊', 'About ten people; big screen, Switch, manga, board games', '約10名。大型画面、Switch、マンガ、ボードゲーム'), t('可包場', 'Available to hire', '貸切可')),
     ]
-    table = ''.join(f'<tr><th scope="row">{e(a)}</th><td>{e(b)}</td><td>{e(c)}</td></tr>' for a, b, c in rows)
+    rooms_html = ''.join(f'<li><span class="rb-rooms__code" aria-hidden="true">{c}</span><h3>{e(n)}</h3><p>{e(d)}</p><span class="rb-rooms__fee">{e(f)}</span></li>' for c, n, d, f in rooms)
+    # 圖文輪播三張（對應 The Club：A better way to wait／Away from the concourse／With a little extra）
+    slides = [
+        ('room', t('約書旅閱讀空間規劃示意', 'Rest Book reading area, concept rendering', '約書旅の読書エリアの完成イメージ'), t('規劃示意', 'Concept rendering', '完成イメージ'),
+         t('等車，可以更從容', 'A better way to wait', '待ち時間を、ゆったりと'),
+         t('走出地下街，把人潮留在身後。找個位子讀一章、回幾封信，時間到了再去搭車。', 'Step out of the underground mall and leave the crowds behind. Read a chapter, answer a few emails, and head for your train when it’s time.', '地下街を出て、人の流れを背中に。一章読んで、メールを何通か返して、時間になったら電車へ。')),
+        ('students', t('約 1930 年，台北車站前的學生', 'Students in front of Taipei Railway Station, 1930s', '1930年代、台北駅前の学生たち'), t('台北車站前，約 1930 年', 'Taipei Station, c. 1930', '台北駅前、1930年頃'),
+         t('不必辦卡，也不用車票', 'No sign-up, no ticket', '入会も乗車券もいりません'),
+         t('沒有入會門檻。按時段付空間使用費，就能坐下來；一個人等車、和朋友轉乘都可以。', 'Nothing to join. Pay the space-use fee for your time slot and sit down — on your own between trains or with friends on a transfer.', '入会の手続きはありません。時間ごとのスペース利用料で、すぐに座れます。ひとりでも、乗り継ぎの友人とでも。')),
+        ('bookseller', t('十八世紀荷蘭書商的店（畫作）', 'An eighteenth-century Dutch bookshop (painting)', '18世紀オランダの書籍商の店（絵画）'), t('書商的店，畫作', 'A bookshop, painting', '書籍商の店、絵画'),
+         t('多一點小照顧', 'With a little extra', 'ちょっとした心づかい'),
+         t('兩間淋浴、交誼廳的大螢幕與桌遊；讀到喜歡的書，結帳就能帶上車。', 'Two showers, a big screen and board games in the lounge — and if you fall for a book, pay at the counter and take it on board.', 'シャワー2室、ラウンジの大型画面とボードゲーム。気に入った本は、お会計してそのまま車内へ。')),
+    ]
+    n_sl = len(slides)
+    slides_html = ''.join(
+        f'<li class="rb-slide" id="rb-s{i + 1}" aria-roledescription="{t("投影片", "slide", "スライド")}" aria-label="{i + 1} / {n_sl}">'
+        f'<figure>{rb_img(k, alt, lazy=i > 0)}<figcaption>{e(cap)}</figcaption></figure>'
+        f'<div class="rb-slide__say"><h3>{e(h)}</h3><p>{e(p)}</p></div></li>'
+        for i, (k, alt, cap, h, p) in enumerate(slides))
     faqs = [
+        (t('是車站的貴賓室嗎？拿車票可以進嗎？', 'Is this a station lounge? Does my ticket get me in?', '駅のラウンジですか？乗車券で入れますか？'),
+         t('不是。約書旅是獨立經營的閱讀空間，不在車站內，和台鐵、高鐵、捷運都沒有關係；車票不能折抵，依價目付費使用。', 'No. Rest Book is an independent reading space outside the station, not affiliated with TRA, HSR or the MRT. Tickets are not accepted; use is paid per the price list.', 'いいえ。約書旅は駅の外にある独立した読書スペースで、台鉄・高鉄・MRT とは関係ありません。乗車券は使えず、料金表に沿ってお支払いいただきます。')),
         (t('書可以買回家嗎？', 'Can I buy the books?', '本は買えますか？'),
          t('可以。每本書的售價各自標示，到櫃檯結帳。', 'Yes. Each book carries its own price; pay at the counter.', 'はい。価格は一冊ごとに表示しています。カウンターでお会計を。')),
         (t('書架上有哪些書？', 'What kind of books are on the shelves?', 'どんな本がありますか？'),
@@ -790,74 +823,64 @@ def page_book():
          t('有兩間淋浴。毛巾等備品可現場加購，價格以現場公告為準。', 'There are two showers. Towels and toiletries can be bought on site; prices are posted there.', 'シャワーは2室。タオルなどの備品は現地で購入でき、料金は現地で案内しています。')),
         (t('可以過夜或住宿嗎？', 'Can I stay overnight?', '宿泊はできますか？'),
          t('約書旅是閱讀空間，不提供住宿；靜讀室非密閉、不可上鎖。', 'Rest Book is a reading space, not accommodation; quiet rooms are open and not lockable.', '約書旅は読書のためのスペースで、宿泊施設ではありません。静読室は密閉されず施錠もできません。')),
-        (t('是車站的貴賓室嗎？拿車票可以進嗎？', 'Is this a station lounge? Does my ticket get me in?', '駅のラウンジですか？乗車券で入れますか？'),
-         t('不是。約書旅是獨立經營的閱讀空間，不在車站內，和台鐵、高鐵、捷運都沒有關係；車票不能折抵，依價目付費使用。', 'No. Rest Book is an independent reading space outside the station, not affiliated with TRA, HSR or the MRT. Tickets are not accepted; use is paid per the price list.', 'いいえ。約書旅は駅の外にある独立した読書スペースで、台鉄・高鉄・MRT とは関係ありません。乗車券は使えず、料金表に沿ってお支払いいただきます。')),
         (t('怎麼找到你們？', 'How do I find you?', '場所は？'),
          t('台北車站站前地下街 Z10 出口斜對面，重慶南路一段 11 號。', 'Diagonally across from Exit Z10 of the Taipei Main Station underground mall, No. 11, Sec. 1, Chongqing S. Rd.', '台北駅地下街 Z10 出口の斜め向かい、重慶南路一段11号。')),
     ]
     faq_html = ''.join(f'<details><summary>{e(q)}</summary><p>{e(a)}</p></details>' for q, a in faqs)
-    credit = t('圖片：台北車站與學生（約 1930，公有領域）、台北車站月台（4300streetcar，CC BY 4.0）、巴黎書店（Janko Ferlič，CC0）、書商的店（Johannes Jelgerhuis，公有領域），皆取自 Wikimedia Commons；室內為規劃示意。',
-               'Pictures: Taipei Railway Station and students, c. 1930 (public domain); Taipei Main Station platform (4300streetcar, CC BY 4.0); a Paris bookshop (Janko Ferlič, CC0); The Bookshop of Pieter Meijer Warnars (Johannes Jelgerhuis, public domain); all via Wikimedia Commons. The interior is a concept rendering.',
-               '画像：台北駅と学生（1930年頃、パブリックドメイン）、台北駅のホーム（4300streetcar、CC BY 4.0）、パリの書店（Janko Ferlič、CC0）、書籍商の店（Johannes Jelgerhuis、パブリックドメイン）。いずれも Wikimedia Commons。室内は完成イメージです。')
-    def kick(n, zh, en, ja):  # 書店的章節標示：一　時刻表／01 Timetable
+    credit = t('圖片：巴黎書店（Janko Ferlič，CC0）、台北車站與學生（約 1930，公有領域）、書商的店（Johannes Jelgerhuis，公有領域）、台北車站月台（4300streetcar，CC BY 4.0），皆取自 Wikimedia Commons；室內為規劃示意。',
+               'Pictures: a Paris bookshop (Janko Ferlič, CC0); Taipei Railway Station and students, c. 1930 (public domain); The Bookshop of Pieter Meijer Warnars (Johannes Jelgerhuis, public domain); Taipei Main Station platform (4300streetcar, CC BY 4.0); all via Wikimedia Commons. The interior is a concept rendering.',
+               '画像：パリの書店（Janko Ferlič、CC0）、台北駅と学生（1930年頃、パブリックドメイン）、書籍商の店（Johannes Jelgerhuis、パブリックドメイン）、台北駅のホーム（4300streetcar、CC BY 4.0）。いずれも Wikimedia Commons。室内は完成イメージです。')
+
+    def kick(n, zh, en, ja):  # 書店的章節標示：一　這裡有什麼／01 What's here
         num = f'{n:02d}' if L == 'en' else '一二三四五六七八九'[n - 1]
         return f'<p class="rb-kicker" aria-hidden="true"><span>{num}</span>{e(t(zh, en, ja))}</p>'
 
-    toc = [('#gap', t('空檔時刻表', 'Timetable', 'すき間の時刻表')), ('#price', t('價目', 'Prices', '料金')), ('#hire', t('交誼廳包場', 'Lounge hire', 'ラウンジ貸切')),
-           ('#here', t('這裡有什麼', 'What’s here', 'あるもの')), ('#faq', t('常見問題', 'FAQ', 'よくある質問'))]
-    toc_html = ''.join(f'<li><a href="{h}"><span>{e(x)}</span></a></li>' for h, x in toc)
+    arrow_l = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>'
+    arrow_r = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>'
     out += f"""<main id="content" class="rb">
 <section class="rb-hero" aria-labelledby="rb-title">
-  <h1 id="rb-title" class="rb-title"><span class="rb-line">{t('等車，', 'A book', '電車まで、')}</span><span class="rb-line rb-line--step">{t('讀一本書', 'between trains', '一冊の本を')}</span></h1>
-  <figure class="rb-hero__photo">{rb_img('bookshop', t('一面放滿書的書架', 'Shelves full of books', '本でいっぱいの本棚'), lazy=False)}<figcaption>{t('書架　參考', 'Shelves — reference', '本棚　参考')}</figcaption></figure>
-  <div class="rb-hero__say">
+  <figure class="rb-hero__bg">{rb_img('bookshop', t('一面放滿書的書架', 'Shelves full of books', '本でいっぱいの本棚'), lazy=False)}</figure>
+  <div class="rb-hero__in">
     <p class="rb-hero__where">{t('台北車站　Z10 出口斜對面', 'Taipei Main Station · across from Exit Z10', '台北駅　Z10 出口の斜め向かい')}</p>
-    <p>{t('你在台北車站旁的貴賓室。', 'Your lounge by Taipei Main Station.', '台北駅のそばの、あなたのラウンジ。')}</p>
-    <p>{t('約書旅在台北車站 Z10 出口斜對面。書可以讀也可以買，還有讀書席、靜讀室、淋浴與交誼廳。', 'Rest Book is across from Exit Z10 of Taipei Main Station. Books to read or buy, study seats, quiet rooms, showers and a lounge.', '約書旅は台北駅 Z10 出口の斜め向かい。読める・買える本、読書席、静読室、シャワー、ラウンジ。')}</p>
-    <a class="rb-btn" href="#gap">{t('排你的空檔時間', 'Plan your gap', 'すき間の過ごし方を見る')}</a>
-    <nav class="rb-toc" aria-label="{t('目次', 'Contents', '目次')}"><p class="rb-toc__h" aria-hidden="true">{t('目次', 'Contents', '目次')}</p><ol>{toc_html}</ol></nav>
+    <h1 id="rb-title" class="rb-title"><span>{t('你在台北車站旁的', 'Your lounge by', '台北駅のそばの、')}</span><span>{t('貴賓室', 'Taipei Main Station', 'あなたのラウンジ')}</span></h1>
+    <p class="rb-hero__sub">{t('等車的空檔，讀一本書', 'A book between trains', '電車までのすき間に、一冊を')}</p>
+  </div>
+  <p class="rb-hero__tate" aria-hidden="true">{t('和書約好的一段旅程', 'a journey arranged with a book', '本と約束した小さな旅')}</p>
+</section>
+
+<section class="rb-plan" id="plan" aria-labelledby="plan-h">
+  <h2 id="plan-h" class="rb-plan__h">{t('試算你的空檔', 'Plan your gap', 'すき間を試算')}</h2>
+  <div class="rb-plan__f"><span class="rb-plan__l" id="plan-when">{t('什麼時候來', 'When', 'いつ')}</span>{when_html}</div>
+  <div class="rb-plan__f"><span class="rb-plan__l" id="plan-long">{t('待多久', 'How long', 'どのくらい')}</span>{seg('day', plan_day)}{seg('night', plan_night, True)}</div>
+  <div class="rb-plan__out" aria-live="polite"><span class="rb-plan__l">{t('空間使用費', 'Space-use fee', 'スペース利用料')}</span><output class="rb-plan__price">NT$200</output><p class="rb-plan__txt">{e(plan_day[0][3])}</p></div>
+  <a class="rb-btn rb-btn--gold" href="#visit">{t('帶我過去', 'Take me there', '行き方を見る')}</a>
+</section>
+
+<section class="rb-band" aria-label="{t('約書旅是什麼', 'About Rest Book', '約書旅とは')}">
+  <p>{t('你在台北車站旁的貴賓室。不論一個人等車，還是轉乘之間的幾個小時，這裡留了一個位子和一本書給你。', 'Your lounge by Taipei Main Station. Whether you’re waiting alone or have a few hours between connections, there’s a seat and a book here for you.', '台北駅のそばの、あなたのラウンジ。ひとりの待ち時間にも、乗り継ぎの数時間にも、席と一冊を用意しています。')}</p>
+</section>
+
+<section class="rb-wait" aria-roledescription="{t('輪播', 'carousel', 'カルーセル')}" aria-label="{t('約書旅的三件事', 'Three things about Rest Book', '約書旅の三つのこと')}">
+  <ol class="rb-wait__track">{slides_html}</ol>
+  <div class="rb-wait__nav">
+    <button type="button" class="rb-wait__btn" data-dir="-1" aria-label="{t('上一張', 'Previous', '前へ')}">{arrow_l}</button>
+    <span class="rb-wait__count" aria-hidden="true"><b>1</b> / {n_sl}</span>
+    <button type="button" class="rb-wait__btn" data-dir="1" aria-label="{t('下一張', 'Next', '次へ')}">{arrow_r}</button>
   </div>
 </section>
 
-<section class="rb-intro" aria-labelledby="intro-h">
-  <div class="rb-intro__head">
-    <h2 id="intro-h">{t('約好的，是一本書', 'The date is with a book', '待ち合わせの相手は、本')}</h2>
-    <div class="rb-intro__notes">
-      <p>{t('名字是「和書約好的一段旅程」。', 'The name means “a journey arranged with a book”.', '名前は「本と約束した小さな旅」。')}</p>
-      <p>{t('車站每天有很多人經過；我們只想讓其中一個人坐下來，讀完一章。', 'Crowds pass the station every day; we only want one of them to sit down and finish a chapter.', '駅を通る人は多い。そのうちの一人に、座って一章を読み終えてほしい。')}</p>
-    </div>
+<section class="rb-here" id="here" aria-labelledby="here-h">
+  <div class="rb-here__head">
+    {kick(1, '設施', 'Facilities', '設備')}
+    <h2 id="here-h">{t('這裡有什麼', 'What’s here', 'あるもの')}</h2>
+    <p>{t('書架、讀書席、靜讀室、淋浴與交誼廳。書和淋浴另計，其餘依時段計費。', 'Shelves, study seats, quiet rooms, showers and a lounge. Books and showers are extra; the rest is charged by time.', '本棚、読書席、静読室、シャワー、ラウンジ。本とシャワーは別料金、そのほかは時間制です。')}</p>
   </div>
-  <figure class="rb-intro__wide">{rb_img('platform', t('台北車站的月台', 'A platform at Taipei Main Station', '台北駅のホーム'))}<figcaption>{t('台北車站的月台', 'A platform at Taipei Main Station', '台北駅のホーム')}</figcaption></figure>
-</section>
-
-<section class="rb-gap" id="gap" aria-labelledby="gap-h">
-  <div class="rb-gap__head">
-    {kick(1, '時刻表', 'Timetable', '時刻表')}
-    <h2 id="gap-h">{t('你的空檔時刻表', 'Your timetable for the gap', 'すき間の時刻表')}</h2>
-    <p>{t('選一個時間，看看這段空檔可以怎麼過。', 'Pick a time and see how the gap could go.', '時間を選ぶと、すき間の過ごし方が見られます。')}</p>
-  </div>
-  <div class="rb-gap__body">
-    <div class="rb-gap__picks" role="group" aria-label="{t('離下一班車還有多久', 'Time until your train', '次の電車までの時間')}">{picks}</div>
-    <ul class="rb-gap__plans" aria-live="polite">{plans}</ul>
-  </div>
-  <figure class="rb-gap__photo">{rb_img('students', t('約 1930 年，台北車站前的學生', 'Students in front of Taipei Railway Station, 1930s', '1930年代、台北駅前の学生たち'))}<figcaption>{t('台北車站前的學生，約 1930 年', 'Students at Taipei Railway Station, c. 1930', '台北駅前の学生、1930年頃')}</figcaption></figure>
-</section>
-
-<section class="rb-run" aria-labelledby="run-h">
-  <div class="rb-run__side">
-    {kick(2, '書架', 'Shelves', '本棚')}
-    <h2 id="run-h">{t('書架、讀書席與靜讀室', 'Shelves, seats and quiet', '本棚、読書席、静読室')}</h2>
-    <a href="#here">{t('看這裡有什麼', 'See what’s here', 'あるものを見る')}</a>
-  </div>
-  <div class="rb-run__frames">
-    <figure>{rb_img('bookseller', t('十八世紀荷蘭書商的店（畫作）', 'An eighteenth-century Dutch bookshop (painting)', '18世紀オランダの書籍商の店（絵画）'))}<figcaption><span>{t('書商的店', 'A bookshop', '書籍商の店')}</span><span>{t('畫作', 'Painting', '絵画')}</span></figcaption></figure>
-    <figure class="rb-run__lift">{rb_img('room', t('約書旅閱讀空間規劃示意', 'Rest Book reading area, concept rendering', '約書旅の読書エリアの完成イメージ'))}<figcaption><span>{t('約書旅', 'Rest Book', '約書旅')}</span><span>{t('規劃示意', 'Concept rendering', '完成イメージ')}</span></figcaption></figure>
-    <figure>{rb_img('station', t('約 1930 年的台北車站前廣場', 'The square in front of Taipei Railway Station, c. 1930', '1930年頃の台北駅前'))}<figcaption><span>{t('台北車站前', 'Taipei Station', '台北駅前')}</span><span>{t('約 1930 年', 'c. 1930', '1930年頃')}</span></figcaption></figure>
-  </div>
+  <ul class="rb-rooms">{rooms_html}</ul>
+  <figure class="rb-here__wide">{rb_img('platform', t('台北車站的月台', 'A platform at Taipei Main Station', '台北駅のホーム'))}<figcaption>{t('台北車站的月台。約書旅在車站外，Z10 出口斜對面。', 'A platform at Taipei Main Station. Rest Book is outside the station, across from Exit Z10.', '台北駅のホーム。約書旅は駅の外、Z10 出口の斜め向かいです。')}</figcaption></figure>
 </section>
 
 <section class="rb-price" id="price" aria-labelledby="price-h">
-  {kick(3, '價目', 'Prices', '料金')}
+  {kick(2, '價目', 'Prices', '料金')}
   <h2 id="price-h">{t('價目', 'Prices', '料金')}</h2>
   <p class="rb-price__lede">{t('以下為空間使用費，讀書席與靜讀室同價，以完整小時計費。價格含稅。', 'Space-use fees below; study seats and quiet rooms cost the same, charged by the full hour. Prices include tax.', '以下はスペース利用料です。読書席と静読室は同じ料金で、1時間単位の計算です。税込。')}</p>
   <div class="rb-price__grid">
@@ -868,52 +891,51 @@ def page_book():
 </section>
 
 <section class="rb-hire" id="hire" aria-labelledby="hire-h">
-  <div class="rb-hire__head">
-    {kick(4, '包場', 'Lounge hire', '貸切')}
+  <figure class="rb-hire__photo">{rb_img('station', t('約 1930 年的台北車站前廣場', 'The square in front of Taipei Railway Station, c. 1930', '1930年頃の台北駅前'))}<figcaption>{t('台北車站前，約 1930 年', 'Taipei Station, c. 1930', '台北駅前、1930年頃')}</figcaption></figure>
+  <div class="rb-hire__say">
+    {kick(3, '包場', 'Lounge hire', '貸切')}
     <h2 id="hire-h">{t('交誼廳包場', 'Hire the lounge', 'ラウンジの貸切')}</h2>
     <p class="rb-price__lede">{t('約十人的小廳，有 100 吋大螢幕、環繞音響、Switch 與桌遊。生日、球賽或演唱會直播、讀書會都合適。', 'A small room for about ten, with a 100-inch screen, surround sound, Switch and board games. Good for birthdays, match or concert screenings, and reading groups.', '約10名の小さな部屋。100インチの大型画面、サラウンド音響、Switch、ボードゲーム。誕生日、試合やライブの観賞、読書会に。')}</p>
-    <a class="rb-btn" href="{hire_mail}">{t('來信預約包場', 'Email to book', 'メールで予約')}</a>
-  </div>
-  <div class="rb-hire__body">
     <div class="rb-price__block"><h3>{t('場地費', 'Fee', '料金')}<span>{t('每時段 2 小時', 'per 2-hour slot', '1枠2時間')}</span></h3>{dl(hire_rows)}</div>
     <ul class="rb-price__rules">{hire_rules}</ul>
+    <a class="rb-btn rb-btn--gold" href="{hire_mail}">{t('來信預約包場', 'Email to book', 'メールで予約')}</a>
   </div>
-</section>
-
-<section class="rb-here" id="here" aria-labelledby="here-h">
-  {kick(5, '設施', 'Facilities', '設備')}
-  <h2 id="here-h">{t('這裡有什麼，怎麼收費', 'What’s here, and what it costs', 'あるものと料金')}</h2>
-  <table class="rb-table"><caption>{t('約書旅的設施', 'Rest Book facilities', '約書旅の設備')}</caption><tbody>{table}</tbody></table>
 </section>
 
 <section class="rb-faq" id="faq" aria-labelledby="faq-h">
   <div class="rb-faq__head">
-    {kick(6, '問答', 'FAQ', '問答')}
+    {kick(4, '問答', 'FAQ', '問答')}
     <h2 id="faq-h">{t('出發前想知道的', 'Before you come', '来る前に')}</h2>
   </div>
   <div class="rb-faq__list">{faq_html}</div>
 </section>
 
-<section class="rb-contact" aria-labelledby="contact-h">
+<section class="rb-contact" id="visit" aria-labelledby="contact-h">
   <div class="rb-contact__say">
-    <h2 id="contact-h">{t('洽詢', 'Contact', 'お問い合わせ')}</h2>
-    <p>{t('想找某一本書、想寄賣、或想在這裡辦讀書會，寫信給我們。', 'Looking for a title, want to consign books, or hold a reading group here? Write to us.', '探している本、委託販売、読書会の相談は、メールでどうぞ。')}</p>
+    {kick(5, '奧付', 'Colophon', '奥付')}
+    <h2 id="contact-h">{t('怎麼來', 'Find us', 'アクセス')}</h2>
+    <p>{t('從台北車站站前地下街 Z10 出口上來，斜對面就是。想找某一本書、想寄賣、或想在這裡辦讀書會，也歡迎來信。', 'Come up from Exit Z10 of the Taipei Main Station underground mall; we’re diagonally across. Looking for a title, want to consign books, or hold a reading group? Write to us.', '台北駅地下街の Z10 出口を上がって、斜め向かいです。探している本、委託販売、読書会の相談もメールでどうぞ。')}</p>
+    <a class="rb-btn rb-btn--gold" href="{MAP}" target="_blank" rel="noopener">{t('用 Google 地圖導航', 'Open in Google Maps', 'Google マップで開く')}</a>
   </div>
   <dl class="rb-colophon">
     <div><dt>{t('店名', 'Name', '店名')}</dt><dd>約書旅 Rest Book</dd></div>
     <div><dt>{t('所在', 'Address', '所在地')}</dt><dd>{e(ADDRESS[L])}</dd></div>
+    <div><dt>{t('營業', 'Hours', '営業')}</dt><dd>{t('白天 08:00–22:00／夜間 22:00–08:00', 'Daytime 08:00–22:00 / Night 22:00–08:00', '日中 08:00–22:00／夜間 22:00–08:00')}</dd></div>
     <div><dt>{t('來信', 'Email', 'メール')}</dt><dd><a href="{contact}">us@emoji.tw</a></dd></div>
-    <div><dt>{t('地圖', 'Map', '地図')}</dt><dd><a href="{MAP}" target="_blank" rel="noopener">{t('Google 地圖', 'Google Maps', 'Google マップ')}</a></dd></div>
   </dl>
 </section>
 <p class="rb-credit">{e(credit)}</p>
 </main>
-<script>(function(){{var r=document.documentElement;if(!matchMedia('(prefers-reduced-motion: reduce)').matches)r.classList.add('rb-anim');
-var p=document.querySelectorAll('.rb-gap__pick'),l=document.querySelectorAll('.rb-gap__plans li');function show(k){{p.forEach(function(b){{b.setAttribute('aria-pressed',b.dataset.gap===k?'true':'false')}});l.forEach(function(x){{x.hidden=x.dataset.gap!==k}})}}
-if(p.length){{r.classList.add('rb-js');p.forEach(function(b){{b.addEventListener('click',function(){{show(b.dataset.gap)}})}});show('60')}}
+<script>(function(){{var r=document.documentElement;if(!matchMedia('(prefers-reduced-motion: reduce)').matches)r.classList.add('rb-anim');r.classList.add('rb-js');
+var pl=document.querySelector('.rb-plan');if(pl){{var pr=pl.querySelector('.rb-plan__price'),tx=pl.querySelector('.rb-plan__txt'),gs={{day:pl.querySelector('[data-g=day]'),night:pl.querySelector('[data-g=night]')}};
+function cur(){{var w=pl.querySelector('[data-g=when] [aria-pressed=true]').dataset.k;return gs[w].querySelector('[aria-pressed=true]')}}
+function upd(){{var b=cur();pr.textContent=b.dataset.p;tx.textContent=b.dataset.t}}
+pl.querySelectorAll('.rb-seg').forEach(function(g){{g.addEventListener('click',function(ev){{var b=ev.target.closest('button');if(!b)return;g.querySelectorAll('button').forEach(function(x){{x.setAttribute('aria-pressed',x===b?'true':'false')}});if(g.dataset.g==='when'){{gs.day.hidden=b.dataset.k!=='day';gs.night.hidden=b.dataset.k!=='night'}}upd()}})}});upd()}}
+var sl=document.querySelectorAll('.rb-slide'),ct=document.querySelector('.rb-wait__count b'),i=0;function go(n){{i=(n+sl.length)%sl.length;sl.forEach(function(x,j){{x.hidden=j!==i}});if(ct)ct.textContent=i+1}}go(0);
+document.querySelectorAll('.rb-wait__btn').forEach(function(b){{b.addEventListener('click',function(){{go(i+Number(b.dataset.dir))}})}});
 if(!('IntersectionObserver' in window))return;var io=new IntersectionObserver(function(es){{es.forEach(function(x){{if(x.isIntersecting){{x.target.classList.add('is-in');io.unobserve(x.target)}}}})}},{{rootMargin:'0px 0px -8% 0px'}});document.querySelectorAll('.rb section').forEach(function(x){{io.observe(x)}})}})()</script>
 """
-    out += footer_html(s, [(t('價目', 'Prices', '料金'), '#price'), (t('洽詢', 'Contact', 'お問い合わせ'), contact)])
+    out += footer_html(s, [(t('試算空檔', 'Plan your gap', 'すき間を試算'), '#plan'), (t('怎麼來', 'Find us', 'アクセス'), '#visit')])
     return out
 
 
