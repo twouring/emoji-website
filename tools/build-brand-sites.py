@@ -746,15 +746,15 @@ def page_book():
     out = head(s, t('約書旅 Rest Book｜台北車站旁，等車時讀一本書',
                     '約書旅 Rest Book | A book between trains, by Taipei Main Station',
                     '約書旅 Rest Book｜台北駅のそば、電車を待つ間に一冊'),
-               t('約書旅（Rest Book）在台北車站 Z10 出口斜對面：書可以讀也可以買，有個人讀書席、休憩室、兩間淋浴與交誼廳。白天 1 小時 NT$200 起，夜間 22:00–08:00 NT$800 起。',
-                 'Rest Book, across from Exit Z10 of Taipei Main Station: books to read or buy, personal study seats, rest rooms, two showers and a lounge. Daytime from NT$200 an hour; night (22:00–08:00) from NT$800.',
-                 '約書旅（Rest Book）は台北駅 Z10 出口の斜め向かい。読める・買える本、個人の読書席、休憩室、シャワー2室、ラウンジ。日中 1時間 NT$200から、夜間（22:00–08:00）NT$800から。'))
+               t('約書旅（Rest Book）是你在台北車站旁的貴賓室，就在 Z10 出口斜對面：書可以讀也可以買，有個人讀書席、休憩室、兩間淋浴與交誼廳。白天 1 小時 NT$200 起，夜間 22:00–08:00 NT$800 起。',
+                 'Rest Book is your lounge by Taipei Main Station, across from Exit Z10: books to read or buy, personal study seats, quiet rooms, two showers and a lounge. Daytime from NT$200 an hour; night (22:00–08:00) from NT$800.',
+                 '約書旅（Rest Book）は台北駅のそばの、あなたのラウンジ。Z10 出口の斜め向かい。読める・買える本、個人の読書席、休憩室、シャワー2室、ラウンジ。日中 1時間 NT$200から、夜間（22:00–08:00）NT$800から。'))
     out += header(s, [(t('時刻表', 'Timetable', '時刻表'), '#gap'), (t('價目', 'Prices', '料金'), '#price'), (t('包場', 'Lounge hire', '貸切'), '#hire'), (t('這裡有什麼', 'What’s here', 'あるもの'), '#here'), (t('常見問題', 'FAQ', 'よくある質問'), '#faq'), (t('洽詢', 'Contact', 'お問い合わせ'), contact)])
     # 價目：KK 2026-11-04 定案（含稅；見 /workspace/local/約書旅/約書旅_商業模型_20261104.md）
     gaps = [
         ('60', t('1 小時', '1 hour', '1時間'), 'NT$200', t('讀完一本短篇集裡的三篇，再到交誼廳坐一下。', 'Three stories from a short collection, then a sit-down in the lounge.', '短編集から三編。そのあとラウンジでひと息。')),
-        ('240', t('4 小時', '4 hours', '4時間'), 'NT$600', t('在讀書席把一本薄書讀完，休息一下、梳洗乾淨；喜歡的書就帶走。', 'Finish a slim book at a study seat, rest, freshen up, and take the book with you if you like it.', '読書席で薄い一冊を読み終え、休んで身支度。気に入った本は買って帰る。')),
-        ('480', t('8 小時', '8 hours', '8時間'), 'NT$1,000', t('一整個白天：讀一段、工作一段、休息一段，帶著一本書搭下一班車。', 'A whole day: read, work, rest, and board the next train with a book in hand.', '丸一日。読んで、働いて、休んで。一冊を持って次の電車へ。')),
+        ('240', t('4 小時', '4 hours', '4時間'), 'NT$600', t('在讀書席把一本薄書讀完，放空一下、梳洗乾淨；喜歡的書就帶走。', 'Finish a slim book at a study seat, pause, freshen up, and take the book with you if you like it.', '読書席で薄い一冊を読み終え、ひと息ついて身支度。気に入った本は買って帰る。')),
+        ('480', t('8 小時', '8 hours', '8時間'), 'NT$1,000', t('一整個白天：讀一段、工作一段、放空一段，帶著一本書搭下一班車。', 'A whole day: read, work, unwind, and board the next train with a book in hand.', '丸一日。読んで、働いて、ひと息ついて。一冊を持って次の電車へ。')),
     ]
     picks = ''.join(f'<button type="button" class="rb-gap__pick" data-gap="{k}" aria-pressed="{"true" if i == 0 else "false"}">{e(lbl)}</button>' for i, (k, lbl, _, _) in enumerate(gaps))
     plans = ''.join(f'<li data-gap="{k}"><b>{e(lbl)} · {price}</b><span>{e(txt)}</span></li>' for k, lbl, price, txt in gaps)
@@ -770,13 +770,13 @@ def page_book():
     hire_rows = [(t('平日 18:00 後、假日', 'Weekday evenings after 18:00, weekends', '平日18:00以降・休日'), 'NT$2,000'), (t('有桌椅人數', 'Seated', '着席人数'), t('約 10 人', 'About 10', '約10名'))]
     hire_rules = ''.join(f'<li>{e(x)}</li>' for x in [
         t('平日、假日同價；平日白天與每週二 19:00–21:00（週二小聚）不出租。', 'Same price on weekdays and weekends. Not available on weekday daytimes or Tuesdays 19:00–21:00 (our weekly meetup).', '平日・休日同料金。平日の日中と毎週火曜 19:00–21:00（週例の集まり）は貸切不可。'),
-        t('只租交誼廳；讀書席、休憩室與淋浴不含在內。擴音使用到 22:00。', 'The lounge only; study seats, rest rooms and showers are not included. Amplified sound until 22:00.', 'ラウンジのみ。読書席、休憩室、シャワーは含まれません。音響の使用は22:00まで。'),
+        t('只租交誼廳；讀書席、休憩室與淋浴不含在內。擴音使用到 22:00。', 'The lounge only; study seats, quiet rooms and showers are not included. Amplified sound until 22:00.', 'ラウンジのみ。読書席、休憩室、シャワーは含まれません。音響の使用は22:00まで。'),
         t('包場享在咖啡、三點水餐飲 9\u00a0折。', '10% off food and drinks at at cafe and 3AM.', '在咖啡・三點水の飲食が10%オフ。')])
     hire_mail = 'mailto:us@emoji.tw?subject=' + t('約書旅交誼廳包場', 'Rest%20Book%20lounge%20hire', '約書旅ラウンジ貸切')
     rows = [
         (t('書架', 'Shelves', '本棚'), t('現場閱讀，喜歡可購買', 'Read on site, buy what you like', 'その場で読める・買える'), t('每本另標價', 'Priced per book', '一冊ごとに価格表示')),
         (t('讀書席', 'Study seats', '読書席'), t('一人一席，安靜閱讀', 'One person, one seat, quiet', '一人一席、静かに'), t('依時段計費', 'Charged by time', '時間制')),
-        (t('休憩室', 'Rest rooms', '休憩室'), t('非密閉、不可上鎖', 'Open, not lockable', '密閉なし・施錠なし'), t('依時段計費', 'Charged by time', '時間制')),
+        (t('休憩室', 'Quiet rooms', '休憩室'), t('非密閉、不可上鎖', 'Open, not lockable', '密閉なし・施錠なし'), t('依時段計費', 'Charged by time', '時間制')),
         (t('淋浴', 'Showers', 'シャワー'), t('兩間', 'Two rooms', '2室'), t('另行計費', 'Priced separately', '別料金')),
         (t('交誼廳', 'Lounge', 'ラウンジ'), t('約十人', 'About ten people', '約10名'), t('大螢幕、Switch、漫畫、桌遊', 'Big screen, Switch, manga, board games', '大型画面、Switch、マンガ、ボードゲーム')),
     ]
@@ -789,7 +789,9 @@ def page_book():
         (t('可以淋浴嗎？要帶什麼？', 'Can I shower? What should I bring?', 'シャワーは使えますか？何が必要ですか？'),
          t('有兩間淋浴。毛巾等備品可現場加購，價格以現場公告為準。', 'There are two showers. Towels and toiletries can be bought on site; prices are posted there.', 'シャワーは2室。タオルなどの備品は現地で購入でき、料金は現地で案内しています。')),
         (t('可以過夜或住宿嗎？', 'Can I stay overnight?', '宿泊はできますか？'),
-         t('約書旅是閱讀與休憩空間，不提供住宿；休憩室非密閉、不可上鎖。', 'Rest Book is a reading and rest space, not accommodation; rest rooms are open and not lockable.', '約書旅は読書と休憩のスペースで、宿泊施設ではありません。休憩室は密閉されず施錠もできません。')),
+         t('約書旅是閱讀空間，不提供住宿；休憩室非密閉、不可上鎖。', 'Rest Book is a reading space, not accommodation; quiet rooms are open and not lockable.', '約書旅は読書のためのスペースで、宿泊施設ではありません。休憩室は密閉されず施錠もできません。')),
+        (t('是車站的貴賓室嗎？拿車票可以進嗎？', 'Is this a station lounge? Does my ticket get me in?', '駅のラウンジですか？乗車券で入れますか？'),
+         t('不是。約書旅是獨立經營的閱讀空間，不在車站內，和台鐵、高鐵、捷運都沒有關係；車票不能折抵，依價目付費使用。', 'No. Rest Book is an independent reading space outside the station, not affiliated with TRA, HSR or the MRT. Tickets are not accepted; use is paid per the price list.', 'いいえ。約書旅は駅の外にある独立した読書スペースで、台鉄・高鉄・MRT とは関係ありません。乗車券は使えず、料金表に沿ってお支払いいただきます。')),
         (t('怎麼找到你們？', 'How do I find you?', '場所は？'),
          t('台北車站站前地下街 Z10 出口斜對面，重慶南路一段 11 號。', 'Diagonally across from Exit Z10 of the Taipei Main Station underground mall, No. 11, Sec. 1, Chongqing S. Rd.', '台北駅地下街 Z10 出口の斜め向かい、重慶南路一段11号。')),
     ]
@@ -810,7 +812,8 @@ def page_book():
   <figure class="rb-hero__photo">{rb_img('bookshop', t('一面放滿書的書架', 'Shelves full of books', '本でいっぱいの本棚'), lazy=False)}<figcaption>{t('書架　參考', 'Shelves — reference', '本棚　参考')}</figcaption></figure>
   <div class="rb-hero__say">
     <p class="rb-hero__where">{t('台北車站　Z10 出口斜對面', 'Taipei Main Station · across from Exit Z10', '台北駅　Z10 出口の斜め向かい')}</p>
-    <p>{t('約書旅在台北車站 Z10 出口斜對面。書可以讀也可以買，還有讀書席、休憩室、淋浴與交誼廳。', 'Rest Book is across from Exit Z10 of Taipei Main Station. Books to read or buy, study seats, rest rooms, showers and a lounge.', '約書旅は台北駅 Z10 出口の斜め向かい。読める・買える本、読書席、休憩室、シャワー、ラウンジ。')}</p>
+    <p>{t('你在台北車站旁的貴賓室。', 'Your lounge by Taipei Main Station.', '台北駅のそばの、あなたのラウンジ。')}</p>
+    <p>{t('約書旅在台北車站 Z10 出口斜對面。書可以讀也可以買，還有讀書席、休憩室、淋浴與交誼廳。', 'Rest Book is across from Exit Z10 of Taipei Main Station. Books to read or buy, study seats, quiet rooms, showers and a lounge.', '約書旅は台北駅 Z10 出口の斜め向かい。読める・買える本、読書席、休憩室、シャワー、ラウンジ。')}</p>
     <a class="rb-btn" href="#gap">{t('排你的空檔時間', 'Plan your gap', 'すき間の過ごし方を見る')}</a>
     <nav class="rb-toc" aria-label="{t('目次', 'Contents', '目次')}"><p class="rb-toc__h" aria-hidden="true">{t('目次', 'Contents', '目次')}</p><ol>{toc_html}</ol></nav>
   </div>
@@ -843,12 +846,12 @@ def page_book():
 <section class="rb-run" aria-labelledby="run-h">
   <div class="rb-run__side">
     {kick(2, '書架', 'Shelves', '本棚')}
-    <h2 id="run-h">{t('書架、讀書席與休憩', 'Shelves, seats and rest', '本棚、読書席、休憩')}</h2>
+    <h2 id="run-h">{t('書架、讀書席與休憩', 'Shelves, seats and quiet', '本棚、読書席、休憩')}</h2>
     <a href="#here">{t('看這裡有什麼', 'See what’s here', 'あるものを見る')}</a>
   </div>
   <div class="rb-run__frames">
     <figure>{rb_img('bookseller', t('十八世紀荷蘭書商的店（畫作）', 'An eighteenth-century Dutch bookshop (painting)', '18世紀オランダの書籍商の店（絵画）'))}<figcaption><span>{t('書商的店', 'A bookshop', '書籍商の店')}</span><span>{t('畫作', 'Painting', '絵画')}</span></figcaption></figure>
-    <figure class="rb-run__lift">{rb_img('room', t('約書旅閱讀與休憩空間規劃示意', 'Rest Book reading and rest area, concept rendering', '約書旅の読書・休憩エリアの完成イメージ'))}<figcaption><span>{t('約書旅', 'Rest Book', '約書旅')}</span><span>{t('規劃示意', 'Concept rendering', '完成イメージ')}</span></figcaption></figure>
+    <figure class="rb-run__lift">{rb_img('room', t('約書旅閱讀與休憩空間規劃示意', 'Rest Book reading area, concept rendering', '約書旅の読書・休憩エリアの完成イメージ'))}<figcaption><span>{t('約書旅', 'Rest Book', '約書旅')}</span><span>{t('規劃示意', 'Concept rendering', '完成イメージ')}</span></figcaption></figure>
     <figure>{rb_img('station', t('約 1930 年的台北車站前廣場', 'The square in front of Taipei Railway Station, c. 1930', '1930年頃の台北駅前'))}<figcaption><span>{t('台北車站前', 'Taipei Station', '台北駅前')}</span><span>{t('約 1930 年', 'c. 1930', '1930年頃')}</span></figcaption></figure>
   </div>
 </section>
@@ -856,7 +859,7 @@ def page_book():
 <section class="rb-price" id="price" aria-labelledby="price-h">
   {kick(3, '價目', 'Prices', '料金')}
   <h2 id="price-h">{t('價目', 'Prices', '料金')}</h2>
-  <p class="rb-price__lede">{t('讀書席與休憩室同價，以完整小時計費。價格含稅。', 'Study seats and rest rooms cost the same, charged by the full hour. Prices include tax.', '読書席と休憩室は同じ料金で、1時間単位の計算です。税込。')}</p>
+  <p class="rb-price__lede">{t('以下為空間使用費，讀書席與休憩室同價，以完整小時計費。價格含稅。', 'Space-use fees below; study seats and quiet rooms cost the same, charged by the full hour. Prices include tax.', '以下はスペース利用料です。読書席と休憩室は同じ料金で、1時間単位の計算です。税込。')}</p>
   <div class="rb-price__grid">
     <div class="rb-price__block"><h3>{t('白天', 'Daytime', '日中')}<span>08:00–22:00</span></h3>{dl(day)}</div>
     <div class="rb-price__block rb-price__block--night"><h3>{t('夜間', 'Night', '夜間')}<span>22:00–08:00</span></h3>{dl(night)}</div>
