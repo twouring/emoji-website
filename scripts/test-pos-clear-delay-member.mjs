@@ -5,7 +5,10 @@ import fs from 'node:fs';
 const src = fs.readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'utf8');
 test('結帳後自動清桌延遲 1 秒才重繪', () => {
   assert.match(src, /const POS_CLEAR_DELAY_MS=1000;/);
-  assert.match(src, /return out\?\.closed\?new Promise\(r=>setTimeout\(r,POS_CLEAR_DELAY_MS\)\)\.then\(reload\):reload\(\);/);
+  assert.match(src, /return out\?\.closed\?new Promise\(r=>setTimeout\(r,POS_CLEAR_DELAY_MS\)\)\.then\(repaint\):repaint\(\);/);
+});
+test('結帳後重繪不被 CHECKOUT_BUSY 擋住：reload 後自己 paintPos，整桌結清回桌況（KK 11/9）', () => {
+  assert.match(src, /const repaint=\(\)=>reload\(\)\.then\(\(\)=>\{if\(out\?\.closed\)POS_TABLE='';paintPos\(\);\}\);/);
 });
 test('會員彈窗：完成鍵先查手機再關、手機變更重繪主畫面、點背景走完成', () => {
   const dlg = src.slice(src.indexOf('function openMemberDialog'), src.indexOf('render();\n}', src.indexOf('function openMemberDialog')));
