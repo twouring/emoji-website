@@ -249,7 +249,9 @@ test('Flex 與圖文選單：三語都有、postback 與按鈕標籤在 LINE 限
   }
   const spec = line.richMenuSpec('https://www.emoji.tw', {});
   assert.equal(spec.areas.length, 7);
-  assert.deepEqual(spec.areas.slice(0, 4).map(a => a.action.label), ['在咖啡', '三點水', '等等空間', '約書旅']);
+  assert.deepEqual(spec.areas.slice(0, 4).map(a => a.action.label), ['工作咖啡廳', '日式餐酒館', '書店貴賓室', '共享空間']);
+  const rm = readFileSync(path.join(root, 'public/line-richmenu.html'), 'utf8');
+  for (const c of line.richMenuCells('https://www.emoji.tw')) { assert.ok(rm.includes(`>${c.zh}<`), c.zh); if (c.brand) assert.ok(rm.includes(`>${c.brand}<`), c.brand); }
   assert.equal(spec.areas.reduce((n, a) => n + a.bounds.width * a.bounds.height, 0), 2500 * 1686);
   for (const a of spec.areas) assert.ok(a.bounds.x + a.bounds.width <= 2500 && a.bounds.y + a.bounds.height <= 1686);
   const png = line.qrPng('https://www.emoji.tw/e/abc');

@@ -1,17 +1,17 @@
 <!doctype html>
 <html lang="zh-Hant"><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>LINE 圖文選單</title>
-<!-- 格線與 lib/line.js richMenuSpec 一致：上排四品牌各 625×843，下排三格各 833×843；品牌色依 cis.emoji.tw/brands -->
+<!-- 格線與 lib/line.js richMenuSpec 一致：上排四個業態（品牌小字）各 625×843，下排三格各 833×843；品牌色依 cis.emoji.tw/brands -->
 <style>html,body{margin:0;width:2500px;height:1686px;overflow:hidden;background:#FBFAF6;font-family:"Noto Sans TC","PingFang TC",system-ui,sans-serif;color:#1B1A17}
 .top,.bot{display:grid;height:843px}.top .c,.bot .c{height:843px}.top{grid-template-columns:repeat(4,625px)}.bot{grid-template-columns:833px 833px 834px}
 .c{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;box-sizing:border-box;border:5px solid #1B1A17}
-.zh{font-size:132px;font-weight:900;line-height:1}.en{font-size:76px;font-weight:700}.h{font-size:84px;font-weight:900;padding:8px 34px;border-radius:60px;background:rgba(0,0,0,.32);color:#fff}.bar .h{background:#1B1A17;color:#fff}
+.zh{font-size:132px;font-weight:900;line-height:1}.top .zh{font-size:104px;letter-spacing:-.02em}.br{font-size:72px;font-weight:800;white-space:nowrap}.en{font-size:76px;font-weight:700}.h{font-size:84px;font-weight:900;padding:8px 34px;border-radius:60px;background:rgba(0,0,0,.32);color:#fff}.bar .h{background:#1B1A17;color:#fff}
 .cafe{background:#984C37;color:#fff}.bar{background:#6B8FAB;color:#1B1A17}.stay{background:#2B4064;color:#fff}.rest{background:#5A4632;color:#fff}
 .bot .c{background:#FBFAF6}.bot .c:nth-child(2){background:#EFEBE1}.bot .c.m{background:#FFDE34}.bot .zh{font-size:170px}</style></head>
 <body><div class="top">
-<div class="c cafe"><div class="zh">在咖啡</div><div class="en">at cafe</div><div class="h">08–17</div></div>
-<div class="c bar"><div class="zh">三點水</div><div class="en">3AM</div><div class="h">17–03</div></div>
-<div class="c stay"><div class="zh">等等空間</div><div class="en">Stay Square</div><div class="h">24h</div></div>
-<div class="c rest"><div class="zh">約書旅</div><div class="en">Rest Book</div><div class="h">24h</div></div>
+<div class="c cafe"><div class="zh">工作咖啡廳</div><div class="br">在咖啡</div><div class="h">08–17</div></div>
+<div class="c bar"><div class="zh">日式餐酒館</div><div class="br">三點水</div><div class="h">17–03</div></div>
+<div class="c rest"><div class="zh">書店貴賓室</div><div class="br">約書旅</div><div class="h">24h</div></div>
+<div class="c stay"><div class="zh">共享空間</div><div class="br">等等空間</div><div class="h">24h</div></div>
 </div><div class="bot">
 <div class="c"><div class="zh">訂位</div><div class="en">Reserve</div></div>
 <div class="c"><div class="zh">活動</div><div class="en">Events</div></div>
