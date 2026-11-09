@@ -406,3 +406,13 @@ test('server.js 接線：改品項、換桌、查單、結帳回找零；交班�
   assert.doesNotMatch(ops, /id="pos-item"|id="pos-qty"/, '下拉選單加菜已換成點選菜單磁貼');
   assert.match(api, /### GET \/api\/admin\/orders\/history/);
 });
+
+test('桌邊送單只送自己的品項（KK 11/9：不替別人送出）', () => {
+  const mk = (line, guest) => ({ line, guest, item_id: 'x', price: 100, qty: 1, order_id: null });
+  const items = [mk('a', 'guestaaaa1'), mk('b', 'guestbbbb2'), mk('c', 'guestaaaa1')];
+  const out = T.placeLines(items, new Date(), null, 'guestaaaa1');
+  assert.deepEqual(out.lines.map(l => l.line), ['a', 'c']);
+  assert.equal(out.items.find(l => l.line === 'b').placed_at, undefined, '別人的不送');
+  assert.throws(() => T.placeLines(out.items, new Date(), null, 'guestaaaa1'), e => e.status === 400, '自己沒有待送就 400');
+  assert.equal(T.placeLines(out.items).lines.map(l => l.line).join(), 'b', 'POS 不帶 guest 送整桌');
+});

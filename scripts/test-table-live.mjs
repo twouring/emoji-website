@@ -74,21 +74,21 @@ test('客人端：EventSource 連 /live、收到 session 就 applyState；SSE �
   assert.doesNotMatch(html, /S=s;renderState\(\);btn\.textContent/, '加點後也走 applyState');
 });
 
-test('客人端：別人加／移除品項吐司提示並閃該行；送出鍵寫明件數與含他人幾項；含他人未送出時先確認', () => {
+test('客人端：別人加／移除品項吐司提示並閃該行；送出只送自己的，別人未送出的只提示（KK 11/9）', () => {
   assert.match(html, /someone_added/); assert.match(html, /someone_removed/);
   assert.match(html, /\.line\.fresh\{animation:line-in/);
   assert.match(html, /\.line\.others-pending\{background:#fff6c2/);
   assert.match(html, /!l\.mine&&!l\.placed_at\?' others-pending'/);
-  assert.match(html, /placeText=tr\('place_n',\{count:p\.length\}\)/);   // 送出鈕單行（KK 11/3），含別人的品項寫在提示列
-  assert.match(html, /hint\.textContent=op\.length\?tr\('place_with_others',\{count:p\.length,others:othersSummary\(op\)\}\)/);
+  assert.match(html, /placeText=tr\('place_n',\{count:mp\.length\}\)/);   // 送出鈕單行，只算自己的
+  assert.match(html, /hint\.textContent=op\.length\?tr\('others_unsent',\{others:othersSummary\(op\)\}\)/);
   assert.match(html, /#cart \.sheet-actions \.btn,\.bar \.btn\{white-space:nowrap\}/);
-  assert.match(html, /var op=othersPending\(\);if\(op\.length&&!confirm\(tr\('place_confirm',\{others:joinItems\(op\)\}\)\)\)return;/);
+  assert.match(html, /function\(\)\{if\(placing\|\|!myPending\(\)\.length\)return;/);
+  assert.doesNotMatch(html, /place_confirm|place_with_others|others_pending_hint/, '不再替別人送出');
   assert.match(html, /id="place-hint"/);
-  for (const key of ['place_n', 'place_with_others', 'place_confirm', 'someone_added', 'someone_removed', 'others_pending_hint', 'n_items']) {
+  for (const key of ['place_n', 'others_unsent', 'someone_added', 'someone_removed', 'n_items']) {
     assert.equal((lib.match(new RegExp(`\\b${key}: '`, 'g')) || []).length, 3, `${key} 三語都要有`);
   }
-  assert.match(lib, /place_with_others: '送出 \{count\} 項（含\{others\}）'/);
-  assert.match(lib, /place_confirm: 'This will also send items others at your table have not sent yet/);
+  assert.doesNotMatch(lib, /place_confirm|place_with_others|others_pending_hint/);
 });
 
 // 整條路徑：server.js 開在 vm 內（pg 存根回一桌資料）→ GET /live 先收第一則 session → 模擬 pg_notify（直接呼叫 liveHub.notify）→ 收到第二則

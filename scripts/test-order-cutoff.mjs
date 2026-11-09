@@ -36,7 +36,7 @@ test('orderableInWindow：飲品／酒水看 drink，其餘（含套餐）看 fo
 test('伺服器：掃碼加點／兌換用時段菜單，送單檢查最後點餐', () => {
   const s = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
   assert.match(s, /async function currentMenu\(opt\)\{const w=tableOrders\.MenuLib\.orderWindow\(\)/);
-  assert.match(s, /assertLinesInWindow\(items\);return tableOrders\.placeLines\(items\)\.items;/);
+  assert.match(s, /assertLinesInWindow\(items\);return tableOrders\.placeLines\(items,new Date\(\),null,guest\)\.items;/);
   assert.match(s, /pauseFor\(await contentValue\('ordering_pause'\),tableOrders\.MenuLib\.orderWindow\(\)\.venue\)/);
 });
 test('order.html 依時段過濾菜單並顯示最後點餐提示', () => {

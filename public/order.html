@@ -468,7 +468,8 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   var partsLines=function(l){return (l.parts||[]).map(function(p){var nm=label(p);var sl=(OrderLib.slotLabel?OrderLib.slotLabel(p.slot,LANG):p.slot);return '<br><span class="by">'+esc(sl+'：'+nm+(p.note?'（'+p.note+'）':''))+'</span>';}).join('');};
   var unpaid=function(){return (S.items||[]).filter(function(l){return !l.order_id;});};
   var pending=function(){return unpaid().filter(function(l){return !l.placed_at;});};   // 加了還沒送出的
-  var othersPending=function(){return pending().filter(function(l){return !l.mine;});};   // 別人加了還沒送出的（我按送出會一起送）
+  var othersPending=function(){return pending().filter(function(l){return !l.mine;});};   // 別人加了還沒送出的（由他們自己送，KK 11/9）
+  var myPending=function(){return pending().filter(function(l){return l.mine;});};   // 我按送出只送這些
   var itemName=function(l){return label(l);};
   var joinItems=function(ls){return ls.map(function(l){return itemName(l)+'×'+l.qty;}).join(LANG==='en'||LANG==='ko'?', ':'、');};
   // 「小華 2 項、阿明 1 項」
@@ -530,11 +531,11 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     var u=unpaid(),p=pending();
     $('#bar').hidden=!NAME;$('#bar-total').textContent=money(sum(u));$('#bar-count').textContent=p.length?tr('pending_items',{count:p.length}):u.length?tr('unpaid_items',{count:u.length}):tr('empty');
     // 有還沒送出的品項才出現「送出點餐」；桌邊沒有結帳鍵，用餐完到櫃檯由現場人員在 POS 結帳
-    $('#bar').classList.toggle('has-place',p.length>0);$('#bar-place').hidden=!p.length;$('#cart-place').hidden=!p.length;
-    // 送出鍵寫清楚會送幾項、有沒有包到別人的：「送出 5 項（含小華 2 項）」
-    var op=othersPending(),placeText=tr('place_n',{count:p.length});   // 按鈕一律單行；含別人的品項寫在上方提示列
+    var mp=myPending();$('#bar').classList.toggle('has-place',mp.length>0);$('#bar-place').hidden=!mp.length;$('#cart-place').hidden=!mp.length;
+    // 送出鍵只送自己的（KK 11/9）；別人還沒送的寫在提示列，請他們自己送
+    var op=othersPending(),placeText=tr('place_n',{count:mp.length});   // 按鈕一律單行
     ['#bar-place','#cart-place'].forEach(function(id){var el=$(id+' span[data-i18n]')||$(id+' span');if(el)el.textContent=placeText;});
-    var hint=$('#place-hint');if(hint){hint.hidden=!op.length;hint.textContent=op.length?tr('place_with_others',{count:p.length,others:othersSummary(op)})+'｜'+tr('others_pending_hint'):'';}
+    var hint=$('#place-hint');if(hint){hint.hidden=!op.length;hint.textContent=op.length?tr('others_unsent',{others:othersSummary(op)}):'';}
     // 已點清單：依人分組；每行標示未送出／已送出／已出餐
     var tag=function(l){return l.song||l.tip?'':l.served_at?'<span class="tag">'+esc(tr('served'))+'</span>':l.placed_at?'<span class="tag placed">'+esc(tr('placed'))+'</span>':'<span class="tag pending">'+esc(tr('not_sent'))+'</span>';};
     var groups={},order=[];u.forEach(function(l){var k=l.by+(l.mine?'#me':'');if(!groups[k]){groups[k]={by:l.by,mine:l.mine,lines:[]};order.push(k);}groups[k].lines.push(l);});
@@ -617,10 +618,9 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   $('#open-cart').onclick=function(){$('#cart-body').scrollTop=0;if(maybeReview())return;openSheet('#cart');};
   $('#review-cart').onclick=function(){$('#cart-body').scrollTop=0;openSheet('#cart');};
   $('#review-go').addEventListener('click',function(){markReview();setTimeout(function(){closeSheets();},300);});
-  // 送出點餐：整桌還沒送的一起進出餐看板（不結帳）；送出後已點清單標「已送出」、不能再自己刪
+  // 送出點餐：只送自己加的（KK 11/9：每個人處理自己的點單）；進出餐看板（不結帳），送出後已點清單標「已送出」、不能再自己刪
   var placing=false;
-  $('#bar-place').onclick=$('#cart-place').onclick=function(){if(placing||!pending().length)return;
-    var op=othersPending();if(op.length&&!confirm(tr('place_confirm',{others:joinItems(op)})))return;
+  $('#bar-place').onclick=$('#cart-place').onclick=function(){if(placing||!myPending().length)return;
     placing=true;var btns=[$('#bar-place'),$('#cart-place')];btns.forEach(function(b){b.disabled=true;});
     api('/orders/'+S.id+'/place',{method:'POST',body:{guest:GUEST}}).then(function(s){applyState(s);if(ME)joinMember();closeSheets();toast(tr('place_done'),6000);try{navigator.vibrate&&navigator.vibrate(80);}catch(e){}})
       .catch(function(err){toast(err.message);if(/已結束/.test(err.message))sessionClosed();if(err.status===423){PAUSED=err.message;renderMenu();}})
