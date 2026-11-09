@@ -440,3 +440,14 @@ test('點餐頁：自己未送出的品項有「修改」，詳情頁預帶並�
   assert.match(srv, /app\.post\('\/api\/orders\/:id\/items\/:line\/edit'/);
   for (const k of ['edit', 'save_edit', 'updated', 'edit_unavailable']) assert.equal((lib.match(new RegExp(`\\b${k}: '`, 'g')) || []).length, 3, k);
 });
+
+test('點餐頁：送出前先確認（KK 11/9），確認頁只列自己待點的品項', () => {
+  const html = fs.readFileSync(new URL('../public/order.html', import.meta.url), 'utf8');
+  const lib = fs.readFileSync(new URL('../public/order-lib.js', import.meta.url), 'utf8');
+  assert.match(html, /id="place-ok"/);
+  assert.match(html, /\$\('#bar-place'\)\.onclick=\$\('#cart-place'\)\.onclick=function\(\)\{if\(placing\|\|!myPending\(\)\.length\)return;var mp=myPending\(\);[\s\S]*?openSheet\('#place-ok'\);\};/);
+  const bar = html.slice(html.indexOf("$('#bar-place').onclick"), html.indexOf("$('#place-ok-go').onclick"));
+  assert.doesNotMatch(bar, /\/place'/, '按送出鈕本身不可直接送單');
+  assert.match(html, /\$\('#place-ok-go'\)\.onclick=function\(\)\{[\s\S]*?api\('\/orders\/'\+S\.id\+'\/place'/);
+  for (const k of ['confirm_title', 'confirm_hint', 'confirm_back', 'confirm_go']) assert.equal((lib.match(new RegExp(`\\b${k}: '`, 'g')) || []).length, 3, k);
+});
