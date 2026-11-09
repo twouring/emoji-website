@@ -81,3 +81,23 @@ test('dessert goes to the bar ticket, including dessert inside a set (KK 11/2)',
  assert.equal(vm.runInContext("MenuLib.stationOf({cat:'DESSERT'})",c),'bar');
  assert.ok(!vm.runInContext("MenuLib.BAR_CATS.includes('DESSERT')",c),'點餐時段的飲品清單不含甜點');
 });
+
+test('one row per portion, one ticket per submit; set name small, set items big (KK 11/9)',()=>{
+ const {c}=ctx();
+ c.o={id:'o8',table_no:'A1',items:[
+  {zh:'拿鐵',qty:3,price:90,cat:'COFFEE',note:'溫度：熱'},
+  {zh:'午餐套餐',qty:2,price:320,cat:'COMBO',parts:[{slot:'主餐',zh:'咖哩飯',cat:'MAIN'},{slot:'湯品',zh:'味噌湯',cat:'SOUP'}]},
+ ]};
+ const t=JSON.parse(JSON.stringify(vm.runInContext('ticketParts(o).map(t=>[t.kind,kitchenTicketSpec(t.order,t.kind,t.total)])',c)));
+ assert.equal(t.length,2,'廚房／吧台各一張，不是每份一張');
+ const food=t[0][1],drink=t[1][1];
+ const rows=s=>s.filter(x=>(x.kind==='row'||x.kind==='wrap')&&String(x.left??x.text).startsWith('□ '));
+ assert.deepEqual(rows(drink).map(x=>[x.left,x.right]),[['□ 拿鐵','1/3'],['□ 拿鐵','2/3'],['□ 拿鐵','3/3']]);
+ assert.equal(drink.filter(x=>x.kind==='tags').length,3,'每份各自印冰熱標籤');
+ assert.deepEqual(rows(food).map(x=>x.text),['□ 咖哩飯','□ 味噌湯','□ 咖哩飯','□ 味噌湯']);
+ const setRows=food.filter(x=>x.kind==='row'&&x.left==='午餐套餐');
+ assert.equal(setRows.length,2);assert.ok(setRows.every(x=>x.size<=22&&!x.bold),'套餐字樣小字');
+ assert.ok(rows(food).every(x=>x.size>=40&&x.bold),'品項大字');
+ assert.ok(food.some(x=>x.text==='廚房單 共 4 件')&&drink.some(x=>x.text==='吧台單 共 3 件'));
+ assert.ok(!food.concat(drink).some(x=>String(x.right||'').startsWith('×')),'不再印 ×N');
+});

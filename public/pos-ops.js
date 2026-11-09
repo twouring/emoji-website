@@ -788,19 +788,26 @@ function kitchenTicketSpec(o,kind,total=1){
   if(o.reprint)spec.push({kind:'center',text:o.single?'【補印】單品':'【補印】最近一次送單',size:24,bold:true});
   spec.push({kind:'center',text:takeout?'外帶':'桌號',size:20},{kind:'center',text:String(o.table_no||''),size:54,bold:true},{kind:'center',text:applicationTime(o.paid_at||o.placed_at),size:18});
   spec.push('rule');
+  /* 每份一行（KK 11/9：現場劃單）：數量 N 拆成 N 行「□ 品名」，套餐只印小字套餐名、內容品項各一行大字；一次送單仍一張 */
   let count=0;
   for(const [cat,lines] of ticketGroups(o)){
     spec.push({kind:'left',text:'【'+catLabel(cat)+'】',size:22,bold:true});
     for(const l of lines){
-      spec.push({kind:'row',left:`${l.zh}${l.comp_reason?'（贈）':''}`,right:'×'+l.qty,size:52,bold:true});
-      if(ordererOf(l))spec.push({kind:'left',text:'　'+ordererOf(l),size:16});
-      for(const p of partsOf(l)){spec.push({kind:'wrap',text:'　'+partText(p),size:34,bold:true});if(p.note){const ps=specParts({cat:p.cat,zh:p.zh,note:p.note}),hi=ps.filter(isIceHot).map(x=>x.text),rest=ps.filter(x=>!isIceHot(x)).map(x=>x.text);if(hi.length)spec.push({kind:'tags',texts:hi,size:40,indent:34});if(rest.length)spec.push({kind:'wrap',text:'　　'+rest.join('／'),size:26});}}
-      // 品名 52 號大字；冰／熱反白大字標籤；其餘規格一行、自由需求各自一行加 ※，整組備註加框；點餐人弱化成小字
       const parts=specParts(l),hot=parts.filter(isIceHot).map(p=>p.text),opts=parts.filter(p=>p.kind!=='custom'&&!isIceHot(p)).map(p=>p.text),custom=parts.filter(p=>p.kind==='custom').map(p=>p.text);
-      if(hot.length)spec.push({kind:'tags',texts:hot,size:40});
-      const notes=[...(opts.length?[opts.join('／')]:[]),...custom.map(t=>'※ '+t)];
-      if(notes.length)spec.push({kind:'box',texts:notes,size:24,bold:true});
-      count+=l.qty;
+      const notes=[...(opts.length?[opts.join('／')]:[]),...custom.map(t=>'※ '+t)],comp=l.comp_reason?'（贈）':'',ps=partsOf(l),n=Math.max(1,Number(l.qty)||1);
+      for(let i=1;i<=n;i++){
+        const nth=n>1?`${i}/${n}`:'';
+        if(ps.length){
+          spec.push({kind:'row',left:`${l.zh}${comp}`,right:[nth,ordererOf(l)].filter(Boolean).join('　'),size:20});
+          for(const p of ps){spec.push({kind:'wrap',text:'□ '+p.zh,size:48,bold:true});count++;if(p.note){const pp=specParts({cat:p.cat,zh:p.zh,note:p.note}),hi=pp.filter(isIceHot).map(x=>x.text),rest=pp.filter(x=>!isIceHot(x)).map(x=>x.text);if(hi.length)spec.push({kind:'tags',texts:hi,size:40,indent:34});if(rest.length)spec.push({kind:'wrap',text:'　　'+rest.join('／'),size:26});}}
+        }else{
+          spec.push({kind:'row',left:`□ ${l.zh}${comp}`,right:nth,size:48,bold:true});count++;
+          if(ordererOf(l))spec.push({kind:'left',text:'　'+ordererOf(l),size:16});
+        }
+        // 冰／熱反白大字標籤；其餘規格一行、自由需求各自一行加 ※，整組備註加框
+        if(hot.length)spec.push({kind:'tags',texts:hot,size:40});
+        if(notes.length)spec.push({kind:'box',texts:notes,size:24,bold:true});
+      }
     }
   }
   spec.push('rule');
@@ -1047,8 +1054,13 @@ async function printOrder(o,{auto=false,slip=false}={}){
   return true;
 }
 function kitchenTicketHtml(o){
-  const sections=ticketGroups(o).map(([cat,lines])=>`<h2>${esc(catLabel(cat))}</h2>`+lines.map(l=>{const parts=specParts(l),opts=parts.filter(p=>p.kind!=='custom').map(p=>p.text),custom=parts.filter(p=>p.kind==='custom').map(p=>p.text);return `<div class="l k"><span>${esc(l.zh)}${l.comp_reason?'（贈）':''}</span><span>×${l.qty}</span></div>${partsOf(l).map(p=>`<div class="l k"><span>　${esc(partText(p))}</span></div>${p.note&&noteVals(p)?`<div class="n">　${esc(noteVals(p))}</div>`:''}`).join('')}${ordererOf(l)?`<div class="n">${esc(ordererOf(l))}</div>`:''}${opts.length?`<div class="n">${esc(opts.join('／'))}</div>`:''}${custom.map(t=>`<div class="n">※ ${esc(t)}</div>`).join('')}`;}).join('')).join('');
-  const count=(o.items||[]).filter(l=>!l.cancelled).reduce((a,l)=>a+l.qty,0);
+  /* 每份一行（KK 11/9），同 kitchenTicketSpec */
+  let count=0;
+  const sections=ticketGroups(o).map(([cat,lines])=>`<h2>${esc(catLabel(cat))}</h2>`+lines.map(l=>{const parts=specParts(l),opts=parts.filter(p=>p.kind!=='custom').map(p=>p.text),custom=parts.filter(p=>p.kind==='custom').map(p=>p.text),ps=partsOf(l),n=Math.max(1,Number(l.qty)||1),comp=l.comp_reason?'（贈）':'';
+    const tail=`${opts.length?`<div class="n">${esc(opts.join('／'))}</div>`:''}${custom.map(t=>`<div class="n">※ ${esc(t)}</div>`).join('')}`;
+    return Array.from({length:n},(_,k)=>{const nth=n>1?`${k+1}/${n}`:'';
+      if(ps.length){count+=ps.length;return `<div class="n">${esc(l.zh)}${comp} ${nth} ${esc(ordererOf(l))}</div>${ps.map(p=>`<div class="l k"><span>□ ${esc(p.zh)}</span></div>${p.note&&noteVals(p)?`<div class="n">　${esc(noteVals(p))}</div>`:''}`).join('')}${tail}`;}
+      count++;return `<div class="l k"><span>□ ${esc(l.zh)}${comp}</span><span>${nth}</span></div>${ordererOf(l)?`<div class="n">${esc(ordererOf(l))}</div>`:''}${tail}`;}).join('');}).join('')).join('');
   return `<h1 class="k">${isTakeoutNo(o.table_no)?'外帶':'桌號'} ${esc(o.table_no)}</h1><div class="m c">${esc(applicationTime(o.paid_at||o.placed_at))}</div>${sections}<hr class="sep"><div class="c">共 ${count} 件<br>單號 ${esc(o.id||o.order_id||'')}</div>`;
 }
 // 客人收據明細：店名、品項、小計／折扣／合計、付款方式、實收找零、發票號碼、單號（查單可重印）
