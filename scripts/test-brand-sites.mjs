@@ -59,6 +59,12 @@ for (const [slug, [host, color, venue]] of Object.entries(SITES)) {
   }
 }
 
+test('等等空間主色只用 CIS 品牌深藍 #2B4064，不得出現參照站的青綠／橘（KK 2026-11-09）', () => {
+  const css = fs.readFileSync('public/brand-sites/stay-square.css', 'utf8');
+  assert.match(css, /#2b4064/i);
+  assert.doesNotMatch(css, /#02343c|#03343c|#ef7d22|#b45309|#ffad68|rgba\(2,\s*52,\s*60/i, '不得用 CIC 青綠或橘');
+});
+
 // 等等空間 CIC 式多頁（KK 2026-11-08）：每個子頁同樣守三語、CIS、範圍與法遵規則
 for (const sub of SQ_SUBS) {
   for (const [lang, [dir, htmlLang]] of Object.entries(LANGS)) {
