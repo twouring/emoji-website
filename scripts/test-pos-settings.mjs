@@ -13,7 +13,7 @@ function tabs() {
 test('頂欄只留常用分頁（點歌已移到 ktv.emoji.tw，KK 11/6），庫存／排班／銷量／客群／紀錄移到設定', () => {
   const T = tabs();
   const top = T.filter(t => !t.group).map(t => t.id);
-  assert.deepEqual(top, ['pos', 'soldout', 'reservations', 'members', 'history', 'clock', 'sales', 'analytics', 'settings']);
+  assert.deepEqual(top, ['pos', 'serve', 'soldout', 'reservations', 'members', 'history', 'clock', 'sales', 'analytics', 'settings']);
   assert.deepEqual(T.filter(t => t.group === 'settings').map(t => t.id).sort(), ['bugs', 'feedback', 'inventory', 'logs', 'shifts', 'tips']);
   for (const t of T.filter(t => t.group)) assert.ok(t.desc, t.id + ' 要有設定頁說明');
   assert.match(pos, /TABS\.filter\(t => !t\.group\)\.map/);

@@ -303,6 +303,7 @@
 <script src="/pos-moji.js"></script>
 <script src="/pos-invoice-scan.js"></script>
 <script src="/pos-ops.js"></script>
+<script src="/pos-serve.js"></script>
 <script src="/pos-members.js"></script>
 <script src="/pos-inventory.js"></script>
 <script src="/pos-settings.js"></script>
@@ -341,6 +342,7 @@ if (POS_URL_VENUE) {
 }
 const TABS = [
   { id:'pos', icon:'wallet',          label:'結帳' },
+  { id:'serve', icon:'utensils',      label:'出餐' },   // 外場點桌出餐（KK 11/9）；版面同結帳頁桌位
   { id:'soldout', icon:'ban',      label:'估清' },
   { id:'reservations', icon:'calendar', label:'訂位' },
   { id:'members', icon:'users', label:'會員' },
@@ -358,7 +360,7 @@ const TABS = [
   { id:'logs', icon:'history',      label:'紀錄', group:'settings', desc:'操作紀錄（限店長）' },
 ];
 // 員工管理（新增／編輯／停用、出勤修正）刻意不放平板：只在 admin.emoji.tw 品牌工作區「排班打卡」，現場人員改不到
-const PANEL = { pos:tabPos, members:tabPosMembers, orders:tabOrders, soldout:tabSoldOut, inventory:tabInventory, reservations:tabReservations, history:tabHistory, logs:tabLogs, sales:tabSales, analytics:tabAnalytics, clock:tabClock, shifts:tabShifts, settings:tabSettings, tips:tabTips, feedback:tabFeedback, bugs:tabBugs };
+const PANEL = { pos:tabPos, serve:tabServe, members:tabPosMembers, orders:tabOrders, soldout:tabSoldOut, inventory:tabInventory, reservations:tabReservations, history:tabHistory, logs:tabLogs, sales:tabSales, analytics:tabAnalytics, clock:tabClock, shifts:tabShifts, settings:tabSettings, tips:tabTips, feedback:tabFeedback, bugs:tabBugs };
 let toastT, DATA = null, TAB = 'pos', SCOPE = '', MENU_DOC = null, PENDING = 0;
 try { SCOPE = POS_URL_VENUE || localStorage.getItem('tth_pos_scope') || ''; } catch (e) {}
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2400); }
@@ -510,8 +512,8 @@ function routeTab(){
   const seg = location.pathname.replace(/^\/(atcafe|3am|staysquare|restbook)\/?/, '').replace(/\/+$/,'').split('/');
   if (LEGACY_ANALYTICS[seg[0]]) { ANALYTICS_KIND = LEGACY_ANALYTICS[seg[0]]; history.replaceState(null, '', POS_BASE + '/analytics/' + ANALYTICS_KIND); return 'analytics'; }
   if (seg[0] === 'analytics' && LEGACY_ANALYTICS[seg[1]]) ANALYTICS_KIND = seg[1];
-  // 出餐分頁已移除（KK 11/2：只用紙本出餐單），舊網址 /pos/orders 轉回結帳
-  if (seg[0] === 'orders') { history.replaceState(null, '', POS_BASE); return 'pos'; }
+  // 舊廚房看板網址 /pos/orders 轉到外場出餐分頁（KK 11/9 新增 /pos/serve）
+  if (seg[0] === 'orders') { history.replaceState(null, '', POS_BASE + '/serve'); return 'serve'; }
   // 桌號獨立網址 /pos/table/<桌號>：直接開或上一頁／下一頁時切到該桌；桌沒開會在 paintPos 退回 /pos
   ROUTE_TABLE = seg[0] === 'table' ? decodeURIComponent(seg[1] || '') : '';
   if (seg[0] === 'table') return 'pos';
@@ -558,9 +560,10 @@ function activate(){
   startKitchenPrinting();
   refreshRegWarn();
   document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('on', p.dataset.panel === TAB));
-  clearTimeout(ORDERS_TIMER); clearTimeout(POS_TIMER);
+  clearTimeout(ORDERS_TIMER); clearTimeout(POS_TIMER); clearTimeout(SERVE_TIMER);
   if (TAB !== 'logs') { LOGS_PIN = ''; LOGS_PAD = ''; LOGS_MSG = ''; } // 紀錄限店長：離開分頁就要重輸識別碼
   if (TAB === 'pos') loadPos();
+  else if (TAB === 'serve') loadServe();
   else if (TAB === 'members') loadPosMembers();
   else if (TAB === 'orders') loadOrders();
   else if (TAB === 'soldout') loadSoldOut();

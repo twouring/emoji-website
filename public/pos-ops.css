@@ -1023,3 +1023,23 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 .pos-blk--source .pos-blk-h{display:flex;align-items:baseline;gap:8px}
 .pos-source-chips{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0}
 .pos-source-chips button{text-align:center;padding:8px 4px}
+
+/* 出餐分頁（pos-serve.js，KK 11/9）：桌位同結帳頁；有待出的桌亮起，點桌開右側（手機為底部）出餐清單 */
+.serve-board .pos-table.serve-idle{cursor:default;opacity:.55;background:var(--paper-alt)}
+.serve-board .pos-table.serve-idle .serve-none{color:var(--muted)}
+.serve-board .pos-table.serve-has{border:2px solid var(--accent,var(--ink));box-shadow:0 2px 10px rgba(0,0,0,.08)}
+.serve-board .pos-table.serve-has .pill{font-size:1.05rem;font-weight:700}
+.serve-board .pos-table.serve-warn{background:var(--warn-soft)}.serve-board .pos-table.serve-warn .serve-age{color:var(--warn-ink);font-weight:700}
+.serve-board .pos-table.serve-late{background:var(--danger-line);border-color:var(--danger)}.serve-board .pos-table.serve-late .serve-age{color:var(--danger);font-weight:700}
+.serve-sheet-bg{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.35)}
+.serve-sheet{position:fixed;z-index:41;top:0;right:0;bottom:0;width:min(520px,100%);display:flex;flex-direction:column;background:var(--card);box-shadow:-8px 0 24px rgba(0,0,0,.18)}
+.serve-sheet-head{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.serve-sheet-head h2{margin:0;font-size:1.6rem}.serve-sheet-head .serve-close{margin-left:auto;min-height:48px}
+.serve-lines{list-style:none;margin:0;padding:4px 16px;overflow:auto;flex:1}
+.serve-line,.serve-order{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}
+.serve-line-body{flex:1;min-width:0}.serve-line .ops-line-top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.serve-line .ops-name{font-size:1.2rem}
+.serve-line.serve-warn .hint{color:var(--warn-ink)}.serve-line.serve-late .hint{color:var(--danger)}
+.serve-btn{flex:none;min-width:96px;min-height:56px;font-size:1.1rem}
+.serve-sheet-foot{padding:12px 16px;border-top:1px solid var(--line)}.serve-sheet-foot .serve-all{width:100%;min-height:56px}
+@media(max-width:599px){.serve-sheet{top:auto;left:0;width:100%;max-height:85dvh;border-radius:16px 16px 0 0}}

@@ -9,6 +9,7 @@ function posLiveRefresh() {
     if (document.hidden) return;
     if (TAB === 'pos' && document.getElementById('pos-body')) loadPos();
     else if (TAB === 'orders' && document.getElementById('orders-body')) loadOrders();
+    else if (TAB === 'serve' && document.getElementById('serve-body')) loadServe();
   }, 300);
 }
 
