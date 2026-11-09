@@ -64,6 +64,8 @@ test('webhook：點數查詢綁定會員回餘額、未綁定回登入邀請', a
   const bound = harness({ user, balance: 42 });
   await bound.svc.handleEvent(ev);
   assert.match(JSON.stringify(bound.calls[0].body), /"42"/);
+  assert.match(JSON.stringify(bound.calls[0].body), /1 點可兌換 NT\$10/);
+  assert.match(readFileSync(path.join(root, 'public/m.html'), 'utf8'), /1 點可兌換 NT\$10/);
   const unbound = harness({});
   await unbound.svc.handleEvent(ev);
   assert.match(JSON.stringify(unbound.calls[0].body), /\/m\?utm_source=line/);
