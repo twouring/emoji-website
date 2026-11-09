@@ -386,3 +386,18 @@
 .bs--stay-square :is(.sq-homehero, .sq-pagelead--navy) .sq-btn:not(.sq-btn--line):hover, .bs--stay-square .sq-head__cta:hover { background:#d6deea; border-color:#d6deea; color:#2b4064; filter:none; }
 .bs--stay-square .sq-btn:hover { background:#1a2840; border-color:#1a2840; filter:none; }
 .bs--stay-square .sq-flash { border-left-color:#2b4064; }
+/* 11/9 KK 截圖：.sq-pagelead--navy 權重低於 .bs--stay-square .sq-pagelead，底色被淺灰蓋掉、白字消失（會員方案、交通與洽詢頁首屏）。帶同等前綴並固定前景色 */
+.bs--stay-square .sq-pagelead.sq-pagelead--navy { background:#2b4064; color:#fff; }
+.bs--stay-square .sq-pagelead.sq-pagelead--navy h1 { color:#fff; }
+.bs--stay-square .sq-pagelead.sq-pagelead--navy .sq-eyebrow { color:#c9d4e6; }
+.bs--stay-square .sq-pagelead.sq-pagelead--navy > p:last-child { color:#d6deea; }
+.bs--stay-square .sq-pagelead:not(.sq-pagelead--navy) h1 { color:#2b4064; }
+.bs--stay-square .sq-pagelead:not(.sq-pagelead--navy) .sq-eyebrow { color:#4a5a75; }
+.bs--stay-square .sq-homehero .sq-eyebrow { color:#c9d4e6; }
+.bs--stay-square .sq-head .sq-lang a:not([aria-current]), .bs--stay-square .sq-footer .sq-lang a:not([aria-current]) { opacity:.88; }
+/* 淺底上的框線按鈕：藍框藍字（.sq-btn--line 預設為深底用的白框白字） */
+.bs--stay-square .sq-cic > section:not(.sq-homehero):not(.sq-pagelead--navy):not(.sq-pillars):not(.sq-photoquote) .sq-btn--line { border-color:#2b4064; color:#2b4064; background:transparent; }
+.bs--stay-square .sq-cic > section:not(.sq-homehero):not(.sq-pagelead--navy):not(.sq-pillars):not(.sq-photoquote) .sq-btn--line:hover { background:#2b4064; color:#fff; }
+/* 小標再加深：淺底 #3D4F6C（對白 8.29:1）；深藍底說明文字改純白 */
+.bs--stay-square .sq-member .sq-label, .bs--stay-square .sq-book .sq-label, .bs--stay-square .sq-planpages small, .bs--stay-square .sq-buylist span { color:#3d4f6c; }
+.bs--stay-square .sq-pagelead.sq-pagelead--navy > p:last-child, .bs--stay-square .sq-homehero__copy > p:not(.sq-eyebrow) { color:#fff; }
