@@ -51,7 +51,7 @@ const opsHelp=tipIcon;
 /* 來源調查（KK 11/8）：結帳時問客人怎麼知道我們，選填一項；與 lib/table-orders.js SOURCE_OPTIONS 一致 */
 const SOURCE_OPTIONS=[['walk','路過'],['friend','朋友'],['ig','IG'],['threads','Threads'],['google','Google'],['event','活動'],['regular','回頭客'],['other','其他']];
 let POS_SOURCE='';
-const DISCOUNT_PRESETS=[{type:'percent',value:20,reason:'員工',label:'員工 8 折'},{type:'percent',value:20,reason:'股東',label:'股東 8 折'},{type:'percent',value:20,reason:'親友',label:'親友 8 折'}];
+const DISCOUNT_PRESETS=[{type:'percent',value:20,reason:'員工',label:'員工 8 折'},{type:'percent',value:20,reason:'股東',label:'股東 8 折'},{type:'percent',value:20,reason:'親友',label:'親友 8 折'},{type:'percent',value:100,reason:'免費兌換',label:'免費兌換'}];
 const REASON_PRESETS={
   void_order:['客人取消','點錯單','重複結帳','金額錯誤','付款失敗'],
   void_line:['點錯品項','客人取消','重複點餐','今日估清'],
@@ -473,7 +473,7 @@ const invoiceText=o=>{const inv=o.invoice||{};if(inv.status==='issued')return `�
 const invoiceHtml=o=>{const inv=o.invoice||{};const fix=o.status==='void'?'':` <button type="button" class="btn btn--ghost btn-xs" data-invoice-issue="${esc(o.id)}">補開發票</button>`;if(inv.status==='failed')return `<span class="inv-fix"><span class="pill pill-bad" title="${esc(inv.error||'')}">發票失敗</span>${fix}</span>`;if(inv.requested&&!['issued','void'].includes(inv.status))return `<span class="inv-fix"><span class="pill pill-wait">發票待補開</span>${fix}</span>`;return `<span class="hint hint--tight">${esc(invoiceText(o))}</span>${!['issued','void'].includes(inv.status)?fix:''}`;};
 /* 百分比折扣顯示成台灣習慣的「幾折」：20％→8 折、15％→85 折，避免店員把 8 折誤填成 8％ */
 const zheText=v=>{const z=100-Number(v);return z<=0?'免費':z%10===0?`${z/10} 折`:`${z} 折`;};
-const discountText=d=>d?`${d.type==='percent'?zheText(d.value):'NT$'+num(d.value)}${d.reason?'・'+d.reason:''}`:'';
+const discountText=d=>{if(!d)return '';const h=d.type==='percent'?zheText(d.value):'NT$'+num(d.value);/* 免費兌換（KK 11/9）：原因已含「免費」就不重複寫成「免費・免費兌換」 */return d.reason?(d.reason.includes(h)?d.reason:h+'・'+d.reason):h;};
 const isTakeoutNo=t=>/^W\d{2}$/.test(String(t||''));
 function invoiceBody(host){
   const mode=host.querySelector('input[name=pos-invoice]:checked')?.value||'';POS_INVOICE.mode=mode;

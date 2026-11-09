@@ -16,6 +16,8 @@ test('常用折扣清單：每筆都有類型、數值、原因與標籤', () =>
     assert.ok(d.reason && d.label);
   }
   assert.ok(list.some(d => d.reason === '員工' && d.value === 20));
+  // 免費兌換（KK 11/9）：100% 折扣，應收 0、服務費跟著歸零、0 元單不開發票
+  assert.ok(list.some(d => d.type === 'percent' && d.value === 100 && d.reason === '免費兌換' && d.label === '免費兌換'));
 });
 
 test('結帳面板：未套折扣時顯示一鍵鍵，按下直接套用（不必再開表單）', () => {
@@ -31,4 +33,13 @@ test('百分比折扣顯示成「幾折」', () => {
   assert.equal(zheText(15), '85 折');
   assert.equal(zheText(10), '9 折');
   assert.equal(zheText(100), '免費');
+});
+
+test('免費兌換：折扣文字不重複「免費」', () => {
+  const ctx = { num: n => String(n) };
+  vm.runInNewContext(ops.match(/const zheText=[^\n]*/)[0].replace('const ', 'var '), ctx);
+  vm.runInNewContext(ops.match(/const discountText=[^\n]*/)[0].replace('const ', 'var '), ctx);
+  assert.equal(ctx.discountText({ type: 'percent', value: 100, reason: '免費兌換' }), '免費兌換');
+  assert.equal(ctx.discountText({ type: 'percent', value: 20, reason: '員工' }), '8 折・員工');
+  assert.equal(ctx.discountText({ type: 'amount', value: 50, reason: '補償' }), 'NT$50・補償');
 });

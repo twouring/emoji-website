@@ -368,7 +368,7 @@ tr.lp-refund td{color:var(--danger)}
 .reason-chips button{all:unset;box-sizing:border-box;cursor:pointer;min-height:48px;padding:8px 16px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:1rem;line-height:1.25;color:var(--ink)}
 .reason-chips button:active,.reason-chips button[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);background:var(--accent-soft)}
 .reason-chips--inline{flex-basis:100%;margin:4px 0 0}
-.pos-sum .pos-disc-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;justify-content:stretch;margin:0;padding:4px 14px 10px;background:var(--card)}
+.pos-sum .pos-disc-presets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:stretch;margin:0;padding:4px 14px 10px;background:var(--card)}
 .pos-sum .pos-disc-presets button{text-align:center;padding:8px 6px}
 .op-card.pos-reason{max-width:520px}
 .pos-notice-hint,.pos-notice-last{margin:4px 0 0;color:var(--muted,#6b6760);font-size:1rem;line-height:1.5}
