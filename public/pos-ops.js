@@ -1562,8 +1562,8 @@ function bindTableDrag(host){
     const y=Math.min(pct((ev.clientY-drag.dy-f.top)/f.height*100),Math.floor(Math.max(0,maxY)));
     drag.el.dataset.x=x;drag.el.dataset.y=y;drag.el.style.left=x+'%';drag.el.style.top=y+'%';
   });
-  /* 窄桌牌（一排排到 12 桌，KK 11/7）：寬度不夠並排 改號＋縮放角，改成右側直排三顆鈕 */
-  const narrow=el=>{const fw=floor.getBoundingClientRect().width;if(fw)el.classList.toggle('is-narrow',fw*(Number(el.dataset.w)||23)/100<96);};
+  /* 窄桌牌（一排排到 12 桌，KK 11/7）：寬度不夠並排 改號＋縮放角，改成右側直排三顆鈕；<128px 時三碼桌號（A10）會碰到右上 ×，也改直排（KK 11/9 字不要遮擋） */
+  const narrow=el=>{const fw=floor.getBoundingClientRect().width;if(fw)el.classList.toggle('is-narrow',fw*(Number(el.dataset.w)||23)/100<128);};
   floor.querySelectorAll('[data-drag-table]').forEach(narrow);
   const end=ev=>{if(!drag||ev.pointerId!==drag.id)return;drag.el.classList.remove('dragging');narrow(drag.el);drag=null;POS_EDIT_POS=read();};
   floor.addEventListener('pointerup',end);floor.addEventListener('pointercancel',end);
@@ -1867,7 +1867,7 @@ function paintPos(){
       const px=Math.max(56,Math.floor(lim/100*fr.height)-6);if(a.c.dataset.mh===undefined)a.c.dataset.mh=a.c.style.minHeight||'';a.c.style.minHeight=a.c.dataset.mh?`min(${a.c.dataset.mh},${px}px)`:'';a.c.style.maxHeight=px+'px';const slot=a.c.firstElementChild;if(!slot)continue;
       // 量內容實際底部（桌位框本身 min-height:100% 會撐高，不能用 scrollHeight）
       const need=()=>{const st=slot.getBoundingClientRect().top;let b=0;for(const k of slot.children){const r=k.getBoundingClientRect();if(r.height)b=Math.max(b,r.bottom-st);}return b+6;};
-      a.c.classList.remove('tk-c1','tk-c2','tk-c3','tk-c4');for(const k of ['tk-c1','tk-c2','tk-c3','tk-c4']){if(need()<=px+1)break;a.c.classList.add(k);}}};
+      const TK=['tk-c1','tk-c2','tk-c3','tk-c4','tk-c5','tk-c6','tk-c7'];a.c.classList.remove(...TK);for(const k of TK){if(need()<=px+1)break;a.c.classList.add(k);}}};
     fit();if(typeof requestAnimationFrame==='function')requestAnimationFrame(fit);if(typeof ResizeObserver==='function'){let w=0;new ResizeObserver(()=>{const x=fl.getBoundingClientRect();const k=x.width+'x'+x.height;if(k!==w){w=k;fit();}}).observe(fl);}}
   // 加開桌號：點區＋號碼，不打字（桌牌上有的桌號直接點桌況格或「開桌」）
   host.querySelector('#pos-open-extra').onclick=async()=>{const t=await pickTableNo({title:'加開桌號',hint:'桌牌上沒有的桌號、戶外或臨時桌才用這裡；已開著的桌會直接切過去。'});if(t)openSession({table_no:t});};

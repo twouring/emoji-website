@@ -52,3 +52,14 @@ test('桌牌不能太小（KK 11/9）：縮放時寬至少 8% 且 80px、高至�
   assert.match(js,/const w=Math\.max\(minW,Math\.min\(60,/);
   assert.match(js,/const h=Math\.max\(minH,Math\.min\(60,/);
 });
+
+test('桌位內的字不要遮擋（KK 11/9）：窄卡狀態不直排、逐級精簡、編輯模式桌號不被按鈕蓋住',()=>{
+  const css=fs.readFileSync(new URL('../public/pos-ops.css',import.meta.url),'utf8');
+  assert.match(js,/const TK=\['tk-c1','tk-c2','tk-c3','tk-c4','tk-c5','tk-c6','tk-c7'\]/);
+  assert.match(css,/\.pos-floor-slot\.tk-c5 \.pos-ticket \.tk-party\{display:none\}/);
+  assert.match(css,/\.pos-floor-slot\.tk-c6 \.pos-ticket \.tk-time\{display:none\}/);
+  assert.match(css,/@container \(max-width:84px\)\{\.pos-floor \.pos-floor-slot\[class\] \.pos-ticket \.tk-head \.pill[^}]*white-space:nowrap/);
+  assert.match(js,/fw\*\(Number\(el\.dataset\.w\)\|\|23\)\/100<128/);
+  assert.match(css,/\.pos-floor-edit \.pos-drag\.is-narrow>b\{display:block/);
+  assert.match(css,/\.pos-floor-edit \.pos-drag\{position:absolute;width:23%;[^}]*min-height:128px\}/);
+});

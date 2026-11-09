@@ -555,13 +555,13 @@ tr.lp-refund td{color:var(--danger)}
 .pos-floor-slot{position:absolute;width:23%}.pos-floor-slot:has(.pos-table.on){z-index:3}.pos-floor-slot:hover{z-index:2}
 .pos-floor-slot .pos-table,.pos-floor-slot .pos-table.empty{width:100%;background:var(--card)}
 .pos-floor-edit{touch-action:none;user-select:none;-webkit-user-select:none}
-.pos-floor-edit .pos-drag{position:absolute;width:23%;cursor:grab;border:2px dashed var(--ink);background:var(--card);touch-action:none;min-height:92px}
+.pos-floor-edit .pos-drag{position:absolute;width:23%;cursor:grab;border:2px dashed var(--ink);background:var(--card);touch-action:none;min-height:128px}
 .pos-floor-edit .pos-drag{box-sizing:border-box;padding-right:52px;padding-bottom:48px}
 .pos-floor-edit .pos-del-table{position:absolute;top:-2px;right:-2px;width:44px;height:44px;border:0;border-radius:0 8px 0 12px;background:var(--ink);color:var(--card);font-size:1.5rem;line-height:1;cursor:pointer;touch-action:manipulation;opacity:.85}
 .pos-floor-edit .pos-ren-table{position:absolute;left:-2px;bottom:-2px;right:44px;max-width:96px;height:44px;padding:0;border:0;border-radius:12px 0 12px 8px;background:var(--ink);color:var(--card);font-size:1rem;line-height:1;cursor:pointer;touch-action:manipulation;opacity:.85}
 .pos-floor-edit .pos-rz{position:absolute;right:-2px;bottom:-2px;width:44px;height:44px;border-radius:12px 0 8px 0;background:var(--ink);opacity:.85;cursor:nwse-resize;touch-action:none}
 .pos-floor-edit .pos-rz::after{content:'';position:absolute;right:9px;bottom:9px;width:14px;height:14px;border-right:3px solid var(--card);border-bottom:3px solid var(--card)}
-.pos-floor-edit .pos-drag.is-narrow{padding:4px 4px 0;min-width:0;min-height:160px}.pos-floor-edit .pos-drag.is-narrow .pill{display:none}.pos-floor-edit .pos-drag.is-narrow .pos-del-table{top:auto;bottom:88px;border-radius:12px 0 0 12px}.pos-floor-edit .pos-drag.is-narrow .pos-ren-table{left:auto;right:-2px;bottom:44px;width:44px;max-width:none;border-radius:12px 0 0 12px;font-size:1rem;white-space:normal;line-height:1.1}
+.pos-floor-edit .pos-drag.is-narrow{padding:4px 4px 0;min-width:0;min-height:180px}.pos-floor-edit .pos-drag.is-narrow .pill{display:none}.pos-floor-edit .pos-drag.is-narrow .pos-del-table{top:auto;bottom:88px;border-radius:12px 0 0 12px}.pos-floor-edit .pos-drag.is-narrow .pos-ren-table{left:auto;right:-2px;bottom:44px;width:44px;max-width:none;border-radius:12px 0 0 12px;font-size:1rem;white-space:normal;line-height:1.1}
 .pos-floor-slot.is-sized{display:flex}.pos-floor-slot.is-sized .pos-table{height:100%}
 .pos-floor-edit .pos-drag.is-new{z-index:4;border:3px solid var(--ink);box-shadow:0 6px 18px rgba(0,0,0,.25)}
 .pos-floor-edit .pos-drag.dragging{z-index:5;opacity:.9;box-shadow:0 8px 24px rgba(0,0,0,.25);cursor:grabbing}
@@ -1047,3 +1047,14 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 .pos-panel-scroll>.pos-pay,.pos-pay{overflow-x:hidden;overscroll-behavior-x:none;touch-action:pan-y}
 .pos-pay img,.pos-pay svg,.pos-pay input,.pos-pay select,.pos-pay textarea{max-width:100%}
 .pos-pay .pos-source-chips button,.pos-pay .pos-method b{overflow-wrap:anywhere}
+/* 桌位內的字不要遮擋（KK 11/9）：編輯模式桌號／狀態不被 ×、改號蓋住（上面 min-height 已預留按鈕區）；
+   桌況窄卡「點餐中」不直排（拿掉圓點、不換行）；高度不夠時依序藏人數、座席時間，一律不裁字 */
+.pos-floor-edit .pos-drag>b,.pos-floor-edit .pos-drag>.pill{position:relative;z-index:1;display:inline-block;max-width:100%}
+.pos-floor-edit .pos-drag.is-narrow{padding:4px 4px 0}.pos-floor-edit .pos-drag.is-narrow>b{display:block;overflow-wrap:anywhere;line-height:1.1}
+.pos-floor-edit .pos-drag.is-narrow .pos-del-table,.pos-floor-edit .pos-drag.is-narrow .pos-ren-table,.pos-floor-edit .pos-drag.is-narrow .pos-rz{left:-2px;right:-2px;width:auto;max-width:none;border-radius:0}.pos-floor-edit .pos-drag.is-narrow .pos-rz{border-radius:0 0 8px 8px}
+@container (max-width:84px){.pos-floor .pos-floor-slot[class] .pos-ticket .tk-head .pill,.pos-floor .pos-floor-slot[class] .pos-slot .pill{white-space:nowrap;padding:0 2px}.pos-floor .pos-floor-slot[class] .pos-ticket .tk-head .pill::before,.pos-floor .pos-floor-slot[class] .pos-slot .pill::before{display:none}}
+@container (max-width:64px){.pos-floor .pos-floor-slot[class] .pos-slot{padding:2px}.pos-floor .pos-floor-slot[class] .pos-ticket .tk-head{padding:2px 0}.pos-floor .pos-floor-slot[class] .pos-ticket .tk-head .pill,.pos-floor .pos-floor-slot[class] .pos-slot .pill{padding:0}}
+@container (max-width:84px){.pos-floor-slot .pos-ticket .tk-who-pill{white-space:normal;overflow-wrap:anywhere;text-overflow:clip}}
+.pos-floor-slot.tk-c5 .pos-ticket .tk-party{display:none}
+.pos-floor-slot.tk-c6 .pos-ticket .tk-time{display:none}
+.pos-floor-slot.tk-c7 .pos-slot-resv{display:none}
