@@ -376,3 +376,7 @@
 /* grid 的 1fr 最小值是 auto，長字（Montserrat 大字、網址、地址）會撐破手機欄寬；一律改成 minmax(0,1fr) */
 .bs--stay-square :is(.sq-intro, .sq-split, .sq-visit) { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
 @media (max-width:640px) { .bs--stay-square :is(.sq-intro, .sq-split, .sq-visit, .sq-pillars, .sq-spacegrid, .sq-planpages, .sq-stats) { grid-template-columns:minmax(0,1fr); } .bs--stay-square .sq-cic :is(h1, h2, dd) { overflow-wrap:anywhere; } }
+/* 正式站量測（11/9）：中文 keep-all 讓「是讓工作與人有機會相遇的地方。」整句不能斷，溢出右欄約 210px；intro 標題改佔左欄並允許詞組間斷行 */
+.bs--stay-square .sq-intro > h2 { min-width:0; word-break:normal; overflow-wrap:anywhere; font-size:clamp(1.9rem,3.2vw,3rem); }
+.bs--stay-square .sq-cic :is(.sq-pillars, .sq-spacegrid) h2 { word-break:normal; overflow-wrap:anywhere; }
+@media (max-width:900px) and (min-width:641px) { .bs--stay-square .sq-pillars { grid-template-columns:minmax(0,1fr); } }
