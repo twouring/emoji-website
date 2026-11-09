@@ -1526,6 +1526,9 @@ LINE Login 回呼：驗 state 與 nonce、驗 id_token，完成後綁定 `users.
 ### POST /api/admin/line/broadcast
 超管限定。body `{ segment, text, url?, preview? }`。`preview:true` 只回 `{ count }`；否則 multicast 並寫入 `line_broadcasts`，回 `{ sent }`。每小時 10 次。
 
+### POST /api/admin/line/webhook
+超管限定。把 LINE Developers 的 webhook URL 設成 `<PUBLIC_ORIGIN>/api/line/webhook` 並呼叫 LINE 的測試端點，回 `{ endpoint, test:{ success, statusCode, reason }, info:{ endpoint, active } }`。`active` 的「Use webhook」開關只能在 LINE 後台手動開。
+
 ### POST /api/admin/line/richmenu
 超管限定。截圖 `/line-richmenu.html`，建立並設為預設圖文選單，回 `{ rich_menu_id }`。每小時 5 次。
 

@@ -2542,6 +2542,10 @@ app.post('/api/admin/line/broadcast', auth, adminOnly, superOnly, requireDb, rat
   try { res.json({ ok: true, ...(await lineService.broadcast(req.body, { preview: req.body?.preview === true })) }); }
   catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 }));
+app.post('/api/admin/line/webhook', auth, adminOnly, superOnly, requireDb, wrap(async (_req, res) => {
+  try { res.json({ ok: true, ...(await lineService.registerWebhook()) }); }
+  catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+}));
 app.post('/api/admin/line/richmenu', auth, adminOnly, superOnly, requireDb, rateLimit({ max: 5, windowMs: 3600000 }), wrap(async (_req, res) => {
   try { res.json({ ok: true, rich_menu_id: await lineService.publishRichMenu({ port: PORT }) }); }
   catch (e) { res.status(e.status || 500).json({ error: e.message }); }
