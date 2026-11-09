@@ -416,3 +416,27 @@ test('桌邊送單只送自己的品項（KK 11/9：不替別人送出）', () =
   assert.throws(() => T.placeLines(out.items, new Date(), null, 'guestaaaa1'), e => e.status === 400, '自己沒有待送就 400');
   assert.equal(T.placeLines(out.items).lines.map(l => l.line).join(), 'b', 'POS 不帶 guest 送整桌');
 });
+
+test('客人修改自己未送出的品項（KK 11/9）', () => {
+  const menu = new Map([['m1', { id: 'm1', venue: 'CAFE', cat: 'COFFEE', zh: '拿鐵', en: 'Latte', price: 150 }]]);
+  let items = T.addLine([], menu, { item_id: 'm1', qty: 1, by: '小明', guest: 'guestaaaa1', note: '溫度：熱' });
+  items = T.addLine(items, menu, { item_id: 'm1', qty: 1, by: '小華', guest: 'guestbbbb2' });
+  const mine = items[0].line;
+  const out = T.guestEditLine(items, menu, mine, { guest: 'guestaaaa1', qty: 3, note: '溫度：冰；冰塊：少冰' });
+  assert.equal(out[0].line, mine); assert.equal(out[0].qty, 3); assert.equal(out[0].note, '溫度：冰；冰塊：少冰'); assert.equal(out[0].by, '小明');
+  assert.equal(out.length, 2, '不新增行');
+  assert.throws(() => T.guestEditLine(items, menu, items[1].line, { guest: 'guestaaaa1', qty: 1 }), e => e.status === 403, '別人的不能改');
+  const placed = T.placeLines(out, new Date(), null, 'guestaaaa1').items;
+  assert.throws(() => T.guestEditLine(placed, menu, mine, { guest: 'guestaaaa1', qty: 1 }), e => e.status === 409, '送出後不能改');
+  assert.throws(() => T.guestEditLine(items, menu, mine, { guest: 'guestaaaa1', qty: 0 }), e => e.status === 400);
+});
+test('點餐頁：自己未送出的品項有「修改」，詳情頁預帶並走 edit API', () => {
+  const html = fs.readFileSync(new URL('../public/order.html', import.meta.url), 'utf8');
+  const lib = fs.readFileSync(new URL('../public/order-lib.js', import.meta.url), 'utf8');
+  const srv = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+  assert.match(html, /l\.mine&&!l\.placed_at&&!l\.app_redeem&&!l\.song&&!l\.tip\?'<button type="button" class="edit-l" data-edit=/);
+  assert.match(html, /function prefillEdit\(l,groups\)/);
+  assert.match(html, /'\/items\/'\+el\.line\+'\/edit'/);
+  assert.match(srv, /app\.post\('\/api\/orders\/:id\/items\/:line\/edit'/);
+  for (const k of ['edit', 'save_edit', 'updated', 'edit_unavailable']) assert.equal((lib.match(new RegExp(`\\b${k}: '`, 'g')) || []).length, 3, k);
+});

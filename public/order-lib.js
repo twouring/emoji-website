@@ -33,7 +33,7 @@
       alcohol: '未滿十八歲禁止飲酒。禁止酒駕。', add: '加入', remove: '移除', ready_banner: '桌號 {table}｜餐點好了，請至櫃檯取餐',
       thanks: '感謝用餐，期待再次光臨。', thanks_hint: '這次點餐已結束。若要再點，請洽服務人員。', thanks_again: '重新點餐', thanks_home: '回到 App 首頁',
       review_title: '喜歡今天的餐點嗎？', review_hint: '在 Google 地圖留下評論，結帳時把評論出示給櫃檯人員，就送你 5 點會員點數（每位會員限領一次）。', review_go: '寫 Google 評論', review_view_cart: '查看已點清單', review_later: '下次再說',
-      stock_left: '剩 {n} 份', view_detail: '查看細項', back_menu: '返回菜單', add_to_cart: '加入已點清單', added: '已加入', quantity: '數量', required: '必選', optional: '選填', special_request: '其他需求', special_placeholder: '例如：不要蔥、醬另外放', sugar: '糖度', ice: '冰塊', temperature: '溫度', serve_timing: '上餐時間', rice_amount: '飯量', noodle_amount: '麵量', notification_prompt: '餐點好了通知我', notification_on: '已開啟通知', notification_unsupported: '此瀏覽器不支援通知；請留在這個頁面，餐點好了會在畫面上提示。', notification_error: '無法開啟通知：{message}。請留在此頁，餐點好了會在畫面上提示。',
+      stock_left: '剩 {n} 份', view_detail: '查看細項', back_menu: '返回菜單', add_to_cart: '加入已點清單', edit: '修改', save_edit: '更新品項', updated: '已更新', edit_unavailable: '這個品項目前無法供應，請移除後改點其他品項。', added: '已加入', quantity: '數量', required: '必選', optional: '選填', special_request: '其他需求', special_placeholder: '例如：不要蔥、醬另外放', sugar: '糖度', ice: '冰塊', temperature: '溫度', serve_timing: '上餐時間', rice_amount: '飯量', noodle_amount: '麵量', notification_prompt: '餐點好了通知我', notification_on: '已開啟通知', notification_unsupported: '此瀏覽器不支援通知；請留在這個頁面，餐點好了會在畫面上提示。', notification_error: '無法開啟通知：{message}。請留在此頁，餐點好了會在畫面上提示。',
     },
     en: {
       policy_title: 'Dining at 3AM', policy_min: 'Minimum spend per person', policy_min_v: 'Sun–Thu NT${wd} / Fri–Sat NT${we}', policy_svc: 'Service charge', policy_svc_v: '+10% (not for takeout)', policy_today_wd: 'Today (Sun–Thu): NT${n} minimum per person.', policy_today_we: 'Today (Fri–Sat): NT${n} minimum per person.', policy_ok: 'Got it, start ordering', pick_required: 'Please choose “{label}” first',
@@ -67,7 +67,7 @@
       alcohol: 'No alcohol under 18. Do not drink and drive.', add: 'Add', remove: 'Remove', ready_banner: 'Table {table} | Your order is ready. Please pick it up at the counter.',
       thanks: 'Thanks for dining with us. See you next time.', thanks_hint: 'This order has ended. Please ask our staff if you would like to order again.', thanks_again: 'Order again', thanks_home: 'Go to app home',
       review_title: 'Enjoying your visit?', review_hint: 'Leave us a Google Maps review and show it to our staff when you pay. Members get 5 points (once per member).', review_go: 'Write a Google review', review_view_cart: 'View my order', review_later: 'Maybe later',
-      stock_left: 'Only {n} left', view_detail: 'Details', back_menu: 'Back to menu', add_to_cart: 'Add to order list', added: 'Added', quantity: 'Quantity', required: 'Required', optional: 'Optional', special_request: 'Other requests', special_placeholder: 'e.g. no scallions, sauce on the side', sugar: 'Sweetness', ice: 'Ice', temperature: 'Temperature', serve_timing: 'Serving', rice_amount: 'Rice amount', noodle_amount: 'Noodle amount', notification_prompt: 'Notify me when ready', notification_on: 'Notifications on', notification_unsupported: 'This browser does not support notifications. Keep this page open and we will show an on-screen alert when your order is ready.', notification_error: 'Could not enable notifications: {message}. Keep this page open for the on-screen alert.',
+      stock_left: 'Only {n} left', view_detail: 'Details', back_menu: 'Back to menu', add_to_cart: 'Add to order list', edit: 'Edit', save_edit: 'Update item', updated: 'Updated', edit_unavailable: 'This item is not available right now. Please remove it and choose another.', added: 'Added', quantity: 'Quantity', required: 'Required', optional: 'Optional', special_request: 'Other requests', special_placeholder: 'e.g. no scallions, sauce on the side', sugar: 'Sweetness', ice: 'Ice', temperature: 'Temperature', serve_timing: 'Serving', rice_amount: 'Rice amount', noodle_amount: 'Noodle amount', notification_prompt: 'Notify me when ready', notification_on: 'Notifications on', notification_unsupported: 'This browser does not support notifications. Keep this page open and we will show an on-screen alert when your order is ready.', notification_error: 'Could not enable notifications: {message}. Keep this page open for the on-screen alert.',
     },
     ja: {
       policy_title: '三點水（3AM）ご利用案内', policy_min: 'お一人様の最低ご利用額', policy_min_v: '日〜木 NT${wd}／金土 NT${we}', policy_svc: 'サービス料', policy_svc_v: '別途 10%（お持ち帰りは除く）', policy_today_wd: '本日は日〜木：お一人様 NT${n} から。', policy_today_we: '本日は金土：お一人様 NT${n} から。', policy_ok: '確認しました。注文する', pick_required: '「{label}」を選んでください',
@@ -101,7 +101,7 @@
       alcohol: '20歳未満の飲酒は禁止です。飲酒運転禁止。', add: '追加', remove: '削除', ready_banner: 'テーブル {table}｜ご注文の品ができました。カウンターでお受け取りください。',
       thanks: 'ご来店ありがとうございました。', thanks_hint: '今回のご注文は終了しました。追加のご注文はスタッフにお声がけください。', thanks_again: 'もう一度注文する', thanks_home: 'アプリのホームへ',
       review_title: '本日のお食事はいかがでしたか？', review_hint: 'Google マップにレビューを投稿し、お会計の際にスタッフへお見せいただくと、会員ポイントを 5 点進呈します（会員様お一人につき 1 回）。', review_go: 'Google でレビューを書く', review_view_cart: '注文リストを見る', review_later: 'また今度',
-      stock_left: '残り {n} 点', view_detail: '詳細を見る', back_menu: 'メニューに戻る', add_to_cart: '注文リストに追加', added: '追加しました', quantity: '数量', required: '必須', optional: '任意', special_request: 'その他の希望', special_placeholder: '例：ねぎ抜き、ソース別添え', sugar: '甘さ', ice: '氷', temperature: '温度', serve_timing: '提供タイミング', rice_amount: 'ご飯の量', noodle_amount: '麺の量', notification_prompt: '出来上がりを通知', notification_on: '通知を有効にしました', notification_unsupported: 'このブラウザは通知に対応していません。このページを開いたままにしてください。出来上がり時に画面でお知らせします。', notification_error: '通知を有効にできません：{message}。このページを開いたままにしてください。',
+      stock_left: '残り {n} 点', view_detail: '詳細を見る', back_menu: 'メニューに戻る', add_to_cart: '注文リストに追加', edit: '変更', save_edit: '変更を保存', updated: '変更しました', edit_unavailable: 'この商品は現在ご注文いただけません。削除して別の商品をお選びください。', added: '追加しました', quantity: '数量', required: '必須', optional: '任意', special_request: 'その他の希望', special_placeholder: '例：ねぎ抜き、ソース別添え', sugar: '甘さ', ice: '氷', temperature: '温度', serve_timing: '提供タイミング', rice_amount: 'ご飯の量', noodle_amount: '麺の量', notification_prompt: '出来上がりを通知', notification_on: '通知を有効にしました', notification_unsupported: 'このブラウザは通知に対応していません。このページを開いたままにしてください。出来上がり時に画面でお知らせします。', notification_error: '通知を有効にできません：{message}。このページを開いたままにしてください。',
     },
   };
   // 韓文（KK 10/28）：介面字串；菜單品名／產品內容沒有韓文時退回英文
@@ -328,6 +328,10 @@
    "view_detail": "자세히",
    "back_menu": "메뉴로 돌아가기",
    "add_to_cart": "주문 목록에 담기",
+   "edit": "수정",
+   "save_edit": "수정 저장",
+   "updated": "수정했어요",
+   "edit_unavailable": "이 메뉴는 지금 주문할 수 없어요. 삭제 후 다른 메뉴를 골라 주세요.",
    "added": "담았어요",
    "quantity": "수량",
    "required": "필수",

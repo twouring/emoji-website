@@ -180,6 +180,9 @@ sso.emoji.tw 專用（非 /api），參數 `redirect=<網址>`、選填 `prompt=
 ### POST /api/orders/:id/items
 加菜。body：`{ item_id, qty(1–20), by(稱呼), guest(前端隨機識別碼), note? }`。價格以菜單當下售價快照，不信任前端金額。回更新後的場。只接受目前營業品牌、已發布、未估清且在供應期間內的品項（否則 400）；店家暫停點餐時回 `423` 並帶暫停文案。
 
+### POST /api/orders/:id/items/:line/edit
+修改自己加的、還沒送出的品項（KK 11/9）。body：`{ guest, qty, note, combo }`（同加點）。行號不變，價格依目前菜單重算；他人品項 403，已送出／已付款／點數兌換／點歌／打賞回 409，品項已不供應 409，超過剩餘份數 409，暫停點餐 423。回更新後的場。
+
 ### DELETE /api/orders/:id/items/:line
 移除自己加的未付款品項。body：`{ guest }`。他人品項回 403，已付款或已送出的回 409（送出後請洽櫃檯作廢）。
 
