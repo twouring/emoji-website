@@ -40,8 +40,15 @@ test('編輯桌位可改桌號（KK 11/7）：沿用位置、使用中不能改�
 });
 test('一排最多可排 12 桌（KK 11/7）：桌牌最窄 8%、窄桌牌按鈕直排、伺服器收 8%',()=>{
   const css=fs.readFileSync(new URL('../public/pos-ops.css',import.meta.url),'utf8');
-  assert.match(js,/const w=Math\.max\(8,Math\.min\(60,/);assert.ok(12*8<=100);
+  assert.match(js,/const minW=Math\.max\(8,/);assert.ok(12*8<=100);
   assert.match(srv,/ok\(xy\[2\],8,60\)/);
   assert.match(js,/classList\.toggle\('is-narrow'/);assert.match(css,/\.pos-drag\.is-narrow \.pos-ren-table\{/);
   assert.match(css,/@container \(max-width:84px\)/);
+});
+
+test('桌牌不能太小（KK 11/9）：縮放時寬至少 8% 且 80px、高至少 14% 且 96px',()=>{
+  assert.match(js,/const TABLE_MIN_W_PX=80,TABLE_MIN_H_PX=96;/);
+  assert.match(js,/const minW=Math\.max\(8,Math\.ceil\(TABLE_MIN_W_PX\/f\.width\*50\)\*2\),minH=Math\.max\(14,Math\.ceil\(TABLE_MIN_H_PX\/f\.height\*50\)\*2\);/);
+  assert.match(js,/const w=Math\.max\(minW,Math\.min\(60,/);
+  assert.match(js,/const h=Math\.max\(minH,Math\.min\(60,/);
 });

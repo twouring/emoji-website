@@ -1531,6 +1531,7 @@ function bindOrderDrag(host,onDrop){
   board.addEventListener('pointerup',end);board.addEventListener('pointercancel',end);
   board.addEventListener('contextmenu',e=>{if(st&&st.on)e.preventDefault();});
 }
+const TABLE_MIN_W_PX=80,TABLE_MIN_H_PX=96;
 function bindTableDrag(host){
   const floor=host.querySelector('.pos-floor-edit');if(!floor)return;
   const pct=n=>Math.max(0,Math.min(100,Math.round(n/2)*2)); // 吸附 2% 格，擺起來比較整齊
@@ -1550,8 +1551,10 @@ function bindTableDrag(host){
     const f=floor.getBoundingClientRect(),r=drag.el.getBoundingClientRect();
     if(drag.rz){ // 拖右下角調整大小：寬高存畫布百分比，吸附 2%
       const x=Number(drag.el.dataset.x),y=Number(drag.el.dataset.y);
-      const w=Math.max(8,Math.min(60,100-x,Math.round((ev.clientX-drag.left)/f.width*100/2)*2));
-      const h=Math.max(8,Math.min(60,100-y,Math.round((ev.clientY-drag.top)/f.height*100/2)*2));
+      // 桌牌不能太小（KK 11/9）：寬至少 8%（一排 12 桌，KK 11/7）且 80px、高至少 14% 且 96px，換算成 2% 格
+      const minW=Math.max(8,Math.ceil(TABLE_MIN_W_PX/f.width*50)*2),minH=Math.max(14,Math.ceil(TABLE_MIN_H_PX/f.height*50)*2);
+      const w=Math.max(minW,Math.min(60,100-x,Math.round((ev.clientX-drag.left)/f.width*100/2)*2));
+      const h=Math.max(minH,Math.min(60,100-y,Math.round((ev.clientY-drag.top)/f.height*100/2)*2));
       drag.el.dataset.w=w;drag.el.dataset.h=h;drag.el.style.width=w+'%';drag.el.style.height=h+'%';return;
     }
     const maxX=100-r.width/f.width*100,maxY=100-r.height/f.height*100;
