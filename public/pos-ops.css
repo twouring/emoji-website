@@ -776,7 +776,7 @@ tr.lp-refund td{color:var(--danger)}
 .pos-cats{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;max-width:100%;-webkit-overflow-scrolling:touch;touch-action:pan-x;scrollbar-width:none;padding-bottom:2px}
 .pos-cats::-webkit-scrollbar{display:none}
 .pos-cats button{flex:0 0 auto;white-space:nowrap}
-.pos-methods{display:grid;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:6px}
+.pos-methods{display:grid;grid-template-columns:repeat(auto-fill,minmax(4.5rem,1fr))!important;gap:6px}
 .pos-method span{flex-direction:column;gap:2px;min-height:60px;padding:4px 2px;font-size:1rem;line-height:1.15}
 .pos-method span i{font-style:normal;font-size:1.35rem;line-height:1}
 .pos-method span b{font-weight:600;font-size:1rem;white-space:nowrap}
@@ -990,8 +990,10 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 .pos-blk--sum .pos-sum>div+div{border-top:1px dashed var(--line)}
 .pos-blk--sum .pos-sum .pos-disc-presets,.pos-blk--sum .pos-sum .pos-discount-form{padding:0 0 8px;background:none}
 .pos-blk--sum .pos-sum .pos-disc-presets{border-top:0}
-/* 支付方式：LINE Pay 在五等分（約 60px）放不下一行，改成兩行字、其他鍵維持一行 */
-.pos-blk--pay .pos-method span b{white-space:normal;word-break:keep-all;text-align:center;line-height:1.05}
+/* 支付方式（KK 11/9）：依右欄寬自動排欄（每格至少 4.5rem：320px 右欄 4 欄、362px 以上 5 欄），長名稱在格內換行，不撐寬右欄 */
+.pos-blk--pay .pos-method{min-width:0}
+.pos-blk--pay .pos-method span{min-width:0;max-width:100%}
+.pos-blk--pay .pos-method span b{white-space:normal;word-break:normal;overflow-wrap:anywhere;text-align:center;line-height:1.05;max-width:100%}
 .pos-blk--sum .pos-sum:not(:has(>div:not([hidden]))){display:none}
 /* 訂位帶位選桌（KK 11/7）：使用中的桌停用 */
 .pos-seat-grid .pos-move-opt:disabled{opacity:.45;cursor:not-allowed;background:var(--line)}
@@ -1045,8 +1047,6 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 @media(max-width:599px){.serve-sheet{top:auto;left:0;width:100%;max-height:85dvh;border-radius:16px 16px 0 0}}
 /* 結帳右欄不可橫向捲動（KK 11/9）：只留上下捲動，內容一律在欄寬內折行 */
 .pos-panel-scroll>.pos-pay,.pos-pay{overflow-x:hidden;overscroll-behavior-x:none;touch-action:pan-y}
-.pos-pay img,.pos-pay svg,.pos-pay input,.pos-pay select,.pos-pay textarea{max-width:100%}
-.pos-pay .pos-source-chips button,.pos-pay .pos-method b{overflow-wrap:anywhere}
 /* 桌位內的字不要遮擋（KK 11/9）：編輯模式桌號／狀態不被 ×、改號蓋住（上面 min-height 已預留按鈕區）；
    桌況窄卡「點餐中」不直排（拿掉圓點、不換行）；高度不夠時依序藏人數、座席時間，一律不裁字 */
 .pos-floor-edit .pos-drag>b,.pos-floor-edit .pos-drag>.pill{position:relative;z-index:1;display:inline-block;max-width:100%}
