@@ -235,3 +235,24 @@ test('HTTP：動態 sitemap 含活動頁、application/xml、快取一小時；�
   const vendor = await get('/vendor/qrcode.min.js');
   assert.equal(vendor.status, 200); assert.equal(vendor.headers.get('cache-control'), 'public, max-age=86400');
 });
+
+test('HTTP：子品牌站 robots／sitemap／llms.txt（KK 11/10 SEO／GEO），菜單 JSON-LD 併入同一個商家 @id', async t => {
+  const get = await server(t);
+  const robots = await get('/robots.txt', { host: 'staysquare.emoji.tw' });
+  assert.match(robots.body, /Disallow: \/api\//); assert.match(robots.body, /Sitemap: https:\/\/staysquare\.emoji\.tw\/sitemap\.xml/);
+  const sm = await get('/sitemap.xml', { host: 'staysquare.emoji.tw' });
+  assert.match(sm.headers.get('content-type'), /^application\/xml/);
+  for (const loc of ['https://staysquare.emoji.tw/', 'https://staysquare.emoji.tw/en', 'https://staysquare.emoji.tw/ja/venue', 'https://staysquare.emoji.tw/membership'])
+    assert.ok(sm.body.includes(`<loc>${loc}</loc>`), loc);
+  assert.match(sm.body, /hreflang="x-default" href="https:\/\/staysquare\.emoji\.tw\/access"/);
+  const small = await get('/sitemap.xml', { host: 'restbook.emoji.tw' });
+  assert.equal((small.body.match(/<url>/g) || []).length, 3);
+  const llms = await get('/llms.txt', { host: 'restbook.emoji.tw' });
+  assert.equal(llms.status, 200); assert.match(llms.headers.get('content-type'), /^text\/plain/); assert.match(llms.body, /^# 約書旅 Rest Book/);
+  const cafe = await get('/', { host: 'atcafe.emoji.tw' });
+  const ld = [...cafe.body.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].flatMap(m => { const j = JSON.parse(m[1]); return j['@graph'] || [j]; });
+  const shops = ld.filter(x => x['@type'] === 'CafeOrCoffeeShop');
+  assert.ok(shops.length >= 1 && shops.every(x => x['@id'] === 'https://atcafe.emoji.tw/#place'), '商家與菜單同一個 @id');
+  assert.ok(shops.some(x => x.openingHoursSpecification) && shops.some(x => x.hasMenu));
+  assert.ok(ld.some(x => x['@type'] === 'FAQPage'));
+});

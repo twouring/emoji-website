@@ -418,11 +418,32 @@ test('sitemap includes about locales', () => {
   assert.match(sm, /https:\/\/www\.emoji\.tw\/ja\/about/);
 });
 
-test('sitemap includes system locales', () => {
+// SEO（KK 2026-11-10）：/system 官網已不連過去（價格只放品牌站），noindex 並移出 sitemap；
+// www 的 /at-cafe、/3am、/stay-square 與子品牌站重複，canonical 指向子網域、移出 www sitemap
+test('sitemap 不列 /system 與重複的子品牌頁；/system noindex；www 子品牌頁 canonical 指向子網域', () => {
   const sm = fs.readFileSync(path.join(PUB, 'sitemap.xml'), 'utf8');
-  assert.match(sm, /https:\/\/www\.emoji\.tw\/system/);
-  assert.match(sm, /https:\/\/www\.emoji\.tw\/en\/system/);
-  assert.match(sm, /https:\/\/www\.emoji\.tw\/ja\/system/);
+  assert.doesNotMatch(sm, /www\.emoji\.tw\/(?:en\/|ja\/)?(?:system|at-cafe|3am|stay-square)</);
+  assert.doesNotMatch(sm, /2026-09-06/, 'lastmod 不停在 9/6');
+  const host = { 'at-cafe': 'atcafe', '3am': '3am', 'stay-square': 'staysquare' };
+  for (const pre of ['', 'en/', 'ja/']) {
+    assert.match(fs.readFileSync(path.join(PUB, pre + 'system.html'), 'utf8'), /<meta name="robots" content="noindex,follow">/);
+    for (const [page, h] of Object.entries(host)) {
+      const html = fs.readFileSync(path.join(PUB, pre + page + '.html'), 'utf8');
+      assert.ok(html.includes(`<link rel="canonical" href="https://${h}.emoji.tw/${pre.replace('/', '')}">`), pre + page);
+    }
+  }
+  const robots = fs.readFileSync(path.join(PUB, 'robots.txt'), 'utf8');
+  assert.match(robots, /Disallow: \/api\//);
+  for (const h of ['www', 'atcafe', '3am', 'staysquare', 'restbook']) assert.match(robots, new RegExp(`Sitemap: https://${h}\\.emoji\\.tw/sitemap\\.xml`));
+});
+
+test('llms.txt：官網總覽列出四個品牌與各自 llms.txt；不再寫過時的會籍價、膠囊、淋浴', () => {
+  const llms = fs.readFileSync(path.join(PUB, 'llms.txt'), 'utf8');
+  for (const h of ['atcafe', '3am', 'staysquare', 'restbook']) assert.match(llms, new RegExp(`https://${h}\\.emoji\\.tw/llms\\.txt`));
+  assert.doesNotMatch(llms, /NT\$|膠囊|capsule|條件式|人臉辨識/);
+  const full = fs.readFileSync(path.join(PUB, 'llms-full.txt'), 'utf8');
+  for (const b of ['在咖啡 at cafe', '三點水 3AM', '等等空間 Stay Square', '約書旅 Rest Book']) assert.ok(full.includes('# ' + b), b);
+  for (const slug of ['at-cafe', '3am', 'stay-square', 'rest-book']) assert.ok(fs.existsSync(path.join(PUB, 'brand-sites', 'llms', slug + '.txt')), slug);
 });
 
 test('language switcher lives outside the hamburger menu so phones can change language from the top bar', () => {

@@ -3,6 +3,17 @@
 
 User-agent: *
 Allow: /
+# 內部路徑：API、登入、付款結果、後台（Search Console 回報的 404／noindex 多半來自這些）
+Disallow: /api/
+Disallow: /auth/
+Disallow: /event-login.html
+Disallow: /event-checkin.html
+Disallow: /events/result
+Disallow: /en/events/result
+Disallow: /ja/events/result
+Disallow: /admin
+Disallow: /organizer
+Disallow: /stylebook/
 
 # Citation / answer-engine bots（明確允許，供 GEO 評分）
 User-agent: OAI-SearchBot
@@ -48,5 +59,10 @@ Allow: /
 User-agent: CCBot
 Allow: /
 
-# 正式網址以 www.emoji.tw 為準
+# 正式網址以 www.emoji.tw 為準；四個子品牌站各有自己的 sitemap
 Sitemap: https://www.emoji.tw/sitemap.xml
+Sitemap: https://atcafe.emoji.tw/sitemap.xml
+Sitemap: https://3am.emoji.tw/sitemap.xml
+Sitemap: https://staysquare.emoji.tw/sitemap.xml
+Sitemap: https://restbook.emoji.tw/sitemap.xml
+# LLM 摘要：https://www.emoji.tw/llms.txt

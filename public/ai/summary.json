@@ -6,9 +6,13 @@
     "言文字",
     "言文字｜台灣人才聚落"
   ],
-  "description": "言文字｜台灣人才聚落位於台北車站 Z10 出口斜對面。在咖啡／三點水 用餐會客不需會員；等等空間 工作方案 4 小時 NT$200、12 小時 NT$500。只有 等等空間社群活動使用場地申請表；企業、團隊、客戶活動與 offsite 請 Email 洽詢。",
+  "description": "言文字｜台灣人才聚落位於台北車站 Z10 出口斜對面，由在咖啡（at cafe）、三點水（3AM）、等等空間（Stay Square）、約書旅（Rest Book）四個品牌組成，並有社群活動與新創支援。價格與營業細節以各品牌官網為準。",
   "url": "https://www.emoji.tw/",
-  "inLanguage": ["zh-Hant", "en", "ja"],
+  "inLanguage": [
+    "zh-Hant",
+    "en",
+    "ja"
+  ],
   "address": {
     "streetAddress": "重慶南路一段 11 號",
     "addressLocality": "中正區",
@@ -34,5 +38,31 @@
     "en": "https://www.emoji.tw/en/",
     "ja": "https://www.emoji.tw/ja/"
   },
-  "dateModified": "2026-09-06"
+  "dateModified": "2026-11-10",
+  "brands": [
+    {
+      "name": "在咖啡 at cafe",
+      "url": "https://atcafe.emoji.tw/",
+      "description": "日式簡餐與工作咖啡，每日 08:00–17:00，不需會員。",
+      "llms": "https://atcafe.emoji.tw/llms.txt"
+    },
+    {
+      "name": "三點水 3AM",
+      "url": "https://3am.emoji.tw/",
+      "description": "深夜食堂與餐酒館，每日 17:00–翌日 03:00，不需會員。",
+      "llms": "https://3am.emoji.tw/llms.txt"
+    },
+    {
+      "name": "等等空間 Stay Square",
+      "url": "https://staysquare.emoji.tw/",
+      "description": "會員共享工作與會議空間，可包場辦講座與工作坊。",
+      "llms": "https://staysquare.emoji.tw/llms.txt"
+    },
+    {
+      "name": "約書旅 Rest Book",
+      "url": "https://restbook.emoji.tw/",
+      "description": "台北車站旁的閱讀空間與貴賓室，按時段付空間使用費；不在車站內、不提供住宿。",
+      "llms": "https://restbook.emoji.tw/llms.txt"
+    }
+  ]
 }

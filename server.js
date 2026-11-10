@@ -1629,6 +1629,14 @@ app.use(require('./lib/lang-pref').langPrefMiddleware({
     ? /^\/(index\.html|cis\/?)?$/.test(p) || (String(req.hostname || '').toLowerCase() === 'staysquare.emoji.tw' && /^\/(about|spaces|membership|venue|access)\/?$/.test(p))
     : p === '/' || /^\/(events|event-application|halloween-2026|space|menu|at-cafe|3am|stay-square)\/?$/.test(p) || !!resolvePublicHtml(path.join(PUB, 'en'), p),
 }));
+// 子品牌 sitemap：首頁（＋等等空間子頁）× 三語，loc 與各頁 canonical 一致，每筆附 xhtml:link hreflang
+function brandSitemap(slug, host) {
+  const subs = [''].concat(slug === 'stay-square' ? ['about', 'spaces', 'membership', 'venue', 'access'] : []);
+  const loc = (lang, sub) => `https://${host}` + (lang === 'zh' ? (sub ? '/' + sub : '/') : '/' + lang + (sub ? '/' + sub : ''));
+  const alts = sub => ['zh', 'en', 'ja'].map(l => `    <xhtml:link rel="alternate" hreflang="${l === 'zh' ? 'zh-Hant' : l}" href="${loc(l, sub)}"/>`).join('\n') + `\n    <xhtml:link rel="alternate" hreflang="x-default" href="${loc('zh', sub)}"/>`;
+  const urls = subs.flatMap(sub => ['zh', 'en', 'ja'].map(lang => `  <url>\n    <loc>${loc(lang, sub)}</loc>\n${alts(sub)}\n  </url>`));
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${urls.join('\n')}\n</urlset>\n`;
+}
 // 子品牌獨立站（atcafe／3am／staysquare／restbook.emoji.tw）：同一支服務依 host 分流，首頁是 public/brand-sites/<slug>.html，
 // 菜單與空間文案由 renderSpace 伺服器端填入；只放行靜態資源與 /api，其餘路徑（訂位、活動、會員…）一律導回官網同路徑。
 app.use((req, res, next) => {
@@ -1669,12 +1677,10 @@ app.use((req, res, next) => {
     publicPageCache(req, res);
     return res.sendFile(path.join(PUB, cisM[1] || '', 'cis', 'brands', slug, 'index.html'));
   }
-  if (req.path === '/robots.txt') return res.type('text/plain').send(`User-agent: *\nAllow: /\nSitemap: https://${req.hostname}/sitemap.xml\n`);
-  if (req.path === '/sitemap.xml') {
-    const base = 'https://' + String(req.hostname).toLowerCase();
-    const urls = ['', '/en', '/ja'].map(p => `  <url>\n    <loc>${base}${p}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>${p ? '0.8' : '1.0'}</priority>\n  </url>`).join('\n');
-    return res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
-  }
+  // SEO／GEO（KK 11/10）：robots 擋 API、列 sitemap 與 llms.txt；sitemap 含等等空間子頁、三語 hreflang 與 lastmod（頁面檔修改日）
+  if (req.path === '/robots.txt') return res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /order\n\nSitemap: https://${req.hostname}/sitemap.xml\n# LLM 摘要：https://${req.hostname}/llms.txt\n`);
+  if (req.path === '/llms.txt') { publicPageCache(req, res); return res.type('text/plain; charset=utf-8').sendFile(path.join(PUB, 'brand-sites', 'llms', slug + '.txt')); }
+  if (req.path === '/sitemap.xml') return res.type('application/xml').set('Cache-Control', 'public, max-age=3600').send(brandSitemap(slug, String(req.hostname).toLowerCase()));
   // 掃碼點餐分店網域（KK 11/4）：atcafe.emoji.tw/order、3am.emoji.tw/order 回桌邊點餐頁（主色依 CIS 店別），點餐頁音效 /sfx 一併放行
   if (tableOrders.ORDER_HOST_VENUE[String(req.hostname || '').toLowerCase()] && /^\/(order\/?$|sfx\/|line-handoff\.js$|event-push-sw\.js$)/.test(req.path)) return next();
   if (BRAND_HOST_OWN.test(req.path)) return next();

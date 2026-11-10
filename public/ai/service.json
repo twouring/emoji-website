@@ -1,53 +1,57 @@
 {
   "name": "言文字｜台灣人才聚落 Taiwan Talent Hub",
   "url": "https://www.emoji.tw/",
-  "description": "台北車站旁品牌空間：在咖啡／三點水 餐飲會客、等等空間 會員工作與活動空間。",
-  "dateModified": "2026-09-06",
+  "description": "台北車站旁的品牌聚落：在咖啡、三點水餐飲；等等空間共享工作與包場；約書旅閱讀空間。",
+  "dateModified": "2026-11-10",
   "capabilities": [
     {
-      "name": "Dining with at cafe or 3AM and client meetings",
-      "description": "在咖啡（at cafe）與三點水（3AM）用餐、會客不需會員。"
+      "name": "在咖啡 at cafe",
+      "description": "日式簡餐與工作咖啡，每日 08:00–17:00，不需會員。",
+      "url": "https://atcafe.emoji.tw/"
     },
     {
-      "name": "Day membership 4 hours",
-      "description": "單日會籍 4 小時 NT$200，可使用等等空間。",
-      "price": "200",
-      "priceCurrency": "TWD"
+      "name": "三點水 3AM",
+      "description": "深夜食堂與餐酒館，每日 17:00–翌日 03:00，不需會員。",
+      "url": "https://3am.emoji.tw/"
     },
     {
-      "name": "Day membership 12 hours",
-      "description": "單日會籍 12 小時 NT$500，可使用等等空間。",
-      "price": "500",
-      "priceCurrency": "TWD"
+      "name": "等等空間 Stay Square",
+      "description": "會員共享工作與會議空間，可包場辦講座與工作坊。",
+      "url": "https://staysquare.emoji.tw/"
     },
     {
-      "name": "Monthly / quarterly / annual membership",
-      "description": "月 NT$4,000、季 NT$10,000、年 NT$35,000，可使用等等空間與所有設備。"
+      "name": "約書旅 Rest Book",
+      "description": "台北車站旁的閱讀空間與貴賓室，按時段付空間使用費；不在車站內、不提供住宿。",
+      "url": "https://restbook.emoji.tw/"
     },
     {
-      "name": "Stay Square community event application",
-      "description": "只有等等空間社群活動使用場地申請表；送出申請或審核通過都不代表場地已預留。",
-      "url": "https://www.emoji.tw/events?apply=1#ev-apply"
+      "name": "Table reservations (at cafe, 3AM)",
+      "description": "在咖啡、三點水線上訂位。",
+      "url": "https://www.emoji.tw/reserve"
     },
     {
-      "name": "Business and team event enquiry",
-      "description": "企業、團隊、客戶活動與 offsite 請寄信至 us@emoji.tw；日期、人數、空間、費用及條件須另行確認並完成書面約定。",
-      "url": "mailto:us@emoji.tw"
-    },
-    {
-      "name": "Community collaboration",
-      "description": "社群合作與場地租借洽談。",
-      "url": "https://www.emoji.tw/events#venue"
+      "name": "Community events",
+      "description": "講座、工作坊與社群小聚。",
+      "url": "https://www.emoji.tw/events"
     },
     {
       "name": "Startup support",
-      "description": "公司登記、產品場域驗證、顧問輔導三項服務（梯次滾動）。",
+      "description": "公司登記、產品實際場域驗證與顧問輔導。",
       "url": "https://www.emoji.tw/startup"
+    },
+    {
+      "name": "Business and press enquiries",
+      "description": "企業活動、媒體與合作洽詢。",
+      "url": "mailto:us@emoji.tw"
     }
   ],
   "contactPoint": {
     "email": "us@emoji.tw",
     "telephone": "+886-921-102-067",
-    "availableLanguage": ["zh-Hant", "en", "ja"]
+    "availableLanguage": [
+      "zh-Hant",
+      "en",
+      "ja"
+    ]
   }
 }
