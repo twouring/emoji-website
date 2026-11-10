@@ -86,3 +86,9 @@ test('接線：送單扣、作廢回補、客人端超量 409、POS 估清頁有
   assert.match(ops, /applyLiveStock\(POS_DATA\.stock\)/);
   assert.match(order, /tr\('stock_left'\)/);
 });
+
+test('甜點兩店共用：三點水帳號（BAR）也能估清／設份數 CAFE 甜點；非共用品項照擋', () => {
+  assert.equal(MenuLib.soldOutToday(item(T.setSoldOut(menu(), 'm_canele', true, ['BAR'], NOW), 'm_canele'), NOW), true);
+  assert.equal(item(T.setStock(menu(), 'm_canele', 4, ['BAR'], NOW), 'm_canele').stock_left, 4);
+  assert.throws(() => T.setSoldOut(menu(), 'm_latte', true, ['BAR'], NOW), e => e.status === 403);
+});
