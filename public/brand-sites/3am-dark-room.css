@@ -81,15 +81,6 @@
 .bs--3am .tam-plate figcaption{display:flex;flex-direction:column;gap:4px;margin-top:18px}
 .bs--3am .tam-plate figcaption b{text-wrap:balance;color:var(--paper);font-family:"Noto Serif TC",serif;font-weight:500;font-size:clamp(1.1rem,1.3vw,1.3rem);line-height:1.45}
 .bs--3am .tam-plate figcaption span{color:var(--blue-light);font-size:1rem;letter-spacing:.04em}
-.bs--3am .tam-plate--wide{grid-column:1/span 8}.bs--3am .tam-plate--wide .tam-plate__img{aspect-ratio:4/3}
-.bs--3am .tam-plate--tall .tam-plate__img{aspect-ratio:2/3}
-.bs--3am .tam-plates>.tam-plate:nth-child(2){grid-column:9/span 4}
-.bs--3am .tam-plates>.tam-plate:nth-child(3){grid-column:1/span 4}
-.bs--3am .tam-plates>.tam-plate:nth-child(4){grid-column:5/span 4;margin-top:96px}
-.bs--3am .tam-plates>.tam-plate:nth-child(5){grid-column:9/span 4}
-.bs--3am .tam-plate--half .tam-plate__img{aspect-ratio:3/2}
-.bs--3am .tam-plates>.tam-plate:nth-child(6){grid-column:1/span 6}
-.bs--3am .tam-plates>.tam-plate:nth-child(7){grid-column:7/span 6}
 .bs--3am .tam-food__cta{margin-top:96px;display:flex;justify-content:flex-start}
 .bs--3am .tam-food__cta .bs-btn{min-height:56px;padding:0 36px;font-size:1.05rem}
 /* 關於：照片＋文字分割 */
@@ -116,8 +107,6 @@
 .bs--3am .tam-food__head h2{font-size:clamp(2.2rem,10vw,3rem)}
 .bs--3am .tam-plates{grid-template-columns:repeat(2,minmax(0,1fr));gap:36px 12px;margin-top:40px}
 .bs--3am .tam-plates>.tam-plate{grid-column:auto!important;margin-top:0!important}
-.bs--3am .tam-plates>.tam-plate--wide,.bs--3am .tam-plates>.tam-plate--half{grid-column:1/-1!important}
-.bs--3am .tam-plate--wide .tam-plate__img{aspect-ratio:3/2}
 .bs--3am .tam-plate figcaption{margin-top:12px}
 .bs--3am .tam-plate figcaption b{font-size:1.05rem}
 .bs--3am .tam-food__cta{margin-top:48px}
@@ -130,3 +119,45 @@
 html[lang="ja"] .bs--3am .tam-hero h1,html[lang="ja"] .bs--3am .tam-food__head h2,html[lang="ja"] .bs--3am .tam-story h2{word-break:normal;line-break:strict}
 html[lang="ja"] .bs--3am .tam-hero .bs-hero__lede{word-break:normal}
 @media(max-width:760px){.bs--3am .bs-menu__jump{top:64px;box-shadow:0 0 0 100vmax var(--night-raised)}.bs--3am .bs-menu .menu-group{scroll-margin-top:150px}}
+/* ===== 2026-11-10 強化餐飲圖片（KK）：整桌滿版首屏、8 道 4:5 作品牆＋燈箱、入夜之後三張入口特寫 ===== */
+.bs--3am .tam-hero__photo{left:0}
+.bs--3am .tam-hero__photo img,.bs--3am .tam-hero__photo img[width][height]{object-position:50% 50%;filter:brightness(.9) saturate(1)}
+.bs--3am .tam-hero::after{left:0;right:0;width:auto;background:linear-gradient(90deg,rgba(17,25,31,.92) 0%,rgba(17,25,31,.7) 30%,rgba(17,25,31,0) 60%),linear-gradient(0deg,rgba(17,25,31,.9) 0%,rgba(17,25,31,0) 40%)}
+.bs--3am .tam-plates{grid-template-columns:repeat(4,minmax(0,1fr));gap:56px clamp(14px,2vw,32px)}
+.bs--3am .tam-plates>.tam-plate:nth-child(even){margin-top:64px}
+.bs--3am .tam-plate__img{aspect-ratio:4/5}
+.bs--3am .tam-plate img[data-tam-photo]{cursor:zoom-in}
+.bs--3am .tam-plate img[data-tam-photo]:focus-visible{outline:2px solid var(--blue-light);outline-offset:4px}
+.bs--3am .tam-plate__img:has(img:focus-visible){overflow:visible}
+.bs--3am .tam-bites{list-style:none;margin:56px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(20px,3vw,48px)}
+.bs--3am .tam-bites li{display:flex;flex-direction:column;gap:10px;margin:0}
+.bs--3am .tam-bites li:nth-child(2){margin-top:72px}
+.bs--3am .tam-bite{margin:0 0 14px;overflow:hidden;background:var(--night-raised);aspect-ratio:4/5}
+.bs--3am .tam-bite img,.bs--3am .tam-bite img[width][height]{display:block;width:100%;height:100%;object-fit:cover;transition:transform 1.1s cubic-bezier(.2,.7,.2,1)}
+.bs--3am .tam-bites li:hover .tam-bite img{transform:scale(1.04)}
+.bs--3am .tam-bites b{color:var(--paper);font-family:"Noto Serif TC",serif;font-weight:500;font-size:clamp(1.3rem,1.8vw,1.7rem)}
+.bs--3am .tam-bites span{color:var(--soft);line-height:1.75}
+.bs--3am .tam-story__photo img,.bs--3am .tam-story__photo img[width][height]{aspect-ratio:4/5}
+.tam-lightbox{border:0;padding:0;margin:auto;max-width:min(92vw,1080px);max-height:92vh;background:transparent;overflow:visible}
+.tam-lightbox::backdrop{background:rgba(8,12,15,.9)}
+.tam-lightbox__frame{margin:0;position:relative;display:flex;flex-direction:column;gap:12px}
+.tam-lightbox img{display:block;max-width:100%;max-height:calc(92vh - 64px);width:auto;height:auto;margin:0 auto;object-fit:contain}
+.tam-lightbox figcaption{color:#eef0ea;font-family:"Noto Serif TC",serif;font-size:1.1rem;text-align:center}
+.tam-lightbox__close{position:absolute;top:8px;right:8px;width:48px;height:48px;border:0;border-radius:50%;background:rgba(17,25,31,.85);color:#eef0ea;font-size:1.8rem;line-height:1;cursor:pointer}
+.tam-lightbox__close:focus-visible{outline:2px solid #9fb6c9;outline-offset:2px}
+@media(min-width:761px) and (max-width:1100px){.bs--3am .tam-hero__photo{left:0}.bs--3am .tam-hero::after{left:0}.bs--3am .tam-plates{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:899px){.bs--3am .tam-bites{grid-template-columns:minmax(0,1fr);gap:48px}.bs--3am .tam-bites li:nth-child(2){margin-top:0}.bs--3am .tam-bite{aspect-ratio:3/2}}
+@media(max-width:760px){
+.bs--3am .tam-hero__photo img,.bs--3am .tam-hero__photo img[width][height]{object-position:50% 40%}
+.bs--3am .tam-hero::after{background:linear-gradient(0deg,var(--night) 0%,rgba(17,25,31,.85) 38%,rgba(17,25,31,0) 64%)}
+.bs--3am .tam-plates{grid-template-columns:repeat(2,minmax(0,1fr));gap:32px 12px}
+.bs--3am .tam-plates>.tam-plate:nth-child(even){margin-top:40px!important}
+.bs--3am .tam-story__photo img,.bs--3am .tam-story__photo img[width][height]{aspect-ratio:3/2}
+}
+@media (prefers-reduced-motion:reduce){.bs--3am .tam-bite img{transition:none}}
+@media(min-width:1101px){.bs--3am .tam-hero__photo{left:34%}.bs--3am .tam-hero::after{left:34%;right:auto;width:30%;background:linear-gradient(90deg,var(--night) 0%,rgba(17,25,31,.55) 40%,rgba(17,25,31,0) 100%)}.bs--3am .tam-hero__photo img,.bs--3am .tam-hero__photo img[width][height]{object-position:40% 50%}}
+@media(min-width:761px) and (max-width:1100px){.bs--3am .tam-hero__photo{left:40%}.bs--3am .tam-hero::after{left:40%;right:auto;width:30%;background:linear-gradient(90deg,var(--night) 0%,rgba(17,25,31,0) 100%)}}
+.bs--3am .tam-hero .bs-hero__lede{word-break:keep-all}
+.bs--3am .tam-hero .bs-hero__meta span{color:#c9d1cf}
+.bs--3am .tam-keep{white-space:nowrap}
+@media(min-width:1101px){.bs--3am .tam-hero__photo{left:37%}.bs--3am .tam-hero::after{left:37%}}

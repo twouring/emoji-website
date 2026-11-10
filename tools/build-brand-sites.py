@@ -94,7 +94,7 @@ def head(slug, title, desc):
                      'imagesrcset="/brand-sites/assets/atcafe/matcha-800.webp 643w, /brand-sites/assets/atcafe/matcha-1400.webp 1125w" imagesizes="(max-width: 760px) 100vw, 44vw">'
                      '\n<script>document.documentElement.classList.add("js")</script>')
     fonts = FONTS_CAFE if cafe else FONTS_DEFAULT
-    og_img = 'brand-sites/assets/atcafe/matcha-1400.webp' if cafe else 'brand-sites/assets/3am/clam-soup-1800.webp' if slug == '3am' else f'brand-sites/assets/{slug}-avatar.webp'
+    og_img = 'brand-sites/assets/atcafe/matcha-1400.webp' if cafe else 'brand-sites/assets/3am/spread-1440.webp' if slug == '3am' else f'brand-sites/assets/{slug}-avatar.webp'
     ld = ''
     if b['schema']:
         ld = ('<script type="application/ld+json">{"@context":"https://schema.org","@type":"%s","name":"%s %s",'
@@ -355,23 +355,35 @@ def page_cafe():
 # 三點水 2026-11-04 改版（KK：更像餐酒館、主打餐點照片與藝文感）：影棚餐點照（影棚攝影-xxx.jpg → webp 兩尺寸），
 # 說明採展牌式（品名＋類別），品名須與現行菜單一致。
 TAM = '/brand-sites/assets/3am/'
-TAM_PLATES = [  # (檔名, 小寬, 大寬, 大圖寬, 大圖高, 版位, 品名 zh/en/ja, 類別 zh/en/ja)
-    ('tomato', 960, 1800, 1800, 1200, 'wide', ('酸甜梅漬焙茶番茄', 'Plum-Pickled Tomato, Hojicha', '梅漬けトマト（ほうじ茶風味）'), ('冷前菜', 'Cold starter', '冷前菜')),
-    ('karaage', 720, 1200, 1200, 1800, 'tall', ('酥炸唐揚雞淋川味美乃滋', 'Karaage, Sichuan Mayo', '唐揚げ 四川風マヨネーズ'), ('炸物', 'Fried', '揚げ物')),
-    ('salmon', 720, 1200, 1200, 1800, 'tall', ('柚香鮭魚冷盤', 'Yuzu Salmon Crudo', '柚子香るサーモンのカルパッチョ'), ('冷前菜', 'Cold starter', '冷前菜')),
-    ('shrimp', 720, 1200, 1200, 1800, 'tall', ('馬告鳳尾蝦阿根廷醬', 'Maqaw Shrimp, Chimichurri', '馬告風味の車海老 チミチュリソース'), ('烤物', 'Grilled', '焼き物')),
-    ('soba', 720, 1200, 1200, 1800, 'tall', ('醬香野菇蕎麥麵附溫泉蛋', 'Soy Mushroom Soba, Onsen Egg', '醤油きのこそば（温泉卵付き）'), ('主食', 'Mains', '主食')),
-    ('broccoli', 960, 1800, 1800, 1200, 'half', ('白味噌優格炙烤花椰菜', 'Charred Broccoli, White Miso Yogurt', 'ブロッコリーの炙り焼き（白味噌ヨーグルト）'), ('熱前菜', 'Hot starter', '温前菜')),
-    ('curry', 960, 1800, 1800, 1200, 'half', ('太陽蛋番茄雞肉乾咖哩飯', 'Tomato Chicken Dry Curry, Sunny-Side Egg', 'トマトチキンのドライカレー 目玉焼き添え'), ('主食', 'Mains', '主食')),
+# 2026-11-10 KK「強化餐飲圖片」：首屏改整桌料理滿版（影棚攝影-243）；作品牆 8 道統一 4:5（美化版 3am_studio_*.jpg），
+# 點圖可放大（原生 <dialog>）；「入夜之後」三欄各配一張入口特寫（305／308／323）。
+TAM_PLATES = [  # (檔名, 品名 zh/en/ja, 類別 zh/en/ja)
+    ('salmon', ('柚香鮭魚冷盤', 'Yuzu Salmon Crudo', '柚子香るサーモンのカルパッチョ'), ('冷前菜', 'Cold starter', '冷前菜')),
+    ('tomato', ('酸甜梅漬焙茶番茄', 'Plum-Pickled Tomato, Hojicha', '梅漬けトマト（ほうじ茶風味）'), ('冷前菜', 'Cold starter', '冷前菜')),
+    ('broccoli', ('白味噌優格炙烤花椰菜', 'Charred Broccoli, White Miso Yogurt', 'ブロッコリーの炙り焼き（白味噌ヨーグルト）'), ('熱前菜', 'Hot starter', '温前菜')),
+    ('karaage', ('酥炸唐揚雞淋川味美乃滋', 'Karaage, Sichuan Mayo', '唐揚げ 四川風マヨネーズ'), ('炸物', 'Fried', '揚げ物')),
+    ('shrimp', ('馬告鳳尾蝦阿根廷醬', 'Maqaw Shrimp, Chimichurri', '馬告風味の車海老 チミチュリソース'), ('烤物', 'Grilled', '焼き物')),
+    ('soba', ('醬香野菇蕎麥麵附溫泉蛋', 'Soy Mushroom Soba, Onsen Egg', '醤油きのこそば（温泉卵付き）'), ('主食', 'Mains', '主食')),
+    ('curry', ('太陽蛋番茄雞肉乾咖哩飯', 'Tomato Chicken Dry Curry, Sunny-Side Egg', 'トマトチキンのドライカレー 目玉焼き添え'), ('主食', 'Mains', '主食')),
+    ('clam', ('剝皮辣椒蛤蜊雞湯', 'Clam Chicken Soup, Pickled Peppers', 'あさりと鶏のスープ 剥皮辣椒入り'), ('湯品', 'Soup', 'スープ')),
 ]
 
 
-def tam_plate(name, sw, bw, w, h, slot, dish, kind):
-    sizes = {'wide': '(max-width: 760px) 100vw, 60vw', 'half': '(max-width: 760px) 100vw, 46vw'}.get(slot, '(max-width: 760px) 50vw, 32vw')
-    return (f'<figure class="tam-plate tam-plate--{slot}"><div class="tam-plate__img"><img src="{TAM}{name}-{sw}.webp" '
-            f'srcset="{TAM}{name}-{sw}.webp {sw}w, {TAM}{name}-{bw}.webp {bw}w" sizes="{sizes}" width="{w}" height="{h}" '
-            f'alt="{e(t(*dish))}" loading="lazy" decoding="async"></div>'
+def tam_plate(name, dish, kind):
+    label = t('放大照片：', 'Enlarge photo: ', '写真を拡大：') + t(*dish)
+    return (f'<figure class="tam-plate"><div class="tam-plate__img"><img src="{TAM}p-{name}-540.webp" '
+            f'srcset="{TAM}p-{name}-540.webp 540w, {TAM}p-{name}-1080.webp 1080w" sizes="(max-width: 760px) 50vw, 25vw" width="1080" height="1350" '
+            f'alt="{e(t(*dish))}" data-tam-photo tabindex="0" role="button" aria-label="{e(label)}" loading="lazy" decoding="async"></div>'
             f'<figcaption><b>{e(t(*dish))}</b><span>{e(t(*kind))}</span></figcaption></figure>')
+
+
+def tam_bite(name, alt):
+    return (f'<figure class="tam-bite"><img src="{TAM}bite-{name}-720.webp" srcset="{TAM}bite-{name}-720.webp 720w, {TAM}bite-{name}-1200.webp 1200w" '
+            f'sizes="(max-width: 899px) 100vw, 30vw" width="1200" height="1800" alt="{e(alt)}" loading="lazy" decoding="async"></figure>')
+
+
+TAM_LIGHTBOX = '''<script>(function(){var d=document.createElement("dialog"),lang=document.documentElement.lang,close=lang==="ja"?"閉じる":lang==="en"?"Close":"關閉",last;d.className="tam-lightbox";d.innerHTML='<figure class="tam-lightbox__frame"><img alt=""><figcaption></figcaption><button class="tam-lightbox__close" type="button" aria-label="'+close+'">×</button></figure>';document.body.appendChild(d);var img=d.querySelector("img"),cap=d.querySelector("figcaption");function open(el){last=el;var s=(el.getAttribute("srcset")||"").split(",");img.src=s.length>1?s[s.length-1].trim().split(/\\s+/)[0]:el.src;img.alt=el.alt;cap.textContent=el.alt;d.showModal()}function shut(){d.close()}document.addEventListener("click",function(e){var el=e.target.closest("img[data-tam-photo]");if(el)open(el)});document.addEventListener("keydown",function(e){var el=e.target.closest&&e.target.closest("img[data-tam-photo]");if(el&&(e.key==="Enter"||e.key===" ")){e.preventDefault();open(el)}});d.querySelector("button").addEventListener("click",shut);d.addEventListener("click",function(e){if(e.target===d)shut()});d.addEventListener("close",function(){if(last)last.focus()})})()</script>
+'''
 
 
 def page_3am():
@@ -388,13 +400,13 @@ def page_3am():
     out += f'''<main id="content">
 <section class="bs-hero tam-hero">
   <picture class="tam-hero__photo">
-    <source media="(max-width: 760px)" srcset="{TAM}table-720.webp 720w, {TAM}table-1200.webp 1200w" sizes="100vw" width="1200" height="1788">
-    <img src="{TAM}clam-soup-1800.webp" srcset="{TAM}clam-soup-960.webp 960w, {TAM}clam-soup-1800.webp 1800w" sizes="100vw" width="1800" height="1200" alt="{t('三點水的蛤蜊料理與一杯酒', 'A clam dish and a glass at 3AM', '三點水のあさり料理と一杯')}" fetchpriority="high" decoding="async">
+    <source media="(max-width: 760px)" srcset="{TAM}spread-m-800.webp 800w, {TAM}spread-m-1400.webp 1400w" sizes="100vw" width="1400" height="2098">
+    <img src="{TAM}spread-1440.webp" srcset="{TAM}spread-1440.webp 1440w, {TAM}spread-2400.webp 2400w" sizes="100vw" width="2400" height="1350" alt="{t('三點水的一桌料理：唐揚雞、蛤蜊雞湯、蕎麥麵、鮭魚、番茄、鳳尾蝦與兩杯酒', 'A full table at 3AM: karaage, clam soup, soba, salmon, tomato, shrimp and two glasses', '三點水のテーブル：唐揚げ、あさりのスープ、そば、サーモン、トマト、海老と二杯のグラス')}" fetchpriority="high" decoding="async">
   </picture>
   <div class="wrap tam-hero__in">
     <div class="tam-hero__copy">
       <h1>{t('醒著，就來。', 'Still awake? Come in.', '起きているなら、どうぞ。')}<span class="en">三點水 3AM Bistro</span></h1>
-      <p class="bs-hero__lede">{t('台北車站旁的深夜餐酒館。日式 fusion 料理配一杯清酒或梅酒，營業到凌晨三點。', 'A late-night bistro by Taipei Main Station. Japanese fusion plates with sake or umeshu, until 3 a.m.', '台北駅そばの深夜ビストロ。和のフュージョン料理に日本酒や梅酒を一杯。深夜3時まで。')}</p>
+      <p class="bs-hero__lede">{t('台北車站旁的深夜餐酒館。<span class="tam-keep">日式 fusion 料理</span>配一杯清酒或梅酒，營業到凌晨三點。', 'A late-night bistro by Taipei Main Station. Japanese fusion plates with sake or umeshu, until 3 a.m.', '台北駅そばの深夜ビストロ。和のフュージョン料理に日本酒や梅酒を一杯。深夜3時まで。')}</p>
       <div class="bs-hero__actions"><a class="bs-btn" href="{reserve}">{t('訂一張桌', 'Book a table', '予約する')}</a><a class="bs-text-link" href="#food">{t('看今晚的料理', 'See tonight’s plates', '今夜の料理を見る')}</a></div>
     </div>
     <p class="bs-hero__meta"><b>17:00–03:00</b><span>{t('每天 · 台北車站 Z10 出口斜對面', 'Daily · across from Exit Z10', '毎日 · Z10出口の斜め向かい')}</span></p>
@@ -414,15 +426,11 @@ def page_3am():
           (t('時段', 'Hours', '営業時間'), t('17:00–翌日 03:00', '17:00–03:00 next day', '17:00–翌03:00')),
           (t('使用資格', 'Access', '利用条件'), t('所有訪客，不需會員', 'Open to everyone; no membership required', 'どなたでも利用可。会員登録不要')),
           (t('費用', 'Price', '料金'), t('依菜單', 'See menu', 'メニュー参照'))])}
-  <div class="bs-feat bs-feat--gap">
-    <figure class="bs-feat__moji"><img src="/brand-sites/assets/moji-night.svg" alt="" width="200" height="200" loading="lazy"><figcaption>{t('moji · 入夜', 'moji · after dark', 'moji · 夜')}</figcaption></figure>
-    {points([(t('晚餐', 'Dinner', '夕食'),
-              t('下班、下車，直接在台北車站旁吃一頓熱的。冷熱前菜、炸物、燒烤與麵食。', 'Off work or off the train: a hot meal right by Taipei Main Station. Cold and hot starters, fried dishes, grills and noodles.', '仕事帰り、電車を降りてすぐ。台北駅のそばで温かい一食を。冷・温前菜、揚げ物、グリル、麺。')),
-             (t('宵夜', 'Late night', '夜食'),
-              t('過了午夜還在營業，有人服務到凌晨三點。', 'Still open past midnight, staffed until 3 a.m.', '深夜 0 時を過ぎても営業。深夜 3 時までスタッフが対応します。')),
-             (t('餐食佐酒', 'Meals with drinks', '食事とお酒'),
-              t('以餐為主、酒為輔：啤酒、清酒與果實酒。一個人坐吧檯，或幾個人一桌都行。', 'Food first, drinks alongside: beer, sake and fruit liqueurs. A seat at the counter on your own, or a table with friends.', '料理が主役、お酒は添えて。ビール、日本酒、果実酒。ひとりでカウンターでも、数人でテーブルでも。'))], False)}
-  </div>
+  <ol class="tam-bites">
+    <li>{tam_bite('shrimp', t('叉起一隻馬告鳳尾蝦', 'Lifting a maqaw shrimp', '馬告風味の海老をひと口'))}<b>{t('晚餐', 'Dinner', '夕食')}</b><span>{t('下班、下車，直接在台北車站旁吃一頓熱的。冷熱前菜、炸物、燒烤與麵食。', 'Off work or off the train: a hot meal right by Taipei Main Station. Cold and hot starters, fried dishes, grills and noodles.', '仕事帰り、電車を降りてすぐ。台北駅のそばで温かい一食を。冷・温前菜、揚げ物、グリル、麺。')}</span></li>
+    <li>{tam_bite('karaage', t('筷子夾起沾醬的唐揚雞', 'Karaage dipped in Sichuan mayo', '四川風マヨをつけた唐揚げ'))}<b>{t('宵夜', 'Late night', '夜食')}</b><span>{t('過了午夜還在營業，有人服務到凌晨三點。', 'Still open past midnight, staffed until 3 a.m.', '深夜 0 時を過ぎても営業。深夜 3 時までスタッフが対応します。')}</span></li>
+    <li>{tam_bite('broccoli', t('一口炙烤花椰菜與白味噌優格醬', 'A bite of charred broccoli with white miso yogurt', '炙りブロッコリーと白味噌ヨーグルトをひと口'))}<b>{t('餐食佐酒', 'Meals with drinks', '食事とお酒')}</b><span>{t('以餐為主、酒為輔：啤酒、清酒與果實酒。一個人坐吧檯，或幾個人一桌都行。', 'Food first, drinks alongside: beer, sake and fruit liqueurs. A seat at the counter on your own, or a table with friends.', '料理が主役、お酒は添えて。ビール、日本酒、果実酒。ひとりでカウンターでも、数人でテーブルでも。')}</span></li>
+  </ol>
 </div></section>
 '''
     body = ''.join(f'<p>{e(t(*p))}</p>' for p in [
@@ -437,7 +445,7 @@ def page_3am():
          'メニュー価格は税込です。会員でなくてもご利用いただけます。18 歳未満の飲酒は禁止。飲酒運転は禁止です。'),
     ])
     out += f'''<section class="bs-story tam-story" aria-labelledby="story-h"><div class="wrap tam-story__in">
-  <figure class="tam-story__photo"><picture><source media="(max-width: 760px)" srcset="{TAM}clam-soup-960.webp 960w, {TAM}clam-soup-1800.webp 1800w" sizes="100vw" width="1800" height="1200"><img src="{TAM}table-720.webp" srcset="{TAM}table-720.webp 720w, {TAM}table-1200.webp 1200w" sizes="(max-width: 760px) 100vw, 42vw" width="1200" height="1788" alt="{t('三點水一桌料理與兩杯酒', 'A full table of plates and two glasses at 3AM', '三點水の料理が並ぶテーブルと二杯のグラス')}" loading="lazy" decoding="async"></picture></figure>
+  <figure class="tam-story__photo"><img src="{TAM}clam-soup-960.webp" srcset="{TAM}clam-soup-960.webp 960w, {TAM}clam-soup-1800.webp 1800w" sizes="(max-width: 760px) 100vw, 42vw" width="1800" height="1200" alt="{t('剝皮辣椒蛤蜊雞湯與一杯酒', 'Clam chicken soup with pickled peppers, and a glass', 'あさりと鶏のスープと一杯')}" loading="lazy" decoding="async"></figure>
   <div class="tam-story__text"><div class="bs-sec__head bs-sec__head--plain">{sec_h2('story-h', '關於三點水', 'About 3AM', '三點水について')}</div><div class="bs-story__body">{body}</div></div>
 </div></section>
 '''
@@ -475,7 +483,7 @@ def page_3am():
                   (t('最後點餐', 'Last orders', 'ラストオーダー'), t('以現場公告為準', 'As posted on site', '店内の案内に準じます'))], s)
     out += '</main>\n'
     out += footer_html(s, [(t('訂位', 'Book', '予約'), reserve), (t('查看菜單', 'View menu', 'メニュー'), '#menu')])
-    return out
+    return out.replace('</body>', TAM_LIGHTBOX + '</body>')
 
 
 # ---------------------------------------------------------------- 等等空間
