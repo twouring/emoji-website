@@ -63,7 +63,7 @@ test('開桌就選人數：POS 內用開桌先問大人／小孩，伺服器開�
   assert.match(pos, /const p=await pickParty\(`\$\{table\} 開桌（訂位/);
   assert.match(pos, /party\[t\]=p;/, '一次開多桌也要逐桌選人數');
   assert.match(server, /votes=tableOrders\.partySetByPos\(\{\},req\.body\.party_size,req\.body\.kids,req\.body\.foreign\)/);
-  assert.match(server, /INSERT INTO table_sessions\(id,table_no,opened_by_staff_id,opened_by_staff_name,party_votes\)/);
+  assert.match(server, /INSERT INTO table_sessions\(id,table_no,opened_by_staff_id,opened_by_staff_name,party_votes(,venue)?\)/);
   assert.match(server, /no:tableOrders\.sessionNo\(s\.id\),opened_at:s\.created_at\|\|null,party_size:tableOrders\.partySize\(s\.party_votes\),kids:tableOrders\.partyKids\(s\.party_votes\),foreign:tableOrders\.partyForeign\(s\.party_votes\)/);
 });
 

@@ -30,7 +30,7 @@ test('接線：/api/admin/staff/verify 端點存在且限流、開桌與結帳�
   assert.match(server, /app\.post\('\/api\/admin\/staff\/verify',rateLimit\(\{max:12\}\),auth,adminOnly,requireDb/, '認人端點要跟打卡一樣限流防猜碼');
   assert.match(server, /async function resolveOperator\(req, id\)/, '要有共用的 operator 解析函式');
   assert.match(server, /ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS opened_by_staff_id TEXT, ADD COLUMN IF NOT EXISTS opened_by_staff_name TEXT/);
-  assert.match(server, /INSERT INTO table_sessions\(id,table_no,opened_by_staff_id,opened_by_staff_name,party_votes\)/, '開桌要存操作人員');
+  assert.match(server, /INSERT INTO table_sessions\(id,table_no,opened_by_staff_id,opened_by_staff_name,party_votes(,venue)?\)/, '開桌要存操作人員');
   assert.match(server, /tableOrders\.posCheckout\(s\.items,\{\.\.\.req\.body,member:memberActive,staff:actorOf\(req\.auth\)\|\|'',operator\},menuAll,await activePaymentCodes\(posPaymentMethods\.groupsOf\(venues\|\|posRegister\.sessionVenues\(s\)\)\),\{table:s\.table_no\}\)/, '結帳要把 operator 與啟用中的收款帳戶代碼傳進 posCheckout');
   assert.match(server, /if\(!staff\|\|!posStaff\.staffVisible\(staff,venues\)\)return res\.status\(404\)\.json\(\{error:'識別碼不正確，請再試一次。'\}\);/, '驗 PIN 錯誤不可透露是否存在，同打卡');
   for (const fn of ['ensureOperator', 'openOperatorPad']) assert.match(ops, new RegExp(`function ${fn}\\(`), fn);

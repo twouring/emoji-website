@@ -519,7 +519,7 @@ body `{attempt_id}`。只取消 `prepared`（尚未送出）意圖；已送出�
 清桌：未取餐的單標記已取餐、這桌下一次掃碼開新場。**有未結帳品項時回 409**（請先結帳或逐項作廢，避免漏收）；言文字管理員可帶 body `{ force: true }` 強制清桌並作廢未結品項。
 
 ### POST /api/admin/orders/table-layout
-儲存 POS 桌況平面圖（全店共用）：每桌在畫布上的位置，百分比座標。Body：`{pos:{"A1":[x,y],...}}`，空物件＝還原成預設格子。`GET /api/admin/orders` 會回傳 `table_layout:{order,pos}`（`order` 保留舊版排序資料）。可另帶 `tables:["A1",...]`＝現場桌號清單（編輯桌位加減桌，整份取代，1–200 桌、不可重複；沒帶沿用目前的，沒存過＝前端預設 16 桌），一併回傳於 `table_layout.tables`。仍接受舊版 `{order:[...]}`；座標必須為 0–100 的有限數字、桌號沿用 1–8 碼英數／連字號，最多 200 桌。
+儲存 POS 桌況平面圖（各品牌一份，KK 11/10：帶 `venue` 或品牌帳號存 `pos_table_layout:<VENUE>`，該品牌沒存過沿用舊的共用設定；`GET /api/admin/orders?venue=` 回該品牌的 `table_layout`）：每桌在畫布上的位置，百分比座標。Body：`{pos:{"A1":[x,y],...}}`，空物件＝還原成預設格子。`GET /api/admin/orders` 會回傳 `table_layout:{order,pos}`（`order` 保留舊版排序資料）。可另帶 `tables:["A1",...]`＝現場桌號清單（編輯桌位加減桌，整份取代，1–200 桌、不可重複；沒帶沿用目前的，沒存過＝前端預設 16 桌），一併回傳於 `table_layout.tables`。仍接受舊版 `{order:[...]}`；座標必須為 0–100 的有限數字、桌號沿用 1–8 碼英數／連字號，最多 200 桌。
 
 ### GET /api/admin/orders/pause
 讀取各店別暫停點餐狀態（估清頁的「暫停點餐」按鈕用）。query `venue=` 可只看單一店別；品牌子帳號只看自己店別。回 `{ pause: { CAFE:{paused,message}, BAR:{...} } }`。
