@@ -11,6 +11,8 @@
 /* ===== HERO ===== */
 .vl-hero{padding:clamp(48px,9vw,120px) 0 clamp(48px,7vw,96px);border-bottom:1px solid var(--line)}
 .vl-hero__grid{display:grid;grid-template-columns:auto minmax(0,1.25fr) minmax(280px,.75fr);gap:clamp(24px,5vw,72px);align-items:start}
+/* 英文版沒有直排標語（.vl-tate），文案要跨前兩欄，否則掉進 auto 欄、聚落案內被擠成 2px */
+.vl-hero__grid>.vl-hero__copy:first-child{grid-column:1/3}
 .vl-tate{margin:0;writing-mode:vertical-rl;font-family:var(--serif);font-size:1rem;letter-spacing:.5em;color:var(--muted);padding-left:clamp(12px,2vw,24px);border-left:1px solid var(--line);line-height:1.6;white-space:nowrap}
 .vl-hero__brand{margin:0 0 1.4em;font-size:1rem;font-weight:500;letter-spacing:.18em;color:var(--muted);line-height:1.6}
 .vl-hero h1{margin:0;font-family:var(--serif);font-weight:500;font-size:clamp(2rem,5.4vw,3.9rem);line-height:1.4;letter-spacing:.04em;word-break:auto-phrase}
@@ -103,6 +105,7 @@
 }
 @media (max-width:760px){
   .vl-hero__grid{grid-template-columns:minmax(0,1fr)}
+  .vl-hero__grid>.vl-hero__copy:first-child{grid-column:auto}
   .vl-tate{display:none}
   .vl-brands{grid-template-columns:minmax(0,1fr)}
   .vl-brand:nth-child(even){margin-top:0}
