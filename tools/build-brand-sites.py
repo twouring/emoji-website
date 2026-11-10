@@ -80,7 +80,7 @@ FONTS_DEFAULT = 'family=Cormorant+Garamond:wght@500;600&family=Noto+Sans+TC:wght
 FONTS_CAFE = 'family=Noto+Sans+TC:wght@400;500;700&family=Outfit:wght@400;500;600'
 
 
-def head(slug, title, desc):
+def head(slug, title, desc, ld_override=None):
     b = BRANDS[slug]
     url = page_url(b['host'], L)
     root = f"https://{b['host']}/"
@@ -90,18 +90,20 @@ def head(slug, title, desc):
                  'rest-book': '\n<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=' + ('Shippori+Mincho:wght@400;500;600' if L == 'ja' else 'Noto+Serif+TC:wght@400;500;600') + '&display=swap" rel="stylesheet">\n<link rel="stylesheet" href="/brand-sites/rest-book.css">'}.get(slug, '')
     if cafe:  # 在咖啡專用樣式＋首圖預載＋js 旗標（捲動淡入）
         extra_css = ('\n<link rel="stylesheet" href="/brand-sites/at-cafe.css">'
-                     '\n<link rel="preload" as="image" href="/brand-sites/assets/atcafe/matcha-800.webp" '
-                     'imagesrcset="/brand-sites/assets/atcafe/matcha-800.webp 643w, /brand-sites/assets/atcafe/matcha-1400.webp 1125w" imagesizes="(max-width: 760px) 100vw, 44vw">'
+                     '\n<link rel="preload" as="image" href="/brand-sites/assets/atcafe/brunch-800.webp" '
+                     'imagesrcset="/brand-sites/assets/atcafe/brunch-800.webp 800w, /brand-sites/assets/atcafe/brunch-1400.webp 1400w" imagesizes="(max-width: 760px) 100vw, 50vw">'
                      '\n<script>document.documentElement.classList.add("js")</script>')
     fonts = FONTS_CAFE if cafe else FONTS_DEFAULT
-    og_img = 'brand-sites/assets/atcafe/matcha-1400.webp' if cafe else 'brand-sites/assets/3am/spread-1440.webp' if slug == '3am' else f'brand-sites/assets/{slug}-avatar.webp'
+    og_img = 'brand-sites/assets/atcafe/brunch-1400.webp' if cafe else 'brand-sites/assets/3am/spread-1440.webp' if slug == '3am' else f'brand-sites/assets/{slug}-avatar.webp'
     ld = ''
     if b['schema']:
-        ld = ('<script type="application/ld+json">{"@context":"https://schema.org","@type":"%s","name":"%s %s",'
+        ld = ('<script type="application/ld+json">{"@context":"https://schema.org","@type":"%s","@id":"%s#place","name":"%s %s",'
               '"url":"%s","image":"%sbrand-sites/assets/%s-logo.webp","telephone":"%s","sameAs":["https://www.instagram.com/%s"],'
               '"address":{"@type":"PostalAddress","streetAddress":"%s","addressLocality":"%s","addressCountry":"TW"},'
               '"parentOrganization":{"@type":"Organization","name":"%s","url":"%s/"}}</script>\n'
-              % (b['schema'], b['zh'], b['en'], root, root, slug, TEL_HREF[4:], b['ig'], ADDRESS[L], t('台北市', 'Taipei', '台北市'), PARENT[L], WWW))
+              % (b['schema'], root, b['zh'], b['en'], root, root, slug, TEL_HREF[4:], b['ig'], ADDRESS[L], t('台北市', 'Taipei', '台北市'), PARENT[L], WWW))
+    if ld_override is not None:
+        ld = ld_override
     alts = ''.join(f'<link rel="alternate" hreflang="{HTML_LANG[l]}" href="{page_url(b["host"], l)}">\n' for l in LANGS)
     alts += f'<link rel="alternate" hreflang="x-default" href="{page_url(b["host"], "zh")}">\n'
     return f'''<!DOCTYPE html>
@@ -217,17 +219,58 @@ def story(hid, zh_t, en_t, ja_t, paras):
 
 
 # ---------------------------------------------------------------- 在咖啡
-# 2026-11 改版（taste-skill 規則）：真實店內照與試菜照（public/brand-sites/assets/atcafe/）、無襯線標題、
-# 每區不同版型（分割 hero／時間軸／餐點拼貼／空間相片組／菜單／FAQ／交通）、捲動淡入（尊重 prefers-reduced-motion）。
-# 照片來源：IG素材/2026-11月/在咖啡短影音_素材（4K 原片抽格）、IG素材/260823_試菜/美化。
+# 2026-11-10 改版（KK：強化早午餐與咖啡、加強 GEO）：首屏改影棚早午餐照；新增「在咖啡是什麼樣的店」事實區（#about）、
+# 早午餐套餐卡（#brunch）、咖啡價目（#coffee）；FAQ 擴充並輸出 CafeOrCoffeeShop＋FAQPage（@graph）JSON-LD，
+# 店家 @id 與 renderSpace 的菜單 JSON-LD 相同（https://atcafe.emoji.tw/#place），答案引擎可合併成同一實體。
+# 價格取自正式站菜單（/api/public，2026-11-10）；菜單改價時要同步改 ATC_SETS／ATC_ALC／ATC_COFFEE（下方菜單區本身是即時的）。
+# 照片：影棚攝影 2026-10-07（Spaces 10_品牌與對外溝通/照片庫/在咖啡_影棚攝影_261007）、店內 4K 抽格（atcafe網站_2026-11）。
 ATC = '/brand-sites/assets/atcafe/'
+_SQ = (560, 900, 900, 560)
 ATC_SIZES = {'matcha': (643, 1125, 1400, 800), 'pour': (514, 804, 1000, 640), 'records': (900, 1600, 1600, 900),
-             'moji-wall': (514, 804, 1000, 640), 'player': (514, 804, 1000, 640), 'seats': (900, 1600, 1600, 900),
-             'toast': (560, 900, 900, 560), 'croissant': (560, 900, 900, 560), 'pudding': (560, 900, 900, 560),
-             'bagel': (560, 900, 900, 560)}
+             'moji-wall': (514, 804, 1000, 640), 'player': (514, 804, 1000, 640),
+             'toast': _SQ, 'croissant': _SQ, 'bagel': _SQ, 'brunch': (800, 1400, 1400, 800),
+             'salmon': _SQ, 'fig': _SQ, 'onigiri': _SQ, 'soba': _SQ, 'yogurt': _SQ}
 ATC_RATIO = {'matcha': (1125, 1400), 'pour': (804, 1000), 'records': (1600, 1067), 'moji-wall': (804, 1000),
-             'player': (804, 1000), 'seats': (1600, 1067), 'toast': (900, 900), 'croissant': (900, 900),
-             'pudding': (900, 900), 'bagel': (900, 900)}  # seats（座位）偏暗未採用
+             'player': (804, 1000), 'toast': (900, 900), 'croissant': (900, 900), 'bagel': (900, 900),
+             'brunch': (1400, 1050), 'salmon': (900, 674), 'fig': (900, 674), 'onigiri': (900, 674), 'soba': (900, 674),
+             'yogurt': (900, 674)}
+ATC_OPEN, ATC_CLOSE = '08:00', '17:00'
+ATC_GEO = (25.046198, 121.51342)
+# 早午餐套餐（照片, 價格, 名稱 zh/en/ja, 內容 zh/en/ja）
+ATC_SETS = [
+    ('salmon', 380, ('慢享早午餐套餐', 'Slow Brunch Set', 'スローブランチセット'),
+     ('開放式三明治或可頌三選一：松露野菇炒蛋、燻鮭魚酪梨（+20）、明太子炒蛋可頌（+20）。附沙拉與蜂蜜堅果優格。',
+      'Pick one: truffle mushroom & egg open sandwich, smoked salmon & avocado (+20) or mentaiko egg croissant (+20). With salad and honey-nut yogurt.',
+      'オープンサンドかクロワッサンを一つ：トリュフきのこ玉子、スモークサーモンとアボカド（+20）、明太子玉子クロワッサン（+20）。サラダとはちみつナッツヨーグルト付き。')),
+    ('fig', 200, ('晨光貝果套餐', 'Morning Bagel Set', 'モーニングベーグルセット'),
+     ('原味貝果，或換無花果核桃蜂蜜奶油貝果（+50）。趕時間的早上剛好。',
+      'A plain bagel, or the fig, walnut & honey cream cheese bagel (+50). Right for a quick morning.',
+      'プレーンベーグル、またはいちじく・くるみ・はちみつクリームチーズ（+50）。急ぐ朝にちょうどいい。')),
+    ('onigiri', 300, ('和風飯糰套餐', 'Japanese Onigiri Set', '和風おにぎりセット'),
+     ('海苔馬告豬肉時雨煮飯糰，或鹽烤雞腿昆布飯糰（+20）。附沙拉與柴魚醬油冷豆腐。',
+      'Nori onigiri with maqaw pork shigureni, or salt-grilled chicken & kombu (+20). With salad and chilled tofu.',
+      '海苔おにぎり（馬告豚のしぐれ煮）、または塩焼きチキンと昆布（+20）。サラダと冷奴付き。')),
+    ('soba', 400, ('柚香冷蕎麥套餐', 'Yuzu Cold Soba Set', '柚子冷やしそばセット'),
+     ('柚香紫蘇雞腿冷蕎麥麵，柴魚麵露、季節生菜；附柴魚醬油嫩豆腐。',
+      'Cold soba with yuzu, shiso and grilled chicken in bonito tsuyu, seasonal greens; with silken tofu.',
+      '柚子としそ、塩焼きチキンの冷たいそば。かつおのめんつゆ、季節の野菜。絹豆腐付き。')),
+]
+# 單點早午餐（照片, 價格, 名稱）
+ATC_ALC = [
+    ('yogurt', 320, ('生火腿酪梨優格碗', 'Prosciutto & Avocado Yogurt Bowl', '生ハムとアボカドのヨーグルトボウル')),
+    ('croissant', 320, ('明太子美式炒蛋可頌', 'Mentaiko Scrambled Egg Croissant', '明太子スクランブルエッグのクロワッサン')),
+    ('toast', 300, ('奶油松露野菇炒蛋開放式三明治', 'Truffle Mushroom & Egg Open Sandwich', 'トリュフバターきのこ玉子のオープンサンド')),
+    ('bagel', 260, ('柚子胡椒雞腿貝果', 'Yuzu Kosho Chicken Bagel', '柚子胡椒チキンのベーグル')),
+]
+# 咖啡（價格, 名稱, 一句話）
+ATC_COFFEE = [
+    (150, ('美式咖啡', 'Americano', 'アメリカーノ'), ('濃縮加水，乾淨俐落。套餐內含。', 'Espresso and water, clean finish. Included in every set.', 'エスプレッソと水、すっきり。セットに含まれます。')),
+    (180, ('拿鐵咖啡', 'Latte', 'カフェラテ'), ('濃縮、牛奶、奶泡。套餐換拿鐵 +30。', 'Espresso, milk, foam. +30 in a set.', 'エスプレッソ、ミルク、フォーム。セットでは +30。')),
+    (190, ('黑糖拿鐵', 'Brown Sugar Latte', '黒糖ラテ'), ('黑糖焦香配濃縮與鮮奶。', 'Caramelized brown sugar with espresso and milk.', '黒糖の香ばしさにエスプレッソとミルク。')),
+    (180, ('西西里咖啡', 'Espresso Romano', 'シチリアコーヒー'), ('濃縮、檸檬、氣泡水，酸甜清爽。', 'Espresso, lemon and sparkling water; bright and tart.', 'エスプレッソ、レモン、炭酸水。甘酸っぱく爽やか。')),
+    (180, ('柚子美式', 'Yuzu Americano', '柚子アメリカーノ'), ('柚子果漿加美式，微酸回甘。', 'Yuzu purée with Americano; lightly tart.', '柚子ピューレとアメリカーノ。ほのかな酸味。')),
+    (180, ('維也納咖啡', 'Vienna Coffee', 'ウィンナーコーヒー'), ('濃縮覆上鮮奶油與可可粉。', 'Espresso under whipped cream and cocoa.', 'エスプレッソに生クリームとココア。')),
+]
 
 
 def atc_img(name, alt, sizes, eager=False):
@@ -239,74 +282,180 @@ def atc_img(name, alt, sizes, eager=False):
             f'sizes="{sizes}" width="{w}" height="{h}" alt="{e(alt)}" data-atc-photo tabindex="0" role="button" aria-label="{e(photo_label)}" {load}>')
 
 
+def atc_faq_items():
+    return [
+        (t('台北車站附近哪裡可以吃早午餐？', 'Where can I have brunch near Taipei Main Station?', '台北駅の近くでブランチを食べられる店は？'),
+         t(f'在咖啡就在台北車站旁，重慶南路一段 11 號（站前地下街 Z10 出口斜對面），每日 {ATC_OPEN} 開門。早午餐套餐 NT$200–400，都含一杯飲品。',
+           f'at cafe is right by Taipei Main Station at No. 11, Sec. 1, Chongqing S. Rd (diagonally across from Exit Z10 of the underground mall), open daily from {ATC_OPEN}. Brunch sets are NT$200–400 and each includes a drink.',
+           f'在咖啡は台北駅のすぐそば、重慶南路一段11号（駅前地下街 Z10 出口の斜め向かい）。毎日 {ATC_OPEN} 開店。ブランチセットは NT$200–400 で、どれもドリンク付きです。')),
+        (t('早午餐幾點可以吃？', 'What time is brunch served?', 'ブランチは何時から？'),
+         t(f'早午餐全天供應：每日 {ATC_OPEN}–{ATC_CLOSE}，16:30 最後點餐。',
+           f'Brunch is served all day: {ATC_OPEN}–{ATC_CLOSE} daily, last orders 16:30.',
+           f'ブランチは終日提供。毎日 {ATC_OPEN}–{ATC_CLOSE}、ラストオーダー 16:30。')),
+        (t('咖啡多少錢？有燕麥奶嗎？', 'How much is the coffee? Is oat milk available?', 'コーヒーの値段は？オーツミルクはありますか？'),
+         t('美式 NT$150、拿鐵 NT$180，其他義式咖啡 NT$180–190；拿鐵類可換燕麥奶 +30。套餐內含美式，換拿鐵 +30。',
+           'Americano NT$150, latte NT$180, other espresso drinks NT$180–190. Milk drinks can switch to oat milk for +30. Sets include an Americano; a latte is +30.',
+           'アメリカーノ NT$150、カフェラテ NT$180、その他のエスプレッソドリンク NT$180–190。ミルク系はオーツミルクに変更可（+30）。セットにはアメリカーノが含まれ、ラテは +30。')),
+        (t('可以外帶嗎？', 'Is takeaway available?', 'テイクアウトはできますか？'),
+         t('可以。飲品與餐點都能外帶，店門口有外帶窗口；外帶不適用內用低消。', 'Yes. Drinks and food are available to go from the takeaway window; the dine-in minimum does not apply.', 'はい。ドリンクも料理もテイクアウト窓口で受け取れます。店内の最低利用金額は適用されません。')),
+        (t('需要會員嗎？有低消嗎？', 'Do I need a membership? Is there a minimum spend?', '会員登録は必要？最低利用金額は？'),
+         t('不需要會員。平日內用每人一杯飲料，週六日內用每人低消 NT$300。', 'No membership needed. Dine-in: one drink per person on weekdays; NT$300 minimum per person on Saturdays and Sundays.', '会員登録は不要です。店内利用は平日お一人様1ドリンク、土日はお一人様 NT$300 から。')),
+        (t('可以帶電腦工作嗎？', 'Can I work here on my laptop?', 'パソコンで仕事をしてもいいですか？'),
+         t('可以。店內有插座與 Wi-Fi，白天的座位歡迎工作。', 'Yes. There are power outlets and Wi-Fi, and the daytime seats welcome work.', 'はい。電源と Wi-Fi があり、昼の席は仕事にお使いいただけます。')),
+        (t('怎麼訂位？', 'How do I book?', '予約はどうすればいいですか？'),
+         t('請用線上訂位；也歡迎直接來。', 'Use the online reservation page; walk-ins are welcome too.', 'オンライン予約をご利用ください。直接のご来店も歓迎です。')),
+    ]
+
+
+def atc_jsonld(faqs, desc):
+    import json
+    b = BRANDS['at-cafe']
+    root = f"https://{b['host']}/"
+    place = {
+        '@type': 'CafeOrCoffeeShop', '@id': root + '#place',
+        'name': t('在咖啡 at cafe', 'at cafe', '在咖啡 at cafe'), 'alternateName': ['在咖啡', 'at cafe'],
+        'description': desc, 'url': page_url(b['host'], L),
+        'image': [root + 'brand-sites/assets/atcafe/brunch-1400.webp', root + 'brand-sites/assets/atcafe/salmon-900.webp',
+                  root + 'brand-sites/assets/atcafe/records-1600.webp'],
+        'logo': root + 'brand-sites/assets/at-cafe-logo.webp',
+        'telephone': TEL_HREF[4:], 'email': 'us@emoji.tw',
+        'address': {'@type': 'PostalAddress', 'streetAddress': t('重慶南路一段 11 號', 'No. 11, Sec. 1, Chongqing S. Rd.', '重慶南路一段11号'),
+                    'addressLocality': t('中正區', 'Zhongzheng Dist.', '中正区'), 'addressRegion': t('台北市', 'Taipei', '台北市'),
+                    'postalCode': '100', 'addressCountry': 'TW'},
+        'geo': {'@type': 'GeoCoordinates', 'latitude': ATC_GEO[0], 'longitude': ATC_GEO[1]},
+        'hasMap': MAP,
+        'openingHoursSpecification': [{'@type': 'OpeningHoursSpecification',
+                                       'dayOfWeek': ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+                                       'opens': ATC_OPEN, 'closes': ATC_CLOSE}],
+        'servesCuisine': t(['早午餐', '咖啡', '和風輕食'], ['Brunch', 'Coffee', 'Japanese-style light meals'], ['ブランチ', 'コーヒー', '和風軽食']),
+        'priceRange': 'NT$80–400', 'currenciesAccepted': 'TWD',
+        'acceptsReservations': www('/reserve'),
+        'hasMenu': page_url(b['host'], L) + '#menu',
+        'amenityFeature': [{'@type': 'LocationFeatureSpecification', 'name': n, 'value': True}
+                           for n in t(['Wi-Fi', '電源插座', '外帶窗口'], ['Wi-Fi', 'Power outlets', 'Takeaway window'], ['Wi-Fi', '電源', 'テイクアウト窓口'])],
+        'sameAs': [f"https://www.instagram.com/{b['ig']}"],
+        'parentOrganization': {'@type': 'Organization', 'name': PARENT[L], 'url': WWW + '/'},
+    }
+    faq_ld = {'@type': 'FAQPage', '@id': page_url(b['host'], L) + '#faq', 'inLanguage': HTML_LANG[L],
+              'mainEntity': [{'@type': 'Question', 'name': q, 'acceptedAnswer': {'@type': 'Answer', 'text': a}} for q, a in faqs]}
+    graph = {'@context': 'https://schema.org', '@graph': [place, faq_ld]}
+    return '<script type="application/ld+json">' + json.dumps(graph, ensure_ascii=False).replace('<', '\\u003c') + '</script>\n'
+
+
 def page_cafe():
     s = 'at-cafe'
     reserve = www('/reserve')
     book = t('訂位', 'Book a table', '予約する')
-    see_menu = t('查看菜單', 'View menu', 'メニューを見る')
-    out = head(s, t('在咖啡 at cafe｜台北車站旁的日式簡餐與工作咖啡',
-                    '在咖啡 at cafe | Japanese set meals and working coffee by Taipei Main Station',
-                    '在咖啡 at cafe｜台北駅そばの定食とワーキングコーヒー'),
-               t('在咖啡（at cafe）是台北車站旁的日式簡餐與工作咖啡，08:00–17:00。早餐、午餐、下午的咖啡，或約人碰面，不需會員。台北車站站前地下街 Z10 出口斜對面。',
-                 'at cafe: Japanese set meals and working coffee by Taipei Main Station, 08:00–17:00. Breakfast, lunch, an afternoon coffee or a meeting, no membership needed. Diagonally across from Exit Z10.',
-                 '在咖啡（at cafe）は台北駅そばの日本式の定食とワーキングコーヒー。08:00–17:00。朝食、ランチ、午後のコーヒー、待ち合わせに。会員登録不要。台北駅地下街 Z10 出口の斜め向かい。'))
-    out += header(s, [(t('一天', 'A day', '一日'), '#day'), (t('餐點', 'Food', '料理'), '#food'), (t('空間', 'The room', '店内'), '#room'),
+    desc = t(f'在咖啡（at cafe）是台北車站旁的早午餐與咖啡店：早午餐套餐 NT$200–400、美式 NT$150、拿鐵 NT$180。每日 {ATC_OPEN}–{ATC_CLOSE}（16:30 最後點餐），重慶南路一段 11 號、站前地下街 Z10 出口斜對面。不需會員，可外帶。',
+             f'at cafe is a brunch and coffee spot by Taipei Main Station: brunch sets NT$200–400, Americano NT$150, latte NT$180. Open daily {ATC_OPEN}–{ATC_CLOSE} (last orders 16:30) at No. 11, Sec. 1, Chongqing S. Rd, across from Exit Z10. No membership; takeaway available.',
+             f'在咖啡（at cafe）は台北駅そばのブランチとコーヒーの店。ブランチセット NT$200–400、アメリカーノ NT$150、カフェラテ NT$180。毎日 {ATC_OPEN}–{ATC_CLOSE}（ラストオーダー 16:30）、重慶南路一段11号・駅前地下街 Z10 出口の斜め向かい。会員登録不要、テイクアウト可。')
+    faqs = atc_faq_items()
+    out = head(s, t('在咖啡 at cafe｜台北車站早午餐與咖啡・Z10 出口斜對面',
+                    'at cafe | Brunch & coffee by Taipei Main Station (Exit Z10)',
+                    '在咖啡 at cafe｜台北駅のブランチとコーヒー・Z10 出口すぐ'), desc, ld_override=atc_jsonld(faqs, desc))
+    out += header(s, [(t('早午餐', 'Brunch', 'ブランチ'), '#brunch'), (t('咖啡', 'Coffee', 'コーヒー'), '#coffee'), (t('空間', 'The room', '店内'), '#room'),
                       (t('菜單', 'Menu', 'メニュー'), '#menu'), (t('怎麼來', 'Visit', 'アクセス'), '#visit'), (book, reserve)])
 
-    # —— Hero：左文字、右兩張實拍（主圖＋錯位小圖） ——
+    lede = t('早上八點開門。<span class="nb">一份早午餐、一杯咖啡，</span><span class="nb">坐下來慢慢吃，或拿了就走。</span>',
+             'Open at eight. A plate of brunch and a cup of coffee: sit down and take your time, or grab it and go.',
+             '朝8時オープン。ブランチとコーヒーを一杯。ゆっくり座っても、持ち帰っても。')
+    hero_facts = [(f'{ATC_OPEN}–{ATC_CLOSE}', t('每日・16:30 最後點餐', 'Daily · last orders 16:30', '毎日・LO 16:30')),
+                  ('NT$200+', t('早午餐套餐含飲品', 'Brunch set with a drink', 'ドリンク付きブランチセット')),
+                  ('NT$150', t('美式咖啡', 'Americano', 'アメリカーノ'))]
+    hf = ''.join(f'<li><b>{e(k)}</b><span>{e(v)}</span></li>' for k, v in hero_facts)
+    brunch_alt = t('燻鮭魚酪梨開放式三明治，附沙拉與蜂蜜堅果優格', 'Smoked salmon & avocado open sandwich with salad and honey-nut yogurt', 'スモークサーモンとアボカドのオープンサンド、サラダとヨーグルト添え')
+    matcha_alt = t('吧檯上的冰抹茶拿鐵', 'An iced matcha latte on the counter', 'カウンターのアイス抹茶ラテ')
     out += f'''<main id="content">
 <section class="bs-hero atc-hero"><div class="wrap atc-hero__grid">
   <div class="atc-hero__copy">
+    <p class="atc-hero__kicker">{t('台北車站旁・早午餐與咖啡', 'Brunch &amp; coffee by Taipei Main Station', '台北駅そば・ブランチとコーヒー')}</p>
     <h1>在咖啡<span class="en">at cafe</span></h1>
-    <p class="atc-hero__lede">{t('台北車站旁的日式簡餐與工作咖啡。<span class="nb">平日每人一杯飲料；</span><span class="nb">週六日每人低消 NT$300。</span>',
-                                 'Japanese set meals and working coffee by Taipei Main Station. Weekdays: one drink each; weekends: NT$300 minimum per person.',
-                                 '台北駅そばの定食とワーキングコーヒー。平日はお一人様1ドリンク、土日はお一人様 NT$300 から。')}</p>
-    <p class="atc-hero__open"><b>08:00–17:00</b><span>{t('每日營業 · 16:30 最後點餐', 'Open daily · last orders 16:30', '毎日営業 · ラストオーダー 16:30')}</span></p>
-    <div class="atc-hero__actions"><a class="bs-btn" href="#menu">{see_menu}</a><a class="bs-btn bs-btn--line" href="{reserve}">{book}</a></div>
+    <p class="atc-hero__lede">{lede}</p>
+    <ul class="atc-hero__facts">{hf}</ul>
+    <div class="atc-hero__actions"><a class="bs-btn" href="#brunch">{t('看早午餐', 'See brunch', 'ブランチを見る')}</a><a class="bs-btn bs-btn--line" href="{reserve}">{book}</a></div>
   </div>
   <div class="atc-hero__media">
-    <figure class="atc-hero__main">{atc_img('matcha', t('吧檯上的冰抹茶拿鐵', 'An iced matcha latte on the counter', 'カウンターのアイス抹茶ラテ'), '(max-width: 760px) 100vw, 44vw', eager=True)}</figure>
-    <figure class="atc-hero__sub">{atc_img('croissant', t('明太子美式炒蛋可頌', 'Mentaiko Scrambled Egg Croissant', '明太子スクランブルエッグのクロワッサン'), '(max-width: 760px) 40vw, 18vw', eager=True)}</figure>
+    <figure class="atc-hero__main">{atc_img('brunch', brunch_alt, '(max-width: 760px) 100vw, 50vw', eager=True)}</figure>
+    <figure class="atc-hero__sub">{atc_img('matcha', matcha_alt, '(max-width: 760px) 34vw, 15vw', eager=True)}</figure>
+  </div>
+</div></section>
+'''
+
+    # —— 在咖啡是什麼樣的店（GEO：開門見山的定義句＋結構化事實，答案引擎可直接引用） ——
+    facts_rows = [
+        (t('地址', 'Address', '住所'), t('台北市中正區重慶南路一段 11 號（台北車站站前地下街 Z10 出口斜對面）', 'No. 11, Sec. 1, Chongqing S. Rd., Zhongzheng Dist., Taipei (across from Exit Z10, Taipei Main Station underground mall)', '台北市中正区重慶南路一段11号（台北駅地下街 Z10 出口の斜め向かい）')),
+        (t('營業時間', 'Hours', '営業時間'), t(f'每日 {ATC_OPEN}–{ATC_CLOSE}，16:30 最後點餐', f'Daily {ATC_OPEN}–{ATC_CLOSE}, last orders 16:30', f'毎日 {ATC_OPEN}–{ATC_CLOSE}、ラストオーダー 16:30')),
+        (t('價位', 'Prices', '価格帯'), t('早午餐套餐 NT$200–400（含飲品）・咖啡 NT$150–190・單點 NT$80–320', 'Brunch sets NT$200–400 incl. drink · coffee NT$150–190 · à la carte NT$80–320', 'ブランチセット NT$200–400（ドリンク付き）・コーヒー NT$150–190・単品 NT$80–320')),
+        (t('內用', 'Dine-in', '店内利用'), t('不需會員；平日每人一杯飲料，週六日每人低消 NT$300', 'No membership; one drink each on weekdays, NT$300 minimum each on weekends', '会員不要。平日はお一人様1ドリンク、土日はお一人様 NT$300 から')),
+        (t('外帶', 'Takeaway', 'テイクアウト'), t('飲品與餐點都可外帶（外帶窗口）', 'Drinks and food to go from the takeaway window', 'ドリンク・料理ともにテイクアウト窓口で')),
+    ]
+    about_p = t('在咖啡（at cafe）是台北車站旁的早午餐與咖啡店。開放式三明治、可頌、貝果、飯糰與冷蕎麥麵，配一杯義式咖啡；白天也是許多人約人碰面、帶電腦工作的地方。',
+                'at cafe is a brunch and coffee spot by Taipei Main Station. Open sandwiches, croissants, bagels, onigiri and cold soba with an espresso-based coffee; by day it is also where people meet and work on laptops.',
+                '在咖啡（at cafe）は台北駅そばのブランチとコーヒーの店。オープンサンド、クロワッサン、ベーグル、おにぎり、冷たいそばにエスプレッソのコーヒーを一杯。昼は待ち合わせやパソコン作業の場所にも。')
+    frows = ''.join(f'<div><dt>{e(k)}</dt><dd>{e(v)}</dd></div>' for k, v in facts_rows)
+    out += f'''<section class="atc-about" id="about" aria-labelledby="about-h"><div class="wrap atc-about__grid">
+  <div class="atc-about__say">{sec_h2('about-h', '在咖啡是什麼樣的店', 'About at cafe', '在咖啡について')}<p>{e(about_p)}</p></div>
+  <dl class="atc-about__facts">{frows}</dl>
+</div></section>
+'''
+
+    # —— 早午餐：四個套餐卡＋單點 ——
+    set_sizes = '(max-width: 760px) 100vw, (max-width: 1100px) 50vw, 25vw'
+    cards = ''.join(
+        f'<article class="atc-set"><figure>{atc_img(img, t(*name), set_sizes)}</figure>'
+        f'<div class="atc-set__body"><h3>{e(t(*name))}</h3><p class="atc-set__price">NT${price}</p><p>{e(t(*body))}</p></div></article>'
+        for img, price, name, body in ATC_SETS)
+    alc = ''.join(
+        f'<li><figure>{atc_img(img, t(*name), "(max-width: 760px) 50vw, 25vw")}</figure><b>{e(t(*name))}</b><span>NT${price}</span></li>'
+        for img, price, name in ATC_ALC)
+    brunch_lede = t('平日早上，一份貝果套餐配美式剛好；週末就留給慢享早午餐。每個套餐都含一杯飲品。',
+                    'On weekdays a bagel set and an Americano are just right; keep the weekend for the Slow Brunch Set. Every set comes with a drink.',
+                    '平日の朝はベーグルセットとアメリカーノ、週末はスローブランチを。どのセットもドリンク付きです。')
+    drink_note = t('套餐飲品：美式、柚子／莓果／鳳梨氣泡，或換拿鐵（+30）。', 'Set drinks: Americano or yuzu / berry / pineapple sparkling; latte +30.', 'セットのドリンク：アメリカーノ、柚子／ベリー／パイナップルのスパークリング、ラテは +30。')
+    out += f'''<section class="bs-alt atc-brunch" id="brunch" aria-labelledby="brunch-h"><div class="wrap">
+  <div class="atc-brunch__head">{sec_h2('brunch-h', '早午餐', 'Brunch', 'ブランチ')}<p>{e(brunch_lede)}</p></div>
+  <div class="atc-sets">{cards}</div>
+  <p class="atc-note">{e(drink_note)}</p>
+  <h3 class="atc-sub">{t('單點', 'À la carte', '単品')}</h3>
+  <ul class="atc-alc">{alc}</ul>
+  <p class="atc-note">{t('價格含稅，以下方菜單與現場為準；照片為實拍，擺盤以現場為準。', 'Prices include tax; the menu below and in store prevail. Real photos; plating may vary.', '税込。下のメニューと店頭が最新です。写真は実物、盛り付けは異なる場合があります。')}</p>
+</div></section>
+'''
+
+    # —— 咖啡：直幅照片＋價目清單 ——
+    rows = ''.join(f'<li><div><b>{e(t(*n))}</b><span>{e(t(*d))}</span></div><em>NT${p}</em></li>' for p, n, d in ATC_COFFEE)
+    coffee_lede = t('每一杯都從義式濃縮開始。早上趕車的人從外帶窗口拿了就走；坐下來的人，拿鐵類可以換燕麥奶（+30）。',
+                    'Every cup starts with espresso. Commuters grab theirs from the takeaway window; if you stay, milk drinks can switch to oat milk (+30).',
+                    'どの一杯もエスプレッソから。急ぐ朝はテイクアウト窓口で。座る方はミルク系をオーツミルクに変更できます（+30）。')
+    pour_alt = t('吧檯手正在倒抹茶拿鐵', 'Pouring a matcha latte at the bar', '抹茶ラテを注ぐスタッフ')
+    out += f'''<section class="atc-coffee" id="coffee" aria-labelledby="coffee-h"><div class="wrap atc-coffee__grid">
+  <figure class="atc-coffee__photo">{atc_img('pour', pour_alt, '(max-width: 760px) 100vw, 40vw')}</figure>
+  <div class="atc-coffee__say">
+    {sec_h2('coffee-h', '咖啡', 'Coffee', 'コーヒー')}
+    <p class="atc-coffee__lede">{e(coffee_lede)}</p>
+    <ul class="atc-coffee__list">{rows}</ul>
+    <p class="atc-note">{t('不喝咖啡：抹茶拿鐵 NT$220、紅烏龍拿鐵 NT$250、氣泡飲 NT$160。', 'Not coffee: matcha latte NT$220, red oolong latte NT$250, sparkling drinks NT$160.', 'コーヒー以外：抹茶ラテ NT$220、紅烏龍ラテ NT$250、スパークリング NT$160。')}</p>
   </div>
 </div></section>
 '''
 
     # —— 一天：時間軸（四個時刻） ——
     day = [('08:00', t('第一杯拿鐵。趕車的人從外帶窗口拿了就走。', 'The first latte. Commuters grab it from the takeaway window and go.', '最初のラテ。急ぐ人はテイクアウト窓口で受け取って、そのまま駅へ。')),
-           ('10:30', t('有人打開筆電，點了一個鹽烤雞腿昆布飯糰，說只待一下。', 'Someone opens a laptop, orders a salt-grilled chicken and kombu onigiri, and says it’s just for a bit.', 'ノートパソコンを開いた人が、塩焼きチキンと昆布のおにぎりを注文。「少しだけ」と言って。')),
-           ('13:00', t('他還在。旁邊那桌也在遠端工作。', 'Still here. The next table is working remotely too.', 'まだいます。隣の席もリモートワーク。')),
-           ('16:30', t('最後點餐。17:00 打烊。', 'Last orders. We close at 17:00.', 'ラストオーダー。17:00 閉店。'))]
-    steps = ''.join(f'<li class="reveal"><time>{h}</time><p>{e(x)}</p></li>' for h, x in day)
-    out += f'''<section class="atc-day" id="day" aria-labelledby="day-h"><div class="wrap">
+           ('10:30', t('週末的早午餐時間。燻鮭魚開放式三明治和一杯美式。', 'Weekend brunch time: a smoked salmon open sandwich and an Americano.', '週末のブランチタイム。スモークサーモンのオープンサンドとアメリカーノ。')),
+           ('13:00', t('有人打開筆電，點了一份飯糰套餐，說只待一下。', 'Someone opens a laptop, orders an onigiri set and says it’s just for a bit.', 'ノートパソコンを開いた人が、おにぎりセットを注文。「少しだけ」と言って。')),
+           ('16:30', t('最後點餐。可麗露配一杯西西里咖啡，17:00 打烊。', 'Last orders: a canelé and an Espresso Romano. We close at 17:00.', 'ラストオーダー。カヌレとシチリアコーヒー。17:00 閉店。'))]
+    steps = ''.join(f'<li><time>{h}</time><p>{e(x)}</p></li>' for h, x in day)
+    out += f'''<section class="bs-alt atc-day" id="day" aria-labelledby="day-h"><div class="wrap">
   {sec_h2('day-h', '在咖啡的一天', 'A day here', '在咖啡の一日')}
   <ol class="atc-day__list">{steps}</ol>
 </div></section>
 '''
 
-    # —— 餐點：非對稱拼貼（4 張試菜照＋1 格文字） ——
-    dish = lambda name, zh, en, ja, cls: (f'<figure class="atc-dish {cls} reveal">{atc_img(name, t(zh, en, ja), "(max-width: 760px) 100vw, 33vw")}'
-                                          f'<figcaption>{e(t(zh, en, ja))}</figcaption></figure>')
-    out += f'''<section class="bs-alt atc-food" id="food" aria-labelledby="food-h"><div class="wrap">
-  {sec_h2('food-h', '白天吃什麼', 'What we serve', '昼の料理')}
-  <div class="atc-food__grid">
-    {dish('toast', '奶油松露野菇炒蛋開放式三明治', 'Truffle Mushroom & Egg Open Sandwich', 'トリュフバターきのこ玉子のオープンサンド', 'atc-dish--lg')}
-    {dish('pour', '抹茶拿鐵', 'Matcha Latte', '抹茶ラテ', '')}
-    {dish('bagel', '柚子胡椒雞腿貝果', 'Yuzu Kosho Chicken Bagel', '柚子胡椒チキンのベーグル', '')}
-    {dish('pudding', '自製布丁（下午茶套餐）', 'House pudding (Tea Time Set)', '自家製プリン（ティータイムセット）', '')}
-    <div class="atc-food__note reveal"><p>{t('開放式三明治、貝果、飯糰、冷蕎麥麵；自製布丁、巴斯克與可麗露。咖啡、茶與氣泡飲。',
-                                            'Open sandwiches, bagels, onigiri and cold soba; house pudding, Basque cheesecake and canelé. Coffee, tea and sparkling drinks.',
-                                            'オープンサンド、ベーグル、おにぎり、冷たいそば。自家製プリン、バスクチーズケーキ、カヌレ。コーヒー、お茶、スパークリングドリンク。')}</p>
-      <a class="atc-link" href="#menu">{see_menu}</a></div>
-  </div>
-  <p class="atc-food__src">{t('照片為試菜實拍，實際擺盤以現場為準。', 'Photos are from our tasting session; plating may vary.', '写真は試食会のものです。盛り付けは異なる場合があります。')}</p>
-</div></section>
-'''
-
-    # —— 空間：寬幅照＋三張直幅＋故事 ——
+    # —— 空間：文字＋兩張直幅＋寬幅 ——
     story_p = ''.join(f'<p>{e(t(*p))}</p>' for p in [
-        ('在咖啡開在台北車站旁一棟民國 58 年的老屋裡。白天是明亮的日式簡餐與咖啡，設有外帶窗口；約 25 坪、內用 32 席、一張長吧檯。',
-         'at cafe sits in a 1969 house by Taipei Main Station. By day it is a bright room for Japanese set meals and coffee, with a takeaway window: about 25 ping, 32 seats and a long counter.',
-         '在咖啡は、台北駅そばの 1969 年築の古い建物にあります。昼は明るい定食とコーヒーの店で、テイクアウト窓口もあります。約 25 坪、32 席、ロングカウンター。'),
+        ('在咖啡開在台北車站旁一棟民國 58 年的老屋裡。白天明亮安靜，設有外帶窗口；約 25 坪、內用 32 席、一張長吧檯，座位有插座與 Wi-Fi。',
+         'at cafe sits in a 1969 house by Taipei Main Station. Bright and quiet by day, with a takeaway window: about 25 ping, 32 seats and a long counter, with outlets and Wi-Fi.',
+         '在咖啡は、台北駅そばの 1969 年築の古い建物にあります。昼は明るく静かで、テイクアウト窓口もあります。約 25 坪、32 席、ロングカウンター。電源と Wi-Fi あり。'),
         ('牆上有一整面黑膠，也藏了一隻大象 moji。台北車站每天有很多人經過；我們的目標很小，讓其中一個人坐下來，把這杯喝完。',
          'There is a wall of vinyl, and an elephant named moji hiding on another. A great many people pass Taipei Main Station every day; our goal is small: get one of them to sit down and finish the cup.',
          '壁一面のレコードと、どこかに隠れた象の moji。台北駅を通る人はとても多い。私たちの目標は小さくて、そのうちの一人に座って一杯を飲み終えてもらうこと。'),
@@ -321,7 +470,7 @@ def page_cafe():
 </div></section>
 '''
 
-    # —— 菜單（伺服器端填入） ——
+    # —— 菜單（伺服器端填入）＋FAQ ——
     out += f'''<section class="bs-alt bs-menu atc-menu" id="menu" aria-labelledby="menu-h"><div class="wrap">
   <div class="bs-sec__head">{sec_h2('menu-h', '菜單', 'Menu', 'メニュー')}<p>{t('價格含稅', 'Prices include tax', '価格は税込')}</p></div>
   <div data-menu="CAFE"></div>
@@ -330,20 +479,13 @@ def page_cafe():
 
 <section id="faq" class="atc-faq" aria-labelledby="faq-h"><div class="wrap atc-faq__in">
   {sec_h2('faq-h', '常見問題', 'FAQ', 'よくある質問')}
-  {faq([(t('需要會員才能進來嗎？', 'Do I need a membership?', '会員でないと入れませんか？'),
-         t('不需要。在咖啡對所有訪客開放；平日每人一杯飲料，週六日每人低消 NT$300。', 'No. at cafe is open to everyone. On weekdays, one drink per person; on weekends, NT$300 minimum spend per person.', 'いいえ。在咖啡はどなたでも利用でき、平日はお一人様1ドリンク、土日はお一人様 NT$300 からです。')),
-        (t('可以帶電腦工作嗎？', 'Can I work here on my laptop?', 'パソコンで仕事をしてもいいですか？'),
-         t('可以。白天的座位歡迎工作；平日每人一杯飲料，週六日每人低消 NT$300。', 'Yes. The daytime seats welcome work. On weekdays, one drink per person; on weekends, NT$300 minimum spend per person.', 'はい。昼の席は仕事にお使いいただけます。平日はお一人様1ドリンク、土日はお一人様 NT$300 からです。')),
-        (t('可以外帶嗎？', 'Is takeaway available?', 'テイクアウトはできますか？'),
-         t('可以。飲品與餐點都能外帶，趕時間的人從外帶窗口拿了就走。', 'Yes. Drinks and food are available to go; grab them from the takeaway window.', 'はい。ドリンクも料理もテイクアウトでき、急ぐ方はテイクアウト窓口で受け取れます。')),
-        (t('怎麼訂位？', 'How do I book?', '予約はどうすればいいですか？'),
-         t('請用線上訂位；也歡迎直接來。', 'Use the online reservation page; walk-ins are welcome too.', 'オンライン予約をご利用ください。直接のご来店も歓迎です。'))])}
+  {faq(faqs)}
 </div></section>
 '''
-    out += visit([(t('營業時間', 'Hours', '営業時間'), t('每日 08:00–17:00', 'Daily 08:00–17:00', '毎日 08:00–17:00')),
+    out += visit([(t('營業時間', 'Hours', '営業時間'), t(f'每日 {ATC_OPEN}–{ATC_CLOSE}', f'Daily {ATC_OPEN}–{ATC_CLOSE}', f'毎日 {ATC_OPEN}–{ATC_CLOSE}')),
                   (t('最後點餐', 'Last orders', 'ラストオーダー'), '16:30')], s)
     out += '</main>\n'
-    out += footer_html(s, [(see_menu, '#menu'), (book, reserve)])
+    out += footer_html(s, [(t('早午餐', 'Brunch', 'ブランチ'), '#brunch'), (book, reserve)])
     # 捲動淡入：IntersectionObserver（不用 scroll 事件）；未支援或減少動態時直接顯示
     out = out.replace('</body>', '''<script>(function(){var d=document.createElement("dialog"),lang=document.documentElement.lang,close=lang==="ja"?"閉じる":lang==="en"?"Close":"關閉",caption=lang==="ja"?"写真を閉じる":lang==="en"?"Close photo":"關閉照片",last;d.className="atc-lightbox";d.innerHTML='<figure class="atc-lightbox__frame"><img alt=""><button class="atc-lightbox__close" type="button" aria-label="'+close+'">×</button><figcaption class="atc-lightbox__caption"></figcaption></figure>';var img=d.querySelector("img"),cap=d.querySelector("figcaption");document.body.appendChild(d);function open(el){last=el;var sources=(el.getAttribute("srcset")||"").split(",");img.src=sources.length?sources[sources.length-1].trim().split(/\\s+/)[0]:(el.currentSrc||el.src);img.alt=el.alt;cap.textContent=el.alt;d.showModal()}function closeDialog(){d.close();if(last)last.focus()}document.addEventListener("click",function(e){var el=e.target.closest("img[data-atc-photo]");if(el)open(el)});document.addEventListener("keydown",function(e){var el=e.target.closest("img[data-atc-photo]");if(el&&(e.key==="Enter"||e.key===" ")){e.preventDefault();open(el)}});d.querySelector("button").addEventListener("click",closeDialog);d.addEventListener("click",function(e){if(e.target===d)closeDialog()});d.addEventListener("close",function(){if(last)last.focus()})})()</script>
 <script>(function(){var r=document.querySelectorAll(".reveal");if(!("IntersectionObserver" in window)||matchMedia("(prefers-reduced-motion: reduce)").matches){r.forEach(function(x){x.classList.add("is-in")});return}var o=new IntersectionObserver(function(es){es.forEach(function(x){if(x.isIntersecting){x.target.classList.add("is-in");o.unobserve(x.target)}})},{rootMargin:"0px 0px -8% 0px",threshold:.12});r.forEach(function(x){o.observe(x)})})()</script>

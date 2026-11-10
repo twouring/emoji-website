@@ -59,10 +59,10 @@
 .atc-hero__actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
 .atc-hero__media { position: relative; padding: 0 0 9% 0; }
 .nb { white-space: nowrap; }
-.atc-hero__main { margin: 0 0 0 auto; width: min(82%, calc(min(64vh, 600px) * 1125 / 1400)); border-radius: var(--atc-r); overflow: hidden; box-shadow: var(--atc-shadow); }
-.atc-hero__main img { width: 100%; height: auto; aspect-ratio: 1125 / 1400; object-fit: cover; }
-.atc-hero__sub { position: absolute; left: 4%; bottom: 0; width: 36%; margin: 0; border-radius: var(--atc-r); overflow: hidden; outline: 5px solid var(--paper); box-shadow: var(--atc-shadow); }
-.atc-hero__sub img { width: 100%; height: auto; aspect-ratio: 1; object-fit: cover; }
+.atc-hero__main { margin: 0 0 0 auto; width: 92%; border-radius: var(--atc-r); overflow: hidden; box-shadow: var(--atc-shadow); }
+.atc-hero__main img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; }
+.atc-hero__sub { position: absolute; left: 0; bottom: 0; width: 30%; margin: 0; border-radius: var(--atc-r); overflow: hidden; outline: 5px solid var(--paper); box-shadow: var(--atc-shadow); }
+.atc-hero__sub img { width: 100%; height: auto; aspect-ratio: 4 / 5; object-fit: cover; }
 /* 首屏進場：文字與照片依序淡入（僅在允許動態時） */
 @media (prefers-reduced-motion: no-preference) {
   .js .atc-hero__copy > *, .js .atc-hero__main, .js .atc-hero__sub { animation: atc-in .9s var(--atc-ease) both; }
@@ -86,20 +86,6 @@
 .js .atc-day__list li:nth-child(2) { transition-delay: .08s; }
 .js .atc-day__list li:nth-child(3) { transition-delay: .16s; }
 .js .atc-day__list li:nth-child(4) { transition-delay: .24s; }
-
-/* ——— 餐點：非對稱拼貼（大圖 2×2＋文字格＋三張小圖） ——— */
-.atc-food__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: auto; gap: clamp(12px, 1.6vw, 20px); }
-.atc-dish { margin: 0; position: relative; border-radius: var(--atc-r); overflow: hidden; background: var(--paper-deep); }
-.atc-dish img { width: 100%; height: 100%; aspect-ratio: 1; object-fit: cover; transition: transform 1.2s var(--atc-ease); }
-.atc-dish:hover img { transform: scale(1.03); }
-.atc-dish figcaption { position: absolute; left: 10px; right: 10px; bottom: 10px; padding: 8px 12px; border-radius: 12px; background: rgba(251, 250, 246, .94); color: var(--ink); font-size: 1rem; line-height: 1.45; font-weight: 500; }
-.atc-dish--lg { grid-column: span 2; grid-row: span 2; }
-.atc-food__note { grid-column: span 1; display: flex; flex-direction: column; justify-content: center; gap: 18px; padding: clamp(20px, 3vw, 40px); border-radius: var(--atc-r); background: var(--brand); color: #fff; }
-.atc-food__note p { font-size: 1.06rem; line-height: 1.8; text-wrap: pretty; }
-.atc-link { align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; color: #fff; font-weight: 500; text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 1.5px; }
-.atc-link::after { content: "→"; margin-left: .45em; transition: transform .35s var(--atc-ease); }
-.atc-link:hover::after { transform: translateX(4px); }
-.atc-food__src { margin-top: 16px; color: var(--ink-soft); font-size: 1rem; }
 
 /* ——— 空間：寬幅＋文字與兩張直幅錯位＋寬幅 ——— */
 .atc-room figure { margin: 0; border-radius: var(--atc-r); overflow: hidden; }
@@ -135,7 +121,6 @@
 @media (max-width: 900px) {
   .atc-day__list { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 36px; border-top: 0; }
   .atc-day__list li { border-top: 1.5px solid var(--ink); }
-  .atc-food__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .atc-room__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .atc-room__copy { grid-column: 1 / -1; padding-right: 0; }
   .atc-room__tall--low { margin-top: 48px !important; }
@@ -143,28 +128,18 @@
 @media (max-width: 760px) {
   .atc-hero__grid { grid-template-columns: 1fr; }
   .atc-hero__media { order: -1; padding-bottom: 18%; }
-  .atc-hero__main { width: 84%; }
   .bs--at-cafe .bs-head .bs-lang { margin-left: 0; padding-left: 0; border-left: 0; }
-  .atc-hero__main img { aspect-ratio: 4 / 4.4; }
-  .atc-hero__sub { width: 40%; left: 0; }
   .atc-hero h1 { font-size: clamp(2.6rem, 13vw, 3.4rem); }
   .atc-day__list { grid-template-columns: 1fr; row-gap: 0; }
   .atc-day__list li { border-top: 0; border-left: 1.5px solid var(--ink); padding: 0 0 28px 24px; }
   .atc-day__list li::before { top: 8px; left: -6px; }
-  .atc-dish--lg { grid-column: 1 / -1; }
-  .atc-dish--lg { grid-row: auto; }
-  .atc-dish { background: transparent; border-radius: 0; overflow: visible; }
-  .atc-dish img { border-radius: var(--atc-r); height: auto; }
-  .atc-dish figcaption { position: static; padding: 8px 2px 0; background: none; font-size: 1rem; }
-  .atc-dish:last-of-type, .atc-food__note { grid-column: 1 / -1; }
   .atc-room__wide img { aspect-ratio: 4 / 3; }
   .atc-room__tall--low { margin-top: 32px !important; }
   /* 首屏：主圖縮一點，讓「查看菜單／訂位」完整落在第一屏 */
   .atc-hero { padding-top: 16px; }
-  .atc-hero__main { width: 76%; }
-  .atc-hero__main img { aspect-ratio: 1 / 1; }
-  .atc-hero__media { padding-bottom: 14%; }
-  .atc-hero__sub { width: 36%; }
+  .atc-hero__main { width: 88%; }
+  .atc-hero__media { padding-bottom: 12%; }
+  .atc-hero__sub { width: 28%; }
   .bs--at-cafe .bs-menu__jump { top: 68px; }
   .bs--at-cafe .bs-menu .menu-group { scroll-margin-top: 150px; }
 }
@@ -177,4 +152,70 @@
   .atc-menu .menu-item--img .menu-item__names > .menu-item__note { grid-column: 1 / -1; }
   .atc-menu .menu-item__zh { font-size: 1.08rem; }
   .atc-menu .menu-item__note { line-height: 1.6; }
+}
+
+/* ——— 2026-11-10 改版：早午餐與咖啡為主軸（KK）＋ GEO 事實區 ——— */
+.atc-hero__kicker { margin: 0 0 18px; font-size: 1rem; font-weight: 500; letter-spacing: .06em; color: var(--brand); }
+.atc-hero__facts { list-style: none; margin: 26px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 14px 30px; }
+.atc-hero__facts li { display: grid; gap: 2px; }
+.atc-hero__facts b { font-family: var(--latin); font-weight: 500; font-size: 1.35rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+.atc-hero__facts span { font-size: 1rem; color: var(--ink-soft); }
+
+/* 在咖啡是什麼樣的店：左定義句、右事實表 */
+.bs--at-cafe .atc-about { padding: clamp(48px, 6vw, 88px) 0; border-top: 1px solid var(--line); }
+.atc-about__grid { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: clamp(28px, 5vw, 72px); align-items: start; }
+.atc-about__say h2 { margin-bottom: 20px; }
+.atc-about__say p { color: var(--ink-soft); font-size: clamp(1.04rem, 1.3vw, 1.14rem); line-height: 1.95; max-width: 30em; text-wrap: pretty; }
+.atc-about__facts { margin: 0; border-top: 1.5px solid var(--ink); }
+.atc-about__facts > div { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.atc-about__facts dt { font-size: 1rem; font-weight: 500; color: var(--muted); }
+.atc-about__facts dd { margin: 0; font-size: 1rem; line-height: 1.7; color: var(--ink); }
+
+/* 早午餐：套餐卡（4 欄）＋單點列 */
+.atc-brunch__head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 16px clamp(24px, 4vw, 64px); align-items: end; margin-bottom: clamp(28px, 4vw, 48px); }
+.atc-brunch__head h2 { margin-bottom: 0; }
+.atc-brunch__head p { color: var(--ink-soft); line-height: 1.85; max-width: 34em; text-wrap: pretty; }
+.atc-sets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(14px, 1.8vw, 24px); }
+.atc-set { display: flex; flex-direction: column; border-radius: var(--atc-r); overflow: hidden; background: var(--card); box-shadow: var(--atc-shadow); }
+.atc-set figure { margin: 0; }
+.atc-set img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; }
+.atc-set__body { padding: 18px 20px 22px; display: grid; gap: 8px; }
+.atc-set h3 { margin: 0; font-size: 1.14rem; line-height: 1.4; word-break: keep-all; overflow-wrap: anywhere; }
+.atc-set__price { font-family: var(--latin); font-weight: 600; font-size: 1.4rem; color: var(--brand); font-variant-numeric: tabular-nums; }
+.atc-set__body p:last-child { color: var(--ink-soft); font-size: 1rem; line-height: 1.7; }
+.atc-note { margin-top: 16px; color: var(--ink-soft); font-size: 1rem; line-height: 1.7; }
+.bs--at-cafe .atc-sub { margin: clamp(40px, 5vw, 64px) 0 18px; font-size: 1.3rem; }
+.atc-alc { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(14px, 1.8vw, 24px); }
+.atc-alc li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: baseline; }
+.atc-alc figure { grid-column: 1 / -1; margin: 0; border-radius: var(--atc-r); overflow: hidden; }
+.atc-alc img { width: 100%; height: auto; aspect-ratio: 1; object-fit: cover; }
+.atc-alc b { font-weight: 500; line-height: 1.5; }
+.atc-alc span { font-family: var(--latin); font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* 咖啡：左直幅照、右價目清單 */
+.atc-coffee__grid { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: clamp(28px, 5vw, 80px); align-items: center; }
+.atc-coffee__photo { margin: 0; border-radius: var(--atc-r); overflow: hidden; }
+.atc-coffee__photo img { width: 100%; height: auto; aspect-ratio: 4 / 5; object-fit: cover; }
+.atc-coffee__say h2 { margin-bottom: 18px; }
+.atc-coffee__lede { color: var(--ink-soft); line-height: 1.9; max-width: 34em; text-wrap: pretty; }
+.atc-coffee__list { list-style: none; margin: 26px 0 0; padding: 0; border-top: 1.5px solid var(--ink); }
+.atc-coffee__list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: baseline; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.atc-coffee__list b { display: block; font-weight: 500; font-size: 1.08rem; }
+.atc-coffee__list span { display: block; margin-top: 2px; color: var(--ink-soft); font-size: 1rem; line-height: 1.6; }
+.atc-coffee__list em { font-style: normal; font-family: var(--latin); font-weight: 600; font-size: 1.15rem; color: var(--brand); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+@media (max-width: 1100px) {
+  .atc-sets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .atc-about__grid, .atc-brunch__head, .atc-coffee__grid { grid-template-columns: minmax(0, 1fr); }
+  .atc-alc { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .atc-coffee__photo { max-width: 520px; }
+  .atc-coffee__photo img { aspect-ratio: 4 / 3; }
+}
+@media (max-width: 640px) {
+  .atc-sets { grid-template-columns: minmax(0, 1fr); }
+  .atc-about__facts > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .atc-alc { gap: 18px 14px; }
+  .atc-alc li { grid-template-columns: minmax(0, 1fr); gap: 4px; }
 }
