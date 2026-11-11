@@ -88,4 +88,10 @@ test('loadMenuSeedRows includes all 約書旅 POS plans', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(rows.map(r => r.price))), [150, 450, 720, 250, 750, 1200, 100, 150, 2000]);
   assert.ok(rows.every(r => r.cat === 'SPACE' && r.pos_only === true));
   assert.ok(rows.every(r => r.zh.includes('空間使用費') || r.zh === '交誼廳包場｜2 小時'));
+  assert.deepEqual([...new Set(rows.map(r => r.image))].sort(), [
+    '/assets/restbook/lounge-entry.svg',
+    '/assets/restbook/lounge-private.svg',
+    '/assets/restbook/quiet-room.svg',
+  ]);
+  assert.ok(rows.every(r => r.image && r.image.startsWith('/assets/restbook/')));
 });
