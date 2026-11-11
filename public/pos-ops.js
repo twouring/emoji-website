@@ -1454,7 +1454,7 @@ const restPlanThumb=(it,cls)=>{
   return `<span class="${cls} rest-plan-art rest-plan-art--${kind}${overtime?' rest-plan-art--'+kind+'-overtime':''}" aria-label="${esc(title+' '+sub+' '+badge)}"><span class="rest-plan-art__top">${esc(title)}</span>${icon}<strong>${esc(badge)}</strong><small>${esc(sub)}</small></span>`;
 };
 // 品項縮圖：約書旅空間方案先顯示高辨識 POS 卡；其他有圖顯示圖，沒圖或載入失敗用品名首字佔位。
-const itemThumb=(it,cls)=>{const ch=esc(Array.from((it&&it.zh)||'')[0]||'');const ph=`<span class="${cls} ${cls}--ph" aria-hidden="true">${ch}</span>`;if(it&&it.venue==='REST'&&it.cat==='SPACE')return restPlanThumb(it,cls);return it&&it.image?`<img class="${cls}" src="${esc(it.image)}" alt="" loading="lazy" decoding="async" data-ch="${ch}" data-cls="${cls}">`:ph;};
+const itemThumb=(it,cls)=>{const ch=esc(Array.from((it&&it.zh)||'')[0]||'');const ph=`<span class="${cls} ${cls}--ph" aria-hidden="true">${ch}</span>`;if(it&&it.venue==='REST'&&MenuLib.SPACE_CATS.includes(it.cat))return restPlanThumb(it,cls);return it&&it.image?`<img class="${cls}" src="${esc(it.image)}" alt="" loading="lazy" decoding="async" data-ch="${ch}" data-cls="${cls}">`:ph;};
 if(typeof document!=='undefined'&&typeof document.addEventListener==='function')document.addEventListener('error',e=>{const im=e.target;if(!im||im.tagName!=='IMG'||!im.dataset||!im.dataset.cls)return;const sp=document.createElement('span');sp.className=im.dataset.cls+' '+im.dataset.cls+'--ph';sp.setAttribute('aria-hidden','true');sp.textContent=im.dataset.ch||'';im.replaceWith(sp);},true);
 // 結帳金額（與伺服器同一套算法：會員價 → 整單折扣）；伺服器仍會重算，這裡只給畫面即時顯示
 function posTotals(cur){

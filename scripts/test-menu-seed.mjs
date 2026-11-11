@@ -86,7 +86,9 @@ test('loadMenuSeedRows includes all 約書旅 POS plans', () => {
   const rows = loadMenuSeedRows().filter(r => r.venue === 'REST');
   assert.equal(rows.length, 9);
   assert.deepEqual(JSON.parse(JSON.stringify(rows.map(r => r.price))), [150, 450, 720, 250, 750, 1200, 100, 150, 2000]);
-  assert.ok(rows.every(r => r.cat === 'SPACE' && r.pos_only === true));
+  assert.ok(rows.every(r => r.pos_only === true));
+  assert.deepEqual(JSON.parse(JSON.stringify(rows.map(r => r.cat))), ['LOUNGE', 'LOUNGE', 'LOUNGE', 'QUIET', 'QUIET', 'QUIET', 'LOUNGE', 'QUIET', 'LOUNGE'], '分成交誼廳／靜讀室兩類');
+  assert.ok(rows.every(r => r.id && r.id.startsWith('m_rest_space_')), '沿用舊 id，正式資料只改分類');
   assert.ok(rows.every(r => r.zh.includes('空間使用費') || r.zh === '交誼廳包場｜2 小時'));
   assert.deepEqual([...new Set(rows.map(r => r.image))].sort(), [
     '/assets/restbook/lounge-entry.svg',

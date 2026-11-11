@@ -108,15 +108,15 @@ window.__MENU_SEED = [
   { venue:"BAR", cat:"OTHER", zh:"其他", en:"Other", price:0, note:"菜單上沒有的客製需求，由店員現場輸入金額。", custom_price:true, pos_only:true },
 
   // ══ 約書旅 Rest Book（POS 限定，不進餐飲出餐單） ══
-  { venue:"REST", cat:"SPACE", zh:"空間使用費｜貴賓室入場 1 小時", en:"Lounge entry · 1 hour", ja:"ラウンジ入場・1時間", price:150, note:"含手沖咖啡、零食飲料吧、淋浴、書籍／漫畫／雜誌、交誼廳、讀書席、Wi‑Fi、電源。24 小時同價。", image:"/assets/restbook/lounge-entry.svg", pos_only:true },
-  { venue:"REST", cat:"SPACE", zh:"空間使用費｜貴賓室入場 4 小時", en:"Lounge entry · 4 hours", ja:"ラウンジ入場・4時間", price:450, note:"含手沖咖啡、零食飲料吧、淋浴、書籍／漫畫／雜誌、交誼廳、讀書席、Wi‑Fi、電源。24 小時同價。", image:"/assets/restbook/lounge-entry.svg", pos_only:true },
-  { venue:"REST", cat:"SPACE", zh:"空間使用費｜貴賓室入場 8 小時", en:"Lounge entry · 8 hours", ja:"ラウンジ入場・8時間", price:720, note:"含手沖咖啡、零食飲料吧、淋浴、書籍／漫畫／雜誌、交誼廳、讀書席、Wi‑Fi、電源。24 小時同價。", image:"/assets/restbook/lounge-entry.svg", pos_only:true },
-  { venue:"REST", cat:"SPACE", zh:"空間使用費｜靜讀室 1 小時", en:"Quiet room · 1 hour", ja:"静読室・1時間", price:250, note:"含貴賓室入場全部內容與一席靜讀室（非密閉、不可上鎖、無寢具）。24 小時同價。", image:"/assets/restbook/quiet-room.svg", pos_only:true },
-  { venue:"REST", cat:"SPACE", zh:"空間使用費｜靜讀室 4 小時", en:"Quiet room · 4 hours", ja:"静読室・4時間", price:750, note:"含貴賓室入場全部內容與一席靜讀室（非密閉、不可上鎖、無寢具）。24 小時同價。", image:"/assets/restbook/quiet-room.svg", pos_only:true },
-  { venue:"REST", cat:"SPACE", zh:"空間使用費｜靜讀室 8 小時", en:"Quiet room · 8 hours", ja:"静読室・8時間", price:1200, note:"含貴賓室入場全部內容與一席靜讀室（非密閉、不可上鎖、無寢具）。24 小時同價。", image:"/assets/restbook/quiet-room.svg", pos_only:true },
-  { venue:"REST", cat:"SPACE", zh:"空間使用費｜貴賓室超時 1 小時", en:"Lounge overtime · 1 hour", ja:"ラウンジ延長・1時間", price:100, note:"超時 15 分鐘內不收費；超過 15 分鐘收 1 小時。", image:"/assets/restbook/lounge-entry.svg", pos_only:true },
-  { venue:"REST", cat:"SPACE", zh:"空間使用費｜靜讀室超時 1 小時", en:"Quiet room overtime · 1 hour", ja:"静読室延長・1時間", price:150, note:"超時 15 分鐘內不收費；超過 15 分鐘收 1 小時。", image:"/assets/restbook/quiet-room.svg", pos_only:true },
-  { venue:"REST", cat:"SPACE", zh:"交誼廳包場｜2 小時", en:"Lounge private hire · 2 hours", ja:"交誼廳貸切・2時間", price:2000, note:"1 時段 2 小時；平假日同價。一樓餐飲 9 折。靜讀室與淋浴不對包場開放。", image:"/assets/restbook/lounge-private.svg", pos_only:true },
+  { id:"m_rest_space_lounge_entry_1_hour", venue:"REST", cat:"LOUNGE", zh:"空間使用費｜貴賓室入場 1 小時", en:"Lounge entry · 1 hour", ja:"ラウンジ入場・1時間", price:150, note:"含手沖咖啡、零食飲料吧、淋浴、書籍／漫畫／雜誌、交誼廳、讀書席、Wi‑Fi、電源。24 小時同價。", image:"/assets/restbook/lounge-entry.svg", pos_only:true },
+  { id:"m_rest_space_lounge_entry_4_hours", venue:"REST", cat:"LOUNGE", zh:"空間使用費｜貴賓室入場 4 小時", en:"Lounge entry · 4 hours", ja:"ラウンジ入場・4時間", price:450, note:"含手沖咖啡、零食飲料吧、淋浴、書籍／漫畫／雜誌、交誼廳、讀書席、Wi‑Fi、電源。24 小時同價。", image:"/assets/restbook/lounge-entry.svg", pos_only:true },
+  { id:"m_rest_space_lounge_entry_8_hours", venue:"REST", cat:"LOUNGE", zh:"空間使用費｜貴賓室入場 8 小時", en:"Lounge entry · 8 hours", ja:"ラウンジ入場・8時間", price:720, note:"含手沖咖啡、零食飲料吧、淋浴、書籍／漫畫／雜誌、交誼廳、讀書席、Wi‑Fi、電源。24 小時同價。", image:"/assets/restbook/lounge-entry.svg", pos_only:true },
+  { id:"m_rest_space_quiet_room_1_hour", venue:"REST", cat:"QUIET", zh:"空間使用費｜靜讀室 1 小時", en:"Quiet room · 1 hour", ja:"静読室・1時間", price:250, note:"含貴賓室入場全部內容與一席靜讀室（非密閉、不可上鎖、無寢具）。24 小時同價。", image:"/assets/restbook/quiet-room.svg", pos_only:true },
+  { id:"m_rest_space_quiet_room_4_hours", venue:"REST", cat:"QUIET", zh:"空間使用費｜靜讀室 4 小時", en:"Quiet room · 4 hours", ja:"静読室・4時間", price:750, note:"含貴賓室入場全部內容與一席靜讀室（非密閉、不可上鎖、無寢具）。24 小時同價。", image:"/assets/restbook/quiet-room.svg", pos_only:true },
+  { id:"m_rest_space_quiet_room_8_hours", venue:"REST", cat:"QUIET", zh:"空間使用費｜靜讀室 8 小時", en:"Quiet room · 8 hours", ja:"静読室・8時間", price:1200, note:"含貴賓室入場全部內容與一席靜讀室（非密閉、不可上鎖、無寢具）。24 小時同價。", image:"/assets/restbook/quiet-room.svg", pos_only:true },
+  { id:"m_rest_space_lounge_overtime_1_hour", venue:"REST", cat:"LOUNGE", zh:"空間使用費｜貴賓室超時 1 小時", en:"Lounge overtime · 1 hour", ja:"ラウンジ延長・1時間", price:100, note:"超時 15 分鐘內不收費；超過 15 分鐘收 1 小時。", image:"/assets/restbook/lounge-entry.svg", pos_only:true },
+  { id:"m_rest_space_quiet_room_overtime_1_hour", venue:"REST", cat:"QUIET", zh:"空間使用費｜靜讀室超時 1 小時", en:"Quiet room overtime · 1 hour", ja:"静読室延長・1時間", price:150, note:"超時 15 分鐘內不收費；超過 15 分鐘收 1 小時。", image:"/assets/restbook/quiet-room.svg", pos_only:true },
+  { id:"m_rest_space_lounge_private_hire_2_hours", venue:"REST", cat:"LOUNGE", zh:"交誼廳包場｜2 小時", en:"Lounge private hire · 2 hours", ja:"交誼廳貸切・2時間", price:2000, note:"1 時段 2 小時；平假日同價。一樓餐飲 9 折。靜讀室與淋浴不對包場開放。", image:"/assets/restbook/lounge-private.svg", pos_only:true },
 ];
 // 向後相容：舊程式碼可能仍讀 window.MENU_DATA；admin.html 會在讀到 DB 資料後覆寫此值。
 window.MENU_DATA = window.__MENU_SEED;

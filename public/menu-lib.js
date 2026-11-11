@@ -10,7 +10,7 @@
     'COLD_APP', 'HOT_APP', 'FRIED', 'GRILL', 'MAIN', 'SOUP',
     'COFFEE', 'BEVERAGE', 'TEA', 'SPARKLING',
     'SAKE', 'LIQUEUR', 'WINE', 'BEER', 'BOTTLE', 'ALCOHOL',
-    'FOOD', 'SNACK', 'SHOP', 'SPACE', 'BOOK', 'OTHER',
+    'FOOD', 'SNACK', 'SHOP', 'LOUNGE', 'QUIET', 'SPACE', 'BOOK', 'OTHER',
   ];
   const ALCOHOL_CATS = ['ALCOHOL', 'SAKE', 'LIQUEUR', 'WINE', 'BEER', 'BOTTLE'];
   const VENUE_LABEL = {
@@ -43,6 +43,8 @@
     FOOD: { zh: '餐點', en: 'Food', ja: 'フード', ko: '음식' },
     SNACK: { zh: '點心', en: 'Snack', ja: 'おやつ', ko: '간식' },
     SHOP: { zh: '商店', en: 'Shop', ja: 'ショップ', ko: '숍' },
+    LOUNGE: { zh: '交誼廳', en: 'Lounge', ja: '交誼廳', ko: '라운지' },
+    QUIET: { zh: '靜讀室', en: 'Quiet room', ja: '静読室', ko: '정독실' },
     SPACE: { zh: '空間方案', en: 'Space plans', ja: '空間プラン', ko: '공간 플랜' },
     BOOK: { zh: '書籍', en: 'Books', ja: '書籍', ko: '도서' },
     OTHER: { zh: '其他', en: 'Other', ja: 'その他', ko: '기타' },
@@ -230,8 +232,9 @@
   function soldOutToday(item, now) { return (!!item.sold_out && item.sold_out === businessDay(now)) || stockLeft(item, now) === 0; }
   /* ctx.posOnly=true 時才把 pos_only 品項算進可點範圍（POS／後台代客加點用）；
    * 客人掃碼點餐（/order）與任何沒傳 ctx 的呼叫，一律看不到 pos_only 品項。 */
-  /* 空間方案與商店零售品都不出餐、不收餐飲服務費。 */
-  function isShop(item) { return !!item && (item.cat === 'SHOP' || item.cat === 'SPACE'); }
+  /* 約書旅空間方案（交誼廳／靜讀室；SPACE 為舊資料相容）與商店零售品都不出餐、不收餐飲服務費。 */
+  const SPACE_CATS = ['LOUNGE', 'QUIET', 'SPACE'];
+  function isShop(item) { return !!item && (item.cat === 'SHOP' || SPACE_CATS.includes(item.cat)); }
   /* 書籍（BOOK，KK 11/11）：約書旅後台掃 ISBN 造冊，自動成為約書旅 POS 品項。零售品：不上出餐單、不收服務費、不套會員價；
      只在 POS（ctx.posOnly）出現，不進桌邊點餐與官網菜單。庫存（stock_left）是永久本數，賣出扣、作廢回補，不隨營業日歸零 */
   function isBook(item) { return !!item && item.cat === 'BOOK'; }
@@ -453,6 +456,6 @@
 
   global.MenuLib = {
     CATS, VENUES, ITEM_VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, BAR_STATION_CATS, MEMBER_RATE, BAR_POLICY_FROM, CAFE_POLICY_FROM, SERVICE_RATE, MIN_SPEND, CAFE_MIN_SPEND, barPolicyActive, cafePolicyActive, minSpendOf, cafeMinimumOf, serviceCharge, memberPrice, activeVenue, orderWindow, orderableInWindow, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
-    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, isShop, isBook, isRetail, normalizeIsbn, ISBN13_RE, isShared, inVenue, forVenue, SHARED_CATS, soldOutToday, stockLeft, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
+    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, isShop, SPACE_CATS, isBook, isRetail, normalizeIsbn, ISBN13_RE, isShared, inVenue, forVenue, SHARED_CATS, soldOutToday, stockLeft, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
