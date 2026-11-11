@@ -34,17 +34,24 @@ function paintSettings(host){
   host=host||document.getElementById('settings-body');if(!host)return;
   const links=TABS.filter(t=>t.group==='settings').map(t=>`<button type="button" class="set-link" data-set-tab="${esc(t.id)}">${POSIcon(t.icon)}<span class="set-link-main"><b>${esc(t.label)}</b><span>${esc(t.desc||'')}</span></span><span class="set-chev" aria-hidden="true">›</span></button>`).join('');
   const ver=(document.querySelector('.p-ver')?.getAttribute('title')||'').replace(/^v/,'');
+  const escCfg=typeof escposBridgeConfig==='function'?escposBridgeConfig():null;
+  const escpos=`<div class="set-sec" aria-labelledby="set-escpos"><h3 id="set-escpos">主機 USB 印表機（ESC/POS）</h3><p class="hint">TM‑T70II 以 USB 接這台電腦時，先啟動本機列印服務，再在這裡配對。設定只儲存在這台電腦。</p><div class="a-form"><label>服務網址<input id="escpos-url" value="${esc(escCfg?.url||'http://127.0.0.1:17890')}" inputmode="url"></label><label>印表機 ID<input id="escpos-printer" value="${esc(escCfg?.printerId||'receipt-main')}" autocapitalize="off"></label><label>配對 token<input id="escpos-token" value="${esc(escCfg?.token||'')}" type="password" autocomplete="off"></label><button type="button" class="btn btn--ghost" id="escpos-check">測試連線</button><button type="button" class="btn btn--solid" id="escpos-save">儲存並測試列印</button></div><p class="hint" id="escpos-status">${escCfg?'已設定這台主機的 ESC/POS 列印服務':'尚未設定'}</p></div>`;
   host.innerHTML=`<div class="ops-head"><h2>設定</h2></div>
     <div class="set-sec" aria-labelledby="set-more"><h3 id="set-more">更多功能</h3><div class="set-links">${links}</div></div>
     <div class="set-sec" aria-labelledby="set-ktv"><h3 id="set-ktv">KTV 點歌</h3><div class="set-links"><a class="set-link" href="https://ktv.emoji.tw/" target="_blank" rel="noopener">${POSIcon('music')}<span class="set-link-main"><b>開啟言文字 KTV</b><span>點歌已獨立成 ktv.emoji.tw：控台、電視畫面、遙控、歌單、統計</span></span><span class="set-chev" aria-hidden="true">›</span></a></div></div>
+    ${escpos}
     <div class="set-sec" aria-labelledby="set-dev"><h3 id="set-dev">這台平板</h3>
       <div class="set-links">
-        <button type="button" class="set-link" id="set-print-test">${POSIcon('printer')}<span class="set-link-main"><b>測試列印</b><span>${typeof starReady==='function'&&starReady()?'已接 mPOP，印一張測試單確認紙張與連線':'需用 Star webPRNT Browser 開 POS 並接上 mPOP'}</span></span><span class="set-chev" aria-hidden="true">›</span></button>
+        <button type="button" class="set-link" id="set-print-test">${POSIcon('printer')}<span class="set-link-main"><b>測試列印</b><span>${typeof escposReady==='function'&&escposReady()?'已設定 ESC/POS 主機列印，印一張測試單確認紙張與連線':typeof starReady==='function'&&starReady()?'已接 mPOP，印一張測試單確認紙張與連線':'需設定 ESC/POS 主機列印，或用 Star webPRNT Browser 接 mPOP'}</span></span><span class="set-chev" aria-hidden="true">›</span></button>
         <button type="button" class="set-link" id="set-edit-tables">${POSIcon('pencil')}<span class="set-link-main"><b>編輯桌位擺放</b><span>拖到跟現場一樣的位置，全店平板一起套用</span></span><span class="set-chev" aria-hidden="true">›</span></button>
       </div>
       ${ver&&!ver.includes('<')?`<p class="hint">POS 版本 v${esc(ver)}</p>`:''}
     </div>`;
   host.querySelectorAll('[data-set-tab]').forEach(b=>b.onclick=()=>go(b.dataset.setTab));
+  const escInputs=()=>({url:host.querySelector('#escpos-url').value.trim().replace(/\/$/,''),printerId:host.querySelector('#escpos-printer').value.trim(),token:host.querySelector('#escpos-token').value.trim()});
+  const escStatus=t=>{host.querySelector('#escpos-status').textContent=t;};
+  host.querySelector('#escpos-check').onclick=async()=>{const c=escInputs();if(!c.url||!c.token||!c.printerId)return escStatus('請填完整服務網址、印表機 ID 與 token');try{const r=await fetch(c.url+'/health',{mode:'cors',credentials:'omit',signal:AbortSignal.timeout(5000)});if(!r.ok)throw Error(String(r.status));escStatus('本機列印服務已連線');}catch(e){escStatus('無法連到本機列印服務');}};
+  host.querySelector('#escpos-save').onclick=async()=>{const c=escInputs();if(!c.url||!c.token||!c.printerId)return escStatus('請填完整服務網址、印表機 ID 與 token');try{localStorage.setItem('tth_escpos_bridge',JSON.stringify(c));escStatus('已儲存；正在送出測試單…');const ok=await printTestTicket();escStatus(ok?'測試單已傳送至 TM‑T70II':'設定已儲存，但測試列印失敗');}catch(e){escStatus('無法儲存這台主機設定');}};
   host.querySelector('#set-print-test').onclick=async e=>{const b=e.currentTarget;if(b.disabled)return;b.disabled=true;try{await printTestTicket();}finally{b.disabled=false;}};
   host.querySelector('#set-edit-tables').onclick=()=>{POS_EDIT=true;POS_EDIT_POS=null;const h=document.getElementById('pos-body');if(h)delete h.dataset.sig;go('pos');};
 }
