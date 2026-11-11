@@ -135,3 +135,15 @@ test('約書旅站法遵口徑（KK 2026-11-08）：貴賓室寫「台北車站�
     assert.match(text, /台鐵、高鐵、捷運都沒有關係|not affiliated with TRA|台鉄・高鉄・MRT とは関係ありません/, f);
   }
 });
+
+test('約書旅價目（KK 2026-11-11）：兩層 24 小時同價，入場 150／450／720、靜讀室 250／750／1,200，淋浴內含；無夜間價、無一日上限、無月費', () => {
+  for (const f of ['rest-book.html', 'en/rest-book.html', 'ja/rest-book.html']) {
+    const html = fs.readFileSync(new URL(`../public/brand-sites/${f}`, import.meta.url), 'utf8');
+    const text = html.replace(/<[^>]+>/g, ' ');
+    for (const p of ['NT$150', 'NT$450', 'NT$720', 'NT$100', 'NT$250', 'NT$750', 'NT$1,200']) assert.ok(text.includes(p), `${f}: ${p}`);
+    assert.doesNotMatch(text, /NT\$200|NT\$600|NT\$800|NT\$1,000\b|22:00–08:00|08:00–22:00|夜間|Night|Daytime|夜間料金|一日最大|day pass|1日最大|月費|monthly/, f);
+    assert.doesNotMatch(text, /淋浴另計|showers are extra|シャワーは別料金|另行計費|Priced separately/, f);
+    assert.match(text, /24 小時|24 hours|24時間/, f);
+    assert.match(text, /滿 8 小時請離席|After eight hours straight|連続8時間/, f);
+  }
+});

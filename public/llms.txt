@@ -11,7 +11,7 @@
 | 在咖啡 at cafe | 台北車站旁的早午餐與咖啡店：開放式三明治、可頌、貝果、飯糰、冷蕎麥麵配義式咖啡；外帶、會客、帶電腦工作，不需會員 | 每日 08:00–17:00 | https://atcafe.emoji.tw/ | https://atcafe.emoji.tw/llms.txt |
 | 三點水 3AM | 深夜食堂與餐酒館；日式 fusion 料理配酒，不需會員 | 每日 17:00–翌日 03:00 | https://3am.emoji.tw/ | https://3am.emoji.tw/llms.txt |
 | 等等空間 Stay Square | 會員共享工作區、會議室、電話亭、和室投影與自助吧；可包場辦講座、工作坊與團隊活動 | 會員 24 小時 | https://staysquare.emoji.tw/ | https://staysquare.emoji.tw/llms.txt |
-| 約書旅 Rest Book | 台北車站旁的閱讀空間與貴賓室：書可讀可買、讀書席、靜讀室、淋浴與交誼廳；按時段付空間使用費 | 白天 08:00–22:00／夜間 22:00–08:00 | https://restbook.emoji.tw/ | https://restbook.emoji.tw/llms.txt |
+| 約書旅 Rest Book | 台北車站旁的貴賓室：入場即可用交誼廳、讀書席、書架、自助飲料與淋浴，另可加一席靜讀室；24 小時同價，按時段付空間使用費 | 24 小時 | https://restbook.emoji.tw/ | https://restbook.emoji.tw/llms.txt |
 
 英文版在各官網網址後加 `/en`，日文版加 `/ja`（例如 https://atcafe.emoji.tw/en）。
 
