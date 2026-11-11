@@ -105,7 +105,7 @@ async function api(path, { method = 'GET', body } = {}) {
 function showLogin(msg) {
   stopCam(); document.getElementById('logout').hidden = true;
   const back = encodeURIComponent(location.origin + location.pathname);
-  app.innerHTML = `<div class="login card"><h1>書冊管理登入</h1><p class="lead">約書旅管理員帳號登入後，掃書背 ISBN 造冊，會直接出現在約書旅 POS。</p>
+  app.innerHTML = `<div class="login card"><h1>書冊管理登入</h1><p class="lead">約書旅管理員帳號登入後，掃書背條碼或輸入 ISBN 造冊，會直接出現在約書旅 POS。</p>
     ${msg ? `<p class="msg err" role="alert">${esc(msg)}</p>` : ''}
     <a class="btn btn--solid" href="https://www.emoji.tw/auth/google?redirect=${back}">使用 Google 登入</a>
     <p class="or">或用 Email 密碼</p>
@@ -122,9 +122,9 @@ function showLogin(msg) {
 
 function shell() {
   document.getElementById('logout').hidden = false;
-  app.innerHTML = `<h1>書冊管理</h1><p class="lead">掃書背條碼（ISBN）→ 自動帶入書名與定價 → 確認售價與本數後存檔。存檔後約書旅 POS 的「書籍」分類就能結帳，賣出自動扣本數。</p>
-  <section class="card" aria-labelledby="h-scan"><h2 id="h-scan">掃描 ISBN</h2>
-    <form class="scan-row" id="scan-form"><input id="isbn" inputmode="numeric" autocomplete="off" maxlength="17" placeholder="掃描槍直接掃，或輸入 978… 後按 Enter" aria-label="ISBN">
+  app.innerHTML = `<h1>書冊管理</h1><p class="lead">掃書背條碼或輸入 ISBN → 自動從臺灣、日本與全球書目平台帶入資料與定價 → 確認售價與本數後存檔。存檔後約書旅 POS 的「書籍」分類就能結帳，賣出自動扣本數。</p>
+  <section class="card" aria-labelledby="h-scan"><h2 id="h-scan">掃描或輸入書籍條碼</h2>
+    <form class="scan-row" id="scan-form"><input id="isbn" inputmode="numeric" autocomplete="off" maxlength="17" placeholder="掃描槍直接掃書背條碼，或輸入 ISBN（978…）後按 Enter" aria-label="書籍條碼或 ISBN">
       <button class="btn btn--solid" type="submit">查詢</button><button class="btn btn--brass" type="button" id="cam-btn">用相機掃</button></form>
     <div class="cam" id="cam"><video id="video" playsinline muted></video><i aria-hidden="true"></i></div>
     <p class="msg" id="scan-msg" role="status" aria-live="polite"></p>
@@ -150,11 +150,11 @@ async function lookup(raw) {
       say(`已在書冊：《${b.zh}》目前 ${b.stock_left || 0} 本。存檔會加 1 本（可改）。`, 'ok');
     } else if (d.book && d.book.found !== false) {
       const b = d.book;
-      DRAFT = { mode: 'new', isbn, title: b.title, author: b.author, publisher: b.publisher, list_price: b.list_price, price: b.list_price || '', qty: 1, published: true, image: b.image || '', source: b.source, pub_date: b.pub_date };
-      say(b.list_price ? `找到《${b.title}》，定價 NT$${num(b.list_price)}。` : `找到《${b.title}》，但書目沒有臺灣定價，請手動填售價。`, b.list_price ? 'ok' : '');
+      DRAFT = { mode: 'new', isbn, title: b.title, author: b.author, publisher: b.publisher, list_price: b.list_price, price: b.list_price || '', qty: 1, published: true, image: b.image || '', source: b.source, pub_date: b.pub_date, reference_price: b.reference_price || 0, reference_currency: b.reference_currency || '' };
+      say(b.list_price ? `找到《${b.title}》，定價 NT$${num(b.list_price)}。` : b.reference_currency === 'JPY' && b.reference_price ? `找到《${b.title}》，參考日圓定價 ¥${num(b.reference_price)}；請手動填臺幣售價。` : `找到《${b.title}》，但書目沒有臺灣定價，請手動填售價。`, b.list_price ? 'ok' : '');
     } else {
       DRAFT = { mode: 'new', isbn, title: '', author: '', publisher: '', list_price: 0, price: '', qty: 1, published: true, image: '' };
-      say('國圖書號中心與 Google Books 都查不到這本，請手動填書名與售價。', 'err');
+      say('找不到可用 ISBN。請確認掃的是書背 978／979 條碼；非 ISBN 條碼目前無法自動帶入書目，請改輸入 ISBN。', 'err');
     }
     paintDraft();
   } catch (e) { say('查詢失敗：' + e.message, 'err'); }
@@ -164,7 +164,7 @@ async function lookup(raw) {
 function paintDraft() {
   const host = document.getElementById('draft'); if (!host) return;
   if (!DRAFT) { host.innerHTML = ''; return; }
-  const d = DRAFT, src = d.source === 'ncl' ? '書目來源：國家圖書館 ISBN 書號中心' : d.source === 'google' ? '書目來源：Google Books（外文書沒有臺灣定價）' : '';
+  const d = DRAFT, src = d.source === 'ncl' ? '書目來源：國家圖書館 ISBN 書號中心' : d.source === 'openbd' ? '書目來源：openBD（日本出版流通書誌）' : d.source === 'ndl' ? '書目來源：日本國立國會圖書館 NDL Search' : d.source === 'google' ? '書目來源：Google Books（外文書／未必含臺灣定價）' : '';
   host.innerHTML = `<form class="form" id="book-form" style="margin-top:16px">
     <label class="full">書名<input name="title" required maxlength="120" value="${esc(d.title)}"></label>
     <label>作者<input name="author" maxlength="200" value="${esc(d.author)}"></label>

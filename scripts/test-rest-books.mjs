@@ -36,6 +36,35 @@ test('國圖明細頁解析：書名、作者、出版社、定價、出版年�
   assert.equal(books.parseNclRecord(html, '9789570000003'), null, 'ISBN 不符不能誤用別本書');
 });
 
+test('日本 openBD：以 ISBN 帶入題名、作者、出版社、日圓定價', () => {
+  const payload = [{
+    summary: { isbn: '9784101050089', title: '吾輩は猫である', publisher: '新潮社', pubdate: '2003-01-01', cover: 'https://example.test/cover.jpg' },
+    onix: { DescriptiveDetail: { Contributor: [{ PersonName: '夏目漱石' }] }, PublishingDetail: { Imprint: [{ ImprintName: '新潮社' }], PublishingDate: [{ Date: '20030101' }] }, ProductSupply: { SupplyDetail: { Price: [{ PriceAmount: '500' }] } } },
+  }];
+  const r = books.parseOpenBdRecord(payload, '9784101050089');
+  assert.equal(r.title, '吾輩は猫である');
+  assert.equal(r.author, '夏目漱石');
+  assert.equal(r.publisher, '新潮社');
+  assert.equal(r.list_price, 0, '日圓定價不可直接當成臺幣 POS 售價');
+  assert.equal(r.reference_price, 500);
+  assert.equal(r.reference_currency, 'JPY');
+});
+
+test('書目查詢：國圖未命中時依序改查 openBD、NDL、Google', async () => {
+  const calls = [];
+  const fetchImpl = async url => {
+    calls.push(url);
+    if (url.includes('isbn.ncl.edu.tw')) return { status: 200, headers: { getSetCookie: () => [], get: () => null }, text: async () => '<input id="csrftoken" name="csrftoken" value="x">' };
+    if (url.includes('api.openbd.jp')) return { ok: true, json: async () => [{ summary: { title: '日文書', publisher: '出版社' }, onix: { ProductSupply: { SupplyDetail: { Price: [{ PriceAmount: '880' }] } } } }] };
+    throw Error('不應查到後續來源');
+  };
+  const r = await books.lookupIsbn('9784101050089', { fetchImpl });
+  assert.equal(r.title, '日文書');
+  assert.equal(r.source, 'openbd');
+  assert.ok(calls.some(x => x.includes('api.openbd.jp')));
+  assert.ok(!calls.some(x => x.includes('ndlsearch.ndl.go.jp')));
+});
+
 test('造冊：新增→再掃加本數→set 改本數；只能放約書旅', () => {
   let { json, item, created } = books.upsertBook('', { isbn: '9789861755267', title: '原子習慣', list_price: 330, price: 297, qty: 2 });
   assert.ok(created);

@@ -700,7 +700,7 @@ POS 每 5 秒輪詢。回 `{ pending:[{id,session_id,table,by,amount,sfx,perform
 約書旅書冊（KK 11/11）：列出菜單裡所有書籍品項（`venue:'REST'`、`cat:'BOOK'`，含 `isbn`／`author`／`publisher`／`list_price`／`price`／`stock_left`）。回 `{ books[], count, copies, csv }`。只有超管與約書旅帳號可用（其他品牌 403）。
 
 ### GET /api/admin/menu/books/lookup
-用 ISBN 查書目。query `isbn=`（13 碼 978／979 或 10 碼，自動轉 13 碼、驗檢查碼）。已在書冊回 `existing`；否則依序查國家圖書館 ISBN 書號中心（臺灣出版品，含定價）→ Google Books（外文書，無定價），回 `{ isbn, existing, book }`，查不到時 `book.found=false`。
+用 ISBN 查書目。query `isbn=`（13 碼 978／979 或 10 碼，自動轉 13 碼、驗檢查碼）。已在書冊回 `existing`；否則依序查國家圖書館 ISBN 書號中心（臺灣出版品，含定價）→ openBD（日本出版流通書誌，常含日圓定價）→ 日本國立國會圖書館 NDL Search → Google Books（跨國補查），回 `{ isbn, existing, book }`，查不到時 `book.found=false`。
 
 ### POST /api/admin/menu/books
 造冊／補本數／修改。body `{ isbn, title, author, publisher, list_price, price, qty, published, mode:'add'|'set' }`。同 ISBN 已在冊：`mode:'add'`（預設）把本數加上 `qty`，`'set'` 直接改成 `qty`；否則新增約書旅書籍品項。寫進同一份菜單（鎖 menu 列），約書旅 POS 立即可加點結帳；售出時 `stock_left` 自動扣、作廢回補，不隨營業日歸零，扣到 0 視同售完。回 `{ ok, created, book }`。
