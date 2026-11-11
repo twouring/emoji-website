@@ -503,8 +503,21 @@ async function starOpenHere(){if(await posConfirm('印發票／開錢櫃要在 S
 /* USB ESC/POS 主機列印：主機本身開 POS 網頁，同時跑只監聽 localhost 的 bridge。
    設定與配對 token 只留在該台主機瀏覽器 localStorage，不進伺服器、不進公開前端。 */
 const ESCPOS_BRIDGE_DEFAULT='http://127.0.0.1:17890';
+let ESCPOS_LAST_ERROR='';
 function escposBridgeConfig(){try{const raw=localStorage.getItem('tth_escpos_bridge');const c=raw?JSON.parse(raw):null;return c&&c.url&&c.token&&c.printerId?c:null;}catch(e){return null;}}
 const escposReady=()=>!!escposBridgeConfig();
+function escposLastError(){return ESCPOS_LAST_ERROR||'請確認印表機名稱、紙張與系統列印測試頁';}
+async function escposCheck(c){
+  ESCPOS_LAST_ERROR='';
+  const base=String(c?.url||ESCPOS_BRIDGE_DEFAULT).replace(/\/$/,'');
+  try{
+    const r=await fetch(base+'/printers',{mode:'cors',credentials:'omit',headers:{Authorization:'Bearer '+String(c?.token||'')},signal:AbortSignal.timeout(5000)});
+    let out={};try{out=await r.json();}catch(e){}
+    if(!r.ok)throw Error(out.error||('HTTP '+r.status));
+    if(!(out.printers||[]).some(p=>p.id===c.printerId))throw Error('這個服務沒有 '+c.printerId+' 印表機');
+    return {ok:true,printer:(out.printers||[]).find(p=>p.id===c.printerId)};
+  }catch(e){ESCPOS_LAST_ERROR=String(e?.message||e);return {ok:false,error:ESCPOS_LAST_ERROR};}
+}
 function escposRaster(canvas){
   const src=canvas?.getContext?.('2d');if(!src)throw Error('列印影像不存在');
   const w=canvas.width,h=canvas.height,row=Math.ceil(w/8),pixels=src.getImageData(0,0,w,h).data,out=new Uint8Array(row*h);
@@ -514,11 +527,12 @@ function escposRaster(canvas){
 async function escposSend({canvas=null,drawer=false,label='' }={}){
   const c=escposBridgeConfig();if(!c)return false;
   if(!canvas&&!drawer)return false;
+  ESCPOS_LAST_ERROR='';
   const jobId='pos-'+(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2));
   let response;
-  try{response=await fetch(String(c.url||ESCPOS_BRIDGE_DEFAULT).replace(/\/$/,'')+'/print-jobs',{method:'POST',mode:'cors',credentials:'omit',headers:{'Content-Type':'application/json','Authorization':'Bearer '+c.token},body:JSON.stringify({jobId,printerId:c.printerId,raster:canvas?escposRaster(canvas):null,drawer:!!drawer,cut:!!canvas,label:String(label||'').slice(0,60)}),signal:AbortSignal.timeout(20000)});}catch(e){toast('連不到本機 ESC/POS 列印服務：請確認主機服務正在執行');return false;}
+  try{response=await fetch(String(c.url||ESCPOS_BRIDGE_DEFAULT).replace(/\/$/,'')+'/print-jobs',{method:'POST',mode:'cors',credentials:'omit',headers:{'Content-Type':'application/json','Authorization':'Bearer '+c.token},body:JSON.stringify({jobId,printerId:c.printerId,raster:canvas?escposRaster(canvas):null,drawer:!!drawer,cut:!!canvas,label:String(label||'').slice(0,60)}),signal:AbortSignal.timeout(20000)});}catch(e){ESCPOS_LAST_ERROR='連不到本機 ESC/POS 列印服務：請確認主機服務正在執行';toast(ESCPOS_LAST_ERROR);return false;}
   let out={};try{out=await response.json();}catch(e){}
-  if(!response.ok||out.status==='failed'){toast('ESC/POS 列印失敗：'+(out.error||response.status));return false;}
+  if(!response.ok||out.status==='failed'){ESCPOS_LAST_ERROR=out.error||('HTTP '+response.status);toast('ESC/POS 列印失敗：'+ESCPOS_LAST_ERROR);return false;}
   // USB/Spooler accepts bytes but cannot prove paper actually emerged.
   return out.status==='sent_to_device';
 }
@@ -978,8 +992,11 @@ function kitchenPrintStatusHtml(){
 }
 async function printTestTicket(){
   if(!canPrint()){starHint();return false;}
-  const spec=[{kind:'center',text:'測試列印',size:22,bold:true},{kind:'center',text:'mPOP 連線正常',size:20},{kind:'center',text:applicationTime(new Date().toISOString()),size:18},{kind:'center',text:'這張不是出餐單，可直接丟棄',size:18}];
-  const ok=await starSend({canvas:ticketCanvas(spec)});toast(ok?'測試列印已送出，請看 mPOP 是否出紙':'測試列印失敗，請檢查 USB-C 線與 mPOP 電源');return ok;
+  const isEscpos=escposReady();
+  const spec=[{kind:'center',text:'測試列印',size:22,bold:true},{kind:'center',text:isEscpos?'USB ESC/POS 連線正常':'mPOP 連線正常',size:20},{kind:'center',text:applicationTime(new Date().toISOString()),size:18},{kind:'center',text:'這張不是出餐單，可直接丟棄',size:18}];
+  const ok=await starSend({canvas:ticketCanvas(spec)});
+  toast(ok?'測試列印已送出，請確認印表機是否出紙':isEscpos?'USB ESC/POS 列印失敗：'+escposLastError():'測試列印失敗，請檢查 USB-C 線與 mPOP 電源');
+  return ok;
 }
 function bindPrintStatus(host,repaint){
   const resume=host.querySelector('#pos-print-resume');if(resume)resume.onclick=async()=>{if(!await resumeKitchenPrinting())return;repaint();return pollKitchenPrinting();};

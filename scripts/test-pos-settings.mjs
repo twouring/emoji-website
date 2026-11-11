@@ -38,6 +38,12 @@ test('只有管理員能用的功能只在 admin，不放 POS（KK 11/2）', () 
   assert.match(set, /macOS 安裝程式/);
   assert.match(set, /配對這台 POS 主機/);
   assert.match(set, /儲存並測試列印/);
+  assert.match(set, /escposCheck\(c\)/, '測試連線必須驗證 token 與 printerId，不可只測未授權 health');
+  assert.doesNotMatch(set, /fetch\(c\.url\+'\/health'/, 'health 不驗 token，不能作為配對成功依據');
+  assert.match(ops, /function escposCheck\(c\)/, 'ESC\/POS 配對檢查必須走授權端點');
+  assert.match(ops, /\/printers/, 'ESC\/POS 配對檢查需驗證 bridge 列印機清單');
+  assert.match(ops, /ESCPOS_LAST_ERROR/, '測試列印失敗必須保留 bridge 回傳的實際錯誤');
+  assert.match(ops, /USB ESC\/POS 列印失敗/, '測試列印不可誤導成 mPOP USB-C 問題');
   assert.doesNotMatch(set, /\bconfirm\(|\bprompt\(/, '一律用 posConfirm／pickReason');
 });
 test('後端：GET 清單、POST/PATCH 超管或店長識別碼、API.md 有文件', () => {
