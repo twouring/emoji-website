@@ -44,8 +44,9 @@
   .form input{min-height:48px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
   .form .chk{flex-direction:row;align-items:center;gap:8px;color:var(--ink)}
   .form .chk input{min-height:auto;width:22px;height:22px}
-  .src{color:var(--soft)}
-  .acts{display:flex;gap:12px;flex-wrap:wrap;margin-top:16px}
+  .platform-searches{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .platform-searches .btn{min-height:40px;padding:0 12px;font-size:1rem}
+  .platform-note{color:var(--soft);font-size:1rem;margin:12px 0 0}
   .stats{display:flex;gap:24px;flex-wrap:wrap;color:var(--soft);margin-bottom:12px}
   .stats b{color:var(--ink);font-size:1.25rem}
   .tools{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
@@ -89,6 +90,18 @@ const KEY = 'rb_admin_token';
 const app = document.getElementById('app');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const num = n => Number(n || 0).toLocaleString('zh-TW');
+/* 零售平台沒有提供可供後台穩定使用的公開 API；使用其官方站內搜尋或限定該站的搜尋結果，不爬取／不擷取受條款保護的商品頁資料。 */
+const PLATFORM_SEARCHES = [
+  ['博客來', isbn => `https://search.books.com.tw/search/query/key/${encodeURIComponent(isbn)}/cat/all`],
+  ['金石堂', isbn => `https://www.google.com/search?q=${encodeURIComponent(`site:kingstone.com.tw ${isbn}`)}`],
+  ['誠品', isbn => `https://www.google.com/search?q=${encodeURIComponent(`site:eslite.com ${isbn}`)}`],
+  ['讀冊 TAAZE', isbn => `https://www.google.com/search?q=${encodeURIComponent(`site:taaze.tw ${isbn}`)}`],
+  ['三民', isbn => `https://www.sanmin.com.tw/search?k=${encodeURIComponent(isbn)}`],
+  ['讀墨 Readmoo', isbn => `https://www.google.com/search?q=${encodeURIComponent(`site:readmoo.com ${isbn}`)}`],
+  ['樂天 Kobo', isbn => `https://www.google.com/search?q=${encodeURIComponent(`site:kobo.com/tw ${isbn}`)}`],
+  ['Yahoo 購物', isbn => `https://www.google.com/search?q=${encodeURIComponent(`site:tw.buy.yahoo.com ${isbn}`)}`],
+];
+const platformSearches = isbn => `<p class="platform-note">在臺灣書店查這個 ISBN（另開分頁；各平台售價與庫存僅供人工確認）。</p><div class="platform-searches" aria-label="臺灣書店 ISBN 搜尋">${PLATFORM_SEARCHES.map(([name, url]) => `<a class="btn btn--ghost" href="${esc(url(isbn))}" target="_blank" rel="noopener noreferrer">${esc(name)}</a>`).join('')}</div>`;
 const hash = new URLSearchParams(location.hash.slice(1));
 if (hash.get('token')) { localStorage.setItem(KEY, hash.get('token')); history.replaceState(null, '', location.pathname); }
 let token = localStorage.getItem(KEY) || '';
@@ -128,6 +141,7 @@ function shell() {
       <button class="btn btn--solid" type="submit">查詢</button><button class="btn btn--brass" type="button" id="cam-btn">用相機掃</button></form>
     <div class="cam" id="cam"><video id="video" playsinline muted></video><i aria-hidden="true"></i></div>
     <p class="msg" id="scan-msg" role="status" aria-live="polite"></p>
+    <div id="platform-searches"></div>
     <div id="draft"></div></section>
   <section class="card" aria-labelledby="h-list"><h2 id="h-list">書冊</h2><div id="list"><p class="lead">載入中…</p></div></section>`;
   const input = document.getElementById('isbn');
@@ -140,6 +154,8 @@ function say(text, kind = '') { const m = document.getElementById('scan-msg'); i
 async function lookup(raw) {
   const isbn = MenuLib.normalizeIsbn(raw);
   if (!isbn) { say('ISBN 格式不正確：要 13 碼 978／979 開頭（或 10 碼），請再掃一次。', 'err'); return; }
+  /* isbn 已由 normalizeIsbn 驗證；平台名稱、網址模板是上方常數，並再經 esc()，這裡不含外部回傳資料。 */
+  const platform = document.getElementById('platform-searches'); if (platform) platform.innerHTML = platformSearches(isbn);
   if (LOOKING) return; LOOKING = true;
   say('查詢 ' + isbn + ' 中…');
   try {

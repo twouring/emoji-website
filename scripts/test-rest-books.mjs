@@ -116,6 +116,9 @@ test('接線：後台頁、API、POS 估清排除書籍、結帳不送出餐單�
   const page = read('public/rest-book-admin.html');
   assert.match(page, /\/api'? ?\+ ?path|'\/api' \+ path/);
   assert.match(page, /\/admin\/menu\/books\/lookup\?isbn=/);
+  assert.match(page, /PLATFORM_SEARCHES/);
+  for (const name of ['博客來', '金石堂', '誠品', '讀冊', '三民', '讀墨']) assert.ok(page.includes(name), name);
+  assert.match(page, /platform-searches/);
   assert.match(page, /formats: \['EAN13'\]/);
   assert.match(page, /noindex/);
   assert.ok(MenuLib.CAT_LABEL.BOOK && ['zh', 'en', 'ja', 'ko'].every(k => MenuLib.CAT_LABEL.BOOK[k]));
