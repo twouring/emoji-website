@@ -13,11 +13,12 @@ const items = [
   { id: 'd', venue: 'CAFE', cat: 'DESSERT', zh: '原味費南雪', published: true, price: 90, points: 9 },
   { id: 'b', venue: 'BAR', cat: 'BEER', zh: '啤酒', published: true, price: 200 },
 ];
-test('MenuLib.inVenue／forVenue：共用甜點兩店都有，venue 換成該店', () => {
+test('MenuLib.inVenue／forVenue：共用甜點只在兩個餐飲店別，venue 換成該店', () => {
   assert.deepEqual(M.forVenue(items, 'BAR').map(i => i.id), ['d', 'b']);
   assert.equal(M.forVenue(items, 'BAR').find(i => i.id === 'd').venue, 'BAR');
   assert.deepEqual(M.forVenue(items, 'CAFE').map(i => i.id), ['c', 'd']);
-  assert.equal(M.inVenue(items[0], 'BAR'), false);
+  assert.deepEqual(M.forVenue(items, 'REST').map(i => i.id), [], '約書旅不販售跨店甜點');
+  assert.equal(M.inVenue(items[1], 'REST'), false, '約書旅 POS 不得看到在咖啡甜點');
   assert.equal(items[1].venue, 'CAFE', '不可改到原資料');
 });
 test('點餐／兌換（menuIndex）與 App、官網菜單看到的三點水品項一致', () => {

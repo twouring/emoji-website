@@ -231,9 +231,12 @@
   const SHARED_CATS = ['SHOP', 'DESSERT'];
   function isShared(item) { return !!item && SHARED_CATS.includes(item.cat); }
   /* 「這家店的菜單有沒有這項」唯一判斷（KK 11/5：資料來源要統一）。點餐頁、兌換、POS、App 菜單、預約取餐、官網菜單都走這裡，
-     不要再各自寫 it.venue===venue。forVenue 會把共用品項的 venue 換成該店，分組、出餐單、日結才會落在同一家。 */
-  function inVenue(item, venue) { return !!item && (!venue || item.venue === venue || isShared(item)); }
-  function forVenue(items, venue) { return (items || []).filter(it => inVenue(it, venue)).map(it => (venue && isShared(it) && it.venue !== venue ? Object.assign({}, it, { venue }) : it)); }
+     不要再各自寫 it.venue===venue。forVenue 會把共用品項的 venue 換成該店，分組、出餐單、日結才會落在同一家。
+     甜點只在兩個餐飲 POS（在咖啡／三點水）共用；約書旅只賣自己的空間方案。 */
+  const DESSERT_VENUES = ['CAFE', 'BAR'];
+  function sharedInVenue(item, venue) { return isShared(item) && (item.cat !== 'DESSERT' || DESSERT_VENUES.includes(venue)); }
+  function inVenue(item, venue) { return !!item && (!venue || item.venue === venue || sharedInVenue(item, venue)); }
+  function forVenue(items, venue) { return (items || []).filter(it => inVenue(it, venue)).map(it => (venue && sharedInVenue(it, venue) && it.venue !== venue ? Object.assign({}, it, { venue }) : it)); }
   function isOrderable(item, now, ctx) {
     if (!item.published || soldOutToday(item, now)) return false;
     if (isShop(item) && !(ctx && (ctx.shop || ctx.posOnly))) return false;
