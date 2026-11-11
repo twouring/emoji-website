@@ -1,6 +1,6 @@
 'use strict';
 (function (global) {
-  const VENUES = ['CAFE', 'BAR'];
+  const VENUES = ['CAFE', 'BAR', 'REST'];
   // 順序＝前台分組順序（餐點在前、飲品在後，依 2026-10-07 定稿菜單）；ALCOHOL／FOOD／SNACK 保留給舊資料相容
   const CATS = [
     'COMBO',
@@ -8,12 +8,13 @@
     'COLD_APP', 'HOT_APP', 'FRIED', 'GRILL', 'MAIN', 'SOUP',
     'COFFEE', 'BEVERAGE', 'TEA', 'SPARKLING',
     'SAKE', 'LIQUEUR', 'WINE', 'BEER', 'BOTTLE', 'ALCOHOL',
-    'FOOD', 'SNACK', 'SHOP', 'OTHER',
+    'FOOD', 'SNACK', 'SHOP', 'SPACE', 'OTHER',
   ];
   const ALCOHOL_CATS = ['ALCOHOL', 'SAKE', 'LIQUEUR', 'WINE', 'BEER', 'BOTTLE'];
   const VENUE_LABEL = {
     CAFE: { zh: '在咖啡', en: 'at cafe', ja: '在咖啡', ko: 'at cafe' },
     BAR: { zh: '三點水', en: '3AM', ja: '三點水', ko: '3AM' },
+    REST: { zh: '約書旅', en: 'Rest Book', ja: '約書旅', ko: 'Rest Book' },
   };
   const CAT_LABEL = {
     COMBO: { zh: '套餐', en: 'Set', ja: 'セット', ko: '세트' },
@@ -40,6 +41,7 @@
     FOOD: { zh: '餐點', en: 'Food', ja: 'フード', ko: '음식' },
     SNACK: { zh: '點心', en: 'Snack', ja: 'おやつ', ko: '간식' },
     SHOP: { zh: '商店', en: 'Shop', ja: 'ショップ', ko: '숍' },
+    SPACE: { zh: '空間方案', en: 'Space plans', ja: '空間プラン', ko: '공간 플랜' },
     OTHER: { zh: '其他', en: 'Other', ja: 'その他', ko: '기타' },
   };
   /* 當下營業品牌（台北時間，UTC+8 無日光節約）：08:00–17:00 在咖啡、17:00–翌日 03:00 三點水、其餘 null。
@@ -223,9 +225,8 @@
   function soldOutToday(item, now) { return (!!item.sold_out && item.sold_out === businessDay(now)) || stockLeft(item, now) === 0; }
   /* ctx.posOnly=true 時才把 pos_only 品項算進可點範圍（POS／後台代客加點用）；
    * 客人掃碼點餐（/order）與任何沒傳 ctx 的呼叫，一律看不到 pos_only 品項。 */
-  /* 商店（SHOP）：牙刷、毛巾、耳機等零售品。只在會員 App 商店（ctx.shop）與 POS（ctx.posOnly）出現，
-   * 不進桌邊點餐、預約取餐、官網菜單；不上出餐單、不收服務費、不套會員價。 */
-  function isShop(item) { return !!item && item.cat === 'SHOP'; }
+  /* 空間方案與商店零售品都不出餐、不收餐飲服務費。 */
+  function isShop(item) { return !!item && (item.cat === 'SHOP' || item.cat === 'SPACE'); }
   /* 兩店共用（KK 11/2）：商店零售品與甜點在兩店 POS 都能點，賣出時記在當下店別（三點水賣的甜點才收服務費、進三點水日結） */
   const SHARED_CATS = ['SHOP', 'DESSERT'];
   function isShared(item) { return !!item && SHARED_CATS.includes(item.cat); }
