@@ -33,7 +33,7 @@ test('只有管理員能用的功能只在 admin，不放 POS（KK 11/2）', () 
   assert.match(ops, /!DATA\.brands&&!onPosPage\(\)&&await posConfirm\(/, '強制清桌只在 admin');
   assert.match(set, /列印站設定（USB ESC\/POS）/);
   assert.match(set, /EmojiPOSPrinterStationSetup\.ps1/);
-  assert.match(set, /EmojiPOSPrinterStationInstaller\.command/);
+  assert.match(set, /EmojiPOSPrinterStationInstaller\.zip/);
   assert.match(set, /Windows 安裝程式/);
   assert.match(set, /macOS 安裝程式/);
   assert.match(set, /配對這台 POS 主機/);
