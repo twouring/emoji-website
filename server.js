@@ -1206,6 +1206,21 @@ async function seedMenuContent() {
         console.log('[menu-seed] 已補上約書旅 POS 方案：' + add.length + ' 項。');
       }
     } catch (e) { console.warn('[menu-seed] 約書旅 POS 方案略過：', e && e.message); }
+    try {   // 一次性：約書旅 POS 插圖；只補空白圖片，現場上傳實拍圖優先
+      const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_restbook_plan_images_v1'`)).rows.length;
+      if (!done) {
+        const doc = JSON.parse((await readContent()).menu);
+        const images = new Map(buildMenuSeedDoc(loadMenuSeedRows()).items.filter(it => it.venue === 'REST').map(it => [it.id, it.image]));
+        let n = 0;
+        for (const it of doc.items || []) {
+          const image = images.get(it.id);
+          if (image && !String(it.image || '').trim()) { it.image = image; n++; }
+        }
+        if (n > 0) await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
+        await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_restbook_plan_images_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(n)]);
+        console.log('[menu-seed] 已補上約書旅 POS 插圖：' + n + ' 項。');
+      }
+    } catch (e) { console.warn('[menu-seed] 約書旅 POS 插圖略過：', e && e.message); }
     try {   // 每次開機：套餐選項補 id、同步品名（品項改名不脫鉤）
       const doc = JSON.parse((await readContent()).menu);
       const n = require('./lib/menu-combos').comboRelink(doc.items);

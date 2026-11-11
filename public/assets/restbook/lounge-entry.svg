@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" role="img" aria-labelledby="title desc">
+  <title id="title">約書旅貴賓室插圖</title><desc id="desc">暖色調日系書店貴賓室，有書架、單椅、手沖咖啡與閱讀者。</desc>
+  <rect width="1200" height="900" fill="#F3E8D4"/>
+  <circle cx="1000" cy="150" r="96" fill="#E9B65F" opacity=".75"/>
+  <path d="M0 624 C215 570 405 638 605 598 S980 570 1200 626V900H0Z" fill="#D7A777"/>
+  <rect x="67" y="103" width="386" height="510" rx="18" fill="#5B402F"/>
+  <rect x="91" y="130" width="338" height="98" rx="9" fill="#F6DFA9"/>
+  <rect x="91" y="252" width="338" height="98" rx="9" fill="#D76E4B"/>
+  <rect x="91" y="374" width="338" height="98" rx="9" fill="#719184"/>
+  <rect x="91" y="496" width="338" height="92" rx="9" fill="#EAB35B"/>
+  <g fill="#5B402F" opacity=".78"><rect x="118" y="148" width="17" height="65" rx="3"/><rect x="145" y="148" width="28" height="65" rx="3"/><rect x="183" y="148" width="20" height="65" rx="3"/><rect x="213" y="148" width="37" height="65" rx="3"/><rect x="266" y="148" width="18" height="65" rx="3"/><rect x="294" y="148" width="29" height="65" rx="3"/><rect x="335" y="148" width="22" height="65" rx="3"/><rect x="367" y="148" width="33" height="65" rx="3"/>
+  <rect x="118" y="270" width="31" height="65" rx="3"/><rect x="160" y="270" width="17" height="65" rx="3"/><rect x="187" y="270" width="34" height="65" rx="3"/><rect x="233" y="270" width="20" height="65" rx="3"/><rect x="263" y="270" width="37" height="65" rx="3"/><rect x="313" y="270" width="18" height="65" rx="3"/><rect x="341" y="270" width="36" height="65" rx="3"/>
+  <rect x="118" y="392" width="21" height="65" rx="3"/><rect x="149" y="392" width="38" height="65" rx="3"/><rect x="201" y="392" width="17" height="65" rx="3"/><rect x="228" y="392" width="26" height="65" rx="3"/><rect x="266" y="392" width="38" height="65" rx="3"/><rect x="316" y="392" width="22" height="65" rx="3"/><rect x="348" y="392" width="35" height="65" rx="3"/></g>
+  <rect x="540" y="510" width="276" height="38" rx="19" fill="#79523A"/><rect x="576" y="545" width="23" height="172" fill="#79523A"/><rect x="760" y="545" width="23" height="172" fill="#79523A"/>
+  <path d="M646 481h85l-10 38h-65z" fill="#F5F0E6"/><path d="M664 447h49l12 35h-73z" fill="#D4D7CA"/><path d="M685 369c-37 45-17 58 0 78 17-20 38-33 0-78z" fill="#D77A50"/>
+  <path d="M861 407c0-88 67-145 146-145s130 56 130 145v224H861Z" fill="#B85D45"/>
+  <path d="M887 405c0-68 52-112 113-112s111 45 111 112v76H887Z" fill="#E2A26D"/>
+  <circle cx="981" cy="392" r="42" fill="#E8B28A"/><path d="M941 384c0-37 21-62 47-62 34 0 49 25 47 63-24-13-66-12-94-1z" fill="#49342C"/>
+  <path d="M946 439c19 16 52 16 74 0l16 116H928z" fill="#496A69"/><path d="M940 521l94-10 13 78-106 8z" fill="#F6E3AD"/><path d="M954 535l70-8" stroke="#B95E4B" stroke-width="6" stroke-linecap="round"/>
+  <rect x="887" y="636" width="60" height="120" rx="26" fill="#E8B28A"/><rect x="1039" y="636" width="60" height="120" rx="26" fill="#E8B28A"/>
+  <path d="M879 754h90v29h-107c0-17 7-29 17-29zm151 0h90c10 0 17 12 17 29h-107z" fill="#49342C"/>
+  <path d="M502 739c66-36 131-36 196 0" fill="none" stroke="#B85D45" stroke-width="22" stroke-linecap="round"/>
+  <text x="71" y="831" font-family="serif" font-size="46" fill="#5B402F" letter-spacing="4">REST BOOK · LOUNGE</text>
+</svg>
