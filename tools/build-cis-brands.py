@@ -138,14 +138,14 @@ BRANDS = [
     {
         "slug": "rest-book", "no": "04", "zh": "約書旅", "latin": "Rest Book", "logo_latin": "Rest Book",
         "nav": {"zh": "約書旅", "en": "Rest Book", "ja": "約書旅"},
-        "role": {"zh": "閱讀與休息", "en": "Reading and rest", "ja": "読書と休憩"},
-        "hours": {"zh": "會員使用；24 小時為條件式啟用", "en": "For members; 24-hour access is conditional", "ja": "会員利用。24時間利用は条件付き"},
-        "who": {"zh": "持有效會籍的會員", "en": "Members with a valid membership", "ja": "有効な会員資格をお持ちの会員"},
+        "role": {"zh": "貴賓室與閱讀", "en": "Lounge and reading", "ja": "ラウンジと読書"},
+        "hours": {"zh": "24 小時，同一套價目", "en": "24 hours, one price list", "ja": "24時間、同一料金"},
+        "who": {"zh": "不需會員；按時段付空間使用費", "en": "No membership needed; a space-use fee by time", "ja": "会員不要。時間ごとのスペース利用料"},
         "site": {"zh": "https://restbook.emoji.tw/", "en": "https://restbook.emoji.tw/en", "ja": "https://restbook.emoji.tw/ja"},
         "lede": {
-            "zh": "書頁之間，歇一會。會員閱讀與休息的地方：看書、買書、個人讀書座位、淋浴與交誼廳。",
-            "en": "A pause between pages. Where members read and rest: books to read or buy, personal reading seats, showers and a lounge.",
-            "ja": "ページのあいだで、ひと休み。会員が読書と休憩に使う場所。本を読む・買う、個人の読書席、シャワー、ラウンジ。",
+            "zh": "書頁之間，歇一會。你在台北車站旁的貴賓室：看書、買書、手沖咖啡與零食飲料吧、淋浴、交誼廳，另有個人靜讀室。",
+            "en": "A pause between pages. Your lounge by Taipei Main Station: books to read or buy, pour-over coffee and a snack bar, showers and a lounge, with quiet rooms to add.",
+            "ja": "ページのあいだで、ひと休み。台北駅のそばの、あなたのラウンジ。本を読む・買う、ハンドドリップとスナックバー、シャワー、ラウンジ、そして静読室。",
         },
         "mark": {
             "zh": "山丘般的書頁包住「～」的圖形標（透空，跟隨背景色），搭配 Rest Book 手寫英文字標與節制斷筆的「約書旅」中文字標，由上而下為圖形 → 英文 → 中文。字標皆為外框定稿，內文寫法固定為 Rest Book（R、B 大寫，中間一個空格）。",
