@@ -118,11 +118,13 @@ function paintStores(d) {
       <td class="num" data-k="售價">${o.price ? 'NT$' + num(o.price) : '—'}${o.list_price && o.list_price !== o.price ? `<span class="fmt">　定價 NT$${num(o.list_price)}</span>` : ''}</td>
       <td>${stock(o)}<a class="go" href="${esc(o.url)}" target="_blank" rel="noopener noreferrer">看商品</a></td></tr>`).join('');
   }).join('');
-  const best = d.best ? `<p class="best">最低現貨紙本：<b>NT$${num(d.best.price)}</b>（${esc(d.best.store)}）${d.list_price ? `　定價 NT$${num(d.list_price)}` : ''} <button class="btn btn--ghost" type="button" id="use-best">售價用這個</button></p>` : `<p class="best">各書店都沒有這個 ISBN 的紙本售價。</p>`;
-  storesBox(`<section class="stores" aria-label="書店比價"><h3>書店比價</h3>${best}<p class="note">各家售價與庫存為查詢當下的公開搜尋結果${d.cached ? '（10 分鐘內快取）' : ''}，僅供訂價參考。</p>
+  /* KK 11/12：約書旅售價一律採書本定價，各家售價只當參考；書目沒帶定價時用各家回報的定價補上 */
+  const f = document.getElementById('book-form');
+  if (f && d.list_price && !Number(f.elements.list_price.value)) { f.elements.list_price.value = d.list_price; if (DRAFT) DRAFT.list_price = d.list_price; }
+  if (f && d.list_price && !Number(f.elements.price.value)) { f.elements.price.value = d.list_price; if (DRAFT) DRAFT.price = d.list_price; }
+  const best = `<p class="best">${d.list_price ? `定價 <b>NT$${num(d.list_price)}</b>（約書旅售價＝定價）` : '各書店都沒回報這本書的定價，請照書上定價填售價。'}${d.best ? `　市面最低現貨紙本 NT$${num(d.best.price)}（${esc(d.best.store)}）` : ''}</p>`;
+  storesBox(`<section class="stores" aria-label="書店比價"><h3>書店比價</h3>${best}<p class="note">各家售價與庫存為查詢當下的公開搜尋結果${d.cached ? '（10 分鐘內快取）' : ''}，僅供參考，不帶入售價。</p>
     <table><thead><tr><th>書店</th><th>版本</th><th class="num">售價</th><th>庫存</th></tr></thead><tbody>${rows}</tbody></table></section>`);
-  const use = document.getElementById('use-best');
-  if (use) use.onclick = () => { const f = document.getElementById('book-form'); if (f) { f.elements.price.value = d.best.price; f.elements.price.focus(); } if (DRAFT) DRAFT.price = d.best.price; };
 }
 async function loadStores(isbn, title) {
   const seq = ++STORES_SEQ;
@@ -216,7 +218,7 @@ function paintDraft() {
     <label>作者<input name="author" maxlength="200" value="${esc(d.author)}"></label>
     <label>出版社<input name="publisher" maxlength="120" value="${esc(d.publisher)}"></label>
     <label>定價（書上）<input name="list_price" type="number" inputmode="numeric" min="0" max="100000" step="1" value="${esc(d.list_price || '')}"></label>
-    <label>售價（POS 收這個）<input name="price" type="number" inputmode="numeric" min="0" max="100000" step="1" required value="${esc(d.price)}"></label>
+    <label>售價（POS 收這個，照書上定價）<input name="price" type="number" inputmode="numeric" min="0" max="100000" step="1" required value="${esc(d.price)}"></label>
     <label>${d.mode === 'existing' ? `加幾本（目前 ${d.have} 本）` : d.mode === 'edit' ? '庫存本數（直接改成）' : '本數'}<input name="qty" type="number" inputmode="numeric" min="0" max="999" step="1" required value="${esc(d.qty)}"></label>
     <label class="chk"><input name="published" type="checkbox" ${d.published ? 'checked' : ''}>在 POS 上架</label>
     <p class="src full">ISBN ${esc(d.isbn)}${src ? '　' + esc(src) : ''}</p>
