@@ -1723,7 +1723,9 @@ app.use((req, res, next) => {
     return res.sendFile(path.join(PUB, cisM[1] || '', 'cis', 'brands', slug, 'index.html'));
   }
   // SEO／GEO（KK 11/10）：robots 擋 API、列 sitemap 與 llms.txt；sitemap 含等等空間子頁、三語 hreflang 與 lastmod（頁面檔修改日）
-  if (req.path === '/robots.txt') return res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /order\n\nSitemap: https://${req.hostname}/sitemap.xml\n# LLM 摘要：https://${req.hostname}/llms.txt\n`);
+  // 約書旅書籍造冊後台（KK 11/11）：restbook.emoji.tw/admin，管理員登入後掃 ISBN 造冊，寫入約書旅 POS 品項
+  if (slug === 'rest-book' && /^\/admin\/?$/.test(req.path) && (req.method === 'GET' || req.method === 'HEAD')) { res.set('X-Robots-Tag', 'noindex').set('Cache-Control', 'no-store'); return res.sendFile(path.join(PUB, 'rest-book-admin.html')); }
+  if (req.path === '/robots.txt') return res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /admin\nDisallow: /order\n\nSitemap: https://${req.hostname}/sitemap.xml\n# LLM 摘要：https://${req.hostname}/llms.txt\n`);
   if (req.path === '/llms.txt') { publicPageCache(req, res); return res.type('text/plain; charset=utf-8').sendFile(path.join(PUB, 'brand-sites', 'llms', slug + '.txt')); }
   if (req.path === '/sitemap.xml') return res.type('application/xml').set('Cache-Control', 'public, max-age=3600').send(brandSitemap(slug, String(req.hostname).toLowerCase()));
   // 掃碼點餐分店網域（KK 11/4）：atcafe.emoji.tw/order、3am.emoji.tw/order 回桌邊點餐頁（主色依 CIS 店別），點餐頁音效 /sfx 一併放行
@@ -6569,7 +6571,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     const orderId=uid('to_');
     // 櫃檯點的視同已送單（KK 11/7）：結帳時還沒送單的餐點補上送單（ticket＋placed_at），進出單佇列印出餐單＋帳本夾點餐明細；平均分攤預收不送
     const fresh=new Set(out.lines.filter(l=>!l.placed_at).map(l=>l.line));
-    if(!out.credit){const tk=uid('tk_'),at=new Date().toISOString();out.lines=out.lines.map(l=>!l.placed_at&&!l.song&&!l.tip&&l.cat!=='SHOP'?{...l,ticket:tk,placed_at:at}:l);}
+    if(!out.credit){const tk=uid('tk_'),at=new Date().toISOString();out.lines=out.lines.map(l=>!l.placed_at&&!l.song&&!l.tip&&l.cat!=='SHOP'&&l.cat!=='BOOK'?{...l,ticket:tk,placed_at:at}:l);}
     const set=new Set(out.lines.map(l=>l.line)),orderLines=out.lines.map(l=>({...l,order_id:orderId})),items=tableOrders.settleItems(s.items,out.lines,orderId,out.credit);
     if(memberUser){try{yanOut=await applyYanForCheckout(client,{user:memberUser,orderId,amount:out.revenue,brand:(out.lines.find(l=>l.venue)||{}).venue||'',prepay:!!out.payer.prepay,redeemPoints:out.payer.yan_redeem_points});}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}if(yanOut.redeemed)out.payer={...out.payer,yan_redeemed:yanOut.redeemed,yan_earned:yanOut.earned};else out.payer={...out.payer,yan_earned:yanOut.earned};}
     // 桌邊送單且全部已出餐的品項，結帳時直接記為已取餐（不再回到出餐看板）；有還沒出的照舊進看板
@@ -6789,6 +6791,33 @@ app.post('/api/admin/menu/stock',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const next=await patchMenu(res,cur=>tableOrders.setStock(cur,id,left,venues));if(!next)return;
   const it=tableOrders.MenuLib.parseMenuDoc(next).items.find(x=>x.id===id);
   res.json({ok:true,item_id:id,stock_day:it?.stock_day||'',stock_left:tableOrders.MenuLib.stockLeft(it)});
+}));
+/* ===== 約書旅書籍造冊（KK 11/11，lib/book-catalog.js）：restbook.emoji.tw/admin 掃 ISBN → 國圖書號中心查書目與定價 → 寫成約書旅 POS 品項（REST／BOOK）。
+   存在同一份菜單（site_content.menu），所以 POS 不用另外同步，存檔當下就能結帳；庫存（本數）賣出自動扣、作廢回補 ===== */
+const bookCatalog=require('./lib/book-catalog');
+function restBookScope(req,res){const v=tableOrders.visibleVenues(req.auth.brands,'REST');if(v&&!v.includes('REST')){res.status(403).json({error:'只有約書旅帳號可以管理書冊。'});return false;}return true;}
+app.get('/api/admin/menu/books',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!restBookScope(req,res))return;
+  const books=bookCatalog.listBooks(await contentValue('menu'));
+  res.json({books,count:books.length,copies:books.reduce((a,b)=>a+(b.stock_left||0),0),csv:bookCatalog.booksCsv(books)});
+}));
+app.get('/api/admin/menu/books/lookup',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!restBookScope(req,res))return;
+  const isbn=tableOrders.MenuLib.normalizeIsbn(req.query.isbn);
+  if(!isbn)return res.status(400).json({error:'ISBN 格式不正確（要 13 碼 978／979 開頭，或 10 碼）。'});
+  const existing=bookCatalog.listBooks(await contentValue('menu')).find(b=>b.isbn===isbn)||null;
+  let book=null;if(!existing){try{book=await bookCatalog.lookupIsbn(isbn);}catch(e){book={isbn,found:false,errors:[e.message]};}}
+  res.json({isbn,existing,book});
+}));
+app.post('/api/admin/menu/books',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!restBookScope(req,res))return;
+  let out;const next=await patchMenu(res,cur=>{out=bookCatalog.upsertBook(cur,req.body||{});return out.json;});if(!next)return;
+  res.json({ok:true,created:out.created,book:out.item});
+}));
+app.delete('/api/admin/menu/books/:id',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!restBookScope(req,res))return;
+  if(!await patchMenu(res,cur=>bookCatalog.removeBook(cur,String(req.params.id))))return;
+  res.json({ok:true});
 }));
 /* ===== POS 庫存（lib/pos-inventory.js）：原物料＋備料（醬料等）、菜單配方、進貨／耗用／報廢／盤點／製作備料、出餐自動扣 ===== */
 const INV_SEL='id,name,kind,unit,venue,category,safety_qty::float AS safety_qty,batch_yield::float AS batch_yield,bom,qty::float AS qty,avg_cost::float AS avg_cost,pack_unit,pack_size::float AS pack_size,yield_rate::float AS yield_rate,supplier,storage,shelf_life,ref_cost::float AS ref_cost,note,active,updated_at';

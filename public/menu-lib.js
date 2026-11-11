@@ -1,6 +1,8 @@
 'use strict';
 (function (global) {
   const VENUES = ['CAFE', 'BAR', 'REST'];
+  /* 有菜單品項的品牌（約書旅：空間方案＋書籍，KK 11/11）；與 VENUES 相同，保留別名給書冊程式用 */
+  const ITEM_VENUES = VENUES;
   // 順序＝前台分組順序（餐點在前、飲品在後，依 2026-10-07 定稿菜單）；ALCOHOL／FOOD／SNACK 保留給舊資料相容
   const CATS = [
     'COMBO',
@@ -8,7 +10,7 @@
     'COLD_APP', 'HOT_APP', 'FRIED', 'GRILL', 'MAIN', 'SOUP',
     'COFFEE', 'BEVERAGE', 'TEA', 'SPARKLING',
     'SAKE', 'LIQUEUR', 'WINE', 'BEER', 'BOTTLE', 'ALCOHOL',
-    'FOOD', 'SNACK', 'SHOP', 'LOUNGE', 'QUIET', 'SPACE', 'OTHER',
+    'FOOD', 'SNACK', 'SHOP', 'LOUNGE', 'QUIET', 'SPACE', 'BOOK', 'OTHER',
   ];
   const ALCOHOL_CATS = ['ALCOHOL', 'SAKE', 'LIQUEUR', 'WINE', 'BEER', 'BOTTLE'];
   const VENUE_LABEL = {
@@ -44,6 +46,7 @@
     LOUNGE: { zh: '交誼廳', en: 'Lounge', ja: '交誼廳', ko: '라운지' },
     QUIET: { zh: '靜讀室', en: 'Quiet room', ja: '静読室', ko: '정독실' },
     SPACE: { zh: '空間方案', en: 'Space plans', ja: '空間プラン', ko: '공간 플랜' },
+    BOOK: { zh: '書籍', en: 'Books', ja: '書籍', ko: '도서' },
     OTHER: { zh: '其他', en: 'Other', ja: 'その他', ko: '기타' },
   };
   /* 當下營業品牌（台北時間，UTC+8 無日光節約）：08:00–17:00 在咖啡、17:00–翌日 03:00 三點水、其餘 null。
@@ -102,7 +105,7 @@
   function serviceCharge(lines, opts) {
     const o = opts || {};
     if (o.takeout || (!o.force && !barPolicyActive(o.now))) return null;
-    const goods = (lines || []).filter(l => l && !l.credit_of && !l.prepay && !l.cancelled && !l.tip && !isShop(l));   // 商店零售品不收服務費   // 打賞是代收給表演者，不算服務費
+    const goods = (lines || []).filter(l => l && !l.credit_of && !l.prepay && !l.cancelled && !l.tip && !isRetail(l));   // 商店零售品、書籍不收服務費   // 打賞是代收給表演者，不算服務費
     const total = ls => ls.reduce((a, l) => a + (Number(l.price) || 0) * (Number(l.qty) || 0), 0);
     const gross = total(goods), bar = total(goods.filter(l => l.venue === 'BAR'));
     if (!(bar > 0) || !(gross > 0)) return null;
@@ -186,7 +189,7 @@
 
   function normalizeItem(raw) {
     const cat = CATS.includes(raw.cat) ? raw.cat : 'FOOD';
-    const venue = VENUES.includes(raw.venue) ? raw.venue : 'CAFE';
+    const venue = ITEM_VENUES.includes(raw.venue) ? raw.venue : 'CAFE';
     const price = Number(raw.price); const emo = Number(raw.emo);
     return {
       id: raw.id || uid(),
@@ -217,11 +220,13 @@
       stock_left: stockOrNull(raw.stock_left),           // 剩幾份（null＝不限量）；送單扣、扣到 0＝售完
       available_from: dateOrEmpty(raw.available_from),   // 特餐排程：只在這段營業日可點（含）
       available_to: dateOrEmpty(raw.available_to),
+      ...(cat === 'BOOK' ? bookFields(raw) : {}),
     };
   }
   /* 可點：已發布、今天沒估清、在供應期間內（給 /order 與櫃檯用；官網菜單仍用 publishedOnly） */
   /* 今天剩幾份：有設且是今天營業日才算，否則 null（不限量） */
   function stockLeft(item, now) {
+    if (isBook(item)) return Number.isInteger(item.stock_left) ? item.stock_left : null;   // 書籍是實體庫存：不隨營業日歸零
     return item && item.stock_day && item.stock_day === businessDay(now) && Number.isInteger(item.stock_left) ? item.stock_left : null;
   }
   function soldOutToday(item, now) { return (!!item.sold_out && item.sold_out === businessDay(now)) || stockLeft(item, now) === 0; }
@@ -230,6 +235,34 @@
   /* 約書旅空間方案（交誼廳／靜讀室；SPACE 為舊資料相容）與商店零售品都不出餐、不收餐飲服務費。 */
   const SPACE_CATS = ['LOUNGE', 'QUIET', 'SPACE'];
   function isShop(item) { return !!item && (item.cat === 'SHOP' || SPACE_CATS.includes(item.cat)); }
+  /* 書籍（BOOK，KK 11/11）：約書旅後台掃 ISBN 造冊，自動成為約書旅 POS 品項。零售品：不上出餐單、不收服務費、不套會員價；
+     只在 POS（ctx.posOnly）出現，不進桌邊點餐與官網菜單。庫存（stock_left）是永久本數，賣出扣、作廢回補，不隨營業日歸零 */
+  function isBook(item) { return !!item && item.cat === 'BOOK'; }
+  /* 零售品（不是餐點）：商店＋書籍。出餐單、服務費、會員價、低消一律排除 */
+  function isRetail(item) { return isShop(item) || isBook(item); }
+  const ISBN13_RE = /^97[89]\d{10}$/;
+  /* ISBN 正規化：去掉連字號／空白，ISBN-10 轉 13 碼；檢查碼錯回 '' */
+  function normalizeIsbn(raw) {
+    const s = String(raw || '').replace(/[\s-]/g, '').toUpperCase();
+    const sum13 = d => [...d.slice(0, 12)].reduce((a, c, i) => a + Number(c) * (i % 2 ? 3 : 1), 0);
+    if (/^\d{13}$/.test(s)) return ISBN13_RE.test(s) && (10 - sum13(s) % 10) % 10 === Number(s[12]) ? s : '';
+    if (/^\d{9}[\dX]$/.test(s)) {
+      const ok = [...s].reduce((a, c, i) => a + (c === 'X' ? 10 : Number(c)) * (10 - i), 0) % 11 === 0;
+      if (!ok) return '';
+      const b = '978' + s.slice(0, 9);
+      return b + (10 - sum13(b) % 10) % 10;
+    }
+    return '';
+  }
+  function bookFields(raw) {
+    return {
+      isbn: normalizeIsbn(raw.isbn),
+      author: String(raw.author || '').trim().slice(0, 200),
+      publisher: String(raw.publisher || '').trim().slice(0, 120),
+      list_price: Math.max(0, Math.floor(Number(raw.list_price)) || 0),   // 書上定價（國圖書號中心）；售價 price 可另打折
+      pub_date: String(raw.pub_date || '').trim().slice(0, 20),
+    };
+  }
   /* 兩店共用（KK 11/2）：商店零售品與甜點在兩店 POS 都能點，賣出時記在當下店別（三點水賣的甜點才收服務費、進三點水日結） */
   const SHARED_CATS = ['SHOP', 'DESSERT'];
   function isShared(item) { return !!item && SHARED_CATS.includes(item.cat); }
@@ -243,6 +276,7 @@
   function isOrderable(item, now, ctx) {
     if (!item.published || soldOutToday(item, now)) return false;
     if (isShop(item) && !(ctx && (ctx.shop || ctx.posOnly))) return false;
+    if (isBook(item) && !(ctx && ctx.posOnly)) return false;
     if (item.pos_only && !(ctx && ctx.posOnly)) return false;
     const day = businessDay(now);
     if (item.available_from && day < item.available_from) return false;
@@ -267,7 +301,8 @@
     if (JSON.stringify(doc).length > 500000) return { ok: false, error: '菜單資料過大' };
     for (const it of doc.items) {
       if (!it.zh) return { ok: false, error: '品名（中）必填' };
-      if (!VENUES.includes(it.venue)) return { ok: false, error: '店別無效' };
+      if (!ITEM_VENUES.includes(it.venue)) return { ok: false, error: '店別無效' };
+      if (it.cat === 'BOOK' && it.venue !== 'REST') return { ok: false, error: '書籍只能放在約書旅：' + it.zh };
       if (!CATS.includes(it.cat)) return { ok: false, error: '分類無效' };
       if (!(it.price >= 0) || !(it.emo >= 0)) return { ok: false, error: '價格無效' };
       if (it.cat === 'COMBO' && !(Array.isArray(it.combo) && it.combo.length)) return { ok: false, error: '套餐要有內容（至少一個選擇欄）：' + it.zh };
@@ -296,7 +331,7 @@
 
   /* 對外可見（官網菜單頁、IG）：已發布且非 POS 限定；pos_only 品項（例：其他）只在 POS／後台加點出現 */
   function publishedOnly(doc) {
-    return (doc.items || []).filter(x => x.published && !x.pos_only && !isShop(x));
+    return (doc.items || []).filter(x => x.published && !x.pos_only && !isRetail(x));
   }
 
   function fromSeedRows(rows) {
@@ -315,7 +350,7 @@
 
   function sortItems(items) {
     return items.slice().sort((a, b) => {
-      const va = VENUES.indexOf(a.venue) - VENUES.indexOf(b.venue);
+      const va = ITEM_VENUES.indexOf(a.venue) - ITEM_VENUES.indexOf(b.venue);
       if (va !== 0) return va;
       const ca = CATS.indexOf(a.cat) - CATS.indexOf(b.cat);
       if (ca !== 0) return ca;
@@ -420,7 +455,7 @@
   }
 
   global.MenuLib = {
-    CATS, VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, BAR_STATION_CATS, MEMBER_RATE, BAR_POLICY_FROM, CAFE_POLICY_FROM, SERVICE_RATE, MIN_SPEND, CAFE_MIN_SPEND, barPolicyActive, cafePolicyActive, minSpendOf, cafeMinimumOf, serviceCharge, memberPrice, activeVenue, orderWindow, orderableInWindow, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
-    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, isShop, SPACE_CATS, isShared, inVenue, forVenue, SHARED_CATS, soldOutToday, stockLeft, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
+    CATS, VENUES, ITEM_VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, BAR_STATION_CATS, MEMBER_RATE, BAR_POLICY_FROM, CAFE_POLICY_FROM, SERVICE_RATE, MIN_SPEND, CAFE_MIN_SPEND, barPolicyActive, cafePolicyActive, minSpendOf, cafeMinimumOf, serviceCharge, memberPrice, activeVenue, orderWindow, orderableInWindow, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
+    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, isShop, SPACE_CATS, isBook, isRetail, normalizeIsbn, ISBN13_RE, isShared, inVenue, forVenue, SHARED_CATS, soldOutToday, stockLeft, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
