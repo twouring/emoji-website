@@ -859,17 +859,17 @@ def page_book():
     out = head(s, t('約書旅 Rest Book｜你在台北車站旁的貴賓室',
                     '約書旅 Rest Book | Your lounge by Taipei Main Station',
                     '約書旅 Rest Book｜台北駅のそばの、あなたのラウンジ'),
-               t('約書旅（Rest Book）是你在台北車站旁的貴賓室，就在 Z10 出口斜對面：書可以讀也可以買，有讀書席、靜讀室、兩間淋浴與交誼廳，24 小時同價。貴賓室入場 1 小時 NT$150 起，含飲料與淋浴；靜讀室 NT$250 起。',
-                 'Rest Book is your lounge by Taipei Main Station, across from Exit Z10: books to read or buy, study seats, quiet rooms, two showers and a lounge, same prices around the clock. Lounge entry from NT$150 an hour with drinks and showers included; quiet rooms from NT$250.',
-                 '約書旅（Rest Book）は台北駅のそばの、あなたのラウンジ。Z10 出口の斜め向かい。読める・買える本、読書席、静読室、シャワー2室、ラウンジ。24時間同一料金。ラウンジ入場は1時間 NT$150から（ドリンク・シャワー込み）、静読室は NT$250から。'))
+               t('約書旅（Rest Book）是你在台北車站旁的貴賓室，就在 Z10 出口斜對面：書可以讀也可以買，有交誼廳、讀書席、靜讀室與兩間淋浴，24 小時同價。貴賓室入場 1 小時 NT$150 起，含手沖咖啡、零食飲料吧、淋浴、漫畫雜誌、桌遊與 Switch；靜讀室 NT$250 起。',
+                 'Rest Book is your lounge by Taipei Main Station, across from Exit Z10: books to read or buy, a lounge, study seats, quiet rooms and two showers, same prices around the clock. Lounge entry from NT$150 an hour, including pour-over coffee, a snack and drinks bar, showers, manga, magazines, board games and a Switch; quiet rooms from NT$250.',
+                 '約書旅（Rest Book）は台北駅のそばの、あなたのラウンジ。Z10 出口の斜め向かい。読める・買える本、ラウンジ、読書席、静読室、シャワー2室。24時間同一料金。ラウンジ入場は1時間 NT$150から（ハンドドリップコーヒー、スナック＆ドリンクバー、シャワー、マンガ・雑誌、ボードゲーム、Switch 込み）、静読室は NT$250から。'))
     out += header(s, [(t('這裡有什麼', 'What’s here', 'あるもの'), '#here'), (t('價目', 'Prices', '料金'), '#price'), (t('包場', 'Lounge hire', '貸切'), '#hire'),
                       (t('常見問題', 'FAQ', 'よくある質問'), '#faq'), (t('怎麼來', 'Find us', 'アクセス'), '#visit')])
     # 價目：KK 2026-11-11 定案（含稅、24 小時同價；見 /workspace/local/約書旅/約書旅_貴賓室模型_20261109.md）
     # 兩層：貴賓室入場（交誼廳或讀書席、架上閱讀、自助軟飲、淋浴）／靜讀室（含入場，再加一席）。不設夜間價、一日上限與月費。
     plan_entry = [
-        ('60', t('1 小時', '1 hour', '1時間'), 'NT$150', t('一杯飲料、短篇集裡的三篇，在交誼廳坐一下再去搭車。', 'A drink and three stories from a short collection in the lounge, then off to your train.', 'ドリンク一杯と短編三編。ラウンジでひと息ついてから電車へ。')),
+        ('60', t('1 小時', '1 hour', '1時間'), 'NT$150', t('一杯手沖、短篇集裡的三篇，在交誼廳坐一下再去搭車。', 'A pour-over and three stories from a short collection in the lounge, then off to your train.', 'ハンドドリップ一杯と短編三編。ラウンジでひと息ついてから電車へ。')),
         ('240', t('4 小時', '4 hours', '4時間'), 'NT$450', t('在讀書席讀完一本薄書，沖個澡；喜歡的書就帶走。', 'Finish a slim book at a study seat, take a shower, and take the book with you if you like it.', '読書席で薄い一冊を読み終え、シャワーを浴びる。気に入った本は買って帰る。')),
-        ('480', t('8 小時', '8 hours', '8時間'), 'NT$720', t('一整天的貴賓室：讀一段、工作一段，飲料與淋浴都在裡面。', 'A whole day in the lounge: read, work, with drinks and showers included.', '丸一日のラウンジ。読んで、働いて。ドリンクもシャワーも込み。')),
+        ('480', t('8 小時', '8 hours', '8時間'), 'NT$720', t('一整天的貴賓室：讀一段、工作一段，累了打一局 Switch；咖啡、零食與淋浴都在裡面。', 'A whole day in the lounge: read, work, a round on the Switch when you need a break; coffee, snacks and showers included.', '丸一日のラウンジ。読んで、働いて、疲れたら Switch を一局。コーヒーもスナックもシャワーも込み。')),
     ]
     plan_room = [
         ('60', t('1 小時', '1 hour', '1時間'), 'NT$250', t('一席靜讀室，關掉通知讀一章。', 'A quiet room of your own: notifications off, one chapter.', '静読室の一席。通知を切って一章だけ。')),
@@ -891,7 +891,7 @@ def page_book():
     rules = [t('超時 15 分鐘內不收費，超過 15 分鐘以 1 小時計；之後每小時同樣以 15 分鐘為界。', 'Up to 15 minutes over is free; beyond that it counts as an hour, and each further hour follows the same 15-minute rule.', '15分以内の延長は無料。15分を超えると1時間分、以降も1時間ごとに15分を境に計算します。'),
              t('連續使用滿 8 小時請離席，可重新入場再計時。', 'After eight hours straight, please free the seat; you’re welcome to re-enter and start again.', '連続8時間で一度退席をお願いします。再入場して再び計時できます。'),
              t('23:00 後查驗證件，限 18 歲以上。', 'ID is checked after 23:00; 18 and over only.', '23:00以降は身分証を確認します。18歳以上のみ。'),
-             t('飲料與淋浴包含在內；毛巾等備品可現場加購，書籍每本標價。', 'Drinks and showers are included; towels and toiletries can be bought on site, and books are priced individually.', 'ドリンクとシャワーは料金に含まれます。タオルなどの備品は現地で購入でき、本は一冊ごとに価格表示。')]
+             t('手沖咖啡、零食飲料吧、淋浴、漫畫雜誌、桌遊與 Switch 都包含在內；毛巾等備品可現場加購，書籍每本標價。', 'Pour-over coffee, the snack and drinks bar, showers, manga, magazines, board games and the Switch are all included; towels and toiletries can be bought on site, and books are priced individually.', 'ハンドドリップコーヒー、スナック＆ドリンクバー、シャワー、マンガ・雑誌、ボードゲーム、Switch は料金に含まれます。タオルなどの備品は現地で購入でき、本は一冊ごとに価格表示。')]
     rules_html = ''.join(f'<li>{e(x)}</li>' for x in rules)
     # 交誼廳包場：KK 2026-11-04 核准每時段 NT$2,000（11/01 提案 §4.1）；平日 18:00 後與假日；週二 me2 時段不出租。
     hire_rows = [(t('平日 18:00 後、假日', 'Weekday evenings after 18:00, weekends', '平日18:00以降・休日'), 'NT$2,000'), (t('有桌椅人數', 'Seated', '着席人数'), t('約 10 人', 'About 10', '約10名'))]
@@ -902,11 +902,11 @@ def page_book():
     hire_mail = 'mailto:us@emoji.tw?subject=' + t('約書旅交誼廳包場', 'Rest%20Book%20lounge%20hire', '約書旅ラウンジ貸切')
     # 設施清單（對應 The Club 的地點清單「代碼｜名稱」）
     rooms = [
-        ('LOUNGE', t('交誼廳', 'Lounge', 'ラウンジ'), t('約十人，大螢幕、Switch、漫畫、桌遊', 'About ten people; big screen, Switch, manga, board games', '約10名。大型画面、Switch、マンガ、ボードゲーム'), t('入場即可用，可包場', 'Included with entry; available to hire', '入場で利用可・貸切可')),
+        ('LOUNGE', t('交誼廳', 'Lounge', 'ラウンジ'), t('約十人；100 吋大螢幕、劇院音響、Switch、桌遊', 'About ten people; 100-inch screen, theatre sound, Switch, board games', '約10名。100インチ大型画面、シアター音響、Switch、ボードゲーム'), t('入場即可用，可包場', 'Included with entry; available to hire', '入場で利用可・貸切可')),
         ('SEAT', t('讀書席', 'Study seats', '読書席'), t('一人一席，安靜閱讀', 'One person, one seat, quiet', '一人一席、静かに'), t('入場即可用', 'Included with entry', '入場で利用可')),
-        ('DRINK', t('自助飲料', 'Self-serve drinks', 'セルフドリンク'), t('咖啡、茶與軟性飲料', 'Coffee, tea and soft drinks', 'コーヒー、お茶、ソフトドリンク'), t('入場即可用', 'Included with entry', '入場で利用可')),
+        ('BAR', t('手沖咖啡與零食飲料吧', 'Pour-over coffee, snack and drinks bar', 'ハンドドリップとスナック＆ドリンクバー'), t('手沖咖啡、茶、軟性飲料與零食', 'Pour-over coffee, tea, soft drinks and snacks', 'ハンドドリップコーヒー、お茶、ソフトドリンク、スナック'), t('入場即可用', 'Included with entry', '入場で利用可')),
         ('SHOWER', t('淋浴', 'Showers', 'シャワー'), t('兩間；毛巾等備品可加購', 'Two rooms; towels and toiletries sold on site', '2室。タオルなどの備品は販売'), t('入場即可用', 'Included with entry', '入場で利用可')),
-        ('SHELF', t('書架', 'Shelves', '本棚'), t('現場閱讀，喜歡可購買', 'Read on site, buy what you like', 'その場で読める・買える'), t('閱讀免費，每本另標價', 'Free to read; priced per book', '閲覧無料・一冊ごとに価格表示')),
+        ('SHELF', t('書架', 'Shelves', '本棚'), t('書籍、漫畫與雜誌；現場閱讀，書喜歡可購買', 'Books, manga and magazines; read on site, buy the books you like', '本、マンガ、雑誌。その場で読めて、本は気に入れば購入可'), t('閱讀免費，書每本另標價', 'Free to read; books priced individually', '閲覧無料・本は一冊ごとに価格表示')),
         ('QUIET', t('靜讀室', 'Quiet rooms', '静読室'), t('一人一間；非密閉、不可上鎖', 'One per person; open, not lockable', '一人一室。密閉なし・施錠なし'), t('加價一席，含入場', 'Add-on seat, entry included', '追加料金・入場込み')),
     ]
     rooms_html = ''.join(f'<li><span class="rb-rooms__code" aria-hidden="true">{c}</span><h3>{e(n)}</h3><p>{e(d)}</p><span class="rb-rooms__fee">{e(f)}</span></li>' for c, n, d, f in rooms)
@@ -917,10 +917,10 @@ def page_book():
          t('走出地下街，把人潮留在身後。找個位子讀一章、回幾封信，時間到了再去搭車。', 'Step out of the underground mall and leave the crowds behind. Read a chapter, answer a few emails, and head for your train when it’s time.', '地下街を出て、人の流れを背中に。一章読んで、メールを何通か返して、時間になったら電車へ。')),
         ('students', t('約 1930 年，台北車站前的學生', 'Students in front of Taipei Railway Station, 1930s', '1930年代、台北駅前の学生たち'), t('台北車站前，約 1930 年', 'Taipei Station, c. 1930', '台北駅前、1930年頃'),
          t('不必辦卡，也不用車票', 'No sign-up, no ticket', '入会も乗車券もいりません'),
-         t('沒有入會門檻。按時段付空間使用費，飲料與淋浴都在裡面，坐下來就好；一個人等車、和朋友轉乘都可以。', 'Nothing to join. Pay the space-use fee for your time slot, drinks and showers included, and sit down — on your own between trains or with friends on a transfer.', '入会の手続きはありません。時間ごとのスペース利用料にドリンクとシャワーが含まれ、すぐに座れます。ひとりでも、乗り継ぎの友人とでも。')),
+         t('沒有入會門檻。按時段付空間使用費，咖啡、零食與淋浴都在裡面，坐下來就好；一個人等車、和朋友轉乘都可以。', 'Nothing to join. Pay the space-use fee for your time slot, coffee, snacks and showers included, and sit down — on your own between trains or with friends on a transfer.', '入会の手続きはありません。時間ごとのスペース利用料にコーヒー・スナック・シャワーが含まれ、すぐに座れます。ひとりでも、乗り継ぎの友人とでも。')),
         ('bookseller', t('十八世紀荷蘭書商的店（畫作）', 'An eighteenth-century Dutch bookshop (painting)', '18世紀オランダの書籍商の店（絵画）'), t('書商的店，畫作', 'A bookshop, painting', '書籍商の店、絵画'),
          t('多一點小照顧', 'With a little extra', 'ちょっとした心づかい'),
-         t('飲料、兩間淋浴、交誼廳的大螢幕與桌遊都包含在入場裡；讀到喜歡的書，結帳就能帶上車。', 'Drinks, two showers, a big screen and board games in the lounge, all included with entry — and if you fall for a book, pay at the counter and take it on board.', 'ドリンク、シャワー2室、ラウンジの大型画面とボードゲームは入場料に込み。気に入った本は、お会計してそのまま車内へ。')),
+         t('手沖咖啡、零食飲料吧、兩間淋浴、漫畫雜誌，還有交誼廳的 100 吋大螢幕、劇院音響、Switch 與桌遊，都包含在入場裡；讀到喜歡的書，結帳就能帶上車。', 'Pour-over coffee, a snack and drinks bar, two showers, manga and magazines, plus the lounge’s 100-inch screen, theatre sound, Switch and board games, all included with entry — and if you fall for a book, pay at the counter and take it on board.', 'ハンドドリップコーヒー、スナック＆ドリンクバー、シャワー2室、マンガ・雑誌、そしてラウンジの100インチ画面、シアター音響、Switch、ボードゲームは入場料に込み。気に入った本は、お会計してそのまま車内へ。')),
     ]
     n_sl = len(slides)
     slides_html = ''.join(
@@ -938,7 +938,7 @@ def page_book():
         (t('可以淋浴嗎？要帶什麼？', 'Can I shower? What should I bring?', 'シャワーは使えますか？何が必要ですか？'),
          t('可以，兩間淋浴包含在入場費裡，不另收費。毛巾等備品可現場加購，價格以現場公告為準。', 'Yes. The two showers are included in your entry, at no extra charge. Towels and toiletries can be bought on site; prices are posted there.', 'はい。シャワー2室は入場料に含まれ、追加料金はありません。タオルなどの備品は現地で購入でき、料金は現地で案内しています。')),
         (t('入場和靜讀室差在哪？', 'What’s the difference between entry and a quiet room?', '入場と静読室の違いは？'),
-         t('入場就能用交誼廳、讀書席、書架、自助飲料與淋浴；靜讀室是再加一間一人座的小間，價格已含入場的所有內容。', 'Entry gives you the lounge, study seats, shelves, self-serve drinks and showers. A quiet room adds a one-person room of your own; its price already includes everything that comes with entry.', '入場でラウンジ、読書席、本棚、セルフドリンク、シャワーが使えます。静読室は一人用の小部屋を一室追加するもので、料金には入場の内容がすべて含まれます。')),
+         t('入場就能用交誼廳（100 吋大螢幕、劇院音響、Switch、桌遊）、讀書席、書籍漫畫雜誌、手沖咖啡與零食飲料吧、淋浴；靜讀室是再加一間一人座的小間，價格已含入場的所有內容。', 'Entry gives you the lounge (100-inch screen, theatre sound, Switch, board games), study seats, books, manga and magazines, pour-over coffee and the snack and drinks bar, and the showers. A quiet room adds a one-person room of your own; its price already includes everything that comes with entry.', '入場でラウンジ（100インチ画面、シアター音響、Switch、ボードゲーム）、読書席、本・マンガ・雑誌、ハンドドリップコーヒーとスナック＆ドリンクバー、シャワーが使えます。静読室は一人用の小部屋を一室追加するもので、料金には入場の内容がすべて含まれます。')),
         (t('深夜也是同樣價格嗎？', 'Same prices late at night?', '深夜も同じ料金ですか？'),
          t('是，24 小時同一套價目。連續使用滿 8 小時請離席，可重新入場再計時。', 'Yes, one price list around the clock. After eight hours straight, please free the seat; you can re-enter and start again.', 'はい、24時間同一料金です。連続8時間で一度退席をお願いし、再入場して再び計時できます。')),
         (t('可以過夜或住宿嗎？', 'Can I stay overnight?', '宿泊はできますか？'),
@@ -993,7 +993,7 @@ def page_book():
   <div class="rb-here__head">
     {kick(1, '設施', 'Facilities', '設備')}
     <h2 id="here-h">{t('這裡有什麼', 'What’s here', 'あるもの')}</h2>
-    <p>{t('付入場的空間使用費，交誼廳、讀書席、書架、自助飲料與淋浴都能用；想要一間自己的，再加靜讀室。', 'Pay the entry fee and the lounge, study seats, shelves, self-serve drinks and showers are yours; add a quiet room if you want one to yourself.', '入場のスペース利用料で、ラウンジ、読書席、本棚、セルフドリンク、シャワーが使えます。一室ほしいときは静読室を追加。')}</p>
+    <p>{t('付入場的空間使用費，交誼廳、讀書席、書架、手沖咖啡與零食飲料吧、淋浴都能用；想要一間自己的，再加靜讀室。', 'Pay the entry fee and the lounge, study seats, shelves, pour-over coffee, the snack and drinks bar and the showers are yours; add a quiet room if you want one to yourself.', '入場のスペース利用料で、ラウンジ、読書席、本棚、ハンドドリップコーヒーとスナック＆ドリンクバー、シャワーが使えます。一室ほしいときは静読室を追加。')}</p>
   </div>
   <ul class="rb-rooms">{rooms_html}</ul>
   <figure class="rb-here__wide">{rb_img('platform', t('台北車站的月台', 'A platform at Taipei Main Station', '台北駅のホーム'))}<figcaption>{t('台北車站的月台。約書旅在車站外，Z10 出口斜對面。', 'A platform at Taipei Main Station. Rest Book is outside the station, across from Exit Z10.', '台北駅のホーム。約書旅は駅の外、Z10 出口の斜め向かいです。')}</figcaption></figure>
@@ -1002,9 +1002,9 @@ def page_book():
 <section class="rb-price" id="price" aria-labelledby="price-h">
   {kick(2, '價目', 'Prices', '料金')}
   <h2 id="price-h">{t('價目', 'Prices', '料金')}</h2>
-  <p class="rb-price__lede">{t('以下為空間使用費，24 小時同價，以完整小時計費。價格含稅，飲料與淋浴包含在內。', 'Space-use fees below, the same around the clock, charged by the full hour. Prices include tax; drinks and showers are included.', '以下はスペース利用料です。24時間同一料金、1時間単位の計算。税込、ドリンクとシャワー込み。')}</p>
+  <p class="rb-price__lede">{t('以下為空間使用費，24 小時同價，以完整小時計費。價格含稅，咖啡、零食飲料與淋浴包含在內。', 'Space-use fees below, the same around the clock, charged by the full hour. Prices include tax; coffee, snacks, drinks and showers are included.', '以下はスペース利用料です。24時間同一料金、1時間単位の計算。税込、コーヒー・スナック・ドリンク・シャワー込み。')}</p>
   <div class="rb-price__grid">
-    <div class="rb-price__block"><h3>{t('貴賓室入場', 'Lounge entry', 'ラウンジ入場')}<span>{t('交誼廳・讀書席・飲料・淋浴', 'Lounge · seats · drinks · showers', 'ラウンジ・読書席・ドリンク・シャワー')}</span></h3>{dl(entry)}</div>
+    <div class="rb-price__block"><h3>{t('貴賓室入場', 'Lounge entry', 'ラウンジ入場')}<span>{t('交誼廳・讀書席・咖啡零食・淋浴', 'Lounge · seats · coffee & snacks · showers', 'ラウンジ・読書席・コーヒー＆スナック・シャワー')}</span></h3>{dl(entry)}</div>
     <div class="rb-price__block rb-price__block--night"><h3>{t('靜讀室', 'Quiet room', '静読室')}<span>{t('含入場，再加一席', 'Entry included, plus a room', '入場込み・一室追加')}</span></h3>{dl(room)}</div>
   </div>
   <ul class="rb-price__rules">{rules_html}</ul>

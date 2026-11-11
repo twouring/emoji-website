@@ -145,5 +145,6 @@ test('約書旅價目（KK 2026-11-11）：兩層 24 小時同價，入場 150�
     assert.doesNotMatch(text, /淋浴另計|showers are extra|シャワーは別料金|另行計費|Priced separately/, f);
     assert.match(text, /24 小時|24 hours|24時間/, f);
     assert.match(text, /滿 8 小時請離席|After eight hours straight|連続8時間/, f);
+    for (const k of [/手沖咖啡|[Pp]our-over|ハンドドリップ/, /零食|snack|スナック/, /100 吋|100-inch|100インチ/, /劇院音響|theatre sound|シアター音響/, /Switch/, /桌遊|board games|ボードゲーム/, /漫畫|manga|マンガ/, /雜誌|magazines|雑誌/]) assert.match(text, k, `${f}: ${k}`);
   }
 });

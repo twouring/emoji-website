@@ -1,8 +1,8 @@
 # 約書旅 Rest Book
 
-> 約書旅（Rest Book）是你在台北車站旁的貴賓室，就在 Z10 出口斜對面：書可以讀也可以買，有讀書席、靜讀室、兩間淋浴與交誼廳，24 小時同價。貴賓室入場 1 小時 NT$150 起，含飲料與淋浴；靜讀室 NT$250 起。
+> 約書旅（Rest Book）是你在台北車站旁的貴賓室，就在 Z10 出口斜對面：書可以讀也可以買，有交誼廳、讀書席、靜讀室與兩間淋浴，24 小時同價。貴賓室入場 1 小時 NT$150 起，含手沖咖啡、零食飲料吧、淋浴、漫畫雜誌、桌遊與 Switch；靜讀室 NT$250 起。
 
-> Rest Book is your lounge by Taipei Main Station, across from Exit Z10: books to read or buy, study seats, quiet rooms, two showers and a lounge, same prices around the clock. Lounge entry from NT$150 an hour with drinks and showers included; quiet rooms from NT$250.
+> Rest Book is your lounge by Taipei Main Station, across from Exit Z10: books to read or buy, a lounge, study seats, quiet rooms and two showers, same prices around the clock. Lounge entry from NT$150 an hour, including pour-over coffee, a snack and drinks bar, showers, manga, magazines, board games and a Switch; quiet rooms from NT$250.
 
 ## 基本資料 Facts
 
@@ -24,7 +24,7 @@
 - **書可以買回家嗎？** 可以。每本書的售價各自標示，到櫃檯結帳。
 - **書架上有哪些書？** 工作、創業、旅行與在台灣生活的書為主，會持續更換。
 - **可以淋浴嗎？要帶什麼？** 可以，兩間淋浴包含在入場費裡，不另收費。毛巾等備品可現場加購，價格以現場公告為準。
-- **入場和靜讀室差在哪？** 入場就能用交誼廳、讀書席、書架、自助飲料與淋浴；靜讀室是再加一間一人座的小間，價格已含入場的所有內容。
+- **入場和靜讀室差在哪？** 入場就能用交誼廳（100 吋大螢幕、劇院音響、Switch、桌遊）、讀書席、書籍漫畫雜誌、手沖咖啡與零食飲料吧、淋浴；靜讀室是再加一間一人座的小間，價格已含入場的所有內容。
 - **深夜也是同樣價格嗎？** 是，24 小時同一套價目。連續使用滿 8 小時請離席，可重新入場再計時。
 - **可以過夜或住宿嗎？** 約書旅是閱讀空間，不提供住宿；靜讀室非密閉、不可上鎖，也不提供寢具。
 - **怎麼找到你們？** 台北車站站前地下街 Z10 出口斜對面，重慶南路一段 11 號。
@@ -35,7 +35,7 @@
 - **Can I buy the books?** Yes. Each book carries its own price; pay at the counter.
 - **What kind of books are on the shelves?** Mostly work, starting up, travel and life in Taiwan, and the selection changes.
 - **Can I shower? What should I bring?** Yes. The two showers are included in your entry, at no extra charge. Towels and toiletries can be bought on site; prices are posted there.
-- **What’s the difference between entry and a quiet room?** Entry gives you the lounge, study seats, shelves, self-serve drinks and showers. A quiet room adds a one-person room of your own; its price already includes everything that comes with entry.
+- **What’s the difference between entry and a quiet room?** Entry gives you the lounge (100-inch screen, theatre sound, Switch, board games), study seats, books, manga and magazines, pour-over coffee and the snack and drinks bar, and the showers. A quiet room adds a one-person room of your own; its price already includes everything that comes with entry.
 - **Same prices late at night?** Yes, one price list around the clock. After eight hours straight, please free the seat; you can re-enter and start again.
 - **Can I stay overnight?** Rest Book is a reading space, not accommodation; quiet rooms are open and not lockable, and no bedding is provided.
 - **How do I find you?** Diagonally across from Exit Z10 of the Taipei Main Station underground mall, No. 11, Sec. 1, Chongqing S. Rd.
