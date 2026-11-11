@@ -19,6 +19,16 @@ test('甜點與商店品兩店共用（KK 11/2：三點水 POS 要放甜點）',
   assert.ok(srv.includes('const shopItem=tableOrders.MenuLib.isShared(it);'));
 });
 
+test('約書旅 POS 不顯示跨店甜點，只顯示自己的空間方案', () => {
+  const doc = JSON.stringify({ items: [
+    { id: 'd1', venue: 'CAFE', cat: 'DESSERT', zh: '檸檬塔', en: 'Lemon Tart', price: 130, published: true },
+    { id: 'r1', venue: 'REST', cat: 'SPACE', zh: '貴賓室入場 1 小時', en: 'Lounge entry · 1 hour', price: 150, published: true, pos_only: true },
+  ] });
+  const rest = tableOrders.menuIndex(doc, 'REST', { posOnly: true });
+  assert.ok(!rest.has('d1'));
+  assert.ok(rest.has('r1'));
+});
+
 test('三點水 POS 加在咖啡的甜點：行記 BAR（收服務費、進三點水日結）', () => {
   const menu = new Map([['d1', { id: 'd1', venue: 'CAFE', cat: 'DESSERT', zh: '檸檬塔', en: 'Lemon Tart', price: 130, published: true }]]);
   const out = tableOrders.posAddLine([], menu, { item_id: 'd1', qty: 1, venue: 'BAR' });
