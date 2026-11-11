@@ -696,6 +696,18 @@ POS 每 5 秒輪詢。回 `{ pending:[{id,session_id,table,by,amount,sfx,perform
 ### POST /api/admin/menu/stock
 剩餘份數。body `{ item_id, left: 0–9999 | null }`。設定今天（營業日）還能賣幾份，存在品項的 `stock_day`／`stock_left`，同時解除今日估清；`left:null` 取消限量。客人送單（含套餐選項）與櫃檯先結後做的結帳時自動扣，扣到 0 即視同今日估清；已送單、尚未出餐的品項被作廢會回補。客人端加點超過剩餘份數回 409；櫃檯加點不擋、最少扣到 0。翌日 03:00 自動失效回到不限量。後台整份菜單存檔（`POST /api/admin/content` key=menu）一律沿用資料庫現值的 `sold_out`／`stock_day`／`stock_left`。品牌子帳號只能設定自己店別（403）。回 `{ ok, item_id, stock_day, stock_left }`。
 
+### GET /api/admin/menu/books
+約書旅書冊（KK 11/11）：列出菜單裡所有書籍品項（`venue:'REST'`、`cat:'BOOK'`，含 `isbn`／`author`／`publisher`／`list_price`／`price`／`stock_left`）。回 `{ books[], count, copies, csv }`。只有超管與約書旅帳號可用（其他品牌 403）。
+
+### GET /api/admin/menu/books/lookup
+用 ISBN 查書目。query `isbn=`（13 碼 978／979 或 10 碼，自動轉 13 碼、驗檢查碼）。已在書冊回 `existing`；否則依序查國家圖書館 ISBN 書號中心（臺灣出版品，含定價）→ Google Books（外文書，無定價），回 `{ isbn, existing, book }`，查不到時 `book.found=false`。
+
+### POST /api/admin/menu/books
+造冊／補本數／修改。body `{ isbn, title, author, publisher, list_price, price, qty, published, mode:'add'|'set' }`。同 ISBN 已在冊：`mode:'add'`（預設）把本數加上 `qty`，`'set'` 直接改成 `qty`；否則新增約書旅書籍品項。寫進同一份菜單（鎖 menu 列），約書旅 POS 立即可加點結帳；售出時 `stock_left` 自動扣、作廢回補，不隨營業日歸零，扣到 0 視同售完。回 `{ ok, created, book }`。
+
+### DELETE /api/admin/menu/books/:id
+從書冊刪除一本書（POS 同步下架；已結帳紀錄不受影響）。回 `{ ok }`。
+
 ### GET /api/admin/orders/history
 查單：某營業日全部的單（含作廢），最新在前。query `day=YYYY-MM-DD`（預設今天的營業日）、`q=`（桌號／金額／發票號碼／單號尾碼，不分大小寫）、`venue=`。每張單附 `stations`（分站明細）供重印出餐單。回 `{ day, orders[], count }`。品牌子帳號只看自己店別的單。
 

@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#687c70">
+<title>約書旅 書冊管理</title>
+<link rel="icon" href="/brand-sites/assets/rest-book-avatar.webp">
+<style>
+  /* 約書旅書冊後台（KK 11/11）：掃 ISBN → 國圖查書目與定價 → 存成約書旅 POS 品項。色票沿用 rest-book.css（紙／墨／霧苔綠／黃銅） */
+  :root{--paper:#f6f1e7;--tone:#ece4d4;--ink:#1f1b16;--soft:#5f5246;--moss:#687c70;--moss-deep:#3f4d45;--brass:#c9a55c;--line:#d6cdbd;--bad:#a1352b;--ok:#2f6a46;--r:14px}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--paper);color:var(--ink);font-family:"Noto Sans TC","PingFang TC","Hiragino Sans",system-ui,sans-serif;font-size:1rem;line-height:1.6}
+  button,input,select{font:inherit;color:inherit}
+  a{color:var(--moss-deep)}
+  .rb-head{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:12px max(16px,4vw);background:var(--moss-deep);color:#fff}
+  .rb-head b{font-family:"Noto Serif TC",serif;font-size:1.2rem;letter-spacing:.08em}
+  .rb-head span{color:#dfe7e2}
+  .rb-head .sp{flex:1}
+  .rb-head button{min-height:44px;padding:0 16px;border-radius:999px;border:1px solid #c9d6ce;background:transparent;color:#fff;cursor:pointer}
+  main{max-width:1080px;margin:0 auto;padding:24px max(16px,4vw) 80px}
+  h1{font-family:"Noto Serif TC",serif;font-size:1.6rem;margin:0 0 4px}
+  h2{font-family:"Noto Serif TC",serif;font-size:1.25rem;margin:0 0 12px}
+  .lead{color:var(--soft);margin:0 0 20px}
+  .card{background:#fffdf8;border:1px solid var(--line);border-radius:var(--r);padding:20px;margin-bottom:20px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:48px;padding:0 20px;border-radius:999px;border:1px solid var(--ink);background:#fff;cursor:pointer;font-weight:500;text-decoration:none;color:var(--ink)}
+  .btn--solid{background:var(--moss-deep);border-color:var(--moss-deep);color:#fff}
+  .btn--brass{background:var(--brass);border-color:var(--brass);color:var(--ink)}
+  .btn--ghost{border-color:var(--line)}
+  .btn--danger{border-color:var(--bad);color:var(--bad)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .scan-row{display:flex;gap:12px;flex-wrap:wrap}
+  .scan-row input{flex:1 1 240px;min-height:52px;padding:0 16px;border:1px solid var(--soft);border-radius:12px;background:#fff;font-size:1.25rem;letter-spacing:.04em}
+  .cam{position:relative;margin-top:16px;border-radius:12px;overflow:hidden;background:#111;display:none}
+  .cam.on{display:block}
+  .cam video{display:block;width:100%;max-height:52vh;object-fit:cover}
+  .cam i{position:absolute;left:12%;right:12%;top:38%;bottom:38%;border:3px solid var(--brass);border-radius:10px;box-shadow:0 0 0 100vmax rgba(0,0,0,.35)}
+  .msg{margin:12px 0 0;min-height:1.6em}
+  .msg.err{color:var(--bad)} .msg.ok{color:var(--ok)}
+  .form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}
+  .form label{display:flex;flex-direction:column;gap:4px;color:var(--soft)}
+  .form label.full{grid-column:1/-1}
+  .form input{min-height:48px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
+  .form .chk{flex-direction:row;align-items:center;gap:8px;color:var(--ink)}
+  .form .chk input{min-height:auto;width:22px;height:22px}
+  .src{color:var(--soft)}
+  .acts{display:flex;gap:12px;flex-wrap:wrap;margin-top:16px}
+  .stats{display:flex;gap:24px;flex-wrap:wrap;color:var(--soft);margin-bottom:12px}
+  .stats b{color:var(--ink);font-size:1.25rem}
+  .tools{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .tools input{flex:1 1 220px;min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:#fff}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--soft);font-weight:500;white-space:nowrap}
+  td.num,th.num{text-align:right;white-space:nowrap}
+  td .sub{display:block;color:var(--soft)}
+  tr.off td{color:var(--soft)}
+  .pill{display:inline-block;padding:0 10px;border-radius:999px;background:var(--tone);color:var(--soft);white-space:nowrap}
+  .pill.low{background:#f6dcd6;color:var(--bad)}
+  .row-acts{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+  .row-acts .btn{min-height:44px;padding:0 14px}
+  .login{max-width:420px;margin:12vh auto;text-align:center}
+  .login form{display:flex;flex-direction:column;gap:12px;margin-top:16px;text-align:left}
+  .login input{min-height:48px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:#fff}
+  .or{color:var(--soft);margin:16px 0 0}
+  @media(max-width:720px){
+    .form{grid-template-columns:minmax(0,1fr)}
+    thead{display:none}
+    table,tbody,tr,td{display:block;width:100%}
+    tr{padding:12px 0;border-bottom:1px solid var(--line)}
+    td{border:0;padding:2px 0}
+    td.num{text-align:left}
+    td[data-k]::before{content:attr(data-k) "　";color:var(--soft)}
+    .row-acts{justify-content:flex-start;margin-top:8px}
+  }
+</style>
+</head>
+<body>
+<header class="rb-head"><b>約書旅</b><span>書冊管理</span><span class="sp"></span><button type="button" id="logout" hidden>登出</button></header>
+<main id="app"><p class="lead">載入中…</p></main>
+<script src="/vendor/zxing-reader.js"></script>
+<script src="/menu-lib.js"></script>
+<script>
+'use strict';
+/* innerHTML 內的動態值（書名、作者、錯誤訊息…）一律經 esc() 跳脫 */
+/* 約書旅書冊後台：書籍存成約書旅 POS 品項（菜單 REST／BOOK），存檔即可在約書旅 POS 結帳，不必另外同步 */
+const KEY = 'rb_admin_token';
+const app = document.getElementById('app');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const num = n => Number(n || 0).toLocaleString('zh-TW');
+const hash = new URLSearchParams(location.hash.slice(1));
+if (hash.get('token')) { localStorage.setItem(KEY, hash.get('token')); history.replaceState(null, '', location.pathname); }
+let token = localStorage.getItem(KEY) || '';
+let BOOKS = [], DRAFT = null, FILTER = '', STREAM = null, LOOKING = false;
+
+async function api(path, { method = 'GET', body } = {}) {
+  const res = await fetch('/api' + path, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  let d = {}; try { d = await res.json(); } catch (e) {}
+  if (res.status === 401) { localStorage.removeItem(KEY); token = ''; showLogin('登入已過期，請重新登入。'); throw new Error('未登入'); }
+  if (!res.ok) throw new Error(d.error || '伺服器錯誤（' + res.status + '）');
+  return d;
+}
+
+function showLogin(msg) {
+  stopCam(); document.getElementById('logout').hidden = true;
+  const back = encodeURIComponent(location.origin + location.pathname);
+  app.innerHTML = `<div class="login card"><h1>書冊管理登入</h1><p class="lead">約書旅管理員帳號登入後，掃書背 ISBN 造冊，會直接出現在約書旅 POS。</p>
+    ${msg ? `<p class="msg err" role="alert">${esc(msg)}</p>` : ''}
+    <a class="btn btn--solid" href="https://www.emoji.tw/auth/google?redirect=${back}">使用 Google 登入</a>
+    <p class="or">或用 Email 密碼</p>
+    <form id="login"><label>Email<input name="email" type="email" autocomplete="username" maxlength="254" required></label>
+    <label>密碼<input name="password" type="password" autocomplete="current-password" maxlength="200" required></label>
+    <button class="btn" type="submit">登入</button><p class="msg err" id="login-err" role="alert" hidden></p></form></div>`;
+  const f = document.getElementById('login');
+  f.onsubmit = async e => {
+    e.preventDefault(); const err = document.getElementById('login-err'); err.hidden = true;
+    try { const d = await api('/auth/admin/password', { method: 'POST', body: { email: f.elements.email.value, password: f.elements.password.value } }); token = d.token; localStorage.setItem(KEY, token); main(); }
+    catch (x) { f.elements.password.value = ''; err.textContent = x.message; err.hidden = false; }
+  };
+}
+
+function shell() {
+  document.getElementById('logout').hidden = false;
+  app.innerHTML = `<h1>書冊管理</h1><p class="lead">掃書背條碼（ISBN）→ 自動帶入書名與定價 → 確認售價與本數後存檔。存檔後約書旅 POS 的「書籍」分類就能結帳，賣出自動扣本數。</p>
+  <section class="card" aria-labelledby="h-scan"><h2 id="h-scan">掃描 ISBN</h2>
+    <form class="scan-row" id="scan-form"><input id="isbn" inputmode="numeric" autocomplete="off" maxlength="17" placeholder="掃描槍直接掃，或輸入 978… 後按 Enter" aria-label="ISBN">
+      <button class="btn btn--solid" type="submit">查詢</button><button class="btn btn--brass" type="button" id="cam-btn">用相機掃</button></form>
+    <div class="cam" id="cam"><video id="video" playsinline muted></video><i aria-hidden="true"></i></div>
+    <p class="msg" id="scan-msg" role="status" aria-live="polite"></p>
+    <div id="draft"></div></section>
+  <section class="card" aria-labelledby="h-list"><h2 id="h-list">書冊</h2><div id="list"><p class="lead">載入中…</p></div></section>`;
+  const input = document.getElementById('isbn');
+  document.getElementById('scan-form').onsubmit = e => { e.preventDefault(); lookup(input.value); };
+  document.getElementById('cam-btn').onclick = () => STREAM ? stopCam() : startCam();
+  input.focus();
+}
+function say(text, kind = '') { const m = document.getElementById('scan-msg'); if (m) { m.textContent = text; m.className = 'msg ' + kind; } }
+
+async function lookup(raw) {
+  const isbn = MenuLib.normalizeIsbn(raw);
+  if (!isbn) { say('ISBN 格式不正確：要 13 碼 978／979 開頭（或 10 碼），請再掃一次。', 'err'); return; }
+  if (LOOKING) return; LOOKING = true;
+  say('查詢 ' + isbn + ' 中…');
+  try {
+    const d = await api('/admin/menu/books/lookup?isbn=' + isbn);
+    if (d.existing) {
+      const b = d.existing;
+      DRAFT = { mode: 'existing', isbn, title: b.zh, author: b.author, publisher: b.publisher, list_price: b.list_price, price: b.price, qty: 1, have: b.stock_left || 0, published: b.published, image: b.image };
+      say(`已在書冊：《${b.zh}》目前 ${b.stock_left || 0} 本。存檔會加 1 本（可改）。`, 'ok');
+    } else if (d.book && d.book.found !== false) {
+      const b = d.book;
+      DRAFT = { mode: 'new', isbn, title: b.title, author: b.author, publisher: b.publisher, list_price: b.list_price, price: b.list_price || '', qty: 1, published: true, image: b.image || '', source: b.source, pub_date: b.pub_date };
+      say(b.list_price ? `找到《${b.title}》，定價 NT$${num(b.list_price)}。` : `找到《${b.title}》，但書目沒有臺灣定價，請手動填售價。`, b.list_price ? 'ok' : '');
+    } else {
+      DRAFT = { mode: 'new', isbn, title: '', author: '', publisher: '', list_price: 0, price: '', qty: 1, published: true, image: '' };
+      say('國圖書號中心與 Google Books 都查不到這本，請手動填書名與售價。', 'err');
+    }
+    paintDraft();
+  } catch (e) { say('查詢失敗：' + e.message, 'err'); }
+  finally { LOOKING = false; }
+}
+
+function paintDraft() {
+  const host = document.getElementById('draft'); if (!host) return;
+  if (!DRAFT) { host.innerHTML = ''; return; }
+  const d = DRAFT, src = d.source === 'ncl' ? '書目來源：國家圖書館 ISBN 書號中心' : d.source === 'google' ? '書目來源：Google Books（外文書沒有臺灣定價）' : '';
+  host.innerHTML = `<form class="form" id="book-form" style="margin-top:16px">
+    <label class="full">書名<input name="title" required maxlength="120" value="${esc(d.title)}"></label>
+    <label>作者<input name="author" maxlength="200" value="${esc(d.author)}"></label>
+    <label>出版社<input name="publisher" maxlength="120" value="${esc(d.publisher)}"></label>
+    <label>定價（書上）<input name="list_price" type="number" inputmode="numeric" min="0" max="100000" step="1" value="${esc(d.list_price || '')}"></label>
+    <label>售價（POS 收這個）<input name="price" type="number" inputmode="numeric" min="0" max="100000" step="1" required value="${esc(d.price)}"></label>
+    <label>${d.mode === 'existing' ? `加幾本（目前 ${d.have} 本）` : d.mode === 'edit' ? '庫存本數（直接改成）' : '本數'}<input name="qty" type="number" inputmode="numeric" min="0" max="999" step="1" required value="${esc(d.qty)}"></label>
+    <label class="chk"><input name="published" type="checkbox" ${d.published ? 'checked' : ''}>在 POS 上架</label>
+    <p class="src full">ISBN ${esc(d.isbn)}${src ? '　' + esc(src) : ''}</p>
+    <div class="acts full"><button class="btn btn--solid" type="submit">${d.mode === 'existing' ? '加入本數並存檔' : d.mode === 'edit' ? '儲存修改' : '存檔上架'}</button><button class="btn btn--ghost" type="button" id="draft-cancel">取消</button></div></form>`;
+  const f = document.getElementById('book-form');
+  if (!d.title) f.elements.title.focus(); else if (d.price === '' || d.price == null) f.elements.price.focus();
+  document.getElementById('draft-cancel').onclick = () => { DRAFT = null; paintDraft(); say(''); document.getElementById('isbn').focus(); };
+  f.onsubmit = async e => {
+    e.preventDefault();
+    const btn = f.querySelector('[type=submit]'); btn.disabled = true;
+    const body = { mode: d.mode === 'edit' ? 'set' : 'add', isbn: d.isbn, title: f.elements.title.value.trim(), author: f.elements.author.value.trim(), publisher: f.elements.publisher.value.trim(), list_price: Number(f.elements.list_price.value) || 0, price: Number(f.elements.price.value), qty: Number(f.elements.qty.value), published: f.elements.published.checked, image: d.image || '', pub_date: d.pub_date || '' };
+    try {
+      const out = await api('/admin/menu/books', { method: 'POST', body });
+      say(`${d.mode === 'edit' ? '已更新' : '已存檔'}：《${out.book.zh}》NT$${num(out.book.price)}，庫存 ${out.book.stock_left} 本，約書旅 POS 已可結帳。`, 'ok');
+      DRAFT = null; paintDraft(); await loadList();
+      const i = document.getElementById('isbn'); i.value = ''; i.focus();
+    } catch (x) { say('存檔失敗：' + x.message, 'err'); btn.disabled = false; }
+  };
+}
+
+async function loadList() {
+  const host = document.getElementById('list'); if (!host) return;
+  let d; try { d = await api('/admin/menu/books'); } catch (e) { host.innerHTML = `<p class="msg err">載入失敗：${esc(e.message)}</p>`; return; }
+  BOOKS = d.books || [];
+  window.__BOOK_CSV = d.csv || [];
+  paintList(d);
+}
+function paintList(d) {
+  const host = document.getElementById('list'); if (!host) return;
+  const q = FILTER.trim().toLowerCase();
+  const rows = BOOKS.filter(b => !q || [b.zh, b.author, b.publisher, b.isbn].some(x => String(x || '').toLowerCase().includes(q)));
+  host.innerHTML = `<div class="stats"><span>共 <b>${num(BOOKS.length)}</b> 種</span><span><b>${num(BOOKS.reduce((a, b) => a + (b.stock_left || 0), 0))}</b> 本在庫</span><span><b>${num(BOOKS.filter(b => b.published).length)}</b> 種上架</span></div>
+    <div class="tools"><input id="filter" type="search" maxlength="60" placeholder="搜尋書名、作者、出版社、ISBN" aria-label="搜尋書冊" value="${esc(FILTER)}"><button class="btn btn--ghost" type="button" id="csv" ${BOOKS.length ? '' : 'disabled'}>匯出 CSV</button></div>
+    ${rows.length ? `<table><thead><tr><th>書名</th><th>ISBN</th><th class="num">定價</th><th class="num">售價</th><th class="num">庫存</th><th class="num">操作</th></tr></thead><tbody>
+    ${rows.map(b => `<tr class="${b.published ? '' : 'off'}"><td><b>${esc(b.zh)}</b><span class="sub">${esc([b.author, b.publisher].filter(Boolean).join('／'))}</span>${b.published ? '' : '<span class="pill">未上架</span>'}</td>
+      <td data-k="ISBN">${esc(b.isbn)}</td><td class="num" data-k="定價">${b.list_price ? 'NT$' + num(b.list_price) : '—'}</td><td class="num" data-k="售價">NT$${num(b.price)}</td>
+      <td class="num" data-k="庫存"><span class="pill ${(b.stock_left || 0) <= 0 ? 'low' : ''}">${num(b.stock_left || 0)} 本</span></td>
+      <td><div class="row-acts"><button class="btn btn--ghost" type="button" data-edit="${esc(b.id)}">編輯</button><button class="btn btn--danger" type="button" data-del="${esc(b.id)}">刪除</button></div></td></tr>`).join('')}
+    </tbody></table>` : `<p class="lead">${BOOKS.length ? '沒有符合的書。' : '還沒有書。掃第一本開始造冊。'}</p>`}`;
+  const f = document.getElementById('filter');
+  f.oninput = () => { FILTER = f.value; const pos = f.selectionStart; paintList(); const g = document.getElementById('filter'); g.focus(); g.setSelectionRange(pos, pos); };
+  document.getElementById('csv').onclick = downloadCsv;
+  host.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editBook(b.dataset.edit));
+  host.querySelectorAll('[data-del]').forEach(b => b.onclick = () => delBook(b.dataset.del));
+}
+function editBook(id) {
+  const b = BOOKS.find(x => x.id === id); if (!b) return;
+  DRAFT = { mode: 'edit', isbn: b.isbn, title: b.zh, author: b.author, publisher: b.publisher, list_price: b.list_price, price: b.price, qty: b.stock_left || 0, published: b.published, image: b.image };
+  say(`編輯《${b.zh}》`); paintDraft();
+  document.getElementById('scan-msg').scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+async function delBook(id) {
+  const b = BOOKS.find(x => x.id === id); if (!b) return;
+  if (!confirm(`從書冊刪除《${b.zh}》？約書旅 POS 也會一起下架（已結帳的紀錄不受影響）。`)) return;
+  try { await api('/admin/menu/books/' + encodeURIComponent(id), { method: 'DELETE' }); say(`已刪除《${b.zh}》。`, 'ok'); await loadList(); }
+  catch (e) { say('刪除失敗：' + e.message, 'err'); }
+}
+function downloadCsv() {
+  const rows = window.__BOOK_CSV || [];
+  const csv = rows.map(r => r.map(c => { let s = c == null ? '' : String(c); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',')).join('\r\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = '約書旅書冊_' + new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' }) + '.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* 相機掃 EAN-13：Chrome／Android 用 BarcodeDetector，iPad／iPhone 用本站 zxing-wasm（同 POS） */
+let ZX_READY = false;
+function detector() {
+  if ('BarcodeDetector' in window) return new window.BarcodeDetector({ formats: ['ean_13'] });
+  const zx = window.ZXingWASM; if (!zx?.readBarcodes) return null;
+  if (!ZX_READY) { ZX_READY = true; try { zx.prepareZXingModule({ overrides: { locateFile: (p, prefix) => p.endsWith('.wasm') ? '/vendor/zxing_reader.wasm' : prefix + p }, fireImmediately: true }); } catch (e) {} }
+  const c = document.createElement('canvas');
+  return { async detect(v) { const w = v.videoWidth, h = v.videoHeight; if (!w || !h) return []; c.width = w; c.height = h; const ctx = c.getContext('2d', { willReadFrequently: true }); ctx.drawImage(v, 0, 0); const out = await zx.readBarcodes(ctx.getImageData(0, 0, w, h), { formats: ['EAN13'], maxNumberOfSymbols: 1 }); return out.filter(r => r.text).map(r => ({ rawValue: r.text })); } };
+}
+async function startCam() {
+  const det = detector();
+  if (!det || !navigator.mediaDevices?.getUserMedia) { say('這個瀏覽器不能用相機掃碼，請用掃描槍或手動輸入。', 'err'); return; }
+  const video = document.getElementById('video');
+  try {
+    STREAM = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
+    video.srcObject = STREAM; await video.play();
+    document.getElementById('cam').classList.add('on'); document.getElementById('cam-btn').textContent = '關閉相機';
+    say('把書背條碼（978 開頭那條）對準黃框。');
+    let last = '';
+    const tick = async () => {
+      if (!STREAM) return;
+      const codes = await det.detect(video).catch(() => []);
+      const isbn = MenuLib.normalizeIsbn(codes[0]?.rawValue || '');
+      if (isbn && isbn !== last && !LOOKING) { last = isbn; document.getElementById('isbn').value = isbn; stopCam(); lookup(isbn); return; }
+      requestAnimationFrame(tick);
+    };
+    tick();
+  } catch (e) { stopCam(); say('無法開啟相機：' + e.message, 'err'); }
+}
+function stopCam() {
+  if (STREAM) STREAM.getTracks().forEach(t => t.stop());
+  STREAM = null;
+  const cam = document.getElementById('cam'); if (cam) cam.classList.remove('on');
+  const b = document.getElementById('cam-btn'); if (b) b.textContent = '用相機掃';
+}
+
+document.getElementById('logout').onclick = () => { localStorage.removeItem(KEY); token = ''; showLogin(); };
+async function main() {
+  if (!token) return showLogin();
+  try {
+    const me = await api('/admin/menu/books');
+    shell(); BOOKS = me.books || []; window.__BOOK_CSV = me.csv || []; paintList();
+  } catch (e) { if (token) showLogin(e.message === '未登入' ? '' : e.message); }
+}
+main();
+</script>
+</body>
+</html>
