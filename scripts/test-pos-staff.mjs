@@ -59,13 +59,13 @@ test('週與區間：週一起算 7 天；預設最近 7 天；超過 93 天從�
   assert.deepEqual(S.dateRange('2025-01-01', '2026-10-13', { now }), { from: '2026-07-13', to: '2026-10-13' });
 });
 
-test('打卡：識別碼錯 404、停用 403；出勤統一屬於言文字；上班配對排班算遲到；重複上班 409；下班算工時與早退；沒上班卡不能下班', () => {
+test('打卡：識別碼錯 404、停用 403；出勤依品牌；上班配對排班算遲到；重複上班 409；下班算工時與早退；沒上班卡不能下班', () => {
   const staff = { id: 'st_1', name: '小美', active: true, venues: ['CAFE'] };
   const shifts = [{ id: 'sh_1', staff_id: 'st_1', day: '2026-10-13', venue: 'CAFE', start_time: '08:00', end_time: '17:00' }];
   const now = +new Date('2026-10-13T08:12:00+08:00');
   assert.throws(() => S.punch({ type: 'in', staff: null, venue: 'CAFE', now }), e => e.status === 404);
   assert.throws(() => S.punch({ type: 'in', staff: { ...staff, active: false }, venue: 'CAFE', now }), e => e.status === 403);
-  assert.equal(S.punch({ type: 'in', staff, venue: 'BAR', open: null, shifts, now }).venue, 'TTH', '打卡不受員工品牌限制，統一記言文字');
+  assert.equal(S.punch({ type: 'in', staff, venue: 'BAR', open: null, shifts, now }).venue, 'BAR');
   assert.throws(() => S.punch({ type: 'x', staff, venue: 'CAFE', now }), /上班、下班或休息/);
   const inn = S.punch({ type: 'in', staff, venue: 'CAFE', open: null, shifts, now });
   assert.equal(inn.day, '2026-10-13'); assert.equal(inn.shift_id, 'sh_1'); assert.equal(inn.late_minutes, 12); assert.match(inn.message, /晚 12 分/);
@@ -78,7 +78,7 @@ test('打卡：識別碼錯 404、停用 403；出勤統一屬於言文字；上
   assert.equal(again.forgot_out, true, '昨天忘了打下班卡：今天仍可上班，但標記補登');
   assert.throws(() => S.punch({ type: 'out', staff, venue: 'CAFE', open: null, now }), e => e.status === 409 && /還沒打上班卡/.test(e.message));
   const out = S.punch({ type: 'out', staff, venue: 'CAFE', open, shifts, now: +new Date('2026-10-13T16:30:00+08:00') });
-  assert.equal(out.id, 'at_1'); assert.equal(out.minutes, 498); assert.equal(out.early_minutes, 30); assert.equal(out.venue, 'TTH'); assert.equal(out.day, '2026-10-13'); assert.match(out.message, /8 小時 18 分/);
+  assert.equal(out.id, 'at_1'); assert.equal(out.minutes, 498); assert.equal(out.early_minutes, 30); assert.equal(out.venue, 'CAFE'); assert.equal(out.day, '2026-10-13'); assert.match(out.message, /8 小時 18 分/);
   const night = S.punch({ type: 'in', staff: { ...staff, venues: null }, venue: 'BAR', open: null, shifts: [], now: +new Date('2026-10-14T01:00:00+08:00') });
   assert.equal(night.day, '2026-10-13', '凌晨 01:00 算前一營業日'); assert.equal(night.shift_id, null);
 });
@@ -239,26 +239,25 @@ test('接線：POS 多「排班」「打卡」分頁、後台餐飲工作區多�
   assert.doesNotMatch(pos, /body\{[^}]*padding-top:calc\(var\(--p-top\)/, 'body 不再用 padding-top 預留頂欄高度');
 });
 
-test('打卡不分品牌：上班、下班、補打卡都統一記為言文字', () => {
-  const staff = { id: 'st_1', name: '小美', active: true, venues: ['CAFE'] };
+test('打卡依所選品牌記錄、只配同品牌排班', () => {
+  const staff = { id: 'st_1', name: '小美', active: true, venues: ['CAFE','BAR'] };
   const at = h => +new Date(`2026-10-15T${h}:00+08:00`);
   const barShift = [{ id: 'sh', staff_id: 'st_1', day: '2026-10-15', venue: 'BAR', start_time: '17:00', end_time: '23:00' }];
   const inn = S.punch({ type: 'in', staff, venue: 'CAFE', shifts: barShift, now: at('17:05') });
-  assert.equal(inn.venue, 'TTH');
-  assert.equal(inn.shift_id, 'sh', '排班仍可用在咖啡／三點水配對，但出勤本身不分品牌');
-  assert.doesNotMatch(inn.message, /在咖啡|三點水/);
+  assert.equal(inn.venue, 'CAFE');
+  assert.equal(inn.shift_id, null);
   const out = S.makeupPunch({ staff, venue: 'BAR', body: { reason: '忘記打卡', clock_in: '2026-10-15 18:00', clock_out: '2026-10-15 23:00' }, open: null, existing: [], shifts: barShift, now: at('23:30') });
-  assert.equal(out.venue, 'TTH');
+  assert.equal(out.venue, 'BAR');
   assert.equal(out.shift_id, 'sh');
 });
-test('POS 打卡頁與出勤報表不傳、不顯示品牌', () => {
+test('POS 打卡頁不需選品牌，登入品牌由後端鎖定', () => {
   const js = read('public/pos-ops.js');
   assert.doesNotMatch(js, /CLOCK_VENUE|clock-venue|aria-label="店別"/);
-  assert.match(js, /body:\{pin,type\}/);
+  assert.match(js, /body:\{pin,type,venue:SCOPE\|\|undefined\}/);
   const attendance = js.slice(js.indexOf('async function loadAttendance'));
-  assert.doesNotMatch(attendance, /BRAND_LABEL\[r\.venue\]|<th>店別<\/th>|[?&]venue=/);
+  assert.match(attendance, /SCOPE\?'&venue='\+SCOPE/);
+  assert.doesNotMatch(attendance, /BRAND_LABEL\[r\.venue\]|<th>店別<\/th>/);
   const srv = read('server.js');
-  assert.match(srv, /const venue=posStaff\.ATTENDANCE_VENUE/);
-  assert.match(srv, /UPDATE pos_attendance SET venue='TTH' WHERE venue<>'TTH'/);
-  assert.doesNotMatch(srv.slice(srv.indexOf("'/api/admin/attendance',auth"),srv.indexOf('/* LINE Pay 同步')), /visibleVenues/);
+  assert.doesNotMatch(srv, /UPDATE pos_attendance SET venue='TTH'/);
+  assert.match(srv.slice(srv.indexOf("app.post('/api/admin/attendance/punch'"),srv.indexOf("app.post('/api/admin/attendance/makeup'")), /const venue=pinVenue\(/);
 });

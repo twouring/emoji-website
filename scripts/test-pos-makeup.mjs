@@ -59,11 +59,11 @@ test('防濫用：要原因、不能是未來、只能 7 天內、一班 ≤ 16 
   assert.throws(() => mk({ clock_in: '2026-10-15 10:00', clock_out: '2026-10-15 11:00' }, { existing: live }), e => e.status === 409, '上班中的也算重疊');
 });
 
-test('員工檢查：錯碼 404、停用 403；補打卡不受品牌限制', () => {
+test('員工檢查：錯碼 404、停用 403；補打卡依所選品牌', () => {
   assert.throws(() => S.makeupPunch({ staff: null, venue: 'CAFE', body: {}, now: NOW }), e => e.status === 404);
   assert.throws(() => mk({ clock_in: '2026-10-15 08:00' }, { staff: { ...staff, active: false } }), e => e.status === 403);
   const out = S.makeupPunch({ staff, venue: 'BAR', body: { reason: '忘記打卡', clock_in: '2026-10-15 08:00' }, now: NOW });
-  assert.equal(out.venue, 'TTH');
+  assert.equal(out.venue, 'BAR');
 });
 
 test('server 接線：端點限流＋識別碼、不需 notOperator（現場人員可補自己）、記補登人；API 文件有寫', () => {
@@ -78,7 +78,7 @@ test('server 接線：端點限流＋識別碼、不需 notOperator（現場人�
 test('POS 接線：打卡頁有補打卡入口、識別碼不進 localStorage／DOM、表單欄位與原因必填', () => {
   const js = read('public/pos-ops.js');
   assert.match(js, /id="clock-makeup"/); assert.match(js, /function openMakeup\(pin,done\)/);
-  assert.match(js, /api\('\/admin\/attendance\/makeup',\{method:'POST',body\}\)/);
+  assert.match(js, /api\('\/admin\/attendance\/makeup',\{method:'POST',body:\{\.\.\.body,venue:SCOPE\|\|undefined\}\}\)/);
   const fn = js.slice(js.indexOf('function openMakeup('), js.indexOf('/* ===== 加點選項'));
   assert.doesNotMatch(fn, /localStorage/); assert.match(fn, /datetime-local/); assert.match(fn, /id="mk-reason"/);
   assert.match(js.slice(js.indexOf("'#clock-makeup'") - 40, js.indexOf('function openMakeup(')), /CLOCK_PIN='';/, '開表單就清掉記憶體裡的識別碼');

@@ -3197,7 +3197,7 @@ const venueNow=()=>{if(SCOPE)return SCOPE;const h=Number(new Date().toLocaleTime
 async function loadClock(){
   const host=document.getElementById('clock-body');if(!host)return;
   const today=MenuLib.businessDay();
-  let working=[];try{working=(await api(`/admin/attendance?from=${today}&to=${today}`)).working||[];}catch(e){}
+  let working=[];try{working=(await api(`/admin/attendance?from=${today}&to=${today}${SCOPE?'&venue='+SCOPE:''}`)).working||[];}catch(e){}
   paintClock(host,working);
 }
 function paintClock(host,working){
@@ -3216,7 +3216,7 @@ function paintClock(host,working){
   // 識別碼只留在記憶體（CLOCK_PIN），送出即清空，不進 localStorage、不顯示數字（畫面只有 4 個點）
   const punch=type=>{if(CLOCK_PIN.length<4){CLOCK_MSG={ok:false,text:'請先輸入 4 位數識別碼'};paintClock(host,working);return;}
     const pin=CLOCK_PIN;CLOCK_PIN='';host.querySelectorAll('.clock-go .btn').forEach(b=>b.disabled=true);
-    api('/admin/attendance/punch',{method:'POST',body:{pin,type}}).then(out=>{CLOCK_MSG={ok:!out.break_short,text:out.message};},e=>{CLOCK_MSG={ok:false,text:e.message};}).then(loadClock);};
+    api('/admin/attendance/punch',{method:'POST',body:{pin,type,venue:SCOPE||undefined}}).then(out=>{CLOCK_MSG={ok:!out.break_short,text:out.message};},e=>{CLOCK_MSG={ok:false,text:e.message};}).then(loadClock);};
   host.querySelector('#clock-in').onclick=()=>punch('in');host.querySelector('#clock-out').onclick=()=>punch('out');
   host.querySelector('#clock-break-start').onclick=()=>punch('break_start');host.querySelector('#clock-break-end').onclick=()=>punch('break_end');
   host.querySelector('#clock-makeup').onclick=()=>{if(CLOCK_PIN.length<4){CLOCK_MSG={ok:false,text:'請先輸入你的 4 位數識別碼，再按「補打卡」'};paintClock(host,working);return;}
@@ -3269,7 +3269,7 @@ function openMakeup(pin,done){
     if(t!=='in'&&!body.clock_out){err.textContent='請填下班時間';err.hidden=false;return;}
     if(body.reason.length<2){err.textContent='請寫補打卡的原因';err.hidden=false;return;}
     $('#mk-save').disabled=true;
-    api('/admin/attendance/makeup',{method:'POST',body}).then(out=>{close();CLOCK_MSG={ok:!out.break_short,text:out.message};done();},e=>{$('#mk-save').disabled=false;err.textContent=e.message;err.hidden=false;});};
+    api('/admin/attendance/makeup',{method:'POST',body:{...body,venue:SCOPE||undefined}}).then(out=>{close();CLOCK_MSG={ok:!out.break_short,text:out.message};done();},e=>{$('#mk-save').disabled=false;err.textContent=e.message;err.hidden=false;});};
 }
 
 /* ===== 加點選項：跟桌邊點餐同一套規格（order-lib.js 的 optionGroups：溫度／糖度／冰塊／飯量／麵量），備註格式也一樣
@@ -3464,7 +3464,7 @@ function openAttendanceFix(r,reload,toIso){
 /* 出勤紀錄：區間（預設最近 7 個營業日）、每人彙總、明細（可修正／刪除）、CSV */
 async function loadAttendance(host){
   if(!ATT_TO){ATT_TO=MenuLib.businessDay();ATT_FROM=addDaysStr(ATT_TO,-6);}
-  let d;try{d=await api(`/admin/attendance?from=${ATT_FROM}&to=${ATT_TO}`);}catch(e){host.innerHTML=`<h3>出勤紀錄</h3><p class="a-empty">載入失敗：${esc(e.message)}</p>`;return;}
+  let d;try{d=await api(`/admin/attendance?from=${ATT_FROM}&to=${ATT_TO}${SCOPE?'&venue='+SCOPE:''}`);}catch(e){host.innerHTML=`<h3>出勤紀錄</h3><p class="a-empty">載入失敗：${esc(e.message)}</p>`;return;}
   const sum=(d.summary||[]).map(s=>`<tr><td><b>${esc(s.name)}</b></td><td class="num">${num(s.shifts)}</td><td class="num">${esc(s.hours)}</td><td class="num">${s.late?num(s.late):''}</td><td class="num">${s.open?`<span class="pill pill-bad">${num(s.open)}</span>`:''}</td></tr>`).join('')||'<tr><td colspan="5" class="a-empty">這段期間沒有出勤</td></tr>';
   const rows=(d.rows||[]).map(r=>`<tr class="${r.clock_out?'':'att-open'}"><td class="a-mono">${esc(r.day)}</td><td><b>${esc(r.name)}</b></td><td class="a-mono" title="${esc(applicationTime(r.clock_in))}">${esc(clockText(r.clock_in))}${r.late_minutes?` <span class="pill pill-wait">晚 ${num(r.late_minutes)} 分</span>`:''}</td><td class="a-mono" title="${esc(r.clock_out?applicationTime(r.clock_out):'')}">${r.clock_out?esc(clockText(r.clock_out)):r.on_break?'<span class="pill pill-wait">休息中</span>':'<span class="pill pill-bad">未打卡</span>'}${r.early_minutes?` <span class="pill pill-wait">早 ${num(r.early_minutes)} 分</span>`:''}</td><td class="num">${r.break_minutes?esc(hoursText(r.break_minutes)):''}</td><td class="num">${esc(hoursText(r.minutes))}</td><td class="hint hint--tight">${r.shift_start?esc(r.shift_start+'–'+r.shift_end):''}</td><td>${esc(r.note||'')}${r.edited_by?` <span class="hint hint--tight" title="${esc(r.edited_by)}">（已修正）</span>`:''}</td><td class="ops-actions"><div class="ops-btns"><button type="button" class="btn btn--ghost btn-xs" data-fix="${esc(r.id)}">修正</button><button type="button" class="btn btn--ghost btn-xs" data-rm="${esc(r.id)}">刪除</button></div></td></tr>`).join('')||`<tr><td colspan="9" class="a-empty">—</td></tr>`;
   host.innerHTML=`<div class="ops-head"><h3>出勤紀錄</h3>${opsHelp('工時＝下班－上班－休息，未打下班卡的不計；遲到早退以排班為準。忘了打卡用「修正」補登，會記下是誰改的。')}</div>
