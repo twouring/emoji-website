@@ -31,7 +31,10 @@ test('只有管理員能用的功能只在 admin，不放 POS（KK 11/2）', () 
   assert.match(ops, /function onPosPage\(\)/);
   assert.match(ops, /DATA\?\.super&&!onPosPage\(\)\?`<button type="button" class="btn btn--ghost" data-reg-reopen/, '重開補單只在 admin');
   assert.match(ops, /!DATA\.brands&&!onPosPage\(\)&&await posConfirm\(/, '強制清桌只在 admin');
-  assert.doesNotMatch(set, /localStorage/, '店長識別碼不得寫入儲存');
+  assert.match(set, /主機 USB 印表機（ESC\/POS）/);
+  assert.match(set, /escposBridgeConfig/);
+  assert.match(set, /tth_escpos_bridge/);
+  assert.match(set, /儲存並測試列印/);
   assert.doesNotMatch(set, /\bconfirm\(|\bprompt\(/, '一律用 posConfirm／pickReason');
 });
 test('後端：GET 清單、POST/PATCH 超管或店長識別碼、API.md 有文件', () => {

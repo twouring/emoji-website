@@ -1,0 +1,12 @@
+{
+  "host": "127.0.0.1",
+  "port": 17890,
+  "token": "replace-with-a-long-random-token",
+  "allowedOrigins": ["https://pos.emoji.tw", "https://www.emoji.tw"],
+  "printers": {
+    "receipt-main": {
+      "name": "EPSON TM-T70II",
+      "queue": "EPSON TM-T70II"
+    }
+  }
+}

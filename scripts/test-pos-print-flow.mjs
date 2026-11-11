@@ -94,6 +94,13 @@ test('table panel offers pre-checkout kitchen and receipt printing',()=>{
  assert.doesNotMatch(src,/printOrder\(tableTicket\(\)\)/,'都送過時不可整桌重印（KK 11/1：加點單混入前面的餐點）');assert.match(src,/const t=lastTicket\(\);if\(t\)await printOrder\(t\)/);assert.match(src,/reprint:true/);assert.match(src,/o\.reprint\)spec\.push\(\{kind:'center',text:o\.single\?'【補印】單品':'【補印】最近一次送單'/);assert.match(src,/sessions\/'\+cur\.id\+'\/place/);
 });
 
+test('USB ESC/POS bridge converts existing ticket canvas to raster and uses local token without affecting mPOP fallback',()=>{
+ assert.match(src,/const ESCPOS_BRIDGE_DEFAULT='http:\/\/127\.0\.0\.1:17890'/);
+ assert.match(src,/function escposRaster\(canvas\)/);assert.match(src,/createImageData|pixels=src\.getImageData/);
+ assert.match(src,/Authorization':'Bearer '\+c\.token/);assert.match(src,/printerId:c\.printerId/);
+ assert.match(src,/function starSend\(job=\{\}\)\{if\(typeof escposReady==='function'&&escposReady\(\)\)return escposSend\(job\)/);
+});
+
 test('發票證明聯與收據明細預設印賣方統編 93537055', async () => {
   const {c,texts}=printContext();await vm.runInContext("invoiceProofCanvas({invoice:{status:'issued',number:'AB12345678',buyer_ubn:'12345678'},items:[],amount:100})",c);
   assert.ok(texts.some(t=>/^93537055$/.test(t)),'證明聯要印賣方統編');

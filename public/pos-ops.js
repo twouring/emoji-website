@@ -500,9 +500,31 @@ async function starOpenHere(){if(await posConfirm('印發票／開錢櫃要在 S
 // 組一份 webPRNT 請求送給 mPOP：canvas = 要印的點陣圖（可省略，只開錢櫃）；drawer = 先踢錢櫃
 // Native SDK keys callbacks by URL, not job id. Never clear its pending slot on timeout:
 // a late callback would otherwise be attributed to the next job. Fail closed until it drains.
+/* USB ESC/POS 主機列印：主機本身開 POS 網頁，同時跑只監聽 localhost 的 bridge。
+   設定與配對 token 只留在該台主機瀏覽器 localStorage，不進伺服器、不進公開前端。 */
+const ESCPOS_BRIDGE_DEFAULT='http://127.0.0.1:17890';
+function escposBridgeConfig(){try{const raw=localStorage.getItem('tth_escpos_bridge');const c=raw?JSON.parse(raw):null;return c&&c.url&&c.token&&c.printerId?c:null;}catch(e){return null;}}
+const escposReady=()=>!!escposBridgeConfig();
+function escposRaster(canvas){
+  const src=canvas?.getContext?.('2d');if(!src)throw Error('列印影像不存在');
+  const w=canvas.width,h=canvas.height,row=Math.ceil(w/8),pixels=src.getImageData(0,0,w,h).data,out=new Uint8Array(row*h);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4,a=pixels[i+3];const lum=(pixels[i]*299+pixels[i+1]*587+pixels[i+2]*114)/1000;if(a>32&&lum<170)out[y*row+(x>>3)]|=0x80>>(x&7);}
+  let binary='';for(const b of out)binary+=String.fromCharCode(b);return {width:w,height:h,data:btoa(binary)};
+}
+async function escposSend({canvas=null,drawer=false,label='' }={}){
+  const c=escposBridgeConfig();if(!c)return false;
+  if(!canvas&&!drawer)return false;
+  const jobId='pos-'+(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2));
+  let response;
+  try{response=await fetch(String(c.url||ESCPOS_BRIDGE_DEFAULT).replace(/\/$/,'')+'/print-jobs',{method:'POST',mode:'cors',credentials:'omit',headers:{'Content-Type':'application/json','Authorization':'Bearer '+c.token},body:JSON.stringify({jobId,printerId:c.printerId,raster:canvas?escposRaster(canvas):null,drawer:!!drawer,cut:!!canvas,label:String(label||'').slice(0,60)}),signal:AbortSignal.timeout(20000)});}catch(e){toast('連不到本機 ESC/POS 列印服務：請確認主機服務正在執行');return false;}
+  let out={};try{out=await response.json();}catch(e){}
+  if(!response.ok||out.status==='failed'){toast('ESC/POS 列印失敗：'+(out.error||response.status));return false;}
+  // USB/Spooler accepts bytes but cannot prove paper actually emerged.
+  return out.status==='sent_to_device';
+}
 let STAR_NATIVE_UNCERTAIN=null;
 let STAR_PRINT_QUEUE=Promise.resolve();
-function starSend(job={}){if(remoteOn())return remoteSend(job);const result=STAR_PRINT_QUEUE.then(()=>starSendNow(job));STAR_PRINT_QUEUE=result.catch(()=>false);return result;}
+function starSend(job={}){if(typeof escposReady==='function'&&escposReady())return escposSend(job);if(remoteOn())return remoteSend(job);const result=STAR_PRINT_QUEUE.then(()=>starSendNow(job));STAR_PRINT_QUEUE=result.catch(()=>false);return result;}
 /* 列印站（KK 11/5）：每個品牌同時只有一台接 mPOP 的裝置。伺服器記住是哪台（/admin/orders/print-station），所有裝置都看得到；
    只有列印站本機出紙、領出餐單與遠端工作，其他裝置（含別台 Star Browser）一律送到列印站，不因自己沒接 mPOP 視為斷線。
    沒有列印站時，第一台實際連上 mPOP 的 Star Browser 自動成為列印站；列印站離線不自動換人，要換台在新 iPad 按「改由這台列印」。 */
@@ -519,7 +541,7 @@ const posBrandPage=()=>{try{return onPosPage()&&!!SCOPE;}catch(e){return false;}
 // 這台是不是列印站：品牌 POS 看伺服器記錄；/admin（不分品牌）維持舊行為＝有 Star Browser 就本機印
 const isStation=()=>starReady()&&(!posBrandPage()||(!!STATION&&STATION.device===myDevice()));
 const remoteOn=()=>posBrandPage()&&!isStation();
-const canPrint=()=>isStation()||remoteOn();
+const canPrint=()=>escposReady()||isStation()||remoteOn();
 const stationOnline=()=>!!STATION&&STATION.online;
 async function syncStation({force=false}={}){
   if(!posBrandPage()||STATION_BUSY)return STATION;
