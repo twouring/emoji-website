@@ -1191,6 +1191,21 @@ async function seedMenuContent() {
         console.log('[menu-seed] 已補上三點水麵套餐：' + n + ' 項。');
       }
     } catch (e) { console.warn('[menu-seed] 三點水麵套餐略過：', e && e.message); }
+    try {   // 一次性：約書旅 POS 方案；只補缺項，絕不覆寫現場已調整的價格或估清狀態
+      const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_restbook_plans_v1'`)).rows.length;
+      if (!done) {
+        const doc = JSON.parse((await readContent()).menu);
+        const seed = buildMenuSeedDoc(loadMenuSeedRows()).items.filter(it => it.venue === 'REST');
+        const have = new Set((doc.items || []).map(it => it.id));
+        const add = seed.filter(it => !have.has(it.id));
+        if (add.length) {
+          doc.items.push(...add);
+          await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
+        }
+        await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_restbook_plans_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(add.length)]);
+        console.log('[menu-seed] 已補上約書旅 POS 方案：' + add.length + ' 項。');
+      }
+    } catch (e) { console.warn('[menu-seed] 約書旅 POS 方案略過：', e && e.message); }
     try {   // 每次開機：套餐選項補 id、同步品名（品項改名不脫鉤）
       const doc = JSON.parse((await readContent()).menu);
       const n = require('./lib/menu-combos').comboRelink(doc.items);
