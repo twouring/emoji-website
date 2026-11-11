@@ -6809,6 +6809,14 @@ app.get('/api/admin/menu/books/lookup',auth,adminOnly,requireDb,wrap(async(req,r
   let book=null;if(!existing){try{book=await bookCatalog.lookupIsbn(isbn);}catch(e){book={isbn,found:false,errors:[e.message]};}}
   res.json({isbn,existing,book});
 }));
+/* 書店比價（KK 11/12，lib/book-stores.js）：同一個 ISBN 到博客來、金石堂、誠品、讀冊、三民、讀墨、Kobo、Yahoo 查售價與庫存，統一格式回給後台；只讀公開搜尋結果、10 分鐘快取 */
+const bookStores=require('./lib/book-stores');
+app.get('/api/admin/menu/books/stores',auth,adminOnly,wrap(async(req,res)=>{
+  if(!restBookScope(req,res))return;
+  const isbn=tableOrders.MenuLib.normalizeIsbn(req.query.isbn);
+  if(!isbn)return res.status(400).json({error:'ISBN 格式不正確（要 13 碼 978／979 開頭，或 10 碼）。'});
+  res.set('Cache-Control','no-store').json(await bookStores.lookupStores(isbn,{title:String(req.query.title||'').slice(0,160)}));
+}));
 app.post('/api/admin/menu/books',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!restBookScope(req,res))return;
   let out;const next=await patchMenu(res,cur=>{out=bookCatalog.upsertBook(cur,req.body||{});return out.json;});if(!next)return;

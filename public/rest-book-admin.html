@@ -44,9 +44,21 @@
   .form input{min-height:48px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
   .form .chk{flex-direction:row;align-items:center;gap:8px;color:var(--ink)}
   .form .chk input{min-height:auto;width:22px;height:22px}
-  .platform-searches{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-  .platform-searches .btn{min-height:40px;padding:0 12px;font-size:1rem}
-  .platform-note{color:var(--soft);font-size:1rem;margin:12px 0 0}
+  .stores{margin-top:16px;border:1px solid var(--line);border-radius:12px;padding:12px 16px;background:#fff}
+  .stores h3{margin:0 0 4px;font-size:1.125rem}
+  .stores .best{margin:0 0 8px;color:var(--ink)}
+  .stores .best b{font-size:1.25rem}
+  .stores .note{color:var(--soft);font-size:1rem;margin:0 0 8px}
+  .stores table th,.stores table td{padding:8px 6px;vertical-align:middle}
+  .stores .tag{display:inline-block;padding:0 8px;border-radius:999px;background:var(--tone);color:var(--soft);font-size:1rem;white-space:nowrap;margin-right:4px}
+  .stores .tag.ok{background:#dcefdf;color:var(--ok)}
+  .stores .tag.no{background:#f6dcd6;color:var(--bad)}
+  .stores .tag.blocked{background:#fff3cd;color:#7a5a00}
+  .stores .store-name{font-weight:700;white-space:nowrap}
+  .stores .store-name a{color:inherit;display:inline-flex;align-items:center;min-height:44px}
+  .stores .fmt{color:var(--soft);font-size:1rem}
+  .stores a.go{display:inline-flex;align-items:center;min-height:44px;padding:0 8px;white-space:nowrap}
+  .stores .tag{vertical-align:middle}
   .stats{display:flex;gap:24px;flex-wrap:wrap;color:var(--soft);margin-bottom:12px}
   .stats b{color:var(--ink);font-size:1.25rem}
   .tools{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
@@ -90,18 +102,36 @@ const KEY = 'rb_admin_token';
 const app = document.getElementById('app');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const num = n => Number(n || 0).toLocaleString('zh-TW');
-/* 零售平台沒有提供可供後台穩定使用的公開 API；使用其官方站內搜尋或限定該站的搜尋結果，不爬取／不擷取受條款保護的商品頁資料。 */
-const PLATFORM_SEARCHES = [
-  ['博客來', isbn => `https://search.books.com.tw/search/query/key/${encodeURIComponent(isbn)}/cat/all`],
-  ['金石堂', isbn => `https://www.google.com/search?q=${encodeURIComponent(`site:kingstone.com.tw ${isbn}`)}`],
-  ['誠品', isbn => `https://www.google.com/search?q=${encodeURIComponent(`site:eslite.com ${isbn}`)}`],
-  ['讀冊 TAAZE', isbn => `https://www.google.com/search?q=${encodeURIComponent(`site:taaze.tw ${isbn}`)}`],
-  ['三民', isbn => `https://www.sanmin.com.tw/search?k=${encodeURIComponent(isbn)}`],
-  ['讀墨 Readmoo', isbn => `https://www.google.com/search?q=${encodeURIComponent(`site:readmoo.com ${isbn}`)}`],
-  ['樂天 Kobo', isbn => `https://www.google.com/search?q=${encodeURIComponent(`site:kobo.com/tw ${isbn}`)}`],
-  ['Yahoo 購物', isbn => `https://www.google.com/search?q=${encodeURIComponent(`site:tw.buy.yahoo.com ${isbn}`)}`],
-];
-const platformSearches = isbn => `<p class="platform-note">在臺灣書店查這個 ISBN（另開分頁；各平台售價與庫存僅供人工確認）。</p><div class="platform-searches" aria-label="臺灣書店 ISBN 搜尋">${PLATFORM_SEARCHES.map(([name, url]) => `<a class="btn btn--ghost" href="${esc(url(isbn))}" target="_blank" rel="noopener noreferrer">${esc(name)}</a>`).join('')}</div>`;
+/* 書店比價：伺服器用統一接口（/api/admin/menu/books/stores）到八家書店查售價與庫存；擋程式查詢的平台（blocked）只給站內搜尋連結另開分頁 */
+const FORMAT_LABEL = { paper: '紙本', ebook: '電子書', used: '二手' };
+let STORES_SEQ = 0;
+function storesBox(html) { const host = document.getElementById('platform-searches'); if (host) host.innerHTML = html; }
+function paintStores(d) {
+  if (!d || !Array.isArray(d.stores)) { storesBox(''); return; }
+  const stock = o => o.in_stock === true ? '<span class="tag ok">有貨</span>' : o.in_stock === false ? '<span class="tag no">缺貨</span>' : '<span class="tag">庫存不明</span>';
+  const rows = d.stores.map(s => {
+    const name = `<td class="store-name"><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.name)}</a></td>`;
+    if (s.status === 'blocked') return `<tr>${name}<td colspan="3"><span class="tag blocked">需另開分頁</span><span class="fmt">${esc(s.note || '這家阻擋程式查詢。')}</span></td></tr>`;
+    if (s.status === 'error') return `<tr>${name}<td colspan="3"><span class="tag no">查詢失敗</span><span class="fmt">${esc(s.error || '')}</span></td></tr>`;
+    if (!s.offers.length) return `<tr>${name}<td colspan="3"><span class="tag">沒找到這個 ISBN</span></td></tr>`;
+    return s.offers.map((o, i) => `<tr>${i === 0 ? name : '<td></td>'}<td><span class="fmt">${esc(FORMAT_LABEL[o.format] || o.format)}</span>${o.seller && o.seller !== '自營' ? `<span class="fmt">　${esc(o.seller)}</span>` : ''}</td>
+      <td class="num" data-k="售價">${o.price ? 'NT$' + num(o.price) : '—'}${o.list_price && o.list_price !== o.price ? `<span class="fmt">　定價 NT$${num(o.list_price)}</span>` : ''}</td>
+      <td>${stock(o)}<a class="go" href="${esc(o.url)}" target="_blank" rel="noopener noreferrer">看商品</a></td></tr>`).join('');
+  }).join('');
+  const best = d.best ? `<p class="best">最低現貨紙本：<b>NT$${num(d.best.price)}</b>（${esc(d.best.store)}）${d.list_price ? `　定價 NT$${num(d.list_price)}` : ''} <button class="btn btn--ghost" type="button" id="use-best">售價用這個</button></p>` : `<p class="best">各書店都沒有這個 ISBN 的紙本售價。</p>`;
+  storesBox(`<section class="stores" aria-label="書店比價"><h3>書店比價</h3>${best}<p class="note">各家售價與庫存為查詢當下的公開搜尋結果${d.cached ? '（10 分鐘內快取）' : ''}，僅供訂價參考。</p>
+    <table><thead><tr><th>書店</th><th>版本</th><th class="num">售價</th><th>庫存</th></tr></thead><tbody>${rows}</tbody></table></section>`);
+  const use = document.getElementById('use-best');
+  if (use) use.onclick = () => { const f = document.getElementById('book-form'); if (f) { f.elements.price.value = d.best.price; f.elements.price.focus(); } if (DRAFT) DRAFT.price = d.best.price; };
+}
+async function loadStores(isbn, title) {
+  const seq = ++STORES_SEQ;
+  storesBox('<section class="stores" aria-label="書店比價"><h3>書店比價</h3><p class="note">正在查八家書店的售價與庫存…</p></section>');
+  try {
+    const d = await api('/admin/menu/books/stores?isbn=' + isbn + (title ? '&title=' + encodeURIComponent(title) : ''));
+    if (seq === STORES_SEQ) paintStores(d);
+  } catch (e) { if (seq === STORES_SEQ) storesBox(`<section class="stores" aria-label="書店比價"><h3>書店比價</h3><p class="msg err">比價失敗：${esc(e.message)}</p></section>`); }
+}
 const hash = new URLSearchParams(location.hash.slice(1));
 if (hash.get('token')) { localStorage.setItem(KEY, hash.get('token')); history.replaceState(null, '', location.pathname); }
 let token = localStorage.getItem(KEY) || '';
@@ -135,7 +165,7 @@ function showLogin(msg) {
 
 function shell() {
   document.getElementById('logout').hidden = false;
-  app.innerHTML = `<h1>書冊管理</h1><p class="lead">掃書背條碼或輸入 ISBN → 自動從臺灣、日本與全球書目平台帶入資料與定價 → 確認售價與本數後存檔。存檔後約書旅 POS 的「書籍」分類就能結帳，賣出自動扣本數。</p>
+  app.innerHTML = `<h1>書冊管理</h1><p class="lead">掃書背條碼或輸入 ISBN → 自動從臺灣、日本與全球書目平台帶入資料與定價，並比較臺灣八家書店的售價與庫存 → 確認售價與本數後存檔。存檔後約書旅 POS 的「書籍」分類就能結帳，賣出自動扣本數。</p>
   <section class="card" aria-labelledby="h-scan"><h2 id="h-scan">掃描或輸入書籍條碼</h2>
     <form class="scan-row" id="scan-form"><input id="isbn" inputmode="numeric" autocomplete="off" maxlength="17" placeholder="掃描槍直接掃書背條碼，或輸入 ISBN（978…）後按 Enter" aria-label="書籍條碼或 ISBN">
       <button class="btn btn--solid" type="submit">查詢</button><button class="btn btn--brass" type="button" id="cam-btn">用相機掃</button></form>
@@ -154,9 +184,8 @@ function say(text, kind = '') { const m = document.getElementById('scan-msg'); i
 async function lookup(raw) {
   const isbn = MenuLib.normalizeIsbn(raw);
   if (!isbn) { say('ISBN 格式不正確：要 13 碼 978／979 開頭（或 10 碼），請再掃一次。', 'err'); return; }
-  /* isbn 已由 normalizeIsbn 驗證；平台名稱、網址模板是上方常數，並再經 esc()，這裡不含外部回傳資料。 */
-  const platform = document.getElementById('platform-searches'); if (platform) platform.innerHTML = platformSearches(isbn);
   if (LOOKING) return; LOOKING = true;
+  storesBox('');
   say('查詢 ' + isbn + ' 中…');
   try {
     const d = await api('/admin/menu/books/lookup?isbn=' + isbn);
@@ -173,6 +202,7 @@ async function lookup(raw) {
       say('找不到可用 ISBN。請確認掃的是書背 978／979 條碼；非 ISBN 條碼目前無法自動帶入書目，請改輸入 ISBN。', 'err');
     }
     paintDraft();
+    loadStores(isbn, DRAFT.title);
   } catch (e) { say('查詢失敗：' + e.message, 'err'); }
   finally { LOOKING = false; }
 }
@@ -193,7 +223,7 @@ function paintDraft() {
     <div class="acts full"><button class="btn btn--solid" type="submit">${d.mode === 'existing' ? '加入本數並存檔' : d.mode === 'edit' ? '儲存修改' : '存檔上架'}</button><button class="btn btn--ghost" type="button" id="draft-cancel">取消</button></div></form>`;
   const f = document.getElementById('book-form');
   if (!d.title) f.elements.title.focus(); else if (d.price === '' || d.price == null) f.elements.price.focus();
-  document.getElementById('draft-cancel').onclick = () => { DRAFT = null; paintDraft(); say(''); document.getElementById('isbn').focus(); };
+  document.getElementById('draft-cancel').onclick = () => { DRAFT = null; paintDraft(); storesBox(''); say(''); document.getElementById('isbn').focus(); };
   f.onsubmit = async e => {
     e.preventDefault();
     const btn = f.querySelector('[type=submit]'); btn.disabled = true;
@@ -201,7 +231,7 @@ function paintDraft() {
     try {
       const out = await api('/admin/menu/books', { method: 'POST', body });
       say(`${d.mode === 'edit' ? '已更新' : '已存檔'}：《${out.book.zh}》NT$${num(out.book.price)}，庫存 ${out.book.stock_left} 本，約書旅 POS 已可結帳。`, 'ok');
-      DRAFT = null; paintDraft(); await loadList();
+      DRAFT = null; paintDraft(); storesBox(''); await loadList();
       const i = document.getElementById('isbn'); i.value = ''; i.focus();
     } catch (x) { say('存檔失敗：' + x.message, 'err'); btn.disabled = false; }
   };
@@ -235,7 +265,7 @@ function paintList(d) {
 function editBook(id) {
   const b = BOOKS.find(x => x.id === id); if (!b) return;
   DRAFT = { mode: 'edit', isbn: b.isbn, title: b.zh, author: b.author, publisher: b.publisher, list_price: b.list_price, price: b.price, qty: b.stock_left || 0, published: b.published, image: b.image };
-  say(`編輯《${b.zh}》`); paintDraft();
+  say(`編輯《${b.zh}》`); paintDraft(); loadStores(b.isbn, b.zh);
   document.getElementById('scan-msg').scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 async function delBook(id) {
