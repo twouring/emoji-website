@@ -1442,8 +1442,19 @@ async function loadPos(){
   if(!CHECKOUT_BUSY.size&&((host.dataset.sig!==sig&&!(REG_OPEN_FORM&&host.querySelector('.reg-open-form')))||!host.querySelector('.pos-grid'))){host.dataset.sig=sig;paintPos();}
   POS_TIMER=setTimeout(()=>{if(document.getElementById('pos-body')&&TAB==='pos')loadPos();},globalThis.POS_LIVE_OK?60000:15000);
 }
-// 品項縮圖：有圖顯示圖，沒圖或載入失敗用品名首字佔位，POS 磚與已點品項共用
-const itemThumb=(it,cls)=>{const ch=esc(Array.from((it&&it.zh)||'')[0]||'');const ph=`<span class="${cls} ${cls}--ph" aria-hidden="true">${ch}</span>`;return it&&it.image?`<img class="${cls}" src="${esc(it.image)}" alt="" loading="lazy" decoding="async" data-ch="${ch}" data-cls="${cls}">`:ph;};
+// 約書旅方案：POS 用大字時數／用途卡，避免共用場景插圖讓現場誤選；其他畫面仍沿用原圖。
+const restPlanThumb=(it,cls)=>{
+  const zh=String(it.zh||''), quiet=zh.includes('靜讀室'), privateHire=zh.includes('交誼廳包場'), overtime=zh.includes('超時');
+  const hours=(zh.match(/(\d+)\s*小時/)||[])[1]||'';
+  const kind=privateHire?'private':quiet?'quiet':'lounge';
+  const icon=privateHire?'<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 47h48M16 47V31h32v16M22 31v-9h20v9M14 18h4m28 0h4M11 54h42"/></svg>':quiet?'<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M15 14h25c5 0 9 4 9 9v28H24c-5 0-9-4-9-9V14Zm9 37V25c0-4 3-7 7-7h18M30 30h13M30 38h11"/></svg>':'<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M12 48h40M17 48V32h30v16M22 32v-9h20v9M10 55h44M18 22h4m20 0h4"/></svg>';
+  const title=privateHire?'交誼廳':quiet?'靜讀室':'貴賓室';
+  const sub=privateHire?'包場':overtime?'超時':'入場';
+  const badge=overtime?'超時':hours?`${hours}H`:'';
+  return `<span class="${cls} rest-plan-art rest-plan-art--${kind}${overtime?' rest-plan-art--overtime':''}" aria-label="${esc(title+' '+sub+' '+badge)}"><span class="rest-plan-art__top">${esc(title)}</span>${icon}<strong>${esc(badge)}</strong><small>${esc(sub)}</small></span>`;
+};
+// 品項縮圖：約書旅空間方案先顯示高辨識 POS 卡；其他有圖顯示圖，沒圖或載入失敗用品名首字佔位。
+const itemThumb=(it,cls)=>{const ch=esc(Array.from((it&&it.zh)||'')[0]||'');const ph=`<span class="${cls} ${cls}--ph" aria-hidden="true">${ch}</span>`;if(it&&it.venue==='REST'&&it.cat==='SPACE')return restPlanThumb(it,cls);return it&&it.image?`<img class="${cls}" src="${esc(it.image)}" alt="" loading="lazy" decoding="async" data-ch="${ch}" data-cls="${cls}">`:ph;};
 if(typeof document!=='undefined'&&typeof document.addEventListener==='function')document.addEventListener('error',e=>{const im=e.target;if(!im||im.tagName!=='IMG'||!im.dataset||!im.dataset.cls)return;const sp=document.createElement('span');sp.className=im.dataset.cls+' '+im.dataset.cls+'--ph';sp.setAttribute('aria-hidden','true');sp.textContent=im.dataset.ch||'';im.replaceWith(sp);},true);
 // 結帳金額（與伺服器同一套算法：會員價 → 整單折扣）；伺服器仍會重算，這裡只給畫面即時顯示
 function posTotals(cur){
