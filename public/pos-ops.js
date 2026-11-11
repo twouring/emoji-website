@@ -1447,11 +1447,11 @@ const restPlanThumb=(it,cls)=>{
   const zh=String(it.zh||''), quiet=zh.includes('靜讀室'), privateHire=zh.includes('交誼廳包場'), overtime=zh.includes('超時');
   const hours=(zh.match(/(\d+)\s*小時/)||[])[1]||'';
   const kind=privateHire?'private':quiet?'quiet':'lounge';
-  const icon=privateHire?'<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 47h48M16 47V31h32v16M22 31v-9h20v9M14 18h4m28 0h4M11 54h42"/></svg>':quiet?'<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M15 14h25c5 0 9 4 9 9v28H24c-5 0-9-4-9-9V14Zm9 37V25c0-4 3-7 7-7h18M30 30h13M30 38h11"/></svg>':'<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M12 48h40M17 48V32h30v16M22 32v-9h20v9M10 55h44M18 22h4m20 0h4"/></svg>';
-  const title=privateHire?'交誼廳':quiet?'靜讀室':'貴賓室';
+  const icon=privateHire?'<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 47h48M16 47V31h32v16M22 31v-9h20v9M14 18h4m28 0h4M11 54h42"/></svg>':overtime&&quiet?'<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M19 10h26M19 54h26M22 10c0 12 7 15 10 22 3-7 10-10 10-22M22 54c0-12 7-15 10-22 3 7 10 10 10 22M24 47h16"/></svg>':overtime?'<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="34" r="20"/><path d="M32 22v13l9 6M24 10h16M32 10v4"/></svg>':quiet?'<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M15 14h25c5 0 9 4 9 9v28H24c-5 0-9-4-9-9V14Zm9 37V25c0-4 3-7 7-7h18M30 30h13M30 38h11"/></svg>':'<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M12 48h40M17 48V32h30v16M22 31v-9h20v9M10 55h44M18 22h4m20 0h4"/></svg>';
+  const title=quiet?'靜讀室':'交誼廳';
   const sub=privateHire?'包場':overtime?'超時':'入場';
   const badge=overtime?'超時':hours?`${hours}H`:'';
-  return `<span class="${cls} rest-plan-art rest-plan-art--${kind}${overtime?' rest-plan-art--overtime':''}" aria-label="${esc(title+' '+sub+' '+badge)}"><span class="rest-plan-art__top">${esc(title)}</span>${icon}<strong>${esc(badge)}</strong><small>${esc(sub)}</small></span>`;
+  return `<span class="${cls} rest-plan-art rest-plan-art--${kind}${overtime?' rest-plan-art--'+kind+'-overtime':''}" aria-label="${esc(title+' '+sub+' '+badge)}"><span class="rest-plan-art__top">${esc(title)}</span>${icon}<strong>${esc(badge)}</strong><small>${esc(sub)}</small></span>`;
 };
 // 品項縮圖：約書旅空間方案先顯示高辨識 POS 卡；其他有圖顯示圖，沒圖或載入失敗用品名首字佔位。
 const itemThumb=(it,cls)=>{const ch=esc(Array.from((it&&it.zh)||'')[0]||'');const ph=`<span class="${cls} ${cls}--ph" aria-hidden="true">${ch}</span>`;if(it&&it.venue==='REST'&&it.cat==='SPACE')return restPlanThumb(it,cls);return it&&it.image?`<img class="${cls}" src="${esc(it.image)}" alt="" loading="lazy" decoding="async" data-ch="${ch}" data-cls="${cls}">`:ph;};
