@@ -702,6 +702,9 @@ POS 每 5 秒輪詢。回 `{ pending:[{id,session_id,table,by,amount,sfx,perform
 ### GET /api/admin/menu/books/lookup
 用 ISBN 查書目。query `isbn=`（13 碼 978／979 或 10 碼，自動轉 13 碼、驗檢查碼）。已在書冊回 `existing`；否則依序查國家圖書館 ISBN 書號中心（臺灣出版品，含定價）→ openBD（日本出版流通書誌，常含日圓定價）→ 日本國立國會圖書館 NDL Search → Google Books（跨國補查），回 `{ isbn, existing, book }`，查不到時 `book.found=false`。
 
+### GET /api/admin/menu/books/stores
+約書旅書店比價（KK 11/12）：同一個 ISBN 到臺灣八家書店查「現在賣多少、有沒有貨」，統一格式回來。query `isbn=`（同 lookup 的格式規則）、`title=`（書名，Yahoo 購物中心搜不到 ISBN，要用書名搜再以商品的 ISBN 標籤比對）。回 `{ isbn, title, stores:[{ key, name, url, status:'ok'|'none'|'blocked'|'error', note, error, ms, offers:[{ title, format:'paper'|'ebook'|'used', list_price, price, in_stock:true|false|null, url, author, publisher, pub_date, binding, seller }] }], best:{ store, key, price, in_stock, url }|null, list_price, checked_at, cached }`。`stores` 依後台顯示順序：博客來、金石堂、誠品、讀冊 TAAZE、三民、讀墨 Readmoo、樂天 Kobo、Yahoo 購物中心；金石堂／誠品／讀冊／三民／Yahoo 由伺服器讀公開搜尋結果（每家一個請求、10 秒逾時、並行），博客來／讀墨／Kobo 以 WAF 阻擋程式查詢，回 `status:'blocked'` 並給站內搜尋連結由店員另開分頁。每家每種版本只留最便宜 2 筆；`best` 是各家有貨（或不確定）紙本中最低售價，`list_price` 是各家回報的最高定價。同一本 10 分鐘內重查回快取（`cached:true`）。只有超管與約書旅帳號可用。
+
 ### POST /api/admin/menu/books
 造冊／補本數／修改。body `{ isbn, title, author, publisher, list_price, price, qty, published, mode:'add'|'set' }`。同 ISBN 已在冊：`mode:'add'`（預設）把本數加上 `qty`，`'set'` 直接改成 `qty`；否則新增約書旅書籍品項。寫進同一份菜單（鎖 menu 列），約書旅 POS 立即可加點結帳；售出時 `stock_left` 自動扣、作廢回補，不隨營業日歸零，扣到 0 視同售完。回 `{ ok, created, book }`。
 
