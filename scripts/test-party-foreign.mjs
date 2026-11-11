@@ -43,8 +43,10 @@ test('接線：開桌與改人數都帶 foreign，分析回 visitors，POS 開�
   assert.match(server, /partySetByPos\(\{\},req\.body\.party_size,req\.body\.kids,req\.body\.foreign\)/);
   assert.match(server, /partySetByPos\(s\.party_votes,req\.body\?\.party_size,req\.body\?\.kids,req\.body\?\.foreign\)/);
   assert.match(server, /visitors:tableOrders\.visitorSummary\(sess,\{venues,from,to\}\)/);
-  assert.match(pos, /grid\('foreign',0,PARTY_FOREIGN,f\)/);
-  assert.match(pos, /done\(\{party_size:a\+k,kids:k,foreign:f\}\)/);
+  assert.match(pos, /function pickPartyForeign\(/);
+  assert.match(pos, /partyGrid\('foreign',0,PARTY_FOREIGN,f,max\)/);
+  assert.doesNotMatch(pos.slice(pos.indexOf('function pickPartySize('),pos.indexOf('// 第二步：其中外國人')), /data-foreign|其中外國人/, '外國人改獨立彈窗，不放在大人小孩那頁');
+  assert.match(pos, /return \{party_size:a\+k,kids:k,foreign:f\}/);
   assert.match(pos, /body:\{party_size:p\.party_size,kids:p\.kids,foreign:p\.foreign\}/);
   assert.match(pos, /來客受眾（開桌人數）/);
 });

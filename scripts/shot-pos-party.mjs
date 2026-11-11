@@ -41,6 +41,12 @@ for (const [w, h] of [[1180, 820], [1366, 1024], [1024, 768], [820, 1180], [390,
     return { boxW: Math.round(r.width), boxH: Math.round(r.height), top: Math.round(r.top), bottom: Math.round(r.bottom), vh: innerHeight, scroll: box.scrollHeight - box.clientHeight, ovScroll: document.querySelector('.pos-move-ov').scrollHeight - innerHeight, rows, okBottom: Math.round(ok.bottom), minBtn: Math.min(...[...box.querySelectorAll('.pos-move-opt')].map(b => Math.round(b.getBoundingClientRect().height))), minBtnW: Math.min(...[...box.querySelectorAll('.pos-move-opt')].map(b => Math.round(b.getBoundingClientRect().width))) }; });
   console.log(w + 'x' + h, JSON.stringify(m));
   await page.screenshot({ path: path.join(OUT, `party-${w}x${h}.png`) });
+  await page.evaluate(() => document.querySelector('.pos-party-box [data-ok]').click()); await wait(300);
+  const f = await page.evaluate(() => { const box = document.querySelector('.pos-foreign-ov .pos-party-box'); if (!box) return null; const r = box.getBoundingClientRect(); return { title: box.querySelector('h3').textContent, boxH: Math.round(r.height), vh: innerHeight, scroll: box.scrollHeight - box.clientHeight, disabled: [...box.querySelectorAll('[data-foreign]')].filter(b => b.disabled).length, on: box.querySelector('[data-foreign].on')?.dataset.foreign, adultsInStep2: !!box.querySelector('[data-adults]') }; });
+  console.log(' foreign', JSON.stringify(f));
+  await page.screenshot({ path: path.join(OUT, `party-foreign-${w}x${h}.png`) });
+  const res = await page.evaluate(async () => { document.querySelector('.pos-foreign-ov [data-cancel]').click(); const p = pickParty('T', { adults: 2 }); await new Promise(r => setTimeout(r, 50)); document.querySelector('.pos-party-box [data-ok]').click(); await new Promise(r => setTimeout(r, 50)); document.querySelector('.pos-foreign-ov [data-foreign="1"]').click(); return p; });
+  console.log(' result', JSON.stringify(res));
   await page.close();
 }
 console.log('errors', errs);

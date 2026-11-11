@@ -1310,25 +1310,45 @@ async function printOpenedQr(table,url,info={}){
   await openOneTableQr(table);return false;
 }
 function openTableQr(table){return openOneTableQr(String(table));}
-// 開桌選人數（大人＋小孩，參考同業開桌單）：印在 QR 單、算三點水低消；外國人數（含小孩）進分析「來客受眾」。回 {party_size,kids,foreign} 或 null（取消）
+// 開桌選人數（大人＋小孩，參考同業開桌單）：印在 QR 單、算三點水低消；外國人數（含小孩）在下一個獨立彈窗選（KK 11/11），進分析「來客受眾」。回 {party_size,kids,foreign} 或 null（取消）
 const PARTY_ADULTS=12,PARTY_KIDS=5,PARTY_FOREIGN=12;
-function pickParty(title,{adults=2,kids=0,foreign=0,ok:okLabel='開桌'}={}){
+function partyGrid(key,from,to,cur,max=Infinity){return `<div class="pos-move-grid pos-party-grid" data-row="${key}">${Array.from({length:to-from+1},(_,i)=>i+from).map(n=>`<button type="button" class="pos-move-opt ${n===cur?'on':''}" data-${key}="${n}" aria-pressed="${n===cur}"${n>max?' disabled':''}><b>${n}</b></button>`).join('')}</div>`;}
+// 第一步：大人＋小孩
+function pickPartySize(title,a,k){
   return new Promise(resolve=>{
-    let a=Math.min(PARTY_ADULTS,Math.max(1,Number(adults)||2)),k=Math.min(PARTY_KIDS,Math.max(0,Number(kids)||0)),f=Math.min(a+k,PARTY_FOREIGN,Math.max(0,Number(foreign)||0));
-    const grid=(key,from,to,cur)=>`<div class="pos-move-grid pos-party-grid" data-row="${key}">${Array.from({length:to-from+1},(_,i)=>i+from).map(n=>`<button type="button" class="pos-move-opt ${n===cur?'on':''}" data-${key}="${n}" aria-pressed="${n===cur}"><b>${n}</b></button>`).join('')}</div>`;
-    const {ov,close}=pickOverlay(`<h3>${esc(title)}${tipIcon('開桌前先選人數，會印在點餐 QR 單上，三點水也用來算低消。之後可在桌位面板「人數」再改。')}</h3><p class="hint hint--tight">大人</p>${grid('adults',1,PARTY_ADULTS,a)}<p class="hint hint--tight">小孩</p>${grid('kids',0,PARTY_KIDS,k)}<p class="hint hint--tight">其中外國人（含小孩）</p>${grid('foreign',0,PARTY_FOREIGN,f)}<div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-cancel>取消</button><button type="button" class="btn btn--solid" data-ok></button></div>`,'開桌人數');
+    const {ov,close}=pickOverlay(`<h3>${esc(title)}${tipIcon('開桌前先選人數，會印在點餐 QR 單上，三點水也用來算低消。之後可在桌位面板「人數」再改。')}</h3><p class="hint hint--tight">大人</p>${partyGrid('adults',1,PARTY_ADULTS,a)}<p class="hint hint--tight">小孩</p>${partyGrid('kids',0,PARTY_KIDS,k)}<div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-cancel>取消</button><button type="button" class="btn btn--solid" data-ok></button></div>`,'開桌人數');
     ov.classList.add('pos-party-ov');ov.querySelector('.pos-move-box').classList.add('pos-party-box');
     const ok=ov.querySelector('[data-ok]');
-    const paint=()=>{ov.querySelectorAll('[data-adults]').forEach(b=>{const on=Number(b.dataset.adults)===a;b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on));});ov.querySelectorAll('[data-kids]').forEach(b=>{const on=Number(b.dataset.kids)===k;b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on));});f=Math.min(f,a+k);ov.querySelectorAll('[data-foreign]').forEach(b=>{const v=Number(b.dataset.foreign),on=v===f;b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on));b.disabled=v>a+k;});ok.textContent=`${okLabel}（${a+k} 位${k?`，含小孩 ${k}`:''}${f?`，外國 ${f}`:''}）`;};
+    const paint=()=>{ov.querySelectorAll('[data-adults]').forEach(b=>{const on=Number(b.dataset.adults)===a;b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on));});ov.querySelectorAll('[data-kids]').forEach(b=>{const on=Number(b.dataset.kids)===k;b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on));});ok.textContent=`下一步（${a+k} 位${k?`，含小孩 ${k}`:''}）`;};
     const done=v=>{close();resolve(v);};
     ov.onclick=e=>{if(e.target===ov)done(null);};
     ov.querySelector('[data-cancel]').onclick=()=>done(null);
     ov.querySelectorAll('[data-adults]').forEach(b=>b.onclick=()=>{a=Number(b.dataset.adults);paint();});
     ov.querySelectorAll('[data-kids]').forEach(b=>b.onclick=()=>{k=Number(b.dataset.kids);paint();});
-    ov.querySelectorAll('[data-foreign]').forEach(b=>b.onclick=()=>{f=Number(b.dataset.foreign);paint();});
-    ok.onclick=()=>done({party_size:a+k,kids:k,foreign:f});
+    ok.onclick=()=>done({a,k});
     paint();
   });
+}
+// 第二步：其中外國人（含小孩），點數字直接完成；回 數字、'back' 或 null
+function pickPartyForeign(title,total,f){
+  return new Promise(resolve=>{
+    const max=Math.min(total,PARTY_FOREIGN);
+    const {ov,close}=pickOverlay(`<h3>${esc(title)}・其中外國人${tipIcon('共 '+total+' 位裡有幾位外國客人（含小孩），進分析「來客受眾」。都是本國客人就點 0。')}</h3><p class="hint hint--tight">共 ${total} 位，其中外國人（含小孩）</p>${partyGrid('foreign',0,PARTY_FOREIGN,f,max)}<div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-back>上一步</button><button type="button" class="btn btn--ghost" data-cancel>取消</button></div>`,'外國人數');
+    ov.classList.add('pos-party-ov','pos-foreign-ov');ov.querySelector('.pos-move-box').classList.add('pos-party-box');
+    const done=v=>{close();resolve(v);};
+    ov.onclick=e=>{if(e.target===ov)done(null);};
+    ov.querySelector('[data-cancel]').onclick=()=>done(null);
+    ov.querySelector('[data-back]').onclick=()=>done('back');
+    ov.querySelectorAll('[data-foreign]').forEach(b=>b.onclick=()=>{if(!b.disabled)done(Number(b.dataset.foreign));});
+  });
+}
+async function pickParty(title,{adults=2,kids=0,foreign=0,ok:okLabel='開桌'}={}){
+  let a=Math.min(PARTY_ADULTS,Math.max(1,Number(adults)||2)),k=Math.min(PARTY_KIDS,Math.max(0,Number(kids)||0)),f=Math.max(0,Number(foreign)||0);
+  for(;;){
+    const sz=await pickPartySize(title,a,k);if(!sz)return null;a=sz.a;k=sz.k;f=Math.min(f,a+k,PARTY_FOREIGN);
+    const r=await pickPartyForeign(title,a+k,f);if(r===null)return null;if(r==='back')continue;
+    f=r;return {party_size:a+k,kids:k,foreign:f};
+  }
 }
 // 一次開多桌（大組分桌）：勾選空桌 → 一次認人 → 逐桌開桌並各印一張 QR（一個帳本夾一張）
 function pickTables({title,options}){
