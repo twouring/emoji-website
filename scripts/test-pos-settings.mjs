@@ -39,6 +39,14 @@ test('只有管理員能用的功能只在 admin，不放 POS（KK 11/2）', () 
   assert.match(set, /配對這台 POS 主機/);
   assert.match(set, /儲存並測試列印/);
   assert.match(set, /escposCheck\(c\)/, '測試連線必須驗證 token 與 printerId，不可只測未授權 health');
+  assert.match(set, /id="escpos-pill"/, '列印站卡片標題旁要有配對狀態徽章');
+  assert.match(set, /esc-reinstall/, '已配對時安裝步驟要收起');
+  assert.match(set, /class="esc-adv"/, '服務網址與印表機 ID 收進進階設定');
+  assert.match(set, /role="status" aria-live="polite"/, '列印站狀態要讓讀屏念出');
+  assert.match(set, /dataset\.tone=tone/, '狀態依結果換色');
+  assert.match(set, /textContent=t/, '狀態文字只用 textContent');
+  assert.match(set, /escpos-unpair[\s\S]*posConfirm\(/, '解除配對要先確認');
+  assert.match(set, /removeItem\('tth_escpos_bridge'\)/, '解除配對清掉本機 token');
   assert.doesNotMatch(set, /fetch\(c\.url\+'\/health'/, 'health 不驗 token，不能作為配對成功依據');
   assert.match(ops, /function escposCheck\(c\)/, 'ESC\/POS 配對檢查必須走授權端點');
   assert.match(ops, /\/printers/, 'ESC\/POS 配對檢查需驗證 bridge 列印機清單');
