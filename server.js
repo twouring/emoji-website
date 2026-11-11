@@ -1206,6 +1206,21 @@ async function seedMenuContent() {
         console.log('[menu-seed] 已補上約書旅 POS 方案：' + add.length + ' 項。');
       }
     } catch (e) { console.warn('[menu-seed] 約書旅 POS 方案略過：', e && e.message); }
+    try {   // 一次性：約書旅空間方案由 SPACE 拆成交誼廳／靜讀室兩類；只改仍是 SPACE 的分類，價格／估清／圖片不動
+      const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_restbook_plan_cats_v1'`)).rows.length;
+      if (!done) {
+        const doc = JSON.parse((await readContent()).menu);
+        const cats = new Map(buildMenuSeedDoc(loadMenuSeedRows()).items.filter(it => it.venue === 'REST').map(it => [it.id, it.cat]));
+        let n = 0;
+        for (const it of doc.items || []) {
+          const cat = cats.get(it.id);
+          if (cat && it.cat === 'SPACE') { it.cat = cat; n++; }
+        }
+        if (n > 0) await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
+        await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_restbook_plan_cats_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(n)]);
+        console.log('[menu-seed] 約書旅空間方案已分成交誼廳／靜讀室：' + n + ' 項。');
+      }
+    } catch (e) { console.warn('[menu-seed] 約書旅方案分類略過：', e && e.message); }
     try {   // 一次性：約書旅 POS 插圖；只補空白圖片，現場上傳實拍圖優先
       const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_restbook_plan_images_v1'`)).rows.length;
       if (!done) {
