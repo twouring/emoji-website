@@ -136,6 +136,9 @@ test('接線：API、文件、後台頁用統一接口顯示八家比價', () =>
   assert.match(page, /\/admin\/menu\/books\/stores\?isbn=/);
   assert.match(page, /function paintStores/);
   for (const w of ['blocked', 'in_stock', 'best']) assert.ok(page.includes(w), w);
+  assert.ok(!page.includes('use-best') && !page.includes('售價用這個'), 'KK 11/12：售價一律採書本定價，不提供帶入店價的按鈕');
+  assert.match(page, /約書旅售價＝定價/);
+  assert.match(page, /不帶入售價/);
   assert.ok(!page.includes('google.com/search'), '不再丟 Google 站內搜尋，由伺服器統一查');
   const ca = read('lib/book-stores-taaze-ca.pem');
   assert.match(ca, /^-----BEGIN CERTIFICATE-----/);
