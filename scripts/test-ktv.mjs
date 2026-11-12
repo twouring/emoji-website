@@ -139,6 +139,7 @@ test('KTV 頁：言文字 CIS（墨紙、唯一黃、明體／Cormorant／Noto S
   for (const m of html.matchAll(/font-size:\s*([\d.]+)(rem|px)/g)) assert.ok(m[2] === 'rem' ? +m[1] >= 1 : +m[1] >= 16, m[0]);
   for (const p of ["'console', '/'", "'remote', '/remote'", "'playlists', '/playlists'", "'stats', '/stats'", "'settings', '/settings'", "'tv', '/tv'"]) assert.ok(js.includes(p), p);
   assert.match(js, /\/admin\/orders\/songs\/beat/); assert.match(js, /\/admin\/orders\/songs\/remote/);
+  assert.match(js, /n\.playlist_index !== \(D\.upcoming \|\| \{\}\)\.playlist_index/, '跨時段時播放裝置會切走舊店內歌');
   assert.match(js, /setTimeout\(\(\) => runSearch\(q\), 500\)/, '搜尋防抖 0.5 秒'); assert.match(js, /isComposing/);
   assert.match(js, /overflow|esc\(t\.title\)/);
   assert.match(html, /\.row \.meta b\{[^}]*overflow-wrap:anywhere/, '歌名完整顯示');

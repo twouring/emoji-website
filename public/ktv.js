@@ -400,6 +400,8 @@ function playerSync(){
   // 只看伺服器算好的「接下來」；換不出歌時 60 秒內不再要，避免一直重畫
   if (!n && (D.upcoming ? D.upcoming.items.length : D.queue.length) && Date.now() - P.emptyAt > 60000) return next('ended');
   if (n && n.kind === 'playlist' && D.queue.length) return next('preempt');
+  // 跨入新時段時只切店內歌；客人／櫃檯點的歌照原本優先順序播完。
+  if (n && n.kind === 'playlist' && n.playlist_index !== (D.upcoming || {}).playlist_index) return next('schedule');
   if (!n) { try { P.yt && P.yt.stopVideo(); } catch (e) {} P.loaded = ''; return; }
   if (P.loaded === n.id) return;
   P.loaded = n.id;

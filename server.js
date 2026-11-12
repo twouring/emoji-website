@@ -8043,9 +8043,9 @@ app.post('/api/admin/orders/songs/player',auth,adminOnly,requireDb,wrap(async(re
   const device=tableOrders.cleanText(req.body?.device,64);
   try{res.json(await withSongs(async(client,{settings,state})=>{const next={...settings,player_device:req.body?.release===true?'':device};await saveSongSettings(client,next);return songAdminView(next,state);}));}catch(e){return songErr(res,e);}
 }));
-// 換下一首：播放裝置在播完（ended）、影片無法播放（error）、有人點歌時切掉常態歌單（preempt）時呼叫；任何一台都能按「下一首」（skip）
+// 換下一首：播放裝置在播完（ended）、影片無法播放（error）、有人點歌／跨時段切歌（preempt／schedule）時呼叫；任何一台都能按「下一首」（skip）
 app.post('/api/admin/orders/songs/next',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  const result=['ended','error','preempt','skip'].includes(req.body?.result)?req.body.result:'skip';
+  const result=['ended','error','preempt','schedule','skip'].includes(req.body?.result)?req.body.result:'skip';
   try{res.json(await withSongs(async(client,{settings,state})=>{
     if(result!=='skip'&&settings.player_device&&req.body?.device!==settings.player_device)throw Object.assign(Error('這台不是播放裝置。'),{status:409});
     const out=songs.advance(state,settings,{result,current:req.body?.current?String(req.body.current):null});

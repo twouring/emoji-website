@@ -216,7 +216,13 @@ test('時段歌單：依台北時間切換、跨午夜、都沒對到回常態�
   const st = songs.normalizeState('');
   assert.equal(songs.advance(st, s, { now: at('2026-11-04T09:00:00') }).song.video_id, ID(2));
   assert.equal(songs.advance(st, s, { now: at('2026-11-04T20:00:00') }).song.video_id, ID(1));
+  const active = songs.advance(st, s, { now: at('2026-11-04T09:00:00') });
+  assert.equal(active.song.playlist_index, 0, '店內歌要記下來源時段，跨時段時才能安全切換');
+  const switched = songs.advance(active.state, s, { result: 'schedule', current: active.song.id, now: at('2026-11-04T20:00:00') });
+  assert.equal(switched.song.video_id, ID(1), '跨時段時，舊的店內歌立刻切到目前歌單');
+  assert.equal(switched.song.playlist_index, -1);
   assert.equal(songs.upcoming(st, s, { now: at('2026-11-04T09:00:00') }).playlist_name, '平日');
+  assert.equal(songs.upcoming(st, s, { now: at('2026-11-04T09:00:00') }).playlist_index, 0);
   assert.deepEqual(songs.patchSettings(s, { schedules: [] }).schedules, []);
 });
 
