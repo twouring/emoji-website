@@ -57,6 +57,8 @@
   .stores .store-name{font-weight:700;white-space:nowrap}
   .stores .store-name a{color:inherit;display:inline-flex;align-items:center;min-height:44px}
   .stores .fmt{color:var(--soft);font-size:1rem}
+  .stores .offer-title{display:block;max-width:38ch;line-height:1.45;overflow-wrap:anywhere}
+  .stores .offer-meta{display:block;max-width:38ch;line-height:1.4;overflow-wrap:anywhere}
   .stores a.go{display:inline-flex;align-items:center;min-height:44px;padding:0 8px;white-space:nowrap}
   .stores .tag{vertical-align:middle}
   .stats{display:flex;gap:24px;flex-wrap:wrap;color:var(--soft);margin-bottom:12px}
@@ -114,7 +116,7 @@ function paintStores(d) {
     if (s.status === 'blocked') return `<tr>${name}<td colspan="3"><span class="tag blocked">需另開分頁</span><span class="fmt">${esc(s.note || '這家阻擋程式查詢。')}</span></td></tr>`;
     if (s.status === 'error') return `<tr>${name}<td colspan="3"><span class="tag no">查詢失敗</span><span class="fmt">${esc(s.error || '')}</span></td></tr>`;
     if (!s.offers.length) return `<tr>${name}<td colspan="3"><span class="tag">沒找到這個 ISBN</span></td></tr>`;
-    return s.offers.map((o, i) => `<tr>${i === 0 ? name : '<td></td>'}<td><span class="fmt">${esc(FORMAT_LABEL[o.format] || o.format)}</span>${o.seller && o.seller !== '自營' ? `<span class="fmt">　${esc(o.seller)}</span>` : ''}</td>
+    return s.offers.map((o, i) => `<tr>${i === 0 ? name : '<td></td>'}<td><span class="fmt">${esc(FORMAT_LABEL[o.format] || o.format)}</span>${o.seller && o.seller !== '自營' ? `<span class="fmt">　${esc(o.seller)}</span>` : ''}<span class="offer-title">${esc(o.title)}</span>${o.author || o.publisher || o.pub_date || o.binding ? `<span class="fmt offer-meta">${esc([o.author, o.publisher, o.pub_date, o.binding].filter(Boolean).join('／'))}</span>` : ''}</td>
       <td class="num" data-k="售價">${o.price ? 'NT$' + num(o.price) : '—'}${o.list_price && o.list_price !== o.price ? `<span class="fmt">　定價 NT$${num(o.list_price)}</span>` : ''}</td>
       <td>${stock(o)}<a class="go" href="${esc(o.url)}" target="_blank" rel="noopener noreferrer">看商品</a></td></tr>`).join('');
   }).join('');
@@ -197,14 +199,14 @@ async function lookup(raw) {
       say(`已在書冊：《${b.zh}》目前 ${b.stock_left || 0} 本。存檔會加 1 本（可改）。`, 'ok');
     } else if (d.book && d.book.found !== false) {
       const b = d.book;
-      DRAFT = { mode: 'new', isbn, title: b.title, author: b.author, publisher: b.publisher, list_price: b.list_price, price: b.list_price || '', qty: 1, published: true, image: b.image || '', source: b.source, pub_date: b.pub_date, reference_price: b.reference_price || 0, reference_currency: b.reference_currency || '' };
+      DRAFT = { mode: 'new', isbn, title: b.title, author: b.author, publisher: b.publisher, list_price: b.list_price, price: b.list_price || '', qty: 1, published: true, image: b.image || '', source: b.source, source_name: b.source_name, pub_date: b.pub_date, reference_price: b.reference_price || 0, reference_currency: b.reference_currency || '' };
       say(b.list_price ? `找到《${b.title}》，定價 NT$${num(b.list_price)}。` : b.reference_currency === 'JPY' && b.reference_price ? `找到《${b.title}》，參考日圓定價 ¥${num(b.reference_price)}；請手動填臺幣售價。` : `找到《${b.title}》，但書目沒有臺灣定價，請手動填售價。`, b.list_price ? 'ok' : '');
     } else {
       DRAFT = { mode: 'new', isbn, title: '', author: '', publisher: '', list_price: 0, price: '', qty: 1, published: true, image: '' };
       say('找不到可用 ISBN。請確認掃的是書背 978／979 條碼；非 ISBN 條碼目前無法自動帶入書目，請改輸入 ISBN。', 'err');
     }
     paintDraft();
-    loadStores(isbn, DRAFT.title);
+    paintStores(d.retail);
   } catch (e) { say('查詢失敗：' + e.message, 'err'); }
   finally { LOOKING = false; }
 }
@@ -212,7 +214,7 @@ async function lookup(raw) {
 function paintDraft() {
   const host = document.getElementById('draft'); if (!host) return;
   if (!DRAFT) { host.innerHTML = ''; return; }
-  const d = DRAFT, src = d.source === 'ncl' ? '書目來源：國家圖書館 ISBN 書號中心' : d.source === 'openbd' ? '書目來源：openBD（日本出版流通書誌）' : d.source === 'ndl' ? '書目來源：日本國立國會圖書館 NDL Search' : d.source === 'google' ? '書目來源：Google Books（外文書／未必含臺灣定價）' : '';
+  const d = DRAFT, src = d.source === 'ncl' ? '書目來源：國家圖書館 ISBN 書號中心' : d.source === 'openbd' ? '書目來源：openBD（日本出版流通書誌）' : d.source === 'ndl' ? '書目來源：日本國立國會圖書館 NDL Search' : d.source === 'google' ? '書目來源：Google Books（外文書／未必含臺灣定價）' : d.source === 'store' ? '書目來源：' + (d.source_name || '臺灣書店') + '（紙本搜尋結果，請核對版本）' : '';
   host.innerHTML = `<form class="form" id="book-form" style="margin-top:16px">
     <label class="full">書名<input name="title" required maxlength="120" value="${esc(d.title)}"></label>
     <label>作者<input name="author" maxlength="200" value="${esc(d.author)}"></label>
