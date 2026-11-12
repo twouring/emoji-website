@@ -306,7 +306,8 @@
       if (!CATS.includes(it.cat)) return { ok: false, error: '分類無效' };
       if (!(it.price >= 0) || !(it.emo >= 0)) return { ok: false, error: '價格無效' };
       if (it.cat === 'COMBO' && !(Array.isArray(it.combo) && it.combo.length)) return { ok: false, error: '套餐要有內容（至少一個選擇欄）：' + it.zh };
-      if (it.image && !/^(\/uploads\/|https:\/\/)/.test(it.image)) return { ok: false, error: '圖片網址須為 /uploads/ 路徑或 https URL：' + it.zh };
+      // /assets/ 是專案隨站部署的既有靜態圖片（例如約書旅空間方案）；其餘圖片仍只允許上傳檔或 HTTPS。
+      if (it.image && !/^(\/uploads\/|\/assets\/|https:\/\/)/.test(it.image)) return { ok: false, error: '圖片網址須為 /uploads/、/assets/ 路徑或 https URL：' + it.zh };
     }
     return { ok: true };
   }

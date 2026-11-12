@@ -235,18 +235,21 @@ function paintDraft() {
     try {
       const out = await api('/admin/menu/books', { method: 'POST', body });
       say(`${d.mode === 'edit' ? '已更新' : '已存檔'}：《${out.book.zh}》NT$${num(out.book.price)}，庫存 ${out.book.stock_left} 本，約書旅 POS 已可結帳。`, 'ok');
-      DRAFT = null; paintDraft(); storesBox(''); await loadList();
-      const i = document.getElementById('isbn'); i.value = ''; i.focus();
+      DRAFT = null; paintDraft(); storesBox(''); FILTER = '';
+      const i = document.getElementById('isbn'); i.value = ''; i.focus({ preventScroll: true });
+      await loadList(out.book.id);
     } catch (x) { say('存檔失敗：' + x.message, 'err'); btn.disabled = false; }
   };
 }
 
-async function loadList() {
+async function loadList(scrollToId = '') {
   const host = document.getElementById('list'); if (!host) return;
   let d; try { d = await api('/admin/menu/books'); } catch (e) { host.innerHTML = `<p class="msg err">載入失敗：${esc(e.message)}</p>`; return; }
   BOOKS = d.books || [];
   window.__BOOK_CSV = d.csv || [];
   paintList(d);
+  const row = scrollToId && [...host.querySelectorAll('[data-book-id]')].find(el => el.dataset.bookId === scrollToId);
+  if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 function paintList(d) {
   const host = document.getElementById('list'); if (!host) return;
@@ -255,7 +258,7 @@ function paintList(d) {
   host.innerHTML = `<div class="stats"><span>共 <b>${num(BOOKS.length)}</b> 種</span><span><b>${num(BOOKS.reduce((a, b) => a + (b.stock_left || 0), 0))}</b> 本在庫</span><span><b>${num(BOOKS.filter(b => b.published).length)}</b> 種上架</span></div>
     <div class="tools"><input id="filter" type="search" maxlength="60" placeholder="搜尋書名、作者、出版社、ISBN" aria-label="搜尋書冊" value="${esc(FILTER)}"><button class="btn btn--ghost" type="button" id="csv" ${BOOKS.length ? '' : 'disabled'}>匯出 CSV</button></div>
     ${rows.length ? `<table><thead><tr><th>書名</th><th>ISBN</th><th class="num">定價</th><th class="num">售價</th><th class="num">庫存</th><th class="num">操作</th></tr></thead><tbody>
-    ${rows.map(b => `<tr class="${b.published ? '' : 'off'}"><td><b>${esc(b.zh)}</b><span class="sub">${esc([b.author, b.publisher].filter(Boolean).join('／'))}</span>${b.published ? '' : '<span class="pill">未上架</span>'}</td>
+    ${rows.map(b => `<tr data-book-id="${esc(b.id)}" class="${b.published ? '' : 'off'}"><td><b>${esc(b.zh)}</b><span class="sub">${esc([b.author, b.publisher].filter(Boolean).join('／'))}</span>${b.published ? '' : '<span class="pill">未上架</span>'}</td>
       <td data-k="ISBN">${esc(b.isbn)}</td><td class="num" data-k="定價">${b.list_price ? 'NT$' + num(b.list_price) : '—'}</td><td class="num" data-k="售價">NT$${num(b.price)}</td>
       <td class="num" data-k="庫存"><span class="pill ${(b.stock_left || 0) <= 0 ? 'low' : ''}">${num(b.stock_left || 0)} 本</span></td>
       <td><div class="row-acts"><button class="btn btn--ghost" type="button" data-edit="${esc(b.id)}">編輯</button><button class="btn btn--danger" type="button" data-del="${esc(b.id)}">刪除</button></div></td></tr>`).join('')}
