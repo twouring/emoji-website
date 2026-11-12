@@ -6806,8 +6806,7 @@ app.get('/api/admin/menu/books/lookup',auth,adminOnly,requireDb,wrap(async(req,r
   const isbn=tableOrders.MenuLib.normalizeIsbn(req.query.isbn);
   if(!isbn)return res.status(400).json({error:'ISBN 格式不正確（要 13 碼 978／979 開頭，或 10 碼）。'});
   const existing=bookCatalog.listBooks(await contentValue('menu')).find(b=>b.isbn===isbn)||null;
-  let book=null;if(!existing){try{book=await bookCatalog.lookupIsbn(isbn);}catch(e){book={isbn,found:false,errors:[e.message]};}}
-  res.json({isbn,existing,book});
+  res.set('Cache-Control','no-store').json(await bookStores.lookupBookWithStores(isbn,{existing,lookupBook:bookCatalog.lookupIsbn}));
 }));
 /* 書店比價（KK 11/12，lib/book-stores.js）：同一個 ISBN 到博客來、金石堂、誠品、讀冊、三民、讀墨、Kobo、Yahoo 查售價與庫存，統一格式回給後台；只讀公開搜尋結果、10 分鐘快取 */
 const bookStores=require('./lib/book-stores');
