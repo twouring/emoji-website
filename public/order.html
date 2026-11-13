@@ -548,9 +548,10 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 
   function renderState(){
     $('#table-no').textContent=tr('table')+' '+S.table;
-    var u=unpaid(),p=pending();
-    $('#bar').hidden=!NAME;$('#bar-total').textContent=money(sum(u));$('#bar-count').textContent=p.length?tr('pending_items',{count:p.length}):u.length?tr('unpaid_items',{count:u.length}):tr('empty');
-    // 有還沒送出的品項才出現「送出點餐」；桌邊沒有結帳鍵，用餐完到櫃檯由現場人員在 POS 結帳
+    var u=unpaid(),p=pending(),myUnpaid=u.filter(function(l){return l.mine;}),myPendingLines=p.filter(function(l){return l.mine;});
+    // 底欄只摘要自己的未結帳品項；整桌明細仍在「已點清單」。
+    $('#bar').hidden=!NAME;$('#bar-total').textContent=money(sum(myUnpaid));$('#bar-count').textContent=myPendingLines.length?tr('pending_items',{count:myPendingLines.length}):myUnpaid.length?tr('unpaid_items',{count:myUnpaid.length}):tr('empty');
+    // 有自己還沒送出的品項才出現「送出點餐」；桌邊沒有結帳鍵，用餐完到櫃檯由現場人員在 POS 結帳
     var mp=myPending();$('#bar').classList.toggle('has-place',mp.length>0);$('#bar-place').hidden=!mp.length;$('#cart-place').hidden=!mp.length;
     // 送出鍵只送自己的（KK 11/9）；別人還沒送的寫在提示列，請他們自己送
     var op=othersPending(),placeText=tr('place_n',{count:mp.length});   // 按鈕一律單行
