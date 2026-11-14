@@ -1275,7 +1275,7 @@ async function printTableQr(table,url,info={}){
   if(!canPrint()){await starOpenHere();return false;}
   const q=await new Promise(resolve=>{if(!url||typeof QRCode==='undefined'||!QRCode.toCanvas)return resolve(null);const c=document.createElement('canvas');QRCode.toCanvas(c,String(url),{width:300,margin:4},err=>resolve(err?null:c));});
   if(!q){toast('QR 產生失敗');return false;}
-  // 版面（參考同業開桌單）：桌號最大放最上面（帳本夾一看就認得）→ 人數 → QR → 點餐步驟 → 店家規則（低消／服務費／最後點餐，左對齊懸掛縮排）→ 鼓勵小語 → 桌次＋開桌時間
+  // 版面（參考同業開桌單）：店名 → 人數（KK 11/14 拿掉桌號） → QR → 點餐步驟 → 店家規則（低消／服務費／最後點餐，左對齊懸掛縮排）→ 鼓勵小語 → 桌次＋開桌時間
   // 字級（KK 11/1 嫌字小，整體放大）：桌號 64／標題 24／內文 20／英文輔助 17（203dpi 下最小約 2.1mm）；QR 224 點＝28mm；分隔線內縮 24 點（熱感紙邊緣有公差）
   // 中英雙語，外國客人也看得懂；上方留白給帳本夾夾住（203dpi：8 點＝1mm），留白以下壓在 90mm（QR_BODY_MAX）內
   const WIFI={ssid:'emoji',pass:'meetfriends'}; // 店內 Wi-Fi（KK 11/1：QR 單要印帳密），換密碼改這裡
@@ -1289,7 +1289,7 @@ async function printTableQr(table,url,info={}){
   // 店名依掃碼點餐時段（MenuLib.orderWindow：16:30 起換三點水菜單）決定，與客人掃到的菜單一致；非點餐時段才印兩店名。不印母公司言文字
   const qv=typeof MenuLib!=='undefined'&&MenuLib.orderWindow?MenuLib.orderWindow().venue:null;
   line((qv&&typeof BRAND_LABEL!=='undefined'&&BRAND_LABEL[qv])||'在咖啡、三點水',22,true,6);
-  line('桌號 Table',18,false,2);line(String(table),60,true,2);
+  /* KK 11/14：QR 單不印桌號 */
   // 人數（開桌時在 POS 選的）；桌次、開桌時間屬系統資訊，放最底
   const n=Number(info.party_size)||0,kids=Math.max(0,Number(info.kids)||0);
   if(n)line(`大人 ${n-kids}　・　小孩 ${kids}`,20,false,2);
