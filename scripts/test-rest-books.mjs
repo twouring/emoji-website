@@ -123,7 +123,7 @@ test('接線：後台頁、API、POS 估清排除書籍、結帳不送出餐單�
   assert.match(page, /loadList\(out\.book\.id\)/, '存檔後要重新讀取並定位新書');
   assert.match(page, /data-book-id/, '書籍列要有可定位的識別碼');
   assert.match(page, /row\.scrollIntoView\(\{ behavior: 'smooth', block: 'center' \}\)/, '存檔後捲到新書列');
-  assert.match(page, /formats: \['EAN13'\]/);
+  assert.match(page, /formats: BarcodeNormalize\.ZXING_FORMATS/, '相機開所有常用書本條碼格式（見 test-barcode-normalize.mjs）');
   assert.match(page, /noindex/);
   assert.ok(MenuLib.CAT_LABEL.BOOK && ['zh', 'en', 'ja', 'ko'].every(k => MenuLib.CAT_LABEL.BOOK[k]));
   assert.equal(MenuLib.VENUE_LABEL.REST.zh, '約書旅');

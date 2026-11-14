@@ -96,6 +96,7 @@
 <main id="app"><p class="lead">載入中…</p></main>
 <script src="/vendor/zxing-reader.js"></script>
 <script src="/menu-lib.js"></script>
+<script src="/barcode-normalize.js"></script>
 <script>
 'use strict';
 /* innerHTML 內的動態值（書名、作者、錯誤訊息…）一律經 esc() 跳脫 */
@@ -171,7 +172,7 @@ function shell() {
   document.getElementById('logout').hidden = false;
   app.innerHTML = `<h1>書冊管理</h1><p class="lead">掃書背條碼或輸入 ISBN → 自動從臺灣、日本與全球書目平台帶入資料與定價，並比較臺灣八家書店的售價與庫存 → 確認售價與本數後存檔。存檔後約書旅 POS 的「書籍」分類就能結帳，賣出自動扣本數。</p>
   <section class="card" aria-labelledby="h-scan"><h2 id="h-scan">掃描或輸入書籍條碼</h2>
-    <form class="scan-row" id="scan-form"><input id="isbn" inputmode="numeric" autocomplete="off" maxlength="17" placeholder="掃描槍直接掃書背條碼，或輸入 ISBN（978…）後按 Enter" aria-label="書籍條碼或 ISBN">
+    <form class="scan-row" id="scan-form"><input id="isbn" inputmode="text" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="512" placeholder="掃描槍直接掃書背條碼（ISBN／EAN／UPC／Code 128／39／ITF／QR），或輸入 ISBN 後按 Enter" aria-label="書籍條碼或 ISBN">
       <button class="btn btn--solid" type="submit">查詢</button><button class="btn btn--brass" type="button" id="cam-btn">用相機掃</button></form>
     <div class="cam" id="cam"><video id="video" playsinline muted></video><i aria-hidden="true"></i></div>
     <p class="msg" id="scan-msg" role="status" aria-live="polite"></p>
@@ -185,9 +186,21 @@ function shell() {
 }
 function say(text, kind = '') { const m = document.getElementById('scan-msg'); if (m) { m.textContent = text; m.className = 'msg ' + kind; } }
 
-async function lookup(raw) {
-  const isbn = MenuLib.normalizeIsbn(raw);
-  if (!isbn) { say('ISBN 格式不正確：要 13 碼 978／979 開頭（或 10 碼），請再掃一次。', 'err'); return; }
+/* 條碼分流（BarcodeNormalize）：ISBN 走原本的書目查詢；非 ISBN（EAN／UPC／Code 128／39／ITF／QR）帶原始條碼進手動補資料 */
+const FORMAT_NAME = { isbn_13: 'ISBN-13', isbn_10: 'ISBN-10', ean_13: 'EAN-13', ean_8: 'EAN-8', upc_a: 'UPC-A', code_128: 'Code 128', code_39: 'Code 39', itf: 'ITF', qr_code: 'QR', unknown: '條碼' };
+const BARCODE_ERR = { empty: '請先掃描或輸入條碼。', too_long: '條碼內容太長，請確認掃的是書本條碼。', checksum: '檢查碼不符，可能沒掃完整，請再掃一次。', charset: '條碼含有這個格式不允許的字元，請再掃一次。' };
+/* 非 ISBN 條碼的手動補資料草稿（表單／存檔／再掃帶出由 t_96b973b8 接手） */
+function manualDraft(r) {
+  DRAFT = { mode: 'new', isbn: '', barcode: r.code, barcode_format: r.format, barcode_raw: r.raw, addon_price: r.price || null, title: '', author: '', publisher: '', list_price: 0, price: '', qty: 1, published: true, image: '' };
+  const ref = r.price ? `；附碼標示定價 ${r.price.currency} ${r.price.amount}（僅供參考）` : '';
+  say(`${FORMAT_NAME[r.format] || '條碼'} ${r.code} 不是 ISBN，查不到公開書目：請手動補書名與售價${ref}。`);
+  paintDraft();
+}
+async function lookup(raw, format) {
+  const r = BarcodeNormalize.normalizeBarcode(raw, { format });
+  if (!r.valid) { say(`${FORMAT_NAME[r.format] || '條碼'}：${BARCODE_ERR[r.error] || '格式不正確，請再掃一次。'}`, 'err'); return; }
+  if (!r.isbn) { if (!LOOKING) { storesBox(''); manualDraft(r); } return; }
+  const isbn = r.isbn;
   if (LOOKING) return; LOOKING = true;
   storesBox('');
   say('查詢 ' + isbn + ' 中…');
@@ -288,14 +301,21 @@ function downloadCsv() {
   a.download = '約書旅書冊_' + new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' }) + '.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-/* 相機掃 EAN-13：Chrome／Android 用 BarcodeDetector，iPad／iPhone 用本站 zxing-wasm（同 POS） */
+/* 相機掃碼（ISBN／EAN-13 含附碼／EAN-8／UPC-A／Code 128／Code 39／ITF／QR）：
+   Chrome／Android 用 BarcodeDetector（只開瀏覽器支援的格式），iPad／iPhone 用本站 zxing-wasm（同 POS）。
+   附碼：zxing-wasm 3.1.x 實測只回主碼（eanAddOnSymbol:'Read' 仍不回附碼），價格附碼要靠掃描槍送「主碼＋附碼」文字才解得出 */
 let ZX_READY = false;
 function detector() {
-  if ('BarcodeDetector' in window) return new window.BarcodeDetector({ formats: ['ean_13'] });
+  if ('BarcodeDetector' in window) {
+    const want = BarcodeNormalize.DETECTOR_FORMATS, BD = window.BarcodeDetector;
+    const ready = (BD.getSupportedFormats ? BD.getSupportedFormats() : Promise.resolve(want))
+      .then(have => new BD({ formats: want.filter(f => have.includes(f)) })).catch(() => new BD({ formats: ['ean_13'] }));
+    return { async detect(v) { return (await ready).detect(v); } };
+  }
   const zx = window.ZXingWASM; if (!zx?.readBarcodes) return null;
   if (!ZX_READY) { ZX_READY = true; try { zx.prepareZXingModule({ overrides: { locateFile: (p, prefix) => p.endsWith('.wasm') ? '/vendor/zxing_reader.wasm' : prefix + p }, fireImmediately: true }); } catch (e) {} }
   const c = document.createElement('canvas');
-  return { async detect(v) { const w = v.videoWidth, h = v.videoHeight; if (!w || !h) return []; c.width = w; c.height = h; const ctx = c.getContext('2d', { willReadFrequently: true }); ctx.drawImage(v, 0, 0); const out = await zx.readBarcodes(ctx.getImageData(0, 0, w, h), { formats: ['EAN13'], maxNumberOfSymbols: 1 }); return out.filter(r => r.text).map(r => ({ rawValue: r.text })); } };
+  return { async detect(v) { const w = v.videoWidth, h = v.videoHeight; if (!w || !h) return []; c.width = w; c.height = h; const ctx = c.getContext('2d', { willReadFrequently: true }); ctx.drawImage(v, 0, 0); const out = await zx.readBarcodes(ctx.getImageData(0, 0, w, h), { formats: BarcodeNormalize.ZXING_FORMATS, eanAddOnSymbol: 'Read', textMode: 'Plain', maxNumberOfSymbols: 1 }); return out.filter(r => r.text).map(r => ({ rawValue: r.text, format: r.format })); } };
 }
 async function startCam() {
   const det = detector();
@@ -305,13 +325,13 @@ async function startCam() {
     STREAM = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
     video.srcObject = STREAM; await video.play();
     document.getElementById('cam').classList.add('on'); document.getElementById('cam-btn').textContent = '關閉相機';
-    say('把書背條碼（978 開頭那條）對準黃框。');
+    say('把書背條碼（978 開頭那條，或其他商品條碼／QR）對準黃框。');
     let last = '';
     const tick = async () => {
       if (!STREAM) return;
       const codes = await det.detect(video).catch(() => []);
-      const isbn = MenuLib.normalizeIsbn(codes[0]?.rawValue || '');
-      if (isbn && isbn !== last && !LOOKING) { last = isbn; document.getElementById('isbn').value = isbn; stopCam(); lookup(isbn); return; }
+      const c = codes[0], r = c ? BarcodeNormalize.normalizeBarcode(c.rawValue || '', { format: c.format }) : null;
+      if (r && r.valid && r.code !== last && !LOOKING) { last = r.code; document.getElementById('isbn').value = r.isbn || r.code; stopCam(); lookup(c.rawValue, c.format); return; }
       requestAnimationFrame(tick);
     };
     tick();
