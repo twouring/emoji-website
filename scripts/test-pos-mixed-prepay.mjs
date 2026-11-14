@@ -108,7 +108,7 @@ test('平均分攤多次收款：前 N−1 人走預收單（品名標第 k／N 
   assert.match(ops, /POS_PAYREQ=null,POS_AA=null,/);
   assert.match(ops, /function startAA\(people\)\{POS_AA=\{people\};POS_PICK=null;POS_QTY=\{\};POS_DISCOUNT=null;/);
   assert.match(ops, /id="pos-aa-open"/); assert.match(ops, /id="pos-aa-clear"/);
-  assert.match(ops, /index=cur\.lines\.filter\(l=>l\.credit_of\)\.length\+1/, '第幾人由桌上抵扣行數推算');
+  assert.match(ops, /index=checkoutLines\.filter\(l=>l\.credit_of\)\.length\+1/, '第幾人由桌上抵扣行數推算');
   assert.match(ops, /if\(aa&&!aa\.last\)total=aa\.each;/);
   assert.match(ops, /body:\{prepay:aa\.each,split:\{people:aa\.people,index:aa\.index\},method,payments,invoice:invoiceBody\(host\),received:rec,operator_id:OPERATOR\?\.id\}/);
   assert.match(ops, /\$\{aa\?\(aa\.last\?'收最後一人':`收第 \$\{aa\.index\}／\$\{aa\.people\} 人`\)\+' ':'收款 '\}NT\$/);
