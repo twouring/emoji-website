@@ -29,10 +29,10 @@ test('lineGroups：依點餐人分組、照第一次出現順序；櫃檯代點�
 });
 
 test('POS 結帳頁：品項表依點餐人分組（多人才顯示組頭）、組頭「只結這組」一點就只勾那個人的', () => {
-  assert.match(ops, /const groups=lineGroups\(cur\.lines\),multi=groups\.filter\(g=>g\.key!=='credit'\)\.length>1;/);
+  assert.match(ops, /const groups=lineGroups\(checkoutLines\),multi=groups\.filter\(g=>g\.key!=='credit'\)\.length>1;/);
   assert.match(ops, /<tr class="pos-group \$\{on\?'on':''\}"><td colspan="5"><div class="pos-group-wrap"><span class="pos-group-name">\$\{esc\(g\.label\)\}<\/span>/);
   assert.match(ops, /data-pick-group="\$\{esc\(g\.key\)\}">\$\{on\?'已選這組':'只結這組'\}<\/button>/);
-  assert.match(ops, /host\.querySelectorAll\('\[data-pick-group\]'\)\.forEach\(b=>b\.onclick=\(\)=>\{[^\n]*POS_PICK=ids\.length===cur\.lines\.length\?null:new Set\(ids\);POS_QTY=\{\};POS_PAYREQ=null;POS_AA=null;paintPos\(\);/);
+  assert.match(ops, /host\.querySelectorAll\('\[data-pick-group\]'\)\.forEach\(b=>b\.onclick=\(\)=>\{[^\n]*POS_PICK=ids\.length===checkoutLines\.length\?null:new Set\(ids\);POS_QTY=\{\};POS_PAYREQ=null;POS_AA=null;paintPos\(\);/);
   // 「結帳全部」緊接在「只結這組」旁邊（KK 11/7）：一按回到整桌全選，清掉份數、平均分攤
   assert.match(ops, /'只結這組'\}<\/button><button type="button" class="btn btn--ghost btn-xs" data-pick-all aria-pressed="\$\{!POS_PICK&&!POS_AA\}">\$\{!POS_PICK&&!POS_AA\?'已選全部':'結帳全部'\}<\/button>/);
   assert.match(ops, /host\.querySelectorAll\('\[data-pick-all\]'\)\.forEach\(b=>b\.onclick=\(\)=>\{POS_PICK=null;POS_QTY=\{\};POS_PAYREQ=null;POS_AA=null;paintPos\(\);/);
