@@ -4,7 +4,7 @@ let BG = { data: null, status: 'pending', err: '', timer: null, from: '', to: ''
 function tabBugs(){ return '<div class="a-sec" id="bg-body"></div>'; }
 function bgDay(off){ return new Date(Date.now() + 8 * 3600e3 + off * 86400e3).toISOString().slice(0, 10); }
 function bgTime(iso){ try { return new Date(iso).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false, month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } }
-function bgImg(u){ return /^\//.test(u || '') ? (location.hostname.startsWith('admin.') ? 'https://www.emoji.tw' : '') + u : u; }
+function bgImg(u){ return /^\//.test(u || '') ? (location.hostname.startsWith('admin.') ? location.origin.replace(/\/\/admin\./, '//www.') : '') + u : u; }
 async function loadBugs(){
   const host = document.getElementById('bg-body'); if (!host) { clearInterval(BG.timer); BG.timer = null; return; }
   if (!BG.from) { BG.from = bgDay(0); BG.to = bgDay(0); }

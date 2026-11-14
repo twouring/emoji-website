@@ -139,6 +139,8 @@ const RAILWAY_MODE = !!process.env.RAILWAY_ENVIRONMENT; // Railway 備援環境�
 // 觸發，Cloud Run 才能改成依請求計費、minScale=0。未設定＝原本的程序內排程。ADMIN_MODE／RAILWAY_MODE 兩種模式都不跑排程、端點也關閉。
 const cronJobs = require('./lib/cron-jobs');
 const CRON_SCHEDULER = process.env.CRON_MODE === 'scheduler';
+// CRON_MODE=off：副本／預覽環境（kk-ec2 等）。程序內排程、收款同步迴圈、Cloud Scheduler 端點全部不啟動，避免與正式站重複寄信、推播、發文或對帳。
+const CRON_OFF = process.env.CRON_MODE === 'off';
 const CRON_SECRET = process.env.CRON_SECRET || '';
 // 後台對外網址：寄給員工／主辦的後台連結、官網轉後台都用這個
 const ADMIN_BASE = (process.env.ADMIN_ORIGIN || 'https://admin.emoji.tw').replace(/\/$/, '');
@@ -177,6 +179,8 @@ const WEB_ORIGINS = [...new Set([...(process.env.WEB_ORIGINS ||
 // 平板 POS 子站（pos.emoji.tw）：同一支服務依 host 分流到 public/pos.html；逗號分隔可覆寫
 const POS_HOSTS = (process.env.POS_HOSTS || 'pos.emoji.tw').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 const isPosHost = req => POS_HOSTS.includes(String(req.hostname || '').toLowerCase());
+// POS 對外網址：舊網址 /pos 導回這裡；預設 https://<POS_HOSTS 第一個>，副本環境可用 POS_ORIGIN 覆寫（例如 http 預覽網域）
+const POS_BASE = (process.env.POS_ORIGIN || 'https://' + POS_HOSTS[0]).replace(/\/$/, '');
 // KTV 子站（ktv.emoji.tw，KK 11/6）：點歌從 POS 抽出成獨立系統，屬言文字、不分品牌；同一支服務依 host 回 public/ktv.html
 const KTV_HOSTS = (process.env.KTV_HOSTS || 'ktv.emoji.tw').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 const isKtvHost = req => KTV_HOSTS.includes(String(req.hostname || '').toLowerCase());
@@ -1583,9 +1587,12 @@ const app = express();
 app.disable('x-powered-by');
 // 僅信任指定代理；預設信任一層部署 ingress，不採信攻擊者自填的 X-Forwarded-For 最左值。
 app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
-// 標準網址：保留路徑、查詢參數與 HTTP 方法，統一至 www。
-app.use((req, res, next) => /^emoji\.tw(?::\d+)?$/i.test(req.headers.host || '')
-  ? res.redirect(308, 'https://www.emoji.tw' + req.originalUrl) : next());
+// 標準網址：保留路徑、查詢參數與 HTTP 方法，裸網域統一至 www。副本環境以 APEX_HOSTS（裸網域清單）＋APEX_REDIRECT_ORIGIN（轉去哪）覆寫；
+// 預設值與正式站原本行為相同（emoji.tw → https://www.emoji.tw）。目標若本身就是裸網域則不轉，避免迴圈。
+const APEX_HOSTS = (process.env.APEX_HOSTS || 'emoji.tw').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+const APEX_TARGET = (process.env.APEX_REDIRECT_ORIGIN || 'https://www.emoji.tw').replace(/\/$/, '');
+app.use((req, res, next) => APEX_HOSTS.includes(String(req.headers.host || '').toLowerCase().replace(/:\d+$/, '')) && !APEX_HOSTS.includes(hostOf(APEX_TARGET))
+  ? res.redirect(308, APEX_TARGET + req.originalUrl) : next());
 app.use((req, res, next) => {
   res.set({
     'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'SAMEORIGIN',
@@ -7107,7 +7114,7 @@ app.get('/api/admin/exec',auth,adminOnly,requireDb,wrap(async(req,res)=>{
     grab('找碴回報',async()=>{src.bugs_pending=(await q("SELECT count(*)::int AS n FROM bug_reports WHERE status='pending'")).rows[0].n;}),
   ]);
   res.set('Cache-Control','no-store');
-  res.json(execBoard.build(src,{now,salesSummary:tableOrders.salesSummary}));
+  res.json(execBoard.build(src,{now,salesSummary:tableOrders.salesSummary,posBase:POS_BASE}));
 }));
 /* ---- 高管總覽 end ---- */
 /* 日結報表：依營業日（凌晨 03:00 前算前一天）彙總營收、付款方式、品項銷量、時段；CSV 由前端組 */
@@ -8562,7 +8569,7 @@ app.get(['/admin', '/admin/*'], (req, res) => {
 });
 // 平板 POS（純瀏覽器，Star webPRNT Browser）：/pos、/pos/orders、/pos/soldout、/pos/inventory、/pos/reservations、/pos/history、/pos/sales、/pos/products、/pos/customers、/pos/clock、/pos/shifts 皆回同一頁（pos.emoji.tw 與 www 都可用，API 同網域）
 const POS_PAGE = path.join(PUB, 'pos.html');
-app.get(['/pos', '/pos/*', '/pos.html'], (_req, res) => res.redirect(302, 'https://' + POS_HOSTS[0] + '/'));   // POS 只在 pos.emoji.tw（首頁選品牌），其他網域不提供
+app.get(['/pos', '/pos/*', '/pos.html'], (_req, res) => res.redirect(302, POS_BASE + '/'));   // POS 只在 pos.emoji.tw（首頁選品牌），其他網域不提供
 // 部署版本號：CI 在 build 前寫入 VERSION（日期＋當日流水號，如 20261018-03）；本機開發顯示 dev
 const APP_VERSION = (() => { try { return fs.readFileSync(path.join(__dirname, 'VERSION'), 'utf8').trim() || 'dev'; } catch (_) { return 'dev'; } })();
 let POS_HTML_CACHE = null;
@@ -8741,6 +8748,7 @@ async function boot() {
   // Railway 專案只留作回滾備援（2026-10-12 搬到 GCP）：它的 GitHub 自動部署仍跟著 main 更新、連的是自己那顆舊資料庫（排程貼文備份）、
   // 用同一支 IG token，排程若也跑就會和 Cloud Run 各發一次（2026-10-13 IG 雙發事故）。Railway 一律不跑排程。
   if (RAILWAY_MODE) { console.log('[boot] RAILWAY_ENVIRONMENT：Railway 僅為備援，排程由 Cloud Run 官網服務負責，本服務不啟動'); return; }
+  if (CRON_OFF) { console.log('[boot] CRON_MODE=off：副本環境，不啟動任何排程與收款同步'); return; }
   // 收款即時同步（LINE Pay／中信）：伺服器端單一迴圈，同步完等 1 秒再同步；POS 只讀結果（KK 11/6）
   for (const w of PAY_WATCHERS) payWatchLoop(w);
   // Cloud Scheduler 模式：程序內不啟動任何排程，由 POST /internal/cron/* 觸發（見 docs/cloud-scheduler-cron.md）

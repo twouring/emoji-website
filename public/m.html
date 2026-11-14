@@ -312,7 +312,8 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
 (function(){
   const KEY='tth_token', CACHE='m_cache', LANG_KEY='m_lang';
   /* app.emoji.tw 是獨立網域：App 在根路徑；活動詳情與 Email 登入頁仍在官網 */
-  const ON_APP=location.hostname==='app.emoji.tw', SITE=ON_APP?'https://www.emoji.tw':'', ROOT=ON_APP?'/':'/m';
+  /* 依子網域前綴判斷（app.<網域> → 官網 www.<網域>），副本環境（app.emoji.deploy.<ip>.nip.io 等）同樣適用 */
+  const ON_APP=/^app\./.test(location.hostname), SITE=ON_APP?location.origin.replace(/\/\/app\./,'//www.'):'', ROOT=ON_APP?'/':'/m';
   const PLAN_PRICES={day_4h:200,day_12h:500,month:4000,quarter:10000,year:35000,year_promo:35000};
   const PROMO_END='2026-12-31',promoOpen=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei'}).format(new Date())<=PROMO_END;
   const I18N={
