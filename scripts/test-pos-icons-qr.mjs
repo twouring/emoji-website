@@ -18,7 +18,7 @@ test('單桌 QR 直接走 384-dot mPOP 並保留 QR 留白，不開錢櫃或重�
   assert.equal(await context.printTableQr('A1','https://example.test/order?t=A1'),true);
   const qr=calls.find(c=>c[0]==='qr');assert.equal(qr[1],'https://example.test/order?t=A1');assert.ok(qr[2].margin>=4);
   assert.equal(calls.filter(c=>c[0]==='send').length,1);
-  assert.equal(canvases.at(-1).width,384);assert.ok(texts.includes('A1'));assert.ok(texts.includes('在咖啡、三點水'));assert.ok(!texts.includes('言文字'),'桌號 QR 不印母公司名');
+  assert.equal(canvases.at(-1).width,384);assert.ok(!texts.includes('A1'),'QR 單不印桌號（KK 11/14）');assert.ok(texts.includes('在咖啡、三點水'));assert.ok(!texts.includes('言文字'),'桌號 QR 不印母公司名');
   const fn=ops.match(/async function printTableQr\(table,url,info=\{\}\)\{[\s\S]*?\n\}/)[0];
   assert.doesNotMatch(fn,/drawer|checkout|window\.open|api\(/);
 });
@@ -32,13 +32,13 @@ test('桌號 QR 店名依點餐時段：在咖啡／三點水，非時段印兩�
 test('開桌 QR 單中英雙語，並印鼓勵小語與吉祥物插圖',async()=>{
   const {context,texts,calls}=qrContext();
   assert.equal(await context.printTableQr('A1','https://example.test/order?s=1&k=x'),true);
-  for(const t of ['桌號 Table','A1','掃碼點餐 Scan to order','測試鼓勵語','Keep going.'])assert.ok(texts.includes(t),'缺少：'+t);
+  for(const t of ['掃碼點餐 Scan to order','測試鼓勵語','Keep going.'])assert.ok(texts.includes(t),'缺少：'+t);
   assert.ok(!texts.some(t=>t.includes('櫃檯結帳')||/pay at the counter/i.test(t)),'QR 單不印櫃檯結帳（KK 10/27）');
   assert.ok(texts.includes('用餐完結帳')&&texts.includes('Pay after your meal'),'要印「用餐完結帳」（KK 11/2）');assert.ok(!texts.some(t=>t.includes('送出點餐')),'不再印送出點餐步驟');
   assert.ok(texts.some(t=>/開桌 \d{4}\/\d{2}\/\d{2} \d{2}:\d{2}$/.test(t)),'要印開桌時間');
   const moji=calls.find(c=>c[0]==='moji');assert.ok(moji,'要畫 moji 插圖');assert.equal(moji[1],'coffee/dot');assert.equal(moji[4],80);
   const {context:c2,texts:t2}=qrContext({enc:false});
-  assert.equal(await c2.printTableQr('A1','url'),true,'沒載入鼓勵小語也要能印');assert.ok(t2.includes('A1'));
+  assert.equal(await c2.printTableQr('A1','url'),true,'沒載入鼓勵小語也要能印');assert.ok(t2.includes('掃碼點餐 Scan to order'));
 });
 test('未連接 Star、QR 失敗及列印失敗均不宣稱實體出紙成功',async()=>{
   for(const scenario of [{ready:false},{qrError:true},{success:false}]){
@@ -76,11 +76,11 @@ test('桌號 QR 單留白以下壓在 90mm 內（QR_BODY_MAX=720 點），插圖
   const out=canvases.at(-1);assert.ok(out.height-200<=720,'留白以下 '+(out.height-200)+' 點超過 90mm');
 });
 
-test('桌號 QR 單：桌號在 QR 上方；印人數、單號、開桌時間；三點水印低消與服務費、各店印停止點餐時間',async()=>{
+test('桌號 QR 單：不印桌號（KK 11/14）；印人數、單號、開桌時間；三點水印低消與服務費、各店印停止點餐時間',async()=>{
   const mk=(venue,active=true)=>{const r=qrContext({venue});r.context.MenuLib={orderWindow:()=>({venue}),barPolicyActive:()=>active,MIN_SPEND:{weekday:300,weekend:600},SERVICE_RATE:0.1,minSpendOf:n=>({per:600,people:n,total:600*n,weekend:true}),cafePolicyActive:()=>active,CAFE_MIN_SPEND:300,cafeMinimumOf:n=>({type:'drink',people:n,required:n,weekend:false})};return r;};
   {const {context,texts,calls}=mk('BAR');
     assert.equal(await context.printTableQr('B2','url',{party_size:4,kids:1,no:'ABC123',opened_at:'2026-11-01T10:06:47Z'}),true);
-    const iTable=texts.indexOf('B2');assert.ok(iTable>=0&&iTable<=2,'桌號要在最上面（店名之後）');
+    assert.ok(!texts.includes('B2')&&!texts.includes('桌號 Table'),'QR 單不印桌號（KK 11/14）');
     assert.ok(calls.findIndex(c=>c[0]==='image')>=0);
     assert.ok(texts.includes('大人 3　・　小孩 1'),texts.join('|'));
     assert.ok(texts.includes('桌次 ABC123　・　開桌 2026/11/01 18:06'),'桌次＋開桌時間（台北時間）放最底');
