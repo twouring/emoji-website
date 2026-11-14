@@ -255,8 +255,12 @@
     return '';
   }
   function bookFields(raw) {
+    const isbn = normalizeIsbn(raw.isbn);
     return {
-      isbn: normalizeIsbn(raw.isbn),
+      isbn,
+      // 書冊條碼（t_96b973b8）：非 ISBN 的 EAN／UPC／Code 128／39／ITF／QR 也能造冊；barcode 是書冊唯一索引（ISBN 書＝ISBN-13，舊資料沒有就用 isbn）
+      barcode: String(raw.barcode || isbn || '').replace(/[\x00-\x1f\x7f]/g, '').trim().slice(0, 200),
+      barcode_format: /^[a-z0-9]{1,12}$/.test(String(raw.barcode_format || '')) ? raw.barcode_format : (isbn ? 'isbn13' : ''),
       author: String(raw.author || '').trim().slice(0, 200),
       publisher: String(raw.publisher || '').trim().slice(0, 120),
       list_price: Math.max(0, Math.floor(Number(raw.list_price)) || 0),   // 書上定價（國圖書號中心）；售價 price 可另打折

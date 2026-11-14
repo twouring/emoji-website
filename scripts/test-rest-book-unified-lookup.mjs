@@ -70,7 +70,7 @@ test('後台查書只打一支 API，直接渲染同筆書店資料', () => {
   const server = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
   const page = fs.readFileSync(new URL('../public/rest-book-admin.html', import.meta.url), 'utf8');
   assert.match(server, /app\.get\('\/api\/admin\/menu\/books\/lookup'[\s\S]*?lookupBookWithStores\(isbn/);
-  assert.match(page, /\/admin\/menu\/books\/lookup\?isbn=/);
+  assert.match(page, /\/admin\/menu\/books\/lookup\?barcode=/);
   assert.match(page, /paintDraft\(\);\s*paintStores\(d\.retail\);/);
   assert.doesNotMatch(page, /paintDraft\(\);\s*loadStores\(isbn, DRAFT\.title\)/);
   assert.doesNotMatch(page, /id="use-best"/);

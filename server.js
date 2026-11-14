@@ -6803,10 +6803,13 @@ app.get('/api/admin/menu/books',auth,adminOnly,requireDb,wrap(async(req,res)=>{
 }));
 app.get('/api/admin/menu/books/lookup',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!restBookScope(req,res))return;
-  const isbn=tableOrders.MenuLib.normalizeIsbn(req.query.isbn);
-  if(!isbn)return res.status(400).json({error:'ISBN 格式不正確（要 13 碼 978／979 開頭，或 10 碼）。'});
-  const existing=bookCatalog.listBooks(await contentValue('menu')).find(b=>b.isbn===isbn)||null;
-  res.set('Cache-Control','no-store').json(await bookStores.lookupBookWithStores(isbn,{existing,lookupBook:bookCatalog.lookupIsbn}));
+  // t_96b973b8：barcode（可帶 format＝相機回報的符號）或舊參數 isbn。ISBN 走書目＋比價；非 ISBN 只查已在冊，沒有就交給後台手動補書名與價格
+  let bc;try{bc=bookCatalog.parseBarcode({barcode:req.query.barcode,isbn:req.query.isbn,format:req.query.format});}catch(e){return res.status(400).json({error:e.message});}
+  const existing=bookCatalog.findBook(await contentValue('menu'),bc);
+  const barcode={format:bc.format,raw:bc.raw,code:bc.code,isbn:bc.isbn,addon:bc.addon,price:bc.price,price_currency:bc.price_currency,reference_price:bc.reference_price};
+  if(!bc.isbn)return res.set('Cache-Control','no-store').json({isbn:'',barcode,existing,book:existing?null:{found:false,manual:true},retail:null});
+  const isbn=bc.isbn;
+  res.set('Cache-Control','no-store').json({...await bookStores.lookupBookWithStores(isbn,{existing,lookupBook:bookCatalog.lookupIsbn}),barcode});
 }));
 /* 書店比價（KK 11/12，lib/book-stores.js）：同一個 ISBN 到博客來、金石堂、誠品、讀冊、三民、讀墨、Kobo、Yahoo 查售價與庫存，統一格式回給後台；只讀公開搜尋結果、10 分鐘快取 */
 const bookStores=require('./lib/book-stores');

@@ -97,6 +97,7 @@
 <script src="/vendor/zxing-reader.js"></script>
 <script src="/menu-lib.js"></script>
 <script src="/barcode-normalize.js"></script>
+<script src="/book-barcode.js"></script>
 <script>
 'use strict';
 /* innerHTML 內的動態值（書名、作者、錯誤訊息…）一律經 esc() 跳脫 */
@@ -172,7 +173,7 @@ function shell() {
   document.getElementById('logout').hidden = false;
   app.innerHTML = `<h1>書冊管理</h1><p class="lead">掃書背條碼或輸入 ISBN → 自動從臺灣、日本與全球書目平台帶入資料與定價，並比較臺灣八家書店的售價與庫存 → 確認售價與本數後存檔。存檔後約書旅 POS 的「書籍」分類就能結帳，賣出自動扣本數。</p>
   <section class="card" aria-labelledby="h-scan"><h2 id="h-scan">掃描或輸入書籍條碼</h2>
-    <form class="scan-row" id="scan-form"><input id="isbn" inputmode="text" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="512" placeholder="掃描槍直接掃書背條碼（ISBN／EAN／UPC／Code 128／39／ITF／QR），或輸入 ISBN 後按 Enter" aria-label="書籍條碼或 ISBN">
+    <form class="scan-row" id="scan-form"><input id="isbn" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="200" placeholder="掃描槍直接掃書背條碼（ISBN／EAN／UPC／Code 128／39／ITF／QR），或輸入 ISBN／其他條碼後按 Enter" aria-label="書籍條碼或 ISBN">
       <button class="btn btn--solid" type="submit">查詢</button><button class="btn btn--brass" type="button" id="cam-btn">用相機掃</button></form>
     <div class="cam" id="cam"><video id="video" playsinline muted></video><i aria-hidden="true"></i></div>
     <p class="msg" id="scan-msg" role="status" aria-live="polite"></p>
@@ -186,37 +187,34 @@ function shell() {
 }
 function say(text, kind = '') { const m = document.getElementById('scan-msg'); if (m) { m.textContent = text; m.className = 'msg ' + kind; } }
 
-/* 條碼分流（BarcodeNormalize）：ISBN 走原本的書目查詢；非 ISBN（EAN／UPC／Code 128／39／ITF／QR）帶原始條碼進手動補資料 */
-const FORMAT_NAME = { isbn_13: 'ISBN-13', isbn_10: 'ISBN-10', ean_13: 'EAN-13', ean_8: 'EAN-8', upc_a: 'UPC-A', code_128: 'Code 128', code_39: 'Code 39', itf: 'ITF', qr_code: 'QR', unknown: '條碼' };
-const BARCODE_ERR = { empty: '請先掃描或輸入條碼。', too_long: '條碼內容太長，請確認掃的是書本條碼。', checksum: '檢查碼不符，可能沒掃完整，請再掃一次。', charset: '條碼含有這個格式不允許的字元，請再掃一次。' };
-/* 非 ISBN 條碼的手動補資料草稿（表單／存檔／再掃帶出由 t_96b973b8 接手） */
-function manualDraft(r) {
-  DRAFT = { mode: 'new', isbn: '', barcode: r.code, barcode_format: r.format, barcode_raw: r.raw, addon_price: r.price || null, title: '', author: '', publisher: '', list_price: 0, price: '', qty: 1, published: true, image: '' };
-  const ref = r.price ? `；附碼標示定價 ${r.price.currency} ${r.price.amount}（僅供參考）` : '';
-  say(`${FORMAT_NAME[r.format] || '條碼'} ${r.code} 不是 ISBN，查不到公開書目：請手動補書名與售價${ref}。`);
-  paintDraft();
-}
+/* 條碼（t_96b973b8）：ISBN-10／13、EAN-13（含附碼）、UPC-A、EAN-8、ITF、Code 128／39、QR 都能造冊；
+   ISBN 自動帶書目，其他條碼（或查不到書目）由人工補書名與售價，存檔後條碼值即書冊索引，再掃同一條碼直接帶出 */
+const fmtLabel = f => (window.BookBarcode && BookBarcode.LABEL[f]) || f || '';
+const refPrice = bc => bc && bc.reference_price ? `　條碼附碼參考定價 ${esc(bc.price_currency)} ${esc(bc.reference_price)}（外幣，不帶入售價）` : '';
+function barcodeDraft(bc) { return { barcode: bc.code, barcode_format: bc.format, isbn: bc.isbn || '', addon: bc.addon || '', reference_price: bc.reference_price || 0, reference_currency: bc.price_currency || '' }; }
 async function lookup(raw, format) {
-  const r = BarcodeNormalize.normalizeBarcode(raw, { format });
-  if (!r.valid) { say(`${FORMAT_NAME[r.format] || '條碼'}：${BARCODE_ERR[r.error] || '格式不正確，請再掃一次。'}`, 'err'); return; }
-  if (!r.isbn) { if (!LOOKING) { storesBox(''); manualDraft(r); } return; }
-  const isbn = r.isbn;
+  const bc = BookBarcode.parse(raw, format);
+  if (!bc.ok) { say(bc.error, 'err'); return; }
   if (LOOKING) return; LOOKING = true;
   storesBox('');
-  say('查詢 ' + isbn + ' 中…');
+  say(`查詢 ${fmtLabel(bc.format)} ${bc.code} 中…`);
   try {
-    const d = await api('/admin/menu/books/lookup?isbn=' + isbn);
+    const d = await api('/admin/menu/books/lookup?barcode=' + encodeURIComponent(bc.raw) + (format ? '&format=' + encodeURIComponent(format) : ''));
+    const sb = d.barcode || bc, base = barcodeDraft(sb), isbn = base.isbn;
     if (d.existing) {
       const b = d.existing;
-      DRAFT = { mode: 'existing', isbn, title: b.zh, author: b.author, publisher: b.publisher, list_price: b.list_price, price: b.price, qty: 1, have: b.stock_left || 0, published: b.published, image: b.image };
+      DRAFT = { ...base, mode: 'existing', id: b.id, barcode: b.barcode || base.barcode, barcode_format: b.barcode_format || base.barcode_format, title: b.zh, author: b.author, publisher: b.publisher, list_price: b.list_price, price: b.price, qty: 1, have: b.stock_left || 0, published: b.published, image: b.image };
       say(`已在書冊：《${b.zh}》目前 ${b.stock_left || 0} 本。存檔會加 1 本（可改）。`, 'ok');
+    } else if (!isbn) {
+      DRAFT = { ...base, mode: 'new', manual: true, title: '', author: '', publisher: '', list_price: 0, price: sb.price || '', qty: 1, published: true, image: '' };
+      say(`${fmtLabel(sb.format)} 條碼 ${sb.code} 不是 ISBN，查不到公開書目。請手動填書名與售價後存檔，下次掃同一條碼會直接帶出。`, '');
     } else if (d.book && d.book.found !== false) {
       const b = d.book;
-      DRAFT = { mode: 'new', isbn, title: b.title, author: b.author, publisher: b.publisher, list_price: b.list_price, price: b.list_price || '', qty: 1, published: true, image: b.image || '', source: b.source, source_name: b.source_name, pub_date: b.pub_date, reference_price: b.reference_price || 0, reference_currency: b.reference_currency || '' };
+      DRAFT = { ...base, mode: 'new', isbn, title: b.title, author: b.author, publisher: b.publisher, list_price: b.list_price, price: b.list_price || '', qty: 1, published: true, image: b.image || '', source: b.source, source_name: b.source_name, pub_date: b.pub_date, reference_price: b.reference_price || 0, reference_currency: b.reference_currency || '' };
       say(b.list_price ? `找到《${b.title}》，定價 NT$${num(b.list_price)}。` : b.reference_currency === 'JPY' && b.reference_price ? `找到《${b.title}》，參考日圓定價 ¥${num(b.reference_price)}；請手動填臺幣售價。` : `找到《${b.title}》，但書目沒有臺灣定價，請手動填售價。`, b.list_price ? 'ok' : '');
     } else {
-      DRAFT = { mode: 'new', isbn, title: '', author: '', publisher: '', list_price: 0, price: '', qty: 1, published: true, image: '' };
-      say('找不到可用 ISBN。請確認掃的是書背 978／979 條碼；非 ISBN 條碼目前無法自動帶入書目，請改輸入 ISBN。', 'err');
+      DRAFT = { ...base, mode: 'new', manual: true, title: '', author: '', publisher: '', list_price: 0, price: '', qty: 1, published: true, image: '' };
+      say(`ISBN ${isbn} 在書目平台查不到。請手動填書名與售價後存檔，下次掃同一條碼會直接帶出。`, '');
     }
     paintDraft();
     paintStores(d.retail);
@@ -228,23 +226,39 @@ function paintDraft() {
   const host = document.getElementById('draft'); if (!host) return;
   if (!DRAFT) { host.innerHTML = ''; return; }
   const d = DRAFT, src = d.source === 'ncl' ? '書目來源：國家圖書館 ISBN 書號中心' : d.source === 'openbd' ? '書目來源：openBD（日本出版流通書誌）' : d.source === 'ndl' ? '書目來源：日本國立國會圖書館 NDL Search' : d.source === 'google' ? '書目來源：Google Books（外文書／未必含臺灣定價）' : d.source === 'store' ? '書目來源：' + (d.source_name || '臺灣書店') + '（紙本搜尋結果，請核對版本）' : '';
-  host.innerHTML = `<form class="form" id="book-form" style="margin-top:16px">
-    <label class="full">書名<input name="title" required maxlength="120" value="${esc(d.title)}"></label>
+  const fmtOpts = (BookBarcode.FORMATS || []).map(f => `<option value="${esc(f)}" ${f === d.barcode_format ? 'selected' : ''}>${esc(fmtLabel(f))}</option>`).join('');
+  const lockCode = d.mode !== 'edit';   // 掃到的條碼直接沿用；只有「編輯」能改條碼（例：補登錯的號碼）
+  host.innerHTML = `<form class="form" id="book-form" style="margin-top:16px" novalidate>
+    ${d.manual ? `<p class="full msg" style="margin:0">${d.isbn ? '查不到書目' : '這個條碼不是 ISBN'}：請手動補<b>書名</b>與<b>售價</b>（必填），作者、出版社、定價可選填。</p>` : ''}
+    <label>條碼<input name="barcode" maxlength="200" autocomplete="off" spellcheck="false" value="${esc(d.barcode || d.isbn)}" ${lockCode ? 'readonly' : 'required'}></label>
+    <label>條碼格式<select name="barcode_format" ${lockCode ? 'disabled' : ''} style="min-height:48px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:#fff">${fmtOpts}</select></label>
+    <label class="full">書名（必填）<input name="title" required maxlength="120" value="${esc(d.title)}"></label>
     <label>作者<input name="author" maxlength="200" value="${esc(d.author)}"></label>
     <label>出版社<input name="publisher" maxlength="120" value="${esc(d.publisher)}"></label>
     <label>定價（書上）<input name="list_price" type="number" inputmode="numeric" min="0" max="100000" step="1" value="${esc(d.list_price || '')}"></label>
     <label>售價（POS 收這個，照書上定價）<input name="price" type="number" inputmode="numeric" min="0" max="100000" step="1" required value="${esc(d.price)}"></label>
     <label>${d.mode === 'existing' ? `加幾本（目前 ${d.have} 本）` : d.mode === 'edit' ? '庫存本數（直接改成）' : '本數'}<input name="qty" type="number" inputmode="numeric" min="0" max="999" step="1" required value="${esc(d.qty)}"></label>
     <label class="chk"><input name="published" type="checkbox" ${d.published ? 'checked' : ''}>在 POS 上架</label>
-    <p class="src full">ISBN ${esc(d.isbn)}${src ? '　' + esc(src) : ''}</p>
+    <p class="src full">${d.isbn ? 'ISBN ' + esc(d.isbn) : esc(fmtLabel(d.barcode_format)) + ' 條碼（非 ISBN）'}${d.addon ? '　附碼 ' + esc(d.addon) : ''}${refPrice({ reference_price: d.reference_price, price_currency: d.reference_currency })}${src ? '　' + esc(src) : ''}</p>
+    <p class="msg err full" id="form-err" role="alert" hidden></p>
     <div class="acts full"><button class="btn btn--solid" type="submit">${d.mode === 'existing' ? '加入本數並存檔' : d.mode === 'edit' ? '儲存修改' : '存檔上架'}</button><button class="btn btn--ghost" type="button" id="draft-cancel">取消</button></div></form>`;
   const f = document.getElementById('book-form');
   if (!d.title) f.elements.title.focus(); else if (d.price === '' || d.price == null) f.elements.price.focus();
   document.getElementById('draft-cancel').onclick = () => { DRAFT = null; paintDraft(); storesBox(''); say(''); document.getElementById('isbn').focus(); };
   f.onsubmit = async e => {
     e.preventDefault();
+    const err = document.getElementById('form-err'), fail = (msg, el) => { err.textContent = msg; err.hidden = false; if (el) el.focus(); };
+    err.hidden = true;
+    const t = f.elements.title.value.trim(), pv = f.elements.price.value.trim(), qv = f.elements.qty.value.trim(), lv = f.elements.list_price.value.trim();
+    const code = f.elements.barcode.value.trim(), fmt = f.elements.barcode_format.value;
+    if (!t) return fail('請填書名。', f.elements.title);
+    if (!pv) return fail('請填售價。', f.elements.price);
+    if (!/^\d+$/.test(pv) || Number(pv) > 100000) return fail('售價只能填 0–100000 的整數。', f.elements.price);
+    if (lv && (!/^\d+$/.test(lv) || Number(lv) > 100000)) return fail('定價只能填 0–100000 的整數。', f.elements.list_price);
+    if (!/^\d+$/.test(qv) || Number(qv) > 999) return fail('本數請填 0–999 的整數。', f.elements.qty);
+    if (d.mode === 'edit') { const chk = BookBarcode.parse(code, fmt); if (!chk.ok) return fail(chk.error, f.elements.barcode); }
     const btn = f.querySelector('[type=submit]'); btn.disabled = true;
-    const body = { mode: d.mode === 'edit' ? 'set' : 'add', isbn: d.isbn, title: f.elements.title.value.trim(), author: f.elements.author.value.trim(), publisher: f.elements.publisher.value.trim(), list_price: Number(f.elements.list_price.value) || 0, price: Number(f.elements.price.value), qty: Number(f.elements.qty.value), published: f.elements.published.checked, image: d.image || '', pub_date: d.pub_date || '' };
+    const body = { mode: d.mode === 'edit' ? 'set' : 'add', id: d.mode === 'edit' ? d.id : undefined, barcode: d.mode === 'edit' ? code : (d.barcode || d.isbn), barcode_format: d.mode === 'edit' ? fmt : d.barcode_format, isbn: d.isbn, title: t, author: f.elements.author.value.trim(), publisher: f.elements.publisher.value.trim(), list_price: Number(f.elements.list_price.value) || 0, price: Number(f.elements.price.value), qty: Number(f.elements.qty.value), published: f.elements.published.checked, image: d.image || '', pub_date: d.pub_date || '' };
     try {
       const out = await api('/admin/menu/books', { method: 'POST', body });
       say(`${d.mode === 'edit' ? '已更新' : '已存檔'}：《${out.book.zh}》NT$${num(out.book.price)}，庫存 ${out.book.stock_left} 本，約書旅 POS 已可結帳。`, 'ok');
@@ -267,12 +281,12 @@ async function loadList(scrollToId = '') {
 function paintList(d) {
   const host = document.getElementById('list'); if (!host) return;
   const q = FILTER.trim().toLowerCase();
-  const rows = BOOKS.filter(b => !q || [b.zh, b.author, b.publisher, b.isbn].some(x => String(x || '').toLowerCase().includes(q)));
+  const rows = BOOKS.filter(b => !q || [b.zh, b.author, b.publisher, b.isbn, b.barcode].some(x => String(x || '').toLowerCase().includes(q)));
   host.innerHTML = `<div class="stats"><span>共 <b>${num(BOOKS.length)}</b> 種</span><span><b>${num(BOOKS.reduce((a, b) => a + (b.stock_left || 0), 0))}</b> 本在庫</span><span><b>${num(BOOKS.filter(b => b.published).length)}</b> 種上架</span></div>
-    <div class="tools"><input id="filter" type="search" maxlength="60" placeholder="搜尋書名、作者、出版社、ISBN" aria-label="搜尋書冊" value="${esc(FILTER)}"><button class="btn btn--ghost" type="button" id="csv" ${BOOKS.length ? '' : 'disabled'}>匯出 CSV</button></div>
-    ${rows.length ? `<table><thead><tr><th>書名</th><th>ISBN</th><th class="num">定價</th><th class="num">售價</th><th class="num">庫存</th><th class="num">操作</th></tr></thead><tbody>
+    <div class="tools"><input id="filter" type="search" maxlength="60" placeholder="搜尋書名、作者、出版社、ISBN、條碼" aria-label="搜尋書冊" value="${esc(FILTER)}"><button class="btn btn--ghost" type="button" id="csv" ${BOOKS.length ? '' : 'disabled'}>匯出 CSV</button></div>
+    ${rows.length ? `<table><thead><tr><th>書名</th><th>條碼</th><th class="num">定價</th><th class="num">售價</th><th class="num">庫存</th><th class="num">操作</th></tr></thead><tbody>
     ${rows.map(b => `<tr data-book-id="${esc(b.id)}" class="${b.published ? '' : 'off'}"><td><b>${esc(b.zh)}</b><span class="sub">${esc([b.author, b.publisher].filter(Boolean).join('／'))}</span>${b.published ? '' : '<span class="pill">未上架</span>'}</td>
-      <td data-k="ISBN">${esc(b.isbn)}</td><td class="num" data-k="定價">${b.list_price ? 'NT$' + num(b.list_price) : '—'}</td><td class="num" data-k="售價">NT$${num(b.price)}</td>
+      <td data-k="條碼">${esc(b.barcode || b.isbn)}<span class="sub">${esc(fmtLabel(b.barcode_format || (b.isbn ? 'isbn13' : '')))}</span></td><td class="num" data-k="定價">${b.list_price ? 'NT$' + num(b.list_price) : '—'}</td><td class="num" data-k="售價">NT$${num(b.price)}</td>
       <td class="num" data-k="庫存"><span class="pill ${(b.stock_left || 0) <= 0 ? 'low' : ''}">${num(b.stock_left || 0)} 本</span></td>
       <td><div class="row-acts"><button class="btn btn--ghost" type="button" data-edit="${esc(b.id)}">編輯</button><button class="btn btn--danger" type="button" data-del="${esc(b.id)}">刪除</button></div></td></tr>`).join('')}
     </tbody></table>` : `<p class="lead">${BOOKS.length ? '沒有符合的書。' : '還沒有書。掃第一本開始造冊。'}</p>`}`;
@@ -284,8 +298,8 @@ function paintList(d) {
 }
 function editBook(id) {
   const b = BOOKS.find(x => x.id === id); if (!b) return;
-  DRAFT = { mode: 'edit', isbn: b.isbn, title: b.zh, author: b.author, publisher: b.publisher, list_price: b.list_price, price: b.price, qty: b.stock_left || 0, published: b.published, image: b.image };
-  say(`編輯《${b.zh}》`); paintDraft(); loadStores(b.isbn, b.zh);
+  DRAFT = { mode: 'edit', id: b.id, isbn: b.isbn, barcode: b.barcode || b.isbn, barcode_format: b.barcode_format || (b.isbn ? 'isbn13' : 'text'), title: b.zh, author: b.author, publisher: b.publisher, list_price: b.list_price, price: b.price, qty: b.stock_left || 0, published: b.published, image: b.image };
+  say(`編輯《${b.zh}》`); paintDraft(); if (b.isbn) loadStores(b.isbn, b.zh); else storesBox('');
   document.getElementById('scan-msg').scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 async function delBook(id) {
@@ -330,8 +344,10 @@ async function startCam() {
     const tick = async () => {
       if (!STREAM) return;
       const codes = await det.detect(video).catch(() => []);
-      const c = codes[0], r = c ? BarcodeNormalize.normalizeBarcode(c.rawValue || '', { format: c.format }) : null;
-      if (r && r.valid && r.code !== last && !LOOKING) { last = r.code; document.getElementById('isbn').value = r.isbn || r.code; stopCam(); lookup(c.rawValue, c.format); return; }
+      // 相機回報的符號名稱先用 BarcodeNormalize 統一（zxing 的 UPC-A 會回 0 開頭 13 碼 EAN13 → 還原成 12 碼 UPC-A；Code 39 去起止 *），
+      // 再交給 BookBarcode（與後端同一套索引）解析；任何能解析的書本條碼都收，非 ISBN 走手動補資料
+      const hit = codes.map(c => { if (!c || !c.rawValue) return null; const n = BarcodeNormalize.normalizeBarcode(c.rawValue, { format: c.format }); const fmt = BarcodeNormalize.canonicalFormat(c.format) || n.format; const val = n.valid && (n.format === 'upc_a' || n.format === 'code_39') ? n.code : c.rawValue; return BookBarcode.parse(val, n.valid ? n.format : fmt).ok ? { val, fmt: n.valid ? n.format : fmt } : null; }).find(Boolean);
+      if (hit && hit.val !== last && !LOOKING) { last = hit.val; document.getElementById('isbn').value = hit.val; stopCam(); lookup(hit.val, hit.fmt); return; }
       requestAnimationFrame(tick);
     };
     tick();

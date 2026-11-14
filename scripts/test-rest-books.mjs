@@ -74,7 +74,8 @@ test('造冊：新增→再掃加本數→set 改本數；只能放約書旅', (
   ({ json, item } = books.upsertBook(json, { isbn: '9789861755267', price: 330, qty: 5, mode: 'set' }));
   assert.equal(item.stock_left, 5); assert.equal(item.price, 330);
   assert.equal(books.listBooks(json).length, 1);
-  assert.throws(() => books.upsertBook(json, { isbn: '123', title: 'x', price: 1 }), /ISBN/);
+  assert.throws(() => books.upsertBook(json, { isbn: '12', title: 'x', price: 1 }), /條碼/);
+  assert.throws(() => books.upsertBook(json, { isbn: '9789861755260', title: 'x', price: 1 }), /檢查碼/);
   assert.throws(() => books.upsertBook(json, { isbn: '9780262033848', title: '', price: 1 }), /書名/);
   const legacySpaceMenu = JSON.stringify({ items: [MenuLib.normalizeItem({ id: 'm_rest_space_lounge_entry_1_hour', venue: 'REST', cat: 'LOUNGE', zh: '空間使用費｜貴賓室入場 1 小時', price: 150, image: '/assets/restbook/lounge-entry.svg' })] });
   assert.doesNotThrow(() => books.upsertBook(legacySpaceMenu, { isbn: '9789861755267', title: '原子習慣', list_price: 330, price: 330, qty: 1 }), '既有約書旅靜態圖片不可阻擋書籍入庫');
@@ -117,7 +118,7 @@ test('接線：後台頁、API、POS 估清排除書籍、結帳不送出餐單�
   assert.match(read('public/pos-ops.js'), /MenuLib\.inVenue\(it,SCOPE\)&&!MenuLib\.isBook\(it\)/);
   const page = read('public/rest-book-admin.html');
   assert.match(page, /\/api'? ?\+ ?path|'\/api' \+ path/);
-  assert.match(page, /\/admin\/menu\/books\/lookup\?isbn=/);
+  assert.match(page, /\/admin\/menu\/books\/lookup\?barcode=/);
   assert.match(page, /\/admin\/menu\/books\/stores\?isbn=/, '書店比價改由伺服器統一接口查（lib/book-stores.js）');
   assert.match(page, /platform-searches/);
   assert.match(page, /loadList\(out\.book\.id\)/, '存檔後要重新讀取並定位新書');

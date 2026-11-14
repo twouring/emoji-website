@@ -135,8 +135,11 @@ test('後台接線：載入模組、相機開所有格式、非 ISBN 走手動�
   assert.match(page, /<script src="\/barcode-normalize\.js"><\/script>/);
   assert.match(page, /BarcodeNormalize\.DETECTOR_FORMATS/);
   assert.match(page, /formats: BarcodeNormalize\.ZXING_FORMATS, eanAddOnSymbol: 'Read'/);
-  assert.match(page, /if \(!r\.isbn\) \{[^}]*manualDraft\(r\)/);
-  assert.match(page, /lookup\(c\.rawValue, c\.format\)/);
+  // 合併 t_96b973b8 後：非 ISBN 由 lookup 的 !isbn 分支開手動補資料草稿（manual:true），相機先經 BarcodeNormalize 統一格式再交 BookBarcode
+  assert.match(page, /<script src="\/book-barcode\.js"><\/script>/);
+  assert.match(page, /\} else if \(!isbn\) \{\s*DRAFT = \{ \.\.\.base, mode: 'new', manual: true/);
+  assert.match(page, /BarcodeNormalize\.normalizeBarcode\(c\.rawValue, \{ format: c\.format \}\)/);
+  assert.match(page, /lookup\(hit\.val, hit\.fmt\)/);
   assert.doesNotMatch(page, /formats: \['ean_13'\] \}\);\n/, '不再只開 EAN-13');
   for (const f of ['ean_13', 'ean_8', 'upc_a', 'code_128', 'code_39', 'itf', 'qr_code']) assert.ok(B.DETECTOR_FORMATS.includes(f), f);
   const zx = fs.readFileSync(new URL('../public/vendor/zxing-reader.js', import.meta.url), 'utf8').slice(0, 4000);
