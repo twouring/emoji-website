@@ -66,6 +66,7 @@ function paintSettings(host){
       <div class="set-links">
         <button type="button" class="set-link" id="set-print-test">${POSIcon('printer')}<span class="set-link-main"><b>測試列印</b><span>${typeof escposReady==='function'&&escposReady()?'已設定 ESC/POS 主機列印，印一張測試單確認紙張與連線':typeof starReady==='function'&&starReady()?'已接 mPOP，印一張測試單確認紙張與連線':'需設定 ESC/POS 主機列印，或用 Star webPRNT Browser 接 mPOP'}</span></span><span class="set-chev" aria-hidden="true">›</span></button>
         <button type="button" class="set-link" id="set-edit-tables">${POSIcon('pencil')}<span class="set-link-main"><b>編輯桌位擺放</b><span>拖到跟現場一樣的位置，全店平板一起套用</span></span><span class="set-chev" aria-hidden="true">›</span></button>
+        <a class="set-link" id="set-nvr" href="https://192.168.50.2/" target="_blank" rel="noopener noreferrer">${POSIcon('camera')}<span class="set-link-main"><b>監視器</b><span>在新分頁開啟 VIGI 即時影像；登入資料只留在這台 POS 主機</span></span><span class="set-chev" aria-hidden="true">›</span></a>
       </div>
       ${ver&&!ver.includes('<')?`<p class="hint">POS 版本 v${esc(ver)}</p>`:''}
     </div>`;

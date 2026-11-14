@@ -54,6 +54,15 @@ test('只有管理員能用的功能只在 admin，不放 POS（KK 11/2）', () 
   assert.match(ops, /USB ESC\/POS 列印失敗/, '測試列印不可誤導成 mPOP USB-C 問題');
   assert.doesNotMatch(set, /\bconfirm\(|\bprompt\(/, '一律用 posConfirm／pickReason');
 });
+
+test('監視器入口只在店內 POS 主機另開 NVR，不嵌入影像也不保存 NVR 帳密', () => {
+  assert.match(set, /id="set-nvr"/);
+  assert.match(set, /href="https:\/\/192\.168\.50\.2\/"/);
+  assert.match(set, /target="_blank"/);
+  assert.match(set, /rel="noopener noreferrer"/);
+  assert.match(set, /登入資料只留在這台 POS 主機/);
+  assert.doesNotMatch(set, /<iframe|NVR_(?:PASS|USER)|nvr(?:_|\w)*password/i, 'POS 不得內嵌 NVR 或保存其登入資料');
+});
 test('後端：GET 清單、POST/PATCH 超管或店長識別碼、API.md 有文件', () => {
   assert.match(server, /app\.get\('\/api\/admin\/payment-methods',auth,adminOnly,requireDb,/);
   assert.match(api, /### GET \/api\/admin\/payment-methods/);
