@@ -49,6 +49,7 @@ const kitchenPrint=require('./lib/pos-kitchen-print');
 const remotePrint=require('./lib/pos-remote-print');
 const tableLive=require('./lib/table-live');
 const ezpayInvoice=require('./lib/ezpay-invoice');
+const accountingReport=require('./lib/accounting-report');
 const linepay=require('./lib/linepay');
 const linepayOffline=require('./lib/linepay-offline');
 const ctbc=require('./lib/ctbc');
@@ -7217,6 +7218,28 @@ async function ordersOfDay(day,cols){
     const r=regs.filter(r=>r.venue===v&&+new Date(r.opened_at)<=t&&(!r.closed_at||t<+new Date(r.closed_at))&&r.day>=floor&&r.day<=bd).sort((a,b)=>+new Date(b.opened_at)-+new Date(a.opened_at))[0];
     return (r?r.day:tableOrders.MenuLib.businessDay(t))===day;});
 }
+/* 跨區間版 ordersOfDay：每張單算出開帳日認列的 ledger_day（規則同 ordersOfDay），只留落在 fromDay～toDay 的單 */
+async function ordersOfLedgerRange(fromDay,toDay,cols){
+  const from=new Date(fromDay+'T03:00:00+08:00'),to=new Date(Date.parse(toDay+'T03:00:00+08:00')+86400e3),pad=2*86400e3;
+  const regs=(await q('SELECT venue,day,opened_at,closed_at FROM pos_registers WHERE opened_at<$2 AND (closed_at IS NULL OR closed_at>$1)',[new Date(+from-pad),new Date(+to+pad)])).rows.map(regDay);
+  const rows=(await q(`SELECT ${cols} FROM table_orders WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at`,[new Date(+from-pad),new Date(+to+pad)])).rows;
+  const out=[];for(const o of rows){const t=+new Date(o.paid_at),v=orderLedgerVenue(o);
+    const bd=tableOrders.MenuLib.businessDay(t),floor=dayMinus1(bd);
+    const r=regs.filter(r=>r.venue===v&&+new Date(r.opened_at)<=t&&(!r.closed_at||t<+new Date(r.closed_at))&&r.day>=floor&&r.day<=bd).sort((a,b)=>+new Date(b.opened_at)-+new Date(a.opened_at))[0];
+    const ld=r?r.day:bd;if(ld>=fromDay&&ld<=toDay)out.push({...o,ledger_day:ld});}
+  return out;
+}
+/* 會計對帳報表（admin「會計對帳」，KK 11/15）：區間（最多 93 天）依法人→品牌→營業日彙總營收、稅額、收款方式、發票、現金短溢、LINE Pay／中信差額；只給言文字管理員（不在 FOOD_API，品牌子帳號由 brandDenied 擋） */
+app.get('/api/admin/accounting',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  let r;try{r=accountingReport.range(req.query);}catch(e){if(e.status===400)return res.status(400).json({error:e.message});throw e;}
+  const orders=await ordersOfLedgerRange(r.from,r.to,'id,session_id,table_no,items,amount,payer,tappay,invoice,status,paid_at,void_reason');
+  const registers=(await q('SELECT id,day,venue,opened_at,closed_at,diff,counted_cash,expected_cash FROM pos_registers WHERE day>=$1 AND day<=$2 ORDER BY opened_at',[r.from,r.to])).rows;
+  const linepayTxs=(await q('SELECT id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no,claim_venue FROM linepay_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[r.start,r.end])).rows;
+  const ctbcTxs=(await q('SELECT id,type,amount,paid_at,card_no,card_last4,auth_code,biz,progress,settle,settle_date,pay_date,terminal_id,device_user,note,claim_venue FROM ctbc_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[r.start,r.end])).rows;
+  const methodLabels=Object.fromEntries((await paymentMethodsList()).map(m=>[m.code,m.label]));
+  res.set('Cache-Control','no-store');
+  res.json(accountingReport.build({...r,orders,registers,linepayTxs,ctbcTxs,methodLabels}));
+}));
 /* 列出某營業日兩品牌的帳本狀態（沒開＝null）＋每本的即時小結 */
 app.get('/api/admin/registers',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));

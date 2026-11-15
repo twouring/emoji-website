@@ -112,6 +112,7 @@
   /* 表格：36px 列高、黏性表頭、hover 列、右對齊數字 */
   .a-wrap2{overflow:auto;max-height:72vh;border:1px solid var(--line);border-radius:6px}
   table.a-tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:1rem}
+  table.a-tbl td.num.bad{color:#B3261E;font-weight:600}
   table.a-tbl th{position:sticky;top:0;z-index:1;background:var(--paper-alt);text-align:left;color:var(--muted);font-weight:500;font-size:1rem;letter-spacing:.05em;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
   table.a-tbl td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:middle;line-height:1.45}
   table.a-tbl tbody tr:last-child td{border-bottom:0}
@@ -1285,6 +1286,50 @@ async function loadLogs(){
 }
 
 
+/* ---- 會計對帳（KK 11/15）：區間依法人→品牌→營業日彙總，給會計核對營收、稅額、收款、發票；四種 CSV ---- */
+function tabAccounting(){ return '<div class="a-sec" id="acct-body"></div>'; }
+let ACCT = null;
+const acctMonth = (off=0) => { const t=new Date(Date.now()+8*3600e3-3*3600e3); const d=new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth()+off, 1)); const e=new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth()+1, 0)); return [d.toISOString().slice(0,10), e.toISOString().slice(0,10)]; };
+async function loadAccounting(from, to){
+  const host = document.getElementById('acct-body'); if (!host) return;
+  if (!from) { const cur = ACCT ? [ACCT.from, ACCT.to] : acctMonth(0); [from, to] = cur; }
+  host.innerHTML = '<h2>會計對帳</h2><p class="hint">載入中…</p>';
+  try { ACCT = await api(`/admin/accounting?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`); }
+  catch(e) { host.innerHTML = `<h2>會計對帳</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`; return; }
+  paintAccounting();
+}
+function paintAccounting(){
+  const host = document.getElementById('acct-body'), d = ACCT; if (!host || !d) return;
+  const nt = n => 'NT$' + num(n||0);
+  const diffCls = n => n ? ' class="num bad"' : ' class="num"';
+  const tax = n => { const a = Math.round((n||0)/1.05); return [a, (n||0)-a]; };
+  const head = `<tr><th></th><th class="num">單數</th><th class="num">營收（含稅）</th><th class="num">未稅</th><th class="num">稅額</th>${d.methods.map(m=>`<th class="num">${esc(d.method_labels[m])}</th>`).join('')}<th class="num">打賞代收</th><th class="num">發票金額</th><th class="num">未開發票</th><th class="num">作廢</th><th class="num">現金短溢</th><th class="num">LINE Pay 差額</th><th class="num">中信差額</th></tr>`;
+  const line = (label, r, strong) => { const [a,t] = tax(r.amount); const td = v => `<td class="num">${strong?'<b>':''}${num(v)}${strong?'</b>':''}</td>`;
+    return `<tr><td>${strong?'<b>':''}${esc(label)}${strong?'</b>':''}</td>${td(r.orders)}${td(r.amount)}${td(a)}${td(t)}${d.methods.map(m=>td((r.by_method||{})[m]||0)).join('')}${td(r.tip)}${td(r.invoice_amount)}${td(r.uninvoiced)}<td class="num">${num(r.voided)} 張／${num(r.void_amount)}</td><td${diffCls(r.cash_diff)}>${num(r.cash_diff)}</td><td${diffCls(r.linepay_actual-r.linepay_pos)}>${num(r.linepay_actual-r.linepay_pos)}</td><td${diffCls(r.ctbc_actual-r.ctbc_pos)}>${num(r.ctbc_actual-r.ctbc_pos)}</td></tr>`; };
+  const ents = Object.entries(d.by_entity);
+  const kpis = ents.map(([k,e]) => { const [a,t]=tax(e.amount); return `<div class="a-kpi"><div class="kl">${esc(e.label)}</div><div class="kv">${nt(e.amount)}</div><div class="hint" style="margin:2px 0 0">未稅 ${num(a)}・稅額 ${num(t)}・${num(e.orders)} 單</div></div>`; }).join('') || '<div class="a-kpi"><div class="kl">區間營收</div><div class="kv">NT$0</div></div>';
+  const sumRows = ents.map(([k,e]) => line(e.label, e, true) + e.venues.map(v => line('　' + (d.by_venue[v]||{}).label, d.by_venue[v])).join('')).join('') + (ents.length > 1 ? line('全部合計', d.total, true) : '');
+  const REG = { closed:'<span class="pill pill-ok">已關帳</span>', open:'<span class="pill pill-wait">未關帳</span>', none:'<span class="pill pill-bad">無帳本</span>' };
+  const dayRows = d.rows.map(r => line(`${r.day.slice(5)} ${r.venue_label}（${(r.entity_label||'').replace('股份有限公司','')}）`, r).replace('</td>', ` ${REG[r.register]||''}</td>`)).join('') || `<tr><td colspan="${13+d.methods.length}" class="a-empty">區間內沒有交易</td></tr>`;
+  const issues = d.issues.length ? `<ul class="a-todo-list">${d.issues.map(i=>`<li><span class="pill ${i.level==='warn'?'pill-bad':'pill-wait'}">${i.level==='warn'?'待查':'提醒'}</span> ${esc(i.text)}</li>`).join('')}</ul>` : '<p class="hint">區間內沒有待查項目：帳本都已關帳、現金無短溢、LINE Pay／中信與 POS 一致、發票無失敗。</p>';
+  host.innerHTML = `<h2>會計對帳</h2>
+    <p class="hint">依營業日（凌晨 03:00 換日、依開帳日認列，與日結同口徑）彙總。營收不含打賞（代收轉付）、作廢單不計；稅額以含稅金額 ÷1.05 拆算，實際以 ezPay 開立為準。法人：言文字＝在咖啡＋三點水，遊遊＝等等空間＋約書旅。</p>
+    <form class="a-toolbar" id="acct-range"><label>起日 <input type="date" name="from" value="${esc(d.from)}" required></label><label>迄日 <input type="date" name="to" value="${esc(d.to)}" required></label><button class="btn btn--solid btn-sm" type="submit">查詢</button><button class="btn btn--ghost btn-sm" type="button" data-acct-month="0">本月</button><button class="btn btn--ghost btn-sm" type="button" data-acct-month="-1">上月</button></form>
+    <div class="a-kpis">${kpis}</div>
+    <h3>待查項目（${d.issues.length}）</h3>${issues}
+    <h3>法人／品牌彙總（${esc(d.from)}～${esc(d.to)}，${d.days} 天）</h3>
+    <div class="a-wrap2"><table class="a-tbl"><thead>${head}</thead><tbody>${sumRows || `<tr><td colspan="${13+d.methods.length}" class="a-empty">區間內沒有交易</td></tr>`}</tbody></table></div>
+    <h3>逐日明細</h3>
+    <div class="a-wrap2"><table class="a-tbl"><thead>${head}</thead><tbody>${dayRows}</tbody></table></div>
+    <h3>匯出給會計</h3>
+    <div class="a-toolbar"><button class="btn btn--solid btn-sm" data-acct-csv="daily">逐日彙總 CSV</button><button class="btn btn--ghost btn-sm" data-acct-csv="invoices">逐筆交易與發票 CSV</button><button class="btn btn--ghost btn-sm" data-acct-csv="linepay">LINE Pay 明細 CSV</button><button class="btn btn--ghost btn-sm" data-acct-csv="ctbc">中信刷卡明細 CSV</button></div>`;
+  const f = host.querySelector('#acct-range');
+  f.onsubmit = e => { e.preventDefault(); loadAccounting(f.elements.from.value, f.elements.to.value); };
+  host.querySelectorAll('[data-acct-month]').forEach(b => b.onclick = () => { const [a,z] = acctMonth(Number(b.dataset.acctMonth)); loadAccounting(a, z); });
+  const NAME = { daily:'會計對帳_逐日彙總', invoices:'會計對帳_逐筆交易與發票', linepay:'會計對帳_LINEPay', ctbc:'會計對帳_中信刷卡' };
+  host.querySelectorAll('[data-acct-csv]').forEach(b => b.onclick = () => downloadCSV(`${NAME[b.dataset.acctCsv]}_${d.from}_${d.to}.csv`, (d.csv||{})[b.dataset.acctCsv] || []));
+}
+
 /* ---- 餐飲營運：出餐看板、櫃檯結帳（POS）、訂位、日結、桌號 QR 的程式在 /pos-ops.js，與平板 POS（pos.emoji.tw）共用 ---- */
 
 function tabAdmins(d){
@@ -1316,7 +1361,7 @@ function tabAdmins(d){
    - 首頁「總覽」＝高管總覽（GET /api/admin/exec）：所有品牌今天的營收、帳本、桌況、在班人力，並挑出需要處理的問題。
    - 只給總公司（言文字管理員）使用；品牌子帳號登入直接擋回，門市一律用 pos.emoji.tw。日結報表、排班打卡看全部品牌（SCOPE＝''）。
    - 現場營運（櫃檯結帳、出餐、訂位、估清）仍在 pos.emoji.tw。員工新增／編輯與出勤修正刻意留在 admin（平板四位數密碼登入的現場人員不能改）。 */
-const ADMIN_TABS = ['overview','sales','staff','events','calendar','members','commitments','updates','menu','social','ads','outreach','partners','permissions','system','logs'];
+const ADMIN_TABS = ['overview','sales','accounting','staff','events','calendar','members','commitments','updates','menu','social','ads','outreach','partners','permissions','system','logs'];
 const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水', STAY:'等等空間', REST:'約書旅' };
 const SCOPE = '';   // pos-ops.js 共用：空字串＝所有品牌
 const OLD_WORKSPACE_SLUGS = ['shared','cafe','bar','space'];
@@ -1335,6 +1380,7 @@ const TABS = [
   { id:'reservations',label:'訂位',     render:tabReservations },
   { id:'history',     label:'查單',     render:tabHistory },
   { id:'sales',       label:'日結報表', render:tabSales },
+  { id:'accounting',  label:'會計對帳', render:tabAccounting },
   { id:'staff',       label:'排班打卡', render:tabStaff },
   { id:'updates',     label:'最新消息', render:tabUpdates },
   { id:'menu',        label:'菜單',     render:tabMenu },
@@ -1347,7 +1393,7 @@ const TABS = [
   { id:'logs',        label:'操作紀錄', render:tabLogs, super:true },
 ];
 const NAV_GROUPS = [
-  ['營運', ['overview','sales','staff']],
+  ['營運', ['overview','sales','accounting','staff']],
   ['活動', ['events','calendar']],
   ['會員', ['members','commitments']],
   ['內容', ['updates','menu']],
@@ -1365,6 +1411,7 @@ const ICONS = {
   pos:          '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h3M15 15h3"/>',
   reservations: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M9 15l2 2 4-4"/>',
   sales:        '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 6-6"/>',
+  accounting:   '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h2M14 10h2M8 14h2M14 14h2M8 18h8"/>',
   staff:        '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/><path d="M8 3.5 5 6M16 3.5 19 6"/>',
   logs:         '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
   system:       '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/>',
@@ -1474,6 +1521,7 @@ function applyRoute(){
   if (tab === 'reservations') { loadReservations(); return; }
   if (tab === 'history') { loadHistory(); return; }
   if (tab === 'sales') { loadSales(); return; }
+  if (tab === 'accounting') { loadAccounting(); return; }
   if (tab === 'staff') { loadStaff(); return; }
   if (tab === 'logs') { loadLogs(); return; }
   if (tab === 'system') { if(DATA?.super)loadSystemSettings(); return; }
