@@ -20,10 +20,12 @@ async function api(path, { method = 'GET', body } = {}){
   const res = await fetch('/api' + path, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: body ? JSON.stringify(body) : undefined });
   let d = {}; try { d = await res.json(); } catch (e) {}
   if (res.status === 401 && token) { try { localStorage.removeItem(KEY); } catch (e) {} token = null; renderLogin('登入已過期，請重新登入。'); }
-  if (!res.ok) throw Object.assign(new Error(d.error || '伺服器錯誤（' + res.status + '）'), { status: res.status });
+  if (!res.ok) throw Object.assign(new Error(d.error || '伺服器錯誤（' + res.status + '）'), { status: res.status, retryAfter: retryAfterMs(res.headers && res.headers.get && res.headers.get('Retry-After')) });
   return d;
 }
 const S = p => api('/admin/orders/songs' + p.replace(/^\/?/, p ? '/' : ''));
+/* Retry-After：秒數或 HTTP 日期 → 毫秒；沒給回 0 */
+function retryAfterMs(v){ if (v == null || v === '') return 0; const n = Number(v); if (Number.isFinite(n)) return Math.max(0, n * 1000); const t = Date.parse(v); return Number.isFinite(t) ? Math.max(0, t - Date.now()) : 0; }
 
 /* ---------- 路由 ---------- */
 /* ktv.emoji.tw 在根目錄；DNS 生效前的備用入口 pos.emoji.tw/ktv 在 /ktv 底下 */
@@ -393,7 +395,7 @@ const P = {
     window.onYouTubeIframeAPIReady = () => { P.ready = true; playerSync(); };
     const s = document.createElement('script'); s.id = 'yt-iframe-api'; s.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(s);
   },
-  stop(){ clearTimeout(this.watch); try { this.yt && this.yt.destroy(); } catch (e) {} this.yt = null; this.loaded = ''; this.playing = false; const d = $('#ktv-dock'); if (d) d.remove(); },
+  stop(){ clearTimeout(this.watch); clearTimeout(NX.t); NX.t = 0; try { this.yt && this.yt.destroy(); } catch (e) {} this.yt = null; this.loaded = ''; this.playing = false; const d = $('#ktv-dock'); if (d) d.remove(); },
   exec(c){
     const y = this.yt;
     if (c.cmd === 'sfx') return localSfx(c.arg);
@@ -419,10 +421,36 @@ function placeDock(){
   Object.assign(d.style, { left: r.left + 'px', top: r.top + 'px', width: Math.max(200, r.width) + 'px', height: Math.max(200, r.height) + 'px' });
 }
 addEventListener('resize', placeDock); document.addEventListener('scroll', placeDock, true);
+/* 自動換歌閘門（11/5 02:53–02:57 同一台 Mac 4 分鐘打 2,814 次 songs/next 的修正）：
+   原本 next() 不論成功失敗都立刻 playerSync()，條件沒變就再 next()，斷網／429／409／401／伺服器換不出歌時變成每個來回一次的無限迴圈。
+   現在：兩次自動換歌至少隔 NEXT_MIN_MS；失敗或沒有進展就指數退避（2s→4s→…→60s，含抖動）；429 照 Retry-After；
+   409（別台接手）重讀設定；401／登出後完全停止。店員按「下一首」走 act()，不受此限。 */
+const NEXT_MIN_MS = 3000, NEXT_MAX_MS = 60000;
+const NX = { until: 0, fails: 0, t: 0 };
+function nextBackoff(e){
+  NX.fails++;
+  const exp = Math.min(NEXT_MAX_MS, 2000 * 2 ** (NX.fails - 1)), wait = e && e.status === 429 ? Math.max(e.retryAfter || 30000, exp) : exp;
+  NX.until = Date.now() + wait + Math.floor(Math.random() * 500);
+}
 async function next(result){
-  if (P.busy) return; P.busy = true; const before = JSON.stringify(D);
-  try { D = await api('/admin/orders/songs/next', { method: 'POST', body: { result, current: D && D.now ? D.now.id : null, device: DEVICE } }); if (D.refunded) toast('客人點的歌無法播放，已跳過並從帳上拿掉'); } catch (e) { toast(e.message); }
-  P.busy = false; if (result === 'ended' && D && !D.now) P.emptyAt = Date.now();
+  if (P.busy || !token) return;
+  // 閘門內：不丟掉（例如影片一載入就 onError），排一次到期再送；重複呼叫只留一個計時器
+  if (Date.now() < NX.until) { clearTimeout(NX.t); NX.t = setTimeout(() => { NX.t = 0; if (isPlayer()) next(result); }, NX.until - Date.now()); return; }
+  clearTimeout(NX.t); NX.t = 0;
+  P.busy = true; NX.until = Date.now() + NEXT_MIN_MS;
+  const before = JSON.stringify(D), was = D && D.now ? D.now.id : null; let err = null;
+  try { D = await api('/admin/orders/songs/next', { method: 'POST', body: { result, current: was, device: DEVICE } }); if (D.refunded) toast('客人點的歌無法播放，已跳過並從帳上拿掉'); } catch (e) { err = e; }
+  P.busy = false;
+  if (err) {
+    nextBackoff(err);
+    if (err.status === 401) return;                                  // 已回登入頁
+    if (NX.fails === 1 || err.status === 429) toast(err.message);    // 同一串失敗只提示一次，不洗版
+    if (err.status === 409) await loadData();                        // 別台已接手播放：重讀設定，playerSync 會停掉這台
+    paint(); return playerSync();
+  }
+  const moved = (D && D.now ? D.now.id : null) !== was;
+  if (moved && !D.stale) NX.fails = 0; else nextBackoff();          // 換不出歌／stale：退避，不原地重打
+  if (result === 'ended' && D && !D.now) P.emptyAt = Date.now();
   if (JSON.stringify(D) !== before) paint(); playerSync();
 }
 /* 卡在載入中（iPad 從外部按播放常停在緩衝 0%）：20 秒沒開始播 → 靜音重載一次，再不行換下一首 */
@@ -474,7 +502,7 @@ async function armTv(){
 }
 /* 心跳：播放裝置每 2 秒回報狀態並領遙控指令 */
 async function beatTick(){
-  if (!isPlayer() || document.hidden) return;
+  if (!token || !isPlayer() || document.hidden) return;
   const c = cur();
   try {
     const out = await api('/admin/orders/songs/beat', { method: 'POST', body: { device: DEVICE, name: PAGE === 'tv' ? '電視畫面' : '控台', mode: PAGE === 'tv' ? 'tv' : 'console', state: P.yt ? (P.playing ? 'playing' : 'paused') : 'idle', pos: c.pos, dur: c.dur, vol: P.vol, muted: P.muted, video_id: D.now ? D.now.video_id : '', ack: P.ack } });
@@ -516,8 +544,8 @@ async function main(){
   render(); playerSync(); loadLive().then(paint);
   TIMERS.forEach(clearInterval);
   TIMERS = [
-    setInterval(async () => { if (document.hidden) return; const ch = await loadData(); const typing = document.activeElement && document.activeElement.matches('input,select'); if (ch && !typing) paint(); playerSync(); }, 5000),
-    setInterval(async () => { if (document.hidden || isPlayer()) return; const ch = await loadLive(); if (ch) syncButtons(); paintProgress(); }, 2000),
+    setInterval(async () => { if (document.hidden || !token) return; const ch = await loadData(); const typing = document.activeElement && document.activeElement.matches('input,select'); if (ch && !typing) paint(); playerSync(); }, 5000),
+    setInterval(async () => { if (document.hidden || !token || isPlayer()) return; const ch = await loadLive(); if (ch) syncButtons(); paintProgress(); }, 2000),
     setInterval(beatTick, 2000),
     setInterval(paintProgress, 1000),
     setInterval(async () => { try { const d = await api('/auth/renew', { method: 'POST', body: {} }); if (d.token) { token = d.token; localStorage.setItem(KEY, token); } } catch (e) {} }, 6 * 3600e3),
