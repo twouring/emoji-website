@@ -494,7 +494,7 @@
   function optionEn(zh) { for (const k of Object.keys(OPT.zh)) { const i = OPT.zh[k].indexOf(zh); if (i >= 0) return OPT.en[k][i]; } return ''; }
   /* 規格任一語言 → 中文（KK 11/2：出餐單統一中文）。外國客人點餐時 note 會寫成「Temperature：Hot；Ice：Less ice」，
    * 依標籤認出是哪一組再換回中文值；認不出的自由備註原樣保留。 */
-  const OPT_KEY = { temperature: 'temp', ice: 'ice', rice_amount: 'rice', noodle_amount: 'noodle', serve_timing: 'serve' };
+  const OPT_KEY = { sugar: 'sugar', temperature: 'temp', ice: 'ice', rice_amount: 'rice', noodle_amount: 'noodle', serve_timing: 'serve' };
   function optionZh(note) {
     return String(note || '').split(/[；;]/).map(s => s.trim()).filter(Boolean).map(s => {
       const m = s.match(/^([^：:]{1,20})[：:](.+)$/);

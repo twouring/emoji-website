@@ -41,3 +41,14 @@ test('有冰塊選項時不再印溫度「冰」（KK 11/7：去冰又寫冰）'
   assert.equal(t('溫度：冰'), ['冰'].join('|'));
   assert.equal(t('溫度：熱；糖度：無糖'), ['熱', '無糖'].join('|'));
 });
+
+test('結帳頁左欄品項備註一律中文（KK 11/15：現場人員方便識別）', () => {
+  assert.equal(optionZh('Sweetness：No sugar；Ice：Less ice'), '糖度：無糖；冰塊：少冰');
+  assert.equal(optionZh('면 양：보통'), '麵量：正常麵');
+  assert.equal(optionZh('Serving：Serve first'), '上餐時間：先上');
+  const src = fs.readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'utf8');
+  const row = src.slice(src.indexOf('const rowOf=l=>l.credit_of'), src.indexOf('// 品項依點餐人分組'));
+  assert.match(row, /pos-line-note">\$\{esc\(noteZh\(l\.note\)\)\}/);
+  assert.match(row, /noteZh\(p\.note\)/);
+  assert.doesNotMatch(row, /esc\(l\.note\)/);
+});
