@@ -93,6 +93,13 @@ test('品牌後台只看授權店別，清桌與出餐不可跨品牌或混桌',
   assert.equal(T.sessionClosableByVenues({ items: [{ venue: 'CAFE' }] }, cafeVenues), true);
   assert.equal(T.sessionClosableByVenues(mixedOrder, cafeVenues), false);
   assert.equal(T.sessionClosableByVenues(mixedOrder, null), true);
+  // 混桌清桌（KK 11/16）：對方品項都已結帳才可由品牌 POS 清桌
+  assert.equal(T.sessionClearableByVenues(mixedOrder, cafeVenues), false, '對方還有未結帳品項＝不可清');
+  assert.equal(T.sessionClearableByVenues({ items: [{ venue: 'CAFE' }, { venue: 'BAR', order_id: 'to_b' }] }, cafeVenues), true, '對方都結清＝可清（自家未結由 409 另擋）');
+  assert.equal(T.sessionClearableByVenues({ items: [{ venue: 'CAFE', order_id: 'to_c' }, { venue: 'BAR', order_id: 'to_b' }] }, ['BAR']), true, '反向：三點水也可清');
+  assert.equal(T.sessionClearableByVenues({ items: [{ venue: 'CAFE', order_id: 'to_c' }, { venue: 'BAR' }] }, cafeVenues), false);
+  assert.equal(T.sessionClearableByVenues({ items: [] }, cafeVenues), true);
+  assert.equal(T.sessionClearableByVenues(mixedOrder, null), true);
 });
 
 test('menuIndex 給 venue 只留該品牌；null＝非營業時段無品項', () => {

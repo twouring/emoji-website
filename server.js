@@ -6623,7 +6623,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     // 空間入場單（KK 11/15）：收到方案款的當下開始計時；客人按離場前不清桌（先付費後計時）
     const sp=s.space&&typeof s.space==='object'?s.space:null,spaceStart=!!(sp&&!sp.in_at&&out.lines.some(l=>l.space_role==='plan'));
     const spaceNow=spaceStart?{...sp,in_at:new Date().toISOString()}:sp;
-    const closed=tableOrders.unpaid(items).length===0&&tableOrders.sessionClosableByVenues(s,venues);
+    const closed=tableOrders.unpaid(items).length===0&&tableOrders.sessionClearableByVenues({items},venues);
     const held=!!(spaceNow&&!spaceNow.out_at);   // 空間入場單：客人在場內不清單（下面另外改回 open）
     if(closed)await client.query("UPDATE table_orders SET status='done',done_at=now() WHERE session_id=$1 AND status IN ('paid','ready')",[s.id]);
     await client.query('UPDATE table_sessions SET items=$2,status=$3,pay_requests=$4,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),closed?'closed':'open',JSON.stringify(tableOrders.prunePayRequests(s.pay_requests,items))]);
@@ -8141,7 +8141,7 @@ app.post('/api/admin/orders/sessions/:id/close',auth,adminOnly,requireDb,wrap(as
   const session=(await q("SELECT id,items,space FROM table_sessions WHERE id=$1 AND status='open'",[req.params.id])).rows[0];
   if(!session)return res.status(404).json({error:'找不到這桌。'});
   if(session.space&&session.space.in_at&&!session.space.out_at)return res.status(409).json({error:'客人還在場內，請先按「離場」，系統會計算超時。'});
-  if(!tableOrders.sessionClosableByVenues(session,venues))return res.status(403).json({error:'這桌含有其他品牌品項，請由言文字管理員清桌。'});
+  if(!tableOrders.sessionClearableByVenues(session,venues))return res.status(403).json({error:'這桌還有其他品牌未結帳的品項，請等對方結帳後再清桌，或由言文字管理員清桌。'});
   // 未付品項有金額時不直接清：要先結帳或逐項作廢，避免漏收；?force=1 由言文字管理員強制（走操作紀錄）
   const open=tableOrders.unpaid(session.items);
   if(open.length&&!(req.body?.force===true&&!venues))return res.status(409).json({error:`這桌還有 ${open.length} 項未結帳（NT$${tableOrders.sum(open).toLocaleString('zh-TW')}），請先到櫃檯結帳或逐項作廢。`,unpaid:open.length,unpaid_amount:tableOrders.sum(open)});
