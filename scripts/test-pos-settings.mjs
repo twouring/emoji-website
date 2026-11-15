@@ -94,6 +94,10 @@ test('監視器頁只嵌入已設定的 HTTPS bridge，NVR 帳密與私有 IP �
 test('Windows bridge uses NVR Channel-Zero RTSP with low-latency HLS and never exposes NVR directly', () => {
   const installer = read('tools/vigi-pos-bridge/Install-EmojiVigiBridge.ps1'), doc = read('tools/vigi-pos-bridge/README.md');
   assert.match(installer, /rtsp:\/\/\$\{encodedUser\}:\$\{encodedPassword\}@\$\{NvrHost\}:554\/live\/0\/1\/avm/);
+  assert.match(installer, /rtspTransport: tcp/, 'MediaMTX 1.21 的 RTSP 來源傳輸參數是 rtspTransport；用錯鍵名 mediamtx 會啟動失敗');
+  assert.doesNotMatch(installer, /sourceProtocol/);
+  assert.match(installer, /mediamtx\.err\.log/, '啟動失敗原因要寫進記錄檔');
+  assert.match(installer, /tailscale serve --bg 8888/);
   assert.match(installer, /webrtc: yes/);
   assert.match(installer, /hls: yes/);
   assert.match(installer, /127\.0\.0\.1:8888/);

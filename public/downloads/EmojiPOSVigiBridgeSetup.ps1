@@ -4,7 +4,7 @@
 [CmdletBinding()]
 param(
   [string]$NvrHost = '192.168.50.2',
-  [Parameter(Mandatory=$true)][string]$TunnelToken,
+  [string]$TunnelToken = '',
   [string]$InstallDir = "$env:ProgramData\EmojiPOS\vigi-bridge"
 )
 $ErrorActionPreference='Stop'
@@ -54,28 +54,36 @@ webrtcLocalTCPAddress: ''
 paths:
   channel-zero:
     source: $(Quote-Yaml $source)
-    sourceProtocol: tcp
+    rtspTransport: tcp
     sourceOnDemand: yes
 "@
   [System.IO.File]::WriteAllText((Join-Path $InstallDir 'mediamtx.yml'), $yaml, (New-Object System.Text.UTF8Encoding($false)))
+  $cfLine=''
+  if($TunnelToken -ne ''){
+    $cf=Join-Path $InstallDir 'cloudflared.exe'
+    Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe' -OutFile $cf
+    $cfLine="Start-Process -FilePath (Join-Path `$dir 'cloudflared.exe') -ArgumentList 'tunnel','--no-autoupdate','run','--token','$($TunnelToken.Replace("'","''"))' -WorkingDirectory `$dir -WindowStyle Hidden"
+  }
+  # mediamtx 輸出寫到 mediamtx.log，啟動失敗時可直接看原因
   $run=@"
 `$ErrorActionPreference='Stop'
 `$dir='$($InstallDir.Replace("'","''"))'
-Start-Process -FilePath (Join-Path `$dir 'mediamtx.exe') -ArgumentList (Join-Path `$dir 'mediamtx.yml') -WorkingDirectory `$dir -WindowStyle Hidden
-Start-Process -FilePath (Join-Path `$dir 'cloudflared.exe') -ArgumentList 'tunnel','--no-autoupdate','run','--token','$($TunnelToken.Replace("'","''"))' -WorkingDirectory `$dir -WindowStyle Hidden
+Start-Process -FilePath (Join-Path `$dir 'mediamtx.exe') -ArgumentList (Join-Path `$dir 'mediamtx.yml') -WorkingDirectory `$dir -WindowStyle Hidden -RedirectStandardOutput (Join-Path `$dir 'mediamtx.log') -RedirectStandardError (Join-Path `$dir 'mediamtx.err.log')
+$cfLine
 "@
   [System.IO.File]::WriteAllText((Join-Path $InstallDir 'run.ps1'), $run, (New-Object System.Text.UTF8Encoding($false)))
-  $cf=Join-Path $InstallDir 'cloudflared.exe'
-  Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe' -OutFile $cf
   $task='EmojiPOS-VigiBridge'
   schtasks.exe /Create /TN $task /SC ONSTART /RU SYSTEM /RL HIGHEST /TR "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$InstallDir\run.ps1`"" /F | Out-Null
   schtasks.exe /Run /TN $task | Out-Null
   Write-Host ''
-  Write-Host '安裝完成。' -ForegroundColor Green
-  Write-Host 'Cloudflare Zero Trust 的 Named Tunnel Public Hostname 要指向：' -ForegroundColor Yellow
-  Write-Host 'http://127.0.0.1:8888' -ForegroundColor Yellow
-  Write-Host 'POS 監視器頁填入：https://你的公開網域/channel-zero' -ForegroundColor Yellow
-  Write-Host '請在 NVR：設定 > Network > Network Service 確認 RTSP 啟用、554、SRTP 關閉。'
+  Start-Sleep -Seconds 3
+  $alive=Get-Process mediamtx -ErrorAction SilentlyContinue
+  Write-Host ''
+  if($alive){ Write-Host '安裝完成，mediamtx 已在背景執行。' -ForegroundColor Green }
+  else { Write-Host "mediamtx 沒有啟動，請看 $InstallDir\mediamtx.err.log 與 mediamtx.log。" -ForegroundColor Red }
+  Write-Host "本機驗證：http://127.0.0.1:8888/channel-zero/" -ForegroundColor Yellow
+  Write-Host '給 iPad／手機看：在這台安裝 Tailscale 後執行 tailscale serve --bg 8888，POS 監視器頁填它印出的 https://…ts.net/channel-zero/' -ForegroundColor Yellow
+  Write-Host '請在 NVR：設定 > Network > Network Service 確認 RTSP 啟用、554、SRTP 關閉；System > Basic Settings 啟用 Channel-Zero。'
 } finally {
   $nvrPassword=$null
 }
