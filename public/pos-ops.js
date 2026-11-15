@@ -2697,7 +2697,7 @@ function acctDialog(r,code,sales){
       <div class="reg-close-sum"><span>應收 <b>NT$${num(expected)}</b></span><span>實收 <b id="acct-actual-show">—</b></span><span>差額 <b id="acct-diff-show">—</b></span></div>
       ${cash?`<p class="hint">按面額填張數，或直接填總額。應收＝零用金＋現金營收＋臨時收入－臨時支出（整個錢櫃）。</p>${denomGrid()}`:GW?`${gw?.sync_error?`<p class="hint" role="alert" style="color:#c0392b;font-weight:600">⚠ ${GW.name} 自動同步失敗：${esc(gw.sync_error)}</p>`:''}<p class="hint" id="acct-gw-hint">${lpAuto==null?`${GW.name} 後台尚未同步：按「同步 ${GW.name}」自動帶入實收，或對照${GW.where}手動填入。`:`已自動帶入${GW.where}同步實收（${esc(applicationTime(gw.synced_at))} 同步，退款已扣），可修改；有新交易可再同步。`}</p><div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="acct-gw-sync" ${gw?.configured===false?`disabled title="尚未設定${GW.where}帳密"`:''}>同步 ${GW.name}</button></div>`:`<p class="hint">實收預設等於應收，帳對了直接按確認；不同請對照收單機、商家後台或交接資料改填本品牌本營業日實收（退款已扣、手續費扣除前）。</p>`}
       <div class="a-form"><label>${cash?'實收總額':'實收'}<input id="acct-actual" type="number" inputmode="numeric" min="0" step="1" placeholder="${cash?'或直接填':'沒有收款請填 0'}" onfocus="this.select()" value="${prev?esc(prev.actual):lpAuto!=null?lpAuto:expected}"></label><label class="reg-note" id="acct-reason-label" hidden>差異原因（應收≠實收必填）<input id="acct-reason" maxlength="200" placeholder="差額非 0 必填" value="${esc(prev?.reason||'')}"></label></div><div id="acct-reason-options" hidden>${reasonChips('acct-reason',REASON_PRESETS.close_note)}</div>
-      ${GW?`<details class="acct-gw-ref"><summary>帳務參考：${esc(GW.name)} 逐筆實收與對帳</summary><div id="acct-gw-ref">${gwRefHtml(sales,code)}</div></details>`:''}
+      ${GW?`<section class="acct-gw-ref"><h4>帳務參考：${esc(GW.name)} 逐筆實收與對帳</h4><div id="acct-gw-ref">${gwRefHtml(sales,code)}</div></section>`:''}
       <div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-cancel>取消</button><button type="button" class="btn btn--solid" data-ok disabled>確認</button></div>`,'核對 '+label);
     const box=ov.querySelector('.pos-move-box');bindReasonChips(box);if(GW){box.classList.add('acct-box--gw');bindGwCsv(box,sales);}
     if(cash&&prev?.denoms)for(const [f,n] of Object.entries(prev.denoms)){const i=box.querySelector(`[data-denom="${f}"]`);if(i)i.value=n;}
@@ -2869,8 +2869,8 @@ async function loadSales(){
     ${REG_DATA?accountConfirmBlock(REG_DATA,d):''}
     ${outBlock}
     ${REG_DATA?registerBlock(REG_DATA):''}
-    ${hasProducts?`<div class="a-toolbar"><a class="btn btn--ghost btn-sm" id="sales-items-go" data-tab="analytics" href="${esc(opsHref('analytics'))}">品項銷量 → 分析（${esc(d.day)}）</a><a class="btn btn--ghost btn-sm" id="sales-mix-go" data-tab="analytics" href="${esc(opsHref('analytics'))}">付款方式・時段分布 → 分析（${esc(d.day)}）</a></div>`:`<h3>品項銷量</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>品項</th>${SCOPE?'':'<th>店別</th>'}<th class="num">數量</th><th class="num">金額</th></tr></thead><tbody>${items}</tbody></table></div>`}
-    ${refFallback?`<details><summary>帳務參考（LINE Pay／中信逐筆實收）</summary>${gwRefHtml(d,'linepay')}${gwRefHtml(d,'ctbc')}</details>`:''}`;
+    ${hasProducts?`<div class="a-toolbar"><a class="btn btn--ghost btn-sm" id="sales-items-go" data-tab="analytics" href="${esc(opsHref('analytics'))}">品項銷量 → 分析（${esc(d.day)}）</a></div>`:`<h3>品項銷量</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>品項</th>${SCOPE?'':'<th>店別</th>'}<th class="num">數量</th><th class="num">金額</th></tr></thead><tbody>${items}</tbody></table></div>`}
+    ${refFallback?`<section class="acct-gw-ref"><h3>帳務參考（LINE Pay／中信逐筆實收）</h3>${gwRefHtml(d,'linepay')}${gwRefHtml(d,'ctbc')}</section>`:''}`;
   bindAccountConfirm(host,d,loadSales);bindRegisterBlock(host,loadSales);bindReasonChips(host);bindFillChips(host);
   const shift=n=>{const t=new Date(SALES_DAY+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);SALES_DAY=t.toISOString().slice(0,10);REG_CASH_OPEN=false;REG_CASH_EDIT=null;REG_CLOSE_OPEN=false;REG_COUNT_OPEN=false;REG_OPEN_FORM='';loadSales();};
   host.querySelectorAll('[data-pay-claim],[data-pay-release]').forEach(b=>b.onclick=async()=>{const gw=b.dataset.payClaim||b.dataset.payRelease,release=!!b.dataset.payRelease;let reason='';
@@ -2883,7 +2883,6 @@ async function loadSales(){
   host.querySelector('#sales-next').onclick=()=>shift(1);
   host.querySelector('#sales-today').onclick=()=>{SALES_DAY=MenuLib.businessDay();loadSales();};
   const ig=host.querySelector('#sales-items-go');if(ig)ig.onclick=()=>{ANALYTICS_FROM=d.day;ANALYTICS_TO=d.day;ANALYTICS_KIND='products';};   // 宿主頁的 a[data-tab] 點擊處理會切到分析（銷量），帶這個營業日
-  const mg=host.querySelector('#sales-mix-go');if(mg)mg.onclick=()=>{ANALYTICS_FROM=d.day;ANALYTICS_TO=d.day;ANALYTICS_KIND='customers';};   // 付款方式（金額）與時段來客在分析「客群」
   host.querySelector('#sales-csv').onclick=()=>downloadCSV(`日結_${d.day}${SCOPE?'_'+(BRAND_LABEL[SCOPE]||SCOPE):''}.csv`,d.csv||[]);
   salesDraftRestore(host);if(resumeDialog)salesDialogResume(host);
 }

@@ -50,12 +50,13 @@ test('close route uses authoritative brand sales and stale guard; reprints store
  assert.ok(!ui.includes('data-close-step'));
  assert.match(ui,/id="acct-gw-sync"/);assert.match(ui,/api\(GW\.sync,\{method:'POST',body:\{start,end\}\}\)/); // LINE Pay／中信對話框內可直接同步後台再帶入實收。
  // 帳務參考（LINE Pay／中信逐筆實收）放在「核對」視窗內（KK 11/15）；帳開著時日結頁底不再重複列
- assert.match(ui,/<details class="acct-gw-ref"><summary>帳務參考：/);
+ assert.match(ui,/<section class="acct-gw-ref"><h4>帳務參考：/); // 直接展開，不折疊（KK 11/15）
+ assert.ok(!/<details[^>]*acct-gw-ref/.test(ui));
  assert.match(ui,/const refFallback=!\(REG_DATA&&accountConfirmBlock\(REG_DATA,d\)\)/);
  assert.ok(!ui.includes('帳務參考（另行逐項確認）'));
  // 付款方式、時段分布移到分析分頁（客群），日結只留捷徑（KK 11/15）
  assert.ok(!ui.includes('<h3>時段分布</h3>')&&!ui.includes('class="sales-cols"'));
- assert.match(ui,/id="sales-mix-go"/);assert.match(ui,/ANALYTICS_KIND='customers'/);
+ assert.ok(!ui.includes('sales-mix-go')); // 不留跳轉按鈕（KK 11/15）
  assert.match(ui,/lpVenueTable/); // 保留 main 的 LINE Pay 店別歸屬與明細。
  const spec=ui.slice(ui.indexOf('function registerReportSpec('),ui.indexOf('// 有接 mPOP'));
  assert.match(spec,/rep\.accounts/);
