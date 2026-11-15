@@ -111,7 +111,8 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 .notice{color:var(--muted);margin:20px 0}
 .hidden{display:none!important}
 /* 客人自開桌填人數（KK 11/3）：全螢幕蓋住菜單，填完才點餐 */
-#policy{position:fixed;inset:0;z-index:5;background:var(--paper);overflow:auto;padding:calc(88px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom))}#policy .in{max-width:520px;margin:0 auto}#policy h3{font-size:1.3rem;margin:0 0 14px}.policy-list{list-style:none;padding:0;margin:0 0 12px;display:grid;gap:10px}.policy-list li{display:flex;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:#fff;font-size:1.05rem}#policy-ok{width:100%;margin-top:18px}
+#policy{position:fixed;inset:0;z-index:5;background:var(--paper);overflow:auto;padding:calc(88px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom))}#policy .in{max-width:520px;margin:0 auto}#policy h3{font-size:1.3rem;margin:0 0 14px}.policy-list{list-style:none;padding:0;margin:0 0 12px;display:grid;gap:10px}.policy-list li{display:flex;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:#fff;font-size:1.05rem}#policy-ok{width:100%;margin-top:18px}.policy-today{margin:0 0 14px;padding:18px 16px;border:2px solid var(--ink);border-radius:14px;background:var(--yellow);color:var(--on-yellow,var(--ink));text-align:center}.policy-today small{display:block;font-size:1rem;font-weight:700}.policy-today b{display:block;font-size:2rem;line-height:1.2;margin-top:4px}.policy-today[hidden]{display:none}
+.min-bar{display:flex;align-items:center;gap:10px;width:100%;margin:0 0 14px;padding:12px 14px;border:2px solid var(--ink);border-radius:12px;background:var(--yellow);color:var(--on-yellow,var(--ink));font:inherit;text-align:left;cursor:pointer}.min-bar[hidden]{display:none}.min-bar .ico{flex:none}.min-bar span{flex:1;min-width:0;font-size:1.05rem;font-weight:700;line-height:1.4;overflow-wrap:anywhere}.min-bar span i{font-style:normal;display:inline-block;max-width:100%}.min-bar u{flex:none;font-size:1rem;font-weight:600}
 #party{position:fixed;inset:0;z-index:4;background:var(--paper);overflow:auto;padding:calc(88px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom))}#party .in{max-width:520px;margin:0 auto}#party h3{font-size:1.3rem;margin:0 0 14px}#party p{margin:14px 0 8px;font-weight:700}
 .party-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}.party-grid button{min-height:48px;border:1px solid var(--line);background:#fff;border-radius:12px;font-weight:700;font-size:1.1rem;color:var(--ink)}.party-grid button[aria-pressed=true]{background:var(--yellow);border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}#party-ok{width:100%;margin-top:22px}body.party-on #bar,body.party-on #call-open{display:none!important}
 #thanks .btn{margin-top:12px;width:100%}#thanks a.btn{display:flex;align-items:center;justify-content:center;text-decoration:none}
@@ -176,7 +177,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 .member-terms{margin:10px 0 0;color:var(--muted);line-height:1.5}.member-terms a{color:inherit}
 .member-head{display:flex;align-items:center;gap:10px;min-height:44px}.member-head .pts{display:flex;align-items:baseline;gap:4px;margin-left:auto;line-height:1;white-space:nowrap}.member-head .pts b{font-size:1.2rem;font-weight:800}.member-head .pts small{color:var(--muted)}
 .member-head .who{flex:1 1 auto;min-width:0}.member-head .who b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:1rem}.member-head .who small,.member-head .who .badge{display:none}
-.member-redeem,.member-more{flex:none;min-height:44px;border:0;background:transparent;color:var(--ink);font:inherit;font-weight:700;white-space:nowrap}.member-redeem{color:var(--ok)}.member-more{width:44px;font-size:1.4rem;line-height:1}.member-rewards{margin:8px 0 0;padding:8px 0 0;border-top:1px solid var(--line);list-style:none;display:grid;gap:2px}.member-rewards li{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:48px}.member-rewards .rn{min-width:0;overflow-wrap:anywhere}.member-rewards small{display:block;color:var(--muted)}.member-rewards .btn{flex:none;min-height:44px}.member-actions{display:flex;gap:16px;margin:6px 0 0}.member-actions button{background:none;border:0;padding:4px 0;min-height:44px;color:var(--muted);text-decoration:underline;font:inherit;font-size:1rem;cursor:pointer}
+.member-redeem,.member-more{flex:none;min-height:44px;border:0;background:transparent;color:var(--ink);font:inherit;font-weight:700;white-space:nowrap}.member-redeem{color:var(--ok);flex:0 1 auto;min-width:0;white-space:normal;text-align:right;line-height:1.2}.member-more{width:44px;font-size:1.4rem;line-height:1}.member-rewards{margin:8px 0 0;padding:8px 0 0;border-top:1px solid var(--line);list-style:none;display:grid;gap:2px}.member-rewards li{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:48px}.member-rewards .rn{min-width:0;overflow-wrap:anywhere}.member-rewards small{display:block;color:var(--muted)}.member-rewards .btn{flex:none;min-height:44px}.member-actions{display:flex;gap:16px;margin:6px 0 0}.member-actions button{background:none;border:0;padding:4px 0;min-height:44px;color:var(--muted);text-decoration:underline;font:inherit;font-size:1rem;cursor:pointer}
 .item .p.has-mp{display:flex;flex-direction:column;align-items:flex-end;line-height:1.25}.item .p s{color:var(--muted);font-weight:500}.item .mp{color:var(--ok);font-weight:800;white-space:nowrap}
 .pay-by{display:flex;align-items:center;gap:6px;color:var(--muted);margin:8px 0 0}
 
@@ -212,7 +213,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   <div class="card hidden" id="thanks"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-check"></use></svg><span data-i18n="thanks">感謝用餐，期待再次光臨。</span></h3><p class="muted" data-i18n="thanks_hint">這次點餐已結束。若要再點，請洽服務人員。</p><button class="btn y" type="button" id="thanks-again" data-i18n="thanks_again" hidden>重新點餐</button><div class="review-box"><b data-i18n="review_title">喜歡今天的餐點嗎？</b><p class="muted" data-i18n="review_hint">在 Google 地圖留下評論，結帳時把評論出示給櫃檯人員，就送你 5 點會員點數（每位會員限領一次）。</p><a class="btn ghost" data-review-link href="https://maps.app.goo.gl/ZKdyKqwXjVA5x6JF6?g_st=ic" target="_blank" rel="noopener" data-i18n="review_go">寫 Google 評論</a></div><a class="btn ghost" id="thanks-home" href="https://app.emoji.tw/" data-i18n="thanks_home">回到 App 首頁</a></div>
 
   <div id="party" class="hidden" role="dialog" aria-labelledby="party-h"><div class="in"><h3 class="title-icon" id="party-h"><svg class="ico" aria-hidden="true"><use href="#i-user"></use></svg><span data-i18n="party_title">請問幾位用餐？</span></h3><p data-i18n="party_adults">大人</p><div class="party-grid" id="party-a"></div><p data-i18n="party_kids">小孩</p><div class="party-grid" id="party-k"></div><button class="btn y" type="button" id="party-ok"></button></div></div>
-  <div id="policy" class="hidden" role="dialog" aria-labelledby="policy-h"><div class="in"><h3 class="title-icon" id="policy-h"><svg class="ico" aria-hidden="true"><use href="#i-check"></use></svg><span data-i18n="policy_title">三點水用餐須知</span></h3><ul class="policy-list"><li><b data-i18n="policy_min">低消每人</b><span id="policy-min"></span></li><li><b data-i18n="policy_svc">服務費</b><span data-i18n="policy_svc_v">另加 10%（外帶不收）</span></li></ul><p class="muted" id="policy-today"></p><button class="btn y" type="button" id="policy-ok" data-i18n="policy_ok">我知道了，開始點餐</button></div></div>
+  <div id="policy" class="hidden" role="dialog" aria-labelledby="policy-h"><div class="in"><h3 class="title-icon" id="policy-h"><svg class="ico" aria-hidden="true"><use href="#i-receipt"></use></svg><span id="policy-title">三點水用餐須知</span></h3><div class="policy-today" id="policy-today-box"><small data-i18n="policy_today">今天每人低消</small><b id="policy-today-v"></b></div><ul class="policy-list"><li><b data-i18n="policy_min">低消每人</b><span id="policy-min"></span></li><li><b id="policy-svc">服務費</b><span id="policy-svc-v">另加 10%（外帶不收）</span></li></ul><p class="muted" id="policy-today"></p><button class="btn y" type="button" id="policy-ok" data-i18n="policy_ok">我知道了，開始點餐</button></div></div>
   <section id="app" class="hidden">
     <div class="card" id="name-gate"><h3 class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-user"></use></svg><span data-i18n="name_gate_title">先告訴我們怎麼稱呼您</span></h3><div class="gate-login" id="gate-login"></div><p class="gate-or" id="gate-or" hidden><span data-i18n="gate_or">或輸入稱呼</span></p><form id="name-form" class="name-form"><input class="f" id="name-in" data-i18n-placeholder="name_placeholder" placeholder="你的稱呼（讓同桌知道誰點了什麼）" maxlength="20" autocomplete="off"><div class="row name-actions"><button class="btn ghost" type="button" id="name-skip" data-i18n="name_skip">略過</button><button class="btn y" type="submit" data-i18n="name_gate_submit">查看菜單</button></div></form></div>
     <div id="order-content" class="hidden">
@@ -220,6 +221,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
       <div class="card name-row" id="name-row"><span class="muted"><span data-i18n="ordering_as">點餐稱呼</span>：<b id="name-display"></b></span><button class="btn ghost sm" type="button" id="name-edit-btn" data-i18n="name_edit">更改</button></div>
       <div class="card member-card" id="member-card" hidden></div>
       <div class="menu-status" id="menu-shift"><div><b class="title-icon"><svg class="ico" aria-hidden="true"><use href="#i-clock"></use></svg><span id="menu-shift-title">最後點餐</span></b><small id="menu-hours">依台北時間顯示目前供應品項</small></div></div>
+      <button class="min-bar" type="button" id="min-bar" hidden><svg class="ico" aria-hidden="true"><use href="#i-receipt"></use></svg><span id="min-bar-text"></span><u data-i18n="min_bar_more">說明</u></button>
       <div class="notice-bar" id="notice-bar" role="status" aria-live="polite" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span><span id="notice-bar-text"></span><small id="notice-bar-time"></small></span></div>
       <div class="call-status" id="call-status" role="status" aria-live="polite" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"></use></svg><span id="call-status-text"></span></div>
       <button class="song-card hidden" type="button" id="song-open"><svg class="ico lg" aria-hidden="true"><use href="#i-music"></use></svg><span class="n"><b data-i18n="song_title">點歌</b><small id="song-card-sub"></small><small class="song-card-now" id="song-card-now" hidden></small></span><span class="p" id="song-card-price"></span></button>
@@ -414,6 +416,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     $('#alcohol-notice').hidden=!items.some(function(i){return i.alcohol;});
     $('#bar-policy-notice').hidden=!(VENUE==='BAR'&&MenuLib.barPolicyActive&&MenuLib.barPolicyActive());
     $('#cafe-policy-notice').hidden=!(VENUE==='CAFE'&&MenuLib.cafePolicyActive&&MenuLib.cafePolicyActive());
+    renderMinBar();
     renderSongs();if(typeof renderTip==="function")renderTip();
     renderPriceTable(items);
   }
@@ -532,13 +535,25 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     var g=function(from,to,cur,key){var h='';for(var n=from;n<=to;n++)h+='<button type="button" data-'+key+'="'+n+'" aria-pressed="'+(n===cur)+'">'+n+'</button>';return h;};
     $('#party-a').innerHTML=g(1,12,PA,'pa');$('#party-k').innerHTML=g(0,5,PK,'pk');$('#party-ok').textContent=tr('party_submit',{n:PA+PK});
   }
-  /* 三點水低消說明（KK 11/4）：三點水點餐時段掃碼後，先看完低消＋服務費才能點餐；同一桌、同一支手機只出現一次 */
-  function policyKey(){return 'tth_bar_policy_'+(S&&S.id||'');}
-  function needPolicy(){if(VENUE!=='BAR'||!(MenuLib.barPolicyActive&&MenuLib.barPolicyActive()))return false;try{return !sessionStorage.getItem(policyKey())&&!localStorage.getItem(policyKey());}catch(e){return true;}}
-  function showPolicy(){var M=MenuLib.MIN_SPEND||{weekday:300,weekend:600},ms=MenuLib.minSpendOf?MenuLib.minSpendOf(1):null;
-    $('#policy-min').textContent=tr('policy_min_v').replace('{wd}',M.weekday).replace('{we}',M.weekend);
-    $('#policy-today').textContent=ms?tr(ms.weekend?'policy_today_we':'policy_today_wd').replace('{n}',ms.per):'';
+  /* 低消說明（KK 11/4 三點水；11/15 在咖啡也要、入口要更明顯）：掃碼進來先看今天每人低消（大字）才能點餐，
+     同一桌、同一支手機、同一店別只出現一次；菜單頂端常駐黃色低消列，點了可再打開說明。數字只取 MenuLib。 */
+  function policyVenue(){if(VENUE==='BAR'&&MenuLib.barPolicyActive&&MenuLib.barPolicyActive())return 'BAR';if(VENUE==='CAFE'&&MenuLib.cafePolicyActive&&MenuLib.cafePolicyActive())return 'CAFE';return null;}
+  function policyToday(v){
+    if(v==='BAR'){var ms=MenuLib.minSpendOf(1);return ms?'NT$'+ms.per:'';}
+    if(v==='CAFE'){var c=MenuLib.cafeMinimumOf(1);return !c?'':c.type==='drink'?tr('policy_drink'):'NT$'+c.per;}
+    return '';
+  }
+  function renderMinBar(){var v=policyVenue(),t=v&&policyToday(v),el=$('#min-bar');if(!el)return;el.hidden=!t;if(t)$('#min-bar-text').innerHTML=tr(v==='BAR'?'min_bar_bar':'min_bar_cafe').split('|').map(function(x){return '<i>'+esc(x.replace('{v}',t))+'</i>';}).join(' ');}   // 「|」是斷行點，各段不拆行
+  function policyKey(){return 'tth_policy_'+(policyVenue()||'')+'_'+(S&&S.id||'');}
+  function needPolicy(){if(!policyVenue())return false;try{return !sessionStorage.getItem(policyKey())&&!localStorage.getItem(policyKey());}catch(e){return true;}}
+  function showPolicy(){var v=policyVenue();if(!v)return;var bar=v==='BAR',M=MenuLib.MIN_SPEND||{weekday:300,weekend:600},t=policyToday(v);
+    $('#policy-title').textContent=tr(bar?'policy_title':'policy_title_cafe');
+    $('#policy-min').textContent=bar?tr('policy_min_v').replace('{wd}',M.weekday).replace('{we}',M.weekend):tr('policy_min_v_cafe').replace('{n}',MenuLib.CAFE_MIN_SPEND||300);
+    $('#policy-svc').textContent=tr(bar?'policy_svc':'policy_takeout');$('#policy-svc-v').textContent=tr(bar?'policy_svc_v':'policy_takeout_v');
+    $('#policy-today-box').hidden=!t;$('#policy-today-v').textContent=t;
+    $('#policy-today').textContent=tr(bar?'policy_note_bar':'policy_note_cafe');
     $('#policy').classList.remove('hidden');document.body.classList.add('party-on');}
+  $('#min-bar').onclick=showPolicy;
   $('#policy-ok').onclick=function(){try{localStorage.setItem(policyKey(),'1');}catch(e){}$('#policy').classList.add('hidden');if(!PARTY_ON)document.body.classList.remove('party-on');};
   function showParty(){PARTY_ON=true;paintParty();$('#party').classList.remove('hidden');document.body.classList.add('party-on');}
   function hideParty(){PARTY_ON=false;$('#party').classList.add('hidden');document.body.classList.remove('party-on');}

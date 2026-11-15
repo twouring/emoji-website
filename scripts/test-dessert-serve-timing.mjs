@@ -38,11 +38,13 @@ test('桌邊點餐：required 不預選，送出前擋下並提示；POS 面板�
   assert.match(ops, /上餐時間:'serve'/, '出餐單規格籤有自己的顏色');
 });
 
-test('三點水低消說明頁：只在三點水時段、每桌每支手機一次、按「我知道了」才關', () => {
+test('低消說明頁（KK 11/4 三點水；11/15 在咖啡也要）：生效店別才出、每桌每支手機每店一次、按「我知道了」才關；菜單頂端常駐低消列', () => {
   assert.match(html, /<div id="policy" class="hidden" role="dialog"/);
-  assert.match(html, /function needPolicy\(\)\{if\(VENUE!=='BAR'/);
+  assert.match(html, /function policyVenue\(\)\{if\(VENUE==='BAR'&&MenuLib\.barPolicyActive/);
+  assert.match(html, /function needPolicy\(\)\{if\(!policyVenue\(\)\)return false;/);
   assert.match(html, /if\(needPolicy\(\)\)showPolicy\(\);/);
   assert.match(html, /\$\('#policy-ok'\)\.onclick=function\(\)\{try\{localStorage\.setItem\(policyKey\(\),'1'\)/);
-  for (const l of ['zh', 'en', 'ja', 'ko']) for (const k of ['policy_title', 'policy_min_v', 'policy_ok', 'pick_required']) assert.notEqual(O.text(l, k), k, `${l}.${k}`);
+  assert.match(html, /id="min-bar"/); assert.match(html, /renderMinBar\(\);/); assert.match(html, /\$\('#min-bar'\)\.onclick=showPolicy;/);
+  for (const l of ['zh', 'en', 'ja', 'ko']) for (const k of ['policy_title', 'policy_min_v', 'policy_ok', 'pick_required', 'policy_today', 'policy_drink', 'policy_title_cafe', 'policy_min_v_cafe', 'policy_takeout', 'policy_takeout_v', 'min_bar_bar', 'min_bar_cafe', 'min_bar_more']) assert.notEqual(O.text(l, k), k, `${l}.${k}`);
   assert.equal(M.MIN_SPEND.weekday, 300); assert.equal(M.MIN_SPEND.weekend, 600);
 });
