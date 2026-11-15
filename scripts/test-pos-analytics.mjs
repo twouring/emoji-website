@@ -55,7 +55,8 @@ test('brand middleware admits analytics and both tabs have reachable loaders',()
  const h=fs.readFileSync(new URL('../public/pos.html',import.meta.url),'utf8'),js=fs.readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');
  // POS 平板：銷量與客群合併成「分析」分頁（上方切換），/admin 仍可各自呼叫 loadProducts／loadCustomers
  assert.match(h,/analytics:tabAnalytics/);assert.match(h,/else if \(TAB === 'analytics'\) loadAnalytics\(\)/);assert.match(h,/\{ id:'analytics', icon:'chart',\s+label:'分析' \}/);
- assert.match(js,/function tabAnalytics\(\)/);assert.match(js,/data-an-kind=/);assert.match(js,/ANALYTICS_KINDS=\[\['products','銷量'\],\['customers','客群'\]\]/);
+ assert.match(js,/function tabAnalytics\(\)/);assert.match(js,/data-an-kind=/);assert.match(js,/ANALYTICS_KINDS=\[\['products','銷量'\],\['customers','客群'\],\['weekday','星期'\],\['foreign','外國客'\]\]/);
+ assert.match(h,/ANALYTICS_SUBS = \{ products:1, customers:1, weekday:1, foreign:1 \}/);
  for(const fn of ['Products','Customers'])assert.match(js,new RegExp('function load'+fn+'\\('));
 });
 test('sales charts and tables show category labels, never raw cat codes',()=>{

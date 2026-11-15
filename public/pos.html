@@ -372,7 +372,7 @@ function downloadCSV(filename, rows){
   const csv = rows.map(r => r.map(c => { let s = c == null ? '' : String(c); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; }).join(',')).join('\r\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'})); a.download = filename; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
 }
-// 分頁網址：/pos（結帳）、/pos/orders、/pos/soldout、/pos/reservations、/pos/history、/pos/sales、/pos/clock、/pos/analytics（/pos/analytics/customers＝客群）、/pos/settings（底下 /pos/inventory、/pos/shifts、/pos/logs）；pos.emoji.tw 與 www.emoji.tw 皆可
+// 分頁網址：/pos（結帳）、/pos/orders、/pos/soldout、/pos/reservations、/pos/history、/pos/sales、/pos/clock、/pos/analytics（/pos/analytics/customers＝客群、/weekday＝星期、/foreign＝外國客）、/pos/settings（底下 /pos/inventory、/pos/shifts、/pos/logs）；pos.emoji.tw 與 www.emoji.tw 皆可
 const tabUrl = tab => (tab === 'pos' ? posTableUrl(POS_TABLE) : POS_BASE + '/' + tab) + (tab === 'analytics' && typeof ANALYTICS_KIND !== 'undefined' && ANALYTICS_KIND !== 'products' ? '/' + ANALYTICS_KIND : '');
 function opsHref(tab){ return tabUrl(tab); }
 // Google 登入的 callback 綁在官網網域（PUBLIC_ORIGIN），state cookie 也在那裡：子網域一律先到 www 發起，登入完成再以 #token 導回本站
@@ -510,11 +510,12 @@ function setScope(s){ if (POS_URL_VENUE && s !== POS_URL_VENUE) return; if (DATA
 
 // 舊網址 /pos/products、/pos/customers 併入「分析」：/pos/analytics/products|customers
 const LEGACY_ANALYTICS = { products:'products', customers:'customers' };
+const ANALYTICS_SUBS = { products:1, customers:1, weekday:1, foreign:1 };
 let ROUTE_TABLE = '';
 function routeTab(){
   const seg = location.pathname.replace(/^\/(atcafe|3am|staysquare|restbook)\/?/, '').replace(/\/+$/,'').split('/');
   if (LEGACY_ANALYTICS[seg[0]]) { ANALYTICS_KIND = LEGACY_ANALYTICS[seg[0]]; history.replaceState(null, '', POS_BASE + '/analytics/' + ANALYTICS_KIND); return 'analytics'; }
-  if (seg[0] === 'analytics' && LEGACY_ANALYTICS[seg[1]]) ANALYTICS_KIND = seg[1];
+  if (seg[0] === 'analytics' && ANALYTICS_SUBS[seg[1]]) ANALYTICS_KIND = seg[1];
   // 舊廚房看板網址 /pos/orders 轉到外場出餐分頁（KK 11/9 新增 /pos/serve）
   if (seg[0] === 'orders') { history.replaceState(null, '', POS_BASE + '/serve'); return 'serve'; }
   // 桌號獨立網址 /pos/table/<桌號>：直接開或上一頁／下一頁時切到該桌；桌沒開會在 paintPos 退回 /pos

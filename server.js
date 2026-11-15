@@ -7153,12 +7153,12 @@ app.get('/api/admin/analytics',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
   let range;try{range=tableOrders.analyticsRange(req.query);}catch(e){if(e.status===400)return res.status(400).json({error:e.message});throw e;}
   const {from,to,start,end}=range;
-  const orders=(await q(`SELECT id,table_no,items,amount,payer,tappay,status,paid_at FROM table_orders WHERE status<>'void' AND paid_at>=$1 AND paid_at<$2 ORDER BY paid_at`,[start,end])).rows;
+  const orders=(await q(`SELECT id,session_id,table_no,items,amount,payer,tappay,status,paid_at FROM table_orders WHERE status<>'void' AND paid_at>=$1 AND paid_at<$2 ORDER BY paid_at`,[start,end])).rows;
   const first=(await q(`SELECT payer->>'member_id' AS mid,min(paid_at) AS at FROM table_orders WHERE status<>'void' AND payer->>'member_id' IS NOT NULL GROUP BY 1`)).rows;
   const firstPaid=Object.fromEntries(first.map(r=>[r.mid,new Date(r.at).toISOString()]));
   // 來客受眾：開桌場次的人數／小孩／外國人（POS 開桌時選）
-  const sess=(await q(`SELECT table_no,party_votes,created_at FROM table_sessions WHERE created_at>=$1 AND created_at<$2 AND party_votes ? '__pos'`,[start,end])).rows;
-  res.json({...tableOrders.analyticsSummary(orders,{venues,from,to,firstPaid}),visitors:tableOrders.visitorSummary(sess,{venues,from,to})});
+  const sess=(await q(`SELECT id,table_no,party_votes,created_at FROM table_sessions WHERE created_at>=$1 AND created_at<$2 AND party_votes ? '__pos'`,[start,end])).rows;
+  res.json({...tableOrders.analyticsSummary(orders,{venues,from,to,firstPaid}),visitors:tableOrders.visitorSummary(sess,{venues,from,to}),foreign:tableOrders.foreignSummary(sess,orders,{venues,from,to})});
 }));
 /* 查單：某營業日的全部單（含作廢），可用桌號／金額／發票號碼搜尋；給櫃檯重印收據明細、補開發票、作廢 */
 app.get('/api/admin/orders/history',auth,adminOnly,requireDb,wrap(async(req,res)=>{
