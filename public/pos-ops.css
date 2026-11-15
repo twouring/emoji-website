@@ -1085,3 +1085,8 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 .reg-photo-link{display:inline-block;margin-top:6px;min-height:44px;line-height:44px;color:var(--ink);text-decoration:underline;text-underline-offset:3px;font-weight:600}
 .reg-drawer-move{display:grid;gap:14px}.reg-drawer-move label{display:grid;gap:6px}
 
+
+/* 核對 LINE Pay／中信：帳務參考（逐筆實收）收在視窗內，視窗加寬給明細表（KK 11/15） */
+.pos-move-box.acct-box--gw{max-width:min(860px,96vw)}
+.acct-gw-ref{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}.acct-gw-ref>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:600}
+.acct-gw-ref .ops-head h3{font-size:1rem;margin:8px 0}

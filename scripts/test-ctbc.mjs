@@ -117,7 +117,7 @@ test('server：ctbc 交易表、同步路由、排程、日結回 ctbc 區塊；
 test('前端：日結頁「信用卡對帳（中信）」區塊、同步鈕、CSV；台新手填表單已移除', () => {
   const ops = read('public/pos-ops.js');
   assert.match(ops, /<h3>信用卡對帳（中信）/);
-  assert.match(ops, /api\('\/admin\/sales\/ctbc\/sync',\{method:'POST',body:\{start,end\}\}\)/);
+  assert.match(ops, /sync:'\/admin\/sales\/ctbc\/sync'/); assert.match(ops, /api\(GW\.sync,\{method:'POST',body:\{start,end\}\}\)/);
   assert.match(ops, /id="ct-csv"/);
   assert.doesNotMatch(ops, /id="ts-form"|sales\/taishin|台新/);
 });

@@ -2637,6 +2637,37 @@ function accountConfirmBlock(d,sales){
     return `<div class="reg-card" data-acct-card="${esc(r.id)}"><h4>${esc(BRAND_LABEL[v])} <span class="pill ${n===rows.length?'pill-ok':'pill-wait'}">${n}/${rows.length} 已確認</span></h4><div class="a-wrap2"><table class="a-tbl reg-acct"><thead><tr><th>帳戶</th><th class="num">應收</th><th class="num">實收</th><th class="num">差額</th><th></th></tr></thead><tbody>${rows.map(([c,nm,amt])=>{const a=done[c],gw=a?null:acctGatewayActual(sales,c,r.venue);return `<tr class="${a&&a.diff?'lp-diff':''}"><td>${esc(nm)}</td><td class="num">NT$${num(amt)}</td><td class="num">${a?'NT$'+num(a.actual):gw!=null?`<span class="hint hint--tight" title="${esc(ACCT_GW[c].where)}同步實收，按核對確認">系統 NT$${num(gw)}</span>`:'—'}</td><td class="num">${a?(a.diff>0?'+':'')+num(a.diff):gw!=null?`<span class="hint hint--tight">${gw-amt>0?'+':''}${num(gw-amt)}</span>`:'—'}</td><td><button type="button" class="btn ${a?'btn--ghost':'btn--solid'} btn-sm" data-acct-open="${esc(c)}">${a?'✓ 已確認':'核對'}</button></td></tr>`;}).join('')}</tbody></table></div></div>`;}).join('');
   return cards?`<section class="reg-step" id="close-step-1"><div class="reg-step-head"><span class="reg-step-no">01</span><div><h3>核對帳戶</h3><p>每一列按「核對」，應收實收對上就好。${tipIcon('金額不對先查兩件事：①結帳時是不是選錯付款方式（查單可改）②營業時間外的 LINE Pay／中信被算到別家（下方「營業時間外收款」可改歸本店）。修正後再核對。')}</p></div></div><div class="reg-cards">${cards}</div></section>`:'';
 }
+// 帳務參考（KK 11/15）：LINE Pay／中信後台逐筆實收與對帳，放在日結「核對」該帳戶的視窗裡（不再擺在日結頁底部）
+function gwRefParts(d){
+  // LINE Pay 對帳：LINE Pay 後台實收（每日 04:30 同步）vs POS 登記為 LINE Pay 的單；差額非 0 標紅
+  const lp=d.linepay||{},lpPos=lp.pos||{},lpLp=lp.linepay||{},diff=Number(lp.diff)||0;
+  const lpRows=(lp.rows||[]).map(t=>`<tr class="${t.amount<0?'lp-refund':''}"><td class="a-mono">${esc(clockText(t.paid_at))}</td><td>${esc(t.venue_label||'')}</td><td>${esc(t.type_label||t.type)}</td><td class="num">${num(t.amount)}</td><td>${esc(t.method_label||t.method)}${t.card_last4?` <span class="a-mono">…${esc(t.card_last4)}</span>`:''}</td><td class="a-mono">${esc(t.confirm_no||'')}</td></tr>`).join('')||`<tr><td colspan="6" class="a-empty">${lp.configured===false?'尚未設定 LINE Pay 商家後台帳密，請到後台「系統設定」填入':'這天沒有 LINE Pay 實收'}</td></tr>`;
+  const lpStatus=diff===0?(lpLp.count||lpPos.count?'<span class="pill pill-ok">帳對了</span>':''):`<span class="pill pill-bad">差額 ${diff>0?'+':''}${num(diff)}</span>`;
+  const lpVenues=Object.values(lp.by_venue||{}),lpVenueTable=!SCOPE&&lpVenues.length?`<div class="a-wrap2"><table class="a-tbl"><thead><tr><th>店別</th><th class="num">POS 登記</th><th class="num">LINE Pay 實收</th><th class="num">差額</th></tr></thead><tbody>${lpVenues.map(v=>`<tr class="${v.diff?'lp-diff':''}"><td>${esc(v.label)}</td><td class="num">${num(v.pos.amount)} <span class="hint">${num(v.pos.count)} 單</span></td><td class="num">${num(v.linepay.amount)} <span class="hint">${num(v.linepay.count)} 筆</span></td><td class="num">${v.diff>0?'+':''}${num(v.diff)}</td></tr>`).join('')}</tbody></table></div>`:'';
+  // 背景同步失敗不寄信，直接顯示在畫面上（成功同步後自動消失）
+  const lpSyncErr=x=>x&&x.sync_error?`<p class="hint lp-sync-err" role="alert" style="color:#c0392b;font-weight:600">⚠ LINE Pay 自動同步失敗${x.sync_failed_at?`（${esc(applicationTime(x.sync_failed_at))}）`:''}：${esc(x.sync_error)}。請按上方「同步 LINE Pay」重試；持續失敗請確認商家後台帳密。</p>`:'';
+  const lpHint=diff>0?'LINE Pay 收到的比 POS 登記多：可能有單漏登、或登成現金／刷卡。':diff<0?'POS 登記的 LINE Pay 比實際收到多：可能客人未完成付款、或已在 LINE Pay 退款但 POS 沒作廢。':'';
+  const lpBlock=`<div class="ops-head"><h3>LINE Pay 對帳 ${lpStatus}</h3>${opsHelp('左邊是 POS 結帳時選「LINE Pay」的成立單，右邊是 LINE Pay 商家後台同一營業日的實收（退款已扣）。LINE Pay 只有一個商店帳號，店別依當天開關帳時間歸屬：開帳到關帳之間的實收算該店，關帳後的實收一律算下一本帳（在咖啡關帳後算三點水、三點水關帳後算在咖啡）；還沒開過帳的日子才用 08:00–17:00／17:00 之後分。')}</div>${lp.synced_at||lpHint?`<p class="hint">${lp.synced_at?`上次同步 ${esc(applicationTime(lp.synced_at))}。`:''}${esc(lpHint)}</p>`:''}${lpSyncErr(lp)}
+    <div class="a-kpis lp-kpis"><div class="a-kpi"><div class="kl">POS 登記 LINE Pay</div><div class="kv"><span class="u">NT$</span>${num(lpPos.amount)}</div><div class="ks">${num(lpPos.count)} 單</div></div><div class="a-kpi"><div class="kl">LINE Pay 實收</div><div class="kv"><span class="u">NT$</span>${num(lpLp.amount)}</div><div class="ks">${num(lpLp.count)} 筆${lpLp.refunds?` · 退 ${num(lpLp.refunds)} 筆 NT$${num(lpLp.refund_amount)}`:''}</div></div><div class="a-kpi ${diff?'lp-diff':''}"><div class="kl">差額</div><div class="kv"><span class="u">NT$</span>${diff>0?'+':''}${num(diff)}</div><div class="ks">${diff===0?'實收＝登記':'實收－POS 登記'}</div></div></div>
+    ${lpVenueTable}
+    <div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="lp-csv" data-gw-csv="linepay">匯出 LINE Pay CSV</button></div>
+    <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>時間</th><th>店別</th><th>類型</th><th class="num">金額</th><th>付款方式</th><th>驗證碼</th></tr></thead><tbody>${lpRows}</tbody></table></div>`;
+  // 信用卡對帳（中信行動刷卡）：中信 mPOS 商店管理平台實收（每 15 分鐘、每日 04:40 自動同步）vs POS 登記為信用卡的單；差額非 0 標紅
+  const ct=d.ctbc||{},ctPos=ct.pos||{},ctBank=ct.ctbc||{},ctDiff=Number(ct.diff)||0;
+  const ctRows=(ct.rows||[]).map(t=>`<tr class="${t.amount<0?'lp-refund':''}"><td class="a-mono">${esc(clockText(t.paid_at))}</td><td>${esc(t.venue_label||'')}</td><td>${esc(t.type_label||t.type)}</td><td class="num">${num(t.amount)}</td><td class="a-mono">${t.card_last4?'…'+esc(t.card_last4):''}</td><td class="a-mono">${esc(t.auth_code||'')}</td><td>${esc(t.device_user||'')}</td></tr>`).join('')||`<tr><td colspan="7" class="a-empty">${ct.configured===false?'尚未設定中信 mPOS 商店管理平台帳密，請到後台「系統設定」填入':'這天沒有中信刷卡實收'}</td></tr>`;
+  const ctStatus=ctDiff===0?(ctBank.count||ctPos.count?'<span class="pill pill-ok">帳對了</span>':''):`<span class="pill pill-bad">差額 ${ctDiff>0?'+':''}${num(ctDiff)}</span>`;
+  const ctVenues=Object.values(ct.by_venue||{}),ctVenueTable=!SCOPE&&ctVenues.length?`<div class="a-wrap2"><table class="a-tbl"><thead><tr><th>店別</th><th class="num">POS 登記</th><th class="num">中信實收</th><th class="num">差額</th></tr></thead><tbody>${ctVenues.map(v=>`<tr class="${v.diff?'lp-diff':''}"><td>${esc(v.label)}</td><td class="num">${num(v.pos.amount)} <span class="hint">${num(v.pos.count)} 單</span></td><td class="num">${num(v.ctbc.amount)} <span class="hint">${num(v.ctbc.count)} 筆</span></td><td class="num">${v.diff>0?'+':''}${num(v.diff)}</td></tr>`).join('')}</tbody></table></div>`:'';
+  const ctSyncErr=ct.sync_error?`<p class="hint lp-sync-err" role="alert" style="color:#c0392b;font-weight:600">⚠ 中信刷卡自動同步失敗${ct.sync_failed_at?`（${esc(applicationTime(ct.sync_failed_at))}）`:''}：${esc(ct.sync_error)}。請按上方「同步 中信刷卡」重試；持續失敗請確認商店管理平台帳密。</p>`:'';
+  const ctHint=ctDiff>0?'中信刷到的比 POS 登記多：可能有單漏登、或登成現金／其他。':ctDiff<0?'POS 登記的信用卡比中信實收多：可能刷卡沒成功、或已在中信取消／退貨但 POS 沒作廢。':'';
+  const ctBlock=`<div class="ops-head"><h3>信用卡對帳（中信） ${ctStatus}</h3>${opsHelp('左邊是 POS 結帳時選「信用卡」的成立單，右邊是中信 mPOS 商店管理平台同一營業日的實收（取消、退貨已扣）。中信只有一個商店代號，店別依當天開關帳時間歸屬，規則同 LINE Pay。')}</div>${ct.synced_at||ctHint?`<p class="hint">${ct.synced_at?`上次同步 ${esc(applicationTime(ct.synced_at))}。`:''}${esc(ctHint)}</p>`:''}${ctSyncErr}
+    <div class="a-kpis lp-kpis"><div class="a-kpi"><div class="kl">POS 登記信用卡</div><div class="kv"><span class="u">NT$</span>${num(ctPos.amount)}</div><div class="ks">${num(ctPos.count)} 單</div></div><div class="a-kpi"><div class="kl">中信實收</div><div class="kv"><span class="u">NT$</span>${num(ctBank.amount)}</div><div class="ks">${num(ctBank.count)} 筆${ctBank.refunds?` · 取消／退 ${num(ctBank.refunds)} 筆 NT$${num(ctBank.refund_amount)}`:''}</div></div><div class="a-kpi ${ctDiff?'lp-diff':''}"><div class="kl">差額</div><div class="kv"><span class="u">NT$</span>${ctDiff>0?'+':''}${num(ctDiff)}</div><div class="ks">中信實收－POS 登記</div></div></div>
+    ${ctVenueTable}
+    <div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="ct-csv" data-gw-csv="ctbc">匯出中信刷卡 CSV</button></div>
+    <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>時間</th><th>店別</th><th>類型</th><th class="num">金額</th><th>卡號</th><th>授權碼</th><th>裝置</th></tr></thead><tbody>${ctRows}</tbody></table></div>`;
+  return {lpBlock,ctBlock};
+}
+function gwRefHtml(d,code){const p=gwRefParts(d||{});return code==='linepay'?p.lpBlock:code==='ctbc'?p.ctBlock:'';}
+function bindGwCsv(root,d){root.querySelectorAll('[data-gw-csv]').forEach(b=>b.onclick=()=>{const g=b.dataset.gwCsv,x=(d||{})[g]||{},day=d?.day||SALES_DAY;downloadCSV(g==='linepay'?`LINEPay_${day}.csv`:`中信刷卡_${day}.csv`,x.csv||[]);});}
 function acctDialog(r,code,sales){
   return new Promise(resolve=>{
     const [,label,expected]=acctRows(r).find(x=>x[0]===code),dg=salesDraftLoad().dialog,draft=dg&&dg.reg===r.id&&dg.code===code?dg:null,prev=draft||(ACCT_CONFIRMED.get(r.id)||{})[code];
@@ -2646,8 +2677,9 @@ function acctDialog(r,code,sales){
       <div class="reg-close-sum"><span>應收 <b>NT$${num(expected)}</b></span><span>實收 <b id="acct-actual-show">—</b></span><span>差額 <b id="acct-diff-show">—</b></span></div>
       ${cash?`<p class="hint">按面額填張數，或直接填總額。應收＝零用金＋現金營收＋臨時收入－臨時支出（整個錢櫃）。</p>${denomGrid()}`:GW?`${gw?.sync_error?`<p class="hint" role="alert" style="color:#c0392b;font-weight:600">⚠ ${GW.name} 自動同步失敗：${esc(gw.sync_error)}</p>`:''}<p class="hint" id="acct-gw-hint">${lpAuto==null?`${GW.name} 後台尚未同步：按「同步 ${GW.name}」自動帶入實收，或對照${GW.where}手動填入。`:`已自動帶入${GW.where}同步實收（${esc(applicationTime(gw.synced_at))} 同步，退款已扣），可修改；有新交易可再同步。`}</p><div class="a-toolbar"><button type="button" class="btn btn--ghost btn-sm" id="acct-gw-sync" ${gw?.configured===false?`disabled title="尚未設定${GW.where}帳密"`:''}>同步 ${GW.name}</button></div>`:`<p class="hint">實收預設等於應收，帳對了直接按確認；不同請對照收單機、商家後台或交接資料改填本品牌本營業日實收（退款已扣、手續費扣除前）。</p>`}
       <div class="a-form"><label>${cash?'實收總額':'實收'}<input id="acct-actual" type="number" inputmode="numeric" min="0" step="1" placeholder="${cash?'或直接填':'沒有收款請填 0'}" onfocus="this.select()" value="${prev?esc(prev.actual):lpAuto!=null?lpAuto:expected}"></label><label class="reg-note" id="acct-reason-label" hidden>差異原因（應收≠實收必填）<input id="acct-reason" maxlength="200" placeholder="差額非 0 必填" value="${esc(prev?.reason||'')}"></label></div><div id="acct-reason-options" hidden>${reasonChips('acct-reason',REASON_PRESETS.close_note)}</div>
+      ${GW?`<details class="acct-gw-ref"><summary>帳務參考：${esc(GW.name)} 逐筆實收與對帳</summary><div id="acct-gw-ref">${gwRefHtml(sales,code)}</div></details>`:''}
       <div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-cancel>取消</button><button type="button" class="btn btn--solid" data-ok disabled>確認</button></div>`,'核對 '+label);
-    const box=ov.querySelector('.pos-move-box');bindReasonChips(box);
+    const box=ov.querySelector('.pos-move-box');bindReasonChips(box);if(GW){box.classList.add('acct-box--gw');bindGwCsv(box,sales);}
     if(cash&&prev?.denoms)for(const [f,n] of Object.entries(prev.denoms)){const i=box.querySelector(`[data-denom="${f}"]`);if(i)i.value=n;}
     const q=s=>box.querySelector(s),amount=()=>{const t=q('#acct-actual').value.trim();return /^\d+$/.test(t)&&Number(t)<=10000000?Number(t):null;};
     const read=()=>{if(cash){const c=readCount(box,'#acct-actual');return {actual:c.total,denoms:c.denoms};}return {actual:amount()};};
@@ -2664,6 +2696,7 @@ function acctDialog(r,code,sales){
       try{const out=await api(GW.sync,{method:'POST',body:{start,end}});
         const fresh=await api(`/admin/sales?day=${encodeURIComponent(day)}`+(SCOPE?'&venue='+SCOPE:''));
         if(sales&&fresh?.[code])sales[code]=fresh[code];   // 同一頁再開其他帳戶／重開對話框都用新資料
+        const ref=q('#acct-gw-ref');if(ref){ref.innerHTML=gwRefHtml(sales||fresh,code);bindGwCsv(box,sales||fresh);}
         const v=acctGatewayActual(fresh,code,r.venue);
         if(v!=null){q('#acct-actual').value=v;q('#acct-gw-hint').textContent=`已同步 ${out.count??0} 筆，帶入${GW.where}實收（${applicationTime(fresh[code].synced_at)} 同步，退款已扣），可修改。`;}
         else q('#acct-gw-hint').textContent=`同步完成，但沒有本店別的實收資料，請對照${GW.where}手動填入。`;
@@ -2799,36 +2832,10 @@ async function loadSales(){
   if(!host.dataset.init){host.dataset.init='1';host.innerHTML='<h2>日結報表</h2><p class="hint">載入中…</p>';}
   let d;try{[d,REG_DATA]=await Promise.all([api(`/admin/sales?day=${encodeURIComponent(SALES_DAY)}`+(SCOPE?'&venue='+SCOPE:'')),api(`/admin/registers?day=${encodeURIComponent(SALES_DAY)}`+(SCOPE?'&venue='+SCOPE:'')).catch(()=>null)]);}catch(e){host.innerHTML=`<h2>日結報表</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`;return;}
   const resumeDialog=!SALES_DRAFT_HYDRATED;salesDraftHydrate();
-  const methods=Object.entries(d.by_method||{}).sort((a,b)=>b[1]-a[1]).map(([m,v])=>`<tr><td>${esc(payMethodLabel(m))}</td><td class="num">${num(v)}</td><td class="num">${d.amount?Math.round(v/d.amount*100):0}%</td></tr>`).join('')||'<tr><td colspan="3" class="a-empty">這天沒有營收</td></tr>';
-  const hours=Object.entries(d.by_hour||{}).sort(),maxH=Math.max(1,...hours.map(h=>h[1]));
-  const hourBars=hours.map(([h,v])=>`<div class="sales-bar"><span class="a-mono">${esc(h)}:00</span><i style="width:${Math.round(v/maxH*100)}%"></i><span class="num">${num(v)}</span></div>`).join('')||'<p class="a-empty">—</p>';
-  const hasProducts=!!document.getElementById('analytics-body');   // POS 平板有「分析」分頁：品項銷量整合到那邊，日結只留捷徑
+  const hasProducts=!!document.getElementById('analytics-body');   // POS 平板有「分析」分頁：品項銷量、付款方式、時段分布整合到那邊（KK 11/15），日結只留捷徑
   const items=(d.items||[]).map(it=>`<tr><td>${esc(it.zh)}</td>${SCOPE?'':`<td>${esc(BRAND_LABEL[it.venue]||'')}</td>`}<td class="num">${it.qty}</td><td class="num">${num(it.amount)}</td></tr>`).join('')||`<tr><td colspan="${SCOPE?3:4}" class="a-empty">—</td></tr>`;
-  // LINE Pay 對帳：LINE Pay 後台實收（每日 04:30 同步）vs POS 登記為 LINE Pay 的單；差額非 0 標紅
-  const lp=d.linepay||{},lpPos=lp.pos||{},lpLp=lp.linepay||{},diff=Number(lp.diff)||0;
-  const lpRows=(lp.rows||[]).map(t=>`<tr class="${t.amount<0?'lp-refund':''}"><td class="a-mono">${esc(clockText(t.paid_at))}</td><td>${esc(t.venue_label||'')}</td><td>${esc(t.type_label||t.type)}</td><td class="num">${num(t.amount)}</td><td>${esc(t.method_label||t.method)}${t.card_last4?` <span class="a-mono">…${esc(t.card_last4)}</span>`:''}</td><td class="a-mono">${esc(t.confirm_no||'')}</td></tr>`).join('')||`<tr><td colspan="6" class="a-empty">${lp.configured===false?'尚未設定 LINE Pay 商家後台帳密，請到後台「系統設定」填入':'這天沒有 LINE Pay 實收'}</td></tr>`;
-  const lpStatus=diff===0?(lpLp.count||lpPos.count?'<span class="pill pill-ok">帳對了</span>':''):`<span class="pill pill-bad">差額 ${diff>0?'+':''}${num(diff)}</span>`;
-  const lpVenues=Object.values(lp.by_venue||{}),lpVenueTable=!SCOPE&&lpVenues.length?`<div class="a-wrap2"><table class="a-tbl"><thead><tr><th>店別</th><th class="num">POS 登記</th><th class="num">LINE Pay 實收</th><th class="num">差額</th></tr></thead><tbody>${lpVenues.map(v=>`<tr class="${v.diff?'lp-diff':''}"><td>${esc(v.label)}</td><td class="num">${num(v.pos.amount)} <span class="hint">${num(v.pos.count)} 單</span></td><td class="num">${num(v.linepay.amount)} <span class="hint">${num(v.linepay.count)} 筆</span></td><td class="num">${v.diff>0?'+':''}${num(v.diff)}</td></tr>`).join('')}</tbody></table></div>`:'';
-  // 背景同步失敗不寄信，直接顯示在畫面上（成功同步後自動消失）
-  const lpSyncErr=x=>x&&x.sync_error?`<p class="hint lp-sync-err" role="alert" style="color:#c0392b;font-weight:600">⚠ LINE Pay 自動同步失敗${x.sync_failed_at?`（${esc(applicationTime(x.sync_failed_at))}）`:''}：${esc(x.sync_error)}。請按「同步 LINE Pay」重試；持續失敗請確認商家後台帳密。</p>`:'';
-  const lpHint=diff>0?'LINE Pay 收到的比 POS 登記多：可能有單漏登、或登成現金／刷卡。':diff<0?'POS 登記的 LINE Pay 比實際收到多：可能客人未完成付款、或已在 LINE Pay 退款但 POS 沒作廢。':'';
-  const lpBlock=`<div class="ops-head"><h3>LINE Pay 對帳 ${lpStatus}</h3>${opsHelp('左邊是 POS 結帳時選「LINE Pay」的成立單，右邊是 LINE Pay 商家後台同一營業日的實收（退款已扣）。LINE Pay 只有一個商店帳號，店別依當天開關帳時間歸屬：開帳到關帳之間的實收算該店，關帳後的實收一律算下一本帳（在咖啡關帳後算三點水、三點水關帳後算在咖啡）；還沒開過帳的日子才用 08:00–17:00／17:00 之後分。')}</div>${lp.synced_at||lpHint?`<p class="hint">${lp.synced_at?`上次同步 ${esc(applicationTime(lp.synced_at))}。`:''}${esc(lpHint)}</p>`:''}${lpSyncErr(lp)}
-    <div class="a-kpis lp-kpis"><div class="a-kpi"><div class="kl">POS 登記 LINE Pay</div><div class="kv"><span class="u">NT$</span>${num(lpPos.amount)}</div><div class="ks">${num(lpPos.count)} 單</div></div><div class="a-kpi"><div class="kl">LINE Pay 實收</div><div class="kv"><span class="u">NT$</span>${num(lpLp.amount)}</div><div class="ks">${num(lpLp.count)} 筆${lpLp.refunds?` · 退 ${num(lpLp.refunds)} 筆 NT$${num(lpLp.refund_amount)}`:''}</div></div><div class="a-kpi ${diff?'lp-diff':''}"><div class="kl">差額</div><div class="kv"><span class="u">NT$</span>${diff>0?'+':''}${num(diff)}</div><div class="ks">${diff===0?'實收＝登記':'實收－POS 登記'}</div></div></div>
-    ${lpVenueTable}
-    <div class="a-toolbar"><button class="btn btn--ghost btn-sm" id="lp-sync" ${lp.configured===false?'disabled':''}>同步 LINE Pay</button><button class="btn btn--ghost btn-sm" id="lp-csv">匯出 LINE Pay CSV</button></div>
-    <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>時間</th><th>店別</th><th>類型</th><th class="num">金額</th><th>付款方式</th><th>驗證碼</th></tr></thead><tbody>${lpRows}</tbody></table></div>`;
-  // 信用卡對帳（中信行動刷卡）：中信 mPOS 商店管理平台實收（每 15 分鐘、每日 04:40 自動同步）vs POS 登記為信用卡的單；差額非 0 標紅
-  const ct=d.ctbc||{},ctPos=ct.pos||{},ctBank=ct.ctbc||{},ctDiff=Number(ct.diff)||0;
-  const ctRows=(ct.rows||[]).map(t=>`<tr class="${t.amount<0?'lp-refund':''}"><td class="a-mono">${esc(clockText(t.paid_at))}</td><td>${esc(t.venue_label||'')}</td><td>${esc(t.type_label||t.type)}</td><td class="num">${num(t.amount)}</td><td class="a-mono">${t.card_last4?'…'+esc(t.card_last4):''}</td><td class="a-mono">${esc(t.auth_code||'')}</td><td>${esc(t.device_user||'')}</td></tr>`).join('')||`<tr><td colspan="7" class="a-empty">${ct.configured===false?'尚未設定中信 mPOS 商店管理平台帳密，請到後台「系統設定」填入':'這天沒有中信刷卡實收'}</td></tr>`;
-  const ctStatus=ctDiff===0?(ctBank.count||ctPos.count?'<span class="pill pill-ok">帳對了</span>':''):`<span class="pill pill-bad">差額 ${ctDiff>0?'+':''}${num(ctDiff)}</span>`;
-  const ctVenues=Object.values(ct.by_venue||{}),ctVenueTable=!SCOPE&&ctVenues.length?`<div class="a-wrap2"><table class="a-tbl"><thead><tr><th>店別</th><th class="num">POS 登記</th><th class="num">中信實收</th><th class="num">差額</th></tr></thead><tbody>${ctVenues.map(v=>`<tr class="${v.diff?'lp-diff':''}"><td>${esc(v.label)}</td><td class="num">${num(v.pos.amount)} <span class="hint">${num(v.pos.count)} 單</span></td><td class="num">${num(v.ctbc.amount)} <span class="hint">${num(v.ctbc.count)} 筆</span></td><td class="num">${v.diff>0?'+':''}${num(v.diff)}</td></tr>`).join('')}</tbody></table></div>`:'';
-  const ctSyncErr=ct.sync_error?`<p class="hint lp-sync-err" role="alert" style="color:#c0392b;font-weight:600">⚠ 中信刷卡自動同步失敗${ct.sync_failed_at?`（${esc(applicationTime(ct.sync_failed_at))}）`:''}：${esc(ct.sync_error)}。請按「同步中信刷卡」重試；持續失敗請確認商店管理平台帳密。</p>`:'';
-  const ctHint=ctDiff>0?'中信刷到的比 POS 登記多：可能有單漏登、或登成現金／其他。':ctDiff<0?'POS 登記的信用卡比中信實收多：可能刷卡沒成功、或已在中信取消／退貨但 POS 沒作廢。':'';
-  const ctBlock=`<div class="ops-head"><h3>信用卡對帳（中信） ${ctStatus}</h3>${opsHelp('左邊是 POS 結帳時選「信用卡」的成立單，右邊是中信 mPOS 商店管理平台同一營業日的實收（取消、退貨已扣）。中信只有一個商店代號，店別依當天開關帳時間歸屬，規則同 LINE Pay。')}</div>${ct.synced_at||ctHint?`<p class="hint">${ct.synced_at?`上次同步 ${esc(applicationTime(ct.synced_at))}。`:''}${esc(ctHint)}</p>`:''}${ctSyncErr}
-    <div class="a-kpis lp-kpis"><div class="a-kpi"><div class="kl">POS 登記信用卡</div><div class="kv"><span class="u">NT$</span>${num(ctPos.amount)}</div><div class="ks">${num(ctPos.count)} 單</div></div><div class="a-kpi"><div class="kl">中信實收</div><div class="kv"><span class="u">NT$</span>${num(ctBank.amount)}</div><div class="ks">${num(ctBank.count)} 筆${ctBank.refunds?` · 取消／退 ${num(ctBank.refunds)} 筆 NT$${num(ctBank.refund_amount)}`:''}</div></div><div class="a-kpi ${ctDiff?'lp-diff':''}"><div class="kl">差額</div><div class="kv"><span class="u">NT$</span>${ctDiff>0?'+':''}${num(ctDiff)}</div><div class="ks">中信實收－POS 登記</div></div></div>
-    ${ctVenueTable}
-    <div class="a-toolbar"><button class="btn btn--ghost btn-sm" id="ct-sync" ${ct.configured===false?'disabled':''}>同步中信刷卡</button><button class="btn btn--ghost btn-sm" id="ct-csv">匯出中信刷卡 CSV</button></div>
-    <div class="a-wrap2"><table class="a-tbl"><thead><tr><th>時間</th><th>店別</th><th>類型</th><th class="num">金額</th><th>卡號</th><th>授權碼</th><th>裝置</th></tr></thead><tbody>${ctRows}</tbody></table></div>`;
+  const lp=d.linepay||{},ct=d.ctbc||{};
+  const refFallback=!(REG_DATA&&accountConfirmBlock(REG_DATA,d));   // 帳開著＝明細只在「核對」視窗；已關帳／沒開帳的日子沒有核對鍵，才在頁底留收合區查歷史
   // 營業時間外收款（KK 11/15）：交易當下沒有任何一本帳開著，依時間歸屬不準 → 品牌 POS 可「歸到本店」；已歸本店的可撤回
   const outRow=(gw,t)=>`<tr><td class="a-mono">${esc(clockText(t.paid_at))}</td><td>${gw==='linepay'?'LINE Pay':'中信'}${t.card_last4?` <span class="a-mono">…${esc(t.card_last4)}</span>`:''}</td><td class="num">${num(t.amount)}</td><td>${t.claimed?`已歸本店${t.claim_reason?`<br><span class="hint">${esc(t.claim_reason)}</span>`:''}`:esc(t.venue_label||'—')+(t.outside?'':'<span class="hint">（開帳中）</span>')}</td><td style="white-space:nowrap">${t.claimed?`<button class="btn btn--ghost btn-sm" data-pay-release="${gw}" data-id="${esc(t.id)}">撤回</button>`:`<button class="btn ${t.outside?'btn--solid':'btn--ghost'} btn-sm" data-pay-claim="${gw}" data-id="${esc(t.id)}"${t.outside?'':` data-from="${esc(t.venue_label||'')}" data-amount="${esc(t.amount)}" data-at="${esc(clockText(t.paid_at))}"`}>歸到本店</button>`}</td></tr>`;
   const outList=SCOPE?[...(lp.outside||[]).map(t=>['linepay',t]),...(ct.outside||[]).map(t=>['ctbc',t]),...(lp.rows||[]).filter(t=>t.claimed).map(t=>['linepay',t]),...(ct.rows||[]).filter(t=>t.claimed).map(t=>['ctbc',t])].sort((a,b)=>a[1].paid_at.localeCompare(b[1].paid_at)):[];
@@ -2842,31 +2849,21 @@ async function loadSales(){
     ${REG_DATA?accountConfirmBlock(REG_DATA,d):''}
     ${outBlock}
     ${REG_DATA?registerBlock(REG_DATA):''}
-    <div class="sales-cols"><div><h3>付款方式</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>方式</th><th class="num">金額</th><th class="num">占比</th></tr></thead><tbody>${methods}</tbody></table></div></div><div><h3>時段分布</h3><div class="sales-bars">${hourBars}</div></div></div>
-    ${hasProducts?`<div class="a-toolbar"><a class="btn btn--ghost btn-sm" id="sales-items-go" data-tab="analytics" href="${esc(opsHref('analytics'))}">品項銷量 → 分析（${esc(d.day)}）</a></div>`:`<h3>品項銷量</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>品項</th>${SCOPE?'':'<th>店別</th>'}<th class="num">數量</th><th class="num">金額</th></tr></thead><tbody>${items}</tbody></table></div>`}
-    <details><summary>帳務參考（另行逐項確認）</summary><p class="hint">LINE Pay 與中信刷卡都由後台自動抓實收，依開關帳時間歸屬店別；請核對後，在上方關帳流程逐一填寫本品牌實收。</p>${lpBlock}${ctBlock}</details>`;
+    ${hasProducts?`<div class="a-toolbar"><a class="btn btn--ghost btn-sm" id="sales-items-go" data-tab="analytics" href="${esc(opsHref('analytics'))}">品項銷量 → 分析（${esc(d.day)}）</a><a class="btn btn--ghost btn-sm" id="sales-mix-go" data-tab="analytics" href="${esc(opsHref('analytics'))}">付款方式・時段分布 → 分析（${esc(d.day)}）</a></div>`:`<h3>品項銷量</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>品項</th>${SCOPE?'':'<th>店別</th>'}<th class="num">數量</th><th class="num">金額</th></tr></thead><tbody>${items}</tbody></table></div>`}
+    ${refFallback?`<details><summary>帳務參考（LINE Pay／中信逐筆實收）</summary>${gwRefHtml(d,'linepay')}${gwRefHtml(d,'ctbc')}</details>`:''}`;
   bindAccountConfirm(host,d,loadSales);bindRegisterBlock(host,loadSales);bindReasonChips(host);bindFillChips(host);
   const shift=n=>{const t=new Date(SALES_DAY+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);SALES_DAY=t.toISOString().slice(0,10);REG_CASH_OPEN=false;REG_CASH_EDIT=null;REG_CLOSE_OPEN=false;REG_COUNT_OPEN=false;REG_OPEN_FORM='';loadSales();};
-  // 同步：抓「這個營業日前後 3 天」，退款會回補到幾天前；按下去要等後台登入、約 20–60 秒
-  host.querySelector('#lp-sync').onclick=e=>{const b=e.currentTarget;b.disabled=true;b.textContent='同步中…（約 1 分鐘）';
-    const addDays=(day,n)=>{const t=new Date(day+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10);};
-    const start=addDays(d.day,-3),end=[addDays(d.day,1),todayTaipei()].sort()[0];
-    opsThen(()=>api('/admin/sales/linepay/sync',{method:'POST',body:{start,end}}),out=>`已同步 ${out.start} ～ ${out.end}，${out.count} 筆`,loadSales).finally(()=>{b.disabled=false;b.textContent='同步 LINE Pay';});};
   host.querySelectorAll('[data-pay-claim],[data-pay-release]').forEach(b=>b.onclick=async()=>{const gw=b.dataset.payClaim||b.dataset.payRelease,release=!!b.dataset.payRelease;let reason='';
     if(!release&&b.dataset.from){reason=await pickReason({title:`${b.dataset.at} NT$${num(b.dataset.amount)} 目前算${b.dataset.from}，改歸本店的原因`,presets:['本店客人付款，別店已先開帳','本店收尾時段的客人','刷錯機台／掃錯店的 QR'],placeholder:'其他原因'});if(reason==null)return;}
     b.disabled=true;
     opsThen(()=>api(`/admin/sales/${gw}/claim`,{method:'POST',body:{id:b.dataset.id,release,reason}}),release?'已撤回，回到依時間歸屬':`已歸到${BRAND_LABEL[SCOPE]||'本店'}`,loadSales).finally(()=>{b.disabled=false;});});
-  host.querySelector('#lp-csv').onclick=()=>downloadCSV(`LINEPay_${d.day}.csv`,lp.csv||[]);
-  host.querySelector('#ct-sync').onclick=e=>{const b=e.currentTarget;b.disabled=true;b.textContent='同步中…（約 30 秒）';
-    const addDays=(day,n)=>{const t=new Date(day+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10);};
-    const start=addDays(d.day,-3),end=[addDays(d.day,1),todayTaipei()].sort()[0];
-    opsThen(()=>api('/admin/sales/ctbc/sync',{method:'POST',body:{start,end}}),out=>`已同步中信刷卡 ${out.start} ～ ${out.end}，${out.count} 筆`,loadSales).finally(()=>{b.disabled=false;b.textContent='同步中信刷卡';});};
-  host.querySelector('#ct-csv').onclick=()=>downloadCSV(`中信刷卡_${d.day}.csv`,ct.csv||[]);
+  bindGwCsv(host,d);
   host.querySelector('#sales-day').onchange=e=>{SALES_DAY=e.target.value||MenuLib.businessDay();loadSales();};
   host.querySelector('#sales-prev').onclick=()=>shift(-1);
   host.querySelector('#sales-next').onclick=()=>shift(1);
   host.querySelector('#sales-today').onclick=()=>{SALES_DAY=MenuLib.businessDay();loadSales();};
   const ig=host.querySelector('#sales-items-go');if(ig)ig.onclick=()=>{ANALYTICS_FROM=d.day;ANALYTICS_TO=d.day;ANALYTICS_KIND='products';};   // 宿主頁的 a[data-tab] 點擊處理會切到分析（銷量），帶這個營業日
+  const mg=host.querySelector('#sales-mix-go');if(mg)mg.onclick=()=>{ANALYTICS_FROM=d.day;ANALYTICS_TO=d.day;ANALYTICS_KIND='customers';};   // 付款方式（金額）與時段來客在分析「客群」
   host.querySelector('#sales-csv').onclick=()=>downloadCSV(`日結_${d.day}${SCOPE?'_'+(BRAND_LABEL[SCOPE]||SCOPE):''}.csv`,d.csv||[]);
   salesDraftRestore(host);if(resumeDialog)salesDialogResume(host);
 }

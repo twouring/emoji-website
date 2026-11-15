@@ -152,10 +152,10 @@ test('server.js 接線：資料表、日結回 linepay、同步／匯入端點�
   assert.doesNotMatch(s, /LINEPAY_MERCHANT_PW\s*=\s*['"]/, '密碼不得寫死');
 });
 
-test('日結畫面：LINE Pay 對帳區、同步鍵、CSV；lib 不得含帳密', () => {
+test('日結畫面：LINE Pay 對帳區（在核對視窗）、同步鍵、CSV；lib 不得含帳密', () => {
   const ops = read('public/pos-ops.js'), css = read('public/pos-ops.css'), lib = read('lib/linepay.js');
-  assert.match(ops, /LINE Pay 對帳/); assert.match(ops, /id="lp-sync"/); assert.match(ops, /\/admin\/sales\/linepay\/sync/); assert.match(ops, /downloadCSV\(`LINEPay_/);
-  assert.match(ops, /lp\.configured===false\?'disabled'/, '未設定帳密時同步鍵停用');
+  assert.match(ops, /LINE Pay 對帳/); assert.match(ops, /id="acct-gw-sync"/); assert.match(ops, /\/admin\/sales\/linepay\/sync/); assert.match(ops, /`LINEPay_\$\{day\}\.csv`/);
+  assert.match(ops, /gw\?\.configured===false\?`disabled/, '未設定帳密時同步鍵停用');
   assert.match(css, /\.lp-diff/);
   assert.doesNotMatch(lib, /Emoji\d|CR\.\d{8}/, 'lib/linepay.js 不得含商店 ID 或密碼');
   assert.match(lib, /'x-atom-api-version'/, '缺這個 header 後台回 404');
