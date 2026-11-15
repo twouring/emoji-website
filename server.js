@@ -2402,6 +2402,46 @@ app.get('/api/sso/me', requireDb, wrap(async (req, res) => {
   const u = await ssoUser(req);
   res.json(u ? { authenticated: true, user: { name: u.name || '', email: u.email || '' } } : { authenticated: false });
 }));
+/* ---- 言文字會員 OAuth（KK 11/16）：讓遊遊愛馬仕（hermes.twouring.com）把成員的言文字帳號綁成服務帳號 ----
+   授權碼＋PKCE（S256）。GET /api/oauth/authorize 在 sso.emoji.tw：有 SSO cookie 就核發 10 分鐘的簽章授權碼導回登記的 redirect_uri，
+   沒登入先走 /login 再回來。POST /api/oauth/token：authorization_code 換 7 天 session token（memberSessionToken，權限＝該會員）；
+   refresh_token 就是那張 session token，refresh 時重查 DB 換新的（同 /api/auth/renew）。不新增資料表。 */
+const OAUTH_CLIENTS = { 'twouring-hermes': ['https://hermes.twouring.com/portal-api/oauth/callback'] };
+const OAUTH_USED = new Map();   // ponytail: 授權碼一次性記在記憶體（各 Cloud Run 執行個體各自記）；PKCE 已擋外人兌換
+const oauthBack = (uri, kv) => uri + (uri.includes('?') ? '&' : '?') + new URLSearchParams(kv);
+app.get('/api/oauth/authorize', rateLimit({ max: 60 }), wrap(async (req, res) => {
+  if (!isSsoHost(req)) return res.status(404).json({ error: 'not found' });
+  res.set('Cache-Control', 'no-store');
+  const { client_id: client, redirect_uri: uri, state = '', code_challenge: cc, code_challenge_method: ccm, response_type: rt } = req.query;
+  if (!OAUTH_CLIENTS[client]?.includes(uri)) return res.status(400).send('未登記的應用程式或導回網址。');
+  if (rt !== 'code' || ccm !== 'S256' || !/^[A-Za-z0-9_-]{43,128}$/.test(String(cc || ''))) return res.redirect(302, oauthBack(uri, { error: 'invalid_request', state }));
+  if (!pool || !dbReady) return res.status(503).send('系統暫時無法使用，請稍後再試。');
+  const u = await ssoUser(req);
+  if (!u) return res.redirect(302, '/login?redirect=' + encodeURIComponent(SSO_BASE + req.originalUrl));
+  const code = signToken({ p: 'oauth-code', sub: u.id, c: client, ru: uri, cc, n: crypto.randomBytes(12).toString('hex') }, { purpose: 'oauth' });
+  res.redirect(302, oauthBack(uri, { code, state }));
+}));
+app.post('/api/oauth/token', express.urlencoded({ extended: false, limit: '16kb' }), rateLimit({ max: 60 }), requireDb, wrap(async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const b = req.body || {}, bad = (error, s = 400) => res.status(s).json({ error });
+  if (!OAUTH_CLIENTS[b.client_id]) return bad('invalid_client', 401);
+  let sub;
+  if (b.grant_type === 'authorization_code') {
+    const c = verifyToken(String(b.code || ''), { purpose: 'oauth' });
+    const challenge = crypto.createHash('sha256').update(String(b.code_verifier || '')).digest('base64url');
+    if (!c || c.p !== 'oauth-code' || c.c !== b.client_id || c.ru !== b.redirect_uri || !safeEqual(challenge, c.cc) || OAUTH_USED.has(c.n)) return bad('invalid_grant');
+    for (const [n, exp] of OAUTH_USED) if (exp < Date.now()) OAUTH_USED.delete(n);
+    OAUTH_USED.set(c.n, c.exp); sub = c.sub;
+  } else if (b.grant_type === 'refresh_token') {
+    const p = verifyToken(String(b.refresh_token || ''));
+    if (!p || p.operator_staff_id) return bad('invalid_grant');
+    sub = p.sub;
+  } else return bad('unsupported_grant_type');
+  const u = (await q('SELECT id,name,email FROM users WHERE id=$1', [sub])).rows[0];
+  if (!u) return bad('invalid_grant');
+  const token = await memberSessionToken(u);
+  res.json({ access_token: token, token_type: 'Bearer', expires_in: 7 * 86400, refresh_token: token, user: { name: u.name || '', email: u.email || '' } });
+}));
 
 /* ---- Google 登入（OAuth 2.0 授權碼流程；重用既有 signToken 與 users 表） ---- */
 app.get('/auth/google', (req, res) => {

@@ -149,6 +149,12 @@ MCP 用戶端結束連線時呼叫；伺服器無狀態，固定回 204。
 ### GET /api/sso/me
 單一登入帳號頁用。只在 sso.emoji.tw 回應：依 `emoji_sso` cookie 回 `{authenticated:true,user:{name,email}}` 或 `{authenticated:false}`。
 
+### GET /api/oauth/authorize
+言文字會員 OAuth（KK 11/16），只在 sso.emoji.tw。給遊遊愛馬仕（hermes.twouring.com）把成員的言文字帳號綁成服務帳號。授權碼＋PKCE：query `client_id`、`redirect_uri`（須與 `OAUTH_CLIENTS` 登記的完全相同，目前只有 `twouring-hermes` → `https://hermes.twouring.com/portal-api/oauth/callback`）、`response_type=code`、`state`、`code_challenge`、`code_challenge_method=S256`。有 SSO cookie 就核發 10 分鐘的簽章授權碼，導回 `redirect_uri?code=…&state=…`；沒登入先轉 `/login` 再回來。未登記的 client／網址回 400，缺 PKCE 導回 `error=invalid_request`。
+
+### POST /api/oauth/token
+`application/x-www-form-urlencoded`。`grant_type=authorization_code`（`client_id`、`redirect_uri`、`code`、`code_verifier`）或 `grant_type=refresh_token`（`client_id`、`refresh_token`）。成功回 `{ access_token, token_type:'Bearer', expires_in:604800, refresh_token, user:{name,email} }`：`access_token` 就是該會員的 7 天 session token（權限依 DB 角色重新判斷，同 `/api/auth/renew`），`refresh_token` 與它相同。授權碼只能用一次（記在各執行個體記憶體）；POS 操作人員 token 不能 refresh。錯誤 `invalid_client` 401、`invalid_grant`／`unsupported_grant_type` 400。
+
 ### GET /authorize
 sso.emoji.tw 專用（非 /api），參數 `redirect=<網址>`、選填 `prompt=none`。有 SSO cookie 就重查 DB、核發一張 7 天 session token，以 `#token=` 導回 redirect（只接受 `https://*.emoji.tw` 且在白名單內）；沒登入時 `prompt=none` 導回 `#sso=none`，否則轉 `/login`。`GET /logout?redirect=` 清 cookie 後導回 `#sso=none`。各站前端共用 `public/sso-client.js`（`EmojiSSO.silent／wrap／logout`）。
 
