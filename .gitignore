@@ -9,8 +9,8 @@
 *.docx
 _plan_extract.txt
 
-# Node
-node_modules/
+# Node（不加結尾斜線：同時忽略目錄與 worktree 內指向主 repo 的 node_modules 符號連結）
+node_modules
 npm-debug.log*
 
 # 環境變數
