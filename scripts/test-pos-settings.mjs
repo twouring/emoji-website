@@ -14,7 +14,7 @@ test('頂欄只留常用分頁（點歌已移到 ktv.emoji.tw，KK 11/6），庫
   const T = tabs();
   const top = T.filter(t => !t.group).map(t => t.id);
   assert.deepEqual(top, ['pos', 'serve', 'soldout', 'reservations', 'members', 'history', 'clock', 'sales', 'analytics', 'settings']);
-  assert.deepEqual(T.filter(t => t.group === 'settings').map(t => t.id).sort(), ['bugs', 'feedback', 'inventory', 'logs', 'shifts', 'tips']);
+  assert.deepEqual(T.filter(t => t.group === 'settings').map(t => t.id).sort(), ['bugs', 'cctv', 'feedback', 'inventory', 'logs', 'shifts', 'tips']);
   for (const t of T.filter(t => t.group)) assert.ok(t.desc, t.id + ' 要有設定頁說明');
   assert.match(pos, /TABS\.filter\(t => !t\.group\)\.map/);
   assert.match(pos, /const navTab = TABS\.find\(t => t\.id === TAB\)\?\.group \|\| TAB/);
@@ -62,6 +62,31 @@ test('監視器入口只在店內 POS 主機另開 NVR，不嵌入影像也不�
   assert.match(set, /rel="noopener noreferrer"/);
   assert.match(set, /登入資料只留在這台 POS 主機/);
   assert.doesNotMatch(set, /<iframe|NVR_(?:PASS|USER)|nvr(?:_|\w)*password/i, 'POS 不得內嵌 NVR 或保存其登入資料');
+});
+test('監視器頁只嵌入已設定的 HTTPS bridge，NVR 帳密與私有 IP 不會進 POS', () => {
+  const cctv = read('public/pos-cctv.js'), css = read('public/pos-cctv.css');
+  assert.match(pos, /id:'cctv', icon:'camera', label:'監視器', group:'settings'/);
+  assert.match(pos, /cctv:tabCctv/);
+  assert.match(pos, /<script src="\/pos-cctv\.js"><\/script>/);
+  assert.match(pos, /href="\/pos-cctv\.css"/);
+  assert.match(cctv, /const CCTV_KEY='tth_pos_cctv_bridge'/);
+  assert.match(cctv, /new URL\(raw\)/);
+  assert.match(cctv, /url\.protocol !== 'https:'/);
+  assert.match(cctv, /sandbox="allow-scripts allow-same-origin allow-presentation"/);
+  assert.match(cctv, /referrerpolicy="no-referrer"/);
+  assert.doesNotMatch(cctv, /192\.168\.50\.2|rtsp:\/\/|NVR_(?:PASS|USER)|password/i);
+  assert.match(css, /\.cctv-frame/);
+});
+test('Windows bridge uses NVR Channel-Zero RTSP with low-latency HLS and never exposes NVR directly', () => {
+  const installer = read('tools/vigi-pos-bridge/Install-EmojiVigiBridge.ps1'), doc = read('tools/vigi-pos-bridge/README.md');
+  assert.match(installer, /rtsp:\/\/\$\{encodedUser\}:\$\{encodedPassword\}@\$\{NvrHost\}:554\/live\/0\/1\/avm/);
+  assert.match(installer, /webrtc: yes/);
+  assert.match(installer, /hls: yes/);
+  assert.match(installer, /127\.0\.0\.1:8888/);
+  assert.match(installer, /cloudflared/);
+  assert.match(installer, /Read-Host 'VIGI NVR 密碼' -AsSecureString/);
+  assert.match(doc, /Channel-Zero/);
+  assert.match(doc, /Cloudflare Tunnel/);
 });
 test('後端：GET 清單、POST/PATCH 超管或店長識別碼、API.md 有文件', () => {
   assert.match(server, /app\.get\('\/api\/admin\/payment-methods',auth,adminOnly,requireDb,/);

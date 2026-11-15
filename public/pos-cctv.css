@@ -1,0 +1,8 @@
+/* POS 監視器：bridge 是獨立來源，固定可觸控的 16:9 畫面，不影響 POS 主捲動。 */
+.cctv-field{display:flex;flex-direction:column;gap:6px;max-width:760px;font-weight:600}
+.cctv-field input{width:100%;min-height:48px;padding:0 12px;border:1px solid var(--muted);border-radius:10px;background:var(--card);color:var(--ink);font:inherit;font-size:1rem}
+.cctv-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.cctv-actions .btn{min-height:44px}
+#cctv-body>.hint{max-width:70ch}
+.cctv-frame{display:block;width:100%;min-height:420px;aspect-ratio:16/9;border:1px solid var(--line);border-radius:12px;background:#111;overflow:hidden}
+@media (max-width:700px){.cctv-frame{min-height:240px;border-radius:10px}.cctv-actions .btn{flex:1 1 auto;text-align:center}}
