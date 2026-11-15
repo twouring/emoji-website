@@ -48,7 +48,7 @@ const opsHelp=tipIcon;
 // 標題與操作說明同一列（.ops-head：標題靠左、說明鍵靠右），不另佔一列；展開時說明文字換到整列寬
 /* 原因預設選項：現場不打字——每個要填原因的地方先列常見原因，一按就送；真的選不到才在「其他」手動填寫。
    覆蓋式（作廢整張單／作廢品項／取消品項／贈送／出勤修正）用 pickReason()，表單內嵌欄位（折扣／臨時收支／關帳說明／小結說明）用 reasonChips()+bindReasonChips()。 */
-/* 來源調查（KK 11/8）：結帳時問客人怎麼知道我們，選填一項；與 lib/table-orders.js SOURCE_OPTIONS 一致 */
+/* 來源調查（KK 11/8）：結帳時問客人怎麼知道我們，必選一項（KK 11/15 改必填，平均分攤只在最後一人問）；與 lib/table-orders.js SOURCE_OPTIONS 一致 */
 const SOURCE_OPTIONS=[['walk','路過'],['friend','朋友'],['ig','IG'],['threads','Threads'],['google','Google'],['event','活動'],['regular','回頭客'],['other','其他']];
 let POS_SOURCE='';
 const DISCOUNT_PRESETS=[{type:'percent',value:20,reason:'員工',label:'員工 8 折'},{type:'percent',value:20,reason:'股東',label:'股東 8 折'},{type:'percent',value:20,reason:'親友',label:'親友 8 折'},{type:'percent',value:100,reason:'免費兌換',label:'免費兌換'}];
@@ -1888,7 +1888,7 @@ function paintPos(){
         <div class="pos-methods" role="radiogroup" aria-label="付款方式">${payMethodsActive().map(pm=>`<label class="pos-method" title="${esc(pm.label)}"><input type="radio" name="pos-method" value="${esc(pm.code)}" aria-label="${esc(pm.label)}" ${pm.code===POS_METHOD?'checked':''}><span><i aria-hidden="true">${PAY_ICON[pm.code]||PAY_ICON.card}</i><b>${esc(PAY_SHORT[pm.code]||pm.label)}</b></span></label>`).join('')}</div>${splitUI}
           ${cash?`<div class="pos-cash"><label>${mixed?'現金實收':'實收'}<input id="pos-received" type="number" inputmode="numeric" min="0" step="1" placeholder="客人給的現金" value="${esc(POS_RECEIVED)}" aria-label="實收金額"></label><div class="pos-cash-quick">${quick.map(n=>`<button type="button" data-received="${n}">${n===cashDue?'剛好':'$'+num(n)}</button>`).join('')}</div></div>`:''}
         </div>
-        ${aa&&!aa.last?'':`<div class="pos-blk pos-blk--source"><div class="pos-blk-h"><b>怎麼知道我們</b><small class="hint">選填</small></div><div class="reason-chips pos-source-chips" role="group" aria-label="怎麼知道我們店">${SOURCE_OPTIONS.map(([k,l])=>`<button type="button" aria-pressed="${POS_SOURCE===k}" data-source="${k}">${esc(l)}</button>`).join('')}</div></div>`}
+        ${aa&&!aa.last?'':`<div class="pos-blk pos-blk--source"><div class="pos-blk-h"><b>怎麼知道我們</b><small class="hint">必填</small></div><div class="reason-chips pos-source-chips" role="group" aria-label="怎麼知道我們店">${SOURCE_OPTIONS.map(([k,l])=>`<button type="button" aria-pressed="${POS_SOURCE===k}" data-source="${k}">${esc(l)}</button>`).join('')}</div></div>`}
         <div class="pos-blk pos-blk--sum"><div class="pos-blk-h"><b>結帳內容</b>${aa?'':`<button type="button" class="pos-link" id="pos-aa-open" ${checkoutLines.some(l=>!l.credit_of)?'':'disabled'}>平均分攤</button>`}</div>
         <div class="pos-sum">
           <div class="pos-sum-sub" ${(POS_PICK&&POS_PICK.size<checkoutLines.length)||Object.keys(POS_QTY).length||memberSaving>0||discount||svc?'':'hidden'}><span>${(POS_PICK&&POS_PICK.size<checkoutLines.length)||Object.keys(POS_QTY).length?`部分結帳 ${picked.length}／${checkoutLines.length} 項`:memberSaving>0?'小計（原價）':'小計'}</span><span>NT$${num(regular)}</span></div>
@@ -2086,6 +2086,7 @@ function paintPos(){
     if(mixed&&payments.length===1){toast('只有一種付款方式，請直接選那個方式');return;}
     const rec=cash&&POS_RECEIVED!==''?Number(POS_RECEIVED):undefined;
     if(rec!==undefined&&rec<cashDue){toast('實收不能少於應收的現金');return;}
+    if(!POS_SOURCE){toast('請先選「怎麼知道我們」');host.querySelector('.pos-blk--source')?.scrollIntoView({block:'center',behavior:'smooth'});return;}
     if(!(aa&&aa.index>1)&&!await minSpendGate(cur,`${cur.takeout?'外帶':'桌號'} ${cur.table}`))return;
     // 收款前先確認餐點都上齊了；還沒標「已出餐」的品項會列出來提醒
     const unserved=picked.filter(l=>!l.credit_of&&!l.served_at);

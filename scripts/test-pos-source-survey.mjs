@@ -29,3 +29,12 @@ test('前端選項與後端一致、結帳送 source、換桌重置、分析有�
   const a = js.indexOf('<div class="pos-pay">'), z = js.indexOf('<div class="pos-dock">', a), pay = js.slice(a, z);
   assert.ok(pay.indexOf('pos-blk--source') > pay.indexOf('<b>支付方式</b>') && pay.indexOf('pos-blk--source') < pay.indexOf('<b>結帳內容</b>'));
 });
+test('結帳必選來源（KK 11/15）：最後結帳前沒選就擋，標示必填', () => {
+  const a = js.indexOf("host.querySelector('#pos-checkout').onclick=async()=>{");
+  const body = js.slice(a, js.indexOf('餐點都到齊了嗎', a));
+  const gate = body.indexOf("if(!POS_SOURCE){toast('請先選「怎麼知道我們」')");
+  assert.ok(gate > body.indexOf('if(aa&&!aa.last){'), '擋在分攤前 N−1 人之後');
+  assert.ok(gate < body.indexOf('minSpendGate(cur,`${cur.takeout'), '先於低消把關');
+  assert.match(js, /<b>怎麼知道我們<\/b><small class="hint">必填<\/small>/);
+  assert.doesNotMatch(js, /<b>怎麼知道我們<\/b><small class="hint">選填/);
+});
