@@ -1,6 +1,7 @@
 /* POS 空間情境（pos-space.js，KK 11/15）：入場看板、入場資訊列、入場對話框、設定頁營業情境。字級一律 ≥1rem（test-public-typography） */
 .pos-space-mode #p-nav [data-tab=serve]{display:none}
 .pos-layout.is-space #pos-place,.pos-layout.is-space #pos-slip,.pos-layout.is-space #pos-table-qr,.pos-layout.is-space #pos-party{display:none}
+.pos-layout.is-space .pos-tables .sp-board{flex:1;min-height:0;overflow:auto;padding-bottom:8px}
 .sp-board .ops-head{display:flex;align-items:center;gap:12px;justify-content:space-between}
 .sp-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:12px 0}
 .sp-stat{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
@@ -16,6 +17,8 @@
 .sp-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .sp-no{font-size:1.4rem}
 .sp-pill,.sp-hc{font-size:1rem}
+.sp-pill{max-width:100%;white-space:normal}
+.sp-nw{display:inline-block;max-width:100%}
 .sp-plan{color:var(--ink-soft);overflow-wrap:anywhere}
 .sp-times b{font-size:1.1rem}
 .sp-left{font-weight:700}
@@ -24,13 +27,14 @@
 .sp-free .sp-left{color:var(--ink)}
 /* 狀態：顏色＋文字並用（不只靠顏色）。ok 綠、soon 黃、grace 橘、over／stale 紅、unpaid 灰、left 藍 */
 .sp-ok{border-color:#2f8a57}.sp-ok .sp-pill{background:#e3f4ea;color:#1d5c39}
-.sp-soon{border-color:#c9a000;background:#fffbe6}.sp-soon .sp-pill{background:#fff1b3;color:#5c4a00}
-.sp-grace{border-color:#d9731a;background:#fff3e8}.sp-grace .sp-pill{background:#ffe0c2;color:#6b3300}
+.sp-soon{border-color:#b08900;background:#fff8d6}.sp-soon .sp-pill{background:#fff1b3;color:#5c4a00}
+.sp-grace{border-color:#d9731a;background:#ffe9d6;border-style:dashed}.sp-grace .sp-pill{background:#ffe0c2;color:#6b3300}
 .sp-over,.sp-stale{border-color:#c62828;background:#fdecec}.sp-over .sp-pill,.sp-stale .sp-pill{background:#c62828;color:#fff}
 .sp-unpaid{border-color:var(--line);border-style:dashed}.sp-unpaid .sp-pill{background:#eee;color:#333}
 .sp-gone{border-color:#2563eb}.sp-gone .sp-pill{background:#dbe7ff;color:#173a8a}
-.sp-rule{margin-top:12px}
+.sp-rule{margin-top:16px}
 /* 結帳面板上方的入場資訊列 */
+.pos-left>.sp-bar{flex:none}
 .sp-bar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;margin:8px 0 12px;padding:12px 14px;border-radius:14px;border:2px solid var(--line);background:var(--card)}
 .sp-bar-times{display:flex;flex-wrap:wrap;gap:8px 18px}
 .sp-bar-times span{display:flex;flex-direction:column}
@@ -39,7 +43,8 @@
 .sp-bar-due b{font-size:1.6rem}
 .sp-bar-acts{display:flex;flex-wrap:wrap;gap:8px}
 .sp-bar-warn{flex-basis:100%;margin:0;color:#c62828;font-weight:700}
-.sp-bar.sp-gone{border-color:#2563eb}
+.sp-bar.sp-ok{border-color:#2f8a57}.sp-bar.sp-soon{border-color:#c9a000;background:#fffbe6}.sp-bar.sp-grace{border-color:#d9731a;background:#fff3e8}.sp-bar.sp-over,.sp-bar.sp-stale{border-color:#c62828;background:#fdecec}.sp-bar.sp-gone{border-color:#2563eb;background:#eef3ff}
+.sp-bar.sp-over .sp-bar-left,.sp-bar.sp-stale .sp-bar-left{color:#b71c1c}
 /* 入場對話框 */
 .op-card.sp-dialog{max-width:560px;max-height:92dvh;overflow:auto}
 .sp-plans{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
@@ -59,6 +64,7 @@
 .sp-set-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:12px}
 .sp-set-grid[hidden]{display:none}
 .sp-set-f{display:flex;flex-direction:column;gap:4px;font-size:1rem;border:0;padding:0;margin:0}
+.sp-set-f input{min-height:48px;font-size:1rem;border-radius:10px;padding:0 12px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
 .sp-set-f small{font-size:1rem;color:var(--muted)}
 .sp-set-wide{grid-column:1/-1}
 .sp-cat{display:inline-flex;align-items:center;gap:6px;margin-right:16px;font-size:1rem}

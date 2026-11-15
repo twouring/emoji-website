@@ -6,7 +6,7 @@
 /* XSS：本檔 innerHTML 模板內所有來自資料的字串（席號、品名、時間文字）一律經 esc()，數字經 num()/Number()；其餘是程式常數。 */
 const SPACE_STATE = {
   unpaid: ['sp-unpaid', '待收款'], ok: ['sp-ok', '使用中'], open: ['sp-ok', '不限時'], soon: ['sp-soon', '快到時'],
-  grace: ['sp-grace', '寬限中'], over: ['sp-over', '超時'], stale: ['sp-stale', '待確認離場'], left: ['sp-gone', '已離場・待補收'],
+  grace: ['sp-grace', '寬限中'], over: ['sp-over', '超時'], stale: ['sp-stale', '待確認離場'], left: ['sp-gone', '待補收'],
 };
 let SPACE_ALERTED = new Set();
 function posSpaceOn(){ return !!(SCOPE && POS_DATA && POS_DATA.space_settings && POS_DATA.space_settings.mode === 'space'); }
@@ -25,18 +25,20 @@ function spaceLive(sp, now = Date.now()){
   const left = (Date.parse(sp.due_at) - now) / 60000;
   if (left > c.warn_min) return { state: 'ok', text: `剩 ${spaceDur(left)}` };
   if (left > 0) return { state: 'soon', text: `剩 ${spaceDur(left)}` };
-  if (-left <= c.grace_min) return { state: 'grace', text: `寬限中・已過 ${spaceDur(-left)}` };
+  if (-left <= c.grace_min) return { state: 'grace', text: `已超 ${spaceDur(-left)}・寬限內不收` };
   const units = Math.ceil((-left - c.grace_min) / c.unit_min);
-  return { state: -left > c.grace_min + 120 ? 'stale' : 'over', text: `超時 ${units} 小時・已過 ${spaceDur(-left)}` };
+  return { state: -left > c.grace_min + 120 ? 'stale' : 'over', text: `已超 ${spaceDur(-left)}・計 ${units} 單位` };
 }
+/* 狀態文字以「・」分段，每段不斷行（避免「已超 1 時 30／分」這種斷法） */
+const spaceTextHtml = t => String(t).split('・').map(x => `<span class="sp-nw">${esc(x)}</span>`).join('<span aria-hidden="true">・</span>');
 function spaceCardHtml(s){
   const sp = s.space, live = spaceLive(sp), [cls, label] = SPACE_STATE[live.state] || SPACE_STATE.ok;
   const plan = (sp.plans || []).map(p => spaceShortName(p.zh)).join('＋') || '—';
   return `<button type="button" class="sp-card ${cls}${s.table === POS_TABLE ? ' on' : ''}" data-pos-table="${esc(s.table)}" data-space-in="${esc(sp.in_at || '')}" data-space-due="${esc(sp.due_at || '')}" data-space-out="${esc(sp.out_at || '')}" aria-label="${esc(s.table)}，${esc(label)}，${esc(live.text)}">
     <span class="sp-head"><b class="sp-no">${esc(s.table)}</b><span class="pill sp-pill" data-space-label>${esc(label)}</span>${sp.headcount > 1 ? `<span class="sp-hc">${Number(sp.headcount)} 位</span>` : ''}</span>
     <span class="sp-plan">${esc(plan)}</span>
-    <span class="sp-times">${sp.in_at ? `入 ${esc(clockText(sp.in_at))}` : '未入場'}${sp.due_at ? ` → <b>離 ${esc(clockText(sp.due_at))}</b>` : ''}</span>
-    <span class="sp-left" data-space-text>${esc(live.text)}</span>
+    <span class="sp-times"><span class="sp-nw">${sp.in_at ? `入 ${esc(clockText(sp.in_at))}` : '未入場'}</span>${sp.due_at ? ` <span class="sp-nw">→ <b>離 ${esc(clockText(sp.due_at))}</b></span>` : ''}</span>
+    <span class="sp-left" data-space-text>${spaceTextHtml(live.text)}</span>
     ${s.unpaid_amount ? `<span class="sp-due">待收 NT$${num(s.unpaid_amount)}</span>` : ''}
   </button>`;
 }
@@ -47,7 +49,7 @@ function spaceBoardHtml(d){
   const others = sessions.filter(s => !c.seats.includes(s.table)).sort((a, b) => String(a.table).localeCompare(String(b.table), 'zh-Hant', { numeric: true }));
   const inside = sum.inside ?? sessions.filter(s => !s.space.out_at).reduce((a, s) => a + (s.space.headcount || 1), 0);
   const stat = (k, v) => `<span class="sp-stat"><small>${esc(k)}</small><b>${v}</b></span>`;
-  return `<div class="pos-tables-row sp-board"><div class="ops-head"><h2>入場管理</h2><button type="button" class="btn btn--solid" id="sp-enter">＋ 入場</button></div>
+  return `<div class="sp-board"><div class="ops-head"><h2>入場管理</h2><button type="button" class="btn btn--solid" id="sp-enter">＋ 入場</button></div>
     <div class="sp-stats" aria-label="今日統計">${stat('在場', `${num(inside)}${c.capacity ? `／${num(c.capacity)}` : ''} 人`)}${stat('今日人次', num(sum.people || 0))}${stat('平均停留', sum.avg_stay_min != null ? spaceDur(sum.avg_stay_min) : '—')}${stat('超時收入', 'NT$' + num(sum.overtime_amount || 0))}</div>
     ${c.seats.length ? `<h3 class="sp-sub">指定席位 <small>${esc(c.seat_cats.map(x => MenuLib.CAT_LABEL[x]?.zh || x).join('、'))}</small></h3><div class="sp-grid">${seats}</div>` : ''}
     <h3 class="sp-sub">入場單${others.length ? ` <span class="kds-count">${others.length}</span>` : ''}</h3>
@@ -187,7 +189,7 @@ function spaceTick(){
   if (typeof document === 'undefined') return;
   for (const e of document.querySelectorAll('.sp-card[data-space-in]')) {
     const live = spaceLive({ in_at: e.dataset.spaceIn || null, due_at: e.dataset.spaceDue || null, out_at: e.dataset.spaceOut || null }), [cls, label] = SPACE_STATE[live.state];
-    const t = e.querySelector('[data-space-text]'); if (t) t.textContent = live.text;
+    const t = e.querySelector('[data-space-text]'); if (t && t.textContent !== live.text) t.innerHTML = spaceTextHtml(live.text);
     const p = e.querySelector('[data-space-label]'); if (p && p.textContent !== label) p.textContent = label;
     for (const k of Object.values(SPACE_STATE).map(x => x[0])) e.classList.toggle(k, k === cls);
   }
@@ -207,7 +209,7 @@ if (typeof document !== 'undefined' && typeof setInterval === 'function' && !glo
 let SPACE_SET = null, SPACE_SET_ERR = '';
 async function refreshSpaceSettings(){
   if (!SCOPE) { SPACE_SET = null; return; }
-  try { SPACE_SET = (await api('/admin/orders/space/settings?venue=' + SCOPE)).settings; SPACE_SET_ERR = ''; } catch (e) { SPACE_SET_ERR = e.message; }
+  try { SPACE_SET = (await api('/admin/orders/space/settings?venue=' + SCOPE)).settings; SPACE_SET_ERR = ''; document.documentElement.classList.toggle('pos-space-mode', SPACE_SET.mode === 'space'); } catch (e) { SPACE_SET_ERR = e.message; }
 }
 function spaceSettingsSection(){
   if (!SCOPE) return '';
@@ -225,7 +227,7 @@ function spaceSettingsSection(){
       ${num1('sp-warn', '到時前提醒（分鐘）', c.warn_min, '卡片轉黃的時間', 0, 60)}
       ${num1('sp-cap', '在場人數上限', c.capacity, '0＝不限；滿了不能再入場', 0, 500)}
       <label class="sp-set-f sp-set-wide">指定席號<input id="sp-seats" value="${esc(c.seats.join(', '))}" placeholder="例：Q1, Q2, Q3" autocomplete="off"><small>用逗號分隔；留白＝不指定席號，入場單自動編 E01 起</small></label>
-      ${cats.length ? `<fieldset class="sp-set-f sp-set-wide"><legend>要指定席號的方案</legend>${cats.map(x => `<label class="sp-cat"><input type="checkbox" data-sp-cat="${esc(x)}" ${c.seat_cats.includes(x) ? 'checked' : ''}>${esc(MenuLib.CAT_LABEL[x]?.zh || x)}</label>`).join('')}</fieldset>` : ''}
+      ${cats.length ? `<fieldset class="sp-set-f sp-set-wide"><legend>這些方案入場時要選席號（一席一人）</legend>${cats.map(x => `<label class="sp-cat"><input type="checkbox" data-sp-cat="${esc(x)}" ${c.seat_cats.includes(x) ? 'checked' : ''}>${esc(MenuLib.CAT_LABEL[x]?.zh || x)}</label>`).join('')}</fieldset>` : ''}
     </div>
     <button type="button" class="btn btn--solid" id="sp-set-save">儲存營業情境</button></div>`;
 }
@@ -236,7 +238,7 @@ function bindSpaceSettings(host){
     if (save.disabled) return; save.disabled = true;
     const v = id => host.querySelector('#' + id)?.value;
     const body = { venue: SCOPE, mode: host.querySelector('input[name=sp-mode]:checked')?.value, grace_min: v('sp-grace'), unit_min: v('sp-unit'), max_hours: v('sp-max'), warn_min: v('sp-warn'), capacity: v('sp-cap'), seats: v('sp-seats') || '', seat_cats: [...host.querySelectorAll('[data-sp-cat]:checked')].map(x => x.dataset.spCat) };
-    try { const out = await pmWrite('/admin/orders/space/settings', 'POST', body); if (out) { SPACE_SET = out.settings; toast(`已儲存：${out.settings.mode === 'space' ? '空間' : '餐飲'}情境`); if (POS_DATA) POS_DATA.space_settings = out.settings; const pb = document.getElementById('pos-body'); if (pb) delete pb.dataset.sig; paintSettings(host); } }
+    try { const out = await pmWrite('/admin/orders/space/settings', 'POST', body); if (out) { SPACE_SET = out.settings; toast(`已儲存：${out.settings.mode === 'space' ? '空間' : '餐飲'}情境`); if (POS_DATA) POS_DATA.space_settings = out.settings; document.documentElement.classList.toggle('pos-space-mode', out.settings.mode === 'space'); const pb = document.getElementById('pos-body'); if (pb) delete pb.dataset.sig; paintSettings(host); } }
     catch (e) { toast(e.message); } finally { save.disabled = false; }
   };
 }
