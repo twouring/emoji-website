@@ -13,7 +13,7 @@ try{
   await page.addScriptTag({path:new URL('../public/pos-ops.js',import.meta.url).pathname});
   if(errors.length)throw Error(errors.join('\n'));
   const state=await page.evaluate(()=>{
-    const r={id:'rg_1',venue:'CAFE',day:'2026-11-15',opened_at:'2026-11-15T08:00:00+08:00',opening_cash:3000,cash_in:500,cash_out:200,cash_sales:1000,expected:4300,moves:[{id:'cm_1',type:'in',reason:'補零錢',amount:500,receipt_photo:'/ig-media/assets/cash-receipt.jpg'}],sales:{orders:2,amount:1000,collected:1000},reconciliation_accounts:{linepay:0,ctbc:0,transfer:0},account_labels:{linepay:'LINE Pay',ctbc:'信用卡',transfer:'轉帳'},pending:{tables:0,amount:0,list:[]}};
+    const r={id:'rg_1',venue:'CAFE',day:'2026-11-15',opened_at:'2026-11-15T08:00:00+08:00',opening_cash:3000,cash_in:500,cash_out:200,cash_sales:1000,expected:4300,moves:[{id:'cm_1',type:'in',reason:'補零錢',amount:500,created_at:'2026-11-15T10:20:00+08:00',staff:'小明',receipt_photo:'/ig-media/assets/cash-receipt.jpg'}],sales:{orders:2,amount:1000,collected:1000},reconciliation_accounts:{linepay:0,ctbc:0,transfer:0},account_labels:{linepay:'LINE Pay',ctbc:'信用卡',transfer:'轉帳'},pending:{tables:0,amount:0,list:[]}};
     REG_DATA={registers:[r],current:{CAFE:r},open_tables_by:{CAFE:[]}};
     const d={linepay:{configured:true,synced_at:'2026-11-15',by_venue:{CAFE:{linepay:{amount:0}}}},ctbc:{configured:true,synced_at:'2026-11-15',by_venue:{CAFE:{ctbc:{amount:0}}}}};
     document.querySelector('#sales-body').innerHTML=accountConfirmBlock(REG_DATA,d)+registerBlock(REG_DATA);
@@ -21,7 +21,13 @@ try{
     return {steps:[...document.querySelectorAll('.reg-step-head h3')].map(x=>x.textContent),photo:!!document.querySelector('.reg-photo-link'),horizontal:document.documentElement.scrollWidth>innerWidth,offenders:[...document.querySelectorAll('*')].filter(x=>x.getBoundingClientRect().right>innerWidth+2).slice(0,8).map(x=>[x.tagName,x.className,x.getBoundingClientRect().right]),closeDisabled:document.querySelector('#reg-close-go').disabled};
   });
   console.log(width,JSON.stringify(state));if(process.env.SCREENSHOT_DIR)await page.screenshot({path:process.env.SCREENSHOT_DIR+'/daily-close-'+width+'.png',fullPage:true});
-  assert.deepEqual(state.steps,['核對所有帳戶','取出現金營收、列印關帳單']);assert.equal(state.photo,true);assert.equal(state.horizontal,false);assert.equal(state.closeDisabled,true);assert.deepEqual(errors,[]);
+  const done=await page.evaluate(()=>{const r=REG_DATA.registers[0];ACCT_CONFIRMED.set(r.id,{cash:{actual:4300,diff:0,reason:''},linepay:{actual:0,diff:0,reason:''},ctbc:{actual:0,diff:0,reason:''},transfer:{actual:0,diff:0,reason:''}});
+    const d={linepay:{configured:true,synced_at:'x',by_venue:{CAFE:{linepay:{amount:0}}}},ctbc:{configured:true,synced_at:'x',by_venue:{CAFE:{ctbc:{amount:0}}}}};document.querySelector('#sales-body').innerHTML=accountConfirmBlock(REG_DATA,d)+registerBlock(REG_DATA);
+    const f=document.querySelector('.reg-close-form');bindDailyClose(f,r,async()=>{});
+    return {take:[...f.querySelectorAll('.reg-take b')].map(b=>b.textContent),closeDisabled:f.querySelector('#reg-close-go').disabled,text:f.innerText.replace(/\s+/g,' ').slice(0,200)};});
+  console.log(width,'confirmed',JSON.stringify(done));if(process.env.SCREENSHOT_DIR)await page.screenshot({path:process.env.SCREENSHOT_DIR+'/daily-close-'+width+'-confirmed.png',fullPage:true});
+  assert.deepEqual(done.take,['NT$1,000','NT$3,300']);assert.equal(done.closeDisabled,false);
+  assert.deepEqual(state.steps,['核對帳戶','收現金、關帳']);assert.equal(state.photo,true);assert.equal(state.horizontal,false);assert.equal(state.closeDisabled,true);assert.deepEqual(errors,[]);
   if(process.env.SCREENSHOT_DIR)await page.screenshot({path:process.env.SCREENSHOT_DIR+'/daily-close-'+width+'.png',fullPage:true});
   console.log(width,JSON.stringify(state));await page.close();
  }

@@ -32,7 +32,7 @@ test('臨時收支 API：照片驗證與媒體儲存成功後才寫帳，失敗�
 
 test('日結 UI 三段順序、照片必填、關帳後零用金憑單與金額',()=>{
   assert.match(ui,/id="close-step-1"/);assert.match(ui,/id="close-step-2"/);
-  assert.ok(ui.indexOf('核對所有帳戶')<ui.indexOf('取出現金營收、列印關帳單'));
+  assert.ok(ui.indexOf('<h3>核對帳戶</h3>')<ui.indexOf('<h3>收現金、關帳</h3>'));assert.match(ui,/class="reg-take"/);assert.ok(!ui.includes('reg-pack-note'));
   assert.match(ui,/data-reg-petty=/);assert.match(ui,/function pettyCashReceiptSpec\(rep\)/);
   assert.match(ui,/id="reg-cash-photo" type="file"[^>]*capture="environment"/);
   assert.match(ui,/先拍發票／憑證，記帳成功後才會開錢櫃/);
