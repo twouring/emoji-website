@@ -1876,7 +1876,7 @@ function paintPos(){
     if(POS_OPT&&(POS_OPT.table!==cur.table||(POS_OPT.line&&!cur.lines.some(l=>l.line===POS_OPT.line))))POS_OPT=null;
     const cats=[...new Set(menuItems.map(it=>it.cat))];if(POS_CAT&&!cats.includes(POS_CAT))POS_CAT='';
     const catChips=`<div class="pos-cats" role="tablist" aria-label="分類"><button type="button" data-cat="" aria-pressed="${!POS_CAT}">全部</button>${cats.map(c=>`<button type="button" data-cat="${esc(c)}" aria-pressed="${c===POS_CAT}">${esc(MenuLib.CAT_LABEL[c]?.zh||c)}</button>`).join('')}</div>`;
-    const tiles=menuItems.filter(it=>!POS_CAT||it.cat===POS_CAT).map(it=>{const off=MenuLib.soldOutToday(it);return `<button type="button" class="pos-item ${off?'off':''}" data-add="${esc(it.id)}">${itemThumb(it,'pos-item__img')}<b>${esc(it.zh)}</b><span>${it.custom_price?'現場輸入金額':'NT$'+num(it.price)}${SCOPE?'':' · '+esc(BRAND_LABEL[it.venue]||it.venue)}</span>${off?'<small>今日估清</small>':MenuLib.stockLeft(it)!==null?`<small class="pos-item__left">剩 ${MenuLib.stockLeft(it)} ${MenuLib.isBook(it)?'本':'份'}</small>`:''}</button>`;}).join('')||'<p class="a-empty">沒有已發布的菜單項目</p>';
+    const tiles=menuItems.filter(it=>!POS_CAT||it.cat===POS_CAT).map(it=>{const off=MenuLib.soldOutToday(it)||!MenuLib.comboAvailable(it,MENU_DOC?.items||[]);return `<button type="button" class="pos-item ${off?'off':''}" data-add="${esc(it.id)}">${itemThumb(it,'pos-item__img')}<b>${esc(it.zh)}</b><span>${it.custom_price?'現場輸入金額':'NT$'+num(it.price)}${SCOPE?'':' · '+esc(BRAND_LABEL[it.venue]||it.venue)}</span>${off?'<small>今日估清</small>':MenuLib.stockLeft(it)!==null?`<small class="pos-item__left">剩 ${MenuLib.stockLeft(it)} ${MenuLib.isBook(it)?'本':'份'}</small>`:''}</button>`;}).join('')||'<p class="a-empty">沒有已發布的菜單項目</p>';
     const live=d.orders.filter(o=>o.session_id===cur.id);
     const liveRows=live.map(o=>`<tr class="${o.status==='void'?'resv-off':''}"><td class="ops-item"><b>${o.items.map(l=>`${esc(l.zh)} ×${l.qty}${l.cancelled?'（已取消）':''}`).join('、')}</b>${o.payer?.discount?` <span class="hint hint--tight">折扣 ${esc(discountText(o.payer.discount))}</span>`:''}<br><span class="hint a-mono hint--tight" title="${esc(applicationTime(o.paid_at))}">${esc(clockText(o.paid_at))}</span> ${o.status==='void'?`<span class="pill pill-bad">已作廢</span> <span class="hint hint--tight">${esc(o.void_reason||'')}</span>`:`<span class="pill ${o.status==='done'?'pill-ok':'pill-wait'}">${esc(ORDER_STATE[o.status]||o.status)}</span>`}</td><td class="ops-pay">${esc(payText(o))}${o.payer?.member?' · 聚落價':''}${o.payer?.operator_name?' · 👤 '+esc(o.payer.operator_name):''}<br>${invoiceHtml(o)}</td><td class="num">${num(o.amount)}</td><td class="ops-actions">${o.status==='paid'?`<button class="btn btn--solid btn-sm" data-order-status="${esc(o.id)}" data-status="ready">出餐並通知</button>`:o.status==='ready'?`<button class="btn btn--ghost btn-sm" data-order-status="${esc(o.id)}" data-status="done">已取餐</button>`:''}${orderActions(o)}</td></tr>`).join('');
     if(POS_METHOD==='mixed')POS_METHOD='cash';mixed=false;
@@ -2873,16 +2873,17 @@ async function loadSales(){
 
 /* 估清：每格點開設定「今日估清／剩幾份／恢復不限量」，直接寫伺服器（只動 sold_out／stock_*）；送單自動扣份數，扣到 0＝售完；翌日 03:00 自動恢復 */
 function tabSoldOut(){ return '<div class="a-sec" id="soldout-body"></div>'; }
-let SO_PAUSE=null,SO_TIMER=null;
+let SO_PAUSE=null,SO_TIMER=null,SO_MATS=null,SO_MAT_NAME={};
 // 輪詢回來的即時估清／份數套進本機菜單（POS 不必重新整理就看到別台平板或客人送單扣掉的份數）
 function applyLiveStock(list){
   if(!Array.isArray(list)||!MENU_DOC)return;
   const by=new Map(list.map(x=>[x.id,x]));
-  MENU_DOC.items=MENU_DOC.items.map(it=>{const x=by.get(it.id);return x?{...it,sold_out:x.sold_out||'',stock_day:x.stock_day||'',stock_left:x.stock_left??null}:(it.sold_out||it.stock_day?{...it,sold_out:'',stock_day:'',stock_left:null}:it);});
+  MENU_DOC.items=MENU_DOC.items.map(it=>{const x=by.get(it.id);return x?{...it,sold_out:x.sold_out||'',sold_out_by:x.sold_out_by||[],stock_day:x.stock_day||'',stock_left:x.stock_left??null}:(it.sold_out||it.stock_day?{...it,sold_out:'',sold_out_by:[],stock_day:'',stock_left:null}:it);});
 }
 function soState(it){
-  const left=MenuLib.stockLeft(it);
-  if(MenuLib.soldOutToday(it))return {cls:'off',text:left===0?'已賣完（剩 0 份）':'今日估清'};
+  const left=MenuLib.stockLeft(it),all=MENU_DOC?.items||[];
+  if(MenuLib.soldOutToday(it))return {cls:'off',text:left===0?'已賣完（剩 0 份）':(it.sold_out_by||[]).length?'原物料估清：'+it.sold_out_by.map(id=>SO_MAT_NAME[id]||'原物料').join('、'):'今日估清'};
+  if(it.cat==='COMBO'){const offc=MenuLib.comboOffChoices(it,all);if(!MenuLib.comboAvailable(it,all))return {cls:'off',text:'選項全估清（套餐售完）'};if(offc.length)return {cls:'low',text:'選項估清：'+offc.map(c=>c.zh).join('、')};}
   if(left!==null)return {cls:left<=3?'low':'limited',text:`剩 ${left} 份`};
   return {cls:'',text:'供應中'};
 }
@@ -2917,14 +2918,23 @@ async function loadSoldOut(refresh){
   clearTimeout(SO_TIMER);
   if(SO_PAUSE===null||refresh===true){try{SO_PAUSE=(await api('/admin/orders/pause'+scopeQuery())).pause||{};}catch(e){SO_PAUSE=SO_PAUSE||{};toast('暫停點餐狀態載入失敗：'+e.message);}}
   if(refresh!=='paint'){try{const d=await api('/admin/orders'+scopeQuery());applyLiveStock(d.stock);}catch(e){}}
+  if(refresh!=='paint'){try{SO_MATS=(await api('/admin/menu/materials'+scopeQuery())).materials||[];SO_MAT_NAME=Object.fromEntries(SO_MATS.map(m=>[m.id,m.name]));}catch(e){SO_MATS=SO_MATS||[];}}
   if(!document.getElementById('soldout-body'))return;
   const items=MenuLib.sortItems((MENU_DOC?.items||[]).filter(it=>it.published&&!it.pos_only&&MenuLib.inVenue(it,SCOPE)&&!MenuLib.isBook(it)));   // 書籍本數在約書旅書冊後台管（估清會清掉本數）；「其他」這類 POS 限定品項沒有估清的意義
   const groups=new Map();for(const it of items){if(!groups.has(it.cat))groups.set(it.cat,[]);groups.get(it.cat).push(it);}
   const cards=[...groups].map(([cat,list])=>`<h3>${esc(MenuLib.CAT_LABEL[cat]?.zh||cat)}</h3><div class="so-grid">${list.map(it=>{const st=soState(it),off=st.cls==='off';return `<button type="button" class="so-item ${st.cls}" data-so="${esc(it.id)}" aria-pressed="${off?'true':'false'}">${itemThumb(it,'so-item__img')}<b>${esc(it.zh)}</b><span>NT$${num(it.price)}${SCOPE?'':' · '+esc(BRAND_LABEL[it.venue]||it.venue)}</span><small>${esc(st.text)}</small></button>`;}).join('')}</div>`).join('')||'<p class="a-empty">沒有已發布的菜單項目，請先在後台「菜單」儲存菜單。</p>';
-  const sig=JSON.stringify([SO_PAUSE,items.map(it=>[it.id,it.image,soState(it).text])]);
+  // 原物料估清（KK 11/15）：點原物料＝配方用到它的品項（含套餐選項）一起今日估清；再點一次恢復
+  const mats=SO_MATS||[];
+  const matHtml=mats.length?`<h3>原物料</h3><p class="hint hint--tight">黑糖、紅烏龍這類原物料用完時點一下，用到它的品項會一起估清；套餐裡的這些選項也會停售。</p><div class="so-grid">${mats.map(m=>`<button type="button" class="so-item ${m.sold_out?'off':''}" data-so-mat="${esc(m.id)}" aria-pressed="${m.sold_out?'true':'false'}"><b>${esc(m.name)}</b><span>用在 ${m.menu.length} 個品項</span><small>${m.sold_out?'今日估清':'供應中'}</small></button>`).join('')}</div>`:'';
+  const sig=JSON.stringify([SO_PAUSE,mats.map(m=>[m.id,m.sold_out,m.menu.length]),items.map(it=>[it.id,it.image,soState(it).text])]);
   if(host.dataset.sig!==sig){host.dataset.sig=sig;
-    host.innerHTML=`<div class="ops-head"><h2>估清</h2>${opsHelp('點一下品項設定「今日估清」或「剩餘份數」：客人每送一份就自動扣，扣到 0 自動售完、客人掃碼點不到；翌日 03:00 自動恢復供應。櫃檯加點不受份數限制。')}</div><div class="a-toolbar pos-tools" id="so-pause">${posPauseHtml(SO_PAUSE)}</div>${cards}`;
+    host.innerHTML=`<div class="ops-head"><h2>估清</h2>${opsHelp('點一下品項設定「今日估清」或「剩餘份數」：客人每送一份就自動扣，扣到 0 自動售完、客人掃碼點不到；翌日 03:00 自動恢復供應。櫃檯加點不受份數限制。單品估清後，套餐裡的這個選項也一起停售；原物料用完點「原物料」區，用到它的品項會一起估清。')}</div><div class="a-toolbar pos-tools" id="so-pause">${posPauseHtml(SO_PAUSE)}</div>${matHtml}${cards}`;
     bindPosPause(host,()=>loadSoldOut(true));
+    host.querySelectorAll('[data-so-mat]').forEach(b=>b.onclick=async()=>{
+      const m=mats.find(x=>x.id===b.dataset.soMat);if(!m)return;const on=!m.sold_out;
+      if(!await posConfirm(on?`會一起估清：${m.menu.map(x=>x.zh).join('、')}\n套餐裡的這些選項也會停售，翌日 03:00 自動恢復。`:`因「${m.name}」而估清的品項會恢復供應（手動估清的不動）。`,{title:on?`「${m.name}」今日估清？`:`恢復「${m.name}」？`,ok:on?'估清':'恢復供應',danger:on}))return;
+      opsThen(()=>api('/admin/menu/material-sold-out',{method:'POST',body:{inv_id:m.id,sold_out:on}}),out=>on?`已估清「${m.name}」，連動 ${out.changed.length} 項品項`:`已恢復「${m.name}」，${out.changed.length} 項品項恢復供應`,()=>loadSoldOut(true));
+    });
     host.querySelectorAll('[data-so]').forEach(b=>b.onclick=async()=>{
       const id=b.dataset.so,it=(MENU_DOC?.items||[]).find(x=>x.id===id);if(!it)return;
       const pick=await soEdit(it);if(!pick)return;

@@ -6391,7 +6391,7 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   // payment_methods 一起回傳：已開著的 POS 畫面每 15 秒輪詢這支 API，新增的自訂收款帳戶才會即時出現在結帳選項，不用重新整理
   const pendingLinepay=(await q("SELECT id,session_id,state,amount,mode FROM linepay_payments WHERE state NOT IN ('failed','cancelled','settled')")).rows;
   for(const s of sessions){if(!s.mixed)s.linepay=pendingLinepay.find(a=>a.session_id===s.id)||null;}
-  res.json({orders,tickets,sessions,reservations,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue(),table_layout:await tableLayoutOf(venues&&venues.length===1?venues[0]:''),payment_methods:await paymentMethodsList(posPaymentMethods.groupsOf(venues)),linepay:linepayOfflineStatus(),stock:tableOrders.MenuLib.parseMenuDoc(await contentValue('menu')).items.filter(it=>tableOrders.MenuLib.stockLeft(it)!==null||tableOrders.MenuLib.soldOutToday(it)).map(it=>({id:it.id,sold_out:it.sold_out,stock_day:it.stock_day,stock_left:it.stock_left}))});
+  res.json({orders,tickets,sessions,reservations,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue(),table_layout:await tableLayoutOf(venues&&venues.length===1?venues[0]:''),payment_methods:await paymentMethodsList(posPaymentMethods.groupsOf(venues)),linepay:linepayOfflineStatus(),stock:tableOrders.MenuLib.parseMenuDoc(await contentValue('menu')).items.filter(it=>tableOrders.MenuLib.stockLeft(it)!==null||tableOrders.MenuLib.soldOutToday(it)).map(it=>({id:it.id,sold_out:it.sold_out,sold_out_by:it.sold_out_by,stock_day:it.stock_day,stock_left:it.stock_left}))});
 }));
 /* 櫃檯開桌／外帶：客人沒掃 QR（走進來直接在櫃檯點）也能開一桌；外帶自動取 W01–W99 最小空號。已開著的桌直接回那一桌 */
 app.post('/api/admin/orders/sessions',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -6803,6 +6803,33 @@ app.post('/api/admin/menu/sold-out',auth,adminOnly,requireDb,wrap(async(req,res)
   const venues=tableOrders.visibleVenues(req.auth.brands);
   if(!await patchMenu(res,cur=>tableOrders.setSoldOut(cur,String(req.body?.item_id||''),req.body?.sold_out===true,venues)))return;
   res.json({ok:true,sold_out:req.body?.sold_out===true});
+}));
+/* 原物料估清（KK 11/15）：黑糖、紅烏龍這類原物料／備料缺貨 → 配方（含備料 bom）用到它的品項一起今日估清，套餐內的這些選項也跟著不能選。
+   狀態存 site_content.material_sold_out＝{inv_id:營業日}，翌日 03:00 失效；品項記 sold_out_by，恢復時只恢復因它而估清的品項 */
+async function materialUsage(venues){
+  const items=(await q(`SELECT ${INV_SEL} FROM pos_inventory_items WHERE active`)).rows.filter(i=>posInventory.visible(i,venues));
+  const byId=new Map((await q(`SELECT ${INV_SEL} FROM pos_inventory_items`)).rows.map(i=>[i.id,i]));
+  const recipes={};for(const r of (await q('SELECT item_id,lines FROM pos_menu_recipes')).rows)recipes[r.item_id]=Array.isArray(r.lines)?r.lines:[];
+  return {items,byId,recipes};
+}
+app.get('/api/admin/menu/materials',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
+  const {items,byId,recipes}=await materialUsage(venues);
+  const menu=tableOrders.MenuLib.parseMenuDoc(await contentValue('menu')).items.filter(it=>it.published&&(tableOrders.MenuLib.isShared(it)||tableOrders.itemInVenues(it,venues)));
+  const menuById=new Map(menu.map(it=>[it.id,it])),off=tableOrders.materialSoldOutToday(await contentValue('material_sold_out'));
+  const materials=posInventory.sortItems(items).map(i=>({id:i.id,name:i.name,kind:i.kind,venue:i.venue,category:i.category||'',sold_out:!!off[i.id],menu:posInventory.menuIdsUsing(i.id,recipes,byId).filter(id=>menuById.has(id)).map(id=>({id,zh:menuById.get(id).zh}))})).filter(m=>m.menu.length);
+  res.set('Cache-Control','no-store');res.json({business_day:tableOrders.MenuLib.businessDay(),materials});
+}));
+app.post('/api/admin/menu/material-sold-out',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venues=tableOrders.visibleVenues(req.auth.brands),invId=String(req.body?.inv_id||''),on=req.body?.sold_out===true;
+  const {byId,recipes}=await materialUsage(venues),inv=byId.get(invId);
+  if(!inv||!posInventory.visible(inv,venues))return res.status(404).json({error:'找不到這個原物料。'});
+  const ids=posInventory.menuIdsUsing(invId,recipes,byId);let changed=[];
+  if(!await patchMenu(res,cur=>{const r=tableOrders.setMaterialSoldOut(cur,invId,ids,on,venues);changed=r.changed;return r.json;}))return;
+  const day=tableOrders.MenuLib.businessDay(),map=tableOrders.materialSoldOutToday(await contentValue('material_sold_out'));
+  if(on)map[invId]=day;else delete map[invId];
+  await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('material_sold_out',$1,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,[JSON.stringify(map)]);
+  res.json({ok:true,inv_id:invId,name:inv.name,sold_out:on,changed});
 }));
 /* 剩餘份數：今天還能賣幾份（送單自動扣，扣到 0＝售完；隔天 03:00 自動失效回到不限量）；left=null 取消限量 */
 app.post('/api/admin/menu/stock',auth,adminOnly,requireDb,wrap(async(req,res)=>{

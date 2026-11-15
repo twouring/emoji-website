@@ -454,7 +454,9 @@
     const groups = [];
     (item?.combo || []).forEach(slot => {
       const opts = slot.choices.map(c => {
-        const pool = (items || []).filter(x => x.venue === item.venue && x.cat !== 'COMBO');
+        // 套餐選項跟著單品估清（KK 11/15）：估清／下架的單品不列為選項（POS、App 傳整份菜單進來也一樣）
+        const ML = global.MenuLib;
+        const pool = (items || []).filter(x => x.venue === item.venue && x.cat !== 'COMBO' && x.published !== false && !(ML && ML.soldOutToday(x)));
         const m = (c.id && pool.find(x => x.id === c.id)) || pool.find(x => x.zh === c.zh);
         return m ? { c, m, name: nameOf(m, lang), label: nameOf(m, lang) + (c.add > 0 ? ' (+' + c.add + ')' : '') } : null;
       }).filter(Boolean);

@@ -696,6 +696,12 @@ POS 每 5 秒輪詢。回 `{ pending:[{id,session_id,table,by,amount,sfx,perform
 ### POST /api/admin/menu/sold-out
 估清快速鍵。body `{ item_id, sold_out: boolean }`。只改該品項的 `sold_out`（記營業日），不覆蓋其他欄位；當個營業日結束（翌日 03:00）自動恢復。估清或恢復供應都會一併清除剩餘份數。品牌子帳號只能估清自己店別（403）。
 
+### GET /api/admin/menu/materials
+原物料估清清單。回 `{ business_day, materials:[{ id, name, kind, venue, category, sold_out, menu:[{id,zh}] }] }`：只列配方（含備料 bom 遞迴）有用到、且對應已發布品項的庫存品項；`sold_out` 為今天（營業日）是否估清中。品牌子帳號只看自己店別（可帶 `?venue=`）。
+
+### POST /api/admin/menu/material-sold-out
+原物料估清。body `{ inv_id, sold_out: boolean }`。估清時把配方用到這個原物料的已發布品項設為今日估清，品項記 `sold_out_by`（原物料 id 陣列）；已手動估清的品項不動。恢復時只拿掉這個原物料，沒有其他原因才恢復供應。套餐選項對應的單品估清後，該選項不能選；任一選擇欄都沒得選時整個套餐視同售完。狀態存 `site_content.material_sold_out`，翌日 03:00 失效。品牌子帳號只能改自己店別的品項。回 `{ ok, inv_id, name, sold_out, changed:[品項 id] }`。
+
 ### POST /api/admin/menu/stock
 剩餘份數。body `{ item_id, left: 0–9999 | null }`。設定今天（營業日）還能賣幾份，存在品項的 `stock_day`／`stock_left`，同時解除今日估清；`left:null` 取消限量。客人送單（含套餐選項）與櫃檯先結後做的結帳時自動扣，扣到 0 即視同今日估清；已送單、尚未出餐的品項被作廢會回補。客人端加點超過剩餘份數回 409；櫃檯加點不擋、最少扣到 0。翌日 03:00 自動失效回到不限量。後台整份菜單存檔（`POST /api/admin/content` key=menu）一律沿用資料庫現值的 `sold_out`／`stock_day`／`stock_left`。品牌子帳號只能設定自己店別（403）。回 `{ ok, item_id, stock_day, stock_left }`。
 

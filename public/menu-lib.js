@@ -216,6 +216,8 @@
       pos_only: raw.custom_price === true || raw.pos_only === true,
       sort: Number.isFinite(Number(raw.sort)) ? Number(raw.sort) : 0,
       sold_out: dateOrEmpty(raw.sold_out),               // 估清：記營業日，隔天自動恢復
+      // 原物料估清（KK 11/15）：因為哪些原物料（庫存品項 id）缺貨而估清；空陣列＝手動估清。恢復原物料只恢復因它而估清的品項
+      sold_out_by: dateOrEmpty(raw.sold_out) && Array.isArray(raw.sold_out_by) ? [...new Set(raw.sold_out_by.map(x => String(x || '').trim().slice(0, 40)).filter(Boolean))].slice(0, 20) : [],
       stock_day: dateOrEmpty(raw.stock_day),             // 剩餘份數：只在這個營業日有效（隔天 03:00 自動失效＝不限量）
       stock_left: stockOrNull(raw.stock_left),           // 剩幾份（null＝不限量）；送單扣、扣到 0＝售完
       available_from: dateOrEmpty(raw.available_from),   // 特餐排程：只在這段營業日可點（含）
@@ -287,7 +289,24 @@
     if (item.available_to && day > item.available_to) return false;
     return true;
   }
-  function orderableOnly(doc, now, ctx) { return (doc.items || []).filter(it => isOrderable(it, now, ctx)); }
+  /* 套餐選項跟著單品估清（KK 11/15）：選項對應的單品估清／下架就不能選；任一選擇欄一個都選不了＝套餐整個售完 */
+  function comboChoiceOk(choice, items, venue, now) {
+    const m = comboTarget(choice, items, venue);
+    return !!m && m.published && !soldOutToday(m, now);
+  }
+  function comboOffChoices(item, items, now) {
+    const out = [];
+    for (const s of (item && item.combo) || []) for (const c of s.choices) if (!comboChoiceOk(c, items, item.venue, now)) out.push(c);
+    return out;
+  }
+  function comboAvailable(item, items, now) {
+    if (!item || item.cat !== 'COMBO') return true;
+    return (item.combo || []).every(s => s.choices.some(c => comboChoiceOk(c, items, item.venue, now)));
+  }
+  function orderableOnly(doc, now, ctx) {
+    const all = doc.items || [];
+    return all.filter(it => isOrderable(it, now, ctx) && comboAvailable(it, all, now));
+  }
 
   function parseMenuDoc(value) {
     if (!value || !String(value).trim()) return { version: 1, updated_at: null, items: [] };
@@ -461,6 +480,6 @@
 
   global.MenuLib = {
     CATS, VENUES, ITEM_VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, BAR_STATION_CATS, MEMBER_RATE, BAR_POLICY_FROM, CAFE_POLICY_FROM, SERVICE_RATE, MIN_SPEND, CAFE_MIN_SPEND, barPolicyActive, cafePolicyActive, minSpendOf, cafeMinimumOf, serviceCharge, memberPrice, activeVenue, orderWindow, orderableInWindow, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
-    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, isShop, SPACE_CATS, isBook, isRetail, normalizeIsbn, ISBN13_RE, isShared, inVenue, forVenue, SHARED_CATS, soldOutToday, stockLeft, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
+    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, comboChoiceOk, comboOffChoices, comboAvailable, isShop, SPACE_CATS, isBook, isRetail, normalizeIsbn, ISBN13_RE, isShared, inVenue, forVenue, SHARED_CATS, soldOutToday, stockLeft, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
