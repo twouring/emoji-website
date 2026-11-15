@@ -1,6 +1,6 @@
 'use strict';
 (function (global) {
-  const VENUES = ['CAFE', 'BAR', 'REST'];
+  const VENUES = ['CAFE', 'BAR', 'STAY', 'REST'];   // STAY：等等空間空間方案（KK 11/15 空間情境）
   /* 有菜單品項的品牌（約書旅：空間方案＋書籍，KK 11/11）；與 VENUES 相同，保留別名給書冊程式用 */
   const ITEM_VENUES = VENUES;
   // 順序＝前台分組順序（餐點在前、飲品在後，依 2026-10-07 定稿菜單）；ALCOHOL／FOOD／SNACK 保留給舊資料相容
@@ -16,6 +16,7 @@
   const VENUE_LABEL = {
     CAFE: { zh: '在咖啡', en: 'at cafe', ja: '在咖啡', ko: 'at cafe' },
     BAR: { zh: '三點水', en: '3AM', ja: '三點水', ko: '3AM' },
+    STAY: { zh: '等等空間', en: 'Stay Square', ja: '等等空間', ko: 'Stay Square' },
     REST: { zh: '約書旅', en: 'Rest Book', ja: '約書旅', ko: 'Rest Book' },
   };
   const CAT_LABEL = {
@@ -187,6 +188,13 @@
     }));
   }
 
+  /* 空間情境計時方案（KK 11/15，lib/pos-space.js）：space_role 'plan'＝入場／延長方案（space_minutes 分鐘，0＝不限時）、'overtime'＝超時每單位；只有空間分類才保留 */
+  const SPACE_ROLES = ['plan', 'overtime'];
+  function spaceFields(raw, cat) {
+    if (!SPACE_CATS.includes(cat) || !SPACE_ROLES.includes(raw.space_role)) return {};
+    const m = Math.floor(Number(raw.space_minutes));
+    return raw.space_role === 'plan' ? { space_role: 'plan', space_minutes: Number.isFinite(m) ? Math.max(0, Math.min(1440, m)) : 0 } : { space_role: 'overtime' };
+  }
   function normalizeItem(raw) {
     const cat = CATS.includes(raw.cat) ? raw.cat : 'FOOD';
     const venue = ITEM_VENUES.includes(raw.venue) ? raw.venue : 'CAFE';
@@ -223,6 +231,7 @@
       available_from: dateOrEmpty(raw.available_from),   // 特餐排程：只在這段營業日可點（含）
       available_to: dateOrEmpty(raw.available_to),
       ...(cat === 'BOOK' ? bookFields(raw) : {}),
+      ...spaceFields(raw, cat),
     };
   }
   /* 可點：已發布、今天沒估清、在供應期間內（給 /order 與櫃檯用；官網菜單仍用 publishedOnly） */

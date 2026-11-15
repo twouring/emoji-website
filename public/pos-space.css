@@ -1,0 +1,65 @@
+/* POS 空間情境（pos-space.js，KK 11/15）：入場看板、入場資訊列、入場對話框、設定頁營業情境。字級一律 ≥1rem（test-public-typography） */
+.pos-space-mode #p-nav [data-tab=serve]{display:none}
+.pos-layout.is-space #pos-place,.pos-layout.is-space #pos-slip,.pos-layout.is-space #pos-table-qr,.pos-layout.is-space #pos-party{display:none}
+.sp-board .ops-head{display:flex;align-items:center;gap:12px;justify-content:space-between}
+.sp-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:12px 0}
+.sp-stat{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.sp-stat small{font-size:1rem;color:var(--muted)}
+.sp-stat b{font-size:1.25rem}
+.sp-sub{font-size:1rem;margin:16px 0 8px;display:flex;align-items:center;gap:8px}
+.sp-sub small{font-size:1rem;color:var(--muted);font-weight:400}
+.sp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.pos-layout.has-panel .sp-grid{grid-template-columns:repeat(auto-fill,minmax(132px,1fr))}
+.sp-card{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:4px;min-height:112px;padding:10px 12px;border-radius:14px;border:2px solid var(--line);background:var(--card);font-size:1rem;line-height:1.3}
+.sp-card:focus-visible{outline:3px solid var(--venue,var(--accent));outline-offset:2px}
+.sp-card.on{box-shadow:0 0 0 3px var(--venue,var(--accent))}
+.sp-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.sp-no{font-size:1.4rem}
+.sp-pill,.sp-hc{font-size:1rem}
+.sp-plan{color:var(--ink-soft);overflow-wrap:anywhere}
+.sp-times b{font-size:1.1rem}
+.sp-left{font-weight:700}
+.sp-due{color:var(--danger);font-weight:700}
+.sp-free{border-style:dashed;color:var(--muted);justify-content:center;align-items:center;text-align:center}
+.sp-free .sp-left{color:var(--ink)}
+/* 狀態：顏色＋文字並用（不只靠顏色）。ok 綠、soon 黃、grace 橘、over／stale 紅、unpaid 灰、left 藍 */
+.sp-ok{border-color:#2f8a57}.sp-ok .sp-pill{background:#e3f4ea;color:#1d5c39}
+.sp-soon{border-color:#c9a000;background:#fffbe6}.sp-soon .sp-pill{background:#fff1b3;color:#5c4a00}
+.sp-grace{border-color:#d9731a;background:#fff3e8}.sp-grace .sp-pill{background:#ffe0c2;color:#6b3300}
+.sp-over,.sp-stale{border-color:#c62828;background:#fdecec}.sp-over .sp-pill,.sp-stale .sp-pill{background:#c62828;color:#fff}
+.sp-unpaid{border-color:var(--line);border-style:dashed}.sp-unpaid .sp-pill{background:#eee;color:#333}
+.sp-gone{border-color:#2563eb}.sp-gone .sp-pill{background:#dbe7ff;color:#173a8a}
+.sp-rule{margin-top:12px}
+/* 結帳面板上方的入場資訊列 */
+.sp-bar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;margin:8px 0 12px;padding:12px 14px;border-radius:14px;border:2px solid var(--line);background:var(--card)}
+.sp-bar-times{display:flex;flex-wrap:wrap;gap:8px 18px}
+.sp-bar-times span{display:flex;flex-direction:column}
+.sp-bar-times small{font-size:1rem;color:var(--muted)}
+.sp-bar-times b{font-size:1.2rem}
+.sp-bar-due b{font-size:1.6rem}
+.sp-bar-acts{display:flex;flex-wrap:wrap;gap:8px}
+.sp-bar-warn{flex-basis:100%;margin:0;color:#c62828;font-weight:700}
+.sp-bar.sp-gone{border-color:#2563eb}
+/* 入場對話框 */
+.op-card.sp-dialog{max-width:560px;max-height:92dvh;overflow:auto}
+.sp-plans{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.sp-plan-opt{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:2px;min-height:56px;padding:10px 12px;border-radius:12px;border:2px solid var(--line);font-size:1rem}
+.sp-plan-opt[aria-pressed=true]{border-color:var(--venue,var(--accent));background:color-mix(in srgb,var(--venue,var(--accent)) 12%,transparent)}
+.sp-plan-opt:focus-visible{outline:3px solid var(--venue,var(--accent));outline-offset:2px}
+.sp-seat-opt{min-height:48px;align-items:center;justify-content:center}
+.sp-hc-row{display:flex;align-items:center;gap:16px}
+.sp-hc-row .btn{min-width:48px;min-height:48px;font-size:1.3rem}
+.sp-hc-row b{font-size:1.3rem;min-width:4em;text-align:center}
+.sp-total{font-size:1.1rem;margin:16px 0 0}
+/* 設定頁 */
+.sp-mode{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px}
+.sp-mode-opt{display:flex;align-items:center;gap:8px;padding:10px 14px;border:2px solid var(--line);border-radius:12px;cursor:pointer;font-size:1rem}
+.sp-mode-opt:has(input:checked){border-color:var(--venue,var(--accent))}
+.sp-mode-opt input{width:22px;height:22px}
+.sp-set-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:12px}
+.sp-set-grid[hidden]{display:none}
+.sp-set-f{display:flex;flex-direction:column;gap:4px;font-size:1rem;border:0;padding:0;margin:0}
+.sp-set-f small{font-size:1rem;color:var(--muted)}
+.sp-set-wide{grid-column:1/-1}
+.sp-cat{display:inline-flex;align-items:center;gap:6px;margin-right:16px;font-size:1rem}
+.sp-cat input{width:22px;height:22px}

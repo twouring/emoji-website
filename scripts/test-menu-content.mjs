@@ -37,7 +37,8 @@ test('品牌隔離：不能改別品牌、不能新增到別品牌', () => {
   assert.throws(() => C.editItem(menu, { id: 'b', price: 1 }, { venues: ['CAFE'] }), e => e.status === 403);
   assert.throws(() => C.editItem(menu, { zh: '新品' }, { venue: 'BAR', venues: ['CAFE'] }), e => e.status === 403);
   assert.throws(() => C.editItem(menu, { id: 'zzz', price: 1 }, { venues: ['CAFE'] }), e => e.status === 404);
-  assert.throws(() => C.editItem(menu, { zh: '空間' }, { venues: ['STAY'] }), /沒有菜單品項/);
+  assert.throws(() => C.editItem(menu, { zh: '空間' }, { venue: 'NOPE' }), /沒有菜單品項/);
+  assert.equal(C.editItem(menu, { zh: '等等空間 4 小時', cat: 'SPACE', price: 200 }, { venues: ['STAY'] }).item.venue, 'STAY', '等等空間有空間方案品項（KK 11/15 空間情境）');
 });
 
 test('新增：落在自己品牌、預設不上架、排在最後、id 由系統產生', () => {

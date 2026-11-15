@@ -521,6 +521,24 @@ body `{attempt_id}`。只取消 `prepared`（尚未送出）意圖；已送出�
 ### POST /api/admin/orders/sessions/:id/close
 清桌：未取餐的單標記已取餐、這桌下一次掃碼開新場。**有未結帳品項時回 409**（請先結帳或逐項作廢，避免漏收）；言文字管理員可帶 body `{ force: true }` 強制清桌並作廢未結品項。
 
+### GET /api/admin/orders/space/settings
+POS 營業情境（KK 11/15，`lib/pos-space.js`）：讀取品牌的情境設定（`site_content` `pos_mode:<VENUE>`）。帶 `venue=` 或品牌帳號。回 `{venue,settings:{mode:'dining'|'space',grace_min,unit_min,max_hours,warn_min,capacity,seats,seat_cats},modes}`。預設：在咖啡、三點水＝餐飲；等等空間、約書旅＝空間（約書旅 10 席 Q1–Q10 給靜讀室、連續上限 8 小時）。`GET /api/admin/orders?venue=` 也會回 `space_settings` 與今日 `space_summary`（入場單數、人次、在場人數、平均停留分鐘、方案與超時收入）。
+
+### POST /api/admin/orders/space/settings
+修改營業情境設定（需店長識別碼 `X-Manager-Pin`，超管免）。Body 任選：`mode`、`grace_min`（寬限分，0–120，預設 15）、`unit_min`（超時計費單位分，預設 60）、`max_hours`（連續使用上限，0＝不限）、`warn_min`（到時前提醒分）、`capacity`（在場人數上限，0＝不限）、`seats`（指定席號清單，陣列或以逗號分隔）、`seat_cats`（要指定席號的方案分類，例 `["QUIET"]`）。從空間切回餐飲時，還有未離場的入場單回 409。
+
+### POST /api/admin/orders/space/entries
+空間情境開入場單：Body `{venue,item_id,headcount,seat?,operator_id}`。`item_id` 必須是 `space_role:'plan'` 的方案品項；`seat_cats` 內的分類要帶 `seat`（一席一人，使用中 409）。沒有席號自動編 E01–E99。會加上方案品項（數量＝人數、未付），回 `{id,table,seat,headcount,item,amount}`。**收款（checkout）當下開始計時**（寫 `space.in_at`，checkout 回應附 `space_started:{in_at,due_at,seat,headcount,plan}` 供印入場單）；客人按離場前結清也不清單。超過 `capacity` 409。
+
+### POST /api/admin/orders/sessions/:id/space/extend
+延長：在入場單加一個計時方案（每人一份，未付），預計離場時間往後推。延長後方案總時數超過 `max_hours` 回 400（請先離場再重新入場）。已離場 409。
+
+### POST /api/admin/orders/sessions/:id/space/leave
+離場：記離場時間、依 `grace_min`／`unit_min` 算超時（超過寬限才收；每單位以寬限為界，4h 方案 4:14 不收、4:16 收 1、5:16 收 2），有超時自動加上同品牌同分類的 `space_role:'overtime'` 品項（數量＝單位 × 人數，`device_name:'離場計時'`）待補收；沒有未付就直接清單。不限時方案（`space_minutes:0`，例：會員入場）不算超時。Body 可帶 `out_at`（ISO）補登實際離場時間，需店長識別碼。回 `{in_at,out_at,used_minutes,plan_minutes,overtime_units,headcount,due,closed}`。未收款（未開始計時）409。
+
+### POST /api/admin/orders/sessions/:id/space/resume
+取消離場（按錯時）：移除離場自動加且未收款的超時品項、清掉離場時間，繼續計時。
+
 ### POST /api/admin/orders/table-layout
 儲存 POS 桌況平面圖（各品牌一份，KK 11/10：帶 `venue` 或品牌帳號存 `pos_table_layout:<VENUE>`，該品牌沒存過沿用舊的共用設定；`GET /api/admin/orders?venue=` 回該品牌的 `table_layout`）：每桌在畫布上的位置，百分比座標。Body：`{pos:{"A1":[x,y],...}}`，空物件＝還原成預設格子。`GET /api/admin/orders` 會回傳 `table_layout:{order,pos}`（`order` 保留舊版排序資料）。可另帶 `tables:["A1",...]`＝現場桌號清單（編輯桌位加減桌，整份取代，1–200 桌、不可重複；沒帶沿用目前的，沒存過＝前端預設 16 桌），一併回傳於 `table_layout.tables`。仍接受舊版 `{order:[...]}`；座標必須為 0–100 的有限數字、桌號沿用 1–8 碼英數／連字號，最多 200 桌。
 

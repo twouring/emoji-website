@@ -58,6 +58,7 @@ const posRegister=require('./lib/pos-register');
 const posStaff=require('./lib/pos-staff');
 const execBoard=require('./lib/exec-board');
 const posLog=require('./lib/pos-log');
+const posSpace=require('./lib/pos-space');   // 營業情境：餐飲／空間（計時入場，KK 11/15）
 const posInventory=require('./lib/pos-inventory');
 const posPaymentMethods=require('./lib/pos-payment-methods');
 const eventQuestions = require('./lib/event-questions');
@@ -803,6 +804,8 @@ async function migrate() {
   await q(`ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS notices JSONB NOT NULL DEFAULT '[]'`);
   // 開桌品牌（KK 11/10：POS 開桌頁各品牌獨立）：同一個桌號兩店可各開一場；舊的開著的桌依品項／開桌時間補上
   await q(`ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS venue TEXT`);
+  // 空間情境入場單（lib/pos-space.js，KK 11/15）：{seat,headcount,in_at,out_at,overtime}；null＝一般餐飲桌
+  await q(`ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS space JSONB`);
   for(const r of (await q("SELECT id,items,created_at FROM table_sessions WHERE status='open' AND venue IS NULL")).rows){const vs=posRegister.sessionVenues(r);if(vs.length===1)await q('UPDATE table_sessions SET venue=$2 WHERE id=$1 AND venue IS NULL',[r.id,vs[0]]);}
   // 桌邊點餐意見回饋（lib/order-feedback.js）：客人在 /order 送出，POS「設定 → 回饋」查看
   await q(`CREATE TABLE IF NOT EXISTS order_feedback (
@@ -1242,6 +1245,16 @@ async function seedMenuContent() {
         console.log('[menu-seed] 已補上約書旅 POS 插圖：' + n + ' 項。');
       }
     } catch (e) { console.warn('[menu-seed] 約書旅 POS 插圖略過：', e && e.message); }
+    try {   // 一次性（KK 11/15 空間情境）：約書旅方案補計時欄位（space_role／space_minutes）、新增等等空間方案；只補缺的，價格與估清不動
+      const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_space_plans_v1'`)).rows.length;
+      if (!done) {
+        const doc = JSON.parse((await readContent()).menu);
+        const n = posSpace.planBackfill(doc.items || (doc.items = []));
+        if (n > 0) await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
+        await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_space_plans_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(n)]);
+        console.log('[menu-seed] 空間情境方案已補上計時欄位／等等空間方案：' + n + ' 項。');
+      }
+    } catch (e) { console.warn('[menu-seed] 空間情境方案略過：', e && e.message); }
     try {   // 每次開機：套餐選項補 id、同步品名（品項改名不脫鉤）
       const doc = JSON.parse((await readContent()).menu);
       const n = require('./lib/menu-combos').comboRelink(doc.items);
@@ -6378,7 +6391,8 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const orders=(await q(all?"SELECT * FROM table_orders WHERE paid_at>now()-interval '1 day' ORDER BY paid_at DESC":"SELECT * FROM table_orders WHERE status IN ('paid','ready') ORDER BY paid_at")).rows.filter(o=>tableOrders.orderOwnedByVenues(o,venues)).map(o=>({...o,push:undefined,push_count:o.push.length,stations:tableOrders.splitByStation(o)}));
   // 桌況：每桌未付品項明細（櫃檯結帳用）＋ 狀態（空桌／點餐中／準備中／可取餐）
   const live=(await q("SELECT id,session_id,status FROM table_orders WHERE status IN ('paid','ready')")).rows;
-  let rows=(await q("SELECT id,table_no,venue,items,created_at,updated_at,opened_by_staff_name,pay_requests,pickup_at,pickup_note,pickup_placed_at,party_votes,members,notices FROM table_sessions WHERE status='open' ORDER BY table_no")).rows;
+  let rows=(await q("SELECT id,table_no,venue,space,items,created_at,updated_at,opened_by_staff_name,pay_requests,pickup_at,pickup_note,pickup_placed_at,party_votes,members,notices FROM table_sessions WHERE status='open' ORDER BY table_no")).rows;
+  const spaceCfg=venues&&venues.length===1?await spaceSettingsOf(venues[0]):null;   // 單一品牌 POS 才有營業情境
   // 外帶單（W01–W99）結完帳且取餐完成就自動收掉，號碼釋出給下一位；內用桌留「待清桌」給人員確認客人離開
   const doneTakeout=rows.filter(s=>tableOrders.isTakeout(s.table_no)&&tableOrders.takeoutFinished(s,live)).map(s=>s.id);
   // 客人掃在咖啡固定 QR 開的場（沒有開桌人員）30 分鐘都沒點東西就收掉，不在桌況留空桌
@@ -6386,7 +6400,7 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(ghost.length){await q("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=ANY($1) AND status='open' AND items='[]'::jsonb",[ghost]);rows=rows.filter(s=>!ghost.includes(s.id));}
   if(doneTakeout.length){await q("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=ANY($1) AND status='open'",[doneTakeout]);rows=rows.filter(s=>!doneTakeout.includes(s.id));}
   const own=venues?new Set(rows.filter(s=>s.venue&&venues.includes(s.venue)).map(s=>s.table_no)):null;   // 同桌號兩店都開著：品牌頁只列自己那場
-  const sessions=rows.filter(s=>sessionInVenues(s,venues)&&!(own&&s.venue&&!venues.includes(s.venue)&&own.has(s.table_no))).map(s=>{const lines=tableOrders.unpaid(s.items).filter(line=>tableOrders.itemInVenues(line,venues)).map(({guest,...l})=>l);/* 已結帳的品項（只結這組後的下一組）也算低消，POS 結帳把關用（KK 11/7） */const paid_lines=s.items.filter(l=>l.order_id&&!l.cancelled&&!l.credit_of&&!l.prepay&&tableOrders.itemInVenues(l,venues)).map(l=>({line:l.line,venue:l.venue,cat:l.cat,price:l.price,qty:l.qty,comp_reason:l.comp_reason||undefined,tip:l.tip?true:undefined}));return{id:s.id,paid_lines,table:s.table_no,takeout:tableOrders.isTakeout(s.table_no),pickup_at:s.pickup_at||null,pickup_note:s.pickup_note||'',pickup_placed:!!s.pickup_placed_at,unpaid:lines.length,unpaid_amount:tableOrders.sum(lines),lines,mixed:!tableOrders.sessionClosableByVenues(s,venues),state:tableOrders.tableStatus(s,live),updated_at:s.updated_at,created_at:s.created_at,operator:s.opened_by_staff_name||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes),foreign:tableOrders.partyForeign(s.party_votes),members:tableOrders.joinMember(s.members),last_notice:(()=>{const n=guestNotices.normalize(s.notices).slice(-1)[0];return n?{kind:n.kind,at:n.at,text:guestNotices.textOf(n),by:n.by}:null;})(),pay_requests:tableOrders.payRequestsView(s.pay_requests,s.items).map(r=>({...r,lines:r.lines.filter(l=>lines.some(x=>x.line===l))})).filter(r=>r.lines.length)};});
+  const sessions=rows.filter(s=>sessionInVenues(s,venues)&&!(own&&s.venue&&!venues.includes(s.venue)&&own.has(s.table_no))).map(s=>{const lines=tableOrders.unpaid(s.items).filter(line=>tableOrders.itemInVenues(line,venues)).map(({guest,...l})=>l);/* 已結帳的品項（只結這組後的下一組）也算低消，POS 結帳把關用（KK 11/7） */const paid_lines=s.items.filter(l=>l.order_id&&!l.cancelled&&!l.credit_of&&!l.prepay&&tableOrders.itemInVenues(l,venues)).map(l=>({line:l.line,venue:l.venue,cat:l.cat,price:l.price,qty:l.qty,comp_reason:l.comp_reason||undefined,tip:l.tip?true:undefined}));return{id:s.id,paid_lines,table:s.table_no,takeout:tableOrders.isTakeout(s.table_no),pickup_at:s.pickup_at||null,pickup_note:s.pickup_note||'',pickup_placed:!!s.pickup_placed_at,unpaid:lines.length,unpaid_amount:tableOrders.sum(lines),lines,mixed:!tableOrders.sessionClosableByVenues(s,venues),state:tableOrders.tableStatus(s,live),updated_at:s.updated_at,created_at:s.created_at,operator:s.opened_by_staff_name||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes),foreign:tableOrders.partyForeign(s.party_votes),members:tableOrders.joinMember(s.members),last_notice:(()=>{const n=guestNotices.normalize(s.notices).slice(-1)[0];return n?{kind:n.kind,at:n.at,text:guestNotices.textOf(n),by:n.by}:null;})(),pay_requests:tableOrders.payRequestsView(s.pay_requests,s.items).map(r=>({...r,lines:r.lines.filter(l=>lines.some(x=>x.line===l))})).filter(r=>r.lines.length),space:s.space?posSpace.view(s,spaceCfg||posSpace.normalizeSettings({},sessionVenueOf(s))):undefined};});
   // 桌邊送單（未結帳、未出餐）：與已結帳的出餐單一起上看板；子帳號只看整張都是自己品牌的
   const tickets=rows.flatMap(s=>tableOrders.ticketsOf(s)).filter(t=>tableOrders.orderOwnedByVenues(t,venues)).map(t=>({...t,items:t.items.map(({guest,...l})=>l)}));
   const pause=tableOrders.parsePause(await contentValue('ordering_pause'));
@@ -6396,7 +6410,8 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   // payment_methods 一起回傳：已開著的 POS 畫面每 15 秒輪詢這支 API，新增的自訂收款帳戶才會即時出現在結帳選項，不用重新整理
   const pendingLinepay=(await q("SELECT id,session_id,state,amount,mode FROM linepay_payments WHERE state NOT IN ('failed','cancelled','settled')")).rows;
   for(const s of sessions){if(!s.mixed)s.linepay=pendingLinepay.find(a=>a.session_id===s.id)||null;}
-  res.json({orders,tickets,sessions,reservations,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue(),table_layout:await tableLayoutOf(venues&&venues.length===1?venues[0]:''),payment_methods:await paymentMethodsList(posPaymentMethods.groupsOf(venues)),linepay:linepayOfflineStatus(),stock:tableOrders.MenuLib.parseMenuDoc(await contentValue('menu')).items.filter(it=>tableOrders.MenuLib.stockLeft(it)!==null||tableOrders.MenuLib.soldOutToday(it)).map(it=>({id:it.id,sold_out:it.sold_out,sold_out_by:it.sold_out_by,stock_day:it.stock_day,stock_left:it.stock_left}))});
+  const space_summary=spaceCfg&&spaceCfg.mode==='space'?posSpace.summary((await q("SELECT table_no,items,space FROM table_sessions WHERE space IS NOT NULL AND venue=$1 AND created_at>now()-interval '2 days'",[venues[0]])).rows,at=>tableOrders.MenuLib.businessDay(at)===tableOrders.MenuLib.businessDay()):undefined;
+  res.json({orders,tickets,sessions,reservations,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue(),table_layout:await tableLayoutOf(venues&&venues.length===1?venues[0]:''),space_settings:spaceCfg||undefined,space_summary,payment_methods:await paymentMethodsList(posPaymentMethods.groupsOf(venues)),linepay:linepayOfflineStatus(),stock:tableOrders.MenuLib.parseMenuDoc(await contentValue('menu')).items.filter(it=>tableOrders.MenuLib.stockLeft(it)!==null||tableOrders.MenuLib.soldOutToday(it)).map(it=>({id:it.id,sold_out:it.sold_out,sold_out_by:it.sold_out_by,stock_day:it.stock_day,stock_left:it.stock_left}))});
 }));
 /* 櫃檯開桌／外帶：客人沒掃 QR（走進來直接在櫃檯點）也能開一桌；外帶自動取 W01–W99 最小空號。已開著的桌直接回那一桌 */
 app.post('/api/admin/orders/sessions',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -6603,9 +6618,14 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     const served=out.lines.every(l=>l.served_at);
     await client.query('INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,invoice,status,done_at,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',[orderId,s.id,s.table_no,JSON.stringify(orderLines),out.amount,JSON.stringify(out.payer),JSON.stringify(invoice||{}),served?'done':'paid',served?new Date():null,memberUser?.id||null]);
     // 整桌結清即清桌（內用離場結帳；外帶 KK 11/2：收款完就收掉單，W 號釋出）；分帳未結清、跨品牌權限照舊。
+    // 空間入場單（KK 11/15）：收到方案款的當下開始計時；客人按離場前不清桌（先付費後計時）
+    const sp=s.space&&typeof s.space==='object'?s.space:null,spaceStart=!!(sp&&!sp.in_at&&out.lines.some(l=>l.space_role==='plan'));
+    const spaceNow=spaceStart?{...sp,in_at:new Date().toISOString()}:sp;
     const closed=tableOrders.unpaid(items).length===0&&tableOrders.sessionClosableByVenues(s,venues);
+    const held=!!(spaceNow&&!spaceNow.out_at);   // 空間入場單：客人在場內不清單（下面另外改回 open）
     if(closed)await client.query("UPDATE table_orders SET status='done',done_at=now() WHERE session_id=$1 AND status IN ('paid','ready')",[s.id]);
     await client.query('UPDATE table_sessions SET items=$2,status=$3,pay_requests=$4,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),closed?'closed':'open',JSON.stringify(tableOrders.prunePayRequests(s.pay_requests,items))]);
+    if(spaceStart||held)await client.query("UPDATE table_sessions SET space=$2,status='open' WHERE id=$1",[s.id,JSON.stringify(spaceNow)]);
     // 庫存：櫃檯直接結帳、沒先送單的品項（先結後做）在這裡依配方扣；已送單的品項送單時就扣過了
     try{await chargeAppRedeems(client,orderLines.filter(l=>fresh.has(l.line)));}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
     await stockConsume(client.query.bind(client),orderLines.filter(l=>fresh.has(l.line)));
@@ -6613,7 +6633,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     await kitchenPrint.enqueue(client.query.bind(client),[{id:orderId,session_id:s.id,table_no:s.table_no,items:orderLines.filter(l=>fresh.has(l.line)&&l.ticket),status:'paid'}]);
     await client.query('COMMIT');
     const invoiceOut=await storeInvoiceResult({id:orderId,table_no:s.table_no,items:orderLines,amount:out.amount,payer:out.payer,discount:out.discount,service_charge:out.service},invoice);
-    res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,service_charge:out.service||undefined,received:out.payer.received,change:out.payer.change,method:out.payer.method,payments:out.payer.payments,prepay:!!out.payer.prepay,member:out.payer.member,yan:memberUser?yanOut:undefined,member_created:!!memberUser?.created,closed,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut,warning:regWarn||undefined});
+    res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,service_charge:out.service||undefined,received:out.payer.received,change:out.payer.change,method:out.payer.method,payments:out.payer.payments,prepay:!!out.payer.prepay,member:out.payer.member,yan:memberUser?yanOut:undefined,member_created:!!memberUser?.created,closed:closed&&!held,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut,warning:regWarn||undefined,space_started:spaceStart?{in_at:spaceNow.in_at,due_at:(()=>{const m=items.filter(l=>l.space_role==='plan'&&!l.cancelled&&!l.credit_of).reduce((a,l)=>a+(Number(l.space_minutes)||0),0);return m>0?new Date(Date.parse(spaceNow.in_at)+m*60000).toISOString():null;})(),seat:spaceNow.seat||s.table_no,headcount:spaceNow.headcount||1,plan:out.lines.filter(l=>l.space_role==='plan').map(l=>l.zh).join('、')}:undefined});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 app.post('/api/admin/orders/:id/invoice/issue',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -7409,7 +7429,7 @@ app.post('/api/admin/registers/open',auth,adminOnly,requireDb,wrap(async(req,res
 }));
 /* 關帳前要清桌（KK 11/4）：回這個品牌還沒清的桌號（規則在 posRegister.blockingTables；另一品牌的桌不擋） */
 async function openTablesBlockingClose(venue){
-  return posRegister.blockingTables((await q("SELECT table_no,venue,items,pickup_at,pickup_placed_at,shop_at,created_at FROM table_sessions WHERE status='open'")).rows,venue);
+  return posRegister.blockingTables((await q("SELECT table_no,venue,items,pickup_at,pickup_placed_at,shop_at,created_at,space FROM table_sessions WHERE status='open'")).rows,venue);
 }
 async function loadOpenRegister(req,res){
   if(!ORDER_ID_RE.test(String(req.params.id||'')))return res.status(404).json({error:'找不到這本帳。'})&&null;
@@ -8116,8 +8136,9 @@ app.post('/api/admin/orders/sessions/:id/close',auth,adminOnly,requireDb,wrap(as
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
   // 混桌（同桌含別的品牌品項）不可由單一品牌子帳號清掉，否則會把另一品牌未出的單一起結束
   const venues=tableOrders.visibleVenues(req.auth.brands);
-  const session=(await q("SELECT id,items FROM table_sessions WHERE id=$1 AND status='open'",[req.params.id])).rows[0];
+  const session=(await q("SELECT id,items,space FROM table_sessions WHERE id=$1 AND status='open'",[req.params.id])).rows[0];
   if(!session)return res.status(404).json({error:'找不到這桌。'});
+  if(session.space&&session.space.in_at&&!session.space.out_at)return res.status(409).json({error:'客人還在場內，請先按「離場」，系統會計算超時。'});
   if(!tableOrders.sessionClosableByVenues(session,venues))return res.status(403).json({error:'這桌含有其他品牌品項，請由言文字管理員清桌。'});
   // 未付品項有金額時不直接清：要先結帳或逐項作廢，避免漏收；?force=1 由言文字管理員強制（走操作紀錄）
   const open=tableOrders.unpaid(session.items);
@@ -8126,6 +8147,119 @@ app.post('/api/admin/orders/sessions/:id/close',auth,adminOnly,requireDb,wrap(as
   {const c=await pool.connect();try{await c.query('BEGIN');await refundAppRedeems(c,tableOrders.unpaid(session.items));await c.query('COMMIT');}catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}finally{c.release();}}
   const r=await q("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=$1 AND status='open'",[req.params.id]);
   res.json({ok:true,closed:r.rowCount>0});
+}));
+/* ---- POS 空間情境（lib/pos-space.js，KK 11/15）：等等空間、約書旅以共享空間計時制營業。
+   入場單＝一組客人（headcount 人）＋一個計時方案；先收款，收款當下 in_at 開始計時（checkout 路由寫入）；
+   「離場」記 out_at、依寬限／計費單位自動加上超時品項（每人計），有超時再補收，結清即清單。設定 site_content pos_mode:<VENUE>。 */
+async function spaceSettingsOf(venue){return posSpace.normalizeSettings(await contentValue(posSpace.contentKey(venue)),venue);}
+function spaceVenue(req,res){const v=pinVenue(req,req.body?.venue||req.query?.venue);if(!v||!posSpace.VENUES.includes(v)){res.status(400).json({error:'請在品牌 POS（例如 /staysquare、/restbook）操作。'});return null;}return v;}
+const spaceErr=(res,status,error)=>res.status(status).json({error});
+app.get('/api/admin/orders/space/settings',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const v=spaceVenue(req,res);if(!v)return;
+  res.set('Cache-Control','no-store');res.json({venue:v,settings:await spaceSettingsOf(v),modes:posSpace.MODE_LABEL});
+}));
+app.post('/api/admin/orders/space/settings',rateLimit({max:20}),auth,adminOnly,requireDb,superOrManagerPin,wrap(async(req,res)=>{
+  const v=spaceVenue(req,res);if(!v)return;
+  const cur=await spaceSettingsOf(v),next=posSpace.mergeSettings(cur,req.body,v);
+  if(cur.mode==='space'&&next.mode!=='space'){
+    const inside=(await q("SELECT table_no FROM table_sessions WHERE status='open' AND venue=$1 AND space IS NOT NULL",[v])).rows;
+    if(inside.length)return spaceErr(res,409,`還有 ${inside.length} 張入場單未離場（${inside.map(r=>r.table_no).join('、')}），請全部離場後再切換成餐飲。`);
+  }
+  await q(`INSERT INTO site_content (key,value,updated_at) VALUES ($1,$2,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value,updated_at=now()`,[posSpace.contentKey(v),JSON.stringify(next)]);
+  req.posLogDetail=`${v} ${posSpace.MODE_LABEL[cur.mode]}→${posSpace.MODE_LABEL[next.mode]}；寬限 ${next.grace_min} 分、計費 ${next.unit_min} 分、上限 ${next.max_hours||'不限'} 小時、容量 ${next.capacity||'不限'}、席位 ${next.seats.length}`;
+  res.json({ok:true,venue:v,settings:next});
+}));
+/* 入場：選方案＋人數（＋需要指定席號的分類要選席號）→ 開一張入場單、加上方案品項（未付）；收款後才開始計時 */
+app.post('/api/admin/orders/space/entries',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const v=spaceVenue(req,res);if(!v)return;
+  const cfg=await spaceSettingsOf(v);if(cfg.mode!=='space')return spaceErr(res,409,'這個品牌目前是餐飲情境，請到「設定 → 營業情境」切換成空間。');
+  const device=await counterDevice(req);if(!device&&!(req.auth.super===true||req.auth.agent))return spaceErr(res,403,'這台 POS 尚未綁定或未設定裝置名稱，不能開入場單。');
+  const operator=await resolveOperator(req,req.body?.operator_id);if(!operator&&!req.auth.agent)return spaceErr(res,400,'請先輸入 4 位數識別碼，入場要記是誰開的。');
+  const menuAll=tableOrders.menuIndex(await contentValue('menu'),v,{posOnly:true});
+  const it=menuAll.get(String(req.body?.item_id||''));
+  if(!it||it.space_role!=='plan')return spaceErr(res,400,'請選一個入場方案。');
+  const headcount=Math.floor(Number(req.body?.headcount||1));if(!(headcount>=1&&headcount<=20))return spaceErr(res,400,'人數須為 1–20。');
+  const needSeat=cfg.seat_cats.includes(it.cat)&&cfg.seats.length>0;
+  let seat=needSeat?String(req.body?.seat||'').trim().toUpperCase():'';
+  if(needSeat&&!cfg.seats.includes(seat))return spaceErr(res,400,`「${tableOrders.MenuLib.CAT_LABEL[it.cat]?.zh||it.cat}」要指定席號。`);
+  if(needSeat&&headcount!==1)return spaceErr(res,400,'指定席位一席一人，多人請分開入場。');
+  const client=await pool.connect();
+  try{await client.query('BEGIN');await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',['space:'+v]);
+    const open=(await client.query("SELECT table_no,items,space FROM table_sessions WHERE status='open' AND venue=$1",[v])).rows;
+    if(cfg.capacity&&posSpace.occupancy(open)+headcount>cfg.capacity){await client.query('ROLLBACK');return spaceErr(res,409,`已達容量上限 ${cfg.capacity} 人（目前 ${posSpace.occupancy(open)} 人）。`);}
+    const used=new Set(open.map(r=>r.table_no));
+    if(seat&&used.has(seat)){await client.query('ROLLBACK');return spaceErr(res,409,`席位 ${seat} 使用中，請選別的席位。`);}
+    const table=seat||posSpace.nextEntryNo(used);if(!table){await client.query('ROLLBACK');return spaceErr(res,409,'入場單號已用完（E01–E99），請先讓離場的客人結清。');}
+    const items=tableOrders.posAddLine([],menuAll,{item_id:it.id,qty:headcount,device_name:device?.label||'後台'});
+    const limit=posSpace.checkLimit(items,cfg);if(limit){await client.query('ROLLBACK');return spaceErr(res,400,limit);}
+    const space={seat,headcount,in_at:null,out_at:null};
+    const s=(await client.query('INSERT INTO table_sessions(id,table_no,opened_by_staff_id,opened_by_staff_name,party_votes,venue,items,space) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,table_no,created_at',[uid('ts_'),table,operator?.id||null,operator?.name||null,JSON.stringify(tableOrders.partySetByPos({},headcount)),v,JSON.stringify(items),JSON.stringify(space)])).rows[0];
+    await client.query('COMMIT');
+    res.status(201).json({ok:true,id:s.id,table:s.table_no,seat,headcount,item:{id:it.id,zh:it.zh,price:it.price,minutes:it.space_minutes||0},amount:it.price*headcount});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});if(e.status)return spaceErr(res,e.status,e.message);throw e;}finally{client.release();}
+}));
+/* 延長：在原入場單加一個方案（每人一份），預計離場時間往後推；不得超過連續使用上限 */
+app.post('/api/admin/orders/sessions/:id/space/extend',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return spaceErr(res,404,'找不到這張入場單。');
+  const device=await counterDevice(req);if(!device&&!(req.auth.super===true||req.auth.agent))return spaceErr(res,403,'這台 POS 尚未綁定或未設定裝置名稱，不能延長。');
+  const row=(await q("SELECT venue,space FROM table_sessions WHERE id=$1 AND status='open'",[req.params.id])).rows[0];
+  if(!row||!row.space)return spaceErr(res,404,'找不到這張入場單。');
+  if(row.space.out_at)return spaceErr(res,409,'已按離場，不能再延長；要繼續使用請重新入場。');
+  const venues=tableOrders.visibleVenues(req.auth.brands);if(venues&&!venues.includes(row.venue))return spaceErr(res,403,'只能操作自己品牌的入場單。');
+  const cfg=await spaceSettingsOf(row.venue),menuAll=tableOrders.menuIndex(await contentValue('menu'),row.venue,{posOnly:true});
+  const it=menuAll.get(String(req.body?.item_id||''));if(!it||it.space_role!=='plan'||!(it.space_minutes>0))return spaceErr(res,400,'請選一個計時方案延長。');
+  const hc=posSpace.headcountOf(row.space,[]);
+  return mutateItems(req,res,items=>{const next=tableOrders.posAddLine(items,menuAll,{item_id:it.id,qty:hc,device_name:device?.label||'後台'});const limit=posSpace.checkLimit(next,cfg);if(limit)throw Object.assign(Error(limit),{status:400});return next;});
+}));
+/* 離場：記離場時間、算超時；有超時自動加超時品項（每人 units 份）等補收，沒有就直接結清清單。
+   body.out_at（補登實際離場時間，客人沒按離場就走了）需店長識別碼。 */
+app.post('/api/admin/orders/sessions/:id/space/leave',auth,adminOnly,requireDb,wrap(async(req,res,next)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return spaceErr(res,404,'找不到這張入場單。');
+  let outAt=new Date();
+  if(req.body?.out_at){
+    let ok=false,err=null;await superOrManagerPin(req,res,e=>{if(e)err=e;else ok=true;});if(err)throw err;if(!ok)return;
+    outAt=new Date(req.body.out_at);if(isNaN(outAt)||outAt>new Date())return spaceErr(res,400,'補登的離場時間不正確。');
+  }
+  const client=await pool.connect();
+  try{await client.query('BEGIN');
+    const s=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+    if(!s||s.status!=='open'||!s.space){await client.query('ROLLBACK');return spaceErr(res,404,'找不到這張入場單。');}
+    const venues=tableOrders.visibleVenues(req.auth.brands);if(venues&&!venues.includes(s.venue)){await client.query('ROLLBACK');return spaceErr(res,403,'只能操作自己品牌的入場單。');}
+    if(!s.space.in_at){await client.query('ROLLBACK');return spaceErr(res,409,'這張入場單還沒收款、尚未開始計時；客人不入場請作廢方案後清單。');}
+    if(s.space.out_at){await client.query('ROLLBACK');return spaceErr(res,409,'已經離場了。');}
+    if(outAt<new Date(s.space.in_at)){await client.query('ROLLBACK');return spaceErr(res,400,'離場時間不能早於入場時間。');}
+    const cfg=await spaceSettingsOf(s.venue),plan=posSpace.planMinutes(s.items);
+    const used=Math.max(0,Math.floor((outAt-new Date(s.space.in_at))/60000)),units=posSpace.overtimeUnits(used,plan,cfg),hc=posSpace.headcountOf(s.space,s.items);
+    let items=s.items;
+    if(units>0){
+      const menuAll=tableOrders.menuIndex(await contentValue('menu'),s.venue,{posOnly:true});
+      const ot=posSpace.overtimeItemFor(s.items,[...menuAll.values()]);
+      if(!ot){await client.query('ROLLBACK');return spaceErr(res,409,'菜單沒有這個品牌的超時品項（space_role:overtime），請先到後台菜單補上。');}
+      const qty=units*hc;if(qty>20){await client.query('ROLLBACK');return spaceErr(res,409,`超時 ${units} 小時 × ${hc} 人超過單行上限 20 份，請分開入場或由店長手動處理。`);}
+      items=tableOrders.posAddLine(items,menuAll,{item_id:ot.id,qty,device_name:'離場計時',note:`超時 ${used-plan} 分（寬限 ${cfg.grace_min} 分）`});
+    }
+    const space={...s.space,out_at:outAt.toISOString(),overtime:{used_minutes:used,plan_minutes:plan,units,headcount:hc,by:req.managerPin?.name||undefined,corrected:req.body?.out_at?true:undefined}};
+    const closed=tableOrders.unpaid(items).length===0;
+    if(closed)await client.query("UPDATE table_orders SET status='done',done_at=now() WHERE session_id=$1 AND status IN ('paid','ready')",[s.id]);
+    await client.query('UPDATE table_sessions SET items=$2,space=$3,status=$4,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),JSON.stringify(space),closed?'closed':'open']);
+    await client.query('COMMIT');
+    req.posLogDetail=`${s.table_no} 使用 ${used} 分／方案 ${plan||'不限'} 分，超時 ${units} 單位 × ${hc} 人${req.body?.out_at?'（補登離場時間）':''}`;
+    res.json({ok:true,id:s.id,table:s.table_no,in_at:s.space.in_at,out_at:space.out_at,used_minutes:used,plan_minutes:plan,overtime_units:units,headcount:hc,due:tableOrders.sum(tableOrders.unpaid(items)),closed});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});if(e.status)return spaceErr(res,e.status,e.message);throw e;}finally{client.release();}
+}));
+/* 取消離場（按錯）：只在超時款還沒收時可以，移除離場自動加的超時行、清掉離場時間 */
+app.post('/api/admin/orders/sessions/:id/space/resume',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return spaceErr(res,404,'找不到這張入場單。');
+  const client=await pool.connect();
+  try{await client.query('BEGIN');
+    const s=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+    if(!s||s.status!=='open'||!s.space||!s.space.out_at){await client.query('ROLLBACK');return spaceErr(res,404,'找不到已離場、未結清的入場單。');}
+    const venues=tableOrders.visibleVenues(req.auth.brands);if(venues&&!venues.includes(s.venue)){await client.query('ROLLBACK');return spaceErr(res,403,'只能操作自己品牌的入場單。');}
+    const items=s.items.filter(l=>!(l.space_role==='overtime'&&!l.order_id&&l.device_name==='離場計時'));
+    const space={...s.space,out_at:null,overtime:null};
+    await client.query('UPDATE table_sessions SET items=$2,space=$3,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),JSON.stringify(space)]);
+    await client.query('COMMIT');res.json({ok:true,id:s.id});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 // 本桌點餐 QR（單次）：只給開著的桌，QR 綁這一場，結帳清桌後失效；補印／遺失帳本夾 QR 用（開桌回應已附 qr_url）
 app.get('/api/admin/tables/qr',auth,adminOnly,requireDb,wrap(async(req,res)=>{

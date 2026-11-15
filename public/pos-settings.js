@@ -82,7 +82,7 @@ function bindPmSection(host){
 async function loadSettings(){
   const host=document.getElementById('settings-body');if(!host)return;
   if(!SET_PM)host.innerHTML='<div class="ops-head"><h2>設定</h2></div><p class="hint">載入中…</p>';
-  await refreshPaymentMethods();
+  await Promise.all([refreshPaymentMethods(),typeof refreshSpaceSettings==='function'?refreshSpaceSettings():null]);
   paintSettings(host);
 }
 function paintSettings(host){
@@ -115,6 +115,7 @@ function paintSettings(host){
   </div>`;
   host.innerHTML=`<div class="ops-head"><h2>設定</h2></div>
     <div class="set-sec" aria-labelledby="set-more"><h3 id="set-more">更多功能</h3><div class="set-links">${links}</div></div>
+    ${typeof spaceSettingsSection==='function'?spaceSettingsSection():''}
     ${pmSection()}
     <div class="set-sec" aria-labelledby="set-ktv"><h3 id="set-ktv">KTV 點歌</h3><div class="set-links"><a class="set-link" href="https://ktv.emoji.tw/" target="_blank" rel="noopener">${POSIcon('music')}<span class="set-link-main"><b>開啟言文字 KTV</b><span>點歌已獨立成 ktv.emoji.tw：控台、電視畫面、遙控、歌單、統計</span></span><span class="set-chev" aria-hidden="true">›</span></a></div></div>
     ${escpos}
@@ -128,6 +129,7 @@ function paintSettings(host){
     </div>`;
   host.querySelectorAll('[data-set-tab]').forEach(b=>b.onclick=()=>go(b.dataset.setTab));
   bindPmSection(host);
+  if(typeof bindSpaceSettings==='function')bindSpaceSettings(host);
   const escInputs=()=>({url:host.querySelector('#escpos-url').value.trim().replace(/\/$/,''),printerId:host.querySelector('#escpos-printer').value.trim(),token:host.querySelector('#escpos-token').value.trim()});
   // tone：''＝一般、busy、ok、bad；用 data-tone 換色，文字一律 textContent（不進 innerHTML）
   const escStatus=(t,tone='')=>{const s=host.querySelector('#escpos-status');s.textContent=t;s.dataset.tone=tone;};
