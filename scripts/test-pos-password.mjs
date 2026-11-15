@@ -76,6 +76,6 @@ for (const [label,state,allowed] of [
   runInNewContext(boot,ctx);
   await ctx.main();
   assert.equal(ctx.rendered===true,allowed);
-  assert.equal(paths.includes('/admin/pos-devices/bind'),allowed);
+  assert.equal(paths.includes('/admin/pos-devices/bind'),false);   // 3689fac 起只有 POS 專用帳號（pos@emoji.tw）會綁定裝置，這些管理員一律不綁
   assert.equal(screens.length,allowed?0:1);
 });
