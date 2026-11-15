@@ -8297,11 +8297,12 @@ const payClaim=gw=>wrap(async(req,res)=>{
     if(t.claim_venue&&t.claim_venue!==venue)throw Object.assign(Error(`這筆已歸到${linepay.VENUE_LABEL[t.claim_venue]||t.claim_venue}，請該店先撤回。`),{status:409});
     const day=tableOrders.MenuLib.businessDay(t.paid_at);
     const regs=(await c.query('SELECT venue,opened_at,closed_at FROM pos_registers WHERE day=$1',[day])).rows;
-    /* 交易當下別店開著帳（KK 11/15：別店已開帳才發現是本店的）也可以改歸本店，但要填原因；本店自己開著的時段本來就算本店 */
-    const at=new Date(t.paid_at).getTime(),inside=regs.filter(r=>at>=new Date(r.opened_at).getTime()&&at<(r.closed_at?new Date(r.closed_at).getTime():Infinity));
-    if(inside.some(r=>r.venue===venue))throw Object.assign(Error(`這筆交易發生時${linepay.VENUE_LABEL[venue]}開著帳，本來就算本店。`),{status:409});
-    const from=inside.length?(linepay.VENUE_LABEL[inside[0].venue]||inside[0].venue):'';
-    if(from&&!reason)throw Object.assign(Error(`這筆交易發生時${from}開著帳，改歸本店要填原因。`),{status:400});
+    /* 交易當下別店開著帳（KK 11/15：別店已開帳才發現是本店的）也可以改歸本店，但要填原因；
+     * 兩店帳時段重疊（2026-11-15 t_2d0e8cde）歸屬不確定，任一開著帳的店都可認領，要填原因；只有本店開著的時段本來就算本店（409） */
+    const rule=linepay.claimRule(t.paid_at,regs,venue);
+    if(!rule.ok)throw Object.assign(Error(rule.error),{status:rule.status});
+    const from=rule.from;
+    if(rule.needReason&&!reason)throw Object.assign(Error(rule.error),{status:400});
     await c.query(`UPDATE ${g.table} SET claim_venue=$2,claimed_by=$3,claimed_at=now(),claim_reason=$4 WHERE id=$1`,[id,venue,String(req.auth.name||req.auth.email||'').slice(0,120),reason||null]);
     return {t,venue,from};
   })();await c.query('COMMIT');}

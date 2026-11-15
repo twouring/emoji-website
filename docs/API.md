@@ -912,11 +912,11 @@ LINE Pay 與中信刷卡同步都依開關帳時間歸屬店別，保留品牌�
 
 ### POST /api/admin/sales/linepay/claim
 
-營業時間外收款歸到本店（KK 11/15）。LINE Pay／中信只有一個商店帳號，交易本身沒有店別；交易當下沒有任何一本帳開著（任一品牌）時，依時間歸屬會猜錯，品牌 POS 可把這筆交易歸到自己店別。店別取自 `posScope`（品牌 POS 自動帶 `venue`），必須是單一店別，否則 400。body `{ id, release? }`：`id`＝交易序號；`release:true`＝本店撤回認領（回到依時間歸屬）。寫入交易表 `claim_venue`／`claimed_by`／`claimed_at`，之後 `/api/admin/sales` 的對帳、`by_venue`、帳戶確認自動帶入、收款彈窗與 CSV 都以 `claim_venue` 為準。body 可帶 `reason`（≤80 字）。交易發生時本店開著帳回 409（本來就算本店）；發生時是別店開著帳（KK 11/15：別店已開帳才發現是本店的）可以改歸，但必填 `reason`，否則 400，原因存 `claim_reason`；已被別店認領回 409；找不到 404。品牌頁另回 `linepay.others`／`ctbc.others`：別店開帳時段、尚未認領的交易。`/api/admin/sales` 的 `linepay.outside`／`ctbc.outside` 列出該營業日營業時間外、尚未認領的交易（不分店別），`rows[].claimed` 標示已認領。寫入 POS 操作紀錄「營業時間外收款歸到本店」。回 `{ ok, id, claim_venue }`。
+營業時間外收款歸到本店（KK 11/15）。LINE Pay／中信只有一個商店帳號，交易本身沒有店別；交易當下沒有任何一本帳開著（任一品牌）時，依時間歸屬會猜錯，品牌 POS 可把這筆交易歸到自己店別。店別取自 `posScope`（品牌 POS 自動帶 `venue`），必須是單一店別，否則 400。body `{ id, release? }`：`id`＝交易序號；`release:true`＝本店撤回認領（回到依時間歸屬）。寫入交易表 `claim_venue`／`claimed_by`／`claimed_at`，之後 `/api/admin/sales` 的對帳、`by_venue`、帳戶確認自動帶入、收款彈窗與 CSV 都以 `claim_venue` 為準。body 可帶 `reason`（≤80 字）。交易發生時只有本店開著帳回 409（本來就算本店；只限在咖啡／三點水，等等空間／約書旅不在自動歸屬內，本店開著帳時仍可直接認領）；發生時是別店開著帳（KK 11/15：別店已開帳才發現是本店的）可以改歸，但必填 `reason`，否則 400，原因存 `claim_reason`；在咖啡與三點水帳時段重疊（兩店同時開帳，2026-11-15）時歸屬不確定，任一開著帳的店都可認領，同樣必填 `reason`（規則在 `lib/linepay.claimRule`）。重疊時段未認領的交易在 `/api/admin/sales` 的 `rows[]`／`others[]` 與收款彈窗列帶 `ambiguous:true`、`candidates:['CAFE','BAR']`（`venue` 暫為先開帳的店），兩店品牌頁的 `others` 都會列出、另回 `linepay.ambiguous`／`ctbc.ambiguous`（品牌頁只列本店是候選的，全店頁全列），兩店的收款彈窗都會跳；認領後以 `claim_venue` 為準、`ambiguous` 回 false。已被別店認領回 409；找不到 404。品牌頁另回 `linepay.others`／`ctbc.others`：別店開帳時段、尚未認領的交易。`/api/admin/sales` 的 `linepay.outside`／`ctbc.outside` 列出該營業日營業時間外、尚未認領的交易（不分店別），`rows[].claimed` 標示已認領。寫入 POS 操作紀錄「營業時間外收款歸到本店」。回 `{ ok, id, claim_venue }`。
 
 ### POST /api/admin/sales/ctbc/claim
 
-同 `POST /api/admin/sales/linepay/claim`，對象是中信刷卡交易（`ctbc_transactions`）。body `{ id, release?, reason? }`；規則同 LINE Pay：本店開帳時段 409、別店開帳時段必填 reason、已被別店認領 409。回 `{ ok, id, claim_venue }`。
+同 `POST /api/admin/sales/linepay/claim`，對象是中信刷卡交易（`ctbc_transactions`）。body `{ id, release?, reason? }`；規則同 LINE Pay：只有本店開帳的時段 409、別店開帳時段或兩店重疊時段必填 reason、已被別店認領 409。回 `{ ok, id, claim_venue }`。
 ### GET /api/reservations/slots
 客人端某天可訂的時段（`/reserve` 與會員 App 換日期時呼叫；免登入）。query `date=YYYY-MM-DD`。回 `{ ok, date, slots[] }`（`'HH:MM'`，沒設定＝全部 30 分鐘時段）。依 `GET /api/admin/reservation-hours` 的設定：特定日期優先於每週設定，空陣列＝該日公休。`Cache-Control: no-store`；每 IP 每小時 300 次。
 
