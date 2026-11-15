@@ -68,6 +68,13 @@ for (const [w, h, mobile] of [[1180, 820, false], [390, 844, true]]) {
     overflow: document.documentElement.scrollWidth - innerWidth,
     small: [...document.querySelectorAll('[data-so-mat],[data-so]')].filter(b => b.getBoundingClientRect().height < 44).length,
   }));
+  const gap = () => page.evaluate(() => {
+    const t = document.querySelector('.so-tabs').getBoundingClientRect();
+    const host = document.getElementById('soldout-body');
+    const els = [...host.querySelectorAll('*')].filter(e => { const r = e.getBoundingClientRect(); return r.height > 0 && r.top >= t.bottom - 1 && r.top < t.bottom + 200; }).slice(0, 8);
+    return { tabsBottom: Math.round(t.bottom), next: els.map(e => { const r = e.getBoundingClientRect(), cs = getComputedStyle(e); return `${e.tagName}.${e.className}#${e.id} top=${Math.round(r.top)} h=${Math.round(r.height)} mt=${cs.marginTop} mb=${cs.marginBottom} pt=${cs.paddingTop}`; }) };
+  });
+  report[w + '_gap'] = await gap();
   const tabs = await page.evaluate(() => [...document.querySelectorAll('[data-so-tab]')].map(b => b.innerText.replace(/\s+/g, ' ')));
   const vis = () => page.evaluate(() => [...document.querySelectorAll('[data-so],[data-so-mat]')].filter(b => !b.hidden && b.getBoundingClientRect().width > 0).map(b => b.querySelector('b').innerText));
   const allTab = await vis();

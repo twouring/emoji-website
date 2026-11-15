@@ -110,6 +110,7 @@ test('估清頁分頁與搜尋（KK 11/15）：各分類＋原物料分頁、搜
   const css = fs.readFileSync(new URL('../public/pos-ops.css', import.meta.url), 'utf8');
   assert.match(ops, /data-so-tab=/); assert.match(ops, /\['MAT','原物料'\]/); assert.match(ops, /\['','全部品項'\]/);
   assert.match(ops, /id="so-q"[^>]*type="search"|type="search" id="so-q"/);
-  assert.match(ops, /function soFilter\(host\)/); assert.match(ops, /data-so-text=/);
+  assert.match(ops, /function soFilter\(host\)/);
+  assert.doesNotMatch(ops, /<section class="so-sec"/, '官網 style.css 的 section 有 72–128px 上下內距，會在分頁下方留空白'); assert.match(ops, /data-so-text=/);
   assert.match(css, /\.so-item\[hidden\],\.so-sec\[hidden\]\{display:none\}/);
 });
