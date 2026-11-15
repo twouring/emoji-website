@@ -56,7 +56,7 @@ test('close route uses authoritative brand sales and stale guard; reprints store
  assert.ok(!ui.includes('帳務參考（另行逐項確認）'));
  // 付款方式、時段分布移到分析分頁（客群），日結只留捷徑（KK 11/15）
  assert.ok(!ui.includes('<h3>時段分布</h3>')&&!ui.includes('class="sales-cols"'));
- assert.ok(!ui.includes('sales-mix-go')); // 不留跳轉按鈕（KK 11/15）
+ assert.ok(!ui.includes('sales-mix-go')&&!ui.includes('sales-items-go')); // 日結不留任何跳轉分析的按鈕（KK 11/15）
  assert.match(ui,/lpVenueTable/); // 保留 main 的 LINE Pay 店別歸屬與明細。
  const spec=ui.slice(ui.indexOf('function registerReportSpec('),ui.indexOf('// 有接 mPOP'));
  assert.match(spec,/rep\.accounts/);

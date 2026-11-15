@@ -2852,7 +2852,7 @@ async function loadSales(){
   if(!host.dataset.init){host.dataset.init='1';host.innerHTML='<h2>日結報表</h2><p class="hint">載入中…</p>';}
   let d;try{[d,REG_DATA]=await Promise.all([api(`/admin/sales?day=${encodeURIComponent(SALES_DAY)}`+(SCOPE?'&venue='+SCOPE:'')),api(`/admin/registers?day=${encodeURIComponent(SALES_DAY)}`+(SCOPE?'&venue='+SCOPE:'')).catch(()=>null)]);}catch(e){host.innerHTML=`<h2>日結報表</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`;return;}
   const resumeDialog=!SALES_DRAFT_HYDRATED;salesDraftHydrate();
-  const hasProducts=!!document.getElementById('analytics-body');   // POS 平板有「分析」分頁：品項銷量、付款方式、時段分布整合到那邊（KK 11/15），日結只留捷徑
+  const hasProducts=!!document.getElementById('analytics-body');   // POS 平板有「分析」分頁：品項銷量、付款方式、時段分布都在那邊，日結不放跳轉按鈕（KK 11/15）
   const items=(d.items||[]).map(it=>`<tr><td>${esc(it.zh)}</td>${SCOPE?'':`<td>${esc(BRAND_LABEL[it.venue]||'')}</td>`}<td class="num">${it.qty}</td><td class="num">${num(it.amount)}</td></tr>`).join('')||`<tr><td colspan="${SCOPE?3:4}" class="a-empty">—</td></tr>`;
   const lp=d.linepay||{},ct=d.ctbc||{};
   const refFallback=!(REG_DATA&&accountConfirmBlock(REG_DATA,d));   // 帳開著＝明細只在「核對」視窗；已關帳／沒開帳的日子沒有核對鍵，才在頁底留收合區查歷史
@@ -2869,7 +2869,7 @@ async function loadSales(){
     ${REG_DATA?accountConfirmBlock(REG_DATA,d):''}
     ${outBlock}
     ${REG_DATA?registerBlock(REG_DATA):''}
-    ${hasProducts?`<div class="a-toolbar"><a class="btn btn--ghost btn-sm" id="sales-items-go" data-tab="analytics" href="${esc(opsHref('analytics'))}">品項銷量 → 分析（${esc(d.day)}）</a></div>`:`<h3>品項銷量</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>品項</th>${SCOPE?'':'<th>店別</th>'}<th class="num">數量</th><th class="num">金額</th></tr></thead><tbody>${items}</tbody></table></div>`}
+    ${hasProducts?'':`<h3>品項銷量</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>品項</th>${SCOPE?'':'<th>店別</th>'}<th class="num">數量</th><th class="num">金額</th></tr></thead><tbody>${items}</tbody></table></div>`}
     ${refFallback?`<section class="acct-gw-ref"><h3>帳務參考（LINE Pay／中信逐筆實收）</h3>${gwRefHtml(d,'linepay')}${gwRefHtml(d,'ctbc')}</section>`:''}`;
   bindAccountConfirm(host,d,loadSales);bindRegisterBlock(host,loadSales);bindReasonChips(host);bindFillChips(host);
   const shift=n=>{const t=new Date(SALES_DAY+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);SALES_DAY=t.toISOString().slice(0,10);REG_CASH_OPEN=false;REG_CASH_EDIT=null;REG_CLOSE_OPEN=false;REG_COUNT_OPEN=false;REG_OPEN_FORM='';loadSales();};
@@ -2882,7 +2882,6 @@ async function loadSales(){
   host.querySelector('#sales-prev').onclick=()=>shift(-1);
   host.querySelector('#sales-next').onclick=()=>shift(1);
   host.querySelector('#sales-today').onclick=()=>{SALES_DAY=MenuLib.businessDay();loadSales();};
-  const ig=host.querySelector('#sales-items-go');if(ig)ig.onclick=()=>{ANALYTICS_FROM=d.day;ANALYTICS_TO=d.day;ANALYTICS_KIND='products';};   // 宿主頁的 a[data-tab] 點擊處理會切到分析（銷量），帶這個營業日
   host.querySelector('#sales-csv').onclick=()=>downloadCSV(`日結_${d.day}${SCOPE?'_'+(BRAND_LABEL[SCOPE]||SCOPE):''}.csv`,d.csv||[]);
   salesDraftRestore(host);if(resumeDialog)salesDialogResume(host);
 }
