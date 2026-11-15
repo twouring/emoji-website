@@ -13,6 +13,7 @@ function tabHistory(){ return '<div class="a-sec" id="history-body"></div>'; }
 function tabLogs(){ return '<div class="a-sec" id="logs-body"></div>'; }
 let POS_OPT=null,POS_MENU_SCROLL=0,POS_LEFT_SCROLL=0,POS_CATS_LEFT=0;
 let ORDERS_TIMER=null,ORDERS_SEEN=null,PAYREQ_SEEN=null,POS_PAYREQ=null,POS_AA=null,POS_TIMER=null,POS_DATA=null,POS_TABLE='',POS_PICK=null,POS_QTY={},POS_SPLIT={},POS_MEMBER=false,POS_YAN={phone:'',name:'',balance:null},POS_INVOICE={mode:'paper'},POS_METHOD='cash',POS_CAT='',POS_DISCOUNT=null,POS_DISC_OPEN=false,POS_SVC_WAIVE=null,POS_SVC_OPEN=false,POS_RECEIVED='',RESV_FROM='',RESV_DAYS=7,RESV_EDIT=null,RESV_HOURS=null,RESV_HOURS_ERR='',RESV_HOURS_OPEN=false,RESV_ADD_OPEN=false,SALES_DAY='',HIST_DAY='',HIST_Q='',HIST_OPEN=new Set(),REG_DATA=null,REG_CASH_OPEN=false,REG_CASH_EDIT=null,REG_CLOSE_OPEN=false,REG_COUNT_OPEN=false,REG_OPEN_FORM='',CLOCK_PIN='',CLOCK_MSG=null,SHIFT_WEEK='',SHIFT_FORM={},ATT_FROM='',ATT_TO='',STAFF_EDIT=null;
+let POS_UNSENT_ALERTED=new Set();
 const CHECKOUT_TIP='<b>這桌的帳</b><br>品項依點餐人分組；勾選左邊決定這次結哪些，組頭「只結這組」＝各付各的、「結帳全部」＝整桌一起結，「依人數分次收款」＝平均分攤；可分多次收款，全部結清自動清桌。數量旁「−／＋」改份數，品項有「本次結」可只結幾份。<br>'
  +'<b>＋ 加點</b>：展開菜單點品項，備註可點常用的。送單後會出現在「出餐」。<br>'
  +'<b>換桌／併桌、清桌</b>：搬到別桌或合併；客人走了、沒有未結帳的品項才清桌。<br>'
@@ -442,6 +443,14 @@ function posTables(d){const t=(d||(typeof POS_DATA!=='undefined'?POS_DATA:null))
 const ORDER_STATE={placed:'待出餐',paid:'準備中',ready:'可取餐',done:'已取餐',void:'已作廢'};
 const IDLE_WARN_MIN=10;
 const idleWarn=s=>!s.takeout&&s.state==='empty'&&s.created_at&&(Date.now()-new Date(s.created_at))>=IDLE_WARN_MIN*60000;
+const UNSENT_WARN_MIN=2;
+// 只看尚未送出的有效品項；同桌多次加點時，以最早一筆未送單品項開始算。
+const unsentReminder=(s,now=Date.now())=>{
+  const times=(s.lines||[]).filter(l=>!l.credit_of&&!l.cancelled&&!l.placed_at).map(l=>Date.parse(l.added_at||l.created_at||'')).filter(Number.isFinite);
+  if(!times.length)return null;
+  const at=Math.min(...times),minutes=Math.max(0,Math.floor((now-at)/60000));
+  return {since:new Date(at).toISOString(),minutes,overdue:minutes>=UNSENT_WARN_MIN};
+};
 // 桌況卡的詳細資訊：品項摘要、份數、出餐進度、開桌／最後動作時間、點餐人、開桌人員
 const tableDetailHtml=s=>{
   const ls=(s.lines||[]).filter(l=>!l.credit_of&&!l.cancelled);
@@ -485,6 +494,18 @@ function invoiceBody(host){
 // 平板上正在操作的畫面不走 refresh() 整頁重繪，只重載該分頁
 async function opsThen(fn,msg,reload){try{const out=await fn();toast(typeof msg==='function'?await msg(out):msg);if(reload)await reload(out);}catch(e){toast(e.message);}}
 function ordersBeep(){try{const c=new (window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=660;g.gain.value=.2;o.start();o.stop(c.currentTime+.5);}catch(e){}}
+// 未送單提醒使用低→高雙音，和新單的單一提示音明確區別。
+function unsentAlertBeep(){try{const c=new (window.AudioContext||window.webkitAudioContext)(),g=c.createGain();g.gain.value=.18;g.connect(c.destination);[440,880].forEach((frequency,i)=>{const o=c.createOscillator();o.frequency.value=frequency;o.connect(g);o.start(c.currentTime+i*.22);o.stop(c.currentTime+i*.22+.16);});}catch(e){}}
+function alertUnsentOrders(sessions){
+  const active=new Map((sessions||[]).map(s=>{const r=unsentReminder(s);return r?.overdue?[`${s.id}:${r.since}`,{session:s,reminder:r}]:null;}).filter(Boolean));
+  POS_UNSENT_ALERTED=new Set([...POS_UNSENT_ALERTED].filter(k=>active.has(k)));
+  const fresh=[...active].filter(([key])=>!POS_UNSENT_ALERTED.has(key));
+  if(!fresh.length)return;
+  fresh.forEach(([key])=>POS_UNSENT_ALERTED.add(key));
+  const tables=fresh.map(([,v])=>`${v.session.takeout?'外帶 ':''}${v.session.table}（${v.reminder.minutes} 分）`).join('、');
+  unsentAlertBeep();
+  void posConfirm(`以下桌次已點餐超過 2 分鐘，尚未送單：\n${tables}`,{title:'未送單提醒',ok:'知道了',cancel:'知道了'});
+}
 // 80mm 出單機版型；列印視窗只放經 esc 的內容
 const PRINT_CSS='body{font-family:sans-serif;width:72mm;margin:0;padding:4mm;font-size:16px;color:#000}h1{font-size:30px;margin:0 0 4px}h1.k{font-size:42px;letter-spacing:.04em;text-align:center;margin:2px 0 6px}h2{font-size:16px;margin:10px 0 4px;border-bottom:2px solid #000}.m{color:#333;margin-bottom:6px}.l{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed #bbb}.l.k{font-size:20px;font-weight:700;border-bottom:1px solid #000;padding:6px 0}.n{color:#222;padding:0 0 4px 1em;font-weight:700}.t{display:flex;justify-content:space-between;font-weight:700;margin-top:8px;font-size:17px}.t.big{font-size:22px;border-top:2px solid #000;padding-top:6px}.c{text-align:center;margin-top:12px;color:#333}.sep{border:0;border-top:1px dashed #000;margin:8px 0}';
 function printWindow(title,html,css=PRINT_CSS){const w=window.open('','_blank');if(!w){toast('瀏覽器擋下列印視窗，請允許彈出視窗');return false;}w.document.write(`<title>${esc(title)}</title><style>${css}</style>${html}`);w.document.close();w.focus();w.print();return true;}
@@ -1505,6 +1526,8 @@ async function loadPos(){
   const sig=JSON.stringify([POS_DATA.occupied||[],POS_DATA.sessions.map(s=>(s.other_lines||[]).map(l=>[l.line,l.qty])),POS_DATA.stock,POS_DATA.table_layout,POS_DATA.linepay,POS_DATA.pause,POS_DATA.space_settings,POS_DATA.space_summary,POS_DATA.sessions.map(s=>[s.id,s.space&&[s.space.in_at,s.space.out_at,s.space.due_at,s.space.limit_hit],s.linepay,s.unpaid,s.unpaid_amount,s.state,s.lines.map(l=>[l.line,l.qty,l.price,l.comp_reason||'',l.placed_at||'',l.served_at||'']),(s.pay_requests||[]).map(r=>[r.id,r.amount,r.count])]),POS_DATA.orders.map(o=>[o.id,o.status,o.invoice?.status]),Object.entries(POS_DATA.reservations||{}).map(([t,rs])=>[t,rs.map(r=>[r.id,r.time,r.status])]),REG_DATA&&Object.entries(REG_DATA.current||{}).map(([v,r])=>[v,r?.id,r?.closed_at]),(DATA.payment_methods||[]).map(m=>[m.code,m.label,m.active]),kitchenPrintStatus().state]);
   // 客人手機按「通知櫃檯我要結帳」：第一次看到的需求響一聲（和新單同一個音）
   const reqIds=new Set(POS_DATA.sessions.flatMap(s=>(s.pay_requests||[]).map(r=>r.id)));if(PAYREQ_SEEN&&[...reqIds].some(id=>!PAYREQ_SEEN.has(id)))ordersBeep();PAYREQ_SEEN=reqIds;
+  // 客人點餐後兩分鐘未送單：POS 只彈一次，送單後同桌再次累積未送單可重新提醒。
+  if(TAB==='pos')alertUnsentOrders(POS_DATA.sessions);
   // 開帳表單打開時不要被 15 秒自動刷新重畫（會清掉正在填的張數）
   if(POS_EDIT&&host.querySelector('.pos-floor-edit')){POS_TIMER=setTimeout(()=>{if(document.getElementById('pos-body')&&TAB==='pos')loadPos();},globalThis.POS_LIVE_OK?60000:15000);return;}
   if(!CHECKOUT_BUSY.size&&((host.dataset.sig!==sig&&!(REG_OPEN_FORM&&host.querySelector('.reg-open-form')))||!host.querySelector('.pos-grid'))){host.dataset.sig=sig;paintPos();}
@@ -1616,8 +1639,12 @@ const TAKEOUT_SLOT='外帶';
 function moveToTakeout(id,then){return opsThen(()=>api('/admin/orders/sessions/'+id+'/move',{method:'POST',body:{takeout:true}}),out=>`已移到外帶 ${out.table}`,then);}
 // 桌況拖單：單卡（[data-pos-table]）拖到桌位格（[data-slot]）。拖曳後會吃掉緊接著的 click，不會誤開帳單
 let LAST_DRAG=0;
-// 座席時間每 30 秒就地更新（桌況只在資料變動時重畫，不能靠重畫刷新分鐘數）
-if(typeof document!=='undefined'&&typeof setInterval==='function'&&!globalThis.__posDwellTick)globalThis.__posDwellTick=setInterval(()=>{for(const e of document.querySelectorAll?.('.tk-dwell[data-since]')||[])e.textContent=elapsedShort(e.dataset.since);},30000);
+// 座席／未送單時間就地更新（桌況只在資料變動時重畫，不能靠重畫刷新分鐘數）
+if(typeof document!=='undefined'&&typeof setInterval==='function'&&!globalThis.__posDwellTick)globalThis.__posDwellTick=setInterval(()=>{
+  for(const e of document.querySelectorAll?.('.tk-dwell[data-since]')||[])e.textContent=elapsedShort(e.dataset.since);
+  for(const e of document.querySelectorAll?.('.pos-unsentwarn[data-unsent-since]')||[]){const m=Math.max(0,Math.floor((Date.now()-new Date(e.dataset.unsentSince))/60000)),overdue=m>=UNSENT_WARN_MIN;e.textContent=`未送單 ${m}分`;e.hidden=!overdue;e.closest('.pos-table')?.classList.toggle('unsentwarn',overdue);}
+  if(TAB==='pos'&&POS_DATA?.sessions)alertUnsentOrders(POS_DATA.sessions);
+},15000);
 function bindOrderDrag(host,onDrop){
   // 綁在桌況＋外帶列的共同外層（外帶列在置底按鈕上方，KK 11/7），外帶單也能拖回桌位（轉內用）
   const board=host.querySelector('.pos-tables:not(.pos-editing)')||host.querySelector('.pos-board');if(!board||typeof board.addEventListener!=='function'||board.dataset.dragBound)return;board.dataset.dragBound='1';
@@ -1875,7 +1902,8 @@ function paintPos(){
     const at=s.pickup_at||s.created_at;
     // 點餐人：客人掃碼點餐時填的名字（櫃檯代點不算），最多列 3 個，其餘「等 N 人」
     const who=[...new Set((s.lines||[]).filter(l=>!l.credit_of&&!l.cancelled).map(ordererOf).filter(Boolean))];
-    return `<button type="button" class="pos-table pos-ticket ${s.placed?'is-placed':''} ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''} ${s.pay_requests?.length?'payreq':''} ${idleWarn(s)?'idlewarn':''}" data-pos-table="${esc(s.table)}" aria-label="${s.takeout?'外帶 ':''}${esc(s.table)}${s.pay_requests?.length?'，要結帳':''}" title="${esc(applicationTime(at||''))}"><span class="tk-head">${s.takeout?`<b>${esc(s.table)}</b>`:''}<span class="pill ${cls}">${label}</span>${s.party_size?`<span class="tk-party">${Number(s.party_size)} 位</span>`:''}</span><span class="tk-time pos-order-time">${s.pickup_at?`取餐 ${esc(clockText(at))}`:s.created_at?`<span class="tk-dwell" data-since="${esc(s.created_at)}">${elapsedShort(s.created_at)}</span>`:'—'}</span>${who.length?`<span class="tk-who" title="${esc(who.join('、'))}">${who.slice(0,3).map(n=>`<span class="tk-who-pill">${esc(n)}</span>`).join('')}${who.length>3?`<span class="tk-who-pill tk-who-more">+${who.length-3}</span>`:''}</span>`:''}</button>`;
+    const unsent=unsentReminder(s);
+    return `<button type="button" class="pos-table pos-ticket ${s.placed?'is-placed':''} ${s.table===POS_TABLE?'on':''} ${s.takeout?'takeout':''} ${s.pay_requests?.length?'payreq':''} ${idleWarn(s)?'idlewarn':''} ${unsent?.overdue?'unsentwarn':''}" data-pos-table="${esc(s.table)}" aria-label="${s.takeout?'外帶 ':''}${esc(s.table)}${s.pay_requests?.length?'，要結帳':''}${unsent?.overdue?'，未送單超過兩分鐘':''}" title="${esc(applicationTime(at||''))}"><span class="tk-head">${s.takeout?`<b>${esc(s.table)}</b>`:''}<span class="pill ${cls}">${label}</span>${s.party_size?`<span class="tk-party">${Number(s.party_size)} 位</span>`:''}</span><span class="tk-time pos-order-time">${s.pickup_at?`取餐 ${esc(clockText(at))}`:s.created_at?`<span class="tk-dwell" data-since="${esc(s.created_at)}">${elapsedShort(s.created_at)}</span>`:'—'}</span>${unsent?`<span class="pos-unsentwarn-tag pos-unsentwarn" data-unsent-since="${esc(unsent.since)}"${unsent.overdue?'':' hidden'}>未送單 ${unsent.minutes}分</span>`:''}${who.length?`<span class="tk-who" title="${esc(who.join('、'))}">${who.slice(0,3).map(n=>`<span class="tk-who-pill">${esc(n)}</span>`).join('')}${who.length>3?`<span class="tk-who-pill tk-who-more">+${who.length-3}</span>`:''}</span>`:''}</button>`;
   };
   // 桌位固定：每桌一格（桌號在格頭、不會動）；單卡放在格子裡，可以拖到別的桌位（目標桌有單＝併桌）。外帶單沒有桌位，排在右側直欄
   const slotHtml=t=>`<div class="pos-slot ${layoutPos[t]?'is-placed':''}" data-slot="${esc(t)}"><span class="pos-slot-name">${esc(t)}</span>${cardHtml(byTable.get(t)||{table:t,empty:true})}${byTable.get(t)?`<span class="pos-slot-resv">${resvHtml(t)}</span>`:''}</div>`;

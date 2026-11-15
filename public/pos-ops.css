@@ -487,6 +487,8 @@ tr.lp-refund td{color:var(--danger)}
 @media(max-width:700px){.kds-grid{columns:1}}
 
 .pos-table.idlewarn{border-color:#d9822b;background:#fff1e0}.pos-table.idlewarn.on{background:var(--ink)}.pos-table .pos-idlewarn-tag{color:#9a4a00;font-weight:600;overflow-wrap:anywhere}
+/* 客人已點但尚未送單：兩分鐘起顯示紅色桌卡與經過時間，送單後資料重繪即消失。 */
+.pos-table.unsentwarn{border:2px solid var(--danger);background:var(--danger-soft)}.pos-table.unsentwarn.on{background:var(--ink)}.pos-table .pos-unsentwarn-tag{color:var(--danger);font-weight:700;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.pos-table .pos-unsentwarn-tag[hidden]{display:none}.pos-table.on .pos-unsentwarn-tag{color:var(--danger-line)}
 .pos-open .btn--solid{flex:1 1 160px;min-height:56px;font-size:1.05rem}
 .pos-open .btn--ghost{flex:0 0 auto;min-height:48px}
 .pos-sub{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px}.pos-sub .a-toolbar{margin:0}
