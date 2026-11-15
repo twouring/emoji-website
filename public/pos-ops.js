@@ -1429,7 +1429,7 @@ function pickTables({title,options}){
 function pickSeatTables({title,tables,busy={},resv={},preset=[]}){
   return new Promise(resolve=>{
     const sel=new Set(preset.filter(t=>tables.includes(t)&&!busy[t]));
-    const opt=t=>`<button type="button" class="pos-move-opt ${sel.has(t)?'busy':''}" data-st="${esc(t)}" aria-pressed="${sel.has(t)}"${busy[t]?' disabled':''}><b>${esc(t)}</b>${busy[t]?'<small>使用中</small>':resv[t]?`<small>${esc(resv[t])}</small>`:''}</button>`;
+    const opt=t=>`<button type="button" class="pos-move-opt ${sel.has(t)?'busy':''}" data-st="${esc(t)}" aria-pressed="${sel.has(t)}"${busy[t]?' disabled':''}><b>${esc(t)}</b>${busy[t]?`<small>${esc(busy[t]===1?'使用中':busy[t])}</small>`:resv[t]?`<small>${esc(resv[t])}</small>`:''}</button>`;
     const {ov,close}=pickOverlay(`<h3>${esc(title)}${tipIcon('點要帶位的空桌，大組可多選（每桌各印一張點餐 QR）。使用中的桌不能選。客人已在桌上、不用開桌就按「只標已到」。')}</h3><div class="pos-move-grid pos-seat-grid">${tables.map(opt).join('')}</div><div class="pos-move-foot pos-seat-foot"><button type="button" class="btn btn--ghost" data-cancel>取消</button><button type="button" class="btn btn--ghost" data-arrive>只標已到</button><button type="button" class="btn btn--solid" data-ok></button></div>`,'安排桌位');
     const ok=ov.querySelector('[data-ok]');
     const paint=()=>{ov.querySelectorAll('[data-st]').forEach(b=>{const on=sel.has(b.dataset.st);b.classList.toggle('busy',on);b.setAttribute('aria-pressed',String(on));});ok.disabled=!sel.size;ok.textContent=sel.size?`開 ${[...sel].join('、')} 並印 QR`:'選桌後開桌';};
@@ -1445,6 +1445,7 @@ function pickSeatTables({title,tables,busy={},resv={},preset=[]}){
 async function seatReservation(r,after){
   let d;try{d=await api('/admin/orders'+scopeQuery('all=1'));}catch(e){toast('桌況載入失敗：'+e.message);return;}
   const sessions=(d.sessions||[]).filter(s=>!s.takeout),busy={};sessions.forEach(s=>{busy[s.table]=1;});
+  (d.occupied||[]).forEach(o=>{if(!busy[o.table])busy[o.table]=`${BRAND_LABEL[o.venue]||'其他品牌'}使用中`;});   // 別的品牌佔用的桌也不能帶位（KK 11/16）
   const tables=[...new Set([...posTables(d),...sessions.map(s=>s.table)])];
   const resv={};for(const [t,list] of Object.entries(d.reservations||{})){const o=(list||[]).find(x=>x.id!==r.id&&x.status!=='arrived');if(o)resv[t]=`預約 ${o.time}`;}
   const time=r.reserve_time||r.time||'',party=Number(r.party_size)||2;
@@ -1494,7 +1495,7 @@ async function loadPos(){
   // 後台系統設定新增／停用自訂收款帳戶後，這台 POS 不用重新整理頁面，最慢 15 秒內跟著這支輪詢更新
   if(POS_DATA.payment_methods)DATA.payment_methods=POS_DATA.payment_methods;
   applyLiveStock(POS_DATA.stock);
-  const sig=JSON.stringify([POS_DATA.stock,POS_DATA.table_layout,POS_DATA.linepay,POS_DATA.pause,POS_DATA.sessions.map(s=>[s.id,s.linepay,s.unpaid,s.unpaid_amount,s.state,s.lines.map(l=>[l.line,l.qty,l.price,l.comp_reason||'',l.placed_at||'',l.served_at||'']),(s.pay_requests||[]).map(r=>[r.id,r.amount,r.count])]),POS_DATA.orders.map(o=>[o.id,o.status,o.invoice?.status]),Object.entries(POS_DATA.reservations||{}).map(([t,rs])=>[t,rs.map(r=>[r.id,r.time,r.status])]),REG_DATA&&Object.entries(REG_DATA.current||{}).map(([v,r])=>[v,r?.id,r?.closed_at]),(DATA.payment_methods||[]).map(m=>[m.code,m.label,m.active]),kitchenPrintStatus().state]);
+  const sig=JSON.stringify([POS_DATA.occupied||[],POS_DATA.sessions.map(s=>(s.other_lines||[]).map(l=>[l.line,l.qty])),POS_DATA.stock,POS_DATA.table_layout,POS_DATA.linepay,POS_DATA.pause,POS_DATA.sessions.map(s=>[s.id,s.linepay,s.unpaid,s.unpaid_amount,s.state,s.lines.map(l=>[l.line,l.qty,l.price,l.comp_reason||'',l.placed_at||'',l.served_at||'']),(s.pay_requests||[]).map(r=>[r.id,r.amount,r.count])]),POS_DATA.orders.map(o=>[o.id,o.status,o.invoice?.status]),Object.entries(POS_DATA.reservations||{}).map(([t,rs])=>[t,rs.map(r=>[r.id,r.time,r.status])]),REG_DATA&&Object.entries(REG_DATA.current||{}).map(([v,r])=>[v,r?.id,r?.closed_at]),(DATA.payment_methods||[]).map(m=>[m.code,m.label,m.active]),kitchenPrintStatus().state]);
   // 客人手機按「通知櫃檯我要結帳」：第一次看到的需求響一聲（和新單同一個音）
   const reqIds=new Set(POS_DATA.sessions.flatMap(s=>(s.pay_requests||[]).map(r=>r.id)));if(PAYREQ_SEEN&&[...reqIds].some(id=>!PAYREQ_SEEN.has(id)))ordersBeep();PAYREQ_SEEN=reqIds;
   // 開帳表單打開時不要被 15 秒自動刷新重畫（會清掉正在填的張數）
@@ -1828,6 +1829,11 @@ async function posScanCheckout(reload){
   if(!hit||hit.missing){toast(hit?.table?`${hit.table} 沒有開著的單`:'這張 QR 的桌已結帳清桌，或不是本店的桌');return;}
   posSelectTable(hit.table);toast(`已切到 ${hit.table} 結帳`);
 }
+/* 混桌裡別的品牌的品項（KK 11/16）：灰色唯讀，只列品名＋份數＋品牌，不帶價格、不進小計、沒有勾選／操作鍵（後端也拒絕改對方品項） */
+function otherLinesHtml(cur){
+  const ls=(cur&&cur.other_lines)||[];if(!ls.length)return '';
+  return `<div class="pos-other-lines" aria-label="其他品牌的品項（唯讀）"><p class="pos-other-lines__head">其他品牌的品項・唯讀，不列入本店結帳</p><ul>${ls.map(l=>`<li data-other-line="${esc(l.line)}"><span>${esc(l.zh)}</span><span class="pos-other-lines__meta">${esc(BRAND_LABEL[l.venue]||l.venue||'')} × ${Number(l.qty)||1}</span></li>`).join('')}</ul></div>`;
+}
 function paintPos(){
   const host=document.getElementById('pos-body'),d=POS_DATA;if(!host||!d)return;
   if(!document.querySelector?.('.pos-scan-full'))stopPosInvoiceScanner(); // 全螢幕掃載具開著時，背景輪詢重繪不能把相機關掉
@@ -1840,6 +1846,9 @@ function paintPos(){
   posCarrierSync();if(cur&&typeof posAutoMember==='function')posAutoMember(cur);
   // 桌況格固定先列出現場的 16 桌（不管有沒有開桌，方便現場人員直接點選開桌），已開桌/外帶但不在固定桌號清單裡的（例如外帶、加開的桌）排在後面
   const byTable=new Map(sessions.filter(s=>!s.takeout).map(s=>[s.table,s]));
+  // 共用座位（KK 11/16）：別的品牌開著的桌（GET /admin/orders 的 occupied），桌位圖標「<品牌>使用中」，不能開桌／帶位／換過去
+  const otherBusy=new Map((d.occupied||[]).filter(o=>!byTable.has(o.table)).map(o=>[o.table,o]));
+  const otherBusyText=t=>`${BRAND_LABEL[otherBusy.get(t)?.venue]||'其他品牌'}使用中`;
   const TBL=POS_EDIT&&POS_EDIT_TABLES?POS_EDIT_TABLES:posTables(d);
   const baseNames=POS_EDIT?TBL.slice():[...TBL,...sessions.filter(s=>!s.takeout&&!TBL.includes(s.table)).map(s=>s.table)];
   // 桌位擺放（平面圖）：有座標的桌畫在畫布上，沒座標的桌與外帶單排在畫布下面；沒人擺過就是原本的格子
@@ -1851,6 +1860,7 @@ function paintPos(){
   const resvOf=t=>(d.reservations||{})[t]||[];
   const resvHtml=t=>resvOf(t).map(r=>`<small class="pos-resv"><span class="pos-resv-tag">預約</span> ${esc(r.time)} ${esc(r.name)} ${r.party_size} 位${r.status==='new'?'（待確認）':''}${r.internal_note?` <span class="resv-internal">${esc(r.internal_note)}</span>`:''}</small>`).join('');
   const cardHtml=s=>{
+    if(s.empty&&otherBusy.has(s.table))return `<div class="pos-table other-busy ${s.placed?'is-placed':''}" data-other-busy="${esc(s.table)}" role="note" aria-label="${esc(s.table)} ${esc(otherBusyText(s.table))}，不能開桌"><b>${esc(s.table)}</b><span class="pill pill-draft">${esc(otherBusyText(s.table))}</span></div>`;
     if(s.empty)return `<button type="button" class="pos-table empty ${s.placed?'is-placed':''} ${resvOf(s.table).length?'reserved':''}" data-open-table="${esc(s.table)}" aria-label="${esc(s.table)} 空桌，點一下開桌"><b>${esc(s.table)}</b><span class="tk-open">＋ 開桌</span>${resvHtml(s.table)}</button>`;
     const [cls,label]=TABLE_STATE[s.state]||TABLE_STATE.open;
     // 單子只顯示時間：座席經過時間；預約取餐的外帶單顯示取餐時刻。狀態、金額、要結帳都進帳單看；要結帳／久未點餐只用底色提示
@@ -1916,7 +1926,7 @@ function paintPos(){
       ${unsentGuestHint}
       <div class="pos-left">
       <div class="pos-mid">
-      <div class="a-wrap2 pos-lines-wrap"><table class="a-tbl pos-lines"><thead><tr><th aria-label="分帳選取"></th><th>品項</th><th class="pos-qty-col">點了幾份</th><th class="num">小計（元）</th><th class="ops-th">操作</th></tr></thead><tbody>${lineRows}</tbody></table></div>
+      <div class="a-wrap2 pos-lines-wrap"><table class="a-tbl pos-lines"><thead><tr><th aria-label="分帳選取"></th><th>品項</th><th class="pos-qty-col">點了幾份</th><th class="num">小計（元）</th><th class="ops-th">操作</th></tr></thead><tbody>${lineRows}</tbody></table></div>${otherLinesHtml(cur)}
       ${live.length?`<h3>這桌已結帳的單</h3><div class="a-wrap2"><table class="a-tbl pos-paid"><thead><tr><th>品項 · 時間 · 狀態</th><th>付款</th><th class="num">金額</th><th class="ops-th">操作</th></tr></thead><tbody>${liveRows}</tbody></table></div>`:''}
       </div>
       <div class="pos-table-actions"><button class="btn btn--ghost" id="pos-place" ${cur.lines.some(l=>!l.credit_of)?'':'disabled'} title="列印出餐單：有還沒送出的品項就先送單再印；都送過了只補印最近一次送單" aria-label="列印出餐單"><span>出餐</span></button>${cur.takeout?'':`<button class="btn btn--ghost" id="pos-slip" ${cur.lines.some(l=>l.placed_at&&!l.cancelled&&!l.credit_of)?'':'disabled'} title="列印點餐明細：補印這桌目前所有已送出品項（帳本夾），改單或明細遺失時用" aria-label="列印點餐明細"><span>明細</span></button>`}${cur.takeout?'':`<button class="btn btn--ghost" id="pos-party" title="${cur.party_size?`人數 ${Number(cur.party_size)} 位${cur.kids?`（小孩 ${Number(cur.kids)}）`:''}${cur.foreign?`・外國 ${Number(cur.foreign)}`:''}`:'設定人數'}" aria-label="來客人數"><span>${cur.party_size?`${Number(cur.party_size)} 位`:'人數'}</span></button>`}<button class="btn btn--ghost" id="pos-notice" title="通知客人（餐點要等、售完、請來取餐…），客人點餐頁會立刻跳出${cur.last_notice?`；上次 ${new Date(cur.last_notice.at).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',hour12:false})}：${cur.last_notice.text}`:''}" aria-label="通知客人"><span>通知</span></button><button class="btn btn--ghost" id="pos-move" title="${cur.takeout?'轉內用':'換桌／併桌'}" aria-label="${cur.takeout?'轉內用':'換桌／併桌'}"><span>${cur.takeout?'轉內用':'換桌'}</span></button><button class="btn btn--ghost btn--danger" id="pos-close" title="${cur.takeout?'收掉外帶單':'清桌'}" aria-label="${cur.takeout?'收掉外帶單':'清桌'}"><span>${cur.takeout?'收單':'清桌'}</span></button></div>
@@ -1954,7 +1964,7 @@ function paintPos(){
   host.querySelectorAll('[data-pos-table]').forEach(b=>b.onclick=()=>posSelectTable(b.dataset.posTable));
   // 開桌／外帶：每次都先輸入 PIN 認人，記這桌是誰開的（與結帳、作廢、開錢櫃一致）
   // 內用開桌先選人數（大人／小孩），外帶不用
-  const openSession=async body=>{if(!body.takeout){const p=await pickParty(`${body.table_no} 開桌`);if(!p)return;body={...body,...p};}
+  const openSession=async body=>{if(!body.takeout&&otherBusy.has(body.table_no)){toast(`${body.table_no} ${otherBusyText(body.table_no)}，請帶客人到別桌`);return;}if(!body.takeout){const p=await pickParty(`${body.table_no} 開桌`);if(!p)return;body={...body,...p};}
     return ensureOperator(()=>opsThen(()=>api('/admin/orders/sessions',{method:'POST',body:{...body,venue:SCOPE||undefined,operator_id:OPERATOR?.id}}),out=>out.takeout?`外帶單 ${out.table} 已開，請加入品項`:out.created?`已開桌 ${out.table}`:`桌號 ${out.table} 已在使用中`,async out=>{/* 內用新開桌印完 QR 回結帳桌況；外帶要加品項、已開的桌才切進去（KK 11/4） */POS_TABLE=(out.created&&!out.takeout)?'':out.table;POS_PICK=null;POS_DISCOUNT=null;POS_SOURCE='';POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_RECEIVED='';await reload();if(out.created&&out.qr_url)await printOpenedQr(out.table,out.qr_url,out);}));};
   // 空桌格：直接點就開桌，不用再打字輸入桌號；這桌有已確認的訂位時，開桌後順手問要不要把訂位標成「已到」（訂位頁就不用再點一次）
   host.querySelectorAll('[data-open-table]').forEach(b=>b.onclick=async()=>{
@@ -1972,6 +1982,7 @@ function paintPos(){
   bindOrderDrag(host,async(id,from,to)=>{
     const src=(POS_DATA?.sessions||[]).find(x=>x.id===id);
     if(to===TAKEOUT_SLOT){if(src?.takeout)return;return moveToTakeout(id,()=>{POS_TABLE='';return reload();});}
+    if(otherBusy.has(to)){toast(`${to} ${otherBusyText(to)}，不能換過去`);return;}
     const busy=byTable.get(to);
     if(busy&&!await posConfirm(`${to} 已有單，把 ${from} 併到 ${to}？兩桌的品項會合在一起。`,{ok:'併桌'}))return;
     await opsThen(()=>api('/admin/orders/sessions/'+id+'/move',{method:'POST',body:{table_no:to}}),out=>out.merged?`已併到 ${out.table}`:`已換到 ${out.table}`,()=>{POS_TABLE='';return reload();});
@@ -1990,7 +2001,7 @@ function paintPos(){
   host.querySelector('#pos-open-extra').onclick=async()=>{const t=await pickTableNo({title:'加開桌號',hint:'桌牌上沒有的桌號、戶外或臨時桌才用這裡；已開著的桌會直接切過去。'});if(t)openSession({table_no:t});};
   host.querySelector('#pos-takeout').onclick=()=>openSession({takeout:true});
   host.querySelector('#pos-scan-checkout').onclick=()=>posScanCheckout(reload);
-  host.querySelector('#pos-open-many').onclick=()=>openManyTables(slots.filter(x=>x.empty&&!x.takeout).map(x=>x.table),reload);
+  host.querySelector('#pos-open-many').onclick=()=>openManyTables(slots.filter(x=>x.empty&&!x.takeout&&!otherBusy.has(x.table)).map(x=>x.table),reload);
   // 桌號 QR／暫停點餐在工具列，沒選桌也要能按，所以綁在 if(!cur)return 之前
   if(!cur)return;
   // 這桌的點餐 QR：桌號旁的「QR」鈕，開面板直接顯示這桌（要印全部桌還是按面板裡的「全部固定桌」）

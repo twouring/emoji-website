@@ -1092,3 +1092,15 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 .pos-move-box.acct-box--gw{max-width:min(860px,96vw)}
 .acct-gw-ref{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}.acct-gw-ref>h4{margin:0 0 4px;font-size:1rem;font-weight:600}
 .acct-gw-ref .ops-head h3{font-size:1rem;margin:8px 0}
+
+/* 共用座位（KK 11/16）：別的品牌佔用的桌＝灰底實線、不可點；混桌裡對方品項灰色唯讀 */
+.pos-table.other-busy{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:64px;border:2px solid var(--line);border-radius:6px;background:#ECEAE5;color:var(--muted);cursor:not-allowed;pointer-events:none}
+.pos-floor-slot .pos-table.other-busy{width:100%;background:#ECEAE5}
+.pos-slot .pos-table.other-busy>b{display:none}
+.pos-table.other-busy .pill{white-space:normal;text-align:center}
+.pos-other-lines{margin:10px 0 0;padding:8px 12px;border:1px dashed var(--line);border-radius:6px;background:#F4F3F0;color:var(--muted);user-select:none}
+.pos-other-lines__head{margin:0 0 4px;font-weight:600}
+.pos-other-lines ul{margin:0;padding:0;list-style:none}
+.pos-other-lines li{display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-top:1px solid var(--line)}
+.pos-other-lines li:first-child{border-top:0}
+.pos-other-lines__meta{white-space:nowrap}

@@ -41,7 +41,7 @@ test('GET /api/admin/orders 回傳 reservations，且子帳號依時段過濾', 
   const src = read('server.js');
   assert.match(src, /FROM dining_reservations WHERE reserve_date BETWEEN CURRENT_DATE-1 AND CURRENT_DATE\+1 AND status IN \('new','confirmed'\) AND table_no<>'' AND deleted_at IS NULL/);
   assert.match(src, /venues\.includes\(tableOrders\.reservationVenue\(r\.reserve_time\)\)\);\s*\n\s*const reservations=tableOrders\.reservationsByTable\(resvRows\)/);
-  assert.match(src, /res\.json\(\{orders,tickets,sessions,reservations,pause/);
+  assert.match(src, /res\.json\(\{orders,tickets,sessions,(?:occupied,)?reservations,pause/);
   assert.match(read('docs/API.md'), /reservations\{\}/);
 });
 
