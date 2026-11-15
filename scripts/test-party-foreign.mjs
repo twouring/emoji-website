@@ -43,7 +43,7 @@ test('接線：開桌與改人數都帶 foreign，分析回 visitors，POS 開�
   assert.match(server, /partySetByPos\(\{\},req\.body\.party_size,req\.body\.kids,req\.body\.foreign\)/);
   assert.match(server, /partySetByPos\(s\.party_votes,req\.body\?\.party_size,req\.body\?\.kids,req\.body\?\.foreign\)/);
   assert.match(server, /visitors:tableOrders\.visitorSummary\(sess,\{venues,from,to\}\),foreign:tableOrders\.foreignSummary\(sess,orders,\{venues,from,to\}\)/);
-  assert.match(server, /SELECT id,session_id,table_no,items,amount,payer,tappay,status,paid_at FROM table_orders/);
+  assert.match(server, /SELECT id,session_id,table_no,items,amount,payer,tappay,status,paid_at,\(SELECT s\.created_at FROM table_sessions s WHERE s\.id=table_orders\.session_id\) AS opened_at FROM table_orders/);
   assert.match(server, /SELECT id,table_no,party_votes,created_at FROM table_sessions/);
   assert.match(pos, /function pickPartyForeign\(/);
   assert.match(pos, /partyGrid\('foreign',0,PARTY_FOREIGN,f,max\)/);
@@ -97,4 +97,15 @@ test('外國客分析：外國客桌 vs 本國桌，依 session_id 對單、不�
 test('接線：POS 分析有星期、外國客分頁', () => {
   assert.match(pos, /if\(kind==='weekday'\)/); assert.match(pos, /if\(kind==='foreign'\)/);
   assert.match(pos, /外國客桌 vs 本國桌/); assert.match(pos, /每營業日平均營收/);
+});
+
+test('時段看開桌時間（後結帳，KK 11/15）：分析與日結 by_hour 用 opened_at，沒有才退回 paid_at', () => {
+  const o = (id, opened, paid, amount) => ({ id, opened_at: opened && new Date(opened), paid_at: new Date(paid), status: 'paid', table_no: 'A1', amount, payer: {}, items: [{ item_id: 'i', zh: '茶', venue: 'BAR', qty: 1, price: amount }] });
+  const rows = [o('1', '2026-11-14T19:10:00+08:00', '2026-11-14T22:40:00+08:00', 300), o('2', null, '2026-11-14T21:05:00+08:00', 100)];
+  const a = T.analyticsSummary(rows, { from: '2026-11-14', to: '2026-11-14' });
+  assert.equal(a.by_hour['19'].amount, 300); assert.equal(a.by_hour['22'], undefined); assert.equal(a.by_hour['21'].amount, 100);
+  assert.equal(a.by_weekday[6].by_hour['19'].amount, 300);
+  const s = T.salesSummary(rows, { now: new Date('2026-11-14T12:00:00+08:00') });
+  assert.equal(s.by_hour['19'], 300); assert.equal(s.by_hour['22'], undefined);
+  assert.match(server, /voided_by,\(SELECT s\.created_at FROM table_sessions s WHERE s\.id=table_orders\.session_id\) AS opened_at'\)/);
 });

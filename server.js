@@ -7136,7 +7136,7 @@ app.get('/api/admin/sales',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const day=/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.day||''))?String(req.query.day):tableOrders.MenuLib.businessDay();
   // 營業日 = 台北 03:00 起算 24 小時
   const from=new Date(day+'T03:00:00+08:00'),to=new Date(+from+86400e3);
-  const orders=await ordersOfDay(day,'id,session_id,table_no,items,amount,payer,tappay,invoice,status,paid_at,void_reason,voided_by');   /* 依開帳日認列（KK 11/5） */
+  const orders=await ordersOfDay(day,'id,session_id,table_no,items,amount,payer,tappay,invoice,status,paid_at,void_reason,voided_by,(SELECT s.created_at FROM table_sessions s WHERE s.id=table_orders.session_id) AS opened_at');   /* opened_at：時段看開桌時間（後結帳，KK 11/15） */   /* 依開帳日認列（KK 11/5） */
   // LINE Pay 對帳：同一營業日 LINE Pay 後台實收 vs POS 登記為 LINE Pay 的單；LINE Pay 後台不分店別，依當天開關帳時間把每筆實收歸到在咖啡／三點水
   const registers=(await q('SELECT venue,opened_at,closed_at FROM pos_registers WHERE day=$1 ORDER BY opened_at',[day])).rows;
   const txs=(await q('SELECT id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no,claim_venue FROM linepay_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[from,to])).rows;
@@ -7156,7 +7156,7 @@ app.get('/api/admin/analytics',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
   let range;try{range=tableOrders.analyticsRange(req.query);}catch(e){if(e.status===400)return res.status(400).json({error:e.message});throw e;}
   const {from,to,start,end}=range;
-  const orders=(await q(`SELECT id,session_id,table_no,items,amount,payer,tappay,status,paid_at FROM table_orders WHERE status<>'void' AND paid_at>=$1 AND paid_at<$2 ORDER BY paid_at`,[start,end])).rows;
+  const orders=(await q(`SELECT id,session_id,table_no,items,amount,payer,tappay,status,paid_at,(SELECT s.created_at FROM table_sessions s WHERE s.id=table_orders.session_id) AS opened_at FROM table_orders WHERE status<>'void' AND paid_at>=$1 AND paid_at<$2 ORDER BY paid_at`,[start,end])).rows;
   const first=(await q(`SELECT payer->>'member_id' AS mid,min(paid_at) AS at FROM table_orders WHERE status<>'void' AND payer->>'member_id' IS NOT NULL GROUP BY 1`)).rows;
   const firstPaid=Object.fromEntries(first.map(r=>[r.mid,new Date(r.at).toISOString()]));
   // 來客受眾：開桌場次的人數／小孩／外國人（POS 開桌時選）

@@ -3206,7 +3206,7 @@ function analyticsCharts(kind,d){
     const topAmt=[...(d.items||[])].sort((a,b)=>b.amount-a.amount).slice(0,10).map(i=>[i.zh,i.amount]);
     const cats=(d.categories||[]).slice(0,8).map(r=>[catLabel(r.cat),r.amount,'NT$'+num(r.amount)]);
     const catQty=(d.categories||[]).slice(0,8).map(r=>[catLabel(r.cat),r.qty]);
-    return `<div class="chart-grid">${chartCard('每日營收',vbars(dayRows))}${chartCard('類別營收占比',donut(cats,{center:'NT$'+num(d.amount)}))}${chartCard('熱銷品項 Top 10（數量）',hbars(top))}${chartCard('品項營收 Top 10（金額）',hbars(topAmt,{fmt:v=>'NT$'+num(v)}))}${chartCard('各類別銷量',hbars(catQty))}${chartCard('時段營收',vbars(hourRows))}</div>`;
+    return `<div class="chart-grid">${chartCard('每日營收',vbars(dayRows))}${chartCard('類別營收占比',donut(cats,{center:'NT$'+num(d.amount)}))}${chartCard('熱銷品項 Top 10（數量）',hbars(top))}${chartCard('品項營收 Top 10（金額）',hbars(topAmt,{fmt:v=>'NT$'+num(v)}))}${chartCard('各類別銷量',hbars(catQty))}${chartCard('時段營收（依開桌時間）',vbars(hourRows))}</div>`;
   }
   if(kind==='weekday'){
     const w=d.by_weekday||{},vw=d.visitors?.by_weekday||{},W7=[1,2,3,4,5,6,0],L=x=>'週'+wdName[x];
@@ -3224,7 +3224,7 @@ function analyticsCharts(kind,d){
   const vz=d.visitors||{},vzLocal=Math.max(0,(vz.recorded_guests||0)-(vz.foreign||0));
   const vzCharts=vz.tables?`${chartCard('來客：本國 vs 外國（人數）',vz.recorded_guests?donut([['本國',vzLocal,vzLocal+' 位'],['外國',vz.foreign||0,(vz.foreign||0)+' 位']],{center:num(vz.recorded_guests)+' 位'}):'<p class="a-empty">這段期間的桌次還沒記外國人數</p>')}${chartCard('每日外國人數',vbars((vz.by_day||[]).map(r=>[r.day.slice(5),r.foreign||0])))}`:'';
   const srcD=d.sources||{},srcChart=SOURCE_OPTIONS.filter(([k])=>srcD[k]).map(([k,l])=>[l,srcD[k].orders,srcD[k].orders+' 單']);
-  return `<div class="chart-grid">${vzCharts}${srcChart.length?chartCard('怎麼知道我們（單數，不含沒填）',donut(srcChart,{center:num(srcChart.reduce((a,r)=>a+r[1],0))+' 單'})):''}${chartCard('會員 vs 非會員（單數）',donut(pair('member','guest','會員','非會員'),{center:num(d.orders)+' 單'}))}${chartCard('內用 vs 外帶（單數）',donut(pair('dinein','takeout','內用','外帶'),{center:num(d.orders)+' 單'}))}${chartCard('點餐方式（單數）',donut(pair('counter','qr','櫃檯點餐','含 QR 點餐'),{center:num(d.orders)+' 單'}))}${chartCard('付款方式（金額）',donut(methods,{center:'NT$'+num(d.amount)}))}${chartCard('時段來客（營收）',vbars(hourRows))}${chartCard('星期分布（營收）',vbars(wdRows))}${chartCard('每日營收',vbars(dayRows))}${chartCard('平均每單：會員 vs 非會員',hbars([['會員',c.member_avg_ticket||0],['非會員',c.guest_avg_ticket||0]],{fmt:v=>'NT$'+num(v)}))}</div>`;
+  return `<div class="chart-grid">${vzCharts}${srcChart.length?chartCard('怎麼知道我們（單數，不含沒填）',donut(srcChart,{center:num(srcChart.reduce((a,r)=>a+r[1],0))+' 單'})):''}${chartCard('會員 vs 非會員（單數）',donut(pair('member','guest','會員','非會員'),{center:num(d.orders)+' 單'}))}${chartCard('內用 vs 外帶（單數）',donut(pair('dinein','takeout','內用','外帶'),{center:num(d.orders)+' 單'}))}${chartCard('點餐方式（單數）',donut(pair('counter','qr','櫃檯點餐','含 QR 點餐'),{center:num(d.orders)+' 單'}))}${chartCard('付款方式（金額）',donut(methods,{center:'NT$'+num(d.amount)}))}${chartCard('時段來客（依開桌時間，營收）',vbars(hourRows))}${chartCard('星期分布（營收）',vbars(wdRows))}${chartCard('每日營收',vbars(dayRows))}${chartCard('平均每單：會員 vs 非會員',hbars([['會員',c.member_avg_ticket||0],['非會員',c.guest_avg_ticket||0]],{fmt:v=>'NT$'+num(v)}))}</div>`;
 }
 
 // 「分析」分頁：銷量與客群合在同一頁，上方切換、共用日期區間（POS 平板）；/admin 仍可各自掛 products-body／customers-body
