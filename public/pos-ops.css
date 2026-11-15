@@ -884,6 +884,7 @@ tr.lp-refund td{color:var(--danger)}
 .pos-takeouts>.ops-head h2{white-space:nowrap}
 .pos-takeout-list{display:flex;flex-direction:column;gap:8px;min-height:0;overflow:auto;padding-bottom:4px}
 .pos-takeout-list .pos-table{width:100%}
+.pos-takeouts .pos-pickups-other{margin:0 0 6px;padding:6px 8px;border-radius:8px;background:#fff6d6;color:#6b4e00;line-height:1.4}
 @media(min-width:1000px){.pos-layout .pos-tables .pos-tables-row{flex:1}.pos-layout .pos-tables .pos-tables-main .pos-board{flex:1;min-height:0;overflow:auto}}
 /* 有平面圖時，格子裡已擺在平面圖上的桌不再重複出現 */
 @container (min-width:600px){.pos-grid .pos-slot.is-placed{display:none}}
