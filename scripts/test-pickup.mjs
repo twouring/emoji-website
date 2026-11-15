@@ -46,7 +46,7 @@ test('guestOf 符合 addLine 的來賓識別格式；送單時機＝取餐前 20
 
 test('server：預約單開外帶號、品項不先送單、排程送單並出單、取消限未送單；POS 桌況帶取餐時間', () => {
   assert.match(server, /tableOrders\.nextTakeoutTable\(used\)/);
-  assert.match(server, /INSERT INTO table_sessions\(id,table_no,items,user_id,pickup_at,pickup_note,opened_by_staff_name\)/);
+  assert.match(server, /INSERT INTO table_sessions\(id,table_no,items,user_id,pickup_at,pickup_note,opened_by_staff_name,venue\) VALUES\(\$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8\) RETURNING \*`, \[uid\('ts_'\), table, JSON\.stringify\(items\), me\.id, p\.pickupAt, p\.note, '會員 App', p\.venue\]/, '預約單記取餐品牌');
   assert.match(server, /async function placeDuePickups/); assert.match(server, /tableOrders\.placeLines\(cur\.items, now\)/); assert.match(server, /kitchenPrint\.enqueue\(client\.query\.bind\(client\), \[\{ \.\.\.cur, items: placed\.lines \}\]\)/);
   assert.match(server, /cronRunner\.define\('pickup', async \(\) => \(\{ \.\.\.\(await placeDuePickups\(\)\)/);   // 同一排程順便收掉過期商店訂單 assert.match(server, /schedule\('\* \* \* \* \*',\(\)=>cronRunner\.run\('pickup'\)\)/);
   assert.match(server, /pickup_placed_at IS NULL AND NOT EXISTS \(SELECT 1 FROM jsonb_array_elements\(items\)/);
