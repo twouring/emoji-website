@@ -696,6 +696,18 @@ POS 每 5 秒輪詢。回 `{ pending:[{id,session_id,table,by,amount,sfx,perform
 ### POST /api/admin/orders/tips/payouts
 登記支付給表演者（超管直接過，其餘帶 `X-Manager-Pin` 店長識別碼）。body `{ performer, amount, method:'cash'|'transfer'|'other', note? }`。`cash` 會同時在目前開著的帳本記一筆 `pos_cash_moves` 臨時支出（沒開帳回 409）。紀錄存 `site_content.tip_payouts`。成功 201 `{ ok, payout:{id,performer,amount,method,note,by,cash_move,at} }`。
 
+### GET /api/admin/menu/items
+菜單內容（編輯用，KK 11/15）。回 `{ can_edit, cats, venues, items:[{ id, venue, cat, zh, en, ja, ko, price, emo, member_price, points, note, note_en, note_ja, note_ko, image, published, pos_only, custom_price, alcohol, sort, available_from, available_to, combo_text, sold_out, stock_left, shared }] }`。品牌帳號只看自己品牌（含兩店共用的甜點、商店，`shared:true`），可帶 `?venue=`；書籍預設不列（`?books=1` 才列）。`can_edit`＝目前登入者能不能改：Email 管理員／品牌帳號為 true；POS 用 4 位數識別碼登入的員工，職稱含「內容管理員」或「店長」才是 true。
+
+### POST /api/admin/menu/items
+新增菜單品項（內容管理員）。body `{ zh（必填）, cat, price, emo, points, en, ja, ko, note, note_en, note_ja, note_ko, published, sort, available_from, available_to, alcohol, pos_only, custom_price, combo_text, venue }`。品牌帳號固定新增到自己品牌（`venue` 只有言文字管理員要帶）；新增預設不上架。不能新增書籍（走約書旅書冊）。POS 識別碼登入的員工職稱要含「內容管理員」或「店長」，否則 403 `need_content_role`；MCP 金鑰看 `X-Staff-Pin` 那位員工的職稱。回 `{ ok, created:true, item }`，官網快取立即失效，記入 POS 操作紀錄。
+
+### PATCH /api/admin/menu/items/:id
+修改菜單品項（內容管理員，部分更新：只改有帶的欄位）。欄位同新增；估清、剩餘份數不會被這支改到（用 `/menu/sold-out`、`/menu/stock`）。只能改自己品牌的品項，兩店共用品項（甜點、商店）要言文字管理員改。權限同新增。回 `{ ok, created:false, item }`。
+
+### POST /api/admin/menu/items/:id/photo
+更新菜單照片（內容管理員）。三擇一：multipart `file`、JSON `{ image_base64 }`（可含 `data:image/...;base64,` 前綴）、JSON `{ image_url }`（https，伺服器下載；擋內部網路、最多轉址 3 次、10 秒）。只收 JPEG／PNG／WebP、5MB 以下，以檔頭判斷格式。存到物件儲存（`/ig-media/assets/menu-*`）後寫回品項 `image`，回 `{ ok, item }`。權限同新增。
+
 ### POST /api/admin/menu/sold-out
 估清快速鍵。body `{ item_id, sold_out: boolean }`。只改該品項的 `sold_out`（記營業日），不覆蓋其他欄位；當個營業日結束（翌日 03:00）自動恢復。估清或恢復供應都會一併清除剩餘份數。品牌子帳號只能估清自己店別（403）。
 

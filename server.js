@@ -19,7 +19,8 @@ const {
 } = require('./lib/entitlements');
 const { signAccessToken, verifyAccessToken } = require('./lib/access-token');
 const { isAdminApiKey, ADMIN_API_KEY_MIN } = require('./lib/admin-key');
-const posMcp = require('./lib/pos-mcp');   // 品牌 AI 代理串接 POS（MCP，KK 11/5）
+const posMcp = require('./lib/pos-mcp');
+const menuContent = require('./lib/menu-content');   // 內容管理員：POS／MCP 改菜單品項與照片（KK 11/15）   // 品牌 AI 代理串接 POS（MCP，KK 11/5）
 const { SSO_TTL_MS, safeEqual, signToken: signSession, verifyToken: verifySession,
   PUBLIC_CONTENT_KEYS, rateLimit } = require('./lib/security');
 const {embedOrigins}=require('./lib/event-embed');
@@ -1854,6 +1855,8 @@ app.post('/api/line/webhook', express.raw({ type: '*/*', limit: '256kb' }), asyn
   try { await lineService.handleWebhook(body); } catch (e) { console.error('[line] webhook：', e.message); }
   res.sendStatus(200);
 });
+const bigJson = express.json({ limit: '8mb' });   // 菜單照片 base64（POS／MCP，≤5MB 原檔）；body-parser 解析過的請求全域 json 會跳過（用函式判斷路徑：vm 測試裡跨 realm 的 RegExp 路徑 Express 不認）
+app.use((req, res, next) => (/^\/api\/(admin\/menu\/items\/[^/]+\/photo|mcp)$/.test(req.path) ? bigJson(req, res, next) : next()));
 app.use(express.json({ limit: '256kb' }));
 
 /* POS 操作紀錄：誰（操作人員姓名；沒有就用登入者）在哪個品牌做了什麼。失敗不影響原動作 */
@@ -1874,12 +1877,14 @@ async function recordPosLog(req, action, payload, extra = {}) {
 // 後台操作紀錄：/api/admin 的寫入（成功者）記 actor／路徑／摘要；GET 不記。
 app.use('/api/admin', (req, res, next) => {
   if (req.method === 'GET' || req.method === 'OPTIONS') return next();
+  // 路徑要在這裡先記：finish 時 Express 已把 req.path 還原成完整的 /api/admin/...，POS 動作規則（/menu/…）會對不上而整筆漏記（11/15 前只剩「登入 POS」有紀錄）
+  const subPath = req.path;
   let payload = null;
   const rawJson = res.json.bind(res);
   res.json = d => { payload = d; return rawJson(d); };
   res.on('finish', () => {
     if (!pool || !dbReady || !req.auth || res.statusCode >= 400) return;
-    const posAction = posLog.describe(req.method, req.path);
+    const posAction = posLog.describe(req.method, subPath);
     if (posAction) recordPosLog(req, posAction, payload, req.posLogDetail ? { detail: req.posLogDetail } : {});
     const actor = req.auth.agent ? 'admin-api-key' : req.auth.mcp ? 'pos-mcp:' + req.auth.mcp + (req.auth.operator_staff_id ? ':' + req.auth.name : '') : (req.auth.email || req.auth.sub || 'unknown');
     const body = req.body && typeof req.body === 'object' ? req.body : {};
@@ -6851,6 +6856,58 @@ async function patchMenu(res,fn){
     await client.query('COMMIT');return next;
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }
+/* ---- 內容管理員（KK 11/15）：POS 員工職稱含「內容管理員」或「店長」可改自己品牌菜單品項與照片；
+   POS 用 PIN 登入的員工看自己的職稱，品牌 Email 帳號／超管直接可改，MCP 金鑰看 staff_pin 那位員工的職稱 ---- */
+async function contentEditor(req,res,next){
+  try{
+    if(!req.auth.operator_staff_id)return next();   // Email 管理員、超管、admin key
+    const role=(await q('SELECT role FROM pos_staff WHERE id=$1 AND active',[req.auth.operator_staff_id])).rows[0]?.role;
+    if(!menuContent.canEditContent(role))return res.status(403).json({error:'改菜單內容要「內容管理員」或「店長」職稱，請到後台員工管理設定職稱。',need_content_role:true});
+    next();
+  }catch(e){next(e);}
+}
+app.get('/api/admin/menu/items',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const venues=posScope(req),doc=tableOrders.MenuLib.parseMenuDoc((await q("SELECT value FROM site_content WHERE key='menu'")).rows[0]?.value||'');
+  let can=!req.auth.operator_staff_id;
+  if(!can)can=menuContent.canEditContent((await q('SELECT role FROM pos_staff WHERE id=$1',[req.auth.operator_staff_id])).rows[0]?.role);
+  const items=(venues?doc.items.filter(it=>venues.includes(it.venue)||venues.some(v=>tableOrders.MenuLib.inVenue(it,v))):doc.items).filter(it=>!tableOrders.MenuLib.isBook(it)||req.query.books==='1');
+  res.set('Cache-Control','no-store');
+  res.json({can_edit:can,cats:tableOrders.MenuLib.CATS.filter(c=>c!=='BOOK'),venues:venues||tableOrders.MenuLib.ITEM_VENUES,items:tableOrders.MenuLib.sortItems(items).map(menuContent.view)});
+}));
+async function saveMenuItem(req,res,input){
+  const venues=posScope(req);let out;
+  const ok=await patchMenu(res,cur=>{
+    if(input.id){const it=tableOrders.MenuLib.parseMenuDoc(cur).items.find(x=>x.id===input.id);if(it&&tableOrders.MenuLib.isShared(it)&&venues&&!venues.includes(it.venue))throw Object.assign(Error('兩店共用品項（甜點、商店）請由言文字管理員在後台修改。'),{status:403});}
+    out=menuContent.editItem(cur,input,{venue:String(req.body?.venue||req.query?.venue||'').toUpperCase(),venues});return out.json;});
+  if(!ok)return;
+  snapshotCache.at=0;
+  req.posLogDetail=`${out.created?'新增':'修改'}品項 ${out.item.zh}`+(input.image!==undefined?'（照片）':'');
+  res.json({ok:true,created:out.created,item:menuContent.view(out.item)});
+}
+app.post('/api/admin/menu/items',auth,adminOnly,requireDb,contentEditor,wrap(async(req,res)=>{
+  const b={...(req.body||{})};delete b.venue;delete b.id;delete b.operator_id;
+  await saveMenuItem(req,res,b);
+}));
+app.patch('/api/admin/menu/items/:id',auth,adminOnly,requireDb,contentEditor,wrap(async(req,res)=>{
+  const b={...(req.body||{})};delete b.venue;delete b.operator_id;b.id=String(req.params.id||'');
+  await saveMenuItem(req,res,b);
+}));
+/* 照片：multipart file、或 JSON {image_base64}／{image_url}（MCP 用；網址走 SSRF 檢查）。存到物件儲存後寫回品項 image */
+const menuPhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 2, parts: 3 } });
+app.post('/api/admin/menu/items/:id/photo',auth,adminOnly,requireDb,contentEditor,(req,res,next)=>req.is('multipart/form-data')?menuPhotoUpload.single('file')(req,res,e=>e?res.status(400).json({error:e.message}):next()):next(),wrap(async(req,res)=>{
+  let img;
+  try{
+    if(req.file)img=menuContent.decodeImage(req.file.buffer.toString('base64'));   // 檔頭判斷格式，不信任用戶端 MIME
+    else if(req.body?.image_base64)img=menuContent.decodeImage(req.body.image_base64);
+    else if(req.body?.image_url)img=await menuContent.fetchImage(String(req.body.image_url));
+    else return res.status(400).json({error:'請附照片（file、image_base64 或 image_url）。'});
+  }catch(e){return res.status(e.status||400).json({error:e.message});}
+  const ext={'image/jpeg':'.jpg','image/png':'.png','image/webp':'.webp'}[img.mimetype];
+  const filename='menu-'+buildSafeSocialFilename('photo'+ext,img.mimetype);
+  let url=await igPublisher.uploadAsset(img.buffer,filename,img.mimetype);
+  if(!url){fs.writeFileSync(path.join(UPLOAD_MENU_DIR,filename),img.buffer);url=`/uploads/menu/${filename}`;}
+  await saveMenuItem(req,res,{id:String(req.params.id||''),image:url});
+}));
 app.post('/api/admin/menu/sold-out',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const venues=tableOrders.visibleVenues(req.auth.brands);
   if(!await patchMenu(res,cur=>tableOrders.setSoldOut(cur,String(req.body?.item_id||''),req.body?.sold_out===true,venues)))return;

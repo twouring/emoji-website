@@ -1,0 +1,28 @@
+/* POS 菜單內容分頁（pos-content.js）：卡片格同庫存頁，觸控目標 ≥48px，字級不低於 1rem */
+.mc-tools{display:flex;gap:10px;margin-bottom:12px}
+.mc-tools input[type=search]{flex:1 1 12rem;min-width:0;min-height:48px;font:inherit;font-size:1rem;padding:8px 12px;border:1px solid var(--muted);border-radius:8px;background:var(--card);color:var(--ink)}
+.mc-cats{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px}
+.mc-cats button{white-space:nowrap}
+.mc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.mc-card{all:unset;box-sizing:border-box;cursor:pointer;display:flex;gap:12px;align-items:center;min-height:88px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--card);min-width:0}
+.mc-card:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.mc-card.is-off{opacity:.7}
+.mc-card[hidden]{display:none}
+.mc-card__img{flex:0 0 64px;width:64px;height:64px;border-radius:10px;object-fit:cover;background:var(--line)}
+.mc-card__img--ph,.mc-photo__img--ph{display:inline-flex;align-items:center;justify-content:center;font-size:1.5rem;color:var(--muted)}
+.mc-card-main{display:flex;flex-direction:column;gap:4px;min-width:0;font-size:1rem}
+.mc-card-main b{font-size:1.05rem;line-height:1.3;overflow-wrap:anywhere}
+.mc-card-main>span{color:var(--muted)}
+.mc-pills{display:flex;flex-wrap:wrap;gap:4px}
+.mc-edit{width:min(760px,96vw);max-height:92vh;overflow:auto;padding-bottom:0}
+.mc-edit .op-card-actions{position:sticky;bottom:0;z-index:1;margin:16px -20px 0;padding:12px 20px;background:var(--card);border-top:1px solid var(--line)}
+.mc-photo>div{display:flex;flex-direction:column;gap:6px}
+.mc-photo{display:flex;gap:16px;align-items:center;margin:8px 0 16px}
+.mc-photo__img{flex:0 0 120px;width:120px;height:120px;border-radius:12px;object-fit:cover;background:var(--line)}
+.mc-photo-btn{min-height:48px;display:inline-flex;align-items:center;cursor:pointer}
+.mc-form label{flex:1 1 140px}
+.mc-form .mc-wide{flex:2 1 220px}
+.mc-form .mc-full{flex:1 1 100%}
+.mc-form textarea{font:inherit;font-size:1rem;padding:8px 12px;border:1px solid var(--muted);border-radius:8px;background:var(--card);color:var(--ink);width:100%;box-sizing:border-box}
+.mc-form .mc-chk{flex-direction:row;align-items:center;gap:8px;min-height:48px;color:var(--ink)}
+.mc-form .mc-chk input{width:24px;height:24px;min-height:0}
