@@ -55,3 +55,12 @@ test('開桌／外帶開單：前端每次先輸入 PIN，後端沒有有效操�
   assert.match(ops, /ensureOperator\(\(\)=>opsThen\(\(\)=>api\('\/admin\/orders\/sessions',\{method:'POST',body:\{table_no:table,\.\.\.p,venue:SCOPE\|\|undefined,operator_id:OPERATOR\?\.id\}\}\)/, '有訂位的開桌也要先認人');
   assert.match(server, /if\(!operator\)return res\.status\(400\)\.json\(\{error:'請先輸入 4 位數識別碼，開桌要記是誰開的。'\}\);\n  const client=await pool\.connect\(\);/, '後端開桌要求有效操作人員');
 });
+
+test('出單／開錢櫃／關帳：輸入識別碼的操作都記在該員工', () => {
+  const ops = read('public/pos-ops.js'), pos = read('public/pos.html');
+  assert.match(ops, /if\(cur\.lines\.some\(l=>!l\.placed_at\)\)await ensureOperator\(\(\)=>opsThen\(\(\)=>api\('\/admin\/orders\/sessions\/'\+cur\.id\+'\/place',\{method:'POST',body:\{operator_id:OPERATOR\?\.id\}\}\)/, '出單送單要先認人並帶 operator_id');
+  assert.match(ops, /drawerBtn\.onclick=\(\)=>ensureOperator\(async\(\)=>\{/, '開錢櫃要先認人');
+  assert.match(ops, /ensureOperator\(\(\)=>opsThen\(async\(\)=>\{try\{return await api\('\/admin\/registers\/'\+r\.id\+'\/close',\{method:'POST',body:\{\.\.\.body,operator_id:OPERATOR\?\.id\}\}\)/, '關帳要先認人並帶 operator_id');
+  assert.match(pos, /OPERATOR\?\.id/, 'api() 認人期間讀 OPERATOR');
+  assert.match(pos, /body\.operator_id == null\) body = Object\.assign\(\{\}, body, \{ operator_id: op \}/, 'api() 在認人期間自動把 operator_id 帶進寫入請求');
+});

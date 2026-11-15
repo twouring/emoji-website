@@ -2198,7 +2198,7 @@ function paintPos(){
   // 列印點餐明細（KK 11/5）：客人改單、帳本夾明細遺失時，補印整桌目前已送出的品項（排除取消／預收抵扣／點歌／打賞），底部整桌合計
   const slipBtn=host.querySelector('#pos-slip');if(slipBtn)slipBtn.onclick=async()=>{if(slipBtn.disabled)return;slipBtn.disabled=true;try{const o=tableSlipOrder(cur);if(!o)return toast('這桌沒有已送出的餐點');if(!canPrint())return starHint();const ok=await starSend({canvas:ticketCanvas(orderSlipSpec(o))});toast(ok?'已列印點餐明細':'點餐明細未印出，請再試一次');}finally{slipBtn.disabled=false;}};
   const place=host.querySelector('#pos-place');if(place)place.onclick=async()=>{if(place.disabled)return;place.disabled=true;try{
-    if(cur.lines.some(l=>!l.placed_at))await opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/place',{method:'POST',body:{}}),async()=>{await pollKitchenPrinting();return starReady()?'已送出點餐並列印出餐單':'已送出點餐，出餐單由連接印表機的 Star Browser 自動列印';},reload);
+    if(cur.lines.some(l=>!l.placed_at))await ensureOperator(()=>opsThen(()=>api('/admin/orders/sessions/'+cur.id+'/place',{method:'POST',body:{operator_id:OPERATOR?.id}}),async()=>{await pollKitchenPrinting();return starReady()?'已送出點餐並列印出餐單':'已送出點餐，出餐單由連接印表機的 Star Browser 自動列印';},reload));
     else{const t=lastTicket();if(t)await printOrder(t);else toast('這桌沒有已送出的餐點可補印');}
   }finally{place.disabled=false;}};
   // 來客人數：客人端不填，統一由現場人員在這裡攤開 1–20 點選，點一下就存
