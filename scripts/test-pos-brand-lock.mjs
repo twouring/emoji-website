@@ -15,7 +15,7 @@ function handler(path,ctx){
 }
 const response=()=>({code:200,status(n){this.code=n;return this;},json(x){this.body=x;return this;}});
 async function login(venues,body){
-  let signed;const ctx={posStaff:require('../lib/pos-staff.js'),q:async sql=>({rows:sql.includes('FROM pos_devices')?[{venue:''}]:[{id:'st1',name:'小明',venues}]}),signToken:p=>(signed=p,'tok'),uid:p=>p+'x'};
+  let signed;const ctx={posStaff:require('../lib/pos-staff.js'),q:async sql=>({rows:sql.includes('FROM pos_devices')?[{label:'測試 POS'}]:[{id:'st1',name:'小明',venues}]}),signToken:p=>(signed=p,'tok'),uid:p=>p+'x'};
   const res=response();await handler('/api/pos-devices/:id/pin-login',ctx)({params:{id:'d1'},body},res);return {res,signed};
 }
 test('PIN 登入一定要帶品牌（KK 11/4：先選品牌 POS 再輸入識別碼），token 鎖該品牌',async()=>{
@@ -35,7 +35,7 @@ test('不屬於這個品牌的識別碼一律當密碼錯誤（跨品牌可重�
 });
 const authSource=server.slice(server.indexOf('async function sessionAuth('),server.indexOf('\nasync function auth('));
 async function session(payload,{venues='CAFE,BAR',active=true}={}){
-  const ctx={posStaff:require('../lib/pos-staff.js'),POS_ACCOUNT_EMAIL:'pos@emoji.tw',verifyToken:()=>payload,pool:true,dbReady:true,q:async()=>({rows:[{id:'st1',name:'小明',venues,active}]})};
+  const ctx={posStaff:require('../lib/pos-staff.js'),POS_ACCOUNT_EMAIL:'pos@emoji.tw',verifyToken:()=>({...payload,pos_device:payload.pos_device||'d1'}),pool:true,dbReady:true,q:async sql=>({rows:sql.includes('FROM pos_devices')?[{label:'測試 POS'}]:[{id:'st1',name:'小明',venues,active}]})};
   vm.runInNewContext(authSource,ctx);return ctx.sessionAuth('t');
 }
 test('每次請求只拿到 token 鎖定的單一品牌；權限被移除、停用、舊雙品牌 token 都失效',async()=>{
@@ -46,11 +46,11 @@ test('每次請求只拿到 token 鎖定的單一品牌；權限被移除、停�
   assert.equal(await session({operator_staff_id:'st1'}),null,'雙品牌舊 token 須重登');
   assert.deepEqual(plain((await session({operator_staff_id:'st1'},{venues:'CAFE'})).brands),['CAFE'],'單品牌舊 token 沿用');
 });
-test('續期保留 pos_venue',()=>{
+test('續期保留 pos_venue 與 pos_device',()=>{
   const start=server.indexOf("app.post('/api/auth/renew'");const src=server.slice(start,server.indexOf('\n});',start)+4);
   let fn;vm.runInNewContext(src,{app:{post(...a){fn=a.at(-1);}},auth(){},requireDb(){},signToken:p=>p});
-  const res=response();res.set=()=>res;fn({auth:{operator_staff_id:'st1',pos_venue:'BAR',sub:'staff:st1',role:'admin'}},res);
-  assert.equal(res.body.token.pos_venue,'BAR');
+  const res=response();res.set=()=>res;fn({auth:{operator_staff_id:'st1',pos_venue:'BAR',pos_device:'d1',sub:'staff:st1',role:'admin'}},res);
+  assert.equal(res.body.token.pos_venue,'BAR');assert.equal(res.body.token.pos_device,'d1');
 });
 test('共用座位：混桌送單只送自己品牌，對方品項保持未送',()=>{
   const items=[{line:'a',venue:'CAFE',qty:1},{line:'b',venue:'BAR',qty:1}];
@@ -80,6 +80,6 @@ test('venues 為空（所有品牌員工）：四個品牌都能登入；session
 });
 test('只有 pos@emoji.tw 綁定的裝置能用員工 PIN',()=>{
   assert.match(server,/POS_ACCOUNT_EMAIL = \(process\.env\.POS_ACCOUNT_EMAIL \|\| 'pos@emoji\.tw'\)/);
-  assert.equal((server.match(/FROM pos_devices WHERE device_id=\$1 AND lower\(bound_by_email\)=\$2/g)||[]).length,2);
+  assert.equal((server.match(/FROM pos_devices WHERE device_id=\$1 AND lower\(bound_by_email\)=\$2/g)||[]).length,4);
   assert.match(server,/!==POS_ACCOUNT_EMAIL\)return res\.status\(403\)/);
 });

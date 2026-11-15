@@ -682,7 +682,11 @@ async function main(){
     if (justLoggedInByAdmin && !d.me?.operator) {
       // 只有 POS 專用帳號能綁定裝置；綁完立刻登出，裝置只留員工四位數密碼入口（POS 帳號不留在平板上）
       const isPosAccount = String(d.me?.email || '').toLowerCase() === 'pos@emoji.tw';
-      api('/admin/pos-devices/bind', { method:'POST', body:{ device_id: DEVICE_ID } }).then(() => { DEVICE_BOUND = true; if (isPosAccount) { localStorage.removeItem(KEY); if (!(globalThis.EmojiSSO && EmojiSSO.logout(location.origin + POS_BASE))) location.reload(); } }).catch(() => {});
+      if (isPosAccount) {
+        const label = window.prompt('請輸入這台 POS 的裝置名稱（例如：在咖啡吧台 iPad）', '') || '';
+        if (!label.trim()) return showLoginScreen('裝置名稱必填，請以 POS 專用帳號重新登入後設定。');
+        api('/admin/pos-devices/bind', { method:'POST', body:{ device_id: DEVICE_ID, label } }).then(() => { DEVICE_BOUND = true; localStorage.removeItem(KEY); localStorage.removeItem('tth_name'); location.reload(); }).catch(() => {});
+      }
     }
     DATA = d;
     MENU_DOC = (typeof d.content?.menu === 'string' && d.content.menu.trim()) ? MenuLib.parseMenuDoc(d.content.menu) : MenuLib.parseMenuDoc('');

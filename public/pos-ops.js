@@ -793,7 +793,7 @@ function ticketCanvas(spec){
   return out;
 }
 // 點餐人：每個品項旁標示（客人掃碼時填的名字；同桌多人各自點、一起送單時靠這個分）。櫃檯代點不標。
-const ordererOf=l=>{const n=String(l.by||'').trim();return n&&n!=='櫃檯'?n:'';};
+const ordererOf=l=>{const n=String(l.by||'').trim();return n==='櫃檯'&&l.device_name?`櫃檯・${String(l.device_name).trim()}`:n&&n!=='櫃檯'?n:'';};
 // 結帳頁品項依點餐人分組（各付各的時一組就是一個人的帳）：依第一次出現的順序；櫃檯代點自成一組；預收抵扣行放最後一組
 const lineGroups=lines=>{const m=new Map();for(const l of lines){const key=l.credit_of?'credit':ordererOf(l)||(String(l.by||'').trim()==='櫃檯'?'櫃檯':'');if(!m.has(key))m.set(key,{key,label:key==='credit'?'已預收':key==='櫃檯'?'櫃檯點的':key||'客人',lines:[]});m.get(key).lines.push(l);}const gs=[...m.values()];return gs.filter(g=>g.key!=='credit').concat(gs.filter(g=>g.key==='credit'));};
 // 出餐單分兩張：廚房單與吧台單（KK 11/2），依 MenuLib.stationOf（BAR_STATION_CATS＝飲品／酒水／甜點）。
@@ -2179,12 +2179,12 @@ async function loadHistory(){
   // 查單＝確認訂單狀態：一單一列的摘要表（時間／桌號／單號／品項／付款／發票／金額／狀態），點一列才展開詳情與操作鍵；展開狀態記在 HIST_OPEN，操作後重載仍保持展開
   const histState=o=>{const p=o.payer||{};if(o.status==='void')return `<span class="pill pill-bad">已作廢</span>`;if(p.prepay)return `<span class="pill pill-wait">部分付款</span>`;return `<span class="pill pill-ok">已結帳</span>`;};
   const histInvShort=o=>{const inv=o.invoice||{};if(inv.status==='failed')return '<span class="pill pill-bad">發票失敗</span>';if(inv.requested&&!['issued','void'].includes(inv.status))return '<span class="pill pill-wait">待補開</span>';if(inv.status==='issued')return `<span class="a-mono">${esc(inv.number||'已開立')}</span>`;if(inv.status==='void')return '<span class="hint hint--tight">已作廢</span>';return '<span class="hint hint--tight">未開</span>';};
-  const histLine=(l,multiBy)=>{const tags=specParts(l).map(t=>`<span class="ops-spec ops-spec-${t.kind} ops-spec-${t.tone}">${t.kind==='custom'?'※ ':''}${esc(t.text)}</span>`).join('');const flag=l.cancelled?'已取消':l.comp_reason?'贈送':l.redeem_points>0?'點數兌換':'';const sub=Number.isFinite(Number(l.price))?(l.cancelled?`<s>${num(Number(l.price)*l.qty)}</s>`:num(Number(l.price)*l.qty)):'';return `<li class="hist-line${l.cancelled?' is-off':''}"><span class="hist-qty${l.qty>1?' many':''}">×${l.qty}</span><span class="hist-name"><b>${esc(l.zh)}</b>${flag?` <span class="pill pill-draft">${flag}</span>`:''}${partsOf(l).length?partsHtml(l):''}${tags?`<span class="ops-specs">${tags}</span>`:''}${multiBy&&l.by?`<span class="hint hint--tight">由 ${esc(l.by)} 點</span>`:''}</span><span class="hist-sub">${sub}</span></li>`;};
+  const histLine=(l,multiBy)=>{const tags=specParts(l).map(t=>`<span class="ops-spec ops-spec-${t.kind} ops-spec-${t.tone}">${t.kind==='custom'?'※ ':''}${esc(t.text)}</span>`).join('');const flag=l.cancelled?'已取消':l.comp_reason?'贈送':l.redeem_points>0?'點數兌換':'';const sub=Number.isFinite(Number(l.price))?(l.cancelled?`<s>${num(Number(l.price)*l.qty)}</s>`:num(Number(l.price)*l.qty)):'';const who=ordererOf(l);return `<li class="hist-line${l.cancelled?' is-off':''}"><span class="hist-qty${l.qty>1?' many':''}">×${l.qty}</span><span class="hist-name"><b>${esc(l.zh)}</b>${flag?` <span class="pill pill-draft">${flag}</span>`:''}${partsOf(l).length?partsHtml(l):''}${tags?`<span class="ops-specs">${tags}</span>`:''}${multiBy&&who?`<span class="hint hint--tight">由 ${esc(who)} 點</span>`:''}</span><span class="hist-sub">${sub}</span></li>`;};
   const histActions=(o,allowVoid)=>{const canPay=allowVoid&&o.status!=='void'&&!o.payer?.prepay&&!o.tappay?.rec_trade_id&&o.payer?.method!=='stripe';/* 線上付款的單要到 Stripe 退款，櫃檯不改付款方式 */return `<div class="hist-actions"><button class="btn btn--solid btn-sm" data-receipt="${esc(o.id)}">補印收據明細</button>${invoicePrintable(o.invoice)?`<button class="btn btn--ghost btn-sm" data-invoice-print="${esc(o.id)}">補印發票</button>`:''}${o.status==='void'?'':`<button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">補印出餐單</button>`}${canPay?`<button class="btn btn--ghost btn-sm" data-paymethod="${esc(o.id)}">改付款方式</button>`:''}${canAttachMember(o)?`<button class="btn btn--ghost btn-sm" data-hist-member="${esc(o.id)}">入會員</button>`:''}${o.status!=='void'&&allowVoid?`<button class="btn btn--ghost btn--danger btn-sm" data-void="${esc(o.id)}">作廢</button>`:''}</div>`;};
   const rows=d.orders.map(o=>{
     const lines=(o.items||[]).filter(l=>!l.prepay&&!l.credit_of);
     const live=lines.filter(l=>!l.cancelled);
-    const bys=[...new Set(lines.map(l=>l.by).filter(Boolean))];
+    const bys=[...new Set(lines.map(ordererOf).filter(Boolean))];
     const red=redeemOf(o),p=o.payer||{};
     const flow=o.status==='void'?'':ORDER_STATE[o.status]?`出餐：${ORDER_STATE[o.status]}`:'';
     const meta=[bys.length?`點餐 ${bys.map(esc).join('、')}`:'',p.operator_name?`收銀 ${esc(p.operator_name)}`:'',flow].filter(Boolean).join(' · ');

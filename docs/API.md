@@ -649,6 +649,9 @@ POS 收款通知（背景讀取，讀完等 1 秒再讀；只讀資料庫，不�
 ### POST /api/me/feedback
 會員 App 意見回饋。需以個人會員登入；body `{ kind, text, rating?, lang? }`，欄位規則同桌邊點餐回饋：`kind` 為 `app`、`food`、`service`、`space`、`other`，`text` 2–500 字，`rating` 為 1–5 或省略。不限筆數。成功 201 `{ ok:true }`；資料存 `member_feedback`，由 POS「設定 → 回饋」以來源「會員 App」一併查看。
 
+### POST /api/me/feedback
+會員 App 意見回饋。需以個人會員登入；body `{ kind, text, rating?, lang? }`，欄位規則同桌邊點餐回饋：`kind` 為 `app`、`food`、`service`、`space`、`other`，`text` 2–500 字，`rating` 為 1–5 或省略。每帳號每小時最多 5 筆。成功 201 `{ ok:true }`；資料存 `member_feedback`，由 POS「設定 → 回饋」以來源「會員 App」一併查看。
+
 ### GET /api/admin/orders/feedback
 POS「設定 → 回饋」。query `from`、`to`（YYYY-MM-DD，台北時間，皆可省略）。回 `{ feedback:[{id,source,table_no,kind,rating,text,name,lang,created_at}], kinds, count, avg_rating }`，包含桌邊點餐與會員 App 回饋，新到舊最多 500 筆。
 
@@ -883,10 +886,10 @@ POS 庫存（`/pos/inventory`）。query `venue=`。回 `{ items[], recipes{菜�
 修改訂位資訊（客人來電更改日期、時間、人數、姓名、電話、Email 或備註；桌號／店內留言／狀態仍走上面的 `/status`）。body `{ date, time, party_size, name, phone, email?, note?, internal_note? }`（`internal_note` 沒帶＝不改），驗證規則同 `POST /api/admin/reservations`（`staff:true`：Email 可留空、不擋 30 分鐘內的時段），語言與來源沿用原紀錄。品牌子帳號只能改自己店別時段的訂位、也不能把時段改到別的店別（403）。**不會自動寄信通知客人**，需要時請自行電話聯繫，或改完用 `/status` 的「確認並通知」補寄。回 `{ ok, id, venue }`。
 
 ### GET /api/pos-devices/:id
-公開（免登入）。POS 開機時查這台裝置是否已綁定，決定登入畫面要顯示四位數密碼鍵盤還是 Gmail 登入。回 `{ bound }`。
+公開（免登入）。POS 開機時查這台裝置是否已綁定且已有名稱，決定登入畫面要顯示四位數密碼鍵盤還是 Gmail 登入。回 `{ bound }`。
 
 ### POST /api/admin/pos-devices/bind
-裝置綁定：店長（任何品牌管理員帳號皆可，不限超管）用 Gmail／Email 登入後呼叫一次，把這台裝置記成「已綁定」，之後本裝置才能用四位數密碼登入。body `{ device_id, label? }`；同一 `device_id` 重複綁定＝覆蓋（更新綁定人與時間）。回 `{ ok }`。
+裝置綁定：僅 POS 專用帳號用 Gmail／Email 登入後呼叫一次，把這台裝置記成「已綁定」，之後本裝置才能用四位數密碼登入。body `{ device_id, label }`；`label` 為必填、40 字以內的現場可辨識名稱（例如「在咖啡吧台 iPad」）。同一 `device_id` 重複綁定＝覆蓋名稱、綁定人與時間。PIN 登入權杖會綁定此裝置，櫃檯加點僅採用該權杖對應的資料庫名稱，不能從請求冒充其他裝置。回 `{ ok }`。
 
 ### GET /api/admin/pos-devices
 超管專用：列出所有已綁定裝置（`device_id`、綁定人 email、標籤、綁定時間），供「裝置遺失/更換時解除綁定」使用。

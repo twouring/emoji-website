@@ -1919,6 +1919,8 @@ async function sessionAuth(t) {
     if (!staff || !staff.active) return null;
     const brands = staff.venues ? String(staff.venues).split(',').map(x => x.trim().toUpperCase()).filter(x => posStaff.VENUES.includes(x)) : posStaff.VENUES.slice(); // venues 為空＝所有品牌都可
     if (!brands.length) return null; // 沒設所屬品牌的操作人員：一律視為未登入（不給預設全開權限）
+    const deviceId=String(p.pos_device||'').replace(/[\x00-\x1f]/g,'').trim().slice(0,80);
+    if(!deviceId||!(await q("SELECT 1 FROM pos_devices WHERE device_id=$1 AND lower(bound_by_email)=$2 AND label<>''",[deviceId,POS_ACCOUNT_EMAIL])).rows[0])return null;
     // 品牌跟著登入的人走：雙品牌員工登入時選一個，token 內的 pos_venue 鎖定本次登入；舊 token 沒帶品牌時，只有單品牌員工可沿用，雙品牌須重登
     const venue = p.pos_venue ? (brands.includes(p.pos_venue) ? p.pos_venue : null) : (brands.length === 1 ? brands[0] : null);
     if (!venue) return null;
@@ -2246,7 +2248,7 @@ app.get('/api/auth/session',auth,requireDb,(req,res)=>req.auth.sub?res.json({aut
 // 續期：現場平板（POS）長期開著，token 快到期前換一張新的，免得營業中突然被登出；身分已由 sessionAuth 重新查過 DB（被移除管理員就拿不到）
 app.post('/api/auth/renew',auth,requireDb,(req,res)=>{
   if(!req.auth.sub||req.auth.agent)return res.status(403).json({error:'請以會員身分登入。'});
-  res.set('Cache-Control','no-store');res.json({token:signToken({role:req.auth.role==='admin'?'admin':req.auth.role==='organizer'?'invited':req.auth.role,sub:req.auth.sub,super:req.auth.super===true,name:req.auth.name||'',...(req.auth.operator_staff_id?{operator_staff_id:req.auth.operator_staff_id,pos_venue:req.auth.pos_venue}:{})})});
+  res.set('Cache-Control','no-store');res.json({token:signToken({role:req.auth.role==='admin'?'admin':req.auth.role==='organizer'?'invited':req.auth.role,sub:req.auth.sub,super:req.auth.super===true,name:req.auth.name||'',...(req.auth.operator_staff_id?{operator_staff_id:req.auth.operator_staff_id,pos_venue:req.auth.pos_venue,pos_device:req.auth.pos_device}:{})})});
 });
 
 app.post('/api/auth/email/verify',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
@@ -6434,13 +6436,22 @@ async function storeInvoiceResult(order, invoice, { throwOnError=false } = {}) {
   }
 }
 /* 櫃檯結帳（POS）：替這桌加菜、作廢未付品項、收款（現金／刷卡／LINE Pay／轉帳，可分帳、可套會員價）、作廢已結帳的單 */
+async function counterDevice(req) {
+  const deviceId=String(req.auth?.pos_device||'').replace(/[\x00-\x1f]/g,'').trim().slice(0,80);
+  if(!deviceId)return null;
+  const row=(await q('SELECT label FROM pos_devices WHERE device_id=$1 AND lower(bound_by_email)=$2',[deviceId,POS_ACCOUNT_EMAIL])).rows[0];
+  const label=String(row?.label||'').replace(/[\x00-\x1f]/g,'').trim().slice(0,40);
+  return label?{id:deviceId,label}:null;
+}
 app.post('/api/admin/orders/sessions/:id/items',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
+  const device=await counterDevice(req);
+  if(!device)return res.status(403).json({error:'這台 POS 尚未綁定或未設定裝置名稱，不能加點。'});
   const venues=tableOrders.visibleVenues(req.auth.brands);
   const menuAll=tableOrders.menuIndex(await contentValue('menu'),undefined,{posOnly:true});   // 櫃檯可替客人加任何已發布品項（含估清、非營業時段、POS 限定如「其他」），但不得跨品牌
   const it=menuAll.get(String(req.body?.item_id||''));const shopItem=tableOrders.MenuLib.isShared(it);if(it&&!shopItem&&!tableOrders.itemInVenues(it,venues))return res.status(403).json({error:'只能加自己店別的品項。'});
   // 商店零售品兩店共用：記在這台 POS 的店別（言文字管理員記當下營業品牌）
-  return mutateItems(req,res,items=>tableOrders.posAddLine(items,menuAll,{...(req.body||{}),venue:shopItem?shop.venueFor(venues):undefined}));
+  return mutateItems(req,res,items=>tableOrders.posAddLine(items,menuAll,{...(req.body||{}),venue:shopItem?shop.venueFor(venues):undefined,device_name:device.label}));
 }));
 app.post('/api/admin/orders/sessions/:id/place',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
@@ -7388,16 +7399,17 @@ app.patch('/api/admin/payment-methods/:code',rateLimit({max:20}),auth,adminOnly,
 app.get('/api/pos-devices/:id',requireDb,wrap(async(req,res)=>{
   const id=String(req.params.id||'').trim().slice(0,80);
   if(!id)return res.status(400).json({error:'缺少裝置代碼。'});
-  const row=(await q('SELECT 1 FROM pos_devices WHERE device_id=$1 AND lower(bound_by_email)=$2',[id,POS_ACCOUNT_EMAIL])).rows[0];
+  const row=(await q("SELECT 1 FROM pos_devices WHERE device_id=$1 AND lower(bound_by_email)=$2 AND label<>''",[id,POS_ACCOUNT_EMAIL])).rows[0];
   res.json({bound:!!row});
 }));
 app.post('/api/admin/pos-devices/bind',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const id=String(req.body?.device_id||'').trim().slice(0,80);
   if(!id)return res.status(400).json({error:'缺少裝置代碼。'});
   if(String(req.auth.email||'').toLowerCase()!==POS_ACCOUNT_EMAIL)return res.status(403).json({error:'請用 POS 專用帳號登入，才能啟用員工密碼登入。'});
-  const label=String(req.body?.label||'').trim().slice(0,40);
+  const label=String(req.body?.label||'').replace(/[\x00-\x1f]/g,'').trim().slice(0,40);
+  if(!label)return res.status(400).json({error:'請輸入這台 POS 的裝置名稱。'});
   await q(`INSERT INTO pos_devices(device_id,bound_by,bound_by_email,label) VALUES($1,$2,$3,$4)
-    ON CONFLICT(device_id) DO UPDATE SET bound_by=$2,bound_by_email=$3,label=CASE WHEN $4<>'' THEN $4 ELSE pos_devices.label END,bound_at=now()`,
+    ON CONFLICT(device_id) DO UPDATE SET bound_by=$2,bound_by_email=$3,label=$4,bound_at=now()`,
     [id,req.auth.sub||'',req.auth.email||'',label]);
   res.json({ok:true});
 }));
@@ -7412,17 +7424,17 @@ app.delete('/api/admin/pos-devices/:id',auth,adminOnly,superOnly,requireDb,wrap(
 }));
 /* 操作人員密碼登入：裝置須已綁定；密碼錯誤／裝置未綁定一律用同樣的錯誤訊息（不洩漏哪個原因）。防猜碼：每台每分鐘 12 次，同打卡 */
 app.post('/api/pos-devices/:id/pin-login',rateLimit({max:12}),requireDb,wrap(async(req,res)=>{
-  const id=String(req.params.id||'').trim().slice(0,80);
-  const bound=id&&(await q('SELECT 1 FROM pos_devices WHERE device_id=$1 AND lower(bound_by_email)=$2',[id,POS_ACCOUNT_EMAIL])).rows[0];
+  const id=String(req.params.id||'').replace(/[\x00-\x1f]/g,'').trim().slice(0,80);
+  const bound=id&&(await q('SELECT label FROM pos_devices WHERE device_id=$1 AND lower(bound_by_email)=$2',[id,POS_ACCOUNT_EMAIL])).rows[0];
   const pin=String(req.body?.pin||'').trim();
-  if(!bound||!/^\d{4}$/.test(pin))return res.status(404).json({error:'密碼錯誤，請重新輸入；若是第一次使用，請先用 POS 專用帳號登入這台裝置。'});
+  if(!bound||!String(bound.label||'').replace(/[\x00-\x1f]/g,'').trim().slice(0,40)||!/^\d{4}$/.test(pin))return res.status(404).json({error:'密碼錯誤，請重新輸入；若是第一次使用，請先用 POS 專用帳號登入這台裝置。'});
   // 品牌先選（KK 11/4）：pos.emoji.tw 先選品牌，進品牌 POS（/atcafe、/3am）才輸入識別碼；識別碼只在該品牌內唯一，所以一定要帶 venue
   const venue=String(req.body?.venue||'').toUpperCase();
   if(!posStaff.VENUES.includes(venue))return res.status(400).json({error:'請先選擇要進入的品牌 POS。'});
   const staff=posStaff.pinMatch((await q('SELECT id,name,venues,active FROM pos_staff WHERE pin=$1 AND active',[pin])).rows,venue);
   if(!staff)return res.status(404).json({error:'密碼錯誤，請重新輸入。'});
   q('INSERT INTO pos_logs(id,venue,actor,operator_id,operator_name,action,detail,method,path) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[uid('pl_'),venue,staff.name,staff.id,staff.name,'登入 POS','裝置 '+id.slice(0,8),'POST','/api/pos-devices/pin-login']).catch(e=>console.error('[pos-log]',e.message));
-  res.json({token:signToken({role:'admin',sub:'staff:'+staff.id,operator_staff_id:staff.id,name:staff.name,pos_venue:venue}),name:staff.name,brands:[venue]});
+  res.json({token:signToken({role:'admin',sub:'staff:'+staff.id,operator_staff_id:staff.id,name:staff.name,pos_venue:venue,pos_device:id}),name:staff.name,brands:[venue]});
 }));
 /* ===== 排班與打卡：員工用 4 位數識別碼在共用平板打卡（不綁登入帳號）；排班＝員工 × 營業日 × 店別；出勤給後台算工時 ===== */
 const STAFF_SEL='id,name,pin,venues,role,note,active,created_at,updated_at';
