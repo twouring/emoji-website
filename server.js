@@ -6392,13 +6392,16 @@ app.post('/api/admin/orders/sessions',auth,adminOnly,requireDb,wrap(async(req,re
   let table=takeout?'':tableOrders.cleanText(req.body?.table_no,8).toUpperCase();
   if(!takeout&&!tableOrders.TABLE_RE.test(table))return res.status(400).json({error:'桌號只能用英數字與 -，最長 8 字。'});
   if(!takeout&&tableOrders.isTakeout(table))return res.status(400).json({error:'W01–W99 保留給外帶單，請按「外帶」開單。'});
+  if(!takeout&&tableOrders.isUnassignedTable(table)&&table!==tableOrders.UNSPECIFIED_TABLE)return res.status(400).json({error:'請選「未指定桌號」，系統會自動編號。'});
   const operator=await resolveOperator(req,req.body?.operator_id);
   if(!operator)return res.status(400).json({error:'請先輸入 4 位數識別碼，開桌要記是誰開的。'});
   const client=await pool.connect();
   const venue=pinVenue(req,req.body?.venue)||null;
-  try{await client.query('BEGIN');await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,[takeout?'table:takeout':tableLock(table,venue)]);
+  const unassigned=!takeout&&table===tableOrders.UNSPECIFIED_TABLE;
+  try{await client.query('BEGIN');await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,[takeout?'table:takeout':tableLock(unassigned?tableOrders.UNSPECIFIED_TABLE:table,venue)]);
     if(takeout){const used=new Set((await client.query("SELECT table_no FROM table_sessions WHERE status='open' AND table_no ~ '^W[0-9]{2}$'")).rows.map(r=>r.table_no));table=tableOrders.nextTakeoutTable(used);if(!table){await client.query('ROLLBACK');return res.status(409).json({error:'外帶單號已用完（W01–W99），請先清掉已完成的外帶單。'});}}
-    let s=takeout?null:pickVenueSession((await client.query("SELECT id,table_no,venue,items,created_at,party_votes FROM table_sessions WHERE table_no=$1 AND status='open' ORDER BY created_at DESC",[table])).rows,venue),created=false;
+    else if(unassigned){const used=new Set((await client.query("SELECT table_no FROM table_sessions WHERE status='open' AND (table_no=$1 OR table_no LIKE $2) AND venue IS NOT DISTINCT FROM $3",[tableOrders.UNSPECIFIED_TABLE,tableOrders.UNSPECIFIED_TABLE+'-%',venue])).rows.map(r=>r.table_no));table=tableOrders.nextUnassignedTable(used);if(!table){await client.query('ROLLBACK');return res.status(409).json({error:'未指定桌號已用完（最多 99 組），請先清掉已完成的桌。'});}}
+    let s=(takeout||unassigned)?null:pickVenueSession((await client.query("SELECT id,table_no,venue,items,created_at,party_votes FROM table_sessions WHERE table_no=$1 AND status='open' ORDER BY created_at DESC",[table])).rows,venue),created=false;
     // 內用開桌時一併帶來客人數（大人＋小孩，POS 開桌就選）；外帶不記
     let votes={};if(!takeout&&req.body?.party_size!=null){try{votes=tableOrders.partySetByPos({},req.body.party_size,req.body.kids,req.body.foreign);}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}}
     if(!s){s=(await client.query('INSERT INTO table_sessions(id,table_no,opened_by_staff_id,opened_by_staff_name,party_votes,venue) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,table_no,created_at,party_votes',[uid('ts_'),table,operator?.id||null,operator?.name||null,JSON.stringify(votes),venue])).rows[0];created=true;}

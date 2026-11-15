@@ -23,7 +23,7 @@ test('桌位擺放各品牌一份：key＝pos_table_layout:<VENUE>，沒存過�
 test('開桌記品牌、鎖與查場次都分品牌', () => {
   const r = route("app.post('/api/admin/orders/sessions',");
   assert.match(r, /const venue=pinVenue\(req,req\.body\?\.venue\)/);
-  assert.match(r, /tableLock\(table,venue\)/);
+  assert.match(r, /tableLock\((?:unassigned\?tableOrders\.UNSPECIFIED_TABLE:)?table,venue\)/);
   assert.match(r, /pickVenueSession\(/);
   assert.match(r, /party_votes,venue\) VALUES\(\$1,\$2,\$3,\$4,\$5,\$6\)/);
   assert.match(srv, /ALTER TABLE table_sessions ADD COLUMN IF NOT EXISTS venue TEXT/);
