@@ -68,6 +68,18 @@ for (const [w, h, mobile] of [[1180, 820, false], [390, 844, true]]) {
     overflow: document.documentElement.scrollWidth - innerWidth,
     small: [...document.querySelectorAll('[data-so-mat],[data-so]')].filter(b => b.getBoundingClientRect().height < 44).length,
   }));
+  const tabs = await page.evaluate(() => [...document.querySelectorAll('[data-so-tab]')].map(b => b.innerText.replace(/\s+/g, ' ')));
+  const vis = () => page.evaluate(() => [...document.querySelectorAll('[data-so],[data-so-mat]')].filter(b => !b.hidden && b.getBoundingClientRect().width > 0).map(b => b.querySelector('b').innerText));
+  const allTab = await vis();
+  await page.evaluate(() => document.querySelector('[data-so-tab="COMBO"]').click()); const comboTab = await vis();
+  await page.evaluate(() => document.querySelector('[data-so-tab="MAT"]').click()); const matTab = await vis();
+  await page.screenshot({ path: path.join(OUT, `soldout-${w}-mattab.png`), fullPage: true });
+  await page.focus('#so-q'); await page.keyboard.type('黑糖'); const search = await vis();
+  const focusKept = await page.evaluate(() => document.activeElement?.id);
+  await page.screenshot({ path: path.join(OUT, `soldout-${w}-search.png`), fullPage: true });
+  await page.evaluate(() => { const q = document.querySelector('#so-q'); q.value = 'zzz'; q.dispatchEvent(new Event('input')); }); const none = await page.evaluate(() => !document.querySelector('#so-none').hidden);
+  await page.evaluate(() => { const q = document.querySelector('#so-q'); q.value = ''; q.dispatchEvent(new Event('input')); document.querySelector('[data-so-tab="MAT"]').click(); });
+  report[w + '_tabs'] = { tabs, allTab, comboTab, matTab, search, focusKept, none };
   const before = await read();
   await page.screenshot({ path: path.join(OUT, `soldout-${w}-before.png`), fullPage: true });
   await page.evaluate(() => document.querySelector('[data-so-mat="inv_sugar"]').click());

@@ -2873,7 +2873,7 @@ async function loadSales(){
 
 /* 估清：每格點開設定「今日估清／剩幾份／恢復不限量」，直接寫伺服器（只動 sold_out／stock_*）；送單自動扣份數，扣到 0＝售完；翌日 03:00 自動恢復 */
 function tabSoldOut(){ return '<div class="a-sec" id="soldout-body"></div>'; }
-let SO_PAUSE=null,SO_TIMER=null,SO_MATS=null,SO_MAT_NAME={};
+let SO_PAUSE=null,SO_TIMER=null,SO_MATS=null,SO_MAT_NAME={},SO_TAB='',SO_Q='';
 // 輪詢回來的即時估清／份數套進本機菜單（POS 不必重新整理就看到別台平板或客人送單扣掉的份數）
 function applyLiveStock(list){
   if(!Array.isArray(list)||!MENU_DOC)return;
@@ -2913,6 +2913,16 @@ function soEdit(it){
     ov.querySelector('[data-act="cancel"]').onclick=()=>finish(null);
   });
 }
+/* 估清頁分頁＋搜尋只切 hidden、不重畫（輸入框不會掉焦點）。有搜尋字＝跨全部分頁找；沒有＝只看目前分頁（「全部品項」不含原物料） */
+function soFilter(host){
+  const q=SO_Q.trim().toLowerCase();let shown=0;
+  host.querySelectorAll('[data-so-sec]').forEach(sec=>{
+    const k=sec.dataset.soSec,inTab=q?true:SO_TAB?k===SO_TAB:k!=='MAT';let n=0;
+    sec.querySelectorAll('[data-so-text]').forEach(b=>{const hit=inTab&&(!q||b.dataset.soText.includes(q));b.hidden=!hit;if(hit)n++;});
+    sec.hidden=!n;shown+=n;
+  });
+  const none=host.querySelector('#so-none');if(none)none.hidden=shown>0;
+}
 async function loadSoldOut(refresh){
   const host=document.getElementById('soldout-body');if(!host)return;
   clearTimeout(SO_TIMER);
@@ -2922,14 +2932,26 @@ async function loadSoldOut(refresh){
   if(!document.getElementById('soldout-body'))return;
   const items=MenuLib.sortItems((MENU_DOC?.items||[]).filter(it=>it.published&&!it.pos_only&&MenuLib.inVenue(it,SCOPE)&&!MenuLib.isBook(it)));   // 書籍本數在約書旅書冊後台管（估清會清掉本數）；「其他」這類 POS 限定品項沒有估清的意義
   const groups=new Map();for(const it of items){if(!groups.has(it.cat))groups.set(it.cat,[]);groups.get(it.cat).push(it);}
-  const cards=[...groups].map(([cat,list])=>`<h3>${esc(MenuLib.CAT_LABEL[cat]?.zh||cat)}</h3><div class="so-grid">${list.map(it=>{const st=soState(it),off=st.cls==='off';return `<button type="button" class="so-item ${st.cls}" data-so="${esc(it.id)}" aria-pressed="${off?'true':'false'}">${itemThumb(it,'so-item__img')}<b>${esc(it.zh)}</b><span>NT$${num(it.price)}${SCOPE?'':' · '+esc(BRAND_LABEL[it.venue]||it.venue)}</span><small>${esc(st.text)}</small></button>`;}).join('')}</div>`).join('')||'<p class="a-empty">沒有已發布的菜單項目，請先在後台「菜單」儲存菜單。</p>';
+  // 分頁（KK 11/15）：全部品項／各菜單分類（套餐、沙拉…）／原物料；搜尋框跨全部分頁找（品名、英文名、原物料名）
+  const soText=(...a)=>esc(a.filter(Boolean).join(' ').toLowerCase());
+  const cards=[...groups].map(([cat,list])=>`<section class="so-sec" data-so-sec="${esc(cat)}"><h3>${esc(MenuLib.CAT_LABEL[cat]?.zh||cat)}</h3><div class="so-grid">${list.map(it=>{const st=soState(it),off=st.cls==='off';return `<button type="button" class="so-item ${st.cls}" data-so="${esc(it.id)}" data-so-text="${soText(it.zh,it.en)}" aria-pressed="${off?'true':'false'}">${itemThumb(it,'so-item__img')}<b>${esc(it.zh)}</b><span>NT$${num(it.price)}${SCOPE?'':' · '+esc(BRAND_LABEL[it.venue]||it.venue)}</span><small>${esc(st.text)}</small></button>`;}).join('')}</div></section>`).join('')||'<p class="a-empty">沒有已發布的菜單項目，請先在後台「菜單」儲存菜單。</p>';
   // 原物料估清（KK 11/15）：點原物料＝配方用到它的品項（含套餐選項）一起今日估清；再點一次恢復
   const mats=SO_MATS||[];
-  const matHtml=mats.length?`<h3>原物料</h3><p class="hint hint--tight">黑糖、紅烏龍這類原物料用完時點一下，用到它的品項會一起估清；套餐裡的這些選項也會停售。</p><div class="so-grid">${mats.map(m=>`<button type="button" class="so-item ${m.sold_out?'off':''}" data-so-mat="${esc(m.id)}" aria-pressed="${m.sold_out?'true':'false'}"><b>${esc(m.name)}</b><span>用在 ${m.menu.length} 個品項</span><small>${m.sold_out?'今日估清':'供應中'}</small></button>`).join('')}</div>`:'';
-  const sig=JSON.stringify([SO_PAUSE,mats.map(m=>[m.id,m.sold_out,m.menu.length]),items.map(it=>[it.id,it.image,soState(it).text])]);
+  const matHtml=mats.length?`<section class="so-sec" data-so-sec="MAT"><h3>原物料</h3><p class="hint hint--tight">黑糖、紅烏龍這類原物料用完時點一下，用到它的品項會一起估清；套餐裡的這些選項也會停售。</p><div class="so-grid">${mats.map(m=>`<button type="button" class="so-item ${m.sold_out?'off':''}" data-so-mat="${esc(m.id)}" data-so-text="${soText(m.name,m.category,...m.menu.map(x=>x.zh))}" aria-pressed="${m.sold_out?'true':'false'}"><b>${esc(m.name)}</b><span>用在 ${m.menu.length} 個品項</span><small>${m.sold_out?'今日估清':'供應中'}</small></button>`).join('')}</div></section>`:'';
+  const tabs=[['','全部品項'],...[...groups.keys()].map(c=>[c,MenuLib.CAT_LABEL[c]?.zh||c]),...(mats.length?[['MAT','原物料']]:[])];
+  if(!tabs.some(t=>t[0]===SO_TAB))SO_TAB='';
+  const offN=k=>k==='MAT'?mats.filter(m=>m.sold_out).length:(groups.get(k)||[]).filter(it=>soState(it).cls==='off').length;
+  const tabHtml=`<div class="so-tools"><input type="search" id="so-q" class="so-search" maxlength="40" autocomplete="off" enterkeyhint="search" placeholder="搜尋品項或原物料，例如：黑糖" aria-label="搜尋品項或原物料" value="${esc(SO_Q)}"><div class="pos-cats so-tabs" role="tablist" aria-label="估清分頁">${tabs.map(([k,l])=>{const n=k?offN(k):0;return `<button type="button" role="tab" data-so-tab="${esc(k)}" aria-pressed="${k===SO_TAB}">${esc(l)}${n?`<span class="so-tab-n">${n}</span>`:''}</button>`;}).join('')}</div></div><p class="a-empty" id="so-none" hidden>找不到符合的品項或原物料。</p>`;
+  const sig=JSON.stringify([SO_PAUSE,SO_TAB,mats.map(m=>[m.id,m.sold_out,m.menu.length]),items.map(it=>[it.id,it.image,soState(it).text])]);
   if(host.dataset.sig!==sig){host.dataset.sig=sig;
-    host.innerHTML=`<div class="ops-head"><h2>估清</h2>${opsHelp('點一下品項設定「今日估清」或「剩餘份數」：客人每送一份就自動扣，扣到 0 自動售完、客人掃碼點不到；翌日 03:00 自動恢復供應。櫃檯加點不受份數限制。單品估清後，套餐裡的這個選項也一起停售；原物料用完點「原物料」區，用到它的品項會一起估清。')}</div><div class="a-toolbar pos-tools" id="so-pause">${posPauseHtml(SO_PAUSE)}</div>${matHtml}${cards}`;
+    host.innerHTML=`<div class="ops-head"><h2>估清</h2>${opsHelp('點一下品項設定「今日估清」或「剩餘份數」：客人每送一份就自動扣，扣到 0 自動售完、客人掃碼點不到；翌日 03:00 自動恢復供應。櫃檯加點不受份數限制。單品估清後，套餐裡的這個選項也一起停售；原物料用完點「原物料」區，用到它的品項會一起估清。')}</div><div class="a-toolbar pos-tools" id="so-pause">${posPauseHtml(SO_PAUSE)}</div>${tabHtml}${cards}${matHtml}`;
     bindPosPause(host,()=>loadSoldOut(true));
+    const qEl=host.querySelector('#so-q');
+    if(document.activeElement?.id!=='so-q'&&host.dataset.qFocus==='1'){qEl.focus();qEl.setSelectionRange(SO_Q.length,SO_Q.length);}
+    qEl.addEventListener('input',()=>{SO_Q=qEl.value;soFilter(host);});
+    qEl.addEventListener('focus',()=>{host.dataset.qFocus='1';});qEl.addEventListener('blur',()=>{host.dataset.qFocus='';});
+    host.querySelectorAll('[data-so-tab]').forEach(b=>b.onclick=()=>{SO_TAB=b.dataset.soTab;host.querySelectorAll('[data-so-tab]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));soFilter(host);});
+    soFilter(host);
     host.querySelectorAll('[data-so-mat]').forEach(b=>b.onclick=async()=>{
       const m=mats.find(x=>x.id===b.dataset.soMat);if(!m)return;const on=!m.sold_out;
       if(!await posConfirm(on?`會一起估清：${m.menu.map(x=>x.zh).join('、')}\n套餐裡的這些選項也會停售，翌日 03:00 自動恢復。`:`因「${m.name}」而估清的品項會恢復供應（手動估清的不動）。`,{title:on?`「${m.name}」今日估清？`:`恢復「${m.name}」？`,ok:on?'估清':'恢復供應',danger:on}))return;

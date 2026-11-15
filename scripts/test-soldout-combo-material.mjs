@@ -104,3 +104,12 @@ test('接線：路由、API 文件、操作紀錄、POS 原物料區', () => {
   assert.match(ops, /data-so-mat=/); assert.match(ops, /\/admin\/menu\/material-sold-out/);
   assert.match(ops, /comboAvailable\(it,MENU_DOC/);
 });
+
+test('估清頁分頁與搜尋（KK 11/15）：各分類＋原物料分頁、搜尋框跨分頁只切 hidden', () => {
+  const ops = fs.readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'utf8');
+  const css = fs.readFileSync(new URL('../public/pos-ops.css', import.meta.url), 'utf8');
+  assert.match(ops, /data-so-tab=/); assert.match(ops, /\['MAT','原物料'\]/); assert.match(ops, /\['','全部品項'\]/);
+  assert.match(ops, /id="so-q"[^>]*type="search"|type="search" id="so-q"/);
+  assert.match(ops, /function soFilter\(host\)/); assert.match(ops, /data-so-text=/);
+  assert.match(css, /\.so-item\[hidden\],\.so-sec\[hidden\]\{display:none\}/);
+});
