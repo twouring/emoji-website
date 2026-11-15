@@ -51,6 +51,24 @@ test('帳記在當下營業品牌；03–08 記在咖啡；POS 品牌帳號記�
   assert.equal(shop.venueFor(['BAR']), 'BAR');
 });
 
+test('POS 商店品歸屬只接受選定品牌，不用目前時段猜測', () => {
+  assert.equal(shop.venueForPos(['CAFE']), 'CAFE');
+  assert.equal(shop.venueForPos(['BAR']), 'BAR');
+  assert.throws(() => shop.venueForPos(null), /POS 品牌/);
+  assert.throws(() => shop.venueForPos(['CAFE', 'BAR']), /POS 品牌/);
+  assert.throws(() => shop.venueForPos([]), /POS 品牌/);
+});
+
+test('POS 櫃檯加點路由：依目前選定品牌（?venue=）入帳商店品，未選品牌回 400，不再用時段推定', () => {
+  const server = read('server.js');
+  const start = server.indexOf("app.post('/api/admin/orders/sessions/:id/items'");
+  const route = server.slice(start, server.indexOf('}));', start));
+  assert.match(route, /visibleVenues\(req\.auth\.brands,String\(req\.query\.venue\|\|''\)\)/);
+  assert.match(route, /shop\.venueForPos\(venues\)/);
+  assert.doesNotMatch(route, /shop\.venueFor\(/);
+  assert.match(route, /res\.status\(e\.status\|\|400\)/);
+});
+
 test('addLine：商店行記指定店別、直接算已出；不上出餐單、不收服務費、不套會員價', () => {
   const menu = shop.menuOf(doc);
   let items = T.addLine([], menu, { item_id: 'brush', qty: 2, by: '小明', guest: 'appuser0001', venue: 'BAR' });

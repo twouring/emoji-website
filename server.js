@@ -6515,11 +6515,12 @@ app.post('/api/admin/orders/sessions/:id/items',auth,adminOnly,requireDb,wrap(as
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
   const device=await counterDevice(req);
   if(!device)return res.status(403).json({error:'這台 POS 尚未綁定或未設定裝置名稱，不能加點。'});
-  const venues=tableOrders.visibleVenues(req.auth.brands);
+  const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));   // 言文字管理員依 POS 目前選定品牌（?venue=）
   const menuAll=tableOrders.menuIndex(await contentValue('menu'),undefined,{posOnly:true});   // 櫃檯可替客人加任何已發布品項（含估清、非營業時段、POS 限定如「其他」），但不得跨品牌
   const it=menuAll.get(String(req.body?.item_id||''));const shopItem=tableOrders.MenuLib.isShared(it);if(it&&!shopItem&&!tableOrders.itemInVenues(it,venues))return res.status(403).json({error:'只能加自己店別的品項。'});
-  // 商店零售品兩店共用：記在這台 POS 的店別（言文字管理員記當下營業品牌）
-  return mutateItems(req,res,items=>tableOrders.posAddLine(items,menuAll,{...(req.body||{}),venue:shopItem?shop.venueFor(venues):undefined,device_name:device.label}));
+  // 商店零售品兩店共用：一律記在此 POS 目前選定的品牌，絕不以當下時段推定；未選品牌直接拒絕。
+  let venue;try{venue=shopItem?shop.venueForPos(venues):undefined;}catch(e){return res.status(e.status||400).json({error:e.message});}
+  return mutateItems(req,res,items=>tableOrders.posAddLine(items,menuAll,{...(req.body||{}),venue,device_name:device.label}));
 }));
 app.post('/api/admin/orders/sessions/:id/place',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
