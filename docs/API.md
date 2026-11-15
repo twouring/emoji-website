@@ -744,10 +744,10 @@ POS 每 5 秒輪詢。回 `{ pending:[{id,session_id,table,by,amount,sfx,perform
 小結點驗：核對目前抽屜現金，**不關帳**、可多次記錄。body `{ counted_cash?, denominations?:{ "1000":3, … }, note? }`，點鈔可填總額或按面額填張數；`diff = counted − expected`，差額非 0 不擋、`note` 選填；關帳後 409。回 `{ ok, id, counted_cash, expected_cash, diff, denominations, note, counted_by, report }`（201），`report` 為帶上這次點驗的小結單。
 
 ### POST /api/admin/registers/:id/cash
-現金臨時收支。body `{ type:'in'|'out', amount, reason }`，金額正整數、原因必填；關帳後 409。回 `{ ok, id, type, amount, reason, staff, created_at, venue, day, expected_cash }`（201）。POS 寫入成功立即列印單筆收支憑單（mPOP；未連接時開瀏覽器列印），內容含店別、時間、收支類型、原因、金額、記錄人與記錄後應有現金。
+臨時收支需 `multipart/form-data`：`type:'in'|'out'`, `amount`（正整數）, `reason`（必填）, `receipt`（必拍 JPEG／PNG／WebP，至多 8 MB）。先將照片存入媒體儲存，成功才記帳；未附、格式錯誤或儲存失敗均不記帳。關帳後 409。回 `{ ok, id, type, amount, reason, receipt_photo, staff, created_at, venue, day, expected_cash }`（201）；`GET /api/admin/registers` 的 `moves[]` 也含 `receipt_photo`。錢櫃選「臨時收入／支出」會在成功記帳後印憑單並開櫃。列印失敗不重送記帳。
 
 ### PATCH /api/admin/registers/:id/cash/:moveId
-修改一筆臨時收支（KK 11/7）。body `{ type?, amount?, reason? }`，沒帶的欄位沿用原值，驗證規則同新增。只限開帳中的帳本（已關帳 409）；支付打賞產生的現金支出回 409（請到打賞處理），這類列在 `GET /api/admin/registers` 的 `moves[].locked='tip'`。回 `{ ok, id, type, amount, reason, before, staff, created_at, venue, day, expected_cash }`；改前改後寫入 POS 操作紀錄「修改臨時收支」。
+修改既有收支，`multipart/form-data`：`type`, `amount`, `reason`, `receipt?`；舊紀錄沒有照片時修改必須補拍，已有照片可沿用或替換。只限開帳中、打賞現金支出不得改。回 `{ ok, id, type, amount, reason, receipt_photo, before, staff, created_at, venue, day, expected_cash }`，操作前後寫 POS 紀錄。
 
 ### DELETE /api/admin/registers/:id/cash/:moveId
 刪除一筆臨時收支（KK 11/7）。限制同修改。回 `{ ok, id, deleted:{type,amount,reason}, expected_cash }`；刪除內容寫入 POS 操作紀錄「刪除臨時收支」。
@@ -760,7 +760,7 @@ POS 每 5 秒輪詢。回 `{ pending:[{id,session_id,table,by,amount,sfx,perform
 - `reconciliation_version = JSON.stringify([expected,opening_cash,cash_in,cash_out,sales.amount,reconciliation_accounts])`；送出前營收／帳戶變更回 409，須重新載入並確認。舊版只送現金的客戶端不再允許關帳。
 - 現金可按面額或總額點鈔；`cash_confirmed:true` 必填。現金差額非 0 時 `note` 必填；每個非現金帳戶 `actual − POS` 非 0 時各自 `reason` 必填，即使差額互抵也不能省略。
 - `cash_actual = counted_cash − opening_cash − cash_in + cash_out`。`total_pos` 取伺服器訂單營收原值；`total_actual = cash_actual + 各非現金帳戶實收`。總額不同也可關帳，`total_reason` 選填（各帳戶原因已在逐項核對填寫）。
-- `keep_cash` 為抽屜留存金，預設零用金。回傳原現金欄位加 `cash_confirmed, accounts, cash_actual, total_pos, total_actual, total_diff, total_reason, report`。所有核對金額、標籤、原因與總額凍結在 `report` JSON，重印沿用原紀錄，不需新增資料表。舊關帳單仍可重印。
+- 零用金＝開帳金額＋臨時收入－臨時支出；日結須取出所有零用金，`keep_cash` 必須是 0（未傳也預設 0），點鈔不足零用金拒絕關帳。關帳單列營收現金與零用金各自應取額；關帳後獨立印零用金單，連同發票憑證放錢櫃，營收現金與關帳單封袋放保險箱。回傳原現金欄位加 `cash_confirmed, accounts, cash_actual, total_pos, total_actual, total_diff, total_reason, report`。所有核對金額、標籤、原因與總額凍結在 `report` JSON，重印沿用原紀錄，不需新增資料表。舊關帳單仍可重印。
 
 LINE Pay 與中信刷卡同步都依開關帳時間歸屬店別，保留品牌篩選、分店明細與 CSV。兩者保留為參考與原操作，不自動當作逐項已確認實收。關帳後該品牌當日不可再結帳與記臨時收支。
 

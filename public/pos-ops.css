@@ -667,7 +667,7 @@ tr.lp-refund td{color:var(--danger)}
 /* ── 手機（≤600px，以 375 寬驗收）──
    桌況兩欄；結帳品項／這桌已結帳的單／訂位表改成卡片列，不再要橫向滑才看得到金額與操作；
    結帳面板改用整頁捲動（原本固定高度的內捲動在手機只剩 440px，一次看不到一個品項），收款列 sticky 在畫面底。 */
-@media(max-width:600px){
+@media(max-width:600px){.reg-step-head{gap:10px}.reg-step{padding:12px}.reg-step:has([data-acct-card]) .a-wrap2{border:0;overflow:visible}.reg-step [data-acct-card] .reg-acct{display:block;width:100%;min-width:0}.reg-step [data-acct-card] .reg-acct thead{display:none}.reg-step [data-acct-card] .reg-acct tbody{display:block}.reg-step [data-acct-card] .reg-acct tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;padding:12px 0;border-bottom:1px solid var(--line)}.reg-step [data-acct-card] .reg-acct td{display:block;border:0;text-align:left;white-space:normal;padding:2px 4px;min-width:0}.reg-step [data-acct-card] .reg-acct td:first-child{grid-column:1/-1;font-weight:700}.reg-step [data-acct-card] .reg-acct td:nth-child(2)::before{content:"應收 ";display:block;color:var(--muted)}.reg-step [data-acct-card] .reg-acct td:nth-child(3)::before{content:"實收 ";display:block;color:var(--muted)}.reg-step [data-acct-card] .reg-acct td:nth-child(4){grid-column:1/-1}.reg-step [data-acct-card] .reg-acct td:nth-child(4)::before{content:"差額 ";color:var(--muted)}.reg-step [data-acct-card] .reg-acct td:last-child{grid-column:1/-1}.reg-step [data-acct-card] .reg-acct .btn{width:100%;justify-content:center;text-align:center}
   .pos-grid,.pos-layout.has-panel .pos-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
   .pos-table{min-height:88px;padding:10px 12px}
   .pos-layout.has-panel .pos-panel{height:auto;overflow:visible}
@@ -1065,3 +1065,18 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 .pos-floor-slot.tk-c5 .pos-ticket .tk-party{display:none}
 .pos-floor-slot.tk-c6 .pos-ticket .tk-time{display:none}
 .pos-floor-slot.tk-c7 .pos-slot-resv{display:none}
+
+/* 日結：按現場封袋順序，一步一區，手機也不會把下一步藏在表格內。 */
+.reg-step{margin:18px 0 24px;padding:clamp(14px,2vw,24px);border:1px solid var(--line);border-radius:16px;background:var(--card)}
+.reg-step-head{display:flex;align-items:flex-start;gap:16px;margin-bottom:18px}
+.reg-step-head h3,.reg-step-head h4{margin:0 0 6px;font-size:1.2rem}
+.reg-step-head p{margin:0;line-height:1.6;color:var(--muted,#555)}
+.reg-step-no{flex:none;display:grid;place-items:center;min-width:44px;height:44px;border-radius:12px;background:var(--ink,#222);color:#fff;font-weight:800}
+.reg-step .reg-card{background:var(--paper-alt)}
+.reg-step-last{margin:16px 0 0;background:var(--card)}
+.reg-pack-note{line-height:1.7;padding:14px;border-left:4px solid var(--ink,#222);background:var(--card)}
+.reg-photo-field{display:flex;flex:1 1 100%;flex-direction:column;gap:6px;font-weight:650}
+.reg-photo-field input,.reg-drawer-move input[type=file]{width:100%;min-height:48px;padding:8px}
+.reg-photo-link{display:inline-block;margin-top:6px;min-height:44px;line-height:44px;color:var(--ink);text-decoration:underline;text-underline-offset:3px;font-weight:600}
+.reg-drawer-move{display:grid;gap:14px}.reg-drawer-move label{display:grid;gap:6px}
+

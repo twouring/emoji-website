@@ -881,6 +881,7 @@ async function migrate() {
   await q(`CREATE TABLE IF NOT EXISTS pos_cash_moves (
     id TEXT PRIMARY KEY, register_id TEXT NOT NULL REFERENCES pos_registers(id), type TEXT NOT NULL CHECK (type IN ('in','out')), amount INT NOT NULL,
     reason TEXT NOT NULL, staff TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`ALTER TABLE pos_cash_moves ADD COLUMN IF NOT EXISTS receipt_photo TEXT`);
   await q(`CREATE INDEX IF NOT EXISTS pos_cash_moves_reg_idx ON pos_cash_moves(register_id)`);
   // 小結點驗：不關帳的現金核對，可多次記錄留痕（跟關帳的點鈔分開存，關帳仍以 pos_registers.counted_cash 為準）
   await q(`CREATE TABLE IF NOT EXISTS pos_register_counts (
@@ -7197,7 +7198,7 @@ async function registerSummary(reg){
   const orders=await ordersOfDay(regDayStr,'id,items,amount,payer,tappay,status,paid_at');   /* 依開帳日認列（KK 11/5） */
   const sales=tableOrders.salesSummary(orders,{venues:[reg.venue],now:from});
   const tipMoves=await tipPayoutCashMoves();
-  const moves=(await q('SELECT id,type,amount,reason,staff,created_at FROM pos_cash_moves WHERE register_id=$1 ORDER BY created_at',[reg.id])).rows.map(m=>tipMoves.has(m.id)?{...m,locked:'tip'}:m);   /* 打賞支付產生的支出不可在日結改／刪（要對得上打賞帳） */
+  const moves=(await q('SELECT id,type,amount,reason,staff,receipt_photo,created_at FROM pos_cash_moves WHERE register_id=$1 ORDER BY created_at',[reg.id])).rows.map(m=>tipMoves.has(m.id)?{...m,locked:'tip'}:m);   /* 打賞支付產生的支出不可在日結改／刪（要對得上打賞帳） */
   const counts=(await q('SELECT id,counted_cash,expected_cash,diff,denominations,note,counted_by,created_at FROM pos_register_counts WHERE register_id=$1 ORDER BY created_at DESC',[reg.id])).rows;
   const summary=posRegister.expectedCash({opening_cash:reg.opening_cash,cash_sales:sales.by_method.cash||0,moves});
   const methods=await paymentMethodsList(posPaymentMethods.groupsOf([reg.venue])),accounts=posRegister.accountsOf(sales.by_method),labels={};
@@ -7280,15 +7281,30 @@ async function loadOpenRegister(req,res){
   if(!r||(venues&&!venues.includes(r.venue))){res.status(404).json({error:'找不到這本帳。'});return null;}
   return regDay(r);
 }
-/* 現金臨時收支：body { type:'in'|'out', amount, reason }；關帳後不能再記 */
-app.post('/api/admin/registers/:id/cash',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+/* 收支附一張實拍發票／憑證；存入正式媒體儲存，禁止不附照片記帳。 */
+const cashReceiptUpload=multer({storage:multer.memoryStorage(),limits:{fileSize:8*1024*1024,files:1,fields:4,parts:6}});
+function cashReceiptMiddleware(req,res,next){
+  cashReceiptUpload.single('receipt')(req,res,err=>err?res.status(400).json({error:err.code==='LIMIT_FILE_SIZE'?'憑證照片不得超過 8 MB。':'憑證上傳失敗，請重試。'}):next());
+}
+async function saveCashReceipt(file){
+  if(!file)throw Object.assign(new Error('請拍攝或上傳發票／憑證照片。'),{status:400});
+  const type=sniffImageType(file.buffer);
+  if(!['image/jpeg','image/png','image/webp'].includes(type))throw Object.assign(new Error('憑證只接受 JPEG、PNG 或 WebP 照片。'),{status:400});
+  const ext={'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[type];
+  const url=await igPublisher.uploadAsset(file.buffer,`cash-receipt-${crypto.randomUUID()}.${ext}`,type);
+  if(!url)throw Object.assign(new Error('憑證儲存失敗，臨時收支未記錄；請稍後重試。'),{status:503});
+  return url;
+}
+/* 現金臨時收支：multipart { type, amount, reason, receipt }；關帳後不能再記 */
+app.post('/api/admin/registers/:id/cash',auth,adminOnly,requireDb,cashReceiptMiddleware,wrap(async(req,res)=>{
   const r=await loadOpenRegister(req,res);if(!r)return;
   if(r.closed_at)return res.status(409).json({error:'這本帳已關帳，不能再記臨時收支。'});
   let m;try{m=posRegister.cashMove(req.body);}catch(e){return res.status(e.status||400).json({error:e.message});}
+  const receipt_photo=await saveCashReceipt(req.file);
   const id=uid('cm_'),staff=actorOf(req.auth)||'';
-  const created=(await q('INSERT INTO pos_cash_moves(id,register_id,type,amount,reason,staff) VALUES($1,$2,$3,$4,$5,$6) RETURNING created_at',[id,r.id,m.type,m.amount,m.reason,staff])).rows[0];
+  const created=(await q('INSERT INTO pos_cash_moves(id,register_id,type,amount,reason,staff,receipt_photo) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING created_at',[id,r.id,m.type,m.amount,m.reason,staff,receipt_photo])).rows[0];
   const s=await registerSummary(r);
-  res.status(201).json({ok:true,id,...m,staff,created_at:created.created_at,venue:r.venue,day:r.day,expected_cash:s.summary.expected});
+  res.status(201).json({ok:true,id,...m,receipt_photo,staff,created_at:created.created_at,venue:r.venue,day:r.day,expected_cash:s.summary.expected});
 }));
 /* 打賞支付（現金）寫進 pos_cash_moves 的 id；這些支出不開放在日結修改／刪除 */
 async function tipPayoutCashMoves(client){
@@ -7301,22 +7317,24 @@ async function loadCashMove(req,res,client){
   const r=await loadOpenRegister(req,res);if(!r)return null;
   if(r.closed_at){res.status(409).json({error:'這本帳已關帳，不能再改臨時收支。'});return null;}
   if(!/^cm_[\w-]{1,60}$/.test(String(req.params.moveId||''))){res.status(404).json({error:'找不到這筆臨時收支。'});return null;}
-  const m=(await client.query('SELECT id,type,amount,reason,staff,created_at FROM pos_cash_moves WHERE id=$1 AND register_id=$2 FOR UPDATE',[req.params.moveId,r.id])).rows[0];
+  const m=(await client.query('SELECT id,type,amount,reason,staff,receipt_photo,created_at FROM pos_cash_moves WHERE id=$1 AND register_id=$2 FOR UPDATE',[req.params.moveId,r.id])).rows[0];
   if(!m){res.status(404).json({error:'找不到這筆臨時收支。'});return null;}
   if((await tipPayoutCashMoves(client)).has(m.id)){res.status(409).json({error:'這筆是支付打賞，請到「打賞」處理，不能在日結修改。'});return null;}
   return {r,m};
 }
 const cashMoveText=m=>`${m.type==='in'?'收入':'支出'} ${m.amount} ${m.reason}`;
-app.patch('/api/admin/registers/:id/cash/:moveId',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+app.patch('/api/admin/registers/:id/cash/:moveId',auth,adminOnly,requireDb,cashReceiptMiddleware,wrap(async(req,res)=>{
   const client=await pool.connect();
   try{await client.query('BEGIN');
     const got=await loadCashMove(req,res,client);if(!got){await client.query('ROLLBACK');return;}
     let m;try{m=posRegister.cashMove({type:got.m.type,amount:got.m.amount,reason:got.m.reason,...req.body});}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}
-    await client.query('UPDATE pos_cash_moves SET type=$2,amount=$3,reason=$4 WHERE id=$1',[got.m.id,m.type,m.amount,m.reason]);
+    if(!req.file&&!got.m.receipt_photo){await client.query('ROLLBACK');return res.status(400).json({error:'舊紀錄沒有憑證，修改前請補拍發票／憑證。'});}
+    const receipt_photo=req.file?await saveCashReceipt(req.file):got.m.receipt_photo;
+    await client.query('UPDATE pos_cash_moves SET type=$2,amount=$3,reason=$4,receipt_photo=$5 WHERE id=$1',[got.m.id,m.type,m.amount,m.reason,receipt_photo]);
     await client.query('COMMIT');
     req.posLogDetail=`${cashMoveText(got.m)} → ${cashMoveText(m)}`.slice(0,500);
     const s=await registerSummary(got.r);
-    res.json({ok:true,id:got.m.id,...m,before:{type:got.m.type,amount:got.m.amount,reason:got.m.reason},staff:got.m.staff,created_at:got.m.created_at,venue:got.r.venue,day:got.r.day,expected_cash:s.summary.expected});
+    res.json({ok:true,id:got.m.id,...m,receipt_photo,before:{type:got.m.type,amount:got.m.amount,reason:got.m.reason,receipt_photo:got.m.receipt_photo},staff:got.m.staff,created_at:got.m.created_at,venue:got.r.venue,day:got.r.day,expected_cash:s.summary.expected});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 app.delete('/api/admin/registers/:id/cash/:moveId',auth,adminOnly,requireDb,wrap(async(req,res)=>{

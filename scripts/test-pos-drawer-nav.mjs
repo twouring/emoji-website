@@ -46,7 +46,7 @@ test('logged-in POS has one right-side header drawer button, outside scrollable 
 test('header button preserves operator, reason, audit and busy protection; admin keeps its own button',()=>{
  assert.match(page,/bindCashDrawerButton\(document\.getElementById\('p-drawer'\)\)/);
  assert.match(ops,/function bindCashDrawerButton\(drawerBtn\)/);
- assert.match(ops,/ensureOperator\(async\(\)=>\{const reason=await pickReason/);
+ assert.match(ops,/ensureOperator\(async\(\)=>\{[\s\S]*?const reason=await pickReason/);
  assert.match(ops,/await manualCashDrawer\(reason\)/);
  assert.match(ops,/if\(!document\.getElementById\('p-drawer'\)\)bindCashDrawerButton\(host\.querySelector\('#pos-cash-drawer'\)\)/);
 });

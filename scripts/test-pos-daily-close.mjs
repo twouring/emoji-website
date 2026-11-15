@@ -37,7 +37,7 @@ test('close route uses authoritative brand sales and stale guard; reprints store
  assert.match(close,/JSON\.stringify\(report\)/);
  assert.match(server,/r\.closed_at\?r\.report:s\.report/);
  const ui=fs.readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');
- assert.ok(ui.indexOf('sales-kpis')<ui.indexOf('${REG_DATA?accountConfirmBlock(REG_DATA,d)+registerBlock(REG_DATA)'));
+ assert.ok(ui.indexOf('sales-kpis')<ui.indexOf('${REG_DATA?accountConfirmBlock(REG_DATA,d):'));
  assert.match(ui,/各帳戶確認/); // 日結頁在開關帳前先列各帳戶逐一確認。
  assert.match(ui,/data-acct-open=/); // 每個帳戶一顆「核對」按鈕，點開對話框填實收。
  assert.match(ui,/lpAuto=GW\?acctGatewayActual\(sales,code,r\.venue\)/); // LINE Pay／中信實收自動帶入後台同步結果（依店別歸屬，KK 11/7）。
