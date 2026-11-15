@@ -8618,8 +8618,14 @@ const POS_PAGE = path.join(PUB, 'pos.html');
 app.get(['/pos', '/pos/*', '/pos.html'], (_req, res) => res.redirect(302, 'https://' + POS_HOSTS[0] + '/'));   // POS 只在 pos.emoji.tw（首頁選品牌），其他網域不提供
 // 部署版本號：CI 在 build 前寫入 VERSION（日期＋當日流水號，如 20261018-03）；本機開發顯示 dev
 const APP_VERSION = (() => { try { return fs.readFileSync(path.join(__dirname, 'VERSION'), 'utf8').trim() || 'dev'; } catch (_) { return 'dev'; } })();
+// 靜態資源版本號（快取破壞）：CI 在 build 前把當次 commit 短 hash 寫入 COMMIT；沒有時（本機、CLI 直傳）用啟動時間，每次重啟仍會換網址
+const ASSET_VERSION = (() => { try { const v = fs.readFileSync(path.join(__dirname, 'COMMIT'), 'utf8').trim(); if (/^[0-9a-f]{7,40}$/i.test(v)) return v.slice(0, 12).toLowerCase(); } catch (_) {} return 'dev' + Date.now().toString(36); })();
+// pos.html 裡所有本地 JS/CSS（src／href 以單一 / 開頭；外部 https:// 與 // 不動）補上 ?v=<commit>：
+// pos.html 本身 no-cache，每次都拿到最新版本號，裝置不會再拿新 html 配快取 10 分鐘的舊 pos-ops.js（KK 10/18 POS 卡載入中）
+const versionAssetUrls = (html, v) => html.replace(/(<(?:script|link)\b[^>]*?\s(?:src|href)=)(["'])(\/(?!\/)[^"'?#]+\.(?:m?js|css))(\?[^"'#]*)?\2/gi,
+  (_m, pre, q, url, qs) => pre + q + url + (qs ? qs + '&' : '?') + 'v=' + encodeURIComponent(v) + q);
 let POS_HTML_CACHE = null;
-app.get('/api/version', (_req, res) => res.set('Cache-Control', 'no-store').json({ version: APP_VERSION }));
+app.get('/api/version', (_req, res) => res.set('Cache-Control', 'no-store').json({ version: APP_VERSION, commit: ASSET_VERSION }));
 // POS 店別網址 pos.emoji.tw/atcafe、/3am 在上方 POS 子網域中介層提供（官網 www 的 /3am 是三點水品牌頁，不可蓋掉）
 const KTV_PAGE = path.join(PUB, 'ktv.html');
 let KTV_HTML_CACHE = null;
@@ -8630,7 +8636,7 @@ function sendKtvPage(res) {
 }
 function sendPosPage(res) {
   res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache', 'Content-Type': 'text/html; charset=utf-8' });
-  if (!POS_HTML_CACHE) POS_HTML_CACHE = fs.readFileSync(POS_PAGE, 'utf8').replace('<!--POS_VERSION_FULL-->', APP_VERSION).replace('<!--POS_VERSION-->', APP_VERSION.replace(/^\d{4}(?=\d{4}-)/, ''));
+  if (!POS_HTML_CACHE) POS_HTML_CACHE = versionAssetUrls(fs.readFileSync(POS_PAGE, 'utf8'), ASSET_VERSION).replace('<!--POS_VERSION_FULL-->', APP_VERSION).replace('<!--POS_VERSION-->', APP_VERSION.replace(/^\d{4}(?=\d{4}-)/, ''));
   res.send(POS_HTML_CACHE);
 }
 // 舊的官網會員頁（/member 三語）已全部移到會員 App：保留轉址給舊連結、通知信與書籤（查詢字串原樣帶過去）
@@ -8682,7 +8688,8 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
 // 靜態官網（無標記 HTML／資產）：圖片／字型／vendor 可快取一天，css／js 十分鐘（保留 ETag 供再驗證）
 app.use(express.static(PUB, { extensions: ['html'], setHeaders: (res, file) => {
   if (/\.(?:png|jpe?g|webp|gif|svg|ico|avif|woff2?|ttf|otf|mp3|mp4|webm|pdf)$/i.test(file) || file.includes(`${path.sep}vendor${path.sep}`)) res.set('Cache-Control', 'public, max-age=86400');
-  else if (/\.(?:css|js|mjs)$/i.test(file)) res.set('Cache-Control', 'public, max-age=600');
+  // 帶 ?v= 但不是本次部署版本（新舊 instance 切換期間互拿到對方網址）時不快取，避免把舊內容記在新版網址下
+  else if (/\.(?:css|js|mjs)$/i.test(file)) res.set('Cache-Control', res.req?.query?.v && res.req.query.v !== ASSET_VERSION ? 'no-store' : 'public, max-age=600');
 } }));
 // JSON/parser/路由錯誤不可回傳 Express 預設的 stack trace 或伺服器路徑。
 app.use((err, req, res, next) => {

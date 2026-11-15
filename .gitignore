@@ -33,3 +33,4 @@ uploads/events/*
 .tmp/
 dogfood-output/
 VERSION
+COMMIT

@@ -41,6 +41,11 @@ jobs:
           N=$(git rev-list --count --since="$(TZ=Asia/Taipei date +%Y-%m-%d) 00:00 +0800" HEAD)
           printf '%s-%02d' "$D" "$N" > VERSION
           cat VERSION
+      # 靜態資源版本號＝當次 commit 短 hash：伺服器把 pos.html 內 JS/CSS 網址改成 /xxx.js?v=<commit>
+      - name: Write COMMIT
+        run: |
+          git rev-parse --short=12 HEAD > COMMIT
+          cat COMMIT
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: projects/609447194815/locations/global/workloadIdentityPools/github/providers/github-oidc
