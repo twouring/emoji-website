@@ -1,4 +1,4 @@
-# Emoji POS VIGI bridge — install on the always-on Windows POS/print station.
+﻿# Emoji POS VIGI bridge — install on the always-on Windows POS/print station.
 # It pulls VIGI Channel-Zero over the store LAN and exposes low-latency HLS through a named Cloudflare Tunnel.
 # Run in an elevated PowerShell. The NVR password never leaves this PC.
 [CmdletBinding()]
@@ -57,14 +57,14 @@ paths:
     sourceProtocol: tcp
     sourceOnDemand: yes
 "@
-  Set-Content -Encoding utf8NoBOM -NoNewline -Path (Join-Path $InstallDir 'mediamtx.yml') -Value $yaml
+  [System.IO.File]::WriteAllText((Join-Path $InstallDir 'mediamtx.yml'), $yaml, (New-Object System.Text.UTF8Encoding($false)))
   $run=@"
 `$ErrorActionPreference='Stop'
 `$dir='$($InstallDir.Replace("'","''"))'
 Start-Process -FilePath (Join-Path `$dir 'mediamtx.exe') -ArgumentList (Join-Path `$dir 'mediamtx.yml') -WorkingDirectory `$dir -WindowStyle Hidden
 Start-Process -FilePath (Join-Path `$dir 'cloudflared.exe') -ArgumentList 'tunnel','--no-autoupdate','run','--token','$($TunnelToken.Replace("'","''"))' -WorkingDirectory `$dir -WindowStyle Hidden
 "@
-  Set-Content -Encoding utf8NoBOM -NoNewline -Path (Join-Path $InstallDir 'run.ps1') -Value $run
+  [System.IO.File]::WriteAllText((Join-Path $InstallDir 'run.ps1'), $run, (New-Object System.Text.UTF8Encoding($false)))
   $cf=Join-Path $InstallDir 'cloudflared.exe'
   Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe' -OutFile $cf
   $task='EmojiPOS-VigiBridge'
