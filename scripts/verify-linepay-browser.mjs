@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import {once} from 'node:events';
 import puppeteer from 'puppeteer';
 const root=path.resolve(import.meta.dirname,'..'),errors=[];
@@ -24,15 +25,21 @@ try{
  page.on('pageerror',e=>errors.push(e.message));await page.setRequestInterception(true);
  page.on('request',r=>r.url().startsWith(`http://127.0.0.1:${server.address().port}`)?r.continue():r.abort());
  await page.goto(`http://127.0.0.1:${server.address().port}`);
- assert.equal(await page.$eval('#pos-linepay-api',b=>b.disabled),true);
- assert.match(await page.$eval('#pos-body',e=>e.textContent),/缺少付款 API 憑證/);
- await page.screenshot({path:'/workspace/linepay-pos-disabled.png',fullPage:true});
+ // cf142e9：未啟用且沒有待確認交易時整個 API 收款區塊隱藏，不可能誤按扣款
+ assert.equal(await page.$('#pos-linepay-api'),null);
+ assert.doesNotMatch(await page.$eval('#pos-body',e=>e.textContent),/LINE Pay API 收款/);
+ // 未啟用但有待確認交易：區塊仍要出現，只能查詢原交易
+ await page.evaluate(()=>reset(false,{id:'lp_synthetic',state:'unknown',amount:240}));
+ assert.equal(await page.$eval('#pos-linepay-api',b=>b.disabled),false);
+ assert.match(await page.$eval('#pos-linepay-api',b=>b.textContent),/查詢原 LINE Pay 交易/);
+ await page.evaluate(()=>reset());
+ await page.screenshot({path:(process.env.SHOT_DIR||os.tmpdir())+'/linepay-pos-disabled.png',fullPage:true});
  for(const scenario of ['settled','failed','unknown']){
   await page.evaluate(s=>{scenario=s;reset(true);},scenario);
   await page.click('#pos-linepay-api');await page.waitForSelector('[data-code]');
   await page.type('[data-code]','123456789012345678');await page.click('[data-next]');await page.waitForSelector('.pos-confirm [data-ok]');
   assert.deepEqual(await page.evaluate(()=>calls.map(x=>x.path)),['/admin/orders/sessions/ts_synthetic/linepay/prepare']);
-  if(scenario==='settled')await page.screenshot({path:'/workspace/linepay-pos-confirm.png',fullPage:true});
+  if(scenario==='settled')await page.screenshot({path:(process.env.SHOT_DIR||os.tmpdir())+'/linepay-pos-confirm.png',fullPage:true});
   await page.click('.pos-confirm [data-ok]');await page.waitForFunction(()=>calls.length===2&&messages.length>0);
   assert.equal(await page.evaluate(()=>calls.filter(x=>x.path.endsWith('/pay')).length),1);
   assert.equal(await page.evaluate(()=>printed.length),scenario==='settled'?1:0);
