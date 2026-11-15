@@ -38,3 +38,8 @@ test('結帳必選來源（KK 11/15）：最後結帳前沒選就擋，標示必
   assert.match(js, /<b>怎麼知道我們<\/b><small class="hint">必填<\/small>/);
   assert.doesNotMatch(js, /<b>怎麼知道我們<\/b><small class="hint">選填/);
 });
+test('未選來源紅框提示（KK 11/15）', () => {
+  const css = fs.readFileSync(new URL('../public/pos-ops.css', import.meta.url), 'utf8');
+  assert.match(js, /pos-blk--source\$\{POS_SOURCE\?'':' is-missing'\}/);
+  assert.match(css, /\.pos-blk--source\.is-missing\{border-color:var\(--danger\)\}/);
+});

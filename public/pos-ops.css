@@ -1028,6 +1028,10 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 .pos-blk--source .pos-blk-h{display:flex;align-items:baseline;gap:8px}
 .pos-source-chips{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0}
 .pos-source-chips button{text-align:center;padding:8px 4px}
+/* 必填未選（KK 11/15）：紅框＋紅字「必填」，選了就恢復 */
+.pos-blk--source{border:2px solid transparent;border-radius:12px;padding:8px}
+.pos-blk--source.is-missing{border-color:var(--danger)}
+.pos-blk--source.is-missing .pos-blk-h .hint{color:var(--danger);font-weight:700}
 
 /* 出餐分頁（pos-serve.js，KK 11/9）：桌位同結帳頁；有待出的桌亮起，點桌開右側（手機為底部）出餐清單 */
 .serve-board .pos-table.serve-idle{cursor:default;opacity:.55;background:var(--paper-alt)}
