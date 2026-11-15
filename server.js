@@ -8062,7 +8062,13 @@ app.post('/api/admin/orders/songs/player',auth,adminOnly,requireDb,wrap(async(re
   try{res.json(await withSongs(async(client,{settings,state})=>{const next={...settings,player_device:req.body?.release===true?'':device};await saveSongSettings(client,next);return songAdminView(next,state);}));}catch(e){return songErr(res,e);}
 }));
 // 換下一首：播放裝置在播完（ended）、影片無法播放（error）、有人點歌／跨時段切歌（preempt／schedule）時呼叫；任何一台都能按「下一首」（skip）
-app.post('/api/admin/orders/songs/next',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+// 每個用戶端（登入者＋裝置）每分鐘最多 30 次；擋住前端換歌迴圈（11/5 同一台 4 分鐘 2,814 次）把 Cloud Run 打到 429
+const songNextLimit=ktv.clientLimiter({max:Number(process.env.SONG_NEXT_PER_MIN)||30});
+app.post('/api/admin/orders/songs/next',auth,adminOnly,(req,res,next)=>{
+  const who=(req.auth?.sub||req.auth?.email||(req.auth?.agent?'agent':req.auth?.mcp||req.ip))+'|'+String(req.body?.device||'').slice(0,64);
+  const r=songNextLimit(who);if(r.ok)return next();
+  res.set('Retry-After',String(r.retryAfter));return res.status(429).json({error:'換歌太頻繁，請稍後再試。'});
+},requireDb,wrap(async(req,res)=>{
   const result=['ended','error','preempt','schedule','skip'].includes(req.body?.result)?req.body.result:'skip';
   try{res.json(await withSongs(async(client,{settings,state})=>{
     if(result!=='skip'&&settings.player_device&&req.body?.device!==settings.player_device)throw Object.assign(Error('這台不是播放裝置。'),{status:409});
