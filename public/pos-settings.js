@@ -1,8 +1,10 @@
 /* POS「設定」分頁：不常用的功能（庫存、排班、紀錄）收進這裡；點歌已獨立成 ktv.emoji.tw（KK 11/6），這裡只留入口連結，頂欄只留每天要用的分頁；
-   另外是這台平板的列印、桌位設定。只有管理員能用的功能（收款帳戶管理）放在 admin「系統設定」，不放 POS（KK 11/2）。
-   askManagerPin 給打賞支付（pos-tips.js）用；識別碼只留在記憶體，離開設定頁即清空。
-   宿主頁（pos.html）須先定義：esc、api、toast、go、TABS、DATA、tabUrl、POSIcon；本檔用到 pos-ops.js 的 printTestTicket、starReady、POS_EDIT。 */
-let SET_PIN='';
+   收款帳戶：POS 設定頁可新增／改名／停用自訂收款帳戶（KK 11/15，取代 11/2「只放 admin」）；超管直接過，其他帳號要店長 4 位數識別碼（X-Manager-Pin），
+   適用店別組依目前品牌（SCOPE）自動帶，「全部」時才讓人選。另外是這台平板的列印、桌位設定。
+   askManagerPin 也給打賞支付（pos-tips.js）用；識別碼只留在記憶體（SET_PIN），離開設定頁即清空。
+   宿主頁（pos.html）須先定義：esc、api、toast、go、TABS、DATA、SCOPE、tabUrl、POSIcon；本檔用到 pos-ops.js 的 posConfirm、pickReason、printTestTicket、starReady、POS_EDIT。 */
+let SET_PIN='',SET_PM=null,SET_PM_ERR='',SET_BUSY=false;
+const SET_PM_GROUP={FNB:'在咖啡・三點水',SPACE:'等等空間・約書旅'},SET_PM_GROUP_OF={CAFE:'FNB',BAR:'FNB',STAY:'SPACE',REST:'SPACE'};
 function tabSettings(){ return '<div class="a-sec" id="settings-body"></div>'; }
 function resetSettings(){ SET_PIN=''; }
 
@@ -26,8 +28,61 @@ function askManagerPin(msg){
     paint();
   });
 }
+// 收款帳戶寫入：非超管先要店長識別碼；識別碼錯（403 need_manager_pin）就清掉重問，最多 3 次
+async function pmWrite(path,method,body){
+  const isSuper=DATA?.super===true;
+  for(let i=0,msg='';i<3;i++){
+    if(!isSuper&&!SET_PIN){const p=await askManagerPin(msg);if(!p)return null;SET_PIN=p;}
+    try{return await api(path,{method,body,headers:isSuper?{}:{'X-Manager-Pin':SET_PIN}});}
+    catch(e){if(e.status===403&&!isSuper){SET_PIN='';msg=e.message;continue;}throw e;}
+  }
+  return null;
+}
+async function refreshPaymentMethods(){
+  try{const d=await api('/admin/payment-methods');SET_PM=d.payment_methods||[];SET_PM_ERR='';}
+  catch(e){SET_PM_ERR=e.message;}
+}
+function pmSection(){
+  const list=SET_PM||[],fixed=SET_PM_GROUP_OF[SCOPE]||'';
+  const rows=list.map(m=>`<li class="set-pm${m.active?'':' is-off'}"><span class="set-pm-name">${esc(m.label)}${!m.builtin&&!fixed&&m.group?`<small>${esc(SET_PM_GROUP[m.group]||m.group)}</small>`:''}</span>${m.builtin?'<span class="pill pill-draft">內建</span>':m.active?'<span class="pill pill-ok">啟用中</span>':'<span class="pill pill-bad">已停用</span>'}${m.builtin?'':`<span class="set-pm-acts"><button type="button" class="btn btn--ghost btn-sm" data-pm-rename="${esc(m.code)}">改名</button><button type="button" class="btn btn--ghost btn-sm" data-pm-toggle="${esc(m.code)}" data-on="${m.active?'0':'1'}">${m.active?'停用':'恢復'}</button></span>`}</li>`).join('');
+  const grp=fixed?`<input type="hidden" id="pm-group" value="${fixed}"><p class="hint set-pm-grp">適用：${esc(SET_PM_GROUP[fixed])}</p>`:`<label>適用店別<select id="pm-group">${Object.entries(SET_PM_GROUP).map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join('')}</select></label>`;
+  return `<div class="set-sec" aria-labelledby="set-pm-h"><h3 id="set-pm-h">收款帳戶</h3>
+    <p class="hint">現金、信用卡、LINE Pay、轉帳是內建付款方式。新增的收款帳戶（例如街口支付、另一組轉帳帳號）會出現在結帳的付款方式；在咖啡＋三點水共用一組、等等空間＋約書旅共用一組。停用後舊單據照常顯示，只是結帳不能再選。${DATA?.super?'':'新增、改名、停用需要店長識別碼。'}</p>
+    ${SET_PM_ERR?`<p class="a-empty">收款帳戶載入失敗：${esc(SET_PM_ERR)}</p>`:`<ul class="set-pm-list">${rows}</ul>`}
+    <form class="set-pm-add" id="pm-form"><label>新增收款帳戶<input id="pm-label" maxlength="20" autocomplete="off" placeholder="例：街口支付" required></label>${grp}<button type="submit" class="btn btn--solid" id="pm-add">新增</button></form>
+  </div>`;
+}
+function bindPmSection(host){
+  const reload=async()=>{await refreshPaymentMethods();if(DATA&&SET_PM)DATA.payment_methods=SET_PM;paintSettings(host);};
+  host.querySelector('#pm-form').onsubmit=async e=>{
+    e.preventDefault();if(SET_BUSY)return;
+    const el=host.querySelector('#pm-label'),label=el.value.trim(),group=host.querySelector('#pm-group').value;
+    if(!label){toast('請填寫收款帳戶名稱');el.focus();return;}
+    if((SET_PM||[]).some(m=>m.label===label)){toast('已經有同名的收款帳戶');return;}
+    SET_BUSY=true;
+    try{const out=await pmWrite('/admin/payment-methods','POST',{label,group});if(out){toast(`已新增收款帳戶「${out.label}」`);await reload();}}
+    catch(err){toast(err.message);}finally{SET_BUSY=false;}
+  };
+  host.querySelectorAll('[data-pm-toggle]').forEach(b=>b.onclick=async()=>{
+    if(SET_BUSY)return;const m=(SET_PM||[]).find(x=>x.code===b.dataset.pmToggle);if(!m)return;const on=b.dataset.on==='1';
+    if(!await posConfirm(`${on?'恢復':'停用'}收款帳戶「${m.label}」？${on?'':'停用後結帳不能再選，舊單據不受影響。'}`,{ok:on?'恢復':'停用',danger:!on}))return;
+    SET_BUSY=true;
+    try{const out=await pmWrite('/admin/payment-methods/'+encodeURIComponent(m.code),'PATCH',{active:on});if(out){toast(on?'已恢復':'已停用');await reload();}}
+    catch(err){toast(err.message);}finally{SET_BUSY=false;}
+  });
+  host.querySelectorAll('[data-pm-rename]').forEach(b=>b.onclick=async()=>{
+    if(SET_BUSY)return;const m=(SET_PM||[]).find(x=>x.code===b.dataset.pmRename);if(!m)return;
+    const label=await pickReason({title:`收款帳戶改名：${m.label}`,presets:[],placeholder:'新名稱',maxlength:20,initial:m.label});
+    if(label==null||label===m.label)return;
+    SET_BUSY=true;
+    try{const out=await pmWrite('/admin/payment-methods/'+encodeURIComponent(m.code),'PATCH',{label});if(out){toast('已更新名稱');await reload();}}
+    catch(err){toast(err.message);}finally{SET_BUSY=false;}
+  });
+}
 async function loadSettings(){
   const host=document.getElementById('settings-body');if(!host)return;
+  if(!SET_PM)host.innerHTML='<div class="ops-head"><h2>設定</h2></div><p class="hint">載入中…</p>';
+  await refreshPaymentMethods();
   paintSettings(host);
 }
 function paintSettings(host){
@@ -60,6 +115,7 @@ function paintSettings(host){
   </div>`;
   host.innerHTML=`<div class="ops-head"><h2>設定</h2></div>
     <div class="set-sec" aria-labelledby="set-more"><h3 id="set-more">更多功能</h3><div class="set-links">${links}</div></div>
+    ${pmSection()}
     <div class="set-sec" aria-labelledby="set-ktv"><h3 id="set-ktv">KTV 點歌</h3><div class="set-links"><a class="set-link" href="https://ktv.emoji.tw/" target="_blank" rel="noopener">${POSIcon('music')}<span class="set-link-main"><b>開啟言文字 KTV</b><span>點歌已獨立成 ktv.emoji.tw：控台、電視畫面、遙控、歌單、統計</span></span><span class="set-chev" aria-hidden="true">›</span></a></div></div>
     ${escpos}
     <div class="set-sec" aria-labelledby="set-dev"><h3 id="set-dev">這台平板</h3>
@@ -71,6 +127,7 @@ function paintSettings(host){
       ${ver&&!ver.includes('<')?`<p class="hint">POS 版本 v${esc(ver)}</p>`:''}
     </div>`;
   host.querySelectorAll('[data-set-tab]').forEach(b=>b.onclick=()=>go(b.dataset.setTab));
+  bindPmSection(host);
   const escInputs=()=>({url:host.querySelector('#escpos-url').value.trim().replace(/\/$/,''),printerId:host.querySelector('#escpos-printer').value.trim(),token:host.querySelector('#escpos-token').value.trim()});
   // tone：''＝一般、busy、ok、bad；用 data-tone 換色，文字一律 textContent（不進 innerHTML）
   const escStatus=(t,tone='')=>{const s=host.querySelector('#escpos-status');s.textContent=t;s.dataset.tone=tone;};

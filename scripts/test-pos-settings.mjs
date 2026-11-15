@@ -24,10 +24,24 @@ test('頂欄只留常用分頁（點歌已移到 ktv.emoji.tw，KK 11/6），庫
   assert.match(pos, /<script src="\/pos-settings\.js"><\/script>/);
   assert.match(pos, /href="\/pos-settings\.css"/);
 });
+test('POS 設定頁可新增／改名／停用收款帳戶（KK 11/15），非超管要店長識別碼，店別組依目前品牌帶', () => {
+  const admin = read('public/admin.html');
+  assert.match(admin, /paymentMethodsBlock\(d\)/, 'admin 系統設定仍保留收款帳戶管理');
+  assert.match(set, /function pmSection\(\)/);
+  assert.match(set, /\$\{pmSection\(\)\}/, '設定頁要畫出收款帳戶區');
+  assert.match(set, /bindPmSection\(host\)/);
+  assert.match(set, /id="pm-form"/);
+  assert.match(set, /pmWrite\('\/admin\/payment-methods','POST',\{label,group\}\)/, '新增要帶適用店別組');
+  assert.match(set, /'X-Manager-Pin':SET_PIN/, '非超管走店長識別碼 header，不進網址');
+  assert.match(set, /e\.status===403&&!isSuper\)\{SET_PIN=''/, '識別碼錯要清掉重問');
+  assert.match(set, /SET_PM_GROUP_OF\[SCOPE\]/, '品牌 POS 自動帶該品牌的收款帳戶組');
+  assert.match(set, /data-pm-toggle[\s\S]*posConfirm\(/, '停用要先確認');
+  assert.match(set, /function resetSettings\(\)\{ SET_PIN=''; \}/, '離開設定頁清掉識別碼');
+  assert.match(server, /app\.post\('\/api\/admin\/payment-methods',[^\n]*superOrManagerPin/, 'server 端寫入要店長識別碼把關');
+  assert.match(server, /app\.patch\('\/api\/admin\/payment-methods\/:code',[^\n]*superOrManagerPin/);
+});
 test('只有管理員能用的功能只在 admin，不放 POS（KK 11/2）', () => {
-  const ops = read('public/pos-ops.js'), admin = read('public/admin.html');
-  assert.doesNotMatch(set, /payment-methods|pm-form|pm-label|data-pm-toggle|data-pm-rename/, 'POS 設定頁不得管理收款帳戶');
-  assert.match(admin, /paymentMethodsBlock\(d\)/, '收款帳戶管理在 admin 系統設定');
+  const ops = read('public/pos-ops.js');
   assert.match(ops, /function onPosPage\(\)/);
   assert.match(ops, /DATA\?\.super&&!onPosPage\(\)\?`<button type="button" class="btn btn--ghost" data-reg-reopen/, '重開補單只在 admin');
   assert.match(ops, /!DATA\.brands&&!onPosPage\(\)&&await posConfirm\(/, '強制清桌只在 admin');

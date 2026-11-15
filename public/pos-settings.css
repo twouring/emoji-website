@@ -19,7 +19,9 @@
 .set-pm-acts .btn{min-height:44px}
 .set-pm-add{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px}
 .set-pm-add label{display:flex;flex-direction:column;gap:4px;flex:1 1 220px;min-width:0}
-.set-pm-add input{min-height:48px;font-size:1rem;border-radius:10px;padding:0 12px}
+.set-pm-add input,.set-pm-add select{min-height:48px;font-size:1rem;border-radius:10px;padding:0 12px}
+.set-pm-name small{display:block;font-weight:400;font-size:1rem;color:var(--muted)}
+.set-pm-grp{flex-basis:100%;margin:0}
 .set-pm-add .btn{min-height:48px}
 
 /* 列印站設定（USB ESC/POS）：一張卡；狀態徽章在標題旁；三步驟；token 單欄、進階收合；狀態列依 data-tone 換色 */
