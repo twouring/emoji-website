@@ -197,14 +197,15 @@ function pickFrom({title,hint='',options=[],other=null,cols=4}){
     const ob=ov.querySelector('[data-other]');if(ob)ob.onclick=async()=>{close();resolve(await other.pick());};
   });
 }
-// 加開桌號：先點區再點號碼（固定桌號在桌況格直接點）；exclude＝不能選的桌（自己）
+// 加開桌號：先點區再點號碼；未分配實體桌位時可選「未指定桌號」（固定桌號在桌況格直接點）；exclude＝不能選的桌（自己）
 function pickTableNo({title='開哪一桌？',hint='',exclude=[]}={}){
   return new Promise(resolve=>{
     let zone=TABLE_ZONES[0],no='';
-    const {ov,close}=pickOverlay(`<h3>${esc(title)}${hint?tipIcon(esc(hint)):''}</h3><div class="pos-tno"><b id="pos-tno-show">—</b></div><div class="reason-chips pos-tno-zones" role="group" aria-label="區">${TABLE_ZONES.map(z=>`<button type="button" data-zone="${z}">${z} 區</button>`).join('')}</div><div class="clock-keys pos-tno-keys">${['1','2','3','4','5','6','7','8','9','⌫','0','確定'].map(k=>`<button type="button" class="clock-key" data-key="${k}">${k}</button>`).join('')}</div><div class="pos-move-foot"><span></span><button type="button" class="btn btn--ghost" data-cancel>取消</button></div>`,title);
+    const {ov,close}=pickOverlay(`<h3>${esc(title)}${hint?tipIcon(esc(hint)):''}</h3><div class="pos-tno"><b id="pos-tno-show">—</b></div><div class="reason-chips pos-tno-zones" role="group" aria-label="區">${TABLE_ZONES.map(z=>`<button type="button" data-zone="${z}">${z} 區</button>`).join('')}</div><div class="clock-keys pos-tno-keys">${['1','2','3','4','5','6','7','8','9','⌫','0','確定'].map(k=>`<button type="button" class="clock-key" data-key="${k}">${k}</button>`).join('')}</div><div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-unspecified-table>未指定桌號</button><button type="button" class="btn btn--ghost" data-cancel>取消</button></div>`,title);
     const done=v=>{close();resolve(v);};
     ov.onclick=e=>{if(e.target===ov)done(null);};
     const paint=()=>{ov.querySelector('#pos-tno-show').textContent=zone+(no||'—');ov.querySelectorAll('[data-zone]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.zone===zone)));};
+    ov.querySelector('[data-unspecified-table]').onclick=()=>done('未指定桌號');
     ov.querySelectorAll('[data-zone]').forEach(b=>b.onclick=()=>{zone=b.dataset.zone;paint();});
     ov.querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>{const k=b.dataset.key;
       if(k==='⌫')no=no.slice(0,-1);
