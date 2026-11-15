@@ -16,7 +16,7 @@ const row = o => ({ TxDate: '20261029', TxExtend: '0', '交易日期': '2026/10/
 const txs = [C.normalize(row({ TxEjfNo: '1' })), C.normalize(row({ TxEjfNo: '2', '交易日期': '2026/10/29 19:40:00', '交易金額': '520', '授權碼': 'Z9Y8X7' })), C.normalize(row({ TxEjfNo: '3', '交易日期': '2026/10/29 20:05:00', '交易金額': '120', '交易類別': '3 - 銷售取消' }))];
 const orders = [{ status: 'paid', amount: 300, payer: { method: 'ctbc' }, items: [{ venue: 'CAFE' }] }, { status: 'paid', amount: 520, payer: { method: 'ctbc' }, items: [{ venue: 'BAR' }] }];
 const registers = [{ venue: 'CAFE', opened_at: '2026-10-29T08:00:00+08:00', closed_at: '2026-10-29T17:00:00+08:00' }, { venue: 'BAR', opened_at: '2026-10-29T18:00:00+08:00', closed_at: null }];
-const lpTx = [{ id: 'LP1', type: 'PAYMENT', amount: 180, paid_at: '2026-10-29T17:35:00+08:00', method: 'CREDIT_CARD', card_last4: '7411' }, { id: 'LP2', type: 'PAYMENT', amount: 260, paid_at: '2026-10-29T07:50:00+08:00', method: 'IPASS', claim_venue: 'STAY' }];
+const lpTx = [{ id: 'LP1', type: 'PAYMENT', amount: 180, paid_at: '2026-10-29T17:35:00+08:00', method: 'CREDIT_CARD', card_last4: '7411' }, { id: 'LP2', type: 'PAYMENT', amount: 260, paid_at: '2026-10-29T07:50:00+08:00', method: 'IPASS', claim_venue: 'STAY' }, { id: 'LP3', type: 'PAYMENT', amount: 420, paid_at: '2026-10-29T12:10:00+08:00', method: 'CREDIT_CARD', card_last4: '0088' }, { id: 'LP4', type: 'PAYMENT', amount: 90, paid_at: '2026-10-29T13:00:00+08:00', method: 'IPASS', claim_venue: 'STAY', claim_reason: '本店客人付款，別店已先開帳' }];
 const lp = L.reconcile([], lpTx, { venues: ['STAY'], registers });
 const ct = C.reconcile(orders, txs, { venues: ['STAY'], registers });
 const sales = { day: '2026-10-29', orders: 2, amount: 820, by_method: { ctbc: 820 }, by_hour: { 14: 300, 19: 520 }, items: [], csv: [], linepay: { ...lp, configured: true, synced_at: '2026-10-29T08:15:00Z', csv: [] }, ctbc: { ...ct, configured: true, synced_at: '2026-10-29T08:15:00Z', sync_error: null, csv: C.csvRows(ct.rows) } };
@@ -36,11 +36,16 @@ try {
     const page = await browser.newPage(); await page.setViewport({ width: w, height: 900 });
     page.on('pageerror', e => errors.push(e.message));
     await page.goto(`http://127.0.0.1:${server.address().port}/`); await page.waitForFunction('window.done===1', { timeout: 15000 });
-    const m = await page.evaluate(() => { const h = document.getElementById('pay-outside'); h.scrollIntoView(); const t = h.nextElementSibling; return { rows: [...t.querySelectorAll('tbody tr')].map(r => r.innerText.replace(/\s+/g, ' ').trim()), claim: t.querySelectorAll('[data-pay-claim]').length, release: t.querySelectorAll('[data-pay-release]').length, overflow: document.documentElement.scrollWidth - innerWidth, small: [...t.querySelectorAll('button')].filter(b => b.getBoundingClientRect().height < 32).length }; });
+    const m = await page.evaluate(() => { const h = document.getElementById('pay-outside'); h.scrollIntoView(); const t = h.parentElement; const d = document.getElementById('pay-others'); if (d) d.open = true; return { others: d ? d.querySelectorAll('tbody tr').length : -1, rows: [...t.querySelectorAll('tbody tr')].map(r => r.innerText.replace(/\s+/g, ' ').trim()), claim: t.querySelectorAll('[data-pay-claim]').length, release: t.querySelectorAll('[data-pay-release]').length, overflow: document.documentElement.scrollWidth - innerWidth, small: [...t.querySelectorAll('button')].filter(b => b.getBoundingClientRect().height < 32).length }; });
     console.log(w, JSON.stringify(m));
     const box = await (await page.$('#pay-outside')).boundingBox();
-    await page.screenshot({ path: path.join(out, `pay-claim-${w}.png`), clip: { x: 0, y: Math.max(0, box.y - 10), width: w, height: 420 }, captureBeyondViewport: true });
-    await page.evaluate(() => document.querySelector('[data-pay-claim]').click());
+    await page.screenshot({ path: path.join(out, `pay-claim-${w}.png`), clip: { x: 0, y: Math.max(0, box.y - 10), width: w, height: 640 }, captureBeyondViewport: true });
+    await page.evaluate(() => document.querySelector('[data-pay-claim]:not([data-from])').click());
+    await new Promise(r => setTimeout(r, 200));
+    await page.evaluate(() => document.querySelector('[data-pay-claim][data-from]').click());
+    await new Promise(r => setTimeout(r, 200));
+    await page.screenshot({ path: path.join(out, `pay-claim-reason-${w}.png`) });
+    await page.evaluate(() => document.querySelector('[data-reason]').click());
     await new Promise(r => setTimeout(r, 300)); console.log('click', JSON.stringify(await page.evaluate(() => window.__calls)));
     await page.close();
   }

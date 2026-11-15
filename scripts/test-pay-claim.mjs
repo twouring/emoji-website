@@ -46,9 +46,36 @@ test('接線：claim API、欄位、查詢、POS 日結、操作紀錄', () => {
   const s = read('server.js');
   assert.match(s, /ADD COLUMN IF NOT EXISTS claim_venue TEXT/);
   assert.match(s, /app\.post\('\/api\/admin\/sales\/linepay\/claim'.*payClaim\('linepay'\)/); assert.match(s, /app\.post\('\/api\/admin\/sales\/ctbc\/claim'.*payClaim\('ctbc'\)/);
-  assert.match(s, /outsideHours\(t\.paid_at,regs\)/, '開帳中不能認領');
-  assert.equal((s.match(/,claim_venue FROM (linepay|ctbc)_transactions/g) || []).length, 4, '日結與彈窗查詢都要帶 claim_venue');
+  assert.match(s, /inside\.some\(r=>r\.venue===venue\)/, '本店開著的時段本來就算本店');
+  assert.match(s, /改歸本店要填原因/, '別店開帳時段要原因');
+  assert.match(s, /claim_reason=\$4/);
+  assert.equal((s.match(/,claim_venue,claim_reason FROM (linepay|ctbc)_transactions/g) || []).length, 4, '日結與彈窗查詢都要帶 claim_venue');
   const p = read('public/pos-ops.js');
   assert.match(p, /營業時間外收款/); assert.match(p, /data-pay-claim/); assert.match(p, /\/admin\/sales\/\$\{gw\}\/claim/);
   assert.equal(require('../lib/pos-log').describe('POST', '/sales/ctbc/claim'), '營業時間外收款歸到本店');
+});
+
+test('others：品牌頁列出別店開帳時段、未認領的交易；全店頁不列；認領後移到 rows', () => {
+  const txs = [
+    { id: 'p', type: 'PAYMENT', amount: 120, paid_at: '2026-11-15T12:00:00+08:00', method: 'CREDIT_CARD' },
+    { id: 'q', type: 'PAYMENT', amount: 80, paid_at: '2026-11-15T19:00:00+08:00', method: 'CREDIT_CARD', claim_venue: 'CAFE', claim_reason: '本店客人付款，別店已先開帳' },
+    { id: 'o', type: 'PAYMENT', amount: 50, paid_at: '2026-11-15T17:30:00+08:00', method: 'CREDIT_CARD' },
+  ];
+  const cafe = L.reconcile([], txs, { venues: ['CAFE'], registers: regs });
+  assert.deepEqual(cafe.others.map(t => t.id), [], 'p 在本店開帳時段，不算別店');
+  const bar = L.reconcile([], txs, { venues: ['BAR'], registers: regs });
+  assert.deepEqual(bar.others.map(t => [t.id, t.venue]), [['p', 'CAFE']]);
+  assert.deepEqual(cafe.rows.map(t => t.id).sort(), ['p', 'q'], 'q 已改歸在咖啡；o 在咖啡關帳後算下一本帳＝三點水');
+  assert.deepEqual(bar.outside.map(t => t.id), ['o']);
+  assert.equal(cafe.rows.find(t => t.id === 'q').claim_reason, '本店客人付款，別店已先開帳');
+  assert.deepEqual(L.reconcile([], txs, { registers: regs }).others, []);
+  const ct = C.reconcile([], [{ id: 'z', type: 'SALE', amount: 300, paid_at: '2026-11-15T12:00:00+08:00', progress: '成功' }], { venues: ['STAY'], registers: regs });
+  assert.deepEqual(ct.others.map(t => t.id), ['z']);
+});
+
+test('POS：別店時段收合在 details，改歸先選原因再送 reason', () => {
+  const p = read('public/pos-ops.js');
+  assert.match(p, /id="pay-others"/); assert.match(p, /data-from=/);
+  assert.match(p, /pickReason\(\{title:`\$\{b\.dataset\.at\}/);
+  assert.match(p, /body:\{id:b\.dataset\.id,release,reason\}/);
 });

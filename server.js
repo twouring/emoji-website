@@ -930,7 +930,7 @@ async function migrate() {
     origin_id TEXT NOT NULL DEFAULT '', order_no TEXT NOT NULL DEFAULT '', card_last4 TEXT NOT NULL DEFAULT '', confirm_no TEXT NOT NULL DEFAULT '', synced_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE INDEX IF NOT EXISTS linepay_transactions_paid_idx ON linepay_transactions(paid_at)`);
   // 營業時間外的交易由品牌 POS 認領（KK 11/15）：claim_venue 有值就以它為準，不再依時間歸屬
-  await q(`ALTER TABLE linepay_transactions ADD COLUMN IF NOT EXISTS claim_venue TEXT, ADD COLUMN IF NOT EXISTS claimed_by TEXT, ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ`);
+  await q(`ALTER TABLE linepay_transactions ADD COLUMN IF NOT EXISTS claim_venue TEXT, ADD COLUMN IF NOT EXISTS claimed_by TEXT, ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS claim_reason TEXT`);
   // LINE Pay 同步狀態（單列）：失敗不寄信，記在這裡由 POS 日結畫面顯示；成功即清除
   await q(`CREATE TABLE IF NOT EXISTS linepay_sync_state (id INT PRIMARY KEY DEFAULT 1, error TEXT, failed_at TIMESTAMPTZ, ok_at TIMESTAMPTZ)`);
   // Cloud Scheduler 觸發的排程租約：多個 Cloud Run 執行個體同時收到觸發時只有一個在跑（程序內排程不用）
@@ -944,7 +944,7 @@ async function migrate() {
     progress TEXT NOT NULL DEFAULT '', settle TEXT NOT NULL DEFAULT '', settle_date TEXT NOT NULL DEFAULT '', pay_date TEXT NOT NULL DEFAULT '',
     terminal_id TEXT NOT NULL DEFAULT '', device_user TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '', raw JSONB, synced_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE INDEX IF NOT EXISTS ctbc_transactions_paid_idx ON ctbc_transactions(paid_at)`);
-  await q(`ALTER TABLE ctbc_transactions ADD COLUMN IF NOT EXISTS claim_venue TEXT, ADD COLUMN IF NOT EXISTS claimed_by TEXT, ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ`);
+  await q(`ALTER TABLE ctbc_transactions ADD COLUMN IF NOT EXISTS claim_venue TEXT, ADD COLUMN IF NOT EXISTS claimed_by TEXT, ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS claim_reason TEXT`);
   await q(`CREATE TABLE IF NOT EXISTS ctbc_sync_state (id INT PRIMARY KEY DEFAULT 1, error TEXT, failed_at TIMESTAMPTZ, ok_at TIMESTAMPTZ)`);
   // 1F 訂位申請（Google Maps／官方 LINE 連結 /reserve）：不登入、存 DB、寄通知；舊庫補建
   await q(`CREATE TABLE IF NOT EXISTS dining_reservations (
@@ -7139,12 +7139,12 @@ app.get('/api/admin/sales',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const orders=await ordersOfDay(day,'id,session_id,table_no,items,amount,payer,tappay,invoice,status,paid_at,void_reason,voided_by,(SELECT s.created_at FROM table_sessions s WHERE s.id=table_orders.session_id) AS opened_at');   /* opened_at：時段看開桌時間（後結帳，KK 11/15） */   /* 依開帳日認列（KK 11/5） */
   // LINE Pay 對帳：同一營業日 LINE Pay 後台實收 vs POS 登記為 LINE Pay 的單；LINE Pay 後台不分店別，依當天開關帳時間把每筆實收歸到在咖啡／三點水
   const registers=(await q('SELECT venue,opened_at,closed_at FROM pos_registers WHERE day=$1 ORDER BY opened_at',[day])).rows;
-  const txs=(await q('SELECT id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no,claim_venue FROM linepay_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[from,to])).rows;
+  const txs=(await q('SELECT id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no,claim_venue,claim_reason FROM linepay_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[from,to])).rows;
   const last=(await q('SELECT max(synced_at) AS at FROM linepay_transactions')).rows[0].at;
   const syncState=(await q('SELECT error,failed_at FROM linepay_sync_state WHERE id=1').catch(()=>({rows:[]}))).rows[0]||{};
   const lp=linepay.reconcile(orders,txs,{venues,registers});
   // 中信行動刷卡對帳：中信商店管理平台實收（每 15 分鐘＋每日 04:40 同步）vs POS 登記為信用卡（ctbc，含歷史 taishin／card）的單
-  const ctTxs=(await q('SELECT id,type,amount,paid_at,card_no,card_last4,auth_code,biz,progress,settle,settle_date,pay_date,terminal_id,device_user,note,claim_venue FROM ctbc_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[from,to])).rows;
+  const ctTxs=(await q('SELECT id,type,amount,paid_at,card_no,card_last4,auth_code,biz,progress,settle,settle_date,pay_date,terminal_id,device_user,note,claim_venue,claim_reason FROM ctbc_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[from,to])).rows;
   const ctLast=(await q('SELECT max(synced_at) AS at FROM ctbc_transactions')).rows[0].at;
   const ctState=(await q('SELECT error,failed_at,ok_at FROM ctbc_sync_state WHERE id=1').catch(()=>({rows:[]}))).rows[0]||{};
   const ct=ctbc.reconcile(orders,ctTxs,{venues,registers});
@@ -7712,7 +7712,7 @@ app.get('/api/admin/orders/linepay-alerts',auth,adminOnly,requireDb,wrap(async(r
   res.set('Cache-Control','no-store');
   const venues=posScope(req),mins=Math.min(720,Math.max(5,Number(req.query.lookback)||60)),hrs=Math.min(24,Math.max(1,Number(req.query.hours)||8));
   /* alerts＝最近 lookback 分鐘同步進來（判斷要不要跳）；recent＝最近 hrs 小時（預設 8）的交易，新到舊、最多 50 筆，給彈窗輪播看前幾筆（KK 11/5） */
-  const all=(await q("SELECT id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no,synced_at,claim_venue FROM linepay_transactions WHERE paid_at>=now()-interval '1 day' AND (synced_at>=now()-($1::int*interval '1 minute') OR paid_at>=now()-($2::int*interval '1 hour')) ORDER BY paid_at",[mins,hrs])).rows;
+  const all=(await q("SELECT id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no,synced_at,claim_venue,claim_reason FROM linepay_transactions WHERE paid_at>=now()-interval '1 day' AND (synced_at>=now()-($1::int*interval '1 minute') OR paid_at>=now()-($2::int*interval '1 hour')) ORDER BY paid_at",[mins,hrs])).rows;
   const txs=all.filter(t=>Date.now()-new Date(t.synced_at)<=mins*60e3),since=Date.now()-hrs*3600e3;
   const days=[...new Set(all.map(t=>tableOrders.MenuLib.businessDay(t.paid_at)))];
   const regs=days.length?(await q('SELECT day::text AS day,venue,opened_at,closed_at FROM pos_registers WHERE day::text=ANY($1::text[]) ORDER BY opened_at',[days])).rows:[];
@@ -7777,7 +7777,7 @@ const PAY_CLAIM={linepay:{table:'linepay_transactions',label:'LINE Pay'},ctbc:{t
 const payClaim=gw=>wrap(async(req,res)=>{
   const g=PAY_CLAIM[gw],venues=posScope(req),venue=venues&&venues.length===1?venues[0]:null;
   if(!venue)return res.status(400).json({error:'請從品牌 POS 操作（要指定歸到哪一店）。'});
-  const id=String(req.body?.id||'').slice(0,80),release=req.body?.release===true;
+  const id=String(req.body?.id||'').slice(0,80),release=req.body?.release===true,reason=tableOrders.cleanText(req.body?.reason,80);
   if(!id)return res.status(400).json({error:'缺交易序號。'});
   const c=await pool.connect();let out;
   try{await c.query('BEGIN');out=await (async()=>{
@@ -7785,19 +7785,23 @@ const payClaim=gw=>wrap(async(req,res)=>{
     if(!t)throw Object.assign(Error(`找不到這筆 ${g.label} 交易。`),{status:404});
     if(release){
       if(t.claim_venue!==venue)throw Object.assign(Error('這筆不是本店認領的，不能撤回。'),{status:409});
-      await c.query(`UPDATE ${g.table} SET claim_venue=NULL,claimed_by=NULL,claimed_at=NULL WHERE id=$1`,[id]);
+      await c.query(`UPDATE ${g.table} SET claim_venue=NULL,claimed_by=NULL,claimed_at=NULL,claim_reason=NULL WHERE id=$1`,[id]);
       return {t,venue:null};
     }
     if(t.claim_venue&&t.claim_venue!==venue)throw Object.assign(Error(`這筆已歸到${linepay.VENUE_LABEL[t.claim_venue]||t.claim_venue}，請該店先撤回。`),{status:409});
     const day=tableOrders.MenuLib.businessDay(t.paid_at);
     const regs=(await c.query('SELECT venue,opened_at,closed_at FROM pos_registers WHERE day=$1',[day])).rows;
-    if(!linepay.outsideHours(t.paid_at,regs))throw Object.assign(Error('這筆交易發生時有帳本開著，已依開帳時間歸屬，不能改。'),{status:409});
-    await c.query(`UPDATE ${g.table} SET claim_venue=$2,claimed_by=$3,claimed_at=now() WHERE id=$1`,[id,venue,String(req.auth.name||req.auth.email||'').slice(0,120)]);
-    return {t,venue};
+    /* 交易當下別店開著帳（KK 11/15：別店已開帳才發現是本店的）也可以改歸本店，但要填原因；本店自己開著的時段本來就算本店 */
+    const at=new Date(t.paid_at).getTime(),inside=regs.filter(r=>at>=new Date(r.opened_at).getTime()&&at<(r.closed_at?new Date(r.closed_at).getTime():Infinity));
+    if(inside.some(r=>r.venue===venue))throw Object.assign(Error(`這筆交易發生時${linepay.VENUE_LABEL[venue]}開著帳，本來就算本店。`),{status:409});
+    const from=inside.length?(linepay.VENUE_LABEL[inside[0].venue]||inside[0].venue):'';
+    if(from&&!reason)throw Object.assign(Error(`這筆交易發生時${from}開著帳，改歸本店要填原因。`),{status:400});
+    await c.query(`UPDATE ${g.table} SET claim_venue=$2,claimed_by=$3,claimed_at=now(),claim_reason=$4 WHERE id=$1`,[id,venue,String(req.auth.name||req.auth.email||'').slice(0,120),reason||null]);
+    return {t,venue,from};
   })();await c.query('COMMIT');}
   catch(e){await c.query('ROLLBACK').catch(()=>{});if(e.status)return res.status(e.status).json({error:e.message});throw e;}
   finally{c.release();}
-  req.posLogDetail=`${g.label} ${id} NT$${out.t.amount} ${release?'撤回認領':'歸到'+linepay.VENUE_LABEL[venue]}`.slice(0,500);
+  req.posLogDetail=`${g.label} ${id} NT$${out.t.amount} ${release?'撤回認領':(out.from?`從${out.from}改`:'')+'歸到'+linepay.VENUE_LABEL[venue]+(reason&&!release?`（${reason}）`:'')}`.slice(0,500);
   res.json({ok:true,id,claim_venue:out.venue});
 });
 app.post('/api/admin/sales/linepay/claim',auth,adminOnly,requireDb,payClaim('linepay'));
@@ -7834,7 +7838,7 @@ app.get('/api/admin/orders/ctbc-alerts',auth,adminOnly,requireDb,wrap(async(req,
   res.set('Cache-Control','no-store');
   const venues=posScope(req),mins=Math.min(720,Math.max(5,Number(req.query.lookback)||60)),hrs=Math.min(24,Math.max(1,Number(req.query.hours)||8));
   /* alerts＝最近 lookback 分鐘同步進來（判斷要不要跳）；recent＝最近 hrs 小時（預設 8）的交易，新到舊、最多 50 筆，給彈窗輪播看前幾筆（KK 11/5） */
-  const all=(await q("SELECT id,type,amount,paid_at,card_last4,auth_code,progress,terminal_id,device_user,note,synced_at,claim_venue FROM ctbc_transactions WHERE paid_at>=now()-interval '1 day' AND (synced_at>=now()-($1::int*interval '1 minute') OR paid_at>=now()-($2::int*interval '1 hour')) ORDER BY paid_at",[mins,hrs])).rows;
+  const all=(await q("SELECT id,type,amount,paid_at,card_last4,auth_code,progress,terminal_id,device_user,note,synced_at,claim_venue,claim_reason FROM ctbc_transactions WHERE paid_at>=now()-interval '1 day' AND (synced_at>=now()-($1::int*interval '1 minute') OR paid_at>=now()-($2::int*interval '1 hour')) ORDER BY paid_at",[mins,hrs])).rows;
   const txs=all.filter(t=>Date.now()-new Date(t.synced_at)<=mins*60e3),since=Date.now()-hrs*3600e3;
   const days=[...new Set(all.map(t=>tableOrders.MenuLib.businessDay(t.paid_at)))];
   const regs=days.length?(await q('SELECT day::text AS day,venue,opened_at,closed_at FROM pos_registers WHERE day::text=ANY($1::text[]) ORDER BY opened_at',[days])).rows:[];
