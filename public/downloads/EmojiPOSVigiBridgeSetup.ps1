@@ -42,15 +42,19 @@ try {
   $yaml=@"
 logLevel: info
 rtsp: no
+rtmp: no
+srt: no
+moq: no
+webrtc: no
+api: no
+metrics: no
+pprof: no
+playback: no
 hls: yes
 hlsAddress: 127.0.0.1:8888
-hlsSegmentCount: 3
+hlsSegmentCount: 7
 hlsSegmentDuration: 1s
 hlsPartDuration: 200ms
-webrtc: yes
-webrtcAddress: 127.0.0.1:8889
-webrtcLocalUDPAddress: ''
-webrtcLocalTCPAddress: ''
 paths:
   channel-zero:
     source: $(Quote-Yaml $source)

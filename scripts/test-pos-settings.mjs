@@ -98,7 +98,9 @@ test('Windows bridge uses NVR Channel-Zero RTSP with low-latency HLS and never e
   assert.doesNotMatch(installer, /sourceProtocol/);
   assert.match(installer, /mediamtx\.err\.log/, '啟動失敗原因要寫進記錄檔');
   assert.match(installer, /tailscale serve --bg 8888/);
-  assert.match(installer, /webrtc: yes/);
+  assert.match(installer, /hlsSegmentCount: 7/, 'lowLatency HLS 要求 hlsSegmentCount ≥ 7，否則 mediamtx 啟動即退出（本機 1.21.3 實測）');
+  assert.match(installer, /webrtc: no/, 'webrtc 開著但沒有 ICE listener 會啟動失敗；bridge 只走 HLS');
+  assert.match(installer, /rtmp: no[\s\S]*srt: no[\s\S]*moq: no/, '只開 HLS，不多開 1935／8890／8892 埠');
   assert.match(installer, /hls: yes/);
   assert.match(installer, /127\.0\.0\.1:8888/);
   assert.match(installer, /cloudflared/);
