@@ -283,3 +283,7 @@
   .atc-menu .menu-item { grid-template-columns: 104px minmax(0, 1fr); }
   .atc-menu .menu-item__img { width: 104px; height: 104px; }
 }
+
+/* 2026-11-17：首屏抹茶小圖拿掉（KK），主圖不再預留疊圖空間 */
+.atc-hero__media { padding-bottom: 0; }
+.atc-hero__main { width: 100%; }
