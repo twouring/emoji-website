@@ -10,7 +10,11 @@ const URL_ = 'https://maps.app.goo.gl/ZKdyKqwXjVA5x6JF6?g_st=ic';
 
 test('送單後提示用餐完到櫃檯結帳（三語）', () => {
   assert.match(lib, /place_done: '已送出點餐，餐點準備中。用餐完記得到櫃檯結帳！'/);
-  assert.match(html, /toast\(tr\('place_done'\)/);
+  assert.match(html, /showPlaced\(sentN\)/);   // 送出成功改成置中確認窗（KK 11/17：toast 疊在墨色頁首上看不見）
+  assert.match(html, /\$\('#placed-pop-text'\)\.textContent=tr\('place_done'\)/);
+  assert.match(html, /id="placed-pop"[^>]*role="alertdialog"/);
+  assert.match(html, /tr\('placing'\)/);   // 送出中按鈕文字
+  assert.doesNotMatch(html, /toast\(tr\('place_done'\)/);
 });
 
 test('結帳意圖時跳 Google 評論邀請：餐都出完、沒有未送品項、打開已點清單；每場一次', () => {

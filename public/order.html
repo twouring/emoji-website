@@ -123,7 +123,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
 #place-ok .sheet-actions .btn,#review .sheet-actions .btn{flex:1 1 0;min-width:0;text-align:center;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
 .review-stars{font-size:1.6rem;letter-spacing:4px;color:#E8B400;margin:0 0 4px}
 .review-box{margin-top:16px;padding-top:14px;border-top:1px dashed var(--line)}.review-box a.btn{display:flex;align-items:center;justify-content:center;text-decoration:none;width:100%}
-.toast{position:fixed;left:16px;right:16px;top:calc(16px + env(safe-area-inset-top));z-index:40;background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;text-align:center;display:none}.toast.on{display:block}
+.toast{position:fixed;left:16px;right:16px;top:calc(16px + env(safe-area-inset-top));z-index:40;max-width:520px;margin:0 auto;background:var(--ink);color:#fff;padding:12px 16px;border:2px solid #fff;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.35);text-align:center;display:none}.toast.on{display:block}
 /* 375px（iPhone SE／mini）：底部列的兩顆鍵用 auto 寬、內距縮小（字級維持 16px 以上），金額欄保有最小寬度不被蓋住 */
 @media (max-width:400px){.bar{grid-template-columns:minmax(84px,1fr) auto auto;gap:6px;padding-left:10px;padding-right:10px}.bar .btn{padding:10px 12px}.bar .with-icon{gap:5px}.bar .s b{font-size:1.05rem}.sheet-actions .btn{padding-left:10px;padding-right:10px}}
 @media (max-width:380px){.wrap{padding:10px}.top{padding-left:12px;padding-right:12px}.bar{padding-left:8px;padding-right:8px}.btn{padding-left:9px;padding-right:9px}.btn.sm{min-height:42px}.menu-grid{gap:6px}.item img,.item .ph{width:56px;height:56px}.item .tap{display:none}.top .t{padding-left:8px;padding-right:8px}.choice-grid{grid-template-columns:1fr 1fr}.sheet .in{padding-left:12px;padding-right:12px}}
@@ -282,6 +282,11 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   <div class="row sheet-actions"><button class="btn ghost" type="button" data-close data-i18n="back_menu">返回菜單</button><button class="btn y with-icon" type="button" id="tip-send"><svg class="ico" aria-hidden="true"><use href="#i-gift"></use></svg><span id="tip-send-text" data-i18n="tip_send">送出打賞</span></button></div>
 </div></div>
 
+<div class="notice-pop" id="placed-pop" role="alertdialog" aria-modal="true" aria-labelledby="placed-pop-title" aria-describedby="placed-pop-text"><div class="box">
+  <h3 id="placed-pop-title"><svg class="ico lg" aria-hidden="true"><use href="#i-check"></use></svg><span id="placed-pop-n"></span></h3>
+  <p id="placed-pop-text" data-i18n="place_done">已送出點餐，餐點準備中。用餐完記得到櫃檯結帳！</p>
+  <button class="btn y" type="button" id="placed-pop-ok"><span data-i18n="notice_ok">知道了</span></button>
+</div></div>
 <div class="notice-pop" id="notice-pop" role="alertdialog" aria-modal="true" aria-labelledby="notice-pop-title" aria-describedby="notice-pop-text"><div class="box">
   <h3 id="notice-pop-title"><svg class="ico lg" aria-hidden="true"><use href="#i-bell"></use></svg><span data-i18n="notice_title">店員通知</span></h3>
   <p id="notice-pop-text"></p>
@@ -694,9 +699,14 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   $('#place-ok-back').onclick=function(){openSheet('#cart');};
   $('#place-ok-go').onclick=function(){if(placing||!myPending().length)return;
     placing=true;var btns=[$('#bar-place'),$('#cart-place'),$('#place-ok-go')];btns.forEach(function(b){b.disabled=true;});
-    api('/orders/'+S.id+'/place',{method:'POST',body:{guest:GUEST}}).then(function(s){applyState(s);if(ME)joinMember();closeSheets();toast(tr('place_done'),6000);try{navigator.vibrate&&navigator.vibrate(80);}catch(e){}})
+    var sentN=myPending().length;$('#place-ok-go-t').textContent=tr('placing');
+    api('/orders/'+S.id+'/place',{method:'POST',body:{guest:GUEST}}).then(function(s){applyState(s);if(ME)joinMember();closeSheets();showPlaced(sentN);try{navigator.vibrate&&navigator.vibrate(80);}catch(e){}})
       .catch(function(err){toast(err.message);if(/已結束/.test(err.message))sessionClosed();if(err.status===423){PAUSED=err.message;renderMenu();}})
-      .then(function(){placing=false;btns.forEach(function(b){b.disabled=false;});});};
+      .then(function(){placing=false;btns.forEach(function(b){b.disabled=false;});$('#place-ok-go-t').textContent=tr('confirm_go',{count:myPending().length});});};
+  /* 送出成功：置中確認窗（KK 11/17「桌面點餐送出沒有反饋」——原本的 toast 是墨色、疊在墨色頁首上看不見） */
+  function showPlaced(n){$('#placed-pop-n').textContent=tr('placed_n',{count:n});$('#placed-pop-text').textContent=tr('place_done');$('#placed-pop').classList.add('on');setTimeout(function(){var b=$('#placed-pop-ok');b&&b.focus&&b.focus();},0);}
+  $('#placed-pop-ok').onclick=function(){$('#placed-pop').classList.remove('on');};
+  $('#placed-pop').onclick=function(e){if(e.target===this)this.classList.remove('on');};
 
 
   /* ---- 點歌（KK 11/6）：桌邊 QR 只能購買點歌（記在這桌帳上），選歌要向店員索取兌換碼，掃電視上的播放裝置 QR（ktv.emoji.tw/s?d=）輸入後再選；這裡只看正在播放與待播 ---- */
