@@ -40,6 +40,7 @@ BRANDS = {
 }
 e = html.escape
 L = 'zh'  # 目前產生中的語系（build() 設定）
+CUR = ''  # 目前產生中的品牌 slug（包場表單用）
 SUB = ''  # 目前產生中的子頁（等等空間多頁站；其他站固定空字串）
 
 
@@ -106,6 +107,8 @@ def head(slug, title, desc, ld_override=None):
               % (b['schema'], root, b['zh'], b['en'], root, root, slug, TEL_HREF[4:], b['ig'], ADDRESS[L], t('台北市', 'Taipei', '台北市'), PARENT[L], WWW))
     if ld_override is not None:
         ld = ld_override
+    hire_css = '\n<link rel="stylesheet" href="/brand-sites/hire.css">' if slug in HIRE else ''
+    hire_attr = ' data-sq-lazy' if slug in HIRE else ''
     alts = ''.join(f'<link rel="alternate" hreflang="{HTML_LANG[l]}" href="{page_url(b["host"], l)}">\n' for l in LANGS)
     alts += f'<link rel="alternate" hreflang="x-default" href="{page_url(b["host"], "zh")}">\n'
     return f'''<!DOCTYPE html>
@@ -132,9 +135,9 @@ def head(slug, title, desc, ld_override=None):
 <link href="https://fonts.googleapis.com/css2?{fonts}&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/space-dir.css">
-<link rel="stylesheet" href="/brand-sites/brand.css">{extra_css}
+<link rel="stylesheet" href="/brand-sites/brand.css">{extra_css}{hire_css}
 </head>
-<body class="bs bs--{slug}">
+<body class="bs bs--{slug}"{hire_attr}>
 <a href="#content" class="skip-link">{t('跳至主要內容', 'Skip to main content', '本文へスキップ')}</a>
 '''
 
@@ -181,18 +184,24 @@ def faq(items):
 def footer_html(slug, dock):
     b = BRANDS[slug]
     dock_html = ''.join(f'<a class="bs-btn{" bs-btn--line" if i else ""}" href="{h}">{x}</a>' for i, (x, h) in enumerate(dock))
+    more_links = ''
+    if slug in ('at-cafe', '3am'):
+        more_links += f'<li><a href="{www("/reserve")}">' + t('線上訂位', 'Reservations', 'オンライン予約') + '</a></li>'
+    if slug in HIRE:
+        more_links += '<li><a href="#hire">' + t('線上包場', 'Private hire', '貸切の予約') + '</a></li>'
+    tail = hire_tail() if slug in HIRE else ''
     legal = f'© 2026 {b["zh"]} {b["en"]} · {COMPANY[L]} · {PARENT[L]}'
     ig_li = f'<li><a href="https://www.instagram.com/{b["ig"]}" target="_blank" rel="noopener">Instagram @{b["ig"]}</a></li>' if b['ig'] else ''
     return f'''<footer class="bs-foot"><div class="wrap">
   <div class="bs-foot__grid">
     <div class="bs-foot__brand"><img src="/brand-sites/assets/{slug}-logo.webp" alt="{e(b['alt'][L])}" loading="lazy" decoding="async"></div>
     <div><h4>{t('聯絡', 'Contact', 'お問い合わせ')}</h4><ul><li>{e(ADDRESS[L])}</li><li><a href="{TEL_HREF}">{e(TEL_TEXT)}</a></li><li><a href="mailto:us@emoji.tw">us@emoji.tw</a></li>{ig_li}</ul></div>
-    <div><h4>{t('更多', 'More', 'その他')}</h4><ul><li><a href="{www('/reserve')}">{t('線上訂位', 'Reservations', 'オンライン予約')}</a></li>{'' if slug == 'rest-book' else f'<li><a href="{app_url()}">' + t('會員 App', 'Member app', '会員アプリ') + '</a></li>'}<li><a href="{www('/terms')}">{t('服務條款', 'Terms', '利用規約')}</a></li><li><a href="{www('/privacy')}">{t('隱私權政策', 'Privacy', 'プライバシー')}</a></li><li><a href="{www('/refund')}">{t('退費政策', 'Refunds', '返金ポリシー')}</a></li></ul></div>
+    <div><h4>{t('更多', 'More', 'その他')}</h4><ul>{more_links}{'' if slug == 'rest-book' else f'<li><a href="{app_url()}">' + t('會員 App', 'Member app', '会員アプリ') + '</a></li>'}<li><a href="{www('/terms')}">{t('服務條款', 'Terms', '利用規約')}</a></li><li><a href="{www('/privacy')}">{t('隱私權政策', 'Privacy', 'プライバシー')}</a></li><li><a href="{www('/refund')}">{t('退費政策', 'Refunds', '返金ポリシー')}</a></li></ul></div>
   </div>
   <div class="bs-foot__bottom"><p class="bs-foot__legal">{e(legal)}</p>{lang_switch(b['host'], ' bs-lang--foot')}</div>
 </div></footer>
 <nav class="bs-dock" aria-label="{t('快速動作', 'Quick actions', 'クイック操作')}">{dock_html}</nav>
-<script>(function(){{var n=document.querySelector('.bs-head');if(!n)return;function f(){{n.classList.toggle('is-scrolled',scrollY>8)}}addEventListener('scroll',f,{{passive:true}});f()}})()</script>
+{tail}<script>(function(){{var n=document.querySelector('.bs-head');if(!n)return;function f(){{n.classList.toggle('is-scrolled',scrollY>8)}}addEventListener('scroll',f,{{passive:true}});f()}})()</script>
 <script>(function(){{var d=document.querySelector('.bs-dock'),h=document.querySelector('.bs-hero,.sq-hero');if(!d||!h||!('IntersectionObserver' in window))return;new IntersectionObserver(function(e){{d.classList.toggle('is-on',!e[0].isIntersecting)}}).observe(h)}})()</script>
 <script>(function(){{var m=document.querySelector('[data-menu]'),g=m&&m.querySelectorAll('.menu-group');if(!g||g.length<4)return;var n=document.createElement('nav');n.className='bs-menu__jump';n.setAttribute('aria-label','{t('菜單分類', 'Menu sections', 'メニューの分類')}');g.forEach(function(s,i){{var h=s.querySelector('.menu-group__zh');if(!h)return;s.id=s.id||'menu-g'+i;var a=document.createElement('a');a.href='#'+s.id;a.textContent=h.textContent;n.appendChild(a)}});m.parentNode.insertBefore(n,m)}})()</script>
 <script>(function(){{if(!matchMedia('(max-width: 640px)').matches)return;var more='{t('看完整說明', 'Show details', '詳しく見る')}';document.querySelectorAll('[data-menu] .menu-item').forEach(function(it){{var ns=it.querySelectorAll('.menu-item__note');if(!ns.length)return;var lh=parseFloat(getComputedStyle(ns[0]).lineHeight)||24,long=ns.length>1||ns[0].offsetHeight>lh*2+4;if(!long)return;it.classList.add('is-clamp');var b=document.createElement('button');b.type='button';b.className='menu-item__more';b.textContent=more;b.setAttribute('aria-expanded','false');it.appendChild(b);it.addEventListener('click',function(e){{if(e.target.closest('a'))return;it.classList.add('is-open');b.setAttribute('aria-expanded','true')}})}})}})()</script>
@@ -482,6 +491,7 @@ def page_cafe():
   <div class="bs-menu__cta"><a class="bs-btn" href="{reserve}">{book}</a></div>
 </div></section>
 
+{hire_section(t('包場時段不對外營業；開始時間 08:00–15:00，可連續訂多個時段。', 'We close to other guests during your slots. Start between 08:00 and 15:00; book several slots in a row if you need.', '貸切中は一般営業を休止します。開始は 08:00–15:00、連続した枠も予約できます。'))}
 <section id="faq" class="atc-faq" aria-labelledby="faq-h"><div class="wrap atc-faq__in">
   {sec_h2('faq-h', '常見問題', 'FAQ', 'よくある質問')}
   {faq(faqs)}
@@ -626,6 +636,7 @@ def page_3am():
   <div class="bs-menu__cta"><a class="bs-btn" href="{reserve}">{t('立即訂位', 'Book a table', '席を予約')}</a></div>
 </div></section>
 '''
+    out += hire_section(t('包場時段不對外營業；開始時間 17:00–23:00，可連續訂多個時段（可跨午夜）。', 'We close to other guests during your slots. Start between 17:00 and 23:00; book several slots in a row, past midnight if you like.', '貸切中は一般営業を休止します。開始は 17:00–23:00、連続した枠（深夜をまたいでも可）も予約できます。'))
     out += visit([(t('營業時間', 'Hours', '営業時間'), t('每日 17:00–翌日 03:00', 'Daily 17:00–03:00 next day', '毎日 17:00–翌03:00')),
                   (t('最後點餐', 'Last orders', 'ラストオーダー'), t('以現場公告為準', 'As posted on site', '店内の案内に準じます'))], s)
     out += '</main>\n'
@@ -826,15 +837,94 @@ def sq_book():
 </section>'''
 
 
-def sq_login():
+def sq_login(account=False):
     intro = t('用同一個言文字帳號，會籍、包場與會員 App 都會同步。', 'One emoji account for plans, venue bookings and the member app.',
               '一つの言文字アカウントで、会員プラン、貸切、会員アプリが連動します。')
-    return (f'<dialog class="sq-login" id="sq-login" aria-labelledby="sq-login-h"><h2 id="sq-login-h">{t("登入言文字會員", "Sign in to emoji", "言文字にログイン")}</h2>'
+    title = t('登入言文字會員', 'Sign in to emoji', '言文字にログイン')
+    if account:  # 品牌站包場：約書旅不提會員（KK 11/04），在咖啡／三點水同一口徑
+        intro = t('用言文字帳號登入後，送出包場並線上付款。', 'Sign in with your emoji account to submit and pay for your booking.', '言文字アカウントでログインして、貸切の送信とお支払いへ進みます。')
+        title = t('登入言文字帳號', 'Sign in to emoji', '言文字にログイン')
+    return (f'<dialog class="sq-login" id="sq-login" aria-labelledby="sq-login-h"><h2 id="sq-login-h">{title}</h2>'
             f'<p>{e(intro)}</p>'
             f'<a class="sq-action" data-login="google" href="/auth/google">{t("使用 Google 登入", "Continue with Google", "Google でログイン")}</a>'
             f'<a class="sq-action sq-action--line" data-login="line" href="/auth/line" hidden>{t("使用 LINE 登入", "Continue with LINE", "LINE でログイン")}</a>'
             f'<a class="sq-linkbtn" data-login="email" href="/event-login.html">{t("使用 Email 登入", "Sign in with email", "メールでログイン")}</a>'
             f'<button type="button" class="sq-login__close" data-sq-close aria-label="{t("關閉", "Close", "閉じる")}">×</button></dialog>\n')
+
+
+# ---------------------------------------------------------------- 品牌站付費包場（KK 2026-11-17）
+# 在咖啡、三點水、約書旅沿用等等空間的包場表單與 stay-square-shop.js：登入言文字會員 → 送出 → Stripe 付場地費 → 團隊確認檔期。
+# 價格與 lib/venue-fees.js HIRE_ZONES 一致（test-brand-hire 比對）。線上訂位只開放在咖啡、三點水。
+HIRE = {  # slug: (zone, 中, 英, 日, 場地費／時段, 人數上限, 開始時間)
+    'at-cafe': ('CAFE', '在咖啡 at cafe 整間包場', 'Whole of at cafe', '在咖啡 at cafe 貸切', 30000, 50, range(8, 16)),
+    '3am': ('BAR', '三點水 3AM 整間包場', 'Whole of 3AM', '三點水 3AM 貸切', 30000, 50, range(17, 24)),
+    'rest-book': ('LOUNGE', '約書旅交誼廳', 'Rest Book lounge', '約書旅ラウンジ', 2000, 10, range(0, 24)),
+}
+CANCEL_RULE = ('取消：活動日 14 日前全額退費、8–13 日前退 50%、7 日內不退；無法安排時全額退費。',
+               'Cancellation: full refund 14+ days before, 50% at 8–13 days, none within 7 days; full refund if we cannot host you.',
+               'キャンセル：14日前まで全額、8〜13日前は50%、7日以内は返金なし。お受けできない場合は全額返金。')
+
+
+def hire_form():
+    """包場表單本體（form#sq-book-form＋我的包場申請），樣式在 brand-sites/hire.css。"""
+    zone, zh, en, ja, fee, mx, hours = HIRE[CUR]
+    name = t(zh, en, ja)
+    opt = f'<option value="{zone}" data-fee="{fee}" data-max="{mx}" data-name="{e(name)}">{e(name)}</option>'  # 價格與人數上限寫在合計列與說明
+    first = 18 if CUR == 'rest-book' else min(hours) + 1
+    starts = ''.join(f'<option value="{h:02d}:00"{" selected" if h == first else ""}>{h:02d}:00</option>' for h in hours)
+    slot_opts = []
+    for n in range(1, 5):
+        label = t(f'{n} 個時段（{n * 2} 小時）', f'{n} slot{"s" if n > 1 else ""} ({n * 2} hours)', f'{n}枠（{n * 2}時間）')
+        slot_opts.append(f'<option value="{n}">{e(label)}</option>')
+    slots = ''.join(slot_opts)
+
+    def lbl(a, b, c):
+        return e(t(a, b, c))
+    agree_tail = t('。付款後由團隊確認檔期；無法安排時全額退費。', '. We confirm the booking after payment; if we cannot host it, you get a full refund.',
+                   '。お支払い後に日程を確定します。お受けできない場合は全額返金します。')
+    sep = t('、', ' and ', '、')
+    return (f'<form id="sq-book-form" class="sq-form" novalidate>\n'
+            f'  <label>{lbl("包場空間", "Space", "スペース")}<select name="zone" required>{opt}</select></label>\n'
+            f'  <div class="sq-form__row">\n'
+            f'    <label>{lbl("日期", "Date", "日付")}<input type="date" name="date" required></label>\n'
+            f'    <label>{lbl("開始", "Start", "開始")}<select name="start" required>{starts}</select></label>\n'
+            f'    <label>{lbl("時段數", "Slots", "枠数")}<select name="slots" required>{slots}</select></label>\n'
+            f'    <label>{lbl("人數", "People", "人数")}<input type="number" name="attendees" min="1" max="{mx}" inputmode="numeric" required></label>\n'
+            f'  </div>\n'
+            f'  <p class="sq-total" data-sq-total aria-live="polite"></p>\n'
+            f'  <label>{lbl("活動名稱", "Event name", "イベント名")}<input name="title" maxlength="160" required></label>\n'
+            f'  <label>{lbl("活動內容", "What you will do", "内容")}<textarea name="description" rows="3" maxlength="5000" required></textarea></label>\n'
+            f'  <label>{lbl("設備、餐點或其他需求（選填）", "Equipment, food or other needs (optional)", "機材・料理・その他のご要望（任意）")}<textarea name="requirements" rows="2" maxlength="2000"></textarea></label>\n'
+            f'  <div class="sq-form__row">\n'
+            f'    <label>{lbl("聯絡人", "Contact name", "ご担当者")}<input name="contact_name" maxlength="80" autocomplete="name" required></label>\n'
+            f'    <label>Email<input type="email" name="contact_email" maxlength="254" autocomplete="email" required></label>\n'
+            f'    <label>{lbl("電話（選填）", "Phone (optional)", "電話（任意）")}<input type="tel" name="contact_phone" maxlength="40" autocomplete="tel" inputmode="tel"></label>\n'
+            f'    <label>{lbl("公司或團體（選填）", "Company or group (optional)", "会社・団体（任意）")}<input name="community_name" maxlength="120" autocomplete="organization"></label>\n'
+            f'  </div>\n'
+            f'  <label class="sq-check"><input type="checkbox" name="consent" required><span>{lbl("我已閱讀並同意", "I agree to the", "次に同意します：")} '
+            f'<a href="{www("/terms")}">{lbl("服務條款", "Terms", "利用規約")}</a>{sep}<a href="{www("/refund")}">{lbl("退費政策", "Refund policy", "返金ポリシー")}</a>{e(agree_tail)}</span></label>\n'
+            f'  <button type="submit" class="sq-action">{lbl("送出並付款", "Submit and pay", "送信して支払う")}</button>\n'
+            f'</form>\n'
+            f'<div class="sq-apps" data-sq-apps hidden><h3>{lbl("我的包場申請", "My venue bookings", "貸切の申請状況")}</h3><ul></ul></div>')
+
+
+def hire_tail():
+    """包場表單要的登入對話框、提示列與腳本（放在 </body> 前）。進站不靜默跳 SSO（body data-sq-lazy）。"""
+    return (sq_login(account=True) + '<p class="sq-flash" data-sq-flash role="status" aria-live="polite" hidden></p>\n'
+            '<script src="/sso-client.js" defer></script>\n<script src="/brand-sites/stay-square-shop.js" defer></script>\n')
+
+
+def hire_section(open_rule):
+    """在咖啡／三點水的包場區塊（菜單之後）。"""
+    zone, zh, en, ja, fee, mx, hours = HIRE[CUR]
+    intro = t(f'整間包場，每時段 2 小時 NT${fee:,}、至多 {mx} 人；場地費可全額折抵當場餐飲（含酒水，不折現、不找零）。選好日期與時段，登入言文字帳號後線上付款，團隊確認檔期後以 Email 通知。',
+              f'Hire the whole place: NT${fee:,} per two-hour slot, up to {mx} people. The fee counts in full toward food and drinks on the day (including alcohol; no cash back). Pick a date and slots, sign in with your emoji account and pay online; we confirm by email.',
+              f'まるごと貸切：1枠2時間 NT${fee:,}、最大{mx}名。会場費は当日の飲食に全額充当できます（アルコール含む、現金での返金・お釣りなし）。日付と枠を選び、言文字アカウントでログインしてオンラインでお支払いください。日程はメールで確定します。')
+    rules = ''.join(f'<li>{e(x)}</li>' for x in (open_rule, t(*CANCEL_RULE)))
+    return (f'<section class="bs-hire" id="hire" aria-labelledby="hire-h"><div class="wrap bs-hire__grid">\n'
+            f'  <div class="bs-hire__say">{sec_h2("hire-h", "包場", "Private hire", "貸切")}<p>{e(intro)}</p><ul class="bs-hire__rules">{rules}</ul></div>\n'
+            f'  <div>{hire_form()}</div>\n'
+            f'</div></section>\n')
 
 
 # ---------------------------------------------------------------- 約書旅（2026-11-08 改版：參照 The Club airport lounges 的導覽與節奏，做成「台北車站旁的貴賓室」）
@@ -903,8 +993,9 @@ def page_book():
     hire_rules = ''.join(f'<li>{e(x)}</li>' for x in [
         t('平日、假日同價；平日白天與每週二 19:00–21:00（週二小聚）不出租。', 'Same price on weekdays and weekends. Not available on weekday daytimes or Tuesdays 19:00–21:00 (our weekly meetup).', '平日・休日同料金。平日の日中と毎週火曜 19:00–21:00（週例の集まり）は貸切不可。'),
         t('只租交誼廳；讀書席、靜讀室與淋浴不含在內。擴音使用到 22:00。', 'The lounge only; study seats, quiet rooms and showers are not included. Amplified sound until 22:00.', 'ラウンジのみ。読書席、静読室、シャワーは含まれません。音響の使用は22:00まで。'),
-        t('包場享在咖啡、三點水餐飲 9\u00a0折。', '10% off food and drinks at at cafe and 3AM.', '在咖啡・三點水の飲食が10%オフ。')])
-    hire_mail = 'mailto:us@emoji.tw?subject=' + t('約書旅交誼廳包場', 'Rest%20Book%20lounge%20hire', '約書旅ラウンジ貸切')
+        t('包場享在咖啡、三點水餐飲 9\u00a0折。', '10% off food and drinks at at cafe and 3AM.', '在咖啡・三點水の飲食が10%オフ。'),
+        t('線上付款後由團隊確認檔期。', 'Pay online and we confirm by email.', 'オンラインでお支払い後、メールで日程を確定します。'),
+        t(*CANCEL_RULE)])
     # 設施清單（對應 The Club 的地點清單「代碼｜名稱」）
     rooms = [
         ('LOUNGE', t('交誼廳', 'Lounge', 'ラウンジ'), t('約十人；100 吋大螢幕、劇院音響、Switch、桌遊', 'About ten people; 100-inch screen, theatre sound, Switch, board games', '約10名。100インチ大型画面、シアター音響、Switch、ボードゲーム'), t('入場即可用，可包場', 'Included with entry; available to hire', '入場で利用可・貸切可')),
@@ -1024,7 +1115,7 @@ def page_book():
     <p class="rb-price__lede">{t('約十人的小廳，有 100 吋大螢幕、環繞音響、Switch 與桌遊。生日、球賽或演唱會直播、讀書會都合適。', 'A small room for about ten, with a 100-inch screen, surround sound, Switch and board games. Good for birthdays, match or concert screenings, and reading groups.', '約10名の小さな部屋。100インチの大型画面、サラウンド音響、Switch、ボードゲーム。誕生日、試合やライブの観賞、読書会に。')}</p>
     <div class="rb-price__block"><h3>{t('場地費', 'Fee', '料金')}<span>{t('每時段 2 小時', 'per 2-hour slot', '1枠2時間')}</span></h3>{dl(hire_rows)}</div>
     <ul class="rb-price__rules">{hire_rules}</ul>
-    <a class="rb-btn rb-btn--gold" href="{hire_mail}">{t('來信預約包場', 'Email to book', 'メールで予約')}</a>
+    <div class="rb-hire__form">{hire_form()}</div>
   </div>
 </section>
 
@@ -1156,6 +1247,10 @@ def llms_txt(slug, pages):
         lines.append(f"- Instagram：https://www.instagram.com/{b['ig']}")
     if slug in ('at-cafe', '3am'):
         lines.append(f"- 訂位 Reservations：{WWW}/reserve")
+    if slug in HIRE:
+        lines.append(f"- 線上付費包場 Private hire：https://{b['host']}/#hire")
+    elif slug == 'stay-square':
+        lines.append(f"- 線上付費包場 Private hire：https://{b['host']}/venue#book")
     lines += ['', '## 頁面 Pages', '']
     for lang in LANGS:
         for url, h in pages[lang]:
@@ -1172,16 +1267,18 @@ def llms_txt(slug, pages):
 
 
 def build():
-    global L, SUB
+    global L, SUB, CUR
     pages = {slug: {l: [] for l in LANGS} for slug in BRANDS}
     for L in LANGS:
         d = OUT if L == 'zh' else OUT / L
         d.mkdir(parents=True, exist_ok=True)
         for slug, fn in (('at-cafe', page_cafe), ('3am', page_3am), ('stay-square', page_stay), ('rest-book', page_book)):
+            CUR = slug
             page = with_seo(slug, fn())
             (d / f'{slug}.html').write_text(page, encoding='utf-8')
             pages[slug][L].append((page_url(BRANDS[slug]['host'], L), page))
             print('wrote', d / f'{slug}.html')
+        CUR = 'stay-square'
         for SUB in SQ_PAGES:  # 等等空間子頁：/about、/spaces、/membership、/venue、/access（server.js BRAND_SUBPAGES）
             page = with_seo('stay-square', SQ_PAGE_FN[SUB]())
             (d / f'stay-square-{SUB}.html').write_text(page, encoding='utf-8')

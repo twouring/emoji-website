@@ -29,10 +29,11 @@
 <link rel="stylesheet" href="/brand-sites/brand.css">
 <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Noto+Serif+TC:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/brand-sites/rest-book.css">
+<link rel="stylesheet" href="/brand-sites/hire.css">
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BookStore", "@id": "https://restbook.emoji.tw/#place", "name": "約書旅 Rest Book", "alternateName": ["約書旅", "Rest Book"], "url": "https://restbook.emoji.tw/en", "description": "Rest Book is your lounge by Taipei Main Station, across from Exit Z10: books to read or buy, a lounge, study seats, quiet rooms and two showers, same prices around the clock. Lounge entry from NT$150 an hour, including pour-over coffee, a snack and drinks bar, showers, manga, magazines, board games and a Switch; quiet rooms from NT$250.", "image": "https://restbook.emoji.tw/brand-sites/assets/rest-book-avatar.webp", "logo": "https://restbook.emoji.tw/brand-sites/assets/rest-book-logo.webp", "telephone": "+886921102067", "email": "us@emoji.tw", "hasMap": "https://maps.app.goo.gl/aFdoEB3RhweCqLbQ9", "geo": {"@type": "GeoCoordinates", "latitude": 25.046198, "longitude": 121.51342}, "address": {"@type": "PostalAddress", "streetAddress": "No. 11, Sec. 1, Chongqing S. Rd.", "addressLocality": "Zhongzheng Dist.", "addressRegion": "Taipei", "postalCode": "100", "addressCountry": "TW"}, "inLanguage": "en", "parentOrganization": {"@type": "Organization", "@id": "https://www.emoji.tw/#org", "name": "emoji — Taiwan Talent Hub", "url": "https://www.emoji.tw/"}, "openingHoursSpecification": [{"@type": "OpeningHoursSpecification", "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"], "opens": "00:00", "closes": "23:59"}]}</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "inLanguage": "en", "mainEntity": [{"@type": "Question", "name": "Is this a station lounge? Does my ticket get me in?", "acceptedAnswer": {"@type": "Answer", "text": "No. Rest Book is an independent reading space outside the station, not affiliated with TRA, HSR or the MRT. Tickets are not accepted; use is paid per the price list."}}, {"@type": "Question", "name": "Can I buy the books?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Each book carries its own price; pay at the counter."}}, {"@type": "Question", "name": "What kind of books are on the shelves?", "acceptedAnswer": {"@type": "Answer", "text": "Mostly work, starting up, travel and life in Taiwan, and the selection changes."}}, {"@type": "Question", "name": "Can I shower? What should I bring?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. The two showers are included in your entry, at no extra charge. Towels and toiletries can be bought on site; prices are posted there."}}, {"@type": "Question", "name": "What’s the difference between entry and a quiet room?", "acceptedAnswer": {"@type": "Answer", "text": "Entry gives you the lounge (100-inch screen, theatre sound, Switch, board games), study seats, books, manga and magazines, pour-over coffee and the snack and drinks bar, and the showers. A quiet room adds a one-person room of your own; its price already includes everything that comes with entry."}}, {"@type": "Question", "name": "Same prices late at night?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, one price list around the clock. After eight hours straight, please free the seat; you can re-enter and start again."}}, {"@type": "Question", "name": "Can I stay overnight?", "acceptedAnswer": {"@type": "Answer", "text": "Rest Book is a reading space, not accommodation; quiet rooms are open and not lockable, and no bedding is provided."}}, {"@type": "Question", "name": "How do I find you?", "acceptedAnswer": {"@type": "Answer", "text": "Diagonally across from Exit Z10 of the Taipei Main Station underground mall, No. 11, Sec. 1, Chongqing S. Rd."}}]}</script>
 </head>
-<body class="bs bs--rest-book">
+<body class="bs bs--rest-book" data-sq-lazy>
 <a href="#content" class="skip-link">Skip to main content</a>
 <header class="bs-head"><div class="wrap bs-head__in">
   <a class="bs-head__logo" href="https://restbook.emoji.tw/en" aria-label="Rest Book home"><img src="/brand-sites/assets/rest-book-logo-h.webp" alt="Rest Book logo" decoding="async"></a>
@@ -100,8 +101,29 @@
     <h2 id="hire-h">Hire the lounge</h2>
     <p class="rb-price__lede">A small room for about ten, with a 100-inch screen, surround sound, Switch and board games. Good for birthdays, match or concert screenings, and reading groups.</p>
     <div class="rb-price__block"><h3>Fee<span>per 2-hour slot</span></h3><dl><div><dt>Weekday evenings after 18:00, weekends</dt><dd>NT$2,000</dd></div><div><dt>Seated</dt><dd>About 10</dd></div></dl></div>
-    <ul class="rb-price__rules"><li>Same price on weekdays and weekends. Not available on weekday daytimes or Tuesdays 19:00–21:00 (our weekly meetup).</li><li>The lounge only; study seats, quiet rooms and showers are not included. Amplified sound until 22:00.</li><li>10% off food and drinks at at cafe and 3AM.</li></ul>
-    <a class="rb-btn rb-btn--gold" href="mailto:us@emoji.tw?subject=Rest%20Book%20lounge%20hire">Email to book</a>
+    <ul class="rb-price__rules"><li>Same price on weekdays and weekends. Not available on weekday daytimes or Tuesdays 19:00–21:00 (our weekly meetup).</li><li>The lounge only; study seats, quiet rooms and showers are not included. Amplified sound until 22:00.</li><li>10% off food and drinks at at cafe and 3AM.</li><li>Pay online and we confirm by email.</li><li>Cancellation: full refund 14+ days before, 50% at 8–13 days, none within 7 days; full refund if we cannot host you.</li></ul>
+    <div class="rb-hire__form"><form id="sq-book-form" class="sq-form" novalidate>
+  <label>Space<select name="zone" required><option value="LOUNGE" data-fee="2000" data-max="10" data-name="Rest Book lounge">Rest Book lounge</option></select></label>
+  <div class="sq-form__row">
+    <label>Date<input type="date" name="date" required></label>
+    <label>Start<select name="start" required><option value="00:00">00:00</option><option value="01:00">01:00</option><option value="02:00">02:00</option><option value="03:00">03:00</option><option value="04:00">04:00</option><option value="05:00">05:00</option><option value="06:00">06:00</option><option value="07:00">07:00</option><option value="08:00">08:00</option><option value="09:00">09:00</option><option value="10:00">10:00</option><option value="11:00">11:00</option><option value="12:00">12:00</option><option value="13:00">13:00</option><option value="14:00">14:00</option><option value="15:00">15:00</option><option value="16:00">16:00</option><option value="17:00">17:00</option><option value="18:00" selected>18:00</option><option value="19:00">19:00</option><option value="20:00">20:00</option><option value="21:00">21:00</option><option value="22:00">22:00</option><option value="23:00">23:00</option></select></label>
+    <label>Slots<select name="slots" required><option value="1">1 slot (2 hours)</option><option value="2">2 slots (4 hours)</option><option value="3">3 slots (6 hours)</option><option value="4">4 slots (8 hours)</option></select></label>
+    <label>People<input type="number" name="attendees" min="1" max="10" inputmode="numeric" required></label>
+  </div>
+  <p class="sq-total" data-sq-total aria-live="polite"></p>
+  <label>Event name<input name="title" maxlength="160" required></label>
+  <label>What you will do<textarea name="description" rows="3" maxlength="5000" required></textarea></label>
+  <label>Equipment, food or other needs (optional)<textarea name="requirements" rows="2" maxlength="2000"></textarea></label>
+  <div class="sq-form__row">
+    <label>Contact name<input name="contact_name" maxlength="80" autocomplete="name" required></label>
+    <label>Email<input type="email" name="contact_email" maxlength="254" autocomplete="email" required></label>
+    <label>Phone (optional)<input type="tel" name="contact_phone" maxlength="40" autocomplete="tel" inputmode="tel"></label>
+    <label>Company or group (optional)<input name="community_name" maxlength="120" autocomplete="organization"></label>
+  </div>
+  <label class="sq-check"><input type="checkbox" name="consent" required><span>I agree to the <a href="https://www.emoji.tw/en/terms">Terms</a> and <a href="https://www.emoji.tw/en/refund">Refund policy</a>. We confirm the booking after payment; if we cannot host it, you get a full refund.</span></label>
+  <button type="submit" class="sq-action">Submit and pay</button>
+</form>
+<div class="sq-apps" data-sq-apps hidden><h3>My venue bookings</h3><ul></ul></div></div>
   </div>
 </section>
 
@@ -149,11 +171,15 @@ if(!('IntersectionObserver' in window))return;var io=new IntersectionObserver(fu
   <div class="bs-foot__grid">
     <div class="bs-foot__brand"><img src="/brand-sites/assets/rest-book-logo.webp" alt="Rest Book logo" loading="lazy" decoding="async"></div>
     <div><h4>Contact</h4><ul><li>No. 11, Sec. 1, Chongqing S. Rd., Zhongzheng Dist., Taipei</li><li><a href="tel:+886921102067">+886 921 102 067</a></li><li><a href="mailto:us@emoji.tw">us@emoji.tw</a></li></ul></div>
-    <div><h4>More</h4><ul><li><a href="https://www.emoji.tw/en/reserve">Reservations</a></li><li><a href="https://www.emoji.tw/en/terms">Terms</a></li><li><a href="https://www.emoji.tw/en/privacy">Privacy</a></li><li><a href="https://www.emoji.tw/en/refund">Refunds</a></li></ul></div>
+    <div><h4>More</h4><ul><li><a href="#hire">Private hire</a></li><li><a href="https://www.emoji.tw/en/terms">Terms</a></li><li><a href="https://www.emoji.tw/en/privacy">Privacy</a></li><li><a href="https://www.emoji.tw/en/refund">Refunds</a></li></ul></div>
   </div>
   <div class="bs-foot__bottom"><p class="bs-foot__legal">© 2026 約書旅 Rest Book · emoji Co., Ltd. · Tax ID 93537055 · emoji — Taiwan Talent Hub</p><nav class="lang-switch bs-lang bs-lang--foot" aria-label="Language"><a href="https://restbook.emoji.tw/" hreflang="zh-Hant" lang="zh-Hant">中文</a><a href="https://restbook.emoji.tw/en" hreflang="en" lang="en" aria-current="page">English</a><a href="https://restbook.emoji.tw/ja" hreflang="ja" lang="ja">日本語</a></nav></div>
 </div></footer>
 <nav class="bs-dock" aria-label="Quick actions"><a class="bs-btn" href="#plan">Buy online</a><a class="bs-btn bs-btn--line" href="#visit">Find us</a></nav>
+<dialog class="sq-login" id="sq-login" aria-labelledby="sq-login-h"><h2 id="sq-login-h">Sign in to emoji</h2><p>Sign in with your emoji account to submit and pay for your booking.</p><a class="sq-action" data-login="google" href="/auth/google">Continue with Google</a><a class="sq-action sq-action--line" data-login="line" href="/auth/line" hidden>Continue with LINE</a><a class="sq-linkbtn" data-login="email" href="/event-login.html">Sign in with email</a><button type="button" class="sq-login__close" data-sq-close aria-label="Close">×</button></dialog>
+<p class="sq-flash" data-sq-flash role="status" aria-live="polite" hidden></p>
+<script src="/sso-client.js" defer></script>
+<script src="/brand-sites/stay-square-shop.js" defer></script>
 <script>(function(){var n=document.querySelector('.bs-head');if(!n)return;function f(){n.classList.toggle('is-scrolled',scrollY>8)}addEventListener('scroll',f,{passive:true});f()})()</script>
 <script>(function(){var d=document.querySelector('.bs-dock'),h=document.querySelector('.bs-hero,.sq-hero');if(!d||!h||!('IntersectionObserver' in window))return;new IntersectionObserver(function(e){d.classList.toggle('is-on',!e[0].isIntersecting)}).observe(h)})()</script>
 <script>(function(){var m=document.querySelector('[data-menu]'),g=m&&m.querySelectorAll('.menu-group');if(!g||g.length<4)return;var n=document.createElement('nav');n.className='bs-menu__jump';n.setAttribute('aria-label','Menu sections');g.forEach(function(s,i){var h=s.querySelector('.menu-group__zh');if(!h)return;s.id=s.id||'menu-g'+i;var a=document.createElement('a');a.href='#'+s.id;a.textContent=h.textContent;n.appendChild(a)});m.parentNode.insertBefore(n,m)})()</script>

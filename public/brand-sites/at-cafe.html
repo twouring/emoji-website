@@ -32,8 +32,9 @@
 <link rel="preload" as="image" href="/brand-sites/assets/atcafe/hero-yogurt-640.webp" media="(max-width: 760px)" imagesrcset="/brand-sites/assets/atcafe/hero-yogurt-640.webp 640w, /brand-sites/assets/atcafe/hero-yogurt-1066.webp 1066w" imagesizes="100vw">
 <link rel="preload" as="image" href="/brand-sites/assets/atcafe/brunch-800.webp" media="(min-width: 761px)" imagesrcset="/brand-sites/assets/atcafe/brunch-800.webp 800w, /brand-sites/assets/atcafe/brunch-1400.webp 1400w" imagesizes="50vw">
 <script>document.documentElement.classList.add("js")</script>
+<link rel="stylesheet" href="/brand-sites/hire.css">
 </head>
-<body class="bs bs--at-cafe">
+<body class="bs bs--at-cafe" data-sq-lazy>
 <a href="#content" class="skip-link">跳至主要內容</a>
 <header class="bs-head"><div class="wrap bs-head__in">
   <a class="bs-head__logo" href="https://atcafe.emoji.tw/" aria-label="在咖啡 at cafe 首頁"><img src="/brand-sites/assets/at-cafe-logo-h.webp" alt="在咖啡 at cafe 標誌" decoding="async"></a>
@@ -92,6 +93,32 @@
   <div class="bs-menu__cta"><a class="bs-btn" href="https://www.emoji.tw/reserve">訂位</a></div>
 </div></section>
 
+<section class="bs-hire" id="hire" aria-labelledby="hire-h"><div class="wrap bs-hire__grid">
+  <div class="bs-hire__say"><h2 id="hire-h">包場<span class="en">Private hire</span></h2><p>整間包場，每時段 2 小時 NT$30,000、至多 50 人；場地費可全額折抵當場餐飲（含酒水，不折現、不找零）。選好日期與時段，登入言文字帳號後線上付款，團隊確認檔期後以 Email 通知。</p><ul class="bs-hire__rules"><li>包場時段不對外營業；開始時間 08:00–15:00，可連續訂多個時段。</li><li>取消：活動日 14 日前全額退費、8–13 日前退 50%、7 日內不退；無法安排時全額退費。</li></ul></div>
+  <div><form id="sq-book-form" class="sq-form" novalidate>
+  <label>包場空間<select name="zone" required><option value="CAFE" data-fee="30000" data-max="50" data-name="在咖啡 at cafe 整間包場">在咖啡 at cafe 整間包場</option></select></label>
+  <div class="sq-form__row">
+    <label>日期<input type="date" name="date" required></label>
+    <label>開始<select name="start" required><option value="08:00">08:00</option><option value="09:00" selected>09:00</option><option value="10:00">10:00</option><option value="11:00">11:00</option><option value="12:00">12:00</option><option value="13:00">13:00</option><option value="14:00">14:00</option><option value="15:00">15:00</option></select></label>
+    <label>時段數<select name="slots" required><option value="1">1 個時段（2 小時）</option><option value="2">2 個時段（4 小時）</option><option value="3">3 個時段（6 小時）</option><option value="4">4 個時段（8 小時）</option></select></label>
+    <label>人數<input type="number" name="attendees" min="1" max="50" inputmode="numeric" required></label>
+  </div>
+  <p class="sq-total" data-sq-total aria-live="polite"></p>
+  <label>活動名稱<input name="title" maxlength="160" required></label>
+  <label>活動內容<textarea name="description" rows="3" maxlength="5000" required></textarea></label>
+  <label>設備、餐點或其他需求（選填）<textarea name="requirements" rows="2" maxlength="2000"></textarea></label>
+  <div class="sq-form__row">
+    <label>聯絡人<input name="contact_name" maxlength="80" autocomplete="name" required></label>
+    <label>Email<input type="email" name="contact_email" maxlength="254" autocomplete="email" required></label>
+    <label>電話（選填）<input type="tel" name="contact_phone" maxlength="40" autocomplete="tel" inputmode="tel"></label>
+    <label>公司或團體（選填）<input name="community_name" maxlength="120" autocomplete="organization"></label>
+  </div>
+  <label class="sq-check"><input type="checkbox" name="consent" required><span>我已閱讀並同意 <a href="https://www.emoji.tw/terms">服務條款</a>、<a href="https://www.emoji.tw/refund">退費政策</a>。付款後由團隊確認檔期；無法安排時全額退費。</span></label>
+  <button type="submit" class="sq-action">送出並付款</button>
+</form>
+<div class="sq-apps" data-sq-apps hidden><h3>我的包場申請</h3><ul></ul></div></div>
+</div></section>
+
 <section id="faq" class="atc-faq" aria-labelledby="faq-h"><div class="wrap atc-faq__in">
   <h2 id="faq-h">常見問題<span class="en">FAQ</span></h2>
   <div class="bs-faq"><details><summary>台北車站附近哪裡可以吃早午餐？</summary><p>在咖啡就在台北車站旁，重慶南路一段 11 號（站前地下街 Z10 出口斜對面），每日 08:00 開門。早午餐套餐 NT$200–400，都含一杯飲品。</p></details><details><summary>早午餐幾點可以吃？</summary><p>早午餐全天供應：每日 08:00–17:00，16:30 最後點餐。</p></details><details><summary>咖啡多少錢？有燕麥奶嗎？</summary><p>美式 NT$150、拿鐵 NT$180，其他義式咖啡 NT$180–190；拿鐵類可換燕麥奶 +30。套餐內含美式，換拿鐵 +30。</p></details><details><summary>可以外帶嗎？</summary><p>可以。飲品與餐點都能外帶，店門口有外帶窗口；外帶不適用內用低消。</p></details><details><summary>內用有低消嗎？</summary><p>平日內用每人一杯飲料，週六日內用每人低消 NT$300。</p></details><details><summary>可以帶電腦工作嗎？</summary><p>可以。店內有插座與 Wi-Fi，白天的座位歡迎工作。</p></details><details><summary>怎麼訂位？</summary><p>請用線上訂位；也歡迎直接來。</p></details></div>
@@ -112,11 +139,15 @@
   <div class="bs-foot__grid">
     <div class="bs-foot__brand"><img src="/brand-sites/assets/at-cafe-logo.webp" alt="在咖啡 at cafe 標誌" loading="lazy" decoding="async"></div>
     <div><h4>聯絡</h4><ul><li>台北市中正區重慶南路一段 11 號</li><li><a href="tel:+886921102067">+886 921 102 067</a></li><li><a href="mailto:us@emoji.tw">us@emoji.tw</a></li><li><a href="https://www.instagram.com/emoji.atcafe" target="_blank" rel="noopener">Instagram @emoji.atcafe</a></li></ul></div>
-    <div><h4>更多</h4><ul><li><a href="https://www.emoji.tw/reserve">線上訂位</a></li><li><a href="https://app.emoji.tw/">會員 App</a></li><li><a href="https://www.emoji.tw/terms">服務條款</a></li><li><a href="https://www.emoji.tw/privacy">隱私權政策</a></li><li><a href="https://www.emoji.tw/refund">退費政策</a></li></ul></div>
+    <div><h4>更多</h4><ul><li><a href="https://www.emoji.tw/reserve">線上訂位</a></li><li><a href="#hire">線上包場</a></li><li><a href="https://app.emoji.tw/">會員 App</a></li><li><a href="https://www.emoji.tw/terms">服務條款</a></li><li><a href="https://www.emoji.tw/privacy">隱私權政策</a></li><li><a href="https://www.emoji.tw/refund">退費政策</a></li></ul></div>
   </div>
   <div class="bs-foot__bottom"><p class="bs-foot__legal">© 2026 在咖啡 at cafe · 言文字股份有限公司 統一編號 93537055 · 言文字｜台灣人才聚落</p><nav class="lang-switch bs-lang bs-lang--foot" aria-label="語言"><a href="https://atcafe.emoji.tw/" hreflang="zh-Hant" lang="zh-Hant" aria-current="page">中文</a><a href="https://atcafe.emoji.tw/en" hreflang="en" lang="en">English</a><a href="https://atcafe.emoji.tw/ja" hreflang="ja" lang="ja">日本語</a></nav></div>
 </div></footer>
 <nav class="bs-dock" aria-label="快速動作"><a class="bs-btn" href="#brunch">早午餐</a><a class="bs-btn bs-btn--line" href="https://www.emoji.tw/reserve">訂位</a></nav>
+<dialog class="sq-login" id="sq-login" aria-labelledby="sq-login-h"><h2 id="sq-login-h">登入言文字帳號</h2><p>用言文字帳號登入後，送出包場並線上付款。</p><a class="sq-action" data-login="google" href="/auth/google">使用 Google 登入</a><a class="sq-action sq-action--line" data-login="line" href="/auth/line" hidden>使用 LINE 登入</a><a class="sq-linkbtn" data-login="email" href="/event-login.html">使用 Email 登入</a><button type="button" class="sq-login__close" data-sq-close aria-label="關閉">×</button></dialog>
+<p class="sq-flash" data-sq-flash role="status" aria-live="polite" hidden></p>
+<script src="/sso-client.js" defer></script>
+<script src="/brand-sites/stay-square-shop.js" defer></script>
 <script>(function(){var n=document.querySelector('.bs-head');if(!n)return;function f(){n.classList.toggle('is-scrolled',scrollY>8)}addEventListener('scroll',f,{passive:true});f()})()</script>
 <script>(function(){var d=document.querySelector('.bs-dock'),h=document.querySelector('.bs-hero,.sq-hero');if(!d||!h||!('IntersectionObserver' in window))return;new IntersectionObserver(function(e){d.classList.toggle('is-on',!e[0].isIntersecting)}).observe(h)})()</script>
 <script>(function(){var m=document.querySelector('[data-menu]'),g=m&&m.querySelectorAll('.menu-group');if(!g||g.length<4)return;var n=document.createElement('nav');n.className='bs-menu__jump';n.setAttribute('aria-label','菜單分類');g.forEach(function(s,i){var h=s.querySelector('.menu-group__zh');if(!h)return;s.id=s.id||'menu-g'+i;var a=document.createElement('a');a.href='#'+s.id;a.textContent=h.textContent;n.appendChild(a)});m.parentNode.insertBefore(n,m)})()</script>

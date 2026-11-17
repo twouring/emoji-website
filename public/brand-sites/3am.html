@@ -29,10 +29,11 @@
 <link rel="stylesheet" href="/brand-sites/brand.css">
 <link rel="preload" as="image" href="/brand-sites/assets/3am/clam-soup-1800.webp" media="(min-width: 761px)">
 <link rel="stylesheet" href="/brand-sites/3am-dark-room.css">
+<link rel="stylesheet" href="/brand-sites/hire.css">
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": ["BarOrPub", "Restaurant"], "@id": "https://3am.emoji.tw/#place", "name": "三點水 3AM", "alternateName": ["三點水", "3AM"], "url": "https://3am.emoji.tw/", "description": "三點水（3AM）是台北車站旁的深夜食堂與餐酒館，17:00–翌日 03:00。晚餐、宵夜、餐食佐酒，有人服務到凌晨三點，不需會員。台北車站站前地下街 Z10 出口斜對面。", "image": "https://3am.emoji.tw/brand-sites/assets/3am/spread-1440.webp", "logo": "https://3am.emoji.tw/brand-sites/assets/3am-logo.webp", "telephone": "+886921102067", "email": "us@emoji.tw", "hasMap": "https://maps.app.goo.gl/aFdoEB3RhweCqLbQ9", "geo": {"@type": "GeoCoordinates", "latitude": 25.046198, "longitude": 121.51342}, "address": {"@type": "PostalAddress", "streetAddress": "重慶南路一段 11 號", "addressLocality": "中正區", "addressRegion": "台北市", "postalCode": "100", "addressCountry": "TW"}, "inLanguage": "zh-Hant", "parentOrganization": {"@type": "Organization", "@id": "https://www.emoji.tw/#org", "name": "言文字｜台灣人才聚落", "url": "https://www.emoji.tw/"}, "sameAs": ["https://www.instagram.com/emoji.3am"], "openingHoursSpecification": [{"@type": "OpeningHoursSpecification", "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"], "opens": "17:00", "closes": "03:00"}], "servesCuisine": ["Japanese", "Fusion"], "acceptsReservations": "https://www.emoji.tw/reserve"}</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "inLanguage": "zh-Hant", "mainEntity": [{"@type": "Question", "name": "需要會員嗎？", "acceptedAnswer": {"@type": "Answer", "text": "不需要。三點水對所有訪客開放。"}}, {"@type": "Question", "name": "一個人可以來嗎？", "acceptedAnswer": {"@type": "Answer", "text": "可以，吧檯很適合一個人。"}}, {"@type": "Question", "name": "只喝酒不吃東西可以嗎？", "acceptedAnswer": {"@type": "Answer", "text": "可以，但有每人低消；以餐為主、酒為輔是我們的定位。"}}, {"@type": "Question", "name": "怎麼訂位？", "acceptedAnswer": {"@type": "Answer", "text": "請用線上訂位；也歡迎直接來。"}}]}</script>
 </head>
-<body class="bs bs--3am">
+<body class="bs bs--3am" data-sq-lazy>
 <a href="#content" class="skip-link">跳至主要內容</a>
 <header class="bs-head"><div class="wrap bs-head__in">
   <a class="bs-head__logo" href="https://3am.emoji.tw/" aria-label="三點水 3AM 首頁"><img src="/brand-sites/assets/3am-logo-h.webp" alt="三點水 3AM Bistro 標誌" decoding="async"></a>
@@ -93,6 +94,31 @@
   <div class="bs-faq"><details><summary>需要會員嗎？</summary><p>不需要。三點水對所有訪客開放。</p></details><details><summary>一個人可以來嗎？</summary><p>可以，吧檯很適合一個人。</p></details><details><summary>只喝酒不吃東西可以嗎？</summary><p>可以，但有每人低消；以餐為主、酒為輔是我們的定位。</p></details><details><summary>怎麼訂位？</summary><p>請用線上訂位；也歡迎直接來。</p></details></div>
   <div class="bs-menu__cta"><a class="bs-btn" href="https://www.emoji.tw/reserve">立即訂位</a></div>
 </div></section>
+<section class="bs-hire" id="hire" aria-labelledby="hire-h"><div class="wrap bs-hire__grid">
+  <div class="bs-hire__say"><h2 id="hire-h">包場<span class="en">Private hire</span></h2><p>整間包場，每時段 2 小時 NT$30,000、至多 50 人；場地費可全額折抵當場餐飲（含酒水，不折現、不找零）。選好日期與時段，登入言文字帳號後線上付款，團隊確認檔期後以 Email 通知。</p><ul class="bs-hire__rules"><li>包場時段不對外營業；開始時間 17:00–23:00，可連續訂多個時段（可跨午夜）。</li><li>取消：活動日 14 日前全額退費、8–13 日前退 50%、7 日內不退；無法安排時全額退費。</li></ul></div>
+  <div><form id="sq-book-form" class="sq-form" novalidate>
+  <label>包場空間<select name="zone" required><option value="BAR" data-fee="30000" data-max="50" data-name="三點水 3AM 整間包場">三點水 3AM 整間包場</option></select></label>
+  <div class="sq-form__row">
+    <label>日期<input type="date" name="date" required></label>
+    <label>開始<select name="start" required><option value="17:00">17:00</option><option value="18:00" selected>18:00</option><option value="19:00">19:00</option><option value="20:00">20:00</option><option value="21:00">21:00</option><option value="22:00">22:00</option><option value="23:00">23:00</option></select></label>
+    <label>時段數<select name="slots" required><option value="1">1 個時段（2 小時）</option><option value="2">2 個時段（4 小時）</option><option value="3">3 個時段（6 小時）</option><option value="4">4 個時段（8 小時）</option></select></label>
+    <label>人數<input type="number" name="attendees" min="1" max="50" inputmode="numeric" required></label>
+  </div>
+  <p class="sq-total" data-sq-total aria-live="polite"></p>
+  <label>活動名稱<input name="title" maxlength="160" required></label>
+  <label>活動內容<textarea name="description" rows="3" maxlength="5000" required></textarea></label>
+  <label>設備、餐點或其他需求（選填）<textarea name="requirements" rows="2" maxlength="2000"></textarea></label>
+  <div class="sq-form__row">
+    <label>聯絡人<input name="contact_name" maxlength="80" autocomplete="name" required></label>
+    <label>Email<input type="email" name="contact_email" maxlength="254" autocomplete="email" required></label>
+    <label>電話（選填）<input type="tel" name="contact_phone" maxlength="40" autocomplete="tel" inputmode="tel"></label>
+    <label>公司或團體（選填）<input name="community_name" maxlength="120" autocomplete="organization"></label>
+  </div>
+  <label class="sq-check"><input type="checkbox" name="consent" required><span>我已閱讀並同意 <a href="https://www.emoji.tw/terms">服務條款</a>、<a href="https://www.emoji.tw/refund">退費政策</a>。付款後由團隊確認檔期；無法安排時全額退費。</span></label>
+  <button type="submit" class="sq-action">送出並付款</button>
+</form>
+<div class="sq-apps" data-sq-apps hidden><h3>我的包場申請</h3><ul></ul></div></div>
+</div></section>
 <section class="bs-alt" id="visit" aria-labelledby="visit-h"><div class="wrap">
   <div class="bs-sec__head"><h2 id="visit-h">怎麼來<span class="en">Visit</span></h2><p>台北車站站前地下街 Z10 出口斜對面</p></div>
   <div class="bs-visit">
@@ -109,11 +135,15 @@
   <div class="bs-foot__grid">
     <div class="bs-foot__brand"><img src="/brand-sites/assets/3am-logo.webp" alt="三點水 3AM Bistro 標誌" loading="lazy" decoding="async"></div>
     <div><h4>聯絡</h4><ul><li>台北市中正區重慶南路一段 11 號</li><li><a href="tel:+886921102067">+886 921 102 067</a></li><li><a href="mailto:us@emoji.tw">us@emoji.tw</a></li><li><a href="https://www.instagram.com/emoji.3am" target="_blank" rel="noopener">Instagram @emoji.3am</a></li></ul></div>
-    <div><h4>更多</h4><ul><li><a href="https://www.emoji.tw/reserve">線上訂位</a></li><li><a href="https://app.emoji.tw/">會員 App</a></li><li><a href="https://www.emoji.tw/terms">服務條款</a></li><li><a href="https://www.emoji.tw/privacy">隱私權政策</a></li><li><a href="https://www.emoji.tw/refund">退費政策</a></li></ul></div>
+    <div><h4>更多</h4><ul><li><a href="https://www.emoji.tw/reserve">線上訂位</a></li><li><a href="#hire">線上包場</a></li><li><a href="https://app.emoji.tw/">會員 App</a></li><li><a href="https://www.emoji.tw/terms">服務條款</a></li><li><a href="https://www.emoji.tw/privacy">隱私權政策</a></li><li><a href="https://www.emoji.tw/refund">退費政策</a></li></ul></div>
   </div>
   <div class="bs-foot__bottom"><p class="bs-foot__legal">© 2026 三點水 3AM · 言文字股份有限公司 統一編號 93537055 · 言文字｜台灣人才聚落</p><nav class="lang-switch bs-lang bs-lang--foot" aria-label="語言"><a href="https://3am.emoji.tw/" hreflang="zh-Hant" lang="zh-Hant" aria-current="page">中文</a><a href="https://3am.emoji.tw/en" hreflang="en" lang="en">English</a><a href="https://3am.emoji.tw/ja" hreflang="ja" lang="ja">日本語</a></nav></div>
 </div></footer>
 <nav class="bs-dock" aria-label="快速動作"><a class="bs-btn" href="https://www.emoji.tw/reserve">訂位</a><a class="bs-btn bs-btn--line" href="#menu">查看菜單</a></nav>
+<dialog class="sq-login" id="sq-login" aria-labelledby="sq-login-h"><h2 id="sq-login-h">登入言文字帳號</h2><p>用言文字帳號登入後，送出包場並線上付款。</p><a class="sq-action" data-login="google" href="/auth/google">使用 Google 登入</a><a class="sq-action sq-action--line" data-login="line" href="/auth/line" hidden>使用 LINE 登入</a><a class="sq-linkbtn" data-login="email" href="/event-login.html">使用 Email 登入</a><button type="button" class="sq-login__close" data-sq-close aria-label="關閉">×</button></dialog>
+<p class="sq-flash" data-sq-flash role="status" aria-live="polite" hidden></p>
+<script src="/sso-client.js" defer></script>
+<script src="/brand-sites/stay-square-shop.js" defer></script>
 <script>(function(){var n=document.querySelector('.bs-head');if(!n)return;function f(){n.classList.toggle('is-scrolled',scrollY>8)}addEventListener('scroll',f,{passive:true});f()})()</script>
 <script>(function(){var d=document.querySelector('.bs-dock'),h=document.querySelector('.bs-hero,.sq-hero');if(!d||!h||!('IntersectionObserver' in window))return;new IntersectionObserver(function(e){d.classList.toggle('is-on',!e[0].isIntersecting)}).observe(h)})()</script>
 <script>(function(){var m=document.querySelector('[data-menu]'),g=m&&m.querySelectorAll('.menu-group');if(!g||g.length<4)return;var n=document.createElement('nav');n.className='bs-menu__jump';n.setAttribute('aria-label','菜單分類');g.forEach(function(s,i){var h=s.querySelector('.menu-group__zh');if(!h)return;s.id=s.id||'menu-g'+i;var a=document.createElement('a');a.href='#'+s.id;a.textContent=h.textContent;n.appendChild(a)});m.parentNode.insertBefore(n,m)})()</script>

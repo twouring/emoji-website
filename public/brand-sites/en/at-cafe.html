@@ -32,8 +32,9 @@
 <link rel="preload" as="image" href="/brand-sites/assets/atcafe/hero-yogurt-640.webp" media="(max-width: 760px)" imagesrcset="/brand-sites/assets/atcafe/hero-yogurt-640.webp 640w, /brand-sites/assets/atcafe/hero-yogurt-1066.webp 1066w" imagesizes="100vw">
 <link rel="preload" as="image" href="/brand-sites/assets/atcafe/brunch-800.webp" media="(min-width: 761px)" imagesrcset="/brand-sites/assets/atcafe/brunch-800.webp 800w, /brand-sites/assets/atcafe/brunch-1400.webp 1400w" imagesizes="50vw">
 <script>document.documentElement.classList.add("js")</script>
+<link rel="stylesheet" href="/brand-sites/hire.css">
 </head>
-<body class="bs bs--at-cafe">
+<body class="bs bs--at-cafe" data-sq-lazy>
 <a href="#content" class="skip-link">Skip to main content</a>
 <header class="bs-head"><div class="wrap bs-head__in">
   <a class="bs-head__logo" href="https://atcafe.emoji.tw/en" aria-label="at cafe home"><img src="/brand-sites/assets/at-cafe-logo-h.webp" alt="at cafe logo" decoding="async"></a>
@@ -92,6 +93,32 @@
   <div class="bs-menu__cta"><a class="bs-btn" href="https://www.emoji.tw/en/reserve">Book a table</a></div>
 </div></section>
 
+<section class="bs-hire" id="hire" aria-labelledby="hire-h"><div class="wrap bs-hire__grid">
+  <div class="bs-hire__say"><h2 id="hire-h">Private hire</h2><p>Hire the whole place: NT$30,000 per two-hour slot, up to 50 people. The fee counts in full toward food and drinks on the day (including alcohol; no cash back). Pick a date and slots, sign in with your emoji account and pay online; we confirm by email.</p><ul class="bs-hire__rules"><li>We close to other guests during your slots. Start between 08:00 and 15:00; book several slots in a row if you need.</li><li>Cancellation: full refund 14+ days before, 50% at 8–13 days, none within 7 days; full refund if we cannot host you.</li></ul></div>
+  <div><form id="sq-book-form" class="sq-form" novalidate>
+  <label>Space<select name="zone" required><option value="CAFE" data-fee="30000" data-max="50" data-name="Whole of at cafe">Whole of at cafe</option></select></label>
+  <div class="sq-form__row">
+    <label>Date<input type="date" name="date" required></label>
+    <label>Start<select name="start" required><option value="08:00">08:00</option><option value="09:00" selected>09:00</option><option value="10:00">10:00</option><option value="11:00">11:00</option><option value="12:00">12:00</option><option value="13:00">13:00</option><option value="14:00">14:00</option><option value="15:00">15:00</option></select></label>
+    <label>Slots<select name="slots" required><option value="1">1 slot (2 hours)</option><option value="2">2 slots (4 hours)</option><option value="3">3 slots (6 hours)</option><option value="4">4 slots (8 hours)</option></select></label>
+    <label>People<input type="number" name="attendees" min="1" max="50" inputmode="numeric" required></label>
+  </div>
+  <p class="sq-total" data-sq-total aria-live="polite"></p>
+  <label>Event name<input name="title" maxlength="160" required></label>
+  <label>What you will do<textarea name="description" rows="3" maxlength="5000" required></textarea></label>
+  <label>Equipment, food or other needs (optional)<textarea name="requirements" rows="2" maxlength="2000"></textarea></label>
+  <div class="sq-form__row">
+    <label>Contact name<input name="contact_name" maxlength="80" autocomplete="name" required></label>
+    <label>Email<input type="email" name="contact_email" maxlength="254" autocomplete="email" required></label>
+    <label>Phone (optional)<input type="tel" name="contact_phone" maxlength="40" autocomplete="tel" inputmode="tel"></label>
+    <label>Company or group (optional)<input name="community_name" maxlength="120" autocomplete="organization"></label>
+  </div>
+  <label class="sq-check"><input type="checkbox" name="consent" required><span>I agree to the <a href="https://www.emoji.tw/en/terms">Terms</a> and <a href="https://www.emoji.tw/en/refund">Refund policy</a>. We confirm the booking after payment; if we cannot host it, you get a full refund.</span></label>
+  <button type="submit" class="sq-action">Submit and pay</button>
+</form>
+<div class="sq-apps" data-sq-apps hidden><h3>My venue bookings</h3><ul></ul></div></div>
+</div></section>
+
 <section id="faq" class="atc-faq" aria-labelledby="faq-h"><div class="wrap atc-faq__in">
   <h2 id="faq-h">FAQ</h2>
   <div class="bs-faq"><details><summary>Where can I have brunch near Taipei Main Station?</summary><p>at cafe is right by Taipei Main Station at No. 11, Sec. 1, Chongqing S. Rd (diagonally across from Exit Z10 of the underground mall), open daily from 08:00. Brunch sets are NT$200–400 and each includes a drink.</p></details><details><summary>What time is brunch served?</summary><p>Brunch is served all day: 08:00–17:00 daily, last orders 16:30.</p></details><details><summary>How much is the coffee? Is oat milk available?</summary><p>Americano NT$150, latte NT$180, other espresso drinks NT$180–190. Milk drinks can switch to oat milk for +30. Sets include an Americano; a latte is +30.</p></details><details><summary>Is takeaway available?</summary><p>Yes. Drinks and food are available to go from the takeaway window; the dine-in minimum does not apply.</p></details><details><summary>Is there a minimum spend for dine-in?</summary><p>Dine-in: one drink per person on weekdays; NT$300 minimum per person on Saturdays and Sundays.</p></details><details><summary>Can I work here on my laptop?</summary><p>Yes. There are power outlets and Wi-Fi, and the daytime seats welcome work.</p></details><details><summary>How do I book?</summary><p>Use the online reservation page; walk-ins are welcome too.</p></details></div>
@@ -112,11 +139,15 @@
   <div class="bs-foot__grid">
     <div class="bs-foot__brand"><img src="/brand-sites/assets/at-cafe-logo.webp" alt="at cafe logo" loading="lazy" decoding="async"></div>
     <div><h4>Contact</h4><ul><li>No. 11, Sec. 1, Chongqing S. Rd., Zhongzheng Dist., Taipei</li><li><a href="tel:+886921102067">+886 921 102 067</a></li><li><a href="mailto:us@emoji.tw">us@emoji.tw</a></li><li><a href="https://www.instagram.com/emoji.atcafe" target="_blank" rel="noopener">Instagram @emoji.atcafe</a></li></ul></div>
-    <div><h4>More</h4><ul><li><a href="https://www.emoji.tw/en/reserve">Reservations</a></li><li><a href="https://app.emoji.tw/?lang=en">Member app</a></li><li><a href="https://www.emoji.tw/en/terms">Terms</a></li><li><a href="https://www.emoji.tw/en/privacy">Privacy</a></li><li><a href="https://www.emoji.tw/en/refund">Refunds</a></li></ul></div>
+    <div><h4>More</h4><ul><li><a href="https://www.emoji.tw/en/reserve">Reservations</a></li><li><a href="#hire">Private hire</a></li><li><a href="https://app.emoji.tw/?lang=en">Member app</a></li><li><a href="https://www.emoji.tw/en/terms">Terms</a></li><li><a href="https://www.emoji.tw/en/privacy">Privacy</a></li><li><a href="https://www.emoji.tw/en/refund">Refunds</a></li></ul></div>
   </div>
   <div class="bs-foot__bottom"><p class="bs-foot__legal">© 2026 在咖啡 at cafe · emoji Co., Ltd. · Tax ID 93537055 · emoji — Taiwan Talent Hub</p><nav class="lang-switch bs-lang bs-lang--foot" aria-label="Language"><a href="https://atcafe.emoji.tw/" hreflang="zh-Hant" lang="zh-Hant">中文</a><a href="https://atcafe.emoji.tw/en" hreflang="en" lang="en" aria-current="page">English</a><a href="https://atcafe.emoji.tw/ja" hreflang="ja" lang="ja">日本語</a></nav></div>
 </div></footer>
 <nav class="bs-dock" aria-label="Quick actions"><a class="bs-btn" href="#brunch">Brunch</a><a class="bs-btn bs-btn--line" href="https://www.emoji.tw/en/reserve">Book a table</a></nav>
+<dialog class="sq-login" id="sq-login" aria-labelledby="sq-login-h"><h2 id="sq-login-h">Sign in to emoji</h2><p>Sign in with your emoji account to submit and pay for your booking.</p><a class="sq-action" data-login="google" href="/auth/google">Continue with Google</a><a class="sq-action sq-action--line" data-login="line" href="/auth/line" hidden>Continue with LINE</a><a class="sq-linkbtn" data-login="email" href="/event-login.html">Sign in with email</a><button type="button" class="sq-login__close" data-sq-close aria-label="Close">×</button></dialog>
+<p class="sq-flash" data-sq-flash role="status" aria-live="polite" hidden></p>
+<script src="/sso-client.js" defer></script>
+<script src="/brand-sites/stay-square-shop.js" defer></script>
 <script>(function(){var n=document.querySelector('.bs-head');if(!n)return;function f(){n.classList.toggle('is-scrolled',scrollY>8)}addEventListener('scroll',f,{passive:true});f()})()</script>
 <script>(function(){var d=document.querySelector('.bs-dock'),h=document.querySelector('.bs-hero,.sq-hero');if(!d||!h||!('IntersectionObserver' in window))return;new IntersectionObserver(function(e){d.classList.toggle('is-on',!e[0].isIntersecting)}).observe(h)})()</script>
 <script>(function(){var m=document.querySelector('[data-menu]'),g=m&&m.querySelectorAll('.menu-group');if(!g||g.length<4)return;var n=document.createElement('nav');n.className='bs-menu__jump';n.setAttribute('aria-label','Menu sections');g.forEach(function(s,i){var h=s.querySelector('.menu-group__zh');if(!h)return;s.id=s.id||'menu-g'+i;var a=document.createElement('a');a.href='#'+s.id;a.textContent=h.textContent;n.appendChild(a)});m.parentNode.insertBefore(n,m)})()</script>

@@ -3251,7 +3251,7 @@ app.post('/api/event-applications/:id/deposit/checkout', auth, requireDb, wrap(a
   const base = ['en','ja'].includes(req.body?.lang) ? '/' + req.body.lang : '';
   const session = await stripe.checkout.sessions.create({
     mode: 'payment', payment_method_types: ['card'], customer_email: a.contact_email,
-    line_items: [{ price_data: { currency: 'twd', product_data: { name: `${a.zone ? '等等空間包場場地費' : a.visibility === 'private' ? '言文字包場活動場地費' : '言文字場地茶飲費'}｜${a.title}`.slice(0, 250) }, unit_amount: a.deposit_twd * 100 }, quantity: 1 }],
+    line_items: [{ price_data: { currency: 'twd', product_data: { name: `${a.zone ? (venueFees.hireZone(a.zone)?.brand || '言文字') + '包場場地費' : a.visibility === 'private' ? '言文字包場活動場地費' : '言文字場地茶飲費'}｜${a.title}`.slice(0, 250) }, unit_amount: a.deposit_twd * 100 }, quantity: 1 }],
     success_url: brandReturnBase(req.body) ? `${brandReturnBase(req.body)}?deposit_paid={CHECKOUT_SESSION_ID}` : `${SITE_BASE}${base}/events?apply=1&deposit_paid={CHECKOUT_SESSION_ID}`,
     cancel_url: brandReturnBase(req.body) ? `${brandReturnBase(req.body)}?deposit_canceled=1` : `${SITE_BASE}${base}/events?apply=1`,
     metadata: { kind: 'application-deposit', application_id: a.id, user_id: req.auth.sub },

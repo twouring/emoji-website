@@ -11,6 +11,7 @@
 - 座標 Geo：25.046198, 121.51342｜Google Maps：https://maps.app.goo.gl/aFdoEB3RhweCqLbQ9
 - 營業時間 Hours：24 小時｜24 hours
 - 電話 Phone：+886 921 102 067｜Email：us@emoji.tw
+- 線上付費包場 Private hire：https://restbook.emoji.tw/#hire
 
 ## 頁面 Pages
 

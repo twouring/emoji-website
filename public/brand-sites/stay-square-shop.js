@@ -1,4 +1,5 @@
-/* 等等空間站（staysquare.emoji.tw）：言文字會員登入、購買會籍、分區包場（KK 2026-11-04）。
+/* 等等空間站（staysquare.emoji.tw）：言文字會員登入、購買會籍、分區包場（KK 2026-11-04）；
+   在咖啡、三點水、約書旅站共用本檔的付費包場表單（KK 2026-11-17）。
    登入走言文字單一登入（/sso-client.js，sso.emoji.tw）：沒 token 先靜默取；登入鈕經 SSO callback（Google／LINE／Email）帶 #token= 回本站。
    SSO 未啟用（本機、主畫面 App、連不上）時退回本站 /auth/*。token 只存在本站 localStorage。
    API 走同網域 /api（子品牌站放行 /api/）。購買會籍＝/api/me/plans/checkout；包場＝/api/event-applications（zone）＋場地費結帳。 */
@@ -12,7 +13,7 @@
       paid: '付款完成。會籍會在第一次到櫃檯出示會員 App 會員卡進場時啟用；7 天內未進場將自動啟用。', canceled: '已取消付款，沒有扣款。',
       depPaid: '場地費已付款。團隊確認檔期後會以 Email 通知；無法安排時全額退費。', sent: '已送出申請，團隊確認後會以 Email 通知。',
       saved: '已登入，請確認內容後按「送出並付款」。', total: '場地費合計', free: '會員免費（以送出時會籍為準）', slot: '時段',
-      pay: '送出並付款', submit: '送出申請', loginFirst: '送出前請先登入言文字會員。', apps: '我的包場申請',
+      pay: '送出並付款', submit: '送出申請', loginFirst: '送出前請先登入言文字帳號。', apps: '我的包場申請',
       st: { pending: '待確認', approved: '已確認', rejected: '未通過' }, unpaid: '尚未付款', payNow: '付款', paidTag: '已付款', freeTag: '免場地費', ppl: ' 人',
       endsNext: '（隔天）' },
     en: { hi: 'Signed in: ', member: 'Active plan: ', none: 'No active membership.', pending: 'Not yet activated: ', until: 'until ', logout: 'Sign out',
@@ -28,7 +29,7 @@
       paid: 'お支払いが完了しました。会員アプリの会員カードを提示して初めて入場した時点で開始し、7 日以内に入場がない場合は自動で開始します。', canceled: 'お支払いを取り消しました。請求は発生していません。',
       depPaid: '会場費のお支払いが完了しました。日程を確認のうえメールでご連絡します。お受けできない場合は全額返金します。', sent: '申請を送信しました。確認後メールでご連絡します。',
       saved: 'ログインしました。内容を確認して「送信して支払う」を押してください。', total: '会場費合計', free: '会員は無料（送信時の会員資格で判定）', slot: '枠',
-      pay: '送信して支払う', submit: '申請を送信', loginFirst: '送信する前に言文字会員でログインしてください。', apps: '貸切の申請状況',
+      pay: '送信して支払う', submit: '申請を送信', loginFirst: '送信する前に言文字アカウントでログインしてください。', apps: '貸切の申請状況',
       st: { pending: '確認中', approved: '確定', rejected: '不可' }, unpaid: '未払い', payNow: '支払う', paidTag: '支払い済み', freeTag: '会場費なし', ppl: '名',
       endsNext: '（翌日）' },
   }[L];
@@ -158,7 +159,7 @@
       var rid = form.getAttribute('data-request') || (crypto.randomUUID ? crypto.randomUUID() : '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, function (c) { return (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16); }));
       form.setAttribute('data-request', rid);
       api('/api/event-applications', {
-        request_id: rid, kind: 'business', venue: '3F', visibility: 'private', zone: form.zone.value,
+        request_id: rid, kind: 'business', visibility: 'private', zone: form.zone.value,
         starts_at: t.starts_at, ends_at: t.ends_at, attendees: String(form.attendees.value),
         community_name: form.community_name.value.trim() || form.contact_name.value.trim(), contact_name: form.contact_name.value, contact_email: form.contact_email.value,
         contact_phone: form.contact_phone.value, title: form.title.value, description: form.description.value, requirements: form.requirements.value, consent: form.consent.checked,
@@ -177,7 +178,7 @@
     var box = $('[data-sq-apps]');
     if (!box || !token) return;
     api('/api/me/event-applications').then(function (j) {
-      var list = (j.applications || []).filter(function (a) { return a.zone; });
+      var list = (j.applications || []).filter(function (a) { return a.zone && (!form || form.querySelector('option[value="' + a.zone + '"]')); });  // 只列本站區域
       box.hidden = !list.length;
       var ul = $('ul', box); ul.textContent = '';
       list.forEach(function (a) {
@@ -199,7 +200,9 @@
   // ---- 付款回跳與登入後接續 ----
   var qs = new URLSearchParams(location.search), clean = false;
   // 單一登入：本站還沒 token 時先向 sso.emoji.tw 靜默取（在 App 或其他言文字網站登入過就自動帶入）；正在跳轉就先停
-  (token || !SSO ? Promise.resolve(false) : SSO.silent(KEY)).then(function (going) { if (!going) start(); });
+  // data-sq-lazy（在咖啡／三點水／約書旅包場表單）：不在進站時靜默跳 SSO，送出時才請客人登入
+  var lazy = document.body.hasAttribute('data-sq-lazy');
+  (token || !SSO || lazy ? Promise.resolve(false) : SSO.silent(KEY)).then(function (going) { if (!going) start(); });
   function start() { loadMe().then(function (me) {
     if (qs.get('plan_paid') && qs.get('s') && me) {
       api('/api/me/plans/verify', { session_id: qs.get('s') }).then(function () { say(T.paid); loadMe(); }, function (e) { say(e.message, true); });

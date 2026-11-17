@@ -81,6 +81,7 @@
 - 電話 Phone：+886 921 102 067｜Email：us@emoji.tw
 - Instagram：https://www.instagram.com/emoji.atcafe
 - 訂位 Reservations：https://www.emoji.tw/reserve
+- 線上付費包場 Private hire：https://atcafe.emoji.tw/#hire
 
 ## 頁面 Pages
 
@@ -131,6 +132,7 @@
 - 電話 Phone：+886 921 102 067｜Email：us@emoji.tw
 - Instagram：https://www.instagram.com/emoji.3am
 - 訂位 Reservations：https://www.emoji.tw/reserve
+- 線上付費包場 Private hire：https://3am.emoji.tw/#hire
 
 ## 頁面 Pages
 
@@ -173,6 +175,7 @@
 - 座標 Geo：25.046198, 121.51342｜Google Maps：https://maps.app.goo.gl/aFdoEB3RhweCqLbQ9
 - 電話 Phone：+886 921 102 067｜Email：us@emoji.tw
 - Instagram：https://www.instagram.com/emoji.staysquare
+- 線上付費包場 Private hire：https://staysquare.emoji.tw/venue#book
 
 ## 頁面 Pages
 
@@ -216,6 +219,7 @@
 - 座標 Geo：25.046198, 121.51342｜Google Maps：https://maps.app.goo.gl/aFdoEB3RhweCqLbQ9
 - 營業時間 Hours：24 小時｜24 hours
 - 電話 Phone：+886 921 102 067｜Email：us@emoji.tw
+- 線上付費包場 Private hire：https://restbook.emoji.tw/#hire
 
 ## 頁面 Pages
 
