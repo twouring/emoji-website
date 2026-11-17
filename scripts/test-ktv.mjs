@@ -107,7 +107,7 @@ test('不分品牌：舊的分品牌設定合併成一份', () => {
   const bar = songs.normalizeSettings({ enabled: true, price: 20, player_device: 'dev1', playlist: [tr('ccccccccccc'), tr('ddddddddddd')], schedules: [{ name: '咖啡', days: [1], start: '08:00', end: '17:00', playlist: [tr('bbbbbbbbbbb')] }, { name: '深夜', days: [5], start: '21:00', end: '02:00', playlist: [tr('eeeeeeeeeee')] }] });
   const m = K.mergeSettings([cafe, bar]);
   assert.equal(m.enabled, true); assert.equal(m.price, 20); assert.equal(m.player_device, 'dev1');
-  assert.equal(m.playlist.length, 2, '常態歌單取最長');
+  assert.equal(m.playlist.length, 2, '預設歌單取最長');
   assert.deepEqual(m.schedules.map(x => x.name), ['咖啡', '深夜'], '時段歌單聯集去重');
   assert.equal(K.mergeSettings([]).enabled, false);
 });

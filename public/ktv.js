@@ -1,6 +1,6 @@
 /* 言文字 KTV（ktv.emoji.tw，KK 11/6）：點歌從 POS 抽出成獨立系統，屬言文字、不分品牌（全公司一份設定／待播／播放裝置）。
  * 頁面：/ 控台（正在播放＋遙控＋接下來＋找歌代點）、/tv 電視畫面（接音響的螢幕全螢幕播放）、/remote 手機遙控、
- *       /playlists 歌單（常態＋時段）、/stats 統計、/settings 設定（開關、價格、播放裝置、YouTube 帳號）。
+ *       /playlists 歌單（預設＋時段）、/stats 統計、/settings 設定（開關、價格、播放裝置、YouTube 帳號）。
  * 播放：只有被指定為播放裝置的那台跑 YouTube IFrame 播放器，每 2 秒回報心跳並領遙控指令；其他台用遙控指令操作。
  * API 沿用 /api/admin/orders/songs*（品牌子帳號也能用）。動態文字一律經 esc() 再進 innerHTML。 */
 'use strict';
@@ -46,7 +46,7 @@ async function loadDisc(){ try { DISC = await S('discover'); } catch (e) { DISC 
 /* ---------- 共用元件 ---------- */
 function who(t){
   if (!t) return '';
-  if (t.kind === 'playlist') return '<span class="who pl">常態歌單</span>';
+  if (t.kind === 'playlist') return '<span class="who pl">預設歌單</span>';
   if (t.source === 'pos') return '<span class="who">現場代點</span>';
   if (t.source === 'guest' || t.table) return `<span class="who guest">桌 ${esc(t.table || '—')}${t.by ? '・' + esc(t.by) : ''}</span>`;
   return '';
@@ -129,7 +129,7 @@ function resultsHtml(){
 function pageConsole(){
   const s = D.settings, up = D.upcoming || { items: [] }, ls = liveState(), reqN = D.queue.length;
   const queue = up.items.length ? `<ol class="list">${up.items.map(t => row(t, t.kind === 'request' ? queueActs(t, reqN) : '', t.pos)).join('')}</ol>` : '<p class="empty">沒有接下來的歌。歌單在「歌單」頁設定。</p>';
-  const note = up.playlist_count ? `<p class="hint">${esc(up.playlist_name || '常態歌單')} 共 ${esc(up.playlist_count)} 首，${up.shuffle ? '隨機播放' : '依序播放'}，播完自動輪播。</p>` : '';
+  const note = up.playlist_count ? `<p class="hint">${esc(up.playlist_name || '預設歌單')} 共 ${esc(up.playlist_count)} 首，${up.shuffle ? '隨機播放' : '依序播放'}，播完自動輪播。</p>` : '';
   const hist = D.history.length ? `<details><summary class="hint">最近播過（${Math.min(10, D.history.length)}）</summary><ul class="list">${D.history.slice(0, 10).map(t => row(t, t.result === 'error' ? '<span class="pill">無法播放已跳過</span>' : t.result === 'skip' ? '<span class="pill">跳過</span>' : '')).join('')}</ul></details>` : '';
   return `<div class="k-head"><h1>控台</h1><span class="pill ${s.enabled ? 'on' : 'off'}">客人點歌${s.enabled ? '開放中・每首 ' + NT(s.price) : '關閉'}</span><span class="pill ${ls.on ? 'on' : 'off'}">${esc(ls.label)}</span>
     <div class="k-act">${isPlayer() ? '' : '<button type="button" class="btn btn--sm" data-k-claim>在這台播放</button>'}<a class="btn btn--sm" href="${BASE}/tv" data-go="tv">電視畫面</a></div></div>
@@ -160,11 +160,11 @@ const DAY = '日一二三四五六';
 function pagePlaylists(){
   const s = D.settings, days = a => a.length === 7 ? '每天' : a.map(x => DAY[x]).join('、');
   const mine = MINE ? (MINE.length ? `<ul class="list">${MINE.map(p => `<li class="row"><div class="meta"><b>${esc(p.title)}</b><small>${esc(p.count)} 首</small></div><div class="act"><button type="button" class="btn btn--sm btn--solid" data-k-mine="${esc(p.id)}" data-mode="replace">取代</button><button type="button" class="btn btn--sm" data-k-mine="${esc(p.id)}" data-mode="append">接在後面</button></div></li>`).join('')}</ul>` : '<p class="empty">這個帳號沒有播放清單。</p>') : '';
-  const pl = s.playlist.length ? `<details><summary class="hint">查看常態歌單（${s.playlist.length} 首）</summary><ol class="list">${s.playlist.map((t, i) => row(t, `<button type="button" class="btn btn--sm btn--danger" data-k-pldel="${i}" aria-label="移除 ${esc(t.title)}">移除</button>`, i + 1)).join('')}</ol><p><button type="button" class="btn btn--sm btn--danger" data-k-plclear>清空常態歌單</button></p></details>` : '<p class="empty">還沒有常態歌單。</p>';
+  const pl = s.playlist.length ? `<details><summary class="hint">查看預設歌單（${s.playlist.length} 首）</summary><ol class="list">${s.playlist.map((t, i) => row(t, `<button type="button" class="btn btn--sm btn--danger" data-k-pldel="${i}" aria-label="移除 ${esc(t.title)}">移除</button>`, i + 1)).join('')}</ol><p><button type="button" class="btn btn--sm btn--danger" data-k-plclear>清空預設歌單</button></p></details>` : '<p class="empty">還沒有預設歌單。</p>';
   const sch = (s.schedules || []).length ? `<ol class="list">${s.schedules.map((x, i) => `<li class="row"><div class="meta"><b>${esc(x.name)}</b><small>${esc(days(x.days))} ${esc(x.start)}–${esc(x.end)}・${esc(x.playlist.length)} 首</small></div><div class="act"><button type="button" class="btn btn--sm btn--danger" data-k-schdel="${i}" aria-label="移除時段歌單 ${esc(x.name)}">移除</button></div></li>`).join('')}</ol>` : '<p class="empty">還沒有時段歌單。</p>';
   return `<div class="k-head"><h1>歌單</h1><span class="k-sub">沒有人點歌時播放；到了設定的時段改播時段歌單（台北時間）。</span></div>
   <div class="two">
-    <section class="panel"><h2>常態歌單 <small>${s.playlist.length} 首</small></h2>
+    <section class="panel"><h2>預設歌單 <small>${s.playlist.length} 首</small></h2>
       <label class="switch"><input type="checkbox" data-k-shuffle ${s.shuffle ? 'checked' : ''}><span><b>隨機播放</b><small>${s.shuffle ? '每輪洗牌一次，每首各播一次。' : '依序播放，播完從頭。'}</small></span></label>
       <form class="form" data-k-import><label>YouTube 播放清單網址<input type="url" name="pl" placeholder="含 list= 的網址" autocomplete="off" required></label><button type="submit" class="btn btn--solid">匯入（取代）</button></form>
       ${D.youtube.connected ? '<p><button type="button" class="btn btn--sm" data-k-minelist>從我的 YouTube 播放清單匯入</button></p>' : ''}${mine}${pl}</section>
@@ -300,8 +300,8 @@ document.addEventListener('click', async e => {
   if (b.dataset.kMove) return act(() => post('queue/' + encodeURIComponent(b.dataset.kMove) + '/move', { to: Number(b.dataset.to) }));
   if (b.dataset.kTop) return act(() => post('queue/' + encodeURIComponent(b.dataset.kTop) + '/top'));
   if (b.dataset.kDel) { const t = D.queue.find(x => x.id === b.dataset.kDel); if (!t || !confirm(`移除「${t.title}」？${t.source === 'guest' && t.price ? `\n客人點的歌會一併從桌 ${t.table} 的帳上拿掉（${NT(t.price)}）。` : ''}`)) return; return act(() => api('/admin/orders/songs/queue/' + encodeURIComponent(t.id), { method: 'DELETE' }), d => d.refunded ? '已移除，並從桌上帳單拿掉' : '已移除'); }
-  if (b.dataset.kPldel != null && b.dataset.kPldel !== '') { const i = Number(b.dataset.kPldel); return act(() => post('settings', { playlist: D.settings.playlist.filter((_, j) => j !== i) }), '常態歌單已更新'); }
-  if (b.matches('[data-k-plclear]')) { if (!confirm('清空常態歌單？沒有人點歌、也不在時段內時會安靜無聲。')) return; return act(() => post('settings', { playlist: [] }), '常態歌單已清空'); }
+  if (b.dataset.kPldel != null && b.dataset.kPldel !== '') { const i = Number(b.dataset.kPldel); return act(() => post('settings', { playlist: D.settings.playlist.filter((_, j) => j !== i) }), '預設歌單已更新'); }
+  if (b.matches('[data-k-plclear]')) { if (!confirm('清空預設歌單？沒有人點歌、也不在時段內時會安靜無聲。')) return; return act(() => post('settings', { playlist: [] }), '預設歌單已清空'); }
   if (b.dataset.kSchdel != null && b.dataset.kSchdel !== '') { const i = Number(b.dataset.kSchdel), x = D.settings.schedules[i]; if (!x || !confirm(`移除時段歌單「${x.name}」？`)) return; return act(() => post('settings', { schedules: D.settings.schedules.filter((_, j) => j !== i) }), '時段歌單已更新'); }
   if (b.matches('[data-k-minelist]')) { try { MINE = (await api('/admin/orders/songs/youtube/playlists')).playlists; } catch (err) { toast(err.message); } return paint(); }
   if (b.dataset.kMine) { b.disabled = true; return act(() => post('playlist/import', { playlist: b.dataset.kMine, mode: b.dataset.mode }), d => `已匯入 ${d.imported} 首`); }

@@ -8500,9 +8500,9 @@ function menuToSpace(req, res) {
 app.get(['/menu', '/menu/', '/en/menu', '/en/menu/', '/ja/menu', '/ja/menu/'], menuToSpace);
 
 /* ---- 點歌（lib/songs.js）：客人掃桌邊 QR 搜尋 YouTube 點歌（每首計價、掛進這桌帳單），POS「點歌」分頁的播放裝置依序播放；
-   沒人點歌時播常態歌單。預設關閉，由 POS 開啟。狀態存 site_content（song_settings／song_state），綁定的 YouTube 帳號存 song_youtube（加密）。 */
+   沒人點歌時播預設歌單。預設關閉，由 POS 開啟。狀態存 site_content（song_settings／song_state），綁定的 YouTube 帳號存 song_youtube（加密）。 */
 /* KTV 屬於言文字系統、不分品牌（KK 11/6）：全公司一份設定／待播／播放裝置（site_content ktv_settings／ktv_state／ktv_live）。
-   第一次用到時把舊的分品牌資料（song_settings:<VENUE>）合併成一份：開關任一開＝開、常態歌單取最長、時段歌單取聯集。 */
+   第一次用到時把舊的分品牌資料（song_settings:<VENUE>）合併成一份：開關任一開＝開、預設歌單取最長、時段歌單取聯集。 */
 const SONG_VENUES=['CAFE','BAR','STAY','REST'];
 const KTV_KEYS={settings:'ktv_settings',state:'ktv_state',live:'ktv_live'};
 const songKeys=()=>KTV_KEYS;
@@ -8666,7 +8666,7 @@ app.post('/api/admin/orders/songs/queue/:id/top',auth,adminOnly,requireDb,wrap(a
 app.post('/api/admin/orders/songs/queue/:id/move',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   try{res.json(await withSongs(async(client,{settings,state})=>{const next=songs.moveTo(state,String(req.params.id),req.body?.to);await saveSongState(client,next);return songAdminView(settings,next);}));}catch(e){return songErr(res,e);}
 }));
-// 常態歌單：從 YouTube 播放清單（網址或綁定帳號的清單）匯入；mode=append 接在後面，否則整份取代
+// 預設歌單：從 YouTube 播放清單（網址或綁定帳號的清單）匯入；mode=append 接在後面，否則整份取代
 app.post('/api/admin/orders/songs/playlist/import',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const pid=songs.parsePlaylistId(req.body?.playlist||'');if(!pid)return res.status(400).json({error:'請貼上 YouTube 播放清單網址（含 list=）。'});
   try{const list=await youtube.playlistItems(pid);if(!list.length)return res.status(400).json({error:'這個播放清單沒有可在店內播放的影片（可能是私人清單或影片不允許嵌入）。'});

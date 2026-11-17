@@ -1,5 +1,5 @@
 // Local-only SQL acceptance（not in CI: needs PGLITE_MODULE_PATH）：點歌全流程，跑真的 server.js 路由（vm 切出）＋PGlite，YouTube 以假 fetch 代替
-// KTV 不分品牌（KK 11/6）：舊分品牌設定合併成一份 → 預設關閉 → KTV 開啟 → 客人點歌（桌上多一行 NT$10）→ 沒人點歌播常態歌單 → 有人點歌 preempt → 影片無法播放自動退 → 店員移除也退
+// KTV 不分品牌（KK 11/6）：舊分品牌設定合併成一份 → 預設關閉 → KTV 開啟 → 客人點歌（桌上多一行 NT$10）→ 沒人點歌播預設歌單 → 有人點歌 preempt → 影片無法播放自動退 → 店員移除也退
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -13,7 +13,7 @@ const slice = (a, b) => { const i = source.indexOf(a); assert.ok(i >= 0, a); ret
 const REAL_FETCH = globalThis.fetch;
 const ID = n => ('vid' + n).padEnd(11, 'x');
 
-test('點歌：預設關閉、開啟後掃碼點歌進帳單、常態歌單、無法播放自動退', async () => {
+test('點歌：預設關閉、開啟後掃碼點歌進帳單、預設歌單、無法播放自動退', async () => {
   const db = new PGlite(); let listener;
   try {
     await db.exec(`CREATE TABLE site_content(key TEXT PRIMARY KEY,value TEXT,updated_at TIMESTAMPTZ DEFAULT now());
@@ -61,7 +61,7 @@ test('點歌：預設關閉、開啟後掃碼點歌進帳單、常態歌單、�
     assert.equal(r.status, 423);
     // QR 無效
     assert.equal((await call('GET', `/api/songs?s=${S}&k=0000000000000000`)).status, 403);
-    // POS 開啟、設常態歌單、這台當播放裝置
+    // POS 開啟、設預設歌單、這台當播放裝置
     r = await call('POST', '/api/admin/orders/songs/settings', { enabled: true, playlist: [{ video_id: ID(7), title: 'BGM7' }, { video_id: ID(8), title: 'BGM8' }] });
     assert.equal(r.status, 200); assert.equal(r.body.settings.enabled, true); assert.equal(r.body.settings.price, 10);
     await call('POST', '/api/admin/orders/songs/player', { device: 'dev-1' });
@@ -80,7 +80,7 @@ test('點歌：預設關閉、開啟後掃碼點歌進帳單、常態歌單、�
     r = await call('POST', '/api/admin/orders/songs/beat', { device: 'dev-1', state: 'playing', pos: 12, dur: 180, vol: 60, ack: r.body.seq });
     assert.equal(r.body.cmds.length, 0, '做過的指令不再回');
     r = await call('GET', '/api/admin/orders/songs/live'); assert.equal(r.body.online, true); assert.equal(r.body.vol, 60); assert.equal(r.body.state, 'playing');
-    // 沒人點歌：播常態歌單
+    // 沒人點歌：播預設歌單
     r = await call('POST', '/api/admin/orders/songs/next', { result: 'ended', device: 'dev-1' });
     assert.equal(r.body.now.kind, 'playlist'); assert.equal(r.body.now.video_id, ID(7));
     // 非播放裝置不能 ended

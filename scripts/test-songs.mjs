@@ -16,7 +16,7 @@ test('預設關閉、每首 10 元；設定範圍外 400', () => {
   assert.equal(songs.patchSettings(s, { price: 20 }).price, 20);
   assert.throws(() => songs.patchSettings(s, { price: -1 }), /單價/);
   assert.throws(() => songs.patchSettings(s, { max_per_table: 0 }), /每桌/);
-  // 常態歌單去重、丟掉不合法 id
+  // 預設歌單去重、丟掉不合法 id
   const pl = songs.patchSettings(s, { playlist: [T(ID(1)), T(ID(1)), { video_id: 'bad' }, T(ID(2))] }).playlist;
   assert.deepEqual(pl.map(t => t.video_id), [ID(1), ID(2)]);
 });
@@ -33,7 +33,7 @@ test('排進待播：同首不重複、每桌上限、櫃檯代點不受上限',
   assert.equal(st.queue[0].price, 10);
 });
 
-test('沒人點歌播常態歌單（依序循環）；有人點歌優先；preempt 只切常態歌單', () => {
+test('沒人點歌播預設歌單（依序循環）；有人點歌優先；preempt 只切預設歌單', () => {
   const settings = songs.normalizeSettings({ playlist: [T(ID(7)), T(ID(8))] });
   let st = songs.normalizeState('');
   let r = songs.advance(st, settings); st = r.state;
@@ -42,7 +42,7 @@ test('沒人點歌播常態歌單（依序循環）；有人點歌優先；preem
   assert.equal(r.song.video_id, ID(8));
   r = songs.advance(st, settings, { current: st.now.id }); st = r.state;
   assert.equal(r.song.video_id, ID(7), '播完從頭');
-  // 有人點歌：preempt 切掉常態歌單
+  // 有人點歌：preempt 切掉預設歌單
   st = songs.enqueue(st, T(ID(1)), { table: 'A1', session_id: 'ts_1', line: 'L1', price: 10 }).state;
   r = songs.advance(st, settings, { result: 'preempt', current: st.now.id }); st = r.state;
   assert.equal(r.song.kind, 'request'); assert.equal(r.song.video_id, ID(1));
@@ -56,7 +56,7 @@ test('沒人點歌播常態歌單（依序循環）；有人點歌優先；preem
   assert.equal(r.stale, true);
 });
 
-test('影片無法播放：客人點的歌回 refund（server 從帳上拿掉）；常態歌單不退', () => {
+test('影片無法播放：客人點的歌回 refund（server 從帳上拿掉）；預設歌單不退', () => {
   const settings = songs.normalizeSettings({ playlist: [T(ID(7))] });
   let st = songs.enqueue(songs.normalizeState(''), T(ID(1)), { table: 'A1', session_id: 'ts_1', line: 'L1', price: 10 }).state;
   st = songs.advance(st, settings).state;
@@ -166,7 +166,7 @@ test('排行榜：YouTube 台灣音樂熱門（chart=mostPopular、videoCategory
   assert.match(url, /chart=mostPopular/); assert.match(url, /regionCode=TW/); assert.match(url, /videoCategoryId=10/);
 });
 
-test('接下來：待播優先，再接常態歌單從下一首起的整份順序；隨機只列待播', () => {
+test('接下來：待播優先，再接預設歌單從下一首起的整份順序；隨機只列待播', () => {
   const pl = [T(ID(7)), T(ID(8)), T(ID(9))];
   let st = { ...songs.normalizeState(''), fallback_index: 1 };
   st = songs.enqueue(st, T(ID(1)), { table: 'A3', by: '小明' }).state;
@@ -199,7 +199,7 @@ test('待播排序：移到指定位置（夾頭尾）；插播 front 排到下�
   assert.equal(songs.upcoming(st, songs.normalizeSettings('')).items[0].video_id, ID(5));
 });
 
-test('時段歌單：依台北時間切換、跨午夜、都沒對到回常態歌單', () => {
+test('時段歌單：依台北時間切換、跨午夜、都沒對到回預設歌單', () => {
   const at = s => Date.parse(s + '+08:00');
   const s = songs.normalizeSettings({ playlist: [T(ID(1))], schedules: [
     { name: '平日', days: [1, 2, 3, 4, 5], start: '08:00', end: '17:00', playlist: [T(ID(2))] },
@@ -209,7 +209,7 @@ test('時段歌單：依台北時間切換、跨午夜、都沒對到回常態�
   ] });
   assert.equal(s.schedules.length, 2);
   assert.equal(songs.activePlaylist(s, at('2026-11-04T09:00:00')).name, '平日');      // 週三
-  assert.equal(songs.activePlaylist(s, at('2026-11-07T09:00:00')).index, -1);         // 週六早上→常態
+  assert.equal(songs.activePlaylist(s, at('2026-11-07T09:00:00')).index, -1);         // 週六早上→預設
   assert.equal(songs.activePlaylist(s, at('2026-11-06T23:00:00')).name, '五六深夜');  // 週五晚
   assert.equal(songs.activePlaylist(s, at('2026-11-08T01:00:00')).name, '五六深夜');  // 週六跨到週日凌晨
   assert.equal(songs.activePlaylist(s, at('2026-11-09T01:00:00')).index, -1);         // 週日跨週一凌晨不算
@@ -236,7 +236,7 @@ test('時段歌單播完輪播（KK 11/5）', () => {
   assert.deepEqual(seq, [ID(1), ID(2), ID(1), ID(2), ID(1)]);
 });
 
-test('沒有常態歌單、不在任何時段：沿用最近結束的時段歌單（KK 11/5）', () => {
+test('沒有預設歌單、不在任何時段：沿用最近結束的時段歌單（KK 11/5）', () => {
   const at = t => new Date(t + '+08:00').getTime();
   const s = songs.normalizeSettings({ schedules: [
     { name: '咖啡', days: [1,2,3,4,5], start: '08:00', end: '17:00', playlist: [T(ID(1))] },
@@ -253,7 +253,7 @@ test('接線：客人菜單卡片、操作紀錄、token 不進公開內容', ()
   assert.match(order, /id="song-open"/); assert.match(order, /\/songs\/buy/); assert.doesNotMatch(order, /\/songs\/request|data-song-pick/, '桌邊 QR 只能購買，不能直接選歌（KK 11/6）');
   assert.match(order, /song-open'\)\.classList\.toggle\('hidden',!on\)/, '關閉時隱藏點歌卡片');
   const log = require('../lib/pos-log.js');
-  assert.equal(log.describe('POST', '/orders/songs/settings'), '點歌設定（開關／價格／常態歌單）');
+  assert.equal(log.describe('POST', '/orders/songs/settings'), '點歌設定（開關／價格／預設歌單）');
   assert.equal(log.describe('POST', '/orders/songs/next'), null, '自動換歌不洗版操作紀錄');
   assert.equal(log.describe('POST', '/orders/songs/beat'), null, '心跳不洗版');
   assert.match(server, /app\.get\('\/api\/admin\/orders\/songs',auth,adminOnly/);

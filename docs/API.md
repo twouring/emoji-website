@@ -595,16 +595,16 @@ KTV 控台的點歌兌換碼狀態：`tables`（已購買點歌、還沒發碼�
 用兌換碼選一首。body `{ d, code, video_id }`。用掉一格：把那行待選歌品項換成正式點歌（品名帶歌名、`song:{request_id, video_id}`），排進待播；帶會員登入時待播顯示會員名字、並把會員掛到這桌（招待碼除外）。格數用完 409、碼失效 404/410、裝置 QR 失效 403、影片不能播放 400、點歌關閉 423。回 201 `{ request_id, left, total, table, now, queue, … }`。
 
 ### GET /api/admin/orders/songs
-KTV（ktv.emoji.tw，言文字系統、不分品牌，KK 11/6）控台狀態；全公司一份（site_content `ktv_settings`／`ktv_state`，第一次使用時合併舊的分品牌 `song_settings:<VENUE>`），query `venue` 不再有作用。`settings`（`enabled` 預設 false、`price`、`max_per_table`、`max_minutes`、`shuffle`、`playlist` 常態歌單、`player_device`）、`now`（正在播放，`kind` 為 `request` 或 `playlist`）、`queue`、`upcoming`（接下來完整播放順序：`items` 先列待播、再接常態歌單從下一首起的整份順序，每首帶 `pos`、`kind`；常態歌單為隨機時列出這一輪已洗好的順序（存在 `song_state.shuffle_bag`，每首各播一次，播完再洗）並回 `shuffle:true`）、`history`、`youtube`（是否已綁定、頻道名稱、OAuth 是否可用、是否有 API Key）。
+KTV（ktv.emoji.tw，言文字系統、不分品牌，KK 11/6）控台狀態；全公司一份（site_content `ktv_settings`／`ktv_state`，第一次使用時合併舊的分品牌 `song_settings:<VENUE>`），query `venue` 不再有作用。`settings`（`enabled` 預設 false、`price`、`max_per_table`、`max_minutes`、`shuffle`、`playlist` 預設歌單、`player_device`）、`now`（正在播放，`kind` 為 `request` 或 `playlist`）、`queue`、`upcoming`（接下來完整播放順序：`items` 先列待播、再接預設歌單從下一首起的整份順序，每首帶 `pos`、`kind`；預設歌單為隨機時列出這一輪已洗好的順序（存在 `song_state.shuffle_bag`，每首各播一次，播完再洗）並回 `shuffle:true`）、`history`、`youtube`（是否已綁定、頻道名稱、OAuth 是否可用、是否有 API Key）。
 
 ### POST /api/admin/orders/songs/settings
-修改點歌設定。body 可帶 `enabled`、`shuffle`（boolean）、`price`（0–1000）、`max_per_table`（1–20）、`max_minutes`（1–60）、`playlist`（常態歌單整份取代，最多 300 首）。範圍外 400。
+修改點歌設定。body 可帶 `enabled`、`shuffle`（boolean）、`price`（0–1000）、`max_per_table`（1–20）、`max_minutes`（1–60）、`playlist`（預設歌單整份取代，最多 300 首）。範圍外 400。
 
 ### POST /api/admin/orders/songs/player
 指定播放裝置。body `{ device }`（POS 平板的裝置代碼）或 `{ release:true }` 取消。只有播放裝置會自動播放與換歌。
 
 ### POST /api/admin/orders/songs/next
-換下一首。body `{ result, current, device }`；`result` 為 `ended`（播完）、`error`（影片無法播放）、`preempt`（有人點歌時切掉常態歌單）、`skip`（店員按下一首）。`skip` 以外只接受播放裝置；`current` 與伺服器正在播放的不同時回 `stale:true` 不動作（避免重複換歌）。有人點歌先播最早那首，沒有就播常態歌單（依序或隨機）。客人點的歌因 `error` 被跳過時，尚未結帳的點歌品項自動從這桌帳上拿掉（`refunded:true`）。
+換下一首。body `{ result, current, device }`；`result` 為 `ended`（播完）、`error`（影片無法播放）、`preempt`（有人點歌時切掉預設歌單）、`skip`（店員按下一首）。`skip` 以外只接受播放裝置；`current` 與伺服器正在播放的不同時回 `stale:true` 不動作（避免重複換歌）。有人點歌先播最早那首，沒有就播預設歌單（依序或隨機）。客人點的歌因 `error` 被跳過時，尚未結帳的點歌品項自動從這桌帳上拿掉（`refunded:true`）。
 
 ### GET /api/admin/orders/songs/discover
 POS 點歌分頁的熱門／最近點過／排行榜，格式同 `GET /api/songs/discover`（不篩長度）。
@@ -637,7 +637,7 @@ KTV 播放裝置心跳（約每 2 秒）。body `{ device, name, mode, state, po
 KTV 統計。query `from`、`to`（營業日，預設近 7 天，最多 93 天）。回 `{ from, to, count, amount, days:[{day,count,amount}], tables:[{table,count,amount}], songs:[{video_id,title,count}], popular }`：只算已結帳、未作廢訂單中的點歌品項（`cat:'SONG'`）；`popular` 為店內累計點播排行。
 
 ### POST /api/admin/orders/songs/playlist/import
-匯入常態歌單。body `{ playlist, mode }`；`playlist` 為 YouTube 播放清單網址或 ID，`mode:'append'` 接在現有歌單後，否則整份取代；帶 `schedule:{ name, days, start, end }` 則改為新增一個時段歌單（格式錯 400）。只匯入可嵌入的影片，回 `imported` 筆數。
+匯入預設歌單。body `{ playlist, mode }`；`playlist` 為 YouTube 播放清單網址或 ID，`mode:'append'` 接在現有歌單後，否則整份取代；帶 `schedule:{ name, days, start, end }` 則改為新增一個時段歌單（格式錯 400）。只匯入可嵌入的影片，回 `imported` 筆數。
 
 ### GET /api/admin/orders/songs/youtube/playlists
 列出已綁定 YouTube 帳號的播放清單 `{ playlists:[{ id, title, count }] }`。未綁定 409。
