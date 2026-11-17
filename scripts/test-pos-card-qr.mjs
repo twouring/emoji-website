@@ -49,11 +49,12 @@ test('server：三支路由、webhook 共用入帳、付款中擋櫃檯結帳、
   assert.match(ful, /payer->>'stripe_session'=\$1/); assert.ok(ful.indexOf('inventoryConsume') < ful.lastIndexOf("'COMMIT'"));
 });
 
-test('POS 前端：只在等等空間／約書旅顯示，自動印 QR、輪詢入帳、可取消', () => {
+test('POS 前端：只在等等空間／約書旅顯示，開視窗不自動列印（KK 11/17）、輪詢入帳、可取消', () => {
   assert.match(ops, /const CARD_QR_VENUES=\['STAY','REST'\]/);
   assert.match(ops, /value="card_qr" aria-label="線上刷卡"/, '支付方式多一個「線上刷卡」');
   assert.match(ops, /\$\{cardQrOn\(cur\)\?`<label class="pos-method"/);
-  assert.match(ops, /if\(POS_METHOD==='card_qr'&&!cardQrOn\(cur\)\)POS_METHOD='cash';/, '餐飲品牌退回現金');
+  assert.match(ops, /if\(POS_METHOD==='card_qr'&&!cardQrOn\(cur\)\)POS_METHOD='';/, '餐飲品牌退回未選');
+  assert.doesNotMatch(ops, /_cqPrinted/, '開 QR 視窗不自動列印，只按「列印」才印');
   assert.match(ops, /if\(method==='card_qr'\)\{/);
   assert.match(ops, /async function printCardQr\(a\)/); assert.match(ops, /starSend\(\{canvas:out\}\)/);
   assert.match(ops, /api\(path\+'\/check'/); assert.match(ops, /\/card-qr\/cancel/);
