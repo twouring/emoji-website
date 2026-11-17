@@ -748,7 +748,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
   }
   async function openTicket(eventId){
     const img=document.getElementById('ovimg'),meta=document.getElementById('ovmeta'),sub2=document.getElementById('ovsub');
-    try{const d=await get('/api/events/'+encodeURIComponent(eventId)+'/ticket');clearInterval(qrTimer);showOv();img.hidden=false;const list=(d.tickets&&d.tickets.length)?d.tickets:[{token:d.token}];let i=0;meta.textContent=T.ticketMeta(list.length);const draw=()=>{const t=list[i];QRCode.toDataURL(t.token,{width:320,margin:1},(err,url)=>{if(!err)img.src=url;});if(list.length<2){sub2.textContent='';return;}sub2.innerHTML=`<span class="ovnav"><button class="quiet" type="button" id="ovprev" aria-label="‹" ${i?'':'disabled'}>‹</button><span>${i+1} / ${list.length}${t.name?' · '+esc(t.name):''}${t.checked_in_at?' · '+esc(T.checkedIn):''}</span><button class="quiet" type="button" id="ovnext" aria-label="›" ${i<list.length-1?'':'disabled'}>›</button></span>`;document.getElementById('ovprev').onclick=()=>{if(i>0){i--;draw();}};document.getElementById('ovnext').onclick=()=>{if(i<list.length-1){i++;draw();}};};draw();}
+    try{const d=await get('/api/events/'+encodeURIComponent(eventId)+'/ticket');clearInterval(qrTimer);qrMode='ticket';showOv();img.hidden=false;const list=(d.tickets&&d.tickets.length)?d.tickets:[{token:d.token}];let i=0;meta.textContent=T.ticketMeta(list.length);const draw=()=>{const t=list[i];QRCode.toDataURL(t.token,{width:320,margin:1},(err,url)=>{if(!err)img.src=url;});if(list.length<2){sub2.textContent='';return;}sub2.innerHTML=`<span class="ovnav"><button class="quiet" type="button" id="ovprev" aria-label="‹" ${i?'':'disabled'}>‹</button><span>${i+1} / ${list.length}${t.name?' · '+esc(t.name):''}${t.checked_in_at?' · '+esc(T.checkedIn):''}</span><button class="quiet" type="button" id="ovnext" aria-label="›" ${i<list.length-1?'':'disabled'}>›</button></span>`;document.getElementById('ovprev').onclick=()=>{if(i>0){i--;draw();}};document.getElementById('ovnext').onclick=()=>{if(i<list.length-1){i++;draw();}};};draw();}
     catch(e){toast(T.ticketFail);}
   }
   let RV_OPEN={date:'',slots:null};
@@ -1105,12 +1105,20 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
   async function refreshQr(){
     const img=document.getElementById('ovimg'),meta=document.getElementById('ovmeta'),sub=document.getElementById('ovsub');
     try{
-      const d=await get('/api/me/card');draw(img,d.token);img.hidden=false;meta.textContent=T.scanMe;sub.textContent='';
+      const d=await get('/api/me/card');qrExp=Number(d.exp)||0;draw(img,d.token);img.hidden=false;meta.textContent=T.scanMe;sub.textContent='';
     }catch(e){img.hidden=true;meta.textContent=offline||!navigator.onLine?T.hintPhone:T.netFail;sub.textContent='';}
   }
   let ovClose=null;
   function showOv(){ov.dataset.keep='1';ov.classList.remove('out');ov.hidden=false;if(!ovClose||!pgStack.some(x=>x.el===ov))ovClose=pushPg(ov,()=>clearInterval(qrTimer));}
-  function openQr(){showOv();refreshQr();clearInterval(qrTimer);qrTimer=setInterval(refreshQr,30000);}
+  function openQr(){showOv();refreshQr();clearInterval(qrTimer);qrTimer=setInterval(refreshQr,30000);qrMode='card';}
+  /* 會員卡 QR 120 秒失效：手機鎖屏／切背景時 setInterval 會停，回來畫面還是舊 QR，POS 掃了變「無效」（KK 11/17 HSU KAI）。
+     回前景立刻藏舊碼並重抓；每秒檢查，過期前 10 秒先換新碼。 */
+  let qrExp=0,qrMode='';
+  const qrOpen=()=>qrMode==='card'&&!ov.hidden&&!ov.classList.contains('out');
+  function qrStale(){if(!qrOpen())return;const img=document.getElementById('ovimg');img.hidden=true;qrExp=0;refreshQr();}
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)qrStale();});
+  window.addEventListener('pageshow',e=>{if(e.persisted)qrStale();});
+  setInterval(()=>{if(qrOpen()&&qrExp&&Date.now()/1000>qrExp-10)qrStale();},1000);
   /* 兌換：選品項→開相機掃本桌點餐 QR（服務人員開桌時印的 /order?s=場次&k=驗證碼）→伺服器扣點並把 0 元兌換行加進該桌點菜清單 */
   let scanStream=null,scanOv=null;
   let scanClose=null;

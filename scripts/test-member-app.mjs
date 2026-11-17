@@ -111,3 +111,11 @@ test('官網不再有會員入口：導覽／頁尾／消費方式／首頁連�
   const login = read('public/event-login.html');
   assert.match(login, /const APP='https:\/\/app\.emoji\.tw\/'/); assert.doesNotMatch(login, /location\.origin\+'\/member'/);
 });
+
+test('會員卡 QR 回前景或快過期就重抓（KK 11/17：鎖屏回來掃到過期 QR 變無效）', () => {
+  const src = fs.readFileSync(new URL('../public/m.html', import.meta.url), 'utf8');
+  assert.match(src, /qrExp=Number\(d\.exp\)/);
+  assert.match(src, /visibilitychange',\(\)=>\{if\(!document\.hidden\)qrStale\(\);\}/);
+  assert.match(src, /qrExp-10\)qrStale\(\)/);
+  assert.match(src, /qrMode='ticket';showOv\(\)/);
+});
