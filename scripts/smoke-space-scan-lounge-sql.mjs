@@ -61,6 +61,7 @@ test('貴賓室線上購買→掃碼入場→離場；等等空間會員掃碼�
     vm.runInContext(slice("app.post('/api/admin/orders/sessions/:id/close'", '// 本桌點餐 QR（單次）'), ctx);
     vm.runInContext(slice('function pinVenue(req,requested){', 'async function staffByPin'), ctx);
     vm.runInContext(slice('const CARD_SECRET = ', "app.post('/api/access/verify'"), ctx);
+    vm.runInContext(slice('function appPaidUrl(body, query) {', '/** 結帳完成要回到的子品牌站'), ctx);   // 付款成功跳 App（KK 11/17）
     vm.runInContext(slice('/* ---- 會員 App「貴賓室」（KK 11/17）', '// 公開：未來 90 天已排定的場地時段'), ctx);
     ctx.counterDevice = async () => ({ id: 'dev1', label: '櫃檯 iPad' });
     listener = app.listen(0, '127.0.0.1'); await new Promise(r => listener.once('listening', r));

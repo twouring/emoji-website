@@ -8,6 +8,14 @@ const SPACE_STATE = {
   unpaid: ['sp-unpaid', '待收款'], ready: ['sp-ready', '線上已付'], ok: ['sp-ok', '使用中'], open: ['sp-ok', '不限時'], soon: ['sp-soon', '快到時'],
   grace: ['sp-grace', '寬限中'], over: ['sp-over', '超時'], stale: ['sp-stale', '待確認離場'], left: ['sp-gone', '待補收'],
 };
+/* 入場管理依狀態分區（KK 11/17）：要處理的排前面；每個狀態只屬於一區 */
+const SPACE_GROUPS = [
+  { key: 'over', label: '超時', states: ['over', 'stale'], hint: '請客人離場或補收超時費' },
+  { key: 'left', label: '已離場・待補收', states: ['left'], hint: '補收超時費後結清' },
+  { key: 'unpaid', label: '待收款', states: ['unpaid'], hint: '收款後開始計時' },
+  { key: 'ready', label: '線上已付・未到場', states: ['ready'], hint: '掃會員卡確認入場' },
+  { key: 'inside', label: '在場', states: ['soon', 'grace', 'ok', 'open'] },
+];
 let SPACE_ALERTED = new Set();
 function posSpaceOn(){ return !!(SCOPE && POS_DATA && POS_DATA.space_settings && POS_DATA.space_settings.mode === 'space'); }
 function spaceCfg(){ return (POS_DATA && POS_DATA.space_settings) || { grace_min: 15, unit_min: 60, max_hours: 0, warn_min: 10, capacity: 0, seats: [], seat_cats: [] }; }
@@ -53,8 +61,7 @@ function spaceBoardHtml(d){
   return `<div class="sp-board"><div class="ops-head"><h2>入場管理</h2><div class="sp-head-acts"><button type="button" class="btn btn--solid" id="sp-scan">掃碼進出</button><button type="button" class="btn btn--ghost" id="sp-enter">＋ 入場</button>${SCOPE === 'STAY' ? '<button type="button" class="btn btn--ghost" id="sp-members">會員</button>' : ''}</div></div>
     <div class="sp-stats" aria-label="今日統計">${stat('在場', `${num(inside)}${c.capacity ? `／${num(c.capacity)}` : ''} 人`)}${stat('今日人次', num(sum.people || 0))}${stat('平均停留', sum.avg_stay_min != null ? spaceDur(sum.avg_stay_min) : '—')}${stat('超時收入', 'NT$' + num(sum.overtime_amount || 0))}</div>
     ${c.seats.length ? `<h3 class="sp-sub">指定席位 <small>${esc(c.seat_cats.map(x => MenuLib.CAT_LABEL[x]?.zh || x).join('、'))}</small></h3><div class="sp-grid">${seats}</div>` : ''}
-    <h3 class="sp-sub">入場單${others.length ? ` <span class="kds-count">${others.length}</span>` : ''}</h3>
-    <div class="sp-grid">${others.map(spaceCardHtml).join('') || '<p class="hint">目前沒有入場單。會員出示 App 會員卡按「掃碼進出」；現場購買按「＋ 入場」。</p>'}</div>
+    ${others.length ? SPACE_GROUPS.map(g => { const l = others.filter(s => g.states.includes(spaceLive(s.space).state)); return l.length ? `<h3 class="sp-sub sp-sub--${g.key}">${esc(g.label)} <span class="kds-count">${l.length}</span>${g.hint ? `<small>${esc(g.hint)}</small>` : ''}</h3><div class="sp-grid" data-space-group="${g.key}">${l.map(spaceCardHtml).join('')}</div>` : ''; }).join('') : '<h3 class="sp-sub">入場單</h3><p class="hint">目前沒有入場單。會員出示 App 會員卡按「掃碼進出」；現場購買按「＋ 入場」。</p>'}
     ${legacy.length ? `<h3 class="sp-sub">一般單 <small>切換情境前開的單，結清後照舊清桌</small></h3><div class="sp-grid">${legacy.map(s => `<button type="button" class="sp-card sp-unpaid${s.table === POS_TABLE ? ' on' : ''}" data-pos-table="${esc(s.table)}" aria-label="${esc(s.table)} 一般單"><span class="sp-head"><b class="sp-no">${esc(s.table)}</b><span class="pill sp-pill">一般單</span></span><span class="sp-plan">${Number(s.lines?.length || 0)} 項</span>${s.unpaid_amount ? `<span class="sp-due">待收 NT$${num(s.unpaid_amount)}</span>` : ''}</button>`).join('')}</div>` : ''}
     <p class="hint sp-rule">超時 ${Number(c.grace_min)} 分鐘內不收費，之後每 ${Number(c.unit_min)} 分鐘計 1 單位${c.max_hours ? `；連續使用上限 ${Number(c.max_hours)} 小時` : ''}。規則在「設定 → 營業情境」。</p></div>`;
 }
@@ -110,7 +117,7 @@ function spacePanelHtml(cur){
   const sp = cur.space, live = spaceLive(sp), [cls, label] = SPACE_STATE[live.state] || SPACE_STATE.ok;
   const btn = (id, t, solid) => `<button type="button" class="btn ${solid ? 'btn--solid' : 'btn--ghost'} btn-sm" id="${id}">${t}</button>`;
   return `<div class="sp-bar ${cls}" role="group" aria-label="入場資訊">
-    <div class="sp-bar-times"><span><small>入場</small><b>${sp.in_at ? esc(clockText(sp.in_at)) : '—'}</b></span><span class="sp-bar-due"><small>預計離場</small><b>${sp.due_at ? esc(clockText(sp.due_at)) : sp.in_at ? '不限時' : '—'}</b></span>${sp.out_at ? `<span><small>離場</small><b>${esc(clockText(sp.out_at))}</b></span>` : ''}<span><small>${esc(label)}</small><b class="sp-bar-left">${esc(live.text)}</b></span></div>
+    <div class="sp-bar-times">${sp.paid_at ? `<span><small>付款</small><b>${esc(spacePaidText(sp.paid_at))}</b></span>` : ''}<span><small>入場</small><b>${sp.in_at ? esc(clockText(sp.in_at)) : '—'}</b></span><span class="sp-bar-due"><small>預計離場</small><b>${sp.due_at ? esc(clockText(sp.due_at)) : sp.in_at ? '不限時' : '—'}</b></span>${sp.out_at ? `<span><small>離場</small><b>${esc(clockText(sp.out_at))}</b></span>` : ''}<span><small>${esc(label)}</small><b class="sp-bar-left">${esc(live.text)}</b></span></div>
     <div class="sp-bar-acts">${sp.prepaid && !sp.in_at ? btn('sp-checkin', '入場（開始計時）', true) : ''}${sp.in_at && !sp.out_at ? btn('sp-extend', '延長') + btn('sp-leave', '離場', true) : ''}${live.state === 'stale' ? btn('sp-leave-fix', '補登離場時間') : ''}${sp.out_at ? btn('sp-resume', '取消離場') : ''}${sp.in_at ? btn('sp-reprint', '補印入場單') : ''}</div>
     ${sp.limit_hit && !sp.out_at ? `<p class="sp-bar-warn">已連續使用滿 ${spaceCfg().max_hours} 小時，請請客人離場；要繼續使用請離場後重新入場。</p>` : ''}
   </div>`;
@@ -146,7 +153,7 @@ function bindSpacePanel(host, cur, reload){
   });
   on('sp-checkin', () => spaceCheckin({ id: cur.id, table: cur.table, member: cur.space.member, need_seat: (cur.space.plans || []).some(p => spaceCfg().seat_cats.includes(p.cat)) && spaceCfg().seats.length > 0 }, reload));
   on('sp-resume', async () => { if (!await posConfirm(`取消 ${cur.table} 的離場？離場自動加的超時費用會移除，繼續計時。`, { ok: '取消離場' })) return; try { await api('/admin/orders/sessions/' + cur.id + '/space/resume', { method: 'POST', body: {} }); toast('已取消離場，繼續計時'); await reload(); } catch (e) { toast(e.message); } });
-  on('sp-reprint', () => printSpaceEntry({ in_at: cur.space.in_at, due_at: cur.space.due_at, seat: cur.table, headcount: cur.space.headcount, plan: (cur.space.plans || []).map(p => p.zh).join('、') }, { reprint: true }));
+  on('sp-reprint', () => printSpaceEntry({ paid_at: cur.space.paid_at, online: cur.space.online, in_at: cur.space.in_at, due_at: cur.space.due_at, seat: cur.table, headcount: cur.space.headcount, plan: (cur.space.plans || []).map(p => p.zh).join('、') }, { reprint: true }));
 }
 /* 掃碼進出：掃會員卡後先確認再入場／離場。相機或掃描槍都可以（pickMemberCard，QR 區分大小寫）；掃描槍在入場看板直接掃時由 posWedgeScan 帶 scanned 進來。 */
 async function spaceScan(reload, scanned){
@@ -239,6 +246,14 @@ function spaceSlipExtras(c, cat, info){
     ...rule('離開時請將帳單夾交回櫃台辦理離場，超時費用離場時結算。', 'When leaving, return the clip at the counter; overtime is settled at checkout.'),
     ...(bless ? ['dash', { kind: 'moji', scene: bless.m, w: 104, texts: [{ text: bless.zh, size: 22, bold: true }, { text: bless.en, size: 18 }] }] : [])];
 }
+/* 付款時間（KK 11/17）：同一營業日只印時分，跨日（線上預付）帶月／日 */
+function spacePaidText(iso){
+  const d = iso ? new Date(iso) : null; if (!d || isNaN(d)) return '—';
+  const day = x => MenuLib.businessDay(x);
+  if (day(d) === day(new Date())) return clockText(iso);
+  const md = d.toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric' });
+  return `${md} ${clockText(iso)}`;
+}
 async function printSpaceEntry(info, { reprint = false } = {}){
   if (!canPrint()) { starHint(); return false; }
   const c = spaceCfg(), cat = (spacePlans().find(p => info.plan && String(info.plan).includes(p.zh)) || {}).cat;
@@ -246,6 +261,7 @@ async function printSpaceEntry(info, { reprint = false } = {}){
     { kind: 'center', text: info.seat || '入場', size: 56, bold: true },
     { kind: 'wrap', text: spaceShortName(info.plan || ''), size: 24, bold: true },
     ...(info.headcount > 1 ? [{ kind: 'left', text: `${info.headcount} 位`, size: 22 }] : []), 'dash',
+    ...(info.paid_at ? [{ kind: 'row', left: info.member_entry ? '會員入場' : info.online ? '線上付款' : '付款時間', right: spacePaidText(info.paid_at), size: 22 }] : []),
     { kind: 'row', left: '入場時間', right: clockText(info.in_at), size: 26 },
     { kind: 'left', text: '預計離場', size: 22 }, { kind: 'center', text: info.due_at ? clockText(info.due_at) : '不限時', size: 60, bold: true }, 'dash',
     ...spaceSlipExtras(c, cat, info),
@@ -275,13 +291,17 @@ function spaceHidesTab(id){ return id === 'serve' && posSpaceOn(); }
 /* 每 30 秒就地更新倒數；到上限／待確認離場時響一次並彈窗 */
 function spaceTick(){
   if (typeof document === 'undefined') return;
+  let regroup = false;
   for (const e of document.querySelectorAll('.sp-card[data-space-in]')) {
     if (e.classList.contains('sp-ready')) continue;   // 線上已付未到：沒有倒數
     const live = spaceLive({ in_at: e.dataset.spaceIn || null, due_at: e.dataset.spaceDue || null, out_at: e.dataset.spaceOut || null }), [cls, label] = SPACE_STATE[live.state];
     const t = e.querySelector('[data-space-text]'); if (t && t.textContent !== live.text) t.innerHTML = spaceTextHtml(live.text);
     const p = e.querySelector('[data-space-label]'); if (p && p.textContent !== label) p.textContent = label;
     for (const k of Object.values(SPACE_STATE).map(x => x[0])) e.classList.toggle(k, k === cls);
+    const grp = e.closest('[data-space-group]'), want = SPACE_GROUPS.find(g => g.states.includes(live.state));
+    if (grp && want && grp.dataset.spaceGroup !== want.key) regroup = true;   // 狀態跨區（例：在場→超時）就整個看板重畫
   }
+  if (regroup && typeof paintPos === 'function') { const pb = document.getElementById('pos-body'); if (pb) pb.dataset.sig = ''; paintPos(); }
   const bar = document.querySelector('.sp-bar-left'); const cur = (POS_DATA?.sessions || []).find(s => s.table === POS_TABLE);
   if (bar && cur?.space) bar.textContent = spaceLive(cur.space).text;
   if (!posSpaceOn() || typeof TAB === 'undefined' || TAB !== 'pos') return;

@@ -54,6 +54,12 @@ test('狀態：使用中→快到時→寬限→超時→待確認離場；已�
   assert.equal(S.view({ ...s, items: [plan(0)] }, cfg, inAt + 600 * 60000).state, 'open', '會員入場不限時');
 });
 
+test('入場單付款時間 planPaidAt：取含方案訂單最近一次付款，作廢與純超時單不算', () => {
+  const P = require('../lib/pos-space.js');
+  assert.equal(P.planPaidAt([]), null);
+  assert.equal(P.planPaidAt([{ paid_at: '2026-11-17T02:00:00Z', items: [{ space_role: 'plan' }] }, { paid_at: '2026-11-17T05:00:00Z', items: [{ space_role: 'overtime' }] }, { paid_at: '2026-11-17T04:00:00Z', items: [{ space_role: 'plan' }] }]), '2026-11-17T04:00:00.000Z');
+  assert.equal(P.planPaidAt([{ paid_at: '2026-11-17T02:00:00Z', items: [{ space_role: 'plan', cancelled: true }] }]), null);
+});
 test('入場單號、在場人數、今日統計', () => {
   assert.equal(S.nextEntryNo(new Set(['E01', 'E02', 'Q1'])), 'E03');
   const day = '2026-11-15T05:00:00Z';
@@ -111,6 +117,14 @@ test('接線：server 路由、結帳開始計時、清桌擋在場、MCP 目錄
   assert.match(ops, /if\(SPACE_ON\)host\.innerHTML=/); assert.match(ops, /bindSpaceBoard\(host,reload\);bindSpacePanel\(host,cur,reload\)/);
   assert.match(ops, /spaceAfterCheckout\(out,cur\)/);
   assert.match(sp, /function printSpaceEntry/); assert.match(sp, /\.\.\.spaceSlipExtras\(c, cat, info\)/, '入場單印 Wi-Fi／規則／祝福語（KK 11/17）'); assert.match(sp, /帳單夾交櫃台保管/); assert.match(sp, /PosEncouragement\.pick\(\)/); assert.match(sp, /kind: 'moji', scene: bless\.m, w: 104/, '入場單祝福語配 moji 插圖（KK 11/17）'); assert.match(ops, /cmd\.kind==='moji'/); assert.match(ops, /PosMoji\.draw\(g,cmd\.scene/); assert.match(sp, /c\.wifi_ssid/); assert.match(sp, /預計離場/); assert.match(sp, /入場時間/);
+  assert.match(sp, /left: info\.member_entry \? '會員入場' : info\.online \? '線上付款' : '付款時間'/, '入場單印付款時間（KK 11/17）');
+  assert.match(sp, /printSpaceEntry\(\{ paid_at: cur\.space\.paid_at/, '補印也帶付款時間');
+  assert.match(srv, /s\.space\.paid_at=posSpace\.planPaidAt\(/, '桌況回付款時間');
+  assert.equal((srv.match(/space_started:(spaceStart\?)?\{paid_at:/g) || []).length, 4, '四條入場路徑都回 paid_at');
+  assert.match(sp, /const SPACE_GROUPS = \[/, '入場管理依狀態分區（KK 11/17）');
+  const groups = [...sp.matchAll(/states: \[([^\]]+)\]/g)].flatMap(m => m[1].match(/'(\w+)'/g).map(x => x.slice(1, -1)));
+  const states = [...sp.match(/const SPACE_STATE = \{([\s\S]*?)\};/)[1].matchAll(/(\w+): \[/g)].map(m => m[1]);
+  assert.deepEqual([...groups].sort(), [...states].sort(), '每個狀態剛好屬於一區');
   assert.doesNotMatch(sp + css, /住宿|過夜|入住|床位/, '禁用字');
   assert.match(set, /spaceSettingsSection\(\)/); assert.match(set, /bindSpaceSettings\(host\)/);
   assert.match(css, /\.pos-space-mode #p-nav \[data-tab=serve\]\{display:none\}/);

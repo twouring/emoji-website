@@ -6584,6 +6584,8 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   for(const s of sessions){if(!s.mixed)s.linepay=pendingLinepay.find(a=>a.session_id===s.id)||null;}
   /* 線上刷卡 QR 等付款中（KK 11/17）：重整／換平板仍看得到、可查詢或取消 */
   if(sessions.length){const cq=(await q("SELECT key,value FROM site_content WHERE key=ANY($1)",[sessions.map(s=>'card_qr:'+s.id)])).rows;for(const r of cq){const s=sessions.find(x=>'card_qr:'+x.id===r.key);try{const v=JSON.parse(r.value);if(s)s.card_qr={id:v.cs,url:v.url,amount:v.amount,expires_at:v.expires_at};}catch{}}}
+  /* 入場單付款時間（KK 11/17）：方案款所在訂單的付款時間，入場單與補印都印 */
+  {const sp=sessions.filter(s=>s.space);if(sp.length){const pr=(await q("SELECT session_id,items,paid_at FROM table_orders WHERE session_id=ANY($1) AND status<>'void'",[sp.map(s=>s.id)])).rows;for(const s of sp)s.space.paid_at=posSpace.planPaidAt(pr.filter(o=>o.session_id===s.id));}}
   const space_summary=spaceCfg&&spaceCfg.mode==='space'?posSpace.summary((await q("SELECT table_no,items,space FROM table_sessions WHERE space IS NOT NULL AND venue=$1 AND created_at>now()-interval '2 days'",[venues[0]])).rows,at=>tableOrders.MenuLib.businessDay(at)===tableOrders.MenuLib.businessDay()):undefined;
   res.json({orders,tickets,sessions,occupied,reservations,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue(),table_layout:await tableLayoutOf(venues&&venues.length===1?venues[0]:''),space_settings:spaceCfg||undefined,space_summary,payment_methods:await paymentMethodsList(posPaymentMethods.groupsOf(venues)),linepay:linepayOfflineStatus(),stock:tableOrders.MenuLib.parseMenuDoc(await contentValue('menu')).items.filter(it=>tableOrders.MenuLib.stockLeft(it)!==null||tableOrders.MenuLib.soldOutToday(it)).map(it=>({id:it.id,sold_out:it.sold_out,sold_out_by:it.sold_out_by,stock_day:it.stock_day,stock_left:it.stock_left}))});
 }));
@@ -6798,7 +6800,7 @@ async function fulfillPosCardCheckout(session){
     order.invoice=await storeInvoiceResult(order,pend.invoice||{});
     const planMin=items.filter(l=>l.space_role==='plan'&&!l.cancelled&&!l.credit_of).reduce((a,l)=>a+(Number(l.space_minutes)||0),0);
     out={ok:true,settled_now:true,order_id:orderId,order,table:s.table_no,closed:closed&&!held,
-      space_started:spaceStart?{in_at:now,due_at:planMin>0?new Date(Date.parse(now)+planMin*60000).toISOString():null,seat:spaceNow.seat||s.table_no,headcount:spaceNow.headcount||1,plan:m.lines.filter(l=>l.space_role==='plan').map(l=>l.zh).join('、')}:undefined};
+      space_started:spaceStart?{paid_at:now,in_at:now,due_at:planMin>0?new Date(Date.parse(now)+planMin*60000).toISOString():null,seat:spaceNow.seat||s.table_no,headcount:spaceNow.headcount||1,plan:m.lines.filter(l=>l.space_role==='plan').map(l=>l.zh).join('、')}:undefined};
     lineService.notifyStaff(`💳 ${s.table_no} 線上刷卡 QR 已付款 NT$${m.amountPaid}（Stripe）`);
   }catch(e){await client.query('ROLLBACK').catch(()=>{});if(e.code==='23505')return {already:true};throw e;}finally{client.release();}
   return out;
@@ -6907,7 +6909,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     await kitchenPrint.enqueue(client.query.bind(client),[{id:orderId,session_id:s.id,table_no:s.table_no,items:orderLines.filter(l=>fresh.has(l.line)&&l.ticket),status:'paid'}]);
     await client.query('COMMIT');
     const invoiceOut=await storeInvoiceResult({id:orderId,table_no:s.table_no,items:orderLines,amount:out.amount,payer:out.payer,discount:out.discount,service_charge:out.service},invoice);
-    res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,service_charge:out.service||undefined,received:out.payer.received,change:out.payer.change,method:out.payer.method,payments:out.payer.payments,prepay:!!out.payer.prepay,member:out.payer.member,yan:memberUser?yanOut:undefined,member_created:!!memberUser?.created,closed:closed&&!held,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut,warning:regWarn||undefined,space_started:spaceStart?{in_at:spaceNow.in_at,due_at:(()=>{const m=items.filter(l=>l.space_role==='plan'&&!l.cancelled&&!l.credit_of).reduce((a,l)=>a+(Number(l.space_minutes)||0),0);return m>0?new Date(Date.parse(spaceNow.in_at)+m*60000).toISOString():null;})(),seat:spaceNow.seat||s.table_no,headcount:spaceNow.headcount||1,plan:out.lines.filter(l=>l.space_role==='plan').map(l=>l.zh).join('、')}:undefined});
+    res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,service_charge:out.service||undefined,received:out.payer.received,change:out.payer.change,method:out.payer.method,payments:out.payer.payments,prepay:!!out.payer.prepay,member:out.payer.member,yan:memberUser?yanOut:undefined,member_created:!!memberUser?.created,closed:closed&&!held,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut,warning:regWarn||undefined,space_started:spaceStart?{paid_at:new Date().toISOString(),in_at:spaceNow.in_at,due_at:(()=>{const m=items.filter(l=>l.space_role==='plan'&&!l.cancelled&&!l.credit_of).reduce((a,l)=>a+(Number(l.space_minutes)||0),0);return m>0?new Date(Date.parse(spaceNow.in_at)+m*60000).toISOString():null;})(),seat:spaceNow.seat||s.table_no,headcount:spaceNow.headcount||1,plan:out.lines.filter(l=>l.space_role==='plan').map(l=>l.zh).join('、')}:undefined});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 app.post('/api/admin/orders/:id/invoice/issue',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -8597,7 +8599,7 @@ app.post('/api/admin/orders/space/enter',auth,adminOnly,requireDb,wrap(async(req
     await client.query('INSERT INTO access_scans (id,entitlement_id,user_id,token_iat,scanned_at) VALUES ($1,$2,$3,$4,now()) ON CONFLICT (entitlement_id, token_iat) DO NOTHING',[uid('as_'),ent.id,user.id,p.iat]);
     await client.query('COMMIT');
     req.posLogDetail=`${table} ${who} 會員掃碼確認入場（${ent.plan}${activated?'，首次進場啟用':''}）`;
-    res.status(201).json({ok:true,action:'entered',id:sid,table,member:who,plan:ent.plan,activated,space_started:{in_at:inAt,due_at:null,seat:table,headcount:1,plan:it.zh}});
+    res.status(201).json({ok:true,action:'entered',id:sid,table,member:who,plan:ent.plan,activated,space_started:{paid_at:inAt,member_entry:true,in_at:inAt,due_at:null,seat:table,headcount:1,plan:it.zh}});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 /* 線上已付的入場單（會員 App 貴賓室）到場入場：開始計時；靜讀室要指定席號（入場單號改成席號） */
@@ -8621,9 +8623,9 @@ app.post('/api/admin/orders/sessions/:id/space/checkin',auth,adminOnly,requireDb
     await client.query('UPDATE table_sessions SET table_no=$2,space=$3,updated_at=now() WHERE id=$1',[s.id,table,JSON.stringify(space)]);
     if(table!==s.table_no)await client.query('UPDATE table_orders SET table_no=$2 WHERE session_id=$1',[s.id,table]);
     await client.query('COMMIT');
-    const m=posSpace.planMinutes(s.items);
+    const m=posSpace.planMinutes(s.items),paidAt=posSpace.planPaidAt((await q("SELECT items,paid_at FROM table_orders WHERE session_id=$1 AND status<>'void'",[s.id])).rows);
     req.posLogDetail=`${s.table_no}${table!==s.table_no?'→'+table:''} ${s.space.member_name||''} 線上已付入場`;
-    res.json({ok:true,id:s.id,table,space_started:{in_at:inAt,due_at:m>0?new Date(Date.parse(inAt)+m*60000).toISOString():null,seat:table,headcount:1,plan:posSpace.planLines(s.items).map(l=>l.zh).join('、')}});
+    res.json({ok:true,id:s.id,table,space_started:{paid_at:paidAt,online:true,in_at:inAt,due_at:m>0?new Date(Date.parse(inAt)+m*60000).toISOString():null,seat:table,headcount:1,plan:posSpace.planLines(s.items).map(l=>l.zh).join('、')}});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 /* 等等空間會員（KK 11/17）：App 線上購買／現場開通的會籍，POS 看得到誰買了什麼、狀態、在不在場（電話遮罩） */

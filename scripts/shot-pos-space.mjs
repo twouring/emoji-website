@@ -24,7 +24,7 @@ function sess(venue, table, { inMin, plans, headcount = 1, out = null, unpaidOt 
   const s = { id: 'ts_' + table.toLowerCase().padEnd(16, '0'), table, items: lines, space: { seat: '', headcount, in_at: inMin == null ? null : at(inMin), out_at: out == null ? null : at(out) } };
   const unpaid = lines.filter(l => !l.order_id);
   return { id: s.id, table, takeout: false, state: 'eating', lines: unpaid, paid_lines: [], unpaid: unpaid.length, unpaid_amount: unpaid.reduce((a, l) => a + l.price * l.qty, 0), created_at: at(300), updated_at: at(1), pay_requests: [], members: [],
-    space: S.view(s, S.normalizeSettings('', venue), NOW) };
+    space: { ...S.view(s, S.normalizeSettings('', venue), NOW), paid_at: inMin == null ? null : at(inMin + 2) } };
 }
 const DATA = {
   STAY: { sessions: [
@@ -99,5 +99,7 @@ await shot('rest-board-1180', 'REST', '', 1180, 820);
 await shot('rest-seat-dialog', 'REST', '', 1180, 820, p => p.evaluate(() => document.querySelector('[data-space-seat="Q1"]').click()));
 await shot('rest-q5-limit', 'REST', '/table/Q5', 1180, 820);
 await shot('stay-board-390', 'STAY', '', 390, 844);
+await shot('stay-e02-bar-1180', 'STAY', '/table/E02', 1180, 820);
+await shot('stay-board-scroll', 'STAY', '', 1180, 820, p => p.evaluate(() => { document.querySelectorAll('.op-overlay').forEach(o => o.remove()); const b = document.querySelector('.sp-board'); b.scrollTop = b.scrollHeight; }));
 console.log(errs.length ? 'ERR ' + errs.join(' | ') : 'no-errors');
 await browser.close();
