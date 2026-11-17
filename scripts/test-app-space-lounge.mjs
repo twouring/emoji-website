@@ -55,7 +55,7 @@ test('server：貴賓室購買冪等、掃碼進出、會員清單、線上已�
   assert.match(srv, /await fulfillLoungeCheckout\(event\.data\.object\);/, 'webhook 接上');
   assert.match(srv, /async function fulfillLoungeCheckout\(session\)[\s\S]{0,900}payer->>'stripe_session'=\$1/, '以 stripe session 去重');
   assert.match(srv, /metadata: \{ kind: 'lounge', item_id: it\.id, price: String\(it\.price\), user_id: req\.auth\.sub \}/);
-  for (const r of ["app.post('/api/admin/orders/space/scan'", "app.post('/api/admin/orders/sessions/:id/space/checkin'", "app.get('/api/admin/orders/space/members'", "app.get('/api/me/lounge'", "app.post('/api/me/lounge/checkout'", "app.post('/api/me/lounge/verify'", "app.get('/api/lounge/plans'"]) assert.ok(srv.includes(r), r);
+  for (const r of ["app.post('/api/admin/orders/space/scan'", "app.post('/api/admin/orders/space/enter'", "app.post('/api/admin/orders/sessions/:id/space/checkin'", "app.get('/api/admin/orders/space/members'", "app.get('/api/me/lounge'", "app.post('/api/me/lounge/checkout'", "app.post('/api/me/lounge/verify'", "app.get('/api/lounge/plans'"]) assert.ok(srv.includes(r), r);
   assert.match(srv, /space\.prepaid===true&&!session\.space\.in_at\)return res\.status\(409\)/, '線上已付未到不能清單');
   assert.match(srv, /UPDATE entitlements SET activated_at=\$2,starts_at=\$2,ends_at=\$3 WHERE id=\$1 AND activated_at IS NULL/, '掃碼入場啟用會籍');
   assert.match(srv, /posSpace\.maskPhone\(/, '會員清單電話遮罩');
@@ -92,8 +92,9 @@ test('約書旅官網可線上購買，付款走貴賓室入帳', () => {
 test('POS：入場管理有掃碼進出、等等空間有會員清單、線上已付可入場', () => {
   assert.match(pos, /id="sp-scan">掃碼進出</);
   assert.match(pos, /SCOPE === 'STAY' \? '<button type="button" class="btn btn--ghost" id="sp-members">會員<\/button>'/);
-  assert.match(pos, /async function spaceScan\(reload\)\{\n  const tok = await pickMemberCard\(\)/);
-  assert.match(pos, /api\('\/admin\/orders\/space\/scan'/); assert.match(pos, /\/space\/checkin'/); assert.match(pos, /api\('\/admin\/orders\/space\/members'\)/);
+  assert.match(pos, /pickMemberCard\(\{ title: '掃會員卡確認進出'/);
+  assert.match(pos, /title: '確認入場'/); assert.match(pos, /title: '確認離場'/);
+  assert.match(pos, /api\('\/admin\/orders\/space\/scan'/); assert.match(pos, /api\('\/admin\/orders\/space\/enter'/); assert.match(pos, /\/space\/checkin'/); assert.match(pos, /api\('\/admin\/orders\/space\/members'\)/);
   assert.match(pos, /ready: \['sp-ready', '線上已付'\]/);
   assert.match(read('public/pos-space.css'), /\.sp-ready\{/);
 });

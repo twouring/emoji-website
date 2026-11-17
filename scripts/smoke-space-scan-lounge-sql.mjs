@@ -132,6 +132,9 @@ test('貴賓室線上購買→掃碼入場→離場；等等空間會員掃碼�
     const oldAccess = tok.signAccessToken({ sub: 'u_amy', ent: 'en_1', plan: 'month', floors: ['2', '3'] }, ACCESS, { ttlSec: 45 });
     assert.equal((await call('POST', '/api/admin/orders/space/scan', { token: oldAccess })).status, 400, '舊的獨立進出 QR 不再接受');
     r = await call('POST', '/api/admin/orders/space/scan', { token: card('u_amy'), operator_id: 's1' });
+    assert.equal(r.status, 200, JSON.stringify(r.body)); assert.equal(r.body.action, 'enter'); assert.equal(r.body.pending, true);
+    assert.equal(Number((await q("SELECT count(*) FROM table_sessions WHERE venue='STAY'")).rows[0].count), 0, '掃碼只查、確認前不入場');
+    r = await call('POST', '/api/admin/orders/space/enter', { token: card('u_amy'), operator_id: 's1' });
     assert.equal(r.status, 201, JSON.stringify(r.body)); assert.equal(r.body.action, 'entered'); assert.equal(r.body.activated, true); assert.equal(r.body.space_started.due_at, null, '會員入場不限時');
     const e = (await q("SELECT activated_at,ends_at FROM entitlements WHERE id='en_1'")).rows[0];
     assert.ok(e.activated_at && e.ends_at, '首次進場啟用會籍');

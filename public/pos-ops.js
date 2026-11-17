@@ -381,10 +381,11 @@ async function startInvoiceScan(video,onCode,{raw:keepRaw=false,sensitive=false,
   }catch(e){stopPosInvoiceScanner(video);toast('無法開啟相機：'+e.message);return false;}
 }
 // 掃會員條碼：全螢幕彈窗，點「掃會員」即開相機掃 App「會員卡」QR；下方可用掃描槍／手動貼上。向後台換成會員資料；會員卡 QR 區分大小寫，不能轉大寫
-function pickMemberCard(){
+function pickMemberCard(opt){
+  const title=(opt&&opt.title)||'掃會員條碼', hint=(opt&&opt.hint)||'請客人打開 App「會員卡」，把 QR 對準框內';
   return new Promise(resolve=>{
-    const ov=document.createElement('div');ov.className='pos-scan-full';ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');ov.setAttribute('aria-label','掃會員條碼');
-    ov.innerHTML=`<div class="pos-scan-full-head"><b>掃會員條碼</b><button type="button" class="btn btn--ghost" data-cancel>關閉</button></div><div class="pos-scan-full-cam"><video id="pos-card-video" playsinline muted></video><div class="pos-scan-full-frame pos-scan-full-frame--qr" aria-hidden="true"></div></div><p class="pos-scan-full-hint" role="status">請客人打開 App「會員卡」，把 QR 對準框內</p><div class="pos-scan-full-foot"><input id="pos-card-input" autocomplete="off" spellcheck="false" placeholder="或用掃描槍／貼上會員條碼"><button type="button" class="btn btn--solid" data-ok>確定</button></div>`;
+    const ov=document.createElement('div');ov.className='pos-scan-full';ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');ov.setAttribute('aria-label',title);
+    ov.innerHTML=`<div class="pos-scan-full-head"><b>${title.replace(/[<>&]/g,s=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]))}</b><button type="button" class="btn btn--ghost" data-cancel>關閉</button></div><div class="pos-scan-full-cam"><video id="pos-card-video" playsinline muted></video><div class="pos-scan-full-frame pos-scan-full-frame--qr" aria-hidden="true"></div></div><p class="pos-scan-full-hint" role="status">${hint.replace(/[<>&]/g,s=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]))}</p><div class="pos-scan-full-foot"><input id="pos-card-input" autocomplete="off" spellcheck="false" placeholder="或用掃描槍／貼上會員條碼"><button type="button" class="btn btn--solid" data-ok>確定</button></div>`;
     document.body.appendChild(ov);
     const video=ov.querySelector('video'),inp=ov.querySelector('input'),hint=ov.querySelector('.pos-scan-full-hint');
     let closed=false;

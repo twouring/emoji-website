@@ -547,7 +547,10 @@ POS 營業情境（KK 11/15，`lib/pos-space.js`）：讀取品牌的情境設�
 
 
 ### POST /api/admin/orders/space/scan
-掃碼進出（KK 11/17，空間情境品牌 POS）。Body `{ token, venue?, operator_id? }`，token＝會員 App「會員卡」QR（`yan-card`，120 秒有效；KK 11/17 起不再有獨立進出 QR）。回 `action`：`inside`（這位會員已在場內，`{id,table,member}`，前端接 `/space/leave`）；`checkin`（約書旅有會員 App 線上已付、還沒入場的入場單，`{id,table,member,need_seat,plan}`，前端接 `/space/checkin`）；`entered`（等等空間有效或待啟用會籍：開 0 元「會員入場」單並立即開始計時，待首次進場的會籍同時啟用、寫 `access_scans`，201 回 `{id,table,member,plan,activated,space_started}`）。無效 QR 400、沒有方案 403／404、餐飲情境 409、容量滿 409。
+掃碼進出查詢（空間情境品牌 POS）。Body `{ token, venue? }`，token＝會員 App「會員卡」QR（`yan-card`，120 秒有效）。本支只查不寫入。回 `action`：`inside`（已在場內，`{id,table,member,in_at,plan}`，前端確認後接 `/space/leave`）；`checkin`（線上已付還沒入場，`{id,table,member,need_seat,plan}`，前端確認後接 `/space/checkin`）；`enter`（等等空間有效或待啟用會籍，`{member,plan,plan_label,pending}`，前端確認後接 `/space/enter`）。無效 QR 400、沒有方案 403／404、餐飲情境 409。
+
+### POST /api/admin/orders/space/enter
+掃碼確認入場（等等空間）。Body `{ token, venue?, operator_id? }`。開 0 元「會員入場」單並開始計時；待首次進場的會籍同時啟用、寫 `access_scans`。201 回 `{action:'entered',id,table,member,plan,activated,space_started}`。已在場內或有線上已付未入場 409、沒有會籍 403、容量滿 409。約書旅請走 `/space/checkin`。
 
 ### POST /api/admin/orders/sessions/:id/space/checkin
 會員 App 線上已付（`space.prepaid`）的入場單到場入場：開始計時（`in_at`＝現在）。靜讀室等需指定席號的分類要帶 `{ seat }`，入場單號改成席號（訂單同步改桌號）。回 `{ ok, id, table, space_started }`；不是線上已付未入場的單 404、席位使用中 409。

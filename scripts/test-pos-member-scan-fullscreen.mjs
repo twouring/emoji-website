@@ -6,7 +6,7 @@ const ops = fs.readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'u
 const css = fs.readFileSync(new URL('../public/pos-ops.css', import.meta.url), 'utf8');
 
 test('掃會員：全螢幕彈窗、點了直接開相機、會員卡 QR 保留大小寫', () => {
-  const fn = ops.slice(ops.indexOf('function pickMemberCard()'), ops.indexOf('function syncInvoiceBadge'));
+  const fn = ops.slice(ops.indexOf('function pickMemberCard('), ops.indexOf('function syncInvoiceBadge'));
   assert.ok(fn.length > 0);
   assert.match(fn, /ov\.className='pos-scan-full'/);
   assert.match(fn, /pos-scan-full-frame--qr/);

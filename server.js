@@ -8439,9 +8439,9 @@ app.post('/api/admin/orders/sessions/:id/space/resume',auth,adminOnly,requireDb,
     await client.query('COMMIT');res.json({ok:true,id:s.id});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
-/* 掃碼進出（KK 11/17）：一律掃會員 App 的會員卡 QR。
-   已在場內→回 inside（前端接 /space/leave）；約書旅有線上已付未到的入場單→回 checkin（前端接 /space/checkin，靜讀室要選席）；
-   等等空間有效會籍→直接開 0 元「會員入場」單並開始計時（待首次進場的會籍同時啟用）。 */
+/* 掃碼進出（KK 11/17）：一律掃會員 App 的會員卡 QR，本支只查狀態不寫入。
+   已在場內→inside（前端確認後 /space/leave）；線上已付未到→checkin（前端確認後 /space/checkin）；
+   等等空間有效會籍→enter（前端確認後 /space/enter 才開 0 元入場單）。 */
 app.post('/api/admin/orders/space/scan',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const v=spaceVenue(req,res);if(!v)return;
   const cfg=await spaceSettingsOf(v);if(cfg.mode!=='space')return spaceErr(res,409,'這個品牌目前是餐飲情境，請到「設定 → 營業情境」切換成空間。');
@@ -8451,10 +8451,26 @@ app.post('/api/admin/orders/space/scan',auth,adminOnly,requireDb,wrap(async(req,
   const who=user.name||'這位會員';
   const mine=(await q("SELECT id,table_no,items,space FROM table_sessions WHERE status='open' AND venue=$1 AND space->>'member_id'=$2 ORDER BY created_at",[v,user.id])).rows;
   const inside=mine.find(s=>s.space.in_at&&!s.space.out_at);
-  if(inside)return res.json({ok:true,action:'inside',id:inside.id,table:inside.table_no,member:who});
+  if(inside)return res.json({ok:true,action:'inside',id:inside.id,table:inside.table_no,member:who,in_at:inside.space.in_at,plan:posSpace.planLines(inside.items).map(l=>l.zh).join('、')});
   const pass=mine.find(s=>!s.space.in_at&&s.space.prepaid===true);
   if(pass){const cat=(posSpace.planLines(pass.items)[0]||{}).cat;return res.json({ok:true,action:'checkin',id:pass.id,table:pass.table_no,member:who,need_seat:cfg.seat_cats.includes(cat)&&cfg.seats.length>0,plan:posSpace.planLines(pass.items).map(l=>l.zh).join('、')});}
   if(v!=='STAY')return spaceErr(res,404,`${who} 沒有已購買、還沒使用的方案。請客人在 App「貴賓室」購買，或按「＋ 入場」現場收款。`);
+  const now=new Date(),ent=pickEntitlementForQr(await persistLazyActivations(await loadEntitlements(user.id),now),now);
+  if(!ent)return spaceErr(res,403,`${who} 沒有有效會籍。請客人在 App「共享空間」購買，或按「＋ 入場」現場收款。`);
+  res.json({ok:true,action:'enter',member:who,plan:ent.plan,plan_label:PLAN_LABEL[ent.plan]||ent.plan,pending:!ent.activated_at&&ent.plan!=='founding'});
+}));
+/* 掃碼確認入場後才寫入（等等空間有效會籍＝0 元會員入場）。token 再驗一次，避免確認前狀態已變。 */
+app.post('/api/admin/orders/space/enter',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const v=spaceVenue(req,res);if(!v)return;
+  if(v!=='STAY')return spaceErr(res,400,'只有等等空間用會員卡確認入場（約書旅請掃線上已付的方案）。');
+  const cfg=await spaceSettingsOf(v);if(cfg.mode!=='space')return spaceErr(res,409,'這個品牌目前是餐飲情境，請到「設定 → 營業情境」切換成空間。');
+  const p=memberCardOf(req.body?.token);
+  if(!p)return spaceErr(res,400,'不是有效的會員卡 QR。請客人打開會員 App 的「會員卡」（QR 會定時更新，截圖無效）。');
+  const user=(await q('SELECT id,name FROM users WHERE id=$1',[p.sub])).rows[0];if(!user)return spaceErr(res,404,'找不到這位會員。');
+  const who=user.name||'這位會員';
+  const mine=(await q("SELECT id,table_no,space FROM table_sessions WHERE status='open' AND venue=$1 AND space->>'member_id'=$2",[v,user.id])).rows;
+  if(mine.find(s=>s.space.in_at&&!s.space.out_at))return spaceErr(res,409,`${who} 已在場內（${mine.find(s=>s.space.in_at&&!s.space.out_at).table_no}）。要離場請再掃一次。`);
+  if(mine.find(s=>!s.space.in_at&&s.space.prepaid===true))return spaceErr(res,409,`${who} 有線上已付還沒入場的方案，請掃碼確認入場開始計時。`);
   const now=new Date(),ent=pickEntitlementForQr(await persistLazyActivations(await loadEntitlements(user.id),now),now);
   if(!ent)return spaceErr(res,403,`${who} 沒有有效會籍。請客人在 App「共享空間」購買，或按「＋ 入場」現場收款。`);
   const device=await counterDevice(req);if(!device&&!(req.auth.super===true||req.auth.agent))return spaceErr(res,403,'這台 POS 尚未綁定或未設定裝置名稱，不能掃碼入場。');
@@ -8475,9 +8491,9 @@ app.post('/api/admin/orders/space/scan',auth,adminOnly,requireDb,wrap(async(req,
     await client.query(`INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,invoice,status,done_at,user_id) VALUES($1,$2,$3,$4,0,$5,'{}','done',now(),$6)`,[orderId,sid,table,JSON.stringify(items),JSON.stringify({method:'cash',received:0,change:0,member:true,member_id:user.id,name:user.name||'',member_entry:true,staff:actorOf(req.auth)||''}),user.id]);
     let activated=false;
     if(!ent.activated_at&&ent.plan!=='founding'){const ends=endsAtAfterActivation(ent.plan,now);activated=!!(await client.query('UPDATE entitlements SET activated_at=$2,starts_at=$2,ends_at=$3 WHERE id=$1 AND activated_at IS NULL RETURNING id',[ent.id,now,ends])).rows[0];}
-    await client.query('INSERT INTO access_scans (id,entitlement_id,user_id,token_iat,scanned_at) VALUES ($1,$2,$3,$4,now()) ON CONFLICT (entitlement_id, token_iat) DO NOTHING',[uid('as_'),ent.id,user.id,p.iat]);   // 進出紀錄（掃會員卡）
+    await client.query('INSERT INTO access_scans (id,entitlement_id,user_id,token_iat,scanned_at) VALUES ($1,$2,$3,$4,now()) ON CONFLICT (entitlement_id, token_iat) DO NOTHING',[uid('as_'),ent.id,user.id,p.iat]);
     await client.query('COMMIT');
-    req.posLogDetail=`${table} ${who} 會員掃碼入場（${ent.plan}${activated?'，首次進場啟用':''}）`;
+    req.posLogDetail=`${table} ${who} 會員掃碼確認入場（${ent.plan}${activated?'，首次進場啟用':''}）`;
     res.status(201).json({ok:true,action:'entered',id:sid,table,member:who,plan:ent.plan,activated,space_started:{in_at:inAt,due_at:null,seat:table,headcount:1,plan:it.zh}});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
