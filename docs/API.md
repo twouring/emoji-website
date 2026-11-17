@@ -782,7 +782,7 @@ POS 每 5 秒輪詢。回 `{ pending:[{id,session_id,table,by,amount,sfx,perform
 從書冊刪除一本書（POS 同步下架；已結帳紀錄不受影響）。回 `{ ok }`。
 
 ### GET /api/admin/orders/history
-查單：某營業日全部的單（含作廢），最新在前。query `day=YYYY-MM-DD`（預設今天的營業日）、`q=`（桌號／金額／發票號碼／單號尾碼，不分大小寫）、`venue=`。每張單附 `stations`（分站明細）供重印出餐單。回 `{ day, orders[], count }`。品牌子帳號只看自己店別的單。
+查單：某營業日全部的單（含作廢），最新在前。營業日依付款時間（`paid_at`，台北 03:00 換日）判定，與帳本開關無關（日結／小結才依開帳日認列）。query `day=YYYY-MM-DD`（預設今天的營業日）、`q=`（桌號／金額／發票號碼／單號尾碼，不分大小寫）、`venue=`。每張單附 `stations`（分站明細）供重印出餐單。回 `{ day, orders[], count }`。品牌子帳號只看自己店別的單。
 
 ### GET /api/admin/exec
 高管總覽（admin 首頁）。不分品牌，一次回所有品牌今天的營運狀態與挑出的問題；只給言文字管理員（品牌子帳號 403）。回 `{ generated_at, day, brands[]{venue,label,active,hours_open,today,yesterday,last_week（各 {amount,orders,collected,voided,void_amount,by_method}；last_week＝上週同一天同時段）,register{state:none|open|closed,opened_at,closed_at,diff,count},tables{open,unpaid_amount},staff[]{name,start,end,in},reservations{count,people},sold_out[]}, issues[]{level:high|mid|low,area,brand,brand_label,title,detail,href}, counts{high,mid,low}, checks[]{area,label}（沒發現問題的檢查項目）, events[], on_duty[] }`。判斷規則與門檻在 `lib/exec-board.js`：前幾天的帳沒關、關帳短溢、打烊未關帳、有營收沒開帳、LINE Pay／中信對帳差額或同步失敗、出餐單卡在佇列、等出餐 20／40 分鐘、開桌過久未結、呼叫服務沒人處理、點餐暫停、忘記下班打卡、班表開始未打卡、庫存負數或低於安全量、訂位未確認、場地申請待審、近期活動仍是草稿、IG 發佈失敗或排程過期、低分回饋、找碴待審。任一資料來源讀取失敗會以 low 等級列出，不會靜默略過。

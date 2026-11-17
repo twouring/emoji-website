@@ -19,7 +19,13 @@ test('日期認列依開帳日：日結、小結、歷史單都走 ordersOfDay',
   assert.match(body, /r\.venue===v&&\+new Date\(r\.opened_at\)<=t&&\(!r\.closed_at\|\|t<\+new Date\(r\.closed_at\)\)/);
   assert.match(body, /r\?r\.day:tableOrders\.MenuLib\.businessDay\(t\)/);
   assert.match(fn('async function registerSummary('), /ordersOfDay\(regDayStr/);
-  assert.equal((server.match(/await ordersOfDay\(day,/g) || []).length, 2, 'sales＋history');
+  assert.equal((server.match(/await ordersOfDay\(day,/g) || []).length, 1, 'sales');
+});
+test('查單依付款時間的營業日，與帳本無關（KK 11/17）', () => {
+  const i = server.indexOf("app.get('/api/admin/orders/history',"); const body = server.slice(i, server.indexOf('}));', i));
+  assert.doesNotMatch(body, /ordersOfDay|pos_registers/);
+  assert.match(body, /FROM table_orders WHERE paid_at>=\$1 AND paid_at<\$2 ORDER BY paid_at DESC`,\[from,to\]/);
+  assert.match(body, /T03:00:00\+08:00/);
 });
 test('開帳：同品牌還有沒關的帳（不論哪天）就擋', () => {
   assert.match(server, /'register-open:'\+venue/);

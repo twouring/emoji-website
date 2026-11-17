@@ -7601,7 +7601,8 @@ app.get('/api/admin/orders/history',auth,adminOnly,requireDb,wrap(async(req,res)
   const day=/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.day||''))?String(req.query.day):tableOrders.MenuLib.businessDay();
   const from=new Date(day+'T03:00:00+08:00'),to=new Date(+from+86400e3);
   const needle=tableOrders.cleanText(req.query.q,40).toUpperCase();
-  const orders=(await ordersOfDay(day,'id,session_id,table_no,items,amount,payer,tappay,invoice,status,paid_at,ready_at,done_at,void_reason,voided_by,user_id')).reverse()
+  const cols='id,session_id,table_no,items,amount,payer,tappay,invoice,status,paid_at,ready_at,done_at,void_reason,voided_by,user_id';
+  const orders=(await q(`SELECT ${cols} FROM table_orders WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at DESC`,[from,to])).rows   /* 查單依付款時間的營業日（03:00 換日），與帳本無關（KK 11/17） */
     .filter(o=>tableOrders.orderOwnedByVenues(o,venues))
     .filter(o=>!needle||String(o.table_no).toUpperCase().includes(needle)||String(o.amount)===needle||String(o.invoice?.number||'').toUpperCase().includes(needle)||o.id.toUpperCase().endsWith(needle))
     .map(o=>({...o,paid_at:new Date(o.paid_at).toISOString(),stations:tableOrders.splitByStation(o)}));
