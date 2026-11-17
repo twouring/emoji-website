@@ -27,7 +27,7 @@ page.on('request', r => {
   r.respond({ status: 200, contentType: types[path.extname(f)] || 'application/octet-stream', body: fs.readFileSync(f) });
 });
 const errs = []; page.on('pageerror', e => errs.push(e.message));
-await page.goto('https://demo.test/order?demo=tappay', { waitUntil: 'networkidle0' });
+await page.goto('https://demo.test/order?store=atcafe', { waitUntil: 'networkidle0' });
 await new Promise(r => setTimeout(r, 800));
 // 稱呼關卡
 if (await page.$('#name-in:not([hidden])')) { await page.type('#name-in', '審核'); await page.evaluate(() => { const b = document.querySelector('#name-gate form button[type=submit], #name-ok, #name-gate .btn'); b && b.click(); }); }

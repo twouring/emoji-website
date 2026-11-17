@@ -329,7 +329,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   var toastT;var toast=function(m,ms){var t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove('on');},ms||4000);};
   var money=function(n){return 'NT$'+Number(n||0).toLocaleString('zh-TW');};
   var ON_APP=/^app\./.test(location.hostname),STANDALONE=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;   // 點餐頁收進會員 App（app.emoji.tw/order）
-  var qs=new URLSearchParams(location.search),SID=qs.get('s')||'',T=qs.get('t')||'',K=qs.get('k')||'',FIXED=!SID&&!!T,TK=FIXED?K:'',DEMO=qs.get('demo')==='tappay'&&!SID&&!T;   // s＝本場單次 QR（POS 開桌印出）；t＝在咖啡桌邊固定 QR（KK 11/3），掃到後換成這一場的 s/k   // s＝本場單次 QR（POS 開桌印出）；t＝桌上舊固定 QR，已停用
+  var qs=new URLSearchParams(location.search),SID=qs.get('s')||'',T=qs.get('t')||'',K=qs.get('k')||'',FIXED=!SID&&!!T,TK=FIXED?K:'',DEMO=qs.get('store')==='atcafe'&&!SID&&!T;   // s＝本場單次 QR（POS 開桌印出）；t＝在咖啡桌邊固定 QR（KK 11/3），掃到後換成這一場的 s/k   // s＝本場單次 QR（POS 開桌印出）；t＝桌上舊固定 QR，已停用
   var S=null,MENU=[],MENU_DOC=null,VENUE=null,CFG={},GUEST,NAME,seenReady={},pollTimer,LANG='zh',CURRENT_ITEM=null,CURRENT_QTY=1,EDIT_LINE=null,PAUSED=null,WIN_KEY='';
   try{GUEST=localStorage.getItem('order_guest');NAME=localStorage.getItem('order_name')||'';LANG=localStorage.getItem('order_lang')||'';}catch(e){}
   if(!LANG){var ql=qs.get('lang'),nl=(navigator.language||'').toLowerCase();LANG=ql==='en'||ql==='ja'||ql==='ko'?ql:(!ql&&/^ja/.test(nl)?'ja':(!ql&&/^ko/.test(nl)?'ko':(!ql&&!/^zh/i.test(nl)?'en':'zh')));}
@@ -356,7 +356,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   if(!GUEST){GUEST=Math.random().toString(36).slice(2,14)+Math.random().toString(36).slice(2,6);try{localStorage.setItem('order_guest',GUEST);}catch(e){}}
   var apiNet=function(path,opt){opt=opt||{};return fetch('/api'+path,{method:opt.method||'GET',headers:opt.body?{'Content-Type':'application/json'}:{},body:opt.body?JSON.stringify(opt.body):undefined}).then(function(r){return r.json().catch(function(){return {};}).then(function(d){if(!r.ok){var e=Error(d.error||('伺服器錯誤 '+r.status));e.status=r.status;if(d.wait)e.wait=d.wait;throw e;}return d;});});};
   var api=function(path,opt){return DEMO?demoApi(path,opt||{}):apiNet(path,opt);};
-  /* 金流審核示範連結（KK 11/17，TapPay／LINE Pay 進件用）：/order?demo=tappay。不開桌、不寫資料庫、不進出餐單與日結；
+  /* 金流審核示範連結（KK 11/17，TapPay／LINE Pay 進件用）：/order?store=atcafe（網址不帶 demo 字樣，KK 11/17）。不開桌、不寫資料庫、不進出餐單與日結；
      品項與價格讀正式菜單，購物車與送出只存在這支手機的記憶體，流程與畫面同真正的桌邊點餐。 */
   var DEMO_S=null;
   if(DEMO){var OW0=MenuLib.orderWindow;MenuLib.orderWindow=function(n){var w=OW0(n);return w.venue?w:{venue:'CAFE',food:true,drink:true};};}   // 非營業時段審核也看得到菜單

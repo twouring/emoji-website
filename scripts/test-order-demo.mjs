@@ -1,4 +1,4 @@
-// 金流審核示範連結（KK 11/17）：/order?demo=tappay 不開桌、不寫資料庫，只在手機記憶體模擬購物車與送出。
+// 金流審核示範連結（KK 11/17）：/order?store=atcafe 不開桌、不寫資料庫，只在手機記憶體模擬購物車與送出。
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -6,8 +6,8 @@ import fs from 'node:fs';
 const html = fs.readFileSync(new URL('../public/order.html', import.meta.url), 'utf8');
 const lib = fs.readFileSync(new URL('../public/order-lib.js', import.meta.url), 'utf8');
 
-test('demo 只認 ?demo=tappay，且帶 s/t 時不啟用', () => {
-  assert.match(html, /DEMO=qs\.get\('demo'\)==='tappay'&&!SID&&!T/);
+test('只認 ?store=atcafe，且帶 s/t 時不啟用', () => {
+  assert.match(html, /DEMO=qs\.get\('store'\)==='atcafe'&&!SID&&!T/);
 });
 
 test('demo 模式所有 API 走本機模擬，只有 /orders/config 讀伺服器', () => {
