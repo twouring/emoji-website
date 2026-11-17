@@ -5,7 +5,7 @@
    ensureOperator、OPERATOR、posConfirm、ordersBeep、ticketCanvas、starSend、canPrint、starHint、clockText、applicationTime。 */
 /* XSS：本檔 innerHTML 模板內所有來自資料的字串（席號、品名、時間文字）一律經 esc()，數字經 num()/Number()；其餘是程式常數。 */
 const SPACE_STATE = {
-  unpaid: ['sp-unpaid', '待收款'], ok: ['sp-ok', '使用中'], open: ['sp-ok', '不限時'], soon: ['sp-soon', '快到時'],
+  unpaid: ['sp-unpaid', '待收款'], ready: ['sp-ready', '線上已付'], ok: ['sp-ok', '使用中'], open: ['sp-ok', '不限時'], soon: ['sp-soon', '快到時'],
   grace: ['sp-grace', '寬限中'], over: ['sp-over', '超時'], stale: ['sp-stale', '待確認離場'], left: ['sp-gone', '待補收'],
 };
 let SPACE_ALERTED = new Set();
@@ -20,6 +20,7 @@ function spaceLive(sp, now = Date.now()){
   if (!sp) return null;
   const c = spaceCfg();
   if (sp.out_at) return { state: 'left', text: `離場 ${clockText(sp.out_at)}` };
+  if (!sp.in_at && sp.prepaid) return { state: 'ready', text: `${sp.member || '會員'}・掃碼入場後計時` };
   if (!sp.in_at) return { state: 'unpaid', text: '收款後開始計時' };
   if (!sp.due_at) return { state: 'open', text: `已使用 ${spaceDur((now - Date.parse(sp.in_at)) / 60000)}` };
   const left = (Date.parse(sp.due_at) - now) / 60000;
@@ -49,11 +50,11 @@ function spaceBoardHtml(d){
   const others = sessions.filter(s => !c.seats.includes(s.table)).sort((a, b) => String(a.table).localeCompare(String(b.table), 'zh-Hant', { numeric: true }));
   const inside = sum.inside ?? sessions.filter(s => !s.space.out_at).reduce((a, s) => a + (s.space.headcount || 1), 0);
   const stat = (k, v) => `<span class="sp-stat"><small>${esc(k)}</small><b>${v}</b></span>`;
-  return `<div class="sp-board"><div class="ops-head"><h2>入場管理</h2><button type="button" class="btn btn--solid" id="sp-enter">＋ 入場</button></div>
+  return `<div class="sp-board"><div class="ops-head"><h2>入場管理</h2><div class="sp-head-acts"><button type="button" class="btn btn--solid" id="sp-scan">掃碼進出</button><button type="button" class="btn btn--ghost" id="sp-enter">＋ 入場</button>${SCOPE === 'STAY' ? '<button type="button" class="btn btn--ghost" id="sp-members">會員</button>' : ''}</div></div>
     <div class="sp-stats" aria-label="今日統計">${stat('在場', `${num(inside)}${c.capacity ? `／${num(c.capacity)}` : ''} 人`)}${stat('今日人次', num(sum.people || 0))}${stat('平均停留', sum.avg_stay_min != null ? spaceDur(sum.avg_stay_min) : '—')}${stat('超時收入', 'NT$' + num(sum.overtime_amount || 0))}</div>
     ${c.seats.length ? `<h3 class="sp-sub">指定席位 <small>${esc(c.seat_cats.map(x => MenuLib.CAT_LABEL[x]?.zh || x).join('、'))}</small></h3><div class="sp-grid">${seats}</div>` : ''}
     <h3 class="sp-sub">入場單${others.length ? ` <span class="kds-count">${others.length}</span>` : ''}</h3>
-    <div class="sp-grid">${others.map(spaceCardHtml).join('') || '<p class="hint">目前沒有入場單。客人到櫃檯就按「＋ 入場」。</p>'}</div>
+    <div class="sp-grid">${others.map(spaceCardHtml).join('') || '<p class="hint">目前沒有入場單。會員出示 App 會員卡按「掃碼進出」；現場購買按「＋ 入場」。</p>'}</div>
     ${legacy.length ? `<h3 class="sp-sub">一般單 <small>切換情境前開的單，結清後照舊清桌</small></h3><div class="sp-grid">${legacy.map(s => `<button type="button" class="sp-card sp-unpaid${s.table === POS_TABLE ? ' on' : ''}" data-pos-table="${esc(s.table)}" aria-label="${esc(s.table)} 一般單"><span class="sp-head"><b class="sp-no">${esc(s.table)}</b><span class="pill sp-pill">一般單</span></span><span class="sp-plan">${Number(s.lines?.length || 0)} 項</span>${s.unpaid_amount ? `<span class="sp-due">待收 NT$${num(s.unpaid_amount)}</span>` : ''}</button>`).join('')}</div>` : ''}
     <p class="hint sp-rule">超時 ${Number(c.grace_min)} 分鐘內不收費，之後每 ${Number(c.unit_min)} 分鐘計 1 單位${c.max_hours ? `；連續使用上限 ${Number(c.max_hours)} 小時` : ''}。規則在「設定 → 營業情境」。</p></div>`;
 }
@@ -98,6 +99,8 @@ async function spaceEnter(seat, reload){
 }
 function bindSpaceBoard(host, reload){
   const en = host.querySelector('#sp-enter'); if (en) en.onclick = () => spaceEnter('', reload);
+  const sc = host.querySelector('#sp-scan'); if (sc) sc.onclick = () => spaceScan(reload);
+  const mb = host.querySelector('#sp-members'); if (mb) mb.onclick = () => spaceMembers();
   host.querySelectorAll('[data-space-seat]').forEach(b => b.onclick = () => spaceEnter(b.dataset.spaceSeat, reload));
   host.querySelectorAll('.sp-card[data-pos-table]').forEach(b => b.onclick = () => posSelectTable(b.dataset.posTable));
 }
@@ -108,7 +111,7 @@ function spacePanelHtml(cur){
   const btn = (id, t, solid) => `<button type="button" class="btn ${solid ? 'btn--solid' : 'btn--ghost'} btn-sm" id="${id}">${t}</button>`;
   return `<div class="sp-bar ${cls}" role="group" aria-label="入場資訊">
     <div class="sp-bar-times"><span><small>入場</small><b>${sp.in_at ? esc(clockText(sp.in_at)) : '—'}</b></span><span class="sp-bar-due"><small>預計離場</small><b>${sp.due_at ? esc(clockText(sp.due_at)) : sp.in_at ? '不限時' : '—'}</b></span>${sp.out_at ? `<span><small>離場</small><b>${esc(clockText(sp.out_at))}</b></span>` : ''}<span><small>${esc(label)}</small><b class="sp-bar-left">${esc(live.text)}</b></span></div>
-    <div class="sp-bar-acts">${sp.in_at && !sp.out_at ? btn('sp-extend', '延長') + btn('sp-leave', '離場', true) : ''}${live.state === 'stale' ? btn('sp-leave-fix', '補登離場時間') : ''}${sp.out_at ? btn('sp-resume', '取消離場') : ''}${sp.in_at ? btn('sp-reprint', '補印入場單') : ''}</div>
+    <div class="sp-bar-acts">${sp.prepaid && !sp.in_at ? btn('sp-checkin', '入場（開始計時）', true) : ''}${sp.in_at && !sp.out_at ? btn('sp-extend', '延長') + btn('sp-leave', '離場', true) : ''}${live.state === 'stale' ? btn('sp-leave-fix', '補登離場時間') : ''}${sp.out_at ? btn('sp-resume', '取消離場') : ''}${sp.in_at ? btn('sp-reprint', '補印入場單') : ''}</div>
     ${sp.limit_hit && !sp.out_at ? `<p class="sp-bar-warn">已連續使用滿 ${spaceCfg().max_hours} 小時，請請客人離場；要繼續使用請離場後重新入場。</p>` : ''}
   </div>`;
 }
@@ -141,8 +144,75 @@ function bindSpacePanel(host, cur, reload){
     if (at > d) at = new Date(at.getTime() - 86400e3);
     await leave(at.toISOString());
   });
+  on('sp-checkin', () => spaceCheckin({ id: cur.id, table: cur.table, member: cur.space.member, need_seat: (cur.space.plans || []).some(p => spaceCfg().seat_cats.includes(p.cat)) && spaceCfg().seats.length > 0 }, reload));
   on('sp-resume', async () => { if (!await posConfirm(`取消 ${cur.table} 的離場？離場自動加的超時費用會移除，繼續計時。`, { ok: '取消離場' })) return; try { await api('/admin/orders/sessions/' + cur.id + '/space/resume', { method: 'POST', body: {} }); toast('已取消離場，繼續計時'); await reload(); } catch (e) { toast(e.message); } });
   on('sp-reprint', () => printSpaceEntry({ in_at: cur.space.in_at, due_at: cur.space.due_at, seat: cur.table, headcount: cur.space.headcount, plan: (cur.space.plans || []).map(p => p.zh).join('、') }, { reprint: true }));
+}
+/* 掃碼進出（KK 11/17）：掃會員 App 會員卡／進出 QR。在場內＝離場；線上已付未到（貴賓室）＝入場開始計時；等等空間有效方案＝會員入場（0 元、不限時）。
+   相機或掃描槍都可以（pickMemberCard，QR 區分大小寫）。 */
+async function spaceScan(reload){
+  const tok = await pickMemberCard(); if (!tok) return;
+  return ensureOperator(async () => {
+    let out;
+    try { out = await api('/admin/orders/space/scan', { method: 'POST', body: { token: tok, venue: SCOPE, operator_id: OPERATOR?.id } }); }
+    catch (e) { toast(e.message); return; }
+    if (out.action === 'entered') {
+      toast(`${out.member} 會員入場（${out.table}）${out.activated ? '，方案已啟用' : ''}`);
+      await printSpaceEntry(out.space_started); await reload(); posSelectTable(out.table); return;
+    }
+    if (out.action === 'checkin') return spaceCheckin(out, reload);
+    if (out.action === 'inside') {
+      await reload(); posSelectTable(out.table);
+      const cur = (POS_DATA?.sessions || []).find(s => s.id === out.id);
+      if (!cur || !cur.space) { toast(`${out.member} 在場內（${out.table}）`); return; }
+      if (!await posConfirm(`${out.member}（${out.table}）離場？\n${spaceLive(cur.space).text}\n有超時會自動加上超時費用，再照一般流程收款。`, { title: '掃碼離場', ok: '離場' })) return;
+      try {
+        const r = await api('/admin/orders/sessions/' + out.id + '/space/leave', { method: 'POST', body: {} });
+        if (r.closed) { toast(`${r.table} 已離場，使用 ${spaceDur(r.used_minutes)}，沒有超時`); await printSpaceExit({ ...r, lines: cur.lines }); }
+        else toast(`超時 ${r.overtime_units} 小時 × ${r.headcount} 人，請補收 NT$${num(r.due)}`);
+        await reload();
+      } catch (e) { toast(e.message); }
+    }
+  });
+}
+/* 線上已付（會員 App 貴賓室）到場：靜讀室先選席號，再開始計時並印入場單 */
+async function spaceCheckin(info, reload){
+  let seat = '';
+  if (info.need_seat) {
+    const c = spaceCfg(), used = new Set((POS_DATA?.sessions || []).map(s => s.table));
+    seat = await new Promise(resolve => {
+      const ov = document.createElement('div'); ov.className = 'op-overlay'; document.body.appendChild(ov);
+      const done = v => { ov.remove(); resolve(v); };
+      ov.innerHTML = `<div class="op-card sp-dialog" role="dialog" aria-label="選席位"><h2>${esc(info.member || '')} 選席位</h2><div class="sp-plans">${c.seats.filter(t => !used.has(t)).map(t => `<button type="button" class="sp-plan-opt sp-seat-opt" data-seat="${esc(t)}"><b>${esc(t)}</b></button>`).join('') || '<p class="a-empty">席位已滿</p>'}</div><div class="op-card-actions"><button type="button" class="btn btn--ghost" data-cancel>取消</button></div></div>`;
+      ov.querySelectorAll('[data-seat]').forEach(b => b.onclick = () => done(b.dataset.seat));
+      ov.querySelector('[data-cancel]').onclick = () => done('');
+    });
+    if (!seat) return;
+  }
+  try {
+    const out = await api('/admin/orders/sessions/' + info.id + '/space/checkin', { method: 'POST', body: { seat } });
+    toast(`${info.member || ''} 已入場（${out.table}），開始計時`);
+    await printSpaceEntry(out.space_started); await reload(); posSelectTable(out.table);
+  } catch (e) { toast(e.message); }
+}
+/* 等等空間會員清單：App 線上購買／現場開通的方案、狀態、在不在場 */
+const SPACE_MEMBER_STATE = { pending: '待首次進場', active: '有效', expired: '已到期' };
+const SPACE_MEMBER_SRC = { stripe: 'App 線上購買', 'pos-manual': '現場開通', yan: '點數兌換' };
+async function spaceMembers(){
+  let d; try { d = await api('/admin/orders/space/members'); } catch (e) { toast(e.message); return; }
+  const ov = document.createElement('div'); ov.className = 'op-overlay'; document.body.appendChild(ov);
+  let f = '';
+  const paint = () => {
+    const list = (d.members || []).filter(m => !f || (m.name + m.phone + m.plan_label).includes(f));
+    ov.innerHTML = `<div class="op-card sp-dialog sp-members" role="dialog" aria-label="等等空間會員"><h2>等等空間會員 <small>${num(d.members.length)} 筆</small></h2>
+      <input type="search" class="sp-mem-q" placeholder="搜尋姓名、電話末碼、方案" value="${esc(f)}" autocomplete="off">
+      <div class="sp-mem-list">${list.map(m => `<div class="sp-mem"><b>${esc(m.name || '（未填姓名）')}</b><span>${esc(m.plan_label)}・${esc(SPACE_MEMBER_SRC[m.source] || m.source)}</span><span class="pill">${esc(SPACE_MEMBER_STATE[m.state] || m.state)}</span>${m.inside ? '<span class="pill sp-mem-in">在場</span>' : ''}<small>${esc(m.phone)} 購買 ${esc(applicationTime(m.purchased_at))}${m.ends_at ? `・到期 ${esc(applicationTime(m.ends_at))}` : ''}</small></div>`).join('') || '<p class="a-empty">沒有符合的會員</p>'}</div>
+      <p class="hint">會員到場：按「掃碼進出」掃 App 會員卡或進出 QR，第一次進場會自動啟用方案。</p>
+      <div class="op-card-actions"><button type="button" class="btn btn--solid" data-cancel>關閉</button></div></div>`;
+    const q = ov.querySelector('.sp-mem-q'); q.oninput = () => { f = q.value.trim(); const pos = q.selectionStart; paint(); const n = ov.querySelector('.sp-mem-q'); n.focus(); n.setSelectionRange(pos, pos); };
+    ov.querySelector('[data-cancel]').onclick = () => ov.remove();
+  };
+  paint();
 }
 /* 入場單／離場單（58mm 熱感紙；沒接印表機就跳提示） */
 function spaceRuleText(cat){
@@ -188,6 +258,7 @@ function spaceHidesTab(id){ return id === 'serve' && posSpaceOn(); }
 function spaceTick(){
   if (typeof document === 'undefined') return;
   for (const e of document.querySelectorAll('.sp-card[data-space-in]')) {
+    if (e.classList.contains('sp-ready')) continue;   // 線上已付未到：沒有倒數
     const live = spaceLive({ in_at: e.dataset.spaceIn || null, due_at: e.dataset.spaceDue || null, out_at: e.dataset.spaceOut || null }), [cls, label] = SPACE_STATE[live.state];
     const t = e.querySelector('[data-space-text]'); if (t && t.textContent !== live.text) t.innerHTML = spaceTextHtml(live.text);
     const p = e.querySelector('[data-space-label]'); if (p && p.textContent !== label) p.textContent = label;

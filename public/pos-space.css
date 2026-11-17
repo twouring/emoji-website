@@ -69,3 +69,13 @@
 .sp-set-wide{grid-column:1/-1}
 .sp-cat{display:inline-flex;align-items:center;gap:6px;margin-right:16px;font-size:1rem}
 .sp-cat input{width:22px;height:22px}
+
+/* 掃碼進出／線上已付／會員清單（KK 11/17） */
+.sp-head-acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.sp-ready{border-color:#7c3aed;border-style:dashed}.sp-ready .sp-pill{background:#ede4ff;color:#4c1d95}
+.sp-bar.sp-ready{border-color:#7c3aed;background:#f7f2ff}
+.sp-members{max-width:640px;width:100%}.sp-members h2 small{color:var(--muted);font-weight:400}
+.sp-mem-q{width:100%;min-height:44px;font-size:1rem;margin:8px 0 12px;box-sizing:border-box}
+.sp-mem-list{max-height:60vh;overflow:auto;display:grid;gap:8px}
+.sp-mem{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px}
+.sp-mem small{flex-basis:100%;color:var(--muted)}.sp-mem-in{background:#e3f4ea;color:#1d5c39}

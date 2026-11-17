@@ -1487,6 +1487,7 @@ async function fulfillPlanCheckout(session) {
     if (!inserted) { await client.query('COMMIT'); return { already: true }; }
     await client.query('COMMIT');
     notifyPlanPurchased(meta.user_id, meta.plan);
+    userContact(meta.user_id).then(u => lineService.notifyStaff(`🪪 等等空間會籍線上購買：${u?.name || '會員'}｜${PLAN_LABEL[meta.plan] || meta.plan}（NT$${PLAN_PRICE_TWD[meta.plan]}）\n等等空間 POS「入場管理 → 會員」看得到；客人到場出示 App 進出 QR，掃碼入場即啟用`)).catch(() => {});
     return { already: false, entitlementId: id };
   } catch (e) { await client.query('ROLLBACK'); throw e; }
   finally { client.release(); }
@@ -1823,6 +1824,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json', limit: '
       await fulfillPlanCheckout(event.data.object);
       await fulfillApplicationDeposit(event.data.object);
       await fulfillShopCheckout(event.data.object);
+      await fulfillLoungeCheckout(event.data.object);
     } else if (['refund.created','refund.updated','refund.failed'].includes(event.type)) {
       if(!pool||!dbReady)return res.status(503).send('database not ready');
       // Read the current provider state: webhook events may arrive out of order.
@@ -5986,6 +5988,95 @@ app.post('/api/me/plans/verify', auth, requireDb, wrap(async (req, res) => {
   res.json({ ok: true, already: result.already === true, plan: session.metadata.plan });
 }));
 
+/* ---- 會員 App「貴賓室」（KK 11/17）：線上購買約書旅計時方案（Stripe，同會籍帳號），付款完成即在約書旅 POS 開一張「已付款・未到」入場單；
+   客人到櫃檯出示 App 會員卡（或進出 QR），POS 掃碼入場才開始計時（POST /api/admin/orders/space/scan → /space/checkin）。不開新表：入場單＝table_sessions（space.prepaid／online／member_id）。 */
+const LOUNGE_VENUE = 'REST', LOUNGE_OPEN_MAX = 3;
+const loungeName = it => String(it?.zh || '').replace(/^空間使用費｜/, '');
+function loungePassView(s) {
+  const v = posSpace.view(s, posSpace.normalizeSettings({}, LOUNGE_VENUE)) || {};
+  const plans = v.plans || [];
+  return { id: s.id, table: s.table_no, status: s.status, created_at: s.created_at, item_id: plans[0]?.item_id || '', name: plans.map(p => p.zh).join('、'), minutes: v.plan_minutes || 0,
+    state: s.status !== 'open' ? 'done' : v.out_at ? 'left' : v.in_at ? 'inside' : 'ready', in_at: v.in_at, due_at: v.due_at, out_at: v.out_at, seat: s.space?.seat || '', paid: v.paid_total || 0 };
+}
+app.get('/api/lounge/plans', requireDb, wrap(async (_req, res) => {   // 訪客也能先看貴賓室方案與價格
+  res.set('Cache-Control', 'public, max-age=60');
+  res.json({ plans: posSpace.onlinePlans(tableOrders.MenuLib.parseMenuDoc(await contentValue('menu')).items, LOUNGE_VENUE).map(it => ({ id: it.id, cat: it.cat, zh: it.zh, en: it.en || '', ja: it.ja || '', price: it.price, minutes: it.space_minutes })) });
+}));
+app.get('/api/me/lounge', auth, requireDb, wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  const rows = (await q(`SELECT id,table_no,status,items,space,created_at FROM table_sessions WHERE venue=$1 AND space->>'member_id'=$2 AND (status='open' OR updated_at>now()-interval '3 day') ORDER BY created_at DESC LIMIT 10`, [LOUNGE_VENUE, req.auth.sub])).rows;
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, passes: rows.map(loungePassView), plans: posSpace.onlinePlans(tableOrders.MenuLib.parseMenuDoc(await contentValue('menu')).items, LOUNGE_VENUE).map(it => ({ id: it.id, cat: it.cat, zh: it.zh, en: it.en || '', ja: it.ja || '', price: it.price, minutes: it.space_minutes })), stripe: !!stripe });
+}));
+app.post('/api/me/lounge/checkout', auth, requireDb, wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  if (!stripe) return res.status(503).json({ error: '線上購買尚未開通，請到約書旅櫃檯購買。' });
+  const it = posSpace.onlinePlans(tableOrders.MenuLib.parseMenuDoc(await contentValue('menu')).items, LOUNGE_VENUE).find(x => x.id === String(req.body?.item_id || ''));
+  if (!it || tableOrders.MenuLib.soldOutToday(it)) return res.status(400).json({ error: '這個方案目前無法線上購買。' });
+  const open = Number((await q(`SELECT COUNT(*)::int AS n FROM table_sessions WHERE status='open' AND venue=$1 AND space->>'member_id'=$2 AND space->>'in_at' IS NULL`, [LOUNGE_VENUE, req.auth.sub])).rows[0].n);
+  if (open >= LOUNGE_OPEN_MAX) return res.status(409).json({ error: `已有 ${open} 張還沒使用的貴賓室方案，請先使用後再購買。` });
+  const user = (await q(`SELECT email FROM users WHERE id=$1`, [req.auth.sub])).rows[0];
+  const session = await stripe.checkout.sessions.create({
+    mode: 'payment', payment_method_types: ['card'], customer_email: user?.email || undefined,
+    line_items: [{ price_data: { currency: 'twd', product_data: { name: `約書旅 Rest Book｜${loungeName(it)}`, description: '到約書旅櫃檯出示會員 App 會員卡，掃碼入場後開始計時；超時費用離場時現場結算。' }, unit_amount: it.price * 100 }, quantity: 1 }],
+    success_url: `${APP_BASE}/?lounge_paid=1&s={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${APP_BASE}/?lounge_canceled=1`,
+    expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+    metadata: { kind: 'lounge', item_id: it.id, price: String(it.price), user_id: req.auth.sub },
+  });
+  res.json({ url: session.url });
+}));
+app.post('/api/me/lounge/verify', auth, requireDb, wrap(async (req, res) => {
+  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
+  if (!stripe) return res.status(503).json({ error: 'Stripe 未設定。' });
+  const sessionId = String(req.body?.session_id || '');
+  if (!/^cs_[A-Za-z0-9_]+$/.test(sessionId)) return res.status(400).json({ error: 'session 不正確。' });
+  const session = await stripe.checkout.sessions.retrieve(sessionId);
+  if (session.metadata?.kind !== 'lounge' || session.metadata.user_id !== req.auth.sub) return res.status(404).json({ error: '找不到這筆付款。' });
+  if (session.payment_status !== 'paid') return res.status(402).json({ error: '尚未付款。' });
+  const out = await fulfillLoungeCheckout(session);
+  if (out.mismatch) return res.status(409).json({ error: '已收款但方案已變動，店員會協助退款。' });
+  res.json({ ok: true, already: out.already === true, table: out.table || '' });
+}));
+/* webhook 與 App 回跳共用、冪等（payer->>'stripe_session' 唯一索引）：開「已付款・未到」入場單＋已付訂單（Stripe）＋會員累點，LINE 通知員工 */
+async function fulfillLoungeCheckout(session) {
+  const meta = session && session.metadata;
+  if (!meta || meta.kind !== 'lounge' || session.payment_status !== 'paid' || !meta.user_id) return { ignored: true };
+  const amountPaid = Math.round(Number(session.amount_total) / 100), intent = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id || null;
+  const client = await pool.connect();
+  let out;
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['space:' + LOUNGE_VENUE]);
+    const dup = (await client.query("SELECT id,table_no FROM table_orders WHERE payer->>'stripe_session'=$1", [session.id])).rows[0];
+    if (dup) { await client.query('COMMIT'); return { already: true, order_id: dup.id, table: dup.table_no }; }
+    const menuAll = tableOrders.menuIndex(await contentValue('menu'), LOUNGE_VENUE, { posOnly: true });
+    let items = [];
+    try { items = tableOrders.posAddLine([], menuAll, { item_id: meta.item_id, qty: 1, device_name: '會員 App' }); } catch (e) { items = []; }
+    const line = items[0], open = (await client.query("SELECT table_no FROM table_sessions WHERE status='open'")).rows;
+    const table = posSpace.nextEntryNo(new Set(open.map(r => r.table_no)));
+    if (!line || line.space_role !== 'plan' || session.currency !== 'twd' || line.price !== amountPaid || String(amountPaid) !== String(meta.price) || !table) {
+      await client.query('ROLLBACK');
+      console.error(`[lounge-stripe] 已收款但無法入帳：session=${session.id} pi=${intent} item=${meta.item_id} amount=${amountPaid}`);
+      lineService.notifyStaff(`⚠️ 貴賓室線上購買 Stripe 已收款 NT$${amountPaid}，但方案已下架／改價或入場單號已滿，未開入場單。請到 Stripe 後台退款（${intent || session.id}）`);
+      return { mismatch: true };
+    }
+    const user = (await client.query('SELECT id,name,phone,phone_e164 FROM users WHERE id=$1', [meta.user_id])).rows[0];
+    const orderId = uid('to_'), sid = uid('ts_');
+    const payer = { method: 'stripe', name: user?.name || '', stripe_session: session.id, payment_intent: intent, online: true, member_id: meta.user_id, member_phone: user?.phone_e164 || user?.phone || '' };
+    const orderLines = items.map(l => ({ ...l, order_id: orderId }));
+    let yanOut = { earned: 0 };
+    if (user) { try { yanOut = await applyYanForCheckout(client, { user, orderId, amount: amountPaid, brand: LOUNGE_VENUE }); payer.yan_earned = yanOut.earned; } catch (e) { console.warn('[lounge-stripe] 累點失敗', e.message); } }
+    const space = { seat: '', headcount: 1, in_at: null, out_at: null, prepaid: true, online: true, member_id: meta.user_id, member_name: user?.name || '' };
+    await client.query('INSERT INTO table_sessions(id,table_no,party_votes,venue,items,space,user_id) VALUES($1,$2,$3,$4,$5,$6,$7)', [sid, table, JSON.stringify(tableOrders.partySetByPos({}, 1)), LOUNGE_VENUE, JSON.stringify(orderLines), JSON.stringify(space), meta.user_id]);
+    await client.query(`INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,status,done_at,user_id) VALUES($1,$2,$3,$4,$5,$6,'done',now(),$7)`, [orderId, sid, table, JSON.stringify(orderLines), amountPaid, JSON.stringify(payer), meta.user_id]);
+    await client.query('COMMIT');
+    out = { ok: true, order_id: orderId, table, id: sid };
+    lineService.notifyStaff(`💳 貴賓室線上購買 ${table}：${user?.name || '會員'}｜${loungeName(line)} NT$${amountPaid}（Stripe）\n約書旅 POS 入場管理看得到「線上已付」，客人到場掃 App 會員卡入場就開始計時`);
+  } catch (e) { await client.query('ROLLBACK').catch(() => {}); if (e.code === '23505') return { already: true }; throw e; } finally { client.release(); }
+  return out;
+}
+
 // 公開：未來 90 天已排定的場地時段（僅時段與樓層，不含申請人資料）與公開活動
 app.get('/api/venue/schedule', requireDb, wrap(async (_req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
@@ -8182,6 +8273,7 @@ app.post('/api/admin/orders/sessions/:id/close',auth,adminOnly,requireDb,wrap(as
   const session=(await q("SELECT id,items,space FROM table_sessions WHERE id=$1 AND status='open'",[req.params.id])).rows[0];
   if(!session)return res.status(404).json({error:'找不到這桌。'});
   if(session.space&&session.space.in_at&&!session.space.out_at)return res.status(409).json({error:'客人還在場內，請先按「離場」，系統會計算超時。'});
+  if(session.space&&session.space.prepaid===true&&!session.space.in_at)return res.status(409).json({error:'這張是會員 App 線上已付款、還沒入場的方案，不能清掉；客人到場請掃碼入場，要退款請到 Stripe 後台處理後由管理員清單。'});
   if(!tableOrders.sessionClearableByVenues(session,venues))return res.status(403).json({error:'這桌還有其他品牌未結帳的品項，請等對方結帳後再清桌，或由言文字管理員清桌。'});
   // 未付品項有金額時不直接清：要先結帳或逐項作廢，避免漏收；?force=1 由言文字管理員強制（走操作紀錄）
   const open=tableOrders.unpaid(session.items);
@@ -8303,6 +8395,86 @@ app.post('/api/admin/orders/sessions/:id/space/resume',auth,adminOnly,requireDb,
     await client.query('UPDATE table_sessions SET items=$2,space=$3,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),JSON.stringify(space)]);
     await client.query('COMMIT');res.json({ok:true,id:s.id});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
+}));
+/* 掃碼進出（KK 11/17）：掃會員 App 的會員卡或進出 QR。
+   已在場內→回 inside（前端接 /space/leave）；約書旅有線上已付未到的入場單→回 checkin（前端接 /space/checkin，靜讀室要選席）；
+   等等空間有效會籍→直接開 0 元「會員入場」單並開始計時（待首次進場的會籍同時啟用）。 */
+app.post('/api/admin/orders/space/scan',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const v=spaceVenue(req,res);if(!v)return;
+  const cfg=await spaceSettingsOf(v);if(cfg.mode!=='space')return spaceErr(res,409,'這個品牌目前是餐飲情境，請到「設定 → 營業情境」切換成空間。');
+  const raw=String(req.body?.token||'').trim().slice(0,4096);
+  const p=verifyAccessToken(raw,ACCESS_QR_SECRET||SECRET)||(ACCESS_QR_SECRET?verifyAccessToken(raw,SECRET):null);
+  if(!p||!p.sub||!(p.plan==='yan-card'||p.ent))return spaceErr(res,400,'不是有效的會員 QR。請客人打開會員 App 的「會員卡」或「進出 QR」（QR 會定時更新，截圖無效）。');
+  const user=(await q('SELECT id,name FROM users WHERE id=$1',[p.sub])).rows[0];if(!user)return spaceErr(res,404,'找不到這位會員。');
+  const who=user.name||'這位會員';
+  const mine=(await q("SELECT id,table_no,items,space FROM table_sessions WHERE status='open' AND venue=$1 AND space->>'member_id'=$2 ORDER BY created_at",[v,user.id])).rows;
+  const inside=mine.find(s=>s.space.in_at&&!s.space.out_at);
+  if(inside)return res.json({ok:true,action:'inside',id:inside.id,table:inside.table_no,member:who});
+  const pass=mine.find(s=>!s.space.in_at&&s.space.prepaid===true);
+  if(pass){const cat=(posSpace.planLines(pass.items)[0]||{}).cat;return res.json({ok:true,action:'checkin',id:pass.id,table:pass.table_no,member:who,need_seat:cfg.seat_cats.includes(cat)&&cfg.seats.length>0,plan:posSpace.planLines(pass.items).map(l=>l.zh).join('、')});}
+  if(v!=='STAY')return spaceErr(res,404,`${who} 沒有已購買、還沒使用的方案。請客人在 App「貴賓室」購買，或按「＋ 入場」現場收款。`);
+  const now=new Date(),ent=pickEntitlementForQr(await persistLazyActivations(await loadEntitlements(user.id),now),now);
+  if(!ent)return spaceErr(res,403,`${who} 沒有有效會籍。請客人在 App「共享空間」購買，或按「＋ 入場」現場收款。`);
+  const device=await counterDevice(req);if(!device&&!(req.auth.super===true||req.auth.agent))return spaceErr(res,403,'這台 POS 尚未綁定或未設定裝置名稱，不能掃碼入場。');
+  const operator=await resolveOperator(req,req.body?.operator_id);
+  const menuAll=tableOrders.menuIndex(await contentValue('menu'),v,{posOnly:true});
+  const it=[...menuAll.values()].find(x=>x.space_role==='plan'&&!(Number(x.price)>0)&&!(Number(x.space_minutes)>0));
+  if(!it)return spaceErr(res,409,'菜單沒有「會員入場」方案（0 元、不限時），請到後台菜單補上。');
+  const client=await pool.connect();
+  try{await client.query('BEGIN');await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',['space:'+v]);
+    const open=(await client.query("SELECT table_no,items,space,venue FROM table_sessions WHERE status='open'")).rows;
+    const here=open.filter(r=>r.venue===v);
+    if(cfg.capacity&&posSpace.occupancy(here)+1>cfg.capacity){await client.query('ROLLBACK');return spaceErr(res,409,`已達容量上限 ${cfg.capacity} 人（目前 ${posSpace.occupancy(here)} 人）。`);}
+    const table=posSpace.nextEntryNo(new Set(open.map(r=>r.table_no)));if(!table){await client.query('ROLLBACK');return spaceErr(res,409,'入場單號已用完（E01–E99），請先讓離場的客人結清。');}
+    const orderId=uid('to_'),sid=uid('ts_'),inAt=new Date().toISOString();
+    const items=tableOrders.posAddLine([],menuAll,{item_id:it.id,qty:1,device_name:device?.label||'後台'}).map(l=>({...l,order_id:orderId}));
+    const space={seat:'',headcount:1,in_at:inAt,out_at:null,member_id:user.id,member_name:user.name||'',entitlement:ent.id};
+    await client.query('INSERT INTO table_sessions(id,table_no,opened_by_staff_id,opened_by_staff_name,party_votes,venue,items,space,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[sid,table,operator?.id||null,operator?.name||null,JSON.stringify(tableOrders.partySetByPos({},1)),v,JSON.stringify(items),JSON.stringify(space),user.id]);
+    await client.query(`INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,invoice,status,done_at,user_id) VALUES($1,$2,$3,$4,0,$5,'{}','done',now(),$6)`,[orderId,sid,table,JSON.stringify(items),JSON.stringify({method:'cash',received:0,change:0,member:true,member_id:user.id,name:user.name||'',member_entry:true,staff:actorOf(req.auth)||''}),user.id]);
+    let activated=false;
+    if(!ent.activated_at&&ent.plan!=='founding'){const ends=endsAtAfterActivation(ent.plan,now);activated=!!(await client.query('UPDATE entitlements SET activated_at=$2,starts_at=$2,ends_at=$3 WHERE id=$1 AND activated_at IS NULL RETURNING id',[ent.id,now,ends])).rows[0];}
+    if(p.plan!=='yan-card')await client.query('INSERT INTO access_scans (id,entitlement_id,user_id,token_iat,scanned_at) VALUES ($1,$2,$3,$4,now()) ON CONFLICT (entitlement_id, token_iat) DO NOTHING',[uid('as_'),ent.id,user.id,p.iat]);
+    await client.query('COMMIT');
+    req.posLogDetail=`${table} ${who} 會員掃碼入場（${ent.plan}${activated?'，首次進場啟用':''}）`;
+    res.status(201).json({ok:true,action:'entered',id:sid,table,member:who,plan:ent.plan,activated,space_started:{in_at:inAt,due_at:null,seat:table,headcount:1,plan:it.zh}});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
+}));
+/* 線上已付的入場單（會員 App 貴賓室）到場入場：開始計時；靜讀室要指定席號（入場單號改成席號） */
+app.post('/api/admin/orders/sessions/:id/space/checkin',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return spaceErr(res,404,'找不到這張入場單。');
+  const client=await pool.connect();
+  try{await client.query('BEGIN');
+    const s=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+    if(!s||s.status!=='open'||!s.space||s.space.in_at||s.space.prepaid!==true){await client.query('ROLLBACK');return spaceErr(res,404,'找不到線上已付、還沒入場的入場單。');}
+    const venues=tableOrders.visibleVenues(req.auth.brands);if(venues&&!venues.includes(s.venue)){await client.query('ROLLBACK');return spaceErr(res,403,'只能操作自己品牌的入場單。');}
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',['space:'+s.venue]);
+    const cfg=await spaceSettingsOf(s.venue),cat=(posSpace.planLines(s.items)[0]||{}).cat,needSeat=cfg.seat_cats.includes(cat)&&cfg.seats.length>0;
+    const open=(await client.query("SELECT table_no,items,space,venue FROM table_sessions WHERE status='open' AND id<>$1",[s.id])).rows;
+    if(cfg.capacity&&posSpace.occupancy(open.filter(r=>r.venue===s.venue&&r.space&&r.space.in_at))+1>cfg.capacity){await client.query('ROLLBACK');return spaceErr(res,409,`已達容量上限 ${cfg.capacity} 人。`);}
+    let table=s.table_no,seat='';
+    if(needSeat){seat=String(req.body?.seat||'').trim().toUpperCase();
+      if(!cfg.seats.includes(seat)){await client.query('ROLLBACK');return spaceErr(res,400,`「${tableOrders.MenuLib.CAT_LABEL[cat]?.zh||cat}」要指定席號。`);}
+      if(open.some(r=>r.table_no===seat)){await client.query('ROLLBACK');return spaceErr(res,409,`席位 ${seat} 使用中，請選別的席位。`);}
+      table=seat;}
+    const inAt=new Date().toISOString(),space={...s.space,seat,in_at:inAt,prepaid:false};
+    await client.query('UPDATE table_sessions SET table_no=$2,space=$3,updated_at=now() WHERE id=$1',[s.id,table,JSON.stringify(space)]);
+    if(table!==s.table_no)await client.query('UPDATE table_orders SET table_no=$2 WHERE session_id=$1',[s.id,table]);
+    await client.query('COMMIT');
+    const m=posSpace.planMinutes(s.items);
+    req.posLogDetail=`${s.table_no}${table!==s.table_no?'→'+table:''} ${s.space.member_name||''} 線上已付入場`;
+    res.json({ok:true,id:s.id,table,space_started:{in_at:inAt,due_at:m>0?new Date(Date.parse(inAt)+m*60000).toISOString():null,seat:table,headcount:1,plan:posSpace.planLines(s.items).map(l=>l.zh).join('、')}});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
+}));
+/* 等等空間會員（KK 11/17）：App 線上購買／現場開通的會籍，POS 看得到誰買了什麼、狀態、在不在場（電話遮罩） */
+app.get('/api/admin/orders/space/members',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  const v=spaceVenue(req,res);if(!v)return;
+  if(v!=='STAY')return res.json({venue:v,members:[]});
+  const rows=(await q(`SELECT e.id,e.user_id,e.plan,e.source,e.purchased_at,e.activated_at,e.starts_at,e.ends_at,u.name,u.phone,u.phone_e164 FROM entitlements e JOIN users u ON u.id=e.user_id
+    WHERE e.activated_at IS NULL OR e.ends_at IS NULL OR e.ends_at>now()-interval '1 day' OR e.purchased_at>now()-interval '30 days' ORDER BY e.purchased_at DESC LIMIT 200`)).rows;
+  const inside=new Set((await q("SELECT space->>'member_id' AS m FROM table_sessions WHERE status='open' AND venue=$1 AND space->>'in_at' IS NOT NULL AND space->>'out_at' IS NULL",[v])).rows.map(r=>r.m).filter(Boolean));
+  const now=new Date();
+  res.set('Cache-Control','no-store');
+  res.json({venue:v,members:rows.map(r=>({id:r.id,name:r.name||'',phone:posSpace.maskPhone(r.phone_e164||r.phone),plan:r.plan,plan_label:PLAN_LABEL[r.plan]||r.plan,source:r.source,purchased_at:r.purchased_at,ends_at:r.ends_at,state:posSpace.entitlementState(applyLazyAutoActivate(rowToEnt(r),now).entitlement,now),inside:inside.has(r.user_id)}))});
 }));
 // 本桌點餐 QR（單次）：只給開著的桌，QR 綁這一場，結帳清桌後失效；補印／遺失帳本夾 QR 用（開桌回應已附 qr_url）
 app.get('/api/admin/tables/qr',auth,adminOnly,requireDb,wrap(async(req,res)=>{

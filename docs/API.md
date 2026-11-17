@@ -545,6 +545,16 @@ POS 營業情境（KK 11/15，`lib/pos-space.js`）：讀取品牌的情境設�
 ### POST /api/admin/orders/sessions/:id/space/resume
 取消離場（按錯時）：移除離場自動加且未收款的超時品項、清掉離場時間，繼續計時。
 
+
+### POST /api/admin/orders/space/scan
+掃碼進出（KK 11/17，空間情境品牌 POS）。Body `{ token, venue?, operator_id? }`，token＝會員 App「會員卡」（`yan-card`）或「進出 QR」（會籍 entitlement）的簽章 QR，45–120 秒有效。回 `action`：`inside`（這位會員已在場內，`{id,table,member}`，前端接 `/space/leave`）；`checkin`（約書旅有會員 App 線上已付、還沒入場的入場單，`{id,table,member,need_seat,plan}`，前端接 `/space/checkin`）；`entered`（等等空間有效或待啟用會籍：開 0 元「會員入場」單並立即開始計時，待首次進場的會籍同時啟用、寫 `access_scans`，201 回 `{id,table,member,plan,activated,space_started}`）。無效 QR 400、沒有方案 403／404、餐飲情境 409、容量滿 409。
+
+### POST /api/admin/orders/sessions/:id/space/checkin
+會員 App 線上已付（`space.prepaid`）的入場單到場入場：開始計時（`in_at`＝現在）。靜讀室等需指定席號的分類要帶 `{ seat }`，入場單號改成席號（訂單同步改桌號）。回 `{ ok, id, table, space_started }`；不是線上已付未入場的單 404、席位使用中 409。
+
+### GET /api/admin/orders/space/members
+等等空間會員清單（KK 11/17：App 線上購買的會籍 POS 要看得到）。回 `{ venue, members:[{ id, name, phone(遮罩), plan, plan_label, source(stripe|pos-manual|yan), purchased_at, ends_at, state(pending|active|expired), inside }] }`，含待啟用、有效、近 1 天到期與 30 天內購買的會籍，最多 200 筆。其他品牌回空陣列。
+
 ### POST /api/admin/orders/table-layout
 儲存 POS 桌況平面圖（各品牌一份，KK 11/10：帶 `venue` 或品牌帳號存 `pos_table_layout:<VENUE>`，該品牌沒存過沿用舊的共用設定；`GET /api/admin/orders?venue=` 回該品牌的 `table_layout`）：每桌在畫布上的位置，百分比座標。Body：`{pos:{"A1":[x,y],...}}`，空物件＝還原成預設格子。`GET /api/admin/orders` 會回傳 `table_layout:{order,pos}`（`order` 保留舊版排序資料）。可另帶 `tables:["A1",...]`＝現場桌號清單（編輯桌位加減桌，整份取代，1–200 桌、不可重複；沒帶沿用目前的，沒存過＝前端預設 16 桌），一併回傳於 `table_layout.tables`。仍接受舊版 `{order:[...]}`；座標必須為 0–100 的有限數字、桌號沿用 1–8 碼英數／連字號，最多 200 桌。
 
@@ -1119,6 +1129,19 @@ App 付款回跳確認。body `{ session_id }`；與 webhook（`checkout.session
 
 ### POST /api/me/plans/verify
 結帳導回時驗證並開通。body：`{ session_id }`，回 `{ ok, already, plan }`；session 不屬於本人回 404、未付款回 402。與 webhook 重複執行不會重複開通。
+
+
+### GET /api/lounge/plans
+公開：會員 App「貴賓室」可線上購買的約書旅方案（菜單 `venue:'REST'`、`space_role:'plan'`、有價格且限時；超時與包場不賣）。回 `{ plans:[{ id, cat, zh, en, ja, price, minutes }] }`，快取 60 秒。
+
+### GET /api/me/lounge
+會員自己的貴賓室方案與可購買清單。回 `{ ok, passes:[{ id, table, name, minutes, state(ready|inside|left|done), in_at, due_at, out_at, seat, paid }], plans, stripe }`。
+
+### POST /api/me/lounge/checkout
+線上購買貴賓室方案（Stripe Checkout，同會籍的 Emoji 言文字帳號）。Body `{ item_id }`；價格以伺服器菜單為準，30 分鐘逾期；同人最多 3 張還沒入場的方案（409）。metadata `{ kind:'lounge', item_id, price, user_id }`；成功回 App `/?lounge_paid=1&s=…`、取消回 `/?lounge_canceled=1`。Stripe 未設定 503。回 `{ url }`。
+
+### POST /api/me/lounge/verify
+App 付款回跳確認。Body `{ session_id }`；與 webhook 共用 `fulfillLoungeCheckout`，以 Checkout Session id 去重。入帳＝在約書旅開一張「線上已付・未入場」入場單（E 號，`space.prepaid/online/member_id`）＋已付訂單（`payer.method='stripe'`）＋會員累點，LINE 通知員工；POS 入場管理顯示「線上已付」，客人到場掃 App 會員卡入場才開始計時。方案已下架／改價時不入帳，回 409 並通知員工到 Stripe 退款。未付款 402。回 `{ ok, already, table }`。
 
 ### POST /api/me/event-import
 會員 App 從其他平台預填建立活動表單。body：`{ url }`，只接受 `https://`、標準 443 連接埠且不可含帳密；伺服器每一跳 DNS 解析後拒絕 loopback、私網、link-local、metadata（含 `169.254.169.254`）與 IPv6 私網，連線釘選已驗證 IP，手動處理最多 3 次轉址、5 秒逾時、最大 2MB。每個會員每小時最多 20 次。依序讀 schema.org Event JSON-LD、Open Graph、`<title>`，回 `{ title, description, starts_at, ends_at, location, image_url, organizer, source_url, fields_found }`；不下載圖片。無法自動讀取時仍回 200 與空 `fields_found`，前端改讓主辦手填；內網／非 HTTPS 回 400。
