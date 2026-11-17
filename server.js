@@ -8185,10 +8185,10 @@ app.post('/api/admin/attendance/punch',rateLimit({max:12}),auth,adminOnly,requir
     return res.status(201).json({ok:true,id,action:'in',name:staff.name,day:out.day,venue:out.venue,at:out.at,shift:out.shift,late_minutes:out.late_minutes,forgot_out:out.forgot_out,message:out.message});
   }
   if(out.action==='break_start'||out.action==='break_end'){
-    await q('UPDATE pos_attendance SET breaks=$2::jsonb,break_minutes=$3 WHERE id=$1',[out.id,JSON.stringify(out.breaks),out.break_minutes]);
+    await q('UPDATE pos_attendance SET breaks=$2::jsonb,break_minutes=$3,venue=$4 WHERE id=$1',[out.id,JSON.stringify(out.breaks),out.break_minutes,out.venue]);
     return res.json({ok:true,id:out.id,action:out.action,name:staff.name,day:out.day,venue:out.venue,at:out.at,break_minutes:out.break_minutes,message:out.message});
   }
-  await q('UPDATE pos_attendance SET clock_out=$2,minutes=$3,early_minutes=$4,breaks=$5::jsonb,break_minutes=$6 WHERE id=$1',[out.id,out.at,out.minutes,out.early_minutes,JSON.stringify(out.breaks),out.break_minutes]);
+  await q('UPDATE pos_attendance SET clock_out=$2,minutes=$3,early_minutes=$4,breaks=$5::jsonb,break_minutes=$6,venue=$7 WHERE id=$1',[out.id,out.at,out.minutes,out.early_minutes,JSON.stringify(out.breaks),out.break_minutes,out.venue]);
   res.json({ok:true,id:out.id,action:'out',name:staff.name,day:out.day,venue:out.venue,at:out.at,minutes:out.minutes,hours:posStaff.hoursDecimal(out.minutes),break_minutes:out.break_minutes,break_short:out.break_short,shift:out.shift,early_minutes:out.early_minutes,over:out.over,message:out.message});
 }));
 /* 補打卡：現場人員忘了打卡，用自己的識別碼補登（body { pin, venue, clock_in?, clock_out?, break_minutes?, reason }；時間 `YYYY-MM-DDTHH:MM` 台北時間）。
@@ -8206,7 +8206,7 @@ app.post('/api/admin/attendance/makeup',rateLimit({max:12}),auth,adminOnly,requi
   let out;try{out=posStaff.makeupPunch({staff,venue,body:req.body,open:open&&{...open,day:open.day instanceof Date?open.day.toISOString().slice(0,10):open.day},existing,shifts});}catch(e){return res.status(e.status||400).json({error:e.message});}
   const by=out.edited_by;
   if(out.mode==='out'){
-    await q('UPDATE pos_attendance SET clock_out=$2,minutes=$3,early_minutes=$4,breaks=$5::jsonb,break_minutes=$6,note=$7,edited_by=$8,edited_at=now() WHERE id=$1',[out.id,out.clock_out,out.minutes,out.early_minutes,JSON.stringify(out.breaks),out.break_minutes,out.note,by]);
+    await q('UPDATE pos_attendance SET clock_out=$2,minutes=$3,early_minutes=$4,breaks=$5::jsonb,break_minutes=$6,note=$7,edited_by=$8,edited_at=now(),venue=$9 WHERE id=$1',[out.id,out.clock_out,out.minutes,out.early_minutes,JSON.stringify(out.breaks),out.break_minutes,out.note,by,out.venue]);
     return res.json({ok:true,id:out.id,mode:'out',name:staff.name,day:out.day,venue:out.venue,clock_out:out.clock_out,minutes:out.minutes,hours:posStaff.hoursDecimal(out.minutes),break_minutes:out.break_minutes,message:out.message});
   }
   const id=uid('at_');

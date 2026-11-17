@@ -46,3 +46,16 @@ test('server：報表與 CSV 同範圍，編修刪除按出勤品牌而非員工
   assert.match(list, /attendanceCsv\(rows2\)/);
   for (const r of [patch, del]) { assert.match(r, /venues\.includes\(r\.venue\)/); assert.doesNotMatch(r, /staffVisible/); }
 });
+
+test('舊 TTH 未下班卡：任一品牌可下班／休息，並改記為該品牌；不擋上班重複', () => {
+  const open = { id: 'a1', venue: 'TTH', day: '2026-11-17', clock_in: '2026-11-17T08:45:00Z', breaks: [] };
+  const n = '2026-11-17T17:50:00Z';
+  const out = S.punch({ type: 'out', staff, venue: 'BAR', open, now: n });
+  assert.equal(out.action, 'out'); assert.equal(out.venue, 'BAR'); assert.equal(out.id, 'a1');
+  assert.equal(S.punch({ type: 'break_start', staff, venue: 'CAFE', open, now: n }).venue, 'CAFE');
+  assert.throws(() => S.punch({ type: 'in', staff, venue: 'BAR', open, now: n }), e => e.status === 409);
+  const mk = S.makeupPunch({ staff, venue: 'BAR', body: { reason: '舊卡補下班', clock_out: '2026-11-17T17:00' }, open, now: n });
+  assert.equal(mk.mode, 'out'); assert.equal(mk.venue, 'BAR');
+  const punchRoute = route("app.post('/api/admin/attendance/punch'", "app.post('/api/admin/attendance/makeup'");
+  assert.match(punchRoute, /break_minutes=\$6,venue=\$7/);
+});
