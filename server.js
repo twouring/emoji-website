@@ -1898,6 +1898,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json', limit: '
       await fulfillApplicationDeposit(event.data.object);
       await fulfillShopCheckout(event.data.object);
       await fulfillLoungeCheckout(event.data.object);
+      await fulfillPosCardCheckout(event.data.object);
     } else if (['refund.created','refund.updated','refund.failed'].includes(event.type)) {
       if(!pool||!dbReady)return res.status(503).send('database not ready');
       // Read the current provider state: webhook events may arrive out of order.
@@ -6581,6 +6582,8 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   // payment_methods 一起回傳：已開著的 POS 畫面每 15 秒輪詢這支 API，新增的自訂收款帳戶才會即時出現在結帳選項，不用重新整理
   const pendingLinepay=(await q("SELECT id,session_id,state,amount,mode FROM linepay_payments WHERE state NOT IN ('failed','cancelled','settled')")).rows;
   for(const s of sessions){if(!s.mixed)s.linepay=pendingLinepay.find(a=>a.session_id===s.id)||null;}
+  /* 線上刷卡 QR 等付款中（KK 11/17）：重整／換平板仍看得到、可查詢或取消 */
+  if(sessions.length){const cq=(await q("SELECT key,value FROM site_content WHERE key=ANY($1)",[sessions.map(s=>'card_qr:'+s.id)])).rows;for(const r of cq){const s=sessions.find(x=>'card_qr:'+x.id===r.key);try{const v=JSON.parse(r.value);if(s)s.card_qr={id:v.cs,url:v.url,amount:v.amount,expires_at:v.expires_at};}catch{}}}
   const space_summary=spaceCfg&&spaceCfg.mode==='space'?posSpace.summary((await q("SELECT table_no,items,space FROM table_sessions WHERE space IS NOT NULL AND venue=$1 AND created_at>now()-interval '2 days'",[venues[0]])).rows,at=>tableOrders.MenuLib.businessDay(at)===tableOrders.MenuLib.businessDay()):undefined;
   res.json({orders,tickets,sessions,occupied,reservations,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue(),table_layout:await tableLayoutOf(venues&&venues.length===1?venues[0]:''),space_settings:spaceCfg||undefined,space_summary,payment_methods:await paymentMethodsList(posPaymentMethods.groupsOf(venues)),linepay:linepayOfflineStatus(),stock:tableOrders.MenuLib.parseMenuDoc(await contentValue('menu')).items.filter(it=>tableOrders.MenuLib.stockLeft(it)!==null||tableOrders.MenuLib.soldOutToday(it)).map(it=>({id:it.id,sold_out:it.sold_out,sold_out_by:it.sold_out_by,stock_day:it.stock_day,stock_left:it.stock_left}))});
 }));
@@ -6756,6 +6759,104 @@ app.post('/api/admin/orders/sessions/:id/linepay/prepare',auth,adminOnly,require
 app.post('/api/admin/orders/sessions/:id/linepay/pay',rateLimit({max:10}),auth,adminOnly,requireDb,wrap((req,res)=>linepayPosAction('pay',req,res)));
 app.post('/api/admin/orders/sessions/:id/linepay/check',rateLimit({max:30}),auth,adminOnly,requireDb,wrap((req,res)=>linepayPosAction('check',req,res)));
 app.post('/api/admin/orders/sessions/:id/linepay/cancel',auth,adminOnly,requireDb,wrap((req,res)=>linepayPosAction('cancel',req,res)));
+/* ---- POS 線上刷卡 QR（lib/pos-card-qr.js，KK 11/17）：等等空間／約書旅櫃檯建 Stripe Checkout、mPOP 印 QR 給客人掃碼刷卡。
+   金額由伺服器以未付品項原價重算；入帳（webhook 或 POS 輪詢 /check）以 Stripe session id 冪等，桌次已變動就不入帳並 LINE 通知員工退款 ---- */
+const posCardQr=require('./lib/pos-card-qr');
+const cardQrGet=async(sid,client)=>{const v=(await (client||{query:q}).query('SELECT value FROM site_content WHERE key=$1',[posCardQr.key(sid)])).rows[0]?.value;try{return v?JSON.parse(v):null;}catch{return null;}};
+const cardQrDel=(sid,client)=>(client||{query:q}).query('DELETE FROM site_content WHERE key=$1',[posCardQr.key(sid)]);
+async function fulfillPosCardCheckout(session){
+  const meta=session&&session.metadata;
+  if(!meta||meta.kind!==posCardQr.KIND||session.payment_status!=='paid'||!meta.session_id)return {ignored:true};
+  const intent=typeof session.payment_intent==='string'?session.payment_intent:session.payment_intent?.id||null;
+  const client=await pool.connect();let out;
+  try{await client.query('BEGIN');
+    const dup=(await client.query("SELECT * FROM table_orders WHERE payer->>'stripe_session'=$1",[session.id])).rows[0];
+    if(dup){await client.query('COMMIT');return {already:true,order_id:dup.id,order:dup,table:dup.table_no};}
+    const s=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[meta.session_id])).rows[0];
+    const pend=s?await cardQrGet(s.id,client):null;
+    const m=posCardQr.matches(s,{...meta,lines:pend&&pend.cs===session.id?pend.lines.join(','):''},s?tableOrders.unpaid(s.items||[]):[],session);
+    if(!m.ok){await client.query('ROLLBACK');
+      console.error(`[pos-card-qr] 已收款但無法入帳：session=${session.id} pi=${intent} ts=${meta.session_id} amount=${m.amountPaid}`);
+      lineService.notifyStaff(`⚠️ ${meta.table||''} 線上刷卡 QR 已收款 NT$${m.amountPaid}，但這桌已結帳／品項已變動，未入帳。請到 Stripe 後台退款（${intent||session.id}）`);
+      return {mismatch:true};}
+    const orderId=uid('to_'),now=new Date().toISOString();
+    const payer={method:'stripe',name:'現場',online:true,card_qr:true,stripe_session:session.id,payment_intent:intent,operator_id:pend.operator_id||undefined,operator_name:pend.operator_name||undefined,staff:pend.staff||undefined,source:pend.source||undefined};
+    const fresh=new Set(m.lines.filter(l=>!l.placed_at).map(l=>l.line));
+    const lines=m.lines.map(l=>({...l,order_id:orderId})),items=tableOrders.settleItems(s.items,m.lines,orderId);
+    const sp=s.space&&typeof s.space==='object'?s.space:null,spaceStart=!!(sp&&!sp.in_at&&m.lines.some(l=>l.space_role==='plan'));
+    const spaceNow=spaceStart?{...sp,in_at:now}:sp,held=!!(spaceNow&&!spaceNow.out_at);
+    const closed=tableOrders.unpaid(items).length===0;
+    await client.query('INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,invoice,status,done_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[orderId,s.id,s.table_no,JSON.stringify(lines),m.amountPaid,JSON.stringify(payer),JSON.stringify(pend.invoice||{}),closed?'done':'paid',closed?new Date():null]);
+    if(closed)await client.query("UPDATE table_orders SET status='done',done_at=now() WHERE session_id=$1 AND status IN ('paid','ready')",[s.id]);
+    await client.query('UPDATE table_sessions SET items=$2,status=$3,space=$4,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),closed&&!held?'closed':'open',spaceNow?JSON.stringify(spaceNow):null]);
+    await chargeAppRedeems(client,lines.filter(l=>fresh.has(l.line)));
+    await stockConsume(client.query.bind(client),lines.filter(l=>fresh.has(l.line)));
+    await inventoryConsume(client.query.bind(client),lines.filter(l=>fresh.has(l.line)),{ref_id:orderId,actor:pend.operator_name||'線上刷卡 QR'});
+    await cardQrDel(s.id,client);
+    await client.query('COMMIT');
+    const order={id:orderId,session_id:s.id,table_no:s.table_no,items:lines,amount:m.amountPaid,payer,status:closed?'done':'paid',paid_at:now};
+    order.invoice=await storeInvoiceResult(order,pend.invoice||{});
+    const planMin=items.filter(l=>l.space_role==='plan'&&!l.cancelled&&!l.credit_of).reduce((a,l)=>a+(Number(l.space_minutes)||0),0);
+    out={ok:true,settled_now:true,order_id:orderId,order,table:s.table_no,closed:closed&&!held,
+      space_started:spaceStart?{in_at:now,due_at:planMin>0?new Date(Date.parse(now)+planMin*60000).toISOString():null,seat:spaceNow.seat||s.table_no,headcount:spaceNow.headcount||1,plan:m.lines.filter(l=>l.space_role==='plan').map(l=>l.zh).join('、')}:undefined};
+    lineService.notifyStaff(`💳 ${s.table_no} 線上刷卡 QR 已付款 NT$${m.amountPaid}（Stripe）`);
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});if(e.code==='23505')return {already:true};throw e;}finally{client.release();}
+  return out;
+}
+const cardQrView=p=>p?{id:p.cs,url:p.url,amount:p.amount,venue:p.venue,table:p.table,expires_at:p.expires_at,created_at:p.created_at,state:'open'}:null;
+/* 建立（或沿用同金額、未過期的）付款 QR */
+app.post('/api/admin/orders/sessions/:id/card-qr',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
+  if(!stripe)return res.status(503).json({error:'線上刷卡尚未開通（Stripe 未設定）。'});
+  const venues=posScope(req);
+  if(!posCardQr.enabledFor(venues))return res.status(403).json({error:'線上刷卡 QR 只開放等等空間、約書旅 POS。'});
+  const s=(await q("SELECT * FROM table_sessions WHERE id=$1 AND status='open'",[req.params.id])).rows[0];
+  if(!s)return res.status(404).json({error:'找不到這桌或已結束。'});
+  let qt;try{qt=posCardQr.quote(tableOrders.unpaid(s.items||[]),venues);posRegister.checkoutAllowed(qt.lines,await registersOpenMap(null,tableOrders.MenuLib.businessDay()),{strict:true});}catch(e){return res.status(e.status||400).json({error:e.message});}
+  const lineIds=qt.lines.map(l=>l.line);
+  const prev=await cardQrGet(s.id);
+  if(prev&&Date.parse(prev.expires_at)>Date.now()+60000){
+    const cs=await stripe.checkout.sessions.retrieve(prev.cs).catch(()=>null);
+    if(cs?.payment_status==='paid'){const r=await fulfillPosCardCheckout(cs);return res.status(409).json({error:r.mismatch?'客人已付款，但品項已變動，請到 Stripe 退款。':'這桌已線上付款完成，請重新整理。'});}
+    if(cs?.status==='open'&&prev.amount===qt.amount&&prev.lines.join(',')===lineIds.join(','))return res.json({...cardQrView(prev),reused:true});
+    if(cs?.status==='open')await stripe.checkout.sessions.expire(prev.cs).catch(()=>{});
+  }
+  let invoice;try{invoice=ezpayInvoice.invoiceForm(req.body?.invoice||{});}catch(e){return res.status(e.status||400).json({error:e.message});}
+  const operator=await resolveOperator(req,req.body?.operator_id);
+  const expires=Math.floor(Date.now()/1000)+posCardQr.EXPIRE_MIN*60,home=qt.venue==='REST'?'https://restbook.emoji.tw/':'https://staysquare.emoji.tw/';
+  const cs=await stripe.checkout.sessions.create({
+    mode:'payment',payment_method_types:['card'],
+    line_items:[{price_data:{currency:'twd',product_data:{name:posCardQr.productName(qt.venue,s.table_no),description:qt.lines.map(l=>`${l.zh} ×${l.qty}`).join('、').slice(0,480)},unit_amount:qt.amount*100},quantity:1}],
+    expires_at:expires,success_url:home+'?card_paid=1',cancel_url:home,
+    metadata:{kind:posCardQr.KIND,session_id:s.id,table:s.table_no,venue:qt.venue,amount:String(qt.amount)},
+  });
+  const pend={cs:cs.id,url:cs.url,amount:qt.amount,venue:qt.venue,table:s.table_no,lines:lineIds,invoice,source:tableOrders.cleanText(req.body?.source,20)||'',operator_id:operator?.id||'',operator_name:operator?.name||'',staff:actorOf(req.auth)||'',created_at:new Date().toISOString(),expires_at:new Date(expires*1000).toISOString()};
+  await q('INSERT INTO site_content(key,value,updated_at) VALUES($1,$2,now()) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=now()',[posCardQr.key(s.id),JSON.stringify(pend)]);
+  res.json(cardQrView(pend));
+}));
+/* 查付款結果：已付→入帳回 settled＋order；過期→清掉；其他→open */
+app.post('/api/admin/orders/sessions/:id/card-qr/check',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
+  if(!stripe)return res.status(503).json({error:'Stripe 未設定。'});
+  res.set('Cache-Control','no-store');
+  const pend=await cardQrGet(req.params.id);
+  const done=(await q("SELECT * FROM table_orders WHERE session_id=$1 AND payer->>'card_qr'='true' ORDER BY paid_at DESC LIMIT 1",[req.params.id])).rows[0];
+  if(!pend){if(done&&req.body?.id&&done.payer?.stripe_session===req.body.id)return res.json({state:'settled',order:done,already:true});return res.json({state:'none'});}
+  const cs=await stripe.checkout.sessions.retrieve(pend.cs);
+  if(cs.payment_status==='paid'){const r=await fulfillPosCardCheckout(cs);if(r.mismatch)return res.json({state:'review',error:'客人已付款，但品項已變動，未入帳；已通知員工到 Stripe 退款。'});return res.json({state:'settled',order:r.order,closed:r.closed,space_started:r.space_started,already:!!r.already});}
+  if(cs.status==='expired'){await cardQrDel(req.params.id);return res.json({state:'expired'});}
+  res.json(cardQrView(pend));
+}));
+/* 取消：讓 Stripe 付款頁失效（客人掃了也付不了）；已付款就改為入帳 */
+app.post('/api/admin/orders/sessions/:id/card-qr/cancel',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
+  if(!stripe)return res.status(503).json({error:'Stripe 未設定。'});
+  const pend=await cardQrGet(req.params.id);if(!pend)return res.json({state:'none'});
+  const cs=await stripe.checkout.sessions.retrieve(pend.cs);
+  if(cs.payment_status==='paid'){const r=await fulfillPosCardCheckout(cs);return res.status(409).json({state:'settled',order:r.order,error:'客人已經付款完成，已自動入帳，不能取消。'});}
+  if(cs.status==='open')await stripe.checkout.sessions.expire(pend.cs);
+  await cardQrDel(req.params.id);res.json({state:'cancelled'});
+}));
 app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
   const venues=tableOrders.visibleVenues(req.auth.brands);
@@ -6766,6 +6867,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     const s=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
     if(!s||s.status!=='open'){await client.query('ROLLBACK');return res.status(s?409:404).json({error:s?'這桌已結束。':'找不到這桌。'});}
     if((await client.query("SELECT id FROM linepay_payments WHERE session_id=$1 AND state NOT IN ('failed','cancelled','settled')",[s.id])).rows.length){await client.query('ROLLBACK');return res.status(423).json({error:'LINE Pay 原交易待確認，請查詢原交易，勿改用其他方式收款。'});}
+    if((await client.query('SELECT value FROM site_content WHERE key=$1',['card_qr:'+s.id])).rows.length){await client.query('ROLLBACK');return res.status(423).json({error:'這桌有線上刷卡 QR 等客人付款中，請先在「線上刷卡」取消 QR，再改用其他方式收款。'});}
     let memberUser=null;
     const cardTok=String(req.body?.member_token||'').trim(),phoneRaw=String(req.body?.member_phone||'').trim(),memberIdRaw=String(req.body?.member_id||'').trim().slice(0,64);
     if(cardTok){const p=verifyAccessToken(cardTok,process.env.ACCESS_QR_SECRET||SECRET);if(!p||p.plan!=='yan-card'){await client.query('ROLLBACK');return res.status(400).json({error:'會員卡無效或過期。'});}memberUser=(await client.query('SELECT id,name,phone,phone_e164 FROM users WHERE id=$1',[p.sub])).rows[0];if(!memberUser){await client.query('ROLLBACK');return res.status(404).json({error:'找不到這位會員。'});}}

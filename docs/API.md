@@ -511,6 +511,15 @@ POS 關掉某筆客人的結帳需求（客人改口或已另外處理）；品�
 ### POST /api/admin/orders/sessions/:id/linepay/pay
 明確送出實際扣款，body `{attempt_id,oneTimeKey}`（台灣付款碼為 18 碼數字）；必須是該桌已準備的意圖。只發一次 `POST /v2/payments/oneTimeKeys/pay`，`capture:true`、`currency:TWD`、`extras.addFriends:[{type:'LINE_AT',idList:['@338ymhys']}]`。付款碼不持久化、不記入日誌。成功必須核對 orderId、完整交易 ID、實付總額；DB 原子完成結帳，回 `state:'settled', result, order`，只由首次完成者觸發發票開立，重送不重開。拒絕回 `state:'failed',code`；timeout／不明回 `state:'unknown'` 保持帳單鎖定，不能再扣款。金額或識別不一致回 `review`，需管理員對帳／退款。加好友為客人選擇，不代表已加入好友。
 
+### POST /api/admin/orders/sessions/:id/card-qr
+線上刷卡 QR（KK 11/17，`lib/pos-card-qr.js`）：只開放等等空間、約書旅 POS（`venue` 為 STAY／REST）。伺服器以這桌未付品項原價重算金額（不收折扣／會員價／分帳），品牌今天要開帳；建 Stripe Checkout（30 分鐘有效，metadata `kind:'pos_card'`），付款意圖存 `site_content` `card_qr:<桌次 id>`。body `{operator_id, invoice?, source?}`。回 `{id,url,amount,venue,table,expires_at,state:'open'}`；同金額同品項未過期重送回同一筆（`reused:true`），品項變動會讓舊連結失效再開新的。付款中櫃檯一般結帳回 423。`GET /api/admin/orders` 的 `sessions[].card_qr` 帶進行中的 `{id,url,amount,expires_at}`。
+
+### POST /api/admin/orders/sessions/:id/card-qr/check
+查付款結果（POS 每 3 秒輪詢）。已付款→入帳（與 Stripe webhook 共用 `fulfillPosCardCheckout`，以 `payer.stripe_session` 冪等；付款方式 `stripe`、`payer.card_qr:true`），回 `{state:'settled',order,closed,space_started?}`；空間入場單收到方案款開始計時。過期回 `expired`；桌次已變動回 `review`（不入帳，LINE 通知員工到 Stripe 退款）；沒有進行中的回 `none`；其他回 `open`。
+
+### POST /api/admin/orders/sessions/:id/card-qr/cancel
+讓 Stripe 付款頁立即失效並清掉付款意圖，回 `{state:'cancelled'}`。客人已付款則改為入帳並回 409 `{state:'settled'}`。
+
 ### POST /api/admin/orders/sessions/:id/linepay/check
 body `{attempt_id}`。只查詢原 `orderId`，不重送付款。未知結果呼叫官方 `GET /v2/payments/orders/{orderId}/check`；`COMPLETE` 且金額／交易 ID 正確才原子入帳，明確 `FAIL` 且 `orderId` 與原交易相符才解除鎖定；其他結果／無識別／查無／逾時保持 `unknown`。即使新收款開關已停用仍可用原環境／Channel 憑證查詢；憑證帳號或環境變更則 409。已完成直接回原結果，不重開發票。`review` 不自動解除。
 
