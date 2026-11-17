@@ -91,7 +91,7 @@ test('面額點鈔：合計正確、無效面額擋下；沒填回 null 改用�
 
 test('應有現金 ＝ 零用金 ＋ 現金營收 ＋ 臨時收入 － 臨時支出', () => {
   const s = R.expectedCash({ opening_cash: 3000, cash_sales: 12850, moves: [{ type: 'in', amount: 500 }, { type: 'out', amount: 250 }, { type: 'out', amount: 120 }] });
-  assert.deepEqual(s, { opening_cash: 3000, cash_sales: 12850, cash_in: 500, cash_out: 370, expected: 15980 });
+  assert.deepEqual(s, { opening_cash: 3000, cash_sales: 12850, cash_in: 500, cash_out: 370, petty_split: false, petty_in: 0, petty_out: 0, expected: 15980 });
   assert.equal(R.expectedCash({ opening_cash: 0, cash_sales: 0, moves: [] }).expected, 0);
 });
 

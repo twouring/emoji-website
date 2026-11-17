@@ -35,7 +35,7 @@ test('日結 UI 三段順序、照片必填、關帳後零用金憑單與金額'
   assert.ok(ui.indexOf('<h3>核對帳戶</h3>')<ui.indexOf('<h3>收現金、關帳</h3>'));assert.match(ui,/class="reg-take"/);assert.ok(!ui.includes('reg-pack-note'));
   assert.match(ui,/data-reg-petty=/);assert.match(ui,/function pettyCashReceiptSpec\(rep\)/);
   assert.match(ui,/id="reg-cash-photo" type="file"[^>]*capture="environment"/);
-  assert.match(ui,/先拍發票／憑證，記帳成功後才會開錢櫃/);
+  assert.match(ui,/臨時收支用零用金袋（不開錢櫃）/);
   assert.match(ui,/await uploadCashMove\(r\.id,/);assert.match(ui,/await manualCashDrawer\('臨時'/);
   assert.match(ui,/if\(!receipt&&!REG_CASH_EDIT\?\.receipt_photo\)/);
   const src=ui.slice(ui.indexOf('function pettyCashReceiptSpec('),ui.indexOf('async function printPettyCashReceipt('));

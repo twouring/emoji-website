@@ -7400,7 +7400,7 @@ async function registerSummary(reg){
   const tipMoves=await tipPayoutCashMoves();
   const moves=(await q('SELECT id,type,amount,reason,staff,receipt_photo,created_at FROM pos_cash_moves WHERE register_id=$1 ORDER BY created_at',[reg.id])).rows.map(m=>tipMoves.has(m.id)?{...m,locked:'tip'}:m);   /* 打賞支付產生的支出不可在日結改／刪（要對得上打賞帳） */
   const counts=(await q('SELECT id,counted_cash,expected_cash,diff,denominations,note,counted_by,created_at FROM pos_register_counts WHERE register_id=$1 ORDER BY created_at DESC',[reg.id])).rows;
-  const summary=posRegister.expectedCash({opening_cash:reg.opening_cash,cash_sales:sales.by_method.cash||0,moves});
+  const summary=posRegister.expectedCash({opening_cash:reg.opening_cash,cash_sales:sales.by_method.cash||0,moves,split:posRegister.pettySplit(regDayStr)});   /* KK 11/17：臨時收支走零用金袋，不算錢櫃 */
   const methods=await paymentMethodsList(posPaymentMethods.groupsOf([reg.venue])),accounts=posRegister.accountsOf(sales.by_method),labels={};
   for(const m of methods){labels[m.code]=m.label;if(m.active&&m.code!=='cash'&&!posRegister.LEGACY_CARD.includes(m.code))accounts[m.code]??=0;}
   labels.stripe='Stripe 線上刷卡';   // 會員 App 商店線上付款，對 Stripe 後台實收
@@ -7504,7 +7504,7 @@ app.post('/api/admin/registers/:id/cash',auth,adminOnly,requireDb,cashReceiptMid
   const id=uid('cm_'),staff=actorOf(req.auth)||'';
   const created=(await q('INSERT INTO pos_cash_moves(id,register_id,type,amount,reason,staff,receipt_photo) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING created_at',[id,r.id,m.type,m.amount,m.reason,staff,receipt_photo])).rows[0];
   const s=await registerSummary(r);
-  res.status(201).json({ok:true,id,...m,receipt_photo,staff,created_at:created.created_at,venue:r.venue,day:r.day,expected_cash:s.summary.expected});
+  res.status(201).json({ok:true,id,...m,receipt_photo,staff,created_at:created.created_at,venue:r.venue,day:r.day,expected_cash:s.summary.expected,petty_split:s.summary.petty_split});
 }));
 /* 打賞支付（現金）寫進 pos_cash_moves 的 id；這些支出不開放在日結修改／刪除 */
 async function tipPayoutCashMoves(client){
