@@ -92,7 +92,7 @@ test('server：三支路由掛 contentEditor（看 pos_staff 職稱）；寫入�
   assert.match(server, /snapshotCache\.at=0;\n  req\.posLogDetail/);
   assert.ok(server.indexOf("express.json({ limit: '8mb' })") < server.indexOf("app.use(express.json({ limit: '256kb' }))"));
   assert.doesNotMatch(server, /app\.use\(\/\^/, 'app.use 不可用 RegExp 路徑（vm 測試跨 realm 會丟 TypeError）');
-  assert.match(server, /兩店共用品項（甜點、商店）請由言文字管理員/);
+  assert.doesNotMatch(server, /兩店共用品項/, 'KK 11/11 菜單分開：沒有共用品項了');
 });
 
 test('POS 操作紀錄：describe 用進入中介層時的子路徑（finish 時 req.path 已還原成完整路徑）', () => {

@@ -69,7 +69,7 @@
     return { venue: null, food: false, drink: false };
   }
   function orderableInWindow(item, w) {
-    if (!item || !w || !w.venue || !inVenue(item, w.venue)) return false;   // 甜點兩店共用：三點水時段客人也點得到
+    if (!item || !w || !w.venue || !inVenue(item, w.venue)) return false;
     return BAR_CATS.includes(item.cat) ? w.drink : w.food;
   }
   /* 營業日：三點水營業到翌日 03:00，凌晨的單算前一天；以台北時間減 3 小時取日期（估清、日結都用這個） */
@@ -278,19 +278,18 @@
       pub_date: String(raw.pub_date || '').trim().slice(0, 20),
     };
   }
-  /* 兩店共用（KK 11/2）：商店零售品與甜點在兩店 POS 都能點，賣出時記在當下店別（三點水賣的甜點才收服務費、進三點水日結） */
-  const SHARED_CATS = ['SHOP', 'DESSERT'];
-  function isShared(item) { return !!item && SHARED_CATS.includes(item.cat); }
-  /* 「這家店的菜單有沒有這項」唯一判斷（KK 11/5：資料來源要統一）。點餐頁、兌換、POS、App 菜單、預約取餐、官網菜單都走這裡，
-     不要再各自寫 it.venue===venue。forVenue 會把共用品項的 venue 換成該店，分組、出餐單、日結才會落在同一家。
-     甜點只在兩個餐飲 POS（在咖啡／三點水）共用；約書旅只賣自己的空間方案。 */
-  const DESSERT_VENUES = ['CAFE', 'BAR'];
-  function sharedInVenue(item, venue) { return isShared(item) && (item.cat !== 'DESSERT' || DESSERT_VENUES.includes(venue)); }
-  function inVenue(item, venue) { return !!item && (!venue || item.venue === venue || sharedInVenue(item, venue)); }
-  function forVenue(items, venue) { return (items || []).filter(it => inVenue(it, venue)).map(it => (venue && sharedInVenue(it, venue) && it.venue !== venue ? Object.assign({}, it, { venue }) : it)); }
+  /* 菜單依品牌分開（KK 11/11）：取消共用品項。甜點各品牌一份、各自估清；商店零售品（cat SHOP）屬言文字聚落，
+     只在會員 App 線上 Stripe 購買，任何品牌 POS／桌邊點餐都看不到。isShared 保留給舊呼叫端，一律 false。
+     「這家店的菜單有沒有這項」唯一判斷（KK 11/5：資料來源要統一）：點餐、兌換、POS、App 菜單、預約取餐、官網菜單都走這裡。 */
+  const SHARED_CATS = [];
+  function isShared() { return false; }
+  function isStoreItem(item) { return !!item && item.cat === 'SHOP'; }
+  function inVenue(item, venue) { return !!item && !isStoreItem(item) && (!venue || item.venue === venue); }
+  function forVenue(items, venue) { return (items || []).filter(it => inVenue(it, venue)); }
   function isOrderable(item, now, ctx) {
     if (!item.published || soldOutToday(item, now)) return false;
-    if (isShop(item) && !(ctx && (ctx.shop || ctx.posOnly))) return false;
+    if (isStoreItem(item) && !(ctx && ctx.shop)) return false;   // 商店品只給 App 線上購買（KK 11/11 D4），POS 也不行
+    if (isShop(item) && !isStoreItem(item) && !(ctx && (ctx.shop || ctx.posOnly))) return false;   // 空間方案：POS 與線上方案
     if (isBook(item) && !(ctx && ctx.posOnly)) return false;
     if (item.pos_only && !(ctx && ctx.posOnly)) return false;
     const day = businessDay(now);
@@ -489,6 +488,6 @@
 
   global.MenuLib = {
     CATS, VENUES, ITEM_VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, BAR_STATION_CATS, MEMBER_RATE, BAR_POLICY_FROM, CAFE_POLICY_FROM, SERVICE_RATE, MIN_SPEND, CAFE_MIN_SPEND, barPolicyActive, cafePolicyActive, minSpendOf, cafeMinimumOf, serviceCharge, memberPrice, activeVenue, orderWindow, orderableInWindow, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
-    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, comboChoiceOk, comboOffChoices, comboAvailable, isShop, SPACE_CATS, isBook, isRetail, normalizeIsbn, ISBN13_RE, isShared, inVenue, forVenue, SHARED_CATS, soldOutToday, stockLeft, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
+    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, comboChoiceOk, comboOffChoices, comboAvailable, isShop, SPACE_CATS, isBook, isRetail, normalizeIsbn, ISBN13_RE, isShared, isStoreItem, inVenue, forVenue, SHARED_CATS, soldOutToday, stockLeft, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

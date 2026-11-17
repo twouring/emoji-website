@@ -28,11 +28,11 @@ test('SHOP 分類存在，四語標籤齊全，seed 也認得', () => {
   assert.match(read('lib/menu-seed.js'), /'SHOP'/);
 });
 
-test('商店品不出現在桌邊點餐／預約取餐／官網菜單，只在商店與 POS', () => {
+test('商店品不出現在桌邊點餐／預約取餐／官網菜單／POS，只在 App 商店（KK 11/11 D4）', () => {
   const d = MenuLib.parseMenuDoc(doc);
   assert.deepEqual(MenuLib.orderableOnly(d).map(i => i.id).sort(), ['beer', 'latte']);
   assert.deepEqual(MenuLib.publishedOnly(d).map(i => i.id).sort(), ['beer', 'latte']);
-  assert.ok(MenuLib.orderableOnly(d, undefined, { posOnly: true }).some(i => i.id === 'brush'));
+  assert.ok(!MenuLib.orderableOnly(d, undefined, { posOnly: true }).some(i => i.id === 'brush'), 'POS 不代售商店品');
   assert.deepEqual(shop.itemsOf(doc).map(i => i.id).sort(), ['brush', 'towel'], '未發布、今日估清的不賣；不分店');
 });
 
@@ -59,14 +59,14 @@ test('POS 商店品歸屬只接受選定品牌，不用目前時段猜測', () =
   assert.throws(() => shop.venueForPos([]), /POS 品牌/);
 });
 
-test('POS 櫃檯加點路由：依目前選定品牌（?venue=）入帳商店品，未選品牌回 400，不再用時段推定', () => {
+test('POS 櫃檯加點路由：依目前選定品牌（?venue=）只能加自己品牌品項；商店品不在 POS（KK 11/11）', () => {
   const server = read('server.js');
   const start = server.indexOf("app.post('/api/admin/orders/sessions/:id/items'");
   const route = server.slice(start, server.indexOf('}));', start));
   assert.match(route, /visibleVenues\(req\.auth\.brands,String\(req\.query\.venue\|\|''\)\)/);
-  assert.match(route, /shop\.venueForPos\(venues\)/);
-  assert.doesNotMatch(route, /shop\.venueFor\(/);
-  assert.match(route, /res\.status\(e\.status\|\|400\)/);
+  assert.match(route, /itemInVenues\(it,venues\)/);
+  assert.match(route, /venue:undefined/);
+  assert.doesNotMatch(route, /shop\.venueFor/);
 });
 
 test('addLine：商店行記指定店別、直接算已出；不上出餐單、不收服務費、不套會員價', () => {
@@ -92,7 +92,9 @@ test('server：/api/me/shop 三條路由、排程自動取消、POS 加點不擋
   for (const r of ["app.get('/api/me/shop'", "app.post('/api/me/shop'", "app.delete('/api/me/shop/:id'"]) assert.ok(s.includes(r), r);
   assert.match(s, /ADD COLUMN IF NOT EXISTS shop_at TIMESTAMPTZ/);
   assert.match(s, /shop_expired: await expireShopOrders\(\)/);
-  assert.match(s, /const shopItem=tableOrders\.MenuLib\.isShared\(it\);if\(it&&!shopItem&&!tableOrders\.itemInVenues/);
+  assert.doesNotMatch(s, /MenuLib\.isShared\(/, 'KK 11/11：POS 不再代售商店品');
+  assert.match(s, /contentValue\(menuBrands\.SHOP_KEY\)/, 'App 商店讀言文字聚落那一份（menu:TTH）');
+  assert.match(s, /商店目前暫停線上購買/, '沒有 Stripe 就不收商店單（只能線上付款）');
   assert.match(s, /!tableOrders\.MenuLib\.isShop\(it\) && it\.points > 0/);
 });
 

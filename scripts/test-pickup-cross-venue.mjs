@@ -33,7 +33,8 @@ function fakeDb() {
     if (/^(BEGIN|COMMIT|ROLLBACK)/.test(s) || /pg_advisory_xact_lock/.test(s)) return { rows: [] };
     if (/FROM users WHERE id=\$1/.test(s)) { const u = USERS[p[0]]; return { rows: u ? [u] : [] }; }
     if (/EXISTS\(SELECT 1 FROM events WHERE owner_id/.test(s)) return { rows: [{ allowed: false }] };
-    if (/SELECT value FROM site_content WHERE key=\$1/.test(s)) return { rows: p[0] === 'menu' ? [{ value: MENU }] : [] };
+    if (/SELECT key,value FROM site_content WHERE key=ANY/.test(s)) return { rows: [{ key: 'menu', value: MENU }] };
+    if (/SELECT value FROM site_content WHERE key=\$1/.test(s)) return { rows: [] };
     if (/COUNT\(\*\)::int AS n FROM table_sessions WHERE user_id=\$1/.test(s)) return { rows: [{ n: sessions.filter(x => x.user_id === p[0] && x.status === 'open' && x.pickup_at).length }] };
     if (/SELECT table_no FROM table_sessions WHERE status='open' AND table_no ~/.test(s)) return { rows: sessions.filter(x => x.status === 'open').map(x => ({ table_no: x.table_no })) };
     if (/^INSERT INTO table_sessions\(id,table_no,items,user_id,pickup_at,pickup_note,opened_by_staff_name,venue\)/.test(s)) {

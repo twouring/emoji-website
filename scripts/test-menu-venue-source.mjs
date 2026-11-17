@@ -13,9 +13,9 @@ const items = [
   { id: 'd', venue: 'CAFE', cat: 'DESSERT', zh: '原味費南雪', published: true, price: 90, points: 9 },
   { id: 'b', venue: 'BAR', cat: 'BEER', zh: '啤酒', published: true, price: 200 },
 ];
-test('MenuLib.inVenue／forVenue：共用甜點只在兩個餐飲店別，venue 換成該店', () => {
-  assert.deepEqual(M.forVenue(items, 'BAR').map(i => i.id), ['d', 'b']);
-  assert.equal(M.forVenue(items, 'BAR').find(i => i.id === 'd').venue, 'BAR');
+test('MenuLib.inVenue／forVenue：甜點只屬自己的品牌（KK 11/11 菜單分開），不跨店、不改 venue', () => {
+  assert.deepEqual(M.forVenue(items, 'BAR').map(i => i.id), ['b']);
+  assert.equal(M.inVenue(items[1], 'BAR'), false, '三點水看不到在咖啡的甜點（要另有一份 BAR 甜點）');
   assert.deepEqual(M.forVenue(items, 'CAFE').map(i => i.id), ['c', 'd']);
   assert.deepEqual(M.forVenue(items, 'REST').map(i => i.id), [], '約書旅不販售跨店甜點');
   assert.equal(M.inVenue(items[1], 'REST'), false, '約書旅 POS 不得看到在咖啡甜點');

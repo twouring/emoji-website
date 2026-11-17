@@ -35,6 +35,7 @@ const eventWallets=require('./lib/event-wallets');
 const eventCrypto=require('./lib/event-crypto');
 const eventChannels=require('./lib/event-channels');
 const tableOrders=require('./lib/table-orders');
+const menuBrands=require('./lib/menu-per-brand');
 const songs=require('./lib/songs');
 const ktv=require('./lib/ktv');
 const songTickets=require('./lib/song-tickets');
@@ -1135,15 +1136,16 @@ function redeemPointsBackfill(items) {
 }
 async function seedMenuContent() {
   const force = process.env.FORCE_MENU_SEED === '1' || process.env.FORCE_MENU_SEED === 'true';
-  const content = await readContent();
+  await migrateMenuPerBrand();   // 一次性：舊單一菜單 → 各品牌一份（KK 11/11），要在任何菜單回填之前
+  const content = { [MENU_CONTENT_KEY]: await menuJson() };
   if (!shouldWriteMenuSeed(content, force)) {
     // 一次性：咖啡、飲品、小點補上兌換點數（1 點＝NT$10）；只補 points 為 0 的，做過就不再動，KK 之後在後台改的不會被蓋掉
     try {
       const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_points_seed_v1'`)).rows.length;
       if (!done) {
-        const doc = JSON.parse(content.menu);
+        const doc = JSON.parse(await menuJson());
         const n = redeemPointsBackfill(doc.items);
-        if (n > 0) await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
+        if (n > 0) await menuReplace(JSON.stringify(doc));
         await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_points_seed_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(n)]);
         console.log('[menu-seed] 已補上兌換點數：' + n + ' 項。');
       }
@@ -1152,9 +1154,9 @@ async function seedMenuContent() {
     try {
       const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_combo_seed_v1'`)).rows.length;
       if (!done) {
-        const doc = JSON.parse((await readContent()).menu);
+        const doc = JSON.parse(await menuJson());
         const n = require('./lib/menu-combos').comboBackfill(doc.items);
-        if (n > 0) await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
+        if (n > 0) await menuReplace(JSON.stringify(doc));
         await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_combo_seed_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(n)]);
         console.log('[menu-seed] 已補上在咖啡套餐：' + n + ' 項。');
       }
@@ -1162,9 +1164,9 @@ async function seedMenuContent() {
     try {
       const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_combo_open_v2'`)).rows.length;
       if (!done) {
-        const doc = JSON.parse((await readContent()).menu);
+        const doc = JSON.parse(await menuJson());
         const n = require('./lib/menu-combos').comboOpen(doc.items);
-        if (n > 0) await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
+        if (n > 0) await menuReplace(JSON.stringify(doc));
         await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_combo_open_v2',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(n)]);
         console.log('[menu-seed] 套餐開放給客人掃碼點餐：' + n + ' 項。');
       }
@@ -1172,9 +1174,9 @@ async function seedMenuContent() {
     try {   // 一次性：新增「麵套餐」（已有同名就略過）；直接開放給客人
       const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_combo_noodle_v1'`)).rows.length;
       if (!done) {
-        const doc = JSON.parse((await readContent()).menu);
+        const doc = JSON.parse(await menuJson());
         const n = require('./lib/menu-combos').comboBackfill(doc.items, { open: true });
-        if (n > 0) await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
+        if (n > 0) await menuReplace(JSON.stringify(doc));
         await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_combo_noodle_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(n)]);
         console.log('[menu-seed] 已補上麵套餐：' + n + ' 項。');
       }
@@ -1182,9 +1184,9 @@ async function seedMenuContent() {
     try {   // 一次性：在咖啡套餐飲品補莓果／鳳梨氣泡
       const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_combo_sparkling_v1'`)).rows.length;
       if (!done) {
-        const doc = JSON.parse((await readContent()).menu);
+        const doc = JSON.parse(await menuJson());
         const n = require('./lib/menu-combos').comboAddSparkling(doc.items);
-        if (n > 0) await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
+        if (n > 0) await menuReplace(JSON.stringify(doc));
         await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_combo_sparkling_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(n)]);
         console.log('[menu-seed] 套餐飲品補上氣泡飲：' + n + ' 個套餐。');
       }
@@ -1192,9 +1194,9 @@ async function seedMenuContent() {
     try {   // 一次性：三點水麵套餐
       const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_combo_bar_noodle_v1'`)).rows.length;
       if (!done) {
-        const doc = JSON.parse((await readContent()).menu);
+        const doc = JSON.parse(await menuJson());
         const n = require('./lib/menu-combos').barComboBackfill(doc.items);
-        if (n > 0) await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
+        if (n > 0) await menuReplace(JSON.stringify(doc));
         await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_combo_bar_noodle_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(n)]);
         console.log('[menu-seed] 已補上三點水麵套餐：' + n + ' 項。');
       }
@@ -1202,13 +1204,13 @@ async function seedMenuContent() {
     try {   // 一次性：約書旅 POS 方案；只補缺項，絕不覆寫現場已調整的價格或估清狀態
       const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_restbook_plans_v1'`)).rows.length;
       if (!done) {
-        const doc = JSON.parse((await readContent()).menu);
+        const doc = JSON.parse(await menuJson());
         const seed = buildMenuSeedDoc(loadMenuSeedRows()).items.filter(it => it.venue === 'REST');
         const have = new Set((doc.items || []).map(it => it.id));
         const add = seed.filter(it => !have.has(it.id));
         if (add.length) {
           doc.items.push(...add);
-          await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
+          await menuReplace(JSON.stringify(doc));
         }
         await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_restbook_plans_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(add.length)]);
         console.log('[menu-seed] 已補上約書旅 POS 方案：' + add.length + ' 項。');
@@ -1217,14 +1219,14 @@ async function seedMenuContent() {
     try {   // 一次性：約書旅空間方案由 SPACE 拆成交誼廳／靜讀室兩類；只改仍是 SPACE 的分類，價格／估清／圖片不動
       const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_restbook_plan_cats_v1'`)).rows.length;
       if (!done) {
-        const doc = JSON.parse((await readContent()).menu);
+        const doc = JSON.parse(await menuJson());
         const cats = new Map(buildMenuSeedDoc(loadMenuSeedRows()).items.filter(it => it.venue === 'REST').map(it => [it.id, it.cat]));
         let n = 0;
         for (const it of doc.items || []) {
           const cat = cats.get(it.id);
           if (cat && it.cat === 'SPACE') { it.cat = cat; n++; }
         }
-        if (n > 0) await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
+        if (n > 0) await menuReplace(JSON.stringify(doc));
         await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_restbook_plan_cats_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(n)]);
         console.log('[menu-seed] 約書旅空間方案已分成交誼廳／靜讀室：' + n + ' 項。');
       }
@@ -1232,14 +1234,14 @@ async function seedMenuContent() {
     try {   // 一次性：約書旅 POS 插圖；只補空白圖片，現場上傳實拍圖優先
       const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_restbook_plan_images_v1'`)).rows.length;
       if (!done) {
-        const doc = JSON.parse((await readContent()).menu);
+        const doc = JSON.parse(await menuJson());
         const images = new Map(buildMenuSeedDoc(loadMenuSeedRows()).items.filter(it => it.venue === 'REST').map(it => [it.id, it.image]));
         let n = 0;
         for (const it of doc.items || []) {
           const image = images.get(it.id);
           if (image && !String(it.image || '').trim()) { it.image = image; n++; }
         }
-        if (n > 0) await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
+        if (n > 0) await menuReplace(JSON.stringify(doc));
         await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_restbook_plan_images_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(n)]);
         console.log('[menu-seed] 已補上約書旅 POS 插圖：' + n + ' 項。');
       }
@@ -1247,9 +1249,9 @@ async function seedMenuContent() {
     try {   // 一次性（KK 11/15 空間情境）：約書旅方案補計時欄位（space_role／space_minutes）、新增等等空間方案；只補缺的，價格與估清不動
       const done = (await q(`SELECT 1 FROM site_content WHERE key='menu_space_plans_v1'`)).rows.length;
       if (!done) {
-        const doc = JSON.parse((await readContent()).menu);
+        const doc = JSON.parse(await menuJson());
         const n = posSpace.planBackfill(doc.items || (doc.items = []));
-        if (n > 0) await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
+        if (n > 0) await menuReplace(JSON.stringify(doc));
         await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_space_plans_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(n)]);
         console.log('[menu-seed] 空間情境方案已補上計時欄位／等等空間方案：' + n + ' 項。');
       }
@@ -1288,15 +1290,15 @@ async function seedMenuContent() {
       }
     } catch (e) { console.warn('[online-plan-pos-paid-at] 略過：', e && e.message); }
     try {   // 每次開機：套餐選項補 id、同步品名（品項改名不脫鉤）
-      const doc = JSON.parse((await readContent()).menu);
+      const doc = JSON.parse(await menuJson());
       const n = require('./lib/menu-combos').comboRelink(doc.items);
-      if (n > 0) { await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]); console.log('[menu-seed] 套餐選項已對應品項：' + n + ' 個套餐。'); }
+      if (n > 0) { await menuReplace(JSON.stringify(doc)); console.log('[menu-seed] 套餐選項已對應品項：' + n + ' 個套餐。'); }
     } catch (e) { console.warn('[menu-seed] 套餐對應略過：', e && e.message); }
     // 既有菜單：僅補上缺少的日文品名（不動已填內容）
     try {
-      const doc = JSON.parse((await readContent()).menu);   // 重新讀：前面的一次性回填已更新 DB，用啟動時的舊 content.menu 會把它們蓋回去
+      const doc = JSON.parse(await menuJson());   // 重新讀：前面的一次性回填已更新 DB，用啟動時的舊 content.menu 會把它們蓋回去
       if (require('./lib/menu-ja').fillMenuJa(doc.items) > 0) {
-        await q(`UPDATE site_content SET value=$1, updated_at=now() WHERE key=$2`, [JSON.stringify(doc), MENU_CONTENT_KEY]);
+        await menuReplace(JSON.stringify(doc));
         console.log('[menu-seed] 已補上菜單日文品名。');
       }
     } catch (e) { console.warn('[menu-seed] 日文回填略過：', e && e.message); }
@@ -1316,16 +1318,53 @@ async function seedMenuContent() {
     return;
   }
   const value = stringifyMenuDoc(doc);
-  await q(
-    `INSERT INTO site_content (key,value,updated_at) VALUES ($1,$2,now())
-     ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,
-    [MENU_CONTENT_KEY, value]
-  );
+  await menuReplace(value, { all: true });
   if (force) {
-    console.warn('[menu-seed] FORCE_MENU_SEED=1：已覆寫 site_content.menu（全部已發布）。請勿長期開啟此旗標。');
+    console.warn('[menu-seed] FORCE_MENU_SEED=1：已覆寫各品牌菜單（全部已發布）。請勿長期開啟此旗標。');
   } else {
-    console.log('[menu-seed] 已灌入 site_content.menu（全部已發布）。');
+    console.log('[menu-seed] 已灌入各品牌菜單（全部已發布）。');
   }
+}
+/* ===== 菜單依品牌分開（KK 11/11，lib/menu-per-brand.js）：site_content 每品牌一列 menu:CAFE／BAR／STAY／REST，商店品 menu:TTH。
+   讀：五列合併成一份（品項 id 全域唯一，各畫面再依 venue 過濾）；寫：只回寫有變動的品牌列，品牌之間互不覆蓋。
+   舊單一列 `menu` 遷移後保留不動（回滾用），程式不再讀寫。所有菜單寫入都要在交易裡先 menuLock。 ===== */
+const MENU_ROWS=[menuBrands.LEGACY_KEY,...menuBrands.KEYS];
+async function menuRead(query=q){const rows=(await query('SELECT key,value FROM site_content WHERE key=ANY($1::text[])',[MENU_ROWS])).rows;return {json:menuBrands.fromRows(rows),brand:menuBrands.hasBrandRows(rows)};}
+async function menuJson(query=q){return (await menuRead(query)).json;}
+async function menuLock(query){await query('SELECT pg_advisory_xact_lock(hashtext($1))',['site_content:menu']);}
+/* before→after 只寫變動的品牌列；all＝五列全寫（初次灌入） */
+async function menuWrite(query,before,after,{all=false,brand=true}={}){
+  // 還沒遷移成品牌列（遷移失敗）：照舊寫回單一列，不要在沒複製甜點的情況下默默拆分
+  const rows=all?menuBrands.split(after):!brand?{[menuBrands.LEGACY_KEY]:after}:menuBrands.changedRows(before,after);
+  for(const [key,value] of Object.entries(rows))await query(`INSERT INTO site_content (key,value,updated_at) VALUES ($1,$2,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,[key,value]);
+  try{snapshotCache.at=0;}catch{}   // 開機遷移時快取可能還沒宣告
+  return Object.keys(rows);
+}
+/* 開機回填用：整份換掉（自帶交易與鎖） */
+async function menuReplace(next,opt={}){
+  const client=await pool.connect();
+  try{await client.query('BEGIN');await menuLock(client.query.bind(client));const cur=await menuRead(client.query.bind(client));
+    await menuWrite(client.query.bind(client),cur.json,next,{...opt,brand:cur.brand});await client.query('COMMIT');}
+  catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
+}
+/* 一次性遷移（menu_per_brand_v1）：舊 menu 拆成各品牌；甜點取消共用——近 30 天在別的品牌賣過的複製一份給那個品牌
+   （新 id＝原 id_品牌小寫，連配方一起複製），之後各自維護、各自估清。報告寫在 site_content.menu_per_brand_v1 */
+async function migrateMenuPerBrand(){
+  const client=await pool.connect();
+  try{await client.query('BEGIN');const Q=client.query.bind(client);await menuLock(Q);
+    const rows=(await Q('SELECT key,value FROM site_content WHERE key=ANY($1::text[])',[MENU_ROWS])).rows;
+    const legacy=rows.find(r=>r.key===menuBrands.LEGACY_KEY)?.value;
+    if(menuBrands.hasBrandRows(rows)||!legacy||!String(legacy).trim()){await client.query('ROLLBACK');return;}
+    const sales={},has=async t=>!!(await Q('SELECT to_regclass($1) AS t',[t])).rows[0]?.t;
+    if(await has('public.table_orders'))for(const r of (await Q(`SELECT DISTINCT l->>'item_id' AS id,l->>'venue' AS venue FROM table_orders o,jsonb_array_elements(o.items) l WHERE o.status<>'void' AND o.paid_at>now()-interval '30 days' AND l->>'cat'='DESSERT' AND NOT COALESCE((l->>'cancelled')::boolean,false)`)).rows)(sales[r.id]=sales[r.id]||[]).push(r.venue);
+    const out=menuBrands.migrateLegacy(legacy,sales);
+    for(const [key,value] of Object.entries(out.rows))await Q('INSERT INTO site_content (key,value,updated_at) VALUES ($1,$2,now()) ON CONFLICT (key) DO NOTHING',[key,value]);
+    if(await has('public.pos_menu_recipes'))for(const c of out.copies)await Q('INSERT INTO pos_menu_recipes (item_id,lines,updated_at) SELECT $2,lines,now() FROM pos_menu_recipes WHERE item_id=$1 ON CONFLICT (item_id) DO NOTHING',[c.from,c.to]);
+    const counts=Object.fromEntries(Object.entries(out.rows).map(([k,v])=>[k,JSON.parse(v).items.length]));
+    await Q(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu_per_brand_v1',$1,now()) ON CONFLICT (key) DO NOTHING`,[JSON.stringify({at:new Date().toISOString(),source:JSON.parse(legacy).items.length,counts,copies:out.copies})]);
+    await client.query('COMMIT');
+    console.log('[menu-per-brand] 已拆成各品牌菜單：'+JSON.stringify(counts)+'；甜點複製 '+out.copies.length+' 項');
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});console.warn('[menu-per-brand] 遷移失敗，維持舊菜單：',e&&e.message);}finally{client.release();}
 }
 
 /* ---------- token (HMAC) ---------- */
@@ -2797,8 +2836,11 @@ app.get('/integrations/zoom/callback',wrap(async(req,res)=>{
 
 // 網站內容（首頁公告等）：讀成 { key: value } 物件
 async function readContent() {
-  const rows = (await q(`SELECT key, value FROM site_content WHERE key = ANY($1::text[])`, [PUBLIC_CONTENT_KEYS])).rows;
-  return Object.fromEntries(rows.map(r => [r.key, r.value]));
+  const rows = (await q(`SELECT key, value FROM site_content WHERE key = ANY($1::text[])`, [PUBLIC_CONTENT_KEYS.filter(k => k !== menuBrands.LEGACY_KEY)])).rows;
+  const content = Object.fromEntries(rows.map(r => [r.key, r.value]));
+  const menu = await menuJson();   // 各品牌菜單合併（KK 11/11 菜單分開）
+  if (menu) content.menu = menu;
+  return content;
 }
 
 app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
@@ -4506,16 +4548,20 @@ app.post('/api/admin/content', auth, adminOnly, requireDb, wrap(async (req, res)
   if (!PUBLIC_CONTENT_KEYS.includes(key)) return res.status(400).json({ error: '不允許的公開內容鍵值。' });
   if (req.auth.brands) {
     const others = v => JSON.stringify(tableOrders.MenuLib.parseMenuDoc(v).items.filter(it => !req.auth.brands.includes(it.venue)).sort((a, b) => a.id < b.id ? -1 : 1));
-    const old = (await q("SELECT value FROM site_content WHERE key='menu'")).rows[0]?.value;
+    const old = await menuJson();
     if (others(old) !== others(String(req.body.value ?? ''))) return res.status(403).json({ error: '只能修改自己店別的品項。' });
   }
   // 估清與剩餘份數由 POS 即時維護：整份菜單存檔一律沿用資料庫現值，不讓後台草稿把份數倒回（鎖住 menu 列，避免和送單扣份數互相覆蓋）
+  // 菜單（KK 11/11 分品牌）：後台仍送整份，伺服器依品項歸屬拆回各品牌列，只寫有變動的品牌
   const client = key === 'menu' ? await pool.connect() : null;
   try {
-    const run = client ? (s, a) => client.query(s, a) : q;
     let value = String(req.body.value ?? '');
-    if (client) { await client.query('BEGIN'); value = tableOrders.keepLiveMenuFields((await client.query("SELECT value FROM site_content WHERE key='menu' FOR UPDATE")).rows[0]?.value || '', value); }
-    await run(`INSERT INTO site_content (key,value,updated_at) VALUES ($1,$2,now())
+    if (client) {
+      await client.query('BEGIN'); const Q = client.query.bind(client); await menuLock(Q);
+      const cur = await menuRead(Q);
+      value = tableOrders.keepLiveMenuFields(cur.json, value);
+      await menuWrite(Q, cur.json, value, { brand: cur.brand });
+    } else await q(`INSERT INTO site_content (key,value,updated_at) VALUES ($1,$2,now())
            ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,
       [key, value]);
     if (client) await client.query('COMMIT');
@@ -5691,7 +5737,8 @@ app.post('/api/me/shop', auth, requireDb, rateLimit({ max: 20, windowMs: 3600000
   const me = (await q('SELECT id,name FROM users WHERE id=$1', [req.auth.sub])).rows[0];
   if (!me) return res.status(401).json({ error: '帳號不存在，請重新登入。' });
   let p; try { p = shop.normalizeOrder(req.body); } catch (e) { return res.status(e.status || 400).json({ error: e.message }); }
-  const menuJson = await contentValue('menu'), menu = shop.menuOf(menuJson), venue = shop.venueFor(null);
+  if (!stripe) return res.status(503).json({ error: '商店目前暫停線上購買。' });   // 商店品只能 App 線上付款（KK 11/11 D4），沒有 Stripe 就不收單
+  const menuJson = await contentValue(menuBrands.SHOP_KEY), menu = shop.menuOf(menuJson), venue = shop.venueFor(null);
   let items = [];
   try { for (const x of p.items) { if (!menu.has(x.item_id)) throw Object.assign(Error('商品不存在、已售完或已下架。'), { status: 400 }); items = tableOrders.addLine(items, menu, { item_id: x.item_id, qty: x.qty, by: me.name || '會員', guest: pickup.guestOf(me.id), venue }); } }
   catch (e) { return res.status(e.status || 400).json({ error: e.message }); }
@@ -5706,7 +5753,7 @@ app.post('/api/me/shop', auth, requireDb, rateLimit({ max: 20, windowMs: 3600000
     if (!table) { await client.query('ROLLBACK'); return res.status(409).json({ error: '目前訂單已滿，請稍後再試或直接到櫃檯購買。' }); }
     const s = (await client.query(`INSERT INTO table_sessions(id,table_no,items,user_id,shop_at,pickup_note,opened_by_staff_name) VALUES($1,$2,$3,$4,now(),$5,$6) RETURNING *`, [uid('ts_'), table, JSON.stringify(items), me.id, p.note, '會員 App 商店'])).rows[0];
     await client.query('COMMIT');
-    lineService.notifyStaff(`🛍️ 商店訂單 ${table}（會員 App）｜${me.name || ''}\n${items.map(l => `${l.zh} ×${l.qty}`).join('、')}｜NT$${tableOrders.sum(items)}${p.note ? '\n備註：' + p.note : ''}\n客人到櫃檯付款取貨`);
+    lineService.notifyStaff(`🛍️ 商店訂單 ${table}（會員 App，線上付款）｜${me.name || ''}\n${items.map(l => `${l.zh} ×${l.qty}`).join('、')}｜NT$${tableOrders.sum(items)}${p.note ? '\n備註：' + p.note : ''}\n客人線上付款後到櫃檯取貨`);
     res.status(201).json({ ok: true, order: shopView(s) });
   } catch (e) { await client.query('ROLLBACK').catch(() => {}); throw e; } finally { client.release(); }
 }));
@@ -6363,7 +6410,7 @@ async function loadSession(id){
 }
 // 不外露各行的 guest 識別碼（否則同桌可互刪）；帶 ?g= 或 body.guest 時只標記 mine
 const publicSession=(s,guest)=>{const mine=guest?tableOrders.prunePayRequests(s.pay_requests,s.items).find(r=>r.guest===guest):null;return {id:s.id,table:s.table_no,status:s.status,items:s.items.map(({guest:g,...l})=>({...l,mine:!!guest&&g===guest})),orders:s.orders.map(o=>({id:o.id,amount:o.amount,status:o.status,paid_at:o.paid_at,ready_at:o.ready_at,lines:o.items.map(l=>l.line)})),total_unpaid:tableOrders.sum(tableOrders.unpaid(s.items)),need_party:s.status==='open'&&!s.opened_by_staff_name&&!tableOrders.partySize(s.party_votes),pay_request:mine?{scope:mine.scope,lines:mine.lines,people:mine.people||undefined,at:mine.at}:null,notices:guestNotices.publicView(s.notices)};};
-const contentValue=async key=>(await q('SELECT value FROM site_content WHERE key=$1',[key])).rows[0]?.value||'';
+const contentValue=async key=>key===menuBrands.LEGACY_KEY?await menuJson():(await q('SELECT value FROM site_content WHERE key=$1',[key])).rows[0]?.value||'';   // 'menu'＝各品牌菜單合併
 /* 客人掃碼點餐的菜單：依點餐時段（MenuLib.orderWindow）——在咖啡 16:00 停餐點、16:30 停飲品並換三點水；三點水 02:00 停餐點、02:30 停酒水 */
 async function currentMenu(opt){const w=tableOrders.MenuLib.orderWindow(),m=tableOrders.menuIndex(await contentValue('menu'),w.venue,opt);for(const [k,it] of m)if(!tableOrders.MenuLib.orderableInWindow(it,w))m.delete(k);return m;}
 /* 最後點餐：送單時還沒送出的品項若已過該類最後點餐時間，整筆擋下（客人先移除再送） */
@@ -6653,10 +6700,9 @@ app.post('/api/admin/orders/sessions/:id/items',auth,adminOnly,requireDb,wrap(as
   if(!device)return res.status(403).json({error:'這台 POS 尚未綁定或未設定裝置名稱，不能加點。'});
   const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));   // 言文字管理員依 POS 目前選定品牌（?venue=）
   const menuAll=tableOrders.menuIndex(await contentValue('menu'),undefined,{posOnly:true});   // 櫃檯可替客人加任何已發布品項（含估清、非營業時段、POS 限定如「其他」），但不得跨品牌
-  const it=menuAll.get(String(req.body?.item_id||''));const shopItem=tableOrders.MenuLib.isShared(it);if(it&&!shopItem&&!tableOrders.itemInVenues(it,venues))return res.status(403).json({error:'只能加自己店別的品項。'});
-  // 商店零售品兩店共用：一律記在此 POS 目前選定的品牌，絕不以當下時段推定；未選品牌直接拒絕。
-  let venue;try{venue=shopItem?shop.venueForPos(venues):undefined;}catch(e){return res.status(e.status||400).json({error:e.message});}
-  return mutateItems(req,res,items=>tableOrders.posAddLine(items,menuAll,{...(req.body||{}),venue,device_name:device.label}));
+  const it=menuAll.get(String(req.body?.item_id||''));if(it&&!tableOrders.itemInVenues(it,venues))return res.status(403).json({error:'只能加自己店別的品項。'});
+  // 菜單依品牌分開（KK 11/11）：沒有共用品項，品項一律記自己的品牌；商店品不在 POS 菜單（只給 App 線上購買）
+  return mutateItems(req,res,items=>tableOrders.posAddLine(items,menuAll,{...(req.body||{}),venue:undefined,device_name:device.label}));
 }));
 app.post('/api/admin/orders/sessions/:id/place',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
@@ -7174,9 +7220,9 @@ app.post('/api/admin/orders/:id/items/:line/void',auth,adminOnly,requireDb,wrap(
 async function patchMenu(res,fn){
   const client=await pool.connect();
   try{await client.query('BEGIN');
-    const cur=(await client.query("SELECT value FROM site_content WHERE key='menu' FOR UPDATE")).rows[0]?.value||'';
+    const Q=client.query.bind(client);await menuLock(Q);const m=await menuRead(Q),cur=m.json;
     let next;try{next=fn(cur);}catch(e){await client.query('ROLLBACK');res.status(e.status||400).json({error:e.message});return null;}
-    await client.query(`INSERT INTO site_content (key,value,updated_at) VALUES ('menu',$1,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,[next]);
+    await menuWrite(Q,cur,next,{brand:m.brand});
     await client.query('COMMIT');return next;
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }
@@ -7191,7 +7237,7 @@ async function contentEditor(req,res,next){
   }catch(e){next(e);}
 }
 app.get('/api/admin/menu/items',auth,adminOnly,requireDb,wrap(async(req,res)=>{
-  const venues=posScope(req),doc=tableOrders.MenuLib.parseMenuDoc((await q("SELECT value FROM site_content WHERE key='menu'")).rows[0]?.value||'');
+  const venues=posScope(req),doc=tableOrders.MenuLib.parseMenuDoc(await menuJson());
   let can=!req.auth.operator_staff_id;
   if(!can)can=menuContent.canEditContent((await q('SELECT role FROM pos_staff WHERE id=$1',[req.auth.operator_staff_id])).rows[0]?.role);
   const items=(venues?doc.items.filter(it=>venues.includes(it.venue)||venues.some(v=>tableOrders.MenuLib.inVenue(it,v))):doc.items).filter(it=>!tableOrders.MenuLib.isBook(it)||req.query.books==='1');
@@ -7201,7 +7247,6 @@ app.get('/api/admin/menu/items',auth,adminOnly,requireDb,wrap(async(req,res)=>{
 async function saveMenuItem(req,res,input){
   const venues=posScope(req);let out;
   const ok=await patchMenu(res,cur=>{
-    if(input.id){const it=tableOrders.MenuLib.parseMenuDoc(cur).items.find(x=>x.id===input.id);if(it&&tableOrders.MenuLib.isShared(it)&&venues&&!venues.includes(it.venue))throw Object.assign(Error('兩店共用品項（甜點、商店）請由言文字管理員在後台修改。'),{status:403});}
     out=menuContent.editItem(cur,input,{venue:String(req.body?.venue||req.query?.venue||'').toUpperCase(),venues});return out.json;});
   if(!ok)return;
   snapshotCache.at=0;
@@ -7248,7 +7293,7 @@ async function materialUsage(venues){
 app.get('/api/admin/menu/materials',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));
   const {items,byId,recipes}=await materialUsage(venues);
-  const menu=tableOrders.MenuLib.parseMenuDoc(await contentValue('menu')).items.filter(it=>it.published&&(tableOrders.MenuLib.isShared(it)||tableOrders.itemInVenues(it,venues)));
+  const menu=tableOrders.MenuLib.parseMenuDoc(await contentValue('menu')).items.filter(it=>it.published&&tableOrders.itemInVenues(it,venues));
   const menuById=new Map(menu.map(it=>[it.id,it])),off=tableOrders.materialSoldOutToday(await contentValue('material_sold_out'));
   const materials=posInventory.sortItems(items).map(i=>({id:i.id,name:i.name,kind:i.kind,venue:i.venue,category:i.category||'',sold_out:!!off[i.id],menu:posInventory.menuIdsUsing(i.id,recipes,byId).filter(id=>menuById.has(id)).map(id=>({id,zh:menuById.get(id).zh}))})).filter(m=>m.menu.length);
   res.set('Cache-Control','no-store');res.json({business_day:tableOrders.MenuLib.businessDay(),materials});
@@ -7327,16 +7372,16 @@ async function inventoryMove(query,{inv_id,type,delta,set_qty=null,unit_cost=nul
    strict（客人端）份數不夠整筆擋下；櫃檯／排程不擋，最少扣到 0（現場已經答應客人了） */
 async function stockConsume(query,lines,{strict=false}={}){
   if(!(lines||[]).length||!tableOrders.stockTouches(await contentValue('menu'),lines))return;
-  const cur=(await query("SELECT value FROM site_content WHERE key='menu' FOR UPDATE")).rows[0]?.value||'';
+  await menuLock(query);const m=await menuRead(query),cur=m.json;
   if(strict){const short=tableOrders.stockShortage(cur,lines);if(short.length)throw Object.assign(Error(tableOrders.stockMessage(short)),{status:409});}
   const next=tableOrders.applyStock(cur,lines,-1);
-  if(next)await query("UPDATE site_content SET value=$1,updated_at=now() WHERE key='menu'",[next]);
+  if(next)await menuWrite(query,cur,next,{brand:m.brand});
 }
 async function stockRestore(query,lines){
   if(!(lines||[]).length||!tableOrders.stockTouches(await contentValue('menu'),lines))return;
-  const cur=(await query("SELECT value FROM site_content WHERE key='menu' FOR UPDATE")).rows[0]?.value||'';
+  await menuLock(query);const m=await menuRead(query),cur=m.json;
   const next=tableOrders.applyStock(cur,lines,1);
-  if(next)await query("UPDATE site_content SET value=$1,updated_at=now() WHERE key='menu'",[next]);
+  if(next)await menuWrite(query,cur,next,{brand:m.brand});
 }
 async function inventoryConsume(query,lines,{ref_id=null,actor='系統'}={}){
   const use=(lines||[]).filter(l=>l&&!l.cancelled);if(!use.length)return 0;

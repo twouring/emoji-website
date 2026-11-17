@@ -80,15 +80,16 @@ test('接線：送單扣、作廢回補、客人端超量 409、POS 估清頁有
   assert.match(server, /await stockConsume\(client\.query\.bind\(client\), placed\.lines\)/, '預約取餐排程送單也扣');
   assert.match(server, /await stockConsume\(client\.query\.bind\(client\),orderLines\.filter\(l=>fresh\.has\(l\.line\)\)\)/, '先結後做也扣');
   assert.match(server, /tableOrders\.keepLiveMenuFields\(/);
-  assert.match(server, /SELECT value FROM site_content WHERE key='menu' FOR UPDATE/);
+  assert.match(server, /await menuLock\(query\);const m=await menuRead\(query\)/, '份數扣回要鎖菜單並只寫變動的品牌列');
   assert.match(ops, /itemThumb\(it,'so-item__img'\)/, '估清格有圖片');
   assert.match(ops, /api\('\/admin\/menu\/stock',\{method:'POST',body:\{item_id:id,left:pick\.left\}\}\)/);
   assert.match(ops, /applyLiveStock\(POS_DATA\.stock\)/);
   assert.match(order, /tr\('stock_left'\)/);
 });
 
-test('甜點兩店共用：三點水帳號（BAR）也能估清／設份數 CAFE 甜點；非共用品項照擋', () => {
-  assert.equal(MenuLib.soldOutToday(item(T.setSoldOut(menu(), 'm_canele', true, ['BAR'], NOW), 'm_canele'), NOW), true);
-  assert.equal(item(T.setStock(menu(), 'm_canele', 4, ['BAR'], NOW), 'm_canele').stock_left, 4);
+test('甜點不共用（KK 11/11）：三點水帳號（BAR）不能估清／設份數在咖啡的甜點', () => {
+  assert.throws(() => T.setSoldOut(menu(), 'm_canele', true, ['BAR'], NOW), e => e.status === 403);
+  assert.throws(() => T.setStock(menu(), 'm_canele', 4, ['BAR'], NOW), e => e.status === 403);
+  assert.equal(MenuLib.soldOutToday(item(T.setSoldOut(menu(), 'm_canele', true, ['CAFE'], NOW), 'm_canele'), NOW), true);
   assert.throws(() => T.setSoldOut(menu(), 'm_latte', true, ['BAR'], NOW), e => e.status === 403);
 });

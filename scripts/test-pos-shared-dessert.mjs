@@ -6,54 +6,52 @@ const require = createRequire(import.meta.url);
 const tableOrders = require('../lib/table-orders.js');
 const { MenuLib } = tableOrders;
 
-test('甜點與商店品兩店共用（KK 11/2：三點水 POS 要放甜點）', () => {
-  assert.ok(MenuLib.isShared({ cat: 'DESSERT' }));
-  assert.ok(MenuLib.isShared({ cat: 'SHOP' }));
-  assert.ok(!MenuLib.isShared({ cat: 'COFFEE' }));
+/* KK 11/11 菜單分開（取代 11/2 的甜點／商店品兩店共用）：甜點各品牌一份、各自估清；
+   商店品（SHOP）屬言文字聚落，只在會員 App 線上買，任何品牌 POS 與桌邊點餐都看不到、不能結帳。 */
+test('沒有共用品項：isShared 一律 false；POS 店別過濾仍統一走 MenuLib.inVenue', () => {
+  assert.equal(MenuLib.isShared({ cat: 'DESSERT' }), false);
+  assert.equal(MenuLib.isShared({ cat: 'SHOP' }), false);
   for (const f of ['public/pos-ops.js', 'public/pos-inventory.js']) {
     const s = fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8');
-    assert.ok(!s.includes("it.cat==='SHOP')"), f + ' 店別過濾要用 MenuLib.isShared');
     assert.ok(s.includes('MenuLib.inVenue(it,SCOPE)'), f + ' 店別過濾要用 MenuLib.inVenue（KK 11/5 資料來源統一）');
   }
   const srv = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
-  assert.ok(srv.includes('const shopItem=tableOrders.MenuLib.isShared(it);'));
+  assert.ok(!srv.includes('MenuLib.isShared('), 'server 不再有共用品項分支');
 });
 
-test('約書旅 POS 不顯示跨店甜點，只顯示自己的空間方案', () => {
+test('約書旅 POS 不顯示別家甜點與商店品，只顯示自己的空間方案', () => {
   const doc = JSON.stringify({ items: [
-    { id: 'd1', venue: 'CAFE', cat: 'DESSERT', zh: '檸檬塔', en: 'Lemon Tart', price: 130, published: true },
-    { id: 'r1', venue: 'REST', cat: 'SPACE', zh: '貴賓室入場 1 小時', en: 'Lounge entry · 1 hour', price: 150, published: true, pos_only: true },
+    { id: 'd1', venue: 'CAFE', cat: 'DESSERT', zh: '檸檬塔', price: 130, published: true },
+    { id: 'r1', venue: 'REST', cat: 'SPACE', zh: '貴賓室入場 1 小時', price: 150, published: true, pos_only: true },
+    { id: 's1', venue: 'CAFE', cat: 'SHOP', zh: '牙刷', price: 60, published: true },
   ] });
-  const rest = tableOrders.menuIndex(doc, 'REST', { posOnly: true });
-  assert.ok(!rest.has('d1'));
-  assert.ok(rest.has('r1'));
+  assert.deepEqual([...tableOrders.menuIndex(doc, 'REST', { posOnly: true }).keys()], ['r1']);
 });
 
-test('三點水 POS 加在咖啡的甜點：行記 BAR（收服務費、進三點水日結）', () => {
-  const menu = new Map([['d1', { id: 'd1', venue: 'CAFE', cat: 'DESSERT', zh: '檸檬塔', en: 'Lemon Tart', price: 130, published: true }]]);
-  const out = tableOrders.posAddLine([], menu, { item_id: 'd1', qty: 1, venue: 'BAR' });
+test('三點水賣甜點用自己那一份：行記 BAR、收服務費；POS 傳別的 venue 也不會改記', () => {
+  const menu = new Map([['d1_bar', { id: 'd1_bar', venue: 'BAR', cat: 'DESSERT', zh: '檸檬塔', price: 130, published: true }]]);
+  const out = tableOrders.posAddLine([], menu, { item_id: 'd1_bar', qty: 1, venue: 'CAFE' });
   assert.equal(out[0].venue, 'BAR');
-  assert.equal(out[0].cat, 'DESSERT');
-  const svc = MenuLib.serviceCharge(out, { now: '2026-11-02T13:00:00Z' });
-  assert.equal(svc.amount, 13);
-  const kept = tableOrders.posAddLine([], menu, { item_id: 'd1', qty: 1 });
-  assert.equal(kept[0].venue, 'CAFE');
+  assert.equal(MenuLib.serviceCharge(out, { now: '2026-11-02T13:00:00Z' }).amount, 13);
 });
 
-test('客人掃碼：三點水時段也點得到甜點，記在 BAR；商店品仍不進桌邊', () => {
+test('客人掃碼：三點水時段只點得到三點水自己的甜點；商店品不進桌邊', () => {
   const bar = { venue: 'BAR', food: true, drink: true };
-  assert.ok(MenuLib.orderableInWindow({ venue: 'CAFE', cat: 'DESSERT' }, bar));
-  assert.ok(!MenuLib.orderableInWindow({ venue: 'CAFE', cat: 'SALAD' }, bar));
-  assert.ok(!MenuLib.orderableInWindow({ venue: 'CAFE', cat: 'DESSERT' }, { venue: 'BAR', food: false, drink: true }));
+  assert.ok(!MenuLib.orderableInWindow({ venue: 'CAFE', cat: 'DESSERT' }, bar));
+  assert.ok(MenuLib.orderableInWindow({ venue: 'BAR', cat: 'DESSERT' }, bar));
   const doc = JSON.stringify({ items: [
-    { id: 'd1', venue: 'CAFE', cat: 'DESSERT', zh: '檸檬塔', en: 'Lemon Tart', price: 130, published: true },
-    { id: 's1', venue: 'CAFE', cat: 'SHOP', zh: '牙刷', en: 'Brush', price: 60, published: true },
+    { id: 'd1', venue: 'CAFE', cat: 'DESSERT', zh: '檸檬塔', price: 130, published: true },
+    { id: 'd1_bar', venue: 'BAR', cat: 'DESSERT', zh: '檸檬塔', price: 130, published: true },
+    { id: 's1', venue: 'CAFE', cat: 'SHOP', zh: '牙刷', price: 60, published: true },
   ] });
-  const m = tableOrders.menuIndex(doc, 'BAR');
-  assert.ok(m.has('d1'));
-  assert.ok(!m.has('s1'));
-  const out = tableOrders.addLine([], m, { item_id: 'd1', qty: 1, guest: 'abcdefgh', venue: 'BAR' });
-  assert.equal(out[0].venue, 'BAR');
-  const srv = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
-  assert.ok(srv.includes("addLine(items,menu,{...(req.body||{}),venue:tableOrders.MenuLib.orderWindow().venue})"));
+  assert.deepEqual([...tableOrders.menuIndex(doc, 'BAR').keys()], ['d1_bar']);
+});
+
+test('商店品 POS 不能加、不能結帳（KK 11/11 D4：只在會員 App 線上 Stripe 購買）', () => {
+  const shop = { id: 's1', venue: 'CAFE', cat: 'SHOP', zh: '牙刷', price: 60, published: true };
+  assert.equal(MenuLib.isOrderable(shop, new Date(), { posOnly: true }), false);
+  assert.equal(MenuLib.isOrderable(shop, new Date(), { shop: true }), true);
+  assert.throws(() => tableOrders.posAddLine([], new Map([['s1', shop]]), { item_id: 's1', qty: 1 }), e => e.status === 403);
+  const line = { line: 'a', item_id: 's1', cat: 'SHOP', venue: 'CAFE', price: 60, qty: 1, zh: '牙刷' };
+  assert.throws(() => tableOrders.posCheckout([line], { method: 'cash' }, new Map()), e => e.status === 403);
 });

@@ -100,7 +100,7 @@ test('tools/call：總公司金鑰要帶 venue；pos_menu 依品牌過濾', asyn
   ] };
   const out = await M.handle({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'pos_menu', arguments: {} } }, ctx('BAR', [], () => ({ status: 200, data: { content: { menu: JSON.stringify(menu) } } })));
   const ids = out.result.structuredContent.items.map(i => i.id).sort();
-  assert.deepEqual(ids, ['b', 'c'], '三點水看得到自己的酒與共用甜點，看不到在咖啡咖啡');
+  assert.deepEqual(ids, ['b'], '三點水只看自己的菜單（KK 11/11 甜點不共用）');
 });
 
 test('pos_call：路徑限 /api/admin、venue 自動鎖、帶店長碼；pos_endpoints 附說明', async () => {

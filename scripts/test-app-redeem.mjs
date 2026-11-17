@@ -35,9 +35,9 @@ test('伺服器：/api/me/redeem 驗桌碼並在移除／清桌時退點；菜�
   assert.match(s, /menu_points_seed_v1/);
 });
 
-test('addRedeemLine：共用甜點記當下店別（三點水時段兌換要出在三點水的單，KK 11/5）', () => {
+test('addRedeemLine：品項記自己的品牌（KK 11/11 菜單分開，甜點各品牌一份，不再改記當下店別）', () => {
   const m = new Map([['d', { id: 'd', venue: 'CAFE', cat: 'DESSERT', zh: '原味費南雪', price: 90, points: 9 }], ['a', menu.get('a')]]);
-  assert.equal(T.addRedeemLine([], m, { item_id: 'd', guest: 'app12345678', userId: 'u1', venue: 'BAR' }).line.venue, 'BAR');
+  assert.equal(T.addRedeemLine([], m, { item_id: 'd', guest: 'app12345678', userId: 'u1', venue: 'BAR' }).line.venue, 'CAFE');
   assert.equal(T.addRedeemLine([], m, { item_id: 'a', guest: 'app12345678', userId: 'u1', venue: 'BAR' }).line.venue, 'CAFE', '非共用品項維持原店別');
 });
 test('伺服器：兌換加進購物車不扣點，送出／結帳才扣（KK 11/5）', () => {

@@ -185,7 +185,7 @@ test('brand sub-accounts only reach their own admin APIs and menu items', async 
   let brand = 'CAFE', saved = null;
   const { request } = await server(t, { query: async (sql, args) => {
     if (/SELECT id,email,is_admin,admin_brand FROM users/.test(sql)) return { rows: [{ ...user, is_admin: true, admin_brand: brand }], rowCount: 1 };
-    if (/SELECT value FROM site_content WHERE key='menu'/.test(sql)) return { rows: [{ value: menu }], rowCount: 1 };
+    if (/SELECT key,value FROM site_content WHERE key=ANY/.test(sql)) return { rows: [{ key: 'menu', value: menu }], rowCount: 1 };   // 遷移前：只有舊單一列
     if (/INSERT INTO site_content/.test(sql)) { saved = args[1]; return { rows: [], rowCount: 1 }; }
   } });
   const token = signToken({ sub: user.id, role: 'admin' }, secret);
