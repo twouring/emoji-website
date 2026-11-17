@@ -1601,6 +1601,7 @@ async function fulfillPlanCheckout(session) {
     const pos = user ? await ensureOnlineSpaceOrder(client, { venue: 'STAY', user, stripeSession: session.id, intent: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id, amount, lines: built.lines, prepaid: built.prepaid, earnYan: !!inserted }) : { mismatch: true };
     if (!inserted) { await client.query('COMMIT'); return { already: true, table: pos.table }; }
     await client.query('COMMIT');
+    issueOnlineInvoiceLater(pos.order_id);
     notifyPlanPurchased(meta.user_id, meta.plan);
     const where = built.prepaid ? `等等空間 POS 入場管理「${pos.table || ''}」線上已付，客人到場出示會員卡掃碼入場` : `等等空間 POS 查單看得到這筆（${PLAN_LABEL[meta.plan]} NT$${amount}）`;
     userContact(meta.user_id).then(u => lineService.notifyStaff(`🪪 等等空間線上購買：${u?.name || '會員'}｜${PLAN_LABEL[meta.plan] || meta.plan}（NT$${amount}）${pos.table ? '｜'+pos.table : ''}\n${where}`)).catch(() => {});
@@ -5694,6 +5695,7 @@ async function fulfillShopCheckout(session) {
     await stockConsume(client.query.bind(client), orderLines);
     await inventoryConsume(client.query.bind(client), orderLines, { ref_id: orderId, actor: '會員 App' });
     await client.query('COMMIT');
+    issueOnlineInvoiceLater(orderId);
     out = { ok: true, order_id: orderId, table: s.table_no };
     lineService.notifyStaff(`💳 商店訂單 ${s.table_no} 已線上付款 NT$${amountPaid}（Stripe）｜${user?.name || ''}\n${lines.map(l => `${l.zh} ×${l.qty}`).join('、')}\n請備貨，交貨後在出餐看板按「已取餐」`);
   } catch (e) { await client.query('ROLLBACK').catch(() => {}); if (e.code === '23505') return { already: true }; throw e; } finally { client.release(); }
@@ -6162,6 +6164,7 @@ async function fulfillLoungeCheckout(session) {
     await client.query('INSERT INTO table_sessions(id,table_no,party_votes,venue,items,space,user_id) VALUES($1,$2,$3,$4,$5,$6,$7)', [sid, table, JSON.stringify(tableOrders.partySetByPos({}, 1)), LOUNGE_VENUE, JSON.stringify(orderLines), JSON.stringify(space), meta.user_id]);
     await client.query(`INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,status,done_at,user_id) VALUES($1,$2,$3,$4,$5,$6,'done',now(),$7)`, [orderId, sid, table, JSON.stringify(orderLines), amountPaid, JSON.stringify(payer), meta.user_id]);
     await client.query('COMMIT');
+    issueOnlineInvoiceLater(orderId);
     out = { ok: true, order_id: orderId, table, id: sid };
     lineService.notifyStaff(`💳 貴賓室線上購買 ${table}：${user?.name || '會員'}｜${loungeName(line)} NT$${amountPaid}（Stripe）\n約書旅 POS 入場管理看得到「線上已付」，客人到場掃 App 會員卡入場就開始計時`);
   } catch (e) { await client.query('ROLLBACK').catch(() => {}); if (e.code === '23505') return { already: true }; throw e; } finally { client.release(); }
@@ -6673,6 +6676,33 @@ async function issueEzpayForOrder(order, invoice) {
   const cfg=invoiceCfg(order);
   if(!cfg)throw Object.assign(Error(noInvoiceCfg(order)),{status:503});
   return ezpayInvoice.issueInvoice(cfg,order,invoice);
+}
+/* 線上付款自動開發票（KK 11/18）：官網／App 預付（等等空間會籍、約書旅貴賓室）與 App 商店付款完成就開，不等客人到店。
+   載具＝會員上次用的手機條碼／自然人憑證，否則 ezPay 會員載具（會員編號＋Email），都沒有才紙本（存 ezPay 平台）。
+   該法人 ezPay 沒設定就不寫失敗、留著待開，由 sweepOnlineInvoices 在設定後補開。櫃檯刷卡 QR（payer.card_qr）走結帳時的發票設定，不在這裡。 */
+const ONLINE_INVOICE_FROM='2026-11-01';   // 只補開本期（115 年 11–12 月）起的單；更早的跨期，由會計人工處理
+async function issueOnlineInvoice(orderId){
+  const o=(await q('SELECT id,session_id,table_no,items,amount,payer,invoice,status,paid_at,user_id FROM table_orders WHERE id=$1',[orderId])).rows[0];
+  if(!o||o.status==='void'||!o.payer?.online||o.payer?.card_qr||o.payer?.method!=='stripe')return {skipped:'not_online'};
+  if(['issued','void'].includes(o.invoice?.status)||o.invoice?.skipped)return {skipped:'done'};
+  if(!invoiceCfg(o))return {skipped:'no_cfg'};
+  const uid=o.payer.member_id||o.user_id;
+  const user=uid?(await q('SELECT id,name,email FROM users WHERE id=$1',[uid])).rows[0]:null;
+  const last=uid?(await q(`SELECT invoice FROM table_orders WHERE user_id=$1 AND id<>$2 AND invoice->>'mode' IN ('mobile','citizen') AND COALESCE(invoice->>'carrier_num','')<>'' ORDER BY paid_at DESC LIMIT 1`,[uid,o.id])).rows[0]?.invoice:null;
+  const invoice={...ezpayInvoice.onlineInvoice(user,last),merchant_order_no:o.invoice?.merchant_order_no||undefined};
+  return storeInvoiceResult(o,invoice);
+}
+const issueOnlineInvoiceLater=id=>{if(id)setImmediate(()=>issueOnlineInvoice(id).catch(e=>console.warn('[online-invoice]',id,e.message)));};
+let onlineInvoiceSweptAt=0;
+async function sweepOnlineInvoices({force=false}={}){
+  if(!force&&Date.now()-onlineInvoiceSweptAt<10*60000)return {skipped:'throttle'};
+  onlineInvoiceSweptAt=Date.now();
+  const rows=(await q(`SELECT id FROM table_orders WHERE status<>'void' AND payer->>'method'='stripe' AND payer->>'online'='true' AND COALESCE(payer->>'card_qr','')<>'true'
+    AND paid_at>=$1 AND COALESCE(invoice->>'status','') NOT IN ('issued','void') AND invoice->>'skipped' IS NULL
+    AND (invoice->>'failed_at' IS NULL OR (invoice->>'failed_at')::timestamptz<now()-interval '1 hour') ORDER BY paid_at LIMIT 20`,[ONLINE_INVOICE_FROM+'T00:00:00+08:00'])).rows;
+  let issued=0,waiting=0;
+  for(const r of rows){try{const out=await issueOnlineInvoice(r.id);if(out?.status==='issued')issued++;else if(out?.skipped==='no_cfg')waiting++;}catch(e){console.warn('[online-invoice]',r.id,e.message);}}
+  return {checked:rows.length,issued,waiting};
 }
 async function storeInvoiceResult(order, invoice, { throwOnError=false } = {}) {
   if(!invoice?.requested)return invoice||{};
@@ -7624,6 +7654,11 @@ app.get('/api/admin/exec',auth,adminOnly,requireDb,wrap(async(req,res)=>{
     grab('帳本',async()=>{src.registers=(await q('SELECT id,day,venue,opened_at,closed_at,expected_cash,counted_cash,diff,close_note FROM pos_registers WHERE day>=$1 OR closed_at IS NULL ORDER BY opened_at',[yday])).rows;}),
     grab('LINE Pay 對帳',async()=>{(src.recon||={}).linepay=await reconDays('linepay_transactions','linepay_sync_state',linepay);}),
     grab('中信對帳',async()=>{(src.recon||={}).ctbc=await reconDays('ctbc_transactions','ctbc_sync_state',ctbc);}),
+    grab('線上預付',async()=>{const rows=(await q(`SELECT s.venue,s.table_no,s.space,s.items,(SELECT max(o.paid_at) FROM table_orders o WHERE o.session_id=s.id AND o.status<>'void') AS paid_at FROM table_sessions s WHERE s.status='open' AND s.space->>'prepaid'='true' AND s.space->>'in_at' IS NULL`)).rows;
+      const waiting={};for(const v of ['STAY','REST']){const w=posRegister.prepaidWaiting(rows.filter(r=>r.venue===v),now);if(w.count)waiting[v]=w;}
+      const miss=(await q(`SELECT items FROM table_orders WHERE status<>'void' AND payer->>'method'='stripe' AND payer->>'online'='true' AND COALESCE(payer->>'card_qr','')<>'true' AND paid_at>=$1 AND paid_at<now()-interval '1 hour' AND COALESCE(invoice->>'status','') NOT IN ('issued','void') AND invoice->>'skipped' IS NULL`,[ONLINE_INVOICE_FROM+'T00:00:00+08:00'])).rows;
+      const noCfg=[...new Set(miss.map(o=>orderEntity(o)).filter(e=>!ezpayInvoice.configured(process.env,e)))].map(e=>entities.ENTITY_LABEL[e]).join('、');
+      src.prepaid={waiting,invoice_missing:miss.length,invoice_cfg_missing:noCfg};}),
     grab('桌況',async()=>{src.sessions=(await q("SELECT id,table_no,items,created_at FROM table_sessions WHERE status='open'")).rows;}),
     grab('出餐單佇列',async()=>{src.print_jobs=(await q("SELECT count(*)::int AS count,min(created_at) AS oldest FROM pos_kitchen_print_jobs WHERE claimed_at IS NULL AND id NOT LIKE 'rp\\_%'")).rows[0];}),
     grab('呼叫服務',async()=>{src.service_calls=serviceCalls.pending(serviceCalls.normalize(await contentValue('service_calls'))).map(c=>({...c,kind_label:serviceCalls.KINDS[c.kind]?.zh}));}),
@@ -7711,7 +7746,7 @@ const dayParam=v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v||''))?String(v):tableOrder
 const dayRange=day=>{const from=new Date(day+'T03:00:00+08:00');return [from,new Date(+from+86400e3)];};
 async function registerSummary(reg){
   const regDayStr=reg.day instanceof Date?reg.day.toISOString().slice(0,10):String(reg.day).slice(0,10),[from]=dayRange(regDayStr);
-  const orders=await ordersOfDay(regDayStr,'id,items,amount,payer,tappay,status,paid_at');   /* 依開帳日認列（KK 11/5） */
+  const orders=await ordersOfDay(regDayStr,'id,table_no,items,amount,payer,tappay,invoice,status,paid_at');   /* 依開帳日認列（KK 11/5） */
   const sales=tableOrders.salesSummary(orders,{venues:[reg.venue],now:from});
   const tipMoves=await tipPayoutCashMoves();
   const moves=(await q('SELECT id,type,amount,reason,staff,receipt_photo,created_at FROM pos_cash_moves WHERE register_id=$1 ORDER BY created_at',[reg.id])).rows.map(m=>tipMoves.has(m.id)?{...m,locked:'tip'}:m);   /* 打賞支付產生的支出不可在日結改／刪（要對得上打賞帳） */
@@ -7720,6 +7755,18 @@ async function registerSummary(reg){
   const methods=await paymentMethodsList(posPaymentMethods.groupsOf([reg.venue]),[reg.venue]),accounts=posRegister.accountsOf(sales.by_method),labels={};
   for(const m of methods){labels[m.code]=m.label;if(m.active&&m.code!=='cash'&&!posRegister.LEGACY_CARD.includes(m.code))accounts[m.code]??=0;}
   labels.stripe='Stripe 線上刷卡';   // 會員 App 商店線上付款，對 Stripe 後台實收
+  /* 線上預付（KK 11/18）：官網／App 付款（payer.online、非櫃檯刷卡 QR）不是店員經手的錢，從店員核對帳戶拿掉，由總部對 Stripe 後台；
+     營收照收款日認列不變。另列這本帳期間到店核銷的預付（只顯示、不計營收）與還沒到場的預付。 */
+  const onlineOrders=orders.filter(o=>o.status!=='void'&&posRegister.isOnlinePrepaid(o)&&tableOrders.orderOwnedByVenues(o,[reg.venue]));
+  const onlineAmt=onlineOrders.reduce((a,o)=>a+(Number(o.amount)||0),0);
+  if(onlineAmt){accounts.stripe=(accounts.stripe||0)-onlineAmt;if(accounts.stripe<=0)delete accounts.stripe;labels.stripe='Stripe 櫃檯刷卡';}
+  summary.online_prepaid={amount:onlineAmt,count:onlineOrders.length,list:onlineOrders.map(o=>({table_no:o.table_no,amount:Number(o.amount)||0,paid_at:o.paid_at,name:o.payer?.name||'',invoice:o.invoice?.number||''}))};
+  const [dFrom,dTo]=dayRange(regDayStr);
+  summary.prepaid_checkins=(await q(`SELECT s.table_no,s.space,s.items,(SELECT max(o.paid_at) FROM table_orders o WHERE o.session_id=s.id AND o.status<>'void') AS paid_at FROM table_sessions s
+    WHERE s.venue=$1 AND s.space->>'online'='true' AND s.space->>'in_at' IS NOT NULL AND (s.space->>'in_at')::timestamptz>=$2 AND (s.space->>'in_at')::timestamptz<$3 ORDER BY s.space->>'in_at'`,[reg.venue,dFrom,dTo])).rows
+    .map(r=>({table_no:r.table_no,member:r.space?.member_name||'',in_at:r.space?.in_at,paid_at:r.paid_at,plan:posSpace.planLines(r.items).map(l=>l.zh).join('、'),amount:posSpace.planLines(r.items).reduce((a,l)=>a+(Number(l.price)||0)*(Number(l.qty)||0),0),earlier:!!r.paid_at&&tableOrders.MenuLib.businessDay(r.paid_at)<regDayStr}));
+  summary.prepaid_waiting=posRegister.prepaidWaiting((await q(`SELECT s.table_no,s.space,s.items,(SELECT max(o.paid_at) FROM table_orders o WHERE o.session_id=s.id AND o.status<>'void') AS paid_at FROM table_sessions s
+    WHERE s.status='open' AND s.venue=$1 AND s.space->>'prepaid'='true' AND s.space->>'in_at' IS NULL`,[reg.venue])).rows);
   summary.reconciliation_accounts=accounts;summary.account_labels=labels;
   return {sales,moves,counts,summary,report:posRegister.registerReport({...reg,day:String(reg.day instanceof Date?reg.day.toISOString().slice(0,10):reg.day).slice(0,10),note:reg.close_note||reg.note},summary,sales,moves,counts[0]||null)};
 }
@@ -7895,7 +7942,7 @@ app.post('/api/admin/registers/:id/close',auth,adminOnly,requireDb,wrap(async(re
   const s=await registerSummary(r);
   const version=JSON.stringify([s.summary.expected,s.summary.opening_cash,s.summary.cash_in,s.summary.cash_out,s.sales.amount,s.summary.reconciliation_accounts]);
   if(req.body?.reconciliation_version!==version)return res.status(409).json({error:'營收或帳戶已變更，請重新載入日結並逐項確認。'});
-  let c;try{c=posRegister.closeRegister(req.body,s.summary,{accounts:s.summary.reconciliation_accounts,labels:s.summary.account_labels,order_total:s.sales.collected});/* 收款總額（營收＋打賞代收），帳戶實收對得起來 */}catch(e){return res.status(e.status||400).json({error:e.message});}
+  let c;try{c=posRegister.closeRegister(req.body,s.summary,{accounts:s.summary.reconciliation_accounts,labels:s.summary.account_labels,order_total:s.sales.collected==null?undefined:s.sales.collected-(s.summary.online_prepaid?.amount||0)});/* 收款總額（營收＋打賞代收），帳戶實收對得起來 */}catch(e){return res.status(e.status||400).json({error:e.message});}
   const operator=await resolveOperator(req,req.body?.operator_id);
   if(!operator)return res.status(400).json({error:'關帳須輸入員工 PIN，請先選擇有效的操作人員。'});
   const closedBy=operator.name,closedAt=new Date().toISOString();
@@ -9545,7 +9592,7 @@ cronRunner.define('event-mail', async () => {
 }, { enabled: eventMailEnabled, onError: e => console.error('[event-mail]', e.message) });
 cronRunner.define('line-delivery', () => lineDelivery.run(), { onError: () => console.error('[line-delivery] scheduler_failed') });
 // 預約取餐：取餐前 PREP_MIN 分鐘自動送單；過期未取自動收掉
-cronRunner.define('pickup', async () => ({ ...(await placeDuePickups()), shop_expired: await expireShopOrders() }), { onError: e => console.error('[pickup]', e.message) });
+cronRunner.define('pickup', async () => ({ ...(await placeDuePickups()), shop_expired: await expireShopOrders(), online_invoices: await sweepOnlineInvoices().catch(e => ({ error: e.message })) }), { onError: e => console.error('[pickup]', e.message) });
 // 會員活動結束後自動建立待撥款（冪等，每小時檢查）
 cronRunner.define('event-auto-end', () => closeEndedEvents(), { onError: e => console.error('[event-auto-end]', e.message) });
 cronRunner.define('event-settlements', () => scheduleEndedEventSettlements(), { onError: e => console.error('[event-settlements]', e.message) });

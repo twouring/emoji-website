@@ -2926,7 +2926,7 @@ function closeChecks(r){
   const accounts=items.filter(x=>x.code!=='cash'),cash=items[0];
   const allOk=items.every(x=>x.ok);
   const actual=allOk?cash.a.actual-r.opening_cash-r.cash_in+r.cash_out+accounts.reduce((t,x)=>t+x.a.actual,0):null;
-  return {items,allOk,actual,totalDiff:actual==null?null:actual-(r.sales.collected??r.sales.amount)};   // 收款總額＝營收＋打賞代收
+  return {items,allOk,actual,totalDiff:actual==null?null:actual-((r.sales.collected??r.sales.amount)-(r.online_prepaid?.amount||0))};   /* 線上預付不是店員收的，不算進要核對的總額（KK 11/18） */   // 收款總額＝營收＋打賞代收
 }
 /* 關帳後留在店裡、不進保險箱的錢：KK 11/17 起＝開班現金（清空放回錢盒）；舊帳＝零用金（開帳＋臨時收入－臨時支出） */
 function pettyCashOf(r){return r.petty_split?Number(r.opening_cash||0):Number(r.opening_cash||0)+Number(r.cash_in||0)-Number(r.cash_out||0);}
@@ -2949,6 +2949,18 @@ function dailyCloseForm(r){
     <p id="reg-close-status" role="status" aria-live="polite" hidden></p><div class="a-toolbar"><button type="button" class="btn btn--solid" id="reg-close-go" disabled>關帳並印關帳單</button><button type="button" class="btn btn--ghost" id="reg-close-cancel">取消</button></div></div>`;
 }
 /* 當班營收（KK 11/7）：已結帳＋開著的桌還沒結的，一起看；未結的服務費是預估，以結帳為準 */
+/* 線上預付（KK 11/18）：官網／App 付款照收款日算營收，但不是店員收的錢，不在上面核對；只列給店長看，總部對 Stripe 後台。
+   另列這本帳期間到店核銷（前幾天付、今天入場，不計今天營收）與還沒到場的預付（付款 30 天未到標紅）。 */
+const mdClock=iso=>{const d=iso?new Date(iso):null;return d&&!isNaN(d)?d.toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false,month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'—';};
+function prepaidHtml(r){
+  const op=r.online_prepaid||{count:0,amount:0,list:[]},ci=r.prepaid_checkins||[],w=r.prepaid_waiting||{count:0,list:[]};
+  if(!op.count&&!ci.length&&!w.count)return '';
+  const li=(a)=>a.map(x=>`<li>${x}</li>`).join('');
+  const paid=op.count?`<p><b>線上收款 ${num(op.count)} 筆 NT$${num(op.amount)}</b>（算今天營收，總部對 Stripe）</p><ul class="reg-shift-list">${li(op.list.map(x=>`<b>${esc(x.table_no)}</b> ${esc(x.name||'會員')} NT$${num(x.amount)} <span class="hint">${esc(clockText(x.paid_at))}${x.invoice?` · ${esc(x.invoice)}`:' · 發票待開'}</span>`))}</ul>`:'';
+  const came=ci.length?`<p><b>到店核銷 ${num(ci.length)} 位</b>（${ci.filter(x=>x.earlier).length?'前幾天線上已付、':''}不計今天營收）</p><ul class="reg-shift-list">${li(ci.map(x=>`<b>${esc(x.table_no)}</b> ${esc(x.member||'會員')} ${esc(x.plan)} <span class="hint">${esc(mdClock(x.paid_at))} 付款 · ${esc(clockText(x.in_at))} 入場</span>`))}</ul>`:'';
+  const wait=w.count?`<p><b>已付款未到場 ${num(w.count)} 張 NT$${num(w.amount)}</b>${w.expired?` <span class="pill pill-bad">${num(w.expired)} 張超過 ${num(w.valid_days)} 天</span>`:''}</p><ul class="reg-shift-list">${li(w.list.map(x=>`<b>${esc(x.table_no)}</b> ${esc(x.member||'會員')} NT$${num(x.amount)} <span class="hint${x.expired?' reg-prepaid-expired':''}">${esc(mdClock(x.paid_at))} 付款・${x.days==null?'—':num(x.days)+' 天'}</span>`))}</ul>`:'';
+  return `<div class="reg-shift reg-prepaid"><div class="ops-head"><h4>線上預付</h4>${tipIcon('官網或 App 線上付款的單，營收算在付款那天，不用核對、不進錢櫃。客人到店掃會員卡入場就是核銷，不再收錢。付款超過 '+(w.valid_days||30)+' 天還沒來的，總部會決定退款或沒收。')}</div>${paid}${came}${wait}</div>`;
+}
 function shiftRevenueHtml(r){
   const paid=Number(r.sales?.amount)||0,p=r.pending||{tables:0,amount:0,list:[]},open=Number(p.amount)||0;
   const list=(p.list||[]).map(t=>`<li><b>${esc(t.table_no)}</b> NT$${num(t.amount)}${t.unsent?'<span class="hint">（有未送單）</span>':''}</li>`).join('');
@@ -2973,7 +2985,7 @@ function registerBlock(d){
     const done=st==='done',lc=!done&&r.last_count,petty=pettyCashOf(r);
     return `<div class="reg-card reg-${st}"><h4>${esc(BRAND_LABEL[v])} ${done?'<span class="pill pill-draft">已關帳</span>':'<span class="pill pill-ok">開帳中</span>'}<span class="hint hint--end">${esc(clockText(r.opened_at))} 開帳${done?` · ${esc(clockText(r.closed_at))} 關帳`:''}</span></h4>
       ${cashPotsHtml(v,r)}<div class="reg-cash"><div><span>${r.petty_split?'開班現金':'零用金'}</span><b>${num(r.opening_cash)}</b></div><div><span>現金營收</span><b>${num(r.cash_sales)}</b></div>${r.petty_split&&!(r.cash_in||r.cash_out)?'':`<div><span>${r.petty_split?'打賞支付':'臨時收支'}</span><b>${r.cash_in-r.cash_out>=0?'+':'−'}${num(Math.abs(r.cash_in-r.cash_out))}</b></div>`}<div class="reg-expected"><span>${r.petty_split?'錢櫃應有':'應有現金'}</span><b>NT$${num(r.expected)}</b></div>${done?`<div><span>點鈔</span><b>${num(r.counted_cash)}</b></div><div class="${r.diff?'reg-diff':''}"><span>${r.diff>0?'溢':r.diff<0?'短':'差額'}</span><b>${r.diff>0?'+':''}${num(r.diff)}</b></div>`:lc?`<div><span>${esc(clockText(lc.created_at))} 點驗</span><b>${num(lc.counted_cash)}</b></div><div class="${lc.diff?'reg-diff':''}"><span>${lc.diff>0?'溢':lc.diff<0?'短':'差額'}</span><b>${lc.diff>0?'+':''}${num(lc.diff)}</b></div>`:''}</div>
-      ${done?'':shiftRevenueHtml(r)}
+      ${done?'':shiftRevenueHtml(r)}${prepaidHtml(r)}
       ${done&&r.close_note?`<p class="hint">${esc(r.close_note)}</p>`:lc&&lc.note?`<p class="hint">點驗：${esc(lc.note)}</p>`:''}
       ${r.petty_split?`<div class="ops-head reg-petty-note"><p class="hint">臨時收支用零用金袋，不經錢櫃${pettyMoves(r).length?`：本班 收 +${num(r.petty_in||0)}・支 −${num(r.petty_out||0)}`:''}</p>${tipIcon('「臨」時收支用「零」用金：在咖啡、三點水各一袋 5,000。一手交發票憑證、一手交錢；會計核銷後把錢交給店長補回袋裡。零用金袋不算錢櫃應有，點鈔時不要一起點。')}</div>`:''}<div class="a-wrap2"><table class="a-tbl reg-moves"><thead><tr><th>時間</th><th>類型</th><th>原因</th><th class="num">金額</th><th></th></tr></thead><tbody>${moves}</tbody></table></div>
       ${cashForm}${countForm}${closeForm}${done&&r.petty_split?`<div class="reg-step reg-step-last"><div class="reg-step-head"><span class="reg-step-no">03</span><div><h4>錢櫃清空</h4><p>剩下 <b>NT$${num(petty)}</b> 放回錢盒，下一班從錢盒放回錢櫃開班。</p></div></div></div>`:done?`<div class="reg-step reg-step-last"><div class="reg-step-head"><span class="reg-step-no">03</span><div><h4>收零用金</h4><p>零用金 <b>NT$${num(petty)}</b>＋零用金單＋發票憑證，一起放錢櫃。</p></div></div><button type="button" class="btn btn--solid" data-reg-petty="${esc(r.id)}">印零用金單</button></div>`:''}${done&&REG_OPEN_FORM===v&&REG_DATA?.can_open?.[v]?openRegisterForm(v):''}
@@ -3038,7 +3050,7 @@ function bindDailyClose(form,r,reload){
     const body=read();
     if(!await posConfirm(`放保險箱 NT$${num(body.counted_cash-pettyCashOf(r))}（現金營收＋關帳單）\n${r.petty_split?`錢櫃清空，NT$${num(pettyCashOf(r))} 放回錢盒`:`放錢櫃 NT$${num(pettyCashOf(r))}（零用金＋零用金單＋發票憑證）`}`,{title:'關帳前確認',ok:'關帳'}))return;
     submitting=true;show();
-    if(!await posConfirm(`關帳 ${BRAND_LABEL[r.venue]}：訂單總額 NT$${num(r.sales.collected??r.sales.amount)}，帳戶總額 NT$${num(c.actual)}。\n關帳後今天不能再結帳。`,{ok:'關帳'})){submitting=false;show();return;}
+    if(!await posConfirm(`關帳 ${BRAND_LABEL[r.venue]}：訂單總額 NT$${num((r.sales.collected??r.sales.amount)-(r.online_prepaid?.amount||0))}，帳戶總額 NT$${num(c.actual)}。\n關帳後今天不能再結帳。`,{ok:'關帳'})){submitting=false;show();return;}
     return ensureOperator(()=>opsThen(async()=>{try{return await api('/admin/registers/'+r.id+'/close',{method:'POST',body:{...body,operator_id:OPERATOR?.id}});}catch(e){await reload();throw e;}},async out=>{try{const printed=await printRegisterReport(out.report,'關帳單');return printed===false?'關帳完成；關帳單未印出，請重印':out.report?.petty_split?'已關帳。現金營收＋關帳單放保險箱，錢櫃清空放回錢盒':'已關帳。接著按「印零用金單」';}catch(e){return '日結關帳完成；列印失敗，請按「重印關帳單」';}},()=>{ACCT_CONFIRMED.delete(r.id);REG_CLOSE_DRAFTS.delete(r.id);REG_CLOSE_OPEN=false;if(typeof refreshRegWarn==='function')refreshRegWarn();return reload();}).finally(()=>{submitting=false;if(REG_CLOSE_OPEN===r.id)show();})).finally(()=>{submitting=false;if(REG_CLOSE_OPEN===r.id)show();});
   };
   show();

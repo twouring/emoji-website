@@ -161,6 +161,7 @@ tr.pos-comp td{background:var(--ok-faint)}
 .reg-cash>div{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}
 .reg-cash span{font-size:1rem;color:var(--muted)}.reg-cash b{font-size:1.2rem;font-variant-numeric:tabular-nums}
 .reg-cash .reg-expected{border-top:3px solid var(--ink)}.reg-cash .reg-expected b{font-size:1.4rem}
+.reg-prepaid p{margin:4px 0}.reg-prepaid li .hint{white-space:nowrap}.reg-prepaid-expired{color:#c0392b;font-weight:600}
 .reg-shift-list{list-style:none;margin:-4px 0 12px;padding:0;display:flex;flex-wrap:wrap;gap:6px 16px}.reg-shift-list li{font-size:1rem;font-variant-numeric:tabular-nums}
 .reg-cash .reg-diff b,#reg-diff-show.reg-diff{color:var(--danger)}
 /* 各帳戶確認表：數字欄不換行、欄間留白，核對鈕整顆不折行（手機 375px 也放得下） */
