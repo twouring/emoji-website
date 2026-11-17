@@ -8,36 +8,22 @@ const F = require('../lib/venue-fees.js');
 const { taxPrice } = require('../lib/event-tickets.js');
 const priv = (venue, attendees) => F.quoteVenueFee({ venue, visibility: 'private', attendees });
 
-test('§8-20 私人活動：三樓級距、41 人以上每人 500、超時費對應級距', () => {
-  assert.deepEqual([1, 10, 11, 20, 21, 25, 30, 31, 40].map(n => priv('3F', n).fee_twd),
-    [5000, 5000, 10000, 10000, 15000, 15000, 15000, 20000, 20000]);
-  assert.equal(priv('3F', 25).fee_twd, 15000, '25 人＝三樓 15,000');
-  assert.equal(priv('3F', 41).fee_twd, 20500);
-  assert.equal(priv('3F', 50).fee_twd, 25000);
-  assert.deepEqual([5, 15, 25, 35, 45].map(n => priv('3F', n).overtime_per_hour_twd), [2000, 3000, 4000, 5000, 6000]);
-  assert.equal(priv('3F', 41).per_person_twd, 500);
-  assert.equal(priv('3F', 25).slot_hours, 2);
-  assert.equal(priv('3F', 25).payer, 'organizer');
+test('等等空間包場只走分區（KK 11/17）：未帶區域的 3F 包場試算回錯誤並導向 staysquare /venue；公開活動照常', () => {
+  for (const n of [1, 10, 25, 41, 61]) assert.match(priv('3F', n).error, /staysquare\.emoji\.tw\/venue/);
+  const pub = F.quoteVenueFee({ venue: '3F', visibility: 'public', attendees: 61, registration_mode: 'external' });
+  assert.equal(pub.error, undefined);
+  assert.equal(pub.fee_twd, 150 * 61);
+  assert.match(pub.warning, /60 人/);
 });
 
-test('§8-20 三樓不設硬上限：61 人出現容量提示但可送出；60 人不提示', () => {
-  const q = priv('3F', 61);
-  assert.equal(q.error, undefined);
-  assert.equal(q.fee_twd, 30500);
-  assert.match(q.warning, /60 人/);
-  assert.equal(priv('3F', 60).warning, undefined);
-});
-
-test('§8-20 二樓至多 10 人（11 人不能送出）；一樓至多 50 人（51 人不能送出）', () => {
-  assert.equal(priv('2F', 10).fee_twd, 10000);
-  assert.equal(priv('2F', 10).overtime_per_hour_twd, 3000);
-  assert.match(priv('2F', 11).error, /等等空間共享活動區/);
+test('交誼廳歸約書旅（KK 11/17）：2F 不再開放申請；一樓至多 50 人、30,000／時段', () => {
+  assert.match(priv('2F', 8).error, /約書旅/);
+  assert.ok(F.quoteVenueFee({ venue: '2F', visibility: 'public', attendees: 5, registration_mode: 'native' }).error);
+  assert.deepEqual(F.MEMBER_VENUES, ['1F', '3F']);
   assert.equal(priv('1F', 50).fee_twd, 30000);
   assert.equal(priv('1F', 1).fee_twd, 30000);
   assert.equal(priv('1F', 50).overtime_per_hour_twd, 10000);
   assert.ok(priv('1F', 51).error);
-  // 公開活動同樣受空間人數上限限制
-  assert.ok(F.quoteVenueFee({ venue: '2F', visibility: 'public', attendees: 11, registration_mode: 'native' }).error);
 });
 
 test('四樓與不合法輸入一律回錯誤', () => {
@@ -45,7 +31,7 @@ test('四樓與不合法輸入一律回錯誤', () => {
     { venue: '3F', visibility: 'private', attendees: 0 }, { venue: '3F', visibility: 'private', attendees: 1.5 },
     { venue: '3F', visibility: 'private', attendees: '1e2' }, { venue: '3F', visibility: 'private', attendees: 10001 }, {}, undefined])
     assert.ok(F.quoteVenueFee(input).error, JSON.stringify(input));
-  assert.equal(F.quoteVenueFee({ venue: '3F', visibility: 'private', attendees: '25' }).fee_twd, 15000, '查詢字串數字可接受');
+  assert.equal(F.quoteVenueFee({ venue: '1F', visibility: 'private', attendees: '25' }).fee_twd, 30000, '查詢字串數字可接受');
 });
 
 test('公開活動：言文字售票由參加者每張付 150；外部售票主辦人審核通過後付 150×預估人數', () => {

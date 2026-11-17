@@ -37,7 +37,7 @@ test('公開文案（三語）改為會員所有設備自由使用', () => {
     const html = read(f);
     assert.match(html, /id="facilities"/, f);
     assert.doesNotMatch(html, /70 點|100 點|70 points|100 points|70ポイント|100ポイント|贈點|gift points|bonus points|贈呈ポイント|不用點數|不使用點數|no points/, f);
-    assert.match(html, /會員享有所有空間與設備|Membership includes every space and facility|会員はすべての空間と設備/, f);
+    assert.match(html, /有效會籍可使用共享工作區|A valid membership covers the shared workspace|有効な会員資格で、共有ワークスペース/, f);
   }
   for (const f of ['public/index.html', 'public/en/index.html', 'public/ja/index.html', 'public/llms.txt', 'public/llms-full.txt',
     'public/cis/index.html']) {

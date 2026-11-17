@@ -3086,6 +3086,8 @@ const APPLICATION_FIELDS = `id,user_id,kind,venue,visibility,registration_mode,r
 /** 申請的場地費試算（顯示用）：舊申請沒有 visibility 時視為公開外部。 */
 function applicationVenueQuote(a) {
   if (a.zone) return { ...venueFees.quoteZoneFee({ zone: a.zone, slots: zoneSlotsOf(a) }), fee_twd: a.deposit_twd, payer: 'organizer', due: 'submission' };
+  // 舊申請（11/17 前的 2F 交誼廳、未分區 3F 包場）：試算規則已停用，顯示送件時定額的場地費
+  if (a.visibility === 'private' && a.venue !== '1F') return { venue: a.venue, visibility: 'private', attendees: Number(a.attendees), fee_twd: a.deposit_twd, slot_hours: venueFees.SLOT_HOURS, payer: 'organizer', due: 'submission', registration_mode: 'closed' };
   return venueFees.quoteVenueFee({ venue: a.venue, visibility: a.visibility || 'public', attendees: Number(a.attendees), registration_mode: a.registration_mode === 'native' ? 'native' : 'external' });
 }
 

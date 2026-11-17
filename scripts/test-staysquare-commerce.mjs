@@ -37,7 +37,7 @@ test('分區包場申請：整點、2 小時倍數、人數上限、只限 3F �
   assert.ok(normalizeEventApplication({ ...base, zone: 'A', venue: '2F', attendees: '5' }).error);
   assert.ok(normalizeEventApplication({ ...base, zone: 'A', visibility: 'public', registration_mode: 'native' }).error);
   assert.ok(normalizeEventApplication({ ...base, zone: 'Z' }).error);
-  assert.equal(normalizeEventApplication(base).value.zone, undefined, '沒帶 zone 走原本級距');
+  assert.match(normalizeEventApplication(base).error, /staysquare\.emoji\.tw\/venue/, '沒帶 zone 的等等空間包場不收件（KK 11/17，舊人數級距停用）');
 });
 
 const server = fs.readFileSync('server.js', 'utf8');

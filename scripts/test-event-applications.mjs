@@ -50,7 +50,7 @@ test('application rejects impossible dates, reversed ranges and implicit timezon
 test('application kind defaults to community on 3F; both kinds pick 1F/2F/3F (4F closed to members)', () => {
   assert.deepEqual([normalizeEventApplication(valid).value.kind, normalizeEventApplication(valid).value.venue], ['community', '3F']);
   // 社群活動也可選一樓／二樓／三樓（規格 v2 §4.6）；二樓至多 10 人
-  assert.equal(normalizeEventApplication({ ...valid, kind: 'community', venue: '2F', attendees: 10 }).value.venue, '2F');
+  assert.match(normalizeEventApplication({ ...valid, kind: 'community', venue: '2F', attendees: 10 }).error, /約書旅/, '交誼廳包場改由約書旅站受理（KK 11/17）');
   assert.ok(normalizeEventApplication({ ...valid, kind: 'community', venue: '4F' }).error, '四樓不開放會員申請');
   assert.ok(normalizeEventApplication({ ...valid, kind: 'business' }).error);
   assert.ok(normalizeEventApplication({ ...valid, kind: 'business', venue: '5F' }).error);
@@ -58,11 +58,12 @@ test('application kind defaults to community on 3F; both kinds pick 1F/2F/3F (4F
   assert.ok(normalizeEventApplication({ ...valid, kind: 'business', venue: '4F' }).error);
   assert.deepEqual([venuesOfLocation('三樓共享空間'), venuesOfLocation('1F＋閣樓'), venuesOfLocation('台北市中正區重慶南路一段 11 號').length], [['3F'], ['1F', '4F'], 4]);
   assert.ok(normalizeEventApplication({ ...valid, kind: 'vip' }).error);
-  for (const venue of ['1F', '2F', '3F']) assert.equal(normalizeEventApplication({ ...valid, kind: 'business', venue, attendees: 10 }).value.venue, venue);
+  for (const venue of ['1F', '3F']) assert.equal(normalizeEventApplication({ ...valid, kind: 'business', venue, attendees: 10 }).value.venue, venue);
+  assert.match(normalizeEventApplication({ ...valid, kind: 'business', venue: '2F', attendees: 10 }).error, /約書旅/);
 });
 
 test('application enforces venue headcount: social room ≤ 10, dining-room buyout ≤ 50, shared space has no hard cap', () => {
-  assert.match(normalizeEventApplication({ ...valid, venue: '2F', attendees: 11 }).error, /等等空間共享活動區/);
+  assert.match(normalizeEventApplication({ ...valid, venue: '2F', attendees: 11 }).error, /約書旅/);
   assert.ok(normalizeEventApplication({ ...valid, venue: '1F', attendees: 50 }).value);
   assert.ok(normalizeEventApplication({ ...valid, venue: '1F', attendees: 51 }).error);
   assert.ok(normalizeEventApplication({ ...valid, venue: '3F', attendees: 61 }).value, '三樓超過 60 人只提示、不擋送出');
@@ -81,7 +82,7 @@ test('unified applications validate visibility, ticketing mode, refund policy an
     assert.ok(normalizeEventApplication({...valid,visibility:'public',registration_mode:'external',registration_url}).error);
   assert.ok(normalizeEventApplication({...valid,visibility:'secret'}).error);
   assert.ok(normalizeEventApplication({...valid,visibility:'public',registration_mode:'closed'}).error);
-  assert.equal(normalizeEventApplication({...valid,visibility:'private',registration_mode:'external',registration_url:'https://example.com'}).value.registration_mode,'closed');
+  assert.equal(normalizeEventApplication({...valid,kind:'business',venue:'1F',visibility:'private',registration_mode:'external',registration_url:'https://example.com'}).value.registration_mode,'closed');
   // 公開活動可選言文字售票（native，不需外部網址）或外部售票（external，需網址）；未指定沿用舊表單＝外部售票
   const native=normalizeEventApplication({...valid,visibility:'public',registration_mode:'native'}).value;
   assert.deepEqual([native.registration_mode,native.registration_url,native.refund_policy],['native','','accept']);
@@ -92,12 +93,11 @@ test('unified applications validate visibility, ticketing mode, refund policy an
   assert.ok(normalizeEventApplication({...valid,visibility:'public',registration_mode:'native',refund_policy:'maybe'}).error);
   assert.equal(normalizeEventApplication({...valid,source_url:'https://lu.ma/abc'}).value.source_url,'https://lu.ma/abc');
   assert.ok(normalizeEventApplication({...valid,source_url:'javascript:alert(1)'}).error);
-  // 私人活動送件時收場地費（取代舊訂金 1000）：三樓 20 人＝10,000、25 人＝15,000；二樓 10,000；一樓 30,000
-  assert.equal(applicationDeposit({visibility:'private',venue:'3F',attendees:20}),10000);
-  assert.equal(applicationDeposit({visibility:'private',venue:'3F',attendees:25}),15000);
-  assert.equal(applicationDeposit({visibility:'private',venue:'2F',attendees:8}),10000);
+  // 包場送件時收場地費：一樓餐飲空間 30,000；等等空間只走分區（zone，見 test-staysquare-commerce），未帶區域的 3F 包場不收件（KK 11/17）
   assert.equal(applicationDeposit({visibility:'private',venue:'1F',attendees:40}),30000);
-  assert.equal(applicationDeposit({visibility:'private',attendees:41}),20500,'未填空間視為三樓');
+  assert.match(normalizeEventApplication({...valid,kind:'business',venue:'3F',visibility:'private'}).error,/staysquare\.emoji\.tw\/venue/);
+  assert.match(normalizeEventApplication({...valid,visibility:'private'}).error,/staysquare\.emoji\.tw\/venue/,'未填空間視為等等空間');
+  assert.equal(normalizeEventApplication({...valid,kind:'business',venue:'1F',visibility:'private'}).value.venue,'1F');
   // 公開活動送件時 0；外部售票審核通過後才設定 150×預估人數，言文字售票由參加者付
   assert.equal(applicationDeposit({visibility:'public',venue:'3F',attendees:20}),0);
   assert.equal(approvalVenueFee({visibility:'public',registration_mode:'external',venue:'3F',attendees:20}),3000);
@@ -350,7 +350,7 @@ test('application API persists private submissions and serializes retry/review r
 
     await t.test('unified approval supports native, external and private events without duplicate schedule or private leaks', async () => {
       for(const mode of ['native','external','closed']){
-        const created=await api('/api/event-applications',memberA,{...valid,request_id:randomUUID(),visibility:mode==='closed'?'private':'public',registration_mode:mode,registration_url:'https://example.com/register'});
+        const created=await api('/api/event-applications',memberA,{...valid,request_id:randomUUID(),...(mode==='closed'?{kind:'business',venue:'1F'}:{}),visibility:mode==='closed'?'private':'public',registration_mode:mode,registration_url:'https://example.com/register'});
         assert.equal(created.status,201,JSON.stringify(created.body));
         const appId=created.body.application.id;
         if(mode==='closed'){
