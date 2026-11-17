@@ -764,9 +764,9 @@ def sq_buy(items):
 
 
 def sq_member():
-    intro = t('等等空間使用言文字會員帳號。登入後可在這裡購買會籍、預約包場；會籍啟用與進出 QR 在會員 App。',
-              'Stay Square uses your emoji member account. Sign in to buy a plan or book the venue here; activation and the entry QR code live in the member app.',
-              '等等空間は言文字の会員アカウントを使います。ログインするとここで会員プランの購入と貸切の予約ができます。開始手続きと入退室 QR は会員アプリで。')
+    intro = t('等等空間使用言文字會員帳號。登入後可在這裡購買會籍、預約包場；進場時到櫃檯出示會員 App 的會員卡即可。',
+              'Stay Square uses your emoji member account. Sign in to buy a plan or book the venue here; to enter, show your member card in the member app at the counter.',
+              '等等空間は言文字の会員アカウントを使います。ログインするとここで会員プランの購入と貸切の予約ができます。入場時はカウンターで会員アプリの会員カードを提示してください。')
     return (f'<section class="sq-member" id="member" aria-labelledby="member-h"><div class="sq-member__in">'
             f'{sq_label("", "Member")}<h2 id="member-h">{t("言文字會員", "emoji membership", "言文字会員")}</h2>'
             f'<div data-sq-out><p>{e(intro)}</p><button type="button" class="sq-action" data-sq-login>{t("會員登入", "Sign in", "ログイン")}</button></div>'

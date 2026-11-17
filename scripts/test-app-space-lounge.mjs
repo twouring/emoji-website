@@ -61,6 +61,17 @@ test('server：貴賓室購買冪等、掃碼進出、會員清單、線上已�
   assert.match(srv, /posSpace\.maskPhone\(/, '會員清單電話遮罩');
 });
 
+test('進出統一用會員卡 QR：App 不再有獨立進出 QR，門禁與 POS 只認會員卡（KK 11/17）', () => {
+  assert.doesNotMatch(m, /\/api\/me\/access-qr|openQr\('access'\)|access-open|qrKind/);
+  assert.doesNotMatch(srv, /app\.get\('\/api\/me\/access-qr'/);
+  assert.match(srv, /function memberCardOf\(token\)[\s\S]{0,200}p\.plan === 'yan-card'/);
+  const scan = srv.slice(srv.indexOf("app.post('/api/access/scan'"), srv.indexOf("app.post('/api/access/scan'") + 400);
+  assert.match(scan, /memberCardOf\(/);
+  const pscan = srv.slice(srv.indexOf("app.post('/api/admin/orders/space/scan'"), srv.indexOf("app.post('/api/admin/orders/space/scan'") + 600);
+  assert.match(pscan, /memberCardOf\(/);
+  for (const f of ['public/pos-space.js', 'public/brand-sites/stay-square-shop.js', 'tools/build-brand-sites.py', 'tools/build-legal-pages.py', 'public/terms.html']) assert.doesNotMatch(read(f), /進出 QR|入退室 QR|入退館 QR|entry QR|Entry QR/, f);
+});
+
 test('POS：入場管理有掃碼進出、等等空間有會員清單、線上已付可入場', () => {
   assert.match(pos, /id="sp-scan">掃碼進出</);
   assert.match(pos, /SCOPE === 'STAY' \? '<button type="button" class="btn btn--ghost" id="sp-members">會員<\/button>'/);

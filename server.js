@@ -115,7 +115,7 @@ if (SECRET === 'dev-insecure-secret-change-me') {
   if (process.env.NODE_ENV === 'production') { console.error('[fatal] APP_SECRET 未設定，正式環境拒絕啟動。'); process.exit(1); }
   console.warn('[warn] APP_SECRET 未設定，使用不安全的預設值，請於 Zeabur 設定 APP_SECRET。');
 }
-if (!ACCESS_QR_SECRET) console.warn('[warn] ACCESS_QR_SECRET 未設定，進出 QR 停用。');
+if (!ACCESS_QR_SECRET) console.warn('[warn] ACCESS_QR_SECRET 未設定，會員卡 QR 改用 APP_SECRET 簽章。');
 if (!ACCESS_DOOR_SECRET) console.warn('[warn] ACCESS_DOOR_SECRET 未設定，access/scan 停用。');
 if (!ADMIN_API_KEY) console.warn('[warn] ADMIN_API_KEY 未設定，AI agent 管理 API 停用（後台 Google 登入不受影響）。');
 else if (ADMIN_API_KEY.length < ADMIN_API_KEY_MIN)
@@ -1578,7 +1578,7 @@ async function notifyRegistrationStatus(userId,eventId,status){
 async function notifyPlanPurchased(userId, plan) {
   try {
     const u = await userContact(userId); if (!u || !u.email) return;
-    const text = `${u.name || ''} 您好，\n\n您已購買「${PLAN_LABEL[plan] || plan}」（NT$${PLAN_PRICE_TWD[plan].toLocaleString('en-US')}）。\n\n會籍會在您第一次以會員 App 的進出 QR 進場時啟用；若 7 天內未進場，將自第 7 天起自動起算。\n會員 App：${APP_BASE}/\n\n言文字｜台灣人才聚落`;
+    const text = `${u.name || ''} 您好，\n\n您已購買「${PLAN_LABEL[plan] || plan}」（NT$${PLAN_PRICE_TWD[plan].toLocaleString('en-US')}）。\n\n會籍會在您第一次到等等空間櫃檯出示會員 App 的會員卡、掃碼進場時啟用；若 7 天內未進場，將自第 7 天起自動起算。\n會員 App：${APP_BASE}/\n\n言文字｜台灣人才聚落`;
     await sendMailQuietly({ to: u.email, subject: `[言文字] 會籍已購買：${PLAN_LABEL[plan] || plan}`, text, replyTo: NOTIFY_EMAIL });
   } catch (e) { console.error('[mail] 會籍通知失敗：', e.message); }
 }
@@ -2813,81 +2813,44 @@ app.get('/api/state', auth, requireDb, wrap(async (req, res) => {
   });
 }));
 
-app.get('/api/me/access-qr', auth, requireDb, wrap(async (req, res) => {
-  if (!ACCESS_QR_SECRET) return res.status(503).json({ error: '進出 QR 尚未開通（未設定 ACCESS_QR_SECRET）。' });
-  if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
-  const now = new Date();
-  let ents = await persistLazyActivations(await loadEntitlements(req.auth.sub), now);
-  const pick = pickEntitlementForQr(ents, now);
-  if (!pick) return res.status(403).json({ error: '目前無法進出二三樓（無有效或待啟用權益）。', code: 'NO_ENTITLEMENT' });
-  const pending = !pick.activated_at;
-  const token = signAccessToken({
-    sub: req.auth.sub,
-    ent: pick.id,
-    plan: pick.plan,
-    floors: ['2', '3'],
-    pending_activation: pending,
-  }, ACCESS_QR_SECRET, { ttlSec: 45 });
-  const payload = verifyAccessToken(token, ACCESS_QR_SECRET);
-  res.json({
-    token,
-    exp: payload.exp,
-    pending_activation: pending,
-    plan: pick.plan,
-    entitlement_id: pick.id,
-  });
-}));
-
+/* 進出一律用會員卡 QR（KK 11/17：移除另一張「進出 QR」）：會員卡 token＝plan:'yan-card'，以 ACCESS_QR_SECRET（沒設則 SECRET）簽，120 秒有效。
+   門禁與 POS 掃碼都只認這張；有沒有權益由伺服器查會籍決定。 */
+const CARD_SECRET = () => process.env.ACCESS_QR_SECRET || SECRET;
+function memberCardOf(token) {
+  const p = verifyAccessToken(String(token || '').trim().slice(0, 4096), CARD_SECRET());
+  return p && p.plan === 'yan-card' && p.sub ? p : null;
+}
 app.post('/api/access/verify', wrap(async (req, res) => {
-  if (!ACCESS_QR_SECRET) return res.status(503).json({ error: '未設定 ACCESS_QR_SECRET。' });
-  const token = String((req.body && req.body.token) || '');
-  const p = verifyAccessToken(token, ACCESS_QR_SECRET);
-  if (!p) return res.status(401).json({ ok: false, error: '無效或過期的 QR。' });
+  const p = memberCardOf(req.body && req.body.token);
+  if (!p) return res.status(401).json({ ok: false, error: '無效或過期的會員卡 QR。' });
   res.json({ ok: true, claims: p });
 }));
 
 app.post('/api/access/scan', doorAuth, requireDb, wrap(async (req, res) => {
-  if (!ACCESS_QR_SECRET) return res.status(503).json({ error: '未設定 ACCESS_QR_SECRET。' });
-  const token = String((req.body && req.body.token) || '');
-  const p = verifyAccessToken(token, ACCESS_QR_SECRET);
-  if (!p) return res.status(401).json({ ok: false, error: '無效或過期的 QR。' });
-
-  const ent = rowToEnt((await q(`SELECT ${SEL_ENT} FROM entitlements WHERE id=$1`, [p.ent])).rows[0]);
-  if (!ent || ent.user_id !== p.sub)
-    return res.status(400).json({ ok: false, error: '權益不符。' });
-
+  const p = memberCardOf(req.body && req.body.token);
+  if (!p) return res.status(401).json({ ok: false, error: '無效或過期的會員卡 QR。' });
   const now = new Date();
-  if (p.plan !== ent.plan || !pickEntitlementForQr([ent], now))
-    return res.status(403).json({ ok: false, error: '權益已失效，無法開門。' });
+  const ent = pickEntitlementForQr(await persistLazyActivations(await loadEntitlements(p.sub), now), now);
+  if (!ent) return res.status(403).json({ ok: false, error: '沒有有效方案，無法開門。' });
   // 冪等：同一 token_iat + entitlement 只記一次
-  const scanId = uid('as_');
   const ins = await q(
     `INSERT INTO access_scans (id,entitlement_id,user_id,token_iat,scanned_at)
      VALUES ($1,$2,$3,$4,now())
      ON CONFLICT (entitlement_id, token_iat) DO NOTHING
      RETURNING id`,
-    [scanId, ent.id, ent.user_id, p.iat]
+    [uid('as_'), ent.id, ent.user_id, p.iat]
   );
-
   let activated = false;
   if (!ent.activated_at && ent.plan !== 'founding') {
-    const ends = endsAtAfterActivation(ent.plan, now);
     const upd = await q(
       `UPDATE entitlements SET activated_at=$2, starts_at=$2, ends_at=$3
        WHERE id=$1 AND activated_at IS NULL
        RETURNING ${SEL_ENT}`,
-      [ent.id, now, ends]
+      [ent.id, now, endsAtAfterActivation(ent.plan, now)]
     );
     activated = !!upd.rows[0];
   }
-
-  res.json({
-    ok: true,
-    door: 'open',
-    activated,
-    duplicate: !ins.rows[0],
-    access: await memberAccessFor(ent.user_id, now),
-  });
+  res.json({ ok: true, door: 'open', activated, duplicate: !ins.rows[0], access: await memberAccessFor(ent.user_id, now) });
 }));
 
 // 公開唯讀：進度、專案更新、報名中活動、首頁公告（無 PII，供未登入者瀏覽）
@@ -5989,7 +5952,7 @@ app.post('/api/me/plans/verify', auth, requireDb, wrap(async (req, res) => {
 }));
 
 /* ---- 會員 App「貴賓室」（KK 11/17）：線上購買約書旅計時方案（Stripe，同會籍帳號），付款完成即在約書旅 POS 開一張「已付款・未到」入場單；
-   客人到櫃檯出示 App 會員卡（或進出 QR），POS 掃碼入場才開始計時（POST /api/admin/orders/space/scan → /space/checkin）。不開新表：入場單＝table_sessions（space.prepaid／online／member_id）。 */
+   客人到櫃檯出示 App 會員卡，POS 掃碼入場才開始計時（POST /api/admin/orders/space/scan → /space/checkin）。不開新表：入場單＝table_sessions（space.prepaid／online／member_id）。 */
 const LOUNGE_VENUE = 'REST', LOUNGE_OPEN_MAX = 3;
 const loungeName = it => String(it?.zh || '').replace(/^空間使用費｜/, '');
 function loungePassView(s) {
@@ -8401,15 +8364,14 @@ app.post('/api/admin/orders/sessions/:id/space/resume',auth,adminOnly,requireDb,
     await client.query('COMMIT');res.json({ok:true,id:s.id});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
-/* 掃碼進出（KK 11/17）：掃會員 App 的會員卡或進出 QR。
+/* 掃碼進出（KK 11/17）：一律掃會員 App 的會員卡 QR。
    已在場內→回 inside（前端接 /space/leave）；約書旅有線上已付未到的入場單→回 checkin（前端接 /space/checkin，靜讀室要選席）；
    等等空間有效會籍→直接開 0 元「會員入場」單並開始計時（待首次進場的會籍同時啟用）。 */
 app.post('/api/admin/orders/space/scan',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const v=spaceVenue(req,res);if(!v)return;
   const cfg=await spaceSettingsOf(v);if(cfg.mode!=='space')return spaceErr(res,409,'這個品牌目前是餐飲情境，請到「設定 → 營業情境」切換成空間。');
-  const raw=String(req.body?.token||'').trim().slice(0,4096);
-  const p=verifyAccessToken(raw,ACCESS_QR_SECRET||SECRET)||(ACCESS_QR_SECRET?verifyAccessToken(raw,SECRET):null);
-  if(!p||!p.sub||!(p.plan==='yan-card'||p.ent))return spaceErr(res,400,'不是有效的會員 QR。請客人打開會員 App 的「會員卡」或「進出 QR」（QR 會定時更新，截圖無效）。');
+  const p=memberCardOf(req.body?.token);
+  if(!p)return spaceErr(res,400,'不是有效的會員卡 QR。請客人打開會員 App 的「會員卡」（QR 會定時更新，截圖無效）。');
   const user=(await q('SELECT id,name FROM users WHERE id=$1',[p.sub])).rows[0];if(!user)return spaceErr(res,404,'找不到這位會員。');
   const who=user.name||'這位會員';
   const mine=(await q("SELECT id,table_no,items,space FROM table_sessions WHERE status='open' AND venue=$1 AND space->>'member_id'=$2 ORDER BY created_at",[v,user.id])).rows;
@@ -8438,7 +8400,7 @@ app.post('/api/admin/orders/space/scan',auth,adminOnly,requireDb,wrap(async(req,
     await client.query(`INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,invoice,status,done_at,user_id) VALUES($1,$2,$3,$4,0,$5,'{}','done',now(),$6)`,[orderId,sid,table,JSON.stringify(items),JSON.stringify({method:'cash',received:0,change:0,member:true,member_id:user.id,name:user.name||'',member_entry:true,staff:actorOf(req.auth)||''}),user.id]);
     let activated=false;
     if(!ent.activated_at&&ent.plan!=='founding'){const ends=endsAtAfterActivation(ent.plan,now);activated=!!(await client.query('UPDATE entitlements SET activated_at=$2,starts_at=$2,ends_at=$3 WHERE id=$1 AND activated_at IS NULL RETURNING id',[ent.id,now,ends])).rows[0];}
-    if(p.plan!=='yan-card')await client.query('INSERT INTO access_scans (id,entitlement_id,user_id,token_iat,scanned_at) VALUES ($1,$2,$3,$4,now()) ON CONFLICT (entitlement_id, token_iat) DO NOTHING',[uid('as_'),ent.id,user.id,p.iat]);
+    await client.query('INSERT INTO access_scans (id,entitlement_id,user_id,token_iat,scanned_at) VALUES ($1,$2,$3,$4,now()) ON CONFLICT (entitlement_id, token_iat) DO NOTHING',[uid('as_'),ent.id,user.id,p.iat]);   // 進出紀錄（掃會員卡）
     await client.query('COMMIT');
     req.posLogDetail=`${table} ${who} 會員掃碼入場（${ent.plan}${activated?'，首次進場啟用':''}）`;
     res.status(201).json({ok:true,action:'entered',id:sid,table,member:who,plan:ent.plan,activated,space_started:{in_at:inAt,due_at:null,seat:table,headcount:1,plan:it.zh}});

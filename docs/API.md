@@ -228,7 +228,7 @@ TapPay Pay by Prime 結帳。body：`{ prime, lines?[], name, phone?, email? }`�
 所有結帳、活動付款、退款與 webhook 都必須使用 Stripe「Emoji 言文字」帳號 `acct_1Ts2y95NXMKDsl40`。
 
 ### POST /api/access/verify
-驗證進出 QR token 是否有效。body：`{ token }`。回 `{ ok, claims }`。
+驗證會員卡 QR token 是否有效（KK 11/17 起進出一律用會員卡，不再有獨立進出 QR）。body：`{ token }`。回 `{ ok, claims }`。
 
 ### POST /api/stripe/webhook
 Stripe 活動與會籍付款 webhook。只接受 `STRIPE_WEBHOOK_SECRET` 驗證成功的原始 request body；處理 `checkout.session.completed`、`checkout.session.async_payment_succeeded` 與 `checkout.session.expired`。活動與會籍皆驗證訂單、帳號、session、TWD 幣別及金額快照；重送不會重複核銷。
@@ -547,7 +547,7 @@ POS 營業情境（KK 11/15，`lib/pos-space.js`）：讀取品牌的情境設�
 
 
 ### POST /api/admin/orders/space/scan
-掃碼進出（KK 11/17，空間情境品牌 POS）。Body `{ token, venue?, operator_id? }`，token＝會員 App「會員卡」（`yan-card`）或「進出 QR」（會籍 entitlement）的簽章 QR，45–120 秒有效。回 `action`：`inside`（這位會員已在場內，`{id,table,member}`，前端接 `/space/leave`）；`checkin`（約書旅有會員 App 線上已付、還沒入場的入場單，`{id,table,member,need_seat,plan}`，前端接 `/space/checkin`）；`entered`（等等空間有效或待啟用會籍：開 0 元「會員入場」單並立即開始計時，待首次進場的會籍同時啟用、寫 `access_scans`，201 回 `{id,table,member,plan,activated,space_started}`）。無效 QR 400、沒有方案 403／404、餐飲情境 409、容量滿 409。
+掃碼進出（KK 11/17，空間情境品牌 POS）。Body `{ token, venue?, operator_id? }`，token＝會員 App「會員卡」QR（`yan-card`，120 秒有效；KK 11/17 起不再有獨立進出 QR）。回 `action`：`inside`（這位會員已在場內，`{id,table,member}`，前端接 `/space/leave`）；`checkin`（約書旅有會員 App 線上已付、還沒入場的入場單，`{id,table,member,need_seat,plan}`，前端接 `/space/checkin`）；`entered`（等等空間有效或待啟用會籍：開 0 元「會員入場」單並立即開始計時，待首次進場的會籍同時啟用、寫 `access_scans`，201 回 `{id,table,member,plan,activated,space_started}`）。無效 QR 400、沒有方案 403／404、餐飲情境 409、容量滿 409。
 
 ### POST /api/admin/orders/sessions/:id/space/checkin
 會員 App 線上已付（`space.prepaid`）的入場單到場入場：開始計時（`in_at`＝現在）。靜讀室等需指定席號的分類要帶 `{ seat }`，入場單號改成席號（訂單同步改桌號）。回 `{ ok, id, table, space_started }`；不是線上已付未入場的單 404、席位使用中 409。
@@ -1061,9 +1061,6 @@ X 貼文 AI 起草：body `{ topic }`，回 `{ ok, draft: { title, caption, capt
 
 以下需綁定會員身分，agent 金鑰打會得到 403。
 
-### GET /api/me/access-qr
-取得 45 秒有效的進出 QR token。
-
 ### GET /api/me/yan
 登入會員的點數餘額。回 `{ ok, balance, phone }`。消費每滿 NT$100 累積 1 點，隔年 4/30 到期；作廢出餐單會沖回。agent 金鑰 403。
 
@@ -1272,7 +1269,7 @@ Twilio 訊息狀態 callback。以 `X-Twilio-Signature` 驗證請求，將 accep
 ## 門禁端點
 
 ### POST /api/access/scan
-掃描進出 QR，開門並惰性啟用權益。需 `ACCESS_DOOR_SECRET`。
+掃描會員卡 QR（`plan:'yan-card'`），由伺服器查會員目前有效或待啟用的方案，開門並啟用待啟用方案。需 `ACCESS_DOOR_SECRET`。沒有方案 403。
 以 `(entitlement_id, token_iat)` 冪等，重掃回 `duplicate: true`。
 
 ## 目前沒有 API 的操作

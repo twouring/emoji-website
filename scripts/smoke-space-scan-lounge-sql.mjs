@@ -1,6 +1,6 @@
 // Local-only SQL acceptance（not in CI: needs PGLITE_MODULE_PATH）：會員 App 共享空間／貴賓室 × POS 掃碼進出（KK 11/17），跑真的 server.js 路由（vm 切出）＋ PGlite。
 // 貴賓室：Stripe 付款完成 → 約書旅開「線上已付・未入場」單（冪等）→ 不佔容量、不能清單 → POS 掃會員卡＝checkin → 靜讀室選席 → 開始計時 → 再掃＝inside → 離場。
-// 等等空間：App 買的會籍 POS 會員清單看得到（待首次進場）→ 掃進出 QR＝會員入場、啟用會籍、寫 access_scans → 再掃＝inside；沒會籍 403；假 QR 400。
+// 等等空間：App 買的會籍 POS 會員清單看得到（待首次進場）→ 掃會員卡＝會員入場、啟用會籍、寫 access_scans → 再掃＝inside；沒會籍 403；假 QR 400。
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -40,7 +40,7 @@ test('貴賓室線上購買→掃碼入場→離場；等等空間會員掃碼�
     const noop = async () => 0;
     let BRANDS = ['REST'], me = 'u_amy';
     const loadEntitlements = async id => (await q('SELECT * FROM entitlements WHERE user_id=$1', [id])).rows;
-    const ctx = vm.createContext({ app, require, q, pool: { connect: async () => ({ query: q, release() {} }) }, uid, tableOrders, posSpace, SECRET, ACCESS_QR_SECRET: ACCESS, APP_BASE: 'https://app.test', console, Buffer, Date, Math, JSON, Number, String, Set, Map, Promise,
+    const ctx = vm.createContext({ app, require, q, pool: { connect: async () => ({ query: q, release() {} }) }, uid, tableOrders, posSpace, SECRET, ACCESS_QR_SECRET: ACCESS, process: { env: { ACCESS_QR_SECRET: ACCESS } }, APP_BASE: 'https://app.test', console, Buffer, Date, Math, JSON, Number, String, Set, Map, Promise,
       auth: (req, res, next) => { req.auth = req.path.startsWith('/api/me/') ? { role: 'member', sub: me } : { role: 'admin', email: 'pos@test', brands: BRANDS, pos_device: 'dev1' }; next(); }, adminOnly: (r, s, nx) => nx(), requireDb: (r, s, nx) => nx(), rateLimit: () => (r, s, nx) => nx(),
       superOrManagerPin: async (req, res) => res.status(403).json({ error: 'pin' }),
       wrap: fn => (req, res) => fn(req, res).catch(e => res.status(500).json({ error: e.message, stack: e.stack })),
@@ -60,6 +60,7 @@ test('貴賓室線上購買→掃碼入場→離場；等等空間會員掃碼�
     vm.runInContext(slice("app.post('/api/admin/orders/sessions/:id/checkout'", "app.post('/api/admin/orders/:id/invoice/issue'"), ctx);
     vm.runInContext(slice("app.post('/api/admin/orders/sessions/:id/close'", '// 本桌點餐 QR（單次）'), ctx);
     vm.runInContext(slice('function pinVenue(req,requested){', 'async function staffByPin'), ctx);
+    vm.runInContext(slice('const CARD_SECRET = ', "app.post('/api/access/verify'"), ctx);
     vm.runInContext(slice('/* ---- 會員 App「貴賓室」（KK 11/17）', '// 公開：未來 90 天已排定的場地時段'), ctx);
     ctx.counterDevice = async () => ({ id: 'dev1', label: '櫃檯 iPad' });
     listener = app.listen(0, '127.0.0.1'); await new Promise(r => listener.once('listening', r));
@@ -95,7 +96,7 @@ test('貴賓室線上購買→掃碼入場→離場；等等空間會員掃碼�
     r = await call('POST', `/api/admin/orders/sessions/${pass.id}/close`, {});
     assert.equal(r.status, 409); assert.match(r.body.error, /線上已付款/);
     // 假 QR、別人的 QR
-    assert.equal((await call('POST', '/api/admin/orders/space/scan', { token: 'abc.def' })).status, 400);
+    { const x = await call('POST', '/api/admin/orders/space/scan', { token: 'abc.def' }); assert.equal(x.status, 400, JSON.stringify(x.body).slice(0,300)); }
     { const x = await call('POST', '/api/admin/orders/space/scan', { token: card('u_bob') }); assert.equal(x.status, 404, '阿寶沒買貴賓室 ' + JSON.stringify(x.body)); }
     // 掃小美會員卡 → checkin
     r = await call('POST', '/api/admin/orders/space/scan', { token: card('u_amy'), operator_id: 's1' });
@@ -121,15 +122,16 @@ test('貴賓室線上購買→掃碼入場→離場；等等空間會員掃碼�
     r = await call('POST', `/api/admin/orders/sessions/${pass.id}/space/leave`, {});
     assert.equal(r.status, 200, JSON.stringify(r.body)); assert.equal(r.body.overtime_units, 1); assert.equal(r.body.due, 100);
 
-    /* ---- 等等空間：App 買的會籍 → POS 會員清單 → 掃進出 QR 會員入場 ---- */
+    /* ---- 等等空間：App 買的會籍 → POS 會員清單 → 掃會員卡會員入場 ---- */
     BRANDS = ['STAY'];
     await q("INSERT INTO entitlements(id,user_id,plan,source,source_id) VALUES ('en_1','u_amy','month','stripe','cs_plan1')");
     r = await call('GET', '/api/admin/orders/space/members');
     assert.equal(r.status, 200); assert.equal(r.body.members.length, 1);
     assert.deepEqual([r.body.members[0].name, r.body.members[0].state, r.body.members[0].source, r.body.members[0].phone, r.body.members[0].inside], ['小美', 'pending', 'stripe', '0912***678', false]);
     assert.equal((await call('POST', '/api/admin/orders/space/scan', { token: card('u_bob') })).status, 403, '阿寶沒有等等空間方案');
-    const accessQr = tok.signAccessToken({ sub: 'u_amy', ent: 'en_1', plan: 'month', floors: ['2', '3'] }, ACCESS, { ttlSec: 45 });
-    r = await call('POST', '/api/admin/orders/space/scan', { token: accessQr, operator_id: 's1' });
+    const oldAccess = tok.signAccessToken({ sub: 'u_amy', ent: 'en_1', plan: 'month', floors: ['2', '3'] }, ACCESS, { ttlSec: 45 });
+    assert.equal((await call('POST', '/api/admin/orders/space/scan', { token: oldAccess })).status, 400, '舊的獨立進出 QR 不再接受');
+    r = await call('POST', '/api/admin/orders/space/scan', { token: card('u_amy'), operator_id: 's1' });
     assert.equal(r.status, 201, JSON.stringify(r.body)); assert.equal(r.body.action, 'entered'); assert.equal(r.body.activated, true); assert.equal(r.body.space_started.due_at, null, '會員入場不限時');
     const e = (await q("SELECT activated_at,ends_at FROM entitlements WHERE id='en_1'")).rows[0];
     assert.ok(e.activated_at && e.ends_at, '首次進場啟用會籍');

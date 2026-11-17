@@ -78,13 +78,13 @@ test('品牌館：首頁列出四個品牌，各有品牌頁；會員卡與點�
   assert.match(srv, /brand-sites\\\/assets\\\/\[\\w-\]\+-avatar\\\.webp\$/, 'app.emoji.tw 要能讀品牌頭像');
 });
 
-test('App 重構（會員視角）：首頁先卡與進出 QR、接下來、品牌館、兌換摘要；預約分頁單一時間線；會籍進出 QR 置頂；我的點數置頂', () => {
+test('App 重構（會員視角）：首頁先會員卡（結帳與進出共用一張）、接下來、品牌館、兌換摘要；預約分頁單一時間線；共享空間出示會員卡置頂；我的點數置頂', () => {
   const m = fs.readFileSync(new URL('../public/m.html', import.meta.url), 'utf8');
   const home = m.slice(m.indexOf('  function home(){'), m.indexOf('  function evTile('));
   const order = ['class="pass"', 'id="show"', '${upcomingSec()}', '${brandsSec()}', '${rewardsSec(pts)}'].map(k => home.indexOf(k));
   assert.ok(order.every(i => i > 0) && order.every((v, i) => !i || v > order[i - 1]), '首頁順序：會員卡→出示→接下來→品牌館→兌換');
   assert.doesNotMatch(home, /<nav class="quick"/, '首頁不再重複放快捷鍵（入口在品牌館與預約分頁）');
-  assert.match(home, /id="access-open"/, '有會籍時會員卡旁直接開進出 QR');
+  assert.doesNotMatch(home, /access-open|openQr\('access'\)/, '首頁不再有獨立進出 QR（KK 11/17 統一會員卡）');
   assert.match(m, /ok\.slice\(0,4\)/, '首頁兌換只放現在能換的前 4 項');
   assert.match(m, /function openRewards\(pts\)/);
   assert.match(m, /function agendaItems\(\)/); assert.match(m, /function agendaTile\(x,full\)/);
@@ -92,7 +92,7 @@ test('App 重構（會員視角）：首頁先卡與進出 QR、接下來、品�
   assert.match(book, /agendaItems\(\)/); assert.doesNotMatch(book, /T\.myResv|T\.pickupSec|T\.shopSec/, '預約分頁不再分四段');
   assert.match(m, /T\.pickupNo\(o\.table\)/, '商店單顯示取貨單號');
   const plan = m.slice(m.indexOf('  function plan(){'), m.indexOf('  async function buyPlan('));
-  assert.ok(plan.indexOf('id="access-qr"') < plan.indexOf('class="panel"'), '會籍：進出 QR 在狀態卡之前');
+  assert.ok(plan.indexOf('id="card-open"') > 0 && plan.indexOf('id="card-open"') < plan.indexOf('class="panel"'), '共享空間：出示會員卡在狀態卡之前');
   assert.match(m, /id="hist-open2"[^`]*class|class="me-pts" id="hist-open2"/);
-  for (const k of ['agenda', 'agendaNone', 'seeAll', 'rwNow', 'accessShort', 'pickupNo', 'evMine']) assert.equal((m.match(new RegExp('[,{]' + k + ':', 'g')) || []).length, 3, k + ' 三語');
+  for (const k of ['agenda', 'agendaNone', 'seeAll', 'rwNow', 'pickupNo', 'evMine']) assert.equal((m.match(new RegExp('[,{]' + k + ':', 'g')) || []).length, 3, k + ' 三語');
 });

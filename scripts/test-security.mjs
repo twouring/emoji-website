@@ -165,13 +165,16 @@ test('both upload routes reject forged MIME and accept an embedded PNG with safe
   }
 });
 
-test('a still-signed door QR cannot open an expired entitlement', async t => {
+test('door scan only accepts the member card QR, and an expired plan cannot open the door', async t => {
   const now = Date.now();
   const entitlement = { id: 'en_test', user_id: user.id, plan: 'month', purchased_at: new Date(now - 86400_000),
     activated_at: new Date(now - 86400_000), starts_at: new Date(now - 86400_000), ends_at: new Date(now - 1) };
-  const { request, log } = await server(t, { query: sql => /FROM entitlements WHERE id/.test(sql) ? { rows: [entitlement] } : null });
-  const token = signAccessToken({ sub: user.id, ent: entitlement.id, plan: entitlement.plan }, secret);
-  assert.equal((await request('/api/access/scan', { token }, secret)).status, 403);
+  const { request, log } = await server(t, { query: sql => /FROM entitlements WHERE user_id/.test(sql) ? { rows: [entitlement] } : null });
+  // 舊的獨立進出 QR（ent＝權益 id）不再接受（KK 11/17：統一會員卡）
+  const oldAccess = signAccessToken({ sub: user.id, ent: entitlement.id, plan: entitlement.plan }, secret);
+  assert.equal((await request('/api/access/scan', { token: oldAccess }, secret)).status, 401);
+  const card = signAccessToken({ sub: user.id, ent: 'yan-card', plan: 'yan-card' }, secret, { ttlSec: 120 });
+  assert.equal((await request('/api/access/scan', { token: card }, secret)).status, 403);
   assert.equal(log.some(x => /INSERT INTO access_scans/.test(x.sql)), false);
 });
 

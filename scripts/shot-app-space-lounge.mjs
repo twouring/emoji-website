@@ -63,7 +63,7 @@ async function app(w, name, { lang = 'zh', guest = false, tab = 'lounge', full =
   await page.screenshot({ path: path.join(OUT, name + '.png'), fullPage: full });
   await page.close();
 }
-for (const w of [390, 320]) { await app(w, `app-lounge-${w}`); await app(w, `app-space-${w}`, { tab: 'plan' }); }
+for (const w of [390, 320]) { await app(w, `app-lounge-${w}`); await app(w, `app-space-${w}`, { tab: 'plan' }); await app(w, `app-home-${w}`, { tab: 'home', full: false }); }
 await app(390, 'app-lounge-390-en', { lang: 'en' });
 await app(390, 'app-lounge-390-ja', { lang: 'ja' });
 await app(390, 'app-lounge-guest-390', { guest: true });

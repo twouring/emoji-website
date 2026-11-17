@@ -74,9 +74,9 @@ test('/api/state 會員資料依 ?lang= 回活動語系', () => {
   assert.match(m, /get\('\/api\/state\?view=member&lang='\+LANG\)/);
 });
 
-test('App 含官網會員頁搬過來的全部功能：會籍狀態與購買、進出 QR、活動與會員動態、資料編輯、LINE 綁定、三語', () => {
+test('App 含官網會員頁搬過來的全部功能：會籍狀態與購買、會員卡 QR（進出共用）、活動與會員動態、資料編輯、LINE 綁定、三語', () => {
   for (const tab of ['home', 'plan', 'events', 'me']) assert.match(m, new RegExp(`data-tab="${tab}"`), tab);
-  assert.match(m, /\/api\/me\/access-qr/); assert.match(m, /\/api\/me\/card/); assert.match(m, /\/api\/me\/yan/); assert.match(m, /\/api\/me\/rewards/);
+  assert.doesNotMatch(m, /\/api\/me\/access-qr/, '不再有獨立進出 QR'); assert.match(m, /\/api\/me\/card/); assert.match(m, /\/api\/me\/yan/); assert.match(m, /\/api\/me\/rewards/);
   assert.match(m, /\/api\/me\/plans\/checkout/); assert.match(m, /\/api\/me\/plans\/verify/); assert.match(m, /plan_paid/); assert.match(m, /plan_canceled/);
   assert.match(m, /\/api\/me\/profile/); assert.match(m, /\/api\/me\/line-link/); assert.doesNotMatch(m, /\/api\/passkey/, 'Passkey 已移除');
   assert.match(m, /data\.updates/); assert.match(m, /commitments/); assert.match(m, /cert_no/);

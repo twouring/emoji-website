@@ -148,7 +148,7 @@ function bindSpacePanel(host, cur, reload){
   on('sp-resume', async () => { if (!await posConfirm(`取消 ${cur.table} 的離場？離場自動加的超時費用會移除，繼續計時。`, { ok: '取消離場' })) return; try { await api('/admin/orders/sessions/' + cur.id + '/space/resume', { method: 'POST', body: {} }); toast('已取消離場，繼續計時'); await reload(); } catch (e) { toast(e.message); } });
   on('sp-reprint', () => printSpaceEntry({ in_at: cur.space.in_at, due_at: cur.space.due_at, seat: cur.table, headcount: cur.space.headcount, plan: (cur.space.plans || []).map(p => p.zh).join('、') }, { reprint: true }));
 }
-/* 掃碼進出（KK 11/17）：掃會員 App 會員卡／進出 QR。在場內＝離場；線上已付未到（貴賓室）＝入場開始計時；等等空間有效方案＝會員入場（0 元、不限時）。
+/* 掃碼進出（KK 11/17）：掃會員 App 會員卡 QR（KK 11/17 進出統一用會員卡）。在場內＝離場；線上已付未到（貴賓室）＝入場開始計時；等等空間有效方案＝會員入場（0 元、不限時）。
    相機或掃描槍都可以（pickMemberCard，QR 區分大小寫）。 */
 async function spaceScan(reload){
   const tok = await pickMemberCard(); if (!tok) return;
@@ -207,7 +207,7 @@ async function spaceMembers(){
     ov.innerHTML = `<div class="op-card sp-dialog sp-members" role="dialog" aria-label="等等空間會員"><h2>等等空間會員 <small>${num(d.members.length)} 筆</small></h2>
       <input type="search" class="sp-mem-q" placeholder="搜尋姓名、電話末碼、方案" value="${esc(f)}" autocomplete="off">
       <div class="sp-mem-list">${list.map(m => `<div class="sp-mem"><b>${esc(m.name || '（未填姓名）')}</b><span>${esc(m.plan_label)}・${esc(SPACE_MEMBER_SRC[m.source] || m.source)}</span><span class="pill">${esc(SPACE_MEMBER_STATE[m.state] || m.state)}</span>${m.inside ? '<span class="pill sp-mem-in">在場</span>' : ''}<small>${esc(m.phone)} 購買 ${esc(applicationTime(m.purchased_at))}${m.ends_at ? `・到期 ${esc(applicationTime(m.ends_at))}` : ''}</small></div>`).join('') || '<p class="a-empty">沒有符合的會員</p>'}</div>
-      <p class="hint">會員到場：按「掃碼進出」掃 App 會員卡或進出 QR，第一次進場會自動啟用方案。</p>
+      <p class="hint">會員到場：按「掃碼進出」掃 App 會員卡，第一次進場會自動啟用方案。</p>
       <div class="op-card-actions"><button type="button" class="btn btn--solid" data-cancel>關閉</button></div></div>`;
     const q = ov.querySelector('.sp-mem-q'); q.oninput = () => { f = q.value.trim(); const pos = q.selectionStart; paint(); const n = ov.querySelector('.sp-mem-q'); n.focus(); n.setSelectionRange(pos, pos); };
     ov.querySelector('[data-cancel]').onclick = () => ov.remove();
