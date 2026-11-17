@@ -95,8 +95,8 @@ test('unified applications validate visibility, ticketing mode, refund policy an
   assert.ok(normalizeEventApplication({...valid,source_url:'javascript:alert(1)'}).error);
   // 包場送件時收場地費：一樓餐飲空間 30,000；等等空間只走分區（zone，見 test-staysquare-commerce），未帶區域的 3F 包場不收件（KK 11/17）
   assert.equal(applicationDeposit({visibility:'private',venue:'1F',attendees:40}),30000);
-  assert.match(normalizeEventApplication({...valid,kind:'business',venue:'3F',visibility:'private'}).error,/staysquare\.emoji\.tw\/venue/);
-  assert.match(normalizeEventApplication({...valid,visibility:'private'}).error,/staysquare\.emoji\.tw\/venue/,'未填空間視為等等空間');
+  assert.match(normalizeEventApplication({...valid,kind:'business',venue:'3F',visibility:'private'}).error,/staysquare\.emoji\.tw\/#venue/);
+  assert.match(normalizeEventApplication({...valid,visibility:'private'}).error,/staysquare\.emoji\.tw\/#venue/,'未填空間視為等等空間');
   assert.equal(normalizeEventApplication({...valid,kind:'business',venue:'1F',visibility:'private'}).value.venue,'1F');
   // 公開活動送件時 0；外部售票審核通過後才設定 150×預估人數，言文字售票由參加者付
   assert.equal(applicationDeposit({visibility:'public',venue:'3F',attendees:20}),0);

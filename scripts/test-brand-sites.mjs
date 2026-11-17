@@ -14,7 +14,7 @@ const stay = /住宿|過夜|入住|旅館|床位|hotel|hostel|overnight|accommod
 const server = fs.readFileSync('server.js', 'utf8');
 const text = html => html.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<[^>]*>/g, ' ');
 const read = (lang, slug) => fs.readFileSync(`public/brand-sites/${LANGS[lang][0]}${slug}.html`, 'utf8');
-const SQ_SUBS = ['about', 'spaces', 'membership', 'venue', 'access'];
+const SQ_SECTIONS = ['about', 'spaces', 'membership', 'venue', 'access'];
 
 test('server 依 host 分流三個子品牌站，三語路徑，模板原檔不在官網直接提供', () => {
   for (const [slug, [host]] of Object.entries(SITES)) assert.match(server, new RegExp(`'${host.replace(/\./g, '\\.')}': '${slug}'`));
@@ -65,28 +65,18 @@ test('等等空間主色只用 CIS 品牌深藍 #2B4064，不得出現參照站�
   assert.doesNotMatch(css, /#02343c|#03343c|#ef7d22|#b45309|#ffad68|rgba\(2,\s*52,\s*60/i, '不得用 CIC 青綠或橘');
 });
 
-// 等等空間 CIC 式多頁（KK 2026-11-08）：每個子頁同樣守三語、CIS、範圍與法遵規則
-for (const sub of SQ_SUBS) {
-  for (const [lang, [dir, htmlLang]] of Object.entries(LANGS)) {
-    test(`stay-square/${sub}/${lang}：子頁三語與品牌規則`, () => {
-      const html = fs.readFileSync(`public/brand-sites/${dir}stay-square-${sub}.html`, 'utf8');
-      const body = text(html);
-      const url = `https://staysquare.emoji.tw/${lang === 'zh' ? '' : lang + '/'}${sub}`;
-      assert.ok(html.includes(`<html lang="${htmlLang}">`));
-      assert.ok(html.includes(`<link rel="canonical" href="${url}">`), 'canonical');
-      for (const [l, [, hl]] of Object.entries(LANGS)) assert.ok(html.includes(`hreflang="${hl}" href="https://staysquare.emoji.tw/${l === 'zh' ? '' : l + '/'}${sub}"`), 'hreflang ' + l);
-      assert.equal((html.match(/class="lang-switch bs-lang/g) || []).length, 2);
-      assert.ok(html.includes(`<a href="${lang === 'zh' ? '' : '/' + lang}/${sub}" aria-current="page">`), '導覽標目前頁');
-      assert.ok(!/FFDE34/i.test(html) && !/style="/.test(html));
-      const parent = { zh: '言文字｜台灣人才聚落', en: 'emoji — Taiwan Talent Hub', ja: '言文字｜台湾タレントハブ' }[lang];
-      assert.equal(body.split(parent).length - 1, 1, '母品牌只在頁尾出現一次');
-      for (const [s, [h]] of Object.entries(SITES)) if (s !== 'stay-square') assert.ok(!html.includes(h));
-      assert.doesNotMatch(body, floors, '不寫樓層');
-      assert.doesNotMatch(body, stay, '不寫住宿');
-      assert.doesNotMatch(body, /淋浴|交誼廳|膠囊|休憩|shower|capsule|social room|シャワー|カプセル|約書旅|Rest Book/i, '不寫 2F 設施');
-      if (lang === 'en') assert.deepEqual(body.replace(/等等空間|言文字股份有限公司|統一編號|台北市中正區重慶南路一段 11 號|中文|日本語/g, '').match(/[\u4e00-\u9fff]{3,}/g) || [], []);
-    });
-  }
+// 等等空間一頁式（KK 2026-11-17）：五個區塊都在首頁、導覽走錨點、不再有子頁檔
+for (const [lang, [dir]] of Object.entries(LANGS)) {
+  test(`stay-square/${lang}：一頁式錨點導覽`, () => {
+    const html = fs.readFileSync(`public/brand-sites/${dir}stay-square.html`, 'utf8');
+    for (const id of SQ_SECTIONS) {
+      assert.equal((html.match(new RegExp(`id="${id}"`, 'g')) || []).length, 1, id + ' 區塊');
+      assert.ok(html.includes(`href="#${id}"`), id + ' 導覽錨點');
+    }
+    assert.equal((html.match(/<h1[ >]/g) || []).length, 1, '只有一個 h1');
+    assert.doesNotMatch(html, /href="(?:\/(?:en|ja))?\/(?:about|spaces|membership|venue|access)"/, '不連舊子頁');
+    for (const id of SQ_SECTIONS) assert.ok(!fs.existsSync(`public/brand-sites/${dir}stay-square-${id}.html`), id + ' 子頁檔已移除');
+  });
 }
 
 test('菜單由 renderSpace 伺服器端依語系填入，只放該店品項', () => {

@@ -1764,12 +1764,12 @@ app.use((req, res, next) => {
 app.use(require('./lib/lang-pref').langPrefMiddleware({
   applies: req => { const h = String(req.hostname || '').toLowerCase(); return !!BRAND_HOSTS[h] || (h === SITE_HOST && !ADMIN_MODE); },
   localized: (req, p) => BRAND_HOSTS[String(req.hostname || '').toLowerCase()]
-    ? /^\/(index\.html|cis\/?)?$/.test(p) || (String(req.hostname || '').toLowerCase() === 'staysquare.emoji.tw' && /^\/(about|spaces|membership|venue|access)\/?$/.test(p))
+    ? /^\/(index\.html|cis\/?)?$/.test(p)
     : p === '/' || /^\/(events|event-application|halloween-2026|space|menu|at-cafe|3am|stay-square)\/?$/.test(p) || !!resolvePublicHtml(path.join(PUB, 'en'), p),
 }));
 // 子品牌 sitemap：首頁（＋等等空間子頁）× 三語，loc 與各頁 canonical 一致，每筆附 xhtml:link hreflang
 function brandSitemap(slug, host) {
-  const subs = [''].concat(slug === 'stay-square' ? ['about', 'spaces', 'membership', 'venue', 'access'] : []);
+  const subs = [''];  // 等等空間 11/17 改一頁式，不再列子頁
   const loc = (lang, sub) => `https://${host}` + (lang === 'zh' ? (sub ? '/' + sub : '/') : '/' + lang + (sub ? '/' + sub : ''));
   const alts = sub => ['zh', 'en', 'ja'].map(l => `    <xhtml:link rel="alternate" hreflang="${l === 'zh' ? 'zh-Hant' : l}" href="${loc(l, sub)}"/>`).join('\n') + `\n    <xhtml:link rel="alternate" hreflang="x-default" href="${loc('zh', sub)}"/>`;
   const urls = subs.flatMap(sub => ['zh', 'en', 'ja'].map(lang => `  <url>\n    <loc>${loc(lang, sub)}</loc>\n${alts(sub)}\n  </url>`));
@@ -1788,13 +1788,9 @@ app.use((req, res, next) => {
   }
   // 三語：/ 中文、/en、/ja，以及等等空間 CIC 式子頁；內容依語系伺服器端填入
   const staySub = slug === 'stay-square' && /^(?:\/(en|ja))?\/(about|spaces|membership|venue|access)\/?$/.exec(req.path);
-  if (staySub) {
-    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  if (staySub) {  // KK 11/17 改一頁式：舊子頁 301 到首頁對應錨點
     const lang = staySub[1] || 'zh', sub = staySub[2];
-    const wanted = (lang === 'zh' ? '' : '/' + lang) + '/' + sub;
-    if (req.path !== wanted) return res.redirect(301, wanted);
-    const file = path.join(PUB, 'brand-sites', lang === 'zh' ? '' : lang, `stay-square-${sub}.html`);
-    return publicSnapshot().then(snapshot => { publicPageCache(req, res); sendPage(res, file, '/' + slug, html => publicRender.renderSpace(html, snapshot, lang, slug)); }, next);
+    return res.redirect(301, (lang === 'zh' ? '/' : '/' + lang) + '#' + sub);
   }
   const langM = /^\/(?:index\.html|(en|ja)\/?(?:index\.html)?)?$/.exec(req.path);
   if (langM) {

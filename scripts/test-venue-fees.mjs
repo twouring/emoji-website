@@ -9,7 +9,7 @@ const { taxPrice } = require('../lib/event-tickets.js');
 const priv = (venue, attendees) => F.quoteVenueFee({ venue, visibility: 'private', attendees });
 
 test('等等空間包場只走分區（KK 11/17）：未帶區域的 3F 包場試算回錯誤並導向 staysquare /venue；公開活動照常', () => {
-  for (const n of [1, 10, 25, 41, 61]) assert.match(priv('3F', n).error, /staysquare\.emoji\.tw\/venue/);
+  for (const n of [1, 10, 25, 41, 61]) assert.match(priv('3F', n).error, /staysquare\.emoji\.tw\/#venue/);
   const pub = F.quoteVenueFee({ venue: '3F', visibility: 'public', attendees: 61, registration_mode: 'external' });
   assert.equal(pub.error, undefined);
   assert.equal(pub.fee_twd, 150 * 61);

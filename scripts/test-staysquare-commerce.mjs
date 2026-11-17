@@ -37,7 +37,7 @@ test('分區包場申請：整點、2 小時倍數、人數上限、只限 3F �
   assert.ok(normalizeEventApplication({ ...base, zone: 'A', venue: '2F', attendees: '5' }).error);
   assert.ok(normalizeEventApplication({ ...base, zone: 'A', visibility: 'public', registration_mode: 'native' }).error);
   assert.ok(normalizeEventApplication({ ...base, zone: 'Z' }).error);
-  assert.match(normalizeEventApplication(base).error, /staysquare\.emoji\.tw\/venue/, '沒帶 zone 的等等空間包場不收件（KK 11/17，舊人數級距停用）');
+  assert.match(normalizeEventApplication(base).error, /staysquare\.emoji\.tw\/#venue/, '沒帶 zone 的等等空間包場不收件（KK 11/17，舊人數級距停用）');
 });
 
 const server = fs.readFileSync('server.js', 'utf8');
@@ -50,20 +50,20 @@ test('server：子品牌站可登入回跳、結帳回到等等空間站、會�
 
 for (const dir of ['', 'en/', 'ja/']) {
   test(`等等空間 ${dir || 'zh/'}：登入、購買、包場表單價格與後端一致`, () => {
-    // CIC 式多頁（KK 11/8）：每頁都載登入對話框與腳本；會籍購買在 /membership、包場表單在 /venue
-    for (const page of ['', '-about', '-spaces', '-membership', '-venue', '-access']) {
+    // 一頁式（KK 11/17）：會籍購買與包場表單都在首頁
+    for (const page of ['']) {
       const any = fs.readFileSync(`public/brand-sites/${dir}stay-square${page}.html`, 'utf8');
       assert.ok(any.includes('<script src="/sso-client.js" defer></script>\n<script src="/brand-sites/stay-square-shop.js" defer></script>'), page + ' 先載 SSO 再載購買腳本');
       assert.ok(any.includes('id="sq-login"') && any.includes('data-sq-flash'), page + ' 登入對話框與提示');
     }
-    let html = fs.readFileSync(`public/brand-sites/${dir}stay-square-membership.html`, 'utf8');
+    let html = fs.readFileSync(`public/brand-sites/${dir}stay-square.html`, 'utf8');
     assert.ok(html.includes('data-sq-login') && html.includes('id="member"'));
     for (const plan of ['day_4h', 'day_12h', 'month', 'quarter', 'year', 'year_promo']) {
       const m = html.match(new RegExp(`data-plan="${plan}"[^>]*>[^<]*NT\\$([\\d,]+)<`));
       assert.ok(m, plan);
       assert.equal(Number(m[1].replace(/,/g, '')), PLAN_PRICE_TWD[plan], plan + ' 價格');
     }
-    html = fs.readFileSync(`public/brand-sites/${dir}stay-square-venue.html`, 'utf8');
+    html = fs.readFileSync(`public/brand-sites/${dir}stay-square.html`, 'utf8');
     for (const [zone, z] of Object.entries(STAY_ZONES)) {
       assert.ok(html.includes(`value="${zone}" data-fee="${z.fee}" data-max="${z.max}"`), zone);
     }

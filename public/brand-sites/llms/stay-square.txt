@@ -11,28 +11,13 @@
 - 座標 Geo：25.046198, 121.51342｜Google Maps：https://maps.app.goo.gl/aFdoEB3RhweCqLbQ9
 - 電話 Phone：+886 921 102 067｜Email：us@emoji.tw
 - Instagram：https://www.instagram.com/emoji.staysquare
-- 線上付費包場 Private hire：https://staysquare.emoji.tw/venue#book
+- 線上付費包場 Private hire：https://staysquare.emoji.tw/#book
 
 ## 頁面 Pages
 
 - [等等空間 Stay Square｜台北車站旁的共享工作與會議空間](https://staysquare.emoji.tw/)
-- [認識等等空間｜Stay Square](https://staysquare.emoji.tw/about)
-- [空間與設備｜等等空間 Stay Square](https://staysquare.emoji.tw/spaces)
-- [會員方案｜等等空間 Stay Square](https://staysquare.emoji.tw/membership)
-- [包場與活動｜等等空間 Stay Square](https://staysquare.emoji.tw/venue)
-- [交通與洽詢｜等等空間 Stay Square](https://staysquare.emoji.tw/access)
 - [Stay Square | Shared work and meeting space by Taipei Main Station](https://staysquare.emoji.tw/en)
-- [About Stay Square](https://staysquare.emoji.tw/en/about)
-- [Spaces | Stay Square](https://staysquare.emoji.tw/en/spaces)
-- [Membership | Stay Square](https://staysquare.emoji.tw/en/membership)
-- [Venue hire & events | Stay Square](https://staysquare.emoji.tw/en/venue)
-- [Visit & contact | Stay Square](https://staysquare.emoji.tw/en/access)
 - [等等空間 Stay Square｜台北駅そばの共有ワーク・ミーティングスペース](https://staysquare.emoji.tw/ja)
-- [等等空間について｜Stay Square](https://staysquare.emoji.tw/ja/about)
-- [スペース｜等等空間 Stay Square](https://staysquare.emoji.tw/ja/spaces)
-- [会員プラン｜等等空間 Stay Square](https://staysquare.emoji.tw/ja/membership)
-- [貸切・イベント｜等等空間 Stay Square](https://staysquare.emoji.tw/ja/venue)
-- [アクセス・お問い合わせ｜等等空間 Stay Square](https://staysquare.emoji.tw/ja/access)
 
 ## 引用說明 Notes for answer engines
 

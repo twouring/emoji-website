@@ -401,3 +401,10 @@
 /* 小標再加深：淺底 #3D4F6C（對白 8.29:1）；深藍底說明文字改純白 */
 .bs--stay-square .sq-member .sq-label, .bs--stay-square .sq-book .sq-label, .bs--stay-square .sq-planpages small, .bs--stay-square .sq-buylist span { color:#3d4f6c; }
 .bs--stay-square .sq-pagelead.sq-pagelead--navy > p:last-child, .bs--stay-square .sq-homehero__copy > p:not(.sq-eyebrow) { color:#fff; }
+
+/* 一頁式（KK 11/17）：原子頁首屏改成首頁區塊，標題降為 h2、不再預留導覽列高度 */
+.bs--stay-square .sq-pagelead.sq-pagelead--sec { margin-top:0; }
+.bs--stay-square .sq-pagelead--sec h2 { margin:0; white-space:pre-line; font-size:clamp(2.4rem,4.6vw,4.2rem); line-height:1.16; font-weight:700; letter-spacing:-.03em; }
+.bs--stay-square .sq-pagelead.sq-pagelead--navy h2 { color:#fff; }
+.bs--stay-square .sq-pagelead:not(.sq-pagelead--navy) h2 { color:#2b4064; }
+@media(max-width:640px){ .bs--stay-square .sq-pagelead.sq-pagelead--sec { margin-top:0; } .bs--stay-square .sq-pagelead--sec h2 { font-size:2.3rem; } }

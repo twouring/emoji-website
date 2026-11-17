@@ -68,7 +68,7 @@ test('約書旅／等等空間：線上先買、入場才計時', () => {
   assert.match(rb, /掃碼入場後才開始計時/);
   assert.match(rb, /可以線上先買嗎？入場才開始計時嗎？/);
   assert.match(rb, /data-rb-buy/);
-  const st = fs.readFileSync('public/brand-sites/stay-square-membership.html', 'utf8');
+  const st = fs.readFileSync('public/brand-sites/stay-square.html', 'utf8');
   assert.match(st, /掃碼入場後才開始計時/);
   const js = fs.readFileSync('public/brand-sites/stay-square-shop.js', 'utf8');
   assert.match(js, /掃碼入場後才開始計時/);

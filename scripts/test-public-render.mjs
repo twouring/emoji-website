@@ -242,9 +242,11 @@ test('HTTP：子品牌站 robots／sitemap／llms.txt（KK 11/10 SEO／GEO），
   assert.match(robots.body, /Disallow: \/api\//); assert.match(robots.body, /Sitemap: https:\/\/staysquare\.emoji\.tw\/sitemap\.xml/);
   const sm = await get('/sitemap.xml', { host: 'staysquare.emoji.tw' });
   assert.match(sm.headers.get('content-type'), /^application\/xml/);
-  for (const loc of ['https://staysquare.emoji.tw/', 'https://staysquare.emoji.tw/en', 'https://staysquare.emoji.tw/ja/venue', 'https://staysquare.emoji.tw/membership'])
+  for (const loc of ['https://staysquare.emoji.tw/', 'https://staysquare.emoji.tw/en', 'https://staysquare.emoji.tw/ja'])
     assert.ok(sm.body.includes(`<loc>${loc}</loc>`), loc);
-  assert.match(sm.body, /hreflang="x-default" href="https:\/\/staysquare\.emoji\.tw\/access"/);
+  assert.equal((sm.body.match(/<url>/g) || []).length, 3, '等等空間一頁式（KK 11/17）：sitemap 只列三語首頁');
+  const old = await get('/ja/venue', { host: 'staysquare.emoji.tw' });
+  assert.equal(old.status, 301); assert.equal(old.headers.get('location'), '/ja#venue', '舊子頁 301 到錨點');
   const small = await get('/sitemap.xml', { host: 'restbook.emoji.tw' });
   assert.equal((small.body.match(/<url>/g) || []).length, 3);
   const llms = await get('/llms.txt', { host: 'restbook.emoji.tw' });
