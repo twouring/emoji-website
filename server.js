@@ -3249,7 +3249,7 @@ app.post('/api/event-applications/:id/deposit/checkout', auth, requireDb, wrap(a
   const session = await stripe.checkout.sessions.create({
     mode: 'payment', payment_method_types: ['card'], customer_email: a.contact_email,
     line_items: [{ price_data: { currency: 'twd', product_data: { name: `${a.zone ? (venueFees.hireZone(a.zone)?.brand || '言文字') + '包場場地費' : a.visibility === 'private' ? '言文字包場活動場地費' : '言文字場地茶飲費'}｜${a.title}`.slice(0, 250) }, unit_amount: a.deposit_twd * 100 }, quantity: 1 }],
-    success_url: brandReturnBase(req.body) ? `${brandReturnBase(req.body)}?deposit_paid={CHECKOUT_SESSION_ID}` : `${SITE_BASE}${base}/events?apply=1&deposit_paid={CHECKOUT_SESSION_ID}`,
+    success_url: appPaidUrl(req.body, 'deposit_paid={CHECKOUT_SESSION_ID}'),
     cancel_url: brandReturnBase(req.body) ? `${brandReturnBase(req.body)}?deposit_canceled=1` : `${SITE_BASE}${base}/events?apply=1`,
     metadata: { kind: 'application-deposit', application_id: a.id, user_id: req.auth.sub },
   });
@@ -5966,6 +5966,10 @@ app.post('/api/me/profile', auth, requireDb, wrap(async (req, res) => {
   res.json({ ok: true, me: row });
 }));
 
+/** 付款成功一律跳到言文字 App（官網／子品牌站結帳皆同，KK 11/17）；App 依查詢參數驗證付款並顯示結果。取消付款仍回原站（brandReturnBase）。 */
+function appPaidUrl(body, query) {
+  return `${APP_BASE}/?${query}${['en', 'ja'].includes(body?.lang) ? '&lang=' + body.lang : ''}`;
+}
 /** 結帳完成要回到的子品牌站（body.return_host 須為已知子品牌網域、在 WEB_ORIGINS 內）；否則回 null 走原本的 App／官網。 */
 function brandReturnBase(body) {
   const host = String(body?.return_host || '').toLowerCase();
@@ -6004,7 +6008,7 @@ app.post('/api/me/plans/checkout', auth, requireDb, wrap(async (req, res) => {
       quantity: 1,
     }],
     // 付款完成／取消都回會員 App（App 讀 ?plan_paid=1&s= 後向 /api/me/plans/verify 確認）
-    success_url: `${brandReturnBase(req.body) || APP_BASE + '/'}?plan_paid=1&s={CHECKOUT_SESSION_ID}`,
+    success_url: appPaidUrl(req.body, 'plan_paid=1&s={CHECKOUT_SESSION_ID}'),
     cancel_url: `${brandReturnBase(req.body) || APP_BASE + '/'}?plan_canceled=1`,
     metadata: { kind: 'plan', plan, user_id: req.auth.sub, src: srcOf(req) || undefined },
   });
@@ -6054,7 +6058,7 @@ app.post('/api/me/lounge/checkout', auth, requireDb, wrap(async (req, res) => {
   const session = await stripe.checkout.sessions.create({
     mode: 'payment', payment_method_types: ['card'], customer_email: user?.email || undefined,
     line_items: [{ price_data: { currency: 'twd', product_data: { name: `約書旅 Rest Book｜${loungeName(it)}`, description: '到約書旅櫃檯出示會員 App 會員卡，掃碼入場後開始計時；超時費用離場時現場結算。' }, unit_amount: it.price * 100 }, quantity: 1 }],
-    success_url: `${brandReturnBase(req.body) || APP_BASE + '/'}?lounge_paid=1&s={CHECKOUT_SESSION_ID}`,
+    success_url: appPaidUrl(req.body, 'lounge_paid=1&s={CHECKOUT_SESSION_ID}'),
     cancel_url: `${brandReturnBase(req.body) || APP_BASE + '/'}?lounge_canceled=1`,
     expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
     metadata: { kind: 'lounge', item_id: it.id, price: String(it.price), user_id: req.auth.sub },

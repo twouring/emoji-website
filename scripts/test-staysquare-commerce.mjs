@@ -41,7 +41,7 @@ test('分區包場申請：整點、2 小時倍數、人數上限、只限 3F �
 });
 
 const server = fs.readFileSync('server.js', 'utf8');
-test('server：子品牌站可登入回跳、結帳回到等等空間站、會員摘要 API', () => {
+test('server：子品牌站可登入回跳、取消付款回到等等空間站（成功跳 App）、會員摘要 API', () => {
   assert.match(server, /SSO_BASE, \.\.\.Object\.keys\(BRAND_HOSTS\)\.map/, '品牌站（含 staysquare）在登入導回白名單');
   assert.match(server, /app\.get\('\/api\/me\/summary', auth, requireDb/);
   assert.match(server, /brandReturnBase\(req\.body\) \|\| APP_BASE/);

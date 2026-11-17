@@ -86,7 +86,7 @@ test('約書旅官網可線上購買，付款走貴賓室入帳', () => {
   assert.match(rb, /data-rb-buy/);
   assert.match(rb, /brand-sites\/rest-book-shop\.js/);
   assert.match(read('public/brand-sites/rest-book-shop.js'), /\/api\/me\/lounge\/checkout/);
-  assert.match(srv, /brandReturnBase\(req\.body\) \|\| APP_BASE \+ '\/'\}\?lounge_paid=1/);
+  assert.match(srv, /success_url: appPaidUrl\(req\.body, 'lounge_paid=1/);
 });
 
 test('POS：入場管理有掃碼進出、等等空間有會員清單、線上已付可入場', () => {

@@ -59,7 +59,14 @@ test('登入預設導回會員 App；App 網域在導回白名單；Stripe 會�
   assert.match(server, /const DEFAULT_MEMBER_URL = \(process\.env\.MEMBER_URL \|\| APP_BASE \+ '\/'\)/);
   assert.match(server, /SITE_BASE, ADMIN_BASE, APP_BASE,[\s\S]{0,200}ORDER_HOSTS\)\.map\(h => 'https:\/\/' \+ h\),[\s\S]{0,200}SSO_BASE, \.\.\.Object\.keys\(BRAND_HOSTS\)\.map\(h => 'https:\/\/' \+ h\),[\s\S]{0,200}KTV_HOSTS[\s\S]{0,200}\]\)\]/);   // KTV（KK 11/6）也在導回白名單
   // 等等空間站（staysquare.emoji.tw）結帳帶 return_host 時回該站，其餘回 App
-  assert.match(server, /success_url: `\$\{brandReturnBase\(req\.body\) \|\| APP_BASE \+ '\/'\}\?plan_paid=1&s=\{CHECKOUT_SESSION_ID\}`/);
+  // 付款成功一律跳到言文字 App（KK 11/17）；取消才回原站
+  assert.match(server, /success_url: appPaidUrl\(req\.body, 'plan_paid=1&s=\{CHECKOUT_SESSION_ID\}'\)/);
+  assert.match(server, /success_url: appPaidUrl\(req\.body, 'lounge_paid=1&s=\{CHECKOUT_SESSION_ID\}'\)/);
+  assert.match(server, /success_url: appPaidUrl\(req\.body, 'deposit_paid=\{CHECKOUT_SESSION_ID\}'\)/);
+  assert.doesNotMatch(server, /success_url: [^\n]*brandReturnBase/, '付款成功不再回子品牌站');
+  assert.match(server, /function appPaidUrl\(body, query\) \{\n  return `\$\{APP_BASE\}\/\?\$\{query\}/);
+  assert.match(m, /async function fulfillDepositIfNeeded\(\)/); assert.match(m, /await fulfillDepositIfNeeded\(\);/);
+  assert.match(m, /\/api\/event-applications\/deposit\/verify/);
   assert.match(server, /cancel_url: `\$\{brandReturnBase\(req\.body\) \|\| APP_BASE \+ '\/'\}\?plan_canceled=1`/);
   assert.doesNotMatch(server, /\$\{SITE_BASE\}\/member|memberBase|lang === 'en' \? '\/en\/member'/);
   assert.match(server, /app\.get\(\['\/member', '\/member\.html', '\/en\/member', '\/en\/member\.html', '\/ja\/member', '\/ja\/member\.html', '\/login'/, '舊網址 302 轉址路由');
