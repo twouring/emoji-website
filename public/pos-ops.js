@@ -449,7 +449,8 @@ const idleWarn=s=>!s.takeout&&s.state==='empty'&&s.created_at&&(Date.now()-new D
 const UNSENT_WARN_MIN=2;
 // 只看尚未送出的有效品項；同桌多次加點時，以最早一筆未送單品項開始算。
 const unsentReminder=(s,now=Date.now())=>{
-  const times=(s.lines||[]).filter(l=>!l.credit_of&&!l.cancelled&&!l.placed_at).map(l=>Date.parse(l.added_at||l.created_at||'')).filter(Number.isFinite);
+  if(typeof posSpaceOn==='function'&&posSpaceOn())return null;   /* 空間情境（等等空間／約書旅）沒有送單流程，入場單不算未送單（KK 11/17） */
+  const times=(s.lines||[]).filter(l=>!l.credit_of&&!l.cancelled&&!l.placed_at&&!l.served_at).map(l=>Date.parse(l.added_at||l.created_at||'')).filter(Number.isFinite);
   if(!times.length)return null;
   const at=Math.min(...times),minutes=Math.max(0,Math.floor((now-at)/60000));
   return {since:new Date(at).toISOString(),minutes,overdue:minutes>=UNSENT_WARN_MIN};

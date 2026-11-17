@@ -30,3 +30,9 @@ test('未送單逾時：彈窗與專屬雙音提示各事件只提醒一次，�
   assert.match(ops, /if\(TAB==='pos'\)alertUnsentOrders\(POS_DATA\.sessions\);/, '收到最新桌況後要觸發提醒');
   assert.match(ops, /if\(TAB==='pos'&&POS_DATA\?\.sessions\)alertUnsentOrders\(POS_DATA\.sessions\);/, '剛好滿兩分鐘時也要由時計直接觸發，不等下一輪輪詢');
 });
+
+test('空間情境（等等空間／約書旅）入場單沒有送單流程，不跳未送單提醒（KK 11/17）', () => {
+  const ops = read('public/pos-ops.js');
+  assert.match(ops, /if\(typeof posSpaceOn==='function'&&posSpaceOn\(\)\)return null;/, '空間情境不算未送單');
+  assert.match(ops, /!l\.placed_at&&!l\.served_at/, '已出餐（入場單）的行不算未送單');
+});
