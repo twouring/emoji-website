@@ -221,3 +221,11 @@ test('客人遙控：/s 有遙控分頁、伺服器限制只能控制自己的�
   assert.ok(srv.includes("app.post('/api/ktv/remote'")); assert.match(srv, /if\(!ktvOwn\(state,t\)\)return res\.status\(403\)/);
   assert.match(srv, /ticket:t\.id/, '點歌時記下兌換碼');
 });
+
+test('KTV 歌單頁可查看與編輯時段歌單（KK 11/17）', () => {
+  const js = read('public/ktv.js');
+  assert.match(js, /data-k-edit="\$\{i\}"/, '每個時段有查看／編輯');
+  assert.match(js, /data-k-edit="-1"/, '預設歌單可查看／編輯');
+  for (const k of ['data-k-edmv', 'data-k-eddel', 'data-k-edadd', 'data-k-edsearch', 'data-k-edmeta']) assert.ok(js.includes(k), k);
+  assert.match(js, /post\('settings', \{ schedules: sch \}\)/, '時段歌單整份送 settings');
+});

@@ -157,17 +157,53 @@ function pageRemote(){
 
 /* ---------- 頁面：歌單 ---------- */
 const DAY = '日一二三四五六';
+const days = a => a.length === 7 ? '每天' : a.map(x => DAY[x]).join('、');
+/* 歌單編輯：EDIT = -1 預設歌單、0.. 時段歌單索引；改動一律整份送 settings（playlist 或 schedules） */
+let EDIT = null, ED_RES = null, ED_SEARCHING = false, ED_Q = '';
+const edList = () => EDIT === -1 ? D.settings.playlist : ((D.settings.schedules || [])[EDIT] || {}).playlist || [];
+function edSave(list, msg){
+  if (EDIT === -1) return act(() => post('settings', { playlist: list }), msg);
+  const sch = D.settings.schedules.map((x, j) => j === EDIT ? { ...x, playlist: list } : x);
+  return act(() => post('settings', { schedules: sch }), msg);
+}
+function edResults(){
+  if (ED_SEARCHING) return '<p class="hint">搜尋中…</p>';
+  if (ED_RES == null) return '';
+  if (!ED_RES.length) return '<p class="empty">找不到可播放的歌曲。</p>';
+  const have = new Set(edList().map(t => t.video_id));
+  return `<ul class="list">${ED_RES.map((t, i) => row(t, have.has(t.video_id) ? '<span class="pill">已在歌單</span>' : `<button type="button" class="btn btn--sm btn--solid" data-k-edadd="${i}">加入</button>`)).join('')}</ul>`;
+}
+function pageEdit(){
+  const s = D.settings, isDef = EDIT === -1, x = isDef ? null : s.schedules[EDIT];
+  if (!isDef && !x) { EDIT = null; return pagePlaylists(); }
+  const list = edList(), n = list.length, mins = Math.round(list.reduce((a, t) => a + (t.duration || 240), 0) / 60);
+  const meta = isDef ? '' : `<form class="form panel" data-k-edmeta style="margin:0 0 16px">
+      <label>名稱<input name="name" maxlength="60" required value="${esc(x.name)}"></label>
+      <label>開始<input name="start" type="time" required value="${esc(x.start)}"></label>
+      <label>結束<input name="end" type="time" required value="${esc(x.end === '24:00' ? '00:00' : x.end)}"></label>
+      <fieldset class="form" style="grid-column:1/-1;border:0;padding:0;margin:0;min-width:0"><legend class="hint">星期</legend>${[1, 2, 3, 4, 5, 6, 0].map(d => `<label class="switch" style="margin:0;padding:10px"><input type="checkbox" name="d" value="${d}" ${x.days.includes(d) ? 'checked' : ''}><span>週${DAY[d]}</span></label>`).join('')}</fieldset>
+      <button type="submit" class="btn btn--solid">儲存時段設定</button></form>`;
+  const songsHtml = n ? `<ol class="list">${list.map((t, i) => row(t, `<button type="button" class="btn btn--sm" data-k-edmv="${i}" data-to="${i - 1}" ${i ? '' : 'disabled'} aria-label="上移 ${esc(t.title)}">↑</button><button type="button" class="btn btn--sm" data-k-edmv="${i}" data-to="${i + 1}" ${i < n - 1 ? '' : 'disabled'} aria-label="下移 ${esc(t.title)}">↓</button><button type="button" class="btn btn--sm btn--danger" data-k-eddel="${i}" aria-label="移除 ${esc(t.title)}">移除</button>`, i + 1)).join('')}</ol>` : '<p class="empty">歌單是空的，從右邊搜尋加歌。</p>';
+  return `<div class="k-head"><h1>${esc(isDef ? '預設歌單' : x.name)}</h1><span class="k-sub">${isDef ? '不在任何時段時播放' : esc(days(x.days) + ' ' + x.start + '–' + x.end)}・${n} 首・約 ${mins} 分鐘</span><span class="k-act"><button type="button" class="btn" data-k-edback>‹ 回歌單列表</button></span></div>
+  ${meta}<div class="two">
+    <section class="panel"><h2>歌曲 <small>${n} 首</small></h2>${songsHtml}</section>
+    <section class="panel"><h2>加歌</h2><form class="form" data-k-edsearch><label>搜尋 YouTube<input name="q" value="${esc(ED_Q)}" placeholder="歌名或歌手" autocomplete="off" required></label><button type="submit" class="btn btn--solid">搜尋</button></form>
+      <p class="hint">加入的歌排在歌單最後，可再用 ↑↓ 調整順序。</p><div data-k-edres>${edResults()}</div></section>
+  </div>`;
+}
 function pagePlaylists(){
-  const s = D.settings, days = a => a.length === 7 ? '每天' : a.map(x => DAY[x]).join('、');
+  if (EDIT != null) return pageEdit();
+  const s = D.settings;
   const mine = MINE ? (MINE.length ? `<ul class="list">${MINE.map(p => `<li class="row"><div class="meta"><b>${esc(p.title)}</b><small>${esc(p.count)} 首</small></div><div class="act"><button type="button" class="btn btn--sm btn--solid" data-k-mine="${esc(p.id)}" data-mode="replace">取代</button><button type="button" class="btn btn--sm" data-k-mine="${esc(p.id)}" data-mode="append">接在後面</button></div></li>`).join('')}</ul>` : '<p class="empty">這個帳號沒有播放清單。</p>') : '';
   const pl = s.playlist.length ? `<details><summary class="hint">查看預設歌單（${s.playlist.length} 首）</summary><ol class="list">${s.playlist.map((t, i) => row(t, `<button type="button" class="btn btn--sm btn--danger" data-k-pldel="${i}" aria-label="移除 ${esc(t.title)}">移除</button>`, i + 1)).join('')}</ol><p><button type="button" class="btn btn--sm btn--danger" data-k-plclear>清空預設歌單</button></p></details>` : '<p class="empty">還沒有預設歌單。</p>';
-  const sch = (s.schedules || []).length ? `<ol class="list">${s.schedules.map((x, i) => `<li class="row"><div class="meta"><b>${esc(x.name)}</b><small>${esc(days(x.days))} ${esc(x.start)}–${esc(x.end)}・${esc(x.playlist.length)} 首</small></div><div class="act"><button type="button" class="btn btn--sm btn--danger" data-k-schdel="${i}" aria-label="移除時段歌單 ${esc(x.name)}">移除</button></div></li>`).join('')}</ol>` : '<p class="empty">還沒有時段歌單。</p>';
+  const plEdit = `<p><button type="button" class="btn btn--sm" data-k-edit="-1">查看／編輯預設歌單</button></p>`;
+  const sch = (s.schedules || []).length ? `<ol class="list">${s.schedules.map((x, i) => `<li class="row"><div class="meta"><b>${esc(x.name)}</b><small>${esc(days(x.days))} ${esc(x.start)}–${esc(x.end)}・${esc(x.playlist.length)} 首</small></div><div class="act"><button type="button" class="btn btn--sm btn--solid" data-k-edit="${i}" aria-label="查看／編輯時段歌單 ${esc(x.name)}">查看／編輯</button><button type="button" class="btn btn--sm btn--danger" data-k-schdel="${i}" aria-label="移除時段歌單 ${esc(x.name)}">移除</button></div></li>`).join('')}</ol>` : '<p class="empty">還沒有時段歌單。</p>';
   return `<div class="k-head"><h1>歌單</h1><span class="k-sub">沒有人點歌時播放；到了設定的時段改播時段歌單（台北時間）。</span></div>
   <div class="two">
     <section class="panel"><h2>預設歌單 <small>${s.playlist.length} 首</small></h2>
       <label class="switch"><input type="checkbox" data-k-shuffle ${s.shuffle ? 'checked' : ''}><span><b>隨機播放</b><small>${s.shuffle ? '每輪洗牌一次，每首各播一次。' : '依序播放，播完從頭。'}</small></span></label>
       <form class="form" data-k-import><label>YouTube 播放清單網址<input type="url" name="pl" placeholder="含 list= 的網址" autocomplete="off" required></label><button type="submit" class="btn btn--solid">匯入（取代）</button></form>
-      ${D.youtube.connected ? '<p><button type="button" class="btn btn--sm" data-k-minelist>從我的 YouTube 播放清單匯入</button></p>' : ''}${mine}${pl}</section>
+      ${D.youtube.connected ? '<p><button type="button" class="btn btn--sm" data-k-minelist>從我的 YouTube 播放清單匯入</button></p>' : ''}${mine}${plEdit}${pl}</section>
     <section class="panel"><h2>時段歌單 <small>${(s.schedules || []).length} 個</small></h2>${sch}
       <h3>新增時段歌單</h3>
       <form class="form" data-k-schadd>
@@ -303,6 +339,11 @@ document.addEventListener('click', async e => {
   if (b.dataset.kPldel != null && b.dataset.kPldel !== '') { const i = Number(b.dataset.kPldel); return act(() => post('settings', { playlist: D.settings.playlist.filter((_, j) => j !== i) }), '預設歌單已更新'); }
   if (b.matches('[data-k-plclear]')) { if (!confirm('清空預設歌單？沒有人點歌、也不在時段內時會安靜無聲。')) return; return act(() => post('settings', { playlist: [] }), '預設歌單已清空'); }
   if (b.dataset.kSchdel != null && b.dataset.kSchdel !== '') { const i = Number(b.dataset.kSchdel), x = D.settings.schedules[i]; if (!x || !confirm(`移除時段歌單「${x.name}」？`)) return; return act(() => post('settings', { schedules: D.settings.schedules.filter((_, j) => j !== i) }), '時段歌單已更新'); }
+  if (b.dataset.kEdit != null && b.dataset.kEdit !== '') { EDIT = Number(b.dataset.kEdit); ED_RES = null; ED_Q = ''; paint(); scrollTo(0, 0); return; }
+  if (b.matches('[data-k-edback]')) { EDIT = null; ED_RES = null; paint(); scrollTo(0, 0); return; }
+  if (b.dataset.kEdmv != null && b.dataset.kEdmv !== '') { const l = edList().slice(), i = Number(b.dataset.kEdmv), to = Number(b.dataset.to); if (to < 0 || to >= l.length) return; const [t] = l.splice(i, 1); l.splice(to, 0, t); return edSave(l); }
+  if (b.dataset.kEddel != null && b.dataset.kEddel !== '') { const l = edList(), i = Number(b.dataset.kEddel), t = l[i]; if (!t) return; if (EDIT !== -1 && l.length === 1) return toast('時段歌單至少要留一首；不要了請回列表移除整個時段。'); if (!confirm(`從歌單移除「${t.title}」？`)) return; return edSave(l.filter((_, j) => j !== i), '已移除'); }
+  if (b.dataset.kEdadd != null && b.dataset.kEdadd !== '') { const t = (ED_RES || [])[Number(b.dataset.kEdadd)]; if (!t) return; b.disabled = true; return edSave(edList().concat([{ video_id: t.video_id, title: t.title, channel: t.channel, thumb: t.thumb, duration: t.duration }]), `已加入「${t.title}」`); }
   if (b.matches('[data-k-minelist]')) { try { MINE = (await api('/admin/orders/songs/youtube/playlists')).playlists; } catch (err) { toast(err.message); } return paint(); }
   if (b.dataset.kMine) { b.disabled = true; return act(() => post('playlist/import', { playlist: b.dataset.kMine, mode: b.dataset.mode }), d => `已匯入 ${d.imported} 首`); }
   if (b.matches('[data-k-yton]')) { try { const r = await post('youtube/connect', { redirect: location.origin + BASE + '/settings' }); location.href = r.url; } catch (err) { toast(err.message); } return; }
@@ -314,6 +355,8 @@ document.addEventListener('submit', e => {
   if (f.matches('[data-k-set]')) return act(() => post('settings', { price: Number(f.price.value), max_per_table: Number(f.max_per_table.value), max_minutes: Number(f.max_minutes.value) }), '設定已儲存');
   if (f.matches('[data-k-import]')) return act(() => post('playlist/import', { playlist: f.pl.value.trim(), mode: 'replace' }), d => `已匯入 ${d.imported} 首`);
   if (f.matches('[data-k-schadd]')) { const days = [...f.querySelectorAll('[name=d]:checked')].map(x => Number(x.value)); if (!days.length) return toast('至少選一天'); return act(() => post('playlist/import', { playlist: f.pl.value.trim(), schedule: { name: f.name.value.trim(), days, start: f.start.value, end: f.end.value } }), d => `已新增時段歌單（${d.imported} 首）`); }
+  if (f.matches('[data-k-edsearch]')) { const q = f.q.value.trim(); if (!q) return; ED_Q = q; ED_SEARCHING = true; const box = $('[data-k-edres]'); if (box) box.innerHTML = edResults(); return S('search?q=' + encodeURIComponent(q)).then(d => { ED_RES = d.items || []; }).catch(err => { toast(err.message); }).finally(() => { ED_SEARCHING = false; const bx = $('[data-k-edres]'); if (bx) bx.innerHTML = edResults(); }); }
+  if (f.matches('[data-k-edmeta]')) { const dd = [...f.querySelectorAll('[name=d]:checked')].map(x => Number(x.value)); if (!dd.length) return toast('至少選一天'); if (f.start.value === f.end.value) return toast('開始與結束時間不能相同'); const sch = D.settings.schedules.map((x, j) => j === EDIT ? { ...x, name: f.name.value.trim(), days: dd, start: f.start.value, end: f.end.value } : x); return act(() => post('settings', { schedules: sch }), '時段設定已儲存'); }
   if (f.matches('[data-k-range]')) { RANGE = { from: f.from.value, to: f.to.value }; return loadStats(); }
 });
 /* 即時搜尋：停 0.5 秒才送（YouTube 搜尋一次 100 額度）、注音組字中不送、丟棄舊回應 */

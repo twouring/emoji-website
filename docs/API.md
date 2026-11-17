@@ -601,7 +601,7 @@ KTV 控台的點歌兌換碼狀態：`tables`（已購買點歌、還沒發碼�
 KTV（ktv.emoji.tw，言文字系統、不分品牌，KK 11/6）控台狀態；全公司一份（site_content `ktv_settings`／`ktv_state`，第一次使用時合併舊的分品牌 `song_settings:<VENUE>`），query `venue` 不再有作用。`settings`（`enabled` 預設 false、`price`、`max_per_table`、`max_minutes`、`shuffle`、`playlist` 預設歌單、`player_device`）、`now`（正在播放，`kind` 為 `request` 或 `playlist`）、`queue`、`upcoming`（接下來完整播放順序：`items` 先列待播、再接預設歌單從下一首起的整份順序，每首帶 `pos`、`kind`；預設歌單為隨機時列出這一輪已洗好的順序（存在 `song_state.shuffle_bag`，每首各播一次，播完再洗）並回 `shuffle:true`）、`history`、`youtube`（是否已綁定、頻道名稱、OAuth 是否可用、是否有 API Key）。
 
 ### POST /api/admin/orders/songs/settings
-修改點歌設定。body 可帶 `enabled`、`shuffle`（boolean）、`price`（0–1000）、`max_per_table`（1–20）、`max_minutes`（1–60）、`playlist`（預設歌單整份取代，最多 300 首）。範圍外 400。
+修改點歌設定。body 可帶 `enabled`、`shuffle`（boolean）、`price`（0–1000）、`max_per_table`（1–20）、`max_minutes`（1–60）、`playlist`（預設歌單整份取代，最多 300 首）、`schedules`（時段歌單整份取代，最多 20 個；每個 `{ name, days:[0–6], start, end, playlist }`，格式不符或歌單為空的時段會被略過）。範圍外 400。KTV「歌單」頁的查看／編輯（改名稱、星期、時間，歌曲上下移、移除、搜尋加入）都走這支。
 
 ### POST /api/admin/orders/songs/player
 指定播放裝置。body `{ device }`（POS 平板的裝置代碼）或 `{ release:true }` 取消。只有播放裝置會自動播放與換歌。
