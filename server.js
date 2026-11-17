@@ -1278,6 +1278,16 @@ async function seedMenuContent() {
         console.log('[online-plan-pos] 已補上 POS 訂單：' + n + ' 筆。');
       }
     } catch (e) { console.warn('[online-plan-pos] 略過：', e && e.message); }
+    try {   // 補單的 paid_at 曾是部署當下，改回 entitlement 購買時間，查單才落在付款日
+      const done = (await q(`SELECT 1 FROM site_content WHERE key='online_plan_pos_paid_at_v1'`)).rows.length;
+      if (!done) {
+        const r = await q(`UPDATE table_orders o SET paid_at=e.purchased_at FROM entitlements e
+          WHERE e.source='stripe' AND e.source_id=o.payer->>'stripe_session' AND o.payer->>'method'='stripe'
+            AND o.paid_at>e.purchased_at+interval '10 minutes'`);
+        await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('online_plan_pos_paid_at_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(r.rowCount||0)]);
+        console.log('[online-plan-pos] 已把付款時間改回購買時間：' + (r.rowCount||0) + ' 筆。');
+      }
+    } catch (e) { console.warn('[online-plan-pos-paid-at] 略過：', e && e.message); }
     try {   // 每次開機：套餐選項補 id、同步品名（品項改名不脫鉤）
       const doc = JSON.parse((await readContent()).menu);
       const n = require('./lib/menu-combos').comboRelink(doc.items);
