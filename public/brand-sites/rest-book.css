@@ -256,6 +256,7 @@
 .rb-flash{width:min(calc(100% - var(--rb-m)*2),var(--rb-max));margin:12px auto 0;padding:12px 16px;border-radius:12px;background:var(--rb-paper);font-size:1rem}
 .rb-flash.is-bad{color:#8a1f11}
 .rb-plan__buy{display:grid;gap:8px;align-self:end;justify-items:stretch}
+.rb-plan__note{grid-column:1/-1;margin:8px 0 0;font-size:1rem;line-height:1.7;color:var(--rb-soft)}
 .rb-plan__go{font-size:1rem;text-align:center;color:var(--rb-soft)}
 .rb-login{border:0;border-radius:16px;padding:24px;max-width:360px;width:calc(100% - 32px);background:var(--rb-paper)}
 .rb-login::backdrop{background:rgba(31,27,22,.45)}

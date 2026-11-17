@@ -1651,7 +1651,7 @@ async function notifyRegistrationStatus(userId,eventId,status){
 async function notifyPlanPurchased(userId, plan) {
   try {
     const u = await userContact(userId); if (!u || !u.email) return;
-    const text = `${u.name || ''} 您好，\n\n您已購買「${PLAN_LABEL[plan] || plan}」（NT$${PLAN_PRICE_TWD[plan].toLocaleString('en-US')}）。\n\n會籍會在您第一次到等等空間櫃檯出示會員 App 的會員卡、掃碼進場時啟用；若 7 天內未進場，將自第 7 天起自動起算。\n會員 App：${APP_BASE}/\n\n言文字｜台灣人才聚落`;
+    const text = `${u.name || ''} 您好，\n\n您已購買「${PLAN_LABEL[plan] || plan}」（NT$${PLAN_PRICE_TWD[plan].toLocaleString('en-US')}）。\n\n請到等等空間櫃檯出示會員 App 的會員卡，掃碼入場後才開始計時（單日方案）或開始計算效期（月／季／年會籍）。\n會員 App：${APP_BASE}/\n\n言文字｜台灣人才聚落`;
     await sendMailQuietly({ to: u.email, subject: `[言文字] 會籍已購買：${PLAN_LABEL[plan] || plan}`, text, replyTo: NOTIFY_EMAIL });
   } catch (e) { console.error('[mail] 會籍通知失敗：', e.message); }
 }

@@ -730,7 +730,7 @@ def page_stay_spaces():
 
 def page_stay_membership():
     plans=f"""<article><span>01 · Day pass</span><h2>{e(t('單日使用','Day pass','1日利用'))}</h2><p>{e(t('給轉乘、短時工作或半天會議。','For a transfer, short work session or half-day meeting.','乗り換え、短時間の作業、半日の会議に。'))}</p><strong>NT$200</strong><small>{e(t('4 小時起｜超時每小時 NT$100','from 4 hours · NT$100 per extra hour','4時間から｜延長は1時間 NT$100'))}</small>{sq_buy([('day_4h',t('4 小時','4 hours','4時間'),200),('day_12h',t('12 小時','12 hours','12時間'),500)])}</article><article><span>02 · Membership</span><h2>{e(t('常用會籍','Regular membership','継続会員'))}</h2><p>{e(t('給把台北車站周邊當工作據點的人。','For people who use Taipei Main Station as a work base.','台北駅周辺を仕事の拠点にする人へ。'))}</p><strong>NT$4,000</strong><small>{e(t('月會員｜季 NT$10,000｜年 NT$35,000','monthly · quarterly NT$10,000 · annual NT$35,000','月会員｜四半期 NT$10,000｜年 NT$35,000'))}</small>{sq_buy([('month',t('月會員','Monthly','月会員'),4000),('quarter',t('季會員','Quarterly','四半期会員'),10000),('year',t('年會員｜12 個月','Annual · 12 months','年会員｜12か月'),35000),('year_promo',t('開幕優惠｜18 個月','Opening offer · Annual 18 months','オープン特典｜18か月'),35000)])}</article>"""
-    body=sq_lead('Membership',t('把台北車站周邊，\n變成你的工作據點。','Make Taipei Main Station\npart of your workday.','台北駅周辺を、\n仕事の拠点に。'),t('價格皆含稅。有效會籍可使用共享工作區、會議室、電話亭與自助吧；依現場使用規則與預約狀況為準。','All prices include tax. A valid membership includes shared work areas, the meeting room, phone booth and self-serve bar, subject to on-site rules and reservations.','価格はすべて税込。有効な会員資格で共有ワークエリア、会議室、電話ブース、セルフサービスバーを利用できます。'),True)+f'<section class="sq-planpages">{plans}</section>'+sq_member()
+    body=sq_lead('Membership',t('把台北車站周邊，\n變成你的工作據點。','Make Taipei Main Station\npart of your workday.','台北駅周辺を、\n仕事の拠点に。'),t('價格皆含稅。可在這裡先線上購買；到櫃檯出示會員 App 的會員卡、掃碼入場後才開始計時。有效會籍可使用共享工作區、會議室、電話亭與自助吧。','All prices include tax. Buy online first; the clock starts when you show your member card at the counter and check in. A valid plan includes shared work areas, the meeting room, phone booth and self-serve bar.','価格はすべて税込。ここで先にオンライン購入できます。カウンターで会員アプリの会員カードを提示し、入場スキャンから計時が始まります。有効なプランで共有ワークエリア、会議室、電話ブース、セルフサービスバーを利用できます。'),True)+f'<section class="sq-planpages">{plans}</section>'+sq_member()
     return sq_page(t('會員方案｜等等空間 Stay Square','Membership | Stay Square','会員プラン｜等等空間 Stay Square'),t('單日使用 NT$200 起；月、季與年會籍。','Day use from NT$200; monthly, quarterly and annual memberships.','1日利用は NT$200 から。月・四半期・年会員を用意しています。'),body)
 
 def page_stay_venue():
@@ -774,9 +774,9 @@ def sq_buy(items):
 
 
 def sq_member():
-    intro = t('等等空間使用言文字會員帳號。登入後可在這裡購買會籍、預約包場；進場時到櫃檯出示會員 App 的會員卡即可。',
-              'Stay Square uses your emoji member account. Sign in to buy a plan or book the venue here; to enter, show your member card in the member app at the counter.',
-              '等等空間は言文字の会員アカウントを使います。ログインするとここで会員プランの購入と貸切の予約ができます。入場時はカウンターで会員アプリの会員カードを提示してください。')
+    intro = t('等等空間使用言文字會員帳號。可在這裡先線上購買方案；到櫃檯出示會員 App 的會員卡、掃碼入場後才開始計時。',
+              'Stay Square uses your emoji member account. Buy a plan online here; the clock starts when you show your member card at the counter and check in.',
+              '等等空間は言文字の会員アカウントを使います。ここで先にプランをオンライン購入できます。カウンターで会員アプリの会員カードを提示し、入場スキャンから計時が始まります。')
     return (f'<section class="sq-member" id="member" aria-labelledby="member-h"><div class="sq-member__in">'
             f'{sq_label("", "Member")}<h2 id="member-h">{t("言文字會員", "emoji membership", "言文字会員")}</h2>'
             f'<div data-sq-out><p>{e(intro)}</p><button type="button" class="sq-action" data-sq-login>{t("會員登入", "Sign in", "ログイン")}</button></div>'
@@ -1035,6 +1035,8 @@ def page_book():
          t('可以，兩間淋浴包含在入場費裡，不另收費。毛巾等備品可現場加購，價格以現場公告為準。', 'Yes. The two showers are included in your entry, at no extra charge. Towels and toiletries can be bought on site; prices are posted there.', 'はい。シャワー2室は入場料に含まれ、追加料金はありません。タオルなどの備品は現地で購入でき、料金は現地で案内しています。')),
         (t('入場和靜讀室差在哪？', 'What’s the difference between entry and a quiet room?', '入場と静読室の違いは？'),
          t('入場就能用交誼廳（100 吋大螢幕、劇院音響、Switch、桌遊）、讀書席、書籍漫畫雜誌、手沖咖啡與零食飲料吧、淋浴；靜讀室是再加一間一人座的小間，價格已含入場的所有內容。', 'Entry gives you the lounge (100-inch screen, theatre sound, Switch, board games), study seats, books, manga and magazines, pour-over coffee and the snack and drinks bar, and the showers. A quiet room adds a one-person room of your own; its price already includes everything that comes with entry.', '入場でラウンジ（100インチ画面、シアター音響、Switch、ボードゲーム）、読書席、本・マンガ・雑誌、ハンドドリップコーヒーとスナック＆ドリンクバー、シャワーが使えます。静読室は一人用の小部屋を一室追加するもので、料金には入場の内容がすべて含まれます。')),
+        (t('可以線上先買嗎？入場才開始計時嗎？', 'Can I pay online first? Does the clock start at entry?', '先にオンラインで買えますか？計時は入場からですか？'),
+         t('可以。線上付完空間使用費，到櫃檯出示言文字 App 卡片、掃碼入場後才開始計時。', 'Yes. Pay the space-use fee online, then show your emoji app card at the counter; the clock starts when you check in.', 'はい。スペース利用料をオンラインでお支払いのうえ、カウンターで言文字アプリのカードを提示してください。計時は入場スキャンから始まります。')),
         (t('深夜也是同樣價格嗎？', 'Same prices late at night?', '深夜も同じ料金ですか？'),
          t('是，24 小時同一套價目。連續使用滿 8 小時請離席，可重新入場再計時。', 'Yes, one price list around the clock. After eight hours straight, please free the seat; you can re-enter and start again.', 'はい、24時間同一料金です。連続8時間で一度退席をお願いし、再入場して再び計時できます。')),
         (t('可以過夜或住宿嗎？', 'Can I stay overnight?', '宿泊はできますか？'),
@@ -1070,6 +1072,7 @@ def page_book():
   <div class="rb-plan__f"><span class="rb-plan__l" id="plan-long">{t('待多久', 'How long', 'どのくらい')}</span>{seg('entry', plan_entry)}{seg('room', plan_room, True)}</div>
   <div class="rb-plan__out" aria-live="polite"><span class="rb-plan__l">{t('空間使用費', 'Space-use fee', 'スペース利用料')}</span><output class="rb-plan__price">NT$150</output><p class="rb-plan__txt">{e(plan_entry[0][3])}</p></div>
   <div class="rb-plan__buy"><button type="button" class="rb-btn rb-btn--gold" data-rb-buy>{t('線上購買', 'Buy online', 'オンライン購入')}</button><a class="rb-plan__go" href="#visit">{t('帶我過去', 'Take me there', '行き方を見る')}</a></div>
+  <p class="rb-plan__note">{t('線上先付。到櫃檯出示言文字 App 卡片、掃碼入場後才開始計時；超時 15 分鐘內不收費。', 'Pay online first. Show your emoji app card at the counter; the clock starts when you check in. Up to 15 minutes over is free.', '先にオンラインでお支払い。カウンターで言文字アプリのカードを提示し、入場スキャンから計時が始まります。超過15分以内は無料です。')}</p>
 </section>
 <p class="rb-flash" data-rb-flash role="status" aria-live="polite" hidden></p>
 

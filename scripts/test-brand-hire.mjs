@@ -62,3 +62,15 @@ test('官網：訂位頁標明只開放在咖啡、三點水，並連到四個�
   assert.match(js, /request_id: rid, kind: 'business', visibility: 'private', zone: form\.zone\.value/, '空間由 zone 決定，不寫死 3F');
   assert.match(js, /data-sq-lazy/);
 });
+
+test('約書旅／等等空間：線上先買、入場才計時', () => {
+  const rb = fs.readFileSync('public/brand-sites/rest-book.html', 'utf8');
+  assert.match(rb, /掃碼入場後才開始計時/);
+  assert.match(rb, /可以線上先買嗎？入場才開始計時嗎？/);
+  assert.match(rb, /data-rb-buy/);
+  const st = fs.readFileSync('public/brand-sites/stay-square-membership.html', 'utf8');
+  assert.match(st, /掃碼入場後才開始計時/);
+  const js = fs.readFileSync('public/brand-sites/stay-square-shop.js', 'utf8');
+  assert.match(js, /掃碼入場後才開始計時/);
+  assert.doesNotMatch(js, /7 天內未進場/);
+});
