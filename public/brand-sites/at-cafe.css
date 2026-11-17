@@ -219,3 +219,67 @@
   .atc-alc { gap: 18px 14px; }
   .atc-alc li { grid-template-columns: minmax(0, 1fr); gap: 4px; }
 }
+
+/* ——— 2026-11-17 手機優先、照片主導（KK）———
+ * 桌機版型不動，只加：套餐 4:5 直式＋照片上價格標。
+ * ≤760px：首屏滿版直式照片、店名疊在照片下緣；套餐與單點改橫向滑動卡（scroll-snap，露出下一張當提示）；
+ * 咖啡、空間照片滿版出血。照片比例一律 4:5／1:1，不再用小圖。 */
+.atc-set, .atc-set figure { position: relative; }
+.atc-set img { aspect-ratio: 4 / 5; }
+.atc-set__tag { position: absolute; left: 14px; bottom: 14px; padding: .3em .8em; border-radius: 999px; background: var(--paper); color: var(--brand); font-family: var(--latin); font-weight: 600; font-size: 1.08rem; font-variant-numeric: tabular-nums; box-shadow: 0 6px 18px -8px rgba(40, 25, 15, .45); }
+.atc-set__price { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+@media (max-width: 760px) {
+  .bs--at-cafe section { padding: clamp(56px, 14vw, 80px) 0; }
+  .bs--at-cafe h2 .en { display: block; margin: .35em 0 0; }
+  /* 首屏：照片滿版直式，標題白字疊在下緣漸層上；導語與按鈕緊接在下，第一屏內可按 */
+  .bs--at-cafe .atc-hero { padding: 0 0 40px; }
+  .atc-hero__grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .atc-hero__copy { display: contents; }
+  .atc-hero__media { order: 0; grid-row: 1; grid-column: 1; padding: 0; margin-inline: calc(50% - 50vw); }
+  .atc-hero__main { width: 100%; margin: 0; border-radius: 0; box-shadow: none; position: relative; }
+  .atc-hero__main::after { content: ""; position: absolute; inset: 34% 0 0; background: linear-gradient(to bottom, rgba(36, 24, 18, 0), rgba(36, 24, 18, .5) 32%, rgba(36, 24, 18, .88)); pointer-events: none; }
+  .atc-hero__main img { aspect-ratio: auto; height: min(64svh, 133vw); min-height: 340px; object-fit: cover; object-position: 50% 30%; }
+  .atc-hero__sub { display: none; }
+  .atc-hero__title { grid-row: 1; grid-column: 1; align-self: end; position: relative; z-index: 1; padding: 0 0 26px; pointer-events: none; }
+  .atc-hero__kicker { color: #fff; margin-bottom: 10px; text-shadow: 0 1px 8px rgba(0, 0, 0, .35); }
+  .bs--at-cafe .atc-hero h1 { color: #fff; font-size: clamp(3rem, 15vw, 4.2rem); text-shadow: 0 2px 18px rgba(0, 0, 0, .3); }
+  .bs--at-cafe .atc-hero h1 .en { color: #fff; opacity: .92; font-size: clamp(1.3rem, 6vw, 1.7rem); }
+  .atc-hero__lede { grid-row: 2; margin: 24px 0 0; font-size: 1.08rem; line-height: 1.7; }
+  .atc-hero__actions { grid-row: 3; margin-top: 20px; display: grid; grid-template-columns: minmax(max-content, 1.3fr) minmax(0, 1fr); gap: 10px; }
+  .atc-hero__actions .bs-btn { width: 100%; min-height: 50px; justify-content: center; padding-inline: 1em; white-space: nowrap; }
+  .atc-hero__facts { grid-row: 4; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin-top: 28px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .atc-hero__facts li { padding: 14px 8px 14px 0; align-content: start; }
+  .atc-hero__facts li + li { padding-left: 12px; border-left: 1px solid var(--line); }
+  .atc-hero__facts b { font-size: 1.1rem; overflow-wrap: anywhere; }
+  .atc-hero__facts span { line-height: 1.45; min-width: 0; word-break: normal; overflow-wrap: anywhere; }
+  .bs--at-cafe:lang(ja) .atc-hero__facts span { word-break: normal; }
+
+  /* 咖啡與空間：照片出血滿版 */
+  .atc-coffee__photo, .atc-room__wide { max-width: none; margin-inline: calc(50% - 50vw) !important; border-radius: 0 !important; }
+  .atc-coffee__photo img { aspect-ratio: 4 / 5; }
+  .atc-room__wide img { aspect-ratio: 4 / 5; object-position: 50% 50%; }
+  .atc-coffee__grid { gap: 32px; }
+  .bs--at-cafe .atc-about { padding: 48px 0; }
+}
+@media (max-width: 400px) {
+  .atc-hero__facts { grid-template-columns: minmax(0, 1fr); }
+  .atc-hero__facts li { grid-template-columns: 7.2em minmax(0, 1fr); align-items: baseline; gap: 12px; padding: 12px 0; }
+  .atc-hero__facts li + li { padding-left: 0; border-left: 0; border-top: 1px solid var(--line); }
+}
+
+/* ≤640px：套餐與單點改橫滑卡 */
+@media (max-width: 640px) {
+  .atc-sets, .atc-alc { display: grid; grid-template-columns: none; grid-auto-flow: column; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none;
+    margin-inline: calc(50% - 50vw); padding: 4px 18px 18px; scroll-padding-inline: 18px; gap: 14px; }
+  .atc-sets::-webkit-scrollbar, .atc-alc::-webkit-scrollbar { display: none; }
+  .atc-sets { grid-auto-columns: 80%; }
+  .atc-alc { grid-auto-columns: 74%; }
+  .atc-set, .atc-alc li { scroll-snap-align: start; }
+  .atc-set__body { padding: 16px 18px 20px; }
+  .atc-set h3 { font-size: 1.2rem; }
+  .atc-alc img { aspect-ratio: 4 / 3; }
+  .atc-alc li { align-content: start; }
+  .atc-menu .menu-item { grid-template-columns: 104px minmax(0, 1fr); }
+  .atc-menu .menu-item__img { width: 104px; height: 104px; }
+}

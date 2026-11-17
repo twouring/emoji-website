@@ -90,8 +90,10 @@ def head(slug, title, desc, ld_override=None):
                  'rest-book': '\n<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=' + ('Shippori+Mincho:wght@400;500;600' if L == 'ja' else 'Noto+Serif+TC:wght@400;500;600') + '&display=swap" rel="stylesheet">\n<link rel="stylesheet" href="/brand-sites/rest-book.css">'}.get(slug, '')
     if cafe:  # 在咖啡專用樣式＋首圖預載＋js 旗標（捲動淡入）
         extra_css = ('\n<link rel="stylesheet" href="/brand-sites/at-cafe.css">'
-                     '\n<link rel="preload" as="image" href="/brand-sites/assets/atcafe/brunch-800.webp" '
-                     'imagesrcset="/brand-sites/assets/atcafe/brunch-800.webp 800w, /brand-sites/assets/atcafe/brunch-1400.webp 1400w" imagesizes="(max-width: 760px) 100vw, 50vw">'
+                     '\n<link rel="preload" as="image" href="/brand-sites/assets/atcafe/hero-yogurt-640.webp" media="(max-width: 760px)" '
+                     'imagesrcset="/brand-sites/assets/atcafe/hero-yogurt-640.webp 640w, /brand-sites/assets/atcafe/hero-yogurt-1066.webp 1066w" imagesizes="100vw">'
+                     '\n<link rel="preload" as="image" href="/brand-sites/assets/atcafe/brunch-800.webp" media="(min-width: 761px)" '
+                     'imagesrcset="/brand-sites/assets/atcafe/brunch-800.webp 800w, /brand-sites/assets/atcafe/brunch-1400.webp 1400w" imagesizes="50vw">'
                      '\n<script>document.documentElement.classList.add("js")</script>')
     fonts = FONTS_CAFE if cafe else FONTS_DEFAULT
     og_img = 'brand-sites/assets/atcafe/brunch-1400.webp' if cafe else 'brand-sites/assets/3am/spread-1440.webp' if slug == '3am' else f'brand-sites/assets/{slug}-avatar.webp'
@@ -226,31 +228,34 @@ def story(hid, zh_t, en_t, ja_t, paras):
 # 照片：影棚攝影 2026-10-07（Spaces 10_品牌與對外溝通/照片庫/在咖啡_影棚攝影_261007）、店內 4K 抽格（atcafe網站_2026-11）。
 ATC = '/brand-sites/assets/atcafe/'
 _SQ = (560, 900, 900, 560)
+_S45 = (540, 854, 854, 540)  # 2026-11-17 手機優先：套餐改 4:5 直式（影棚 054／037／068／047 重裁）
 ATC_SIZES = {'matcha': (643, 1125, 1400, 800), 'pour': (514, 804, 1000, 640), 'records': (900, 1600, 1600, 900),
              'moji-wall': (514, 804, 1000, 640), 'player': (514, 804, 1000, 640),
              'toast': _SQ, 'croissant': _SQ, 'bagel': _SQ, 'brunch': (800, 1400, 1400, 800),
-             'salmon': _SQ, 'fig': _SQ, 'onigiri': _SQ, 'soba': _SQ, 'yogurt': _SQ}
+             'salmon': _SQ, 'fig': _SQ, 'onigiri': _SQ, 'soba': _SQ, 'yogurt': _SQ,
+             'set-salmon': _S45, 'set-fig': _S45, 'set-onigiri': _S45, 'set-soba': _S45}
 ATC_RATIO = {'matcha': (1125, 1400), 'pour': (804, 1000), 'records': (1600, 1067), 'moji-wall': (804, 1000),
              'player': (804, 1000), 'toast': (900, 900), 'croissant': (900, 900), 'bagel': (900, 900),
              'brunch': (1400, 1050), 'salmon': (900, 674), 'fig': (900, 674), 'onigiri': (900, 674), 'soba': (900, 674),
-             'yogurt': (900, 674)}
+             'yogurt': (900, 674), 'set-salmon': (854, 1066), 'set-fig': (854, 1066), 'set-onigiri': (854, 1066),
+             'set-soba': (854, 1066)}
 ATC_OPEN, ATC_CLOSE = '08:00', '17:00'
 ATC_GEO = (25.046198, 121.51342)
 # 早午餐套餐（照片, 價格, 名稱 zh/en/ja, 內容 zh/en/ja）
 ATC_SETS = [
-    ('salmon', 380, ('慢享早午餐套餐', 'Slow Brunch Set', 'スローブランチセット'),
+    ('set-salmon', 380, ('慢享早午餐套餐', 'Slow Brunch Set', 'スローブランチセット'),
      ('開放式三明治或可頌三選一：松露野菇炒蛋、燻鮭魚酪梨（+20）、明太子炒蛋可頌（+20）。附沙拉與蜂蜜堅果優格。',
       'Pick one: truffle mushroom & egg open sandwich, smoked salmon & avocado (+20) or mentaiko egg croissant (+20). With salad and honey-nut yogurt.',
       'オープンサンドかクロワッサンを一つ：トリュフきのこ玉子、スモークサーモンとアボカド（+20）、明太子玉子クロワッサン（+20）。サラダとはちみつナッツヨーグルト付き。')),
-    ('fig', 200, ('晨光貝果套餐', 'Morning Bagel Set', 'モーニングベーグルセット'),
+    ('set-fig', 200, ('晨光貝果套餐', 'Morning Bagel Set', 'モーニングベーグルセット'),
      ('原味貝果，或換無花果核桃蜂蜜奶油貝果（+50）。趕時間的早上剛好。',
       'A plain bagel, or the fig, walnut & honey cream cheese bagel (+50). Right for a quick morning.',
       'プレーンベーグル、またはいちじく・くるみ・はちみつクリームチーズ（+50）。急ぐ朝にちょうどいい。')),
-    ('onigiri', 300, ('和風飯糰套餐', 'Japanese Onigiri Set', '和風おにぎりセット'),
+    ('set-onigiri', 300, ('和風飯糰套餐', 'Japanese Onigiri Set', '和風おにぎりセット'),
      ('海苔馬告豬肉時雨煮飯糰，或鹽烤雞腿昆布飯糰（+20）。附沙拉與柴魚醬油冷豆腐。',
       'Nori onigiri with maqaw pork shigureni, or salt-grilled chicken & kombu (+20). With salad and chilled tofu.',
       '海苔おにぎり（馬告豚のしぐれ煮）、または塩焼きチキンと昆布（+20）。サラダと冷奴付き。')),
-    ('soba', 400, ('柚香冷蕎麥套餐', 'Yuzu Cold Soba Set', '柚子冷やしそばセット'),
+    ('set-soba', 400, ('柚香冷蕎麥套餐', 'Yuzu Cold Soba Set', '柚子冷やしそばセット'),
      ('柚香紫蘇雞腿冷蕎麥麵，柴魚麵露、季節生菜；附柴魚醬油嫩豆腐。',
       'Cold soba with yuzu, shiso and grilled chicken in bonito tsuyu, seasonal greens; with silken tofu.',
       '柚子としそ、塩焼きチキンの冷たいそば。かつおのめんつゆ、季節の野菜。絹豆腐付き。')),
@@ -315,7 +320,7 @@ def atc_jsonld(faqs, desc):
         '@type': 'CafeOrCoffeeShop', '@id': root + '#place',
         'name': t('在咖啡 at cafe', 'at cafe', '在咖啡 at cafe'), 'alternateName': ['在咖啡', 'at cafe'],
         'description': desc, 'url': page_url(b['host'], L),
-        'image': [root + 'brand-sites/assets/atcafe/brunch-1400.webp', root + 'brand-sites/assets/atcafe/salmon-900.webp',
+        'image': [root + 'brand-sites/assets/atcafe/brunch-1400.webp', root + 'brand-sites/assets/atcafe/set-salmon-854.webp',
                   root + 'brand-sites/assets/atcafe/records-1600.webp'],
         'logo': root + 'brand-sites/assets/at-cafe-logo.webp',
         'telephone': TEL_HREF[4:], 'email': 'us@emoji.tw',
@@ -363,19 +368,20 @@ def page_cafe():
                   ('NT$200+', t('早午餐套餐含飲品', 'Brunch set with a drink', 'ドリンク付きブランチセット')),
                   ('NT$150', t('美式咖啡', 'Americano', 'アメリカーノ'))]
     hf = ''.join(f'<li><b>{e(k)}</b><span>{e(v)}</span></li>' for k, v in hero_facts)
-    brunch_alt = t('燻鮭魚酪梨開放式三明治，附沙拉與蜂蜜堅果優格', 'Smoked salmon & avocado open sandwich with salad and honey-nut yogurt', 'スモークサーモンとアボカドのオープンサンド、サラダとヨーグルト添え')
+    # 首圖桌機是燻鮭魚開放式三明治、手機（≤760px <source>）是生火腿酪梨優格碗，alt 寫兩者共通的描述
+    brunch_alt = t('在咖啡的早午餐實拍：燻鮭魚開放式三明治、生火腿酪梨優格碗', 'Brunch at at cafe: smoked salmon open sandwich and prosciutto avocado yogurt bowl', '在咖啡のブランチ：スモークサーモンのオープンサンド、生ハムとアボカドのヨーグルトボウル')
     matcha_alt = t('吧檯上的冰抹茶拿鐵', 'An iced matcha latte on the counter', 'カウンターのアイス抹茶ラテ')
     out += f'''<main id="content">
 <section class="bs-hero atc-hero"><div class="wrap atc-hero__grid">
   <div class="atc-hero__copy">
-    <p class="atc-hero__kicker">{t('台北車站旁・早午餐與咖啡', 'Brunch &amp; coffee by Taipei Main Station', '台北駅そば・ブランチとコーヒー')}</p>
-    <h1>在咖啡<span class="en">at cafe</span></h1>
+    <div class="atc-hero__title"><p class="atc-hero__kicker">{t('台北車站旁・早午餐與咖啡', 'Brunch &amp; coffee by Taipei Main Station', '台北駅そば・ブランチとコーヒー')}</p>
+    <h1>在咖啡<span class="en">at cafe</span></h1></div>
     <p class="atc-hero__lede">{lede}</p>
     <ul class="atc-hero__facts">{hf}</ul>
     <div class="atc-hero__actions"><a class="bs-btn" href="#brunch">{t('看早午餐', 'See brunch', 'ブランチを見る')}</a><a class="bs-btn bs-btn--line" href="{reserve}">{book}</a></div>
   </div>
   <div class="atc-hero__media">
-    <figure class="atc-hero__main">{atc_img('brunch', brunch_alt, '(max-width: 760px) 100vw, 50vw', eager=True)}</figure>
+    <figure class="atc-hero__main"><picture><source media="(max-width: 760px)" srcset="{ATC}hero-yogurt-640.webp 640w, {ATC}hero-yogurt-1066.webp 1066w" sizes="100vw" width="1066" height="1334">{atc_img('brunch', brunch_alt, '50vw', eager=True)}</picture></figure>
     <figure class="atc-hero__sub">{atc_img('matcha', matcha_alt, '(max-width: 760px) 34vw, 15vw', eager=True)}</figure>
   </div>
 </div></section>
@@ -400,13 +406,13 @@ def page_cafe():
 '''
 
     # —— 早午餐：四個套餐卡＋單點 ——
-    set_sizes = '(max-width: 760px) 100vw, (max-width: 1100px) 50vw, 25vw'
+    set_sizes = '(max-width: 640px) 82vw, (max-width: 1100px) 50vw, 25vw'
     cards = ''.join(
-        f'<article class="atc-set"><figure>{atc_img(img, t(*name), set_sizes)}</figure>'
+        f'<article class="atc-set"><figure>{atc_img(img, t(*name), set_sizes)}<span class="atc-set__tag" aria-hidden="true">NT${price}</span></figure>'
         f'<div class="atc-set__body"><h3>{e(t(*name))}</h3><p class="atc-set__price">NT${price}</p><p>{e(t(*body))}</p></div></article>'
         for img, price, name, body in ATC_SETS)
     alc = ''.join(
-        f'<li><figure>{atc_img(img, t(*name), "(max-width: 760px) 50vw, 25vw")}</figure><b>{e(t(*name))}</b><span>NT${price}</span></li>'
+        f'<li><figure>{atc_img(img, t(*name), "(max-width: 640px) 64vw, (max-width: 900px) 50vw, 25vw")}</figure><b>{e(t(*name))}</b><span>NT${price}</span></li>'
         for img, price, name in ATC_ALC)
     brunch_lede = t('平日早上，一份貝果套餐配美式剛好；週末就留給慢享早午餐。每個套餐都含一杯飲品。',
                     'On weekdays a bagel set and an Americano are just right; keep the weekend for the Slow Brunch Set. Every set comes with a drink.',
@@ -487,7 +493,7 @@ def page_cafe():
     out += '</main>\n'
     out += footer_html(s, [(t('早午餐', 'Brunch', 'ブランチ'), '#brunch'), (book, reserve)])
     # 捲動淡入：IntersectionObserver（不用 scroll 事件）；未支援或減少動態時直接顯示
-    out = out.replace('</body>', '''<script>(function(){var d=document.createElement("dialog"),lang=document.documentElement.lang,close=lang==="ja"?"閉じる":lang==="en"?"Close":"關閉",caption=lang==="ja"?"写真を閉じる":lang==="en"?"Close photo":"關閉照片",last;d.className="atc-lightbox";d.innerHTML='<figure class="atc-lightbox__frame"><img alt=""><button class="atc-lightbox__close" type="button" aria-label="'+close+'">×</button><figcaption class="atc-lightbox__caption"></figcaption></figure>';var img=d.querySelector("img"),cap=d.querySelector("figcaption");document.body.appendChild(d);function open(el){last=el;var sources=(el.getAttribute("srcset")||"").split(",");img.src=sources.length?sources[sources.length-1].trim().split(/\\s+/)[0]:(el.currentSrc||el.src);img.alt=el.alt;cap.textContent=el.alt;d.showModal()}function closeDialog(){d.close();if(last)last.focus()}document.addEventListener("click",function(e){var el=e.target.closest("img[data-atc-photo]");if(el)open(el)});document.addEventListener("keydown",function(e){var el=e.target.closest("img[data-atc-photo]");if(el&&(e.key==="Enter"||e.key===" ")){e.preventDefault();open(el)}});d.querySelector("button").addEventListener("click",closeDialog);d.addEventListener("click",function(e){if(e.target===d)closeDialog()});d.addEventListener("close",function(){if(last)last.focus()})})()</script>
+    out = out.replace('</body>', '''<script>(function(){var d=document.createElement("dialog"),lang=document.documentElement.lang,close=lang==="ja"?"閉じる":lang==="en"?"Close":"關閉",caption=lang==="ja"?"写真を閉じる":lang==="en"?"Close photo":"關閉照片",last;d.className="atc-lightbox";d.innerHTML='<figure class="atc-lightbox__frame"><img alt=""><button class="atc-lightbox__close" type="button" aria-label="'+close+'">×</button><figcaption class="atc-lightbox__caption"></figcaption></figure>';var img=d.querySelector("img"),cap=d.querySelector("figcaption");document.body.appendChild(d);function open(el){last=el;var pic=el.parentNode.tagName==="PICTURE"&&el.parentNode.querySelector("source"),ss=pic&&matchMedia(pic.media).matches?pic.getAttribute("srcset"):el.getAttribute("srcset");var sources=(ss||"").split(",");img.src=sources.length?sources[sources.length-1].trim().split(/\\s+/)[0]:(el.currentSrc||el.src);img.alt=el.alt;cap.textContent=el.alt;d.showModal()}function closeDialog(){d.close();if(last)last.focus()}document.addEventListener("click",function(e){var el=e.target.closest("img[data-atc-photo]");if(el)open(el)});document.addEventListener("keydown",function(e){var el=e.target.closest("img[data-atc-photo]");if(el&&(e.key==="Enter"||e.key===" ")){e.preventDefault();open(el)}});d.querySelector("button").addEventListener("click",closeDialog);d.addEventListener("click",function(e){if(e.target===d)closeDialog()});d.addEventListener("close",function(){if(last)last.focus()})})()</script>
 <script>(function(){var r=document.querySelectorAll(".reveal");if(!("IntersectionObserver" in window)||matchMedia("(prefers-reduced-motion: reduce)").matches){r.forEach(function(x){x.classList.add("is-in")});return}var o=new IntersectionObserver(function(es){es.forEach(function(x){if(x.isIntersecting){x.target.classList.add("is-in");o.unobserve(x.target)}})},{rootMargin:"0px 0px -8% 0px",threshold:.12});r.forEach(function(x){o.observe(x)})})()</script>
 </body>''')
     return out
