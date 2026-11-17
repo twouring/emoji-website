@@ -7761,7 +7761,7 @@ async function registerSummary(reg){
   const onlineAmt=onlineOrders.reduce((a,o)=>a+(Number(o.amount)||0),0);
   if(onlineAmt){accounts.stripe=(accounts.stripe||0)-onlineAmt;if(accounts.stripe<=0)delete accounts.stripe;labels.stripe='Stripe 櫃檯刷卡';}
   summary.online_prepaid={amount:onlineAmt,count:onlineOrders.length,list:onlineOrders.map(o=>({table_no:o.table_no,amount:Number(o.amount)||0,paid_at:o.paid_at,name:o.payer?.name||'',invoice:o.invoice?.number||''}))};
-  const [dFrom,dTo]=dayRange(regDayStr);
+  const dFrom=new Date(reg.opened_at),dTo=reg.closed_at?new Date(reg.closed_at):new Date();   /* 依帳本開帳～關帳（跨日沒關的帳也不漏） */
   summary.prepaid_checkins=(await q(`SELECT s.table_no,s.space,s.items,(SELECT max(o.paid_at) FROM table_orders o WHERE o.session_id=s.id AND o.status<>'void') AS paid_at FROM table_sessions s
     WHERE s.venue=$1 AND s.space->>'online'='true' AND s.space->>'in_at' IS NOT NULL AND (s.space->>'in_at')::timestamptz>=$2 AND (s.space->>'in_at')::timestamptz<$3 ORDER BY s.space->>'in_at'`,[reg.venue,dFrom,dTo])).rows
     .map(r=>({table_no:r.table_no,member:r.space?.member_name||'',in_at:r.space?.in_at,paid_at:r.paid_at,plan:posSpace.planLines(r.items).map(l=>l.zh).join('、'),amount:posSpace.planLines(r.items).reduce((a,l)=>a+(Number(l.price)||0)*(Number(l.qty)||0),0),earlier:!!r.paid_at&&tableOrders.MenuLib.businessDay(r.paid_at)<regDayStr}));
