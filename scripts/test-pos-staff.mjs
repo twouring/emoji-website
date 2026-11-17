@@ -10,7 +10,9 @@ const read = p => fs.readFileSync(new URL(p, root), 'utf8');
 
 test('員工：姓名必填、識別碼 4 位數、店別空＝兩店、子帳號只能設自己店別；部分更新保留舊值', () => {
   assert.deepEqual(S.staffInput({ name: ' 小美 ', pin: '0427', venues: 'CAFE', role: '正職' }), { name: '小美', pin: '0427', venues: ['CAFE'], role: '正職', note: '', active: true });
-  assert.deepEqual(S.staffInput({ name: 'A', venues: ['CAFE', 'BAR'] }).venues, ['CAFE', 'BAR'], 'KK 11/4 四個品牌：勾兩店就只有兩店');
+  assert.deepEqual(S.staffInput({ name: 'A', venues: ['CAFE', 'BAR'] }).venues, ['CAFE', 'BAR'], '勾兩個品牌就只限這兩個');
+  assert.deepEqual(S.staffInput({ name: 'A', venues: ['REST'] }).venues, ['REST'], '約書旅員工只能登入約書旅 POS');
+  assert.deepEqual(S.staffInput({ name: 'A', venues: ['STAY'] }).venues, ['STAY'], '等等空間員工只能登入等等空間 POS');
   assert.equal(S.staffInput({ name: 'A', venues: ['CAFE', 'BAR', 'STAY', 'REST'] }).venues, null, '四個都勾＝不限');
   assert.equal(S.staffInput({ name: 'A' }).pin, undefined, '沒填識別碼交給系統抽');
   assert.throws(() => S.staffInput({ name: '' }), /姓名/);

@@ -57,6 +57,14 @@ test('櫃檯結帳：金額含服務費並記在 payer；客訴免收要原因�
   assert.equal(T.posCheckout(items, { method: 'cash' }, new Map(), undefined, { table: 'A1', now: OCT }).amount, 500, '10/31 前不收');
 });
 
+test('櫃檯結帳依 POS 品牌，不依當下營業時段判斷服務費', () => {
+  const cafeHours = at('2026-11-04T12:00:00');
+  const barItems = [bar(320), bar(180)];
+  const cafeItems = [cafe(320), cafe(180)];
+  assert.equal(T.posCheckout(barItems, { method: 'cash' }, new Map(), undefined, { table: 'A1', now: cafeHours }).amount, 550, '三點水 POS 在白天結帳仍收三點水服務費');
+  assert.equal(T.posCheckout(cafeItems, { method: 'cash' }, new Map(), undefined, { table: 'A1', now: NOV_WED }).amount, 500, '在咖啡 POS 在晚上結帳不收三點水服務費');
+});
+
 test('日結與 CSV：服務費另列、免收單數；作廢品項時服務費一起重算退回', () => {
   const o = { id: 'to_1', table_no: 'A1', status: 'paid', paid_at: new Date(NOV_WED).toISOString(), amount: 550, items: [bar(320), bar(180)], payer: { method: 'cash', service_charge: { rate: 0.1, base: 500, amount: 50 } } };
   const sum = T.salesSummary([o, { ...o, id: 'to_2', amount: 500, payer: { method: 'cash', service_charge: { amount: 0, would: 50, waived: true, reason: '客訴' } } }], { now: NOV_WED });
