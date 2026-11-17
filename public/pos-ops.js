@@ -488,6 +488,7 @@ const invoiceText=o=>{const inv=o.invoice||{};if(inv.status==='issued')return `�
    線上刷卡看 payer.online_refund、現金看 payer.drawer_refunds['refund:<單號>']，其他付款方式系統不會退，明講要人工退 */
 const voidRefundInfo=o=>{if(!o||o.status!=='void')return null;const p=o.payer||{},amt=Number(o.amount)||0;
   const r=p.online_refund;if(r&&Number(r.amount)>0)return {done:true,text:`已退款 NT$${num(r.amount)} 到客人的卡（${r.provider==='tappay'?'TapPay':'Stripe'}）`};
+  if(p.method==='stripe'&&p.stripe_manual)return {done:false,text:`未退款：櫃檯補登的線上刷卡 NT$${num(amt)}，系統不會自動退，請到 Stripe 後台退款`};
   if(o.tappay?.rec_trade_id||p.method==='stripe')return {done:false,text:`未退款：線上刷卡 NT$${num(amt)}（自動退款上線前作廢），請到 ${o.tappay?.rec_trade_id?'TapPay':'Stripe'} 後台確認`};
   const cash=Number(p.drawer_refunds?.['refund:'+o.id])||0;
   const other=Array.isArray(p.payments)&&p.payments.length?p.payments.filter(x=>x.method!=='cash').map(x=>`${payMethodLabel(x.method)} NT$${num(x.amount)}`).join('、'):(p.method&&p.method!=='cash'?`${payMethodLabel(p.method)} NT$${num(amt)}`:'');
@@ -1201,7 +1202,7 @@ async function voidOrderPrompt(id,reload,order){
   return ensureOperator(()=>opsThen(()=>api('/admin/orders/'+id+'/void',{method:'POST',body:{reason,reopen,refund_cash:refundCash,operator_id:OPERATOR?.id}}),async out=>{const ok=await autoCashDrawer({kind:'refund',order_id:id,cash_refund:out.cash_refund});const rf=out.cash_refund>0||typeof voidRefundInfo!=='function'?null:voidRefundInfo({...order,id,status:'void',payer:{...order?.payer,online_refund:out.online_refund||order?.payer?.online_refund}});return (out.reopened?`已作廢，${out.table_no||''} 已重新開桌、品項回到未結帳`:out.returned===false?'已作廢':'已作廢，品項退回未結帳')+(rf?`。${rf.text}`:'')+(out.cash_refund>0?`；請退現金 NT$${num(out.cash_refund)}`:'')+(ok===false?'；未確認開櫃成功，請按「錢櫃」重試':'');},reload));
 }
 /* 線上刷卡單（桌邊 TapPay／櫃檯 QR、App 商店 Stripe）作廢或取消品項會自動退款（KK 11/17）；回提供者名稱或空字串 */
-const onlineCardOf=o=>o?.tappay?.rec_trade_id?'TapPay ':o?.payer?.method==='stripe'?'Stripe ':'';
+const onlineCardOf=o=>o?.tappay?.rec_trade_id?'TapPay ':o?.payer?.method==='stripe'&&!o.payer.stripe_manual?'Stripe ':'';
 const onlineRefundText=r=>r&&r.amount>0?`已退款 NT$${num(r.amount)} 到客人的卡（${r.provider==='tappay'?'TapPay':'Stripe'}，入帳約 5–10 個工作天）；`:'';
 // 已結帳單取消單一品項（做不出來／客人退菜），不必整張作廢；金額從這張單扣除
 async function cancelOrderItemPrompt(orderId,line,name,reload,order){
@@ -1239,11 +1240,13 @@ async function reissueInvoicePrompt(o,reload){
   });
 }
 // 更正付款方式：現場點錯時改成正確的（只限當個營業日、不動金額與發票）；現金實收／找零會一併重算
+/* 可改付款方式：未作廢、非預收、不是真正經 TapPay／Stripe 入帳的單（櫃檯補登的線上刷卡 stripe_manual 可再改） */
+const canChangePay=o=>!!o&&o.status!=='void'&&!o.payer?.prepay&&!o.tappay?.rec_trade_id&&!o.payer?.stripe_session&&!o.payer?.payment_intent;
 function pickPayMethod(current){
   return new Promise(resolve=>{
     const ov=document.createElement('div');ov.className='op-overlay';document.body.appendChild(ov);
     const finish=v=>{if(ov.parentNode)ov.parentNode.removeChild(ov);resolve(v);};
-    ov.innerHTML=`<div class="op-card pos-confirm" role="dialog" aria-label="更正付款方式"><h2>更正付款方式</h2><p class="pos-confirm-msg">目前：${esc(current)}<br>改成：</p><div class="pos-methods">${payMethodsActive().map(pm=>`<button type="button" class="btn btn--ghost" data-pm="${esc(pm.code)}">${esc(pm.label)}</button>`).join('')}</div><div class="op-card-actions"><button type="button" class="btn btn--ghost" data-cancel>取消</button></div></div>`;
+    ov.innerHTML=`<div class="op-card pos-confirm" role="dialog" aria-label="更正付款方式"><h2>更正付款方式</h2><p class="pos-confirm-msg">目前：${esc(current)}<br>改成：</p><div class="pos-methods">${[...payMethodsActive(),{code:'stripe',label:'線上刷卡'}].map(pm=>`<button type="button" class="btn btn--ghost" data-pm="${esc(pm.code)}">${esc(pm.label)}</button>`).join('')}</div><div class="op-card-actions"><button type="button" class="btn btn--ghost" data-cancel>取消</button></div></div>`;
     ov.querySelector('[data-cancel]').onclick=()=>finish(null);
     ov.querySelectorAll('[data-pm]').forEach(b=>b.onclick=()=>finish(b.dataset.pm));
   });
@@ -1291,7 +1294,7 @@ function bindOrderButtons(host,orders,reload){
   host.querySelectorAll('[data-invoice-reissue]').forEach(b=>b.onclick=async e=>{e.stopPropagation?.();if(b.disabled)return;b.disabled=true;try{await reissueInvoicePrompt(orders.find(x=>x.id===b.dataset.invoiceReissue),reload);}finally{b.disabled=false;}});
 }
 // 已結帳單的操作列（櫃檯「這桌已結帳的單」與查單共用）：發票證明聯只在 ezPay 已開立時顯示；作廢固定紅字
-const orderActions=(o,{allowVoid=true}={})=>`<div class="ops-btns">${allowVoid&&o.status!=='void'&&!o.payer?.prepay&&!o.tappay?.rec_trade_id&&o.payer?.method!=='stripe'?`<button class="btn btn--ghost btn-sm" data-paymethod="${esc(o.id)}">改付款方式</button>`:''}<button class="btn btn--ghost btn-sm" data-receipt="${esc(o.id)}">補印收據明細</button>${invoicePrintable(o.invoice)?`<button class="btn btn--ghost btn-sm" data-invoice-print="${esc(o.id)}">補印發票</button>`:''}${allowVoid&&canReissueInvoice(o)?`<button class="btn btn--ghost btn-sm" data-invoice-reissue="${esc(o.id)}">改開發票</button>`:''}${o.status==='void'?refundDoneBtn(o):`<button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">出餐單</button>${allowVoid?`<button class="btn btn--ghost btn--danger btn-sm" data-void="${esc(o.id)}">作廢</button>`:''}`}</div>`;
+const orderActions=(o,{allowVoid=true}={})=>`<div class="ops-btns">${allowVoid&&canChangePay(o)?`<button class="btn btn--ghost btn-sm" data-paymethod="${esc(o.id)}">改付款方式</button>`:''}<button class="btn btn--ghost btn-sm" data-receipt="${esc(o.id)}">補印收據明細</button>${invoicePrintable(o.invoice)?`<button class="btn btn--ghost btn-sm" data-invoice-print="${esc(o.id)}">補印發票</button>`:''}${allowVoid&&canReissueInvoice(o)?`<button class="btn btn--ghost btn-sm" data-invoice-reissue="${esc(o.id)}">改開發票</button>`:''}${o.status==='void'?refundDoneBtn(o):`<button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">出餐單</button>${allowVoid?`<button class="btn btn--ghost btn--danger btn-sm" data-void="${esc(o.id)}">作廢</button>`:''}`}</div>`;
 
 async function loadOrders(){
   const host=document.getElementById('orders-body');if(!host)return;
@@ -2401,7 +2404,7 @@ async function loadHistory(){
   const histState=o=>{const p=o.payer||{};if(o.status==='void')return `<span class="pill pill-bad">已作廢</span>${voidRefundPill(o)}`;if(p.prepay)return `<span class="pill pill-wait">部分付款</span>`;return `<span class="pill pill-ok">已結帳</span>`;};
   const histInvShort=o=>{const inv=o.invoice||{};if(inv.status==='failed')return '<span class="pill pill-bad">發票失敗</span>';if(inv.requested&&!['issued','void'].includes(inv.status))return '<span class="pill pill-wait">待補開</span>';if(inv.status==='issued')return `<span class="a-mono">${esc(inv.number||'已開立')}</span>`;if(inv.status==='void')return '<span class="hint hint--tight">已作廢</span>';return '<span class="hint hint--tight">未開</span>';};
   const histLine=(l,multiBy)=>{const tags=specParts(l).map(t=>`<span class="ops-spec ops-spec-${t.kind} ops-spec-${t.tone}">${t.kind==='custom'?'※ ':''}${esc(t.text)}</span>`).join('');const flag=l.cancelled?'已取消':l.comp_reason?'贈送':l.redeem_points>0?'點數兌換':'';const sub=Number.isFinite(Number(l.price))?(l.cancelled?`<s>${num(Number(l.price)*l.qty)}</s>`:num(Number(l.price)*l.qty)):'';const who=ordererOf(l);return `<li class="hist-line${l.cancelled?' is-off':''}"><span class="hist-qty${l.qty>1?' many':''}">×${l.qty}</span><span class="hist-name"><b>${esc(l.zh)}</b>${flag?` <span class="pill pill-draft">${flag}</span>`:''}${partsOf(l).length?partsHtml(l):''}${tags?`<span class="ops-specs">${tags}</span>`:''}${multiBy&&who?`<span class="hint hint--tight">由 ${esc(who)} 點</span>`:''}</span><span class="hist-sub">${sub}</span></li>`;};
-  const histActions=(o,allowVoid)=>{const canPay=allowVoid&&o.status!=='void'&&!o.payer?.prepay&&!o.tappay?.rec_trade_id&&o.payer?.method!=='stripe';/* 線上付款的單要到 Stripe 退款，櫃檯不改付款方式 */return `<div class="hist-actions"><button class="btn btn--solid btn-sm" data-receipt="${esc(o.id)}">補印收據明細</button>${invoicePrintable(o.invoice)?`<button class="btn btn--ghost btn-sm" data-invoice-print="${esc(o.id)}">補印發票</button>`:''}${canReissueInvoice(o)?`<button class="btn btn--ghost btn-sm" data-invoice-reissue="${esc(o.id)}">改開發票</button>`:''}${o.status==='void'?'':`<button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">補印出餐單</button>`}${canPay?`<button class="btn btn--ghost btn-sm" data-paymethod="${esc(o.id)}">改付款方式</button>`:''}${canAttachMember(o)?`<button class="btn btn--ghost btn-sm" data-hist-member="${esc(o.id)}">入會員</button>`:''}${o.status!=='void'&&allowVoid?`<button class="btn btn--ghost btn--danger btn-sm" data-void="${esc(o.id)}">作廢</button>`:''}${refundDoneBtn(o)}</div>`;};
+  const histActions=(o,allowVoid)=>{const canPay=allowVoid&&canChangePay(o);/* 線上付款的單要到 Stripe 退款，櫃檯不改付款方式 */return `<div class="hist-actions"><button class="btn btn--solid btn-sm" data-receipt="${esc(o.id)}">補印收據明細</button>${invoicePrintable(o.invoice)?`<button class="btn btn--ghost btn-sm" data-invoice-print="${esc(o.id)}">補印發票</button>`:''}${canReissueInvoice(o)?`<button class="btn btn--ghost btn-sm" data-invoice-reissue="${esc(o.id)}">改開發票</button>`:''}${o.status==='void'?'':`<button class="btn btn--ghost btn-sm" data-print="${esc(o.id)}">補印出餐單</button>`}${canPay?`<button class="btn btn--ghost btn-sm" data-paymethod="${esc(o.id)}">改付款方式</button>`:''}${canAttachMember(o)?`<button class="btn btn--ghost btn-sm" data-hist-member="${esc(o.id)}">入會員</button>`:''}${o.status!=='void'&&allowVoid?`<button class="btn btn--ghost btn--danger btn-sm" data-void="${esc(o.id)}">作廢</button>`:''}${refundDoneBtn(o)}</div>`;};
   const rows=d.orders.map(o=>{
     const lines=(o.items||[]).filter(l=>!l.prepay&&!l.credit_of);
     const live=lines.filter(l=>!l.cancelled);

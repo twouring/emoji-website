@@ -23,3 +23,22 @@ test('擋：相同、作廢、跨營業日、預收、線上刷卡、非法方�
   assert.throws(() => changePayMethod({ ...base(), tappay: { rec_trade_id: 'x' } }, 'card'), /線上刷卡/);
   assert.throws(() => changePayMethod(base(), 'bogus'), /付款方式/);
 });
+test('補登線上刷卡（KK 11/18）：其他→stripe 標 stripe_manual，可再改回', () => {
+  const p = changePayMethod({ ...base(), payer: { method: 'other' } }, 'stripe');
+  assert.equal(p.method, 'stripe'); assert.equal(p.stripe_manual, true);
+  const back = changePayMethod({ ...base(), payer: p }, 'cash');
+  assert.equal(back.method, 'cash'); assert.equal(back.stripe_manual, undefined);
+});
+test('真正經 Stripe 入帳的單不能改', () => {
+  assert.throws(() => changePayMethod({ ...base(), payer: { method: 'stripe', stripe_session: 'cs_x', payment_intent: 'pi_x' } }, 'cash'), /線上刷卡/);
+});
+test('補登的線上刷卡作廢不走自動退款', () => {
+  const { target } = createRequire(import.meta.url)('../lib/online-refund.js');
+  assert.equal(target({ payer: { method: 'stripe', stripe_manual: true } }), null);
+  assert.deepEqual(target({ payer: { method: 'stripe', payment_intent: 'pi_1' } }), { provider: 'stripe', id: 'pi_1' });
+});
+test('POS 更正付款方式選單含線上刷卡', async () => {
+  const src = (await import('node:fs')).readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'utf8');
+  assert.match(src, /\[\.\.\.payMethodsActive\(\),\{code:'stripe',label:'線上刷卡'\}\]/);
+  assert.match(src, /const canChangePay=/);
+});

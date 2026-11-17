@@ -85,7 +85,7 @@ test('lib：Stripe 單缺 payment_intent 擋下；非線上刷卡回 null',()=>{
  assert.equal(onlineRefund.tappayRefundId('void-to_x').length,20);
 });
 test('POS：線上刷卡單作廢／取消品項先確認會退款，成功訊息帶退款金額',()=>{
- assert.match(ops,/const onlineCardOf=o=>o\?\.tappay\?\.rec_trade_id\?'TapPay ':o\?\.payer\?\.method==='stripe'\?'Stripe ':''/);
+ assert.match(ops,/const onlineCardOf=o=>o\?\.tappay\?\.rec_trade_id\?'TapPay ':o\?\.payer\?\.method==='stripe'&&!o\.payer\.stripe_manual\?'Stripe ':''/);
  assert.match(ops,/作廢會自動退款 NT\$\$\{num\(order\.amount\)\} 到客人的卡/);
  assert.match(ops,/會自動退這項的金額到客人的卡/);
  assert.match(ops,/const rf=out\.cash_refund>0\|\|typeof voidRefundInfo!=='function'\?null:voidRefundInfo\(/);
