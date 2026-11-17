@@ -55,8 +55,9 @@
   <div class="rb-plan__f"><span class="rb-plan__l" id="plan-kind">要哪一種</span><div class="rb-seg" data-g="kind" role="group"><button type="button" data-k="entry" aria-pressed="true">貴賓室入場</button><button type="button" data-k="room" aria-pressed="false">靜讀室</button></div></div>
   <div class="rb-plan__f"><span class="rb-plan__l" id="plan-long">待多久</span><div class="rb-seg" data-g="entry" role="group"><button type="button" data-k="60" data-p="NT$150" data-t="一杯手沖、短篇集裡的三篇，在交誼廳坐一下再去搭車。" aria-pressed="true">1 小時</button><button type="button" data-k="240" data-p="NT$450" data-t="在讀書席讀完一本薄書，沖個澡；喜歡的書就帶走。" aria-pressed="false">4 小時</button><button type="button" data-k="480" data-p="NT$720" data-t="一整天的貴賓室：讀一段、工作一段，累了打一局 Switch；咖啡、零食與淋浴都在裡面。" aria-pressed="false">8 小時</button></div><div class="rb-seg" data-g="room" role="group" hidden><button type="button" data-k="60" data-p="NT$250" data-t="一席靜讀室，關掉通知讀一章。" aria-pressed="true">1 小時</button><button type="button" data-k="240" data-p="NT$750" data-t="半天的專注：在靜讀室把一份工作做完，再去沖澡。" aria-pressed="false">4 小時</button><button type="button" data-k="480" data-p="NT$1,200" data-t="八小時的靜讀室，貴賓室的飲料、書與淋浴都包含；時間到請讓給下一位。" aria-pressed="false">8 小時</button></div></div>
   <div class="rb-plan__out" aria-live="polite"><span class="rb-plan__l">空間使用費</span><output class="rb-plan__price">NT$150</output><p class="rb-plan__txt">一杯手沖、短篇集裡的三篇，在交誼廳坐一下再去搭車。</p></div>
-  <a class="rb-btn rb-btn--gold" href="#visit">帶我過去</a>
+  <div class="rb-plan__buy"><button type="button" class="rb-btn rb-btn--gold" data-rb-buy>線上購買</button><a class="rb-plan__go" href="#visit">帶我過去</a></div>
 </section>
+<p class="rb-flash" data-rb-flash role="status" aria-live="polite" hidden></p>
 
 <section class="rb-band" aria-label="約書旅是什麼">
   <p>你在台北車站旁的貴賓室。不論一個人等車，還是轉乘之間的幾個小時，這裡留了一個位子和一本書給你。</p>
@@ -136,7 +137,15 @@ pl.querySelectorAll('.rb-seg').forEach(function(g){g.addEventListener('click',fu
 var sl=document.querySelectorAll('.rb-slide'),ct=document.querySelector('.rb-wait__count b'),i=0;function go(n){i=(n+sl.length)%sl.length;sl.forEach(function(x,j){x.hidden=j!==i});if(ct)ct.textContent=i+1}go(0);
 document.querySelectorAll('.rb-wait__btn').forEach(function(b){b.addEventListener('click',function(){go(i+Number(b.dataset.dir))})});
 if(!('IntersectionObserver' in window))return;var io=new IntersectionObserver(function(es){es.forEach(function(x){if(x.isIntersecting){x.target.classList.add('is-in');io.unobserve(x.target)}})},{rootMargin:'0px 0px -8% 0px'});document.querySelectorAll('.rb section').forEach(function(x){io.observe(x)})})()</script>
-<footer class="bs-foot"><div class="wrap">
+<dialog class="rb-login" id="rb-login" aria-labelledby="rb-login-h"><button type="button" class="rb-login__close" data-rb-close aria-label="關閉">×</button>
+<h2 id="rb-login-h">登入言文字帳號</h2>
+<p>用同一個言文字帳號購買。付款後到櫃檯出示 App 卡片入場。</p>
+<a class="rb-btn rb-btn--gold" data-login="google" href="/auth/google">使用 Google 登入</a>
+<a class="rb-btn" data-login="line" href="/auth/line" hidden>使用 LINE 登入</a>
+<a class="rb-plan__go" data-login="email" href="/event-login.html">使用 Email 登入</a>
+</dialog>
+<script src="/sso-client.js" defer></script>
+<script src="/brand-sites/rest-book-shop.js" defer></script><footer class="bs-foot"><div class="wrap">
   <div class="bs-foot__grid">
     <div class="bs-foot__brand"><img src="/brand-sites/assets/rest-book-logo.webp" alt="約書旅 Rest Book 標誌" loading="lazy" decoding="async"></div>
     <div><h4>聯絡</h4><ul><li>台北市中正區重慶南路一段 11 號</li><li><a href="tel:+886921102067">+886 921 102 067</a></li><li><a href="mailto:us@emoji.tw">us@emoji.tw</a></li></ul></div>
@@ -144,7 +153,7 @@ if(!('IntersectionObserver' in window))return;var io=new IntersectionObserver(fu
   </div>
   <div class="bs-foot__bottom"><p class="bs-foot__legal">© 2026 約書旅 Rest Book · 言文字股份有限公司 統一編號 93537055 · 言文字｜台灣人才聚落</p><nav class="lang-switch bs-lang bs-lang--foot" aria-label="語言"><a href="https://restbook.emoji.tw/" hreflang="zh-Hant" lang="zh-Hant" aria-current="page">中文</a><a href="https://restbook.emoji.tw/en" hreflang="en" lang="en">English</a><a href="https://restbook.emoji.tw/ja" hreflang="ja" lang="ja">日本語</a></nav></div>
 </div></footer>
-<nav class="bs-dock" aria-label="快速動作"><a class="bs-btn" href="#plan">試算空檔</a><a class="bs-btn bs-btn--line" href="#visit">怎麼來</a></nav>
+<nav class="bs-dock" aria-label="快速動作"><a class="bs-btn" href="#plan">線上購買</a><a class="bs-btn bs-btn--line" href="#visit">怎麼來</a></nav>
 <script>(function(){var n=document.querySelector('.bs-head');if(!n)return;function f(){n.classList.toggle('is-scrolled',scrollY>8)}addEventListener('scroll',f,{passive:true});f()})()</script>
 <script>(function(){var d=document.querySelector('.bs-dock'),h=document.querySelector('.bs-hero,.sq-hero');if(!d||!h||!('IntersectionObserver' in window))return;new IntersectionObserver(function(e){d.classList.toggle('is-on',!e[0].isIntersecting)}).observe(h)})()</script>
 <script>(function(){var m=document.querySelector('[data-menu]'),g=m&&m.querySelectorAll('.menu-group');if(!g||g.length<4)return;var n=document.createElement('nav');n.className='bs-menu__jump';n.setAttribute('aria-label','菜單分類');g.forEach(function(s,i){var h=s.querySelector('.menu-group__zh');if(!h)return;s.id=s.id||'menu-g'+i;var a=document.createElement('a');a.href='#'+s.id;a.textContent=h.textContent;n.appendChild(a)});m.parentNode.insertBefore(n,m)})()</script>

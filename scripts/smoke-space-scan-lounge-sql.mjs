@@ -40,7 +40,7 @@ test('貴賓室線上購買→掃碼入場→離場；等等空間會員掃碼�
     const noop = async () => 0;
     let BRANDS = ['REST'], me = 'u_amy';
     const loadEntitlements = async id => (await q('SELECT * FROM entitlements WHERE user_id=$1', [id])).rows;
-    const ctx = vm.createContext({ app, require, q, pool: { connect: async () => ({ query: q, release() {} }) }, uid, tableOrders, posSpace, SECRET, ACCESS_QR_SECRET: ACCESS, process: { env: { ACCESS_QR_SECRET: ACCESS } }, APP_BASE: 'https://app.test', console, Buffer, Date, Math, JSON, Number, String, Set, Map, Promise,
+    const ctx = vm.createContext({ app, require, q, pool: { connect: async () => ({ query: q, release() {} }) }, uid, tableOrders, posSpace, SECRET, ACCESS_QR_SECRET: ACCESS, process: { env: { ACCESS_QR_SECRET: ACCESS } }, APP_BASE: 'https://app.test', brandReturnBase: () => null, console, Buffer, Date, Math, JSON, Number, String, Set, Map, Promise,
       auth: (req, res, next) => { req.auth = req.path.startsWith('/api/me/') ? { role: 'member', sub: me } : { role: 'admin', email: 'pos@test', brands: BRANDS, pos_device: 'dev1' }; next(); }, adminOnly: (r, s, nx) => nx(), requireDb: (r, s, nx) => nx(), rateLimit: () => (r, s, nx) => nx(),
       superOrManagerPin: async (req, res) => res.status(403).json({ error: 'pin' }),
       wrap: fn => (req, res) => fn(req, res).catch(e => res.status(500).json({ error: e.message, stack: e.stack })),

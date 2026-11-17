@@ -1122,10 +1122,10 @@ App 付款回跳確認。body `{ session_id }`；與 webhook（`checkout.session
 子品牌站（staysquare.emoji.tw）登入後的會員摘要。回 `{ name, email, active, plans: [{ plan, ends_at }], pending: [{ plan, ends_at }], promo_open }`；不含點數、活動與個資以外欄位。未登入 401，agent 金鑰 403。
 
 ### POST /api/me/plans/checkout
-線上購買一般會籍。body：`{ plan: "day_4h" | "day_12h" | "month" | "quarter" | "year" | "year_promo", lang?, return_host? }`；`return_host` 為已知子品牌網域且在 `WEB_ORIGINS` 內（目前 `staysquare.emoji.tw`）時，付款完成／取消改回該站 `/{lang}?plan_paid=1&s=…`（`?plan_canceled=1`），回 `{ url }`（Stripe Checkout）。牌價：200／500／4,000／10,000／35,000；`year_promo`（開幕優惠，年會員價、會籍 18 個月）35,000，至 2026-12-31 止，逾期回 410。付款完成後導回會員 App `https://app.emoji.tw/?plan_paid=1&s=<session>`（取消：`?plan_canceled=1`），由 webhook 或 `/api/me/plans/verify` 建立 entitlement（`source: "stripe"`，以 session id 去重）；會籍於首次進場啟用，7 天未進場自動起算。未設 Stripe 回 503。
+線上購買一般會籍。body：`{ plan: "day_4h" | "day_12h" | "month" | "quarter" | "year" | "year_promo", lang?, return_host? }`；`return_host` 為已知子品牌網域且在 `WEB_ORIGINS` 內（目前 `staysquare.emoji.tw`）時，付款完成／取消改回該站 `/{lang}?plan_paid=1&s=…`（`?plan_canceled=1`），回 `{ url }`（Stripe Checkout）。牌價：200／500／4,000／10,000／35,000；`year_promo`（開幕優惠，年會員價、會籍 18 個月）35,000，至 2026-12-31 止，逾期回 410。付款完成後導回會員 App `https://app.emoji.tw/?plan_paid=1&s=<session>`（取消：`?plan_canceled=1`），由 webhook 或 `/api/me/plans/verify` 建立 entitlement（`source: "stripe"`，以 session id 去重）**並寫入 POS 訂單**（`table_orders.payer.method=stripe`）：單日 4h／12h 再開等等空間「線上已付」入場單，月／季／年只入查單。會籍於首次進場啟用，7 天未進場自動起算。未設 Stripe 回 503。
 
 ### POST /api/me/plans/verify
-結帳導回時驗證並開通。body：`{ session_id }`，回 `{ ok, already, plan }`；session 不屬於本人回 404、未付款回 402。與 webhook 重複執行不會重複開通。
+結帳導回時驗證並開通。body：`{ session_id }`，回 `{ ok, already, plan, table? }`；session 不屬於本人回 404、未付款回 402。與 webhook 重複執行不會重複開通。
 
 
 ### GET /api/lounge/plans
@@ -1135,7 +1135,7 @@ App 付款回跳確認。body `{ session_id }`；與 webhook（`checkout.session
 會員自己的貴賓室方案與可購買清單。回 `{ ok, passes:[{ id, table, name, minutes, state(ready|inside|left|done), in_at, due_at, out_at, seat, paid }], plans, stripe }`。
 
 ### POST /api/me/lounge/checkout
-線上購買貴賓室方案（Stripe Checkout，同會籍的 Emoji 言文字帳號）。Body `{ item_id }`；價格以伺服器菜單為準，30 分鐘逾期；同人最多 3 張還沒入場的方案（409）。metadata `{ kind:'lounge', item_id, price, user_id }`；成功回 App `/?lounge_paid=1&s=…`、取消回 `/?lounge_canceled=1`。Stripe 未設定 503。回 `{ url }`。
+線上購買貴賓室方案（Stripe Checkout，同會籍的 Emoji 言文字帳號）。Body `{ item_id, lang?, return_host? }`；價格以伺服器菜單為準，30 分鐘逾期；同人最多 3 張還沒入場的方案（409）。metadata `{ kind:'lounge', item_id, price, user_id }`；成功／取消回 `return_host`（`restbook.emoji.tw`）或會員 App `/?lounge_paid=1&s=…`。Stripe 未設定 503。回 `{ url }`。
 
 ### POST /api/me/lounge/verify
 App 付款回跳確認。Body `{ session_id }`；與 webhook 共用 `fulfillLoungeCheckout`，以 Checkout Session id 去重。入帳＝在約書旅開一張「線上已付・未入場」入場單（E 號，`space.prepaid/online/member_id`）＋已付訂單（`payer.method='stripe'`）＋會員累點，LINE 通知員工；POS 入場管理顯示「線上已付」，客人到場掃 App 會員卡入場才開始計時。方案已下架／改價時不入帳，回 409 並通知員工到 Stripe 退款。未付款 402。回 `{ ok, already, table }`。

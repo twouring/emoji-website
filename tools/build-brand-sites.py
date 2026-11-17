@@ -978,8 +978,9 @@ def page_book():
   <div class="rb-plan__f"><span class="rb-plan__l" id="plan-kind">{t('要哪一種', 'Which', 'どちら')}</span>{kind_html}</div>
   <div class="rb-plan__f"><span class="rb-plan__l" id="plan-long">{t('待多久', 'How long', 'どのくらい')}</span>{seg('entry', plan_entry)}{seg('room', plan_room, True)}</div>
   <div class="rb-plan__out" aria-live="polite"><span class="rb-plan__l">{t('空間使用費', 'Space-use fee', 'スペース利用料')}</span><output class="rb-plan__price">NT$150</output><p class="rb-plan__txt">{e(plan_entry[0][3])}</p></div>
-  <a class="rb-btn rb-btn--gold" href="#visit">{t('帶我過去', 'Take me there', '行き方を見る')}</a>
+  <div class="rb-plan__buy"><button type="button" class="rb-btn rb-btn--gold" data-rb-buy>{t('線上購買', 'Buy online', 'オンライン購入')}</button><a class="rb-plan__go" href="#visit">{t('帶我過去', 'Take me there', '行き方を見る')}</a></div>
 </section>
+<p class="rb-flash" data-rb-flash role="status" aria-live="polite" hidden></p>
 
 <section class="rb-band" aria-label="{t('約書旅是什麼', 'About Rest Book', '約書旅とは')}">
   <p>{t('你在台北車站旁的貴賓室。不論一個人等車，還是轉乘之間的幾個小時，這裡留了一個位子和一本書給你。', 'Your lounge by Taipei Main Station. Whether you’re waiting alone or have a few hours between connections, there’s a seat and a book here for you.', '台北駅のそばの、あなたのラウンジ。ひとりの待ち時間にも、乗り継ぎの数時間にも、席と一冊を用意しています。')}</p>
@@ -1060,7 +1061,16 @@ var sl=document.querySelectorAll('.rb-slide'),ct=document.querySelector('.rb-wai
 document.querySelectorAll('.rb-wait__btn').forEach(function(b){{b.addEventListener('click',function(){{go(i+Number(b.dataset.dir))}})}});
 if(!('IntersectionObserver' in window))return;var io=new IntersectionObserver(function(es){{es.forEach(function(x){{if(x.isIntersecting){{x.target.classList.add('is-in');io.unobserve(x.target)}}}})}},{{rootMargin:'0px 0px -8% 0px'}});document.querySelectorAll('.rb section').forEach(function(x){{io.observe(x)}})}})()</script>
 """
-    out += footer_html(s, [(t('試算空檔', 'Plan your gap', 'すき間を試算'), '#plan'), (t('怎麼來', 'Find us', 'アクセス'), '#visit')])
+    out += f'''<dialog class="rb-login" id="rb-login" aria-labelledby="rb-login-h"><button type="button" class="rb-login__close" data-rb-close aria-label="{t('關閉', 'Close', '閉じる')}">×</button>
+<h2 id="rb-login-h">{t('登入言文字帳號', 'Sign in to emoji', '言文字アカウントでログイン')}</h2>
+<p>{t('用同一個言文字帳號購買。付款後到櫃檯出示 App 卡片入場。', 'Use your emoji account. After paying, show the card in the app at the counter.', '同じ言文字アカウントで購入できます。支払い後、カウンターでアプリのカードを提示して入場します。')}</p>
+<a class="rb-btn rb-btn--gold" data-login="google" href="/auth/google">{t('使用 Google 登入', 'Sign in with Google', 'Google でログイン')}</a>
+<a class="rb-btn" data-login="line" href="/auth/line" hidden>{t('使用 LINE 登入', 'Sign in with LINE', 'LINE でログイン')}</a>
+<a class="rb-plan__go" data-login="email" href="/event-login.html">{t('使用 Email 登入', 'Sign in with email', 'メールでログイン')}</a>
+</dialog>
+<script src="/sso-client.js" defer></script>
+<script src="/brand-sites/rest-book-shop.js" defer></script>'''
+    out += footer_html(s, [(t('線上購買', 'Buy online', 'オンライン購入'), '#plan'), (t('怎麼來', 'Find us', 'アクセス'), '#visit')])
     return out
 
 

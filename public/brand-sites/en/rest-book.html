@@ -55,8 +55,9 @@
   <div class="rb-plan__f"><span class="rb-plan__l" id="plan-kind">Which</span><div class="rb-seg" data-g="kind" role="group"><button type="button" data-k="entry" aria-pressed="true">Lounge entry</button><button type="button" data-k="room" aria-pressed="false">Quiet room</button></div></div>
   <div class="rb-plan__f"><span class="rb-plan__l" id="plan-long">How long</span><div class="rb-seg" data-g="entry" role="group"><button type="button" data-k="60" data-p="NT$150" data-t="A pour-over and three stories from a short collection in the lounge, then off to your train." aria-pressed="true">1 hour</button><button type="button" data-k="240" data-p="NT$450" data-t="Finish a slim book at a study seat, take a shower, and take the book with you if you like it." aria-pressed="false">4 hours</button><button type="button" data-k="480" data-p="NT$720" data-t="A whole day in the lounge: read, work, a round on the Switch when you need a break; coffee, snacks and showers included." aria-pressed="false">8 hours</button></div><div class="rb-seg" data-g="room" role="group" hidden><button type="button" data-k="60" data-p="NT$250" data-t="A quiet room of your own: notifications off, one chapter." aria-pressed="true">1 hour</button><button type="button" data-k="240" data-p="NT$750" data-t="Half a day of focus: finish a piece of work in the quiet room, then a shower." aria-pressed="false">4 hours</button><button type="button" data-k="480" data-p="NT$1,200" data-t="Eight hours in a quiet room with the lounge’s drinks, books and showers included; when time is up, the seat goes to the next reader." aria-pressed="false">8 hours</button></div></div>
   <div class="rb-plan__out" aria-live="polite"><span class="rb-plan__l">Space-use fee</span><output class="rb-plan__price">NT$150</output><p class="rb-plan__txt">A pour-over and three stories from a short collection in the lounge, then off to your train.</p></div>
-  <a class="rb-btn rb-btn--gold" href="#visit">Take me there</a>
+  <div class="rb-plan__buy"><button type="button" class="rb-btn rb-btn--gold" data-rb-buy>Buy online</button><a class="rb-plan__go" href="#visit">Take me there</a></div>
 </section>
+<p class="rb-flash" data-rb-flash role="status" aria-live="polite" hidden></p>
 
 <section class="rb-band" aria-label="About Rest Book">
   <p>Your lounge by Taipei Main Station. Whether you’re waiting alone or have a few hours between connections, there’s a seat and a book here for you.</p>
@@ -136,7 +137,15 @@ pl.querySelectorAll('.rb-seg').forEach(function(g){g.addEventListener('click',fu
 var sl=document.querySelectorAll('.rb-slide'),ct=document.querySelector('.rb-wait__count b'),i=0;function go(n){i=(n+sl.length)%sl.length;sl.forEach(function(x,j){x.hidden=j!==i});if(ct)ct.textContent=i+1}go(0);
 document.querySelectorAll('.rb-wait__btn').forEach(function(b){b.addEventListener('click',function(){go(i+Number(b.dataset.dir))})});
 if(!('IntersectionObserver' in window))return;var io=new IntersectionObserver(function(es){es.forEach(function(x){if(x.isIntersecting){x.target.classList.add('is-in');io.unobserve(x.target)}})},{rootMargin:'0px 0px -8% 0px'});document.querySelectorAll('.rb section').forEach(function(x){io.observe(x)})})()</script>
-<footer class="bs-foot"><div class="wrap">
+<dialog class="rb-login" id="rb-login" aria-labelledby="rb-login-h"><button type="button" class="rb-login__close" data-rb-close aria-label="Close">×</button>
+<h2 id="rb-login-h">Sign in to emoji</h2>
+<p>Use your emoji account. After paying, show the card in the app at the counter.</p>
+<a class="rb-btn rb-btn--gold" data-login="google" href="/auth/google">Sign in with Google</a>
+<a class="rb-btn" data-login="line" href="/auth/line" hidden>Sign in with LINE</a>
+<a class="rb-plan__go" data-login="email" href="/event-login.html">Sign in with email</a>
+</dialog>
+<script src="/sso-client.js" defer></script>
+<script src="/brand-sites/rest-book-shop.js" defer></script><footer class="bs-foot"><div class="wrap">
   <div class="bs-foot__grid">
     <div class="bs-foot__brand"><img src="/brand-sites/assets/rest-book-logo.webp" alt="Rest Book logo" loading="lazy" decoding="async"></div>
     <div><h4>Contact</h4><ul><li>No. 11, Sec. 1, Chongqing S. Rd., Zhongzheng Dist., Taipei</li><li><a href="tel:+886921102067">+886 921 102 067</a></li><li><a href="mailto:us@emoji.tw">us@emoji.tw</a></li></ul></div>
@@ -144,7 +153,7 @@ if(!('IntersectionObserver' in window))return;var io=new IntersectionObserver(fu
   </div>
   <div class="bs-foot__bottom"><p class="bs-foot__legal">© 2026 約書旅 Rest Book · emoji Co., Ltd. · Tax ID 93537055 · emoji — Taiwan Talent Hub</p><nav class="lang-switch bs-lang bs-lang--foot" aria-label="Language"><a href="https://restbook.emoji.tw/" hreflang="zh-Hant" lang="zh-Hant">中文</a><a href="https://restbook.emoji.tw/en" hreflang="en" lang="en" aria-current="page">English</a><a href="https://restbook.emoji.tw/ja" hreflang="ja" lang="ja">日本語</a></nav></div>
 </div></footer>
-<nav class="bs-dock" aria-label="Quick actions"><a class="bs-btn" href="#plan">Plan your gap</a><a class="bs-btn bs-btn--line" href="#visit">Find us</a></nav>
+<nav class="bs-dock" aria-label="Quick actions"><a class="bs-btn" href="#plan">Buy online</a><a class="bs-btn bs-btn--line" href="#visit">Find us</a></nav>
 <script>(function(){var n=document.querySelector('.bs-head');if(!n)return;function f(){n.classList.toggle('is-scrolled',scrollY>8)}addEventListener('scroll',f,{passive:true});f()})()</script>
 <script>(function(){var d=document.querySelector('.bs-dock'),h=document.querySelector('.bs-hero,.sq-hero');if(!d||!h||!('IntersectionObserver' in window))return;new IntersectionObserver(function(e){d.classList.toggle('is-on',!e[0].isIntersecting)}).observe(h)})()</script>
 <script>(function(){var m=document.querySelector('[data-menu]'),g=m&&m.querySelectorAll('.menu-group');if(!g||g.length<4)return;var n=document.createElement('nav');n.className='bs-menu__jump';n.setAttribute('aria-label','Menu sections');g.forEach(function(s,i){var h=s.querySelector('.menu-group__zh');if(!h)return;s.id=s.id||'menu-g'+i;var a=document.createElement('a');a.href='#'+s.id;a.textContent=h.textContent;n.appendChild(a)});m.parentNode.insertBefore(n,m)})()</script>

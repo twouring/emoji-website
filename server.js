@@ -1255,6 +1255,29 @@ async function seedMenuContent() {
         console.log('[menu-seed] 空間情境方案已補上計時欄位／等等空間方案：' + n + ' 項。');
       }
     } catch (e) { console.warn('[menu-seed] 空間情境方案略過：', e && e.message); }
+    try {   // 一次性：把已付、還沒入 POS 帳的等等空間 Stripe 會籍補成查單／入場單（KK 11/17 官網付款 POS 看不到）
+      const done = (await q(`SELECT 1 FROM site_content WHERE key='online_plan_pos_v1'`)).rows.length;
+      if (!done) {
+        const rows = (await q(`SELECT e.id,e.user_id,e.plan,e.source_id,e.purchased_at,u.name,u.phone,u.phone_e164
+          FROM entitlements e JOIN users u ON u.id=e.user_id
+          WHERE e.source='stripe' AND e.source_id LIKE 'cs_%'
+            AND NOT EXISTS (SELECT 1 FROM table_orders o WHERE o.payer->>'stripe_session'=e.source_id)`)).rows;
+        let n = 0;
+        for (const r of rows) {
+          const client = await pool.connect();
+          try {
+            await client.query('BEGIN');
+            const built = await stayPlanLines(r.plan, PLAN_PRICE_TWD[r.plan] || 0);
+            const pos = await ensureOnlineSpaceOrder(client, { venue: 'STAY', user: { id: r.user_id, name: r.name, phone: r.phone, phone_e164: r.phone_e164 }, stripeSession: r.source_id, amount: PLAN_PRICE_TWD[r.plan] || 0, lines: built.lines, prepaid: built.prepaid, earnYan: false });
+            if (pos.mismatch) await client.query('ROLLBACK');
+            else { await client.query('COMMIT'); n++; }
+          } catch (e) { await client.query('ROLLBACK').catch(() => {}); console.warn('[online-plan-pos]', r.source_id, e.message); }
+          finally { client.release(); }
+        }
+        await q(`INSERT INTO site_content (key,value,updated_at) VALUES ('online_plan_pos_v1',$1,now()) ON CONFLICT (key) DO NOTHING`, [String(n)]);
+        console.log('[online-plan-pos] 已補上 POS 訂單：' + n + ' 筆。');
+      }
+    } catch (e) { console.warn('[online-plan-pos] 略過：', e && e.message); }
     try {   // 每次開機：套餐選項補 id、同步品名（品項改名不脫鉤）
       const doc = JSON.parse((await readContent()).menu);
       const n = require('./lib/menu-combos').comboRelink(doc.items);
@@ -1471,6 +1494,41 @@ async function expireEventCheckout(session) {
 }
 
 /* ---------- 一般會籍線上購買：Stripe 結帳完成後開通 ---------- */
+
+/* 線上付款入 POS 帳（KK 11/17）：Stripe 會籍／貴賓室付款完成後寫 table_orders，查單與日結才看得到。
+   單日／計時方案再開一張「線上已付・未入場」入場單（space.prepaid）；月季年會籍只入帳、不佔席。冪等＝payer.stripe_session。 */
+async function ensureOnlineSpaceOrder(client, { venue, user, stripeSession, intent, amount, lines, prepaid, earnYan = true }) {
+  const dup = (await client.query("SELECT id,table_no,session_id FROM table_orders WHERE payer->>'stripe_session'=$1", [stripeSession])).rows[0];
+  if (dup) return { already: true, order_id: dup.id, table: dup.table_no, id: dup.session_id };
+  const open = (await client.query("SELECT table_no FROM table_sessions WHERE status='open'")).rows;
+  const table = posSpace.nextEntryNo(new Set(open.map(r => r.table_no)));
+  if (!table) return { mismatch: true };
+  const orderId = uid('to_'), sid = uid('ts_');
+  const payer = { method: 'stripe', name: user?.name || '', stripe_session: stripeSession, payment_intent: intent || null, online: true, member_id: user.id, member_phone: user?.phone_e164 || user?.phone || '' };
+  const orderLines = lines.map(l => ({ ...l, order_id: orderId }));
+  if (earnYan && user && amount > 0) {
+    try { const yanOut = await applyYanForCheckout(client, { user, orderId, amount, brand: venue }); payer.yan_earned = yanOut.earned; }
+    catch (e) { console.warn('[online-space] 累點失敗', e.message); }
+  }
+  const space = prepaid ? { seat: '', headcount: 1, in_at: null, out_at: null, prepaid: true, online: true, member_id: user.id, member_name: user?.name || '' } : null;
+  await client.query(
+    `INSERT INTO table_sessions(id,table_no,status,party_votes,venue,items,space,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
+    [sid, table, prepaid ? 'open' : 'closed', JSON.stringify(tableOrders.partySetByPos({}, 1)), venue, JSON.stringify(orderLines), space ? JSON.stringify(space) : null, user.id]);
+  await client.query(
+    `INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,status,done_at,user_id) VALUES($1,$2,$3,$4,$5,$6,'done',now(),$7)`,
+    [orderId, sid, table, JSON.stringify(orderLines), amount, JSON.stringify(payer), user.id]);
+  return { already: false, order_id: orderId, table, id: sid };
+}
+async function stayPlanLines(plan, price) {
+  const itemId = posSpace.STAY_PLAN_ITEMS[plan];
+  if (itemId) {
+    const menuAll = tableOrders.menuIndex(await contentValue('menu'), 'STAY', { posOnly: true });
+    try { return { lines: tableOrders.posAddLine([], menuAll, { item_id: itemId, qty: 1, device_name: '官網' }), prepaid: true }; }
+    catch (e) { console.warn('[online-space] 菜單沒有', itemId, e.message); }
+  }
+  return { lines: [{ line: uid('ln_').slice(0, 16), item_id: 'plan:' + plan, zh: PLAN_LABEL[plan] || plan, cat: 'SPACE', venue: 'STAY', qty: 1, price, by: '官網' }], prepaid: false };
+}
+
 async function fulfillPlanCheckout(session) {
   const meta = session && session.metadata;
   if (!meta || meta.kind !== 'plan' || session.payment_status !== 'paid') return { ignored: true };
@@ -1484,11 +1542,16 @@ async function fulfillPlanCheckout(session) {
       `INSERT INTO entitlements (id,user_id,plan,source,source_id,purchased_at)
        VALUES ($1,$2,$3,'stripe',$4,now()) ON CONFLICT (source,source_id) DO NOTHING RETURNING id`,
       [id, meta.user_id, meta.plan, session.id])).rows[0];
-    if (!inserted) { await client.query('COMMIT'); return { already: true }; }
+    const user = (await client.query('SELECT id,name,phone,phone_e164 FROM users WHERE id=$1', [meta.user_id])).rows[0];
+    const amount = PLAN_PRICE_TWD[meta.plan];
+    const built = await stayPlanLines(meta.plan, amount);
+    const pos = user ? await ensureOnlineSpaceOrder(client, { venue: 'STAY', user, stripeSession: session.id, intent: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id, amount, lines: built.lines, prepaid: built.prepaid, earnYan: !!inserted }) : { mismatch: true };
+    if (!inserted) { await client.query('COMMIT'); return { already: true, table: pos.table }; }
     await client.query('COMMIT');
     notifyPlanPurchased(meta.user_id, meta.plan);
-    userContact(meta.user_id).then(u => lineService.notifyStaff(`🪪 等等空間會籍線上購買：${u?.name || '會員'}｜${PLAN_LABEL[meta.plan] || meta.plan}（NT$${PLAN_PRICE_TWD[meta.plan]}）\n等等空間 POS「入場管理 → 會員」看得到；客人到場出示 App 進出 QR，掃碼入場即啟用`)).catch(() => {});
-    return { already: false, entitlementId: id };
+    const where = built.prepaid ? `等等空間 POS 入場管理「${pos.table || ''}」線上已付，客人到場出示會員卡掃碼入場` : `等等空間 POS 查單看得到這筆（${PLAN_LABEL[meta.plan]} NT$${amount}）`;
+    userContact(meta.user_id).then(u => lineService.notifyStaff(`🪪 等等空間線上購買：${u?.name || '會員'}｜${PLAN_LABEL[meta.plan] || meta.plan}（NT$${amount}）${pos.table ? '｜'+pos.table : ''}\n${where}`)).catch(() => {});
+    return { already: false, entitlementId: id, table: pos.table };
   } catch (e) { await client.query('ROLLBACK'); throw e; }
   finally { client.release(); }
 }
@@ -5984,8 +6047,8 @@ app.post('/api/me/lounge/checkout', auth, requireDb, wrap(async (req, res) => {
   const session = await stripe.checkout.sessions.create({
     mode: 'payment', payment_method_types: ['card'], customer_email: user?.email || undefined,
     line_items: [{ price_data: { currency: 'twd', product_data: { name: `約書旅 Rest Book｜${loungeName(it)}`, description: '到約書旅櫃檯出示會員 App 會員卡，掃碼入場後開始計時；超時費用離場時現場結算。' }, unit_amount: it.price * 100 }, quantity: 1 }],
-    success_url: `${APP_BASE}/?lounge_paid=1&s={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${APP_BASE}/?lounge_canceled=1`,
+    success_url: `${brandReturnBase(req.body) || APP_BASE + '/'}?lounge_paid=1&s={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${brandReturnBase(req.body) || APP_BASE + '/'}?lounge_canceled=1`,
     expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
     metadata: { kind: 'lounge', item_id: it.id, price: String(it.price), user_id: req.auth.sub },
   });

@@ -72,6 +72,23 @@ test('進出統一用會員卡 QR：App 不再有獨立進出 QR，門禁與 POS
   for (const f of ['public/pos-space.js', 'public/brand-sites/stay-square-shop.js', 'tools/build-brand-sites.py', 'tools/build-legal-pages.py', 'public/terms.html']) assert.doesNotMatch(read(f), /進出 QR|入退室 QR|入退館 QR|entry QR|Entry QR/, f);
 });
 
+test('等等空間官網付款要入 POS 帳：單日開線上已付入場單，月季年入查單（KK 11/17）', () => {
+  assert.equal(S.STAY_PLAN_ITEMS.day_4h, 'm_stay_space_entry_4_hours');
+  assert.equal(S.STAY_PLAN_ITEMS.day_12h, 'm_stay_space_entry_12_hours');
+  assert.match(srv, /async function ensureOnlineSpaceOrder\(/);
+  assert.match(srv, /async function stayPlanLines\(/);
+  assert.match(srv, /online_plan_pos_v1/, '已付未入帳的會籍開機補 POS 單');
+  assert.match(srv, /prepaid: built.prepaid/);
+});
+
+test('約書旅官網可線上購買，付款走貴賓室入帳', () => {
+  const rb = read('public/brand-sites/rest-book.html');
+  assert.match(rb, /data-rb-buy/);
+  assert.match(rb, /brand-sites\/rest-book-shop\.js/);
+  assert.match(read('public/brand-sites/rest-book-shop.js'), /\/api\/me\/lounge\/checkout/);
+  assert.match(srv, /brandReturnBase\(req\.body\) \|\| APP_BASE \+ '\/'\}\?lounge_paid=1/);
+});
+
 test('POS：入場管理有掃碼進出、等等空間有會員清單、線上已付可入場', () => {
   assert.match(pos, /id="sp-scan">掃碼進出</);
   assert.match(pos, /SCOPE === 'STAY' \? '<button type="button" class="btn btn--ghost" id="sp-members">會員<\/button>'/);
