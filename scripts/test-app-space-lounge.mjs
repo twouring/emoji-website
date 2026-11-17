@@ -9,12 +9,15 @@ const S = require('../lib/pos-space.js');
 const read = f => fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8');
 const m = read('public/m.html'), srv = read('server.js'), pos = read('public/pos-space.js');
 
-test('App：會籍分頁改名共享空間；新增貴賓室分頁（三語）', () => {
-  assert.match(m, /data-tab="plan"[\s\S]{0,400}data-i="tabPlan">共享空間</);
-  assert.match(m, /data-tab="lounge"[\s\S]{0,700}data-i="tabLounge">貴賓室</);
-  assert.match(m, /grid-template-columns:repeat\(6,1fr\)/, '底部六個分頁');
-  for (const k of ["tabPlan:'共享空間'", "tabLounge:'貴賓室'", "tabLounge:'Lounge'", "tabLounge:'ラウンジ'", "plan:'共享空間'"]) assert.ok(m.includes(k), k);
-  assert.doesNotMatch(m, /tabPlan:'會籍'|>會籍</, '分頁不再叫會籍');
+test('App：底部「空間」分頁整合共享空間＋貴賓室，頁內切換（三語，KK 11/17）', () => {
+  assert.match(m, /data-tab="plan"[\s\S]{0,400}data-i="tabSpace">空間</);
+  assert.doesNotMatch(m, /data-tab="lounge"/, '貴賓室不再是獨立底部分頁');
+  assert.match(m, /grid-template-columns:repeat\(5,1fr\)/, '底部五個分頁');
+  for (const k of ["tabSpace:'空間'", "tabSpace:'Spaces'", "tabSpace:'スペース'", "plan:'共享空間'", "lgTitle:'貴賓室'"]) assert.ok(m.includes(k), k);
+  assert.doesNotMatch(m, /tabPlan:|tabLounge:|>會籍</);
+  assert.match(m, /b\.dataset\.tab===\(tab==='lounge'\?'plan':tab\)/, '貴賓室時「空間」亮起');
+  assert.match(m, /id="space-seg"[\s\S]{0,120}\['plan',T\.plan\],\['lounge',T\.lgTitle\]/, '頁內切換共享空間／貴賓室');
+  assert.equal((m.match(/\$\{spaceSeg\(\)\}/g) || []).length, 3, '訪客方案、共享空間、貴賓室三處都有切換');
   assert.match(m, /\(\{home,book,plan,lounge,events,me\}\)\[tab\]\(\)/);
   assert.match(m, /\['plan','lounge','events'\]\.includes\(tab\)/, '訪客也能看貴賓室方案');
   assert.match(m, /post\('\/api\/me\/lounge\/checkout'/); assert.match(m, /post\('\/api\/me\/lounge\/verify'/);
