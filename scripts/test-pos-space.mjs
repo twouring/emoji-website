@@ -26,6 +26,9 @@ test('設定預設：在咖啡／三點水＝餐飲；等等空間／約書旅�
   const m = S.mergeSettings(rest, { mode: 'dining', seats: 'q1, Q2、E05,座位!,TOOLONGSEAT9', grace_min: 999 }, 'REST');
   assert.equal(m.mode, 'dining'); assert.deepEqual(m.seats, ['Q1', 'Q2'], 'E 開頭保留給入場單、非法字元剔除'); assert.equal(m.grace_min, 120, '夾在範圍內');
   assert.equal(S.contentKey('STAY'), 'pos_mode:STAY');
+  assert.equal(stay.wifi_ssid, 'emoji'); assert.equal(stay.wifi_pass, 'meetfriends');
+  const w = S.mergeSettings(stay, { wifi_ssid: ' stay-3F\n', wifi_pass: '' }, 'STAY');
+  assert.equal(w.wifi_ssid, 'stay-3F'); assert.equal(w.wifi_pass, '', '密碼可清空');
 });
 
 const plan = (min, extra = {}) => ({ line: 'p' + min + (extra.line || ''), item_id: 'x', venue: 'STAY', cat: 'SPACE', zh: '等等空間 ' + min, price: 200, qty: 1, space_role: 'plan', space_minutes: min, ...extra });
@@ -107,7 +110,7 @@ test('接線：server 路由、結帳開始計時、清桌擋在場、MCP 目錄
   assert.match(html, /<script src="\/pos-space\.js"><\/script>/); assert.match(html, /pos-space\.css/);
   assert.match(ops, /if\(SPACE_ON\)host\.innerHTML=/); assert.match(ops, /bindSpaceBoard\(host,reload\);bindSpacePanel\(host,cur,reload\)/);
   assert.match(ops, /spaceAfterCheckout\(out,cur\)/);
-  assert.match(sp, /function printSpaceEntry/); assert.match(sp, /預計離場/); assert.match(sp, /入場時間/);
+  assert.match(sp, /function printSpaceEntry/); assert.match(sp, /\.\.\.spaceSlipExtras\(c, cat, info\)/, '入場單印 Wi-Fi／規則／祝福語（KK 11/17）'); assert.match(sp, /帳單夾交櫃台保管/); assert.match(sp, /PosEncouragement\.pick\(\)/); assert.match(sp, /c\.wifi_ssid/); assert.match(sp, /預計離場/); assert.match(sp, /入場時間/);
   assert.doesNotMatch(sp + css, /住宿|過夜|入住|床位/, '禁用字');
   assert.match(set, /spaceSettingsSection\(\)/); assert.match(set, /bindSpaceSettings\(host\)/);
   assert.match(css, /\.pos-space-mode #p-nav \[data-tab=serve\]\{display:none\}/);

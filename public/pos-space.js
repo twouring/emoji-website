@@ -223,7 +223,21 @@ async function spaceMembers(){
 /* 入場單／離場單（58mm 熱感紙；沒接印表機就跳提示） */
 function spaceRuleText(cat){
   const c = spaceCfg(), ot = spaceOvertimeItem(cat);
-  return `超時 ${c.grace_min} 分鐘內不收費，之後每 ${c.unit_min === 60 ? '小時' : c.unit_min + ' 分鐘'}${ot ? ` NT$${num(ot.price)}／人` : ' 另計'}`;
+  return `超時 ${c.grace_min} 分鐘內不收費，之後每${c.unit_min === 60 ? '小時' : ' ' + c.unit_min + ' 分鐘'}${ot ? ` NT$${num(ot.price)}／人` : ' 另計'}`;
+}
+/* 入場單下半部（KK 11/17）：Wi-Fi、使用規則（超時費用、中途離場交帳單夾、離場結算）、祝福語；中英各一行，字級 ≥18 點 */
+function spaceSlipExtras(c, cat, info){
+  const ot = spaceOvertimeItem(cat), unit = c.unit_min === 60 ? 'hour' : c.unit_min + ' min';
+  const rule = (zh, en) => [{ kind: 'wrap', text: '・' + zh, size: 20 }, { kind: 'wrap', text: en, size: 18 }];
+  const wifi = c.wifi_ssid ? [{ kind: 'box', texts: [`Wi-Fi　${c.wifi_ssid}`, ...(c.wifi_pass ? [`Password　${c.wifi_pass}`] : [])], size: 24, bold: true }] : [];
+  const bless = typeof PosEncouragement !== 'undefined' ? PosEncouragement.pick() : null;
+  return [...wifi, ...(wifi.length ? ['dash'] : []),
+    { kind: 'left', text: '使用規則 House rules', size: 22, bold: true },
+    ...(info.due_at ? rule(spaceRuleText(cat) + '。', `Overtime: free within ${c.grace_min} min, then ${ot ? 'NT$' + num(ot.price) + ' per person per ' + unit : 'charged per ' + unit}.`) : []),
+    ...(c.max_hours ? rule(`連續使用上限 ${c.max_hours} 小時，到時請離場後再重新入場。`, `Max ${c.max_hours} hours in a row; please check out and re-enter after that.`) : []),
+    ...rule('中途離場請將帳單夾交櫃台保管，暫離期間照常計時。', 'Stepping out? Leave this bill clip at the counter. The clock keeps running.'),
+    ...rule('離開時請將帳單夾交回櫃台辦理離場，超時費用離場時結算。', 'When leaving, return the clip at the counter; overtime is settled at checkout.'),
+    ...(bless ? ['dash', { kind: 'wrap', text: bless.zh, size: 22, bold: true }, { kind: 'wrap', text: bless.en, size: 18 }] : [])];
 }
 async function printSpaceEntry(info, { reprint = false } = {}){
   if (!canPrint()) { starHint(); return false; }
@@ -234,9 +248,7 @@ async function printSpaceEntry(info, { reprint = false } = {}){
     ...(info.headcount > 1 ? [{ kind: 'left', text: `${info.headcount} 位`, size: 22 }] : []), 'dash',
     { kind: 'row', left: '入場時間', right: clockText(info.in_at), size: 26 },
     { kind: 'left', text: '預計離場', size: 22 }, { kind: 'center', text: info.due_at ? clockText(info.due_at) : '不限時', size: 60, bold: true }, 'dash',
-    { kind: 'wrap', text: spaceRuleText(cat), size: 20 },
-    ...(c.max_hours ? [{ kind: 'wrap', text: `連續使用上限 ${c.max_hours} 小時，到時請離場，可重新入場計時。`, size: 20 }] : []),
-    { kind: 'wrap', text: '離開時請到櫃檯按離場，超時費用離場時結算。', size: 20 },
+    ...spaceSlipExtras(c, cat, info),
     { kind: 'center', text: applicationTime(new Date().toISOString()), size: 18 }];
   const ok = await starSend({ canvas: ticketCanvas(sp), label: '入場單' });
   toast(ok ? '已印出入場單' : '入場單未印出，請按「補印入場單」');
@@ -303,6 +315,8 @@ function spaceSettingsSection(){
       ${num1('sp-max', '連續使用上限（小時）', c.max_hours, '0＝不限；到時提醒須離場', 0, 24)}
       ${num1('sp-warn', '到時前提醒（分鐘）', c.warn_min, '卡片轉黃的時間', 0, 60)}
       ${num1('sp-cap', '在場人數上限', c.capacity, '0＝不限；滿了不能再入場', 0, 500)}
+      <label class="sp-set-f">Wi-Fi 名稱<input id="sp-wifi-ssid" value="${esc(c.wifi_ssid || '')}" maxlength="32" autocomplete="off"><small>印在入場單上；留白＝不印 Wi-Fi</small></label>
+      <label class="sp-set-f">Wi-Fi 密碼<input id="sp-wifi-pass" value="${esc(c.wifi_pass || '')}" maxlength="63" autocomplete="off"><small>換密碼後記得改這裡</small></label>
       <label class="sp-set-f sp-set-wide">指定席號<input id="sp-seats" value="${esc(c.seats.join(', '))}" placeholder="例：Q1, Q2, Q3" autocomplete="off"><small>用逗號分隔；留白＝不指定席號，入場單自動編 E01 起</small></label>
       ${cats.length ? `<fieldset class="sp-set-f sp-set-wide"><legend>這些方案入場時要選席號（一席一人）</legend>${cats.map(x => `<label class="sp-cat"><input type="checkbox" data-sp-cat="${esc(x)}" ${c.seat_cats.includes(x) ? 'checked' : ''}>${esc(MenuLib.CAT_LABEL[x]?.zh || x)}</label>`).join('')}</fieldset>` : ''}
     </div>
@@ -314,7 +328,7 @@ function bindSpaceSettings(host){
   save.onclick = async () => {
     if (save.disabled) return; save.disabled = true;
     const v = id => host.querySelector('#' + id)?.value;
-    const body = { venue: SCOPE, mode: host.querySelector('input[name=sp-mode]:checked')?.value, grace_min: v('sp-grace'), unit_min: v('sp-unit'), max_hours: v('sp-max'), warn_min: v('sp-warn'), capacity: v('sp-cap'), seats: v('sp-seats') || '', seat_cats: [...host.querySelectorAll('[data-sp-cat]:checked')].map(x => x.dataset.spCat) };
+    const body = { venue: SCOPE, mode: host.querySelector('input[name=sp-mode]:checked')?.value, grace_min: v('sp-grace'), unit_min: v('sp-unit'), max_hours: v('sp-max'), warn_min: v('sp-warn'), capacity: v('sp-cap'), seats: v('sp-seats') || '', wifi_ssid: v('sp-wifi-ssid') ?? '', wifi_pass: v('sp-wifi-pass') ?? '', seat_cats: [...host.querySelectorAll('[data-sp-cat]:checked')].map(x => x.dataset.spCat) };
     try { const out = await pmWrite('/admin/orders/space/settings', 'POST', body); if (out) { SPACE_SET = out.settings; toast(`已儲存：${out.settings.mode === 'space' ? '空間' : '餐飲'}情境`); if (POS_DATA) POS_DATA.space_settings = out.settings; document.documentElement.classList.toggle('pos-space-mode', out.settings.mode === 'space'); const pb = document.getElementById('pos-body'); if (pb) delete pb.dataset.sig; paintSettings(host); } }
     catch (e) { toast(e.message); } finally { save.disabled = false; }
   };

@@ -528,10 +528,10 @@ body `{attempt_id}`。只取消 `prepared`（尚未送出）意圖；已送出�
 清桌：未取餐的單標記已取餐、這桌下一次掃碼開新場。**有未結帳品項時回 409**（請先結帳或逐項作廢，避免漏收）；言文字管理員可帶 body `{ force: true }` 強制清桌並作廢未結品項。混桌（同桌含其他品牌品項，KK 11/16）：其他品牌的品項都已結帳時，品牌子帳號可直接清桌；其他品牌還有未結帳品項時回 403，請等對方結帳或由言文字管理員清桌。櫃檯結帳／LINE Pay 收款若讓整桌（含其他品牌）都結清，也會在同一交易自動清桌。
 
 ### GET /api/admin/orders/space/settings
-POS 營業情境（KK 11/15，`lib/pos-space.js`）：讀取品牌的情境設定（`site_content` `pos_mode:<VENUE>`）。帶 `venue=` 或品牌帳號。回 `{venue,settings:{mode:'dining'|'space',grace_min,unit_min,max_hours,warn_min,capacity,seats,seat_cats},modes}`。預設：在咖啡、三點水＝餐飲；等等空間、約書旅＝空間（約書旅 10 席 Q1–Q10 給靜讀室、連續上限 8 小時）。`GET /api/admin/orders?venue=` 也會回 `space_settings` 與今日 `space_summary`（入場單數、人次、在場人數、平均停留分鐘、方案與超時收入）。
+POS 營業情境（KK 11/15，`lib/pos-space.js`）：讀取品牌的情境設定（`site_content` `pos_mode:<VENUE>`）。帶 `venue=` 或品牌帳號。回 `{venue,settings:{mode:'dining'|'space',grace_min,unit_min,max_hours,warn_min,capacity,seats,seat_cats,wifi_ssid,wifi_pass},modes}`。預設：在咖啡、三點水＝餐飲；等等空間、約書旅＝空間（約書旅 10 席 Q1–Q10 給靜讀室、連續上限 8 小時）。`GET /api/admin/orders?venue=` 也會回 `space_settings` 與今日 `space_summary`（入場單數、人次、在場人數、平均停留分鐘、方案與超時收入）。
 
 ### POST /api/admin/orders/space/settings
-修改營業情境設定（需店長識別碼 `X-Manager-Pin`，超管免）。Body 任選：`mode`、`grace_min`（寬限分，0–120，預設 15）、`unit_min`（超時計費單位分，預設 60）、`max_hours`（連續使用上限，0＝不限）、`warn_min`（到時前提醒分）、`capacity`（在場人數上限，0＝不限）、`seats`（指定席號清單，陣列或以逗號分隔）、`seat_cats`（要指定席號的方案分類，例 `["QUIET"]`）。從空間切回餐飲時，還有未離場的入場單回 409。
+修改營業情境設定（需店長識別碼 `X-Manager-Pin`，超管免）。Body 任選：`mode`、`grace_min`（寬限分，0–120，預設 15）、`unit_min`（超時計費單位分，預設 60）、`max_hours`（連續使用上限，0＝不限）、`warn_min`（到時前提醒分）、`capacity`（在場人數上限，0＝不限）、`seats`（指定席號清單，陣列或以逗號分隔）、`seat_cats`（要指定席號的方案分類，例 `["QUIET"]`）、`wifi_ssid`／`wifi_pass`（印在入場單上的 Wi-Fi，預設 emoji／meetfriends；名稱留白＝不印）。從空間切回餐飲時，還有未離場的入場單回 409。
 
 ### POST /api/admin/orders/space/entries
 空間情境開入場單：Body `{venue,item_id,headcount,seat?,operator_id}`。`item_id` 必須是 `space_role:'plan'` 的方案品項；`seat_cats` 內的分類要帶 `seat`（一席一人，使用中 409）。沒有席號自動編 E01–E99。會加上方案品項（數量＝人數、未付），回 `{id,table,seat,headcount,item,amount}`。**收款（checkout）當下開始計時**（寫 `space.in_at`，checkout 回應附 `space_started:{in_at,due_at,seat,headcount,plan}` 供印入場單）；客人按離場前結清也不清單。超過 `capacity` 409。
