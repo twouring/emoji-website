@@ -7112,6 +7112,23 @@ app.post('/api/admin/orders/:id/member',auth,adminOnly,requireDb,wrap(async(req,
     res.json({ok:true,member:{id:user.id,name:user.name,phone:payer.member_phone},earned:yanOut.earned,balance:yanOut.balance,created:!!user.created});
   }finally{if(!committed)await client.query('ROLLBACK').catch(()=>{});client.release();}
 }));
+/* 作廢單登記「已完成退款」（KK 11/17）：現場用刷卡機／LINE Pay／匯款等手動退完後按這裡，body { method, amount?, note?, operator_id }；只寫 payer.manual_refund，不動金額／帳本 */
+app.post('/api/admin/orders/:id/refund-done',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這筆出餐單。'});
+  const venues=posScope(req);
+  const operator=await resolveOperator(req,req.body?.operator_id);
+  const client=await pool.connect();let committed=false;
+  try{
+    await client.query('BEGIN');
+    const o=(await client.query('SELECT id,items,amount,status,payer,paid_at FROM table_orders WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+    if(!o||!tableOrders.orderOwnedByVenues(o,venues))return res.status(404).json({error:'找不到這筆出餐單。'});
+    let rec;try{rec=onlineRefund.manualRefund(o,req.body,{by:actorOf(req.auth)||'',operator});}catch(e){return res.status(e.status||400).json({error:e.message});}
+    const payer={...(o.payer||{}),manual_refund:rec};
+    await client.query('UPDATE table_orders SET payer=$2 WHERE id=$1',[o.id,JSON.stringify(payer)]);
+    await client.query('COMMIT');committed=true;
+    res.json({ok:true,manual_refund:rec});
+  }finally{if(!committed)await client.query('ROLLBACK').catch(()=>{});client.release();}
+}));
 /* 更正已結帳單的付款方式（現場點錯）：body { method, operator_id }；只動 payer，不動金額／發票／品項 */
 app.post('/api/admin/orders/:id/pay-method',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這筆出餐單。'});

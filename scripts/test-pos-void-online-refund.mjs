@@ -108,3 +108,40 @@ test('作廢單一定標示有沒有退款（查單、桌上已結帳列、收�
  assert.match(c.voidRefundPill({id:'to_1',status:'void',amount:300,payer:{method:'cash'}}),/pill-wait">未退款/);
  for(const s of ["return `<span class=\"pill pill-bad\">已作廢</span>${voidRefundPill(o)}`","<b>${esc(voidRefundInfo(o).text)}</b>","spec.push({kind:'left',text:voidRefundInfo(o).text,size:18})","已作廢</span>${voidRefundPill(o)} <span"])assert.ok(ops.includes(s),s);
 });
+
+test('登記已完成退款：只限作廢單、自動退過或登記過擋下、金額與方式驗證',()=>{
+ const v={id:'to_1',status:'void',amount:300,payer:{method:'ctbc'}};
+ const r=onlineRefund.manualRefund(v,{method:'card'},{by:'pos',operator:{name:'小明'}});
+ assert.equal(r.amount,300);assert.equal(r.label,'刷卡機退刷');assert.equal(r.operator,'小明');
+ assert.equal(onlineRefund.manualRefund(v,{method:'cash',amount:120}).amount,120);
+ assert.throws(()=>onlineRefund.manualRefund({...v,status:'paid'},{method:'card'}),/只有作廢單/);
+ assert.throws(()=>onlineRefund.manualRefund({...v,payer:{online_refund:{amount:300}}},{method:'card'}),/已自動退款/);
+ assert.throws(()=>onlineRefund.manualRefund({...v,payer:{manual_refund:r}},{method:'card'}),/已登記過/);
+ assert.throws(()=>onlineRefund.manualRefund(v,{method:'bitcoin'}),/退款方式/);
+ assert.throws(()=>onlineRefund.manualRefund(v,{method:'card',amount:301}),/1–300/);
+ assert.throws(()=>onlineRefund.manualRefund(v,{method:'other'}),/寫明/);
+});
+test('登記已完成退款路由：寫 payer.manual_refund、不動金額；非作廢單 409',async()=>{
+ const st=source.indexOf("app.post('/api/admin/orders/:id/refund-done'");assert.ok(st>0);
+ const run=async(o,body)=>{let handler;const client={async query(s,p=[]){if(s.includes('FROM table_orders'))return {rows:[structuredClone(o)]};if(s.startsWith('UPDATE table_orders SET payer')){o.payer=JSON.parse(p[1]);}return {rows:[]};},release(){}};
+  vm.runInNewContext(source.slice(st,source.indexOf('\n}));',st)+6),{app:{post:(p,...h)=>handler=h.at(-1)},auth:0,adminOnly:0,requireDb:0,wrap:f=>f,ORDER_ID_RE:/^to_/,pool:{connect:async()=>client},tableOrders,onlineRefund,posScope:()=>null,resolveOperator:async()=>({id:'st_1',name:'小明'}),actorOf:()=> 'pos:CAFE'});
+  const res={code:200,status(n){this.code=n;return this;},json(b){this.body=b;return this;}};await handler({params:{id:o.id},body,auth:{}},res);return res;};
+ const o={id:'to_1',status:'void',amount:300,payer:{method:'linepay'},items:[{venue:'CAFE'}]};
+ let r=await run(o,{method:'linepay',operator_id:'st_1'});
+ assert.equal(r.code,200,JSON.stringify(r.body));assert.equal(o.payer.manual_refund.method,'linepay');assert.equal(o.payer.manual_refund.operator,'小明');assert.equal(o.amount,300);
+ r=await run(o,{method:'linepay'});assert.equal(r.code,409);
+ r=await run({...o,status:'paid',payer:{}},{method:'card'});assert.equal(r.code,409);
+});
+test('POS：未退款的作廢單有「已完成退款」鈕，登記後顯示已退款',()=>{
+ const c=vm.createContext({num:n=>String(n),esc:String,PAY_LABEL:{cash:'現金',ctbc:'信用卡'}});
+ vm.runInContext(ops.match(/const payMethodLabel=[^\n]+/)[0].replace('const ','var '),c);
+ const src=ops.slice(ops.indexOf('const voidRefundInfo='),ops.indexOf('const invoiceHtml=o=>{'));
+ vm.runInContext(src.replace(/\nconst (\w+)=/g,'\nvar $1=').replace(/^const /,'var '),c);
+ const v={id:'to_1',status:'void',amount:300,payer:{method:'ctbc'}};
+ assert.match(c.refundDoneBtn(v),/data-refund-done="to_1">已完成退款/);
+ const done={...v,payer:{...v.payer,manual_refund:{method:'card',label:'刷卡機退刷',amount:300,operator:'小明'}}};
+ assert.equal(c.refundDoneBtn(done),'');assert.equal(c.voidRefundInfo(done).text,'已退款 NT$300（刷卡機退刷；小明 登記）');
+ assert.equal(c.refundDoneBtn({...v,payer:{method:'stripe',online_refund:{provider:'stripe',amount:300}}}),'');
+ assert.ok(ops.includes("${refundDoneBtn(o)}</div>`;};"),'查單有按鈕');assert.ok(ops.includes("${o.status==='void'?refundDoneBtn(o):"),'桌上已結帳列有按鈕');
+ assert.ok(ops.includes("api('/admin/orders/'+o.id+'/refund-done'"));
+});

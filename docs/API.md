@@ -428,6 +428,9 @@ POS 結帳輸入統編時查抬頭。`:ubn` 為 8 碼數字（否則 400）。�
 
 預設只作帳務調整，不表示現金已交付。僅 `refund_cash === true` 且這張單有收現金（`payer.method === 'cash'` 全額，或混合付款 `payer.payments[]` 的現金部分；`cash_refund` 不超過實收現金）、剩餘訂單金額大於 0，才在同一筆交易保存 `payer.drawer_refunds[event_key]` 並回正數 `cash_refund`；否則為 0、不回 `event_key`。回 `{ ok:true, reason, method, cash_refund, event_key?, reopened, returned, table_no }`（`reopened`＝這次重新開桌；`returned`＝品項已回到桌上未結帳），事件代碼為 `refund:<order_id>`。請在送出前明確詢問是否退還現金，再透過 drawer-events 取得開櫃資格；此回應不是退款成功的證明。交易先鎖定訂單再檢查與變更（包含 ezPay 作廢），重複／同時作廢回 409，避免重複退款意圖。
 
+### POST /api/admin/orders/:id/refund-done
+作廢單登記「已完成退款」（KK 11/17）：系統不會自動退的付款方式（中信刷卡機、LINE Pay、轉帳，或作廢時選「只更正帳務」的現金），現場人員手動退完後登記。body `{ method, amount?, note?, operator_id? }`；`method` ∈ `card`（刷卡機退刷）、`linepay`、`transfer`、`cash`、`stripe`、`tappay`、`other`（`other` 必填 `note`）；`amount` 省略＝整張金額，須 1～單據金額的整數；`note` 最長 80 字。只能登記作廢單（否則 409）；系統已自動退款（`payer.online_refund`）或已登記過回 409。寫入 `payer.manual_refund {method,label,amount,note,at,by,operator}`，不動金額、帳本、錢櫃；回 `{ ok, manual_refund }`。登錯請言文字管理員處理。
+
 ### POST /api/admin/orders/:id/member
 查單補入會員：結帳時忘了帶會員，事後把會員綁到這張已結帳單並補累點。body `{ member_id?, phone?, token?, name?, operator_id? }`：`member_id`＝POS 從會員列表（`GET /api/admin/yan/members` 搜尋，預設先列這桌登入過的會員）點選的會員；`token`＝會員 App 會員卡 QR；否則用台灣手機，查無會員會自動新增。`GET /api/admin/orders/history` 每張單附 `table_members:[{id,name}]` 供點選，以及 `session_open`（那一桌是否還開著，作廢時決定要不要問「回到桌上」）。依 `amount − 打賞` 補累點（每 NT$100 一點，冪等），寫 `user_id`、`payer.member_id／member_phone／yan_earned／member_added`；不改金額、品項、發票，也不回溯套會員價。限制：已作廢、部分付款（預收）、已有會員回 409；只能補 7 天內的單。依 `venue` 只能改自己品牌的單。作廢這張單時點數照常沖回。回 `{ ok, member:{id,name,phone}, earned, balance, created }`。
 
