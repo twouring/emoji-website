@@ -225,7 +225,7 @@ function spaceRuleText(cat){
   const c = spaceCfg(), ot = spaceOvertimeItem(cat);
   return `超時 ${c.grace_min} 分鐘內不收費，之後每${c.unit_min === 60 ? '小時' : ' ' + c.unit_min + ' 分鐘'}${ot ? ` NT$${num(ot.price)}／人` : ' 另計'}`;
 }
-/* 入場單下半部（KK 11/17）：Wi-Fi、使用規則（超時費用、中途離場交帳單夾、離場結算）、祝福語；中英各一行，字級 ≥18 點 */
+/* 入場單下半部（KK 11/17）：Wi-Fi、使用規則（超時費用、中途離場交帳單夾、離場結算）、moji 插圖＋祝福語；中英各一行，字級 ≥18 點 */
 function spaceSlipExtras(c, cat, info){
   const ot = spaceOvertimeItem(cat), unit = c.unit_min === 60 ? 'hour' : c.unit_min + ' min';
   const rule = (zh, en) => [{ kind: 'wrap', text: '・' + zh, size: 20 }, { kind: 'wrap', text: en, size: 18 }];
@@ -237,7 +237,7 @@ function spaceSlipExtras(c, cat, info){
     ...(c.max_hours ? rule(`連續使用上限 ${c.max_hours} 小時，到時請離場後再重新入場。`, `Max ${c.max_hours} hours in a row; please check out and re-enter after that.`) : []),
     ...rule('中途離場請將帳單夾交櫃台保管，暫離期間照常計時。', 'Stepping out? Leave this bill clip at the counter. The clock keeps running.'),
     ...rule('離開時請將帳單夾交回櫃台辦理離場，超時費用離場時結算。', 'When leaving, return the clip at the counter; overtime is settled at checkout.'),
-    ...(bless ? ['dash', { kind: 'wrap', text: bless.zh, size: 22, bold: true }, { kind: 'wrap', text: bless.en, size: 18 }] : [])];
+    ...(bless ? ['dash', { kind: 'moji', scene: bless.m, w: 104, texts: [{ text: bless.zh, size: 22, bold: true }, { text: bless.en, size: 18 }] }] : [])];
 }
 async function printSpaceEntry(info, { reprint = false } = {}){
   if (!canPrint()) { starHint(); return false; }

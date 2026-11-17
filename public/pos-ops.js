@@ -804,6 +804,13 @@ function ticketCanvas(spec){
     else if(cmd.kind==='left')left(cmd.text,cmd.size||22,!!cmd.bold);
     else if(cmd.kind==='wrap')wrap(cmd.text,cmd.size||22,!!cmd.bold);
     else if(cmd.kind==='box')box(cmd.texts,cmd.size||22,!!cmd.bold);
+    /* moji 插圖在左、文字在右（入場單祝福語，KK 11/17）；沒載入 PosMoji 或不支援 Path2D 就只印文字 */
+    else if(cmd.kind==='moji'){const mw=cmd.w||120,mh=Math.round(mw*(typeof PosMoji!=='undefined'?PosMoji.ratio:1)),top=y+4;
+      const drew=!!(cmd.scene&&typeof PosMoji!=='undefined'&&PosMoji.draw&&PosMoji.draw(g,cmd.scene,4,top,mw));
+      const tx=drew?mw+8:8,tw=W-tx-8,rows=(cmd.texts||[]).map(t=>{setFont(t.size||20,!!t.bold);return {t,r:wrapTicketText(g,t.text,tw)};});
+      const th=rows.reduce((a,x)=>a+x.r.length*((x.t.size||20)+6),0);y=drew?top+Math.max(0,Math.floor((mh-th)/2)):y;g.textAlign='left';
+      for(const x of rows){setFont(x.t.size||20,!!x.t.bold);for(const r of x.r){g.fillText(r,tx,y);advance(x.t.size||20);}}
+      if(drew)y=Math.max(y,top+mh+4);}
     else if(cmd.kind==='tags')tags(cmd.texts||[],cmd.size||40,cmd.indent||0);
     else if(cmd.kind==='row')row(cmd.left,cmd.right,cmd.size||22,!!cmd.bold);
     // 兩欄靠右：「單價 × 數量」右緣固定在 W-120，小計右緣在紙邊（點餐明細用，欄位上下對齊）

@@ -110,7 +110,7 @@ test('接線：server 路由、結帳開始計時、清桌擋在場、MCP 目錄
   assert.match(html, /<script src="\/pos-space\.js"><\/script>/); assert.match(html, /pos-space\.css/);
   assert.match(ops, /if\(SPACE_ON\)host\.innerHTML=/); assert.match(ops, /bindSpaceBoard\(host,reload\);bindSpacePanel\(host,cur,reload\)/);
   assert.match(ops, /spaceAfterCheckout\(out,cur\)/);
-  assert.match(sp, /function printSpaceEntry/); assert.match(sp, /\.\.\.spaceSlipExtras\(c, cat, info\)/, '入場單印 Wi-Fi／規則／祝福語（KK 11/17）'); assert.match(sp, /帳單夾交櫃台保管/); assert.match(sp, /PosEncouragement\.pick\(\)/); assert.match(sp, /c\.wifi_ssid/); assert.match(sp, /預計離場/); assert.match(sp, /入場時間/);
+  assert.match(sp, /function printSpaceEntry/); assert.match(sp, /\.\.\.spaceSlipExtras\(c, cat, info\)/, '入場單印 Wi-Fi／規則／祝福語（KK 11/17）'); assert.match(sp, /帳單夾交櫃台保管/); assert.match(sp, /PosEncouragement\.pick\(\)/); assert.match(sp, /kind: 'moji', scene: bless\.m, w: 104/, '入場單祝福語配 moji 插圖（KK 11/17）'); assert.match(ops, /cmd\.kind==='moji'/); assert.match(ops, /PosMoji\.draw\(g,cmd\.scene/); assert.match(sp, /c\.wifi_ssid/); assert.match(sp, /預計離場/); assert.match(sp, /入場時間/);
   assert.doesNotMatch(sp + css, /住宿|過夜|入住|床位/, '禁用字');
   assert.match(set, /spaceSettingsSection\(\)/); assert.match(set, /bindSpaceSettings\(host\)/);
   assert.match(css, /\.pos-space-mode #p-nav \[data-tab=serve\]\{display:none\}/);
