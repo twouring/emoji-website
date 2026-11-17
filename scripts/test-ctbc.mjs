@@ -91,7 +91,7 @@ test('付款方式：信用卡＝ctbc；結帳選項不列 card／taishin，歷�
   assert.ok(require('../lib/pos-payment-methods').RESERVED_CODES.has('ctbc'));
   const server = read('server.js');
   assert.match(server, /MERGED_PAY_LABEL=\{ctbc:'信用卡'\}/);
-  assert.match(server, /filter\(\(\[code\]\)=>code!=='tappay'&&code!=='stripe'&&!posRegister\.LEGACY_CARD\.includes\(code\)\)/);
+  assert.match(server, /filter\(\(\[code\]\)=>code!=='tappay'&&code!=='stripe'&&!posRegister\.LEGACY_CARD\.includes\(code\)&&/);
   const ops = read('public/pos-ops.js');
   assert.match(ops, /\['ctbc','信用卡'\]/);
   assert.doesNotMatch(ops, /\['taishin','信用卡'\]/);
@@ -104,7 +104,7 @@ test('server：ctbc 交易表、同步路由、排程、日結回 ctbc 區塊；
   assert.match(s, /app\.post\('\/api\/admin\/sales\/ctbc\/sync',auth,adminOnly,requireDb,wrap/);
   assert.match(s, /ctbc:\{\.\.\.ct,configured:ctbc\.configured\(\)/);
   assert.match(s, /cronRunner\.define\('ctbc-daily'/);
-  assert.match(s, /cronRunner\.define\('ctbc-recent', \(\) => \{ if \(ctbcSyncing\) return 'busy';/);
+  assert.match(s, /cronRunner\.define\('ctbc-recent', eachEntity\(ctbc, en => ctbcSyncing\[en\] \? 'busy'/, '每個法人各自同步、正在同步就跳過');
   assert.match(s, /schedule\('\*\/15 \* \* \* \*', \(\) => cronRunner\.run\('ctbc-recent'\)/);
   assert.doesNotMatch(s, /sales\/taishin|taishinManual|pos_taishin_daily WHERE/);
   assert.ok(!fs.existsSync(new URL('lib/taishin-manual.js', root)) && !fs.existsSync(new URL('lib/taishin.js', root)), '台新程式已刪除');

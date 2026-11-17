@@ -28,6 +28,7 @@ function harness(o,{stripeFail=false,tappayFail=false,invoiceFail=false}={}){
   if(s.includes('UPDATE table_orders SET payer=COALESCE')){o.payer={...o.payer,...JSON.parse(p[1])};}
   return {rows:[]};},release(){}};
  const ctx={app:{post:(path,...h)=>routes.set(path,h.at(-1))},auth:0,adminOnly:0,requireDb:0,wrap:f=>f,ORDER_ID_RE:/^to_/,pool:{connect:async()=>client},tableOrders:{...tableOrders,tappayConfig:()=>({partnerKey:'pk',merchantId:'m',mode:'sandbox'})},onlineRefund:lib,stripe,actorOf:()=> 'tester',reverseYanForOrder:async()=>{},
+  entities:require('../lib/entities.js'),invoiceCfg:()=>({}),noInvoiceCfg:()=>'尚未設定 ezPay',
   ezpayInvoice:{config:()=>({}),searchInvoice:async(c,x,i)=>i,invalidInvoice:async(c,x,i)=>{if(invoiceFail)throw Object.assign(Error('ezPay 暫停'),{status:502});return {...i,status:'void'};}}};
  for(const route of ['/api/admin/orders/:id/void','/api/admin/orders/:id/items/:line/void']){const st=source.indexOf(`app.post('${route}'`);vm.runInNewContext(source.slice(st,source.indexOf('\n}));',st)+6),ctx);}
  const call=async(route,params,body={reason:'客人取消'})=>{const res={code:200,status(n){this.code=n;return this;},json(b){this.body=b;return this;}};await routes.get(route)({params,body,auth:{brands:null}},res);return res;};

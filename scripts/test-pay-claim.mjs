@@ -20,7 +20,7 @@ test('outsideHours：任何一本帳開著就不是營業時間外', () => {
 test('reconcile：claim_venue 優先；營業時間外未認領列在 outside；開帳中照時間歸屬', () => {
   const txs = [
     { id: 'a', type: 'PAYMENT', amount: 100, paid_at: '2026-11-15T08:30:00+08:00', method: 'CREDIT_CARD' },
-    { id: 'b', type: 'PAYMENT', amount: 200, paid_at: '2026-11-15T17:30:00+08:00', method: 'CREDIT_CARD', claim_venue: 'STAY' },
+    { id: 'b', type: 'PAYMENT', amount: 200, paid_at: '2026-11-15T17:30:00+08:00', method: 'CREDIT_CARD', claim_venue: 'STAY', entity: 'TWOURING' },   // 遊遊商店的交易
     { id: 'c', type: 'PAYMENT', amount: 300, paid_at: '2026-11-15T12:00:00+08:00', method: 'CREDIT_CARD' },
   ];
   const all = L.reconcile([], txs, { registers: regs });
@@ -29,13 +29,14 @@ test('reconcile：claim_venue 優先；營業時間外未認領列在 outside；
   assert.equal(all.by_venue.CAFE.linepay.amount, 400, 'a 暫歸在咖啡＋c 開帳中');
   const stay = L.reconcile([], txs, { venues: ['STAY'], registers: regs });
   assert.deepEqual(stay.rows.map(t => [t.id, t.claimed]), [['b', true]]);
-  assert.deepEqual(stay.outside.map(t => t.id), ['a'], '品牌頁也看得到可認領的');
+  assert.deepEqual(stay.outside.map(t => t.id), [], '言文字的交易不出現在遊遊品牌頁（KK 11/11 付款依法人分開）');
+  assert.deepEqual(L.reconcile([], txs, { venues: ['BAR'], registers: regs }).outside.map(t => t.id), ['a'], '同法人品牌頁看得到可認領的');
   assert.equal(stay.linepay.amount, 200);
   assert.equal(L.alertRows(txs, regs, ['STAY']).map(r => r.id).join(), 'b', '彈窗也以認領為準');
 });
 
 test('ctbc reconcile 同樣認領規則', () => {
-  const txs = [{ id: 'x', type: 'SALE', amount: 500, paid_at: '2026-11-15T17:30:00+08:00', progress: '成功', claim_venue: 'REST' }, { id: 'y', type: 'SALE', amount: 50, paid_at: '2026-11-15T17:40:00+08:00', progress: '成功' }];
+  const txs = [{ id: 'x', type: 'SALE', amount: 500, paid_at: '2026-11-15T17:30:00+08:00', progress: '成功', claim_venue: 'REST', entity: 'TWOURING' }, { id: 'y', type: 'SALE', amount: 50, paid_at: '2026-11-15T17:40:00+08:00', progress: '成功' }];
   const r = C.reconcile([], txs, { registers: regs });
   assert.equal(r.by_venue.REST.ctbc.amount, 500);
   assert.deepEqual(r.outside.map(t => t.id), ['y']);
@@ -51,7 +52,8 @@ test('接線：claim API、欄位、查詢、POS 日結、操作紀錄', () => {
   assert.match(s, /if\(rule\.needReason&&!reason\)throw Object\.assign\(Error\(rule\.error\),\{status:400\}\)/, '別店／重疊時段要原因');
   assert.match(read('lib/linepay.js'), /改歸本店要填原因/, '別店開帳時段要原因');
   assert.match(s, /claim_reason=\$4/);
-  assert.equal((s.match(/,claim_venue,claim_reason FROM (linepay|ctbc)_transactions/g) || []).length, 4, '日結與彈窗查詢都要帶 claim_venue');
+  assert.equal((s.match(/,claim_venue,claim_reason,entity FROM (linepay|ctbc)_transactions/g) || []).length, 4, '日結與彈窗查詢都要帶 claim_venue＋entity');
+  assert.match(s, /if\(entities\.txEntity\(t\)!==entities\.entityOf\(venue\)\)throw/, '不同法人的交易不能認領');
   const p = read('public/pos-ops.js');
   assert.match(p, /營業時間外收款/); assert.match(p, /data-pay-claim/); assert.match(p, /\/admin\/sales\/\$\{gw\}\/claim/);
   assert.equal(require('../lib/pos-log').describe('POST', '/sales/ctbc/claim'), '營業時間外收款歸到本店');
@@ -71,8 +73,9 @@ test('others：品牌頁列出別店開帳時段、未認領的交易；全店�
   assert.deepEqual(bar.outside.map(t => t.id), ['o']);
   assert.equal(cafe.rows.find(t => t.id === 'q').claim_reason, '本店客人付款，別店已先開帳');
   assert.deepEqual(L.reconcile([], txs, { registers: regs }).others, []);
-  const ct = C.reconcile([], [{ id: 'z', type: 'SALE', amount: 300, paid_at: '2026-11-15T12:00:00+08:00', progress: '成功' }], { venues: ['STAY'], registers: regs });
+  const ct = C.reconcile([], [{ id: 'z', type: 'SALE', amount: 300, paid_at: '2026-11-15T12:00:00+08:00', progress: '成功' }], { venues: ['BAR'], registers: regs });
   assert.deepEqual(ct.others.map(t => t.id), ['z']);
+  assert.deepEqual(C.reconcile([], [{ id: 'z', type: 'SALE', amount: 300, paid_at: '2026-11-15T12:00:00+08:00', progress: '成功' }], { venues: ['STAY'], registers: regs }).others, [], '言文字的交易不給遊遊品牌改歸');
 });
 
 test('POS：別店時段收合在 details，改歸先選原因再送 reason', () => {
@@ -110,7 +113,8 @@ test('重疊時段：claimRule 兩店都可認領（要原因），只有本店�
   assert.deepEqual([none.ok, none.needReason], [true, false], '營業時間外免原因');
   assert.equal(L.claimRule('2026-11-15T19:00:00+08:00', ov, 'BAR').ok, false);
   const stay = [{ venue: 'STAY', opened_at: '2026-11-15T10:00:00+08:00', closed_at: null }];
-  assert.deepEqual([L.claimRule('2026-11-15T12:00:00+08:00', stay, 'STAY').ok, L.claimRule('2026-11-15T12:00:00+08:00', stay, 'STAY').needReason], [true, false], '只有等等空間開著：自動歸屬不會給它，本店可直接認領（不回 409）');
+  assert.equal(L.claimRule('2026-11-15T12:00:00+08:00', stay, 'STAY').ok, false, '遊遊兩店也依時間自動歸屬（同法人內），只有本店開著就本來算本店');
+  assert.deepEqual([L.claimRule('2026-11-15T12:00:00+08:00', stay, 'REST').ok, L.claimRule('2026-11-15T12:00:00+08:00', stay, 'REST').needReason], [true, true], '只有等等空間開著：自動歸屬不會給它，本店可直接認領（不回 409）');
 });
 
 test('重疊時段：兩店日結都看得到（others／ambiguous），全店頁列 ambiguous；認領後只歸一店', () => {

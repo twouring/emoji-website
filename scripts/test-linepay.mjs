@@ -141,13 +141,13 @@ test('server.js 接線：資料表、日結回 linepay、同步／匯入端點�
   assert.match(s, /ON CONFLICT \(id\) DO UPDATE SET type=EXCLUDED\.type/, '同一筆交易重抓是覆寫不是重複');
   // 帳密可在後台「系統設定」事後填入，排程一律掛上、執行時才檢查 configured()
   assert.match(s, /schedule\('30 4 \* \* \*', \(\) => cronRunner\.run\('linepay-daily'\)/);
-  assert.match(s, /cronRunner\.define\('linepay-daily', \(\) => syncLinepay\(\.\.\.linepay\.syncWindow\(\)\),\n\s*\{ enabled: \(\) => linepay\.configured\(\)/);
+  assert.match(s, /cronRunner\.define\('linepay-daily', eachEntity\(linepay, en => syncLinepay\(\.\.\.linepay\.syncWindow\(\), en\)\),\n\s*\{ enabled: anyEntity\(linepay\)/);
   assert.doesNotMatch(s, /subject: '\[POS\] LINE Pay 對帳同步失敗'/, 'LINE Pay 同步失敗不寄信');
   assert.match(s, /INSERT INTO linepay_sync_state\(id,error,failed_at\)/, '同步失敗記錄錯誤');
   assert.match(s, /ON CONFLICT \(id\) DO UPDATE SET error=NULL,failed_at=NULL,ok_at=now\(\)/, '同步成功清除錯誤');
   assert.match(s, /sync_error:syncState\.error\|\|null/, '日結 API 回傳同步錯誤');
   assert.match(s, /schedule\('\*\/5 \* \* \* \*', \(\) => cronRunner\.run\('linepay-recent'\)/, '背景每 5 分鐘抓昨今兩天');
-  assert.match(s, /cronRunner\.define\('linepay-recent', \(\) => \{ if \(linepaySyncing\) return 'busy'; return syncLinepay\(\.\.\.linepay\.syncWindow\(Date\.now\(\), 1\)\); \},\n\s*\{ enabled: \(\) => linepay\.configured\(\)/, '正在同步就跳過、帳密執行時才檢查');
+  assert.match(s, /cronRunner\.define\('linepay-recent', eachEntity\(linepay, en => linepaySyncing\[en\] \? 'busy' : syncLinepay\(\.\.\.linepay\.syncWindow\(Date\.now\(\), 1\), en\)\),\n\s*\{ enabled: anyEntity\(linepay\)/, '正在同步就跳過、帳密執行時才檢查（依法人）');
   assert.match(s, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|analytics\|registers\|staff\|shifts\|attendance\|payment-methods\|pos-devices\|yan\|reservation-hours\|inventory\)/, '餐飲子帳號可用 /api/admin/sales/linepay/sync');
   assert.doesNotMatch(s, /LINEPAY_MERCHANT_PW\s*=\s*['"]/, '密碼不得寫死');
 });

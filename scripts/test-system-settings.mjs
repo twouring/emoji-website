@@ -54,7 +54,7 @@ test('ezPay invoice and LINE Pay credentials are managed from the back office an
   assert.match(server,/setInterval\(\(\) => refreshLiveSettings\(\)[\s\S]{0,200}\n[\s\S]{0,400}if \(ADMIN_MODE\) \{/,'live 設定重載必須在 ADMIN_MODE return 之前，後台服務也要跑');
   assert.match(server,/restart_required:!live/);
   assert.match(server,/schedule\('30 4 \* \* \*', \(\) => cronRunner\.run\('linepay-daily'\)/,'LINE Pay 排程一律掛上');
-  assert.match(server,/cronRunner\.define\('linepay-daily',[^\n]*\n\s*\{ enabled: \(\) => linepay\.configured\(\)/,'LINE Pay 帳密在執行時才檢查');
+  assert.match(server,/cronRunner\.define\('linepay-daily',[^\n]*\n\s*\{ enabled: anyEntity\(linepay\)/,'LINE Pay 帳密在執行時才檢查');
   assert.match(server,/async function refreshLiveSettings\(\)\{[^\n]*liveSettings\.markFresh\(\);\}/,'手動重載後重設 lazy 重載計時');
 });
 

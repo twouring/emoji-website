@@ -65,6 +65,7 @@ const posPaymentMethods=require('./lib/pos-payment-methods');
 const eventQuestions = require('./lib/event-questions');
 const { eventSlug, normalizeEventInput, localizeEvent, normalizeAttribution } = require('./lib/events');
 const { zoneSlots: zoneSlotsOf } = require('./lib/event-applications');
+const entities = require('./lib/entities');
 const { normalizeEventApplication, safeHttpUrl, applicationDeposit, approvalVenueFee, venueLabel, applicationVenueText, venuesOfLocation } = require('./lib/event-applications');
 const venueFees = require('./lib/venue-fees');
 const partnersLib = require('./lib/partners');
@@ -939,6 +940,8 @@ async function migrate() {
   await q(`ALTER TABLE linepay_transactions ADD COLUMN IF NOT EXISTS claim_venue TEXT, ADD COLUMN IF NOT EXISTS claimed_by TEXT, ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS claim_reason TEXT`);
   // LINE Pay 同步狀態（單列）：失敗不寄信，記在這裡由 POS 日結畫面顯示；成功即清除
   await q(`CREATE TABLE IF NOT EXISTS linepay_sync_state (id INT PRIMARY KEY DEFAULT 1, error TEXT, failed_at TIMESTAMPTZ, ok_at TIMESTAMPTZ)`);
+  // 付款依法人分開（KK 11/11 D2）：entity NULL＝言文字（舊資料只有言文字一個商店）；遊遊交易 id 加 TWOURING: 前綴避免撞號；同步狀態 id=1 言文字、id=2 遊遊
+  await q(`ALTER TABLE linepay_transactions ADD COLUMN IF NOT EXISTS entity TEXT`);
   // Cloud Scheduler 觸發的排程租約：多個 Cloud Run 執行個體同時收到觸發時只有一個在跑（程序內排程不用）
   await q(`CREATE TABLE IF NOT EXISTS cron_leases (name TEXT PRIMARY KEY, token TEXT NOT NULL, expires_at TIMESTAMPTZ NOT NULL)`);
   await q(linepayOffline.schema);
@@ -952,6 +955,8 @@ async function migrate() {
   await q(`CREATE INDEX IF NOT EXISTS ctbc_transactions_paid_idx ON ctbc_transactions(paid_at)`);
   await q(`ALTER TABLE ctbc_transactions ADD COLUMN IF NOT EXISTS claim_venue TEXT, ADD COLUMN IF NOT EXISTS claimed_by TEXT, ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS claim_reason TEXT`);
   await q(`CREATE TABLE IF NOT EXISTS ctbc_sync_state (id INT PRIMARY KEY DEFAULT 1, error TEXT, failed_at TIMESTAMPTZ, ok_at TIMESTAMPTZ)`);
+  // 付款依法人分開（KK 11/11 D2）：entity NULL＝言文字（舊資料只有言文字一個商店）；遊遊交易 id 加 TWOURING: 前綴避免撞號；同步狀態 id=1 言文字、id=2 遊遊
+  await q(`ALTER TABLE ctbc_transactions ADD COLUMN IF NOT EXISTS entity TEXT`);
   // 1F 訂位申請（Google Maps／官方 LINE 連結 /reserve）：不登入、存 DB、寄通知；舊庫補建
   await q(`CREATE TABLE IF NOT EXISTS dining_reservations (
     id TEXT PRIMARY KEY,
@@ -6660,9 +6665,13 @@ app.post('/api/admin/orders/sessions',auth,adminOnly,requireDb,wrap(async(req,re
     await client.query('COMMIT');res.status(created?201:200).json({ok:true,id:s.id,table:s.table_no,created,takeout,operator:operator||undefined,qr_url:takeout?undefined:tableOrders.sessionUrl(tableOrders.orderBase(req.body?.venue||req.auth?.pos_venue,s.created_at),s.id,SECRET),no:tableOrders.sessionNo(s.id),opened_at:s.created_at||null,party_size:tableOrders.partySize(s.party_votes),kids:tableOrders.partyKids(s.party_votes),foreign:tableOrders.partyForeign(s.party_votes)});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
+/* 發票賣方＝訂單品牌的法人（KK 11/11 D2）：在咖啡／三點水開言文字、等等空間／約書旅開遊遊；遊遊沒填 ezPay 就不開（不借言文字的商店） */
+const orderEntity=o=>{const v=(o?.items||[]).find(l=>l&&l.venue)?.venue;try{return v?entities.entityOf(v):'TTH';}catch{return 'TTH';}};
+const invoiceCfg=o=>ezpayInvoice.config(process.env,orderEntity(o));
+const noInvoiceCfg=o=>`尚未設定${entities.ENTITY_LABEL[orderEntity(o)]}的 ezPay 電子發票憑證（後台「系統設定」）。`;
 async function issueEzpayForOrder(order, invoice) {
-  const cfg=ezpayInvoice.config();
-  if(!cfg)throw Object.assign(Error('尚未設定 ezPay 電子發票憑證，請到後台「系統設定」填入。'),{status:503});
+  const cfg=invoiceCfg(order);
+  if(!cfg)throw Object.assign(Error(noInvoiceCfg(order)),{status:503});
   return ezpayInvoice.issueInvoice(cfg,order,invoice);
 }
 async function storeInvoiceResult(order, invoice, { throwOnError=false } = {}) {
@@ -6971,8 +6980,8 @@ app.post('/api/admin/orders/:id/invoice/issue',auth,adminOnly,requireDb,wrap(asy
   if(o.invoice?.status==='issued'){
     if(o.invoice.number)return res.json({ok:true,invoice:o.invoice});
     // ezPay 已開立但當時沒解析到號碼：用自訂編號＋金額查回來，不能重開（會重複開票）
-    const cfg=ezpayInvoice.config();
-    if(!cfg)return res.status(503).json({error:'尚未設定 ezPay 電子發票憑證（後台「系統設定」）。'});
+    const cfg=invoiceCfg(o);
+    if(!cfg)return res.status(503).json({error:noInvoiceCfg(o)});
     try{const synced=await ezpayInvoice.searchInvoice(cfg,o,o.invoice);await q('UPDATE table_orders SET invoice=$2 WHERE id=$1',[o.id,JSON.stringify(synced)]);return res.json({ok:true,invoice:synced,synced:true});}
     catch(e){return res.status(e.status||502).json({error:e.message});}
   }
@@ -6993,8 +7002,7 @@ app.post('/api/admin/orders/:id/invoice/reissue',auth,adminOnly,requireDb,wrap(a
   const operator=await resolveOperator(req,req.body?.operator_id);
   let form;try{form=ezpayInvoice.invoiceForm(req.body?.invoice||{});}catch(e){return res.status(e.status||400).json({error:e.message});}
   if(!form.requested)return res.status(400).json({error:'請選擇新發票的類型。'});
-  const cfg=ezpayInvoice.config();
-  if(!cfg)return res.status(503).json({error:'尚未設定 ezPay 電子發票憑證（後台「系統設定」）。'});
+  let cfg;
   const client=await pool.connect();let committed=false;
   try{
     await client.query('BEGIN');
@@ -7002,6 +7010,7 @@ app.post('/api/admin/orders/:id/invoice/reissue',auth,adminOnly,requireDb,wrap(a
     if(!o||!tableOrders.orderOwnedByVenues(o,venues))return res.status(404).json({error:'找不到這筆出餐單。'});
     if(o.status==='void')return res.status(409).json({error:'作廢的單不能改開發票。'});
     if(o.invoice?.status!=='issued')return res.status(409).json({error:'這張單還沒有開立發票，請按「補開發票」。'});
+    cfg=invoiceCfg(o);if(!cfg)return res.status(503).json({error:noInvoiceCfg(o)});
     if(!(Math.round(Number(ezpayInvoice.invoiceOrder(o).amount)||0)>0))return res.status(400).json({error:'0 元訂單不開立發票。'});
     if(invPeriod(o.invoice.issued_at||o.paid_at)!==invPeriod(Date.now()))return res.status(409).json({error:'原發票已跨期別（每兩個月一期），不能作廢改開，請到 ezPay 後台開折讓。'});
     o.discount=o.payer?.discount||null;o.service_charge=o.payer?.service_charge||null;
@@ -7109,8 +7118,8 @@ app.post('/api/admin/orders/:id/void',auth,adminOnly,requireDb,wrap(async(req,re
   const keepRefund=async(code,error)=>{if(onlineRefundRec){await client.query('ROLLBACK').catch(()=>{});committed=true;await client.query("UPDATE table_orders SET payer=COALESCE(payer,'{}'::jsonb)||$2::jsonb WHERE id=$1",[o.id,JSON.stringify({online_refund:onlineRefundRec})]);error+='（已退款，請重新按作廢完成帳務）';}return res.status(code).json({error,online_refund:onlineRefundRec||undefined});};
   let nextInvoice=o.invoice||{};
   if(nextInvoice.status==='issued'){
-    const cfg=ezpayInvoice.config();
-    if(!cfg)return keepRefund(503,'尚未設定 ezPay 電子發票憑證（後台「系統設定」），無法同步作廢已開立發票的訂單。');
+    const cfg=invoiceCfg(o);
+    if(!cfg)return keepRefund(503,noInvoiceCfg(o).replace('。','，無法同步作廢已開立發票的訂單。'));
     // 已開立但沒記到號碼：先向 ezPay 查回號碼，再作廢
     if(!nextInvoice.number){try{nextInvoice=await ezpayInvoice.searchInvoice(cfg,o,nextInvoice);}catch(e){return keepRefund(e.status||502,e.message);}}
     if(nextInvoice.status==='issued'){try{nextInvoice=await ezpayInvoice.invalidInvoice(cfg,o,nextInvoice,reason);}catch(e){return keepRefund(e.status||502,e.message);}}
@@ -7608,7 +7617,7 @@ app.get('/api/admin/exec',auth,adminOnly,requireDb,wrap(async(req,res)=>{
       const txs=(await q(`SELECT * FROM ${table} WHERE paid_at>=$1 AND paid_at<$2`,[a,b])).rows;
       const r=lib.reconcile(orders,txs,{venues:null,registers:regs});days[d]={diff:r.diff,by_venue:r.by_venue};
     }
-    return {configured:lib.configured(),sync_error:st.error||null,synced_at:st.ok_at||last||null,days};
+    return {configured:entities.ENTITIES.some(en=>lib.configured(process.env,en)),sync_error:st.error||null,synced_at:st.ok_at||last||null,days};
   };
   await Promise.all([
     grab('營收',async()=>{src.orders=(await q('SELECT id,items,amount,payer,tappay,status,paid_at FROM table_orders WHERE paid_at>=$1',[from])).rows;}),
@@ -7646,12 +7655,12 @@ app.get('/api/admin/sales',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const orders=await ordersOfDay(day,'id,session_id,table_no,items,amount,payer,tappay,invoice,status,paid_at,void_reason,voided_by,(SELECT s.created_at FROM table_sessions s WHERE s.id=table_orders.session_id) AS opened_at');   /* opened_at：時段看開桌時間（後結帳，KK 11/15） */   /* 依開帳日認列（KK 11/5） */
   // LINE Pay 對帳：同一營業日 LINE Pay 後台實收 vs POS 登記為 LINE Pay 的單；LINE Pay 後台不分店別，依當天開關帳時間把每筆實收歸到在咖啡／三點水
   const registers=(await q('SELECT venue,opened_at,closed_at FROM pos_registers WHERE day=$1 ORDER BY opened_at',[day])).rows;
-  const txs=(await q('SELECT id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no,claim_venue,claim_reason FROM linepay_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[from,to])).rows;
+  const txs=(await q('SELECT id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no,claim_venue,claim_reason,entity FROM linepay_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[from,to])).rows;
   const last=(await q('SELECT max(synced_at) AS at FROM linepay_transactions')).rows[0].at;
   const syncState=(await q('SELECT error,failed_at FROM linepay_sync_state WHERE id=1').catch(()=>({rows:[]}))).rows[0]||{};
   const lp=linepay.reconcile(orders,txs,{venues,registers});
   // 中信行動刷卡對帳：中信商店管理平台實收（每 15 分鐘＋每日 04:40 同步）vs POS 登記為信用卡（ctbc，含歷史 taishin／card）的單
-  const ctTxs=(await q('SELECT id,type,amount,paid_at,card_no,card_last4,auth_code,biz,progress,settle,settle_date,pay_date,terminal_id,device_user,note,claim_venue,claim_reason FROM ctbc_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[from,to])).rows;
+  const ctTxs=(await q('SELECT id,type,amount,paid_at,card_no,card_last4,auth_code,biz,progress,settle,settle_date,pay_date,terminal_id,device_user,note,claim_venue,claim_reason,entity FROM ctbc_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[from,to])).rows;
   const ctLast=(await q('SELECT max(synced_at) AS at FROM ctbc_transactions')).rows[0].at;
   const ctState=(await q('SELECT error,failed_at,ok_at FROM ctbc_sync_state WHERE id=1').catch(()=>({rows:[]}))).rows[0]||{};
   const ct=ctbc.reconcile(orders,ctTxs,{venues,registers});
@@ -7708,7 +7717,7 @@ async function registerSummary(reg){
   const moves=(await q('SELECT id,type,amount,reason,staff,receipt_photo,created_at FROM pos_cash_moves WHERE register_id=$1 ORDER BY created_at',[reg.id])).rows.map(m=>tipMoves.has(m.id)?{...m,locked:'tip'}:m);   /* 打賞支付產生的支出不可在日結改／刪（要對得上打賞帳） */
   const counts=(await q('SELECT id,counted_cash,expected_cash,diff,denominations,note,counted_by,created_at FROM pos_register_counts WHERE register_id=$1 ORDER BY created_at DESC',[reg.id])).rows;
   const summary=posRegister.expectedCash({opening_cash:reg.opening_cash,cash_sales:sales.by_method.cash||0,moves,split:posRegister.pettySplit(regDayStr)});   /* KK 11/17：臨時收支走零用金袋，不算錢櫃 */
-  const methods=await paymentMethodsList(posPaymentMethods.groupsOf([reg.venue])),accounts=posRegister.accountsOf(sales.by_method),labels={};
+  const methods=await paymentMethodsList(posPaymentMethods.groupsOf([reg.venue]),[reg.venue]),accounts=posRegister.accountsOf(sales.by_method),labels={};
   for(const m of methods){labels[m.code]=m.label;if(m.active&&m.code!=='cash'&&!posRegister.LEGACY_CARD.includes(m.code))accounts[m.code]??=0;}
   labels.stripe='Stripe 線上刷卡';   // 會員 App 商店線上付款，對 Stripe 後台實收
   summary.reconciliation_accounts=accounts;summary.account_labels=labels;
@@ -7742,8 +7751,8 @@ app.get('/api/admin/accounting',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   let r;try{r=accountingReport.range(req.query);}catch(e){if(e.status===400)return res.status(400).json({error:e.message});throw e;}
   const orders=await ordersOfLedgerRange(r.from,r.to,'id,session_id,table_no,items,amount,payer,tappay,invoice,status,paid_at,void_reason');
   const registers=(await q('SELECT id,day,venue,opened_at,closed_at,diff,counted_cash,expected_cash FROM pos_registers WHERE day>=$1 AND day<=$2 ORDER BY opened_at',[r.from,r.to])).rows;
-  const linepayTxs=(await q('SELECT id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no,claim_venue FROM linepay_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[r.start,r.end])).rows;
-  const ctbcTxs=(await q('SELECT id,type,amount,paid_at,card_no,card_last4,auth_code,biz,progress,settle,settle_date,pay_date,terminal_id,device_user,note,claim_venue FROM ctbc_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[r.start,r.end])).rows;
+  const linepayTxs=(await q('SELECT id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no,claim_venue,entity FROM linepay_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[r.start,r.end])).rows;
+  const ctbcTxs=(await q('SELECT id,type,amount,paid_at,card_no,card_last4,auth_code,biz,progress,settle,settle_date,pay_date,terminal_id,device_user,note,claim_venue,entity FROM ctbc_transactions WHERE paid_at>=$1 AND paid_at<$2 ORDER BY paid_at',[r.start,r.end])).rows;
   const methodLabels=Object.fromEntries((await paymentMethodsList()).map(m=>[m.code,m.label]));
   res.set('Cache-Control','no-store');
   res.json(accountingReport.build({...r,orders,registers,linepayTxs,ctbcTxs,methodLabels}));
@@ -7912,8 +7921,9 @@ app.post('/api/admin/registers/:id/reopen',auth,adminOnly,superOnly,requireDb,wr
 // 結帳畫面只留一個「信用卡」選項。歷史單據的 card／taishin 紀錄不回頭改，標籤仍顯示「信用卡」，日結併入 ctbc 對帳
 const MERGED_PAY_LABEL={ctbc:'信用卡'};
 /* groups：posPaymentMethods.groupsOf(venues)；null＝全部組（言文字管理員／標籤查詢）。內建付款方式不分組 */
-async function paymentMethodsList(groups=null){
-  const builtin=Object.entries(tableOrders.PAY_METHODS).filter(([code])=>code!=='tappay'&&code!=='stripe'&&!posRegister.LEGACY_CARD.includes(code)).map(([code,label])=>({code,label:MERGED_PAY_LABEL[code]||label,active:true,builtin:true}));
+/* venues：POS 目前品牌；LINE Pay／信用卡只在該品牌法人有商店時列出（KK 11/11）。不給＝全部（報表標籤用） */
+async function paymentMethodsList(groups=null,venues=null){
+  const builtin=Object.entries(tableOrders.PAY_METHODS).filter(([code])=>code!=='tappay'&&code!=='stripe'&&!posRegister.LEGACY_CARD.includes(code)&&(!venues||venues.some(v=>posPaymentMethods.builtinEnabled(code,v)))).map(([code,label])=>({code,label:MERGED_PAY_LABEL[code]||label,active:true,builtin:true}));
   const custom=(await q('SELECT code,label,active,pm_group AS "group" FROM pos_payment_methods ORDER BY created_at')).rows.filter(r=>!groups||groups.includes(r.group)).map(r=>({...r,builtin:false}));
   return [...builtin,...custom];
 }
@@ -7934,7 +7944,7 @@ async function superOrManagerPin(req,res,next){
     next();
   }catch(e){next(e);}
 }
-app.get('/api/admin/payment-methods',auth,adminOnly,requireDb,wrap(async(req,res)=>{res.set('Cache-Control','no-store');res.json({groups:posPaymentMethods.GROUPS,payment_methods:await paymentMethodsList(posPaymentMethods.groupsOf(posScope(req)))});}));
+app.get('/api/admin/payment-methods',auth,adminOnly,requireDb,wrap(async(req,res)=>{res.set('Cache-Control','no-store');res.json({groups:posPaymentMethods.GROUPS,payment_methods:await paymentMethodsList(posPaymentMethods.groupsOf(posScope(req)),posScope(req))});}));
 app.post('/api/admin/payment-methods',rateLimit({max:20}),auth,adminOnly,requireDb,superOrManagerPin,wrap(async(req,res)=>{
   const existing=(await q('SELECT code FROM pos_payment_methods')).rows.map(r=>r.code);
   let m;try{m=posPaymentMethods.methodInput(req.body,existing);}catch(e){return res.status(e.status||400).json({error:e.message});}
@@ -8233,32 +8243,34 @@ app.delete('/api/admin/attendance/:id',auth,adminOnly,notOperator,requireDb,wrap
   res.json({ok:true,id:r.id});
 }));
 /* LINE Pay 同步：背景每 5 分鐘抓昨今兩天、每日 04:30 抓最近 7 天（退款會回補），也可從日結頁手動按；歷史一年用 import 一次灌入 */
-let linepaySyncing=false;
-async function upsertLinepay(rows){
+const linepaySyncing={};   // 依法人各自一把鎖
+const SYNC_ROW={TTH:1,TWOURING:2};
+async function upsertLinepay(rows,entity='TTH'){
   let n=0;
-  for(const t of rows){
-    await q(`INSERT INTO linepay_transactions(id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no,synced_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now())
+  for(const t0 of rows){
+    const t=entity==='TTH'?t0:{...t0,id:`${entity}:${t0.id}`};
+    await q(`INSERT INTO linepay_transactions(id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no,entity,synced_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now())
       ON CONFLICT (id) DO UPDATE SET type=EXCLUDED.type,amount=EXCLUDED.amount,paid_at=EXCLUDED.paid_at,method=EXCLUDED.method,provider=EXCLUDED.provider,origin_id=EXCLUDED.origin_id,order_no=EXCLUDED.order_no,card_last4=EXCLUDED.card_last4,confirm_no=EXCLUDED.confirm_no,synced_at=now()`,
-      [t.id,t.type,t.amount,t.paid_at,t.method,t.provider,t.origin_id,t.order_no,t.card_last4,t.confirm_no]);
+      [t.id,t.type,t.amount,t.paid_at,t.method,t.provider,t.origin_id,t.order_no,t.card_last4,t.confirm_no,entity==='TTH'?null:entity]);
     n++;
   }
   return n;
 }
-async function syncLinepay(start,end){
-  const cfg=linepay.config();
-  if(!cfg)throw Object.assign(Error('尚未設定 LINE Pay 商家後台帳密，請到後台「系統設定」填入。'),{status:503});
-  if(linepaySyncing)throw Object.assign(Error('LINE Pay 同步正在進行中，請稍候。'),{status:409});
-  linepaySyncing=true;
+async function syncLinepay(start,end,entity='TTH'){
+  const cfg=linepay.config(process.env,entity);
+  if(!cfg)throw Object.assign(Error(`尚未設定${entities.ENTITY_LABEL[entity]}的LINE Pay 商家後台帳密，請到後台「系統設定」填入。`),{status:503});
+  if(linepaySyncing[entity])throw Object.assign(Error('LINE Pay 同步正在進行中，請稍候。'),{status:409});
+  linepaySyncing[entity]=true;const sid=SYNC_ROW[entity];
   try{
     const rows=await linepay.fetchTransactions(cfg,start,end,{log:m=>console.log('[linepay]',m)});
-    const n=await upsertLinepay(rows);
+    const n=await upsertLinepay(rows,entity);
     console.log(`[linepay] 同步 ${start}~${end}：${n} 筆`);
-    await q(`INSERT INTO linepay_sync_state(id,error,failed_at,ok_at) VALUES(1,NULL,NULL,now()) ON CONFLICT (id) DO UPDATE SET error=NULL,failed_at=NULL,ok_at=now()`).catch(()=>{});
+    await q(`INSERT INTO linepay_sync_state(id,error,failed_at,ok_at) VALUES($1,NULL,NULL,now()) ON CONFLICT (id) DO UPDATE SET error=NULL,failed_at=NULL,ok_at=now()`,[sid]).catch(()=>{});
     return {start,end,count:n};
   }catch(e){
-    await q(`INSERT INTO linepay_sync_state(id,error,failed_at) VALUES(1,$1,now()) ON CONFLICT (id) DO UPDATE SET error=$1,failed_at=now()`,[String(e.message||e).slice(0,500)]).catch(()=>{});
+    await q(`INSERT INTO linepay_sync_state(id,error,failed_at) VALUES($2,$1,now()) ON CONFLICT (id) DO UPDATE SET error=$1,failed_at=now()`,[String(e.message||e).slice(0,500),sid]).catch(()=>{});
     throw e;
-  }finally{linepaySyncing=false;}
+  }finally{linepaySyncing[entity]=false;}
 }
 /* LINE Pay 收款通知（KK 11/5）：POS 每 15 秒輪詢，最近 lookback 分鐘（預設 60、上限 720）同步進來的 LINE Pay 實收；店別依交易時間＋當天開關帳歸屬（linepay.venueOfTime），品牌 POS 只看自己的。資料來自每 5 分鐘的後台同步，非即時 */
 /* 收款即時同步（KK 11/6）：伺服器端單一迴圈，同步一次做完後等 1 秒再同步（payWatchLoop，boot 啟動，只在官網服務跑）；
@@ -8269,7 +8281,7 @@ app.get('/api/admin/orders/linepay-alerts',auth,adminOnly,requireDb,wrap(async(r
   res.set('Cache-Control','no-store');
   const venues=posScope(req),mins=Math.min(720,Math.max(5,Number(req.query.lookback)||60)),hrs=Math.min(24,Math.max(1,Number(req.query.hours)||8));
   /* alerts＝最近 lookback 分鐘同步進來（判斷要不要跳）；recent＝最近 hrs 小時（預設 8）的交易，新到舊、最多 50 筆，給彈窗輪播看前幾筆（KK 11/5） */
-  const all=(await q("SELECT id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no,synced_at,claim_venue,claim_reason FROM linepay_transactions WHERE paid_at>=now()-interval '1 day' AND (synced_at>=now()-($1::int*interval '1 minute') OR paid_at>=now()-($2::int*interval '1 hour')) ORDER BY paid_at",[mins,hrs])).rows;
+  const all=(await q("SELECT id,type,amount,paid_at,method,provider,origin_id,order_no,card_last4,confirm_no,synced_at,claim_venue,claim_reason,entity FROM linepay_transactions WHERE paid_at>=now()-interval '1 day' AND (synced_at>=now()-($1::int*interval '1 minute') OR paid_at>=now()-($2::int*interval '1 hour')) ORDER BY paid_at",[mins,hrs])).rows;
   const txs=all.filter(t=>Date.now()-new Date(t.synced_at)<=mins*60e3),since=Date.now()-hrs*3600e3;
   const days=[...new Set(all.map(t=>tableOrders.MenuLib.businessDay(t.paid_at)))];
   const regs=days.length?(await q('SELECT day::text AS day,venue,opened_at,closed_at FROM pos_registers WHERE day::text=ANY($1::text[]) ORDER BY opened_at',[days])).rows:[];
@@ -8280,7 +8292,8 @@ app.post('/api/admin/sales/linepay/sync',auth,adminOnly,requireDb,wrap(async(req
   const ok=v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v||''));
   const start=ok(req.body?.start)?String(req.body.start):defStart,end=ok(req.body?.end)?String(req.body.end):defEnd;
   if(start>end||(new Date(end)-new Date(start))>400*86400e3)return res.status(400).json({error:'區間無效（最多 400 天）。'});
-  try{res.json({ok:true,...await syncLinepay(start,end)});}
+  const entity=entities.ENTITIES.includes(req.body?.entity)?req.body.entity:'TTH';
+  try{res.json({ok:true,entity,...await syncLinepay(start,end,entity)});}
   catch(e){res.status(e.status||502).json({error:e.message});}
 }));
 // 歷史匯入：body { rows:[ LINE Pay 後台原始交易物件 或 normalize 後的列 ] }，分批 200 筆；給 AI agent 或管理員用
@@ -8288,43 +8301,46 @@ app.post('/api/admin/sales/linepay/import',auth,adminOnly,superOnly,requireDb,wr
   const input=Array.isArray(req.body?.rows)?req.body.rows:[];
   if(!input.length||input.length>500)return res.status(400).json({error:'rows 須為 1–500 筆。'});
   const rows=input.map(t=>t.transactionSequence?linepay.normalize(t):(t.id&&t.paid_at?t:null)).filter(Boolean);
-  res.json({ok:true,count:await upsertLinepay(rows),skipped:input.length-rows.length});
+  const entity=entities.ENTITIES.includes(req.body?.entity)?req.body.entity:'TTH';
+  res.json({ok:true,entity,count:await upsertLinepay(rows,entity),skipped:input.length-rows.length});
 }));
 /* 中信行動刷卡同步：背景每 15 分鐘抓昨今兩天、每日 04:40 抓最近 7 天（退貨會回補），也可從日結頁手動按。
  * 中信後台要登入（含驗證碼），一次約 15–30 秒，所以頻率比 LINE Pay 低 */
-let ctbcSyncing=false;
-async function upsertCtbc(rows){
+const ctbcSyncing={};   // 依法人各自一把鎖
+async function upsertCtbc(rows,entity='TTH'){
   let n=0;
-  for(const t of rows){
-    await q(`INSERT INTO ctbc_transactions(id,type,amount,paid_at,card_no,card_last4,auth_code,biz,progress,settle,settle_date,pay_date,terminal_id,device_user,note,raw,synced_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,now())
+  for(const t0 of rows){
+    const t=entity==='TTH'?t0:{...t0,id:`${entity}:${t0.id}`};
+    await q(`INSERT INTO ctbc_transactions(id,type,amount,paid_at,card_no,card_last4,auth_code,biz,progress,settle,settle_date,pay_date,terminal_id,device_user,note,raw,entity,synced_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now())
       ON CONFLICT (id) DO UPDATE SET type=EXCLUDED.type,amount=EXCLUDED.amount,paid_at=EXCLUDED.paid_at,card_no=EXCLUDED.card_no,card_last4=EXCLUDED.card_last4,auth_code=EXCLUDED.auth_code,biz=EXCLUDED.biz,progress=EXCLUDED.progress,settle=EXCLUDED.settle,settle_date=EXCLUDED.settle_date,pay_date=EXCLUDED.pay_date,terminal_id=EXCLUDED.terminal_id,device_user=EXCLUDED.device_user,note=EXCLUDED.note,raw=EXCLUDED.raw,synced_at=now()`,
-      [t.id,t.type,t.amount,t.paid_at,t.card_no||'',t.card_last4||'',t.auth_code||'',t.biz||'',t.progress||'',t.settle||'',t.settle_date||'',t.pay_date||'',t.terminal_id||'',t.device_user||'',t.note||'',t.raw?JSON.stringify(t.raw):null]);
+      [t.id,t.type,t.amount,t.paid_at,t.card_no||'',t.card_last4||'',t.auth_code||'',t.biz||'',t.progress||'',t.settle||'',t.settle_date||'',t.pay_date||'',t.terminal_id||'',t.device_user||'',t.note||'',t.raw?JSON.stringify(t.raw):null,entity==='TTH'?null:entity]);
     n++;
   }
   return n;
 }
-async function syncCtbc(start,end){
-  const cfg=ctbc.config();
-  if(!cfg)throw Object.assign(Error('尚未設定中信 mPOS 商店管理平台帳密，請到後台「系統設定」填入。'),{status:503});
-  if(ctbcSyncing)throw Object.assign(Error('中信刷卡同步正在進行中，請稍候。'),{status:409});
-  ctbcSyncing=true;
+async function syncCtbc(start,end,entity='TTH'){
+  const cfg=ctbc.config(process.env,entity);
+  if(!cfg)throw Object.assign(Error(`尚未設定${entities.ENTITY_LABEL[entity]}的中信 mPOS 商店管理平台帳密，請到後台「系統設定」填入。`),{status:503});
+  if(ctbcSyncing[entity])throw Object.assign(Error('中信刷卡同步正在進行中，請稍候。'),{status:409});
+  ctbcSyncing[entity]=true;const sid=SYNC_ROW[entity];
   try{
     const rows=await ctbc.fetchTransactions(cfg,start,end,{log:m=>console.log('[ctbc]',m)});
-    const n=await upsertCtbc(rows);
+    const n=await upsertCtbc(rows,entity);
     console.log(`[ctbc] 同步 ${start}~${end}：${n} 筆`);
-    await q(`INSERT INTO ctbc_sync_state(id,error,failed_at,ok_at) VALUES(1,NULL,NULL,now()) ON CONFLICT (id) DO UPDATE SET error=NULL,failed_at=NULL,ok_at=now()`).catch(()=>{});
+    await q(`INSERT INTO ctbc_sync_state(id,error,failed_at,ok_at) VALUES($1,NULL,NULL,now()) ON CONFLICT (id) DO UPDATE SET error=NULL,failed_at=NULL,ok_at=now()`,[sid]).catch(()=>{});
     return {start,end,count:n};
   }catch(e){
-    await q(`INSERT INTO ctbc_sync_state(id,error,failed_at) VALUES(1,$1,now()) ON CONFLICT (id) DO UPDATE SET error=$1,failed_at=now()`,[String(e.message||e).slice(0,500)]).catch(()=>{});
+    await q(`INSERT INTO ctbc_sync_state(id,error,failed_at) VALUES($2,$1,now()) ON CONFLICT (id) DO UPDATE SET error=$1,failed_at=now()`,[String(e.message||e).slice(0,500),sid]).catch(()=>{});
     throw e;
-  }finally{ctbcSyncing=false;}
+  }finally{ctbcSyncing[entity]=false;}
 }
 app.post('/api/admin/sales/ctbc/sync',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const [defStart,defEnd]=ctbc.syncWindow();
   const ok=v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v||''));
   const start=ok(req.body?.start)?String(req.body.start):defStart,end=ok(req.body?.end)?String(req.body.end):defEnd;
   if(start>end||(new Date(end)-new Date(start))>400*86400e3)return res.status(400).json({error:'區間無效（最多 400 天）。'});
-  try{res.json({ok:true,...await syncCtbc(start,end)});}
+  const entity=entities.ENTITIES.includes(req.body?.entity)?req.body.entity:'TTH';
+  try{res.json({ok:true,entity,...await syncCtbc(start,end,entity)});}
   catch(e){res.status(e.status||502).json({error:e.message});}
 }));
 /* 營業時間外交易歸到本店（KK 11/15）：LINE Pay／中信只有一個商店帳號，交易當下沒有任何一本帳開著時依時間歸屬會猜錯，
@@ -8338,8 +8354,9 @@ const payClaim=gw=>wrap(async(req,res)=>{
   if(!id)return res.status(400).json({error:'缺交易序號。'});
   const c=await pool.connect();let out;
   try{await c.query('BEGIN');out=await (async()=>{
-    const t=(await c.query(`SELECT id,paid_at,amount,claim_venue FROM ${g.table} WHERE id=$1 FOR UPDATE`,[id])).rows[0];
+    const t=(await c.query(`SELECT id,paid_at,amount,claim_venue,entity FROM ${g.table} WHERE id=$1 FOR UPDATE`,[id])).rows[0];
     if(!t)throw Object.assign(Error(`找不到這筆 ${g.label} 交易。`),{status:404});
+    if(entities.txEntity(t)!==entities.entityOf(venue))throw Object.assign(Error(`這筆 ${g.label} 是${entities.ENTITY_LABEL[entities.txEntity(t)]}的交易，不能歸到本店（付款依法人分開）。`),{status:409});
     if(release){
       if(t.claim_venue!==venue)throw Object.assign(Error('這筆不是本店認領的，不能撤回。'),{status:409});
       await c.query(`UPDATE ${g.table} SET claim_venue=NULL,claimed_by=NULL,claimed_at=NULL,claim_reason=NULL WHERE id=$1`,[id]);
@@ -8375,10 +8392,12 @@ const PAY_WATCH_GAP_MS=1000,PAY_WATCH_IDLE_MS=10000;
 const anyRegisterOpen=async()=>(await q('SELECT 1 FROM pos_registers WHERE closed_at IS NULL AND day>=$1 LIMIT 1',[liveFloor()])).rows.length>0;
 const payToday=()=>{const day=tableOrders.MenuLib.businessDay(),now=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Taipei'});return [day,now>day?now:day];};
 const PAY_WATCHERS=[
-  {name:'linepay',enabled:()=>linepay.configured(),busy:()=>linepaySyncing,
-   run:async()=>upsertLinepay(await linepay.fetchWarm(linepay.config(),...payToday())),close:()=>linepay.warmClose(),backoff:()=>60000},
-  {name:'ctbc',enabled:()=>ctbc.configured(),busy:()=>ctbcSyncing,
-   run:async()=>upsertCtbc(await ctbc.fetchWarm(ctbc.config(),...payToday(),{log:m=>console.log('[ctbc-warm]',m)})),close:()=>ctbc.warmClose(),backoff:e=>e.fatal?600000:60000},
+  ...entities.ENTITIES.flatMap(en=>[   // 每個法人各自一組商店帳密、各自一個迴圈（KK 11/11 付款依法人分開）
+    {name:`linepay:${en}`,enabled:()=>linepay.configured(process.env,en),busy:()=>linepaySyncing[en],
+     run:async()=>upsertLinepay(await linepay.fetchWarm(linepay.config(process.env,en),...payToday()),en),close:()=>linepay.warmClose(linepay.config(process.env,en)?.merchantId),backoff:()=>60000},
+    {name:`ctbc:${en}`,enabled:()=>ctbc.configured(process.env,en),busy:()=>ctbcSyncing[en],
+     run:async()=>upsertCtbc(await ctbc.fetchWarm(ctbc.config(process.env,en),...payToday(),{log:m=>console.log('[ctbc-warm]',m)}),en),close:()=>ctbc.warmClose(ctbc.config(process.env,en)?.merchantId),backoff:e=>e.fatal?600000:60000},
+  ]),
 ];
 const sleep=ms=>new Promise(r=>{const t=setTimeout(r,ms);t.unref?.();});
 async function payWatchLoop(w){
@@ -8396,7 +8415,7 @@ app.get('/api/admin/orders/ctbc-alerts',auth,adminOnly,requireDb,wrap(async(req,
   res.set('Cache-Control','no-store');
   const venues=posScope(req),mins=Math.min(720,Math.max(5,Number(req.query.lookback)||60)),hrs=Math.min(24,Math.max(1,Number(req.query.hours)||8));
   /* alerts＝最近 lookback 分鐘同步進來（判斷要不要跳）；recent＝最近 hrs 小時（預設 8）的交易，新到舊、最多 50 筆，給彈窗輪播看前幾筆（KK 11/5） */
-  const all=(await q("SELECT id,type,amount,paid_at,card_last4,auth_code,progress,terminal_id,device_user,note,synced_at,claim_venue,claim_reason FROM ctbc_transactions WHERE paid_at>=now()-interval '1 day' AND (synced_at>=now()-($1::int*interval '1 minute') OR paid_at>=now()-($2::int*interval '1 hour')) ORDER BY paid_at",[mins,hrs])).rows;
+  const all=(await q("SELECT id,type,amount,paid_at,card_last4,auth_code,progress,terminal_id,device_user,note,synced_at,claim_venue,claim_reason,entity FROM ctbc_transactions WHERE paid_at>=now()-interval '1 day' AND (synced_at>=now()-($1::int*interval '1 minute') OR paid_at>=now()-($2::int*interval '1 hour')) ORDER BY paid_at",[mins,hrs])).rows;
   const txs=all.filter(t=>Date.now()-new Date(t.synced_at)<=mins*60e3),since=Date.now()-hrs*3600e3;
   const days=[...new Set(all.map(t=>tableOrders.MenuLib.businessDay(t.paid_at)))];
   const regs=days.length?(await q('SELECT day::text AS day,venue,opened_at,closed_at FROM pos_registers WHERE day::text=ANY($1::text[]) ORDER BY opened_at',[days])).rows:[];
@@ -9536,15 +9555,17 @@ cronRunner.define('line-invites', () => lineService.sendInvites(), { onError: e 
 // 會籍到期前 7 天提醒
 cronRunner.define('membership-reminders', () => remindExpiringMemberships(), { onError: e => console.error('[remind] 失敗：', e.message) });
 // LINE Pay 對帳：每日抓最近 7 天；每 5 分鐘抓昨今兩天（正在同步就跳過）。失敗不寄信，錯誤記在 linepay_sync_state。兩者共用租約，跨執行個體不會同時開 puppeteer
-cronRunner.define('linepay-daily', () => syncLinepay(...linepay.syncWindow()),
-  { enabled: () => linepay.configured(), onError: e => console.error('[linepay] 同步失敗：', e.message), lockKey: 'linepay', leaseSec: 900 });
-cronRunner.define('linepay-recent', () => { if (linepaySyncing) return 'busy'; return syncLinepay(...linepay.syncWindow(Date.now(), 1)); },
-  { enabled: () => linepay.configured(), onError: e => console.error('[linepay] 5 分鐘同步失敗：', e.message), lockKey: 'linepay', leaseSec: 900 });
+const eachEntity = (lib, fn) => async () => { const out = {}; for (const en of entities.ENTITIES) if (lib.configured(process.env, en)) out[en] = await fn(en); return out; };
+const anyEntity = lib => () => entities.ENTITIES.some(en => lib.configured(process.env, en));
+cronRunner.define('linepay-daily', eachEntity(linepay, en => syncLinepay(...linepay.syncWindow(), en)),
+  { enabled: anyEntity(linepay), onError: e => console.error('[linepay] 同步失敗：', e.message), lockKey: 'linepay', leaseSec: 900 });
+cronRunner.define('linepay-recent', eachEntity(linepay, en => linepaySyncing[en] ? 'busy' : syncLinepay(...linepay.syncWindow(Date.now(), 1), en)),
+  { enabled: anyEntity(linepay), onError: e => console.error('[linepay] 5 分鐘同步失敗：', e.message), lockKey: 'linepay', leaseSec: 900 });
 // 中信刷卡對帳：每日 04:40 抓最近 7 天；每 15 分鐘抓昨今兩天（正在同步就跳過）。失敗不寄信，錯誤記在 ctbc_sync_state，日結頁顯示
-cronRunner.define('ctbc-daily', () => syncCtbc(...ctbc.syncWindow()),
-  { enabled: () => ctbc.configured(), onError: e => console.error('[ctbc] 同步失敗：', e.message), lockKey: 'ctbc', leaseSec: 900 });
-cronRunner.define('ctbc-recent', () => { if (ctbcSyncing) return 'busy'; return syncCtbc(...ctbc.syncWindow(Date.now(), 1)); },
-  { enabled: () => ctbc.configured(), onError: e => console.error('[ctbc] 15 分鐘同步失敗：', e.message), lockKey: 'ctbc', leaseSec: 900 });
+cronRunner.define('ctbc-daily', eachEntity(ctbc, en => syncCtbc(...ctbc.syncWindow(), en)),
+  { enabled: anyEntity(ctbc), onError: e => console.error('[ctbc] 同步失敗：', e.message), lockKey: 'ctbc', leaseSec: 900 });
+cronRunner.define('ctbc-recent', eachEntity(ctbc, en => ctbcSyncing[en] ? 'busy' : syncCtbc(...ctbc.syncWindow(Date.now(), 1), en)),
+  { enabled: anyEntity(ctbc), onError: e => console.error('[ctbc] 15 分鐘同步失敗：', e.message), lockKey: 'ctbc', leaseSec: 900 });
 // IG 自動發佈：env IG_AUTOPUBLISH=1 才啟用（本機開發預設不跑，避免誤發）；失敗即寄信（2026-09-20 失敗篇躺 7 天沒人發現）；改回「已排程」即重試
 const igAlert = (subject, text) => sendMailQuietly({ to: NOTIFY_EMAIL, subject: `[IG] ${subject}`, text });
 const igEnabled = () => process.env.IG_AUTOPUBLISH === '1';

@@ -66,8 +66,8 @@ test('同步在伺服器端單一迴圈（同步完等 1 秒），POS 只讀結�
   assert.match(loop, /!await anyRegisterOpen\(\)/, '沒開帳不同步（KK 11/6 成本優化）');
   assert.match(loop, /w\.close\(\)/, '沒開帳關掉常駐 Chrome');
   assert.match(server, /const anyRegisterOpen=async\(\)=>\(await q\('SELECT 1 FROM pos_registers WHERE closed_at IS NULL AND day>=\$1 LIMIT 1',\[liveFloor\(\)\]\)\)/, '舊帳（liveFloor 以前）不算開帳');
-  assert.match(w, /close:\(\)=>linepay\.warmClose\(\)/);
-  assert.match(w, /close:\(\)=>ctbc\.warmClose\(\)/);
+  assert.match(w, /close:\(\)=>linepay\.warmClose\(linepay\.config\(process\.env,en\)\?\.merchantId\)/, '每個法人各自關自己的分頁');
+  assert.match(w, /close:\(\)=>ctbc\.warmClose\(ctbc\.config\(process\.env,en\)\?\.merchantId\)/);
   assert.match(server, /for \(const w of PAY_WATCHERS\) payWatchLoop\(w\);/);
   const b = server.indexOf('for (const w of PAY_WATCHERS)');
   assert.ok(b > server.indexOf("if (ADMIN_MODE) { console.log('[boot] SERVICE_ROLE=admin") && b > server.indexOf('if (RAILWAY_MODE) { console.log'), '後台服務、Railway 不跑');
