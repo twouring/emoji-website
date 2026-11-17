@@ -6586,7 +6586,7 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(sessions.length){const cq=(await q("SELECT key,value FROM site_content WHERE key=ANY($1)",[sessions.map(s=>'card_qr:'+s.id)])).rows;for(const r of cq){const s=sessions.find(x=>'card_qr:'+x.id===r.key);try{const v=JSON.parse(r.value);if(s)s.card_qr={id:v.cs,url:v.url,amount:v.amount,expires_at:v.expires_at};}catch{}}}
   /* 入場單付款時間（KK 11/17）：方案款所在訂單的付款時間，入場單與補印都印 */
   {const sp=sessions.filter(s=>s.space);if(sp.length){const pr=(await q("SELECT session_id,items,paid_at FROM table_orders WHERE session_id=ANY($1) AND status<>'void'",[sp.map(s=>s.id)])).rows;for(const s of sp)s.space.paid_at=posSpace.planPaidAt(pr.filter(o=>o.session_id===s.id));}}
-  const space_summary=spaceCfg&&spaceCfg.mode==='space'?posSpace.summary((await q("SELECT table_no,items,space FROM table_sessions WHERE space IS NOT NULL AND venue=$1 AND created_at>now()-interval '2 days'",[venues[0]])).rows,at=>tableOrders.MenuLib.businessDay(at)===tableOrders.MenuLib.businessDay()):undefined;
+  const space_summary=spaceCfg&&spaceCfg.mode==='space'?posSpace.summary((await q("SELECT table_no,status,items,space FROM table_sessions WHERE space IS NOT NULL AND venue=$1 AND created_at>now()-interval '2 days'",[venues[0]])).rows,at=>tableOrders.MenuLib.businessDay(at)===tableOrders.MenuLib.businessDay()):undefined;
   res.json({orders,tickets,sessions,occupied,reservations,pause:venues?Object.fromEntries(Object.entries(pause).filter(([v])=>venues.includes(v))):pause,active_venue:tableOrders.MenuLib.activeVenue(),table_layout:await tableLayoutOf(venues&&venues.length===1?venues[0]:''),space_settings:spaceCfg||undefined,space_summary,payment_methods:await paymentMethodsList(posPaymentMethods.groupsOf(venues)),linepay:linepayOfflineStatus(),stock:tableOrders.MenuLib.parseMenuDoc(await contentValue('menu')).items.filter(it=>tableOrders.MenuLib.stockLeft(it)!==null||tableOrders.MenuLib.soldOutToday(it)).map(it=>({id:it.id,sold_out:it.sold_out,sold_out_by:it.sold_out_by,stock_day:it.stock_day,stock_left:it.stock_left}))});
 }));
 /* 櫃檯開桌／外帶：客人沒掃 QR（走進來直接在櫃檯點）也能開一桌；外帶自動取 W01–W99 最小空號。已開著的桌直接回那一桌 */
@@ -8495,7 +8495,7 @@ app.post('/api/admin/orders/space/entries',auth,adminOnly,requireDb,wrap(async(r
   const client=await pool.connect();
   try{await client.query('BEGIN');await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',['space:'+v]);
     const open=(await client.query("SELECT table_no,items,space FROM table_sessions WHERE status='open' AND venue=$1",[v])).rows;
-    if(cfg.capacity&&posSpace.occupancy(open)+headcount>cfg.capacity){await client.query('ROLLBACK');return spaceErr(res,409,`已達容量上限 ${cfg.capacity} 人（目前 ${posSpace.occupancy(open)} 人）。`);}
+    if(cfg.capacity&&posSpace.occupancy(open,{pending:true})+headcount>cfg.capacity){await client.query('ROLLBACK');return spaceErr(res,409,`已達容量上限 ${cfg.capacity} 人（目前 ${posSpace.occupancy(open,{pending:true})} 人）。`);}
     const used=new Set(open.map(r=>r.table_no));
     if(seat&&used.has(seat)){await client.query('ROLLBACK');return spaceErr(res,409,`席位 ${seat} 使用中，請選別的席位。`);}
     const table=seat||posSpace.nextEntryNo(used);if(!table){await client.query('ROLLBACK');return spaceErr(res,409,'入場單號已用完（E01–E99），請先讓離場的客人結清。');}
@@ -8613,7 +8613,7 @@ app.post('/api/admin/orders/space/enter',auth,adminOnly,requireDb,wrap(async(req
   try{await client.query('BEGIN');await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',['space:'+v]);
     const open=(await client.query("SELECT table_no,items,space,venue FROM table_sessions WHERE status='open'")).rows;
     const here=open.filter(r=>r.venue===v);
-    if(cfg.capacity&&posSpace.occupancy(here)+1>cfg.capacity){await client.query('ROLLBACK');return spaceErr(res,409,`已達容量上限 ${cfg.capacity} 人（目前 ${posSpace.occupancy(here)} 人）。`);}
+    if(cfg.capacity&&posSpace.occupancy(here,{pending:true})+1>cfg.capacity){await client.query('ROLLBACK');return spaceErr(res,409,`已達容量上限 ${cfg.capacity} 人（目前 ${posSpace.occupancy(here,{pending:true})} 人）。`);}
     const table=posSpace.nextEntryNo(new Set(open.map(r=>r.table_no)));if(!table){await client.query('ROLLBACK');return spaceErr(res,409,'入場單號已用完（E01–E99），請先讓離場的客人結清。');}
     const orderId=uid('to_'),sid=uid('ts_'),inAt=new Date().toISOString();
     const items=tableOrders.posAddLine([],menuAll,{item_id:it.id,qty:1,device_name:device?.label||'後台'}).map(l=>({...l,order_id:orderId}));
@@ -8639,7 +8639,7 @@ app.post('/api/admin/orders/sessions/:id/space/checkin',auth,adminOnly,requireDb
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',['space:'+s.venue]);
     const cfg=await spaceSettingsOf(s.venue),cat=(posSpace.planLines(s.items)[0]||{}).cat,needSeat=cfg.seat_cats.includes(cat)&&cfg.seats.length>0;
     const open=(await client.query("SELECT table_no,items,space,venue FROM table_sessions WHERE status='open' AND id<>$1",[s.id])).rows;
-    if(cfg.capacity&&posSpace.occupancy(open.filter(r=>r.venue===s.venue&&r.space&&r.space.in_at))+1>cfg.capacity){await client.query('ROLLBACK');return spaceErr(res,409,`已達容量上限 ${cfg.capacity} 人。`);}
+    if(cfg.capacity&&posSpace.occupancy(open.filter(r=>r.venue===s.venue&&r.space&&r.space.in_at),{pending:true})+1>cfg.capacity){await client.query('ROLLBACK');return spaceErr(res,409,`已達容量上限 ${cfg.capacity} 人。`);}
     let table=s.table_no,seat='';
     if(needSeat){seat=String(req.body?.seat||'').trim().toUpperCase();
       if(!cfg.seats.includes(seat)){await client.query('ROLLBACK');return spaceErr(res,400,`「${tableOrders.MenuLib.CAT_LABEL[cat]?.zh||cat}」要指定席號。`);}

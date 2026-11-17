@@ -68,7 +68,12 @@ test('入場單號、在場人數、今日統計', () => {
     { items: [plan(240, { order_id: 'b' }), { line: 'o', space_role: 'overtime', price: 50, qty: 2, order_id: 'c' }], space: { headcount: 2, in_at: day, out_at: '2026-11-15T10:00:00Z' } },
     { items: [plan(720)], space: { headcount: 1, in_at: null } },
   ];
-  assert.equal(S.occupancy(rows), 1);
+  assert.equal(S.occupancy(rows), 0, '待收款（未入場）不算在場');
+  assert.equal(S.occupancy(rows, { pending: true }), 1, '容量檢查要保留待收款的位子');
+  const inside = { items: [plan(240, { order_id: 'd' })], space: { headcount: 1, in_at: day, out_at: null } };
+  assert.equal(S.occupancy([{ ...inside, status: 'open' }]), 1);
+  assert.equal(S.occupancy([{ ...inside, status: 'closed' }, { ...inside, status: 'void' }]), 0, '已結束（作廢／清單）但沒按離場的單不算在場');
+  assert.equal(S.occupancy([{ ...inside, status: 'closed' }], { pending: true }), 0);
   const sum = S.summary(rows, () => true);
   assert.equal(sum.entries, 2); assert.equal(sum.people, 4); assert.equal(sum.avg_stay_min, 285); assert.equal(sum.overtime_amount, 100); assert.equal(sum.plan_amount, 400);
 });
