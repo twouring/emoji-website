@@ -1173,14 +1173,19 @@ async function voidOrderPrompt(id,reload,order){
   const reason=await pickReason({title:'作廢原因（會記在日結與操作紀錄）',presets:REASON_PRESETS.void_order});if(reason===null)return;
   let reopen=false;
   if(order&&order.session_open===false&&!order.payer?.prepay){const v=await pickFrom({title:`${order.table_no} 已清桌，品項要回到桌上嗎？`,hint:'回到桌上：重新打開這一桌，品項退回未結帳，可直接重新結帳。只作廢：這張單不計營收，品項不回桌。',cols:2,options:[{value:'reopen',label:'回到桌上',sub:'重新結帳'},{value:'only',label:'只作廢',sub:'品項不回桌'}]});if(v===null)return;reopen=v==='reopen';}
+  if(onlineCardOf(order)&&!order.payer?.online_refund&&!await posConfirm(`這張是${onlineCardOf(order)}線上刷卡單，作廢會自動退款 NT$${num(order.amount)} 到客人的卡，確定作廢？`,{ok:'作廢並退款',cancel:'先不要'}))return;
   const refundCash=cashPaidOf(order)>0&&await posConfirm('這次作廢要退現金給客人嗎？',{ok:'退現金並開錢櫃',cancel:'只更正帳務'});
-  return ensureOperator(()=>opsThen(()=>api('/admin/orders/'+id+'/void',{method:'POST',body:{reason,reopen,refund_cash:refundCash,operator_id:OPERATOR?.id}}),async out=>{const ok=await autoCashDrawer({kind:'refund',order_id:id,cash_refund:out.cash_refund});return (out.reopened?`已作廢，${out.table_no||''} 已重新開桌、品項回到未結帳`:out.returned===false?'已作廢':'已作廢，品項退回未結帳')+(out.cash_refund>0?`；請退現金 NT$${num(out.cash_refund)}`:'')+(ok===false?'；未確認開櫃成功，請按「錢櫃」重試':'');},reload));
+  return ensureOperator(()=>opsThen(()=>api('/admin/orders/'+id+'/void',{method:'POST',body:{reason,reopen,refund_cash:refundCash,operator_id:OPERATOR?.id}}),async out=>{const ok=await autoCashDrawer({kind:'refund',order_id:id,cash_refund:out.cash_refund});return onlineRefundText(out.online_refund)+(out.reopened?`已作廢，${out.table_no||''} 已重新開桌、品項回到未結帳`:out.returned===false?'已作廢':'已作廢，品項退回未結帳')+(out.cash_refund>0?`；請退現金 NT$${num(out.cash_refund)}`:'')+(ok===false?'；未確認開櫃成功，請按「錢櫃」重試':'');},reload));
 }
+/* 線上刷卡單（桌邊 TapPay／櫃檯 QR、App 商店 Stripe）作廢或取消品項會自動退款（KK 11/17）；回提供者名稱或空字串 */
+const onlineCardOf=o=>o?.tappay?.rec_trade_id?'TapPay ':o?.payer?.method==='stripe'?'Stripe ':'';
+const onlineRefundText=r=>r&&r.amount>0?`已退款 NT$${num(r.amount)} 到客人的卡（${r.provider==='tappay'?'TapPay':'Stripe'}，入帳約 5–10 個工作天）；`:'';
 // 已結帳單取消單一品項（做不出來／客人退菜），不必整張作廢；金額從這張單扣除
 async function cancelOrderItemPrompt(orderId,line,name,reload,order){
   const reason=await pickReason({title:`取消「${name}」的原因（會記在日結與收據）`,presets:REASON_PRESETS.cancel_item});if(reason===null)return;
+  if(onlineCardOf(order)&&!await posConfirm(`這張是${onlineCardOf(order)}線上刷卡單，取消「${name}」會自動退這項的金額到客人的卡，確定？`,{ok:'取消並退款',cancel:'先不要'}))return;
   const refundCash=cashPaidOf(order)>0&&await posConfirm('取消品項要退現金給客人嗎？',{ok:'退現金並開錢櫃',cancel:'只更正帳務'});
-  return ensureOperator(()=>opsThen(()=>api(`/admin/orders/${orderId}/items/${line}/void`,{method:'POST',body:{reason,refund_cash:refundCash,operator_id:OPERATOR?.id}}),async out=>{const ok=await autoCashDrawer({kind:'refund',order_id:orderId,line,cash_refund:out.cash_refund});return `已取消，帳務扣除 NT$${num(out.refund)}`+(out.cash_refund>0?`；請退現金 NT$${num(out.cash_refund)}`:'')+(ok===false?'；未確認開櫃成功，請按「錢櫃」重試':'');},reload));
+  return ensureOperator(()=>opsThen(()=>api(`/admin/orders/${orderId}/items/${line}/void`,{method:'POST',body:{reason,refund_cash:refundCash,operator_id:OPERATOR?.id}}),async out=>{const ok=await autoCashDrawer({kind:'refund',order_id:orderId,line,cash_refund:out.cash_refund});return onlineRefundText(out.online_refund)+`已取消，帳務扣除 NT$${num(out.refund)}`+(out.cash_refund>0?`；請退現金 NT$${num(out.cash_refund)}`:'')+(ok===false?'；未確認開櫃成功，請按「錢櫃」重試':'');},reload));
 }
 async function issueOrderInvoice(o,reload){
   if(!o||o.status==='void')return;

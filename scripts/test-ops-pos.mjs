@@ -87,17 +87,17 @@ test('櫃檯代客加菜：by 固定「櫃檯」、guest 固定；逐項作廢�
   assert.throws(() => T.voidLine(items, 'nope', 'x'), e => e.status === 404);
 });
 
-test('作廢出餐單：限當個營業日、不可重複、線上刷卡的要先退款', () => {
+test('作廢出餐單：限當個營業日、不可重複；線上刷卡不擋（路由自動退款）', () => {
   const o = { id: 'to_1', status: 'paid', paid_at: new Date().toISOString(), tappay: {}, items: [] };
   assert.equal(T.voidOrder(o, ' 打錯單 '), '打錯單');
   assert.throws(() => T.voidOrder(o, ''), /原因/);
   assert.throws(() => T.voidOrder({ ...o, status: 'void' }, 'x'), e => e.status === 409);
   assert.throws(() => T.voidOrder({ ...o, paid_at: '2020-01-01T00:00:00Z' }, 'x'), /當個營業日/);
-  assert.throws(() => T.voidOrder({ ...o, tappay: { rec_trade_id: 'R1' } }, 'x'), /TapPay/);
+  assert.equal(T.voidOrder({ ...o, tappay: { rec_trade_id: 'R1' } }, 'x'), 'x'); // 線上刷卡不再擋，路由自動退款（KK 11/17）
   assert.throws(() => T.voidOrder(null, 'x'), e => e.status === 404);
 });
 
-test('取消單一品項：單價歸零、原價留底、從單上金額扣除；限當個營業日、不可對最後一項／線上刷卡／已開發票的單動手', () => {
+test('取消單一品項：單價歸零、原價留底、從單上金額扣除；限當個營業日、不可對最後一項／已開發票的單動手', () => {
   const twoItems = [
     { line: 'l1', zh: '拿鐵', price: 180, qty: 2 },
     { line: 'l2', zh: '吐司', price: 120, qty: 1 },
@@ -115,7 +115,7 @@ test('取消單一品項：單價歸零、原價留底、從單上金額扣除�
   assert.throws(() => T.voidOrderLine({ ...o, items: out.items }, 'l2', 'x'), /已取消/); // 不可重複取消同一項
   assert.throws(() => T.voidOrderLine({ ...o, items: [twoItems[0]] }, 'l1', 'x'), /最後一項/); // 只剩一項未取消時擋下，請改走作廢整張單
   assert.throws(() => T.voidOrderLine({ ...o, status: 'void' }, 'l1', 'x'), e => e.status === 409);
-  assert.throws(() => T.voidOrderLine({ ...o, tappay: { rec_trade_id: 'R1' } }, 'l1', 'x'), /TapPay/);
+  assert.equal(T.voidOrderLine({ ...o, tappay: { rec_trade_id: 'R1' } }, 'l2', 'x').refund, 120); // 線上刷卡取消品項由路由自動部分退款
   assert.throws(() => T.voidOrderLine({ ...o, invoice: { status: 'issued' } }, 'l1', 'x'), /發票/);
   assert.throws(() => T.voidOrderLine({ ...o, paid_at: '2020-01-01T00:00:00Z' }, 'l1', 'x'), /當個營業日/);
   assert.throws(() => T.voidOrderLine(null, 'l1', 'x'), e => e.status === 404);

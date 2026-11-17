@@ -6764,6 +6764,7 @@ app.post('/api/admin/orders/sessions/:id/linepay/cancel',auth,adminOnly,requireD
 /* ---- POS 線上刷卡 QR（lib/pos-card-qr.js，KK 11/17）：等等空間／約書旅櫃檯建 Stripe Checkout、mPOP 印 QR 給客人掃碼刷卡。
    金額由伺服器以未付品項原價重算；入帳（webhook 或 POS 輪詢 /check）以 Stripe session id 冪等，桌次已變動就不入帳並 LINE 通知員工退款 ---- */
 const posCardQr=require('./lib/pos-card-qr');
+const onlineRefund=require('./lib/online-refund');
 const cardQrGet=async(sid,client)=>{const v=(await (client||{query:q}).query('SELECT value FROM site_content WHERE key=$1',[posCardQr.key(sid)])).rows[0]?.value;try{return v?JSON.parse(v):null;}catch{return null;}};
 const cardQrDel=(sid,client)=>(client||{query:q}).query('DELETE FROM site_content WHERE key=$1',[posCardQr.key(sid)]);
 async function fulfillPosCardCheckout(session){
@@ -7054,18 +7055,22 @@ app.post('/api/admin/orders/:id/void',auth,adminOnly,requireDb,wrap(async(req,re
   const wantReopen=!!(s&&s.status!=='open'&&req.body?.reopen===true&&!o.payer?.prepay);
   if(wantReopen){const busy=(await client.query("SELECT id FROM table_sessions WHERE table_no=$1 AND status='open' AND id<>$2 LIMIT 1",[s.table_no||o.table_no,s.id])).rows[0];
     if(busy)return res.status(409).json({error:`${o.table_no} 已經開了新的一桌，品項無法回到桌上；請改選「只作廢」，再到那桌加點。`});}
+  // 線上刷卡自動退款（KK 11/17）：TapPay／Stripe 先全額退，成功才繼續作廢；之後任何一步失敗都先把退款紀錄存下來，重試不會重複退
+  let onlineRefundRec=null;
+  try{onlineRefundRec=await onlineRefund.refundOrder(o,{tappay:tableOrders.tappayConfig(),stripe,by:actorOf(req.auth)||''});}catch(e){return res.status(e.status||502).json({error:e.message});}
+  const keepRefund=async(code,error)=>{if(onlineRefundRec){await client.query('ROLLBACK').catch(()=>{});committed=true;await client.query("UPDATE table_orders SET payer=COALESCE(payer,'{}'::jsonb)||$2::jsonb WHERE id=$1",[o.id,JSON.stringify({online_refund:onlineRefundRec})]);error+='（已退款，請重新按作廢完成帳務）';}return res.status(code).json({error,online_refund:onlineRefundRec||undefined});};
   let nextInvoice=o.invoice||{};
   if(nextInvoice.status==='issued'){
     const cfg=ezpayInvoice.config();
-    if(!cfg)return res.status(503).json({error:'尚未設定 ezPay 電子發票憑證（後台「系統設定」），無法同步作廢已開立發票的訂單。'});
+    if(!cfg)return keepRefund(503,'尚未設定 ezPay 電子發票憑證（後台「系統設定」），無法同步作廢已開立發票的訂單。');
     // 已開立但沒記到號碼：先向 ezPay 查回號碼，再作廢
-    if(!nextInvoice.number){try{nextInvoice=await ezpayInvoice.searchInvoice(cfg,o,nextInvoice);}catch(e){return res.status(e.status||502).json({error:e.message});}}
-    if(nextInvoice.status==='issued'){try{nextInvoice=await ezpayInvoice.invalidInvoice(cfg,o,nextInvoice,reason);}catch(e){return res.status(e.status||502).json({error:e.message});}}
+    if(!nextInvoice.number){try{nextInvoice=await ezpayInvoice.searchInvoice(cfg,o,nextInvoice);}catch(e){return keepRefund(e.status||502,e.message);}}
+    if(nextInvoice.status==='issued'){try{nextInvoice=await ezpayInvoice.invalidInvoice(cfg,o,nextInvoice,reason);}catch(e){return keepRefund(e.status||502,e.message);}}
   }
   // 作廢＝這張單不計營收；品項退回未結帳（可重新結或清桌作廢），避免「作廢後想改付款方式」要重點一次
   const method=o.payer?.method||null,cash_refund=req.body?.refund_cash===true?tableOrders.cashPaid(o.payer,o.amount):0;
   const event_key=cash_refund>0?`refund:${o.id}`:undefined;
-  const payer={...o.payer,...(event_key?{drawer_refunds:{...o.payer?.drawer_refunds,[event_key]:cash_refund}}:{})};
+  const payer={...o.payer,...(event_key?{drawer_refunds:{...o.payer?.drawer_refunds,[event_key]:cash_refund}}:{}),...(onlineRefundRec?{online_refund:onlineRefundRec}:{})};
     await reverseYanForOrder(client,o.id);
     await client.query("UPDATE table_orders SET status='void',void_reason=$2,voided_by=$3,voided_at=now(),invoice=$4,payer=$5 WHERE id=$1",[o.id,reason,actorOf(req.auth)||'',JSON.stringify(nextInvoice),JSON.stringify(payer)]);
     // 退回未結帳：會員價還原為原價；贈送（comp_reason）維持贈送
@@ -7077,7 +7082,7 @@ app.post('/api/admin/orders/:id/void',auth,adminOnly,requireDb,wrap(async(req,re
     }
     else if(s&&s.status==='open')await client.query('UPDATE table_sessions SET items=$2,updated_at=now() WHERE id=$1',[s.id,backItems]);
     await client.query('COMMIT');committed=true;
-  res.json({ok:true,reason,method,cash_refund,event_key,reopened,returned:!!(s&&!o.payer?.prepay&&(reopened||s.status==='open')),table_no:o.table_no});
+  res.json({ok:true,reason,method,cash_refund,event_key,online_refund:onlineRefundRec||o.payer?.online_refund||null,reopened,returned:!!(s&&!o.payer?.prepay&&(reopened||s.status==='open')),table_no:o.table_no});
   }finally{if(!committed)await client.query('ROLLBACK').catch(()=>{});client.release();}
 }));
 /* 取消已結帳單裡的單一品項（做不出來／客人退菜），不必作廢整張單：單價歸零、從單上金額扣除這項小計 */
@@ -7133,12 +7138,16 @@ app.post('/api/admin/orders/:id/items/:line/void',auth,adminOnly,requireDb,wrap(
   if(!o||!tableOrders.orderOwnedByVenues(o,venues))return res.status(404).json({error:'找不到這筆出餐單。'});
   let out;try{out=tableOrders.voidOrderLine(o,String(req.params.line),req.body?.reason);}catch(e){return res.status(e.status||400).json({error:e.message});}
   const refund=Math.max(0,Number(o.amount)-out.amount),method=o.payer?.method||null;
+  // 線上刷卡（TapPay／Stripe）取消品項＝自動部分退款，成功才改帳（KK 11/17）
+  const refundKey=`line-${o.id}-${req.params.line}`;let onlineRefundRec=null;
+  try{onlineRefundRec=await onlineRefund.refundPart(o,refund,refundKey,{tappay:tableOrders.tappayConfig(),stripe,by:actorOf(req.auth)||''});}catch(e){return res.status(e.status||502).json({error:e.message});}
+  if(onlineRefundRec)o.payer={...o.payer,online_refunds:{...o.payer?.online_refunds,[refundKey]:onlineRefundRec}};
   if(out.service)o.payer={...o.payer,service_charge:out.service};
   const cash_refund=req.body?.refund_cash===true?Math.min(refund,tableOrders.cashPaid(o.payer,o.amount)):0,event_key=cash_refund>0?`refund:${o.id}:${req.params.line}`:undefined;
   const payer={...o.payer,...(event_key?{drawer_refunds:{...o.payer?.drawer_refunds,[event_key]:cash_refund}}:{})};
   await client.query('UPDATE table_orders SET items=$2,amount=$3,payer=$4 WHERE id=$1',[o.id,JSON.stringify(out.items),out.amount,JSON.stringify(payer)]);
   await client.query('COMMIT');committed=true;
-  res.json({ok:true,reason:out.reason,refund,amount:out.amount,method,cash_refund,event_key});
+  res.json({ok:true,reason:out.reason,refund,amount:out.amount,method,cash_refund,event_key,online_refund:onlineRefundRec});
   }finally{if(!committed)await client.query('ROLLBACK').catch(()=>{});client.release();}
 }));
 /* 估清（今日售完）與暫停點餐：只改單一欄位，不會蓋掉另一台平板正在編輯的菜單 */
