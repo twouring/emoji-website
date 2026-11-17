@@ -88,5 +88,23 @@ test('POS：線上刷卡單作廢／取消品項先確認會退款，成功訊�
  assert.match(ops,/const onlineCardOf=o=>o\?\.tappay\?\.rec_trade_id\?'TapPay ':o\?\.payer\?\.method==='stripe'\?'Stripe ':''/);
  assert.match(ops,/作廢會自動退款 NT\$\$\{num\(order\.amount\)\} 到客人的卡/);
  assert.match(ops,/會自動退這項的金額到客人的卡/);
- assert.match(ops,/return onlineRefundText\(out\.online_refund\)\+\(out\.reopened\?/);
+ assert.match(ops,/const rf=out\.cash_refund>0\|\|typeof voidRefundInfo!=='function'\?null:voidRefundInfo\(/);
+});
+
+test('作廢單一定標示有沒有退款（查單、桌上已結帳列、收據）',()=>{
+ const c=vm.createContext({num:n=>String(n),PAY_LABEL:{cash:'現金',ctbc:'信用卡',linepay:'LINE Pay',stripe:'Stripe 線上刷卡'}});
+ vm.runInContext(ops.match(/const payMethodLabel=[^\n]+/)[0].replace('const ','var '),c);
+ const src=ops.slice(ops.indexOf('const voidRefundInfo='),ops.indexOf('const invoiceHtml=o=>{'));
+ vm.runInContext(src.replace('const voidRefundInfo=','var voidRefundInfo=').replace('const voidRefundPill=','var voidRefundPill='),c);
+ const f=o=>c.voidRefundInfo({id:'to_1',status:'void',amount:300,...o});
+ assert.equal(c.voidRefundInfo({status:'paid'}),null);
+ assert.deepEqual({...f({payer:{method:'stripe',online_refund:{provider:'stripe',amount:300}}})},{done:true,text:'已退款 NT$300 到客人的卡（Stripe）'});
+ assert.equal(f({tappay:{rec_trade_id:'R'},payer:{online_refund:{provider:'tappay',amount:300}}}).text,'已退款 NT$300 到客人的卡（TapPay）');
+ assert.match(f({payer:{method:'stripe'}}).text,/^未退款：線上刷卡/);
+ assert.deepEqual({...f({payer:{method:'cash',drawer_refunds:{'refund:to_1':300}}})},{done:true,text:'已退現金 NT$300'});
+ assert.equal(f({payer:{method:'cash'}}).done,false);assert.match(f({payer:{method:'cash'}}).text,/只更正帳務，沒有退給客人/);
+ assert.match(f({payer:{method:'ctbc'}}).text,/^未退款：信用卡 NT\$300，系統不會自動退/);
+ assert.match(f({payer:{payments:[{method:'cash',amount:100},{method:'linepay',amount:200}],drawer_refunds:{'refund:to_1':100}}}).text,/已退現金 NT\$100；LINE Pay NT\$200 未退/);
+ assert.match(c.voidRefundPill({id:'to_1',status:'void',amount:300,payer:{method:'cash'}}),/pill-wait">未退款/);
+ for(const s of ["return `<span class=\"pill pill-bad\">已作廢</span>${voidRefundPill(o)}`","<b>${esc(voidRefundInfo(o).text)}</b>","spec.push({kind:'left',text:voidRefundInfo(o).text,size:18})","已作廢</span>${voidRefundPill(o)} <span"])assert.ok(ops.includes(s),s);
 });
