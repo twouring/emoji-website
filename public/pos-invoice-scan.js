@@ -46,6 +46,7 @@
     input.placeholder = 'AB12345678／掃描槍直接掃描';
     input.autocomplete = 'off';
     input.spellcheck = false;
+    if (global.posScanField) global.posScanField(input);   // 中文輸入法開著也只收英數（掃描槍）
     input.style.cssText = 'width:100%;box-sizing:border-box;font-size:18px;padding:12px';
     const submit = document.createElement('button');
     submit.type = 'submit';

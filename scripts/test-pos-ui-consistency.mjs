@@ -57,7 +57,7 @@ test('posConfirm 行為：按主鍵 resolve true、取消 resolve false；訊息
     node.querySelector = sel => node.btns[sel] || (node.btns[sel] = { onclick: null });
     return node;
   };
-  const ctx = { esc: s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])), document: { createElement: () => { const n = el(); made.push(n); return n; }, body: { appendChild() {} } }, Promise };
+  const ctx = { esc: s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])), document: { createElement: () => { const n = el(); made.push(n); return n; }, body: { appendChild() {} }, addEventListener() {}, removeEventListener() {} }, Promise };
   vm.runInNewContext(src, ctx);
   let p = ctx.posConfirm('清桌 A1？\n第二行 <b>', { ok: '清桌', danger: true });
   let ov = made.at(-1);

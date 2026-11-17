@@ -148,9 +148,9 @@ function bindSpacePanel(host, cur, reload){
   on('sp-resume', async () => { if (!await posConfirm(`取消 ${cur.table} 的離場？離場自動加的超時費用會移除，繼續計時。`, { ok: '取消離場' })) return; try { await api('/admin/orders/sessions/' + cur.id + '/space/resume', { method: 'POST', body: {} }); toast('已取消離場，繼續計時'); await reload(); } catch (e) { toast(e.message); } });
   on('sp-reprint', () => printSpaceEntry({ in_at: cur.space.in_at, due_at: cur.space.due_at, seat: cur.table, headcount: cur.space.headcount, plan: (cur.space.plans || []).map(p => p.zh).join('、') }, { reprint: true }));
 }
-/* 掃碼進出：掃會員卡後先確認再入場／離場。相機或掃描槍都可以（pickMemberCard，QR 區分大小寫）。 */
-async function spaceScan(reload){
-  const tok = await pickMemberCard({ title: '掃會員卡確認進出', hint: '請客人打開 App「出示會員卡」，把 QR 對準框內。掃完會請你確認入場或離場。' }); if (!tok) return;
+/* 掃碼進出：掃會員卡後先確認再入場／離場。相機或掃描槍都可以（pickMemberCard，QR 區分大小寫）；掃描槍在入場看板直接掃時由 posWedgeScan 帶 scanned 進來。 */
+async function spaceScan(reload, scanned){
+  const tok = scanned || await pickMemberCard({ title: '掃會員卡確認進出', hint: '請客人打開 App「出示會員卡」，把 QR 對準框內。掃完會請你確認入場或離場。' }); if (!tok) return;
   return ensureOperator(async () => {
     let out;
     try { out = await api('/admin/orders/space/scan', { method: 'POST', body: { token: tok, venue: SCOPE, operator_id: OPERATOR?.id } }); }

@@ -25,6 +25,7 @@ function askManagerPin(msg){
         if(pin.length===4)return done(pin);paint();});
       ov.querySelector('[data-cancel]').onclick=()=>done(null);
     };
+    posPadKeys(ov,()=>!ov.parentNode,()=>done(null));
     paint();
   });
 }

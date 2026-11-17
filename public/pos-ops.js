@@ -76,6 +76,8 @@ function posConfirm(message,{title='',ok='確定',cancel='取消',danger=false}=
     const lines=String(message??'').split('\n');
     ov.innerHTML=`<div class="op-card pos-confirm" role="alertdialog" aria-label="${esc(title||lines[0])}">${title?`<h2>${esc(title)}</h2>`:''}<p class="pos-confirm-msg">${lines.map(esc).join('<br>')}</p>
       <div class="op-card-actions"><button type="button" class="btn btn--ghost" data-cancel>${esc(cancel)}</button><button type="button" class="btn btn--solid${danger?' btn--danger':''}" data-ok>${esc(ok)}</button></div></div>`;
+    const key=e=>{if(!ov.parentNode){document.removeEventListener('keydown',key,true);return;}if(e.key==='Enter'||e.key==='Escape'){e.preventDefault();e.stopPropagation();finish(e.key==='Enter');}};   // 鍵盤：Enter 確定、Esc 取消
+    document.addEventListener('keydown',key,true);
     ov.querySelector('[data-cancel]').onclick=()=>finish(false);
     ov.querySelector('[data-ok]').onclick=()=>finish(true);
   });
@@ -279,7 +281,7 @@ function pickCarrier(kind){
   const cfg=kind==='mobile'?{title:'手機載具條碼',placeholder:'例：/ABC+123（共 8 碼）'}:{title:'自然人憑證條碼',placeholder:'例：AB12345678901234'};
   return new Promise(resolve=>{
     const {ov,close}=pickOverlay(`<h3>${esc(cfg.title)}${tipIcon('按「掃描」用相機對準條碼，或直接手動輸入。')}</h3><div class="pos-inv-scan-row"><input id="pos-carrier-input" maxlength="20" autocapitalize="characters" autocomplete="off" placeholder="${esc(cfg.placeholder)}"><button type="button" class="btn btn--ghost" id="pos-carrier-scan">📷 掃描</button></div><video id="pos-carrier-video" playsinline muted></video><div class="pos-move-foot"><span></span><span><button type="button" class="btn btn--ghost" data-cancel>取消</button> <button type="button" class="btn btn--solid" data-ok>確定</button></span></div>`,cfg.title);
-    const inp=ov.querySelector('#pos-carrier-input'),video=ov.querySelector('#pos-carrier-video');
+    const inp=posScanField(ov.querySelector('#pos-carrier-input')),video=ov.querySelector('#pos-carrier-video');
     const done=v=>{stopPosInvoiceScanner(video);close();resolve(v);};
     ov.onclick=e=>{if(e.target===ov)done(null);};
     ov.querySelector('[data-cancel]').onclick=()=>done(null);
@@ -296,7 +298,7 @@ function scanMobileCarrier(initial=''){
     const ov=document.createElement('div');ov.className='pos-scan-full';ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');ov.setAttribute('aria-label','掃描手機載具');
     ov.innerHTML=`<div class="pos-scan-full-head"><b>掃描手機載具</b><button type="button" class="btn btn--ghost" data-cancel>關閉</button></div><div class="pos-scan-full-cam"><video id="pos-carrier-full-video" playsinline muted></video><div class="pos-scan-full-frame" aria-hidden="true"></div></div><p class="pos-scan-full-hint" role="status">請客人打開手機載具條碼，對準框內</p><div class="pos-scan-full-foot"><input id="pos-carrier-full-input" maxlength="8" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="或手動輸入 /ABC+123" value="${esc(initial)}"><button type="button" class="btn btn--solid" data-ok>確定</button></div>`;
     document.body.appendChild(ov);
-    const video=ov.querySelector('video'),inp=ov.querySelector('input'),hint=ov.querySelector('.pos-scan-full-hint');
+    const video=ov.querySelector('video'),inp=posScanField(ov.querySelector('input')),hint=ov.querySelector('.pos-scan-full-hint');
     let closed=false;
     const done=v=>{if(closed)return;closed=true;stopPosInvoiceScanner(video);ov.remove();document.removeEventListener('keydown',esc_);resolve(v);};
     const esc_=e=>{if(e.key==='Escape'){e.preventDefault();done(null);}};document.addEventListener('keydown',esc_);
@@ -387,7 +389,7 @@ function pickMemberCard(opt){
     const ov=document.createElement('div');ov.className='pos-scan-full';ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');ov.setAttribute('aria-label',title);
     ov.innerHTML=`<div class="pos-scan-full-head"><b>${title.replace(/[<>&]/g,s=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]))}</b><button type="button" class="btn btn--ghost" data-cancel>關閉</button></div><div class="pos-scan-full-cam"><video id="pos-card-video" playsinline muted></video><div class="pos-scan-full-frame pos-scan-full-frame--qr" aria-hidden="true"></div></div><p class="pos-scan-full-hint" role="status">${hintText.replace(/[<>&]/g,s=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]))}</p><div class="pos-scan-full-foot"><input id="pos-card-input" autocomplete="off" spellcheck="false" placeholder="或用掃描槍／貼上會員條碼"><button type="button" class="btn btn--solid" data-ok>確定</button></div>`;
     document.body.appendChild(ov);
-    const video=ov.querySelector('video'),inp=ov.querySelector('input'),hint=ov.querySelector('.pos-scan-full-hint');
+    const video=ov.querySelector('video'),inp=posScanField(ov.querySelector('input')),hint=ov.querySelector('.pos-scan-full-hint');
     let closed=false;
     const done=v=>{if(closed)return;closed=true;stopPosInvoiceScanner(video);ov.remove();document.removeEventListener('keydown',esc_);resolve(v);};
     const esc_=e=>{if(e.key==='Escape'){e.preventDefault();done(null);}};document.addEventListener('keydown',esc_);
@@ -1821,7 +1823,7 @@ function linepayPanelHtml(cur,config){
 function pickLinepayCode(amount){
   return new Promise(resolve=>{
     const {ov,close}=pickOverlay(`<h3>LINE Pay API 實收 NT$${num(amount)}</h3><p class="hint">請客人出示 LINE Pay「我的條碼」；掃描或用掃描槍輸入 18 碼。不會儲存付款碼。</p><div class="pos-inv-scan-row"><input data-code inputmode="numeric" autocomplete="off" maxlength="18" aria-label="LINE Pay 付款碼"><button type="button" class="btn btn--ghost" data-scan>相機掃描</button></div><video playsinline muted></video><div class="pos-move-foot"><button type="button" class="btn btn--ghost" data-cancel>取消</button><button type="button" class="btn btn--solid" data-next>確認付款碼</button></div>`,'LINE Pay API 收款');
-    const input=ov.querySelector('[data-code]'),video=ov.querySelector('video');
+    const input=posScanField(ov.querySelector('[data-code]')),video=ov.querySelector('video');
     const done=value=>{stopPosInvoiceScanner(video);input.value='';close();resolve(value);};
     const accept=raw=>{if(!/^\d{18}$/.test(raw)){toast('請掃描 18 碼 LINE Pay 付款碼，不是會員卡或店家 QR');return;}done(raw);};
     ov.querySelector('[data-scan]').onclick=()=>startInvoiceScan(video,accept,{raw:true,sensitive:true});
@@ -1880,13 +1882,29 @@ function openMemberDialog(cur){
     const lookup=()=>{const p=(phone.value||'').trim();if(!p){toast('請輸入手機');return;}const pending=POS_YAN={phone:p,name:'',balance:null,sessionId:cur.id};POS_MEMBER=false;return opsThen(()=>api('/admin/yan/lookup',{method:'POST',body:{phone:p}}),out=>{if(POS_YAN!==pending||!same())return '已切換帳單，未綁定會員';POS_YAN={phone:p,name:out.member?.name||'',balance:out.balance||0,created:!!out.created,sessionId:cur.id};return out.created?`已新增會員 ${p}，結帳後累點`:`${out.member?.name||'會員'} · ${out.balance||0} 點`;},after);};
     box.querySelector('#pos-yan-lookup').onclick=lookup;
     phone.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();lookup();}};
-    box.querySelector('#pos-yan-scan').onclick=async()=>{const pending=POS_YAN;const token=await pickMemberCard();if(!token||POS_YAN!==pending||!same())return;return opsThen(()=>api('/admin/yan/lookup',{method:'POST',body:{token}}),out=>{if(POS_YAN!==pending||!same())return '已切換帳單，未綁定會員';POS_YAN={id:out.member?.id||'',phone:out.member?.phone||'',name:out.member?.name||'',balance:out.balance||0,active:!!out.active,sessionId:cur.id,redeemSet:new Set()};POS_MEMBER=!!out.active;const cr=posApplyCarrier(out);return `${out.member?.name||'會員'} · ${out.active?'有效會籍，已套聚落價':'註冊會員，不適用聚落價'}（${out.balance||0} 點）${cr}`;},after);};
+    box.querySelector('#pos-yan-scan').onclick=async()=>{const pending=POS_YAN;const token=await pickMemberCard();if(!token||POS_YAN!==pending||!same())return;return posCardMember(cur,token,after);};
     box.querySelectorAll('[data-table-member]').forEach(b=>b.onclick=()=>{const pending=POS_YAN;const mid=b.dataset.tableMember;return opsThen(()=>api('/admin/yan/lookup',{method:'POST',body:{member_id:mid,session_id:cur.id}}),out=>{if(POS_YAN!==pending||!same())return '已切換帳單，未綁定會員';POS_YAN={id:out.member?.id||'',phone:out.member?.phone||'',name:out.member?.name||'',balance:out.balance||0,active:!!out.active,sessionId:cur.id,redeemSet:new Set()};POS_MEMBER=!!out.active;const cr=posApplyCarrier(out);return `${out.member?.name||'會員'} · ${out.active?'有效會籍，已套聚落價':'註冊會員，不適用聚落價'}（${out.balance||0} 點）${cr}`;},after);});
     const clr=box.querySelector('#pos-yan-clear');if(clr)clr.onclick=()=>{POS_AUTO_SKIP.add(cur.id);POS_YAN={phone:'',name:'',balance:null};POS_MEMBER=false;after();};
     /* 輸入手機沒按查會員就按完成（KK 11/7）：先查／建會員再關，主畫面立刻帶入 */
     box.querySelector('[data-done]').onclick=async()=>{const p=(phone.value||'').trim();if(p&&!POS_YAN.id&&!POS_YAN.name&&!POS_YAN.created)await lookup();close();paintPos();};
   };
   render();
+}
+/* 會員卡 token 帶入這桌（相機、掃描槍都走這裡）；查詢中換桌或換會員就不綁 */
+function posCardMember(cur,token,after){const pending=POS_YAN,same=()=>POS_TABLE===cur.table;return opsThen(()=>api('/admin/yan/lookup',{method:'POST',body:{token}}),out=>{if(POS_YAN!==pending||!same())return '已切換帳單，未綁定會員';POS_YAN={id:out.member?.id||'',phone:out.member?.phone||'',name:out.member?.name||'',balance:out.balance||0,active:!!out.active,sessionId:cur.id,redeemSet:new Set()};POS_MEMBER=!!out.active;const cr=posApplyCarrier(out);return `${out.member?.name||'會員'} · ${out.active?'有效會籍，已套聚落價':'註冊會員，不適用聚落價'}（${out.balance||0} 點）${cr}`;},after);}
+/* 掃描槍直接掃（KK 11/17）：結帳頁沒點任何輸入框就掃，pos-keys.js 的 posScanWedge 交給這裡。
+   點餐 QR（s=）→ 跳到那桌；空間情境 → 掃碼進出；有選桌 → 會員卡帶入會員；其他提示先選桌 */
+const POS_CARD_RE=/^[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{20,}$/;
+async function posWedgeScan(v){
+  if(typeof TAB!=='undefined'&&TAB!=='pos')return;
+  const host=document.getElementById('pos-body');if(!host||!POS_DATA)return;
+  const reload=()=>{host.dataset.sig='';return loadPos();};
+  if(/[?&]s=/.test(v)){let hit=tableFromScan(v,POS_DATA.sessions);if(hit?.missing){await reload();hit=tableFromScan(v,POS_DATA.sessions);}if(!hit||hit.missing){toast('這張 QR 的桌已結帳清桌，或不是本店的桌');return;}posSelectTable(hit.table);paintPos();toast(`已切到 ${hit.table} 結帳`);return;}
+  if(!POS_CARD_RE.test(v)){toast('掃到的不是會員卡或點餐 QR');return;}
+  if(typeof posSpaceOn==='function'&&posSpaceOn()&&typeof spaceScan==='function')return spaceScan(reload,v);
+  const cur=(POS_DATA.sessions||[]).find(s=>s.table===POS_TABLE);
+  if(!cur){toast('先選一桌，再掃會員卡');return;}
+  return posCardMember(cur,v,()=>paintPos());
 }
 /* 掃碼結帳（KK 11/7）：桌況頁「掃碼結帳」→ 全螢幕相機掃客人桌上的點餐 QR（/order?s=<場次>&k=…）→ 直接跳到那桌的結帳畫面。
    只認本品牌開著的場次（POS_DATA.sessions 已依品牌過濾）；也接受手動輸入桌號（A3）或掃描槍。只是選桌，不改任何資料 */
@@ -1905,7 +1923,7 @@ function pickTableScan(){
     const ov=document.createElement('div');ov.className='pos-scan-full';ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');ov.setAttribute('aria-label','掃桌號 QR 結帳');
     ov.innerHTML=`<div class="pos-scan-full-head"><b>掃桌號 QR 結帳</b><button type="button" class="btn btn--ghost" data-cancel>關閉</button></div><div class="pos-scan-full-cam"><video id="pos-table-scan-video" playsinline muted></video><div class="pos-scan-full-frame pos-scan-full-frame--qr" aria-hidden="true"></div></div><p class="pos-scan-full-hint" role="status">把客人桌上的點餐 QR 對準框內</p><div class="pos-scan-full-foot"><input id="pos-table-scan-input" maxlength="200" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="或輸入桌號，例如 A3"><button type="button" class="btn btn--solid" data-ok>前往結帳</button></div>`;
     document.body.appendChild(ov);
-    const video=ov.querySelector('video'),inp=ov.querySelector('input'),hint=ov.querySelector('.pos-scan-full-hint');
+    const video=ov.querySelector('video'),inp=posScanField(ov.querySelector('input')),hint=ov.querySelector('.pos-scan-full-hint');
     let closed=false;
     const done=v=>{if(closed)return;closed=true;stopPosInvoiceScanner(video);ov.remove();document.removeEventListener('keydown',esc_);resolve(v);};
     const esc_=e=>{if(e.key==='Escape'){e.preventDefault();done(null);}};document.addEventListener('keydown',esc_);
@@ -2188,6 +2206,7 @@ function paintPos(){
   updateInvoiceFields(host);
   host.querySelectorAll('input[name=pos-invoice]').forEach(r=>r.onchange=()=>{POS_INVOICE.mode=r.checked?r.value:POS_INVOICE.mode;delete POS_INVOICE.auto;syncInvoiceBadge(host);updateInvoiceFields(host);});
   const ubnIn=host.querySelector('.pos-invoice [name=buyer_ubn]'),ubnOut=host.querySelector('#pos-ubn-result');
+  host.querySelectorAll('.pos-invoice [name=buyer_ubn],.pos-invoice [name=carrier_num],.pos-invoice [name=love_code]').forEach(i=>posScanField(i));   // 統編／載具／愛心碼：中文輸入法開著也只收英數
   host.querySelectorAll('.pos-invoice [name=buyer_ubn],.pos-invoice [name=carrier_num],.pos-invoice [name=love_code],.pos-invoice [name=comment]').forEach(i=>i.addEventListener?.('input',()=>{POS_INV_VALS[i.name]=i.value;}));
   if(ubnIn?.addEventListener&&ubnOut){let seq=0;const keepUbn=()=>{POS_INV_VALS.ubn_name=ubnOut.dataset.name||'';POS_INV_VALS.ubn_state=ubnOut.dataset.state||'';POS_INV_VALS.ubn_text=ubnOut.textContent;};ubnIn.addEventListener('input',async()=>{
     const v=ubnIn.value.replace(/\D/g,'');ubnOut.dataset.name='';ubnOut.dataset.state='';ubnOut.textContent='';keepUbn();
@@ -3288,7 +3307,15 @@ function openOperatorPad(onDone,required,onCancel){
     try{ const out=await api('/admin/staff/verify',{method:'POST',body:{pin}}); OPERATOR={id:out.id,name:out.name,pin}; OP_PIN=''; OP_BUSY=false; close(); onDone&&onDone(); }
     catch(e){ OP_PIN=''; OP_MSG={ok:false,text:e.message}; OP_BUSY=false; paint(); }
   };
+  posPadKeys(ov,()=>!ov.parentNode,required?null:()=>ov.querySelector('#op-cancel')?.click());
   paint();
+}
+/* 識別碼鍵盤接實體鍵盤：數字（看鍵位，注音開著也行）、Backspace、Esc；點回畫面上的按鍵，邏輯只有一份 */
+function posPadKeys(ov,gone,onEsc){
+  const h=e=>{if(gone()){document.removeEventListener('keydown',h,true);return;}const d=posDigit(e),k=d||(e.code==='Backspace'?'⌫':e.code==='Delete'?'清除':'');
+    if(k){const b=ov.querySelector(`[data-key="${k}"]`);if(b){e.preventDefault();e.stopPropagation();b.click();}return;}
+    if(e.key==='Escape'&&onEsc){e.preventDefault();onEsc();}};
+  document.addEventListener('keydown',h,true);
 }
 
 /* 排班表：週一起七欄，每欄列出誰幾點到幾點；點某天「＋ 排班」展開表單。host 由 POS 分頁或後台傳入 */

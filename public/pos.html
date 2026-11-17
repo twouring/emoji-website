@@ -304,6 +304,7 @@
 <script src="/order-lib.js"></script>
 <script src="/pos-encouragement.js"></script>
 <script src="/pos-moji.js"></script>
+<script src="/pos-keys.js"></script>
 <script src="/pos-invoice-scan.js"></script>
 <script src="/pos-ops.js"></script>
 <script src="/pos-space.js"></script>
@@ -491,11 +492,11 @@ function renderPinLogin(msg){
   if (msg) { const d = document.getElementById('pin-dots'); d.classList.add('shake'); if (navigator.vibrate) navigator.vibrate(120); }
   document.getElementById('pin-alt').onclick = () => renderLogin();
   const keysEl = app.querySelector('.clock-keys');
-  // 實體鍵盤（藍牙／外接）也能輸入：數字、Backspace、Escape
+  // 實體鍵盤（藍牙／外接）也能輸入：數字、Backspace、Escape；看實體鍵位，注音輸入法開著也收得到數字
   window.__posPinKey && document.removeEventListener('keydown', window.__posPinKey);
   window.__posPinKey = ev => {
     if (!document.getElementById('pin-dots')) { document.removeEventListener('keydown', window.__posPinKey); return; }
-    const k = /^[0-9]$/.test(ev.key) ? ev.key : ev.key === 'Backspace' ? '⌫' : ev.key === 'Escape' ? '清除' : null;
+    const d = posDigit(ev), k = d ? d : ev.key === 'Backspace' ? '⌫' : ev.key === 'Escape' ? '清除' : null;
     const b = k && app.querySelector(`[data-key="${k}"]`); if (b) { ev.preventDefault(); b.click(); }
   };
   document.addEventListener('keydown', window.__posPinKey);
@@ -710,6 +711,7 @@ async function main(){
     refreshPending();
     serviceCallBoot();
     posLiveBoot();
+    posScanWedge(posWedgeScan);
     tipBoot();
     linepayAlertBoot();
     ctbcAlertBoot();
