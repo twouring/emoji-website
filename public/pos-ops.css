@@ -1106,3 +1106,12 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 .pos-other-lines li{display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-top:1px solid var(--line)}
 .pos-other-lines li:first-child{border-top:0}
 .pos-other-lines__meta{white-space:nowrap}
+
+/* 日結：錢櫃／零用金袋兩個大數字（KK 11/17） */
+.reg-pots{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0 12px}
+.reg-pot{border:2px solid var(--ink);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.reg-pot span{font-weight:700}
+.reg-pot b{font-size:clamp(1.25rem,5vw,1.75rem);line-height:1.2;white-space:nowrap}
+.reg-pot small{font-size:1rem;color:#6b6b6b;line-height:1.35}
+.reg-pot--petty{border-style:dashed}
+.reg-pot--petty.is-low b{color:#b5532b}

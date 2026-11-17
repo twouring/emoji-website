@@ -13,8 +13,8 @@ try{
   await page.addScriptTag({path:new URL('../public/pos-ops.js',import.meta.url).pathname});
   if(errors.length)throw Error(errors.join('\n'));
   const state=await page.evaluate(()=>{
-    const r={id:'rg_1',venue:'CAFE',day:'2026-11-17',petty_split:true,petty_in:0,petty_out:300,opened_at:'2026-11-17T08:00:00+08:00',opening_cash:3000,cash_in:0,cash_out:0,cash_sales:1000,expected:4000,moves:[{id:'cm_1',type:'out',reason:'買食材',amount:300,created_at:'2026-11-17T10:20:00+08:00',staff:'小明',receipt_photo:'/ig-media/assets/cash-receipt.jpg'}],sales:{orders:2,amount:1000,collected:1000},reconciliation_accounts:{linepay:0,ctbc:0,transfer:0},account_labels:{linepay:'LINE Pay',ctbc:'信用卡',transfer:'轉帳'},pending:{tables:0,amount:0,list:[]}};
-    REG_DATA={registers:[r],current:{CAFE:r},open_tables_by:{CAFE:[]}};
+    const r={id:'rg_1',venue:'CAFE',day:'2026-11-17',petty_split:true,petty_in:0,petty_out:300,opened_at:'2026-11-17T08:00:00+08:00',opening_cash:3000,cash_in:0,cash_out:0,cash_sales:1000,expected:4000,petty_balance:4700,moves:[{id:'cm_1',type:'out',reason:'買食材',amount:300,created_at:'2026-11-17T10:20:00+08:00',staff:'小明',receipt_photo:'/ig-media/assets/cash-receipt.jpg'}],sales:{orders:2,amount:1000,collected:1000},reconciliation_accounts:{linepay:0,ctbc:0,transfer:0},account_labels:{linepay:'LINE Pay',ctbc:'信用卡',transfer:'轉帳'},pending:{tables:0,amount:0,list:[]}};
+    REG_DATA={petty_fund:{CAFE:5000},petty_balance:{CAFE:4700},registers:[r],current:{CAFE:r},open_tables_by:{CAFE:[]}};
     const d={linepay:{configured:true,synced_at:'2026-11-15',by_venue:{CAFE:{linepay:{amount:0}}}},ctbc:{configured:true,synced_at:'2026-11-15',by_venue:{CAFE:{ctbc:{amount:0}}}}};
     document.querySelector('#sales-body').innerHTML=accountConfirmBlock(REG_DATA,d)+registerBlock(REG_DATA);
     REG_CLOSE_OPEN=r.id;document.querySelector('#sales-body').innerHTML=accountConfirmBlock(REG_DATA,d)+registerBlock(REG_DATA);

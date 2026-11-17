@@ -41,3 +41,14 @@ test('server 依帳本營業日套新規則；前端開帳預設錢盒 3,000、�
   assert.match(ui, /function pettyCashOf\(r\)\{return r\.petty_split\?Number\(r\.opening_cash/);
   assert.match(ui, /放回錢盒/);
 });
+
+test('零用金袋餘額：底數 5,000＋收－支；打賞支付不算；日結頂端顯示錢櫃與零用金袋', () => {
+  assert.equal(R.PETTY_FUND.CAFE, 5000); assert.equal(R.PETTY_FUND.BAR, 5000);
+  assert.equal(R.pettyBalance('CAFE', moves), 5000 - 300 + 100);
+  assert.equal(R.pettyBalance('STAY', moves), null);
+  assert.match(srv, /petty_balance:pettyBy/);
+  assert.match(ui, /function cashPotsHtml\(v,r\)/);
+  assert.match(ui, /<span>錢櫃<\/span>/); assert.match(ui, /<span>零用金袋<\/span>/);
+  assert.match(ui, /待核銷補回/);
+  assert.match(ui, /cash_move:\['買食材','核銷補回'/);
+});

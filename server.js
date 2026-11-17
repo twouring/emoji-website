@@ -7540,11 +7540,16 @@ app.get('/api/admin/registers',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const rows=(await q('SELECT * FROM pos_registers WHERE day=$1 OR ($2 AND closed_at IS NULL AND day>=$3) ORDER BY opened_at',[day,today,liveFloor()])).rows.map(regDay).filter(r=>!venues||venues.includes(r.venue));
   const openSess=rows.some(r=>!r.closed_at)?(await q("SELECT id,table_no,venue,items,pickup_at,pickup_placed_at,shop_at,created_at FROM table_sessions WHERE status='open'")).rows:[];   /* 當班未結帳（KK 11/7） */
   const out=[];for(const r of rows){const s=await registerSummary(r);const pending=r.closed_at?null:posRegister.pendingRevenue(openSess,r.venue,{serviceCharge:tableOrders.MenuLib.serviceCharge});out.push({...r,pending,...s.summary,cash_sales:s.summary.cash_sales,moves:s.moves,counts:s.counts,last_count:s.counts[0]||null,sales:{orders:s.sales.orders,amount:s.sales.amount,collected:s.sales.collected,tip_amount:s.sales.tip_amount,by_method:s.sales.by_method,voided:s.sales.voided,void_amount:s.sales.void_amount},report:r.closed_at?r.report:s.report});}
+  /* 零用金袋餘額（KK 11/17）：11/17 起該品牌所有帳本的零用金收支累計（打賞支付算錢櫃不算） */
+  const tipSet=await tipPayoutCashMoves();
+  const pmoves=(await q('SELECT m.id,m.type,m.amount,r.venue FROM pos_cash_moves m JOIN pos_registers r ON r.id=m.register_id WHERE r.day>=$1',[posRegister.PETTY_SPLIT_FROM])).rows.map(m=>tipSet.has(m.id)?{...m,locked:'tip'}:m);
+  for(const r of out)r.petty_balance=r.petty_split?posRegister.pettyBalance(r.venue,pmoves.filter(m=>m.venue===r.venue)):null;
+  const pettyBy={};for(const v of Object.keys(posRegister.PETTY_FUND))if(!venues||venues.includes(v))pettyBy[v]=posRegister.pettyBalance(v,pmoves.filter(m=>m.venue===v));
   const byVenue={};for(const v of posRegister.VENUES){if(venues&&!venues.includes(v))continue;byVenue[v]=out.filter(r=>r.venue===v).slice(-1)[0]||null;}
   // 品牌各自獨立（KK 11/4）：總覽只看看得到的品牌，開關帳不受另一店影響
   const all=(await q('SELECT id,venue,opened_at,closed_at,keep_cash FROM pos_registers WHERE day=$1 OR ($2 AND closed_at IS NULL AND day>=$3)',[day,today,liveFloor()])).rows.filter(r=>!venues||venues.includes(r.venue));
   const tablesBy={};for(const v of posRegister.VENUES){if(!venues||venues.includes(v))tablesBy[v]=await openTablesBlockingClose(v);}
-  res.json({day,registers:out,current:byVenue,active_venue:tableOrders.MenuLib.activeVenue(),open_tables_by:tablesBy,open_tables:[...new Set(Object.values(tablesBy).flat())],...posRegister.registerOverview(all)});
+  res.json({day,registers:out,current:byVenue,petty_balance:pettyBy,petty_fund:posRegister.PETTY_FUND,active_venue:tableOrders.MenuLib.activeVenue(),open_tables_by:tablesBy,open_tables:[...new Set(Object.values(tablesBy).flat())],...posRegister.registerOverview(all)});
 }));
 /* 開帳：body { venue, opening_cash?, note?, day? }；同品牌當日還有開著的帳回 409（另一品牌開著不影響，KK 11/4）；沒填零用金就承接同品牌上一本的留存金 */
 app.post('/api/admin/registers/open',auth,adminOnly,requireDb,wrap(async(req,res)=>{
