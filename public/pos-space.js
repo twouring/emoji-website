@@ -310,7 +310,7 @@ function spaceTick(){
   if (!hits.length) return;
   hits.forEach(x => SPACE_ALERTED.add(x.key));
   try { ordersBeep(); } catch (e) {}
-  posConfirm(hits.map(({ s }) => `${s.table}：${s.space.limit_hit ? `已連續使用滿 ${spaceCfg().max_hours} 小時，須離場` : spaceLive(s.space).text}`).join('\n'), { title: '入場時間提醒', ok: '知道了', cancel: '知道了' });
+  posConfirm(hits.map(({ s }) => `${s.table}：${s.space.limit_hit ? `已連續使用滿 ${spaceCfg().max_hours} 小時，須離場` : spaceLive(s.space).text}`).join('\n'), { title: '入場時間提醒', ok: '知道了', cancel: null });
 }
 if (typeof document !== 'undefined' && typeof setInterval === 'function' && !globalThis.__posSpaceTick) globalThis.__posSpaceTick = setInterval(spaceTick, 30000);
 

@@ -75,10 +75,10 @@ function posConfirm(message,{title='',ok='確定',cancel='取消',danger=false}=
     const finish=v=>{if(ov.parentNode)ov.parentNode.removeChild(ov);resolve(v);};
     const lines=String(message??'').split('\n');
     ov.innerHTML=`<div class="op-card pos-confirm" role="alertdialog" aria-label="${esc(title||lines[0])}">${title?`<h2>${esc(title)}</h2>`:''}<p class="pos-confirm-msg">${lines.map(esc).join('<br>')}</p>
-      <div class="op-card-actions"><button type="button" class="btn btn--ghost" data-cancel>${esc(cancel)}</button><button type="button" class="btn btn--solid${danger?' btn--danger':''}" data-ok>${esc(ok)}</button></div></div>`;
+      <div class="op-card-actions">${cancel==null?'':`<button type="button" class="btn btn--ghost" data-cancel>${esc(cancel)}</button>`}<button type="button" class="btn btn--solid${danger?' btn--danger':''}" data-ok>${esc(ok)}</button></div></div>`;
     const key=e=>{if(!ov.parentNode){document.removeEventListener('keydown',key,true);return;}if(e.key==='Enter'||e.key==='Escape'){e.preventDefault();e.stopPropagation();finish(e.key==='Enter');}};   // 鍵盤：Enter 確定、Esc 取消
     document.addEventListener('keydown',key,true);
-    ov.querySelector('[data-cancel]').onclick=()=>finish(false);
+    const cb=ov.querySelector('[data-cancel]');if(cb)cb.onclick=()=>finish(false);   // cancel:null＝純提醒，只留一顆鍵
     ov.querySelector('[data-ok]').onclick=()=>finish(true);
   });
 }
@@ -508,7 +508,7 @@ function alertUnsentOrders(sessions){
   fresh.forEach(([key])=>POS_UNSENT_ALERTED.add(key));
   const tables=fresh.map(([,v])=>`${v.session.takeout?'外帶 ':''}${v.session.table}（${v.reminder.minutes} 分）`).join('、');
   unsentAlertBeep();
-  void posConfirm(`以下桌次已點餐超過 2 分鐘，尚未送單：\n${tables}`,{title:'未送單提醒',ok:'知道了',cancel:'知道了'});
+  void posConfirm(`以下桌次已點餐超過 2 分鐘，尚未送單：\n${tables}`,{title:'未送單提醒',ok:'知道了',cancel:null});
 }
 // 80mm 出單機版型；列印視窗只放經 esc 的內容
 const PRINT_CSS='body{font-family:sans-serif;width:72mm;margin:0;padding:4mm;font-size:16px;color:#000}h1{font-size:30px;margin:0 0 4px}h1.k{font-size:42px;letter-spacing:.04em;text-align:center;margin:2px 0 6px}h2{font-size:16px;margin:10px 0 4px;border-bottom:2px solid #000}.m{color:#333;margin-bottom:6px}.l{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed #bbb}.l.k{font-size:20px;font-weight:700;border-bottom:1px solid #000;padding:6px 0}.n{color:#222;padding:0 0 4px 1em;font-weight:700}.t{display:flex;justify-content:space-between;font-weight:700;margin-top:8px;font-size:17px}.t.big{font-size:22px;border-top:2px solid #000;padding-top:6px}.c{text-align:center;margin-top:12px;color:#333}.sep{border:0;border-top:1px dashed #000;margin:8px 0}';

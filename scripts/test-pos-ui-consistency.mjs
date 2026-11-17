@@ -37,7 +37,7 @@ test('確認對話框：pos-ops.js 零 confirm()，一律 posConfirm（同 .op-o
   assert.equal((ops.match(/\bconfirm\(/g) || []).length, 0, '不可再用瀏覽器 confirm');
   assert.match(ops, /function posConfirm\(message,\{title='',ok='確定',cancel='取消',danger=false\}=\{\}\)/);
   assert.match(ops, /class="op-card pos-confirm" role="alertdialog"/);
-  assert.match(ops, /<button type="button" class="btn btn--ghost" data-cancel>\$\{esc\(cancel\)\}<\/button><button type="button" class="btn btn--solid\$\{danger\?' btn--danger':''\}" data-ok>\$\{esc\(ok\)\}<\/button>/, '取消在左、主鍵在右');
+  assert.match(ops, /<button type="button" class="btn btn--ghost" data-cancel>\$\{esc\(cancel\)\}<\/button>`\}<button type="button" class="btn btn--solid\$\{danger\?' btn--danger':''\}" data-ok>\$\{esc\(ok\)\}<\/button>/, '取消在左、主鍵在右');
   assert.match(css, /\.btn\.btn--solid\.btn--danger\{background:var\(--danger\)/);
   assert.match(css, /\.pos-confirm \.op-card-actions \.btn\{flex:1;min-height:52px\}/);
   // 破壞性動作走 danger
