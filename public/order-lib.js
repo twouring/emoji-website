@@ -430,8 +430,9 @@
     const name = [title, item?.note].filter(Boolean).join(' ').toLowerCase();
     const groups = [];
     const temperature = () => groups.push({ key: 'temperature', label: labels.temperature, choices: OPT[l].temp });
-    // 冰塊只有冰飲才顯示，且所有飲品只提供 正常（4 顆）／少冰（2 顆）／去冰（標示「有小碎冰」，KK 10/20 指示）；所有飲品不提供甜度調整。
-    const ice = conditional => groups.push({ key: 'ice', label: labels.ice, choices: conditional ? OPT[l].ice : OPT[l].ice, ...(conditional ? { when: { key: 'temperature', value: OPT[l].temp[0] } } : {}) });
+    // 冰塊只有冰飲才顯示，所有飲品只提供 正常（4 顆）／少冰（2 顆）；所有飲品不提供甜度調整。
+    // 不再提供去冰（11/18 拔除）；OPT.ice 第 3 個「去冰（有小碎冰）」只留給舊單據的 optionZh 翻譯。
+    const ice = conditional => groups.push({ key: 'ice', label: labels.ice, choices: OPT[l].ice.slice(0, 2), ...(conditional ? { when: { key: 'temperature', value: OPT[l].temp[0] } } : {}) });
     const fixedHot = cat === 'TEA' && /（壺）|\(pot\)|熱水|hot water/.test(name);
     const fixedCold = cat === 'SPARKLING' || /西西里|柚子美式|氣泡|sparkling|romano/.test(name);
     if ((cat === 'COFFEE' || cat === 'BEVERAGE' || cat === 'TEA') && !fixedHot && !fixedCold) {
