@@ -76,7 +76,25 @@ test('server 接線：交易表 entity 欄、遊遊 id 加前綴、同步狀態�
   assert.match(server, /const t=entity==='TTH'\?t0:\{\.\.\.t0,id:`\$\{entity\}:\$\{t0\.id\}`\}/);
   assert.match(server, /const SYNC_ROW=\{TTH:1,TWOURING:2\}/);
   assert.match(server, /\.\.\.entities\.ENTITIES\.flatMap\(en=>\[/);
-  assert.match(server, /const invoiceCfg=o=>ezpayInvoice\.config\(process\.env,orderEntity\(o\)\)/);
+  assert.match(server, /const invoiceCfg=o=>ezpayInvoice\.config\(process\.env,invoiceEntity\(o\)\)/);
+  assert.match(server, /e==='TWOURING'&&String\(process\.env\.EZPAY_SPACE_INVOICE_ENTITY/, '空間品牌可暫由言文字代開（KK 11/18）');
+  assert.match(server, /entity:invoiceEntity\(order\)/, '開立時記住法人，之後作廢用原法人');
   assert.doesNotMatch(server, /ezpayInvoice\.config\(\)/, '發票一律依訂單法人取商店');
   assert.doesNotMatch(server, /linepay\.config\(\)|ctbc\.config\(\)/, '金流一律依法人取商店');
+});
+
+test('空間品牌發票暫由言文字代開（KK 11/18）：設定切換、已開立沿用原法人', () => {
+  const src = server.slice(server.indexOf('const orderEntity=o=>'), server.indexOf('const invoiceCfg=o=>'));
+  const env = {};
+  const invoiceEntity = new Function('entities', 'process', src + 'return invoiceEntity;')(E, { env });
+  const rest = { items: [{ venue: 'REST' }] }, cafe = { items: [{ venue: 'CAFE' }] };
+  assert.equal(invoiceEntity(rest), 'TWOURING', '沒設定＝遊遊');
+  env.EZPAY_SPACE_INVOICE_ENTITY = 'TTH';
+  assert.equal(invoiceEntity(rest), 'TTH');
+  assert.equal(invoiceEntity({ items: [{ venue: 'STAY' }] }), 'TTH');
+  assert.equal(invoiceEntity(cafe), 'TTH');
+  assert.equal(invoiceEntity({ ...rest, invoice: { status: 'issued', number: 'AB12345678', entity: 'TWOURING' } }), 'TWOURING', '遊遊開的票仍由遊遊作廢');
+  delete env.EZPAY_SPACE_INVOICE_ENTITY;
+  assert.equal(invoiceEntity({ ...rest, invoice: { status: 'issued', number: 'AB12345678', entity: 'TTH' } }), 'TTH', '切回後言文字代開的票仍由言文字作廢');
+  assert.equal(invoiceEntity({ ...rest, invoice: { status: 'failed', entity: 'TTH' } }), 'TWOURING', '開失敗的單依現行設定');
 });

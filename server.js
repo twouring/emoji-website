@@ -6670,12 +6670,16 @@ app.post('/api/admin/orders/sessions',auth,adminOnly,requireDb,wrap(async(req,re
 }));
 /* 發票賣方＝訂單品牌的法人（KK 11/11 D2）：在咖啡／三點水開言文字、等等空間／約書旅開遊遊；遊遊沒填 ezPay 就不開（不借言文字的商店） */
 const orderEntity=o=>{const v=(o?.items||[]).find(l=>l&&l.venue)?.venue;try{return v?entities.entityOf(v):'TTH';}catch{return 'TTH';}};
-const invoiceCfg=o=>ezpayInvoice.config(process.env,orderEntity(o));
-const noInvoiceCfg=o=>`尚未設定${entities.ENTITY_LABEL[orderEntity(o)]}的 ezPay 電子發票憑證（後台「系統設定」）。`;
+/* 暫時由言文字代開空間品牌發票（KK 11/18）：系統設定 EZPAY_SPACE_INVOICE_ENTITY=TTH 時，等等空間／約書旅改用言文字的 ezPay；清掉即恢復遊遊。
+   已開立／已作廢的發票記住當時的法人（invoice.entity），之後作廢／改開／查詢都用原法人，切換設定不會作廢錯商店。 */
+const invoiceEntity=o=>{const iv=o?.invoice;if(iv&&entities.ENTITY_LABEL[iv.entity]&&(iv.number||['issued','void'].includes(iv.status)))return iv.entity;
+  const e=orderEntity(o);return e==='TWOURING'&&String(process.env.EZPAY_SPACE_INVOICE_ENTITY||'').trim().toUpperCase()==='TTH'?'TTH':e;};
+const invoiceCfg=o=>ezpayInvoice.config(process.env,invoiceEntity(o));
+const noInvoiceCfg=o=>`尚未設定${entities.ENTITY_LABEL[invoiceEntity(o)]}的 ezPay 電子發票憑證（後台「系統設定」）。`;
 async function issueEzpayForOrder(order, invoice) {
   const cfg=invoiceCfg(order);
   if(!cfg)throw Object.assign(Error(noInvoiceCfg(order)),{status:503});
-  return ezpayInvoice.issueInvoice(cfg,order,invoice);
+  return {...(await ezpayInvoice.issueInvoice(cfg,order,invoice)),entity:invoiceEntity(order)};
 }
 /* 線上付款自動開發票（KK 11/18）：官網／App 預付（等等空間會籍、約書旅貴賓室）與 App 商店付款完成就開，不等客人到店。
    載具＝會員上次用的手機條碼／自然人憑證，否則 ezPay 會員載具（會員編號＋Email），都沒有才紙本（存 ezPay 平台）。
@@ -7055,7 +7059,7 @@ app.post('/api/admin/orders/:id/invoice/reissue',auth,adminOnly,requireDb,wrap(a
     const base=String(old.merchant_order_no||o.id).replace(/[^A-Za-z0-9]/g,'').replace(/R\d+$/,'').slice(0,20);
     const invoice={...form,merchant_order_no:base+'R'+replaced.length,replaced};
     let next,ok=true;
-    try{next={...(await ezpayInvoice.issueInvoice(cfg,o,invoice)),replaced};}
+    try{next={...(await ezpayInvoice.issueInvoice(cfg,o,invoice)),entity:invoiceEntity(o),replaced};}
     catch(e){ok=false;next={...invoice,provider:'ezpay',status:'failed',error:e.message,failed_at:new Date().toISOString()};}
     await client.query('UPDATE table_orders SET invoice=$2 WHERE id=$1',[o.id,JSON.stringify(next)]);
     await client.query('COMMIT');committed=true;
@@ -7658,7 +7662,7 @@ app.get('/api/admin/exec',auth,adminOnly,requireDb,wrap(async(req,res)=>{
     grab('線上預付',async()=>{const rows=(await q(`SELECT s.venue,s.table_no,s.space,s.items,(SELECT max(o.paid_at) FROM table_orders o WHERE o.session_id=s.id AND o.status<>'void') AS paid_at FROM table_sessions s WHERE s.status='open' AND s.space->>'prepaid'='true' AND s.space->>'in_at' IS NULL`)).rows;
       const waiting={};for(const v of ['STAY','REST']){const w=posRegister.prepaidWaiting(rows.filter(r=>r.venue===v),now);if(w.count)waiting[v]=w;}
       const miss=(await q(`SELECT items FROM table_orders WHERE status<>'void' AND payer->>'method'='stripe' AND payer->>'online'='true' AND COALESCE(payer->>'card_qr','')<>'true' AND paid_at>=$1 AND paid_at<now()-interval '1 hour' AND COALESCE(invoice->>'status','') NOT IN ('issued','void') AND invoice->>'skipped' IS NULL`,[ONLINE_INVOICE_FROM+'T00:00:00+08:00'])).rows;
-      const noCfg=[...new Set(miss.map(o=>orderEntity(o)).filter(e=>!ezpayInvoice.configured(process.env,e)))].map(e=>entities.ENTITY_LABEL[e]).join('、');
+      const noCfg=[...new Set(miss.map(o=>invoiceEntity(o)).filter(e=>!ezpayInvoice.configured(process.env,e)))].map(e=>entities.ENTITY_LABEL[e]).join('、');
       src.prepaid={waiting,invoice_missing:miss.length,invoice_cfg_missing:noCfg};}),
     grab('桌況',async()=>{src.sessions=(await q("SELECT id,table_no,items,created_at FROM table_sessions WHERE status='open'")).rows;}),
     grab('出餐單佇列',async()=>{src.print_jobs=(await q("SELECT count(*)::int AS count,min(created_at) AS oldest FROM pos_kitchen_print_jobs WHERE claimed_at IS NULL AND id NOT LIKE 'rp\\_%'")).rows[0];}),
