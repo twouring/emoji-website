@@ -6756,8 +6756,9 @@ app.delete('/api/admin/orders/sessions/:id/items/:line',auth,adminOnly,requireDb
 /* 櫃檯改未結帳品項：改數量、贈送（單價 0，記原因）／取消贈送 */
 app.patch('/api/admin/orders/sessions/:id/items/:line',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
+  const MENU_JSON_FOR_EDIT=req.body?.note!==undefined?await contentValue('menu'):'';
   const venues=tableOrders.visibleVenues(req.auth.brands);
-  return mutateItems(req,res,items=>{const t=items.find(l=>l.line===String(req.params.line));if(t&&!tableOrders.itemInVenues(t,venues))throw Object.assign(Error('只能修改自己店別的品項。'),{status:403});return tableOrders.editLine(items,String(req.params.line),{qty:req.body?.qty,free:req.body?.free,reason:req.body?.reason,note:req.body?.note});});
+  return mutateItems(req,res,items=>{const t=items.find(l=>l.line===String(req.params.line));if(t&&!tableOrders.itemInVenues(t,venues))throw Object.assign(Error('只能修改自己店別的品項。'),{status:403});const item=t&&req.body?.note!==undefined?tableOrders.MenuLib.parseMenuDoc(MENU_JSON_FOR_EDIT).items.find(x=>x.id===t.item_id):null;return tableOrders.editLine(items,String(req.params.line),{qty:req.body?.qty,free:req.body?.free,reason:req.body?.reason,note:req.body?.note,item});});
 }));
 /* 換桌／併桌：把這桌（未結帳品項＋已結帳的單）搬到另一桌；目標桌已開著就併桌。
    移到外帶：body {takeout:true}，自動取 W01–W99 最小空號（不併單）。不能直接指定 W 號 */

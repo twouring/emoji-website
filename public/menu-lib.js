@@ -188,6 +188,53 @@
     }));
   }
 
+  /* 品項自訂選項（KK 11/18，子租戶可改）：[{label,choices:[{zh,add}]}]，單選、第一個為預設；add＝加價（伺服器依 note 計算，不信前端）。
+   * 文字格式同套餐：每行一組「辣度：不辣、小辣、大辣」「加蛋：不加、加蛋+20」。標籤最多 6 字（POS 規格膠囊辨識上限） */
+  function normalizeOptions(raw) {
+    if (!Array.isArray(raw)) return [];
+    const seen = new Set();
+    return raw.slice(0, 6).map(g => {
+      const label = String((g && g.label) || '').replace(/[：:；;]/g, '').trim().slice(0, 6);
+      const names = new Set();
+      const choices = (Array.isArray(g && g.choices) ? g.choices : []).slice(0, 12).map(c => {
+        const zh = String(typeof c === 'string' ? c : (c && c.zh) || '').replace(/[：:；;、,，]/g, '').trim().slice(0, 20);
+        const add = Math.max(0, Math.min(1000, Math.round(Number(c && c.add)) || 0));
+        if (!zh || names.has(zh)) return null; names.add(zh);
+        return { zh, add };
+      }).filter(Boolean);
+      if (!label || choices.length < 2 || seen.has(label)) return null;
+      seen.add(label);
+      return { label, choices };
+    }).filter(Boolean);
+  }
+  function optionsToText(options) {
+    return normalizeOptions(options).map(g => g.label + '：' + g.choices.map(c => c.zh + (c.add ? '+' + c.add : '')).join('、')).join('\n');
+  }
+  function optionsFromText(text) {
+    return normalizeOptions(String(text || '').split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+      const k = l.search(/[：:]/);
+      const choices = (k < 0 ? '' : l.slice(k + 1)).split(/[、,，]/).map(x => x.trim()).filter(Boolean).map(x => {
+        const m = x.match(/^(.*?)\s*\+\s*(\d+)$/);
+        return m ? { zh: m[1].trim(), add: Number(m[2]) } : { zh: x, add: 0 };
+      });
+      return { label: k < 0 ? '' : l.slice(0, k).trim(), choices };
+    }));
+  }
+  /* 畫面上的選項文字：「加蛋 +$20」；回寫 note 也是這串，optionPick 會去掉加價尾巴再比對 */
+  const optionChoiceText = c => c.zh + (c.add ? ' +$' + c.add : '');
+  /* 從備註（「辣度：小辣；加蛋：加蛋 +$20；不要蔥」）算出自訂選項加價；沒選或對不上＝預設（第一個） */
+  function optionAdd(item, note) {
+    const segs = String(note || '').split(/[；;]/).map(x => x.trim());
+    let add = 0;
+    for (const g of normalizeOptions(item && item.options)) {
+      const seg = segs.find(x => x.startsWith(g.label + '：') || x.startsWith(g.label + ':'));
+      const val = seg ? seg.slice(g.label.length + 1).replace(/\s*\+\s*\$?\d+$/, '').trim() : '';
+      const c = g.choices.find(x => x.zh === val) || g.choices[0];
+      add += c.add;
+    }
+    return add;
+  }
+
   /* 空間情境計時方案（KK 11/15，lib/pos-space.js）：space_role 'plan'＝入場／延長方案（space_minutes 分鐘，0＝不限時）、'overtime'＝超時每單位；只有空間分類才保留 */
   const SPACE_ROLES = ['plan', 'overtime'];
   function spaceFields(raw, cat) {
@@ -216,6 +263,8 @@
       note_ko: String(raw.note_ko || '').trim(),
       image: String(raw.image || '').trim(),
       combo: cat === 'COMBO' ? normalizeCombo(raw.combo) : [],   // 套餐內容（只有 COMBO 類別有效）
+      options: cat === 'COMBO' ? [] : normalizeOptions(raw.options),   // 自訂選項（辣度、加料…）
+      ...(raw.auto_options === false && cat !== 'COMBO' ? { auto_options: false } : {}),   // false＝不套系統預設選項（冰熱、冰塊、飯量、麵量、甜點上餐時間）
       alcohol: coerceAlcohol({ ...raw, cat }),
       published: raw.published === true,
       custom_price: raw.custom_price === true,   // 現場輸入金額（例：其他／客製需求），POS 加點時另外問價
@@ -488,6 +537,6 @@
 
   global.MenuLib = {
     CATS, VENUES, ITEM_VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, BAR_STATION_CATS, MEMBER_RATE, BAR_POLICY_FROM, CAFE_POLICY_FROM, SERVICE_RATE, MIN_SPEND, CAFE_MIN_SPEND, barPolicyActive, cafePolicyActive, minSpendOf, cafeMinimumOf, serviceCharge, memberPrice, activeVenue, orderWindow, orderableInWindow, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
-    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, comboChoiceOk, comboOffChoices, comboAvailable, isShop, SPACE_CATS, isBook, isRetail, normalizeIsbn, ISBN13_RE, isShared, isStoreItem, inVenue, forVenue, SHARED_CATS, soldOutToday, stockLeft, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
+    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, normalizeOptions, optionsToText, optionsFromText, optionChoiceText, optionAdd, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, comboChoiceOk, comboOffChoices, comboAvailable, isShop, SPACE_CATS, isBook, isRetail, normalizeIsbn, ISBN13_RE, isShared, isStoreItem, inVenue, forVenue, SHARED_CATS, soldOutToday, stockLeft, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -46,14 +46,14 @@ function mcShrink(file){
 function mcSyncMenu(item){
   if(!MENU_DOC||!item)return;
   const i=MENU_DOC.items.findIndex(x=>x.id===item.id),cur=i>=0?MENU_DOC.items[i]:{};
-  const next={...cur,...item,sold_out:cur.sold_out||'',stock_day:cur.stock_day||'',stock_left:cur.stock_left??null,combo:item.combo_text!=null?MenuLib.comboFromText(item.combo_text):cur.combo};
+  const next={...cur,...item,sold_out:cur.sold_out||'',stock_day:cur.stock_day||'',stock_left:cur.stock_left??null,combo:item.combo_text!=null?MenuLib.comboFromText(item.combo_text):cur.combo,options:item.options_text!=null?MenuLib.optionsFromText(item.options_text):cur.options,auto_options:item.auto_options};
   if(i>=0)MENU_DOC.items[i]=next;else MENU_DOC.items.push(next);
 }
 function mcEdit(it,host){
   const can=MC_DATA?.can_edit===true,cats=MC_DATA?.cats||[];
   const ov=document.createElement('div');ov.className='op-overlay';document.body.appendChild(ov);
   const close=()=>{if(ov.parentNode)ov.parentNode.removeChild(ov);};
-  const v=it||{zh:'',en:'',ja:'',ko:'',cat:MC_CAT||'COFFEE',price:'',emo:0,points:0,note:'',note_en:'',note_ja:'',published:false,sort:'',available_from:'',available_to:'',pos_only:false,combo_text:'',image:''};
+  const v=it||{zh:'',en:'',ja:'',ko:'',cat:MC_CAT||'COFFEE',price:'',emo:0,points:0,note:'',note_en:'',note_ja:'',published:false,sort:'',available_from:'',available_to:'',pos_only:false,combo_text:'',options_text:'',auto_options:true,image:''};
   const venueSel=!it&&!SCOPE?`<label>品牌<select id="mc-venue">${(MC_DATA?.venues||[]).filter(x=>MenuLib.ITEM_VENUES.includes(x)).map(x=>`<option value="${esc(x)}">${esc(BRAND_LABEL[x]||x)}</option>`).join('')}</select></label>`:'';
   const dis=can?'':' disabled';
   ov.innerHTML=`<div class="op-card mc-edit" role="dialog" aria-label="${esc(it?'修改 '+it.zh:'新增品項')}">
@@ -76,12 +76,14 @@ function mcEdit(it,host){
       <label>供應起日<input id="mc-from" type="date" value="${esc(v.available_from)}"${dis}></label>
       <label>供應迄日<input id="mc-to" type="date" value="${esc(v.available_to)}"${dis}></label>
       <label class="mc-full" id="mc-combo-wrap"${v.cat==='COMBO'?'':' hidden'}>套餐內容（每行一欄：主餐：原味貝果、鮪魚貝果+30）<textarea id="mc-combo" maxlength="2000" rows="3"${dis}>${esc(v.combo_text)}</textarea></label>
+      <label class="mc-full" id="mc-opt-wrap"${v.cat==='COMBO'?' hidden':''}>自訂選項（每行一組：辣度：不辣、小辣、大辣／加料：不加、加蛋+20；第一個是預設）<textarea id="mc-options" maxlength="1500" rows="3" placeholder="辣度：不辣、小辣、大辣&#10;加料：不加、加蛋+20"${dis}>${esc(v.options_text||'')}</textarea></label>
+      <label class="mc-chk" id="mc-auto-wrap"${v.cat==='COMBO'?' hidden':''}><input type="checkbox" id="mc-auto" ${v.auto_options!==false?'checked':''}${dis}> 套用系統選項（冰熱、冰塊、飯量、麵量、甜點上餐時間）</label>
       <label class="mc-chk"><input type="checkbox" id="mc-pub" ${v.published?'checked':''}${dis}> 上架（官網、桌邊點餐看得到）</label>
       <label class="mc-chk"><input type="checkbox" id="mc-posonly" ${v.pos_only?'checked':''}${dis}> 只在 POS 顯示</label>
     </form>
     <div class="op-card-actions"><button type="button" class="btn btn--ghost" data-cancel>${can?'取消':'關閉'}</button>${can?'<button type="button" class="btn btn--solid" data-save>存檔</button>':''}</div></div>`;
   ov.querySelector('[data-cancel]').onclick=close;
-  const catEl=ov.querySelector('#mc-cat');catEl.onchange=()=>{ov.querySelector('#mc-combo-wrap').hidden=catEl.value!=='COMBO';};
+  const catEl=ov.querySelector('#mc-cat');catEl.onchange=()=>{ov.querySelector('#mc-combo-wrap').hidden=catEl.value!=='COMBO';ov.querySelector('#mc-opt-wrap').hidden=ov.querySelector('#mc-auto-wrap').hidden=catEl.value==='COMBO';};
   const after=async d=>{mcSyncMenu(d.item);await loadContent();};
   const file=ov.querySelector('#mc-file');
   if(file)file.onchange=async()=>{
@@ -98,6 +100,7 @@ function mcEdit(it,host){
     const body={zh:val('#mc-zh'),cat:catEl.value,price:Number(val('#mc-price')),emo:Number(val('#mc-emo')||0),points:Number(val('#mc-points')||0),en:val('#mc-en'),ja:val('#mc-ja'),note:val('#mc-note'),note_en:val('#mc-note-en'),note_ja:val('#mc-note-ja'),available_from:val('#mc-from'),available_to:val('#mc-to'),published:g('#mc-pub').checked,pos_only:g('#mc-posonly').checked};
     if(val('#mc-sort')!=='')body.sort=Number(val('#mc-sort'));
     if(catEl.value==='COMBO')body.combo_text=g('#mc-combo').value;
+    else{body.options_text=g('#mc-options').value;body.auto_options=g('#mc-auto').checked;}
     if(it&&it.published&&!body.published&&!await posConfirm(`把「${it.zh}」下架？下架後客人在官網與桌邊點餐看不到。`,{ok:'下架',danger:true}))return;
     const vs=g('#mc-venue');if(vs)body.venue=vs.value;
     MC_BUSY=true;

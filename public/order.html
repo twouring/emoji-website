@@ -373,7 +373,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     var price=Number(it.price)||0,parts=[];
     (it.cat==='COMBO'?(it.combo||[]):[]).forEach(function(slot){var p=(b.combo||{})[slot.key]||{},cs=slot.choices||[],ch=cs.filter(function(c){return (p.id&&c.id===p.id)||c.zh===p.zh;})[0]||cs[0];if(!ch)return;price+=Number(ch.add)||0;var m=MenuLib.comboTarget(ch,all,it.venue)||ch;parts.push({slot:slot.label,item_id:m.id||'',zh:m.zh||'',en:m.en||'',ja:m.ja||'',ko:m.ko||'',cat:m.cat||'',note:p.note||''});});
     var l={line:old?old.line:Math.random().toString(36).slice(2,12),item_id:it.id,venue:it.venue,cat:it.cat,zh:it.zh,en:it.en||'',ja:it.ja||'',ko:it.ko||'',price:price,qty:Math.max(1,Math.min(20,Math.floor(Number(b.qty))||1)),by:(old&&old.by)||String(b.by||NAME||'客人').slice(0,20),note:String(b.note||'').slice(0,160),order_id:null,added_at:old?old.added_at:new Date().toISOString()};
-    if(parts.length)l.parts=parts;return l;
+    l.price+=MenuLib.optionAdd?MenuLib.optionAdd(it,l.note):0;if(parts.length)l.parts=parts;return l;
   }
   function demoApi(path,opt){
     var s=demoSession(),m=String(opt.method||'GET').toUpperCase(),b=opt.body||{},p=path.split('?')[0],seg=p.split('/');

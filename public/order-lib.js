@@ -415,11 +415,17 @@
       serve: ['先に', '食後'],
     },
   };
-  function optionGroups(item, lang) {
+  function optionGroups(item, lang, ctx) {
     const l = lang === 'en' || lang === 'ja' || lang === 'ko' ? lang : 'zh';
     const labels = TEXT[l] || TEXT.zh;
     const cat = String(item?.cat || '');
     if (cat === 'COMBO') return [];   // 套餐的選項由 comboGroups 依內容產生
+    const ML = global.MenuLib;
+    // 店家自訂選項（menu-lib normalizeOptions）：接在系統規格後面；in combo＝套餐內選品只列不加價的組（套餐價不含選項加價）
+    const custom = () => (ML && ML.normalizeOptions ? ML.normalizeOptions(item && item.options) : [])
+      .filter(g => !(ctx && ctx.inCombo && g.choices.some(c => c.add)))
+      .map((g, i) => ({ key: 'x' + i, label: g.label, choices: g.choices.map(ML.optionChoiceText), custom: true }));
+    if (item && item.auto_options === false) return custom();
     const title = [item?.zh, item?.en].filter(Boolean).join(' ').toLowerCase();
     const name = [title, item?.note].filter(Boolean).join(' ').toLowerCase();
     const groups = [];
@@ -442,7 +448,7 @@
     else if (hasRice) groups.push({ key: 'rice', label: labels.rice_amount, choices: OPT[l].rice.slice(0, 2) });
     // 甜點必選先上／後上（KK 11/4）：沒有預選，客人與櫃檯都要點一個才能加入（required＝無預設值）。
     if (cat === 'DESSERT') groups.push({ key: 'serve', label: labels.serve_timing, choices: OPT[l].serve, required: true });
-    return groups;
+    return groups.concat(custom());
   }
   /* 套餐：每個選擇欄（主餐／飲品）一組單選，選到的品項再帶出它自己的規格（溫度／糖度／冰塊／飯量…），
    * 規格組用 when 綁在所選品項上，沿用 activeOptionGroups 顯示／隱藏。items＝同一份菜單（找出各選項對應的品項）。 */
@@ -466,7 +472,7 @@
       if (!opts.length) return;
       groups.push({ key: slot.key, label: slotLabel(slot.label, lang), choices: opts.map(o => o.label), values: opts.map(o => o.m.zh), ids: opts.map(o => o.m.id), combo: true });
       opts.forEach((o, i) => {
-        optionGroups(o.m, lang).forEach(g => {
+        optionGroups(o.m, lang, { inCombo: true }).forEach(g => {
           const key = slot.key + '__' + i + '__' + g.key;
           const when = [{ key: slot.key, value: o.label }];
           if (g.when) when.push({ key: slot.key + '__' + i + '__' + g.when.key, value: g.when.value });

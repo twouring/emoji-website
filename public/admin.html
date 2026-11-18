@@ -1781,7 +1781,9 @@ function bindMenu(){
       sort: Number(document.getElementById('mi-sort').value) || 0,
       available_from: document.getElementById('mi-from').value,
       available_to: document.getElementById('mi-to').value,
-      sold_out: (MENU_DOC.items.find(x=>x.id===document.getElementById('mi-id').value)||{}).sold_out || '',   // 估清狀態由快速鍵管理，編輯表單不動它
+      sold_out: (MENU_DOC.items.find(x=>x.id===document.getElementById('mi-id').value)||{}).sold_out || '',
+      options: (MENU_DOC.items.find(x=>x.id===document.getElementById('mi-id').value)||{}).options || [],   // 自訂選項在 POS「設定 → 菜單內容」或 MCP 改，這裡原樣帶回
+      auto_options: (MENU_DOC.items.find(x=>x.id===document.getElementById('mi-id').value)||{}).auto_options,   // 估清狀態由快速鍵管理，編輯表單不動它
     });
     MENU_DIRTY = true; syncMenuDirty();
     toast(editing ? '已更新（尚未存檔）' : '已新增（尚未存檔）');
