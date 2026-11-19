@@ -408,3 +408,7 @@
 .bs--stay-square .sq-pagelead.sq-pagelead--navy h2 { color:#fff; }
 .bs--stay-square .sq-pagelead:not(.sq-pagelead--navy) h2 { color:#2b4064; }
 @media(max-width:640px){ .bs--stay-square .sq-pagelead.sq-pagelead--sec { margin-top:0; } .bs--stay-square .sq-pagelead--sec h2 { font-size:2.3rem; } }
+/* 實景首屏（KK 11/19）：遮罩只壓文字側，右側保留明亮實景 */
+.bs--stay-square .sq-homehero>img { object-position:60% 55%; }
+.bs--stay-square .sq-homehero .sq-homehero__veil { background:linear-gradient(90deg,rgba(43,64,100,.88) 0%,rgba(43,64,100,.72) 38%,rgba(43,64,100,.2) 66%,rgba(43,64,100,0) 82%); }
+@media(max-width:640px){ .bs--stay-square .sq-homehero .sq-homehero__veil { background:linear-gradient(0deg,rgba(43,64,100,.92) 0%,rgba(43,64,100,.78) 48%,rgba(43,64,100,.1) 78%,rgba(43,64,100,0)); } }
