@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import express from 'express';
+import { createRequire } from 'node:module';
+const memberTags=createRequire(import.meta.url)('../lib/member-tags.js');
 const ops=fs.readFileSync(new URL('../public/pos-ops.js',import.meta.url),'utf8');
 test('switching tables clears bill identity and redemption selection',()=>{
  let click;
@@ -34,7 +36,7 @@ async function harness(run){
  assert.ok(start>=0,'member browse read API must exist');
  const end=server.indexOf("app.post('/api/admin/yan/lookup'",start);
  const app=express(),queries=[];
- vm.runInNewContext(server.slice(start,end),{app,auth:(req,res,next)=>req.headers.authorization?next():res.sendStatus(401),adminOnly:(req,res,next)=>req.headers.authorization==='admin'?next():res.sendStatus(403),requireDb:(req,res,next)=>next(),wrap:fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next),q:async(sql,params)=>{queries.push({sql,params});if(sql.includes('WHERE id=$1'))return {rows:params[0]==='missing'?[]:[{id:'u1',name:'小明',phone_e164:'+886912345678',email:'private'}]};return {rows:[{id:'u1',name:'小明',phone:'+886912345678'}]};},yanRowsFor:async()=>Array.from({length:60},(_,i)=>({id:'l'+i,kind:'grant',delta:5,reason:'活動',operator_name:'店員',operator_id:'s1',actor:'private@example.com',created_at:new Date(i*1000).toISOString()})),yan:{balance:()=>300},loadEntitlements:async()=>[],deriveMemberAccess:()=>({active:true})});
+ vm.runInNewContext(server.slice(start,end),{app,memberTags,auth:(req,res,next)=>req.headers.authorization?next():res.sendStatus(401),adminOnly:(req,res,next)=>req.headers.authorization==='admin'?next():res.sendStatus(403),requireDb:(req,res,next)=>next(),wrap:fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next),q:async(sql,params)=>{queries.push({sql,params});if(sql.includes('WHERE id=$1'))return {rows:params[0]==='missing'?[]:[{id:'u1',name:'小明',phone_e164:'+886912345678',email:'private'}]};return {rows:[{id:'u1',name:'小明',phone:'+886912345678'}]};},yanRowsFor:async()=>Array.from({length:60},(_,i)=>({id:'l'+i,kind:'grant',delta:5,reason:'活動',operator_name:'店員',operator_id:'s1',actor:'private@example.com',created_at:new Date(i*1000).toISOString()})),yan:{balance:()=>300},loadEntitlements:async()=>[],deriveMemberAccess:()=>({active:true})});
  const listener=app.listen(0,'127.0.0.1');await new Promise(r=>listener.once('listening',r));
  try{await run(async(path,authorization='admin')=>{const r=await fetch(`http://127.0.0.1:${listener.address().port}${path}`,{headers:authorization?{authorization}:{}});return {status:r.status,body:r.headers.get('content-type')?.includes('json')?await r.json():null};},queries);}finally{await new Promise(r=>listener.close(r));}
 }

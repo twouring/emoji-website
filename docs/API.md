@@ -450,6 +450,11 @@ POS `/pos/members` 會員名單（`auth`＋`adminOnly`，餐飲品牌子帳號�
 
 POS「會員」瀏覽身分與「結帳」本次帳單身分獨立：選會員不套入帳單；給點／空間兌換每次掃同一位會員的卡、確認、輸入經手人識別碼。結帳保留手機累點、掃卡套價／兌換餐飲，切桌、換店或桌次結束清除綁定；舊查詢結果不帶到別桌。
 
+### POST /api/admin/yan/members/:id/tag
+設定會員身分標籤（KK 11/19），`auth`＋`adminOnly`＋店長識別碼（`X-Manager-Pin`，超管／ADMIN_API_KEY 免），每分鐘 30 次。body `{ tag }`：`staff`（員工 8 折）｜`shareholder`（股東 7 折）｜`partner`（特約商家 9 折）｜`''`（清除＝一般會員）；其他值 400，找不到會員 404。存 `users.member_tag`，改前改後記進 POS 操作紀錄。回 `{ ok, tag:{key,label,percent}|null }`。標籤與折數定義在 `lib/member-tags.js`。會員名單與明細回 `tag`，明細另回可選 `tags`。
+
+結帳套用：`POST /api/admin/yan/lookup` 只在已驗證身分（`token`／`member_id`）時回 `tag`；POS 帶入後自動送 `discount:{tag}`，`/sessions/:id/checkout` 依該會員目前標籤換成整單折扣（`percent`、原因「<標籤>身分」、`payer.discount.tag`），前端數值不採用；沒驗證身分或沒標籤 400、標籤已變 409。身分折扣不疊會籍價（`member:false`）。
+
 ### POST /api/admin/yan/lookup
 POS 查／建會員。body `{ phone }`（台灣手機）、`{ token }`（會員卡 QR），或 `{ member_id, session_id }`（桌邊點餐已登入的會員；只認該場開著且 `members` 含此人，否則 404，視同已驗證身分）。另回 `carrier`：已驗證身分（`token`／`member_id`）時為該會員上一次結帳用的載具 `{ mode:'mobile'|'citizen', carrier_num }`，沒有或只報手機為 `null`；POS 在發票仍是預設紙本時自動帶入。回 `{ ok, member:{id,name,phone}, balance }`。沒有帳號就用手機建立，回 `created:true`（POS 顯示「已新增會員」）。品牌子帳號可用。回傳多 `active`（是否有效會籍）與 `verified`（是否以會員條碼確認身分）。POS 流程：掃會員條碼（`token`）→ 確認身分；有效會籍才套**會籍價**；點數不看會籍，掃碼確認身分後即可兌換品項與服務、兌換空間時數；只輸入手機＝只累點。會籍價＝菜單 `emo`（>0 時）否則原價九折（四捨五入），「現場輸入金額」品項不打折。註冊會員（沒有有效會籍）也能累點、兌換，只是沒有會籍價。點數**不折抵金額**。
 

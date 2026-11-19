@@ -45,6 +45,7 @@ const orderFeedback=require('./lib/order-feedback');
 const bugReports=require('./lib/bug-reports');
 const tips=require('./lib/tips');
 const yan=require('./lib/yan');
+const memberTags=require('./lib/member-tags');
 const line = require('./lib/line');
 const { createLineService } = require('./lib/line-service');
 const kitchenPrint=require('./lib/pos-kitchen-print');
@@ -531,6 +532,8 @@ async function migrate() {
   await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_brand TEXT`);
   await q(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_admin_brand_check`);
   await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified_at TIMESTAMPTZ`);
+  // 會員身分標籤（KK 11/19，lib/member-tags.js）：staff／shareholder／partner，NULL＝一般會員
+  await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS member_tag TEXT`);
   await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS message_channel TEXT NOT NULL DEFAULT 'sms'`);
   await q(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_message_channel_check`);
   await q(`ALTER TABLE users ADD CONSTRAINT users_message_channel_check CHECK(message_channel IN ('sms','whatsapp'))`);
@@ -5803,22 +5806,22 @@ app.get('/api/admin/yan/members', auth, adminOnly, requireDb, wrap(async (req, r
   const limit = Number(req.query.limit ?? 25), offset = Number(req.query.offset ?? 0), search = String(req.query.q || '').trim();
   if (!Number.isInteger(limit) || limit < 1 || limit > 50 || !Number.isInteger(offset) || offset < 0 || offset > 100000 || search.length > 80) return res.status(400).json({ error: '查詢條件不正確。' });
   const pattern = '%' + search.replace(/[\\%_]/g, '\\$&') + '%';
-  const rows = (await q(`SELECT id,name,COALESCE(NULLIF(phone_e164,''),phone,'') AS phone FROM users
+  const rows = (await q(`SELECT id,name,COALESCE(NULLIF(phone_e164,''),phone,'') AS phone,member_tag FROM users
     WHERE ($1='' OR name ILIKE $2 OR phone ILIKE $2 OR phone_e164 ILIKE $2 OR replace(phone_e164,'+886','0') ILIKE $2)
     ORDER BY created_at DESC,id DESC LIMIT $3 OFFSET $4`, [search, pattern, limit + 1, offset])).rows;
-  res.json({ members: rows.slice(0, limit).map(u => ({ id: u.id, name: u.name || '', phone: u.phone || '' })), next_offset: rows.length > limit ? offset + limit : null });
+  res.json({ members: rows.slice(0, limit).map(u => ({ id: u.id, name: u.name || '', phone: u.phone || '', tag: memberTags.tagOf(u.member_tag) })), next_offset: rows.length > limit ? offset + limit : null });
 }));
 app.get('/api/admin/yan/members/:id', auth, adminOnly, requireDb, wrap(async (req, res) => {
   res.set('Cache-Control', 'no-store');
   const limit = Number(req.query.limit ?? 25), offset = Number(req.query.offset ?? 0), id = String(req.params.id);
   if (!Number.isInteger(limit) || limit < 1 || limit > 50 || !Number.isInteger(offset) || offset < 0 || offset > 100000 || id.length > 64) return res.status(400).json({ error: '查詢條件不正確。' });
-  const user = (await q('SELECT id,name,phone,phone_e164 FROM users WHERE id=$1', [id])).rows[0];
+  const user = (await q('SELECT id,name,phone,phone_e164,member_tag FROM users WHERE id=$1', [id])).rows[0];
   if (!user) return res.status(404).json({ error: '找不到這位會員。' });
   const rows = await yanRowsFor({ query: (...a) => q(...a) }, id);
   const history = [...rows].sort((a,b) => new Date(b.created_at) - new Date(a.created_at) || String(b.id).localeCompare(String(a.id)));
   const ledger = history.slice(offset, offset + limit).map(r => ({ id:r.id, kind:r.kind, delta:r.delta, brand:r.brand || '', reason:r.reason || '', operator_id:r.operator_id || '', operator_name:r.operator_name || '', created_at:r.created_at, expires_at:r.expires_at || null }));
   const manual_grants = (await q('SELECT entitlement_id,plan,reason,operator_id,operator_name,created_at,starts_at,ends_at FROM pos_membership_grants WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100', [id])).rows;
-  res.json({ member:{ id:user.id, name:user.name || '', phone:user.phone_e164 || user.phone || '' }, active:!!deriveMemberAccess(await loadEntitlements(id)).active, balance:yan.balance(rows), reviewed:rows.some(r => r.ref_type === 'review'), ledger, manual_grants, next_offset:history.length > offset + limit ? offset + limit : null });
+  res.json({ member:{ id:user.id, name:user.name || '', phone:user.phone_e164 || user.phone || '', tag:memberTags.tagOf(user.member_tag) }, tags:memberTags.KEYS.map(memberTags.tagOf), active:!!deriveMemberAccess(await loadEntitlements(id)).active, balance:yan.balance(rows), reviewed:rows.some(r => r.ref_type === 'review'), ledger, manual_grants, next_offset:history.length > offset + limit ? offset + limit : null });
 }));
 app.post('/api/admin/yan/lookup', auth, adminOnly, requireDb, wrap(async (req, res) => {
   const token = String(req.body?.token || '').trim();
@@ -5827,14 +5830,14 @@ app.post('/api/admin/yan/lookup', auth, adminOnly, requireDb, wrap(async (req, r
   if (token) {
     const p = verifyAccessToken(token, secret);
     if (!p || p.plan !== 'yan-card') return res.status(400).json({ error: '會員卡無效或過期。' });
-    user = (await q('SELECT id,name,email,phone,phone_e164 FROM users WHERE id=$1',[p.sub])).rows[0];
+    user = (await q('SELECT id,name,email,phone,phone_e164,member_tag FROM users WHERE id=$1',[p.sub])).rows[0];
     if (!user) return res.status(404).json({ error: '找不到這位會員。' });
   } else if (req.body?.member_id) {
     // 桌邊點餐已登入的會員：只認這一桌（開著的場次）members 清單裡的人，等同掃過會員條碼
     const mid = String(req.body.member_id).slice(0, 64), sid = String(req.body.session_id || '');
     const ok = (await q(`SELECT 1 FROM table_sessions WHERE id=$1 AND status='open' AND members @> $2::jsonb`, [sid, JSON.stringify([{ id: mid }])])).rows[0];
     if (!ok) return res.status(404).json({ error: '這位會員不在這桌的登入名單。' });
-    user = (await q('SELECT id,name,email,phone,phone_e164 FROM users WHERE id=$1',[mid])).rows[0];
+    user = (await q('SELECT id,name,email,phone,phone_e164,member_tag FROM users WHERE id=$1',[mid])).rows[0];
     if (!user) return res.status(404).json({ error: '找不到這位會員。' });
   } else {
     const client = await pool.connect();
@@ -5850,7 +5853,18 @@ app.post('/api/admin/yan/lookup', auth, adminOnly, requireDb, wrap(async (req, r
   const verified = !!(token || req.body?.member_id);
   // 載具自動帶入（KK 11/5）：只對驗證過身分的會員（掃會員卡／桌邊登入），帶出他上一次結帳用的手機載具或自然人憑證；只報手機不帶，避免把別人的載具帶出來
   const carrier = verified ? ezpayInvoice.lastCarrier((await q(`SELECT invoice FROM table_orders WHERE user_id=$1 AND invoice->>'mode' IN ('mobile','citizen') AND COALESCE(invoice->>'carrier_num','')<>'' ORDER BY paid_at DESC LIMIT 1`, [user.id])).rows[0]?.invoice) : null;
-  res.json({ ok: true, member: { id: user.id, name: user.name, phone: user.phone_e164 || user.phone || '' }, balance: yan.balance(rows), active, verified, created: !!user.created, carrier });
+  // 身分標籤只在驗證過身分時回（只報手機不能拿到員工／股東折扣）
+  res.json({ tag: verified ? memberTags.tagOf(user.member_tag) : null, ok: true, member: { id: user.id, name: user.name, phone: user.phone_e164 || user.phone || '' }, balance: yan.balance(rows), active, verified, created: !!user.created, carrier });
+}));
+/* 設定會員身分標籤（KK 11/19）：店長識別碼（超管免）；tag 空字串＝清除。改前改後記進 POS 操作紀錄 */
+app.post('/api/admin/yan/members/:id/tag', rateLimit({ max: 30 }), auth, adminOnly, requireDb, superOrManagerPin, wrap(async (req, res) => {
+  let tag; try { tag = memberTags.parseTag(req.body?.tag); } catch (e) { return res.status(e.status || 400).json({ error: e.message }); }
+  const id = String(req.params.id || '').slice(0, 64);
+  const before = (await q('SELECT member_tag FROM users WHERE id=$1', [id])).rows[0];
+  if (!before) return res.status(404).json({ error: '找不到這位會員。' });
+  await q('UPDATE users SET member_tag=$2 WHERE id=$1', [id, tag]);
+  req.posLogDetail = { member_id: id, from: before.member_tag || '', to: tag || '', by: req.managerPin?.name || actorOf(req.auth) || '' };
+  res.json({ ok: true, tag: memberTags.tagOf(tag) });
 }));
 
 /* POS 合併會員：同一位客人有兩個帳號（店內報手機自動建立＋App 用 Google／LINE／Email 登入）時合成一個。
@@ -6965,11 +6979,14 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     if((await client.query('SELECT value FROM site_content WHERE key=$1',['card_qr:'+s.id])).rows.length){await client.query('ROLLBACK');return res.status(423).json({error:'這桌有線上刷卡 QR 等客人付款中，請先在「線上刷卡」取消 QR，再改用其他方式收款。'});}
     let memberUser=null;
     const cardTok=String(req.body?.member_token||'').trim(),phoneRaw=String(req.body?.member_phone||'').trim(),memberIdRaw=String(req.body?.member_id||'').trim().slice(0,64);
-    if(cardTok){const p=verifyAccessToken(cardTok,process.env.ACCESS_QR_SECRET||SECRET);if(!p||p.plan!=='yan-card'){await client.query('ROLLBACK');return res.status(400).json({error:'會員卡無效或過期。'});}memberUser=(await client.query('SELECT id,name,phone,phone_e164 FROM users WHERE id=$1',[p.sub])).rows[0];if(!memberUser){await client.query('ROLLBACK');return res.status(404).json({error:'找不到這位會員。'});}}
-    else if(memberIdRaw){memberUser=(await client.query('SELECT id,name,phone,phone_e164 FROM users WHERE id=$1',[memberIdRaw])).rows[0];if(!memberUser){await client.query('ROLLBACK');return res.status(404).json({error:'找不到這位會員。'});}}
+    if(cardTok){const p=verifyAccessToken(cardTok,process.env.ACCESS_QR_SECRET||SECRET);if(!p||p.plan!=='yan-card'){await client.query('ROLLBACK');return res.status(400).json({error:'會員卡無效或過期。'});}memberUser=(await client.query('SELECT id,name,phone,phone_e164,member_tag FROM users WHERE id=$1',[p.sub])).rows[0];if(!memberUser){await client.query('ROLLBACK');return res.status(404).json({error:'找不到這位會員。'});}}
+    else if(memberIdRaw){memberUser=(await client.query('SELECT id,name,phone,phone_e164,member_tag FROM users WHERE id=$1',[memberIdRaw])).rows[0];if(!memberUser){await client.query('ROLLBACK');return res.status(404).json({error:'找不到這位會員。'});}}
     else if(phoneRaw){try{memberUser=await findOrCreateMemberByPhone(client,phoneRaw,req.body?.name);}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}}
     // 掃會員條碼（或 member_id，來自掃碼那一步）才算驗證過身分：只有驗證過、且會籍有效的會員才套會籍價、才能用點數折抵；只報手機只累點
-    const verified=!!(cardTok||memberIdRaw),memberActive=verified&&memberUser?(await memberAccessFor(memberUser.id)).active:false;
+    let verified=!!(cardTok||memberIdRaw),memberActive=verified&&memberUser?(await memberAccessFor(memberUser.id)).active:false;
+    /* 身分折扣（KK 11/19）：前端只送 discount:{tag}，折數由伺服器依會員標籤決定；身分折扣不疊會籍價 */
+    let tagDisc=null;if(req.body?.discount&&req.body.discount.tag){try{tagDisc=memberTags.tagDiscount(req.body.discount.tag,memberUser,verified);}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}}
+    if(tagDisc){req.body.discount=tagDisc;memberActive=false;}
     if(req.body?.redeem_lines?.length&&!verified){await client.query('ROLLBACK');return res.status(400).json({error:'點數兌換請先掃會員條碼確認身分。'});}
     let out,invoice,regWarn='',yanOut={earned:0,redeemed:0,balance:0};try{out=tableOrders.posCheckout(s.items,{...req.body,member:memberActive,staff:actorOf(req.auth)||'',operator},menuAll,await activePaymentCodes(posPaymentMethods.groupsOf(venues||posRegister.sessionVenues(s))),{table:s.table_no});invoice=ezpayInvoice.invoiceForm(req.body?.invoice||{});
       // 開關帳：品項所屬品牌今天的帳要開著（關帳後不能再結；沒開帳時超管放行但回警告，子帳號擋）

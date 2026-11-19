@@ -52,7 +52,7 @@ const opsHelp=tipIcon;
 /* 來源調查（KK 11/8）：結帳時問客人怎麼知道我們，必選一項（KK 11/15 改必填，平均分攤只在最後一人問）；與 lib/table-orders.js SOURCE_OPTIONS 一致 */
 const SOURCE_OPTIONS=[['walk','路過'],['friend','朋友'],['ig','IG'],['threads','Threads'],['google','Google'],['event','活動'],['regular','回頭客'],['other','其他']];
 let POS_SOURCE='';POS_METHOD='';
-const DISCOUNT_PRESETS=[{type:'percent',value:20,reason:'員工',label:'員工 8 折'},{type:'percent',value:20,reason:'股東',label:'股東 8 折'},{type:'percent',value:20,reason:'親友',label:'親友 8 折'},{type:'percent',value:100,reason:'免費兌換',label:'免費兌換'}];
+const DISCOUNT_PRESETS=[{type:'percent',value:20,reason:'員工',label:'員工 8 折'},{type:'percent',value:30,reason:'股東',label:'股東 7 折'},{type:'percent',value:20,reason:'親友',label:'親友 8 折'},{type:'percent',value:100,reason:'免費兌換',label:'免費兌換'}];
 const REASON_PRESETS={
   void_order:['客人取消','點錯單','重複結帳','金額錯誤','付款失敗'],
   void_line:['點錯品項','客人取消','重複點餐','今日估清'],
@@ -1905,12 +1905,12 @@ async function linepayCheckout(cur,host){
 /* 桌邊點餐已登入的會員（客人在 /order 用 Google／LINE 登入）：一點帶入，等同掃會員條碼 */
 /* 這桌手機已登入會員：自動帶入第一位（KK 11/2）；店員按「移除」後該桌不再自動帶，失敗的不重試 */
 const POS_AUTO_SKIP=new Set();
-function posAutoMember(cur){const m=cur&&(cur.members||[])[0];if(!m||POS_YAN.id||POS_YAN.phone||POS_YAN.pending)return;if(POS_AUTO_SKIP.has(cur.id)||POS_AUTO_SKIP.has(cur.id+':'+m.id))return;const pending=POS_YAN={phone:'',name:'',balance:null,sessionId:cur.id,pending:true};api('/admin/yan/lookup',{method:'POST',body:{member_id:m.id,session_id:cur.id}}).then(out=>{if(POS_YAN!==pending)return;POS_YAN={id:out.member?.id||'',phone:out.member?.phone||'',name:out.member?.name||'',balance:out.balance||0,active:!!out.active,sessionId:cur.id,redeemSet:new Set(),auto:true};POS_MEMBER=!!out.active;const cr=posApplyCarrier(out);toast(`已自動帶入會員 ${out.member?.name||''}${out.active?' · 有效會籍，已套聚落價':''}${cr}`);paintPos();},()=>{POS_AUTO_SKIP.add(cur.id+':'+m.id);if(POS_YAN===pending){POS_YAN={phone:'',name:'',balance:null};paintPos();}});}
+function posAutoMember(cur){const m=cur&&(cur.members||[])[0];if(!m||POS_YAN.id||POS_YAN.phone||POS_YAN.pending)return;if(POS_AUTO_SKIP.has(cur.id)||POS_AUTO_SKIP.has(cur.id+':'+m.id))return;const pending=POS_YAN={phone:'',name:'',balance:null,sessionId:cur.id,pending:true};api('/admin/yan/lookup',{method:'POST',body:{member_id:m.id,session_id:cur.id}}).then(out=>{if(POS_YAN!==pending)return;POS_YAN={id:out.member?.id||'',phone:out.member?.phone||'',name:out.member?.name||'',balance:out.balance||0,active:!!out.active,tag:out.tag||null,sessionId:cur.id,redeemSet:new Set(),auto:true};POS_MEMBER=!!out.active;const tg=typeof posApplyTag==='function'?posApplyTag(out):'';const cr=posApplyCarrier(out);toast(`已自動帶入會員 ${out.member?.name||''}${out.active&&!tg?' · 有效會籍，已套聚落價':''}${tg}${cr}`);paintPos();},()=>{POS_AUTO_SKIP.add(cur.id+':'+m.id);if(POS_YAN===pending){POS_YAN={phone:'',name:'',balance:null};paintPos();}});}
 /* 會員載具自動帶入（KK 11/5）：驗證過的會員 lookup 回 carrier（上次結帳用的手機載具／自然人憑證）。只在發票還是預設「紙本」且沒填載具時套用；換會員、移除會員或換桌（POS_YAN.id 變了）就由 posCarrierSync 還原成紙本，櫃檯手動改過就不再動 */
 function posApplyCarrier(out){const c=out&&out.carrier,id=out&&out.member&&out.member.id;if(!c||!id||!c.carrier_num)return '';if(POS_INVOICE.mode!=='paper'||(POS_INV_VALS.carrier_num||'').trim())return '';POS_INVOICE={mode:c.mode,auto:id,autoNum:c.carrier_num};POS_INV_VALS.carrier_num=c.carrier_num;return '，已帶入'+(INV_LABEL[c.mode]||'載具')+' '+c.carrier_num;}
 function posCarrierSync(){if(!POS_INVOICE.auto||POS_INVOICE.auto===POS_YAN.id)return;if(POS_INV_VALS.carrier_num===POS_INVOICE.autoNum)delete POS_INV_VALS.carrier_num;POS_INVOICE={mode:'paper'};}
 function tableMembersHtml(cur){const ms=(cur&&cur.members)||[];if(!ms.length)return '';return `<div class="pos-table-members"><p class="hint hint--tight">這桌手機已登入的會員（自動帶入第一位，點一下可切換）：</p><div class="pos-table-members__list">${ms.map(m=>`<button type="button" class="btn ${POS_YAN.id===m.id?'btn--solid':'btn--ghost'} btn-xs" data-table-member="${esc(m.id)}" aria-pressed="${POS_YAN.id===m.id}">${esc(m.name||'會員')}</button>`).join('')}</div></div>`;}
-function memberStatusText(){ if(POS_YAN.id)return POS_MEMBER?'有效會籍 · 已套聚落價':'註冊會員 · 無有效會籍，不適用聚落價'; return POS_YAN.created?'新會員 · 已用手機建立，結帳累點':POS_YAN.name?'手機會員 · 結帳累點':POS_YAN.phone?'結帳時查會員，沒有就自動新增並累點':''; }
+function memberStatusText(){ if(POS_YAN.id&&POS_YAN.tag)return POS_YAN.tag.label+'身分 · '+zheText(POS_YAN.tag.percent)+(POS_DISCOUNT&&POS_DISCOUNT.tag?'（已套用）':''); if(POS_YAN.id)return POS_MEMBER?'有效會籍 · 已套聚落價':'註冊會員 · 無有效會籍，不適用聚落價'; return POS_YAN.created?'新會員 · 已用手機建立，結帳累點':POS_YAN.name?'手機會員 · 結帳累點':POS_YAN.phone?'結帳時查會員，沒有就自動新增並累點':''; }
 // 會員彈窗：查詢、掃描、移除與完整會籍／點數資訊都在這裡；結帳主畫面只留一個精簡入口
 function openMemberDialog(cur){
   const {ov,close}=pickOverlay('','會員');ov.classList.add('pos-member-ov');
@@ -1919,21 +1919,21 @@ function openMemberDialog(cur){
   const render=()=>{
     box.innerHTML=`<h3>會員${tipIcon('輸入手機查會員，還不是會員會自動新增；或掃會員 App 的條碼。有效會籍自動套聚落價。')}</h3>${POS_YAN.name||POS_YAN.phone?`<div class="pos-member-who"><b>${esc(POS_YAN.name||POS_YAN.phone)}</b><br>${esc(memberStatusText())}${POS_YAN.id?`<br>點數 ${num(POS_YAN.balance||0)} 點（點品項「⋯」的「點數兌換」換餐飲或服務，不折抵金額）`:''}</div>`:'<p class="hint">還沒選會員。輸入客人手機，不是會員會自動新增；或掃描會員條碼。</p>'}${tableMembersHtml(cur)}<div class="pos-member-bar"><input id="pos-yan-phone" inputmode="tel" maxlength="20" placeholder="客人手機 09…" value="${esc(POS_YAN.phone||'')}" aria-label="客人手機"><button type="button" class="btn btn--ghost btn-xs" id="pos-yan-lookup">查會員</button><button type="button" class="btn btn--ghost btn-xs" id="pos-yan-scan">掃會員</button>${POS_YAN.id||POS_YAN.phone?'<button type="button" class="btn btn--ghost btn-xs" id="pos-yan-clear">移除</button>':''}</div><div class="pos-move-foot"><button type="button" class="btn btn--solid" data-done>完成</button></div>`;
     const phone=box.querySelector('#pos-yan-phone');
-    phone.onchange=e=>{POS_YAN={phone:e.target.value.trim(),name:'',balance:null,sessionId:cur.id};POS_MEMBER=false;paintPos();};
+    phone.onchange=e=>{POS_YAN={phone:e.target.value.trim(),name:'',balance:null,sessionId:cur.id};posClearTag();POS_MEMBER=false;paintPos();};
     const after=()=>{paintPos();render();};
-    const lookup=()=>{const p=(phone.value||'').trim();if(!p){toast('請輸入手機');return;}const pending=POS_YAN={phone:p,name:'',balance:null,sessionId:cur.id};POS_MEMBER=false;return opsThen(()=>api('/admin/yan/lookup',{method:'POST',body:{phone:p}}),out=>{if(POS_YAN!==pending||!same())return '已切換帳單，未綁定會員';POS_YAN={phone:p,name:out.member?.name||'',balance:out.balance||0,created:!!out.created,sessionId:cur.id};return out.created?`已新增會員 ${p}，結帳後累點`:`${out.member?.name||'會員'} · ${out.balance||0} 點`;},after);};
+    const lookup=()=>{const p=(phone.value||'').trim();if(!p){toast('請輸入手機');return;}const pending=POS_YAN={phone:p,name:'',balance:null,sessionId:cur.id};POS_MEMBER=false;posClearTag();return opsThen(()=>api('/admin/yan/lookup',{method:'POST',body:{phone:p}}),out=>{if(POS_YAN!==pending||!same())return '已切換帳單，未綁定會員';POS_YAN={phone:p,name:out.member?.name||'',balance:out.balance||0,created:!!out.created,sessionId:cur.id};return out.created?`已新增會員 ${p}，結帳後累點`:`${out.member?.name||'會員'} · ${out.balance||0} 點`;},after);};
     box.querySelector('#pos-yan-lookup').onclick=lookup;
     phone.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();lookup();}};
     box.querySelector('#pos-yan-scan').onclick=async()=>{const pending=POS_YAN;const token=await pickMemberCard();if(!token||POS_YAN!==pending||!same())return;return posCardMember(cur,token,after);};
-    box.querySelectorAll('[data-table-member]').forEach(b=>b.onclick=()=>{const pending=POS_YAN;const mid=b.dataset.tableMember;return opsThen(()=>api('/admin/yan/lookup',{method:'POST',body:{member_id:mid,session_id:cur.id}}),out=>{if(POS_YAN!==pending||!same())return '已切換帳單，未綁定會員';POS_YAN={id:out.member?.id||'',phone:out.member?.phone||'',name:out.member?.name||'',balance:out.balance||0,active:!!out.active,sessionId:cur.id,redeemSet:new Set()};POS_MEMBER=!!out.active;const cr=posApplyCarrier(out);return `${out.member?.name||'會員'} · ${out.active?'有效會籍，已套聚落價':'註冊會員，不適用聚落價'}（${out.balance||0} 點）${cr}`;},after);});
-    const clr=box.querySelector('#pos-yan-clear');if(clr)clr.onclick=()=>{POS_AUTO_SKIP.add(cur.id);POS_YAN={phone:'',name:'',balance:null};POS_MEMBER=false;after();};
+    box.querySelectorAll('[data-table-member]').forEach(b=>b.onclick=()=>{const pending=POS_YAN;const mid=b.dataset.tableMember;return opsThen(()=>api('/admin/yan/lookup',{method:'POST',body:{member_id:mid,session_id:cur.id}}),out=>{if(POS_YAN!==pending||!same())return '已切換帳單，未綁定會員';POS_YAN={id:out.member?.id||'',phone:out.member?.phone||'',name:out.member?.name||'',balance:out.balance||0,active:!!out.active,tag:out.tag||null,sessionId:cur.id,redeemSet:new Set()};POS_MEMBER=!!out.active;const tg=typeof posApplyTag==='function'?posApplyTag(out):'';const cr=posApplyCarrier(out);return `${out.member?.name||'會員'} · ${tg?tg.slice(1):out.active?'有效會籍，已套聚落價':'註冊會員，不適用聚落價'}（${out.balance||0} 點）${cr}`;},after);});
+    const clr=box.querySelector('#pos-yan-clear');if(clr)clr.onclick=()=>{POS_AUTO_SKIP.add(cur.id);POS_YAN={phone:'',name:'',balance:null};POS_MEMBER=false;posClearTag();after();};
     /* 輸入手機沒按查會員就按完成（KK 11/7）：先查／建會員再關，主畫面立刻帶入 */
     box.querySelector('[data-done]').onclick=async()=>{const p=(phone.value||'').trim();if(p&&!POS_YAN.id&&!POS_YAN.name&&!POS_YAN.created)await lookup();close();paintPos();};
   };
   render();
 }
 /* 會員卡 token 帶入這桌（相機、掃描槍都走這裡）；查詢中換桌或換會員就不綁 */
-function posCardMember(cur,token,after){const pending=POS_YAN,same=()=>POS_TABLE===cur.table;return opsThen(()=>api('/admin/yan/lookup',{method:'POST',body:{token}}),out=>{if(POS_YAN!==pending||!same())return '已切換帳單，未綁定會員';POS_YAN={id:out.member?.id||'',phone:out.member?.phone||'',name:out.member?.name||'',balance:out.balance||0,active:!!out.active,sessionId:cur.id,redeemSet:new Set()};POS_MEMBER=!!out.active;const cr=posApplyCarrier(out);return `${out.member?.name||'會員'} · ${out.active?'有效會籍，已套聚落價':'註冊會員，不適用聚落價'}（${out.balance||0} 點）${cr}`;},after);}
+function posCardMember(cur,token,after){const pending=POS_YAN,same=()=>POS_TABLE===cur.table;return opsThen(()=>api('/admin/yan/lookup',{method:'POST',body:{token}}),out=>{if(POS_YAN!==pending||!same())return '已切換帳單，未綁定會員';POS_YAN={id:out.member?.id||'',phone:out.member?.phone||'',name:out.member?.name||'',balance:out.balance||0,active:!!out.active,tag:out.tag||null,sessionId:cur.id,redeemSet:new Set()};POS_MEMBER=!!out.active;const tg=typeof posApplyTag==='function'?posApplyTag(out):'';const cr=posApplyCarrier(out);return `${out.member?.name||'會員'} · ${tg?tg.slice(1):out.active?'有效會籍，已套聚落價':'註冊會員，不適用聚落價'}（${out.balance||0} 點）${cr}`;},after);}
 /* 掃描槍直接掃（KK 11/17）：結帳頁沒點任何輸入框就掃，pos-keys.js 的 posScanWedge 交給這裡。
    點餐 QR（s=）→ 跳到那桌；空間情境 → 掃碼進出；有選桌 → 會員卡帶入會員；其他提示先選桌 */
 const POS_CARD_RE=/^[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{20,}$/;
@@ -1989,6 +1989,9 @@ function otherLinesHtml(cur){
   const ls=(cur&&cur.other_lines)||[];if(!ls.length)return '';
   return `<div class="pos-other-lines" aria-label="其他品牌的品項（唯讀）"><p class="pos-other-lines__head">其他品牌的品項・唯讀，不列入本店結帳</p><ul>${ls.map(l=>`<li data-other-line="${esc(l.line)}"><span>${esc(l.zh)}</span><span class="pos-other-lines__meta">${esc(BRAND_LABEL[l.venue]||l.venue||'')} × ${Number(l.qty)||1}</span></li>`).join('')}</ul></div>`;
 }
+/* 會員身分折扣（KK 11/19）：驗證過的會員有身分標籤（員工／股東／特約商家）就自動套整單折扣，不疊會籍價；換會員或移除會員時撤掉。折數以伺服器為準（只送 tag） */
+function posApplyTag(out){const t=out&&out.verified!==false&&out.tag;if(POS_DISCOUNT&&POS_DISCOUNT.tag&&(!t||POS_DISCOUNT.tag!==t.key))POS_DISCOUNT=null;if(!t)return '';if(POS_DISCOUNT&&!POS_DISCOUNT.tag)return '，'+t.label+'身分（已有手動折扣，未自動套用）';POS_DISCOUNT={type:'percent',value:t.percent,reason:t.label+'身分',tag:t.key};POS_MEMBER=false;return '，'+t.label+'身分 '+zheText(t.percent);}
+function posClearTag(){if(typeof POS_DISCOUNT!=='undefined'&&POS_DISCOUNT&&POS_DISCOUNT.tag)POS_DISCOUNT=null;}
 function paintPos(){
   const host=document.getElementById('pos-body'),d=POS_DATA;if(!host||!d)return;
   if(!document.querySelector?.('.pos-scan-full'))stopPosInvoiceScanner(); // 全螢幕掃載具開著時，背景輪詢重繪不能把相機關掉
@@ -1997,7 +2000,7 @@ function paintPos(){
   const tableGone=!!POS_TABLE&&!sessions.find(s=>s.table===POS_TABLE);if(tableGone)POS_TABLE='';
   syncPosTableUrl(tableGone);
   const cur=sessions.find(s=>s.table===POS_TABLE)||null;
-  if(POS_YAN.sessionId&&POS_YAN.sessionId!==cur?.id){POS_YAN={phone:'',name:'',balance:null};POS_MEMBER=false;}
+  if(POS_YAN.sessionId&&POS_YAN.sessionId!==cur?.id){POS_YAN={phone:'',name:'',balance:null};POS_MEMBER=false;if(typeof posClearTag==='function')posClearTag();}
   posCarrierSync();if(cur&&typeof posAutoMember==='function')posAutoMember(cur);
   // 桌況格固定先列出現場的 16 桌（不管有沒有開桌，方便現場人員直接點選開桌），已開桌/外帶但不在固定桌號清單裡的（例如外帶、加開的桌）排在後面
   const byTable=new Map(sessions.filter(s=>!s.takeout).map(s=>[s.table,s]));
