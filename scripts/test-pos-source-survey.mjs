@@ -9,14 +9,16 @@ const js = fs.readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'ut
 const items = [{ line: 1, item_id: 'x', zh: '拿鐵', cat: 'COFFEE', venue: 'CAFE', price: 150, qty: 1 }];
 test('posCheckout 只收白名單來源，預收不記', () => {
   assert.equal(T.posCheckout(items, { method: 'cash', source: 'ig' }, new Map(), [], {}).payer.source, 'ig');
+  assert.equal(T.posCheckout(items, { method: 'cash', source: 'gpt' }, new Map(), [], {}).payer.source, 'gpt');
   assert.equal(T.posCheckout(items, { method: 'cash', source: 'hack' }, new Map(), [], {}).payer.source, undefined);
   assert.equal(T.posCheckout(items, { method: 'cash' }, new Map(), [], {}).payer.source, undefined);
 });
 test('analyticsSummary 依來源統計單數與營收，沒填歸 none', () => {
   const o = (id, source, amount) => ({ id, status: 'paid', amount, paid_at: '2026-11-08T06:00:00Z', table_no: 'A1', items, payer: source ? { method: 'cash', source } : { method: 'cash' } });
-  const d = T.analyticsSummary([o('a', 'ig', 100), o('b', 'ig', 50), o('c', 'friend', 80), o('d', '', 30)]);
+  const d = T.analyticsSummary([o('a', 'ig', 100), o('b', 'ig', 50), o('c', 'friend', 80), o('d', 'gpt', 70), o('e', '', 30)]);
   assert.deepEqual(d.sources.ig, { orders: 2, amount: 150 });
   assert.deepEqual(d.sources.friend, { orders: 1, amount: 80 });
+  assert.deepEqual(d.sources.gpt, { orders: 1, amount: 70 });
   assert.deepEqual(d.sources.none, { orders: 1, amount: 30 });
 });
 test('前端選項與後端一致、結帳送 source、換桌重置、分析有表', () => {
@@ -27,7 +29,9 @@ test('前端選項與後端一致、結帳送 source、換桌重置、分析有�
   assert.match(js, /data-source=/);
   assert.match(js, /怎麼知道我們（結帳調查）/);
   const a = js.indexOf('<div class="pos-pay">'), z = js.indexOf('<div class="pos-dock">', a), pay = js.slice(a, z);
-  assert.ok(pay.indexOf('pos-blk--source') > pay.indexOf('<b>支付方式</b>') && pay.indexOf('pos-blk--source') < pay.indexOf('<b>結帳內容</b>'));
+  assert.ok(pay.indexOf('pos-blk--source') < pay.indexOf('pos-member-entry'), '來源調查放在結帳欄最上方');
+  assert.ok(pay.indexOf('pos-blk--source') < pay.indexOf('<b>支付方式</b>'));
+  assert.ok(T.SOURCE_OPTIONS.some(([key,label]) => key === 'gpt' && label === 'GPT'), '來源選項含 GPT');
 });
 test('結帳必選來源（KK 11/15）：最後結帳前沒選就擋，標示必填', () => {
   const a = js.indexOf("host.querySelector('#pos-checkout').onclick=async()=>{");

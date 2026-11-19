@@ -50,7 +50,7 @@ const opsHelp=tipIcon;
 /* 原因預設選項：現場不打字——每個要填原因的地方先列常見原因，一按就送；真的選不到才在「其他」手動填寫。
    覆蓋式（作廢整張單／作廢品項／取消品項／贈送／出勤修正）用 pickReason()，表單內嵌欄位（折扣／臨時收支／關帳說明／小結說明）用 reasonChips()+bindReasonChips()。 */
 /* 來源調查（KK 11/8）：結帳時問客人怎麼知道我們，必選一項（KK 11/15 改必填，平均分攤只在最後一人問）；與 lib/table-orders.js SOURCE_OPTIONS 一致 */
-const SOURCE_OPTIONS=[['walk','路過'],['friend','朋友'],['ig','IG'],['threads','Threads'],['google','Google'],['event','活動'],['regular','回頭客'],['other','其他']];
+const SOURCE_OPTIONS=[['walk','路過'],['friend','朋友'],['ig','IG'],['threads','Threads'],['google','Google'],['gpt','GPT'],['event','活動'],['regular','回頭客'],['other','其他']];
 let POS_SOURCE='';POS_METHOD='';
 const DISCOUNT_PRESETS=[{type:'percent',value:20,reason:'員工',label:'員工 8 折'},{type:'percent',value:30,reason:'股東',label:'股東 7 折'},{type:'percent',value:20,reason:'親友',label:'親友 8 折'},{type:'percent',value:100,reason:'免費兌換',label:'免費兌換'}];
 const REASON_PRESETS={
@@ -715,7 +715,7 @@ function drawerPreopened(id){const p=DRAWER_PREOPEN.get(id);if(p&&Date.now()-p.a
 let OPERATOR_PRESET=null;
 function payMethodTap(v,cur,host){
   if(!cur||CHECKOUT_BUSY.has(cur.id))return;
-  if(v==='card_qr'){if(POS_AA)return;if(!cur.card_qr&&!POS_SOURCE){toast('請先選「怎麼知道我們」，再點線上刷卡');document.querySelector('.pos-blk--source')?.scrollIntoView({block:'center',behavior:'smooth'});return;}return ensureOperator(()=>runCheckoutOnce(cur.id,()=>cardQrCheckout(cur,document.getElementById('pos-body')||host)));}
+  if(v==='card_qr'){if(POS_AA||cur.card_qr?.state==='paid')return;if(!cur.card_qr&&!POS_SOURCE){toast('請先選「怎麼知道我們」，再點線上刷卡');document.querySelector('.pos-blk--source')?.scrollIntoView({block:'center',behavior:'smooth'});return;}return ensureOperator(()=>runCheckoutOnce(cur.id,()=>cardQrCheckout(cur,document.getElementById('pos-body')||host)));}
   if(v==='cash'){if(drawerPreopened(cur.id))return;return ensureOperator(async()=>{const op=OPERATOR;const ok=await manualCashDrawer(`現金收款（${cur.takeout?'外帶':'桌號'} ${cur.table}）`);if(ok)DRAWER_PREOPEN.set(cur.id,{op,at:Date.now()});});}
 }
 const POS_CLEAR_DELAY_MS=1000;
@@ -1810,7 +1810,8 @@ const CARD_QR_VENUES=['STAY','REST'];
 const cardQrOn=cur=>CARD_QR_VENUES.includes(SCOPE)&&!cur.mixed;
 function cardQrPanelHtml(cur){
   const a=cur.card_qr;
-  return `<div class="pos-cardqr"><p class="hint"><span class="pill pill-wait">等客人付款</span> 線上刷卡 NT$${num(a.amount)} 的付款 QR 已產生，客人付款後自動入帳；要改用其他方式收款請先取消 QR。</p><div class="pos-cardqr-btns"><button type="button" class="btn btn--ghost" id="pos-cardqr" ${CHECKOUT_BUSY.has(cur.id)?'disabled':''}>顯示／重印 QR</button><button type="button" class="btn btn--ghost" id="pos-cardqr-cancel">取消 QR</button></div></div>`;
+  const paid=a.state==='paid';
+  return `<div class="pos-cardqr"><p class="hint"><span class="pill ${paid?'pill-ok':'pill-wait'}">${paid?'已確認刷卡':'等客人付款'}</span> 線上刷卡 NT$${num(a.amount)} ${paid?'已完成，請按下方「收款」完成入帳。':'的付款 QR 已產生，客人付款後會回到結帳頁；要改用其他方式收款請先取消 QR。'}</p><div class="pos-cardqr-btns">${paid?'':`<button type="button" class="btn btn--ghost" id="pos-cardqr" ${CHECKOUT_BUSY.has(cur.id)?'disabled':''}>顯示／重印 QR</button><button type="button" class="btn btn--ghost" id="pos-cardqr-cancel">取消 QR</button>`}</div></div>`;
 }
 async function printCardQr(a){
   if(!canPrint())return false;
@@ -1828,7 +1829,11 @@ async function printCardQr(a){
   const out=document.createElement('canvas');out.width=W;out.height=Math.ceil(y+24);const og=out.getContext('2d');og.fillStyle='#fff';og.fillRect(0,0,W,out.height);og.drawImage(c,0,0);
   return await starSend({canvas:out});
 }
-function cardQrReset(){POS_METHOD='';POS_PICK=null;POS_QTY={};POS_SPLIT={};POS_MEMBER=false;POS_YAN={phone:'',name:'',balance:null};POS_DISCOUNT=null;POS_SOURCE='';POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_RECEIVED='';POS_INV_VALS={};POS_INVOICE.mode='paper';POS_AA=null;}
+function cardQrReset({keepMethod=false}={}){if(!keepMethod)POS_METHOD='';POS_PICK=null;POS_QTY={};POS_SPLIT={};POS_MEMBER=false;POS_YAN={phone:'',name:'',balance:null};POS_DISCOUNT=null;POS_SOURCE='';POS_SVC_WAIVE=null;POS_SVC_OPEN=false;POS_RECEIVED='';POS_INV_VALS={};POS_INVOICE.mode='paper';POS_AA=null;}
+async function cardQrComplete(cur,host){
+  const checkout=host.querySelector('#pos-checkout');checkout.disabled=true;
+  try{const out=await api('/admin/orders/sessions/'+cur.id+'/card-qr/complete',{method:'POST',body:{operator_id:OPERATOR?.id}});toast(`已收款 NT$${num(out.amount)}${out.closed?'，已自動清桌':''}`);spaceAfterCheckout(out,cur);cardQrReset();if(out.closed)POS_TABLE='';await reload();paintPos();}catch(e){toast(e.message);}finally{checkout.disabled=false;}
+}
 async function cardQrCheckout(cur,host){
   const path='/admin/orders/sessions/'+cur.id+'/card-qr';
   let a=cur.card_qr;
@@ -1849,7 +1854,7 @@ async function cardQrCheckout(cur,host){
   const poll=async()=>{
     if(done)return;
     try{const r=await api(path+'/check',{method:'POST',body:{id:a.id}});
-      if(r.state==='settled'){done=true;cur.card_qr=null;st.textContent='已付款 NT$'+num(a.amount);toast(`線上刷卡已收款 NT$${num(a.amount)}${r.closed?'，已自動清桌':''}`);cardQrReset();if(r.order&&!r.already)CHECKOUT_HW=CHECKOUT_HW.then(()=>printCheckoutOrder(r.order)).catch(()=>{});spaceAfterCheckout(r,cur);if(r.closed)POS_TABLE='';setTimeout(close,1200);return;}
+      if(r.state==='paid'){done=true;cur.card_qr={...a,state:'paid'};POS_METHOD='card_qr';st.textContent='已確認刷卡；回結帳頁按「收款」完成入帳。';toast(`線上刷卡已確認 NT$${num(a.amount)}，請按收款完成入帳`);setTimeout(close,900);return;}
       if(r.state==='expired'||r.state==='none'){done=true;cur.card_qr=null;toast('付款 QR 已過期，未收款');close();return;}
       if(r.state==='review'){done=true;st.textContent=r.error;toast(r.error);return;}
     }catch(e){st.textContent='查詢失敗，稍後重試：'+e.message;}
@@ -2096,13 +2101,13 @@ function paintPos(){
       </div>
       <div class="pos-menu-box"><div class="pos-menu-body">${POS_OPT?optionPaneHtml(POS_OPT):catChips+`<div class="pos-menu">${tiles}</div>`}</div></div>
       <div class="pos-pay">
+        ${aa&&!aa.last?'':`<div class="pos-blk pos-blk--source${POS_SOURCE?'':' is-missing'}"><div class="pos-blk-h"><b>怎麼知道我們</b><small class="hint">必填</small></div><div class="reason-chips pos-source-chips" role="group" aria-label="怎麼知道我們店">${SOURCE_OPTIONS.map(([k,l])=>`<button type="button" aria-pressed="${POS_SOURCE===k}" data-source="${k}">${esc(l)}</button>`).join('')}</div></div>`}
         <button type="button" class="pos-member-entry ${POS_YAN.name||POS_YAN.phone?'has':''}" id="pos-member-open" aria-haspopup="dialog">${POS_YAN.name||POS_YAN.phone?`<span><b>${esc(POS_YAN.name||POS_YAN.phone)}</b><small>${esc(POS_YAN.id?(POS_MEMBER?'有效會籍 · 聚落價':'註冊會員 · 無聚落價'):POS_YAN.created?'新會員 · 累點':'手機 · 累點')}${POS_YAN.id?' · '+num(POS_YAN.balance||0)+' 點':''}</small></span>`:'<span><b>會員</b><small>輸入手機累點，不是會員自動新增</small></span>'}<i aria-hidden="true">›</i></button>
         <div class="pos-invoice pos-blk"><div class="pos-invoice-head"><b>發票</b>${DATA?.invoice?.configured?'':'<span class="pos-inv-warn">ezPay 尚未設定，先記為待補開</span>'}</div><div class="pos-invoice-body"><div class="pos-invoice-types">${[['paper','紙本'],['company','統編'],['mobile','手機載具'],['citizen','自然人憑證'],['donate','捐贈'],['','不開立']].map(([m,l])=>`<label><input type="radio" name="pos-invoice" value="${m}" ${POS_INVOICE.mode===m?'checked':''}><span>${l}</span></label>`).join('')}</div><div class="pos-invoice-fields"><div class="pos-inv-row" data-inv-modes="company"><input name="buyer_ubn" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="統編 8 碼" value="${esc(POS_INV_VALS.buyer_ubn||'')}"><div class="pos-ubn-result hint" id="pos-ubn-result" aria-live="polite" data-name="${esc(POS_INV_VALS.ubn_name||'')}" data-state="${esc(POS_INV_VALS.ubn_state||'')}">${esc(POS_INV_VALS.ubn_text||'')}</div></div><div class="pos-inv-row" data-inv-modes="mobile,citizen"><div class="pos-inv-scan-row"><input name="carrier_num" autocapitalize="characters" maxlength="64" placeholder="手機條碼 /ABC1234" value="${esc(POS_INV_VALS.carrier_num||'')}"><button type="button" class="btn btn--ghost btn-xs" id="pos-invoice-scan" data-inv-modes="mobile">📷 掃描</button></div><video id="pos-invoice-video" playsinline muted></video></div><div class="pos-inv-row" data-inv-modes="donate"><input name="love_code" inputmode="numeric" pattern="[0-9]*" maxlength="20" placeholder="愛心碼" value="${esc(POS_INV_VALS.love_code||'')}"></div><div class="pos-inv-row" data-inv-modes="paper,company,mobile,citizen,donate"><input name="comment" maxlength="80" placeholder="發票備註（選填）" value="${esc(POS_INV_VALS.comment||'')}"></div></div></div></div>
         <div class="pos-blk pos-blk--pay"><div class="pos-blk-h"><b>支付方式</b></div>
         <div class="pos-methods" role="radiogroup" aria-label="付款方式">${payMethodsActive().map(pm=>`<label class="pos-method" title="${esc(pm.label)}"><input type="radio" name="pos-method" value="${esc(pm.code)}" aria-label="${esc(pm.label)}" ${pm.code===POS_METHOD?'checked':''}><span><i aria-hidden="true">${PAY_ICON[pm.code]||PAY_ICON.card}</i><b>${esc(PAY_SHORT[pm.code]||pm.label)}</b></span></label>`).join('')}${cardQrOn(cur)?`<label class="pos-method" title="線上刷卡（客人掃 QR 付款）"><input type="radio" name="pos-method" value="card_qr" aria-label="線上刷卡" ${POS_METHOD==='card_qr'?'checked':''}><span><i aria-hidden="true">${PAY_ICON.card}</i><b>線上刷卡</b></span></label>`:''}</div>${splitUI}${cur.card_qr?cardQrPanelHtml(cur):POS_METHOD==='card_qr'?'<p class="hint pos-cardqr-hint">整桌原價；按下方按鈕印出付款 QR，客人用手機掃碼刷卡，付款完成自動入帳。</p>':''}
           ${cash?`<div class="pos-cash"><label>${mixed?'現金實收':'實收'}<input id="pos-received" type="number" inputmode="numeric" min="0" step="1" placeholder="客人給的現金" value="${esc(POS_RECEIVED)}" aria-label="實收金額"></label><div class="pos-cash-quick">${quick.map(n=>`<button type="button" data-received="${n}">${n===cashDue?'剛好':'$'+num(n)}</button>`).join('')}</div></div>`:''}
         </div>
-        ${aa&&!aa.last?'':`<div class="pos-blk pos-blk--source${POS_SOURCE?'':' is-missing'}"><div class="pos-blk-h"><b>怎麼知道我們</b><small class="hint">必填</small></div><div class="reason-chips pos-source-chips" role="group" aria-label="怎麼知道我們店">${SOURCE_OPTIONS.map(([k,l])=>`<button type="button" aria-pressed="${POS_SOURCE===k}" data-source="${k}">${esc(l)}</button>`).join('')}</div></div>`}
         <div class="pos-blk pos-blk--sum"><div class="pos-blk-h"><b>結帳內容</b>${aa?'':`<button type="button" class="pos-link" id="pos-aa-open" ${checkoutLines.some(l=>!l.credit_of)?'':'disabled'}>平均分攤</button>`}</div>
         <div class="pos-sum">
           <div class="pos-sum-sub" ${(POS_PICK&&POS_PICK.size<checkoutLines.length)||Object.keys(POS_QTY).length||memberSaving>0||discount||svc?'':'hidden'}><span>${(POS_PICK&&POS_PICK.size<checkoutLines.length)||Object.keys(POS_QTY).length?`部分結帳 ${picked.length}／${checkoutLines.length} 項`:memberSaving>0?'小計（原價）':'小計'}</span><span>NT$${num(regular)}</span></div>
@@ -2116,7 +2121,7 @@ function paintPos(){
         </div></div>
         ${cur.linepay||(d.linepay?.enabled&&!cur.mixed)?linepayPanelHtml(cur,d.linepay):''}
       </div>
-      <div class="pos-dock">${cash?`<div class="pos-change pos-dock-change ${change?'has':''}"><span>找零</span><b>${change!=null?'NT$'+num(change):'—'}</b></div>`:`<div class="pos-dock-due"><span>應收</span><b>NT$${num(total)}</b></div>`}<button class="btn btn--ghost" id="pos-print-receipt" ${cur.lines.some(l=>!l.credit_of)?'':'disabled'}>列印明細</button><button class="btn btn--solid" id="pos-checkout" ${picked.length&&POS_METHOD?'':'disabled'}>${!POS_METHOD?'請先選支付方式 ':''}${POS_METHOD==='card_qr'&&!aa?'顯示 QR ':''}${POS_METHOD==='card_qr'&&!aa?'NT$'+num(total):`${aa?(aa.last?'收最後一人':`收第 ${aa.index}／${aa.people} 人`)+' ':'收款 '}NT$${num(total)}`}</button></div>
+      <div class="pos-dock">${cash?`<div class="pos-change pos-dock-change ${change?'has':''}"><span>找零</span><b>${change!=null?'NT$'+num(change):'—'}</b></div>`:`<div class="pos-dock-due"><span>應收</span><b>NT$${num(total)}</b></div>`}<button class="btn btn--ghost" id="pos-print-receipt" ${cur.lines.some(l=>!l.credit_of)?'':'disabled'}>列印明細</button><button class="btn btn--solid" id="pos-checkout" ${picked.length&&POS_METHOD?'':'disabled'}>${!POS_METHOD?'請先選支付方式':POS_METHOD==='card_qr'&&!aa?'顯示 QR NT$'+num(total):`${aa?(aa.last?'收最後一人':`收第 ${aa.index}／${aa.people} 人`)+' ':'收款 '}NT$${num(total)}`}</button></div>
       </div>
     </div>`;
   }
@@ -2292,7 +2297,7 @@ function paintPos(){
   host.querySelector('#pos-checkout').onclick=async()=>{
     const method=POS_METHOD;
     if(!method){toast('請先選支付方式');return;}
-    if(method==='card_qr'){if(aa){toast('線上刷卡限整桌原價，請先取消平均分攤');return;}return ensureOperator(()=>runCheckoutOnce(cur.id,()=>cardQrCheckout(cur,host)));}
+    if(method==='card_qr'){if(aa){toast('線上刷卡限整桌原價，請先取消平均分攤');return;}if(!cur.card_qr||cur.card_qr.state!=='paid')return ensureOperator(()=>runCheckoutOnce(cur.id,()=>cardQrCheckout(cur,host)));return ensureOperator(()=>runCheckoutOnce(cur.id,()=>cardQrComplete(cur,host)));}
     if(!picked.length)return;
     if(aa&&!aa.last){
       // 前 N−1 人：每人收 each，開一張「平均分攤 第 k／N 人」預收單，桌上留抵扣行；混合付款與現金找零照一般規則

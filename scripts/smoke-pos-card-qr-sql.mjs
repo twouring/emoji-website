@@ -62,10 +62,16 @@ test('線上刷卡 QR：建立→付款中擋櫃檯結帳→付款入帳清桌�
     assert.equal(co.status, 423, JSON.stringify(co.body));
     /* 還沒付：open */
     assert.equal((await call('/api/admin/orders/sessions/ts_rest01/card-qr/check', {})).body.state, 'open');
-    /* 客人付款 → check 入帳 */
+    /* 客人付款 → check 僅確認，應收不變 */
     Object.assign(SESS[r.body.id], { status: 'complete', payment_status: 'paid', payment_intent: 'pi_1' });
     r = await call('/api/admin/orders/sessions/ts_rest01/card-qr/check', {});
-    assert.equal(r.body.state, 'settled', JSON.stringify(r.body)); assert.equal(r.body.closed, true); assert.equal(r.body.order.amount, 650);
+    assert.equal(r.body.state, 'paid', JSON.stringify(r.body));
+    assert.equal((await q("SELECT count(*)::int n FROM table_orders WHERE session_id='ts_rest01'")).rows[0].n, 0, '確認刷卡後尚未入帳，結帳頁應收不變');
+    assert.equal((await q("SELECT status FROM table_sessions WHERE id='ts_rest01'")).rows[0].status, 'open');
+    const pending=JSON.parse((await q("SELECT value FROM site_content WHERE key='card_qr:ts_rest01'")).rows[0].value); assert.equal(pending.state, 'paid');
+    /* 櫃檯按收款才建立訂單、開發票與清桌 */
+    r = await call('/api/admin/orders/sessions/ts_rest01/card-qr/complete', {});
+    assert.equal(r.status, 200, JSON.stringify(r.body)); assert.equal(r.body.closed, true); assert.equal(r.body.amount, 650);
     const o = (await q("SELECT * FROM table_orders WHERE session_id='ts_rest01'")).rows;
     assert.equal(o.length, 1); assert.equal(o[0].payer.method, 'stripe'); assert.equal(o[0].payer.card_qr, true); assert.equal(o[0].payer.operator_name, '店員甲'); assert.equal(o[0].payer.source, 'ig'); assert.equal(o[0].invoice.mode, 'paper');
     assert.equal((await q("SELECT status FROM table_sessions WHERE id='ts_rest01'")).rows[0].status, 'closed');
@@ -87,7 +93,9 @@ test('線上刷卡 QR：建立→付款中擋櫃檯結帳→付款入帳清桌�
     await q("UPDATE table_sessions SET items=$1 WHERE id='ts_rest02'", [JSON.stringify([line('l9', 'REST', 300), line('l8', 'REST', 50)])]);
     Object.assign(SESS[r.body.id], { status: 'complete', payment_status: 'paid' });
     const rv = await call('/api/admin/orders/sessions/ts_rest02/card-qr/check', {});
-    assert.equal(rv.body.state, 'settled', '只結原本那幾行，金額一致仍可入帳');
+    assert.equal(rv.body.state, 'paid', '只結原本那幾行，先確認付款再由櫃檯入帳');
+    const complete2=await call('/api/admin/orders/sessions/ts_rest02/card-qr/complete', {});
+    assert.equal(complete2.status, 200, JSON.stringify(complete2.body));
     assert.equal((await q("SELECT status FROM table_sessions WHERE id='ts_rest02'")).rows[0].status, 'open', '新加的品項還沒付，桌不清');
 
     /* 取消：Stripe 連結失效 */

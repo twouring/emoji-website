@@ -2000,7 +2000,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json', limit: '
       await fulfillApplicationDeposit(event.data.object);
       await fulfillShopCheckout(event.data.object);
       await fulfillLoungeCheckout(event.data.object);
-      await fulfillPosCardCheckout(event.data.object);
+      await markPosCardQrPaid(event.data.object);
     } else if (event.type === 'invoice.paid') {
       if (!pool || !dbReady) return res.status(503).send('database not ready');
       await fulfillResidentInvoice(event.data.object.id);
@@ -6964,6 +6964,23 @@ const posCardQr=require('./lib/pos-card-qr');
 const onlineRefund=require('./lib/online-refund');
 const cardQrGet=async(sid,client)=>{const v=(await (client||{query:q}).query('SELECT value FROM site_content WHERE key=$1',[posCardQr.key(sid)])).rows[0]?.value;try{return v?JSON.parse(v):null;}catch{return null;}};
 const cardQrDel=(sid,client)=>(client||{query:q}).query('DELETE FROM site_content WHERE key=$1',[posCardQr.key(sid)]);
+/* Stripe webhook only confirms the payment.  The cashier still completes the sale from the POS,
+   so the displayed receivable stays unchanged until they press 收款. */
+async function markPosCardQrPaid(session){
+  const meta=session&&session.metadata;
+  if(!meta||meta.kind!==posCardQr.KIND||session.payment_status!=='paid'||!meta.session_id)return {ignored:true};
+  const client=await pool.connect();
+  try{await client.query('BEGIN');
+    const s=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[meta.session_id])).rows[0];
+    const pend=s?await cardQrGet(s.id,client):null;
+    const m=posCardQr.matches(s,{...meta,lines:pend&&pend.cs===session.id?pend.lines.join(','):''},s?tableOrders.unpaid(s.items||[]):[],session);
+    if(!m.ok){await client.query('ROLLBACK');lineService.notifyStaff(`⚠️ ${meta.table||''} 線上刷卡 QR 已收款 NT$${m.amountPaid}，但這桌已結帳／品項已變動，請到 Stripe 後台退款。`);return {mismatch:true};}
+    const intent=typeof session.payment_intent==='string'?session.payment_intent:session.payment_intent?.id||null;
+    pend.state='paid';pend.payment_intent=intent||'';pend.paid_at=new Date().toISOString();
+    await client.query('UPDATE site_content SET value=$2,updated_at=now() WHERE key=$1',[posCardQr.key(s.id),JSON.stringify(pend)]);
+    await client.query('COMMIT');return {paid:true,pending:pend};
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
+}
 async function fulfillPosCardCheckout(session){
   const meta=session&&session.metadata;
   if(!meta||meta.kind!==posCardQr.KIND||session.payment_status!=='paid'||!meta.session_id)return {ignored:true};
@@ -7003,7 +7020,7 @@ async function fulfillPosCardCheckout(session){
   }catch(e){await client.query('ROLLBACK').catch(()=>{});if(e.code==='23505')return {already:true};throw e;}finally{client.release();}
   return out;
 }
-const cardQrView=p=>p?{id:p.cs,url:p.url,amount:p.amount,venue:p.venue,table:p.table,expires_at:p.expires_at,created_at:p.created_at,state:'open'}:null;
+const cardQrView=p=>p?{id:p.cs,url:p.url,amount:p.amount,venue:p.venue,table:p.table,expires_at:p.expires_at,created_at:p.created_at,state:p.state||'open'}:null;
 /* 建立（或沿用同金額、未過期的）付款 QR */
 app.post('/api/admin/orders/sessions/:id/card-qr',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
@@ -7017,7 +7034,7 @@ app.post('/api/admin/orders/sessions/:id/card-qr',auth,adminOnly,requireDb,wrap(
   const prev=await cardQrGet(s.id);
   if(prev&&Date.parse(prev.expires_at)>Date.now()+60000){
     const cs=await stripe.checkout.sessions.retrieve(prev.cs).catch(()=>null);
-    if(cs?.payment_status==='paid'){const r=await fulfillPosCardCheckout(cs);return res.status(409).json({error:r.mismatch?'客人已付款，但品項已變動，請到 Stripe 退款。':'這桌已線上付款完成，請重新整理。'});}
+    if(cs?.payment_status==='paid'){const r=await markPosCardQrPaid(cs);return res.status(409).json({error:r.mismatch?'客人已付款，但品項已變動，請到 Stripe 退款。':'這桌已線上付款完成，請重新整理。'});}
     if(cs?.status==='open'&&prev.amount===qt.amount&&prev.lines.join(',')===lineIds.join(','))return res.json({...cardQrView(prev),reused:true});
     if(cs?.status==='open')await stripe.checkout.sessions.expire(prev.cs).catch(()=>{});
   }
@@ -7043,17 +7060,30 @@ app.post('/api/admin/orders/sessions/:id/card-qr/check',auth,adminOnly,requireDb
   const done=(await q("SELECT * FROM table_orders WHERE session_id=$1 AND payer->>'card_qr'='true' ORDER BY paid_at DESC LIMIT 1",[req.params.id])).rows[0];
   if(!pend){if(done&&req.body?.id&&done.payer?.stripe_session===req.body.id)return res.json({state:'settled',order:done,already:true});return res.json({state:'none'});}
   const cs=await stripe.checkout.sessions.retrieve(pend.cs);
-  if(cs.payment_status==='paid'){const r=await fulfillPosCardCheckout(cs);if(r.mismatch)return res.json({state:'review',error:'客人已付款，但品項已變動，未入帳；已通知員工到 Stripe 退款。'});return res.json({state:'settled',order:r.order,closed:r.closed,space_started:r.space_started,already:!!r.already});}
+  if(cs.payment_status==='paid'){const r=await markPosCardQrPaid(cs);if(r.mismatch)return res.json({state:'review',error:'客人已付款，但品項已變動，未入帳；已通知員工到 Stripe 退款。'});return res.json({state:'paid'});}
   if(cs.status==='expired'){await cardQrDel(req.params.id);return res.json({state:'expired'});}
   res.json(cardQrView(pend));
 }));
-/* 取消：讓 Stripe 付款頁失效（客人掃了也付不了）；已付款就改為入帳 */
+/* POS cashier confirmation after a Stripe payment: this is the only point that creates the order. */
+app.post('/api/admin/orders/sessions/:id/card-qr/complete',auth,adminOnly,requireDb,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
+  if(!stripe)return res.status(503).json({error:'Stripe 未設定。'});
+  const venues=posScope(req);if(!posCardQr.enabledFor(venues))return res.status(403).json({error:'線上刷卡 QR 只開放等等空間、約書旅 POS。'});
+  const pend=await cardQrGet(req.params.id);if(!pend)return res.status(409).json({error:'找不到已付款的線上刷卡。'});
+  const cs=await stripe.checkout.sessions.retrieve(pend.cs);
+  if(cs.payment_status!=='paid')return res.status(409).json({error:'尚未確認刷卡完成。'});
+  const r=await fulfillPosCardCheckout(cs);
+  if(r.mismatch)return res.status(409).json({error:'客人已付款，但品項已變動，請到 Stripe 退款。'});
+  if(!r.order)return res.status(409).json({error:'這筆線上刷卡已完成入帳。'});
+  res.json({ok:true,order_id:r.order_id,amount:r.order.amount,method:'stripe',closed:r.closed,remaining:0,invoice:r.order.invoice,space_started:r.space_started});
+}));
+/* 取消：讓 Stripe 付款頁失效（客人掃了也付不了）；已付款只能回結帳完成入帳 */
 app.post('/api/admin/orders/sessions/:id/card-qr/cancel',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
   if(!stripe)return res.status(503).json({error:'Stripe 未設定。'});
   const pend=await cardQrGet(req.params.id);if(!pend)return res.json({state:'none'});
   const cs=await stripe.checkout.sessions.retrieve(pend.cs);
-  if(cs.payment_status==='paid'){const r=await fulfillPosCardCheckout(cs);return res.status(409).json({state:'settled',order:r.order,error:'客人已經付款完成，已自動入帳，不能取消。'});}
+  if(cs.payment_status==='paid'){const r=await markPosCardQrPaid(cs);return res.status(409).json({state:'paid',error:r.mismatch?'客人已付款，但品項已變動，請到 Stripe 退款。':'客人已付款，請回結帳頁按收款完成入帳。'});}
   if(cs.status==='open')await stripe.checkout.sessions.expire(pend.cs);
   await cardQrDel(req.params.id);res.json({state:'cancelled'});
 }));

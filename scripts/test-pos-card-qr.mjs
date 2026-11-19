@@ -37,8 +37,8 @@ test('入帳核對：桌開著、品項一行不少、幣別與金額一致', ()
 });
 
 test('server：三支路由、webhook 共用入帳、付款中擋櫃檯結帳、桌況回 card_qr', () => {
-  for (const r of ['/card-qr\'', '/card-qr/check\'', '/card-qr/cancel\'']) assert.ok(server.includes("app.post('/api/admin/orders/sessions/:id" + r), r);
-  assert.match(server, /await fulfillPosCardCheckout\(event\.data\.object\);/);
+  for (const r of ['/card-qr\'', '/card-qr/check\'', '/card-qr/complete\'', '/card-qr/cancel\'']) assert.ok(server.includes("app.post('/api/admin/orders/sessions/:id" + r), r);
+  assert.match(server, /await markPosCardQrPaid\(event\.data\.object\);/);
   const co = server.slice(server.indexOf("app.post('/api/admin/orders/sessions/:id/checkout'"), server.indexOf("app.post('/api/admin/orders/:id/invoice/issue'"));
   assert.match(co, /'card_qr:'\+s\.id/); assert.match(co, /status\(423\)/);
   const create = server.slice(server.indexOf("app.post('/api/admin/orders/sessions/:id/card-qr'"), server.indexOf("app.post('/api/admin/orders/sessions/:id/card-qr/check'"));
@@ -58,6 +58,9 @@ test('POS 前端：只在等等空間／約書旅顯示，開視窗不自動列�
   assert.match(ops, /if\(method==='card_qr'\)\{/);
   assert.match(ops, /async function printCardQr\(a\)/); assert.match(ops, /starSend\(\{canvas:out\}\)/);
   assert.match(ops, /api\(path\+'\/check'/); assert.match(ops, /\/card-qr\/cancel/);
+  assert.match(ops, /if\(r\.state==='paid'\).*POS_METHOD='card_qr'/, '付款確認後回結帳頁時保留線上刷卡為已選付款方式');
+  assert.match(ops, /cardQrComplete\(cur,host\)/, '櫃檯按收款才完成入帳');
+  assert.match(server, /card-qr\/complete/, '付款確認與完成入帳分成兩步');
   assert.match(ops, /if\(cur\.card_qr\)host\.querySelector\('#pos-checkout'\)\.disabled=true;/);
   assert.equal((ops.match(/ensureOperator\(\(\)=>runCheckoutOnce\(cur\.id,\(\)=>cardQrCheckout\(cur,host\)\)\)/g) || []).length, 2, '收款鍵與重印鍵都要先認人');
 });

@@ -19,7 +19,7 @@ test('先開過櫃的現金收款：沿用同一位員工、不再自動開櫃',
 test('支付方式沒有預設（KK 11/17）：未選不能收款，換桌／結帳後清空', () => {
   assert.match(ops, /POS_INVOICE=\{mode:'paper'\},POS_METHOD='',/);
   assert.doesNotMatch(ops, /POS_METHOD='cash'/);
-  assert.match(ops, /id="pos-checkout" \$\{picked\.length&&POS_METHOD\?'':'disabled'\}>\$\{!POS_METHOD\?'請先選支付方式 ':''\}/);
+  assert.match(ops, /id="pos-checkout" \$\{picked\.length&&POS_METHOD\?'':'disabled'\}>\$\{!POS_METHOD\?'請先選支付方式':/);
   assert.match(ops, /const method=POS_METHOD;\n    if\(!method\)\{toast\('請先選支付方式'\);return;\}/);
   assert.match(ops, /function posSelectTable\(t\)\{[^\n]*POS_METHOD='';/);
 });

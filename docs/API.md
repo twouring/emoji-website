@@ -525,6 +525,10 @@ POS 關掉某筆客人的結帳需求（客人改口或已另外處理）；品�
 ### POST /api/admin/orders/sessions/:id/card-qr/check
 查付款結果（POS 每 3 秒輪詢）。已付款→入帳（與 Stripe webhook 共用 `fulfillPosCardCheckout`，以 `payer.stripe_session` 冪等；付款方式 `stripe`、`payer.card_qr:true`），回 `{state:'settled',order,closed,space_started?}`；空間入場單收到方案款開始計時。過期回 `expired`；桌次已變動回 `review`（不入帳，LINE 通知員工到 Stripe 退款）；沒有進行中的回 `none`；其他回 `open`。
 
+### POST /api/admin/orders/sessions/:id/card-qr/complete
+
+POS 線上刷卡 QR 已確認付款後，由櫃檯按「收款」完成入帳。Stripe webhook／查詢只把付款標為已確認，**不改變結帳頁應收金額，也不自動清桌**；這支才建立訂單、開發票、扣庫存與依情況清桌。僅等等空間／約書旅 POS。
+
 ### POST /api/admin/orders/sessions/:id/card-qr/cancel
 讓 Stripe 付款頁立即失效並清掉付款意圖，回 `{state:'cancelled'}`。客人已付款則改為入帳並回 409 `{state:'settled'}`。
 
