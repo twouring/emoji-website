@@ -37,18 +37,40 @@
 .sp-unpaid{border-color:var(--line);border-style:dashed}.sp-unpaid .sp-pill{background:#eee;color:#333}
 .sp-gone{border-color:#2563eb}.sp-gone .sp-pill{background:#dbe7ff;color:#173a8a}
 .sp-rule{margin-top:16px}
-/* 結帳面板上方的入場資訊列 */
+/* 結帳面板左欄：入場資訊卡（KK 11/19 改版）。狀態＋剩餘／超時最大、時間格等寬對齊、主動作滿版、補印降成文字鍵 */
 .pos-left>.sp-bar{flex:none}
-.sp-bar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;margin:8px 0 12px;padding:12px 14px;border-radius:14px;border:2px solid var(--line);background:var(--card)}
-.sp-bar-times{display:flex;flex-wrap:wrap;gap:8px 18px}
-.sp-bar-times span{display:flex;flex-direction:column}
-.sp-bar-times small{font-size:1rem;color:var(--muted)}
-.sp-bar-times b{font-size:1.2rem}
-.sp-bar-due b{font-size:1.6rem}
-.sp-bar-acts{display:flex;flex-wrap:wrap;gap:8px}
-.sp-bar-warn{flex-basis:100%;margin:0;color:#c62828;font-weight:700}
-.sp-bar.sp-ok{border-color:#2f8a57}.sp-bar.sp-soon{border-color:#c9a000;background:#fffbe6}.sp-bar.sp-grace{border-color:#d9731a;background:#fff3e8}.sp-bar.sp-over,.sp-bar.sp-stale{border-color:#c62828;background:#fdecec}.sp-bar.sp-gone{border-color:#2563eb;background:#eef3ff}
+.sp-bar{display:flex;flex-direction:column;gap:10px;margin:4px 0 12px;padding:14px;border-radius:14px;border:2px solid var(--line);background:var(--card)}
+.sp-bar-head{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px}
+.sp-bar-head .sp-pill{font-size:1rem}
+.sp-bar-plan{font-weight:700;overflow-wrap:anywhere}
+.sp-bar-hc{color:var(--ink-soft)}
+.sp-bar-left{margin:0;font-size:1.35rem;font-weight:800;line-height:1.25}
+.sp-bar-times{display:grid;grid-template-columns:repeat(var(--n,3),minmax(0,1fr));gap:0;border-top:1px solid color-mix(in srgb,currentColor 14%,transparent);padding-top:10px}
+.sp-bar-t{display:flex;flex-direction:column;gap:2px;min-width:0;padding:0 8px;border-left:1px solid color-mix(in srgb,currentColor 14%,transparent)}
+.sp-bar-t:first-child{padding-left:0;border-left:0}
+/* 4 格（含實際離場）在 326px 欄寬放不下：改 2×2 */
+.sp-bar-times[style*="--n:4"]{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:10px}
+.sp-bar-times[style*="--n:4"] .sp-bar-t:nth-child(odd){padding-left:0;border-left:0}
+.sp-bar-times small{font-size:1rem;color:var(--ink-soft);white-space:nowrap}
+.sp-bar-times b{font-size:1.15rem;white-space:nowrap;font-variant-numeric:tabular-nums}
+.sp-bar-acts{display:flex;flex-direction:column;gap:8px}
+.sp-bar-acts .btn{min-height:48px;font-size:1rem}
+.sp-bar-main{width:100%;min-height:52px!important;font-size:1.1rem!important}
+.sp-bar-subs{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px}
+.sp-bar-link{all:unset;box-sizing:border-box;cursor:pointer;align-self:flex-start;min-height:44px;display:inline-flex;align-items:center;font-size:1rem;color:var(--ink-soft);text-decoration:underline;text-underline-offset:3px}
+.sp-bar-link:focus-visible{outline:3px solid var(--venue,var(--accent));outline-offset:2px;border-radius:6px}
+.sp-bar-warn{margin:0;padding:8px 10px;border-radius:10px;background:#fff;color:#b71c1c;font-weight:700;border:1px solid #f0b4b4}
+.sp-bar.sp-ok{border-color:#2f8a57}.sp-bar.sp-ok .sp-bar-left{color:#1d5c39}
+.sp-bar.sp-soon{border-color:#c9a000;background:#fffbe6}.sp-bar.sp-soon .sp-bar-left{color:#5c4a00}
+.sp-bar.sp-grace{border-color:#d9731a;background:#fff3e8}.sp-bar.sp-grace .sp-bar-left{color:#6b3300}
+.sp-bar.sp-over,.sp-bar.sp-stale{border-color:#c62828;background:#fdecec}
 .sp-bar.sp-over .sp-bar-left,.sp-bar.sp-stale .sp-bar-left{color:#b71c1c}
+.sp-bar.sp-gone{border-color:#2563eb;background:#eef3ff}.sp-bar.sp-gone .sp-bar-left{color:#173a8a}
+.sp-lines-h{margin:2px 0 4px;font-size:1rem;color:var(--ink-soft);font-weight:700}
+/* 空間情境的收費明細：方案／超時沒有菜色照片，不放縮圖；超時份數由離場自動算，不放「這次只結」；入場單沒有桌邊點餐頁，「通知客人」用不到 */
+.pos-layout.is-space .pos-line__img{display:none}
+.pos-layout.is-space #pos-notice{display:none}
+.pos-layout.is-space .pos-part-wrap{display:none}
 /* 入場對話框 */
 .op-card.sp-dialog{max-width:560px;max-height:92dvh;overflow:auto}
 .sp-plans{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}

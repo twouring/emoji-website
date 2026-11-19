@@ -39,7 +39,7 @@ function spaceLive(sp, now = Date.now()){
   return { state: -left > c.grace_min + 120 ? 'stale' : 'over', text: `已超 ${spaceDur(-left)}・計 ${units} 單位` };
 }
 /* 狀態文字以「・」分段，每段不斷行（避免「已超 1 時 30／分」這種斷法） */
-const spaceTextHtml = t => String(t).split('・').map(x => `<span class="sp-nw">${esc(x)}</span>`).join('<span aria-hidden="true">・</span>');
+const spaceTextHtml = t => { const a = String(t).split('・'); return a.map((x, i) => `<span class="sp-nw">${esc(x)}${i < a.length - 1 ? '<span aria-hidden="true">・</span>' : ''}</span>`).join(''); };   // 分隔點黏在前一段尾巴，換行時不會在行首／行尾懸著
 function spaceCardHtml(s){
   const sp = s.space, live = spaceLive(sp), [cls, label] = SPACE_STATE[live.state] || SPACE_STATE.ok;
   const plan = (sp.plans || []).map(p => spaceShortName(p.zh)).join('＋') || '—';
@@ -111,16 +111,24 @@ function bindSpaceBoard(host, reload){
   host.querySelectorAll('[data-space-seat]').forEach(b => b.onclick = () => spaceEnter(b.dataset.spaceSeat, reload));
   host.querySelectorAll('.sp-card[data-pos-table]').forEach(b => b.onclick = () => posSelectTable(b.dataset.posTable));
 }
-/* 結帳面板上方：入場資訊列 */
+/* 結帳面板左欄上方：入場資訊卡（KK 11/19 改版）。由上到下：狀態＋剩餘／超時（主角）→ 方案與人數 → 時間格 → 主動作 → 次要動作；補印降成文字鍵 */
 function spacePanelHtml(cur){
   if (!cur || !cur.space) return '';
   const sp = cur.space, live = spaceLive(sp), [cls, label] = SPACE_STATE[live.state] || SPACE_STATE.ok;
-  const btn = (id, t, solid) => `<button type="button" class="btn ${solid ? 'btn--solid' : 'btn--ghost'} btn-sm" id="${id}">${t}</button>`;
-  return `<div class="sp-bar ${cls}" role="group" aria-label="入場資訊">
-    <div class="sp-bar-times">${sp.paid_at ? `<span><small>付款</small><b>${esc(spacePaidText(sp.paid_at))}</b></span>` : ''}<span><small>入場</small><b>${sp.in_at ? esc(clockText(sp.in_at)) : '—'}</b></span><span class="sp-bar-due"><small>預計離場</small><b>${sp.due_at ? esc(clockText(sp.due_at)) : sp.in_at ? '不限時' : '—'}</b></span>${sp.out_at ? `<span><small>離場</small><b>${esc(clockText(sp.out_at))}</b></span>` : ''}<span><small>${esc(label)}</small><b class="sp-bar-left">${esc(live.text)}</b></span></div>
-    <div class="sp-bar-acts">${sp.prepaid && !sp.in_at ? btn('sp-checkin', '入場（開始計時）', true) : ''}${sp.in_at && !sp.out_at ? btn('sp-extend', '延長') + btn('sp-leave', '離場', true) : ''}${live.state === 'stale' ? btn('sp-leave-fix', '補登離場時間') : ''}${sp.out_at ? btn('sp-resume', '取消離場') : ''}${sp.in_at ? btn('sp-reprint', '補印入場單') : ''}</div>
-    ${sp.limit_hit && !sp.out_at ? `<p class="sp-bar-warn">已連續使用滿 ${spaceCfg().max_hours} 小時，請請客人離場；要繼續使用請離場後重新入場。</p>` : ''}
-  </div>`;
+  const btn = (id, t, kind) => `<button type="button" class="btn ${kind === 'main' ? 'btn--solid sp-bar-main' : 'btn--ghost'}" id="${id}">${t}</button>`;
+  const plan = (sp.plans || []).map(p => spaceShortName(p.zh)).join('＋');
+  const cell = (k, v, extra = '') => `<span class="sp-bar-t${extra}"><small>${k}</small><b>${v}</b></span>`;
+  const times = [sp.paid_at ? cell(sp.member_entry ? '會員入場' : sp.online ? '線上付款' : '付款', esc(spacePaidText(sp.paid_at))) : '', cell('入場', sp.in_at ? esc(clockText(sp.in_at)) : '—'), cell('預計離場', sp.due_at ? esc(clockText(sp.due_at)) : sp.in_at ? '不限時' : '—', ' sp-bar-due'), sp.out_at ? cell('實際離場', esc(clockText(sp.out_at))) : ''].filter(Boolean);
+  const main = sp.prepaid && !sp.in_at ? btn('sp-checkin', '入場（開始計時）', 'main') : live.state === 'stale' ? btn('sp-leave-fix', '補登離場時間', 'main') : sp.in_at && !sp.out_at ? btn('sp-leave', '離場', 'main') : '';
+  const subs = (live.state === 'stale' && sp.in_at && !sp.out_at ? btn('sp-leave', '現在離場') : '') + (sp.in_at && !sp.out_at ? btn('sp-extend', '延長') : '') + (sp.out_at ? btn('sp-resume', '取消離場') : '');
+  return `<section class="sp-bar ${cls}" role="group" aria-label="入場資訊">
+    <div class="sp-bar-head"><span class="pill sp-pill">${esc(label)}</span>${plan ? `<span class="sp-bar-plan">${esc(plan)}</span>` : ''}${sp.headcount > 1 ? `<span class="sp-bar-hc">${Number(sp.headcount)} 位</span>` : ''}</div>
+    <p class="sp-bar-left" aria-live="polite">${spaceTextHtml(live.text)}</p>
+    <div class="sp-bar-times" style="--n:${times.length}">${times.join('')}</div>
+    ${sp.limit_hit && !sp.out_at ? `<p class="sp-bar-warn">已連續使用滿 ${spaceCfg().max_hours} 小時，請客人離場；要繼續使用請離場後重新入場。</p>` : ''}
+    ${main || subs ? `<div class="sp-bar-acts">${main}${subs ? `<div class="sp-bar-subs">${subs}</div>` : ''}</div>` : ''}
+    ${sp.in_at ? `<button type="button" class="sp-bar-link" id="sp-reprint">補印入場單</button>` : ''}
+  </section>${cur.lines?.length ? '<h3 class="sp-lines-h">待收款項</h3>' : ''}`;
 }
 function bindSpacePanel(host, cur, reload){
   if (!cur || !cur.space) return;
@@ -303,7 +311,7 @@ function spaceTick(){
   }
   if (regroup && typeof paintPos === 'function') { const pb = document.getElementById('pos-body'); if (pb) pb.dataset.sig = ''; paintPos(); }
   const bar = document.querySelector('.sp-bar-left'); const cur = (POS_DATA?.sessions || []).find(s => s.table === POS_TABLE);
-  if (bar && cur?.space) bar.textContent = spaceLive(cur.space).text;
+  if (bar && cur?.space) { const t = spaceLive(cur.space).text; if (bar.textContent !== t) bar.innerHTML = spaceTextHtml(t); }
   if (!posSpaceOn() || typeof TAB === 'undefined' || TAB !== 'pos') return;
   const hits = (POS_DATA?.sessions || []).filter(s => s.space && !s.space.out_at && s.space.in_at && (s.space.limit_hit || ['over', 'stale'].includes(spaceLive(s.space).state)))
     .map(s => ({ s, key: s.id + ':' + (s.space.limit_hit ? 'limit' : spaceLive(s.space).state) })).filter(x => !SPACE_ALERTED.has(x.key));
