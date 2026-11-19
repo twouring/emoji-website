@@ -87,7 +87,8 @@ test('App 含官網會員頁搬過來的全部功能：會籍狀態與購買、�
   assert.match(m, /\/api\/me\/plans\/checkout/); assert.match(m, /\/api\/me\/plans\/verify/); assert.match(m, /plan_paid/); assert.match(m, /plan_canceled/);
   assert.match(m, /\/api\/me\/profile/); assert.match(m, /\/api\/me\/line-link/); assert.doesNotMatch(m, /\/api\/passkey/, 'Passkey 已移除');
   assert.match(m, /data\.updates/); assert.match(m, /commitments/); assert.match(m, /cert_no/);
-  assert.match(m, /PLAN_PRICES=\{day_4h:200,day_12h:500,month:4000,quarter:10000,year:35000,year_promo:35000\}/);
+  assert.match(m, /PLAN_PRICES=\{day_4h:200,day_12h:500,resident:3000,month:4000,quarter:10000,year:35000,year_promo:35000\};const SALE_PLANS=\['day_4h','day_12h','resident'\]/);
+  assert.doesNotMatch(m, /promoOpen|data-plan="year_promo"/, '開幕優惠已下架（KK 11/19）');
   for (const lang of ['zh', 'en', 'ja']) assert.match(m, new RegExp(`\\n\\s+${lang}:\\{locale:'`), lang + ' i18n');
   assert.match(m, /\/api\/auth\/email\/start/, 'Email 登入直接在 App 內寄連結');
   // 活動詳情連回官網並帶 token，不用再登入

@@ -13,7 +13,7 @@ test('consumption pages separate both dining brands from Stay Square fees',()=>{
   for(const locale of ['', 'en/', 'ja/']) {
     const html=fs.readFileSync(`public/${locale}system.html`,'utf8');
     for(const id of ['cafe','bar','membership','facilities','booking']) assert.ok(html.includes(`id="${id}"`));
-    for(const price of ['NT$200','NT$500','NT$4,000','NT$10,000','NT$35,000','NT$30,000','NT$1,800','NT$2,000']) assert.ok(html.includes(price),`${locale}: ${price}`);
+    for(const price of ['NT$200','NT$500','NT$3,000','NT$30,000','NT$1,800','NT$2,000']) assert.ok(html.includes(price),`${locale}: ${price}`);
     assert.ok(html.indexOf('id="cafe"')<html.indexOf('id="membership"'));
     assert.ok(html.indexOf('id="bar"')<html.indexOf('id="membership"'));
     // KK 11/17：包場一律線上付款；等等空間分區、交誼廳歸約書旅，不再列舊人數級距與現金

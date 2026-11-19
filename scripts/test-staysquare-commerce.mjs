@@ -50,7 +50,7 @@ test('server：子品牌站可登入回跳、取消付款回到等等空間站�
 
 for (const dir of ['', 'en/', 'ja/']) {
   test(`等等空間 ${dir || 'zh/'}：登入、購買、包場表單價格與後端一致`, () => {
-    // 一頁式（KK 11/17）：會籍購買與包場表單都在首頁
+    // 一頁式（KK 11/17）：方案購買與包場表單都在首頁
     for (const page of ['']) {
       const any = fs.readFileSync(`public/brand-sites/${dir}stay-square${page}.html`, 'utf8');
       assert.ok(any.includes('<script src="/sso-client.js" defer></script>\n<script src="/brand-sites/stay-square-shop.js" defer></script>'), page + ' 先載 SSO 再載購買腳本');
@@ -58,7 +58,9 @@ for (const dir of ['', 'en/', 'ja/']) {
     }
     let html = fs.readFileSync(`public/brand-sites/${dir}stay-square.html`, 'utf8');
     assert.ok(html.includes('data-sq-login') && html.includes('id="member"'));
-    for (const plan of ['day_4h', 'day_12h', 'month', 'quarter', 'year', 'year_promo']) {
+    for (const plan of ['month', 'quarter', 'year', 'year_promo']) assert.ok(!html.includes(`data-plan="${plan}"`), plan + ' 已停售（KK 11/19）');
+    assert.doesNotMatch(html.replace(/<[^>]+>/g, ' '), /會籍/, '會籍改稱方案（KK 11/19）');
+    for (const plan of ['day_4h', 'day_12h', 'resident']) {
       const m = html.match(new RegExp(`data-plan="${plan}"[^>]*>[^<]*NT\\$([\\d,]+)<`));
       assert.ok(m, plan);
       assert.equal(Number(m[1].replace(/,/g, '')), PLAN_PRICE_TWD[plan], plan + ' 價格');

@@ -1,22 +1,22 @@
-/* 等等空間站（staysquare.emoji.tw）：言文字會員登入、購買會籍、分區包場（KK 2026-11-04）；
+/* 等等空間站（staysquare.emoji.tw）：言文字會員登入、購買方案、分區包場（KK 2026-11-04）；
    在咖啡、三點水、約書旅站共用本檔的付費包場表單（KK 2026-11-17）。
    登入走言文字單一登入（/sso-client.js，sso.emoji.tw）：沒 token 先靜默取；登入鈕經 SSO callback（Google／LINE／Email）帶 #token= 回本站。
    SSO 未啟用（本機、主畫面 App、連不上）時退回本站 /auth/*。token 只存在本站 localStorage。
-   API 走同網域 /api（子品牌站放行 /api/）。購買會籍＝/api/me/plans/checkout；包場＝/api/event-applications（zone）＋場地費結帳。 */
+   API 走同網域 /api（子品牌站放行 /api/）。購買方案＝/api/me/plans/checkout；包場＝/api/event-applications（zone）＋場地費結帳。 */
 (function () {
   'use strict';
   var KEY = 'sq_token', PENDING = 'sq_pending';
   var html = document.documentElement.lang, L = html === 'en' ? 'en' : html === 'ja' ? 'ja' : 'zh';
   var T = {
-    zh: { hi: '已登入：', member: '有效會籍：', none: '目前沒有有效會籍。', pending: '待啟用：', until: '至 ', logout: '登出',
+    zh: { hi: '已登入：', member: '有效方案：', none: '目前沒有有效方案。', pending: '待啟用：', until: '至 ', logout: '登出',
       busy: '處理中…', expired: '登入已失效，請重新登入。', fail: '暫時無法完成，請稍後再試或來信 us@emoji.tw。',
       paid: '付款完成。到櫃檯出示會員 App 的會員卡，掃碼入場後才開始計時。', canceled: '已取消付款，沒有扣款。',
       depPaid: '場地費已付款。團隊確認檔期後會以 Email 通知；無法安排時全額退費。', sent: '已送出申請，團隊確認後會以 Email 通知。',
-      saved: '已登入，請確認內容後按「送出並付款」。', total: '場地費合計', free: '會員免費（以送出時會籍為準）', slot: '時段',
+      saved: '已登入，請確認內容後按「送出並付款」。', total: '場地費合計', free: '會員免費（以送出時的有效方案為準）', slot: '時段',
       pay: '送出並付款', submit: '送出申請', loginFirst: '送出前請先登入言文字帳號。', apps: '我的包場申請',
       st: { pending: '待確認', approved: '已確認', rejected: '未通過' }, unpaid: '尚未付款', payNow: '付款', paidTag: '已付款', freeTag: '免場地費', ppl: ' 人',
       endsNext: '（隔天）' },
-    en: { hi: 'Signed in: ', member: 'Active plan: ', none: 'No active membership.', pending: 'Not yet activated: ', until: 'until ', logout: 'Sign out',
+    en: { hi: 'Signed in: ', member: 'Active plan: ', none: 'No active plan.', pending: 'Not yet activated: ', until: 'until ', logout: 'Sign out',
       busy: 'Processing…', expired: 'Your sign-in has expired. Please sign in again.', fail: 'Something went wrong. Please try again or email us@emoji.tw.',
       paid: 'Paid. Show your member card at the counter; the clock starts when you check in.', canceled: 'Payment cancelled. You have not been charged.',
       depPaid: 'Venue fee paid. We will confirm the booking by email; if we cannot host it, you get a full refund.', sent: 'Request sent. We will confirm by email.',
@@ -24,19 +24,19 @@
       pay: 'Submit and pay', submit: 'Submit request', loginFirst: 'Please sign in with your emoji account first.', apps: 'My venue bookings',
       st: { pending: 'Awaiting confirmation', approved: 'Confirmed', rejected: 'Declined' }, unpaid: 'Unpaid', payNow: 'Pay', paidTag: 'Paid', freeTag: 'No venue fee', ppl: ' people',
       endsNext: ' (next day)' },
-    ja: { hi: 'ログイン中：', member: '有効なプラン：', none: '有効な会員資格はありません。', pending: '未開始：', until: '〜', logout: 'ログアウト',
+    ja: { hi: 'ログイン中：', member: '有効なプラン：', none: '有効なプランはありません。', pending: '未開始：', until: '〜', logout: 'ログアウト',
       busy: '処理中…', expired: 'ログインの有効期限が切れました。もう一度ログインしてください。', fail: '処理できませんでした。時間をおいて再度お試しいただくか、us@emoji.tw までご連絡ください。',
       paid: 'お支払い完了。カウンターで会員アプリの会員カードを提示し、入場スキャンから計時が始まります。', canceled: 'お支払いを取り消しました。請求は発生していません。',
       depPaid: '会場費のお支払いが完了しました。日程を確認のうえメールでご連絡します。お受けできない場合は全額返金します。', sent: '申請を送信しました。確認後メールでご連絡します。',
-      saved: 'ログインしました。内容を確認して「送信して支払う」を押してください。', total: '会場費合計', free: '会員は無料（送信時の会員資格で判定）', slot: '枠',
+      saved: 'ログインしました。内容を確認して「送信して支払う」を押してください。', total: '会場費合計', free: '会員は無料（送信時の有効プランで判定）', slot: '枠',
       pay: '送信して支払う', submit: '申請を送信', loginFirst: '送信する前に言文字アカウントでログインしてください。', apps: '貸切の申請状況',
       st: { pending: '確認中', approved: '確定', rejected: '不可' }, unpaid: '未払い', payNow: '支払う', paidTag: '支払い済み', freeTag: '会場費なし', ppl: '名',
       endsNext: '（翌日）' },
   }[L];
   var PLAN = {
-    zh: { day_4h: '單日 4 小時', day_12h: '單日 12 小時', month: '月會員', quarter: '季會員', year: '年會員', year_promo: '開幕優惠 年會員 18 個月', founding: '創始會員' },
-    en: { day_4h: 'Day pass · 4 hrs', day_12h: 'Day pass · 12 hrs', month: 'Monthly', quarter: 'Quarterly', year: 'Annual', year_promo: 'Opening offer · Annual 18 months', founding: 'Founding Member' },
-    ja: { day_4h: '1日 4時間', day_12h: '1日 12時間', month: '月会員', quarter: '四半期会員', year: '年会員', year_promo: 'オープン特典 年会員18か月', founding: '創始会員' },
+    zh: { day_4h: '單日 4 小時', day_12h: '單日 12 小時', resident: '進駐方案', month: '月會員', quarter: '季會員', year: '年會員', year_promo: '開幕優惠 年會員 18 個月', founding: '創始會員' },
+    en: { day_4h: 'Day pass · 4 hrs', day_12h: 'Day pass · 12 hrs', resident: 'Resident plan', month: 'Monthly', quarter: 'Quarterly', year: 'Annual', year_promo: 'Opening offer · Annual 18 months', founding: 'Founding Member' },
+    ja: { day_4h: '1日 4時間', day_12h: '1日 12時間', resident: 'レジデントプラン', month: '月会員', quarter: '四半期会員', year: '年会員', year_promo: 'オープン特典 年会員18か月', founding: '創始会員' },
   }[L];
   var $ = function (s, r) { return (r || document).querySelector(s); }, $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var store = { get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -104,7 +104,7 @@
     return api('/api/me/summary').then(function (me) { render(me); loadApps(); return me; }, function () { render(null); return null; });
   }
 
-  // ---- 購買會籍 ----
+  // ---- 購買方案 ----
   function buy(plan, btn) {
     if (!token) return openLogin({ kind: 'plan', plan: plan });
     if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }

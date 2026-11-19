@@ -1,7 +1,7 @@
 /* Dynamic text interpolated into markup is escaped with esc(); amounts use numeric formatting. */
 /* POS 會員：瀏覽與帳單身分完全分開；所有給點／空間兌換仍須掃本人會員卡及逐次認人。 */
 let POS_MEMBERS={q:'',offset:0,next:null,list:[],detail:null,seq:0,busy:false};
-function posMembershipLabel(plan){return ({day_4h:'單日 4 小時',day_12h:'單日 12 小時',month:'月會籍',quarter:'季會籍',year:'年會籍'})[plan]||plan;}
+function posMembershipLabel(plan){return ({day_4h:'單日 4 小時',day_12h:'單日 12 小時',resident:'進駐方案',month:'月會籍',quarter:'季會籍',year:'年會籍'})[plan]||plan;}
 function posMembershipHistory(d,time){return `<h3>手動開通會籍紀錄</h3>${d.manual_grants?.length?`<ol class="members-ledger">${d.manual_grants.map(r=>`<li><b>${esc(posMembershipLabel(r.plan))}・立即啟用</b><p>開通時間：${esc(time(r.created_at))}</p><p>生效：${esc(time(r.starts_at))} ～ ${esc(time(r.ends_at))}（到期即失效）</p><p>原因：${esc(r.reason)}</p><p>經手人：${esc(r.operator_name||r.operator_id)}</p><p class="hint">手動權益授予，非付款紀錄</p></li>`).join('')}</ol>`:'<p class="hint">還沒有手動開通紀錄。</p>'}`;}
 function tabPosMembers(){return '<div class="a-sec" id="members-body"></div>';}
 function resetPosMembers(){POS_MEMBERS={q:'',offset:0,next:null,list:[],detail:null,seq:POS_MEMBERS.seq+1,busy:false};}

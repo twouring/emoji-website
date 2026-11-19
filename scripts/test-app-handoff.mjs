@@ -63,7 +63,8 @@ test('App 每個購買／預約畫面標明品牌：會籍＝等等空間、訂�
   assert.equal((m.match(/head\(T\.plan,T\.byPlan/g) || []).length, 2, '會籍頁（訪客與會員）都要標等等空間');
   assert.match(m, /T\.pickupLabel\+/, '取餐卡片'); assert.match(m, /venueName\(venueOfTime\(o\.pickup_time\)\)\+'・'/, '取餐卡片要標店名'); assert.match(m, /venueName\(o\.venue\|\|venueOfTime\(o\.reserve_time\)\)\+'・'/, '訂位卡片要標店名');
   const srv = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
-  assert.match(srv, /等等空間 Stay Square 會籍｜/, 'Stripe 會籍品名要寫品牌');
+  assert.match(srv, /等等空間 Stay Square 方案｜/, 'Stripe 方案品名要寫品牌');
+  assert.match(srv, /等等空間 Stay Square 進駐方案/, 'Stripe 進駐方案品名要寫品牌');
   assert.match(srv, /'言文字商店｜'/, 'Stripe 商店品名要寫品牌');
 });
 

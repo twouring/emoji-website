@@ -39,7 +39,7 @@ test('未到場預付：天數與逾期', () => {
 });
 
 test('接線：三條線上付款入帳後自動開票、排程補開、日結拆出線上預付', () => {
-  assert.equal((server.match(/issueOnlineInvoiceLater\((pos\.order_id|orderId)\)/g) || []).length, 3);
+  assert.equal((server.match(/issueOnlineInvoiceLater\((pos\.order_id|orderId)\)/g) || []).length, 4); // 方案、進駐方案每月扣款、貴賓室、商店
   assert.match(server, /online_invoices: await sweepOnlineInvoices\(\)/);
   assert.match(server, /if\(!o\|\|o\.status==='void'\|\|!o\.payer\?\.online\|\|o\.payer\?\.card_qr/);
   assert.match(server, /accounts\.stripe=\(accounts\.stripe\|\|0\)-onlineAmt/);

@@ -38,9 +38,9 @@
       factLabels: { use: '用途', hours: '時段', eligibility: '使用資格', price: '費用' },
       facts: {
         1: { use: '用餐、外帶與深夜熱食', hours: '在咖啡 08:00–17:00；三點水 17:00–27:00', eligibility: '所有訪客，不需會員', price: '依菜單', href: '/space#menu', cta: '查看品牌菜單' },
-        2: { use: '看書休憩、膠囊席、交誼廳與淋浴', hours: '24 小時（條件式啟用）', eligibility: '持有效會籍的會員', price: '會員所有設備自由使用', href: '/system', cta: '比較會員方案' },
+        2: { use: '看書休憩、膠囊席、交誼廳與淋浴', hours: '24 小時（條件式啟用）', eligibility: '持有效方案的會員', price: '會員所有設備自由使用', href: '/system', cta: '比較方案' },
         3: { use: '共享辦公、社群活動與企業包場', hours: '24 小時；包場時段另議', eligibility: '會員可日常使用；社群活動可填申請；企業、團隊或客戶包場請來信', price: '會員使用或包場方案', href: '/events?apply=1#ev-apply', cta: '申請等等空間社群活動', secondaryHref: 'mailto:us@emoji.tw?subject=Stay Square%20business%20venue%20enquiry', secondaryCta: '洽詢企業／團隊包場' },
-        4: { use: '洗脫烘與戶外吸菸區', hours: '會員 24 小時（條件式啟用）', eligibility: '持有效會籍的會員', price: '洗脫烘與吸菸區會員免費使用', href: 'mailto:us@emoji.tw?subject=附屬設施使用詢問', cta: '詢問使用方式' },
+        4: { use: '洗脫烘與戶外吸菸區', hours: '會員 24 小時（條件式啟用）', eligibility: '持有效方案的會員', price: '洗脫烘與吸菸區會員免費使用', href: 'mailto:us@emoji.tw?subject=附屬設施使用詢問', cta: '詢問使用方式' },
       },
       imageLabel: '空間影像',
       conceptCaptions: { 1: '餐飲空間用餐區規劃示意', 2: '等等空間膠囊休憩席規劃示意', 3: '等等空間共享辦公與活動空間規劃示意' },

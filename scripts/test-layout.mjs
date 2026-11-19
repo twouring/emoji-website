@@ -250,7 +250,7 @@ test('system zh page structure', () => {
   assert.match(html, /href="\/events#venue"/);
   assert.match(html, /href="\/at-cafe"/);
   assert.match(html, /href="\/3am"/);
-  assert.match(html, /NT\$\s*4,000|NT\$4,000/);
+  assert.match(html, /NT\$3,000／月/); // 進駐方案（KK 11/19）
   assert.doesNotMatch(html, /旅館|hotel|住宿|過夜|共居|居住|入住|酒吧|Cafe &amp; Bar|Cafe & Bar|Member Plaza|Talent Lounge/i);
 });
 

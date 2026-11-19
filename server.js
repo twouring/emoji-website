@@ -15,7 +15,7 @@ const { Pool } = require('pg');
 const Stripe = require('stripe');
 const {
   endsAtAfterActivation, deriveMemberAccess, pickEntitlementForQr,
-  applyLazyAutoActivate,
+  applyLazyAutoActivate, addMonthsUTC,
 } = require('./lib/entitlements');
 const { signAccessToken, verifyAccessToken } = require('./lib/access-token');
 const { isAdminApiKey, ADMIN_API_KEY_MIN } = require('./lib/admin-key');
@@ -71,7 +71,7 @@ const { normalizeEventApplication, safeHttpUrl, applicationDeposit, approvalVenu
 const venueFees = require('./lib/venue-fees');
 const partnersLib = require('./lib/partners');
 const { sendMail, sendMailQuietly, NOTIFY_EMAIL } = require('./lib/mail');
-const { PLAN_PRICE_TWD } = require('./lib/plans');
+const { PLAN_PRICE_TWD, SALE_PLANS, RESIDENT_TERM_MONTHS } = require('./lib/plans');
 const { FEATURED_ID, eventPage, featuredEvent } = require('./lib/event-page');
 const { sendPage, layoutMiddleware, composeEventMeta, resolvePublicHtml } = require('./lib/layout');
 const { SPACE_SEED, missingSpaceSeedKeys } = require('./lib/space-content');
@@ -1394,7 +1394,7 @@ const SEL_EVENT = `e.id,e.slug,e.title,e.description,e.location,e.translations,e
 const SEL_ENT = `id,user_id,plan,source,source_id,
   purchased_at, activated_at, starts_at, ends_at`;
 const numify = rows => rows.map(r => ({ ...r, amount: r.amount != null ? Number(r.amount) : r.amount }));
-const FLOOR_PLANS = ['day_4h', 'day_12h', 'month', 'quarter', 'year', 'year_promo'];
+const FLOOR_PLANS = ['day_4h', 'day_12h', 'month', 'quarter', 'year', 'year_promo']; // 後台補發可用；線上販售只限 SALE_PLANS
 const PROMO_SALE_END = '2026-12-31'; // 開幕優惠（年會員 18 個月）售止日，含當日
 const promoOpen = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10) <= PROMO_SALE_END;
 
@@ -1588,6 +1588,7 @@ async function stayPlanLines(plan, price) {
 async function fulfillPlanCheckout(session) {
   const meta = session && session.metadata;
   if (!meta || meta.kind !== 'plan' || session.payment_status !== 'paid') return { ignored: true };
+  if (session.mode === 'subscription') return session.invoice ? fulfillResidentInvoice(typeof session.invoice === 'string' ? session.invoice : session.invoice.id) : { ignored: true };
   if (!FLOOR_PLANS.includes(meta.plan) || !meta.user_id) return { ignored: true };
   if (session.currency !== 'twd' || session.amount_total !== PLAN_PRICE_TWD[meta.plan] * 100) throw new Error('會籍付款金額與方案不符');
   const client = await pool.connect();
@@ -1613,8 +1614,54 @@ async function fulfillPlanCheckout(session) {
   finally { client.release(); }
 }
 
+/* 進駐方案（KK 11/19）：年約 12 期、每月 Stripe 訂閱自動扣款。每張已付款 invoice 開通一期（invoice 的計費區間），
+   入 POS 帳並開發票；第一期付款後把訂閱 cancel_at 設在第 12 期結束，滿期自動停扣。冪等＝entitlements(source='stripe_inv', invoice id)。 */
+const invoiceSubId = inv => { const s = inv?.parent?.subscription_details?.subscription || inv?.subscription; return typeof s === 'string' ? s : s?.id || null; };
+async function fulfillResidentInvoice(invoiceOrId) {
+  if (!stripe) return { ignored: true };
+  const inv = typeof invoiceOrId === 'string' ? await stripe.invoices.retrieve(invoiceOrId) : invoiceOrId;
+  const subId = invoiceSubId(inv);
+  if (!inv || inv.status !== 'paid' || !subId) return { ignored: true };
+  const sub = await stripe.subscriptions.retrieve(subId);
+  const meta = sub.metadata || {};
+  if (meta.kind !== 'plan' || meta.plan !== 'resident' || !meta.user_id) return { ignored: true };
+  if (inv.currency !== 'twd' || inv.amount_paid !== PLAN_PRICE_TWD.resident * 100) throw new Error('進駐方案扣款金額與方案不符');
+  const line = (inv.lines?.data || [])[0];
+  const startsAt = new Date((line?.period?.start || inv.period_start) * 1000);
+  let endsAt = new Date((line?.period?.end || inv.period_end) * 1000);
+  if (!(endsAt > startsAt)) endsAt = addMonthsUTC(startsAt, 1);
+  if (!sub.cancel_at && sub.status !== 'canceled') {
+    const anchor = sub.start_date || Math.floor(startsAt.getTime() / 1000);
+    const cancelAt = Math.floor(addMonthsUTC(new Date(anchor * 1000), RESIDENT_TERM_MONTHS).getTime() / 1000);
+    try { await stripe.subscriptions.update(sub.id, { cancel_at: cancelAt, proration_behavior: 'none' }); }
+    catch (e) { console.error('[resident] 設定滿期停扣失敗', sub.id, e.message); lineService.notifyStaff(`⚠️ 進駐方案訂閱 ${sub.id} 未能設定 12 期後停扣，請到 Stripe 手動設定取消日。`).catch(() => {}); }
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const id = uid('en_');
+    const inserted = (await client.query(
+      `INSERT INTO entitlements (id,user_id,plan,source,source_id,purchased_at,activated_at,starts_at,ends_at)
+       VALUES ($1,$2,'resident','stripe_inv',$3,now(),$4,$4,$5) ON CONFLICT (source,source_id) DO NOTHING RETURNING id`,
+      [id, meta.user_id, inv.id, startsAt, endsAt])).rows[0];
+    const user = (await client.query('SELECT id,name,phone,phone_e164 FROM users WHERE id=$1', [meta.user_id])).rows[0];
+    const amount = PLAN_PRICE_TWD.resident;
+    const built = await stayPlanLines('resident', amount);
+    const intent = inv.payments?.data?.[0]?.payment?.payment_intent || inv.payment_intent || null;
+    const pos = user ? await ensureOnlineSpaceOrder(client, { venue: 'STAY', user, stripeSession: inv.id, intent: typeof intent === 'string' ? intent : intent?.id, amount, lines: built.lines, prepaid: false, earnYan: !!inserted }) : { mismatch: true };
+    await client.query('COMMIT');
+    if (!inserted) return { already: true };
+    issueOnlineInvoiceLater(pos.order_id);
+    const first = inv.billing_reason === 'subscription_create';
+    if (first) notifyPlanPurchased(meta.user_id, 'resident');
+    userContact(meta.user_id).then(u => lineService.notifyStaff(`🪪 等等空間進駐方案${first ? '新訂閱' : '月扣款'}：${u?.name || '會員'}（NT$${amount}）｜效期 ${fmtTaipeiDate(startsAt)}–${fmtTaipeiDate(new Date(endsAt.getTime() - 1))}`)).catch(() => {});
+    return { already: false, entitlementId: id };
+  } catch (e) { await client.query('ROLLBACK').catch(() => {}); throw e; }
+  finally { client.release(); }
+}
+
 /* ---------- 交易通知信（失敗只記 log） ---------- */
-const PLAN_LABEL = { day_4h: '單日 4 小時', day_12h: '單日 12 小時', month: '月會員', quarter: '季會員', year: '年會員', founding: '創始會員', year_promo: '開幕優惠 年會員 18 個月' };
+const PLAN_LABEL = { day_4h: '單日 4 小時', day_12h: '單日 12 小時', resident: '進駐方案', month: '月會員', quarter: '季會員', year: '年會員', founding: '創始會員', year_promo: '開幕優惠 年會員 18 個月' };
 const fmtTaipei = d => d ? new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(d)) : '';
 const fmtTaipeiDate = d => d ? new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(d)) : '';
 const appKind = a => a.kind === 'business' ? '企業包場' : '社群活動';
@@ -1698,9 +1745,12 @@ async function notifyRegistrationStatus(userId,eventId,status){
 async function notifyPlanPurchased(userId, plan) {
   try {
     const u = await userContact(userId); if (!u || !u.email) return;
-    const text = `${u.name || ''} 您好，\n\n您已購買「${PLAN_LABEL[plan] || plan}」（NT$${PLAN_PRICE_TWD[plan].toLocaleString('en-US')}）。\n\n請到等等空間櫃檯出示會員 App 的會員卡，掃碼入場後才開始計時（單日方案）或開始計算效期（月／季／年會籍）。\n會員 App：${APP_BASE}/\n\n言文字｜台灣人才聚落`;
-    await sendMailQuietly({ to: u.email, subject: `[言文字] 會籍已購買：${PLAN_LABEL[plan] || plan}`, text, replyTo: NOTIFY_EMAIL });
-  } catch (e) { console.error('[mail] 會籍通知失敗：', e.message); }
+    const how = plan === 'resident'
+      ? `進駐方案為年約 12 期，每月自動扣款 NT$${PLAN_PRICE_TWD.resident.toLocaleString('en-US')}，付款後立即生效；到等等空間櫃檯出示會員 App 的會員卡即可入場。`
+      : '請到等等空間櫃檯出示會員 App 的會員卡，掃碼入場後才開始計時。';
+    const text = `${u.name || ''} 您好，\n\n您已購買「${PLAN_LABEL[plan] || plan}」（NT$${PLAN_PRICE_TWD[plan].toLocaleString('en-US')}${plan === 'resident' ? '／月' : ''}）。\n\n${how}\n會員 App：${APP_BASE}/\n\n言文字｜台灣人才聚落`;
+    await sendMailQuietly({ to: u.email, subject: `[言文字] 方案已購買：${PLAN_LABEL[plan] || plan}`, text, replyTo: NOTIFY_EMAIL });
+  } catch (e) { console.error('[mail] 方案通知失敗：', e.message); }
 }
 /* 會籍到期前 7 天提醒（每日一次；只寄月／季／年會籍，各寄一次） */
 async function remindExpiringMemberships() {
@@ -1942,6 +1992,9 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json', limit: '
       await fulfillShopCheckout(event.data.object);
       await fulfillLoungeCheckout(event.data.object);
       await fulfillPosCardCheckout(event.data.object);
+    } else if (event.type === 'invoice.paid') {
+      if (!pool || !dbReady) return res.status(503).send('database not ready');
+      await fulfillResidentInvoice(event.data.object.id);
     } else if (['refund.created','refund.updated','refund.failed'].includes(event.type)) {
       if(!pool||!dbReady)return res.status(503).send('database not ready');
       // Read the current provider state: webhook events may arrive out of order.
@@ -6053,16 +6106,40 @@ app.get('/api/me/summary', auth, requireDb, wrap(async (req, res) => {
   const access = await memberAccessFor(req.auth.sub);
   const plan = e => ({ plan: e.plan, ends_at: e.ends_at || null });
   res.json({ name: me.name || '', email: me.email || '', active: !!access.active,
-    plans: (access.activeEntitlements || []).map(plan), pending: (access.pending || []).map(plan), promo_open: promoOpen() });
+    plans: (access.activeEntitlements || []).map(plan), pending: (access.pending || []).map(plan), promo_open: false });
 }));
 
 app.post('/api/me/plans/checkout', auth, requireDb, wrap(async (req, res) => {
   if (!req.auth.sub) return res.status(403).json({ error: '請以會員身分登入。' });
   if (!stripe) return res.status(503).json({ error: '購買功能尚未開通（未設定 Stripe）。' });
   const plan = String(req.body?.plan || '');
-  if (!FLOOR_PLANS.includes(plan)) return res.status(400).json({ error: '未知方案。' });
-  if (plan === 'year_promo' && !promoOpen()) return res.status(410).json({ error: '開幕優惠已截止。' });
+  if (!SALE_PLANS.includes(plan)) return res.status(FLOOR_PLANS.includes(plan) ? 410 : 400).json({ error: FLOOR_PLANS.includes(plan) ? '這個方案已停售，請改選進駐方案或單日方案。' : '未知方案。' });
   const user = (await q(`SELECT email FROM users WHERE id=$1`, [req.auth.sub])).rows[0];
+  const meta = { kind: 'plan', plan, user_id: req.auth.sub, src: srcOf(req) || undefined };
+  if (plan === 'resident') {
+    // 已有進行中的進駐訂閱就不再開第二張
+    const live = (await q(`SELECT 1 FROM entitlements WHERE user_id=$1 AND plan='resident' AND ends_at>now() LIMIT 1`, [req.auth.sub])).rows[0];
+    if (live) return res.status(409).json({ error: '你已有進行中的進駐方案，每月會自動扣款。' });
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      payment_method_types: ['card'],
+      customer_email: user?.email || undefined,
+      line_items: [{
+        price_data: {
+          currency: 'twd',
+          product_data: { name: '等等空間 Stay Square 進駐方案（年約 12 期）', description: '每月自動扣款 NT$3,000，共 12 期；付款後立即生效，可自由使用等等空間所有設備' },
+          unit_amount: PLAN_PRICE_TWD.resident * 100,
+          recurring: { interval: 'month' },
+        },
+        quantity: 1,
+      }],
+      subscription_data: { metadata: meta, description: '進駐方案 年約 12 期，每月 NT$3,000' },
+      success_url: appPaidUrl(req.body, 'plan_paid=1&s={CHECKOUT_SESSION_ID}'),
+      cancel_url: `${brandReturnBase(req.body) || APP_BASE + '/'}?plan_canceled=1`,
+      metadata: meta,
+    });
+    return res.json({ url: session.url });
+  }
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
     payment_method_types: ['card'],
@@ -6070,7 +6147,7 @@ app.post('/api/me/plans/checkout', auth, requireDb, wrap(async (req, res) => {
     line_items: [{
       price_data: {
         currency: 'twd',
-        product_data: { name: `等等空間 Stay Square 會籍｜${PLAN_LABEL[plan]}`, description: plan.startsWith('day_') ? '等等空間單日方案，首次進場啟用' : '會員可自由使用等等空間所有設備' },
+        product_data: { name: `等等空間 Stay Square 方案｜${PLAN_LABEL[plan]}`, description: plan.startsWith('day_') ? '等等空間單日方案，首次進場啟用' : '會員可自由使用等等空間所有設備' },
         unit_amount: PLAN_PRICE_TWD[plan] * 100,
       },
       quantity: 1,
@@ -6089,7 +6166,7 @@ app.post('/api/me/plans/verify', auth, requireDb, wrap(async (req, res) => {
   const sessionId = String(req.body?.session_id || '');
   if (!/^cs_[A-Za-z0-9_]+$/.test(sessionId)) return res.status(400).json({ error: 'session 不正確。' });
   const session = await stripe.checkout.sessions.retrieve(sessionId);
-  if (session.metadata?.kind !== 'plan' || session.metadata.user_id !== req.auth.sub) return res.status(404).json({ error: '找不到這筆會籍付款。' });
+  if (session.metadata?.kind !== 'plan' || session.metadata.user_id !== req.auth.sub) return res.status(404).json({ error: '找不到這筆方案付款。' });
   if (session.payment_status !== 'paid') return res.status(402).json({ error: '尚未付款。' });
   const result = await fulfillPlanCheckout(session);
   res.json({ ok: true, already: result.already === true, plan: session.metadata.plan });

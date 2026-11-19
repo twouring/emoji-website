@@ -16,7 +16,7 @@ test('點數相關程式與 API 已移除', () => {
 
 test('聚落價目表仍可用', () => {
   const { PLAN_PRICE_TWD } = createRequire(import.meta.url)('../lib/plans');
-  assert.deepEqual(PLAN_PRICE_TWD, { day_4h: 200, day_12h: 500, month: 4000, quarter: 10000, year: 35000, year_promo: 35000 });
+  assert.deepEqual(PLAN_PRICE_TWD, { day_4h: 200, day_12h: 500, resident: 3000, month: 4000, quarter: 10000, year: 35000, year_promo: 35000 });
 });
 
 test('會員 App 不再有點數錢包、購點、兌換、退款', () => {
@@ -37,7 +37,7 @@ test('公開文案（三語）改為會員所有設備自由使用', () => {
     const html = read(f);
     assert.match(html, /id="facilities"/, f);
     assert.doesNotMatch(html, /70 點|100 點|70 points|100 points|70ポイント|100ポイント|贈點|gift points|bonus points|贈呈ポイント|不用點數|不使用點數|no points/, f);
-    assert.match(html, /有效會籍可使用共享工作區|A valid membership covers the shared workspace|有効な会員資格で、共有ワークスペース/, f);
+    assert.match(html, /有效方案可使用共享工作區|A valid plan covers the shared workspace|有効なプランで、共有ワークスペース/, f);
   }
   for (const f of ['public/index.html', 'public/en/index.html', 'public/ja/index.html', 'public/llms.txt', 'public/llms-full.txt',
     'public/cis/index.html']) {
