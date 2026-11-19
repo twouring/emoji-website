@@ -1037,6 +1037,50 @@ IG 自動發文系統狀態：token 有無、AI key 有無、未來排程、錯�
 X 貼文 AI 起草：body `{ topic }`，回 `{ ok, draft: { title, caption, caption_ja } }`。
 沿用 IG 補產的品牌鐵律與禁用字守門；需 `ANTHROPIC_API_KEY`，未設回 502。
 
+## 資料中樞（KK 2026-11-19，lib/hub.js）
+
+admin.emoji.tw 是五個品牌（TTH 言文字／CAFE 在咖啡／BAR 三點水／STAY 等等空間／REST 約書旅）社群、廣告、商務開發、KOC 資料的唯一來源。所有自動化由 Hermes 執行，只透過以下 API 讀寫（agent 金鑰）。帳號對品牌：`emoji0701`→TTH、`emoji.atcafe`→CAFE、`emoji.3am`→BAR、`emoji.staysquare`→STAY、`emoji.restbook`→REST。
+
+`social_posts` 另有 `brand`、`account` 欄：`account` 空白或 `emoji0701` 的 IG 貼文由官網 `ig-publish` 發；門市帳號與 `platform=threads` 由 Hermes 發佈器發（讀 `GET /api/admin/social/posts`、以 `PATCH /api/admin/hub/posts/:id` 搶單與回寫）。`post_type` 另接受 `reels`。
+
+排程觸發：系統設定 `CRON_DRIVER=hermes`（live）時官網程序內排程全部停用，改由 Hermes 每分鐘 `POST /internal/cron/tick`（header `X-Cron-Secret`＝系統設定 `CRON_SECRET`）；同一分鐘只分派一次（`cron_ticks`），重送回 `duplicate:true`。每次執行結果寫入 `automation_jobs`（`website:<job>`）。改回 `app` 即恢復程序內排程。收款即時同步（`payWatchLoop`，每秒）不受影響。
+
+### POST /api/admin/hub/media
+multipart `file`（JPEG／PNG／WebP／MP4，以檔頭判斷，上限 30MB）→ 存物件儲存，回 `{ ok, url, mime, size }`；`url` 為 `/ig-media/assets/hub-*` 公開網址，可直接給 IG Graph API 抓。
+
+### PATCH /api/admin/hub/posts/:id
+貼文局部更新（發佈器用）：`status`、`external_url`、`published_at`、`scheduled_at`（台北時間）、`images[]`、`metrics{}`（合併）、`note`（前置到 notes）。帶 `expect_status` 時只有現值相符才更新，否則 409（搶單用：`{status:'publishing', expect_status:'scheduled'}`）。
+
+### GET /api/admin/hub/interactions
+互動紀錄（私訊、Threads 回覆、留言）。query：`days`（預設 7，最多 90）、`platform`、`account`、`brand`、`status`、`kind`。回 `{ interactions }`。
+
+### POST /api/admin/hub/interactions
+新增互動紀錄，body 單筆或陣列（或 `{items:[]}`，最多 500）：`platform`（ig／threads）、`account`、`kind`（dm／reply／comment）、`external_id`（必填，去重鍵）、`counterpart`、`inbound`、`reply`、`status`（replied／skipped／human／failed／draft）、`url`、`note`、`at`。同 `(platform,account,external_id)` 重送只更新狀態與回覆。
+
+### GET /api/admin/hub/metrics
+每日成效快照，query `days`（預設 30）。回 `{ metrics:[{day,platform,account,brand,followers,media_count,reach,views,data}] }`。
+
+### POST /api/admin/hub/metrics
+寫入每日快照（單筆或陣列）：`day`（YYYY-MM-DD）、`platform`、`account`、`followers`、`media_count`、`reach`、`views`、`data{}`；同日同帳號覆寫。
+
+### POST /api/admin/hub/ads
+Meta 廣告投放紀錄（單筆或陣列），以 `external_id`（廣告 id）upsert：`brand`、`status`、`layer`、`start_date`、`end_date`、`budget`、`spent`、`metrics{}`（合併）、`notes`。
+
+### GET /api/admin/hub/leads
+商務開發與 KOC 名單，query `brand`、`pipeline`（coupon／bd／koc）、`stage`。
+
+### POST /api/admin/hub/leads
+名單 upsert（單筆或陣列），鍵＝`(brand, pipeline, ext_key)`（ext_key 用 Email 或 IG 帳號，轉小寫）：`name`、`email`、`category`、`stage`、`phone`、`website`、`contact_person`、`next_action`、`next_action_date`、`source`、`note`。
+
+### GET /api/admin/hub/automation
+自動化總表：Hermes 回報的排程與官網排程（`website:*`）最後執行狀態，以及最後一次 tick 時間。回 `{ jobs, last_tick }`。
+
+### POST /api/admin/hub/automation
+Hermes 回報排程狀態（單筆或陣列）：`name`、`label`、`schedule`、`enabled`、`last_run_at`、`last_status`、`last_error`、`next_run_at`、`meta{}`。帶 `replace:true` 時，已不在清單的 Hermes 任務會被移除。`website:` 開頭的名稱保留給官網。
+
+### GET /api/admin/hub/overview
+五品牌總覽：每個品牌的排程／近 7 天已發／錯誤貼文數、近 7 天私訊回覆與轉人工數、廣告投放數與花費、名單進行中／已合作數、各帳號最新粉絲數。
+
 ### GET /api/admin/ads/campaigns
 廣告投放紀錄列表。回 `{ campaigns }`（日期為 `YYYY-MM-DD` 字串）。
 

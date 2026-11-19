@@ -146,6 +146,11 @@ const RAILWAY_MODE = !!process.env.RAILWAY_ENVIRONMENT; // Railway 備援環境�
 const cronJobs = require('./lib/cron-jobs');
 const CRON_SCHEDULER = process.env.CRON_MODE === 'scheduler';
 const CRON_SECRET = process.env.CRON_SECRET || '';
+// 排程由 Hermes 觸發（KK 2026-11-19：所有排程由 Hermes 負責）：後台系統設定 CRON_DRIVER=hermes（live，免重新部署）時，程序內 node-cron 全部跳過，
+// 改由 Hermes 每分鐘打 POST /internal/cron/tick；密鑰取系統設定 CRON_SECRET（優先）或部署環境變數。改回 app 即恢復程序內排程。
+const hermesDriven = () => process.env.CRON_DRIVER === 'hermes';
+const cronSecret = () => process.env.CRON_SECRET || CRON_SECRET;
+const hub = require('./lib/hub');
 // 後台對外網址：寄給員工／主辦的後台連結、官網轉後台都用這個
 const ADMIN_BASE = (process.env.ADMIN_ORIGIN || 'https://admin.emoji.tw').replace(/\/$/, '');
 // 會員 App 對外網址（app.emoji.tw）：登入／LINE 綁定／會籍付款完成後一律導回這裡；官網不再有會員頁
@@ -904,6 +909,7 @@ async function migrate() {
   await q(`ALTER TABLE pos_payment_methods ADD COLUMN IF NOT EXISTS pm_group TEXT NOT NULL DEFAULT 'FNB'`);
   // 排班與打卡：員工（4 位數識別碼，不綁登入帳號）、排班（員工 × 營業日 × 店別 × 起訖）、出勤（上班開一筆、下班補 clock_out）
   await require('./lib/outreach').init(q, uid);
+  await hub.init(q);   // 資料中樞：五品牌社群／廣告／BD／KOC／自動化狀態（lib/hub.js）
   await q(`CREATE TABLE IF NOT EXISTS pos_staff (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, pin TEXT NOT NULL, venues TEXT, role TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '',
     active BOOLEAN NOT NULL DEFAULT true, created_by TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
@@ -1803,13 +1809,16 @@ app.use((req, res, next) => {
 // 等工作做完才回應：依請求計費時，回應後 CPU 會被限制。工作失敗仍回 200（與原本排程一樣不自動重試，錯誤在 log／告警信），結果放在 body。
 app.post('/internal/cron/:job', async (req, res) => {
   res.set('Cache-Control', 'no-store');
-  if (!CRON_SCHEDULER || ADMIN_MODE || RAILWAY_MODE || !cronJobs.secretMatches(req.get('x-cron-secret'), CRON_SECRET)) return res.sendStatus(404);
+  if (!(CRON_SCHEDULER || hermesDriven()) || ADMIN_MODE || RAILWAY_MODE || !cronJobs.secretMatches(req.get('x-cron-secret'), cronSecret())) return res.sendStatus(404);
   if (!pool || !dbReady) return res.status(503).json({ error: 'database not ready' });
   const name = String(req.params.job), at = cronJobs.scheduleTime(req.get('x-cloudscheduler-scheduletime'));
   const names = name === 'tick' ? cronJobs.dueJobs(at) : cronJobs.GROUPS[name] || (cronRunner.has(name) ? [name] : null);
   if (!names) return res.sendStatus(404);
   try {
+    // 同一分鐘的 tick 只分派一次：Hermes 補送漏掉的分鐘或重送都不會重複寄信／發文
+    if (name === 'tick' && !(await hub.claimTick(q, at))) return res.json({ ok: true, at: at.toISOString(), duplicate: true, results: [] });
     const results = await Promise.all(names.map(n => cronRunner.run(n, { http: true, lease: true })));
+    await hub.recordWebsiteRuns(q, results, cronJobs.SCHEDULE).catch(e => console.error('[cron] 寫入執行紀錄失敗：', e.message));
     res.json({ ok: results.every(r => r.status !== 'error'), at: at.toISOString(), results });
   } catch (e) { console.error('[cron] 觸發失敗：', e.message); res.status(500).json({ error: 'cron failed' }); }
 });
@@ -4655,10 +4664,10 @@ app.post('/api/admin/system-settings', auth, adminOnly, superOnly, requireDb, wr
 }));
 
 /* ---- 前台管理：社群經營（IG/X 貼文規劃；不串接平台 API，僅供內容管理與排程） ---- */
-const SOCIAL_PLATFORMS = ['ig', 'x'];
+const SOCIAL_PLATFORMS = ['ig', 'x', 'threads'];
 const SOCIAL_STATUS = ['draft', 'ready', 'scheduled', 'publishing', 'published', 'error', 'archived'];
 // 排程時間一律以台北時間讀寫（與部署環境時區脫鉤）
-const SEL_POST = `id,platform,post_type,status,title,caption,caption_en,caption_ja,hashtags,pages,images,
+const SEL_POST = `id,brand,account,platform,post_type,status,title,caption,caption_en,caption_ja,hashtags,pages,images,
   to_char(scheduled_at AT TIME ZONE 'Asia/Taipei','YYYY-MM-DD"T"HH24:MI') AS scheduled_at,
   to_char(published_at AT TIME ZONE 'Asia/Taipei','YYYY-MM-DD"T"HH24:MI') AS published_at,
   external_url,series,phase,cta,audience,metrics,notes`;
@@ -4680,7 +4689,7 @@ app.post('/api/admin/social/posts', auth, adminOnly, requireDb, wrap(async (req,
   const platform = SOCIAL_PLATFORMS.includes(b.platform) ? b.platform : 'ig';
   const status = SOCIAL_STATUS.includes(b.status) ? b.status : 'draft';
   // 類型依平台白名單校驗（IG↔X 切換時避免殘留不合法類型）
-  const TYPE_BY_PLATFORM = { ig: ['carousel', 'image'], x: ['text', 'image'] };
+  const TYPE_BY_PLATFORM = { ig: ['carousel', 'image', 'reels'], x: ['text', 'image'], threads: ['text', 'image'] };
   const postType = TYPE_BY_PLATFORM[platform].includes(b.post_type) ? b.post_type : TYPE_BY_PLATFORM[platform][0];
   const scheduledAt = parseTaipei(b.scheduled_at);
   if (scheduledAt && isNaN(scheduledAt.getTime())) return res.status(400).json({ error: '排程時間格式不正確。' });
@@ -4688,7 +4697,10 @@ app.post('/api/admin/social/posts', auth, adminOnly, requireDb, wrap(async (req,
   if (publishedAt && isNaN(publishedAt.getTime())) return res.status(400).json({ error: '發布時間格式不正確。' });
   const externalUrl = (b.external_url || '').trim();
   if (externalUrl && !/^https?:\/\//i.test(externalUrl)) return res.status(400).json({ error: '連結僅接受 http(s) 網址。' });
-  const pages = platform === 'x' ? [] : (Array.isArray(b.pages) ? b.pages : []);   // X 貼文不留頁面殘骸
+  const pages = platform !== 'ig' ? [] : (Array.isArray(b.pages) ? b.pages : []);   // X／Threads 貼文不留頁面殘骸
+  // 品牌與帳號（資料中樞 KK 11/19）：帳號決定由誰發——空白／emoji0701＝官網 ig-publish（版型渲染），門市帳號與 Threads＝Hermes 發佈器
+  const account = String(b.account ?? '').trim().slice(0, 60);
+  let brand; try { brand = hub.ACCOUNTS[account] || (hub.BRANDS[String(b.brand || '').toUpperCase()] ? String(b.brand).toUpperCase() : 'TTH'); } catch { brand = 'TTH'; }
   const images = Array.isArray(b.images) ? b.images : [];
   const metrics = (b.metrics && typeof b.metrics === 'object' && !Array.isArray(b.metrics)) ? b.metrics : {};
   const vals = [
@@ -4700,15 +4712,15 @@ app.post('/api/admin/social/posts', auth, adminOnly, requireDb, wrap(async (req,
   if (b.id) {
     const r = await q(
       `UPDATE social_posts SET title=$2,platform=$3,post_type=$4,status=$5,caption=$6,caption_en=$7,caption_ja=$8,hashtags=$9,pages=$10,images=$11,
-         scheduled_at=$12,published_at=$13,external_url=$14,series=$15,phase=$16,cta=$17,audience=$18,metrics=$19,notes=$20,updated_at=now()
-       WHERE id=$1 RETURNING id`, [b.id, ...vals]);
+         scheduled_at=$12,published_at=$13,external_url=$14,series=$15,phase=$16,cta=$17,audience=$18,metrics=$19,notes=$20,brand=$21,account=$22,updated_at=now()
+       WHERE id=$1 RETURNING id`, [b.id, ...vals, brand, account]);
     if (!r.rows[0]) return res.status(404).json({ error: '找不到貼文。' });
     return res.json({ ok: true, id: b.id });
   }
   const id = uid('sp_');
   await q(
-    `INSERT INTO social_posts (id,title,platform,post_type,status,caption,caption_en,caption_ja,hashtags,pages,images,scheduled_at,published_at,external_url,series,phase,cta,audience,metrics,notes)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`, [id, ...vals]);
+    `INSERT INTO social_posts (id,title,platform,post_type,status,caption,caption_en,caption_ja,hashtags,pages,images,scheduled_at,published_at,external_url,series,phase,cta,audience,metrics,notes,brand,account)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`, [id, ...vals, brand, account]);
   res.json({ ok: true, id });
 }));
 
@@ -4830,6 +4842,8 @@ app.post('/api/admin/social/:id/publish-ig', auth, adminOnly, requireDb, wrap(as
     res.status(502).json({ error: e.message });
   }
 }));
+
+hub.register(app, { auth, adminOnly, requireDb, wrap, q, uid, igPublisher, multer });
 
 const igComposer = require('./lib/ig-composer');
 
@@ -9728,7 +9742,11 @@ cronRunner.define('ig-token-refresh', async () => {
   catch (e) { console.error('[ig-publish] token 續期失敗：', e.message); await igAlert('token 續期失敗', `IG token 今日續期失敗，60 天效期到期後自動發文會全部停擺。\n\n原因：${e.message}`); throw Object.assign(e, { alerted: true }); }
 }, { enabled: igEnabled, onError: () => {} });
 
+const appCronRunner = cronRunner;
 async function boot() {
+  // 程序內排程一律經過這層：CRON_DRIVER=hermes 時跳過（由 Hermes 觸發 /internal/cron/tick），每次結果寫入 automation_jobs
+  const cronRunner = { run: n => hermesDriven() ? Promise.resolve({ job: n, status: 'skipped', reason: 'hermes' })
+    : appCronRunner.run(n).then(r => { hub.recordWebsiteRuns(q, [r], cronJobs.SCHEDULE).catch(() => {}); return r; }) };
   if (pool) {
     try { await migrate(); dbReady = true; console.log('[db] 連線並完成 migrate'); liveHub.start(); tableLive.startListener(pool, liveHub); }
     catch (e) { console.error('[db] migrate 失敗（前端仍會運作，API 回 503）：', e.message); }

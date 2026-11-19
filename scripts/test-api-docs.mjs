@@ -29,7 +29,8 @@ function routesInDocs() {
   return out;
 }
 
-const inServer = routesInServer();
+// lib/hub.js 的路由由 server.js 呼叫 hub.register(app) 掛上，一併納入對照
+const inServer = new Set([...routesInServer(), ...routesInServer(readFileSync(join(ROOT, 'lib/hub.js'), 'utf8'))]);
 const inDocs = routesInDocs();
 
 test('抓得到端點——正則沒被程式碼風格改動弄壞', () => {

@@ -108,6 +108,7 @@ async function server(t, env = {}) {
   const run = async (text, params) => {
     sql.push(String(text));
     if (/INSERT INTO cron_leases/.test(text)) return db.leaseTaken ? { rows: [], rowCount: 0 } : { rows: [{ token: params[1] }], rowCount: 1 };
+    if (/INSERT INTO cron_ticks/.test(text)) { const k = +params[0]; db.ticks ||= new Set(); if (db.ticks.has(k)) return { rows: [], rowCount: 0 }; db.ticks.add(k); return { rows: [{ minute: params[0] }], rowCount: 1 }; }
     return { rows: [], rowCount: 0 };
   };
   const localRequire = name => {
@@ -170,6 +171,18 @@ test('端點：密鑰正確時等工作做完才回應，回傳每個 job 的結
   const tick = await s.post('/internal/cron/tick', { 'x-cron-secret': CRON_SECRET, 'x-cloudscheduler-scheduletime': '2000-01-01T00:00:00Z' });
   assert.equal(tick.status, 200, '排程時間偏離過大就用現在時間分派');
   assert.ok(tick.body.results.length >= cronJobs.GROUPS.minute.length);
+  const again = await s.post('/internal/cron/tick', { 'x-cron-secret': CRON_SECRET, 'x-cloudscheduler-scheduletime': '2000-01-01T00:00:00Z' });
+  assert.equal(again.body.duplicate, true, '同一分鐘重送不重複分派');
+});
+
+test('端點：CRON_DRIVER=hermes（後台系統設定）不需 CRON_MODE 也能觸發；密鑰可由系統設定提供', async t => {
+  const s = await server(t, { CRON_DRIVER: 'hermes', CRON_SECRET });
+  const r = await s.post('/internal/cron/pickup', { 'x-cron-secret': CRON_SECRET });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body.results.map(x => [x.job, x.status]), [['pickup', 'ok']]);
+  assert.ok(s.sql.some(q => /INSERT INTO automation_jobs/.test(q)), '執行結果寫入 automation_jobs');
+  const off = await server(t, { CRON_DRIVER: 'app', CRON_SECRET });
+  assert.equal((await off.post('/internal/cron/pickup', { 'x-cron-secret': CRON_SECRET })).status, 404);
 });
 
 test('端點：租約被別的執行個體持有時跳過，不重複執行', async t => {
@@ -188,7 +201,7 @@ test('原始碼不變式：scheduler 模式不掛 setInterval；排程與端點�
   assert.match(boot, /if \(dbReady && !CRON_SCHEDULER\) \{ const t = setInterval\(\(\) => refreshLiveSettings\(\)/);
   const admin = boot.indexOf('if (ADMIN_MODE) {'), railway = boot.indexOf('if (RAILWAY_MODE) {'), sched = boot.indexOf('if (CRON_SCHEDULER) {');
   assert.ok(admin > -1 && admin < railway && railway < sched && sched < boot.indexOf("require('node-cron')"));
-  assert.match(src, /if \(!CRON_SCHEDULER \|\| ADMIN_MODE \|\| RAILWAY_MODE \|\| !cronJobs\.secretMatches\(req\.get\('x-cron-secret'\), CRON_SECRET\)\) return res\.sendStatus\(404\);/);
+  assert.match(src, /if \(!\(CRON_SCHEDULER \|\| hermesDriven\(\)\) \|\| ADMIN_MODE \|\| RAILWAY_MODE \|\| !cronJobs\.secretMatches\(req\.get\('x-cron-secret'\), cronSecret\(\)\)\) return res\.sendStatus\(404\);/);
   assert.match(src, /const CRON_WEBHOOK_BUDGET_MS = Math\.min\(55000, Math\.max\(1000, Number\(process\.env\.CRON_WEBHOOK_BUDGET_MS\) \|\| 50000\)\);/);
   assert.match(src, /cronJobs\.drain\(deliverEventWebhookOnce, http \? \{ budgetMs: CRON_WEBHOOK_BUDGET_MS \} : \{ max: 20 \}\)/);
   // 端點在 express.json 與各 /api 路由之前就掛好、不受 /api 限流影響

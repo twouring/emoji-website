@@ -128,7 +128,7 @@ test('修復：renderSpec 的 photo 走來源白名單（擋 style 屬性注入�
 });
 
 test('修復：X 貼文儲存時清空 pages、類型依平台白名單', () => {
-  assert.match(server, /platform === 'x' \? \[\] :/);
+  assert.match(server, /platform !== 'ig' \? \[\] :/);
   assert.match(server, /TYPE_BY_PLATFORM/);
 });
 

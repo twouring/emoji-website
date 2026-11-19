@@ -1271,6 +1271,28 @@ async function saveSystemSetting(key,clear){
 }
 
 function tabLogs(){ return '<div class="a-sec" id="logs-body"></div>'; }
+/* 自動化（KK 11/19）：所有排程由 Hermes 負責；這頁列 Hermes 回報的排程與官網排程最後執行狀態，以及五品牌資料中樞總覽 */
+function tabAutomation(){ return '<div class="a-sec" id="auto-body"><h2>自動化</h2><p class="hint">載入中…</p></div>'; }
+const AUTO_BRAND = {TTH:'言文字',CAFE:'在咖啡',BAR:'三點水',STAY:'等等空間',REST:'約書旅'};
+async function loadAutomation(){
+  const host = document.getElementById('auto-body'); if (!host) return;
+  let a, o;
+  try { [a, o] = await Promise.all([api('/admin/hub/automation'), api('/admin/hub/overview')]); }
+  catch(e){ host.innerHTML = `<h2>自動化</h2><p class="a-empty">${esc(e.message)}</p>`; return; }
+  const t = v => v ? new Date(v).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false,month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
+  const bad = j => /error|fail/i.test(j.last_status||'');
+  const pill = j => !j.enabled ? '<span class="pill pill-wait">停用</span>' : bad(j) ? '<span class="pill pill-bad">失敗</span>' : j.last_status ? '<span class="pill pill-ok">正常</span>' : '<span class="pill pill-wait">未執行</span>';
+  const row = j => `<tr><td>${esc(j.label||j.name)}</td><td class="a-mono">${esc(j.schedule||'')}</td><td>${pill(j)}</td><td class="num">${t(j.last_run_at)}</td><td class="num">${t(j.next_run_at)}</td><td>${esc(j.last_error||'')}</td></tr>`;
+  const tbl = (title, rows) => `<h3>${title}（${rows.length}）</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>任務</th><th>排程</th><th>狀態</th><th>上次執行</th><th>下次執行</th><th>最近錯誤</th></tr></thead><tbody>${rows.map(row).join('')||'<tr><td colspan="6" class="a-empty">尚無回報</td></tr>'}</tbody></table></div>`;
+  const hermes = a.jobs.filter(j=>j.source==='hermes'), site = a.jobs.filter(j=>j.source==='website');
+  const fails = a.jobs.filter(j=>j.enabled && bad(j)).length;
+  const brands = o.brands.map(b=>`<tr><td><b>${esc(b.name)}</b></td><td>${(b.accounts||[]).map(x=>`${esc(x.account)} ${num(x.followers||0)}`).join('<br>')||'—'}</td><td class="num">${b.posts.scheduled||0}</td><td class="num">${b.posts.published_7d||0}</td><td class="num">${b.interactions.replied_7d||0}／${b.interactions.human_7d||0}</td><td class="num">${b.ads.running||0}</td><td class="num">${b.leads.open||0}／${b.leads.won||0}</td></tr>`).join('');
+  host.innerHTML = `<h2>自動化</h2>
+    <p class="hint">所有排程由 Hermes 執行；官網排程由 Hermes 每分鐘觸發（最後一次：${t(a.last_tick)}）。資料以本後台為準。</p>
+    <div class="a-kpis"><div class="a-kpi"><div class="kl">Hermes 任務</div><div class="kv">${hermes.length}</div></div><div class="a-kpi"><div class="kl">官網排程</div><div class="kv">${site.length}</div></div><div class="a-kpi"><div class="kl">失敗中</div><div class="kv">${fails}</div></div></div>
+    <h3>五品牌總覽</h3><div class="a-wrap2"><table class="a-tbl"><thead><tr><th>品牌</th><th>帳號／粉絲</th><th>待發</th><th>7 天已發</th><th>私訊 已回／轉人工</th><th>廣告投放中</th><th>名單 進行中／已合作</th></tr></thead><tbody>${brands}</tbody></table></div>
+    ${tbl('Hermes 排程', hermes)}${tbl('官網排程（由 Hermes 觸發）', site)}`;
+}
 async function loadLogs(){
   const host = document.getElementById('logs-body'); if (!host) return;
   host.innerHTML = '<h2>操作紀錄</h2><p class="hint">載入中…</p>';
@@ -1362,7 +1384,7 @@ function tabAdmins(d){
    - 首頁「總覽」＝高管總覽（GET /api/admin/exec）：所有品牌今天的營收、帳本、桌況、在班人力，並挑出需要處理的問題。
    - 只給總公司（言文字管理員）使用；品牌子帳號登入直接擋回，門市一律用 pos.emoji.tw。日結報表、排班打卡看全部品牌（SCOPE＝''）。
    - 現場營運（櫃檯結帳、出餐、訂位、估清）仍在 pos.emoji.tw。員工新增／編輯與出勤修正刻意留在 admin（平板四位數密碼登入的現場人員不能改）。 */
-const ADMIN_TABS = ['overview','sales','accounting','staff','events','calendar','members','commitments','updates','menu','social','ads','outreach','partners','permissions','system','logs'];
+const ADMIN_TABS = ['overview','sales','accounting','staff','events','calendar','members','commitments','updates','menu','social','ads','outreach','partners','permissions','system','automation','logs'];
 const BRAND_LABEL = { CAFE:'在咖啡', BAR:'三點水', STAY:'等等空間', REST:'約書旅' };
 const SCOPE = '';   // pos-ops.js 共用：空字串＝所有品牌
 const OLD_WORKSPACE_SLUGS = ['shared','cafe','bar','space'];
@@ -1391,6 +1413,7 @@ const TABS = [
   { id:'partners',    label:'合作夥伴', render:tabPartners },
   { id:'permissions', label:'權限管理',   render:tabAdmins },
   { id:'system',      label:'系統設定', render:tabSystem },
+  { id:'automation',  label:'自動化',   render:tabAutomation },
   { id:'logs',        label:'操作紀錄', render:tabLogs, super:true },
 ];
 const NAV_GROUPS = [
@@ -1399,7 +1422,7 @@ const NAV_GROUPS = [
   ['會員', ['members','commitments']],
   ['內容', ['updates','menu']],
   ['行銷', ['social','ads','outreach','partners']],
-  ['系統', ['permissions','system','logs']],
+  ['系統', ['permissions','system','automation','logs']],
 ];
 // 側欄 icon：線條 SVG（Lucide 風格），不用 emoji
 const ICONS = {
@@ -1425,6 +1448,7 @@ const ICONS = {
   outreach:     '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/>',
   partners:     '<path d="M11 17l-1.5 1.5a2.1 2.1 0 0 1-3-3L9 13"/><path d="M13 7l1.5-1.5a2.1 2.1 0 0 1 3 3L15 11"/><path d="M8 16l8-8"/><circle cx="5" cy="5" r="2"/><circle cx="19" cy="19" r="2"/>',
   permissions:  '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  automation:   '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
 };
 const ico = id => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[id] || ''}</svg>`;
 
@@ -1525,6 +1549,7 @@ function applyRoute(){
   if (tab === 'accounting') { loadAccounting(); return; }
   if (tab === 'staff') { loadStaff(); return; }
   if (tab === 'logs') { loadLogs(); return; }
+  if (tab === 'automation') { loadAutomation(); return; }
   if (tab === 'system') { if(DATA?.super)loadSystemSettings(); return; }
   if (tab === 'ads') { paintAds(); return; }
   if (tab === 'outreach') { loadOutreach(); return; }
@@ -2361,7 +2386,7 @@ function loadSocialPosts(){
 function socialFiltered(){
   const f = SOCIAL_FILTER, qv = f.q.trim().toLowerCase();
   return (SOCIAL_POSTS||[]).filter(p =>
-    (!f.platform || p.platform===f.platform) &&
+    (!f.platform || p.platform===f.platform) && (!f.brand || (p.brand||'TTH')===f.brand) &&
     (!f.status || p.status===f.status) &&
     (!qv || (p.title+' '+p.caption+' '+(p.series||'')).toLowerCase().includes(qv)));
 }
@@ -2372,7 +2397,8 @@ function socialToolbar(){
   const opt = (v,l,cur)=>`<option value="${v}" ${cur===v?'selected':''}>${l}</option>`;
   return `<div class="a-toolbar" style="flex-wrap:wrap">
     <span>${seg}</span>
-    <select id="sp-f-platform">${opt('','全部平台',SOCIAL_FILTER.platform)}${opt('ig','IG',SOCIAL_FILTER.platform)}${opt('x','X (Twitter)',SOCIAL_FILTER.platform)}</select>
+    <select id="sp-f-platform">${opt('','全部平台',SOCIAL_FILTER.platform)}${opt('ig','IG',SOCIAL_FILTER.platform)}${opt('threads','Threads',SOCIAL_FILTER.platform)}${opt('x','X (Twitter)',SOCIAL_FILTER.platform)}</select>
+    <select id="sp-f-brand">${opt('','全部品牌',SOCIAL_FILTER.brand||'')}${Object.entries(AUTO_BRAND).map(([k,l])=>opt(k,l,SOCIAL_FILTER.brand||'')).join('')}</select>
     <select id="sp-f-status">${opt('','全部狀態',SOCIAL_FILTER.status)}${Object.entries(SOCIAL_STATUS_META).map(([k,m])=>opt(k,m.label,SOCIAL_FILTER.status)).join('')}</select>
     <input type="search" id="sp-f-q" placeholder="搜尋標題／內容…" value="${esc(SOCIAL_FILTER.q)}" style="min-width:160px">
     <button class="btn btn--solid btn-sm" id="sp-new-ig">＋ IG 貼文</button>
@@ -2389,7 +2415,7 @@ function socialListHTML(){
     const pagesN = (p.pages||[]).length;
     return `<tr data-q="${esc(p.title+' '+(p.series||''))}">
       <td class="a-mono num">${esc(socialFmtSched(p.scheduled_at))}</td>
-      <td>${p.platform==='ig'?'IG':'X'}</td>
+      <td>${p.platform==='ig'?'IG':p.platform==='threads'?'Threads':'X'}<br><span style="color:var(--muted);font-size:.78rem">${esc(AUTO_BRAND[p.brand||'TTH']||'')}${p.account?' @'+esc(p.account):''}</span></td>
       <td><a href="#" data-sp-edit="${esc(p.id)}"><b>${esc(p.title)}</b></a><br>
         <span style="color:var(--muted);font-size:.78rem">${esc(p.series||'—')}${p.platform==='ig'?` · ${pagesN} 頁`:''}</span>
         ${p.platform==='ig'
@@ -3371,6 +3397,7 @@ function bindSocial(){
     SOCIAL_VIEW=b.dataset.socialView; SOCIAL_EDIT=null; SOCIAL_DIRTY=false; paintSocial();
   });
   on('sp-f-platform','change',e=>{ SOCIAL_FILTER.platform=e.target.value; paintSocial(); });
+  on('sp-f-brand','change',e=>{ SOCIAL_FILTER.brand=e.target.value; paintSocial(); });
   on('sp-f-status','change',e=>{ SOCIAL_FILTER.status=e.target.value; paintSocial(); });
   on('sp-f-q','input',e=>{ SOCIAL_FILTER.q=e.target.value;
     document.querySelectorAll('#sp-body tr').forEach(tr=>{ const qq=(tr.dataset.q||'').toLowerCase();
