@@ -69,6 +69,7 @@ test('server：Hermes 觸發開關、同分鐘去重、程序內排程經過 her
 });
 
 test('ig-publish 只發言文字主帳；門市帳號交給 Hermes 發佈器', () => {
+  assert.match(read('server.js'), /gif: 'image\/gif', mp4: 'video\/mp4' \};/, '/ig-media 以 video/mp4 回 Reels 影片');
   assert.match(read('lib/ig-publisher.js'), /coalesce\(account,''\) IN \('','emoji0701'\)/);
   assert.match(read('server.js'), /const SOCIAL_PLATFORMS = \['ig', 'x', 'threads'\];/);
 });

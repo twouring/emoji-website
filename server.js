@@ -9631,7 +9631,7 @@ app.get('/ig-media/*', wrap(async (req, res) => {
   const obj = await igPublisher.getAsset(key);
   if (!obj) return res.status(404).json({ error: '找不到檔案。' });
   // 型別只信副檔名白名單，不信物件自帶的 Content-Type（同網域 XSS 防線）；其餘一律當附件下載
-  const IMG = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' };
+  const IMG = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', mp4: 'video/mp4' };   // mp4：門市 Reels 由 IG 抓影片（KK 11/19）
   const ext = key.slice(key.lastIndexOf('.') + 1).toLowerCase(), type = IMG[ext] || (ext === 'pdf' ? 'application/pdf' : 'application/octet-stream');
   res.set({ 'Content-Type': type, 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "sandbox; default-src 'none'", ...(obj.contentLength ? { 'Content-Length': String(obj.contentLength) } : {}) });
   if (!IMG[ext]) res.set('Content-Disposition', 'attachment');
