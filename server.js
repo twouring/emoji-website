@@ -6973,7 +6973,7 @@ async function markPosCardQrPaid(session){
   try{await client.query('BEGIN');
     const s=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[meta.session_id])).rows[0];
     const pend=s?await cardQrGet(s.id,client):null;
-    const m=posCardQr.matches(s,{...meta,lines:pend&&pend.cs===session.id?pend.lines.join(','):''},s?tableOrders.unpaid(s.items||[]):[],session);
+    const m=posCardQr.matches(s,{...meta,lines:pend&&pend.cs===session.id?pend.lines.join(','):''},s?tableOrders.billable(s.items||[]):[],session);
     if(!m.ok){await client.query('ROLLBACK');lineService.notifyStaff(`⚠️ ${meta.table||''} 線上刷卡 QR 已收款 NT$${m.amountPaid}，但這桌已結帳／品項已變動，請到 Stripe 後台退款。`);return {mismatch:true};}
     const intent=typeof session.payment_intent==='string'?session.payment_intent:session.payment_intent?.id||null;
     pend.state='paid';pend.payment_intent=intent||'';pend.paid_at=new Date().toISOString();
@@ -6991,7 +6991,7 @@ async function fulfillPosCardCheckout(session){
     if(dup){await client.query('COMMIT');return {already:true,order_id:dup.id,order:dup,table:dup.table_no};}
     const s=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[meta.session_id])).rows[0];
     const pend=s?await cardQrGet(s.id,client):null;
-    const m=posCardQr.matches(s,{...meta,lines:pend&&pend.cs===session.id?pend.lines.join(','):''},s?tableOrders.unpaid(s.items||[]):[],session);
+    const m=posCardQr.matches(s,{...meta,lines:pend&&pend.cs===session.id?pend.lines.join(','):''},s?tableOrders.billable(s.items||[]):[],session);
     if(!m.ok){await client.query('ROLLBACK');
       console.error(`[pos-card-qr] 已收款但無法入帳：session=${session.id} pi=${intent} ts=${meta.session_id} amount=${m.amountPaid}`);
       lineService.notifyStaff(`⚠️ ${meta.table||''} 線上刷卡 QR 已收款 NT$${m.amountPaid}，但這桌已結帳／品項已變動，未入帳。請到 Stripe 後台退款（${intent||session.id}）`);
@@ -7002,7 +7002,7 @@ async function fulfillPosCardCheckout(session){
     const lines=m.lines.map(l=>({...l,order_id:orderId})),items=tableOrders.settleItems(s.items,m.lines,orderId);
     const sp=s.space&&typeof s.space==='object'?s.space:null,spaceStart=!!(sp&&!sp.in_at&&m.lines.some(l=>l.space_role==='plan'));
     const spaceNow=spaceStart?{...sp,in_at:now}:sp,held=!!(spaceNow&&!spaceNow.out_at);
-    const closed=tableOrders.unpaid(items).length===0;
+    const closed=tableOrders.billable(items).length===0;
     await client.query('INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,invoice,status,done_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[orderId,s.id,s.table_no,JSON.stringify(lines),m.amountPaid,JSON.stringify(payer),JSON.stringify(pend.invoice||{}),closed?'done':'paid',closed?new Date():null]);
     if(closed)await client.query("UPDATE table_orders SET status='done',done_at=now() WHERE session_id=$1 AND status IN ('paid','ready')",[s.id]);
     await client.query('UPDATE table_sessions SET items=$2,status=$3,space=$4,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),closed&&!held?'closed':'open',spaceNow?JSON.stringify(spaceNow):null]);
@@ -7029,7 +7029,7 @@ app.post('/api/admin/orders/sessions/:id/card-qr',auth,adminOnly,requireDb,wrap(
   if(!posCardQr.enabledFor(venues))return res.status(403).json({error:'線上刷卡 QR 只開放等等空間、約書旅 POS。'});
   const s=(await q("SELECT * FROM table_sessions WHERE id=$1 AND status='open'",[req.params.id])).rows[0];
   if(!s)return res.status(404).json({error:'找不到這桌或已結束。'});
-  let qt;try{qt=posCardQr.quote(tableOrders.unpaid(s.items||[]),venues);posRegister.checkoutAllowed(qt.lines,await registersOpenMap(null,tableOrders.MenuLib.businessDay()),{strict:true});}catch(e){return res.status(e.status||400).json({error:e.message});}
+  let qt;try{qt=posCardQr.quote(tableOrders.billable(s.items||[]),venues);posRegister.checkoutAllowed(qt.lines,await registersOpenMap(null,tableOrders.MenuLib.businessDay()),{strict:true});}catch(e){return res.status(e.status||400).json({error:e.message});}
   const lineIds=qt.lines.map(l=>l.line);
   const prev=await cardQrGet(s.id);
   if(prev&&Date.parse(prev.expires_at)>Date.now()+60000){
@@ -7128,7 +7128,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     // 空間入場單（KK 11/15）：收到方案款的當下開始計時；客人按離場前不清桌（先付費後計時）
     const sp=s.space&&typeof s.space==='object'?s.space:null,spaceStart=!!(sp&&!sp.in_at&&out.lines.some(l=>l.space_role==='plan'));
     const spaceNow=spaceStart?{...sp,in_at:new Date().toISOString()}:sp;
-    const closed=tableOrders.unpaid(items).length===0&&tableOrders.sessionClearableByVenues({items},venues);
+    const closed=tableOrders.billable(items).length===0&&tableOrders.sessionClearableByVenues({items},venues);   /* 客人未送出的草稿不擋結清（KK 11/21） */
     const held=!!(spaceNow&&!spaceNow.out_at);   // 空間入場單：客人在場內不清單（下面另外改回 open）
     if(closed)await client.query("UPDATE table_orders SET status='done',done_at=now() WHERE session_id=$1 AND status IN ('paid','ready')",[s.id]);
     await client.query('UPDATE table_sessions SET items=$2,status=$3,pay_requests=$4,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),closed?'closed':'open',JSON.stringify(tableOrders.prunePayRequests(s.pay_requests,items))]);
@@ -7140,7 +7140,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     await kitchenPrint.enqueue(client.query.bind(client),[{id:orderId,session_id:s.id,table_no:s.table_no,items:orderLines.filter(l=>fresh.has(l.line)&&l.ticket),status:'paid'}]);
     await client.query('COMMIT');
     const invoiceOut=await storeInvoiceResult({id:orderId,table_no:s.table_no,items:orderLines,amount:out.amount,payer:out.payer,discount:out.discount,service_charge:out.service},invoice);
-    res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,service_charge:out.service||undefined,received:out.payer.received,change:out.payer.change,method:out.payer.method,payments:out.payer.payments,prepay:!!out.payer.prepay,member:out.payer.member,yan:memberUser?yanOut:undefined,member_created:!!memberUser?.created,closed:closed&&!held,remaining:tableOrders.sum(tableOrders.unpaid(items)),invoice:invoiceOut,warning:regWarn||undefined,space_started:spaceStart?{paid_at:new Date().toISOString(),in_at:spaceNow.in_at,due_at:(()=>{const m=items.filter(l=>l.space_role==='plan'&&!l.cancelled&&!l.credit_of).reduce((a,l)=>a+(Number(l.space_minutes)||0),0);return m>0?new Date(Date.parse(spaceNow.in_at)+m*60000).toISOString():null;})(),seat:spaceNow.seat||s.table_no,headcount:spaceNow.headcount||1,plan:out.lines.filter(l=>l.space_role==='plan').map(l=>l.zh).join('、')}:undefined});
+    res.json({ok:true,order_id:orderId,amount:out.amount,subtotal:out.subtotal,discount:out.discount,service_charge:out.service||undefined,received:out.payer.received,change:out.payer.change,method:out.payer.method,payments:out.payer.payments,prepay:!!out.payer.prepay,member:out.payer.member,yan:memberUser?yanOut:undefined,member_created:!!memberUser?.created,closed:closed&&!held,remaining:tableOrders.sum(tableOrders.billable(items)),invoice:invoiceOut,warning:regWarn||undefined,space_started:spaceStart?{paid_at:new Date().toISOString(),in_at:spaceNow.in_at,due_at:(()=>{const m=items.filter(l=>l.space_role==='plan'&&!l.cancelled&&!l.credit_of).reduce((a,l)=>a+(Number(l.space_minutes)||0),0);return m>0?new Date(Date.parse(spaceNow.in_at)+m*60000).toISOString():null;})(),seat:spaceNow.seat||s.table_no,headcount:spaceNow.headcount||1,plan:out.lines.filter(l=>l.space_role==='plan').map(l=>l.zh).join('、')}:undefined});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 app.post('/api/admin/orders/:id/invoice/issue',auth,adminOnly,requireDb,wrap(async(req,res)=>{
@@ -8711,7 +8711,7 @@ app.post('/api/admin/orders/sessions/:id/close',auth,adminOnly,requireDb,wrap(as
   if(session.space&&session.space.prepaid===true&&!session.space.in_at)return res.status(409).json({error:'這張是會員 App 線上已付款、還沒入場的方案，不能清掉；客人到場請掃碼入場，要退款請到 Stripe 後台處理後由管理員清單。'});
   if(!tableOrders.sessionClearableByVenues(session,venues))return res.status(403).json({error:'這桌還有其他品牌未結帳的品項，請等對方結帳後再清桌，或由言文字管理員清桌。'});
   // 未付品項有金額時不直接清：要先結帳或逐項作廢，避免漏收；?force=1 由言文字管理員強制（走操作紀錄）
-  const open=tableOrders.unpaid(session.items);
+  const open=tableOrders.billable(session.items);   /* 客人未送出的草稿不擋清桌（KK 11/21），清桌時一併丟棄 */
   if(open.length&&!(req.body?.force===true&&!venues))return res.status(409).json({error:`這桌還有 ${open.length} 項未結帳（NT$${tableOrders.sum(open).toLocaleString('zh-TW')}），請先到櫃檯結帳或逐項作廢。`,unpaid:open.length,unpaid_amount:tableOrders.sum(open)});
   await q("UPDATE table_orders SET status='done',done_at=now() WHERE session_id=$1 AND status IN ('paid','ready')",[req.params.id]);
   {const c=await pool.connect();try{await c.query('BEGIN');await refundAppRedeems(c,tableOrders.unpaid(session.items));await c.query('COMMIT');}catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}finally{c.release();}}

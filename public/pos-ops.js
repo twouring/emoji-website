@@ -2056,8 +2056,10 @@ function paintPos(){
   const reload=()=>{host.dataset.sig='';return loadPos();};
   if(cur){
     // 客人手機裡尚未按「送出點餐」的是草稿，不可在結帳頁露出或計費；櫃檯代點仍可直接結帳。
-    const checkoutLines=cur.lines.filter(l=>l.credit_of||l.by==='櫃檯'||l.placed_at);
-    const unsentGuestLines=cur.lines.filter(l=>!l.credit_of&&l.by!=='櫃檯'&&!l.placed_at);
+    /* 結帳就是結已送的單（KK 11/21）：草稿判斷與伺服器 tableOrders.isDraft 一致（櫃檯／官網建立、預收抵扣、已出的零售品都可結） */
+    const posDraft=l=>!l.order_id&&!l.cancelled&&!l.placed_at&&!l.served_at&&!l.credit_of&&l.by!=='櫃檯'&&l.by!=='官網'&&l.guest!=='posstaff00';
+    const checkoutLines=cur.lines.filter(l=>!posDraft(l));
+    const unsentGuestLines=cur.lines.filter(posDraft);
     if(POS_PICK)POS_PICK=new Set([...POS_PICK].filter(l=>checkoutLines.some(x=>x.line===l)));
     for(const k of Object.keys(POS_QTY)){const x=checkoutLines.find(l=>l.line===k);if(!x||POS_QTY[k]>=x.qty||POS_QTY[k]<1)delete POS_QTY[k];}
     const t=posTotals({...cur,lines:checkoutLines});picked=t.picked;subtotal=t.subtotal;total=t.total;priceOf=t.priceOf;const {discount,regular,pts,svc}=t;const ms=minSpendState({...cur,lines:checkoutLines});const memberSaving=regular-subtotal;
@@ -2068,7 +2070,7 @@ function paintPos(){
     // 品項依點餐人分組（同桌各自掃碼點的名字）：組頭列出稱呼、幾項、小計與「只結這組」；只有一個人點的就不加組頭
     const groups=lineGroups(checkoutLines),multi=groups.filter(g=>g.key!=='credit').length>1;
     const lineRows=groups.map(g=>{const ids=g.lines.map(l=>l.line);const on=!!POS_PICK&&POS_PICK.size===ids.length&&ids.every(id=>POS_PICK.has(id));const sub=g.lines.reduce((a,l)=>a+priceOf(l)*l.qty,0);const head=multi?`<tr class="pos-group ${on?'on':''}"><td colspan="5"><div class="pos-group-wrap"><span class="pos-group-name">${esc(g.label)}</span><span class="pos-group-meta">${g.lines.length} 項 · NT$${g.key==='credit'?'−'+num(-sub):num(sub)}</span>${g.key!=='credit'?`<span class="pos-group-btns"><button type="button" class="btn btn--ghost btn-xs" data-pick-group="${esc(g.key)}">${on?'已選這組':'只結這組'}</button><button type="button" class="btn btn--ghost btn-xs" data-pick-all aria-pressed="${!POS_PICK&&!POS_AA}">${!POS_PICK&&!POS_AA?'已選全部':'結帳全部'}</button></span>`:''}</div></td></tr>`:'';return head+g.lines.map(rowOf).join('');}).join('')||'<tr><td colspan="5" class="a-empty">尚未有可結帳餐點</td></tr>';
-    const unsentGuestHint=unsentGuestLines.length?`<p class="hint pos-unsent-checkout-hint">尚有 ${unsentGuestLines.length} 項客人餐點尚未送單，請先按「列印出餐單」送單後再結帳。</p>`:'';
+    const unsentGuestHint=unsentGuestLines.length?`<p class="hint pos-unsent-checkout-hint">另有 ${unsentGuestLines.length} 項客人還沒送出，不列入這次結帳；要一起收請先按「列印出餐單」送單。</p>`:'';
     const menuItems=MenuLib.sortItems((MENU_DOC?.items||[]).filter(it=>it.published&&MenuLib.inVenue(it,SCOPE)&&!(it.space_role&&typeof posSpaceOn==='function'&&posSpaceOn())));   // 空間情境：計時方案只從「入場／延長」加、超時由離場自動加，不放加點格   // 共用品項（甜點、商店）走 MenuLib.inVenue
     if(POS_OPT&&(POS_OPT.table!==cur.table||(POS_OPT.line&&!cur.lines.some(l=>l.line===POS_OPT.line))))POS_OPT=null;
     const cats=[...new Set(menuItems.map(it=>it.cat))];if(POS_CAT&&!cats.includes(POS_CAT))POS_CAT='';

@@ -43,7 +43,7 @@ test('server：三支路由、webhook 共用入帳、付款中擋櫃檯結帳、
   assert.match(co, /'card_qr:'\+s\.id/); assert.match(co, /status\(423\)/);
   const create = server.slice(server.indexOf("app.post('/api/admin/orders/sessions/:id/card-qr'"), server.indexOf("app.post('/api/admin/orders/sessions/:id/card-qr/check'"));
   assert.match(create, /posCardQr\.enabledFor\(venues\)/); assert.match(create, /posScope\(req\)/);
-  assert.match(create, /posCardQr\.quote\(tableOrders\.unpaid/); assert.doesNotMatch(create, /req\.body\?\.amount/, '金額不信任前端');
+  assert.match(create, /posCardQr\.quote\(tableOrders\.billable/); assert.doesNotMatch(create, /req\.body\?\.amount/, '金額不信任前端');
   assert.match(server, /s\.card_qr=\{id:v\.cs/);
   const ful = server.slice(server.indexOf('async function fulfillPosCardCheckout('), server.indexOf('const cardQrView='));
   assert.match(ful, /payer->>'stripe_session'=\$1/); assert.ok(ful.indexOf('inventoryConsume') < ful.lastIndexOf("'COMMIT'"));

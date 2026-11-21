@@ -7,8 +7,8 @@ const require=createRequire(import.meta.url), tableOrders=require('../lib/table-
 const server=fs.readFileSync(new URL('../server.js',import.meta.url),'utf8');
 const start=server.indexOf("app.post('/api/admin/orders/sessions/:id/checkout'");
 const source=server.slice(start,server.indexOf("app.post('/api/admin/orders/:id/invoice/issue'",start));
-async function checkout({table='A1',partial=false,mixed=false,reject=false}={}){
-  let handler;const calls=[],session={id:'ts_1234567890',table_no:table,status:'open',items:[{line:'one',venue:'CAFE',price:100,qty:1},{line:'two',venue:mixed?'BAR':'CAFE',price:0,qty:1}]};
+async function checkout({table='A1',partial=false,mixed=false,reject=false,draft=false}={}){
+  let handler;const calls=[],session={id:'ts_1234567890',table_no:table,status:'open',items:[{line:'one',venue:'CAFE',price:100,qty:1,by:'櫃檯'},{line:'two',venue:mixed?'BAR':'CAFE',price:0,qty:1,by:draft?'客人':'櫃檯',guest:draft?'g1234567':'posstaff00'}]};
   const client={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT * FROM table_sessions'))return {rows:[session]};return {rows:[]};},release(){}};
   const orders={...tableOrders,posCheckout(items){if(reject)throw Object.assign(Error('rejected'),{status:400});return {lines:partial||mixed?[items[0]]:items,amount:100,subtotal:100,payer:{method:'cash'}};},menuIndex(){return new Map();}};
   vm.runInNewContext(source,{app:{post(...args){handler=args.at(-1);}},auth:0,adminOnly:0,requireDb:0,wrap:fn=>fn,ORDER_ID_RE:/^ts_/,tableOrders:orders,kitchenPrint:require('../lib/pos-kitchen-print'),contentValue:async()=>'',stockConsume:async()=>{},chargeAppRedeems:async()=>{},resolveOperator:async()=>null,pool:{connect:async()=>client},activePaymentCodes:async()=>[],actorOf:()=> 'staff',posRegister:{checkoutAllowed:()=>({}),sessionVenues:()=>['CAFE']},posPaymentMethods:{groupsOf:()=>null},registersOpenMap:async()=>({}),ezpayInvoice:{invoiceForm:()=>({})},uid:()=> 'to_1234567890',storeInvoiceResult:async()=>({}),inventoryConsume:async()=>0});
@@ -31,6 +31,9 @@ test('fully settled takeout closes too (KK 11/2: 收款完就收掉外帶單)',a
 for(const [name,opts] of [['split bill',{partial:true}],['mixed brand',{mixed:true}],['split takeout',{table:'W01',partial:true}]])test(name+' does not auto-clear',async()=>{
   const {calls,res}=await checkout(opts);assert.equal(res.body.closed,false);
   assert.ok(!calls.some(c=>c.sql.includes("UPDATE table_orders SET status='done'")));
+});
+test('結帳就是結已送的單（KK 11/21）：只剩客人未送出的草稿也自動清桌',async()=>{
+  const {res}=await checkout({partial:true,draft:true});assert.equal(res.body.closed,true);assert.equal(res.body.remaining,0);
 });
 test('failed payment never closes the session',async()=>{
   const {calls,res}=await checkout({reject:true});assert.equal(res.statusCode,400);
