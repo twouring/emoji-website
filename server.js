@@ -6745,7 +6745,7 @@ app.get('/api/admin/orders',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   const pendingLinepay=(await q("SELECT id,session_id,state,amount,mode FROM linepay_payments WHERE state NOT IN ('failed','cancelled','settled')")).rows;
   for(const s of sessions){if(!s.mixed)s.linepay=pendingLinepay.find(a=>a.session_id===s.id)||null;}
   /* 線上刷卡 QR 等付款中（KK 11/17）：重整／換平板仍看得到、可查詢或取消 */
-  if(sessions.length){const cq=(await q("SELECT key,value FROM site_content WHERE key=ANY($1)",[sessions.map(s=>'card_qr:'+s.id)])).rows;for(const r of cq){const s=sessions.find(x=>'card_qr:'+x.id===r.key);try{const v=JSON.parse(r.value);if(s)s.card_qr={id:v.cs,url:v.url,amount:v.amount,expires_at:v.expires_at};}catch{}}}
+  if(sessions.length){const cq=(await q("SELECT key,value FROM site_content WHERE key=ANY($1)",[sessions.map(s=>'card_qr:'+s.id)])).rows;for(const r of cq){const s=sessions.find(x=>'card_qr:'+x.id===r.key);try{const v=JSON.parse(r.value);if(s)s.card_qr={id:v.cs,url:v.url,amount:v.amount,expires_at:v.expires_at,state:v.state||'open'};}catch{}}}
   /* 入場單付款時間（KK 11/17）：方案款所在訂單的付款時間，入場單與補印都印 */
   {const sp=sessions.filter(s=>s.space);if(sp.length){const pr=(await q("SELECT session_id,items,paid_at FROM table_orders WHERE session_id=ANY($1) AND status<>'void'",[sp.map(s=>s.id)])).rows;for(const s of sp)s.space.paid_at=posSpace.planPaidAt(pr.filter(o=>o.session_id===s.id));}}
   const space_summary=spaceCfg&&spaceCfg.mode==='space'?posSpace.summary((await q("SELECT table_no,status,items,space FROM table_sessions WHERE space IS NOT NULL AND venue=$1 AND created_at>now()-interval '2 days'",[venues[0]])).rows,at=>tableOrders.MenuLib.businessDay(at)===tableOrders.MenuLib.businessDay()):undefined;

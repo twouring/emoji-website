@@ -68,3 +68,8 @@ test('POS 前端：只在等等空間／約書旅顯示，開視窗不自動列�
 test('API 文件', () => {
   for (const r of ['card-qr', 'card-qr/check', 'card-qr/cancel']) assert.ok(api.includes('### POST /api/admin/orders/sessions/:id/' + r + '\n'), r);
 });
+
+test('桌況回 card_qr 帶 state，已付款自動選回線上刷卡（11/21 E08/E09 卡待收款）', () => {
+  assert.match(server, /s\.card_qr=\{id:v\.cs,url:v\.url,amount:v\.amount,expires_at:v\.expires_at,state:v\.state\|\|'open'\}/);
+  assert.match(ops, /if\(cur\.card_qr\?\.state==='paid'&&cardQrOn\(cur\)\)POS_METHOD='card_qr';/);
+});
