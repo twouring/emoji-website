@@ -440,8 +440,8 @@ def page_cafe():
     coffee_lede = t('每一杯都從義式濃縮開始。早上趕車的人從外帶窗口拿了就走；坐下來的人，拿鐵類可以換燕麥奶（+30）。',
                     'Every cup starts with espresso. Commuters grab theirs from the takeaway window; if you stay, milk drinks can switch to oat milk (+30).',
                     'どの一杯もエスプレッソから。急ぐ朝はテイクアウト窓口で。座る方はミルク系をオーツミルクに変更できます（+30）。')
-    # 2026-11-17 KK：抹茶照換掉，改店內 4K 影片 IMG_0942 抽格（濃縮倒入冰鮮奶）
-    pour_alt = t('濃縮咖啡倒入加冰鮮奶，做一杯冰拿鐵', 'Espresso poured over iced milk for an iced latte', '氷とミルクにエスプレッソを注ぐアイスラテ')
+    # 2026-11-21：咖啡區照片換為 IMG_2773（冰冷萃咖啡）。
+    pour_alt = t('一杯泡沫綿密、分層明顯的冰冷萃咖啡，擺在咖啡廳的木質桌面上', 'An iced cold brew with a thick, layered foam on a café wooden table', 'カフェの木のテーブルに置かれた、きめ細かな泡のアイスコールドブリュー')
     out += f'''<section class="atc-coffee" id="coffee" aria-labelledby="coffee-h"><div class="wrap atc-coffee__grid">
   <figure class="atc-coffee__photo">{atc_img('latte', pour_alt, '(max-width: 760px) 100vw, 40vw')}</figure>
   <div class="atc-coffee__say">
