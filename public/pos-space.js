@@ -22,6 +22,18 @@ function spaceCfg(){ return (POS_DATA && POS_DATA.space_settings) || { grace_min
 function spacePlans(){ return (MENU_DOC?.items || []).filter(it => it.published && it.venue === SCOPE && it.space_role === 'plan').sort((a, b) => (a.sort || 0) - (b.sort || 0)); }
 function spaceOvertimeItem(cat){ const l = (MENU_DOC?.items || []).filter(it => it.published && it.venue === SCOPE && it.space_role === 'overtime'); return l.find(it => it.cat === cat) || l[0] || null; }
 const spaceShortName = zh => String(zh || '').replace(/^空間使用費｜/, '').replace(/^(等等空間|貴賓室)/, '').trim() || zh;
+/* 補登離場時間解析（台北時間）：「HH:MM」＝入場後第一次出現的那個時刻；「M/D HH:MM」指定日期（年取入場那年）。須晚於入場、不晚於現在，否則 null */
+function spaceLeaveAt(text, inIso, now = Date.now()){
+  const s = String(text || '').trim(), inMs = new Date(inIso).getTime(); if (!Number.isFinite(inMs)) return null;
+  const m = /^(?:(\d{1,2})\/(\d{1,2})\s+)?(\d{1,2}):(\d{2})/.exec(s); if (!m) return null;
+  const h = Number(m[3]), mi = Number(m[4]); if (h > 23 || mi > 59) return null;
+  const TZ = 8 * 3600e3, inTw = new Date(inMs + TZ);
+  let at;
+  if (m[1]) { at = Date.UTC(inTw.getUTCFullYear(), Number(m[1]) - 1, Number(m[2]), h, mi) - TZ; }
+  else { at = Date.UTC(inTw.getUTCFullYear(), inTw.getUTCMonth(), inTw.getUTCDate(), h, mi) - TZ; if (at < inMs) at += 86400e3; }
+  return at > inMs && at <= now ? new Date(at) : null;
+}
+const spaceMd = d => { const t = new Date(new Date(d).getTime() + 8 * 3600e3); return `${t.getUTCMonth() + 1}/${t.getUTCDate()}`; };
 const spaceDur = m => { m = Math.max(0, Math.round(m)); return m < 60 ? `${m} 分` : `${Math.floor(m / 60)} 時${m % 60 ? ` ${m % 60} 分` : ''}`; };
 /* 依現在時間重算狀態（伺服器值會落後最多 15 秒；每 30 秒就地更新卡片文字，不重畫） */
 function spaceLive(sp, now = Date.now()){
@@ -153,10 +165,12 @@ function bindSpacePanel(host, cur, reload){
     await leave();
   });
   on('sp-leave-fix', async () => {
-    const v = await pickReason({ title: `${cur.table} 實際離場時間（HH:MM，今天）`, presets: [], placeholder: '例：18:30', maxlength: 5 }); if (!v) return;
-    const m = /^(\d{1,2}):(\d{2})$/.exec(v.trim()); if (!m) return toast('請輸入 HH:MM');
-    const d = new Date(); const tw = new Date(d.getTime() + 8 * 3600e3); tw.setUTCHours(Number(m[1]), Number(m[2]), 0, 0); let at = new Date(tw.getTime() - 8 * 3600e3);
-    if (at > d) at = new Date(at.getTime() - 86400e3);
+    /* 補登離場（KK 11/21）：忘了按離場常是好幾天前的單；時間以「入場後第一次出現的 HH:MM」計，也可寫 M/D HH:MM。舊版當成今天，會算出幾十小時超時被擋 */
+    const inAt = new Date(cur.space.in_at);
+    const v = await pickReason({ title: `${cur.table} 實際離場時間（入場 ${spaceMd(inAt)} ${clockText(cur.space.in_at)}）`, presets: cur.space.due_at ? [`${clockText(cur.space.due_at)}（方案到期）`] : [], placeholder: '例：18:30 或 11/18 09:00', maxlength: 16 }); if (!v) return;
+    const at = spaceLeaveAt(v, cur.space.in_at);
+    if (!at) return toast('請輸入 HH:MM 或 M/D HH:MM，且要晚於入場、早於現在');
+    if (!await posConfirm(`${cur.table} 補登離場：${spaceMd(at)} ${clockText(at.toISOString())}\n使用 ${spaceDur(Math.floor((at - inAt) / 60000))}，有超時會自動加上超時費用。`, { title: '補登離場時間', ok: '補登' })) return;
     await leave(at.toISOString());
   });
   on('sp-checkin', () => spaceCheckin({ id: cur.id, table: cur.table, member: cur.space.member, need_seat: (cur.space.plans || []).some(p => spaceCfg().seat_cats.includes(p.cat)) && spaceCfg().seats.length > 0 }, reload));
