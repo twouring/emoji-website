@@ -54,7 +54,7 @@
    * ponytail：只看整點時段，不處理最後加點（16:30／02:00）；要擋再加分鐘判斷。 */
   function activeVenue(now) {
     const h = (new Date(now ?? Date.now()).getUTCHours() + 8) % 24;
-    return h >= 8 && h < 17 ? 'CAFE' : (h >= 17 || h < 3) ? 'BAR' : null;
+    return h >= 9 && h < 18 ? 'CAFE' : (h >= 18 || h < 3) ? 'BAR' : null;
   }
   /* 掃碼點餐時段（台北時間）：與 POS 的 activeVenue 分開——
    *   08:00–16:00 在咖啡（餐點＋飲品）、16:00–16:30 在咖啡只剩飲品；
@@ -62,9 +62,9 @@
    * 回 { venue, food, drink }；非點餐時段 venue＝null。飲品／酒水＝BAR_CATS（吧檯出），其餘（含套餐）算餐點。 */
   function orderWindow(now) {
     const d = new Date(now ?? Date.now()), m = ((d.getUTCHours() + 8) % 24) * 60 + d.getUTCMinutes();
-    if (m >= 480 && m < 960) return { venue: 'CAFE', food: true, drink: true };
-    if (m >= 960 && m < 990) return { venue: 'CAFE', food: false, drink: true };
-    if (m >= 990 || m < 120) return { venue: 'BAR', food: true, drink: true };
+    if (m >= 540 && m < 1020) return { venue: 'CAFE', food: true, drink: true };
+    if (m >= 1020 && m < 1050) return { venue: 'CAFE', food: false, drink: true };
+    if (m >= 1050 || m < 120) return { venue: 'BAR', food: true, drink: true };
     if (m < 150) return { venue: 'BAR', food: false, drink: true };
     return { venue: null, food: false, drink: false };
   }

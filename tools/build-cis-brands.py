@@ -30,7 +30,7 @@ BRANDS = [
         "slug": "at-cafe", "no": "01", "zh": "在咖啡", "latin": "at cafe", "logo_latin": "at café",
         "nav": {"zh": "在咖啡", "en": "at cafe", "ja": "在咖啡"},
         "role": {"zh": "日式簡餐與工作咖啡", "en": "Japanese set meals and working coffee", "ja": "日本式の定食とワーキングコーヒー"},
-        "hours": {"zh": "08:00–17:00", "en": "08:00–17:00", "ja": "08:00–17:00"},
+        "hours": {"zh": "09:00–18:00", "en": "09:00–18:00", "ja": "09:00–18:00"},
         "who": {"zh": "所有訪客，不需會員", "en": "All visitors, no membership needed", "ja": "どなたでも。会員登録は不要"},
         "site": {"zh": "https://atcafe.emoji.tw/", "en": "https://atcafe.emoji.tw/en", "ja": "https://atcafe.emoji.tw/ja"},
         "lede": {

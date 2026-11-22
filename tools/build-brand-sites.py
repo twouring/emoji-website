@@ -248,7 +248,7 @@ ATC_RATIO = {'latte': (1080, 1350), 'records': (1600, 1067), 'moji-wall': (804, 
              'brunch': (1400, 1050), 'salmon': (900, 674), 'fig': (900, 674), 'onigiri': (900, 674), 'soba': (900, 674),
              'yogurt': (900, 674), 'set-salmon': (854, 1066), 'set-fig': (854, 1066), 'set-onigiri': (854, 1066),
              'set-soba': (854, 1066)}
-ATC_OPEN, ATC_CLOSE = '08:00', '17:00'
+ATC_OPEN, ATC_CLOSE = '09:00', '18:00'
 ATC_GEO = (25.046198, 121.51342)
 # 早午餐套餐（照片, 價格, 名稱 zh/en/ja, 內容 zh/en/ja）
 ATC_SETS = [
@@ -303,9 +303,9 @@ def atc_faq_items():
            f'at cafe is right by Taipei Main Station at No. 11, Sec. 1, Chongqing S. Rd (diagonally across from Exit Z10 of the underground mall), open daily from {ATC_OPEN}. Brunch sets are NT$200–400 and each includes a drink.',
            f'在咖啡は台北駅のすぐそば、重慶南路一段11号（駅前地下街 Z10 出口の斜め向かい）。毎日 {ATC_OPEN} 開店。ブランチセットは NT$200–400 で、どれもドリンク付きです。')),
         (t('早午餐幾點可以吃？', 'What time is brunch served?', 'ブランチは何時から？'),
-         t(f'早午餐全天供應：每日 {ATC_OPEN}–{ATC_CLOSE}，16:30 最後點餐。',
-           f'Brunch is served all day: {ATC_OPEN}–{ATC_CLOSE} daily, last orders 16:30.',
-           f'ブランチは終日提供。毎日 {ATC_OPEN}–{ATC_CLOSE}、ラストオーダー 16:30。')),
+         t(f'早午餐全天供應：每日 {ATC_OPEN}–{ATC_CLOSE}，餐點最後點餐 17:00、飲品最後點餐 17:30。',
+           f'Brunch is served all day: {ATC_OPEN}–{ATC_CLOSE} daily; food last order 17:00, drinks 17:30.',
+           f'ブランチは終日提供。毎日 {ATC_OPEN}–{ATC_CLOSE}、フードのラストオーダーは17:00、ドリンクは17:30です。')),
         (t('可以外帶嗎？', 'Is takeaway available?', 'テイクアウトはできますか？'),
          t('可以。飲品與餐點都能外帶，店門口有外帶窗口；外帶不適用內用低消。', 'Yes. Drinks and food are available to go from the takeaway window; the dine-in minimum does not apply.', 'はい。ドリンクも料理もテイクアウト窓口で受け取れます。店内の最低利用金額は適用されません。')),
         (t('內用有低消嗎？', 'Is there a minimum spend for dine-in?', '店内利用の最低利用金額は？'),
@@ -356,9 +356,9 @@ def page_cafe():
     s = 'at-cafe'
     reserve = www('/reserve')
     book = t('訂位', 'Book a table', '予約する')
-    desc = t(f'在咖啡（at cafe）是台北車站旁的早午餐與咖啡店：早午餐套餐 NT$200–400、美式 NT$150、拿鐵 NT$180。每日 {ATC_OPEN}–{ATC_CLOSE}（16:30 最後點餐），重慶南路一段 11 號、站前地下街 Z10 出口斜對面。可外帶。',
-             f'at cafe is a brunch and coffee spot by Taipei Main Station: brunch sets NT$200–400, Americano NT$150, latte NT$180. Open daily {ATC_OPEN}–{ATC_CLOSE} (last orders 16:30) at No. 11, Sec. 1, Chongqing S. Rd, across from Exit Z10. Takeaway available.',
-             f'在咖啡（at cafe）は台北駅そばのブランチとコーヒーの店。ブランチセット NT$200–400、アメリカーノ NT$150、カフェラテ NT$180。毎日 {ATC_OPEN}–{ATC_CLOSE}（ラストオーダー 16:30）、重慶南路一段11号・駅前地下街 Z10 出口の斜め向かい。テイクアウト可。')
+    desc = t(f'在咖啡（at cafe）是台北車站旁的早午餐與咖啡店：早午餐套餐 NT$200–400、美式 NT$150、拿鐵 NT$180。每日 {ATC_OPEN}–{ATC_CLOSE}（餐點最後點餐 17:00、飲品最後點餐 17:30），重慶南路一段 11 號、站前地下街 Z10 出口斜對面。可外帶。',
+             f'at cafe is a brunch and coffee spot by Taipei Main Station: brunch sets NT$200–400, Americano NT$150, latte NT$180. Open daily {ATC_OPEN}–{ATC_CLOSE} (food last order 17:00, drinks 17:30) at No. 11, Sec. 1, Chongqing S. Rd, across from Exit Z10. Takeaway available.',
+             f'在咖啡（at cafe）は台北駅そばのブランチとコーヒーの店。ブランチセット NT$200–400、アメリカーノ NT$150、カフェラテ NT$180。毎日 {ATC_OPEN}–{ATC_CLOSE}（フードのラストオーダー17:00、ドリンク17:30）、重慶南路一段11号・駅前地下街 Z10 出口の斜め向かい。テイクアウト可。')
     faqs = atc_faq_items()
     out = head(s, t('在咖啡 at cafe｜台北車站早午餐與咖啡・Z10 出口斜對面',
                     'at cafe | Brunch & coffee by Taipei Main Station (Exit Z10)',
@@ -369,7 +369,7 @@ def page_cafe():
     lede = t('早上八點開門。<span class="nb">一份早午餐、一杯咖啡，</span><span class="nb">坐下來慢慢吃，或拿了就走。</span>',
              'Open at eight. A plate of brunch and a cup of coffee: sit down and take your time, or grab it and go.',
              '朝8時オープン。ブランチとコーヒーを一杯。ゆっくり座っても、持ち帰っても。')
-    hero_facts = [(f'{ATC_OPEN}–{ATC_CLOSE}', t('每日・16:30 最後點餐', 'Daily · last orders 16:30', '毎日・LO 16:30')),
+    hero_facts = [(f'{ATC_OPEN}–{ATC_CLOSE}', t('每日・餐點最後點餐 17:00／飲品 17:30', 'Daily · food last order 17:00 / drinks 17:30', '毎日・フードLO 17:00／ドリンク17:30')),
                   ('NT$200+', t('早午餐套餐含飲品', 'Brunch set with a drink', 'ドリンク付きブランチセット')),
                   ('NT$150', t('美式咖啡', 'Americano', 'アメリカーノ'))]
     hf = ''.join(f'<li><b>{e(k)}</b><span>{e(v)}</span></li>' for k, v in hero_facts)
@@ -450,10 +450,10 @@ def page_cafe():
 '''
 
     # —— 一天：時間軸（四個時刻） ——
-    day = [('08:00', t('第一杯拿鐵。趕車的人從外帶窗口拿了就走。', 'The first latte. Commuters grab it from the takeaway window and go.', '最初のラテ。急ぐ人はテイクアウト窓口で受け取って、そのまま駅へ。')),
+    day = [('09:00', t('第一杯拿鐵。趕車的人從外帶窗口拿了就走。', 'The first latte. Commuters grab it from the takeaway window and go.', '最初のラテ。急ぐ人はテイクアウト窓口で受け取って、そのまま駅へ。')),
            ('10:30', t('週末的早午餐時間。燻鮭魚開放式三明治和一杯美式。', 'Weekend brunch time: a smoked salmon open sandwich and an Americano.', '週末のブランチタイム。スモークサーモンのオープンサンドとアメリカーノ。')),
            ('13:00', t('有人打開筆電，點了一份飯糰套餐，說只待一下。', 'Someone opens a laptop, orders an onigiri set and says it’s just for a bit.', 'ノートパソコンを開いた人が、おにぎりセットを注文。「少しだけ」と言って。')),
-           ('16:30', t('最後點餐。可麗露配一杯西西里咖啡，17:00 打烊。', 'Last orders: a canelé and an Espresso Romano. We close at 17:00.', 'ラストオーダー。カヌレとシチリアコーヒー。17:00 閉店。'))]
+           ('17:30', t('飲品最後點餐。18:00 打烊。', 'Drinks last order. We close at 18:00.', 'ドリンクのラストオーダー。18:00閉店。'))]
     steps = ''.join(f'<li><time>{h}</time><p>{e(x)}</p></li>' for h, x in day)
     out += f'''<section class="bs-alt atc-day" id="day" aria-labelledby="day-h"><div class="wrap">
   {sec_h2('day-h', '在咖啡的一天', 'A day here', '在咖啡の一日')}
@@ -494,7 +494,7 @@ def page_cafe():
 </div></section>
 '''
     out += visit([(t('營業時間', 'Hours', '営業時間'), t(f'每日 {ATC_OPEN}–{ATC_CLOSE}', f'Daily {ATC_OPEN}–{ATC_CLOSE}', f'毎日 {ATC_OPEN}–{ATC_CLOSE}')),
-                  (t('最後點餐', 'Last orders', 'ラストオーダー'), '16:30')], s)
+                  (t('最後點餐', 'Last orders', 'ラストオーダー'), t('餐點 17:00／飲品 17:30', 'Food 17:00 / drinks 17:30', 'フード17:00／ドリンク17:30'))], s)
     out += '</main>\n'
     out += footer_html(s, [(t('早午餐', 'Brunch', 'ブランチ'), '#brunch'), (book, reserve)])
     # 捲動淡入：IntersectionObserver（不用 scroll 事件）；未支援或減少動態時直接顯示
@@ -1168,12 +1168,12 @@ if(!('IntersectionObserver' in window))return;var io=new IntersectionObserver(fu
 GEO = {'@type': 'GeoCoordinates', 'latitude': 25.046198, 'longitude': 121.51342}
 DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 BIZ = {  # schema 類型、營業時間（opens, closes；closes 小於 opens 表示跨夜）、og 圖
-    'at-cafe': (['CafeOrCoffeeShop'], ('08:00', '17:00'), 'brand-sites/assets/atcafe/latte-1080.webp'),
+    'at-cafe': (['CafeOrCoffeeShop'], ('09:00', '18:00'), 'brand-sites/assets/atcafe/latte-1080.webp'),
     '3am': (['BarOrPub', 'Restaurant'], ('17:00', '03:00'), 'brand-sites/assets/3am/spread-1440.webp'),
     'stay-square': (['LocalBusiness'], None, 'brand-sites/assets/stay-square-avatar.webp'),
     'rest-book': (['BookStore'], ('00:00', '23:59'), 'brand-sites/assets/rest-book-avatar.webp'),
 }
-HOURS_TXT = {'at-cafe': ('每日 08:00–17:00（16:30 最後點餐）', 'Daily 08:00–17:00 (last orders 16:30)'),
+HOURS_TXT = {'at-cafe': ('每日 09:00–18:00（餐點最後點餐 17:00、飲品最後點餐 17:30）', 'Daily 09:00–18:00 (food last order 17:00, drinks 17:30)'),
              '3am': ('每日 17:00–翌日 03:00', 'Daily 17:00–03:00 next day'),
              'stay-square': None,
              'rest-book': ('24 小時', '24 hours')}

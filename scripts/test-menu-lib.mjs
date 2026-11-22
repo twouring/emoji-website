@@ -157,12 +157,12 @@ test('fromSeedRows maps legacy rows', () => {
   assert.equal(doc.items[0].zh, '美式');
 });
 
-test('activeVenue 依台北時間切品牌：08–17 在咖啡、17–03 三點水、03–08 無', () => {
+test('activeVenue 依台北時間切品牌：09–18 在咖啡、18–03 三點水、03–09 無', () => {
   const at = hhmm => M.activeVenue(`2026-11-02T${hhmm}:00+08:00`);
-  assert.equal(at('07:59'), null);
-  assert.equal(at('08:00'), 'CAFE');
-  assert.equal(at('16:59'), 'CAFE');
-  assert.equal(at('17:00'), 'BAR');
+  assert.equal(at('08:59'), null);
+  assert.equal(at('09:00'), 'CAFE');
+  assert.equal(at('17:59'), 'CAFE');
+  assert.equal(at('18:00'), 'BAR');
   assert.equal(at('23:30'), 'BAR');
   assert.equal(at('02:59'), 'BAR');
   assert.equal(at('03:00'), null);

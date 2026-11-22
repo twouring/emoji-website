@@ -1418,7 +1418,7 @@ async function printTableQr(table,url,info={}){
   const cafeMin=qv==='CAFE'&&typeof MenuLib!=='undefined'&&MenuLib.cafePolicyActive&&MenuLib.cafePolicyActive();
   const cafeCm=cafeMin&&n&&MenuLib.cafeMinimumOf?MenuLib.cafeMinimumOf(n):null;
   const cafeMinNote=cafeMin?(cafeCm&&cafeCm.type==='amount'?[`低消每人 ${cafeCm.per}`,`Min. NT$${cafeCm.per} pp`]:cafeCm?['低消每人一杯飲料','Min. 1 drink pp']:[`低消 平日一杯／六日 ${MenuLib.CAFE_MIN_SPEND}`,`Min. 1 drink / NT$${MenuLib.CAFE_MIN_SPEND} wknd`]):null;
-  if(qv==='CAFE')notes.push(['最後點餐 餐點 16:00／飲品 16:30','Last order 16:00 food · 16:30 drinks']);
+  if(qv==='CAFE')notes.push(['最後點餐 餐點 17:00／飲品 17:30','Last order 17:00 food · 17:30 drinks']);
   /* 在咖啡自助（KK 11/2）：餐具與水自取、用餐完自助回收 */
   if(cafeMinNote)notes.push([cafeMinNote[0]+'・餐具水自取回收',cafeMinNote[1]+' · self-serve']);
   else if(qv==='CAFE')notes.push(['餐具、水自取・用餐完自助回收','Self-serve cutlery, water · bus dishes']);
@@ -3210,7 +3210,7 @@ async function loadSoldOut(refresh){
 function tabClock(){ return '<div class="a-sec" id="clock-body"></div>'; }
 function tabShifts(){ return '<div class="a-sec" id="shifts-body"></div>'; }
 function tabStaff(){ return '<div class="a-sec" id="staff-body"></div>'; }
-const VENUE_HOURS={CAFE:['08:00','17:00'],BAR:['17:00','03:00']};
+const VENUE_HOURS={CAFE:['09:00','18:00'],BAR:['18:00','03:00']};
 const WEEKDAY=['一','二','三','四','五','六','日'];
 const dayText=d=>{const t=new Date(d+'T12:00:00Z');return `${Number(d.slice(5,7))}/${Number(d.slice(8,10))}（${WEEKDAY[(t.getUTCDay()+6)%7]}）`;};
 const addDaysStr=(day,n)=>{const t=new Date(day+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10);};

@@ -89,7 +89,7 @@ test('桌號 QR 單：不印桌號（KK 11/14）；印人數、單號、開桌�
   {const {context,texts}=mk('BAR',false);await context.printTableQr('B2','url',{});
     assert.ok(!texts.some(t=>t.includes('低消')||t.includes('服務費')),'11/1 前不印低消、服務費');}
   {const {context,texts}=mk('CAFE');await context.printTableQr('A1','url',{party_size:2});
-    assert.ok(texts.includes('最後點餐 餐點 16:00／飲品 16:30'));assert.ok(texts.includes('低消每人一杯飲料・餐具水自取回收'),texts.join('|'));assert.ok(!texts.some(t=>t.includes('服務費')),'在咖啡無服務費');
+    assert.ok(texts.includes('最後點餐 餐點 17:00／飲品 17:30'));assert.ok(texts.includes('低消每人一杯飲料・餐具水自取回收'),texts.join('|'));assert.ok(!texts.some(t=>t.includes('服務費')),'在咖啡無服務費');
     assert.ok(texts.includes('大人 2　・　小孩 0'));}
 });
 
