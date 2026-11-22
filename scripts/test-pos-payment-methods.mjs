@@ -79,7 +79,7 @@ test('server.js：收款帳戶表、API 路由、FOOD_API 白名單、/api/state
   assert.match(g, /req\.auth\.super===true/); assert.match(g, /req\.get\('x-manager-pin'\)/); assert.match(g, /isManagerRole\(mgr\.role\)/); assert.match(g, /need_manager_pin:true/);
   assert.match(server, /FOOD_API = \/\^\\\/api\\\/admin\\\/\(orders\|tables\|content\|menu\|reservations\|sales\|analytics\|registers\|staff\|shifts\|attendance\|payment-methods\|pos-devices\|yan\|reservation-hours\|inventory\)/, '品牌子帳號可讀收款帳戶清單（結帳要用）');
   assert.match(server, /payment_methods: await paymentMethodsList\(\)/, '/api/state 要帶收款帳戶清單給前端畫結帳選項');
-  assert.match(server, /tableOrders\.posCheckout\(s\.items,\{[^\n]*?operator\},menuAll,await activePaymentCodes\(posPaymentMethods\.groupsOf\(venues\|\|posRegister\.sessionVenues\(s\)\)\),\{table:s\.table_no\}\)/, '結帳只認這桌品牌所屬組的自訂收款帳戶');
+  assert.match(server, /tableOrders\.posCheckout\(s\.items,\{[^\n]*?operator\},menuAll,await activePaymentCodes\(posPaymentMethods\.groupsOf\(venues\|\|posRegister\.sessionVenues\(s\)\)\),\{table:s\.table_no,sentOnly:true\}\)/, '結帳只認這桌品牌所屬組的自訂收款帳戶');
   assert.match(server, /ALTER TABLE pos_payment_methods ADD COLUMN IF NOT EXISTS pm_group TEXT NOT NULL DEFAULT 'FNB'/);
   assert.match(server, /payment_methods:await paymentMethodsList\(posPaymentMethods\.groupsOf\(venues\)\)/, 'POS 輪詢只拿該品牌所屬組的帳戶');
   assert.match(server, /paymentMethodsList\(posPaymentMethods\.groupsOf\(\[reg\.venue\]\),\[reg\.venue\]\)/, '日結對帳帳戶只列該品牌所屬組');

@@ -7123,7 +7123,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     let tagDisc=null;if(req.body?.discount&&req.body.discount.tag){try{tagDisc=memberTags.tagDiscount(req.body.discount.tag,memberUser,verified);}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}}
     if(tagDisc){req.body.discount=tagDisc;memberActive=false;}
     if(req.body?.redeem_lines?.length&&!verified){await client.query('ROLLBACK');return res.status(400).json({error:'點數兌換請先掃會員條碼確認身分。'});}
-    let out,invoice,regWarn='',yanOut={earned:0,redeemed:0,balance:0};try{out=tableOrders.posCheckout(s.items,{...req.body,member:memberActive,staff:actorOf(req.auth)||'',operator},menuAll,await activePaymentCodes(posPaymentMethods.groupsOf(venues||posRegister.sessionVenues(s))),{table:s.table_no});invoice=ezpayInvoice.invoiceForm(req.body?.invoice||{});
+    let out,invoice,regWarn='',yanOut={earned:0,redeemed:0,balance:0};try{out=tableOrders.posCheckout(s.items,{...req.body,member:memberActive,staff:actorOf(req.auth)||'',operator},menuAll,await activePaymentCodes(posPaymentMethods.groupsOf(venues||posRegister.sessionVenues(s))),{table:s.table_no,sentOnly:true});invoice=ezpayInvoice.invoiceForm(req.body?.invoice||{});
       // 開關帳：品項所屬品牌今天的帳要開著（關帳後不能再結；沒開帳時超管放行但回警告，子帳號擋）
       regWarn=posRegister.checkoutAllowed(out.lines,await registersOpenMap(client,tableOrders.MenuLib.businessDay()),{strict:!!venues}).warning;
     }catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}

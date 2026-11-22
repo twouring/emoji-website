@@ -86,3 +86,24 @@ test('接線：客人加點／送單／線上付款、POS 加點／送單都擋�
   const a = readFileSync(new URL('../public/admin.html', import.meta.url), 'utf8');
   assert.match(a, /hours_from: \(MENU_DOC\.items\.find/);   // 後台舊表單存檔要原樣帶回
 });
+
+test('櫃檯結帳只收已送出的：草稿不計費、指定草稿 409、預收不含草稿；時段內已送出的照常結帳（KK 11/22）', () => {
+  const T = require('../lib/table-orders.js');
+  const sent = { line: 'a1', item_id: 'm_hzlpmwnu', venue: 'CAFE', cat: 'JAPANESE', zh: '日式醬燒漢堡排定食', price: 339, qty: 1, by: '小明', guest: 'g1234567', order_id: null, added_at: '2026-11-23T05:50:00Z', placed_at: '2026-11-23T05:55:00Z' };   // 13:55 送出
+  const draft = { line: 'b2', item_id: 'm_hzlpmwnu', venue: 'CAFE', cat: 'JAPANESE', zh: '日式醬燒漢堡排定食', price: 259, qty: 1, by: '小華', guest: 'g7654321', order_id: null, added_at: '2026-11-23T05:58:00Z' };   // 13:58 加進購物車、沒送出
+  const counter = { line: 'c3', item_id: 'm_c', venue: 'CAFE', cat: 'COFFEE', zh: '美式咖啡', price: 120, qty: 1, by: '櫃檯', guest: 'posstaff00', order_id: null };
+  const after = Date.parse('2026-11-23T14:10:00+08:00');
+  const all = T.posCheckout([sent, draft, counter], { method: 'cash' }, new Map(), [], { table: 'A1', now: after, sentOnly: true });
+  assert.deepEqual(all.lines.map(l => l.line).sort(), ['a1', 'c3'], '14:00 後結帳：已送出＋櫃檯代點可結，草稿不收');
+  assert.equal(all.amount, 459);
+  const mine = T.posCheckout([sent, draft], { method: 'cash', lines: ['a1'] }, new Map(), [], { table: 'A1', now: after, sentOnly: true });
+  assert.equal(mine.amount, 339);
+  assert.throws(() => T.posCheckout([sent, draft], { method: 'cash', lines: ['a1', 'b2'] }, new Map(), [], { table: 'A1', now: after, sentOnly: true }), e => e.status === 409 && /還沒送出/.test(e.message));
+  assert.throws(() => T.posCheckout([draft], { method: 'cash' }, new Map(), [], { table: 'A1', now: after, sentOnly: true }), /沒有可結帳/);
+  assert.throws(() => T.posCheckout([sent, draft], { method: 'cash', prepay: 400 }, new Map(), [], { table: 'A1', now: after, sentOnly: true }), /小於這桌未結金額 NT\$339/, '預收上限只算已送出的');
+  const s = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+  assert.match(s, /\{table:s\.table_no,sentOnly:true\}\);invoice=ezpayInvoice/, '櫃檯結帳路由帶 sentOnly');
+  assert.match(readFileSync(new URL('../lib/linepay-pos.js', import.meta.url), 'utf8'), /methods,\{table:s\.table_no,sentOnly:true\}\)/, 'LINE Pay 收款帶 sentOnly');
+  const every = [...s.matchAll(/tableOrders\.posCheckout\(/g)].length;
+  assert.equal(every, [...s.matchAll(/tableOrders\.posCheckout\([^\n]*?sentOnly:true\}\)/g)].length, 'server.js 每個 posCheckout 呼叫都要帶 sentOnly:true');
+});
