@@ -376,6 +376,7 @@ tr.lp-refund td{color:var(--danger)}
 .reason-chips--inline{flex-basis:100%;margin:4px 0 0}
 .pos-sum .pos-disc-presets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:stretch;margin:0;padding:4px 14px 10px;background:var(--card)}
 .pos-sum .pos-disc-presets button{text-align:center;padding:8px 6px}
+.pos-sum .pos-disc-presets button:last-child:nth-child(odd){grid-column:1/-1}
 .op-card.pos-reason{max-width:520px}
 .pos-notice-hint,.pos-notice-last{margin:4px 0 0;color:var(--muted,#6b6760);font-size:1rem;line-height:1.5}
 .pos-notice-preview{margin:12px 0 0;padding:12px 14px;border-radius:12px;background:var(--accent-soft);font-size:1rem;line-height:1.5;overflow-wrap:anywhere}

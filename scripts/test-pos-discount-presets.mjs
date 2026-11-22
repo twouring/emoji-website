@@ -16,6 +16,8 @@ test('常用折扣清單：每筆都有類型、數值、原因與標籤', () =>
     assert.ok(d.reason && d.label);
   }
   assert.ok(list.some(d => d.reason === '員工' && d.value === 20));
+  // 聚落折扣（KK 11/23）：9 折
+  assert.ok(list.some(d => d.type === 'percent' && d.value === 10 && d.reason === '聚落' && d.label === '聚落 9 折'));
   // 免費兌換（KK 11/9）：100% 折扣，應收 0、服務費跟著歸零、0 元單不開發票
   assert.ok(list.some(d => d.type === 'percent' && d.value === 100 && d.reason === '免費兌換' && d.label === '免費兌換'));
 });

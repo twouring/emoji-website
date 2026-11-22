@@ -52,7 +52,7 @@ const opsHelp=tipIcon;
 /* 來源調查（KK 11/8）：結帳時問客人怎麼知道我們，必選一項（KK 11/15 改必填，平均分攤只在最後一人問）；與 lib/table-orders.js SOURCE_OPTIONS 一致 */
 const SOURCE_OPTIONS=[['walk','路過'],['friend','朋友'],['ig','IG'],['threads','Threads'],['google','Google'],['gpt','GPT'],['event','活動'],['regular','回頭客'],['other','其他']];
 let POS_SOURCE='';POS_METHOD='';
-const DISCOUNT_PRESETS=[{type:'percent',value:20,reason:'員工',label:'員工 8 折'},{type:'percent',value:30,reason:'股東',label:'股東 7 折'},{type:'percent',value:20,reason:'親友',label:'親友 8 折'},{type:'percent',value:100,reason:'免費兌換',label:'免費兌換'}];
+const DISCOUNT_PRESETS=[{type:'percent',value:20,reason:'員工',label:'員工 8 折'},{type:'percent',value:30,reason:'股東',label:'股東 7 折'},{type:'percent',value:20,reason:'親友',label:'親友 8 折'},{type:'percent',value:10,reason:'聚落',label:'聚落 9 折'},{type:'percent',value:100,reason:'免費兌換',label:'免費兌換'}];
 const REASON_PRESETS={
   void_order:['客人取消','點錯單','重複結帳','金額錯誤','付款失敗'],
   void_line:['點錯品項','客人取消','重複點餐','今日估清'],
