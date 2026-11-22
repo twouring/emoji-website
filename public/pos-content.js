@@ -65,7 +65,7 @@ function mcEdit(it,host){
       <label class="mc-wide">中文品名<input id="mc-zh" maxlength="80" required value="${esc(v.zh)}" autocomplete="off"${dis}></label>
       <label>分類<select id="mc-cat"${dis}>${cats.map(c=>`<option value="${esc(c)}" ${c===v.cat?'selected':''}>${esc(mcCatLabel(c))}</option>`).join('')}</select></label>
       <label>售價<input id="mc-price" type="number" inputmode="numeric" min="0" max="100000" value="${esc(v.price)}" required${dis}></label>
-      <label>會員價<input id="mc-emo" type="number" inputmode="numeric" min="0" max="100000" value="${esc(v.emo||'')}" placeholder="空白＝九折"${dis}></label>
+      <label${MenuLib.HUB_PRICE_ON?'':' hidden'}>會員價<input id="mc-emo" type="number" inputmode="numeric" min="0" max="100000" value="${esc(v.emo||'')}" placeholder="空白＝九折"${dis}></label>
       <label>兌換點數<input id="mc-points" type="number" inputmode="numeric" min="0" max="100000" value="${esc(v.points||'')}" placeholder="0＝不開放"${dis}></label>
       <label>排序<input id="mc-sort" type="number" inputmode="numeric" min="0" max="100000" value="${esc(v.sort)}"${dis}></label>
       <label class="mc-wide">英文品名<input id="mc-en" maxlength="80" value="${esc(v.en)}" autocomplete="off"${dis}></label>

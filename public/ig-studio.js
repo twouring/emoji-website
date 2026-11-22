@@ -18,7 +18,7 @@
   // ---- 狀態（預設帶示範內容，避免空白預覽） ----
   const state = {
     category: '01', variant: 'a', format: 'portrait',
-    dark: false, showEn: true, showMember: true, hl: true,
+    dark: false, showEn: true, showMember: false,   /* 聚落價暫停（KK 11/23）：恢復時改回 true 並拿掉下面兩處 hidden */ hl: true,
     photo: '',                 // dataURL
     handle: '@emoji0701', place: '重慶南路',
     // product
@@ -986,7 +986,7 @@
       <div class="ig-seg" style="gap:12px">
         <label style="flex:1">單位<input data-k="p_unit" value="${H(state.p_unit)}"></label>
         <label style="flex:1">原價<input data-k="p_price" type="number" value="${H(state.p_price)}"></label>
-        <label style="flex:1">聚落價<input data-k="p_emo" type="number" value="${H(state.p_emo)}"></label>
+        <label style="flex:1" hidden>聚落價<input data-k="p_emo" type="number" value="${H(state.p_emo)}"></label>
       </div>
       <label style="flex-direction:row;align-items:center;gap:.4em"><input type="checkbox" data-k="p_alcohol" ${state.p_alcohol ? 'checked' : ''}> 含酒精（人工標記，匯出將自動附加警語）</label>
       ${state.p_alcohol ? '<p class="ig-hint ig-hint--warn">已標記酒精飲品：匯出將自動附加法定警語，且無法在缺少警語時匯出。</p>' : ''}`,
@@ -1220,7 +1220,7 @@
         <div class="ig-toggles">
           <label><input type="checkbox" data-t="dark"${state.dark ? ' checked' : ''}${currentLayout().forceDark ? ' disabled' : ''}> 暗底</label>
           <label><input type="checkbox" data-t="showEn"${state.showEn ? ' checked' : ''}> 顯示英文</label>
-          <label><input type="checkbox" data-t="showMember"${state.showMember ? ' checked' : ''}> 顯示聚落價</label>
+          <label hidden><input type="checkbox" data-t="showMember"${state.showMember ? ' checked' : ''}> 顯示聚落價</label>
           <label><input type="checkbox" data-t="hl"${state.hl ? ' checked' : ''}> 標題重點</label>
         </div>
         <div id="ig-fields"></div>

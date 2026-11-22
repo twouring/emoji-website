@@ -142,6 +142,8 @@
 
   // 會員價：品項有填 emo（>0）就用它；空白／0＝原價九折（四捨五入）。現場輸入金額的品項（custom_price）不打折。
   const MEMBER_RATE = 0.9;
+  // 聚落價總開關（KK 2026-11-23 暫時移除聚落價）：false＝結帳不套、POS／點餐頁／官網／後台都不顯示；品項 emo 資料保留，恢復時改回 true
+  const HUB_PRICE_ON = false;
   function memberPrice(item, base) {
     if (!item) return 0;
     const price = Number.isFinite(Number(base)) && base !== undefined && base !== null ? Number(base) : Number(item.price);
@@ -465,7 +467,7 @@
   const pick = (label, lang) => label[lang] || label.zh;
   // 公開菜單暫不顯示聚落價的店別（KK 2026-11-04：在咖啡官網先不放聚落價）；POS／App 結帳照常套用
   const HIDE_MEMBER_PRICE_VENUES = ['CAFE', 'BAR'];
-  const showMemberPrice = it => !HIDE_MEMBER_PRICE_VENUES.includes(it.venue) && memberPrice(it) > 0 && memberPrice(it) < it.price;
+  const showMemberPrice = it => HUB_PRICE_ON && !HIDE_MEMBER_PRICE_VENUES.includes(it.venue) && memberPrice(it) > 0 && memberPrice(it) < it.price;
 
   function groupBy(items, key) {
     const map = {}; const order = [];
@@ -554,7 +556,7 @@
   }
 
   global.MenuLib = {
-    CATS, VENUES, ITEM_VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, BAR_STATION_CATS, MEMBER_RATE, BAR_POLICY_FROM, CAFE_POLICY_FROM, SERVICE_RATE, MIN_SPEND, CAFE_MIN_SPEND, barPolicyActive, cafePolicyActive, minSpendOf, cafeMinimumOf, serviceCharge, memberPrice, activeVenue, orderWindow, orderableInWindow, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
+    CATS, VENUES, ITEM_VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, BAR_STATION_CATS, MEMBER_RATE, HUB_PRICE_ON, BAR_POLICY_FROM, CAFE_POLICY_FROM, SERVICE_RATE, MIN_SPEND, CAFE_MIN_SPEND, barPolicyActive, cafePolicyActive, minSpendOf, cafeMinimumOf, serviceCharge, memberPrice, activeVenue, orderWindow, orderableInWindow, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
     normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, normalizeOptions, optionsToText, optionsFromText, optionChoiceText, optionAdd, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, comboChoiceOk, comboOffChoices, comboAvailable, isShop, SPACE_CATS, isBook, isRetail, normalizeIsbn, ISBN13_RE, isShared, isStoreItem, inVenue, forVenue, SHARED_CATS, soldOutToday, stockLeft, shownCat, hasServiceHours, inServiceHours, serviceHoursText, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

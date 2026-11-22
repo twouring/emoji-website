@@ -17,7 +17,7 @@ let POS_UNSENT_ALERTED=new Set();
 const CHECKOUT_TIP='<b>這桌的帳</b><br>品項依點餐人分組；勾選左邊決定這次結哪些，組頭「只結這組」＝各付各的、「結帳全部」＝整桌一起結，「依人數分次收款」＝平均分攤；可分多次收款，全部結清自動清桌。數量旁「−／＋」改份數，品項有「本次結」可只結幾份。<br>'
  +'<b>＋ 加點</b>：展開菜單點品項，備註可點常用的。送單後會出現在「出餐」。<br>'
  +'<b>換桌／併桌、清桌</b>：搬到別桌或合併；客人走了、沒有未結帳的品項才清桌。<br>'
- +'<b>會員</b>：輸入手機按「查會員」或「掃會員」；手機還不是會員會自動新增並累點。有效會籍（掃會員）自動套聚落價；點數用品項旁的「點數兌換」。<br>'
+ +'<b>會員</b>：輸入手機按「查會員」或「掃會員」；手機還不是會員會自動新增並累點。點數用品項旁的「點數兌換」。<br>'
  +'<b>折扣</b>：按「加折扣」選折％或折抵金額，原因必填。<br>'
  +'<b>付款</b>：選方式；現金輸入實收會算找零；「混合付款」每種方式各填金額，合計要等於應收。<br>'
  +'<b>電子發票</b>：預設不開立，可選紙本、統編、手機載具、自然人憑證、捐贈。<br>'
@@ -1604,7 +1604,7 @@ if(typeof document!=='undefined'&&typeof document.addEventListener==='function')
 function posTotals(cur){
   const menuById=new Map((MENU_DOC?.items||[]).map(it=>[it.id,it]));
   const redeemSet=POS_YAN.id&&POS_YAN.redeemSet?POS_YAN.redeemSet:null;
-  const priceOf=l=>{if(l.comp_reason)return 0;const it=menuById.get(l.item_id);if(redeemSet&&redeemSet.has(l.line)&&it&&it.points>0)return 0;if(!POS_MEMBER||!it)return l.price;const mp=MenuLib.memberPrice(it,l.price);return mp>0&&mp<l.price?mp:l.price;};
+  const priceOf=l=>{if(l.comp_reason)return 0;const it=menuById.get(l.item_id);if(redeemSet&&redeemSet.has(l.line)&&it&&it.points>0)return 0;if(!POS_MEMBER||!MenuLib.HUB_PRICE_ON||!it)return l.price;const mp=MenuLib.memberPrice(it,l.price);return mp>0&&mp<l.price?mp:l.price;};
   const picked=cur.lines.filter(l=>!POS_PICK||POS_PICK.has(l.line)).map(l=>POS_QTY[l.line]>0&&POS_QTY[l.line]<l.qty?{...l,qty:POS_QTY[l.line],full_qty:l.qty}:l);
   const regular=picked.reduce((a,l)=>a+(l.comp_reason?0:l.price)*l.qty,0);
   const subtotal=picked.reduce((a,l)=>a+priceOf(l)*l.qty,0);
@@ -1915,14 +1915,14 @@ function posAutoMember(cur){const m=cur&&(cur.members||[])[0];if(!m||POS_YAN.id|
 function posApplyCarrier(out){const c=out&&out.carrier,id=out&&out.member&&out.member.id;if(!c||!id||!c.carrier_num)return '';if(POS_INVOICE.mode!=='paper'||(POS_INV_VALS.carrier_num||'').trim())return '';POS_INVOICE={mode:c.mode,auto:id,autoNum:c.carrier_num};POS_INV_VALS.carrier_num=c.carrier_num;return '，已帶入'+(INV_LABEL[c.mode]||'載具')+' '+c.carrier_num;}
 function posCarrierSync(){if(!POS_INVOICE.auto||POS_INVOICE.auto===POS_YAN.id)return;if(POS_INV_VALS.carrier_num===POS_INVOICE.autoNum)delete POS_INV_VALS.carrier_num;POS_INVOICE={mode:'paper'};}
 function tableMembersHtml(cur){const ms=(cur&&cur.members)||[];if(!ms.length)return '';return `<div class="pos-table-members"><p class="hint hint--tight">這桌手機已登入的會員（自動帶入第一位，點一下可切換）：</p><div class="pos-table-members__list">${ms.map(m=>`<button type="button" class="btn ${POS_YAN.id===m.id?'btn--solid':'btn--ghost'} btn-xs" data-table-member="${esc(m.id)}" aria-pressed="${POS_YAN.id===m.id}">${esc(m.name||'會員')}</button>`).join('')}</div></div>`;}
-function memberStatusText(){ if(POS_YAN.id&&POS_YAN.tag)return POS_YAN.tag.label+'身分 · '+zheText(POS_YAN.tag.percent)+(POS_DISCOUNT&&POS_DISCOUNT.tag?'（已套用）':''); if(POS_YAN.id)return POS_MEMBER?'有效會籍 · 已套聚落價':'註冊會員 · 無有效會籍，不適用聚落價'; return POS_YAN.created?'新會員 · 已用手機建立，結帳累點':POS_YAN.name?'手機會員 · 結帳累點':POS_YAN.phone?'結帳時查會員，沒有就自動新增並累點':''; }
+function memberStatusText(){ if(POS_YAN.id&&POS_YAN.tag)return POS_YAN.tag.label+'身分 · '+zheText(POS_YAN.tag.percent)+(POS_DISCOUNT&&POS_DISCOUNT.tag?'（已套用）':''); if(POS_YAN.id)return !MenuLib.HUB_PRICE_ON?(POS_MEMBER?'有效會籍 · 結帳累點':'註冊會員 · 結帳累點'):POS_MEMBER?'有效會籍 · 已套聚落價':'註冊會員 · 無有效會籍，不適用聚落價'; return POS_YAN.created?'新會員 · 已用手機建立，結帳累點':POS_YAN.name?'手機會員 · 結帳累點':POS_YAN.phone?'結帳時查會員，沒有就自動新增並累點':''; }
 // 會員彈窗：查詢、掃描、移除與完整會籍／點數資訊都在這裡；結帳主畫面只留一個精簡入口
 function openMemberDialog(cur){
   const {ov,close}=pickOverlay('','會員');ov.classList.add('pos-member-ov');
   const box=ov.querySelector('.pos-move-box'),same=()=>POS_TABLE===cur.table;
   ov.onclick=e=>{if(e.target===ov)box.querySelector('[data-done]')?.click();};
   const render=()=>{
-    box.innerHTML=`<h3>會員${tipIcon('輸入手機查會員，還不是會員會自動新增；或掃會員 App 的條碼。有效會籍自動套聚落價。')}</h3>${POS_YAN.name||POS_YAN.phone?`<div class="pos-member-who"><b>${esc(POS_YAN.name||POS_YAN.phone)}</b><br>${esc(memberStatusText())}${POS_YAN.id?`<br>點數 ${num(POS_YAN.balance||0)} 點（點品項「⋯」的「點數兌換」換餐飲或服務，不折抵金額）`:''}</div>`:'<p class="hint">還沒選會員。輸入客人手機，不是會員會自動新增；或掃描會員條碼。</p>'}${tableMembersHtml(cur)}<div class="pos-member-bar"><input id="pos-yan-phone" inputmode="tel" maxlength="20" placeholder="客人手機 09…" value="${esc(POS_YAN.phone||'')}" aria-label="客人手機"><button type="button" class="btn btn--ghost btn-xs" id="pos-yan-lookup">查會員</button><button type="button" class="btn btn--ghost btn-xs" id="pos-yan-scan">掃會員</button>${POS_YAN.id||POS_YAN.phone?'<button type="button" class="btn btn--ghost btn-xs" id="pos-yan-clear">移除</button>':''}</div><div class="pos-move-foot"><button type="button" class="btn btn--solid" data-done>完成</button></div>`;
+    box.innerHTML=`<h3>會員${tipIcon('輸入手機查會員，還不是會員會自動新增；或掃會員 App 的條碼。')}</h3>${POS_YAN.name||POS_YAN.phone?`<div class="pos-member-who"><b>${esc(POS_YAN.name||POS_YAN.phone)}</b><br>${esc(memberStatusText())}${POS_YAN.id?`<br>點數 ${num(POS_YAN.balance||0)} 點（點品項「⋯」的「點數兌換」換餐飲或服務，不折抵金額）`:''}</div>`:'<p class="hint">還沒選會員。輸入客人手機，不是會員會自動新增；或掃描會員條碼。</p>'}${tableMembersHtml(cur)}<div class="pos-member-bar"><input id="pos-yan-phone" inputmode="tel" maxlength="20" placeholder="客人手機 09…" value="${esc(POS_YAN.phone||'')}" aria-label="客人手機"><button type="button" class="btn btn--ghost btn-xs" id="pos-yan-lookup">查會員</button><button type="button" class="btn btn--ghost btn-xs" id="pos-yan-scan">掃會員</button>${POS_YAN.id||POS_YAN.phone?'<button type="button" class="btn btn--ghost btn-xs" id="pos-yan-clear">移除</button>':''}</div><div class="pos-move-foot"><button type="button" class="btn btn--solid" data-done>完成</button></div>`;
     const phone=box.querySelector('#pos-yan-phone');
     phone.onchange=e=>{POS_YAN={phone:e.target.value.trim(),name:'',balance:null,sessionId:cur.id};posClearTag();POS_MEMBER=false;paintPos();};
     const after=()=>{paintPos();render();};
@@ -2114,7 +2114,7 @@ function paintPos(){
         <div class="pos-blk pos-blk--sum"><div class="pos-blk-h"><b>結帳內容</b>${aa?'':`<button type="button" class="pos-link" id="pos-aa-open" ${checkoutLines.some(l=>!l.credit_of)?'':'disabled'}>平均分攤</button>`}</div>
         <div class="pos-sum">
           <div class="pos-sum-sub" ${(POS_PICK&&POS_PICK.size<checkoutLines.length)||Object.keys(POS_QTY).length||memberSaving>0||discount||svc?'':'hidden'}><span>${(POS_PICK&&POS_PICK.size<checkoutLines.length)||Object.keys(POS_QTY).length?`部分結帳 ${picked.length}／${checkoutLines.length} 項`:memberSaving>0?'小計（原價）':'小計'}</span><span>NT$${num(regular)}</span></div>
-          ${POS_YAN.id||memberSaving>0?`<div class="pos-sum-member"><span>${POS_YAN.id?(POS_MEMBER?'<span class="pill pill-ok">有效會籍</span> 已套聚落價':'<span class="pill pill-wait">註冊會員</span> 無有效會籍，不適用聚落價'):'聚落價'}</span><span>${POS_MEMBER&&memberSaving?'−'+num(memberSaving):'—'}</span></div>`:''}
+          ${MenuLib.HUB_PRICE_ON&&(POS_YAN.id||memberSaving>0)?`<div class="pos-sum-member"><span>${POS_YAN.id?(POS_MEMBER?'<span class="pill pill-ok">有效會籍</span> 已套聚落價':'<span class="pill pill-wait">註冊會員</span> 無有效會籍，不適用聚落價'):'聚落價'}</span><span>${POS_MEMBER&&memberSaving?'−'+num(memberSaving):'—'}</span></div>`:''}
           ${aa?`<div class="pos-sum-aa"><span><span class="pill pill-wait">平均分攤</span> ${aa.people} 人 · 每人 NT$${num(aa.each)}${aa.gross%aa.people?`，尾差 NT$${num(aa.gross%aa.people)} 併入最後一人`:''}</span><span><b>${aa.last?'最後一人':`第 ${aa.index}／${aa.people} 人`}</b> <button type="button" class="btn btn--ghost btn-xs" id="pos-aa-clear">取消分攤</button></span></div>`:''}
           <div class="pos-sum-disc" ${aa?'hidden':''}><span>折扣 ${POS_DISCOUNT?`<span class="pill pill-ok">${esc(discountText(POS_DISCOUNT))}</span> <button type="button" class="btn btn--ghost btn-xs" id="pos-disc-clear">移除</button>`:`<button type="button" class="btn btn--ghost btn-xs" id="pos-disc-open">${POS_DISC_OPEN?'收起':'自訂'}</button>`}</span><span>${discount?'−'+num(discount):'—'}</span></div>
           ${!aa&&!POS_DISCOUNT&&!POS_DISC_OPEN?`<div class="reason-chips pos-disc-presets" role="group" aria-label="常用折扣">${DISCOUNT_PRESETS.map((d,i)=>`<button type="button" data-disc-preset="${i}">${esc(d.label)}</button>`).join('')}</div>`:''}

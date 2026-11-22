@@ -107,7 +107,7 @@ function frontCtx(state) {
   const fn = src.slice(0, src.indexOf('\n}\n') + 2);
   const aaLine = ops.match(/\n\s*(aa=POS_AA\?\(\(\)=>\{[^\n]*?\}\)\(\):null;)/)[1];
   const MenuLib = require('../public/menu-lib.js') || globalThis.MenuLib;
-  const ctx = vm.createContext({ MenuLib: globalThis.MenuLib || MenuLib, MENU_DOC: { items: [...menuAll.values()] }, POS_YAN: {}, POS_MEMBER: false, POS_PICK: null, POS_QTY: {}, POS_DISCOUNT: null, POS_SVC_WAIVE: null, POS_AA: null, ...state });
+  const ctx = vm.createContext({ MenuLib: { ...(globalThis.MenuLib || MenuLib), HUB_PRICE_ON: true }, MENU_DOC: { items: [...menuAll.values()] }, POS_YAN: {}, POS_MEMBER: false, POS_PICK: null, POS_QTY: {}, POS_DISCOUNT: null, POS_SVC_WAIVE: null, POS_AA: null, ...state });
   vm.runInContext(fn + `\nfunction aaOf(cur,checkoutLines){let aa;${aaLine}return aa;}`, ctx);
   return ctx;
 }
@@ -157,7 +157,7 @@ test('缺口記錄：分攤模式沒有鎖會員入口；前 N−1 人收款後�
 test('前端：分攤時折扣被清掉、折扣列隱藏；聚落價列仍顯示', () => {
   assert.match(ops, /function startAA\(people\)\{POS_AA=\{people\};POS_PICK=null;POS_QTY=\{\};POS_DISCOUNT=null;/);
   assert.match(ops, /<div class="pos-sum-disc" \$\{aa\?'hidden':''\}>/);
-  assert.match(ops, /\$\{POS_YAN\.id\|\|memberSaving>0\?`<div class="pos-sum-member">/, '聚落價列沒有 aa 判斷');
+  assert.match(ops, /\$\{MenuLib\.HUB_PRICE_ON&&\(POS_YAN\.id\|\|memberSaving>0\)\?`<div class="pos-sum-member">/, '聚落價列沒有 aa 判斷（只受總開關控制）');
 });
 
 test('LINE Pay API 收款：分攤、會員一律擋（前後端）', () => {

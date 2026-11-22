@@ -1047,7 +1047,7 @@ function tabMenu(d){
       <td>${esc(it.zh)}</td>
       <td class="a-mono">${esc(it.en)}</td>
       <td class="num">${NT(it.price)}</td>
-      <td class="num">${it.custom_price ? '—' : NT(MenuLib.memberPrice(it))}${it.emo > 0 ? '' : ' <small class="hint">九折</small>'}</td>
+      ${MenuLib.HUB_PRICE_ON ? `<td class="num">${it.custom_price ? '—' : NT(MenuLib.memberPrice(it))}${it.emo > 0 ? '' : ' <small class="hint">九折</small>'}</td>` : ''}
       <td class="num">${it.points > 0 ? it.points + ' 點' : '—'}</td>
       <td>${it.alcohol ? '<span class="pill pill-wait">酒精</span>' : ''}</td>
       <td>${it.published ? '<span class="pill pill-ok">已發布</span>' : '<span class="pill pill-wait">未發布</span>'}${MenuLib.soldOutToday(it) ? ' <span class="pill pill-bad">今日估清</span>' : ''}${(it.available_from || it.available_to) ? ` <span class="pill pill-draft" title="供應期間">${esc(it.available_from || '…')}～${esc(it.available_to || '…')}</span>` : ''}${it.custom_price ? ' <span class="pill pill-draft" title="點餐時店員現場輸入金額">現場輸入金額</span>' : ''}${it.pos_only ? ' <span class="pill pill-wait" title="客人掃碼點餐看不到，只在 POS／後台加點">POS 限定</span>' : ''}</td>
@@ -1073,7 +1073,7 @@ function tabMenu(d){
       <button class="btn btn--solid btn-sm" id="menu-save-server">儲存至伺服器</button>
     </div>
     <div class="a-wrap2"><table class="a-tbl">
-      <thead><tr><th>圖</th><th>店別</th><th>分類</th><th>中文</th><th>英文</th><th class="num">原價</th><th class="num">聚落價</th><th class="num">兌換點數</th><th>酒精</th><th>發布</th><th>操作</th></tr></thead>
+      <thead><tr><th>圖</th><th>店別</th><th>分類</th><th>中文</th><th>英文</th><th class="num">原價</th>${MenuLib.HUB_PRICE_ON ? '<th class="num">聚落價</th>' : ''}<th class="num">兌換點數</th><th>酒精</th><th>發布</th><th>操作</th></tr></thead>
       <tbody id="mi-body">${body}</tbody></table></div>
     <div class="a-form" style="margin-top:16px;border-top:1px dashed var(--line);padding-top:16px">
       <input type="hidden" id="mi-id">
@@ -1084,7 +1084,7 @@ function tabMenu(d){
       <label>日文<input id="mi-ja" placeholder="品名（日本語）"></label>
       <label>韓文<input id="mi-ko" placeholder="품명 (한국어)"></label>
       <label>原價<input id="mi-price" type="number" min="0" value="0" style="width:100px"></label>
-      <label title="有效會籍的會員適用。留 0＝自動原價九折；填數字＝指定聚落價">聚落價（0＝九折）<input id="mi-emo" type="number" min="0" value="0" style="width:100px"></label>
+      <label title="有效會籍的會員適用。留 0＝自動原價九折；填數字＝指定聚落價"${MenuLib.HUB_PRICE_ON ? '' : ' hidden'}>聚落價（0＝九折）<input id="mi-emo" type="number" min="0" value="0" style="width:100px"></label>
       <label title="換這個品項（餐飲或服務）要幾點，每份；留 0＝不開放點數兌換。點數只能換品項，不折抵金額">兌換點數<input id="mi-points" type="number" min="0" value="0" style="width:90px"></label>
       <label>排序<input id="mi-sort" type="number" value="0" style="width:80px"></label>
       <label style="flex:1;min-width:180px">備註<input id="mi-note" placeholder="例：含酒精 / 黑糖 / 焦糖"></label>
