@@ -125,6 +125,9 @@
   const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
   const timeOrEmpty = v => (TIME_RE.test(String(v || '').trim()) ? String(v).trim() : '');
   const hm = t => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+  /* 顯示分類（KK 11/23）：只影響菜單分組與排序（官網、點餐頁、App、POS 一致），計價、選項、出餐站、低消、會員價仍看 cat。
+     例：商業午餐 cat=JAPANESE、display_cat=COMBO＝排在套餐區 */
+  function shownCat(item) { return (item && item.display_cat) || (item && item.cat) || ''; }
   function hasServiceHours(item) { return !!item && !!item.hours_from && !!item.hours_to && item.hours_from !== item.hours_to; }
   function inServiceHours(item, now) {
     if (!hasServiceHours(item)) return true;
@@ -291,6 +294,7 @@
       stock_left: stockOrNull(raw.stock_left),           // 剩幾份（null＝不限量）；送單扣、扣到 0＝售完
       available_from: dateOrEmpty(raw.available_from),   // 特餐排程：只在這段營業日可點（含）
       available_to: dateOrEmpty(raw.available_to),
+      ...(raw.display_cat && CATS.includes(raw.display_cat) && raw.display_cat !== cat && cat !== 'COMBO' && !['SHOP', 'BOOK', 'LOUNGE', 'QUIET', 'SPACE'].includes(cat) ? { display_cat: raw.display_cat } : {}),   // 顯示分類（只影響分組排序）
       ...(timeOrEmpty(raw.hours_from) && timeOrEmpty(raw.hours_to) && timeOrEmpty(raw.hours_from) !== timeOrEmpty(raw.hours_to) ? { hours_from: timeOrEmpty(raw.hours_from), hours_to: timeOrEmpty(raw.hours_to) } : {}),   // 每日供應時段（沒設＝整個營業時段）
       ...(cat === 'BOOK' ? bookFields(raw) : {}),
       ...spaceFields(raw, cat),
@@ -447,7 +451,7 @@
     return items.slice().sort((a, b) => {
       const va = ITEM_VENUES.indexOf(a.venue) - ITEM_VENUES.indexOf(b.venue);
       if (va !== 0) return va;
-      const ca = CATS.indexOf(a.cat) - CATS.indexOf(b.cat);
+      const ca = CATS.indexOf(shownCat(a)) - CATS.indexOf(shownCat(b));
       if (ca !== 0) return ca;
       return (a.sort - b.sort) || a.zh.localeCompare(b.zh, 'zh-Hant');
     });
@@ -517,7 +521,7 @@
       const sub = lang === 'en' ? label.zh : label.en;
       return '<section class="menu-venue" id="menu-' + venue.toLowerCase() + '"><h2 class="menu-venue__title">' +
         esc(title) + '<span class="menu-venue__sub">' + esc(sub) + '</span></h2>' +
-        groupBy(list, 'cat').map(([cat, l]) => renderGroup(cat, l, lang)).join('') + '</section>';
+        groupBy(list.map(it => ({ ...it, _shown: shownCat(it) })), '_shown').map(([cat, l]) => renderGroup(cat, l, lang)).join('') + '</section>';
     }).join('');
     if (items.some(showMemberPrice)) {
       const N = {
@@ -551,6 +555,6 @@
 
   global.MenuLib = {
     CATS, VENUES, ITEM_VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, BAR_STATION_CATS, MEMBER_RATE, BAR_POLICY_FROM, CAFE_POLICY_FROM, SERVICE_RATE, MIN_SPEND, CAFE_MIN_SPEND, barPolicyActive, cafePolicyActive, minSpendOf, cafeMinimumOf, serviceCharge, memberPrice, activeVenue, orderWindow, orderableInWindow, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
-    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, normalizeOptions, optionsToText, optionsFromText, optionChoiceText, optionAdd, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, comboChoiceOk, comboOffChoices, comboAvailable, isShop, SPACE_CATS, isBook, isRetail, normalizeIsbn, ISBN13_RE, isShared, isStoreItem, inVenue, forVenue, SHARED_CATS, soldOutToday, stockLeft, hasServiceHours, inServiceHours, serviceHoursText, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
+    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, normalizeOptions, optionsToText, optionsFromText, optionChoiceText, optionAdd, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, comboChoiceOk, comboOffChoices, comboAvailable, isShop, SPACE_CATS, isBook, isRetail, normalizeIsbn, ISBN13_RE, isShared, isStoreItem, inVenue, forVenue, SHARED_CATS, soldOutToday, stockLeft, shownCat, hasServiceHours, inServiceHours, serviceHoursText, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

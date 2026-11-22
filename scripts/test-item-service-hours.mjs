@@ -107,3 +107,48 @@ test('櫃檯結帳只收已送出的：草稿不計費、指定草稿 409、預�
   const every = [...s.matchAll(/tableOrders\.posCheckout\(/g)].length;
   assert.equal(every, [...s.matchAll(/tableOrders\.posCheckout\([^\n]*?sentOnly:true\}\)/g)].length, 'server.js 每個 posCheckout 呼叫都要帶 sentOnly:true');
 });
+
+test('顯示分類 display_cat（KK 11/23）：商業午餐排在套餐區第一、只出現一次；計價／選項／出餐站仍依原分類', () => {
+  const T = require('../lib/table-orders.js');
+  const combo = (id, sort) => M.normalizeItem({ id, venue: 'CAFE', cat: 'COMBO', zh: id, price: 300, published: true, sort, combo: [{ label: '飲品', choices: [{ zh: '美式咖啡' }] }] });
+  const biz = M.normalizeItem({ ...lunch, zh: '商業午餐｜日式醬燒漢堡排定食', display_cat: 'COMBO', sort: 0 });
+  const salad = M.normalizeItem({ id: 's1', venue: 'CAFE', cat: 'SALAD', zh: '沙拉', price: 200, published: true, sort: 10 });
+  const onigiri = M.normalizeItem({ id: 'j1', venue: 'CAFE', cat: 'JAPANESE', zh: '飯糰', price: 220, published: true, sort: 80 });
+  const items = [onigiri, salad, combo('c6', 6), biz, combo('c5', 5), coffee];
+  const sorted = M.sortItems(items).map(x => x.id);
+  assert.deepEqual(sorted, ['m_hzlpmwnu', 'c5', 'c6', 's1', 'j1', 'm_c'], '商業午餐在套餐區最前，其他相對順序不變');
+  assert.equal(biz.cat, 'JAPANESE');
+  assert.equal(M.shownCat(biz), 'COMBO');
+  assert.equal(M.shownCat(onigiri), 'JAPANESE');
+  const html = M.renderMenuHtml(M.sortItems(items), 'zh');
+  assert.equal(html.split('<span class="menu-item__zh">商業午餐｜日式醬燒漢堡排定食').length - 1, 1, '官網只出現一次');
+  const firstGroup = html.split('<section class="menu-group">')[1];
+  assert.match(firstGroup, /menu-group__zh">套餐</);
+  assert.ok(firstGroup.indexOf('商業午餐') < firstGroup.indexOf('c5'), '第一個套餐區的首位');
+  assert.equal(M.optionAdd(biz, '加購飲品：美式咖啡 +$80'), 80, '仍是一般品項加選項（可不加購）');
+  assert.equal(M.memberPrice(biz), M.memberPrice(lunch), '會員價不變');
+  assert.equal(M.stationOf(biz), 'kitchen');
+  const menu = new Map([[biz.id, biz]]);
+  const line = T.addLine([], menu, { item_id: biz.id, qty: 1, guest: 'guest0000001', note: '' })[0];
+  assert.equal(line.price, 259); assert.equal(line.cat, 'JAPANESE');
+  for (const bad of ['COMBO']) assert.equal(M.normalizeItem({ ...combo('cx', 1), display_cat: 'SALAD' }).display_cat, undefined, bad);
+  assert.equal(M.normalizeItem({ ...coffee, display_cat: 'NOPE' }).display_cat, undefined);
+  const json = M.stringifyDoc({ items: [lunch, coffee] });
+  const set = menuContent.editItem(json, { id: 'm_hzlpmwnu', display_cat: 'COMBO', sort: 0 }, {});
+  assert.equal(set.item.display_cat, 'COMBO'); assert.equal(set.item.cat, 'JAPANESE'); assert.equal(set.item.hours_from, '11:00'); assert.equal(set.item.image, lunch.image);
+  assert.equal(menuContent.view(set.item).display_cat, 'COMBO');
+  assert.equal(menuContent.editItem(set.json, { id: 'm_hzlpmwnu', display_cat: '' }, {}).item.display_cat, undefined);
+  assert.throws(() => menuContent.editItem(json, { id: 'm_hzlpmwnu', display_cat: 'xx' }, {}), /顯示分類/);
+});
+test('接線：點餐頁、App、POS（點餐格與估清）、官網 JSON-LD 都用 shownCat 分組', () => {
+  const o = readFileSync(new URL('../public/order.html', import.meta.url), 'utf8');
+  assert.match(o, /if\(MenuLib\.shownCat\(it\)!==cat\)\{cat=MenuLib\.shownCat\(it\);var c=MenuLib\.CAT_LABEL\[cat\][^\n]*menu-grid/);
+  assert.match(o, /if\(!next\|\|MenuLib\.shownCat\(next\)!==cat\)/);
+  assert.match(readFileSync(new URL('../public/m.html', import.meta.url), 'utf8'), /if\(MenuLib\.shownCat\(it\)!==cat\)/);
+  const p = readFileSync(new URL('../public/pos-ops.js', import.meta.url), 'utf8');
+  assert.match(p, /const cats=\[\.\.\.new Set\(menuItems\.map\(it=>MenuLib\.shownCat\(it\)\)\)\]/);
+  assert.match(p, /menuItems\.filter\(it=>!POS_CAT\|\|MenuLib\.shownCat\(it\)===POS_CAT\)/);
+  assert.match(p, /const c=MenuLib\.shownCat\(it\);if\(!groups\.has\(c\)\)/);
+  assert.match(readFileSync(new URL('../lib/public-render.js', import.meta.url), 'utf8'), /const shown = MenuLib\.shownCat\(it\);/);
+  assert.match(readFileSync(new URL('../public/admin.html', import.meta.url), 'utf8'), /display_cat: \(MENU_DOC\.items\.find/);
+});

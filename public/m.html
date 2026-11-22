@@ -727,7 +727,7 @@ input[type=checkbox],input[type=radio]{width:22px;height:22px;accent-color:var(-
     if(!items.length){host.innerHTML=`<p class="empty">${esc(T.menuEmpty)}</p>`;return;}
     let cat='',html='';
     for(const it of items){
-      if(it.cat!==cat){cat=it.cat;const label=MenuLib.CAT_LABEL[cat]||{};html+=`<div class="cat">${esc(label[LANG]||label.zh||cat)}</div>`;}
+      if(MenuLib.shownCat(it)!==cat){cat=MenuLib.shownCat(it);const label=MenuLib.CAT_LABEL[cat]||{};html+=`<div class="cat">${esc(label[LANG]||label.zh||cat)}</div>`;}
       const note=LANG==='ja'&&it.note_ja?it.note_ja:LANG==='en'&&it.note_en?it.note_en:LANG==='zh'?it.note:'';
       html+=`<div class="mi">${it.image?`<img src="${esc(imgUrl(it.image))}" alt="" loading="lazy">`:''}<div class="nm">${esc(itemName(it))}<small>NT$${esc(it.price)}${note?' · '+esc(note):''}</small></div></div>`;
     }
