@@ -2139,7 +2139,9 @@ async function sessionAuth(t) {
   // 沒有全域「活動主」角色：活動負責人或該場可管理的主辦團隊成員才進得了活動主入口；新活動只由平台建立
   const host = !isSuper && !user.is_admin
     ? (await q(`SELECT EXISTS(SELECT 1 FROM events WHERE owner_id=$1) OR EXISTS(SELECT 1 FROM event_hosts WHERE email=lower($2) AND can_manage=true) AS allowed`,[user.id,user.email])).rows[0]?.allowed : false;
-  return { ...p, email: user.email, super: isSuper, outreach_access, brands: isSuper ? null : parseBrands(user.admin_brand), can_create_events:isSuper || user.is_admin === true,
+  /* 內容管理員 Email（KK 11/22）：一般會員帳號（含遊遊愛馬仕 OAuth 服務帳號）只多開菜單品項 API，見 adminOnly */
+  const content_editor = !isSuper && user.is_admin !== true && menuContent.isContentEmail(user.email);
+  return { ...p, email: user.email, super: isSuper, outreach_access, content_editor, brands: isSuper ? null : parseBrands(user.admin_brand), can_create_events:isSuper || user.is_admin === true,
     role: isSuper || user.is_admin === true ? 'admin' : host ? 'organizer' : ['admin','organizer'].includes(p.role) ? 'invited' : p.role };
 }
 async function auth(req, res, next) {
@@ -2219,6 +2221,10 @@ const parseBrands = v => { const b = KNOWN_BRANDS.filter(x => String(v || '').sp
 const brandDenied = req => !!req.auth.brands && !req.auth.brands.some(b => BRAND_API[b]?.test(req.path) || (BRAND_API[b] === FOOD_API && req.path === '/api/admin/pos/drawer-events')) && !SHARED_API.test(req.path);
 const eventAdmin = req => req.auth.role === 'admin';
 function adminOnly(req, res, next) {
+  if (req.auth.role !== 'admin' && req.auth.content_editor && menuContent.CONTENT_API.test(req.path)) {
+    req.auth = { ...req.auth, brands: ADMIN_BRANDS.slice() };   // 內容管理員 Email：四品牌菜單品項，其餘仍是會員權限
+    return next();
+  }
   if (req.auth.role !== 'admin') return res.status(403).json({ error: '需要後台權限。' });
   if (brandDenied(req)) return res.status(403).json({ error: '此功能由言文字管理員管理。' });
   next();

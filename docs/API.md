@@ -757,6 +757,8 @@ POS 每 5 秒輪詢。回 `{ pending:[{id,session_id,table,by,amount,sfx,perform
 ### GET /api/admin/menu/items
 菜單內容（編輯用，KK 11/15）。回 `{ can_edit, cats, venues, items:[{ id, venue, cat, zh, en, ja, ko, price, emo, member_price, points, note, note_en, note_ja, note_ko, image, published, pos_only, custom_price, alcohol, sort, available_from, available_to, combo_text, options_text, auto_options, sold_out, stock_left, shared }] }`。`options_text`＝自訂選項（每行「名稱：選項、選項+加價」），`auto_options`＝是否套系統預設選項（冰熱／冰塊／飯量／麵量／甜點上餐時間）。品牌帳號只看自己品牌（含兩店共用的甜點、商店，`shared:true`），可帶 `?venue=`；書籍預設不列（`?books=1` 才列）。`can_edit`＝目前登入者能不能改：Email 管理員／品牌帳號為 true；POS 用 4 位數識別碼登入的員工，職稱含「內容管理員」或「店長」才是 true。
 
+內容管理員 Email（系統設定 `CONTENT_MANAGER_EMAILS`，逗號分隔，KK 11/22）：該 Email 的會員登入 token（含遊遊愛馬仕 OAuth 服務帳號換到的 token）可呼叫 `/api/admin/menu/items*`（查詢、新增、修改、照片），範圍四品牌，其他後台 API 仍回 403。
+
 ### POST /api/admin/menu/items
 新增菜單品項（內容管理員）。body `{ zh（必填）, cat, price, emo, points, en, ja, ko, note, note_en, note_ja, note_ko, published, sort, available_from, available_to, alcohol, pos_only, custom_price, combo_text, options_text, auto_options, venue }`。`options_text`＝自訂選項（KK 11/18）：每行一組「辣度：不辣、小辣、大辣」「加料：不加、加蛋+20」，第一個為預設；名稱最多 6 字、每組 2–12 個選項、最多 6 組，看不懂的行回 400；客人與 POS 點餐時單選，加價由伺服器依備註計算（會員價只折本價），套餐不適用。`auto_options:false`＝不套系統預設選項。品牌帳號固定新增到自己品牌（`venue` 只有言文字管理員要帶）；新增預設不上架。不能新增書籍（走約書旅書冊）。POS 識別碼登入的員工職稱要含「內容管理員」或「店長」，否則 403 `need_content_role`；MCP 金鑰看 `X-Staff-Pin` 那位員工的職稱。回 `{ ok, created:true, item }`，官網快取立即失效，記入 POS 操作紀錄。
 

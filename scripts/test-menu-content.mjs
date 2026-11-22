@@ -132,3 +132,19 @@ test('POS：設定底下有「菜單內容」分頁；員工職稱快選有內�
   assert.match(js, /1600\/Math\.max/);
   assert.doesNotMatch(read('public/pos-content.css'), /font-size:0?\.\d+rem/);
 });
+
+test('內容管理員 Email（KK 11/22）：系統設定名單比對、只開菜單品項 API', () => {
+  assert.equal(C.isContentEmail('ICYsh5ota@gmail.com', 'a@b.tw, icysh5ota@gmail.com'), true);
+  assert.equal(C.isContentEmail('x@gmail.com', 'icysh5ota@gmail.com'), false);
+  assert.equal(C.isContentEmail('', ''), false);
+  assert.ok(C.CONTENT_API.test('/api/admin/menu/items'));
+  assert.ok(C.CONTENT_API.test('/api/admin/menu/items/m1/photo'));
+  assert.ok(!C.CONTENT_API.test('/api/admin/menu/sold-out'));
+  assert.ok(!C.CONTENT_API.test('/api/admin/orders'));
+  assert.match(server, /content_editor = !isSuper && user\.is_admin !== true && menuContent\.isContentEmail\(user\.email\)/);
+  assert.match(server, /req\.auth\.content_editor && menuContent\.CONTENT_API\.test\(req\.path\)/);
+  const S = require('../lib/system-settings.js');
+  assert.ok(S.isLive('CONTENT_MANAGER_EMAILS'));
+  assert.throws(() => S.validate('CONTENT_MANAGER_EMAILS', 'not-an-email'));
+  assert.doesNotThrow(() => S.validate('CONTENT_MANAGER_EMAILS', 'icysh5ota@gmail.com, a@b.tw'));
+});
