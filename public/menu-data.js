@@ -42,8 +42,8 @@ window.__MENU_SEED = [
   { venue:"CAFE", cat:"BEVERAGE", zh:"黑糖牛奶", en:"Brown Sugar Milk", price:180, note:"黑糖漿、牛奶、奶泡。黑糖焦香融入香醇鮮奶，溫潤柔滑，淡淡甜香隨奶香展開，簡單而耐喝。", image:U('1553909489-ec2175ef3f52') },
   { venue:"CAFE", cat:"BEVERAGE", zh:"紅烏龍拿鐵", en:"Red Oolong Latte", price:250, note:"紅烏龍茶葉、牛奶、奶泡。紅烏龍的熟果香與焙火茶韻揉合鮮奶，醇厚溫潤，茶香清晰，尾韻帶著柔和奶香。" },
   // ── TEA ──
-  { venue:"CAFE", cat:"TEA", zh:"台灣紅烏龍", en:"Taiwan Red Oolong Tea", price:220, note:"紅烏龍茶葉、熱水。熟果香伴隨細緻焙火茶韻，茶湯醇厚順口，香氣隨溫度展開，尾韻自然回甘。", image:U('1571934811356-5cc061b6821f') },
-  { venue:"CAFE", cat:"TEA", zh:"台灣柚子紅烏龍", en:"Taiwan Yuzu Red Oolong Tea", price:250, note:"酸甜柚子醬、紅烏龍茶葉、熱水。清新柚香融入紅烏龍，明亮酸甜襯托熟果茶韻，清爽順口，留下淡雅柚香與回甘。", image:U('1567922045116-2a00fae2ed03') },
+  { venue:"CAFE", cat:"TEA", zh:"在地台東紅烏龍", en:"Local Taitung Red Oolong Tea", price:220, note:"紅烏龍茶葉、熱水。熟果香伴隨細緻焙火茶韻，茶湯醇厚順口，香氣隨溫度展開，尾韻自然回甘。", image:U('1571934811356-5cc061b6821f') },
+  { venue:"CAFE", cat:"TEA", zh:"在地台東柚子紅烏龍", en:"Local Taitung Yuzu Red Oolong Tea", price:250, note:"酸甜柚子醬、紅烏龍茶葉、熱水。清新柚香融入紅烏龍，明亮酸甜襯托熟果茶韻，清爽順口，留下淡雅柚香與回甘。", image:U('1567922045116-2a00fae2ed03') },
   { venue:"CAFE", cat:"TEA", zh:"果茶（壺）", en:"Fruit Tea (Pot)", price:220, note:"果茶茶葉、熱水。清新果香隨茶湯慢慢舒展，酸甜柔和而不膩，風味明亮清爽，適合悠閒品飲。", image:U('1698302659204-ab2e13ac9e55') },
   { venue:"CAFE", cat:"TEA", zh:"草本茶（壺）", en:"Herbal Tea (Pot)", price:220, note:"草本茶葉、熱水。淡雅草本香氣隨茶湯緩緩展開，清透柔和、自然舒適，適合放慢步調細細品飲。", image:U('1675155337816-5002bb718d73') },
   // ── SPARKLING ──
