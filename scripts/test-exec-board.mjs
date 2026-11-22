@@ -49,7 +49,7 @@ test('現場：等出餐 20／40 分鐘、開桌過久未結、空桌、出餐�
     sessions: [
       { id: 's1', table_no: 'B2', created_at: at(50), items: [line({ venue: 'BAR', ticket: 'tk1', placed_at: at(45) }), line({ venue: 'BAR', ticket: 'tk2', placed_at: at(25) })] },
       { id: 's2', table_no: 'A1', created_at: at(9 * 60), items: [line({ venue: 'CAFE', placed_at: at(500), served_at: at(480), ticket: 'x' })] },
-      { id: 's3', table_no: 'A3', created_at: new Date('2026-11-02T18:00:00+08:00').toISOString(), items: [] },
+      { id: 's3', table_no: 'A3', created_at: new Date('2026-11-02T17:00:00+08:00').toISOString(), items: [] },
     ],
     print_jobs: { count: 2, oldest: at(6) },
     service_calls: [{ table: 'B5', kind_label: '加水', at: at(5) }, { table: 'B6', kind_label: '餐具', at: at(1) }],
@@ -64,7 +64,7 @@ test('現場：等出餐 20／40 分鐘、開桌過久未結、空桌、出餐�
   assert.ok(t.some(x => x.startsWith('[mid] B5 桌呼叫加水')), t);
   assert.ok(!t.some(x => x.includes('B6')), '剛呼叫 1 分鐘不報');
   assert.ok(t.includes('[mid] 三點水桌邊點餐暫停中'), t);
-  assert.equal(r.brands[1].tables.open, 2, 'B2＋A3（18:00 開的空桌算三點水）'); assert.equal(r.brands[0].tables.unpaid_amount, 150);
+  assert.equal(r.brands[0].tables.open, 2, 'A1＋A3（17:00 開的空桌算在咖啡）'); assert.equal(r.brands[0].tables.unpaid_amount, 150);
   assert.equal(r.issues[0].level, 'high', '依嚴重度排序');
 });
 
