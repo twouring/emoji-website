@@ -22,7 +22,7 @@
   const CAT_LABEL = {
     COMBO: { zh: '套餐', en: 'Set', ja: 'セット', ko: '세트' },
     COFFEE: { zh: '咖啡', en: 'Coffee', ja: 'コーヒー', ko: '커피' },
-    TEA: { zh: '茶', en: 'Tea', ja: 'お茶', ko: '차' },
+    TEA: { zh: '台灣茶', en: 'Taiwan Tea', ja: '台湾茶', ko: '대만차' },
     BEVERAGE: { zh: '非咖啡', en: 'Non-Coffee', ja: 'ノンコーヒー', ko: '논커피' },
     SPARKLING: { zh: '氣泡飲', en: 'Sparkling', ja: 'スパークリング', ko: '스파클링' },
     SAKE: { zh: '清酒', en: 'Sake', ja: '日本酒', ko: '사케' },

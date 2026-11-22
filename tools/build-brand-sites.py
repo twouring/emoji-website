@@ -306,10 +306,6 @@ def atc_faq_items():
          t(f'早午餐全天供應：每日 {ATC_OPEN}–{ATC_CLOSE}，16:30 最後點餐。',
            f'Brunch is served all day: {ATC_OPEN}–{ATC_CLOSE} daily, last orders 16:30.',
            f'ブランチは終日提供。毎日 {ATC_OPEN}–{ATC_CLOSE}、ラストオーダー 16:30。')),
-        (t('咖啡多少錢？有燕麥奶嗎？', 'How much is the coffee? Is oat milk available?', 'コーヒーの値段は？オーツミルクはありますか？'),
-         t('美式 NT$150、拿鐵 NT$180，其他義式咖啡 NT$180–190；拿鐵類可換燕麥奶 +30。套餐內含美式，換拿鐵 +30。',
-           'Americano NT$150, latte NT$180, other espresso drinks NT$180–190. Milk drinks can switch to oat milk for +30. Sets include an Americano; a latte is +30.',
-           'アメリカーノ NT$150、カフェラテ NT$180、その他のエスプレッソドリンク NT$180–190。ミルク系はオーツミルクに変更可（+30）。セットにはアメリカーノが含まれ、ラテは +30。')),
         (t('可以外帶嗎？', 'Is takeaway available?', 'テイクアウトはできますか？'),
          t('可以。飲品與餐點都能外帶，店門口有外帶窗口；外帶不適用內用低消。', 'Yes. Drinks and food are available to go from the takeaway window; the dine-in minimum does not apply.', 'はい。ドリンクも料理もテイクアウト窓口で受け取れます。店内の最低利用金額は適用されません。')),
         (t('內用有低消嗎？', 'Is there a minimum spend for dine-in?', '店内利用の最低利用金額は？'),
@@ -437,9 +433,9 @@ def page_cafe():
 
     # —— 咖啡：直幅照片＋價目清單 ——
     rows = ''.join(f'<li><div><b>{e(t(*n))}</b><span>{e(t(*d))}</span></div><em>NT${p}</em></li>' for p, n, d in ATC_COFFEE)
-    coffee_lede = t('每一杯都從義式濃縮開始。早上趕車的人從外帶窗口拿了就走；坐下來的人，拿鐵類可以換燕麥奶（+30）。',
-                    'Every cup starts with espresso. Commuters grab theirs from the takeaway window; if you stay, milk drinks can switch to oat milk (+30).',
-                    'どの一杯もエスプレッソから。急ぐ朝はテイクアウト窓口で。座る方はミルク系をオーツミルクに変更できます（+30）。')
+    coffee_lede = t('每一杯都從義式濃縮開始。早上趕車的人從外帶窗口拿了就走。',
+                    'Every cup starts with espresso. Commuters grab theirs from the takeaway window.',
+                    'どの一杯もエスプレッソから。急ぐ朝はテイクアウト窓口で。')
     # 2026-11-21：咖啡區照片換為 IMG_2773（冰冷萃咖啡）。
     pour_alt = t('一杯泡沫綿密、分層明顯的冰冷萃咖啡，擺在咖啡廳的木質桌面上', 'An iced cold brew with a thick, layered foam on a café wooden table', 'カフェの木のテーブルに置かれた、きめ細かな泡のアイスコールドブリュー')
     out += f'''<section class="atc-coffee" id="coffee" aria-labelledby="coffee-h"><div class="wrap atc-coffee__grid">
