@@ -53,7 +53,7 @@ function mcEdit(it,host){
   const can=MC_DATA?.can_edit===true,cats=MC_DATA?.cats||[];
   const ov=document.createElement('div');ov.className='op-overlay';document.body.appendChild(ov);
   const close=()=>{if(ov.parentNode)ov.parentNode.removeChild(ov);};
-  const v=it||{zh:'',en:'',ja:'',ko:'',cat:MC_CAT||'COFFEE',price:'',emo:0,points:0,note:'',note_en:'',note_ja:'',published:false,sort:'',available_from:'',available_to:'',pos_only:false,combo_text:'',options_text:'',auto_options:true,image:''};
+  const v=it||{zh:'',en:'',ja:'',ko:'',cat:MC_CAT||'COFFEE',price:'',emo:0,points:0,note:'',note_en:'',note_ja:'',published:false,sort:'',available_from:'',available_to:'',hours_from:'',hours_to:'',pos_only:false,combo_text:'',options_text:'',auto_options:true,image:''};
   const venueSel=!it&&!SCOPE?`<label>品牌<select id="mc-venue">${(MC_DATA?.venues||[]).filter(x=>MenuLib.ITEM_VENUES.includes(x)).map(x=>`<option value="${esc(x)}">${esc(BRAND_LABEL[x]||x)}</option>`).join('')}</select></label>`:'';
   const dis=can?'':' disabled';
   ov.innerHTML=`<div class="op-card mc-edit" role="dialog" aria-label="${esc(it?'修改 '+it.zh:'新增品項')}">
@@ -75,6 +75,8 @@ function mcEdit(it,host){
       <label class="mc-full">日文說明<textarea id="mc-note-ja" maxlength="600" rows="2"${dis}>${esc(v.note_ja)}</textarea></label>
       <label>供應起日<input id="mc-from" type="date" value="${esc(v.available_from)}"${dis}></label>
       <label>供應迄日<input id="mc-to" type="date" value="${esc(v.available_to)}"${dis}></label>
+      <label>每日開賣<input id="mc-hfrom" type="time" step="60" value="${esc(v.hours_from||'')}"${dis}></label>
+      <label>每日停售<input id="mc-hto" type="time" step="60" value="${esc(v.hours_to||'')}"${dis}></label>
       <label class="mc-full" id="mc-combo-wrap"${v.cat==='COMBO'?'':' hidden'}>套餐內容（每行一欄：主餐：原味貝果、鮪魚貝果+30）<textarea id="mc-combo" maxlength="2000" rows="3"${dis}>${esc(v.combo_text)}</textarea></label>
       <label class="mc-full" id="mc-opt-wrap"${v.cat==='COMBO'?' hidden':''}>自訂選項（每行一組：辣度：不辣、小辣、大辣／加料：不加、加蛋+20；第一個是預設）<textarea id="mc-options" maxlength="1500" rows="3" placeholder="辣度：不辣、小辣、大辣&#10;加料：不加、加蛋+20"${dis}>${esc(v.options_text||'')}</textarea></label>
       <label class="mc-chk" id="mc-auto-wrap"${v.cat==='COMBO'?' hidden':''}><input type="checkbox" id="mc-auto" ${v.auto_options!==false?'checked':''}${dis}> 套用系統選項（冰熱、冰塊、飯量、麵量、甜點上餐時間）</label>
@@ -97,7 +99,7 @@ function mcEdit(it,host){
     const g=id=>ov.querySelector(id),val=id=>g(id).value.trim();
     if(!val('#mc-zh')){toast('請填中文品名');g('#mc-zh').focus();return;}
     if(val('#mc-price')===''){toast('請填售價');g('#mc-price').focus();return;}
-    const body={zh:val('#mc-zh'),cat:catEl.value,price:Number(val('#mc-price')),emo:Number(val('#mc-emo')||0),points:Number(val('#mc-points')||0),en:val('#mc-en'),ja:val('#mc-ja'),note:val('#mc-note'),note_en:val('#mc-note-en'),note_ja:val('#mc-note-ja'),available_from:val('#mc-from'),available_to:val('#mc-to'),published:g('#mc-pub').checked,pos_only:g('#mc-posonly').checked};
+    const body={zh:val('#mc-zh'),cat:catEl.value,price:Number(val('#mc-price')),emo:Number(val('#mc-emo')||0),points:Number(val('#mc-points')||0),en:val('#mc-en'),ja:val('#mc-ja'),note:val('#mc-note'),note_en:val('#mc-note-en'),note_ja:val('#mc-note-ja'),available_from:val('#mc-from'),available_to:val('#mc-to'),hours_from:val('#mc-hfrom'),hours_to:val('#mc-hto'),published:g('#mc-pub').checked,pos_only:g('#mc-posonly').checked};
     if(val('#mc-sort')!=='')body.sort=Number(val('#mc-sort'));
     if(catEl.value==='COMBO')body.combo_text=g('#mc-combo').value;
     else{body.options_text=g('#mc-options').value;body.auto_options=g('#mc-auto').checked;}

@@ -429,8 +429,10 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     $('#menu-shift').classList.toggle('soon',!PAUSED&&left!=null&&left<=30);
     $('#menu-shift').hidden=false;
   }
+  /* 時段鍵：點餐時段＋各品項每日供應時段是否開著（KK 11/22）；變了才整頁重繪菜單 */
+  function menuKey(){var on=((MENU_DOC&&MENU_DOC.items)||[]).filter(MenuLib.hasServiceHours).map(function(it){return it.id+(MenuLib.inServiceHours(it)?'1':'0');});return JSON.stringify([MenuLib.orderWindow(),on]);}
   function renderMenu(){
-    var WIN=MenuLib.orderWindow();VENUE=WIN.venue;WIN_KEY=JSON.stringify(WIN);
+    var WIN=MenuLib.orderWindow();VENUE=WIN.venue;WIN_KEY=menuKey();
     // 估清／供應期間每次重繪都重算：店家按「今日估清」後，客人下一次更新菜單就點不到
     MENU=MENU_DOC?MenuLib.orderableOnly(MENU_DOC):[];
     var venueLabel=MenuLib.VENUE_LABEL[VENUE]||{zh:'言文字',en:'Emoji',ja:'言文字'};
@@ -933,7 +935,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   if(!DEMO&&(!K||(!SID&&!T)))return fail('請掃描桌上或服務人員給的點餐 QR。 / Please scan the order QR.');
   if(endedId())showThanks();
   else Promise.all([api('/orders/config'),fetch('/api/public').then(function(r){return r.json();}),load(),api('/orders/pause').catch(function(){return {};})]).then(bootApp).catch(function(err){fail(err.message);});
-  setInterval(function(){if(!S)return;if(JSON.stringify(MenuLib.orderWindow())!==WIN_KEY)renderMenu();else renderShift();},30000); // 16:00／16:30／02:00／02:30／08:00 換時段
+  setInterval(function(){if(!S)return;if(menuKey()!==WIN_KEY)renderMenu();else renderShift();},30000); // 16:00／16:30／02:00／02:30／08:00 換時段；品項每日供應時段（11:00 開、14:00 停）也在這裡切
   setInterval(function(){if(S)loadPause();},30000);setInterval(function(){if(S)loadMenuDoc();},60000);   // 暫停點餐、估清／特餐隨店家設定更新
   document.addEventListener('visibilitychange',function(){if(!document.hidden&&S){refresh();if(!ES||ES.readyState===2)live();}});
 })();

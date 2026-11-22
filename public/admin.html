@@ -1808,7 +1808,9 @@ function bindMenu(){
       available_to: document.getElementById('mi-to').value,
       sold_out: (MENU_DOC.items.find(x=>x.id===document.getElementById('mi-id').value)||{}).sold_out || '',
       options: (MENU_DOC.items.find(x=>x.id===document.getElementById('mi-id').value)||{}).options || [],   // 自訂選項在 POS「設定 → 菜單內容」或 MCP 改，這裡原樣帶回
-      auto_options: (MENU_DOC.items.find(x=>x.id===document.getElementById('mi-id').value)||{}).auto_options,   // 估清狀態由快速鍵管理，編輯表單不動它
+      auto_options: (MENU_DOC.items.find(x=>x.id===document.getElementById('mi-id').value)||{}).auto_options,
+      hours_from: (MENU_DOC.items.find(x=>x.id===document.getElementById('mi-id').value)||{}).hours_from || '',   // 每日供應時段在 POS「設定 → 菜單內容」改，這裡原樣帶回
+      hours_to: (MENU_DOC.items.find(x=>x.id===document.getElementById('mi-id').value)||{}).hours_to || '',   // 估清狀態由快速鍵管理，編輯表單不動它
     });
     MENU_DIRTY = true; syncMenuDirty();
     toast(editing ? '已更新（尚未存檔）' : '已新增（尚未存檔）');

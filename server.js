@@ -6533,7 +6533,12 @@ const contentValue=async key=>key===menuBrands.LEGACY_KEY?await menuJson():(awai
 /* 客人掃碼點餐的菜單：依點餐時段（MenuLib.orderWindow）——在咖啡 16:00 停餐點、16:30 停飲品並換三點水；三點水 02:00 停餐點、02:30 停酒水 */
 async function currentMenu(opt){const w=tableOrders.MenuLib.orderWindow(),m=tableOrders.menuIndex(await contentValue('menu'),w.venue,opt);for(const [k,it] of m)if(!tableOrders.MenuLib.orderableInWindow(it,w))m.delete(k);return m;}
 /* 最後點餐：送單時還沒送出的品項若已過該類最後點餐時間，整筆擋下（客人先移除再送） */
-function assertLinesInWindow(items){const w=tableOrders.MenuLib.orderWindow(),late=items.filter(l=>!l.order_id&&!l.placed_at&&!tableOrders.MenuLib.orderableInWindow(l,w));if(late.length)throw Object.assign(Error('已過最後點餐時間：'+late.map(l=>l.zh).join('、')+'，請從已點清單移除後再送出。'),{status:423});}
+function assertLinesInWindow(items){const w=tableOrders.MenuLib.orderWindow(),late=items.filter(l=>!l.order_id&&!l.placed_at&&!tableOrders.MenuLib.orderableInWindow(l,w));if(late.length)throw Object.assign(Error('已過最後點餐時間：'+late.map(l=>l.zh).join('、')+'，請從已點清單移除後再送出。'),{status:409});}
+/* 每日供應時段（KK 11/22）：品項設 hours_from／hours_to（台北時間），時段外客人與櫃檯都加不進來，未送出的也不能送單；隔天自動恢復 */
+function hoursOffMsg(it){return `「${it.zh}」供應時間 ${tableOrders.MenuLib.serviceHoursText(it)}，目前不供應。`;}
+async function menuHoursMap(){const doc=tableOrders.MenuLib.parseMenuDoc(await contentValue('menu'));return new Map(doc.items.filter(it=>it.published&&tableOrders.MenuLib.hasServiceHours(it)).map(it=>[it.id,it]));}
+function hoursOffItem(hours,id,now){const it=hours.get(String(id||''));return it&&!tableOrders.MenuLib.inServiceHours(it,now)?it:null;}
+function assertLinesInHours(items,hours,now){const late=items.filter(l=>!l.order_id&&!l.placed_at&&hoursOffItem(hours,l.item_id,now));if(late.length)throw Object.assign(Error('已過供應時間：'+late.map(l=>l.zh+'（'+tableOrders.MenuLib.serviceHoursText(hours.get(String(l.item_id)))+'）').join('、')+'，請從已點清單移除後再送出。'),{status:423});}
 // 暫停點餐（公休、最後點餐、包場）：客人加菜前擋下，回店家設定的文案
 async function assertNotPaused(){const msg=tableOrders.pauseFor(await contentValue('ordering_pause'),tableOrders.MenuLib.orderWindow().venue);if(msg)throw Object.assign(Error(msg),{status:423});}
 
@@ -6596,11 +6601,11 @@ async function mutateItems(req,res,fn,resolve){
     await client.query('COMMIT');const out=await loadSession(s.id);res.json(publicSession(out,String(req.body?.guest||'')));
   }catch(e){await client.query('ROLLBACK');if(e.status)return res.status(e.status).json({error:e.message});throw e;}finally{client.release();}
 }
-app.post('/api/orders/:id/items',rateLimit({max:60}),requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});try{await assertNotPaused();}catch(e){return res.status(e.status||423).json({error:e.message});}const menu=await currentMenu();const iid=String(req.body?.item_id||'');if(!menu.has(iid)&&tableOrders.menuIndex(await contentValue('menu'),undefined).has(iid))return res.status(423).json({error:'這個品項目前已過最後點餐時間。'});return mutateItems(req,res,items=>tableOrders.addLine(items,menu,{...(req.body||{}),venue:tableOrders.MenuLib.orderWindow().venue}));}));
+app.post('/api/orders/:id/items',rateLimit({max:60}),requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});try{await assertNotPaused();}catch(e){return res.status(e.status||423).json({error:e.message});}const menu=await currentMenu();const iid=String(req.body?.item_id||'');{const hx=hoursOffItem(await menuHoursMap(),iid);if(hx&&!menu.has(iid))return res.status(409).json({error:hoursOffMsg(hx)});}if(!menu.has(iid)&&tableOrders.menuIndex(await contentValue('menu'),undefined).has(iid))return res.status(423).json({error:'這個品項目前已過最後點餐時間。'});return mutateItems(req,res,items=>tableOrders.addLine(items,menu,{...(req.body||{}),venue:tableOrders.MenuLib.orderWindow().venue}));}));
 app.post('/api/orders/:id/items/:line/edit',rateLimit({max:60}),requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});try{await assertNotPaused();}catch(e){return res.status(e.status||423).json({error:e.message});}const menu=await currentMenu();return mutateItems(req,res,items=>{const t=items.find(l=>l.line===String(req.params.line));if(t&&!t.placed_at&&!menu.has(String(t.item_id)))throw Object.assign(Error('這個品項目前無法供應，請移除後改點其他品項。'),{status:409});return tableOrders.guestEditLine(items,menu,String(req.params.line),{...(req.body||{}),venue:tableOrders.MenuLib.orderWindow().venue});});}));   /* 客人修改自己未送出的品項（KK 11/9） */
 app.delete('/api/orders/:id/items/:line',requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});return mutateItems(req,res,items=>tableOrders.removeLine(items,String(req.params.line),String(req.body?.guest||'')));}));
 // 送出點餐：購物車裡還沒送的品項一起進出餐看板（未結帳，用餐完再到櫃檯結）；暫停點餐（最後點餐）時一樣擋
-app.post('/api/orders/:id/place',rateLimit({max:60}),requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});try{await assertNotPaused();}catch(e){return res.status(e.status||423).json({error:e.message});}const guest=String(req.body?.guest||'');if(!/^[a-z0-9]{8,32}$/.test(guest))return res.status(400).json({error:'缺少來賓識別。'});return mutateItems(req,res,items=>{assertLinesInWindow(items);return tableOrders.placeLines(items,new Date(),null,guest).items;});}));   /* 只送自己點的（KK 11/9） */
+app.post('/api/orders/:id/place',rateLimit({max:60}),requireDb,wrap(async(req,res)=>{if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌的點餐。'});try{await assertNotPaused();}catch(e){return res.status(e.status||423).json({error:e.message});}const guest=String(req.body?.guest||'');if(!/^[a-z0-9]{8,32}$/.test(guest))return res.status(400).json({error:'缺少來賓識別。'});const hours=await menuHoursMap();return mutateItems(req,res,items=>{assertLinesInHours(items,hours);assertLinesInWindow(items);return tableOrders.placeLines(items,new Date(),null,guest).items;});}));   /* 只送自己點的（KK 11/9） */
 
 // 結帳需求：客人在手機上選好「全部付款／各付各的／平均分攤」按「通知櫃檯」，POS 桌號畫面列成一顆按鈕，一點就把那幾項勾好再收款（不經過付款碼／掃描）
 app.post('/api/orders/:id/pay-request',rateLimit({max:20}),requireDb,wrap(async(req,res)=>{
@@ -6632,6 +6637,7 @@ app.post('/api/orders/:id/pay',rateLimit({max:10}),requireDb,wrap(async(req,res)
     if(!s||s.status!=='open'){await client.query('ROLLBACK');return res.status(s?409:404).json({error:s?'這桌已結束，請重新掃描 QR。':'找不到這桌的點餐。'});}
     if((await client.query("SELECT id FROM linepay_payments WHERE session_id=$1 AND state NOT IN ('failed','cancelled','settled')",[s.id])).rows.length){await client.query('ROLLBACK');return res.status(423).json({error:'LINE Pay 原交易待確認，請查詢原交易，勿改用其他方式收款。'});}
     let lines;try{lines=tableOrders.selectLines(s.items,req.body?.lines);}catch(e){await client.query('ROLLBACK');return res.status(e.status).json({error:e.message});}
+    try{assertLinesInHours(lines,await menuHoursMap());}catch(e){await client.query('ROLLBACK');return res.status(e.status||409).json({error:e.message});}   // 每日供應時段：未送出的時段外品項不能線上付款送單
     const amount=tableOrders.sum(lines);if(!lines.length||amount<=0){await client.query('ROLLBACK');return res.status(400).json({error:'沒有可結帳的品項。'});}
     const orderId=uid('to_');
     let paid;try{paid=await tableOrders.payByPrime(tp,{prime:req.body?.prime,amount,orderNumber:orderId,details:`言文字 桌號 ${s.table_no} 點餐`,cardholder:who});}
@@ -6855,13 +6861,15 @@ app.post('/api/admin/orders/sessions/:id/items',auth,adminOnly,requireDb,wrap(as
   const venues=tableOrders.visibleVenues(req.auth.brands,String(req.query.venue||''));   // 言文字管理員依 POS 目前選定品牌（?venue=）
   const menuAll=tableOrders.menuIndex(await contentValue('menu'),undefined,{posOnly:true});   // 櫃檯可替客人加任何已發布品項（含估清、非營業時段、POS 限定如「其他」），但不得跨品牌
   const it=menuAll.get(String(req.body?.item_id||''));if(it&&!tableOrders.itemInVenues(it,venues))return res.status(403).json({error:'只能加自己店別的品項。'});
+  {const hx=hoursOffItem(await menuHoursMap(),req.body?.item_id);if(hx&&!it){if(!tableOrders.itemInVenues(hx,venues))return res.status(403).json({error:'只能加自己店別的品項。'});return res.status(409).json({error:hoursOffMsg(hx)});}}   // 每日供應時段（KK 11/22）
   // 菜單依品牌分開（KK 11/11）：沒有共用品項，品項一律記自己的品牌；商店品不在 POS 菜單（只給 App 線上購買）
   return mutateItems(req,res,items=>tableOrders.posAddLine(items,menuAll,{...(req.body||{}),venue:undefined,device_name:device.label}));
 }));
 app.post('/api/admin/orders/sessions/:id/place',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});
   const venues=tableOrders.visibleVenues(req.auth.brands);
-  return mutateItems(req,res,items=>tableOrders.placeLines(items,new Date(),venues).items);   // 混桌只送自己品牌的品項
+  const hours=await menuHoursMap();
+  return mutateItems(req,res,items=>{assertLinesInHours(items.filter(l=>tableOrders.itemInVenues(l,venues)),hours);return tableOrders.placeLines(items,new Date(),venues).items;});   // 混桌只送自己品牌的品項；時段外的未送出品項擋下（每日供應時段）
 }));
 app.delete('/api/admin/orders/sessions/:id/items/:line',auth,adminOnly,requireDb,wrap(async(req,res)=>{
   if(!ORDER_ID_RE.test(req.params.id))return res.status(404).json({error:'找不到這桌。'});

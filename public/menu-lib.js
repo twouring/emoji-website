@@ -121,6 +121,18 @@
   function stationOf(item) { return BAR_STATION_CATS.includes(item && item.cat) ? 'bar' : 'kitchen'; }
   const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   const dateOrEmpty = v => (DATE_RE.test(String(v || '')) ? String(v) : '');
+  /* 每日供應時段（KK 11/22，台北時間 HH:MM）：hours_from 起開放、hours_to 起停售，每天自動恢復；兩個都要有才生效，跨午夜（from>to）也可 */
+  const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+  const timeOrEmpty = v => (TIME_RE.test(String(v || '').trim()) ? String(v).trim() : '');
+  const hm = t => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+  function hasServiceHours(item) { return !!item && !!item.hours_from && !!item.hours_to && item.hours_from !== item.hours_to; }
+  function inServiceHours(item, now) {
+    if (!hasServiceHours(item)) return true;
+    const d = new Date(now == null ? Date.now() : +new Date(now)), m = ((d.getUTCHours() + 8) % 24) * 60 + d.getUTCMinutes();
+    const a = hm(item.hours_from), b = hm(item.hours_to);
+    return a < b ? m >= a && m < b : m >= a || m < b;
+  }
+  const serviceHoursText = item => (hasServiceHours(item) ? item.hours_from + '–' + item.hours_to : '');
   const uid = () => 'm_' + Math.random().toString(36).slice(2, 10);
   const STOCK_MAX = 9999;
   const stockOrNull = v => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Math.max(0, Math.min(STOCK_MAX, Math.floor(Number(v)))));
@@ -279,6 +291,7 @@
       stock_left: stockOrNull(raw.stock_left),           // 剩幾份（null＝不限量）；送單扣、扣到 0＝售完
       available_from: dateOrEmpty(raw.available_from),   // 特餐排程：只在這段營業日可點（含）
       available_to: dateOrEmpty(raw.available_to),
+      ...(timeOrEmpty(raw.hours_from) && timeOrEmpty(raw.hours_to) && timeOrEmpty(raw.hours_from) !== timeOrEmpty(raw.hours_to) ? { hours_from: timeOrEmpty(raw.hours_from), hours_to: timeOrEmpty(raw.hours_to) } : {}),   // 每日供應時段（沒設＝整個營業時段）
       ...(cat === 'BOOK' ? bookFields(raw) : {}),
       ...spaceFields(raw, cat),
     };
@@ -344,6 +357,7 @@
     const day = businessDay(now);
     if (item.available_from && day < item.available_from) return false;
     if (item.available_to && day > item.available_to) return false;
+    if (!inServiceHours(item, now)) return false;   // 每日供應時段（KK 11/22）
     return true;
   }
   /* 套餐選項跟著單品估清（KK 11/15）：選項對應的單品估清／下架就不能選；任一選擇欄一個都選不了＝套餐整個售完 */
@@ -537,6 +551,6 @@
 
   global.MenuLib = {
     CATS, VENUES, ITEM_VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, BAR_STATION_CATS, MEMBER_RATE, BAR_POLICY_FROM, CAFE_POLICY_FROM, SERVICE_RATE, MIN_SPEND, CAFE_MIN_SPEND, barPolicyActive, cafePolicyActive, minSpendOf, cafeMinimumOf, serviceCharge, memberPrice, activeVenue, orderWindow, orderableInWindow, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
-    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, normalizeOptions, optionsToText, optionsFromText, optionChoiceText, optionAdd, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, comboChoiceOk, comboOffChoices, comboAvailable, isShop, SPACE_CATS, isBook, isRetail, normalizeIsbn, ISBN13_RE, isShared, isStoreItem, inVenue, forVenue, SHARED_CATS, soldOutToday, stockLeft, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
+    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, normalizeOptions, optionsToText, optionsFromText, optionChoiceText, optionAdd, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, comboChoiceOk, comboOffChoices, comboAvailable, isShop, SPACE_CATS, isBook, isRetail, normalizeIsbn, ISBN13_RE, isShared, isStoreItem, inVenue, forVenue, SHARED_CATS, soldOutToday, stockLeft, hasServiceHours, inServiceHours, serviceHoursText, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
