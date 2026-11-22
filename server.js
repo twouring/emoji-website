@@ -46,9 +46,6 @@ const bugReports=require('./lib/bug-reports');
 const tips=require('./lib/tips');
 const yan=require('./lib/yan');
 const memberTags=require('./lib/member-tags');
-const hubDiscount=require('./lib/hub-discount');
-/* 聚落跨品牌 9 折（KK 11/23）：會員在期間內（預設當個營業日）已結帳的品牌清單 */
-async function hubPaidVenues(db,userId){if(!userId)return [];const r=await db.query(`SELECT items FROM table_orders WHERE user_id=$1 AND status<>'void' AND amount>0 AND paid_at>=$2`,[userId,hubDiscount.since()]);return hubDiscount.paidVenues(r.rows);}
 const line = require('./lib/line');
 const { createLineService } = require('./lib/line-service');
 const kitchenPrint=require('./lib/pos-kitchen-print');
@@ -5930,11 +5927,7 @@ app.post('/api/admin/yan/lookup', auth, adminOnly, requireDb, wrap(async (req, r
   // 載具自動帶入（KK 11/5）：只對驗證過身分的會員（掃會員卡／桌邊登入），帶出他上一次結帳用的手機載具或自然人憑證；只報手機不帶，避免把別人的載具帶出來
   const carrier = verified ? ezpayInvoice.lastCarrier((await q(`SELECT invoice FROM table_orders WHERE user_id=$1 AND invoice->>'mode' IN ('mobile','citizen') AND COALESCE(invoice->>'carrier_num','')<>'' ORDER BY paid_at DESC LIMIT 1`, [user.id])).rows[0]?.invoice) : null;
   // 身分標籤只在驗證過身分時回（只報手機不能拿到員工／股東折扣）
-  /* 聚落跨品牌 9 折（KK 11/23）：只對驗證過身分的會員判斷；結帳品牌＝這台 POS 的品牌 */
-  const hubPaid = verified ? await hubPaidVenues({ query: (...a) => q(...a) }, user.id) : [];
-  const hubVenues = posScope(req);
-  const hub = verified ? { paid: hubPaid, eligible: !!hubVenues && hubDiscount.eligible(hubPaid, hubVenues), percent: hubDiscount.PERCENT } : null;
-  res.json({ tag: verified ? memberTags.tagOf(user.member_tag) : null, hub, ok: true, member: { id: user.id, name: user.name, phone: user.phone_e164 || user.phone || '' }, balance: yan.balance(rows), active, verified, created: !!user.created, carrier });
+  res.json({ tag: verified ? memberTags.tagOf(user.member_tag) : null, ok: true, member: { id: user.id, name: user.name, phone: user.phone_e164 || user.phone || '' }, balance: yan.balance(rows), active, verified, created: !!user.created, carrier });
 }));
 /* 設定會員身分標籤（KK 11/19）：店長識別碼（超管免）；tag 空字串＝清除。改前改後記進 POS 操作紀錄 */
 app.post('/api/admin/yan/members/:id/tag', rateLimit({ max: 30 }), auth, adminOnly, requireDb, superOrManagerPin, wrap(async (req, res) => {
@@ -7127,10 +7120,6 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     // 掃會員條碼（或 member_id，來自掃碼那一步）才算驗證過身分：只有驗證過、且會籍有效的會員才套會籍價、才能用點數折抵；只報手機只累點
     let verified=!!(cardTok||memberIdRaw),memberActive=verified&&memberUser?(await memberAccessFor(memberUser.id)).active:false;
     /* 身分折扣（KK 11/19）：前端只送 discount:{tag}，折數由伺服器依會員標籤決定；身分折扣不疊會籍價 */
-    if(req.body?.discount&&req.body.discount.tag==='hub'){/* 聚落跨品牌 9 折（KK 11/23）：伺服器重查資格，前端只送 tag */
-      if(!verified||!memberUser){await client.query('ROLLBACK');return res.status(400).json({error:'聚落價要先掃會員卡（或桌邊登入）帶入會員。'});}
-      if(!hubDiscount.eligible(await hubPaidVenues(client,memberUser.id),posScope(req)||posRegister.sessionVenues(s))){await client.query('ROLLBACK');return res.status(409).json({error:'這位會員今天還沒有在聚落其他品牌消費，不適用聚落價。'});}
-      req.body.discount=hubDiscount.discount();delete req.body.discount.tag;}
     let tagDisc=null;if(req.body?.discount&&req.body.discount.tag){try{tagDisc=memberTags.tagDiscount(req.body.discount.tag,memberUser,verified);}catch(e){await client.query('ROLLBACK');return res.status(e.status||400).json({error:e.message});}}
     if(tagDisc){req.body.discount=tagDisc;memberActive=false;}
     if(!tableOrders.MenuLib.HUB_PRICE_ON)memberActive=false;/* 聚落價暫停（KK 11/23）：不套價、payer.member 記 false */
