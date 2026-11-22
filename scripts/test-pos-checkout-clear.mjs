@@ -32,8 +32,9 @@ for(const [name,opts] of [['split bill',{partial:true}],['mixed brand',{mixed:tr
   const {calls,res}=await checkout(opts);assert.equal(res.body.closed,false);
   assert.ok(!calls.some(c=>c.sql.includes("UPDATE table_orders SET status='done'")));
 });
-test('結帳就是結已送的單（KK 11/21）：只剩客人未送出的草稿也自動清桌',async()=>{
-  const {res}=await checkout({partial:true,draft:true});assert.equal(res.body.closed,true);assert.equal(res.body.remaining,0);
+test('自動清桌要沒草稿（KK 11/22）：已送的結清、但還有客人未送出的草稿＝不自動清桌',async()=>{
+  const {calls,res}=await checkout({partial:true,draft:true});assert.equal(res.body.closed,false);assert.equal(res.body.remaining,0);
+  assert.ok(!calls.some(c=>c.sql.includes("UPDATE table_orders SET status='done'")));
 });
 test('failed payment never closes the session',async()=>{
   const {calls,res}=await checkout({reject:true});assert.equal(res.statusCode,400);

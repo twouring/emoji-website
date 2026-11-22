@@ -83,7 +83,7 @@ test('多次收款直到結清：各付各的一組一張單、平均分攤一�
   assert.equal(T.unpaid(aa).length, 0);
   // 伺服器端：同一筆 checkout 交易內 unpaid 為 0 就把桌關掉（不需再按清桌），部分結帳保持 open
   const server = read('server.js');
-  assert.match(server, /const closed=tableOrders\.billable\(items\)\.length===0&&tableOrders\.sessionClearableByVenues\(\{items\},venues\);/);
+  assert.match(server, /const closed=tableOrders\.unpaid\(items\)\.length===0&&tableOrders\.sessionClearableByVenues\(\{items\},venues\);/);
   assert.doesNotMatch(server, /const closed=!tableOrders\.isTakeout/, '外帶收款完也要自動收掉單（KK 11/2）');
   assert.match(read('lib/pos-kitchen-print.js'), /o\.status IN \('paid','ready','done'\)/, '收單後還沒印的出餐單仍要印');
   assert.match(server, /UPDATE table_sessions SET items=\$2,status=\$3,pay_requests=\$4,updated_at=now\(\) WHERE id=\$1',\[s\.id,JSON\.stringify\(items\),closed\?'closed':'open'/);

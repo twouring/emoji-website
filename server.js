@@ -7002,7 +7002,7 @@ async function fulfillPosCardCheckout(session){
     const lines=m.lines.map(l=>({...l,order_id:orderId})),items=tableOrders.settleItems(s.items,m.lines,orderId);
     const sp=s.space&&typeof s.space==='object'?s.space:null,spaceStart=!!(sp&&!sp.in_at&&m.lines.some(l=>l.space_role==='plan'));
     const spaceNow=spaceStart?{...sp,in_at:now}:sp,held=!!(spaceNow&&!spaceNow.out_at);
-    const closed=tableOrders.billable(items).length===0;
+    const closed=tableOrders.unpaid(items).length===0;
     await client.query('INSERT INTO table_orders(id,session_id,table_no,items,amount,payer,invoice,status,done_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[orderId,s.id,s.table_no,JSON.stringify(lines),m.amountPaid,JSON.stringify(payer),JSON.stringify(pend.invoice||{}),closed?'done':'paid',closed?new Date():null]);
     if(closed)await client.query("UPDATE table_orders SET status='done',done_at=now() WHERE session_id=$1 AND status IN ('paid','ready')",[s.id]);
     await client.query('UPDATE table_sessions SET items=$2,status=$3,space=$4,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),closed&&!held?'closed':'open',spaceNow?JSON.stringify(spaceNow):null]);
@@ -7128,7 +7128,7 @@ app.post('/api/admin/orders/sessions/:id/checkout',auth,adminOnly,requireDb,wrap
     // 空間入場單（KK 11/15）：收到方案款的當下開始計時；客人按離場前不清桌（先付費後計時）
     const sp=s.space&&typeof s.space==='object'?s.space:null,spaceStart=!!(sp&&!sp.in_at&&out.lines.some(l=>l.space_role==='plan'));
     const spaceNow=spaceStart?{...sp,in_at:new Date().toISOString()}:sp;
-    const closed=tableOrders.billable(items).length===0&&tableOrders.sessionClearableByVenues({items},venues);   /* 客人未送出的草稿不擋結清（KK 11/21） */
+    const closed=tableOrders.unpaid(items).length===0&&tableOrders.sessionClearableByVenues({items},venues);   /* 自動清桌要整桌沒草稿（KK 11/22）；草稿不收、只擋自動清桌，手動清桌照樣可清 */
     const held=!!(spaceNow&&!spaceNow.out_at);   // 空間入場單：客人在場內不清單（下面另外改回 open）
     if(closed)await client.query("UPDATE table_orders SET status='done',done_at=now() WHERE session_id=$1 AND status IN ('paid','ready')",[s.id]);
     await client.query('UPDATE table_sessions SET items=$2,status=$3,pay_requests=$4,updated_at=now() WHERE id=$1',[s.id,JSON.stringify(items),closed?'closed':'open',JSON.stringify(tableOrders.prunePayRequests(s.pay_requests,items))]);
