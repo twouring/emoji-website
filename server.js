@@ -6528,7 +6528,7 @@ async function loadSession(id){
   s.orders=(await q('SELECT id,items,amount,status,paid_at,ready_at,done_at FROM table_orders WHERE session_id=$1 ORDER BY paid_at',[id])).rows;return s;
 }
 // 不外露各行的 guest 識別碼（否則同桌可互刪）；帶 ?g= 或 body.guest 時只標記 mine
-const publicSession=(s,guest)=>{const mine=guest?tableOrders.prunePayRequests(s.pay_requests,s.items).find(r=>r.guest===guest):null;return {id:s.id,table:s.table_no,status:s.status,items:s.items.map(({guest:g,...l})=>({...l,mine:!!guest&&g===guest})),orders:s.orders.map(o=>({id:o.id,amount:o.amount,status:o.status,paid_at:o.paid_at,ready_at:o.ready_at,lines:o.items.map(l=>l.line)})),total_unpaid:tableOrders.sum(tableOrders.unpaid(s.items)),need_party:s.status==='open'&&!s.opened_by_staff_name&&!tableOrders.partySize(s.party_votes),pay_request:mine?{scope:mine.scope,lines:mine.lines,people:mine.people||undefined,at:mine.at}:null,notices:guestNotices.publicView(s.notices)};};
+const publicSession=(s,guest)=>{const mine=guest?tableOrders.prunePayRequests(s.pay_requests,s.items).find(r=>r.guest===guest):null;return {id:s.id,table:s.table_no,venue:s.venue||null,status:s.status,items:s.items.map(({guest:g,...l})=>({...l,mine:!!guest&&g===guest})),orders:s.orders.map(o=>({id:o.id,amount:o.amount,status:o.status,paid_at:o.paid_at,ready_at:o.ready_at,lines:o.items.map(l=>l.line)})),total_unpaid:tableOrders.sum(tableOrders.unpaid(s.items)),need_party:s.status==='open'&&!s.opened_by_staff_name&&!tableOrders.partySize(s.party_votes),pay_request:mine?{scope:mine.scope,lines:mine.lines,people:mine.people||undefined,at:mine.at}:null,notices:guestNotices.publicView(s.notices)};};
 const contentValue=async key=>key===menuBrands.LEGACY_KEY?await menuJson():(await q('SELECT value FROM site_content WHERE key=$1',[key])).rows[0]?.value||'';   // 'menu'＝各品牌菜單合併
 /* 客人掃碼點餐的菜單：依點餐時段（MenuLib.orderWindow）——在咖啡 16:00 停餐點、16:30 停飲品並換三點水；三點水 02:00 停餐點、02:30 停酒水 */
 async function currentMenu(opt){const w=tableOrders.MenuLib.orderWindow(),m=tableOrders.menuIndex(await contentValue('menu'),w.venue,opt);for(const [k,it] of m)if(!tableOrders.MenuLib.orderableInWindow(it,w))m.delete(k);return m;}
@@ -6537,7 +6537,7 @@ function assertLinesInWindow(items){const w=tableOrders.MenuLib.orderWindow(),la
 // 暫停點餐（公休、最後點餐、包場）：客人加菜前擋下，回店家設定的文案
 async function assertNotPaused(){const msg=tableOrders.pauseFor(await contentValue('ordering_pause'),tableOrders.MenuLib.orderWindow().venue);if(msg)throw Object.assign(Error(msg),{status:423});}
 
-app.get('/api/orders/config',(req,res)=>{const tp=tableOrders.tappayConfig(),push=eventChannels.pushConfig();res.json({tappay:tp?{app_id:tp.appId,app_key:tp.appKey,env:tp.mode}:null,vapid_public_key:push?.publicKey||null});});
+app.get('/api/orders/config',(req,res)=>{const tp=tableOrders.tappayConfig(),push=eventChannels.pushConfig();res.json({tappay:tp?{app_id:tp.appId,app_key:tp.appKey,env:tp.mode}:null,vapid_public_key:push?.publicKey||null,review_urls:require('./lib/review-links').reviewUrls()});});
 // 客人端輪詢用：目前營業品牌是否暫停點餐（文案由店家設定）
 app.get('/api/orders/pause',requireDb,wrap(async(req,res)=>{res.set('Cache-Control','no-store');const venue=tableOrders.MenuLib.orderWindow().venue;res.json({venue,paused:tableOrders.pauseFor(await contentValue('ordering_pause'),venue)});}));
 

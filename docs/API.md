@@ -164,7 +164,8 @@ sso.emoji.tw 專用（非 /api），參數 `redirect=<網址>`、選填 `prompt=
 官網首頁與空間／子品牌頁（`/`、`/space`、`/at-cafe`、`/3am`、`/stay-square` 三語）已改由伺服器端用同一份資料渲染（`lib/public-render.js`，記憶體快取 60 秒，回應 `Cache-Control: public, max-age=60`；帶 `utm_source` 時 `no-store`），不再於瀏覽器端呼叫此端點；本端點保留給桌邊點餐（`/order`）等其他用途。`/sitemap.xml` 亦為動態：靜態清單加上公開活動頁三語網址。
 
 ### GET /api/orders/config
-桌邊點餐前端設定：`{ tappay: { app_id, app_key, env } | null, vapid_public_key }`。TapPay 未設定時 `tappay` 為 null，前端顯示「請至櫃檯結帳」。
+桌邊點餐前端設定：`{ tappay: { app_id, app_key, env } | null, vapid_public_key, review_urls }`。TapPay 未設定時 `tappay` 為 null，前端顯示「請至櫃檯結帳」。
+`review_urls`＝各品牌 Google 評論連結 `{ DEFAULT, CAFE, BAR, STAY, REST }`（`lib/review-links.js` 內建各品牌 Google 商家「撰寫評論」網址，系統設定 `GOOGLE_REVIEW_URL_<VENUE>` 可覆蓋、存檔即生效）；點餐頁依這一場的 `venue`（無則分店網域、再無則點餐時段）選用，查不到用 `DEFAULT`（言文字總店）。場次回應（`/api/orders/table`、`/api/orders/:id`、即時串流）多帶 `venue`。
 
 ### GET /api/orders/pause
 客人端輪詢用：`{ venue, paused }`。`paused` 為 null（可點）或店家在後台設定的暫停文案（例「今日最後點餐 22:30」）。設定存於 `site_content.ordering_pause`，依店別分開。
