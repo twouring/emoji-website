@@ -167,6 +167,7 @@
       const choices = (Array.isArray(s && s.choices) ? s.choices : []).slice(0, 12).map(c => {
         const zh = String(typeof c === 'string' ? c : (c && c.zh) || '').trim();
         const add = Math.max(0, Math.min(1000, Math.round(Number(c && c.add)) || 0));
+        if (isNoneChoice({ zh })) return { zh: NONE_CHOICE, add: 0, none: true };   // 「不加購」：這欄可以不選（KK 11/24 商業午餐飲品）
         const id = String((c && c.id) || '').trim().slice(0, 40);
         return zh || id ? (id ? { id, zh, add } : { zh, add }) : null;
       }).filter(Boolean);
@@ -175,8 +176,12 @@
     }).filter(Boolean);
   }
 
+  /* 套餐選擇欄的「不加購」（KK 11/24）：選了就不出這欄的品項、不加價；不對應任何菜單品項，不影響估清 */
+  const NONE_CHOICE = '不加購';
+  function isNoneChoice(c) { return !!c && (c.none === true || String(c.zh || '').trim() === NONE_CHOICE); }
   /* 套餐選項對應菜單品項：有 id 先用 id（品項改名也不脫鉤），沒有才用品名；只找同店、非套餐的品項 */
   function comboTarget(choice, items, venue) {
+    if (isNoneChoice(choice)) return null;
     const pool = (items || []).filter(x => x.venue === venue && x.cat !== 'COMBO');
     return (choice.id && pool.find(x => x.id === choice.id)) || pool.find(x => x.zh === choice.zh) || null;
   }
@@ -184,6 +189,7 @@
   function linkCombo(item, items) {
     let changed = false;
     for (const s of item.combo || []) for (const c of s.choices) {
+      if (isNoneChoice(c)) continue;
       const m = comboTarget(c, items, item.venue);
       if (m && (c.id !== m.id || c.zh !== m.zh)) { c.id = m.id; c.zh = m.zh; changed = true; }
     }
@@ -288,6 +294,7 @@
       // 只在 POS／後台加點看得到，不會出現在客人掃碼點餐的菜單；custom_price 一律強制視為 pos_only，
       // 避免客人端 /api/orders/:id/items 的 price 欄位被塞進一個本該由伺服器端信任的覆寫價。
       pos_only: raw.custom_price === true || raw.pos_only === true,
+      ...(raw.combo_only === true && cat !== 'COMBO' ? { combo_only: true } : {}),   // 只當套餐內容（KK 11/24）：不單獨出現在任何菜單、POS 加點格，套餐照樣選得到
       sort: Number.isFinite(Number(raw.sort)) ? Number(raw.sort) : 0,
       sold_out: dateOrEmpty(raw.sold_out),               // 估清：記營業日，隔天自動恢復
       // 原物料估清（KK 11/15）：因為哪些原物料（庫存品項 id）缺貨而估清；空陣列＝手動估清。恢復原物料只恢復因它而估清的品項
@@ -360,6 +367,7 @@
     if (isShop(item) && !isStoreItem(item) && !(ctx && (ctx.shop || ctx.posOnly))) return false;   // 空間方案：POS 與線上方案
     if (isBook(item) && !(ctx && ctx.posOnly)) return false;
     if (item.pos_only && !(ctx && ctx.posOnly)) return false;
+    if (item.combo_only && !(ctx && ctx.combo)) return false;   // 套餐元件：只在算套餐內容時算可點（menuIndex 帶 combo:true）
     const day = businessDay(now);
     if (item.available_from && day < item.available_from) return false;
     if (item.available_to && day > item.available_to) return false;
@@ -368,17 +376,18 @@
   }
   /* 套餐選項跟著單品估清（KK 11/15）：選項對應的單品估清／下架就不能選；任一選擇欄一個都選不了＝套餐整個售完 */
   function comboChoiceOk(choice, items, venue, now) {
+    if (isNoneChoice(choice)) return true;
     const m = comboTarget(choice, items, venue);
     return !!m && m.published && !soldOutToday(m, now);
   }
   function comboOffChoices(item, items, now) {
     const out = [];
-    for (const s of (item && item.combo) || []) for (const c of s.choices) if (!comboChoiceOk(c, items, item.venue, now)) out.push(c);
+    for (const s of (item && item.combo) || []) for (const c of s.choices) if (!isNoneChoice(c) && !comboChoiceOk(c, items, item.venue, now)) out.push(c);
     return out;
   }
   function comboAvailable(item, items, now) {
     if (!item || item.cat !== 'COMBO') return true;
-    return (item.combo || []).every(s => s.choices.some(c => comboChoiceOk(c, items, item.venue, now)));
+    return (item.combo || []).every(s => s.choices.some(c => comboChoiceOk(c, items, item.venue, now)));   // 有「不加購」的欄永遠選得到
   }
   function orderableOnly(doc, now, ctx) {
     const all = doc.items || [];
@@ -432,7 +441,7 @@
 
   /* 對外可見（官網菜單頁、IG）：已發布且非 POS 限定；pos_only 品項（例：其他）只在 POS／後台加點出現 */
   function publishedOnly(doc) {
-    return (doc.items || []).filter(x => x.published && !x.pos_only && !isRetail(x));
+    return (doc.items || []).filter(x => x.published && !x.pos_only && !x.combo_only && !isRetail(x));
   }
 
   function fromSeedRows(rows) {
@@ -482,6 +491,7 @@
   };
   const comboSlotLabel = (zh, lang) => (COMBO_SLOT[lang] && COMBO_SLOT[lang][zh]) || zh;
   function comboChoiceName(c, lang, items) {
+    if (isNoneChoice(c)) return lang === 'en' ? 'None' : lang === 'ja' ? 'なし' : NONE_CHOICE;
     if (lang !== 'en' && lang !== 'ja') return c.zh;
     const m = (items || []).find(x => (c.id && x.id === c.id) || x.zh === c.zh);
     return (m && m[lang]) || (lang === 'ja' && m && m.en) || c.zh;
@@ -557,6 +567,6 @@
 
   global.MenuLib = {
     CATS, VENUES, ITEM_VENUES, CAT_LABEL, VENUE_LABEL, BAR_CATS, BAR_STATION_CATS, MEMBER_RATE, HUB_PRICE_ON, BAR_POLICY_FROM, CAFE_POLICY_FROM, SERVICE_RATE, MIN_SPEND, CAFE_MIN_SPEND, barPolicyActive, cafePolicyActive, minSpendOf, cafeMinimumOf, serviceCharge, memberPrice, activeVenue, orderWindow, orderableInWindow, businessDay, stationOf, uid, normalizeItem, parseMenuDoc, validateDoc,
-    normalizeCombo, comboTarget, linkCombo, comboToText, comboFromText, normalizeOptions, optionsToText, optionsFromText, optionChoiceText, optionAdd, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, comboChoiceOk, comboOffChoices, comboAvailable, isShop, SPACE_CATS, isBook, isRetail, normalizeIsbn, ISBN13_RE, isShared, isStoreItem, inVenue, forVenue, SHARED_CATS, soldOutToday, stockLeft, shownCat, hasServiceHours, inServiceHours, serviceHoursText, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
+    normalizeCombo, comboTarget, linkCombo, NONE_CHOICE, isNoneChoice, comboToText, comboFromText, normalizeOptions, optionsToText, optionsFromText, optionChoiceText, optionAdd, upsertItem, removeItem, publishedOnly, orderableOnly, isOrderable, comboChoiceOk, comboOffChoices, comboAvailable, isShop, SPACE_CATS, isBook, isRetail, normalizeIsbn, ISBN13_RE, isShared, isStoreItem, inVenue, forVenue, SHARED_CATS, soldOutToday, stockLeft, shownCat, hasServiceHours, inServiceHours, serviceHoursText, STOCK_MAX, fromSeedRows, stringifyDoc, sortItems, touch, renderMenuHtml,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

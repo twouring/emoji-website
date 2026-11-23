@@ -123,7 +123,7 @@ test('官網菜單：套餐列出內容', () => {
 });
 test('order.html 接線：套餐走 comboGroups／送 combo，購物車列出內容', () => {
   const h = fs.readFileSync(new URL('../public/order.html', import.meta.url), 'utf8');
-  assert.match(h, /it\.cat==='COMBO'\?OrderLib\.comboGroups\(it,MENU,LANG\)/);
+  assert.match(h, /it\.cat==='COMBO'\?OrderLib\.comboGroups\(it,comboPool\(\),LANG\)/);
   assert.match(h, /Object\.assign\(\{item_id:CURRENT_ITEM\.id[^\n]*\},comboBody\(\)\)/);
   assert.match(h, /partsLines\(l\)/);
 });

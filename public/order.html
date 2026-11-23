@@ -470,7 +470,8 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
     $('#price-policy').hidden=!(bar||cafe);if(bar||cafe)$('#price-policy').textContent=tr(bar?'bar_policy':'cafe_policy');
   }
 
-  function optionGroups(it){return it&&it.cat==='COMBO'?OrderLib.comboGroups(it,MENU,LANG):OrderLib.optionGroups(it,LANG);}
+  function comboPool(){return (MENU_DOC&&MENU_DOC.items)||MENU;}   // 套餐內容可能是「只當套餐內容」的品項（不在 MENU），選項用整份菜單（comboGroups 自己會濾掉下架／估清）
+  function optionGroups(it){return it&&it.cat==='COMBO'?OrderLib.comboGroups(it,comboPool(),LANG):OrderLib.optionGroups(it,LANG);}
   function openItem(id,edit){
     CURRENT_ITEM=MENU.find(function(it){return it.id===id;});EDIT_LINE=edit||null;CURRENT_QTY=edit?edit.qty:1;if(!CURRENT_ITEM)return;
     var primary=label(CURRENT_ITEM),groups=optionGroups(CURRENT_ITEM);
@@ -502,7 +503,7 @@ input.f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:
   /* 修改未送出的品項（KK 11/9）：把原本的規格（「標籤：值；…」）、套餐內容與備註帶回詳情頁；對不上的段落留在備註 */
   function prefillEdit(l,groups){
     // 規格可能是用別的語系存的（例：中文加、英文介面改），四語的同一組規格順序相同，用位置對應
-    var all=OrderLib.LANGS.map(function(lg){return CURRENT_ITEM.cat==='COMBO'?OrderLib.comboGroups(CURRENT_ITEM,MENU,lg):OrderLib.optionGroups(CURRENT_ITEM,lg);});
+    var all=OrderLib.LANGS.map(function(lg){return CURRENT_ITEM.cat==='COMBO'?OrderLib.comboGroups(CURRENT_ITEM,comboPool(),lg):OrderLib.optionGroups(CURRENT_ITEM,lg);});
     var pick=function(key,val){var el=null;document.querySelectorAll('#detail-body input[name="opt_'+key+'"]').forEach(function(x){if(x.value===val)el=x;});if(el){el.checked=true;return true;}return false;};
     var segs=function(note){return String(note||'').split('；').map(function(x){return x.trim();}).filter(Boolean);};
     var apply=function(idx,seg){var m=/^(.+?)：(.+)$/.exec(seg);if(!m)return false;return idx.some(function(gi){return all.some(function(gs){var g=gs[gi];if(!g||(g.sub?g.sub.optLabel:g.label)!==m[1])return false;var k=g.choices.indexOf(m[2]);return k>=0&&pick(groups[gi].key,groups[gi].choices[k]);});});};

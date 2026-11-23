@@ -1634,7 +1634,8 @@ function minSpendState(cur){
     const spent=cafe.reduce((a,l)=>a+(l.comp_reason?0:l.price)*l.qty,0);
     return {...m,spent,short:Math.max(0,m.total-spent),venue:'CAFE'};
   }
-  const drinks=cafe.filter(l=>['COFFEE','TEA','BEVERAGE','SPARKLING','COMBO'].includes(l.cat)).reduce((a,l)=>a+l.qty,0);
+  const DRINK=['COFFEE','TEA','BEVERAGE','SPARKLING'];   // 套餐看內容：選「不加購」沒有飲品就不算杯（KK 11/24）；舊單沒有 parts 照舊算一杯
+  const drinks=cafe.filter(l=>DRINK.includes(l.cat)||(l.cat==='COMBO'&&(!Array.isArray(l.parts)||!l.parts.length||l.parts.some(p=>DRINK.includes(p.cat))))).reduce((a,l)=>a+l.qty,0);
   return {...m,drinks,short:Math.max(0,m.required-drinks),venue:'CAFE'};
 }
 /* 結帳前低消把關（KK 11/7）：未達低消或沒設人數時先跳確認，店員可回去補點或確認後照收 */
@@ -2071,7 +2072,7 @@ function paintPos(){
     const groups=lineGroups(checkoutLines),multi=groups.filter(g=>g.key!=='credit').length>1;
     const lineRows=groups.map(g=>{const ids=g.lines.map(l=>l.line);const on=!!POS_PICK&&POS_PICK.size===ids.length&&ids.every(id=>POS_PICK.has(id));const sub=g.lines.reduce((a,l)=>a+priceOf(l)*l.qty,0);const head=multi?`<tr class="pos-group ${on?'on':''}"><td colspan="5"><div class="pos-group-wrap"><span class="pos-group-name">${esc(g.label)}</span><span class="pos-group-meta">${g.lines.length} 項 · NT$${g.key==='credit'?'−'+num(-sub):num(sub)}</span>${g.key!=='credit'?`<span class="pos-group-btns"><button type="button" class="btn btn--ghost btn-xs" data-pick-group="${esc(g.key)}">${on?'已選這組':'只結這組'}</button><button type="button" class="btn btn--ghost btn-xs" data-pick-all aria-pressed="${!POS_PICK&&!POS_AA}">${!POS_PICK&&!POS_AA?'已選全部':'結帳全部'}</button></span>`:''}</div></td></tr>`:'';return head+g.lines.map(rowOf).join('');}).join('')||'<tr><td colspan="5" class="a-empty">尚未有可結帳餐點</td></tr>';
     const unsentGuestHint=unsentGuestLines.length?`<p class="hint pos-unsent-checkout-hint">另有 ${unsentGuestLines.length} 項客人還沒送出，不列入這次結帳；要一起收請先按「列印出餐單」送單。</p>`:'';
-    const menuItems=MenuLib.sortItems((MENU_DOC?.items||[]).filter(it=>it.published&&MenuLib.inVenue(it,SCOPE)&&!(it.space_role&&typeof posSpaceOn==='function'&&posSpaceOn())));   // 空間情境：計時方案只從「入場／延長」加、超時由離場自動加，不放加點格   // 共用品項（甜點、商店）走 MenuLib.inVenue
+    const menuItems=MenuLib.sortItems((MENU_DOC?.items||[]).filter(it=>it.published&&!it.combo_only&&MenuLib.inVenue(it,SCOPE)&&!(it.space_role&&typeof posSpaceOn==='function'&&posSpaceOn())));   // 空間情境：計時方案只從「入場／延長」加、超時由離場自動加，不放加點格   // 共用品項（甜點、商店）走 MenuLib.inVenue
     if(POS_OPT&&(POS_OPT.table!==cur.table||(POS_OPT.line&&!cur.lines.some(l=>l.line===POS_OPT.line))))POS_OPT=null;
     const cats=[...new Set(menuItems.map(it=>MenuLib.shownCat(it)))];if(POS_CAT&&!cats.includes(POS_CAT))POS_CAT='';   // 顯示分類（display_cat）與官網／點餐頁一致
     const catChips=`<div class="pos-cats" role="tablist" aria-label="分類"><button type="button" data-cat="" aria-pressed="${!POS_CAT}">全部</button>${cats.map(c=>`<button type="button" data-cat="${esc(c)}" aria-pressed="${c===POS_CAT}">${esc(MenuLib.CAT_LABEL[c]?.zh||c)}</button>`).join('')}</div>`;

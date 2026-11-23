@@ -458,6 +458,7 @@
     ja: { 主餐: 'メイン', 飲品: 'ドリンク', 貝果: 'ベーグル', 飯糰: 'おにぎり', 甜點: 'デザート', 麵: '麺' },
     ko: { 主餐: '메인', 飲品: '음료', 貝果: '베이글', 飯糰: '주먹밥', 甜點: '디저트', 麵: '면' },
   };
+  const NONE_LABEL = { zh: '不加購', en: 'No add-on', ja: '追加なし', ko: '추가 안 함' };
   const slotLabel = (zh, lang) => (SLOT[lang] && SLOT[lang][zh]) || zh;
   const nameOf = (m, lang) => (lang === 'en' && m.en) || (lang === 'ja' && m.ja) || (lang === 'ko' && (m.ko || m.en)) || m.zh;
   function comboGroups(item, items, lang) {
@@ -466,6 +467,7 @@
       const opts = slot.choices.map(c => {
         // 套餐選項跟著單品估清（KK 11/15）：估清／下架的單品不列為選項（POS、App 傳整份菜單進來也一樣）
         const ML = global.MenuLib;
+        if (ML && ML.isNoneChoice && ML.isNoneChoice(c)) return { c, m: { id: '', zh: ML.NONE_CHOICE, cat: '' }, none: true, name: NONE_LABEL[lang] || NONE_LABEL.zh, label: NONE_LABEL[lang] || NONE_LABEL.zh };   // 不加購（KK 11/24）
         const pool = (items || []).filter(x => x.venue === item.venue && x.cat !== 'COMBO' && x.published !== false && !(ML && ML.soldOutToday(x)));
         const m = (c.id && pool.find(x => x.id === c.id)) || pool.find(x => x.zh === c.zh);
         return m ? { c, m, name: nameOf(m, lang), label: nameOf(m, lang) + (c.add > 0 ? ' (+' + c.add + ')' : '') } : null;
@@ -473,6 +475,7 @@
       if (!opts.length) return;
       groups.push({ key: slot.key, label: slotLabel(slot.label, lang), choices: opts.map(o => o.label), values: opts.map(o => o.m.zh), ids: opts.map(o => o.m.id), combo: true });
       opts.forEach((o, i) => {
+        if (o.none) return;
         optionGroups(o.m, lang, { inCombo: true }).forEach(g => {
           const key = slot.key + '__' + i + '__' + g.key;
           const when = [{ key: slot.key, value: o.label }];
@@ -490,6 +493,7 @@
       const i = g.choices.indexOf(picks[g.key] || g.choices[0]);
       const label = g.choices[i < 0 ? 0 : i];
       const subs = active.filter(s => s.sub && s.sub.slot === g.key && s.sub.label === label);
+      if (!g.ids[i < 0 ? 0 : i]) { out[g.key] = { zh: g.values[i < 0 ? 0 : i] }; return; }   // 不加購
       out[g.key] = { id: g.ids[i < 0 ? 0 : i], zh: g.values[i < 0 ? 0 : i], note: subs.map(s => s.sub.optLabel + '：' + (picks[s.key] || s.choices[0])).join('；') };
     });
     return out;
