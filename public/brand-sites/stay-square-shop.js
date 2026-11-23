@@ -127,7 +127,8 @@
     if (!form || !form.date.value || !form.start.value) return null;
     var start = Date.parse(form.date.value + 'T' + form.start.value + ':00+08:00');
     if (!isFinite(start)) return null;
-    var end = start + Number(form.slots.value) * 2 * 3600e3;
+    var opt = form.zone.selectedOptions[0], hrs = Number(opt && opt.getAttribute('data-hours')) || 2;
+    var end = start + Number(form.slots.value) * hrs * 3600e3;
     return { starts_at: fmtLocal(start), ends_at: fmtLocal(end), nextDay: fmtLocal(end).slice(0, 10) !== form.date.value };
   }
   function quote() {

@@ -850,11 +850,12 @@ def sq_login(account=False):
 # ---------------------------------------------------------------- 品牌站付費包場（KK 2026-11-17）
 # 在咖啡、三點水、約書旅沿用等等空間的包場表單與 stay-square-shop.js：登入言文字會員 → 送出 → Stripe 付場地費 → 團隊確認檔期。
 # 價格與 lib/venue-fees.js HIRE_ZONES 一致（test-brand-hire 比對）。線上訂位只開放在咖啡、三點水。
-HIRE = {  # slug: (zone, 中, 英, 日, 場地費／時段, 人數上限, 開始時間)
+HIRE = {  # slug: (zone, 中, 英, 日, 場地費／時段, 人數上限, 開始時間)；每時段時數見 HIRE_HOURS
     'at-cafe': ('CAFE', '在咖啡 at cafe 整間包場', 'Whole of at cafe', '在咖啡 at cafe 貸切', 30000, 50, range(8, 16)),
     '3am': ('BAR', '三點水 3AM 整間包場', 'Whole of 3AM', '三點水 3AM 貸切', 30000, 50, range(17, 24)),
-    'rest-book': ('LOUNGE', '約書旅交誼廳', 'Rest Book lounge', '約書旅ラウンジ', 2000, 10, range(0, 24)),
+    'rest-book': ('LOUNGE', '約書旅交誼廳', 'Rest Book lounge', '約書旅ラウンジ', 5000, 10, range(0, 24)),
 }
+HIRE_HOURS = {'rest-book': 3}  # KK 11/24：約書旅交誼廳每時段 3 小時 NT$5,000；其餘 2 小時（lib/venue-fees.js zoneSlotHours）
 CANCEL_RULE = ('取消：活動日 14 日前全額退費、8–13 日前退 50%、7 日內不退；無法安排時全額退費。',
                'Cancellation: full refund 14+ days before, 50% at 8–13 days, none within 7 days; full refund if we cannot host you.',
                'キャンセル：14日前まで全額、8〜13日前は50%、7日以内は返金なし。お受けできない場合は全額返金。')
@@ -864,12 +865,13 @@ def hire_form():
     """包場表單本體（form#sq-book-form＋我的包場申請），樣式在 brand-sites/hire.css。"""
     zone, zh, en, ja, fee, mx, hours = HIRE[CUR]
     name = t(zh, en, ja)
-    opt = f'<option value="{zone}" data-fee="{fee}" data-max="{mx}" data-name="{e(name)}">{e(name)}</option>'  # 價格與人數上限寫在合計列與說明
+    hrs = HIRE_HOURS.get(CUR, 2)
+    opt = f'<option value="{zone}" data-fee="{fee}" data-max="{mx}" data-hours="{hrs}" data-name="{e(name)}">{e(name)}</option>'  # 價格與人數上限寫在合計列與說明
     first = 18 if CUR == 'rest-book' else min(hours) + 1
     starts = ''.join(f'<option value="{h:02d}:00"{" selected" if h == first else ""}>{h:02d}:00</option>' for h in hours)
     slot_opts = []
     for n in range(1, 5):
-        label = t(f'{n} 個時段（{n * 2} 小時）', f'{n} slot{"s" if n > 1 else ""} ({n * 2} hours)', f'{n}枠（{n * 2}時間）')
+        label = t(f'{n} 個時段（{n * hrs} 小時）', f'{n} slot{"s" if n > 1 else ""} ({n * hrs} hours)', f'{n}枠（{n * hrs}時間）')
         slot_opts.append(f'<option value="{n}">{e(label)}</option>')
     slots = ''.join(slot_opts)
 
@@ -983,8 +985,8 @@ def page_book():
              t('23:00 後查驗證件，限 18 歲以上。', 'ID is checked after 23:00; 18 and over only.', '23:00以降は身分証を確認します。18歳以上のみ。'),
              t('手沖咖啡、零食飲料吧、淋浴、漫畫雜誌、桌遊與 Switch 都包含在內；毛巾等備品可現場加購，書籍每本標價。', 'Pour-over coffee, the snack and drinks bar, showers, manga, magazines, board games and the Switch are all included; towels and toiletries can be bought on site, and books are priced individually.', 'ハンドドリップコーヒー、スナック＆ドリンクバー、シャワー、マンガ・雑誌、ボードゲーム、Switch は料金に含まれます。タオルなどの備品は現地で購入でき、本は一冊ごとに価格表示。')]
     rules_html = ''.join(f'<li>{e(x)}</li>' for x in rules)
-    # 交誼廳包場：KK 2026-11-04 核准每時段 NT$2,000（11/01 提案 §4.1）；平日 18:00 後與假日；週二 me2 時段不出租。
-    hire_rows = [(t('平日 18:00 後、假日', 'Weekday evenings after 18:00, weekends', '平日18:00以降・休日'), 'NT$2,000'), (t('有桌椅人數', 'Seated', '着席人数'), t('約 10 人', 'About 10', '約10名'))]
+    # 交誼廳包場：KK 2026-11-24 改每時段 3 小時 NT$5,000（原 11/04 每 2 小時 NT$2,000）；平日 18:00 後與假日；週二 me2 時段不出租。
+    hire_rows = [(t('平日 18:00 後、假日', 'Weekday evenings after 18:00, weekends', '平日18:00以降・休日'), 'NT$5,000'), (t('有桌椅人數', 'Seated', '着席人数'), t('約 10 人', 'About 10', '約10名'))]
     hire_rules = ''.join(f'<li>{e(x)}</li>' for x in [
         t('平日、假日同價；平日白天與每週二 19:00–21:00（週二小聚）不出租。', 'Same price on weekdays and weekends. Not available on weekday daytimes or Tuesdays 19:00–21:00 (our weekly meetup).', '平日・休日同料金。平日の日中と毎週火曜 19:00–21:00（週例の集まり）は貸切不可。'),
         t('只租交誼廳；讀書席、靜讀室與淋浴不含在內。擴音使用到 22:00。', 'The lounge only; study seats, quiet rooms and showers are not included. Amplified sound until 22:00.', 'ラウンジのみ。読書席、静読室、シャワーは含まれません。音響の使用は22:00まで。'),
@@ -993,7 +995,7 @@ def page_book():
         t(*CANCEL_RULE)])
     # 設施清單（對應 The Club 的地點清單「代碼｜名稱」）
     rooms = [
-        ('LOUNGE', t('交誼廳', 'Lounge', 'ラウンジ'), t('約十人；100 吋大螢幕、劇院音響、Switch、桌遊', 'About ten people; 100-inch screen, theatre sound, Switch, board games', '約10名。100インチ大型画面、シアター音響、Switch、ボードゲーム'), t('入場即可用，可包場', 'Included with entry; available to hire', '入場で利用可・貸切可')),
+        ('LOUNGE', t('交誼廳', 'Lounge', 'ラウンジ'), t('約十人；100 吋電視、劇院音響、Switch、桌遊、麻將', 'About ten people; 100-inch TV, theatre sound, Switch, board games, mahjong', '約10名。100インチテレビ、シアター音響、Switch、ボードゲーム、麻雀'), t('入場即可用，可包場', 'Included with entry; available to hire', '入場で利用可・貸切可')),
         ('SEAT', t('讀書席', 'Study seats', '読書席'), t('一人一席，安靜閱讀', 'One person, one seat, quiet', '一人一席、静かに'), t('入場即可用', 'Included with entry', '入場で利用可')),
         ('BAR', t('手沖咖啡與零食飲料吧', 'Pour-over coffee, snack and drinks bar', 'ハンドドリップとスナック＆ドリンクバー'), t('手沖咖啡、茶、軟性飲料與零食', 'Pour-over coffee, tea, soft drinks and snacks', 'ハンドドリップコーヒー、お茶、ソフトドリンク、スナック'), t('入場即可用', 'Included with entry', '入場で利用可')),
         ('SHOWER', t('淋浴', 'Showers', 'シャワー'), t('兩間；毛巾等備品可加購', 'Two rooms; towels and toiletries sold on site', '2室。タオルなどの備品は販売'), t('入場即可用', 'Included with entry', '入場で利用可')),
@@ -1110,8 +1112,8 @@ def page_book():
   <div class="rb-hire__say">
     {kick(3, '包場', 'Lounge hire', '貸切')}
     <h2 id="hire-h">{t('交誼廳包場', 'Hire the lounge', 'ラウンジの貸切')}</h2>
-    <p class="rb-price__lede">{t('約十人的小廳，有 100 吋大螢幕、環繞音響、Switch 與桌遊。生日、球賽或演唱會直播、讀書會都合適。', 'A small room for about ten, with a 100-inch screen, surround sound, Switch and board games. Good for birthdays, match or concert screenings, and reading groups.', '約10名の小さな部屋。100インチの大型画面、サラウンド音響、Switch、ボードゲーム。誕生日、試合やライブの観賞、読書会に。')}</p>
-    <div class="rb-price__block"><h3>{t('場地費', 'Fee', '料金')}<span>{t('每時段 2 小時', 'per 2-hour slot', '1枠2時間')}</span></h3>{dl(hire_rows)}</div>
+    <p class="rb-price__lede">{t('約十人的小廳，有 100 吋電視、劇院音響、Switch、桌遊、麻將與酒水。生日、球賽或演唱會直播、牌局、讀書會都合適。', 'A small room for about ten, with a 100-inch TV, theatre sound, Switch, board games, mahjong and drinks. Good for birthdays, match or concert screenings, game nights and reading groups.', '約10名の小さな部屋。100インチテレビ、シアター音響、Switch、ボードゲーム、麻雀、お酒やドリンク。誕生日、試合やライブの観賞、麻雀、読書会に。')}</p>
+    <div class="rb-price__block"><h3>{t('場地費', 'Fee', '料金')}<span>{t('每時段 3 小時', 'per 3-hour slot', '1枠3時間')}</span></h3>{dl(hire_rows)}</div>
     <ul class="rb-price__rules">{hire_rules}</ul>
     <div class="rb-hire__form">{hire_form()}</div>
   </div>
