@@ -3495,6 +3495,19 @@ app.post('/api/admin/event-applications/:id/review', auth, adminOnly, requireDb,
 }));
 
 // 其他進度更新（補件、檔期／費用確認、場地安排…）：寫入紀錄並寄信通知申請者，任何狀態皆可。
+/* 更正包場區域（KK 11/24：12/26 達義社包場實際在二樓約書旅交誼廳）：只改 zone／venue 並同步活動地點，不重算或補收場地費、不寄信；品牌子帳號不可用 */
+app.post('/api/admin/event-applications/:id/zone', auth, adminOnly, requireDb, wrap(async (req, res) => {
+  if (tableOrders.visibleVenues(req.auth.brands)) return res.status(403).json({ error: '只有總公司管理員可以更正包場區域。' });
+  const zone = String(req.body?.zone || ''), z = venueFees.hireZone(zone);
+  if (!z) return res.status(400).json({ error: '請選擇包場區域。' });
+  const cur = (await q('SELECT id,visibility,event_id FROM event_applications WHERE id=$1', [req.params.id])).rows[0];
+  if (!cur) return res.status(404).json({ error: '找不到這筆申請。' });
+  if (cur.visibility !== 'private') return res.status(409).json({ error: '只有包場可以更正區域。' });
+  const a = (await q(`UPDATE event_applications SET zone=$2,venue=$3 WHERE id=$1 RETURNING ${APPLICATION_FIELDS}`, [cur.id, zone, z.venue])).rows[0];
+  const location = applicationVenueText(a);
+  if (a.event_id) await q('UPDATE events SET location=$2 WHERE id=$1', [a.event_id, location]);
+  res.json({ ok: true, application: a, location });
+}));
 app.post('/api/admin/event-applications/:id/updates', auth, adminOnly, requireDb, wrap(async (req, res) => {
   const message = typeof req.body?.message === 'string' && !req.body.message.includes('\0') ? req.body.message.trim() : '';
   if (!message || message.length > 2000) return res.status(400).json({ error: '請填寫給申請人的進度更新內容（2000 字以內）。' });

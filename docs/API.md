@@ -264,6 +264,9 @@ Google 授權回呼，簽發會員 token 並導回。
 讀取場地申請（含 `kind` 社群／企業與 `venue` 二樓／三樓）及聯絡資料，回 `{ applications }`。僅管理員可讀，不會加入公開活動清單。
 每筆另含 `updates`：依時間排序的進度紀錄 `[{ id, kind, message, actor, created_at, mail_state, mail_sent_at, mail_attempts, mail_error }]`。`kind` 為 `submitted`（送出）／`approved`／`rejected`／`update`（其他進度）；`mail_state` 為 `queued`（待寄）／`retry`（寄失敗、排程重試）／`sent`／`failed`（重試 10 次仍失敗）。
 
+### POST /api/admin/event-applications/:id/zone
+更正包場區域（總公司管理員；品牌子帳號 403）。body `{ zone }`（`venue-fees` 的 `HIRE_ZONES`：A–E、AB、ABC、ABCD、ALL＝等等空間，LOUNGE＝約書旅交誼廳，CAFE、BAR）。只限 `visibility='private'`；同步改 `venue` 與活動 `location`，不重算／補收場地費、不寄信。回 `{ ok, application, location }`。
+
 ### POST /api/admin/event-applications/:id/review
 審核待審申請。body：`{ status: "approved" | "rejected", review_note, expected_status: "pending", publish_public? }`，回 `{ ok, application, event? }`。回覆必填、最多 2000 字，申請人可見。活動在送件時已建立；審核只更新該活動的 `review_status`，通過時依 `visibility`、`registration_mode` 同一交易把它由草稿翻成對外狀態：公開 `native` 為 `報名中`、`external` 為外部連結預告、私人 `closed` 僅顯示占用時段且 API 禁止報名。舊申請未填 `visibility` 時才使用 `publish_public`：true 公開為預告，false 維持草稿由主辦人自行發布。未通過一律維持草稿不公開。回應的 `event` 只在本次有公開時回傳。私人活動場地費未付（`deposit_twd>0` 且無 `deposit_paid_at`）不可通過，回 409。公開外部售票通過時同一交易把 `deposit_twd` 設為 150×預估人數，通知信附付款說明。一樓私人包場通過時，同一交易把活動時段（台北時間 30 分鐘格，凌晨歸前一天）從 POS「不可訂位設定」的特定日期移除（`site_content.reservation_hours`），回應含 `reservations_closed: { 'YYYY-MM-DD': [時段] }`，並寄信給 `NOTIFY_EMAIL` 請店長排班；既有已成立訂位不會自動取消。不存在回 404；已審核或其他管理員先完成時回 409，不覆蓋既有結果。保存審核者與時間。審核通過仍不代表場地已保留或完成收費；檔期、費用與合作條件仍須書面確認。
 審核結果通知與狀態變更在同一交易寫入進度紀錄，之後立即寄給申請人；寄失敗自動退避重試，回應的 `application.updates` 可看寄送狀態。
