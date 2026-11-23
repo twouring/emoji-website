@@ -140,6 +140,7 @@ function spacePanelHtml(cur){
     ${sp.limit_hit && !sp.out_at ? `<p class="sp-bar-warn">已連續使用滿 ${spaceCfg().max_hours} 小時，請客人離場；要繼續使用請離場後重新入場。</p>` : ''}
     ${main || subs ? `<div class="sp-bar-acts">${main}${subs ? `<div class="sp-bar-subs">${subs}</div>` : ''}</div>` : ''}
     ${sp.in_at ? `<button type="button" class="sp-bar-link" id="sp-reprint">補印入場單</button>` : ''}
+    ${sp.prepaid && !sp.in_at ? `<button type="button" class="sp-bar-link" id="sp-refund">退單（退款給客人）</button>` : ''}
   </section>${cur.lines?.length ? '<h3 class="sp-lines-h">待收款項</h3>' : ''}`;
 }
 function bindSpacePanel(host, cur, reload){
@@ -175,6 +176,19 @@ function bindSpacePanel(host, cur, reload){
   });
   on('sp-checkin', () => spaceCheckin({ id: cur.id, table: cur.table, member: cur.space.member, need_seat: (cur.space.plans || []).some(p => spaceCfg().seat_cats.includes(p.cat)) && spaceCfg().seats.length > 0 }, reload));
   on('sp-resume', async () => { if (!await posConfirm(`取消 ${cur.table} 的離場？離場自動加的超時費用會移除，繼續計時。`, { ok: '取消離場' })) return; try { await api('/admin/orders/sessions/' + cur.id + '/space/resume', { method: 'POST', body: {} }); toast('已取消離場，繼續計時'); await reload(); } catch (e) { toast(e.message); } });
+  /* 線上預付還沒入場的退單（KK 11/23）：店長識別碼＋原因，Stripe 退款、作廢發票、收回點數與未啟用會籍 */
+  on('sp-refund', async () => {
+    const amt = Number(cur.space.paid_total) || 0;
+    if (!await posConfirm(`${cur.table} ${cur.space.member || '會員'} 退單？\n會把 NT$${num(amt)} 退回客人的卡（Stripe，入帳約 5–10 個工作天），作廢發票、收回累點${cur.space.plans?.length ? '與未啟用的方案' : ''}，這張入場單會收掉。`, { title: '退單', ok: '退單並退款', cancel: '先不要' })) return;
+    const reason = await pickReason({ title: '退單原因（會記在操作紀錄）', presets: ['客人取消', '重複購買', '買錯方案', '無法到場'] }); if (!reason) return;
+    let headers;
+    if (DATA?.super !== true) { const pin = await askManagerPin('退單需要店長確認'); if (!pin) return; headers = { 'X-Manager-Pin': pin }; }
+    try {
+      const out = await api('/admin/orders/sessions/' + cur.id + '/space/refund', { method: 'POST', body: { reason }, headers });
+      toast(`${out.table} 已退單：${out.online_refund?.existing ? 'Stripe 先前已退款' : '已退款'} NT$${num(out.amount)}${out.entitlement_removed ? '，方案已收回' : ''}`);
+      await reload();
+    } catch (e) { toast(e.message); }
+  });
   on('sp-reprint', () => printSpaceEntry({ paid_at: cur.space.paid_at, online: cur.space.online, in_at: cur.space.in_at, due_at: cur.space.due_at, seat: cur.table, headcount: cur.space.headcount, plan: (cur.space.plans || []).map(p => p.zh).join('、') }, { reprint: true }));
 }
 /* 掃碼進出：掃會員卡後先確認再入場／離場。相機或掃描槍都可以（pickMemberCard，QR 區分大小寫）；掃描槍在入場看板直接掃時由 posWedgeScan 帶 scanned 進來。 */

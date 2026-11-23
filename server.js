@@ -15,7 +15,7 @@ const { Pool } = require('pg');
 const Stripe = require('stripe');
 const {
   endsAtAfterActivation, deriveMemberAccess, pickEntitlementForQr,
-  applyLazyAutoActivate, addMonthsUTC,
+  applyLazyAutoActivate, addMonthsUTC, autoActivateAt,
 } = require('./lib/entitlements');
 const { signAccessToken, verifyAccessToken } = require('./lib/access-token');
 const { isAdminApiKey, ADMIN_API_KEY_MIN } = require('./lib/admin-key');
@@ -6976,6 +6976,7 @@ app.post('/api/admin/orders/sessions/:id/linepay/cancel',auth,adminOnly,requireD
    金額由伺服器以未付品項原價重算；入帳（webhook 或 POS 輪詢 /check）以 Stripe session id 冪等，桌次已變動就不入帳並 LINE 通知員工退款 ---- */
 const posCardQr=require('./lib/pos-card-qr');
 const onlineRefund=require('./lib/online-refund');
+const spaceRefund=require('./lib/space-refund');
 const cardQrGet=async(sid,client)=>{const v=(await (client||{query:q}).query('SELECT value FROM site_content WHERE key=$1',[posCardQr.key(sid)])).rows[0]?.value;try{return v?JSON.parse(v):null;}catch{return null;}};
 const cardQrDel=(sid,client)=>(client||{query:q}).query('DELETE FROM site_content WHERE key=$1',[posCardQr.key(sid)]);
 /* Stripe webhook only confirms the payment.  The cashier still completes the sale from the POS,
@@ -8929,6 +8930,37 @@ app.post('/api/admin/orders/sessions/:id/space/checkin',auth,adminOnly,requireDb
     req.posLogDetail=`${s.table_no}${table!==s.table_no?'→'+table:''} ${s.space.member_name||''} 線上已付入場`;
     res.json({ok:true,id:s.id,table,space_started:{paid_at:paidAt,online:true,in_at:inAt,due_at:m>0?new Date(Date.parse(inAt)+m*60000).toISOString():null,seat:table,headcount:1,plan:posSpace.planLines(s.items).map(l=>l.zh).join('、')}});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
+}));
+/* 線上預付入場單退單（KK 11/23，lib/space-refund.js）：還沒入場的會員 App 線上購買（等等空間會籍／約書旅入場）。
+   店長識別碼確認 → Stripe 退剩餘款項（已在後台退過就沿用）→ 作廢發票 → 沖回累點 → 訂單作廢、入場單收掉 → 刪除未啟用的會籍。
+   退款成功後任何一步失敗都先存退款紀錄，重按不會再退一次。 */
+app.post('/api/admin/orders/sessions/:id/space/refund',auth,adminOnly,requireDb,superOrManagerPin,wrap(async(req,res)=>{
+  if(!ORDER_ID_RE.test(req.params.id))return spaceErr(res,404,'找不到這張入場單。');
+  const reason=String(req.body?.reason||'').replace(/\s+/g,' ').trim().slice(0,80);
+  if(!reason)return spaceErr(res,400,'請填寫退單原因。');
+  const client=await pool.connect();let committed=false;
+  try{await client.query('BEGIN');
+    const s=(await client.query('SELECT * FROM table_sessions WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+    const venues=tableOrders.visibleVenues(req.auth.brands);if(s&&venues&&!venues.includes(s.venue))return spaceErr(res,403,'只能操作自己品牌的入場單。');
+    const o=s&&(await client.query("SELECT * FROM table_orders WHERE session_id=$1 AND status<>'void' ORDER BY paid_at LIMIT 1 FOR UPDATE",[s.id])).rows[0];
+    const ent=o?.payer?.stripe_session?rowToEnt((await client.query(`SELECT ${SEL_ENT} FROM entitlements WHERE source='stripe' AND source_id=$1 FOR UPDATE`,[o.payer.stripe_session])).rows[0]):null;
+    let chk;try{chk=spaceRefund.check(s,o,ent,{autoActivateAt});}catch(e){return spaceErr(res,e.status||400,e.message);}
+    let rec=o.payer?.online_refund||null;
+    if(!rec){const out=await spaceRefund.stripeRefundRemaining(stripe,chk.intent,chk.amount,o.id).catch(e=>e);
+      if(out instanceof Error)return spaceErr(res,out.status||502,out.message);
+      rec={provider:'stripe',ref:chk.intent,refund_id:out.refund_id,amount:out.amount,status:out.status,existing:!!out.existing,at:new Date().toISOString(),by:actorOf(req.auth)||''};}
+    const keep=async(code,msg)=>{await client.query('ROLLBACK').catch(()=>{});committed=true;await q("UPDATE table_orders SET payer=COALESCE(payer,'{}'::jsonb)||$2::jsonb WHERE id=$1",[o.id,JSON.stringify({online_refund:rec})]);return spaceErr(res,code,msg+'（已退款，請再按一次退單完成帳務）');};
+    let invoice=o.invoice||{};
+    if(invoice.status==='issued'){const cfg=invoiceCfg(o);if(!cfg)return keep(503,noInvoiceCfg(o));
+      try{if(!invoice.number)invoice=await ezpayInvoice.searchInvoice(cfg,o,invoice);if(invoice.status==='issued')invoice=await ezpayInvoice.invalidInvoice(cfg,o,invoice,reason);}catch(e){return keep(e.status||502,e.message);}}
+    await reverseYanForOrder(client,o.id);
+    await client.query("UPDATE table_orders SET status='void',void_reason=$2,voided_by=$3,voided_at=now(),invoice=$4,payer=$5 WHERE id=$1",[o.id,reason,actorOf(req.auth)||'',JSON.stringify(invoice),JSON.stringify({...o.payer,online_refund:rec})]);
+    await client.query("UPDATE table_sessions SET status='closed',updated_at=now() WHERE id=$1",[s.id]);
+    if(ent)await client.query('DELETE FROM entitlements WHERE id=$1 AND activated_at IS NULL',[ent.id]);
+    await client.query('COMMIT');committed=true;
+    req.posLogDetail=`${s.table_no} ${s.space.member_name||''} 線上預付退單 NT$${chk.amount}${ent?`（收回會籍 ${ent.plan}）`:''}：${reason}`;
+    res.json({ok:true,table:s.table_no,amount:chk.amount,online_refund:rec,entitlement_removed:ent?ent.id:null,invoice_status:invoice.status||null});
+  }catch(e){if(!committed)await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }));
 /* 等等空間會員（KK 11/17）：App 線上購買／現場開通的會籍，POS 看得到誰買了什麼、狀態、在不在場（電話遮罩） */
 app.get('/api/admin/orders/space/members',auth,adminOnly,requireDb,wrap(async(req,res)=>{

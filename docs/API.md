@@ -577,6 +577,9 @@ POS 營業情境（KK 11/15，`lib/pos-space.js`）：讀取品牌的情境設�
 ### POST /api/admin/orders/sessions/:id/space/checkin
 會員 App 線上已付（`space.prepaid`）的入場單到場入場：開始計時（`in_at`＝現在）。靜讀室等需指定席號的分類要帶 `{ seat }`，入場單號改成席號（訂單同步改桌號）。回 `{ ok, id, table, space_started }`；不是線上已付未入場的單 404、席位使用中 409。
 
+### POST /api/admin/orders/sessions/:id/space/refund
+線上預付、還沒入場的入場單退單（等等空間會籍／約書旅入場，會員 App Stripe 付款）。需店長識別碼（`X-Manager-Pin`，超管免）。Body `{ reason }`。依序：Stripe 退剩餘款項（已在 Stripe 後台退過就沿用、不重複退）→ 作廢 ezPay 發票 → 沖回累點 → 訂單作廢、入場單收掉 → 刪除未啟用的對應會籍。回 `{ ok, table, amount, online_refund, entitlement_removed, invoice_status }`。已入場、不是線上預付、會籍已啟用（含購買滿 7 天自動啟用）409；退款成功但發票作廢失敗時先存退款紀錄並回錯誤，重按只補完帳務。
+
 ### GET /api/admin/orders/space/members
 等等空間會員清單（KK 11/17：App 線上購買的會籍 POS 要看得到）。回 `{ venue, members:[{ id, name, phone(遮罩), plan, plan_label, source(stripe|pos-manual|yan), purchased_at, ends_at, state(pending|active|expired), inside }] }`，含待啟用、有效、近 1 天到期與 30 天內購買的會籍，最多 200 筆。其他品牌回空陣列。
 
