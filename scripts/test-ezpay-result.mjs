@@ -66,3 +66,12 @@ test('server：補開／作廢遇到已開立但沒號碼時走 searchInvoice，
   assert.match(voidRoute, /if\(!nextInvoice\.number\)\{try\{nextInvoice=await ezpayInvoice\.searchInvoice\(cfg,o,nextInvoice\)/);
   assert.match(voidRoute, /if\(nextInvoice\.status==='issued'\)\{try\{nextInvoice=await ezpayInvoice\.invalidInvoice\(/);
 });
+
+test('作廢原因符合 ezPay 上限（中文 6 字／英文 20 字，KK 11/23 實測）', () => {
+  const ez = require('../lib/ezpay-invoice.js');
+  const f = r => ez.invalidFields({ order: {}, invoice: { number: 'HV32728906' }, reason: r, cfg: {} }).InvalidReason;
+  assert.equal(f('客人取消（KK 11/23 指示退款）'), '客人取消（K');
+  assert.equal(f('重複購買'), '重複購買');
+  assert.equal(f('customer cancelled the order'), 'customer cancelled t');
+  assert.equal(f(''), '訂單作廢');
+});
