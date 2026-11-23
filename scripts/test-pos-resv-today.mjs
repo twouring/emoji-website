@@ -46,7 +46,7 @@ test('看板 HTML：依時間排序、下一組標示、有已到／未到鍵、
 });
 
 test('接線：看板放在清單上方、不管清單看哪天都抓今天、自動重抓', () => {
-  assert.match(src, /\$\{resvTodayHtml\(todayRows\)\}/);
+  assert.match(src, /\$\{resvTodayHtml\(todayRows,Date\.now\(\),todayBuyouts\)\}/);
   assert.match(src, /from=\$\{today\}&days=1/);
   assert.match(src, /todayRows\.find\(x=>x\.id===b\.dataset\.resv\)/);
   assert.match(src, /__resvEtaTick/);

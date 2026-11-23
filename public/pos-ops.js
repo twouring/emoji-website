@@ -2558,13 +2558,17 @@ function resvTodayEtaAt(status,at,now=Date.now()){
   if(-m<RESV_HOLD_MIN)return {cls:'due',text:`該到了・保留 ${RESV_HOLD_MIN+m} 分`};
   return {cls:'late',text:-m>=60?`逾時 ${Math.floor(-m/60)} 小時 ${-m%60} 分`:`逾時 ${-m} 分`};
 }
+/* 包場（品牌站線上付費包場，KK 11/24）：訂位分頁唯讀顯示，審核與收款在 admin 活動申請 */
+function resvBuyoutCell(b){return `<b>${esc(b.title||'包場')}</b>${b.org?` <span class="hint hint--tight">${esc(b.org)}</span>`:''}<br>${esc(b.contact)} ${Number(b.attendees)} 位${b.phone?`・<a href="tel:${esc(b.phone)}">${esc(b.phone)}</a>`:''}${b.place?`<br><span class="hint hint--tight">${esc(b.place)}</span>`:''}${b.requirements?`<br><span class="rt-note">${esc(b.requirements)}</span>`:''}`;}
+function resvBuyoutPill(b){return b.status==='approved'?'<span class="pill pill-ok">包場・已確認</span>':'<span class="pill pill-wait">包場・待審核</span>';}
+function resvBuyoutToday(list){return list.length?`<ul class="rt-buyouts">${list.map(b=>`<li class="rt-buyout"><b class="rt-time">${esc(b.start)}–${esc(b.end)}</b><div class="rt-who">${resvBuyoutPill(b)}<br>${resvBuyoutCell(b)}</div></li>`).join('')}</ul>`:'';}
 function resvTodayStats(rows,now=Date.now()){
   const live=rows.filter(r=>r.status!=='cancelled'),n=a=>a.reduce((s,r)=>s+Number(r.party_size||0),0);
   const wait=live.filter(r=>r.status==='confirmed'||r.status==='new');
   const next=wait.filter(r=>resvAt(r)>now-RESV_HOLD_MIN*60000).sort((a,b)=>resvAt(a)-resvAt(b))[0]||null;
   return {groups:live.length,guests:n(live),wait:wait.length,waitGuests:n(wait),arrived:live.filter(r=>r.status==='arrived').length,noShow:live.filter(r=>r.status==='no_show').length,pending:live.filter(r=>r.status==='new').length,late:wait.filter(r=>resvTodayEta(r,now).cls==='late').length,cancelled:rows.length-live.length,next};
 }
-function resvTodayHtml(rows,now=Date.now()){
+function resvTodayHtml(rows,now=Date.now(),buyouts=[]){
   const today=todayTaipei(),wd=['日','一','二','三','四','五','六'][new Date(today+'T12:00:00Z').getUTCDay()];
   const st=resvTodayStats(rows,now),live=rows.filter(r=>r.status!=='cancelled').sort((a,b)=>resvAt(a)-resvAt(b));
   const FLOW={new:[['confirmed','確認']],confirmed:[['arrived','已到'],['no_show','未到']],arrived:[['confirmed','改回']],no_show:[['confirmed','改回']]};
@@ -2574,7 +2578,8 @@ function resvTodayHtml(rows,now=Date.now()){
   return `<section class="resv-today" aria-label="今天的訂位"><div class="rt-head"><h3>今天 ${esc(today.slice(5).replace('-','/'))}（${wd}）</h3><span class="rt-sum"><b>${st.groups}</b> 組・<b>${st.guests}</b> 位</span></div>
     <div class="rt-stats"><span>待到 <b>${st.wait}</b> 組 ${st.waitGuests} 位</span><span>已到 <b>${st.arrived}</b></span><span class="${st.noShow?'rt-bad':''}">未到 <b>${st.noShow}</b></span>${st.late?`<span class="rt-bad">逾時 <b>${st.late}</b></span>`:''}${st.pending?`<span class="rt-warn">待確認 <b>${st.pending}</b></span>`:''}${st.cancelled?`<span class="rt-muted">取消 ${st.cancelled}</span>`:''}</div>
     ${nx?`<p class="rt-next">下一組 <b>${esc(nx.reserve_time)}</b> ${esc(nx.name)} ${Number(nx.party_size)} 位${nx.table_no?`・${esc(nx.table_no)}`:'・未排桌'}　${eta(nx)}</p>`:''}
-    ${live.length?`<ol class="rt-list">${live.map(item).join('')}</ol>`:'<p class="a-empty">今天沒有訂位</p>'}</section>`;
+    ${resvBuyoutToday(buyouts)}
+    ${live.length?`<ol class="rt-list">${live.map(item).join('')}</ol>`:buyouts.length?'':'<p class="a-empty">今天沒有訂位</p>'}</section>`;
 }
 /* 倒數每 30 秒就地更新，不重繪 */
 if(typeof document!=='undefined'&&typeof setInterval==='function'&&!globalThis.__resvEtaTick)globalThis.__resvEtaTick=setInterval(()=>{
@@ -2589,9 +2594,9 @@ async function loadReservations(){
   if(!RESV_FROM)RESV_FROM=todayTaipei();
   if(!host.dataset.init){host.dataset.init='1';host.innerHTML='<h2>訂位</h2><p class="hint">載入中…</p>';}
   let d;try{d=await api(`/admin/reservations?from=${encodeURIComponent(RESV_FROM)}&days=${RESV_DAYS}${SCOPE?'&venue='+SCOPE:''}`);}catch(e){host.innerHTML=`<h2>訂位</h2><p class="a-empty">載入失敗：${esc(e.message)}</p>`;return;}
-  const today=todayTaipei();let todayRows;
-  if(RESV_FROM===today)todayRows=d.reservations.filter(r=>r.reserve_date===today);
-  else{try{todayRows=(await api(`/admin/reservations?from=${today}&days=1${SCOPE?'&venue='+SCOPE:''}`)).reservations||[];}catch{todayRows=[];}}
+  const today=todayTaipei();let todayRows,todayBuyouts;d.buyouts=d.buyouts||[];
+  if(RESV_FROM===today){todayRows=d.reservations.filter(r=>r.reserve_date===today);todayBuyouts=d.buyouts.filter(b=>b.date===today);}
+  else{try{const t=await api(`/admin/reservations?from=${today}&days=1${SCOPE?'&venue='+SCOPE:''}`);todayRows=t.reservations||[];todayBuyouts=t.buyouts||[];}catch{todayRows=[];todayBuyouts=[];}}
   globalThis.__resvLoadedAt=Date.now();
   try{RESV_HOURS=await api('/admin/reservation-hours');RESV_HOURS_ERR='';}catch(e){RESV_HOURS=RESV_HOURS||null;RESV_HOURS_ERR=e.message||'載入失敗';}
   const L=d.labels||{},PILL={new:'pill-wait',confirmed:'pill-ok',arrived:'pill-ok',no_show:'pill-bad',cancelled:'pill-draft'};
@@ -2599,10 +2604,15 @@ async function loadReservations(){
   const actions=r=>(FLOW[r.status]||[]).map(([s,l])=>`<button class="btn ${s==='confirmed'&&r.status==='new'?'btn--solid':'btn--ghost'} btn-sm" data-resv="${esc(r.id)}" data-resv-status="${s}">${l}</button>`).join(' ');
   const weekday=date=>['日','一','二','三','四','五','六'][new Date(date+'T12:00:00Z').getUTCDay()];
   let day='';
-  const rows=d.reservations.map(r=>{
+  /* 包場與訂位同一張表、依日期時間排序（營業日 03:00 前的時段排在當天最後） */
+  const sk=(date,t)=>date+(t<'03:00'?'~':'')+t;
+  const merged=[...d.reservations.map(r=>({k:sk(r.reserve_date,r.reserve_time),r})),...d.buyouts.map(b=>({k:sk(b.date,b.start),b}))].sort((x,y)=>x.k<y.k?-1:x.k>y.k?1:0);
+  const rows=merged.map(({r,b})=>{
+    if(b){const head=b.date!==day?(day=b.date,`<tr class="resv-day"><td colspan="7">${esc(b.date)}（${weekday(b.date)}）<span class="pill ${b.date===todayTaipei()?'pill-ok':'pill-wait'}" style="margin-left:8px">${relDayText(b.date)}</span></td></tr>`):'';
+      return head+`<tr class="resv-buyout-row"><td class="a-mono"><b>${esc(b.start)}</b><br><span class="hint hint--tight">${esc(BRAND_LABEL[b.venue]||'')}</span></td><td><b>${esc(b.title||'包場')}</b><br>${esc(b.contact)} ${Number(b.attendees)} 位${b.phone?`<br><a href="tel:${esc(b.phone)}">${esc(b.phone)}</a>`:''}${b.org?`<br><span class="hint hint--tight">${esc(b.org)}</span>`:''}</td><td>包場 <span style="white-space:nowrap">${esc(b.start)}–${esc(b.end)}</span>${b.place?`<br><span class="hint hint--tight">${esc(b.place)}</span>`:''}${b.requirements?`<br>${esc(b.requirements)}`:''}</td><td></td><td><span class="pill ${b.status==='approved'?'pill-ok':'pill-wait'}">包場</span><br><span class="hint hint--tight">${b.status==='approved'?'已確認':'待審核'}${b.paid?'<br>已付費':''}</span></td><td class="a-mono resv-id">${esc(b.id)}</td><td></td></tr>`;}
     const head=r.reserve_date!==day?(day=r.reserve_date,`<tr class="resv-day"><td colspan="7">${esc(r.reserve_date)}（${weekday(r.reserve_date)}）<span class="pill ${r.reserve_date===todayTaipei()?'pill-ok':'pill-wait'}" style="margin-left:8px">${relDayText(r.reserve_date)}</span></td></tr>`):'';
     return head+`<tr class="${r.status==='cancelled'?'resv-off':''}"><td class="a-mono"><b>${esc(r.reserve_time)}</b><br><span class="hint hint--tight">${esc(BRAND_LABEL[r.venue]||r.period)}</span></td><td><b>${esc(r.name)}</b> ${Number(r.party_size)} 位<br><a href="tel:${esc(r.phone)}">${esc(r.phone)}</a>${r.email?`<br><span class="hint hint--tight">${esc(r.email)}</span>`:'<br><span class="hint hint--tight">未留 Email，請電話聯繫</span>'}</td><td>${esc(r.note||'')}${r.internal_note?`${r.note?'<br>':''}<span class="resv-internal">內部：${esc(r.internal_note)}</span>`:''}${r.staff_note?`<br><span class="hint hint--tight">店內：${esc(r.staff_note)}</span>`:''}</td><td><select data-resv-table="${esc(r.id)}" style="min-width:96px;min-height:44px" aria-label="桌號"><option value="">未排桌</option>${[...new Set([...posTables(),...(r.table_no?[r.table_no]:[])])].map(t=>`<option value="${esc(t)}"${t===(r.table_no||'')?' selected':''}>${esc(t)}</option>`).join('')}</select></td><td><span class="pill ${PILL[r.status]||''}">${esc(L[r.status]||r.status)}</span>${r.handled_by?`<br><span class="hint hint--tight">${esc(r.handled_by)}</span>`:''}</td><td class="a-mono resv-id">${esc(r.request_id)}</td><td class="ops-actions" style="white-space:nowrap">${actions(r)} <button type="button" class="btn btn--ghost btn-sm" data-resv-edit="${esc(r.id)}">編輯</button> <button type="button" class="btn btn--ghost btn--danger btn-sm" data-resv-delete="${esc(r.id)}">刪除</button></td></tr>`;
-  }).join('')||'<tr><td colspan="7" class="a-empty">這段期間沒有訂位申請</td></tr>';
+  }).join('')||'<tr><td colspan="7" class="a-empty">這段期間沒有訂位或包場</td></tr>';
   // 櫃檯登記（電話／現場）：時段依店別 30 分鐘一格；Email 可留空（留了才寄確認信）
   const slotOf=(from,to)=>{const o=[];for(let m=from;m<to;m+=30)o.push(`${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`);return o;};
   const slotGroups=[['CAFE',slotOf(8*60,17*60)],['BAR',slotOf(17*60,24*60).concat(slotOf(0,3*60))]];   // 訂位不分店別，兩個時段都能登記
@@ -2637,10 +2647,10 @@ async function loadReservations(){
     <div class="resv-actions"><button type="button" class="btn ${RESV_ADD_OPEN?'btn--solid':'btn--ghost'}" id="resv-add-toggle" aria-expanded="${RESV_ADD_OPEN}" aria-controls="resv-add">＋ 登記訂位<span class="resv-act-sub">（電話／現場）</span></button><button type="button" class="btn ${RESV_HOURS_OPEN?'btn--solid':'btn--ghost'}" id="resv-hours-toggle" aria-expanded="${RESV_HOURS_OPEN}" aria-controls="resv-hours">不可訂位設定</button></div>
     ${hoursStrip()}
     ${addForm}
-    ${resvTodayHtml(todayRows)}
+    ${resvTodayHtml(todayRows,Date.now(),todayBuyouts)}
     ${hoursPanel()}
     ${editForm}
-    <div class="a-toolbar"><label>從<input type="date" id="resv-from" value="${esc(RESV_FROM)}"></label><select id="resv-days" aria-label="顯示天數">${[[1,'只看這天'],[7,'7 天'],[30,'30 天'],[60,'60 天']].map(([n,l])=>`<option value="${n}" ${n===RESV_DAYS?'selected':''}>${l}</option>`).join('')}</select><button class="btn btn--ghost btn-sm" id="resv-today">今天</button><span class="hint hint--tight">${d.reservations.length} 筆</span></div>
+    <div class="a-toolbar"><label>從<input type="date" id="resv-from" value="${esc(RESV_FROM)}"></label><select id="resv-days" aria-label="顯示天數">${[[1,'只看這天'],[7,'7 天'],[30,'30 天'],[60,'60 天']].map(([n,l])=>`<option value="${n}" ${n===RESV_DAYS?'selected':''}>${l}</option>`).join('')}</select><button class="btn btn--ghost btn-sm" id="resv-today">今天</button><span class="hint hint--tight">${d.reservations.length} 筆${d.buyouts.length?`・包場 ${d.buyouts.length} 場`:''}</span></div>
     <div class="a-wrap2"><table class="a-tbl resv-tbl"><thead><tr><th>時間</th><th>客人</th><th>備註</th><th>桌號</th><th>狀態</th><th>編號</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   bindFillChips(host);bindNoteChips(host);bindHoursPanel(host);
   // 兩顆入口鍵同一列：各自開關下方面板，一次只開一個

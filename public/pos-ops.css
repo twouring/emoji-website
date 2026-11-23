@@ -232,6 +232,9 @@ tr.resv-day td{background:var(--paper-alt);font-weight:600}
 .resv-today .rt-stats b{color:var(--ink)}.resv-today .rt-bad,.resv-today .rt-bad b{color:var(--danger)}.resv-today .rt-warn,.resv-today .rt-warn b{color:var(--warn)}.resv-today .rt-muted{opacity:.8}
 .resv-today .rt-next{margin:10px 0 0;padding:8px 12px;border-radius:8px;background:var(--paper-alt);line-height:1.5}
 .resv-today .rt-list{list-style:none;margin:10px 0 0;padding:0}
+.resv-today .rt-buyouts{list-style:none;margin:10px 0 0;padding:0}.resv-today .rt-buyout{display:grid;grid-template-columns:6.4em minmax(0,1fr);grid-template-areas:"t w";gap:6px 12px;align-items:start;padding:10px 12px;border-radius:8px;background:var(--paper-alt);border-left:4px solid var(--accent)}.resv-today .rt-buyout+.rt-buyout{margin-top:6px}.resv-today .rt-buyout .rt-time{font-size:1.125rem}
+@media(max-width:600px){.resv-today .rt-buyout{grid-template-columns:minmax(0,1fr);grid-template-areas:"t" "w";gap:2px}}
+tr.resv-buyout-row td{background:var(--paper-alt)}tr.resv-buyout-row td:first-child{border-left:4px solid var(--accent)}
 .resv-today .rt-item{display:grid;grid-template-columns:4.2em minmax(0,1fr) auto auto;align-items:center;gap:6px 12px;padding:10px 0;border-top:1px solid var(--line)}
 .resv-today .rt-time{font-size:1.25rem;font-variant-numeric:tabular-nums}
 .resv-today .rt-who{min-width:0;overflow-wrap:anywhere;line-height:1.45}

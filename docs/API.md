@@ -970,7 +970,7 @@ POS 庫存（`/pos/inventory`）。query `venue=`。回 `{ items[], recipes{菜�
 整份覆寫可訂位時間。body `{ weekly, dates }`，格式同上；不認得的時段丟棄、過去的日期例外與「全開」的星期自動清掉、特定日期上限 400 筆。只限制客人自助訂位（`POST /api/reservations`、`POST /api/me/reservations` 回 400「這個時段目前不開放訂位」），櫃檯登記與編修不受限。存在 `site_content.reservation_hours`。
 
 ### GET /api/admin/reservations
-訂位列表。query `from=YYYY-MM-DD`（預設台北今天）、`days`（1–60，預設 7）、`venue=`。回 `{ reservations[], from, days, pending, labels }`；每筆附 `venue`（08:00–16:59 歸 CAFE，其餘 BAR）與 `internal_note`（內部備註），品牌子帳號只看自己時段的。狀態：`new` 待確認、`confirmed` 已確認、`arrived` 已到、`no_show` 未到、`cancelled` 已取消。
+訂位列表。query `from=YYYY-MM-DD`（預設台北今天）、`days`（1–60，預設 7）、`venue=`。回 `{ reservations[], buyouts[], from, days, pending, labels }`；`buyouts[]`＝同期間的包場（品牌站線上付費包場 `event_applications`，只含已通過或已付款待審，每筆 `{ id, venue, date, start, end, zone, place, title, org, contact, phone, email, attendees, requirements, status: approved|pending, paid, fee }`，`venue` 依包場區域歸 CAFE／BAR／STAY／REST、03:00 前算前一營業日），品牌 POS 只看自己品牌的，唯讀（審核在 admin 活動申請）；每筆附 `venue`（08:00–16:59 歸 CAFE，其餘 BAR）與 `internal_note`（內部備註），品牌子帳號只看自己時段的。狀態：`new` 待確認、`confirmed` 已確認、`arrived` 已到、`no_show` 未到、`cancelled` 已取消。
 
 ### POST /api/admin/reservations
 櫃檯登記訂位（電話／現場）。body 同 `POST /api/reservations`（`date`、`time`、`party_size`、`name`、`phone`、`email?`、`note?`）另可帶 `table_no?`、`internal_note?`（內部備註，200 字內，如招待、股東；只給店內看，不寄給客人、不回會員 App）；與客人自助訂位同一套時段與驗證，但 `email` 可留空、當天 30 分鐘內的時段也可登（客人剛打來說馬上到）。`lang` 固定 `zh`、`source` 固定 `pos`，狀態直接 `confirmed`，記 `handled_by`。有留 Email 才寄確認信。品牌子帳號只能登記自己店別時段（403）。回 `{ ok, id, request_id, venue, mailed }`（201）。

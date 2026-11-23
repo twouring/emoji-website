@@ -2328,6 +2328,7 @@ async function insertWithRequestId(run) {
 }
 const reservationAdminUrl = r => `${ADMIN_BASE}/admin/${tableOrders.reservationVenue(r.time) === 'CAFE' ? 'cafe' : 'bar'}/reservations`;
 const reservationHours = require('./lib/reservation-hours');
+const reservationBuyouts = require('./lib/reservation-buyouts');
 const loadReservationHours = async () => reservationHours.parse(await contentValue('reservation_hours'));
 /* 客人端某天可訂的時段（/reserve、會員 App 換日期時抓）；沒設定＝全部開放 */
 app.get('/api/reservations/slots', rateLimit({ max: 300, windowMs: 3600000 }), requireDb, wrap(async (req, res) => {
@@ -8640,7 +8641,10 @@ app.get('/api/admin/reservations',auth,adminOnly,requireDb,wrap(async(req,res)=>
   const rows=(await q(`SELECT id,request_id,to_char(reserve_date,'YYYY-MM-DD') AS reserve_date,reserve_time,period,party_size,name,phone,email,note,source,status,table_no,staff_note,internal_note,COALESCE((SELECT name FROM pos_staff ps WHERE 'staff:'||ps.id=handled_by),handled_by) AS handled_by,created_at,updated_at FROM dining_reservations WHERE reserve_date>=$1::date AND reserve_date<$1::date+$2::int AND deleted_at IS NULL ORDER BY reserve_date,reserve_time`,[from,days])).rows
     .map(r=>({...r,venue:tableOrders.reservationVenue(r.reserve_time)})).filter(r=>!venues||venues.includes(r.venue));
   const pending=(await q("SELECT reserve_time FROM dining_reservations WHERE status='new' AND reserve_date>=CURRENT_DATE AND deleted_at IS NULL")).rows.filter(r=>!venues||venues.includes(tableOrders.reservationVenue(r.reserve_time))).length;
-  res.json({reservations:rows,from,days,pending,labels:tableOrders.RESERVATION_LABEL});
+  /* 包場（品牌站線上付費包場，KK 11/24）：已通過或已付款待審，依品牌過濾；查不到不擋訂位清單 */
+  const to=new Date(Date.parse(from+'T00:00:00Z')+days*86400e3).toISOString().slice(0,10);
+  const buyouts=reservationBuyouts.buyoutsFor((await q(`SELECT id,venue,zone,visibility,status,title,community_name,contact_name,contact_phone,contact_email,attendees,requirements,starts_at,ends_at,deposit_twd,deposit_paid_at FROM event_applications WHERE visibility='private' AND status<>'rejected' AND starts_at>=$1::date-1 AND starts_at<$2::date+1`,[from,to]).catch(()=>({rows:[]}))).rows,venues).filter(b=>b.date>=from&&b.date<to);
+  res.json({reservations:rows,buyouts,from,days,pending,labels:tableOrders.RESERVATION_LABEL});
 }));
 /* 可訂位時間管理：每週固定＋特定日期例外（含公休）；只限制客人端，櫃檯登記不受限 */
 app.get('/api/admin/reservation-hours',auth,adminOnly,requireDb,wrap(async(req,res)=>{
