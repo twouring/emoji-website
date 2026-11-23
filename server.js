@@ -1866,6 +1866,24 @@ app.use((req, res, next) => {
   if (!APP_HOST_OWN.test(req.path)) return res.redirect(302, SITE_BASE + req.originalUrl);
   next();
 });
+// 導流歸因：帶 utm_source 的到訪按日計數，並記首次來源 cookie（只存來源字串、不追蹤個人），結帳時寫進 Stripe metadata、訂位時寫進 source。
+// 必須排在子品牌站分流之前：廣告落地頁是 atcafe／3am／staysquare／restbook.emoji.tw，排在後面會被直接回應而漏記（KK 11/23）。
+// cookie 設在 .emoji.tw，客人從子品牌站點到 www 訂位、app 買會籍時才讀得到同一個來源。
+const srcCookieDomain = req => /(^|\.)emoji\.tw$/.test(String(req.hostname || '').toLowerCase()) ? '.emoji.tw' : undefined;
+const utmPart = v => String(v || '').toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 40);
+const srcOf = req => {
+  const v = (req.headers.cookie || '').split(';').map(s => s.trim()).find(s => s.startsWith('src='))?.slice(4) || '';
+  try { return decodeURIComponent(v).slice(0, 130); } catch { return ''; }
+};
+app.use((req, res, next) => {
+  const source = req.method === 'GET' ? utmPart(req.query.utm_source) : '';
+  if (!source) return next();
+  const medium = utmPart(req.query.utm_medium), campaign = utmPart(req.query.utm_campaign);
+  if (pool && dbReady) q(`INSERT INTO utm_hits (day,source,medium,campaign,hits) VALUES ((now() AT TIME ZONE 'Asia/Taipei')::date,$1,$2,$3,1)
+    ON CONFLICT (day,source,medium,campaign) DO UPDATE SET hits=utm_hits.hits+1`, [source, medium, campaign]).catch(e => console.error('[utm]', e.message));
+  if (!srcOf(req)) res.cookie('src', [source, medium, campaign].join('|'), { maxAge: 30 * 86400e3, httpOnly: true, sameSite: 'lax', secure: SITE_BASE.startsWith('https://'), path: '/', domain: srcCookieDomain(req) });
+  next();
+});
 // 語系預設（KK 11/5）：官網與子品牌站從外部進入中文網址時，依上次選擇（cookie）→ 瀏覽器語系導向 /en、/ja；瀏覽器沒設定就英文
 app.use(require('./lib/lang-pref').langPrefMiddleware({
   applies: req => { const h = String(req.hostname || '').toLowerCase(); return !!BRAND_HOSTS[h] || (h === SITE_HOST && !ADMIN_MODE); },
@@ -1955,21 +1973,6 @@ app.use((req, res, next) => {
   if (ADMIN_MODE || !SITE_BASE.startsWith('https://') || String(req.hostname || '').toLowerCase() !== SITE_HOST) return next();
   if (req.path === '/admin.html') return res.redirect(301, ADMIN_BASE + '/admin');
   if (/^\/admin(\/|$)/.test(req.path)) return res.redirect(302, ADMIN_BASE + req.originalUrl);
-  next();
-});
-// 導流歸因：帶 utm_source 的到訪按日計數，並記首次來源 cookie（只存來源字串、不追蹤個人），結帳時寫進 Stripe metadata
-const utmPart = v => String(v || '').toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 40);
-const srcOf = req => {
-  const v = (req.headers.cookie || '').split(';').map(s => s.trim()).find(s => s.startsWith('src='))?.slice(4) || '';
-  try { return decodeURIComponent(v).slice(0, 130); } catch { return ''; }
-};
-app.use((req, res, next) => {
-  const source = req.method === 'GET' ? utmPart(req.query.utm_source) : '';
-  if (!source) return next();
-  const medium = utmPart(req.query.utm_medium), campaign = utmPart(req.query.utm_campaign);
-  if (pool && dbReady) q(`INSERT INTO utm_hits (day,source,medium,campaign,hits) VALUES ((now() AT TIME ZONE 'Asia/Taipei')::date,$1,$2,$3,1)
-    ON CONFLICT (day,source,medium,campaign) DO UPDATE SET hits=utm_hits.hits+1`, [source, medium, campaign]).catch(e => console.error('[utm]', e.message));
-  if (!srcOf(req)) res.cookie('src', [source, medium, campaign].join('|'), { maxAge: 30 * 86400e3, httpOnly: true, sameSite: 'lax', secure: SITE_BASE.startsWith('https://'), path: '/' });
   next();
 });
 app.use('/auth', rateLimit({ max: 30 }));
@@ -2337,6 +2340,7 @@ app.post('/api/reservations', rateLimit({ max: 30, windowMs: 3600000 }), require
   let r;
   try { r = reservations.normalizeReservation(req.body, new Date(), { hours: await loadReservationHours() }); }
   catch (error) { return res.status(error.status || 400).json({ error: error.message }); }
+  { const src = srcOf(req); if (src) r.source = ('src:' + src + (r.source ? ' ' + r.source : '')).slice(0, 200); }  // 廣告歸因：首次來源 cookie 優先
   const id = uid('dr_');
   const requestId = await insertWithRequestId(rid => q(`INSERT INTO dining_reservations(id,request_id,reserve_date,reserve_time,period,party_size,name,phone,email,lang,note,source,status)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, [id, rid, r.date, r.time, r.period, r.partySize, r.name, r.phone, r.email, r.lang, r.note, r.source, 'confirmed']));
@@ -2356,6 +2360,7 @@ app.post('/api/me/reservations', auth, requireDb, rateLimit({ max: 20, windowMs:
   let r;
   try { r = reservations.normalizeReservation({ ...req.body, name: req.body?.name || me.name, phone: req.body?.phone || me.phone_e164 || me.phone, email: req.body?.email ?? me.email ?? '', source: 'member-app' }, new Date(), { member: true, hours: await loadReservationHours() }); }
   catch (error) { return res.status(error.status || 400).json({ error: error.message }); }
+  { const src = srcOf(req); if (src) r.source = ('src:' + src + ' ' + r.source).slice(0, 200); }  // 廣告歸因（App 與官網同在 .emoji.tw）
   const open = Number((await q("SELECT COUNT(*)::int AS n FROM dining_reservations WHERE user_id=$1 AND deleted_at IS NULL AND status IN ('new','confirmed') AND reserve_date>=(now() AT TIME ZONE 'Asia/Taipei')::date", [me.id])).rows[0].n);
   if (open >= 5) return res.status(409).json({ error: '你已有 5 筆未到的訂位，請先取消其中一筆。' });
   const id = uid('dr_');

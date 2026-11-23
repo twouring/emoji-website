@@ -1029,7 +1029,7 @@ POS 庫存（`/pos/inventory`）。query `venue=`。回 `{ items[], recipes{菜�
 ### GET /api/admin/ig/status
 IG 自動發文系統狀態：token 有無、AI key 有無、未來排程、錯誤與逾期清單、素材庫統計、近 30 天官網導流 `utm:[{source,medium,hits}]`。
 
-導流歸因：任何帶 `utm_source` 的 GET 到訪按日計入 `utm_hits`，並寫首次來源 cookie `src`（30 天，只存 `source|medium|campaign` 字串）；創始會員、會籍結帳把它帶進 Stripe metadata `src`。
+導流歸因：任何帶 `utm_source` 的 GET 到訪按日計入 `utm_hits`，並寫首次來源 cookie `src`（30 天，只存 `source|medium|campaign` 字串）；創始會員、會籍結帳把它帶進 Stripe metadata `src`。子品牌站（atcafe／3am／staysquare／restbook.emoji.tw）同樣記錄，cookie 設在 `.emoji.tw` 跨子網域共用；`POST /api/reservations` 與 `POST /api/me/reservations` 有此 cookie 時，`source` 前綴 `src:<source|medium|campaign>`。
 
 ### GET /api/admin/ig/storage
 列 MinIO 物件（預設 `prefix=assets/`，可帶 `?prefix=posts/`）。回 `{ objects:[{key,size,lastModified,url}] }`，用來找未登記進 ig_assets 的原始素材。
