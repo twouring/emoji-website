@@ -309,9 +309,11 @@ def atc_faq_items():
         (t('可以外帶嗎？', 'Is takeaway available?', 'テイクアウトはできますか？'),
          t('可以。飲品與餐點都能外帶，店門口有外帶窗口；外帶不適用內用低消。', 'Yes. Drinks and food are available to go from the takeaway window; the dine-in minimum does not apply.', 'はい。ドリンクも料理もテイクアウト窓口で受け取れます。店内の最低利用金額は適用されません。')),
         (t('內用有低消嗎？', 'Is there a minimum spend for dine-in?', '店内利用の最低利用金額は？'),
-         t('平日內用每人一杯飲料，週六日內用每人低消 NT$300。', 'Dine-in: one drink per person on weekdays; NT$300 minimum per person on Saturdays and Sundays.', '店内利用は平日お一人様1ドリンク、土日はお一人様 NT$300 から。')),
+         t('平日內用低消每人一杯飲料，週六日內用每人低消 NT$300。', 'Dine-in: one drink per person on weekdays; NT$300 minimum per person on Saturdays and Sundays.', '店内利用は平日お一人様1ドリンク、土日はお一人様 NT$300 から。')),
+        (t('內用有限時嗎？', 'Is there a time limit?', '利用時間の制限はありますか？'),
+         t(f'不限時。營業時間內（{ATC_OPEN}–{ATC_CLOSE}）想坐多久都可以，平日低消每人一杯飲料。', f'No. Stay as long as you like during opening hours ({ATC_OPEN}–{ATC_CLOSE}); one drink per person on weekdays.', f'ありません。営業時間内（{ATC_OPEN}–{ATC_CLOSE}）はお好きなだけどうぞ。平日はお一人様1ドリンクです。')),
         (t('可以帶電腦工作嗎？', 'Can I work here on my laptop?', 'パソコンで仕事をしてもいいですか？'),
-         t('可以。店內有插座與 Wi-Fi，白天的座位歡迎工作。', 'Yes. There are power outlets and Wi-Fi, and the daytime seats welcome work.', 'はい。電源と Wi-Fi があり、昼の席は仕事にお使いいただけます。')),
+         t('可以。店內有插座與 Wi-Fi，內用不限時，歡迎帶電腦工作。', 'Yes. There are power outlets and Wi-Fi, no time limit, and laptops are welcome.', 'はい。電源と Wi-Fi があり、時間制限もないのでパソコン作業も歓迎です。')),
         (t('怎麼訂位？', 'How do I book?', '予約はどうすればいいですか？'),
          t('請用線上訂位；也歡迎直接來。', 'Use the online reservation page; walk-ins are welcome too.', 'オンライン予約をご利用ください。直接のご来店も歓迎です。')),
     ]
@@ -342,7 +344,7 @@ def atc_jsonld(faqs, desc):
         'acceptsReservations': www('/reserve'),
         'hasMenu': page_url(b['host'], L) + '#menu',
         'amenityFeature': [{'@type': 'LocationFeatureSpecification', 'name': n, 'value': True}
-                           for n in t(['Wi-Fi', '電源插座', '外帶窗口'], ['Wi-Fi', 'Power outlets', 'Takeaway window'], ['Wi-Fi', '電源', 'テイクアウト窓口'])],
+                           for n in t(['Wi-Fi', '電源插座', '外帶窗口', '不限時'], ['Wi-Fi', 'Power outlets', 'Takeaway window', 'No time limit'], ['Wi-Fi', '電源', 'テイクアウト窓口', '時間制限なし'])],
         'sameAs': [f"https://www.instagram.com/{b['ig']}"],
         'parentOrganization': {'@type': 'Organization', 'name': PARENT[L], 'url': WWW + '/'},
     }
@@ -356,22 +358,22 @@ def page_cafe():
     s = 'at-cafe'
     reserve = www('/reserve')
     book = t('訂位', 'Book a table', '予約する')
-    desc = t(f'在咖啡（at cafe）是台北車站旁的早午餐與咖啡店：早午餐套餐 NT$200–400、美式 NT$150、拿鐵 NT$180。每日 {ATC_OPEN}–{ATC_CLOSE}（餐點最後點餐 17:00、飲品最後點餐 17:30），重慶南路一段 11 號、站前地下街 Z10 出口斜對面。可外帶。',
-             f'at cafe is a brunch and coffee spot by Taipei Main Station: brunch sets NT$200–400, Americano NT$150, latte NT$180. Open daily {ATC_OPEN}–{ATC_CLOSE} (food last order 17:00, drinks 17:30) at No. 11, Sec. 1, Chongqing S. Rd, across from Exit Z10. Takeaway available.',
-             f'在咖啡（at cafe）は台北駅そばのブランチとコーヒーの店。ブランチセット NT$200–400、アメリカーノ NT$150、カフェラテ NT$180。毎日 {ATC_OPEN}–{ATC_CLOSE}（フードのラストオーダー17:00、ドリンク17:30）、重慶南路一段11号・駅前地下街 Z10 出口の斜め向かい。テイクアウト可。')
+    desc = t(f'在咖啡（at cafe）是台北車站旁的早午餐與咖啡店：早午餐套餐 NT$200–400、美式 NT$150、拿鐵 NT$180。每日 {ATC_OPEN}–{ATC_CLOSE}（餐點最後點餐 17:00、飲品最後點餐 17:30），重慶南路一段 11 號、站前地下街 Z10 出口斜對面。內用不限時，平日低消一杯飲料；可外帶。',
+             f'at cafe is a brunch and coffee spot by Taipei Main Station: brunch sets NT$200–400, Americano NT$150, latte NT$180. Open daily {ATC_OPEN}–{ATC_CLOSE} (food last order 17:00, drinks 17:30) at No. 11, Sec. 1, Chongqing S. Rd, across from Exit Z10. No time limit for dine-in; one drink per person on weekdays. Takeaway available.',
+             f'在咖啡（at cafe）は台北駅そばのブランチとコーヒーの店。ブランチセット NT$200–400、アメリカーノ NT$150、カフェラテ NT$180。毎日 {ATC_OPEN}–{ATC_CLOSE}（フードのラストオーダー17:00、ドリンク17:30）、重慶南路一段11号・駅前地下街 Z10 出口の斜め向かい。店内利用は時間制限なし、平日はお一人様1ドリンク。テイクアウト可。')
     faqs = atc_faq_items()
-    out = head(s, t('在咖啡 at cafe｜台北車站早午餐與咖啡・Z10 出口斜對面',
-                    'at cafe | Brunch & coffee by Taipei Main Station (Exit Z10)',
-                    '在咖啡 at cafe｜台北駅のブランチとコーヒー・Z10 出口すぐ'), desc, ld_override=atc_jsonld(faqs, desc))
+    out = head(s, t('在咖啡 at cafe｜台北車站不限時咖啡廳・早午餐與咖啡・Z10 出口斜對面',
+                    'at cafe | No-time-limit café by Taipei Main Station: brunch & coffee (Exit Z10)',
+                    '在咖啡 at cafe｜台北駅の時間制限なしカフェ・ブランチとコーヒー・Z10 出口すぐ'), desc, ld_override=atc_jsonld(faqs, desc))
     out += header(s, [(t('早午餐', 'Brunch', 'ブランチ'), '#brunch'), (t('咖啡', 'Coffee', 'コーヒー'), '#coffee'), (t('空間', 'The room', '店内'), '#room'),
                       (t('菜單', 'Menu', 'メニュー'), '#menu'), (t('怎麼來', 'Visit', 'アクセス'), '#visit'), (book, reserve)])
 
-    lede = t('早上八點開門。<span class="nb">一份早午餐、一杯咖啡，</span><span class="nb">坐下來慢慢吃，或拿了就走。</span>',
-             'Open at eight. A plate of brunch and a cup of coffee: sit down and take your time, or grab it and go.',
-             '朝8時オープン。ブランチとコーヒーを一杯。ゆっくり座っても、持ち帰っても。')
+    lede = t('早上九點開門，<span class="nb">內用不限時。</span><span class="nb">一份早午餐、一杯咖啡，</span><span class="nb">坐多久都可以，或拿了就走。</span>',
+             'Open at nine, with no time limit. A plate of brunch and a cup of coffee: stay as long as you like, or grab it and go.',
+             '朝9時オープン、時間制限なし。ブランチとコーヒーを一杯。好きなだけ座っても、持ち帰っても。')
     hero_facts = [(f'{ATC_OPEN}–{ATC_CLOSE}', t('每日・餐點最後點餐 17:00／飲品 17:30', 'Daily · food last order 17:00 / drinks 17:30', '毎日・フードLO 17:00／ドリンク17:30')),
                   ('NT$200+', t('早午餐套餐含飲品', 'Brunch set with a drink', 'ドリンク付きブランチセット')),
-                  ('NT$150', t('美式咖啡', 'Americano', 'アメリカーノ'))]
+                  (t('不限時', 'No time limit', '時間制限なし'), t('平日低消一杯飲料', 'One drink each on weekdays', '平日はお一人様1ドリンク'))]
     hf = ''.join(f'<li><b>{e(k)}</b><span>{e(v)}</span></li>' for k, v in hero_facts)
     # 首圖桌機是燻鮭魚開放式三明治、手機（≤760px <source>）是生火腿酪梨優格碗，alt 寫兩者共通的描述
     brunch_alt = t('在咖啡的早午餐實拍：燻鮭魚開放式三明治、生火腿酪梨優格碗', 'Brunch at at cafe: smoked salmon open sandwich and prosciutto avocado yogurt bowl', '在咖啡のブランチ：スモークサーモンのオープンサンド、生ハムとアボカドのヨーグルトボウル')
@@ -393,9 +395,9 @@ def page_cafe():
     # —— 在咖啡是什麼樣的店（GEO：開門見山的定義句＋結構化事實，答案引擎可直接引用） ——
     facts_rows = [
         (t('地址', 'Address', '住所'), t('台北市中正區重慶南路一段 11 號（台北車站站前地下街 Z10 出口斜對面）', 'No. 11, Sec. 1, Chongqing S. Rd., Zhongzheng Dist., Taipei (across from Exit Z10, Taipei Main Station underground mall)', '台北市中正区重慶南路一段11号（台北駅地下街 Z10 出口の斜め向かい）')),
-        (t('營業時間', 'Hours', '営業時間'), t(f'每日 {ATC_OPEN}–{ATC_CLOSE}，16:30 最後點餐', f'Daily {ATC_OPEN}–{ATC_CLOSE}, last orders 16:30', f'毎日 {ATC_OPEN}–{ATC_CLOSE}、ラストオーダー 16:30')),
+        (t('營業時間', 'Hours', '営業時間'), t(f'每日 {ATC_OPEN}–{ATC_CLOSE}，餐點最後點餐 17:00、飲品 17:30', f'Daily {ATC_OPEN}–{ATC_CLOSE}; food last order 17:00, drinks 17:30', f'毎日 {ATC_OPEN}–{ATC_CLOSE}、フードLO 17:00・ドリンク 17:30')),
         (t('價位', 'Prices', '価格帯'), t('早午餐套餐 NT$200–400（含飲品）・咖啡 NT$150–190・單點 NT$80–320', 'Brunch sets NT$200–400 incl. drink · coffee NT$150–190 · à la carte NT$80–320', 'ブランチセット NT$200–400（ドリンク付き）・コーヒー NT$150–190・単品 NT$80–320')),
-        (t('內用', 'Dine-in', '店内利用'), t('平日每人一杯飲料，週六日每人低消 NT$300', 'One drink each on weekdays, NT$300 minimum each on weekends', '平日はお一人様1ドリンク、土日はお一人様 NT$300 から')),
+        (t('內用', 'Dine-in', '店内利用'), t('不限時；平日低消每人一杯飲料，週六日每人低消 NT$300', 'No time limit; one drink each on weekdays, NT$300 minimum each on weekends', '時間制限なし。平日はお一人様1ドリンク、土日はお一人様 NT$300 から')),
         (t('外帶', 'Takeaway', 'テイクアウト'), t('飲品與餐點都可外帶（外帶窗口）', 'Drinks and food to go from the takeaway window', 'ドリンク・料理ともにテイクアウト窓口で')),
     ]
     about_p = t('在咖啡（at cafe）是台北車站旁的早午餐與咖啡店。開放式三明治、可頌、貝果、飯糰與冷蕎麥麵，配一杯義式咖啡；白天也是許多人約人碰面、帶電腦工作的地方。',
