@@ -662,7 +662,7 @@ def sq_rates():
     rows += f'<tr><th scope="row">{t("全區", "Whole space", "全体")}</th><td>{t("A–E 與電話亭", "A–E and phone booth", "A–E と電話ブース")}</td><td>44–59{per}</td><td>NT$6,400</td></tr>'
     notes = [t('價格以每時段（2 小時）計，含投影或螢幕、Wi-Fi 與自助吧基本飲品；不因人數加價。', 'Prices are per two-hour slot and include the screen, Wi-Fi and basic drinks from the self-serve bar; no per-person charge.', '料金は1枠（2時間）ごと。スクリーン、Wi-Fi、セルフサービスバーの基本ドリンク込み。人数による追加料金はありません。'),
              t('包場享在咖啡、三點水餐飲 9\u00a0折，不與會員折扣併用。', 'Hirers get 10% off food and drinks at at cafe and 3AM, not combined with member discounts.', '貸切利用者は在咖啡・三點水の飲食が10%オフ（会員割引との併用不可）。'),
-             t('24 小時都可包場，各區域與組合不限時段。', 'Available around the clock for any area or combination.', '24時間いつでも、どのエリア・組合せでも貸切できます。'),
+             t('平日 09:00–18:00 只開放單區與 A+B；三區以上與全區限平日 18:00 後與假日。', 'Weekdays 09:00–18:00: single areas and A+B only. Three or more areas, or the whole space, on weekday evenings after 18:00 and weekends.', '平日 09:00–18:00 は単独エリアと A+B のみ。3エリア以上・全体は平日18:00以降と休日。'),
              t('人數為有桌椅的人數，實際上限以場地核定為準。', 'Capacities are seated with tables; the actual limit follows the approved occupancy.', '人数はテーブル・椅子ありの目安。上限は認可された収容人数に従います。')]
     return (f'<table class="sq-rates"><caption>{t("包場場地費（每時段 2 小時）", "Venue hire fees (per two-hour slot)", "貸切料金（1枠2時間）")}</caption>'
             f'<thead><tr><th scope="col">{t("區域", "Area", "エリア")}</th><th scope="col">{t("特色", "Features", "特徴")}</th><th scope="col">{t("人數", "Seats", "人数")}</th><th scope="col">{t("場地費", "Fee", "料金")}</th></tr></thead>'
@@ -795,7 +795,7 @@ def sq_book():
         mf = ' data-member-free' if free else ''
         opts.append(f'<option value="{code}" data-fee="{fee}" data-max="{mx}" data-name="{e(name)}"{mf}>{e(name)}｜{e(price)}｜{e(cap)}</option>')
         note = ('<br>' + e(t('會員免費', 'free for members', '会員無料'))) if free else ''
-    starts = ''.join(f'<option value="{h:02d}:00"{" selected" if h == 14 else ""}>{h:02d}:00</option>' for h in range(0, 24))  # KK 11/24：等等空間 24 小時都可包場
+    starts = ''.join(f'<option value="{h:02d}:00"{" selected" if h == 14 else ""}>{h:02d}:00</option>' for h in range(8, 24))  # 等等空間包場開始時間 08–23（KK 11/24 確認維持時段限制）
     slots = ''.join(f'<option value="{n}">{e(t(f"{n} 個時段（{n * 2} 小時）", f"{n} slot{"s" if n > 1 else ""} ({n * 2} hours)", f"{n}枠（{n * 2}時間）"))}</option>' for n in range(1, 5))
     intro = t('選區域、日期與時段，登入言文字會員後送出並付款；價目見上方包場場地費。付款後由團隊確認檔期。',
               'Pick an area, date and slots, sign in with your emoji account, then submit and pay. Fees are listed above; we confirm the booking after payment.',

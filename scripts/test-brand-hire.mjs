@@ -38,7 +38,6 @@ test('約書旅交誼廳：24 小時都可包場（KK 11/24）', () => {
   for (const [a, b] of [['2099-06-22T06:00:00.000Z', '2099-06-22T09:00:00.000Z'], ['2099-06-23T10:00:00.000Z', '2099-06-23T13:00:00.000Z'], ['2099-06-22T17:00:00.000Z', '2099-06-22T20:00:00.000Z']])
     assert.equal(restBookHireError(a, b), null);
   assert.ok(app({ zone: 'LOUNGE', starts_at: '2099-06-23T19:00', ends_at: '2099-06-23T22:00' }).value, '週二晚上也可');
-  assert.ok(app({ zone: 'A', venue: '3F', starts_at: '2099-06-22T02:00', ends_at: '2099-06-22T04:00' }).value, '等等空間凌晨也可');
 });
 
 for (const dir of ['', 'en/', 'ja/']) {
