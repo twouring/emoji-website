@@ -34,12 +34,11 @@ test('申請：zone 決定空間與場地費；venue 不一致擋下', () => {
   assert.ok(app({ zone: 'CAFE', visibility: 'public', registration_mode: 'native', starts_at: '2099-06-22T09:00', ends_at: '2099-06-22T11:00' }).error, '只限包場');
 });
 
-test('約書旅交誼廳：平日白天與週二 19–21 不出租', () => {
-  assert.match(restBookHireError('2099-06-22T06:00:00.000Z', '2099-06-22T08:00:00.000Z'), /平日只接 18:00 後/); // 週一 14:00
-  assert.equal(restBookHireError('2099-06-22T10:00:00.000Z', '2099-06-22T12:00:00.000Z'), null);                // 週一 18:00
-  assert.match(restBookHireError('2099-06-23T10:00:00.000Z', '2099-06-23T12:00:00.000Z'), /週二小聚/);          // 週二 18–20
-  assert.equal(restBookHireError('2099-06-23T13:00:00.000Z', '2099-06-23T15:00:00.000Z'), null);                // 週二 21–23
-  assert.equal(restBookHireError('2099-06-20T02:00:00.000Z', '2099-06-20T04:00:00.000Z'), null);                // 週六 10:00
+test('約書旅交誼廳：24 小時都可包場（KK 11/24）', () => {
+  for (const [a, b] of [['2099-06-22T06:00:00.000Z', '2099-06-22T09:00:00.000Z'], ['2099-06-23T10:00:00.000Z', '2099-06-23T13:00:00.000Z'], ['2099-06-22T17:00:00.000Z', '2099-06-22T20:00:00.000Z']])
+    assert.equal(restBookHireError(a, b), null);
+  assert.ok(app({ zone: 'LOUNGE', starts_at: '2099-06-23T19:00', ends_at: '2099-06-23T22:00' }).value, '週二晚上也可');
+  assert.ok(app({ zone: 'A', venue: '3F', starts_at: '2099-06-22T02:00', ends_at: '2099-06-22T04:00' }).value, '等等空間凌晨也可');
 });
 
 for (const dir of ['', 'en/', 'ja/']) {

@@ -662,7 +662,7 @@ def sq_rates():
     rows += f'<tr><th scope="row">{t("全區", "Whole space", "全体")}</th><td>{t("A–E 與電話亭", "A–E and phone booth", "A–E と電話ブース")}</td><td>44–59{per}</td><td>NT$6,400</td></tr>'
     notes = [t('價格以每時段（2 小時）計，含投影或螢幕、Wi-Fi 與自助吧基本飲品；不因人數加價。', 'Prices are per two-hour slot and include the screen, Wi-Fi and basic drinks from the self-serve bar; no per-person charge.', '料金は1枠（2時間）ごと。スクリーン、Wi-Fi、セルフサービスバーの基本ドリンク込み。人数による追加料金はありません。'),
              t('包場享在咖啡、三點水餐飲 9\u00a0折，不與會員折扣併用。', 'Hirers get 10% off food and drinks at at cafe and 3AM, not combined with member discounts.', '貸切利用者は在咖啡・三點水の飲食が10%オフ（会員割引との併用不可）。'),
-             t('平日 09:00–18:00 只開放單區與 A+B；三區以上與全區限平日 18:00 後與假日。', 'Weekdays 09:00–18:00: single areas and A+B only. Three or more areas, or the whole space, on weekday evenings after 18:00 and weekends.', '平日 09:00–18:00 は単独エリアと A+B のみ。3エリア以上・全体は平日18:00以降と休日。'),
+             t('24 小時都可包場，各區域與組合不限時段。', 'Available around the clock for any area or combination.', '24時間いつでも、どのエリア・組合せでも貸切できます。'),
              t('人數為有桌椅的人數，實際上限以場地核定為準。', 'Capacities are seated with tables; the actual limit follows the approved occupancy.', '人数はテーブル・椅子ありの目安。上限は認可された収容人数に従います。')]
     return (f'<table class="sq-rates"><caption>{t("包場場地費（每時段 2 小時）", "Venue hire fees (per two-hour slot)", "貸切料金（1枠2時間）")}</caption>'
             f'<thead><tr><th scope="col">{t("區域", "Area", "エリア")}</th><th scope="col">{t("特色", "Features", "特徴")}</th><th scope="col">{t("人數", "Seats", "人数")}</th><th scope="col">{t("場地費", "Fee", "料金")}</th></tr></thead>'
@@ -795,7 +795,7 @@ def sq_book():
         mf = ' data-member-free' if free else ''
         opts.append(f'<option value="{code}" data-fee="{fee}" data-max="{mx}" data-name="{e(name)}"{mf}>{e(name)}｜{e(price)}｜{e(cap)}</option>')
         note = ('<br>' + e(t('會員免費', 'free for members', '会員無料'))) if free else ''
-    starts = ''.join(f'<option value="{h:02d}:00"{" selected" if h == 14 else ""}>{h:02d}:00</option>' for h in range(8, 24))
+    starts = ''.join(f'<option value="{h:02d}:00"{" selected" if h == 14 else ""}>{h:02d}:00</option>' for h in range(0, 24))  # KK 11/24：等等空間 24 小時都可包場
     slots = ''.join(f'<option value="{n}">{e(t(f"{n} 個時段（{n * 2} 小時）", f"{n} slot{"s" if n > 1 else ""} ({n * 2} hours)", f"{n}枠（{n * 2}時間）"))}</option>' for n in range(1, 5))
     intro = t('選區域、日期與時段，登入言文字會員後送出並付款；價目見上方包場場地費。付款後由團隊確認檔期。',
               'Pick an area, date and slots, sign in with your emoji account, then submit and pay. Fees are listed above; we confirm the booking after payment.',
@@ -867,7 +867,7 @@ def hire_form():
     name = t(zh, en, ja)
     hrs = HIRE_HOURS.get(CUR, 2)
     opt = f'<option value="{zone}" data-fee="{fee}" data-max="{mx}" data-hours="{hrs}" data-name="{e(name)}">{e(name)}</option>'  # 價格與人數上限寫在合計列與說明
-    first = 18 if CUR == 'rest-book' else min(hours) + 1
+    first = 18 if CUR == 'rest-book' else min(hours) + 1  # 預設選項；約書旅 24 小時都可選
     starts = ''.join(f'<option value="{h:02d}:00"{" selected" if h == first else ""}>{h:02d}:00</option>' for h in hours)
     slot_opts = []
     for n in range(1, 5):
@@ -985,10 +985,10 @@ def page_book():
              t('23:00 後查驗證件，限 18 歲以上。', 'ID is checked after 23:00; 18 and over only.', '23:00以降は身分証を確認します。18歳以上のみ。'),
              t('手沖咖啡、零食飲料吧、淋浴、漫畫雜誌、桌遊與 Switch 都包含在內；毛巾等備品可現場加購，書籍每本標價。', 'Pour-over coffee, the snack and drinks bar, showers, manga, magazines, board games and the Switch are all included; towels and toiletries can be bought on site, and books are priced individually.', 'ハンドドリップコーヒー、スナック＆ドリンクバー、シャワー、マンガ・雑誌、ボードゲーム、Switch は料金に含まれます。タオルなどの備品は現地で購入でき、本は一冊ごとに価格表示。')]
     rules_html = ''.join(f'<li>{e(x)}</li>' for x in rules)
-    # 交誼廳包場：KK 2026-11-24 改每時段 3 小時 NT$5,000（原 11/04 每 2 小時 NT$2,000）；平日 18:00 後與假日；週二 me2 時段不出租。
-    hire_rows = [(t('平日 18:00 後、假日', 'Weekday evenings after 18:00, weekends', '平日18:00以降・休日'), 'NT$5,000'), (t('有桌椅人數', 'Seated', '着席人数'), t('約 10 人', 'About 10', '約10名'))]
+    # 交誼廳包場：KK 2026-11-24 改每時段 3 小時 NT$5,000（原 11/04 每 2 小時 NT$2,000），24 小時都可包場。
+    hire_rows = [(t('24 小時，平日假日同價', '24 hours, same price every day', '24時間・平日休日同料金'), 'NT$5,000'), (t('有桌椅人數', 'Seated', '着席人数'), t('約 10 人', 'About 10', '約10名'))]
     hire_rules = ''.join(f'<li>{e(x)}</li>' for x in [
-        t('平日、假日同價；平日白天與每週二 19:00–21:00（週二小聚）不出租。', 'Same price on weekdays and weekends. Not available on weekday daytimes or Tuesdays 19:00–21:00 (our weekly meetup).', '平日・休日同料金。平日の日中と毎週火曜 19:00–21:00（週例の集まり）は貸切不可。'),
+        t('24 小時都可包場，平日、假日同價。', 'Available around the clock, same price on weekdays and weekends.', '24時間いつでも貸切可。平日・休日同料金。'),
         t('只租交誼廳；讀書席、靜讀室與淋浴不含在內。擴音使用到 22:00。', 'The lounge only; study seats, quiet rooms and showers are not included. Amplified sound until 22:00.', 'ラウンジのみ。読書席、静読室、シャワーは含まれません。音響の使用は22:00まで。'),
         t('包場享在咖啡、三點水餐飲 9\u00a0折。', '10% off food and drinks at at cafe and 3AM.', '在咖啡・三點水の飲食が10%オフ。'),
         t('線上付款後由團隊確認檔期。', 'Pay online and we confirm by email.', 'オンラインでお支払い後、メールで日程を確定します。'),
